@@ -267,3 +267,29 @@ void *func_02073470(int count, int size, int cookie,
     return base;
 }
 }
+
+extern "C" {
+/* __aeabi_idiv: the EABI signed-divide helper; host has native idiv */
+int __aeabi_idiv(int n, int d) { return d ? n / d : 0; }
+void *_ZTV18MovingCylinderClsn[12];
+
+/* gate-10 BSS ring (spawn/camera/collision-config globals; zeros are the
+   pre-scene defaults) */
+short SUBLEVEL_LEVEL_TABLE[64];
+int data_020991d8[8], data_02099264[8], data_02099274[8];
+int data_02099338[8], data_02099348[8], data_02099358[8], data_02099368[8];
+int data_020994cc[8], data_02099fa4[4], data_02099fa8[4], data_02099fac[4];
+int data_0209b008[8], data_0209b478[8], data_0209b484[4], data_0209b488[4];
+int data_0209b498[8], data_0209b53c[8], data_0209d574[8];
+int data_0209f310[8], data_0209f340[8], data_020a0f10[8], data_020a4bec[8];
+}
+
+extern "C" {
+/* ModelAnim2's two tables: the ctor/dtors only STORE these pointers; any
+   virtual dispatch through them lands on a null slot and the fault probe
+   names it. Filled at runtime if a gate ever dispatches ModelAnim2. */
+void *_ZTV10ModelAnim2[12];
+void *VTable_Animation_ModelAnim2Thunk[12];
+void *data_020a5bb8;            /* table root pointer (func_02050xxx family) */
+int data_0209f5c0[8], data_020ad560[8];
+}

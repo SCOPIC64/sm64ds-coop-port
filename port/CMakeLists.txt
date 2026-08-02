@@ -457,7 +457,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES} ${SLICE10_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} "${ROMDATA_C}")

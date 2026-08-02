@@ -30,6 +30,39 @@ TABLES = [
 ]
 
 
+# Initialized arm9 data referenced by name: address + size resolve from
+# config/arm9/symbols.txt (size = delta to the next symbol, the ovdata.py
+# convention). Emitted as aligned byte arrays so any struct view works.
+NAMED = [
+    "data_0208a178", "data_0208c178",
+    "data_0208e504", "data_0208e538", "data_0208e548", "data_0208e54c",
+    "data_0208e55c", "data_0208e56c", "data_0208e57c", "data_0208e58c",
+    "data_0208e59c", "data_0208e5b0", "data_0208e5c0", "data_0208e5d4",
+    "data_0208e5e4", "data_0208e5f0", "data_0208e5fc", "data_0208e608",
+    "data_0208e610", "data_0208e624", "data_0208e634", "data_0208e648",
+    "data_02092120",
+    "data_02082178", "data_02090e80", "data_020914a0",
+    "data_02092584", "data_02092654", "data_02092668", "data_0208e500", "data_02086758", "data_02086a58", "data_0208e430",
+]
+
+
+def named_entries(root):
+    import re
+    syms = []
+    for line in (root / "config/arm9/symbols.txt").read_text().splitlines():
+        m = re.search(r"^(\S+)\s+kind:\S+\s+addr:0x([0-9a-fA-F]+)", line)
+        if m:
+            syms.append((int(m.group(2), 16), m.group(1)))
+    syms.sort()
+    addr_of = {n: a for a, n in syms}
+    out = []
+    for name in NAMED:
+        a = addr_of[name]
+        nxt = next((s for s, _ in syms if s > a), a + 4)
+        out.append((name, a, max(4, nxt - a)))
+    return out
+
+
 def main():
     root = pathlib.Path(__file__).resolve().parents[2]
     img = root / "extracted/arm9_dec.bin"
@@ -61,6 +94,14 @@ def main():
         body = ", ".join(str(v) for v in vals)
         lines.append(f"{ctype} {name}[{len(vals)}] = {{ {body} }};")
         lines.append("")
+    for name, addr, size in named_entries(root):
+        if addr + size > BSS_START:
+            size = BSS_START - addr
+        blob = data[addr - BASE:addr - BASE + size]
+        body = ",".join(str(b) for b in blob)
+        lines.append(f"__declspec(align(8)) unsigned char {name}[{size}] = "
+                     f"{{ {body} }};")
+    lines.append("")
     out_path.write_text("\n".join(lines), encoding="ascii")
     print(f"romdata -> {out_path}")
 
