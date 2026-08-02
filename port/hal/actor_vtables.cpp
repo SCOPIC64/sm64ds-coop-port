@@ -215,3 +215,55 @@ extern "C" {
 int func_0204424c(char *c);
 int hal_f0204424c(char *c) { return func_0204424c(c); }
 }
+
+extern "C" {
+/* MSL runtime array construction (asm on the DS, with EH frames the host
+   does not need): apply the ctor forward across n elements. */
+void func_020733a8(void *base, int n, int stride,
+                   void (*ctor)(void *), void (*dtor)(void *))
+{
+    (void)dtor;
+    char *p = (char *)base;
+    for (int i = 0; i < n; ++i, p += stride)
+        ctor(p);
+}
+}
+
+// ---- gate-10 storage and stubs --------------------------------------------
+extern "C" {
+/* SOUND: stubbed silent for the walking campaign (the SPU is its own
+   project phase). The calls are fire-and-forget on the DS. */
+void _ZN5Sound13PlayCharVoiceEjjRK7Vector3(unsigned, unsigned, const void *) {}
+void _ZN5Sound9PlayBank0EjRK7Vector3(unsigned, const void *) {}
+
+void *_ZTV15MaterialChanger[8];
+void *_ZTV15TextureSequence[8];
+void *_ZTV25MovingCylinderClsnWithPos[12];
+int VT0[20];    /* an unresolved shared-header vtable alias in ov002 TUs */
+
+unsigned char data_02092128[0x40];
+int data_0209f318[8];
+unsigned short data_0209f49c, data_0209f49e, data_0209f4a0;
+unsigned short data_0209f4ac, data_0209f4ae;
+int data_020a0e40[8];
+}
+
+extern "C" {
+/* MSL array new-with-ctor (asm on the DS, EH machinery the host skips):
+   allocate count*size + an 8-byte cookie, record the count, construct
+   forward. Layout mirrors the DS cookie so array-delete agrees. */
+void *func_0203cc0c(unsigned size);
+void *func_02073470(int count, int size, int cookie,
+                    void (*ctor)(void *), void (*dtor)(void *))
+{
+    (void)dtor;
+    char *raw = (char *)func_0203cc0c(count * size + cookie);
+    if (!raw) return 0;
+    ((int *)raw)[0] = size;
+    ((int *)raw)[1] = count;
+    char *base = raw + cookie;
+    for (int i = 0; i < count; ++i)
+        if (ctor) ctor(base + i * size);
+    return base;
+}
+}

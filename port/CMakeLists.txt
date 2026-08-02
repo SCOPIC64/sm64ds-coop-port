@@ -433,3 +433,41 @@ target_compile_definitions(smoke_actor PRIVATE SM64DS_PLATFORM_PC
 if(MSVC)
     target_compile_options(smoke_actor PRIVATE /wd4311 /wd4312 /wd4068)
 endif()
+
+# Gate 10: Player spawns and stands (the walking campaign).
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
+set(SLICE10_SOURCES "")
+foreach(line IN LISTS SLICE10_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE10_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+set(OV002DATA_C "${CMAKE_BINARY_DIR}/host-src/ov002_data.c")
+add_custom_command(OUTPUT "${OV002DATA_C}"
+    COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ov002
+            "${OV002DATA_C}" --from-list "${CMAKE_CURRENT_SOURCE_DIR}/ov002_syms.txt"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/ov002_syms.txt"
+    COMMENT "ovdata ov002")
+
+add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}"
+    hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
+    hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp
+    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
+    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES} ${SLICE10_SOURCES}
+    ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} "${ROMDATA_C}")
+target_include_directories(smoke_player PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(smoke_player PRIVATE ntr)
+target_compile_definitions(smoke_player PRIVATE SM64DS_PLATFORM_PC
+    PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}")
+if(MSVC)
+    target_compile_options(smoke_player PRIVATE /wd4311 /wd4312 /wd4068)
+endif()
+
