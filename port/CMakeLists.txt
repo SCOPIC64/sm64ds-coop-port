@@ -376,7 +376,7 @@ endif()
 
 add_executable(smoke_fs tests/smoke_fs.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
-    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES})
+    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} "${ROMDATA_C}")
 target_include_directories(smoke_fs PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")

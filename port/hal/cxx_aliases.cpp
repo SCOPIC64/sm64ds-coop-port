@@ -140,6 +140,22 @@ int hal_anim_willhit(void *self, int f);
 int _ZNK9Animation12WillHitFrameEi(void *self, int f)
 { return hal_anim_willhit(self, f); }
 
+/* SharedFilePtr construct veneers: on the DS these pass fileID in r1
+   through a tail call the C decl never names (the ride-through catalog).
+   Host spells out both args and routes to the HAL Construct. */
+void *_ZN13SharedFilePtr9ConstructEj(void *self, unsigned id);
+int func_02017acc(void *self, unsigned id)
+{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+int SharedFilePtr_Construct_TexSeq(void *self, unsigned id)
+{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+int func_02017ab4(int x) { return x; }   /* static-dtor veneer: no-op */
+int func_02017b4c(void *self, unsigned id)
+{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+int func_02017e34(int x) { return x; }   /* fileptr dtor body: host no-op */
+void SharedFilePtr_Destruct_TexSeq(void) {}
+void SharedFilePtr_Destruct_Anim(void) {}
+void *data_020aa3f0;                     /* MSL global-dtor chain head */
+
 /* crash-screen-only ITCM entry; trap keeps it honest if ever reached */
 void func_01ffdd98(int a) { (void)a; __debugbreak(); }
 
@@ -161,6 +177,12 @@ int data_0209a6c8, data_0209a6cc, data_0209a6d0, data_0209a6d4, data_0209a6d8;
 int data_0209a6dc, data_0209a6e0, data_0209a6e4, data_0209a6e8, data_0209a6ec;
 int data_0209a6f0, data_0209a6f4, data_0209a6f8;
 unsigned char data_020a0e98; int data_020a4d6c;
+/* ov006 (cutscene overlay) fileptrs St_LevelEnter_Main releases; zeroed
+   stand-ins -- Release guards on numRefs 0 */
+unsigned char data_ov006_02140330[8], data_ov006_02140338[8];
+unsigned char data_ov089_02132894[16], data_ov089_021328b4[16];
+int data_0209b48c, data_0209b4a0[4], data_0209b4ac;
+int data_020a4c48, data_020a4c4c, data_020a4c54[2], data_020a4c5c;
 /* particle system tracker block (refs reach +0x750) */
 __declspec(align(8)) unsigned char PARTICLE_SYS_TRACKER[0x1000];
 int data_0209ee74[4], data_0209f32c[4], data_0209b4a4[4];
@@ -205,3 +227,29 @@ unsigned char *NestedHeapIterator::Next(HeapAllocator *h)
 #pragma comment(linker, "/alternatename:?func_02022d00@@YAIIIHHHPAX@Z=_func_02022d00")
 #pragma comment(linker, "/alternatename:?NewSimple@System@Particle@@SAXIHHH@Z=__ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_")
 #pragma comment(linker, "/alternatename:?PlayBank0@Sound@@SAXIABUVector3@@@Z=__ZN5Sound9PlayBank0EjRK7Vector3")
+#pragma comment(linker, "/alternatename:?data_02082214@@3PAFA=_data_02082214")
+#pragma comment(linker, "/alternatename:?data_0209f264@@3EA=_data_0209f264")
+#pragma comment(linker, "/alternatename:?data_0209f2f8@@3CA=_data_0209f2f8")
+#pragma comment(linker, "/alternatename:?data_0209f2fc@@3EA=_data_0209f2fc")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a7e8@@3PAIA=_data_ov002_0210a7e8")
+#pragma comment(linker, "/alternatename:?func_ov002_020bdd2c@@YAXPAX@Z=_func_ov002_020bdd2c")
+
+/* Sound sequence-info lookup: sound system deferred, no entry found */
+struct SeqEntry;
+struct Sound {
+    struct InfoSequenceEntry { static SeqEntry *GetWithID(unsigned id); };
+};
+SeqEntry *Sound::InfoSequenceEntry::GetWithID(unsigned) { return 0; }
+
+/* Heap::_Deallocate is a DS tail-call veneer to Deallocate; operator delete
+   dispatches it as a method. Same-shadow definition forwarding to the HAL
+   dealloc keeps the mangling the reference expects. */
+struct Heap { void _Deallocate(void *ptr); };
+extern "C" void _ZN4Heap10DeallocateEPv(void *self, void *ptr);
+void Heap::_Deallocate(void *ptr) { _ZN4Heap10DeallocateEPv(this, ptr); }
+
+/* RaycastGround::DetectClsn is defined against a local shadow in its own
+   TU; mirror the shadow (no real header here) so the manglings agree. */
+class RaycastGround { public: int DetectClsn(); };
+extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
+{ return ((RaycastGround *)self)->DetectClsn(); }

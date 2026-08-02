@@ -16,3 +16,4 @@ src/_ZN9Animation7AdvanceEv.cpp
 src/_ZN9Animation8FinishedEv.cpp
 src/_ZN9Animation8GetFlagsEv.cpp
 src/_ZN5Model9Virtual10ER9Matrix4x3.cpp
+src/_ZN9ModelAnim9Virtual18EjPK7Vector3.cpp

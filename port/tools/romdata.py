@@ -42,7 +42,9 @@ NAMED = [
     "data_0208e610", "data_0208e624", "data_0208e634", "data_0208e648",
     "data_02092120",
     "data_02082178", "data_02090e80", "data_020914a0",
-    "data_02092584", "data_02092654", "data_02092668", "data_0208e500", "data_02086758", "data_02086a58", "data_0208e430",
+    "data_02092584", "data_02092654", "data_02092668", "data_0208e500", "data_02086758", "data_02086a58", "data_0208e430", "data_02086b58",
+    "data_0208e434", "data_0208e438", "data_0208e43c", "data_0208e440",
+    "data_0208e444", "data_02092124", "data_02086384",
 ]
 
 
@@ -101,6 +103,26 @@ def main():
         body = ",".join(str(b) for b in blob)
         lines.append(f"__declspec(align(8)) unsigned char {name}[{size}] = "
                      f"{{ {body} }};")
+    lines.append("")
+
+    # The archive-mount table at data_0208ecf4: 13 entries of
+    # {ptr, heap, u16 idBase, u16 idEnd, char *shortName, char *narcPath}.
+    # Interior file IDs (>= 0x8000) resolve as narc[id - idBase]; the fs
+    # seam consumes this host-shaped copy (see port/hal/fs.cpp).
+    lines.append("struct port_arc_entry { unsigned short base, end;"
+                 " const char *narc; };")
+    ents = []
+    off = 0x0208ECF4 - BASE
+    for i in range(13):
+        blob = data[off + i*0x14: off + (i+1)*0x14]
+        base_id, end_id = struct.unpack_from("<HH", blob, 8)
+        path_ptr = struct.unpack_from("<I", blob, 0x10)[0]
+        p = data[path_ptr - BASE:path_ptr - BASE + 64].split(b"\0")[0]
+        ents.append('    { %d, %d, "%s" },' % (base_id, end_id,
+                                               p.decode("ascii").lstrip("/")))
+    lines.append("struct port_arc_entry port_archive_map[13] = {")
+    lines.extend(ents)
+    lines.append("};")
     lines.append("")
     out_path.write_text("\n".join(lines), encoding="ascii")
     print(f"romdata -> {out_path}")

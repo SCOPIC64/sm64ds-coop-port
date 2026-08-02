@@ -17,6 +17,9 @@ typedef unsigned short u16;
 
 struct CAA0 { char pad[8]; int unk8; };
 
+#include <cstdio>
+#define IR_MARK(tag) std::printf("IR:%s\n", tag)
+
 extern "C" {
     int SublevelToLevel(int s);
     void func_ov002_020e6330(void* p);
@@ -114,6 +117,7 @@ Lac:
 Ld0:
     func_ov002_020e5948(c);
     if (changed != 0) func_ov002_020beabc(c);
+    IR_MARK("pool");
     *(void**)(c + 0x578) = func_02073470(0x32, 0xc, 8, (void*)func_0203d384, (void*)func_020072c0);
     *(void**)(c + 0x57c) = _ZN6Memory13operator_new2Ej(0x32);
     *(void**)(c + 0x588) = _ZN6Memory13operator_new2Ej(0x14);
@@ -126,6 +130,7 @@ Ld0:
     *(int*)(c + 0x84) = 0x1000;
     *(int*)(c + 0x88) = 0x1000;
     func_ov002_020e63a4(c);
+    IR_MARK("meshclsn");
     _ZN12WithMeshClsn4InitEP5Actor5Fix12IiES3_P10Vector3_16S5_(c + 0x380, c, 0x32000, 0x32000, c + 0x92, c + 0x8c);
     func_02035644(c + 0x380, 0x28000);
     *(int*)(c + 0xa0) = -0x4b000;
@@ -146,6 +151,7 @@ Ld0:
             func_ov002_020d6368(c);
             if ((f254 & 0x80) != 0) {
                 if ((*(u8*)(c + 0x718) & 1) == 0) {
+    IR_MARK("silverstar");
                     LoadSilverStarAndNumber();
                     *(u8*)((int)(((long long)(int)(c + 0x718)) & 0xFFFFFFFFFFFFFFFFLL)) |= 1;
                 }
@@ -157,6 +163,7 @@ Ld0:
         if (_ZN8SaveData16HasPlayerLostCapEv() != 0) func_02013a00();
     }
     func_ov002_020c7dd0(c, n8);
+    IR_MARK("raycast");
     _ZN13RaycastGroundC1Ev(rc);
     tz = *(int*)(c + 0x64);
     tx = *(int*)(c + 0x5c);
@@ -166,6 +173,7 @@ Ld0:
     pos.z = tz;
     *(int*)(rc + 0x4c) = td * 2;
     _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(rc, &pos, c);
+    IR_MARK("water");
     _ZN4BgCh19StartDetectingWaterEv(rc);
     if (data_0209f2f8 == 0x1d) {
         data_0209211c = 2;
@@ -174,5 +182,6 @@ Ld0:
     if (StartWithFarCamera() != 0) *(u8*)(c + 0x715) = 1;
     *(int*)(c + 0x684) = *(int*)(c + 0x60);
     _ZN13RaycastGroundD1Ev(rc);
+    IR_MARK("done");
     return 1;
 }

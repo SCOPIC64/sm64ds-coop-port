@@ -108,6 +108,9 @@ u32 data_0209d3bc; /* last fileID touched; the game's FS breadcrumb */
 u16 func_02018a24(u32 handle)
 {
     catalog_load();
+    if (handle >= 0x8000)
+        return (u16)handle;   /* archive-interior: already a file id (DS
+                                 original passes >= 0x8000 through) */
     if (handle >= MAX_HANDLES || g_paths[g_handle_to_id[handle]][0] == 0) {
         fprintf(stderr, "FATAL: fs handle %u not in catalog\n", handle);
         abort();
@@ -141,6 +144,82 @@ void DecompressLZ16(void *src_, void *dst_)
     }
 }
 
+/* Archive-interior file IDs (>= 0x8000): the DS mounts 13 NARC archives
+   whose id ranges live in the ROM's mount table; interior id - base
+   indexes the NARC's own FAT. port_archive_map is the host-shaped copy
+   romdata.py generates from that table. Each archive lazy-loads whole
+   (they are small) and stays cached. */
+struct port_arc_entry { u16 base, end; const char *narc; };
+extern "C" struct port_arc_entry port_archive_map[13];
+static u8 *g_arc_buf[13];
+static long g_arc_len[13];
+
+static void *port_fs_archive_load(unsigned fileID)
+{
+    for (int i = 0; i < 13; ++i) {
+        struct port_arc_entry *e = &port_archive_map[i];
+        if (fileID < e->base || fileID >= e->end)
+            continue;
+        if (!g_arc_buf[i]) {
+            char path[PATH_MAX_ * 2];
+            snprintf(path, sizeof path, "%s/extracted/dsd/files/%s",
+                     asset_root(), e->narc);
+            FILE *f = fopen(path, "rb");
+            if (!f) {
+                fprintf(stderr, "fs: archive missing on disk: %s\n", path);
+                return 0;
+            }
+            fseek(f, 0, SEEK_END);
+            g_arc_len[i] = ftell(f);
+            fseek(f, 0, SEEK_SET);
+            g_arc_buf[i] = (u8 *)malloc(g_arc_len[i]);
+            if ((long)fread(g_arc_buf[i], 1, g_arc_len[i], f) != g_arc_len[i]) {
+                fclose(f);
+                free(g_arc_buf[i]);
+                g_arc_buf[i] = 0;
+                return 0;
+            }
+            fclose(f);
+        }
+        u8 *a = g_arc_buf[i];
+        if (memcmp(a, "NARC", 4) != 0) {
+            fprintf(stderr, "fs: %s is not a NARC\n", e->narc);
+            return 0;
+        }
+        /* chunk walk: BTAF (fat), BTNF (names), GMIF (data) */
+        u8 *btaf = a + 0x10;
+        u32 btaf_size = btaf[4] | btaf[5] << 8 | btaf[6] << 16 | (u32)btaf[7] << 24;
+        u16 nfiles = (u16)(btaf[8] | btaf[9] << 8);
+        u8 *btnf = btaf + btaf_size;
+        u32 btnf_size = btnf[4] | btnf[5] << 8 | btnf[6] << 16 | (u32)btnf[7] << 24;
+        u8 *gmif = btnf + btnf_size;
+        u8 *img = gmif + 8;
+        unsigned idx = fileID - e->base;
+        if (idx >= nfiles) {
+            fprintf(stderr, "fs: interior %u out of range in %s (%u files)\n",
+                    idx, e->narc, nfiles);
+            return 0;
+        }
+        u8 *fat = btaf + 12 + idx * 8;
+        u32 start = fat[0] | fat[1] << 8 | fat[2] << 16 | (u32)fat[3] << 24;
+        u32 end = fat[4] | fat[5] << 8 | fat[6] << 16 | (u32)fat[7] << 24;
+        u8 *src = img + start;
+        u32 len = end - start;
+        void *dst;
+        if (len > 8 && memcmp(src, "LZ77", 4) == 0) {
+            u32 dec = (src[4] | src[5] << 8 | src[6] << 16 | (u32)src[7] << 24) >> 8;
+            dst = Memory::Allocate(dec);
+            DecompressLZ16(src + 4, dst);
+        } else {
+            dst = Memory::Allocate(len, 0x20);
+            memcpy(dst, src, len);
+        }
+        return dst;
+    }
+    fprintf(stderr, "FATAL: fs fileID 0x%x matches no archive range\n", fileID);
+    abort();
+}
+
 /* SharedFilePtr::Load -- the seam. Same contract as 0x02017c54. */
 struct SharedFilePtrC { u16 fileID; u8 numRefs; void *filePtr; };
 
@@ -154,10 +233,14 @@ void *_ZN13SharedFilePtr4LoadEv(struct SharedFilePtrC *self)
 
     catalog_load();
     data_0209d3bc = self->fileID;
+    if (self->fileID >= 0x8000) {
+        void *b = port_fs_archive_load(self->fileID);
+        if (b) self->filePtr = b;
+        return b;
+    }
     if (self->fileID >= MAX_FILES || g_paths[self->fileID][0] == 0) {
-        fprintf(stderr, "FATAL: fs fileID %u not in catalog "
-                "(archive-interior ids >= 0x8000 not hosted yet)\n",
-                self->fileID);
+        fprintf(stderr, "FATAL: fs fileID %u not in catalog (fileptr %p)\n",
+                self->fileID, (void *)self);
         abort();
     }
     snprintf(path, sizeof path, "%s/extracted/dsd/files/%s",

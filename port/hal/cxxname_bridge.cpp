@@ -4,6 +4,8 @@
 // real implementation. The forward hop goes through a differently-named
 // extern "C" helper because one TU cannot name both linkages of the same
 // identifier.
+#include <cstdio>
+#include <cstdlib>
 #include "MeshColliderBase.h"
 
 extern "C" {
@@ -47,8 +49,27 @@ void _ZN8Platform21UpdateModelPosAndRotYEv(void *self)
 void _ZN11ShadowModel10InitCuboidEv(void *) {}
 void _ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j(
     void *, void *, void *, int, int, int, unsigned) {}
+void _ZN13SharedFilePtr8LoadFileEv(void *fp);
 void *_ZN5Model8LoadFileER13SharedFilePtr(void *fp)
-{ return Model::LoadFile(*(SharedFilePtr *)fp); }
+{
+    int trace = getenv("PORT_TRACE_SETFILE") != 0;
+    if (trace)
+        fprintf(stderr, "  model_loadfile fp=%p id=%u refs=%u\n", fp,
+                *(unsigned short *)fp, ((unsigned char *)fp)[2]);
+    /* expanded body of the matched Model::LoadFile so the load stages are
+       individually traceable on host (Reallocate is a DS heap shrink, no-op
+       here -- see gx_upload_bridge.cpp) */
+    _ZN13SharedFilePtr8LoadFileEv(fp);
+    void *filePtr = *(void **)((char *)fp + 4);
+    if (((unsigned char *)fp)[2] == 1 && filePtr != 0) {
+        if (trace) fprintf(stderr, "    fixups buf=%p\n", filePtr);
+        Model::UpdateFileOffsets(*(BMD_File *)filePtr);
+        if (trace) fprintf(stderr, "    offsets ok\n");
+        Model::AddToCommonModelDataArr(*(BMD_File *)filePtr);
+        if (trace) fprintf(stderr, "    common-arr ok\n");
+    }
+    return filePtr;
+}
 
 // BSS the shadow/collider systems use
 char data_020ad524[0x40];       /* ShadowModel's template BMD stub */
@@ -61,7 +82,18 @@ extern "C" {
 void *_ZN12MeshCollider8LoadFileER13SharedFilePtr(void *fp)
 { return MeshCollider::LoadFile(*(SharedFilePtr *)fp); }
 void _ZN9ModelBase7SetFileEP8BMD_Fileii(void *self, void *bmd, int a, int b)
-{ ((ModelBase *)self)->ModelBase::SetFile((BMD_File *)bmd, a, b); }
+{
+    if (getenv("PORT_TRACE_SETFILE")) {
+        extern void *_ZTV5Model[8];
+        extern void *_ZTV10ModelAnim2[12];
+        fprintf(stderr, "  setfile self=%p vt=%p slot1=%p bmd=%p b=%d"
+                " (model_vt=%p ma2_vt=%p)\n",
+                self, *(void **)self,
+                self ? ((void ***)self)[0][1] : 0, bmd, b,
+                (void *)_ZTV5Model, (void *)_ZTV10ModelAnim2);
+    }
+    ((ModelBase *)self)->ModelBase::SetFile((BMD_File *)bmd, a, b);
+}
 }
 #pragma comment(linker, "/alternatename:?data_ov098_0213c380@@3PADA=_data_ov098_0213c380")
 #pragma comment(linker, "/alternatename:?data_ov098_0213c384@@3PADA=_data_ov098_0213c384")
@@ -115,7 +147,11 @@ int func_0204424c(int c) { return hal_f0204424c((char *)c); }
 // Render 4. ModelBase::SetFile dispatches DoSetFile -- the first virtual
 // the actor lifecycle exercises.
 static int __fastcall mv_dosetfile(void *self, void *, char *f, int a, int b)
-{ return ((Model *)self)->Model::DoSetFile(f, a, b); }
+{
+    if (getenv("PORT_TRACE_SETFILE"))
+        fprintf(stderr, "  dosetfile self=%p f=%p a=%d b=%d\n", self, f, a, b);
+    return ((Model *)self)->Model::DoSetFile(f, a, b);
+}
 static void __fastcall mv_updateverts(void *self, void *)
 { ((Model *)self)->Model::UpdateVerts(); }
 static void __fastcall mv_virtual10(void *self, void *, void *m)
@@ -134,6 +170,51 @@ void hal_fill_model_vtable(void)
        ROM/Itanium numbering (two dtor slots), which lands Render at 5.
        Model.h-compiled TUs land it at 4. The object serves both. */
     _ZTV5Model[5] = (void *)mv_render;
+}
+}
+
+// gate 10: ModelAnim2's primary table (the Player's two body ModelAnims
+// dispatch DoSetFile through it via ModelBase::SetFile). MSVC order: dtor 0,
+// DoSetFile 1, UpdateVerts 2, Virtual10 3, Render 4, Virtual18 5. ROM slots
+// carry the ModelAnim overrides for everything past DoSetFile. No dual-fill
+// here: Render's ROM slot (5) is Virtual18's MSVC slot, so shadow-TU Render
+// dispatch cannot be served by the same array -- trap-by-Virtual18 will name
+// it if such a TU ever appears.
+#include "ModelAnim.h"
+static void __fastcall ma2_dtor(void *, void *) {}
+static void __fastcall ma2_updateverts(void *self, void *)
+{ ((ModelAnim *)self)->ModelAnim::UpdateVerts(); }
+static void __fastcall ma2_virtual10(void *self, void *, void *m)
+{ ((ModelAnim *)self)->ModelAnim::Virtual10(*(Matrix4x3 *)m); }
+static void __fastcall ma2_render(void *self, void *, const void *s)
+{ ((ModelAnim *)self)->ModelAnim::Render((const Vector3 *)s); }
+static void __fastcall ma2_virtual18(void *self, void *, unsigned m, const void *s)
+{ ((ModelAnim *)self)->ModelAnim::Virtual18(m, (const Vector3 *)s); }
+extern "C" {
+extern void *_ZTV10ModelAnim2[12];
+extern void *VTable_Animation_ModelAnim2Thunk[12];
+extern void *_ZTV9ModelAnim[10];
+extern void *VTable_Animation_ModelAnimThunk[8];
+void hal_fill_modelanim2_vtable(void)
+{
+    _ZTV10ModelAnim2[0] = (void *)ma2_dtor;
+    _ZTV10ModelAnim2[1] = (void *)mv_dosetfile;
+    _ZTV10ModelAnim2[2] = (void *)ma2_updateverts;
+    _ZTV10ModelAnim2[3] = (void *)ma2_virtual10;
+    _ZTV10ModelAnim2[4] = (void *)ma2_render;
+    _ZTV10ModelAnim2[5] = (void *)ma2_virtual18;
+    /* the Animation-base secondary table only ever destructs */
+    VTable_Animation_ModelAnim2Thunk[0] = (void *)ma2_dtor;
+    VTable_Animation_ModelAnim2Thunk[1] = (void *)ma2_dtor;
+    /* plain ModelAnim (the Player's head models) shares every slot */
+    _ZTV9ModelAnim[0] = (void *)ma2_dtor;
+    _ZTV9ModelAnim[1] = (void *)mv_dosetfile;
+    _ZTV9ModelAnim[2] = (void *)ma2_updateverts;
+    _ZTV9ModelAnim[3] = (void *)ma2_virtual10;
+    _ZTV9ModelAnim[4] = (void *)ma2_render;
+    _ZTV9ModelAnim[5] = (void *)ma2_virtual18;
+    VTable_Animation_ModelAnimThunk[0] = (void *)ma2_dtor;
+    VTable_Animation_ModelAnimThunk[1] = (void *)ma2_dtor;
 }
 }
 
