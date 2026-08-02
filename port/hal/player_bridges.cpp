@@ -41,6 +41,8 @@ int hal_player_st_walk_init(void *p)
 { return ((Player *)p)->Player::St_Walk_Init(); }
 int hal_player_st_walk_main(void *p)
 { return ((Player *)p)->Player::St_Walk_Main(); }
+int hal_player_behavior(void *p)
+{ return ((Player *)p)->Player::Behavior(); }
 
 /* State-machine dispatch: the State objects come from the overlay image
    with DS code addresses baked into their function slots (mwcc PMFs). The
@@ -60,6 +62,9 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 
 void _ZN6Player16InitWingFeathersEb(void *self, unsigned char b_)
 { ((Player *)self)->Player::InitWingFeathers(b_ != 0); }
+extern "C++" int ApproachLinear(int &ref, int target, int step);
+int _Z14ApproachLinearRiii(int *ref, int target, int step)
+{ return ApproachLinear(*ref, target, step); }
 int hal_anim_willhit(void *self, int f)
 { return ((Animation *)self)->Animation::WillHitFrame(f) ? 1 : 0; }
 int hal_nhi_next(void *self, void *h)

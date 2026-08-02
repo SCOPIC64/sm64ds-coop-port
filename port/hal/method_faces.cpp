@@ -1,0 +1,104 @@
+// C-linkage faces for METHOD-form definitions (gate 10/11 Behavior ring).
+//
+// The defining src files compile real methods against the shared headers;
+// their .c-file callers reference Itanium C names. Each face forwards with
+// a qualified call, the player_bridges pattern, batched here because the
+// include surface spans most of the actor stack.
+#include "Actor.h"
+#include "ActorBase.h"
+#include "BgCh.h"
+#include "Camera.h"
+#include "ClsnResult.h"
+#include "CylinderClsn.h"
+#include "Message.h"
+#include "Model.h"
+#include "ModelAnim2.h"
+#include "OAM.h"
+#include "PathPtr.h"
+#include "Player.h"
+#include "RaycastLine.h"
+#include "SphereClsn.h"
+#include "TextureSequence.h"
+#include "Timer.h"
+#include "WithMeshClsn.h"
+
+extern "C++" int ApproachLinear2(short &x, short target, short step);
+
+extern "C" {
+
+int _Z15ApproachLinear2Rsss(short *x, short target, short step)
+{ return ApproachLinear2(*x, target, step); }
+
+void _ZN10ModelAnim24CopyERKS_Pcj(void *self, const void *src, char *nf,
+                                  unsigned nof)
+{ ((ModelAnim2 *)self)->ModelAnim2::Copy(*(const ModelAnim2 *)src, nf, nof); }
+
+
+void _ZN12CylinderClsn5ClearEv(void *self)
+{ ((CylinderClsn *)self)->CylinderClsn::Clear(); }
+void _ZN12CylinderClsn6UpdateEv(void *self)
+{ ((CylinderClsn *)self)->CylinderClsn::Update(); }
+
+void _ZN12WithMeshClsn13SetGroundFlagEv(void *self)
+{ ((WithMeshClsn *)self)->WithMeshClsn::SetGroundFlag(); }
+void _ZN12WithMeshClsn13SetLimMovFlagEv(void *self)
+{ ((WithMeshClsn *)self)->WithMeshClsn::SetLimMovFlag(); }
+void _ZN12WithMeshClsn15ClearGroundFlagEv(void *self)
+{ ((WithMeshClsn *)self)->WithMeshClsn::ClearGroundFlag(); }
+void _ZN12WithMeshClsn15ClearLimMovFlagEv(void *self)
+{ ((WithMeshClsn *)self)->WithMeshClsn::ClearLimMovFlag(); }
+void _ZN12WithMeshClsn18StopDetectingWaterEv(void *self)
+{ ((WithMeshClsn *)self)->WithMeshClsn::StopDetectingWater(); }
+void _ZN12WithMeshClsn19ClearAllGroundFlagsEv(void *self)
+{ ((WithMeshClsn *)self)->WithMeshClsn::ClearAllGroundFlags(); }
+void _ZN12WithMeshClsn19StartDetectingWaterEv(void *self)
+{ ((WithMeshClsn *)self)->WithMeshClsn::StartDetectingWater(); }
+
+void _ZN15TextureSequence6UpdateER15ModelComponents(void *self, void *mc)
+{ ((TextureSequence *)self)->TextureSequence::Update(
+      *(ModelComponents *)mc); }
+
+void _ZN4BgCh19StartDetectingToxicEv(void *self)
+{ ((BgCh *)self)->BgCh::StartDetectingToxic(); }
+void _ZN4BgCh21StopDetectingOrdinaryEv(void *self)
+{ ((BgCh *)self)->BgCh::StopDetectingOrdinary(); }
+
+void _ZN5Model14SetPolygonModeEi(void *self, int mode)
+{ ((Model *)self)->Model::SetPolygonMode(mode); }
+
+void _ZN5Timer10ResetTimerEv(void *self)
+{ ((Timer *)self)->Timer::ResetTimer(); }
+void _ZN5Timer10StartTimerEv(void *self)
+{ ((Timer *)self)->Timer::StartTimer(); }
+long long _ZN5Timer7GetTimeEv(void *self)
+{ return ((Timer *)self)->Timer::GetTime(); }
+void _ZN5Timer9StopTimerEv(void *self)
+{ ((Timer *)self)->Timer::StopTimer(); }
+
+int _ZN6Player12Unk_020c9e5cEh(void *self, unsigned char h)
+{ return ((Player *)self)->Player::Unk_020c9e5c(h); }
+int _ZN6Player16St_Shell_CleanupEv(void *self)
+{ return ((Player *)self)->Player::St_Shell_Cleanup(); }
+void _ZN6Player18SetNewHatCharacterEjjb(void *self, unsigned a, unsigned b,
+                                        unsigned char c)
+{ ((Player *)self)->Player::SetNewHatCharacter(a, b, c != 0); }
+void _ZN6Player18TurnOffToonShadingEj(void *self, unsigned j)
+{ ((Player *)self)->Player::TurnOffToonShading(j); }
+int _ZN6Player22IsBeingShotOutOfCannonEv(void *self)
+{ return ((Player *)self)->Player::IsBeingShotOutOfCannon(); }
+int _ZN6Player7IsInAirEv(void *self)
+{ return ((Player *)self)->Player::IsInAir(); }
+void _ZN6Player4HealEi(void *self, int amt)
+{ ((Player *)self)->Player::Heal(amt); }
+
+
+void _ZN9ActorBase18MarkForDestructionEv(void *self)
+{ ((ActorBase *)self)->ActorBase::MarkForDestruction(); }
+
+unsigned _ZNK7PathPtr8NumNodesEv(const void *self)
+{ return ((const PathPtr *)self)->PathPtr::NumNodes(); }
+
+
+}  /* extern "C" */
+
+

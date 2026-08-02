@@ -60,13 +60,6 @@ int data_0208e6ec[4]; short data_02092144[4];
 void *data_020992a4[4], *data_020992b4[4];
 int data_0209b0c8;
 
-/* func_ov002_020d3b9c: 0x5a0 bytes, still asm-only in the decomp.
-   Loud trap so a smoke that actually reaches it names itself. */
-int func_ov002_020d3b9c(void *a)
-{
-    __debugbreak();
-    return 0;
-}
 }
 
 namespace cstd { int strcmp(const char *a, const char *b);
@@ -84,6 +77,23 @@ void MultiCopyHalf(unsigned short *src, unsigned short *dst, unsigned n)
         *(unsigned short *)((char *)dst + i) = *(unsigned short *)((char *)src + i);
 }
 
+/* Thumb matrix builders (asm primitives; semantics from their headers):
+   4x3 fx32 rotation matrices from (sin, cos), 4096 = 1.0 */
+void func_02052800(int *m, int s, int c)   /* X rotation */
+{
+    m[0] = 0x1000; m[1] = 0; m[2] = 0;
+    m[3] = 0; m[4] = c; m[5] = s;
+    m[6] = 0; m[7] = -s; m[8] = c;
+    m[9] = 0; m[10] = 0; m[11] = 0;
+}
+void func_0205283c(int *m, int s, int c)   /* Z rotation */
+{
+    m[0] = c; m[1] = s; m[2] = 0;
+    m[3] = -s; m[4] = c; m[5] = 0;
+    m[6] = 0; m[7] = 0; m[8] = 0x1000;
+    m[9] = 0; m[10] = 0; m[11] = 0;
+}
+
 /* asm veneer func_02059824 just tail-calls its C body */
 void func_02059834(void);
 void func_02059824(void) { func_02059834(); }
@@ -94,6 +104,14 @@ void func_02059824(void) { func_02059834(); }
    and extracts digits through 859c. */
 int func_01ff9d40(double x, double y) { return x == y; }
 double func_01ff8708(double x, double y) { return x * y; }  /* dmul (frexp) */
+/* single-precision ITCM pair cstd::atan2 leans on: i2f then float-compare */
+int func_01ffa4bc(int a) { float f = (float)a; int b; memcpy(&b, &f, 4); return b; }
+int func_01ff98f4(int a, int b)
+{ float x, y; memcpy(&x, &a, 4); memcpy(&y, &b, 4); return x < y; }
+/* ITCM signed divide (walk-speed scaling) */
+int func_01ffabe4(int a, int b) { return b ? a / b : 0; }
+/* atan table the boot builds at runtime; zeros = heading 0 */
+unsigned short data_020994e0[0x408];
 double func_01ff8e10(double x, double y) { return x - y; }
 unsigned long long func_01ff859c(double x) { return (unsigned long long)x; }
 
@@ -253,3 +271,151 @@ void Heap::_Deallocate(void *ptr) { _ZN4Heap10DeallocateEPv(this, ptr); }
 class RaycastGround { public: int DetectClsn(); };
 extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 { return ((RaycastGround *)self)->DetectClsn(); }
+#pragma comment(linker, "/alternatename:?data_0209f254@@3EA=_data_0209f254")
+#pragma comment(linker, "/alternatename:?data_0209f4a6@@3FA=_data_0209f4a6")
+#pragma comment(linker, "/alternatename:?func_ov002_020bdd9c@@YAXPAX@Z=_func_ov002_020bdd9c")
+#pragma comment(linker, "/alternatename:?func_ov002_020bdef0@@YAXPAX@Z=_func_ov002_020bdef0")
+#pragma comment(linker, "/alternatename:?func_ov002_020bf13c@@YAXPAX@Z=_func_ov002_020bf13c")
+#pragma comment(linker, "/alternatename:?func_ov002_020bf36c@@YAXPAX0@Z=_func_ov002_020bf36c")
+#pragma comment(linker, "/alternatename:?func_ov002_020c2db8@@YAXPAX@Z=_func_ov002_020c2db8")
+#pragma comment(linker, "/alternatename:?func_ov002_020c2e78@@YAXPAX@Z=_func_ov002_020c2e78")
+#pragma comment(linker, "/alternatename:?func_ov002_020c4188@@YAHPAX@Z=_func_ov002_020c4188")
+#pragma comment(linker, "/alternatename:?func_ov002_020ca940@@YAXPAX@Z=_func_ov002_020ca940")
+#pragma comment(linker, "/alternatename:?func_ov002_020d8158@@YAXPAX@Z=_func_ov002_020d8158")
+#pragma comment(linker, "/alternatename:?func_ov002_020d869c@@YAXPAX@Z=_func_ov002_020d869c")
+#pragma comment(linker, "/alternatename:?func_ov002_020db704@@YAXPAX@Z=_func_ov002_020db704")
+#pragma comment(linker, "/alternatename:?func_ov002_020e032c@@YAXPAX@Z=_func_ov002_020e032c")
+#pragma comment(linker, "/alternatename:?func_ov002_020e4bb8@@YAXPAX@Z=_func_ov002_020e4bb8")
+#pragma comment(linker, "/alternatename:?data_0209cee8@@3PAXA=_data_0209cee8")
+#pragma comment(linker, "/alternatename:?data_0209b49c@@3HA=_data_0209b49c")
+#pragma comment(linker, "/alternatename:?data_ov002_02110094@@3DA=_data_ov002_02110094")
+#pragma comment(linker, "/alternatename:?data_ov002_0211013c@@3UState@@A=_data_ov002_0211013c")
+#pragma comment(linker, "/alternatename:?data_ov002_021101b4@@3UState@@A=_data_ov002_021101b4")
+#pragma comment(linker, "/alternatename:?data_ov002_0211034c@@3DA=_data_ov002_0211034c")
+#pragma comment(linker, "/alternatename:?AngleDiff@@YAHHH@Z=_AngleDiff")
+#pragma comment(linker, "/alternatename:?IsButtonInputValid@@YAHXZ=_IsButtonInputValid")
+#pragma comment(linker, "/alternatename:?_ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii@@YAPAXHPAXHHHHHHHH@Z=__ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii")
+#pragma comment(linker, "/alternatename:?_ZN5Model14SetPolygonModeEi@@YAHPAXH@Z=__ZN5Model14SetPolygonModeEi")
+#pragma comment(linker, "/alternatename:?_ZNK6Player14GetBodyModelIDEjb@@YAHPAXIH@Z=__ZNK6Player14GetBodyModelIDEjb")
+#pragma comment(linker, "/alternatename:?data_0208ee44@@3HA=_data_0208ee44")
+#pragma comment(linker, "/alternatename:?data_0209d650@@3EA=_data_0209d650")
+#pragma comment(linker, "/alternatename:?data_0209d65c@@3CA=_data_0209d65c")
+#pragma comment(linker, "/alternatename:?data_0209d66c@@3EA=_data_0209d66c")
+#pragma comment(linker, "/alternatename:?data_0209d670@@3EA=_data_0209d670")
+#pragma comment(linker, "/alternatename:?data_0209d684@@3EA=_data_0209d684")
+#pragma comment(linker, "/alternatename:?data_0209d688@@3EA=_data_0209d688")
+#pragma comment(linker, "/alternatename:?data_0209d68c@@3EA=_data_0209d68c")
+#pragma comment(linker, "/alternatename:?data_0209d69c@@3EA=_data_0209d69c")
+#pragma comment(linker, "/alternatename:?data_0209d6a0@@3EA=_data_0209d6a0")
+#pragma comment(linker, "/alternatename:?data_0209d6a8@@3EA=_data_0209d6a8")
+#pragma comment(linker, "/alternatename:?data_0209d6b0@@3EA=_data_0209d6b0")
+#pragma comment(linker, "/alternatename:?data_0209d6b4@@3EA=_data_0209d6b4")
+#pragma comment(linker, "/alternatename:?data_0209d6bc@@3EA=_data_0209d6bc")
+#pragma comment(linker, "/alternatename:?data_0209d6c4@@3EA=_data_0209d6c4")
+#pragma comment(linker, "/alternatename:?data_0209d6c8@@3EA=_data_0209d6c8")
+#pragma comment(linker, "/alternatename:?data_0209d6cc@@3EA=_data_0209d6cc")
+#pragma comment(linker, "/alternatename:?data_0209d6d0@@3EA=_data_0209d6d0")
+#pragma comment(linker, "/alternatename:?data_0209d6d8@@3FA=_data_0209d6d8")
+#pragma comment(linker, "/alternatename:?data_0209d6dc@@3FA=_data_0209d6dc")
+#pragma comment(linker, "/alternatename:?data_0209d6e4@@3PAEA=_data_0209d6e4")
+#pragma comment(linker, "/alternatename:?data_0209d6f0@@3PAUStruct6f0@@A=_data_0209d6f0")
+#pragma comment(linker, "/alternatename:?data_0209d6f4@@3HA=_data_0209d6f4")
+#pragma comment(linker, "/alternatename:?data_0209f4a2@@3EA=_data_0209f4a2")
+#pragma comment(linker, "/alternatename:?data_0209f4a4@@3EA=_data_0209f4a4")
+#pragma comment(linker, "/alternatename:?data_020a0c80@@3PAPAXA=_data_020a0c80")
+#pragma comment(linker, "/alternatename:?data_020a0db0@@3HA=_data_020a0db0")
+#pragma comment(linker, "/alternatename:?data_020a0de8@@3PAEA=_data_020a0de8")
+#pragma comment(linker, "/alternatename:?data_020a0de9@@3PAEA=_data_020a0de9")
+#pragma comment(linker, "/alternatename:?data_020a0deb@@3PAEA=_data_020a0deb")
+#pragma comment(linker, "/alternatename:?data_020a0e5a@@3EA=_data_020a0e5a")
+#pragma comment(linker, "/alternatename:?data_ov002_020ff128@@3PAGA=_data_ov002_020ff128")
+#pragma comment(linker, "/alternatename:?data_ov002_0210c390@@3EA=_data_ov002_0210c390")
+#pragma comment(linker, "/alternatename:?data_ov002_0210c398@@3EA=_data_ov002_0210c398")
+#pragma comment(linker, "/alternatename:?data_ov002_0210c3a0@@3EA=_data_ov002_0210c3a0")
+#pragma comment(linker, "/alternatename:?data_ov002_0210c3a8@@3EA=_data_ov002_0210c3a8")
+#pragma comment(linker, "/alternatename:?data_ov002_0210ffec@@3UState@@A=_data_ov002_0210ffec")
+#pragma comment(linker, "/alternatename:?data_ov002_0211001c@@3UState@@A=_data_ov002_0211001c")
+#pragma comment(linker, "/alternatename:?data_ov002_021100ac@@3HA=_data_ov002_021100ac")
+#pragma comment(linker, "/alternatename:?data_ov002_02110574@@3DA=_data_ov002_02110574")
+#pragma comment(linker, "/alternatename:?data_ov002_021105a4@@3UState@@A=_data_ov002_021105a4")
+#pragma comment(linker, "/alternatename:?data_ov002_021105bc@@3DA=_data_ov002_021105bc")
+#pragma comment(linker, "/alternatename:?data_ov002_0211067c@@3DA=_data_ov002_0211067c")
+#pragma comment(linker, "/alternatename:?func_02012790@@YAXH@Z=_func_02012790")
+#pragma comment(linker, "/alternatename:?func_02014fa4@@YAXPAD@Z=_func_02014fa4")
+#pragma comment(linker, "/alternatename:?func_0201adfc@@YAXXZ=_func_0201adfc")
+#pragma comment(linker, "/alternatename:?func_0201b388@@YAXH@Z=_func_0201b388")
+#pragma comment(linker, "/alternatename:?func_0201b6f8@@YAXH@Z=_func_0201b6f8")
+#pragma comment(linker, "/alternatename:?func_0201b7cc@@YAPAXXZ=_func_0201b7cc")
+#pragma comment(linker, "/alternatename:?func_02059650@@YA_JXZ=_func_02059650")
+#pragma comment(linker, "/alternatename:?func_ov002_020d82f0@@YAHPAX@Z=_func_ov002_020d82f0")
+#pragma comment(linker, "/alternatename:?func_ov002_020d91b8@@YAXPADH@Z=_func_ov002_020d91b8")
+#pragma comment(linker, "/alternatename:?func_ov002_020e6b74@@YAHPAXH@Z=_func_ov002_020e6b74")
+#pragma comment(linker, "/alternatename:?data_ov002_02110064@@3PAHA=_data_ov002_02110064")
+#pragma comment(linker, "/alternatename:?data_ov002_02110094@@3UState@Player@@A=_data_ov002_02110094")
+#pragma comment(linker, "/alternatename:?data_ov002_021101cc@@3UState@@A=_data_ov002_021101cc")
+#pragma comment(linker, "/alternatename:?data_ov002_02110604@@3UState@@A=_data_ov002_02110604")
+#pragma comment(linker, "/alternatename:?GetSoundMode@@YAHXZ=_GetSoundMode")
+#pragma comment(linker, "/alternatename:?SetSoundMode@@YAXH@Z=_SetSoundMode")
+#pragma comment(linker, "/alternatename:?data_02088fb8@@3HA=_data_02088fb8")
+#pragma comment(linker, "/alternatename:?data_020890a0@@3HA=_data_020890a0")
+#pragma comment(linker, "/alternatename:?data_0209b270@@3EA=_data_0209b270")
+#pragma comment(linker, "/alternatename:?data_0209b284@@3PAIA=_data_0209b284")
+#pragma comment(linker, "/alternatename:?data_0209b2a4@@3PAIA=_data_0209b2a4")
+#pragma comment(linker, "/alternatename:?data_0209b454@@3HA=_data_0209b454")
+#pragma comment(linker, "/alternatename:?data_0209f21c@@3EA=_data_0209f21c")
+#pragma comment(linker, "/alternatename:?data_0209fc48@@3HA=_data_0209fc48")
+#pragma comment(linker, "/alternatename:?data_0209fc4c@@3HA=_data_0209fc4c")
+#pragma comment(linker, "/alternatename:?func_02011c8c@@YAXXZ=_func_02011c8c")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a054@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a054")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a064@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a064")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a094@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a094")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a0b4@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a0b4")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a0dc@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a0dc")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a124@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a124")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a14c@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a14c")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a36c@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a36c")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a3c4@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a3c4")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a3fc@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a3fc")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a40c@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a40c")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a44c@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a44c")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a474@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a474")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a534@@3P8C@@AEXPAEHH@ZQ1@=_data_ov002_0210a534")
+#pragma comment(linker, "/alternatename:?Player_AdvanceAnims@@YAHPAX@Z=_Player_AdvanceAnims")
+#pragma comment(linker, "/alternatename:?Player_ScaleByCharFactor@@YAHPAXH@Z=_Player_ScaleByCharFactor")
+#pragma comment(linker, "/alternatename:?_ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block@@YAXPAX00@Z=__ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block")
+#pragma comment(linker, "/alternatename:?_ZN12MeshCollider8LoadFileER13SharedFilePtr@@YAPAXPAX@Z=__ZN12MeshCollider8LoadFileER13SharedFilePtr")
+#pragma comment(linker, "/alternatename:?_ZN12MeshColliderC1Ev@@YAXPAX@Z=__ZN12MeshColliderC1Ev")
+#pragma comment(linker, "/alternatename:?_ZN13SharedFilePtr9ConstructEj@@YAPAXPAXI@Z=__ZN13SharedFilePtr9ConstructEj")
+#pragma comment(linker, "/alternatename:?_ZN16MeshColliderBase6EnableEP5Actor@@YAHPAX0@Z=__ZN16MeshColliderBase6EnableEP5Actor")
+#pragma comment(linker, "/alternatename:?_ZN6Player11ChangeStateERNS_5StateE@@YAHPAX0@Z=__ZN6Player11ChangeStateERNS_5StateE")
+#pragma comment(linker, "/alternatename:?_ZN6Player6IsAnimEj@@YAHPAXI@Z=__ZN6Player6IsAnimEj")
+#pragma comment(linker, "/alternatename:?_ZN6Player7SetAnimEji5Fix12IiEj@@YAHPAXIHHI@Z=__ZN6Player7SetAnimEji5Fix12IiEj")
+#pragma comment(linker, "/alternatename:?data_0209f4a0@@3PADA=_data_0209f4a0")
+#pragma comment(linker, "/alternatename:?data_ov002_0211007c@@3HA=_data_ov002_0211007c")
+#pragma comment(linker, "/alternatename:?data_ov002_0211019c@@3HA=_data_ov002_0211019c")
+#pragma comment(linker, "/alternatename:?data_ov002_021101b4@@3HA=_data_ov002_021101b4")
+#pragma comment(linker, "/alternatename:?data_ov002_021101e4@@3HA=_data_ov002_021101e4")
+#pragma comment(linker, "/alternatename:?data_ov002_02110424@@3PADA=_data_ov002_02110424")
+#pragma comment(linker, "/alternatename:?data_ov002_02110454@@3HA=_data_ov002_02110454")
+#pragma comment(linker, "/alternatename:?data_ov002_0211052c@@3HA=_data_ov002_0211052c")
+#pragma comment(linker, "/alternatename:?data_ov002_0211055c@@3HA=_data_ov002_0211055c")
+#pragma comment(linker, "/alternatename:?data_ov002_0211055c@@3PAHA=_data_ov002_0211055c")
+#pragma comment(linker, "/alternatename:?data_ov002_02110724@@3HA=_data_ov002_02110724")
+#pragma comment(linker, "/alternatename:?func_ov002_020d5c6c@@YAHPAX@Z=_func_ov002_020d5c6c")
+#pragma comment(linker, "/alternatename:?func_ov002_020dde74@@YAHPAX@Z=_func_ov002_020dde74")
+#pragma comment(linker, "/alternatename:?func_ov002_020e04a4@@YAXPAX@Z=_func_ov002_020e04a4")
+#pragma comment(linker, "/alternatename:?func_ov002_020e2664@@YAHPAX@Z=_func_ov002_020e2664")
+#pragma comment(linker, "/alternatename:?func_ov002_020e28d4@@YAHPAXHH@Z=_func_ov002_020e28d4")
+#pragma comment(linker, "/alternatename:?data_ov002_021101e4@@3UState@Player@@A=_data_ov002_021101e4")
+#pragma comment(linker, "/alternatename:?data_ov002_0211040c@@3UState@Player@@A=_data_ov002_0211040c")
+#pragma comment(linker, "/alternatename:?data_ov002_021105a4@@3UState@Player@@A=_data_ov002_021105a4")
+#pragma comment(linker, "/alternatename:?data_ov002_021105bc@@3UState@Player@@A=_data_ov002_021105bc")
+
+/* stale caller names -> renamed callees (the #973 class, host side) */
+#pragma comment(linker, "/alternatename:_func_02037670=__ZN11RaycastLine13SetObjAndLineERK7Vector3S2_P5Actor")
+#pragma comment(linker, "/alternatename:_func_02037764=__ZN11RaycastLineD1Ev")
+#pragma comment(linker, "/alternatename:_func_020377b0=__ZN11RaycastLineC1Ev")
+#pragma comment(linker, "/alternatename:_func_02038638=__ZN11RaycastLine10DetectClsnEv")
+#pragma comment(linker, "/alternatename:_func_0203b0e8=_AngleDiff")
+#pragma comment(linker, "/alternatename:_func_0203b4dc=__ZN4cstd5atan2E5Fix12IiES1_")
+#pragma comment(linker, "/alternatename:_func_0203cf78=_Vec3_HorzLen")

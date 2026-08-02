@@ -1,4 +1,4 @@
-// Gate-10 smoke: Mario comes to his feet.
+// Gate-10/11 smoke: Mario comes to his feet and walks.
 //
 // The Player ctor chains everything the earlier gates hosted -- Actor,
 // two ModelAnims (body and head), TextureSequence/MaterialChanger arrays,
@@ -33,6 +33,13 @@ void hal_fill_modelanim2_vtable(void);
 int hal_player_init_resources(void *p);
 int hal_player_st_wait_init(void *p);
 int hal_player_st_wait_main(void *p);
+int hal_player_st_walk_main(void *p);
+int hal_player_behavior(void *p);
+extern char data_0209f4a0[];                 /* per-player pad blocks, 0x18 */
+extern unsigned char data_020a0e40[];        /* current player index */
+extern unsigned char data_ov002_0211013c[];  /* St_Walk state object */
+extern short data_02092144[];                /* per-player health words */
+extern unsigned char data_ov002_02110424[];  /* St_Fall state object */
 void port_ov002_patch(void);         /* rehome DS-baked data pointers */
 /* ov002 static ctors: SharedFilePtr IDs, state tables */
 void __sinit_ov002_02100560(void);
@@ -115,6 +122,8 @@ int main(void)
     __sinit_ov002_0210804c();
     __sinit_ov002_02108094();
 
+    data_02092144[0] = 8 << 8;               /* full health, high byte */
+
     /* spawn context: Player is actor 0 in the spawn table */
     data_020a4b54 = 0;
     static unsigned short spawn_info[4] = { 0, 0, 100, 100 };
@@ -141,10 +150,67 @@ int main(void)
         printf("  St_Wait_Main frame %d -> %d\n", f, wm);
     }
 
+    /* gate 11: a real floor first -- the castle grounds KCL through the
+       gate-8 recipe, enabled in the global collision registry so the
+       Player's ground probes find it */
+    {
+        static struct { unsigned short id; unsigned char refs; void *p; } kcl_ptr;
+        extern void *_ZN13SharedFilePtr9ConstructEj(void *, unsigned);
+        extern void _ZN12MeshColliderC1Ev(void *);
+        extern void *_ZN12MeshCollider8LoadFileER13SharedFilePtr(void *);
+        extern void _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(
+            void *, void *, void *);
+        extern int _ZN16MeshColliderBase6EnableEP5Actor(void *, void *);
+        _ZN13SharedFilePtr9ConstructEj(&kcl_ptr, 1941);
+        static char mc_storage[0x60];
+        _ZN12MeshColliderC1Ev(mc_storage);
+        char *kcl = (char *)_ZN12MeshCollider8LoadFileER13SharedFilePtr(&kcl_ptr);
+        CHECK(kcl != NULL);
+        static char clps_storage[0x100];
+        _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
+                                                          clps_storage);
+        _ZN16MeshColliderBase6EnableEP5Actor(mc_storage, player);
+        /* stand Mario inside the octree box, above the floor plane */
+        int ox = *(int *)(kcl + 0), oy = *(int *)(kcl + 4), oz = *(int *)(kcl + 8);
+        unsigned xm = *(unsigned *)(kcl + 0x10), zm = *(unsigned *)(kcl + 0x18);
+        int ex = (int)(~xm + 1) << 6, ez = (int)(~zm + 1) << 6;
+        char *pc = (char *)player;
+        *(int *)(pc + 0x5c) = ox + ex / 2;
+        *(int *)(pc + 0x60) = oy + 0x8000;    /* 8 units up; he lands */
+        *(int *)(pc + 0x64) = oz + ez / 2;
+        printf("  floor staged: kcl origin (%d,%d,%d), mario at (%d,%d,%d)\n",
+               ox, oy, oz, *(int *)(pc + 0x5c), *(int *)(pc + 0x60),
+               *(int *)(pc + 0x64));
+    }
+
+    /* gate 11: stick forward, wait ticks into walk, position moves */
+    char *c = (char *)player;
+    data_020a0e40[0] = 0;
+    *(short *)(data_0209f4a0 + 0) = 0x1000;      /* full stick magnitude */
+    *(short *)(c + 0x69c) = 0x0000;              /* desired heading */
+    int x0 = *(int *)(c + 0x5c), z0 = *(int *)(c + 0x64);
+    hal_player_st_wait_main(player);             /* the tick that transitions */
+    void *st = *(void **)(c + 0x370);
+    printf("  after stick: state=%p (walk=%p)\n", st,
+           (void *)data_ov002_0211013c);
+    CHECK(st == (void *)data_ov002_0211013c);
+    for (int f = 0; f < 30; ++f) {
+        int r = hal_player_behavior(player);   /* the real frame tick */
+        if (f < 3 || f == 29)
+            printf("  Behavior frame %d -> %d pos=(%d, %d)\n", f, r,
+                   *(int *)(c + 0x5c), *(int *)(c + 0x64));
+    }
+    int x1 = *(int *)(c + 0x5c), z1 = *(int *)(c + 0x64);
+    printf("  walked: dx=%d dz=%d  y=%d  final state=%p (walk=%p fall=%p)\n",
+           x1 - x0, z1 - z0, *(int *)(c + 0x60), *(void **)(c + 0x370),
+           (void *)data_ov002_0211013c, (void *)data_ov002_02110424);
+    CHECK(x1 != x0 || z1 != z0);
+
     if (g_failures) {
         fprintf(stderr, "smoke_player: %d FAILURE(S)\n", g_failures);
         return 1;
     }
-    printf("smoke_player: Player spawns and stands (gate 10 GREEN)\n");
+    printf("smoke_player: Mario walks on the castle grounds "
+           "(gates 10+11 GREEN)\n");
     return 0;
 }
