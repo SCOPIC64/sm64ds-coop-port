@@ -27,7 +27,7 @@ def main():
     ov = sys.argv[1]
     out_path = pathlib.Path(sys.argv[2])
     if sys.argv[3] == "--from-list":
-        wanted = pathlib.Path(sys.argv[4]).read_text().split()
+        wanted = list(dict.fromkeys(pathlib.Path(sys.argv[4]).read_text().split()))
     else:
         wanted = sys.argv[3:]
 
