@@ -24,11 +24,22 @@ static void __fastcall slot_orig(void *self, void *, s16 tri, Vector3 *res)
 static int __fastcall slot_ray(void *self, void *, RaycastLine *ray)
 { return ((MeshCollider *)self)->MeshCollider::DetectClsn(*ray); }
 
-/* Ground overload (ROM slot 6): the vertical specialization the decomp has
-   not matched. Adapter: a stack RaycastLine straight down from the ground
-   ray's position, walked by the hosted line walk, result copied back.
-   Ground layout evidence: BgCh head 0x10, ClsnResult 0x10, pos Vec3 0x38,
-   reach 0x4c (InitResources writes it). */
+/* Ground overload (ROM slot 6) -- MeshCollider::DetectClsn(RaycastGround &),
+   ITCM 0x01ffd3f8, 0x498 bytes, unmatched. Adapter: a stack RaycastLine
+   straight down from the ground ray's own position by the ground ray's own
+   reach, walked by the hosted line walk, hit fields copied back. Both
+   endpoints come from the caller -- a RaycastGround HAS no endpoints, it is
+   pos + reach -- so the only invented number here is the fallback when the
+   caller left reach at zero. Ground layout evidence: BgCh head 0x10,
+   ClsnResult 0x10, pos Vec3 0x38 (func_020374d4 writes it), reach 0x4c
+   (Player::InitResources writes td*2 there).
+
+   NOT the tunneling path, contrary to the note this comment used to carry.
+   WithMeshClsn's continuous update never builds a RaycastGround; it sweeps
+   RaycastLine segments from the actor's PREV POS, and the fast falls that
+   passed through thin decks did so because prev pos was stale, not because
+   this adapter shortened anything. Gate 15 (the real BeforeBehavior) fixed
+   that: a 2100-unit fall at 75 units/frame now stops on the bridge deck. */
 static int __fastcall slot_ground(void *self, void *, unsigned char *g)
 {
     unsigned char line[0x64];
@@ -106,14 +117,26 @@ extern "C" int hal_line_ray(void *mc, const int *a, const int *b, int *out)
     return hit;
 }
 
+/* Sphere overload (ROM slot 8) -- MeshCollider::DetectClsn(SphereClsn &),
+   ITCM 0x01ffb830, 0x1bc8 bytes = 7112, THE SINGLE LARGEST UNMATCHED
+   FUNCTION IN THE GAME (notes/itcm.md) and with no draft in
+   nearmiss/db.jsonl. It is not just the wall pass: it returns floor, wall
+   and ceiling as one three-bit mask (see SphereClsn::DetectClsn, which fans
+   bit 0/1/2 out to func_020379d0/9c/68), and it is what holds a STANDING
+   actor up. WithMeshClsn's swept RaycastLine finds a floor only once the
+   sweep crosses the floor plane, so with this stubbed the Player sinks about
+   his own height before the sweep catches him and shoves him back.
+
+   That is the whole reason the harness ground snap and wall stop still
+   exist. Nothing else in the port is standing in for matched code. */
 static int __fastcall slot_sphere(void *self, void *, void *sph)
 {
-    /* sphere push-out is unmatched; no wall contact for now (once only) */
     static int warned;
     if (!warned) {
         warned = 1;
-        fprintf(stderr, "  [clsn] sphere DetectClsn stubbed (no wall "
-                        "push-out yet)\n");
+        fprintf(stderr, "  [clsn] sphere DetectClsn UNHOSTED (ITCM "
+                        "0x01ffb830, 7112 bytes, unmatched) -- no ground or "
+                        "wall contact from the game's own tracking\n");
     }
     (void)self; (void)sph;
     return 0;

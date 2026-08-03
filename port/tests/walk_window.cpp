@@ -12,10 +12,16 @@
 //
 //   WASD / arrows  walk    Q/E  orbit    C  snap behind    ESC  quit
 //
-// Env: SM64DS_OLD_CAMERA=1  the pre-gate-13 hand-tuned follow rig
+// Env: SM64DS_REAL_BOOT=1   the game's own level boot and entrance spawn
+//      SM64DS_OLD_CAMERA=1  the pre-gate-13 hand-tuned follow rig
 //      SM64DS_FAKE_SNAP=1   the pre-gate-13 collision configuration
 //                           (level collider owned by the Player + the
 //                           harness ground snap), which plants Mario
+//      SM64DS_NO_SNAP=1     take the harness ground snap off and let the
+//                           game's own tracking hold him up -- it cannot
+//                           yet, the sphere pass is unmatched, so this is
+//                           a measurement switch and not a mode
+//      SM64DS_NO_WALLSTOP=1 same, for the harness wall clamp
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -279,15 +285,24 @@ int main(void)
     /* SM64DS_FAKE_SNAP=1: the pre-gate-13 collision configuration in one
        switch -- the level collider owned by the Player (which makes the
        game's own ground tracking a no-op, see the Enable call below) plus
-       the harness ground snap on top. Kept because the game's tracking
-       still has an open fast-fall, and a planted Mario is what most
-       screenshots want. */
+       the harness ground snap on top. */
     const int fake_snap = getenv("SM64DS_FAKE_SNAP") != 0;
-    /* SM64DS_FAKE_SNAP=1: the pre-gate-13 collision configuration in one
-       switch -- the level collider owned by the Player (which makes the
-       game's own tracking a no-op, see below) plus the harness ground
-       snap. Kept because the game's tracking still has an open fast-fall
-       and a planted Mario is what most screenshots want. */
+    /* THE ONE PIECE OF PHYSICS SCAFFOLDING LEFT, and it is not a choice.
+       WithMeshClsn's continuous update finds a floor two ways: the swept
+       head segment (RaycastLine, hosted and now real -- gate 15 gave it a
+       real prev position) and the SPHERE, which is what holds a standing
+       actor up. The sphere pass is MeshCollider::DetectClsn(SphereClsn &)
+       at ITCM 0x01ffb830 -- 7112 bytes, the single largest unmatched
+       function in the game (notes/itcm.md), with no draft in
+       nearmiss/db.jsonl. Until it lands the game's own tracking cannot
+       ground him: with the collider stubbed he sinks about vo (50 units)
+       before the head sweep crosses the floor plane and shoves him back,
+       which is a 46-unit bob at 3 Hz. So the ground snap and the wall stop
+       stay ON under the real boot too. SM64DS_NO_SNAP / SM64DS_NO_WALLSTOP
+       take them off, which is how the real tracking gets measured. */
+    const int ground_snap = (fake_snap || getenv("SM64DS_REAL_BOOT") != 0) &&
+                            getenv("SM64DS_NO_SNAP") == 0;
+    const int wall_stop = getenv("SM64DS_NO_WALLSTOP") == 0;
     PORT_INSTALL_FAULT_PROBE();
     port_install_watchdog();
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -962,13 +977,15 @@ int main(void)
             head_live = 1;
         }
 
-        /* harness ground snap: a real KCL ray under Mario each frame.
-           OFF by default since gate 13 -- the game's own tracking owns the
-           ground under the Enable(NULL) collider, and a SetGroundFlag
-           without the rest of the surface record (collider slot, triangle)
-           feeds UpdateExtraContinous a half-empty record that faults.
-           SM64DS_FAKE_SNAP=1 puts it back for shots that need Mario
-           planted while the real tracking's fast-fall is still open. */
+        /* harness ground snap: a real KCL ray under Mario each frame. ON
+           wherever the game's own tracking cannot ground him, which is
+           everywhere until MeshCollider::DetectClsn(SphereClsn &) lands --
+           see the ground_snap comment at the top of main. The SetGroundFlag
+           here is now a supplement to a REAL floor record rather than a
+           substitute for a missing one: the tracking's own record carries
+           the level's CLPS entry, triangle and collider slot again, so
+           UpdateExtraContinous and func_02038324 read a complete record
+           either way. SM64DS_NO_SNAP=1 takes it off. */
         {
             int gy;
             int mx = *(int *)(c + 0x5c), my = *(int *)(c + 0x60),
@@ -976,7 +993,7 @@ int main(void)
             /* ray starts just above STEP height: starting a body-height
                up let the walk grab canopies/domes overhead and teleport
                him upward (the "camera is fucked" y-pops) */
-            if (fake_snap &&
+            if (ground_snap &&
                 hal_ground_ray(g_mc, mx, my + (100 << 12), mz, 5220 << 12,
                                &gy)) {
                 /* never re-ground a rising jump: the snap + SetGroundFlag
@@ -992,12 +1009,15 @@ int main(void)
                     *(unsigned char *)(c + 0x6de) = 0;
                 }
             }
-            /* wall stop: the sphere push-out (the game's wall pass) is
-               still stubbed, so clamp motion against the KCL directly --
-               a chest-height segment from last frame's position to this
-               one catches any wall crossed, and a stopped Mario keeps
-               his feet (y stays the snap's business) */
-            {
+            /* wall stop: the game's wall pass is the SAME unmatched
+               sphere collider as its ground pass -- MeshCollider::DetectClsn
+               (SphereClsn &) returns floor/wall/ceiling as one bit mask --
+               so this stays for exactly as long as the snap does. A
+               chest-height segment from last frame's position to this one
+               catches any wall crossed, and a stopped Mario keeps his feet
+               (y stays the snap's business). SM64DS_NO_WALLSTOP=1 takes it
+               off. */
+            if (wall_stop) {
                 int nx = *(int *)(c + 0x5c), nz = *(int *)(c + 0x64);
                 int ny = *(int *)(c + 0x60);
                 int wy = ny + (120 << 12);          /* chest height */
@@ -1017,10 +1037,13 @@ int main(void)
                         clip[2] - (int)(uz * (120 << 12));
                     *(int *)(c + 0x98) = 0;         /* mHorzSpeed */
                 }
-                prev_pos[0] = *(int *)(c + 0x5c);
-                prev_pos[1] = *(int *)(c + 0x60);
-                prev_pos[2] = *(int *)(c + 0x64);
             }
+            /* the harness's own last-frame position, which only the wall
+               stop reads -- the game's is Actor+0x68 and BeforeBehavior
+               owns it now (gate 15) */
+            prev_pos[0] = *(int *)(c + 0x5c);
+            prev_pos[1] = *(int *)(c + 0x60);
+            prev_pos[2] = *(int *)(c + 0x64);
 
             /* fell out of the world (walked or jumped past the KCL):
                back to the spawn point instead of an endless dive */

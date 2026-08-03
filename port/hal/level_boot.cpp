@@ -626,19 +626,25 @@ extern "C" void port_stage_a2_seat(void)
     hal_fill_camera_vtable();
 }
 
-/* ---- the path-binding guard ---------------------------------------------
-   The player's path binding (+0x670) is the path id of the CLPS entry under
-   his feet, and func_ov002_020c0108 reads the bound path's nodes into a
-   THREE-element stack array. On the ROM that is safe by construction: of
-   castle grounds' 22 CLPS entries only two name a path at all (5 and 3), and
-   both of those paths have exactly two nodes. Every longer path in the level
-   is for actors, which read them through PathPtr with their own storage.
-   The port can reach the unsafe case, and not through the level data.
-   WithMeshClsn's floor ClsnResult is only partly hosted, so when the ground
-   tracking copies a record no walk filled, the path id reads 0 -- and path 0
-   has seven nodes, which is 84 bytes into a 36-byte frame.
-   Until the floor result is real, reject a binding the level cannot produce,
-   say so once per id, and leave the genuine ones alone. */
+/* ---- the path-binding bounds assert --------------------------------------
+   RETIRED AS A WORKAROUND, KEPT AS AN ASSERT. It was written because the
+   floor ClsnResult was arriving corrupt -- the ClsnResult MSVC-alignment skew
+   fixed since -- and a corrupt record read back as path 0, which has seven
+   nodes. func_ov002_020c0108 reads a bound path's nodes into a THREE-element
+   stack array, so seven is 84 bytes into a 36-byte frame.
+
+   With real records the port now produces exactly what the level produces.
+   Of castle grounds' 22 CLPS entries twenty name path 0xff; only 16 and 17
+   name a path at all, 5 and 3, and both of those have exactly two nodes.
+   Measured: standing on an attribute-17 triangle binds path 3 and an
+   attribute-16 one binds path 5, and nothing else ever binds. Every longer
+   path in the level is for actors, which read them through PathPtr with
+   their own storage.
+
+   So this no longer rewrites anything on the level the port boots. What is
+   left is a bounds check in front of a fixed-size ROM stack array, which
+   costs two loads a frame and turns a future regression into one line of
+   output instead of a smashed frame. */
 extern "C" int port_stage_path_guard(void *player)
 {
     char *c = (char *)player;
@@ -653,8 +659,9 @@ extern "C" int port_stage_path_guard(void *player)
         static unsigned said;
         if (id < 32 && !(said & (1u << id))) {
             said |= 1u << id;
-            std::fprintf(stderr, "  [path] binding %u rejected (%d nodes, the "
-                         "tracking's floor record is not hosted yet)\n", id,
+            std::fprintf(stderr, "  [path] ASSERT: binding %u has %d nodes and "
+                         "the node walk holds 3 -- the level cannot produce "
+                         "this, so the floor record is wrong\n", id,
                          tbl && (int)id < count ? tbl[id * 6 + 2] : -1);
         }
     }
