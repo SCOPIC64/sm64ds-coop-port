@@ -121,6 +121,33 @@ extern "C" void hal_fill_camera_vtable(void)
     _ZTV6Camera[17] = (void *)cs_d0;
 }
 
+/* ---- who drives the camera's frame ---------------------------------------
+   Gate 16 put the ROM's own processing lists back in charge of the actor
+   frame, and the Camera is on both of them -- behaviour priority 0x14c,
+   render priority 0, which puts it at the head of the render bucket exactly
+   where a camera belongs.
+
+   The harness still drives Camera::Behavior and Camera::Render by hand,
+   though, because the two calls are not alone: Behavior has to be followed by
+   func_0203e0ac (the single-player echo of the heading record) and Render by
+   the R6 unit shim on data_0209b3ec, and both of those live in the window's
+   frame loop rather than in the camera. Left dispatchable, the list passes
+   would run each a second time -- and the second Render rebuilds the view
+   matrix WITHOUT the shim, which puts every model in the frame at an eighth
+   of its translation and clips Mario out of the picture. Measured, not
+   theorised: that is what the first list-driven frame did.
+
+   So the two slots go quiet and say so. This is the same bargain the Player's
+   Render slot takes; both come back the day the frame itself is the ROM's
+   (stage C's Scene::Render). */
+static int __fastcall cs_harness(void *, void *) { return 1; }
+
+extern "C" void hal_camera_slots_harness_owned(void)
+{
+    _ZTV6Camera[6] = (void *)cs_harness;    /* Behavior + func_0203e0ac */
+    _ZTV6Camera[9] = (void *)cs_harness;    /* Render + the R6 unit shim */
+}
+
 /* ---- the local/per-player comms blocks --------------------------------
    Camera::Behavior publishes its heading into the LOCAL record
    data_020a1040 (func_0203dafc writes data_020a1040[8], = 0x020a1050), and

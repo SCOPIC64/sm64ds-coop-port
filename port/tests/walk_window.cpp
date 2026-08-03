@@ -212,6 +212,12 @@ void *port_stage_a_boot(void *mc, int spawn_entrances);
 void port_stage_a_probe(void *mc);
 int port_stage_path_guard(void *player);
 void port_stage_a2_seat(void);
+/* the actor registry and the ROM's own processing lists (hal/actor_registry) */
+void port_actor_tick(void);          /* phases 4/2/3: cleanup, init, behaviour */
+void port_actor_render(void);        /* phase 5: the render bucket */
+void port_actor_scene_pass(void);    /* phase 1: scene-tree housekeeping */
+void port_actor_census(void);
+void port_actor_lists_probe(void);
 }
 
 #ifdef NTR_HIRES
@@ -386,6 +392,10 @@ int main(void)
         void *lvl = port_stage_a_boot(mc_storage, boot_spawns);
         level_bmd = *(unsigned short *)((char *)lvl + 8);
         port_stage_a_probe(mc_storage);
+        if (boot_spawns) {
+            port_actor_census();
+            port_actor_lists_probe();
+        }
     }
 
     void *player;
@@ -911,11 +921,16 @@ int main(void)
            origin to the gate and dropped Mario on the first floor it crossed.
            The legacy staging keeps the bare call: its hand-built spawn context
            has no area shown, and BeforeBehavior would cull the actor. */
-        if (*(void **)(c + 0x370)) {
-            if (boot_spawns)
-                hal_player_process(player);
-            else
-                hal_player_behavior(player);
+        /* Under the real boot that tick is no longer the Player's alone: the
+           level spawned other actors and they are on the same lists he is.
+           port_actor_tick runs func_02044120's first three phases -- cleanup,
+           the init pass for anything spawned since last frame, then behaviour
+           in priority order -- which reaches him through the same
+           func_02043288 the harness used to call by hand. */
+        if (boot_spawns) {
+            port_actor_tick();
+        } else if (*(void **)(c + 0x370)) {
+            hal_player_behavior(player);
         } else {
             hal_player_st_wait_main(player);
         }
@@ -1348,6 +1363,22 @@ int main(void)
         }
         if (!getenv("SM64DS_NO_LEVEL"))
             hal_render_model(level_storage, level_shift);
+        /* THE ACTOR RENDER BUCKET, and it is the game's own: processing list
+           5, walked in render-priority order, dispatching every spawned
+           actor's Render through its vtable (func_0204322c, slots 9/10/11).
+           Placed here rather than inside port_actor_tick because the ROM's
+           frame renders in the same pass it ticks, and the host's render
+           frame does not open until gx_reset and the camera push above --
+           phases 4/2/3 ran before them, phase 5 runs after. The alternative,
+           driving it through func_02019404's scene render slot, needs the
+           Scene actor the port does not build until stage C. */
+        if (boot_spawns && !getenv("SM64DS_NO_ACTORS"))
+            port_actor_render();
+        /* phase 1, which is where func_02044120 ends: the scene tree's own
+           housekeeping -- priority re-sorts, parent flag propagation, and the
+           deferred list insertions for anything that spawned mid-phase. */
+        if (boot_spawns)
+            port_actor_scene_pass();
         size_t tris_before = 0;
         if (selftest) ntr::gx_polygons(tris_before);
         hal_render_player_world(player);

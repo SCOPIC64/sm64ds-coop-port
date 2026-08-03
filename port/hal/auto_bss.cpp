@@ -152,6 +152,12 @@ int data_ov002_0210f3b0[8];
    never mounts, so the step-1 branch that reaches it finds nulls rather than
    a stranger's bytes. */
 int data_ov089_02132880[8];
+/* gate 16: the two processing-list globals the other three did not already
+   need. data_020a4ba8 is the cleanup list (head, tail, callback pair);
+   data_020a4b5c is the id hook func_0204302c calls after a Process tears an
+   actor down, and null is what the ROM's boot leaves it at. */
+int data_020a4ba8[8];
+int data_020a4b5c[4];
 }
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */

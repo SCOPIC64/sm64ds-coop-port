@@ -198,3 +198,9 @@ extern "C" int _ZN5Actor18GetBitInDeathTableEv(void *self)
 extern "C" void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a)
 { ((Actor *)self)->Actor::AfterInitResources(a); }
 
+/* gate 16: Actor::BeforeRender is the same shape -- a .c TU calling its base
+   by Itanium name over a real __thiscall definition. Slot 10 of every actor
+   class the registry carries goes through it. */
+extern "C" int _ZN9ActorBase12BeforeRenderEv(void *self)
+{ return ((ActorBase *)self)->ActorBase::BeforeRender(); }
+

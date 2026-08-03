@@ -1,0 +1,31 @@
+# Gate 16: real objects on the castle grounds.
+#
+# Two halves. The first is the ROM's own actor FRAME -- the five processing
+# lists func_02044120 walks -- which the port needed anyway the moment more
+# than one actor existed. The second is the actor CLASSES themselves, one
+# matched lifecycle closure per registry row.
+#
+# The seam is hal/actor_registry.cpp (the class table, the pre-spawn gate,
+# the five list callbacks) plus hal/actor_vtables.cpp (the runtime vtable
+# fills). Host copies of the four Process wrappers and the two list walks
+# live in port/unmatched/ for the usual reason: they dispatch through mwcc
+# pointer-to-member-functions and MSVC has no representation for one.
+
+# ---- the frame ------------------------------------------------------------
+# The scene-tree housekeeping pass (phase 1) and the tree's own iterator.
+src/func_02043880.c
+src/func_0203b394.c
+src/func_0203b358.c
+# The cleanup Process's id callback, a hook the port leaves null.
+src/func_0204302c.c
+
+# ---- the shared vtable slots every actor class dispatches through ---------
+# _ZN5Actor22BeforeCleanupResourcesEv is C++ inside a .c (the gate-9 case
+# again); it goes through hostgen, see GATE16_SYMS in CMakeLists.txt
+src/_ZN5Actor12BeforeRenderEv.c
+src/_ZN5Actor13OnYoshiTryEatEv.c
+# Slots 13/14 (ActorBase::Virtual34/Virtual38) are NOT here. Both are the
+# actor's own solid-heap creation and pull the whole Heap:: allocator face in
+# behind them; nothing in the castle grounds' object set has a dedicated heap,
+# and the gate-9 lifecycle proof trapped the same two slots. They stay trapped
+# by name, which is the loud version of "no level has reached this yet".

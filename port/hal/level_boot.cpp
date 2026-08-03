@@ -340,20 +340,32 @@ void port_clsn_pair_apply(void)
     *(int *)((char *)g_stage_mc + 0x38) = 0x40;      /* world -> file, 1/64 */
 }
 
-/* SM64DS_REAL_BOOT stage selector: 1 = A1 (geometry only). */
-void *port_stage_a_boot(void *mc, int spawn_entrances)
+/* `spawn` selects the stage: 0 = A1, the same boot with every spawner
+   switched off (the geometry regression); 1 = the level's own object load. */
+void *port_stage_a_boot(void *mc, int spawn)
 {
     g_stage_mc = mc;
     PortLvlOverlay *o = (PortLvlOverlay *)port_ov009_mount();
 
-    unsigned mask = (1u << LOADER_DOOR) | (1u << LOADER_EXIT);
-    if (!spawn_entrances)
-        mask |= 1u << LOADER_ENTRANCE;
-    port_stage_suppress(o, mask, 1);
+    /* STAGE B: THE TABLES ARE BACK ON. Stage A1 zeroed the Entrance, Door and
+       Exit counts in the host copy of the overlay and dropped the sub-table
+       -- the 89 Standard/Simple objects -- so that what it proved was exactly
+       the geometry. All of it loads now. Doors and Exits spawn actors like
+       everything else and meet the same registry gate; there is no reason for
+       the loader to be the thing that stops them. */
+    if (!spawn)
+        port_stage_suppress(o, (1u << LOADER_ENTRANCE) | (1u << LOADER_DOOR) |
+                                   (1u << LOADER_EXIT), 1);
 
     data_0209f2f8 = 1;          /* castle grounds */
     data_0209f264[0] = 0;       /* entrance 0, the castle gate */
-    data_0209f220[0] = 1;       /* star filter: ADVENTURE */
+    /* Star filter: the sub-table's group byte (kind >> 5) loads when it is 0
+       or equal to this. ADVENTURE is 1, which is grp0 + grp1; SM64DS_STAR_FILTER
+       is the knob that reads the other halves back (0 = grp0 alone). */
+    {
+        const char *sf = std::getenv("SM64DS_STAR_FILTER");
+        data_0209f220[0] = sf ? std::atoi(sf) : 1;
+    }
     data_0209f340 = (unsigned char *)o;
 
     /* ONE BIT, TWO JOBS, and they pull opposite ways on a port with no
@@ -388,61 +400,21 @@ void *port_stage_a_boot(void *mc, int spawn_entrances)
     return o;
 }
 
-// ---- Stage A2: the actor registry -------------------------------------------
+// ---- Stage A2/B: the seam the registry needs --------------------------------
 //
-// func_02043098 is the spawn spine, and it reads two things the host has to
-// provide. data_020a4bb8[id] is the SpawnInfo: a factory function pointer at
-// +0 that it CALLS, and behaviour/render priorities at +4/+6 that the
-// ActorBase constructor reads back out of the same record. A null slot is a
-// call through zero, so the table cannot simply be left empty.
-//
-// The gate is the pre-spawn hook at data_020a4b58. func_02043060 calls it
-// with the actor id BEFORE the table is touched, and 3 means "abort, cleanly"
-// -- an exercised ROM path, since LoadEntranceObjects already stores a
-// possibly-null result. So the registry carries exactly the two classes this
-// stage hosts and the hook turns everything else away.
-//
-// The SpawnInfo records are the ROM's own (Player_SpawnInfo from ov002,
-// Camera_SpawnInfo from arm9), mounted for their priority bytes, with only
-// the factory word repointed at the host.
+// The registry itself is hal/actor_registry.cpp: the class table, the
+// pre-spawn gate at data_020a4b58, and the five processing-list callbacks.
+// What is left here is the engine state the spawn spine reads before any of
+// that matters -- the scene root, the player slots, the camera's boot inputs.
 extern "C" {
-extern void **data_020a4bb8;          /* storage: hal/actor_vtables.cpp */
-extern int data_020a4b58[4];          /* the pre-spawn hook slot
-                                         (storage: hal/player_bridges.cpp) */
-extern unsigned char Player_SpawnInfo[];      /* ov002 0x0210a704 */
-extern unsigned char Camera_SpawnInfo[];      /* arm9  0x02086d78 */
-void *_ZN6PlayerC3Ev(void);                   /* ov002 0x020e6c0c */
-void *_ZN6CameraC1Ev(void *);                 /* arm9  0x0200e444 */
 int hal_camera_check_layout(void);
 void hal_fill_camera_vtable(void);
+void hal_camera_slots_harness_owned(void);
+void port_actor_registry_install(void);
+void port_actor_lists_seat(void);
 extern void *data_0209f318;
 extern int data_0209f5c0[];
-}
-
-enum { ACTOR_PLAYER = 0xbf, ACTOR_CAMERA = 0x14c };
-
-/* The two factories. Both ROM factories allocate their own object and ignore
-   the argument register they were entered with, which is why they can be
-   called through a no-argument pointer at all. */
-static void *port_factory_player(void) { return _ZN6PlayerC3Ev(); }
-static void *port_factory_camera(void) { return _ZN6CameraC1Ev(0); }
-
-/* The pre-spawn hook. Everything the registry does not carry gets a clean
-   abort and one line of output, so a level's unhosted classes are a list
-   rather than a crash. */
-extern "C" int port_prespawn_hook(void *idv)
-{
-    unsigned id = (unsigned)(size_t)idv;
-    if (id == ACTOR_PLAYER || id == ACTOR_CAMERA)
-        return 2;                     /* what a null hook returns: proceed */
-    {
-        static unsigned char said[512];
-        if (id < sizeof said && !said[id]) {
-            said[id] = 1;
-            std::printf("  [spawn] actor 0x%x not registered, skipped\n", id);
-        }
-    }
-    return 3;
+extern int data_020a4b6c[];           /* the scene tree */
 }
 
 /* ---- the scene root -------------------------------------------------------
@@ -452,8 +424,10 @@ extern "C" int port_prespawn_hook(void *idv)
    the port does not build yet. What the spawn spine actually needs of it is a
    SceneNode, so the host root is an ActorBase-shaped block with a zeroed node
    whose actor back-pointer is itself, exactly what
-   ActorBase::SceneNode::Reset + the ctor's `+0x24 = this` produce. */
-static unsigned char hal_scene_root[0x40];
+   ActorBase::SceneNode::Reset + the ctor's `+0x24 = this` produce.
+   Full ActorBase width (0x50), because it is also the head of the scene tree
+   and the phase-1 pass reads its two processing-list nodes at +0x28/+0x38. */
+static unsigned char hal_scene_root[0x50];
 
 /* ---- the Player vtable ----------------------------------------------------
    Spawning through func_02043098 ends in func_020433b8 -> the init Process,
@@ -511,6 +485,19 @@ static int __fastcall ps_bbeh(void *s, void *)
 { return _ZN5Actor14BeforeBehaviorEv(s); }
 static void __fastcall ps_abeh(void *s, void *, unsigned a)
 { ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+/* Slots 9/10/11. The render bucket (processing list 5) now dispatches every
+   actor's Render through its vtable, and the Player is on that list like
+   everything else -- so slot 9 can no longer be a trap. It is a no-op that
+   reports success instead: Player::Render is the ROM's whole model/shadow/
+   particle chain and only its body walk is hosted, so the harness still draws
+   him itself (hal_render_player_world) right after the bucket. The two hooks
+   around it are the game's own. */
+extern "C" int _ZN5Actor12BeforeRenderEv(void *self);
+static int __fastcall ps_render(void *, void *) { return 1; }
+static int __fastcall ps_bren(void *s, void *)
+{ return _ZN5Actor12BeforeRenderEv(s); }
+static void __fastcall ps_aren(void *s, void *, unsigned a)
+{ ((ActorBase *)s)->ActorBase::AfterRender(a); }
 
 static const char *const hal_player_slot_name[20] = {
     "InitResources", "BeforeInitResources", "AfterInitResources",
@@ -540,9 +527,9 @@ extern "C" void hal_fill_player_vtable(void)
     vt[6] = (void *)ps_behavior;
     vt[7] = (void *)ps_bbeh;
     vt[8] = (void *)ps_abeh;
-    /* Slot 9 (Render) stays trapped: the harness renders the Player itself
-       (hal_render_player_world), because Player::Render is the ROM's whole
-       model/shadow/particle chain and only its body walk is hosted. */
+    vt[9] = (void *)ps_render;
+    vt[10] = (void *)ps_bren;
+    vt[11] = (void *)ps_aren;
 }
 
 /* The per-frame tick the ROM's processing list runs on every actor:
@@ -577,6 +564,12 @@ extern "C" void port_stage_a2_seat(void)
     std::memset(hal_scene_root, 0, sizeof hal_scene_root);
     *(void **)(hal_scene_root + 0x24) = hal_scene_root;   /* node.actor */
     data_0209f5c0[0] = (int)(size_t)hal_scene_root;
+    /* ...and the tree's own head. On the ROM the Stage actor spawns with a
+       NULL parent, so func_0203b438 takes its handle_a branch and writes the
+       node into data_020a4b6c[0]; every later actor hangs off it. The host
+       root stands in for the Stage actor, so it takes the same seat, and the
+       phase-1 pass has a tree to walk instead of a null head. */
+    data_020a4b6c[0] = (int)(size_t)(hal_scene_root + 0x14);
 
     /* one local player, index 0, playing Mario, with the slot marked live so
        LoadEntranceObjects keeps the pointer it spawns */
@@ -610,20 +603,14 @@ extern "C" void port_stage_a2_seat(void)
     data_0209b454[0] = 0;
     data_0209ee90[0x44 / 4] = 0x1000;
 
-    /* the registry: two ids, ROM priorities, host factories */
-    *(void **)(Player_SpawnInfo + 0) = (void *)port_factory_player;
-    *(void **)(Camera_SpawnInfo + 0) = (void *)port_factory_camera;
-    data_020a4bb8[ACTOR_PLAYER] = Player_SpawnInfo;
-    data_020a4bb8[ACTOR_CAMERA] = Camera_SpawnInfo;
-    data_020a4b58[0] = (int)(size_t)port_prespawn_hook;
-
-    hal_fill_player_vtable();
-    std::printf("[a2] registry: root %p, PLAYER %p, CAMERA %p\n",
-                (void *)hal_scene_root, (void *)Player_SpawnInfo,
-                (void *)Camera_SpawnInfo);
+    /* the five processing-list callbacks, then the class table and the gate */
+    port_actor_lists_seat();
     if (!hal_camera_check_layout())
         std::fprintf(stderr, "  [cam] LAYOUT CHECK FAILED\n");
     hal_fill_camera_vtable();
+    hal_camera_slots_harness_owned();
+    port_actor_registry_install();
+    std::printf("[a2] scene root %p\n", (void *)hal_scene_root);
 }
 
 /* ---- the path-binding bounds assert --------------------------------------
