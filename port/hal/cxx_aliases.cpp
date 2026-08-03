@@ -63,7 +63,7 @@ extern "C" {
 /* BSS the aliased data references land on (non-ov002 ring) */
 int data_0208e6ec[4]; short data_02092144[4];
 void *data_020992a4[4], *data_020992b4[4];
-int data_0209b0c8;
+/* data_0209b0c8 moved to hal/camera_states.cpp (camera State object 12) */
 
 }
 
@@ -656,3 +656,40 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 /* return-type-only variant of the Animation::WillHitFrame face the port
    already has (bool vs int; same __thiscall shape, result in EAX) */
 #pragma comment(linker, "/alternatename:?WillHitFrame@Animation@@QBEHH@Z=?WillHitFrame@Animation@@QBE_NH@Z")
+
+/* gate 13, the real Camera: the C++-mangled references its TUs emit (they
+   declare their externs outside extern "C") -> the C-named definitions, plus
+   the two community names that sit on top of matched symbols. */
+#pragma comment(linker, "/alternatename:?CAM_SPACE_CAM_POS_ASR_3@@3DA=_CAM_SPACE_CAM_POS_ASR_3")
+#pragma comment(linker, "/alternatename:?data_0209b008@@3DA=_data_0209b008")
+#pragma comment(linker, "/alternatename:?data_0209b008@@3PAUCamera_State@@A=_data_0209b008")
+#pragma comment(linker, "/alternatename:?data_0209b41c@@3DA=_data_0209b41c")
+#pragma comment(linker, "/alternatename:?data_0208733c@@3IA=_data_0208733c")
+#pragma comment(linker, "/alternatename:?data_0209f20c@@3EA=_data_0209f20c")
+#pragma comment(linker, "/alternatename:?data_0209f294@@3EA=_data_0209f294")
+#pragma comment(linker, "/alternatename:?data_0209f2c4@@3EA=_data_0209f2c4")
+#pragma comment(linker, "/alternatename:?_ZN6Camera11ChangeStateEPNS_5StateE@@YAHPAUCamera@@PAUCamera_State@@@Z=__ZN6Camera11ChangeStateEPNS_5StateE")
+#pragma comment(linker, "/alternatename:?_ZNK6Camera12IsUnderwaterEv@@YAHPAX@Z=__ZNK6Camera12IsUnderwaterEv")
+#pragma comment(linker, "/alternatename:?func_0200ca50@@YAHPAX@Z=_func_0200ca50")
+#pragma comment(linker, "/alternatename:?func_0203dafc@@YAXH@Z=_func_0203dafc")
+#pragma comment(linker, "/alternatename:?Math_Function_0203b0fc@@YAXPAHHHH@Z=_Math_Function_0203b0fc")
+#pragma comment(linker, "/alternatename:?_ZN8Particle6System10NewWeatherEjj5Fix12IiES2_S2_PK11Vector3_16fj@@YAIIIHHHPBXE@Z=__ZN8Particle6System10NewWeatherEjj5Fix12IiES2_S2_PK11Vector3_16fj")
+/* the G3i pair are host copies (port/unmatched/); their TU declares them as
+   C names, Camera::Render as class statics */
+#pragma comment(linker, "/alternatename:?PerspectiveW_@G3i@@SAXHHHHHH_NPAUMatrix4x3@@@Z=__ZN3G3i13PerspectiveW_E5Fix12IiES1_S1_S1_S1_S1_bP9Matrix4x3")
+#pragma comment(linker, "/alternatename:?LookAt_@G3i@@SAXPBUVector3@@00_NPAUMatrix4x3@@@Z=__ZN3G3i7LookAt_EPK7Vector3S2_S2_bP9Matrix4x3")
+#pragma comment(linker, "/alternatename:?SetBlendAlpha@G2x@@SAXPCGGGGG@Z=__ZN3G2x13SetBlendAlphaEPVttttt")
+#pragma comment(linker, "/alternatename:?Render@OAM@@SAX_NPAUOamAttr@@HHHHHHHH@Z=__ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii")
+/* community names for matched symbols: Vec3_DistSq IS func_0203cf94,
+   STAR_MARKERS is the bss array at 0x0209f40c, and func_0200cc5c is
+   Camera::SaveCameraStateBeforeTalk (both callers spell it argless) */
+#pragma comment(linker, "/alternatename:_Vec3_DistSq=_func_0203cf94")
+#pragma comment(linker, "/alternatename:_STAR_MARKERS=_data_0209f40c")
+#pragma comment(linker, "/alternatename:_func_0200cc5c=__ZN6Camera25SaveCameraStateBeforeTalkEv")
+/* ActorBase's own vtable symbol: the transient install the ctor/dtor chain
+   writes, already storage in hal/actor_vtables.cpp under its DS name */
+#pragma comment(linker, "/alternatename:__ZTV9ActorBase=_data_02099edc")
+/* Camera::~Camera (D0) frees by C name; Memory::Deallocate's own TU declares
+   Heap as a `class` (PAV) while every header spells it `struct` (PAU), so the
+   alias carries the decorated name from the link log rather than a face */
+#pragma comment(linker, "/alternatename:__ZN6Memory10DeallocateEPvP4Heap=?Deallocate@Memory@@YAXPAXPAVHeap@@@Z")

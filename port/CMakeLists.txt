@@ -503,14 +503,90 @@ add_custom_command(OUTPUT "${OV002DATA_C}"
             "${CMAKE_CURRENT_SOURCE_DIR}/ov002_syms.txt"
     COMMENT "ovdata ov002")
 
+# Gate 13: the real Camera actor. Adds its own slice plus the HAL seam, and
+# swaps three gate-10 files for host copies that only the camera needs
+# (see port/unmatched/): ChangeArea calls HideArea() with no argument and
+# relies on the ARM r0 ride-through, and func_0200cae4 / func_0200ca50
+# dispatch through mwcc member-function pointers. smoke_player keeps the
+# matched files -- it never arms data_0209f318, so nothing there dispatches.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate13.txt" SLICE13_LINES)
+set(SLICE13_SOURCES "")
+foreach(line IN LISTS SLICE13_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE13_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# gate 10 minus the two files the camera build replaces
+set(SLICE10_CAM_SOURCES "")
+foreach(src IN LISTS SLICE10_SOURCES)
+    if(src MATCHES "/ChangeArea\\.c$" OR src MATCHES "/func_0200cae4\\.cpp$")
+        continue()
+    endif()
+    list(APPEND SLICE10_CAM_SOURCES "${src}")
+endforeach()
+
+set(CAMERA_HOST_SOURCES
+    unmatched/ChangeArea.c
+    unmatched/func_0200cae4.cpp
+    unmatched/func_0200ca50.cpp
+    unmatched/G3i_PerspectiveW.cpp
+    unmatched/G3i_LookAt.cpp
+    hal/camera_states.cpp
+    hal/camera_bridges.cpp)
+
+# Camera::Render writes CLEAR_COLOR at a literal address; LenVec3 drives the
+# hardware sqrt unit and cstd::ldiv_result reads the divider result -- all
+# three only work through the NTR_MMIO proxy.
+# func_02009d90 carries a GCC __attribute__((unused)) MSVC will not parse;
+# hostgen strips attributes as well as rewriting MMIO.
+# _ZN12ActorDerived18AfterInitResourcesEj is C++ inside a .c (the gate-9 case
+# again): hostgen emits it as .cpp with the C-linkage wrap, which MSVC accepts.
+set(GATE13_SYMS _ZN6Camera6RenderEv LenVec3 _ZN4cstd11ldiv_resultEv
+    func_02009d90 _ZN12ActorDerived18AfterInitResourcesEj)
+set(GATE13_GEN "")
+foreach(sym IN LISTS GATE13_SYMS)
+    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+    else()
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
+    endif()
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND GATE13_GEN "${sym_out}")
+endforeach()
+
+# LenVec3 comes from the hostgen copy now, so drop the plain gate-9 entry.
+set(SLICE9_CAM_SOURCES "")
+foreach(src IN LISTS SLICE9_SOURCES)
+    if(src MATCHES "/LenVec3\\.c$")
+        continue()
+    endif()
+    list(APPEND SLICE9_CAM_SOURCES "${src}")
+endforeach()
+
+# The camera slice is on both binaries. The gate-13 State objects carry real
+# DS function addresses, and Player::ChangeState already reaches
+# func_0200d81c -> Camera::ChangeState on every state change, so the smoke
+# needs the host dispatcher too or the first ChangeState calls a mwcc
+# member-function pointer.
 add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
     hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp
+    ${CAMERA_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
-    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES} ${SLICE10_SOURCES}
+    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
+    ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} ${GATE10_GEN}
+    ${GATE13_GEN}
     "${ROMDATA_C}")
 target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -528,9 +604,12 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}"
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
     hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp
+    ${CAMERA_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
-    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES} ${SLICE10_SOURCES}
+    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
+    ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} ${GATE10_GEN}
+    ${GATE13_GEN}
     "${ROMDATA_C}")
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -551,9 +630,12 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}"
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
     hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp
+    ${CAMERA_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
-    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES} ${SLICE10_SOURCES}
+    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
+    ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} ${GATE10_GEN}
+    ${GATE13_GEN}
     "${ROMDATA_C}")
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"

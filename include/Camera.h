@@ -49,6 +49,12 @@ struct Camera {
     void GoBehindPlayer(unsigned int j);
     void OnPendingDestroy();
     void SaveCameraStateBeforeTalk();
+    /* Defined in their own TUs against locally declared Camera classes
+       (each carries the layout that TU needs). Declared here so the host
+       seam can name them: MSVC mangles a method by class NAME, so these
+       decorate identically to the definitions. */
+    int InitResources();
+    int Render();
 #endif
 };
 
