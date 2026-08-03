@@ -38,6 +38,8 @@ struct GxTriangle {
     GxVertex v[3];
     const uint32_t *tex;   // decoded RGBA, or null for untextured
     int tw, th;
+    uint8_t cull;          // POLYGON_ATTR bits 6-7: 1 back, 2 front, 3 both
+    uint8_t alpha;         // POLYGON_ATTR bits 16-20 (0..31; 31 = opaque)
 };
 
 // Feed the engine. `gx_write_port` takes a geometry-port address in

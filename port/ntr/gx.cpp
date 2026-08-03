@@ -69,6 +69,7 @@ struct State {
     const uint32_t *tex_rgba = nullptr; // bound texture (Mat tex above is the
     int tw = 0, th = 0;                 // texture *matrix* -- different thing)
     int prim = -1;                 // BEGIN_VTXS type, -1 when not inside a primitive
+    uint32_t poly_attr = 0x80;     // POLYGON_ATTR latch; bit6 back, bit7 front
     int16_t vx = 0, vy = 0, vz = 0;
     std::vector<GxVertex> strip;   // vertices accumulated in the current primitive
     int strip_parity = 0;
@@ -95,29 +96,92 @@ uint32_t bgr555_to_argb(uint16_t c) {
 
 Mat &current_pos() { return g.pos; }
 
-// Project a model-space vertex all the way to screen space.
+// Transform a model-space vertex to CLIP space. The divide and viewport
+// mapping happen at emit time, after near-plane clipping -- dividing by a
+// w that is zero or negative (a vertex behind the camera) sprays the
+// triangle across the screen, which is exactly what the pre-clip pipeline
+// did the moment a perspective camera walked into geometry.
 GxVertex project(int16_t x, int16_t y, int16_t z) {
     const Vec4 v{x * FX12, y * FX12, z * FX12, 1.0f};
     const Vec4 c = mul(mul(v, current_pos()), g.proj);
 
     GxVertex out{};
+    out.x = c.x;
+    out.y = c.y;
+    out.z = c.z;
     out.w = c.w;
-    const float iw = (std::fabs(c.w) > 1e-6f) ? 1.0f / c.w : 0.0f;
-    // DS screen y runs bottom-up; the framebuffer is top-down.
-    out.x = (c.x * iw + 1.0f) * 0.5f * g.vp_w + g.vp_x;
-    out.y = (1.0f - (c.y * iw + 1.0f) * 0.5f) * g.vp_h + g.vp_y;
-    out.z = (c.z * iw + 1.0f) * 0.5f;
     out.u = g.u;
     out.v = g.v;
     out.color = g.color;
     return out;
 }
 
-void emit_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
+// clip space -> screen space (the exact pre-clip formula, so w == 1 paths
+// -- every ortho smoke and its reference pixel count -- are unchanged)
+GxVertex to_screen(const GxVertex &cv) {
+    GxVertex out = cv;
+    const float iw = (std::fabs(cv.w) > 1e-6f) ? 1.0f / cv.w : 0.0f;
+    // DS screen y runs bottom-up; the framebuffer is top-down.
+    out.x = (cv.x * iw + 1.0f) * 0.5f * g.vp_w + g.vp_x;
+    out.y = (1.0f - (cv.y * iw + 1.0f) * 0.5f) * g.vp_h + g.vp_y;
+    out.z = (cv.z * iw + 1.0f) * 0.5f;
+    return out;
+}
+
+GxVertex clip_lerp(const GxVertex &a, const GxVertex &b, float t) {
+    GxVertex o;
+    o.x = a.x + (b.x - a.x) * t;
+    o.y = a.y + (b.y - a.y) * t;
+    o.z = a.z + (b.z - a.z) * t;
+    o.w = a.w + (b.w - a.w) * t;
+    o.u = a.u + (b.u - a.u) * t;
+    o.v = a.v + (b.v - a.v) * t;
+    uint32_t ca = a.color, cb = b.color, c = 0;
+    for (int s = 0; s < 32; s += 8) {
+        const float ch = ((ca >> s) & 0xFF) +
+                         (float(int((cb >> s) & 0xFF) - int((ca >> s) & 0xFF))) * t;
+        c |= (uint32_t(ch < 0 ? 0 : ch > 255 ? 255 : ch) & 0xFF) << s;
+    }
+    o.color = c;
+    return o;
+}
+
+void push_screen_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
     GxTriangle t;
     t.v[0] = a; t.v[1] = b; t.v[2] = c;
     t.tex = g.tex_rgba; t.tw = g.tw; t.th = g.th;
+    t.cull = static_cast<uint8_t>((g.poly_attr >> 6) & 3);
+    t.alpha = static_cast<uint8_t>((g.poly_attr >> 16) & 31);
     g.tris.push_back(t);
+}
+
+void emit_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
+    // Sutherland-Hodgman against the near plane w >= eps. w == 1 everywhere
+    // (the ortho harnesses) never clips and reaches push_screen_tri with
+    // the input triangle intact.
+    const float NEAR_EPS = 1e-3f;
+    GxVertex in[3] = {a, b, c};
+    GxVertex outp[4];
+    int n = 0;
+    for (int i = 0; i < 3; ++i) {
+        const GxVertex &cur = in[i];
+        const GxVertex &nxt = in[(i + 1) % 3];
+        const bool cin = cur.w >= NEAR_EPS;
+        const bool nin = nxt.w >= NEAR_EPS;
+        if (cin) outp[n++] = cur;
+        if (cin != nin) {
+            const float t = (NEAR_EPS - cur.w) / (nxt.w - cur.w);
+            outp[n++] = clip_lerp(cur, nxt, t);
+        }
+    }
+    if (n < 3) return;
+    const GxVertex s0 = to_screen(outp[0]);
+    GxVertex prev = to_screen(outp[1]);
+    for (int i = 2; i < n; ++i) {
+        const GxVertex cur = to_screen(outp[i]);
+        push_screen_tri(s0, prev, cur);
+        prev = cur;
+    }
 }
 
 // Assemble according to the active BEGIN_VTXS primitive type.
@@ -311,7 +375,7 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
                    static_cast<int16_t>(g.vz + d10((p[0] >> 20) & 0x3FF)));
             break;
         }
-        case 0x29: break;                                        // POLYGON_ATTR
+        case 0x29: g.poly_attr = p[0]; break;                    // POLYGON_ATTR
         case 0x2A: gx_teximage_param(p[0]); break;               // TEXIMAGE_PARAM
         case 0x2B: gx_pltt_base(p[0]); break;                    // PLTT_BASE
         case 0x30: {                                             // DIF_AMB
@@ -587,13 +651,13 @@ void gx_render(Framebuffer &fb) {
         const float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
         if (std::fabs(area) < 1e-6f) continue;
 
-        // Back-face culling. Without it the far side of a closed mesh can win the
-        // depth test and draw *through* the near side -- which shows up as
-        // mirrored texturing, because you are looking at the inside of the far
-        // face. The ? block's question mark read backwards until this existed.
-        // Screen Y is flipped relative to DS space, so a front face is clockwise
-        // here. POLYGON_ATTR selects the mode per polygon; this is the default.
-        if (area > 0.0f) continue;
+        // Back-face culling per POLYGON_ATTR bits 6-7 (bit 6 renders the back
+        // surface, bit 7 the front; stage meshes use double-sided ground).
+        // Screen Y is flipped relative to DS space, so a front face is
+        // clockwise here (negative area).
+        const bool backface = area > 0.0f;
+        if (backface && !(t.cull & 1)) continue;
+        if (!backface && !(t.cull & 2)) continue;
 
         int minx = static_cast<int>(std::floor(std::fmin(a.x, std::fmin(b.x, c.x))));
         int maxx = static_cast<int>(std::ceil(std::fmax(a.x, std::fmax(b.x, c.x))));
@@ -619,13 +683,23 @@ void gx_render(Framebuffer &fb) {
                 // Depth is written only after the texel passes the alpha test
                 // below -- a transparent texel must not occlude what is behind it.
                 // Texture first; the vertex colour modulates it. UVs are
-                // interpolated linearly -- correct here because the projection
-                // is affine (w == 1); perspective-correct division belongs with
-                // a real perspective matrix.
+                // perspective-corrected via 1/w interpolation; with w == 1
+                // everywhere (the ortho harnesses) the math reduces exactly
+                // to the old affine lerp.
                 uint32_t texel = 0xFFFFFFFFu;
                 if (t.tex && t.tw > 0 && t.th > 0) {
-                    const float uu = l0 * a.u + l1 * b.u + l2 * c.u;
-                    const float vv = l0 * a.v + l1 * b.v + l2 * c.v;
+                    const float iwa = (std::fabs(a.w) > 1e-6f) ? 1.0f / a.w : 0.0f;
+                    const float iwb = (std::fabs(b.w) > 1e-6f) ? 1.0f / b.w : 0.0f;
+                    const float iwc = (std::fabs(c.w) > 1e-6f) ? 1.0f / c.w : 0.0f;
+                    const float iw = l0 * iwa + l1 * iwb + l2 * iwc;
+                    float uu, vv;
+                    if (iw > 1e-9f) {
+                        uu = (l0 * a.u * iwa + l1 * b.u * iwb + l2 * c.u * iwc) / iw;
+                        vv = (l0 * a.v * iwa + l1 * b.v * iwb + l2 * c.v * iwc) / iw;
+                    } else {
+                        uu = l0 * a.u + l1 * b.u + l2 * c.u;
+                        vv = l0 * a.v + l1 * b.v + l2 * c.v;
+                    }
                     int ui = static_cast<int>(std::floor(uu)) % t.tw;
                     int vi = static_cast<int>(std::floor(vv)) % t.th;
                     if (ui < 0) ui += t.tw;
@@ -644,8 +718,25 @@ void gx_render(Framebuffer &fb) {
                     const int i = static_cast<int>(v * m + 0.5f);
                     return static_cast<uint32_t>(i < 0 ? 0 : (i > 255 ? 255 : i));
                 };
-                depth[y][x] = z;
-                fb.px[y][x] = 0xFF000000u | (ch(16) << 16) | (ch(8) << 8) | ch(0);
+                if (t.alpha >= 31 || t.alpha == 0) {
+                    /* opaque (the DS treats attr alpha 0 as wire/opaque
+                       depending on mode; opaque is the safe read) */
+                    depth[y][x] = z;
+                    fb.px[y][x] =
+                        0xFF000000u | (ch(16) << 16) | (ch(8) << 8) | ch(0);
+                } else {
+                    /* translucent: blend over the framebuffer, keep depth
+                       (DS translucent polys depth-test but do not write) */
+                    const uint32_t dst = fb.px[y][x];
+                    const uint32_t sa = t.alpha;   /* 0..31 */
+                    auto bl = [&](int sh) {
+                        const uint32_t s = ch(sh);
+                        const uint32_t d = (dst >> sh) & 0xFF;
+                        return ((s * sa + d * (31 - sa)) / 31) & 0xFF;
+                    };
+                    fb.px[y][x] = 0xFF000000u | (bl(16) << 16) | (bl(8) << 8)
+                                  | bl(0);
+                }
             }
         }
     }
