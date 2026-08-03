@@ -119,6 +119,8 @@ int _ZN13RaycastGround10DetectClsnEv(void *);
 int hal_ground_ray(void *mc, int x, int y, int z, int reach, int *out_y);
 int hal_line_ray(void *mc, const int *a, const int *b, int *out);
 void _ZN12WithMeshClsn13SetGroundFlagEv(void *);
+int func_02035354(void *, void *);
+int func_020393b4(void *);
 }
 
 #ifdef NTR_HIRES
@@ -236,7 +238,18 @@ int main(void)
         static char clps[0x100];
         _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
                                                           clps);
-        _ZN16MeshColliderBase6EnableEP5Actor(mc_storage, player);
+        /* ROOT CAUSE (found 2026-08-02): the level collider's OWNER feeds
+           func_02035354's self-collision exclusion. Enabling it with the
+           player as owner makes every player ground/wall probe skip the
+           level -- which is why the game's own tracking never grounded and
+           the harness snap exists. A neutral stage owner turns the REAL
+           collision on, but the newly-live grounded-physics paths hang
+           (suspect: the div-52 walk-physics draft's ground branches), so
+           real collision stays opt-in until that is run down. */
+        static char stage_owner[0x200];
+        _ZN16MeshColliderBase6EnableEP5Actor(
+            mc_storage, getenv("SM64DS_REAL_CLSN") ? (void *)stage_owner
+                                                   : (void *)player);
         /* the octree box is power-of-two PADDED (its center is way off the
            real stage); the geometry lives near the origin, so spawn there,
            a few units up -- the first frames drop him onto the lawn */
@@ -287,6 +300,18 @@ int main(void)
             printf("registry[0]=%p mc=%p direct-slot6=%d gy=%.1f flag=%d\n",
                    data_020a0c80[0], g_mc, direct,
                    *(int *)(rg + 0x44) / 4096.0f, rg[0x48]);
+            /* the method's own first block, replicated by hand */
+            char *o = (char *)data_020a0c80[0];
+            printf("manual: o=%p p=%p ray_fc=%d head4=%d reach=%d\n", o,
+                   *(void **)(o + 4), *(int *)(rg + 0xc), rg[4],
+                   *(int *)(rg + 0x4c));
+            {
+                extern int func_02035354(void *, void *);
+                extern int func_020393b4(void *);
+                void *p2 = (void *)func_020393b4(o);
+                int f = func_02035354(rg, p2);
+                printf("manual filter(rg, p)=%d p2=%p\n", f, p2);
+            }
         }
         /* floor map: direct line walks over a coarse grid */
         for (int gz = -100; gz <= 100; gz += 50) {

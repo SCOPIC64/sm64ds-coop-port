@@ -240,7 +240,18 @@ int main(void)
         static char clps_storage[0x100];
         _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
                                                           clps_storage);
-        _ZN16MeshColliderBase6EnableEP5Actor(mc_storage, player);
+        /* ROOT CAUSE (found 2026-08-02): the level collider's OWNER feeds
+           func_02035354's self-collision exclusion. Enabling it with the
+           player as owner makes every player ground/wall probe skip the
+           level -- which is why the game's own tracking never grounded and
+           the harness snap exists. A neutral stage owner turns the REAL
+           collision on, but the newly-live grounded-physics paths hang
+           (suspect: the div-52 walk-physics draft's ground branches), so
+           real collision stays opt-in until that is run down. */
+        static char stage_owner[0x200];
+        _ZN16MeshColliderBase6EnableEP5Actor(
+            mc_storage, getenv("SM64DS_REAL_CLSN") ? (void *)stage_owner
+                                                   : (void *)player);
         /* stand Mario inside the octree box, above the floor plane */
         int ox = *(int *)(kcl + 0), oy = *(int *)(kcl + 4), oz = *(int *)(kcl + 8);
         unsigned xm = *(unsigned *)(kcl + 0x10), zm = *(unsigned *)(kcl + 0x18);
