@@ -164,7 +164,9 @@ extern "C" {
 /* asm primitive: plain 48-byte block copy (with writeback, unlike the
    FIFO-fixed variant) */
 void Copy48Bytes(int *src, int *dst) { for (int i = 0; i < 12; ++i) dst[i] = src[i]; }
-int data_020a0e68[4];
+int data_020a0e68[12];     /* Matrix4x3 scratch (0x30 on DS) -- was [4],
+                              and FromTranslation's overrun stomped the
+                              actor list head 0x20 bytes downstream */
 short data_0208e378;
 short *data_0209b45c;      /* spawn default rotation ptr (null = none) */
 short *data_0209b460;      /* spawn default position ptr */

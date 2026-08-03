@@ -49,7 +49,14 @@ static int __fastcall slot_ground(void *self, void *, unsigned char *g)
                 ((int *)(line + 0x38))[2], reach, line[4], hit,
                 ((int *)(line + 0x54))[1]);
     if (hit) {
-        memcpy(g + 0x10, line + 0x10, 0x1c);     /* ClsnResult back */
+        /* hit fields only: SurfaceInfo (+0x14, 20 bytes) and tri (+0x28).
+           NEVER the whole result head -- the old 0x1c-byte copy from the
+           un-ctor'd stack line clobbered the ground result's vtable,
+           clsn slot (0x18 = empty sentinel) and objID (-1 = no actor),
+           and the zeros sent UpdateExtraContinous walking slot 0xffff
+           and FindWithID hunting actor 0 */
+        memcpy(g + 0x14, line + 0x14, 20);
+        *(unsigned short *)(g + 0x28) = *(unsigned short *)(line + 0x28);
         /* ground result fields (func_02037464 resets them: y at +0x44
            seeded 0x80000000, flag at +0x48) */
         if (((int *)(line + 0x54))[1] > *(int *)(g + 0x44))

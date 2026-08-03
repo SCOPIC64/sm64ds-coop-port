@@ -744,7 +744,7 @@ src/func_020371b0.c
 src/func_0203782c.c
 src/func_02037888.c
 src/func_02037dc4.c
-src/func_02038324.cpp
+port/unmatched/func_02038324.cpp
 src/func_0203859c.cpp
 src/func_02039794.c
 src/func_0203abcc.c
@@ -838,6 +838,16 @@ src/_ZN3OAM16LoadAffineParamsEP7OamAttrPiP9Matrix2x2.c
 src/_ZN6Player12St_Fall_InitEv.cpp
 src/_ZN6Player12St_Fall_MainEv.cpp
 src/_ZN6Player12St_Jump_InitEv.cpp
+src/_ZN6Player20St_StomachSlide_InitEv.cpp
+src/_ZN6Player20St_StomachSlide_MainEv.cpp
+src/func_0200d544.c
+src/func_ov002_020dba0c.c
+src/func_ov002_020dc174.c
+src/func_ov002_020bf90c.c
+src/func_ov002_020c0688.cpp
+src/func_ov002_020dc560.c
+src/func_ov002_020dd2f4.c
+src/func_ov002_020e0ccc.cpp
 port/unmatched/Player_St_Jump_Main.cpp
 src/func_ov002_020e200c.c
 src/func_ov002_020bf27c.c

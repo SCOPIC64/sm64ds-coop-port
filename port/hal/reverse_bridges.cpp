@@ -218,5 +218,10 @@ struct Camera { void SetFlag_3(); };
 extern "C" void _ZN6Camera9SetFlag_3Ev(void *self)
 { ((Camera *)self)->SetFlag_3(); }
 
+/* REAL BODY here, not a hop back to the method: the method shadow above
+   already forwards to this C name, and forwarding back made a mutual
+   tail-call -- /O2 turned it into a two-instruction jmp cycle that hung
+   the first real-collision frame (WATCHDOG pinned EIP inside it).
+   Field per src/_ZNK10ClsnResult9GetClsnIDEv.cpp: objID at +0x1c. */
 extern "C" int _ZNK10ClsnResult9GetClsnIDEv(const void *self)
-{ return ((const ClsnResult *)self)->GetClsnID(); }
+{ return (int)((const unsigned *)self)[7]; }

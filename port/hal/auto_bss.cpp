@@ -116,6 +116,7 @@ int data_02099fb0[8];
 int data_0209d4ac[8];
 int data_020a4c64[8];
 int data_020a4c70[8];
+int data_0209b088[4];   /* Camera State object the slide path enters */
 }
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */

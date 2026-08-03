@@ -7,6 +7,8 @@
     case 0x020d32bc: return ((Player *)self)->Player::St_Wait_Init();
     case 0x020d38c0: return ((Player *)self)->Player::St_Walk_Main();
     case 0x020d4270: return ((Player *)self)->Player::St_Walk_Init();
+    case 0x020dcc28: return ((Player *)self)->Player::St_StomachSlide_Main();
+    case 0x020dd104: return ((Player *)self)->Player::St_StomachSlide_Init();
     case 0x020e04ec: return ((Player *)self)->Player::St_Land_Main();
     case 0x020e088c: return ((Player *)self)->Player::St_Land_Init();
     case 0x020e2118: return ((Player *)self)->Player::St_Jump_Main();

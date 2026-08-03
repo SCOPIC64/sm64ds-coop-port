@@ -23,6 +23,8 @@
 #pragma comment(linker, "/alternatename:?data_0209f4ab@@3PAEA=_data_0209f4ab")
 #pragma comment(linker, "/alternatename:?data_ov002_0211073c@@3PAHA=_data_ov002_0211073c")
 #pragma comment(linker, "/alternatename:?data_ov002_021103f4@@3DA=_data_ov002_021103f4")
+#pragma comment(linker, "/alternatename:?data_ov002_021101fc@@3PAHA=_data_ov002_021101fc")
+#pragma comment(linker, "/alternatename:?func_ov002_020dba0c@@YAXPAX@Z=_func_ov002_020dba0c")
 #pragma comment(linker, "/alternatename:?data_020a0e40@@3EA=_data_020a0e40")
 #pragma comment(linker, "/alternatename:?data_020a0e40@@3PAEA=_data_020a0e40")
 #pragma comment(linker, "/alternatename:?data_ov002_020ff1b0@@3PAHA=_data_ov002_020ff1b0")
@@ -111,6 +113,12 @@ double func_01ff8708(double x, double y) { return x * y; }  /* dmul (frexp) */
 int func_01ffa4bc(int a) { float f = (float)a; int b; memcpy(&b, &f, 4); return b; }
 int func_01ff98f4(int a, int b)
 { float x, y; memcpy(&x, &a, 4); memcpy(&y, &b, 4); return x < y; }
+/* float greater-than: the slide friction gate (i2f(speed) > 48.0f) */
+int func_01ff99a4(int a, int b)
+{ float x, y; memcpy(&x, &a, 4); memcpy(&y, &b, 4); return x > y; }
+/* f2i truncation; one caller's two-arg decl is an r1 ride-through */
+int func_01ffa344(int a, int b)
+{ float x; memcpy(&x, &a, 4); (void)b; return (int)x; }
 /* ITCM signed divide (walk-speed scaling) */
 int func_01ffabe4(int a, int b) { return b ? a / b : 0; }
 /* atan table the boot builds at runtime; zeros = heading 0 */

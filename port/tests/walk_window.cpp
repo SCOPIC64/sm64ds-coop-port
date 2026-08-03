@@ -88,6 +88,7 @@ void hal_render_player_world(void *p);
 extern char data_0209f4a0[];
 extern char data_0209f49c[];   /* held buttons (bit 1 = A/jump held) */
 extern char data_0209f49e[];   /* pressed-this-frame (bit 1 = jump) */
+extern int data_0209b468[4];   /* actor list head (stomp tracker) */
 extern unsigned char data_020a0e40[];
 extern short data_02092144[];
 extern unsigned char data_ov002_0211049c[];  /* St_Wait state object */
@@ -192,6 +193,7 @@ int main(void)
 {
     int spawn_x = 0, spawn_y = 90, spawn_z = -50;
     PORT_INSTALL_FAULT_PROBE();
+    port_install_watchdog();
     setvbuf(stdout, NULL, _IONBF, 0);
     if (!ntr::io_init()) { fprintf(stderr, "io_init failed\n"); return 2; }
     if (!winapi_load()) { fprintf(stderr, "winapi_load failed\n"); return 2; }
@@ -245,13 +247,13 @@ int main(void)
            func_02035354's self-collision exclusion. Enabling it with the
            player as owner makes every player ground/wall probe skip the
            level -- which is why the game's own tracking never grounded and
-           the harness snap exists. A neutral stage owner turns the REAL
-           collision on, but the newly-live grounded-physics paths hang
-           (suspect: the div-52 walk-physics draft's ground branches), so
-           real collision stays opt-in until that is run down. */
-        static char stage_owner[0x200];
+           the harness snap exists. The game's own convention for level
+           geometry is Enable(NULL): func_020395fc then stores owner 0 and
+           clsnID -1, so level hits skip the FindWithID actor walk (a fake
+           non-null owner fed it a junk ID and it faulted). Real collision
+           stays opt-in until the full frame survives. */
         _ZN16MeshColliderBase6EnableEP5Actor(
-            mc_storage, getenv("SM64DS_REAL_CLSN") ? (void *)stage_owner
+            mc_storage, getenv("SM64DS_REAL_CLSN") ? (void *)0
                                                    : (void *)player);
         /* the octree box is power-of-two PADDED (its center is way off the
            real stage); the geometry lives near the origin, so spawn there,
@@ -335,6 +337,13 @@ int main(void)
        until a real level boot); clear it so the wait ticks drive until the
        first stick input ChangeStates into walk -- the smoke's proven flow */
     *(void **)(c + 0x370) = 0;
+    /* no path binding: the level spawn entry's path param, 0xff = none.
+       The fake spawn context zero-fills it, and path 0 sends the real
+       ground tracking into PathPtr walks over files no level boot has
+       loaded (frame-1 fault under SM64DS_REAL_CLSN) */
+    *(unsigned int *)(c + 0x670) = 0xff;
+    if (getenv("PORT_WATCH_HEAD"))
+        port_watch_words(data_0209b468, 4);
     hal_player_st_wait_init(player);
 
     /* window */
@@ -425,6 +434,27 @@ int main(void)
             space_was = space;
         }
 
+        /* the real ground tracking rewrites the path binding (c+0x670)
+           from KCL surface attributes every contact frame; keep it at
+           0xff (none) until a level boot seats the real path table
+           (data_020a0d84 is null on host, the walk faults) */
+        *(unsigned int *)(c + 0x670) = 0xff;
+
+        if (selftest && frame == 1 && getenv("SM64DS_REAL_CLSN")) {
+            extern void *data_020a0c80[];
+            fprintf(stderr, "[dump] slots:");
+            for (int i = 0; i < 8; ++i)
+                fprintf(stderr, " %p", data_020a0c80[i]);
+            fprintf(stderr, "\n[dump] wmc c+0x380:\n");
+            for (int off = 0; off < 0xa0; off += 16) {
+                fprintf(stderr, "  +%03x:", 0x380 + off);
+                for (int k = 0; k < 4; ++k)
+                    fprintf(stderr, " %08x",
+                            *(unsigned *)(c + 0x380 + off + 4 * k));
+                fprintf(stderr, "\n");
+            }
+        }
+
         /* until the first ChangeState seats the current-state pointer,
            tick the wait state directly (the smoke's exact flow); Behavior
            owns the frame once the state machine is live */
@@ -445,15 +475,29 @@ int main(void)
             fprintf(stderr, "[f%03d] y=%.2f vy=%d st=%p\n", frame,
                     *(int *)(c + 0x60) / 4096.0f, *(int *)(c + 0xa8),
                     *(void **)(c + 0x370));
+        if (selftest) {
+            /* actor-list-head stomp tracker (the f015 0x1000 write) */
+            static int prev_head[4], head_live;
+            if (head_live &&
+                memcmp(prev_head, data_0209b468, sizeof prev_head))
+                fprintf(stderr, "[head] f%03d %08x %08x %08x %08x\n",
+                        frame, data_0209b468[0], data_0209b468[1],
+                        data_0209b468[2], data_0209b468[3]);
+            memcpy(prev_head, data_0209b468, sizeof prev_head);
+            head_live = 1;
+        }
 
-        /* harness ground snap: a real KCL ray under Mario each frame; the
-           in-game WithMeshClsn continuous tracking is the next fidelity
-           step, this keeps him on the terrain meanwhile */
+        /* harness ground snap: a real KCL ray under Mario each frame.
+           OFF under SM64DS_REAL_CLSN -- the game's own tracking grounds
+           him there, and a SetGroundFlag without the rest of the surface
+           record (collider slot, triangle) feeds UpdateExtraContinous a
+           half-empty record that faults */
         {
             int gy;
             int mx = *(int *)(c + 0x5c), my = *(int *)(c + 0x60),
                 mz = *(int *)(c + 0x64);
-            if (hal_ground_ray(g_mc, mx, my + (20 << 12), mz, 80 << 12,
+            if (!getenv("SM64DS_REAL_CLSN") &&
+                hal_ground_ray(g_mc, mx, my + (20 << 12), mz, 80 << 12,
                                &gy)) {
                 /* never re-ground a rising jump: the snap + SetGroundFlag
                    on the first ascent frame would land him instantly */
