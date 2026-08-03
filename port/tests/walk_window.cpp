@@ -86,6 +86,8 @@ int hal_player_st_wait_main(void *p);
 int hal_player_behavior(void *p);
 void hal_render_player_world(void *p);
 extern char data_0209f4a0[];
+extern char data_0209f49c[];   /* held buttons (bit 1 = A/jump held) */
+extern char data_0209f49e[];   /* pressed-this-frame (bit 1 = jump) */
 extern unsigned char data_020a0e40[];
 extern short data_02092144[];
 extern unsigned char data_ov002_0211049c[];  /* St_Wait state object */
@@ -188,6 +190,7 @@ static void push_camera(const float eye[3], const float at[3])
 
 int main(void)
 {
+    int spawn_x = 0, spawn_y = 90, spawn_z = -50;
     PORT_INSTALL_FAULT_PROBE();
     setvbuf(stdout, NULL, _IONBF, 0);
     if (!ntr::io_init()) { fprintf(stderr, "io_init failed\n"); return 2; }
@@ -255,11 +258,10 @@ int main(void)
            a few units up -- the first frames drop him onto the lawn */
         {
             const char *sp = getenv("SM64DS_SPAWN");
-            int sx = 0, sy = 90, sz = -50;
-            if (sp) sscanf(sp, "%d,%d,%d", &sx, &sy, &sz);
-            *(int *)(c + 0x5c) = sx << 12;
-            *(int *)(c + 0x60) = sy << 12;
-            *(int *)(c + 0x64) = sz << 12;
+            if (sp) sscanf(sp, "%d,%d,%d", &spawn_x, &spawn_y, &spawn_z);
+            *(int *)(c + 0x5c) = spawn_x << 12;
+            *(int *)(c + 0x60) = spawn_y << 12;
+            *(int *)(c + 0x64) = spawn_z << 12;
         }
     }
     /* the level model: main_castle_all.bmd (handle 1943, same stage as the
@@ -365,6 +367,7 @@ int main(void)
     const char *st = getenv("SM64DS_WINDOW_SELFTEST");
     const int selftest = st ? atoi(st) : 0;
     int frame = 0;
+    float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
 
     static ntr::Framebuffer fb;
     MSG msg;
@@ -375,21 +378,51 @@ int main(void)
             W.DispatchMessageA_(&msg);
         }
 
-        /* keys -> pad block + desired heading (heading 0 walks +Z) */
+        /* keys -> pad block + desired heading, CAMERA-RELATIVE: W walks
+           away from the camera whatever way it faces. cam_yaw is the
+           camera's heading around Mario (radians; 0 = classic behind-south
+           view). Q/E orbit it; when Mario walks and Q/E are idle it eases
+           in behind his motion like the real game's lazy camera. */
         int dx = 0, dz = 0;
         if (selftest) dz = 1;
         if (W.GetAsyncKeyState_('W') < 0 || W.GetAsyncKeyState_(VK_UP) < 0) dz += 1;
         if (W.GetAsyncKeyState_('S') < 0 || W.GetAsyncKeyState_(VK_DOWN) < 0) dz -= 1;
         if (W.GetAsyncKeyState_('A') < 0 || W.GetAsyncKeyState_(VK_LEFT) < 0) dx -= 1;
         if (W.GetAsyncKeyState_('D') < 0 || W.GetAsyncKeyState_(VK_RIGHT) < 0) dx += 1;
+        int orbiting = 0;
+        if (W.GetAsyncKeyState_('Q') < 0) { cam_yaw -= 0.045f; orbiting = 1; }
+        if (W.GetAsyncKeyState_('E') < 0) { cam_yaw += 0.045f; orbiting = 1; }
         if (dx || dz) {
             *(short *)(data_0209f4a0 + 0) = 0x1000;
+            float head = cam_yaw + atan2f((float)dx, (float)dz);
             unsigned short ang =
-                (unsigned short)(int)(atan2f((float)dx, (float)dz) *
-                                      (32768.0f / 3.14159265f));
+                (unsigned short)(int)(head * (32768.0f / 3.14159265f));
             *(short *)(c + 0x69c) = (short)ang;   /* mDesiredAngleY */
+            if (!orbiting) {
+                /* ease the camera in behind the walk direction */
+                float d = head - cam_yaw;
+                while (d > 3.14159265f) d -= 2 * 3.14159265f;
+                while (d < -3.14159265f) d += 2 * 3.14159265f;
+                cam_yaw += d * 0.02f;
+            }
         } else {
             *(short *)(data_0209f4a0 + 0) = 0;
+        }
+
+        /* Space -> jump: DS B button (bit 1). Bit 0 (A) is punch -- proven
+           live: pressing it fires St_PunchKick through the checker
+           (func_ov002_020d36d8). The B-pressed edge is the jump entry. */
+        {
+            static int space_was;
+            int space = W.GetAsyncKeyState_(VK_SPACE) < 0;
+            /* selftest: synthetic hop at frame 30 (walking start speed) */
+            if (selftest && frame >= 30 && frame <= 33) space = 1;
+            unsigned short held = *(unsigned short *)(data_0209f49c + 0);
+            held = (unsigned short)((held & ~2u) | (space ? 2u : 0u));
+            *(unsigned short *)(data_0209f49c + 0) = held;
+            *(unsigned short *)(data_0209f49e + 0) =
+                (unsigned short)((space && !space_was) ? 2u : 0u);
+            space_was = space;
         }
 
         /* until the first ChangeState seats the current-state pointer,
@@ -408,6 +441,11 @@ int main(void)
            demo controllable until the real input processor is hosted */
         if (*(int *)(c + 0x98) > 0x3000) *(int *)(c + 0x98) = 0x3000;
 
+        if (selftest)
+            fprintf(stderr, "[f%03d] y=%.2f vy=%d st=%p\n", frame,
+                    *(int *)(c + 0x60) / 4096.0f, *(int *)(c + 0xa8),
+                    *(void **)(c + 0x370));
+
         /* harness ground snap: a real KCL ray under Mario each frame; the
            in-game WithMeshClsn continuous tracking is the next fidelity
            step, this keeps him on the terrain meanwhile */
@@ -417,12 +455,27 @@ int main(void)
                 mz = *(int *)(c + 0x64);
             if (hal_ground_ray(g_mc, mx, my + (20 << 12), mz, 80 << 12,
                                &gy)) {
-                if (my <= gy + 0x800) {
+                /* never re-ground a rising jump: the snap + SetGroundFlag
+                   on the first ascent frame would land him instantly */
+                if (*(int *)(c + 0xa8) <= 0 && my <= gy + 0x800) {
                     *(int *)(c + 0x60) = gy;
                     if (*(int *)(c + 0xa8) < 0)
                         *(int *)(c + 0xa8) = 0;   /* mVertSpeed */
                     _ZN12WithMeshClsn13SetGroundFlagEv(c + 0x380);
+                    /* landing signal: St_Jump/Fall exit on this byte;
+                       the real WithMeshClsn tracking will own it once
+                       the continuous update runs on host */
+                    *(unsigned char *)(c + 0x6de) = 0;
                 }
+            }
+            /* fell out of the world (walked or jumped past the KCL):
+               back to the spawn point instead of an endless dive */
+            if (my < (-300 << 12)) {
+                *(int *)(c + 0x5c) = spawn_x << 12;
+                *(int *)(c + 0x60) = spawn_y << 12;
+                *(int *)(c + 0x64) = spawn_z << 12;
+                *(int *)(c + 0x98) = 0;   /* mHorzSpeed */
+                *(int *)(c + 0xa8) = 0;   /* mVertSpeed */
             }
         }
 
@@ -507,7 +560,8 @@ int main(void)
            view stretched. Now: shoulder-height offset, occlusion resolved
            by pulling IN along the view ray, and smoothing so the eye never
            snaps. */
-        float want_eye[3] = {px, py + 12.0f, pz - 34.0f};
+        float want_eye[3] = {px - 34.0f * sinf(cam_yaw), py + 12.0f,
+                             pz - 34.0f * cosf(cam_yaw)};
         float at[3] = {px, py + 9.0f, pz};
         if (getenv("SM64DS_ORBIT")) {
             /* debug: whole-stage orbit shot to judge proportions */
