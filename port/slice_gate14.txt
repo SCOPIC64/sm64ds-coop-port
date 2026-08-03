@@ -1,0 +1,73 @@
+# Gate 14: the real level boot -- Stage::LoadClsnAndObjects over the castle
+# grounds' own LVL_Overlay (ov009, mounted whole; see tools/ovdata.py).
+#
+# Everything here is MATCHED in src. The boot is one function plus the
+# fifteen sub-loaders it dispatches through data_ov002_0210cbb8 and the
+# pointer-store setters those write into. What it replaces in the harness:
+# a hand-constructed MeshCollider over handle 1941, an invented spawn point,
+# a zeroed CLPS block, and two 0xff pins that stood in for a path table
+# nobody had loaded.
+#
+# The seam is hal/level_boot.cpp: LoadFile(handle) over SharedFilePtr, the
+# 32-entry host copy of the loader dispatch table (the ROM's is 15 entries
+# and the `kind & 0x1f` index is unguarded), and storage for the globals the
+# setters fill.
+
+# ---- the boot itself
+src/_ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR12MeshCollider.cpp
+src/_Z11LoadObjectsRN11LVL_Overlay8ObjTableEij.c
+
+# ---- the fifteen sub-loaders, in dispatch-table order (index 0..14)
+src/_Z19LoadStandardObjectsRN11LVL_Overlay11ObjSubTableEij.cpp
+src/_Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij.c
+src/_Z19LoadPathNodeObjectsRN11LVL_Overlay11ObjSubTableEij.cpp
+src/_Z15LoadPathObjectsRN11LVL_Overlay11ObjSubTableEij.cpp
+src/_Z15LoadViewObjectsRN11LVL_Overlay11ObjSubTableEij.cpp
+src/_Z17LoadSimpleObjectsRN11LVL_Overlay11ObjSubTableEij.cpp
+src/_Z25LoadTeleportSourceObjectsRN11LVL_Overlay11ObjSubTableEij.c
+src/_Z23LoadTeleportDestObjectsRN11LVL_Overlay11ObjSubTableEij.cpp
+src/_Z14LoadFogObjectsRN11LVL_Overlay11ObjSubTableEij.cpp
+src/_Z15LoadDoorObjectsRN11LVL_Overlay11ObjSubTableEij.cpp
+src/_Z15LoadExitObjectsRN11LVL_Overlay11ObjSubTableEij.c
+src/_Z22LoadMinimapTileObjectsRN11LVL_Overlay11ObjSubTableEij.cpp
+src/_Z23LoadMinimapScaleObjectsRN11LVL_Overlay11ObjSubTableEij.cpp
+src/_Z23LoadUnusedType13ObjectsRN11LVL_Overlay11ObjSubTableEij.c
+src/_Z21LoadStarCameraObjectsRN11LVL_Overlay11ObjSubTableEij.cpp
+
+# ---- the pointer-store setters the sub-loaders are veneers over
+src/func_0203aca0.c
+src/func_0203accc.c
+src/func_0202af80.c
+src/func_0202b044.c
+src/func_0202b060.c
+src/func_0202b090.c
+src/func_0202b0c4.c
+src/func_0202b0e0.c
+
+# ---- world-Y bounds from the octree, and the minimap-change list
+src/func_0202a850.c
+src/_Z23LoadMinimapChangeObjecti5Fix12IiEh.c
+
+# ---- the octree extent the world-Y bounds come out of
+src/_ZNK12MeshCollider16GetOctreeOriginYEv.cpp
+src/_ZNK12MeshCollider13GetUnkOctreeYEv.cpp
+
+# ---- the two tails LoadClsnAndObjects ends in
+src/ContinueKuppaScriptIfNecessary.c
+src/StartIntroCutscene.c
+
+# The kuppa/intro tails call into Sound:: and the solid-heap state stack.
+# Both are dead on the boot the port drives (data_0209fc4c is 0, so
+# ContinueKuppaScriptIfNecessary returns on its first line) but the link
+# still needs them, and the real files are cheaper than the stubs would be
+# honest. func_0203d974 reads the DS's 0x027ffc40 hardware word directly:
+# harmless while nothing calls it, a fault the day something does.
+src/_ZN5Sound16LoadInitialGroupEi.cpp
+src/_ZN5Sound19LoadGroupAndSetBankEii.c
+src/_ZN5Sound6Player19SetPlayableSeqCountEii.c
+src/DisableSoundPlayersForCredits.c
+src/func_0203d974.c
+src/func_0203d7d4.c
+src/func_020134d8.c
+src/func_0205117c.c
+src/func_020510a4.c

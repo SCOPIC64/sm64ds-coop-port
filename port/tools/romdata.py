@@ -78,6 +78,11 @@ NAMED = [
     "data_02086f58",
     "data_02086e90", "data_02086e9c", "data_02086ea8", "data_02086eb4",
     "data_020874f4",   # first record past the mode table
+    # gate 14, the level boot: the two kuppa scripts
+    # ContinueKuppaScriptIfNecessary compares the pending pointer against.
+    "data_02087c00", "data_02089608",
+    # the Camera's SpawnInfo, for the entrance path's actor registry
+    "Camera_SpawnInfo",
 ]
 
 

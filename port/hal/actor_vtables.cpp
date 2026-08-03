@@ -299,8 +299,10 @@ int data_020994cc[8], data_02099fa4[4], data_02099fa8[4], data_02099fac[4];
 int data_0209b478[8], data_0209b484[4], data_0209b488[4];
 int data_0209b498[8], data_0209b53c[8], data_0209d574[8];
 int data_0209f310[8], data_020a0f10[8], data_020a4bec[8];
-/* data_0209f340 is a POINTER to the camera-preferences block, set by the
-   camera boot; host parks it on a zeroed block so flag reads see 0 */
+/* data_0209f340 is the CURRENT LVL_Overlay (Stage::GetSkyboxID,
+   StartWithFarCamera and the render chain read its flag and skybox bits).
+   With no level booted it parks on a zeroed block so every flag reads 0;
+   the gate-14 boot repoints it at ov009's real record. */
 static unsigned char hal_campref_blk[0x40];
 unsigned char *data_0209f340 = hal_campref_blk;
 }

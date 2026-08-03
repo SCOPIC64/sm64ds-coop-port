@@ -135,6 +135,10 @@ int data_020a4c18[8];
    argument Scene::SetSceneToSpawn parks next to it */
 int data_0209f2f4[8];
 int data_0209f5b8[8];
+/* gate 14: the sound-group bookkeeping the kuppa tail's Sound::
+   LoadGroupAndSetBank reads (dead on the port's boot, live at link time) */
+int data_0209b47c[8];
+int data_0209b4a8[8];
 }
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */

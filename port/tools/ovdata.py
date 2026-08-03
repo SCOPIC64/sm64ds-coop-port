@@ -151,7 +151,10 @@ def main():
     if whole:
         wanted = []
     elif sys.argv[3] == "--from-list":
-        wanted = list(dict.fromkeys(pathlib.Path(sys.argv[4]).read_text().split()))
+        text = "\n".join(
+            ln for ln in pathlib.Path(sys.argv[4]).read_text().splitlines()
+            if not ln.lstrip().startswith("#"))
+        wanted = list(dict.fromkeys(text.split()))
     else:
         wanted = sys.argv[3:]
 

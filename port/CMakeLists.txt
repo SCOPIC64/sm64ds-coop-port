@@ -478,7 +478,8 @@ endforeach()
 # `*(void**)(c + id * 4 + 0xdc) + 0x50` anim probe), which MSVC C rejects
 # with C2036; hostgen's VOIDPP_ARITH rewrite retypes the deref to char*.
 set(GATE10_SYMS func_ov002_020dec70 func_ov002_020d708c
-    engine/fader/StartExitFaderWipe func_ov002_020c897c)
+    engine/fader/StartExitFaderWipe func_ov002_020c897c
+    engine/fader/StartEntranceFaderWipe)
 set(GATE10_GEN "")
 foreach(sym IN LISTS GATE10_SYMS)
     if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
@@ -537,8 +538,19 @@ foreach(src IN LISTS SLICE10_SOURCES)
     if(src MATCHES "/ChangeArea\\.c$" OR src MATCHES "/func_0200cae4\\.cpp$")
         continue()
     endif()
+    # gate 14: three more ARM ride-throughs, dormant until the level boot
+    # reaches them (port/unmatched/ActorDerived_Spawn.cpp, PathPtr_FromID.cpp)
+    if(src MATCHES "/_ZN12ActorDerived5SpawnEjP9ActorBaseii\\.cpp$"
+       OR src MATCHES "/func_02042ffc\\.c$"
+       OR src MATCHES "/_ZN7PathPtr6FromIDEj\\.cpp$")
+        continue()
+    endif()
     list(APPEND SLICE10_CAM_SOURCES "${src}")
 endforeach()
+
+set(LEVELBOOT_HOST_SOURCES
+    unmatched/ActorDerived_Spawn.cpp
+    unmatched/PathPtr_FromID.cpp)
 
 set(CAMERA_HOST_SOURCES
     unmatched/ChangeArea.c
@@ -583,6 +595,18 @@ foreach(src IN LISTS SLICE9_SOURCES)
     list(APPEND SLICE9_CAM_SOURCES "${src}")
 endforeach()
 
+# Gate 14: the real level boot. Stage::LoadClsnAndObjects over ov009's own
+# LVL_Overlay, the fifteen sub-loaders, and the setters they store through.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate14.txt" SLICE14_LINES)
+set(SLICE14_SOURCES "")
+foreach(line IN LISTS SLICE14_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE14_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # The camera slice is on both binaries. The gate-13 State objects carry real
 # DS function addresses, and Player::ChangeState already reaches
 # func_0200d81c -> Camera::ChangeState on every state change, so the smoke
@@ -593,10 +617,10 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
     hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp
-    ${CAMERA_HOST_SOURCES}
+    ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
-    ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES}
+    ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} ${GATE10_GEN}
     ${GATE13_GEN}
     "${ROMDATA_C}")
@@ -616,10 +640,10 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
     hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp
-    ${CAMERA_HOST_SOURCES}
+    ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
-    ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES}
+    ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} ${GATE10_GEN}
     ${GATE13_GEN}
     "${ROMDATA_C}")
@@ -642,10 +666,10 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
     hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp
-    ${CAMERA_HOST_SOURCES}
+    ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
-    ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES}
+    ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} ${GATE10_GEN}
     ${GATE13_GEN}
     "${ROMDATA_C}")

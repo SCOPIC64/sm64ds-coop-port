@@ -190,8 +190,12 @@ extern int data_0209f20c[], data_0209f294[], data_0209f2c4[];
 extern int data_0209b454[];
 extern int data_0209ee90[];
 extern int data_020a4b60[];
+extern int g_walk_dbg[16];     /* collision-walk telemetry (port/unmatched) */
 /* the real level boot (hal/level_boot.cpp) */
 void port_ov009_probe(void);
+void *port_stage_a_boot(void *mc, int spawn_entrances);
+void port_stage_a_probe(void *mc);
+int port_stage_path_guard(void *player);
 }
 
 #ifdef NTR_HIRES
@@ -322,18 +326,37 @@ int main(void)
     data_020a4bb8[0] = spawn_info;
     data_020a0eac_c = data_020a0ea0;
 
+    /* Game mode 0 (adventure) -- LoadClsnAndObjects branches its minimap
+       and HUD spawns on this, and Stage::CheckInput reads it later. */
+    data_0209f2d8 = 0;
+
+    /* The collision object itself is the harness's either way; what fills it
+       is the question. Under SM64DS_REAL_BOOT the game's own
+       Stage::LoadClsnAndObjects does it -- and it runs BEFORE the Player,
+       because on the real boot the entrance spawns the Player and
+       Player::InitResources reads the world-Y bounds the boot just set. */
+    static char mc_storage[0x60];
+    unsigned level_bmd = 1943;
+    g_mc = mc_storage;
+    _ZN12MeshColliderC1Ev(mc_storage);
+    if (real_boot) {
+        /* Stage A1: geometry only. The entrance, door and exit tables are
+           zeroed in the host copy of the overlay and the sub-table is
+           dropped, so nothing spawns; everything else is the real boot. */
+        void *lvl = port_stage_a_boot(mc_storage, 0);
+        level_bmd = *(unsigned short *)((char *)lvl + 8);
+        port_stage_a_probe(mc_storage);
+    }
+
     void *player = _ZN9ActorBasenwEj(0x800);
     _ZN6PlayerC1Ev(player);
     if (hal_player_init_resources(player) != 1) return 3;
 
     /* the castle grounds floor, gate-8 recipe */
     char *c = (char *)player;
-    {
+    if (!real_boot) {
         static struct { unsigned short id; unsigned char refs; void *p; } kp;
         _ZN13SharedFilePtr9ConstructEj(&kp, 1941);
-        static char mc_storage[0x60];
-        g_mc = mc_storage;
-        _ZN12MeshColliderC1Ev(mc_storage);
         char *kcl = (char *)_ZN12MeshCollider8LoadFileER13SharedFilePtr(&kp);
         if (!kcl) return 4;
         static char clps[0x100];
@@ -367,24 +390,26 @@ int main(void)
             *(int *)(mc_storage + 0x38) = 0x40;    /* world -> file, 1/64 */
         }   /* SM64DS_PAIR_STOCK=1 leaves SetFile's 1.0 vectors -- the
                real boot's configuration (the A/B for the level boot) */
-        /* the octree box is power-of-two PADDED (its center is way off the
-           real stage); the geometry lives near the origin, so spawn there,
-           a few units up -- the first frames drop him onto the lawn */
-        {
-            const char *sp = getenv("SM64DS_SPAWN");
-            if (sp) sscanf(sp, "%d,%d,%d", &spawn_x, &spawn_y, &spawn_z);
-            *(int *)(c + 0x5c) = spawn_x << 12;
-            *(int *)(c + 0x60) = spawn_y << 12;
-            *(int *)(c + 0x64) = spawn_z << 12;
-        }
     }
-    /* the level model: main_castle_all.bmd (handle 1943, same stage as the
-       KCL); world-space verts scaled by the BMD header's scaleShift */
+    /* the octree box is power-of-two PADDED (its center is way off the
+       real stage); the geometry lives near the origin, so spawn there,
+       a few units up -- the first frames drop him onto the lawn */
+    {
+        const char *sp = getenv("SM64DS_SPAWN");
+        if (sp) sscanf(sp, "%d,%d,%d", &spawn_x, &spawn_y, &spawn_z);
+        *(int *)(c + 0x5c) = spawn_x << 12;
+        *(int *)(c + 0x60) = spawn_y << 12;
+        *(int *)(c + 0x64) = spawn_z << 12;
+    }
+    /* the level model: main_castle_all.bmd -- handle 1943 by hand, and under
+       the real boot the LVL_Overlay's own bmdFileId, which is the same 1943
+       (the harness had guessed right); world-space verts scaled by the BMD
+       header's scaleShift */
     static char level_storage[0x50];
     int level_shift = 0;
     {
         static struct { unsigned short id; unsigned char refs; void *p; } mp;
-        _ZN13SharedFilePtr9ConstructEj(&mp, 1943);
+        _ZN13SharedFilePtr9ConstructEj(&mp, level_bmd);
         _ZN5ModelC1Ev(level_storage);
         void *bmd = _ZN5Model8LoadFileER13SharedFilePtr(&mp);
         if (bmd) {
@@ -392,7 +417,7 @@ int main(void)
             _ZN9ModelBase7SetFileEP8BMD_Fileii(level_storage, bmd, 0, -1);
             printf("level model loaded, scaleShift %d\n", level_shift);
         } else {
-            fprintf(stderr, "level model load failed (handle 1943)\n");
+            fprintf(stderr, "level model load failed (handle %u)\n", level_bmd);
         }
     }
 
@@ -448,7 +473,6 @@ int main(void)
     /* input processor staging: route Stage::CheckInput to its main
        path (mode flags), one controller, pad 0 active, mode 0 (D-pad
        drives the stick fields) */
-    data_0209f2d8 = 0;
     data_0209caa0[2] |= 0x80;
     data_0209d660 = 0;
     data_0209fc48 = 0;
@@ -468,9 +492,11 @@ int main(void)
     *(void **)(c + 0x370) = 0;
     /* no path binding: the level spawn entry's path param, 0xff = none.
        The fake spawn context zero-fills it, and path 0 sends the real
-       ground tracking into PathPtr walks over files no level boot has
-       loaded (frame-1 fault under the game's own tracking) */
-    *(unsigned int *)(c + 0x670) = 0xff;
+       ground tracking into PathPtr walks over a table no level boot has
+       seated (frame-1 fault under the game's own tracking). The real boot
+       seats data_020a0d84/d88/d8c, so the pin comes off with it. */
+    if (!real_boot)
+        *(unsigned int *)(c + 0x670) = 0xff;
     if (getenv("PORT_WATCH_HEAD"))
         port_watch_words(data_0209b468, 4);
     hal_player_st_wait_init(player);
@@ -724,7 +750,8 @@ int main(void)
            from KCL surface attributes every contact frame; keep it at
            0xff (none) until a level boot seats the real path table
            (data_020a0d84 is null on host, the walk faults) */
-        *(unsigned int *)(c + 0x670) = 0xff;
+        if (!real_boot)
+            *(unsigned int *)(c + 0x670) = 0xff;
 
         if (selftest && frame == 1 && getenv("SM64DS_DUMP_CLSN")) {
             extern void *data_020a0c80[];
@@ -758,6 +785,11 @@ int main(void)
             hal_player_behavior(player);
         else
             hal_player_st_wait_main(player);
+        /* the real boot seats the path table, so the tracking's own binding
+           stands -- except where the port's unfilled floor record invents
+           one the level cannot produce (hal/level_boot.cpp) */
+        if (real_boot)
+            port_stage_path_guard(player);
         if (selftest && frame == 0)
             fprintf(stderr, "[w] ticked\n");
         /* the camera's own frame: Behavior runs the state machine and
@@ -789,12 +821,26 @@ int main(void)
             }
             fprintf(stderr,
                     "[f%03d] y=%.2f spd=%d st=%08x mag=%d body=%u "
-                    "anim(len=%u fl=%u cur=%.1f) bones=%08x\n",
+                    "anim(len=%u fl=%u cur=%.1f) bones=%08x path=%x\n",
                     frame, *(int *)(c + 0x60) / 4096.0f, *(int *)(c + 0x98),
                     st ? *(unsigned *)st : 0u, *(short *)(data_0209f4a0 + 0),
                     bid, ma ? (*(unsigned *)(ma + 0x54)) & 0x3FFFFFFF : 0,
                     ma ? (*(unsigned *)(ma + 0x54)) >> 30 : 0,
-                    ma ? *(int *)(ma + 0x58) / 4096.0f : 0.0f, bh);
+                    ma ? *(int *)(ma + 0x58) / 4096.0f : 0.0f, bh,
+                    *(unsigned *)(c + 0x670));
+            /* SM64DS_TRACE_SURF=1: the surface record the ground tracking
+               pulled out of the CLPS entry under his feet, plus the last
+               triangle the octree walk accepted. This is how the unfilled
+               WithMeshClsn floor record was caught -- the walk's last
+               triangle stays put while the record changes underneath. */
+            if (getenv("SM64DS_TRACE_SURF")) {
+                fprintf(stderr, "       surf path=%x t=%d %d %d %d %d "
+                        "lastTri=%d attr=%x\n",
+                        *(unsigned *)(c + 0x670), *(int *)(c + 0x66c),
+                        *(int *)(c + 0x660), *(int *)(c + 0x65c),
+                        *(int *)(c + 0x664), *(int *)(c + 0x658),
+                        g_walk_dbg[13], g_walk_dbg[14]);
+            }
         }
         if (selftest) {
             /* actor-list-head stomp tracker (the f015 0x1000 write) */

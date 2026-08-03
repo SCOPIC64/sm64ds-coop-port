@@ -218,6 +218,8 @@ s32 MeshCollider::DetectClsn(RaycastLine &ray)
 
                     func_02037eec(&info);
                     triIdx = func_020396dc(this, prism);
+                    g_walk_dbg[13] = (s32)triIdx;
+                    g_walk_dbg[14] = prism->attribute;
                     /* the ROM dispatches this virtually (notes/itcm.md, the
                        one lever); the port calls it direct -- same target,
                        no dependence on the synthetic vtable being filled */

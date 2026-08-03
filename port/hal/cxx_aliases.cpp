@@ -693,3 +693,23 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    Heap as a `class` (PAV) while every header spells it `struct` (PAU), so the
    alias carries the decorated name from the link log rather than a face */
 #pragma comment(linker, "/alternatename:__ZN6Memory10DeallocateEPvP4Heap=?Deallocate@Memory@@YAXPAXPAVHeap@@@Z")
+
+/* ---- gate 14, the level boot -------------------------------------------
+   Stage::LoadClsnAndObjects and the sub-loaders pick their externs out of
+   include/decl_common.h, which is generated without extern "C", so a .cpp
+   TU emits MSVC manglings for symbols the .c definitions publish as plain C
+   names. Same closure as the state waves; nothing in src/ changes. */
+#pragma comment(linker, "/alternatename:?ContinueKuppaScriptIfNecessary@@YAHXZ=_ContinueKuppaScriptIfNecessary")
+#pragma comment(linker, "/alternatename:?StartIntroCutscene@@YAXXZ=_StartIntroCutscene")
+#pragma comment(linker, "/alternatename:?func_0202a850@@YAXHH@Z=_func_0202a850")
+#pragma comment(linker, "/alternatename:?func_0203aca0@@YAXHH@Z=_func_0203aca0")
+#pragma comment(linker, "/alternatename:?func_0203accc@@YAXH@Z=_func_0203accc")
+#pragma comment(linker, "/alternatename:?data_02092134@@3HA=_data_02092134")
+#pragma comment(linker, "/alternatename:?data_ov002_0210cb70@@3PAEA=_data_ov002_0210cb70")
+#pragma comment(linker, "/alternatename:?data_ov002_0210cb88@@3PAGA=_data_ov002_0210cb88")
+#pragma comment(linker, "/alternatename:?data_ov002_0210cbf4@@3PAGA=_data_ov002_0210cbf4")
+#pragma comment(linker, "/alternatename:?data_ov002_0211118c@@3FA=_data_ov002_0211118c")
+/* Sound::LoadInitialGroup is a class static in its TU and a C name to the
+   kuppa tail; LoadGroupAndSetBank is the mirror case one call deeper. */
+#pragma comment(linker, "/alternatename:__ZN5Sound16LoadInitialGroupEi=?LoadInitialGroup@Sound@@SAXH@Z")
+#pragma comment(linker, "/alternatename:?LoadGroupAndSetBank@Sound@@SAXHH@Z=__ZN5Sound19LoadGroupAndSetBankEii")

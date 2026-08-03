@@ -7,3 +7,7 @@ data_ov002_0210e150 data_ov002_0210f89c data_ov002_0210f8cc data_ov002_020ff0f8 
 
 data_ov002_020ff100
 data_ov002_0210e15c data_ov002_0210f1ac data_ov002_0210f224 data_ov002_0210c3b0 data_ov002_0210c3e0
+
+# gate 14, the level boot: the raw-kind -> actor-id table the object
+# loaders index, the entrance-wipe type table, and the two door tables.
+data_ov002_0210cbf4 data_ov002_0210cb5c data_ov002_0210cb70 data_ov002_0210cb88 Player_SpawnInfo
