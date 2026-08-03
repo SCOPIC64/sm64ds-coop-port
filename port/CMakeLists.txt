@@ -467,7 +467,11 @@ foreach(line IN LISTS SLICE10_LINES)
     list(APPEND SLICE10_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
-set(GATE10_SYMS func_ov002_020dec70)
+# func_ov002_020d708c is C++ inside a .c (a `virtual` vtable shadow), which
+# MSVC will not compile as C. hostgen.py already emits .cpp with the symbols
+# wrapped back to C linkage, so route it through hostgen rather than editing
+# the byte-verified tree.
+set(GATE10_SYMS func_ov002_020dec70 func_ov002_020d708c)
 set(GATE10_GEN "")
 foreach(sym IN LISTS GATE10_SYMS)
     if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")

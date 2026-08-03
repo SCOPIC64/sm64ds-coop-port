@@ -124,6 +124,30 @@ int data_0209d4ac[8];
 int data_020a4c64[8];
 int data_020a4c70[8];
 int data_0209b088[4];   /* Camera State object the slide path enters */
+/* tier-2 state wave: DeadHit/Hurt read this arm9 bss word */
+int data_0209f28c[8];
+/* tier-2 round 2: arm9 bss the death/hurt/quicksand ring reads */
+int data_0209b018[8];
+int data_0209b038[8];
+int data_0209b048[8];
+int data_0209b058[8];
+int data_0209b068[8];
+int data_0209b098[8];
+int data_0209b108[8];
+int data_0209b128[8];
+int data_0209b4b0[8];
+int data_0209f330[8];
+int data_0209b028[8];
+int data_0209b470[8];
+int data_0209b474[8];
+int data_0209f354[8];
+int data_0209f43c[8];
+/* ov100 (the message-box overlay) bss reached from St_Talk_Main; bss is
+   zero at load, so host storage is the whole of it. */
+int data_ov100_02148708[8];
+int data_0209f314[8];
+int data_020a4bf8[8];
+int data_020a4c18[8];
 }
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */

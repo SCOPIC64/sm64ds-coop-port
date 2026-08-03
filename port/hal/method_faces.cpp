@@ -122,3 +122,65 @@ extern "C" int _Z14ApproachLinearRsss(short *x, short target, short step)
 { return ApproachLinear2(*x, target, step); }
 extern "C" int _ZN6Player15IsCollectingCapEv(char *self)
 { return ((Player *)self)->Player::IsCollectingCap(); }
+
+/* gate-10 tier-2 wave: these St_ files define the ITANIUM C name, the
+   state dispatcher calls the MSVC method. Forward method -> C def only;
+   never the other way round for the same function. */
+extern "C" int _ZN6Player15St_Balloon_MainEv(void *self);
+extern "C" int _ZN6Player16St_BurnFire_InitEv(void *self);
+extern "C" int _ZN6Player16St_BurnFire_MainEv(void *self);
+extern "C" int _ZN6Player18St_CameraZoom_MainEv(void *self);
+extern "C" int _ZN6Player18St_DizzyStars_MainEv(void *self);
+extern "C" int _ZN6Player19St_Electrocute_MainEv(void *self);
+extern "C" int _ZN6Player18St_Grabbed_CleanupEv(void *self);
+extern "C" int _ZN6Player12St_Hurt_MainEv(void *self);
+extern "C" int _ZN6Player23St_MetalWaterWater_MainEv(void *self);
+extern "C" int _ZN6Player15St_Respawn_InitEv(void *self);
+extern "C" int _ZN6Player12St_Spin_MainEv(void *self);
+extern "C" int _ZN6Player17St_SweepKick_InitEv(void *self);
+extern "C" int _ZN6Player12St_Swim_MainEv(void *self);
+extern "C" int _ZN6Player15St_Talk_CleanupEv(void *self);
+extern "C" int _ZN6Player13St_Throw_InitEv(void *self);
+extern "C" int _ZN6Player14St_Thrown_InitEv(void *self);
+extern "C" int _ZN6Player19St_TornadoSpin_MainEv(void *self);
+int Player::St_Balloon_Main()
+{ return _ZN6Player15St_Balloon_MainEv(this); }
+int Player::St_BurnFire_Init()
+{ return _ZN6Player16St_BurnFire_InitEv(this); }
+int Player::St_BurnFire_Main()
+{ return _ZN6Player16St_BurnFire_MainEv(this); }
+int Player::St_CameraZoom_Main()
+{ return _ZN6Player18St_CameraZoom_MainEv(this); }
+int Player::St_DizzyStars_Main()
+{ return _ZN6Player18St_DizzyStars_MainEv(this); }
+int Player::St_Electrocute_Main()
+{ return _ZN6Player19St_Electrocute_MainEv(this); }
+int Player::St_Grabbed_Cleanup()
+{ return _ZN6Player18St_Grabbed_CleanupEv(this); }
+int Player::St_Hurt_Main()
+{ return _ZN6Player12St_Hurt_MainEv(this); }
+int Player::St_MetalWaterWater_Main()
+{ return _ZN6Player23St_MetalWaterWater_MainEv(this); }
+int Player::St_Respawn_Init()
+{ return _ZN6Player15St_Respawn_InitEv(this); }
+int Player::St_Spin_Main()
+{ return _ZN6Player12St_Spin_MainEv(this); }
+int Player::St_SweepKick_Init()
+{ return _ZN6Player17St_SweepKick_InitEv(this); }
+int Player::St_Swim_Main()
+{ return _ZN6Player12St_Swim_MainEv(this); }
+int Player::St_Talk_Cleanup()
+{ return _ZN6Player15St_Talk_CleanupEv(this); }
+int Player::St_Throw_Init()
+{ return _ZN6Player13St_Throw_InitEv(this); }
+int Player::St_Thrown_Init()
+{ return _ZN6Player14St_Thrown_InitEv(this); }
+int Player::St_TornadoSpin_Main()
+{ return _ZN6Player19St_TornadoSpin_MainEv(this); }
+extern "C" int _ZN6Player18St_YoshiPower_MainEv(void *self);
+int Player::St_YoshiPower_Main()
+{ return _ZN6Player18St_YoshiPower_MainEv(this); }
+/* St_Grabbed_Main calls DropActor by its Itanium name; the definition is a
+   real method. Forward C name -> method (no face the other way). */
+extern "C" int _ZN6Player9DropActorEv(void *self)
+{ return ((Player *)self)->Player::DropActor(); }
