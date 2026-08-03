@@ -426,12 +426,19 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
             break;
         case 0x41: g.prim = -1; g.strip.clear(); break;          // END_VTXS
         case 0x50: break;                                        // SWAP_BUFFERS
-        case 0x60:                                               // VIEWPORT
-            g.vp_x = p[0] & 0xFF;
-            g.vp_y = (p[0] >> 8) & 0xFF;
-            g.vp_w = ((p[0] >> 16) & 0xFF) - g.vp_x + 1;
-            g.vp_h = ((p[0] >> 24) & 0xFF) - g.vp_y + 1;
+        case 0x60: {                                             // VIEWPORT
+            // The register speaks DS panel coordinates (0..255 x 0..191);
+            // scale to the framebuffer so game-issued full-screen viewports
+            // fill a hi-res target too. At 256x192 the factors are 1 and
+            // this is exactly the old math.
+            const int x1 = p[0] & 0xFF, y1 = (p[0] >> 8) & 0xFF;
+            const int x2 = (p[0] >> 16) & 0xFF, y2 = (p[0] >> 24) & 0xFF;
+            g.vp_x = x1 * SCREEN_W / 256;
+            g.vp_y = y1 * SCREEN_H / 192;
+            g.vp_w = (x2 - x1 + 1) * SCREEN_W / 256;
+            g.vp_h = (y2 - y1 + 1) * SCREEN_H / 192;
             break;
+        }
         default: break;
     }
 }
@@ -634,6 +641,10 @@ void gx_reset() {
     g.proj_stack[0] = g.proj_stack[1] = Mat::identity();
     g_queued = g_qpos = g_have = 0;
     g_port_cmd = 0; g_port_have = 0;
+}
+
+void gx_debug_proj(float out[16]) {
+    for (int i = 0; i < 16; ++i) out[i] = g.proj.m[i];
 }
 
 const GxTriangle *gx_polygons(size_t &count) {

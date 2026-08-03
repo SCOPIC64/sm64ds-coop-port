@@ -470,35 +470,141 @@ int main(void)
                 }
             printf("probe: level %zu tris, x[%.0f..%.0f] y[%.0f..%.0f] z[%.0f..%.0f]\n",
                    n, mn[0], mx[0], mn[1], mx[1], mn[2], mx[2]);
+            /* world units back out of the identity-projection screen coords:
+               wx = xs/(W/2)-1, wy = 1-ys/(H/2), wz = zs*2-1. Ground-truth
+               the model roof at the spawn column (KCL says 73.3 there). */
+            {
+                const float hw = ntr::SCREEN_W * 0.5f,
+                            hh = ntr::SCREEN_H * 0.5f;
+                float top = -1e30f, wxmin = 1e30f, wxmax = -1e30f,
+                      wymin = 1e30f, wymax = -1e30f;
+                for (size_t i = 0; i < n; ++i)
+                    for (int v = 0; v < 3; ++v) {
+                        const float wx = ta[i].v[v].x / hw - 1.0f;
+                        const float wy = 1.0f - ta[i].v[v].y / hh;
+                        const float wz = ta[i].v[v].z * 2.0f - 1.0f;
+                        if (wx < wxmin) wxmin = wx;
+                        if (wx > wxmax) wxmax = wx;
+                        if (wy < wymin) wymin = wy;
+                        if (wy > wymax) wymax = wy;
+                        if (wx > -10 && wx < 10 && wz > -60 && wz < -40 &&
+                            wy > top)
+                            top = wy;
+                    }
+                printf("probe: model WORLD x[%.1f..%.1f] y[%.1f..%.1f], "
+                       "roof col top=%.1f (KCL says 73.3)\n",
+                       wxmin, wxmax, wymin, wymax, top);
+            }
             ntr::gx_reset();
             NTR_MMIO(uint32_t, 0x04000580) =
                 0u | (0u << 8) | (255u << 16) | (191u << 24);
             ntr::gx_set_light(0, -0.4f, -0.6f, -0.7f, 0x7FFF);
             ntr::gx_enable_lights(0x1);
         }
-        /* Mario stands ~14 world units tall (probe above); the eye rides
-           above the terrain so hills never swallow the view */
-        float eye[3] = {px, py + 18.0f, pz - 40.0f};
-        float at[3] = {px, py + 7.0f, pz};
+        /* Follow camera at near eye level (Mario is ~14 units tall). The
+           old version LIFTED the eye onto whatever hill sat behind him,
+           which looked down at a grazing angle -- terrain read flat and the
+           view stretched. Now: shoulder-height offset, occlusion resolved
+           by pulling IN along the view ray, and smoothing so the eye never
+           snaps. */
+        float want_eye[3] = {px, py + 12.0f, pz - 34.0f};
+        float at[3] = {px, py + 9.0f, pz};
+        if (getenv("SM64DS_ORBIT")) {
+            /* debug: whole-stage orbit shot to judge proportions */
+            want_eye[0] = 160.0f; want_eye[1] = 120.0f; want_eye[2] = -160.0f;
+            at[0] = 0.0f; at[1] = 0.0f; at[2] = 0.0f;
+        }
         {
             /* occlusion: pull the eye in front of anything between it and
                Mario (cast from the look-at toward the eye) */
             int a[3] = {(int)(at[0] * 4096), (int)(at[1] * 4096),
                         (int)(at[2] * 4096)};
-            int b[3] = {(int)(eye[0] * 4096), (int)(eye[1] * 4096),
-                        (int)(eye[2] * 4096)};
+            int b[3] = {(int)(want_eye[0] * 4096), (int)(want_eye[1] * 4096),
+                        (int)(want_eye[2] * 4096)};
             int clip[3];
             if (hal_line_ray(g_mc, a, b, clip)) {
                 for (int k = 0; k < 3; ++k)
-                    eye[k] = clip[k] / 4096.0f * 0.92f +
-                             at[k] * 0.08f;
+                    want_eye[k] = clip[k] / 4096.0f * 0.9f + at[k] * 0.1f;
             }
         }
+        static float eye[3];
+        static int eye_live;
+        if (!eye_live) {
+            eye_live = 1;
+            for (int k = 0; k < 3; ++k) eye[k] = want_eye[k];
+        }
+        for (int k = 0; k < 3; ++k)
+            eye[k] += (want_eye[k] - eye[k]) * 0.2f;
         push_camera(eye, at);
         if (selftest && frame == 0)
             fprintf(stderr, "[w] render\n");
-        hal_render_model(level_storage, level_shift);
+        if (selftest && frame == 0) {
+            /* GX isolation: hand-feed one triangle at Mario's position
+               through raw MMIO -- no game code. Centered = GX + camera
+               fine; offset = my matrix push is wrong. */
+            {
+                float gp[16];
+                ntr::gx_debug_proj(gp);
+                fprintf(stderr, "[w] g.proj rows:\n");
+                for (int r = 0; r < 4; ++r)
+                    fprintf(stderr, "  %8.3f %8.3f %8.3f %8.3f\n",
+                            gp[r*4], gp[r*4+1], gp[r*4+2], gp[r*4+3]);
+            }
+            NTR_MMIO(uint32_t, 0x04000440) = 1;   /* MTX_MODE position */
+            uint32_t tr[16] = {4096, 0, 0, 0, 0, 4096, 0, 0,
+                               0, 0, 4096, 0,
+                               (uint32_t)(int)(px * 4096),
+                               (uint32_t)(int)(py * 4096),
+                               (uint32_t)(int)(pz * 4096), 4096};
+            for (int i = 0; i < 16; ++i)
+                NTR_MMIO(uint32_t, 0x04000458) = tr[i];
+            NTR_MMIO(uint32_t, 0x04000500) = 0;   /* BEGIN_VTXS tris */
+            /* small triangle around the origin (4.12: 0x1000 = 1.0) */
+            NTR_MMIO(uint32_t, 0x0400048C) = 0x0000F000u;      /* (-1, 0) */
+            NTR_MMIO(uint32_t, 0x0400048C) = 0x00000000u;      /* z 0 */
+            NTR_MMIO(uint32_t, 0x0400048C) = 0x00001000u;      /* (+1, 0) */
+            NTR_MMIO(uint32_t, 0x0400048C) = 0x00000000u;
+            NTR_MMIO(uint32_t, 0x0400048C) = 0x10000000u;      /* (0, +1) */
+            NTR_MMIO(uint32_t, 0x0400048C) = 0x00000000u;
+            NTR_MMIO(uint32_t, 0x04000504) = 0;   /* END_VTXS */
+            size_t hn = 0;
+            const ntr::GxTriangle *ht = ntr::gx_polygons(hn);
+            if (hn)
+                fprintf(stderr, "[w] handfed tri screen (%.0f,%.0f) (%.0f,%.0f)"
+                        " (%.0f,%.0f)\n",
+                        ht[hn-1].v[0].x, ht[hn-1].v[0].y, ht[hn-1].v[1].x,
+                        ht[hn-1].v[1].y, ht[hn-1].v[2].x, ht[hn-1].v[2].y);
+            else
+                fprintf(stderr, "[w] handfed tri CLIPPED/none\n");
+            ntr::gx_reset();
+            NTR_MMIO(uint32_t, 0x04000580) =
+                0u | (0u << 8) | (255u << 16) | (191u << 24);
+            ntr::gx_set_light(0, -0.4f, -0.6f, -0.7f, 0x7FFF);
+            ntr::gx_enable_lights(0x1);
+            push_camera(eye, at);
+        }
+        if (!getenv("SM64DS_NO_LEVEL"))
+            hal_render_model(level_storage, level_shift);
+        size_t tris_before = 0;
+        if (selftest) ntr::gx_polygons(tris_before);
         hal_render_player_world(player);
+        if (selftest) {
+            size_t tn = 0;
+            const ntr::GxTriangle *ta2 = ntr::gx_polygons(tn);
+            float mnx = 1e30f, mxx = -1e30f, mny = 1e30f, mxy = -1e30f;
+            for (size_t i = tris_before; i < tn; ++i)
+                for (int v = 0; v < 3; ++v) {
+                    if (ta2[i].v[v].x < mnx) mnx = ta2[i].v[v].x;
+                    if (ta2[i].v[v].x > mxx) mxx = ta2[i].v[v].x;
+                    if (ta2[i].v[v].y < mny) mny = ta2[i].v[v].y;
+                    if (ta2[i].v[v].y > mxy) mxy = ta2[i].v[v].y;
+                }
+            fprintf(stderr,
+                    "[w] mario screen box x[%.0f..%.0f] y[%.0f..%.0f] "
+                    "(center %d,%d) eye(%.1f,%.1f,%.1f) at(%.1f,%.1f,%.1f)\n",
+                    mnx, mxx, mny, mxy, ntr::SCREEN_W / 2, ntr::SCREEN_H / 2,
+                    eye[0], eye[1], eye[2], at[0], at[1], at[2]);
+        }
         if (selftest && frame == 0)
             fprintf(stderr, "[w] rendered\n");
 

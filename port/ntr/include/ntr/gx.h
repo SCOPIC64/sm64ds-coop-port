@@ -85,6 +85,7 @@ const GxTriangle *gx_polygons(size_t &count);
 // Rasterise them into fb with a depth buffer. Does not clear fb -- the 3D layer
 // composites over whatever the 2D engine already drew.
 void gx_render(Framebuffer &fb);
+void gx_debug_proj(float out[16]);
 
 }  // namespace ntr
 
