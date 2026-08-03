@@ -548,7 +548,7 @@ int main(void)
             {
                 int nx = *(int *)(c + 0x5c), nz = *(int *)(c + 0x64);
                 int ny = *(int *)(c + 0x60);
-                int wy = ny + (55 << 12);           /* chest height */
+                int wy = ny + (30 << 12);           /* chest height */
                 int a[3] = {prev_pos[0], wy, prev_pos[2]};
                 int b[3] = {nx, wy, nz};
                 int clip[3];
@@ -669,10 +669,10 @@ int main(void)
            low area's walls, looking steeply down, which foreshortened
            the terrain ("squashed, worse the lower you go"). cam_pitch
            tilts the rig (R/F keys), default ~7 degrees. */
-        float cd = 1800.0f * cosf(cam_pitch), ch = 1800.0f * sinf(cam_pitch);
-        float want_eye[3] = {px - cd * sinf(cam_yaw), py + 95.0f + ch,
+        float cd = 750.0f * cosf(cam_pitch), ch = 750.0f * sinf(cam_pitch);
+        float want_eye[3] = {px - cd * sinf(cam_yaw), py + 50.0f + ch,
                              pz - cd * cosf(cam_yaw)};
-        float at[3] = {px, py + 95.0f, pz};
+        float at[3] = {px, py + 50.0f, pz};
         if (getenv("SM64DS_ORBIT")) {
             /* debug: whole-stage orbit shot to judge proportions */
             want_eye[0] = 2560.0f; want_eye[1] = 1920.0f;
@@ -698,7 +698,7 @@ int main(void)
                     float dx = want_eye[0] - at[0], dy = want_eye[1] - at[1],
                           dz = want_eye[2] - at[2];
                     float d = sqrtf(dx * dx + dy * dy + dz * dz);
-                    const float MIN_D = 700.0f;
+                    const float MIN_D = 320.0f;
                     if (d > 1.0f && d < MIN_D) {
                         float g2 = MIN_D / d;
                         want_eye[0] = at[0] + dx * g2;

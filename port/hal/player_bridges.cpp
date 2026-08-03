@@ -95,14 +95,15 @@ void hal_render_player_world(void *player)
     ModelAnim *ma = ((ModelAnim **)(c + 0xdc))[id];
     if (!ma) return;
     unsigned idx = ((unsigned short)*(short *)(c + 0x8e)) >> 4;
-    /* body scale x8: scene space is world>>3 (every model-matrix builder
-       in the ROM writes pos>>3), so the body's natural render is 8x in
-       world terms -- Mario ~148 units, exactly what the DS pipeline
-       draws. The x6 detour was compensating for the WRONG FOV (55 vs
-       the ROM's ~33): the wide lens shrank the world around him and no
-       body scale could fix that. */
-    int s = data_02082214[idx * 2] << 3, co = data_02082214[idx * 2 + 1] << 3;
-    int world[12] = {co, 0, -s, 0, 0x8000, 0, s, 0, co,
+    /* body scale x4 (Mario ~74 world units), calibrated against REAL
+       GAME pixels: in the wiki's cannon screenshot Mario is ~4.7 fence
+       heights at his own depth; at x8 ours measured ~10. The ROM-code
+       derivation (scene = pos>>3, body matrix rotation at 1.0) says x8,
+       so a factor-2 lives somewhere unfound in the DS body pipeline
+       (suspect: anim bone scaling). Screenshots outrank derivations --
+       at x4 the jump is 2.6x his height, classic SM64 proportions. */
+    int s = data_02082214[idx * 2] << 2, co = data_02082214[idx * 2 + 1] << 2;
+    int world[12] = {co, 0, -s, 0, 0x4000, 0, s, 0, co,
                      *(int *)(c + 0x5c), *(int *)(c + 0x60),
                      *(int *)(c + 0x64)};
     for (int i = 0; i < 12; ++i) ((int *)&ma->mat4x3)[i] = world[i];
