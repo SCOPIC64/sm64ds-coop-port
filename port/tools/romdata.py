@@ -65,6 +65,8 @@ NAMED = [
     # death states: SetNextLevel's sublevel -> (next level, entrance) table
     "data_02075638",
     "data_02092664",   # Scene::SetSceneToSpawn's pending-scene ID
+    "data_020889b0",   # func_0200ee68's demo/cutscene flag block (NoControl)
+    "data_020755bc",   # character -> wipe type (StartExitCharacterWipe)
 ]
 
 

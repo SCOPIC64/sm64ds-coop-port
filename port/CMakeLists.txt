@@ -474,8 +474,11 @@ endforeach()
 # engine/fader/StartExitFaderWipe.c is the same case: a `virtual` class in a
 # .c, this time the FaderWipe the death path calls SetToStart on. hostgen
 # resolves a path as well as a bare name, so the fader subdirectory works.
+# func_ov002_020c897c does void-pointer arithmetic (the NoControl body's
+# `*(void**)(c + id * 4 + 0xdc) + 0x50` anim probe), which MSVC C rejects
+# with C2036; hostgen's VOIDPP_ARITH rewrite retypes the deref to char*.
 set(GATE10_SYMS func_ov002_020dec70 func_ov002_020d708c
-    engine/fader/StartExitFaderWipe)
+    engine/fader/StartExitFaderWipe func_ov002_020c897c)
 set(GATE10_GEN "")
 foreach(sym IN LISTS GATE10_SYMS)
     if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")

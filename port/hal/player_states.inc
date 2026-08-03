@@ -205,6 +205,12 @@
          BackFlip       state 0x0211052c  Main = St_SideFlip_Main
          WaterJump      state 0x02110694  Main = St_SideFlip_Main
          HeadstandJump  state 0x02110724  Main = St_SideFlip_Main */
+    /* NoControl: the cutscene/door/pipe state. Its Init dispatches a
+       per-kind entry function through a sinit-built PMF table, so it runs
+       from port/unmatched (hal_call_state_fn on the DS code word). */
+    case 0x020c816c: return ((Player *)self)->Player::St_NoControl_Main();
+    case 0x020c976c: return ((Player *)self)->Player::St_NoControl_Init();
+    case 0x020c8128: return ((Player *)self)->Player::St_NoControl_Cleanup();
     /* DEATH states: every Main here funnels into KillPlayer ->
        StartExitFaderWipe, which derefs the fader-wipe array at
        0x0209f324. Stage::InitResources allocates that array and the port
