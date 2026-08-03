@@ -135,11 +135,31 @@ extern "C" int hal_line_ray(void *mc, const int *a, const int *b, int *out)
    carries the provenance and the basis convention.
 
    SM64DS_NO_SPHERE=1 puts the stub back, which is how the two configurations
-   get A/B'd (and what the pre-transcription screenshots were taken under). */
+   get A/B'd (and what the pre-transcription screenshots were taken under).
+
+   SM64DS_SPHERE_RADIUS_PCT=N scales the incoming sphere's radius, which is
+   the only place that lever fits. WithMeshClsn+0x18 is the radius and +0x1c
+   the vertical offset added to pos before the sphere is placed, and
+   Player::Behavior recomputes BOTH every frame from the mega/balloon factor
+   and stores the SAME value in each -- so an actor-level radius change is
+   overwritten before it is read, and even the game's own mega lever cancels
+   out of the resting height, which is floor - vo + radius. Scaled here the
+   two separate, and the resting height has to move by exactly the radius
+   delta: that is the cheapest end-to-end check that R = radius << 4 carries
+   the right shift. */
 static int __fastcall slot_sphere(void *self, void *, void *sph)
 {
     static int off = -1;
-    if (off < 0) off = getenv("SM64DS_NO_SPHERE") ? 1 : 0;
+    static int radius_pct = 0;
+    if (off < 0) {
+        off = getenv("SM64DS_NO_SPHERE") ? 1 : 0;
+        if (const char *p = getenv("SM64DS_SPHERE_RADIUS_PCT"))
+            radius_pct = atoi(p);
+    }
+    if (radius_pct) {
+        int *r = (int *)((char *)sph + 0x48);
+        *r = (int)((long long)*r * radius_pct / 100);
+    }
     if (off) {
         static int warned;
         if (!warned) {
@@ -155,8 +175,9 @@ static int __fastcall slot_sphere(void *self, void *, void *sph)
     if (r && getenv("PORT_TRACE_CLSN")) {
         const unsigned char *s = (const unsigned char *)sph;
         fprintf(stderr, "  [sphere] mask=%d flags=%02x tri=%d kind=%d "
-                        "class(f/e/c)=%d/%d/%d push=(%d,%d,%d)\n",
+                        "r=%d cy=%d class(f/e/c)=%d/%d/%d push=(%d,%d,%d)\n",
                 r, s[0x70], g_sphere_dbg[14], g_sphere_dbg[15],
+                ((const int *)(s + 0x48))[0], ((const int *)(s + 0x3c))[1],
                 g_sphere_dbg[4], g_sphere_dbg[5], g_sphere_dbg[6],
                 ((const int *)(s + 0x58))[0] + ((const int *)(s + 0x64))[0],
                 ((const int *)(s + 0x58))[1] + ((const int *)(s + 0x64))[1],

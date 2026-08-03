@@ -461,6 +461,24 @@ int main(void)
         if (getenv("PORT_WATCH_POS"))
             port_watch_words(c + 0x5c, 3);
     }
+    /* SM64DS_CLSN_RADIUS_PCT=N: scale the Player's OWN collision sphere.
+       WithMeshClsn+0x18 is the radius UpdateExtraContinous hands to
+       SphereClsn::SetObjAndSphere and +0x1c the vertical offset it adds to
+       pos first; Player::InitResources writes both. The sphere pass rests an
+       actor at floor + radius - vo, so the resting pos.y has to move by
+       EXACTLY the radius delta -- which is the cheapest available check that
+       R = radius << 4 was transcribed with the right shift. Anything else in
+       the chain (the >>16 push, the file/world pair) would show up here as a
+       nonlinearity. */
+    /* THE RADIUS LEVER IS NOT HERE. WithMeshClsn+0x18 is the radius
+       UpdateExtraContinous hands to SphereClsn::SetObjAndSphere and +0x1c the
+       vertical offset it adds to pos first, but Player::Behavior RECOMPUTES
+       BOTH every frame from the mega/balloon factor and sets them to the SAME
+       value, so writing either one here is overwritten before it is read --
+       and the game's own mega lever moves them together, which cancels out of
+       the resting height entirely (floor - vo + radius). Scaling the sphere's
+       radius alone has to happen at the sphere: SM64DS_SPHERE_RADIUS_PCT in
+       port/hal/clsn_vtable.cpp. */
     /* the level model: main_castle_all.bmd -- handle 1943 by hand, and under
        the real boot the LVL_Overlay's own bmdFileId, which is the same 1943
        (the harness had guessed right); world-space verts scaled by the BMD

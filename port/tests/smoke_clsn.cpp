@@ -63,6 +63,7 @@ struct SphereS {
 extern "C" {
 extern int g_walk_dbg[16];
 extern int g_sphere_dbg[16];
+int func_02039794(int normalY);     /* 0 floor / 1 wall / 2 ceiling */
 struct SharedFilePtrC { u16 fileID; u8 numRefs; void *filePtr; };
 SharedFilePtrC *_ZN13SharedFilePtr9ConstructEj(SharedFilePtrC *self, u32 ov0FileID);
 void *_ZN4Heap13SetupRootHeapEv(void);
@@ -477,6 +478,82 @@ int main(void)
         CHECK(g_sphere_dbg[11] - v0c > 0);  /* the corner solve runs */
         CHECK(g_sphere_dbg[5] - e0 > 0);    /* edge contacts are accepted */
         CHECK(g_sphere_dbg[6] - k0 > 0);    /* corner contacts are accepted */
+    }
+
+    /* 1.6  The WALL and CEILING arms of the record. Every probe so far has
+       landed on a floor, so func_02039794's other two answers -- and with them
+       the XZ-only push for a wall FACE contact and the XYZ push for a ceiling
+       -- have never run. Walk the triangle table, classify each prism by its
+       own normal, and aim a sphere at the first few of each kind: start at
+       vertex 0 (where d1 and d2 are both zero by construction), drive well
+       inside along -e1 and -e2, then out along the face normal to put the
+       centre a half radius off the plane.
+
+       The wall assertion is the sharp one. A wall FACE contact touches the X
+       and Z accumulators and NOTHING else, so push.y must be zero to the
+       unit; a non-zero Y on a flat wall face is the 0x01ffd0f0 class-1 branch
+       transcribed as the class-2/3 branch at 0x01ffd170. */
+    {
+        const int ntri = (int)(((const char *)f->unk_0c
+                              - (const char *)f->tris) / 0x10);
+        printf("  tier1.6: %d prisms in the table\n", ntri);
+        CHECK(ntri > 64 && ntri < 100000);
+        int walls = 0, ceils = 0, wallOK = 0, ceilOK = 0;
+        int wallFaceY = 0, wallFaceYbad = 0, ceilDownOK = 0;
+        for (int t = 0; t < ntri && (walls < 24 || ceils < 24); ++t) {
+            KCL_Tri *pr = &f->tris[t];
+            const int *p0 = (const int *)f->positions[pr->posIdx];
+            const short *e1 = (const short *)f->normals[pr->edgeNormal1Idx];
+            const short *e2 = (const short *)f->normals[pr->edgeNormal2Idx];
+            const short *fn = (const short *)f->normals[pr->normalIdx];
+            const int kind = func_02039794(fn[1] << 2);   /* KCL 0x400 -> Fix12i */
+            if (kind == 0) continue;
+            if (kind == 1 && walls >= 24) continue;
+            if (kind == 2 && ceils >= 24) continue;
+            if (kind == 1) ++walls; else ++ceils;
+
+            const int r = 0x100, R = r * 0x400;
+            int c[3] = { p0[0], p0[1], p0[2] };
+            for (int it = 0; it < 6; ++it) {
+                const int rx = c[0]-p0[0], ry = c[1]-p0[1], rz = c[2]-p0[2];
+                const int d1 = e1[0]*rx + e1[1]*ry + e1[2]*rz;
+                const int d2 = e2[0]*rx + e2[1]*ry + e2[2]*rz;
+                const int fd = fn[0]*rx + fn[1]*ry + fn[2]*rz;
+                const int m1 = (-4*R - d1) / 0x400;
+                const int m2 = (-4*R - d2) / 0x400;
+                const int mf = (R/2 - fd) / 0x400;
+                for (int a = 0; a < 3; ++a)
+                    c[a] += (int)(((long long)m1 * e1[a]
+                                 + (long long)m2 * e2[a]
+                                 + (long long)mf * fn[a]) / 0x400);
+            }
+            SphereS sp;
+            sp.seed(c[0], c[1], c[2], r);
+            const int e0 = g_sphere_dbg[5], k0 = g_sphere_dbg[6];
+            const int m = sphere_probe(mc, &sp);
+            if (kind == 1) {
+                if ((m & 2) && (sp.flags() & 8)) ++wallOK;
+                /* isolate: only this wall, and only a FACE contact */
+                if (m == 2 && g_sphere_dbg[5] == e0 && g_sphere_dbg[6] == k0) {
+                    ++wallFaceY;
+                    if (sp.push(1) != 0) ++wallFaceYbad;
+                }
+            } else {
+                if ((m & 4) && (sp.flags() & 0x10)) ++ceilOK;
+                if (m == 4 && sp.push(1) < 0) ++ceilDownOK;
+            }
+        }
+        printf("           walls aimed %d (mask bit1 + flag %d, isolated face "
+               "contacts %d with %d bad push.y)\n",
+               walls, wallOK, wallFaceY, wallFaceYbad);
+        printf("           ceilings aimed %d (mask bit2 + flag %d, %d pushing "
+               "DOWN)\n", ceils, ceilOK, ceilDownOK);
+        CHECK(walls > 0);
+        CHECK(ceils > 0);               /* castle grounds has ceilings */
+        CHECK(wallOK >= walls / 2);
+        CHECK(ceilOK >= ceils / 2);
+        CHECK(wallFaceYbad == 0);       /* a wall FACE contact is XZ only */
+        CHECK(ceilDownOK > 0);          /* a ceiling pushes down */
     }
 
     printf("  sphere: calls %d, leaves %d, prisms %d, contacts %d "
