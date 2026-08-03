@@ -164,22 +164,52 @@ void push_screen_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
     g.tris.push_back(t);
 }
 
-void emit_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
-    // Sutherland-Hodgman against the near plane w >= eps. w == 1 everywhere
-    // (the ortho harnesses) never clips and reaches push_screen_tri with
-    // the input triangle intact.
+// Does the active projection put a near plane in front of the camera? It
+// does exactly when w depends on the vertex, which is the fourth column of
+// the matrix: w = x*m[3] + y*m[7] + z*m[11] + m[15]. A perspective
+// projection carries the -1 in m[11] that makes w the eye-space depth, and
+// its near plane is the clip-space plane z + w == 0.
+//
+// A CONSTANT-w PROJECTION HAS NO NEAR PLANE AND MUST NOT BE CLIPPED AGAINST
+// ONE. Every ortho harness in the port (smoke_gx, smoke_model, smoke_anim,
+// the fit passes) sets an identity z row and feeds raw model z straight
+// through, which is a viewer's framing trick and not a view volume at all;
+// treating z == -1 as its near plane cuts the far half off Mario. The
+// distance below is what those passes have always used -- w >= eps, which
+// only guards the divide -- and it leaves them bit-for-bit unchanged.
+float near_dist(const GxVertex &v, bool persp) {
     const float NEAR_EPS = 1e-3f;
+    return persp ? v.z + v.w : v.w - NEAR_EPS;
+}
+
+void emit_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
+    // Sutherland-Hodgman against the near plane.
+    //
+    // THE DISTANCE IS z + w, NOT w. Clipping a perspective triangle at
+    // w == 1e-3 lands the new vertex a thousand times nearer than the near
+    // plane, and dividing by that w throws it out to ~3e8 screen units --
+    // seven digits of float spent before the rasteriser sees it, so the
+    // edge functions and the perspective-correct UVs it feeds are noise.
+    // On the castle grounds that showed as a staircase of triangular
+    // notches down the seam where the big ground quads cross the camera
+    // plane: the sliver covers those pixels, samples a garbage texel,
+    // finds it transparent and leaves the clear colour. At z + w the new
+    // vertex lands ON the near plane, where w is the near distance and the
+    // divide is the ordinary one.
+    const bool persp = g.proj.m[3] != 0.0f || g.proj.m[7] != 0.0f ||
+                       g.proj.m[11] != 0.0f;
     GxVertex in[3] = {a, b, c};
     GxVertex outp[4];
     int n = 0;
     for (int i = 0; i < 3; ++i) {
         const GxVertex &cur = in[i];
         const GxVertex &nxt = in[(i + 1) % 3];
-        const bool cin = cur.w >= NEAR_EPS;
-        const bool nin = nxt.w >= NEAR_EPS;
+        const float dc = near_dist(cur, persp), dn = near_dist(nxt, persp);
+        const bool cin = dc >= 0.0f;
+        const bool nin = dn >= 0.0f;
         if (cin) outp[n++] = cur;
         if (cin != nin) {
-            const float t = (NEAR_EPS - cur.w) / (nxt.w - cur.w);
+            const float t = dc / (dc - dn);
             outp[n++] = clip_lerp(cur, nxt, t);
         }
     }
@@ -818,10 +848,42 @@ void gx_render(Framebuffer &fb) {
         return o ? static_cast<uint32_t>(strtoul(o, nullptr, 16)) : 0u;
     }();
 
+    /* SM64DS_PROBE_PX=x,y: every triangle that COVERS that pixel, with the
+       decision the raster made about it. One clear-colour pixel in a
+       finished frame is the whole question "which polygon should have been
+       here", and this answers it without guessing from the picture. */
+    static int probe_x = -1, probe_y = -1;
+    {
+        static int once = 0;
+        if (!once) {
+            once = 1;
+            if (const char *e = getenv("SM64DS_PROBE_PX"))
+                sscanf(e, "%d,%d", &probe_x, &probe_y);
+        }
+    }
+
     for (const GxTriangle &t : g.tris) {
         if (only && t.dbg_tex != only) continue;
         const GxVertex &a = t.v[0], &b = t.v[1], &c = t.v[2];
         const float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+        if (probe_x >= 0) {
+            const float px = probe_x + 0.5f, py = probe_y + 0.5f;
+            const float w0 = ((b.x - a.x) * (py - a.y) - (b.y - a.y) * (px - a.x));
+            const float w1 = ((c.x - b.x) * (py - b.y) - (c.y - b.y) * (px - b.x));
+            const float w2 = ((a.x - c.x) * (py - c.y) - (a.y - c.y) * (px - c.x));
+            const bool cover = (w0 >= 0 && w1 >= 0 && w2 >= 0) ||
+                               (w0 <= 0 && w1 <= 0 && w2 <= 0);
+            const bool bf = area > 0.0f;
+            const bool culled = (bf && !(t.cull & 1)) || (!bf && !(t.cull & 2));
+            if (cover)
+                printf("[probe] COVER (%.3f,%.3f,%.5f/%.4f) (%.3f,%.3f,%.5f/"
+                       "%.4f) (%.3f,%.3f,%.5f/%.4f) area %.4g cull %u%s%s "
+                       "dbg %08x\n",
+                       a.x, a.y, a.z, a.w, b.x, b.y, b.z, b.w, c.x, c.y, c.z,
+                       c.w, area, t.cull,
+                       std::fabs(area) < 1e-6f ? " DEGENERATE" : "",
+                       culled ? " CULLED" : "", t.dbg_tex);
+        }
         if (std::fabs(area) < 1e-6f) continue;
 
         // Back-face culling per POLYGON_ATTR bits 6-7 (bit 6 renders the back
