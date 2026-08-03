@@ -12,16 +12,24 @@
 //
 //   WASD / arrows  walk    Q/E  orbit    C  snap behind    ESC  quit
 //
-// Env: SM64DS_REAL_BOOT=1   the game's own level boot and entrance spawn
+// THE GAME'S OWN BOOT AND THE GAME'S OWN PHYSICS ARE THE DEFAULT. ov009 is
+// mounted, Stage::LoadClsnAndObjects runs against it, the level's entrance
+// record spawns the Player and the Camera, and the ground and wall contact
+// come from WithMeshClsn's own tracking through the hosted sphere pass. No
+// harness stands in for anything in the physics loop.
+//
+// Env: SM64DS_LEGACY_BOOT=1 the pre-gate-14 harness staging instead of the
+//                           level's own boot (hand-built spawn context, KCL
+//                           mounted by hand, no entrance record)
+//      SM64DS_FAKE_SNAP=1   the pre-sphere collision scaffolding: the level
+//                           collider owned by the Player, the harness ground
+//                           snap and the harness wall clamp. Retired, kept
+//                           for A/B and for shots that need Mario planted.
+//      SM64DS_NO_SPHERE=1   stub the sphere pass out (port/hal/clsn_vtable),
+//                           which is the honest way to see what the
+//                           scaffolding was covering for: a 28-unit bob at
+//                           20 Hz that never settles
 //      SM64DS_OLD_CAMERA=1  the pre-gate-13 hand-tuned follow rig
-//      SM64DS_FAKE_SNAP=1   the pre-gate-13 collision configuration
-//                           (level collider owned by the Player + the
-//                           harness ground snap), which plants Mario
-//      SM64DS_NO_SNAP=1     take the harness ground snap off and let the
-//                           game's own tracking hold him up -- it cannot
-//                           yet, the sphere pass is unmatched, so this is
-//                           a measurement switch and not a mode
-//      SM64DS_NO_WALLSTOP=1 same, for the harness wall clamp
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -282,27 +290,29 @@ int main(void)
        that calibrates against real-game footage. Roof surface = 4916,
        lawn = 784 (SM64DS_SPAWN overrides, world units). */
     int spawn_x = 0, spawn_y = 960, spawn_z = 1000;
-    /* SM64DS_FAKE_SNAP=1: the pre-gate-13 collision configuration in one
-       switch -- the level collider owned by the Player (which makes the
-       game's own ground tracking a no-op, see the Enable call below) plus
-       the harness ground snap on top. */
+    /* THE PHYSICS SCAFFOLDING IS RETIRED. It existed for exactly one reason:
+       WithMeshClsn's continuous update finds a floor two ways, the swept head
+       segment (RaycastLine, hosted, and real since gate 15 gave it a real
+       prev position) and the SPHERE, and the sphere is what holds a STANDING
+       actor up. With MeshCollider::DetectClsn(SphereClsn &) stubbed the
+       Player sank about vo before the head sweep crossed the floor plane and
+       shoved him back, which read as a 28-unit bob at 20 Hz that never
+       settled, so the harness ground snap and wall clamp had to stay on.
+
+       The sphere pass is hosted now (port/unmatched/
+       MeshCollider_DetectClsn_Sphere.cpp), and standing is exact: the same
+       idle spot holds one value for 600 frames, and a 2700-unit drop lands
+       and stops dead where the same drop under the stub bobbed 912/940/927
+       or sank 439 -> 373 over 200 frames.
+
+       SM64DS_FAKE_SNAP=1 brings the whole old configuration back in one
+       switch -- the level collider owned by the Player, which makes the
+       game's own ground tracking a no-op (see the Enable call below), plus
+       the snap and the wall clamp on top. Kept for the A/B and for shots
+       that need Mario planted regardless. */
     const int fake_snap = getenv("SM64DS_FAKE_SNAP") != 0;
-    /* THE ONE PIECE OF PHYSICS SCAFFOLDING LEFT, and it is not a choice.
-       WithMeshClsn's continuous update finds a floor two ways: the swept
-       head segment (RaycastLine, hosted and now real -- gate 15 gave it a
-       real prev position) and the SPHERE, which is what holds a standing
-       actor up. The sphere pass is MeshCollider::DetectClsn(SphereClsn &)
-       at ITCM 0x01ffb830 -- 7112 bytes, the single largest unmatched
-       function in the game (notes/itcm.md), with no draft in
-       nearmiss/db.jsonl. Until it lands the game's own tracking cannot
-       ground him: with the collider stubbed he sinks about vo (50 units)
-       before the head sweep crosses the floor plane and shoves him back,
-       which is a 46-unit bob at 3 Hz. So the ground snap and the wall stop
-       stay ON under the real boot too. SM64DS_NO_SNAP / SM64DS_NO_WALLSTOP
-       take them off, which is how the real tracking gets measured. */
-    const int ground_snap = (fake_snap || getenv("SM64DS_REAL_BOOT") != 0) &&
-                            getenv("SM64DS_NO_SNAP") == 0;
-    const int wall_stop = getenv("SM64DS_NO_WALLSTOP") == 0;
+    const int ground_snap = fake_snap;
+    const int wall_stop = fake_snap;
     PORT_INSTALL_FAULT_PROBE();
     port_install_watchdog();
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -331,12 +341,14 @@ int main(void)
     __sinit_ov002_02107370(); __sinit_ov002_02107f88();
     __sinit_ov002_0210804c(); __sinit_ov002_02108094();
 
-    /* SM64DS_REAL_BOOT=1: the game's own level boot instead of the harness
-       staging -- ov009 mounted, Stage::LoadClsnAndObjects run against it, and
-       the level's own entrance record spawning the Player and the Camera.
-       SM64DS_BOOT_NOSPAWN=1 holds the entrance table off, which is stage A1:
-       the same boot with nothing spawning, geometry in isolation. */
-    const int real_boot = getenv("SM64DS_REAL_BOOT") != 0;
+    /* THE GAME'S OWN LEVEL BOOT, now the default: ov009 mounted,
+       Stage::LoadClsnAndObjects run against it, and the level's own entrance
+       record spawning the Player and the Camera. SM64DS_LEGACY_BOOT=1 goes
+       back to the harness staging (hand-built spawn context, KCL mounted by
+       hand); SM64DS_BOOT_NOSPAWN=1 holds the entrance table off, which is
+       stage A1, the same boot with nothing spawning. SM64DS_REAL_BOOT is
+       still accepted and is now a no-op. */
+    const int real_boot = getenv("SM64DS_LEGACY_BOOT") == 0;
     const int boot_spawns = real_boot && getenv("SM64DS_BOOT_NOSPAWN") == 0;
     if (real_boot)
         port_ov009_probe();
@@ -995,15 +1007,12 @@ int main(void)
             head_live = 1;
         }
 
-        /* harness ground snap: a real KCL ray under Mario each frame. ON
-           wherever the game's own tracking cannot ground him, which is
-           everywhere until MeshCollider::DetectClsn(SphereClsn &) lands --
-           see the ground_snap comment at the top of main. The SetGroundFlag
-           here is now a supplement to a REAL floor record rather than a
-           substitute for a missing one: the tracking's own record carries
-           the level's CLPS entry, triangle and collider slot again, so
-           UpdateExtraContinous and func_02038324 read a complete record
-           either way. SM64DS_NO_SNAP=1 takes it off. */
+        /* RETIRED harness ground snap: a real KCL ray under Mario each
+           frame. OFF unless SM64DS_FAKE_SNAP=1 brings the whole pre-sphere
+           configuration back. It existed because the game's own tracking
+           could not ground him with the sphere pass stubbed; the pass is
+           hosted now and holds him exactly, so this is an A/B switch and a
+           way to plant him for shots, not a mode the port runs in. */
         {
             int gy;
             int mx = *(int *)(c + 0x5c), my = *(int *)(c + 0x60),
@@ -1027,14 +1036,12 @@ int main(void)
                     *(unsigned char *)(c + 0x6de) = 0;
                 }
             }
-            /* wall stop: the game's wall pass is the SAME unmatched
-               sphere collider as its ground pass -- MeshCollider::DetectClsn
-               (SphereClsn &) returns floor/wall/ceiling as one bit mask --
-               so this stays for exactly as long as the snap does. A
-               chest-height segment from last frame's position to this one
-               catches any wall crossed, and a stopped Mario keeps his feet
-               (y stays the snap's business). SM64DS_NO_WALLSTOP=1 takes it
-               off. */
+            /* RETIRED harness wall clamp, off with the snap and for the same
+               reason: the game's wall pass IS its ground pass, one
+               MeshCollider::DetectClsn(SphereClsn &) returning floor, wall
+               and ceiling as a three-bit mask. Hosted, it stops him against
+               the castle's outer wall and lets him SLIDE ALONG it, where
+               this clamp only ever stopped him dead 120 units short. */
             if (wall_stop) {
                 int nx = *(int *)(c + 0x5c), nz = *(int *)(c + 0x64);
                 int ny = *(int *)(c + 0x60);
