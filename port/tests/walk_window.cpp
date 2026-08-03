@@ -415,11 +415,15 @@ int main(void)
                 (unsigned short)(int)(head * (32768.0f / 3.14159265f));
             *(short *)(c + 0x69c) = (short)ang;   /* mDesiredAngleY */
             if (!orbiting) {
-                /* ease the camera in behind the walk direction */
+                /* ease in behind the walk direction, but ONLY when he
+                   walks away-ish from the camera; chasing a heading that
+                   points back at the lens spun the camera in circles
+                   whenever he ran toward the screen */
                 float d = head - cam_yaw;
                 while (d > 3.14159265f) d -= 2 * 3.14159265f;
                 while (d < -3.14159265f) d += 2 * 3.14159265f;
-                cam_yaw += d * 0.02f;
+                if (d > -1.35f && d < 1.35f)
+                    cam_yaw += d * 0.015f;
             }
         } else {
             *(short *)(data_0209f4a0 + 0) = 0;
@@ -460,6 +464,14 @@ int main(void)
                             *(unsigned *)(c + 0x380 + off + 4 * k));
                 fprintf(stderr, "\n");
             }
+        }
+
+        static int prev_pos[3], prev_live;
+        if (!prev_live) {
+            prev_live = 1;
+            prev_pos[0] = *(int *)(c + 0x5c);
+            prev_pos[1] = *(int *)(c + 0x60);
+            prev_pos[2] = *(int *)(c + 0x64);
         }
 
         /* until the first ChangeState seats the current-state pointer,
@@ -519,6 +531,36 @@ int main(void)
                     *(unsigned char *)(c + 0x6de) = 0;
                 }
             }
+            /* wall stop: the sphere push-out (the game's wall pass) is
+               still stubbed, so clamp motion against the KCL directly --
+               a chest-height segment from last frame's position to this
+               one catches any wall crossed, and a stopped Mario keeps
+               his feet (y stays the snap's business) */
+            {
+                int nx = *(int *)(c + 0x5c), nz = *(int *)(c + 0x64);
+                int ny = *(int *)(c + 0x60);
+                int wy = ny + (55 << 12);           /* chest height */
+                int a[3] = {prev_pos[0], wy, prev_pos[2]};
+                int b[3] = {nx, wy, nz};
+                int clip[3];
+                long long ddx = (long long)nx - prev_pos[0];
+                long long ddz = (long long)nz - prev_pos[2];
+                if ((ddx | ddz) && hal_line_ray(g_mc, a, b, clip)) {
+                    /* stop 30 units short of the wall along the motion */
+                    long long len2 = ddx * ddx + ddz * ddz;
+                    double len = len2 > 0 ? sqrt((double)len2) : 1.0;
+                    double ux = ddx / len, uz = ddz / len;
+                    *(int *)(c + 0x5c) =
+                        clip[0] - (int)(ux * (30 << 12));
+                    *(int *)(c + 0x64) =
+                        clip[2] - (int)(uz * (30 << 12));
+                    *(int *)(c + 0x98) = 0;         /* mHorzSpeed */
+                }
+                prev_pos[0] = *(int *)(c + 0x5c);
+                prev_pos[1] = *(int *)(c + 0x60);
+                prev_pos[2] = *(int *)(c + 0x64);
+            }
+
             /* fell out of the world (walked or jumped past the KCL):
                back to the spawn point instead of an endless dive */
             if (my < (-4800 << 12)) {
