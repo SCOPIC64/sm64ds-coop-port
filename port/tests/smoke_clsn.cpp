@@ -34,12 +34,44 @@ struct RayS {
     unsigned char tail[0x10];
 };
 
+/* SphereClsn as the slot-8 pass reads it. Offsets, not fields: the same
+   discipline port/unmatched/MeshCollider_DetectClsn_Sphere.cpp uses, and the
+   same reason (include/SphereClsn.h is auto-generated and has neither the
+   centre nor the radius). 0x140 bytes so the three ClsnResults at 0x74/0x9c/
+   0xc4 and the watermarks at 0xfc..0x108 all land inside. */
+struct SphereS {
+    unsigned char raw[0x140];
+
+    void seed(int x, int y, int z, int r)
+    {
+        memset(raw, 0, sizeof raw);
+        raw[4] = 1;                         /* func_02035514's BgCh default */
+        at(0x3c) = x; at(0x40) = y; at(0x44) = z;
+        at(0x48) = r;
+        /* func_02037b5c: flags cleared, best-floor-normal seeded (0,-1,0) */
+        at(0xfc) = 0; at(0x100) = -0x1000; at(0x104) = 0;
+        /* SetObjAndSphere's own seed */
+        at(0x108) = 0x1000;
+    }
+    int &at(int off) { return *(int *)(raw + off); }
+    unsigned char flags() const { return raw[0x70]; }
+    /* func_02037a38: the resolved push is pushMin + pushMax */
+    int push(int c) { return at(0x58 + c * 4) + at(0x64 + c * 4); }
+    int lastTri() const { return *(const unsigned short *)(raw + 0x10 + 0x18); }
+};
+
 extern "C" {
 extern int g_walk_dbg[16];
+extern int g_sphere_dbg[16];
 struct SharedFilePtrC { u16 fileID; u8 numRefs; void *filePtr; };
 SharedFilePtrC *_ZN13SharedFilePtr9ConstructEj(SharedFilePtrC *self, u32 ov0FileID);
 void *_ZN4Heap13SetupRootHeapEv(void);
 void *_ZN12MeshColliderC1Ev(void *self);
+}
+
+static int sphere_probe(MeshCollider *mc, SphereS *s)
+{
+    return mc->MeshCollider::DetectClsn(*(SphereClsn *)s->raw);
 }
 
 static int probe_one(MeshCollider *mc, RayS *ray)
@@ -144,6 +176,317 @@ int main(void)
     CHECK(hits >= 3);               /* the piano's floor exists under the grid */
     CHECK(shortened == hits);       /* every hit shortened its ray */
     CHECK(up_normals >= hits / 2);  /* floors face up */
+
+    /* ================= TIER 1: the sphere pass against the line walk =======
+       The two passes read the SAME KCL through the SAME collider, so the line
+       walk is the only ground truth available without an emulator -- and a
+       strong one, because a disagreement here is a disagreement about where
+       the level is. See port/unmatched/MeshCollider_DetectClsn_Sphere.cpp.
+
+       UNITS. This smoke leaves the collider at SetFile's stock 1.0 pair, so
+       its world space IS the KCL's file space and every length below is in
+       file units: one octree cell is 0x40 of them, and the file's own
+       max-depth-behind-plane (unk_10, in the dot basis) is unk_10/0x400 of
+       them. Sizing a probe in world units instead is how the first draft of
+       this block managed to place every "just below the floor" point deeper
+       than the game will look. */
+    const int maxDepth = f->unk_10 / 0x400;     /* file units */
+    printf("  kcl: unk_10 %d dot basis = %d file units behind the plane; "
+           "cell 0x40\n", f->unk_10, maxDepth);
+    CHECK(maxDepth > 16);
+
+    /* The columns Tier 1 works over: wherever a downward ray finds a floor.
+       TWO rays per column, and the second one is not optional. The walk's
+       crossing point comes out of `t = fdiv(dotS >> 4, denom) << 4`, which
+       carries twelve bits of fraction, so the hit is quantised to
+       raylength/4096 -- over the octree box's full 1,064,960-unit height that
+       is ~260 units, and a "just below the floor" probe sized in tens of units
+       lands on the WRONG SIDE of the plane. (The game never sees it: its rays
+       are one frame of motion long. The harness's full-height probe is what
+       exposes it.) A second 1024-unit ray around the first answer brings the
+       quantisation to a quarter unit. */
+    struct Column { int x, z, y, tri, ny; };
+    static Column col[81];
+    int ncol = 0;
+    for (int gx = -4; gx <= 4; ++gx)
+        for (int gz = -4; gz <= 4; ++gz) {
+            RayS ray;
+            memset(&ray, 0, sizeof ray);
+            ray.head[4] = 1;
+            ray.sx = cx + gx * (sx_step / 2); ray.sy = top;
+            ray.sz = cz + gz * (sz_step / 2);
+            ray.ex = ray.sx; ray.ey = bot; ray.ez = ray.sz;
+            ray.clsnDist = 0x7FFFFFF;
+            if (!probe_seh(mc, &ray) || !ray.hasClsn) continue;
+            const int coarse = ray.ey;
+            RayS fine;
+            memset(&fine, 0, sizeof fine);
+            fine.head[4] = 1;
+            fine.sx = ray.sx; fine.sy = coarse + 512; fine.sz = ray.sz;
+            fine.ex = ray.sx; fine.ey = coarse - 512; fine.ez = ray.sz;
+            fine.clsnDist = 0x7FFFFFF;
+            if (!probe_seh(mc, &fine) || !fine.hasClsn) continue;
+            col[ncol].x = fine.sx;
+            col[ncol].z = fine.sz;
+            col[ncol].y = fine.ey;      /* the walk writes the hit as the end */
+            col[ncol].tri = *(unsigned short *)(fine.result + 0x18);
+            col[ncol].ny = *(int *)(fine.result + 0x10);
+            ++ncol;
+        }
+
+    /* PORT_EXPLAIN_CLSN: replay the ROM's per-prism rejects by hand, from the
+       KCL, for the triangle the line walk reported. Says which gate fires. */
+    if (getenv("PORT_EXPLAIN_CLSN"))
+        for (int i = 0; i < ncol && i < 6; ++i) {
+            KCL_Tri *pr = &f->tris[col[i].tri];
+            const int *v0 = (const int *)f->positions[pr->posIdx];
+            const short *e1 = (const short *)f->normals[pr->edgeNormal1Idx];
+            const short *e2 = (const short *)f->normals[pr->edgeNormal2Idx];
+            const short *e3 = (const short *)f->normals[pr->edgeNormal3Idx];
+            const short *fn = (const short *)f->normals[pr->normalIdx];
+            const int rx = col[i].x - v0[0];
+            const int ry = (col[i].y - 8) - v0[1];
+            const int rz = col[i].z - v0[2];
+            const int len = *(const int *)pr;
+            printf("    explain col %d tri %d: v0(%d,%d,%d) len %d\n"
+                   "      d1 %d d2 %d d3 %d faceDot %d   (R = 0)\n",
+                   i, col[i].tri, v0[0], v0[1], v0[2], len,
+                   e1[0]*rx + e1[1]*ry + e1[2]*rz,
+                   e2[0]*rx + e2[1]*ry + e2[2]*rz,
+                   e3[0]*rx + e3[1]*ry + e3[2]*rz - len,
+                   fn[0]*rx + fn[1]*ry + fn[2]*rz);
+        }
+
+    /* 1.1  A radius-0 sphere is a point test. Just BELOW a floor the line walk
+       found it must report that same triangle; just ABOVE it, with R = 0 and
+       the `faceDot > R` reject strict, it must report nothing at all. */
+    {
+        int agree = 0, disagree = 0, missed = 0, above_hits = 0;
+        const int eps = 8;                      /* file units, well inside
+                                                   maxDepth */
+        for (int i = 0; i < ncol; ++i) {
+            SphereS sp;
+            sp.seed(col[i].x, col[i].y - eps, col[i].z, 0);
+            const int l0 = g_sphere_dbg[1], p0 = g_sphere_dbg[2];
+            const int m = sphere_probe(mc, &sp);
+            if (getenv("PORT_TRACE_CLSN"))
+                printf("    col %2d (%d,%d,%d) tri %d ny %d -> mask %d tri %d "
+                       "leaves %d prisms %d\n", i, col[i].x, col[i].y, col[i].z,
+                       col[i].tri, col[i].ny, m, sp.lastTri(),
+                       g_sphere_dbg[1] - l0, g_sphere_dbg[2] - p0);
+            if (!m) ++missed;
+            else if (sp.lastTri() == col[i].tri) ++agree;
+            else ++disagree;
+
+            sp.seed(col[i].x, col[i].y + eps, col[i].z, 0);
+            if (sphere_probe(mc, &sp)) ++above_hits;
+        }
+        printf("  tier1.1: %d columns, agree %d, disagree %d, missed %d, "
+               "false hits above %d\n", ncol, agree, disagree, missed,
+               above_hits);
+        CHECK(ncol >= 8);
+        CHECK(disagree == 0);       /* never a DIFFERENT triangle */
+        CHECK(agree >= ncol - ncol / 4);  /* a column landing on an edge can
+                                             miss a zero-radius point test */
+        CHECK(above_hits == 0);     /* a point above the surface touches nothing */
+    }
+
+    /* 1.2  Monotonicity. Per prism, acceptance IS monotone in R: every reject
+       that mentions the radius is `d >= R`, `faceDot > R` or
+       `radiusSq - sqLen <= 0`, and depth = sqrt(radiusSq - x) - faceDot only
+       grows. The set of prisms VISITED is not monotone, though -- the ROM's
+       top-3 prevLeaf row cache skips different leaves as the box grows -- so
+       the comparison is only made between radii that walked the same number of
+       leaves, which pins the traversal set. Both counts are reported. */
+    {
+        int compared = 0, violations = 0, skipped = 0;
+        for (int i = 0; i < ncol; ++i) {
+            int prev = -1, prevLeaves = -1;
+            for (int r = 0; r <= 0x100; r += 0x20) {    /* 0..4 cells */
+                SphereS sp;
+                sp.seed(col[i].x, col[i].y + 0x20, col[i].z, r);
+                const int c0 = g_sphere_dbg[3], l0 = g_sphere_dbg[1];
+                sphere_probe(mc, &sp);
+                const int contacts = g_sphere_dbg[3] - c0;
+                const int leaves = g_sphere_dbg[1] - l0;
+                if (prev >= 0) {
+                    if (leaves != prevLeaves) ++skipped;
+                    else { ++compared; if (contacts < prev) ++violations; }
+                }
+                prev = contacts; prevLeaves = leaves;
+            }
+        }
+        printf("  tier1.2: %d columns swept r=0..0x100, %d same-traversal "
+               "comparisons (%d skipped, box grew), violations %d\n",
+               ncol, compared, skipped, violations);
+        CHECK(compared >= 8);
+        CHECK(violations == 0);
+    }
+
+    /* 1.3  The push identity, which is what actually pins R = radius<<4 and
+       the >>16 push scaling. For a FACE contact on a level floor,
+       depth = R - faceDot and push.y = depth*normal.y >> 16 collapse to
+           push.y == radius - height
+       in the collider's own world units, with no scale factor left over. A
+       wrong shift shows up here as a factor of 4, 16 or 64, not as rounding.
+       Only a LOWER bound is guaranteed: a higher ledge inside the radius
+       pushes harder, so `got < expect` is the failure and the exact-match
+       count is the evidence. */
+    {
+        int tested = 0, exact = 0, under = 0, worstUnder = 0;
+        for (int i = 0; i < ncol; ++i) {
+            if (col[i].ny < 0xff0) continue;    /* level triangles only */
+            for (int k = 0; k < 4; ++k) {
+                const int h = 8 << k;           /* 8, 16, 32, 64 file units */
+                const int r = 0x80;             /* two cells */
+                SphereS sp;
+                sp.seed(col[i].x, col[i].y + h, col[i].z, r);
+                if (!(sphere_probe(mc, &sp) & 1)) continue;
+                if (sp.at(0x5c) != 0) continue; /* pushMin.y != 0: something
+                                                   is pushing DOWN too */
+                const int expect = r - h;
+                const int got = sp.push(1);
+                ++tested;
+                if (got == expect) ++exact;
+                else if (got < expect) {
+                    ++under;
+                    if (expect - got > worstUnder) worstUnder = expect - got;
+                }
+            }
+        }
+        printf("  tier1.3: %d level-floor samples, exact %d, under %d "
+               "(worst shortfall %d)\n", tested, exact, under, worstUnder);
+        CHECK(tested >= 8);
+        CHECK(under == 0);              /* the identity is a hard lower bound */
+        CHECK(exact >= tested / 2);     /* and usually exact */
+    }
+
+    /* 1.4  Actor-sized spheres, which is what actually reaches the edge and
+       corner solves and the slope gate -- a small sphere resting on open floor
+       only ever makes FACE contacts, so 1.1..1.3 leave two thirds of the
+       function untested. The invariant here is a bound rather than an
+       identity: depth = R - faceDot and faceDot >= -unk_10, so no single push
+       component can exceed radius + unk_10, and the min/max pair cannot exceed
+       twice that. Anything that overflows or reads the wrong basis blows this
+       out by orders of magnitude, which is the point. */
+    {
+        const int c0 = g_sphere_dbg[3], f0 = g_sphere_dbg[4];
+        const int e0 = g_sphere_dbg[5], k0 = g_sphere_dbg[6];
+        const int s0 = g_sphere_dbg[10], v0_ = g_sphere_dbg[11];
+        int probes = 0, contacts = 0, overBound = 0, worstPush = 0;
+        for (int i = 0; i < ncol; ++i)
+            for (int k = 0; k < 3; ++k) {
+                const int r = 0x40 << k;            /* 1, 2, 4 cells */
+                for (int dy = -r / 2; dy <= r; dy += r / 2) {
+                    SphereS sp;
+                    sp.seed(col[i].x, col[i].y + dy, col[i].z, r);
+                    ++probes;
+                    if (!sphere_probe(mc, &sp)) continue;
+                    ++contacts;
+                    const int bound = 2 * (r + maxDepth);
+                    for (int c = 0; c < 3; ++c) {
+                        int p = sp.push(c);
+                        if (p < 0) p = -p;
+                        if (p > worstPush) worstPush = p;
+                        if (p > bound) ++overBound;
+                    }
+                }
+            }
+        printf("  tier1.4: %d actor-sized probes, %d with contact, push bound "
+               "violations %d (worst |push| %d)\n",
+               probes, contacts, overBound, worstPush);
+        printf("           reached: face %d, edge %d, corner %d, slope gate "
+               "%d, corner solve %d\n",
+               g_sphere_dbg[4] - f0, g_sphere_dbg[5] - e0,
+               g_sphere_dbg[6] - k0, g_sphere_dbg[10] - s0,
+               g_sphere_dbg[11] - v0_);
+        (void)c0;
+        CHECK(contacts >= ncol);
+        CHECK(overBound == 0);
+    }
+
+    /* 1.5  EDGE and CORNER coverage. Castle grounds' prisms are hundreds of
+       thousands of file units across, so an actor-sized sphere dropped on one
+       is always deep inside it laterally and every contact classifies FACE --
+       1.1..1.4 never reach the two thirds of the function that solve for the
+       nearest point on an edge or at a vertex. So aim at them: d1, d2 and d3
+       ARE the signed distances to the three edge planes in the dot basis, and
+       the edge normals are unit vectors at 1.0 == 0x400 lying in the prism's
+       plane, so the centre can be driven to a chosen distance from a chosen
+       edge directly. One edge -> the EDGE region; two at once -> the VERTEX
+       region and the corner solve. */
+    {
+        const int f0 = g_sphere_dbg[4], e0 = g_sphere_dbg[5];
+        const int k0 = g_sphere_dbg[6], s0 = g_sphere_dbg[10];
+        const int v0c = g_sphere_dbg[11];
+        int aimed = 0, contacts = 0, overBound = 0;
+        for (int i = 0; i < ncol; ++i) {
+            KCL_Tri *pr = &f->tris[col[i].tri];
+            const int *p0 = (const int *)f->positions[pr->posIdx];
+            const short *e1 = (const short *)f->normals[pr->edgeNormal1Idx];
+            const short *e2 = (const short *)f->normals[pr->edgeNormal2Idx];
+            const short *fn = (const short *)f->normals[pr->normalIdx];
+            for (int rk = 0; rk < 2; ++rk) {
+                const int r = 0x100 << rk;          /* 4 and 8 cells */
+                const int R = r * 0x400;            /* the dot basis radius */
+                for (int both = 0; both < 2; ++both)
+                    for (int dn = 1; dn <= 6; ++dn)
+                        for (int fdn = 1; fdn <= 4; ++fdn) {
+                            /* start on the prism at the ray's hit, then drive
+                               d1 (and d2) to dn/8 of R and faceDot to fdn/5 */
+                            int c[3] = { col[i].x, col[i].y, col[i].z };
+                            const int wantD = (int)((long long)R * dn / 8);
+                            const int wantF = (int)((long long)R * fdn / 5);
+                            for (int it = 0; it < 6; ++it) {
+                                const int rx = c[0] - p0[0], ry = c[1] - p0[1],
+                                          rz = c[2] - p0[2];
+                                const int d1 = e1[0]*rx + e1[1]*ry + e1[2]*rz;
+                                const int d2 = e2[0]*rx + e2[1]*ry + e2[2]*rz;
+                                const int fd = fn[0]*rx + fn[1]*ry + fn[2]*rz;
+                                const int m1 = (wantD - d1) / 0x400;
+                                const int m2 = both ? (wantD - d2) / 0x400 : 0;
+                                const int mf = (wantF - fd) / 0x400;
+                                for (int a = 0; a < 3; ++a)
+                                    c[a] += (int)(((long long)m1 * e1[a]
+                                                 + (long long)m2 * e2[a]
+                                                 + (long long)mf * fn[a]) / 0x400);
+                            }
+                            SphereS sp;
+                            sp.seed(c[0], c[1], c[2], r);
+                            ++aimed;
+                            if (!sphere_probe(mc, &sp)) continue;
+                            ++contacts;
+                            const int bound = 2 * (r + maxDepth);
+                            for (int a = 0; a < 3; ++a) {
+                                int p = sp.push(a);
+                                if (p < 0) p = -p;
+                                if (p > bound) ++overBound;
+                            }
+                        }
+            }
+        }
+        printf("  tier1.5: %d aimed probes, %d with contact, push bound "
+               "violations %d\n", aimed, contacts, overBound);
+        printf("           reached: face %d, edge %d, corner %d, slope gate "
+               "%d, corner solve %d\n",
+               g_sphere_dbg[4] - f0, g_sphere_dbg[5] - e0,
+               g_sphere_dbg[6] - k0, g_sphere_dbg[10] - s0,
+               g_sphere_dbg[11] - v0c);
+        CHECK(overBound == 0);
+        CHECK(g_sphere_dbg[10] - s0 > 0);   /* the slope gate runs */
+        CHECK(g_sphere_dbg[11] - v0c > 0);  /* the corner solve runs */
+        CHECK(g_sphere_dbg[5] - e0 > 0);    /* edge contacts are accepted */
+        CHECK(g_sphere_dbg[6] - k0 > 0);    /* corner contacts are accepted */
+    }
+
+    printf("  sphere: calls %d, leaves %d, prisms %d, contacts %d "
+           "(face %d edge %d corner %d)\n",
+           g_sphere_dbg[0], g_sphere_dbg[1], g_sphere_dbg[2], g_sphere_dbg[3],
+           g_sphere_dbg[4], g_sphere_dbg[5], g_sphere_dbg[6]);
+    printf("  sphere: floor %d, wall %d, ceiling %d, slope gate %d, "
+           "corner solve %d, pass-through %d\n",
+           g_sphere_dbg[7], g_sphere_dbg[8], g_sphere_dbg[9], g_sphere_dbg[10],
+           g_sphere_dbg[11], g_sphere_dbg[12]);
 
     if (g_failures) {
         fprintf(stderr, "smoke_clsn: %d FAILURE(S)\n", g_failures);
