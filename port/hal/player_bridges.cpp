@@ -52,10 +52,12 @@ int hal_player_behavior(void *p)
 void hal_render_model(void *model, int scaleShift)
 {
     Model *m = (Model *)model;
-    /* the components walk latches 1<<(shift+12) globally; the host path
-       does not consume the latch yet, so the world scale rides the matrix.
-       Empirically the stage lands at KCL scale with shift+4. */
-    int d = 0x1000 << (scaleShift + 4);
+    /* diag 0x1000<<(shift+8): with the part walk's own MTX_SCALE
+       (1<<(shift+12)) the stage lands at WORLD scale = KCL file x16
+       (castle grounds: model +-2048 vs KCL-world +-2128; the 4% is
+       geometry-vs-collision extents). The old +4 calibrated to the raw
+       KCL file numbers before the level scale was understood. */
+    int d = 0x1000 << (scaleShift + 8);
     for (int i = 0; i < 12; ++i) ((int *)&m->mat4x3)[i] = 0;
     ((int *)&m->mat4x3)[0] = d;
     ((int *)&m->mat4x3)[4] = d;
@@ -93,8 +95,11 @@ void hal_render_player_world(void *player)
     ModelAnim *ma = ((ModelAnim **)(c + 0xdc))[id];
     if (!ma) return;
     unsigned idx = ((unsigned short)*(short *)(c + 0x8e)) >> 4;
-    int s = data_02082214[idx * 2], co = data_02082214[idx * 2 + 1];
-    int world[12] = {co, 0, -s, 0, 0x1000, 0, s, 0, co,
+    /* body models are authored in DS SCENE space = world>>3 (the ROM
+       renders at pos>>3 -- see the shadow matrix in 020e444c); in the
+       window's world-space scene the body needs the x8 back */
+    int s = data_02082214[idx * 2] << 3, co = data_02082214[idx * 2 + 1] << 3;
+    int world[12] = {co, 0, -s, 0, 0x8000, 0, s, 0, co,
                      *(int *)(c + 0x5c), *(int *)(c + 0x60),
                      *(int *)(c + 0x64)};
     for (int i = 0; i < 12; ++i) ((int *)&ma->mat4x3)[i] = world[i];

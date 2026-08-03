@@ -69,15 +69,22 @@ s32 MeshCollider::DetectClsn(RaycastLine &ray)
     const Vector3 *origin;
 
     /* Everything downstream -- origin, vertices, the plane math and its
-       0x20000 thresholds -- lives in Fix12i (the castle KCL proves it: its
-       floor vertices only sit inside the octree box at fx scale). The
-       endpoints therefore stay fx; cells are still (fx - origin) >> 6. */
-    s.x = lineStart->x;
-    s.y = lineStart->y;
-    s.z = lineStart->z;
-    e.x = lineEnd->x;
-    e.y = lineEnd->y;
-    e.z = lineEnd->z;
+       0x20000 thresholds -- lives in the KCL FILE's coordinate space.
+       The collider's scale pair maps world <-> file: unk_38 is the
+       world->file multiplier, unk_2c the file->world one (SetFile seeds
+       both 1.0; stage colliders carry the LEVEL scale -- castle grounds
+       is 16x, which is why raw-file numbers made the whole world look
+       sixteen times too small). Rays convert in, results convert out;
+       actor colliders at 1.0 pass through untouched. */
+    {
+        int inv = this->unk_38;
+        s.x = (s32)(((s64)lineStart->x * inv) >> 12);
+        s.y = (s32)(((s64)lineStart->y * inv) >> 12);
+        s.z = (s32)(((s64)lineStart->z * inv) >> 12);
+        e.x = (s32)(((s64)lineEnd->x * inv) >> 12);
+        e.y = (s32)(((s64)lineEnd->y * inv) >> 12);
+        e.z = (s32)(((s64)lineEnd->z * inv) >> 12);
+    }
 
     min.x = s.x; max.x = s.x;
     min.y = s.y; max.y = s.y;
@@ -235,11 +242,10 @@ s32 MeshCollider::DetectClsn(RaycastLine &ray)
     if (!found) return 0;
 
     ray.clsnDist = bestDist << 6;   /* undo the >>6 of the dist metric */
-    /* best is already Fix12i under the fx-consistent scale (the raw-scale
-       draft shifted here; that shift moved into the metric only) */
-    pos.x = best.x;
-    pos.y = best.y;
-    pos.z = best.z;
+    /* hit position back to world space (file->world scale) */
+    pos.x = (s32)(((s64)best.x * this->unk_2c) >> 12);
+    pos.y = (s32)(((s64)best.y * this->unk_2c) >> 12);
+    pos.z = (s32)(((s64)best.z * this->unk_2c) >> 12);
     func_020375ec(&ray, &pos);
     ray.hasClsn = 1;
     return 1;

@@ -169,7 +169,7 @@ static void push_camera(const float eye[3], const float at[3])
     const float fovy = 55.0f * 3.14159265f / 180.0f;
     const float aspect = (float)ntr::SCREEN_W / ntr::SCREEN_H;
     const float f = 1.0f / tanf(fovy * 0.5f);
-    const float zn = 0.05f, zf = 200.0f;
+    const float zn = 0.8f, zf = 6400.0f;
     float P[16] = {f / aspect, 0, 0, 0,
                    0, f, 0, 0,
                    0, 0, (zf + zn) / (zn - zf), -1,
@@ -191,7 +191,8 @@ static void push_camera(const float eye[3], const float at[3])
 
 int main(void)
 {
-    int spawn_x = 0, spawn_y = 90, spawn_z = -50;
+    /* world = KCL file x16; the castle roof surface is at 1229 */
+    int spawn_x = 0, spawn_y = 1232, spawn_z = -800;
     PORT_INSTALL_FAULT_PROBE();
     port_install_watchdog();
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -255,6 +256,12 @@ int main(void)
         _ZN16MeshColliderBase6EnableEP5Actor(
             mc_storage, getenv("SM64DS_REAL_CLSN") ? (void *)0
                                                    : (void *)player);
+        /* LEVEL SCALE: stage KCL files are world/16 (the engine's world
+           is what the physics tables assume: Mario ~148 units tall, jump
+           ~190, the ~32000-unit position clamp). The collider scale pair
+           maps world<->file inside the walk; actor colliders keep 1.0. */
+        *(int *)(mc_storage + 0x2c) = 0x10000;   /* file -> world, 16.0 */
+        *(int *)(mc_storage + 0x38) = 0x100;     /* world -> file, 1/16 */
         /* the octree box is power-of-two PADDED (its center is way off the
            real stage); the geometry lives near the origin, so spawn there,
            a few units up -- the first frames drop him onto the lawn */
@@ -497,11 +504,11 @@ int main(void)
             int mx = *(int *)(c + 0x5c), my = *(int *)(c + 0x60),
                 mz = *(int *)(c + 0x64);
             if (!getenv("SM64DS_REAL_CLSN") &&
-                hal_ground_ray(g_mc, mx, my + (20 << 12), mz, 80 << 12,
+                hal_ground_ray(g_mc, mx, my + (320 << 12), mz, 1280 << 12,
                                &gy)) {
                 /* never re-ground a rising jump: the snap + SetGroundFlag
                    on the first ascent frame would land him instantly */
-                if (*(int *)(c + 0xa8) <= 0 && my <= gy + 0x800) {
+                if (*(int *)(c + 0xa8) <= 0 && my <= gy + 0x8000) {
                     *(int *)(c + 0x60) = gy;
                     if (*(int *)(c + 0xa8) < 0)
                         *(int *)(c + 0xa8) = 0;   /* mVertSpeed */
@@ -514,7 +521,7 @@ int main(void)
             }
             /* fell out of the world (walked or jumped past the KCL):
                back to the spawn point instead of an endless dive */
-            if (my < (-300 << 12)) {
+            if (my < (-4800 << 12)) {
                 *(int *)(c + 0x5c) = spawn_x << 12;
                 *(int *)(c + 0x60) = spawn_y << 12;
                 *(int *)(c + 0x64) = spawn_z << 12;
@@ -552,6 +559,8 @@ int main(void)
             printf("probe: mario fx pos (%d, %d, %d) -> units (%.1f, %.1f, %.1f)\n",
                    *(int *)(c + 0x5c), *(int *)(c + 0x60), *(int *)(c + 0x64),
                    px, py, pz);
+            printf("probe: player scale vec c+0x80 = (%d, %d, %d) fx\n",
+                   *(int *)(c + 0x80), *(int *)(c + 0x84), *(int *)(c + 0x88));
             ntr::gx_reset();
             hal_render_model(level_storage, level_shift);
             n = 0;
@@ -604,12 +613,13 @@ int main(void)
            view stretched. Now: shoulder-height offset, occlusion resolved
            by pulling IN along the view ray, and smoothing so the eye never
            snaps. */
-        float want_eye[3] = {px - 34.0f * sinf(cam_yaw), py + 12.0f,
-                             pz - 34.0f * cosf(cam_yaw)};
-        float at[3] = {px, py + 9.0f, pz};
+        float want_eye[3] = {px - 544.0f * sinf(cam_yaw), py + 192.0f,
+                             pz - 544.0f * cosf(cam_yaw)};
+        float at[3] = {px, py + 144.0f, pz};
         if (getenv("SM64DS_ORBIT")) {
             /* debug: whole-stage orbit shot to judge proportions */
-            want_eye[0] = 160.0f; want_eye[1] = 120.0f; want_eye[2] = -160.0f;
+            want_eye[0] = 2560.0f; want_eye[1] = 1920.0f;
+            want_eye[2] = -2560.0f;
             at[0] = 0.0f; at[1] = 0.0f; at[2] = 0.0f;
         }
         {
