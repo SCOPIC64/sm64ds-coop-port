@@ -52,12 +52,18 @@ int hal_player_behavior(void *p)
 void hal_render_model(void *model, int scaleShift)
 {
     Model *m = (Model *)model;
-    /* diag 0x1000<<(shift+8): with the part walk's own MTX_SCALE
-       (1<<(shift+12)) the stage lands at WORLD scale = KCL file x16
-       (castle grounds: model +-2048 vs KCL-world +-2128; the 4% is
-       geometry-vs-collision extents). The old +4 calibrated to the raw
-       KCL file numbers before the level scale was understood. */
-    int d = 0x1000 << (scaleShift + 8);
+    /* 0x1000<<(shift+10): with the part walk's own MTX_SCALE
+       (1<<(shift+12)) the stage lands at WORLD scale = KCL raw <<6
+       (file x64) -- the scale the collision walk itself bakes into its
+       position reads. The old +8 (x16) rendered the level 4x small;
+       proven wrong by the 2026-08-03 real-game bridge side-by-side
+       (bricks: Mario must be ~1.7 rows, was ~3.4). */
+    /* MEASURED correction: the rendered mesh sits ~2.5% (41/40) larger
+       than the KCL about y=0 (floor probes: +18 at y785, -12.5 at
+       y-500, ratio ~1.025 both signs), which buried Mario's feet.
+       Mechanism in the part-walk scale chain still unfound; this
+       constant plants the collision surface ON the visual floor. */
+    int d = (int)(((long long)(0x1000 << (scaleShift + 10)) * 40) / 41);
     for (int i = 0; i < 12; ++i) ((int *)&m->mat4x3)[i] = 0;
     ((int *)&m->mat4x3)[0] = d;
     ((int *)&m->mat4x3)[4] = d;
@@ -95,15 +101,15 @@ void hal_render_player_world(void *player)
     ModelAnim *ma = ((ModelAnim **)(c + 0xdc))[id];
     if (!ma) return;
     unsigned idx = ((unsigned short)*(short *)(c + 0x8e)) >> 4;
-    /* body scale x4 (Mario ~74 world units), calibrated against REAL
-       GAME pixels: in the wiki's cannon screenshot Mario is ~4.7 fence
-       heights at his own depth; at x8 ours measured ~10. The ROM-code
-       derivation (scene = pos>>3, body matrix rotation at 1.0) says x8,
-       so a factor-2 lives somewhere unfound in the DS body pipeline
-       (suspect: anim bone scaling). Screenshots outrank derivations --
-       at x4 the jump is 2.6x his height, classic SM64 proportions. */
-    int s = data_02082214[idx * 2] << 2, co = data_02082214[idx * 2 + 1] << 2;
-    int world[12] = {co, 0, -s, 0, 0x4000, 0, s, 0, co,
+    /* body scale x8 (Mario ~148 world units), the ROM's own derivation
+       (scene = pos>>3, body matrix rotation at 1.0, body BMD shift 0).
+       The x4 detour came from calibrating against a level rendered 4x
+       small (world was x16 instead of KCL raw <<6 = x64); with the
+       level at true scale, x8 matches real-game footage: Mario ~1.7
+       castle brick rows tall, BigBrickBlock (150-unit cylinder) at
+       Mario height. */
+    int s = data_02082214[idx * 2] << 3, co = data_02082214[idx * 2 + 1] << 3;
+    int world[12] = {co, 0, -s, 0, 0x8000, 0, s, 0, co,
                      *(int *)(c + 0x5c), *(int *)(c + 0x60),
                      *(int *)(c + 0x64)};
     for (int i = 0; i < 12; ++i) ((int *)&ma->mat4x3)[i] = world[i];

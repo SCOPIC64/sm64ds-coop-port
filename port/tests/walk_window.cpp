@@ -38,6 +38,15 @@ struct WinApi {
 };
 static WinApi W;
 
+/* XInput, loaded dynamically like user32 (no static import chain) */
+struct XPad {
+    unsigned long packet;
+    unsigned short buttons;
+    unsigned char lt, rt;
+    short lx, ly, rx, ry;
+};
+static DWORD(WINAPI *XInputGetState_)(DWORD, XPad *);
+
 static bool winapi_load(void)
 {
     HMODULE u = LoadLibraryA("user32.dll");
@@ -55,6 +64,14 @@ static bool winapi_load(void)
     W.AdjustWindowRect_ = (decltype(W.AdjustWindowRect_))GetProcAddress(u, "AdjustWindowRect");
     W.GetAsyncKeyState_ = (decltype(W.GetAsyncKeyState_))GetProcAddress(u, "GetAsyncKeyState");
     W.StretchDIBits_ = (decltype(W.StretchDIBits_))GetProcAddress(g, "StretchDIBits");
+    {
+        const char *dlls[] = {"xinput1_4.dll", "xinput1_3.dll",
+                              "xinput9_1_0.dll"};
+        for (int i = 0; i < 3 && !XInputGetState_; ++i)
+            if (HMODULE x = LoadLibraryA(dlls[i]))
+                XInputGetState_ = (decltype(XInputGetState_))GetProcAddress(
+                    x, "XInputGetState");
+    }
     return W.RegisterClassA_ && W.CreateWindowExA_ && W.DefWindowProcA_ &&
            W.PeekMessageA_ && W.StretchDIBits_ && W.GetAsyncKeyState_;
 }
@@ -86,6 +103,27 @@ int hal_player_st_wait_main(void *p);
 int hal_player_behavior(void *p);
 void hal_render_player_world(void *p);
 extern char data_0209f4a0[];
+extern int data_0209f4a6[];   /* pad stick WORLD angle -- auto_bss split
+                                 symbol, NOT data_0209f4a0+6 on host */
+/* the real input processor (Stage::CheckInput) and its environment */
+void _ZN5Stage10CheckInputEv(void);
+unsigned int _ZNK6Player14GetBodyModelIDEjb(char *, unsigned int, char);
+extern int data_0209f498[];    /* CheckInput's own Ctrl[4] block */
+extern int data_0209f4a2[];    /* split: stick nx */
+extern int data_0209f4a4[];    /* split: stick ny */
+extern unsigned char data_0209f4ac[]; /* split: touching */
+extern int data_020a0e58[];    /* PadData[4]: u16 held, u16 pressed */
+extern int data_020a0de8[];    /* TouchData[4], zero = no touch */
+extern unsigned char data_0209f21c;   /* controller count */
+extern int data_0209f350[];    /* per-pad status */
+extern int data_020a1164[];    /* camera per-player block; +0 = angle
+                                  (GetAngleToCamera reads it) */
+extern int data_0209caa0[];
+extern unsigned char data_0209d660;
+extern int data_0209fc48;
+extern unsigned char data_0209f2d8;
+extern int data_0209214c[];    /* button remap pointer table (ROM DS
+                                  pointers -- repointed at staging) */
 extern char data_0209f49c[];   /* held buttons (bit 1 = A/jump held) */
 extern char data_0209f49e[];   /* pressed-this-frame (bit 1 = jump) */
 extern int data_0209b468[4];   /* actor list head (stomp tracker) */
@@ -128,6 +166,8 @@ int func_020393b4(void *);
 
 #ifdef NTR_HIRES
 static const int ZOOM = 1;
+#elif defined(NTR_HIRES2)
+static const int ZOOM = 2;
 #else
 static const int ZOOM = 3;
 #endif
@@ -173,7 +213,7 @@ static void push_camera(const float eye[3], const float at[3])
     const float fovy = 32.9f * 3.14159265f / 180.0f;
     const float aspect = (float)ntr::SCREEN_W / ntr::SCREEN_H;
     const float f = 1.0f / tanf(fovy * 0.5f);
-    const float zn = 0.8f, zf = 6400.0f;
+    const float zn = 3.0f, zf = 25600.0f;
     float P[16] = {f / aspect, 0, 0, 0,
                    0, f, 0, 0,
                    0, 0, (zf + zn) / (zn - zf), -1,
@@ -195,8 +235,11 @@ static void push_camera(const float eye[3], const float at[3])
 
 int main(void)
 {
-    /* world = KCL file x16; the castle roof surface is at 1229 */
-    int spawn_x = 0, spawn_y = 1232, spawn_z = -800;
+    /* world = KCL file x64. Default spawn: north end of the stone
+       bridge (deck ~892), facing the walk south across it -- the shot
+       that calibrates against real-game footage. Roof surface = 4916,
+       lawn = 784 (SM64DS_SPAWN overrides, world units). */
+    int spawn_x = 0, spawn_y = 960, spawn_z = 1000;
     PORT_INSTALL_FAULT_PROBE();
     port_install_watchdog();
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -260,12 +303,14 @@ int main(void)
         _ZN16MeshColliderBase6EnableEP5Actor(
             mc_storage, getenv("SM64DS_REAL_CLSN") ? (void *)0
                                                    : (void *)player);
-        /* LEVEL SCALE: stage KCL files are world/16 (the engine's world
-           is what the physics tables assume: Mario ~148 units tall, jump
-           ~190, the ~32000-unit position clamp). The collider scale pair
-           maps world<->file inside the walk; actor colliders keep 1.0. */
-        *(int *)(mc_storage + 0x2c) = 0x10000;   /* file -> world, 16.0 */
-        *(int *)(mc_storage + 0x38) = 0x100;     /* world -> file, 1/16 */
+        /* LEVEL SCALE: world = KCL raw << 6, i.e. FILE x64 -- the walk's
+           own position reads carry the <<6 (MeshCollider.h: positions
+           "read <<6"), and the real boot (Stage::LoadClsnAndObjects)
+           writes NO scale after SetFile. The old x16 here was invented,
+           which rendered the whole level 4x small and made an x8 Mario
+           read 2x too big (the 2026-08-03 bridge side-by-side). */
+        *(int *)(mc_storage + 0x2c) = 0x40000;   /* file -> world, 64.0 */
+        *(int *)(mc_storage + 0x38) = 0x40;      /* world -> file, 1/64 */
         /* the octree box is power-of-two PADDED (its center is way off the
            real stage); the geometry lives near the origin, so spawn there,
            a few units up -- the first frames drop him onto the lawn */
@@ -329,13 +374,13 @@ int main(void)
             }
         }
         /* floor map: direct line walks over a coarse grid */
-        for (int gz = -100; gz <= 100; gz += 50) {
+        for (int gz = -400; gz <= 400; gz += 200) {
             char row[64] = {0};
             int ri = 0;
-            for (int gx = -100; gx <= 100; gx += 50) {
+            for (int gx = -400; gx <= 400; gx += 200) {
                 int gy = 0;
-                int h = hal_ground_ray(g_mc, gx << 12, 100 << 12,
-                                       gz << 12, 300 << 12, &gy);
+                int h = hal_ground_ray(g_mc, gx << 12, 6000 << 12,
+                                       gz << 12, 7000 << 12, &gy);
                 ri += snprintf(row + ri, sizeof row - ri, "%7.1f",
                                h ? gy / 4096.0f : -999.0f);
             }
@@ -344,6 +389,23 @@ int main(void)
     }
 
     data_020a0e40[0] = 0;
+    /* input processor staging: route Stage::CheckInput to its main
+       path (mode flags), one controller, pad 0 active, mode 0 (D-pad
+       drives the stick fields) */
+    data_0209f2d8 = 0;
+    data_0209caa0[2] |= 0x80;
+    data_0209d660 = 0;
+    data_0209fc48 = 0;
+    data_0209f21c = 1;
+    data_0209f350[0] = 0;
+    /* the ROM's button-remap tables are DS pointers (0x0207xxxx) the
+       host has no image behind; buttons are written directly to the
+       Ctrl fields anyway, so give CheckInput's remap loop zeros */
+    {
+        static unsigned short zero_btn_map[32];
+        for (int i = 0; i < 4; ++i)
+            ((unsigned short **)data_0209214c)[i] = zero_btn_map;
+    }
     /* InitResources parked the state machine in St_LevelEnter (a no-op
        until a real level boot); clear it so the wait ticks drive until the
        first stick input ChangeStates into walk -- the smoke's proven flow */
@@ -405,53 +467,123 @@ int main(void)
            view). Q/E orbit it; when Mario walks and Q/E are idle it eases
            in behind his motion like the real game's lazy camera. */
         int dx = 0, dz = 0;
-        if (selftest) dz = 1;
+        if (selftest && !getenv("SM64DS_SELFTEST_IDLE")) {
+            dz = 1;
+            /* turn probe: hold "A" from frame 60 -- position x must curve */
+            if (getenv("SM64DS_SELFTEST_TURN") && frame >= 60) dx = -1;
+            /* release probe: let go at speed (the brake/skid path) */
+            if (getenv("SM64DS_SELFTEST_RELEASE") && frame >= 50) dz = 0;
+            /* reversal probe: hard 180 at speed (the skid-turn path) */
+            if (getenv("SM64DS_SELFTEST_REVERSE") && frame >= 50) dz = -1;
+        }
         if (W.GetAsyncKeyState_('W') < 0 || W.GetAsyncKeyState_(VK_UP) < 0) dz += 1;
         if (W.GetAsyncKeyState_('S') < 0 || W.GetAsyncKeyState_(VK_DOWN) < 0) dz -= 1;
         if (W.GetAsyncKeyState_('A') < 0 || W.GetAsyncKeyState_(VK_LEFT) < 0) dx -= 1;
         if (W.GetAsyncKeyState_('D') < 0 || W.GetAsyncKeyState_(VK_RIGHT) < 0) dx += 1;
+        /* gamepad: left stick / d-pad walk, right stick orbits + tilts */
+        static XPad pad;
+        int pad_live = XInputGetState_ && XInputGetState_(0, &pad) == 0;
         int orbiting = 0;
+        if (pad_live) {
+            if (pad.ly > 12000 || (pad.buttons & 1)) dz += 1;
+            if (pad.ly < -12000 || (pad.buttons & 2)) dz -= 1;
+            if (pad.lx < -12000 || (pad.buttons & 4)) dx -= 1;
+            if (pad.lx > 12000 || (pad.buttons & 8)) dx += 1;
+            if (pad.rx < -10000 || pad.rx > 10000) {
+                cam_yaw += 0.045f * (pad.rx / 32768.0f);
+                orbiting = 1;
+            }
+            if (pad.ry > 10000 && cam_pitch < 0.85f) cam_pitch += 0.02f;
+            if (pad.ry < -10000 && cam_pitch > -0.15f) cam_pitch -= 0.02f;
+        }
         if (W.GetAsyncKeyState_('Q') < 0) { cam_yaw -= 0.045f; orbiting = 1; }
         if (W.GetAsyncKeyState_('E') < 0) { cam_yaw += 0.045f; orbiting = 1; }
         if (W.GetAsyncKeyState_('R') < 0 && cam_pitch < 0.85f)
             cam_pitch += 0.02f;
         if (W.GetAsyncKeyState_('F') < 0 && cam_pitch > -0.15f)
             cam_pitch -= 0.02f;
-        if (dx || dz) {
-            *(short *)(data_0209f4a0 + 0) = 0x1000;
-            float head = cam_yaw + atan2f((float)dx, (float)dz);
-            unsigned short ang =
-                (unsigned short)(int)(head * (32768.0f / 3.14159265f));
-            *(short *)(c + 0x69c) = (short)ang;   /* mDesiredAngleY */
-            if (!orbiting) {
-                /* ease in behind the walk direction, but ONLY when he
-                   walks away-ish from the camera; chasing a heading that
-                   points back at the lens spun the camera in circles
-                   whenever he ran toward the screen */
+        /* THE GAME'S OWN INPUT PROCESSOR: keys become raw DS pad bits,
+           Stage::CheckInput turns them into the stick record (mag, dir,
+           binang -- the D-pad path, mode 0), and Player::Behavior folds
+           in the camera angle via GetAngleToCamera, which reads the
+           angle the harness publishes below. No hand-built headings. */
+        {
+            unsigned short raw = 0;
+            if (dz > 0) raw |= 0x40;   /* up    */
+            if (dz < 0) raw |= 0x80;   /* down  */
+            if (dx < 0) raw |= 0x20;   /* left  */
+            if (dx > 0) raw |= 0x10;   /* right */
+            static unsigned short raw_prev;
+            *(unsigned short *)((char *)data_020a0e58 + 0) = raw;
+            *(unsigned short *)((char *)data_020a0e58 + 2) =
+                (unsigned short)(raw & (unsigned short)~raw_prev);
+            raw_prev = raw;
+            /* the angle FROM Mario TO the camera (what the name
+               GetAngleToCamera means): the D-pad table's "up" entry is
+               0x8000, so up + angle-to-camera = away from the lens */
+            *(short *)((char *)data_020a1164 + 0) =
+                (short)((int)(cam_yaw * (32768.0f / 3.14159265f)) + 0x8000);
+            _ZN5Stage10CheckInputEv();
+            /* the matched TU writes its own data_0209f498 block; older
+               TUs read per-field split symbols -- copy the record out */
+            {
+                const char *q = (const char *)data_0209f498;
+                *(short *)(data_0209f4a0 + 0) = *(const short *)(q + 0x08);
+                *(short *)data_0209f4a2 = *(const short *)(q + 0x0a);
+                *(short *)data_0209f4a4 = *(const short *)(q + 0x0c);
+                *(short *)data_0209f4a6 = *(const short *)(q + 0x0e);
+                data_0209f4ac[0] = *(const unsigned char *)(q + 0x14);
+            }
+            /* camera lazy-follow, from the same intended direction */
+            if ((dx || dz) && !orbiting) {
+                float head = cam_yaw + atan2f((float)-dx, (float)dz);
                 float d = head - cam_yaw;
                 while (d > 3.14159265f) d -= 2 * 3.14159265f;
                 while (d < -3.14159265f) d += 2 * 3.14159265f;
                 if (d > -1.35f && d < 1.35f)
                     cam_yaw += d * 0.015f;
             }
-        } else {
-            *(short *)(data_0209f4a0 + 0) = 0;
         }
 
-        /* Space -> jump: DS B button (bit 1). Bit 0 (A) is punch -- proven
-           live: pressing it fires St_PunchKick through the checker
-           (func_ov002_020d36d8). The B-pressed edge is the jump entry. */
+        /* Buttons -> the Ctrl held/pressed fields directly (CheckInput's
+           remap tables are ROM pointers with no host image). DS bits:
+           1 = A (punch), 2 = B (jump), 0x100 = R (crouch), 0x800 = the
+           dash button the walk core reads. */
         {
-            static int space_was;
-            int space = W.GetAsyncKeyState_(VK_SPACE) < 0;
+            static unsigned short btn_was;
+            unsigned short btn = 0;
+            if (W.GetAsyncKeyState_(VK_SPACE) < 0) btn |= 2;
+            if (W.GetAsyncKeyState_(VK_SHIFT) < 0) btn |= 0x800;
+            if (W.GetAsyncKeyState_(VK_CONTROL) < 0) btn |= 0x100;
+            if (W.GetAsyncKeyState_('X') < 0) btn |= 1;
+            if (pad_live) {
+                if (pad.buttons & 0x1000) btn |= 2;      /* A -> jump  */
+                if (pad.buttons & 0x4000) btn |= 1;      /* X -> punch */
+                if (pad.buttons & 0x2000) btn |= 0x800;  /* B -> dash  */
+                if ((pad.buttons & 0x0300) || pad.lt > 100 || pad.rt > 100)
+                    btn |= 0x100;                        /* LB/RB/trig -> crouch */
+            }
             /* selftest: synthetic hop at frame 30 (walking start speed) */
-            if (selftest && frame >= 30 && frame <= 33) space = 1;
-            unsigned short held = *(unsigned short *)(data_0209f49c + 0);
-            held = (unsigned short)((held & ~2u) | (space ? 2u : 0u));
-            *(unsigned short *)(data_0209f49c + 0) = held;
+            if (selftest && frame >= 30 && frame <= 33 &&
+                !getenv("SM64DS_SELFTEST_DASHJUMP") &&
+                !getenv("SM64DS_SELFTEST_PUNCH") &&
+                !getenv("SM64DS_SELFTEST_IDLE"))
+                btn |= 2;
+            if (selftest && getenv("SM64DS_SELFTEST_DASH") && frame >= 20)
+                btn |= 0x800;
+            /* full-speed sprint jump: dash from f20, jump at f60 */
+            if (selftest && getenv("SM64DS_SELFTEST_DASHJUMP")) {
+                if (frame >= 20) btn |= 0x800;
+                if (frame >= 60 && frame <= 63) btn |= 2;
+            }
+            /* punch probe: A-button edge at f40 */
+            if (selftest && getenv("SM64DS_SELFTEST_PUNCH") &&
+                frame >= 40 && frame <= 42)
+                btn |= 1;
+            *(unsigned short *)(data_0209f49c + 0) = btn;
             *(unsigned short *)(data_0209f49e + 0) =
-                (unsigned short)((space && !space_was) ? 2u : 0u);
-            space_was = space;
+                (unsigned short)(btn & (unsigned short)~btn_was);
+            btn_was = btn;
         }
 
         /* the real ground tracking rewrites the path binding (c+0x670)
@@ -494,15 +626,31 @@ int main(void)
             hal_player_st_wait_main(player);
         if (selftest && frame == 0)
             fprintf(stderr, "[w] ticked\n");
-        /* harness clamp: the walk accel runs uncapped under the fake
-           input-mode data (fidelity note in the port memory); keep the
-           demo controllable until the real input processor is hosted */
-        if (*(int *)(c + 0x98) > 0x3000) *(int *)(c + 0x98) = 0x3000;
+        /* no speed clamp: the accel tables get real input-mode data now
+           that Stage::CheckInput fills the record (the old runaway came
+           from fake mode bytes) */
 
-        if (selftest)
-            fprintf(stderr, "[f%03d] y=%.2f vy=%d st=%p\n", frame,
-                    *(int *)(c + 0x60) / 4096.0f, *(int *)(c + 0xa8),
-                    *(void **)(c + 0x370));
+        if (selftest) {
+            void *st = *(void **)(c + 0x370);
+            unsigned bid =
+                _ZNK6Player14GetBodyModelIDEjb(c, *(int *)(c + 8) & 0xff, 0);
+            char *ma = ((char **)(c + 0xdc))[bid];
+            unsigned bh = 2166136261u;
+            if (ma) {
+                const unsigned char *bb =
+                    (const unsigned char *)*(char **)(ma + 0x14);
+                for (int k = 0; k < 0x300; ++k)
+                    bh = (bh ^ bb[k]) * 16777619u;
+            }
+            fprintf(stderr,
+                    "[f%03d] y=%.2f spd=%d st=%08x mag=%d body=%u "
+                    "anim(len=%u fl=%u cur=%.1f) bones=%08x\n",
+                    frame, *(int *)(c + 0x60) / 4096.0f, *(int *)(c + 0x98),
+                    st ? *(unsigned *)st : 0u, *(short *)(data_0209f4a0 + 0),
+                    bid, ma ? (*(unsigned *)(ma + 0x54)) & 0x3FFFFFFF : 0,
+                    ma ? (*(unsigned *)(ma + 0x54)) >> 30 : 0,
+                    ma ? *(int *)(ma + 0x58) / 4096.0f : 0.0f, bh);
+        }
         if (selftest) {
             /* actor-list-head stomp tracker (the f015 0x1000 write) */
             static int prev_head[4], head_live;
@@ -524,12 +672,15 @@ int main(void)
             int gy;
             int mx = *(int *)(c + 0x5c), my = *(int *)(c + 0x60),
                 mz = *(int *)(c + 0x64);
+            /* ray starts just above STEP height: starting a body-height
+               up let the walk grab canopies/domes overhead and teleport
+               him upward (the "camera is fucked" y-pops) */
             if (!getenv("SM64DS_REAL_CLSN") &&
-                hal_ground_ray(g_mc, mx, my + (320 << 12), mz, 1280 << 12,
+                hal_ground_ray(g_mc, mx, my + (100 << 12), mz, 5220 << 12,
                                &gy)) {
                 /* never re-ground a rising jump: the snap + SetGroundFlag
                    on the first ascent frame would land him instantly */
-                if (*(int *)(c + 0xa8) <= 0 && my <= gy + 0x8000) {
+                if (*(int *)(c + 0xa8) <= 0 && my <= gy + 0x20000) {
                     *(int *)(c + 0x60) = gy;
                     if (*(int *)(c + 0xa8) < 0)
                         *(int *)(c + 0xa8) = 0;   /* mVertSpeed */
@@ -548,21 +699,21 @@ int main(void)
             {
                 int nx = *(int *)(c + 0x5c), nz = *(int *)(c + 0x64);
                 int ny = *(int *)(c + 0x60);
-                int wy = ny + (30 << 12);           /* chest height */
+                int wy = ny + (120 << 12);          /* chest height */
                 int a[3] = {prev_pos[0], wy, prev_pos[2]};
                 int b[3] = {nx, wy, nz};
                 int clip[3];
                 long long ddx = (long long)nx - prev_pos[0];
                 long long ddz = (long long)nz - prev_pos[2];
                 if ((ddx | ddz) && hal_line_ray(g_mc, a, b, clip)) {
-                    /* stop 30 units short of the wall along the motion */
+                    /* stop 120 units short of the wall along the motion */
                     long long len2 = ddx * ddx + ddz * ddz;
                     double len = len2 > 0 ? sqrt((double)len2) : 1.0;
                     double ux = ddx / len, uz = ddz / len;
                     *(int *)(c + 0x5c) =
-                        clip[0] - (int)(ux * (30 << 12));
+                        clip[0] - (int)(ux * (120 << 12));
                     *(int *)(c + 0x64) =
-                        clip[2] - (int)(uz * (30 << 12));
+                        clip[2] - (int)(uz * (120 << 12));
                     *(int *)(c + 0x98) = 0;         /* mHorzSpeed */
                 }
                 prev_pos[0] = *(int *)(c + 0x5c);
@@ -572,7 +723,7 @@ int main(void)
 
             /* fell out of the world (walked or jumped past the KCL):
                back to the spawn point instead of an endless dive */
-            if (my < (-4800 << 12)) {
+            if (my < (-19200 << 12)) {
                 *(int *)(c + 0x5c) = spawn_x << 12;
                 *(int *)(c + 0x60) = spawn_y << 12;
                 *(int *)(c + 0x64) = spawn_z << 12;
@@ -628,29 +779,60 @@ int main(void)
             printf("probe: level %zu tris, x[%.0f..%.0f] y[%.0f..%.0f] z[%.0f..%.0f]\n",
                    n, mn[0], mx[0], mn[1], mx[1], mn[2], mx[2]);
             /* world units back out of the identity-projection screen coords:
-               wx = xs/(W/2)-1, wy = 1-ys/(H/2), wz = zs*2-1. Ground-truth
-               the model roof at the spawn column (KCL says 73.3 there). */
+               wx = xs/(W/2)-1, wy = 1-ys/(H/2), wz = zs*2-1. VISUAL FLOOR
+               CHECK: highest mesh vertex in Mario's column (+-60 world)
+               at/below his head height vs the KCL ground there -- a
+               nonzero delta is the feet-sinking gap. */
             {
                 const float hw = ntr::SCREEN_W * 0.5f,
                             hh = ntr::SCREEN_H * 0.5f;
-                float top = -1e30f, wxmin = 1e30f, wxmax = -1e30f,
+                float vis = -1e30f, wxmin = 1e30f, wxmax = -1e30f,
                       wymin = 1e30f, wymax = -1e30f;
-                for (size_t i = 0; i < n; ++i)
+                for (size_t i = 0; i < n; ++i) {
+                    float X[3], Y[3], Z[3];
                     for (int v = 0; v < 3; ++v) {
-                        const float wx = ta[i].v[v].x / hw - 1.0f;
-                        const float wy = 1.0f - ta[i].v[v].y / hh;
-                        const float wz = ta[i].v[v].z * 2.0f - 1.0f;
-                        if (wx < wxmin) wxmin = wx;
-                        if (wx > wxmax) wxmax = wx;
-                        if (wy < wymin) wymin = wy;
-                        if (wy > wymax) wymax = wy;
-                        if (wx > -10 && wx < 10 && wz > -60 && wz < -40 &&
-                            wy > top)
-                            top = wy;
+                        X[v] = ta[i].v[v].x / hw - 1.0f;
+                        Y[v] = 1.0f - ta[i].v[v].y / hh;
+                        Z[v] = ta[i].v[v].z * 2.0f - 1.0f;
+                        if (X[v] < wxmin) wxmin = X[v];
+                        if (X[v] > wxmax) wxmax = X[v];
+                        if (Y[v] < wymin) wymin = Y[v];
+                        if (Y[v] > wymax) wymax = Y[v];
                     }
-                printf("probe: model WORLD x[%.1f..%.1f] y[%.1f..%.1f], "
-                       "roof col top=%.1f (KCL says 73.3)\n",
-                       wxmin, wxmax, wymin, wymax, top);
+                    /* interpolate the tri surface at (px, pz) */
+                    {
+                        const float d = (Z[1] - Z[2]) * (X[0] - X[2]) +
+                                        (X[2] - X[1]) * (Z[0] - Z[2]);
+                        if (d > 1e-6f || d < -1e-6f) {
+                            const float a =
+                                ((Z[1] - Z[2]) * (px - X[2]) +
+                                 (X[2] - X[1]) * (pz - Z[2])) / d;
+                            const float b =
+                                ((Z[2] - Z[0]) * (px - X[2]) +
+                                 (X[0] - X[2]) * (pz - Z[2])) / d;
+                            const float c2 = 1.0f - a - b;
+                            if (a > -0.01f && b > -0.01f && c2 > -0.01f) {
+                                const float wy =
+                                    a * Y[0] + b * Y[1] + c2 * Y[2];
+                                if (wy < py + 150 && wy > vis) vis = wy;
+                            }
+                        }
+                    }
+                }
+                {
+                    int kgy = 0;
+                    int kh = hal_ground_ray(g_mc, *(int *)(c + 0x5c),
+                                            (int)((py + 1200) * 4096),
+                                            *(int *)(c + 0x64),
+                                            6000 << 12, &kgy);
+                    printf("probe: model WORLD x[%.1f..%.1f] y[%.1f..%.1f]\n",
+                           wxmin, wxmax, wymin, wymax);
+                    printf("probe: FLOOR at col (%.0f,%.0f): visual=%.1f "
+                           "kcl=%s%.1f delta=%.1f\n",
+                           px, pz, vis, kh ? "" : "MISS ",
+                           kgy / 4096.0f,
+                           kh ? vis - kgy / 4096.0f : 0.0f);
+                }
             }
             ntr::gx_reset();
             NTR_MMIO(uint32_t, 0x04000580) =
@@ -669,14 +851,14 @@ int main(void)
            low area's walls, looking steeply down, which foreshortened
            the terrain ("squashed, worse the lower you go"). cam_pitch
            tilts the rig (R/F keys), default ~7 degrees. */
-        float cd = 750.0f * cosf(cam_pitch), ch = 750.0f * sinf(cam_pitch);
-        float want_eye[3] = {px - cd * sinf(cam_yaw), py + 50.0f + ch,
+        float cd = 3000.0f * cosf(cam_pitch), ch = 3000.0f * sinf(cam_pitch);
+        float want_eye[3] = {px - cd * sinf(cam_yaw), py + 200.0f + ch,
                              pz - cd * cosf(cam_yaw)};
-        float at[3] = {px, py + 50.0f, pz};
+        float at[3] = {px, py + 200.0f, pz};
         if (getenv("SM64DS_ORBIT")) {
             /* debug: whole-stage orbit shot to judge proportions */
-            want_eye[0] = 2560.0f; want_eye[1] = 1920.0f;
-            want_eye[2] = -2560.0f;
+            want_eye[0] = 10240.0f; want_eye[1] = 7680.0f;
+            want_eye[2] = -10240.0f;
             at[0] = 0.0f; at[1] = 0.0f; at[2] = 0.0f;
         }
         {
@@ -698,7 +880,7 @@ int main(void)
                     float dx = want_eye[0] - at[0], dy = want_eye[1] - at[1],
                           dz = want_eye[2] - at[2];
                     float d = sqrtf(dx * dx + dy * dy + dz * dz);
-                    const float MIN_D = 320.0f;
+                    const float MIN_D = 1280.0f;
                     if (d > 1.0f && d < MIN_D) {
                         float g2 = MIN_D / d;
                         want_eye[0] = at[0] + dx * g2;
@@ -799,12 +981,46 @@ int main(void)
         if (selftest && (frame % 10) == 0)
             printf("[y] frame %d y=%d units %.1f\n", frame,
                    *(int *)(c + 0x60), *(int *)(c + 0x60) / 4096.0f);
+        /* SM64DS_DUMP_FROM/TO: per-frame BMPs across a window, for
+           watching an animation play (or fail to) */
+        {
+            static int dump_from = -1, dump_to = -1, dump_env;
+            if (!dump_env) {
+                dump_env = 1;
+                const char *df = getenv("SM64DS_DUMP_FROM");
+                const char *dt = getenv("SM64DS_DUMP_TO");
+                if (df) dump_from = atoi(df);
+                if (dt) dump_to = atoi(dt);
+            }
+            if (selftest && dump_from >= 0 && frame >= dump_from &&
+                frame <= dump_to) {
+                char nm[64];
+                snprintf(nm, sizeof nm, "walk_frame_%03d.bmp", frame);
+                ntr::ppu_write_bmp(nm, fb);
+            }
+        }
         if (selftest && ++frame >= selftest) {
             ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
             printf("selftest: %d frames, pos=(%d, %d, %d)\n", frame,
                    *(int *)(c + 0x5c), *(int *)(c + 0x60), *(int *)(c + 0x64));
             return 0;
         }
-        Sleep(selftest ? 0 : 16);
+        /* pace to 30: SM64DS game logic runs at 30fps (the DS panel
+           scans 60 but gameplay ticks every other vblank). Ticking the
+           game's per-frame constants at 60Hz doubled every speed --
+           the "jump too fast, weird gravity" report. Sleep only the
+           remainder of the 33.3ms budget. */
+        {
+            static LARGE_INTEGER qpf, last;
+            LARGE_INTEGER now;
+            if (!qpf.QuadPart) QueryPerformanceFrequency(&qpf);
+            QueryPerformanceCounter(&now);
+            if (!selftest && last.QuadPart) {
+                const double el =
+                    (now.QuadPart - last.QuadPart) * 1000.0 / qpf.QuadPart;
+                if (el < 33.3) Sleep((DWORD)(33.3 - el));
+            }
+            QueryPerformanceCounter(&last);
+        }
     }
 }
