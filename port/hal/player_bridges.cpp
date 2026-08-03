@@ -47,6 +47,22 @@ int hal_player_behavior(void *p)
 { return ((Player *)p)->Player::Behavior(); }
 /* the walk demo renders the Player's current body ModelAnim in place:
    identity model matrix, bones posed from the anim Behavior advanced */
+/* level model render for the window: identity world matrix (stage models
+   are authored in world space; the KCL shares it) */
+void hal_render_model(void *model, int scaleShift)
+{
+    Model *m = (Model *)model;
+    /* the components walk latches 1<<(shift+12) globally; the host path
+       does not consume the latch yet, so the world scale rides the matrix.
+       Empirically the stage lands at KCL scale with shift+4. */
+    int d = 0x1000 << (scaleShift + 4);
+    for (int i = 0; i < 12; ++i) ((int *)&m->mat4x3)[i] = 0;
+    ((int *)&m->mat4x3)[0] = d;
+    ((int *)&m->mat4x3)[4] = d;
+    ((int *)&m->mat4x3)[8] = d;
+    m->Model::Render(0);
+}
+
 void hal_render_player_body_ex(void *player, int with_head);
 void hal_render_player_body(void *player)
 { hal_render_player_body_ex(player, 1); }

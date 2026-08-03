@@ -108,9 +108,20 @@ void _ZN12MeshColliderC1Ev(void *);
 void *_ZN12MeshCollider8LoadFileER13SharedFilePtr(void *);
 void _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(void *, void *, void *);
 int _ZN16MeshColliderBase6EnableEP5Actor(void *, void *);
+void *_ZN5ModelC1Ev(void *);
+void *_ZN5Model8LoadFileER13SharedFilePtr(void *);
+void _ZN9ModelBase7SetFileEP8BMD_Fileii(void *, void *, int, int);
+void hal_render_model(void *model, int scaleShift);
+void _ZN13RaycastGroundC1Ev(void *);
+void _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(void *, const void *,
+                                                        void *);
+int _ZN13RaycastGround10DetectClsnEv(void *);
+int hal_ground_ray(void *mc, int x, int y, int z, int reach, int *out_y);
+void _ZN12WithMeshClsn13SetGroundFlagEv(void *);
 }
 
 static const int ZOOM = 3;
+static void *g_mc;
 
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
@@ -213,6 +224,7 @@ int main(void)
         static struct { unsigned short id; unsigned char refs; void *p; } kp;
         _ZN13SharedFilePtr9ConstructEj(&kp, 1941);
         static char mc_storage[0x60];
+        g_mc = mc_storage;
         _ZN12MeshColliderC1Ev(mc_storage);
         char *kcl = (char *)_ZN12MeshCollider8LoadFileER13SharedFilePtr(&kp);
         if (!kcl) return 4;
@@ -220,13 +232,72 @@ int main(void)
         _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
                                                           clps);
         _ZN16MeshColliderBase6EnableEP5Actor(mc_storage, player);
-        int ox = *(int *)(kcl + 0), oy = *(int *)(kcl + 4),
-            oz = *(int *)(kcl + 8);
-        unsigned xm = *(unsigned *)(kcl + 0x10), zm = *(unsigned *)(kcl + 0x18);
-        *(int *)(c + 0x5c) = ox + (((int)(~xm + 1)) << 6) / 2;
-        *(int *)(c + 0x60) = oy + 0x8000;
-        *(int *)(c + 0x64) = oz + (((int)(~zm + 1)) << 6) / 2;
+        /* the octree box is power-of-two PADDED (its center is way off the
+           real stage); the geometry lives near the origin, so spawn there,
+           a few units up -- the first frames drop him onto the lawn */
+        {
+            const char *sp = getenv("SM64DS_SPAWN");
+            int sx = 0, sy = 90, sz = -50;
+            if (sp) sscanf(sp, "%d,%d,%d", &sx, &sy, &sz);
+            *(int *)(c + 0x5c) = sx << 12;
+            *(int *)(c + 0x60) = sy << 12;
+            *(int *)(c + 0x64) = sz << 12;
+        }
     }
+    /* the level model: main_castle_all.bmd (handle 1943, same stage as the
+       KCL); world-space verts scaled by the BMD header's scaleShift */
+    static char level_storage[0x50];
+    int level_shift = 0;
+    {
+        static struct { unsigned short id; unsigned char refs; void *p; } mp;
+        _ZN13SharedFilePtr9ConstructEj(&mp, 1943);
+        _ZN5ModelC1Ev(level_storage);
+        void *bmd = _ZN5Model8LoadFileER13SharedFilePtr(&mp);
+        if (bmd) {
+            level_shift = *(int *)bmd;   /* BMD header word 0 */
+            _ZN9ModelBase7SetFileEP8BMD_Fileii(level_storage, bmd, 0, -1);
+            printf("level model loaded, scaleShift %d\n", level_shift);
+        } else {
+            fprintf(stderr, "level model load failed (handle 1943)\n");
+        }
+    }
+
+    /* diagnostic: a direct ground ray at the spawn separates a filter
+       problem (player flags) from a registry problem (nothing hittable) */
+    {
+        static char rg[0x50];
+        int pos[3] = {*(int *)(c + 0x5c), *(int *)(c + 0x60),
+                      *(int *)(c + 0x64)};
+        _ZN13RaycastGroundC1Ev(rg);
+        _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(rg, pos, player);
+        rg[4] |= 1;   /* BgCh collide-ordinary (the gate-8 predicate bit) */
+        *(int *)(rg + 0x4c) = 0x100000;   /* reach: 256 units down */
+        int hit = _ZN13RaycastGround10DetectClsnEv(rg);
+        printf("ground probe at spawn: hit=%d ground_y=%d (%.1f units)\n",
+               hit, *(int *)(rg + 0x3c), *(int *)(rg + 0x3c) / 4096.0f);
+        {
+            extern void *data_020a0c80[];
+            int direct = ((int(__fastcall *)(void *, void *, void *))(
+                ((void ***)g_mc)[0][6]))(g_mc, 0, rg);
+            printf("registry[0]=%p mc=%p direct-slot6=%d gy=%.1f flag=%d\n",
+                   data_020a0c80[0], g_mc, direct,
+                   *(int *)(rg + 0x44) / 4096.0f, rg[0x48]);
+        }
+        /* floor map: direct line walks over a coarse grid */
+        for (int gz = -100; gz <= 100; gz += 50) {
+            char row[64] = {0};
+            int ri = 0;
+            for (int gx = -100; gx <= 100; gx += 50) {
+                int gy = 0;
+                int h = hal_ground_ray(g_mc, gx << 12, 100 << 12,
+                                       gz << 12, 300 << 12, &gy);
+                ri += snprintf(row + ri, sizeof row - ri, "%7.1f",
+                               h ? gy / 4096.0f : -999.0f);
+            }
+            printf("floor z=%4d: %s\n", gz, row);
+        }
+    }
+
     data_020a0e40[0] = 0;
     hal_player_st_wait_init(player);
 
@@ -303,6 +374,24 @@ int main(void)
            demo controllable until the real input processor is hosted */
         if (*(int *)(c + 0x98) > 0x3000) *(int *)(c + 0x98) = 0x3000;
 
+        /* harness ground snap: a real KCL ray under Mario each frame; the
+           in-game WithMeshClsn continuous tracking is the next fidelity
+           step, this keeps him on the terrain meanwhile */
+        {
+            int gy;
+            int mx = *(int *)(c + 0x5c), my = *(int *)(c + 0x60),
+                mz = *(int *)(c + 0x64);
+            if (hal_ground_ray(g_mc, mx, my + (20 << 12), mz, 80 << 12,
+                               &gy)) {
+                if (my <= gy + 0x800) {
+                    *(int *)(c + 0x60) = gy;
+                    if (*(int *)(c + 0xa8) < 0)
+                        *(int *)(c + 0xa8) = 0;   /* mVertSpeed */
+                    _ZN12WithMeshClsn13SetGroundFlagEv(c + 0x380);
+                }
+            }
+        }
+
         /* render: camera behind and above Mario, looking at him */
         ntr::gx_reset();
         NTR_MMIO(uint32_t, 0x04000580) =
@@ -333,6 +422,21 @@ int main(void)
                    *(int *)(c + 0x5c), *(int *)(c + 0x60), *(int *)(c + 0x64),
                    px, py, pz);
             ntr::gx_reset();
+            hal_render_model(level_storage, level_shift);
+            n = 0;
+            ta = ntr::gx_polygons(n);
+            for (int k = 0; k < 3; ++k) { mn[k] = 1e30f; mx[k] = -1e30f; }
+            for (size_t i = 0; i < n; ++i)
+                for (int v = 0; v < 3; ++v) {
+                    float xyz[3] = {ta[i].v[v].x, ta[i].v[v].y, ta[i].v[v].z};
+                    for (int k = 0; k < 3; ++k) {
+                        if (xyz[k] < mn[k]) mn[k] = xyz[k];
+                        if (xyz[k] > mx[k]) mx[k] = xyz[k];
+                    }
+                }
+            printf("probe: level %zu tris, x[%.0f..%.0f] y[%.0f..%.0f] z[%.0f..%.0f]\n",
+                   n, mn[0], mx[0], mn[1], mx[1], mn[2], mx[2]);
+            ntr::gx_reset();
             NTR_MMIO(uint32_t, 0x04000580) =
                 0u | (0u << 8) | (255u << 16) | (191u << 24);
             ntr::gx_set_light(0, -0.4f, -0.6f, -0.7f, 0x7FFF);
@@ -344,6 +448,7 @@ int main(void)
         push_camera(eye, at);
         if (selftest && frame == 0)
             fprintf(stderr, "[w] render\n");
+        hal_render_model(level_storage, level_shift);
         hal_render_player_world(player);
         if (selftest && frame == 0)
             fprintf(stderr, "[w] rendered\n");
@@ -355,6 +460,9 @@ int main(void)
         W.StretchDIBits_(hdc, 0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM,
                       0, 0, ntr::SCREEN_W, ntr::SCREEN_H, fb.px, &bi,
                       DIB_RGB_COLORS, SRCCOPY);
+        if (selftest && (frame % 10) == 0)
+            printf("[y] frame %d y=%d units %.1f\n", frame,
+                   *(int *)(c + 0x60), *(int *)(c + 0x60) / 4096.0f);
         if (selftest && ++frame >= selftest) {
             ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
             printf("selftest: %d frames, pos=(%d, %d, %d)\n", frame,
