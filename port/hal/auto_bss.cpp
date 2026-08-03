@@ -103,7 +103,8 @@ int data_0209b0a8[8];
 int data_0209f224[8];
 int data_0209b274[8];
 int data_0209b294[8];
-int data_0209f5bc[8];
+/* data_0209f5bc (the installed fader) moved to hal/fader_wipes.cpp: the
+   two FUN_0202xxxx wipe helpers deref it with no null check. */
 int data_0209fc4c[8];
 int data_020a0e58[8];
 int data_0209b004[8];
@@ -148,6 +149,10 @@ int data_ov100_02148708[8];
 int data_0209f314[8];
 int data_020a4bf8[8];
 int data_020a4c18[8];
+/* death states: KillPlayer's remaining-lives byte, and the pending-scene
+   argument Scene::SetSceneToSpawn parks next to it */
+int data_0209f2f4[8];
+int data_0209f5b8[8];
 }
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */

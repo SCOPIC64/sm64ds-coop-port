@@ -176,6 +176,7 @@ extern "C" void func_ov002_020e200c(char *c);
 extern "C" int func_ov002_020cac30(void);
 extern "C" int func_ov002_020d6084(char *c);
 extern "C" int func_ov002_020e17f8(void *c);
+extern "C" int _ZN6Player16St_BurnLava_MainEv(char *c);
 extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 {
     switch (ds_addr) {

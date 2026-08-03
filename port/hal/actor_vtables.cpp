@@ -244,7 +244,19 @@ void *_ZTV25MovingCylinderClsnWithPos[12];
 int VT0[20];    /* an unresolved shared-header vtable alias in ov002 TUs */
 
 unsigned char data_02092128[0x40];
-int data_0209f318[8];
+/* 0x0209f318 is a Camera POINTER, not storage -- every declaration of it
+   in src is `Camera *` / `char *` / `short *` / `void *`, never an array.
+   It was 32 zero bytes here, which reads as a null camera, and the states
+   that poke the camera through it were faulting on the write rather than
+   skipping: St_DeadHit_Init calls func_0200d89c(data_0209f318), whose
+   whole body is `*(short *)(p + 0x18c) = 384`, so a null landed on
+   address 0x18c. Point it at a zeroed block instead. Generous size, same
+   convention as auto_bss: Camera.h evidences fields to 0x1a6 and the
+   class is an Actor subclass, so 0x400 covers it with room.
+   Verified regression-free: the eight walk probes come back
+   byte-identical with this non-null. */
+__declspec(align(8)) static unsigned char HAL_CAMERA[0x400];
+void *data_0209f318 = HAL_CAMERA;
 unsigned short data_0209f49c, data_0209f49e, data_0209f4a0;
 unsigned char data_0209f4ab;
 unsigned short data_0209f4ac, data_0209f4ae;

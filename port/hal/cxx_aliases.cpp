@@ -217,7 +217,9 @@ __declspec(align(8)) unsigned char PARTICLE_SYS_TRACKER[0x1000];
 int data_0209ee74[4], data_0209f32c[4], data_0209b4a4[4];
 /* camera + player-list globals (gate-9 scoping notes) */
 int data_0209d4b0[8];
-int data_0209f274[8], data_0209f324[8];
+int data_0209f274[8];
+/* data_0209f324 (WIPES) moved to hal/fader_wipes.cpp: it is a POINTER to a
+   staged array now, not blank storage, or the death path faults on it. */
 int data_0209a5ec, data_0209a5f4[2], data_0209a5fc, data_0209a600;
 int data_0209a604, data_0209a60c[2], data_0209a614, data_0209a618;
 int data_0209a61c[4], data_020a6128, data_020a6134[4];
@@ -603,3 +605,17 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 /* shared-body state Inits (Dive, BackFlip, HeadstandJump, SlideKickRecover,
    WaterJump): the C++-mangled refs their TUs emit -> the C-named storage */
 #pragma comment(linker, "/alternatename:?data_ov002_020ff100@@3PAHA=_data_ov002_020ff100")
+
+/* death-state ring (DeadHit, DeadPit, Squish, BurnLava + the KillPlayer
+   chain): C++-mangled refs -> the C-named defs and ov002 storage */
+#pragma comment(linker, "/alternatename:?KillPlayer@@YAXXZ=_KillPlayer")
+#pragma comment(linker, "/alternatename:?func_ov002_020c0108@@YAXPAXH@Z=_func_ov002_020c0108")
+#pragma comment(linker, "/alternatename:?func_ov002_020c647c@@YAHPADH@Z=_func_ov002_020c647c")
+#pragma comment(linker, "/alternatename:?func_ov002_020c6538@@YAHPAD@Z=_func_ov002_020c6538")
+#pragma comment(linker, "/alternatename:?func_ov002_020c6908@@YAHPAD@Z=_func_ov002_020c6908")
+#pragma comment(linker, "/alternatename:?func_ov006_020e3078@@YAHPAXPAH@Z=_func_ov002_020e3078")
+#pragma comment(linker, "/alternatename:?data_ov002_02109db8@@3PAEA=_data_ov002_02109db8")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a07c@@3PAIA=_data_ov002_0210a07c")
+#pragma comment(linker, "/alternatename:?data_ov002_0210a424@@3PAHA=_data_ov002_0210a424")
+#pragma comment(linker, "/alternatename:?data_ov002_021100f4@@3PAHA=_data_ov002_021100f4")
+#pragma comment(linker, "/alternatename:?data_ov002_0211117c@@3EA=_data_ov002_0211117c")

@@ -205,6 +205,23 @@
          BackFlip       state 0x0211052c  Main = St_SideFlip_Main
          WaterJump      state 0x02110694  Main = St_SideFlip_Main
          HeadstandJump  state 0x02110724  Main = St_SideFlip_Main */
+    /* DEATH states: every Main here funnels into KillPlayer ->
+       StartExitFaderWipe, which derefs the fader-wipe array at
+       0x0209f324. Stage::InitResources allocates that array and the port
+       never boots a Stage, so hal/fader_wipes.cpp stages it instead. */
+    /* DeadPit */
+    case 0x020c5780: return ((Player *)self)->Player::St_DeadPit_Main();
+    case 0x020c59c0: return ((Player *)self)->Player::St_DeadPit_Init();
+    /* DeadHit */
+    case 0x020c5e34: return ((Player *)self)->Player::St_DeadHit_Main();
+    case 0x020c6010: return ((Player *)self)->Player::St_DeadHit_Init();
+    /* Squish */
+    case 0x020c662c: return ((Player *)self)->Player::St_Squish_Main();
+    case 0x020c69a0: return ((Player *)self)->Player::St_Squish_Init();
+    case 0x020c65f8: return ((Player *)self)->Player::St_Squish_Cleanup();
+    /* BurnLava: its Main defines at C linkage in src (explicit char* this) */
+    case 0x020d5038: return _ZN6Player16St_BurnLava_MainEv((char *)self);
+    case 0x020d529c: return ((Player *)self)->Player::St_BurnLava_Init();
     case 0x020dd17c: return ((Player *)self)->Player::St_Dive_Init();
     case 0x020e162c: return ((Player *)self)->Player::St_WaterJump_Init();
     case 0x020e16a4: return ((Player *)self)->Player::St_HeadstandJump_Init();

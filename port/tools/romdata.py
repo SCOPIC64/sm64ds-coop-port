@@ -62,6 +62,9 @@ NAMED = [
     "data_02086f14",
     "data_02086f2c",
     "data_0208715c",
+    # death states: SetNextLevel's sublevel -> (next level, entrance) table
+    "data_02075638",
+    "data_02092664",   # Scene::SetSceneToSpawn's pending-scene ID
 ]
 
 
