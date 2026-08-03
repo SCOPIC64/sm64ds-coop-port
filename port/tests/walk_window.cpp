@@ -934,12 +934,20 @@ int main(void)
                WithMeshClsn floor record was caught -- the walk's last
                triangle stays put while the record changes underneath. */
             if (getenv("SM64DS_TRACE_SURF")) {
+                /* the floor ClsnResult itself: WithMeshClsn + 0x20 (the
+                   SphereClsn sub-object) + 0x74 (func_02037938). Its first
+                   two SurfaceInfo words ARE the CLPS entry, so a record the
+                   walk really filled reads back as one of the level's 22
+                   entries -- 000?0fc? / 000000ff for castle grounds. */
+                const int *fr = (const int *)(c + 0x380 + 0x20 + 0x74);
                 fprintf(stderr, "       surf path=%x t=%d %d %d %d %d "
-                        "lastTri=%d attr=%x\n",
+                        "lastTri=%d attr=%x clps=%08x/%08x tri=%u slot=%u\n",
                         *(unsigned *)(c + 0x670), *(int *)(c + 0x66c),
                         *(int *)(c + 0x660), *(int *)(c + 0x65c),
                         *(int *)(c + 0x664), *(int *)(c + 0x658),
-                        g_walk_dbg[13], g_walk_dbg[14]);
+                        g_walk_dbg[13], g_walk_dbg[14], fr[1], fr[2],
+                        *(const unsigned short *)((const char *)fr + 0x18),
+                        *(const unsigned short *)((const char *)fr + 0x1a));
             }
         }
         if (selftest) {
