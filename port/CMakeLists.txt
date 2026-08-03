@@ -90,6 +90,17 @@ if(MSVC)
     target_compile_options(ntr PRIVATE /wd4311 /wd4312)
 endif()
 
+# 512x384 middle tier: 4x the pixels of native (~12ms software raster),
+# half the chunk of DS-native. The interactive window's default.
+add_library(ntr_2x STATIC
+    ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/lz77.cpp
+    ntr/rt.cpp ntr/runtime.cpp ntr/fs.cpp ntr/bmd.cpp)
+target_include_directories(ntr_2x PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ntr/include")
+target_compile_definitions(ntr_2x PUBLIC NTR_HIRES2)
+if(MSVC)
+    target_compile_options(ntr_2x PRIVATE /wd4311 /wd4312)
+endif()
+
 # The same layer at 1024x768 for the interactive window; the smokes keep
 # the DS-native lib (their reference pixel counts depend on 256x192).
 add_library(ntr_hires STATIC
@@ -513,11 +524,34 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}"
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(walk_window PRIVATE ntr_hires)
+# 2x (512x384, window ZOOM 2): the software raster is fill-bound; the
+# hires 1024x768 tier burns ~40ms/frame on the level alone, native
+# 256x192 reads too chunky. 2x is ~12ms -> 60fps with frame pacing.
+target_link_libraries(walk_window PRIVATE ntr_2x)
 target_compile_definitions(walk_window PRIVATE SM64DS_PLATFORM_PC
     PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}")
 if(MSVC)
     target_compile_options(walk_window PRIVATE /wd4311 /wd4312 /wd4068)
+endif()
+
+# hires clone for screenshot sessions (4x resolution, ~1/16 the fps)
+add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}"
+    hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
+    hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp
+    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
+    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES} ${SLICE10_SOURCES}
+    ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} ${GATE10_GEN}
+    "${ROMDATA_C}")
+target_include_directories(walk_window_hires PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(walk_window_hires PRIVATE ntr_hires)
+target_compile_definitions(walk_window_hires PRIVATE SM64DS_PLATFORM_PC
+    PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}")
+if(MSVC)
+    target_compile_options(walk_window_hires PRIVATE /wd4311 /wd4312 /wd4068)
 endif()
 
 
