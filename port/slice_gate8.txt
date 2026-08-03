@@ -3,6 +3,17 @@
 # port/unmatched adoption (see the file header); everything else is matched.
 
 port/unmatched/MeshCollider_DetectClsn_RaycastLine.cpp
+# The sphere pass (ROM vtable slot 8) and the five result/AABB writers it is
+# the only caller of. Everything else it needs was already here for the line
+# walk; the three shared with later gates (func_02039794, func_02037e58,
+# DotVec3) are added per-target as GATE8_EXTRA_SOURCES so the gate-10/13
+# binaries do not link them twice.
+port/unmatched/MeshCollider_DetectClsn_Sphere.cpp
+src/func_020379f4.c
+src/func_020379c0.c
+src/func_0203798c.c
+src/func_0203794c.c
+src/func_02037a6c.c
 src/_ZN12MeshColliderC1Ev.c
 src/_ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block.cpp
 src/_ZN12MeshCollider17UpdateFileOffsetsER8KCL_File.cpp

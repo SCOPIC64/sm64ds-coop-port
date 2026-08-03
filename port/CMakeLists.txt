@@ -274,12 +274,23 @@ foreach(line IN LISTS SLICE8_LINES)
     list(APPEND SLICE8_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Three files the SPHERE pass needs that later gates already carry: gate 10 has
+# func_02039794 and func_02037e58, gate 13 has DotVec3. The binaries that stop
+# at gate 8/9 (smoke_clsn, smoke_actor) get them here; smoke_player and
+# walk_window get them from their own slices, and adding them in both places
+# would be a duplicate source in one target.
+set(GATE8_EXTRA_SOURCES
+    "${PORT_REPO_ROOT_ABS}/src/func_02039794.c"
+    "${PORT_REPO_ROOT_ABS}/src/func_02037e58.c"
+    "${PORT_REPO_ROOT_ABS}/src/DotVec3.c")
+
 add_executable(smoke_clsn tests/smoke_clsn.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
-    ${SLICE8_SOURCES} ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} "${ROMDATA_C}")
+    ${SLICE8_SOURCES} ${GATE8_EXTRA_SOURCES}
+    ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} "${ROMDATA_C}")
 target_include_directories(smoke_clsn PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
@@ -444,7 +455,7 @@ add_executable(smoke_actor tests/smoke_actor.cpp
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
     hal/cxxname_bridge.cpp hal/megachar_stub.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
-    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES}
+    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES} ${GATE8_EXTRA_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} "${ROMDATA_C}")
 target_include_directories(smoke_actor PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"

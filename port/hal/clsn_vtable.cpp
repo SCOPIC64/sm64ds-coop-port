@@ -13,6 +13,8 @@
 
 #include "MeshCollider.h"
 
+extern "C" int g_sphere_dbg[16];   /* port/unmatched/MeshCollider_DetectClsn_Sphere.cpp */
+
 static void __fastcall slot_v08(void *self, void *)
 { ((MeshCollider *)self)->MeshCollider::Virtual08(); }
 static void __fastcall slot_surf(void *self, void *, s16 tri, SurfaceInfo *res)
@@ -118,28 +120,49 @@ extern "C" int hal_line_ray(void *mc, const int *a, const int *b, int *out)
 }
 
 /* Sphere overload (ROM slot 8) -- MeshCollider::DetectClsn(SphereClsn &),
-   ITCM 0x01ffb830, 0x1bc8 bytes = 7112, THE SINGLE LARGEST UNMATCHED
-   FUNCTION IN THE GAME (notes/itcm.md) and with no draft in
-   nearmiss/db.jsonl. It is not just the wall pass: it returns floor, wall
-   and ceiling as one three-bit mask (see SphereClsn::DetectClsn, which fans
-   bit 0/1/2 out to func_020379d0/9c/68), and it is what holds a STANDING
+   ITCM 0x01ffb830, 0x1bc8 bytes = 7112, the largest unmatched function in
+   the game (notes/itcm.md). It is not just the wall pass: it returns floor,
+   wall and ceiling as one three-bit mask (see SphereClsn::DetectClsn, which
+   fans bit 0/1/2 out to func_020379d0/9c/68), and it is what holds a STANDING
    actor up. WithMeshClsn's swept RaycastLine finds a floor only once the
-   sweep crosses the floor plane, so with this stubbed the Player sinks about
-   his own height before the sweep catches him and shoves him back.
+   sweep crosses the floor plane, so while this was stubbed the Player sank
+   about his own height before the sweep caught him and shoved him back --
+   a 46-unit bob at 3 Hz, and the whole reason the harness ground snap and
+   wall stop existed.
 
-   That is the whole reason the harness ground snap and wall stop still
-   exist. Nothing else in the port is standing in for matched code. */
+   HOSTED since the slot-8 transcription: port/unmatched/
+   MeshCollider_DetectClsn_Sphere.cpp, read straight off the ROM. Its header
+   carries the provenance and the basis convention.
+
+   SM64DS_NO_SPHERE=1 puts the stub back, which is how the two configurations
+   get A/B'd (and what the pre-transcription screenshots were taken under). */
 static int __fastcall slot_sphere(void *self, void *, void *sph)
 {
-    static int warned;
-    if (!warned) {
-        warned = 1;
-        fprintf(stderr, "  [clsn] sphere DetectClsn UNHOSTED (ITCM "
-                        "0x01ffb830, 7112 bytes, unmatched) -- no ground or "
-                        "wall contact from the game's own tracking\n");
+    static int off = -1;
+    if (off < 0) off = getenv("SM64DS_NO_SPHERE") ? 1 : 0;
+    if (off) {
+        static int warned;
+        if (!warned) {
+            warned = 1;
+            fprintf(stderr, "  [clsn] sphere DetectClsn forced OFF "
+                            "(SM64DS_NO_SPHERE) -- no ground or wall contact "
+                            "from the game's own tracking\n");
+        }
+        return 0;
     }
-    (void)self; (void)sph;
-    return 0;
+    int r = ((MeshCollider *)self)->MeshCollider::DetectClsn(
+        *(SphereClsn *)sph);
+    if (r && getenv("PORT_TRACE_CLSN")) {
+        const unsigned char *s = (const unsigned char *)sph;
+        fprintf(stderr, "  [sphere] mask=%d flags=%02x tri=%d kind=%d "
+                        "class(f/e/c)=%d/%d/%d push=(%d,%d,%d)\n",
+                r, s[0x70], g_sphere_dbg[14], g_sphere_dbg[15],
+                g_sphere_dbg[4], g_sphere_dbg[5], g_sphere_dbg[6],
+                ((const int *)(s + 0x58))[0] + ((const int *)(s + 0x64))[0],
+                ((const int *)(s + 0x58))[1] + ((const int *)(s + 0x64))[1],
+                ((const int *)(s + 0x58))[2] + ((const int *)(s + 0x64))[2]);
+    }
+    return r;
 }
 
 #define TRAP(n) \
