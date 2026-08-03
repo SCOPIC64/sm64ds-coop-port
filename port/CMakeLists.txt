@@ -552,6 +552,38 @@ foreach(line IN LISTS SLICE17_LINES)
     list(APPEND SLICE17_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Gate 18 and up: the ACTOR overlays. Neither the engine overlay nor the
+# level's own -- ov085/ov098/ov100/ov102 each carry a handful of classes that
+# several levels pull in, and the castle grounds names some of each. They are
+# mounted PER SYMBOL like ov002 (nothing walks a table across their symbol
+# boundaries the way a level overlay's loaders do), --pack so the runs that
+# are really one array stay contiguous, and each list is the overlay's WHOLE
+# data span rather than a hand-picked subset -- see the header of any
+# ovNNN_syms.txt for why.
+set(PORT_ACTOR_OVERLAYS ov085)
+set(ACTOR_OV_SYMS "")
+foreach(ovn IN LISTS PORT_ACTOR_OVERLAYS)
+    set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_syms.c")
+    add_custom_command(OUTPUT "${ovn_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ${ovn}
+                "${ovn_out}" --from-list
+                "${CMAKE_CURRENT_SOURCE_DIR}/${ovn}_syms.txt" --pack
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py"
+                "${CMAKE_CURRENT_SOURCE_DIR}/${ovn}_syms.txt"
+        COMMENT "ovdata ${ovn} (per symbol, packed)")
+    list(APPEND ACTOR_OV_SYMS "${ovn_out}")
+endforeach()
+
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate18.txt" SLICE18_LINES)
+set(SLICE18_SOURCES "")
+foreach(line IN LISTS SLICE18_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE18_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gate 13: the real Camera actor. Adds its own slice plus the HAL seam, and
 # swaps three gate-10 files for host copies that only the camera needs
 # (see port/unmatched/): ChangeArea calls HideArea() with no argument and
@@ -601,7 +633,11 @@ set(LEVELBOOT_HOST_SOURCES
     # table it indexes; see each file's header.
     unmatched/OneUpMushroom_Behavior.cpp
     unmatched/NumStars.cpp
-    unmatched/SignPost_StateDispatch.cpp)
+    unmatched/SignPost_StateDispatch.cpp
+    # gate 18: the third, LakituBro's eleven-state machine
+    unmatched/LakituBro_Behavior.cpp
+    # ...and gate 17's ModelAnim slot-5 case with a body attached
+    unmatched/Ov085_Renders.cpp)
 
 set(CAMERA_HOST_SOURCES
     unmatched/ChangeArea.c
@@ -758,15 +794,16 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
+    ${SLICE18_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
-    "${ROMDATA_C}" "${OV009SYMS_C}")
+    "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
 target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
@@ -782,15 +819,16 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
+    ${SLICE18_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
-    "${ROMDATA_C}" "${OV009SYMS_C}")
+    "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
@@ -809,15 +847,16 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
+    ${SLICE18_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
-    "${ROMDATA_C}" "${OV009SYMS_C}")
+    "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")

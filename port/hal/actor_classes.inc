@@ -53,6 +53,16 @@ void hal_fill_metal_net_vtable(void);
 extern unsigned char Flag_SpawnInfo[];                  /* ov009 0x02113b7c */
 void *Flag_Spawn(void);                                 /* ov009 0x021121f0 */
 void hal_fill_flag_vtable(void);
+/* ---- gate 18: ov085, the first ACTOR overlay ----
+   Not the engine overlay and not the level's -- six classes several levels
+   share, of which the castle grounds names two. The SpawnInfo records come
+   from the per-symbol ov085 mount (ov085_syms.txt). */
+extern unsigned char Rabbit_SpawnInfo[];                /* ov085 0x021300d4 */
+void *Rabbit_Spawn(void);                               /* ov085 0x0212cc2c */
+void hal_fill_rabbit_vtable(void);
+extern unsigned char LakituBro_SpawnInfo[];             /* ov085 0x02130320 */
+void *LakituBro_Spawn(void);                            /* ov085 0x0212ed54 */
+void hal_fill_lakitu_bro_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -70,4 +80,7 @@ void hal_fill_flag_vtable(void);
     {339, "METAL_NET", DockPole_SpawnInfo, DockPole_Spawn,                    \
      hal_fill_metal_net_vtable},                                              \
     {342, "FLAG", Flag_SpawnInfo, Flag_Spawn, hal_fill_flag_vtable},          \
-    {343, "BIRD", Bird_SpawnInfo, Bird_Spawn, hal_fill_bird_vtable},
+    {343, "BIRD", Bird_SpawnInfo, Bird_Spawn, hal_fill_bird_vtable},          \
+    {187, "RABBIT", Rabbit_SpawnInfo, Rabbit_Spawn, hal_fill_rabbit_vtable},  \
+    {235, "LAKITU_BRO", LakituBro_SpawnInfo, LakituBro_Spawn,                 \
+     hal_fill_lakitu_bro_vtable},

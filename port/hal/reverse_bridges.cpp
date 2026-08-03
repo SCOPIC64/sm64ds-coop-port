@@ -39,6 +39,11 @@ int _ZN3OAM16LoadAffineParamsEP7OamAttrPiP9Matrix2x2(void *attr, int *p,
                                                      void *m);
 int _ZN8SaveData19IsCharacterUnlockedEj(unsigned ch);
 int _ZN4cstd4fdivEii(int a, int b);
+/* gate 18 */
+void *_ZN5Actor13ClosestPlayerEv(void *self);
+short _ZN5Actor18HorzAngleToCPlayerEv(void *self);
+int _ZN5Actor19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
+    void *self, void *sm, void *m, int rad, int h, unsigned f);
 }
 
 struct RaycastGround {
@@ -106,12 +111,40 @@ struct Actor_statics_shadow;   /* Actor is only a return type here */
 struct Actor2 { static Actor *FindWithID(unsigned id); };
 /* FindWithID's owner must literally be "Actor" for the mangling: */
 struct CylinderClsn;
+struct ShadowModel;
+struct Matrix4x3;
 struct Actor {
     static Actor *FindWithID(unsigned id);
     void UpdatePosWithOnlySpeed(CylinderClsn *c);
+    /* gate 18: ov085's TUs declare a local Actor shadow and call these as
+       methods; all three are C-form definitions in src. */
+    Matrix4x3 *UpdateCarry(Player &player, const Vector3 &vec);
+    Player *ClosestPlayer();
+    short HorzAngleToCPlayer();
+    void DropShadowRadHeight(ShadowModel &sm, Matrix4x3 &m, int rad, int h,
+                             unsigned f);
 };
 Actor *Actor::FindWithID(unsigned id)
 { return (Actor *)_ZN5Actor10FindWithIDEj(id); }
+/* THE OTHER DIRECTION, in the same place for the same reason.
+   src/_ZN5Actor11UpdateCarryER6PlayerRK7Vector3.cpp defines UpdateCarry as a
+   method of its OWN local `class Actor` -- include/Actor.h does not declare
+   it -- so the C name its ov085 caller uses has to be defined against a
+   shadow too, and this is the only file that has one. Not an alias: the C
+   form is __cdecl with `this` on the stack, the method is __thiscall with it
+   in ecx. */
+extern "C" Matrix4x3 *_ZN5Actor11UpdateCarryER6PlayerRK7Vector3(
+    void *self, void *player, const void *vec)
+{ return ((Actor *)self)->UpdateCarry(*(Player *)player,
+                                      *(const Vector3 *)vec); }
+Player *Actor::ClosestPlayer()
+{ return (Player *)_ZN5Actor13ClosestPlayerEv(this); }
+short Actor::HorzAngleToCPlayer()
+{ return _ZN5Actor18HorzAngleToCPlayerEv(this); }
+void Actor::DropShadowRadHeight(ShadowModel &sm, Matrix4x3 &m, int rad, int h,
+                                unsigned f)
+{ _ZN5Actor19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
+      this, &sm, &m, rad, h, f); }
 
 template <typename T> struct Fix12 { T val; };
 struct OAM {

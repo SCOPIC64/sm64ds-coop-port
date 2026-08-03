@@ -30,8 +30,21 @@ import sys
 
 
 def overlay_yaml(root, ovid, field):
+    """A field out of ONE overlay's record in overlays.yaml.
+
+    The record is found by its own `- id:` line and nothing else. Matching
+    "id: NN" anywhere in the file also matches the `file_id: NN` line of a
+    DIFFERENT overlay -- ov085's base came back as ov043's that way, and the
+    only symptom was the BL guard below firing on a byte that was never code.
+    """
     ytxt = (root / "extracted/dsd/arm9_overlays/overlays.yaml").read_text()
-    m = re.search(rf"id: {ovid}\b.*?{field}: (\d+)", ytxt, re.S)
+    blk = re.search(rf"^  - id: {ovid}$\n(.*?)(?=^  - id: |\Z)", ytxt,
+                    re.S | re.M)
+    if not blk:
+        sys.exit(f"overlays.yaml has no record for overlay {ovid}")
+    m = re.search(rf"^    {field}: (\d+)$", blk.group(1), re.M)
+    if not m:
+        sys.exit(f"overlays.yaml: overlay {ovid} has no {field}")
     return int(m.group(1))
 
 
@@ -259,6 +272,17 @@ def main():
         prev_end = None
         checks = []
         first = pack_rows[0][0] if pack_rows else 0
+
+        # EACH SYMBOL KEEPS ITS OWN ROM ALIGNMENT, not a blanket 4.
+        # dsd names symbols wherever code referenced one, and some of those
+        # land mid-word -- ov085 has three (a string interior and two
+        # sub-fields). Declaring those align(4) makes MSVC pad the run and
+        # every symbol after them shifts, which is exactly what the emitted
+        # check caught: "data_ov085_0212ffff at +3460, ROM says +3459", and
+        # then a 4-byte skew through the rest of the overlay's data.
+        def rom_align(addr):
+            return 4 if addr % 4 == 0 else (2 if addr % 2 == 0 else 1)
+
         for a, name, size, body in pack_rows:
             if prev_end is not None and a < prev_end:
                 sys.exit(f"{ov}: --pack: {name} at {a:#010x} overlaps the "
@@ -268,13 +292,15 @@ def main():
                 lines.append(
                     f'__pragma(section(".{tag}${slot:04d}", read, write))'
                     f' __declspec(allocate(".{tag}${slot:04d}"))'
-                    f' __declspec(align(4)) static u8 {tag}_gap_{prev_end:08x}'
+                    f' __declspec(align({rom_align(prev_end)}))'
+                    f' static u8 {tag}_gap_{prev_end:08x}'
                     f'[{gap}] = {{ 0 }};')
                 slot += 1
             lines.append(
                 f'__pragma(section(".{tag}${slot:04d}", read, write))'
                 f' __declspec(allocate(".{tag}${slot:04d}"))'
-                f' __declspec(align(4)) u8 {name}[{size}] = {{ {body} }};')
+                f' __declspec(align({rom_align(a)}))'
+                f' u8 {name}[{size}] = {{ {body} }};')
             slot += 1
             prev_end = a + size
             checks.append((name, a - first))

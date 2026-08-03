@@ -749,3 +749,133 @@ extern "C" void hal_fill_flag_vtable(void)
     vt[16] = (void *)Flag_trap13;
     vt[17] = (void *)Flag_trap13;
 }
+
+// ============================================================================
+// GATE 18: ov085, THE FIRST ACTOR OVERLAY
+// ============================================================================
+//
+// Not the engine overlay and not the level's: ov085 exists for six classes
+// that several levels share, and the castle grounds names two of them.
+//
+// THE CONFIG'S NAMES ARE NOT SHIFTED HERE. That is checked, not assumed --
+// ov009 is the reason to check. Every one of ov085's six factories installs a
+// vtable whose slot 0 is its own class's InitResources and whose slot 16 is
+// its own D1, and the ROM's RTTI names agree from the other side (daMip_c is
+// the rabbit, daC_Jugem_c the Lakitu). Each class's own D0 spells the table
+// by the RTTI name and its D1 by the config name, which is why both spellings
+// have to resolve to ONE array -- the alternatename pairs below.
+
+// ---- RABBIT (actor 187, ov085) x12 -----------------------------------------
+//
+// _ZTV6Rabbit / _ZTV7daMip_c, ov085 0x021300f8. The twelve glowing rabbits.
+// This is the port's first AI actor: InitResources seeds it from the star
+// count and binds it to one of the level's own paths, and Behavior takes the
+// closest Player every frame and runs the flee/idle machine against it
+// through a MovingCylinderClsn and a WithMeshClsn.
+//
+// THE CATCH PATH IS GUARDED, and the guard is not here. Behavior's caught
+// branch calls Message::PrepareTalk and Player::ShowMessage, which end in the
+// dialogue box's OAM/font machinery -- the same system the SIGN_POST's read
+// branch stops at (hal/actor_vtables.cpp). The rabbit still flees, still
+// gets touched and still plays its caught animation; it just does not open a
+// box that has nothing to draw with.
+extern "C" {
+int _ZN6Rabbit13InitResourcesEv(void *self);      /* face: method_faces */
+int _ZN6Rabbit8BehaviorEv(void *self);
+int _ZN6Rabbit6RenderEv(void *self);              /* face: method_faces */
+int _ZN6Rabbit16CleanupResourcesEv(void);
+void _ZN6Rabbit16OnPendingDestroyEv(void);
+int *_ZN6RabbitD1Ev(int *self);
+int *_ZN6RabbitD0Ev(int *self);
+int func_ov085_0212cc18(unsigned char *self);     /* slot 18, its own */
+void *_ZTV6Rabbit[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV7daMip_c=__ZTV6Rabbit")
+
+ACTRAP(Rabbit, 13)
+static int __fastcall rb_init(void *s, void *)
+{ return _ZN6Rabbit13InitResourcesEv(s); }
+static int __fastcall rb_clean(void *, void *)
+{ return _ZN6Rabbit16CleanupResourcesEv(); }
+static int __fastcall rb_behavior(void *s, void *)
+{ return _ZN6Rabbit8BehaviorEv(s); }
+static int __fastcall rb_render(void *s, void *)
+{ port_actor_render_probe("RABBIT", (char *)s + 0x300);
+  return _ZN6Rabbit6RenderEv(s); }
+static int __fastcall rb_pdes(void *, void *)
+{ _ZN6Rabbit16OnPendingDestroyEv(); return 0; }
+static int __fastcall rb_d1(void *s, void *)
+{ return (int)(size_t)_ZN6RabbitD1Ev((int *)s); }
+static int __fastcall rb_d0(void *s, void *)
+{ return (int)(size_t)_ZN6RabbitD0Ev((int *)s); }
+/* The rabbit is the first class on this level to OVERRIDE OnYoshiTryEat
+   rather than inherit Actor's -- Yoshi can eat one. */
+static int __fastcall rb_yoshi(void *s, void *)
+{ return func_ov085_0212cc18((unsigned char *)s); }
+
+extern "C" void hal_fill_rabbit_vtable(void)
+{
+    void **vt = _ZTV6Rabbit;
+    ac_fill_shared(vt, Rabbit_trap13);
+    vt[0] = (void *)rb_init;
+    vt[3] = (void *)rb_clean;
+    vt[6] = (void *)rb_behavior;
+    vt[9] = (void *)rb_render;
+    vt[12] = (void *)rb_pdes;
+    vt[16] = (void *)rb_d1;
+    vt[17] = (void *)rb_d0;
+    vt[18] = (void *)rb_yoshi;
+}
+
+// ---- LAKITU_BRO (actor 235, ov085) x1 --------------------------------------
+//
+// _ZTV9LakituBro / _ZTV11daC_Jugem_c, ov085 0x02130344. The cameraman over
+// the moat. He is here rather than deferred with the rest of the cutscene
+// cast because what he reads is hosted: his own state machine places him
+// against the LIVE Camera, the one gate 13 brought up.
+//
+// His Behavior is a HOST COPY (port/unmatched/LakituBro_Behavior.cpp) for the
+// gate-16 reason -- it dispatches an mwcc pointer-to-member out of an eleven
+// entry state table, and MSVC forms a PMF over an incomplete class as the
+// four-word general representation.
+extern "C" {
+int _ZN9LakituBro13InitResourcesEv(void *self);   /* face: method_faces */
+int _ZN9LakituBro8BehaviorEv(void *self);         /* host copy */
+int _ZN9LakituBro6RenderEv(void *self);           /* face: method_faces */
+int _ZN9LakituBro16CleanupResourcesEv(void);
+void _ZN9LakituBro16OnPendingDestroyEv(void);
+int *_ZN9LakituBroD1Ev(int *self);
+int *_ZN9LakituBroD0Ev(int *self);
+void *_ZTV9LakituBro[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV11daC_Jugem_c=__ZTV9LakituBro")
+
+ACTRAP(LakituBro, 13)
+static int __fastcall lb_init(void *s, void *)
+{ return _ZN9LakituBro13InitResourcesEv(s); }
+static int __fastcall lb_clean(void *, void *)
+{ return _ZN9LakituBro16CleanupResourcesEv(); }
+static int __fastcall lb_behavior(void *s, void *)
+{ return _ZN9LakituBro8BehaviorEv(s); }
+static int __fastcall lb_render(void *s, void *)
+{ port_actor_render_probe("LAKITU_BRO", (char *)s + 0x110);
+  return _ZN9LakituBro6RenderEv(s); }
+static int __fastcall lb_pdes(void *, void *)
+{ _ZN9LakituBro16OnPendingDestroyEv(); return 0; }
+static int __fastcall lb_d1(void *s, void *)
+{ return (int)(size_t)_ZN9LakituBroD1Ev((int *)s); }
+static int __fastcall lb_d0(void *s, void *)
+{ return (int)(size_t)_ZN9LakituBroD0Ev((int *)s); }
+
+extern "C" void hal_fill_lakitu_bro_vtable(void)
+{
+    void **vt = _ZTV9LakituBro;
+    ac_fill_shared(vt, LakituBro_trap13);
+    vt[0] = (void *)lb_init;
+    vt[3] = (void *)lb_clean;
+    vt[6] = (void *)lb_behavior;
+    vt[9] = (void *)lb_render;
+    vt[12] = (void *)lb_pdes;
+    vt[16] = (void *)lb_d1;
+    vt[17] = (void *)lb_d0;
+}

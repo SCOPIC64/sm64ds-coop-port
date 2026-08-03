@@ -79,6 +79,9 @@ int data_0209f4a6[8];
    copies fields out after each CheckInput call (see walk_window) */
 int data_0209f498[24];
 int data_0209f350[8];
+/* the actor the player is CARRYING. Rabbit::Behavior parks itself here when
+   it is caught and Minimap::Behavior reads it back; engine BSS either way. */
+int data_0209f33c[8];
 int data_0209fc5c[8];
 int data_0209fc68[8];
 int data_020a0d84[8];

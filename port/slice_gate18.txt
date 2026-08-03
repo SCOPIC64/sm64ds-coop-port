@@ -1,0 +1,170 @@
+# Gate 18: the castle grounds' RABBITS, and the Lakitu with the camera.
+#
+# ov085 is the first overlay the port mounts that is neither the engine
+# overlay (ov002) nor the level's own (ov009). It is an ACTOR overlay: six
+# classes that several levels pull in, of which the castle grounds names two.
+#
+#   RABBIT      (187) x12   the twelve glowing rabbits, an AI actor that
+#                           flees the nearest player and is caught by touch
+#   LAKITU_BRO  (235) x1    the cameraman, who reads the real Camera's own
+#                           state to place himself
+#
+# THE CONFIG'S NAMES ARE NOT SHIFTED HERE, and that is a finding rather than
+# an assumption: ov009 taught the port to check. Every one of ov085's six
+# factories installs a vtable whose slot 0 is its OWN class's InitResources
+# and whose slot 16 is its OWN D1 --
+#
+#   Toad_Spawn          -> _ZTV11daKinopio_c      slot0 Toad::InitResources
+#   PrincessPeach_Spawn -> _ZTV9daPeach_c         slot0 PrincessPeach::...
+#   Rabbit_Spawn        -> _ZTV7daMip_c           slot0 Rabbit::InitResources
+#   RabbitKey_Spawn     -> _ZTV15daObj_Mip_Key_c  slot0 RabbitKey::...
+#   LakituBro_Spawn     -> _ZTV11daC_Jugem_c      slot0 LakituBro::...
+#   WallSign_Spawn      -> _ZTV13daObjKanban_c    slot0 WallSign::...
+#
+# -- so the block before each factory really is that factory's class, and the
+# ROM's own RTTI names agree (daMip_c is the rabbit, daC_Jugem_c the Lakitu).
+
+# ---- RABBIT (actor 187, ov085), x12 ---------------------------------------
+# InitResources loads the model, threads a MovingCylinderClsn and a
+# WithMeshClsn, picks the rabbit's path out of the level's own path table and
+# seeds its RNG from the star count. Behavior is the chase: it takes the
+# closest player, runs the flee/idle/caught state machine and moves through
+# the two colliders.
+src/Rabbit_Spawn.c
+src/_ZN6Rabbit13InitResourcesEv.cpp
+src/_ZN6Rabbit8BehaviorEv.c
+src/_ZN6Rabbit16CleanupResourcesEv.c
+src/_ZN6Rabbit16OnPendingDestroyEv.c
+# slot 18: the rabbit is the first class on this level to override
+# Actor::OnYoshiTryEat rather than inherit it
+src/func_ov085_0212cc18.c
+
+# ---- LAKITU_BRO (actor 235, ov085), x1 ------------------------------------
+# The cameraman on the bridge. His Behavior reads the live Camera -- the one
+# gate 13 hosted -- and places himself relative to it, which is why he can be
+# tried at all rather than deferred with the rest of the cutscene actors.
+src/LakituBro_Spawn.c
+src/_ZN9LakituBro13InitResourcesEv.cpp
+# _ZN9LakituBro8BehaviorEv is NOT here. It dispatches an mwcc
+# pointer-to-member out of an eleven-entry state table, and MSVC forms a PMF
+# over an incomplete class as the four-word general representation -- the
+# gate-16 case for the third time. Host copy plus the state seat in
+# port/unmatched/LakituBro_Behavior.cpp.
+src/_ZN9LakituBro16CleanupResourcesEv.c
+src/_ZN9LakituBro16OnPendingDestroyEv.c
+
+# ---- the overlay's own static initialisers --------------------------------
+# Six sinits. Every SharedFilePtr the two classes load through is constructed
+# here, and the port runs them where the DS runs them: after the mount, before
+# anything spawns.
+src/__sinit_ov085_0212f2a8.c
+src/__sinit_ov085_0212f3a0.c
+src/__sinit_ov085_0212f5ec.c
+src/__sinit_ov085_0212f9bc.c
+src/__sinit_ov085_0212fa40.c
+src/__sinit_ov085_0212fdb0.c
+
+# ---- RABBIT: the destructor pair -------------------------------------------
+# Both are hosted rather than trapped, and the reason is the mirror of gate
+# 17's: each spells the SAME table by a different name -- D1 by the config's
+# _ZTV6Rabbit, D0 by the ROM's own _ZTV7daMip_c -- so one host array satisfies
+# both with the right bytes. hal/actor_classes.cpp carries the alias.
+src/_ZN6RabbitD1Ev.c
+src/_ZN6RabbitD0Ev.c
+
+# ---- RABBIT: the eight states and the ring they close over -----------------
+# __sinit_ov085_0212f5ec builds eight State objects out of sixteen
+# {function, delta} statics, and Rabbit::Behavior dispatches whichever one is
+# at +0x364 every frame. Fifteen of the sixteen are here.
+#
+# THE SIXTEENTH IS NOT DECOMPILED. ov085 0x0212b8dc, 0x338 bytes, is the Main
+# half of state 0x021306cc -- the state Rabbit::InitResources itself enters on
+# its last line -- and src/ has no C for it at all. It is seated by name in
+# hal/actor_overlays.cpp, and on the castle grounds with a fresh save it is
+# never reached: rabbit id 7 (MIPS) is the only one whose InitResources
+# survives the save gate, and his own Behavior returns on its first line while
+# data_0209caa0 word 2 bit 17 is clear. Measured both ways -- 3000 frames
+# fault-free as the level boots, and the named trap firing on frame one with
+# the two save bits forced on.
+src/func_ov085_0212a788.c
+src/func_ov085_0212a828.cpp
+src/func_ov085_0212a904.c
+src/func_ov085_0212aaa4.c
+src/func_ov085_0212aaec.c
+src/func_ov085_0212ac3c.c
+src/func_ov085_0212ac4c.c
+src/func_ov085_0212ad8c.c
+src/func_ov085_0212ae08.c
+src/func_ov085_0212b3fc.c
+src/func_ov085_0212b444.c
+src/func_ov085_0212b478.c
+src/func_ov085_0212b4b4.c
+src/func_ov085_0212b75c.cpp
+src/func_ov085_0212b86c.c
+src/func_ov085_0212b8a0.c
+src/func_ov085_0212bc14.c
+src/func_ov085_0212bc78.cpp
+src/func_ov085_0212bcc8.c
+src/func_ov085_0212bdbc.cpp
+src/func_ov085_0212bedc.cpp
+src/func_ov085_0212c150.cpp
+
+# ---- LAKITU_BRO: the destructor pair and the eleven states -----------------
+# Same D1/D0 shape (config _ZTV9LakituBro, RTTI _ZTV11daC_Jugem_c), and a
+# state machine twice the rabbit's -- twenty-two bodies, all of them matched.
+# His states are why he is here at all: they call Camera::SetPos and
+# Camera::SetLookAt, so the cameraman drives the real Camera gate 13 hosted.
+src/_ZN9LakituBroD1Ev.c
+src/_ZN9LakituBroD0Ev.c
+src/func_ov085_0212d5dc.cpp
+src/func_ov085_0212d724.c
+src/func_ov085_0212d73c.c
+src/func_ov085_0212d8ec.c
+src/func_ov085_0212d9b8.c
+src/func_ov085_0212db04.cpp
+src/func_ov085_0212dbdc.c
+src/func_ov085_0212dcfc.c
+src/func_ov085_0212dd10.cpp
+src/func_ov085_0212ddc4.cpp
+src/func_ov085_0212de5c.cpp
+src/func_ov085_0212df84.cpp
+src/func_ov085_0212e078.cpp
+src/func_ov085_0212e180.c
+src/func_ov085_0212e19c.c
+src/func_ov085_0212e2ec.c
+src/func_ov085_0212e310.cpp
+src/func_ov085_0212e480.c
+src/func_ov085_0212e4a4.c
+src/func_ov085_0212e59c.c
+src/func_ov085_0212e5ac.c
+src/func_ov085_0212e720.c
+src/func_ov085_0212e728.cpp
+src/func_ov085_0212e778.cpp
+src/func_ov085_0212e858.c
+
+# ---- the engine ring the two classes close over ----------------------------
+# The rabbit's catch path reaches Message and the save block (PrepareTalk
+# ducks the music and sets a flag; NumGlowingRabbitsFound counts save bits),
+# its carry path reaches Actor::UpdateCarry, and the Lakitu's states reach the
+# Camera's two setters. func_0203c178 is an arm9 veneer whose `.word` carries
+# the THUMB bit -- see the alias in hal/method_faces.cpp.
+src/Vec3_ApproachHorz.c
+src/_ZN5Actor11UpdateCarryER6PlayerRK7Vector3.cpp
+src/_ZN5Actor18HorzAngleToCPlayerEv.c
+src/_ZN6Camera6SetPosERK7Vector3.c
+src/_ZN6Camera9SetLookAtERK7Vector3.c
+src/_ZN6Player12GetTalkStateEv.cpp
+src/_ZN6Player18HasFinishedTalkingEv.cpp
+src/_ZN7Message11PrepareTalkEv.c
+src/_ZN7Message13DisplaySavingEt.cpp
+src/_ZN7Message7EndTalkEv.c
+src/_ZN8SaveData22NumGlowingRabbitsFoundEv.cpp
+src/func_02013890.c
+src/func_02013944.c
+src/func_02016acc.c
+src/func_0203c178.c
+src/func_ov002_020c3e8c.c
+src/func_ov002_020c3ea0.c
+src/func_ov002_020c3f18.c
+src/func_ov002_020c3f2c.c
+src/func_ov002_020d228c.cpp

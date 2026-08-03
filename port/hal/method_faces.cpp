@@ -344,3 +344,52 @@ void _ZN18TextureTransformer6UpdateER15ModelComponents(void *self, void *mc)
 { ((TextureTransformer *)self)->TextureTransformer::Update(
       *(ModelComponents *)mc); }
 }
+
+/* ---- gate 18: ov085's two classes ---------------------------------------
+   Two C-named references onto method definitions, same shape as gate 17's.
+   Rabbit::Behavior and both CleanupResources/OnPendingDestroy are already
+   C-named in src, so only the two InitResources need a face.
+   BOTH RENDERS ARE HOST COPIES, not faces: each dispatches slot 5 of its own
+   ModelAnim through a local shadow class, which is ROM numbering where the
+   host array is MSVC's -- gate 17's Bird/FLAG case with a body attached.
+   port/unmatched/Ov085_Renders.cpp. */
+#include "Rabbit.h"
+#include "LakituBro.h"
+extern "C" {
+int _ZN6Rabbit13InitResourcesEv(void *self)
+{ return ((Rabbit *)self)->Rabbit::InitResources(); }
+int _ZN9LakituBro13InitResourcesEv(void *self)
+{ return ((LakituBro *)self)->LakituBro::InitResources(); }
+}
+
+/* Three more C-named references onto method definitions, reached through
+   ov085's classes: the two Player talk-state reads the rabbit's caught
+   branch consults, and ModelAnim::Render with an explicit scale (which the
+   rabbit's Render helper passes -- the +0x80 Vector3, the ROM's own).
+   Actor::UpdateCarry is the fourth and it is NOT here: its definition
+   declares its own local `class Actor`, so the face has to be built against
+   a shadow rather than include/Actor.h. hal/reverse_bridges.cpp. */
+#include "ModelAnim.h"
+extern "C" {
+int _ZN6Player12GetTalkStateEv(void *self)
+{ return ((Player *)self)->Player::GetTalkState(); }
+int _ZN6Player18HasFinishedTalkingEv(void *self)
+{ return ((Player *)self)->Player::HasFinishedTalking(); }
+void _ZN9ModelAnim6RenderEPK7Vector3(void *self, const void *scale)
+{ ((ModelAnim *)self)->ModelAnim::Render((const Vector3 *)scale); }
+}
+
+/* The veneer at arm9 0x0203c178 is `ldr ip,[pc]; bx ip; .word 0x020527e9`
+   -- the low bit is the THUMB flag, not part of the address. The ROM symbol
+   is func_020527e8 (the 4x3 scale-matrix builder, hosted in
+   hal/model_host.cpp); the odd spelling is what the veneer's own src file
+   declares. */
+#pragma comment(linker, "/alternatename:_func_020527e9=_func_020527e8")
+
+/* Sound::PlaySub reached as a NAMESPACE free function: func_ov085_0212de5c
+   declares `namespace Sound { void PlaySub(...); }` where every other caller
+   uses the Itanium C name. Both are __cdecl with the same five stack
+   arguments and the ov085 caller discards the result, so the matched
+   src/_ZN5Sound7PlaySubEjjj5Fix12IiEb.cpp body serves it directly -- the
+   same reading cxx_aliases.cpp already takes for the `YAHIIIHH` variant. */
+#pragma comment(linker, "/alternatename:?PlaySub@Sound@@YAXIIIH_N@Z=__ZN5Sound7PlaySubEjjj5Fix12IiEb")
