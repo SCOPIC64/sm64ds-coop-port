@@ -3,7 +3,6 @@
 extern "C" {
 int MSG_GEN_TEXT_FUNCS[8];
 int VT1[8];
-int data_0209b0d8[8];
 int data_0209b454[8];
 int data_0209b490[8];
 int data_0209b494[8];
@@ -65,7 +64,6 @@ int data_0209d708[8];
 int data_0209d70c[8];
 int data_0209d710[8];
 int data_0209d74c[8];
-int data_0209ee90[8];
 int data_0209f204[8];
 int data_0209f20c[8];
 int data_0209f27c[8];
@@ -81,7 +79,6 @@ int data_0209f4a6[8];
    copies fields out after each CheckInput call (see walk_window) */
 int data_0209f498[24];
 int data_0209f350[8];
-int data_0209b078[8];
 int data_0209fc5c[8];
 int data_0209fc68[8];
 int data_020a0d84[8];
@@ -91,15 +88,13 @@ int data_020a0de8[8];
 int data_020a0de9[8];
 int data_020a0deb[8];
 int data_020a0e5a[8];
-int data_020a1052[8];
-int data_020a1164[8];
-int data_020a1166[8];
+/* data_020a1052 moved to hal/camera_bridges.cpp: it is a field INSIDE the
+   local comms record at data_020a1040, not storage of its own */
 int data_0209cab4[8];
 int data_0209d6f8[8];
 int data_0209e650[8];
 int data_0209f37c[8];
 int data_0209f40c[8];
-int data_0209b0a8[8];
 int data_0209f224[8];
 int data_0209b274[8];
 int data_0209b294[8];
@@ -124,29 +119,16 @@ int data_02099fb0[8];
 int data_0209d4ac[8];
 int data_020a4c64[8];
 int data_020a4c70[8];
-int data_0209b088[4];   /* Camera State object the slide path enters */
 /* tier-2 state wave: DeadHit/Hurt read this arm9 bss word */
 int data_0209f28c[8];
 /* tier-2 round 2: arm9 bss the death/hurt/quicksand ring reads */
-int data_0209b018[8];
-int data_0209b038[8];
-int data_0209b048[8];
-int data_0209b058[8];
-int data_0209b068[8];
-int data_0209b098[8];
-int data_0209b108[8];
-int data_0209b128[8];
 int data_0209b4b0[8];
 int data_0209f330[8];
-int data_0209b028[8];
 int data_0209b470[8];
 int data_0209b474[8];
-int data_0209f354[8];
-int data_0209f43c[8];
 /* ov100 (the message-box overlay) bss reached from St_Talk_Main; bss is
    zero at load, so host storage is the whole of it. */
 int data_ov100_02148708[8];
-int data_0209f314[8];
 int data_020a4bf8[8];
 int data_020a4c18[8];
 /* death states: KillPlayer's remaining-lives byte, and the pending-scene

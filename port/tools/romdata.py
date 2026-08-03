@@ -53,7 +53,6 @@ NAMED = [
     "data_0208f174",
     "data_020756b0",   # D-pad direction -> binang table (Stage::CheckInput)
     "data_0209214c",   # per-mode button remap pointer table (CheckInput)
-    "data_02086fcc",   # func_0200cb58 table (state-family ring)
     # tier-2 state wave: fader/level/message tables
     "data_02086f20",
     "data_0208e420",
@@ -61,16 +60,47 @@ NAMED = [
     "data_0208eeee",
     "data_02086f14",
     "data_02086f2c",
-    "data_0208715c",
     # death states: SetNextLevel's sublevel -> (next level, entrance) table
     "data_02075638",
     "data_02092664",   # Scene::SetSceneToSpawn's pending-scene ID
     "data_020889b0",   # func_0200ee68's demo/cutscene flag block (NoControl)
     "data_020755bc",   # character -> wipe type (StartExitCharacterWipe)
+    # gate 13, the real Camera: the constant vectors the follow chain reads.
+    # The mode-preset table itself is a CONTIG run, not a NAMED entry.
+    "CAM_SPACE_CAM_POS_ASR_3",   # camera-space eye offset, Behavior's weather
+    "data_02086efc",   # up vector {0, 0x1000, 0}    -- Render's LookAt_
+    "data_02086f08",   # {0, 0, -0x1000}, the degenerate-look fallback
+    "data_02086f38",   # per-level XZ bounds, low
+    "data_02086f48",   # per-level XZ bounds, high
+    "data_02086cc8",
+    "data_02086d50",
+    "data_02086e84",
+    "data_02086f58",
+    "data_02086e90", "data_02086e9c", "data_02086ea8", "data_02086eb4",
+    "data_020874f4",   # first record past the mode table
 ]
 
 
-def named_entries(root):
+# Address RUNS whose symbols must stay adjacent in host memory because the
+# ROM code walks ACROSS the symbol boundaries. func_0200cb58 sets the camera's
+# mode pointer to `index * 0x28 + &data_02086fcc`, and Camera::Behavior /
+# Camera::Render then compare that pointer against &data_0208733c and
+# &data_0208738c -- symbols 15 and 18 records further along. Emitted as one
+# array per symbol is byte-correct but places them at unrelated addresses, so
+# every mode past the first reads garbage and no comparison can ever hold.
+#
+# MSVC grouped sections put them back together: the linker concatenates
+# contributions to `.name$suffix` sorted by the full section name, so one
+# $NNN per symbol in address order lays the run out in ROM order. Every delta
+# in these runs is a multiple of 8, so align(8) packs with no interior
+# padding. (romdata_contig_check() in the HAL asserts the result at runtime.)
+CONTIG = [
+    # the camera-mode preset table: 33 records of 0x28, 0x528 total
+    ("cammod", 0x02086FCC, 0x020874F4),
+]
+
+
+def symbol_table(root):
     import re
     syms = []
     for line in (root / "config/arm9/symbols.txt").read_text().splitlines():
@@ -78,9 +108,35 @@ def named_entries(root):
         if m:
             syms.append((int(m.group(2), 16), m.group(1)))
     syms.sort()
+    return syms
+
+
+def contig_entries(syms):
+    """[(tag, [(name, addr, size), ...])] for every run in CONTIG."""
+    runs = []
+    for tag, start, end in CONTIG:
+        members = [(a, n) for a, n in syms if start <= a < end]
+        out = []
+        for i, (a, n) in enumerate(members):
+            nxt = members[i + 1][0] if i + 1 < len(members) else end
+            size = nxt - a
+            if size % 8:
+                sys.exit(f"{tag}: {n} is {size:#x} bytes, not a multiple of 8 "
+                         "-- ordered sections would pad and break the run")
+            out.append((n, a, size))
+        if not out or out[0][1] != start:
+            sys.exit(f"{tag}: no symbol at the run start {start:#x}")
+        runs.append((tag, out))
+    return runs
+
+
+def named_entries(root, syms):
     addr_of = {n: a for a, n in syms}
+    contig_names = {n for _, mem in contig_entries(syms) for n, _, _ in mem}
     out = []
     for name in NAMED:
+        if name in contig_names:
+            continue   # the run owns it
         a = addr_of[name]
         nxt = next((s for s, _ in syms if s > a), a + 4)
         out.append((name, a, max(4, nxt - a)))
@@ -118,13 +174,34 @@ def main():
         body = ", ".join(str(v) for v in vals)
         lines.append(f"{ctype} {name}[{len(vals)}] = {{ {body} }};")
         lines.append("")
-    for name, addr, size in named_entries(root):
+    syms = symbol_table(root)
+    for name, addr, size in named_entries(root, syms):
         if addr + size > BSS_START:
             size = BSS_START - addr
         blob = data[addr - BASE:addr - BASE + size]
         body = ",".join(str(b) for b in blob)
         lines.append(f"__declspec(align(8)) unsigned char {name}[{size}] = "
                      f"{{ {body} }};")
+    lines.append("")
+
+    # Grouped-section runs (see CONTIG).
+    for tag, members in contig_entries(syms):
+        lines.append(f"/* run .{tag}: {members[0][1]:#010x} .. "
+                     f"{members[-1][1] + members[-1][2]:#010x}, "
+                     f"{len(members)} symbols, laid out in ROM order */")
+        for i, (name, addr, size) in enumerate(members):
+            sec = f".{tag}${i:04d}"
+            lines.append(f'#pragma section("{sec}", read, write)')
+            blob = data[addr - BASE:addr - BASE + size]
+            body = ",".join(str(b) for b in blob)
+            lines.append(f'__declspec(allocate("{sec}")) __declspec(align(8)) '
+                         f"unsigned char {name}[{size}] = {{ {body} }};")
+        first, last = members[0], members[-1]
+        lines.append(f"unsigned {tag}_run_base = (unsigned)&{first[0]}[0];")
+        lines.append(f"unsigned {tag}_run_end = (unsigned)&{last[0]}[0] + "
+                     f"{last[2]};")
+        lines.append(f"unsigned {tag}_run_span = "
+                     f"{members[-1][1] + members[-1][2] - members[0][1]};")
     lines.append("")
 
     # The archive-mount table at data_0208ecf4: 13 entries of

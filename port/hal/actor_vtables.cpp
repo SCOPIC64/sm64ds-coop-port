@@ -294,7 +294,9 @@ short SUBLEVEL_LEVEL_TABLE[64];
 int data_020991d8[8], data_02099264[8], data_02099274[8];
 int data_02099338[8], data_02099348[8], data_02099358[8], data_02099368[8];
 int data_020994cc[8], data_02099fa4[4], data_02099fa8[4], data_02099fac[4];
-int data_0209b008[8], data_0209b478[8], data_0209b484[4], data_0209b488[4];
+/* data_0209b008 moved to hal/camera_states.cpp: it is the first of the 19
+   camera State objects, and the whole run has to carry the DS fn addresses */
+int data_0209b478[8], data_0209b484[4], data_0209b488[4];
 int data_0209b498[8], data_0209b53c[8], data_0209d574[8];
 int data_0209f310[8], data_020a0f10[8], data_020a4bec[8];
 /* data_0209f340 is a POINTER to the camera-preferences block, set by the
