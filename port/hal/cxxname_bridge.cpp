@@ -176,29 +176,33 @@ extern "C" int port_actor_bucket_depth;
 int port_actor_bucket_depth;
 extern "C" int data_0209b3ec[12];       /* the view matrix Model::Render composes with */
 
-/* The two halves of the conversion are not the same number, because the
-   harness's world-unit convention is not a uniform scale of the ROM's.
-   TRANSLATION is x8 -- world = scene << 3, and that is all.
-   ROTATION carries the model's own BMD scale as well, which on the ROM lives
-   in the part walk's MTX_SCALE and in the port is folded into the model matrix
-   instead: hal_render_model computes exactly `0x1000 << (shift + 10)` from the
-   BMD header's first word and the castle stands at the right size against
-   Mario because of it. An actor's Render leaves its rotation rows at 1.0, so
-   the same factor applies here, read from this model's own file rather than
-   assumed. */
-static int mv_model_scale(Model *m)
-{
-    const BMD_File *f = m->data.modelFile;
-    int shift = f ? *(const int *)f : 0;
-    if (shift < 0 || shift > 8)
-        shift = 0;
-    return 1 << (shift + 10);
-}
-static void mv_convert_matrix(void *mm, int rot)
+/* THE CONVERSION IS ONE NUMBER, AND IT IS 8. world = scene << 3, in every
+   row of every matrix in the pass.
+   The earlier reading put the model's BMD scale into the ROTATION rows as
+   `1 << (shift + 10)` -- the factor hal_render_model uses for the LEVEL --
+   and left translation at x8. That was never exercised: the Tree is the
+   first actor with geometry, and it disproves the factor twice over.
+   * func_02044534, the BILLBOARD part walk, NORMALIZES the rotation it is
+     handed (NormalizeVec3 divides every row back to 1.0) before scaling it
+     by the render's scale vector. Anything folded into the rotation rows is
+     divided straight back out, so a billboard came out in SCENE units inside
+     a world-unit frame -- 8x too small -- no matter what the factor was.
+   * The same walk squares two rotation entries (`mp->r1.x * mp->r1.x + ...`
+     against 0x4000) in 32-bit ints. At 1<<(shift+10) those entries are
+     ~0x4000000 and the square overflows to nonsense, so which billboard axis
+     the part walk picks was decided by wraparound. At x8 the largest possible
+     sum is exactly 2^30 and the test means what the ROM meant.
+   So the model matrix keeps the rotation rows the actor's own Render wrote
+   (1.0, the ROM's convention) and the x8 travels the way the ROM's own code
+   already carries a scale: the Vector3 scale argument of Model::Render. The
+   part walk spends it as MTX_SCALE on ordinary parts and as the billboard's
+   axis length on billboards, which is the one place a billboard can be
+   scaled at all. */
+enum { MV_SCENE_TO_WORLD = 8 };
+static void mv_convert_matrix(void *mm)
 {
     int *p = (int *)mm;
-    for (int i = 0; i < 9; ++i) p[i] *= rot;
-    for (int i = 9; i < 12; ++i) p[i] *= 8;
+    for (int i = 9; i < 12; ++i) p[i] *= MV_SCENE_TO_WORLD;
 }
 
 static void __fastcall mv_updateverts(void *self, void *)
@@ -212,12 +216,23 @@ static void __fastcall mv_render(void *self, void *, const void *s)
         int save[12], vsave[3];
         memcpy(save, &m->mat4x3, sizeof save);
         memcpy(vsave, data_0209b3ec + 9, sizeof vsave);
-        mv_convert_matrix(&m->mat4x3, mv_model_scale(m));
+        mv_convert_matrix(&m->mat4x3);
         for (int i = 9; i < 12; ++i) data_0209b3ec[i] *= 8;
+        /* the scene->world factor, spent through the ROM's own scale
+           argument; an actor that asked for a scale of its own gets that
+           scale converted rather than replaced */
+        Vector3 wscale = {0x1000 * MV_SCENE_TO_WORLD,
+                          0x1000 * MV_SCENE_TO_WORLD,
+                          0x1000 * MV_SCENE_TO_WORLD};
+        if (s) {
+            const int *sv = (const int *)s;
+            int *wv = (int *)&wscale;
+            for (int i = 0; i < 3; ++i) wv[i] = sv[i] * MV_SCENE_TO_WORLD;
+        }
         /* SM64DS_TRACE_ACTOR_MAT=1: the converted model matrix, the BMD
-           header the rotation factor came out of, and the bone transform the
-           shape walk composes with. This is the trace that found the
-           collapsed-geometry wall documented above the bucket. */
+           header behind it, and the bone transform the shape walk composes
+           with. This is the trace that found the collapsed-geometry wall
+           documented above the bucket. */
         if (getenv("SM64DS_TRACE_ACTOR_MAT")) {
             const unsigned char *bf = (const unsigned char *)m->data.modelFile;
             const int *q = (const int *)&m->mat4x3;
@@ -232,7 +247,7 @@ static void __fastcall mv_render(void *self, void *, const void *s)
                         "%d %d %d\n", bt[0], bt[1], bt[2], bt[3], bt[4], bt[5],
                         bt[6], bt[7], bt[8], bt[9], bt[10], bt[11]);
         }
-        m->Model::Render((const Vector3 *)s);
+        m->Model::Render(&wscale);
         memcpy(data_0209b3ec + 9, vsave, sizeof vsave);
         memcpy(&m->mat4x3, save, sizeof save);
         return;

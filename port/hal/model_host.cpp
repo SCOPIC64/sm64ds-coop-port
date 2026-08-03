@@ -159,18 +159,29 @@ void *_ZTV16MeshColliderBase[13];   /* base: never dispatched in the gates */
 unsigned char data_020a0c78[8]; /* the default CLPS ENTRY (8-byte storage,
                                    func_02037e9c fills it on first lookup) */
 
-// BSS globals of the render/animation walk (0x02099xxx is past bss_start;
-// their DS values come from init code not yet in any slice):
-// - data_02099f80/f84: 3-byte weight tables for the BCA keyframe samplers.
-//   The interpolation is (lo*frac + hi*rem) over 2^shift steps and frac
-//   starts at b[shift] minus the step remainder, so b[shift] = 1 << shift.
-//   b[0] is unreachable (shift==0 early-returns).
-// - data_02099f88/f94: constants of the texture-matrix material path,
-//   zero until the GX-init that writes them joins a slice.
-unsigned char data_02099f80[4] = { 1, 2, 4, 0 };
-unsigned char data_02099f84[4] = { 1, 2, 4, 0 };
-int data_02099f88[3];
-unsigned short data_02099f94[8];
+// 0x02099f80..0x02099f94 USED TO LIVE HERE, on the reading that 0x02099xxx
+// was past bss_start and so runtime-initialized. It is not: the arm9's real
+// bss_start is 0x0209b000 (extracted/dsd/arm9/arm9.yaml, and
+// config/arm9/delinks.txt's .data/.bss split), so all four symbols are
+// ordinary initialized .data and now come from port/tools/romdata.py.
+//
+// The correction is not cosmetic. data_02099f88 is the DEFAULT SCALE VECTOR
+// func_02044534 copies when Model::Render is called with no scale argument,
+// and the billboard part walk multiplies its whole 3x3 through it:
+//
+//     m.r2 = {0, 0, dir->z}
+//     m.r1.x = FIXMUL(normalized r1.x, dir->x)   ... and so on
+//
+// Zeroed, that 3x3 comes out all zeros, the MTX_MULT_3x3 it feeds wipes the
+// rotation out of the position matrix, and every vertex of a billboard model
+// projects to the model's translation point -- the castle grounds' trees,
+// drawn as one degenerate triangle each. The ROM's value is
+// {0x1000, 0x1000, 0x1000}: unit scale.
+//
+// The two weight tables that were reconstructed here by hand -- b[shift] =
+// 1 << shift for the BCA keyframe samplers -- read back from the ROM as
+// {1, 2, 4, 0}, exactly what was reconstructed. That agreement is what
+// proves the new section boundary rather than merely asserting it.
 
 } /* extern "C" */
 

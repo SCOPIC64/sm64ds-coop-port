@@ -16,8 +16,19 @@ import sys
 # @0x0205a754). extracted/dsd/arm9/arm9.bin is the COMPRESSED payload
 # (arm9.yaml: compressed true) and must not be read directly. Addresses at
 # or past bss_start are runtime-initialized and belong in the HAL.
+#
+# BSS_START WAS 0x02094640 AND THAT WAS TOO LOW BY 0x69c0, which quietly
+# pushed a whole run of file-backed .data into the HAL as zeroed storage.
+# The ROM settles it twice over: extracted/dsd/arm9/arm9.yaml records
+# bss_start 34162240 = 0x0209b000, and config/arm9/delinks.txt lays the
+# sections out as .data 0x02086bc0..0x0209b000, .bss 0x0209b000..0x020aa420.
+# The image itself reaches 0x020a0f78, so every address below 0x0209b000 has
+# real bytes behind it. Two of the symbols the old boundary excluded had
+# already been reconstructed by hand in port/hal/model_host.cpp, and the ROM
+# bytes agree with both reconstructions exactly -- which is the check that
+# the new boundary is the right one.
 BASE = 0x02004000
-BSS_START = 0x02094640
+BSS_START = 0x0209B000
 
 # (symbol address, byte length, C element type). BSS addresses do not belong
 # here -- they are runtime-initialized and live in the HAL as storage.
@@ -85,6 +96,14 @@ NAMED = [
     "Camera_SpawnInfo",
     # sublevel -> level-part table (GetLevelPart, the death-table index)
     "data_02075264",
+    # The model-walk constants the old BSS boundary hid. data_02099f88 is the
+    # DEFAULT SCALE VECTOR {0x1000, 0x1000, 0x1000} func_02044534 copies when
+    # Render is given no scale argument; with it zeroed the billboard part
+    # walk builds an all-zero 3x3 and every vertex of every billboard model
+    # lands on the model's translation point.
+    "data_02099f80", "data_02099f84",   # BCA keyframe weight tables
+    "data_02099f88",                    # billboard/part-walk default scale
+    "data_02099f94",                    # texture-matrix size table
 ]
 
 
