@@ -184,3 +184,12 @@ int Player::St_YoshiPower_Main()
    real method. Forward C name -> method (no face the other way). */
 extern "C" int _ZN6Player9DropActorEv(void *self)
 { return ((Player *)self)->Player::DropActor(); }
+
+/* gate 14: the init chain the actor spawn spine dispatches. Both are real
+   __thiscall methods, so a linker alias onto the Itanium name their .c
+   callers use would enter the body with `this` in whatever ecx held. */
+extern "C" int _ZN5Actor18GetBitInDeathTableEv(void *self)
+{ return ((Actor *)self)->Actor::GetBitInDeathTable(); }
+extern "C" void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a)
+{ ((Actor *)self)->Actor::AfterInitResources(a); }
+

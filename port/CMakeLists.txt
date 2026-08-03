@@ -542,7 +542,8 @@ foreach(src IN LISTS SLICE10_SOURCES)
     # reaches them (port/unmatched/ActorDerived_Spawn.cpp, PathPtr_FromID.cpp)
     if(src MATCHES "/_ZN12ActorDerived5SpawnEjP9ActorBaseii\\.cpp$"
        OR src MATCHES "/func_02042ffc\\.c$"
-       OR src MATCHES "/_ZN7PathPtr6FromIDEj\\.cpp$")
+       OR src MATCHES "/_ZN7PathPtr6FromIDEj\\.cpp$"
+       OR src MATCHES "/func_0204335c\\.c$")
         continue()
     endif()
     list(APPEND SLICE10_CAM_SOURCES "${src}")
@@ -550,7 +551,9 @@ endforeach()
 
 set(LEVELBOOT_HOST_SOURCES
     unmatched/ActorDerived_Spawn.cpp
-    unmatched/PathPtr_FromID.cpp)
+    unmatched/PathPtr_FromID.cpp
+    unmatched/func_0204335c.cpp
+    unmatched/func_ov002_020c6f3c.cpp)
 
 set(CAMERA_HOST_SOURCES
     unmatched/ChangeArea.c
@@ -595,6 +598,26 @@ foreach(src IN LISTS SLICE9_SOURCES)
     list(APPEND SLICE9_CAM_SOURCES "${src}")
 endforeach()
 
+# Gate 14: two more C++-in-a-.c files (the gate-9 case): Actor's
+# AfterInitResources, which the spawn spine's init Process dispatches, and
+# StartEntranceFaderWipe's sibling already in GATE10_SYMS.
+set(GATE14_SYMS _ZN5Actor18AfterInitResourcesEj func_ov002_020c6fe4)
+set(GATE14_GEN "")
+foreach(sym IN LISTS GATE14_SYMS)
+    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+    else()
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
+    endif()
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND GATE14_GEN "${sym_out}")
+endforeach()
+
 # Gate 14: the real level boot. Stage::LoadClsnAndObjects over ov009's own
 # LVL_Overlay, the fifteen sub-loaders, and the setters they store through.
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate14.txt" SLICE14_LINES)
@@ -622,7 +645,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} ${GATE10_GEN}
-    ${GATE13_GEN}
+    ${GATE13_GEN} ${GATE14_GEN}
     "${ROMDATA_C}")
 target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -645,7 +668,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} ${GATE10_GEN}
-    ${GATE13_GEN}
+    ${GATE13_GEN} ${GATE14_GEN}
     "${ROMDATA_C}")
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -671,7 +694,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} ${GATE10_GEN}
-    ${GATE13_GEN}
+    ${GATE13_GEN} ${GATE14_GEN}
     "${ROMDATA_C}")
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"

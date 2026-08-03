@@ -713,3 +713,10 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    kuppa tail; LoadGroupAndSetBank is the mirror case one call deeper. */
 #pragma comment(linker, "/alternatename:__ZN5Sound16LoadInitialGroupEi=?LoadInitialGroup@Sound@@SAXH@Z")
 #pragma comment(linker, "/alternatename:?LoadGroupAndSetBank@Sound@@SAXHH@Z=__ZN5Sound19LoadGroupAndSetBankEii")
+/* gate 14, stage A2: the entrance step handlers. 020c71e0's own TU spells it
+   as a C name while 020c72a4's declares it without extern "C". */
+#pragma comment(linker, "/alternatename:?func_ov002_020c71e0@@YAXPAX@Z=_func_ov002_020c71e0")
+/* NOT aliases: Actor::GetBitInDeathTable and Actor::AfterInitResources are
+   real MSVC methods, so their C-named callers would enter a __thiscall body
+   through a cdecl call and read `this` out of ecx garbage. Both get faces in
+   hal/level_boot.cpp instead. */

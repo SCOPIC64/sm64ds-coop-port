@@ -90,7 +90,8 @@ int data_020a0deb[8];
 int data_020a0e5a[8];
 /* data_020a1052 moved to hal/camera_bridges.cpp: it is a field INSIDE the
    local comms record at data_020a1040, not storage of its own */
-int data_0209cab4[8];
+/* data_0209cab4 moved to hal/level_boot.cpp: it is the second symbol of
+   the save block, which the entrance loader reads across */
 int data_0209d6f8[8];
 int data_0209e650[8];
 int data_0209f37c[8];
@@ -139,6 +140,18 @@ int data_0209f5b8[8];
    LoadGroupAndSetBank reads (dead on the port's boot, live at link time) */
 int data_0209b47c[8];
 int data_0209b4a8[8];
+/* gate 14 A2: the entrance step handlers' own bss, arm9 and ov002. bss is
+   zero at load, so host storage is the whole of it. */
+int data_0209f2bc[8];
+int data_0209f2ac[8];
+int data_0209f4f8[16];   /* the per-level death table */
+int data_ov002_0210e14c[8];
+int data_ov002_0210f350[8];
+int data_ov002_0210f3b0[8];
+/* ov089 (the rabbit overlay) animation-file table: three pointers the port
+   never mounts, so the step-1 branch that reaches it finds nulls rather than
+   a stranger's bytes. */
+int data_ov089_02132880[8];
 }
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */

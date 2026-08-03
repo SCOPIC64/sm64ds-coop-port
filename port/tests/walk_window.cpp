@@ -196,6 +196,7 @@ void port_ov009_probe(void);
 void *port_stage_a_boot(void *mc, int spawn_entrances);
 void port_stage_a_probe(void *mc);
 int port_stage_path_guard(void *player);
+void port_stage_a2_seat(void);
 }
 
 #ifdef NTR_HIRES
@@ -315,15 +316,24 @@ int main(void)
     __sinit_ov002_0210804c(); __sinit_ov002_02108094();
 
     /* SM64DS_REAL_BOOT=1: the game's own level boot instead of the harness
-       staging -- ov009 mounted, Stage::LoadClsnAndObjects run against it. */
+       staging -- ov009 mounted, Stage::LoadClsnAndObjects run against it, and
+       the level's own entrance record spawning the Player and the Camera.
+       SM64DS_BOOT_NOSPAWN=1 holds the entrance table off, which is stage A1:
+       the same boot with nothing spawning, geometry in isolation. */
     const int real_boot = getenv("SM64DS_REAL_BOOT") != 0;
+    const int boot_spawns = real_boot && getenv("SM64DS_BOOT_NOSPAWN") == 0;
     if (real_boot)
         port_ov009_probe();
 
     data_02092144[0] = 8 << 8;
-    data_020a4b54 = 0;
-    static unsigned short spawn_info[4] = {0, 0, 100, 100};
-    data_020a4bb8[0] = spawn_info;
+    if (!boot_spawns) {
+        /* the fake spawn context: actor id 0 with invented priorities, which
+           is what the hand-built Player was constructed under. The real boot
+           reads the ROM's own SpawnInfo out of the registry instead. */
+        data_020a4b54 = 0;
+        static unsigned short spawn_info[4] = {0, 0, 100, 100};
+        data_020a4bb8[0] = spawn_info;
+    }
     data_020a0eac_c = data_020a0ea0;
 
     /* Game mode 0 (adventure) -- LoadClsnAndObjects branches its minimap
@@ -340,17 +350,33 @@ int main(void)
     g_mc = mc_storage;
     _ZN12MeshColliderC1Ev(mc_storage);
     if (real_boot) {
-        /* Stage A1: geometry only. The entrance, door and exit tables are
-           zeroed in the host copy of the overlay and the sub-table is
-           dropped, so nothing spawns; everything else is the real boot. */
-        void *lvl = port_stage_a_boot(mc_storage, 0);
+        /* Door and exit stay off in both stages -- their actors are Stage B.
+           With SM64DS_BOOT_NOSPAWN the entrance table goes off too and the
+           sub-table is dropped, which is stage A1: geometry only. */
+        if (boot_spawns)
+            port_stage_a2_seat();
+        void *lvl = port_stage_a_boot(mc_storage, boot_spawns);
         level_bmd = *(unsigned short *)((char *)lvl + 8);
         port_stage_a_probe(mc_storage);
     }
 
-    void *player = _ZN9ActorBasenwEj(0x800);
-    _ZN6PlayerC1Ev(player);
-    if (hal_player_init_resources(player) != 1) return 3;
+    void *player;
+    if (boot_spawns) {
+        /* THE ENTRANCE SPAWNED HIM. data_0209f394[0] is where
+           LoadEntranceObjects parked the actor it made from entrance record
+           0 -- position, rotation, area and entrance type all the level's
+           own, and Player::InitResources already run through the spawn
+           spine's init Process. */
+        player = data_0209f394[0];
+        if (!player) {
+            fprintf(stderr, "the entrance spawned no player\n");
+            return 3;
+        }
+    } else {
+        player = _ZN9ActorBasenwEj(0x800);
+        _ZN6PlayerC1Ev(player);
+        if (hal_player_init_resources(player) != 1) return 3;
+    }
 
     /* the castle grounds floor, gate-8 recipe */
     char *c = (char *)player;
@@ -393,13 +419,31 @@ int main(void)
     }
     /* the octree box is power-of-two PADDED (its center is way off the
        real stage); the geometry lives near the origin, so spawn there,
-       a few units up -- the first frames drop him onto the lawn */
+       a few units up -- the first frames drop him onto the lawn.
+       Under the entrance boot there is nothing to invent: the level's own
+       entrance record already put him at the castle gate, and SM64DS_SPAWN
+       is the only way to move him. */
     {
         const char *sp = getenv("SM64DS_SPAWN");
         if (sp) sscanf(sp, "%d,%d,%d", &spawn_x, &spawn_y, &spawn_z);
-        *(int *)(c + 0x5c) = spawn_x << 12;
-        *(int *)(c + 0x60) = spawn_y << 12;
-        *(int *)(c + 0x64) = spawn_z << 12;
+        if (sp || !boot_spawns) {
+            *(int *)(c + 0x5c) = spawn_x << 12;
+            *(int *)(c + 0x60) = spawn_y << 12;
+            *(int *)(c + 0x64) = spawn_z << 12;
+        } else {
+            spawn_x = *(int *)(c + 0x5c) >> 12;
+            spawn_y = *(int *)(c + 0x60) >> 12;
+            spawn_z = *(int *)(c + 0x64) >> 12;
+        }
+        printf("player at (%d, %d, %d) yaw %04x state %p step %u/%u "
+               "path %02x\n",
+               *(int *)(c + 0x5c) >> 12, *(int *)(c + 0x60) >> 12,
+               *(int *)(c + 0x64) >> 12,
+               (unsigned short)*(short *)(c + 0x8e), *(void **)(c + 0x370),
+               *(unsigned char *)(c + 0x6e3), *(unsigned char *)(c + 0x6e5),
+               *(unsigned *)(c + 0x670));
+        if (getenv("PORT_WATCH_POS"))
+            port_watch_words(c + 0x5c, 3);
     }
     /* the level model: main_castle_all.bmd -- handle 1943 by hand, and under
        the real boot the LVL_Overlay's own bmdFileId, which is the same 1943
@@ -486,10 +530,15 @@ int main(void)
         for (int i = 0; i < 4; ++i)
             ((unsigned short **)data_0209214c)[i] = zero_btn_map;
     }
-    /* InitResources parked the state machine in St_LevelEnter (a no-op
-       until a real level boot); clear it so the wait ticks drive until the
-       first stick input ChangeStates into walk -- the smoke's proven flow */
-    *(void **)(c + 0x370) = 0;
+    /* InitResources parked the state machine in St_LevelEnter, which was a
+       no-op state under the fake spawn context: its entrance-anim table read
+       junk and its Main was not hosted. Clearing it let the wait ticks drive
+       until the first stick input. Under the entrance boot the park is
+       CORRECT -- the level's own entrance record chose the state and its
+       step -- so it stands, and St_LevelEnter runs the entry animation until
+       it hands over to Wait. */
+    if (!boot_spawns)
+        *(void **)(c + 0x370) = 0;
     /* no path binding: the level spawn entry's path param, 0xff = none.
        The fake spawn context zero-fills it, and path 0 sends the real
        ground tracking into PathPtr walks over a table no level boot has
@@ -499,7 +548,8 @@ int main(void)
         *(unsigned int *)(c + 0x670) = 0xff;
     if (getenv("PORT_WATCH_HEAD"))
         port_watch_words(data_0209b468, 4);
-    hal_player_st_wait_init(player);
+    if (!boot_spawns)
+        hal_player_st_wait_init(player);
 
     /* ---- the real Camera actor (gate 13) -----------------------------
        The default since the camera came up clean over 400 frames.
@@ -513,7 +563,21 @@ int main(void)
        so nothing reaches a half-initialized camera. */
     void *cam = 0;
     const int real_camera = getenv("SM64DS_OLD_CAMERA") == 0;
-    if (real_camera) {
+    if (boot_spawns) {
+        /* THE ENTRANCE SPAWNED IT TOO. LoadEntranceObjects finishes by
+           spawning actor 0x14c with the entrance id it just read and parking
+           the result in data_0209f318, which is exactly what the block below
+           did by hand -- vtable, spawn context, InitResources, arm. */
+        cam = data_0209f318;
+        if (!cam) {
+            fprintf(stderr, "the entrance spawned no camera\n");
+            return 5;
+        }
+        printf("camera at %p (entrance-spawned), mode %p, state %p, fov %d\n",
+               cam, *(void **)((char *)cam + 0x13c),
+               *(void **)((char *)cam + 0x138),
+               *(short *)((char *)cam + 0x17a));
+    } else if (real_camera) {
         /* engine state the camera boot reads. All of it is what a level
            with no Stage loader looks like: no view objects, no weather,
            no area shown yet, the local player at index 0. */
@@ -758,6 +822,17 @@ int main(void)
             fprintf(stderr, "[dump] slots:");
             for (int i = 0; i < 8; ++i)
                 fprintf(stderr, " %p", data_020a0c80[i]);
+            fprintf(stderr, "\n[dump] cylinder c+0x2d4 (the CylinderClsn "
+                    "Behavior hands UpdatePos):\n");
+            for (int off = 0; off < 0x40; off += 16) {
+                fprintf(stderr, "  +%03x:", 0x2d4 + off);
+                for (int k = 0; k < 4; ++k)
+                    fprintf(stderr, " %08x",
+                            *(unsigned *)(c + 0x2d4 + off + 4 * k));
+                fprintf(stderr, "\n");
+            }
+            fprintf(stderr, "[dump] speed c+0xa4: %d %d %d\n",
+                    *(int *)(c + 0xa4), *(int *)(c + 0xa8), *(int *)(c + 0xac));
             fprintf(stderr, "\n[dump] wmc c+0x380:\n");
             for (int off = 0; off < 0xa0; off += 16) {
                 fprintf(stderr, "  +%03x:", 0x380 + off);
@@ -781,6 +856,15 @@ int main(void)
            owns the frame once the state machine is live */
         if (selftest && frame == 0)
             fprintf(stderr, "[w] tick st=%p\n", *(void **)(c + 0x370));
+        if (selftest && frame < 2 && getenv("SM64DS_TRACE_SURF"))
+            fprintf(stderr, "[pre%03d] pos=(%.1f,%.1f,%.1f) speed=(%d,%d,%d) "
+                    "horz=%d ang=%04x step=%u/%u timer=%u\n", frame,
+                    *(int *)(c + 0x5c) / 4096.0f, *(int *)(c + 0x60) / 4096.0f,
+                    *(int *)(c + 0x64) / 4096.0f, *(int *)(c + 0xa4),
+                    *(int *)(c + 0xa8), *(int *)(c + 0xac), *(int *)(c + 0x98),
+                    (unsigned short)*(short *)(c + 0x8e),
+                    *(unsigned char *)(c + 0x6e3), *(unsigned char *)(c + 0x6e5),
+                    *(unsigned short *)(c + 0x6a6));
         if (*(void **)(c + 0x370))
             hal_player_behavior(player);
         else
@@ -820,9 +904,11 @@ int main(void)
                     bh = (bh ^ bb[k]) * 16777619u;
             }
             fprintf(stderr,
-                    "[f%03d] y=%.2f spd=%d st=%08x mag=%d body=%u "
-                    "anim(len=%u fl=%u cur=%.1f) bones=%08x path=%x\n",
-                    frame, *(int *)(c + 0x60) / 4096.0f, *(int *)(c + 0x98),
+                    "[f%03d] pos=(%.1f,%.1f,%.1f) spd=%d st=%08x mag=%d "
+                    "body=%u anim(len=%u fl=%u cur=%.1f) bones=%08x path=%x\n",
+                    frame, *(int *)(c + 0x5c) / 4096.0f,
+                    *(int *)(c + 0x60) / 4096.0f,
+                    *(int *)(c + 0x64) / 4096.0f, *(int *)(c + 0x98),
                     st ? *(unsigned *)st : 0u, *(short *)(data_0209f4a0 + 0),
                     bid, ma ? (*(unsigned *)(ma + 0x54)) & 0x3FFFFFFF : 0,
                     ma ? (*(unsigned *)(ma + 0x54)) >> 30 : 0,

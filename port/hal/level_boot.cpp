@@ -78,6 +78,30 @@ extern "C" void *port_ov009_mount(void)
 //
 // The table is hand-built rather than ovdata-mounted for the obvious reason:
 // its fifteen words are ov002 CODE addresses, meaningless on the host.
+/* Called on every sub-loader dispatch, which is the first point INSIDE
+   Stage::LoadClsnAndObjects at which host code runs: SetFile has just
+   configured the level collider and nothing has raycast against it yet.
+   That matters because of RISK 1 (see port_stage_a_boot). The entrance
+   loader spawns the Player, and St_LevelEnter_Init drops a ground ray to
+   find the floor under the gate -- with the collider still carrying
+   SetFile's 1.0 vectors the ray misses and he starts the level at
+   0x80000000.
+
+   SM64DS_TRACE_LOADERS=1 also names each loader as it runs, which is the
+   only window into the boot: everything inside it is matched src. */
+extern "C" void port_clsn_pair_apply(void);
+
+extern "C" void port_loader_enter(int idx, const void *tbl)
+{
+    port_clsn_pair_apply();
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_TRACE_LOADERS") != 0;
+    if (on)
+        std::printf("  [load] %2d count %u entries %p\n", idx,
+                    ((const unsigned char *)tbl)[1],
+                    *(const void *const *)((const char *)tbl + 4));
+}
+
 extern "C" {
 void _Z19LoadStandardObjectsRN11LVL_Overlay11ObjSubTableEij(void *, int, unsigned);
 void _Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij(void *, int, unsigned);
@@ -95,23 +119,57 @@ void _Z23LoadMinimapScaleObjectsRN11LVL_Overlay11ObjSubTableEij(void *, int, uns
 void _Z23LoadUnusedType13ObjectsRN11LVL_Overlay11ObjSubTableEij(void *, int, unsigned);
 void _Z21LoadStarCameraObjectsRN11LVL_Overlay11ObjSubTableEij(void *, int, unsigned);
 
+}  /* extern "C" */
+
+static void port_load0(void *t, int a, unsigned b)
+{ port_loader_enter(0, t); _Z19LoadStandardObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load1(void *t, int a, unsigned b)
+{ port_loader_enter(1, t); _Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load2(void *t, int a, unsigned b)
+{ port_loader_enter(2, t); _Z19LoadPathNodeObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load3(void *t, int a, unsigned b)
+{ port_loader_enter(3, t); _Z15LoadPathObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load4(void *t, int a, unsigned b)
+{ port_loader_enter(4, t); _Z15LoadViewObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load5(void *t, int a, unsigned b)
+{ port_loader_enter(5, t); _Z17LoadSimpleObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load6(void *t, int a, unsigned b)
+{ port_loader_enter(6, t); _Z25LoadTeleportSourceObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load7(void *t, int a, unsigned b)
+{ port_loader_enter(7, t); _Z23LoadTeleportDestObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load8(void *t, int a, unsigned b)
+{ port_loader_enter(8, t); _Z14LoadFogObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load9(void *t, int a, unsigned b)
+{ port_loader_enter(9, t); _Z15LoadDoorObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load10(void *t, int a, unsigned b)
+{ port_loader_enter(10, t); _Z15LoadExitObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load11(void *t, int a, unsigned b)
+{ port_loader_enter(11, t); _Z22LoadMinimapTileObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load12(void *t, int a, unsigned b)
+{ port_loader_enter(12, t); _Z23LoadMinimapScaleObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load13(void *t, int a, unsigned b)
+{ port_loader_enter(13, t); _Z23LoadUnusedType13ObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+static void port_load14(void *t, int a, unsigned b)
+{ port_loader_enter(14, t); _Z21LoadStarCameraObjectsRN11LVL_Overlay11ObjSubTableEij(t, a, b); }
+
+extern "C" {
 typedef void (*PortObjLoader)(void *, int, unsigned);
 PortObjLoader data_ov002_0210cbb8[32] = {
-    _Z19LoadStandardObjectsRN11LVL_Overlay11ObjSubTableEij,        /*  0 */
-    _Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij,        /*  1 */
-    _Z19LoadPathNodeObjectsRN11LVL_Overlay11ObjSubTableEij,        /*  2 */
-    _Z15LoadPathObjectsRN11LVL_Overlay11ObjSubTableEij,            /*  3 */
-    _Z15LoadViewObjectsRN11LVL_Overlay11ObjSubTableEij,            /*  4 */
-    _Z17LoadSimpleObjectsRN11LVL_Overlay11ObjSubTableEij,          /*  5 */
-    _Z25LoadTeleportSourceObjectsRN11LVL_Overlay11ObjSubTableEij,  /*  6 */
-    _Z23LoadTeleportDestObjectsRN11LVL_Overlay11ObjSubTableEij,    /*  7 */
-    _Z14LoadFogObjectsRN11LVL_Overlay11ObjSubTableEij,             /*  8 */
-    _Z15LoadDoorObjectsRN11LVL_Overlay11ObjSubTableEij,            /*  9 */
-    _Z15LoadExitObjectsRN11LVL_Overlay11ObjSubTableEij,            /* 10 */
-    _Z22LoadMinimapTileObjectsRN11LVL_Overlay11ObjSubTableEij,     /* 11 */
-    _Z23LoadMinimapScaleObjectsRN11LVL_Overlay11ObjSubTableEij,    /* 12 */
-    _Z23LoadUnusedType13ObjectsRN11LVL_Overlay11ObjSubTableEij,    /* 13 */
-    _Z21LoadStarCameraObjectsRN11LVL_Overlay11ObjSubTableEij,      /* 14 */
+    port_load0,        /*  0 */
+    port_load1,        /*  1 */
+    port_load2,        /*  2 */
+    port_load3,            /*  3 */
+    port_load4,            /*  4 */
+    port_load5,          /*  5 */
+    port_load6,  /*  6 */
+    port_load7,    /*  7 */
+    port_load8,             /*  8 */
+    port_load9,            /*  9 */
+    port_load10,            /* 10 */
+    port_load11,     /* 11 */
+    port_load12,    /* 12 */
+    port_load13,    /* 13 */
+    port_load14,      /* 14 */
     /* 15..31: the ROM's overrun, made explicit */
 };
 }  /* extern "C" */
@@ -205,6 +263,30 @@ int data_0209f338[4];        /* the unused type-13 word */
 extern unsigned char *data_0209f340;
 }  /* extern "C" */
 
+// ---- the save block, contiguous --------------------------------------------
+//
+// LoadEntranceObjects reads data_0209caa0[0x41]. The symbol dsd named
+// data_0209caa0 is 0x14 bytes; byte 0x41 lands inside data_0209cad2, two
+// symbols further on. That is the ordinary decomp shape -- one save-file
+// struct the delink split five ways at the boundaries code happened to
+// reference -- and separate host arrays make the read land on whatever the
+// linker put next.
+//
+// Grouped sections put them back in ROM order, the mechanism romdata.py uses
+// for the camera-mode table. Every delta here equals the symbol's own size
+// and all four are even, so align(2) packs with no interior padding.
+#define SAVEBLK(sec, name, size) \
+    __pragma(section(sec, read, write))                          \
+    extern "C" __declspec(allocate(sec)) __declspec(align(2))    \
+    unsigned char name[size] = {0}
+
+SAVEBLK(".savblk$0000", data_0209caa0, 0x14);
+SAVEBLK(".savblk$0001", data_0209cab4, 0x1e);
+SAVEBLK(".savblk$0002", data_0209cad2, 0x12);
+SAVEBLK(".savblk$0003", data_0209cae4, 0x10);
+
+#undef SAVEBLK
+
 // ---- Stage A ---------------------------------------------------------------
 //
 // A1 runs the real boot with every spawner switched off, so what it proves is
@@ -238,7 +320,6 @@ extern int data_0209f220[];          /* current star filter */
 extern int data_0209212c;            /* world Y max */
 extern int data_020a0d84[];          /* path table base (auto_bss) */
 extern int data_020a0d88[];          /* path node base (auto_bss) */
-extern int data_0209caa0[];          /* the save block; [2] bit 7 = intro seen */
 
 /* Loader indices, for the suppression masks. */
 enum {
@@ -247,9 +328,22 @@ enum {
     LOADER_EXIT = 10,
 };
 
+static void *g_stage_mc;
+
+/* The two-line convention documented below, applied wherever the boot first
+   hands control back to the host. Idempotent by construction. */
+void port_clsn_pair_apply(void)
+{
+    if (!g_stage_mc)
+        return;
+    *(int *)((char *)g_stage_mc + 0x2c) = 0x40000;   /* file -> world, 64.0 */
+    *(int *)((char *)g_stage_mc + 0x38) = 0x40;      /* world -> file, 1/64 */
+}
+
 /* SM64DS_REAL_BOOT stage selector: 1 = A1 (geometry only). */
 void *port_stage_a_boot(void *mc, int spawn_entrances)
 {
+    g_stage_mc = mc;
     PortLvlOverlay *o = (PortLvlOverlay *)port_ov009_mount();
 
     unsigned mask = (1u << LOADER_DOOR) | (1u << LOADER_EXIT);
@@ -275,11 +369,11 @@ void *port_stage_a_boot(void *mc, int spawn_entrances)
        Scoping it to the boot satisfies both while the Player is still the
        harness's (Stage A1). Stage C, which brings the sound seam, is where
        the bit gets to mean what it means. */
-    unsigned char intro_seen = (unsigned char)(data_0209caa0[2] >> 7) & 1;
-    data_0209caa0[2] |= 0x80;
+    unsigned char intro_seen = (unsigned char)(data_0209caa0[8] & 0x80);
+    data_0209caa0[8] |= 0x80;   /* word 2 bit 7: the intro has played */
     _ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR12MeshCollider(o, 0, mc);
     if (!intro_seen)
-        data_0209caa0[2] &= ~0x80;
+        data_0209caa0[8] &= ~0x80;
 
     /* RISK 1 RESOLVED (2026-08-03 pair A/B). The real SetFile leaves the
        collider's file<->world vectors at 1.0, and on the ROM that is right:
@@ -290,9 +384,223 @@ void *port_stage_a_boot(void *mc, int spawn_entrances)
        stock 1.0 vectors every ground ray misses. Two lines, and they are the
        documented calling convention of our walk, not a fudge factor.
        Retires when the transcription grows the ROM's shifted loads. */
-    *(int *)((char *)mc + 0x2c) = 0x40000;   /* file -> world, 64.0 */
-    *(int *)((char *)mc + 0x38) = 0x40;      /* world -> file, 1/64 */
+    port_clsn_pair_apply();
     return o;
+}
+
+// ---- Stage A2: the actor registry -------------------------------------------
+//
+// func_02043098 is the spawn spine, and it reads two things the host has to
+// provide. data_020a4bb8[id] is the SpawnInfo: a factory function pointer at
+// +0 that it CALLS, and behaviour/render priorities at +4/+6 that the
+// ActorBase constructor reads back out of the same record. A null slot is a
+// call through zero, so the table cannot simply be left empty.
+//
+// The gate is the pre-spawn hook at data_020a4b58. func_02043060 calls it
+// with the actor id BEFORE the table is touched, and 3 means "abort, cleanly"
+// -- an exercised ROM path, since LoadEntranceObjects already stores a
+// possibly-null result. So the registry carries exactly the two classes this
+// stage hosts and the hook turns everything else away.
+//
+// The SpawnInfo records are the ROM's own (Player_SpawnInfo from ov002,
+// Camera_SpawnInfo from arm9), mounted for their priority bytes, with only
+// the factory word repointed at the host.
+extern "C" {
+extern void **data_020a4bb8;          /* storage: hal/actor_vtables.cpp */
+extern int data_020a4b58[4];          /* the pre-spawn hook slot
+                                         (storage: hal/player_bridges.cpp) */
+extern unsigned char Player_SpawnInfo[];      /* ov002 0x0210a704 */
+extern unsigned char Camera_SpawnInfo[];      /* arm9  0x02086d78 */
+void *_ZN6PlayerC3Ev(void);                   /* ov002 0x020e6c0c */
+void *_ZN6CameraC1Ev(void *);                 /* arm9  0x0200e444 */
+int hal_camera_check_layout(void);
+void hal_fill_camera_vtable(void);
+extern void *data_0209f318;
+extern int data_0209f5c0[];
+}
+
+enum { ACTOR_PLAYER = 0xbf, ACTOR_CAMERA = 0x14c };
+
+/* The two factories. Both ROM factories allocate their own object and ignore
+   the argument register they were entered with, which is why they can be
+   called through a no-argument pointer at all. */
+static void *port_factory_player(void) { return _ZN6PlayerC3Ev(); }
+static void *port_factory_camera(void) { return _ZN6CameraC1Ev(0); }
+
+/* The pre-spawn hook. Everything the registry does not carry gets a clean
+   abort and one line of output, so a level's unhosted classes are a list
+   rather than a crash. */
+extern "C" int port_prespawn_hook(void *idv)
+{
+    unsigned id = (unsigned)(size_t)idv;
+    if (id == ACTOR_PLAYER || id == ACTOR_CAMERA)
+        return 2;                     /* what a null hook returns: proceed */
+    {
+        static unsigned char said[512];
+        if (id < sizeof said && !said[id]) {
+            said[id] = 1;
+            std::printf("  [spawn] actor 0x%x not registered, skipped\n", id);
+        }
+    }
+    return 3;
+}
+
+/* ---- the scene root -------------------------------------------------------
+   func_02042ffc refuses to spawn anything under a null parent, and the
+   ActorBase constructor links the new actor's SceneNode (+0x14) under the
+   parent's. data_0209f5c0 is that parent -- the Stage actor on the ROM, which
+   the port does not build yet. What the spawn spine actually needs of it is a
+   SceneNode, so the host root is an ActorBase-shaped block with a zeroed node
+   whose actor back-pointer is itself, exactly what
+   ActorBase::SceneNode::Reset + the ctor's `+0x24 = this` produce. */
+static unsigned char hal_scene_root[0x40];
+
+/* ---- the Player vtable ----------------------------------------------------
+   Spawning through func_02043098 ends in func_020433b8 -> the init Process,
+   which dispatches BeforeInitResources / InitResources / AfterInitResources
+   through the object's vptr. The Player's vptr is data_ov002_0210a83c, real
+   ov002 data carrying ov002 CODE addresses -- fine to mount, impossible to
+   call. The slots the port can service are overwritten with host thunks in
+   place (the ovdata contract: callers patch code pointers at runtime); the
+   rest trap by name rather than jumping into the overlay image. */
+extern "C" {
+unsigned char data_ov002_0210a83c[];
+int _ZN6Player13InitResourcesEv(void *self);
+int _ZN5Actor19BeforeInitResourcesEv(void *self);
+void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned r);
+int hal_player_behavior(void *self);
+}
+
+/* Method faces for the init chain. Everything the spawn spine touches is
+   reached by its Itanium name from a .c TU, i.e. cdecl, while these three
+   definitions are real MSVC __thiscall methods -- a linker alias would hand
+   the body an ecx that never held `this`. */
+#include "ActorBase.h"
+extern "C" int _ZN9ActorBase19BeforeInitResourcesEv(void *self)
+{ return ((ActorBase *)self)->ActorBase::BeforeInitResources() ? 1 : 0; }
+
+
+static int __fastcall ps_init(void *s, void *)
+{
+    /* Bit 7 of the save block's word 2 says the intro has played, and
+       Player::InitResources reads it to decide whether to load the
+       character's voice bank -- unhosted sound, the same engine the intro
+       cutscene reaches. The boot needs the bit set (see port_stage_a_boot);
+       the Player needs it clear. Scoped to the one call that cares. */
+    unsigned char saved = data_0209caa0[8];
+    data_0209caa0[8] &= ~0x80;
+    int r = _ZN6Player13InitResourcesEv(s);
+    data_0209caa0[8] = saved;
+    return r;
+}
+static int __fastcall ps_binit(void *s, void *)
+{ return _ZN5Actor19BeforeInitResourcesEv(s); }
+static void __fastcall ps_ainit(void *s, void *, unsigned a)
+{ _ZN5Actor18AfterInitResourcesEj(s, a); }
+static int __fastcall ps_behavior(void *s, void *)
+{ return hal_player_behavior(s); }
+
+static const char *const hal_player_slot_name[20] = {
+    "InitResources", "BeforeInitResources", "AfterInitResources",
+    "CleanupResources", "BeforeCleanupResources", "AfterCleanupResources",
+    "Behavior", "BeforeBehavior", "AfterBehavior",
+    "Render", "BeforeRender", "AfterRender",
+    "OnPendingDestroy", "Virtual34", "Virtual38", "OnHeapCreated",
+    "~Player (D1)", "~Player (D0)", "OnYoshiTryEat", "OnTurnIntoEgg"};
+static int hal_player_trap_slot;
+static int __fastcall ps_trap(void *, void *)
+{
+    std::fprintf(stderr, "FATAL: Player vtable slot %d (%s) is not hosted\n",
+                 hal_player_trap_slot,
+                 hal_player_slot_name[hal_player_trap_slot & 19]);
+    std::abort();
+    return 0;
+}
+
+extern "C" void hal_fill_player_vtable(void)
+{
+    void **vt = (void **)data_ov002_0210a83c;
+    for (int i = 0; i < 20; ++i)
+        vt[i] = (void *)ps_trap;
+    vt[0] = (void *)ps_init;
+    vt[1] = (void *)ps_binit;
+    vt[2] = (void *)ps_ainit;
+    vt[6] = (void *)ps_behavior;
+    /* Slot 9 (Render) stays trapped: the harness renders the Player itself
+       (hal_render_player_world), because Player::Render is the ROM's whole
+       model/shadow/particle chain and only its body walk is hosted. */
+}
+
+/* ---- the entrance-driven boot ---------------------------------------------
+   Seats everything LoadEntranceObjects reads, then runs the same boot with
+   the Entrance table left switched on. The Player and the Camera come out of
+   the entrance record: position, rotation, area, entrance id and entrance
+   type, all of it the level's own. */
+extern "C" {
+extern unsigned char data_0209f21c;    /* controller count */
+extern unsigned char data_0209f250;    /* local player index */
+extern int data_0209fc5c[];            /* per-player "this slot is live" */
+extern unsigned char data_02092128[];  /* per-player character */
+extern signed char data_02092120;      /* currently shown area, -1 = none */
+extern int data_0209f32c[];            /* water level */
+extern int data_0209fc48;              /* the running cutscene, 0 = none */
+extern int data_0209f20c[], data_0209f294[], data_0209f2c4[], data_0209b454[];
+extern int data_0209ee90[];            /* +0x44 is the projection's W scale */
+}
+
+extern "C" void port_stage_a2_seat(void)
+{
+    /* the scene tree root the spawn spine links under */
+    std::memset(hal_scene_root, 0, sizeof hal_scene_root);
+    *(void **)(hal_scene_root + 0x24) = hal_scene_root;   /* node.actor */
+    data_0209f5c0[0] = (int)(size_t)hal_scene_root;
+
+    /* one local player, index 0, playing Mario, with the slot marked live so
+       LoadEntranceObjects keeps the pointer it spawns */
+    data_0209f21c = 1;
+    data_0209f250 = 0;
+    data_0209fc5c[0] = 1;
+    data_02092128[0] = 0;
+    /* data_0209caa0[0x41], which is byte 0xf of data_0209cad2 -- the third
+       symbol of the run. Spelled at its owner rather than as an index past
+       the first symbol's declared 0x14 bytes, which MSVC turns into a
+       compile-time range check and a fast-fail. */
+    if (data_0209cab4 - data_0209caa0 != 0x14 ||
+        data_0209cad2 - data_0209caa0 != 0x32 ||
+        data_0209cae4 - data_0209caa0 != 0x44)
+        std::fprintf(stderr, "  [a2] SAVE BLOCK NOT CONTIGUOUS: +%d +%d +%d\n",
+                     (int)(data_0209cab4 - data_0209caa0),
+                     (int)(data_0209cad2 - data_0209caa0),
+                     (int)(data_0209cae4 - data_0209caa0));
+    data_0209cad2[0x41 - 0x32] = 0;
+
+    /* Engine state the CAMERA's own boot reads, which under the entrance
+       path runs inside LoadClsnAndObjects rather than after it. The harness
+       used to stage this next to its hand-built camera; the same values, one
+       step earlier. data_0209ee90[0x44/4] is the one that shows: it is the W
+       scale Camera::Render hands PerspectiveW_, and at 0 the projection
+       collapses and the frame comes out empty. */
+    data_02092120 = -1;                 /* no area shown -> ChangeArea skips */
+    data_0209f32c[0] = 0;               /* water level */
+    data_0209fc48 = 0;                  /* not in a cutscene */
+    data_0209f20c[0] = data_0209f294[0] = data_0209f2c4[0] = 0;
+    data_0209b454[0] = 0;
+    data_0209ee90[0x44 / 4] = 0x1000;
+
+    /* the registry: two ids, ROM priorities, host factories */
+    *(void **)(Player_SpawnInfo + 0) = (void *)port_factory_player;
+    *(void **)(Camera_SpawnInfo + 0) = (void *)port_factory_camera;
+    data_020a4bb8[ACTOR_PLAYER] = Player_SpawnInfo;
+    data_020a4bb8[ACTOR_CAMERA] = Camera_SpawnInfo;
+    data_020a4b58[0] = (int)(size_t)port_prespawn_hook;
+
+    hal_fill_player_vtable();
+    std::printf("[a2] registry: root %p, PLAYER %p, CAMERA %p\n",
+                (void *)hal_scene_root, (void *)Player_SpawnInfo,
+                (void *)Camera_SpawnInfo);
+    if (!hal_camera_check_layout())
+        std::fprintf(stderr, "  [cam] LAYOUT CHECK FAILED\n");
+    hal_fill_camera_vtable();
 }
 
 /* ---- the path-binding guard ---------------------------------------------

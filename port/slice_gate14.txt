@@ -71,3 +71,32 @@ src/func_0203d7d4.c
 src/func_020134d8.c
 src/func_0205117c.c
 src/func_020510a4.c
+
+# ---- Stage A2: the entrance spawns the Player and the Camera.
+# The two factories the registry calls, the Actor init hooks the spawn
+# spine's Process dispatches, and the St_LevelEnter trio with the seven
+# entrance-step handlers its Main dispatches through the ov002 PMF table.
+src/_ZN6PlayerC3Ev.cpp
+src/_ZN5Actor19BeforeInitResourcesEv.c
+# _ZN5Actor18AfterInitResourcesEj is C++ inside a .c (the gate-9 case
+# again); it goes through hostgen, see GATE14_SYMS in CMakeLists.txt
+src/_ZN6Player21St_LevelEnter_CleanupEv.cpp
+src/func_ov002_020c75f0.c
+src/func_ov002_020c7350.cpp
+src/func_ov002_020c71e0.cpp
+src/func_ov002_020c7194.cpp
+src/func_ov002_020c72a4.cpp
+src/func_ov002_020c70ac.c
+# func_ov002_020c6fe4 does void-pointer arithmetic on the anim probe
+# (the NoControl case); hostgen retypes the deref -- GATE14_SYMS
+# the ring the step handlers reach: the death-table guard the init hook
+# tests, the message/star-count branches steps 2 and 3 take, and the ov089
+# animation setter step 1 calls.
+src/_ZN5Actor18GetBitInDeathTableEv.cpp
+src/func_ov002_020c44c4.c
+src/func_ov002_020c6e14.c
+src/func_ov089_0213115c.cpp
+src/DeathTable_GetBit.c
+src/_ZN8SaveData26CountStarsCollectedInLevelEj.c
+src/func_ov100_02145070.c
+src/GetLevelPart.c

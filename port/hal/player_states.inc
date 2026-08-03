@@ -233,3 +233,18 @@
     case 0x020e16a4: return ((Player *)self)->Player::St_HeadstandJump_Init();
     case 0x020e18a8: return ((Player *)self)->Player::St_BackFlip_Init();
     case 0x020e1990: return ((Player *)self)->Player::St_SlideKickRecover_Init();
+    /* St_LevelEnter, the boot state (gate 14). Main is the ov002 function at
+       0x020c6f3c -- the community symbol _ZN6Player18St_LevelEnter_MainEv
+       names ov006's bytes at the same address -- and the seven entrance-step
+       handlers it dispatches through data_ov002_0211075c are plain ov002
+       functions rather than Player methods. */
+    case 0x020c7838: return ((Player *)self)->Player::St_LevelEnter_Init();
+    case 0x020c6f3c: return func_ov002_020c6f3c(self);
+    case 0x020c6f34: return ((Player *)self)->Player::St_LevelEnter_Cleanup();
+    case 0x020c75f0: func_ov002_020c75f0((char *)self); return 1;
+    case 0x020c7350: func_ov002_020c7350((char *)self); return 1;
+    case 0x020c71e0: func_ov002_020c71e0((char *)self); return 1;
+    case 0x020c7194: func_ov002_020c7194((char *)self); return 1;
+    case 0x020c72a4: func_ov002_020c72a4((void *)self); return 1;
+    case 0x020c70ac: func_ov002_020c70ac((char *)self); return 1;
+    case 0x020c6fe4: func_ov002_020c6fe4((char *)self); return 1;

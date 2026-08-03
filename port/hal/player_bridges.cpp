@@ -177,6 +177,15 @@ extern "C" int func_ov002_020cac30(void);
 extern "C" int func_ov002_020d6084(char *c);
 extern "C" int func_ov002_020e17f8(void *c);
 extern "C" int _ZN6Player16St_BurnLava_MainEv(char *c);
+/* gate 14: the level-boot state and the seven entrance-step handlers */
+extern "C" int func_ov002_020c6f3c(void *c);
+extern "C" void func_ov002_020c75f0(char *c);
+extern "C" void func_ov002_020c7350(char *c);
+extern "C" void func_ov002_020c71e0(char *c);
+extern "C" void func_ov002_020c7194(char *c);
+extern "C" void func_ov002_020c72a4(void *c);
+extern "C" void func_ov002_020c70ac(char *c);
+extern "C" void func_ov002_020c6fe4(char *c);
 extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 {
     switch (ds_addr) {

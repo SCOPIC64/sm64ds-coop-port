@@ -49,7 +49,10 @@ extern "C" {
     u8 data_0209f254;
     s8 data_02092114;
     u8 data_02092128[];
-    CAA0 data_0209caa0;
+    /* the save block: storage moved to hal/level_boot.cpp, where it is
+       one grouped-section run with its four sibling symbols (the
+       entrance loader reads byte 0x41, past this symbol's 0x14) */
+    extern CAA0 data_0209caa0;
     int data_0209fc48;
     u8 data_0209f250;
     u8 data_0209f2fc;

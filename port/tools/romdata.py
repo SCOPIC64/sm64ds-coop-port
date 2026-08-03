@@ -83,6 +83,8 @@ NAMED = [
     "data_02087c00", "data_02089608",
     # the Camera's SpawnInfo, for the entrance path's actor registry
     "Camera_SpawnInfo",
+    # sublevel -> level-part table (GetLevelPart, the death-table index)
+    "data_02075264",
 ]
 
 

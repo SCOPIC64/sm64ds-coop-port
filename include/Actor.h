@@ -123,6 +123,13 @@ struct Actor : ActorDerived {
     virtual int  BeforeRender();                       /* slot 10 */
     virtual void AfterRender(u32 vfSuccess);           /* slot 11 */
 
+    /* --- non-virtual --- */
+    /* Reads this actor's bit out of the level's death table, keyed by
+       unk_0ce. Declared here so a caller can reach it without repeating the
+       defining TU's local class shape (the definition is in
+       src/_ZN5Actor18GetBitInDeathTableEv.cpp). */
+    int GetBitInDeathTable();
+
     /* --- new slots, 18..30, in declaration order. Do not reorder. --- */
     virtual int  OnYoshiTryEat();                      /* slot 18 */
     virtual int  OnTurnIntoEgg(Player &player);        /* slot 19 */
