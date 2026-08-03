@@ -393,3 +393,13 @@ void _ZN9ModelAnim6RenderEPK7Vector3(void *self, const void *scale)
    src/_ZN5Sound7PlaySubEjjj5Fix12IiEb.cpp body serves it directly -- the
    same reading cxx_aliases.cpp already takes for the `YAHIIIHH` variant. */
 #pragma comment(linker, "/alternatename:?PlaySub@Sound@@YAXIIIH_N@Z=__ZN5Sound7PlaySubEjjj5Fix12IiEb")
+
+/* ---- gate 19: ov098's CANNON --------------------------------------------
+   One more, the same shape. Its Render is a host copy for the Model slot-3
+   reason and its Behavior for the pointer-to-member one
+   (port/unmatched/Cannon_Render.cpp, Cannon_Behavior.cpp). */
+#include "Cannon.h"
+extern "C" {
+int _ZN6Cannon13InitResourcesEv(void *self)
+{ return ((Cannon *)self)->Cannon::InitResources(); }
+}

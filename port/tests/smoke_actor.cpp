@@ -30,8 +30,12 @@ struct SharedFilePtrC { unsigned short fileID; unsigned char numRefs;
 SharedFilePtrC *_ZN13SharedFilePtr9ConstructEj(SharedFilePtrC *s, u32 id);
 extern unsigned short data_020a4b54;    /* pending actor ID */
 extern void **data_020a4bb8;            /* actorID -> SpawnInfo* */
-extern void *data_ov098_0213c380[6];    /* {model,kcl,?} entry table */
-extern char data_ov098_0213c384[0x18];  /* column-b view of the same */
+/* ov098's SharedFilePtr entry table for the arrow signs: three-pointer
+   entries {model, kcl, ?}, plus the column-b view the DS gets for free as
+   base+4. This smoke does not mount ov098 (walk_window does, gate 19), so it
+   owns the storage and seeds both views with its own SharedFilePtr objects. */
+void *data_ov098_0213c380[6];
+char data_ov098_0213c384[0x18];
 extern void *data_020a0eac_c;           /* actor heap = root heap */
 extern void *data_020a0ea0;             /* defaultHeapPtr (gate 3a) */
 extern void *data_0209f394[];           /* the player array */

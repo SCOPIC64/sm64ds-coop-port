@@ -896,3 +896,11 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?func_ov085_0212bcc8@@YAXPAD@Z=_func_ov085_0212bcc8")
 #pragma comment(linker, "/alternatename:?func_ov085_0212c150@@YAXPAX@Z=_func_ov085_0212c150")
 #pragma comment(linker, "/alternatename:?func_ov085_0212e728@@YAHPAX0@Z=_func_ov085_0212e728")
+
+/* ---- gate 19: ov098's CANNON ------------------------------------------- */
+
+/* gate 19 link ring */
+#pragma comment(linker, "/alternatename:?data_ov098_0213c8e8@@3DA=_data_ov098_0213c8e8")
+#pragma comment(linker, "/alternatename:?data_ov098_0213c8fc@@3PAUEntry@@A=_data_ov098_0213c8fc")
+#pragma comment(linker, "/alternatename:?func_ov098_0213b15c@@YAXPAX@Z=_func_ov098_0213b15c")
+#pragma comment(linker, "/alternatename:?data_ov002_021102d4@@3UState@@A=_data_ov002_021102d4")

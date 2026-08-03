@@ -146,10 +146,9 @@ void *_ZN9ActorBaseC1Ev(char *self)
 extern "C" {
 void *_ZTV11ShadowModel[8];
 
-// ov098's SharedFilePtr entry table for the arrow signs: three-pointer
-// entries {model, kcl, ?}. The smoke seeds the pointers with its own
-// SharedFilePtr objects (on DS these live prebuilt in the overlay's data).
-void *data_ov098_0213c380[6];
+// ov098's SharedFilePtr entry table used to be harness storage here. It is
+// the overlay's own data now (gate 19 mounts ov098 per symbol), and the
+// gate-9 smoke keeps its private copy in port/tests/smoke_actor.cpp.
 } /* extern "C" */
 
 // The extern "C" side of the cxxname bridges (see hal/cxxname_bridge.cpp).

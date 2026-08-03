@@ -879,3 +879,54 @@ extern "C" void hal_fill_lakitu_bro_vtable(void)
     vt[16] = (void *)lb_d1;
     vt[17] = (void *)lb_d0;
 }
+
+// ============================================================================
+// GATE 19: ov098's CANNON
+// ============================================================================
+//
+// _ZTV7daCnn_c, ov098 0x0213c6a0 (daCnn_c -- "cannon"). One instance, behind
+// the grate in the west moat wall. The config's names are not shifted here
+// either: slot 0 is Cannon::InitResources and slot 16 is Cannon's own D1.
+//
+// IT IS DORMANT ON PURPOSE. The cannon's own Behavior reads the save before
+// it will open, so on a fresh save the lid stays shut -- which is what the
+// level looks like before Bob-omb Buddy opens it, and the reason nothing here
+// goes near the cannon-entry path.
+//
+// SLOTS 16/17 TRAP, the gate-17 reading twice over: nothing on this level
+// destroys a cannon, and src/_ZN6CannonD1Ev.cpp is a real C++ destructor over
+// its own shadow hierarchy rather than a C-named body, so hosting it would
+// mean MSVC synthesising member destructor calls against a layout that is not
+// the ROM's.
+extern "C" {
+int _ZN6Cannon13InitResourcesEv(void *self);      /* face: method_faces */
+int _ZN6Cannon8BehaviorEv(void *self);            /* face: method_faces */
+int _ZN6Cannon6RenderEv(void *self);              /* host copy */
+int _ZN6Cannon16CleanupResourcesEv(void);
+void *_ZTV6Cannon[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV7daCnn_c=__ZTV6Cannon")
+
+ACTRAP(Cannon, 13)
+static int __fastcall cn_init(void *s, void *)
+{ return _ZN6Cannon13InitResourcesEv(s); }
+static int __fastcall cn_clean(void *, void *)
+{ return _ZN6Cannon16CleanupResourcesEv(); }
+static int __fastcall cn_behavior(void *s, void *)
+{ return _ZN6Cannon8BehaviorEv(s); }
+static int __fastcall cn_render(void *s, void *)
+{ port_actor_render_probe("CANNON", (char *)s + 0xd4);
+  return _ZN6Cannon6RenderEv(s); }
+
+extern "C" void hal_fill_cannon_vtable(void)
+{
+    void **vt = _ZTV6Cannon;
+    ac_fill_shared(vt, Cannon_trap13);
+    vt[0] = (void *)cn_init;
+    vt[3] = (void *)cn_clean;
+    vt[6] = (void *)cn_behavior;
+    vt[9] = (void *)cn_render;
+    vt[12] = (void *)ac_pdes_base;
+    vt[16] = (void *)Cannon_trap13;
+    vt[17] = (void *)Cannon_trap13;
+}

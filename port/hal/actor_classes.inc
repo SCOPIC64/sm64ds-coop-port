@@ -63,6 +63,10 @@ void hal_fill_rabbit_vtable(void);
 extern unsigned char LakituBro_SpawnInfo[];             /* ov085 0x02130320 */
 void *LakituBro_Spawn(void);                            /* ov085 0x0212ed54 */
 void hal_fill_lakitu_bro_vtable(void);
+/* ---- gate 19: ov098's CANNON ---- */
+extern unsigned char Cannon_SpawnInfo[];                /* ov098 0x0213c67c */
+void *Cannon_Spawn(void);                               /* ov098 0x0213b43c */
+void hal_fill_cannon_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -83,4 +87,5 @@ void hal_fill_lakitu_bro_vtable(void);
     {343, "BIRD", Bird_SpawnInfo, Bird_Spawn, hal_fill_bird_vtable},          \
     {187, "RABBIT", Rabbit_SpawnInfo, Rabbit_Spawn, hal_fill_rabbit_vtable},  \
     {235, "LAKITU_BRO", LakituBro_SpawnInfo, LakituBro_Spawn,                 \
-     hal_fill_lakitu_bro_vtable},
+     hal_fill_lakitu_bro_vtable},                                             \
+    {207, "CANNON", Cannon_SpawnInfo, Cannon_Spawn, hal_fill_cannon_vtable},

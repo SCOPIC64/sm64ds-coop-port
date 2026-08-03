@@ -27,12 +27,11 @@ void _ZN16MeshColliderBase7DisableEv(void *self)
 }
 
 // The ov098 file table's second column is addressed through its own symbol
-// (base+4 on the DS -- an offset alias hosts cannot express). Column b gets
-// its own 0xc-stride view; the smoke seeds both views with the same
-// SharedFilePtr pointers.
-extern "C" {
-char data_ov098_0213c384[0x18];
-}
+// (base+4 on the DS -- an offset alias). The harness used to fake it with a
+// separate 0xc-stride array here; gate 19 mounts ov098 per symbol with
+// --pack, which puts data_ov098_0213c384 exactly four bytes after
+// data_ov098_0213c380 the way the ROM does, so the alias is real. The
+// gate-9 smoke keeps the old two-view fiction in port/tests/smoke_actor.cpp.
 
 // ---- gate-9 method bridges (C name -> MSVC method), the gx_upload pattern -
 #include "Platform.h"

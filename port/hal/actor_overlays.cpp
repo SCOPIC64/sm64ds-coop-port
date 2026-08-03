@@ -64,17 +64,34 @@ void func_ov085_0212bc14(void *);
    port/unmatched/LakituBro_Behavior.cpp */
 void port_lakitu_bro_states_seat(void);
 
+/* ov098: CANNON (and the crate, the water bomb and the two arrow signs) */
+void port_ov098_pack_check(void);
+void port_ov098_syms_patch(void);
+void __sinit_ov098_0213bf9c(void);
+void __sinit_ov098_0213c058(void);
+void __sinit_ov098_0213c214(void);
+void __sinit_ov098_0213c2b4(void);
+
+/* the cannon's four {function, delta} statics, seated the same way as the
+   Lakitu's -- port/unmatched/Cannon_Behavior.cpp */
+void port_cannon_states_seat(void);
+
 }  /* extern "C" */
 
-/* ov085 0x0212b8dc IS NOT HOSTED, and it is the reason RABBIT is not in the
-   registry. It is the Main half of state 0x021306cc -- the state
-   Rabbit::InitResources itself enters on its last line -- so it is what the
-   twelve rabbits would run on their first behaviour frame, every frame, and
-   0x338 bytes of it have no C in src/ at all (config/arm9/overlays/ov085
-   names it; nothing decompiles it; nearmiss/db.jsonl holds a draft that does
-   not byte-match). Seated by name so that if the class is ever registered the
-   walk says exactly which function is missing instead of jumping into the
-   overlay image. */
+/* ov085 0x0212b8dc IS NOT HOSTED, and it is the one hole in the rabbit. It is
+   the Main half of state 0x021306cc -- the state Rabbit::InitResources itself
+   enters on its own last line -- so it is what an ACTIVE rabbit runs every
+   frame, and 0x338 bytes of it have no C in src/ at all
+   (config/arm9/overlays/ov085 names it; nothing decompiles it;
+   nearmiss/db.jsonl holds a draft that does not byte-match).
+
+   RABBIT is registered anyway, because on the castle grounds with a fresh
+   save it is not reached: rabbit id 7 (MIPS) is the only one whose
+   InitResources survives the save gate, and his own Behavior returns on its
+   first line while data_0209caa0 word 2 bit 17 is clear. Measured both ways
+   -- 3000 frames fault-free as the level boots, and this trap firing on frame
+   one with the two save bits forced on. It names the function instead of
+   jumping into the overlay image, which is what a hole should do. */
 static void port_rabbit_state_0212b8dc(void *)
 {
     std::fprintf(stderr, "FATAL: Rabbit state 0x021306cc's Main (ov085 "
@@ -135,4 +152,12 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov085_0212f9bc();
     __sinit_ov085_0212fa40();
     __sinit_ov085_0212fdb0();
+
+    port_ov098_pack_check();
+    port_ov098_syms_patch();
+    port_cannon_states_seat();
+    __sinit_ov098_0213bf9c();
+    __sinit_ov098_0213c058();
+    __sinit_ov098_0213c214();
+    __sinit_ov098_0213c2b4();
 }
