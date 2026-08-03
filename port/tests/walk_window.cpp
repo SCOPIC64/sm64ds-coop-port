@@ -2,11 +2,20 @@
 //
 // Same staging as smoke_player (sinits, spawn context, castle-grounds KCL,
 // InitResources, St_Wait), then a Win32 frame loop: keys write the pad
-// block and desired heading, Player::Behavior ticks, the world renders
-// through the ntr GX (camera folded into the projection matrix; models
-// keep their world mat4x3), and the framebuffer blits 3x into the client.
+// block, Stage::CheckInput turns them into the stick record, Player::Behavior
+// and Camera::Behavior tick, Camera::Render builds the projection and the
+// view matrix, and the framebuffer blits into the client.
 //
-//   WASD / arrows  walk        ESC  quit
+// Since gate 13 the camera IS the game's: the Camera actor at 0x14C, its
+// 19-state machine, its mode-preset table and its own published heading --
+// which is what turns "forward" on the stick into a world direction.
+//
+//   WASD / arrows  walk    Q/E  orbit    C  snap behind    ESC  quit
+//
+// Env: SM64DS_OLD_CAMERA=1  the pre-gate-13 hand-tuned follow rig
+//      SM64DS_FAKE_SNAP=1   the pre-gate-13 collision configuration
+//                           (level collider owned by the Player + the
+//                           harness ground snap), which plants Mario
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -162,6 +171,25 @@ int hal_line_ray(void *mc, const int *a, const int *b, int *out);
 void _ZN12WithMeshClsn13SetGroundFlagEv(void *);
 int func_02035354(void *, void *);
 int func_020393b4(void *);
+/* the real Camera actor (gate 13) */
+void hal_fill_camera_vtable(void);
+int hal_camera_check_layout(void);
+void *hal_camera_new(void);
+int hal_camera_init_resources(void *cam);
+int hal_camera_behavior(void *cam);
+int hal_camera_render(void *cam);
+void func_0203e0ac(void);
+extern void *data_0209f318;          /* the Camera singleton */
+extern signed char data_02092120;    /* currently shown area, -1 = none */
+extern unsigned char data_0209f250;  /* local player index */
+extern void *data_0209f394[];        /* per-player Actor* */
+extern unsigned char data_0209f1f8;  /* view-object count */
+extern signed char data_0209f2f8;    /* level/sublevel id (weather select) */
+extern int data_0209f32c[];          /* water level */
+extern int data_0209f20c[], data_0209f294[], data_0209f2c4[];
+extern int data_0209b454[];
+extern int data_0209ee90[];
+extern int data_020a4b60[];
 }
 
 #ifdef NTR_HIRES
@@ -240,6 +268,18 @@ int main(void)
        that calibrates against real-game footage. Roof surface = 4916,
        lawn = 784 (SM64DS_SPAWN overrides, world units). */
     int spawn_x = 0, spawn_y = 960, spawn_z = 1000;
+    /* SM64DS_FAKE_SNAP=1: the pre-gate-13 collision configuration in one
+       switch -- the level collider owned by the Player (which makes the
+       game's own ground tracking a no-op, see the Enable call below) plus
+       the harness ground snap on top. Kept because the game's tracking
+       still has an open fast-fall, and a planted Mario is what most
+       screenshots want. */
+    const int fake_snap = getenv("SM64DS_FAKE_SNAP") != 0;
+    /* SM64DS_FAKE_SNAP=1: the pre-gate-13 collision configuration in one
+       switch -- the level collider owned by the Player (which makes the
+       game's own tracking a no-op, see below) plus the harness ground
+       snap. Kept because the game's tracking still has an open fast-fall
+       and a planted Mario is what most screenshots want. */
     PORT_INSTALL_FAULT_PROBE();
     port_install_watchdog();
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -298,11 +338,16 @@ int main(void)
            the harness snap exists. The game's own convention for level
            geometry is Enable(NULL): func_020395fc then stores owner 0 and
            clsnID -1, so level hits skip the FindWithID actor walk (a fake
-           non-null owner fed it a junk ID and it faulted). Real collision
-           stays opt-in until the full frame survives. */
+           non-null owner fed it a junk ID and it faulted).
+           NOW THE DEFAULT (gate 13): the real Camera seeds its own probes
+           with the Player as their owner (func_0200897c), so under the old
+           owner=player configuration every camera ray would exclude the
+           level and the camera would sit inside geometry. The harness's own
+           probes (hal_ground_ray / hal_line_ray) work under a NULL owner
+           either way. SM64DS_FAKE_SNAP=1 brings the harness ground snap
+           back on top for shots that need Mario planted. */
         _ZN16MeshColliderBase6EnableEP5Actor(
-            mc_storage, getenv("SM64DS_REAL_CLSN") ? (void *)0
-                                                   : (void *)player);
+            mc_storage, fake_snap ? (void *)player : (void *)0);
         /* LEVEL SCALE: world = KCL raw << 6, i.e. FILE x64 -- the walk's
            own position reads carry the <<6 (MeshCollider.h: positions
            "read <<6"), and the real boot (Stage::LoadClsnAndObjects)
@@ -416,11 +461,64 @@ int main(void)
     /* no path binding: the level spawn entry's path param, 0xff = none.
        The fake spawn context zero-fills it, and path 0 sends the real
        ground tracking into PathPtr walks over files no level boot has
-       loaded (frame-1 fault under SM64DS_REAL_CLSN) */
+       loaded (frame-1 fault under the game's own tracking) */
     *(unsigned int *)(c + 0x670) = 0xff;
     if (getenv("PORT_WATCH_HEAD"))
         port_watch_words(data_0209b468, 4);
     hal_player_st_wait_init(player);
+
+    /* ---- the real Camera actor (gate 13) -----------------------------
+       The default since the camera came up clean over 400 frames.
+       SM64DS_OLD_CAMERA=1 brings back the hand-tuned follow rig; arming
+       data_0209f318 also wakes ~30 dormant ov002 call sites that funnel
+       into Camera::ChangeState, so the escape hatch is worth keeping.
+
+       Order matters. The vtable has to be up before InitResources,
+       because InitResources ends in a virtual call to slot 9 (Render);
+       and data_0209f318 is armed LAST, after the object is fully built,
+       so nothing reaches a half-initialized camera. */
+    void *cam = 0;
+    const int real_camera = getenv("SM64DS_OLD_CAMERA") == 0;
+    if (real_camera) {
+        /* engine state the camera boot reads. All of it is what a level
+           with no Stage loader looks like: no view objects, no weather,
+           no area shown yet, the local player at index 0. */
+        data_02092120 = -1;          /* no area shown -> ChangeArea skips Hide */
+        data_0209f250 = 0;           /* local player index */
+        data_0209f394[0] = player;   /* the actor the camera follows */
+        data_0209f1f8 = 0;           /* view-object count */
+        data_0209f2f8 = 0;           /* sublevel id: no weather system */
+        data_0209f32c[0] = 0;        /* water level */
+        data_0209fc48 = 0;           /* not in a cutscene */
+        data_0209f20c[0] = data_0209f294[0] = data_0209f2c4[0] = 0;
+        data_0209b454[0] = 0;
+        data_0209ee90[0x44 / 4] = 0x1000;   /* scaleW, what Render feeds
+                                               PerspectiveW_ (R10) */
+        /* spawn context: actor 0x14C, spawn param 0 (entrance 0). The
+           param lands at actor+8 and picks func_0200cf40's branch --
+           anything but 0xf takes the view-object path, which is the one
+           that selects mode 10, the gameplay camera. It is safe here
+           because data_0209f354 points at a real (zeroed) table. */
+        {
+            static unsigned short cam_spawn_info[4] = {0, 0, 0x14c, 0};
+            data_020a4bb8[0x14c] = cam_spawn_info;
+            data_020a4b54 = 0x14c;
+            data_020a4b60[0] = 0;
+        }
+        if (!hal_camera_check_layout())
+            fprintf(stderr, "[cam] LAYOUT CHECK FAILED -- expect nonsense\n");
+        hal_fill_camera_vtable();
+        cam = hal_camera_new();          /* the ctor allocates its own 0x1a8 */
+        if (!cam) { fprintf(stderr, "camera alloc failed\n"); return 5; }
+        if (hal_camera_init_resources(cam) != 1)
+            fprintf(stderr, "[cam] InitResources did not return 1\n");
+        data_0209f318 = cam;             /* ARMED LAST */
+        printf("camera at %p, mode %p, state %p, fov %d, near %d far %d\n",
+               cam, *(void **)((char *)cam + 0x13c),
+               *(void **)((char *)cam + 0x138),
+               *(short *)((char *)cam + 0x17a),
+               *(int *)((char *)cam + 0xfc), *(int *)((char *)cam + 0x100));
+    }
 
     /* window */
     WNDCLASSA wc = {};
@@ -523,9 +621,14 @@ int main(void)
             raw_prev = raw;
             /* the angle FROM Mario TO the camera (what the name
                GetAngleToCamera means): the D-pad table's "up" entry is
-               0x8000, so up + angle-to-camera = away from the lens */
-            *(short *)((char *)data_020a1164 + 0) =
-                (short)((int)(cam_yaw * (32768.0f / 3.14159265f)) + 0x8000);
+               0x8000, so up + angle-to-camera = away from the lens.
+               Under the real camera this is NOT written by hand: the
+               camera publishes its own heading through func_0203dafc ->
+               data_020a1040 -> func_0203e0ac -> data_020a1154, and
+               GetAngleToCamera reads the far end of that chain. */
+            if (!real_camera)
+                *(short *)((char *)data_020a1164 + 0) =
+                    (short)((int)(cam_yaw * (32768.0f / 3.14159265f)) + 0x8000);
             _ZN5Stage10CheckInputEv();
             /* the matched TU writes its own data_0209f498 block; older
                TUs read per-field split symbols -- copy the record out */
@@ -583,6 +686,26 @@ int main(void)
             if (selftest && getenv("SM64DS_SELFTEST_PUNCH") &&
                 frame >= 40 && frame <= 42)
                 btn |= 1;
+            /* camera orbit through the game's own reader: func_02009e70
+               tests data_0209f49c & 0x4300 -- L (0x200) rotates left, R
+               (0x100) rotates right, 0x4000 is the snap-behind the input
+               layer synthesizes. R doubles as crouch on the DS too, so E
+               crouching as it orbits is the hardware's behaviour, not a
+               harness artefact. */
+            if (real_camera) {
+                if (W.GetAsyncKeyState_('Q') < 0) btn |= 0x200;
+                if (W.GetAsyncKeyState_('E') < 0) btn |= 0x100;
+                if (W.GetAsyncKeyState_('C') < 0) btn |= 0x4000;
+                if (pad_live) {
+                    if (pad.rx < -10000) btn |= 0x200;
+                    if (pad.rx > 10000) btn |= 0x100;
+                }
+                /* orbit probe: hold the rotate-right bit from frame 20 --
+                   the camera's own heading and the angle it publishes must
+                   both move, and W must keep walking away from the lens */
+                if (selftest && getenv("SM64DS_SELFTEST_ORBIT") && frame >= 20)
+                    btn |= 0x100;
+            }
             *(unsigned short *)(data_0209f49c + 0) = btn;
             *(unsigned short *)(data_0209f49e + 0) =
                 (unsigned short)(btn & (unsigned short)~btn_was);
@@ -595,7 +718,7 @@ int main(void)
            (data_020a0d84 is null on host, the walk faults) */
         *(unsigned int *)(c + 0x670) = 0xff;
 
-        if (selftest && frame == 1 && getenv("SM64DS_REAL_CLSN")) {
+        if (selftest && frame == 1 && getenv("SM64DS_DUMP_CLSN")) {
             extern void *data_020a0c80[];
             fprintf(stderr, "[dump] slots:");
             for (int i = 0; i < 8; ++i)
@@ -629,6 +752,17 @@ int main(void)
             hal_player_st_wait_main(player);
         if (selftest && frame == 0)
             fprintf(stderr, "[w] ticked\n");
+        /* the camera's own frame: Behavior runs the state machine and
+           hands its heading to func_0203dafc (which writes the LOCAL comms
+           record), then func_0203e0ac -- the single-player echo of
+           func_0203df40 -- copies that record into the four per-player
+           records GetAngleToCamera reads. Without the second call the
+           published angle never moves and Mario walks relative to a stale
+           heading. */
+        if (real_camera) {
+            hal_camera_behavior(cam);
+            func_0203e0ac();
+        }
         /* no speed clamp: the accel tables get real input-mode data now
            that Stage::CheckInput fills the record (the old runaway came
            from fake mode bytes) */
@@ -667,10 +801,12 @@ int main(void)
         }
 
         /* harness ground snap: a real KCL ray under Mario each frame.
-           OFF under SM64DS_REAL_CLSN -- the game's own tracking grounds
-           him there, and a SetGroundFlag without the rest of the surface
-           record (collider slot, triangle) feeds UpdateExtraContinous a
-           half-empty record that faults */
+           OFF by default since gate 13 -- the game's own tracking owns the
+           ground under the Enable(NULL) collider, and a SetGroundFlag
+           without the rest of the surface record (collider slot, triangle)
+           feeds UpdateExtraContinous a half-empty record that faults.
+           SM64DS_FAKE_SNAP=1 puts it back for shots that need Mario
+           planted while the real tracking's fast-fall is still open. */
         {
             int gy;
             int mx = *(int *)(c + 0x5c), my = *(int *)(c + 0x60),
@@ -678,7 +814,7 @@ int main(void)
             /* ray starts just above STEP height: starting a body-height
                up let the walk grab canopies/domes overhead and teleport
                him upward (the "camera is fucked" y-pops) */
-            if (!getenv("SM64DS_REAL_CLSN") &&
+            if (fake_snap &&
                 hal_ground_ray(g_mc, mx, my + (100 << 12), mz, 5220 << 12,
                                &gy)) {
                 /* never re-ground a rising jump: the snap + SetGroundFlag
@@ -737,14 +873,17 @@ int main(void)
 
         /* render: camera behind and above Mario, looking at him */
         ntr::gx_reset();
-        NTR_MMIO(uint32_t, 0x04000580) =
-            0u | (0u << 8) | (255u << 16) | (191u << 24);
+        /* the real Camera writes CLEAR_COLOR itself, out of its own
+           0x10c..0x10f bytes -- which hold exactly this value */
+        if (!real_camera)
+            NTR_MMIO(uint32_t, 0x04000580) =
+                0u | (0u << 8) | (255u << 16) | (191u << 24);
         ntr::gx_set_light(0, -0.4f, -0.6f, -0.7f, 0x7FFF);
         ntr::gx_enable_lights(0x1);
         float px = *(int *)(c + 0x5c) / 4096.0f;
         float py = *(int *)(c + 0x60) / 4096.0f;
         float pz = *(int *)(c + 0x64) / 4096.0f;
-        if (selftest && frame == 0) {
+        if (selftest && frame == 0 && !real_camera) {
             /* world-space bounds probe: identity matrices, read the raw
                projected coords (with identity proj they ARE world coords) */
             hal_render_player_world(player);
@@ -843,6 +982,61 @@ int main(void)
             ntr::gx_set_light(0, -0.4f, -0.6f, -0.7f, 0x7FFF);
             ntr::gx_enable_lights(0x1);
         }
+        float dbg_eye[3] = {0, 0, 0}, dbg_at[3] = {0, 0, 0};
+        if (real_camera) {
+            /* THE CAMERA'S OWN FRAME. Render builds the projection from
+               the mode preset (PerspectiveW_ -> MTX_LOAD_4x4) and the view
+               matrix through LookAt_, then View::Render -> CopyToViewMat
+               parks it in data_0209b3ec and its inverse in data_0209b41c.
+               Model::Render composes every model matrix with data_0209b3ec
+               in software, so THAT is where the camera reaches the raster,
+               not the GX position stack. */
+            hal_camera_render(cam);
+            /* R6 UNIT SHIM. The ROM renders in SCENE units: Camera::Render
+               feeds LookAt_ eye and lookAt as (v + 4) >> 3, so the view
+               matrix's translation row comes out world/8 while its rotation
+               rows are plain unit vectors. The port's model matrices are
+               still world-fx, and Model::Render's compose is
+               out.t = model.t * view.R + view.t -- first term world, second
+               scene. Scaling the translation row back up by 8 puts both in
+               world units. ONE place, and it is the whole of the scene-unit
+               divergence; moving the model matrices to the ROM's convention
+               instead is the real fix and is its own job. */
+            data_0209b3ec[9] *= 8;
+            data_0209b3ec[10] *= 8;
+            data_0209b3ec[11] *= 8;
+            {
+                /* FIELD-MAP CORRECTION, measured here: 0x8c is the camera
+                   POSITION and 0x80 the point it looks at, not the other
+                   way round. G3i::LookAt_ translates its matrix by the
+                   `at` argument, and Camera::Render passes 0x8c there;
+                   Camera::Behavior's own Vec3_HorzAngle(0x80, 0x8c) then
+                   reads "from the focus toward the camera", which is what
+                   the name GetAngleToCamera promises. */
+                const int *ce = (const int *)((char *)cam + 0x8c);
+                const int *cl = (const int *)((char *)cam + 0x80);
+                for (int k = 0; k < 3; ++k) {
+                    dbg_eye[k] = ce[k] / 4096.0f;
+                    dbg_at[k] = cl[k] / 4096.0f;
+                }
+                if (selftest) {
+                    float ddx = dbg_eye[0] - dbg_at[0];
+                    float ddy = dbg_eye[1] - dbg_at[1];
+                    float ddz = dbg_eye[2] - dbg_at[2];
+                    fprintf(stderr,
+                            "[cam] f%03d eye(%.1f,%.1f,%.1f) "
+                            "at(%.1f,%.1f,%.1f) head=%04x pitch=%04x "
+                            "fov=%d angle=%04x dist=%.0f\n",
+                            frame, dbg_eye[0], dbg_eye[1], dbg_eye[2],
+                            dbg_at[0], dbg_at[1], dbg_at[2],
+                            (unsigned short)*(short *)((char *)cam + 0x17c),
+                            (unsigned short)*(short *)((char *)cam + 0x17e),
+                            *(short *)((char *)cam + 0x17a),
+                            (unsigned short)*(short *)((char *)data_020a1164),
+                            sqrtf(ddx * ddx + ddy * ddy + ddz * ddz));
+                }
+            }
+        } else {
         /* Follow camera at near eye level (Mario is ~14 units tall). The
            old version LIFTED the eye onto whatever hill sat behind him,
            which looked down at a grazing angle -- terrain read flat and the
@@ -902,9 +1096,11 @@ int main(void)
         for (int k = 0; k < 3; ++k)
             eye[k] += (want_eye[k] - eye[k]) * 0.2f;
         push_camera(eye, at);
+        for (int k = 0; k < 3; ++k) { dbg_eye[k] = eye[k]; dbg_at[k] = at[k]; }
+        }   /* else: !real_camera */
         if (selftest && frame == 0)
             fprintf(stderr, "[w] render\n");
-        if (selftest && frame == 0) {
+        if (selftest && frame == 0 && !real_camera) {
             /* GX isolation: hand-feed one triangle at Mario's position
                through raw MMIO -- no game code. Centered = GX + camera
                fine; offset = my matrix push is wrong. */
@@ -947,7 +1143,7 @@ int main(void)
                 0u | (0u << 8) | (255u << 16) | (191u << 24);
             ntr::gx_set_light(0, -0.4f, -0.6f, -0.7f, 0x7FFF);
             ntr::gx_enable_lights(0x1);
-            push_camera(eye, at);
+            push_camera(dbg_eye, dbg_at);
         }
         if (!getenv("SM64DS_NO_LEVEL"))
             hal_render_model(level_storage, level_shift);
@@ -969,7 +1165,8 @@ int main(void)
                     "[w] mario screen box x[%.0f..%.0f] y[%.0f..%.0f] "
                     "(center %d,%d) eye(%.1f,%.1f,%.1f) at(%.1f,%.1f,%.1f)\n",
                     mnx, mxx, mny, mxy, ntr::SCREEN_W / 2, ntr::SCREEN_H / 2,
-                    eye[0], eye[1], eye[2], at[0], at[1], at[2]);
+                    dbg_eye[0], dbg_eye[1], dbg_eye[2], dbg_at[0], dbg_at[1],
+                    dbg_at[2]);
         }
         if (selftest && frame == 0)
             fprintf(stderr, "[w] rendered\n");
