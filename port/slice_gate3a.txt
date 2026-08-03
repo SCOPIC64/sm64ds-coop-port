@@ -11,6 +11,12 @@ src/_ZN13ExpandingHeapC1EPvjP4HeapP22ExpandingHeapAllocator.c
 src/_ZN13ExpandingHeap9VAllocateEji.cpp
 src/_ZN13ExpandingHeap11VDeallocateEPv.c
 src/_ZN13ExpandingHeap7VSizeofEPv.cpp
+# Gate 16 grew the heap vtable from the eight slots this gate could evidence
+# to the ROM's sixteen, so slots 8 and 9 -- VReallocate and VSizeof, the two
+# Model::LoadAndSetFile reaches through -- resolve in EVERY gate binary, not
+# just the one that calls them.
+src/_ZN13ExpandingHeap11VReallocateEPvj.cpp
+src/_ZN22ExpandingHeapAllocator10ReallocateEPvj.cpp
 src/_ZN13ExpandingHeap11VMemoryLeftEv.cpp
 src/_ZN6Memory8AllocateEj.cpp
 src/_ZN6Memory8AllocateEji.cpp

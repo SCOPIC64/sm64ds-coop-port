@@ -29,3 +29,53 @@ src/_ZN5Actor13OnYoshiTryEatEv.c
 # behind them; nothing in the castle grounds' object set has a dedicated heap,
 # and the gate-9 lifecycle proof trapped the same two slots. They stay trapped
 # by name, which is the loud version of "no level has reached this yet".
+
+# ---- TREE (actor 286, ov002), x21 on the castle grounds -------------------
+# The best smoke a spawn path can have: twenty-one instances of a static
+# prop, five trunk variants sharing five Models on ONE actor. InitResources
+# loads the variant's BMD once and threads a CylinderClsnWithPos onto the
+# variant's list; Behavior ticks every cylinder on all five lists; Render
+# walks the same lists and draws the variant's Model at each node, billboarded
+# to the camera's heading and faded by distance through the Clipper.
+src/Tree_Spawn.cpp
+src/_ZN4Tree13InitResourcesEv.cpp
+src/_ZN4Tree8BehaviorEv.cpp
+src/_ZN4Tree6RenderEv.cpp
+src/_ZN4Tree16CleanupResourcesEv.cpp
+src/_ZN4Tree16OnPendingDestroyEv.c
+src/_ZN4TreeD1Ev.cpp
+src/_ZN4TreeD0Ev.cpp
+# ...and the ring it closes over: the cylinder it threads onto the list, the
+# Model face it loads through, the Clipper call its Render fades by, and the
+# two destructors + the MSL array-destroy helper its own dtor calls.
+src/_ZN19CylinderClsnWithPosC1Ev.c
+src/_ZN19CylinderClsnWithPosD1Ev.c
+src/_ZN19CylinderClsnWithPosD0Ev.c
+src/_ZN19CylinderClsnWithPos4InitERK7Vector35Fix12IiES4_jj.c
+src/_ZN19CylinderClsnWithPos6GetPosEv.c
+src/_ZN19CylinderClsnWithPos10GetOwnerIDEv.cpp
+src/_ZN12CylinderClsnD2Ev.c
+src/_ZN5Model14LoadAndSetFileEtii.cpp
+# func_02016ff4 is a HOST COPY in port/unmatched/: its shadow-class
+# virtual call counts slots in ROM numbering (two destructor slots) and
+# lands on UpdateVerts in the host tables. See the file header.
+# Model::LoadAndSetFile ends in the ROM's shrink-to-fit: rebase the BMD, hand
+# it to SetFile, then reallocate the block down to the size the file itself
+# reports. That is the first host caller of Heap::Reallocate, so the heap
+# vtable grows from the eight slots gate 3a could evidence to the ROM's
+# sixteen (see hal/heap_vtable.cpp) and the reallocate chain comes with it.
+src/func_02017060.c
+src/func_020469e0.c
+src/_ZN4Heap6SizeofEPv.cpp
+src/_ZN4Heap10ReallocateEPvj.cpp
+src/_ZN9ModelBase12ApplyOpacityEj.cpp
+src/func_020461b4.c
+src/func_02046208.c
+src/_ZN7Clipper13Func_02015560ER9Matrix4x3R7Vector35Fix12IiES3_.c
+src/_ZN5ModelD1Ev.c
+src/_ZN5ActorD2Ev.cpp
+src/func_02044104.c
+# __destroy_arr is NOT here: it is one of the hand-asm MSL runtime primitives
+# (an exception-frame array destroy), so there is no C to compile. It joins
+# its sibling func_020733a8 in hal/actor_vtables.cpp, transcribed from the
+# block in src/__destroy_arr.c.

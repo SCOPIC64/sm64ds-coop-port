@@ -13,3 +13,7 @@ data_ov002_0210e15c data_ov002_0210f1ac data_ov002_0210f224 data_ov002_0210c3b0 
 data_ov002_0210cbf4 data_ov002_0210cb5c data_ov002_0210cb70 data_ov002_0210cb88 Player_SpawnInfo
 # gate 14 A2: the entrance step handlers' ov002 data
 data_ov002_020ff1a0
+# gate 16, TREE: the ROM SpawnInfo the registry mounts for its two list
+# priorities, the five model file ids InitResources loads by trunk variant,
+# and the five per-variant CylinderClsn list heads (bss, so zeros).
+Tree_SpawnInfo data_ov002_0210abb8 data_ov002_02110a48

@@ -38,6 +38,15 @@ struct CylinderClsnWithPos : CylinderClsn {
     virtual ~CylinderClsnWithPos();     /* slots 0 (D1), 1 (D0) */
     virtual Vector3 &GetPos();          /* slot 2 */
     virtual u32 GetOwnerID();           /* slot 3 - always 0 */
+
+    /* --- non-virtual --- */
+    /* Copies pos in and forwards to CylinderClsn::Init. Declared here so a
+       caller can reach it without repeating the defining TU's local class
+       shape; the definition is src/_ZN19CylinderClsnWithPos4InitERK7Vector3
+       5Fix12IiES4_jj.c, which publishes the mangled name as a free function
+       the way the destructors do. */
+    void Init(const Vector3 &pos, Fix12i radius, Fix12i height, u32 flags,
+              u32 vulnFlags);
 };
 
 typedef char CylinderClsnWithPos_size_must_be_0x3c[

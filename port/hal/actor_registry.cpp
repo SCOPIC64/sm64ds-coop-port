@@ -222,23 +222,54 @@ extern "C" void port_actor_lists_seat(void)
 
 /* Phases 4, 2 and 3 of func_02044120: cleanup, the init pass for anything
    spawned since the last frame, then behaviour. */
+/* SM64DS_TRACE_LISTS=1: name every node on a list before it is walked --
+   actor id, alive state, kill flag and vtable. The only window into a frame
+   that is otherwise entirely matched code walking Nintendo's own structures. */
+static void port_list_trace(const char *name, int *list)
+{
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_TRACE_LISTS") != 0;
+    if (!on)
+        return;
+    std::printf("  [list] %s head %08x:", name, list[0]);
+    for (int *n = (int *)(size_t)list[0]; n; n = (int *)(size_t)n[1]) {
+        char *o = (char *)(size_t)n[2];
+        std::printf(" {node %p actor %p id %u alive %u kill %u vt %p}", (void *)n,
+                    (void *)o, o ? *(unsigned short *)(o + 0xc) : 0u,
+                    o ? *(unsigned char *)(o + 0xe) : 0u,
+                    o ? *(unsigned char *)(o + 0xf) : 0u,
+                    o ? *(void **)o : (void *)0);
+    }
+    std::printf("\n");
+}
+
 extern "C" void port_actor_tick(void)
 {
     data_02099f24[0] = 4;
+    port_list_trace("cleanup", data_020a4ba8);
     func_02043fdc(data_020a4ba8);
     data_02099f24[0] = 2;
+    port_list_trace("pending", data_020a4b88);
     func_02043fdc(data_020a4b88);
     data_02099f24[0] = 3;
+    port_list_trace("behaviour", data_020a4b78);
     func_02043fdc(data_020a4b78);
     data_02099f24[0] = 0;
 }
 
 /* Phase 5: the render bucket, in render-priority order. Runs inside the
    host's render frame rather than with the rest of func_02044120. */
+/* Nonzero while list 5 is walking. hal/cxxname_bridge.cpp reads it at the
+   Model render seam to convert each actor's ROM-convention (scene-unit) model
+   matrix into the harness's world units for the duration of the bucket. */
+extern "C" int port_actor_bucket_depth;   /* storage: hal/cxxname_bridge.cpp */
+
 extern "C" void port_actor_render(void)
 {
     data_02099f24[0] = 5;
+    ++port_actor_bucket_depth;
     func_02043fdc(data_020a4b98);
+    --port_actor_bucket_depth;
     data_02099f24[0] = 0;
 }
 
@@ -252,9 +283,23 @@ extern "C" void port_actor_scene_pass(void)
 }
 
 /* How many actors are currently on each list -- the read-back that says the
-   spawn spine really linked them. */
+   spawn spine really linked them -- plus the AREA table, because an actor
+   whose area is not showing has Actor::BeforeBehavior set its 0x38 flags and
+   Actor::BeforeRender refuses to draw it. Every object in a sub-table carries
+   the sub-table's index as its area id (LoadClsnAndObjects passes it as the
+   loader's second argument; only the main table's objects get -1, which means
+   "not area-bound"), so on the castle grounds that is area 0. */
+extern "C" {
+extern signed char data_02092120;         /* the area currently shown */
+unsigned char IsAreaShowing(int idx);
+}
+
 extern "C" void port_actor_lists_probe(void)
 {
+    std::printf("[area] shown %d, showing:", data_02092120);
+    for (int i = 0; i < 4; ++i)
+        std::printf(" [%d]=%u", i, IsAreaShowing(i));
+    std::printf("\n");
     static const struct { const char *n; int *l; int step; } lists[] = {
         {"behaviour", data_020a4b78, 1}, {"render", data_020a4b98, 1},
         {"pending", data_020a4b88, 1}, {"cleanup", data_020a4ba8, 1},

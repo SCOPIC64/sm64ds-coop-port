@@ -10,7 +10,10 @@
 #include "Camera.h"
 #include "ClsnResult.h"
 #include "CylinderClsn.h"
+#include "CylinderClsnWithPos.h"
+#include "Heap.h"
 #include "Message.h"
+#include "ModelBase.h"
 #include "Model.h"
 #include "ModelAnim2.h"
 #include "OAM.h"
@@ -203,4 +206,49 @@ extern "C" void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a)
    class the registry carries goes through it. */
 extern "C" int _ZN9ActorBase12BeforeRenderEv(void *self)
 { return ((ActorBase *)self)->ActorBase::BeforeRender(); }
+
+/* gate 16: ModelBase::ApplyOpacity is a real method whose only caller,
+   Tree::Render, spells it as an Itanium C name (and passes a third argument
+   the ROM's r2 carried into a two-parameter body; cdecl lets the caller keep
+   cleaning it). */
+extern "C" void _ZN9ModelBase12ApplyOpacityEj(void *self, unsigned a)
+{ ((ModelBase *)self)->ModelBase::ApplyOpacity(a); }
+
+/* Model::UpdateFileOffsets is a STATIC member (include/Model.h), which is why
+   func_02016ff4 calls it with the file alone and no `this` -- the Itanium name
+   is the same either way, so only the header says which. Face, not alias:
+   MSVC decorates a static member differently again. */
+extern "C" void _ZN5Model17UpdateFileOffsetsER8BMD_File(BMD_File *f)
+{ Model::UpdateFileOffsets(*f); }
+
+/* gate 16, the shrink-to-fit tail of Model::LoadAndSetFile. Both are real
+   Heap methods reached by Itanium name from func_02017060; _Sizeof is the ARM
+   two-instruction veneer onto Sizeof, so the face calls the target directly
+   rather than forwarding through a body that would drop both arguments. */
+/* gate 16: the actor teardown is a HOST COPY now (see
+   port/unmatched/ActorBase_AfterCleanupResources.cpp -- the matched TU defines
+   three engine globals rather than declaring them), so the slot-5 thunks that
+   call the method need the method to exist. */
+extern "C" void _ZN9ActorBase21AfterCleanupResourcesEj(void *self, unsigned a);
+void ActorBase::AfterCleanupResources(u32 a)
+{ _ZN9ActorBase21AfterCleanupResourcesEj(this, a); }
+
+extern "C" int _ZN4Heap7_SizeofEPv(void *self, void *p)
+{ return ((Heap *)self)->Heap::Sizeof(p); }
+extern "C" void _ZN4Heap10ReallocateEPvj(void *self, void *p, unsigned n)
+{ ((Heap *)self)->Heap::Reallocate(p, n); }
+
+/* gate 16, THE OTHER DIRECTION: CylinderClsnWithPos::Init is defined at C
+   linkage in its own TU while Tree::InitResources declares it as a method on
+   a local class shape and calls it __thiscall. An /alternatename would enter
+   the cdecl body with `this` still in ecx, so this is a face. */
+extern "C" void _ZN19CylinderClsnWithPos4InitERK7Vector35Fix12IiES4_jj(
+    void *self, const void *pos, int radius, int height, unsigned flags,
+    unsigned vulnFlags);
+void CylinderClsnWithPos::Init(const Vector3 &pos, Fix12i radius,
+                               Fix12i height, u32 flags, u32 vulnFlags)
+{
+    _ZN19CylinderClsnWithPos4InitERK7Vector35Fix12IiES4_jj(
+        this, &pos, radius, height, flags, vulnFlags);
+}
 

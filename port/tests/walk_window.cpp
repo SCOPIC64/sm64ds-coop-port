@@ -1208,6 +1208,56 @@ int main(void)
                in software, so THAT is where the camera reaches the raster,
                not the GX position stack. */
             hal_camera_render(cam);
+            /* THE ACTOR RENDER BUCKET GOES HERE, and the reason is the shim
+               immediately below. Processing list 5 is the game's own render
+               pass -- func_0204322c over slots 9/10/11, in render-priority
+               order -- and everything on it is ROM code working in SCENE
+               units: Tree::Render clips its cylinders through the Clipper
+               with data_0209b3ec as it stands and writes scene-unit
+               translations into its Models. The shim converts that same view
+               matrix for the port's own world-unit models. So the bucket runs
+               BEFORE the conversion and the harness's two draws after it, and
+               each side gets the matrix it was written against. The raster is
+               z-buffered, so drawing the actors ahead of the level model
+               costs nothing.
+               SM64DS_NO_ACTORS=1 takes the bucket out for the A/B. */
+            if (boot_spawns && !getenv("SM64DS_NO_ACTORS")) {
+                size_t before = 0, after = 0;
+                if (selftest) ntr::gx_polygons(before);
+                port_actor_render();
+                if (selftest) {
+                    const ntr::GxTriangle *at = ntr::gx_polygons(after);
+                    if (frame == 0 || getenv("SM64DS_TRACE_ACTOR_TRIS")) {
+                        float mnx = 1e30f, mxx = -1e30f, mny = 1e30f,
+                              mxy = -1e30f, mnz = 1e30f, mxz = -1e30f;
+                        for (size_t i = before; i < after; ++i)
+                            for (int v = 0; v < 3; ++v) {
+                                float X = at[i].v[v].x, Y = at[i].v[v].y,
+                                      Z = at[i].v[v].z;
+                                if (X < mnx) mnx = X;
+                                if (X > mxx) mxx = X;
+                                if (Y < mny) mny = Y;
+                                if (Y > mxy) mxy = Y;
+                                if (Z < mnz) mnz = Z;
+                                if (Z > mxz) mxz = Z;
+                            }
+                        printf("[actors] render bucket: %zu triangles, screen "
+                               "x[%.0f..%.0f] y[%.0f..%.0f] z[%.3f..%.3f]\n",
+                               after - before, mnx, mxx, mny, mxy, mnz, mxz);
+                        if (getenv("SM64DS_TRACE_ACTOR_TRIS"))
+                            for (size_t i = before; i < after && i < before + 4;
+                                 ++i)
+                                printf("         tri (%.1f,%.1f,%.4f) "
+                                       "(%.1f,%.1f,%.4f) (%.1f,%.1f,%.4f) "
+                                       "tex %p %dx%d cull %u alpha %u\n",
+                                       at[i].v[0].x, at[i].v[0].y, at[i].v[0].z,
+                                       at[i].v[1].x, at[i].v[1].y, at[i].v[1].z,
+                                       at[i].v[2].x, at[i].v[2].y, at[i].v[2].z,
+                                       (const void *)at[i].tex, at[i].tw,
+                                       at[i].th, at[i].cull, at[i].alpha);
+                    }
+                }
+            }
             /* R6 UNIT SHIM. The ROM renders in SCENE units: Camera::Render
                feeds LookAt_ eye and lookAt as (v + 4) >> 3, so the view
                matrix's translation row comes out world/8 while its rotation
@@ -1363,17 +1413,6 @@ int main(void)
         }
         if (!getenv("SM64DS_NO_LEVEL"))
             hal_render_model(level_storage, level_shift);
-        /* THE ACTOR RENDER BUCKET, and it is the game's own: processing list
-           5, walked in render-priority order, dispatching every spawned
-           actor's Render through its vtable (func_0204322c, slots 9/10/11).
-           Placed here rather than inside port_actor_tick because the ROM's
-           frame renders in the same pass it ticks, and the host's render
-           frame does not open until gx_reset and the camera push above --
-           phases 4/2/3 ran before them, phase 5 runs after. The alternative,
-           driving it through func_02019404's scene render slot, needs the
-           Scene actor the port does not build until stage C. */
-        if (boot_spawns && !getenv("SM64DS_NO_ACTORS"))
-            port_actor_render();
         /* phase 1, which is where func_02044120 ends: the scene tree's own
            housekeeping -- priority re-sorts, parent flag propagation, and the
            deferred list insertions for anything that spawned mid-phase. */

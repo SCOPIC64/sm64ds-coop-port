@@ -153,12 +153,92 @@ static int __fastcall mv_dosetfile(void *self, void *, char *f, int a, int b)
         fprintf(stderr, "  dosetfile self=%p f=%p a=%d b=%d\n", self, f, a, b);
     return ((Model *)self)->Model::DoSetFile(f, a, b);
 }
+/* ---- the actor bucket's unit conversion ---------------------------------
+   THE SCENE/WORLD SEAM, and processing list 5 is where the two conventions
+   meet. The ROM renders in SCENE units (world >> 3): an actor's Render fills
+   its model matrix with rotation rows at 1.0 and a scene-unit translation,
+   and Camera::Render's LookAt_ leaves the view matrix's translation row in
+   scene units to match. The harness renders in WORLD units and gets there by
+   scaling that translation row back up by 8 (walk_window's R6 shim).
+   x8 IS THE WHOLE CONVERSION EITHER WAY, and Mario is the proof: his body
+   matrix in hal_render_player_world is the ROM's matrix with the rotation
+   rows scaled by 8 and the translation left in world units, and he comes out
+   the right size in the right place against real-game footage.
+   The bucket runs BEFORE the shim, because an actor's Render also clips
+   through the Clipper against data_0209b3ec and its positions are scene
+   units. So the conversion is per-DRAW rather than per-bucket: scale this
+   model's matrix and the view's translation row together, draw, put both
+   back. One model's worth of world units inside an otherwise scene-unit
+   pass.
+   Retires with the shim, when the port's own two draws move to the ROM's
+   convention and the whole frame is scene units. */
+extern "C" int port_actor_bucket_depth;
+int port_actor_bucket_depth;
+extern "C" int data_0209b3ec[12];       /* the view matrix Model::Render composes with */
+
+/* The two halves of the conversion are not the same number, because the
+   harness's world-unit convention is not a uniform scale of the ROM's.
+   TRANSLATION is x8 -- world = scene << 3, and that is all.
+   ROTATION carries the model's own BMD scale as well, which on the ROM lives
+   in the part walk's MTX_SCALE and in the port is folded into the model matrix
+   instead: hal_render_model computes exactly `0x1000 << (shift + 10)` from the
+   BMD header's first word and the castle stands at the right size against
+   Mario because of it. An actor's Render leaves its rotation rows at 1.0, so
+   the same factor applies here, read from this model's own file rather than
+   assumed. */
+static int mv_model_scale(Model *m)
+{
+    const BMD_File *f = m->data.modelFile;
+    int shift = f ? *(const int *)f : 0;
+    if (shift < 0 || shift > 8)
+        shift = 0;
+    return 1 << (shift + 10);
+}
+static void mv_convert_matrix(void *mm, int rot)
+{
+    int *p = (int *)mm;
+    for (int i = 0; i < 9; ++i) p[i] *= rot;
+    for (int i = 9; i < 12; ++i) p[i] *= 8;
+}
+
 static void __fastcall mv_updateverts(void *self, void *)
 { ((Model *)self)->Model::UpdateVerts(); }
 static void __fastcall mv_virtual10(void *self, void *, void *m)
 { ((Model *)self)->Model::Virtual10(*(Matrix4x3 *)m); }
 static void __fastcall mv_render(void *self, void *, const void *s)
-{ ((Model *)self)->Model::Render((const Vector3 *)s); }
+{
+    Model *m = (Model *)self;
+    if (port_actor_bucket_depth) {
+        int save[12], vsave[3];
+        memcpy(save, &m->mat4x3, sizeof save);
+        memcpy(vsave, data_0209b3ec + 9, sizeof vsave);
+        mv_convert_matrix(&m->mat4x3, mv_model_scale(m));
+        for (int i = 9; i < 12; ++i) data_0209b3ec[i] *= 8;
+        /* SM64DS_TRACE_ACTOR_MAT=1: the converted model matrix, the BMD
+           header the rotation factor came out of, and the bone transform the
+           shape walk composes with. This is the trace that found the
+           collapsed-geometry wall documented above the bucket. */
+        if (getenv("SM64DS_TRACE_ACTOR_MAT")) {
+            const unsigned char *bf = (const unsigned char *)m->data.modelFile;
+            const int *q = (const int *)&m->mat4x3;
+            const int *bt = (const int *)m->data.transforms;
+            fprintf(stderr, "  [amat] file %p shift %u bones %u | %d %d %d | "
+                    "%d %d %d | %d %d %d | %d %d %d\n", (const void *)bf,
+                    bf ? bf[0] : 0u, bf ? *(const unsigned *)(bf + 4) : 0u,
+                    q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], q[8],
+                    q[9], q[10], q[11]);
+            if (bt)
+                fprintf(stderr, "  [abone] %d %d %d | %d %d %d | %d %d %d | "
+                        "%d %d %d\n", bt[0], bt[1], bt[2], bt[3], bt[4], bt[5],
+                        bt[6], bt[7], bt[8], bt[9], bt[10], bt[11]);
+        }
+        m->Model::Render((const Vector3 *)s);
+        memcpy(data_0209b3ec + 9, vsave, sizeof vsave);
+        memcpy(&m->mat4x3, save, sizeof save);
+        return;
+    }
+    m->Model::Render((const Vector3 *)s);
+}
 extern "C" {
 extern void *_ZTV5Model[8];
 void hal_fill_model_vtable(void)

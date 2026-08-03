@@ -26,9 +26,12 @@ typedef unsigned int u32;
 struct ExpandingHeap {
     void *VAllocate(u32 size, int align);
     int VDeallocate(void *p);
+    void *VReallocate(void *p, u32 size);
+    u32 VSizeof(void *p);
 };
 struct ExpandingHeapAllocator {
     void *Allocate(u32 size, int align);
+    void *Reallocate(void *p, u32 size);
     static u32 SizeofInternal(void *p);
     u32 MemoryLeft();
 };
@@ -53,6 +56,13 @@ u32 ExpandingHeapAllocator::SizeofInternal(void *p)
 { return _ZN22ExpandingHeapAllocator14SizeofInternalEPv(p); }
 u32 ExpandingHeapAllocator::MemoryLeft()
 { return _ZN22ExpandingHeapAllocator10MemoryLeftEv(this); }
+/* gate 16: ExpandingHeap::VReallocate calls the allocator as a method while
+   its definition is a C name, the Allocate case one line up. */
+extern "C" u32 _ZN22ExpandingHeapAllocator10ReallocateEPvj(void *self,
+                                                           char *p, u32 size);
+void *ExpandingHeapAllocator::Reallocate(void *p, u32 size)
+{ return (void *)(size_t)_ZN22ExpandingHeapAllocator10ReallocateEPvj(
+      this, (char *)p, size); }
 
 // ---- cross-linkage bridges surfaced by the link, both directions ---------
 // C++ method VDeallocate -> its C-linkage definition
@@ -108,10 +118,33 @@ extern "C" void *_ZN4Heap8AllocateEj(void *self, u32 size)
 }
 
 // ---- the synthetic vtable ------------------------------------------------
+//
+// SIXTEEN slots, and they are the ROM's own: _ZTV13ExpandingHeap at arm9
+// 0x02099dd8 resolves every one of them to a named ExpandingHeap V-method.
+// The eight-slot version this replaces was written before that table had been
+// read and sized itself off the two callers gate 3a could evidence -- which
+// meant slot 8 and slot 9, the two Model::LoadAndSetFile reaches through
+// Heap::Reallocate and Heap::Sizeof, were past the end of the array.
+//
+//   [ 0] ~ExpandingHeap D1      [ 8] VReallocate
+//   [ 1] ~ExpandingHeap D0      [ 9] VSizeof
+//   [ 2] VDestroy               [10] VMaxAllocationUnitSize
+//   [ 3] VAllocate              [11] VMaxAllocatableSize
+//   [ 4] VDeallocate            [12] VMemoryLeft
+//   [ 5] VDeallocateAll         [13] VSetNodeID
+//   [ 6] VIntact                [14] VGetNodeID
+//   [ 7] VRescue                [15] VResizeToFit
+//
+// Slots the port has not yet had a caller for still trap by name; the table
+// being the right SHAPE is what stops a dispatch running off the end of it.
 static void *__fastcall slot_alloc(void *self, void *, u32 size, int align)
 { return ((ExpandingHeap *)self)->VAllocate(size, align); }
 static int __fastcall slot_dealloc(void *self, void *, void *p)
 { return ((ExpandingHeap *)self)->VDeallocate(p); }
+static void *__fastcall slot_realloc(void *self, void *, void *p, u32 size)
+{ return ((ExpandingHeap *)self)->VReallocate(p, size); }
+static u32 __fastcall slot_sizeof(void *self, void *, void *p)
+{ return ((ExpandingHeap *)self)->VSizeof(p); }
 
 #define TRAP(n) \
     static void __fastcall slot_trap##n(void *, void *) { \
@@ -119,10 +152,15 @@ static int __fastcall slot_dealloc(void *self, void *, void *p)
                         "with no caller evidence (see heap_vtable.cpp)\n", n); \
         abort(); }
 TRAP(0) TRAP(1) TRAP(2) TRAP(5) TRAP(6) TRAP(7)
+TRAP(10) TRAP(11) TRAP(12) TRAP(13) TRAP(14) TRAP(15)
 
-extern "C" void *_ZTV13ExpandingHeap[8] = {
+extern "C" void *_ZTV13ExpandingHeap[16] = {
     (void *)slot_trap0, (void *)slot_trap1, (void *)slot_trap2,
-    (void *)slot_alloc,        /* 3: VAllocate, pinned by Heap::Allocate */
-    (void *)slot_dealloc,      /* 4: VDeallocate, pinned by Heap::Deallocate */
+    (void *)slot_alloc,        /* 3: VAllocate */
+    (void *)slot_dealloc,      /* 4: VDeallocate */
     (void *)slot_trap5, (void *)slot_trap6, (void *)slot_trap7,
+    (void *)slot_realloc,      /* 8: VReallocate */
+    (void *)slot_sizeof,       /* 9: VSizeof */
+    (void *)slot_trap10, (void *)slot_trap11, (void *)slot_trap12,
+    (void *)slot_trap13, (void *)slot_trap14, (void *)slot_trap15,
 };

@@ -233,6 +233,25 @@ void func_020733a8(void *base, int n, int stride,
     for (int i = 0; i < n; ++i, p += stride)
         ctor(p);
 }
+
+/* ...and its sibling, the array DESTROY. src/__destroy_arr.c is hand-asm for
+   the same reason -- an exception frame no C under the ROM's flags emits --
+   so there is no source to compile, only a block to read:
+   r0 base, r1 count, r2 size, r3 dtor; `mla r4, r7, r6, r0` puts the cursor
+   one past the end and the loop steps DOWN by size before each call, so the
+   elements are destroyed back to front. Both zero-count guards fall out of
+   the two early returns. */
+void __destroy_arr(void *base, int n, int size, void (*dtor)(void *))
+{
+    char *p;
+    if (dtor == 0 || n == 0)
+        return;
+    p = (char *)base + (size_t)n * size;
+    while (n-- > 0) {
+        p -= size;
+        dtor(p);
+    }
+}
 }
 
 // ---- gate-10 storage and stubs --------------------------------------------

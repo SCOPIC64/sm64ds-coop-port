@@ -720,3 +720,29 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    real MSVC methods, so their C-named callers would enter a __thiscall body
    through a cdecl call and read `this` out of ecx garbage. Both get faces in
    hal/level_boot.cpp instead. */
+
+/* ---- gate 16, the actor classes ----------------------------------------
+   The class TUs declare their overlay data at C++ linkage (outside the
+   extern "C" block the functions sit in), so each reference carries the
+   MSVC mangling of whatever TYPE that TU happened to spell -- and different
+   TUs of the same class spell the same array differently. ovdata.py
+   publishes one plain C symbol; these are the per-mangling faces onto it.
+
+   Tree: InitResources reads data_ov002_02110a48 as int[] and the model-id
+   table as unsigned short[]; CleanupResources reads the same list heads as
+   char*[]. Two manglings, one array. */
+#pragma comment(linker, "/alternatename:?data_ov002_02110a48@@3PAHA=_data_ov002_02110a48")
+#pragma comment(linker, "/alternatename:?data_ov002_02110a48@@3PAPADA=_data_ov002_02110a48")
+#pragma comment(linker, "/alternatename:?data_ov002_0210abb8@@3PAGA=_data_ov002_0210abb8")
+/* Actor's D2 picks func_0203b27c and func_02044104 out of decl_common.h,
+   which is generated without extern "C", so the .cpp emits MSVC manglings
+   for two plain C definitions. */
+#pragma comment(linker, "/alternatename:?func_0203b27c@@YAXHH@Z=_func_0203b27c")
+#pragma comment(linker, "/alternatename:?func_02044104@@YAXH@Z=_func_02044104")
+/* _ZTV5Actor and _ZTV12ActorDerived are 0x0208e3a4 / 0x0208e4b8, the two
+   base tables the constructor and destructor chains install transiently and
+   never dispatch through. hal/actor_vtables.cpp already carries the storage
+   under the data_ names; these are the class-name faces onto the same bytes,
+   the _ZTV9ActorBase pattern one line up. */
+#pragma comment(linker, "/alternatename:__ZTV5Actor=_data_0208e3a4")
+#pragma comment(linker, "/alternatename:__ZTV12ActorDerived=_data_0208e4b8")

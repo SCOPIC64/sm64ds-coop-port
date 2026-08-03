@@ -770,3 +770,17 @@ void port_stage_a_probe(void *mc_)
     }
 }
 }  /* extern "C" */
+
+/* ---- the BMD shrink-to-fit switch ----------------------------------------
+   Model::LoadAndSetFile's last step is func_02017060: reallocate the loaded
+   BMD down to the size its own header reports, once SetFile has parsed it.
+   The port's other model path already declines it -- hal/cxxname_bridge.cpp's
+   expansion of Model::LoadFile carries the note "Reallocate is a DS heap
+   shrink, no-op here" -- and this is the same decision spelled where the
+   caller can see it. SM64DS_MODEL_SHRINK=1 turns it back on for the A/B. */
+extern "C" int port_model_shrink_enabled(void)
+{
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_MODEL_SHRINK") != 0;
+    return on;
+}
