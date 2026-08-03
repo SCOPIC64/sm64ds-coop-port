@@ -52,6 +52,52 @@ void hal_render_player_body(void *player)
 { hal_render_player_body_ex(player, 1); }
 void hal_render_player_body_only(void *player)
 { hal_render_player_body_ex(player, 0); }
+/* world-space variant: mat4x3 = Y-rotation(mAngleY) + fx translation, the
+   head composed through the body's world matrix (neck is model-space) */
+extern "C" short data_02082214[];   /* s16 trig pairs [sin, cos], 4096 = 1 */
+static void m43_mul(const int *a, const int *b, int *out)
+{
+    for (int r = 0; r < 3; ++r)
+        for (int c2 = 0; c2 < 3; ++c2)
+            out[r * 3 + c2] = (int)(((long long)a[r * 3] * b[c2] +
+                                     (long long)a[r * 3 + 1] * b[3 + c2] +
+                                     (long long)a[r * 3 + 2] * b[6 + c2]) >>
+                                    12);
+    for (int c2 = 0; c2 < 3; ++c2)
+        out[9 + c2] = (int)(((long long)a[9] * b[c2] +
+                             (long long)a[10] * b[3 + c2] +
+                             (long long)a[11] * b[6 + c2]) >>
+                            12) +
+                      b[9 + c2];
+}
+void hal_render_player_world(void *player)
+{
+    char *c = (char *)player;
+    unsigned id = _ZNK6Player14GetBodyModelIDEjb(c, *(int *)(c + 8) & 0xff, 0);
+    ModelAnim *ma = ((ModelAnim **)(c + 0xdc))[id];
+    if (!ma) return;
+    unsigned idx = ((unsigned short)*(short *)(c + 0x8e)) >> 4;
+    int s = data_02082214[idx * 2], co = data_02082214[idx * 2 + 1];
+    int world[12] = {co, 0, -s, 0, 0x1000, 0, s, 0, co,
+                     *(int *)(c + 0x5c), *(int *)(c + 0x60),
+                     *(int *)(c + 0x64)};
+    for (int i = 0; i < 12; ++i) ((int *)&ma->mat4x3)[i] = world[i];
+    ma->ModelAnim::UpdateVerts();
+    ma->ModelAnim::Render(0);
+
+    unsigned hid = func_ov002_020becf4(c, *(unsigned char *)(c + 0x6db), 1);
+    if (hid != 8 && hid != 9) {
+        char *head = ((char **)(c + 0x154))[hid];
+        if (head) {
+            char *neck = *(char **)((char *)ma + 0x14) + 0x2d0;
+            if (neck)
+                m43_mul((const int *)neck, world, (int *)(head + 0x1c));
+            ((void(__fastcall *)(void *, void *, const void *))(
+                ((void ***)head)[0][4]))(head, 0, 0);
+        }
+    }
+}
+
 void hal_render_player_body_ex(void *player, int with_head)
 {
     char *c = (char *)player;
