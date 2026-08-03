@@ -197,3 +197,16 @@
     case 0x020d7504: return ((Player *)self)->Player::St_YoshiPower_Main();
     case 0x020d7ed0: return ((Player *)self)->Player::St_YoshiPower_Init();
     case 0x020d736c: return ((Player *)self)->Player::St_YoshiPower_Cleanup();
+    /* SHARED-BODY states: these five have no Main of their own. Their
+       State objects (built by __sinit_ov002_021019d0) point the Main slot
+       at a body another state already owns, so only the Init was missing:
+         Dive           state 0x021105bc  Main = St_StomachSlide_Main
+         SlideKickRec.  state 0x021101fc  Main = St_SideFlip_Main
+         BackFlip       state 0x0211052c  Main = St_SideFlip_Main
+         WaterJump      state 0x02110694  Main = St_SideFlip_Main
+         HeadstandJump  state 0x02110724  Main = St_SideFlip_Main */
+    case 0x020dd17c: return ((Player *)self)->Player::St_Dive_Init();
+    case 0x020e162c: return ((Player *)self)->Player::St_WaterJump_Init();
+    case 0x020e16a4: return ((Player *)self)->Player::St_HeadstandJump_Init();
+    case 0x020e18a8: return ((Player *)self)->Player::St_BackFlip_Init();
+    case 0x020e1990: return ((Player *)self)->Player::St_SlideKickRecover_Init();

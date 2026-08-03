@@ -1150,3 +1150,8 @@ src/func_0204f8cc.c
 src/_ZN7Clipper13Func_0201559CEv.c
 src/func_02035468.c
 src/CrossVec3.c
+src/_ZN6Player12St_Dive_InitEv.cpp
+src/_ZN6Player17St_WaterJump_InitEv.cpp
+src/_ZN6Player21St_HeadstandJump_InitEv.cpp
+src/_ZN6Player16St_BackFlip_InitEv.cpp
+src/_ZN6Player24St_SlideKickRecover_InitEv.cpp

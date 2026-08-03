@@ -599,3 +599,7 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?func_ov002_020d5f34@@YAHPADPAX@Z=_func_ov002_020d5f34")
 #pragma comment(linker, "/alternatename:?func_ov002_020d708c@@YAXPAD@Z=_func_ov002_020d708c")
 #pragma comment(linker, "/alternatename:?func_ov002_020d708c@@YAXPAD@Z=_func_ov002_020d708c")
+
+/* shared-body state Inits (Dive, BackFlip, HeadstandJump, SlideKickRecover,
+   WaterJump): the C++-mangled refs their TUs emit -> the C-named storage */
+#pragma comment(linker, "/alternatename:?data_ov002_020ff100@@3PAHA=_data_ov002_020ff100")
