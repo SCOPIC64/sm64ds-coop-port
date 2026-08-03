@@ -166,7 +166,11 @@ static void push_camera(const float eye[3], const float at[3])
         -(uy[0] * eye[0] + uy[1] * eye[1] + uy[2] * eye[2]),
         (fz[0] * eye[0] + fz[1] * eye[1] + fz[2] * eye[2]), 1};
 
-    const float fovy = 55.0f * 3.14159265f / 180.0f;
+    /* the ROM's fov: camera presets set the half-angle field to 0xbb0
+       DS units = 16.46 deg, so the game renders ~33 deg vertical. The
+       old 55 was a wide-angle lens -- it shrank and warped the world
+       around Mario no matter how right the geometry was. */
+    const float fovy = 32.9f * 3.14159265f / 180.0f;
     const float aspect = (float)ntr::SCREEN_W / ntr::SCREEN_H;
     const float f = 1.0f / tanf(fovy * 0.5f);
     const float zn = 0.8f, zf = 6400.0f;
@@ -665,7 +669,7 @@ int main(void)
            low area's walls, looking steeply down, which foreshortened
            the terrain ("squashed, worse the lower you go"). cam_pitch
            tilts the rig (R/F keys), default ~7 degrees. */
-        float cd = 1050.0f * cosf(cam_pitch), ch = 1050.0f * sinf(cam_pitch);
+        float cd = 1800.0f * cosf(cam_pitch), ch = 1800.0f * sinf(cam_pitch);
         float want_eye[3] = {px - cd * sinf(cam_yaw), py + 95.0f + ch,
                              pz - cd * cosf(cam_yaw)};
         float at[3] = {px, py + 95.0f, pz};
@@ -686,6 +690,22 @@ int main(void)
             if (hal_line_ray(g_mc, a, b, clip)) {
                 for (int k = 0; k < 3; ++k)
                     want_eye[k] = clip[k] / 4096.0f * 0.9f + at[k] * 0.1f;
+                /* never collapse onto Mario: in enclosed areas (the moat,
+                   doorways) the pull glued the lens to the nearest wall
+                   and the framing went face-cam; keep a minimum standoff
+                   even if it means the near wall clips */
+                {
+                    float dx = want_eye[0] - at[0], dy = want_eye[1] - at[1],
+                          dz = want_eye[2] - at[2];
+                    float d = sqrtf(dx * dx + dy * dy + dz * dz);
+                    const float MIN_D = 700.0f;
+                    if (d > 1.0f && d < MIN_D) {
+                        float g2 = MIN_D / d;
+                        want_eye[0] = at[0] + dx * g2;
+                        want_eye[1] = at[1] + dy * g2;
+                        want_eye[2] = at[2] + dz * g2;
+                    }
+                }
             }
         }
         static float eye[3];

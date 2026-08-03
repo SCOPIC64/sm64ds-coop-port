@@ -95,13 +95,14 @@ void hal_render_player_world(void *player)
     ModelAnim *ma = ((ModelAnim **)(c + 0xdc))[id];
     if (!ma) return;
     unsigned idx = ((unsigned short)*(short *)(c + 0x8e)) >> 4;
-    /* body scale: x6 puts Mario at ~111 world units, calibrated against
-       the castle door arch (he should stand ~45-50% of it; x8 read 61%)
-       and BigBrickBlock's 150-unit cylinder (~1.4 Mario in game). The
-       scene>>3 argument said x8 but its 18.5-unit body measure carries
-       enough slack that the visual anchors win. */
-    int s = data_02082214[idx * 2] * 6, co = data_02082214[idx * 2 + 1] * 6;
-    int world[12] = {co, 0, -s, 0, 0x6000, 0, s, 0, co,
+    /* body scale x8: scene space is world>>3 (every model-matrix builder
+       in the ROM writes pos>>3), so the body's natural render is 8x in
+       world terms -- Mario ~148 units, exactly what the DS pipeline
+       draws. The x6 detour was compensating for the WRONG FOV (55 vs
+       the ROM's ~33): the wide lens shrank the world around him and no
+       body scale could fix that. */
+    int s = data_02082214[idx * 2] << 3, co = data_02082214[idx * 2 + 1] << 3;
+    int world[12] = {co, 0, -s, 0, 0x8000, 0, s, 0, co,
                      *(int *)(c + 0x5c), *(int *)(c + 0x60),
                      *(int *)(c + 0x64)};
     for (int i = 0; i < 12; ++i) ((int *)&ma->mat4x3)[i] = world[i];
