@@ -20,6 +20,9 @@ constexpr int SCREEN_W = 1024;   /* 4x the DS panel; the smokes and their
                                     reference pixel counts stay on 256x192
                                     (the plain ntr lib) */
 constexpr int SCREEN_H = 768;
+#elif defined(NTR_HIRES2)
+constexpr int SCREEN_W = 512;    /* 2x: the interactive window's tier */
+constexpr int SCREEN_H = 384;
 #else
 constexpr int SCREEN_W = 256;
 constexpr int SCREEN_H = 192;

@@ -66,6 +66,7 @@ struct State {
 
     uint32_t color = 0xFFFFFFFFu;
     float u = 0, v = 0;                 // current TEXCOORD, in texels
+    float raw_u = 0, raw_v = 0;         // TEXCOORD as loaded, pre-texgen
     const uint32_t *tex_rgba = nullptr; // bound texture (Mat tex above is the
     int tw = 0, th = 0;                 // texture *matrix* -- different thing)
     int prim = -1;                 // BEGIN_VTXS type, -1 when not inside a primitive
@@ -87,6 +88,7 @@ struct State {
 
 State g;
 int g_store_count;
+extern uint32_t g_teximage;   // defined with the texture cache below
 
 uint32_t bgr555_to_argb(uint16_t c) {
     const uint32_t r = c & 0x1F, gg = (c >> 5) & 0x1F, b = (c >> 10) & 0x1F;
@@ -323,6 +325,14 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
             float nx = n10(p[0] & 0x3FF);
             float ny = n10((p[0] >> 10) & 0x3FF);
             float nz = n10((p[0] >> 20) & 0x3FF);
+            /* texgen mode 2: normal-source (env mapping) -- offset the
+               latched texcoord by the raw normal through the tex matrix */
+            if (((g_teximage >> 30) & 3) == 2) {
+                g.u = g.raw_u + (nx * g.tex.m[0] + ny * g.tex.m[4] +
+                                 nz * g.tex.m[8]) * (1.0f / 16.0f);
+                g.v = g.raw_v + (nx * g.tex.m[1] + ny * g.tex.m[5] +
+                                 nz * g.tex.m[9]) * (1.0f / 16.0f);
+            }
 
             // Normals are transformed by the directional matrix, not position.
             const Mat &v = g.vec;
@@ -353,8 +363,21 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
             break;
         }
         case 0x22:                                               // TEXCOORD (1.4 fx)
-            g.u = static_cast<int16_t>(p[0] & 0xFFFF) / 16.0f;
-            g.v = static_cast<int16_t>(p[0] >> 16) / 16.0f;
+            g.raw_u = static_cast<int16_t>(p[0] & 0xFFFF) / 16.0f;
+            g.raw_v = static_cast<int16_t>(p[0] >> 16) / 16.0f;
+            /* texgen (TEXIMAGE_PARAM bits 30-31): mode 1 multiplies the
+               coord by the texture matrix. The stage decals (grass
+               fringes) carry their texel scale THERE -- raw coords
+               collapse them to a single texel (the solid-green strips). */
+            if (((g_teximage >> 30) & 3) == 1) {
+                g.u = g.raw_u * g.tex.m[0] + g.raw_v * g.tex.m[4] +
+                      (g.tex.m[8] + g.tex.m[12]) * (1.0f / 16.0f);
+                g.v = g.raw_u * g.tex.m[1] + g.raw_v * g.tex.m[5] +
+                      (g.tex.m[9] + g.tex.m[13]) * (1.0f / 16.0f);
+            } else {
+                g.u = g.raw_u;
+                g.v = g.raw_v;
+            }
             break;
         case 0x23:                                               // VTX_16
             vertex(static_cast<int16_t>(p[0] & 0xFFFF), static_cast<int16_t>(p[0] >> 16),
@@ -571,6 +594,28 @@ void bind_from_vram() {
         d.pal_len = 0x18000 - static_cast<int32_t>(pal_off);
         std::vector<uint32_t> rgba;
         if (!texture_decode(d, rgba)) { gx_bind_texture(nullptr, 0, 0); return; }
+        /* SM64DS_TEX_DUMP: write every texture bound this run as a PPM
+           next to the exe, named by teximage word -- artifact triage */
+        if (getenv("SM64DS_TEX_DUMP")) {
+            char nm[64];
+            snprintf(nm, sizeof nm, "tex_%08x_f%d_%dx%d.ppm",
+                     g_teximage, d.format, d.width, d.height);
+            if (FILE *f = fopen(nm, "wb")) {
+                fprintf(f, "P6\n%d %d\n255\n", d.width, d.height);
+                for (size_t i = 0; i < rgba.size(); ++i) {
+                    /* checkerboard where alpha < 128 so holes are visible */
+                    uint32_t px = rgba[i];
+                    if ((px >> 24) < 128)
+                        px = ((i / 4 + i / (4 * d.width)) & 1) ? 0xFF00FFFF
+                                                               : 0xFF000000;
+                    unsigned char rgb[3] = {
+                        (unsigned char)(px >> 16), (unsigned char)(px >> 8),
+                        (unsigned char)px};
+                    fwrite(rgb, 1, 3, f);
+                }
+                fclose(f);
+            }
+        }
         it = g_vram_tex_cache.emplace(key, std::move(rgba)).first;
     }
     const int w = 8 << ((g_teximage >> 20) & 7), h = 8 << ((g_teximage >> 23) & 7);
@@ -729,7 +774,14 @@ void gx_render(Framebuffer &fb) {
                     const int i = static_cast<int>(v * m + 0.5f);
                     return static_cast<uint32_t>(i < 0 ? 0 : (i > 255 ? 255 : i));
                 };
-                if (t.alpha >= 31 || t.alpha == 0) {
+                /* effective alpha = poly attr alpha combined with the
+                   TEXEL alpha (A3I5/A5I3 gradients -- the grass-fade
+                   strips render solid without it) */
+                const uint32_t poly_a =
+                    (t.alpha >= 31 || t.alpha == 0) ? 31u : t.alpha;
+                const uint32_t tex_a = texel >> 24;            /* 0..255 */
+                const uint32_t sa = (poly_a * tex_a + 127) / 255; /* 0..31 */
+                if (sa >= 31) {
                     /* opaque (the DS treats attr alpha 0 as wire/opaque
                        depending on mode; opaque is the safe read) */
                     depth[y][x] = z;
@@ -739,7 +791,6 @@ void gx_render(Framebuffer &fb) {
                     /* translucent: blend over the framebuffer, keep depth
                        (DS translucent polys depth-test but do not write) */
                     const uint32_t dst = fb.px[y][x];
-                    const uint32_t sa = t.alpha;   /* 0..31 */
                     auto bl = [&](int sh) {
                         const uint32_t s = ch(sh);
                         const uint32_t d = (dst >> sh) & 0xFF;
