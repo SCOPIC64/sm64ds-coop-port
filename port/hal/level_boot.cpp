@@ -758,6 +758,31 @@ void port_stage_a_probe(void *mc_)
         std::printf("[clsn] world Y bounds: min %d (%.1f) max %d (%.1f)\n",
                     data_02092138, data_02092138 / 4096.0f,
                     data_0209212c, data_0209212c / 4096.0f);
+        /* THE COLLISION'S OWN WORLD EXTENT, straight off the vertex array
+           (positions run up to the normals table; each is a 12-byte s32
+           vector stored at 1/64 of a Fix12i, hence the <<6). This is the
+           number the level model's render scale is checked against: the
+           two describe the same terrain, so their world bounds must be the
+           same bounds. */
+        {
+            const s32 (*p)[3] = f->positions;
+            long n = ((const char *)f->normals - (const char *)f->positions) /
+                     12;
+            if (n > 0 && n < 65536) {
+                int lo[3] = {1 << 30, 1 << 30, 1 << 30};
+                int hi[3] = {-(1 << 30), -(1 << 30), -(1 << 30)};
+                for (long i = 0; i < n; ++i)
+                    for (int k = 0; k < 3; ++k) {
+                        int v = p[i][k] << 6;
+                        if (v < lo[k]) lo[k] = v;
+                        if (v > hi[k]) hi[k] = v;
+                    }
+                std::printf("[clsn] %ld vertices, world bounds x[%.1f..%.1f] "
+                            "y[%.1f..%.1f] z[%.1f..%.1f]\n", n,
+                            lo[0] / 4096.0f, hi[0] / 4096.0f, lo[1] / 4096.0f,
+                            hi[1] / 4096.0f, lo[2] / 4096.0f, hi[2] / 4096.0f);
+            }
+        }
         std::printf("[clsn] collider pair: 0x%x / 0x%x\n",
                     *(int *)((char *)mc_ + 0x2c), *(int *)((char *)mc_ + 0x38));
     }

@@ -237,9 +237,16 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 }
 
 /* camera folded into the GX projection matrix: P(perspective) * V(lookAt),
-   built in floats on world units (fx / 4096) and pushed as 4096-fixed */
-static void push_camera(const float eye[3], const float at[3])
+   built in floats and pushed as 4096-fixed.
+   ITS CALLERS THINK IN WORLD UNITS and the frame is drawn in SCENE units
+   (world >> 3, Camera::Render's own conversion), so the eye, the look-at and
+   the near/far planes all come across the same divide right here. That keeps
+   the hand-tuned rig behind SM64DS_OLD_CAMERA readable in the units its
+   occlusion rays and standoff distances are written in. */
+static void push_camera(const float eye_w[3], const float at_w[3])
 {
+    const float eye[3] = {eye_w[0] / 8, eye_w[1] / 8, eye_w[2] / 8};
+    const float at[3] = {at_w[0] / 8, at_w[1] / 8, at_w[2] / 8};
     float fz[3] = {at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]};
     float ln = sqrtf(fz[0] * fz[0] + fz[1] * fz[1] + fz[2] * fz[2]);
     for (int i = 0; i < 3; ++i) fz[i] /= (ln > 1e-6f ? ln : 1.0f);
@@ -269,7 +276,7 @@ static void push_camera(const float eye[3], const float at[3])
     const float fovy = 32.9f * 3.14159265f / 180.0f;
     const float aspect = (float)ntr::SCREEN_W / ntr::SCREEN_H;
     const float f = 1.0f / tanf(fovy * 0.5f);
-    const float zn = 3.0f, zf = 25600.0f;
+    const float zn = 3.0f / 8, zf = 25600.0f / 8;
     float P[16] = {f / aspect, 0, 0, 0,
                    0, f, 0, 0,
                    0, 0, (zf + zn) / (zn - zf), -1,
@@ -699,9 +706,6 @@ int main(void)
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
 
     static ntr::Framebuffer fb;
-    /* [0..2] the view matrix's own translation row, saved before the R6 unit
-       shim scales it; [3] "there is a saved row" */
-    static int port_view_shim_save[4];
     MSG msg;
     for (;;) {
         while (W.PeekMessageA_(&msg, 0, 0, 0, PM_REMOVE)) {
@@ -931,15 +935,10 @@ int main(void)
            in priority order -- which reaches him through the same
            func_02043288 the harness used to call by hand. */
         if (boot_spawns) {
-            /* Put the view matrix back in the ROM's own scene units before the
-               tick: the R6 unit shim below scaled its translation row for the
-               harness's world-unit models, and Actor::BeforeBehavior reads the
-               same three words to decide what is on screen. */
-            if (port_view_shim_save[3]) {
-                data_0209b3ec[9] = port_view_shim_save[0];
-                data_0209b3ec[10] = port_view_shim_save[1];
-                data_0209b3ec[11] = port_view_shim_save[2];
-            }
+            /* Nothing to undo before the tick any more. The view matrix is
+               the one Camera::Render published, in the ROM's own scene units,
+               and Actor::BeforeBehavior reads exactly those three words to
+               place every actor for the Clipper. */
             port_actor_tick();
         } else if (*(void **)(c + 0x370)) {
             hal_player_behavior(player);
@@ -1111,9 +1110,15 @@ int main(void)
         float px = *(int *)(c + 0x5c) / 4096.0f;
         float py = *(int *)(c + 0x60) / 4096.0f;
         float pz = *(int *)(c + 0x64) / 4096.0f;
-        if (selftest && frame == 0 && !real_camera) {
-            /* world-space bounds probe: identity matrices, read the raw
-               projected coords (with identity proj they ARE world coords) */
+        /* SCENE units everywhere below: pos >> 3, the ROM's own conversion. */
+        const float sx = px / 8.0f, sy = py / 8.0f, sz = pz / 8.0f;
+        if (selftest && frame == 0) {
+            /* scene-space bounds probe: identity matrices, read the raw
+               projected coords (with identity proj they ARE scene coords).
+               Runs under either camera -- it resets the geometry state at both
+               ends and the real camera republishes its matrices right after,
+               so the check is available in the default configuration. */
+            ntr::gx_reset();
             hal_render_player_world(player);
             size_t n = 0;
             const ntr::GxTriangle *ta = ntr::gx_polygons(n);
@@ -1128,9 +1133,21 @@ int main(void)
                 }
             printf("probe: %zu tris, x[%.1f..%.1f] y[%.1f..%.1f] z[%.1f..%.1f]\n",
                    n, mn[0], mx[0], mn[1], mx[1], mn[2], mx[2]);
-            printf("probe: mario fx pos (%d, %d, %d) -> units (%.1f, %.1f, %.1f)\n",
+            {
+                /* Mario's own rendered height, the one number the migration
+                   has to hold: identity projection, so the raw y span IS his
+                   size in scene units. x8 back to world for the historic
+                   reading (~145). */
+                const float hh2 = ntr::SCREEN_H * 0.5f;
+                const float ylo = 1.0f - mx[1] / hh2, yhi = 1.0f - mn[1] / hh2;
+                printf("probe: mario scene y[%.2f..%.2f] height %.2f scene "
+                       "(%.1f world)\n", ylo, yhi, yhi - ylo,
+                       (yhi - ylo) * 8.0f);
+            }
+            printf("probe: mario fx pos (%d, %d, %d) -> world (%.1f, %.1f, %.1f)"
+                   " scene (%.1f, %.1f, %.1f)\n",
                    *(int *)(c + 0x5c), *(int *)(c + 0x60), *(int *)(c + 0x64),
-                   px, py, pz);
+                   px, py, pz, sx, sy, sz);
             printf("probe: player scale vec c+0x80 = (%d, %d, %d) fx\n",
                    *(int *)(c + 0x80), *(int *)(c + 0x84), *(int *)(c + 0x88));
             ntr::gx_reset();
@@ -1148,11 +1165,12 @@ int main(void)
                 }
             printf("probe: level %zu tris, x[%.0f..%.0f] y[%.0f..%.0f] z[%.0f..%.0f]\n",
                    n, mn[0], mx[0], mn[1], mx[1], mn[2], mx[2]);
-            /* world units back out of the identity-projection screen coords:
-               wx = xs/(W/2)-1, wy = 1-ys/(H/2), wz = zs*2-1. VISUAL FLOOR
-               CHECK: highest mesh vertex in Mario's column (+-60 world)
-               at/below his head height vs the KCL ground there -- a
-               nonzero delta is the feet-sinking gap. */
+            /* scene units back out of the identity-projection screen coords:
+               sx = xs/(W/2)-1, sy = 1-ys/(H/2), sz = zs*2-1. VISUAL FLOOR
+               CHECK: highest mesh vertex in Mario's column at/below his head
+               height vs the KCL ground there -- a nonzero delta is the
+               feet-sinking gap. The KCL is world fx, so it comes across the
+               same >>3 the render does. */
             {
                 const float hw = ntr::SCREEN_W * 0.5f,
                             hh = ntr::SCREEN_H * 0.5f;
@@ -1169,22 +1187,22 @@ int main(void)
                         if (Y[v] < wymin) wymin = Y[v];
                         if (Y[v] > wymax) wymax = Y[v];
                     }
-                    /* interpolate the tri surface at (px, pz) */
+                    /* interpolate the tri surface at (sx, sz) */
                     {
                         const float d = (Z[1] - Z[2]) * (X[0] - X[2]) +
                                         (X[2] - X[1]) * (Z[0] - Z[2]);
                         if (d > 1e-6f || d < -1e-6f) {
                             const float a =
-                                ((Z[1] - Z[2]) * (px - X[2]) +
-                                 (X[2] - X[1]) * (pz - Z[2])) / d;
+                                ((Z[1] - Z[2]) * (sx - X[2]) +
+                                 (X[2] - X[1]) * (sz - Z[2])) / d;
                             const float b =
-                                ((Z[2] - Z[0]) * (px - X[2]) +
-                                 (X[0] - X[2]) * (pz - Z[2])) / d;
+                                ((Z[2] - Z[0]) * (sx - X[2]) +
+                                 (X[0] - X[2]) * (sz - Z[2])) / d;
                             const float c2 = 1.0f - a - b;
                             if (a > -0.01f && b > -0.01f && c2 > -0.01f) {
                                 const float wy =
                                     a * Y[0] + b * Y[1] + c2 * Y[2];
-                                if (wy < py + 150 && wy > vis) vis = wy;
+                                if (wy < sy + 150.0f / 8 && wy > vis) vis = wy;
                             }
                         }
                     }
@@ -1195,13 +1213,16 @@ int main(void)
                                             (int)((py + 1200) * 4096),
                                             *(int *)(c + 0x64),
                                             6000 << 12, &kgy);
-                    printf("probe: model WORLD x[%.1f..%.1f] y[%.1f..%.1f]\n",
-                           wxmin, wxmax, wymin, wymax);
-                    printf("probe: FLOOR at col (%.0f,%.0f): visual=%.1f "
-                           "kcl=%s%.1f delta=%.1f\n",
-                           px, pz, vis, kh ? "" : "MISS ",
-                           kgy / 4096.0f,
-                           kh ? vis - kgy / 4096.0f : 0.0f);
+                    const float kscene = kgy / 4096.0f / 8.0f;
+                    printf("probe: model SCENE x[%.1f..%.1f] y[%.1f..%.1f] "
+                           "(world x[%.1f..%.1f] y[%.1f..%.1f])\n",
+                           wxmin, wxmax, wymin, wymax, wxmin * 8, wxmax * 8,
+                           wymin * 8, wymax * 8);
+                    printf("probe: FLOOR at scene col (%.1f,%.1f): visual=%.2f "
+                           "kcl=%s%.2f delta=%.2f scene (%.1f world)\n",
+                           sx, sz, vis, kh ? "" : "MISS ", kscene,
+                           kh ? vis - kscene : 0.0f,
+                           kh ? (vis - kscene) * 8.0f : 0.0f);
                 }
             }
             ntr::gx_reset();
@@ -1270,37 +1291,18 @@ int main(void)
                     }
                 }
             }
-            /* R6 UNIT SHIM. The ROM renders in SCENE units: Camera::Render
-               feeds LookAt_ eye and lookAt as (v + 4) >> 3, so the view
-               matrix's translation row comes out world/8 while its rotation
-               rows are plain unit vectors. The port's model matrices are
-               still world-fx, and Model::Render's compose is
-               out.t = model.t * view.R + view.t -- first term world, second
-               scene. Scaling the translation row back up by 8 puts both in
-               world units. ONE place, and it is the whole of the scene-unit
-               divergence; moving the model matrices to the ROM's convention
-               instead is the real fix and is its own job.
-
-               AND IT IS UNDONE AT THE TOP OF THE NEXT TICK. The scaled matrix
-               is the harness's, and the game reads the same three words for
-               something else entirely: Actor::BeforeBehavior multiplies every
-               actor's position through data_0209b3ec to get its VIEW position
-               and hands that to the Clipper, whose answer against the actor's
-               own cull distance is what sets the OFF_SCREEN bit that
-               Actor::BeforeRender refuses on. With the row left eight times
-               too long every actor that HAS a cull distance reads as eight
-               times too far away and never reaches its own Render -- measured:
-               SIGN_POST, BLACK_BRICK_BLOCK and ONE_UP_MUSHROOM all came back
-               flags 0x38 and BeforeRender 0 with the sign twelve feet in front
-               of Mario. The Tree only ever drew because its SpawnInfo carries
-               no cull distance at all, so the test is skipped for it. */
-            port_view_shim_save[3] = 1;
-            port_view_shim_save[0] = data_0209b3ec[9];
-            port_view_shim_save[1] = data_0209b3ec[10];
-            port_view_shim_save[2] = data_0209b3ec[11];
-            data_0209b3ec[9] *= 8;
-            data_0209b3ec[10] *= 8;
-            data_0209b3ec[11] *= 8;
+            /* THE VIEW MATRIX IS USED AS THE ROM PRODUCED IT. Camera::Render
+               feeds LookAt_ eye and lookAt as (v + 4) >> 3, so its translation
+               row is in scene units and its rotation rows are plain unit
+               vectors -- and every model matrix in the frame is now scene
+               units too, so Model::Render's compose
+               (out.t = model.t * view.R + view.t) has both terms in the same
+               space. The R6 shim that scaled this row by 8 for the harness's
+               world-unit models is gone, and with it the reason
+               Actor::BeforeBehavior had to be handed the row back: it
+               multiplies every actor's position through these same words for
+               the Clipper, and an eight-times-too-long row read every actor
+               with a cull distance as eight times too far away. */
             {
                 /* FIELD-MAP CORRECTION, measured here: 0x8c is the camera
                    POSITION and 0x80 the point it looks at, not the other
@@ -1411,9 +1413,9 @@ int main(void)
             NTR_MMIO(uint32_t, 0x04000440) = 1;   /* MTX_MODE position */
             uint32_t tr[16] = {4096, 0, 0, 0, 0, 4096, 0, 0,
                                0, 0, 4096, 0,
-                               (uint32_t)(int)(px * 4096),
-                               (uint32_t)(int)(py * 4096),
-                               (uint32_t)(int)(pz * 4096), 4096};
+                               (uint32_t)(int)(sx * 4096),
+                               (uint32_t)(int)(sy * 4096),
+                               (uint32_t)(int)(sz * 4096), 4096};
             for (int i = 0; i < 16; ++i)
                 NTR_MMIO(uint32_t, 0x04000458) = tr[i];
             NTR_MMIO(uint32_t, 0x04000500) = 0;   /* BEGIN_VTXS tris */

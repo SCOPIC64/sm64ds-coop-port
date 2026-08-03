@@ -104,6 +104,11 @@ NAMED = [
     "data_02099f80", "data_02099f84",   # BCA keyframe weight tables
     "data_02099f88",                    # billboard/part-walk default scale
     "data_02099f94",                    # texture-matrix size table
+    # THE STAGE'S OWN RENDER SCALE. Stage::RenderModel ends in
+    # Model::Render(&data_020755d4) and Stage::RenderModelTransparent in the
+    # same call through slot 5, so this Vector3 is the only scale the level
+    # model is ever drawn with. {125.0, 125.0, 125.0} in Fix12i.
+    "data_020755d4",
 ]
 
 

@@ -10,9 +10,19 @@ Currently rewrites direct MMIO cast-derefs:
     *(volatile unsigned short *)0x4000280      ->  NTR_MMIO(unsigned short, 0x4000280)
 
 which routes the access through include/ntr/mmio.h so that write-triggered
-registers run their side effect. Accesses the transform cannot see textually --
-a pointer bound to a register and dereferenced later -- still work, because the
-host maps real memory at the DS I/O addresses; they just do not trigger.
+registers run their side effect.
+
+It also rewrites registers reached through a POINTER BOUND TO A LITERAL:
+
+    volatile int *p = (volatile int *)0x400046c;
+    *p = x;                                    ->  NTR_MMIO(int, 0x400046c) = x
+
+The header used to say those were harmless because the host maps real memory
+at the DS I/O addresses. They are not. func_0204488c -- the ordinary part
+walk, and the one place a model's scale is spent -- writes MTX_SCALE through
+exactly that shape, so every scale in the render walk latched into dead memory
+and the geometry engine never saw it: the level lost its BMD shift and every
+actor lost the Vector3 scale its Render asked for. See MMIO_PTR below.
 
     python tools/hostgen.py --decomp ../sm64ds-decomp _ZN4cstd3divEii
     python tools/hostgen.py --decomp ../sm64ds-decomp --all
@@ -39,6 +49,90 @@ MMIO_DEREF = re.compile(
     r"(?:\s+(?:unsigned|signed|long|short|int|char))*)"
     r"\s*\*\s*\)\s*(0x0?4[0-9A-Fa-f]{6})\b(?(1)\s*\))"
 )
+
+# A REGISTER REACHED THROUGH A POINTER, which the cast-deref rewrite above
+# cannot see. The decomp writes this whenever mwccarm kept the address in a
+# register across a block:
+#
+#     volatile int *mtxScale = (volatile int *)0x400046c;   func_0204488c
+#     ...
+#     *mtxScale = c0;                                       MTX_SCALE, x3
+#
+#     volatile unsigned int *r2b8 = (volatile unsigned int *)0x40002b8;
+#     r2b8[0] = 0;  r2b8[1] = n;                            func_02053008
+#
+# Both forms latch into mapped memory and trigger nothing, which is silent and
+# total: the geometry engine simply never receives the command.
+#
+# The rewrite is deliberately narrow, because a pointer is a pointer and this
+# transform is textual. A name qualifies only when
+#   * it is bound EXACTLY ONCE, from a literal cast in the 0x04xxxxxx window,
+#   * every other mention of it is `*name` or `name[<decimal literal>]`, and
+#   * nothing else -- no address-of, no passing it along, no arithmetic.
+# Anything outside that and the name is left completely alone; the port keeps
+# the behaviour it had (a latch that does not trigger) rather than gaining a
+# rewrite the tool cannot justify. The binding statement itself stays: it
+# becomes an unused local, which is cheaper to read than a hole in the source.
+MMIO_TYPE = (r"(?:unsigned|signed|long|short|int|char|"
+             r"u8|u16|u32|u64|s8|s16|s32|s64)"
+             r"(?:\s+(?:unsigned|signed|long|short|int|char))*")
+MMIO_BIND = re.compile(
+    r"\b(\w+)\s*=\s*\(\s*(?:volatile\s+)?(?:const\s+)?(" + MMIO_TYPE + r")"
+    r"\s*\*\s*\)\s*(0x0?4[0-9A-Fa-f]{6})\s*;")
+MMIO_WIDTH = {
+    "char": 1, "signed char": 1, "unsigned char": 1, "u8": 1, "s8": 1,
+    "short": 2, "short int": 2, "signed short": 2, "unsigned short": 2,
+    "unsigned short int": 2, "u16": 2, "s16": 2,
+    "int": 4, "signed": 4, "signed int": 4, "unsigned": 4, "unsigned int": 4,
+    "long": 4, "long int": 4, "unsigned long": 4, "u32": 4, "s32": 4,
+    "long long": 8, "signed long long": 8, "unsigned long long": 8,
+    "unsigned long long int": 8, "u64": 8, "s64": 8,
+}
+
+
+def mmio_ptr(text):
+    """Rewrite derefs of names bound to a literal register address."""
+    binds = {}
+    for m in MMIO_BIND.finditer(text):
+        name = m.group(1)
+        ctype = " ".join(m.group(2).split())
+        binds[name] = None if name in binds else (ctype, int(m.group(3), 16))
+
+    edits = []
+    for name, info in binds.items():
+        if info is None or info[0] not in MMIO_WIDTH:
+            continue
+        ctype, addr = info
+        width = MMIO_WIDTH[ctype]
+        # spans this pass must not touch: the declarator and the binding.
+        skip = [m.span() for m in re.finditer(
+            r"(?:(?:volatile|const)\s+)*(?:" + MMIO_TYPE + r")\s*\*\s*" +
+            re.escape(name) + r"\b", text)]
+        skip += [m.span() for m in MMIO_BIND.finditer(text)
+                 if m.group(1) == name]
+        mine = []
+        ok = True
+        for m in re.finditer(r"\b" + re.escape(name) + r"\b", text):
+            if any(a <= m.start() < b for a, b in skip):
+                continue
+            d = re.match(r"\s*\[\s*(\d+)\s*\]", text[m.end():])
+            if d:
+                mine.append((m.start(), m.end() + d.end(),
+                             addr + int(d.group(1)) * width))
+                continue
+            s = re.search(r"(?<![)\]\w])\*\s*$", text[:m.start()])
+            if s:
+                mine.append((s.start(), m.end(), addr))
+                continue
+            ok = False
+            break
+        if ok and mine:
+            edits += [(a, b, f"NTR_MMIO({ctype}, {c:#x})") for a, b, c in mine]
+
+    for a, b, rep in sorted(edits, reverse=True):
+        text = text[:a] + rep + text[b:]
+    return text, len(edits)
+
 
 HEADER = """// GENERATED by tools/hostgen.py from {src}
 // Do not edit. The source of truth is the byte-verified decomp; edit the
@@ -109,10 +203,11 @@ def transform(text, extern_data=False):
     text, n3 = ATTRIBUTE.subn("", text)
     text, n2 = VOIDPP_ARITH.subn(voidpp_char, text)
     text, n1 = MMIO_DEREF.subn(lambda m: f"NTR_MMIO({m.group(2).strip()}, {m.group(3)})", text)
+    text, n5 = mmio_ptr(text)
     n4 = 0
     if extern_data:
         text, n4 = EXTERN_DATA.subn(r"\1extern \2\3\4;", text)
-    return text, n1 + n2 + n3 + n4
+    return text, n1 + n2 + n3 + n4 + n5
 
 
 # ~110 files in the decomp are ARM assembly blocks -- CP15 cache ops, the CRT0,

@@ -153,56 +153,62 @@ static int __fastcall mv_dosetfile(void *self, void *, char *f, int a, int b)
         fprintf(stderr, "  dosetfile self=%p f=%p a=%d b=%d\n", self, f, a, b);
     return ((Model *)self)->Model::DoSetFile(f, a, b);
 }
-/* ---- the actor bucket's unit conversion ---------------------------------
-   THE SCENE/WORLD SEAM, and processing list 5 is where the two conventions
-   meet. The ROM renders in SCENE units (world >> 3): an actor's Render fills
-   its model matrix with rotation rows at 1.0 and a scene-unit translation,
-   and Camera::Render's LookAt_ leaves the view matrix's translation row in
-   scene units to match. The harness renders in WORLD units and gets there by
-   scaling that translation row back up by 8 (walk_window's R6 shim).
-   x8 IS THE WHOLE CONVERSION EITHER WAY, and Mario is the proof: his body
-   matrix in hal_render_player_world is the ROM's matrix with the rotation
-   rows scaled by 8 and the translation left in world units, and he comes out
-   the right size in the right place against real-game footage.
-   The bucket runs BEFORE the shim, because an actor's Render also clips
-   through the Clipper against data_0209b3ec and its positions are scene
-   units. So the conversion is per-DRAW rather than per-bucket: scale this
-   model's matrix and the view's translation row together, draw, put both
-   back. One model's worth of world units inside an otherwise scene-unit
-   pass.
-   Retires with the shim, when the port's own two draws move to the ROM's
-   convention and the whole frame is scene units. */
-extern "C" int port_actor_bucket_depth;
-int port_actor_bucket_depth;
+/* ---- the actor bucket draws in the frame's own units --------------------
+   THE SEAM IS GONE. The whole frame is SCENE units now (world >> 3): an
+   actor's Render fills its model matrix with rotation rows at 1.0 and a
+   scene-unit translation, Camera::Render's LookAt_ leaves the view matrix's
+   translation row in scene units to match, and the port's own two draws --
+   the stage model and the Player -- were moved onto the same convention.
+   So processing list 5 needs no conversion at all: Model::Render gets the
+   matrix the actor wrote and the scale the actor asked for.
+
+   What used to be here: the model matrix's translation row and the view
+   matrix's translation row were both scaled by 8 for the duration of one
+   draw, and the scene->world factor was spent through the Vector3 scale
+   argument. That bought a world-unit frame at the price of two hacks --
+   this one, and putting the view matrix back before Actor::BeforeBehavior
+   read it for the Clipper. Both retired together.
+
+   SM64DS_TRACE_ACTOR_MAT=1 stays: it is how the collapsed-geometry
+   questions get answered on one model rather than by argument. */
 extern "C" int data_0209b3ec[12];       /* the view matrix Model::Render composes with */
 
-/* THE CONVERSION IS ONE NUMBER, AND IT IS 8. world = scene << 3, in every
-   row of every matrix in the pass.
-   The earlier reading put the model's BMD scale into the ROTATION rows as
-   `1 << (shift + 10)` -- the factor hal_render_model uses for the LEVEL --
-   and left translation at x8. That was never exercised: the Tree is the
-   first actor with geometry, and it disproves the factor twice over.
-   * func_02044534, the BILLBOARD part walk, NORMALIZES the rotation it is
-     handed (NormalizeVec3 divides every row back to 1.0) before scaling it
-     by the render's scale vector. Anything folded into the rotation rows is
-     divided straight back out, so a billboard came out in SCENE units inside
-     a world-unit frame -- 8x too small -- no matter what the factor was.
-   * The same walk squares two rotation entries (`mp->r1.x * mp->r1.x + ...`
-     against 0x4000) in 32-bit ints. At 1<<(shift+10) those entries are
-     ~0x4000000 and the square overflows to nonsense, so which billboard axis
-     the part walk picks was decided by wraparound. At x8 the largest possible
-     sum is exactly 2^30 and the test means what the ROM meant.
-   So the model matrix keeps the rotation rows the actor's own Render wrote
-   (1.0, the ROM's convention) and the x8 travels the way the ROM's own code
-   already carries a scale: the Vector3 scale argument of Model::Render. The
-   part walk spends it as MTX_SCALE on ordinary parts and as the billboard's
-   axis length on billboards, which is the one place a billboard can be
-   scaled at all. */
-enum { MV_SCENE_TO_WORLD = 8 };
-static void mv_convert_matrix(void *mm)
+/* SM64DS_ACTOR_BOX=1: the SCREEN box each Model::Render through this seam
+   draws into, one line the first time a given BMD appears. This is where
+   actor size is measured rather than argued about: a class's box against
+   Mario's ("[w] mario screen box") at comparable depth is the proportion
+   check, and a class that renders nothing at all prints no line. */
+namespace ntr { struct GxTriangle; const GxTriangle *gx_polygons(size_t &n); }
+#include "ntr/gx.h"
+static void mv_box(const Model *m, size_t before)
 {
-    int *p = (int *)mm;
-    for (int i = 9; i < 12; ++i) p[i] *= MV_SCENE_TO_WORLD;
+    size_t after = 0;
+    const ntr::GxTriangle *t = ntr::gx_polygons(after);
+    static const void *said[32];
+    static int n;
+    const void *key = m->data.modelFile;
+    for (int i = 0; i < n; ++i)
+        if (said[i] == key) return;
+    if (n < 32) said[n++] = key;
+    if (after <= before) {
+        printf("[abox] file %p shift %u: NO TRIANGLES\n", key,
+               m->data.modelFile ? m->data.modelFile->scaleShift : 0u);
+        return;
+    }
+    float mnx = 1e30f, mxx = -1e30f, mny = 1e30f, mxy = -1e30f;
+    for (size_t i = before; i < after; ++i)
+        for (int v = 0; v < 3; ++v) {
+            if (t[i].v[v].x < mnx) mnx = t[i].v[v].x;
+            if (t[i].v[v].x > mxx) mxx = t[i].v[v].x;
+            if (t[i].v[v].y < mny) mny = t[i].v[v].y;
+            if (t[i].v[v].y > mxy) mxy = t[i].v[v].y;
+        }
+    const int *q = (const int *)&m->mat4x3;
+    printf("[abox] file %p shift %u scene(%d,%d,%d) %zu tris screen "
+           "x[%.0f..%.0f] y[%.0f..%.0f] h=%.0f\n", key,
+           m->data.modelFile ? m->data.modelFile->scaleShift : 0u,
+           q[9] >> 12, q[10] >> 12, q[11] >> 12, after - before, mnx, mxx,
+           mny, mxy, mxy - mny);
 }
 
 static void __fastcall mv_updateverts(void *self, void *)
@@ -212,67 +218,26 @@ static void __fastcall mv_virtual10(void *self, void *, void *m)
 static void __fastcall mv_render(void *self, void *, const void *s)
 {
     Model *m = (Model *)self;
-    if (port_actor_bucket_depth) {
-        int save[12], vsave[3];
-        memcpy(save, &m->mat4x3, sizeof save);
-        memcpy(vsave, data_0209b3ec + 9, sizeof vsave);
-        mv_convert_matrix(&m->mat4x3);
-        for (int i = 9; i < 12; ++i) data_0209b3ec[i] *= 8;
-        /* the scene->world factor, spent through the ROM's own scale
-           argument; an actor that asked for a scale of its own gets that
-           scale converted rather than replaced */
-        Vector3 wscale = {0x1000 * MV_SCENE_TO_WORLD,
-                          0x1000 * MV_SCENE_TO_WORLD,
-                          0x1000 * MV_SCENE_TO_WORLD};
-        if (s) {
-            const int *sv = (const int *)s;
-            int *wv = (int *)&wscale;
-            for (int i = 0; i < 3; ++i) wv[i] = sv[i] * MV_SCENE_TO_WORLD;
-        }
-        /* SM64DS_ACTOR_SCALE_MUL=N: multiply the scale the bucket hands
-           Model::Render. The two part walks spend it differently -- the
-           billboard walk (func_02044534) as its axis LENGTH, the ordinary walk
-           (func_0204488c) as an MTX_SCALE on top of ModelComponents::Render's
-           own 1 << (shift + 12) -- and gate 16 measured that they do not agree
-           on host: the Tree (all-billboard) is right at 1, and SIGN_POST
-           (all-ordinary, BMD shift 1) comes out about 256 times too small,
-           which is the ratio between this chain and hal_render_model's own
-           0x1000 << (shift + 10) for the level. The lever is here so the next
-           pass can bracket it; the fix belongs in the walk, not in a constant.
-           */
-        {
-            static int mul = -1;
-            if (mul < 0) {
-                const char *e = getenv("SM64DS_ACTOR_SCALE_MUL");
-                mul = e ? atoi(e) : 1;
-                if (mul < 1) mul = 1;
-            }
-            if (mul > 1) {
-                int *wv = (int *)&wscale;
-                for (int i = 0; i < 3; ++i) wv[i] *= mul;
-            }
-        }
-        /* SM64DS_TRACE_ACTOR_MAT=1: the converted model matrix, the BMD
-           header behind it, and the bone transform the shape walk composes
-           with. This is the trace that found the collapsed-geometry wall
-           documented above the bucket. */
-        if (getenv("SM64DS_TRACE_ACTOR_MAT")) {
-            const unsigned char *bf = (const unsigned char *)m->data.modelFile;
-            const int *q = (const int *)&m->mat4x3;
-            const int *bt = (const int *)m->data.transforms;
-            fprintf(stderr, "  [amat] file %p shift %u bones %u | %d %d %d | "
-                    "%d %d %d | %d %d %d | %d %d %d\n", (const void *)bf,
-                    bf ? bf[0] : 0u, bf ? *(const unsigned *)(bf + 4) : 0u,
-                    q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], q[8],
-                    q[9], q[10], q[11]);
-            if (bt)
-                fprintf(stderr, "  [abone] %d %d %d | %d %d %d | %d %d %d | "
-                        "%d %d %d\n", bt[0], bt[1], bt[2], bt[3], bt[4], bt[5],
-                        bt[6], bt[7], bt[8], bt[9], bt[10], bt[11]);
-        }
-        m->Model::Render(&wscale);
-        memcpy(data_0209b3ec + 9, vsave, sizeof vsave);
-        memcpy(&m->mat4x3, save, sizeof save);
+    if (getenv("SM64DS_TRACE_ACTOR_MAT")) {
+        const unsigned char *bf = (const unsigned char *)m->data.modelFile;
+        const int *q = (const int *)&m->mat4x3;
+        const int *bt = (const int *)m->data.transforms;
+        fprintf(stderr, "  [amat] file %p shift %u bones %u scale %d | "
+                "%d %d %d | %d %d %d | %d %d %d | %d %d %d\n",
+                (const void *)bf, bf ? bf[0] : 0u,
+                bf ? *(const unsigned *)(bf + 4) : 0u,
+                s ? *(const int *)s : 0, q[0], q[1], q[2], q[3], q[4], q[5],
+                q[6], q[7], q[8], q[9], q[10], q[11]);
+        if (bt)
+            fprintf(stderr, "  [abone] %d %d %d | %d %d %d | %d %d %d | "
+                    "%d %d %d\n", bt[0], bt[1], bt[2], bt[3], bt[4], bt[5],
+                    bt[6], bt[7], bt[8], bt[9], bt[10], bt[11]);
+    }
+    if (getenv("SM64DS_ACTOR_BOX")) {
+        size_t before = 0;
+        ntr::gx_polygons(before);
+        m->Model::Render((const Vector3 *)s);
+        mv_box(m, before);
         return;
     }
     m->Model::Render((const Vector3 *)s);

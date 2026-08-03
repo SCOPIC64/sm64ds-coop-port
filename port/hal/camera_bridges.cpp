@@ -128,14 +128,18 @@ extern "C" void hal_fill_camera_vtable(void)
    where a camera belongs.
 
    The harness still drives Camera::Behavior and Camera::Render by hand,
-   though, because the two calls are not alone: Behavior has to be followed by
-   func_0203e0ac (the single-player echo of the heading record) and Render by
-   the R6 unit shim on data_0209b3ec, and both of those live in the window's
-   frame loop rather than in the camera. Left dispatchable, the list passes
-   would run each a second time -- and the second Render rebuilds the view
-   matrix WITHOUT the shim, which puts every model in the frame at an eighth
-   of its translation and clips Mario out of the picture. Measured, not
-   theorised: that is what the first list-driven frame did.
+   though, because neither call is alone in the window's frame loop: Behavior
+   has to be followed by func_0203e0ac (the single-player echo of the heading
+   record), and Render has to happen before the actor bucket rather than
+   inside it -- the bucket's own models compose against the view matrix
+   Render publishes. Left dispatchable, the list passes would run each a
+   second time, and a second Render mid-bucket would republish the view
+   matrix underneath models already drawn against it.
+
+   (Until the scene-unit migration there was a third reason: Render was
+   followed by the R6 unit shim, and a list-driven second Render rebuilt the
+   view matrix without it, putting every model at an eighth of its
+   translation. The shim is gone; the ordering reason is not.)
 
    So the two slots go quiet and say so. This is the same bargain the Player's
    Render slot takes; both come back the day the frame itself is the ROM's
@@ -145,7 +149,7 @@ static int __fastcall cs_harness(void *, void *) { return 1; }
 extern "C" void hal_camera_slots_harness_owned(void)
 {
     _ZTV6Camera[6] = (void *)cs_harness;    /* Behavior + func_0203e0ac */
-    _ZTV6Camera[9] = (void *)cs_harness;    /* Render + the R6 unit shim */
+    _ZTV6Camera[9] = (void *)cs_harness;    /* Render, before the bucket */
 }
 
 /* ---- the local/per-player comms blocks --------------------------------

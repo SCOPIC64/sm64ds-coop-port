@@ -258,18 +258,13 @@ extern "C" void port_actor_tick(void)
 }
 
 /* Phase 5: the render bucket, in render-priority order. Runs inside the
-   host's render frame rather than with the rest of func_02044120. */
-/* Nonzero while list 5 is walking. hal/cxxname_bridge.cpp reads it at the
-   Model render seam to convert each actor's ROM-convention (scene-unit) model
-   matrix into the harness's world units for the duration of the bucket. */
-extern "C" int port_actor_bucket_depth;   /* storage: hal/cxxname_bridge.cpp */
-
+   host's render frame rather than with the rest of func_02044120. Nothing
+   converts units here any more: the whole frame is scene units, which is
+   what an actor's own Render writes. */
 extern "C" void port_actor_render(void)
 {
     data_02099f24[0] = 5;
-    ++port_actor_bucket_depth;
     func_02043fdc(data_020a4b98);
-    --port_actor_bucket_depth;
     data_02099f24[0] = 0;
 }
 

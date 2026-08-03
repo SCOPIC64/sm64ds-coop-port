@@ -92,27 +92,61 @@ static void hal_dump_model_tables(Model *m)
     }
 }
 
+/* Stage::RenderModel's own scale argument, {125.0, 125.0, 125.0} Fix12i.
+   Emitted by port/tools/romdata.py from the arm9 image. */
+extern unsigned char data_020755d4[];
+
 void hal_render_model(void *model, int scaleShift)
 {
     Model *m = (Model *)model;
     if (hal_tex_log()) hal_dump_model_tables(m);
-    /* 0x1000<<(shift+10): with the part walk's own MTX_SCALE
-       (1<<(shift+12)) the stage lands at WORLD scale = KCL raw <<6
-       (file x64) -- the scale the collision walk itself bakes into its
-       position reads. The old +8 (x16) rendered the level 4x small;
-       proven wrong by the 2026-08-03 real-game bridge side-by-side
-       (bricks: Mario must be ~1.7 rows, was ~3.4). */
-    /* MEASURED correction: the rendered mesh sits ~2.5% (41/40) larger
-       than the KCL about y=0 (floor probes: +18 at y785, -12.5 at
-       y-500, ratio ~1.025 both signs), which buried Mario's feet.
-       Mechanism in the part-walk scale chain still unfound; this
-       constant plants the collision surface ON the visual floor. */
-    int d = (int)(((long long)(0x1000 << (scaleShift + 10)) * 40) / 41);
+    /* THE STAGE RENDERS IN SCENE UNITS, and this is Stage::RenderModel's own
+       shape: the model matrix is the Model constructor's identity
+       (data_02082128) and the entire scale travels through Model::Render's
+       Vector3 argument -- data_020755d4 -- which the ordinary part walk
+       spends as an MTX_SCALE on top of its own 1 << (shift + 12). Scene is
+       what everything else in the frame is now in: the view matrix
+       Camera::Render hands LookAt_ as (v + 4) >> 3, the model matrices the
+       actors' own Render methods fill, and the positions Actor::BeforeBehavior
+       clips with. The old world-unit matrix (0x1000 << (shift + 10), x40/41)
+       and the R6 view shim that paid for it are both gone.
+
+       NOTHING IS CORRECTED HERE ANY MORE. The old world matrix carried a
+       measured x40/41, and that 2.5% was the residue of forcing a power of two
+       (0x1000 << (shift + 10) = x2048) onto a scale the ROM writes as 125.0.
+       With the part walk's own MTX_SCALE reaching the geometry engine again
+       (the hostgen MMIO_PTR hole, port/tools/hostgen.py) the ROM's vector is
+       exact: the stage comes out x[-1000..1000] y[-225..953.5] scene, which is
+       x[-8000..8000] y[-1799.8..7627.9] world, and the castle grounds' KCL --
+       the same terrain, in the world units the Player and the object table use
+       -- puts its lowest vertex at -1800.0 and its outer wall at +-8500.
+       SM64DS_LEVEL_SCALE=N overrides the whole vector for the A/B. */
+    int s = *(const int *)data_020755d4;
+    if (const char *e = std::getenv("SM64DS_LEVEL_SCALE")) s = std::atoi(e);
+    if (std::getenv("SM64DS_MODEL_PROBE")) {
+        const BMD_File *f2 = m->data.modelFile;
+        const int *t = (const int *)m->data.transforms;
+        int lo[3] = {1 << 30, 1 << 30, 1 << 30},
+            hi[3] = {-(1 << 30), -(1 << 30), -(1 << 30)};
+        unsigned nb = f2 ? f2->numBones : 0;
+        for (unsigned i = 0; i < nb && t; ++i)
+            for (int k = 0; k < 3; ++k) {
+                int v = t[i * 12 + 9 + k];
+                if (v < lo[k]) lo[k] = v;
+                if (v > hi[k]) hi[k] = v;
+            }
+        std::printf("[mprobe] shift %u (arg %d) bones %u scale %d (%.3f) "
+                    "part.t x[%.3f..%.3f] y[%.3f..%.3f] z[%.3f..%.3f]\n",
+                    f2 ? f2->scaleShift : 0u, scaleShift, nb, s, s / 4096.0,
+                    lo[0] / 4096.0, hi[0] / 4096.0, lo[1] / 4096.0,
+                    hi[1] / 4096.0, lo[2] / 4096.0, hi[2] / 4096.0);
+    }
+    Vector3 scale = {s, s, s};
     for (int i = 0; i < 12; ++i) ((int *)&m->mat4x3)[i] = 0;
-    ((int *)&m->mat4x3)[0] = d;
-    ((int *)&m->mat4x3)[4] = d;
-    ((int *)&m->mat4x3)[8] = d;
-    m->Model::Render(0);
+    ((int *)&m->mat4x3)[0] = 0x1000;
+    ((int *)&m->mat4x3)[4] = 0x1000;
+    ((int *)&m->mat4x3)[8] = 0x1000;
+    m->Model::Render(&scale);
 }
 
 void hal_render_player_body_ex(void *player, int with_head);
@@ -120,8 +154,9 @@ void hal_render_player_body(void *player)
 { hal_render_player_body_ex(player, 1); }
 void hal_render_player_body_only(void *player)
 { hal_render_player_body_ex(player, 0); }
-/* world-space variant: mat4x3 = Y-rotation(mAngleY) + fx translation, the
-   head composed through the body's world matrix (neck is model-space) */
+/* scene-space variant: mat4x3 = Y-rotation(mAngleY) at 1.0 + the scene
+   translation, the head composed through the body's own matrix (the neck
+   bone is model-space) */
 extern "C" short data_02082214[];   /* s16 trig pairs [sin, cos], 4096 = 1 */
 static void m43_mul(const int *a, const int *b, int *out)
 {
@@ -145,18 +180,19 @@ void hal_render_player_world(void *player)
     ModelAnim *ma = ((ModelAnim **)(c + 0xdc))[id];
     if (!ma) return;
     unsigned idx = ((unsigned short)*(short *)(c + 0x8e)) >> 4;
-    /* body scale x8 (Mario ~148 world units), the ROM's own derivation
-       (scene = pos>>3, body matrix rotation at 1.0, body BMD shift 0).
-       The x4 detour came from calibrating against a level rendered 4x
-       small (world was x16 instead of KCL raw <<6 = x64); with the
-       level at true scale, x8 matches real-game footage: Mario ~1.7
-       castle brick rows tall, BigBrickBlock (150-unit cylinder) at
-       Mario height. */
-    int s = data_02082214[idx * 2] << 3, co = data_02082214[idx * 2 + 1] << 3;
-    int world[12] = {co, 0, -s, 0, 0x8000, 0, s, 0, co,
-                     *(int *)(c + 0x5c), *(int *)(c + 0x60),
-                     *(int *)(c + 0x64)};
-    for (int i = 0; i < 12; ++i) ((int *)&ma->mat4x3)[i] = world[i];
+    /* THE ROM'S OWN MATRIX: rotation rows at 1.0 and the translation row in
+       SCENE units, which is what an actor's Render writes and what
+       Camera::Render's view matrix expects. `(v + 4) >> 3` is Camera::Render's
+       own rounding for the same conversion.
+       The x8 rotation rows this replaces were that same matrix carried into a
+       world-unit frame; they came out the same size on screen and left Mario
+       ~145 world units tall, which is what the migration has to preserve. */
+    int s = data_02082214[idx * 2], co = data_02082214[idx * 2 + 1];
+    int scene[12] = {co, 0, -s, 0, 0x1000, 0, s, 0, co,
+                     (*(int *)(c + 0x5c) + 4) >> 3,
+                     (*(int *)(c + 0x60) + 4) >> 3,
+                     (*(int *)(c + 0x64) + 4) >> 3};
+    for (int i = 0; i < 12; ++i) ((int *)&ma->mat4x3)[i] = scene[i];
     ma->ModelAnim::UpdateVerts();
     ma->ModelAnim::Render(0);
 
@@ -166,7 +202,7 @@ void hal_render_player_world(void *player)
         if (head) {
             char *neck = *(char **)((char *)ma + 0x14) + 0x2d0;
             if (neck)
-                m43_mul((const int *)neck, world, (int *)(head + 0x1c));
+                m43_mul((const int *)neck, scene, (int *)(head + 0x1c));
             ((void(__fastcall *)(void *, void *, const void *))(
                 ((void ***)head)[0][4]))(head, 0, 0);
         }
