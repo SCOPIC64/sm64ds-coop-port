@@ -309,8 +309,11 @@ int main(void)
            writes NO scale after SetFile. The old x16 here was invented,
            which rendered the whole level 4x small and made an x8 Mario
            read 2x too big (the 2026-08-03 bridge side-by-side). */
-        *(int *)(mc_storage + 0x2c) = 0x40000;   /* file -> world, 64.0 */
-        *(int *)(mc_storage + 0x38) = 0x40;      /* world -> file, 1/64 */
+        if (!getenv("SM64DS_PAIR_STOCK")) {
+            *(int *)(mc_storage + 0x2c) = 0x40000; /* file -> world, 64.0 */
+            *(int *)(mc_storage + 0x38) = 0x40;    /* world -> file, 1/64 */
+        }   /* SM64DS_PAIR_STOCK=1 leaves SetFile's 1.0 vectors -- the
+               real boot's configuration (the A/B for the level boot) */
         /* the octree box is power-of-two PADDED (its center is way off the
            real stage); the geometry lives near the origin, so spawn there,
            a few units up -- the first frames drop him onto the lawn */
