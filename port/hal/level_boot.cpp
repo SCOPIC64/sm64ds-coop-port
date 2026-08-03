@@ -468,7 +468,9 @@ unsigned char data_ov002_0210a83c[];
 int _ZN6Player13InitResourcesEv(void *self);
 int _ZN5Actor19BeforeInitResourcesEv(void *self);
 void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned r);
+int _ZN5Actor14BeforeBehaviorEv(void *self);
 int hal_player_behavior(void *self);
+int func_02043288(void *self);         /* port/unmatched: the behaviour Process */
 }
 
 /* Method faces for the init chain. Everything the spawn spine touches is
@@ -499,6 +501,16 @@ static void __fastcall ps_ainit(void *s, void *, unsigned a)
 { _ZN5Actor18AfterInitResourcesEj(s, a); }
 static int __fastcall ps_behavior(void *s, void *)
 { return hal_player_behavior(s); }
+/* Slots 7 and 8, read out of ov002's own _ZTV6Player at 0x0210a83c with its
+   relocation table applied: 0x02010fd4 = Actor::BeforeBehavior and 0x02010fc8
+   = Actor::AfterBehavior. The second is a `ldr ip,[pc]; bx ip' veneer onto
+   ActorBase::AfterBehavior (0x02043af8), so the thunk calls the target
+   directly -- a host forward through the veneer's own C face would drop the
+   argument the ARM tail call rides through in r0/r1. */
+static int __fastcall ps_bbeh(void *s, void *)
+{ return _ZN5Actor14BeforeBehaviorEv(s); }
+static void __fastcall ps_abeh(void *s, void *, unsigned a)
+{ ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
 
 static const char *const hal_player_slot_name[20] = {
     "InitResources", "BeforeInitResources", "AfterInitResources",
@@ -526,10 +538,21 @@ extern "C" void hal_fill_player_vtable(void)
     vt[1] = (void *)ps_binit;
     vt[2] = (void *)ps_ainit;
     vt[6] = (void *)ps_behavior;
+    vt[7] = (void *)ps_bbeh;
+    vt[8] = (void *)ps_abeh;
     /* Slot 9 (Render) stays trapped: the harness renders the Player itself
        (hal_render_player_world), because Player::Render is the ROM's whole
        model/shadow/particle chain and only its body walk is hosted. */
 }
+
+/* The per-frame tick the ROM's processing list runs on every actor:
+   func_02043288 = ActorBase::Process over slots 7/6/8. Actor::BeforeBehavior
+   is the half the harness never had -- it is what copies pos into PREV POS,
+   and prev pos is the start of every line WithMeshClsn's continuous update
+   casts. Driving Behavior bare left prev at the constructor's zero, so the
+   first frame at the gate swept a segment from the world origin. */
+extern "C" int hal_player_process(void *self)
+{ return func_02043288(self); }
 
 /* ---- the entrance-driven boot ---------------------------------------------
    Seats everything LoadEntranceObjects reads, then runs the same boot with

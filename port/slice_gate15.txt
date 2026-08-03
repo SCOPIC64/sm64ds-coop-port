@@ -1,0 +1,28 @@
+# Gate 15: the game's own per-frame actor spine, and with it the real
+# WithMeshClsn mesh-collision tracking.
+#
+# THE BUG THIS CLOSES. Every gate up to 14 drove the Player by calling
+# Player::Behavior directly. The ROM never does: the processing list calls
+# func_02043288, ActorBase::Process over vtable slots 7/6/8 -- BeforeBehavior,
+# Behavior, AfterBehavior. Actor::BeforeBehavior is what copies pos (0x5c)
+# into PREV POS (0x68), and prev pos is the start of every line the continuous
+# mesh-collision update casts. With BeforeBehavior never running, prev stayed
+# (0,0,0) from the constructor, so on the first frame at the castle gate
+# WithMeshClsn::UpdateExtraContinous walked a segment from the world origin to
+# (-1200, 254, 6800) -- the whole level -- and moved Mario to the first floor
+# it crossed, at exactly 25.3% along that line. That is the ~(+896, -5079)
+# frame-0 jump, and the same stale prev is why a fast fall could pass through
+# a thin deck: the "swept" segment never swept.
+#
+# Everything here is MATCHED in src except the Process wrapper itself, which
+# stages three mwcc pointer-to-member-functions (port/unmatched/func_02043288.cpp,
+# the func_0204335c treatment).
+
+# ---- the spine
+# _ZN5Actor14BeforeBehaviorEv is a .cpp that spells its eight engine BSS
+# symbols as bare file-scope definitions (the mwccarm tentative-definition
+# idiom). MSVC's C++ front end makes those STRONG, and every one of them is
+# already the HAL's, so the file goes through hostgen --extern-data; see
+# GATE15_SYMS in CMakeLists.txt.
+src/IsAreaShowing.c
+src/_ZN7Clipper13Func_020150E8ER7Vector35Fix12IiEPh.c

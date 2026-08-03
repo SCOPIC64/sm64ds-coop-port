@@ -95,6 +95,11 @@ void _ZN6Player4HealEi(void *self, int amt)
 void _ZN9ActorBase18MarkForDestructionEv(void *self)
 { ((ActorBase *)self)->ActorBase::MarkForDestruction(); }
 
+/* Gate 15: Actor::BeforeBehavior is a .c-style TU that calls its base by
+   Itanium name, while the definition is a real __thiscall method. */
+int _ZN9ActorBase14BeforeBehaviorEv(void *self)
+{ return ((ActorBase *)self)->ActorBase::BeforeBehavior() ? 1 : 0; }
+
 unsigned _ZNK7PathPtr8NumNodesEv(const void *self)
 { return ((const PathPtr *)self)->PathPtr::NumNodes(); }
 

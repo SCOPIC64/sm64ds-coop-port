@@ -81,13 +81,38 @@ def voidpp_char(m):
 # One nesting level inside the (( )) is enough for every use in src/.
 ATTRIBUTE = re.compile(r"__attribute__\s*\(\((?:[^()]|\([^()]*\))*\)\)")
 
+# ENGINE BSS: `int data_0209b458;` at file scope.
+#
+# mwccarm and MSVC's C front end both make that a TENTATIVE definition, which
+# the linker merges with whoever really owns the storage -- which is how the
+# port's .c slices coexist with hal/auto_bss.cpp. MSVC's C++ front end does
+# not: in a .cpp it is a strong definition, and the same symbol in the HAL is
+# LNK2005. The port's rule is that engine BSS is the HAL's (real sizes live
+# there; a src file's declared width is whatever that one function needed --
+# Actor::BeforeBehavior spells the 0x5c-byte Clipper `char data_0209f43c;`),
+# so the src-side definition becomes a declaration and the HAL keeps the
+# storage. Opt-in per file: --extern-data, because a src file CAN be the
+# intended owner and this rewrite would silently unhome it.
+#
+# Only `data_<hex>` names are touched, and only a plain scalar/array
+# definition with no initializer.
+EXTERN_DATA = re.compile(
+    r"^([ \t]*)((?:(?:unsigned|signed|volatile|const|struct|long|short|int|char|"
+    r"float|double|u8|u16|u32|u64|s8|s16|s32|s64|bool|Vector3|Matrix4x3|"
+    r"[A-Z]\w*)[ \t]+)+\**[ \t]*)(data_(?:ov\d+_)?[0-9a-f]{6,8})"
+    r"([ \t]*(?:\[[^\];=]*\])?)[ \t]*;",
+    re.MULTILINE)
 
-def transform(text):
+
+def transform(text, extern_data=False):
     """Return (new_text, n_rewrites)."""
     text, n3 = ATTRIBUTE.subn("", text)
     text, n2 = VOIDPP_ARITH.subn(voidpp_char, text)
     text, n1 = MMIO_DEREF.subn(lambda m: f"NTR_MMIO({m.group(2).strip()}, {m.group(3)})", text)
-    return text, n1 + n2 + n3
+    n4 = 0
+    if extern_data:
+        text, n4 = EXTERN_DATA.subn(r"\1extern \2\3\4;", text)
+    return text, n1 + n2 + n3 + n4
 
 
 # ~110 files in the decomp are ARM assembly blocks -- CP15 cache ops, the CRT0,
@@ -102,12 +127,12 @@ def is_asm(text):
     return bool(ASM_BLOCK.search(text))
 
 
-def emit(src_path, out_dir, decomp_root):
+def emit(src_path, out_dir, decomp_root, extern_data=False):
     text = src_path.read_text(encoding="utf-8", errors="replace")
     # The decomp marks C++ files with a leading `//cpp` line; the host build
     # compiles everything as C++ anyway, so drop it.
     text = re.sub(r"\A//cpp[^\n]*\n", "", text)
-    new, n = transform(text)
+    new, n = transform(text, extern_data)
     # Everything is emitted as C++ (NTR_MMIO expands to a template proxy), but
     # a .c source's symbols must keep C linkage: the port's other slices
     # compile the decomp's .c files as real C, and mixing linkages per-symbol
@@ -131,6 +156,10 @@ def main():
                     default=str(pathlib.Path(__file__).resolve().parents[2]))
     ap.add_argument("--out", default="build/host-src")
     ap.add_argument("--all", action="store_true", help="transform every file in src/")
+    ap.add_argument("--extern-data", action="store_true",
+                    help="turn file-scope data_XXXXXXXX definitions into "
+                         "declarations (engine BSS is the HAL's -- see "
+                         "EXTERN_DATA)")
     args = ap.parse_args()
 
     decomp = pathlib.Path(args.decomp).expanduser().resolve()
@@ -161,7 +190,7 @@ def main():
             if not args.all:
                 print(f"{path.name:<44}   ARM asm -- needs a host implementation")
             continue
-        out, n = emit(path, out_dir, decomp)
+        out, n = emit(path, out_dir, decomp, args.extern_data)
         total += n
         if not args.all:
             print(f"{path.name:<44} {n:>3} MMIO rewrite(s) -> {out}")

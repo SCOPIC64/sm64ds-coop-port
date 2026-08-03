@@ -171,6 +171,10 @@ short data_0208e378;
 short *data_0209b45c;      /* spawn default rotation ptr (null = none) */
 short *data_0209b460;      /* spawn default position ptr */
 signed char data_0209b44c_c;
+/* Actor::BeforeBehavior's behaviour mask: the actor's 0xb0 flags must
+   intersect it for the tick to run, and 0 means "no mask, run everyone".
+   Zero is the value a level with no cutscene director sets. */
+int data_0209b464;
 int data_0209b468[4];      /* actor list head the ctor links into */
 }
 #pragma comment(linker, "/alternatename:?data_0209b44c@@3CA=_data_0209b44c_c")

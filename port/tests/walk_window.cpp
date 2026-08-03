@@ -110,6 +110,7 @@ int hal_player_init_resources(void *p);
 int hal_player_st_wait_init(void *p);
 int hal_player_st_wait_main(void *p);
 int hal_player_behavior(void *p);
+int hal_player_process(void *p);   /* gate 15: BeforeBehavior/Behavior/After */
 void hal_render_player_world(void *p);
 extern char data_0209f4a0[];
 extern int data_0209f4a6[];   /* pad stick WORLD angle -- auto_bss split
@@ -865,10 +866,23 @@ int main(void)
                     (unsigned short)*(short *)(c + 0x8e),
                     *(unsigned char *)(c + 0x6e3), *(unsigned char *)(c + 0x6e5),
                     *(unsigned short *)(c + 0x6a6));
-        if (*(void **)(c + 0x370))
-            hal_player_behavior(player);
-        else
+        /* THE GAME'S OWN PER-FRAME TICK (gate 15). The ROM's processing list
+           never calls Behavior bare: it calls func_02043288, ActorBase::Process
+           over vtable slots 7/6/8, and slot 7 -- Actor::BeforeBehavior -- is
+           what copies pos into PREV POS. Prev pos is the start of every line
+           the continuous mesh-collision update casts, so with it stale at the
+           constructor's zero the first frame swept a segment from the world
+           origin to the gate and dropped Mario on the first floor it crossed.
+           The legacy staging keeps the bare call: its hand-built spawn context
+           has no area shown, and BeforeBehavior would cull the actor. */
+        if (*(void **)(c + 0x370)) {
+            if (boot_spawns)
+                hal_player_process(player);
+            else
+                hal_player_behavior(player);
+        } else {
             hal_player_st_wait_main(player);
+        }
         /* the real boot seats the path table, so the tracking's own binding
            stands -- except where the port's unfilled floor record invents
            one the level cannot produce (hal/level_boot.cpp) */
