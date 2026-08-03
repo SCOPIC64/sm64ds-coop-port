@@ -167,6 +167,20 @@ struct Particle {
 void Particle::System::New(unsigned, unsigned, int, int, int,
                            const Vector3_16 *, Particle::Callback *) {}
 
+/* C-named particle effect entries (the real src bodies walk a particle
+   manager the host never seats -- St_Land's dust NewSimple faulted on
+   the null system). No-ops until the particle subsystem is hosted. */
+extern "C" {
+void *_ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(unsigned, int, int, int)
+{ return 0; }
+void *_ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(
+    unsigned, unsigned, int, int, int, const void *, float, void *)
+{ return 0; }
+void _ZN8Particle20RunningSlidingDustAtE5Fix12IiES1_S1_(int, int, int) {}
+void *_ZN8Particle6System12NewBigSplashE5Fix12IiES2_S2_(int, int, int)
+{ return 0; }
+}
+
 extern "C" int _ZN11RaycastLine10DetectClsnEv(void *self)
 { return ((RaycastLine *)self)->DetectClsn(); }
 extern "C" int _ZNK12WithMeshClsn13GetWallResultEv(const void *self)

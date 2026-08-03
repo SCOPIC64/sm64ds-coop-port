@@ -367,9 +367,6 @@ src/func_ov002_020d4748.cpp
 src/_ZN18NestedHeapIterator4NextEP13HeapAllocator.cpp
 src/GiveHealth.c
 src/Vec3_Sub.c
-src/_ZN8Particle20RunningSlidingDustAtE5Fix12IiES1_S1_.c
-src/_ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE.c
-src/_ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_.c
 src/func_02022b04.c
 src/func_ov002_020bf5e0.c
 src/func_ov002_020d4c30.cpp
@@ -734,7 +731,6 @@ src/_ZN6Player16St_Shell_CleanupEv.cpp
 src/_ZN6Player18SetNewHatCharacterEjjb.cpp
 src/_ZN6Player22IsBeingShotOutOfCannonEv.cpp
 src/_ZN7Message7AddCharEc.cpp
-src/_ZN8Particle6System12NewBigSplashE5Fix12IiES2_S2_.c
 src/_ZNK10ClsnResult6CopyToERS_.c
 src/_ZNK12WithMeshClsn16ShouldUpdatePosYEv.c
 src/func_0201179c.c
@@ -841,6 +837,16 @@ src/_ZN3OAM12GetObjHeightEii.c
 src/_ZN3OAM16LoadAffineParamsEP7OamAttrPiP9Matrix2x2.c
 src/_ZN6Player12St_Fall_InitEv.cpp
 src/_ZN6Player12St_Fall_MainEv.cpp
+src/_ZN6Player12St_Jump_InitEv.cpp
+port/unmatched/Player_St_Jump_Main.cpp
+src/func_ov002_020e200c.c
+src/func_ov002_020bf27c.c
+src/func_ov002_020e2be4.cpp
+src/func_ov002_020e2b6c.cpp
+src/func_ov002_020bf2d8.c
+src/func_ov002_020e2ad0.c
+src/func_ov002_020e25f0.c
+src/func_ov002_020eeca8.cpp
 src/_ZN6Player12St_Land_InitEv.cpp
 src/_ZN6Player12St_Land_MainEv.cpp
 src/_ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block.cpp

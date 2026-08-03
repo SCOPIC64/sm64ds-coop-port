@@ -244,6 +244,7 @@ int VT0[20];    /* an unresolved shared-header vtable alias in ov002 TUs */
 unsigned char data_02092128[0x40];
 int data_0209f318[8];
 unsigned short data_0209f49c, data_0209f49e, data_0209f4a0;
+unsigned char data_0209f4ab;
 unsigned short data_0209f4ac, data_0209f4ae;
 int data_020a0e40[8];
 }

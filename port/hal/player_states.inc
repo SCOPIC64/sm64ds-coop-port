@@ -8,5 +8,12 @@
     case 0x020d38c0: return ((Player *)self)->Player::St_Walk_Main();
     case 0x020d4270: return ((Player *)self)->Player::St_Walk_Init();
     case 0x020e04ec: return ((Player *)self)->Player::St_Land_Main();
+    case 0x020e088c: return ((Player *)self)->Player::St_Land_Init();
+    case 0x020e2118: return ((Player *)self)->Player::St_Jump_Main();
+    /* St_Jump_Init defines at C linkage in src (explicit char* this) */
+    case 0x020e22c0: return _ZN6Player12St_Jump_InitEv((char *)self);
+    /* Mario's airborne gravity fn, dispatched as a PMF from the
+       per-character rows in data_ov002_0211073c (St_Jump_Main) */
+    case 0x020e200c: func_ov002_020e200c((char *)self); return 1;
     case 0x020e1af8: return ((Player *)self)->Player::St_Fall_Main();
     case 0x020e1b80: return ((Player *)self)->Player::St_Fall_Init();

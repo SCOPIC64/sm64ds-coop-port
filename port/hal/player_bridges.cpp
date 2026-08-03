@@ -153,6 +153,8 @@ void hal_render_player_body_ex(void *player, int with_head)
    dispatch here; the table grows one line per state the slice hosts.
    Unknown state = loud no-op success so the boot path keeps moving. */
 extern "C" int _ZN6Player18St_LevelEnter_MainEv(int *c);
+extern "C" int _ZN6Player12St_Jump_InitEv(char *c);
+extern "C" void func_ov002_020e200c(char *c);
 extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 {
     switch (ds_addr) {

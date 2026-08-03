@@ -414,6 +414,7 @@ struct Player : Actor {
     int St_JumpQuicksand_Init();
     int St_JumpQuicksand_Main();
     int St_Jump_Main();
+    int St_Land_Init();
     int St_Land_Main();
     int St_LedgeGrab_Init();
     int St_LedgeGrab_Main();
