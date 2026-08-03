@@ -67,6 +67,17 @@ void hal_fill_lakitu_bro_vtable(void);
 extern unsigned char Cannon_SpawnInfo[];                /* ov098 0x0213c67c */
 void *Cannon_Spawn(void);                               /* ov098 0x0213b43c */
 void hal_fill_cannon_vtable(void);
+/* ---- gate 20: ov002's last two ----
+   Both SpawnInfo records come from the ov002 per-symbol mount that has
+   carried Player/Tree/SignPost since gate 14. The class-method names are the
+   neighbour's in both cases and the *_SpawnInfo names are the right ones --
+   the ROM's RTTI settles it, see slice_gate20.txt. */
+extern unsigned char Exit_SpawnInfo[];                  /* ov002 0x02108690 */
+void *Exit_Spawn(void);                                 /* ov002 0x020b0f24 */
+void hal_fill_exit_vtable(void);
+extern unsigned char WaterfallMist_SpawnInfo[];         /* ov002 0x0210947c */
+void *WaterfallMist_Spawn(void);                        /* ov002 0x020b6ee8 */
+void hal_fill_waterfall_mist_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -88,4 +99,7 @@ void hal_fill_cannon_vtable(void);
     {187, "RABBIT", Rabbit_SpawnInfo, Rabbit_Spawn, hal_fill_rabbit_vtable},  \
     {235, "LAKITU_BRO", LakituBro_SpawnInfo, LakituBro_Spawn,                 \
      hal_fill_lakitu_bro_vtable},                                             \
-    {207, "CANNON", Cannon_SpawnInfo, Cannon_Spawn, hal_fill_cannon_vtable},
+    {207, "CANNON", Cannon_SpawnInfo, Cannon_Spawn, hal_fill_cannon_vtable}, \
+    {349, "EXIT", Exit_SpawnInfo, Exit_Spawn, hal_fill_exit_vtable},         \
+    {197, "WATERFALL_MIST", WaterfallMist_SpawnInfo, WaterfallMist_Spawn,    \
+     hal_fill_waterfall_mist_vtable},

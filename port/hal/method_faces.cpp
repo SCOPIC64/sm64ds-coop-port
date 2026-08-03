@@ -403,3 +403,14 @@ extern "C" {
 int _ZN6Cannon13InitResourcesEv(void *self)
 { return ((Cannon *)self)->Cannon::InitResources(); }
 }
+
+/* ---- gate 20: ov002's WATERFALL_MIST -------------------------------------
+   One more, the same shape as the cannon's. src's body is a real C++ method
+   against include/PoppingLavaBubbles.h (the class the ROM's RTTI calls
+   daObjWaterfall_c), so MSVC emits it under ?InitResources@... and the
+   vtable fill wants the Itanium name. */
+#include "PoppingLavaBubbles.h"
+extern "C" {
+int _ZN18PoppingLavaBubbles13InitResourcesEv(void *self)
+{ return ((PoppingLavaBubbles *)self)->InitResources(); }
+}

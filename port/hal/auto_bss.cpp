@@ -161,6 +161,10 @@ int data_ov089_02132880[8];
    actor down, and null is what the ROM's boot leaves it at. */
 int data_020a4ba8[8];
 int data_020a4b5c[4];
+/* gate 20: the EXIT's own scratch. func_ov002_020b0a0c stores the spawn
+   record's entrance byte here on its way into LoadLevel; config/arm9 calls
+   it kind:bss, so zero is what the boot leaves it at. */
+unsigned char data_0209f2c0[4];
 }
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */

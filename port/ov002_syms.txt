@@ -36,3 +36,20 @@ OneUpMushroom_SpawnInfo data_ov002_020ff040 data_ov002_020ff050
 # gate 16, SIGN_POST's carry offsets: the four columns func_ov002_020bb060
 # indexes by "is the player front-sliding" when the sign is in his hands.
 data_ov002_020ff0d0 data_ov002_020ff0d4:0x18 data_ov002_020ff0d8:0x14 data_ov002_020ff0dc:0x10
+# gate 20, EXIT (349) and WATERFALL_MIST (197): two ov002 classes the castle
+# grounds names that need nothing but their own SpawnInfo record. Neither
+# InitResources reads an overlay table -- the Exit sizes its trigger box from
+# the spawn record's own nibbles and the arm9 level id, and the mist picks a
+# particle type from the level id alone -- so the 0x1c the registry rewrites
+# the factory word in is the whole mount.
+#
+# BOTH ARE NAMED OFF BY ONE IN config/arm9/overlays/ov002, and the direction
+# is the opposite of ov009's: here the *_SpawnInfo names are the RIGHT ones
+# and the METHOD names are the neighbour's. The ROM's RTTI settles it --
+# 0x021086b4's class name is daChScene_c (change scene: an exit) and
+# 0x021094a0's is daObjWaterfall_c -- so Exit_SpawnInfo really is the exit's
+# and WaterfallMist_SpawnInfo really is the waterfall's, while the bodies
+# those two vtables point at are spelled _ZN11VirtualDoor* and
+# _ZN18PoppingLavaBubbles*. The port uses the files the vtables point at and
+# renames nothing, the gate-17 reading.
+Exit_SpawnInfo:0x1c WaterfallMist_SpawnInfo:0x1c

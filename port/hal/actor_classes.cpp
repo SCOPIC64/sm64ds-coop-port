@@ -930,3 +930,121 @@ extern "C" void hal_fill_cannon_vtable(void)
     vt[16] = (void *)Cannon_trap13;
     vt[17] = (void *)Cannon_trap13;
 }
+
+// ============================================================================
+// GATE 20: ov002's LAST TWO
+// ============================================================================
+//
+// EXIT (349) and WATERFALL_MIST (197), the two classes the castle grounds
+// names that live in the overlay already mounted. Neither has a model, so
+// neither takes a render probe, and both are shorter than any class above:
+// the Exit is a trigger box and the mist is three slots.
+//
+// THE CONFIG'S NAMES ARE SHIFTED HERE TOO, the other way round from ov009's.
+// In ov009 the factories were named right and the methods were the
+// neighbour's; in ov002 the *_SpawnInfo names are right and the METHODS carry
+// the neighbour's class name. Each factory's own literal pool names the
+// vtable it installs and the ROM's RTTI names that vtable back:
+//
+//   Exit_Spawn          -> _ZTV11VirtualDoor         RTTI 11daChScene_c
+//   WaterfallMist_Spawn -> _ZTV18PoppingLavaBubbles  RTTI 16daObjWaterfall_c
+//
+// daChScene_c is "change scene", which is what an exit does, and
+// daObjWaterfall_c is the waterfall. So the bodies below are spelled
+// VirtualDoor and PoppingLavaBubbles and are the exit's and the mist's. The
+// port uses the files the vtables point at and renames nothing.
+
+// ---- EXIT (actor 349, ov002) x4 --------------------------------------------
+//
+// _ZTV11VirtualDoor, ov002 0x021086b4. The four level-transition volumes.
+// Three of its six own slots are do-nothing returns in the ROM and the other
+// three are the box: InitResources builds it and inverts the actor's matrix,
+// Behavior tests the Player in that local frame, and the whole of Behavior's
+// body sits behind `data_02092110 < 0` -- the pending-entrance slot the level
+// boot leaves non-negative -- so on the grounds the four exits measure and
+// never fire. That is the ROM's gate, not a port guard.
+extern "C" {
+int _ZN11VirtualDoor13InitResourcesEv(char *self);
+int _ZN11VirtualDoor8BehaviorEv(char *self);
+int _ZN11VirtualDoor6RenderEv(void);
+int _ZN11VirtualDoor16CleanupResourcesEv(void);
+void _ZN11VirtualDoor16OnPendingDestroyEv(void);
+void *_ZTV11VirtualDoor[20];
+}
+
+ACTRAP(Exit, 13)
+static int __fastcall ex_init(void *s, void *)
+{ return _ZN11VirtualDoor13InitResourcesEv((char *)s); }
+static int __fastcall ex_clean(void *, void *)
+{ return _ZN11VirtualDoor16CleanupResourcesEv(); }
+static int __fastcall ex_behavior(void *s, void *)
+{ return _ZN11VirtualDoor8BehaviorEv((char *)s); }
+static int __fastcall ex_render(void *, void *)
+{ return _ZN11VirtualDoor6RenderEv(); }
+static int __fastcall ex_pdes(void *, void *)
+{ _ZN11VirtualDoor16OnPendingDestroyEv(); return 0; }
+
+extern "C" void hal_fill_exit_vtable(void)
+{
+    void **vt = _ZTV11VirtualDoor;
+    ac_fill_shared(vt, Exit_trap13);
+    vt[0] = (void *)ex_init;
+    vt[3] = (void *)ex_clean;
+    vt[6] = (void *)ex_behavior;
+    vt[9] = (void *)ex_render;
+    vt[12] = (void *)ex_pdes;
+    /* SLOTS 16/17 TRAP, the gate-17 reading: nothing on the castle grounds
+       destroys an exit -- the four live from the level boot to the level
+       teardown -- and src/_ZN11VirtualDoorD1Ev.cpp is a real C++ destructor
+       over its own shadow hierarchy, which MSVC would emit under
+       ??1VirtualDoor@@UAE@XZ against a layout that is not the ROM's. */
+    vt[16] = (void *)Exit_trap13;
+    vt[17] = (void *)Exit_trap13;
+}
+
+// ---- WATERFALL_MIST (actor 197, ov002) x7 ----------------------------------
+//
+// _ZTV18PoppingLavaBubbles, ov002 0x021094a0. The moat's waterfall spray, and
+// the first class the port carries that the LEVEL'S OBJECT TABLES DO NOT
+// NAME: CASTLE_WATER's own InitResources ends by calling func_ov009_02111b1c,
+// which spawns seven of these along one of three seven-element Vector3 arrays
+// in ov009. The seven skips gate 19's census reported were that call.
+//
+// Three own slots; 3, 9 and 12 are ActorBase's, because the class has no
+// model and nothing to clean up. InitResources is a real MSVC method (face in
+// hal/method_faces.cpp) and picks a particle id from the level -- 0x24 here.
+//
+// ITS BEHAVIOR RUNS INTO A STUB and that is honest rather than hidden:
+// Particle::System::New is the no-op in hal/reverse_bridges.cpp until the
+// particle subsystem is seated, so the seven actors spawn at the ROM's own
+// positions, sit in both lists and tick. Every one of their eighteen slots is
+// matched src; nothing here changes when the particles arrive.
+#include "PoppingLavaBubbles.h"
+extern "C" {
+int _ZN18PoppingLavaBubbles13InitResourcesEv(void *self);   /* face */
+int _ZN18PoppingLavaBubbles8BehaviorEv(char *self);
+void *_ZTV18PoppingLavaBubbles[20];
+}
+
+ACTRAP(WaterfallMist, 13)
+static int __fastcall wm_init(void *s, void *)
+{ return _ZN18PoppingLavaBubbles13InitResourcesEv(s); }
+static int __fastcall wm_clean(void *s, void *)
+{ return ((ActorBase *)s)->ActorBase::CleanupResources(); }
+static int __fastcall wm_behavior(void *s, void *)
+{ return _ZN18PoppingLavaBubbles8BehaviorEv((char *)s); }
+static int __fastcall wm_render(void *s, void *)
+{ return ((ActorBase *)s)->ActorBase::Render(); }
+
+extern "C" void hal_fill_waterfall_mist_vtable(void)
+{
+    void **vt = _ZTV18PoppingLavaBubbles;
+    ac_fill_shared(vt, WaterfallMist_trap13);
+    vt[0] = (void *)wm_init;
+    vt[3] = (void *)wm_clean;
+    vt[6] = (void *)wm_behavior;
+    vt[9] = (void *)wm_render;
+    vt[12] = (void *)ac_pdes_base;
+    vt[16] = (void *)WaterfallMist_trap13;
+    vt[17] = (void *)WaterfallMist_trap13;
+}

@@ -904,3 +904,18 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?data_ov098_0213c8fc@@3PAUEntry@@A=_data_ov098_0213c8fc")
 #pragma comment(linker, "/alternatename:?func_ov098_0213b15c@@YAXPAX@Z=_func_ov098_0213b15c")
 #pragma comment(linker, "/alternatename:?data_ov002_021102d4@@3UState@@A=_data_ov002_021102d4")
+
+/* ---- gate 20: ov002's EXIT and WATERFALL_MIST -------------------------- */
+
+/* The exit's camera move is a real C++ method over a LOCAL SHADOW Camera
+   (src/_ZN6Camera10LookAtExitER5Actor.cpp declares its own `struct Camera`
+   with just the two methods it needs), so MSVC emits it under the shadow's
+   mangling while its caller -- the exit's own Behavior -- spells it the
+   Itanium way. Both ends are real code; only the spelling differs.
+   The shadow's ChangeState and the State object it enters resolve the same
+   way, onto the camera the port already carries: the dispatcher in
+   hal/camera_bridges.cpp and state 15 of the nineteen in
+   hal/camera_states.cpp (0x020095c4 / 0x02009540 -- the exit look). */
+#pragma comment(linker, "/alternatename:__ZN6Camera10LookAtExitER5Actor=?LookAtExit@Camera@@QAEXAAUActor@@@Z")
+#pragma comment(linker, "/alternatename:?ChangeState@Camera@@QAEXPAUState@1@@Z=__ZN6Camera11ChangeStateEPNS_5StateE")
+#pragma comment(linker, "/alternatename:?data_0209b0f8@@3UState@Camera@@A=_data_0209b0f8")

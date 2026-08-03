@@ -594,6 +594,16 @@ foreach(line IN LISTS SLICE19_LINES)
     list(APPEND SLICE19_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate20.txt" SLICE20_LINES)
+set(SLICE20_SOURCES "")
+foreach(line IN LISTS SLICE20_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE20_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gate 13: the real Camera actor. Adds its own slice plus the HAL seam, and
 # swaps three gate-10 files for host copies that only the camera needs
 # (see port/unmatched/): ChangeArea calls HideArea() with no argument and
@@ -813,7 +823,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
-    ${SLICE18_SOURCES} ${SLICE19_SOURCES}
+    ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
@@ -838,7 +848,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
-    ${SLICE18_SOURCES} ${SLICE19_SOURCES}
+    ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
@@ -866,7 +876,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
-    ${SLICE18_SOURCES} ${SLICE19_SOURCES}
+    ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
