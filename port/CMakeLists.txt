@@ -503,6 +503,18 @@ add_custom_command(OUTPUT "${OV002DATA_C}"
             "${CMAKE_CURRENT_SOURCE_DIR}/ov002_syms.txt"
     COMMENT "ovdata ov002")
 
+# ov009 is the castle-grounds LEVEL overlay, and a level overlay cannot be
+# mounted symbol by symbol: its LVL_Overlay hangs nine object tables off one
+# base and the loaders walk them by count, straight across whatever symbol
+# boundaries dsd happened to name. --whole emits the entire image as one
+# array and rebases its internal pointers from the reloc table.
+set(OV009DATA_C "${CMAKE_BINARY_DIR}/host-src/ov009_data.c")
+add_custom_command(OUTPUT "${OV009DATA_C}"
+    COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ov009
+            "${OV009DATA_C}" --whole
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py"
+    COMMENT "ovdata ov009 (whole image)")
+
 # Gate 13: the real Camera actor. Adds its own slice plus the HAL seam, and
 # swaps three gate-10 files for host copies that only the camera needs
 # (see port/unmatched/): ChangeArea calls HideArea() with no argument and
@@ -576,11 +588,11 @@ endforeach()
 # func_0200d81c -> Camera::ChangeState on every state change, so the smoke
 # needs the host dispatcher too or the first ChangeState calls a mwcc
 # member-function pointer.
-add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}"
+add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA_C}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp
     ${CAMERA_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
@@ -599,11 +611,11 @@ if(MSVC)
 endif()
 
 # Gate 12: the interactive window (same stack, windowed loop).
-add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}"
+add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp
     ${CAMERA_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
@@ -625,11 +637,11 @@ if(MSVC)
 endif()
 
 # hires clone for screenshot sessions (4x resolution, ~1/16 the fps)
-add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}"
+add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp
     ${CAMERA_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}

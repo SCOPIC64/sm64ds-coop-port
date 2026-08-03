@@ -190,6 +190,8 @@ extern int data_0209f20c[], data_0209f294[], data_0209f2c4[];
 extern int data_0209b454[];
 extern int data_0209ee90[];
 extern int data_020a4b60[];
+/* the real level boot (hal/level_boot.cpp) */
+void port_ov009_probe(void);
 }
 
 #ifdef NTR_HIRES
@@ -307,6 +309,12 @@ int main(void)
     __sinit_ov002_02107298(); __sinit_ov002_02107304();
     __sinit_ov002_02107370(); __sinit_ov002_02107f88();
     __sinit_ov002_0210804c(); __sinit_ov002_02108094();
+
+    /* SM64DS_REAL_BOOT=1: the game's own level boot instead of the harness
+       staging -- ov009 mounted, Stage::LoadClsnAndObjects run against it. */
+    const int real_boot = getenv("SM64DS_REAL_BOOT") != 0;
+    if (real_boot)
+        port_ov009_probe();
 
     data_02092144[0] = 8 << 8;
     data_020a4b54 = 0;
