@@ -31,12 +31,30 @@ def main():
     else:
         wanted = sys.argv[3:]
 
-    img = root / f"extracted/dsd/arm9_overlays/{ov}.bin"
-    data = img.read_bytes()
     ytxt = (root / "extracted/dsd/arm9_overlays/overlays.yaml").read_text()
     ovid = int(ov[2:])
     m = re.search(rf"id: {ovid}\b.*?base_address: (\d+)", ytxt, re.S)
     base = int(m.group(1))
+
+    # Read the RAW ndspy overlay (tools/unpack.py output), not the dsd
+    # export: the dsd image goes stale against config re-addressings
+    # (found the hard way: a +0x12c drift left every non-reloc'd word --
+    # jump velocities, anim IDs -- reading a stranger's bytes, while the
+    # reloc-patched pointers hid the skew). The raw image is the ROM; the
+    # yaml base still holds. Guard: a known arm_call from relocs.txt must
+    # decode as BL, or the extraction itself is suspect.
+    img = root / f"extracted/overlays/overlay_{ovid:04d}.bin"
+    if not img.exists():
+        img = root / f"extracted/dsd/arm9_overlays/{ov}.bin"
+    data = img.read_bytes()
+    rl = (root / f"config/arm9/overlays/{ov}/relocs.txt").read_text()
+    mc = re.search(r"from:0x([0-9a-f]{8}) kind:arm_call", rl)
+    if mc:
+        probe = int(mc.group(1), 16) - base
+        word = int.from_bytes(data[probe:probe + 4], "little")
+        assert (word >> 24) == 0xEB, (
+            f"{img}: first arm_call site 0x{mc.group(1)} is not a BL "
+            f"(0x{word:08x}) -- image/config desync, re-extract")
 
     # every symbol in the overlay, sorted by address, for size deltas
     syms = []
