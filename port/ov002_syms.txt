@@ -17,3 +17,6 @@ data_ov002_020ff1a0
 # priorities, the five model file ids InitResources loads by trunk variant,
 # and the five per-variant CylinderClsn list heads (bss, so zeros).
 Tree_SpawnInfo data_ov002_0210abb8 data_ov002_02110a48
+# gate 16, AMBIENT_SOUND_EFFECTS: its SpawnInfo and the ambient loop
+# table its Behavior indexes by spawn parameter.
+AmbientSoundEffects_SpawnInfo data_ov002_0210b498

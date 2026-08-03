@@ -339,3 +339,4 @@ void *VTable_Animation_ModelAnim2Thunk[12];
 void *data_020a5bb8;            /* table root pointer (func_02050xxx family) */
 int data_0209f5c0[8], data_020ad560[8];
 }
+

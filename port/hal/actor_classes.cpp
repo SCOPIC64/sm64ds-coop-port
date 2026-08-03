@@ -153,8 +153,23 @@ static void tree_probe(void)
     }
 }
 
+/* SM64DS_TREE_PROBE=2 additionally draws variant 4's Model through the
+   HARNESS path (hal_render_model, the one the castle uses) at the origin, so
+   the collapsed-geometry question is answered on one BMD by two renderers
+   rather than by argument. */
+extern "C" void hal_render_model(void *model, int scaleShift);
+static void tree_probe_harness(void *self)
+{
+    const char *e = std::getenv("SM64DS_TREE_PROBE");
+    if (!e || e[0] != '2')
+        return;
+    char *mdl = (char *)self + 0xd4 + 4 * 0x50;
+    const unsigned char *bf = *(const unsigned char *const *)(mdl + 0x0c);
+    hal_render_model(mdl, bf ? (int)bf[0] : 0);
+}
+
 static int __fastcall tree_render(void *s, void *)
-{ tree_probe(); return ((Tree *)s)->Tree::Render(); }
+{ tree_probe(); tree_probe_harness(s); return ((Tree *)s)->Tree::Render(); }
 static int __fastcall tree_pdes(void *, void *)
 { _ZN4Tree16OnPendingDestroyEv(); return 0; }
 static int __fastcall tree_d1(void *s, void *)
@@ -176,6 +191,67 @@ extern "C" void hal_fill_tree_vtable(void)
     vt[12] = (void *)tree_pdes;
     vt[16] = (void *)tree_d1;
     vt[17] = (void *)tree_d0;
+}
+
+// ---- AMBIENT_SOUND_EFFECTS (actor 350, ov002) x5 ---------------------------
+//
+// THE CONFIG'S NAMES ARE SHIFTED BY ONE CLASS HERE, and the ROM settles it.
+// The spawn table's entry for 350 is AmbientSoundEffects_SpawnInfo, whose
+// factory word is 0x020f1b94 -- the function config/arm9/overlays/ov002 calls
+// AmbientSoundEffects_Spawn -- and that function's literal pool installs the
+// vtable at 0x0210b4c8, which the same config calls _ZTV14EnemySwitchTag.
+// Every method in that table (0x020f198c..0x020f1ac4) is likewise named
+// _ZN14EnemySwitchTag*. mwcc emits a class as [methods..., Spawn], so the
+// block BEFORE a factory belongs to it; the names were attached one block
+// late from the factory onward.
+//
+// The reading is confirmed from the other side: the Behavior in that block
+// calls Sound::PlayLong with data_ov002_0210b498[param] -- an ambient loop
+// table -- and skips it in the three underwater camera modes. That is
+// AMBIENT SOUND EFFECTS, whatever the symbol says.
+//
+// So the port takes the ROM's word and uses the _ZN14EnemySwitchTag* files,
+// which is also what makes it link: AmbientSoundEffects_Spawn.c already
+// references _ZTV14EnemySwitchTag by that name. Nothing is renamed.
+//
+// It renders nothing (Render is `return 1`) and its five instances are silent
+// while the Sound:: layer is stubbed, so what this row proves is the registry
+// generalising to a second class: five actors spawn, initialise, land on both
+// processing lists and tick every frame.
+#include "EnemySwitchTag.h"
+extern "C" {
+int _ZN14EnemySwitchTag6RenderEv(void);
+int _ZN14EnemySwitchTag16CleanupResourcesEv(void);
+void _ZN14EnemySwitchTag16OnPendingDestroyEv(void);
+void *_ZTV14EnemySwitchTag[20];
+}
+
+ACTRAP(AmbientSound, 13)
+static int __fastcall amb_init(void *s, void *)
+{ return ((EnemySwitchTag *)s)->EnemySwitchTag::InitResources(); }
+static int __fastcall amb_clean(void *, void *)
+{ return _ZN14EnemySwitchTag16CleanupResourcesEv(); }
+static int __fastcall amb_behavior(void *s, void *)
+{ return ((EnemySwitchTag *)s)->EnemySwitchTag::Behavior(); }
+static int __fastcall amb_render(void *, void *)
+{ return _ZN14EnemySwitchTag6RenderEv(); }
+static int __fastcall amb_pdes(void *, void *)
+{ _ZN14EnemySwitchTag16OnPendingDestroyEv(); return 0; }
+
+extern "C" void hal_fill_ambient_sound_vtable(void)
+{
+    void **vt = _ZTV14EnemySwitchTag;
+    ac_fill_shared(vt, AmbientSound_trap13);
+    vt[0] = (void *)amb_init;
+    vt[3] = (void *)amb_clean;
+    vt[6] = (void *)amb_behavior;
+    vt[9] = (void *)amb_render;
+    vt[12] = (void *)amb_pdes;
+    /* 16/17 keep the trap: nothing on the castle grounds destroys one of
+       these, and their two TUs need a shape the port has no reason to build
+       (a real ~Actor and the VT/HEAP placeholders). */
+    vt[16] = (void *)AmbientSound_trap13;
+    vt[17] = (void *)AmbientSound_trap13;
 }
 
 /* Silence the unused-static warning for the two shared helpers a class with

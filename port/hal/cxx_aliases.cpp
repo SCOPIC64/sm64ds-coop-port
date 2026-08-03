@@ -746,3 +746,13 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    the _ZTV9ActorBase pattern one line up. */
 #pragma comment(linker, "/alternatename:__ZTV5Actor=_data_0208e3a4")
 #pragma comment(linker, "/alternatename:__ZTV12ActorDerived=_data_0208e4b8")
+/* AMBIENT_SOUND_EFFECTS: its two TUs declare their overlay and engine data at
+   C++ linkage, with the type each one happened to spell. */
+#pragma comment(linker, "/alternatename:?data_ov002_02110aec@@3HA=_data_ov002_02110aec")
+#pragma comment(linker, "/alternatename:?data_ov002_0210b498@@3PAHA=_data_ov002_0210b498")
+#pragma comment(linker, "/alternatename:?data_0209b4ac@@3HA=_data_0209b4ac")
+#pragma comment(linker, "/alternatename:?data_0209f220@@3EA=_data_0209f220")
+#pragma comment(linker, "/alternatename:?IsStarCollectedInLevel@@YAHCH@Z=_IsStarCollectedInLevel")
+/* Sound::PlayLong is already in the slice under its C name; the ambient
+   actor references it at C++ linkage. */
+#pragma comment(linker, "/alternatename:?_ZN5Sound8PlayLongEjjjRK7Vector3j@@YAIIIIPAXI@Z=__ZN5Sound8PlayLongEjjjRK7Vector3j")

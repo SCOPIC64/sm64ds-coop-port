@@ -18,7 +18,13 @@ extern "C" {
 extern unsigned char Tree_SpawnInfo[];      /* ov002 0x0210abdc */
 void *Tree_Spawn(void);                     /* ov002 0x020ec32c */
 void hal_fill_tree_vtable(void);
+/* ---- AMBIENT_SOUND_EFFECTS (350, ov002) x5 ----
+   The class whose methods and vtable the config names EnemySwitchTag; see the
+   header of that section in hal/actor_classes.cpp for how the ROM settles it. */
+extern unsigned char AmbientSoundEffects_SpawnInfo[];   /* ov002 0x0210b47c */
+void *AmbientSoundEffects_Spawn(void);                  /* ov002 0x020f1b94 */
+void hal_fill_ambient_sound_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS \
-    {286, "TREE", Tree_SpawnInfo, Tree_Spawn, hal_fill_tree_vtable},
+    {286, "TREE", Tree_SpawnInfo, Tree_Spawn, hal_fill_tree_vtable},     {350, "AMBIENT_SOUND", AmbientSoundEffects_SpawnInfo,      AmbientSoundEffects_Spawn, hal_fill_ambient_sound_vtable},
