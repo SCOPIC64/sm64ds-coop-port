@@ -613,9 +613,12 @@ int main(void)
            view stretched. Now: shoulder-height offset, occlusion resolved
            by pulling IN along the view ray, and smoothing so the eye never
            snaps. */
-        float want_eye[3] = {px - 544.0f * sinf(cam_yaw), py + 192.0f,
-                             pz - 544.0f * cosf(cam_yaw)};
-        float at[3] = {px, py + 144.0f, pz};
+        /* SM64DS-like framing: the camera rides well back and above so
+           Mario reads small against the world (close-in framing made a
+           correctly-sized Mario loom over everything behind him) */
+        float want_eye[3] = {px - 1050.0f * sinf(cam_yaw), py + 340.0f,
+                             pz - 1050.0f * cosf(cam_yaw)};
+        float at[3] = {px, py + 110.0f, pz};
         if (getenv("SM64DS_ORBIT")) {
             /* debug: whole-stage orbit shot to judge proportions */
             want_eye[0] = 2560.0f; want_eye[1] = 1920.0f;
