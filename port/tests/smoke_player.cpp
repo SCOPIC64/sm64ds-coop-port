@@ -12,6 +12,7 @@
 
 #include "ntr/gx.h"
 #include "ntr/mmio.h"
+#include "ntr/ppu.h"
 
 #include "fault_probe.h"
 
@@ -35,6 +36,8 @@ int hal_player_st_wait_init(void *p);
 int hal_player_st_wait_main(void *p);
 int hal_player_st_walk_main(void *p);
 int hal_player_behavior(void *p);
+void hal_render_player_body(void *p);
+void hal_render_player_body_only(void *p);
 extern char data_0209f4a0[];                 /* per-player pad blocks, 0x18 */
 extern unsigned char data_020a0e40[];        /* current player index */
 extern unsigned char data_ov002_0211013c[];  /* St_Walk state object */
@@ -79,6 +82,74 @@ static void ident_fx(void *m)
 {
     memset(m, 0, 48);
     ((int *)m)[0] = ((int *)m)[4] = ((int *)m)[8] = 0x1000;
+}
+
+/* SM64DS_WALK_BMP_DIR: render Mario's body ModelAnim each walk frame
+   (smoke_model's fit-pass recipe) and write frame BMPs there. */
+static void render_walk_frame(void *player, const char *dir, int frame)
+{
+    ntr::gx_reset();
+    NTR_MMIO(uint32_t, 0x04000440) = 0;   /* projection = identity */
+    NTR_MMIO(uint32_t, 0x04000454) = 0;
+    NTR_MMIO(uint32_t, 0x04000440) = 1;   /* position = identity */
+    NTR_MMIO(uint32_t, 0x04000454) = 0;
+    NTR_MMIO(uint32_t, 0x04000580) = 0u | (0u << 8) | (255u << 16) |
+                                     (191u << 24);
+    ntr::gx_set_light(0, -0.4f, -0.6f, -0.7f, 0x7FFF);
+    ntr::gx_enable_lights(0x1);
+    hal_render_player_body_only(player);   /* measure on the body alone */
+
+    size_t tris = 0;
+    const ntr::GxTriangle *tarr = ntr::gx_polygons(tris);
+    if (!tris) return;
+    float minx = 1e30f, maxx = -1e30f, miny = 1e30f, maxy = -1e30f;
+    for (size_t i = 0; i < tris; ++i)
+        for (int v = 0; v < 3; ++v) {
+            minx = fminf(minx, tarr[i].v[v].x);
+            maxx = fmaxf(maxx, tarr[i].v[v].x);
+            miny = fminf(miny, tarr[i].v[v].y);
+            maxy = fmaxf(maxy, tarr[i].v[v].y);
+        }
+    const float cx0 = 2.0f * minx / ntr::SCREEN_W - 1.0f;
+    const float cx1 = 2.0f * maxx / ntr::SCREEN_W - 1.0f;
+    const float cy0 = 1.0f - 2.0f * maxy / ntr::SCREEN_H;
+    const float cy1 = 1.0f - 2.0f * miny / ntr::SCREEN_H;
+    const float w = fmaxf(cx1 - cx0, 1e-6f), h = fmaxf(cy1 - cy0, 1e-6f);
+    /* fixed scale keeps the walk cycle from zoom-pumping frame to frame */
+    static float s = 0.0f;
+    if (s == 0.0f) s = fminf(1.5f / w, 1.5f / h);
+    const float tx = -0.5f * (cx0 + cx1) * s, ty = -0.5f * (cy0 + cy1) * s;
+    const int32_t m[16] = {(int32_t)(s * 4096), 0, 0, 0,
+                           0, (int32_t)(s * 4096), 0, 0,
+                           0, 0, 4096, 0,
+                           (int32_t)(tx * 4096), (int32_t)(ty * 4096), 0,
+                           4096};
+    ntr::gx_reset();
+    NTR_MMIO(uint32_t, 0x04000580) = 0u | (0u << 8) | (255u << 16) |
+                                     (191u << 24);
+    ntr::gx_set_light(0, -0.4f, -0.6f, -0.7f, 0x7FFF);
+    ntr::gx_enable_lights(0x1);
+    NTR_MMIO(uint32_t, 0x04000440) = 0;
+    for (int i = 0; i < 16; ++i)
+        NTR_MMIO(uint32_t, 0x04000458) = (uint32_t)m[i];
+    NTR_MMIO(uint32_t, 0x04000440) = 1;
+    NTR_MMIO(uint32_t, 0x04000454) = 0;
+    hal_render_player_body(player);
+    {
+        size_t t2 = 0;
+        ntr::gx_polygons(t2);
+        if (frame == 0)
+            printf("  render: body-only %zu tris, body+head %zu tris\n",
+                   tris, t2);
+    }
+
+    ntr::Framebuffer fb;
+    for (int y = 0; y < ntr::SCREEN_H; ++y)
+        for (int x = 0; x < ntr::SCREEN_W; ++x) fb.px[y][x] = 0xFF101820u;
+    ntr::gx_render(fb);
+    char path[512];
+    snprintf(path, sizeof path, "%s/walk_%02d.bmp", dir, frame);
+    ntr::ppu_write_bmp(path, fb);
 }
 
 int main(void)
@@ -194,8 +265,11 @@ int main(void)
     printf("  after stick: state=%p (walk=%p)\n", st,
            (void *)data_ov002_0211013c);
     CHECK(st == (void *)data_ov002_0211013c);
+    const char *bmp_dir = getenv("SM64DS_WALK_BMP_DIR");
     for (int f = 0; f < 30; ++f) {
         int r = hal_player_behavior(player);   /* the real frame tick */
+        if (bmp_dir)
+            render_walk_frame(player, bmp_dir, f);
         if (f < 3 || f == 29)
             printf("  Behavior frame %d -> %d pos=(%d, %d)\n", f, r,
                    *(int *)(c + 0x5c), *(int *)(c + 0x64));

@@ -6,6 +6,7 @@
 // identifier.
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include "MeshColliderBase.h"
 
 extern "C" {

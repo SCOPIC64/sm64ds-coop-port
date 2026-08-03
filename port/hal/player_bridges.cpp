@@ -13,8 +13,10 @@
 #include "ShadowModel.h"
 #include "TextureSequence.h"
 #include "Heap.h"
+#include "ModelAnim.h"
 
 extern "C" unsigned int _ZNK6Player14GetBodyModelIDEjb(char *, unsigned int, char);
+extern "C" unsigned func_ov002_020becf4(char *self, unsigned j, int b);
 extern "C" int _ZN6Player13InitResourcesEv(void *);
 
 /* C++-linkage globals some slice TUs call under Itanium-style names */
@@ -43,6 +45,45 @@ int hal_player_st_walk_main(void *p)
 { return ((Player *)p)->Player::St_Walk_Main(); }
 int hal_player_behavior(void *p)
 { return ((Player *)p)->Player::Behavior(); }
+/* the walk demo renders the Player's current body ModelAnim in place:
+   identity model matrix, bones posed from the anim Behavior advanced */
+void hal_render_player_body_ex(void *player, int with_head);
+void hal_render_player_body(void *player)
+{ hal_render_player_body_ex(player, 1); }
+void hal_render_player_body_only(void *player)
+{ hal_render_player_body_ex(player, 0); }
+void hal_render_player_body_ex(void *player, int with_head)
+{
+    char *c = (char *)player;
+    unsigned id = _ZNK6Player14GetBodyModelIDEjb(c, *(int *)(c + 8) & 0xff, 0);
+    ModelAnim *ma = ((ModelAnim **)(c + 0xdc))[id];
+    if (!ma) return;
+    for (int i = 0; i < 12; ++i) ((int *)&ma->mat4x3)[i] = 0;
+    ((int *)&ma->mat4x3)[0] = 0x1000;
+    ((int *)&ma->mat4x3)[4] = 0x1000;
+    ((int *)&ma->mat4x3)[8] = 0x1000;
+    ma->ModelAnim::UpdateVerts();
+    ma->ModelAnim::Render(0);
+
+    /* the head is its own model; Player::Render seats it by copying the
+       body's neck-bone matrix (+0x2d0 in the bone array) into the head's
+       matrix slot, then renders through the object's own vtable */
+    unsigned hid = func_ov002_020becf4(c, *(unsigned char *)(c + 0x6db), 1);
+    if (with_head && hid != 8 && hid != 9) {
+        char *head = ((char **)(c + 0x154))[hid];
+        if (head) {
+            char *src = *(char **)((char *)ma + 0x14) + 0x2d0;
+            /* host Model::Render consumes mat4x3; seat the neck transform
+               there (the game writes the bone array, but writing both
+               double-transforms on host) */
+            if (src)
+                for (int i = 0; i < 12; ++i)
+                    ((int *)(head + 0x1c))[i] = ((const int *)src)[i];
+            ((void(__fastcall *)(void *, void *, const void *))(
+                ((void ***)head)[0][4]))(head, 0, 0);
+        }
+    }
+}
 
 /* State-machine dispatch: the State objects come from the overlay image
    with DS code addresses baked into their function slots (mwcc PMFs). The
