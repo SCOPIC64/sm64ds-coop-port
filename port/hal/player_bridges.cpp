@@ -49,9 +49,52 @@ int hal_player_behavior(void *p)
    identity model matrix, bones posed from the anim Behavior advanced */
 /* level model render for the window: identity world matrix (stage models
    are authored in world space; the KCL shares it) */
+/* SM64DS_TEX_LOG=1: the BMD's own texture/palette/material tables next to
+   the runtime material records func_020462d0 built from them -- the
+   ground truth a [texbind] line is checked against. One shot per file. */
+extern "C" int hal_tex_log(void);
+static void hal_dump_model_tables(Model *m)
+{
+    static BMD_File *done[16];
+    static int ndone;
+    /* ModelBase::modelFile is only filled by LoadAndSetFile; the harness
+       drives SetFile directly, so read the file the components carry. */
+    BMD_File *f = m->data.modelFile;
+    if (!f) return;
+    for (int i = 0; i < ndone; ++i)
+        if (done[i] == f) return;
+    if (ndone < 16) done[ndone++] = f;
+
+    printf("[texmodel] file=%p tex=%u pal=%u mat=%u\n", (void *)f,
+           f->numTextures, f->numPalettes, f->numMaterials);
+    for (u32 i = 0; i < f->numTextures; ++i) {
+        BMD_Texture *t = f->textures + i;
+        printf("  tex %2u %-20s flags %08x fmt %u %3dx%-3d size %5u "
+               "vramoff %05x\n",
+               i, (const char *)t->unk_00, t->flags, (t->flags >> 26) & 7,
+               8 << ((t->flags >> 20) & 7), 8 << ((t->flags >> 23) & 7),
+               t->size, (t->flags & 0xffff) << 3);
+    }
+    for (u32 i = 0; i < f->numPalettes; ++i) {
+        BMD_Palette *p = f->palettes + i;
+        printf("  pal %2u %-20s size %5u vramoff %05x -> pltt %04x\n", i,
+               (const char *)p->unk_00, p->size, p->vramOffset,
+               p->vramOffset >> 4);
+    }
+    const unsigned char *mm = (const unsigned char *)m->data.materials;
+    for (u32 i = 0; i < f->numMaterials && mm; ++i) {
+        const u32 *e = (const u32 *)(mm + i * 0x30);
+        printf("  mat %2u %-20s tex %3d pal %3d teximage %08x pltt %04x "
+               "attr %08x difamb %08x\n",
+               i, (const char *)f->materials[i].unk_00, (int)e[0], (int)e[1],
+               e[7], e[8], e[9], e[10]);
+    }
+}
+
 void hal_render_model(void *model, int scaleShift)
 {
     Model *m = (Model *)model;
+    if (hal_tex_log()) hal_dump_model_tables(m);
     /* 0x1000<<(shift+10): with the part walk's own MTX_SCALE
        (1<<(shift+12)) the stage lands at WORLD scale = KCL raw <<6
        (file x64) -- the scale the collision walk itself bakes into its

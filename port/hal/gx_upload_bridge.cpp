@@ -6,6 +6,8 @@
 // story for the SharedFilePtr and ModelComponents methods whose real
 // definitions are C-named .c files. Each bridge here exists because the two
 // spellings mangle differently on MSVC; none of them add behavior.
+#include <cstdio>
+
 typedef unsigned int u32;
 typedef unsigned short u16;
 
@@ -33,7 +35,15 @@ void GX::EndLoadTex() { _ZN2GX10EndLoadTexEv(); }
 void GX::BeginLoadTexPltt() { _ZN2GX16BeginLoadTexPlttEv(); }
 void GX::EndLoadTexPltt() { _ZN2GX14EndLoadTexPlttEv(); }
 void GX::LoadTex(const void *s, u32 o, u32 z) { _ZN2GX7LoadTexEPKvjj(s, o, z); }
-void GX::LoadTexPltt(const void *s, u32 a, u32 z) { _ZN2GX11LoadTexPlttEPKvjj(s, a, z); }
+/* SM64DS_TEX_LOG=1: the palette half of the upload ledger (hal_tex_log
+   and the texel half live in hal/model_host.cpp). */
+extern "C" int hal_tex_log(void);
+void GX::LoadTexPltt(const void *s, u32 a, u32 z)
+{
+    if (hal_tex_log())
+        printf("[palup]  off=%05x size=%05x -> pltt %04x\n", a, z, a >> 4);
+    _ZN2GX11LoadTexPlttEPKvjj(s, a, z);
+}
 
 struct SharedFilePtr {
     void LoadFile();

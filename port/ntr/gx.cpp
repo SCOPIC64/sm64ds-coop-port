@@ -9,6 +9,8 @@
 #include "ntr/texture.h"
 
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <vector>
@@ -69,6 +71,7 @@ struct State {
     float raw_u = 0, raw_v = 0;         // TEXCOORD as loaded, pre-texgen
     const uint32_t *tex_rgba = nullptr; // bound texture (Mat tex above is the
     int tw = 0, th = 0;                 // texture *matrix* -- different thing)
+    uint8_t tex_wrap = 3;               // TEXIMAGE_PARAM bits 16-19, see GxTriangle
     int prim = -1;                 // BEGIN_VTXS type, -1 when not inside a primitive
     uint32_t poly_attr = 0x80;     // POLYGON_ATTR latch; bit6 back, bit7 front
     int16_t vx = 0, vy = 0, vz = 0;
@@ -149,11 +152,15 @@ GxVertex clip_lerp(const GxVertex &a, const GxVertex &b, float t) {
 }
 
 void push_screen_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
-    GxTriangle t;
+    /* value-initialised: smoke_gx memcmps whole GxTriangles between the two
+       submit paths, so the padding has to be deterministic */
+    GxTriangle t{};
     t.v[0] = a; t.v[1] = b; t.v[2] = c;
     t.tex = g.tex_rgba; t.tw = g.tw; t.th = g.th;
     t.cull = static_cast<uint8_t>((g.poly_attr >> 6) & 3);
     t.alpha = static_cast<uint8_t>((g.poly_attr >> 16) & 31);
+    t.wrap = g.tex_wrap;
+    t.dbg_tex = g_teximage;
     g.tris.push_back(t);
 }
 
@@ -552,6 +559,10 @@ void gx_bind_texture(const uint32_t *rgba, int width, int height) {
     g.tex_rgba = rgba;
     g.tw = width;
     g.th = height;
+    // The direct entry (the BMD harness path) carries no TEXIMAGE_PARAM, so it
+    // keeps the plain repeat-in-both-directions behaviour it always had; the
+    // VRAM bind below overrides this with the material's real wrap mode.
+    g.tex_wrap = 3;
 }
 
 // --- VRAM-sourced texturing: the game path ----------------------------------
@@ -569,9 +580,28 @@ constexpr uintptr_t PLTT_SLOT_BASE = 0x06880000u;   // palette slots, mapped
 uint32_t g_teximage, g_plttbase;
 std::map<uint64_t, std::vector<uint32_t>> g_vram_tex_cache;
 
+/* SM64DS_TEX_LOG=1: one line per DISTINCT bind reaching the engine --
+   teximage word, decoded geometry, both VRAM addresses and whether the
+   decode produced texels. This is the inventory that says "bound but
+   decoded to nothing" apart from "never bound at all". */
+int tex_log() {
+    static int on = -1;
+    if (on < 0) on = getenv("SM64DS_TEX_LOG") ? 1 : 0;
+    return on;
+}
+
 void bind_from_vram() {
     const uint32_t fmt = (g_teximage >> 26) & 7;
-    if (fmt == 0) { gx_bind_texture(nullptr, 0, 0); return; }
+    if (fmt == 0) {
+        if (tex_log()) {
+            static std::map<uint32_t, int> seen;
+            if (seen.emplace(g_teximage, 1).second)
+                printf("[texbind] tex=%08x pltt=%04x fmt=0 NO-TEXTURE\n",
+                       g_teximage, g_plttbase);
+        }
+        gx_bind_texture(nullptr, 0, 0);
+        return;
+    }
     const uint64_t key = (static_cast<uint64_t>(g_plttbase) << 32) | g_teximage;
     auto it = g_vram_tex_cache.find(key);
     if (it == g_vram_tex_cache.end()) {
@@ -593,13 +623,25 @@ void bind_from_vram() {
         d.pal = reinterpret_cast<const uint8_t *>(PLTT_SLOT_BASE + pal_off);
         d.pal_len = 0x18000 - static_cast<int32_t>(pal_off);
         std::vector<uint32_t> rgba;
-        if (!texture_decode(d, rgba)) { gx_bind_texture(nullptr, 0, 0); return; }
+        const bool ok = texture_decode(d, rgba);
+        if (tex_log())
+            printf("[texbind] tex=%08x pltt=%04x fmt=%u %dx%d texoff=%05x "
+                   "idxoff=%05x paloff=%05x %s\n",
+                   g_teximage, g_plttbase, fmt, d.width, d.height, off,
+                   fmt == 5 ? 0x20000u + off / 2 : 0u, pal_off,
+                   ok ? "ok" : "DECODE-FAILED");
+        if (!ok) { gx_bind_texture(nullptr, 0, 0); return; }
         /* SM64DS_TEX_DUMP: write every texture bound this run as a PPM
-           next to the exe, named by teximage word -- artifact triage */
+           next to the exe -- artifact triage. THE PALETTE IS PART OF THE
+           NAME: the material bind writes PLTT_BASE before TEXIMAGE_PARAM,
+           so every material also produces a transient pairing of its
+           palette with the PREVIOUS texture. Naming by teximage alone let
+           that transient overwrite the real decode, and the inventory then
+           read as "the sand and fringe materials bind nothing". */
         if (getenv("SM64DS_TEX_DUMP")) {
             char nm[64];
-            snprintf(nm, sizeof nm, "tex_%08x_f%d_%dx%d.ppm",
-                     g_teximage, d.format, d.width, d.height);
+            snprintf(nm, sizeof nm, "tex_%08x_p%04x_f%d_%dx%d.ppm",
+                     g_teximage, g_plttbase, d.format, d.width, d.height);
             if (FILE *f = fopen(nm, "wb")) {
                 fprintf(f, "P6\n%d %d\n255\n", d.width, d.height);
                 for (size_t i = 0; i < rgba.size(); ++i) {
@@ -620,6 +662,16 @@ void bind_from_vram() {
     }
     const int w = 8 << ((g_teximage >> 20) & 7), h = 8 << ((g_teximage >> 23) & 7);
     gx_bind_texture(it->second.data(), w, h);
+    /* THE WRAP MODE IS PART OF THE BIND. TEXIMAGE_PARAM bits 16/17 select
+       repeat vs CLAMP, bits 18/19 add mirroring on top of repeat (GBATEK).
+       The raster used to wrap everything unconditionally, which is right
+       for only one of the four combinations. It shows up on the castle
+       grounds: mc_road -- the path plus the grass fringe along its edge,
+       one texture -- is authored with FLIP T, and wrapping it instead put
+       solid green bands across the middle of the path and left the fringe
+       off the edge where the lawn meets it. Mario's gloves and the Mad
+       Piano bled the same way at their mirrored tiles. */
+    g.tex_wrap = static_cast<uint8_t>((g_teximage >> 16) & 0xF);
 }
 
 }  // namespace
@@ -697,12 +749,77 @@ const GxTriangle *gx_polygons(size_t &count) {
     return g.tris.empty() ? nullptr : g.tris.data();
 }
 
+/* SM64DS_TRI_LOG=1: once, after the first full frame is assembled, the
+   per-material picture the RASTER sees -- how many triangles carried each
+   TEXIMAGE_PARAM, whether a decoded texture came with it, and the texel
+   span of their UVs. A material that binds fine but arrives with a
+   one-texel UV span is a texgen problem, not an upload problem. */
+static void tri_report() {
+    static int on = getenv("SM64DS_TRI_LOG") ? 1 : 0;
+    if (!on) return;
+    on = 0;                              // one frame is the whole report
+    struct Acc {
+        int n, textured, tw, th;
+        float u0, u1, v0, v1;
+    };
+    std::map<uint32_t, Acc> acc;
+    for (const GxTriangle &t : g.tris) {
+        auto it = acc.find(t.dbg_tex);
+        if (it == acc.end())
+            it = acc.emplace(t.dbg_tex, Acc{0, 0, t.tw, t.th, 1e30f, -1e30f,
+                                            1e30f, -1e30f}).first;
+        Acc &a = it->second;
+        ++a.n;
+        if (t.tex) ++a.textured;
+        for (int k = 0; k < 3; ++k) {
+            if (t.v[k].u < a.u0) a.u0 = t.v[k].u;
+            if (t.v[k].u > a.u1) a.u1 = t.v[k].u;
+            if (t.v[k].v < a.v0) a.v0 = t.v[k].v;
+            if (t.v[k].v > a.v1) a.v1 = t.v[k].v;
+        }
+    }
+    for (const auto &kv : acc)
+        printf("[tri] tex=%08x tris=%5d textured=%5d %3dx%-3d "
+               "u[%9.2f..%9.2f] v[%9.2f..%9.2f]\n",
+               kv.first, kv.second.n, kv.second.textured, kv.second.tw,
+               kv.second.th, kv.second.u0, kv.second.u1, kv.second.v0,
+               kv.second.v1);
+}
+
+// One texel coordinate under the DS wrap rules (GBATEK TEXIMAGE_PARAM 16-19):
+// repeat clear = CLAMP to the edge texel; repeat set = wrap; flip on top of
+// repeat mirrors every other tile. `repeat && !flip` is the exact expression
+// the raster used before wrap modes existed, so nothing that binds through
+// gx_bind_texture moves a pixel.
+static int tex_coord(float f, int size, bool repeat, bool flip) {
+    int i = static_cast<int>(std::floor(f));
+    if (!repeat) return i < 0 ? 0 : (i >= size ? size - 1 : i);
+    if (!flip) {
+        i %= size;
+        return i < 0 ? i + size : i;
+    }
+    const int period = size * 2;
+    i %= period;
+    if (i < 0) i += period;
+    return i < size ? i : period - 1 - i;
+}
+
 void gx_render(Framebuffer &fb) {
+    tri_report();
     static float depth[SCREEN_H][SCREEN_W];
     for (int y = 0; y < SCREEN_H; ++y)
         for (int x = 0; x < SCREEN_W; ++x) depth[y][x] = 1e30f;
 
+    /* SM64DS_TEX_ONLY=<hex teximage>: draw only the polygons that were
+       bound to that texture, so a material can be located on screen
+       without guessing from colour. */
+    static uint32_t only = [] {
+        const char *o = getenv("SM64DS_TEX_ONLY");
+        return o ? static_cast<uint32_t>(strtoul(o, nullptr, 16)) : 0u;
+    }();
+
     for (const GxTriangle &t : g.tris) {
+        if (only && t.dbg_tex != only) continue;
         const GxVertex &a = t.v[0], &b = t.v[1], &c = t.v[2];
         const float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
         if (std::fabs(area) < 1e-6f) continue;
@@ -756,10 +873,10 @@ void gx_render(Framebuffer &fb) {
                         uu = l0 * a.u + l1 * b.u + l2 * c.u;
                         vv = l0 * a.v + l1 * b.v + l2 * c.v;
                     }
-                    int ui = static_cast<int>(std::floor(uu)) % t.tw;
-                    int vi = static_cast<int>(std::floor(vv)) % t.th;
-                    if (ui < 0) ui += t.tw;
-                    if (vi < 0) vi += t.th;
+                    const int ui = tex_coord(uu, t.tw, (t.wrap & 1) != 0,
+                                             (t.wrap & 4) != 0);
+                    const int vi = tex_coord(vv, t.th, (t.wrap & 2) != 0,
+                                             (t.wrap & 8) != 0);
                     texel = t.tex[vi * t.tw + ui];
                     if ((texel >> 24) == 0) continue;      // transparent texel
                 }

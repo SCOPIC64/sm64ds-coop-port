@@ -40,6 +40,10 @@ struct GxTriangle {
     int tw, th;
     uint8_t cull;          // POLYGON_ATTR bits 6-7: 1 back, 2 front, 3 both
     uint8_t alpha;         // POLYGON_ATTR bits 16-20 (0..31; 31 = opaque)
+    // TEXIMAGE_PARAM bits 16-19 as bit0 repeat S, bit1 repeat T, bit2 flip S,
+    // bit3 flip T. A cleared repeat bit is CLAMP, not wrap.
+    uint8_t wrap;
+    uint32_t dbg_tex;      // TEXIMAGE_PARAM that was bound (diagnostics only)
 };
 
 // Feed the engine. `gx_write_port` takes a geometry-port address in

@@ -10,6 +10,8 @@
 // - the texture-VRAM budget globals Model::GetVramOffset bump-allocates
 //   from,
 // - storage for the render context globals the walk stores through.
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef unsigned int u32;
@@ -184,8 +186,21 @@ unsigned short data_02099f94[8];
 namespace GX {
 void LoadTex(const void *src, unsigned offset, unsigned size);
 }
+/* SM64DS_TEX_LOG=1: every texel upload that reaches fake VRAM, with the
+   two arena cursors either side of it. Reads as the ledger the bind log
+   is checked against. */
+extern "C" int hal_tex_log(void)
+{
+    static int on = -1;
+    if (on < 0) on = getenv("SM64DS_TEX_LOG") ? 1 : 0;
+    return on;
+}
+
 extern "C" void _ZN2GX7LoadTexEPKvjj(const void *s, unsigned o, unsigned z)
 {
+    if (hal_tex_log())
+        printf("[texup]  off=%05x size=%05x  A[%05x..%05x) B[%05x..%05x)\n", o,
+               z, data_020a4bc8, data_020a4be8, data_020a4be0, data_020a4bdc);
     GX::LoadTex(s, o, z);
 }
 
