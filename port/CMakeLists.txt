@@ -90,6 +90,17 @@ if(MSVC)
     target_compile_options(ntr PRIVATE /wd4311 /wd4312)
 endif()
 
+# The same layer at 1024x768 for the interactive window; the smokes keep
+# the DS-native lib (their reference pixel counts depend on 256x192).
+add_library(ntr_hires STATIC
+    ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/lz77.cpp
+    ntr/rt.cpp ntr/runtime.cpp ntr/fs.cpp ntr/bmd.cpp)
+target_include_directories(ntr_hires PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ntr/include")
+target_compile_definitions(ntr_hires PUBLIC NTR_HIRES)
+if(MSVC)
+    target_compile_options(ntr_hires PRIVATE /wd4311 /wd4312)
+endif()
+
 # Gate 3b: SharedFilePtr over the host card seam; assets come from the
 # repo's extracted/ tree + asset catalog, root baked in (env-overridable).
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate3b.txt" SLICE3B_LINES)
@@ -502,7 +513,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}"
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(walk_window PRIVATE ntr)
+target_link_libraries(walk_window PRIVATE ntr_hires)
 target_compile_definitions(walk_window PRIVATE SM64DS_PLATFORM_PC
     PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}")
 if(MSVC)

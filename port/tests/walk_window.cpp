@@ -117,10 +117,15 @@ void _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(void *, const void *,
                                                         void *);
 int _ZN13RaycastGround10DetectClsnEv(void *);
 int hal_ground_ray(void *mc, int x, int y, int z, int reach, int *out_y);
+int hal_line_ray(void *mc, const int *a, const int *b, int *out);
 void _ZN12WithMeshClsn13SetGroundFlagEv(void *);
 }
 
+#ifdef NTR_HIRES
+static const int ZOOM = 1;
+#else
 static const int ZOOM = 3;
+#endif
 static void *g_mc;
 
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
@@ -299,6 +304,10 @@ int main(void)
     }
 
     data_020a0e40[0] = 0;
+    /* InitResources parked the state machine in St_LevelEnter (a no-op
+       until a real level boot); clear it so the wait ticks drive until the
+       first stick input ChangeStates into walk -- the smoke's proven flow */
+    *(void **)(c + 0x370) = 0;
     hal_player_st_wait_init(player);
 
     /* window */
@@ -442,9 +451,24 @@ int main(void)
             ntr::gx_set_light(0, -0.4f, -0.6f, -0.7f, 0x7FFF);
             ntr::gx_enable_lights(0x1);
         }
-        /* Mario stands ~14 world units tall (probe above) */
-        float eye[3] = {px, py + 20.0f, pz - 48.0f};
-        float at[3] = {px, py + 8.0f, pz};
+        /* Mario stands ~14 world units tall (probe above); the eye rides
+           above the terrain so hills never swallow the view */
+        float eye[3] = {px, py + 18.0f, pz - 40.0f};
+        float at[3] = {px, py + 7.0f, pz};
+        {
+            /* occlusion: pull the eye in front of anything between it and
+               Mario (cast from the look-at toward the eye) */
+            int a[3] = {(int)(at[0] * 4096), (int)(at[1] * 4096),
+                        (int)(at[2] * 4096)};
+            int b[3] = {(int)(eye[0] * 4096), (int)(eye[1] * 4096),
+                        (int)(eye[2] * 4096)};
+            int clip[3];
+            if (hal_line_ray(g_mc, a, b, clip)) {
+                for (int k = 0; k < 3; ++k)
+                    eye[k] = clip[k] / 4096.0f * 0.92f +
+                             at[k] * 0.08f;
+            }
+        }
         push_camera(eye, at);
         if (selftest && frame == 0)
             fprintf(stderr, "[w] render\n");

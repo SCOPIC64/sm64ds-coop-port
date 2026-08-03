@@ -15,8 +15,15 @@
 
 namespace ntr {
 
+#ifdef NTR_HIRES
+constexpr int SCREEN_W = 1024;   /* 4x the DS panel; the smokes and their
+                                    reference pixel counts stay on 256x192
+                                    (the plain ntr lib) */
+constexpr int SCREEN_H = 768;
+#else
 constexpr int SCREEN_W = 256;
 constexpr int SCREEN_H = 192;
+#endif
 
 enum Engine { ENGINE_A = 0, ENGINE_B = 1 };
 

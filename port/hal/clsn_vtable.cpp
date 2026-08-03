@@ -82,6 +82,23 @@ extern "C" int hal_ground_ray(void *mc, int x, int y, int z, int reach,
     return hit;
 }
 
+/* arbitrary line for camera occlusion: from a toward b, returns hit and
+   the clip point */
+extern "C" int hal_line_ray(void *mc, const int *a, const int *b, int *out)
+{
+    unsigned char line[0x64];
+    memset(line, 0, sizeof line);
+    line[4] = 1;
+    memcpy(line + 0x38, a, 12);
+    memcpy(line + 0x54, b, 12);
+    *(int *)(line + 0x60) = 0x7FFFFFF;
+    int hit = ((MeshCollider *)mc)->MeshCollider::DetectClsn(
+        *(RaycastLine *)line);
+    if (hit && out)
+        memcpy(out, line + 0x54, 12);            /* clsnPos */
+    return hit;
+}
+
 static int __fastcall slot_sphere(void *self, void *, void *sph)
 {
     /* sphere push-out is unmatched; no wall contact for now (once only) */
