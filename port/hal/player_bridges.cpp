@@ -5,6 +5,7 @@
 // Same hop as gate 9 (cxxname_bridge.cpp), split into its own TU because
 // Player.h drags a wider include surface than the gate-9 file wants.
 #include <cstdio>
+#include <cstdlib>
 
 #include "Animation.h"
 #include "BgCh.h"
@@ -229,8 +230,28 @@ extern "C" void func_ov002_020c7194(char *c);
 extern "C" void func_ov002_020c72a4(void *c);
 extern "C" void func_ov002_020c70ac(char *c);
 extern "C" void func_ov002_020c6fe4(char *c);
+/* SM64DS_TRACE_STATE=1: every state function the dispatcher runs, once per
+   distinct DS address. The state machine is otherwise opaque from outside --
+   the Player carries a State* and the port switches on the DS address inside
+   it -- and this is how the water test reads: walking into the moat has to
+   show 0x020ce550 (St_Swim_Init) and then 0x020cd94c (St_Swim_Main). */
 extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 {
+    {
+        static int on = -1;
+        if (on < 0) on = std::getenv("SM64DS_TRACE_STATE") != 0;
+        if (on) {
+            static unsigned said[64];
+            int seen = 0;
+            for (int i = 0; i < 64 && said[i]; ++i)
+                if (said[i] == ds_addr) seen = 1;
+            if (!seen) {
+                for (int i = 0; i < 64; ++i)
+                    if (!said[i]) { said[i] = ds_addr; break; }
+                std::printf("  [state] 0x%08x\n", ds_addr);
+            }
+        }
+    }
     switch (ds_addr) {
 #include "player_states.inc"
     }

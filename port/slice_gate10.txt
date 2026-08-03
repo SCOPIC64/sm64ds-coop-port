@@ -657,7 +657,9 @@ src/IsButtonInputValid.c
 src/Matrix4x3_ApplyInPlaceToRotationXYZExt.c
 src/Matrix4x3_FromRotationX.c
 src/Matrix4x3_FromRotationZ.c
-src/NumStars.c
+# NumStars is a HOST COPY in port/unmatched/: it and IsStarCollected.c
+# disagree about the width of the course id, which rides through on ARM and
+# does not on x86 cdecl. See the file header.
 src/Player_ReleaseHeldActor.c
 src/Vec3_Add.c
 src/Vec3_Asr.c

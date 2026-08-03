@@ -323,8 +323,16 @@ extern "C" void port_actor_lists_probe(void)
    instances (which for the Tree is the ROM's own design -- see the gate-16
    commit). Actor pos is the Vector3 at +0x5c; the class is the id at +0xc,
    which the ActorBase constructor copied out of the spawn context. */
+/* The global water level, which is not a harness number any more: since
+   gate 17 CASTLE_WATER's own InitResources clamps data_0209f32c to its own Y
+   minus 100 units, and the Player's state machine reads that word to decide
+   it is swimming. */
+extern "C" { extern int data_0209f32c[]; }
+
 extern "C" void port_actor_positions(void)
 {
+    std::printf("[water] level %d (%.1f units)\n", data_0209f32c[0],
+                data_0209f32c[0] / 4096.0f);
     for (const PortActorClass *k = port_actor_classes; k->name; ++k) {
         int n = 0;
         for (int *node = (int *)(size_t)data_020a4b78[0]; node && n < 4096;

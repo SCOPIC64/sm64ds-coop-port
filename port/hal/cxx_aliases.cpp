@@ -817,3 +817,24 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?func_020371b0@@YAXPAXH@Z=_func_020371b0")
 #pragma comment(linker, "/alternatename:?FUN_0202a130@@YAXXZ=_FUN_0202a130")
 #pragma comment(linker, "/alternatename:?SetStarMarker@@YAXHHH@Z=_SetStarMarker")
+
+/* ---- gate 17, the level overlay's own classes ---------------------------
+   Same shape again: overlay data declared at C++ linkage with whatever type
+   the TU spelled, and plain cdecl helpers referenced through a C++ mangling
+   because the declaring TU never wrapped them. */
+#pragma comment(linker, "/alternatename:?data_ov009_02113c20@@3PADA=_data_ov009_02113c20")
+#pragma comment(linker, "/alternatename:?data_ov009_02113c28@@3PADA=_data_ov009_02113c28")
+#pragma comment(linker, "/alternatename:?data_ov009_02113eb0@@3PAHA=_data_ov009_02113eb0")
+#pragma comment(linker, "/alternatename:?data_ov009_02113eb8@@3PAHA=_data_ov009_02113eb8")
+#pragma comment(linker, "/alternatename:?data_ov009_02113d8c@@3PAUVector3@@A=_data_ov009_02113d8c")
+#pragma comment(linker, "/alternatename:?data_ov009_02113de0@@3PAUVector3@@A=_data_ov009_02113de0")
+#pragma comment(linker, "/alternatename:?data_ov009_02113e34@@3PAUVector3@@A=_data_ov009_02113e34")
+#pragma comment(linker, "/alternatename:?data_0209caa0@@3UD0209caa0@@A=_data_0209caa0")
+#pragma comment(linker, "/alternatename:?data_0209f2d8@@3PAEA=_data_0209f2d8")
+#pragma comment(linker, "/alternatename:?_ZN5Model8LoadFileER13SharedFilePtr@@YAHPAX@Z=__ZN5Model8LoadFileER13SharedFilePtr")
+#pragma comment(linker, "/alternatename:?_ZN9Animation8LoadFileER13SharedFilePtr@@YAHPAX@Z=__ZN9Animation8LoadFileER13SharedFilePtr")
+#pragma comment(linker, "/alternatename:?_ZN9ModelBase7SetFileEP8BMD_Fileii@@YAHPAXHHH@Z=__ZN9ModelBase7SetFileEP8BMD_Fileii")
+#pragma comment(linker, "/alternatename:?_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj@@YAHPAXHHHI@Z=__ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj")
+#pragma comment(linker, "/alternatename:?_ZN8Platform13IsClsnInRangeE5Fix12IiES1_@@YAHPAXHH@Z=__ZN8Platform13IsClsnInRangeE5Fix12IiES1_")
+#pragma comment(linker, "/alternatename:?_ZN8Platform19UpdateClsnPosAndRotEv@@YAHPAX@Z=__ZN8Platform19UpdateClsnPosAndRotEv")
+#pragma comment(linker, "/alternatename:?_ZN8Platform21UpdateModelPosAndRotYEv@@YAHPAX@Z=__ZN8Platform21UpdateModelPosAndRotYEv")

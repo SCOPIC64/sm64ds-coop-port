@@ -36,6 +36,23 @@ void hal_fill_sign_post_vtable(void);
 extern unsigned char OneUpMushroom_SpawnInfo[];         /* ov002 0x02108388 */
 void *OneUpMushroom_Spawn(void);                        /* ov002 0x020b0580 */
 void hal_fill_one_up_mushroom_vtable(void);
+/* ---- gate 17: the level overlay's own four ----
+   The SpawnInfo records come from the PER-SYMBOL ov009 mount (ov009_syms.txt),
+   not the whole one: the registry rewrites the factory word in place and the
+   ActorBase constructor reads the two priorities back out of the same record,
+   so it has to be storage the actor code and the registry agree on. */
+extern unsigned char Bird_SpawnInfo[];                  /* ov009 0x02113934 */
+void *Bird_Spawn(void);                                 /* ov009 0x02111a30 */
+void hal_fill_bird_vtable(void);
+extern unsigned char CastleWater_SpawnInfo[];           /* ov009 0x021139f4 */
+void *CastleWater_Spawn(void);                          /* ov009 0x02111d8c */
+void hal_fill_castle_water_vtable(void);
+extern unsigned char DockPole_SpawnInfo[];              /* ov009 0x02113abc */
+void *DockPole_Spawn(void);                             /* ov009 0x02112048 */
+void hal_fill_metal_net_vtable(void);
+extern unsigned char Flag_SpawnInfo[];                  /* ov009 0x02113b7c */
+void *Flag_Spawn(void);                                 /* ov009 0x021121f0 */
+void hal_fill_flag_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -47,4 +64,10 @@ void hal_fill_one_up_mushroom_vtable(void);
     {184, "SIGN_POST", SignPost_SpawnInfo, SignPost_Spawn,                    \
      hal_fill_sign_post_vtable},                                              \
     {276, "ONE_UP_MUSHROOM", OneUpMushroom_SpawnInfo, OneUpMushroom_Spawn,    \
-     hal_fill_one_up_mushroom_vtable},
+     hal_fill_one_up_mushroom_vtable},                                        \
+    {338, "CASTLE_WATER", CastleWater_SpawnInfo, CastleWater_Spawn,           \
+     hal_fill_castle_water_vtable},                                           \
+    {339, "METAL_NET", DockPole_SpawnInfo, DockPole_Spawn,                    \
+     hal_fill_metal_net_vtable},                                              \
+    {342, "FLAG", Flag_SpawnInfo, Flag_Spawn, hal_fill_flag_vtable},          \
+    {343, "BIRD", Bird_SpawnInfo, Bird_Spawn, hal_fill_bird_vtable},

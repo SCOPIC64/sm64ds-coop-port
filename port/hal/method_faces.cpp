@@ -296,3 +296,51 @@ void _ZN12WithMeshClsn22UpdateDiscreteNoLava_2Ev(void *self)
 void _ZN9PowerStar13AddStarMarkerEv(void *self)
 { ((PowerStar *)self)->PowerStar::AddStarMarker(); }
 }
+
+/* ---- gate 17: the level overlay's own classes ---------------------------
+   Nine C-named references onto method definitions. The registry dispatches
+   every one of them through a vtable slot, and every one is a real
+   __thiscall method in src against its own generated header. */
+#include "Bird.h"
+#include "CastleWater.h"
+#include "DockPole.h"
+extern "C" {
+int _ZN4Bird13InitResourcesEv(void *self)
+{ return ((Bird *)self)->Bird::InitResources(); }
+/* Bird::Render and FLAG's are each one line in src -- dispatch slot 5 of the
+   ModelAnim at +0xd4 -- and ROM slot 5 is Render while MSVC slot 5 is
+   Virtual18. Call the method the ROM means. */
+int _ZN4Bird6RenderEv(void *self)
+{ ((ModelAnim *)((char *)self + 0xd4))->ModelAnim::Render(0); return 1; }
+int _ZN11CastleWater13InitResourcesEv(void *self)
+{ return ((CastleWater *)self)->CastleWater::InitResources(); }
+int _ZN11CastleWater8BehaviorEv(void *self)
+{ return ((CastleWater *)self)->CastleWater::Behavior(); }
+int _ZN11CastleWater6RenderEv(void *self)
+{ return ((CastleWater *)self)->CastleWater::Render(); }
+int _ZN11CastleWater16CleanupResourcesEv(void *self)
+{ return ((CastleWater *)self)->CastleWater::CleanupResources(); }
+int _ZN8DockPole13InitResourcesEv(void *self)
+{ return ((DockPole *)self)->DockPole::InitResources(); }
+int _ZN8DockPole8BehaviorEv(void *self)
+{ return ((DockPole *)self)->DockPole::Behavior(); }
+int _ZN8DockPole6RenderEv(void *self)
+{ ((ModelAnim *)((char *)self + 0xd4))->ModelAnim::Render(0); return 1; }
+}
+
+/* TextureTransformer: two slots (the destructor pair) and nothing else, so
+   the vtable the constructor installs is storage. Its Prepare and Update are
+   methods; the water reaches both by their Itanium names. */
+#include "TextureTransformer.h"
+extern "C" {
+void *_ZTV18TextureTransformer[4];
+void func_02046b64(void *bmdTable, void *btaObj);
+/* Two arguments, not three: func_02046b64 resolves the BTA's own material
+   NAMES against the BMD's table, and the water's call site passes exactly
+   those two with no `this`. */
+void _ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File(void *bmd, void *bta)
+{ func_02046b64(bmd, bta); }
+void _ZN18TextureTransformer6UpdateER15ModelComponents(void *self, void *mc)
+{ ((TextureTransformer *)self)->TextureTransformer::Update(
+      *(ModelComponents *)mc); }
+}

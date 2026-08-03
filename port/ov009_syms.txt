@@ -1,0 +1,49 @@
+# The ov009 data the LEVEL OVERLAY'S OWN ACTORS name.
+#
+# ov009 is mounted WHOLE for the loaders (see hal/level_boot.cpp): its object
+# tables are walked by count straight across whatever symbol dsd happened to
+# name. The actor code is the other half and needs the opposite thing -- it
+# reaches its SharedFilePtrs, CLPS blocks and spawn tables BY NAME -- so those
+# symbols are mounted a second time, per symbol, and --pack keeps the runs
+# that are really one array contiguous.
+#
+# The two mounts are disjoint pointer graphs on purpose: the loaders stay
+# inside the whole image, the actors inside these. Nothing writes across.
+
+# ---- the four SpawnInfo records the registry mounts --------------------
+# NOTE the config's names are SHIFTED BY ONE CLASS from Bird onward (see
+# hal/actor_classes.cpp); the SpawnInfo names are NOT -- each record's +4
+# halfword carries its own actor id and the registry cross-checks it.
+# A SpawnInfo record is 0x1c bytes and dsd names the NEXT symbol four bytes
+# into two of them, so the sizes are pinned: without that the registry reads
+# the +4 id halfword out of a neighbour and says WRONG RECORD -- which is
+# exactly what it said for FLAG.
+Bird_SpawnInfo:0x1c CastleWater_SpawnInfo:0x1c DockPole_SpawnInfo:0x1c Flag_SpawnInfo:0x1c
+
+# ---- .data: the three CLPS blocks and the water's texture animation ----
+data_ov009_02112bc4 data_ov009_02112bf8 data_ov009_02112c38
+# the four {function, delta} pairs __sinit_ov009_02112458 copies into the
+# Bird's own behaviour table
+data_ov009_021138fc data_ov009_02113904 data_ov009_0211390c data_ov009_02113914
+
+# ---- .bss: everything the four sinits construct -----------------------
+data_ov009_02113c20 data_ov009_02113c28 data_ov009_02113c30 data_ov009_02113c3c
+data_ov009_02113c48
+data_ov009_02113c68 data_ov009_02113c70 data_ov009_02113c78 data_ov009_02113c84
+data_ov009_02113c90 data_ov009_02113c9c data_ov009_02113ca8 data_ov009_02113cb4
+data_ov009_02113cc0 data_ov009_02113ccc data_ov009_02113cd8 data_ov009_02113ce4
+data_ov009_02113cf0 data_ov009_02113cfc data_ov009_02113d08 data_ov009_02113d14
+data_ov009_02113d20 data_ov009_02113d2c data_ov009_02113d38 data_ov009_02113d44
+data_ov009_02113d50 data_ov009_02113d5c data_ov009_02113d68 data_ov009_02113d74
+data_ov009_02113d80
+# the three seven-element Vector3 arrays func_ov009_02111b1c walks by index,
+# each split by dsd into its own elements -- the reason for --pack
+data_ov009_02113d8c data_ov009_02113d98 data_ov009_02113da4 data_ov009_02113db0
+data_ov009_02113dbc data_ov009_02113dc8 data_ov009_02113dd4
+data_ov009_02113de0 data_ov009_02113dec data_ov009_02113df8 data_ov009_02113e04
+data_ov009_02113e10 data_ov009_02113e1c data_ov009_02113e28
+data_ov009_02113e34 data_ov009_02113e40 data_ov009_02113e4c data_ov009_02113e58
+data_ov009_02113e64 data_ov009_02113e70 data_ov009_02113e7c
+# METAL_NET's two file pointers, FLAG's two
+data_ov009_02113e88 data_ov009_02113e90 data_ov009_02113e98 data_ov009_02113ea4
+data_ov009_02113eb0 data_ov009_02113eb8 data_ov009_02113ec0 data_ov009_02113ecc

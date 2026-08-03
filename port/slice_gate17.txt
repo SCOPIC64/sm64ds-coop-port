@@ -1,0 +1,121 @@
+# Gate 17: the LEVEL OVERLAY'S OWN ACTORS.
+#
+# ov009 has been mounted as data since gate 14 -- the object tables, the CLPS
+# block, the paths, the entrances. This is the first time any of its CODE is
+# compiled: four classes that exist only on the castle grounds.
+#
+# THE CONFIG'S CLASS NAMES ARE SHIFTED BY ONE FROM Bird ONWARD, and the ROM
+# settles it the same way it settled AMBIENT_SOUND_EFFECTS in gate 16. mwcc
+# emits a class as [methods..., Spawn], so the block BEFORE a factory belongs
+# to it, and each factory's own literal pool names the vtable it installs:
+#
+#   Bird_Spawn        0x02111a30  ->  _ZTV4Bird              (correct)
+#   CastleWater_Spawn 0x02111d8c  ->  _ZTV14daObjMcWater_c   = 0x02113a18,
+#                                     a table config/arm9/overlays/ov009
+#                                     does not name at all; its methods are
+#                                     the func_ov009_02111a70..02111c74 block
+#   DockPole_Spawn    0x02112048  ->  _ZTV11CastleWater      so the config's
+#                                     _ZN11CastleWater* methods are METAL_NET's
+#   Flag_Spawn        0x021121f0  ->  _ZTV8DockPole          and _ZN8DockPole*
+#                                     are FLAG's
+#
+# The ROM's own RTTI agrees from the other side: 0x02113ae0's class name is
+# daObjMc_Metalnet_c and 0x02113ba0's is daMcFlag_c. The port uses the files
+# the vtables point at and renames nothing.
+
+# ---- BIRD (actor 343, ov009), x2 ------------------------------------------
+# (-3941,254,4257) and (5401,377,584). A four-state bird: its Behavior
+# dispatches data_ov009_02113c48, four {function, delta} pairs the sinit
+# copies out of the overlay's own statics. Host copy, see port/unmatched/.
+src/Bird_Spawn.c
+src/_ZN4Bird13InitResourcesEv.cpp
+src/_ZN4Bird16CleanupResourcesEv.c
+src/_ZN4Bird16OnPendingDestroyEv.c
+src/func_ov009_02111224.c
+src/func_ov009_02111234.cpp
+# func_ov009_0211145c is NOT here. It is the Bird's state 2 and it is a
+# NONMATCHING asm hatch -- an mwcc `asm { }` block, not C, so MSVC cannot
+# compile it at all. The state is seated with a named trap in
+# hal/ov009_boot.cpp; if a bird ever enters it the walk says which.
+src/func_ov009_021115d8.c
+src/func_ov009_021116ec.cpp
+
+# ---- CASTLE_WATER (actor 338, ov009), x1 ----------------------------------
+# The moat. One instance at the origin. InitResources loads a BMD with a
+# BTA texture animation, loads a KCL and hands it to MovingMeshCollider with
+# the actor's own matrix, Enables it, and then CLAMPS THE GLOBAL WATER LEVEL
+# (data_0209f32c) to its own Y minus 100 -- which is what the Player's own
+# state machine reads to decide it is swimming.
+src/CastleWater_Spawn.c
+src/func_ov009_02111c74.cpp
+src/func_ov009_02111c4c.cpp
+src/func_ov009_02111c18.cpp
+src/func_ov009_02111bd4.cpp
+src/func_ov009_02111b1c.cpp
+
+# ---- METAL_NET (actor 339, ov009), x3 -------------------------------------
+# (2330,140,3920), (-3300,-520,20), (-3760,-1260,-3378) -- the climbable nets
+# under the bridge. The config calls this class CastleWater; the ROM's RTTI
+# calls it daObjMc_Metalnet_c.
+src/DockPole_Spawn.c
+src/_ZN11CastleWater13InitResourcesEv.cpp
+src/_ZN11CastleWater8BehaviorEv.cpp
+src/_ZN11CastleWater6RenderEv.cpp
+src/_ZN11CastleWater16CleanupResourcesEv.cpp
+src/_ZN11CastleWater16OnPendingDestroyEv.c
+
+# ---- FLAG (actor 342, ov009), x4 ------------------------------------------
+# The four castle-tower flags, at y 3095 and 3662. The config calls this
+# class DockPole; the ROM's RTTI calls it daMcFlag_c. Its Behavior is one
+# Animation::Advance and a rotation matrix -- the flag waves.
+src/Flag_Spawn.c
+src/_ZN8DockPole13InitResourcesEv.cpp
+src/_ZN8DockPole8BehaviorEv.cpp
+src/_ZN8DockPole16CleanupResourcesEv.c
+
+# ---- the overlay's own static initialisers --------------------------------
+# Four sinits, and they are what makes any of the above load anything: every
+# SharedFilePtr these classes read is constructed here, and so are the three
+# seven-element Vector3 arrays the water spawns its bubbles along.
+src/__sinit_ov009_02112458.c
+src/__sinit_ov009_02112524.c
+src/__sinit_ov009_02112a5c.c
+src/__sinit_ov009_02112ac8.c
+
+# THE DESTRUCTORS ARE NOT HERE and slots 16/17 trap by name for all four.
+# Nothing on the castle grounds destroys one of these -- every InitResources
+# returns 1 on this level -- and func_ov009_02111abc.c (the water's D0) is
+# the reason it matters: it spells its two vtables VT0 and VT1, the SAME
+# placeholder names src/_ZN10SphereClsnD1Ev.c uses for three completely
+# different tables. One host definition would satisfy both with the wrong
+# bytes and nothing would say so. Compiling it is the footgun; not
+# compiling it is the fix.
+
+# ---- the water's texture animation ----------------------------------------
+# CastleWater's InitResources prepares a BTA against its own BMD and its
+# Render Updates it every frame: the moat's surface scrolls. TextureTransformer
+# is the class that does it and this is its first host caller.
+src/_ZN18TextureTransformerC1Ev.c
+src/_ZN18TextureTransformer6UpdateER15ModelComponents.cpp
+# TextureTransformer::Prepare is NOT here, and the reason is a signature the
+# ROM settles against its own header. include/TextureTransformer.h says the
+# 0xc veneer tail-calls func_02046b64 as (this, &model, &file); the matched
+# func_02046b64.c takes TWO arguments, a BMD table and the BTA object whose
+# name entries it resolves against it, and the water calls Prepare with
+# exactly those two and no this. The face in hal/method_faces.cpp forwards
+# the two the caller passes.
+src/_ZN18TextureTransformer7SetFileER8BTA_Filei5Fix12IiEj.c
+src/func_020469e8.c
+src/func_02046b64.c
+src/func_02045e44.c
+
+# THE TWO ModelAnim RENDERS ARE HOST FACES, not src. Bird::Render and
+# FLAG's (the config's DockPole::Render) are each one line -- dispatch slot 5
+# of the ModelAnim at +0xd4 -- and slot 5 is the one place the ROM's and
+# MSVC's numbering cannot both be served by one array. ROM slot 5 is Render;
+# MSVC slot 5 is Virtual18, because MSVC spends one slot on the destructor
+# where Itanium spends two. hal/cxxname_bridge.cpp already says so in as many
+# words ("trap-by-Virtual18 will name it if such a TU ever appears") -- and
+# these are the TUs. Measured: FLAG's first Render walked
+# ModelAnim::Virtual18 -> Virtual10 -> Model::Virtual10 and faulted on a null
+# matrix. The faces in hal/method_faces.cpp call ModelAnim::Render by name.

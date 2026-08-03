@@ -559,3 +559,193 @@ extern "C" void hal_fill_cylinder_withpos_vtable(void)
     _ZTV19CylinderClsnWithPos[2] = (void *)ccp_getpos;
     _ZTV19CylinderClsnWithPos[3] = (void *)ccp_ownerid;
 }
+
+// ============================================================================
+// GATE 17: the LEVEL OVERLAY'S OWN CLASSES
+// ============================================================================
+//
+// Four classes that exist only on the castle grounds, and the config's names
+// for them are SHIFTED BY ONE from Bird onward. mwcc emits a class as
+// [methods..., Spawn], so the block BEFORE a factory belongs to it, and each
+// factory's own literal pool names the vtable it installs -- which is what
+// settles it, exactly as it settled AMBIENT_SOUND_EFFECTS:
+//
+//   Bird_Spawn        -> _ZTV4Bird             (correct)
+//   CastleWater_Spawn -> _ZTV14daObjMcWater_c  = ov009 0x02113a18, a table
+//                        the config does not name at all; its methods are the
+//                        func_ov009_02111a70..02111c74 block
+//   DockPole_Spawn    -> _ZTV11CastleWater     so the config's CastleWater
+//                        methods are METAL_NET's
+//   Flag_Spawn        -> _ZTV8DockPole         and its DockPole methods are
+//                        FLAG's
+//
+// The ROM's own RTTI agrees from the other side: 0x02113ae0 is
+// daObjMc_Metalnet_c and 0x02113ba0 is daMcFlag_c. Nothing is renamed; the
+// port uses the files each vtable points at.
+//
+// SLOTS 16/17 TRAP FOR ALL FOUR. Nothing on the castle grounds destroys one
+// -- every InitResources here returns 1 on this level -- and the water's own
+// D0 (func_ov009_02111abc.c) is why it matters: it spells its two vtables VT0
+// and VT1, the same placeholder names src/_ZN10SphereClsnD1Ev.c uses for
+// three completely different tables, so one host definition would satisfy
+// both with the wrong bytes and nothing would say so.
+
+// ---- BIRD (actor 343, ov009) x2 --------------------------------------------
+extern "C" {
+int _ZN4Bird13InitResourcesEv(void *self);
+int _ZN4Bird8BehaviorEv(void *self);            /* host copy: hal/ov009_boot */
+int _ZN4Bird6RenderEv(void *self);
+int _ZN4Bird16CleanupResourcesEv(void);
+void _ZN4Bird16OnPendingDestroyEv(void);
+void *_ZTV4Bird[20];
+}
+/* The Bird's own D0 spells its table by the RTTI name. */
+#pragma comment(linker, "/alternatename:__ZTV9daSBird_c=__ZTV4Bird")
+
+ACTRAP(Bird, 13)
+static int __fastcall bird_init(void *s, void *)
+{ return _ZN4Bird13InitResourcesEv(s); }
+static int __fastcall bird_clean(void *, void *)
+{ return _ZN4Bird16CleanupResourcesEv(); }
+static int __fastcall bird_behavior(void *s, void *)
+{ return _ZN4Bird8BehaviorEv(s); }
+static int __fastcall bird_render(void *s, void *)
+{ port_actor_render_probe("BIRD", (char *)s + 0xd4);
+  return _ZN4Bird6RenderEv(s); }
+static int __fastcall bird_pdes(void *, void *)
+{ _ZN4Bird16OnPendingDestroyEv(); return 0; }
+
+extern "C" void hal_fill_bird_vtable(void)
+{
+    void **vt = _ZTV4Bird;
+    ac_fill_shared(vt, Bird_trap13);
+    vt[0] = (void *)bird_init;
+    vt[3] = (void *)bird_clean;
+    vt[6] = (void *)bird_behavior;
+    vt[9] = (void *)bird_render;
+    vt[12] = (void *)bird_pdes;
+    vt[16] = (void *)Bird_trap13;
+    vt[17] = (void *)Bird_trap13;
+}
+
+// ---- CASTLE_WATER (actor 338, ov009) x1 ------------------------------------
+//
+// The moat, one instance at the origin. Its InitResources is the reason this
+// class matters to anything but the picture: it loads a KCL of its own, hands
+// it to MovingMeshCollider with the actor's matrix and a 1.0 scale, Enables it
+// onto the level's collider list, and then CLAMPS THE GLOBAL WATER LEVEL --
+// data_0209f32c = min(data_0209f32c, self.y - 100.0) -- which is the word the
+// Player's own state machine reads to decide it is swimming.
+extern "C" {
+int func_ov009_02111c74(void *self);   /* InitResources */
+int func_ov009_02111bd4(void *self);   /* CleanupResources */
+int func_ov009_02111c4c(void *self);   /* Behavior */
+int func_ov009_02111c18(void *self);   /* Render */
+void *_ZTV14daObjMcWater_c[20];        /* ov009 0x02113a18, unnamed in config */
+}
+
+ACTRAP(CastleWater, 13)
+static int __fastcall cw_init(void *s, void *)
+{ return func_ov009_02111c74(s); }
+static int __fastcall cw_clean(void *s, void *)
+{ return func_ov009_02111bd4(s); }
+static int __fastcall cw_behavior(void *s, void *)
+{ return func_ov009_02111c4c(s); }
+static int __fastcall cw_render(void *s, void *)
+{ port_actor_render_probe("CASTLE_WATER", (char *)s + 0xd4);
+  return func_ov009_02111c18(s); }
+
+extern "C" void hal_fill_castle_water_vtable(void)
+{
+    void **vt = _ZTV14daObjMcWater_c;
+    hal_fill_platform_vtable();
+    ac_fill_shared(vt, CastleWater_trap13);
+    vt[0] = (void *)cw_init;
+    vt[3] = (void *)cw_clean;
+    vt[6] = (void *)cw_behavior;
+    vt[9] = (void *)cw_render;
+    vt[12] = (void *)ac_pdes_base;
+    vt[16] = (void *)CastleWater_trap13;
+    vt[17] = (void *)CastleWater_trap13;
+}
+
+// ---- METAL_NET (actor 339, ov009) x3 ---------------------------------------
+//
+// The three climbable nets under the bridge. Same shape as the water -- a
+// Platform with a MovingMeshCollider -- which the config's naming makes look
+// like the same class twice.
+extern "C" {
+int _ZN11CastleWater13InitResourcesEv(void *self);
+int _ZN11CastleWater8BehaviorEv(void *self);
+int _ZN11CastleWater6RenderEv(void *self);
+int _ZN11CastleWater16CleanupResourcesEv(void *self);
+void _ZN11CastleWater16OnPendingDestroyEv(void);
+void *_ZTV11CastleWater[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV18daObjMc_Metalnet_c=__ZTV11CastleWater")
+
+ACTRAP(MetalNet, 13)
+static int __fastcall mn_init(void *s, void *)
+{ return _ZN11CastleWater13InitResourcesEv(s); }
+static int __fastcall mn_clean(void *s, void *)
+{ return _ZN11CastleWater16CleanupResourcesEv(s); }
+static int __fastcall mn_behavior(void *s, void *)
+{ return _ZN11CastleWater8BehaviorEv(s); }
+static int __fastcall mn_render(void *s, void *)
+{ port_actor_render_probe("METAL_NET", (char *)s + 0xd4);
+  return _ZN11CastleWater6RenderEv(s); }
+static int __fastcall mn_pdes(void *, void *)
+{ _ZN11CastleWater16OnPendingDestroyEv(); return 0; }
+
+extern "C" void hal_fill_metal_net_vtable(void)
+{
+    void **vt = _ZTV11CastleWater;
+    hal_fill_platform_vtable();
+    ac_fill_shared(vt, MetalNet_trap13);
+    vt[0] = (void *)mn_init;
+    vt[3] = (void *)mn_clean;
+    vt[6] = (void *)mn_behavior;
+    vt[9] = (void *)mn_render;
+    vt[12] = (void *)mn_pdes;
+    vt[16] = (void *)MetalNet_trap13;
+    vt[17] = (void *)MetalNet_trap13;
+}
+
+// ---- FLAG (actor 342, ov009) x4 --------------------------------------------
+//
+// The four castle-tower flags, at y 3095 and 3662. Behavior is one
+// Animation::Advance and a rotation matrix: the flag waves, and it is the
+// first actor on the grounds whose model is ANIMATED by the game's own
+// ModelAnim rather than posed once.
+extern "C" {
+int _ZN8DockPole13InitResourcesEv(void *self);
+int _ZN8DockPole8BehaviorEv(void *self);
+int _ZN8DockPole6RenderEv(void *self);
+int _ZN8DockPole16CleanupResourcesEv(void);
+void *_ZTV8DockPole[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV10daMcFlag_c=__ZTV8DockPole")
+
+ACTRAP(Flag, 13)
+static int __fastcall flag_init(void *s, void *)
+{ return _ZN8DockPole13InitResourcesEv(s); }
+static int __fastcall flag_clean(void *, void *)
+{ return _ZN8DockPole16CleanupResourcesEv(); }
+static int __fastcall flag_behavior(void *s, void *)
+{ return _ZN8DockPole8BehaviorEv(s); }
+static int __fastcall flag_render(void *s, void *)
+{ port_actor_render_probe("FLAG", (char *)s + 0xd4);
+  return _ZN8DockPole6RenderEv(s); }
+
+extern "C" void hal_fill_flag_vtable(void)
+{
+    void **vt = _ZTV8DockPole;
+    ac_fill_shared(vt, Flag_trap13);
+    vt[0] = (void *)flag_init;
+    vt[3] = (void *)flag_clean;
+    vt[6] = (void *)flag_behavior;
+    vt[9] = (void *)flag_render;
+    vt[12] = (void *)ac_pdes_base;
+    vt[16] = (void *)Flag_trap13;
+    vt[17] = (void *)Flag_trap13;
+}

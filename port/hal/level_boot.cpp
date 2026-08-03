@@ -413,6 +413,7 @@ void hal_camera_slots_harness_owned(void);
 void port_actor_registry_install(void);
 void port_actor_lists_seat(void);
 void hal_fill_moving_mesh_collider_vtable(void);
+void port_ov009_sinits(void);
 extern void *data_0209f318;
 extern int data_0209f5c0[];
 extern int data_020a4b6c[];           /* the scene tree */
@@ -608,6 +609,12 @@ extern "C" void port_stage_a2_seat(void)
        collider list, so their vtable's own overrides go in before anything can
        spawn. hal/clsn_vtable.cpp has already seeded it with MeshCollider's. */
     hal_fill_moving_mesh_collider_vtable();
+
+    /* ov009's own four static initialisers, where the DS runs them: after the
+       overlay is mounted and before anything spawns. Every SharedFilePtr the
+       level's own actors load through is constructed there, and so are the
+       three Vector3 arrays the moat spawns its bubbles along. */
+    port_ov009_sinits();
 
     /* the five processing-list callbacks, then the class table and the gate */
     port_actor_lists_seat();
