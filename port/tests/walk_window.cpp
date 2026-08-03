@@ -473,15 +473,6 @@ int main(void)
         if (getenv("PORT_WATCH_POS"))
             port_watch_words(c + 0x5c, 3);
     }
-    /* SM64DS_CLSN_RADIUS_PCT=N: scale the Player's OWN collision sphere.
-       WithMeshClsn+0x18 is the radius UpdateExtraContinous hands to
-       SphereClsn::SetObjAndSphere and +0x1c the vertical offset it adds to
-       pos first; Player::InitResources writes both. The sphere pass rests an
-       actor at floor + radius - vo, so the resting pos.y has to move by
-       EXACTLY the radius delta -- which is the cheapest available check that
-       R = radius << 4 was transcribed with the right shift. Anything else in
-       the chain (the >>16 push, the file/world pair) would show up here as a
-       nonlinearity. */
     /* THE RADIUS LEVER IS NOT HERE. WithMeshClsn+0x18 is the radius
        UpdateExtraContinous hands to SphereClsn::SetObjAndSphere and +0x1c the
        vertical offset it adds to pos first, but Player::Behavior RECOMPUTES
