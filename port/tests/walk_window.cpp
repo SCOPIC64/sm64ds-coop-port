@@ -384,6 +384,7 @@ int main(void)
     const int selftest = st ? atoi(st) : 0;
     int frame = 0;
     float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
+    float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
 
     static ntr::Framebuffer fb;
     MSG msg;
@@ -408,6 +409,10 @@ int main(void)
         int orbiting = 0;
         if (W.GetAsyncKeyState_('Q') < 0) { cam_yaw -= 0.045f; orbiting = 1; }
         if (W.GetAsyncKeyState_('E') < 0) { cam_yaw += 0.045f; orbiting = 1; }
+        if (W.GetAsyncKeyState_('R') < 0 && cam_pitch < 0.85f)
+            cam_pitch += 0.02f;
+        if (W.GetAsyncKeyState_('F') < 0 && cam_pitch > -0.15f)
+            cam_pitch -= 0.02f;
         if (dx || dz) {
             *(short *)(data_0209f4a0 + 0) = 0x1000;
             float head = cam_yaw + atan2f((float)dx, (float)dz);
@@ -655,12 +660,15 @@ int main(void)
            view stretched. Now: shoulder-height offset, occlusion resolved
            by pulling IN along the view ray, and smoothing so the eye never
            snaps. */
-        /* SM64DS-like framing: the camera rides well back and above so
-           Mario reads small against the world (close-in framing made a
-           correctly-sized Mario loom over everything behind him) */
-        float want_eye[3] = {px - 1050.0f * sinf(cam_yaw), py + 340.0f,
-                             pz - 1050.0f * cosf(cam_yaw)};
-        float at[3] = {px, py + 110.0f, pz};
+        /* SM64DS-like framing: well back, and LOW -- a nearly level view.
+           The old +340 fixed eye height sat above the moat rim and every
+           low area's walls, looking steeply down, which foreshortened
+           the terrain ("squashed, worse the lower you go"). cam_pitch
+           tilts the rig (R/F keys), default ~7 degrees. */
+        float cd = 1050.0f * cosf(cam_pitch), ch = 1050.0f * sinf(cam_pitch);
+        float want_eye[3] = {px - cd * sinf(cam_yaw), py + 95.0f + ch,
+                             pz - cd * cosf(cam_yaw)};
+        float at[3] = {px, py + 95.0f, pz};
         if (getenv("SM64DS_ORBIT")) {
             /* debug: whole-stage orbit shot to judge proportions */
             want_eye[0] = 2560.0f; want_eye[1] = 1920.0f;
