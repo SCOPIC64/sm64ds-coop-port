@@ -412,6 +412,7 @@ void hal_fill_camera_vtable(void);
 void hal_camera_slots_harness_owned(void);
 void port_actor_registry_install(void);
 void port_actor_lists_seat(void);
+void hal_fill_moving_mesh_collider_vtable(void);
 extern void *data_0209f318;
 extern int data_0209f5c0[];
 extern int data_020a4b6c[];           /* the scene tree */
@@ -602,6 +603,11 @@ extern "C" void port_stage_a2_seat(void)
     data_0209f20c[0] = data_0209f294[0] = data_0209f2c4[0] = 0;
     data_0209b454[0] = 0;
     data_0209ee90[0x44 / 4] = 0x1000;
+
+    /* The actor classes bring the first MOVING colliders onto the level's own
+       collider list, so their vtable's own overrides go in before anything can
+       spawn. hal/clsn_vtable.cpp has already seeded it with MeshCollider's. */
+    hal_fill_moving_mesh_collider_vtable();
 
     /* the five processing-list callbacks, then the class table and the gate */
     port_actor_lists_seat();

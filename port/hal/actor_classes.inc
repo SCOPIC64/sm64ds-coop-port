@@ -24,7 +24,27 @@ void hal_fill_tree_vtable(void);
 extern unsigned char AmbientSoundEffects_SpawnInfo[];   /* ov002 0x0210b47c */
 void *AmbientSoundEffects_Spawn(void);                  /* ov002 0x020f1b94 */
 void hal_fill_ambient_sound_vtable(void);
+/* ---- BLACK_BRICK_BLOCK (17, ov002) x1 ---- */
+extern unsigned char BlackBrickBlock_SpawnInfo[];       /* ov002 0x02108a78 */
+void *BlackBrickBlock_Spawn(void);                      /* ov002 0x020b409c */
+void hal_fill_black_brick_block_vtable(void);
+/* ---- SIGN_POST (184, ov002) x5 ---- */
+extern unsigned char SignPost_SpawnInfo[];              /* ov002 0x02109ad4 */
+void *SignPost_Spawn(void);                             /* ov002 0x020bc3c8 */
+void hal_fill_sign_post_vtable(void);
+/* ---- ONE_UP_MUSHROOM (276, ov002) x3 ---- */
+extern unsigned char OneUpMushroom_SpawnInfo[];         /* ov002 0x02108388 */
+void *OneUpMushroom_Spawn(void);                        /* ov002 0x020b0580 */
+void hal_fill_one_up_mushroom_vtable(void);
 }
 
-#define PORT_ACTOR_CLASS_ROWS \
-    {286, "TREE", Tree_SpawnInfo, Tree_Spawn, hal_fill_tree_vtable},     {350, "AMBIENT_SOUND", AmbientSoundEffects_SpawnInfo,      AmbientSoundEffects_Spawn, hal_fill_ambient_sound_vtable},
+#define PORT_ACTOR_CLASS_ROWS                                                 \
+    {286, "TREE", Tree_SpawnInfo, Tree_Spawn, hal_fill_tree_vtable},          \
+    {350, "AMBIENT_SOUND", AmbientSoundEffects_SpawnInfo,                     \
+     AmbientSoundEffects_Spawn, hal_fill_ambient_sound_vtable},               \
+    {17, "BLACK_BRICK_BLOCK", BlackBrickBlock_SpawnInfo,                      \
+     BlackBrickBlock_Spawn, hal_fill_black_brick_block_vtable},               \
+    {184, "SIGN_POST", SignPost_SpawnInfo, SignPost_Spawn,                    \
+     hal_fill_sign_post_vtable},                                              \
+    {276, "ONE_UP_MUSHROOM", OneUpMushroom_SpawnInfo, OneUpMushroom_Spawn,    \
+     hal_fill_one_up_mushroom_vtable},

@@ -756,3 +756,64 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 /* Sound::PlayLong is already in the slice under its C name; the ambient
    actor references it at C++ linkage. */
 #pragma comment(linker, "/alternatename:?_ZN5Sound8PlayLongEjjjRK7Vector3j@@YAIIIIPAXI@Z=__ZN5Sound8PlayLongEjjjRK7Vector3j")
+
+/* ---- gate 16, the ov002 tier -------------------------------------------
+   BLACK_BRICK_BLOCK / SIGN_POST / ONE_UP_MUSHROOM. Same shape as the TREE
+   block above: overlay data declared at C++ linkage in the class TUs, with
+   whatever type each one happened to spell, onto the one plain C symbol
+   ovdata.py publishes. */
+#pragma comment(linker, "/alternatename:?data_ov002_02108ab0@@3PADA=_data_ov002_02108ab0")
+#pragma comment(linker, "/alternatename:?data_ov002_02108ab4@@3PADA=_data_ov002_02108ab4")
+#pragma comment(linker, "/alternatename:?data_ov002_021089e0@@3UV3@@A=_data_ov002_021089e0")
+#pragma comment(linker, "/alternatename:?data_ov002_0210e05c@@3DA=_data_ov002_0210e05c")
+#pragma comment(linker, "/alternatename:?data_ov002_0210e064@@3DA=_data_ov002_0210e064")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9b8@@3UModelCache@@A=_data_ov002_0210d9b8")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9d8@@3USharedFilePtr@@A=_data_ov002_0210d9d8")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9d8@@3PAXA=_data_ov002_0210d9d8")
+#pragma comment(linker, "/alternatename:?data_ov002_0210da30@@3USharedFilePtr@@A=_data_ov002_0210da30")
+#pragma comment(linker, "/alternatename:?data_ov002_0210da30@@3PAXA=_data_ov002_0210da30")
+#pragma comment(linker, "/alternatename:?data_ov002_020ff040@@3PAEA=_data_ov002_020ff040")
+#pragma comment(linker, "/alternatename:?data_ov002_020ff050@@3PAEA=_data_ov002_020ff050")
+/* Plain cdecl on both sides -- the C definition is already in the slice, the
+   reference just carries a C++ mangling from a TU that never wrapped it. */
+#pragma comment(linker, "/alternatename:?DecIfAbove0_Byte@@YAEPAE@Z=_DecIfAbove0_Byte")
+#pragma comment(linker, "/alternatename:?Matrix4x3_FromRotationY@@YAXPAUMatrix4x3@@H@Z=_Matrix4x3_FromRotationY")
+#pragma comment(linker, "/alternatename:?MulVec3Mat4x3@@YAXPAUVector3@@PAUMatrix4x3@@0@Z=_MulVec3Mat4x3")
+#pragma comment(linker, "/alternatename:?Vec3_Add@@YAXPAUVector3@@00@Z=_Vec3_Add")
+#pragma comment(linker, "/alternatename:?func_ov002_020baf80@@YAXPAD@Z=_func_ov002_020baf80")
+#pragma comment(linker, "/alternatename:?func_ov002_020bb060@@YAHPAX@Z=_func_ov002_020bb060")
+#pragma comment(linker, "/alternatename:?func_ov002_020ee5d0@@YAXPAEH@Z=_func_ov002_020ee5d0")
+#pragma comment(linker, "/alternatename:?_ZN12WithMeshClsn13SetLimMovFlagEv@@YAXPAX@Z=__ZN12WithMeshClsn13SetLimMovFlagEv")
+/* The shared-header placeholders. G0/G1 are whatever the TU's own literal
+   pool held, so each one is settled from the ROM's relocation table rather
+   than by name:
+     _ZN8SignPost16CleanupResourcesEv  0x020bbe28/2c -> 0x0210e064, 0x0210e05c
+       (the model SharedFilePtr, then the KCL one -- Release in load order)
+     the Platform D0 pair                            -> 0x020a0eac, the heap
+       Memory::Deallocate takes; every other D0 in the family spells the same
+       word data_020a0eac. */
+#pragma comment(linker, "/alternatename:?G0@@3PAHA=_data_ov002_0210e064")
+#pragma comment(linker, "/alternatename:?G1@@3PAHA=_data_ov002_0210e05c")
+#pragma comment(linker, "/alternatename:_G0=_data_020a0eac")
+/* src/_ZN18MovingCylinderClsnD1Ev.c spells its two constants by role: the
+   base destructor at 0x02015058 is CylinderClsn::~CylinderClsn (D2) and the
+   vtable it installs first is _ZTV18MovingCylinderClsn (0x0208e6d4). */
+#pragma comment(linker, "/alternatename:_base_dtor_MovingCylinderClsn=__ZN12CylinderClsnD2Ev")
+#pragma comment(linker, "/alternatename:_vtbl_MovingCylinderClsn=__ZTV18MovingCylinderClsn")
+/* ov002's Enemy constructor is func_ov002_020aed98 -- see the header of that
+   entry in slice_gate16.txt for why the file named _ZN5EnemyC2Ev is ov007's. */
+#pragma comment(linker, "/alternatename:__ZN5EnemyC2Ev=_func_ov002_020aed98")
+#pragma comment(linker, "/alternatename:?data_ov002_0211025c@@3PAHA=_data_ov002_0211025c")
+/* the same per-mangling faces, one round further into the 1-up's chain */
+#pragma comment(linker, "/alternatename:?data_0209f40c@@3PAHA=_data_0209f40c")
+#pragma comment(linker, "/alternatename:?data_0209f208@@3EA=_data_0209f208")
+#pragma comment(linker, "/alternatename:?IsStarCollectedInCurLevel@@YAHH@Z=_IsStarCollectedInCurLevel")
+#pragma comment(linker, "/alternatename:?_ZN10SphereClsn10DetectClsnEv@@YAHPAX@Z=__ZN10SphereClsn10DetectClsnEv")
+#pragma comment(linker, "/alternatename:?_ZNK12WithMeshClsn15ShouldUpdatePosEv@@YAHPAX@Z=__ZNK12WithMeshClsn15ShouldUpdatePosEv")
+#pragma comment(linker, "/alternatename:?_ZNK12WithMeshClsn16ShouldUpdatePosYEv@@YAHPAX@Z=__ZNK12WithMeshClsn16ShouldUpdatePosYEv")
+#pragma comment(linker, "/alternatename:?_ZN12WithMeshClsn19ClearAllGroundFlagsEv@@YAXPAX@Z=__ZN12WithMeshClsn19ClearAllGroundFlagsEv")
+#pragma comment(linker, "/alternatename:?func_020355a0@@YAHPAX@Z=_func_020355a0")
+#pragma comment(linker, "/alternatename:?func_02038a38@@YAHPAX@Z=_func_02038a38")
+#pragma comment(linker, "/alternatename:?func_020371b0@@YAXPAXH@Z=_func_020371b0")
+#pragma comment(linker, "/alternatename:?FUN_0202a130@@YAXXZ=_FUN_0202a130")
+#pragma comment(linker, "/alternatename:?SetStarMarker@@YAXHHH@Z=_SetStarMarker")

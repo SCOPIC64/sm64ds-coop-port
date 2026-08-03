@@ -215,9 +215,17 @@ extern "C" void *_ZTV12MeshCollider[13] = {
     (void *)slot_trap11, (void *)slot_trap12,
 };
 
-// MovingMeshCollider inherits the surface queries; its table gets the same
-// shims at runtime (its own DetectClsn overloads stay trapped until a
-// consumer needs them).
+// MovingMeshCollider inherits the surface queries; its table starts as a copy
+// of MeshCollider's, which is all the binaries that stop at gate 8/9 need --
+// the only collider on the level then is the level's, a plain MeshCollider.
+//
+// GATE 16 GOES FURTHER. SIGN_POST, BLACK_BRICK_BLOCK and CASTLE_WATER each
+// Enable a MovingMeshCollider of their own onto data_020a0c80, and everything
+// a moving collider answers is expressed in ITS OWN space and transformed
+// back -- so its six overrides have to dispatch or the sign post's collision
+// sits at the world origin instead of under the sign. Those slots are filled
+// by hal_fill_moving_mesh_collider_vtable in hal/actor_class_faces.cpp, which
+// only the binaries carrying the actor classes link; this stays the base.
 extern "C" {
 void *_ZTV18MovingMeshCollider[16];
 void hal_fill_mmc_vtable(void)
@@ -226,3 +234,32 @@ void hal_fill_mmc_vtable(void)
         _ZTV18MovingMeshCollider[i] = _ZTV12MeshCollider[i];
 }
 }
+
+// ---- the moving collider's scratch RaycastLine ------------------------------
+//
+// MovingMeshCollider::DetectClsn(RaycastLine &) and its RaycastGround sibling
+// do not build a ray on the stack: they fill ONE static one at arm9
+// 0x020a0d0c, walk it, and read the answer back out. dsd split that object
+// three ways at the offsets code happened to name --
+//
+//     data_020a0d0c  the ray itself
+//     data_020a0d1c  +0x10, its ClsnResult (copied back to the caller's)
+//     data_020a0d60  +0x54, its line END, which is where the walk writes the
+//                    hit position
+//
+// -- so three separate host arrays would have the walk fill one object and the
+// caller read two strangers. Grouped sections put them back in ROM order, the
+// mechanism hal/level_boot.cpp uses for the save block and romdata.py for the
+// camera-mode table: MSVC sorts by the part after the `$`, and every delta
+// here equals the symbol's own size.
+#define CLSNSCRATCH(sec, name, size) \
+    __pragma(section(sec, read, write))                          \
+    extern "C" __declspec(allocate(sec)) __declspec(align(4))    \
+    unsigned char name[size] = {0}
+
+CLSNSCRATCH(".mmcray$0000", data_020a0d0c, 0x10);
+CLSNSCRATCH(".mmcray$0001", data_020a0d1c, 0x44);
+CLSNSCRATCH(".mmcray$0002", data_020a0d60, 0x24);
+
+#undef CLSNSCRATCH
+

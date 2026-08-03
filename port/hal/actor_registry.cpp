@@ -294,6 +294,8 @@ extern signed char data_02092120;         /* the area currently shown */
 unsigned char IsAreaShowing(int idx);
 }
 
+extern "C" void port_actor_positions(void);
+
 extern "C" void port_actor_lists_probe(void)
 {
     std::printf("[area] shown %d, showing:", data_02092120);
@@ -310,5 +312,32 @@ extern "C" void port_actor_lists_probe(void)
              node = (int *)(size_t)node[1])
             ++n;
         std::printf("[lists] %-9s %d\n", lists[i].n, n);
+    }
+    port_actor_positions();
+}
+
+/* Every live actor's own position, read back off the behaviour list in world
+   units and grouped by class. The level's object tables are the reference:
+   an actor that spawned but reads back somewhere else has had its record
+   misread, and a class whose count here is short of the census has destroyed
+   instances (which for the Tree is the ROM's own design -- see the gate-16
+   commit). Actor pos is the Vector3 at +0x5c; the class is the id at +0xc,
+   which the ActorBase constructor copied out of the spawn context. */
+extern "C" void port_actor_positions(void)
+{
+    for (const PortActorClass *k = port_actor_classes; k->name; ++k) {
+        int n = 0;
+        for (int *node = (int *)(size_t)data_020a4b78[0]; node && n < 4096;
+             node = (int *)(size_t)node[1]) {
+            char *o = (char *)(size_t)node[2];
+            if (!o || *(unsigned short *)(o + 0xc) != k->id)
+                continue;
+            if (!n++)
+                std::printf("[pos] %-17s", k->name);
+            const int *p = (const int *)(o + 0x5c);
+            std::printf(" (%d,%d,%d)", p[0] >> 12, p[1] >> 12, p[2] >> 12);
+        }
+        if (n)
+            std::printf("  [%d]\n", n);
     }
 }

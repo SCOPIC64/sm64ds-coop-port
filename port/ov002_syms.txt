@@ -20,3 +20,19 @@ Tree_SpawnInfo data_ov002_0210abb8 data_ov002_02110a48
 # gate 16, AMBIENT_SOUND_EFFECTS: its SpawnInfo and the ambient loop
 # table its Behavior indexes by spawn parameter.
 AmbientSoundEffects_SpawnInfo data_ov002_0210b498
+# gate 16, BLACK_BRICK_BLOCK: its SpawnInfo, plus the three-row table
+# InitResources indexes by variant. The rows are 0xc bytes and the config
+# names each COLUMN (ab0 = the model file, ab4 = the KCL, ab8 = the CLPS),
+# so each column is mounted from its own address with enough length to cover
+# all three rows. They overlap on purpose: it is one read-only ROM table and
+# three strided views of it, which is what the code compiled against.
+BlackBrickBlock_SpawnInfo data_ov002_02108ab0:0x2c data_ov002_02108ab4:0x28 data_ov002_02108ab8:0x24 data_ov002_021089e0
+# gate 16, SIGN_POST: its SpawnInfo and the CLPS block its own KCL resolves
+# surface types through.
+SignPost_SpawnInfo data_ov002_0210d714
+# gate 16, ONE_UP_MUSHROOM: its SpawnInfo and the two per-type flag tables
+# InitResources reads (both 14 entries, indexed by mushroom type).
+OneUpMushroom_SpawnInfo data_ov002_020ff040 data_ov002_020ff050
+# gate 16, SIGN_POST's carry offsets: the four columns func_ov002_020bb060
+# indexes by "is the player front-sliding" when the sign is in his hands.
+data_ov002_020ff0d0 data_ov002_020ff0d4:0x18 data_ov002_020ff0d8:0x14 data_ov002_020ff0dc:0x10

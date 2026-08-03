@@ -252,3 +252,47 @@ void CylinderClsnWithPos::Init(const Vector3 &pos, Fix12i radius,
         this, &pos, radius, height, flags, vulnFlags);
 }
 
+
+/* ---- gate 16: the collider faces the actor colliders need ---------------
+   Three C-named references onto MSVC method definitions. The first two are
+   the port's own transcriptions of the ITCM octree walks (port/unmatched/),
+   which MovingMeshCollider's DetectClsn overrides call DIRECTLY -- not
+   through a vtable -- after transforming the ray or sphere into the
+   collider's own space. func_01ffb0fc is the line walk's ROM address, which
+   is how the matched source spells it. */
+#include "MeshCollider.h"
+#include "SphereClsn.h"
+extern "C" {
+int func_01ffb0fc(void *self, void *ray)
+{ return ((MeshCollider *)self)->MeshCollider::DetectClsn(*(RaycastLine *)ray); }
+int _ZN12MeshCollider10DetectClsnER10SphereClsn(void *self, void *sph)
+{ return ((MeshCollider *)self)->MeshCollider::DetectClsn(*(SphereClsn *)sph); }
+int _ZN16MeshColliderBase9IsEnabledEv(void *self)
+{ return ((MeshColliderBase *)self)->MeshColliderBase::IsEnabled(); }
+int _ZN16MeshColliderBase7DisableEv(void *self)
+{ return ((MeshColliderBase *)self)->MeshColliderBase::Disable(); }
+}
+
+/* ---- gate 16: five more C-named references onto method definitions -------
+   The 1-up, the sign and the brick block reach these by their Itanium names
+   from .c TUs; every one of them is a real __thiscall method in src. */
+extern "C" {
+int _ZN6Player14IsFrontSlidingEv(void *self)
+{ return ((Player *)self)->Player::IsFrontSliding(); }
+int _ZN6Player15IsEnteringLevelEv(void *self)
+{ return ((Player *)self)->Player::IsEnteringLevel(); }
+int _ZN6Player17LostGrabbedObjectEv(void *self)
+{ return ((Player *)self)->Player::LostGrabbedObject(); }
+int _ZN6Player20IsStateEnteringLevelEv(void *self)
+{ return ((Player *)self)->Player::IsStateEnteringLevel(); }
+}
+
+#include "PowerStar.h"
+extern "C" {
+void _ZN12WithMeshClsn20UpdateDiscreteNoLavaEv(void *self)
+{ ((WithMeshClsn *)self)->WithMeshClsn::UpdateDiscreteNoLava(); }
+void _ZN12WithMeshClsn22UpdateDiscreteNoLava_2Ev(void *self)
+{ ((WithMeshClsn *)self)->WithMeshClsn::UpdateDiscreteNoLava_2(); }
+void _ZN9PowerStar13AddStarMarkerEv(void *self)
+{ ((PowerStar *)self)->PowerStar::AddStarMarker(); }
+}

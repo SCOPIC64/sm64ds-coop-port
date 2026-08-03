@@ -265,6 +265,56 @@ void *_ZTV15MaterialChanger[8];
 void *_ZTV15TextureSequence[8];
 void *_ZTV25MovingCylinderClsnWithPos[12];
 int VT0[20];    /* an unresolved shared-header vtable alias in ov002 TUs */
+int VT2[20];    /* ...and its sibling: SphereClsn's D1 spells its three
+                   sub-object vtables VT0/VT1/VT2. All three are installed
+                   transiently during teardown and never dispatched.
+                   CAUTION: these names are per-TU placeholders, so two
+                   classes can spell DIFFERENT vtables VT0 and both resolve
+                   here. A slot that is actually dispatched must never come
+                   through one of them. */
+void *data_02099204[20];   /* WithMeshClsn's own vtable, same treatment */
+short data_0209f358[4];    /* the coin counter GiveCoins increments */
+unsigned char data_0209f208; /* the current-star index PowerStar reads */
+short data_0209f308;         /* the star-marker timer FUN_0202a130 arms */
+unsigned char data_0209f1f4; /* ...and the flag it clears with it */
+
+// ---- gate 16: two named refusals ------------------------------------------
+//
+// Both stand in front of a subsystem the port does not host, both are the
+// answer that subsystem gives when it is not there, and both are here rather
+// than in a class's own file so that hosting the subsystem retires exactly one
+// line.
+//
+// Enemy::UpdateYoshiEat (ov002 0x020ade78) is UNMATCHED -- a 0x3cc-byte hole
+// in ov002's delink table, no C anywhere -- and OneUpMushroom::Behavior opens
+// with it every frame. It answers "is this actor inside Yoshi's mouth right
+// now"; there is no Yoshi on the castle grounds and the local character is
+// Mario, so the ROM's answer is 0 and the mushroom runs its own type
+// behaviour. When the function is matched this definition comes out and the
+// file goes in the slice.
+int _ZN5Enemy14UpdateYoshiEatER12WithMeshClsn(void *, void *) { return 0; }
+
+// Player::StartTalk IS matched, and that is the problem: it would put the
+// Player in the talk state and the SignPost in its read state, whose Main
+// (ov002 0x020bb614) is unmatched and whose body is the Message box -- font
+// pages, OAM, the dialogue driver, none of it hosted. Declining the talk is
+// the ROM's own "no" branch (StartTalk returns 0 from six of its arms), the
+// sign stays planted, and everything else about it still works: it turns to
+// face the player, it blocks him, it can be grabbed, thrown and it walks its
+// other four states. Remove this when Message is hosted AND 0x020bb614 is
+// matched -- in that order.
+int _ZN6Player9StartTalkER9ActorBaseb(void *, void *, int) { return 0; }
+
+/* The global event bitfield. Event::GetBit reads it and BLACK_BRICK_BLOCK's
+   Behavior asks whether its own event has fired; nothing on the castle grounds
+   sets one, so zero is the level's own state. */
+int data_0209f34c;
+
+/* ov002's Enemy vtable, installed by func_ov002_020aed98 and overwritten by
+   the derived class's own factory two lines later. The same treatment
+   _ZTV5Actor and _ZTV12ActorDerived already have: real storage so the store
+   lands somewhere, never dispatched through. */
+void *data_ov002_021081e4[20];
 
 unsigned char data_02092128[0x40];
 /* 0x0209f318 is a Camera POINTER, not storage -- every declaration of it

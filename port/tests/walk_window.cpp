@@ -699,6 +699,9 @@ int main(void)
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
 
     static ntr::Framebuffer fb;
+    /* [0..2] the view matrix's own translation row, saved before the R6 unit
+       shim scales it; [3] "there is a saved row" */
+    static int port_view_shim_save[4];
     MSG msg;
     for (;;) {
         while (W.PeekMessageA_(&msg, 0, 0, 0, PM_REMOVE)) {
@@ -928,6 +931,15 @@ int main(void)
            in priority order -- which reaches him through the same
            func_02043288 the harness used to call by hand. */
         if (boot_spawns) {
+            /* Put the view matrix back in the ROM's own scene units before the
+               tick: the R6 unit shim below scaled its translation row for the
+               harness's world-unit models, and Actor::BeforeBehavior reads the
+               same three words to decide what is on screen. */
+            if (port_view_shim_save[3]) {
+                data_0209b3ec[9] = port_view_shim_save[0];
+                data_0209b3ec[10] = port_view_shim_save[1];
+                data_0209b3ec[11] = port_view_shim_save[2];
+            }
             port_actor_tick();
         } else if (*(void **)(c + 0x370)) {
             hal_player_behavior(player);
@@ -1267,7 +1279,25 @@ int main(void)
                scene. Scaling the translation row back up by 8 puts both in
                world units. ONE place, and it is the whole of the scene-unit
                divergence; moving the model matrices to the ROM's convention
-               instead is the real fix and is its own job. */
+               instead is the real fix and is its own job.
+
+               AND IT IS UNDONE AT THE TOP OF THE NEXT TICK. The scaled matrix
+               is the harness's, and the game reads the same three words for
+               something else entirely: Actor::BeforeBehavior multiplies every
+               actor's position through data_0209b3ec to get its VIEW position
+               and hands that to the Clipper, whose answer against the actor's
+               own cull distance is what sets the OFF_SCREEN bit that
+               Actor::BeforeRender refuses on. With the row left eight times
+               too long every actor that HAS a cull distance reads as eight
+               times too far away and never reaches its own Render -- measured:
+               SIGN_POST, BLACK_BRICK_BLOCK and ONE_UP_MUSHROOM all came back
+               flags 0x38 and BeforeRender 0 with the sign twelve feet in front
+               of Mario. The Tree only ever drew because its SpawnInfo carries
+               no cull distance at all, so the test is skipped for it. */
+            port_view_shim_save[3] = 1;
+            port_view_shim_save[0] = data_0209b3ec[9];
+            port_view_shim_save[1] = data_0209b3ec[10];
+            port_view_shim_save[2] = data_0209b3ec[11];
             data_0209b3ec[9] *= 8;
             data_0209b3ec[10] *= 8;
             data_0209b3ec[11] *= 8;

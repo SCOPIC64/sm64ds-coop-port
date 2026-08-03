@@ -58,8 +58,42 @@ static int __fastcall ac_bbeh(void *s, void *)
 { return _ZN5Actor14BeforeBehaviorEv(s); }
 static void __fastcall ac_abeh(void *s, void *, unsigned a)
 { ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+/* SM64DS_ACTOR_PROBE=2: why an actor did or did not reach its own Render.
+   Actor::BeforeRender is the gate -- it refuses on WRONG_AREA (0x20) and on
+   OFF_SCREEN (0x8) when the actor asked to be culled off screen (0x2) -- and
+   both bits are set by Actor::BeforeBehavior out of the SpawnInfo's own
+   radius and cull distance. Printed once per actor id. */
 static int __fastcall ac_bren(void *s, void *)
-{ return _ZN5Actor12BeforeRenderEv(s); }
+{
+    int r = _ZN5Actor12BeforeRenderEv(s);
+    static int on = -1;
+    if (on < 0) {
+        const char *e = std::getenv("SM64DS_ACTOR_PROBE");
+        on = e && e[0] == '2';
+    }
+    if (on) {
+        static unsigned said[64];
+        unsigned id = *(unsigned short *)((char *)s + 0xc);
+        int seen = 0;
+        for (int i = 0; i < 64 && said[i]; ++i)
+            if (said[i] == id) seen = 1;
+        if (!seen) {
+            for (int i = 0; i < 64; ++i)
+                if (!said[i]) { said[i] = id; break; }
+            const char *c = (const char *)s;
+            std::printf("[bren] id %3u -> %d  flags %08x area %d radius %d "
+                        "cull %d view (%d,%d,%d)\n", id, r,
+                        *(const unsigned *)(c + 0xb0),
+                        *(const signed char *)(c + 0xcc),
+                        *(const int *)(c + 0xb8) >> 12,
+                        *(const int *)(c + 0xbc) >> 12,
+                        *(const int *)(c + 0x74) >> 12,
+                        *(const int *)(c + 0x78) >> 12,
+                        *(const int *)(c + 0x7c) >> 12);
+        }
+    }
+    return r;
+}
 static void __fastcall ac_aren(void *s, void *, unsigned a)
 { ((ActorBase *)s)->ActorBase::AfterRender(a); }
 static int __fastcall ac_heap(void *s, void *)
@@ -257,6 +291,240 @@ extern "C" void hal_fill_ambient_sound_vtable(void)
 /* Silence the unused-static warning for the two shared helpers a class with
    its own OnPendingDestroy does not take. */
 extern "C" void *hal_actor_shared_pdes(void) { return (void *)ac_pdes_base; }
+
+// ---- Platform, the base three of these classes destruct through ------------
+//
+// Every Platform-derived destructor is the mwcc two-step: install the class's
+// own vtable, run the members that belong to the derived part, install the
+// BASE vtable, run the rest. The base one is ov002 0x0210ae38, which the
+// destructors spell _ZTV10dBgActor_c (Platform is dBgActor_c in the ROM's own
+// RTTI) and which config/arm9/overlays/ov002/symbols.txt calls
+// _ZTV17ExclamationSwitch -- a name attached one class late, the same skew
+// AMBIENT_SOUND_EFFECTS ran into. The ROM settles it: slots 16/17 of that
+// table are _ZN8PlatformD2Ev and _ZN8PlatformD0Ev, and slots 0/3/6/9 are
+// ActorBase's own do-nothing bodies, which is exactly a base-class table.
+//
+// It is only ever installed BETWEEN two member teardowns and nothing dispatches
+// through it while it is there, so the port gives it the shared half and traps
+// the rest: if a future class does dispatch, it says which slot.
+extern "C" { void *_ZTV10dBgActor_c[20]; }
+ACTRAP(Platform, 0)
+extern "C" void hal_fill_platform_vtable(void)
+{
+    static int done;
+    if (done) return;
+    done = 1;
+    for (int i = 0; i < 20; ++i)
+        _ZTV10dBgActor_c[i] = (void *)Platform_trap0;
+    ac_fill_shared(_ZTV10dBgActor_c, Platform_trap0);
+    _ZTV10dBgActor_c[12] = (void *)ac_pdes_base;
+}
+
+// ---- BLACK_BRICK_BLOCK (actor 17, ov002) x1 --------------------------------
+//
+// _ZTV13BigBrickBlock, ov002 0x02108adc. One class body serves six actor ids
+// and switches on its own; 17 is 0x11, the variant that tracks a star and
+// carries the 1.0-scaled KCL. The castle grounds' single instance is at
+// (-3300, -650, 20), under the bridge.
+//
+// Four of the six own slots are real MSVC methods against include/
+// BigBrickBlock.h; InitResources and the two destructors are C-form TUs.
+#include "BigBrickBlock.h"
+extern "C" {
+int _ZN13BigBrickBlock13InitResourcesEv(void *self);
+int *_ZN13BigBrickBlockD1Ev(int *self);
+int *_ZN13BigBrickBlockD0Ev(int *self);
+void *_ZTV13BigBrickBlock[20];
+}
+/* The destructors spell the class's own table by its RTTI name. */
+#pragma comment(linker, "/alternatename:__ZTV13daObjBlockL_c=__ZTV13BigBrickBlock")
+
+ACTRAP(BigBrickBlock, 13)
+static int __fastcall bbb_init(void *s, void *)
+{ return _ZN13BigBrickBlock13InitResourcesEv(s); }
+static int __fastcall bbb_clean(void *s, void *)
+{ return ((BigBrickBlock *)s)->BigBrickBlock::CleanupResources(); }
+static int __fastcall bbb_behavior(void *s, void *)
+{ return ((BigBrickBlock *)s)->BigBrickBlock::Behavior(); }
+extern "C" void port_actor_render_probe(const char *cls, void *model);
+static int __fastcall bbb_render(void *s, void *)
+{
+    port_actor_render_probe("BLACK_BRICK_BLOCK", (char *)s + 0xd4);
+    return ((BigBrickBlock *)s)->BigBrickBlock::Render();
+}
+static int __fastcall bbb_d1(void *s, void *)
+{ return (int)(size_t)_ZN13BigBrickBlockD1Ev((int *)s); }
+static int __fastcall bbb_d0(void *s, void *)
+{ return (int)(size_t)_ZN13BigBrickBlockD0Ev((int *)s); }
+
+extern "C" void hal_fill_black_brick_block_vtable(void)
+{
+    void **vt = _ZTV13BigBrickBlock;
+    hal_fill_platform_vtable();
+    ac_fill_shared(vt, BigBrickBlock_trap13);
+    vt[0] = (void *)bbb_init;
+    vt[3] = (void *)bbb_clean;
+    vt[6] = (void *)bbb_behavior;
+    vt[9] = (void *)bbb_render;
+    vt[12] = (void *)ac_pdes_base;
+    vt[16] = (void *)bbb_d1;
+    vt[17] = (void *)bbb_d0;
+}
+
+// ---- SIGN_POST (actor 184, ov002) x5 ---------------------------------------
+//
+// _ZTV8SignPost, ov002 0x02109af8 (RTTI: daObjTatefuda_c -- tatefuda is a
+// signboard). Five of them around the grounds. This is the first class whose
+// InitResources RAYCASTS THE LEVEL: it drops a ground ray from 100 units above
+// the object record's Y and plants the post on whatever it finds, so the five
+// signs read back the same floor the Player stands on.
+//
+// It also carries three collision objects at once -- a MovingMeshCollider for
+// the solid post, a MovingCylinderClsn for the read trigger, and a WithMeshClsn
+// of its own -- which is the shape every Platform actor after it has.
+//
+// THE TALK PATH IS GUARDED, and this is the one place a slot is not the ROM's.
+// Behavior's read branch runs when the Player is in range with its 0xc8 word
+// set, and func_ov002_020bb060 ends in the Message system (Message::Show and
+// the dialogue box's OAM/font machinery), none of which the port hosts. The
+// guard is in hal/actor_vtables.cpp at that function, not here: the sign
+// still turns to face the player and still blocks him, it just does not open
+// a box that has nothing to draw with.
+#include "SignPost.h"
+extern "C" {
+int _ZN8SignPost8BehaviorEv(char *self);
+int *_ZN8SignPostD1Ev(int *self);
+int *_ZN8SignPostD0Ev(int *self);
+void *_ZTV8SignPost[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV15daObjTatefuda_c=__ZTV8SignPost")
+
+ACTRAP(SignPost, 13)
+static int __fastcall sp_init(void *s, void *)
+{ return ((SignPost *)s)->SignPost::InitResources(); }
+static int __fastcall sp_clean(void *s, void *)
+{ return ((SignPost *)s)->SignPost::CleanupResources(); }
+static int __fastcall sp_behavior(void *s, void *)
+{ return _ZN8SignPost8BehaviorEv((char *)s); }
+/* SM64DS_ACTOR_PROBE=1: one line per class the first time its Render runs,
+   with what the Model has to draw with -- the BMD the file pointer resolved
+   to and the model matrix's own translation row, which Platform writes in
+   SCENE units. A class that never prints is being culled before Render;
+   one that prints with a null file has a load problem instead. */
+extern "C" void port_actor_render_probe(const char *cls, void *model)
+{
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_ACTOR_PROBE") != 0;
+    if (!on) return;
+    static const char *said[8];
+    static int n;
+    for (int i = 0; i < n; ++i)
+        if (said[i] == cls) return;
+    if (n < 8) said[n++] = cls;
+    const int *m = (const int *)((const char *)model + 0x1c);
+    std::printf("[actor] %-17s model %p file %p mat.t (%d,%d,%d) scene\n",
+                cls, model, *(void *const *)((const char *)model + 0x0c),
+                m[9] >> 12, m[10] >> 12, m[11] >> 12);
+}
+
+static int __fastcall sp_render(void *s, void *)
+{
+    port_actor_render_probe("SIGN_POST", (char *)s + 0xd4);
+    return ((SignPost *)s)->SignPost::Render();
+}
+static int __fastcall sp_d1(void *s, void *)
+{ return (int)(size_t)_ZN8SignPostD1Ev((int *)s); }
+static int __fastcall sp_d0(void *s, void *)
+{ return (int)(size_t)_ZN8SignPostD0Ev((int *)s); }
+
+extern "C" void port_sign_post_states_seat(void);   /* port/unmatched */
+
+extern "C" void hal_fill_sign_post_vtable(void)
+{
+    void **vt = _ZTV8SignPost;
+    /* the sinit copied the ROM's own five {Init, Main} pairs into
+       data_ov002_0210e084, which means DS code addresses; seat the host
+       bodies over them (the ovdata contract, see the file header there) */
+    port_sign_post_states_seat();
+    hal_fill_platform_vtable();
+    ac_fill_shared(vt, SignPost_trap13);
+    vt[0] = (void *)sp_init;
+    vt[3] = (void *)sp_clean;
+    vt[6] = (void *)sp_behavior;
+    vt[9] = (void *)sp_render;
+    vt[12] = (void *)ac_pdes_base;
+    vt[16] = (void *)sp_d1;
+    vt[17] = (void *)sp_d0;
+}
+
+// ---- ONE_UP_MUSHROOM (actor 276, ov002) x3 ---------------------------------
+//
+// _ZTV13OneUpMushroom, ov002 0x021083c8 (RTTI: da1up_c). Three of them on the
+// castle roof at param 0x00f3, which is mushroom type 3.
+//
+// Two slots are this class's own rather than Actor's, and they are the reason
+// the class exists: slot 18 (OnYoshiTryEat) returns 4 -- "swallow me" -- and
+// slot 19 (OnTurnIntoEgg) is the collect path, GiveLives plus the 1UP logo
+// actor. Both are hosted; nothing on this level reaches them while the
+// character is Mario.
+//
+// Behavior is the HOST COPY in port/unmatched/OneUpMushroom_Behavior.cpp: the
+// ROM's dispatches the mushroom type through an mwcc pointer-to-member table
+// and MSVC has no representation for one. See that file's header.
+#include "OneUpMushroom.h"
+extern "C" {
+int _ZN13OneUpMushroom8BehaviorEv(void *self);       /* port/unmatched */
+void _ZN13OneUpMushroom16OnPendingDestroyEv(void);
+int *_ZN13OneUpMushroomD1Ev(int *self);
+int *_ZN13OneUpMushroomD0Ev(int *self);
+int func_ov002_020af3a0(void);                       /* OnYoshiTryEat */
+void func_ov002_020af2b0(char *self, int arg);       /* OnTurnIntoEgg */
+void *_ZTV13OneUpMushroom[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV7da1up_c=__ZTV13OneUpMushroom")
+
+ACTRAP(OneUpMushroom, 13)
+static int __fastcall oum_init(void *s, void *)
+{ return ((OneUpMushroom *)s)->OneUpMushroom::InitResources(); }
+static int __fastcall oum_clean(void *s, void *)
+{ return ((OneUpMushroom *)s)->OneUpMushroom::CleanupResources(); }
+static int __fastcall oum_behavior(void *s, void *)
+{ return _ZN13OneUpMushroom8BehaviorEv(s); }
+static int __fastcall oum_render(void *s, void *)
+{
+    port_actor_render_probe("ONE_UP_MUSHROOM", (char *)s + 0x300);
+    return (int)((OneUpMushroom *)s)->OneUpMushroom::Render();
+}
+static int __fastcall oum_pdes(void *, void *)
+{ _ZN13OneUpMushroom16OnPendingDestroyEv(); return 0; }
+static int __fastcall oum_d1(void *s, void *)
+{ return (int)(size_t)_ZN13OneUpMushroomD1Ev((int *)s); }
+static int __fastcall oum_d0(void *s, void *)
+{ return (int)(size_t)_ZN13OneUpMushroomD0Ev((int *)s); }
+static int __fastcall oum_yoshi(void *, void *)
+{ return func_ov002_020af3a0(); }
+static int __fastcall oum_egg(void *s, void *, int a)
+{ func_ov002_020af2b0((char *)s, a); return 0; }
+
+extern "C" void port_one_up_mushroom_types_seat(void);   /* port/unmatched */
+
+extern "C" void hal_fill_one_up_mushroom_vtable(void)
+{
+    void **vt = _ZTV13OneUpMushroom;
+    /* same as the sign: __sinit_ov002_02100adc left fourteen DS code
+       addresses in data_ov002_0210dc00 */
+    port_one_up_mushroom_types_seat();
+    ac_fill_shared(vt, OneUpMushroom_trap13);
+    vt[0] = (void *)oum_init;
+    vt[3] = (void *)oum_clean;
+    vt[6] = (void *)oum_behavior;
+    vt[9] = (void *)oum_render;
+    vt[12] = (void *)oum_pdes;
+    vt[16] = (void *)oum_d1;
+    vt[17] = (void *)oum_d0;
+    vt[18] = (void *)oum_yoshi;
+    vt[19] = (void *)oum_egg;
+}
 
 // ---- CylinderClsnWithPos ---------------------------------------------------
 //

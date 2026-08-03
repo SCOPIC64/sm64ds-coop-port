@@ -229,6 +229,29 @@ static void __fastcall mv_render(void *self, void *, const void *s)
             int *wv = (int *)&wscale;
             for (int i = 0; i < 3; ++i) wv[i] = sv[i] * MV_SCENE_TO_WORLD;
         }
+        /* SM64DS_ACTOR_SCALE_MUL=N: multiply the scale the bucket hands
+           Model::Render. The two part walks spend it differently -- the
+           billboard walk (func_02044534) as its axis LENGTH, the ordinary walk
+           (func_0204488c) as an MTX_SCALE on top of ModelComponents::Render's
+           own 1 << (shift + 12) -- and gate 16 measured that they do not agree
+           on host: the Tree (all-billboard) is right at 1, and SIGN_POST
+           (all-ordinary, BMD shift 1) comes out about 256 times too small,
+           which is the ratio between this chain and hal_render_model's own
+           0x1000 << (shift + 10) for the level. The lever is here so the next
+           pass can bracket it; the fix belongs in the walk, not in a constant.
+           */
+        {
+            static int mul = -1;
+            if (mul < 0) {
+                const char *e = getenv("SM64DS_ACTOR_SCALE_MUL");
+                mul = e ? atoi(e) : 1;
+                if (mul < 1) mul = 1;
+            }
+            if (mul > 1) {
+                int *wv = (int *)&wscale;
+                for (int i = 0; i < 3; ++i) wv[i] *= mul;
+            }
+        }
         /* SM64DS_TRACE_ACTOR_MAT=1: the converted model matrix, the BMD
            header behind it, and the bone transform the shape walk composes
            with. This is the trace that found the collapsed-geometry wall
