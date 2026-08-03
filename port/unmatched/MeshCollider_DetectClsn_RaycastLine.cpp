@@ -69,22 +69,26 @@ s32 MeshCollider::DetectClsn(RaycastLine &ray)
     const Vector3 *origin;
 
     /* Everything downstream -- origin, vertices, the plane math and its
-       0x20000 thresholds -- lives in the KCL FILE's coordinate space.
-       The collider's scale pair maps world <-> file: unk_38 is the
-       world->file multiplier, unk_2c the file->world one (SetFile seeds
-       both 1.0; stage colliders carry the LEVEL scale -- castle grounds
-       is 16x, which is why raw-file numbers made the whole world look
-       sixteen times too small). Rays convert in, results convert out;
-       actor colliders at 1.0 pass through untouched. */
-    {
-        int inv = this->unk_38;
-        s.x = (s32)(((s64)lineStart->x * inv) >> 12);
-        s.y = (s32)(((s64)lineStart->y * inv) >> 12);
-        s.z = (s32)(((s64)lineStart->z * inv) >> 12);
-        e.x = (s32)(((s64)lineEnd->x * inv) >> 12);
-        e.y = (s32)(((s64)lineEnd->y * inv) >> 12);
-        e.z = (s32)(((s64)lineEnd->z * inv) >> 12);
-    }
+       0x20000 thresholds -- lives in the KCL FILE's coordinate space, and the
+       ROM gets there with a PLAIN SHIFT: `asr r1, r5, #6` at 0x01ffb110, the
+       same six bits for every collider in the game. That is what runs here.
+
+       This used to route the conversion through the collider's own
+       MeshCollider+0x2c / +0x38 words instead, with the level's pair written
+       by hand as 0x40000 / 0x40 so the multiply reduced to the ROM's shift.
+       It reduced for the level and for nothing else: MovingMeshCollider::
+       SetFile leaves those words at SetFile's 1.0, so every actor-owned
+       collider -- the moat water, the sign posts, the metal nets -- ran its
+       walk in WORLD units against a FILE-unit mesh and could never be hit.
+       The moat is what caught it: CASTLE_WATER's collider was registered,
+       flagged 0x20 in its own CLPS, and answered no to every ray in the
+       level. */
+    s.x = lineStart->x >> 6;
+    s.y = lineStart->y >> 6;
+    s.z = lineStart->z >> 6;
+    e.x = lineEnd->x >> 6;
+    e.y = lineEnd->y >> 6;
+    e.z = lineEnd->z >> 6;
 
     min.x = s.x; max.x = s.x;
     min.y = s.y; max.y = s.y;
@@ -244,10 +248,10 @@ s32 MeshCollider::DetectClsn(RaycastLine &ray)
     if (!found) return 0;
 
     ray.clsnDist = bestDist << 6;   /* undo the >>6 of the dist metric */
-    /* hit position back to world space (file->world scale) */
-    pos.x = (s32)(((s64)best.x * this->unk_2c) >> 12);
-    pos.y = (s32)(((s64)best.y * this->unk_2c) >> 12);
-    pos.z = (s32)(((s64)best.z * this->unk_2c) >> 12);
+    /* hit position back to world space -- the ROM's own <<6 */
+    pos.x = best.x << 6;
+    pos.y = best.y << 6;
+    pos.z = best.z << 6;
     func_020375ec(&ray, &pos);
     ray.hasClsn = 1;
     return 1;

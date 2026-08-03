@@ -212,9 +212,20 @@ unsigned char data_ov006_02140330[8], data_ov006_02140338[8];
 unsigned char data_ov089_02132894[16], data_ov089_021328b4[16];
 int data_0209b48c, data_0209b4a0[4], data_0209b4ac;
 int data_020a4c48, data_020a4c4c, data_020a4c54[2], data_020a4c5c;
-/* particle system tracker block (refs reach +0x750) */
+/* particle system tracker block (refs reach +0x7f0) */
 __declspec(align(8)) unsigned char PARTICLE_SYS_TRACKER[0x1000];
-int data_0209ee74[4], data_0209f32c[4], data_0209b4a4[4];
+/* data_0209ee74 IS A SysTracker*, not storage: every src reference spells it
+   `extern char *data_0209ee74` and then indexes off its VALUE
+   (func_02022a4c reads +0x774, func_02022774 writes +0x7d0..+0x7dc,
+   func_02022d44 passes +0x7f0). The block above was declared for it and never
+   pointed at, so the pointer stayed null and the first effect to fire took the
+   process with it -- the water splash func_ov002_020c0d90 spawns the instant
+   the Player's probe finds water, which is how the moat found this.
+   Particle::System::New is still the no-op in hal/reverse_bridges.cpp, so what
+   the tracker holds is a table of zero handles: the honest state for "no
+   particles alive", and no fault. */
+void *data_0209ee74[4] = {PARTICLE_SYS_TRACKER};
+int data_0209f32c[4], data_0209b4a4[4];
 /* camera + player-list globals (gate-9 scoping notes) */
 int data_0209d4b0[8];
 int data_0209f274[8];

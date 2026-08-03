@@ -290,6 +290,7 @@ unsigned char IsAreaShowing(int idx);
 }
 
 extern "C" void port_actor_positions(void);
+extern "C" void port_actor_collision_probe(void);
 
 extern "C" void port_actor_lists_probe(void)
 {
@@ -308,7 +309,74 @@ extern "C" void port_actor_lists_probe(void)
             ++n;
         std::printf("[lists] %-9s %d\n", lists[i].n, n);
     }
+    port_actor_collision_probe();
     port_actor_positions();
+}
+
+/* THE COLLISION REGISTRY, which is what every Player probe walks.
+   MeshColliderBase::Enable parks a collider in the first free slot of
+   data_020a0c80[24]; RaycastGround::DetectClsn then walks all 24 and, for
+   every slot past 0, applies a DISTANCE CULL before it will even ask the
+   collider: when the owner actor's +0xb0 carries bit 1, the ray is skipped
+   unless it is within (owner+0xb8 << 3) of the owner's position and no lower
+   than owner.y + owner+0xb4 minus the same. owner+0xb8 is the Clipper's own
+   cull radius in SCENE units, which is why the shift is there.
+   So a collider that reads right in every other way can still be invisible to
+   a probe standing on top of it, and this is the line that says so. */
+extern "C" { extern void *data_020a0c80[24]; }
+
+/* A registered collider's own KCL, in the world units its owner's matrix puts
+   it in: MeshCollider+0x20 is the file, its vertex array runs up to the normal
+   table, and every position is stored at 1/64 of a Fix12i (the <<6 the ITCM
+   walk does on read). For a MovingMeshCollider the matrix translation is the
+   owner's position, which the line above already prints. A probe that finds no
+   water when it is standing in the moat is answered here: either the mesh is
+   somewhere else, or it is exactly where it should be and the walk is the
+   problem. */
+static void port_clsn_kcl_bounds(const char *o)
+{
+    const char *const *f = (const char *const *)(o + 0x20);
+    if (!*f) { std::printf("[clsnreg]      (no KCL)\n"); return; }
+    const int (*pos)[3] = *(const int (**)[3])(*f + 0x00);
+    const char *norm = *(const char *const *)(*f + 0x04);
+    long n = (norm - (const char *)pos) / 12;
+    if (n <= 0 || n > 65536) { std::printf("[clsnreg]      (KCL %ld?)\n", n);
+                               return; }
+    int lo[3] = {1 << 30, 1 << 30, 1 << 30};
+    int hi[3] = {-(1 << 30), -(1 << 30), -(1 << 30)};
+    for (long i = 0; i < n; ++i)
+        for (int k = 0; k < 3; ++k) {
+            int v = pos[i][k] << 6;
+            if (v < lo[k]) lo[k] = v;
+            if (v > hi[k]) hi[k] = v;
+        }
+    std::printf("[clsnreg]      KCL %ld verts, local world bounds "
+                "x[%.0f..%.0f] y[%.0f..%.0f] z[%.0f..%.0f]\n", n,
+                lo[0] / 4096.0, hi[0] / 4096.0, lo[1] / 4096.0, hi[1] / 4096.0,
+                lo[2] / 4096.0, hi[2] / 4096.0);
+}
+
+extern "C" void port_actor_collision_probe(void)
+{
+    std::printf("[clsnreg] slot owner        id   pos                 "
+                "flags    cull(+0xb8) yoff(+0xb4) +0x0c\n");
+    for (int i = 0; i < 24; ++i) {
+        const char *o = (const char *)data_020a0c80[i];
+        if (!o) continue;
+        const char *a = *(const char *const *)(o + 4);
+        if (!a) {
+            std::printf("[clsnreg] %2d   (level, owner NULL)\n", i);
+            continue;
+        }
+        std::printf("[clsnreg] %2d   %p %4u (%6d,%6d,%6d) %08x %6d %6d %8d\n",
+                    i, (const void *)a, *(const unsigned short *)(a + 0xc),
+                    *(const int *)(a + 0x5c) >> 12,
+                    *(const int *)(a + 0x60) >> 12,
+                    *(const int *)(a + 0x64) >> 12,
+                    *(const unsigned *)(a + 0xb0), *(const int *)(a + 0xb8),
+                    *(const int *)(a + 0xb4), *(const int *)(o + 0x0c));
+        port_clsn_kcl_bounds(o);
+    }
 }
 
 /* Every live actor's own position, read back off the behaviour list in world

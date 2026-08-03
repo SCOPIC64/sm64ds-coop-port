@@ -1116,7 +1116,13 @@ src/ObjectMessageIDToActualMessageID.c
 src/Vec3_LslInPlace.c
 src/Vec3_MulScalar.c
 src/_ZN5Actor11LandingDustEb.c
-src/_ZN5Sound4PlayEjjRK7Vector3.c
+# src/_ZN5Sound4PlayEjjRK7Vector3.c -- STUBBED in hal/actor_vtables.cpp.
+# It opens with func_02050cdc(), which walks the NNS sound player through
+# data_020a5bb8 and a chain of pointers behind it; the whole sound subsystem
+# is unhosted and the root is null, so the first Play in a level took the
+# process with it (St_Swim_Main's underwater loop found it). PlayBank0 and
+# PlayCharVoice were already stubbed one level up for the same reason; this
+# is the same deferral at the point they all converge on.
 src/_ZN5Sound9PlayBank3EjRK7Vector3.cpp
 src/func_020093d4.c
 src/func_020093f4.c

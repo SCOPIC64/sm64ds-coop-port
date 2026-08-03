@@ -257,9 +257,16 @@ void __destroy_arr(void *base, int n, int size, void (*dtor)(void *))
 // ---- gate-10 storage and stubs --------------------------------------------
 extern "C" {
 /* SOUND: stubbed silent for the walking campaign (the SPU is its own
-   project phase). The calls are fire-and-forget on the DS. */
+   project phase). The calls are fire-and-forget on the DS.
+   Sound::Play is where the four PlayBankN shims converge, and it opens by
+   walking the NNS sound player out of data_020a5bb8 -- a root pointer nothing
+   in the port seats, behind which sit more pointers. A zeroed block would only
+   move the fault one dereference along, so the deferral goes here, at the
+   subsystem's own front door. Its matched src is out of slice_gate10 with a
+   note; PlayBank0/PlayBank3/PlayCharVoice stay real and simply do nothing. */
 void _ZN5Sound13PlayCharVoiceEjjRK7Vector3(unsigned, unsigned, const void *) {}
 void _ZN5Sound9PlayBank0EjRK7Vector3(unsigned, const void *) {}
+void _ZN5Sound4PlayEjjRK7Vector3(unsigned, unsigned, const void *) {}
 
 void *_ZTV15MaterialChanger[8];
 void *_ZTV15TextureSequence[8];

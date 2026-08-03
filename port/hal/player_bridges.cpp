@@ -266,17 +266,32 @@ extern "C" void func_ov002_020c7194(char *c);
 extern "C" void func_ov002_020c72a4(void *c);
 extern "C" void func_ov002_020c70ac(char *c);
 extern "C" void func_ov002_020c6fe4(char *c);
-/* SM64DS_TRACE_STATE=1: every state function the dispatcher runs, once per
-   distinct DS address. The state machine is otherwise opaque from outside --
-   the Player carries a State* and the port switches on the DS address inside
-   it -- and this is how the water test reads: walking into the moat has to
-   show 0x020ce550 (St_Swim_Init) and then 0x020cd94c (St_Swim_Main). */
+/* SM64DS_TRACE_STATE: every state function the dispatcher runs. The state
+   machine is otherwise opaque from outside -- the Player carries a State* and
+   the port switches on the DS address inside it -- and this is how the water
+   test reads: walking into the moat has to show 0x020ce550 (St_Swim_Init) and
+   then 0x020cd94c (St_Swim_Main), and climbing out has to come back through
+   0x020cd1e4 (St_Swim_Cleanup) to St_Walk.
+     =1  once per distinct DS address (the quiet census)
+     =2  on every CHANGE, with the Player's height, which is what a
+         walk-in/swim-across/climb-out run has to be read from */
 extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 {
     {
         static int on = -1;
-        if (on < 0) on = std::getenv("SM64DS_TRACE_STATE") != 0;
-        if (on) {
+        if (on < 0) {
+            const char *e = std::getenv("SM64DS_TRACE_STATE");
+            on = e ? std::atoi(e) : 0;
+            if (e && !on) on = 1;
+        }
+        if (on >= 2) {
+            static unsigned prev;
+            if (ds_addr != prev) {
+                prev = ds_addr;
+                std::printf("  [state] 0x%08x y=%.1f\n", ds_addr,
+                            *(int *)((char *)self + 0x60) / 4096.0);
+            }
+        } else if (on) {
             static unsigned said[64];
             int seen = 0;
             for (int i = 0; i < 64 && said[i]; ++i)

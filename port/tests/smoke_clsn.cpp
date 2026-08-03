@@ -70,14 +70,45 @@ void *_ZN4Heap13SetupRootHeapEv(void);
 void *_ZN12MeshColliderC1Ev(void *self);
 }
 
+/* THE FILE/WORLD BOUNDARY, and it is these two functions only.
+   Everything this smoke computes -- the octree box, the cell size, the
+   max-depth-behind-plane, every probe offset -- is derived from the KCL
+   header and is therefore in FILE units, which is the basis the walk's own
+   arithmetic uses and the basis these checks are written in. The walk's
+   ARGUMENTS are world Fix12i: it converts them with the ROM's plain <<6/>>6
+   (port/unmatched/MeshCollider_DetectClsn_Sphere.cpp, BASIS CONVENTION).
+   Before that shift became unconditional the smoke got the identity for free
+   by leaving the collider at SetFile's 1.0 scale pair -- which was also what
+   hid every actor-owned collider from every ray in the game. So the identity
+   is spelled out here instead: lengths go in <<6 and come back >>6, and not
+   one line of the tiers below has to change basis. */
+enum { F2W = 6 };
+static void v3_shl(int *v, int n) { v[0] <<= n; v[1] <<= n; v[2] <<= n; }
+static void v3_shr(int *v, int n) { v[0] >>= n; v[1] >>= n; v[2] >>= n; }
+
 static int sphere_probe(MeshCollider *mc, SphereS *s)
 {
-    return mc->MeshCollider::DetectClsn(*(SphereClsn *)s->raw);
+    v3_shl(&s->at(0x3c), F2W);              /* centre */
+    s->at(0x48) <<= F2W;                    /* radius */
+    s->at(0xec) <<= F2W;                    /* wallHeight */
+    int r = mc->MeshCollider::DetectClsn(*(SphereClsn *)s->raw);
+    v3_shr(&s->at(0x3c), F2W);
+    s->at(0x48) >>= F2W;
+    s->at(0xec) >>= F2W;
+    v3_shr(&s->at(0x4c), F2W);              /* resolvedPush */
+    v3_shr(&s->at(0x58), F2W);              /* pushMin */
+    v3_shr(&s->at(0x64), F2W);              /* pushMax */
+    return r;
 }
 
 static int probe_one(MeshCollider *mc, RayS *ray)
 {
-    return mc->MeshCollider::DetectClsn(*(RaycastLine *)ray);
+    v3_shl(&ray->sx, F2W);
+    v3_shl(&ray->ex, F2W);
+    int r = mc->MeshCollider::DetectClsn(*(RaycastLine *)ray);
+    v3_shr(&ray->sx, F2W);
+    v3_shr(&ray->ex, F2W);                  /* the walk writes the hit here */
+    return r;
 }
 static int probe_filter(EXCEPTION_POINTERS *ep)
 {

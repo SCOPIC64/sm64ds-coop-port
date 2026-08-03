@@ -20,35 +20,34 @@
 //
 // The ROM converts world Fix12i to KCL file units with a PLAIN >>6 (0x01ffb870
 // `asr r1, r5, #6`), no scale multiply; DetectClsn(RaycastLine&) at 0x01ffb0fc
-// does the same at 0x01ffb110. The port's line walk instead routes that
-// conversion through the collider's scale pair -- unk_38 world->file, unk_2c
-// file->world -- as a host adaptation.
+// does the same at 0x01ffb110. SIX BITS, THE SAME SIX FOR EVERY COLLIDER IN
+// THE GAME, and that is what both passes run now:
 //
-// THIS PASS USES THE SAME PAIR, deliberately. Both passes read the SAME KCL
-// data through the SAME collider in the same frame: WithMeshClsn sweeps a
-// RaycastLine and then places a SphereClsn at the result. If the two disagreed
-// about where the geometry is, the sphere would push the actor into space the
-// line walk calls solid. Under the pair the port actually runs -- 64.0 and
-// 1/64, written by port/hal/level_boot.cpp and by walk_window's staging --
-// every conversion below reduces to the ROM's own shift EXACTLY:
+//   centre -> file    c >> 6              R, dot basis   radius << 4
+//   box pad           (radius >> 6) + 0x40
+//   push component    (depth*n) >> 16     vertex -> world   v0 << 6
 //
-//   centre -> file    (c * unk_38) >> 12           == c >> 6      (unk_38 = 0x40)
-//   R, dot basis      (radius * unk_38) >> 2       == radius << 4
-//   box pad           (R >> 10) + 0x40             == (radius>>6) + 0x40
-//   push component    ((depth*n) * unk_2c) >> 32 >> 2  == (depth*n) >> 16
-//   vertex -> world   (v0 * unk_2c) >> 12          == v0 << 6    (unk_2c = 0x40000)
+// Both passes read the SAME KCL data through the SAME collider in the same
+// frame -- WithMeshClsn sweeps a RaycastLine and then places a SphereClsn at
+// the result -- so they have to agree, and now they agree by construction.
 //
-// so none of the ROM's arithmetic is approximated here: the pair is an identity
-// at the port's configuration and a correct generalisation away from it.
+// WHAT THIS REPLACED, and why it had to go. The conversion used to route
+// through the collider's own MeshCollider+0x2c / +0x38 words, with the level's
+// pair written by hand as 0x40000 / 0x40 (port/hal/level_boot.cpp) so the
+// multiply reduced to the ROM's shift. It reduced for the level and for
+// nothing else: MovingMeshCollider::SetFile leaves those words at SetFile's
+// 1.0, so every actor-owned collider ran its walk in WORLD units against a
+// FILE-unit mesh and answered no to everything. The moat is what caught it --
+// CASTLE_WATER registers a collider whose own CLPS carries the water flag
+// 0x20, and no ray in the level could find it, so the Player's water probe
+// never fired and walk never became swim.
 //
-// ONE ALIASING HAZARD comes with that choice, and is handled explicitly. The
-// ROM reads MeshCollider+0x28..0x30 as a Vector3 "up" axis (SetFile seeds
-// 0, 0x1000, 0) -- and +0x2c, that vector's Y, is the very word the port
-// repurposed as the file->world scale. Read as a vector on the host it would
-// hand the slope gate an up axis sixty-four times too long. collider_up()
-// rebuilds it from SetFile's seed. The Vector3 at +0x38 in the unk_35 arm has
-// the same collision and the same fix; that arm is dormant (SetFile seeds
-// unk_35 = 0).
+// The aliasing hazard went with it. MeshCollider+0x28..0x30 is a Vector3 "up"
+// axis (SetFile seeds 0, 0x1000, 0; MovingMeshCollider::SetFile and Transform
+// rewrite it through func_02039e18 as the collider's own transformed axis),
+// and +0x2c -- that vector's Y -- was the very word the port had repurposed.
+// collider_up() had to rebuild it from the seed; it reads the real field now,
+// which is what a rotated platform needs.
 //
 // -------------------------------------------------------------------------
 // CALLEES (all matched; slice_gate8.txt carries them)
@@ -189,14 +188,15 @@ static s32 hw_sqrt64(u64 v)
     return (s32)(u32)NTR_MMIO(u32, 0x040002b4); /* SQRT_RESULT */
 }
 
-/* The collider's "up" axis, MeshCollider+0x28..0x30. SetFile seeds
-   (0, 0x1000, 0) and no matched code writes it -- but +0x2c is the word the
-   port's line walk repurposed as the file->world scale, so the Y comes from
-   the seed rather than from the field. See BASIS CONVENTION. */
+/* The collider's "up" axis, MeshCollider+0x28..0x30, read as the ROM reads it.
+   MeshCollider::SetFile seeds (0, 0x1000, 0); MovingMeshCollider::SetFile and
+   Transform overwrite it with the collider's own transformed axis, which is
+   what makes the slope gate mean anything on a rotated platform. Nothing
+   aliases these three words any more -- see BASIS CONVENTION. */
 static void collider_up(const MeshCollider *self, Vector3 *out)
 {
     out->x = self->unk_28;
-    out->y = 0x1000;
+    out->y = self->unk_2c;
     out->z = self->unk_30;
 }
 
@@ -272,9 +272,10 @@ s32 MeshCollider::DetectClsn(SphereClsn &sphere)
     KCL_File *file = this->kclFile;
     const Vector3 *origin;
 
-    /* the collider's scale pair -- see BASIS CONVENTION */
-    const s32 w2f = this->unk_38;   /* world -> file; stands in for >>6 */
-    const s32 f2w = this->unk_2c;   /* file  -> world; stands in for <<6 */
+    /* the ROM's own conversion, spelled as the multiply the arithmetic below
+       is written around -- see BASIS CONVENTION */
+    const s32 w2f = 0x40;           /* world -> file: the ROM's >>6 */
+    const s32 f2w = 0x40000;        /* file  -> world: the ROM's <<6 */
 
     s32 cx, cy, cz;                 /* centre, file units */
     s32 pad;                        /* box pad, file units */

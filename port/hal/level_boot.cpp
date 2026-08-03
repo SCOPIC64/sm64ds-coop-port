@@ -78,22 +78,18 @@ extern "C" void *port_ov009_mount(void)
 //
 // The table is hand-built rather than ovdata-mounted for the obvious reason:
 // its fifteen words are ov002 CODE addresses, meaningless on the host.
-/* Called on every sub-loader dispatch, which is the first point INSIDE
-   Stage::LoadClsnAndObjects at which host code runs: SetFile has just
-   configured the level collider and nothing has raycast against it yet.
-   That matters because of RISK 1 (see port_stage_a_boot). The entrance
-   loader spawns the Player, and St_LevelEnter_Init drops a ground ray to
-   find the floor under the gate -- with the collider still carrying
-   SetFile's 1.0 vectors the ray misses and he starts the level at
-   0x80000000.
+/* SM64DS_TRACE_LOADERS=1 names each loader as it runs, which is the only
+   window into the boot: everything inside it is matched src.
 
-   SM64DS_TRACE_LOADERS=1 also names each loader as it runs, which is the
-   only window into the boot: everything inside it is matched src. */
-extern "C" void port_clsn_pair_apply(void);
-
+   This hook also used to write the level collider's file<->world scale pair
+   (0x40000 / 0x40 into MeshCollider+0x2c / +0x38) before anything raycast
+   against it. The walks read those words as their unit conversion, and
+   SetFile's 1.0 made every ray miss. They read the ROM's own >>6 now --
+   see port/unmatched/MeshCollider_DetectClsn_Sphere.cpp, BASIS CONVENTION --
+   so the pair is nobody's business and +0x2c is back to being what the ROM
+   put there, the Y of the collider's up axis. */
 extern "C" void port_loader_enter(int idx, const void *tbl)
 {
-    port_clsn_pair_apply();
     static int on = -1;
     if (on < 0) on = std::getenv("SM64DS_TRACE_LOADERS") != 0;
     if (on)
@@ -330,16 +326,6 @@ enum {
 
 static void *g_stage_mc;
 
-/* The two-line convention documented below, applied wherever the boot first
-   hands control back to the host. Idempotent by construction. */
-void port_clsn_pair_apply(void)
-{
-    if (!g_stage_mc)
-        return;
-    *(int *)((char *)g_stage_mc + 0x2c) = 0x40000;   /* file -> world, 64.0 */
-    *(int *)((char *)g_stage_mc + 0x38) = 0x40;      /* world -> file, 1/64 */
-}
-
 /* `spawn` selects the stage: 0 = A1, the same boot with every spawner
    switched off (the geometry regression); 1 = the level's own object load. */
 void *port_stage_a_boot(void *mc, int spawn)
@@ -387,16 +373,15 @@ void *port_stage_a_boot(void *mc, int spawn)
     if (!intro_seen)
         data_0209caa0[8] &= ~0x80;
 
-    /* RISK 1 RESOLVED (2026-08-03 pair A/B). The real SetFile leaves the
-       collider's file<->world vectors at 1.0, and on the ROM that is right:
-       its ITCM octree walk bakes the <<6 into its own vertex and origin
-       loads. The port's transcription of that walk
-       (port/unmatched/MeshCollider_DetectClsn_RaycastLine.cpp) instead
-       consumes the pair as the conversion at its boundary, so with SetFile's
-       stock 1.0 vectors every ground ray misses. Two lines, and they are the
-       documented calling convention of our walk, not a fudge factor.
-       Retires when the transcription grows the ROM's shifted loads. */
-    port_clsn_pair_apply();
+    /* RISK 1 IS CLOSED, and not by writing anything here. The real SetFile
+       leaves the collider's file<->world vectors at 1.0, which on the ROM is
+       right: its ITCM octree walk bakes the <<6 into its own vertex and origin
+       loads. The port's transcription used to consume those two words as the
+       conversion instead, so the boot had to overwrite them for the level --
+       and could not for anything else, which is what hid the moat water from
+       every ray in the game. The walks do the ROM's shift now
+       (port/unmatched/MeshCollider_DetectClsn_Sphere.cpp, BASIS CONVENTION)
+       and SetFile's own values stand. */
     return o;
 }
 

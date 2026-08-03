@@ -181,6 +181,9 @@ void _ZN13RaycastGroundC1Ev(void *);
 void _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(void *, const void *,
                                                         void *);
 int _ZN13RaycastGround10DetectClsnEv(void *);
+void _ZN4BgCh19StartDetectingWaterEv(void *);
+void _ZN4BgCh21StopDetectingOrdinaryEv(void *);
+int SurfaceInfo_TestFlag0x20(const int *);
 int hal_ground_ray(void *mc, int x, int y, int z, int reach, int *out_y);
 int hal_line_ray(void *mc, const int *a, const int *b, int *out);
 void _ZN12WithMeshClsn13SetGroundFlagEv(void *);
@@ -450,17 +453,12 @@ int main(void)
            back on top for shots that need Mario planted. */
         _ZN16MeshColliderBase6EnableEP5Actor(
             mc_storage, fake_snap ? (void *)player : (void *)0);
-        /* LEVEL SCALE: world = KCL raw << 6, i.e. FILE x64 -- the walk's
-           own position reads carry the <<6 (MeshCollider.h: positions
-           "read <<6"), and the real boot (Stage::LoadClsnAndObjects)
-           writes NO scale after SetFile. The old x16 here was invented,
-           which rendered the whole level 4x small and made an x8 Mario
-           read 2x too big (the 2026-08-03 bridge side-by-side). */
-        if (!getenv("SM64DS_PAIR_STOCK")) {
-            *(int *)(mc_storage + 0x2c) = 0x40000; /* file -> world, 64.0 */
-            *(int *)(mc_storage + 0x38) = 0x40;    /* world -> file, 1/64 */
-        }   /* SM64DS_PAIR_STOCK=1 leaves SetFile's 1.0 vectors -- the
-               real boot's configuration (the A/B for the level boot) */
+        /* NO SCALE PAIR HERE ANY MORE. world = KCL raw << 6 is the walk's
+           own business now (the ROM's `asr #6`, see
+           port/unmatched/MeshCollider_DetectClsn_Sphere.cpp), and the real
+           boot writes nothing after SetFile either -- which is the point:
+           the harness staging and the level's own boot leave the collider
+           in exactly the same state. */
     }
     /* the octree box is power-of-two PADDED (its center is way off the
        real stage); the geometry lives near the origin, so spawn there,
@@ -564,6 +562,53 @@ int main(void)
                                h ? gy / 4096.0f : -999.0f);
             }
             printf("floor z=%4d: %s\n", gz, row);
+        }
+        /* SM64DS_WATER_MAP=1: WHERE THE WATER IS, asked exactly the way the
+           Player asks. func_ov002_020c14b8's second ray is a RaycastGround
+           with StartDetectingWater + StopDetectingOrdinary, and the surface it
+           accepts is one whose CLPS carries flag 0x20; the answer lands in
+           Player+0x64c and is what decides walk -> swim. This runs that same
+           query over a grid, straight down from well above the level, and
+           prints the water height it finds. A blank map with a water collider
+           registered ([clsnreg]) means the query never reaches the mesh; a map
+           with water in it means the query works and a probe that found none
+           was simply standing somewhere dry. */
+        if (getenv("SM64DS_WATER_MAP")) {
+            /* SM64DS_WATER_MAP=<step>: floor height per cell, with a `~` on
+               any cell whose floor is UNDER the water the query found there.
+               `~` next to a plain number is a bank, which is where the
+               walk<->swim transition can be exercised. */
+            int step = atoi(getenv("SM64DS_WATER_MAP"));
+            if (step < 250) step = 1000;
+            printf("[watermap] step %d, rays from y=6000 reach 12000; "
+                   "'~' = floor under water, '-' = no floor\n", step);
+            for (int gz = -8000; gz <= 8000; gz += step) {
+                char row[512];
+                int ri = 0;
+                for (int gx = -8000; gx <= 8000; gx += step) {
+                    static char rgw[0x50];
+                    int pos[3] = {gx << 12, 6000 << 12, gz << 12};
+                    _ZN13RaycastGroundC1Ev(rgw);
+                    _ZN4BgCh19StartDetectingWaterEv(rgw);
+                    _ZN4BgCh21StopDetectingOrdinaryEv(rgw);
+                    _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(
+                        rgw, pos, player);
+                    *(int *)(rgw + 0x4c) = 12000 << 12;
+                    int wet = _ZN13RaycastGround10DetectClsnEv(rgw) &&
+                              SurfaceInfo_TestFlag0x20((int *)(rgw + 0x14));
+                    int wy = *(int *)(rgw + 0x44);
+                    int gy = 0;
+                    int g = hal_ground_ray(g_mc, gx << 12, 6000 << 12,
+                                           gz << 12, 12000 << 12, &gy);
+                    if (!g)
+                        ri += snprintf(row + ri, sizeof row - ri, "%7s", "-");
+                    else
+                        ri += snprintf(row + ri, sizeof row - ri, "%6.0f%c",
+                                       gy / 4096.0f,
+                                       (wet && gy < wy) ? '~' : ' ');
+                }
+                printf("[watermap] z=%6d %s\n", gz, row);
+            }
         }
     }
 
@@ -838,6 +883,15 @@ int main(void)
             if (selftest && getenv("SM64DS_SELFTEST_PUNCH") &&
                 frame >= 40 && frame <= 42)
                 btn |= 1;
+            /* SWIM probe: a B-button STROKE every 24 frames. Swimming is the
+               one locomotion in the game the stick alone cannot drive --
+               St_Swim_Main moves him on the stroke, not on the tilt -- so a
+               selftest that only writes the stick floats in place forever.
+               This is what makes "walk in, swim across, climb out" runnable
+               without a person on the pad. */
+            if (selftest && getenv("SM64DS_SELFTEST_SWIM") &&
+                (frame % 24) < 3)
+                btn |= 2;
             /* camera orbit through the game's own reader: func_02009e70
                tests data_0209f49c & 0x4300 -- L (0x200) rotates left, R
                (0x100) rotates right, 0x4000 is the snap-behind the input
@@ -1011,6 +1065,25 @@ int main(void)
                         *(const unsigned short *)((const char *)fr + 0x18),
                         *(const unsigned short *)((const char *)fr + 0x1a));
             }
+            /* SM64DS_TRACE_WATER=1: the water chain, end to end, in the order
+               the ROM runs it. func_ov002_020c14b8 casts a RaycastGround from
+               300 units up with StartDetectingWater + StopDetectingOrdinary
+               and, on a surface whose CLPS carries flag 0x20, writes the hit
+               height into Player+0x64c and into the global data_0209f32c.
+               func_ov002_020c0fb4 then hands +0x64c to func_ov002_020c0d90,
+               which is the walk->swim decision. So:
+                 water=-2147483648 (0x80000000)  the probe found no water
+                 water=<y> with swim never entered  the decision refused
+               and 0x706/0x707 are mIsUnderwater / mIsInShallowWater. */
+            if (getenv("SM64DS_TRACE_WATER"))
+                fprintf(stderr, "       water probe=%d (%.1f) global=%d (%.1f) "
+                        "y=%.1f under=%u shallow=%u airborne=%u vspd=%d\n",
+                        *(int *)(c + 0x64c), *(int *)(c + 0x64c) / 4096.0f,
+                        data_0209f32c[0], data_0209f32c[0] / 4096.0f,
+                        *(int *)(c + 0x60) / 4096.0f,
+                        *(unsigned char *)(c + 0x706),
+                        *(unsigned char *)(c + 0x707),
+                        *(unsigned char *)(c + 0x6de), *(int *)(c + 0xa8));
         }
         if (selftest) {
             /* actor-list-head stomp tracker (the f015 0x1000 write) */
