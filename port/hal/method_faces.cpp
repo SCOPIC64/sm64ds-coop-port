@@ -102,3 +102,23 @@ unsigned _ZNK7PathPtr8NumNodesEv(const void *self)
 }  /* extern "C" */
 
 
+
+/* REVERSE faces: these St_ files define the ITANIUM C name; the state
+   dispatcher references the MSVC method. Forward method -> C def. */
+extern "C" int _ZN6Player19St_GroundPound_MainEv(void *self);
+extern "C" int _ZN6Player16St_LongJump_InitEv(void *self);
+int Player::St_GroundPound_Main()
+{ return _ZN6Player19St_GroundPound_MainEv(this); }
+int Player::St_LongJump_Init()
+{ return _ZN6Player16St_LongJump_InitEv(this); }
+
+/* C-name-at-C++-linkage state Init refs (Main TUs call their own Init
+   by Itanium name) plus round-3 small faces */
+void _ZN6Player14St_OnWall_InitEv(char *self)
+{ ((Player *)self)->Player::St_OnWall_Init(); }
+void _ZN6Player17St_PunchKick_InitEv(void *self)
+{ ((Player *)self)->Player::St_PunchKick_Init(); }
+extern "C" int _Z14ApproachLinearRsss(short *x, short target, short step)
+{ return ApproachLinear2(*x, target, step); }
+extern "C" int _ZN6Player15IsCollectingCapEv(char *self)
+{ return ((Player *)self)->Player::IsCollectingCap(); }

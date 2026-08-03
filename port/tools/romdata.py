@@ -51,6 +51,9 @@ NAMED = [
     "data_0208eeac",
     "data_0208f074",
     "data_0208f174",
+    "data_020756b0",   # D-pad direction -> binang table (Stage::CheckInput)
+    "data_0209214c",   # per-mode button remap pointer table (CheckInput)
+    "data_02086fcc",   # func_0200cb58 table (state-family ring)
 ]
 
 
