@@ -157,6 +157,35 @@ static long g_arc_len[13];
 struct fs_cache_entry;
 static int fs_entry_store(struct fs_cache_entry *e, const u8 *src, u32 len);
 
+/* lazy-load archive i's whole image into g_arc_buf; returns it or 0. Split
+   out so the slice path below can reach the cached image without the
+   per-member decode port_fs_archive_fill layers on top. */
+static u8 *port_fs_archive_image(int i, const struct port_arc_entry *e)
+{
+    if (!g_arc_buf[i]) {
+        char path[PATH_MAX_ * 2];
+        snprintf(path, sizeof path, "%s/extracted/dsd/files/%s",
+                 asset_root(), e->narc);
+        FILE *f = fopen(path, "rb");
+        if (!f) {
+            fprintf(stderr, "fs: archive missing on disk: %s\n", path);
+            return 0;
+        }
+        fseek(f, 0, SEEK_END);
+        g_arc_len[i] = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        g_arc_buf[i] = (u8 *)malloc(g_arc_len[i]);
+        if ((long)fread(g_arc_buf[i], 1, g_arc_len[i], f) != g_arc_len[i]) {
+            fclose(f);
+            free(g_arc_buf[i]);
+            g_arc_buf[i] = 0;
+            return 0;
+        }
+        fclose(f);
+    }
+    return g_arc_buf[i];
+}
+
 /* fill e with the decompressed bytes of an archive-interior file. 1 on
    success, 0 on a data hole; aborts only where the original did. */
 static int port_fs_archive_fill(struct fs_cache_entry *ent, unsigned fileID)
@@ -165,28 +194,9 @@ static int port_fs_archive_fill(struct fs_cache_entry *ent, unsigned fileID)
         struct port_arc_entry *e = &port_archive_map[i];
         if (fileID < e->base || fileID >= e->end)
             continue;
-        if (!g_arc_buf[i]) {
-            char path[PATH_MAX_ * 2];
-            snprintf(path, sizeof path, "%s/extracted/dsd/files/%s",
-                     asset_root(), e->narc);
-            FILE *f = fopen(path, "rb");
-            if (!f) {
-                fprintf(stderr, "fs: archive missing on disk: %s\n", path);
-                return 0;
-            }
-            fseek(f, 0, SEEK_END);
-            g_arc_len[i] = ftell(f);
-            fseek(f, 0, SEEK_SET);
-            g_arc_buf[i] = (u8 *)malloc(g_arc_len[i]);
-            if ((long)fread(g_arc_buf[i], 1, g_arc_len[i], f) != g_arc_len[i]) {
-                fclose(f);
-                free(g_arc_buf[i]);
-                g_arc_buf[i] = 0;
-                return 0;
-            }
-            fclose(f);
-        }
-        u8 *a = g_arc_buf[i];
+        u8 *a = port_fs_archive_image(i, e);
+        if (!a)
+            return 0;
         if (memcmp(a, "NARC", 4) != 0) {
             fprintf(stderr, "fs: %s is not a NARC\n", e->narc);
             return 0;
@@ -448,22 +458,14 @@ void *_ZN13SharedFilePtr4LoadEv(struct SharedFilePtrC *self)
 // exactly as Load does with its `raw + 4`.
 /* The archive-interior case, without the decompression Load does: a pointer
    into the cached NARC image and the length of the member. Same chunk walk as
-   port_fs_archive_load; that one copies and decodes, this one does not. */
+   port_fs_archive_fill; that one copies and decodes, this one does not. */
 static const u8 *port_fs_archive_slice(unsigned fileID, u32 *len_out)
 {
     for (int i = 0; i < 13; ++i) {
         struct port_arc_entry *e = &port_archive_map[i];
         if (fileID < e->base || fileID >= e->end)
             continue;
-        if (!g_arc_buf[i]) {
-            /* port_fs_archive_load is what caches the archive image; its
-               return value is a decoded copy this caller does not want. */
-            void *throwaway = port_fs_archive_load(fileID);
-            if (!throwaway)
-                return 0;
-            Memory::Deallocate(throwaway);
-        }
-        u8 *a = g_arc_buf[i];
+        u8 *a = port_fs_archive_image(i, e);
         if (!a || memcmp(a, "NARC", 4) != 0)
             return 0;
         u8 *btaf = a + 0x10;
