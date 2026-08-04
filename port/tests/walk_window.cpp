@@ -1528,6 +1528,14 @@ int main(void)
        framebuffer next to the exe, exit -- CI-checkable without a user */
     const char *st = getenv("SM64DS_WINDOW_SELFTEST");
     const int selftest = st ? atoi(st) : 0;
+    /* Live input, gated: GetAsyncKeyState reads machine-global key state,
+       focus or no focus, so a headless selftest picks up anyone typing
+       anywhere on the box. Under a selftest every live keyboard read comes
+       through here and reads released -- the scripted probes
+       (SM64DS_SELFTEST_* above and below) are the only input a selftest
+       has. The pad and the mouse-look are gated the same way where they
+       are read. */
+    auto key_live = [&](int vk) { return !selftest && W.GetAsyncKeyState_(vk) < 0; };
     int frame = 0;
     float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
@@ -1541,7 +1549,6 @@ int main(void)
     int overlay_edge = 0;
     double ovl_fps = 0, ovl_tps = 0, ovl_last_present = 0;
     unsigned ovl_mem_kb = 0;
-    unsigned long long ovl_frames = 0;   /* `frame` only counts under selftest */
 
     /* the bottom screen: dual OAM, the 2D frame, and the corner panel */
     hal_sub_screen_init(hwnd, ZOOM);
@@ -1560,7 +1567,7 @@ int main(void)
         ph_begin(&t_frame);
         ph_begin(&t_phase);
         {
-            const int now = W.GetAsyncKeyState_(VK_F3) < 0;
+            const int now = key_live(VK_F3);
             if (now && !overlay_edge) g_overlay_on = !g_overlay_on;
             overlay_edge = now;
         }
@@ -1573,12 +1580,12 @@ int main(void)
         int mouse_dyaw = 0, mouse_dpitch = 0, mouse_wheel = 0;
         {
             const int MOUSE_YAW = 48, MOUSE_PITCH = 24;
-            if (mo_look) {
+            if (mo_look && !selftest) {
                 mouse_dyaw = mo_dx * MOUSE_YAW;
                 mouse_dpitch = mo_dy * MOUSE_PITCH;
             }
             mo_dx = mo_dy = 0;
-            mouse_wheel = mo_wheel;
+            if (!selftest) mouse_wheel = mo_wheel;
             mo_wheel = 0;
         }
 
@@ -1602,13 +1609,15 @@ int main(void)
             /* reversal probe: hard 180 at speed (the skid-turn path) */
             if (getenv("SM64DS_SELFTEST_REVERSE") && frame >= 50) dz = -1;
         }
-        if (W.GetAsyncKeyState_('W') < 0 || W.GetAsyncKeyState_(VK_UP) < 0) dz += 1;
-        if (W.GetAsyncKeyState_('S') < 0 || W.GetAsyncKeyState_(VK_DOWN) < 0) dz -= 1;
-        if (W.GetAsyncKeyState_('A') < 0 || W.GetAsyncKeyState_(VK_LEFT) < 0) dx -= 1;
-        if (W.GetAsyncKeyState_('D') < 0 || W.GetAsyncKeyState_(VK_RIGHT) < 0) dx += 1;
-        /* gamepad: left stick / d-pad walk, right stick orbits + tilts */
+        if (key_live('W') || key_live(VK_UP)) dz += 1;
+        if (key_live('S') || key_live(VK_DOWN)) dz -= 1;
+        if (key_live('A') || key_live(VK_LEFT)) dx -= 1;
+        if (key_live('D') || key_live(VK_RIGHT)) dx += 1;
+        /* gamepad: left stick / d-pad walk, right stick orbits + tilts.
+           Gated off under a selftest with the keyboard: a drifting stick
+           on a plugged-in pad perturbs a headless run the same way. */
         static XPad pad;
-        int pad_live = XInputGetState_ && XInputGetState_(0, &pad) == 0;
+        int pad_live = !selftest && XInputGetState_ && XInputGetState_(0, &pad) == 0;
         int orbiting = 0;
         /* ---- THE DEBUG MENU'S OWN INPUT. It runs before anything else reads
            the keyboard, and while it is open it swallows the keys it uses and
@@ -1745,7 +1754,7 @@ int main(void)
                 if (getenv("SM64DS_FREECAM")) cam_mode = CAM_FREE;
                 if (cam_mode != CAM_DS) fc_seed(cam);
             }
-            int now = W.GetAsyncKeyState_(VK_F1) < 0 ||
+            int now = key_live(VK_F1) ||
                       (pad_live && (pad.buttons & 0x0080));
             if (selftest && getenv("SM64DS_SELFTEST_FREECAM")) {
                 /* the probe wants the mod ON at 20 and OFF three quarters
@@ -1777,14 +1786,14 @@ int main(void)
                 int t = fc_pitch - fc_stick_rate(stick_ry, CAM_STEP / 2)
                         + mouse_dpitch;
                 if (mouse_dpitch) rig_touched = 1;
-                if (W.GetAsyncKeyState_('R') < 0) t += 0x80;
-                if (W.GetAsyncKeyState_('F') < 0) t -= 0x80;
+                if (key_live('R')) t += 0x80;
+                if (key_live('F')) t -= 0x80;
                 if (t > 0x3a00) t = 0x3a00;      /* just short of overhead */
                 if (t < -0x1000) t = -0x1000;    /* a little from below */
                 fc_pitch = (short)t;
             }
-            if (W.GetAsyncKeyState_('Q') < 0) { fc_yaw -= CAM_STEP / 2; rig_touched = 1; }
-            if (W.GetAsyncKeyState_('E') < 0) { fc_yaw += CAM_STEP / 2; rig_touched = 1; }
+            if (key_live('Q')) { fc_yaw -= CAM_STEP / 2; rig_touched = 1; }
+            if (key_live('E')) { fc_yaw += CAM_STEP / 2; rig_touched = 1; }
             {
                 int zoom = 0;
                 if (pad_live && (pad.buttons & 0x0100)) zoom -= 1;   /* LB */
@@ -1796,7 +1805,7 @@ int main(void)
                     if (fc_dist > 0x2000000) fc_dist = 0x2000000;
                 }
             }
-            if (W.GetAsyncKeyState_('C') < 0) {
+            if (key_live('C')) {
                 fc_yaw = (short)(*(short *)(c + 0x8e) + 0x8000);
                 rig_touched = 1;
             }
@@ -1837,11 +1846,11 @@ int main(void)
             if (pad.ry > 10000 && cam_pitch < 0.85f) cam_pitch += 0.02f;
             if (pad.ry < -10000 && cam_pitch > -0.15f) cam_pitch -= 0.02f;
         }
-        if (W.GetAsyncKeyState_('Q') < 0) { cam_yaw -= 0.045f; orbiting = 1; }
-        if (W.GetAsyncKeyState_('E') < 0) { cam_yaw += 0.045f; orbiting = 1; }
-        if (W.GetAsyncKeyState_('R') < 0 && cam_pitch < 0.85f)
+        if (key_live('Q')) { cam_yaw -= 0.045f; orbiting = 1; }
+        if (key_live('E')) { cam_yaw += 0.045f; orbiting = 1; }
+        if (key_live('R') && cam_pitch < 0.85f)
             cam_pitch += 0.02f;
-        if (W.GetAsyncKeyState_('F') < 0 && cam_pitch > -0.15f)
+        if (key_live('F') && cam_pitch > -0.15f)
             cam_pitch -= 0.02f;
         /* THE GAME'S OWN INPUT PROCESSOR: keys become raw DS pad bits,
            Stage::CheckInput turns them into the stick record (mag, dir,
@@ -1902,10 +1911,10 @@ int main(void)
         {
             static unsigned short btn_was;
             unsigned short btn = 0;
-            if (W.GetAsyncKeyState_(VK_SPACE) < 0) btn |= 2;
-            if (W.GetAsyncKeyState_(VK_SHIFT) < 0) btn |= 0x800;
-            if (W.GetAsyncKeyState_(VK_CONTROL) < 0) btn |= 0x400;
-            if (W.GetAsyncKeyState_('X') < 0) btn |= 1;
+            if (key_live(VK_SPACE)) btn |= 2;
+            if (key_live(VK_SHIFT)) btn |= 0x800;
+            if (key_live(VK_CONTROL)) btn |= 0x400;
+            if (key_live('X')) btn |= 1;
             if (pad_live) {
                 /* Xbox layout per Tango: A jump, X run, B punch,
                    bumpers rotate the camera. RT is meant to be crouch,
@@ -1970,9 +1979,9 @@ int main(void)
                it is written -- the Camera actor is left following Mario so
                there is something clean to hand back to. */
             if (real_camera && cam_mode == CAM_DS) {
-                if (W.GetAsyncKeyState_('Q') < 0) btn |= 0x200;
-                if (W.GetAsyncKeyState_('E') < 0) btn |= 0x100;
-                if (W.GetAsyncKeyState_('C') < 0) btn |= 0x4000;
+                if (key_live('Q')) btn |= 0x200;
+                if (key_live('E')) btn |= 0x100;
+                if (key_live('C')) btn |= 0x4000;
                 if (stick_rx < -10000) btn |= 0x200;
                 if (stick_rx > 10000) btn |= 0x100;
                 if (pad_live) {
@@ -2828,7 +2837,7 @@ int main(void)
             for (int *node = (int *)(size_t)data_020a4b78[0];
                  node && actors < 4096; node = (int *)(size_t)node[1])
                 if (node[2]) ++actors;
-            if (W.GetProcessMemoryInfo_ && (ovl_frames % 30) == 0) {
+            if (W.GetProcessMemoryInfo_ && (frame % 30) == 0) {
                 PortMemCounters pmc;
                 pmc.cb = sizeof pmc;
                 if (W.GetProcessMemoryInfo_(GetCurrentProcess(), &pmc,
@@ -2868,7 +2877,6 @@ int main(void)
             }
             ovl_last_present = now;
         }
-        ++ovl_frames;
         /* the click flag is true for exactly the frame it landed on; the hold
            in g_mouse_left_down is what outlives it */
         g_mouse_click_new = 0;
@@ -2894,7 +2902,9 @@ int main(void)
             }
         }
         sdat_host_tick();   /* hosted ARM7: drain the sound queue, feed the mixer */
-        if (selftest && ++frame >= selftest) {
+        ++frame;   /* counts in live mode too -- the [cam-in]-style live
+                      diagnostics carry a real frame number */
+        if (selftest && frame >= selftest) {
             for (int k = 0; k < g_amb_n; ++k) {
                 char *o = (char *)g_amb[k].o;
                 int moved = *(int *)(o + 0x5c) != g_amb[k].p0[0] ||
