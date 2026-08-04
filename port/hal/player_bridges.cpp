@@ -291,6 +291,10 @@ extern "C" void func_ov002_020c6fe4(char *c);
      =1  once per distinct DS address (the quiet census)
      =2  on every CHANGE, with the Player's height, which is what a
          walk-in/swim-across/climb-out run has to be read from */
+/* ST_CLIMB's two host entries, port/unmatched/Player_St_Climb.cpp */
+extern "C" int port_player_st_climb_init(void *self);
+extern "C" int port_player_st_climb_main(void *self);
+
 extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 {
     {

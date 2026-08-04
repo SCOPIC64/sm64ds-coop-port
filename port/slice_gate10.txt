@@ -31,6 +31,16 @@ src/func_ov002_020c7dd0.cpp
 src/func_ov002_020c9e18.c
 src/func_ov002_020cabe0.cpp
 src/func_ov002_020caf68.c
+# ---- ST_CLIMB (record 0x021106dc): the tree/pole grab ----------------------
+# All three halves were unhosted, which is the bush freeze: Init never ran, so
+# the climb anim never started and the horizontal speed Init zeroes stayed on
+# the clock while a no-op Main held the state. Init is matched but is not
+# declared in include/Player.h, so it goes through the shadow class in
+# port/unmatched/Player_St_Climb.cpp; Main (0x020cb5bc) has NO SOURCE AT ALL
+# and gets a named trap there instead of the mapper's anonymous no-op.
+src/_ZN6Player13St_Climb_InitEv.cpp
+src/_ZN6Player16St_Climb_CleanupEv.cpp
+port/unmatched/Player_St_Climb.cpp
 src/func_ov002_020d22ec.c
 src/func_ov002_020d36d8.c
 src/func_ov002_020d4540.c
