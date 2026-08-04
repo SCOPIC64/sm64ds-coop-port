@@ -919,3 +919,30 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:__ZN6Camera10LookAtExitER5Actor=?LookAtExit@Camera@@QAEXAAUActor@@@Z")
 #pragma comment(linker, "/alternatename:?ChangeState@Camera@@QAEXPAUState@1@@Z=__ZN6Camera11ChangeStateEPNS_5StateE")
 #pragma comment(linker, "/alternatename:?data_0209b0f8@@3UState@Camera@@A=_data_0209b0f8")
+
+/* ---- gate 21: ov100's BUTTERFLY and FISH ------------------------------- */
+
+/* gate 21 link ring. Same two shapes as every gate before it: a C++ TU that
+   declares a mounted datum with a type of its own gets MSVC mangling for a
+   symbol the mount emits as plain C, and a TU that declares an Itanium-named
+   function without extern "C" gets it mangled as well. The bytes and the
+   bodies are the same either way. */
+#pragma comment(linker, "/alternatename:?data_ov100_021473a4@@3PAPAHA=_data_ov100_021473a4")
+#pragma comment(linker, "/alternatename:?data_ov100_021473b0@@3PAPAHA=_data_ov100_021473b0")
+#pragma comment(linker, "/alternatename:?data_ov100_021489cc@@3PAHA=_data_ov100_021489cc")
+#pragma comment(linker, "/alternatename:?data_ov100_021473a4@@3PAPAUSharedFilePtr@@A=_data_ov100_021473a4")
+#pragma comment(linker, "/alternatename:?data_ov100_021473b0@@3PAPAUSharedFilePtr@@A=_data_ov100_021473b0")
+#pragma comment(linker, "/alternatename:?data_ov100_021489cc@@3USharedFilePtr@@A=_data_ov100_021489cc")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9d8@@3USFP@@A=_data_ov002_0210d9d8")
+#pragma comment(linker, "/alternatename:?data_ov100_02148600@@3USFP@@A=_data_ov100_02148600")
+#pragma comment(linker, "/alternatename:?data_ov100_02148608@@3USFP@@A=_data_ov100_02148608")
+#pragma comment(linker, "/alternatename:?data_ov100_02148668@@3USFP@@A=_data_ov100_02148668")
+#pragma comment(linker, "/alternatename:?data_020a0e68@@3UMtx@@A=_data_020a0e68")
+#pragma comment(linker, "/alternatename:?data_ov100_02148628@@3PAUPMF@@A=_data_ov100_02148628")
+#pragma comment(linker, "/alternatename:?_ZN5Actor10FindWithIDEj@@YAPAXI@Z=__ZN5Actor10FindWithIDEj")
+#pragma comment(linker, "/alternatename:?_ZN13SharedFilePtr7ReleaseEv@@YAXPAUSharedFilePtr@@@Z=__ZN13SharedFilePtr7ReleaseEv")
+#pragma comment(linker, "/alternatename:?_ZN5Actor15IsPlayerInRangeEi@@YAHPAXH@Z=__ZN5Actor15IsPlayerInRangeEi")
+#pragma comment(linker, "/alternatename:?func_ov100_02146280@@YAXXZ=_func_ov100_02146280")
+/* One TU spells ActorBase::MarkForDestruction by an ad-hoc C name rather than
+   the Itanium one -- the same body either way. */
+#pragma comment(linker, "/alternatename:?ActorBase_MarkForDestruction@@YAXPAX@Z=__ZN9ActorBase18MarkForDestructionEv")

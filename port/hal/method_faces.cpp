@@ -414,3 +414,32 @@ extern "C" {
 int _ZN18PoppingLavaBubbles13InitResourcesEv(void *self)
 { return ((PoppingLavaBubbles *)self)->InitResources(); }
 }
+
+/* ---- gate 21: ov100's BUTTERFLY and FISH ---------------------------------
+   Five more of the same shape. Each of these src bodies is a real C++ method
+   against its generated header, so MSVC emits it under ?Name@Class@@... and
+   the vtable fill (and, for the fish, its own host Behavior) wants the
+   Itanium name. */
+#include "Butterfly.h"
+#include "Fish.h"
+extern "C" {
+int _ZN9Butterfly13InitResourcesEv(void *self)
+{ return ((Butterfly *)self)->Butterfly::InitResources(); }
+int _ZN9Butterfly6RenderEv(void *self)
+{ return ((Butterfly *)self)->Butterfly::Render(); }
+int _ZN4Fish13InitResourcesEv(void *self)
+{ return ((Fish *)self)->Fish::InitResources(); }
+int _ZN4Fish6RenderEv(void *self)
+{ return ((Fish *)self)->Fish::Render(); }
+int _ZN4Fish16CleanupResourcesEv(void *self)
+{ return ((Fish *)self)->Fish::CleanupResources(); }
+}
+
+/* Animation::GetFrameCount is a real const method too, and gate 21 is the
+   first thing to call it: the butterfly asks its own animation how long it is
+   before it will loop, and one of the fish's states does the same. */
+#include "Animation.h"
+extern "C" {
+unsigned _ZNK9Animation13GetFrameCountEv(const void *self)
+{ return ((const Animation *)self)->GetFrameCount(); }
+}

@@ -76,7 +76,75 @@ void __sinit_ov098_0213c2b4(void);
    Lakitu's -- port/unmatched/Cannon_Behavior.cpp */
 void port_cannon_states_seat(void);
 
+/* ov100: BUTTERFLY, FISH, DOOR (and the chomp, the iron ball, the star door
+   and the path lift, which other levels name) */
+void port_ov100_pack_check(void);
+void port_ov100_syms_patch(void);
+void __sinit_ov100_021473bc(void);
+void __sinit_ov100_021474e8(void);
+void __sinit_ov100_021475a4(void);
+void __sinit_ov100_02147698(void);
+void __sinit_ov100_02147a70(void);
+void __sinit_ov100_02147bc0(void);
+void __sinit_ov100_02147d7c(void);
+
+/* the fish's seven {function, delta} statics, seated the same way -- its own
+   Behavior is a host copy for the PMF reason, so both live in
+   port/unmatched/Fish_Behavior.cpp */
+void port_fish_states_seat(void);
+
+/* ---- the BUTTERFLY's eight states ----------------------------------------
+   __sinit_ov100_021473bc copies eight {function, delta} statics from ov100
+   0x02147e20..0x02147e58 into data_ov100_02148628, and Butterfly::Behavior
+   dispatches one of them every frame. Those statics are the ROM's own words
+   -- DS code addresses -- so the host bodies are seated over them before the
+   sinit copies them.
+
+   The BUTTERFLY NEEDS NO HOST COPY of its Behavior, the rabbit's case rather
+   than the fish's: its matched source already reads the pair as two plain
+   ints and does the virtual-bit and this-adjustment arithmetic itself
+   (`if (p & 1) f = **(...); else f = m->fn;`), so MSVC's pointer-to-member
+   representation never comes into it. All eight deltas are zero in the ROM,
+   which is what the check below asserts. */
+struct PortPmf2 { unsigned fn; int delta; };
+extern PortPmf2 data_ov100_02147e20[], data_ov100_02147e28[],
+    data_ov100_02147e30[], data_ov100_02147e38[], data_ov100_02147e40[],
+    data_ov100_02147e48[], data_ov100_02147e50[], data_ov100_02147e58[];
+
+void func_ov100_0214109c(void *); void func_ov100_0214117c(void *);
+void func_ov100_021412d8(void *); void func_ov100_02140e44(void *);
+void func_ov100_02141470(void *); void func_ov100_021415bc(void *);
+void func_ov100_02141800(void *); void func_ov100_02141848(void *);
+
 }  /* extern "C" */
+
+static const struct { PortPmf2 *slot; unsigned rom; void (*host)(void *); }
+g_butterfly_states[] = {
+    {data_ov100_02147e20, 0x0214117c, func_ov100_0214117c},
+    {data_ov100_02147e28, 0x02141470, func_ov100_02141470},
+    {data_ov100_02147e30, 0x021412d8, func_ov100_021412d8},
+    {data_ov100_02147e38, 0x02140e44, func_ov100_02140e44},
+    {data_ov100_02147e40, 0x02141800, func_ov100_02141800},
+    {data_ov100_02147e48, 0x02141848, func_ov100_02141848},
+    {data_ov100_02147e50, 0x021415bc, func_ov100_021415bc},
+    {data_ov100_02147e58, 0x0214109c, func_ov100_0214109c},
+};
+
+static void port_butterfly_states_seat(void)
+{
+    for (unsigned i = 0;
+         i < sizeof g_butterfly_states / sizeof g_butterfly_states[0]; ++i) {
+        PortPmf2 *p = g_butterfly_states[i].slot;
+        if (p->fn != g_butterfly_states[i].rom || p->delta != 0) {
+            std::fprintf(stderr, "FATAL: Butterfly state %u: the mount holds "
+                         "%08x/%d, the ROM's own table says %08x/0 -- WRONG "
+                         "BYTES\n", i, p->fn, p->delta,
+                         g_butterfly_states[i].rom);
+            std::abort();
+        }
+        p->fn = (unsigned)(size_t)g_butterfly_states[i].host;
+    }
+}
 
 /* ov085 0x0212b8dc IS NOT HOSTED, and it is the one hole in the rabbit. It is
    the Main half of state 0x021306cc -- the state Rabbit::InitResources itself
@@ -160,4 +228,16 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov098_0213c058();
     __sinit_ov098_0213c214();
     __sinit_ov098_0213c2b4();
+
+    port_ov100_pack_check();
+    port_ov100_syms_patch();
+    port_butterfly_states_seat();
+    port_fish_states_seat();
+    __sinit_ov100_021473bc();
+    __sinit_ov100_021474e8();
+    __sinit_ov100_021475a4();
+    __sinit_ov100_02147698();
+    __sinit_ov100_02147a70();
+    __sinit_ov100_02147bc0();
+    __sinit_ov100_02147d7c();
 }

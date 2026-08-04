@@ -78,6 +78,16 @@ void hal_fill_exit_vtable(void);
 extern unsigned char WaterfallMist_SpawnInfo[];         /* ov002 0x0210947c */
 void *WaterfallMist_Spawn(void);                        /* ov002 0x020b6ee8 */
 void hal_fill_waterfall_mist_vtable(void);
+/* ---- gate 21: ov100's BUTTERFLY and FISH ----
+   The third actor overlay (ov100_syms.txt). Both class names check out
+   against the ROM's own RTTI; the one shifted pair in ov100 is Door/StarDoor
+   and that is gate 22's problem. */
+extern unsigned char Butterfly_SpawnInfo[];             /* ov100 0x02147e78 */
+void *Butterfly_Spawn(void);                            /* ov100 0x02141ea4 */
+void hal_fill_butterfly_vtable(void);
+extern unsigned char Fish_SpawnInfo[];                  /* ov100 0x02148498 */
+void *Fish_Spawn(void);                                 /* ov100 0x02146d38 */
+void hal_fill_fish_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -102,4 +112,7 @@ void hal_fill_waterfall_mist_vtable(void);
     {207, "CANNON", Cannon_SpawnInfo, Cannon_Spawn, hal_fill_cannon_vtable}, \
     {349, "EXIT", Exit_SpawnInfo, Exit_Spawn, hal_fill_exit_vtable},         \
     {197, "WATERFALL_MIST", WaterfallMist_SpawnInfo, WaterfallMist_Spawn,    \
-     hal_fill_waterfall_mist_vtable},
+     hal_fill_waterfall_mist_vtable},                                        \
+    {336, "BUTTERFLY", Butterfly_SpawnInfo, Butterfly_Spawn,                 \
+     hal_fill_butterfly_vtable},                                             \
+    {344, "FISH", Fish_SpawnInfo, Fish_Spawn, hal_fill_fish_vtable},

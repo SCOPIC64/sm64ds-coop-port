@@ -132,7 +132,6 @@ int data_0209b470[8];
 int data_0209b474[8];
 /* ov100 (the message-box overlay) bss reached from St_Talk_Main; bss is
    zero at load, so host storage is the whole of it. */
-int data_ov100_02148708[8];
 int data_020a4bf8[8];
 int data_020a4c18[8];
 /* death states: KillPlayer's remaining-lives byte, and the pending-scene

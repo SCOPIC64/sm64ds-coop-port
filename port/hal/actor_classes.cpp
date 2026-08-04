@@ -1048,3 +1048,121 @@ extern "C" void hal_fill_waterfall_mist_vtable(void)
     vt[16] = (void *)WaterfallMist_trap13;
     vt[17] = (void *)WaterfallMist_trap13;
 }
+
+// ============================================================================
+// GATE 21: ov100's BUTTERFLY and FISH
+// ============================================================================
+//
+// The third ACTOR overlay. ov100 holds seven classes and the castle grounds
+// names three; these are the two whose own methods need nothing the port
+// cannot already spell.
+//
+// THE CONFIG'S NAMES CHECK OUT FOR BOTH, and that is checked rather than
+// assumed -- ov100 does carry one shifted pair. Butterfly_Spawn installs
+// _ZTV9Butterfly (RTTI 9daBtfly_c) and Fish_Spawn installs _ZTV4Fish (RTTI
+// 8daFish_c); the shift is Door/StarDoor, which is gate 22's.
+
+// ---- BUTTERFLY (actor 336, ov100) x2 ---------------------------------------
+//
+// _ZTV9Butterfly / _ZTV9daBtfly_c, ov100 0x02147e9c. The two flutterers over
+// the east lawn. Eight states, all matched, seated in hal/actor_overlays.cpp;
+// its Behavior is a plain C-named body that reads the state pair as two ints
+// itself, so no host copy is needed (the rabbit's case, not the fish's).
+//
+// Render dispatches slot 5 through a LOCAL SHADOW CLASS on both the ModelAnim
+// at +0xd4 and the Model at +0x138 -- ROM numbering, where two slots go to the
+// destructor -- which is exactly what the dual fill in hal/cxxname_bridge.cpp
+// already covers on both classes. Slot 3 never comes into it, so unlike the
+// cannon this one needs no host copy of Render either.
+extern "C" {
+int _ZN9Butterfly13InitResourcesEv(void *self);      /* face: method_faces */
+int _ZN9Butterfly8BehaviorEv(char *self);
+int _ZN9Butterfly6RenderEv(void *self);              /* face: method_faces */
+int _ZN9Butterfly16CleanupResourcesEv(void);
+void _ZN9Butterfly16OnPendingDestroyEv(void);
+void *_ZTV9Butterfly[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV9daBtfly_c=__ZTV9Butterfly")
+
+ACTRAP(Butterfly, 13)
+static int __fastcall bf_init(void *s, void *)
+{ return _ZN9Butterfly13InitResourcesEv(s); }
+static int __fastcall bf_clean(void *, void *)
+{ return _ZN9Butterfly16CleanupResourcesEv(); }
+static int __fastcall bf_behavior(void *s, void *)
+{ return _ZN9Butterfly8BehaviorEv((char *)s); }
+static int __fastcall bf_render(void *s, void *)
+{ port_actor_render_probe("BUTTERFLY", (char *)s + 0xd4);
+  return _ZN9Butterfly6RenderEv(s); }
+static int __fastcall bf_pdes(void *, void *)
+{ _ZN9Butterfly16OnPendingDestroyEv(); return 0; }
+
+extern "C" void hal_fill_butterfly_vtable(void)
+{
+    void **vt = _ZTV9Butterfly;
+    ac_fill_shared(vt, Butterfly_trap13);
+    vt[0] = (void *)bf_init;
+    vt[3] = (void *)bf_clean;
+    vt[6] = (void *)bf_behavior;
+    vt[9] = (void *)bf_render;
+    vt[12] = (void *)bf_pdes;
+    /* SLOTS 16/17 TRAP, the gate-17 reading: nothing on the castle grounds
+       destroys a butterfly (its Behavior never marks itself), and
+       src/_ZN9ButterflyD1Ev.cpp is a real C++ destructor over its own shadow
+       hierarchy -- six member objects MSVC would destroy in its own order
+       against a layout that is not the ROM's. */
+    vt[16] = (void *)Butterfly_trap13;
+    vt[17] = (void *)Butterfly_trap13;
+}
+
+// ---- FISH (actor 344, ov100) x2 --------------------------------------------
+//
+// _ZTV4Fish / _ZTV8daFish_c, ov100 0x021484bc. The two shoals in the moat.
+//
+// THE FISH IS THE FIRST CLASS THE PORT CARRIES THAT CAN KILL ITSELF. Its
+// Behavior looks its owner up by actor id every frame and calls
+// ActorBase::MarkForDestruction when the owner is gone or refuses it -- which
+// is what binds a shoal to the water it was spawned against rather than to a
+// position. That makes slots 16/17 reachable in principle, so the trap there
+// is a real statement and not a formality: on the castle grounds the owner is
+// CASTLE_WATER, which lives as long as the level does, and the census is the
+// measurement (two fish in, two fish still on the lists at frame 3000).
+//
+// Its Behavior is a host copy for the pointer-to-member reason
+// (port/unmatched/Fish_Behavior.cpp), which also carries the seven-static
+// seat. Render is the same slot-5 shadow dispatch the butterfly has.
+extern "C" {
+int _ZN4Fish13InitResourcesEv(void *self);           /* face: method_faces */
+int _ZN4Fish8BehaviorEv(void *self);                 /* host copy */
+int _ZN4Fish6RenderEv(void *self);                   /* face: method_faces */
+int _ZN4Fish16CleanupResourcesEv(void *self);        /* face: method_faces */
+void _ZN4Fish16OnPendingDestroyEv(void);
+void *_ZTV4Fish[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV8daFish_c=__ZTV4Fish")
+
+ACTRAP(Fish, 13)
+static int __fastcall fs_init(void *s, void *)
+{ return _ZN4Fish13InitResourcesEv(s); }
+static int __fastcall fs_clean(void *s, void *)
+{ return _ZN4Fish16CleanupResourcesEv(s); }
+static int __fastcall fs_behavior(void *s, void *)
+{ return _ZN4Fish8BehaviorEv(s); }
+static int __fastcall fs_render(void *s, void *)
+{ port_actor_render_probe("FISH", (char *)s + 0xd4);
+  return _ZN4Fish6RenderEv(s); }
+static int __fastcall fs_pdes(void *, void *)
+{ _ZN4Fish16OnPendingDestroyEv(); return 0; }
+
+extern "C" void hal_fill_fish_vtable(void)
+{
+    void **vt = _ZTV4Fish;
+    ac_fill_shared(vt, Fish_trap13);
+    vt[0] = (void *)fs_init;
+    vt[3] = (void *)fs_clean;
+    vt[6] = (void *)fs_behavior;
+    vt[9] = (void *)fs_render;
+    vt[12] = (void *)fs_pdes;
+    vt[16] = (void *)Fish_trap13;
+    vt[17] = (void *)Fish_trap13;
+}
