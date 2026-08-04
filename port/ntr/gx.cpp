@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <utility>
 #include <vector>
 
 namespace ntr {
@@ -816,7 +817,20 @@ void gx_reset() {
     static int nocache = -1;
     if (nocache < 0) nocache = getenv("SM64DS_TEX_NOCACHE") ? 1 : 0;
     if (nocache) g_vram_tex_cache.clear();
+    /* KEEP THE TWO BUFFERS ACROSS THE RESET. `g = State{}` destroys the
+       triangle list and the vertex strip and grows them back from nothing on
+       the next frame -- a couple of thousand triangles at 116 bytes each, so a
+       free plus the whole doubling ramp of reallocations, thirty times a
+       second, for a buffer whose size barely changes frame to frame. Moving
+       them out across the assignment and back in keeps their capacity;
+       clear() on these trivially destructible element types is a size store. */
+    std::vector<GxVertex> strip = std::move(g.strip);
+    std::vector<GxTriangle> tris = std::move(g.tris);
+    strip.clear();
+    tris.clear();
     g = State{};
+    g.strip = std::move(strip);
+    g.tris = std::move(tris);
     g_teximage = g_plttbase = 0;
     // The stack slots must start as identity, not zero. Model display lists open
     // with MTX_RESTORE against a slot the *scene* filled in earlier; rendering a
