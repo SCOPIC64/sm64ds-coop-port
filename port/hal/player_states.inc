@@ -17,6 +17,9 @@
     /* Mario's airborne gravity fn, dispatched as a PMF from the
        per-character rows in data_ov002_0211073c (St_Jump_Main) */
     case 0x020e200c: func_ov002_020e200c((char *)self); return 1;
+    /* Luigi's and Yoshi's rows of the same table (Wario shares Mario's) */
+    case 0x020e1e70: func_ov002_020e1e70((char *)self); return 1;
+    case 0x020e1c20: func_ov002_020e1c20((char *)self); return 1;
     case 0x020e1af8: return ((Player *)self)->Player::St_Fall_Main();
     case 0x020e1b80: return ((Player *)self)->Player::St_Fall_Init();
     case 0x020cb15c: return ((Player *)self)->Player::St_Headstand_Main();

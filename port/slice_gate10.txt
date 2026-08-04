@@ -851,6 +851,13 @@ src/func_ov002_020dd2f4.c
 src/func_ov002_020e0ccc.cpp
 port/unmatched/Player_St_Jump_Main.cpp
 src/func_ov002_020e200c.c
+# Luigi's and Yoshi's rows of the same airborne-gravity table
+# data_ov002_0211073c (Wario shares Mario's 020e200c). func_02012120 is
+# the per-character voice helper both call: baseId + data_02075250[ch]
+# into Sound::PlayLong.
+src/func_ov002_020e1e70.c
+src/func_ov002_020e1c20.c
+src/func_02012120.c
 src/func_ov002_020bf27c.c
 src/func_ov002_020e2be4.cpp
 src/func_ov002_020e2b6c.cpp

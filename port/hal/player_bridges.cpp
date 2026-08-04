@@ -264,6 +264,8 @@ void hal_render_player_body_ex(void *player, int with_head)
 extern "C" int _ZN6Player18St_LevelEnter_MainEv(int *c);
 extern "C" int _ZN6Player12St_Jump_InitEv(char *c);
 extern "C" void func_ov002_020e200c(char *c);
+extern "C" void func_ov002_020e1e70(char *c);
+extern "C" void func_ov002_020e1c20(char *c);
 /* Three state slots the ROM fills with plain ov002 functions rather than
    Player methods: Null's Init, WallJump's Init, InYoshiMouth's Cleanup.
    The community St_ names at those addresses belong to ov006, not ov002. */
