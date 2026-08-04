@@ -66,7 +66,13 @@ int func_ov002_020d3b9c(char *c)
     }
     else
     {
-      u8 mode = *((u8 *) (data_0209f4ae[idx]));
+      /* the ROM is `ldrb r3, [r0, r1]` at 020D3C70 with r0 = &data_0209f4ae
+         and r1 = idx: the BYTE at that offset. The draft took the byte and
+         then dereferenced it as a pointer, which reads address 0..255. It
+         has never fired because the port leaves data_0209f4ac at 0 and only
+         the stylus control mode reaches here, but it is a fault waiting for
+         the first touch-mode frame. */
+      u8 mode = (u8) data_0209f4ae[idx];
       s16 stick2 = *((s16 *) (((char *) data_0209f4a0) + idx));
       if (stick2 <= ((mode != 2) ? (0x471) : (0x555)))
       {
