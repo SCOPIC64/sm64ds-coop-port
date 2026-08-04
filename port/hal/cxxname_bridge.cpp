@@ -42,10 +42,24 @@ void _ZN8Platform19UpdateClsnPosAndRotEv(void *self)
 { ((Platform *)self)->Platform::UpdateClsnPosAndRot(); }
 void _ZN8Platform21UpdateModelPosAndRotYEv(void *self)
 { ((Platform *)self)->Platform::UpdateModelPosAndRotY(); }
-/* SHADOW SYSTEM DEFERRED (cosmetic): the cuboid template BMD at
-   data_020ad524 is BUILT AT RUNTIME by boot code not yet hosted (the ov000
-   static image holds path strings there). InitCuboid and the per-frame
-   drop-shadow install are no-ops until that boot path lands. */
+/* SHADOW SYSTEM DEFERRED (cosmetic). The cause recorded here was WRONG and is
+   corrected: the cuboid template BMD at data_020ad524 is NOT built at runtime.
+   It is static .data in OVERLAY 1 (ov001 .data spans 0x020ab800..0x020ad620),
+   a complete BMD_File with numBones 1, bones 0x020ad59c, numMaterials 1,
+   materials 0x020ad4f4, and its pointers already absolute in the ROM image.
+   Nothing writes it: the only two references to the address in all of config/
+   are the literal-pool loads inside InitCuboid and InitCylinder themselves.
+   The ov000 path strings this comment saw are the OTHER overlay sharing the
+   0x020aa420 window, which is why the address reads as garbage today.
+
+   The real blockers are three, all mechanical: (1) the port mounts ov002,
+   ov009, ov085, ov098, ov100, ov089 and ov102 but never ov001, so the bytes
+   are absent and these stubs stand in for them; (2) _ZTV11ShadowModel
+   (actor_vtables.cpp) is eight nulls and hal_fill_shadow_vtable below is
+   empty, so ModelBase::SetFile's vtable+0x8 dispatch would fault even once the
+   data lands; (3) no per-frame ShadowModel::RenderAll caller is matched in
+   src/ outside UnknownVsEntry::Render, so the host render path would have to
+   call it. Until those, InitCuboid and the drop-shadow install stay no-ops. */
 void _ZN11ShadowModel10InitCuboidEv(void *) {}
 void _ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j(
     void *, void *, void *, int, int, int, unsigned) {}

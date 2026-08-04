@@ -393,6 +393,12 @@ extern "C" {
 void *_ZTV10ModelAnim2[12];
 void *VTable_Animation_ModelAnim2Thunk[12];
 void *data_020a5bb8;            /* table root pointer (func_02050xxx family) */
-int data_0209f5c0[8], data_020ad560[8];
+int data_0209f5c0[8];
+/* ShadowModel's cylinder template BMD stub. The ROM record is 0x3c bytes
+   (0x020ad560 up to its bone at 0x020ad59c) and this was 0x20, so a reader
+   that trusted the header ran off the end. Still zeros -- the real bytes are
+   static .data in ov001, which the port does not mount; see the writeup above
+   _ZN11ShadowModel10InitCuboidEv in hal/cxxname_bridge.cpp. */
+int data_020ad560[0x3c / 4];
 }
 

@@ -350,9 +350,15 @@ int _ZN6Player9GetHealthEv(void *self)
 void _ZN4BgCh19StartDetectingWaterEv(void *self)
 { ((BgCh *)self)->BgCh::StartDetectingWater(); }
 
-/* SHADOW SYSTEM DEFERRED (matches InitCuboid, cxxname_bridge.cpp): the
-   template BMD at data_020ad560 is runtime-built by un-hosted boot code;
-   parsing the zero stub would walk garbage. */
+/* SHADOW SYSTEM DEFERRED (matches InitCuboid, cxxname_bridge.cpp, which now
+   carries the full writeup). The template BMD at data_020ad560 is NOT
+   runtime-built: it is static .data in overlay 1, a complete BMD_File with one
+   bone at 0x020ad5dc and one material at 0x020ad4c4. Parsing the stub does
+   walk garbage, but because the port never mounts ov001, not because a
+   builder is missing.
+
+   Note the stub is also UNDERSIZED where it is declared (actor_vtables.cpp):
+   the ROM record is 0x3c bytes, 0x020ad560 to the bone at 0x020ad59c. */
 void _ZN11ShadowModel12InitCylinderEv(void *) {}
 
 void _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File(void *self, void *bmd,

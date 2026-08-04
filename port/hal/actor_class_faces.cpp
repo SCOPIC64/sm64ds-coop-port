@@ -126,10 +126,12 @@ extern "C" void _ZN5Actor17TrackInDeathTableEv(void *self)
 
 /* ?InitCuboid@ShadowModel@@QAEXXZ -- SIGN_POST asks for its cuboid shadow
    through a method on its own shadow declaration, and the shadow system is
-   deferred: data_020ad524, the template BMD, is built at runtime by boot code
-   the port does not host, so the real body parses a zero stub. Forward to the
-   same no-op every C-named caller already gets (hal/cxxname_bridge.cpp). The
-   sign is drawn without its shadow until that boot path lands. */
+   deferred: data_020ad524, the template BMD, is static .data in overlay 1 and
+   the port never mounts ov001, so the real body parses a zero stub (NOT a
+   missing runtime builder, as this comment used to say; cxxname_bridge.cpp
+   carries the corrected writeup). Forward to the same no-op every C-named
+   caller already gets. The sign is drawn without its shadow until ov001's
+   data is mounted. */
 extern "C" void _ZN11ShadowModel10InitCuboidEv(void *self);
 struct ShadowModel { void InitCuboid(); };
 void ShadowModel::InitCuboid() { _ZN11ShadowModel10InitCuboidEv(this); }
