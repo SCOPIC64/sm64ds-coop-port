@@ -255,17 +255,12 @@ void __destroy_arr(void *base, int n, int size, void (*dtor)(void *))
 
 // ---- gate-10 storage and stubs --------------------------------------------
 extern "C" {
-/* SOUND: stubbed silent for the walking campaign (the SPU is its own
-   project phase). The calls are fire-and-forget on the DS.
-   Sound::Play is where the four PlayBankN shims converge, and it opens by
-   walking the NNS sound player out of data_020a5bb8 -- a root pointer nothing
-   in the port seats, behind which sit more pointers. A zeroed block would only
-   move the fault one dereference along, so the deferral goes here, at the
-   subsystem's own front door. Its matched src is out of slice_gate10 with a
-   note; PlayBank0/PlayBank3/PlayCharVoice stay real and simply do nothing. */
-void _ZN5Sound13PlayCharVoiceEjjRK7Vector3(unsigned, unsigned, const void *) {}
-void _ZN5Sound9PlayBank0EjRK7Vector3(unsigned, const void *) {}
-void _ZN5Sound4PlayEjjRK7Vector3(unsigned, unsigned, const void *) {}
+/* SOUND: these three were stubbed silent because Sound::Play opens by
+   walking the NNS sound player out of data_020a5bb8, and nothing seated that
+   root, so the first Play in a level took the process with it. hal/sdat/ now
+   seats a real parsed SDAT there and hosts the ARM7 behind the command
+   queue, so all three are back on their matched src (added to
+   slice_gate10.txt) and the stubs are gone. */
 
 void *_ZTV15MaterialChanger[8];
 void *_ZTV15TextureSequence[8];
@@ -376,7 +371,12 @@ int data_020994cc[8], data_02099fa4[4], data_02099fa8[4], data_02099fac[4];
 /* data_0209b008 moved to hal/camera_states.cpp: it is the first of the 19
    camera State objects, and the whole run has to carry the DS fn addresses */
 int data_0209b478[8], data_0209b484[4], data_0209b488[4];
-int data_0209b498[8], data_0209b53c[8], data_0209d574[8];
+int data_0209b498[8], data_0209d574[8];
+/* Sound::PlayLong's handle table: a header plus 0x40 slots of 0x14, which
+   func_02011a28 initialises from +8 and func_02011934 hashes into. The ROM
+   runs 0x0209b53c..0x0209baa0 = 0x564. It was int[8] while sound was
+   stubbed, so the init would have written 1.2KB past it. */
+int data_0209b53c[0x564 / 4];
 int data_0209f310[8], data_020a0f10[8], data_020a4bec[8];
 /* data_0209f340 is the CURRENT LVL_Overlay (Stage::GetSkyboxID,
    StartWithFarCamera and the render chain read its flag and skybox bits).

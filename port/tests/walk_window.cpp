@@ -215,6 +215,7 @@ int hal_player_st_wait_init(void *p);
 int hal_player_st_wait_main(void *p);
 int hal_player_behavior(void *p);
 int hal_player_process(void *p);   /* gate 15: BeforeBehavior/Behavior/After */
+void sdat_host_tick(void);         /* hosted ARM7: hal/sdat/ */
 void hal_render_player_world(void *p);
 extern char data_0209f4a0[];
 extern int data_0209f4a6[];   /* pad stick WORLD angle -- auto_bss split
@@ -2873,6 +2874,7 @@ int main(void)
                 ntr::ppu_write_bmp(nm, fb);
             }
         }
+        sdat_host_tick();   /* hosted ARM7: drain the sound queue, feed the mixer */
         if (selftest && ++frame >= selftest) {
             for (int k = 0; k < g_amb_n; ++k) {
                 char *o = (char *)g_amb[k].o;

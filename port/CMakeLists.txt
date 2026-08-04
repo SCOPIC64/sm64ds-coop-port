@@ -706,8 +706,38 @@ foreach(src IN LISTS SLICE10_SOURCES)
        OR src MATCHES "/func_0204335c\\.c$")
         continue()
     endif()
+    # Sound: five ARM argument ride-throughs, replaced by hal/sdat/sound_abi.cpp
+    # (declared with fewer parameters than their callers pass, which only
+    # works when the extras sit in r1..r3), plus func_0205b5d4, the "read the
+    # other core's progress" read that hal/sdat/consumer.cpp has to own so the
+    # queue's spin-wait can terminate on a single-threaded host.
+    if(src MATCHES "/func_0204f600\\.c$"
+       OR src MATCHES "/func_0204f89c\\.c$"
+       OR src MATCHES "/func_0204f7cc\\.c$"
+       OR src MATCHES "/func_0204f86c\\.c$"
+       OR src MATCHES "/func_0204fa2c\\.c$"
+       OR src MATCHES "/func_0205b5d4\\.c$"
+    # ...and Sound::Player::SetPlayableSeqCount, which writes through
+    # data_020a4d84 = data_020a4d6c + 0x18, an adjacency host symbols do not
+    # have. Same file, sound_abi.cpp.
+       OR src MATCHES "/_ZN5Sound6Player19SetPlayableSeqCountEii\\.c$"
+    # ...and Sound::Play, whose src calls func_02050cdc(void) and lets the
+    # kind and id ride through in r0/r1.
+       OR src MATCHES "/_ZN5Sound4PlayEjjRK7Vector3\\.c$")
+        continue()
+    endif()
     list(APPEND SLICE10_CAM_SOURCES "${src}")
 endforeach()
+
+# The hosted ARM7: native SDAT player behind the game's own command queue.
+set(SOUND_HOST_SOURCES
+    hal/sdat/sdat.cpp
+    hal/sdat/mixer.cpp
+    hal/sdat/sseq.cpp
+    hal/sdat/out_win.cpp
+    hal/sdat/consumer.cpp
+    hal/sdat/sound_abi.cpp
+    hal/sdat/sound_bss.cpp)
 
 set(LEVELBOOT_HOST_SOURCES
     unmatched/ActorDerived_Spawn.cpp
@@ -899,7 +929,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
     hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/stage_bridges.cpp
-    ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES}
+    ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
@@ -925,7 +955,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
     hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/stage_bridges.cpp
-    ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES}
+    ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
@@ -955,7 +985,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
     hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/stage_bridges.cpp
-    ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES}
+    ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
@@ -977,3 +1007,15 @@ if(MSVC)
 endif()
 
 
+# The SDAT player on its own: parser, sequencer and mixer with no game code
+# and no command queue, so a failure is localised to the player itself.
+add_executable(smoke_sdat tests/smoke_sdat.cpp
+    hal/sdat/sdat.cpp hal/sdat/mixer.cpp hal/sdat/sseq.cpp hal/sdat/out_win.cpp)
+target_include_directories(smoke_sdat PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_compile_definitions(smoke_sdat PRIVATE SM64DS_PLATFORM_PC
+    PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}")
+if(MSVC)
+    target_compile_options(smoke_sdat PRIVATE /wd4311 /wd4312 /wd4068)
+endif()

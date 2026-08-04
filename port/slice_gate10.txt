@@ -1116,14 +1116,27 @@ src/ObjectMessageIDToActualMessageID.c
 src/Vec3_LslInPlace.c
 src/Vec3_MulScalar.c
 src/_ZN5Actor11LandingDustEb.c
-# src/_ZN5Sound4PlayEjjRK7Vector3.c -- STUBBED in hal/actor_vtables.cpp.
-# It opens with func_02050cdc(), which walks the NNS sound player through
-# data_020a5bb8 and a chain of pointers behind it; the whole sound subsystem
-# is unhosted and the root is null, so the first Play in a level took the
-# process with it (St_Swim_Main's underwater loop found it). PlayBank0 and
-# PlayCharVoice were already stubbed one level up for the same reason; this
-# is the same deferral at the point they all converge on.
+# Sound front doors. These were held out while data_020a5bb8 was null:
+# Sound::Play opens with func_02050cdc(), which walks the sound player
+# through that root, so the first Play in a level took the process with it
+# (St_Swim_Main's underwater loop found it). hal/sdat/sdat.cpp seats a real
+# parsed SDAT there and hal/sdat/consumer.cpp hosts the ARM7 behind the
+# command queue, so all four are back on their matched src.
+src/_ZN5Sound4PlayEjjRK7Vector3.c
+src/_ZN5Sound9PlayBank0EjRK7Vector3.cpp
+src/_ZN5Sound13PlayCharVoiceEjjRK7Vector3.cpp
+src/_ZN5Sound22StopLoadedMusic_Layer1Ej.cpp
 src/_ZN5Sound9PlayBank3EjRK7Vector3.cpp
+# Sound init, run by hal/sdat/consumer.cpp's sd_sound_init_host in place of
+# func_020133bc (Sound::Init), which is in no slice and whose remaining steps
+# are the card open, the 1MB sound heap and the ARM9 sound thread.
+src/func_0204f1e8.c
+src/func_02050950.c
+src/func_0204fc40.c
+src/func_0204f94c.c
+src/func_02011a28.c
+src/func_02048f34.c
+src/func_02048fd4.c
 src/func_020093d4.c
 src/func_020093f4.c
 src/func_0200ca14.c
