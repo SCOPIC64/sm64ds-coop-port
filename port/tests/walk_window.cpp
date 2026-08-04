@@ -17,6 +17,11 @@
 //   bumpers, and drifts back behind him when the stick is idle and he is
 //   moving. DS-exact is the hardware's stepped rotate, unchanged. In every
 //   mode the Camera actor itself keeps running and is never written to.
+//   MOUSE  hold the right button and drag to look (the pointer springs back
+//   to where it was picked up, so the look never runs out of desk); the wheel
+//   zooms. Both work in analog and in freecam and do nothing in DS-exact.
+//   The last left click is published in framebuffer pixels for the touch
+//   bridge; see g_mouse_click_x.
 //   F3  the stats overlay: frame rate, the per-phase millisecond budget,
 //   triangle and actor counts, where Mario is and what state he is in, and
 //   how many times the port has fallen through a state it does not host.
@@ -88,6 +93,9 @@ struct WinApi {
                                 const void *, const BITMAPINFO *, UINT, DWORD);
     HWND(WINAPI *SetCapture_)(HWND);
     BOOL(WINAPI *ReleaseCapture_)(void);
+    BOOL(WINAPI *GetCursorPos_)(POINT *);
+    BOOL(WINAPI *SetCursorPos_)(int, int);
+    int(WINAPI *ShowCursor_)(BOOL);
     /* winmm: the frame pacer's Sleep granularity (see pacer_begin below) */
     unsigned(WINAPI *timeBeginPeriod_)(unsigned);
     unsigned(WINAPI *timeEndPeriod_)(unsigned);
@@ -135,6 +143,9 @@ static bool winapi_load(void)
     W.StretchDIBits_ = (decltype(W.StretchDIBits_))GetProcAddress(g, "StretchDIBits");
     W.SetCapture_ = (decltype(W.SetCapture_))GetProcAddress(u, "SetCapture");
     W.ReleaseCapture_ = (decltype(W.ReleaseCapture_))GetProcAddress(u, "ReleaseCapture");
+    W.GetCursorPos_ = (decltype(W.GetCursorPos_))GetProcAddress(u, "GetCursorPos");
+    W.SetCursorPos_ = (decltype(W.SetCursorPos_))GetProcAddress(u, "SetCursorPos");
+    W.ShowCursor_ = (decltype(W.ShowCursor_))GetProcAddress(u, "ShowCursor");
     if (HMODULE mm = LoadLibraryA("winmm.dll")) {
         W.timeBeginPeriod_ =
             (decltype(W.timeBeginPeriod_))GetProcAddress(mm, "timeBeginPeriod");
@@ -700,10 +711,102 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
     _Z13CopyToViewMatPK9Matrix4x3(mat);
 }
 
+/* ---- MOUSE (port mod) -------------------------------------------------
+   DRAG TO LOOK, on the right button, and not an F2 capture toggle. Both were
+   on the table; this is the one that fits what the window is. A capture mode
+   swallows the pointer for as long as it is armed, which fights the debug
+   menu, fights alt-tabbing out of a play session, and leaves a hidden cursor
+   behind if the program dies with it on -- and the flight recorder exists
+   because this program does sometimes die. Hold the right button, look, let
+   go, and the pointer is yours again with nothing to remember.
+
+   The drag anchors: pressing the button remembers where the pointer was,
+   every move reports its delta from there and puts the pointer straight back.
+   So the look never runs out of desk or hits the edge of the screen the way a
+   plain drag does, the cursor is hidden while it is held, and letting go
+   leaves the pointer exactly where it was picked up.
+
+   The wheel zooms the rig. Both act in ANALOG and FREECAM; in DS-exact the
+   camera is the game's and the mouse does not touch it. */
+static int mo_look;              /* right button down */
+static POINT mo_anchor;          /* screen point the drag springs back to */
+static int mo_dx, mo_dy;         /* accumulated since the loop last drained */
+static int mo_wheel;             /* accumulated notches, forward positive */
+
+/* THE TOUCH BRIDGE'S HANDOFF. The DS has a touchscreen and this program has a
+   mouse, and the last left click is where the two meet. Position is in
+   FRAMEBUFFER pixels -- client coordinates divided by ZOOM -- so a consumer
+   gets the same numbers at either tier without knowing which one it is on.
+   `g_mouse_click_new` is true for exactly the frame the click landed on and
+   `g_mouse_left_down` is the hold, which is what a drag on a touchscreen is.
+   NOTHING IN THIS FILE READS ANY OF IT: it is published for the touch bridge
+   a sibling stream is building. */
+int g_mouse_click_x, g_mouse_click_y;
+int g_mouse_click_new;
+int g_mouse_left_down;
+
+static void mo_release(void)
+{
+    if (!mo_look) return;
+    mo_look = 0;
+    if (W.ReleaseCapture_) W.ReleaseCapture_();
+    if (W.ShowCursor_) while (W.ShowCursor_(TRUE) < 0) {}
+}
+
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
-    if (m == WM_DESTROY) { W.PostQuitMessage_(0); return 0; }
-    if (m == WM_KEYDOWN && w == VK_ESCAPE) { W.PostQuitMessage_(0); return 0; }
+    if (m == WM_DESTROY) { mo_release(); W.PostQuitMessage_(0); return 0; }
+    if (m == WM_KEYDOWN && w == VK_ESCAPE) { mo_release(); W.PostQuitMessage_(0); return 0; }
+    switch (m) {
+    case WM_RBUTTONDOWN:
+        if (W.GetCursorPos_ && W.GetCursorPos_(&mo_anchor)) {
+            mo_look = 1;
+            mo_dx = mo_dy = 0;
+            if (W.SetCapture_) W.SetCapture_(h);
+            if (W.ShowCursor_) while (W.ShowCursor_(FALSE) >= 0) {}
+        }
+        return 0;
+    case WM_RBUTTONUP:
+        mo_release();
+        return 0;
+    case WM_KILLFOCUS:
+    case WM_CAPTURECHANGED:
+        mo_release();
+        return 0;
+    case WM_MOUSEMOVE:
+        if (mo_look && W.GetCursorPos_) {
+            POINT p;
+            if (W.GetCursorPos_(&p)) {
+                mo_dx += p.x - mo_anchor.x;
+                mo_dy += p.y - mo_anchor.y;
+                if ((p.x != mo_anchor.x || p.y != mo_anchor.y) &&
+                    W.SetCursorPos_)
+                    W.SetCursorPos_(mo_anchor.x, mo_anchor.y);
+            }
+        }
+        return 0;
+    case WM_LBUTTONDOWN: {
+        int cx = (short)LOWORD(l) / ZOOM, cy = (short)HIWORD(l) / ZOOM;
+        if (cx < 0) cx = 0;
+        if (cy < 0) cy = 0;
+        if (cx >= ntr::SCREEN_W) cx = ntr::SCREEN_W - 1;
+        if (cy >= ntr::SCREEN_H) cy = ntr::SCREEN_H - 1;
+        g_mouse_click_x = cx;
+        g_mouse_click_y = cy;
+        g_mouse_click_new = 1;
+        g_mouse_left_down = 1;
+        fprintf(stderr, "[mouse] click %d,%d fb\n", cx, cy);
+        return 0;
+    }
+    case WM_LBUTTONUP:
+        g_mouse_left_down = 0;
+        return 0;
+    case WM_MOUSEWHEEL:
+        mo_wheel += (short)HIWORD(w) / WHEEL_DELTA;
+        return 0;
+    default:
+        break;
+    }
     return W.DefWindowProcA_(h, m, w, l);
 }
 
@@ -1264,6 +1367,23 @@ int main(void)
             if (now && !overlay_edge) overlay_on = !overlay_on;
             overlay_edge = now;
         }
+        /* drain what the window procedure collected. Unconditionally, so a
+           drag taken in DS-exact mode does not pile up and dump into the rig
+           the moment F1 hands it the view. MOUSE_YAW is 48 binangs a pixel --
+           about 1400 pixels for a full turn -- and the tilt is half that.
+           Positive dy is downward and lowers the view the same way pushing the
+           right stick down does, so the mouse and the pad agree. */
+        int mouse_dyaw = 0, mouse_dpitch = 0, mouse_wheel = 0;
+        {
+            const int MOUSE_YAW = 48, MOUSE_PITCH = 24;
+            if (mo_look) {
+                mouse_dyaw = mo_dx * MOUSE_YAW;
+                mouse_dpitch = mo_dy * MOUSE_PITCH;
+            }
+            mo_dx = mo_dy = 0;
+            mouse_wheel = mo_wheel;
+            mo_wheel = 0;
+        }
 
         /* keys -> pad block + desired heading, CAMERA-RELATIVE: W walks
            away from the camera whatever way it faces. cam_yaw is the
@@ -1349,11 +1469,13 @@ int main(void)
                hands off -- the player is aiming the camera. */
             int rig_touched = 0;
             {
-                const int r = fc_stick_rate(stick_rx, CAM_STEP);
+                const int r = fc_stick_rate(stick_rx, CAM_STEP) + mouse_dyaw;
                 if (r) { fc_yaw = (short)(fc_yaw + r); rig_touched = 1; }
             }
             {
-                int t = fc_pitch - fc_stick_rate(stick_ry, CAM_STEP / 2);
+                int t = fc_pitch - fc_stick_rate(stick_ry, CAM_STEP / 2)
+                        + mouse_dpitch;
+                if (mouse_dpitch) rig_touched = 1;
                 if (W.GetAsyncKeyState_('R') < 0) t += 0x80;
                 if (W.GetAsyncKeyState_('F') < 0) t -= 0x80;
                 if (t > 0x3a00) t = 0x3a00;      /* just short of overhead */
@@ -1366,6 +1488,7 @@ int main(void)
                 int zoom = 0;
                 if (pad_live && (pad.buttons & 0x0100)) zoom -= 1;   /* LB */
                 if (pad_live && (pad.buttons & 0x0200)) zoom += 1;   /* RB */
+                zoom -= mouse_wheel;   /* wheel forward pulls the eye in */
                 if (zoom) {
                     fc_dist += zoom * (fc_dist >> 5);
                     if (fc_dist < 0x30000) fc_dist = 0x30000;
@@ -2387,6 +2510,9 @@ int main(void)
             ovl_last_present = now;
         }
         ++ovl_frames;
+        /* the click flag is true for exactly the frame it landed on; the hold
+           in g_mouse_left_down is what outlives it */
+        g_mouse_click_new = 0;
         if (selftest && (frame % 10) == 0)
             printf("[y] frame %d y=%d units %.1f\n", frame,
                    *(int *)(c + 0x60), *(int *)(c + 0x60) / 4096.0f);
