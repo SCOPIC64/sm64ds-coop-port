@@ -245,6 +245,13 @@ extern int data_0209b468[4];   /* actor list head (stomp tracker) */
 extern unsigned char data_020a0e40[];
 extern short data_02092144[];
 extern unsigned char data_ov002_0211049c[];  /* St_Wait state object */
+/* SM64DS_FORCE_STATE=walljump probe: the ST_WALL_JUMP State record and the
+   per-character airborne-gravity PMF table St_WallJump_Main dispatches
+   through. Both are BSS built by __sinit_ov002_021019d0, so they only read
+   back after the sinit run below. */
+extern unsigned char data_ov002_021103dc[];  /* _ZN6Player12ST_WALL_JUMPE */
+extern int data_ov002_0211073c[];            /* 4 rows of {fn-or-vtoff, v} */
+int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *st);
 void port_ov002_patch(void);
 void __sinit_ov002_02100560(void); void __sinit_ov002_02100938(void);
 void __sinit_ov002_02100adc(void); void __sinit_ov002_02100c50(void);
@@ -2061,6 +2068,59 @@ int main(void)
            while a person reads. Everything downstream still runs, so the
            picture stays live and the camera can still be moved around a
            frozen scene. */
+        /* SM64DS_FORCE_STATE=walljump -- the walljump crash probe.
+           Tango walljumped in the live game and the process died with no
+           fault-probe dump, because St_WallJump_Main dispatches the
+           per-character airborne-gravity function out of the sinit-built
+           table data_ov002_0211073c and (unlike St_Jump_Main) called row[0]
+           RAW. row[0] is a DS code address, so on the host that is a jump
+           into the mounted ov002 data image.
+           Reproducing it needs no wall: put the Player in ST_WALL_JUMP and
+           hold him airborne, and Behavior runs St_WallJump_Main straight
+           into the dispatch. The table is dumped once so the run records
+           which character row it went through. */
+        {
+            static int force_wj = -1;
+            if (force_wj < 0) {
+                const char *fs = getenv("SM64DS_FORCE_STATE");
+                force_wj = (fs && !strcmp(fs, "walljump")) ? 1 : 0;
+                if (force_wj) {
+                    fprintf(stderr, "[wj] data_ov002_0211073c after sinit "
+                            "(4 per-character rows):\n");
+                    for (int r = 0; r < 4; ++r) {
+                        int w0 = data_ov002_0211073c[r * 2];
+                        int v  = data_ov002_0211073c[r * 2 + 1];
+                        fprintf(stderr, "[wj]   idx %d: word0=0x%08x "
+                                "word1=0x%08x -> %s, this+0x%x\n", r,
+                                (unsigned)w0, (unsigned)v,
+                                (v & 1) ? "VIRTUAL (vtable byte offset)"
+                                        : "direct DS code address",
+                                (unsigned)(v >> 1));
+                    }
+                    fprintf(stderr, "[wj] player param1 (character idx) = %d\n",
+                            *(int *)(c + 0x008));
+                }
+            }
+            if (force_wj && frame == 10) {
+                /* SM64DS_FORCE_CHAR=<0-3> picks the row: 0/2 (Mario, Wario)
+                   are hosted, 1/3 (Luigi, Yoshi) are not and have to come
+                   out as the mapper's loud no-op, not a wild jump. */
+                const char *fc = getenv("SM64DS_FORCE_CHAR");
+                if (fc) {
+                    *(int *)(c + 0x008) = atoi(fc);
+                    fprintf(stderr, "[wj] forced character idx = %d\n",
+                            atoi(fc));
+                }
+                fprintf(stderr, "[wj] frame 10: ChangeState -> ST_WALL_JUMP "
+                        "(%p)\n", (void *)data_ov002_021103dc);
+                _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                    data_ov002_021103dc);
+            }
+            /* St_WallJump_Main bails to St_Fall the moment he is grounded,
+               and the dispatch sits past that check -- so hold him airborne
+               for the length of the probe. */
+            if (force_wj && frame >= 10) *(unsigned char *)(c + 0x6de) = 1;
+        }
         if (menu_on) {
             game_ticked = 0;
         } else if (boot_spawns) {
