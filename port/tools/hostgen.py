@@ -222,11 +222,46 @@ def is_asm(text):
     return bool(ASM_BLOCK.search(text))
 
 
+# A shared header can declare a symbol with a different pointer parameter type
+# than the TU that defines it uses. That was invisible while the decl_*.h
+# headers were C++-mangled, because the two spellings were simply two different
+# symbols; once main gave those headers C linkage (the 2026-08-03 sweep) both
+# become the same extern "C" name and MSVC rejects the file outright:
+#
+#   include/decl_common.h  extern int func_ov002_020cfbdc(void*);
+#   src/..._020cfbdc.cpp   extern "C" int func_ov002_020cfbdc(char *self)
+#   -> error C2733: you cannot overload a function with 'extern "C"' linkage
+#
+# Neither side is wrong about the ROM -- void* and char* are one register --
+# and neither src/ nor include/ may be edited for the port. So the emitted copy
+# shadows the NAME across the header's include, which leaves the header
+# declaring a dead alias and the TU's own definition untouched. One entry per
+# symbol, listed rather than pattern-matched, so a new collision has to be
+# looked at rather than silently absorbed.
+HEADER_SHADOW = {
+    "func_ov002_020cfbdc": "decl_common.h",
+}
+
+
+def shadow_header_decl(text, sym, header):
+    """Hide the shared header's declaration of `sym` while it is included."""
+    inc = '#include "%s"' % header
+    if inc not in text:
+        return text, 0
+    return text.replace(
+        inc,
+        "#define %s %s__hdrshadow\n%s\n#undef %s" % (sym, sym, inc, sym),
+        1), 1
+
+
 def emit(src_path, out_dir, decomp_root, extern_data=False):
     text = src_path.read_text(encoding="utf-8", errors="replace")
     # The decomp marks C++ files with a leading `//cpp` line; the host build
     # compiles everything as C++ anyway, so drop it.
     text = re.sub(r"\A//cpp[^\n]*\n", "", text)
+    sym = src_path.stem
+    if sym in HEADER_SHADOW:
+        text, _ = shadow_header_decl(text, sym, HEADER_SHADOW[sym])
     new, n = transform(text, extern_data)
     # Everything is emitted as C++ (NTR_MMIO expands to a template proxy), but
     # a .c source's symbols must keep C linkage: the port's other slices

@@ -126,9 +126,23 @@
     /* JumpQuicksand */
     case 0x020dedf0: return ((Player *)self)->Player::St_JumpQuicksand_Main();
     case 0x020deeac: return ((Player *)self)->Player::St_JumpQuicksand_Init();
-    /* LedgeGrab */
+    /* LedgeGrab -- state data_ov002_02110004, the PULL-UP. Reached from
+       LedgeHang_Main, so it was already hosted while the state that feeds
+       it was not. */
     case 0x020d0824: return ((Player *)self)->Player::St_LedgeGrab_Main();
     case 0x020d08b0: return ((Player *)self)->Player::St_LedgeGrab_Init();
+    /* LedgeHang -- state data_ov002_0210ffec, the HANG. This is what
+       Tango hit on the hedge maze: func_ov002_020d0580 sees a ledge under
+       a falling Mario and changes into this state, and all three halves
+       were unhosted, so the mapper no-op'd Main every frame (the flood of
+       "unhosted state fn 0x020d0a44"). Init is what seats the hang anim
+       (0x21/0x22), zeroes mHorzSpeed/mVertSpeed, clears mIsAirborne and
+       drops the MovingCylinderClsnWithPos at +0x2d4 to the grab point;
+       without it the anim froze and the speed he grabbed at kept
+       integrating, which is the slide. */
+    case 0x020d0a44: return ((Player *)self)->Player::St_LedgeHang_Main();
+    case 0x020d0c54: return ((Player *)self)->Player::St_LedgeHang_Init();
+    case 0x020d092c: return ((Player *)self)->Player::St_LedgeHang_Cleanup();
     /* MetalWaterGround */
     case 0x020ccccc: return ((Player *)self)->Player::St_MetalWaterGround_Main();
     case 0x020cd0d0: return ((Player *)self)->Player::St_MetalWaterGround_Init();

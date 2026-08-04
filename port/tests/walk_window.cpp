@@ -245,12 +245,24 @@ extern int data_0209b468[4];   /* actor list head (stomp tracker) */
 extern unsigned char data_020a0e40[];
 extern short data_02092144[];
 extern unsigned char data_ov002_0211049c[];  /* St_Wait state object */
+/* SM64DS_DECEL_PROBE reads the ground-move constants out of the game's own
+   helpers, so the log shows the numbers the physics actually used and not a
+   second guess at them. 020c031c is the slip class (Player+0x658, promoted
+   for one state); 020bf56c scales a brake rate by that class. */
+int func_ov002_020c031c(void *c);
+int func_ov002_020bf56c(void *c, int b);
+int Player_ScaleByCharFactor(void *c, int a);
 /* SM64DS_FORCE_STATE=walljump probe: the ST_WALL_JUMP State record and the
    per-character airborne-gravity PMF table St_WallJump_Main dispatches
    through. Both are BSS built by __sinit_ov002_021019d0, so they only read
    back after the sinit run below. */
 extern unsigned char data_ov002_021103dc[];  /* _ZN6Player12ST_WALL_JUMPE */
 extern unsigned char data_ov002_021106dc[];  /* _ZN6Player8ST_CLIMBE */
+/* ST_LEDGE_HANG. Named off the sinit rather than a symbol map:
+   __sinit_ov002_021019d0 fills 0210ffec's lo/hi/tail from 0x0210a41c,
+   0x0210a06c and 0x02109eec, and ov002's reloc table takes those three to
+   St_LedgeHang_Init, _Main and _Cleanup exactly. */
+extern unsigned char data_ov002_0210ffec[];  /* _ZN6Player13ST_LEDGE_HANGE */
 extern int data_ov002_02110a48[5];           /* Tree's five cylinder lists */
 extern int data_ov002_0211073c[];            /* 4 rows of {fn-or-vtoff, v} */
 int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *st);
@@ -1549,6 +1561,27 @@ int main(void)
     float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
     const int trace_cam = getenv("SM64DS_TRACE_CAM") != 0;
+    /* SM64DS_DECEL_PROBE=1 (under a selftest): hold the stick and the dash
+       button until DECEL_RELEASE, then let go of both and log the horizontal
+       speed every frame until it reaches zero. The point is the SHAPE of the
+       tail -- how many frames Mario coasts, and at what rate per frame -- so
+       a before/after can be read off two runs. Off by default; the plain
+       selftest picture is untouched by it. */
+    /* =1 lets go of the stick AND the dash button (the full stop);
+       =2 lets go of the dash button only and keeps the stick down, which is
+       what "releasing run" means with a thumb still on the pad -- the target
+       drops from the run speed to the walk speed and the skid path, which
+       only the no-input branch can arm, never runs. */
+    const char *dp_env = getenv("SM64DS_DECEL_PROBE");
+    const int decel_probe = dp_env ? atoi(dp_env) : 0;
+    /* late enough that the run has actually saturated: the walk core steps
+       the speed 0x1000 a frame and the run target is ~0x24000, so he needs
+       ~36 frames of held stick after the state settles before the tail
+       measured is a tail off TOP speed and not off a ramp. */
+    const int DECEL_RELEASE = (dp_env && atoi(dp_env) == 4) ? 170 : 80;
+    /* mode 4 only: how long he stands still with run held, charging +0x6e5 */
+    const int DASH_CHARGE_UNTIL = 110;
+    int decel_stopped = 0;
     /* the F3 overlay: off unless SM64DS_OVERLAY=1 says otherwise */
     g_overlay_on = getenv("SM64DS_OVERLAY") != 0;
     /* SM64DS_MENU=1 opens the menu at boot. Its KEYS are off under a selftest
@@ -1617,6 +1650,19 @@ int main(void)
             if (getenv("SM64DS_SELFTEST_RELEASE") && frame >= 50) dz = 0;
             /* reversal probe: hard 180 at speed (the skid-turn path) */
             if (getenv("SM64DS_SELFTEST_REVERSE") && frame >= 50) dz = -1;
+            /* decel probe: stick fully forward, then nothing at all */
+            if (decel_probe == 1 && frame >= DECEL_RELEASE) dz = 0;
+            /* =3 is the turn: a hard 180 at full run, which is the input
+               that should throw him into the skid state. "Tight turns drift
+               wide" is this path, so the log wants the heading too. */
+            if (decel_probe == 3 && frame >= DECEL_RELEASE) dz = -1;
+            /* =4 is the CHARGED DASH, and it is the one that matters. Stand
+               still with the run button held: St_Wait_Main runs 020d2fdc,
+               which counts +0x6e5 up to 0x1e and then arms the 30-frame dash
+               window at +0x6ed. Only then push the stick. That is the only
+               input that reaches the boost multiply in the walk core, which
+               is why every other probe here looked clean. */
+            if (decel_probe == 4 && frame < DASH_CHARGE_UNTIL) dz = 0;
         }
         if (key_live('W') || key_live(VK_UP)) dz += 1;
         if (key_live('S') || key_live(VK_DOWN)) dz -= 1;
@@ -1944,9 +1990,14 @@ int main(void)
             if (selftest && frame >= 30 && frame <= 33 &&
                 !getenv("SM64DS_SELFTEST_DASHJUMP") &&
                 !getenv("SM64DS_SELFTEST_PUNCH") &&
-                !getenv("SM64DS_SELFTEST_IDLE"))
+                !getenv("SM64DS_SELFTEST_IDLE") &&
+                !decel_probe)
                 btn |= 2;
             if (selftest && getenv("SM64DS_SELFTEST_DASH") && frame >= 20)
+                btn |= 0x800;
+            /* decel probe: dash held to build top run speed, released with
+               the stick so the tail measured is a pure ground decay */
+            if (decel_probe && frame < DECEL_RELEASE)
                 btn |= 0x800;
             /* the 0x100-press repro: characterize the "LT crash" --
                camera rotate HUD vs a crouch entry, the fault dump
@@ -2211,6 +2262,92 @@ int main(void)
                             *(unsigned char *)(c + 0x6e3),
                             *(unsigned char *)(c + 0x6e5));
             }
+            /* SM64DS_FORCE_STATE=ledgehang -- the HEDGE MAZE probe. Landing
+               on a hedge edge puts Mario in ST_LEDGE_HANG
+               (data_ov002_0210ffec) and every half of it used to be
+               unhosted, so the mapper no-op'd Main once a frame forever:
+               "unhosted state fn 0x020d0a44".
+               The real trigger is func_ov002_020d0580 -- airborne, falling,
+               and func_ov002_020d0178's raycast pair agrees there is a
+               ledge -- and it seats mStateStep=1 before it changes state.
+               Forcing it reproduces the hang without needing a hedge under
+               the selftest's feet, the same way the climb probe does.
+               What the state needs seated is what the grab would have left
+               behind: the heading facing INTO the wall (+0x8e, which
+               func_ov002_020d0178 writes as atan2(normal) + 0x8000), the
+               grab point (+0x5c/+0x60/+0x64, snapped to the ledge top), and
+               mStateStep=1 so Init picks the hang-idle anim 0x21 rather
+               than the grab-impact 0x22. He also has to be OFF the ground:
+               St_LedgeHang_Main lets go on the spot if mGroundY (+0x644) is
+               within 0x28000 of him, which on flat castle grounds it is. */
+            {
+                static int force_lh = -1;
+                if (force_lh < 0) {
+                    const char *fs = getenv("SM64DS_FORCE_STATE");
+                    force_lh = (fs && !strcmp(fs, "ledgehang")) ? 1 : 0;
+                }
+                if (force_lh && frame == 10) {
+                    /* Lift him to a plausible hedge top so the ground is a
+                       real distance below, and put speed on the clock. A
+                       real grab happens mid-fall; St_LedgeHang_Init is what
+                       zeroes +0x98 and +0xa8, so leaving them set is the
+                       whole of the slide. */
+                    *(int *)(c + 0x60) += 600 << 12;
+                    *(int *)(c + 0x98) = 0x8000;    /* 8 units/frame */
+                    *(int *)(c + 0xa8) = -0x4000;   /* falling */
+                    *(unsigned char *)(c + 0x6de) = 1;   /* airborne */
+                    *(unsigned char *)(c + 0x6e3) = 1;   /* what the trigger sets */
+                    /* Poison the two fields Init alone seats, so "Init never
+                       ran" is readable rather than inferred. */
+                    *(unsigned short *)(c + 0x6a6) = 0xbeef;
+                    *(unsigned char *)(c + 0x6e6) = 0xcd;
+                    fprintf(stderr, "[lh] frame 10: ChangeState -> "
+                            "ST_LEDGE_HANG (%p)  Init=0x020d0c54 "
+                            "Main=0x020d0a44 Cleanup=0x020d092c\n",
+                            (void *)data_ov002_0210ffec);
+                    _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                        data_ov002_0210ffec);
+                }
+                /* St_LedgeHang_Main's FIRST exit is "mIsAirborne != 0 ->
+                   func_ov002_020d0948 -> ST_FALL", and with no real hedge
+                   under the probe the collision sets airborne again the
+                   frame after Init clears it, so the hang ends immediately.
+                   That is the state behaving correctly -- nothing to hang
+                   on, so let go -- but it measures the let-go path instead
+                   of the hang. Holding the flag keeps the hang itself on
+                   screen for the length of the probe, the same device the
+                   walljump probe uses in reverse just below (it PINS
+                   airborne to keep St_WallJump_Main past ITS ground bail).
+                   SM64DS_LH_LETGO=1 removes the hold and measures the drop
+                   instead. */
+                if (force_lh && frame >= 10 && !getenv("SM64DS_LH_LETGO"))
+                    *(unsigned char *)(c + 0x6de) = 0;
+                /* 45 frames of hang. Every number here is one Init seats or
+                   Main advances: anim id lives at +0x63c as (id << 2), the
+                   speeds Init zeroes at +0x98/+0xa8, mIsAirborne at +0x6de,
+                   mStateWaitTimer at +0x6a6 (Init writes 2) and unk_6e6 at
+                   +0x6e6 (Init writes 0). Unhosted, the poison survives and
+                   the anim never changes. */
+                if (force_lh && frame >= 10 && frame <= 55 &&
+                    (frame % 5) == 0)
+                    fprintf(stderr, "[lh] frame %3d  anim=0x%02x horz=%d "
+                            "vert=%d air=%u step=%u wait=0x%04x unk6e6=0x%02x "
+                            "pos=(%d,%d,%d) groundY=%d\n",
+                            frame, *(unsigned *)(c + 0x63c) >> 2,
+                            *(int *)(c + 0x98), *(int *)(c + 0xa8),
+                            *(unsigned char *)(c + 0x6de),
+                            *(unsigned char *)(c + 0x6e3),
+                            *(unsigned short *)(c + 0x6a6),
+                            *(unsigned char *)(c + 0x6e6),
+                            *(int *)(c + 0x5c) >> 12, *(int *)(c + 0x60) >> 12,
+                            *(int *)(c + 0x64) >> 12,
+                            *(int *)(c + 0x644) >> 12);
+                if (force_lh && frame == 56) {
+                    fprintf(stderr, "[lh] 45 frames of hang survived, no "
+                            "fault\n");
+                    exit(0);
+                }
+            }
             if (force_wj && frame == 10) {
                 /* SM64DS_FORCE_CHAR=<0-3> picks the row: 0/2 (Mario, Wario)
                    are hosted, 1/3 (Luigi, Yoshi) are not and have to come
@@ -2250,6 +2387,46 @@ int main(void)
         if (real_boot)
             port_stage_path_guard(player);
         ph_end(PH_INPUT, t_phase);
+        /* THE DECEL CURVE. One line per frame after the tick, so the speed
+           printed is the one this frame's physics produced. dv is the change
+           since last frame -- the per-frame brake rate, which is the number
+           the DS comparison is actually about. The trailing fields are the
+           inputs to the branch that picks that rate: the slip class, the
+           brake rate 020bf56c hands back for it, the skid flag at +0x6e0,
+           the no-input latch at +0x6ac and the metal/underwater flag. */
+        if (decel_probe && !decel_stopped) {
+            static int prev_spd = 0, prev_px = 0, prev_pz = 0;
+            const int spd = *(int *)(c + 0x98);
+            const int cls = func_ov002_020c031c(c);
+            const int px = *(int *)(c + 0x5c), pz = *(int *)(c + 0x64);
+            /* step is what the speed scalar was WORTH in world units this
+               frame. If step and spd ever disagree the bug is downstream of
+               the integrator, in whatever turns heading+speed into motion. */
+            const double dxf = (px - prev_px) / 4096.0,
+                         dzf = (pz - prev_pz) / 4096.0;
+            fprintf(stderr,
+                    "[decel] f%-4d spd %8d (%7.3f)  dv %7d  step %6.3f  "
+                    "cls %d brake %6d  top %6d  6e0 %d 6ac %d 703 %d 6ed %2d "
+                    "6e5 %2d  ang %04x->%04x\n",
+                    frame, spd, spd / 4096.0, spd - prev_spd,
+                    frame ? sqrt(dxf * dxf + dzf * dzf) : 0.0, cls,
+                    func_ov002_020bf56c(c, 0x2000),
+                    Player_ScaleByCharFactor(c, 0x28000),
+                    *(unsigned char *)(c + 0x6e0),
+                    *(unsigned short *)(c + 0x6ac),
+                    *(unsigned char *)(c + 0x703),
+                    *(unsigned char *)(c + 0x6ed),
+                    *(unsigned char *)(c + 0x6e5),
+                    (unsigned short)*(short *)(c + 0x94),
+                    (unsigned short)*(short *)(c + 0x6d2));
+            prev_px = px; prev_pz = pz;
+            if (decel_probe == 1 && frame > DECEL_RELEASE && spd == 0) {
+                fprintf(stderr, "[decel] stopped at frame %d (%d frames "
+                        "after release)\n", frame, frame - DECEL_RELEASE);
+                decel_stopped = 1;
+            }
+            prev_spd = spd;
+        }
         if (selftest && frame == 0)
             fprintf(stderr, "[w] ticked\n");
         /* the camera's own frame: Behavior runs the state machine and

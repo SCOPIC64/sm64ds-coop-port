@@ -355,6 +355,8 @@ enum {
 
 static void *g_stage_mc;
 
+extern "C" void port_scene_canary(const char *where);
+
 /* `spawn` selects the stage: 0 = A1, the same boot with every spawner
    switched off (the geometry regression); 1 = the level's own object load. */
 void *port_stage_a_boot(void *mc, int spawn)
@@ -393,13 +395,34 @@ void *port_stage_a_boot(void *mc, int spawn)
        The same bit is the one Player::InitResources tests to decide whether
        to load the character's voice bank -- the identical unhosted sound
        path. So it has to be CLEAR when the Player initialises.
-       Scoping it to the boot satisfies both while the Player is still the
-       harness's (Stage A1). Stage C, which brings the sound seam, is where
-       the bit gets to mean what it means. */
+       Scoping it to the boot satisfied both while the Player was still the
+       harness's (Stage A1).
+
+       IT STAYS SET NOW, and that is the third job the same bit does: it is
+       what the whole bottom screen renders through. HUD::Behavior and
+       HUD::Render both open on
+
+           if ((data_0209caa0[2] & 0x80) == 0) return 1;
+
+       -- the adventure-mode branch draws the health meter, the coins, the
+       stars, the timer and the camera buttons, and with the bit clear it
+       returns before any of them. Clearing it after the boot left a hosted,
+       ticking, correctly-constructed HUD that drew nothing at all.
+
+       Leaving it set is the state the real game is in during gameplay: the
+       intro HAS played by the time a level is being walked around in. The
+       restore was only ever protecting Player::InitResources' voice-bank
+       load, and the Player initialises INSIDE the boot -- while the bit is
+       set either way -- so the restore was not protecting anything by the
+       time the entrance started spawning him.
+
+       SM64DS_INTRO_UNSEEN=1 puts the old behaviour back, which is also how to
+       see the pre-intro cloud backdrop the bottom screen shows without it. */
     unsigned char intro_seen = (unsigned char)(data_0209caa0[8] & 0x80);
     data_0209caa0[8] |= 0x80;   /* word 2 bit 7: the intro has played */
     _ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR12MeshCollider(o, 0, mc);
-    if (!intro_seen)
+    port_scene_canary("after LoadClsnAndObjects");
+    if (!intro_seen && std::getenv("SM64DS_INTRO_UNSEEN"))
         data_0209caa0[8] &= ~0x80;
 
     /* RISK 1 IS CLOSED, and not by writing anything here. The real SetFile

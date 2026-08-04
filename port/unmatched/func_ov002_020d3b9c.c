@@ -66,7 +66,13 @@ int func_ov002_020d3b9c(char *c)
     }
     else
     {
-      u8 mode = *((u8 *) (data_0209f4ae[idx]));
+      /* the ROM is `ldrb r3, [r0, r1]` at 020D3C70 with r0 = &data_0209f4ae
+         and r1 = idx: the BYTE at that offset. The draft took the byte and
+         then dereferenced it as a pointer, which reads address 0..255. It
+         has never fired because the port leaves data_0209f4ac at 0 and only
+         the stylus control mode reaches here, but it is a fault waiting for
+         the first touch-mode frame. */
+      u8 mode = (u8) data_0209f4ae[idx];
       s16 stick2 = *((s16 *) (((char *) data_0209f4a0) + idx));
       if (stick2 <= ((mode != 2) ? (0x471) : (0x555)))
       {
@@ -106,7 +112,12 @@ int func_ov002_020d3b9c(char *c)
       else
       {
         u8 *p = (u8 *) ((void *) ((int) (((long long) ((int) (((char *) self) + 0x6ED))) & 0xFFFFFFFFFFFFFFFFLL)));
-        spd = (int) (((((long long) spd) * 0x88888889LL) + 0x800) >> 12);
+        /* 0x1333 is the ROM's literal at 020D412C, loaded by the ldr at
+           020D3D7C: the dash boost is target * 1.2. The draft had
+           0x88888889 here, which is the DIVIDE-BY-30 magic from the next
+           pool slot at 020D4134 (the h/30 cap further down this function),
+           picked up out of the wrong literal. */
+        spd = (int) (((((long long) spd) * 0x1333LL) + 0x800) >> 12);
         *p = (u8) ((*p) - 1);
         acc = 0x1e000;
         func_ov002_020bf88c(self);

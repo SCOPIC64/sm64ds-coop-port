@@ -557,6 +557,21 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    needs two aliases because the two sources spell its type differently. */
 #pragma comment(linker, "/alternatename:?data_ov002_021106f4@@3PADA=_data_ov002_021106f4")
 #pragma comment(linker, "/alternatename:?data_ov002_021106f4@@3PAHA=_data_ov002_021106f4")
+/* ST_LEDGE_HANG (data_ov002_0210ffec): the same case as ST_CLIMB above.
+   All three St_LedgeHang halves pull their declarations from
+   include/decl_common.h, which is not wrapped in extern "C", so every
+   reference comes out C++-mangled against a C-named definition. Init's
+   SetPosRelativeToActor is worse -- it is declared at file scope in the
+   source itself, outside any extern "C" -- and 02110004 (ST_LEDGE_GRAB,
+   the pull-up Main changes into) is the data half of the same problem.
+   Seven references, seven aliases; the sources stay byte-verified. */
+#pragma comment(linker, "/alternatename:?func_ov002_020cfaf0@@YAHPAX@Z=_func_ov002_020cfaf0")
+#pragma comment(linker, "/alternatename:?func_ov002_020cfbdc@@YAHPAX@Z=_func_ov002_020cfbdc")
+#pragma comment(linker, "/alternatename:?func_ov002_020cfea4@@YAHPAX@Z=_func_ov002_020cfea4")
+#pragma comment(linker, "/alternatename:?func_ov002_020d0948@@YAXPAX@Z=_func_ov002_020d0948")
+#pragma comment(linker, "/alternatename:?func_ov002_020e63a4@@YAXPAX@Z=_func_ov002_020e63a4")
+#pragma comment(linker, "/alternatename:?data_ov002_02110004@@3PAHA=_data_ov002_02110004")
+#pragma comment(linker, "/alternatename:?_ZN25MovingCylinderClsnWithPos21SetPosRelativeToActorERK7Vector3@@YAXPADPAUVec3@@@Z=__ZN25MovingCylinderClsnWithPos21SetPosRelativeToActorERK7Vector3")
 #pragma comment(linker, "/alternatename:?Player_ReleaseHeldActor@@YAHPAD@Z=_Player_ReleaseHeldActor")
 #pragma comment(linker, "/alternatename:?func_ov002_020e3078@@YAHPAX0@Z=_func_ov002_020e3078")
 #pragma comment(linker, "/alternatename:?func_ov002_020caf68@@YAHPAX@Z=_func_ov002_020caf68")

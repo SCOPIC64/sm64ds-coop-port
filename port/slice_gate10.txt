@@ -1011,6 +1011,26 @@ src/_ZN6Player21St_JumpQuicksand_MainEv.cpp
 src/_ZN6Player21St_JumpQuicksand_InitEv.cpp
 src/_ZN6Player17St_LedgeGrab_MainEv.cpp
 src/_ZN6Player17St_LedgeGrab_InitEv.cpp
+# ST_LEDGE_HANG (data_ov002_0210ffec). Its three slots are the sinit's
+# lo/hi/tail at 0x0210a41c/0x0210a06c/0x02109eec, which relocate to
+# St_LedgeHang_Init/_Main/_Cleanup. This is the state the ledge grab
+# (func_ov002_020d0580, already in this manifest) changes into, and it was
+# hosted nowhere: landing on a hedge edge left Main no-op'd every frame.
+src/_ZN6Player17St_LedgeHang_InitEv.cpp
+src/_ZN6Player17St_LedgeHang_MainEv.cpp
+src/_ZN6Player20St_LedgeHang_CleanupEv.cpp
+# The helpers St_LedgeHang_Main reaches for. 020d0948 is the LET GO path
+# (nudges him off the wall and changes to ST_FALL); 020cfaf0 and 020cfbdc
+# are the wall-still-there and shimmy-forward raycast probes. The fourth,
+# func_ov002_020cfea4, has no source anywhere -- port/unmatched.
+src/func_ov002_020d0948.c
+src/func_ov002_020cfaf0.cpp
+# func_ov002_020cfbdc is NOT here: decl_common.h declares it taking void* and
+# its own TU defines it taking char*, which was two symbols while the header
+# was C++-mangled and is one extern "C" overload since main's sweep. It goes
+# through hostgen (GATE10_SYMS in CMakeLists.txt), which shadows the header's
+# declaration for that one name.
+port/unmatched/func_ov002_020cfea4.cpp
 src/_ZN6Player24St_MetalWaterGround_MainEv.cpp
 src/_ZN6Player24St_MetalWaterGround_InitEv.cpp
 src/_ZN6Player23St_MetalWaterWater_MainEv.cpp
