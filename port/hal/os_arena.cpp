@@ -11,6 +11,21 @@ typedef unsigned int u32;
 enum { HOST_ARENA = 8 << 20 };   /* 8 MB: larger than the DS main-RAM arena */
 
 static char *g_lo, *g_hi;
+
+/* THE ARENA HAS TO BE DETERMINISTIC. It was a plain malloc, which left two
+   things different on every run: the contents (whatever the host allocator
+   last had there) and the absolute base. Both reach the game. Anything that
+   reads a field before writing it picks up the old contents, and the carve in
+   func_02058cd0 rounds `lo` up against the ABSOLUTE address, so a base that
+   is not aligned to at least the largest alignment the game asks for shifts
+   every later allocation by a different amount.
+   The symptom was a walk_window selftest that produced five different final
+   frames in six identical runs -- Mario ended up somewhere else each time,
+   which makes any before/after comparison of the renderer meaningless.
+   calloc zeroes it (the DS arena is cleared main RAM) and the 64K alignment
+   makes every carve offset identical from one run to the next. */
+enum { ARENA_ALIGN = 0x10000 };
+
 static void arena_init(void)
 {
     if (!g_lo) {
@@ -18,7 +33,10 @@ static void arena_init(void)
         const char *env = getenv("SM64DS_HOST_ARENA_MB");
         size_t mb = env ? (size_t)atoi(env) : 0;
         size_t size = mb ? mb << 20 : (size_t)HOST_ARENA;
-        g_lo = (char *)malloc(size);
+        char *base = (char *)calloc(size + ARENA_ALIGN, 1);
+        if (!base) return;
+        g_lo = (char *)(((size_t)base + (ARENA_ALIGN - 1))
+                        & ~(size_t)(ARENA_ALIGN - 1));
         g_hi = g_lo + size;
     }
 }
