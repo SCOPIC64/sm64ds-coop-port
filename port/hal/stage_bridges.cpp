@@ -39,6 +39,7 @@ extern unsigned char _ZN5Stage9spawnDataE[];
 extern void **data_020a4bb8;          /* actorID -> SpawnInfo* */
 extern unsigned short data_020a4b54;  /* the PENDING actor id the ctor reads */
 extern int data_020a4b6c[];           /* the scene tree */
+extern void *data_0209f314;           /* the level AREA table (Stage+0x8bc) */
 
 /* ---- the vtable -----------------------------------------------------------
    ROM SLOT ORDER, the same law as the Camera's (hal/camera_bridges.cpp) and
@@ -224,6 +225,25 @@ extern "C" void *port_stage_create(void)
     std::printf("[stage] flags +0x13 = 0x%02x after the stand-in clear "
                 "(ctor leaves 0x05; Scene::BeforeBehavior owns this on the "
                 "ROM)\n", *(unsigned char *)((char *)g_stage + 0x13));
+    /* ---- the AREA TABLE, which Stage::InitResources owns ------------------
+       Stage+0x8bc is the level's area table (stride 0xc: the area's
+       TextureTransformer at +0, the "is this area showing" flag at +4).
+       ShowArea/HideArea/IsAreaShowing all reach it through data_0209f314, and
+       Stage::InitResources' own line is
+
+           data_0209f314 = (void *)((char *)thiz + 0x8bc);
+
+       The port had it pointed at a 64-entry static in hal/camera_bridges.cpp
+       instead, seated back when no Stage existed. That static is exactly why
+       Stage::RenderModel drew an empty world the first time it was switched
+       on: Camera::InitResources calls ChangeArea with the entrance's area,
+       ChangeArea calls ShowArea, and ShowArea was setting the flag in the
+       HARNESS table while RenderModel read the Stage's own -- which is zero,
+       and a zero flag means "this area is hidden", so every component of the
+       castle got bit 31 set and the level vanished.
+       Seated here, before the boot, because the Camera is spawned inside it. */
+    data_0209f314 = (char *)g_stage + 0x8bc;
+
     std::printf("[stage] Stage actor %p (id %u, prio beh %u ren %u), "
                 "collider +0x91c %p, model +0x86c %p\n", g_stage, stage_id,
                 *(unsigned short *)(_ZN5Stage9spawnDataE + 4),
@@ -267,3 +287,14 @@ extern "C" void port_stage_tree_probe(void *child, const char *what)
                 parent == (void *)s ? " (THE STAGE)" : "",
                 *(unsigned char *)(c + 0x13));
 }
+
+// ---- the render face -------------------------------------------------------
+//
+// Stage::RenderModel is a real MSVC method compiled against include/Stage.h,
+// so it lands in the map as ?RenderModel@Stage@@QAEXXZ and no C caller can
+// spell it. Same face pattern as hal/method_faces.cpp.
+#include "Stage.h"
+extern "C" void port_stage_render_model(void *self)
+{ ((Stage *)self)->Stage::RenderModel(); }
+extern "C" void port_stage_render_model_transparent(void *self)
+{ ((Stage *)self)->Stage::RenderModelTransparent(); }

@@ -248,6 +248,8 @@ void *port_stage_a_boot(void *mc, int spawn_entrances);
 void port_stage_a_probe(void *mc);
 void *port_stage_create(void);   /* hal/stage_bridges.cpp: the real Stage actor */
 void port_stage_tree_probe(void *child, const char *what);
+void port_stage_render_model(void *self);  /* Stage::RenderModel, matched src */
+void port_stage_render_model_transparent(void *self);
 void _ZN5Stage9LoadModelEv(char *self);   /* matched src, slice_gate24 */
 extern int data_0209f320;                 /* the Stage's ModelComponents */
 int port_stage_path_guard(void *player);
@@ -1642,7 +1644,17 @@ int main(void)
             printf("probe: player scale vec c+0x80 = (%d, %d, %d) fx\n",
                    *(int *)(c + 0x80), *(int *)(c + 0x84), *(int *)(c + 0x88));
             ntr::gx_reset();
-            hal_render_model(level_model, level_shift);
+            if (real_boot) {
+                /* Stage::Render's own order: the opaque pass, then the
+                   translucent one. Both are the same Model drawn twice with
+                   inverse visibility masks -- the moat water only exists in
+                   the second. (ShadowModel::RenderAll sits between them on the
+                   ROM; the port's shadows are still the actors' own.) */
+                port_stage_render_model(stage);
+                port_stage_render_model_transparent(stage);
+            } else {
+                hal_render_model(level_model, level_shift);
+            }
             n = 0;
             ta = ntr::gx_polygons(n);
             for (int k = 0; k < 3; ++k) { mn[k] = 1e30f; mx[k] = -1e30f; }
@@ -1946,7 +1958,17 @@ int main(void)
             push_camera(dbg_eye, dbg_at);
         }
         if (!getenv("SM64DS_NO_LEVEL"))
-            hal_render_model(level_model, level_shift);
+            if (real_boot) {
+                /* Stage::Render's own order: the opaque pass, then the
+                   translucent one. Both are the same Model drawn twice with
+                   inverse visibility masks -- the moat water only exists in
+                   the second. (ShadowModel::RenderAll sits between them on the
+                   ROM; the port's shadows are still the actors' own.) */
+                port_stage_render_model(stage);
+                port_stage_render_model_transparent(stage);
+            } else {
+                hal_render_model(level_model, level_shift);
+            }
         /* phase 1, which is where func_02044120 ends: the scene tree's own
            housekeeping -- priority re-sorts, parent flag propagation, and the
            deferred list insertions for anything that spawned mid-phase. */

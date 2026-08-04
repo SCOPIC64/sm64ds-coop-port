@@ -27,3 +27,21 @@ src/_ZN5StageC1Ev.c
 # Its one unresolved name was Model::LoadAndSetFile, a real MSVC member reached
 # here by its C name; hal/method_faces.cpp carries the __thiscall face.
 src/_ZN5Stage9LoadModelEv.cpp
+
+# The level RENDER. Not simply a Render call: Stage::RenderModel is the
+# level's per-AREA visibility pass. Stage+0x8bc is the area table (stride 0xc:
+# the area's TextureTransformer at +0, the "is this area showing" flag at +4,
+# which ShowArea/HideArea toggle and IsAreaShowing reads), and for each area
+# the loop either clears or sets bit 31 of every component's polygon-attribute
+# word before handing the whole model to Model::Render with the ROM's own
+# {125.0, 125.0, 125.0} scale.
+src/_ZN5Stage11RenderModelEv.cpp
+
+# ...and its companion. Stage::Render's own order is RenderModel,
+# ShadowModel::RenderAll, RenderModelTransparent, and the two model passes are
+# exact inverses: RenderModel keeps the components whose polygon-attribute
+# alpha field is 0x1f0000 (fully opaque) and hides the rest, this one keeps
+# exactly the rest. Running only the first drew the castle grounds with its
+# moat EMPTY -- the water is translucent, so the opaque pass hides it and
+# nothing brought it back.
+src/_ZN5Stage22RenderModelTransparentEv.cpp
