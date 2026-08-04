@@ -16,6 +16,10 @@
 #include "Heap.h"
 #include "ModelAnim.h"
 
+/* how many times hal_call_state_fn fell off the end of its switch this run --
+   read by the F3 overlay in port/tests/walk_window.cpp */
+extern "C" unsigned g_port_unhosted_hits = 0;
+
 extern "C" unsigned int _ZNK6Player14GetBodyModelIDEjb(char *, unsigned int, char);
 extern "C" unsigned func_ov002_020becf4(char *self, unsigned j, int b);
 extern "C" int _ZN6Player13InitResourcesEv(void *);
@@ -316,6 +320,11 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
     switch (ds_addr) {
 #include "player_states.inc"
     }
+    /* Every miss here is a state the port silently does not run, and the only
+       record of it used to be a line in the flight recorder that nobody reads
+       until after the glitch. The counter is what the F3 overlay shows live,
+       so a state hole announces itself while it is happening. */
+    ++g_port_unhosted_hits;
     std::fprintf(stderr, "  [state] unhosted state fn 0x%08x (no-op)\n",
                  ds_addr);
     return 1;

@@ -10,7 +10,26 @@
 // 19-state machine, its mode-preset table and its own published heading --
 // which is what turns "forward" on the stick into a world direction.
 //
-//   WASD / arrows  walk    Q/E  orbit    C  snap behind    ESC  quit
+//   WASD / arrows  walk    Q/E  orbit    C  behind Mario    ESC  quit
+//   F1  cycles the camera: ANALOG (the default) -> FREECAM -> DS-EXACT.
+//   Analog is a chase rig the port owns: it orbits Mario on the right stick's
+//   analog curve instead of the DS's 5.625-degree steps, tilts, zooms on the
+//   bumpers, and drifts back behind him when the stick is idle and he is
+//   moving. DS-exact is the hardware's stepped rotate, unchanged. In every
+//   mode the Camera actor itself keeps running and is never written to.
+//   MOUSE  hold the right button and drag to look (the pointer springs back
+//   to where it was picked up, so the look never runs out of desk); the wheel
+//   zooms. Both work in analog and in freecam and do nothing in DS-exact.
+//   The last left click is published in framebuffer pixels for the touch
+//   bridge; see g_mouse_click_x.
+//   F5  the debug menu: warp to any of the level's own entrances, the fake-
+//   snap A/B, the overlay, the camera mode, and the recorder's filename.
+//   Arrows or the d-pad move, enter or A acts. It PAUSES THE GAME TICK while
+//   it is open and keeps rendering, so the scene freezes and the view does not.
+//   F3  the stats overlay: frame rate, the per-phase millisecond budget,
+//   triangle and actor counts, where Mario is and what state he is in, and
+//   how many times the port has fallen through a state it does not host.
+//   Drawn into the framebuffer, so it survives into the selftest BMP.
 //   F1 (or a click of the right stick)  the FREECAM mod: the harness takes
 //   the view, the right stick orbits and tilts it, the bumpers or R/F zoom,
 //   C re-centres it behind Mario. F1 again hands the view back. Everything
@@ -34,7 +53,18 @@
 //                           scaffolding was covering for: a 28-unit bob at
 //                           20 Hz that never settles
 //      SM64DS_OLD_CAMERA=1  the pre-gate-13 hand-tuned follow rig
-//      SM64DS_FREECAM=1     start in the freecam mod (F1 toggles either way)
+//      SM64DS_FREECAM=1     start in the freecam (F1 cycles either way)
+//      SM64DS_DS_CAMERA=1   start in DS-exact stepped rotate. This is also
+//                           what a SELFTEST defaults to: its BMP is a
+//                           byte-comparison against the hardware's framing and
+//                           its camera probes drive the DS rotate bits.
+//      SM64DS_ANALOG_CAMERA=1  put a selftest in the analog camera
+//      SM64DS_OVERLAY=1     boot with the F3 stats overlay already on
+//      SM64DS_MENU=1        boot with the F5 debug menu open
+//      SM64DS_TRACE_PACE=1  per-frame pacer trace: the work time, the sleep
+//                           that was asked for and the sleep that happened.
+//                           The third number is the one that matters -- see
+//                           the pacer block for what makes it lie.
 //      SM64DS_TRACE_CAM=1   per-frame camera input trace: the pad words the
 //                           rotate logic reads, the camera's heading, its
 //                           two latches, the rig, and the published angle
@@ -70,8 +100,32 @@ struct WinApi {
     SHORT(WINAPI *GetAsyncKeyState_)(int);
     int(WINAPI *StretchDIBits_)(HDC, int, int, int, int, int, int, int, int,
                                 const void *, const BITMAPINFO *, UINT, DWORD);
+    HWND(WINAPI *SetCapture_)(HWND);
+    BOOL(WINAPI *ReleaseCapture_)(void);
+    BOOL(WINAPI *GetCursorPos_)(POINT *);
+    BOOL(WINAPI *SetCursorPos_)(int, int);
+    int(WINAPI *ShowCursor_)(BOOL);
+    /* winmm: the frame pacer's Sleep granularity (see pacer_begin below) */
+    unsigned(WINAPI *timeBeginPeriod_)(unsigned);
+    unsigned(WINAPI *timeEndPeriod_)(unsigned);
+    /* kernel32: opting out of the power throttling that would otherwise make
+       the line above a no-op (see pacer_begin) */
+    BOOL(WINAPI *SetProcessInformation_)(HANDLE, int, void *, DWORD);
+    /* psapi: the overlay's working-set line */
+    BOOL(WINAPI *GetProcessMemoryInfo_)(HANDLE, void *, DWORD);
 };
 static WinApi W;
+
+/* PROCESS_MEMORY_COUNTERS, spelled here rather than including psapi.h, so the
+   dynamic-load pattern above is the only dependency on the DLL. */
+struct PortMemCounters {
+    DWORD cb;
+    DWORD PageFaultCount;
+    SIZE_T PeakWorkingSetSize, WorkingSetSize;
+    SIZE_T QuotaPeakPagedPoolUsage, QuotaPagedPoolUsage;
+    SIZE_T QuotaPeakNonPagedPoolUsage, QuotaNonPagedPoolUsage;
+    SIZE_T PagefileUsage, PeakPagefileUsage;
+};
 
 /* XInput, loaded dynamically like user32 (no static import chain) */
 struct XPad {
@@ -99,6 +153,29 @@ static bool winapi_load(void)
     W.AdjustWindowRect_ = (decltype(W.AdjustWindowRect_))GetProcAddress(u, "AdjustWindowRect");
     W.GetAsyncKeyState_ = (decltype(W.GetAsyncKeyState_))GetProcAddress(u, "GetAsyncKeyState");
     W.StretchDIBits_ = (decltype(W.StretchDIBits_))GetProcAddress(g, "StretchDIBits");
+    W.SetCapture_ = (decltype(W.SetCapture_))GetProcAddress(u, "SetCapture");
+    W.ReleaseCapture_ = (decltype(W.ReleaseCapture_))GetProcAddress(u, "ReleaseCapture");
+    W.GetCursorPos_ = (decltype(W.GetCursorPos_))GetProcAddress(u, "GetCursorPos");
+    W.SetCursorPos_ = (decltype(W.SetCursorPos_))GetProcAddress(u, "SetCursorPos");
+    W.ShowCursor_ = (decltype(W.ShowCursor_))GetProcAddress(u, "ShowCursor");
+    if (HMODULE mm = LoadLibraryA("winmm.dll")) {
+        W.timeBeginPeriod_ =
+            (decltype(W.timeBeginPeriod_))GetProcAddress(mm, "timeBeginPeriod");
+        W.timeEndPeriod_ =
+            (decltype(W.timeEndPeriod_))GetProcAddress(mm, "timeEndPeriod");
+    }
+    /* GetProcessMemoryInfo lives in psapi.dll, and since Windows 7 also in
+       kernel32 under the K32 prefix; take whichever answers. */
+    if (HMODULE ps = LoadLibraryA("psapi.dll"))
+        W.GetProcessMemoryInfo_ = (decltype(W.GetProcessMemoryInfo_))
+            GetProcAddress(ps, "GetProcessMemoryInfo");
+    if (HMODULE k = GetModuleHandleA("kernel32.dll")) {
+        if (!W.GetProcessMemoryInfo_)
+            W.GetProcessMemoryInfo_ = (decltype(W.GetProcessMemoryInfo_))
+                GetProcAddress(k, "K32GetProcessMemoryInfo");
+        W.SetProcessInformation_ = (decltype(W.SetProcessInformation_))
+            GetProcAddress(k, "SetProcessInformation");
+    }
     {
         const char *dlls[] = {"xinput1_4.dll", "xinput1_3.dll",
                               "xinput9_1_0.dll"};
@@ -116,6 +193,7 @@ static bool winapi_load(void)
 #include "ntr/ppu.h"
 
 #include "fault_probe.h"
+#include "overlay_font.h"
 
 typedef unsigned int u32;
 
@@ -242,6 +320,13 @@ extern int data_0209b454[];
 extern int data_0209ee90[];
 extern int data_020a4b60[];
 extern int g_walk_dbg[16];     /* collision-walk telemetry (port/unmatched) */
+/* the overlay's "unhosted" counter: hal/player_bridges.cpp bumps this every
+   time the state dispatcher falls off the end of its switch */
+extern unsigned g_port_unhosted_hits;
+/* the level's own entrance sub-table, kept by the boot for the debug menu's
+   warp list (hal/level_boot.cpp) */
+int port_entrance_count(void);
+int port_entrance_record(int i, int *x, int *y, int *z, int *yaw);
 /* the real level boot (hal/level_boot.cpp) */
 void port_ov009_probe(void);
 void *port_stage_a_boot(void *mc, int spawn_entrances);
@@ -280,6 +365,220 @@ static const int ZOOM = 2;
 static const int ZOOM = 3;
 #endif
 static void *g_mc;
+
+/* ---- THE FRAME PACER'S CLOCK ------------------------------------------
+   The loop below sleeps out the remainder of a 33.3ms budget. Sleep's
+   resolution is the SYSTEM TIMER TICK, which defaults to 15.6ms: a request for
+   4ms returns after 15.6, so a frame with 4ms of slack overshot the budget by
+   a whole tick and the next one came early making it up. That is the judder in
+   the pacing -- not the raster, the sleep.
+
+   timeBeginPeriod(1) pulls the tick to 1ms for this process and the sleep
+   lands within a millisecond of what was asked. Paired with timeEndPeriod
+   through atexit, so the process cannot leave the system clock raised on the
+   way out -- including the selftest's early return and the WM_QUIT one.
+
+   AND THAT IS NOT ENOUGH ON ITS OWN, which cost an hour to find. On Windows 11
+   timeBeginPeriod(1) returns TIMERR_NOERROR and is then quietly ignored for a
+   process the power manager has decided is a background one: measured here,
+   the call succeeded and Sleep(9) still took 22.7ms, with the whole frame
+   period pinned to 46.8ms -- three ticks of the 15.6ms default, exactly what
+   an unraised clock produces. The opt-out is a power-throttling request:
+   ProcessPowerThrottling with IGNORE_TIMER_RESOLUTION in the control mask and
+   CLEAR in the state mask, which reads as "I am managing this, and the answer
+   is do not throttle me". SetProcessInformation is resolved dynamically like
+   everything else, so this still runs on anything older that lacks it. */
+enum {
+    PORT_PROCESS_POWER_THROTTLING = 4,   /* ProcessPowerThrottling */
+    PORT_POWER_THROTTLING_VERSION = 1,
+    PORT_IGNORE_TIMER_RESOLUTION = 0x4
+};
+struct PortPowerThrottlingState {
+    unsigned Version, ControlMask, StateMask;
+};
+static int g_pacer_period;
+
+static void pacer_end(void)
+{
+    if (g_pacer_period && W.timeEndPeriod_) {
+        W.timeEndPeriod_(g_pacer_period);
+        g_pacer_period = 0;
+    }
+}
+
+static void pacer_begin(void)
+{
+    if (W.SetProcessInformation_) {
+        PortPowerThrottlingState pt;
+        pt.Version = PORT_POWER_THROTTLING_VERSION;
+        pt.ControlMask = PORT_IGNORE_TIMER_RESOLUTION;
+        pt.StateMask = 0;                 /* 0 = honour the raised timer */
+        W.SetProcessInformation_(GetCurrentProcess(),
+                                 PORT_PROCESS_POWER_THROTTLING, &pt,
+                                 sizeof pt);
+    }
+    if (!W.timeBeginPeriod_ || g_pacer_period) return;
+    if (W.timeBeginPeriod_(1) != 0) return;   /* != TIMERR_NOERROR */
+    g_pacer_period = 1;
+    atexit(pacer_end);
+}
+
+/* ---- THE DEBUG OVERLAY (port mod) -------------------------------------
+   F3. Text drawn INTO THE FRAMEBUFFER, after gx_render and before the blit,
+   with the 8x8 font in overlay_font.h. Three consequences worth stating,
+   because they are why it is done this way rather than with GDI TextOut:
+
+   - it works at every tier. fb is 512x384 in this build and 1024x768 in
+     walk_window_hires, and the same code covers both because it never names a
+     resolution -- ntr::SCREEN_W/H and a scale derived from them.
+   - it lands in the BMP the selftest dumps, so a CI shot can show its own
+     numbers.
+   - it costs the raster nothing: it is a byte loop over already-rasterised
+     pixels, outside gx entirely.
+
+   Default OFF, so a plain selftest dump is unchanged. SM64DS_OVERLAY=1 boots
+   with it on. */
+static const int OVL_SCALE = ntr::SCREEN_W >= 1024 ? 2 : 1;
+static const int OVL_LINE = (OVL_GLYPH_H + 2) * OVL_SCALE;
+
+static void ovl_shade(ntr::Framebuffer &fb, int x0, int y0, int w, int h)
+{
+    /* half-strength darken of what is already there, so the text reads over
+       sky and over stone without hiding the frame behind it */
+    for (int y = y0; y < y0 + h; ++y) {
+        if (y < 0 || y >= ntr::SCREEN_H) continue;
+        for (int x = x0; x < x0 + w; ++x) {
+            if (x < 0 || x >= ntr::SCREEN_W) continue;
+            const uint32_t p = fb.px[y][x];
+            fb.px[y][x] = 0xFF000000u | ((p >> 1) & 0x007F7F7Fu);
+        }
+    }
+}
+
+static int ovl_text(ntr::Framebuffer &fb, int x0, int y0, const char *s,
+                    uint32_t rgb)
+{
+    int x = x0;
+    for (; *s; ++s) {
+        const unsigned char ch = (unsigned char)*s;
+        if (ch < 0x20 || ch > 0x7e) { x += OVL_ADVANCE * OVL_SCALE; continue; }
+        const unsigned char *g = OVL_FONT[ch - 0x20];
+        for (int r = 0; r < OVL_GLYPH_H; ++r) {
+            const unsigned char bits = g[r];
+            if (!bits) continue;
+            for (int c = 0; c < OVL_GLYPH_W; ++c) {
+                if (!(bits & (0x80 >> c))) continue;
+                const int px = x + c * OVL_SCALE, py = y0 + r * OVL_SCALE;
+                for (int sy = 0; sy < OVL_SCALE; ++sy)
+                    for (int sx = 0; sx < OVL_SCALE; ++sx) {
+                        const int fx = px + sx, fy = py + sy;
+                        if (fx < 0 || fx >= ntr::SCREEN_W || fy < 0 ||
+                            fy >= ntr::SCREEN_H)
+                            continue;
+                        fb.px[fy][fx] = rgb;
+                    }
+            }
+        }
+        x += OVL_ADVANCE * OVL_SCALE;
+    }
+    return x - x0;
+}
+
+/* the per-phase clock. One QueryPerformanceCounter pair per phase and a
+   1-second exponential average, so the numbers are readable instead of
+   flickering with whatever the OS did to that one frame. */
+struct PhaseClock {
+    LARGE_INTEGER qpf, mark;
+    double ms[8];        /* smoothed, indexed by the enum below */
+    double raw[8];
+};
+enum {
+    PH_INPUT = 0,   /* keys, pad, Stage::CheckInput, the actor tick */
+    PH_CAMERA,      /* Camera::Behavior + the heading echo */
+    PH_SUBMIT,      /* actor bucket + level model + player: geometry into gx */
+    PH_RASTER,      /* ntr::gx_render */
+    PH_BLIT,        /* StretchDIBits */
+    PH_FRAME,       /* the whole loop body, pacing excluded */
+    PH_COUNT
+};
+static PhaseClock g_clk;
+
+static double ovl_now_ms(void)
+{
+    LARGE_INTEGER n;
+    if (!g_clk.qpf.QuadPart) QueryPerformanceFrequency(&g_clk.qpf);
+    QueryPerformanceCounter(&n);
+    return n.QuadPart * 1000.0 / g_clk.qpf.QuadPart;
+}
+static void ph_begin(double *slot) { *slot = ovl_now_ms(); }
+static void ph_end(int idx, double start)
+{
+    const double d = ovl_now_ms() - start;
+    g_clk.raw[idx] = d;
+    g_clk.ms[idx] += (d - g_clk.ms[idx]) * 0.1;
+}
+
+struct OvlStats {
+    double fps;              /* frames presented per second, smoothed */
+    double tps;              /* GAME ticks per second -- diverges from fps
+                                whenever the debug menu pauses the tick */
+    int tris;                /* polygons gx accepted this frame */
+    int actors;              /* live entries on the behaviour list */
+    char *player;            /* the Player actor */
+    const char *cam_name;
+    unsigned mem_kb;         /* working set */
+    int menu_paused;
+};
+
+static void ovl_draw(ntr::Framebuffer &fb, const OvlStats &s)
+{
+    char ln[10][96];
+    int n = 0;
+    const uint32_t WHITE = 0xFFFFFFFFu, AMBER = 0xFFFFC040u,
+                   GREEN = 0xFF80FF80u, RED = 0xFFFF6060u;
+    uint32_t col[10];
+    char *c = s.player;
+    void *st = c ? *(void **)(c + 0x370) : 0;
+
+    snprintf(ln[n], sizeof ln[0], "fps %5.1f   tick %5.1f/30%s", s.fps, s.tps,
+             s.menu_paused ? "  PAUSED" : "");
+    col[n++] = s.fps >= 28.0 ? GREEN : (s.fps >= 20.0 ? AMBER : RED);
+    snprintf(ln[n], sizeof ln[0], "frame %5.2fms  in+tick %5.2f  cam %5.2f",
+             g_clk.ms[PH_FRAME], g_clk.ms[PH_INPUT], g_clk.ms[PH_CAMERA]);
+    col[n++] = WHITE;
+    snprintf(ln[n], sizeof ln[0], "submit %5.2f  raster %5.2f  blit %5.2f",
+             g_clk.ms[PH_SUBMIT], g_clk.ms[PH_RASTER], g_clk.ms[PH_BLIT]);
+    col[n++] = WHITE;
+    snprintf(ln[n], sizeof ln[0], "tris %5d  actors %3d  cam %s", s.tris,
+             s.actors, s.cam_name);
+    col[n++] = WHITE;
+    if (c) {
+        snprintf(ln[n], sizeof ln[0], "pos %7.1f %7.1f %7.1f",
+                 *(int *)(c + 0x5c) / 4096.0f, *(int *)(c + 0x60) / 4096.0f,
+                 *(int *)(c + 0x64) / 4096.0f);
+        col[n++] = WHITE;
+        snprintf(ln[n], sizeof ln[0], "spd h %6.2f v %6.2f  yaw %04x",
+                 *(int *)(c + 0x98) / 4096.0f, *(int *)(c + 0xa8) / 4096.0f,
+                 (unsigned short)*(short *)(c + 0x8e));
+        col[n++] = WHITE;
+        snprintf(ln[n], sizeof ln[0], "state %08x  unhosted %u",
+                 st ? *(unsigned *)st : 0u, g_port_unhosted_hits);
+        col[n++] = g_port_unhosted_hits ? AMBER : WHITE;
+    }
+    snprintf(ln[n], sizeof ln[0], "ram %6u KB", s.mem_kb);
+    col[n++] = WHITE;
+
+    {
+        int w = 0;
+        for (int i = 0; i < n; ++i) {
+            const int lw = (int)strlen(ln[i]) * OVL_ADVANCE * OVL_SCALE;
+            if (lw > w) w = lw;
+        }
+        ovl_shade(fb, 2, 2, w + 6 * OVL_SCALE, n * OVL_LINE + 4 * OVL_SCALE);
+        for (int i = 0; i < n; ++i)
+            ovl_text(fb, 4 + OVL_SCALE, 4 + i * OVL_LINE, ln[i], col[i]);
+    }
+}
 
 /* selftest diagnostic: closest clip-approach of the ambient (flag-0x10000)
    actors across the run -- says whether the walk ever brought one inside
@@ -336,10 +635,58 @@ static int g_amb_n;
    dormant. That is the price of leaving the Camera actor alone. */
 static const int CAM_STEP = 0x400;       /* the ROM's quantum, 0x0200a6a8 */
 
-static int fc_on;                /* the mod is driving the view */
+/* ---- THREE CAMERA MODES, AND ONE RIG -----------------------------------
+   The freecam proved the shape: a harness rig that draws through the ROM's own
+   PerspectiveW_ / LookAt_ / CopyToViewMat and publishes its own heading, with
+   the Camera actor left running untouched underneath it. The only thing that
+   made it a "mod" rather than a camera was that it was unpinned from Mario.
+
+   So the same rig, PINNED TO MARIO, is the default camera now:
+
+     CAM_ANALOG  the chase camera. The rig orbits an eased pivot at Mario's
+                 chest, the right stick turns it on the analog curve instead of
+                 the DS's 5.625-degree steps, and when the stick is idle and he
+                 is moving it drifts back behind him -- gently, the way the
+                 analog cams in the PC SM64 ports do it, not a snap.
+     CAM_FREE    the freecam: the rig orbiting the Camera actor's own look-at,
+                 which is what "the harness takes the view" meant before.
+     CAM_DS      the hardware's own stepped rotate, byte for byte what this
+                 program did before analog existed. Nothing in the analog path
+                 runs, the harness writes the rotate bits, and the frame is
+                 whatever func_02009e70 makes of them.
+
+   F1 cycles analog -> freecam -> DS. SM64DS_DS_CAMERA=1 boots DS-exact and
+   SM64DS_FREECAM=1 boots the freecam.
+
+   THE SELFTEST DEFAULTS TO CAM_DS, deliberately. It is the regression harness:
+   its BMP is a byte-comparison against the hardware's framing and its camera
+   probes (SM64DS_SELFTEST_ORBIT and the rest) drive the DS rotate bits, none
+   of which the analog path writes. SM64DS_ANALOG_CAMERA=1 puts a selftest in
+   analog when that is what is being probed.
+
+   WHAT IS TRUE IN ALL THREE: the Camera actor runs its whole frame, is never
+   written to, and Camera::Render still seeds the Clipper. The cull is the
+   game's, which is the invariant the block above is about -- an actor the rig
+   can see but the game camera cannot stays dormant, and that is the price of
+   leaving the actor alone rather than a bug to chase. */
+enum { CAM_ANALOG = 0, CAM_FREE = 1, CAM_DS = 2 };
+static int cam_mode = CAM_DS;    /* main promotes it once the Camera is up */
+
+static const char *cam_mode_name(int m)
+{
+    return m == CAM_ANALOG ? "analog" : (m == CAM_FREE ? "freecam" : "DS");
+}
+
 static short fc_yaw;             /* heading from the pivot to the eye */
 static short fc_pitch;           /* elevation of the eye above the pivot */
 static int fc_dist;              /* fixed-point world units */
+
+/* the analog rig's own pivot: Mario's position lifted to about chest height
+   and eased, so the picture does not carry the per-frame jitter of a walk
+   cycle into the lens */
+static int an_pivot[3];
+static int an_pivot_live;
+static const int AN_LIFT = 140 << 12;     /* world fx above his feet */
 
 /* stick deflection -> binangs (or units) per frame, signed. Half linear,
    half squared: fine control near the centre, `top` at the stop. */
@@ -385,6 +732,28 @@ static void fc_seed(void *cam)
     if (fc_dist < 0x40000) fc_dist = 0x40000;
 }
 
+/* the analog rig's pivot, stepped once a frame. Eased toward Mario's chest at
+   a quarter of the remaining distance, which at 30Hz is about an eighth of a
+   second of lag -- enough to swallow the walk cycle, not enough to feel like
+   the camera is on a rope. A jump in his position bigger than any frame of
+   movement can be (a respawn, a menu warp) snaps instead of easing. */
+static void an_step_pivot(char *player)
+{
+    const int tgt[3] = {*(int *)(player + 0x5c),
+                        *(int *)(player + 0x60) + AN_LIFT,
+                        *(int *)(player + 0x64)};
+    int k;
+    if (!an_pivot_live) {
+        an_pivot_live = 1;
+        for (k = 0; k < 3; ++k) an_pivot[k] = tgt[k];
+        return;
+    }
+    for (k = 0; k < 3; ++k) {
+        const int d = tgt[k] - an_pivot[k];
+        an_pivot[k] += (d > (4000 << 12) || d < -(4000 << 12)) ? d : d / 4;
+    }
+}
+
 /* the view the mod draws with: the ROM's own two entry points, fed the rig's
    eye and pivot in scene units (the (v + 4) >> 3 Camera::Render applies to
    its own) */
@@ -405,10 +774,185 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
     _Z13CopyToViewMatPK9Matrix4x3(mat);
 }
 
+/* ---- THE DEBUG MENU (port mod) ----------------------------------------
+   F5. Deliberately small: the four things worth reaching mid-session without
+   restarting the program under a different environment, plus one status line.
+   Up/down or the d-pad move, left/right change a value, and enter (or A) does
+   what right does, so the whole thing works one-handed on a pad.
+
+   IT PAUSES THE GAME TICK while it is open -- port_actor_tick is skipped and
+   the input the harness writes is zeroed, so nothing moves, nothing spawns and
+   nothing decides anything while a person is reading. Rendering carries on, so
+   the frame stays live behind the menu and the F3 overlay's fps keeps counting
+   while its TICK rate falls to zero. That divergence is what the two numbers
+   are next to each other for. */
+enum {
+    MENU_WARP = 0,
+    MENU_SNAP,
+    MENU_OVERLAY,
+    MENU_CAMERA,
+    MENU_RECORDER,
+    MENU_COUNT
+};
+static int menu_on;
+static int menu_sel;
+static int menu_entrance;             /* the entrance the warp row is showing */
+static int g_overlay_on;              /* F3, and the menu's overlay row */
+static char g_playlog[160] = "off";   /* the flight recorder's current file */
+
+/* The harness ground snap and wall clamp, a boot-time const off
+   SM64DS_FAKE_SNAP until now, so the A/B was a restart. It is a switch.
+   What CANNOT move at runtime is the third thing that env chose: the level
+   collider's OWNER is decided once, before the Player exists (the
+   MeshColliderBase::Enable call in main), and an owner of the Player makes
+   every player probe skip the level. The row says so rather than pretending
+   the toggle is the whole switch. */
+static int g_fake_snap;
+
+static void menu_draw(ntr::Framebuffer &fb)
+{
+    char ln[MENU_COUNT][72];
+    int i, w = 0, x0, y0;
+    int ex = 0, ey = 0, ez = 0, eyaw = 0;
+    const int n_ent = port_entrance_count();
+    const int have = port_entrance_record(menu_entrance, &ex, &ey, &ez, &eyaw);
+    const char *title = "DEBUG MENU   F5 close   arrows move   enter/right act";
+
+    if (have)
+        snprintf(ln[MENU_WARP], sizeof ln[0],
+                 "warp to entrance  %d of %d   (%d %d %d)", menu_entrance,
+                 n_ent, ex, ey, ez);
+    else
+        snprintf(ln[MENU_WARP], sizeof ln[0],
+                 "warp to entrance  none loaded");
+    snprintf(ln[MENU_SNAP], sizeof ln[0], "fake snap         %s",
+             g_fake_snap ? "ON (collider owner set at boot)" : "off");
+    snprintf(ln[MENU_OVERLAY], sizeof ln[0], "stats overlay     %s",
+             g_overlay_on ? "on" : "off");
+    snprintf(ln[MENU_CAMERA], sizeof ln[0], "camera            %s",
+             cam_mode_name(cam_mode));
+    snprintf(ln[MENU_RECORDER], sizeof ln[0], "recorder          %s", g_playlog);
+
+    for (i = 0; i < MENU_COUNT; ++i) {
+        const int lw = (int)strlen(ln[i]) * OVL_ADVANCE * OVL_SCALE;
+        if (lw > w) w = lw;
+    }
+    {
+        const int tw = (int)strlen(title) * OVL_ADVANCE * OVL_SCALE;
+        if (tw > w) w = tw;
+    }
+    w += 3 * OVL_ADVANCE * OVL_SCALE;
+    x0 = (ntr::SCREEN_W - w) / 2;
+    if (x0 < 2) x0 = 2;
+    y0 = (ntr::SCREEN_H - (MENU_COUNT + 2) * OVL_LINE) / 2;
+    ovl_shade(fb, x0 - 4, y0 - 4, w + 8, (MENU_COUNT + 2) * OVL_LINE + 8);
+    ovl_shade(fb, x0 - 4, y0 - 4, w + 8, (MENU_COUNT + 2) * OVL_LINE + 8);
+    ovl_text(fb, x0, y0, title, 0xFF80C0FFu);
+    for (i = 0; i < MENU_COUNT; ++i) {
+        const int y = y0 + (i + 2) * OVL_LINE;
+        const int sel = i == menu_sel;
+        if (sel) ovl_text(fb, x0, y, ">", 0xFFFFE060u);
+        ovl_text(fb, x0 + 2 * OVL_ADVANCE * OVL_SCALE, y, ln[i],
+                 sel ? 0xFFFFE060u : 0xFFB0B0B0u);
+    }
+}
+
+/* ---- MOUSE (port mod) -------------------------------------------------
+   DRAG TO LOOK, on the right button, and not an F2 capture toggle. Both were
+   on the table; this is the one that fits what the window is. A capture mode
+   swallows the pointer for as long as it is armed, which fights the debug
+   menu, fights alt-tabbing out of a play session, and leaves a hidden cursor
+   behind if the program dies with it on -- and the flight recorder exists
+   because this program does sometimes die. Hold the right button, look, let
+   go, and the pointer is yours again with nothing to remember.
+
+   The drag anchors: pressing the button remembers where the pointer was,
+   every move reports its delta from there and puts the pointer straight back.
+   So the look never runs out of desk or hits the edge of the screen the way a
+   plain drag does, the cursor is hidden while it is held, and letting go
+   leaves the pointer exactly where it was picked up.
+
+   The wheel zooms the rig. Both act in ANALOG and FREECAM; in DS-exact the
+   camera is the game's and the mouse does not touch it. */
+static int mo_look;              /* right button down */
+static POINT mo_anchor;          /* screen point the drag springs back to */
+static int mo_dx, mo_dy;         /* accumulated since the loop last drained */
+static int mo_wheel;             /* accumulated notches, forward positive */
+
+/* THE TOUCH BRIDGE'S HANDOFF. The DS has a touchscreen and this program has a
+   mouse, and the last left click is where the two meet. Position is in
+   FRAMEBUFFER pixels -- client coordinates divided by ZOOM -- so a consumer
+   gets the same numbers at either tier without knowing which one it is on.
+   `g_mouse_click_new` is true for exactly the frame the click landed on and
+   `g_mouse_left_down` is the hold, which is what a drag on a touchscreen is.
+   NOTHING IN THIS FILE READS ANY OF IT: it is published for the touch bridge
+   a sibling stream is building. */
+int g_mouse_click_x, g_mouse_click_y;
+int g_mouse_click_new;
+int g_mouse_left_down;
+
+static void mo_release(void)
+{
+    if (!mo_look) return;
+    mo_look = 0;
+    if (W.ReleaseCapture_) W.ReleaseCapture_();
+    if (W.ShowCursor_) while (W.ShowCursor_(TRUE) < 0) {}
+}
+
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
-    if (m == WM_DESTROY) { W.PostQuitMessage_(0); return 0; }
-    if (m == WM_KEYDOWN && w == VK_ESCAPE) { W.PostQuitMessage_(0); return 0; }
+    if (m == WM_DESTROY) { mo_release(); W.PostQuitMessage_(0); return 0; }
+    if (m == WM_KEYDOWN && w == VK_ESCAPE) { mo_release(); W.PostQuitMessage_(0); return 0; }
+    switch (m) {
+    case WM_RBUTTONDOWN:
+        if (W.GetCursorPos_ && W.GetCursorPos_(&mo_anchor)) {
+            mo_look = 1;
+            mo_dx = mo_dy = 0;
+            if (W.SetCapture_) W.SetCapture_(h);
+            if (W.ShowCursor_) while (W.ShowCursor_(FALSE) >= 0) {}
+        }
+        return 0;
+    case WM_RBUTTONUP:
+        mo_release();
+        return 0;
+    case WM_KILLFOCUS:
+    case WM_CAPTURECHANGED:
+        mo_release();
+        return 0;
+    case WM_MOUSEMOVE:
+        if (mo_look && W.GetCursorPos_) {
+            POINT p;
+            if (W.GetCursorPos_(&p)) {
+                mo_dx += p.x - mo_anchor.x;
+                mo_dy += p.y - mo_anchor.y;
+                if ((p.x != mo_anchor.x || p.y != mo_anchor.y) &&
+                    W.SetCursorPos_)
+                    W.SetCursorPos_(mo_anchor.x, mo_anchor.y);
+            }
+        }
+        return 0;
+    case WM_LBUTTONDOWN: {
+        int cx = (short)LOWORD(l) / ZOOM, cy = (short)HIWORD(l) / ZOOM;
+        if (cx < 0) cx = 0;
+        if (cy < 0) cy = 0;
+        if (cx >= ntr::SCREEN_W) cx = ntr::SCREEN_W - 1;
+        if (cy >= ntr::SCREEN_H) cy = ntr::SCREEN_H - 1;
+        g_mouse_click_x = cx;
+        g_mouse_click_y = cy;
+        g_mouse_click_new = 1;
+        g_mouse_left_down = 1;
+        fprintf(stderr, "[mouse] click %d,%d fb\n", cx, cy);
+        return 0;
+    }
+    case WM_LBUTTONUP:
+        g_mouse_left_down = 0;
+        return 0;
+    case WM_MOUSEWHEEL:
+        mo_wheel += (short)HIWORD(w) / WHEEL_DELTA;
+        return 0;
+    default:
+        break;
+    }
     return W.DefWindowProcA_(h, m, w, l);
 }
 
@@ -500,8 +1044,9 @@ int main(void)
        the snap and the wall clamp on top. Kept for the A/B and for shots
        that need Mario planted regardless. */
     const int fake_snap = getenv("SM64DS_FAKE_SNAP") != 0;
-    const int ground_snap = fake_snap;
-    const int wall_stop = fake_snap;
+    /* the per-frame half of it is a switch now, so the F5 menu can do the A/B
+       without a restart; the collider-owner half below is still boot-time */
+    g_fake_snap = fake_snap;
     PORT_INSTALL_FAULT_PROBE();
     port_install_watchdog();
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -514,10 +1059,10 @@ int main(void)
        keeps stderr on the console instead. */
     if (!getenv("SM64DS_NO_PLAYLOG") && !getenv("SM64DS_WINDOW_SELFTEST")) {
         CreateDirectoryA("playlog", NULL);
-        char logname[128];
+        char *logname = g_playlog;
         SYSTEMTIME st_;
         GetLocalTime(&st_);
-        snprintf(logname, sizeof logname,
+        snprintf(logname, sizeof g_playlog,
                  "playlog/play_%04u%02u%02u_%02u%02u%02u.log", st_.wYear,
                  st_.wMonth, st_.wDay, st_.wHour, st_.wMinute, st_.wSecond);
         if (freopen(logname, "w", stderr)) {
@@ -528,6 +1073,7 @@ int main(void)
     }
     if (!ntr::io_init()) { fprintf(stderr, "io_init failed\n"); return 2; }
     if (!winapi_load()) { fprintf(stderr, "winapi_load failed\n"); return 2; }
+    pacer_begin();
     if (!_ZN4Heap13SetupRootHeapEv()) return 2;
     memset(data_0209b3ec, 0, 48);
     data_0209b3ec[0] = data_0209b3ec[4] = data_0209b3ec[8] = 0x1000;
@@ -972,6 +1518,16 @@ int main(void)
     float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
     const int trace_cam = getenv("SM64DS_TRACE_CAM") != 0;
+    /* the F3 overlay: off unless SM64DS_OVERLAY=1 says otherwise */
+    g_overlay_on = getenv("SM64DS_OVERLAY") != 0;
+    /* SM64DS_MENU=1 opens the menu at boot. Its KEYS are off under a selftest
+       (an automated run must not have a menu opening under it), but the panel
+       itself draws, which is how a shot of it gets captured without a person. */
+    menu_on = getenv("SM64DS_MENU") != 0;
+    int overlay_edge = 0;
+    double ovl_fps = 0, ovl_tps = 0, ovl_last_present = 0;
+    unsigned ovl_mem_kb = 0;
+    unsigned long long ovl_frames = 0;   /* `frame` only counts under selftest */
 
     /* the bottom screen: dual OAM, the 2D frame, and the corner panel */
     hal_sub_screen_init(hwnd, ZOOM);
@@ -980,10 +1536,36 @@ int main(void)
     static ntr::Framebuffer fb;
     MSG msg;
     for (;;) {
+        double t_frame, t_phase;
+        int game_ticked = 1;   /* cleared when a tick is skipped */
         while (W.PeekMessageA_(&msg, 0, 0, 0, PM_REMOVE)) {
             if (msg.message == WM_QUIT) return 0;
             W.TranslateMessage_(&msg);
             W.DispatchMessageA_(&msg);
+        }
+        ph_begin(&t_frame);
+        ph_begin(&t_phase);
+        {
+            const int now = W.GetAsyncKeyState_(VK_F3) < 0;
+            if (now && !overlay_edge) g_overlay_on = !g_overlay_on;
+            overlay_edge = now;
+        }
+        /* drain what the window procedure collected. Unconditionally, so a
+           drag taken in DS-exact mode does not pile up and dump into the rig
+           the moment F1 hands it the view. MOUSE_YAW is 48 binangs a pixel --
+           about 1400 pixels for a full turn -- and the tilt is half that.
+           Positive dy is downward and lowers the view the same way pushing the
+           right stick down does, so the mouse and the pad agree. */
+        int mouse_dyaw = 0, mouse_dpitch = 0, mouse_wheel = 0;
+        {
+            const int MOUSE_YAW = 48, MOUSE_PITCH = 24;
+            if (mo_look) {
+                mouse_dyaw = mo_dx * MOUSE_YAW;
+                mouse_dpitch = mo_dy * MOUSE_PITCH;
+            }
+            mo_dx = mo_dy = 0;
+            mouse_wheel = mo_wheel;
+            mo_wheel = 0;
         }
 
         /* Top of the DS 2D frame: both OAM shadows back to empty, and the
@@ -1014,6 +1596,105 @@ int main(void)
         static XPad pad;
         int pad_live = XInputGetState_ && XInputGetState_(0, &pad) == 0;
         int orbiting = 0;
+        /* ---- THE DEBUG MENU'S OWN INPUT. It runs before anything else reads
+           the keyboard, and while it is open it swallows the keys it uses and
+           the tick is skipped below, so nothing it does can also be a walk.
+           Every key here is edge-detected off one held-mask, which is the
+           cheapest way to get "one step per press" out of GetAsyncKeyState. */
+        if (!selftest) {
+            static unsigned menu_prev;
+            unsigned held = 0;
+            unsigned edge;
+            if (W.GetAsyncKeyState_(VK_F5) < 0)     held |= 1u << 0;
+            if (W.GetAsyncKeyState_(VK_UP) < 0)     held |= 1u << 1;
+            if (W.GetAsyncKeyState_(VK_DOWN) < 0)   held |= 1u << 2;
+            if (W.GetAsyncKeyState_(VK_LEFT) < 0)   held |= 1u << 3;
+            if (W.GetAsyncKeyState_(VK_RIGHT) < 0)  held |= 1u << 4;
+            if (W.GetAsyncKeyState_(VK_RETURN) < 0) held |= 1u << 5;
+            if (pad_live) {
+                if (pad.buttons & 0x0001) held |= 1u << 1;   /* d-pad up    */
+                if (pad.buttons & 0x0002) held |= 1u << 2;   /* d-pad down  */
+                if (pad.buttons & 0x0004) held |= 1u << 3;   /* d-pad left  */
+                if (pad.buttons & 0x0008) held |= 1u << 4;   /* d-pad right */
+                if (pad.buttons & 0x0020) held |= 1u << 0;   /* BACK        */
+                if (menu_on && (pad.buttons & 0x1000)) held |= 1u << 5;  /* A */
+            }
+            edge = held & ~menu_prev;
+            menu_prev = held;
+            if (edge & (1u << 0)) {
+                menu_on = !menu_on;
+                fprintf(stderr, "[menu] %s\n", menu_on ? "open" : "closed");
+            }
+            if (menu_on) {
+                const int n_ent = port_entrance_count();
+                if (edge & (1u << 1))
+                    menu_sel = (menu_sel + MENU_COUNT - 1) % MENU_COUNT;
+                if (edge & (1u << 2))
+                    menu_sel = (menu_sel + 1) % MENU_COUNT;
+                {
+                    /* enter is a synonym for right, so a pad can do it all */
+                    const int dec = (edge & (1u << 3)) != 0;
+                    const int inc = (edge & ((1u << 4) | (1u << 5))) != 0;
+                    if (dec || inc) switch (menu_sel) {
+                    case MENU_WARP:
+                        if (n_ent > 0) {
+                            /* left and right pick the entrance; enter warps */
+                            if (edge & (1u << 5)) {
+                                int ex, ey, ez, eyaw;
+                                if (port_entrance_record(menu_entrance, &ex,
+                                                         &ey, &ez, &eyaw)) {
+                                    /* the level's own record, in the units it
+                                       stores: world units, so <<12 into the
+                                       actor's fixed point. This MOVES him; it
+                                       is not a re-entry, nothing about the
+                                       level or the area is reloaded. */
+                                    *(int *)(c + 0x5c) = ex << 12;
+                                    *(int *)(c + 0x60) = ey << 12;
+                                    *(int *)(c + 0x64) = ez << 12;
+                                    *(short *)(c + 0x8e) = (short)eyaw;
+                                    *(int *)(c + 0x98) = 0;   /* mHorzSpeed */
+                                    *(int *)(c + 0xa4) = 0;
+                                    *(int *)(c + 0xa8) = 0;   /* mVertSpeed */
+                                    *(int *)(c + 0xac) = 0;
+                                    an_pivot_live = 0;        /* do not ease
+                                                                 across a warp */
+                                    fprintf(stderr,
+                                            "[menu] warp to entrance %d "
+                                            "(%d, %d, %d)\n", menu_entrance,
+                                            ex, ey, ez);
+                                }
+                            } else if (dec) {
+                                menu_entrance =
+                                    (menu_entrance + n_ent - 1) % n_ent;
+                            } else {
+                                menu_entrance = (menu_entrance + 1) % n_ent;
+                            }
+                        }
+                        break;
+                    case MENU_SNAP:
+                        g_fake_snap = !g_fake_snap;
+                        fprintf(stderr, "[menu] fake snap %s\n",
+                                g_fake_snap ? "ON" : "off");
+                        break;
+                    case MENU_OVERLAY:
+                        g_overlay_on = !g_overlay_on;
+                        break;
+                    case MENU_CAMERA:
+                        if (real_camera) {
+                            cam_mode = dec ? (cam_mode + 2) % 3
+                                           : (cam_mode + 1) % 3;
+                            if (cam_mode != CAM_DS) fc_seed(cam);
+                            if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
+                            fprintf(stderr, "[menu] camera %s\n",
+                                    cam_mode_name(cam_mode));
+                        }
+                        break;
+                    default:
+                        break;
+                    }
+                }
+            }
+        }
         /* the right stick's X, from the pad or from the selftest ramp:
            SM64DS_SELFTEST_STICK=<pct> holds it at pct% of full deflection
            from frame 20 (negative for the other way), and =0 ramps it from
@@ -1042,46 +1723,93 @@ int main(void)
             static int fc_edge, fc_boot;
             if (!fc_boot) {
                 fc_boot = 1;
-                if (getenv("SM64DS_FREECAM")) { fc_on = 1; fc_seed(cam); }
+                /* the window plays in analog; the selftest stays DS-exact
+                   unless it is asked otherwise (see the mode block above) */
+                cam_mode = selftest ? CAM_DS : CAM_ANALOG;
+                if (getenv("SM64DS_ANALOG_CAMERA")) cam_mode = CAM_ANALOG;
+                if (getenv("SM64DS_DS_CAMERA")) cam_mode = CAM_DS;
+                if (getenv("SM64DS_FREECAM")) cam_mode = CAM_FREE;
+                if (cam_mode != CAM_DS) fc_seed(cam);
             }
             int now = W.GetAsyncKeyState_(VK_F1) < 0 ||
                       (pad_live && (pad.buttons & 0x0080));
-            if (selftest && getenv("SM64DS_SELFTEST_FREECAM"))
-                now = frame == 20 ||
-                      frame == 20 + 3 * (selftest - 20) / 4;   /* and off */
+            if (selftest && getenv("SM64DS_SELFTEST_FREECAM")) {
+                /* the probe wants the mod ON at 20 and OFF three quarters
+                   through, which a three-way cycle cannot express -- so set
+                   the mode outright and leave the edge alone. */
+                if (frame == 20) { cam_mode = CAM_FREE; fc_seed(cam); }
+                if (frame == 20 + 3 * (selftest - 20) / 4) cam_mode = CAM_DS;
+                now = 0;
+            }
             if (now && !fc_edge) {
-                fc_on = !fc_on;
-                if (fc_on) fc_seed(cam);
-                fprintf(stderr, "[freecam] %s\n", fc_on ? "ON" : "off");
+                cam_mode = (cam_mode + 1) % 3;   /* analog -> freecam -> DS */
+                if (cam_mode != CAM_DS) fc_seed(cam);
+                if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
+                fprintf(stderr, "[cam] mode %s\n", cam_mode_name(cam_mode));
             }
             fc_edge = now;
         }
-        if (fc_on) {
+        if (cam_mode != CAM_DS) {
             /* the rig's own frame: orbit and tilt at a rate proportional to
-               the stick, zoom on the bumpers or R/F, C back behind Mario */
-            fc_yaw = (short)(fc_yaw + fc_stick_rate(stick_rx, CAM_STEP));
+               the stick, zoom on the bumpers or R/F, C back behind Mario.
+               `rig_touched` is what tells the analog auto-recenter to keep its
+               hands off -- the player is aiming the camera. */
+            int rig_touched = 0;
             {
-                int t = fc_pitch - fc_stick_rate(stick_ry, CAM_STEP / 2);
+                const int r = fc_stick_rate(stick_rx, CAM_STEP) + mouse_dyaw;
+                if (r) { fc_yaw = (short)(fc_yaw + r); rig_touched = 1; }
+            }
+            {
+                int t = fc_pitch - fc_stick_rate(stick_ry, CAM_STEP / 2)
+                        + mouse_dpitch;
+                if (mouse_dpitch) rig_touched = 1;
                 if (W.GetAsyncKeyState_('R') < 0) t += 0x80;
                 if (W.GetAsyncKeyState_('F') < 0) t -= 0x80;
                 if (t > 0x3a00) t = 0x3a00;      /* just short of overhead */
                 if (t < -0x1000) t = -0x1000;    /* a little from below */
                 fc_pitch = (short)t;
             }
-            if (W.GetAsyncKeyState_('Q') < 0) fc_yaw -= CAM_STEP / 2;
-            if (W.GetAsyncKeyState_('E') < 0) fc_yaw += CAM_STEP / 2;
+            if (W.GetAsyncKeyState_('Q') < 0) { fc_yaw -= CAM_STEP / 2; rig_touched = 1; }
+            if (W.GetAsyncKeyState_('E') < 0) { fc_yaw += CAM_STEP / 2; rig_touched = 1; }
             {
                 int zoom = 0;
                 if (pad_live && (pad.buttons & 0x0100)) zoom -= 1;   /* LB */
                 if (pad_live && (pad.buttons & 0x0200)) zoom += 1;   /* RB */
+                zoom -= mouse_wheel;   /* wheel forward pulls the eye in */
                 if (zoom) {
                     fc_dist += zoom * (fc_dist >> 5);
                     if (fc_dist < 0x30000) fc_dist = 0x30000;
                     if (fc_dist > 0x2000000) fc_dist = 0x2000000;
                 }
             }
-            if (W.GetAsyncKeyState_('C') < 0)
+            if (W.GetAsyncKeyState_('C') < 0) {
                 fc_yaw = (short)(*(short *)(c + 0x8e) + 0x8000);
+                rig_touched = 1;
+            }
+            /* THE AUTO-RECENTER, analog only. Nothing happens while the player
+               is steering the camera, nothing happens while Mario is standing
+               still, and nothing happens inside eleven degrees of behind him --
+               the last one is what keeps it from hunting around the target.
+               Outside that it closes a twentieth of the error a frame, capped
+               at 0x200 binangs (2.8 degrees, 84 a second), so the worst case --
+               the player has spun Mario right around and let go -- settles in
+               about two seconds and nothing in it ever reads as a snap. During
+               a sustained turn the proportional term is what binds, and the
+               camera trails him by a dozen degrees or so, which is the lag
+               that makes it feel like a camera rather than a bracket. */
+            if (cam_mode == CAM_ANALOG && !rig_touched) {
+                const int spd = *(int *)(c + 0x98);
+                if (spd > (2 << 12) || spd < -(2 << 12)) {
+                    const short behind = (short)(*(short *)(c + 0x8e) + 0x8000);
+                    int d = (short)(behind - fc_yaw);
+                    if (d > 0x800 || d < -0x800) {
+                        d /= 20;
+                        if (d > 0x200) d = 0x200;
+                        if (d < -0x200) d = -0x200;
+                        fc_yaw = (short)(fc_yaw + d);
+                    }
+                }
+            }
         }
         if (pad_live) {
             if (pad.ly > 12000 || (pad.buttons & 1)) dz += 1;
@@ -1106,6 +1834,10 @@ int main(void)
            binang -- the D-pad path, mode 0), and Player::Behavior folds
            in the camera angle via GetAngleToCamera, which reads the
            angle the harness publishes below. No hand-built headings. */
+        /* the menu owns the arrow keys and the d-pad while it is open, so no
+           walk comes out of them; the tick is skipped below either way, but
+           the stick record should not be left describing a press either */
+        if (menu_on) { dx = 0; dz = 0; }
         {
             unsigned short raw = 0;
             if (dz > 0) raw |= 0x40;   /* up    */
@@ -1223,7 +1955,7 @@ int main(void)
                steps every frame. While the freecam mod owns the view none of
                it is written -- the Camera actor is left following Mario so
                there is something clean to hand back to. */
-            if (real_camera && !fc_on) {
+            if (real_camera && cam_mode == CAM_DS) {
                 if (W.GetAsyncKeyState_('Q') < 0) btn |= 0x200;
                 if (W.GetAsyncKeyState_('E') < 0) btn |= 0x100;
                 if (W.GetAsyncKeyState_('C') < 0) btn |= 0x4000;
@@ -1239,6 +1971,7 @@ int main(void)
                 if (selftest && getenv("SM64DS_SELFTEST_ORBIT") && frame >= 20)
                     btn |= 0x100;
             }
+            if (menu_on) btn = 0;   /* enter/A belong to the menu, not to him */
             *(unsigned short *)(data_0209f49c + 0) = btn;
             *(unsigned short *)(data_0209f49e + 0) =
                 (unsigned short)(btn & (unsigned short)~btn_was);
@@ -1321,7 +2054,15 @@ int main(void)
            the init pass for anything spawned since last frame, then behaviour
            in priority order -- which reaches him through the same
            func_02043288 the harness used to call by hand. */
-        if (boot_spawns) {
+        /* THE MENU'S PAUSE IS HERE, and this is the whole of it: skip the
+           tick. Not a flag every actor has to respect and not a time scale --
+           the frame simply does not advance the game, so nothing can drift
+           while a person reads. Everything downstream still runs, so the
+           picture stays live and the camera can still be moved around a
+           frozen scene. */
+        if (menu_on) {
+            game_ticked = 0;
+        } else if (boot_spawns) {
             /* Nothing to undo before the tick any more. The view matrix is
                the one Camera::Render published, in the ROM's own scene units,
                and Actor::BeforeBehavior reads exactly those three words to
@@ -1337,6 +2078,7 @@ int main(void)
            one the level cannot produce (hal/level_boot.cpp) */
         if (real_boot)
             port_stage_path_guard(player);
+        ph_end(PH_INPUT, t_phase);
         if (selftest && frame == 0)
             fprintf(stderr, "[w] ticked\n");
         /* the camera's own frame: Behavior runs the state machine and
@@ -1346,16 +2088,21 @@ int main(void)
            records GetAngleToCamera reads. Without the second call the
            published angle never moves and Mario walks relative to a stale
            heading. */
+        ph_begin(&t_phase);
+        /* the analog rig's pivot is stepped here, after the tick moved Mario
+           and before anything reads it */
+        if (cam_mode == CAM_ANALOG) an_step_pivot(c);
         if (real_camera) {
             hal_camera_behavior(cam);
-            /* THE ONE THING THE FREECAM OVERRIDES BESIDES THE VIEW: the
-               heading the walk steers by. Camera::Behavior has just put its
-               own into the local comms record; while the mod owns the lens
-               the rig's heading goes in instead, so "forward" is away from
-               the camera the player is actually looking through. The echo
-               below is what copies it into the record GetAngleToCamera
-               reads, so this has to land between the two. */
-            if (fc_on) *(short *)data_020a1050 = fc_yaw;
+            /* THE ONE THING THE RIG OVERRIDES BESIDES THE VIEW: the heading
+               the walk steers by. Camera::Behavior has just put its own into
+               the local comms record; in analog and in freecam the rig's
+               heading goes in instead, so "forward" is away from the lens the
+               player is actually looking through. The echo below is what
+               copies it into the record GetAngleToCamera reads, so this has to
+               land between the two -- and it is one halfword either way, the
+               same single write the freecam always did. */
+            if (cam_mode != CAM_DS) *(short *)data_020a1050 = fc_yaw;
             func_0203e0ac();
             if (trace_cam)
                 fprintf(stderr,
@@ -1363,7 +2110,7 @@ int main(void)
                         "pitch=%04x dist=%d held=%04x edge=%04x fl=%08x "
                         "a17c=%04x a186=%04x a19e=%04x turn=%u wall=%u "
                         "pub=%04x\n",
-                        frame, stick_rx, stick_ry, fc_on,
+                        frame, stick_rx, stick_ry, cam_mode,
                         (unsigned short)fc_yaw, (unsigned short)fc_pitch,
                         fc_dist >> 12,
                         *(unsigned short *)(data_0209f49c + 0),
@@ -1376,6 +2123,7 @@ int main(void)
                         *(unsigned char *)((char *)cam + 0x1a6),
                         (unsigned short)*(short *)((char *)data_020a1164));
         }
+        ph_end(PH_CAMERA, t_phase);
         /* no speed clamp: the accel tables get real input-mode data now
            that Stage::CheckInput fills the record (the old runaway came
            from fake mode bytes) */
@@ -1555,7 +2303,7 @@ int main(void)
             /* ray starts just above STEP height: starting a body-height
                up let the walk grab canopies/domes overhead and teleport
                him upward (the "camera is fucked" y-pops) */
-            if (ground_snap &&
+            if (g_fake_snap &&
                 hal_ground_ray(g_mc, mx, my + (100 << 12), mz, 5220 << 12,
                                &gy)) {
                 /* never re-ground a rising jump: the snap + SetGroundFlag
@@ -1577,7 +2325,7 @@ int main(void)
                and ceiling as a three-bit mask. Hosted, it stops him against
                the castle's outer wall and lets him SLIDE ALONG it, where
                this clamp only ever stopped him dead 120 units short. */
-            if (wall_stop) {
+            if (g_fake_snap) {
                 int nx = *(int *)(c + 0x5c), nz = *(int *)(c + 0x64);
                 int ny = *(int *)(c + 0x60);
                 int wy = ny + (120 << 12);          /* chest height */
@@ -1617,6 +2365,7 @@ int main(void)
         }
 
         /* render: camera behind and above Mario, looking at him */
+        ph_begin(&t_phase);
         ntr::gx_reset();
         /* the real Camera writes CLEAR_COLOR itself, out of its own
            0x10c..0x10f bytes -- which hold exactly this value */
@@ -1769,16 +2518,21 @@ int main(void)
                in software, so THAT is where the camera reaches the raster,
                not the GX position stack. */
             hal_camera_render(cam);
-            /* the mod's view goes on top of the camera's own, not instead of
+            /* the rig's view goes on top of the camera's own, not instead of
                it: Render still seeds the Clipper, writes CLEAR_COLOR and
                keeps the actor's own state moving, and then the rig reloads
                the projection and the view matrix from its own eye. Nothing
                downstream can tell the difference -- it is the same three ROM
-               calls, with different numbers. */
-            if (fc_on) {
+               calls, with different numbers.
+               ANALOG orbits Mario (the eased pivot); FREECAM orbits the Camera
+               actor's own look-at, which is what made it free of him. */
+            if (cam_mode != CAM_DS) {
                 int fceye[3];
-                fc_eye((const int *)((char *)cam + 0x80), fceye);
-                fc_push_view(cam, fceye, (const int *)((char *)cam + 0x80));
+                const int *pivot = cam_mode == CAM_ANALOG
+                                       ? an_pivot
+                                       : (const int *)((char *)cam + 0x80);
+                fc_eye(pivot, fceye);
+                fc_push_view(cam, fceye, pivot);
             }
             /* THE ACTOR RENDER BUCKET GOES HERE, and the reason is the shim
                immediately below. Processing list 5 is the game's own render
@@ -2007,6 +2761,7 @@ int main(void)
         size_t tris_before = 0;
         if (selftest) ntr::gx_polygons(tris_before);
         hal_render_player_world(player);
+        ph_end(PH_SUBMIT, t_phase);
         if (selftest) {
             size_t tn = 0;
             const ntr::GxTriangle *ta2 = ntr::gx_polygons(tn);
@@ -2028,19 +2783,75 @@ int main(void)
         if (selftest && frame == 0)
             fprintf(stderr, "[w] rendered\n");
 
+        ph_begin(&t_phase);
         /* clear: build one row, memcpy the rest (0xFF101820 is not a
            repeating byte pattern, so memset cannot do it directly) */
         for (int x = 0; x < ntr::SCREEN_W; ++x) fb.px[0][x] = 0xFF101820u;
         for (int y = 1; y < ntr::SCREEN_H; ++y)
             memcpy(fb.px[y], fb.px[0], ntr::SCREEN_W * sizeof(fb.px[0][0]));
         ntr::gx_render(fb);
+        ph_end(PH_RASTER, t_phase);
         /* Bottom of the DS 2D frame: upload the shadows the game filled,
            rasterise engine B, and drop it into the corner at 1:1 DS pixels.
-           With the panel toggled off this writes nothing. */
+           With the panel toggled off this writes nothing. Before the overlay,
+           so F3 text stays readable over the panel. */
         hal_sub_screen_present(&fb.px[0][0], ntr::SCREEN_W, ntr::SCREEN_H);
+
+        /* THE OVERLAY GOES HERE: after the raster owns the frame and before
+           the blit hands it to GDI, so it is in the pixels rather than over
+           the window, and the selftest BMP carries it. */
+        if (g_overlay_on) {
+            OvlStats os;
+            size_t tn = 0;
+            int actors = 0;
+            ntr::gx_polygons(tn);
+            for (int *node = (int *)(size_t)data_020a4b78[0];
+                 node && actors < 4096; node = (int *)(size_t)node[1])
+                if (node[2]) ++actors;
+            if (W.GetProcessMemoryInfo_ && (ovl_frames % 30) == 0) {
+                PortMemCounters pmc;
+                pmc.cb = sizeof pmc;
+                if (W.GetProcessMemoryInfo_(GetCurrentProcess(), &pmc,
+                                            sizeof pmc))
+                    ovl_mem_kb = (unsigned)(pmc.WorkingSetSize / 1024);
+            }
+            os.fps = ovl_fps;
+            os.tps = ovl_tps;
+            os.tris = (int)tn;
+            os.actors = actors;
+            os.player = c;
+            os.cam_name = cam_mode_name(cam_mode);
+            os.mem_kb = ovl_mem_kb;
+            os.menu_paused = !game_ticked;
+            ovl_draw(fb, os);
+        }
+        if (menu_on) menu_draw(fb);
+
+        ph_begin(&t_phase);
         W.StretchDIBits_(hdc, 0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM,
                       0, 0, ntr::SCREEN_W, ntr::SCREEN_H, fb.px, &bi,
                       DIB_RGB_COLORS, SRCCOPY);
+        ph_end(PH_BLIT, t_phase);
+        ph_end(PH_FRAME, t_frame);
+        /* present-to-present rate, and the GAME TICK rate beside it -- the two
+           diverge whenever a tick is skipped, which is what the debug menu's
+           pause does. Both smoothed the same way the phase times are. */
+        {
+            const double now = ovl_now_ms();
+            if (ovl_last_present > 0.0) {
+                const double dt = now - ovl_last_present;
+                if (dt > 0.01) {
+                    const double inst = 1000.0 / dt;
+                    ovl_fps += (inst - ovl_fps) * 0.1;
+                    ovl_tps += ((game_ticked ? inst : 0.0) - ovl_tps) * 0.1;
+                }
+            }
+            ovl_last_present = now;
+        }
+        ++ovl_frames;
+        /* the click flag is true for exactly the frame it landed on; the hold
+           in g_mouse_left_down is what outlives it */
+        g_mouse_click_new = 0;
         if (selftest && (frame % 10) == 0)
             printf("[y] frame %d y=%d units %.1f\n", frame,
                    *(int *)(c + 0x60), *(int *)(c + 0x60) / 4096.0f);
@@ -2102,6 +2913,13 @@ int main(void)
                 const double el =
                     (now.QuadPart - last.QuadPart) * 1000.0 / qpf.QuadPart;
                 if (el < 33.3) Sleep((DWORD)(33.3 - el));
+                if (getenv("SM64DS_TRACE_PACE")) {
+                    LARGE_INTEGER a2;
+                    QueryPerformanceCounter(&a2);
+                    fprintf(stderr, "[pace] work=%.2f asked=%d slept=%.2f\n",
+                            el, (int)(33.3 - el),
+                            (a2.QuadPart - now.QuadPart) * 1000.0 / qpf.QuadPart);
+                }
             }
             QueryPerformanceCounter(&last);
         }
