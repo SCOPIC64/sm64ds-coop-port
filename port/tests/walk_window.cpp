@@ -60,6 +60,11 @@
 //                           its camera probes drive the DS rotate bits.
 //      SM64DS_ANALOG_CAMERA=1  put a selftest in the analog camera
 //      SM64DS_OVERLAY=1     boot with the F3 stats overlay already on
+//      SM64DS_MENU=1        boot with the F5 debug menu open
+//      SM64DS_TRACE_PACE=1  per-frame pacer trace: the work time, the sleep
+//                           that was asked for and the sleep that happened.
+//                           The third number is the one that matters -- see
+//                           the pacer block for what makes it lie.
 //      SM64DS_TRACE_CAM=1   per-frame camera input trace: the pad words the
 //                           rotate logic reads, the camera's heading, its
 //                           two latches, the rig, and the published angle
@@ -103,6 +108,9 @@ struct WinApi {
     /* winmm: the frame pacer's Sleep granularity (see pacer_begin below) */
     unsigned(WINAPI *timeBeginPeriod_)(unsigned);
     unsigned(WINAPI *timeEndPeriod_)(unsigned);
+    /* kernel32: opting out of the power throttling that would otherwise make
+       the line above a no-op (see pacer_begin) */
+    BOOL(WINAPI *SetProcessInformation_)(HANDLE, int, void *, DWORD);
     /* psapi: the overlay's working-set line */
     BOOL(WINAPI *GetProcessMemoryInfo_)(HANDLE, void *, DWORD);
 };
@@ -161,10 +169,13 @@ static bool winapi_load(void)
     if (HMODULE ps = LoadLibraryA("psapi.dll"))
         W.GetProcessMemoryInfo_ = (decltype(W.GetProcessMemoryInfo_))
             GetProcAddress(ps, "GetProcessMemoryInfo");
-    if (!W.GetProcessMemoryInfo_)
-        if (HMODULE k = GetModuleHandleA("kernel32.dll"))
+    if (HMODULE k = GetModuleHandleA("kernel32.dll")) {
+        if (!W.GetProcessMemoryInfo_)
             W.GetProcessMemoryInfo_ = (decltype(W.GetProcessMemoryInfo_))
                 GetProcAddress(k, "K32GetProcessMemoryInfo");
+        W.SetProcessInformation_ = (decltype(W.SetProcessInformation_))
+            GetProcAddress(k, "SetProcessInformation");
+    }
     {
         const char *dlls[] = {"xinput1_4.dll", "xinput1_3.dll",
                               "xinput9_1_0.dll"};
@@ -349,7 +360,26 @@ static void *g_mc;
    timeBeginPeriod(1) pulls the tick to 1ms for this process and the sleep
    lands within a millisecond of what was asked. Paired with timeEndPeriod
    through atexit, so the process cannot leave the system clock raised on the
-   way out -- including the selftest's early return and the WM_QUIT one. */
+   way out -- including the selftest's early return and the WM_QUIT one.
+
+   AND THAT IS NOT ENOUGH ON ITS OWN, which cost an hour to find. On Windows 11
+   timeBeginPeriod(1) returns TIMERR_NOERROR and is then quietly ignored for a
+   process the power manager has decided is a background one: measured here,
+   the call succeeded and Sleep(9) still took 22.7ms, with the whole frame
+   period pinned to 46.8ms -- three ticks of the 15.6ms default, exactly what
+   an unraised clock produces. The opt-out is a power-throttling request:
+   ProcessPowerThrottling with IGNORE_TIMER_RESOLUTION in the control mask and
+   CLEAR in the state mask, which reads as "I am managing this, and the answer
+   is do not throttle me". SetProcessInformation is resolved dynamically like
+   everything else, so this still runs on anything older that lacks it. */
+enum {
+    PORT_PROCESS_POWER_THROTTLING = 4,   /* ProcessPowerThrottling */
+    PORT_POWER_THROTTLING_VERSION = 1,
+    PORT_IGNORE_TIMER_RESOLUTION = 0x4
+};
+struct PortPowerThrottlingState {
+    unsigned Version, ControlMask, StateMask;
+};
 static int g_pacer_period;
 
 static void pacer_end(void)
@@ -362,6 +392,15 @@ static void pacer_end(void)
 
 static void pacer_begin(void)
 {
+    if (W.SetProcessInformation_) {
+        PortPowerThrottlingState pt;
+        pt.Version = PORT_POWER_THROTTLING_VERSION;
+        pt.ControlMask = PORT_IGNORE_TIMER_RESOLUTION;
+        pt.StateMask = 0;                 /* 0 = honour the raised timer */
+        W.SetProcessInformation_(GetCurrentProcess(),
+                                 PORT_PROCESS_POWER_THROTTLING, &pt,
+                                 sizeof pt);
+    }
     if (!W.timeBeginPeriod_ || g_pacer_period) return;
     if (W.timeBeginPeriod_(1) != 0) return;   /* != TIMERR_NOERROR */
     g_pacer_period = 1;
@@ -2783,6 +2822,13 @@ int main(void)
                 const double el =
                     (now.QuadPart - last.QuadPart) * 1000.0 / qpf.QuadPart;
                 if (el < 33.3) Sleep((DWORD)(33.3 - el));
+                if (getenv("SM64DS_TRACE_PACE")) {
+                    LARGE_INTEGER a2;
+                    QueryPerformanceCounter(&a2);
+                    fprintf(stderr, "[pace] work=%.2f asked=%d slept=%.2f\n",
+                            el, (int)(33.3 - el),
+                            (a2.QuadPart - now.QuadPart) * 1000.0 / qpf.QuadPart);
+                }
             }
             QueryPerformanceCounter(&last);
         }
