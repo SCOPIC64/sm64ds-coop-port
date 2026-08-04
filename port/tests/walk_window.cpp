@@ -252,6 +252,15 @@ extern unsigned char data_ov002_0211049c[];  /* St_Wait state object */
 int func_ov002_020c031c(void *c);
 int func_ov002_020bf56c(void *c, int b);
 int Player_ScaleByCharFactor(void *c, int a);
+/* SM64DS_FORCE_STATE=walljump probe: the ST_WALL_JUMP State record and the
+   per-character airborne-gravity PMF table St_WallJump_Main dispatches
+   through. Both are BSS built by __sinit_ov002_021019d0, so they only read
+   back after the sinit run below. */
+extern unsigned char data_ov002_021103dc[];  /* _ZN6Player12ST_WALL_JUMPE */
+extern unsigned char data_ov002_021106dc[];  /* _ZN6Player8ST_CLIMBE */
+extern int data_ov002_02110a48[5];           /* Tree's five cylinder lists */
+extern int data_ov002_0211073c[];            /* 4 rows of {fn-or-vtoff, v} */
+int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *st);
 void port_ov002_patch(void);
 void __sinit_ov002_02100560(void); void __sinit_ov002_02100938(void);
 void __sinit_ov002_02100adc(void); void __sinit_ov002_02100c50(void);
@@ -1535,6 +1544,14 @@ int main(void)
        framebuffer next to the exe, exit -- CI-checkable without a user */
     const char *st = getenv("SM64DS_WINDOW_SELFTEST");
     const int selftest = st ? atoi(st) : 0;
+    /* Live input, gated: GetAsyncKeyState reads machine-global key state,
+       focus or no focus, so a headless selftest picks up anyone typing
+       anywhere on the box. Under a selftest every live keyboard read comes
+       through here and reads released -- the scripted probes
+       (SM64DS_SELFTEST_* above and below) are the only input a selftest
+       has. The pad and the mouse-look are gated the same way where they
+       are read. */
+    auto key_live = [&](int vk) { return !selftest && W.GetAsyncKeyState_(vk) < 0; };
     int frame = 0;
     float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
@@ -1569,7 +1586,6 @@ int main(void)
     int overlay_edge = 0;
     double ovl_fps = 0, ovl_tps = 0, ovl_last_present = 0;
     unsigned ovl_mem_kb = 0;
-    unsigned long long ovl_frames = 0;   /* `frame` only counts under selftest */
 
     /* the bottom screen: dual OAM, the 2D frame, and the corner panel */
     hal_sub_screen_init(hwnd, ZOOM);
@@ -1588,7 +1604,7 @@ int main(void)
         ph_begin(&t_frame);
         ph_begin(&t_phase);
         {
-            const int now = W.GetAsyncKeyState_(VK_F3) < 0;
+            const int now = key_live(VK_F3);
             if (now && !overlay_edge) g_overlay_on = !g_overlay_on;
             overlay_edge = now;
         }
@@ -1601,12 +1617,12 @@ int main(void)
         int mouse_dyaw = 0, mouse_dpitch = 0, mouse_wheel = 0;
         {
             const int MOUSE_YAW = 48, MOUSE_PITCH = 24;
-            if (mo_look) {
+            if (mo_look && !selftest) {
                 mouse_dyaw = mo_dx * MOUSE_YAW;
                 mouse_dpitch = mo_dy * MOUSE_PITCH;
             }
             mo_dx = mo_dy = 0;
-            mouse_wheel = mo_wheel;
+            if (!selftest) mouse_wheel = mo_wheel;
             mo_wheel = 0;
         }
 
@@ -1643,13 +1659,15 @@ int main(void)
                is why every other probe here looked clean. */
             if (decel_probe == 4 && frame < DASH_CHARGE_UNTIL) dz = 0;
         }
-        if (W.GetAsyncKeyState_('W') < 0 || W.GetAsyncKeyState_(VK_UP) < 0) dz += 1;
-        if (W.GetAsyncKeyState_('S') < 0 || W.GetAsyncKeyState_(VK_DOWN) < 0) dz -= 1;
-        if (W.GetAsyncKeyState_('A') < 0 || W.GetAsyncKeyState_(VK_LEFT) < 0) dx -= 1;
-        if (W.GetAsyncKeyState_('D') < 0 || W.GetAsyncKeyState_(VK_RIGHT) < 0) dx += 1;
-        /* gamepad: left stick / d-pad walk, right stick orbits + tilts */
+        if (key_live('W') || key_live(VK_UP)) dz += 1;
+        if (key_live('S') || key_live(VK_DOWN)) dz -= 1;
+        if (key_live('A') || key_live(VK_LEFT)) dx -= 1;
+        if (key_live('D') || key_live(VK_RIGHT)) dx += 1;
+        /* gamepad: left stick / d-pad walk, right stick orbits + tilts.
+           Gated off under a selftest with the keyboard: a drifting stick
+           on a plugged-in pad perturbs a headless run the same way. */
         static XPad pad;
-        int pad_live = XInputGetState_ && XInputGetState_(0, &pad) == 0;
+        int pad_live = !selftest && XInputGetState_ && XInputGetState_(0, &pad) == 0;
         int orbiting = 0;
         /* ---- THE DEBUG MENU'S OWN INPUT. It runs before anything else reads
            the keyboard, and while it is open it swallows the keys it uses and
@@ -1786,7 +1804,7 @@ int main(void)
                 if (getenv("SM64DS_FREECAM")) cam_mode = CAM_FREE;
                 if (cam_mode != CAM_DS) fc_seed(cam);
             }
-            int now = W.GetAsyncKeyState_(VK_F1) < 0 ||
+            int now = key_live(VK_F1) ||
                       (pad_live && (pad.buttons & 0x0080));
             if (selftest && getenv("SM64DS_SELFTEST_FREECAM")) {
                 /* the probe wants the mod ON at 20 and OFF three quarters
@@ -1818,14 +1836,14 @@ int main(void)
                 int t = fc_pitch - fc_stick_rate(stick_ry, CAM_STEP / 2)
                         + mouse_dpitch;
                 if (mouse_dpitch) rig_touched = 1;
-                if (W.GetAsyncKeyState_('R') < 0) t += 0x80;
-                if (W.GetAsyncKeyState_('F') < 0) t -= 0x80;
+                if (key_live('R')) t += 0x80;
+                if (key_live('F')) t -= 0x80;
                 if (t > 0x3a00) t = 0x3a00;      /* just short of overhead */
                 if (t < -0x1000) t = -0x1000;    /* a little from below */
                 fc_pitch = (short)t;
             }
-            if (W.GetAsyncKeyState_('Q') < 0) { fc_yaw -= CAM_STEP / 2; rig_touched = 1; }
-            if (W.GetAsyncKeyState_('E') < 0) { fc_yaw += CAM_STEP / 2; rig_touched = 1; }
+            if (key_live('Q')) { fc_yaw -= CAM_STEP / 2; rig_touched = 1; }
+            if (key_live('E')) { fc_yaw += CAM_STEP / 2; rig_touched = 1; }
             {
                 int zoom = 0;
                 if (pad_live && (pad.buttons & 0x0100)) zoom -= 1;   /* LB */
@@ -1837,7 +1855,7 @@ int main(void)
                     if (fc_dist > 0x2000000) fc_dist = 0x2000000;
                 }
             }
-            if (W.GetAsyncKeyState_('C') < 0) {
+            if (key_live('C')) {
                 fc_yaw = (short)(*(short *)(c + 0x8e) + 0x8000);
                 rig_touched = 1;
             }
@@ -1878,11 +1896,11 @@ int main(void)
             if (pad.ry > 10000 && cam_pitch < 0.85f) cam_pitch += 0.02f;
             if (pad.ry < -10000 && cam_pitch > -0.15f) cam_pitch -= 0.02f;
         }
-        if (W.GetAsyncKeyState_('Q') < 0) { cam_yaw -= 0.045f; orbiting = 1; }
-        if (W.GetAsyncKeyState_('E') < 0) { cam_yaw += 0.045f; orbiting = 1; }
-        if (W.GetAsyncKeyState_('R') < 0 && cam_pitch < 0.85f)
+        if (key_live('Q')) { cam_yaw -= 0.045f; orbiting = 1; }
+        if (key_live('E')) { cam_yaw += 0.045f; orbiting = 1; }
+        if (key_live('R') && cam_pitch < 0.85f)
             cam_pitch += 0.02f;
-        if (W.GetAsyncKeyState_('F') < 0 && cam_pitch > -0.15f)
+        if (key_live('F') && cam_pitch > -0.15f)
             cam_pitch -= 0.02f;
         /* THE GAME'S OWN INPUT PROCESSOR: keys become raw DS pad bits,
            Stage::CheckInput turns them into the stick record (mag, dir,
@@ -1943,10 +1961,10 @@ int main(void)
         {
             static unsigned short btn_was;
             unsigned short btn = 0;
-            if (W.GetAsyncKeyState_(VK_SPACE) < 0) btn |= 2;
-            if (W.GetAsyncKeyState_(VK_SHIFT) < 0) btn |= 0x800;
-            if (W.GetAsyncKeyState_(VK_CONTROL) < 0) btn |= 0x400;
-            if (W.GetAsyncKeyState_('X') < 0) btn |= 1;
+            if (key_live(VK_SPACE)) btn |= 2;
+            if (key_live(VK_SHIFT)) btn |= 0x800;
+            if (key_live(VK_CONTROL)) btn |= 0x400;
+            if (key_live('X')) btn |= 1;
             if (pad_live) {
                 /* Xbox layout per Tango: A jump, X run, B punch,
                    bumpers rotate the camera. RT is meant to be crouch,
@@ -2016,9 +2034,9 @@ int main(void)
                it is written -- the Camera actor is left following Mario so
                there is something clean to hand back to. */
             if (real_camera && cam_mode == CAM_DS) {
-                if (W.GetAsyncKeyState_('Q') < 0) btn |= 0x200;
-                if (W.GetAsyncKeyState_('E') < 0) btn |= 0x100;
-                if (W.GetAsyncKeyState_('C') < 0) btn |= 0x4000;
+                if (key_live('Q')) btn |= 0x200;
+                if (key_live('E')) btn |= 0x100;
+                if (key_live('C')) btn |= 0x4000;
                 if (stick_rx < -10000) btn |= 0x200;
                 if (stick_rx > 10000) btn |= 0x100;
                 if (pad_live) {
@@ -2120,6 +2138,145 @@ int main(void)
            while a person reads. Everything downstream still runs, so the
            picture stays live and the camera can still be moved around a
            frozen scene. */
+        /* SM64DS_TREE_DROP=x,y,z[,frame] -- drop Mario onto a tree canopy.
+           SM64DS_SPAWN cannot do this: it places him before the level's
+           entrance sequence runs, and the entrance step handler never
+           finishes from up a tree, so he just hangs in St_LevelEnter. The
+           teleport has to land AFTER the entrance has handed him to St_Walk,
+           which on castle grounds is about frame 12. Tree positions come out
+           of SM64DS_TREE_PROBE=1 (all 21 are variant 4). */
+        {
+            static int td = -1, tx, ty, tz, tf;
+            if (td < 0) {
+                const char *e = getenv("SM64DS_TREE_DROP");
+                td = 0;
+                if (e) {
+                    tf = 60;
+                    if (sscanf(e, "%d,%d,%d,%d", &tx, &ty, &tz, &tf) >= 3)
+                        td = 1;
+                }
+            }
+            if (td && frame == tf) {
+                *(int *)(c + 0x5c) = tx << 12;
+                *(int *)(c + 0x60) = ty << 12;
+                *(int *)(c + 0x64) = tz << 12;
+                *(int *)(c + 0xa4) = 0;   /* straight down, no carried speed */
+                *(int *)(c + 0xa8) = 0;
+                *(int *)(c + 0xac) = 0;
+                fprintf(stderr, "[tree] drop at frame %d -> (%d,%d,%d)\n",
+                        tf, tx, ty, tz);
+            }
+        }
+        /* SM64DS_FORCE_STATE=walljump -- the walljump crash probe.
+           Tango walljumped in the live game and the process died with no
+           fault-probe dump, because St_WallJump_Main dispatches the
+           per-character airborne-gravity function out of the sinit-built
+           table data_ov002_0211073c and (unlike St_Jump_Main) called row[0]
+           RAW. row[0] is a DS code address, so on the host that is a jump
+           into the mounted ov002 data image.
+           Reproducing it needs no wall: put the Player in ST_WALL_JUMP and
+           hold him airborne, and Behavior runs St_WallJump_Main straight
+           into the dispatch. The table is dumped once so the run records
+           which character row it went through. */
+        {
+            static int force_wj = -1;
+            if (force_wj < 0) {
+                const char *fs = getenv("SM64DS_FORCE_STATE");
+                force_wj = (fs && !strcmp(fs, "walljump")) ? 1 : 0;
+                if (force_wj) {
+                    fprintf(stderr, "[wj] data_ov002_0211073c after sinit "
+                            "(4 per-character rows):\n");
+                    for (int r = 0; r < 4; ++r) {
+                        int w0 = data_ov002_0211073c[r * 2];
+                        int v  = data_ov002_0211073c[r * 2 + 1];
+                        fprintf(stderr, "[wj]   idx %d: word0=0x%08x "
+                                "word1=0x%08x -> %s, this+0x%x\n", r,
+                                (unsigned)w0, (unsigned)v,
+                                (v & 1) ? "VIRTUAL (vtable byte offset)"
+                                        : "direct DS code address",
+                                (unsigned)(v >> 1));
+                    }
+                    fprintf(stderr, "[wj] player param1 (character idx) = %d\n",
+                            *(int *)(c + 0x008));
+                }
+            }
+            /* SM64DS_FORCE_STATE=climb -- the TREE probe. Landing on a tree
+               puts Mario in ST_CLIMB (data_ov002_021106dc), whose Init, Main
+               and Cleanup are all unhosted, so the mapper no-ops all three:
+               the anim never starts (freeze), the physics outside the state
+               keeps integrating (slide), and a later consumer reads what
+               Init never seated. Forcing the state is how that is measured
+               without having to make him actually grab a trunk. */
+            {
+                static int force_cl = -1;
+                if (force_cl < 0) {
+                    const char *fs = getenv("SM64DS_FORCE_STATE");
+                    force_cl = (fs && !strcmp(fs, "climb")) ? 1 : 0;
+                }
+                if (force_cl && frame == 10) {
+                    /* Seat Player+0x37c with a REAL tree cylinder first --
+                       that is what the grab (func_ov002_020caf98) does before
+                       it changes state, and St_Climb_Init dereferences it
+                       through vtable slot 2 (GetPos) to snap him to the
+                       trunk. Tree::InitResources embeds the
+                       CylinderClsnWithPos at node+0x0c and links the nodes
+                       at +0x48; all 21 castle trees are on variant list 4. */
+                    int *node = (int *)(size_t)data_ov002_02110a48[4];
+                    if (node) {
+                        *(void **)(c + 0x37c) = (char *)node + 0x0c;
+                        fprintf(stderr, "[climb] seated +0x37c = tree "
+                                "cylinder %p (node %p)\n",
+                                (void *)((char *)node + 0x0c), (void *)node);
+                    } else {
+                        fprintf(stderr, "[climb] NO tree cylinders on list 4 "
+                                "-- is the level booted?\n");
+                    }
+                    /* Grab him at a run. A real grab happens with speed on
+                       the clock and St_Climb_Init is what zeroes it; leaving
+                       it set is the whole of the slide, so put a known value
+                       in rather than depending on what frame 10 happened to
+                       be doing. */
+                    *(int *)(c + 0x98) = 0x8000;   /* 8 units/frame */
+                    fprintf(stderr, "[climb] frame 10: ChangeState -> "
+                            "ST_CLIMB (%p)\n", (void *)data_ov002_021106dc);
+                    _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                        data_ov002_021106dc);
+                }
+                /* The SLIDE is measurable: St_Climb_Init is what zeroes the
+                   horizontal speed at +0x98/+0x9c/+0xa8 and the anim at
+                   +0x6e3. With Init no-op'd he keeps the speed he grabbed at
+                   and a state whose Main does nothing, which is exactly the
+                   freeze-then-slide. */
+                if (force_cl && frame >= 10 && frame <= 40 &&
+                    (frame % 10) == 0)
+                    fprintf(stderr, "[climb] frame %3d  horzSpeed=%d "
+                            "vertSpeed=%d pos=(%d,%d,%d) step=%u anim=%u\n",
+                            frame, *(int *)(c + 0x98), *(int *)(c + 0xa8),
+                            *(int *)(c + 0x5c) >> 12, *(int *)(c + 0x60) >> 12,
+                            *(int *)(c + 0x64) >> 12,
+                            *(unsigned char *)(c + 0x6e3),
+                            *(unsigned char *)(c + 0x6e5));
+            }
+            if (force_wj && frame == 10) {
+                /* SM64DS_FORCE_CHAR=<0-3> picks the row: 0/2 (Mario, Wario)
+                   are hosted, 1/3 (Luigi, Yoshi) are not and have to come
+                   out as the mapper's loud no-op, not a wild jump. */
+                const char *fc = getenv("SM64DS_FORCE_CHAR");
+                if (fc) {
+                    *(int *)(c + 0x008) = atoi(fc);
+                    fprintf(stderr, "[wj] forced character idx = %d\n",
+                            atoi(fc));
+                }
+                fprintf(stderr, "[wj] frame 10: ChangeState -> ST_WALL_JUMP "
+                        "(%p)\n", (void *)data_ov002_021103dc);
+                _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                    data_ov002_021103dc);
+            }
+            /* St_WallJump_Main bails to St_Fall the moment he is grounded,
+               and the dispatch sits past that check -- so hold him airborne
+               for the length of the probe. */
+            if (force_wj && frame >= 10) *(unsigned char *)(c + 0x6de) = 1;
+        }
         if (menu_on) {
             game_ticked = 0;
         } else if (boot_spawns) {
@@ -2914,7 +3071,7 @@ int main(void)
             for (int *node = (int *)(size_t)data_020a4b78[0];
                  node && actors < 4096; node = (int *)(size_t)node[1])
                 if (node[2]) ++actors;
-            if (W.GetProcessMemoryInfo_ && (ovl_frames % 30) == 0) {
+            if (W.GetProcessMemoryInfo_ && (frame % 30) == 0) {
                 PortMemCounters pmc;
                 pmc.cb = sizeof pmc;
                 if (W.GetProcessMemoryInfo_(GetCurrentProcess(), &pmc,
@@ -2954,7 +3111,6 @@ int main(void)
             }
             ovl_last_present = now;
         }
-        ++ovl_frames;
         /* the click flag is true for exactly the frame it landed on; the hold
            in g_mouse_left_down is what outlives it */
         g_mouse_click_new = 0;
@@ -2980,7 +3136,9 @@ int main(void)
             }
         }
         sdat_host_tick();   /* hosted ARM7: drain the sound queue, feed the mixer */
-        if (selftest && ++frame >= selftest) {
+        ++frame;   /* counts in live mode too -- the [cam-in]-style live
+                      diagnostics carry a real frame number */
+        if (selftest && frame >= selftest) {
             for (int k = 0; k < g_amb_n; ++k) {
                 char *o = (char *)g_amb[k].o;
                 int moved = *(int *)(o + 0x5c) != g_amb[k].p0[0] ||

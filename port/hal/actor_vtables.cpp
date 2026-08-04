@@ -129,7 +129,7 @@ void *_ZN9ActorBaseC1Ev(char *self)
         *(unsigned short *)(self + 0x38 + 0xe) = info[3];
     }
     {
-        char *parent = (char *)(size_t)func_02043810(data_020a4b6c);
+        char *parent = (char *)(size_t)func_02043810(self);
         if (parent) {
             unsigned char pf = *(unsigned char *)(parent + 0x13);
             if (pf & 3)
