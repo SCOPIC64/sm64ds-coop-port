@@ -69,6 +69,11 @@ NAMED = [
     # HAL made atan2 answer 0 for every off-axis direction.
     "data_020994e0",
     "data_020756b0",   # D-pad direction -> binang table (Stage::CheckInput)
+    # Per-character voice-id offset. Sound::PlayCharVoice is
+    # Play(1, baseId + data_02075250[ch], v), and the bytes read 00/40/80/c0
+    # -- the VOICE SEQARC is laid out in 0x40-entry blocks, one per
+    # character, so zeroed storage would give every character Mario's voice.
+    "data_02075250",
     "data_0209214c",   # per-mode button remap pointer table (CheckInput)
     # tier-2 state wave: fader/level/message tables
     "data_02086f20",

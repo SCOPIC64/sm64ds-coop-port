@@ -285,12 +285,18 @@ unsigned char *NestedHeapIterator::Next(HeapAllocator *h)
 #pragma comment(linker, "/alternatename:?data_ov002_0210a7e8@@3PAIA=_data_ov002_0210a7e8")
 #pragma comment(linker, "/alternatename:?func_ov002_020bdd2c@@YAXPAX@Z=_func_ov002_020bdd2c")
 
-/* Sound sequence-info lookup: sound system deferred, no entry found */
+/* Sound sequence-info lookup. This returned 0 the whole time the SDAT root
+   was null, which is what made func_02051fb4 give up before every music
+   start. The root is real now (hal/sdat/sdat.cpp), so the MSVC-mangled face
+   forwards to the matched walker in src/, which reads root+0x84 and the SEQ
+   record at sub+0x08 for real. */
 struct SeqEntry;
+extern "C" SeqEntry *_ZN5Sound17InfoSequenceEntry9GetWithIDEj(unsigned id);
 struct Sound {
     struct InfoSequenceEntry { static SeqEntry *GetWithID(unsigned id); };
 };
-SeqEntry *Sound::InfoSequenceEntry::GetWithID(unsigned) { return 0; }
+SeqEntry *Sound::InfoSequenceEntry::GetWithID(unsigned id)
+{ return _ZN5Sound17InfoSequenceEntry9GetWithIDEj(id); }
 
 /* Heap::_Deallocate is a DS tail-call veneer to Deallocate; operator delete
    dispatches it as a method. Same-shadow definition forwarding to the HAL

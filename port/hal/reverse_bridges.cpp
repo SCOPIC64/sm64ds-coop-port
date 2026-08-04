@@ -169,17 +169,28 @@ int SaveData::IsCharacterUnlocked(unsigned ch)
 namespace cstd { int fdiv(int a, int b); }
 int cstd::fdiv(int a, int b) { return _ZN4cstd4fdivEii(a, b); }
 
-/* ---- sound / fader / particle statics: no host backend yet ------------- */
+/* ---- sound statics ------------------------------------------------------
+   These were stubbed while the SDAT root was null. The host now seats a real
+   root and hosts the ARM7 (hal/sdat/), so they forward to the matched src
+   the way every other reverse bridge here does: src/ defines the Itanium
+   name as an extern "C" symbol, and this is the MSVC-mangled face the C++
+   TUs call. StopLoadedMusic_Layer1 is the exception -- its src file spells
+   the C++ method out directly, so it just joins the slice and needs no
+   face here. */
+extern "C" {
+int  _ZN5Sound7PlaySubEjjj5Fix12IiEb(unsigned, unsigned, unsigned, int, int);
+void _ZN5Sound6Play2DEjj(unsigned, unsigned);
+void _ZN5Sound22LoadAndSetMusic_Layer1Ei(int);
+}
 struct Sound {
     static int PlaySub(unsigned, unsigned, unsigned, int, bool);
     static void Play2D(unsigned, unsigned);
     static void LoadAndSetMusic_Layer1(int);
-    static void StopLoadedMusic_Layer1(unsigned);
 };
-int Sound::PlaySub(unsigned, unsigned, unsigned, int, bool) { return 0; }
-void Sound::Play2D(unsigned, unsigned) {}
-void Sound::LoadAndSetMusic_Layer1(int) {}
-void Sound::StopLoadedMusic_Layer1(unsigned) {}
+int Sound::PlaySub(unsigned a, unsigned b, unsigned c, int d, bool e)
+{ return _ZN5Sound7PlaySubEjjj5Fix12IiEb(a, b, c, d, e ? 1 : 0); }
+void Sound::Play2D(unsigned a, unsigned b) { _ZN5Sound6Play2DEjj(a, b); }
+void Sound::LoadAndSetMusic_Layer1(int a) { _ZN5Sound22LoadAndSetMusic_Layer1Ei(a); }
 
 struct Scene {
     static void SetAndStopColorFader();
