@@ -251,6 +251,11 @@ extern unsigned char data_ov002_0211049c[];  /* St_Wait state object */
    back after the sinit run below. */
 extern unsigned char data_ov002_021103dc[];  /* _ZN6Player12ST_WALL_JUMPE */
 extern unsigned char data_ov002_021106dc[];  /* _ZN6Player8ST_CLIMBE */
+/* ST_LEDGE_HANG. Named off the sinit rather than a symbol map:
+   __sinit_ov002_021019d0 fills 0210ffec's lo/hi/tail from 0x0210a41c,
+   0x0210a06c and 0x02109eec, and ov002's reloc table takes those three to
+   St_LedgeHang_Init, _Main and _Cleanup exactly. */
+extern unsigned char data_ov002_0210ffec[];  /* _ZN6Player13ST_LEDGE_HANGE */
 extern int data_ov002_02110a48[5];           /* Tree's five cylinder lists */
 extern int data_ov002_0211073c[];            /* 4 rows of {fn-or-vtoff, v} */
 int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *st);
@@ -2210,6 +2215,92 @@ int main(void)
                             *(int *)(c + 0x64) >> 12,
                             *(unsigned char *)(c + 0x6e3),
                             *(unsigned char *)(c + 0x6e5));
+            }
+            /* SM64DS_FORCE_STATE=ledgehang -- the HEDGE MAZE probe. Landing
+               on a hedge edge puts Mario in ST_LEDGE_HANG
+               (data_ov002_0210ffec) and every half of it used to be
+               unhosted, so the mapper no-op'd Main once a frame forever:
+               "unhosted state fn 0x020d0a44".
+               The real trigger is func_ov002_020d0580 -- airborne, falling,
+               and func_ov002_020d0178's raycast pair agrees there is a
+               ledge -- and it seats mStateStep=1 before it changes state.
+               Forcing it reproduces the hang without needing a hedge under
+               the selftest's feet, the same way the climb probe does.
+               What the state needs seated is what the grab would have left
+               behind: the heading facing INTO the wall (+0x8e, which
+               func_ov002_020d0178 writes as atan2(normal) + 0x8000), the
+               grab point (+0x5c/+0x60/+0x64, snapped to the ledge top), and
+               mStateStep=1 so Init picks the hang-idle anim 0x21 rather
+               than the grab-impact 0x22. He also has to be OFF the ground:
+               St_LedgeHang_Main lets go on the spot if mGroundY (+0x644) is
+               within 0x28000 of him, which on flat castle grounds it is. */
+            {
+                static int force_lh = -1;
+                if (force_lh < 0) {
+                    const char *fs = getenv("SM64DS_FORCE_STATE");
+                    force_lh = (fs && !strcmp(fs, "ledgehang")) ? 1 : 0;
+                }
+                if (force_lh && frame == 10) {
+                    /* Lift him to a plausible hedge top so the ground is a
+                       real distance below, and put speed on the clock. A
+                       real grab happens mid-fall; St_LedgeHang_Init is what
+                       zeroes +0x98 and +0xa8, so leaving them set is the
+                       whole of the slide. */
+                    *(int *)(c + 0x60) += 600 << 12;
+                    *(int *)(c + 0x98) = 0x8000;    /* 8 units/frame */
+                    *(int *)(c + 0xa8) = -0x4000;   /* falling */
+                    *(unsigned char *)(c + 0x6de) = 1;   /* airborne */
+                    *(unsigned char *)(c + 0x6e3) = 1;   /* what the trigger sets */
+                    /* Poison the two fields Init alone seats, so "Init never
+                       ran" is readable rather than inferred. */
+                    *(unsigned short *)(c + 0x6a6) = 0xbeef;
+                    *(unsigned char *)(c + 0x6e6) = 0xcd;
+                    fprintf(stderr, "[lh] frame 10: ChangeState -> "
+                            "ST_LEDGE_HANG (%p)  Init=0x020d0c54 "
+                            "Main=0x020d0a44 Cleanup=0x020d092c\n",
+                            (void *)data_ov002_0210ffec);
+                    _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                        data_ov002_0210ffec);
+                }
+                /* St_LedgeHang_Main's FIRST exit is "mIsAirborne != 0 ->
+                   func_ov002_020d0948 -> ST_FALL", and with no real hedge
+                   under the probe the collision sets airborne again the
+                   frame after Init clears it, so the hang ends immediately.
+                   That is the state behaving correctly -- nothing to hang
+                   on, so let go -- but it measures the let-go path instead
+                   of the hang. Holding the flag keeps the hang itself on
+                   screen for the length of the probe, the same device the
+                   walljump probe uses in reverse just below (it PINS
+                   airborne to keep St_WallJump_Main past ITS ground bail).
+                   SM64DS_LH_LETGO=1 removes the hold and measures the drop
+                   instead. */
+                if (force_lh && frame >= 10 && !getenv("SM64DS_LH_LETGO"))
+                    *(unsigned char *)(c + 0x6de) = 0;
+                /* 45 frames of hang. Every number here is one Init seats or
+                   Main advances: anim id lives at +0x63c as (id << 2), the
+                   speeds Init zeroes at +0x98/+0xa8, mIsAirborne at +0x6de,
+                   mStateWaitTimer at +0x6a6 (Init writes 2) and unk_6e6 at
+                   +0x6e6 (Init writes 0). Unhosted, the poison survives and
+                   the anim never changes. */
+                if (force_lh && frame >= 10 && frame <= 55 &&
+                    (frame % 5) == 0)
+                    fprintf(stderr, "[lh] frame %3d  anim=0x%02x horz=%d "
+                            "vert=%d air=%u step=%u wait=0x%04x unk6e6=0x%02x "
+                            "pos=(%d,%d,%d) groundY=%d\n",
+                            frame, *(unsigned *)(c + 0x63c) >> 2,
+                            *(int *)(c + 0x98), *(int *)(c + 0xa8),
+                            *(unsigned char *)(c + 0x6de),
+                            *(unsigned char *)(c + 0x6e3),
+                            *(unsigned short *)(c + 0x6a6),
+                            *(unsigned char *)(c + 0x6e6),
+                            *(int *)(c + 0x5c) >> 12, *(int *)(c + 0x60) >> 12,
+                            *(int *)(c + 0x64) >> 12,
+                            *(int *)(c + 0x644) >> 12);
+                if (force_lh && frame == 56) {
+                    fprintf(stderr, "[lh] 45 frames of hang survived, no "
+                            "fault\n");
+                    exit(0);
+                }
             }
             if (force_wj && frame == 10) {
                 /* SM64DS_FORCE_CHAR=<0-3> picks the row: 0/2 (Mario, Wario)
