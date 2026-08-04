@@ -513,14 +513,17 @@ set_source_files_properties(
 # func_ov002_020c897c does void-pointer arithmetic (the NoControl body's
 # `*(void**)(c + id * 4 + 0xdc) + 0x50` anim probe), which MSVC C rejects
 # with C2036; hostgen's VOIDPP_ARITH rewrite retypes the deref to char*.
-# func_ov002_020cfbdc, the ledge hang's shimmy-forward probe, is a third shape:
-# decl_common.h declares it taking void* while its own TU defines it taking
-# char*. Two separate symbols while the decl_*.h headers were C++-mangled, one
-# extern "C" overload since main gave them C linkage -- error C2733. hostgen's
-# HEADER_SHADOW hides the header's declaration of that one name.
+# func_ov002_020cfbdc and func_ov002_020d6c60 are a third shape: decl_common.h
+# declares each with a different pointer parameter type than its own TU defines
+# it with (void* vs char*, and (char*,void*) vs (char*,char*)). Two separate
+# symbols while the decl_*.h headers were C++-mangled, one extern "C" overload
+# since main gave them C linkage -- error C2733. hostgen's HEADER_SHADOW hides
+# the header's declaration of just those names, so neither src/ nor include/
+# has to move.
 set(GATE10_SYMS func_ov002_020dec70 func_ov002_020d708c
     engine/fader/StartExitFaderWipe func_ov002_020c897c
-    engine/fader/StartEntranceFaderWipe func_ov002_020cfbdc)
+    engine/fader/StartEntranceFaderWipe func_ov002_020cfbdc
+    func_ov002_020d6c60)
 set(GATE10_GEN "")
 foreach(sym IN LISTS GATE10_SYMS)
     if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")

@@ -1202,7 +1202,9 @@ src/func_020229f0.c
 src/func_ov002_020bea7c.c
 src/func_ov002_020cd448.cpp
 src/func_ov002_020ceb54.c
-src/func_ov002_020d6c60.cpp
+# func_ov002_020d6c60 goes through hostgen for the same reason as 020cfbdc:
+# decl_common.h declares it (char*, void*) and its TU defines it (char*,
+# char*), which is one extern "C" overload since main's sweep.
 src/func_ov002_020d6dac.c
 src/func_ov002_020d7030.cpp
 src/func_ov002_020db8d8.cpp

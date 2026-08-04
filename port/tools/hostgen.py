@@ -239,7 +239,8 @@ def is_asm(text):
 # symbol, listed rather than pattern-matched, so a new collision has to be
 # looked at rather than silently absorbed.
 HEADER_SHADOW = {
-    "func_ov002_020cfbdc": "decl_common.h",
+    "func_ov002_020cfbdc": "decl_common.h",   # header void*, TU char*
+    "func_ov002_020d6c60": "decl_common.h",   # header (char*, void*), TU (char*, char*)
 }
 
 
