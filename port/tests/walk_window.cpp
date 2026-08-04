@@ -245,6 +245,13 @@ extern int data_0209b468[4];   /* actor list head (stomp tracker) */
 extern unsigned char data_020a0e40[];
 extern short data_02092144[];
 extern unsigned char data_ov002_0211049c[];  /* St_Wait state object */
+/* SM64DS_DECEL_PROBE reads the ground-move constants out of the game's own
+   helpers, so the log shows the numbers the physics actually used and not a
+   second guess at them. 020c031c is the slip class (Player+0x658, promoted
+   for one state); 020bf56c scales a brake rate by that class. */
+int func_ov002_020c031c(void *c);
+int func_ov002_020bf56c(void *c, int b);
+int Player_ScaleByCharFactor(void *c, int a);
 void port_ov002_patch(void);
 void __sinit_ov002_02100560(void); void __sinit_ov002_02100938(void);
 void __sinit_ov002_02100adc(void); void __sinit_ov002_02100c50(void);
@@ -1532,6 +1539,27 @@ int main(void)
     float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
     const int trace_cam = getenv("SM64DS_TRACE_CAM") != 0;
+    /* SM64DS_DECEL_PROBE=1 (under a selftest): hold the stick and the dash
+       button until DECEL_RELEASE, then let go of both and log the horizontal
+       speed every frame until it reaches zero. The point is the SHAPE of the
+       tail -- how many frames Mario coasts, and at what rate per frame -- so
+       a before/after can be read off two runs. Off by default; the plain
+       selftest picture is untouched by it. */
+    /* =1 lets go of the stick AND the dash button (the full stop);
+       =2 lets go of the dash button only and keeps the stick down, which is
+       what "releasing run" means with a thumb still on the pad -- the target
+       drops from the run speed to the walk speed and the skid path, which
+       only the no-input branch can arm, never runs. */
+    const char *dp_env = getenv("SM64DS_DECEL_PROBE");
+    const int decel_probe = dp_env ? atoi(dp_env) : 0;
+    /* late enough that the run has actually saturated: the walk core steps
+       the speed 0x1000 a frame and the run target is ~0x24000, so he needs
+       ~36 frames of held stick after the state settles before the tail
+       measured is a tail off TOP speed and not off a ramp. */
+    const int DECEL_RELEASE = (dp_env && atoi(dp_env) == 4) ? 170 : 80;
+    /* mode 4 only: how long he stands still with run held, charging +0x6e5 */
+    const int DASH_CHARGE_UNTIL = 110;
+    int decel_stopped = 0;
     /* the F3 overlay: off unless SM64DS_OVERLAY=1 says otherwise */
     g_overlay_on = getenv("SM64DS_OVERLAY") != 0;
     /* SM64DS_MENU=1 opens the menu at boot. Its KEYS are off under a selftest
@@ -1601,6 +1629,19 @@ int main(void)
             if (getenv("SM64DS_SELFTEST_RELEASE") && frame >= 50) dz = 0;
             /* reversal probe: hard 180 at speed (the skid-turn path) */
             if (getenv("SM64DS_SELFTEST_REVERSE") && frame >= 50) dz = -1;
+            /* decel probe: stick fully forward, then nothing at all */
+            if (decel_probe == 1 && frame >= DECEL_RELEASE) dz = 0;
+            /* =3 is the turn: a hard 180 at full run, which is the input
+               that should throw him into the skid state. "Tight turns drift
+               wide" is this path, so the log wants the heading too. */
+            if (decel_probe == 3 && frame >= DECEL_RELEASE) dz = -1;
+            /* =4 is the CHARGED DASH, and it is the one that matters. Stand
+               still with the run button held: St_Wait_Main runs 020d2fdc,
+               which counts +0x6e5 up to 0x1e and then arms the 30-frame dash
+               window at +0x6ed. Only then push the stick. That is the only
+               input that reaches the boost multiply in the walk core, which
+               is why every other probe here looked clean. */
+            if (decel_probe == 4 && frame < DASH_CHARGE_UNTIL) dz = 0;
         }
         if (W.GetAsyncKeyState_('W') < 0 || W.GetAsyncKeyState_(VK_UP) < 0) dz += 1;
         if (W.GetAsyncKeyState_('S') < 0 || W.GetAsyncKeyState_(VK_DOWN) < 0) dz -= 1;
@@ -1926,9 +1967,14 @@ int main(void)
             if (selftest && frame >= 30 && frame <= 33 &&
                 !getenv("SM64DS_SELFTEST_DASHJUMP") &&
                 !getenv("SM64DS_SELFTEST_PUNCH") &&
-                !getenv("SM64DS_SELFTEST_IDLE"))
+                !getenv("SM64DS_SELFTEST_IDLE") &&
+                !decel_probe)
                 btn |= 2;
             if (selftest && getenv("SM64DS_SELFTEST_DASH") && frame >= 20)
+                btn |= 0x800;
+            /* decel probe: dash held to build top run speed, released with
+               the stick so the tail measured is a pure ground decay */
+            if (decel_probe && frame < DECEL_RELEASE)
                 btn |= 0x800;
             /* the 0x100-press repro: characterize the "LT crash" --
                camera rotate HUD vs a crouch entry, the fault dump
@@ -2093,6 +2139,46 @@ int main(void)
         if (real_boot)
             port_stage_path_guard(player);
         ph_end(PH_INPUT, t_phase);
+        /* THE DECEL CURVE. One line per frame after the tick, so the speed
+           printed is the one this frame's physics produced. dv is the change
+           since last frame -- the per-frame brake rate, which is the number
+           the DS comparison is actually about. The trailing fields are the
+           inputs to the branch that picks that rate: the slip class, the
+           brake rate 020bf56c hands back for it, the skid flag at +0x6e0,
+           the no-input latch at +0x6ac and the metal/underwater flag. */
+        if (decel_probe && !decel_stopped) {
+            static int prev_spd = 0, prev_px = 0, prev_pz = 0;
+            const int spd = *(int *)(c + 0x98);
+            const int cls = func_ov002_020c031c(c);
+            const int px = *(int *)(c + 0x5c), pz = *(int *)(c + 0x64);
+            /* step is what the speed scalar was WORTH in world units this
+               frame. If step and spd ever disagree the bug is downstream of
+               the integrator, in whatever turns heading+speed into motion. */
+            const double dxf = (px - prev_px) / 4096.0,
+                         dzf = (pz - prev_pz) / 4096.0;
+            fprintf(stderr,
+                    "[decel] f%-4d spd %8d (%7.3f)  dv %7d  step %6.3f  "
+                    "cls %d brake %6d  top %6d  6e0 %d 6ac %d 703 %d 6ed %2d "
+                    "6e5 %2d  ang %04x->%04x\n",
+                    frame, spd, spd / 4096.0, spd - prev_spd,
+                    frame ? sqrt(dxf * dxf + dzf * dzf) : 0.0, cls,
+                    func_ov002_020bf56c(c, 0x2000),
+                    Player_ScaleByCharFactor(c, 0x28000),
+                    *(unsigned char *)(c + 0x6e0),
+                    *(unsigned short *)(c + 0x6ac),
+                    *(unsigned char *)(c + 0x703),
+                    *(unsigned char *)(c + 0x6ed),
+                    *(unsigned char *)(c + 0x6e5),
+                    (unsigned short)*(short *)(c + 0x94),
+                    (unsigned short)*(short *)(c + 0x6d2));
+            prev_px = px; prev_pz = pz;
+            if (decel_probe == 1 && frame > DECEL_RELEASE && spd == 0) {
+                fprintf(stderr, "[decel] stopped at frame %d (%d frames "
+                        "after release)\n", frame, frame - DECEL_RELEASE);
+                decel_stopped = 1;
+            }
+            prev_spd = spd;
+        }
         if (selftest && frame == 0)
             fprintf(stderr, "[w] ticked\n");
         /* the camera's own frame: Behavior runs the state machine and
