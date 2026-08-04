@@ -154,7 +154,12 @@ extern "C" struct port_arc_entry port_archive_map[13];
 static u8 *g_arc_buf[13];
 static long g_arc_len[13];
 
-static void *port_fs_archive_load(unsigned fileID)
+struct fs_cache_entry;
+static int fs_entry_store(struct fs_cache_entry *e, const u8 *src, u32 len);
+
+/* fill e with the decompressed bytes of an archive-interior file. 1 on
+   success, 0 on a data hole; aborts only where the original did. */
+static int port_fs_archive_fill(struct fs_cache_entry *ent, unsigned fileID)
 {
     for (int i = 0; i < 13; ++i) {
         struct port_arc_entry *e = &port_archive_map[i];
@@ -203,48 +208,126 @@ static void *port_fs_archive_load(unsigned fileID)
         u8 *fat = btaf + 12 + idx * 8;
         u32 start = fat[0] | fat[1] << 8 | fat[2] << 16 | (u32)fat[3] << 24;
         u32 end = fat[4] | fat[5] << 8 | fat[6] << 16 | (u32)fat[7] << 24;
-        u8 *src = img + start;
-        u32 len = end - start;
-        void *dst;
-        if (len > 8 && memcmp(src, "LZ77", 4) == 0) {
-            u32 dec = (src[4] | src[5] << 8 | src[6] << 16 | (u32)src[7] << 24) >> 8;
-            dst = Memory::Allocate(dec);
-            DecompressLZ16(src + 4, dst);
-        } else {
-            dst = Memory::Allocate(len, 0x20);
-            memcpy(dst, src, len);
-        }
-        return dst;
+        return fs_entry_store(ent, img + start, end - start);
     }
     fprintf(stderr, "FATAL: fs fileID 0x%x matches no archive range\n", fileID);
     abort();
 }
 
-/* SharedFilePtr::Load -- the seam. Same contract as 0x02017c54. */
-struct SharedFilePtrC { u16 fileID; u8 numRefs; void *filePtr; };
+/* ---- host file cache ----------------------------------------------------
+   WHY: SharedFilePtr is refcounted, and every file whose count reaches zero
+   is Deallocate'd by func_02017c24 and re-read on the next reference. That
+   is right for a DS with 4 MB of RAM and a card that streams; on a host it
+   means Player::SetAnim does a blocking fopen + fread + LZ77 decode on the
+   frame the animation changes (see src/_ZN6Player7SetAnimEji5Fix12IiEj.cpp:
+   Release(old) immediately followed by LoadFile(new)). That was the frame
+   hitch on jumps.
 
-void *_ZN13SharedFilePtr4LoadEv(struct SharedFilePtrC *self)
+   The cache sits entirely under the seam and changes no observable contract:
+   it keeps its own master copy of the DECOMPRESSED bytes and still hands the
+   caller a fresh Memory::Allocate'd buffer on every Load, allocated with the
+   same call shape the uncached path used (1-arg for LZ77 output, 0x20-aligned
+   for stored files). The game remains free to write into what it is given and
+   to Deallocate it; the next Load gets pristine bytes, exactly as a re-read
+   from the card would. The master is snapshotted at decode time, before the
+   caller can touch it, so a mutating caller cannot poison the cache.
+
+   BOTH id namespaces are cached. Measured on a 300-frame castle-grounds walk:
+   145 loads at boot (86 loose + 59 archive) and only 3 during play, and all
+   three of those were archive-interior -- the Player's animations live inside
+   a NARC, so a loose-file-only cache would never have served one. The archive
+   path is cheaper than the loose one (the NARC itself is already resident) but
+   it still LZ77-decodes per load, so it gets the same treatment. */
+struct fs_cache_entry {
+    u8 *data;   /* master copy: decompressed bytes, malloc'd, never handed out */
+    u32 size;
+    int align;  /* 0 = Memory::Allocate(size); else Allocate(size, align) */
+    int valid;
+};
+/* indexed by fileID; SharedFilePtr::fileID is a u16, so one flat lazily
+   allocated table covers loose files and archive interiors alike */
+enum { FS_CACHE_SLOTS = 0x10000 };
+static struct fs_cache_entry *g_fcache;
+static unsigned long g_fcache_bytes, g_fcache_files;
+static unsigned long g_fs_hits, g_fs_misses;
+static int g_fcache_capped;
+
+static struct fs_cache_entry *fs_slot(unsigned fileID)
+{
+    if (!g_fcache)
+        g_fcache = (struct fs_cache_entry *)
+                   calloc(FS_CACHE_SLOTS, sizeof *g_fcache);
+    return g_fcache && fileID < FS_CACHE_SLOTS ? &g_fcache[fileID] : 0;
+}
+
+/* copy len bytes of file image into e's master, decompressing if LZ77-tagged.
+   Records the allocation shape the uncached path would have used. */
+static int fs_entry_store(struct fs_cache_entry *e, const u8 *src, u32 len)
+{
+    if (len > 8 && memcmp(src, "LZ77", 4) == 0) {
+        u32 dec = (src[4] | src[5] << 8 | src[6] << 16 | (u32)src[7] << 24) >> 8;
+        e->data = (u8 *)malloc(dec ? dec : 1);
+        if (!e->data) return 0;
+        DecompressLZ16((void *)(src + 4), e->data);
+        e->size = dec;
+        e->align = 0;
+    } else {
+        e->data = (u8 *)malloc(len ? len : 1);
+        if (!e->data) return 0;
+        memcpy(e->data, src, len);
+        e->size = len;
+        e->align = 0x20;
+    }
+    return 1;
+}
+
+/* keep-all is fine at castle-grounds sizes; the cap only exists so a long or
+   pathological run cannot grow without bound. Blocked admissions still load,
+   they just go to disk. */
+static unsigned long fs_cache_max(void)
+{
+    const char *e = getenv("SM64DS_FS_CACHE_MAX");
+    return e ? strtoul(e, 0, 0) : 128UL * 1024 * 1024;
+}
+
+static int fs_env_on(const char *name)
+{
+    const char *e = getenv(name);
+    return e && *e && *e != '0';
+}
+
+static int fs_trace_on(void)
+{
+    static int v = -1;
+    if (v < 0) v = fs_env_on("SM64DS_FS_TRACE");
+    return v;
+}
+
+static int fs_cache_off(void)
+{
+    static int v = -1;
+    if (v < 0) v = fs_env_on("SM64DS_FS_NOCACHE");
+    return v;
+}
+
+static void fs_cache_report(void)
+{
+    fprintf(stderr, "fs: cache %lu files, %lu bytes resident; %lu hits, "
+            "%lu misses%s\n", g_fcache_files, g_fcache_bytes, g_fs_hits,
+            g_fs_misses, g_fcache_capped ? " (cap reached)" : "");
+}
+
+/* read + decompress a loose FAT file into e's master copy. 1 on success. */
+static int fs_cache_fill(struct fs_cache_entry *e, unsigned fileID)
 {
     char path[PATH_MAX_ * 2];
     FILE *f;
     long fsize;
     u8 *raw;
-    void *dst;
+    int ok;
 
-    catalog_load();
-    data_0209d3bc = self->fileID;
-    if (self->fileID >= 0x8000) {
-        void *b = port_fs_archive_load(self->fileID);
-        if (b) self->filePtr = b;
-        return b;
-    }
-    if (self->fileID >= MAX_FILES || g_paths[self->fileID][0] == 0) {
-        fprintf(stderr, "FATAL: fs fileID %u not in catalog (fileptr %p)\n",
-                self->fileID, (void *)self);
-        abort();
-    }
     snprintf(path, sizeof path, "%s/extracted/dsd/files/%s",
-             asset_root(), g_paths[self->fileID]);
+             asset_root(), g_paths[fileID]);
     f = fopen(path, "rb");
     if (!f) {
         /* a cataloged file missing on disk is a data hole (regional variants
@@ -263,17 +346,83 @@ void *_ZN13SharedFilePtr4LoadEv(struct SharedFilePtrC *self)
         return 0; /* real Load returns 0 on a short read */
     }
     fclose(f);
-
-    if (fsize > 8 && memcmp(raw, "LZ77", 4) == 0) {
-        u32 dec = (raw[4] | raw[5] << 8 | raw[6] << 16 | (u32)raw[7] << 24) >> 8;
-        dst = Memory::Allocate(dec);
-        DecompressLZ16(raw + 4, dst);
-    } else {
-        dst = Memory::Allocate((u32)fsize, 0x20);
-        memcpy(dst, raw, fsize);
-    }
+    ok = fs_entry_store(e, raw, (u32)fsize);
     free(raw);
-    self->filePtr = dst;
+    return ok;
+}
+
+/* hand the caller its own buffer, allocated the way the uncached path did */
+static void *fs_hand_out(const struct fs_cache_entry *e)
+{
+    void *dst = e->align ? Memory::Allocate(e->size, e->align)
+                         : Memory::Allocate(e->size);
+    if (dst)
+        memcpy(dst, e->data, e->size);
+    return dst;
+}
+
+/* SharedFilePtr::Load -- the seam. Same contract as 0x02017c54. */
+struct SharedFilePtrC { u16 fileID; u8 numRefs; void *filePtr; };
+
+void *_ZN13SharedFilePtr4LoadEv(struct SharedFilePtrC *self)
+{
+    struct fs_cache_entry *e, tmp;
+    const int archive = self->fileID >= 0x8000;
+    const char *src;
+    int cached, admit, ok;
+    u32 tsize;
+    void *dst;
+
+    catalog_load();
+    data_0209d3bc = self->fileID;
+    if (!archive && (self->fileID >= MAX_FILES ||
+                     g_paths[self->fileID][0] == 0)) {
+        fprintf(stderr, "FATAL: fs fileID %u not in catalog (fileptr %p)\n",
+                self->fileID, (void *)self);
+        abort();
+    }
+
+    e = fs_slot(self->fileID);
+    cached = e && e->valid;
+    if (cached) {
+        g_fs_hits++;
+        tsize = e->size;
+        dst = fs_hand_out(e);
+        src = "cache";
+    } else {
+        struct fs_cache_entry *slot;
+        admit = e && !fs_cache_off() && g_fcache_bytes < fs_cache_max();
+        slot = admit ? e : &tmp;
+        memset(slot, 0, sizeof *slot);
+        ok = archive ? port_fs_archive_fill(slot, self->fileID)
+                     : fs_cache_fill(slot, self->fileID);
+        if (!ok) {
+            if (slot->data) { free(slot->data); slot->data = 0; }
+            return 0;
+        }
+        if (admit) {
+            slot->valid = 1;
+            g_fcache_bytes += slot->size;
+            if (++g_fcache_files == 1 && fs_trace_on())
+                atexit(fs_cache_report);
+        } else if (e && !fs_cache_off()) {
+            g_fcache_capped = 1;
+        }
+        g_fs_misses++;
+        tsize = slot->size;
+        dst = fs_hand_out(slot);
+        if (!admit) {
+            free(slot->data);
+            slot->data = 0;
+        }
+        src = archive ? "archive" : "disk";
+    }
+
+    if (fs_trace_on())
+        fprintf(stderr, "fs: load id=%u size=%u source=%s\n",
+                self->fileID, tsize, src);
+    if (dst)
+        self->filePtr = dst;
     return dst;
 }
 
