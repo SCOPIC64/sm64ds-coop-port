@@ -426,6 +426,159 @@ void *_ZN13SharedFilePtr4LoadEv(struct SharedFilePtrC *self)
     return dst;
 }
 
+// ---- the LOAD-AT pair (gate 24) ------------------------------------------
+//
+// LoadFileAt and LoadCompressedFileAt are the two entry points
+// Stage::LoadGraphics2D fills the bottom screen through, and both are matched
+// src that bottom out in the card layer this file replaces:
+//
+//     LoadFileAt(handle, dest)         -> func_02018270(handle, dest, -1)
+//     LoadCompressedFileAt(id, target) -> func_0201817c(id), then the caller
+//                                         reads the LZ header itself and
+//                                         decompresses to target
+//
+// So func_0201817c has to hand back the file still COMPRESSED, with its u32
+// LZ header at offset 0 -- LoadCompressedFileAt's own next two lines are
+// `size = func_02018ac4(src)` (that header >> 8) and DecompressLZ16(src,
+// target). SharedFilePtr::Load above cannot serve it: Load decompresses.
+// Hence a raw sibling rather than a call into the seam.
+//
+// The extraction stores compressed files with a four-byte "LZ77" magic in
+// front of the standard header; the card does not, so it is stripped here,
+// exactly as Load does with its `raw + 4`.
+/* The archive-interior case, without the decompression Load does: a pointer
+   into the cached NARC image and the length of the member. Same chunk walk as
+   port_fs_archive_load; that one copies and decodes, this one does not. */
+static const u8 *port_fs_archive_slice(unsigned fileID, u32 *len_out)
+{
+    for (int i = 0; i < 13; ++i) {
+        struct port_arc_entry *e = &port_archive_map[i];
+        if (fileID < e->base || fileID >= e->end)
+            continue;
+        if (!g_arc_buf[i]) {
+            /* port_fs_archive_load is what caches the archive image; its
+               return value is a decoded copy this caller does not want. */
+            void *throwaway = port_fs_archive_load(fileID);
+            if (!throwaway)
+                return 0;
+            Memory::Deallocate(throwaway);
+        }
+        u8 *a = g_arc_buf[i];
+        if (!a || memcmp(a, "NARC", 4) != 0)
+            return 0;
+        u8 *btaf = a + 0x10;
+        u32 btaf_size = btaf[4] | btaf[5] << 8 | btaf[6] << 16 | (u32)btaf[7] << 24;
+        u16 nfiles = (u16)(btaf[8] | btaf[9] << 8);
+        u8 *btnf = btaf + btaf_size;
+        u32 btnf_size = btnf[4] | btnf[5] << 8 | btnf[6] << 16 | (u32)btnf[7] << 24;
+        u8 *img = btnf + btnf_size + 8;
+        unsigned idx = fileID - e->base;
+        if (idx >= nfiles)
+            return 0;
+        u8 *fat = btaf + 12 + idx * 8;
+        u32 start = fat[0] | fat[1] << 8 | fat[2] << 16 | (u32)fat[3] << 24;
+        u32 end = fat[4] | fat[5] << 8 | fat[6] << 16 | (u32)fat[7] << 24;
+        *len_out = end - start;
+        return img + start;
+    }
+    return 0;
+}
+
+static u8 *port_fs_read_raw(u32 handle, long *len_out)
+{
+    char path[PATH_MAX_ * 2];
+    u32 fileID;
+    catalog_load();
+    fileID = func_02018a24(handle);
+    /* Handles at or past 0x8000 are archive-interior ids -- the ones
+       Stage::LoadGraphics2D uses for every one of its own files -- and they
+       are not in the plain FAT catalog at all. */
+    if (fileID >= 0x8000) {
+        u32 alen = 0;
+        const u8 *slice = port_fs_archive_slice(fileID, &alen);
+        u8 *copy;
+        if (!slice) {
+            fprintf(stderr, "fs: load-at interior id 0x%x not found\n", fileID);
+            return 0;
+        }
+        copy = (u8 *)malloc(alen ? alen : 1);
+        memcpy(copy, slice, alen);
+        *len_out = (long)alen;
+        return copy;
+    }
+    if (fileID >= MAX_FILES || g_paths[fileID][0] == 0) {
+        fprintf(stderr, "fs: load-at fileID %u (handle 0x%x) not in catalog\n",
+                fileID, handle);
+        return 0;
+    }
+    snprintf(path, sizeof path, "%s/extracted/dsd/files/%s", asset_root(),
+             g_paths[fileID]);
+    {
+        FILE *f = fopen(path, "rb");
+        long fsize;
+        u8 *raw;
+        if (!f) {
+            fprintf(stderr, "fs: load-at missing on disk: %s\n", path);
+            return 0;
+        }
+        fseek(f, 0, SEEK_END);
+        fsize = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        raw = (u8 *)malloc(fsize);
+        if ((long)fread(raw, 1, fsize, f) != fsize) {
+            fclose(f);
+            free(raw);
+            return 0;
+        }
+        fclose(f);
+        *len_out = fsize;
+        return raw;
+    }
+}
+
+/* func_0201817c: the file, still compressed, on the game's own heap so the
+   caller's Deallocate matches. */
+void *func_0201817c(u32 handle)
+{
+    long len = 0;
+    u8 *raw = port_fs_read_raw(handle, &len);
+    void *dst;
+    int magic;
+    long blen;
+    if (!raw)
+        return 0;
+    magic = len > 8 && memcmp(raw, "LZ77", 4) == 0;
+    blen = magic ? len - 4 : len;
+    dst = Memory::Allocate((u32)blen, 0x20);
+    memcpy(dst, magic ? raw + 4 : raw, blen);
+    free(raw);
+    return dst;
+}
+
+/* func_02018270: the file's bytes straight to an address. The card reads raw,
+   but a compressed file arriving here would mean the caller wanted
+   LoadCompressedFileAt, so decode rather than write an LZ header into VRAM --
+   and say so once, because it means the two are being confused. */
+void func_02018270(u32 handle, u32 dest, int size)
+{
+    long len = 0;
+    u8 *raw = port_fs_read_raw(handle, &len);
+    if (!raw)
+        return;
+    if (len > 8 && memcmp(raw, "LZ77", 4) == 0) {
+        static int said;
+        if (!said++)
+            fprintf(stderr, "fs: LoadFileAt(0x%x) on an LZ77 file; decoding\n",
+                    handle);
+        DecompressLZ16(raw + 4, (void *)dest);
+    } else {
+        if (size >= 0 && (long)size < len)
+            len = size;
+        memcpy((void *)dest, raw, len);
+    }
+    free(raw);
+}
+
 /* Construct: host ABI spells out both args (see header comment) */
 void func_02017e0c(void *self, u32 arg); /* portable src/ */
 struct SharedFilePtrC *_ZN13SharedFilePtr9ConstructEj(

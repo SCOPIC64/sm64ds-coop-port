@@ -47,6 +47,31 @@ void ppu_scanout_obj(Engine eng, Framebuffer &fb);
 // Debug output, so a frame can be inspected without a window yet.
 bool ppu_write_bmp(const char *path, const Framebuffer &fb);
 
+// ---- the bottom screen ------------------------------------------------------
+//
+// The sub engine is a tile raster whose every address is a DS pixel, so unlike
+// the 3D top screen it exists at exactly one size. It gets its own fixed
+// framebuffer and its own compositor (port/ntr/ppu_sub.cpp), and is scaled --
+// or, as the port does it, not scaled -- only when it reaches the window.
+constexpr int SUB_W = 256;
+constexpr int SUB_H = 192;
+
+struct SubFramebuffer {
+    uint32_t px[SUB_H][SUB_W];   // 0xAARRGGBB
+};
+
+// Engine B, whole: text/affine/extended-affine backgrounds with extended
+// palettes, sprites, the window unit and master brightness, all resolved
+// together by priority. No OBJ window, no BLDCNT blending, no bitmap BGs.
+void ppu_scanout_sub(SubFramebuffer &fb);
+
+bool ppu_write_bmp_sub(const char *path, const SubFramebuffer &fb);
+
+// Blit the bottom screen 1:1 into the bottom-right corner of a dst_w x dst_h
+// ARGB buffer, `margin` pixels in from both edges, with a one-pixel frame.
+void ppu_compose_sub(const SubFramebuffer &sub, uint32_t *dst, int dst_w,
+                     int dst_h, int margin);
+
 }  // namespace ntr
 
 #endif  // NTR_PPU_H

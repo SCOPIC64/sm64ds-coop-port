@@ -1,0 +1,57 @@
+# Gate-24 slice: THE BOTTOM SCREEN.
+#
+# Everything the sub engine draws is already matched; what this slice adds is
+# the code that puts bytes in front of it.
+#
+# 1. The OAM lifecycle the port never ran. OAM::Reset rebuilds both shadows at
+#    the top of the 2D frame, the RenderSub pair is what HUD and Minimap emit
+#    through, and OAM::EnableSubOAM is the one that clears data_0209e660 so a
+#    sub==true sprite stops landing in the top screen's buffer. OAM::Load
+#    itself reads POWCNT textually, so it comes through hostgen (GATE6_GEN),
+#    and the two upload primitives it calls come from here.
+#    The ten-argument OAM::Render core is already in slice_gate10, and
+#    GetObjWidth/GetObjHeight/LoadAffineParams with it.
+#
+# 2. Stage::LoadGraphics2D and its closure: the function that fills the bottom
+#    screen's BG character data, tilemaps and both palettes, plus the sprite
+#    tiles at 0x6600000. Without it the sub engine scans out an empty VRAM and
+#    the panel is one flat backdrop colour.
+#
+# 3. Stage::CheckCameraInput, which hit-tests the on-screen camera buttons
+#    against the touch record and turns them into the same rotate bits the
+#    shoulder buttons produce.
+
+src/_ZN3OAM5ResetEv.cpp
+src/_ZN3OAM12EnableSubOAMEv.c
+src/_ZN3OAM9RenderSubEP7OamAttrii.c
+src/_ZN3OAM9RenderSubEP7OamAttriiii.c
+src/func_020566dc.c
+src/func_02056674.c
+
+src/_ZN5Stage14LoadGraphics2DEbi.cpp
+src/_ZN2G213GetBG2CharPtrEv.c
+src/_ZN2G212GetBG2ScrPtrEv.c
+src/_ZN3G2S13GetBG0CharPtrEv.c
+src/_ZN3G2S12GetBG0ScrPtrEv.c
+src/_ZN3G2S12GetBG2ScrPtrEv.c
+src/LoadFont.cpp
+src/LoadFileAt.c
+src/LoadCompressedFileAt.c
+src/func_02018ac4.c
+src/_ZN2GX10LoadBGPlttEPKvjj.c
+src/_ZN3GXS10LoadBGPlttEPKvjj.c
+src/GetOwnerLanguage.c
+src/SetBg0Offset.c
+src/SetSubBg0Offset.c
+src/SetSubBg2Offset.c
+
+src/_ZN5Stage16CheckCameraInputEv.cpp
+
+# Not here, on purpose. Each is reachable only from a LoadGraphics2D branch
+# the port does not take, and each drags something the port has no seam for;
+# hal/sub_screen.cpp stubs them by name and says so if one is ever called.
+#
+#   LoadFont3D             -> Message::LoadTextVS, the message-box text engine
+#   LoadControllerModeText -> func_0201d590, the top-screen text rasteriser
+#   func_ov004_020adc4c    -> ov004, an overlay the port does not mount
+

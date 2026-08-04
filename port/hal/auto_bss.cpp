@@ -167,6 +167,20 @@ int data_020a0ebc[3];
    record's entrance byte here on its way into LoadLevel; config/arm9 calls
    it kind:bss, so zero is what the boot leaves it at. */
 unsigned char data_0209f2c0[4];
+/* gate 24: the bottom screen. The three SetSubBgyOffset scroll shadows and
+   SetBg0Offset's pair (the 2D layer's own copy of the BGxHOFS/VOFS words),
+   the owner-language byte GetOwnerLanguage returns, the per-slot camera-
+   button state Stage::CheckCameraInput latches, and the ov002 byte it sets
+   when the zoom button is pressed. All kind:bss, so zero is the boot value. */
+int data_0209d468[4];
+int data_0209d46c[4];
+int data_0209d470[4];
+int data_0209d47c[4];
+int data_0209d494[4];
+int data_0209d498[4];
+unsigned char data_020a0f00[4];
+unsigned short data_0209f368[8];
+unsigned char data_ov002_02111180[4];
 }
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */
