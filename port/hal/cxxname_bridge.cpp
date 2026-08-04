@@ -228,10 +228,26 @@ static void __fastcall mv_updateverts(void *self, void *)
 { ((Model *)self)->Model::UpdateVerts(); }
 static void __fastcall mv_virtual10(void *self, void *, void *m)
 { ((Model *)self)->Model::Virtual10(*(Matrix4x3 *)m); }
+/* Both of these sit in Model::Render's dispatch, which runs once per actor
+   per frame -- eighty-odd times a frame at the castle. MSVC's getenv walks
+   the whole environment block on every call, so they are latched once. */
+static int trace_actor_mat()
+{
+    static int on = -1;
+    if (on < 0) on = getenv("SM64DS_TRACE_ACTOR_MAT") ? 1 : 0;
+    return on;
+}
+static int actor_box()
+{
+    static int on = -1;
+    if (on < 0) on = getenv("SM64DS_ACTOR_BOX") ? 1 : 0;
+    return on;
+}
+
 static void __fastcall mv_render(void *self, void *, const void *s)
 {
     Model *m = (Model *)self;
-    if (getenv("SM64DS_TRACE_ACTOR_MAT")) {
+    if (trace_actor_mat()) {
         const unsigned char *bf = (const unsigned char *)m->data.modelFile;
         const int *q = (const int *)&m->mat4x3;
         const int *bt = (const int *)m->data.transforms;
@@ -246,7 +262,7 @@ static void __fastcall mv_render(void *self, void *, const void *s)
                     "%d %d %d\n", bt[0], bt[1], bt[2], bt[3], bt[4], bt[5],
                     bt[6], bt[7], bt[8], bt[9], bt[10], bt[11]);
     }
-    if (getenv("SM64DS_ACTOR_BOX")) {
+    if (actor_box()) {
         size_t before = 0;
         ntr::gx_polygons(before);
         m->Model::Render((const Vector3 *)s);

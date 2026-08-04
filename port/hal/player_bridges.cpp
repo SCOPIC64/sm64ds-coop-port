@@ -121,9 +121,19 @@ void hal_render_model(void *model, int scaleShift)
        the same terrain, in the world units the Player and the object table use
        -- puts its lowest vertex at -1800.0 and its outer wall at +-8500.
        SM64DS_LEVEL_SCALE=N overrides the whole vector for the A/B. */
+    /* This runs per model per frame, and MSVC's getenv scans the whole
+       environment block, so both overrides are latched on first use. */
     int s = *(const int *)data_020755d4;
-    if (const char *e = std::getenv("SM64DS_LEVEL_SCALE")) s = std::atoi(e);
-    if (std::getenv("SM64DS_MODEL_PROBE")) {
+    static int scale_override = 0, scale_value = 0;
+    if (!scale_override) {
+        const char *e = std::getenv("SM64DS_LEVEL_SCALE");
+        scale_override = e ? 1 : -1;
+        if (e) scale_value = std::atoi(e);
+    }
+    if (scale_override > 0) s = scale_value;
+    static int probe = -1;
+    if (probe < 0) probe = std::getenv("SM64DS_MODEL_PROBE") ? 1 : 0;
+    if (probe) {
         const BMD_File *f2 = m->data.modelFile;
         const int *t = (const int *)m->data.transforms;
         int lo[3] = {1 << 30, 1 << 30, 1 << 30},

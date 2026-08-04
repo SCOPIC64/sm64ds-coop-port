@@ -8,11 +8,16 @@
 
 #include "ntr/texture.h"
 
+#include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <mutex>
+#include <thread>
+#include <utility>
 #include <vector>
 
 namespace ntr {
@@ -91,7 +96,20 @@ struct State {
 
 State g;
 int g_store_count;
+int g_tex_decodes;            // VRAM texture decodes since the last perf report
 extern uint32_t g_teximage;   // defined with the texture cache below
+
+/* SM64DS_FRAME_MS=1: every 30 frames, the raster's own cost on stderr --
+   average time inside gx_render, average wall interval between consecutive
+   gx_render calls (which is the whole frame when nothing is pacing it),
+   triangles submitted and textures decoded out of VRAM per frame. The
+   decode count is the one that says whether the texture cache is working:
+   it should settle at 0 once a scene has been seen once. */
+int frame_ms() {
+    static int on = -1;
+    if (on < 0) on = getenv("SM64DS_FRAME_MS") ? 1 : 0;
+    return on;
+}
 
 uint32_t bgr555_to_argb(uint16_t c) {
     const uint32_t r = c & 0x1F, gg = (c >> 5) & 0x1F, b = (c >> 10) & 0x1F;
@@ -608,7 +626,32 @@ constexpr uintptr_t TEX_SLOT_BASE  = 0x06800000u;   // texture slots, mapped
 constexpr uintptr_t PLTT_SLOT_BASE = 0x06880000u;   // palette slots, mapped
 
 uint32_t g_teximage, g_plttbase;
-std::map<uint64_t, std::vector<uint32_t>> g_vram_tex_cache;
+
+/* Key: the pair of VRAM words that name the texture, plus a cheap read of
+   what is actually sitting in those slots. The teximage/palette pair alone is
+   not enough on its own -- a scene change can upload different texels to the
+   same slot offset with the same parameters, and the soak does exactly that,
+   once per model -- so the first and last word of the block and the first word
+   of the palette ride along. That is three loads per bind, against a decode
+   plus a heap allocation, and it means a stale entry cannot be served. */
+struct TexKey {
+    uint64_t name;          // plttbase:teximage
+    uint32_t c0, c1, cp;    // content probe
+    bool operator<(const TexKey &o) const {
+        if (name != o.name) return name < o.name;
+        if (c0 != o.c0) return c0 < o.c0;
+        if (c1 != o.c1) return c1 < o.c1;
+        return cp < o.cp;
+    }
+};
+std::map<TexKey, std::vector<uint32_t>> g_vram_tex_cache;
+
+uint32_t probe_word(const uint8_t *p, int32_t len, int32_t off) {
+    if (!p || off < 0 || off + 4 > len) return 0;
+    uint32_t v;
+    std::memcpy(&v, p + off, 4);
+    return v;
+}
 
 /* SM64DS_TEX_LOG=1: one line per DISTINCT bind reaching the engine --
    teximage word, decoded geometry, both VRAM addresses and whether the
@@ -632,28 +675,41 @@ void bind_from_vram() {
         gx_bind_texture(nullptr, 0, 0);
         return;
     }
-    const uint64_t key = (static_cast<uint64_t>(g_plttbase) << 32) | g_teximage;
+    /* The descriptor is pure arithmetic on the two latched words, so it is
+       built before the lookup -- the content probe needs its geometry. */
+    TextureDesc d;
+    const uint32_t off = (g_teximage & 0xFFFF) << 3;
+    d.width = 8 << ((g_teximage >> 20) & 7);
+    d.height = 8 << ((g_teximage >> 23) & 7);
+    d.format = static_cast<int>(fmt);
+    d.color0_transparent = (g_teximage >> 29) & 1;
+    d.data = reinterpret_cast<const uint8_t *>(TEX_SLOT_BASE + off);
+    d.data_len = 0x80000 - static_cast<int32_t>(off);
+    // Format 5 keeps its 4x4 palette-index words in slot 1, at half the
+    // block offset (GBATEK); the game uploads them right after the blocks.
+    if (fmt == 5) {
+        d.index = reinterpret_cast<const uint8_t *>(TEX_SLOT_BASE + 0x20000 + off / 2);
+        d.index_len = 0x20000 - static_cast<int32_t>(off / 2);
+    }
+    const uint32_t pal_off = g_plttbase * (fmt == 2 ? 8u : 16u);
+    d.pal = reinterpret_cast<const uint8_t *>(PLTT_SLOT_BASE + pal_off);
+    d.pal_len = 0x18000 - static_cast<int32_t>(pal_off);
+
+    TexKey key;
+    key.name = (static_cast<uint64_t>(g_plttbase) << 32) | g_teximage;
+    /* w*h/4 bytes is the smallest any DS format uses for a block of that
+       size, so it is in range whatever the format turns out to be. */
+    int32_t span = d.width * d.height / 4;
+    if (span > d.data_len) span = d.data_len;
+    key.c0 = probe_word(d.data, d.data_len, 0);
+    key.c1 = probe_word(d.data, d.data_len, span - 4);
+    key.cp = probe_word(d.pal, d.pal_len, 0);
+
     auto it = g_vram_tex_cache.find(key);
     if (it == g_vram_tex_cache.end()) {
-        TextureDesc d;
-        const uint32_t off = (g_teximage & 0xFFFF) << 3;
-        d.width = 8 << ((g_teximage >> 20) & 7);
-        d.height = 8 << ((g_teximage >> 23) & 7);
-        d.format = static_cast<int>(fmt);
-        d.color0_transparent = (g_teximage >> 29) & 1;
-        d.data = reinterpret_cast<const uint8_t *>(TEX_SLOT_BASE + off);
-        d.data_len = 0x80000 - static_cast<int32_t>(off);
-        // Format 5 keeps its 4x4 palette-index words in slot 1, at half the
-        // block offset (GBATEK); the game uploads them right after the blocks.
-        if (fmt == 5) {
-            d.index = reinterpret_cast<const uint8_t *>(TEX_SLOT_BASE + 0x20000 + off / 2);
-            d.index_len = 0x20000 - static_cast<int32_t>(off / 2);
-        }
-        const uint32_t pal_off = g_plttbase * (fmt == 2 ? 8u : 16u);
-        d.pal = reinterpret_cast<const uint8_t *>(PLTT_SLOT_BASE + pal_off);
-        d.pal_len = 0x18000 - static_cast<int32_t>(pal_off);
         std::vector<uint32_t> rgba;
         const bool ok = texture_decode(d, rgba);
+        ++g_tex_decodes;
         if (tex_log())
             printf("[texbind] tex=%08x pltt=%04x fmt=%u %dx%d texoff=%05x "
                    "idxoff=%05x paloff=%05x %s\n",
@@ -751,11 +807,33 @@ void gx_write_port(uint32_t addr, uint32_t value) {
     }
 }
 
+/* Drop every decoded texture. The cache OUTLIVES gx_reset -- gx_reset runs
+   once per frame, and throwing the decodes away there meant every texture in
+   the scene was decoded out of VRAM and heap-allocated again 30 times a
+   second. Callers that recycle VRAM slot offsets faster than the content
+   probe can tell apart, or that just want the memory back, say so here; the
+   soaks do, once per model. SM64DS_TEX_NOCACHE=1 restores the old
+   clear-every-reset behaviour for an A/B. */
+void gx_invalidate_textures() { g_vram_tex_cache.clear(); }
+
 void gx_reset() {
+    static int nocache = -1;
+    if (nocache < 0) nocache = getenv("SM64DS_TEX_NOCACHE") ? 1 : 0;
+    if (nocache) g_vram_tex_cache.clear();
+    /* KEEP THE TWO BUFFERS ACROSS THE RESET. `g = State{}` destroys the
+       triangle list and the vertex strip and grows them back from nothing on
+       the next frame -- a couple of thousand triangles at 116 bytes each, so a
+       free plus the whole doubling ramp of reallocations, thirty times a
+       second, for a buffer whose size barely changes frame to frame. Moving
+       them out across the assignment and back in keeps their capacity;
+       clear() on these trivially destructible element types is a size store. */
+    std::vector<GxVertex> strip = std::move(g.strip);
+    std::vector<GxTriangle> tris = std::move(g.tris);
+    strip.clear();
+    tris.clear();
     g = State{};
-    // VRAM-decoded texture cache: uploads can be replaced between scenes
-    // (the soak reuses slot offsets per model), so stale entries must go.
-    g_vram_tex_cache.clear();
+    g.strip = std::move(strip);
+    g.tris = std::move(tris);
     g_teximage = g_plttbase = 0;
     // The stack slots must start as identity, not zero. Model display lists open
     // with MTX_RESTORE against a slot the *scene* filled in earlier; rendering a
@@ -834,11 +912,121 @@ static int tex_coord(float f, int size, bool repeat, bool flip) {
     return i < size ? i : period - 1 - i;
 }
 
+/* n/255.0f for every byte. The texel-modulate step did this divide three
+   times per pixel; the table holds the identical float, so the product is
+   bit-for-bit what the divide produced. */
+struct Inv255 {
+    float v[256];
+    Inv255() { for (int i = 0; i < 256; ++i) v[i] = i / 255.0f; }
+};
+static const Inv255 inv255;
+
+/* --- parallel raster -------------------------------------------------------
+   The screen is split BY ROW: worker k takes rows k, k+T, k+2T and so on.
+   Every row is written by exactly one worker, and every worker walks the whole
+   triangle list in submission order, so the depth resolution and the
+   translucent blend over the framebuffer happen in the same order, against the
+   same pixels, as they did on one thread. The frame that comes out is
+   bit-for-bit the frame one thread produced: this partitions the work, it does
+   not reorder it. That is the only reason it is allowed to exist here -- the
+   raster is the port's reference for what the DS drew.
+
+   SM64DS_RASTER_THREADS=N forces the worker count; 1 turns threading off. */
+namespace {
+
+typedef void (*BandFn)(void *, int, int);
+
+struct RasterPool {
+    std::vector<std::thread> th;
+    std::mutex m;
+    std::condition_variable cv_go, cv_done;
+    unsigned long long gen = 0;
+    int done = 0, n = 1;
+    bool stop = false;
+    BandFn fn = nullptr;
+    void *ctx = nullptr;
+
+    void start(int threads) {
+        n = threads;
+        for (int i = 1; i < n; ++i) th.emplace_back([this, i] { worker(i); });
+    }
+    ~RasterPool() {
+        {
+            std::lock_guard<std::mutex> lk(m);
+            stop = true;
+            ++gen;
+        }
+        cv_go.notify_all();
+        for (std::thread &t : th)
+            if (t.joinable()) t.join();
+    }
+    void worker(int id) {
+        unsigned long long seen = 0;
+        for (;;) {
+            std::unique_lock<std::mutex> lk(m);
+            cv_go.wait(lk, [&] { return gen != seen || stop; });
+            if (stop) return;
+            seen = gen;
+            lk.unlock();
+            fn(ctx, id, n);
+            lk.lock();
+            ++done;
+            lk.unlock();
+            cv_done.notify_one();
+        }
+    }
+    void run(BandFn f, void *c) {
+        {
+            std::lock_guard<std::mutex> lk(m);
+            fn = f;
+            ctx = c;
+            done = 0;
+            ++gen;
+        }
+        cv_go.notify_all();
+        f(c, 0, n);                       // this thread takes band 0
+        std::unique_lock<std::mutex> lk(m);
+        cv_done.wait(lk, [&] { return done == n - 1; });
+    }
+};
+
+int raster_threads() {
+    static int n = -1;
+    if (n < 0) {
+        if (const char *e = getenv("SM64DS_RASTER_THREADS")) {
+            n = atoi(e);
+        } else {
+            unsigned hc = std::thread::hardware_concurrency();
+            n = hc ? (int)hc : 1;
+            if (n > 8) n = 8;   /* past this the row bands stop paying */
+        }
+        if (n < 1) n = 1;
+    }
+    return n;
+}
+
+RasterPool &pool(int threads) {
+    static RasterPool p;
+    static int started = 0;
+    if (!started) { started = 1; p.start(threads); }
+    return p;
+}
+
+}  // namespace
+
 void gx_render(Framebuffer &fb) {
+    const int tm = frame_ms();
+    std::chrono::steady_clock::time_point t_enter;
+    if (tm) t_enter = std::chrono::steady_clock::now();
     tri_report();
+    /* Depth clear: 768KB at the window's 2x tier, every frame. 1e30f is not a
+       repeating byte pattern so memset cannot do it, but one row can be built
+       scalar and the rest copied from it, which is memcpy's problem rather
+       than a 196k-iteration scalar loop's. */
     static float depth[SCREEN_H][SCREEN_W];
-    for (int y = 0; y < SCREEN_H; ++y)
-        for (int x = 0; x < SCREEN_W; ++x) depth[y][x] = 1e30f;
+    for (int x = 0; x < SCREEN_W; ++x) depth[0][x] = 1e30f;
+    for (int y = 1; y < SCREEN_H; ++y)
+        std::memcpy(depth[y], depth[0], SCREEN_W * sizeof(float));
 
     /* SM64DS_TEX_ONLY=<hex teximage>: draw only the polygons that were
        bound to that texture, so a material can be located on screen
@@ -862,11 +1050,15 @@ void gx_render(Framebuffer &fb) {
         }
     }
 
-    for (const GxTriangle &t : g.tris) {
-        if (only && t.dbg_tex != only) continue;
-        const GxVertex &a = t.v[0], &b = t.v[1], &c = t.v[2];
-        const float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-        if (probe_x >= 0) {
+    /* The probe is a reporting pass of its own, on this thread: it prints, and
+       printing once per covering triangle is only meaningful in submission
+       order from one place. */
+    if (probe_x >= 0) {
+        for (const GxTriangle &t : g.tris) {
+            if (only && t.dbg_tex != only) continue;
+            const GxVertex &a = t.v[0], &b = t.v[1], &c = t.v[2];
+            const float area =
+                (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
             const float px = probe_x + 0.5f, py = probe_y + 0.5f;
             const float w0 = ((b.x - a.x) * (py - a.y) - (b.y - a.y) * (px - a.x));
             const float w1 = ((c.x - b.x) * (py - b.y) - (c.y - b.y) * (px - b.x));
@@ -884,6 +1076,14 @@ void gx_render(Framebuffer &fb) {
                        std::fabs(area) < 1e-6f ? " DEGENERATE" : "",
                        culled ? " CULLED" : "", t.dbg_tex);
         }
+    }
+
+    /* One row band. tid picks the rows: tid, tid+nt, tid+2nt... */
+    auto band = [&](int tid, int nt) {
+    for (const GxTriangle &t : g.tris) {
+        if (only && t.dbg_tex != only) continue;
+        const GxVertex &a = t.v[0], &b = t.v[1], &c = t.v[2];
+        const float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
         if (std::fabs(area) < 1e-6f) continue;
 
         // Back-face culling per POLYGON_ATTR bits 6-7 (bit 6 renders the back
@@ -903,18 +1103,65 @@ void gx_render(Framebuffer &fb) {
         if (maxx > SCREEN_W - 1) maxx = SCREEN_W - 1;
         if (maxy > SCREEN_H - 1) maxy = SCREEN_H - 1;
 
-        for (int y = miny; y <= maxy; ++y) {
+        /* EVERYTHING BELOW THAT DOES NOT DEPEND ON THE PIXEL IS COMPUTED ONCE.
+           The edge functions were three full expressions per pixel, each
+           ending in a divide by `area`; the 1/w reciprocals were three fabs,
+           three compares and three divides per pixel for values that belong
+           to the triangle; and the vertex colours were converted from bytes to
+           float per channel per pixel. The arithmetic is left in exactly the
+           order it was written -- same operands, same operations, so the same
+           floats come out -- only the loop level it happens at moves. */
+        const float eax = b.x - a.x, eay = b.y - a.y;
+        const float ebx = c.x - b.x, eby = c.y - b.y;
+        const float ecx = a.x - c.x, ecy = a.y - c.y;
+        const float iwa = (std::fabs(a.w) > 1e-6f) ? 1.0f / a.w : 0.0f;
+        const float iwb = (std::fabs(b.w) > 1e-6f) ? 1.0f / b.w : 0.0f;
+        const float iwc = (std::fabs(c.w) > 1e-6f) ? 1.0f / c.w : 0.0f;
+        /* NOTE the UV terms below stay written as l0 * a.u * iwa. Folding
+           a.u * iwa out to the triangle would regroup the multiply, and float
+           multiplication does not associate -- (l0*a.u)*iwa and l0*(a.u*iwa)
+           are different numbers. Only the reciprocal itself is hoisted. */
+        const bool textured = t.tex && t.tw > 0 && t.th > 0;
+        const bool rep_s = (t.wrap & 1) != 0, rep_t = (t.wrap & 2) != 0;
+        const bool flip_s = (t.wrap & 4) != 0, flip_t = (t.wrap & 8) != 0;
+        const float acol[3] = {(float)((a.color >> 16) & 0xFF),
+                               (float)((a.color >> 8) & 0xFF),
+                               (float)(a.color & 0xFF)};
+        const float bcol[3] = {(float)((b.color >> 16) & 0xFF),
+                               (float)((b.color >> 8) & 0xFF),
+                               (float)(b.color & 0xFF)};
+        const float ccol[3] = {(float)((c.color >> 16) & 0xFF),
+                               (float)((c.color >> 8) & 0xFF),
+                               (float)(c.color & 0xFF)};
+        const uint32_t poly_a = (t.alpha >= 31 || t.alpha == 0) ? 31u : t.alpha;
+
+        /* first row of this band at or after miny */
+        const int y_first = miny + (((tid - miny) % nt) + nt) % nt;
+        for (int y = y_first; y <= maxy; y += nt) {
+            const float py = y + 0.5f;
+            /* the half of each edge function that only moves with the row */
+            const float r0 = eax * (py - a.y);
+            const float r1 = ebx * (py - b.y);
+            const float r2 = ecx * (py - c.y);
+            float *drow = depth[y];
+            uint32_t *frow = fb.px[y];
             for (int x = minx; x <= maxx; ++x) {
-                const float px = x + 0.5f, py = y + 0.5f;
-                float w0 = ((b.x - a.x) * (py - a.y) - (b.y - a.y) * (px - a.x)) / area;
-                float w1 = ((c.x - b.x) * (py - b.y) - (c.y - b.y) * (px - b.x)) / area;
-                float w2 = ((a.x - c.x) * (py - c.y) - (a.y - c.y) * (px - c.x)) / area;
+                const float px = x + 0.5f;
+                /* Coverage is decided on the undivided edge functions. The
+                   test asks whether all three share a sign, and dividing all
+                   three by the same non-zero area cannot change that whichever
+                   way the area points -- so the three divides only have to
+                   happen for pixels that are actually inside. */
+                const float n0 = r0 - eay * (px - a.x);
+                const float n1 = r1 - eby * (px - b.x);
+                const float n2 = r2 - ecy * (px - c.x);
                 // Accept either winding; back-face culling is a POLYGON_ATTR job.
-                if (!((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0)))
+                if (!((n0 >= 0 && n1 >= 0 && n2 >= 0) || (n0 <= 0 && n1 <= 0 && n2 <= 0)))
                     continue;
+                const float w0 = n0 / area, w1 = n1 / area, w2 = n2 / area;
                 const float l0 = w1, l1 = w2, l2 = w0;   // barycentric for a, b, c
                 const float z = l0 * a.z + l1 * b.z + l2 * c.z;
-                if (z >= depth[y][x]) continue;
+                if (z >= drow[x]) continue;
                 // Depth is written only after the texel passes the alpha test
                 // below -- a transparent texel must not occlude what is behind it.
                 // Texture first; the vertex colour modulates it. UVs are
@@ -922,10 +1169,7 @@ void gx_render(Framebuffer &fb) {
                 // everywhere (the ortho harnesses) the math reduces exactly
                 // to the old affine lerp.
                 uint32_t texel = 0xFFFFFFFFu;
-                if (t.tex && t.tw > 0 && t.th > 0) {
-                    const float iwa = (std::fabs(a.w) > 1e-6f) ? 1.0f / a.w : 0.0f;
-                    const float iwb = (std::fabs(b.w) > 1e-6f) ? 1.0f / b.w : 0.0f;
-                    const float iwc = (std::fabs(c.w) > 1e-6f) ? 1.0f / c.w : 0.0f;
+                if (textured) {
                     const float iw = l0 * iwa + l1 * iwb + l2 * iwc;
                     float uu, vv;
                     if (iw > 1e-9f) {
@@ -935,50 +1179,76 @@ void gx_render(Framebuffer &fb) {
                         uu = l0 * a.u + l1 * b.u + l2 * c.u;
                         vv = l0 * a.v + l1 * b.v + l2 * c.v;
                     }
-                    const int ui = tex_coord(uu, t.tw, (t.wrap & 1) != 0,
-                                             (t.wrap & 4) != 0);
-                    const int vi = tex_coord(vv, t.th, (t.wrap & 2) != 0,
-                                             (t.wrap & 8) != 0);
+                    const int ui = tex_coord(uu, t.tw, rep_s, flip_s);
+                    const int vi = tex_coord(vv, t.th, rep_t, flip_t);
                     texel = t.tex[vi * t.tw + ui];
                     if ((texel >> 24) == 0) continue;      // transparent texel
                 }
 
                 // Round, do not truncate: barycentrics sum to 0.9999 rather than
                 // exactly 1, and a truncating cast bands a flat surface 255/254.
-                auto ch = [&](int sh) {
-                    const float v = l0 * ((a.color >> sh) & 0xFF)
-                                    + l1 * ((b.color >> sh) & 0xFF)
-                                    + l2 * ((c.color >> sh) & 0xFF);
-                    const float m = ((texel >> sh) & 0xFF) / 255.0f;
+                auto ch = [&](int k, int sh) {
+                    const float v = l0 * acol[k] + l1 * bcol[k] + l2 * ccol[k];
+                    const float m = inv255.v[(texel >> sh) & 0xFF];
                     const int i = static_cast<int>(v * m + 0.5f);
                     return static_cast<uint32_t>(i < 0 ? 0 : (i > 255 ? 255 : i));
                 };
                 /* effective alpha = poly attr alpha combined with the
                    TEXEL alpha (A3I5/A5I3 gradients -- the grass-fade
                    strips render solid without it) */
-                const uint32_t poly_a =
-                    (t.alpha >= 31 || t.alpha == 0) ? 31u : t.alpha;
                 const uint32_t tex_a = texel >> 24;            /* 0..255 */
                 const uint32_t sa = (poly_a * tex_a + 127) / 255; /* 0..31 */
                 if (sa >= 31) {
                     /* opaque (the DS treats attr alpha 0 as wire/opaque
                        depending on mode; opaque is the safe read) */
-                    depth[y][x] = z;
-                    fb.px[y][x] =
-                        0xFF000000u | (ch(16) << 16) | (ch(8) << 8) | ch(0);
+                    drow[x] = z;
+                    frow[x] = 0xFF000000u | (ch(0, 16) << 16) | (ch(1, 8) << 8)
+                              | ch(2, 0);
                 } else {
                     /* translucent: blend over the framebuffer, keep depth
                        (DS translucent polys depth-test but do not write) */
-                    const uint32_t dst = fb.px[y][x];
-                    auto bl = [&](int sh) {
-                        const uint32_t s = ch(sh);
+                    const uint32_t dst = frow[x];
+                    auto bl = [&](int k, int sh) {
+                        const uint32_t s = ch(k, sh);
                         const uint32_t d = (dst >> sh) & 0xFF;
                         return ((s * sa + d * (31 - sa)) / 31) & 0xFF;
                     };
-                    fb.px[y][x] = 0xFF000000u | (bl(16) << 16) | (bl(8) << 8)
-                                  | bl(0);
+                    frow[x] = 0xFF000000u | (bl(0, 16) << 16) | (bl(1, 8) << 8)
+                              | bl(2, 0);
                 }
             }
+        }
+    }
+    };  // band
+
+    /* Small scenes (the smokes, a single model) are not worth waking anyone
+       up for; the handover costs more than the fill. */
+    const int nt = (g.tris.size() < 256) ? 1 : raster_threads();
+    if (nt <= 1) {
+        band(0, 1);
+    } else {
+        typedef decltype(band) B;
+        pool(nt).run([](void *p, int tid, int n) { (*static_cast<B *>(p))(tid, n); },
+                     &band);
+    }
+
+    if (tm) {
+        using clk = std::chrono::steady_clock;
+        using ms = std::chrono::duration<double, std::milli>;
+        const clk::time_point t_exit = clk::now();
+        static clk::time_point prev;
+        static double acc_raster, acc_frame;
+        static long long acc_tris;
+        static int n;
+        acc_raster += ms(t_exit - t_enter).count();
+        if (prev.time_since_epoch().count()) acc_frame += ms(t_exit - prev).count();
+        prev = t_exit;
+        acc_tris += static_cast<long long>(g.tris.size());
+        if (++n >= 30) {
+            fprintf(stderr, "[perf] frame %6.2fms raster %6.2fms tris %6lld "
+                    "decodes %.1f\n", acc_frame / n, acc_raster / n,
+                    acc_tris / n, (double)g_tex_decodes / n);
+            acc_raster = acc_frame = 0; acc_tris = 0; n = 0; g_tex_decodes = 0;
         }
     }
 }
