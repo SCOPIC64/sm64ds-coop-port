@@ -10,12 +10,15 @@ src/_ZN10ShutterBobD0Ev.c:
     .text start:0x021111f0 end:0x02111254
 
 src/_ZN10ShutterBob16CleanupResourcesEv.cpp:
+    complete
     .text start:0x02111254 end:0x02111268
 
 src/_ZN10ShutterBob8BehaviorEv.cpp:
+    complete
     .text start:0x02111268 end:0x02111294
 
 src/_ZN10ShutterBob13InitResourcesEv.cpp:
+    complete
     .text start:0x02111294 end:0x021112cc
 
 src/ShutterBob_Spawn.c:
@@ -26,6 +29,7 @@ src/_ZN10ChainChompD1Ev.c:
     .text start:0x02111308 end:0x021113bc
 
 src/_ZN10ChainChompD0Ev.cpp:
+    complete
     .text start:0x021113bc end:0x02111484
 
 src/func_ov014_02111484.c:
@@ -127,6 +131,7 @@ src/_ZN10ChainChomp8BehaviorEv.cpp:
     .text start:0x021129ec end:0x02112b14
 
 src/_ZN10ChainChomp13InitResourcesEv.cpp:
+    complete
     .text start:0x02112b14 end:0x02112d1c
 
 src/ChainChomp_Spawn.cpp:
@@ -153,6 +158,7 @@ src/_ZN15ChainChompFence8BehaviorEv.cpp:
     .text start:0x02112fc0 end:0x02112ffc
 
 src/_ZN15ChainChompFence13InitResourcesEv.cpp:
+    complete
     .text start:0x02112ffc end:0x0211307c
 
 src/ChainChompFence_Spawn.c:

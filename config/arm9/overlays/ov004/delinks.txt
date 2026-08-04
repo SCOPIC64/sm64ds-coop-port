@@ -186,6 +186,7 @@ src/func_ov004_020ae3b4.c:
     .text start:0x020ae3b4 end:0x020ae5c4
 
 src/_ZN5Enemy12KillByAttackER5Actor.cpp:
+    complete
     .text start:0x020aea30 end:0x020aea78
 
 src/func_ov004_020aea78.cpp:
@@ -200,6 +201,7 @@ src/func_ov004_020aeed8.cpp:
     .text start:0x020aeed8 end:0x020af04c
 
 src/func_ov004_020af04c.cpp:
+    complete
     .text start:0x020af04c end:0x020af094
 
 src/func_ov004_020af094.cpp:
@@ -290,6 +292,7 @@ src/func_ov004_020b04ec.c:
     .text start:0x020b04ec end:0x020b04f4
 
 src/func_ov004_020b04f4.cpp:
+    complete
     .text start:0x020b04f4 end:0x020b0618
 
 src/func_ov004_020b0618.c:
@@ -453,6 +456,7 @@ src/func_ov004_020b29a0.cpp:
     .text start:0x020b29a0 end:0x020b29c0
 
 src/func_ov004_020b29c0.cpp:
+    complete
     .text start:0x020b29c0 end:0x020b2a18
 
 src/func_ov004_020b2a18.cpp:
@@ -460,6 +464,7 @@ src/func_ov004_020b2a18.cpp:
     .text start:0x020b2a18 end:0x020b2a84
 
 src/func_ov004_020b2a84.cpp:
+    complete
     .text start:0x020b2a84 end:0x020b2adc
 
 src/func_ov004_020b2adc.c:
@@ -670,6 +675,7 @@ src/func_ov004_020b4cc4.c:
     .text start:0x020b4cc4 end:0x020b4d50
 
 src/func_ov004_020b4d50.c:
+    complete
     .text start:0x020b4d50 end:0x020b4dfc
 
 src/func_ov004_020b4dfc.c:
@@ -729,6 +735,7 @@ src/func_ov004_020b53f0.c:
     .text start:0x020b53f0 end:0x020b556c
 
 src/func_ov004_020b556c.cpp:
+    complete
     .text start:0x020b556c end:0x020b56c8
 
 src/func_ov004_020b56c8.c:
@@ -744,6 +751,7 @@ src/func_ov004_020b586c.cpp:
     .text start:0x020b586c end:0x020b58c4
 
 src/func_ov004_020b58c4.cpp:
+    complete
     .text start:0x020b58c4 end:0x020b5a54
 
 src/func_ov004_020b5a54.cpp:
@@ -751,9 +759,11 @@ src/func_ov004_020b5a54.cpp:
     .text start:0x020b5a54 end:0x020b5aac
 
 src/func_ov004_020b5aac.cpp:
+    complete
     .text start:0x020b5aac end:0x020b5c18
 
 src/func_ov004_020b5c18.cpp:
+    complete
     .text start:0x020b5c18 end:0x020b5d74
 
 src/func_ov004_020b5d74.c:
@@ -781,6 +791,7 @@ src/func_ov004_020b612c.c:
     .text start:0x020b612c end:0x020b6234
 
 src/func_ov004_020b6234.cpp:
+    complete
     .text start:0x020b6234 end:0x020b6324
 
 src/func_ov004_020b6324.c:

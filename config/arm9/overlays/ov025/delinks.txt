@@ -23,6 +23,7 @@ src/func_ov025_02111344.c:
     .text start:0x02111344 end:0x02111384
 
 src/func_ov025_02111384.cpp:
+    complete
     .text start:0x02111384 end:0x021113c8
 
 src/func_ov025_021113c8.cpp:
@@ -30,9 +31,11 @@ src/func_ov025_021113c8.cpp:
     .text start:0x021113c8 end:0x021113f0
 
 src/func_ov025_021113f0.c:
+    complete
     .text start:0x021113f0 end:0x021117dc
 
 src/func_ov025_021117dc.cpp:
+    complete
     .text start:0x021117dc end:0x02111898
 
 src/func_ov025_02111898.c:
@@ -62,6 +65,7 @@ src/func_ov025_02111a84.cpp:
     .text start:0x02111a84 end:0x02111b64
 
 src/func_ov025_02111b64.cpp:
+    complete
     .text start:0x02111b64 end:0x02111c24
 
 src/func_ov025_02111c24.cpp:
@@ -93,6 +97,7 @@ src/_ZN11PyramidStep6RenderEv.cpp:
     .text start:0x02111ea8 end:0x02111ed4
 
 src/_ZN11PyramidStep8BehaviorEv.cpp:
+    complete
     .text start:0x02111ed4 end:0x02111fa0
 
 src/_ZN11PyramidStep13InitResourcesEv.cpp:
@@ -104,6 +109,7 @@ src/PyramidStep_Spawn.c:
     .text start:0x021120ac end:0x021120e4
 
 src/_ZN11PyramidLiftD1Ev.cpp:
+    complete
     .text start:0x021120e4 end:0x02112148
 
 src/_ZN11PyramidLiftD0Ev.c:
@@ -123,6 +129,7 @@ src/_ZN11PyramidLift8BehaviorEv.cpp:
     .text start:0x02112288 end:0x02112498
 
 src/_ZN11PyramidLift13InitResourcesEv.cpp:
+    complete
     .text start:0x02112498 end:0x021125bc
 
 src/func_ov025_021125bc.cpp:

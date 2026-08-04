@@ -61,6 +61,7 @@ src/_ZN19RotatingPlatformLllD0Ev.c:
     .text start:0x02111708 end:0x02111760
 
 src/_ZN19RotatingPlatformLll16CleanupResourcesEv.cpp:
+    complete
     .text start:0x02111760 end:0x021117a4
 
 src/_ZN19RotatingPlatformLll6RenderEv.cpp:
@@ -71,6 +72,7 @@ src/_ZN19RotatingPlatformLll8BehaviorEv.cpp:
     .text start:0x021117cc end:0x02111870
 
 src/_ZN19RotatingPlatformLll13InitResourcesEv.cpp:
+    complete
     .text start:0x02111870 end:0x0211191c
 
 src/func_ov022_0211191c.cpp:
@@ -179,6 +181,7 @@ src/_ZN19FloatingFloorLllBig8BehaviorEv.cpp:
     .text start:0x02112238 end:0x021122ac
 
 src/_ZN19FloatingFloorLllBig13InitResourcesEv.cpp:
+    complete
     .text start:0x021122ac end:0x02112350
 
 src/LavaPlank_Spawn.c:
@@ -214,6 +217,7 @@ src/_ZN12FallBlockLll8BehaviorEv.cpp:
     .text start:0x02112560 end:0x02112590
 
 src/_ZN12FallBlockLll13InitResourcesEv.cpp:
+    complete
     .text start:0x02112590 end:0x021125a4
 
 src/RollingLogLll_Spawn.c:

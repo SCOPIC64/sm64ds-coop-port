@@ -31,6 +31,7 @@ src/_ZN29FloatOnWaterPlatformWdwSquare6RenderEv.cpp:
     .text start:0x0211145c end:0x02111484
 
 src/_ZN29FloatOnWaterPlatformWdwSquare8BehaviorEv.cpp:
+    complete
     .text start:0x02111484 end:0x021115f8
 
 src/_ZN29FloatOnWaterPlatformWdwSquare13InitResourcesEv.cpp:
@@ -77,6 +78,7 @@ src/_ZN9ArrowLift6RenderEv.cpp:
     .text start:0x0211192c end:0x02111954
 
 src/_ZN9ArrowLift8BehaviorEv.cpp:
+    complete
     .text start:0x02111954 end:0x02111a04
 
 src/_ZN9ArrowLift13InitResourcesEv.cpp:
@@ -106,6 +108,7 @@ src/func_ov029_02111bcc.c:
     .text start:0x02111bcc end:0x02111d6c
 
 src/func_ov029_02111d6c.cpp:
+    complete
     .text start:0x02111d6c end:0x02111e40
 
 src/func_ov029_02111e40.cpp:
@@ -172,6 +175,7 @@ src/_ZN19RotatingPlatformWdw6RenderEv.cpp:
     .text start:0x02112320 end:0x02112354
 
 src/_ZN19RotatingPlatformWdw8BehaviorEv.cpp:
+    complete
     .text start:0x02112354 end:0x021124d0
 
 src/_ZN19RotatingPlatformWdw13InitResourcesEv.cpp:
@@ -207,6 +211,7 @@ src/_ZN20SwitchActivatedPlank8BehaviorEv.cpp:
     .text start:0x021127cc end:0x021128b0
 
 src/_ZN20SwitchActivatedPlank13InitResourcesEv.cpp:
+    complete
     .text start:0x021128b0 end:0x02112964
 
 src/SwitchActivatedPlank_Spawn.c:

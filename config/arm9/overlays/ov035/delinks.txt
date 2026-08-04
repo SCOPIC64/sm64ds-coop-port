@@ -11,6 +11,7 @@ src/_ZN16RotatingCogSmallD0Ev.c:
     .text start:0x021111e4 end:0x0211123c
 
 src/_ZN16RotatingCogSmall16CleanupResourcesEv.cpp:
+    complete
     .text start:0x0211123c end:0x021112c4
 
 src/_ZN16RotatingCogSmall6RenderEv.cpp:
@@ -58,6 +59,7 @@ src/_ZN17RotatingClockHand6RenderEv.cpp:
     .text start:0x02111934 end:0x0211195c
 
 src/_ZN17RotatingClockHand8BehaviorEv.cpp:
+    complete
     .text start:0x0211195c end:0x02111a98
 
 src/_ZN17RotatingClockHand13InitResourcesEv.cpp:
