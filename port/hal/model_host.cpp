@@ -28,30 +28,83 @@ void func_020527e8(int *m, int sx, int sy, int sz)
     m[8] = sz;
 }
 
-/* word copy primitive used by the VRAM upload CPU path */
+/* Word copy primitive used by the VRAM upload CPU path.
+ *
+ * FORWARD, deliberately, and not memcpy. OAM::Reset uses this asm primitive as
+ * a FILL: it writes one 8-byte entry and then copies the buffer onto itself
+ * eight bytes further along, so a forward word-at-a-time copy replicates the
+ * pattern across the whole shadow. memcpy may not overlap at all and memmove
+ * would copy backwards and produce one entry followed by garbage. The DS
+ * primitive walks forward; so does this. */
 void MultiCopy_Int(int *src, int *dst, int len)
 {
-    memcpy(dst, src, len);
+    if (((unsigned)(size_t)src | (unsigned)(size_t)dst | (unsigned)len) & 3) {
+        unsigned char *d = (unsigned char *)dst;
+        const unsigned char *s = (const unsigned char *)src;
+        for (int i = 0; i < len; ++i) d[i] = s[i];
+        return;
+    }
+    for (int i = 0; i < len / 4; ++i) dst[i] = src[i];
 }
 
-/* 32-byte-block copy primitive (asm on the DS) */
+/* 32-byte-block copy primitive (asm on the DS). Forward, for the same reason. */
 void MultiCopy32Bytes(int *src, int *dst, int len)
 {
-    memcpy(dst, src, len);
+    for (int i = 0; i < len / 4; ++i) dst[i] = src[i];
 }
 
 // ---- OAM shadow state (BSS on the DS) -------------------------------------
-// On the DS, data_0209e67c/data_0209e694 are addresses INSIDE the main
-// shadow buffer (Reset's fill-pattern copies rely on that adjacency). Host
-// symbols cannot alias at an offset, so the HAL runs the engine in the mode
-// where Reset loops every entry directly (data_0209e660 = 1) and adjacency
-// is never exercised; the split fill buffers below are then inert.
+//
+// THE MAIN SHADOW IS ONE 0x400-BYTE BUFFER SPLIT THREE WAYS, and the split is
+// the ROM's, not the port's: data_0209e67c is data_0209e674 + 8 and
+// data_0209e694 is data_0209e674 + 0x20. dsd named the two interior addresses
+// because OAM::Reset's fill references them, and the fill only works because
+// they are interior:
+//
+//     entry[0] = disabled
+//     MultiCopy_Int   (e674, e674+0x08, 0x18)    -> entries 1..3
+//     MultiCopy32Bytes(e674, e674+0x20, 0x3e0)   -> entries 4..127
+//     MultiCopy32Bytes(e674, ea74,      0x400)   -> the sub shadow
+//
+// Three separate host arrays turn that into two writes into unrelated storage
+// and a main shadow that is 127/128 uninitialised, which is why the HAL used
+// to pin data_0209e660 = 1 (the mode where Reset loops every entry itself) and
+// call the adjacency unreachable. That mode also routes every sub==true sprite
+// into the MAIN shadow (OAM::Render's `!sub || data_0209e660 == 1`), so the
+// bottom screen could never receive a sprite at all.
+//
+// Grouped sections put the three symbols back in ROM order, the same mechanism
+// the save block in hal/level_boot.cpp uses. align(4) is load-bearing: MSVC
+// aligns arrays of 16 bytes or more to 16 by default, which would push
+// data_0209e67c off +8. hal_oam_layout_check() reads the result back.
+#define OAMSHADOW(sec, name, type, count)                        \
+    __pragma(section(sec, read, write))                          \
+    __declspec(allocate(sec)) __declspec(align(4))               \
+    type name[count]
+
 unsigned char data_0209e660 = 1;
 int data_0209e664, data_0209e668, data_0209e66c, data_0209e670;
-unsigned int data_0209e674[0x100];   /* main OAM shadow, 0x400 bytes */
-unsigned int data_0209ea74[0x100];   /* sub OAM shadow */
-int data_0209e67c[0x20];
-int data_0209e694[0x100];
+/* main OAM shadow, 0x400 bytes, spelled as the ROM's three symbols */
+OAMSHADOW(".oamsh$0000", data_0209e674, unsigned int, 2);      /* +0x000 */
+OAMSHADOW(".oamsh$0001", data_0209e67c, int, 6);               /* +0x008 */
+OAMSHADOW(".oamsh$0002", data_0209e694, int, 0xf8);            /* +0x020 */
+unsigned int data_0209ea74[0x100];   /* sub OAM shadow, its own 0x400 */
+
+#undef OAMSHADOW
+
+/* Reads the section trick back. Returns nonzero when the three symbols came
+   out at the ROM's offsets, which is the precondition for dual-OAM mode. */
+int hal_oam_layout_check(void)
+{
+    const char *base = (const char *)data_0209e674;
+    long a = (const char *)data_0209e67c - base;
+    long b = (const char *)data_0209e694 - base;
+    if (a == 0x08 && b == 0x20)
+        return 1;
+    printf("  [oam] SHADOW NOT CONTIGUOUS: e67c +%ld (want 8), e694 +%ld "
+           "(want 32) -- dual-OAM mode would fill garbage\n", a, b);
+    return 0;
+}
 
 /* asm primitive: 4x3 fx32 identity */
 void Matrix4x3_LoadIdentity(int *m)

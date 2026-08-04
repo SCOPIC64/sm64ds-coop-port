@@ -1048,3 +1048,25 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 /* One TU declares RaycastGround::SetObjAndPos's second parameter as void*
    where every other one spells it Actor*; the same body, one mangling apart. */
 #pragma comment(linker, "/alternatename:?SetObjAndPos@RaycastGround@@QAEXABUVector3@@PAX@Z=?SetObjAndPos@RaycastGround@@QAEXABUVector3@@PAUActor@@@Z")
+
+// gate 24, the bottom screen: LoadFont.cpp and Stage::CheckCameraInput both
+// declare their globals outside extern "C", so MSVC emits C++ manglings for
+// what are C-named symbols everywhere else in the port.
+#pragma comment(linker, "/alternatename:?data_0209d698@@3EA=_data_0209d698")
+#pragma comment(linker, "/alternatename:?data_0209d6f8@@3HA=_data_0209d6f8")
+#pragma comment(linker, "/alternatename:?data_0209d660@@3EA=_data_0209d660")
+#pragma comment(linker, "/alternatename:?data_0209d6d4@@3FA=_data_0209d6d4")
+#pragma comment(linker, "/alternatename:?data_0209f350@@3PAEA=_data_0209f350")
+#pragma comment(linker, "/alternatename:?data_0209f368@@3PAGA=_data_0209f368")
+#pragma comment(linker, "/alternatename:?data_020a0de8@@3PAUTouchInfo@@A=_data_020a0de8")
+#pragma comment(linker, "/alternatename:?data_0209f498@@3PAUCamInput@@A=_data_0209f498")
+#pragma comment(linker, "/alternatename:?data_0209f318@@3PAEA=_data_0209f318")
+#pragma comment(linker, "/alternatename:?data_ov002_02111180@@3EA=_data_ov002_02111180")
+// Stage::CheckCameraInput is a real MSVC static member; walk_window reaches
+// it by the Itanium name every other caller in the port uses. Same signature,
+// same cdecl, no arguments -- the alias is exact.
+#pragma comment(linker, "/alternatename:__ZN5Stage16CheckCameraInputEv=?CheckCameraInput@Stage@@SAXXZ")
+// LoadFont declares GX/GXS::LoadBGPltt as MSVC static members; their TUs
+// define the Itanium C name. Same cdecl, same three arguments.
+#pragma comment(linker, "/alternatename:?LoadBGPltt@GX@@SAXPBXII@Z=__ZN2GX10LoadBGPlttEPKvjj")
+#pragma comment(linker, "/alternatename:?LoadBGPltt@GXS@@SAXPBXII@Z=__ZN3GXS10LoadBGPlttEPKvjj")

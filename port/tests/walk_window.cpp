@@ -254,6 +254,16 @@ void port_actor_render(void);        /* phase 5: the render bucket */
 void port_actor_scene_pass(void);    /* phase 1: scene-tree housekeeping */
 void port_actor_census(void);
 void port_actor_lists_probe(void);
+/* the bottom screen (hal/sub_screen.cpp): the OAM lifecycle, the engine-B
+   scan-out and the corner panel it lands in. TAB toggles the panel. */
+void hal_sub_screen_init(void *hwnd, int zoom);
+void hal_sub_screen_frame_begin(void);
+void hal_sub_screen_present(unsigned int *dst, int w, int h);
+void hal_sub_screen_probe(void);
+/* the camera buttons drawn on the bottom screen, hit-tested against the touch
+   record the panel fills (hal/sub_screen.cpp wraps Stage::CheckCameraInput
+   with the split-symbol bridge the host Ctrl block needs) */
+void hal_sub_camera_input(void);
 }
 
 #ifdef NTR_HIRES
@@ -929,6 +939,10 @@ int main(void)
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
     const int trace_cam = getenv("SM64DS_TRACE_CAM") != 0;
 
+    /* the bottom screen: dual OAM, the 2D frame, and the corner panel */
+    hal_sub_screen_init(hwnd, ZOOM);
+    hal_sub_screen_probe();
+
     static ntr::Framebuffer fb;
     MSG msg;
     for (;;) {
@@ -937,6 +951,11 @@ int main(void)
             W.TranslateMessage_(&msg);
             W.DispatchMessageA_(&msg);
         }
+
+        /* Top of the DS 2D frame: both OAM shadows back to empty, and the
+           stylus record refreshed from the mouse. Everything the game's own
+           Render methods emit this frame lands on top of that. */
+        hal_sub_screen_frame_begin();
 
         /* keys -> pad block + desired heading, CAMERA-RELATIVE: W walks
            away from the camera whatever way it faces. cam_yaw is the
@@ -1191,6 +1210,12 @@ int main(void)
                 (unsigned short)(btn & (unsigned short)~btn_was);
             btn_was = btn;
         }
+
+        /* ...and the bottom screen's half of the same record: the camera
+           buttons drawn down there, hit-tested by the game's own
+           Stage::CheckCameraInput against the stylus the panel fills. It runs
+           after the pad word is written because it ORs into it. */
+        hal_sub_camera_input();
 
         /* the real ground tracking rewrites the path binding (c+0x670)
            from KCL surface attributes every contact frame; keep it at
@@ -1948,6 +1973,10 @@ int main(void)
             for (int x = 0; x < ntr::SCREEN_W; ++x)
                 fb.px[y][x] = 0xFF101820u;
         ntr::gx_render(fb);
+        /* Bottom of the DS 2D frame: upload the shadows the game filled,
+           rasterise engine B, and drop it into the corner at 1:1 DS pixels.
+           With the panel toggled off this writes nothing. */
+        hal_sub_screen_present(&fb.px[0][0], ntr::SCREEN_W, ntr::SCREEN_H);
         W.StretchDIBits_(hdc, 0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM,
                       0, 0, ntr::SCREEN_W, ntr::SCREEN_H, fb.px, &bi,
                       DIB_RGB_COLORS, SRCCOPY);

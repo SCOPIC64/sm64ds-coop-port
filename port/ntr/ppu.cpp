@@ -73,7 +73,10 @@ BgConfig read_bg(const EngineMap &em, int bg, uint32_t dispcnt) {
     const uint32_t scr_off = em.has_base_offset ? ((dispcnt >> 27) & 7) << 16 : 0;
 
     c.screen = em.vram_base + scr_off + (((cnt >> 8) & 0x1F) << 11);
-    c.chars = em.vram_base + char_off + (((cnt >> 2) & 3) << 14);
+    // FOUR bits of character base, not the GBA's two. The decomp's own
+    // G2S::GetBG0CharPtr is (v & 0x3c) >> 2 << 14, and the game uses base 4 on
+    // the sub screen -- with two bits every engine-B tile fetch lands at base 0.
+    c.chars = em.vram_base + char_off + (((cnt & 0x3c) >> 2) << 14);
 
     text_size((cnt >> 14) & 3, c.tiles_w, c.tiles_h);
 
