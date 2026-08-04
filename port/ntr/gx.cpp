@@ -914,9 +914,14 @@ void gx_render(Framebuffer &fb) {
     std::chrono::steady_clock::time_point t_enter;
     if (tm) t_enter = std::chrono::steady_clock::now();
     tri_report();
+    /* Depth clear: 768KB at the window's 2x tier, every frame. 1e30f is not a
+       repeating byte pattern so memset cannot do it, but one row can be built
+       scalar and the rest copied from it, which is memcpy's problem rather
+       than a 196k-iteration scalar loop's. */
     static float depth[SCREEN_H][SCREEN_W];
-    for (int y = 0; y < SCREEN_H; ++y)
-        for (int x = 0; x < SCREEN_W; ++x) depth[y][x] = 1e30f;
+    for (int x = 0; x < SCREEN_W; ++x) depth[0][x] = 1e30f;
+    for (int y = 1; y < SCREEN_H; ++y)
+        std::memcpy(depth[y], depth[0], SCREEN_W * sizeof(float));
 
     /* SM64DS_TEX_ONLY=<hex teximage>: draw only the polygons that were
        bound to that texture, so a material can be located on screen

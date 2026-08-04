@@ -1944,9 +1944,11 @@ int main(void)
         if (selftest && frame == 0)
             fprintf(stderr, "[w] rendered\n");
 
-        for (int y = 0; y < ntr::SCREEN_H; ++y)
-            for (int x = 0; x < ntr::SCREEN_W; ++x)
-                fb.px[y][x] = 0xFF101820u;
+        /* clear: build one row, memcpy the rest (0xFF101820 is not a
+           repeating byte pattern, so memset cannot do it directly) */
+        for (int x = 0; x < ntr::SCREEN_W; ++x) fb.px[0][x] = 0xFF101820u;
+        for (int y = 1; y < ntr::SCREEN_H; ++y)
+            memcpy(fb.px[y], fb.px[0], ntr::SCREEN_W * sizeof(fb.px[0][0]));
         ntr::gx_render(fb);
         W.StretchDIBits_(hdc, 0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM,
                       0, 0, ntr::SCREEN_W, ntr::SCREEN_H, fb.px, &bi,
