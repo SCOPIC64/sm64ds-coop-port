@@ -127,11 +127,15 @@ void *data_020a0eac_c;
 }
 #pragma comment(linker, "/alternatename:?data_020a0eac@@3PAUHeap@@A=_data_020a0eac_c")
 #pragma comment(linker, "/alternatename:_data_020a0eac=_data_020a0eac_c")
-void func_0206e2f8(void *p, int v, unsigned n)
+/* C linkage since main's mangled-declaration sweep: ActorBase::operator new
+   now spells this plain, so the definition has to be the plain name. The
+   alias below still catches any TU that kept the old C++ mangling. */
+extern "C" void func_0206e2f8(void *p, int v, unsigned n)
 {
     unsigned char *b = (unsigned char *)p;
     for (unsigned i = 0; i < n; ++i) b[i] = (unsigned char)v;
 }
+#pragma comment(linker, "/alternatename:?func_0206e2f8@@YAXPAXHI@Z=_func_0206e2f8")
 extern "C" void hal_m43_roty(void *m, int a);
 void Matrix4x3_FromRotationY(void *m, int a) { hal_m43_roty(m, a); }
 

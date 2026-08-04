@@ -27,7 +27,10 @@ extern "C" int _ZN6Player13InitResourcesEv(void *);
 /* C++-linkage globals some slice TUs call under Itanium-style names */
 int _ZNK9Animation12WillHitFrameEi(void *self, int f)
 { return ((Animation *)self)->Animation::WillHitFrame(f) ? 1 : 0; }
-int _ZN9Animation8GetFlagsEv(void *self)
+/* GetFlags is C linkage now: main's mangled-declaration sweep gave the Player
+   state TUs an extern "C" declaration, so they call the plain name. The alias
+   at the head of hal/cxx_aliases.cpp still serves the old C++ mangling. */
+extern "C" int _ZN9Animation8GetFlagsEv(void *self)
 { return ((Animation *)self)->Animation::GetFlags(); }
 void _ZN6Player4HealEi(Player *p, int amt)
 { p->Player::Heal(amt); }
@@ -408,7 +411,10 @@ int _ZN4Heap6IntactEv(void *self)
 { return ((Heap *)self)->Heap::Intact() ? 1 : 0; }
 
 /* gate-10 BSS, second ring */
-int data_0208e428[8], data_0209b44c[4], data_0209b480[4];
+/* data_0209b44c is NOT here: it is the one-byte area id, hosted in
+   hal/actor_vtables.cpp so the smoke targets that link no player bridge
+   still get it, and so writer and reader share one object. */
+int data_0208e428[8], data_0209b480[4];
 int data_020a4d60[8], data_020a6438[8], data_020a6488[4], data_020a648c[4];
 int data_020a6490[4], data_020a649c[4], data_020a64a0[4], data_020a64a4[4];
 /* The sound command queue's two SIZED objects. Placeholders while sound was

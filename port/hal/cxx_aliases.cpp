@@ -1104,3 +1104,55 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    real face -- see hal/method_faces.cpp). */
 #pragma comment(linker, "/alternatename:?data_020755d4@@3DA=_data_020755d4")
 #pragma comment(linker, "/alternatename:?data_0209f340@@3PAUInfo@@A=_data_0209f340")
+
+/* ---- the tree-grab chain (slice_gate10 tail) -------------------------------
+   func_02014f5c calls the grab test by its arm9-side name; the definition is
+   the ov002 TU. Plain C name to C name, cdecl both sides. */
+#pragma comment(linker, "/alternatename:_func_020caf98=_func_ov002_020caf98")
+/* func_ov002_020caf98.cpp declares its Player externs without extern "C" and
+   its State nested in Player, so every reference lands on the nested-State
+   spelling. The four records are the same C-named storage the rest of the
+   state family already aliases (the line-460 precedent). */
+#pragma comment(linker, "/alternatename:?data_ov002_0211013c@@3UState@Player@@A=_data_ov002_0211013c")
+#pragma comment(linker, "/alternatename:?data_ov002_0211031c@@3UState@Player@@A=_data_ov002_0211031c")
+#pragma comment(linker, "/alternatename:?data_ov002_021101b4@@3UState@Player@@A=_data_ov002_021101b4")
+#pragma comment(linker, "/alternatename:?data_ov002_021106dc@@3UState@Player@@A=_data_ov002_021106dc")
+/* Return-type-only variant of the nested-State ChangeState face in
+   hal/reverse_bridges.cpp -- __thiscall, same argument, result in EAX, and
+   the one call site discards it (the line-616 precedent). */
+#pragma comment(linker, "/alternatename:?ChangeState@Player@@QAEHAAUState@1@@Z=?ChangeState@Player@@QAEXAAUState@1@@Z")
+
+/* ---- after the 2026-08-03 main merge --------------------------------------
+   Main's class-rename and mangled-declaration waves changed which spelling a
+   slice TU reaches a symbol by. Three of those are new C++ manglings over
+   storage the port already hosts under the plain name -- the usual shape, one
+   line each. St_LevelEnter_Main gained a member-function-pointer array type
+   for the state table and an `Obj *` for the camera; the fader wipe starters
+   that main now compiles (4eae13f3b) spell the wipe array as `FaderWipe *`. */
+#pragma comment(linker, "/alternatename:?data_ov002_0211075c@@3PAP8C@@AEXXZA=_data_ov002_0211075c")
+#pragma comment(linker, "/alternatename:?data_0209f318@@3PAUObj@@A=_data_0209f318")
+#pragma comment(linker, "/alternatename:?data_0209f324@@3PAUFaderWipe@@A=_data_0209f324")
+
+/* ActorBase::MarkForDestruction under its ad-hoc C name. The C++-mangled
+   spelling was already aliased above (line ~987); the sweep moved
+   func_ov100_0214109c onto the plain one, so it needs the same target. */
+#pragma comment(linker, "/alternatename:_ActorBase_MarkForDestruction=__ZN9ActorBase18MarkForDestructionEv")
+
+/* G1, the shared-header placeholder, is now inside decl_common.h's extern "C"
+   block, so it arrives as a plain C name rather than ?G1@@3PAHA. Same target
+   as the mangled alias above: SignPost::InitResources loads its KCL through
+   data_ov002_0210e05c and CleanupResources releases G1, so the pair has to
+   land on one object.
+
+   Caveat, and it is a real one: G0/G1 are single global names, so every TU
+   that uses them collapses onto one target. Two are in the port's slices --
+   SignPost::CleanupResources and MetalNet::CleanupResources -- and only
+   SignPost's addresses are settled here. MetalNet's own literal pool holds
+   0x0210afb0/0x0210afa8 and its InitResources loads data_ov009_02113e90 and
+   data_ov009_02113e88, so MetalNet::CleanupResources releases SignPost's two
+   file pointers instead of its own. That was already true of G0 before this
+   line; G1 only makes it symmetric. It costs nothing until a MetalNet is
+   destroyed, and METAL_NET (class 339) is an ov009 actor that does not spawn
+   on the castle grounds. Fixing it properly needs per-TU G0/G1, which is a
+   src-side change, not a port one. */
+#pragma comment(linker, "/alternatename:_G1=_data_ov002_0210e05c")

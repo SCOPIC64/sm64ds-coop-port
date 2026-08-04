@@ -75,7 +75,7 @@ extern "C" void *_ZTV14ArrowSignRight[20] = {
 
 // Base vtables the ctor chain installs transiently: storage only.
 extern "C" {
-void *_ZTV17ExclamationSwitch[20];
+void *_ZTV8Platform[20];   /* ov002 0x0210ae38, dBgActor_c in the ROM's RTTI */
 int data_0208e4b8[20];   /* ActorBase-era vtable-ish install in Actor ctor */
 int data_0208e3a4[20];
 }
@@ -169,14 +169,23 @@ int data_020a0e68[12];     /* Matrix4x3 scratch (0x30 on DS) -- was [4],
 short data_0208e378;
 short *data_0209b45c;      /* spawn default rotation ptr (null = none) */
 short *data_0209b460;      /* spawn default position ptr */
-signed char data_0209b44c_c;
+/* The current area id. func_02010e78 writes it, Actor::Actor copies it into
+   mAreaId. Every declaration of it is byte-sized (decl_common.h has it as
+   signed char, func_02010e78.c as unsigned char) and symbols.txt puts the
+   next bss symbol at 0x0209b450, so one byte here is the whole object.
+   It used to be hosted twice -- this `_c` byte for the C++-mangled spelling
+   and a stray int[4] in hal/player_bridges.cpp for the plain one -- which
+   put the writer and the reader on different storage as soon as main's
+   mangled-declaration sweep moved Actor::Actor onto the plain name. One
+   object now; the alias keeps the old mangling pointing at it. */
+signed char data_0209b44c;
 /* Actor::BeforeBehavior's behaviour mask: the actor's 0xb0 flags must
    intersect it for the tick to run, and 0 means "no mask, run everyone".
    Zero is the value a level with no cutscene director sets. */
 int data_0209b464;
 int data_0209b468[4];      /* actor list head the ctor links into */
 }
-#pragma comment(linker, "/alternatename:?data_0209b44c@@3CA=_data_0209b44c_c")
+#pragma comment(linker, "/alternatename:?data_0209b44c@@3CA=_data_0209b44c")
 
 extern "C" {
 unsigned char data_0209f2d8_c;   /* mega-char state byte: none */

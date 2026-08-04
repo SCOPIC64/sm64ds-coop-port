@@ -112,10 +112,15 @@ void WithMeshClsn::Init(Actor *actor, int radius, int height, Vector3_16 *v,
 /* SignPost::InitResources reaches the two static loaders through placeholder
    names its own TU invented -- ModelLoadFile and MeshColliderLoadFile, both
    plain cdecl. Real definitions rather than aliases so the names stay
-   readable in a map file. */
-void *ModelLoadFile(void *ptr) { return _ZN5Model8LoadFileER13SharedFilePtr(ptr); }
-void *MeshColliderLoadFile(void *ptr)
+   readable in a map file. Both carry C linkage since main's sweep moved the
+   declarations into the shared header's extern "C" block; the aliases cover
+   any TU that still spells the C++ mangling. */
+extern "C" void *ModelLoadFile(void *ptr)
+{ return _ZN5Model8LoadFileER13SharedFilePtr(ptr); }
+extern "C" void *MeshColliderLoadFile(void *ptr)
 { return _ZN12MeshCollider8LoadFileER13SharedFilePtr(ptr); }
+#pragma comment(linker, "/alternatename:?ModelLoadFile@@YAPAXPAX@Z=_ModelLoadFile")
+#pragma comment(linker, "/alternatename:?MeshColliderLoadFile@@YAPAXPAX@Z=_MeshColliderLoadFile")
 
 /* ?TrackInDeathTable@Actor@@QAEXXZ -- the 1-up's collect path. Its own TU
    defines it as a method over a locally-declared Actor; the C-name reference

@@ -32,6 +32,26 @@ extern "C" {
 int _Z15ApproachLinear2Rsss(short *x, short target, short step)
 { return ApproachLinear2(*x, target, step); }
 
+/* Actor::SpawnSoundObj: a method since main rewrote its src file, while its
+   nine callers across ov002/ov030/ov084/ov085 all still spell the Itanium
+   name as a free function taking the actor. Void like the method and like the
+   free function it replaced -- the callers that read a return value were
+   already reading whatever Actor::Spawn left behind. */
+void _ZN5Actor13SpawnSoundObjEj(void *self, u32 soundObjParam)
+{ ((Actor *)self)->Actor::SpawnSoundObj(soundObjParam); }
+
+/* Same rewrite, same story: a method now, spelled as a free function by every
+   ov002 death path that calls it. */
+void _ZN5Actor24KillAndTrackInDeathTableEv(void *self)
+{ ((Actor *)self)->Actor::KillAndTrackInDeathTable(); }
+
+/* Actor::FindWithID is static -- no `this`, so the face is a plain forward.
+   hal/reverse_bridges.cpp used to run this the other way, wrapping a C-form
+   src definition into a method; main made the src file the method, so the
+   wrapper there is gone and this replaces it. */
+Actor *_ZN5Actor10FindWithIDEj(u32 id)
+{ return Actor::FindWithID(id); }
+
 void _ZN10ModelAnim24CopyERKS_Pcj(void *self, const void *src, char *nf,
                                   unsigned nof)
 { ((ModelAnim2 *)self)->ModelAnim2::Copy(*(const ModelAnim2 *)src, nf, nof); }
@@ -120,12 +140,15 @@ int Player::St_GroundPound_Main()
 int Player::St_LongJump_Init()
 { return _ZN6Player16St_LongJump_InitEv(this); }
 
-/* C-name-at-C++-linkage state Init refs (Main TUs call their own Init
-   by Itanium name) plus round-3 small faces */
-void _ZN6Player14St_OnWall_InitEv(char *self)
+/* State Init refs the Main TUs call by Itanium name. Both are C linkage
+   since main's mangled-declaration sweep, so the face defines the plain
+   name and the aliases below cover the older C++ mangling. */
+extern "C" void _ZN6Player14St_OnWall_InitEv(char *self)
 { ((Player *)self)->Player::St_OnWall_Init(); }
-void _ZN6Player17St_PunchKick_InitEv(void *self)
+extern "C" void _ZN6Player17St_PunchKick_InitEv(void *self)
 { ((Player *)self)->Player::St_PunchKick_Init(); }
+#pragma comment(linker, "/alternatename:?_ZN6Player14St_OnWall_InitEv@@YAXPAD@Z=__ZN6Player14St_OnWall_InitEv")
+#pragma comment(linker, "/alternatename:?_ZN6Player17St_PunchKick_InitEv@@YAXPAX@Z=__ZN6Player17St_PunchKick_InitEv")
 extern "C" int _Z14ApproachLinearRsss(short *x, short target, short step)
 { return ApproachLinear2(*x, target, step); }
 extern "C" int _ZN6Player15IsCollectingCapEv(char *self)
@@ -298,12 +321,15 @@ void _ZN9PowerStar13AddStarMarkerEv(void *self)
 }
 
 /* ---- gate 17: the level overlay's own classes ---------------------------
-   Nine C-named references onto method definitions. The registry dispatches
-   every one of them through a vtable slot, and every one is a real
-   __thiscall method in src against its own generated header. */
+   C-named references onto method definitions. The registry dispatches every
+   one of them through a vtable slot, and every one is a real __thiscall
+   method in src against its own generated header.
+
+   CASTLE_WATER is not here: its four src files spell their own Itanium names
+   in extern "C", so a face would be a second definition of each. */
 #include "Bird.h"
-#include "CastleWater.h"
-#include "DockPole.h"
+#include "MetalNet.h"
+#include "Flag.h"
 extern "C" {
 int _ZN4Bird13InitResourcesEv(void *self)
 { return ((Bird *)self)->Bird::InitResources(); }
@@ -312,19 +338,19 @@ int _ZN4Bird13InitResourcesEv(void *self)
    Virtual18. Call the method the ROM means. */
 int _ZN4Bird6RenderEv(void *self)
 { ((ModelAnim *)((char *)self + 0xd4))->ModelAnim::Render(0); return 1; }
-int _ZN11CastleWater13InitResourcesEv(void *self)
-{ return ((CastleWater *)self)->CastleWater::InitResources(); }
-int _ZN11CastleWater8BehaviorEv(void *self)
-{ return ((CastleWater *)self)->CastleWater::Behavior(); }
-int _ZN11CastleWater6RenderEv(void *self)
-{ return ((CastleWater *)self)->CastleWater::Render(); }
-int _ZN11CastleWater16CleanupResourcesEv(void *self)
-{ return ((CastleWater *)self)->CastleWater::CleanupResources(); }
-int _ZN8DockPole13InitResourcesEv(void *self)
-{ return ((DockPole *)self)->DockPole::InitResources(); }
-int _ZN8DockPole8BehaviorEv(void *self)
-{ return ((DockPole *)self)->DockPole::Behavior(); }
-int _ZN8DockPole6RenderEv(void *self)
+int _ZN8MetalNet13InitResourcesEv(void *self)
+{ return ((MetalNet *)self)->MetalNet::InitResources(); }
+int _ZN8MetalNet8BehaviorEv(void *self)
+{ return ((MetalNet *)self)->MetalNet::Behavior(); }
+int _ZN8MetalNet6RenderEv(void *self)
+{ return ((MetalNet *)self)->MetalNet::Render(); }
+int _ZN8MetalNet16CleanupResourcesEv(void *self)
+{ return ((MetalNet *)self)->MetalNet::CleanupResources(); }
+int _ZN4Flag13InitResourcesEv(void *self)
+{ return ((Flag *)self)->Flag::InitResources(); }
+int _ZN4Flag8BehaviorEv(void *self)
+{ return ((Flag *)self)->Flag::Behavior(); }
+int _ZN4Flag6RenderEv(void *self)
 { ((ModelAnim *)((char *)self + 0xd4))->ModelAnim::Render(0); return 1; }
 }
 
