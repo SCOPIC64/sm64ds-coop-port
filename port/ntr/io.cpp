@@ -7,6 +7,7 @@
 
 #include "ntr/gx.h"
 
+#include <cstdio>
 #include <cstring>
 
 #if defined(_WIN32)
@@ -128,6 +129,10 @@ bool io_init() {
         // live on the game heap, so a lost race for 0x02000000 (the host
         // allocator can land anything there first) is not fatal.
         if (!p && r.base != MAIN_BASE) return false;
+        /* Losing this race is not fatal, but it IS the difference between two
+           runs of the same build, so say so rather than carrying on quietly. */
+        if (!p) std::fprintf(stderr, "[io] main RAM %08x NOT mapped\n",
+                             (unsigned)r.base);
         if (r.base == IO_BASE) io = p;
     }
     g_io = static_cast<uint8_t *>(io);
