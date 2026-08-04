@@ -102,6 +102,16 @@ void hal_fill_door_vtable(void);
 extern unsigned char QuestionBlock_SpawnInfo[];         /* ov102 0x0214e3e8 */
 void *QuestionBlock_Spawn(void);                        /* ov102 0x0214a8ec */
 void hal_fill_question_block_vtable(void);
+/* ---- gate 27: the BOTTOM SCREEN'S OWN ------------------------------------
+   HUD (334), one of the two ids the castle-grounds census has been printing
+   as skipped. Its SpawnInfo is ov002 0x0210c210, which config names
+   _ZN3HUD9spawnDataE, and the ROM puts the CONSTRUCTOR in the record's +0
+   word -- there is no separate Spawn function to repoint. Its vtable is
+   eighteen slots, not twenty; see the table read out of the ROM at the head
+   of hal/sub_actors.cpp. */
+extern unsigned char _ZN3HUD9spawnDataE[];      /* ov002 0x0210c210 */
+int *_ZN3HUDC1Ev(void);                         /* ov002 0x020fe154 */
+void hal_fill_hud_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -129,4 +139,5 @@ void hal_fill_question_block_vtable(void);
      hal_fill_waterfall_mist_vtable},                                        \
     {336, "BUTTERFLY", Butterfly_SpawnInfo, Butterfly_Spawn,                 \
      hal_fill_butterfly_vtable},                                             \
-    {344, "FISH", Fish_SpawnInfo, Fish_Spawn, hal_fill_fish_vtable},             {353, "DOOR", Door_SpawnInfo, Door_Spawn, hal_fill_door_vtable},             {20, "QUESTION_BLOCK", QuestionBlock_SpawnInfo, QuestionBlock_Spawn,          hal_fill_question_block_vtable},
+    {344, "FISH", Fish_SpawnInfo, Fish_Spawn, hal_fill_fish_vtable},             {353, "DOOR", Door_SpawnInfo, Door_Spawn, hal_fill_door_vtable},             {20, "QUESTION_BLOCK", QuestionBlock_SpawnInfo, QuestionBlock_Spawn,          hal_fill_question_block_vtable},         \
+    {334, "HUD", _ZN3HUD9spawnDataE, port_factory_hud, hal_fill_hud_vtable},

@@ -1,0 +1,40 @@
+# ov001 per-symbol mount: THE HUD'S SPRITE TEMPLATES.
+#
+# HUD::RenderCoinCount and its siblings draw through tables the decomp names
+# func_020ab948 / func_020ab9c8 / func_020aba70 / func_020abad0 / func_020abad8
+# -- addresses dsd could not attribute, because ov000 and ov001 share the base
+# 0x020aa420 and the decompiler picked the wrong one. ov000 holds FILENAME
+# STRINGS at those addresses ("data/player/...", "snd_drop_leg.bca"); ov001
+# holds OamAttr records. config names every one of them in ov001:
+#
+#     func_020ab948  OAM::LIFE_ICONS     func_020abad0  OAM::POWER_STAR
+#     func_020ab9c8  OAM::TIMES          func_020abad8  OAM::COIN
+#     func_020aba70  OAM::NUMBERS
+#
+# OAM::NUMBERS and OAM::LIFE_ICONS are POINTER TABLES into this same block --
+# NUMBERS is ten pointers at 0x020aba68 down to 0x020aba20, one per digit -- so
+# the whole run is mounted together and ovdata's own pointer pass rewrites them
+# to host addresses. That is why this is the entire 0x020ab800..0x020abb00
+# span and not the five symbols the linker asked for.
+#
+# hal/sub_actors.cpp carries the func_* -> OAM:: aliases; both names are data
+# at the same address, so each alias is exact.
+
+_ZN3OAM13MM_MARIO_ICONE _ZN3OAM19MM_MARIO_W_CAP_ICONE _ZN3OAM19MM_MARIO_L_CAP_ICONE
+_ZN3OAM20MM_MARIO_NO_CAP_ICONE _ZN3OAM13MM_LUIGI_ICONE _ZN3OAM19MM_LUIGI_W_CAP_ICONE
+_ZN3OAM19MM_LUIGI_M_CAP_ICONE _ZN3OAM20MM_LUIGI_NO_CAP_ICONE _ZN3OAM13MM_WARIO_ICONE
+_ZN3OAM20MM_WARIO_NO_CAP_ICONE _ZN3OAM19MM_WARIO_L_CAP_ICONE _ZN3OAM19MM_WARIO_M_CAP_ICONE
+_ZN3OAM13MM_YOSHI_ICONE _ZN3OAM19MM_YOSHI_L_CAP_ICONE _ZN3OAM19MM_YOSHI_M_CAP_ICONE
+_ZN3OAM19MM_YOSHI_W_CAP_ICONE data_ov001_020ab938 data_ov001_020ab940
+_ZN3OAM10LIFE_ICONSE data_ov001_020ab958 data_ov001_020ab968
+data_ov001_020ab988 data_ov001_020ab9a8 _ZN3OAM5TIMESE
+data_ov001_020ab9d0 data_ov001_020ab9d8 data_ov001_020ab9e0
+data_ov001_020ab9e8 data_ov001_020ab9f0 data_ov001_020ab9f8
+data_ov001_020aba00 data_ov001_020aba08 data_ov001_020aba10
+data_ov001_020aba18 data_ov001_020aba20 data_ov001_020aba28
+data_ov001_020aba30 data_ov001_020aba38 data_ov001_020aba40
+data_ov001_020aba48 data_ov001_020aba50 data_ov001_020aba58
+data_ov001_020aba60 data_ov001_020aba68 _ZN3OAM7NUMBERSE
+_ZN3OAM16SMALL_STAR_EMPTYE data_ov001_020abac8 _ZN3OAM10POWER_STARE
+_ZN3OAM4COINE data_ov001_020abae0 data_ov001_020abae8
+data_ov001_020abaf0 data_ov001_020abaf8

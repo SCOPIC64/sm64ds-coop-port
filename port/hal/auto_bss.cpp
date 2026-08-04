@@ -170,6 +170,13 @@ int data_020a0ebc[3];
    record's entrance byte here on its way into LoadLevel; config/arm9 calls
    it kind:bss, so zero is what the boot leaves it at. */
 unsigned char data_0209f2c0[4];
+/* gate 27, the HUD: the star-count cache HUD::Render and RenderStarCount
+   share, the red-coin counter, and the VS-mode 'results are up' flag. All
+   kind:bss, so zero is the boot value. */
+unsigned char data_0209f2d4[4];
+unsigned char data_0209f30c[4];
+unsigned char data_0209fc9c[4];
+unsigned char data_0209f248[4];
 /* gate 25: the bottom screen. The three SetSubBgyOffset scroll shadows and
    SetBg0Offset's pair (the 2D layer's own copy of the BGxHOFS/VOFS words),
    the owner-language byte GetOwnerLanguage returns, the per-slot camera-

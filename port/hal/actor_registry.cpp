@@ -107,6 +107,11 @@ void hal_fill_camera_vtable(void);
    no-argument pointer at all. */
 static void *port_factory_player(void) { return _ZN6PlayerC3Ev(); }
 static void *port_factory_camera(void) { return _ZN6CameraC1Ev(0); }
+/* The bottom screen's classes put the CONSTRUCTOR in the SpawnInfo's +0 word
+   rather than a separate Spawn veneer -- it allocates and returns the object
+   itself, which is all the spine asks of a factory. */
+extern "C" int *_ZN3HUDC1Ev(void);
+static void *port_factory_hud(void) { return _ZN3HUDC1Ev(); }
 
 #include "actor_classes.inc"
 
