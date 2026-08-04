@@ -81,20 +81,26 @@ if ($dumpbin) {
 }
 
 Write-Host "Assembling $Output"
-if (Test-Path $Output) { Remove-Item $Output -Recurse -Force }
+$kitFiles = 'walk_window.exe', 'play.bat', 'extract_assets.ps1', 'README.txt'
+
+# Never clear the folder out: the obvious way to test a kit is to drop a
+# cartridge dump into it and run it, and this must not be the thing that
+# deletes it. Refuse an untidy folder instead, because the promise the kit
+# makes is that the zip holds nothing but these four files.
+if (Test-Path $Output) {
+    $stray = Get-ChildItem $Output -Force | Where-Object { $_.Name -notin $kitFiles }
+    if ($stray) {
+        Write-Host ""
+        $stray | ForEach-Object { Write-Host "    $($_.Name)" }
+        throw ("$Output already holds the above, which would ship with the kit. " +
+               "Clear them out yourself, or pass -Output <a fresh folder>.")
+    }
+}
 [void][IO.Directory]::CreateDirectory($Output)
 
-Copy-Item $exe (Join-Path $Output 'walk_window.exe')
+Copy-Item $exe (Join-Path $Output 'walk_window.exe') -Force
 foreach ($name in 'play.bat', 'extract_assets.ps1', 'README.txt') {
-    Copy-Item (Join-Path $here $name) (Join-Path $Output $name)
-}
-
-# Belt and braces: the whole promise of the kit is that it carries no
-# Nintendo data, so refuse to hand back a folder that somehow does.
-$stray = Get-ChildItem $Output -Recurse -File |
-         Where-Object { $_.Extension -in '.nds', '.narc', '.bmd', '.bca', '.kcl', '.sdat', '.btp' }
-if ($stray) {
-    throw "kit contains game data, which it must not: $($stray.Name -join ', ')"
+    Copy-Item (Join-Path $here $name) (Join-Path $Output $name) -Force
 }
 
 Write-Host ""
