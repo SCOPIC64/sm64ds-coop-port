@@ -108,3 +108,10 @@ src/_ZN5Actor14TriplePoofDustEv.c
 
 # --- linkloop round 1 ---
 src/_ZN5Actor16TriplePoofDustAtERK7Vector3.c
+
+# --- linkloop round 2 ---
+# The butterfly's D1 teardown chain (hal/actor_classes.cpp hosts slot 16 for
+# the three classes that die once woken): the +0x394 member's own D1 and the
+# MovingCylinderClsn D2 it chains to. Aliases in hal/cxx_aliases.cpp.
+src/_ZN25MovingCylinderClsnWithPosD1Ev.c
+src/_ZN18MovingCylinderClsnD2Ev.c

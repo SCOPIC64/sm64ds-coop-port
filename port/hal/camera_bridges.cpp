@@ -259,7 +259,13 @@ int data_0209b41c[12];
 int data_0209ee90[0x348 / 4];
 
 /* Clipper: the object Camera's frustum test runs against. 0x5c bytes,
-   zeroed -- Clipper::Func_0201559C / Func_020156DC populate it. */
+   zeroed here but LIVE from the first Render on: Camera::Render ends in
+   func_0200d954, which calls Clipper::Func_020156DC (near/far planes from
+   the camera's own +0xfc/+0x100) and through it Func_0201559C (the four
+   side planes from the fov table). Actor::BeforeBehavior reads it every
+   frame -- an actor whose SpawnInfo carries 0x10000 skips its Behavior
+   whenever the test fails, which on the castle grounds is the AUTHENTIC
+   dormancy of the ambient set (bird/butterfly/fish), not a port gap. */
 int data_0209f43c[0x5c / 4];
 
 /* Camera::SaveCameraStateBeforeTalk is called ARGLESS by both its callers

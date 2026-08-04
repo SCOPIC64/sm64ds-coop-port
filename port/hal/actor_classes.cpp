@@ -103,23 +103,64 @@ static int __fastcall ac_yoshi(void *s, void *)
 static void __fastcall ac_pdes_base(void *s, void *)
 { ((ActorBase *)s)->ActorBase::OnPendingDestroy(); }
 
-/* The trap. Slot 13/14 are the actor's own solid-heap creation and 19 is
-   OnTurnIntoEgg; nothing on the castle grounds reaches any of them, and a
-   named abort is the honest placeholder for a slot the port has not proved. */
-static const char *g_trap_class = "?";
-static int g_trap_slot;
-#define ACTRAP(cls, n)                                                       \
-    static int __fastcall cls##_trap##n(void *, void *)                      \
-    {                                                                        \
-        std::fprintf(stderr, "FATAL: %s vtable slot %d is not hosted\n",     \
-                     #cls, n);                                               \
-        std::abort();                                                        \
-        return 0;                                                            \
-    }
+/* The trap. Slots 13/14 are the actor's own solid-heap creation, 19 is
+   OnTurnIntoEgg, and 16/17 are the destructors where a class leaves them
+   unhosted; a named abort is the honest placeholder for a slot the port has
+   not proved. One report serves every trapped slot, and it says WHICH slot
+   fired on WHICH actor in WHICH phase -- the old per-class form printed
+   "slot 13" from whatever slot it sat in, and a woken Bird's destructor
+   spent a session disguised as a slot-13 dispatch. */
+extern "C" {
+extern int data_02099f24[];          /* the frame phase the lists are in */
+extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
+const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
+}
+
+static void ac_trap_report(void *self, int slot)
+{
+    unsigned id = self ? *(unsigned short *)((char *)self + 0xc) : 0u;
+    if (slot >= 0)
+        std::fprintf(stderr,
+                     "FATAL: vtable slot %d is not hosted (actor id %u %s, "
+                     "phase %d, spawn step %d)\n",
+                     slot, id, port_actor_class_name(id), data_02099f24[0],
+                     (int)data_020a4b4c);
+    else
+        std::fprintf(stderr,
+                     "FATAL: a dBgActor_c base-table slot dispatched "
+                     "(actor id %u %s, phase %d, spawn step %d)\n",
+                     id, port_actor_class_name(id), data_02099f24[0],
+                     (int)data_020a4b4c);
+    std::abort();
+}
+static int __fastcall ac_trap13(void *s, void *) { ac_trap_report(s, 13); return 0; }
+static int __fastcall ac_trap14(void *s, void *) { ac_trap_report(s, 14); return 0; }
+static int __fastcall ac_trap16(void *s, void *) { ac_trap_report(s, 16); return 0; }
+static int __fastcall ac_trap17(void *s, void *) { ac_trap_report(s, 17); return 0; }
+static int __fastcall ac_trap19(void *s, void *) { ac_trap_report(s, 19); return 0; }
+static int __fastcall plat_trap(void *s, void *) { ac_trap_report(s, -1); return 0; }
+
+/* ---- the pieces the hosted D1 destructors tear members down with -----------
+   The ROM's destroy path is ActorBase::AfterCleanupResources: unlink both
+   nodes, drop the dedicated heap, then `this->Destructor()` -- a VIRTUAL
+   dispatch of slot 16 (D1, the complete-object form) -- and only after that
+   returns does it Memory::Deallocate the object itself. So a hosted slot 16
+   is the class's own D0 body minus the final Deallocate: install the class's
+   own vtable, member D1s in reverse declaration order, Actor's D2. The walk
+   proved the path live: a woken Bird's flock climbs past y 3000 and
+   func_ov009_02111234 marks every one of them. */
+extern "C" {
+void _ZN11ShadowModelD1Ev(void *);
+void _ZN9ModelAnimD1Ev(void *);
+void _ZN5ModelD1Ev(void *);
+void _ZN12WithMeshClsnD1Ev(void *);
+void _ZN25MovingCylinderClsnWithPosD1Ev(void *);
+void *_ZN5ActorD2Ev(void *);
+}
 
 /* Fill the ten shared slots plus the three traps; the caller writes its own
    six. Keeps each class's fill down to the lines that are actually its own. */
-static void ac_fill_shared(void **vt, int (__fastcall *trap)(void *, void *))
+static void ac_fill_shared(void **vt)
 {
     vt[1] = (void *)ac_binit;
     vt[2] = (void *)ac_ainit;
@@ -129,11 +170,11 @@ static void ac_fill_shared(void **vt, int (__fastcall *trap)(void *, void *))
     vt[8] = (void *)ac_abeh;
     vt[10] = (void *)ac_bren;
     vt[11] = (void *)ac_aren;
-    vt[13] = (void *)trap;
-    vt[14] = (void *)trap;
+    vt[13] = (void *)ac_trap13;
+    vt[14] = (void *)ac_trap14;
     vt[15] = (void *)ac_heap;
     vt[18] = (void *)ac_yoshi;
-    vt[19] = (void *)trap;
+    vt[19] = (void *)ac_trap19;
 }
 
 // ---- TREE (actor 286, ov002) -----------------------------------------------
@@ -158,7 +199,6 @@ void *_ZTV4Tree[20];
 extern int data_ov002_02110a48[5];   /* the five variant cylinder lists */
 }
 
-ACTRAP(Tree, 13)
 static int __fastcall tree_init(void *s, void *)
 { return _ZN4Tree13InitResourcesEv((char *)s); }
 static int __fastcall tree_clean(void *s, void *)
@@ -217,7 +257,7 @@ extern "C" void hal_fill_tree_vtable(void)
 {
     void **vt = _ZTV4Tree;
     hal_fill_cylinder_withpos_vtable();
-    ac_fill_shared(vt, Tree_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)tree_init;
     vt[3] = (void *)tree_clean;
     vt[6] = (void *)tree_behavior;
@@ -260,7 +300,6 @@ void _ZN14EnemySwitchTag16OnPendingDestroyEv(void);
 void *_ZTV14EnemySwitchTag[20];
 }
 
-ACTRAP(AmbientSound, 13)
 static int __fastcall amb_init(void *s, void *)
 { return ((EnemySwitchTag *)s)->EnemySwitchTag::InitResources(); }
 static int __fastcall amb_clean(void *, void *)
@@ -275,7 +314,7 @@ static int __fastcall amb_pdes(void *, void *)
 extern "C" void hal_fill_ambient_sound_vtable(void)
 {
     void **vt = _ZTV14EnemySwitchTag;
-    ac_fill_shared(vt, AmbientSound_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)amb_init;
     vt[3] = (void *)amb_clean;
     vt[6] = (void *)amb_behavior;
@@ -284,8 +323,8 @@ extern "C" void hal_fill_ambient_sound_vtable(void)
     /* 16/17 keep the trap: nothing on the castle grounds destroys one of
        these, and their two TUs need a shape the port has no reason to build
        (a real ~Actor and the VT/HEAP placeholders). */
-    vt[16] = (void *)AmbientSound_trap13;
-    vt[17] = (void *)AmbientSound_trap13;
+    vt[16] = (void *)ac_trap16;
+    vt[17] = (void *)ac_trap17;
 }
 
 /* Silence the unused-static warning for the two shared helpers a class with
@@ -308,15 +347,14 @@ extern "C" void *hal_actor_shared_pdes(void) { return (void *)ac_pdes_base; }
 // through it while it is there, so the port gives it the shared half and traps
 // the rest: if a future class does dispatch, it says which slot.
 extern "C" { void *_ZTV10dBgActor_c[20]; }
-ACTRAP(Platform, 0)
 extern "C" void hal_fill_platform_vtable(void)
 {
     static int done;
     if (done) return;
     done = 1;
     for (int i = 0; i < 20; ++i)
-        _ZTV10dBgActor_c[i] = (void *)Platform_trap0;
-    ac_fill_shared(_ZTV10dBgActor_c, Platform_trap0);
+        _ZTV10dBgActor_c[i] = (void *)plat_trap;
+    ac_fill_shared(_ZTV10dBgActor_c);
     _ZTV10dBgActor_c[12] = (void *)ac_pdes_base;
 }
 
@@ -339,7 +377,6 @@ void *_ZTV13BigBrickBlock[20];
 /* The destructors spell the class's own table by its RTTI name. */
 #pragma comment(linker, "/alternatename:__ZTV13daObjBlockL_c=__ZTV13BigBrickBlock")
 
-ACTRAP(BigBrickBlock, 13)
 static int __fastcall bbb_init(void *s, void *)
 { return _ZN13BigBrickBlock13InitResourcesEv(s); }
 static int __fastcall bbb_clean(void *s, void *)
@@ -361,7 +398,7 @@ extern "C" void hal_fill_black_brick_block_vtable(void)
 {
     void **vt = _ZTV13BigBrickBlock;
     hal_fill_platform_vtable();
-    ac_fill_shared(vt, BigBrickBlock_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)bbb_init;
     vt[3] = (void *)bbb_clean;
     vt[6] = (void *)bbb_behavior;
@@ -399,7 +436,6 @@ void *_ZTV8SignPost[20];
 }
 #pragma comment(linker, "/alternatename:__ZTV15daObjTatefuda_c=__ZTV8SignPost")
 
-ACTRAP(SignPost, 13)
 static int __fastcall sp_init(void *s, void *)
 { return ((SignPost *)s)->SignPost::InitResources(); }
 static int __fastcall sp_clean(void *s, void *)
@@ -455,7 +491,7 @@ extern "C" void hal_fill_sign_post_vtable(void)
        bodies over them (the ovdata contract, see the file header there) */
     port_sign_post_states_seat();
     hal_fill_platform_vtable();
-    ac_fill_shared(vt, SignPost_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)sp_init;
     vt[3] = (void *)sp_clean;
     vt[6] = (void *)sp_behavior;
@@ -491,7 +527,6 @@ void *_ZTV13OneUpMushroom[20];
 }
 #pragma comment(linker, "/alternatename:__ZTV7da1up_c=__ZTV13OneUpMushroom")
 
-ACTRAP(OneUpMushroom, 13)
 static int __fastcall oum_init(void *s, void *)
 { return ((OneUpMushroom *)s)->OneUpMushroom::InitResources(); }
 static int __fastcall oum_clean(void *s, void *)
@@ -522,7 +557,7 @@ extern "C" void hal_fill_one_up_mushroom_vtable(void)
     /* same as the sign: __sinit_ov002_02100adc left fourteen DS code
        addresses in data_ov002_0210dc00 */
     port_one_up_mushroom_types_seat();
-    ac_fill_shared(vt, OneUpMushroom_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)oum_init;
     vt[3] = (void *)oum_clean;
     vt[6] = (void *)oum_behavior;
@@ -610,7 +645,6 @@ void *_ZTV4Bird[20];
 /* The Bird's own D0 spells its table by the RTTI name. */
 #pragma comment(linker, "/alternatename:__ZTV9daSBird_c=__ZTV4Bird")
 
-ACTRAP(Bird, 13)
 static int __fastcall bird_init(void *s, void *)
 { return _ZN4Bird13InitResourcesEv(s); }
 static int __fastcall bird_clean(void *, void *)
@@ -622,18 +656,33 @@ static int __fastcall bird_render(void *s, void *)
   return _ZN4Bird6RenderEv(s); }
 static int __fastcall bird_pdes(void *, void *)
 { _ZN4Bird16OnPendingDestroyEv(); return 0; }
+/* SLOT 16 IS LIVE: a woken bird's state 0 spawns its flock, state 3 climbs,
+   and past y 3000 func_ov009_02111234 marks every member -- the turn walk
+   died right here while this slot was a trap. The body is
+   src/_ZN4BirdD0Ev.c minus its final Memory::Deallocate, which
+   AfterCleanupResources performs itself after the dispatch returns. */
+static void *__fastcall bird_d1(void *s, void *)
+{
+    *(int *)s = (int)(size_t)_ZTV4Bird;
+    _ZN11ShadowModelD1Ev((char *)s + 0x138);
+    _ZN9ModelAnimD1Ev((char *)s + 0xd4);
+    _ZN5ActorD2Ev(s);
+    return s;
+}
 
 extern "C" void hal_fill_bird_vtable(void)
 {
     void **vt = _ZTV4Bird;
-    ac_fill_shared(vt, Bird_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)bird_init;
     vt[3] = (void *)bird_clean;
     vt[6] = (void *)bird_behavior;
     vt[9] = (void *)bird_render;
     vt[12] = (void *)bird_pdes;
-    vt[16] = (void *)Bird_trap13;
-    vt[17] = (void *)Bird_trap13;
+    vt[16] = (void *)bird_d1;
+    /* 17 keeps the trap: the ROM's destroy path is D1 + an explicit
+       Deallocate, and nothing on this level calls the deleting form. */
+    vt[17] = (void *)ac_trap17;
 }
 
 // ---- CASTLE_WATER (actor 338, ov009) x1 ------------------------------------
@@ -652,7 +701,6 @@ int func_ov009_02111c18(void *self);   /* Render */
 void *_ZTV14daObjMcWater_c[20];        /* ov009 0x02113a18, unnamed in config */
 }
 
-ACTRAP(CastleWater, 13)
 static int __fastcall cw_init(void *s, void *)
 { return func_ov009_02111c74(s); }
 static int __fastcall cw_clean(void *s, void *)
@@ -667,14 +715,14 @@ extern "C" void hal_fill_castle_water_vtable(void)
 {
     void **vt = _ZTV14daObjMcWater_c;
     hal_fill_platform_vtable();
-    ac_fill_shared(vt, CastleWater_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)cw_init;
     vt[3] = (void *)cw_clean;
     vt[6] = (void *)cw_behavior;
     vt[9] = (void *)cw_render;
     vt[12] = (void *)ac_pdes_base;
-    vt[16] = (void *)CastleWater_trap13;
-    vt[17] = (void *)CastleWater_trap13;
+    vt[16] = (void *)ac_trap16;
+    vt[17] = (void *)ac_trap17;
 }
 
 // ---- METAL_NET (actor 339, ov009) x3 ---------------------------------------
@@ -692,7 +740,6 @@ void *_ZTV11CastleWater[20];
 }
 #pragma comment(linker, "/alternatename:__ZTV18daObjMc_Metalnet_c=__ZTV11CastleWater")
 
-ACTRAP(MetalNet, 13)
 static int __fastcall mn_init(void *s, void *)
 { return _ZN11CastleWater13InitResourcesEv(s); }
 static int __fastcall mn_clean(void *s, void *)
@@ -709,14 +756,14 @@ extern "C" void hal_fill_metal_net_vtable(void)
 {
     void **vt = _ZTV11CastleWater;
     hal_fill_platform_vtable();
-    ac_fill_shared(vt, MetalNet_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)mn_init;
     vt[3] = (void *)mn_clean;
     vt[6] = (void *)mn_behavior;
     vt[9] = (void *)mn_render;
     vt[12] = (void *)mn_pdes;
-    vt[16] = (void *)MetalNet_trap13;
-    vt[17] = (void *)MetalNet_trap13;
+    vt[16] = (void *)ac_trap16;
+    vt[17] = (void *)ac_trap17;
 }
 
 // ---- FLAG (actor 342, ov009) x4 --------------------------------------------
@@ -734,7 +781,6 @@ void *_ZTV8DockPole[20];
 }
 #pragma comment(linker, "/alternatename:__ZTV10daMcFlag_c=__ZTV8DockPole")
 
-ACTRAP(Flag, 13)
 static int __fastcall flag_init(void *s, void *)
 { return _ZN8DockPole13InitResourcesEv(s); }
 static int __fastcall flag_clean(void *, void *)
@@ -748,14 +794,14 @@ static int __fastcall flag_render(void *s, void *)
 extern "C" void hal_fill_flag_vtable(void)
 {
     void **vt = _ZTV8DockPole;
-    ac_fill_shared(vt, Flag_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)flag_init;
     vt[3] = (void *)flag_clean;
     vt[6] = (void *)flag_behavior;
     vt[9] = (void *)flag_render;
     vt[12] = (void *)ac_pdes_base;
-    vt[16] = (void *)Flag_trap13;
-    vt[17] = (void *)Flag_trap13;
+    vt[16] = (void *)ac_trap16;
+    vt[17] = (void *)ac_trap17;
 }
 
 // ============================================================================
@@ -800,7 +846,6 @@ void *_ZTV6Rabbit[20];
 }
 #pragma comment(linker, "/alternatename:__ZTV7daMip_c=__ZTV6Rabbit")
 
-ACTRAP(Rabbit, 13)
 static int __fastcall rb_init(void *s, void *)
 { return _ZN6Rabbit13InitResourcesEv(s); }
 static int __fastcall rb_clean(void *, void *)
@@ -824,7 +869,7 @@ static int __fastcall rb_yoshi(void *s, void *)
 extern "C" void hal_fill_rabbit_vtable(void)
 {
     void **vt = _ZTV6Rabbit;
-    ac_fill_shared(vt, Rabbit_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)rb_init;
     vt[3] = (void *)rb_clean;
     vt[6] = (void *)rb_behavior;
@@ -858,7 +903,6 @@ void *_ZTV9LakituBro[20];
 }
 #pragma comment(linker, "/alternatename:__ZTV11daC_Jugem_c=__ZTV9LakituBro")
 
-ACTRAP(LakituBro, 13)
 static int __fastcall lb_init(void *s, void *)
 { return _ZN9LakituBro13InitResourcesEv(s); }
 static int __fastcall lb_clean(void *, void *)
@@ -878,7 +922,7 @@ static int __fastcall lb_d0(void *s, void *)
 extern "C" void hal_fill_lakitu_bro_vtable(void)
 {
     void **vt = _ZTV9LakituBro;
-    ac_fill_shared(vt, LakituBro_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)lb_init;
     vt[3] = (void *)lb_clean;
     vt[6] = (void *)lb_behavior;
@@ -915,7 +959,6 @@ void *_ZTV6Cannon[20];
 }
 #pragma comment(linker, "/alternatename:__ZTV7daCnn_c=__ZTV6Cannon")
 
-ACTRAP(Cannon, 13)
 static int __fastcall cn_init(void *s, void *)
 { return _ZN6Cannon13InitResourcesEv(s); }
 static int __fastcall cn_clean(void *, void *)
@@ -929,14 +972,14 @@ static int __fastcall cn_render(void *s, void *)
 extern "C" void hal_fill_cannon_vtable(void)
 {
     void **vt = _ZTV6Cannon;
-    ac_fill_shared(vt, Cannon_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)cn_init;
     vt[3] = (void *)cn_clean;
     vt[6] = (void *)cn_behavior;
     vt[9] = (void *)cn_render;
     vt[12] = (void *)ac_pdes_base;
-    vt[16] = (void *)Cannon_trap13;
-    vt[17] = (void *)Cannon_trap13;
+    vt[16] = (void *)ac_trap16;
+    vt[17] = (void *)ac_trap17;
 }
 
 // ============================================================================
@@ -980,7 +1023,6 @@ void _ZN11VirtualDoor16OnPendingDestroyEv(void);
 void *_ZTV11VirtualDoor[20];
 }
 
-ACTRAP(Exit, 13)
 static int __fastcall ex_init(void *s, void *)
 { return _ZN11VirtualDoor13InitResourcesEv((char *)s); }
 static int __fastcall ex_clean(void *, void *)
@@ -995,7 +1037,7 @@ static int __fastcall ex_pdes(void *, void *)
 extern "C" void hal_fill_exit_vtable(void)
 {
     void **vt = _ZTV11VirtualDoor;
-    ac_fill_shared(vt, Exit_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)ex_init;
     vt[3] = (void *)ex_clean;
     vt[6] = (void *)ex_behavior;
@@ -1006,8 +1048,8 @@ extern "C" void hal_fill_exit_vtable(void)
        teardown -- and src/_ZN11VirtualDoorD1Ev.cpp is a real C++ destructor
        over its own shadow hierarchy, which MSVC would emit under
        ??1VirtualDoor@@UAE@XZ against a layout that is not the ROM's. */
-    vt[16] = (void *)Exit_trap13;
-    vt[17] = (void *)Exit_trap13;
+    vt[16] = (void *)ac_trap16;
+    vt[17] = (void *)ac_trap17;
 }
 
 // ---- WATERFALL_MIST (actor 197, ov002) x7 ----------------------------------
@@ -1034,7 +1076,6 @@ int _ZN18PoppingLavaBubbles8BehaviorEv(char *self);
 void *_ZTV18PoppingLavaBubbles[20];
 }
 
-ACTRAP(WaterfallMist, 13)
 static int __fastcall wm_init(void *s, void *)
 { return _ZN18PoppingLavaBubbles13InitResourcesEv(s); }
 static int __fastcall wm_clean(void *s, void *)
@@ -1047,14 +1088,14 @@ static int __fastcall wm_render(void *s, void *)
 extern "C" void hal_fill_waterfall_mist_vtable(void)
 {
     void **vt = _ZTV18PoppingLavaBubbles;
-    ac_fill_shared(vt, WaterfallMist_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)wm_init;
     vt[3] = (void *)wm_clean;
     vt[6] = (void *)wm_behavior;
     vt[9] = (void *)wm_render;
     vt[12] = (void *)ac_pdes_base;
-    vt[16] = (void *)WaterfallMist_trap13;
-    vt[17] = (void *)WaterfallMist_trap13;
+    vt[16] = (void *)ac_trap16;
+    vt[17] = (void *)ac_trap17;
 }
 
 // ============================================================================
@@ -1092,7 +1133,6 @@ void *_ZTV9Butterfly[20];
 }
 #pragma comment(linker, "/alternatename:__ZTV9daBtfly_c=__ZTV9Butterfly")
 
-ACTRAP(Butterfly, 13)
 static int __fastcall bf_init(void *s, void *)
 { return _ZN9Butterfly13InitResourcesEv(s); }
 static int __fastcall bf_clean(void *, void *)
@@ -1104,23 +1144,37 @@ static int __fastcall bf_render(void *s, void *)
   return _ZN9Butterfly6RenderEv(s); }
 static int __fastcall bf_pdes(void *, void *)
 { _ZN9Butterfly16OnPendingDestroyEv(); return 0; }
+/* SLOT 16 IS LIVE, the bird's discovery applied here before it fires: three
+   of the eight states (0, 3 and 7) call MarkForDestruction, so a woken
+   swarm despawns through AfterCleanupResources -> D1. The body is
+   src/_ZN9ButterflyD0Ev.c minus its final Memory::Deallocate; the six
+   members in the ROM's own reverse order, not MSVC's. */
+static void *__fastcall bf_d1(void *s, void *)
+{
+    *(int *)s = (int)(size_t)_ZTV9Butterfly;
+    _ZN25MovingCylinderClsnWithPosD1Ev((char *)s + 0x394);
+    _ZN12WithMeshClsnD1Ev((char *)s + 0x1d8);
+    _ZN11ShadowModelD1Ev((char *)s + 0x1b0);
+    _ZN11ShadowModelD1Ev((char *)s + 0x188);
+    _ZN5ModelD1Ev((char *)s + 0x138);
+    _ZN9ModelAnimD1Ev((char *)s + 0xd4);
+    _ZN5ActorD2Ev(s);
+    return s;
+}
 
 extern "C" void hal_fill_butterfly_vtable(void)
 {
     void **vt = _ZTV9Butterfly;
-    ac_fill_shared(vt, Butterfly_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)bf_init;
     vt[3] = (void *)bf_clean;
     vt[6] = (void *)bf_behavior;
     vt[9] = (void *)bf_render;
     vt[12] = (void *)bf_pdes;
-    /* SLOTS 16/17 TRAP, the gate-17 reading: nothing on the castle grounds
-       destroys a butterfly (its Behavior never marks itself), and
-       src/_ZN9ButterflyD1Ev.cpp is a real C++ destructor over its own shadow
-       hierarchy -- six member objects MSVC would destroy in its own order
-       against a layout that is not the ROM's. */
-    vt[16] = (void *)Butterfly_trap13;
-    vt[17] = (void *)Butterfly_trap13;
+    vt[16] = (void *)bf_d1;
+    /* 17 keeps the trap, the bird's reading: destroy is D1 + an explicit
+       Deallocate; nothing on this level calls the deleting form. */
+    vt[17] = (void *)ac_trap17;
 }
 
 // ---- FISH (actor 344, ov100) x2 --------------------------------------------
@@ -1149,7 +1203,6 @@ void *_ZTV4Fish[20];
 }
 #pragma comment(linker, "/alternatename:__ZTV8daFish_c=__ZTV4Fish")
 
-ACTRAP(Fish, 13)
 static int __fastcall fs_init(void *s, void *)
 { return _ZN4Fish13InitResourcesEv(s); }
 static int __fastcall fs_clean(void *s, void *)
@@ -1161,18 +1214,30 @@ static int __fastcall fs_render(void *s, void *)
   return _ZN4Fish6RenderEv(s); }
 static int __fastcall fs_pdes(void *, void *)
 { _ZN4Fish16OnPendingDestroyEv(); return 0; }
+/* SLOT 16 IS LIVE, the class's own comment above already said so: the owner
+   test can MarkForDestruction any frame. src/_ZN4FishD0Ev.c minus the
+   Deallocate -- one ModelAnim, then Actor's D2. */
+static void *__fastcall fs_d1(void *s, void *)
+{
+    *(int *)s = (int)(size_t)_ZTV4Fish;
+    _ZN9ModelAnimD1Ev((char *)s + 0xd4);
+    _ZN5ActorD2Ev(s);
+    return s;
+}
 
 extern "C" void hal_fill_fish_vtable(void)
 {
     void **vt = _ZTV4Fish;
-    ac_fill_shared(vt, Fish_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)fs_init;
     vt[3] = (void *)fs_clean;
     vt[6] = (void *)fs_behavior;
     vt[9] = (void *)fs_render;
     vt[12] = (void *)fs_pdes;
-    vt[16] = (void *)Fish_trap13;
-    vt[17] = (void *)Fish_trap13;
+    vt[16] = (void *)fs_d1;
+    /* 17 keeps the trap, the bird's reading: destroy is D1 + an explicit
+       Deallocate; nothing on this level calls the deleting form. */
+    vt[17] = (void *)ac_trap17;
 }
 
 // ============================================================================
@@ -1204,7 +1269,6 @@ void func_ov100_021454c4(void);           /* OnPendingDestroy */
 void *_ZTV8daDoor_c[20];
 }
 
-ACTRAP(Door, 13)
 static int __fastcall dr_init(void *s, void *)
 { return func_ov100_021455a0(s); }
 static int __fastcall dr_clean(void *s, void *)
@@ -1220,7 +1284,7 @@ static int __fastcall dr_pdes(void *, void *)
 extern "C" void hal_fill_door_vtable(void)
 {
     void **vt = _ZTV8daDoor_c;
-    ac_fill_shared(vt, Door_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)dr_init;
     vt[3] = (void *)dr_clean;
     vt[6] = (void *)dr_behavior;
@@ -1228,8 +1292,8 @@ extern "C" void hal_fill_door_vtable(void)
     vt[12] = (void *)dr_pdes;
     /* SLOTS 16/17 TRAP, the gate-17 reading: nothing on the castle grounds
        destroys a door -- the three live from the level boot to the teardown. */
-    vt[16] = (void *)Door_trap13;
-    vt[17] = (void *)Door_trap13;
+    vt[16] = (void *)ac_trap16;
+    vt[17] = (void *)ac_trap17;
 }
 
 // ============================================================================
@@ -1259,7 +1323,6 @@ void *_ZTV13QuestionBlock[20];
 }
 #pragma comment(linker, "/alternatename:__ZTV18daObjHatenaBlock_c=__ZTV13QuestionBlock")
 
-ACTRAP(QuestionBlock, 13)
 static int __fastcall qb_init(void *s, void *)
 { return _ZN13QuestionBlock13InitResourcesEv((char *)s); }
 static int __fastcall qb_clean(void *s, void *)
@@ -1273,7 +1336,7 @@ static int __fastcall qb_render(void *s, void *)
 extern "C" void hal_fill_question_block_vtable(void)
 {
     void **vt = _ZTV13QuestionBlock;
-    ac_fill_shared(vt, QuestionBlock_trap13);
+    ac_fill_shared(vt);
     vt[0] = (void *)qb_init;
     vt[3] = (void *)qb_clean;
     vt[6] = (void *)qb_behavior;
@@ -1282,6 +1345,6 @@ extern "C" void hal_fill_question_block_vtable(void)
     /* SLOTS 16/17 TRAP, the gate-17 reading: the castle grounds' one block is
        never destroyed -- its own Behavior parks it in state 2 when it is used
        rather than marking it. */
-    vt[16] = (void *)QuestionBlock_trap13;
-    vt[17] = (void *)QuestionBlock_trap13;
+    vt[16] = (void *)ac_trap16;
+    vt[17] = (void *)ac_trap17;
 }

@@ -144,6 +144,16 @@ extern "C" int port_prespawn_hook(void *idv)
     return 3;
 }
 
+/* Name an actor id for a diagnostic; the trap in actor_classes.cpp is the
+   customer. Never returns null so it can sit inside a printf. */
+extern "C" const char *port_actor_class_name(unsigned id)
+{
+    for (const PortActorClass *k = port_actor_classes; k->name; ++k)
+        if (k->id == id)
+            return k->name;
+    return "?";
+}
+
 extern "C" void port_actor_census(void)
 {
     int spawned = 0, skipped = 0, kinds = 0, skipkinds = 0;
