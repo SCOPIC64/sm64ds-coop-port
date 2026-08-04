@@ -70,10 +70,18 @@ extern "C" {
 void *_ZN3HUDD1Ev(void *self);
 void *_ZN3HUDD0Ev(void *self);
 
-/* vtable storage both constructors install by name (declared in
-   include/decl_common.h, defined nowhere until now) */
+/* Minimap's own C-named halves: the two destructors and Behavior */
+void *_ZN7MinimapD1Ev(void *self);
+void *_ZN7MinimapD0Ev(void *self);
+int _ZN7Minimap8BehaviorEv(void *self);
+
+/* vtable storage the three constructors install by name (declared in
+   include/decl_common.h, defined nowhere until now). dMeter_c is the HUD's and
+   dMap_c is the Minimap's -- the ROM class names, which is what the matched
+   constructors write, rather than the config names _ZTV8dMeter_c sits under. */
 void *_ZTV7dBase_c[18];
 void *_ZTV8dMeter_c[18];
+void *_ZTV6dMap_c[18];
 
 const char *port_actor_class_name(unsigned id);
 void port_scene_canary(const char *where);
@@ -86,6 +94,11 @@ static int port_sub_oam_nonzero(void)
     for (int i = 0; i < 1024; ++i) n += p[i] != 0;
     return n;
 }
+extern int data_0209f334[]; extern unsigned char data_0209f2e8[];
+extern unsigned short *data_0209f340;
+extern void *_ZN3OAM15MM_PLAYER_ICONSE[];
+extern char _ZN3OAM8MM_ARROWE[];
+extern signed char data_ov002_02111148; extern unsigned char data_0209d454;
 extern void *data_0209f394[];   /* per-player Actor* */
 extern unsigned char data_0209f250;   /* local player index */
 
@@ -113,6 +126,68 @@ struct HUD {
     void UpdateHealthMeter();
     static void RenderCameraButtons();
 };
+
+/* Same story for the Minimap, and the same reason include/Minimap.h is not
+   included: it declares three of the four members and Render's own TU declares
+   a fourth against a struct of its own. Behavior is the odd one -- its TU
+   defines the C name taking the object as an argument, so it needs no face. */
+struct Minimap {
+    int InitResources();
+    int CleanupResources();
+    int Render();
+    void OnPendingDestroy();
+    /* STATIC on the ROM -- it takes no `this` at all, and InitResources calls
+       it with no argument. Declaring it a member would ask the linker for
+       ?UpdateLevelSpecific@Minimap@@QAEXXZ and get the S-form's nothing. */
+    static void UpdateLevelSpecific();
+};
+
+/* UpdateLevelSpecific is the reverse shape: its own TU defines a real MSVC
+   member and InitResources calls it by the Itanium C name, so it needs a face
+   the way HUD::RenderCoinCount and friends do. */
+extern "C" void _ZN7Minimap19UpdateLevelSpecificEv(void)
+{ Minimap::UpdateLevelSpecific(); }
+
+// ---- the arm9 bss the Minimap reads ----------------------------------------
+//
+// Four of these are ONE STRUCT the delink split at the boundaries code happened
+// to touch, and separate host arrays would put the pieces on whatever the
+// linker chose. UpdateMinimap settles it: it writes a 16-byte descriptor to
+// data_0209f3c8 and four words to data_0209f3c4 + 0x14..0x20 -- addresses that
+// land INSIDE data_0209f3c8's own 0x20 bytes. So f3c4 and f3c8 are one object
+// and the run has to be contiguous, the mechanism hal/level_boot.cpp uses for
+// the save block. Sizes are each symbol's own delta in config/arm9/symbols.txt:
+// f3a4 +0x20, f3c4 +4, f3c8 +0x20, f3e8 +0x24.
+#define MMBLK(sec, name, size)                                    \
+    __pragma(section(sec, read, write))                           \
+    extern "C" __declspec(allocate(sec)) __declspec(align(4))     \
+    unsigned char name[size] = {0}
+
+MMBLK(".mmblk$0000", data_0209f3a4, 0x20);   /* 8 Obj* -- the red-coin markers */
+MMBLK(".mmblk$0001", data_0209f3c4, 0x04);
+MMBLK(".mmblk$0002", data_0209f3c8, 0x20);
+MMBLK(".mmblk$0003", data_0209f3e8, 0x24);   /* 9 Obj* -- the star markers */
+
+#undef MMBLK
+
+extern "C" {
+/* Standalone, and zero on this boot -- nothing on the castle grounds writes
+   them, so the branches they gate stay off and say nothing. */
+unsigned char data_0209f288;          /* "draw the second marker set" flag */
+unsigned char data_0209f370[0xc];     /* 9 marker tile indices, walked by Render */
+unsigned data_020a60a4;               /* GXS ext-palette: the saved VRAM bank */
+
+/* The stylus half of the Ctrl block. On the DS these are bytes 0x10 and 0x11
+   of each 0x18-byte record and the readers index them [player * 0x18], which
+   is why they are sized for the whole four-record block rather than one byte.
+   The port keeps them as separate storage the way hal/actor_vtables.cpp
+   already does for data_0209f4ac / data_0209f4ae. Nothing on the host writes
+   them: the host stylus goes to data_020a0de8, so the recentre-the-minimap
+   branch Minimap::Behavior gates on data_0209f4ac stays shut and these are
+   never read for a value that matters. */
+unsigned char data_0209f4a8[0x60];
+unsigned char data_0209f4a9[0x60];
+}
 
 // ---- the faces --------------------------------------------------------------
 //
@@ -146,9 +221,15 @@ extern "C" void _ZN3HUD19RenderCameraButtonsEv(void *) { HUD::RenderCameraButton
 /* Player::IsInsideOfCannon is a real MSVC member, and HUD::RenderHealthMeter
    declares it as a C++ FREE function taking void* -- so this face has to be a
    C++ free function of exactly that name, not an extern "C" one. */
-struct Player { int IsInsideOfCannon(); };
+struct Player { int IsInsideOfCannon(); int Unk_020ca8f8(); };
 int _ZN6Player16IsInsideOfCannonEv(void *s)
 { return ((Player *)s)->Player::IsInsideOfCannon(); }
+
+/* Minimap::Behavior reaches the same class the same way: it calls
+   Player::Unk_020ca8f8 -- "is he in a state that hides the minimap" -- as a
+   free C function while its own TU defines a real MSVC member. */
+extern "C" int _ZN6Player12Unk_020ca8f8Ev(void *s)
+{ return ((Player *)s)->Player::Unk_020ca8f8(); }
 
 /* Stage::RenderBouncingArrows draws from an OamAttr template at ov001
    0x020abd88 that config does not name, and nothing in emitted DATA points at
@@ -263,6 +344,37 @@ void __fastcall hud_pdes(void *s, void *) { ((HUD *)s)->HUD::OnPendingDestroy();
 void *__fastcall hud_d1(void *s, void *) { return _ZN3HUDD1Ev(s); }
 void *__fastcall hud_d0(void *s, void *) { return _ZN3HUDD0Ev(s); }
 
+// ---- Minimap ---------------------------------------------------------------
+int __fastcall map_init(void *s, void *) { return ((Minimap *)s)->Minimap::InitResources(); }
+int __fastcall map_clean(void *s, void *) { return ((Minimap *)s)->Minimap::CleanupResources(); }
+int __fastcall map_behavior(void *s, void *) { return _ZN7Minimap8BehaviorEv(s); }
+int __fastcall map_render(void *s, void *)
+{
+    /* SM64DS_MM_TRACE=1: the marker's own minimap coordinates and the live sub
+       OAM count. A minimap that draws its map and no marker reads as a Render
+       bug and is usually a sprite-template one -- see port_mm_icons_patch. */
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_MM_TRACE") != 0;
+    if (on) {
+        static int n;
+        if (n < 2 || (n % 120) == 0) {
+            char *b = (char *)s;
+            std::printf("  [mm] render #%d: marker=(%d,%d) mode=%u hidden=%u "
+                        "scale=%d oam=%d\n", n,
+                        ((int *)(b + 0x70))[0], ((int *)(b + 0x80))[0],
+                        (unsigned)*(unsigned char *)(b + 0x251),
+                        (unsigned)*(unsigned char *)(b + 0x255),
+                        ((int *)(b + 0x214))[0], port_sub_oam_nonzero());
+            std::fflush(stdout);
+        }
+        ++n;
+    }
+    return ((Minimap *)s)->Minimap::Render();
+}
+void __fastcall map_pdes(void *s, void *) { ((Minimap *)s)->Minimap::OnPendingDestroy(); }
+void *__fastcall map_d1(void *s, void *) { return _ZN7MinimapD1Ev(s); }
+void *__fastcall map_d0(void *s, void *) { return _ZN7MinimapD0Ev(s); }
+
 }  // namespace
 
 extern "C" void hal_fill_hud_vtable(void)
@@ -284,6 +396,82 @@ extern "C" void hal_fill_hud_vtable(void)
        puts OAM::NUMBERS' ten digit pointers on host addresses */
     port_ov001_syms_patch();
     port_ov001_pack_check();
+}
+
+// ---- the one cross-overlay pointer table -----------------------------------
+//
+// OAM::MM_PLAYER_ICONS is sixteen pointers in ov002 (0x0210c174) and every one
+// of them points into ov001 -- the sixteen MM_*_ICON OamAttr records at
+// 0x020ab800..0x020ab928, four per character times four cap states.
+//
+// ovdata's pointer pass rewrites pointers whose TARGET is inside the same
+// mount, which is why the other three minimap tables need nothing here:
+// MM_VS_PLAYER_ICONS, MM_VS_PLAYER_ICONS_S and the two star-marker tables at
+// 0x0210c748 / 0x0210cac8 all point inside ov002 and come out already rebased.
+// This one table crosses, so the pass leaves DS addresses in it and
+// OAM::RenderSub is handed 0x020ab800 -- which reads as "the minimap draws its
+// map and no player marker", because the OAM entry it builds out of whatever
+// is at that host address is not a sprite.
+//
+// The order is the ROM's own, read out of overlay_0002.bin rather than guessed
+// from the names: the table is indexed `character + capState * 4`, and the
+// character order inside each group of four is not the order the symbol names
+// are declared in.
+extern "C" {
+extern unsigned char _ZN3OAM13MM_MARIO_ICONE[];
+extern unsigned char _ZN3OAM19MM_MARIO_W_CAP_ICONE[];
+extern unsigned char _ZN3OAM19MM_MARIO_L_CAP_ICONE[];
+extern unsigned char _ZN3OAM20MM_MARIO_NO_CAP_ICONE[];
+extern unsigned char _ZN3OAM13MM_LUIGI_ICONE[];
+extern unsigned char _ZN3OAM19MM_LUIGI_W_CAP_ICONE[];
+extern unsigned char _ZN3OAM19MM_LUIGI_M_CAP_ICONE[];
+extern unsigned char _ZN3OAM20MM_LUIGI_NO_CAP_ICONE[];
+extern unsigned char _ZN3OAM13MM_WARIO_ICONE[];
+extern unsigned char _ZN3OAM19MM_WARIO_L_CAP_ICONE[];
+extern unsigned char _ZN3OAM19MM_WARIO_M_CAP_ICONE[];
+extern unsigned char _ZN3OAM20MM_WARIO_NO_CAP_ICONE[];
+extern unsigned char _ZN3OAM13MM_YOSHI_ICONE[];
+extern unsigned char _ZN3OAM19MM_YOSHI_L_CAP_ICONE[];
+extern unsigned char _ZN3OAM19MM_YOSHI_M_CAP_ICONE[];
+extern unsigned char _ZN3OAM19MM_YOSHI_W_CAP_ICONE[];
+}
+
+static void port_mm_icons_patch(void)
+{
+    void *const src[16] = {
+        _ZN3OAM13MM_MARIO_ICONE,        /* 020ab800 */
+        _ZN3OAM19MM_MARIO_L_CAP_ICONE,  /* 020ab820 */
+        _ZN3OAM19MM_MARIO_W_CAP_ICONE,  /* 020ab808 */
+        _ZN3OAM20MM_MARIO_NO_CAP_ICONE, /* 020ab838 */
+        _ZN3OAM19MM_LUIGI_M_CAP_ICONE,  /* 020ab870 */
+        _ZN3OAM13MM_LUIGI_ICONE,        /* 020ab850 */
+        _ZN3OAM19MM_LUIGI_W_CAP_ICONE,  /* 020ab858 */
+        _ZN3OAM20MM_LUIGI_NO_CAP_ICONE, /* 020ab888 */
+        _ZN3OAM19MM_WARIO_M_CAP_ICONE,  /* 020ab8d0 */
+        _ZN3OAM19MM_WARIO_L_CAP_ICONE,  /* 020ab8b8 */
+        _ZN3OAM13MM_WARIO_ICONE,        /* 020ab8a0 */
+        _ZN3OAM20MM_WARIO_NO_CAP_ICONE, /* 020ab8a8 */
+        _ZN3OAM19MM_YOSHI_M_CAP_ICONE,  /* 020ab908 */
+        _ZN3OAM19MM_YOSHI_L_CAP_ICONE,  /* 020ab8f0 */
+        _ZN3OAM19MM_YOSHI_W_CAP_ICONE,  /* 020ab920 */
+        _ZN3OAM13MM_YOSHI_ICONE,        /* 020ab8e8 */
+    };
+    for (int i = 0; i < 16; ++i)
+        _ZN3OAM15MM_PLAYER_ICONSE[i] = src[i];
+}
+
+extern "C" void hal_fill_minimap_vtable(void)
+{
+    void **vt = _ZTV6dMap_c;
+    sa_fill_shared(vt);
+    vt[0] = (void *)map_init;
+    vt[3] = (void *)map_clean;
+    vt[6] = (void *)map_behavior;
+    vt[9] = (void *)map_render;
+    vt[12] = (void *)map_pdes;
+    vt[16] = (void *)map_d1;
+    vt[17] = (void *)map_d0;
+    port_mm_icons_patch();
 }
 
 // ---- the ov001 name aliases -------------------------------------------------
@@ -319,6 +507,21 @@ extern "C" void hal_fill_hud_vtable(void)
 #pragma comment(linker, "/alternatename:?data_ov002_0210c310@@3PAFA=_data_ov002_0210c310")
 #pragma comment(linker, "/alternatename:?data_ov002_02111178@@3EA=_data_ov002_02111178")
 #pragma comment(linker, "/alternatename:?GiveLives@@YAXH@Z=_GiveLives")
+
+/* The same for the Minimap's: its InitResources declares these at file scope
+   OUTSIDE the extern "C" block, so MSVC asks for a C++ mangling of storage the
+   rest of the port owns under the C name. */
+#pragma comment(linker, "/alternatename:?data_0209f2e8@@3EA=_data_0209f2e8")
+#pragma comment(linker, "/alternatename:?data_0209f334@@3PAGA=_data_0209f334")
+#pragma comment(linker, "/alternatename:?data_0209f394@@3PAPAXA=_data_0209f394")
+#pragma comment(linker, "/alternatename:?data_0209d454@@3EA=_data_0209d454")
+#pragma comment(linker, "/alternatename:?data_ov002_02111148@@3CA=_data_ov002_02111148")
+#pragma comment(linker, "/alternatename:?data_ov002_02111150@@3EA=_data_ov002_02111150")
+#pragma comment(linker, "/alternatename:?data_ov002_0211064c@@3UState@@A=_data_ov002_0211064c")
+#pragma comment(linker, "/alternatename:?data_ov002_02110664@@3UState@@A=_data_ov002_02110664")
+#pragma comment(linker, "/alternatename:?GetBG3CharPtr@G2S@@YAPAXXZ=__ZN3G2S13GetBG3CharPtrEv")
+#pragma comment(linker, "/alternatename:?GetBit@Event@@SAHI@Z=__ZN5Event6GetBitEj")
+#pragma comment(linker, "/alternatename:?SublevelToLevel@@YAHH@Z=_SublevelToLevel")
 
 /* OAM's camera-button templates are static DATA members of class OAM in the
    TU that draws them, and ov002 data named _ZN3OAM..E in the mount. */

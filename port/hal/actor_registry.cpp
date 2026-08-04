@@ -112,6 +112,8 @@ static void *port_factory_camera(void) { return _ZN6CameraC1Ev(0); }
    itself, which is all the spine asks of a factory. */
 extern "C" int *_ZN3HUDC1Ev(void);
 static void *port_factory_hud(void) { return _ZN3HUDC1Ev(); }
+extern "C" int *_ZN7MinimapC1Ev(void);
+static void *port_factory_minimap(void) { return _ZN7MinimapC1Ev(); }
 
 #include "actor_classes.inc"
 
