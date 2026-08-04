@@ -150,16 +150,19 @@ int data_0209f4f8[16];   /* the per-level death table */
 int data_ov002_0210e14c[8];
 int data_ov002_0210f350[8];
 int data_ov002_0210f3b0[8];
-/* ov089 (the rabbit overlay) animation-file table: three pointers the port
-   never mounts, so the step-1 branch that reaches it finds nulls rather than
-   a stranger's bytes. */
-int data_ov089_02132880[8];
+/* data_ov089_02132880 was the same fiction; gate 22 mounts ov089 for
+   real and it is the overlay's own bytes now. */
 /* gate 16: the two processing-list globals the other three did not already
    need. data_020a4ba8 is the cleanup list (head, tail, callback pair);
    data_020a4b5c is the id hook func_0204302c calls after a Process tears an
    actor down, and null is what the ROM's boot leaves it at. */
 int data_020a4ba8[8];
 int data_020a4b5c[4];
+/* gate 22: the DOOR's two. data_020a0ebc is the zero Vector3
+   func_ov100_02145370 rotates the player offset around. kind:bss in config,
+   so zero is what the boot leaves it at; ov089's own bss comes from the
+   overlay mount. */
+int data_020a0ebc[3];
 /* gate 20: the EXIT's own scratch. func_ov002_020b0a0c stores the spawn
    record's entrance byte here on its way into LoadLevel; config/arm9 calls
    it kind:bss, so zero is what the boot leaves it at. */

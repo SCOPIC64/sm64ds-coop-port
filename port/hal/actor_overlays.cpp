@@ -76,6 +76,18 @@ void __sinit_ov098_0213c2b4(void);
    Lakitu's -- port/unmatched/Cannon_Behavior.cpp */
 void port_cannon_states_seat(void);
 
+/* ov089: NO CLASS OF ITS OWN IS REGISTERED. The castle grounds' front-door
+   pair asks LoadKeyModels for a key model, and that walks two arrays of
+   SharedFilePtr pointers in ov089's bss which only ov089's own sinit builds.
+   Mounted for its data, the way an overlay mount is meant to work. */
+void port_ov089_pack_check(void);
+void port_ov089_syms_patch(void);
+void __sinit_ov089_021328d4(void);
+extern unsigned char data_ov089_02132894[], data_ov089_021328b4[];
+extern unsigned char data_ov085_021305d8[];
+extern unsigned char data_ov002_0211094c[], data_ov002_0210da40[],
+    data_ov002_0210d9a0[], data_ov002_0210d9c0[];
+
 /* ov100: BUTTERFLY, FISH, DOOR (and the chomp, the iron ball, the star door
    and the path lift, which other levels name) */
 void port_ov100_pack_check(void);
@@ -92,6 +104,11 @@ void __sinit_ov100_02147d7c(void);
    Behavior is a host copy for the PMF reason, so both live in
    port/unmatched/Fish_Behavior.cpp */
 void port_fish_states_seat(void);
+
+/* the door's fifteen, likewise. __sinit_ov100_02147698 copies them into nine
+   callback nodes, two pairs per node; the door dispatches word 0 when it
+   seats a node and word 8 every frame -- port/unmatched/Door_Behavior.cpp */
+void port_door_callbacks_seat(void);
 
 /* ---- the BUTTERFLY's eight states ----------------------------------------
    __sinit_ov100_021473bc copies eight {function, delta} statics from ov100
@@ -129,6 +146,52 @@ g_butterfly_states[] = {
     {data_ov100_02147e50, 0x021415bc, func_ov100_021415bc},
     {data_ov100_02147e58, 0x0214109c, func_ov100_0214109c},
 };
+
+/* ---- ov089's key-model tables POINT OUT OF ov089 --------------------------
+   LoadKeyModels indexes two arrays of SharedFilePtr POINTERS at ov089
+   0x02132894 and 0x021328b4 -- one pair per playable character -- and they do
+   not all point at ov089. Six of the sixteen cross into other overlays:
+   character 5's model lives in ov085's bss and four more in ov002's data.
+
+   ovdata.py's rebase is PER OVERLAY by construction: it rewrites a word only
+   when the target lands inside a symbol that same generator run emitted, so a
+   pointer from ov089 into ov085 is left as the DS address it was -- correctly,
+   because guessing across a mount boundary is exactly what that rule exists to
+   prevent. This is the seam that closes those six by hand, and it closes them
+   the way every seat in this file does: each word is checked against the ROM
+   address it is supposed to hold before it is rewritten, so a mount that has
+   drifted says so instead of being papered over.
+
+   The castle grounds needs one of the six. Its front-door pair carries key
+   index 5, whose model is the ov085 one; the walk found it by faulting in
+   SharedFilePtr::LoadFile on a null `this` when the port still faked these
+   two arrays with zeros. */
+static const struct { unsigned char *tbl; unsigned off; unsigned rom;
+                      unsigned char *host; }
+g_ov089_keymodels[] = {
+    {data_ov089_02132894, 0x14, 0x021305d8, data_ov085_021305d8},
+    {data_ov089_02132894, 0x18, 0x021305d8, data_ov085_021305d8},
+    {data_ov089_02132894, 0x1c, 0x0211094c, data_ov002_0211094c},
+    {data_ov089_021328b4, 0x08, 0x0210da40, data_ov002_0210da40},
+    {data_ov089_021328b4, 0x0c, 0x0210d9a0, data_ov002_0210d9a0},
+    {data_ov089_021328b4, 0x10, 0x0210d9c0, data_ov002_0210d9c0},
+};
+
+static void port_ov089_keymodels_fixup(void)
+{
+    for (unsigned i = 0;
+         i < sizeof g_ov089_keymodels / sizeof g_ov089_keymodels[0]; ++i) {
+        unsigned *w = (unsigned *)(g_ov089_keymodels[i].tbl +
+                                   g_ov089_keymodels[i].off);
+        if (*w != g_ov089_keymodels[i].rom) {
+            std::fprintf(stderr, "FATAL: ov089 key model %u: the mount holds "
+                         "%08x, the ROM's own table says %08x -- WRONG BYTES\n",
+                         i, *w, g_ov089_keymodels[i].rom);
+            std::abort();
+        }
+        *w = (unsigned)(size_t)g_ov089_keymodels[i].host;
+    }
+}
 
 static void port_butterfly_states_seat(void)
 {
@@ -229,10 +292,16 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov098_0213c214();
     __sinit_ov098_0213c2b4();
 
+    port_ov089_pack_check();
+    port_ov089_syms_patch();
+    port_ov089_keymodels_fixup();
+    __sinit_ov089_021328d4();
+
     port_ov100_pack_check();
     port_ov100_syms_patch();
     port_butterfly_states_seat();
     port_fish_states_seat();
+    port_door_callbacks_seat();
     __sinit_ov100_021473bc();
     __sinit_ov100_021474e8();
     __sinit_ov100_021475a4();

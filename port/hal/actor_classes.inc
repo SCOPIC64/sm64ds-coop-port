@@ -88,6 +88,13 @@ void hal_fill_butterfly_vtable(void);
 extern unsigned char Fish_SpawnInfo[];                  /* ov100 0x02148498 */
 void *Fish_Spawn(void);                                 /* ov100 0x02146d38 */
 void hal_fill_fish_vtable(void);
+/* ---- gate 22: ov100's DOOR ----
+   The last class the castle grounds names. Its vtable is the one config left
+   as data_ov100_02148188 while giving `_ZTV4Door` to the star door; the ROM's
+   RTTI settles it, see slice_gate22.txt. */
+extern unsigned char Door_SpawnInfo[];                  /* ov100 0x02148164 */
+void *Door_Spawn(void);                                 /* ov100 0x0214589c */
+void hal_fill_door_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -115,4 +122,4 @@ void hal_fill_fish_vtable(void);
      hal_fill_waterfall_mist_vtable},                                        \
     {336, "BUTTERFLY", Butterfly_SpawnInfo, Butterfly_Spawn,                 \
      hal_fill_butterfly_vtable},                                             \
-    {344, "FISH", Fish_SpawnInfo, Fish_Spawn, hal_fill_fish_vtable},
+    {344, "FISH", Fish_SpawnInfo, Fish_Spawn, hal_fill_fish_vtable},             {353, "DOOR", Door_SpawnInfo, Door_Spawn, hal_fill_door_vtable},

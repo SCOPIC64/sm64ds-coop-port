@@ -1166,3 +1166,60 @@ extern "C" void hal_fill_fish_vtable(void)
     vt[16] = (void *)Fish_trap13;
     vt[17] = (void *)Fish_trap13;
 }
+
+// ============================================================================
+// GATE 22: ov100's DOOR
+// ============================================================================
+//
+// _ZTV8daDoor_c, ov100 0x02148188 -- the table config left as
+// data_ov100_02148188 while handing `_ZTV4Door` to the STAR door, whose RTTI
+// reads daStarGate_c. So the whole _ZN4Door* method family in src/ implements
+// the star door and the real door's are the unnamed func_ov100_* block; the
+// port compiles the files the vtable points at and renames nothing.
+//
+// The three castle doors come out of LoadDoorObjects rather than the standard
+// or simple loader, which is why they carry no record in the object tables
+// the other classes were read against -- the level names them as its kind
+// 0x09, count 3.
+//
+// Both its Behavior and its Render are host copies, for the two reasons this
+// gate has met all the way through: a pointer-to-member table (this time a
+// POINTER THE ACTOR CARRIES at +0x140, not a fixed array) and a shadow-class
+// dispatch that needs Model SLOT 4, the one the dual fill cannot serve. See
+// port/unmatched/Door_Behavior.cpp and Door_Render.cpp.
+extern "C" {
+int func_ov100_021455a0(void *self);      /* InitResources */
+int func_ov100_0214542c(void *self);      /* CleanupResources */
+int func_ov100_02145550(void *self);      /* Behavior -- host copy */
+int func_ov100_021454c8(void *self);      /* Render   -- host copy */
+void func_ov100_021454c4(void);           /* OnPendingDestroy */
+void *_ZTV8daDoor_c[20];
+}
+
+ACTRAP(Door, 13)
+static int __fastcall dr_init(void *s, void *)
+{ return func_ov100_021455a0(s); }
+static int __fastcall dr_clean(void *s, void *)
+{ return func_ov100_0214542c(s); }
+static int __fastcall dr_behavior(void *s, void *)
+{ return func_ov100_02145550(s); }
+static int __fastcall dr_render(void *s, void *)
+{ port_actor_render_probe("DOOR", (char *)s + 0xd4);
+  return func_ov100_021454c8(s); }
+static int __fastcall dr_pdes(void *, void *)
+{ func_ov100_021454c4(); return 0; }
+
+extern "C" void hal_fill_door_vtable(void)
+{
+    void **vt = _ZTV8daDoor_c;
+    ac_fill_shared(vt, Door_trap13);
+    vt[0] = (void *)dr_init;
+    vt[3] = (void *)dr_clean;
+    vt[6] = (void *)dr_behavior;
+    vt[9] = (void *)dr_render;
+    vt[12] = (void *)dr_pdes;
+    /* SLOTS 16/17 TRAP, the gate-17 reading: nothing on the castle grounds
+       destroys a door -- the three live from the level boot to the teardown. */
+    vt[16] = (void *)Door_trap13;
+    vt[17] = (void *)Door_trap13;
+}

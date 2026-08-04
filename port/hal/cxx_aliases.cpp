@@ -209,7 +209,9 @@ unsigned char data_020a0e98; int data_020a4d6c;
 /* ov006 (cutscene overlay) fileptrs St_LevelEnter_Main releases; zeroed
    stand-ins -- Release guards on numRefs 0 */
 unsigned char data_ov006_02140330[8], data_ov006_02140338[8];
-unsigned char data_ov089_02132894[16], data_ov089_021328b4[16];
+/* data_ov089_02132894 / _021328b4 used to be sixteen zero bytes each
+   here. They are ov089's own mount now (gate 22): the DOOR indexes
+   element 5 of both and walked off the end of the fiction. */
 int data_0209b48c, data_0209b4a0[4], data_0209b4ac;
 int data_020a4c48, data_020a4c4c, data_020a4c54[2], data_020a4c5c;
 /* particle system tracker block (refs reach +0x7f0) */
@@ -946,3 +948,54 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 /* One TU spells ActorBase::MarkForDestruction by an ad-hoc C name rather than
    the Itanium one -- the same body either way. */
 #pragma comment(linker, "/alternatename:?ActorBase_MarkForDestruction@@YAXPAX@Z=__ZN9ActorBase18MarkForDestructionEv")
+
+/* ---- gate 22: ov100's DOOR --------------------------------------------- */
+
+/* gate 22 link ring: the same two shapes again. The one that is not just a
+   spelling is `func_02132894` -- the door's InitResources TU declares ov089's
+   key-model SharedFilePtr table under a func_ name and without the overlay
+   prefix, and LoadKeyModels spells the same bytes data_ov089_02132894. One
+   array either way. */
+#pragma comment(linker, "/alternatename:_func_02132894=_data_ov089_02132894")
+#pragma comment(linker, "/alternatename:?data_02092110@@3DA=_data_02092110")
+#pragma comment(linker, "/alternatename:?data_0209caa0@@3DA=_data_0209caa0")
+#pragma comment(linker, "/alternatename:?data_0209f318@@3DA=_data_0209f318")
+#pragma comment(linker, "/alternatename:?data_ov100_021488a4@@3DA=_data_ov100_021488a4")
+#pragma comment(linker, "/alternatename:?data_ov100_021488b4@@3DA=_data_ov100_021488b4")
+#pragma comment(linker, "/alternatename:?data_ov100_021488b4@@3PADA=_data_ov100_021488b4")
+#pragma comment(linker, "/alternatename:?data_ov100_021488f4@@3PADA=_data_ov100_021488f4")
+#pragma comment(linker, "/alternatename:?data_ov100_02148704@@3EA=_data_ov100_02148704")
+#pragma comment(linker, "/alternatename:?data_ov100_02148204@@3PADA=_data_ov100_02148204")
+#pragma comment(linker, "/alternatename:?data_ov100_02148204@@3PAUElem@@A=_data_ov100_02148204")
+#pragma comment(linker, "/alternatename:?UnloadKeyModels@@YAXH@Z=_UnloadKeyModels")
+
+/* gate 22 round 1: the Player and Camera door entry points. Each is a real
+   C++ method in its own TU and each caller spells it the Itanium way -- the
+   method-face shape, expressed as a link alias because the two names are the
+   same body and neither side needs a thunk. */
+#pragma comment(linker, "/alternatename:__ZN6Player11OpenBigDoorEv=?OpenBigDoor@Player@@QAEXXZ")
+#pragma comment(linker, "/alternatename:__ZN6Player16SetRealCharacterEj=?SetRealCharacter@Player@@QAEXI@Z")
+#pragma comment(linker, "/alternatename:__ZN6Camera14GoBehindPlayerEj=?GoBehindPlayer@Camera@@QAEXI@Z")
+#pragma comment(linker, "/alternatename:__ZN6Player12Unk_020ca488Ev=?Unk_020ca488@Player@@QAEXXZ")
+#pragma comment(linker, "/alternatename:__ZN6Player21IsOpeningDoorWithStarEv=?IsOpeningDoorWithStar@Player@@QAEHXZ")
+#pragma comment(linker, "/alternatename:__ZN6Player13TryTalkToDoorEh=?TryTalkToDoor@Player@@QAEHE@Z")
+#pragma comment(linker, "/alternatename:__ZN6Player16TryTalkToKeyDoorEv=?TryTalkToKeyDoor@Player@@QAEHXZ")
+#pragma comment(linker, "/alternatename:_func_020ca78c=_func_ov002_020ca78c")
+/* ...and the rest of the ring those two pulled in. */
+#pragma comment(linker, "/alternatename:?data_020873dc@@3HA=_data_020873dc")
+#pragma comment(linker, "/alternatename:?data_0208742c@@3HA=_data_0208742c")
+#pragma comment(linker, "/alternatename:?data_0209b0e8@@3HA=_data_0209b0e8")
+#pragma comment(linker, "/alternatename:?func_0200c66c@@YAXPAX0PAH11@Z=_func_0200c66c")
+#pragma comment(linker, "/alternatename:?func_0200cb58@@YAXPAXH@Z=_func_0200cb58")
+#pragma comment(linker, "/alternatename:?data_ov002_020ff480@@3PAPAUSharedFilePtr@@A=_data_ov002_020ff480")
+#pragma comment(linker, "/alternatename:?data_02092128@@3PAEA=_data_02092128")
+#pragma comment(linker, "/alternatename:?data_0209caa0@@3PAEA=_data_0209caa0")
+#pragma comment(linker, "/alternatename:?_ZN10ModelAnim213Func_020162C4Eji5Fix12IiEt@@YAXPAXIHHG@Z=__ZN10ModelAnim213Func_020162C4Eji5Fix12IiEt")
+#pragma comment(linker, "/alternatename:?_ZN10ModelAnim24CopyERKS_Pcj@@YAXPAX0PADI@Z=__ZN10ModelAnim24CopyERKS_Pcj")
+#pragma comment(linker, "/alternatename:?func_ov002_020e6330@@YAXPAX@Z=_func_ov002_020e6330")
+#pragma comment(linker, "/alternatename:?_ZN6Player12GetTalkStateEv@@YAHPAX@Z=__ZN6Player12GetTalkStateEv")
+#pragma comment(linker, "/alternatename:?_ZN6Player12Unk_020c9e5cEh@@YAHPAXE@Z=__ZN6Player12Unk_020c9e5cEh")
+
+/* gate 22 round 2: the last two of the door ring. */
+#pragma comment(linker, "/alternatename:__ZN6Player24TryExitWhiteDoorWithStarEv=?TryExitWhiteDoorWithStar@Player@@QAEHXZ")
+#pragma comment(linker, "/alternatename:?_ZN6Player17SetNoControlStateEhih@@YAHPAXEHE@Z=__ZN6Player17SetNoControlStateEhih")

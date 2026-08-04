@@ -1,0 +1,37 @@
+# The ov089 data the castle grounds' DOOR reaches through LoadKeyModels.
+#
+# The gate-18 shape again (see ov085_syms.txt for the long version): an ACTOR
+# overlay mounted PER SYMBOL with --pack, the whole data span, vtables left
+# out because they are host arrays, *_SpawnInfo pinned to 0x1c.
+#
+# WHY A FOURTH OVERLAY FOR ONE CLASS. Two of the castle's three doors are the
+# pair at the front steps, and their entry in ov100's own door table
+# (data_ov100_02148204[12]) carries a key-model index. daDoor_c's
+# InitResources hands that to LoadKeyModels, which walks
+# data_ov089_02132894[] and data_ov089_021328b4[] -- sixteen SharedFilePtr
+# POINTERS into ov089's own bss, constructed by ov089's single static
+# initialiser. The port used to fake those two arrays with sixteen zero bytes
+# each in hal/cxx_aliases.cpp, which was enough while nothing indexed them;
+# the door indexes element 5, walks off the end and hands Model::LoadFile a
+# null SharedFilePtr. Measured that way first: a c0000005 in
+# SharedFilePtr::LoadFile with ecx = 0, on the door's very first init frame.
+#
+# ov089 is the smallest overlay the port has mounted -- 0x54 of rodata,
+# 0x140 of data, 0x100 of bss and ONE sinit -- and mounting it is the same
+# recipe as the other three rather than a special case. Its own two classes
+# (KEY and LAST_STAR) are not registered; only its data and its sinit are
+# needed, which is exactly what an overlay mount is.
+#
+# The rodata/data gap at 0x021328d4..0x02132b00 is the ROM's own; --pack fills
+# it with zeros and the emitted check asserts every offset after it.
+data_ov089_02132880:0x14 data_ov089_02132894:0x20 data_ov089_021328b4:0x20
+data_ov089_02132b00:0x8 data_ov089_02132b08:0x8 data_ov089_02132b10:0x8
+data_ov089_02132b18:0x8 data_ov089_02132b20:0x8 data_ov089_02132b28:0x8
+data_ov089_02132b30:0x8 data_ov089_02132b38:0x8 data_ov089_02132b40:0xc
+data_ov089_02132b4c:0xc data_ov089_02132b58:0x10 Key_SpawnInfo:0x1c LastStar_SpawnInfo:0x1c
+data_ov089_02132c40:0x8 data_ov089_02132c48:0x8 data_ov089_02132c50:0x8
+data_ov089_02132c58:0x8 data_ov089_02132c60:0x8 data_ov089_02132c68:0x8
+data_ov089_02132c70:0x8 data_ov089_02132c78:0x8 data_ov089_02132c80:0xc
+data_ov089_02132c8c:0xc data_ov089_02132c98:0xc data_ov089_02132ca4:0xc
+data_ov089_02132cb0:0xc data_ov089_02132cbc:0xc data_ov089_02132cc8:0xc
+data_ov089_02132cd4:0xc data_ov089_02132ce0:0xc data_ov089_02132cec:0x54

@@ -1,0 +1,189 @@
+/* HOST COPIES of src/func_ov100_02145550.cpp (daDoor_c::Behavior) and
+ * src/func_ov100_021453d8.cpp (the callback installer it shares a table
+ * with), plus the seat for the fifteen {function, delta} statics both
+ * dispatch. The gate-16 pointer-to-member case for the sixth time, and the
+ * first one where the table is a POINTER THE ACTOR CARRIES rather than an
+ * index into a fixed array.
+ *
+ * ---- what the ROM actually does ------------------------------------------
+ *
+ * The door keeps a CALLBACK NODE pointer at +0x140. Each node is 0x10 bytes
+ * and holds two mwcc pointers-to-member: one at +0, which the installer
+ * dispatches the moment it seats the node, and one at +8, which Behavior
+ * dispatches every frame. __sinit_ov100_02147698 builds nine of those nodes
+ * out of the fifteen statics at ov100 0x021480d4..0x02148144 -- plus arm9's
+ * data_02086b58, which is the NULL pair (both halves zero, which is what the
+ * ROM mounts there), and both dispatch sites test word 0 against zero before
+ * they will call.
+ *
+ * Read off the ROM at 0x02145570 and 0x02145400, the encoding is the pair
+ * mwcc always emits:
+ *
+ *     fn    = word 0        delta = word 1
+ *     this' = this + (delta >> 1)
+ *     if (delta & 1)  fn is a BYTE OFFSET into this'-> vtable
+ *     else            fn is the function address
+ *
+ * Both branches are spelled out below rather than asserted away. Every one of
+ * the fifteen statics carries delta 0 in the ROM, so the virtual half is dead
+ * on this level -- but it is one line, and a dead line that is right beats a
+ * live assumption.
+ *
+ * ---- why these two are host copies ----------------------------------------
+ *
+ * Both source TUs write `struct C;` and form the pointer-to-member while C is
+ * INCOMPLETE, which is the case MSVC answers with the four-word general
+ * representation. That quadruples the node's stride and dispatches a
+ * neighbour's body.
+ *
+ * ---- and why the statics are seated ---------------------------------------
+ *
+ * Those fifteen statics are the overlay image's own words -- DS CODE
+ * ADDRESSES -- and the sinit copies them into the nodes. The seat rewrites
+ * the STATICS before the sinit runs (the LakituBro reading: same guarantee,
+ * one less mapping to get wrong), each checked against the ROM address its
+ * host body was compiled from. ALL FIFTEEN ARE MATCHED SRC, so none of them
+ * is trapped; the one trap at the bottom of this file is a different hole,
+ * two calls further in.
+ *
+ * The dispatch is r0 = this, r1 = the argument, and the fifteen bodies do not
+ * agree on how many arguments they admit to taking -- nine take two, six take
+ * one. That is the ARM ride-through the port has met all through this gate:
+ * the second argument is in r1 whether or not the callee reads it. Under
+ * __cdecl the caller cleans the stack, so one call shape serves all fifteen.
+ */
+#include <cstdio>
+#include <cstdlib>
+
+extern "C" {
+
+void *func_ov100_02145370(void *self);
+
+struct PortPmf { unsigned fn; int delta; };
+extern PortPmf data_ov100_021480d4[], data_ov100_021480dc[],
+    data_ov100_021480e4[], data_ov100_021480ec[], data_ov100_021480f4[],
+    data_ov100_021480fc[], data_ov100_02148104[], data_ov100_0214810c[],
+    data_ov100_02148114[], data_ov100_0214811c[], data_ov100_02148124[],
+    data_ov100_0214812c[], data_ov100_02148134[], data_ov100_0214813c[],
+    data_ov100_02148144[];
+
+int func_ov100_02144730(void *, void *);
+int func_ov100_02144ccc(void *, void *);
+int func_ov100_02144c6c(void *, void *);
+int func_ov100_02144bf4(void *, void *);
+int func_ov100_02144c64(void *, void *);
+int func_ov100_021449c8(void *, void *);
+int func_ov100_02144a38(void *, void *);
+int func_ov100_02144468(void *, void *);
+int func_ov100_02144950(void *, void *);
+int func_ov100_021446f8(void *, void *);
+int func_ov100_02144528(void *, void *);
+int func_ov100_021444e8(void *, void *);
+int func_ov100_02144cf8(void *, void *);
+int func_ov100_0214491c(void *, void *);
+
+}  /* extern "C" */
+
+typedef int (*PortDoorFn)(void *, void *);
+
+static const struct { PortPmf *slot; unsigned rom; PortDoorFn host; }
+g_door_callbacks[] = {
+    {data_ov100_021480d4, 0x02144730, func_ov100_02144730},
+    {data_ov100_021480dc, 0x02144ccc, func_ov100_02144ccc},
+    {data_ov100_021480e4, 0x02144c6c, func_ov100_02144c6c},
+    {data_ov100_021480ec, 0x02144bf4, func_ov100_02144bf4},
+    {data_ov100_021480f4, 0x02144c64, func_ov100_02144c64},
+    {data_ov100_021480fc, 0x021449c8, func_ov100_021449c8},
+    {data_ov100_02148104, 0x02144730, func_ov100_02144730},
+    {data_ov100_0214810c, 0x02144a38, func_ov100_02144a38},
+    {data_ov100_02148114, 0x02144468, func_ov100_02144468},
+    {data_ov100_0214811c, 0x02144950, func_ov100_02144950},
+    {data_ov100_02148124, 0x021446f8, func_ov100_021446f8},
+    {data_ov100_0214812c, 0x02144528, func_ov100_02144528},
+    {data_ov100_02148134, 0x021444e8, func_ov100_021444e8},
+    {data_ov100_0214813c, 0x02144cf8, func_ov100_02144cf8},
+    {data_ov100_02148144, 0x0214491c, func_ov100_0214491c},
+};
+
+extern "C" void port_door_callbacks_seat(void)
+{
+    static int done;
+    if (done)
+        return;
+    done = 1;
+    for (unsigned i = 0;
+         i < sizeof g_door_callbacks / sizeof g_door_callbacks[0]; ++i) {
+        PortPmf *p = g_door_callbacks[i].slot;
+        if (p->fn != g_door_callbacks[i].rom || p->delta != 0) {
+            std::fprintf(stderr, "FATAL: Door callback %u: the mount holds "
+                         "%08x/%d, the ROM's own table says %08x/0 -- WRONG "
+                         "BYTES\n", i, p->fn, p->delta,
+                         g_door_callbacks[i].rom);
+            std::abort();
+        }
+        p->fn = (unsigned)(size_t)g_door_callbacks[i].host;
+    }
+}
+
+/* The dispatch itself, ROM encoding, shared by both call sites below. */
+static int port_door_call(const PortPmf *p, char *self, void *arg)
+{
+    char *adj = self + (p->delta >> 1);
+    PortDoorFn f;
+    if (p->delta & 1)
+        f = *(PortDoorFn *)(*(char **)adj + p->fn);   /* virtual: fn is an offset */
+    else
+        f = (PortDoorFn)(size_t)p->fn;
+    return f(adj, arg);
+}
+
+/* src/func_ov100_021453d8.cpp: seat the node at +0x140 and run its word-0
+   pointer-to-member immediately. */
+extern "C" int func_ov100_021453d8(void *selfv, void *node, void *arg)
+{
+    char *c = (char *)selfv;
+    *(void **)(c + 0x140) = node;
+    {
+        const PortPmf *p = (const PortPmf *)*(void **)(c + 0x140);
+        if (p->fn == 0)
+            return 1;
+        return port_door_call(p, c, arg);
+    }
+}
+
+/* src/func_ov100_02145550.cpp: the per-frame half. func_ov100_02145370
+   returns the closest player, which is the argument the callback is handed. */
+extern "C" int func_ov100_02145550(void *selfv)
+{
+    char *c = (char *)selfv;
+    void *res = func_ov100_02145370(c);
+    const PortPmf *p = (const PortPmf *)(*(char **)(c + 0x140) + 8);
+    if (p->fn != 0)
+        port_door_call(p, c, res);
+    return 1;
+}
+
+/* ---- THE ONE HOLE IN THE DOOR --------------------------------------------
+ *
+ * func_ov100_021451c4 -- the callback that runs when Mario is close enough to
+ * push a door open -- asks Player::CanEnterDoor whether he may. That body
+ * exists in src/, and its own header says NONMATCHING: "register allocation
+ * (div=13). Logic verified correct vs ROM; not byte-matchable from C at
+ * mwccarm 1.2/sp2p3. Counts as decompiled, not matched." The port compiles
+ * matched src only, so it is seated by name here rather than compiled, the
+ * reading gate 18 took for the rabbit's state 0x0212b8dc and gate 19 for the
+ * cannon's state 1.
+ *
+ * IT IS NOT REACHED AS THE LEVEL BOOTS. The callback that would ask sits
+ * behind Mario actually being at a door with the door's own approach test
+ * passed, and the three castle doors on a fresh save are opened from the
+ * inside of a level the port does not load yet. Measured: 3000 frames of the
+ * walk without this firing.
+ */
+extern "C" int _ZN6Player12CanEnterDoorEh(void *, unsigned char)
+{
+    std::fprintf(stderr, "FATAL: Player::CanEnterDoor is NONMATCHING -- no "
+                 "host body exists (src/_ZN6Player12CanEnterDoorEh.c)\n");
+    std::abort();
+    return 0;
+}
