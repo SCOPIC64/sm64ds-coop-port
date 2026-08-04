@@ -197,6 +197,7 @@ int hal_camera_init_resources(void *cam);
 int hal_camera_behavior(void *cam);
 int hal_camera_render(void *cam);
 void func_0203e0ac(void);
+extern int data_0209f43c[];          /* the Clipper (hal/camera_bridges) */
 extern void *data_0209f318;          /* the Camera singleton */
 extern signed char data_02092120;    /* currently shown area, -1 = none */
 extern unsigned char data_0209f250;  /* local player index */
@@ -332,6 +333,27 @@ int main(void)
     PORT_INSTALL_FAULT_PROBE();
     port_install_watchdog();
     setvbuf(stdout, NULL, _IONBF, 0);
+    /* FLIGHT RECORDER (Tango's ask): every diagnostic this program
+       writes to stderr -- unhosted states, spawn skips, fault dumps
+       with registers and stack, the traces below -- lands in a
+       timestamped file under playlog/, unbuffered so a hard crash
+       still leaves the trail. Read the newest file after a play
+       session to see what led into a glitch. SM64DS_NO_PLAYLOG=1
+       keeps stderr on the console instead. */
+    if (!getenv("SM64DS_NO_PLAYLOG") && !getenv("SM64DS_WINDOW_SELFTEST")) {
+        CreateDirectoryA("playlog", NULL);
+        char logname[128];
+        SYSTEMTIME st_;
+        GetLocalTime(&st_);
+        snprintf(logname, sizeof logname,
+                 "playlog/play_%04u%02u%02u_%02u%02u%02u.log", st_.wYear,
+                 st_.wMonth, st_.wDay, st_.wHour, st_.wMinute, st_.wSecond);
+        if (freopen(logname, "w", stderr)) {
+            setvbuf(stderr, NULL, _IONBF, 0);
+            printf("flight recorder: %s\n", logname);
+            fprintf(stderr, "[recorder] session start\n");
+        }
+    }
     if (!ntr::io_init()) { fprintf(stderr, "io_init failed\n"); return 2; }
     if (!winapi_load()) { fprintf(stderr, "winapi_load failed\n"); return 2; }
     if (!_ZN4Heap13SetupRootHeapEv()) return 2;
@@ -857,14 +879,23 @@ int main(void)
             unsigned short btn = 0;
             if (W.GetAsyncKeyState_(VK_SPACE) < 0) btn |= 2;
             if (W.GetAsyncKeyState_(VK_SHIFT) < 0) btn |= 0x800;
-            if (W.GetAsyncKeyState_(VK_CONTROL) < 0) btn |= 0x100;
+            if (W.GetAsyncKeyState_(VK_CONTROL) < 0) btn |= 0x400;
             if (W.GetAsyncKeyState_('X') < 0) btn |= 1;
             if (pad_live) {
-                if (pad.buttons & 0x1000) btn |= 2;      /* A -> jump  */
-                if (pad.buttons & 0x4000) btn |= 1;      /* X -> punch */
-                if (pad.buttons & 0x2000) btn |= 0x800;  /* B -> dash  */
-                if ((pad.buttons & 0x0300) || pad.lt > 100 || pad.rt > 100)
-                    btn |= 0x100;                        /* LB/RB/trig -> crouch */
+                /* Xbox layout per Tango: A jump, X run, B punch,
+                   bumpers rotate the camera. RT is meant to be crouch,
+                   but the old "crouch = 0x100" binding was a GUESS and
+                   0x100 is provably the camera rotate-right bit
+                   (func_02009e70 reads held & 0x4300) -- likely what
+                   the LT "crouch crash" actually hit. The REAL crouch
+                   bit is 0x400 (St_Crouch_Main holds on it, St_Land
+                   enters with it, Crawl exits by it). */
+                if (pad.buttons & 0x1000) btn |= 2;      /* A  -> jump  */
+                if (pad.buttons & 0x4000) btn |= 0x800;  /* X  -> dash  */
+                if (pad.buttons & 0x2000) btn |= 1;      /* B  -> punch */
+                if (pad.rt > 100) btn |= 0x400;          /* RT -> crouch */
+                if (pad.buttons & 0x0100) btn |= 0x200;  /* LB -> cam L */
+                if (pad.buttons & 0x0200) btn |= 0x100;  /* RB -> cam R */
             }
             /* selftest: synthetic hop at frame 30 (walking start speed) */
             if (selftest && frame >= 30 && frame <= 33 &&
@@ -874,6 +905,14 @@ int main(void)
                 btn |= 2;
             if (selftest && getenv("SM64DS_SELFTEST_DASH") && frame >= 20)
                 btn |= 0x800;
+            /* the 0x100-press repro: characterize the "LT crash" --
+               camera rotate HUD vs a crouch entry, the fault dump
+               names the path */
+            if (selftest && getenv("SM64DS_SELFTEST_R100") && frame >= 40)
+                btn |= 0x100;
+            /* crouch probe: hold R(0x400) from frame 40 */
+            if (selftest && getenv("SM64DS_SELFTEST_CROUCH") && frame >= 40)
+                btn |= 0x400;
             /* full-speed sprint jump: dash from f20, jump at f60 */
             if (selftest && getenv("SM64DS_SELFTEST_DASHJUMP")) {
                 if (frame >= 20) btn |= 0x800;
@@ -1044,6 +1083,48 @@ int main(void)
                     ma ? (*(unsigned *)(ma + 0x54)) >> 30 : 0,
                     ma ? *(int *)(ma + 0x58) / 4096.0f : 0.0f, bh,
                     *(unsigned *)(c + 0x670));
+            if (frame <= 2)
+                fprintf(stderr,
+                        "[clip] minZ=%d maxZ=%d p0=(%d,%d,%d) cam nf=(%d,%d,%d)\n",
+                        data_0209f43c[0x50 / 4], data_0209f43c[0x54 / 4],
+                        data_0209f43c[1], data_0209f43c[2], data_0209f43c[3],
+                        *(int *)((char *)cam + 0xf8),
+                        *(int *)((char *)cam + 0xfc),
+                        *(int *)((char *)cam + 0x100));
+        }
+        /* live-play recorder: state changes, input edges, a fix every
+           second -- cheap enough to always be on, lands in playlog/ */
+        if (!selftest) {
+            static const void *rec_st;
+            static unsigned short rec_btn, rec_raw;
+            static int rec_f;
+            const void *st_ = *(void **)(c + 0x370);
+            unsigned short btn_ = *(unsigned short *)(data_0209f49c + 0);
+            unsigned short raw_ =
+                *(unsigned short *)((char *)data_020a0e58 + 0);
+            if (st_ != rec_st) {
+                fprintf(stderr,
+                        "[st] f%d %08x pos=(%.1f,%.1f,%.1f) spd=%d vy=%d\n",
+                        rec_f, st_ ? *(const unsigned *)st_ : 0u,
+                        *(int *)(c + 0x5c) / 4096.0f,
+                        *(int *)(c + 0x60) / 4096.0f,
+                        *(int *)(c + 0x64) / 4096.0f, *(int *)(c + 0x98),
+                        *(int *)(c + 0xa8));
+                rec_st = st_;
+            }
+            if (btn_ != rec_btn || raw_ != rec_raw) {
+                fprintf(stderr, "[in] f%d btn=%04x raw=%04x\n", rec_f, btn_,
+                        raw_);
+                rec_btn = btn_;
+                rec_raw = raw_;
+            }
+            if ((rec_f % 30) == 0)
+                fprintf(stderr, "[fx] f%d pos=(%.1f,%.1f,%.1f) camang=%d\n",
+                        rec_f, *(int *)(c + 0x5c) / 4096.0f,
+                        *(int *)(c + 0x60) / 4096.0f,
+                        *(int *)(c + 0x64) / 4096.0f,
+                        *(short *)((char *)data_020a1164 + 0));
+            rec_f++;
             /* SM64DS_TRACE_SURF=1: the surface record the ground tracking
                pulled out of the CLPS entry under his feet, plus the last
                triangle the octree walk accepted. This is how the unfilled
