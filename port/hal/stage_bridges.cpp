@@ -298,3 +298,27 @@ extern "C" void port_stage_render_model(void *self)
 { ((Stage *)self)->Stage::RenderModel(); }
 extern "C" void port_stage_render_model_transparent(void *self)
 { ((Stage *)self)->Stage::RenderModelTransparent(); }
+
+/* The SKYBOX draw, which is Stage::Render's own block between RenderFog and
+   RenderModel (src/_ZN5Stage6RenderEv.cpp): the Model that LoadSkybox parked
+   at Stage+0x9bc, its matrix translation (mat4x3 words 9..11 at +0x1c) glued
+   to the camera EYE -- Camera+0x8c, the Vector3 Camera::Render hands LookAt_
+   -- shifted from world fix12 into scene units by the same >> 3 the view
+   matrix gets. Draw(0) on the ROM is the model vptr's slot 5, which is
+   Model::Render(const Vector3 *) with a NULL scale, so the qualified call is
+   the same dispatch. NULL Stage+0x9bc means GetSkyboxID said "no skybox"
+   (LoadSkybox's early return) and the block is a no-op, same as the ROM. */
+#include "Model.h"
+extern "C" { extern void *data_0209f318; }   /* the Camera singleton */
+extern "C" void port_stage_render_skybox(void *self)
+{
+    Model *sky = *(Model **)((char *)self + 0x9bc);
+    if (!sky)
+        return;
+    int *m = (int *)((char *)sky + 0x1c);
+    const int *eye = (const int *)((const char *)data_0209f318 + 0x8c);
+    m[9] = eye[0] >> 3;
+    m[10] = eye[1] >> 3;
+    m[11] = eye[2] >> 3;
+    sky->Model::Render(0);
+}

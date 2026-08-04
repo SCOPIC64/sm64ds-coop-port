@@ -282,7 +282,7 @@ void hal_sub_screen_present(unsigned int *dst, int w, int h)
     _ZN3OAM4LoadEv();
     if (!g_on) return;
     ntr::ppu_scanout_sub(g_sub);
-    ntr::ppu_compose_sub(g_sub, dst, w, h, kMargin);
+    ntr::ppu_compose_sub(g_sub, dst, w, h, kMargin, g_div);
     g_ready = true;
 
     /* SM64DS_SUB_DUMP=N: the bottom screen alone, at 256x192, on frame N. */

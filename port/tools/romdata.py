@@ -126,6 +126,11 @@ NAMED = [
     # same call through slot 5, so this Vector3 is the only scale the level
     # model is ever drawn with. {125.0, 125.0, 125.0} in Fix12i.
     "data_020755d4",
+    # skyboxID -> vrbox file HANDLE, u16[11] plus padding to the next symbol.
+    # Stage::LoadSkybox indexes it at skyboxID - 1 (GetSkyboxID's 0 means "no
+    # skybox" and returns early); entry 0 is 2040 = data/vrbox/vr01.bmd, the
+    # castle grounds sky.
+    "data_02075620",
 ]
 
 

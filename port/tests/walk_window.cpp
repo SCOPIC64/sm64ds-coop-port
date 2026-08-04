@@ -343,7 +343,10 @@ void *port_stage_create(void);   /* hal/stage_bridges.cpp: the real Stage actor 
 void port_stage_tree_probe(void *child, const char *what);
 void port_stage_render_model(void *self);  /* Stage::RenderModel, matched src */
 void port_stage_render_model_transparent(void *self);
+void port_stage_render_skybox(void *self); /* the +0x9bc Model, camera-glued */
 void _ZN5Stage9LoadModelEv(char *self);   /* matched src, slice_gate24 */
+void _ZN5Stage10LoadSkyboxEv(char *self); /* matched src, slice_gate26 */
+unsigned _ZN5Stage11GetSkyboxIDEv(void);  /* the LVL_Overlay's skybox bits */
 extern int data_0209f320;                 /* the Stage's ModelComponents */
 int port_stage_path_guard(void *player);
 void port_stage_a2_seat(void);
@@ -1279,6 +1282,16 @@ int main(void)
         printf("level model loaded by Stage::LoadModel, handle %u, "
                "scaleShift %d, components %p\n", level_bmd, level_shift,
                (void *)(size_t)data_0209f320);
+        /* the SKYBOX, InitResources' last load: LoadSkybox reads the
+           LVL_Overlay's skybox id (castle grounds: 1 -> data_02075620[0] =
+           handle 2040 = data/vrbox/vr01.bmd), news a Model off the game heap
+           and parks it at Stage+0x9bc; port_stage_render_skybox draws it in
+           front of the opaque pass, glued to the camera eye. Id 0 leaves
+           +0x9bc NULL and both sides no-op, same as the ROM. */
+        _ZN5Stage10LoadSkyboxEv(stage);
+        printf("skybox loaded by Stage::LoadSkybox, id %u, model %s\n",
+               _ZN5Stage11GetSkyboxIDEv(),
+               *(void **)(stage + 0x9bc) ? "set" : "none");
     } else {
         static struct { unsigned short id; unsigned char refs; void *p; } mp;
         _ZN13SharedFilePtr9ConstructEj(&mp, level_bmd);
@@ -2480,11 +2493,14 @@ int main(void)
                    *(int *)(c + 0x80), *(int *)(c + 0x84), *(int *)(c + 0x88));
             ntr::gx_reset();
             if (real_boot) {
-                /* Stage::Render's own order: the opaque pass, then the
-                   translucent one. Both are the same Model drawn twice with
+                /* Stage::Render's own order: the skybox, then the opaque
+                   pass, then the translucent one. The skybox is the +0x9bc
+                   Model glued to the camera eye (hal/stage_bridges.cpp); the
+                   two model passes are the same Model drawn twice with
                    inverse visibility masks -- the moat water only exists in
                    the second. (ShadowModel::RenderAll sits between them on the
                    ROM; the port's shadows are still the actors' own.) */
+                port_stage_render_skybox(stage);
                 port_stage_render_model(stage);
                 port_stage_render_model_transparent(stage);
             } else {
@@ -2803,11 +2819,14 @@ int main(void)
         if (no_level < 0) no_level = getenv("SM64DS_NO_LEVEL") ? 1 : 0;
         if (!no_level) {
             if (real_boot) {
-                /* Stage::Render's own order: the opaque pass, then the
-                   translucent one. Both are the same Model drawn twice with
+                /* Stage::Render's own order: the skybox, then the opaque
+                   pass, then the translucent one. The skybox is the +0x9bc
+                   Model glued to the camera eye (hal/stage_bridges.cpp); the
+                   two model passes are the same Model drawn twice with
                    inverse visibility masks -- the moat water only exists in
                    the second. (ShadowModel::RenderAll sits between them on the
                    ROM; the port's shadows are still the actors' own.) */
+                port_stage_render_skybox(stage);
                 port_stage_render_model(stage);
                 port_stage_render_model_transparent(stage);
             } else {
