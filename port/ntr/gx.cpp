@@ -909,6 +909,15 @@ static int tex_coord(float f, int size, bool repeat, bool flip) {
     return i < size ? i : period - 1 - i;
 }
 
+/* n/255.0f for every byte. The texel-modulate step did this divide three
+   times per pixel; the table holds the identical float, so the product is
+   bit-for-bit what the divide produced. */
+struct Inv255 {
+    float v[256];
+    Inv255() { for (int i = 0; i < 256; ++i) v[i] = i / 255.0f; }
+};
+static const Inv255 inv255;
+
 void gx_render(Framebuffer &fb) {
     const int tm = frame_ms();
     std::chrono::steady_clock::time_point t_enter;
@@ -986,18 +995,63 @@ void gx_render(Framebuffer &fb) {
         if (maxx > SCREEN_W - 1) maxx = SCREEN_W - 1;
         if (maxy > SCREEN_H - 1) maxy = SCREEN_H - 1;
 
+        /* EVERYTHING BELOW THAT DOES NOT DEPEND ON THE PIXEL IS COMPUTED ONCE.
+           The edge functions were three full expressions per pixel, each
+           ending in a divide by `area`; the 1/w reciprocals were three fabs,
+           three compares and three divides per pixel for values that belong
+           to the triangle; and the vertex colours were converted from bytes to
+           float per channel per pixel. The arithmetic is left in exactly the
+           order it was written -- same operands, same operations, so the same
+           floats come out -- only the loop level it happens at moves. */
+        const float eax = b.x - a.x, eay = b.y - a.y;
+        const float ebx = c.x - b.x, eby = c.y - b.y;
+        const float ecx = a.x - c.x, ecy = a.y - c.y;
+        const float iwa = (std::fabs(a.w) > 1e-6f) ? 1.0f / a.w : 0.0f;
+        const float iwb = (std::fabs(b.w) > 1e-6f) ? 1.0f / b.w : 0.0f;
+        const float iwc = (std::fabs(c.w) > 1e-6f) ? 1.0f / c.w : 0.0f;
+        /* NOTE the UV terms below stay written as l0 * a.u * iwa. Folding
+           a.u * iwa out to the triangle would regroup the multiply, and float
+           multiplication does not associate -- (l0*a.u)*iwa and l0*(a.u*iwa)
+           are different numbers. Only the reciprocal itself is hoisted. */
+        const bool textured = t.tex && t.tw > 0 && t.th > 0;
+        const bool rep_s = (t.wrap & 1) != 0, rep_t = (t.wrap & 2) != 0;
+        const bool flip_s = (t.wrap & 4) != 0, flip_t = (t.wrap & 8) != 0;
+        const float acol[3] = {(float)((a.color >> 16) & 0xFF),
+                               (float)((a.color >> 8) & 0xFF),
+                               (float)(a.color & 0xFF)};
+        const float bcol[3] = {(float)((b.color >> 16) & 0xFF),
+                               (float)((b.color >> 8) & 0xFF),
+                               (float)(b.color & 0xFF)};
+        const float ccol[3] = {(float)((c.color >> 16) & 0xFF),
+                               (float)((c.color >> 8) & 0xFF),
+                               (float)(c.color & 0xFF)};
+        const uint32_t poly_a = (t.alpha >= 31 || t.alpha == 0) ? 31u : t.alpha;
+
         for (int y = miny; y <= maxy; ++y) {
+            const float py = y + 0.5f;
+            /* the half of each edge function that only moves with the row */
+            const float r0 = eax * (py - a.y);
+            const float r1 = ebx * (py - b.y);
+            const float r2 = ecx * (py - c.y);
+            float *drow = depth[y];
+            uint32_t *frow = fb.px[y];
             for (int x = minx; x <= maxx; ++x) {
-                const float px = x + 0.5f, py = y + 0.5f;
-                float w0 = ((b.x - a.x) * (py - a.y) - (b.y - a.y) * (px - a.x)) / area;
-                float w1 = ((c.x - b.x) * (py - b.y) - (c.y - b.y) * (px - b.x)) / area;
-                float w2 = ((a.x - c.x) * (py - c.y) - (a.y - c.y) * (px - c.x)) / area;
+                const float px = x + 0.5f;
+                /* Coverage is decided on the undivided edge functions. The
+                   test asks whether all three share a sign, and dividing all
+                   three by the same non-zero area cannot change that whichever
+                   way the area points -- so the three divides only have to
+                   happen for pixels that are actually inside. */
+                const float n0 = r0 - eay * (px - a.x);
+                const float n1 = r1 - eby * (px - b.x);
+                const float n2 = r2 - ecy * (px - c.x);
                 // Accept either winding; back-face culling is a POLYGON_ATTR job.
-                if (!((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0)))
+                if (!((n0 >= 0 && n1 >= 0 && n2 >= 0) || (n0 <= 0 && n1 <= 0 && n2 <= 0)))
                     continue;
+                const float w0 = n0 / area, w1 = n1 / area, w2 = n2 / area;
                 const float l0 = w1, l1 = w2, l2 = w0;   // barycentric for a, b, c
                 const float z = l0 * a.z + l1 * b.z + l2 * c.z;
-                if (z >= depth[y][x]) continue;
+                if (z >= drow[x]) continue;
                 // Depth is written only after the texel passes the alpha test
                 // below -- a transparent texel must not occlude what is behind it.
                 // Texture first; the vertex colour modulates it. UVs are
@@ -1005,10 +1059,7 @@ void gx_render(Framebuffer &fb) {
                 // everywhere (the ortho harnesses) the math reduces exactly
                 // to the old affine lerp.
                 uint32_t texel = 0xFFFFFFFFu;
-                if (t.tex && t.tw > 0 && t.th > 0) {
-                    const float iwa = (std::fabs(a.w) > 1e-6f) ? 1.0f / a.w : 0.0f;
-                    const float iwb = (std::fabs(b.w) > 1e-6f) ? 1.0f / b.w : 0.0f;
-                    const float iwc = (std::fabs(c.w) > 1e-6f) ? 1.0f / c.w : 0.0f;
+                if (textured) {
                     const float iw = l0 * iwa + l1 * iwb + l2 * iwc;
                     float uu, vv;
                     if (iw > 1e-9f) {
@@ -1018,48 +1069,42 @@ void gx_render(Framebuffer &fb) {
                         uu = l0 * a.u + l1 * b.u + l2 * c.u;
                         vv = l0 * a.v + l1 * b.v + l2 * c.v;
                     }
-                    const int ui = tex_coord(uu, t.tw, (t.wrap & 1) != 0,
-                                             (t.wrap & 4) != 0);
-                    const int vi = tex_coord(vv, t.th, (t.wrap & 2) != 0,
-                                             (t.wrap & 8) != 0);
+                    const int ui = tex_coord(uu, t.tw, rep_s, flip_s);
+                    const int vi = tex_coord(vv, t.th, rep_t, flip_t);
                     texel = t.tex[vi * t.tw + ui];
                     if ((texel >> 24) == 0) continue;      // transparent texel
                 }
 
                 // Round, do not truncate: barycentrics sum to 0.9999 rather than
                 // exactly 1, and a truncating cast bands a flat surface 255/254.
-                auto ch = [&](int sh) {
-                    const float v = l0 * ((a.color >> sh) & 0xFF)
-                                    + l1 * ((b.color >> sh) & 0xFF)
-                                    + l2 * ((c.color >> sh) & 0xFF);
-                    const float m = ((texel >> sh) & 0xFF) / 255.0f;
+                auto ch = [&](int k, int sh) {
+                    const float v = l0 * acol[k] + l1 * bcol[k] + l2 * ccol[k];
+                    const float m = inv255.v[(texel >> sh) & 0xFF];
                     const int i = static_cast<int>(v * m + 0.5f);
                     return static_cast<uint32_t>(i < 0 ? 0 : (i > 255 ? 255 : i));
                 };
                 /* effective alpha = poly attr alpha combined with the
                    TEXEL alpha (A3I5/A5I3 gradients -- the grass-fade
                    strips render solid without it) */
-                const uint32_t poly_a =
-                    (t.alpha >= 31 || t.alpha == 0) ? 31u : t.alpha;
                 const uint32_t tex_a = texel >> 24;            /* 0..255 */
                 const uint32_t sa = (poly_a * tex_a + 127) / 255; /* 0..31 */
                 if (sa >= 31) {
                     /* opaque (the DS treats attr alpha 0 as wire/opaque
                        depending on mode; opaque is the safe read) */
-                    depth[y][x] = z;
-                    fb.px[y][x] =
-                        0xFF000000u | (ch(16) << 16) | (ch(8) << 8) | ch(0);
+                    drow[x] = z;
+                    frow[x] = 0xFF000000u | (ch(0, 16) << 16) | (ch(1, 8) << 8)
+                              | ch(2, 0);
                 } else {
                     /* translucent: blend over the framebuffer, keep depth
                        (DS translucent polys depth-test but do not write) */
-                    const uint32_t dst = fb.px[y][x];
-                    auto bl = [&](int sh) {
-                        const uint32_t s = ch(sh);
+                    const uint32_t dst = frow[x];
+                    auto bl = [&](int k, int sh) {
+                        const uint32_t s = ch(k, sh);
                         const uint32_t d = (dst >> sh) & 0xFF;
                         return ((s * sa + d * (31 - sa)) / 31) & 0xFF;
                     };
-                    fb.px[y][x] = 0xFF000000u | (bl(16) << 16) | (bl(8) << 8)
-                                  | bl(0);
+                    frow[x] = 0xFF000000u | (bl(0, 16) << 16) | (bl(1, 8) << 8)
+                              | bl(2, 0);
                 }
             }
         }
