@@ -198,6 +198,9 @@ int hal_camera_behavior(void *cam);
 int hal_camera_render(void *cam);
 void func_0203e0ac(void);
 extern int data_0209f43c[];          /* the Clipper (hal/camera_bridges) */
+extern int data_020a4b78[];          /* the behaviour processing list */
+int _ZN7Clipper13Func_020150E8ER7Vector35Fix12IiEPh(void *clipper, void *pos,
+                                                    int clip, unsigned char *h);
 extern void *data_0209f318;          /* the Camera singleton */
 extern signed char data_02092120;    /* currently shown area, -1 = none */
 extern unsigned char data_0209f250;  /* local player index */
@@ -232,6 +235,13 @@ static const int ZOOM = 2;
 static const int ZOOM = 3;
 #endif
 static void *g_mc;
+
+/* selftest diagnostic: closest clip-approach of the ambient (flag-0x10000)
+   actors across the run -- says whether the walk ever brought one inside
+   frustum + cull range, i.e. whether its stillness is authentic culling */
+struct AmbTrack { void *o; unsigned id; int minr, minfr, thresh; int p0[3]; };
+static AmbTrack g_amb[16];
+static int g_amb_n;
 
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
@@ -1083,7 +1093,7 @@ int main(void)
                     ma ? (*(unsigned *)(ma + 0x54)) >> 30 : 0,
                     ma ? *(int *)(ma + 0x58) / 4096.0f : 0.0f, bh,
                     *(unsigned *)(c + 0x670));
-            if (frame <= 2)
+            if (frame <= 2) {
                 fprintf(stderr,
                         "[clip] minZ=%d maxZ=%d p0=(%d,%d,%d) cam nf=(%d,%d,%d)\n",
                         data_0209f43c[0x50 / 4], data_0209f43c[0x54 / 4],
@@ -1091,6 +1101,50 @@ int main(void)
                         *(int *)((char *)cam + 0xf8),
                         *(int *)((char *)cam + 0xfc),
                         *(int *)((char *)cam + 0x100));
+            }
+            for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+                 node = (int *)(size_t)node[1]) {
+                char *o = (char *)(size_t)node[2];
+                if (!o) continue;
+                unsigned id = *(unsigned short *)(o + 0xc);
+                if (id != 336 && id != 344 && id != 343 && id != 187)
+                    continue;
+                unsigned char hint = *(unsigned char *)(o + 0xc4);
+                int r = _ZN7Clipper13Func_020150E8ER7Vector35Fix12IiEPh(
+                    (char *)data_0209f43c, o + 0x74, *(int *)(o + 0xb8),
+                    &hint);
+                int k = 0;
+                for (; k < g_amb_n; ++k)
+                    if (g_amb[k].o == o) break;
+                if (k == g_amb_n && g_amb_n < 16) {
+                    g_amb[k].o = o;
+                    g_amb[k].id = id;
+                    g_amb[k].minr = 0x7FFFFFFF;
+                    g_amb[k].minfr = -1;
+                    g_amb[k].thresh = *(int *)(o + 0xbc);
+                    g_amb[k].p0[0] = *(int *)(o + 0x5c);
+                    g_amb[k].p0[1] = *(int *)(o + 0x60);
+                    g_amb[k].p0[2] = *(int *)(o + 0x64);
+                    ++g_amb_n;
+                }
+                /* frame 0's view-space pos predates the first Camera::Render
+                   (identity view matrix) -- not a real approach, skip it */
+                if (k < g_amb_n && frame >= 1 && r < g_amb[k].minr) {
+                    g_amb[k].minr = r;
+                    g_amb[k].minfr = frame;
+                }
+                if (frame >= 1 && frame <= 2)
+                    fprintf(stderr,
+                            "[amb] id=%u fl=%08x area=%d pos=(%d,%d,%d) "
+                            "vp=(%d,%d,%d) b4=%d b8=%d bc=%d c0=%d r=%d\n",
+                            id, *(unsigned *)(o + 0xb0),
+                            *(signed char *)(o + 0xcc),
+                            *(int *)(o + 0x5c) >> 12, *(int *)(o + 0x60) >> 12,
+                            *(int *)(o + 0x64) >> 12, *(int *)(o + 0x74),
+                            *(int *)(o + 0x78), *(int *)(o + 0x7c),
+                            *(int *)(o + 0xb4), *(int *)(o + 0xb8),
+                            *(int *)(o + 0xbc), *(int *)(o + 0xc0), r);
+            }
         }
         /* live-play recorder: state changes, input edges, a fix every
            second -- cheap enough to always be on, lands in playlog/ */
@@ -1657,6 +1711,26 @@ int main(void)
             }
         }
         if (selftest && ++frame >= selftest) {
+            for (int k = 0; k < g_amb_n; ++k) {
+                char *o = (char *)g_amb[k].o;
+                int moved = *(int *)(o + 0x5c) != g_amb[k].p0[0] ||
+                            *(int *)(o + 0x60) != g_amb[k].p0[1] ||
+                            *(int *)(o + 0x64) != g_amb[k].p0[2];
+                fprintf(stderr,
+                        "[amb-min] id=%u pos=(%d,%d,%d) minr=%d thresh=%d "
+                        "at f%d %s moved=%d\n",
+                        g_amb[k].id, g_amb[k].p0[0] >> 12,
+                        g_amb[k].p0[1] >> 12, g_amb[k].p0[2] >> 12,
+                        g_amb[k].minr, g_amb[k].thresh, g_amb[k].minfr,
+                        g_amb[k].minr <= g_amb[k].thresh ? "IN-RANGE"
+                                                         : "never-in-range",
+                        moved);
+            }
+            /* the census counters are cumulative, so a second print here
+               shows anything the run itself spawned (a woken butterfly
+               spawner adds four) on top of the boot's numbers */
+            if (boot_spawns)
+                port_actor_census();
             ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
             printf("selftest: %d frames, pos=(%d, %d, %d)\n", frame,
                    *(int *)(c + 0x5c), *(int *)(c + 0x60), *(int *)(c + 0x64));
