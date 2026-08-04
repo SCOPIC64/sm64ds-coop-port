@@ -120,6 +120,19 @@ const char *op_name(int op)
     }
 }
 
+// An opcode this consumer handles can still carry a PARAMETER it does not.
+// Those would otherwise vanish without a word, which is the one thing the
+// port is not allowed to do quietly.
+void note_param(int op, int param)
+{
+    static sd_u8 seen[2][256];
+    int row = (op == 3) ? 0 : 1;
+    if (param < 0 || param > 255 || seen[row][param]) return;
+    seen[row][param] = 1;
+    fprintf(stderr, "[snd] command 0x%02x parameter 0x%02x not implemented "
+            "-- ignored\n", op, param);
+}
+
 void exec(const Node *n)
 {
     int op = n->op;
@@ -154,12 +167,19 @@ void exec(const Node *n)
     case 0x03: {                        // PLAYER_PARAM: b = param, c = value
         int slot = n->a & 31;
         if (n->b == 4) sd_seq_set_volume(slot, n->c);
+        else note_param(3, n->b);
         break;
     }
     case 0x04: {                        // TRACK_PARAM
-        // a = voice id | (mode << 24), b = track mask, c = param, d = value
+        // a = voice id | (mode << 24), b = track mask, c = param, d = value.
+        // Param 9 is PAN, and the value is SIGNED: func_02048d80 derives it
+        // from the listener-relative X as (dx >> 12) / 2 clamped to
+        // -0x40..0x3f and hands it straight to func_0204f7cc, so 0 means
+        // centre. Reading it as an absolute 0..127 put every centred sound
+        // hard left.
         int slot = (n->a & 0xffffff) & 31;
-        if (n->c == 9) sd_seq_set_pan(slot, n->d);
+        if (n->c == 9) sd_seq_set_pan(slot, 64 + (int)(signed char)n->d);
+        else note_param(4, n->c);
         break;
     }
     case 0x1b: case 0x1c: case 0x1d:

@@ -122,6 +122,7 @@ void sd_mix_release(int ch);          // enter the release phase
 void sd_mix_kill(int ch);             // immediate stop
 int  sd_mix_active(int ch);
 void sd_mix_set(int ch, int volume_db10, int pan, double rate);
+void sd_mix_set_pan(int ch, int pan);   // retune a voice already sounding
 void sd_mix_frame(void);              // advance every envelope one 192Hz frame
 void sd_mix_render(sd_s16 *dst, int frames);   // stereo interleaved
 void sd_mix_reset(void);

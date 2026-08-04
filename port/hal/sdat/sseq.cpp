@@ -59,6 +59,7 @@ struct NoteSlot {
     int active;
     int player, track;
     int ticks;              // -1 = tied, released explicitly
+    int basePan;            // pan before the player's own bias
 };
 NoteSlot g_note[SD_CHANNELS];
 
@@ -122,9 +123,9 @@ void start_note(Player &pl, int pi, int ti, Track &tk, int note, int vel,
              + sd_cnv_vol(tk.expression) + sd_cnv_vol(pl.volume);
     if (db10 < -723) db10 = -723;
 
-    int pan = tk.panSet ? tk.pan : n.pan;
+    int basePan = tk.panSet ? tk.pan : n.pan;
     // The player's own pan biases the track's, centred at 64.
-    pan += (pl.pan - 64);
+    int pan = basePan + (pl.pan - 64);
     if (pan < 0) pan = 0;
     if (pan > 127) pan = 127;
 
@@ -137,6 +138,7 @@ void start_note(Player &pl, int pi, int ti, Track &tk, int note, int vel,
     g_note[ch].active = 1;
     g_note[ch].player = pi;
     g_note[ch].track = ti;
+    g_note[ch].basePan = basePan;
     // Duration 0 means "no scheduled note-off" -- the note runs until its
     // envelope or its sample ends. Every sound effect in the SEQARCs is
     // written that way (a lone "program change, note, end of track"), so
@@ -388,6 +390,16 @@ void sd_seq_set_pan(int p, int v)
 {
     if (p < 0 || p >= SD_PLAYERS || !g_pl[p].active) return;
     g_pl[p].pan = v < 0 ? 0 : (v > 127 ? 127 : v);
+    // Positional pan arrives AFTER the note that needs it: Sound::Play calls
+    // Player_PlaySoundEffect (which sends START) and only then func_02048d80
+    // (which sends the pan). Applying it to the player alone would leave the
+    // sound it was computed for playing dead centre, so retune the voices
+    // this player already has ringing.
+    for (int i = 0; i < SD_CHANNELS; i++) {
+        if (!g_note[i].active || g_note[i].player != p) continue;
+        int pan = g_note[i].basePan + (g_pl[p].pan - 64);
+        sd_mix_set_pan(i, pan < 0 ? 0 : (pan > 127 ? 127 : pan));
+    }
 }
 
 void sd_seq_frame(void)

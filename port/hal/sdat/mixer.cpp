@@ -133,6 +133,12 @@ void sd_mix_set(int ch, int volume_db10, int pan, double rate)
     if (rate > 0.0) g_ch[ch].step = rate;
 }
 
+void sd_mix_set_pan(int ch, int pan)
+{
+    if (ch < 0 || ch >= SD_CHANNELS || !g_ch[ch].active) return;
+    g_ch[ch].pan = pan < 0 ? 0 : (pan > 127 ? 127 : pan);
+}
+
 void sd_mix_release(int ch)
 {
     if (ch < 0 || ch >= SD_CHANNELS || !g_ch[ch].active) return;
