@@ -77,6 +77,15 @@ void *_ZTV8dMeter_c[18];
 
 const char *port_actor_class_name(unsigned id);
 void port_scene_canary(const char *where);
+extern int data_0209caa0[];
+extern unsigned char data_0209f2d8, data_0209f2c4, data_0209f20c, data_0209f294;
+static int port_sub_oam_nonzero(void)
+{
+    const unsigned char *p = (const unsigned char *)0x07000400;
+    int n = 0;
+    for (int i = 0; i < 1024; ++i) n += p[i] != 0;
+    return n;
+}
 extern void *data_0209f394[];   /* per-player Actor* */
 extern unsigned char data_0209f250;   /* local player index */
 
@@ -239,8 +248,13 @@ int __fastcall hud_render(void *s, void *)
         static int said;
         if (said < 3) {
             ++said;
-            std::printf("  [hud] render: this=%p f394[0]=%p f250=%u\n", s,
-                        (void *)data_0209f394[0], (unsigned)data_0209f250);
+            std::printf("  [hud] render: this=%p f394[0]=%p f250=%u "
+                        "caa0[8]=%02x f2d8=%u f2c4|f20c|f294=%02x oam=%d\n", s,
+                        (void *)data_0209f394[0], (unsigned)data_0209f250,
+                        (unsigned)((unsigned char *)data_0209caa0)[8],
+                        (unsigned)data_0209f2d8,
+                        (unsigned)(data_0209f2c4 | data_0209f20c | data_0209f294),
+                        port_sub_oam_nonzero());
         }
     }
     return ((HUD *)s)->HUD::Render();
