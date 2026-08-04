@@ -1724,7 +1724,9 @@ int main(void)
                z-buffered, so drawing the actors ahead of the level model
                costs nothing.
                SM64DS_NO_ACTORS=1 takes the bucket out for the A/B. */
-            if (boot_spawns && !getenv("SM64DS_NO_ACTORS")) {
+            static int no_actors = -1;
+            if (no_actors < 0) no_actors = getenv("SM64DS_NO_ACTORS") ? 1 : 0;
+            if (boot_spawns && !no_actors) {
                 size_t before = 0, after = 0;
                 if (selftest) ntr::gx_polygons(before);
                 port_actor_render();
@@ -1913,7 +1915,9 @@ int main(void)
             ntr::gx_enable_lights(0x1);
             push_camera(dbg_eye, dbg_at);
         }
-        if (!getenv("SM64DS_NO_LEVEL"))
+        static int no_level = -1;
+        if (no_level < 0) no_level = getenv("SM64DS_NO_LEVEL") ? 1 : 0;
+        if (!no_level)
             hal_render_model(level_storage, level_shift);
         /* phase 1, which is where func_02044120 ends: the scene tree's own
            housekeeping -- priority re-sorts, parent flag propagation, and the
