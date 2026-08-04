@@ -54,6 +54,11 @@ void gx_write_fifo(uint32_t word);
 // Reset the command stream, matrix stacks and polygon list.
 void gx_reset();
 
+// Drop every VRAM-decoded texture. The decode cache deliberately survives
+// gx_reset (which runs once a frame); call this when the texture slots are
+// being reused for different content, as the model soaks do per model.
+void gx_invalidate_textures();
+
 // Bind a decoded texture for subsequent geometry. Pass null for untextured.
 void gx_bind_texture(const uint32_t *rgba, int width, int height);
 

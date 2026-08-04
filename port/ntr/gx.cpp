@@ -622,7 +622,32 @@ constexpr uintptr_t TEX_SLOT_BASE  = 0x06800000u;   // texture slots, mapped
 constexpr uintptr_t PLTT_SLOT_BASE = 0x06880000u;   // palette slots, mapped
 
 uint32_t g_teximage, g_plttbase;
-std::map<uint64_t, std::vector<uint32_t>> g_vram_tex_cache;
+
+/* Key: the pair of VRAM words that name the texture, plus a cheap read of
+   what is actually sitting in those slots. The teximage/palette pair alone is
+   not enough on its own -- a scene change can upload different texels to the
+   same slot offset with the same parameters, and the soak does exactly that,
+   once per model -- so the first and last word of the block and the first word
+   of the palette ride along. That is three loads per bind, against a decode
+   plus a heap allocation, and it means a stale entry cannot be served. */
+struct TexKey {
+    uint64_t name;          // plttbase:teximage
+    uint32_t c0, c1, cp;    // content probe
+    bool operator<(const TexKey &o) const {
+        if (name != o.name) return name < o.name;
+        if (c0 != o.c0) return c0 < o.c0;
+        if (c1 != o.c1) return c1 < o.c1;
+        return cp < o.cp;
+    }
+};
+std::map<TexKey, std::vector<uint32_t>> g_vram_tex_cache;
+
+uint32_t probe_word(const uint8_t *p, int32_t len, int32_t off) {
+    if (!p || off < 0 || off + 4 > len) return 0;
+    uint32_t v;
+    std::memcpy(&v, p + off, 4);
+    return v;
+}
 
 /* SM64DS_TEX_LOG=1: one line per DISTINCT bind reaching the engine --
    teximage word, decoded geometry, both VRAM addresses and whether the
@@ -646,26 +671,38 @@ void bind_from_vram() {
         gx_bind_texture(nullptr, 0, 0);
         return;
     }
-    const uint64_t key = (static_cast<uint64_t>(g_plttbase) << 32) | g_teximage;
+    /* The descriptor is pure arithmetic on the two latched words, so it is
+       built before the lookup -- the content probe needs its geometry. */
+    TextureDesc d;
+    const uint32_t off = (g_teximage & 0xFFFF) << 3;
+    d.width = 8 << ((g_teximage >> 20) & 7);
+    d.height = 8 << ((g_teximage >> 23) & 7);
+    d.format = static_cast<int>(fmt);
+    d.color0_transparent = (g_teximage >> 29) & 1;
+    d.data = reinterpret_cast<const uint8_t *>(TEX_SLOT_BASE + off);
+    d.data_len = 0x80000 - static_cast<int32_t>(off);
+    // Format 5 keeps its 4x4 palette-index words in slot 1, at half the
+    // block offset (GBATEK); the game uploads them right after the blocks.
+    if (fmt == 5) {
+        d.index = reinterpret_cast<const uint8_t *>(TEX_SLOT_BASE + 0x20000 + off / 2);
+        d.index_len = 0x20000 - static_cast<int32_t>(off / 2);
+    }
+    const uint32_t pal_off = g_plttbase * (fmt == 2 ? 8u : 16u);
+    d.pal = reinterpret_cast<const uint8_t *>(PLTT_SLOT_BASE + pal_off);
+    d.pal_len = 0x18000 - static_cast<int32_t>(pal_off);
+
+    TexKey key;
+    key.name = (static_cast<uint64_t>(g_plttbase) << 32) | g_teximage;
+    /* w*h/4 bytes is the smallest any DS format uses for a block of that
+       size, so it is in range whatever the format turns out to be. */
+    int32_t span = d.width * d.height / 4;
+    if (span > d.data_len) span = d.data_len;
+    key.c0 = probe_word(d.data, d.data_len, 0);
+    key.c1 = probe_word(d.data, d.data_len, span - 4);
+    key.cp = probe_word(d.pal, d.pal_len, 0);
+
     auto it = g_vram_tex_cache.find(key);
     if (it == g_vram_tex_cache.end()) {
-        TextureDesc d;
-        const uint32_t off = (g_teximage & 0xFFFF) << 3;
-        d.width = 8 << ((g_teximage >> 20) & 7);
-        d.height = 8 << ((g_teximage >> 23) & 7);
-        d.format = static_cast<int>(fmt);
-        d.color0_transparent = (g_teximage >> 29) & 1;
-        d.data = reinterpret_cast<const uint8_t *>(TEX_SLOT_BASE + off);
-        d.data_len = 0x80000 - static_cast<int32_t>(off);
-        // Format 5 keeps its 4x4 palette-index words in slot 1, at half the
-        // block offset (GBATEK); the game uploads them right after the blocks.
-        if (fmt == 5) {
-            d.index = reinterpret_cast<const uint8_t *>(TEX_SLOT_BASE + 0x20000 + off / 2);
-            d.index_len = 0x20000 - static_cast<int32_t>(off / 2);
-        }
-        const uint32_t pal_off = g_plttbase * (fmt == 2 ? 8u : 16u);
-        d.pal = reinterpret_cast<const uint8_t *>(PLTT_SLOT_BASE + pal_off);
-        d.pal_len = 0x18000 - static_cast<int32_t>(pal_off);
         std::vector<uint32_t> rgba;
         const bool ok = texture_decode(d, rgba);
         ++g_tex_decodes;
@@ -766,11 +803,20 @@ void gx_write_port(uint32_t addr, uint32_t value) {
     }
 }
 
+/* Drop every decoded texture. The cache OUTLIVES gx_reset -- gx_reset runs
+   once per frame, and throwing the decodes away there meant every texture in
+   the scene was decoded out of VRAM and heap-allocated again 30 times a
+   second. Callers that recycle VRAM slot offsets faster than the content
+   probe can tell apart, or that just want the memory back, say so here; the
+   soaks do, once per model. SM64DS_TEX_NOCACHE=1 restores the old
+   clear-every-reset behaviour for an A/B. */
+void gx_invalidate_textures() { g_vram_tex_cache.clear(); }
+
 void gx_reset() {
+    static int nocache = -1;
+    if (nocache < 0) nocache = getenv("SM64DS_TEX_NOCACHE") ? 1 : 0;
+    if (nocache) g_vram_tex_cache.clear();
     g = State{};
-    // VRAM-decoded texture cache: uploads can be replaced between scenes
-    // (the soak reuses slot offsets per model), so stale entries must go.
-    g_vram_tex_cache.clear();
     g_teximage = g_plttbase = 0;
     // The stack slots must start as identity, not zero. Model display lists open
     // with MTX_RESTORE against a slot the *scene* filled in earlier; rendering a
