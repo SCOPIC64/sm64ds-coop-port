@@ -22,6 +22,10 @@
 //   zooms. Both work in analog and in freecam and do nothing in DS-exact.
 //   The last left click is published in framebuffer pixels for the touch
 //   bridge; see g_mouse_click_x.
+//   F5  the debug menu: warp to any of the level's own entrances, the fake-
+//   snap A/B, the overlay, the camera mode, and the recorder's filename.
+//   Arrows or the d-pad move, enter or A acts. It PAUSES THE GAME TICK while
+//   it is open and keeps rendering, so the scene freezes and the view does not.
 //   F3  the stats overlay: frame rate, the per-phase millisecond budget,
 //   triangle and actor counts, where Mario is and what state he is in, and
 //   how many times the port has fallen through a state it does not host.
@@ -308,6 +312,10 @@ extern int g_walk_dbg[16];     /* collision-walk telemetry (port/unmatched) */
 /* the overlay's "unhosted" counter: hal/player_bridges.cpp bumps this every
    time the state dispatcher falls off the end of its switch */
 extern unsigned g_port_unhosted_hits;
+/* the level's own entrance sub-table, kept by the boot for the debug menu's
+   warp list (hal/level_boot.cpp) */
+int port_entrance_count(void);
+int port_entrance_record(int i, int *x, int *y, int *z, int *yaw);
 /* the real level boot (hal/level_boot.cpp) */
 void port_ov009_probe(void);
 void *port_stage_a_boot(void *mc, int spawn_entrances);
@@ -711,6 +719,89 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
     _Z13CopyToViewMatPK9Matrix4x3(mat);
 }
 
+/* ---- THE DEBUG MENU (port mod) ----------------------------------------
+   F5. Deliberately small: the four things worth reaching mid-session without
+   restarting the program under a different environment, plus one status line.
+   Up/down or the d-pad move, left/right change a value, and enter (or A) does
+   what right does, so the whole thing works one-handed on a pad.
+
+   IT PAUSES THE GAME TICK while it is open -- port_actor_tick is skipped and
+   the input the harness writes is zeroed, so nothing moves, nothing spawns and
+   nothing decides anything while a person is reading. Rendering carries on, so
+   the frame stays live behind the menu and the F3 overlay's fps keeps counting
+   while its TICK rate falls to zero. That divergence is what the two numbers
+   are next to each other for. */
+enum {
+    MENU_WARP = 0,
+    MENU_SNAP,
+    MENU_OVERLAY,
+    MENU_CAMERA,
+    MENU_RECORDER,
+    MENU_COUNT
+};
+static int menu_on;
+static int menu_sel;
+static int menu_entrance;             /* the entrance the warp row is showing */
+static int g_overlay_on;              /* F3, and the menu's overlay row */
+static char g_playlog[160] = "off";   /* the flight recorder's current file */
+
+/* The harness ground snap and wall clamp, a boot-time const off
+   SM64DS_FAKE_SNAP until now, so the A/B was a restart. It is a switch.
+   What CANNOT move at runtime is the third thing that env chose: the level
+   collider's OWNER is decided once, before the Player exists (the
+   MeshColliderBase::Enable call in main), and an owner of the Player makes
+   every player probe skip the level. The row says so rather than pretending
+   the toggle is the whole switch. */
+static int g_fake_snap;
+
+static void menu_draw(ntr::Framebuffer &fb)
+{
+    char ln[MENU_COUNT][72];
+    int i, w = 0, x0, y0;
+    int ex = 0, ey = 0, ez = 0, eyaw = 0;
+    const int n_ent = port_entrance_count();
+    const int have = port_entrance_record(menu_entrance, &ex, &ey, &ez, &eyaw);
+    const char *title = "DEBUG MENU   F5 close   arrows move   enter/right act";
+
+    if (have)
+        snprintf(ln[MENU_WARP], sizeof ln[0],
+                 "warp to entrance  %d of %d   (%d %d %d)", menu_entrance,
+                 n_ent, ex, ey, ez);
+    else
+        snprintf(ln[MENU_WARP], sizeof ln[0],
+                 "warp to entrance  none loaded");
+    snprintf(ln[MENU_SNAP], sizeof ln[0], "fake snap         %s",
+             g_fake_snap ? "ON (collider owner set at boot)" : "off");
+    snprintf(ln[MENU_OVERLAY], sizeof ln[0], "stats overlay     %s",
+             g_overlay_on ? "on" : "off");
+    snprintf(ln[MENU_CAMERA], sizeof ln[0], "camera            %s",
+             cam_mode_name(cam_mode));
+    snprintf(ln[MENU_RECORDER], sizeof ln[0], "recorder          %s", g_playlog);
+
+    for (i = 0; i < MENU_COUNT; ++i) {
+        const int lw = (int)strlen(ln[i]) * OVL_ADVANCE * OVL_SCALE;
+        if (lw > w) w = lw;
+    }
+    {
+        const int tw = (int)strlen(title) * OVL_ADVANCE * OVL_SCALE;
+        if (tw > w) w = tw;
+    }
+    w += 3 * OVL_ADVANCE * OVL_SCALE;
+    x0 = (ntr::SCREEN_W - w) / 2;
+    if (x0 < 2) x0 = 2;
+    y0 = (ntr::SCREEN_H - (MENU_COUNT + 2) * OVL_LINE) / 2;
+    ovl_shade(fb, x0 - 4, y0 - 4, w + 8, (MENU_COUNT + 2) * OVL_LINE + 8);
+    ovl_shade(fb, x0 - 4, y0 - 4, w + 8, (MENU_COUNT + 2) * OVL_LINE + 8);
+    ovl_text(fb, x0, y0, title, 0xFF80C0FFu);
+    for (i = 0; i < MENU_COUNT; ++i) {
+        const int y = y0 + (i + 2) * OVL_LINE;
+        const int sel = i == menu_sel;
+        if (sel) ovl_text(fb, x0, y, ">", 0xFFFFE060u);
+        ovl_text(fb, x0 + 2 * OVL_ADVANCE * OVL_SCALE, y, ln[i],
+                 sel ? 0xFFFFE060u : 0xFFB0B0B0u);
+    }
+}
+
 /* ---- MOUSE (port mod) -------------------------------------------------
    DRAG TO LOOK, on the right button, and not an F2 capture toggle. Both were
    on the table; this is the one that fits what the window is. A capture mode
@@ -898,8 +989,9 @@ int main(void)
        the snap and the wall clamp on top. Kept for the A/B and for shots
        that need Mario planted regardless. */
     const int fake_snap = getenv("SM64DS_FAKE_SNAP") != 0;
-    const int ground_snap = fake_snap;
-    const int wall_stop = fake_snap;
+    /* the per-frame half of it is a switch now, so the F5 menu can do the A/B
+       without a restart; the collider-owner half below is still boot-time */
+    g_fake_snap = fake_snap;
     PORT_INSTALL_FAULT_PROBE();
     port_install_watchdog();
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -912,10 +1004,10 @@ int main(void)
        keeps stderr on the console instead. */
     if (!getenv("SM64DS_NO_PLAYLOG") && !getenv("SM64DS_WINDOW_SELFTEST")) {
         CreateDirectoryA("playlog", NULL);
-        char logname[128];
+        char *logname = g_playlog;
         SYSTEMTIME st_;
         GetLocalTime(&st_);
-        snprintf(logname, sizeof logname,
+        snprintf(logname, sizeof g_playlog,
                  "playlog/play_%04u%02u%02u_%02u%02u%02u.log", st_.wYear,
                  st_.wMonth, st_.wDay, st_.wHour, st_.wMinute, st_.wSecond);
         if (freopen(logname, "w", stderr)) {
@@ -1344,7 +1436,11 @@ int main(void)
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
     const int trace_cam = getenv("SM64DS_TRACE_CAM") != 0;
     /* the F3 overlay: off unless SM64DS_OVERLAY=1 says otherwise */
-    int overlay_on = getenv("SM64DS_OVERLAY") != 0;
+    g_overlay_on = getenv("SM64DS_OVERLAY") != 0;
+    /* SM64DS_MENU=1 opens the menu at boot. Its KEYS are off under a selftest
+       (an automated run must not have a menu opening under it), but the panel
+       itself draws, which is how a shot of it gets captured without a person. */
+    menu_on = getenv("SM64DS_MENU") != 0;
     int overlay_edge = 0;
     double ovl_fps = 0, ovl_tps = 0, ovl_last_present = 0;
     unsigned ovl_mem_kb = 0;
@@ -1364,7 +1460,7 @@ int main(void)
         ph_begin(&t_phase);
         {
             const int now = W.GetAsyncKeyState_(VK_F3) < 0;
-            if (now && !overlay_edge) overlay_on = !overlay_on;
+            if (now && !overlay_edge) g_overlay_on = !g_overlay_on;
             overlay_edge = now;
         }
         /* drain what the window procedure collected. Unconditionally, so a
@@ -1408,6 +1504,105 @@ int main(void)
         static XPad pad;
         int pad_live = XInputGetState_ && XInputGetState_(0, &pad) == 0;
         int orbiting = 0;
+        /* ---- THE DEBUG MENU'S OWN INPUT. It runs before anything else reads
+           the keyboard, and while it is open it swallows the keys it uses and
+           the tick is skipped below, so nothing it does can also be a walk.
+           Every key here is edge-detected off one held-mask, which is the
+           cheapest way to get "one step per press" out of GetAsyncKeyState. */
+        if (!selftest) {
+            static unsigned menu_prev;
+            unsigned held = 0;
+            unsigned edge;
+            if (W.GetAsyncKeyState_(VK_F5) < 0)     held |= 1u << 0;
+            if (W.GetAsyncKeyState_(VK_UP) < 0)     held |= 1u << 1;
+            if (W.GetAsyncKeyState_(VK_DOWN) < 0)   held |= 1u << 2;
+            if (W.GetAsyncKeyState_(VK_LEFT) < 0)   held |= 1u << 3;
+            if (W.GetAsyncKeyState_(VK_RIGHT) < 0)  held |= 1u << 4;
+            if (W.GetAsyncKeyState_(VK_RETURN) < 0) held |= 1u << 5;
+            if (pad_live) {
+                if (pad.buttons & 0x0001) held |= 1u << 1;   /* d-pad up    */
+                if (pad.buttons & 0x0002) held |= 1u << 2;   /* d-pad down  */
+                if (pad.buttons & 0x0004) held |= 1u << 3;   /* d-pad left  */
+                if (pad.buttons & 0x0008) held |= 1u << 4;   /* d-pad right */
+                if (pad.buttons & 0x0020) held |= 1u << 0;   /* BACK        */
+                if (menu_on && (pad.buttons & 0x1000)) held |= 1u << 5;  /* A */
+            }
+            edge = held & ~menu_prev;
+            menu_prev = held;
+            if (edge & (1u << 0)) {
+                menu_on = !menu_on;
+                fprintf(stderr, "[menu] %s\n", menu_on ? "open" : "closed");
+            }
+            if (menu_on) {
+                const int n_ent = port_entrance_count();
+                if (edge & (1u << 1))
+                    menu_sel = (menu_sel + MENU_COUNT - 1) % MENU_COUNT;
+                if (edge & (1u << 2))
+                    menu_sel = (menu_sel + 1) % MENU_COUNT;
+                {
+                    /* enter is a synonym for right, so a pad can do it all */
+                    const int dec = (edge & (1u << 3)) != 0;
+                    const int inc = (edge & ((1u << 4) | (1u << 5))) != 0;
+                    if (dec || inc) switch (menu_sel) {
+                    case MENU_WARP:
+                        if (n_ent > 0) {
+                            /* left and right pick the entrance; enter warps */
+                            if (edge & (1u << 5)) {
+                                int ex, ey, ez, eyaw;
+                                if (port_entrance_record(menu_entrance, &ex,
+                                                         &ey, &ez, &eyaw)) {
+                                    /* the level's own record, in the units it
+                                       stores: world units, so <<12 into the
+                                       actor's fixed point. This MOVES him; it
+                                       is not a re-entry, nothing about the
+                                       level or the area is reloaded. */
+                                    *(int *)(c + 0x5c) = ex << 12;
+                                    *(int *)(c + 0x60) = ey << 12;
+                                    *(int *)(c + 0x64) = ez << 12;
+                                    *(short *)(c + 0x8e) = (short)eyaw;
+                                    *(int *)(c + 0x98) = 0;   /* mHorzSpeed */
+                                    *(int *)(c + 0xa4) = 0;
+                                    *(int *)(c + 0xa8) = 0;   /* mVertSpeed */
+                                    *(int *)(c + 0xac) = 0;
+                                    an_pivot_live = 0;        /* do not ease
+                                                                 across a warp */
+                                    fprintf(stderr,
+                                            "[menu] warp to entrance %d "
+                                            "(%d, %d, %d)\n", menu_entrance,
+                                            ex, ey, ez);
+                                }
+                            } else if (dec) {
+                                menu_entrance =
+                                    (menu_entrance + n_ent - 1) % n_ent;
+                            } else {
+                                menu_entrance = (menu_entrance + 1) % n_ent;
+                            }
+                        }
+                        break;
+                    case MENU_SNAP:
+                        g_fake_snap = !g_fake_snap;
+                        fprintf(stderr, "[menu] fake snap %s\n",
+                                g_fake_snap ? "ON" : "off");
+                        break;
+                    case MENU_OVERLAY:
+                        g_overlay_on = !g_overlay_on;
+                        break;
+                    case MENU_CAMERA:
+                        if (real_camera) {
+                            cam_mode = dec ? (cam_mode + 2) % 3
+                                           : (cam_mode + 1) % 3;
+                            if (cam_mode != CAM_DS) fc_seed(cam);
+                            if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
+                            fprintf(stderr, "[menu] camera %s\n",
+                                    cam_mode_name(cam_mode));
+                        }
+                        break;
+                    default:
+                        break;
+                    }
+                }
+            }
+        }
         /* the right stick's X, from the pad or from the selftest ramp:
            SM64DS_SELFTEST_STICK=<pct> holds it at pct% of full deflection
            from frame 20 (negative for the other way), and =0 ramps it from
@@ -1547,6 +1742,10 @@ int main(void)
            binang -- the D-pad path, mode 0), and Player::Behavior folds
            in the camera angle via GetAngleToCamera, which reads the
            angle the harness publishes below. No hand-built headings. */
+        /* the menu owns the arrow keys and the d-pad while it is open, so no
+           walk comes out of them; the tick is skipped below either way, but
+           the stick record should not be left describing a press either */
+        if (menu_on) { dx = 0; dz = 0; }
         {
             unsigned short raw = 0;
             if (dz > 0) raw |= 0x40;   /* up    */
@@ -1680,6 +1879,7 @@ int main(void)
                 if (selftest && getenv("SM64DS_SELFTEST_ORBIT") && frame >= 20)
                     btn |= 0x100;
             }
+            if (menu_on) btn = 0;   /* enter/A belong to the menu, not to him */
             *(unsigned short *)(data_0209f49c + 0) = btn;
             *(unsigned short *)(data_0209f49e + 0) =
                 (unsigned short)(btn & (unsigned short)~btn_was);
@@ -1756,7 +1956,15 @@ int main(void)
            the init pass for anything spawned since last frame, then behaviour
            in priority order -- which reaches him through the same
            func_02043288 the harness used to call by hand. */
-        if (boot_spawns) {
+        /* THE MENU'S PAUSE IS HERE, and this is the whole of it: skip the
+           tick. Not a flag every actor has to respect and not a time scale --
+           the frame simply does not advance the game, so nothing can drift
+           while a person reads. Everything downstream still runs, so the
+           picture stays live and the camera can still be moved around a
+           frozen scene. */
+        if (menu_on) {
+            game_ticked = 0;
+        } else if (boot_spawns) {
             /* Nothing to undo before the tick any more. The view matrix is
                the one Camera::Render published, in the ROM's own scene units,
                and Actor::BeforeBehavior reads exactly those three words to
@@ -1997,7 +2205,7 @@ int main(void)
             /* ray starts just above STEP height: starting a body-height
                up let the walk grab canopies/domes overhead and teleport
                him upward (the "camera is fucked" y-pops) */
-            if (ground_snap &&
+            if (g_fake_snap &&
                 hal_ground_ray(g_mc, mx, my + (100 << 12), mz, 5220 << 12,
                                &gy)) {
                 /* never re-ground a rising jump: the snap + SetGroundFlag
@@ -2019,7 +2227,7 @@ int main(void)
                and ceiling as a three-bit mask. Hosted, it stops him against
                the castle's outer wall and lets him SLIDE ALONG it, where
                this clamp only ever stopped him dead 120 units short. */
-            if (wall_stop) {
+            if (g_fake_snap) {
                 int nx = *(int *)(c + 0x5c), nz = *(int *)(c + 0x64);
                 int ny = *(int *)(c + 0x60);
                 int wy = ny + (120 << 12);          /* chest height */
@@ -2462,7 +2670,7 @@ int main(void)
         /* THE OVERLAY GOES HERE: after the raster owns the frame and before
            the blit hands it to GDI, so it is in the pixels rather than over
            the window, and the selftest BMP carries it. */
-        if (overlay_on) {
+        if (g_overlay_on) {
             OvlStats os;
             size_t tn = 0;
             int actors = 0;
@@ -2487,6 +2695,7 @@ int main(void)
             os.menu_paused = !game_ticked;
             ovl_draw(fb, os);
         }
+        if (menu_on) menu_draw(fb);
 
         ph_begin(&t_phase);
         W.StretchDIBits_(hdc, 0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM,

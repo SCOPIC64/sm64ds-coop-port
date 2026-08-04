@@ -88,9 +88,38 @@ extern "C" void *port_ov009_mount(void)
    see port/unmatched/MeshCollider_DetectClsn_Sphere.cpp, BASIS CONVENTION --
    so the pair is nobody's business and +0x2c is back to being what the ROM
    put there, the Y of the collider's up axis. */
+/* The level's own entrance sub-table, kept as the boot walks past it, so the
+   debug menu's warp list is the LEVEL'S entrances rather than a hand-written
+   list of coordinates that goes stale the moment anyone changes levels. The
+   record is LoadEntranceObjects' own `struct Entry`: raw id, s16 x/y/z, a
+   Vector3_16 rotation, and a param whose low three bits are the area.
+   Sixteen bytes, and the sub-table header carries the count at +1 and the
+   array pointer at +4. */
+static const unsigned char *g_entrance_entries;
+static int g_entrance_count;
+
+extern "C" int port_entrance_count(void) { return g_entrance_count; }
+
+extern "C" int port_entrance_record(int i, int *x, int *y, int *z, int *yaw)
+{
+    const unsigned char *e;
+    if (!g_entrance_entries || i < 0 || i >= g_entrance_count) return 0;
+    e = g_entrance_entries + (size_t)i * 16;
+    if (x) *x = *(const short *)(e + 2);
+    if (y) *y = *(const short *)(e + 4);
+    if (z) *z = *(const short *)(e + 6);
+    if (yaw) *yaw = *(const short *)(e + 0xa);
+    return 1;
+}
+
 extern "C" void port_loader_enter(int idx, const void *tbl)
 {
     static int on = -1;
+    if (idx == 1) {                  /* LOADER_ENTRANCE, declared below */
+        g_entrance_count = ((const unsigned char *)tbl)[1];
+        g_entrance_entries =
+            *(const unsigned char *const *)((const char *)tbl + 4);
+    }
     if (on < 0) on = std::getenv("SM64DS_TRACE_LOADERS") != 0;
     if (on)
         std::printf("  [load] %2d count %u entries %p\n", idx,
