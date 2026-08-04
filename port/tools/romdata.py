@@ -62,6 +62,12 @@ NAMED = [
     "data_0208eeac",
     "data_0208f074",
     "data_0208f174",
+    # cstd::atan2's lookup table: atan(i/1024) in binangs, i = 0..0x400, so
+    # 0..0x2000 (45 degrees) and the quadrant fixups do the rest. EVERY
+    # heading in the game runs through it -- Vec3_HorzAngle, Vec3_VertAngle,
+    # the camera's own rotation, the walk's slope math. Zeroed storage in the
+    # HAL made atan2 answer 0 for every off-axis direction.
+    "data_020994e0",
     "data_020756b0",   # D-pad direction -> binang table (Stage::CheckInput)
     "data_0209214c",   # per-mode button remap pointer table (CheckInput)
     # tier-2 state wave: fader/level/message tables

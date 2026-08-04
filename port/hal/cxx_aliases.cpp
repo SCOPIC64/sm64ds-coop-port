@@ -121,8 +121,15 @@ int func_01ffa344(int a, int b)
 { float x; memcpy(&x, &a, 4); (void)b; return (int)x; }
 /* ITCM signed divide (walk-speed scaling) */
 int func_01ffabe4(int a, int b) { return b ? a / b : 0; }
-/* atan table the boot builds at runtime; zeros = heading 0 */
-unsigned short data_020994e0[0x408];
+/* data_020994e0, cstd::atan2's own table, IS NOT HERE ANY MORE. It was
+   storage with a guess for a comment ("the boot builds it at runtime") and
+   nothing ever filled it, so atan2 returned 0 for every direction that was
+   not exactly on an axis -- and every heading in the game goes through
+   atan2. The camera could not hold a rotation, Vec3_HorzAngle answered 0
+   for Mario, and slopes read as flat. The table is plain arm9 .data at
+   0x020994e0 (0x804 bytes, atan(i/1024) in binangs for i = 0..0x400), well
+   below bss_start 0x0209b000, so it comes out of the ROM image with the
+   rest: port/tools/romdata.py NAMED. */
 double func_01ff8e10(double x, double y) { return x - y; }
 unsigned long long func_01ff859c(double x) { return (unsigned long long)x; }
 
@@ -813,6 +820,12 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    vtable it installs first is _ZTV18MovingCylinderClsn (0x0208e6d4). */
 #pragma comment(linker, "/alternatename:_base_dtor_MovingCylinderClsn=__ZN12CylinderClsnD2Ev")
 #pragma comment(linker, "/alternatename:_vtbl_MovingCylinderClsn=__ZTV18MovingCylinderClsn")
+/* ...and the WithPos derivative one level up, which the butterfly's hosted D1
+   tears down (gate 21 linkloop round 2): its base destructor at 0x02014954 is
+   MovingCylinderClsn's D2 and the vtable is the host storage in
+   hal/actor_vtables.cpp. */
+#pragma comment(linker, "/alternatename:_base_dtor_MovingCylinderClsnWithPos=__ZN18MovingCylinderClsnD2Ev")
+#pragma comment(linker, "/alternatename:_vtbl_MovingCylinderClsnWithPos=__ZTV25MovingCylinderClsnWithPos")
 /* ov002's Enemy constructor is func_ov002_020aed98 -- see the header of that
    entry in slice_gate16.txt for why the file named _ZN5EnemyC2Ev is ov007's. */
 #pragma comment(linker, "/alternatename:__ZN5EnemyC2Ev=_func_ov002_020aed98")
