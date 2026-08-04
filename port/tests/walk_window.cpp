@@ -246,6 +246,8 @@ extern int g_walk_dbg[16];     /* collision-walk telemetry (port/unmatched) */
 void port_ov009_probe(void);
 void *port_stage_a_boot(void *mc, int spawn_entrances);
 void port_stage_a_probe(void *mc);
+void *port_stage_create(void);   /* hal/stage_bridges.cpp: the real Stage actor */
+void port_stage_tree_probe(void *child, const char *what);
 int port_stage_path_guard(void *player);
 void port_stage_a2_seat(void);
 /* the actor registry and the ROM's own processing lists (hal/actor_registry) */
@@ -567,20 +569,31 @@ int main(void)
        Stage::LoadClsnAndObjects does it -- and it runs BEFORE the Player,
        because on the real boot the entrance spawns the Player and
        Player::InitResources reads the world-Y bounds the boot just set. */
+    /* THE COLLIDER IS THE STAGE'S OWN NOW (gate 24). mc_storage was a bare
+       0x60-byte MeshCollider the harness constructed and handed to the boot;
+       on the ROM that object lives at Stage+0x91c and Stage::Stage constructs
+       it there. The legacy boot keeps the harness one -- it builds no Stage. */
     static char mc_storage[0x60];
     unsigned level_bmd = 1943;
-    g_mc = mc_storage;
-    _ZN12MeshColliderC1Ev(mc_storage);
+    char *stage = 0;
+    if (real_boot) {
+        stage = (char *)port_stage_create();
+        g_mc = stage + 0x91c;
+    } else {
+        g_mc = mc_storage;
+        _ZN12MeshColliderC1Ev(mc_storage);
+    }
     if (real_boot) {
         /* Door and exit stay off in both stages -- their actors are Stage B.
            With SM64DS_BOOT_NOSPAWN the entrance table goes off too and the
            sub-table is dropped, which is stage A1: geometry only. */
         if (boot_spawns)
             port_stage_a2_seat();
-        void *lvl = port_stage_a_boot(mc_storage, boot_spawns);
+        void *lvl = port_stage_a_boot(g_mc, boot_spawns);
         level_bmd = *(unsigned short *)((char *)lvl + 8);
-        port_stage_a_probe(mc_storage);
+        port_stage_a_probe(g_mc);
         if (boot_spawns) {
+            port_stage_tree_probe(data_0209f394[0], "PLAYER");
             port_actor_census();
             port_actor_lists_probe();
         }

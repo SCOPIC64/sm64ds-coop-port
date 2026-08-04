@@ -1,0 +1,16 @@
+# Gate 24: the boot spine -- the real Stage actor.
+#
+# The port's level boot already runs the game's own Stage::LoadClsnAndObjects
+# (gate 14) but against harness-staged storage: a bare MeshCollider in
+# walk_window and an ActorBase-shaped block seated as the scene root. Neither
+# stand-in exists on the ROM. Both are the SAME object there -- the Stage
+# actor, whose +0x91c IS the level collider and whose +0x14 IS the scene tree's
+# head -- and this slice is that object.
+#
+# Stage::Stage is a factory: it allocates its own 0x9c8 through
+# ActorBase::operator new (which memsets it), runs the ActorBase constructor,
+# installs the vptr, and constructs the three sub-objects at +0x50, +0x86c and
+# +0x91c. The seam it needs -- the vtable array, the ROM SpawnInfo the
+# ActorBase constructor reads, and the one honest stub for the particle
+# tracker -- is port/hal/stage_bridges.cpp.
+src/_ZN5StageC1Ev.c
