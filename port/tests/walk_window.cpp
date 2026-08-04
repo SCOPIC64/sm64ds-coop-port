@@ -77,6 +77,9 @@ struct WinApi {
                                 const void *, const BITMAPINFO *, UINT, DWORD);
     HWND(WINAPI *SetCapture_)(HWND);
     BOOL(WINAPI *ReleaseCapture_)(void);
+    /* winmm: the frame pacer's Sleep granularity (see pacer_begin below) */
+    unsigned(WINAPI *timeBeginPeriod_)(unsigned);
+    unsigned(WINAPI *timeEndPeriod_)(unsigned);
     /* psapi: the overlay's working-set line */
     BOOL(WINAPI *GetProcessMemoryInfo_)(HANDLE, void *, DWORD);
 };
@@ -121,6 +124,12 @@ static bool winapi_load(void)
     W.StretchDIBits_ = (decltype(W.StretchDIBits_))GetProcAddress(g, "StretchDIBits");
     W.SetCapture_ = (decltype(W.SetCapture_))GetProcAddress(u, "SetCapture");
     W.ReleaseCapture_ = (decltype(W.ReleaseCapture_))GetProcAddress(u, "ReleaseCapture");
+    if (HMODULE mm = LoadLibraryA("winmm.dll")) {
+        W.timeBeginPeriod_ =
+            (decltype(W.timeBeginPeriod_))GetProcAddress(mm, "timeBeginPeriod");
+        W.timeEndPeriod_ =
+            (decltype(W.timeEndPeriod_))GetProcAddress(mm, "timeEndPeriod");
+    }
     /* GetProcessMemoryInfo lives in psapi.dll, and since Windows 7 also in
        kernel32 under the K32 prefix; take whichever answers. */
     if (HMODULE ps = LoadLibraryA("psapi.dll"))
@@ -299,6 +308,35 @@ static const int ZOOM = 2;
 static const int ZOOM = 3;
 #endif
 static void *g_mc;
+
+/* ---- THE FRAME PACER'S CLOCK ------------------------------------------
+   The loop below sleeps out the remainder of a 33.3ms budget. Sleep's
+   resolution is the SYSTEM TIMER TICK, which defaults to 15.6ms: a request for
+   4ms returns after 15.6, so a frame with 4ms of slack overshot the budget by
+   a whole tick and the next one came early making it up. That is the judder in
+   the pacing -- not the raster, the sleep.
+
+   timeBeginPeriod(1) pulls the tick to 1ms for this process and the sleep
+   lands within a millisecond of what was asked. Paired with timeEndPeriod
+   through atexit, so the process cannot leave the system clock raised on the
+   way out -- including the selftest's early return and the WM_QUIT one. */
+static int g_pacer_period;
+
+static void pacer_end(void)
+{
+    if (g_pacer_period && W.timeEndPeriod_) {
+        W.timeEndPeriod_(g_pacer_period);
+        g_pacer_period = 0;
+    }
+}
+
+static void pacer_begin(void)
+{
+    if (!W.timeBeginPeriod_ || g_pacer_period) return;
+    if (W.timeBeginPeriod_(1) != 0) return;   /* != TIMERR_NOERROR */
+    g_pacer_period = 1;
+    atexit(pacer_end);
+}
 
 /* ---- THE DEBUG OVERLAY (port mod) -------------------------------------
    F3. Text drawn INTO THE FRAMEBUFFER, after gx_render and before the blit,
@@ -704,6 +742,7 @@ int main(void)
     }
     if (!ntr::io_init()) { fprintf(stderr, "io_init failed\n"); return 2; }
     if (!winapi_load()) { fprintf(stderr, "winapi_load failed\n"); return 2; }
+    pacer_begin();
     if (!_ZN4Heap13SetupRootHeapEv()) return 2;
     memset(data_0209b3ec, 0, 48);
     data_0209b3ec[0] = data_0209b3ec[4] = data_0209b3ec[8] = 0x1000;
