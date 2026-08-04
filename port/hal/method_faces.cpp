@@ -419,18 +419,16 @@ int _ZN18PoppingLavaBubbles13InitResourcesEv(void *self)
    Five more of the same shape. Each of these src bodies is a real C++ method
    against its generated header, so MSVC emits it under ?Name@Class@@... and
    the vtable fill (and, for the fish, its own host Behavior) wants the
-   Itanium name. */
+   Itanium name. Their Renders are NOT faced here: those are host copies in
+   port/unmatched/ModelAnim_Renders.cpp, which define the Itanium names
+   themselves. */
 #include "Butterfly.h"
 #include "Fish.h"
 extern "C" {
 int _ZN9Butterfly13InitResourcesEv(void *self)
 { return ((Butterfly *)self)->Butterfly::InitResources(); }
-int _ZN9Butterfly6RenderEv(void *self)
-{ return ((Butterfly *)self)->Butterfly::Render(); }
 int _ZN4Fish13InitResourcesEv(void *self)
 { return ((Fish *)self)->Fish::InitResources(); }
-int _ZN4Fish6RenderEv(void *self)
-{ return ((Fish *)self)->Fish::Render(); }
 int _ZN4Fish16CleanupResourcesEv(void *self)
 { return ((Fish *)self)->Fish::CleanupResources(); }
 }
@@ -445,13 +443,12 @@ unsigned _ZNK9Animation13GetFrameCountEv(const void *self)
 }
 
 /* ---- gate 23: ov102's QUESTION_BLOCK -------------------------------------
-   Three more of the same shape; only its InitResources is already C-named. */
+   Two more of the same shape; its InitResources is already C-named and its
+   Render is a host copy (port/unmatched/ModelAnim_Renders.cpp). */
 #include "QuestionBlock.h"
 extern "C" {
 int _ZN13QuestionBlock8BehaviorEv(void *self)
 { return ((QuestionBlock *)self)->QuestionBlock::Behavior(); }
-int _ZN13QuestionBlock6RenderEv(void *self)
-{ return ((QuestionBlock *)self)->QuestionBlock::Render(); }
 int _ZN13QuestionBlock16CleanupResourcesEv(void *self)
 { return ((QuestionBlock *)self)->QuestionBlock::CleanupResources(); }
 }

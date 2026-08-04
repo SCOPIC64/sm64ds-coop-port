@@ -22,7 +22,9 @@
 src/QuestionBlock_Spawn.c
 src/_ZN13QuestionBlock13InitResourcesEv.c
 src/_ZN13QuestionBlock8BehaviorEv.cpp
-src/_ZN13QuestionBlock6RenderEv.cpp
+# _ZN13QuestionBlock6RenderEv IS NOT HERE: the ModelAnim slot-5 case for
+# the third time this session. Host copy in
+# port/unmatched/ModelAnim_Renders.cpp.
 src/_ZN13QuestionBlock16CleanupResourcesEv.cpp
 # THE DESTRUCTORS ARE NOT HERE and slots 16/17 trap by name, the gate-17
 # reading: the castle grounds' one block is never destroyed. Slot 12 is

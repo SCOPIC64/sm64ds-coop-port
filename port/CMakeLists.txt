@@ -697,7 +697,9 @@ set(LEVELBOOT_HOST_SOURCES
     unmatched/Door_Behavior.cpp
     unmatched/Door_Render.cpp
     # gate 23: the seventh, and the last on this level
-    unmatched/QuestionBlock_States.cpp)
+    unmatched/QuestionBlock_States.cpp
+    # gates 21 and 23: the ModelAnim slot-5 collision, three more times
+    unmatched/ModelAnim_Renders.cpp)
 
 set(CAMERA_HOST_SOURCES
     unmatched/ChangeArea.c

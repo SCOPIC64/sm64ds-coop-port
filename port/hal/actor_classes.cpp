@@ -416,14 +416,22 @@ extern "C" void port_actor_render_probe(const char *cls, void *model)
     static int on = -1;
     if (on < 0) on = std::getenv("SM64DS_ACTOR_PROBE") != 0;
     if (!on) return;
-    static const char *said[8];
+    /* 32, not 8: the registry carried five classes when this was written and
+       carries twenty now, so the old cap stopped reporting before it reached
+       the ones landed last -- silently, which is the worst way for a probe to
+       go quiet. The transforms pointer is new for the same reason: it is what
+       ModelBase::SetFile allocates and what a Model's own Virtual10 copies
+       out of, so a null there is a load that did not finish. */
+    static const char *said[32];
     static int n;
     for (int i = 0; i < n; ++i)
         if (said[i] == cls) return;
-    if (n < 8) said[n++] = cls;
+    if (n < 32) said[n++] = cls;
     const int *m = (const int *)((const char *)model + 0x1c);
-    std::printf("[actor] %-17s model %p file %p mat.t (%d,%d,%d) scene\n",
+    std::printf("[actor] %-17s model %p file %p transforms %p "
+                "mat.t (%d,%d,%d) scene\n",
                 cls, model, *(void *const *)((const char *)model + 0x0c),
+                *(void *const *)((const char *)model + 0x14),
                 m[9] >> 12, m[10] >> 12, m[11] >> 12);
 }
 

@@ -38,7 +38,12 @@
 src/Butterfly_Spawn.c
 src/_ZN9Butterfly13InitResourcesEv.cpp
 src/_ZN9Butterfly8BehaviorEv.cpp
-src/_ZN9Butterfly6RenderEv.cpp
+# _ZN9Butterfly6RenderEv IS NOT HERE: it dispatches ModelAnim slot 5
+# through a local shadow class, which is ROM numbering, and _ZTV9ModelAnim
+# CANNOT be dual-filled the way _ZTV5Model can -- MSVC's slot 5 there is
+# Virtual18, which takes two arguments where the shadow passes one. Host
+# copy in port/unmatched/ModelAnim_Renders.cpp; measured as a c0000005 in
+# Model::Virtual10 before it was one.
 src/_ZN9Butterfly16CleanupResourcesEv.c
 src/_ZN9Butterfly16OnPendingDestroyEv.c
 # the eight states, all matched -- no hole and no trap
@@ -65,7 +70,7 @@ src/func_ov100_02141848.c
 # are matched src, so that file carries no trap.
 src/Fish_Spawn.cpp
 src/_ZN4Fish13InitResourcesEv.cpp
-src/_ZN4Fish6RenderEv.cpp
+# _ZN4Fish6RenderEv IS NOT HERE either, the same ModelAnim slot-5 case.
 src/_ZN4Fish16CleanupResourcesEv.cpp
 src/_ZN4Fish16OnPendingDestroyEv.c
 # the seven states, all matched
