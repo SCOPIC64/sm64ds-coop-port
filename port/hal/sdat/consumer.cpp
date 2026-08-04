@@ -61,6 +61,18 @@ extern int   data_020a6760[];       // the 256 x 0x18 node pool
 extern unsigned int *data_020a7fc0; // -> the ARM7 status block
 
 int func_0205b070(int blocking);
+
+/* The game's own sound init, in pieces. See sd_sound_init_host below. */
+void func_0204f1e8(void);            /* three counters */
+void func_02050950(void);            /* two more */
+void func_0204fc40(void);            /* voice free list + 32 player records */
+void func_0204f94c(void *p);         /* clear one player's voice pointer */
+void func_02011a28(void *table);     /* PlayLong's 0x40-slot handle table */
+void func_02048f34(void *owner);     /* 3D voice pools */
+extern int data_0209b4a0[], data_0209b4b0[], data_0209b4a4[];
+extern int data_0209b53c[];
+extern unsigned char data_0209b4b4[];
+extern unsigned char data_0209b480;  /* the master "sound effects on" flag */
 }
 
 namespace {
@@ -180,6 +192,53 @@ void drain(void)
     }
 }
 
+// The game's own sound init, minus the four things that are hardware.
+//
+// func_020133bc is Sound::Init on the DS. It is not in any slice, and it
+// cannot be called wholesale here, so this runs the six matched sub-inits
+// that carry real state and skips the rest deliberately:
+//
+//   RUN  func_0204f1e8, func_02050950   counter resets
+//   RUN  func_0204fc40                  builds the 16 voice records (the
+//                                       +0x3c byte it stores is the voice id
+//                                       every command carries) and the 32
+//                                       player records with their default
+//                                       playable-sequence limit of 1
+//   RUN  func_0204f94c x3               clears the music, sub-music and SFX
+//                                       player objects
+//   RUN  func_02011a28                  Sound::PlayLong's handle table
+//   RUN  func_02048f34                  the 3D voice pools
+//   SET  data_0209b480 = 1              the master SFX flag. Without it
+//                                       Player_PlaySoundEffect returns at its
+//                                       first line and NOTHING makes a sound.
+//
+//   SKIP func_0205a82c   seeds the command pool via func_0205b358, which
+//                        depends on three DS symbol adjacencies (see
+//                        sd_consumer_init); this file seeds it instead.
+//   SKIP func_02050f34   opens the SDAT off the card into a 1MB sound heap;
+//                        hal/sdat/sdat.cpp seats an equivalent root already.
+//   SKIP func_020134d8   loads group 1 into that heap; residency is
+//                        pre-seated, so there is nothing to load.
+//   SKIP func_020506fc   starts the ARM9 sound THREAD that would drain the
+//                        queue. This consumer is that drain.
+//
+// If a sound plays that this init did not prepare for, the failure is a
+// missing voice or a skipped command, both of which print -- not silence
+// that pretends to be working.
+void sd_sound_init_host(void)
+{
+    func_0204f1e8();
+    func_02050950();
+    func_0204fc40();
+    func_0204f94c(&data_0209b4a0);
+    func_0204f94c(&data_0209b4b0);
+    func_0204f94c(&data_0209b4a4);
+    func_02011a28(data_0209b53c);
+    func_02048f34(data_0209b4b4);
+    data_0209b480 = 1;
+    fprintf(stderr, "[snd] sound init: 16 voices, 32 players, SFX enabled\n");
+}
+
 }  // namespace
 
 void sd_consumer_init(void)
@@ -224,6 +283,7 @@ void sd_consumer_init(void)
     sdat_init();
     sd_mix_reset();
     sd_seq_reset();
+    sd_sound_init_host();
 
     const char *wav = getenv("SM64DS_WAV_DUMP");
     if (wav) sd_wav_open(wav);
@@ -253,8 +313,47 @@ extern "C" unsigned int func_0205b5d4(void)
     return g_status[0];
 }
 
+extern "C" void _ZN5Sound22LoadAndSetMusic_Layer1Ei(int seqId);
+extern "C" void func_0205a8c4(void *c);   /* Snd_SendCommand(0x13, c, 0,0,0) */
+
 extern "C" void sdat_host_tick(void)
 {
     sd_consumer_tick();
+
+    // SM64DS_SND_MUSIC=<seq id> starts a BGM through the game's OWN front
+    // door on the first tick. The walking harness never reaches the level
+    // boot's music call, so without this there is no way to exercise
+    // LoadAndSetMusic_Layer1 -> func_02011dcc -> func_02051fb4 ->
+    // func_02051bd0 -> START in the live binary. 58 is NCS_BGM_CHIJOU, the
+    // castle grounds theme.
+    static int musicDone;
+    if (!musicDone) {
+        musicDone = 1;
+
+        // SM64DS_SND_QUEUE_STRESS=N pushes N commands in one burst, with no
+        // tick in between, which is exactly the state that used to deadlock:
+        // past 256 the free list is empty, func_0205b1d8 falls into
+        //     do { func_0205b274(1); p = func_0205adf8(); } while (!p);
+        // and func_0205b274(1) spins on a counter only the consumer moves.
+        // If this returns for N > 256, the spin terminates. It hangs forever
+        // if the func_0205b5d4 hook is ever removed.
+        const char *stress = getenv("SM64DS_SND_QUEUE_STRESS");
+        if (stress) {
+            int n = atoi(stress);
+            fprintf(stderr, "[snd] queue stress: pushing %d commands with no "
+                            "consumer tick...\n", n);
+            for (int i = 0; i < n; i++) func_0205a8c4((void *)(size_t)i);
+            fprintf(stderr, "[snd] queue stress: all %d pushed, no deadlock "
+                            "(pool is %d nodes)\n", n, NODES);
+        }
+        const char *m = getenv("SM64DS_SND_MUSIC");
+        if (m) {
+            fprintf(stderr, "[snd] SM64DS_SND_MUSIC=%s: "
+                    "Sound::LoadAndSetMusic_Layer1(%d)\n", m, atoi(m));
+            _ZN5Sound22LoadAndSetMusic_Layer1Ei(atoi(m));
+            sd_consumer_tick();
+        }
+    }
+
     sd_out_push();
 }

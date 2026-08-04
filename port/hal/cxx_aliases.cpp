@@ -212,7 +212,16 @@ int data_0209a6a8[2], data_0209a6b0[2], data_0209a6b8[2], data_0209a6c0[2];
 int data_0209a6c8, data_0209a6cc, data_0209a6d0, data_0209a6d4, data_0209a6d8;
 int data_0209a6dc, data_0209a6e0, data_0209a6e4, data_0209a6e8, data_0209a6ec;
 int data_0209a6f0, data_0209a6f4, data_0209a6f8;
-unsigned char data_020a0e98; int data_020a4d6c;
+unsigned char data_020a0e98;
+/* The 32 sound-player records, stride 0x1c (func_0204f63c, func_0204f958,
+   func_0204f9c4 and func_0204f504 all index it that way, and the ROM runs
+   0x020a4d6c..0x020a50ec = 32 * 0x1c exactly). It was one int while sound was
+   stubbed. data_020a4d84 is the SAME array seen from field +0x18 -- the
+   playable-sequence limit that Stage::InitResources sets and func_0204f63c
+   tests before it evicts a voice -- so hal/sdat/sound_abi.cpp hosts
+   Sound::Player::SetPlayableSeqCount to write through THIS object and keep
+   the two views aliased the way DS memory does. */
+unsigned char data_020a4d6c[32 * 0x1c];
 /* ov006 (cutscene overlay) fileptrs St_LevelEnter_Main releases; zeroed
    stand-ins -- Release guards on numRefs 0 */
 unsigned char data_ov006_02140330[8], data_ov006_02140338[8];

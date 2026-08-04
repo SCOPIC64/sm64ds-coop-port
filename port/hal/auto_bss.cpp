@@ -133,7 +133,10 @@ int data_0209b474[8];
 /* ov100 (the message-box overlay) bss reached from St_Talk_Main; bss is
    zero at load, so host storage is the whole of it. */
 int data_020a4bf8[8];
-int data_020a4c18[8];
+/* Sound::Play's pooled 3D voice slots, 8 bytes each. func_02048f34 clears
+   SIX of them (0x020a4c18..0x020a4c48 = 0x30) and func_02048720 indexes the
+   pool by data_02099fb0, so int[8] was two entries short. */
+int data_020a4c18[0x30 / 4];
 /* death states: KillPlayer's remaining-lives byte, and the pending-scene
    argument Scene::SetSceneToSpawn parks next to it */
 int data_0209f2f4[8];

@@ -64,7 +64,11 @@ src/StartIntroCutscene.c
 # harmless while nothing calls it, a fault the day something does.
 src/_ZN5Sound16LoadInitialGroupEi.cpp
 src/_ZN5Sound19LoadGroupAndSetBankEii.c
-src/_ZN5Sound6Player19SetPlayableSeqCountEii.c
+# src/_ZN5Sound6Player19SetPlayableSeqCountEii.c is also listed in
+# slice_gate10.txt, where SLICE10_CAM_SOURCES now filters it out: it writes
+# through data_020a4d84, which is data_020a4d6c + 0x18 on the DS but a
+# separate object on the host, so hal/sdat/sound_abi.cpp hosts it. Listing it
+# here as well put it straight back into the link.
 src/DisableSoundPlayersForCredits.c
 src/func_0203d974.c
 src/func_0203d7d4.c

@@ -74,6 +74,8 @@ NAMED = [
     # -- the VOICE SEQARC is laid out in 0x40-entry blocks, one per
     # character, so zeroed storage would give every character Mario's voice.
     "data_02075250",
+    # func_02048fd4's 9 (near, far) distance-limit pairs for 3D sound
+    "data_020821c0",
     "data_0209214c",   # per-mode button remap pointer table (CheckInput)
     # tier-2 state wave: fader/level/message tables
     "data_02086f20",

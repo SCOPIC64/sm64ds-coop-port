@@ -137,7 +137,11 @@ void start_note(Player &pl, int pi, int ti, Track &tk, int note, int vel,
     g_note[ch].active = 1;
     g_note[ch].player = pi;
     g_note[ch].track = ti;
-    g_note[ch].ticks = tk.tie ? -1 : ticks;
+    // Duration 0 means "no scheduled note-off" -- the note runs until its
+    // envelope or its sample ends. Every sound effect in the SEQARCs is
+    // written that way (a lone "program change, note, end of track"), so
+    // treating 0 as a one-tick note cut all of them to a click.
+    g_note[ch].ticks = (tk.tie || ticks <= 0) ? -1 : ticks;
 }
 
 // Execute one track until it must wait. Returns 0 if the track ended.

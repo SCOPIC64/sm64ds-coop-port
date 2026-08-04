@@ -187,10 +187,16 @@ struct Sound {
     static void Play2D(unsigned, unsigned);
     static void LoadAndSetMusic_Layer1(int);
 };
+/* Seat the SDAT root before any of these walk it. A harness without a frame
+   loop never calls sdat_host_tick, and the table walkers read
+   data_020a5bb8 + 0x84 unconditionally. Idempotent. */
+void sd_consumer_init(void);
 int Sound::PlaySub(unsigned a, unsigned b, unsigned c, int d, bool e)
-{ return _ZN5Sound7PlaySubEjjj5Fix12IiEb(a, b, c, d, e ? 1 : 0); }
-void Sound::Play2D(unsigned a, unsigned b) { _ZN5Sound6Play2DEjj(a, b); }
-void Sound::LoadAndSetMusic_Layer1(int a) { _ZN5Sound22LoadAndSetMusic_Layer1Ei(a); }
+{ sd_consumer_init(); return _ZN5Sound7PlaySubEjjj5Fix12IiEb(a, b, c, d, e ? 1 : 0); }
+void Sound::Play2D(unsigned a, unsigned b)
+{ sd_consumer_init(); _ZN5Sound6Play2DEjj(a, b); }
+void Sound::LoadAndSetMusic_Layer1(int a)
+{ sd_consumer_init(); _ZN5Sound22LoadAndSetMusic_Layer1Ei(a); }
 
 struct Scene {
     static void SetAndStopColorFader();

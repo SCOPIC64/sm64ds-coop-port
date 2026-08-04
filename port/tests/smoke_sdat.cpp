@@ -65,7 +65,7 @@ static int start_seq(int id)
 // Resolve one entry of a SEQARC. This is the shape SM64DS's sound effects
 // take: func_02051a98 passes the archive's DATA base and the entry's own
 // offset separately, and the consumer adds them.
-static int start_sfx(int arc, int entry)
+static int start_sfx(int arc, int entry, int bankOverride)
 {
     sd_u8 *ae = sdat_info_entry(SDAT_REC_SEQARC, (sd_u32)arc);
     if (!ae) { fprintf(stderr, "no SEQARC %d\n", arc); return 0; }
@@ -85,6 +85,12 @@ static int start_sfx(int arc, int entry)
     sd_u32 off = rd32(rec);
     sd_u16 bankId = rd16(rec + 4);
     int vol = rec[6];
+    // For kind 3 (the SCENE archive) the game does NOT use the entry's own
+    // bank: func_02051e60 substitutes data_0208e428, the bank that
+    // Sound::LoadGroupAndSetBank last set for the loaded group. Those
+    // entries name bank 4, which is absent from the archive on purpose, so
+    // the test needs the same substitution supplied by hand.
+    if (bankOverride >= 0) bankId = (sd_u16)bankOverride;
 
     sd_u8 *be = sdat_info_entry(SDAT_REC_BANK, bankId);
     if (!be) { fprintf(stderr, "SEQARC entry: no BANK %u\n", bankId); return 0; }
@@ -105,7 +111,7 @@ static int start_sfx(int arc, int entry)
 
 int main(int argc, char **argv)
 {
-    int seq = 58, arc = -1, entry = 0;
+    int seq = 58, arc = -1, entry = 0, bank = -1;
     double seconds = 4.0;
 
     for (int i = 1; i < argc; i++) {
@@ -116,11 +122,13 @@ int main(int argc, char **argv)
             const char *c = strchr(a, ':');
             arc = atoi(a);
             entry = c ? atoi(c + 1) : 0;
+        } else if (!strcmp(argv[i], "--bank") && i + 1 < argc) {
+            bank = atoi(argv[++i]);
         } else if (!strcmp(argv[i], "--seconds") && i + 1 < argc) {
             seconds = atof(argv[++i]);
         } else {
             fprintf(stderr, "usage: %s [--seq N | --sfx ARC:ENTRY] "
-                            "[--seconds S]\n", argv[0]);
+                            "[--bank N] [--seconds S]\n", argv[0]);
             return 2;
         }
     }
@@ -132,7 +140,7 @@ int main(int argc, char **argv)
     const char *wav = getenv("SM64DS_WAV_DUMP");
     if (wav) sd_wav_open(wav);
 
-    int ok = (arc >= 0) ? start_sfx(arc, entry) : start_seq(seq);
+    int ok = (arc >= 0) ? start_sfx(arc, entry, bank) : start_seq(seq);
     if (!ok) { sd_wav_close(); return 1; }
 
     // Render in blocks; sd_mix_render drives the 192 Hz sequencer clock.

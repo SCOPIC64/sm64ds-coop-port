@@ -105,6 +105,10 @@ void sd_wav_open(const char *path)
     if (!g_wav) { fprintf(stderr, "[sdat] cannot write %s\n", path); return; }
     g_wavFrames = 0;
     wav_hdr(g_wav, 0);          // patched on close
+    // walk_window exits straight out of its frame loop, so without this the
+    // RIFF sizes stay at zero and the file reads as empty even though every
+    // sample is in it.
+    atexit(sd_wav_close);
     fprintf(stderr, "[sdat] wav dump -> %s\n", path);
 }
 

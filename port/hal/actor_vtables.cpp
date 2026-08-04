@@ -371,7 +371,12 @@ int data_020994cc[8], data_02099fa4[4], data_02099fa8[4], data_02099fac[4];
 /* data_0209b008 moved to hal/camera_states.cpp: it is the first of the 19
    camera State objects, and the whole run has to carry the DS fn addresses */
 int data_0209b478[8], data_0209b484[4], data_0209b488[4];
-int data_0209b498[8], data_0209b53c[8], data_0209d574[8];
+int data_0209b498[8], data_0209d574[8];
+/* Sound::PlayLong's handle table: a header plus 0x40 slots of 0x14, which
+   func_02011a28 initialises from +8 and func_02011934 hashes into. The ROM
+   runs 0x0209b53c..0x0209baa0 = 0x564. It was int[8] while sound was
+   stubbed, so the init would have written 1.2KB past it. */
+int data_0209b53c[0x564 / 4];
 int data_0209f310[8], data_020a0f10[8], data_020a4bec[8];
 /* data_0209f340 is the CURRENT LVL_Overlay (Stage::GetSkyboxID,
    StartWithFarCamera and the render chain read its flag and skybox bits).
