@@ -10,10 +10,13 @@
 
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <mutex>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -918,6 +921,99 @@ struct Inv255 {
 };
 static const Inv255 inv255;
 
+/* --- parallel raster -------------------------------------------------------
+   The screen is split BY ROW: worker k takes rows k, k+T, k+2T and so on.
+   Every row is written by exactly one worker, and every worker walks the whole
+   triangle list in submission order, so the depth resolution and the
+   translucent blend over the framebuffer happen in the same order, against the
+   same pixels, as they did on one thread. The frame that comes out is
+   bit-for-bit the frame one thread produced: this partitions the work, it does
+   not reorder it. That is the only reason it is allowed to exist here -- the
+   raster is the port's reference for what the DS drew.
+
+   SM64DS_RASTER_THREADS=N forces the worker count; 1 turns threading off. */
+namespace {
+
+typedef void (*BandFn)(void *, int, int);
+
+struct RasterPool {
+    std::vector<std::thread> th;
+    std::mutex m;
+    std::condition_variable cv_go, cv_done;
+    unsigned long long gen = 0;
+    int done = 0, n = 1;
+    bool stop = false;
+    BandFn fn = nullptr;
+    void *ctx = nullptr;
+
+    void start(int threads) {
+        n = threads;
+        for (int i = 1; i < n; ++i) th.emplace_back([this, i] { worker(i); });
+    }
+    ~RasterPool() {
+        {
+            std::lock_guard<std::mutex> lk(m);
+            stop = true;
+            ++gen;
+        }
+        cv_go.notify_all();
+        for (std::thread &t : th)
+            if (t.joinable()) t.join();
+    }
+    void worker(int id) {
+        unsigned long long seen = 0;
+        for (;;) {
+            std::unique_lock<std::mutex> lk(m);
+            cv_go.wait(lk, [&] { return gen != seen || stop; });
+            if (stop) return;
+            seen = gen;
+            lk.unlock();
+            fn(ctx, id, n);
+            lk.lock();
+            ++done;
+            lk.unlock();
+            cv_done.notify_one();
+        }
+    }
+    void run(BandFn f, void *c) {
+        {
+            std::lock_guard<std::mutex> lk(m);
+            fn = f;
+            ctx = c;
+            done = 0;
+            ++gen;
+        }
+        cv_go.notify_all();
+        f(c, 0, n);                       // this thread takes band 0
+        std::unique_lock<std::mutex> lk(m);
+        cv_done.wait(lk, [&] { return done == n - 1; });
+    }
+};
+
+int raster_threads() {
+    static int n = -1;
+    if (n < 0) {
+        if (const char *e = getenv("SM64DS_RASTER_THREADS")) {
+            n = atoi(e);
+        } else {
+            unsigned hc = std::thread::hardware_concurrency();
+            n = hc ? (int)hc : 1;
+            if (n > 8) n = 8;   /* past this the row bands stop paying */
+        }
+        if (n < 1) n = 1;
+    }
+    return n;
+}
+
+RasterPool &pool(int threads) {
+    static RasterPool p;
+    static int started = 0;
+    if (!started) { started = 1; p.start(threads); }
+    return p;
+}
+
+}  // namespace
+
 void gx_render(Framebuffer &fb) {
     const int tm = frame_ms();
     std::chrono::steady_clock::time_point t_enter;
@@ -954,11 +1050,15 @@ void gx_render(Framebuffer &fb) {
         }
     }
 
-    for (const GxTriangle &t : g.tris) {
-        if (only && t.dbg_tex != only) continue;
-        const GxVertex &a = t.v[0], &b = t.v[1], &c = t.v[2];
-        const float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-        if (probe_x >= 0) {
+    /* The probe is a reporting pass of its own, on this thread: it prints, and
+       printing once per covering triangle is only meaningful in submission
+       order from one place. */
+    if (probe_x >= 0) {
+        for (const GxTriangle &t : g.tris) {
+            if (only && t.dbg_tex != only) continue;
+            const GxVertex &a = t.v[0], &b = t.v[1], &c = t.v[2];
+            const float area =
+                (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
             const float px = probe_x + 0.5f, py = probe_y + 0.5f;
             const float w0 = ((b.x - a.x) * (py - a.y) - (b.y - a.y) * (px - a.x));
             const float w1 = ((c.x - b.x) * (py - b.y) - (c.y - b.y) * (px - b.x));
@@ -976,6 +1076,14 @@ void gx_render(Framebuffer &fb) {
                        std::fabs(area) < 1e-6f ? " DEGENERATE" : "",
                        culled ? " CULLED" : "", t.dbg_tex);
         }
+    }
+
+    /* One row band. tid picks the rows: tid, tid+nt, tid+2nt... */
+    auto band = [&](int tid, int nt) {
+    for (const GxTriangle &t : g.tris) {
+        if (only && t.dbg_tex != only) continue;
+        const GxVertex &a = t.v[0], &b = t.v[1], &c = t.v[2];
+        const float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
         if (std::fabs(area) < 1e-6f) continue;
 
         // Back-face culling per POLYGON_ATTR bits 6-7 (bit 6 renders the back
@@ -1027,7 +1135,9 @@ void gx_render(Framebuffer &fb) {
                                (float)(c.color & 0xFF)};
         const uint32_t poly_a = (t.alpha >= 31 || t.alpha == 0) ? 31u : t.alpha;
 
-        for (int y = miny; y <= maxy; ++y) {
+        /* first row of this band at or after miny */
+        const int y_first = miny + (((tid - miny) % nt) + nt) % nt;
+        for (int y = y_first; y <= maxy; y += nt) {
             const float py = y + 0.5f;
             /* the half of each edge function that only moves with the row */
             const float r0 = eax * (py - a.y);
@@ -1108,6 +1218,18 @@ void gx_render(Framebuffer &fb) {
                 }
             }
         }
+    }
+    };  // band
+
+    /* Small scenes (the smokes, a single model) are not worth waking anyone
+       up for; the handover costs more than the fill. */
+    const int nt = (g.tris.size() < 256) ? 1 : raster_threads();
+    if (nt <= 1) {
+        band(0, 1);
+    } else {
+        typedef decltype(band) B;
+        pool(nt).run([](void *p, int tid, int n) { (*static_cast<B *>(p))(tid, n); },
+                     &band);
     }
 
     if (tm) {
