@@ -246,6 +246,12 @@ extern int g_walk_dbg[16];     /* collision-walk telemetry (port/unmatched) */
 void port_ov009_probe(void);
 void *port_stage_a_boot(void *mc, int spawn_entrances);
 void port_stage_a_probe(void *mc);
+void *port_stage_create(void);   /* hal/stage_bridges.cpp: the real Stage actor */
+void port_stage_tree_probe(void *child, const char *what);
+void port_stage_render_model(void *self);  /* Stage::RenderModel, matched src */
+void port_stage_render_model_transparent(void *self);
+void _ZN5Stage9LoadModelEv(char *self);   /* matched src, slice_gate24 */
+extern int data_0209f320;                 /* the Stage's ModelComponents */
 int port_stage_path_guard(void *player);
 void port_stage_a2_seat(void);
 /* the actor registry and the ROM's own processing lists (hal/actor_registry) */
@@ -577,20 +583,31 @@ int main(void)
        Stage::LoadClsnAndObjects does it -- and it runs BEFORE the Player,
        because on the real boot the entrance spawns the Player and
        Player::InitResources reads the world-Y bounds the boot just set. */
+    /* THE COLLIDER IS THE STAGE'S OWN NOW (gate 24). mc_storage was a bare
+       0x60-byte MeshCollider the harness constructed and handed to the boot;
+       on the ROM that object lives at Stage+0x91c and Stage::Stage constructs
+       it there. The legacy boot keeps the harness one -- it builds no Stage. */
     static char mc_storage[0x60];
     unsigned level_bmd = 1943;
-    g_mc = mc_storage;
-    _ZN12MeshColliderC1Ev(mc_storage);
+    char *stage = 0;
+    if (real_boot) {
+        stage = (char *)port_stage_create();
+        g_mc = stage + 0x91c;
+    } else {
+        g_mc = mc_storage;
+        _ZN12MeshColliderC1Ev(mc_storage);
+    }
     if (real_boot) {
         /* Door and exit stay off in both stages -- their actors are Stage B.
            With SM64DS_BOOT_NOSPAWN the entrance table goes off too and the
            sub-table is dropped, which is stage A1: geometry only. */
         if (boot_spawns)
             port_stage_a2_seat();
-        void *lvl = port_stage_a_boot(mc_storage, boot_spawns);
+        void *lvl = port_stage_a_boot(g_mc, boot_spawns);
         level_bmd = *(unsigned short *)((char *)lvl + 8);
-        port_stage_a_probe(mc_storage);
+        port_stage_a_probe(g_mc);
         if (boot_spawns) {
+            port_stage_tree_probe(data_0209f394[0], "PLAYER");
             port_actor_census();
             port_actor_lists_probe();
         }
@@ -689,9 +706,26 @@ int main(void)
        the real boot the LVL_Overlay's own bmdFileId, which is the same 1943
        (the harness had guessed right); world-space verts scaled by the BMD
        header's scaleShift */
+    /* THE GAME'S OWN LOADER NOW (gate 24). Stage::LoadModel reads the same
+       bmdFileId out of the LVL_Overlay the harness had hard-coded, loads it
+       into the Stage's OWN Model at +0x86c, and does the two things the hand
+       load never did: rewrite every not-fully-lit component's polygon
+       attributes to 0x13, and park the ModelComponents pointer in
+       data_0209f320. The legacy boot has no Stage, so it keeps the hand load. */
     static char level_storage[0x50];
+    char *level_model = level_storage;
     int level_shift = 0;
-    {
+    if (real_boot) {
+        level_model = stage + 0x86c;
+        _ZN5Stage9LoadModelEv(stage);
+        /* ModelBase+0x04 is the loaded BMD (include/ModelBase.h); its header
+           word 0 is the scaleShift, which is 1 for the castle. */
+        void *bmd = *(void **)(level_model + 0x04);
+        level_shift = bmd ? *(int *)bmd : 0;
+        printf("level model loaded by Stage::LoadModel, handle %u, "
+               "scaleShift %d, components %p\n", level_bmd, level_shift,
+               (void *)(size_t)data_0209f320);
+    } else {
         static struct { unsigned short id; unsigned char refs; void *p; } mp;
         _ZN13SharedFilePtr9ConstructEj(&mp, level_bmd);
         _ZN5ModelC1Ev(level_storage);
@@ -1635,7 +1669,17 @@ int main(void)
             printf("probe: player scale vec c+0x80 = (%d, %d, %d) fx\n",
                    *(int *)(c + 0x80), *(int *)(c + 0x84), *(int *)(c + 0x88));
             ntr::gx_reset();
-            hal_render_model(level_storage, level_shift);
+            if (real_boot) {
+                /* Stage::Render's own order: the opaque pass, then the
+                   translucent one. Both are the same Model drawn twice with
+                   inverse visibility masks -- the moat water only exists in
+                   the second. (ShadowModel::RenderAll sits between them on the
+                   ROM; the port's shadows are still the actors' own.) */
+                port_stage_render_model(stage);
+                port_stage_render_model_transparent(stage);
+            } else {
+                hal_render_model(level_model, level_shift);
+            }
             n = 0;
             ta = ntr::gx_polygons(n);
             for (int k = 0; k < 3; ++k) { mn[k] = 1e30f; mx[k] = -1e30f; }
@@ -1942,8 +1986,19 @@ int main(void)
         }
         static int no_level = -1;
         if (no_level < 0) no_level = getenv("SM64DS_NO_LEVEL") ? 1 : 0;
-        if (!no_level)
-            hal_render_model(level_storage, level_shift);
+        if (!no_level) {
+            if (real_boot) {
+                /* Stage::Render's own order: the opaque pass, then the
+                   translucent one. Both are the same Model drawn twice with
+                   inverse visibility masks -- the moat water only exists in
+                   the second. (ShadowModel::RenderAll sits between them on the
+                   ROM; the port's shadows are still the actors' own.) */
+                port_stage_render_model(stage);
+                port_stage_render_model_transparent(stage);
+            } else {
+                hal_render_model(level_model, level_shift);
+            }
+        }
         /* phase 1, which is where func_02044120 ends: the scene tree's own
            housekeeping -- priority re-sorts, parent flag propagation, and the
            deferred list insertions for anything that spawned mid-phase. */

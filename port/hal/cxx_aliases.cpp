@@ -1049,7 +1049,7 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    where every other one spells it Actor*; the same body, one mangling apart. */
 #pragma comment(linker, "/alternatename:?SetObjAndPos@RaycastGround@@QAEXABUVector3@@PAX@Z=?SetObjAndPos@RaycastGround@@QAEXABUVector3@@PAUActor@@@Z")
 
-// gate 24, the bottom screen: LoadFont.cpp and Stage::CheckCameraInput both
+// gate 25, the bottom screen: LoadFont.cpp and Stage::CheckCameraInput both
 // declare their globals outside extern "C", so MSVC emits C++ manglings for
 // what are C-named symbols everywhere else in the port.
 #pragma comment(linker, "/alternatename:?data_0209d698@@3EA=_data_0209d698")
@@ -1070,3 +1070,13 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 // define the Itanium C name. Same cdecl, same three arguments.
 #pragma comment(linker, "/alternatename:?LoadBGPltt@GX@@SAXPBXII@Z=__ZN2GX10LoadBGPlttEPKvjj")
 #pragma comment(linker, "/alternatename:?LoadBGPltt@GXS@@SAXPBXII@Z=__ZN3GXS10LoadBGPlttEPKvjj")
+/* ---- gate 26: the boot spine ----------------------------------------------
+   Stage::RenderModel declares its two engine globals OUTSIDE extern "C", so
+   the TU emits C++-decorated references while the definitions are C-linkage:
+   data_020755d4 is the {125,125,125} render scale romdata.py emits, and
+   data_0209f340 is the current LVL_Overlay pointer in hal/actor_vtables.cpp.
+   Both are plain storage with no ABI to get wrong, so an alias is right here
+   (unlike Model::LoadAndSetFile, which is a __thiscall member and needs a
+   real face -- see hal/method_faces.cpp). */
+#pragma comment(linker, "/alternatename:?data_020755d4@@3DA=_data_020755d4")
+#pragma comment(linker, "/alternatename:?data_0209f340@@3PAUInfo@@A=_data_0209f340")

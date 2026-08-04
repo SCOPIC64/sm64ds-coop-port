@@ -408,14 +408,19 @@ extern int data_020a4b6c[];           /* the scene tree */
 /* ---- the scene root -------------------------------------------------------
    func_02042ffc refuses to spawn anything under a null parent, and the
    ActorBase constructor links the new actor's SceneNode (+0x14) under the
-   parent's. data_0209f5c0 is that parent -- the Stage actor on the ROM, which
-   the port does not build yet. What the spawn spine actually needs of it is a
-   SceneNode, so the host root is an ActorBase-shaped block with a zeroed node
-   whose actor back-pointer is itself, exactly what
-   ActorBase::SceneNode::Reset + the ctor's `+0x24 = this` produce.
-   Full ActorBase width (0x50), because it is also the head of the scene tree
-   and the phase-1 pass reads its two processing-list nodes at +0x28/+0x38. */
-static unsigned char hal_scene_root[0x50];
+   parent's. data_0209f5c0 is that parent, and on the ROM it is the STAGE
+   ACTOR.
+
+   IT IS THE STAGE ACTOR HERE TOO NOW (gate 24). What used to sit in this seat
+   was a 0x50-byte ActorBase-shaped block -- a zeroed SceneNode with its actor
+   back-pointer aimed at itself, which is what ActorBase::SceneNode::Reset plus
+   the ctor's `+0x24 = this` produce, and enough for the spawn spine to link
+   under. The real object is built by Stage::Stage (matched src, slice_gate24)
+   and seated by port_stage_create in hal/stage_bridges.cpp; the tree head is
+   no longer written by hand either, because the ActorBase constructor's own
+   no-parent branch does it. */
+extern "C" void *port_stage_create(void);
+extern "C" void *port_stage_object(void);
 
 /* ---- the Player vtable ----------------------------------------------------
    Spawning through func_02043098 ends in func_020433b8 -> the init Process,
@@ -548,16 +553,15 @@ extern int data_0209ee90[];            /* +0x44 is the projection's W scale */
 
 extern "C" void port_stage_a2_seat(void)
 {
-    /* the scene tree root the spawn spine links under */
-    std::memset(hal_scene_root, 0, sizeof hal_scene_root);
-    *(void **)(hal_scene_root + 0x24) = hal_scene_root;   /* node.actor */
-    data_0209f5c0[0] = (int)(size_t)hal_scene_root;
-    /* ...and the tree's own head. On the ROM the Stage actor spawns with a
-       NULL parent, so func_0203b438 takes its handle_a branch and writes the
-       node into data_020a4b6c[0]; every later actor hangs off it. The host
-       root stands in for the Stage actor, so it takes the same seat, and the
-       phase-1 pass has a tree to walk instead of a null head. */
-    data_020a4b6c[0] = (int)(size_t)(hal_scene_root + 0x14);
+    /* the scene tree root the spawn spine links under -- the real Stage.
+       Constructing it IS the seating: Stage::Stage runs with data_020a4b6c[0]
+       still null, so func_0203b438 takes its no-parent branch and writes the
+       Stage's own SceneNode into the tree head, which is how the ROM's tree
+       gets its root. port_stage_create asserts that it did. */
+    {
+        void *stage = port_stage_create();
+        data_0209f5c0[0] = (int)(size_t)stage;
+    }
 
     /* one local player, index 0, playing Mario, with the slot marked live so
        LoadEntranceObjects keeps the pointer it spawns */
@@ -614,7 +618,7 @@ extern "C" void port_stage_a2_seat(void)
     hal_fill_camera_vtable();
     hal_camera_slots_harness_owned();
     port_actor_registry_install();
-    std::printf("[a2] scene root %p\n", (void *)hal_scene_root);
+    std::printf("[a2] scene root %p\n", port_stage_object());
 }
 
 /* ---- the path-binding bounds assert --------------------------------------

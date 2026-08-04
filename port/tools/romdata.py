@@ -100,6 +100,10 @@ NAMED = [
     "data_02087c00", "data_02089608",
     # the Camera's SpawnInfo, for the entrance path's actor registry
     "Camera_SpawnInfo",
+    # the STAGE's, for the boot spine: the ActorBase constructor reads the
+    # record's +4/+6 halfwords back as the two processing-list priorities, so
+    # the Stage cannot be built without it (port/hal/stage_bridges.cpp).
+    "_ZN5Stage9spawnDataE",
     # sublevel -> level-part table (GetLevelPart, the death-table index)
     "data_02075264",
     # The model-walk constants the old BSS boundary hid. data_02099f88 is the

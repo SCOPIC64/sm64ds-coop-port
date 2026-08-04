@@ -167,7 +167,7 @@ int data_020a0ebc[3];
    record's entrance byte here on its way into LoadLevel; config/arm9 calls
    it kind:bss, so zero is what the boot leaves it at. */
 unsigned char data_0209f2c0[4];
-/* gate 24: the bottom screen. The three SetSubBgyOffset scroll shadows and
+/* gate 25: the bottom screen. The three SetSubBgyOffset scroll shadows and
    SetBg0Offset's pair (the 2D layer's own copy of the BGxHOFS/VOFS words),
    the owner-language byte GetOwnerLanguage returns, the per-slot camera-
    button state Stage::CheckCameraInput latches, and the ov002 byte it sets
@@ -181,6 +181,10 @@ int data_0209d498[4];
 unsigned char data_020a0f00[4];
 unsigned short data_0209f368[8];
 unsigned char data_ov002_02111180[4];
+/* gate 26, the boot spine: Stage::LoadModel's last line parks the Stage's own
+   ModelComponents pointer (Stage+0x874) here, and CopyTexPalFromLevelModel
+   reads it back. kind:bss in config, so zero until LoadModel runs. */
+int data_0209f320;
 }
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */
