@@ -17,10 +17,20 @@
     /* Mario's airborne gravity fn, dispatched as a PMF from the
        per-character rows in data_ov002_0211073c (St_Jump_Main) */
     case 0x020e200c: func_ov002_020e200c((char *)self); return 1;
+    /* Luigi's and Yoshi's rows of the same table (Wario shares Mario's) */
+    case 0x020e1e70: func_ov002_020e1e70((char *)self); return 1;
+    case 0x020e1c20: func_ov002_020e1c20((char *)self); return 1;
     case 0x020e1af8: return ((Player *)self)->Player::St_Fall_Main();
     case 0x020e1b80: return ((Player *)self)->Player::St_Fall_Init();
     case 0x020cb15c: return ((Player *)self)->Player::St_Headstand_Main();
     case 0x020cb2f0: return ((Player *)self)->Player::St_Headstand_Init();
+    /* ST_CLIMB (record 0x021106dc) -- the tree/pole grab, and the freeze
+       Tango hit on a bush. Init reaches its matched source through a
+       shadow class and Main has no source at all; both are in
+       port/unmatched/Player_St_Climb.cpp. */
+    case 0x020cbd34: return port_player_st_climb_init((void *)self);
+    case 0x020cb5bc: return port_player_st_climb_main((void *)self);
+    case 0x020cb568: return ((Player *)self)->Player::St_Climb_Cleanup();
     case 0x020cf714: return ((Player *)self)->Player::St_OnWall_Main();
     case 0x020cfa90: return ((Player *)self)->Player::St_OnWall_Init();
     case 0x020d0ee0: return ((Player *)self)->Player::St_Crawl_Main();

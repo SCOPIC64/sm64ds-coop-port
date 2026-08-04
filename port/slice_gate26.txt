@@ -45,3 +45,15 @@ src/_ZN5Stage11RenderModelEv.cpp
 # moat EMPTY -- the water is translucent, so the opaque pass hides it and
 # nothing brought it back.
 src/_ZN5Stage22RenderModelTransparentEv.cpp
+
+# The SKYBOX. Stage::LoadSkybox reads the skybox id out of the current
+# LVL_Overlay (GetSkyboxID: word 6, bits 4..8; 0 means no skybox), maps it
+# through data_02075620 to a vrbox file handle (id 1 -> 2040 ->
+# data/vrbox/vr01.bmd on castle grounds), news a Model off the game heap and
+# LoadAndSetFiles it into Stage+0x9bc. Every name it needs is already in this
+# link: _Znwj (hal/cxxname_bridge.cpp), Model's C1 (slice_gate4b), the
+# LoadAndSetFile face (hal/method_faces.cpp), and data_02075620 comes from
+# romdata. The draw side is Stage::Render's own block, carried as
+# port_stage_render_skybox in hal/stage_bridges.cpp.
+src/_ZN5Stage11GetSkyboxIDEv.c
+src/_ZN5Stage10LoadSkyboxEv.c

@@ -69,8 +69,11 @@ bool ppu_write_bmp_sub(const char *path, const SubFramebuffer &fb);
 
 // Blit the bottom screen 1:1 into the bottom-right corner of a dst_w x dst_h
 // ARGB buffer, `margin` pixels in from both edges, with a one-pixel frame.
+/* div: integer downscale of the panel (1 = 1:1 DS pixels, 2 = half size).
+   Downscaled pixels are the box average of the div x div source block, so the
+   minimap's 1px marks survive as shading rather than vanishing. */
 void ppu_compose_sub(const SubFramebuffer &sub, uint32_t *dst, int dst_w,
-                     int dst_h, int margin);
+                     int dst_h, int margin, int div = 1);
 
 }  // namespace ntr
 

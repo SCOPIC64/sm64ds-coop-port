@@ -509,22 +509,41 @@ bool ppu_write_bmp_sub(const char *path, const SubFramebuffer &fb)
 // is the whole reason this file exists. A one-pixel frame around it so the
 // panel reads as a panel and not as a corruption of the 3D view.
 void ppu_compose_sub(const SubFramebuffer &sub, uint32_t *dst, int dst_w,
-                     int dst_h, int margin)
+                     int dst_h, int margin, int div)
 {
-    const int x0 = dst_w - SUB_W - margin;
-    const int y0 = dst_h - SUB_H - margin;
+    if (div < 1) div = 1;
+    const int out_w = SUB_W / div, out_h = SUB_H / div;
+    const int x0 = dst_w - out_w - margin;
+    const int y0 = dst_h - out_h - margin;
     if (x0 < 1 || y0 < 1) return;      // no room; leave the frame alone
 
-    for (int x = x0 - 1; x <= x0 + SUB_W; ++x) {
+    for (int x = x0 - 1; x <= x0 + out_w; ++x) {
         dst[(y0 - 1) * dst_w + x] = 0xFF000000u;
-        dst[(y0 + SUB_H) * dst_w + x] = 0xFF000000u;
+        dst[(y0 + out_h) * dst_w + x] = 0xFF000000u;
     }
-    for (int y = y0 - 1; y <= y0 + SUB_H; ++y) {
+    for (int y = y0 - 1; y <= y0 + out_h; ++y) {
         dst[y * dst_w + (x0 - 1)] = 0xFF000000u;
-        dst[y * dst_w + (x0 + SUB_W)] = 0xFF000000u;
+        dst[y * dst_w + (x0 + out_w)] = 0xFF000000u;
     }
-    for (int y = 0; y < SUB_H; ++y)
-        std::memcpy(dst + (y0 + y) * dst_w + x0, sub.px[y], SUB_W * 4);
+    if (div == 1) {
+        for (int y = 0; y < SUB_H; ++y)
+            std::memcpy(dst + (y0 + y) * dst_w + x0, sub.px[y], SUB_W * 4);
+        return;
+    }
+    const int n = div * div;
+    for (int y = 0; y < out_h; ++y)
+        for (int x = 0; x < out_w; ++x) {
+            unsigned r = 0, g = 0, b = 0;
+            for (int sy = 0; sy < div; ++sy)
+                for (int sx = 0; sx < div; ++sx) {
+                    const uint32_t p = sub.px[y * div + sy][x * div + sx];
+                    r += (p >> 16) & 0xFF;
+                    g += (p >> 8) & 0xFF;
+                    b += p & 0xFF;
+                }
+            dst[(y0 + y) * dst_w + (x0 + x)] =
+                0xFF000000u | ((r / n) << 16) | ((g / n) << 8) | (b / n);
+        }
 }
 
 }  // namespace ntr
