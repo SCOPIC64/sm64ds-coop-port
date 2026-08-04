@@ -11,6 +11,10 @@
 // which is what turns "forward" on the stick into a world direction.
 //
 //   WASD / arrows  walk    Q/E  orbit    C  snap behind    ESC  quit
+//   F3  the stats overlay: frame rate, the per-phase millisecond budget,
+//   triangle and actor counts, where Mario is and what state he is in, and
+//   how many times the port has fallen through a state it does not host.
+//   Drawn into the framebuffer, so it survives into the selftest BMP.
 //   F1 (or a click of the right stick)  the FREECAM mod: the harness takes
 //   the view, the right stick orbits and tilts it, the bumpers or R/F zoom,
 //   C re-centres it behind Mario. F1 again hands the view back. Everything
@@ -35,6 +39,7 @@
 //                           20 Hz that never settles
 //      SM64DS_OLD_CAMERA=1  the pre-gate-13 hand-tuned follow rig
 //      SM64DS_FREECAM=1     start in the freecam mod (F1 toggles either way)
+//      SM64DS_OVERLAY=1     boot with the F3 stats overlay already on
 //      SM64DS_TRACE_CAM=1   per-frame camera input trace: the pad words the
 //                           rotate logic reads, the camera's heading, its
 //                           two latches, the rig, and the published angle
@@ -70,8 +75,23 @@ struct WinApi {
     SHORT(WINAPI *GetAsyncKeyState_)(int);
     int(WINAPI *StretchDIBits_)(HDC, int, int, int, int, int, int, int, int,
                                 const void *, const BITMAPINFO *, UINT, DWORD);
+    HWND(WINAPI *SetCapture_)(HWND);
+    BOOL(WINAPI *ReleaseCapture_)(void);
+    /* psapi: the overlay's working-set line */
+    BOOL(WINAPI *GetProcessMemoryInfo_)(HANDLE, void *, DWORD);
 };
 static WinApi W;
+
+/* PROCESS_MEMORY_COUNTERS, spelled here rather than including psapi.h, so the
+   dynamic-load pattern above is the only dependency on the DLL. */
+struct PortMemCounters {
+    DWORD cb;
+    DWORD PageFaultCount;
+    SIZE_T PeakWorkingSetSize, WorkingSetSize;
+    SIZE_T QuotaPeakPagedPoolUsage, QuotaPagedPoolUsage;
+    SIZE_T QuotaPeakNonPagedPoolUsage, QuotaNonPagedPoolUsage;
+    SIZE_T PagefileUsage, PeakPagefileUsage;
+};
 
 /* XInput, loaded dynamically like user32 (no static import chain) */
 struct XPad {
@@ -99,6 +119,17 @@ static bool winapi_load(void)
     W.AdjustWindowRect_ = (decltype(W.AdjustWindowRect_))GetProcAddress(u, "AdjustWindowRect");
     W.GetAsyncKeyState_ = (decltype(W.GetAsyncKeyState_))GetProcAddress(u, "GetAsyncKeyState");
     W.StretchDIBits_ = (decltype(W.StretchDIBits_))GetProcAddress(g, "StretchDIBits");
+    W.SetCapture_ = (decltype(W.SetCapture_))GetProcAddress(u, "SetCapture");
+    W.ReleaseCapture_ = (decltype(W.ReleaseCapture_))GetProcAddress(u, "ReleaseCapture");
+    /* GetProcessMemoryInfo lives in psapi.dll, and since Windows 7 also in
+       kernel32 under the K32 prefix; take whichever answers. */
+    if (HMODULE ps = LoadLibraryA("psapi.dll"))
+        W.GetProcessMemoryInfo_ = (decltype(W.GetProcessMemoryInfo_))
+            GetProcAddress(ps, "GetProcessMemoryInfo");
+    if (!W.GetProcessMemoryInfo_)
+        if (HMODULE k = GetModuleHandleA("kernel32.dll"))
+            W.GetProcessMemoryInfo_ = (decltype(W.GetProcessMemoryInfo_))
+                GetProcAddress(k, "K32GetProcessMemoryInfo");
     {
         const char *dlls[] = {"xinput1_4.dll", "xinput1_3.dll",
                               "xinput9_1_0.dll"};
@@ -116,6 +147,7 @@ static bool winapi_load(void)
 #include "ntr/ppu.h"
 
 #include "fault_probe.h"
+#include "overlay_font.h"
 
 typedef unsigned int u32;
 
@@ -242,6 +274,9 @@ extern int data_0209b454[];
 extern int data_0209ee90[];
 extern int data_020a4b60[];
 extern int g_walk_dbg[16];     /* collision-walk telemetry (port/unmatched) */
+/* the overlay's "unhosted" counter: hal/player_bridges.cpp bumps this every
+   time the state dispatcher falls off the end of its switch */
+extern unsigned g_port_unhosted_hits;
 /* the real level boot (hal/level_boot.cpp) */
 void port_ov009_probe(void);
 void *port_stage_a_boot(void *mc, int spawn_entrances);
@@ -264,6 +299,163 @@ static const int ZOOM = 2;
 static const int ZOOM = 3;
 #endif
 static void *g_mc;
+
+/* ---- THE DEBUG OVERLAY (port mod) -------------------------------------
+   F3. Text drawn INTO THE FRAMEBUFFER, after gx_render and before the blit,
+   with the 8x8 font in overlay_font.h. Three consequences worth stating,
+   because they are why it is done this way rather than with GDI TextOut:
+
+   - it works at every tier. fb is 512x384 in this build and 1024x768 in
+     walk_window_hires, and the same code covers both because it never names a
+     resolution -- ntr::SCREEN_W/H and a scale derived from them.
+   - it lands in the BMP the selftest dumps, so a CI shot can show its own
+     numbers.
+   - it costs the raster nothing: it is a byte loop over already-rasterised
+     pixels, outside gx entirely.
+
+   Default OFF, so a plain selftest dump is unchanged. SM64DS_OVERLAY=1 boots
+   with it on. */
+static const int OVL_SCALE = ntr::SCREEN_W >= 1024 ? 2 : 1;
+static const int OVL_LINE = (OVL_GLYPH_H + 2) * OVL_SCALE;
+
+static void ovl_shade(ntr::Framebuffer &fb, int x0, int y0, int w, int h)
+{
+    /* half-strength darken of what is already there, so the text reads over
+       sky and over stone without hiding the frame behind it */
+    for (int y = y0; y < y0 + h; ++y) {
+        if (y < 0 || y >= ntr::SCREEN_H) continue;
+        for (int x = x0; x < x0 + w; ++x) {
+            if (x < 0 || x >= ntr::SCREEN_W) continue;
+            const uint32_t p = fb.px[y][x];
+            fb.px[y][x] = 0xFF000000u | ((p >> 1) & 0x007F7F7Fu);
+        }
+    }
+}
+
+static int ovl_text(ntr::Framebuffer &fb, int x0, int y0, const char *s,
+                    uint32_t rgb)
+{
+    int x = x0;
+    for (; *s; ++s) {
+        const unsigned char ch = (unsigned char)*s;
+        if (ch < 0x20 || ch > 0x7e) { x += OVL_ADVANCE * OVL_SCALE; continue; }
+        const unsigned char *g = OVL_FONT[ch - 0x20];
+        for (int r = 0; r < OVL_GLYPH_H; ++r) {
+            const unsigned char bits = g[r];
+            if (!bits) continue;
+            for (int c = 0; c < OVL_GLYPH_W; ++c) {
+                if (!(bits & (0x80 >> c))) continue;
+                const int px = x + c * OVL_SCALE, py = y0 + r * OVL_SCALE;
+                for (int sy = 0; sy < OVL_SCALE; ++sy)
+                    for (int sx = 0; sx < OVL_SCALE; ++sx) {
+                        const int fx = px + sx, fy = py + sy;
+                        if (fx < 0 || fx >= ntr::SCREEN_W || fy < 0 ||
+                            fy >= ntr::SCREEN_H)
+                            continue;
+                        fb.px[fy][fx] = rgb;
+                    }
+            }
+        }
+        x += OVL_ADVANCE * OVL_SCALE;
+    }
+    return x - x0;
+}
+
+/* the per-phase clock. One QueryPerformanceCounter pair per phase and a
+   1-second exponential average, so the numbers are readable instead of
+   flickering with whatever the OS did to that one frame. */
+struct PhaseClock {
+    LARGE_INTEGER qpf, mark;
+    double ms[8];        /* smoothed, indexed by the enum below */
+    double raw[8];
+};
+enum {
+    PH_INPUT = 0,   /* keys, pad, Stage::CheckInput, the actor tick */
+    PH_CAMERA,      /* Camera::Behavior + the heading echo */
+    PH_SUBMIT,      /* actor bucket + level model + player: geometry into gx */
+    PH_RASTER,      /* ntr::gx_render */
+    PH_BLIT,        /* StretchDIBits */
+    PH_FRAME,       /* the whole loop body, pacing excluded */
+    PH_COUNT
+};
+static PhaseClock g_clk;
+
+static double ovl_now_ms(void)
+{
+    LARGE_INTEGER n;
+    if (!g_clk.qpf.QuadPart) QueryPerformanceFrequency(&g_clk.qpf);
+    QueryPerformanceCounter(&n);
+    return n.QuadPart * 1000.0 / g_clk.qpf.QuadPart;
+}
+static void ph_begin(double *slot) { *slot = ovl_now_ms(); }
+static void ph_end(int idx, double start)
+{
+    const double d = ovl_now_ms() - start;
+    g_clk.raw[idx] = d;
+    g_clk.ms[idx] += (d - g_clk.ms[idx]) * 0.1;
+}
+
+struct OvlStats {
+    double fps;              /* frames presented per second, smoothed */
+    double tps;              /* GAME ticks per second -- diverges from fps
+                                whenever the debug menu pauses the tick */
+    int tris;                /* polygons gx accepted this frame */
+    int actors;              /* live entries on the behaviour list */
+    char *player;            /* the Player actor */
+    const char *cam_name;
+    unsigned mem_kb;         /* working set */
+    int menu_paused;
+};
+
+static void ovl_draw(ntr::Framebuffer &fb, const OvlStats &s)
+{
+    char ln[10][96];
+    int n = 0;
+    const uint32_t WHITE = 0xFFFFFFFFu, AMBER = 0xFFFFC040u,
+                   GREEN = 0xFF80FF80u, RED = 0xFFFF6060u;
+    uint32_t col[10];
+    char *c = s.player;
+    void *st = c ? *(void **)(c + 0x370) : 0;
+
+    snprintf(ln[n], sizeof ln[0], "fps %5.1f   tick %5.1f/30%s", s.fps, s.tps,
+             s.menu_paused ? "  PAUSED" : "");
+    col[n++] = s.fps >= 28.0 ? GREEN : (s.fps >= 20.0 ? AMBER : RED);
+    snprintf(ln[n], sizeof ln[0], "frame %5.2fms  in+tick %5.2f  cam %5.2f",
+             g_clk.ms[PH_FRAME], g_clk.ms[PH_INPUT], g_clk.ms[PH_CAMERA]);
+    col[n++] = WHITE;
+    snprintf(ln[n], sizeof ln[0], "submit %5.2f  raster %5.2f  blit %5.2f",
+             g_clk.ms[PH_SUBMIT], g_clk.ms[PH_RASTER], g_clk.ms[PH_BLIT]);
+    col[n++] = WHITE;
+    snprintf(ln[n], sizeof ln[0], "tris %5d  actors %3d  cam %s", s.tris,
+             s.actors, s.cam_name);
+    col[n++] = WHITE;
+    if (c) {
+        snprintf(ln[n], sizeof ln[0], "pos %7.1f %7.1f %7.1f",
+                 *(int *)(c + 0x5c) / 4096.0f, *(int *)(c + 0x60) / 4096.0f,
+                 *(int *)(c + 0x64) / 4096.0f);
+        col[n++] = WHITE;
+        snprintf(ln[n], sizeof ln[0], "spd h %6.2f v %6.2f  yaw %04x",
+                 *(int *)(c + 0x98) / 4096.0f, *(int *)(c + 0xa8) / 4096.0f,
+                 (unsigned short)*(short *)(c + 0x8e));
+        col[n++] = WHITE;
+        snprintf(ln[n], sizeof ln[0], "state %08x  unhosted %u",
+                 st ? *(unsigned *)st : 0u, g_port_unhosted_hits);
+        col[n++] = g_port_unhosted_hits ? AMBER : WHITE;
+    }
+    snprintf(ln[n], sizeof ln[0], "ram %6u KB", s.mem_kb);
+    col[n++] = WHITE;
+
+    {
+        int w = 0;
+        for (int i = 0; i < n; ++i) {
+            const int lw = (int)strlen(ln[i]) * OVL_ADVANCE * OVL_SCALE;
+            if (lw > w) w = lw;
+        }
+        ovl_shade(fb, 2, 2, w + 6 * OVL_SCALE, n * OVL_LINE + 4 * OVL_SCALE);
+        for (int i = 0; i < n; ++i)
+            ovl_text(fb, 4 + OVL_SCALE, 4 + i * OVL_LINE, ln[i], col[i]);
+    }
+}
 
 /* selftest diagnostic: closest clip-approach of the ambient (flag-0x10000)
    actors across the run -- says whether the walk ever brought one inside
@@ -928,14 +1120,29 @@ int main(void)
     float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
     const int trace_cam = getenv("SM64DS_TRACE_CAM") != 0;
+    /* the F3 overlay: off unless SM64DS_OVERLAY=1 says otherwise */
+    int overlay_on = getenv("SM64DS_OVERLAY") != 0;
+    int overlay_edge = 0;
+    double ovl_fps = 0, ovl_tps = 0, ovl_last_present = 0;
+    unsigned ovl_mem_kb = 0;
+    unsigned long long ovl_frames = 0;   /* `frame` only counts under selftest */
 
     static ntr::Framebuffer fb;
     MSG msg;
     for (;;) {
+        double t_frame, t_phase;
+        int game_ticked = 1;   /* cleared when a tick is skipped */
         while (W.PeekMessageA_(&msg, 0, 0, 0, PM_REMOVE)) {
             if (msg.message == WM_QUIT) return 0;
             W.TranslateMessage_(&msg);
             W.DispatchMessageA_(&msg);
+        }
+        ph_begin(&t_frame);
+        ph_begin(&t_phase);
+        {
+            const int now = W.GetAsyncKeyState_(VK_F3) < 0;
+            if (now && !overlay_edge) overlay_on = !overlay_on;
+            overlay_edge = now;
         }
 
         /* keys -> pad block + desired heading, CAMERA-RELATIVE: W walks
@@ -1278,6 +1485,7 @@ int main(void)
            one the level cannot produce (hal/level_boot.cpp) */
         if (real_boot)
             port_stage_path_guard(player);
+        ph_end(PH_INPUT, t_phase);
         if (selftest && frame == 0)
             fprintf(stderr, "[w] ticked\n");
         /* the camera's own frame: Behavior runs the state machine and
@@ -1287,6 +1495,7 @@ int main(void)
            records GetAngleToCamera reads. Without the second call the
            published angle never moves and Mario walks relative to a stale
            heading. */
+        ph_begin(&t_phase);
         if (real_camera) {
             hal_camera_behavior(cam);
             /* THE ONE THING THE FREECAM OVERRIDES BESIDES THE VIEW: the
@@ -1317,6 +1526,7 @@ int main(void)
                         *(unsigned char *)((char *)cam + 0x1a6),
                         (unsigned short)*(short *)((char *)data_020a1164));
         }
+        ph_end(PH_CAMERA, t_phase);
         /* no speed clamp: the accel tables get real input-mode data now
            that Stage::CheckInput fills the record (the old runaway came
            from fake mode bytes) */
@@ -1558,6 +1768,7 @@ int main(void)
         }
 
         /* render: camera behind and above Mario, looking at him */
+        ph_begin(&t_phase);
         ntr::gx_reset();
         /* the real Camera writes CLEAR_COLOR itself, out of its own
            0x10c..0x10f bytes -- which hold exactly this value */
@@ -1923,6 +2134,7 @@ int main(void)
         size_t tris_before = 0;
         if (selftest) ntr::gx_polygons(tris_before);
         hal_render_player_world(player);
+        ph_end(PH_SUBMIT, t_phase);
         if (selftest) {
             size_t tn = 0;
             const ntr::GxTriangle *ta2 = ntr::gx_polygons(tn);
@@ -1944,13 +2156,64 @@ int main(void)
         if (selftest && frame == 0)
             fprintf(stderr, "[w] rendered\n");
 
+        ph_begin(&t_phase);
         for (int y = 0; y < ntr::SCREEN_H; ++y)
             for (int x = 0; x < ntr::SCREEN_W; ++x)
                 fb.px[y][x] = 0xFF101820u;
         ntr::gx_render(fb);
+        ph_end(PH_RASTER, t_phase);
+
+        /* THE OVERLAY GOES HERE: after the raster owns the frame and before
+           the blit hands it to GDI, so it is in the pixels rather than over
+           the window, and the selftest BMP carries it. */
+        if (overlay_on) {
+            OvlStats os;
+            size_t tn = 0;
+            int actors = 0;
+            ntr::gx_polygons(tn);
+            for (int *node = (int *)(size_t)data_020a4b78[0];
+                 node && actors < 4096; node = (int *)(size_t)node[1])
+                if (node[2]) ++actors;
+            if (W.GetProcessMemoryInfo_ && (ovl_frames % 30) == 0) {
+                PortMemCounters pmc;
+                pmc.cb = sizeof pmc;
+                if (W.GetProcessMemoryInfo_(GetCurrentProcess(), &pmc,
+                                            sizeof pmc))
+                    ovl_mem_kb = (unsigned)(pmc.WorkingSetSize / 1024);
+            }
+            os.fps = ovl_fps;
+            os.tps = ovl_tps;
+            os.tris = (int)tn;
+            os.actors = actors;
+            os.player = c;
+            os.cam_name = fc_on ? "freecam" : "DS";
+            os.mem_kb = ovl_mem_kb;
+            os.menu_paused = !game_ticked;
+            ovl_draw(fb, os);
+        }
+
+        ph_begin(&t_phase);
         W.StretchDIBits_(hdc, 0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM,
                       0, 0, ntr::SCREEN_W, ntr::SCREEN_H, fb.px, &bi,
                       DIB_RGB_COLORS, SRCCOPY);
+        ph_end(PH_BLIT, t_phase);
+        ph_end(PH_FRAME, t_frame);
+        /* present-to-present rate, and the GAME TICK rate beside it -- the two
+           diverge whenever a tick is skipped, which is what the debug menu's
+           pause does. Both smoothed the same way the phase times are. */
+        {
+            const double now = ovl_now_ms();
+            if (ovl_last_present > 0.0) {
+                const double dt = now - ovl_last_present;
+                if (dt > 0.01) {
+                    const double inst = 1000.0 / dt;
+                    ovl_fps += (inst - ovl_fps) * 0.1;
+                    ovl_tps += ((game_ticked ? inst : 0.0) - ovl_tps) * 0.1;
+                }
+            }
+            ovl_last_present = now;
+        }
+        ++ovl_frames;
         if (selftest && (frame % 10) == 0)
             printf("[y] frame %d y=%d units %.1f\n", frame,
                    *(int *)(c + 0x60), *(int *)(c + 0x60) / 4096.0f);
