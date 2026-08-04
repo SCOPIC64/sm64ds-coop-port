@@ -159,6 +159,23 @@ void hal_sub_screen_init(void *hwnd, int zoom)
        port's boot. */
     *(volatile unsigned short *)0x04000304 |= 0x8000;
 
+    /* THE AFFINE IDENTITY, and the reason the minimap drew nothing at all.
+       BG3-sub in BG mode 3 is an EXTENDED AFFINE layer, so every one of its
+       pixels goes through BG3PA..BG3PD before it picks a map entry. The ROM
+       seeds those to 0x100 (1.0 in 8.8) in func_02053c40 -- the hardware reset
+       that runs once from func_0201a054, the full boot the port does not have
+       -- and nothing afterwards writes them for a minimap that is not being
+       rotated. Left at zero the matrix is degenerate: every screen pixel maps
+       to map pixel (0, 0), so the layer samples one blank tile and the whole
+       panel comes out backdrop white. Minimap::InitResources configures BG3CNT
+       and turns the layer on and is right to; it never touches the matrix.
+       Both engines' BG2 and BG3 get the same treatment func_02053c40 gives
+       them, so a later affine BG2 does not land on the same puzzle. */
+    *(volatile unsigned short *)0x04001020 = 0x100;   /* BG2PA sub */
+    *(volatile unsigned short *)0x04001026 = 0x100;   /* BG2PD sub */
+    *(volatile unsigned short *)0x04001030 = 0x100;   /* BG3PA sub */
+    *(volatile unsigned short *)0x04001036 = 0x100;   /* BG3PD sub */
+
     /* DUAL OAM. Only once the shadow really is one buffer: in mode 0 the
        Reset path fills it through data_0209e67c/data_0209e694, and if those
        are separate host arrays it would leave 127 of 128 entries as garbage
@@ -179,30 +196,57 @@ void hal_sub_screen_init(void *hwnd, int zoom)
        say where all of it lives. Without it engine B scans out an empty bank
        and the panel is one flat backdrop colour.
        The bit at data_0209caa0[8] & 0x80 -- "the intro has played" -- picks
-       between two entirely different asset sets, and on this extraction only
-       one of them is loadable:
-         clear: files 0x239..0x23e, plain FAT files. BG0 characters, the BG0
-                and BG1 tilemaps, the sub BG palette, AND the sub OBJ tiles at
-                0x6600000 with their palette -- the whole bottom screen.
-         set:   the in-game set, whose character data and half its tilemaps
-                are language files (handles 0xa00d/0xa009/0xa00b) living in
-                ARCHIVE/cee.narc, which extracted/ does not carry. The
-                tilemaps load and every tile they name is blank.
-       So the port takes the branch whose bytes exist, which is also the state
-       the boot leaves the bit in. SM64DS_GFX2D_INGAME=1 takes the other one
-       and prints the misses. */
+       between two entirely different asset sets:
+         clear: files 0x239..0x23e, plain FAT files. The PRE-INTRO CLOUDS --
+                BG0 characters, the BG0 and BG1 tilemaps, the sub BG palette,
+                and the sub OBJ tiles with their palette.
+         set:   the IN-GAME set, whose character data and half its tilemaps
+                are language files (handles 0xa00d / 0xa009 / 0xa00b) living
+                in ARCHIVE/cee.narc.
+
+       THE IN-GAME SET IS THE DEFAULT NOW. It was not, for one reason: the old
+       extraction was a US dump that did not carry cee.narc, so the in-game
+       tilemaps loaded and every tile they named came out blank, and the clouds
+       were the branch whose bytes existed. The EU dump has the archive and all
+       three handles resolve, so the port takes the branch the game takes while
+       a level is being played.
+
+       It also matters for what the sprites can be SEEN over. The cloud set
+       loads its three BGs at priority 0 and every cloud pixel is opaque, so the
+       whole HUD lost the priority compare against a backdrop that should not
+       have been on screen at all. SM64DS_GFX2D_PREINTRO=1 puts the clouds
+       back. */
     if (!std::getenv("SM64DS_NO_GFX2D")) {
         const unsigned char saved = data_0209caa0[8];
-        if (std::getenv("SM64DS_GFX2D_INGAME"))
-            data_0209caa0[8] |= 0x80;
-        else
+        if (std::getenv("SM64DS_GFX2D_PREINTRO"))
             data_0209caa0[8] &= ~0x80;
+        else
+            data_0209caa0[8] |= 0x80;
         Stage::LoadGraphics2D(false, data_0209f2f8);
         data_0209caa0[8] = saved;
         std::printf("[sub] Stage::LoadGraphics2D(0, %d) done, layer mask "
                     "data_0209d454 = %02x\n", (int)data_0209f2f8,
                     data_0209d454);
     }
+
+    /* THE LAYER MASK, and it is Stage::InitResources' own value:
+     *
+     *     data_0209d454 = 0x18;
+     *
+     * bit 3 BG3 -- the minimap -- and bit 4 OBJ -- every sprite the HUD and the
+     * minimap draw. That one line is the gameplay bottom screen, and it lives
+     * in the same ROM function this block already copies the DISPCNT words out
+     * of, which the port does not run.
+     *
+     * Nothing else was going to set the OBJ bit. Minimap::Behavior maintains
+     * bit 3 every frame -- ORs it in when it has a map id, clears it when it
+     * does not -- but no hosted path touches bit 4, so with the in-game asset
+     * set the mask came out 0x08 and the sprites were composited out of a
+     * screen they had already been drawn into.
+     *
+     * SM64DS_SUB_LAYERS still overrides, and now it is a debugging knob rather
+     * than the only way to see anything. */
+    data_0209d454 = 0x18;
 
     /* THE SUB ENGINE'S OWN DISPCNT, which nothing in the port was setting --
        it read back 0, meaning "display off, no layers, no sprites".
@@ -291,7 +335,11 @@ void hal_sub_screen_present(unsigned int *dst, int w, int h)
         if (at == -2) at = env_flag("SM64DS_SUB_DUMP", -1);
         if (frame++ == at) {
             ntr::ppu_write_bmp_sub("sub_screen.bmp", g_sub);
-            std::printf("[sub] wrote sub_screen.bmp at frame %d\n", at);
+            std::printf("[sub] wrote sub_screen.bmp at frame %d "
+                        "(DISPCNT_B %08x, mask %02x, BG3CNT %04x)\n", at,
+                        *(volatile unsigned *)0x04001000,
+                        (unsigned)data_0209d454,
+                        *(volatile unsigned short *)0x0400100e);
         }
     }
 }
