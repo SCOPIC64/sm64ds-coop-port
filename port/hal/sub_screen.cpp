@@ -88,6 +88,7 @@ bool g_ready;
    its own input; the panel adds none. */
 bool g_headless;
 int g_x0, g_y0;            // panel origin in framebuffer pixels
+int g_div = 2;             // panel downscale divisor (SM64DS_SUB_SCALE)
 int g_zoom = 1;
 HWND g_hwnd;
 
@@ -113,8 +114,9 @@ void poll_touch(void)
         GetAsyncKeyState_ && (GetAsyncKeyState_(VK_LBUTTON) & 0x8000)) {
         POINT p;
         if (GetCursorPos_(&p) && ScreenToClient_(g_hwnd, &p)) {
-            const int fx = (int)p.x / g_zoom - g_x0;
-            const int fy = (int)p.y / g_zoom - g_y0;
+            /* panel pixels back to DS pixels: the panel is drawn at 1/g_div */
+            const int fx = ((int)p.x / g_zoom - g_x0) * g_div;
+            const int fy = ((int)p.y / g_zoom - g_y0) * g_div;
             if (fx >= 0 && fx < ntr::SUB_W && fy >= 0 && fy < ntr::SUB_H) {
                 down = 1;
                 sx = (unsigned char)fx;
@@ -250,8 +252,19 @@ void hal_sub_screen_frame_begin(void)
    drop it into the corner. With the panel off nothing here writes a pixel. */
 void hal_sub_screen_present(unsigned int *dst, int w, int h)
 {
-    g_x0 = w - ntr::SUB_W - kMargin;
-    g_y0 = h - ntr::SUB_H - kMargin;
+    /* SM64DS_SUB_SCALE is a divisor: 1 = full DS size (a quarter of the 2x
+       window, Tango's "super in the way"), 2 = half size (1/16 of the
+       window, the default), up to 4. */
+    {
+        static int init;
+        if (!init) {
+            init = 1;
+            const int v = env_flag("SM64DS_SUB_SCALE", 2);
+            g_div = v < 1 ? 1 : (v > 4 ? 4 : v);
+        }
+    }
+    g_x0 = w - ntr::SUB_W / g_div - kMargin;
+    g_y0 = h - ntr::SUB_H / g_div - kMargin;
     /* Publish the layer mask, the way nine ROM functions do with this exact
        line. Minimap::Behavior and Message::UpdateWindow both write
        data_0209d454 and then push it themselves; doing it once more here is
