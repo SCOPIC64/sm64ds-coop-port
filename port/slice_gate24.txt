@@ -1,0 +1,56 @@
+# Gate-24 slice: BlendModelAnim -- ModelAnim with a cross-fade. blendWeight
+# ramps 0 -> 0x1000 by blendStep per Advance, and while it is under 1.0 the
+# pose goes through the blending func_0204531c instead of
+# UpdateVertsUsingBones. Sits on the gate-7 (ModelAnim) stack.
+#
+# All twelve BlendModelAnim TUs are byte-matched; none is NONMATCHING. The
+# class had zero slice membership before this gate, so the vtable storage and
+# fill it needs are new too: hal/blend_vtable.cpp, written to the MSVC slot
+# order and the no-dual-fill rule (read its header before touching dispatch).
+#
+# The five actors that own a BlendModelAnim -- ChiefChilly, Eyerok, KingBobOmb,
+# Klepto, Unagi -- live in ov016/ov062/ov066/ov073/ov078 and none of them
+# spawns on castle grounds, so nothing in the live level exercises this yet.
+# smoke_modelanim is where it is proven.
+
+src/_ZN14BlendModelAnimC1Ev.c
+src/_ZN14BlendModelAnimD0Ev.c
+src/_ZN14BlendModelAnimD1Ev.c
+src/_ZN14BlendModelAnim9DoSetFileEPcii.cpp
+src/_ZN14BlendModelAnim11UpdateVertsEv.cpp
+src/_ZN14BlendModelAnim9Virtual10ER9Matrix4x3.cpp
+src/_ZN14BlendModelAnim6RenderEPK7Vector3.cpp
+src/_ZN14BlendModelAnim9Virtual18EjPK7Vector3.cpp
+src/_ZN14BlendModelAnim7AdvanceEv.cpp
+src/_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt.cpp
+
+# Deliberately excluded from this slice, with the reason recorded so the next
+# person doesn't re-litigate:
+#   src/_ZThn80_N14BlendModelAnimD0Ev.cpp / _ZThn80_N14BlendModelAnimD1Ev.cpp
+#       Itanium-only artifacts. Both exist purely to emit the _ZThn80_ adjustor
+#       thunks the NDS link needs for the Animation base at +0x50, and each
+#       does it by declaring local Base1/Base2/BlendModelAnim shadow classes.
+#       Under MSVC those shadow names mangle identically in both TUs (LNK2005
+#       on ??1BlendModelAnim@@UAE@XZ) and their Base1/Base2 virtuals have no
+#       definitions (LNK2001). MSVC emits its own adjustor thunks, so there is
+#       nothing here for the host to want. Same class of exclusion as gate 1's
+#       *D0Ev.c / *D1Ev.c rule.
+#   src/_ZN4cstd4fdivEii.c
+#       chains to the DS hardware divider; hal/cstd_div.c is the host divider
+#       (slice_gate1.txt records the same exclusion)
+
+# closure the twelve pull in that the gate-7 stack does not already carry
+src/_ZN9ModelAnimD2Ev.c
+src/_ZN5ModelD2Ev.c
+src/_ZN9AnimationD2Ev.c
+src/_ZN9ModelBaseD2Ev.c
+src/Deallocate.c
+src/LenVec3.c
+src/_ZdlPv.cpp
+src/_ZN6Memory16operator_delete2EPv.cpp
+src/func_0203cbc0.c
+src/func_0204531c.c
+src/func_020165c4.c
+src/func_02047910.c
+src/func_020462b4.c
+src/func_020462bc.c

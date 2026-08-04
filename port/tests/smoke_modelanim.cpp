@@ -16,6 +16,7 @@
 #include "Model.h"
 #include "Animation.h"
 #include "ModelAnim.h"
+#include "BlendModelAnim.h"
 
 #include "ntr/gx.h"
 #include "ntr/mmio.h"
@@ -31,9 +32,18 @@ void *_ZN4Heap13SetupRootHeapEv(void);
 void _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(void *self, void *bca,
                                                  int flags, int speed, u16 start);
 extern Matrix4x3 data_0209b3ec;
+
+/* gate 24: BlendModelAnim. SetAnim and the ctor/dtor stay mangled free
+   functions (wall 6az / the C destructor TUs); everything else is a method. */
+void *_ZN14BlendModelAnimC1Ev(void *self);
+void *_ZN14BlendModelAnimD1Ev(void *self);
+void _ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt(void *self, void *bca,
+        int numBlendFrames, int flags, int speed, u16 start);
+void hal_fill_blendmodelanim_vtable(void);
 }
 
 enum { NUM_FRAMES = 15 };   /* piano_attack.bca */
+enum { BLEND_FRAMES = 8 };  /* enough Advances to ramp a 4-frame blend full */
 
 static int g_failures;
 #define CHECK(cond) \
@@ -90,6 +100,33 @@ static void game_main()
 
 static bool frame_hook(uint64_t) { return true; }
 
+/* ---- gate 24: BlendModelAnim -------------------------------------------
+   Same game-shaped loop, but every dispatch goes THROUGH _ZTV14BlendModelAnim
+   rather than being qualified: Render is a virtual call, and the Render body
+   calls UpdateVerts virtually in turn. That is the whole point -- it is the
+   only thing that proves hal/blend_vtable.cpp filled the right slots, since a
+   wrong slot here is the c0000005 the ModelAnim family already produced once.
+   While blendWeight is under 1.0 UpdateVerts routes the pose through the
+   blending func_0204531c instead of UpdateVertsUsingBones, so this exercises
+   both arms. */
+static BlendModelAnim *g_bma;
+static unsigned g_bhash[BLEND_FRAMES + 1];
+static int g_bweight[BLEND_FRAMES + 1];
+static int g_bframes;
+
+static void blend_main()
+{
+    for (int i = 0; i <= BLEND_FRAMES; ++i) {
+        g_bweight[i] = (int)g_bma->blendWeight;
+        reset_scene();
+        g_bma->Render(NULL);          /* virtual: MSVC slot 4 */
+        g_bhash[i] = tri_hash();
+        ++g_bframes;
+        g_bma->Advance();
+        ntr::rt_vblank_wait();
+    }
+}
+
 int main(void)
 {
     PORT_INSTALL_FAULT_PROBE();
@@ -139,11 +176,74 @@ int main(void)
     CHECK(g_hash[NUM_FRAMES] == g_hash[0]);
     CHECK(g_ma->currFrame == 0x1000);   /* advanced once past the wrap */
 
+    /* ---- gate 24: the cross-fading subclass ---------------------------- */
+    hal_fill_blendmodelanim_vtable();
+    static char bstorage[0x70];
+    g_bma = (BlendModelAnim *)bstorage;
+    _ZN14BlendModelAnimC1Ev(bstorage);
+    CHECK((int)g_bma->blendWeight == 0x1000);  /* ctor starts fully blended */
+    CHECK(g_bma->unk_6c == NULL);
+
+    /* its own file handles: a second SharedFilePtr on the same ids, which
+       also means these two Loads come back from the host file cache */
+    SharedFilePtrC mp2;
+    _ZN13SharedFilePtr9ConstructEj(&mp2, 1034);           /* piano.bmd */
+    void *file2 = Model::LoadFile(*(SharedFilePtr *)&mp2);
+    CHECK(file2 != NULL);
+    CHECK(g_bma->DoSetFile((char *)file2, 0, -1) == 1);   /* virtual: slot 1 */
+    /* DoSetFile's tail (func_020165c4) allocates the blend pose buffer */
+    CHECK(g_bma->unk_6c != NULL);
+    ident_fx(&g_bma->mat4x3);
+
+    SharedFilePtrC ap2;
+    _ZN13SharedFilePtr9ConstructEj(&ap2, 1036);           /* piano_attack.bca */
+    void *bca2 = Animation::LoadFile(*(SharedFilePtr *)&ap2);
+    CHECK(bca2 != NULL);
+
+    /* blend in over 4 frames: weight restarts at 0, step = 1/(4+1) */
+    _ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt(g_bma, bca2, 4, 0,
+                                                       0x1000, 0);
+    CHECK((int)g_bma->blendWeight == 0);
+    CHECK((int)g_bma->blendStep == 0x1000 / 5);
+
+    const uint64_t bframes = ntr::rt_run(blend_main, frame_hook,
+                                         BLEND_FRAMES + 2);
+    printf("  blend fiber frames: %llu, poses rendered: %d\n",
+           (unsigned long long)bframes, g_bframes);
+    CHECK(g_bframes == BLEND_FRAMES + 1);
+
+    /* the weight ramps and then clamps: Advance only adds while under 1.0 */
+    printf("  blend weights:");
+    for (int i = 0; i <= BLEND_FRAMES; ++i) printf(" %d", g_bweight[i]);
+    printf("\n");
+    CHECK(g_bweight[0] == 0);
+    int ramped = 1, blended = 0, full = 0;
+    for (int i = 1; i <= BLEND_FRAMES; ++i) {
+        if (g_bweight[i] < g_bweight[i - 1]) ramped = 0;
+        if (g_bweight[i - 1] < 0x1000) ++blended;   /* took func_0204531c */
+        if (g_bweight[i] >= 0x1000) full = 1;
+    }
+    CHECK(ramped);                 /* monotonic */
+    CHECK(blended >= 5);           /* the blending arm really ran */
+    CHECK(full);                   /* and reached full weight */
+    CHECK(g_bweight[BLEND_FRAMES] == g_bweight[BLEND_FRAMES - 1]);  /* clamped */
+
+    int bvarying = 0;
+    for (int i = 1; i <= BLEND_FRAMES; ++i)
+        if (g_bhash[i] != g_bhash[i - 1]) ++bvarying;
+    printf("  blend varying transitions: %d/%d\n", bvarying, BLEND_FRAMES);
+    CHECK(bvarying > BLEND_FRAMES / 2);
+
+    /* teardown through the real destructor: frees unk_6c, then chains
+       ModelAnim -> Model/Animation -> ModelBase */
+    _ZN14BlendModelAnimD1Ev(bstorage);
+
     if (g_failures) {
         fprintf(stderr, "smoke_modelanim: %d FAILURE(S)\n", g_failures);
         return 1;
     }
     printf("smoke_modelanim: all checks passed (the game advanced, wrapped "
-           "and re-posed its own animation)\n");
+           "and re-posed its own animation; BlendModelAnim cross-faded and "
+           "tore down through its own vtable)\n");
     return 0;
 }
