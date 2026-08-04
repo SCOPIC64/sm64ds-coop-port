@@ -245,6 +245,15 @@ extern int data_0209b468[4];   /* actor list head (stomp tracker) */
 extern unsigned char data_020a0e40[];
 extern short data_02092144[];
 extern unsigned char data_ov002_0211049c[];  /* St_Wait state object */
+/* SM64DS_FORCE_STATE=walljump probe: the ST_WALL_JUMP State record and the
+   per-character airborne-gravity PMF table St_WallJump_Main dispatches
+   through. Both are BSS built by __sinit_ov002_021019d0, so they only read
+   back after the sinit run below. */
+extern unsigned char data_ov002_021103dc[];  /* _ZN6Player12ST_WALL_JUMPE */
+extern unsigned char data_ov002_021106dc[];  /* _ZN6Player8ST_CLIMBE */
+extern int data_ov002_02110a48[5];           /* Tree's five cylinder lists */
+extern int data_ov002_0211073c[];            /* 4 rows of {fn-or-vtoff, v} */
+int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *st);
 void port_ov002_patch(void);
 void __sinit_ov002_02100560(void); void __sinit_ov002_02100938(void);
 void __sinit_ov002_02100adc(void); void __sinit_ov002_02100c50(void);
@@ -2083,6 +2092,145 @@ int main(void)
            while a person reads. Everything downstream still runs, so the
            picture stays live and the camera can still be moved around a
            frozen scene. */
+        /* SM64DS_TREE_DROP=x,y,z[,frame] -- drop Mario onto a tree canopy.
+           SM64DS_SPAWN cannot do this: it places him before the level's
+           entrance sequence runs, and the entrance step handler never
+           finishes from up a tree, so he just hangs in St_LevelEnter. The
+           teleport has to land AFTER the entrance has handed him to St_Walk,
+           which on castle grounds is about frame 12. Tree positions come out
+           of SM64DS_TREE_PROBE=1 (all 21 are variant 4). */
+        {
+            static int td = -1, tx, ty, tz, tf;
+            if (td < 0) {
+                const char *e = getenv("SM64DS_TREE_DROP");
+                td = 0;
+                if (e) {
+                    tf = 60;
+                    if (sscanf(e, "%d,%d,%d,%d", &tx, &ty, &tz, &tf) >= 3)
+                        td = 1;
+                }
+            }
+            if (td && frame == tf) {
+                *(int *)(c + 0x5c) = tx << 12;
+                *(int *)(c + 0x60) = ty << 12;
+                *(int *)(c + 0x64) = tz << 12;
+                *(int *)(c + 0xa4) = 0;   /* straight down, no carried speed */
+                *(int *)(c + 0xa8) = 0;
+                *(int *)(c + 0xac) = 0;
+                fprintf(stderr, "[tree] drop at frame %d -> (%d,%d,%d)\n",
+                        tf, tx, ty, tz);
+            }
+        }
+        /* SM64DS_FORCE_STATE=walljump -- the walljump crash probe.
+           Tango walljumped in the live game and the process died with no
+           fault-probe dump, because St_WallJump_Main dispatches the
+           per-character airborne-gravity function out of the sinit-built
+           table data_ov002_0211073c and (unlike St_Jump_Main) called row[0]
+           RAW. row[0] is a DS code address, so on the host that is a jump
+           into the mounted ov002 data image.
+           Reproducing it needs no wall: put the Player in ST_WALL_JUMP and
+           hold him airborne, and Behavior runs St_WallJump_Main straight
+           into the dispatch. The table is dumped once so the run records
+           which character row it went through. */
+        {
+            static int force_wj = -1;
+            if (force_wj < 0) {
+                const char *fs = getenv("SM64DS_FORCE_STATE");
+                force_wj = (fs && !strcmp(fs, "walljump")) ? 1 : 0;
+                if (force_wj) {
+                    fprintf(stderr, "[wj] data_ov002_0211073c after sinit "
+                            "(4 per-character rows):\n");
+                    for (int r = 0; r < 4; ++r) {
+                        int w0 = data_ov002_0211073c[r * 2];
+                        int v  = data_ov002_0211073c[r * 2 + 1];
+                        fprintf(stderr, "[wj]   idx %d: word0=0x%08x "
+                                "word1=0x%08x -> %s, this+0x%x\n", r,
+                                (unsigned)w0, (unsigned)v,
+                                (v & 1) ? "VIRTUAL (vtable byte offset)"
+                                        : "direct DS code address",
+                                (unsigned)(v >> 1));
+                    }
+                    fprintf(stderr, "[wj] player param1 (character idx) = %d\n",
+                            *(int *)(c + 0x008));
+                }
+            }
+            /* SM64DS_FORCE_STATE=climb -- the TREE probe. Landing on a tree
+               puts Mario in ST_CLIMB (data_ov002_021106dc), whose Init, Main
+               and Cleanup are all unhosted, so the mapper no-ops all three:
+               the anim never starts (freeze), the physics outside the state
+               keeps integrating (slide), and a later consumer reads what
+               Init never seated. Forcing the state is how that is measured
+               without having to make him actually grab a trunk. */
+            {
+                static int force_cl = -1;
+                if (force_cl < 0) {
+                    const char *fs = getenv("SM64DS_FORCE_STATE");
+                    force_cl = (fs && !strcmp(fs, "climb")) ? 1 : 0;
+                }
+                if (force_cl && frame == 10) {
+                    /* Seat Player+0x37c with a REAL tree cylinder first --
+                       that is what the grab (func_ov002_020caf98) does before
+                       it changes state, and St_Climb_Init dereferences it
+                       through vtable slot 2 (GetPos) to snap him to the
+                       trunk. Tree::InitResources embeds the
+                       CylinderClsnWithPos at node+0x0c and links the nodes
+                       at +0x48; all 21 castle trees are on variant list 4. */
+                    int *node = (int *)(size_t)data_ov002_02110a48[4];
+                    if (node) {
+                        *(void **)(c + 0x37c) = (char *)node + 0x0c;
+                        fprintf(stderr, "[climb] seated +0x37c = tree "
+                                "cylinder %p (node %p)\n",
+                                (void *)((char *)node + 0x0c), (void *)node);
+                    } else {
+                        fprintf(stderr, "[climb] NO tree cylinders on list 4 "
+                                "-- is the level booted?\n");
+                    }
+                    /* Grab him at a run. A real grab happens with speed on
+                       the clock and St_Climb_Init is what zeroes it; leaving
+                       it set is the whole of the slide, so put a known value
+                       in rather than depending on what frame 10 happened to
+                       be doing. */
+                    *(int *)(c + 0x98) = 0x8000;   /* 8 units/frame */
+                    fprintf(stderr, "[climb] frame 10: ChangeState -> "
+                            "ST_CLIMB (%p)\n", (void *)data_ov002_021106dc);
+                    _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                        data_ov002_021106dc);
+                }
+                /* The SLIDE is measurable: St_Climb_Init is what zeroes the
+                   horizontal speed at +0x98/+0x9c/+0xa8 and the anim at
+                   +0x6e3. With Init no-op'd he keeps the speed he grabbed at
+                   and a state whose Main does nothing, which is exactly the
+                   freeze-then-slide. */
+                if (force_cl && frame >= 10 && frame <= 40 &&
+                    (frame % 10) == 0)
+                    fprintf(stderr, "[climb] frame %3d  horzSpeed=%d "
+                            "vertSpeed=%d pos=(%d,%d,%d) step=%u anim=%u\n",
+                            frame, *(int *)(c + 0x98), *(int *)(c + 0xa8),
+                            *(int *)(c + 0x5c) >> 12, *(int *)(c + 0x60) >> 12,
+                            *(int *)(c + 0x64) >> 12,
+                            *(unsigned char *)(c + 0x6e3),
+                            *(unsigned char *)(c + 0x6e5));
+            }
+            if (force_wj && frame == 10) {
+                /* SM64DS_FORCE_CHAR=<0-3> picks the row: 0/2 (Mario, Wario)
+                   are hosted, 1/3 (Luigi, Yoshi) are not and have to come
+                   out as the mapper's loud no-op, not a wild jump. */
+                const char *fc = getenv("SM64DS_FORCE_CHAR");
+                if (fc) {
+                    *(int *)(c + 0x008) = atoi(fc);
+                    fprintf(stderr, "[wj] forced character idx = %d\n",
+                            atoi(fc));
+                }
+                fprintf(stderr, "[wj] frame 10: ChangeState -> ST_WALL_JUMP "
+                        "(%p)\n", (void *)data_ov002_021103dc);
+                _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                    data_ov002_021103dc);
+            }
+            /* St_WallJump_Main bails to St_Fall the moment he is grounded,
+               and the dispatch sits past that check -- so hold him airborne
+               for the length of the probe. */
+            if (force_wj && frame >= 10) *(unsigned char *)(c + 0x6de) = 1;
+        }
         if (menu_on) {
             game_ticked = 0;
         } else if (boot_spawns) {

@@ -264,6 +264,8 @@ void hal_render_player_body_ex(void *player, int with_head)
 extern "C" int _ZN6Player18St_LevelEnter_MainEv(int *c);
 extern "C" int _ZN6Player12St_Jump_InitEv(char *c);
 extern "C" void func_ov002_020e200c(char *c);
+extern "C" void func_ov002_020e1e70(char *c);
+extern "C" void func_ov002_020e1c20(char *c);
 /* Three state slots the ROM fills with plain ov002 functions rather than
    Player methods: Null's Init, WallJump's Init, InYoshiMouth's Cleanup.
    The community St_ names at those addresses belong to ov006, not ov002. */
@@ -289,6 +291,10 @@ extern "C" void func_ov002_020c6fe4(char *c);
      =1  once per distinct DS address (the quiet census)
      =2  on every CHANGE, with the Player's height, which is what a
          walk-in/swim-across/climb-out run has to be read from */
+/* ST_CLIMB's two host entries, port/unmatched/Player_St_Climb.cpp */
+extern "C" int port_player_st_climb_init(void *self);
+extern "C" int port_player_st_climb_main(void *self);
+
 extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 {
     {
