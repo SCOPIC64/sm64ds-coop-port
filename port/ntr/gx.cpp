@@ -8,6 +8,7 @@
 
 #include "ntr/texture.h"
 
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -91,7 +92,20 @@ struct State {
 
 State g;
 int g_store_count;
+int g_tex_decodes;            // VRAM texture decodes since the last perf report
 extern uint32_t g_teximage;   // defined with the texture cache below
+
+/* SM64DS_FRAME_MS=1: every 30 frames, the raster's own cost on stderr --
+   average time inside gx_render, average wall interval between consecutive
+   gx_render calls (which is the whole frame when nothing is pacing it),
+   triangles submitted and textures decoded out of VRAM per frame. The
+   decode count is the one that says whether the texture cache is working:
+   it should settle at 0 once a scene has been seen once. */
+int frame_ms() {
+    static int on = -1;
+    if (on < 0) on = getenv("SM64DS_FRAME_MS") ? 1 : 0;
+    return on;
+}
 
 uint32_t bgr555_to_argb(uint16_t c) {
     const uint32_t r = c & 0x1F, gg = (c >> 5) & 0x1F, b = (c >> 10) & 0x1F;
@@ -654,6 +668,7 @@ void bind_from_vram() {
         d.pal_len = 0x18000 - static_cast<int32_t>(pal_off);
         std::vector<uint32_t> rgba;
         const bool ok = texture_decode(d, rgba);
+        ++g_tex_decodes;
         if (tex_log())
             printf("[texbind] tex=%08x pltt=%04x fmt=%u %dx%d texoff=%05x "
                    "idxoff=%05x paloff=%05x %s\n",
@@ -835,6 +850,9 @@ static int tex_coord(float f, int size, bool repeat, bool flip) {
 }
 
 void gx_render(Framebuffer &fb) {
+    const int tm = frame_ms();
+    std::chrono::steady_clock::time_point t_enter;
+    if (tm) t_enter = std::chrono::steady_clock::now();
     tri_report();
     static float depth[SCREEN_H][SCREEN_W];
     for (int y = 0; y < SCREEN_H; ++y)
@@ -979,6 +997,26 @@ void gx_render(Framebuffer &fb) {
                                   | bl(0);
                 }
             }
+        }
+    }
+
+    if (tm) {
+        using clk = std::chrono::steady_clock;
+        using ms = std::chrono::duration<double, std::milli>;
+        const clk::time_point t_exit = clk::now();
+        static clk::time_point prev;
+        static double acc_raster, acc_frame;
+        static long long acc_tris;
+        static int n;
+        acc_raster += ms(t_exit - t_enter).count();
+        if (prev.time_since_epoch().count()) acc_frame += ms(t_exit - prev).count();
+        prev = t_exit;
+        acc_tris += static_cast<long long>(g.tris.size());
+        if (++n >= 30) {
+            fprintf(stderr, "[perf] frame %6.2fms raster %6.2fms tris %6lld "
+                    "decodes %.1f\n", acc_frame / n, acc_raster / n,
+                    acc_tris / n, (double)g_tex_decodes / n);
+            acc_raster = acc_frame = 0; acc_tris = 0; n = 0; g_tex_decodes = 0;
         }
     }
 }
