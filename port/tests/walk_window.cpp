@@ -10,7 +10,13 @@
 // 19-state machine, its mode-preset table and its own published heading --
 // which is what turns "forward" on the stick into a world direction.
 //
-//   WASD / arrows  walk    Q/E  orbit    C  snap behind    ESC  quit
+//   WASD / arrows  walk    Q/E  orbit    C  behind Mario    ESC  quit
+//   F1  cycles the camera: ANALOG (the default) -> FREECAM -> DS-EXACT.
+//   Analog is a chase rig the port owns: it orbits Mario on the right stick's
+//   analog curve instead of the DS's 5.625-degree steps, tilts, zooms on the
+//   bumpers, and drifts back behind him when the stick is idle and he is
+//   moving. DS-exact is the hardware's stepped rotate, unchanged. In every
+//   mode the Camera actor itself keeps running and is never written to.
 //   F3  the stats overlay: frame rate, the per-phase millisecond budget,
 //   triangle and actor counts, where Mario is and what state he is in, and
 //   how many times the port has fallen through a state it does not host.
@@ -38,7 +44,12 @@
 //                           scaffolding was covering for: a 28-unit bob at
 //                           20 Hz that never settles
 //      SM64DS_OLD_CAMERA=1  the pre-gate-13 hand-tuned follow rig
-//      SM64DS_FREECAM=1     start in the freecam mod (F1 toggles either way)
+//      SM64DS_FREECAM=1     start in the freecam (F1 cycles either way)
+//      SM64DS_DS_CAMERA=1   start in DS-exact stepped rotate. This is also
+//                           what a SELFTEST defaults to: its BMP is a
+//                           byte-comparison against the hardware's framing and
+//                           its camera probes drive the DS rotate bits.
+//      SM64DS_ANALOG_CAMERA=1  put a selftest in the analog camera
 //      SM64DS_OVERLAY=1     boot with the F3 stats overlay already on
 //      SM64DS_TRACE_CAM=1   per-frame camera input trace: the pad words the
 //                           rotate logic reads, the camera's heading, its
@@ -550,10 +561,58 @@ static int g_amb_n;
    dormant. That is the price of leaving the Camera actor alone. */
 static const int CAM_STEP = 0x400;       /* the ROM's quantum, 0x0200a6a8 */
 
-static int fc_on;                /* the mod is driving the view */
+/* ---- THREE CAMERA MODES, AND ONE RIG -----------------------------------
+   The freecam proved the shape: a harness rig that draws through the ROM's own
+   PerspectiveW_ / LookAt_ / CopyToViewMat and publishes its own heading, with
+   the Camera actor left running untouched underneath it. The only thing that
+   made it a "mod" rather than a camera was that it was unpinned from Mario.
+
+   So the same rig, PINNED TO MARIO, is the default camera now:
+
+     CAM_ANALOG  the chase camera. The rig orbits an eased pivot at Mario's
+                 chest, the right stick turns it on the analog curve instead of
+                 the DS's 5.625-degree steps, and when the stick is idle and he
+                 is moving it drifts back behind him -- gently, the way the
+                 analog cams in the PC SM64 ports do it, not a snap.
+     CAM_FREE    the freecam: the rig orbiting the Camera actor's own look-at,
+                 which is what "the harness takes the view" meant before.
+     CAM_DS      the hardware's own stepped rotate, byte for byte what this
+                 program did before analog existed. Nothing in the analog path
+                 runs, the harness writes the rotate bits, and the frame is
+                 whatever func_02009e70 makes of them.
+
+   F1 cycles analog -> freecam -> DS. SM64DS_DS_CAMERA=1 boots DS-exact and
+   SM64DS_FREECAM=1 boots the freecam.
+
+   THE SELFTEST DEFAULTS TO CAM_DS, deliberately. It is the regression harness:
+   its BMP is a byte-comparison against the hardware's framing and its camera
+   probes (SM64DS_SELFTEST_ORBIT and the rest) drive the DS rotate bits, none
+   of which the analog path writes. SM64DS_ANALOG_CAMERA=1 puts a selftest in
+   analog when that is what is being probed.
+
+   WHAT IS TRUE IN ALL THREE: the Camera actor runs its whole frame, is never
+   written to, and Camera::Render still seeds the Clipper. The cull is the
+   game's, which is the invariant the block above is about -- an actor the rig
+   can see but the game camera cannot stays dormant, and that is the price of
+   leaving the actor alone rather than a bug to chase. */
+enum { CAM_ANALOG = 0, CAM_FREE = 1, CAM_DS = 2 };
+static int cam_mode = CAM_DS;    /* main promotes it once the Camera is up */
+
+static const char *cam_mode_name(int m)
+{
+    return m == CAM_ANALOG ? "analog" : (m == CAM_FREE ? "freecam" : "DS");
+}
+
 static short fc_yaw;             /* heading from the pivot to the eye */
 static short fc_pitch;           /* elevation of the eye above the pivot */
 static int fc_dist;              /* fixed-point world units */
+
+/* the analog rig's own pivot: Mario's position lifted to about chest height
+   and eased, so the picture does not carry the per-frame jitter of a walk
+   cycle into the lens */
+static int an_pivot[3];
+static int an_pivot_live;
+static const int AN_LIFT = 140 << 12;     /* world fx above his feet */
 
 /* stick deflection -> binangs (or units) per frame, signed. Half linear,
    half squared: fine control near the centre, `top` at the stop. */
@@ -597,6 +656,28 @@ static void fc_seed(void *cam)
     fc_pitch = Vec3_VertAngle(eye, at);
     fc_dist = LenVec3(d);
     if (fc_dist < 0x40000) fc_dist = 0x40000;
+}
+
+/* the analog rig's pivot, stepped once a frame. Eased toward Mario's chest at
+   a quarter of the remaining distance, which at 30Hz is about an eighth of a
+   second of lag -- enough to swallow the walk cycle, not enough to feel like
+   the camera is on a rope. A jump in his position bigger than any frame of
+   movement can be (a respawn, a menu warp) snaps instead of easing. */
+static void an_step_pivot(char *player)
+{
+    const int tgt[3] = {*(int *)(player + 0x5c),
+                        *(int *)(player + 0x60) + AN_LIFT,
+                        *(int *)(player + 0x64)};
+    int k;
+    if (!an_pivot_live) {
+        an_pivot_live = 1;
+        for (k = 0; k < 3; ++k) an_pivot[k] = tgt[k];
+        return;
+    }
+    for (k = 0; k < 3; ++k) {
+        const int d = tgt[k] - an_pivot[k];
+        an_pivot[k] += (d > (4000 << 12) || d < -(4000 << 12)) ? d : d / 4;
+    }
 }
 
 /* the view the mod draws with: the ROM's own two entry points, fed the rig's
@@ -1235,24 +1316,42 @@ int main(void)
             static int fc_edge, fc_boot;
             if (!fc_boot) {
                 fc_boot = 1;
-                if (getenv("SM64DS_FREECAM")) { fc_on = 1; fc_seed(cam); }
+                /* the window plays in analog; the selftest stays DS-exact
+                   unless it is asked otherwise (see the mode block above) */
+                cam_mode = selftest ? CAM_DS : CAM_ANALOG;
+                if (getenv("SM64DS_ANALOG_CAMERA")) cam_mode = CAM_ANALOG;
+                if (getenv("SM64DS_DS_CAMERA")) cam_mode = CAM_DS;
+                if (getenv("SM64DS_FREECAM")) cam_mode = CAM_FREE;
+                if (cam_mode != CAM_DS) fc_seed(cam);
             }
             int now = W.GetAsyncKeyState_(VK_F1) < 0 ||
                       (pad_live && (pad.buttons & 0x0080));
-            if (selftest && getenv("SM64DS_SELFTEST_FREECAM"))
-                now = frame == 20 ||
-                      frame == 20 + 3 * (selftest - 20) / 4;   /* and off */
+            if (selftest && getenv("SM64DS_SELFTEST_FREECAM")) {
+                /* the probe wants the mod ON at 20 and OFF three quarters
+                   through, which a three-way cycle cannot express -- so set
+                   the mode outright and leave the edge alone. */
+                if (frame == 20) { cam_mode = CAM_FREE; fc_seed(cam); }
+                if (frame == 20 + 3 * (selftest - 20) / 4) cam_mode = CAM_DS;
+                now = 0;
+            }
             if (now && !fc_edge) {
-                fc_on = !fc_on;
-                if (fc_on) fc_seed(cam);
-                fprintf(stderr, "[freecam] %s\n", fc_on ? "ON" : "off");
+                cam_mode = (cam_mode + 1) % 3;   /* analog -> freecam -> DS */
+                if (cam_mode != CAM_DS) fc_seed(cam);
+                if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
+                fprintf(stderr, "[cam] mode %s\n", cam_mode_name(cam_mode));
             }
             fc_edge = now;
         }
-        if (fc_on) {
+        if (cam_mode != CAM_DS) {
             /* the rig's own frame: orbit and tilt at a rate proportional to
-               the stick, zoom on the bumpers or R/F, C back behind Mario */
-            fc_yaw = (short)(fc_yaw + fc_stick_rate(stick_rx, CAM_STEP));
+               the stick, zoom on the bumpers or R/F, C back behind Mario.
+               `rig_touched` is what tells the analog auto-recenter to keep its
+               hands off -- the player is aiming the camera. */
+            int rig_touched = 0;
+            {
+                const int r = fc_stick_rate(stick_rx, CAM_STEP);
+                if (r) { fc_yaw = (short)(fc_yaw + r); rig_touched = 1; }
+            }
             {
                 int t = fc_pitch - fc_stick_rate(stick_ry, CAM_STEP / 2);
                 if (W.GetAsyncKeyState_('R') < 0) t += 0x80;
@@ -1261,8 +1360,8 @@ int main(void)
                 if (t < -0x1000) t = -0x1000;    /* a little from below */
                 fc_pitch = (short)t;
             }
-            if (W.GetAsyncKeyState_('Q') < 0) fc_yaw -= CAM_STEP / 2;
-            if (W.GetAsyncKeyState_('E') < 0) fc_yaw += CAM_STEP / 2;
+            if (W.GetAsyncKeyState_('Q') < 0) { fc_yaw -= CAM_STEP / 2; rig_touched = 1; }
+            if (W.GetAsyncKeyState_('E') < 0) { fc_yaw += CAM_STEP / 2; rig_touched = 1; }
             {
                 int zoom = 0;
                 if (pad_live && (pad.buttons & 0x0100)) zoom -= 1;   /* LB */
@@ -1273,8 +1372,34 @@ int main(void)
                     if (fc_dist > 0x2000000) fc_dist = 0x2000000;
                 }
             }
-            if (W.GetAsyncKeyState_('C') < 0)
+            if (W.GetAsyncKeyState_('C') < 0) {
                 fc_yaw = (short)(*(short *)(c + 0x8e) + 0x8000);
+                rig_touched = 1;
+            }
+            /* THE AUTO-RECENTER, analog only. Nothing happens while the player
+               is steering the camera, nothing happens while Mario is standing
+               still, and nothing happens inside eleven degrees of behind him --
+               the last one is what keeps it from hunting around the target.
+               Outside that it closes a twentieth of the error a frame, capped
+               at 0x200 binangs (2.8 degrees, 84 a second), so the worst case --
+               the player has spun Mario right around and let go -- settles in
+               about two seconds and nothing in it ever reads as a snap. During
+               a sustained turn the proportional term is what binds, and the
+               camera trails him by a dozen degrees or so, which is the lag
+               that makes it feel like a camera rather than a bracket. */
+            if (cam_mode == CAM_ANALOG && !rig_touched) {
+                const int spd = *(int *)(c + 0x98);
+                if (spd > (2 << 12) || spd < -(2 << 12)) {
+                    const short behind = (short)(*(short *)(c + 0x8e) + 0x8000);
+                    int d = (short)(behind - fc_yaw);
+                    if (d > 0x800 || d < -0x800) {
+                        d /= 20;
+                        if (d > 0x200) d = 0x200;
+                        if (d < -0x200) d = -0x200;
+                        fc_yaw = (short)(fc_yaw + d);
+                    }
+                }
+            }
         }
         if (pad_live) {
             if (pad.ly > 12000 || (pad.buttons & 1)) dz += 1;
@@ -1416,7 +1541,7 @@ int main(void)
                steps every frame. While the freecam mod owns the view none of
                it is written -- the Camera actor is left following Mario so
                there is something clean to hand back to. */
-            if (real_camera && !fc_on) {
+            if (real_camera && cam_mode == CAM_DS) {
                 if (W.GetAsyncKeyState_('Q') < 0) btn |= 0x200;
                 if (W.GetAsyncKeyState_('E') < 0) btn |= 0x100;
                 if (W.GetAsyncKeyState_('C') < 0) btn |= 0x4000;
@@ -1535,16 +1660,20 @@ int main(void)
            published angle never moves and Mario walks relative to a stale
            heading. */
         ph_begin(&t_phase);
+        /* the analog rig's pivot is stepped here, after the tick moved Mario
+           and before anything reads it */
+        if (cam_mode == CAM_ANALOG) an_step_pivot(c);
         if (real_camera) {
             hal_camera_behavior(cam);
-            /* THE ONE THING THE FREECAM OVERRIDES BESIDES THE VIEW: the
-               heading the walk steers by. Camera::Behavior has just put its
-               own into the local comms record; while the mod owns the lens
-               the rig's heading goes in instead, so "forward" is away from
-               the camera the player is actually looking through. The echo
-               below is what copies it into the record GetAngleToCamera
-               reads, so this has to land between the two. */
-            if (fc_on) *(short *)data_020a1050 = fc_yaw;
+            /* THE ONE THING THE RIG OVERRIDES BESIDES THE VIEW: the heading
+               the walk steers by. Camera::Behavior has just put its own into
+               the local comms record; in analog and in freecam the rig's
+               heading goes in instead, so "forward" is away from the lens the
+               player is actually looking through. The echo below is what
+               copies it into the record GetAngleToCamera reads, so this has to
+               land between the two -- and it is one halfword either way, the
+               same single write the freecam always did. */
+            if (cam_mode != CAM_DS) *(short *)data_020a1050 = fc_yaw;
             func_0203e0ac();
             if (trace_cam)
                 fprintf(stderr,
@@ -1552,7 +1681,7 @@ int main(void)
                         "pitch=%04x dist=%d held=%04x edge=%04x fl=%08x "
                         "a17c=%04x a186=%04x a19e=%04x turn=%u wall=%u "
                         "pub=%04x\n",
-                        frame, stick_rx, stick_ry, fc_on,
+                        frame, stick_rx, stick_ry, cam_mode,
                         (unsigned short)fc_yaw, (unsigned short)fc_pitch,
                         fc_dist >> 12,
                         *(unsigned short *)(data_0209f49c + 0),
@@ -1950,16 +2079,21 @@ int main(void)
                in software, so THAT is where the camera reaches the raster,
                not the GX position stack. */
             hal_camera_render(cam);
-            /* the mod's view goes on top of the camera's own, not instead of
+            /* the rig's view goes on top of the camera's own, not instead of
                it: Render still seeds the Clipper, writes CLEAR_COLOR and
                keeps the actor's own state moving, and then the rig reloads
                the projection and the view matrix from its own eye. Nothing
                downstream can tell the difference -- it is the same three ROM
-               calls, with different numbers. */
-            if (fc_on) {
+               calls, with different numbers.
+               ANALOG orbits Mario (the eased pivot); FREECAM orbits the Camera
+               actor's own look-at, which is what made it free of him. */
+            if (cam_mode != CAM_DS) {
                 int fceye[3];
-                fc_eye((const int *)((char *)cam + 0x80), fceye);
-                fc_push_view(cam, fceye, (const int *)((char *)cam + 0x80));
+                const int *pivot = cam_mode == CAM_ANALOG
+                                       ? an_pivot
+                                       : (const int *)((char *)cam + 0x80);
+                fc_eye(pivot, fceye);
+                fc_push_view(cam, fceye, pivot);
             }
             /* THE ACTOR RENDER BUCKET GOES HERE, and the reason is the shim
                immediately below. Processing list 5 is the game's own render
@@ -2225,7 +2359,7 @@ int main(void)
             os.tris = (int)tn;
             os.actors = actors;
             os.player = c;
-            os.cam_name = fc_on ? "freecam" : "DS";
+            os.cam_name = cam_mode_name(cam_mode);
             os.mem_kb = ovl_mem_kb;
             os.menu_paused = !game_ticked;
             ovl_draw(fb, os);
