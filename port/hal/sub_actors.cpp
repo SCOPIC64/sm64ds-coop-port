@@ -13,21 +13,40 @@
 // that points at its typeinfo, 0x0210c224, which sits right after the class
 // name string "8dMeter_c"), and reading forward from the vptr at +8 gives
 //
-//     0  020fda04  HUD::InitResources          9  020fd5e0  HUD::Render
-//     1  02043c78  Actor::BeforeInitResources 10  02043ac8  Actor::BeforeRender
-//     2  02013ef4  Actor::AfterInitResources  11  02043ac4  AfterRender
-//     3  020fd5d4  HUD::CleanupResources      12  020fd5dc  HUD::OnPendingDestroy
-//     4  02043bac  BeforeCleanupResources     13  0204357c  ActorBase::Virtual34
-//     5  02043b2c  AfterCleanupResources      14  0204349c  ActorBase::Virtual38
-//     6  020fd7a4  HUD::Behavior              15  02043494  OnHeapCreated
-//     7  02043afc  Actor::BeforeBehavior      16  020fb8f8  ~HUD (D1)
-//     8  02043af8  AfterBehavior              17  020fb928  ~HUD (D0)
+//     0  020fda04  HUD::InitResources             9  020fd5e0  HUD::Render
+//     1  02043c78  ActorBase::BeforeInitResources 10 02043ac8  ActorBase::BeforeRender
+//     2  02013ef4  ActorDerived::AfterInitRes.    11 02043ac4  ActorBase::AfterRender
+//     3  020fd5d4  HUD::CleanupResources          12 020fd5dc  HUD::OnPendingDestroy
+//     4  02043bac  ActorBase::BeforeCleanupRes.   13 0204357c  ActorBase::Virtual34
+//     5  02043b2c  ActorBase::AfterCleanupRes.    14 0204349c  ActorBase::Virtual38
+//     6  020fd7a4  HUD::Behavior                  15 02043494  ActorBase::OnHeapCreated
+//     7  02043afc  ActorBase::BeforeBehavior      16 020fb8f8  ~HUD (D1)
+//     8  02043af8  ActorBase::AfterBehavior       17 020fb928  ~HUD (D0)
 //
 // and slot 18 is not a function pointer at all. Every one of those addresses
-// resolves to the name above in config/arm9/overlays/ov002/symbols.txt, so
-// this is read out of the ROM rather than inferred from the header -- which
-// matters here: filling slots 18 and 19 the way the twenty-slot classes do
-// would write past the table.
+// resolves to the name above in config/arm9/symbols.txt, so this is read out of
+// the ROM rather than inferred from the header -- which matters twice over.
+//
+// FIRST: filling slots 18 and 19 the way the twenty-slot classes do would write
+// past the table.
+//
+// SECOND, and this one crashed the port: EVERY shared slot here is ActorBase's
+// own, not Actor's. The twenty-slot classes in hal/actor_classes.cpp share ten
+// slots that resolve to Actor::, and copying that fill to an eighteen-slot
+// class is a heap corruption with a fifty-frame fuse. Actor::AfterInitResources
+// ends on
+//
+//     *(u32 *)(long long)(int)&mFlags |= 0x38;      /* Actor + 0xb0 */
+//
+// and dMeter_c is 124 bytes -- ActorBase::operator new(124) in the HUD's own
+// constructor. 0xb0 is 0x34 past the end of it, so that read-modify-write lands
+// in whatever the game heap handed out next. On the castle grounds that is the
+// BUTTERFLY spawned immediately before, and 0xb0 falls exactly on its
+// SceneNode's owner back-pointer: the OR turned a valid actor pointer into
+// pointer|0x38, and the next scene-tree walk dereferenced it.
+//
+// Slot 2 is the one genuine override of the three: ActorDerived::, not
+// ActorBase:: and not Actor::. The other nine are ActorBase's throughout.
 //
 // Otherwise the law is hal/actor_classes.cpp's: MSVC slot order, every entry a
 // __fastcall thunk so ecx carries `this`, every thunk calls QUALIFIED, and
@@ -44,14 +63,9 @@
 
 #include "Actor.h"
 #include "ActorBase.h"
+#include "ActorDerived.h"
 
 extern "C" {
-/* the shared half, exactly as hal/actor_classes.cpp reaches them */
-int _ZN5Actor19BeforeInitResourcesEv(void *self);
-void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a);
-int _ZN5Actor14BeforeBehaviorEv(void *self);
-int _ZN5Actor12BeforeRenderEv(void *self);
-
 /* HUD's own C-named halves: the two destructors */
 void *_ZN3HUDD1Ev(void *self);
 void *_ZN3HUDD0Ev(void *self);
@@ -62,6 +76,7 @@ void *_ZTV7dBase_c[18];
 void *_ZTV8dMeter_c[18];
 
 const char *port_actor_class_name(unsigned id);
+void port_scene_canary(const char *where);
 extern void *data_0209f394[];   /* per-player Actor* */
 extern unsigned char data_0209f250;   /* local player index */
 
@@ -168,21 +183,23 @@ int __fastcall sa_trap(void *s, void *)
     return 0;
 }
 
-/* the ten slots that are the same functions in both classes */
+/* The ten shared slots, every one of them reached QUALIFIED so the call cannot
+   re-dispatch through the vtable it is filling. ActorBase throughout, except
+   slot 2. */
 int __fastcall sa_binit(void *s, void *)
-{ return _ZN5Actor19BeforeInitResourcesEv(s); }
+{ return ((ActorBase *)s)->ActorBase::BeforeInitResources(); }
 void __fastcall sa_ainit(void *s, void *, unsigned a)
-{ _ZN5Actor18AfterInitResourcesEj(s, a); }
+{ ((ActorDerived *)s)->ActorDerived::AfterInitResources(a); }
 int __fastcall sa_bclean(void *s, void *)
-{ return ((Actor *)s)->Actor::BeforeCleanupResources(); }
+{ return ((ActorBase *)s)->ActorBase::BeforeCleanupResources(); }
 void __fastcall sa_aclean(void *s, void *, unsigned a)
 { ((ActorBase *)s)->ActorBase::AfterCleanupResources(a); }
 int __fastcall sa_bbeh(void *s, void *)
-{ return _ZN5Actor14BeforeBehaviorEv(s); }
+{ return ((ActorBase *)s)->ActorBase::BeforeBehavior(); }
 void __fastcall sa_abeh(void *s, void *, unsigned a)
 { ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
 int __fastcall sa_bren(void *s, void *)
-{ return _ZN5Actor12BeforeRenderEv(s); }
+{ return ((ActorBase *)s)->ActorBase::BeforeRender(); }
 void __fastcall sa_aren(void *s, void *, unsigned a)
 { ((ActorBase *)s)->ActorBase::AfterRender(a); }
 int __fastcall sa_heap(void *s, void *)

@@ -355,6 +355,8 @@ enum {
 
 static void *g_stage_mc;
 
+extern "C" void port_scene_canary(const char *where);
+
 /* `spawn` selects the stage: 0 = A1, the same boot with every spawner
    switched off (the geometry regression); 1 = the level's own object load. */
 void *port_stage_a_boot(void *mc, int spawn)
@@ -399,6 +401,7 @@ void *port_stage_a_boot(void *mc, int spawn)
     unsigned char intro_seen = (unsigned char)(data_0209caa0[8] & 0x80);
     data_0209caa0[8] |= 0x80;   /* word 2 bit 7: the intro has played */
     _ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR12MeshCollider(o, 0, mc);
+    port_scene_canary("after LoadClsnAndObjects");
     if (!intro_seen)
         data_0209caa0[8] &= ~0x80;
 

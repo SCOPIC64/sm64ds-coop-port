@@ -186,7 +186,17 @@ extern "C" void port_actor_census(void)
 extern "C" void port_actor_registry_install(void)
 {
     int n = 0;
+    /* SM64DS_SKIP_CLASS=NAME[,NAME...] leaves a class unregistered, so the
+       spine's own gate turns it away and the level boots without it. The
+       cheapest way to ask "is this class the one breaking the run" -- it is
+       how the HUD was pinned as the owner of a fault three phases downstream
+       of it. Substring match, so SM64DS_SKIP_CLASS=HUD,BIRD works. */
+    const char *skip = std::getenv("SM64DS_SKIP_CLASS");
     for (const PortActorClass *k = port_actor_classes; k->name; ++k) {
+        if (skip && std::strstr(skip, k->name)) {
+            std::printf("  [reg] %s skipped by SM64DS_SKIP_CLASS\n", k->name);
+            continue;
+        }
         if (!k->info || !k->factory) {
             std::fprintf(stderr, "  [reg] %s has no SpawnInfo or factory\n",
                          k->name);

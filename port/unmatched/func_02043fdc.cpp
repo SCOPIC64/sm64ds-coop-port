@@ -26,6 +26,43 @@ void *func_0203b394(void *node);
 extern int data_020a4b68[];        /* the walk's published cursor
                                       (storage: hal/player_bridges.cpp) */
 
+void port_scene_canary(const char *where);
+}
+#include <cstdio>
+#include <cstdlib>
+extern "C" {
+/* SM64DS_SCENE_CANARY=1: walk the scene tree and report the first node whose
+   owner back-pointer is not node-0x14.
+ *
+ * Every ActorBase writes its own address into its SceneNode's owner slot and
+ * never touches it again, so that one invariant is a cheap tripwire for a
+ * stray write into the actor heap -- which is what an eighteen-slot class
+ * filled like a twenty-slot one produces (see hal/sub_actors.cpp). The walk
+ * that dereferences the owner is func_020441cc below, and it faults a long way
+ * from whoever actually did the damage; this says which phase to look in.
+ * Off by default, and free when it is off. */
+extern int data_020a4b6c[];
+void port_scene_canary(const char *where)
+{
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_SCENE_CANARY") != 0;
+    if (!on) return;
+    int *node = (int *)(size_t)data_020a4b6c[0];
+    int n = 0;
+    while (node != 0 && n++ < 4000) {
+        char *o = (char *)(size_t)node[4];
+        if ((char *)node != o + 0x14) {
+            std::printf("[canary] %s: node=%p owner=%p (skew %d)\n", where,
+                        (void *)node, (void *)o, (int)((char *)node - o));
+            std::fflush(stdout);
+            return;
+        }
+        node = (int *)func_0203b394(node);
+    }
+    std::printf("[canary] %s: clean (%d nodes)\n", where, n);
+    std::fflush(stdout);
+}
+
 /* {head, tail, callback, 0}; node is {prev, next, owner, ...} */
 void *func_02043fdc(void *listv)
 {
