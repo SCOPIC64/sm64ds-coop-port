@@ -11,6 +11,10 @@
 // which is what turns "forward" on the stick into a world direction.
 //
 //   WASD / arrows  walk    Q/E  orbit    C  snap behind    ESC  quit
+//   F1 (or a click of the right stick)  the FREECAM mod: the harness takes
+//   the view, the right stick orbits and tilts it, the bumpers or R/F zoom,
+//   C re-centres it behind Mario. F1 again hands the view back. Everything
+//   else in the window is the game's; that one is not, and says so.
 //
 // THE GAME'S OWN BOOT AND THE GAME'S OWN PHYSICS ARE THE DEFAULT. ov009 is
 // mounted, Stage::LoadClsnAndObjects runs against it, the level's entrance
@@ -30,6 +34,14 @@
 //                           scaffolding was covering for: a 28-unit bob at
 //                           20 Hz that never settles
 //      SM64DS_OLD_CAMERA=1  the pre-gate-13 hand-tuned follow rig
+//      SM64DS_FREECAM=1     start in the freecam mod (F1 toggles either way)
+//      SM64DS_TRACE_CAM=1   per-frame camera input trace: the pad words the
+//                           rotate logic reads, the camera's heading, its
+//                           two latches, the rig, and the published angle
+//      SM64DS_SELFTEST_STICK=<pct>  drive the right stick from a selftest
+//                           (0 = ramp to the stop); it lets go, and
+//                           SM64DS_SELFTEST_FREECAM=1 toggles the mod on
+//                           and off, at the same two points
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -197,6 +209,23 @@ int hal_camera_init_resources(void *cam);
 int hal_camera_behavior(void *cam);
 int hal_camera_render(void *cam);
 void func_0203e0ac(void);
+/* the ROM's own camera math, which the freecam rig builds its view with:
+   the same eye construction func_02009e70 uses and the same two G3i entry
+   points plus CopyToViewMat that Camera::Render ends in */
+short Vec3_VertAngle(const void *v1, const void *v0);
+int LenVec3(const void *v);
+void Vec3_RotateYAndTranslate(int *out, int *in, short angle, int *src);
+void _ZN3G3i13PerspectiveW_E5Fix12IiES1_S1_S1_S1_S1_bP9Matrix4x3(
+    int sinF, int cosF, int aspect, int n, int f, int scaleW, int draw,
+    int *mtx);
+void _ZN3G3i7LookAt_EPK7Vector3S2_S2_bP9Matrix4x3(const void *at,
+                                                  const void *up,
+                                                  const void *eye, char draw,
+                                                  int *mat);
+void _Z13CopyToViewMatPK9Matrix4x3(const void *mat);
+extern short data_02082214[];          /* the ROM sin/cos table */
+extern unsigned char data_02086efc[];  /* up vector {0, 0x1000, 0} */
+extern unsigned char data_020a1050[];  /* the heading func_0203dafc publishes */
 extern int data_0209f43c[];          /* the Clipper (hal/camera_bridges) */
 extern int data_020a4b78[];          /* the behaviour processing list */
 int _ZN7Clipper13Func_020150E8ER7Vector35Fix12IiEPh(void *clipper, void *pos,
@@ -242,6 +271,123 @@ static void *g_mc;
 struct AmbTrack { void *o; unsigned id; int minr, minfr, thresh; int p0[3]; };
 static AmbTrack g_amb[16];
 static int g_amb_n;
+
+/* ---- HOW THE ROM CONSUMES THE CAMERA-ROTATE BUTTONS --------------------
+   The follow state func_02009e70 reads the pad twice. At 0x02009fdc it takes
+   the NEWLY-PRESSED word (data_0209f49e) & 0x4300; at 0x0200a534, only if
+   nothing was pressed this frame AND the wall-angle latch cam+0x1a6 is clear,
+   it falls back to the HELD word (data_0209f49c) & 0x4300. Both land in the
+   same local: 0x200 = rotate left, 0x100 = rotate right, 0x4000 = snap
+   behind.
+
+   With one of them live and the turn latch cam+0x1a0 clear, the branch at
+   0x0200a6a8 adds a fixed +/-0x400 binangs -- 5.625 degrees -- to the heading
+   cam+0x17c and records the direction in cam+0x154 (0x20 left, 0x40 right).
+   The heading is then rebuilt into the eye position at 0x0200aa34
+   (Vec3_RotateYAndTranslate about the look-at point cam+0x80) and re-derived
+   from that position at 0x0200add4: the POSITION is the state and cam+0x17c
+   is a per-frame restatement of it. So a tap steps once and a hold steps
+   every frame, which is the DS's own feel, and a stick past the threshold is
+   a held shoulder button.
+
+   NOTHING IN THE HARNESS TOUCHES ANY OF IT. The bumpers, Q/E and the right
+   stick write those pad bits and stop there; no harness write reaches the
+   camera's angle, bias or position fields. What made the rotation look like
+   isolated jumps was never this code -- it was cstd::atan2's table sitting
+   zeroed in the HAL, so every angle the camera read back off a position came
+   out 0 and each step was undone on the next frame. The table is the ROM's
+   now (port/tools/romdata.py).
+
+   ---- FREECAM: AN OWNED MOD, AND HONEST ABOUT IT ------------------------
+   Everything below is the port's, not the game's. F1 (or clicking the right
+   stick) hands the VIEW to a harness rig: the right stick orbits it at a rate
+   proportional to how far it is pushed, its vertical axis tilts, the bumpers
+   or R/F zoom, C re-centres it behind Mario. The rig draws with the ROM's own
+   PerspectiveW_ / LookAt_ / CopyToViewMat, so the projection, the view matrix
+   at data_0209b3ec and its inverse all end the frame in exactly the state the
+   rest of the render expects.
+
+   The Camera actor keeps running underneath the whole time and is never
+   written to, so toggling back off hands the view to a camera that has been
+   tracking Mario all along and recovers with its own smoothing.
+
+   Two things follow from the mod owning the view. The heading the walk steers
+   by is the RIG's while it is on -- published into the same comms record
+   Camera::Behavior publishes into, so "forward" is away from the lens you are
+   actually looking through, which is the only way walking reads right. And
+   the actor cull is not: Camera::Render seeds the Clipper from the Camera's
+   own frustum, so an actor the rig can see but the game camera cannot stays
+   dormant. That is the price of leaving the Camera actor alone. */
+static const int CAM_STEP = 0x400;       /* the ROM's quantum, 0x0200a6a8 */
+
+static int fc_on;                /* the mod is driving the view */
+static short fc_yaw;             /* heading from the pivot to the eye */
+static short fc_pitch;           /* elevation of the eye above the pivot */
+static int fc_dist;              /* fixed-point world units */
+
+/* stick deflection -> binangs (or units) per frame, signed. Half linear,
+   half squared: fine control near the centre, `top` at the stop. */
+static int fc_stick_rate(int v, int top)
+{
+    const int dead = 8000;       /* XInput's own right-stick floor */
+    int mag = v < 0 ? -v : v;
+    long long span, m;
+    int r;
+    if (mag <= dead) return 0;
+    if (mag > 32767) mag = 32767;
+    span = 32767 - dead;
+    m = mag - dead;
+    r = (int)((long long)top * (m * span + m * m) / (2 * span * span));
+    return v < 0 ? -r : r;
+}
+
+/* the rig's eye, in the ROM's own fixed point:
+   eye = pivot + rotY(yaw) * (0, dist*sin(pitch), dist*cos(pitch)),
+   the same shape func_02009e70 builds its own eye with at 0x0200aa34 */
+static void fc_eye(const int *pivot, int *eye)
+{
+    const int i = ((int)(unsigned short)fc_pitch >> 4) * 2;
+    int p[3] = {pivot[0], pivot[1], pivot[2]};
+    int src[3];
+    src[0] = 0;
+    src[1] = (int)(((long long)fc_dist * data_02082214[i] + 0x800) >> 12);
+    src[2] = (int)(((long long)fc_dist * data_02082214[i + 1] + 0x800) >> 12);
+    Vec3_RotateYAndTranslate(eye, p, fc_yaw, src);
+}
+
+/* seed the rig from wherever the Camera actor is, so the toggle does not
+   move the picture */
+static void fc_seed(void *cam)
+{
+    char *k = (char *)cam;
+    int *at = (int *)(k + 0x80);
+    int *eye = (int *)(k + 0x8c);
+    int d[3] = {eye[0] - at[0], eye[1] - at[1], eye[2] - at[2]};
+    fc_yaw = *(short *)(k + 0x17c);
+    fc_pitch = Vec3_VertAngle(eye, at);
+    fc_dist = LenVec3(d);
+    if (fc_dist < 0x40000) fc_dist = 0x40000;
+}
+
+/* the view the mod draws with: the ROM's own two entry points, fed the rig's
+   eye and pivot in scene units (the (v + 4) >> 3 Camera::Render applies to
+   its own) */
+static void fc_push_view(void *cam, const int *eye, const int *at)
+{
+    const int i = ((int)*(unsigned short *)((char *)cam + 0x17a) >> 4) * 2;
+    int e[3], a[3], mat[12];
+    int q;
+    for (q = 0; q < 3; ++q) {
+        e[q] = (eye[q] + 4) >> 3;
+        a[q] = (at[q] + 4) >> 3;
+    }
+    _ZN3G3i13PerspectiveW_E5Fix12IiES1_S1_S1_S1_S1_bP9Matrix4x3(
+        data_02082214[i], data_02082214[i + 1],
+        *(int *)((char *)cam + 0xf8), *(int *)((char *)cam + 0xfc),
+        *(int *)((char *)cam + 0x100), data_0209ee90[0x44 / 4], 1, 0);
+    _ZN3G3i7LookAt_EPK7Vector3S2_S2_bP9Matrix4x3(e, data_02086efc, a, 1, mat);
+    _Z13CopyToViewMatPK9Matrix4x3(mat);
+}
 
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
@@ -781,6 +927,7 @@ int main(void)
     int frame = 0;
     float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
+    const int trace_cam = getenv("SM64DS_TRACE_CAM") != 0;
 
     static ntr::Framebuffer fb;
     MSG msg;
@@ -814,6 +961,75 @@ int main(void)
         static XPad pad;
         int pad_live = XInputGetState_ && XInputGetState_(0, &pad) == 0;
         int orbiting = 0;
+        /* the right stick's X, from the pad or from the selftest ramp:
+           SM64DS_SELFTEST_STICK=<pct> holds it at pct% of full deflection
+           from frame 20 (negative for the other way), and =0 ramps it from
+           nothing to the stop. Either way it LETS GO three quarters of the
+           way through, so one run shows both the orbit and the handover
+           back to the game's own auto-behind. The only way to exercise any
+           of it without a person on the controller. */
+        int stick_rx = pad_live ? pad.rx : 0;
+        int stick_ry = pad_live ? pad.ry : 0;
+        if (selftest) {
+            const char *sk = getenv("SM64DS_SELFTEST_STICK");
+            const int last = 20 + 3 * (selftest - 20) / 4;
+            if (sk) stick_rx = 0;
+            if (sk && frame >= 20 && frame < last) {
+                int pct = atoi(sk);
+                if (!pct && last > 21)
+                    pct = 100 * (frame - 20) / (last - 20);
+                stick_rx = 32767 * pct / 100;
+            }
+        }
+        /* ---- the freecam toggle (port mod, see the block above the window
+           procedure). F1 or a click of the right stick; SM64DS_FREECAM=1
+           starts in it, and SM64DS_SELFTEST_FREECAM=1 turns it on at frame
+           20 of a selftest so the rig can be probed without a person. */
+        if (real_camera) {
+            static int fc_edge, fc_boot;
+            if (!fc_boot) {
+                fc_boot = 1;
+                if (getenv("SM64DS_FREECAM")) { fc_on = 1; fc_seed(cam); }
+            }
+            int now = W.GetAsyncKeyState_(VK_F1) < 0 ||
+                      (pad_live && (pad.buttons & 0x0080));
+            if (selftest && getenv("SM64DS_SELFTEST_FREECAM"))
+                now = frame == 20 ||
+                      frame == 20 + 3 * (selftest - 20) / 4;   /* and off */
+            if (now && !fc_edge) {
+                fc_on = !fc_on;
+                if (fc_on) fc_seed(cam);
+                fprintf(stderr, "[freecam] %s\n", fc_on ? "ON" : "off");
+            }
+            fc_edge = now;
+        }
+        if (fc_on) {
+            /* the rig's own frame: orbit and tilt at a rate proportional to
+               the stick, zoom on the bumpers or R/F, C back behind Mario */
+            fc_yaw = (short)(fc_yaw + fc_stick_rate(stick_rx, CAM_STEP));
+            {
+                int t = fc_pitch - fc_stick_rate(stick_ry, CAM_STEP / 2);
+                if (W.GetAsyncKeyState_('R') < 0) t += 0x80;
+                if (W.GetAsyncKeyState_('F') < 0) t -= 0x80;
+                if (t > 0x3a00) t = 0x3a00;      /* just short of overhead */
+                if (t < -0x1000) t = -0x1000;    /* a little from below */
+                fc_pitch = (short)t;
+            }
+            if (W.GetAsyncKeyState_('Q') < 0) fc_yaw -= CAM_STEP / 2;
+            if (W.GetAsyncKeyState_('E') < 0) fc_yaw += CAM_STEP / 2;
+            {
+                int zoom = 0;
+                if (pad_live && (pad.buttons & 0x0100)) zoom -= 1;   /* LB */
+                if (pad_live && (pad.buttons & 0x0200)) zoom += 1;   /* RB */
+                if (zoom) {
+                    fc_dist += zoom * (fc_dist >> 5);
+                    if (fc_dist < 0x30000) fc_dist = 0x30000;
+                    if (fc_dist > 0x2000000) fc_dist = 0x2000000;
+                }
+            }
+            if (W.GetAsyncKeyState_('C') < 0)
+                fc_yaw = (short)(*(short *)(c + 0x8e) + 0x8000);
+        }
         if (pad_live) {
             if (pad.ly > 12000 || (pad.buttons & 1)) dz += 1;
             if (pad.ly < -12000 || (pad.buttons & 2)) dz -= 1;
@@ -904,8 +1120,8 @@ int main(void)
                 if (pad.buttons & 0x4000) btn |= 0x800;  /* X  -> dash  */
                 if (pad.buttons & 0x2000) btn |= 1;      /* B  -> punch */
                 if (pad.rt > 100) btn |= 0x400;          /* RT -> crouch */
-                if (pad.buttons & 0x0100) btn |= 0x200;  /* LB -> cam L */
-                if (pad.buttons & 0x0200) btn |= 0x100;  /* RB -> cam R */
+                /* the bumpers are camera-rotate and go in with the rest of
+                   the rotate input below, where the freecam gate is */
             }
             /* selftest: synthetic hop at frame 30 (walking start speed) */
             if (selftest && frame >= 30 && frame <= 33 &&
@@ -947,13 +1163,22 @@ int main(void)
                layer synthesizes. R doubles as crouch on the DS too, so E
                crouching as it orbits is the hardware's behaviour, not a
                harness artefact. */
-            if (real_camera) {
+            /* THE DS's OWN ROTATE INPUT, and nothing else: the pad bits go
+               in, func_02009e70 does the rest. A tap of the bumper is one
+               press edge and one 5.625-degree step; holding it (or holding
+               the stick past the threshold) is a held shoulder button and
+               steps every frame. While the freecam mod owns the view none of
+               it is written -- the Camera actor is left following Mario so
+               there is something clean to hand back to. */
+            if (real_camera && !fc_on) {
                 if (W.GetAsyncKeyState_('Q') < 0) btn |= 0x200;
                 if (W.GetAsyncKeyState_('E') < 0) btn |= 0x100;
                 if (W.GetAsyncKeyState_('C') < 0) btn |= 0x4000;
+                if (stick_rx < -10000) btn |= 0x200;
+                if (stick_rx > 10000) btn |= 0x100;
                 if (pad_live) {
-                    if (pad.rx < -10000) btn |= 0x200;
-                    if (pad.rx > 10000) btn |= 0x100;
+                    if (pad.buttons & 0x0100) btn |= 0x200;  /* LB -> cam L */
+                    if (pad.buttons & 0x0200) btn |= 0x100;  /* RB -> cam R */
                 }
                 /* orbit probe: hold the rotate-right bit from frame 20 --
                    the camera's own heading and the angle it publishes must
@@ -1064,7 +1289,33 @@ int main(void)
            heading. */
         if (real_camera) {
             hal_camera_behavior(cam);
+            /* THE ONE THING THE FREECAM OVERRIDES BESIDES THE VIEW: the
+               heading the walk steers by. Camera::Behavior has just put its
+               own into the local comms record; while the mod owns the lens
+               the rig's heading goes in instead, so "forward" is away from
+               the camera the player is actually looking through. The echo
+               below is what copies it into the record GetAngleToCamera
+               reads, so this has to land between the two. */
+            if (fc_on) *(short *)data_020a1050 = fc_yaw;
             func_0203e0ac();
+            if (trace_cam)
+                fprintf(stderr,
+                        "[cam-in] f%03d rx=%6d ry=%6d fc=%d yaw=%04x "
+                        "pitch=%04x dist=%d held=%04x edge=%04x fl=%08x "
+                        "a17c=%04x a186=%04x a19e=%04x turn=%u wall=%u "
+                        "pub=%04x\n",
+                        frame, stick_rx, stick_ry, fc_on,
+                        (unsigned short)fc_yaw, (unsigned short)fc_pitch,
+                        fc_dist >> 12,
+                        *(unsigned short *)(data_0209f49c + 0),
+                        *(unsigned short *)(data_0209f49e + 0),
+                        *(unsigned *)((char *)cam + 0x154),
+                        (unsigned short)*(short *)((char *)cam + 0x17c),
+                        (unsigned short)*(short *)((char *)cam + 0x186),
+                        (unsigned short)*(short *)((char *)cam + 0x19e),
+                        *(unsigned short *)((char *)cam + 0x1a0),
+                        *(unsigned char *)((char *)cam + 0x1a6),
+                        (unsigned short)*(short *)((char *)data_020a1164));
         }
         /* no speed clamp: the accel tables get real input-mode data now
            that Stage::CheckInput fills the record (the old runaway came
@@ -1449,6 +1700,17 @@ int main(void)
                in software, so THAT is where the camera reaches the raster,
                not the GX position stack. */
             hal_camera_render(cam);
+            /* the mod's view goes on top of the camera's own, not instead of
+               it: Render still seeds the Clipper, writes CLEAR_COLOR and
+               keeps the actor's own state moving, and then the rig reloads
+               the projection and the view matrix from its own eye. Nothing
+               downstream can tell the difference -- it is the same three ROM
+               calls, with different numbers. */
+            if (fc_on) {
+                int fceye[3];
+                fc_eye((const int *)((char *)cam + 0x80), fceye);
+                fc_push_view(cam, fceye, (const int *)((char *)cam + 0x80));
+            }
             /* THE ACTOR RENDER BUCKET GOES HERE, and the reason is the shim
                immediately below. Processing list 5 is the game's own render
                pass -- func_0204322c over slots 9/10/11, in render-priority
