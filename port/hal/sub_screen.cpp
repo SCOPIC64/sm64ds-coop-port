@@ -81,6 +81,12 @@ const int kMargin = 8;
 
 bool g_on = true;
 bool g_ready;
+/* Headless runs must not read the mouse or the keyboard. SM64DS_WINDOW_SELFTEST
+   is CI's comparator and several of these binaries run on one machine at once,
+   so a stray click or a TAB meant for another window would land in this one's
+   frame and show up as a BMP diff nobody can reproduce. The selftest drives
+   its own input; the panel adds none. */
+bool g_headless;
 int g_x0, g_y0;            // panel origin in framebuffer pixels
 int g_zoom = 1;
 HWND g_hwnd;
@@ -103,8 +109,8 @@ int env_flag(const char *name, int dflt)
 void poll_touch(void)
 {
     unsigned char down = 0, sx = 0, sy = 0;
-    if (g_on && GetCursorPos_ && ScreenToClient_ && GetAsyncKeyState_ &&
-        (GetAsyncKeyState_(VK_LBUTTON) & 0x8000)) {
+    if (!g_headless && g_on && GetCursorPos_ && ScreenToClient_ &&
+        GetAsyncKeyState_ && (GetAsyncKeyState_(VK_LBUTTON) & 0x8000)) {
         POINT p;
         if (GetCursorPos_(&p) && ScreenToClient_(g_hwnd, &p)) {
             const int fx = (int)p.x / g_zoom - g_x0;
@@ -136,6 +142,7 @@ void hal_sub_screen_init(void *hwnd, int zoom)
     g_hwnd = (HWND)hwnd;
     g_zoom = zoom > 0 ? zoom : 1;
     g_on = env_flag("SM64DS_SUB_PANEL", 1) != 0;
+    g_headless = std::getenv("SM64DS_WINDOW_SELFTEST") != 0;
 
     if (HMODULE u = LoadLibraryA("user32.dll")) {
         GetCursorPos_ = (decltype(GetCursorPos_))GetProcAddress(u, "GetCursorPos");
@@ -230,7 +237,7 @@ void hal_sub_screen_init(void *hwnd, int zoom)
 void hal_sub_screen_frame_begin(void)
 {
     static int tab_was;
-    if (GetAsyncKeyState_) {
+    if (GetAsyncKeyState_ && !g_headless) {
         const int tab = (GetAsyncKeyState_(VK_TAB) & 0x8000) != 0;
         if (tab && !tab_was) g_on = !g_on;
         tab_was = tab;
