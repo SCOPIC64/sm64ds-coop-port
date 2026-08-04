@@ -167,6 +167,10 @@ int data_020a0ebc[3];
    record's entrance byte here on its way into LoadLevel; config/arm9 calls
    it kind:bss, so zero is what the boot leaves it at. */
 unsigned char data_0209f2c0[4];
+/* gate 24, the boot spine: Stage::LoadModel's last line parks the Stage's own
+   ModelComponents pointer (Stage+0x874) here, and CopyTexPalFromLevelModel
+   reads it back. kind:bss in config, so zero until LoadModel runs. */
+int data_0209f320;
 }
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */

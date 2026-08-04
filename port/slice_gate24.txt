@@ -14,3 +14,16 @@
 # ActorBase constructor reads, and the one honest stub for the particle
 # tracker -- is port/hal/stage_bridges.cpp.
 src/_ZN5StageC1Ev.c
+
+# The level MODEL. The harness loaded it by hand -- SharedFilePtr::Construct on
+# a hard-coded 1943, Model::LoadFile, ModelBase::SetFile, into its own 0x50-byte
+# block -- and the ROM's own loader does the same job from the LVL_Overlay's own
+# bmdFileId into Stage+0x86c. It then walks the component list rewriting each
+# part's polygon-attribute field (0x3f000000 -> 0x13000000) for everything that
+# is not already fully lit, and parks the ModelComponents pointer in
+# data_0209f320 where CopyTexPalFromLevelModel reads it back. The harness did
+# neither of those two.
+#
+# Its one unresolved name was Model::LoadAndSetFile, a real MSVC member reached
+# here by its C name; hal/method_faces.cpp carries the __thiscall face.
+src/_ZN5Stage9LoadModelEv.cpp

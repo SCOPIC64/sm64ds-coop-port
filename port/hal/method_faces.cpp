@@ -343,6 +343,16 @@ void _ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File(void *bmd, void *bta)
 void _ZN18TextureTransformer6UpdateER15ModelComponents(void *self, void *mc)
 { ((TextureTransformer *)self)->TextureTransformer::Update(
       *(ModelComponents *)mc); }
+
+/* Model::LoadAndSetFile, for the boot spine (gate 24). The definition in
+   src/_ZN5Model14LoadAndSetFileEtii.cpp is a real MSVC member -- it lands in
+   the map as ?LoadAndSetFile@Model@@QAEXGHH@Z -- and its callers here,
+   Stage::LoadModel and Stage::LoadSkybox, are a .cpp inside extern "C" and a
+   plain .c respectively. Neither can spell the C++ name, and a linker alias
+   would be wrong anyway: the decoration is QAE, __thiscall, so aliasing it
+   onto a cdecl declaration would hand the body a `this` that never was one. */
+void _ZN5Model14LoadAndSetFileEtii(void *self, unsigned short id, int a, int b)
+{ ((Model *)self)->Model::LoadAndSetFile(id, a, b); }
 }
 
 /* ---- gate 18: ov085's two classes ---------------------------------------
