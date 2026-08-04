@@ -1,0 +1,62 @@
+# Gate 23: ov102's QUESTION_BLOCK, the last id on the skip list.
+#
+# Actor 20 x1, at (0,3498,-3500) -- the block on the castle roof, over the
+# tower the star cannon shoots you to. The fifth overlay the port mounts
+# (port/ov102_syms.txt); some of its CODE has been compiled since gate 19,
+# because the cannon's link closure reached two of its functions, but its data
+# has never been mounted until now.
+#
+# THE CONFIG'S NAME CHECKS OUT. QuestionBlock_Spawn installs _ZTV13QuestionBlock
+# at ov102 0x0214e47c, whose RTTI reads 18daObjHatenaBlock_c -- hatena is the
+# question mark -- and the SpawnInfo's own +4 halfword says 20. ov102 does
+# carry one shifted name (0x0214e1d8 is spelled _ZTV13FortressTower and its
+# RTTI reads daObjSimpleBg_c) but no class here depends on it.
+#
+# NOTHING NEEDS A HOST COPY, which makes this the first class since gate 17
+# that is only its own six slots plus a closure. Its Behavior dispatches no
+# pointer-to-member at all -- it is a straight-line body over a
+# MovingMeshCollider and an Animation -- and its Render is the SLOT 5 shadow
+# dispatch on both ModelAnim and Model, which the dual fill in
+# hal/cxxname_bridge.cpp already serves on both classes. The door's slot 4
+# problem does not come up.
+src/QuestionBlock_Spawn.c
+src/_ZN13QuestionBlock13InitResourcesEv.c
+src/_ZN13QuestionBlock8BehaviorEv.cpp
+src/_ZN13QuestionBlock6RenderEv.cpp
+src/_ZN13QuestionBlock16CleanupResourcesEv.cpp
+# THE DESTRUCTORS ARE NOT HERE and slots 16/17 trap by name, the gate-17
+# reading: the castle grounds' one block is never destroyed. Slot 12 is
+# ActorBase's own, which is what the ROM's table holds.
+
+# ---- the state machine ----------------------------------------------------
+# func_ov102_02149da8 (change state) and func_ov102_02149df0 (run the current
+# state's main half, which is Behavior's own first line) are NOT here: both
+# form an mwcc pointer-to-member of an INCOMPLETE class over a three-entry
+# table of PAIRS, the gate-16 case for the seventh and last time on this
+# level. Host copies plus the six-static seat in
+# port/unmatched/QuestionBlock_States.cpp.
+#
+# ov102 0x021498e0 IS NOT DECOMPILED -- state 1's main half, the block
+# bouncing after it is hit -- and that file seats it by name. InitResources
+# enters state 0 and the castle grounds' one block is on the roof, so the trap
+# is not reached as the level runs.
+src/func_ov102_02149d80.c
+src/func_ov102_02149ccc.cpp
+src/func_ov102_02149c78.c
+src/func_ov102_021498c4.c
+src/func_ov102_02149878.c
+
+# ---- the two helpers its own Behavior closes over -------------------------
+src/func_ov102_02149ea4.c
+src/func_ov102_02149ff0.c
+
+# ---- the overlay's own static initialisers --------------------------------
+# All four, in ROM order.
+src/__sinit_ov102_0214d714.c
+src/__sinit_ov102_0214d908.c
+src/__sinit_ov102_0214de70.c
+src/__sinit_ov102_0214dfac.c
+
+# --- linkloop round 0 ---
+src/func_ov102_02149e38.cpp
+src/func_ov102_02149610.cpp

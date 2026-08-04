@@ -1223,3 +1223,57 @@ extern "C" void hal_fill_door_vtable(void)
     vt[16] = (void *)Door_trap13;
     vt[17] = (void *)Door_trap13;
 }
+
+// ============================================================================
+// GATE 23: ov102's QUESTION_BLOCK
+// ============================================================================
+//
+// _ZTV13QuestionBlock / _ZTV18daObjHatenaBlock_c, ov102 0x0214e47c -- hatena
+// is the question mark, which is the ROM's own RTTI agreeing with config's
+// name for once. One instance, at (0,3498,-3500): the block on the castle
+// roof, over the tower the cannon shoots you to.
+//
+// NOTHING HERE NEEDS A HOST COPY, which makes it the first class since gate 17
+// that is only its own six slots. Its Behavior dispatches no pointer-to-member
+// at all -- a straight-line body over a MovingMeshCollider and an Animation --
+// and its Render is the slot-5 shadow dispatch on both ModelAnim and Model,
+// which the dual fill in hal/cxxname_bridge.cpp already serves on both. The
+// door's slot-4 problem does not arise.
+//
+// Slot 12 is ActorBase's own OnPendingDestroy, which is what the ROM's table
+// holds -- the class does not override it.
+extern "C" {
+int _ZN13QuestionBlock13InitResourcesEv(char *self);
+int _ZN13QuestionBlock8BehaviorEv(void *self);          /* face: method_faces */
+int _ZN13QuestionBlock6RenderEv(void *self);            /* face: method_faces */
+int _ZN13QuestionBlock16CleanupResourcesEv(void *self); /* face: method_faces */
+void *_ZTV13QuestionBlock[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV18daObjHatenaBlock_c=__ZTV13QuestionBlock")
+
+ACTRAP(QuestionBlock, 13)
+static int __fastcall qb_init(void *s, void *)
+{ return _ZN13QuestionBlock13InitResourcesEv((char *)s); }
+static int __fastcall qb_clean(void *s, void *)
+{ return _ZN13QuestionBlock16CleanupResourcesEv(s); }
+static int __fastcall qb_behavior(void *s, void *)
+{ return _ZN13QuestionBlock8BehaviorEv(s); }
+static int __fastcall qb_render(void *s, void *)
+{ port_actor_render_probe("QUESTION_BLOCK", (char *)s + 0x320);
+  return _ZN13QuestionBlock6RenderEv(s); }
+
+extern "C" void hal_fill_question_block_vtable(void)
+{
+    void **vt = _ZTV13QuestionBlock;
+    ac_fill_shared(vt, QuestionBlock_trap13);
+    vt[0] = (void *)qb_init;
+    vt[3] = (void *)qb_clean;
+    vt[6] = (void *)qb_behavior;
+    vt[9] = (void *)qb_render;
+    vt[12] = (void *)ac_pdes_base;
+    /* SLOTS 16/17 TRAP, the gate-17 reading: the castle grounds' one block is
+       never destroyed -- its own Behavior parks it in state 2 when it is used
+       rather than marking it. */
+    vt[16] = (void *)QuestionBlock_trap13;
+    vt[17] = (void *)QuestionBlock_trap13;
+}

@@ -443,3 +443,15 @@ extern "C" {
 unsigned _ZNK9Animation13GetFrameCountEv(const void *self)
 { return ((const Animation *)self)->GetFrameCount(); }
 }
+
+/* ---- gate 23: ov102's QUESTION_BLOCK -------------------------------------
+   Three more of the same shape; only its InitResources is already C-named. */
+#include "QuestionBlock.h"
+extern "C" {
+int _ZN13QuestionBlock8BehaviorEv(void *self)
+{ return ((QuestionBlock *)self)->QuestionBlock::Behavior(); }
+int _ZN13QuestionBlock6RenderEv(void *self)
+{ return ((QuestionBlock *)self)->QuestionBlock::Render(); }
+int _ZN13QuestionBlock16CleanupResourcesEv(void *self)
+{ return ((QuestionBlock *)self)->QuestionBlock::CleanupResources(); }
+}

@@ -999,3 +999,39 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 /* gate 22 round 2: the last two of the door ring. */
 #pragma comment(linker, "/alternatename:__ZN6Player24TryExitWhiteDoorWithStarEv=?TryExitWhiteDoorWithStar@Player@@QAEHXZ")
 #pragma comment(linker, "/alternatename:?_ZN6Player17SetNoControlStateEhih@@YAHPAXEHE@Z=__ZN6Player17SetNoControlStateEhih")
+
+/* ---- gate 23: ov102's QUESTION_BLOCK ----------------------------------- */
+
+/* gate 23 link ring, one shape only: C++ TUs that declare a mounted datum or
+   an Itanium-named function with a type of their own get MSVC mangling for
+   symbols the mount and the other TUs emit as plain C. */
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9a0@@3PADA=_data_ov002_0210d9a0")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9b0@@3PADA=_data_ov002_0210d9b0")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9c0@@3PADA=_data_ov002_0210d9c0")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9d0@@3PADA=_data_ov002_0210d9d0")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9d8@@3PADA=_data_ov002_0210d9d8")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9e0@@3PADA=_data_ov002_0210d9e0")
+#pragma comment(linker, "/alternatename:?data_ov002_0210da18@@3PADA=_data_ov002_0210da18")
+#pragma comment(linker, "/alternatename:?data_ov002_0210da30@@3PADA=_data_ov002_0210da30")
+#pragma comment(linker, "/alternatename:?data_ov002_0210da40@@3PADA=_data_ov002_0210da40")
+#pragma comment(linker, "/alternatename:?data_ov002_0210da58@@3PADA=_data_ov002_0210da58")
+#pragma comment(linker, "/alternatename:?data_ov102_0214e7d0@@3PADA=_data_ov102_0214e7d0")
+#pragma comment(linker, "/alternatename:?data_ov102_0214e7d8@@3PADA=_data_ov102_0214e7d8")
+#pragma comment(linker, "/alternatename:?data_ov102_0214e7e0@@3PADA=_data_ov102_0214e7e0")
+#pragma comment(linker, "/alternatename:?data_ov102_0214e7e8@@3PADA=_data_ov102_0214e7e8")
+#pragma comment(linker, "/alternatename:?data_ov102_0214e7f0@@3PADA=_data_ov102_0214e7f0")
+#pragma comment(linker, "/alternatename:?data_ov102_0214e7f8@@3PADA=_data_ov102_0214e7f8")
+#pragma comment(linker, "/alternatename:?data_ov102_0214e800@@3PADA=_data_ov102_0214e800")
+#pragma comment(linker, "/alternatename:?data_ov102_0214e808@@3PADA=_data_ov102_0214e808")
+#pragma comment(linker, "/alternatename:?_ZN16MeshColliderBase6EnableEP5Actor@@YAXPAX0@Z=__ZN16MeshColliderBase6EnableEP5Actor")
+#pragma comment(linker, "/alternatename:?_ZN5Actor9UpdatePosEP12CylinderClsn@@YAXPAX0@Z=__ZN5Actor9UpdatePosEP12CylinderClsn")
+#pragma comment(linker, "/alternatename:?_ZN9Animation7AdvanceEv@@YAXPAX@Z=__ZN9Animation7AdvanceEv")
+#pragma comment(linker, "/alternatename:?func_02039394@@YAXPAHH@Z=_func_02039394")
+#pragma comment(linker, "/alternatename:?func_020393a4@@YAXPAHH@Z=_func_020393a4")
+#pragma comment(linker, "/alternatename:?func_ov102_02149df0@@YAXPAX@Z=_func_ov102_02149df0")
+#pragma comment(linker, "/alternatename:?func_ov102_02149e38@@YAXPAD@Z=_func_ov102_02149e38")
+#pragma comment(linker, "/alternatename:?func_ov102_02149ea4@@YAXPAX@Z=_func_ov102_02149ea4")
+#pragma comment(linker, "/alternatename:?func_ov102_02149ff0@@YAXPAD@Z=_func_ov102_02149ff0")
+/* One TU declares RaycastGround::SetObjAndPos's second parameter as void*
+   where every other one spells it Actor*; the same body, one mangling apart. */
+#pragma comment(linker, "/alternatename:?SetObjAndPos@RaycastGround@@QAEXABUVector3@@PAX@Z=?SetObjAndPos@RaycastGround@@QAEXABUVector3@@PAUActor@@@Z")

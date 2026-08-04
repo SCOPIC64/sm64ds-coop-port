@@ -95,6 +95,13 @@ void hal_fill_fish_vtable(void);
 extern unsigned char Door_SpawnInfo[];                  /* ov100 0x02148164 */
 void *Door_Spawn(void);                                 /* ov100 0x0214589c */
 void hal_fill_door_vtable(void);
+/* ---- gate 23: ov102's QUESTION_BLOCK ----
+   The fifth overlay, and the last id on the castle grounds' skip list that is
+   not a 2D system. Its name checks out against the ROM's RTTI
+   (daObjHatenaBlock_c) and its SpawnInfo's own +4 halfword. */
+extern unsigned char QuestionBlock_SpawnInfo[];         /* ov102 0x0214e3e8 */
+void *QuestionBlock_Spawn(void);                        /* ov102 0x0214a8ec */
+void hal_fill_question_block_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -122,4 +129,4 @@ void hal_fill_door_vtable(void);
      hal_fill_waterfall_mist_vtable},                                        \
     {336, "BUTTERFLY", Butterfly_SpawnInfo, Butterfly_Spawn,                 \
      hal_fill_butterfly_vtable},                                             \
-    {344, "FISH", Fish_SpawnInfo, Fish_Spawn, hal_fill_fish_vtable},             {353, "DOOR", Door_SpawnInfo, Door_Spawn, hal_fill_door_vtable},
+    {344, "FISH", Fish_SpawnInfo, Fish_Spawn, hal_fill_fish_vtable},             {353, "DOOR", Door_SpawnInfo, Door_Spawn, hal_fill_door_vtable},             {20, "QUESTION_BLOCK", QuestionBlock_SpawnInfo, QuestionBlock_Spawn,          hal_fill_question_block_vtable},

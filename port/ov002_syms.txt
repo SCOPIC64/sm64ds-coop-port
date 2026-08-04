@@ -53,3 +53,7 @@ data_ov002_020ff0d0 data_ov002_020ff0d4:0x18 data_ov002_020ff0d8:0x14 data_ov002
 # _ZN18PoppingLavaBubbles*. The port uses the files the vtables point at and
 # renames nothing, the gate-17 reading.
 Exit_SpawnInfo:0x1c WaterfallMist_SpawnInfo:0x1c
+# gate 23, QUESTION_BLOCK: the CLPS block its own KCL resolves surface types
+# through, the one ov002 datum its InitResources names that no class before it
+# did.
+data_ov002_0210d954

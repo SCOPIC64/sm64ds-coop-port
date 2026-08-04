@@ -100,6 +100,17 @@ void __sinit_ov100_02147a70(void);
 void __sinit_ov100_02147bc0(void);
 void __sinit_ov100_02147d7c(void);
 
+/* ov102: QUESTION_BLOCK (and the bob-omb, the koopa shell, the warp pipe and
+   the rest of the level-furniture set other levels name). Its CODE has been
+   compiled since gate 19 -- the cannon's link closure reached two of its
+   functions -- but its DATA is mounted here for the first time. */
+void port_ov102_pack_check(void);
+void port_ov102_syms_patch(void);
+void __sinit_ov102_0214d714(void);
+void __sinit_ov102_0214d908(void);
+void __sinit_ov102_0214de70(void);
+void __sinit_ov102_0214dfac(void);
+
 /* the fish's seven {function, delta} statics, seated the same way -- its own
    Behavior is a host copy for the PMF reason, so both live in
    port/unmatched/Fish_Behavior.cpp */
@@ -109,6 +120,10 @@ void port_fish_states_seat(void);
    callback nodes, two pairs per node; the door dispatches word 0 when it
    seats a node and word 8 every frame -- port/unmatched/Door_Behavior.cpp */
 void port_door_callbacks_seat(void);
+
+/* the question block's six, likewise -- three states of two halves each, one
+   of which has no C at all. port/unmatched/QuestionBlock_States.cpp */
+void port_question_block_states_seat(void);
 
 /* ---- the BUTTERFLY's eight states ----------------------------------------
    __sinit_ov100_021473bc copies eight {function, delta} statics from ov100
@@ -309,4 +324,12 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov100_02147a70();
     __sinit_ov100_02147bc0();
     __sinit_ov100_02147d7c();
+
+    port_ov102_pack_check();
+    port_ov102_syms_patch();
+    port_question_block_states_seat();
+    __sinit_ov102_0214d714();
+    __sinit_ov102_0214d908();
+    __sinit_ov102_0214de70();
+    __sinit_ov102_0214dfac();
 }
