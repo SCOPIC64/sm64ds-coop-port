@@ -570,6 +570,8 @@ extern "C" void port_scene_canary(const char *where);
 /* `spawn` selects the stage: 0 = A1, the same boot with every spawner
    switched off (the geometry regression); 1 = the level's own object load. */
 extern "C" void port_particle_boot(void);   /* hal/particle_bridges.cpp */
+extern "C" void port_boot_course_sound(int level);   /* hal/star_flow.cpp:
+                                            the InitResources sound-row block */
 
 /* THE MESSAGE BOX IS NOT HOSTED, and it does not fail politely. func_0201f32c
    opens a message and its first line is
@@ -630,6 +632,18 @@ void *port_stage_a_boot(void *mc, int spawn)
         data_0209f220[0] = sf ? std::atoi(sf) : 1;
     }
     data_0209f340 = (unsigned char *)o;
+
+    /* THE SOUND ROW, where Stage::InitResources seats it: after the overlay is
+       up and the level is current, before LoadClsnAndObjects. This is the block
+       InitResources runs through GetSoundGroupID / Sound::LoadGroupAndSetBank /
+       Sound::LoadAndSetMusic_Layer1, hosted in hal/star_flow.cpp so the one
+       func_0203d974==1 seam is compensated in one place. It used to be a
+       separate gate-35 seat (port_course_seat) that ran once per process and
+       so never re-seated across a warp; riding the boot puts it on EVERY entry,
+       the warp included, the way the ROM does. Only on a real spawn boot: the
+       A1 geometry regression has no course. */
+    if (spawn)
+        port_boot_course_sound((int)data_0209f2f8);
 
     /* ONE BIT, TWO JOBS, and they pull opposite ways on a port with no
        sound engine.
