@@ -44,6 +44,7 @@ extern unsigned char data_ov002_0211013c[];  /* St_Walk state object */
 extern short data_02092144[];                /* per-player health words */
 extern unsigned char data_ov002_02110424[];  /* St_Fall state object */
 void port_ov002_patch(void);         /* rehome DS-baked data pointers */
+void port_cross_patch(void);         /* and the ones that leave their mount */
 /* ov002 static ctors: SharedFilePtr IDs, state tables */
 void __sinit_ov002_02100560(void);
 void __sinit_ov002_02100938(void);
@@ -165,6 +166,7 @@ int main(void)
     hal_fill_modelanim2_vtable();
 
     port_ov002_patch();
+    port_cross_patch();
     /* the overlay's static ctors give every static SharedFilePtr its ID */
     __sinit_ov002_02100560();
     __sinit_ov002_02100938();

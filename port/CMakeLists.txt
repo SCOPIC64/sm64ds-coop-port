@@ -544,13 +544,21 @@ foreach(sym IN LISTS GATE10_SYMS)
     list(APPEND GATE10_GEN "${sym_out}")
 endforeach()
 
+# Every ovdata mount also writes a <out>.c.map sidecar, and OV_DATA_MAPS
+# collects them for the --cross pass at the end of this block. See the module
+# docstring in tools/ovdata.py: one invocation cannot see another's symbols, so
+# a pointer from one mounted overlay into another needs a pass that has all of
+# them in hand. tools/ovsweep.py reads the same sidecars to check the result.
+set(OV_DATA_MAPS "")
+
 set(OV002DATA_C "${CMAKE_BINARY_DIR}/host-src/ov002_data.c")
-add_custom_command(OUTPUT "${OV002DATA_C}"
+add_custom_command(OUTPUT "${OV002DATA_C}" "${OV002DATA_C}.map"
     COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ov002
             "${OV002DATA_C}" --from-list "${CMAKE_CURRENT_SOURCE_DIR}/ov002_syms.txt"
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/ov002_syms.txt"
     COMMENT "ovdata ov002")
+list(APPEND OV_DATA_MAPS "${OV002DATA_C}.map")
 
 # Gate 30: the LEVEL overlays, one whole-image mount each.
 #
@@ -565,25 +573,33 @@ add_custom_command(OUTPUT "${OV002DATA_C}"
 # port_ovNNN_at() is per-overlay, so hosting several at once is just several
 # mounts; hal/level_boot.cpp's table picks which one the boot walks.
 #
-#   ov009 = level 1, castle grounds  (data/stage/main_castle)
-#   ov014 = level 6, Bob-omb Battlefield  (data/stage/bombhei_map)
+#   ov009 = level 1, castle grounds  (data/stage/main_castle), course 29
+#   ov014 = level 6, Bob-omb Battlefield  (data/stage/bombhei_map), course 0
+#   ov010 = level 2, a castle interior floor, course 29 (interior-shaped)
+#   ov015 = level 7, Whomp's Fortress, course 1 (open course)
 #
 # Both facts come from the ROM, not from the overlay numbering: the arm9's
-# level-to-overlay table data_020758c8 maps level -> overlay, and each
-# overlay's LVL_Overlay names its own kcl/bmd/icg/icl OV0 HANDLES, resolved
-# through build/assets/handles.tsv rather than by arithmetic. See the evidence
-# note at the top of hal/level_boot.cpp, including what a derived handle
-# constant got wrong.
-set(PORT_LEVEL_OVERLAYS ov009 ov014)
+# level-to-overlay table data_020758c8 maps level -> overlay (it is level+8),
+# and each overlay's LVL_Overlay names its own kcl/bmd/icg/icl OV0 HANDLES,
+# resolved through build/assets/handles.tsv rather than by arithmetic. See the
+# evidence note at the top of hal/level_boot.cpp, including what a derived
+# handle constant got wrong; and the course numbers are the arm9
+# SUBLEVEL_LEVEL_TABLE (0x02075298) which picks levels of two shapes here.
+#
+# ADDING A LEVEL IS MECHANICAL, and this list plus a row in hal/level_boot.cpp's
+# port_level_table[] is the whole of it. The mount recipe lives in the header
+# docstring of tools/ovdata.py; the level-boot recipe beside port_level_table[].
+set(PORT_LEVEL_OVERLAYS ov009 ov014 ov010 ov015)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
-    add_custom_command(OUTPUT "${ovn_out}"
+    add_custom_command(OUTPUT "${ovn_out}" "${ovn_out}.map"
         COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ${ovn}
                 "${ovn_out}" --whole
         DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py"
         COMMENT "ovdata ${ovn} (whole image)")
     list(APPEND LEVEL_OV_DATA "${ovn_out}")
+    list(APPEND OV_DATA_MAPS "${ovn_out}.map")
 endforeach()
 
 # Gate 17: the level overlay's own actors. ov009 is mounted WHOLE for the
@@ -593,13 +609,14 @@ endforeach()
 # spawn points are three seven-element Vector3 arrays that dsd split into
 # twenty-one symbols and func_ov009_02111b1c walks by index.
 set(OV009SYMS_C "${CMAKE_BINARY_DIR}/host-src/ov009_syms.c")
-add_custom_command(OUTPUT "${OV009SYMS_C}"
+add_custom_command(OUTPUT "${OV009SYMS_C}" "${OV009SYMS_C}.map"
     COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ov009
             "${OV009SYMS_C}" --from-list
             "${CMAKE_CURRENT_SOURCE_DIR}/ov009_syms.txt" --pack
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/ov009_syms.txt"
     COMMENT "ovdata ov009 (per symbol, packed)")
+list(APPEND OV_DATA_MAPS "${OV009SYMS_C}.map")
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate17.txt" SLICE17_LINES)
 set(SLICE17_SOURCES "")
@@ -637,7 +654,7 @@ set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001 ov003 ov084
 set(ACTOR_OV_SYMS "")
 foreach(ovn IN LISTS PORT_ACTOR_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_syms.c")
-    add_custom_command(OUTPUT "${ovn_out}"
+    add_custom_command(OUTPUT "${ovn_out}" "${ovn_out}.map"
         COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ${ovn}
                 "${ovn_out}" --from-list
                 "${CMAKE_CURRENT_SOURCE_DIR}/${ovn}_syms.txt" --pack
@@ -645,7 +662,34 @@ foreach(ovn IN LISTS PORT_ACTOR_OVERLAYS)
                 "${CMAKE_CURRENT_SOURCE_DIR}/${ovn}_syms.txt"
         COMMENT "ovdata ${ovn} (per symbol, packed)")
     list(APPEND ACTOR_OV_SYMS "${ovn_out}")
+    list(APPEND OV_DATA_MAPS "${ovn_out}.map")
 endforeach()
+
+# THE CROSS-MOUNT POINTER PASS, last because it needs every map.
+#
+# A pointer from one mounted overlay into another was left holding its DS
+# address by the per-mount passes above, which can only see their own symbols.
+# That is not a loud failure: ntr/io.cpp reserves DS main RAM at 0x02000000 as
+# zeroed pages, so the read succeeds and hands the game an OamAttr list with no
+# 0xffff terminator, and the walk in OAM::Render is unbounded the moment the
+# sprite goes off screen. This pass reads every mount's <out>.c.map and emits
+# one patch function, port_cross_patch(), for the words that cross.
+#
+# It reproduces the OAM::MM_PLAYER_ICONS table (ov002 -> ov001, sixteen entries)
+# that hal/sub_actors.cpp used to keep by hand, entry for entry, and finds the
+# genuinely-crossing pointers a new level's whole-image mount carries (Whomp's
+# Fortress -> ov098's cannon data). What it CANNOT resolve is a target in a DS
+# window two mounted overlays share -- ov084/ov085 and ov089/ov091 are alternate
+# actor overlays linked at one base, and the target address alone cannot say
+# which. Those stay hand-resolved from relocs.txt's module: field in
+# hal/actor_overlays.cpp (the ov089 key models). tools/ovsweep.py checks that
+# nothing crossing was left raw with no patch.
+set(OVCROSS_C "${CMAKE_BINARY_DIR}/host-src/ov_cross.c")
+add_custom_command(OUTPUT "${OVCROSS_C}"
+    COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" --cross
+            "${OVCROSS_C}" ${OV_DATA_MAPS}
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ${OV_DATA_MAPS}
+    COMMENT "ovdata --cross (pointers between mounted overlays)")
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate18.txt" SLICE18_LINES)
 set(SLICE18_SOURCES "")
@@ -1251,7 +1295,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
-    "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
+    "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
@@ -1285,7 +1329,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     ${SLICE32_SOURCES} ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
-    "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
+    "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
@@ -1322,7 +1366,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE32_SOURCES} ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
-    "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
+    "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
