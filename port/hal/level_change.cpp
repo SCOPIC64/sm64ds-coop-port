@@ -388,7 +388,7 @@ extern "C" int port_level_change_apply(void)
         return 0;
     }
 
-    std::printf("[lvl] change: level %d -> %d, entrance %u, reason %u\n",
+    std::fprintf(stderr, "[lvl] change: level %d -> %d, entrance %u, reason %u\n",
                 from, want, (unsigned)data_0209f268, (unsigned)data_0209f26c);
 
     if (!port_level_teardown()) {
@@ -430,7 +430,7 @@ extern "C" int port_level_change_apply(void)
     port_stage_a_boot((char *)stage + 0x91c, 1);
 
     const unsigned free_after = port_level_heap_free();
-    std::printf("[lvl] level %d up. heap free: %u before, %u torn down, %u "
+    std::fprintf(stderr, "[lvl] level %d up. heap free: %u before, %u torn down, %u "
                 "after (net %+d)\n", (int)data_0209f2f8, free_before,
                 free_torn, free_after, (int)free_after - (int)free_before);
     return 1;

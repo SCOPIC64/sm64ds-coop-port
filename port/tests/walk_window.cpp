@@ -485,6 +485,8 @@ void hal_sub_camera_input(void);
 extern "C" void port_cylinder_clsn_process(void);
 extern "C" void *_ZTV18MovingCylinderClsn[];
 extern "C" void *data_0209ee74;   /* the particle SysTracker (hal/auto_bss) */
+extern "C" signed char data_02092110;    /* the staged next level */
+extern "C" unsigned char data_0209f268;  /* the staged next entrance */
 
 #ifdef NTR_HIRES
 static const int ZOOM = 1;
@@ -2063,8 +2065,15 @@ int main(void)
                                which is exactly what it did. */
                             if (port_title_select(menu_level_row)) {
                                 menu_on = 0;
+                                /* the staged request, read straight back, so
+                                   the playlog shows what the poll is about
+                                   to see -- the 18:56 session ended at the
+                                   castle grounds with no way to tell whether
+                                   the request died staged or mid-handoff */
                                 fprintf(stderr, "[menu] closed for the level "
-                                        "handoff\n");
+                                        "handoff (staged: level %d entrance "
+                                        "%d)\n", (int)data_02092110,
+                                        (int)data_0209f268);
                             }
                         } else if (dec) {
                             menu_level_row = (menu_level_row +
@@ -2807,6 +2816,31 @@ int main(void)
                     port_title_select(sel_row);
                 else
                     ExitLevel();
+            }
+            /* SM64DS_MENU_WARP_TEST=<row>[,<frame>]: the interactive shape
+               of the same select, headless. SM64DS_MENU=1 boots with the
+               menu open (game tick paused); at the frame this fires the
+               MENU_LEVEL enter branch verbatim -- select then close -- which
+               is the sequence the 2026-08-05 session ran when the warp came
+               out as a castle grounds re-entry while SM64DS_LEVEL_SELECT
+               kept passing. */
+            static int mw_row = -2, mw_frame;
+            if (mw_row < -1) {
+                const char *e = getenv("SM64DS_MENU_WARP_TEST");
+                mw_row = -1; mw_frame = 60;
+                if (e) {
+                    const char *comma = strchr(e, 44);
+                    mw_row = atoi(e);
+                    if (comma) mw_frame = atoi(comma + 1);
+                }
+            }
+            if (mw_row >= 0 && frame == mw_frame) {
+                fprintf(stderr, "[mwtest] f%d menu-shaped select of row %d "
+                        "(menu_on=%d)\n", frame, mw_row, menu_on);
+                if (port_title_select(mw_row)) {
+                    menu_on = 0;
+                    fprintf(stderr, "[menu] closed for the level handoff\n");
+                }
             }
         }
 

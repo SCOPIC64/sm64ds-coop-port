@@ -266,8 +266,20 @@ int run_track(Player &pl, int pi, int ti)
                   tk.stack[tk.sp++] = tk.pc; tk.pc = off;
               } }
             break;
-        case 0xfd:                              // return
-            if (condition && tk.sp > 0) tk.pc = tk.stack[--tk.sp];
+        case 0xfd:                              // return, or end of track
+            // A return with an EMPTY call stack ends the track, exactly like
+            // 0xff. 27 of the EU SDAT's SEQARC entries end with 0xfd rather
+            // than 0xff, and treating it as a no-op walked the pc off the
+            // end of the entry into the neighbouring entries and then out of
+            // the archive: garbage notes tying up mixer channels until only
+            // high-priority voices could still play, then a track death at
+            // the first invalid byte. That was the whole static-then-silence
+            // arc of the 2026-08-05 evening session; all four of its logged
+            // track deaths started at legit SEQARC entries.
+            if (condition) {
+                if (tk.sp > 0) tk.pc = tk.stack[--tk.sp];
+                else { tk.active = 0; return 0; }
+            }
             break;
         case 0xd4:                              // loop start
             { int n = argU8();
