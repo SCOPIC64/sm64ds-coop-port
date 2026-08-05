@@ -379,6 +379,24 @@ int port_stage_path_guard(void *player);
 void port_stage_a2_seat(void);
 /* the actor registry and the ROM's own processing lists (hal/actor_registry) */
 void port_actor_tick(void);          /* phases 4/2/3: cleanup, init, behaviour */
+/* gate 31: the level handoff (hal/level_change.cpp). port_level_change_poll
+   sits where Scene::SpawnIfNecessary sits in func_020197b8 -- after input,
+   before the actor phases -- and returns 1 on the frame a new level came up,
+   which is the frame every pointer main() holds into the old one goes stale. */
+int port_level_change_poll(void);
+int port_level_change_pending(void);
+int port_level_is_mounted(int level);
+int port_level_overlay_id(int level);
+unsigned port_level_ds_overlay(int level);
+unsigned port_level_heap_free_bytes(void);
+int port_actor_live_count(void);
+int port_title_rows(void);
+int port_title_row(int i, int *level, int *entrance);
+int port_title_select(int i);
+void ExitLevel(void);
+void LoadLevelNoReturn(int level, unsigned entrance, unsigned star,
+                       unsigned reason);
+extern signed char data_0209f2f8;    /* the level currently up */
 void port_actor_render(void);        /* phase 5: the render bucket */
 void port_actor_scene_pass(void);    /* phase 1: scene-tree housekeeping */
 void port_actor_census(void);
@@ -825,8 +843,9 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
    while its TICK rate falls to zero. That divergence is what the two numbers
    are next to each other for. */
 enum {
-    MENU_LEVEL = 0,
-    MENU_WARP,
+    MENU_WARP = 0,
+    MENU_LEVEL,
+    MENU_EXIT,
     MENU_SNAP,
     MENU_OVERLAY,
     MENU_CAMERA,
@@ -836,41 +855,16 @@ enum {
 static int menu_on;
 static int menu_sel;
 static int menu_entrance;             /* the entrance the warp row is showing */
-static int menu_level;                /* index into the hosted-level table */
-
-/* ---- the level row --------------------------------------------------------
-   The one row that cannot change what it shows in place. Everything else in
-   this menu flips a variable the next frame reads; the level is decided by
-   Stage::LoadClsnAndObjects, which runs once, before the window's loop, and
-   unwinding it would mean tearing down the collider, the actor lists, the
-   scene tree, every SharedFilePtr and both screens' VRAM.
-
-   So the row RELAUNCHES. Left and right pick from the same table
-   hal/level_boot.cpp mounts from, enter puts SM64DS_LEVEL in the environment
-   and re-execs this exe, and the new process boots the level from the top the
-   way SM64DS_LEVEL=<id> on the command line does. Nothing about the boot path
-   is special-cased for the menu, which is the point: the row is a shortcut for
-   the environment variable, not a second way in. */
-static void menu_relaunch_level(int id)
-{
-    char exe[MAX_PATH];
-    char val[16];
-    if (!GetModuleFileNameA(0, exe, sizeof exe)) {
-        fprintf(stderr, "[menu] cannot find this exe to relaunch\n");
-        return;
-    }
-    snprintf(val, sizeof val, "%d", id);
-    if (_putenv_s("SM64DS_LEVEL", val) != 0) {
-        fprintf(stderr, "[menu] cannot set SM64DS_LEVEL\n");
-        return;
-    }
-    fprintf(stderr, "[menu] relaunching into level %d\n", id);
-    fflush(0);
-    _execl(exe, exe, (char *)0);
-    /* only reached when the exec failed; the process is still this one */
-    fprintf(stderr, "[menu] relaunch failed, still on level %d\n",
-            port_level_id());
-}
+/* THE LEVEL ROW IS THE DEBUG LEVEL SELECT'S OWN LIST. dScTitle_c (ov003,
+   scene 2) picks a row out of data_ov003_020b1180 -- 0x36 eight-byte rows,
+   byte 0 the level and byte 1 the entrance -- and calls LoadLevelNoReturn
+   with the pair. The port mounts that table (port/ov003_syms.txt) and runs
+   the same call; what it does not run is the scene actor around it, so the
+   grid, its cursor and its music are not here. The row list and the handoff
+   are Nintendo's, the presentation is this menu's.
+   Rows the port cannot mount yet are still SHOWN, marked, because the point
+   of the list is that it is the game's own and the gap is visible. */
+static int menu_level_row = 1;
 static int g_overlay_on;              /* F3, and the menu's overlay row */
 static char g_playlog[160] = "off";   /* the flight recorder's current file */
 
@@ -892,14 +886,6 @@ static void menu_draw(ntr::Framebuffer &fb)
     const int have = port_entrance_record(menu_entrance, &ex, &ey, &ez, &eyaw);
     const char *title = "DEBUG MENU   F5 close   arrows move   enter/right act";
 
-    {
-        int lid = 0;
-        const char *lname = "?";
-        port_level_nth(menu_level, &lid, &lname);
-        snprintf(ln[MENU_LEVEL], sizeof ln[0], "level             %d %s%s",
-                 lid, lname, lid == port_level_id() ? "   (running)"
-                                                    : "   enter reloads");
-    }
     if (have)
         snprintf(ln[MENU_WARP], sizeof ln[0],
                  "warp to entrance  %d of %d   (%d %d %d)", menu_entrance,
@@ -907,6 +893,24 @@ static void menu_draw(ntr::Framebuffer &fb)
     else
         snprintf(ln[MENU_WARP], sizeof ln[0],
                  "warp to entrance  none loaded");
+    {
+        int lv = 0, en = 0;
+        const int real = port_title_row(menu_level_row, &lv, &en);
+        if (!real)
+            snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                     "level select      row %2d of %d   (%d = a scene, not a "
+                     "level)", menu_level_row, port_title_rows(), lv);
+        else
+            snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                     "level select      row %2d of %d   level %2d entrance %d "
+                     " ov%03d  %s", menu_level_row, port_title_rows(), lv, en,
+                     port_level_overlay_id(lv),
+                     port_level_is_mounted(lv) ? "MOUNTED"
+                                               : "not mounted in this build");
+    }
+    snprintf(ln[MENU_EXIT], sizeof ln[0],
+             "exit course       ExitLevel() -> level 1 entrance 13   "
+             "(here: level %d)", (int)data_0209f2f8);
     snprintf(ln[MENU_SNAP], sizeof ln[0], "fake snap         %s",
              g_fake_snap ? "ON (collider owner set at boot)" : "off");
     snprintf(ln[MENU_OVERLAY], sizeof ln[0], "stats overlay     %s",
@@ -1190,12 +1194,6 @@ int main(void)
     const int boot_spawns = real_boot && getenv("SM64DS_BOOT_NOSPAWN") == 0;
     if (real_boot)
         port_level_probe();
-    /* open the menu's level row on what is actually running */
-    for (int i = 0; i < port_level_count(); ++i) {
-        int lid = 0;
-        if (port_level_nth(i, &lid, 0) && lid == port_level_id())
-            menu_level = i;
-    }
     /* SM64DS_MENU=1 opens the debug menu at boot, which is the only way to
        see it in a selftest frame: a selftest reads no live keys, so F5 never
        arrives. It pauses the tick like any other open menu. */
@@ -1786,22 +1784,6 @@ int main(void)
                     const int dec = (edge & (1u << 3)) != 0;
                     const int inc = (edge & ((1u << 4) | (1u << 5))) != 0;
                     if (dec || inc) switch (menu_sel) {
-                    case MENU_LEVEL: {
-                        const int n = port_level_count();
-                        if (n <= 0)
-                            break;
-                        if (edge & (1u << 5)) {
-                            int lid = 0;
-                            if (port_level_nth(menu_level, &lid, 0) &&
-                                lid != port_level_id())
-                                menu_relaunch_level(lid);
-                        } else if (dec) {
-                            menu_level = (menu_level + n - 1) % n;
-                        } else {
-                            menu_level = (menu_level + 1) % n;
-                        }
-                        break;
-                    }
                     case MENU_WARP:
                         if (n_ent > 0) {
                             /* left and right pick the entrance; enter warps */
@@ -1835,6 +1817,27 @@ int main(void)
                             } else {
                                 menu_entrance = (menu_entrance + 1) % n_ent;
                             }
+                        }
+                        break;
+                    case MENU_LEVEL:
+                        /* left/right move the cursor exactly as
+                           func_ov003_020ad814 does (+/-1, modulo the row
+                           count); enter runs its else-branch. */
+                        if (edge & (1u << 5)) {
+                            port_title_select(menu_level_row);
+                        } else if (dec) {
+                            menu_level_row = (menu_level_row +
+                                              port_title_rows() - 1) %
+                                             port_title_rows();
+                        } else {
+                            menu_level_row =
+                                (menu_level_row + 1) % port_title_rows();
+                        }
+                        break;
+                    case MENU_EXIT:
+                        if (edge & (1u << 5)) {
+                            fprintf(stderr, "[menu] ExitLevel()\n");
+                            ExitLevel();
                         }
                         break;
                     case MENU_SNAP:
@@ -2455,6 +2458,86 @@ int main(void)
                and the dispatch sits past that check -- so hold him airborne
                for the length of the probe. */
             if (force_wj && frame >= 10) *(unsigned char *)(c + 0x6de) = 1;
+        }
+        /* SM64DS_LEVEL_CYCLE=<n>[,<period>]: run the whole handoff n times
+           without a person at the keyboard. Each cycle calls the GAME'S OWN
+           ExitLevel(), which is SetNextLevel(1) plus the character wipe and
+           the one the star-get and death paths both end in; on the castle
+           grounds that is a RE-ENTRY -- level 1 entrance 0xd, the castle
+           door -- and a re-entry exercises every line a change to a different
+           level would, because nothing in the teardown or the boot is
+           conditional on the id being different. Two cycles is the test the
+           gate is about: run it twice and the heap and the census have to
+           come back to the same numbers.
+           SM64DS_LEVEL_SELECT=<row> instead drives the debug level select's
+           own row list, which is how a level the mount stream has landed gets
+           entered from the game's own table. */
+        if (selftest) {
+            static int cyc_n = -1, cyc_period, cyc_done, sel_row = -1;
+            if (cyc_n < 0) {
+                const char *e = getenv("SM64DS_LEVEL_CYCLE");
+                cyc_n = 0;
+                cyc_period = 60;
+                if (e) {
+                    const char *comma = strchr(e, 44);
+                    cyc_n = atoi(e);
+                    if (comma) cyc_period = atoi(comma + 1);
+                    if (cyc_period < 2) cyc_period = 2;
+                }
+                e = getenv("SM64DS_LEVEL_SELECT");
+                sel_row = e ? atoi(e) : -1;
+            }
+            if (cyc_done < cyc_n && frame == cyc_period * (cyc_done + 1)) {
+                ++cyc_done;
+                printf("[cycle] %d of %d at frame %d: heap free %u, "
+                       "actors %d" "\n", cyc_done, cyc_n, frame,
+                       port_level_heap_free_bytes(), port_actor_live_count());
+                if (sel_row >= 0)
+                    port_title_select(sel_row);
+                else
+                    ExitLevel();
+            }
+        }
+
+        /* ---- THE LEVEL HANDOFF (gate 31) -------------------------------
+           Where Scene::SpawnIfNecessary sits in func_020197b8: phase 3, after
+           input and before func_02044120's own phases. Anything that ran this
+           frame -- the debug menu's level row, its exit row, a warp pipe, a
+           death -- has already written data_02092110 through the game's own
+           LoadLevel, and this is the frame it is honoured on.
+
+           EVERY POINTER main() HOLDS INTO THE LEVEL IS STALE AFTERWARDS. The
+           Player was destroyed with everything else and the entrance spawned
+           a new one; the Stage survives (hal/level_change.cpp says why) but
+           its model is a fresh load. Re-seating them here rather than at the
+           top of the frame is deliberate: the change runs after the frame's
+           input has been taken and before anything reads the world, so no
+           half of one frame ever sees two different levels. */
+        if (!menu_on && boot_spawns && port_level_change_pending()) {
+            if (port_level_change_poll()) {
+                player = data_0209f394[0];
+                if (!player) {
+                    fprintf(stderr, "[lvl] the new level spawned no player\n");
+                    return 3;
+                }
+                c = (char *)player;
+                cam = data_0209f318;
+                level_shift = 0;
+                if (real_boot) {
+                    _ZN5Stage9LoadModelEv(stage);
+                    void *bmd = *(void **)(level_model + 0x04);
+                    level_shift = bmd ? *(int *)bmd : 0;
+                    _ZN5Stage10LoadSkyboxEv(stage);
+                }
+                an_pivot_live = 0;        /* do not ease the camera across it */
+                if (cam_mode != CAM_DS && cam) fc_seed(cam);
+                printf("[lvl] re-seated: player %p camera %p scaleShift %d, "
+                       "heap free %u\n", player, cam, level_shift,
+                       port_level_heap_free_bytes());
+                /* nothing else in this frame: the new level takes its first
+                   tick from the next one, the way a spawned scene does */
+                game_ticked = 0;
+            }
         }
         if (menu_on) {
             game_ticked = 0;

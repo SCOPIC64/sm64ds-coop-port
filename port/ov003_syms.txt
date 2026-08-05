@@ -1,0 +1,28 @@
+# ov003: the DEBUG LEVEL SELECT's own row table, and nothing else.
+#
+# ov003 carries three scene classes -- dScTitle_c (scene 2, the debug level
+# select), dScStarSel_c (scene 4) and dScGameOver_c (scene 8). None of them is
+# mounted: a scene is an actor, and hosting one means its overlay's code, its
+# 2D graphics and the Scene actor framework around it. What gate 31 wants out
+# of ov003 is one table.
+#
+# data_ov003_020b1180 is dScTitle_c::Behavior's selection table: 0x36 rows of
+# eight bytes, byte 0 the level id and byte 1 the entrance id. It is pure
+# data -- no relocation in config/arm9/overlays/ov003/relocs.txt points INTO
+# it, the only two that mention it are the two `load`s in the Behavior itself
+# -- so a per-symbol mount is exact.
+#
+# BOTH NAMES ARE HERE AND THEY ARE ONE TABLE. dsd named 0x020b1180 and
+# 0x020b1181 separately because the Behavior addresses the same array at byte
+# 0 and byte 1 (the level column and the entrance column), so the first symbol
+# is ONE byte long by the next-symbol rule. --pack is what puts them back
+# adjacent; without it the level column is a lone byte and every row past the
+# first reads whatever the linker put next.
+#
+# The first is PINNED TO ONE BYTE. ovdata's default size is
+# max(4, next-symbol delta), and the four-byte floor is exactly wrong here:
+# it makes the level column overlap the entrance column and --pack refuses
+# the layout. One byte is what the ROM gives it, and --pack then lays the
+# 0x1ab-byte second symbol immediately after, which reconstitutes the table.
+data_ov003_020b1180:0x1
+data_ov003_020b1181

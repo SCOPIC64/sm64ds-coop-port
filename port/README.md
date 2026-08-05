@@ -65,7 +65,13 @@ window. Gate 24 is the exception and keeps its own smoke.
 | 27 | `walk_window` | the HUD actor (id 334): hearts, coins, stars, timer, camera buttons |
 | 28 | `walk_window` | the Minimap actor (id 335), plus the BG3-sub tilemap and extended palette |
 | 30 | `walk_window` | the level is a parameter: `SM64DS_LEVEL` picks it, and Bob-omb Battlefield (level 6, ov014) boots and walks |
+| 31 | `walk_window` | the level HANDOFF: LoadLevel/ExitLevel tear the level down through the game's own destroy path and bring the next one up |
 | 33 | `walk_window` | Bob-omb Battlefield's mechanisms, terrain and pickups: its 60 coins and 8 red coins, the four warps, the six cannon lids, the arrow signs, the five secrets and the brick blocks |
+| 35 | `walk_window` | the course loop: coins into the counter, damage, death and respawn, the star collect and the course-clear handoff |
+
+Gate 30 mounts a level and gate 31 changes between them; the seam they meet at
+is `port_level_mount_register` in `hal/level_change.cpp`, which gate 30's
+`port_level_mounts_install` fills in.
 
 There is no gate 11: it was folded into the gate-10 walking campaign before
 either landed. Gates 25 through 28 were **renumbered at merge** because three

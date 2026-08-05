@@ -1,0 +1,90 @@
+# Gate 31: the level HANDOFF -- picking a level, entering it, leaving it.
+#
+# Almost nothing new compiles here, and that is the finding. The whole
+# game-side handoff was ALREADY in the port: LoadLevel, LoadLevelNoReturn,
+# SetNextLevel, ExitLevel, KillPlayer, HitDeathPlane, StartExitCharacterWipe
+# and the two Scene:: fade entry points are all in slice_gate10.txt, and the
+# fader wipes they end on are staged in hal/fader_wipes.cpp. Calling
+# ExitLevel() has always written data_02092110 = 1 and data_0209f268 = 0xd.
+#
+# What was missing was the reader. On the ROM those words are consumed by
+# Stage::InitResources; the port boots a level through port_stage_a_boot
+# instead, and nothing read them. hal/level_change.cpp is the reader, and this
+# slice is the handful of matched functions it needs that were not already
+# linked.
+
+# ---- the front door's own handoff -----------------------------------------
+# StartFile is what the retail file select calls and what func_0202ae74 wraps
+# as "new game": mode 0, LoadLevelNoReturn(level, entrance, 1, 0), the player
+# globals, one player, then a white scene fade to scene 3 (the Stage). The
+# port runs everything but the fade -- it has no scene spawner to hand a
+# pending id to -- which is also what dScTitle_c's own branch does.
+src/StartFile.c
+src/SetPlayerGlobals.c
+src/func_0202ae74.c
+
+# ---- teardown --------------------------------------------------------------
+# The Player's destroy slots. The cleanup Process dispatches 4/3/5 and
+# ActorBase::AfterCleanupResources then dispatches 16, and four of those five
+# trapped on the Player -- the one actor on the level that the class registry
+# does not own. Fill in hal/level_boot.cpp (hal_fill_player_vtable).
+# Player::CleanupResources is a HOST COPY (port/unmatched/): the matched TU
+# re-declares five functions that include/decl_common.h already declares with
+# a different pointer spelling, which MSVC reads as overloading an extern "C"
+# function. Same body, five declarations removed. Added to the targets in
+# CMakeLists.txt beside the other unmatched host copies.
+src/_ZN6Player16OnPendingDestroyEv.cpp
+src/_ZN6PlayerD2Ev.cpp
+
+# Stage::ResetMeshColliders zeroes the 0x18-entry collider registry at
+# data_020a0c80. It is what Stage::CleanupResources calls for exactly this
+# reason, and it is the one line of the ROM's Stage teardown that applies to
+# the port's boot: the level's collider has to leave the registry before the
+# next level's LoadClsnAndObjects puts its own in.
+src/_ZN5Stage18ResetMeshCollidersEv.c
+
+# ---- StartFile's and Player::CleanupResources' own closures ----------------
+# Everything below is reached only from the two entry points above; each is a
+# few lines and none brings a subsystem with it.
+# SetNumPlayers is a HOST COPY (port/unmatched/): it calls func_020308d0 with
+# the count riding in r0 rather than as a declared argument, and the count is
+# what seats data_0209fc5c -- the per-slot live flag LoadEntranceObjects tests
+# before it keeps the Player it spawned.
+src/func_020308d0.c
+src/InitControllerMode.c
+src/UnloadSilverStarAndNumber.c
+src/UnloadKeyModels.cpp
+src/func_ov002_020bebd4.cpp
+# func_02073244 and func_0203cbc0 are HOST COPIES too (port/unmatched/): both
+# are ARM argument ride-throughs -- func_0203cbc0 is a veneer that forwards r0
+# to _ZdlPv without declaring an argument, and func_02073244 lets the element
+# destructor ride to func_02073300 in r3. func_02073300 itself is an asm hatch
+# (a reverse destructor loop with an MSL exception frame), so there is no C for
+# it under any flags.
+
+# ---- the destructors a teardown dispatches ---------------------------------
+# ActorBase::AfterCleanupResources ends every actor's life by dispatching
+# vtable slot 16, and nine of hal/actor_classes.cpp's classes had that slot on
+# a trap -- correctly, until there was a level teardown to dispatch it. These
+# four have a plain-C D1 in src; the other five are compiler-generated member
+# destruction over shadow classes and are written out in actor_classes.cpp.
+src/_ZN11CastleWaterD1Ev.c
+src/_ZN8MetalNetD1Ev.c
+src/_ZN13QuestionBlockD1Ev.c
+# CastleWater's own chain reaches the texture transformer it scrolls the moat
+# surface with; gate 17 landed the constructor and Update, this is the other
+# end of the same object.
+src/_ZN18TextureTransformerD1Ev.c
+# and ModelAnim2's, the third class port_model_family_delete can be
+# handed (the Player's body models). Model's and ModelAnim's were
+# already in gates 16 and 10.
+src/_ZN10ModelAnim2D1Ev.c
+src/_ZN9ModelAnimD2Ev.c
+src/_ZN9AnimationD1Ev.c
+
+# ---- the common-model array ------------------------------------------------
+# Model::LoadFile registers every BMD it parses in data_0209cefc so two actors
+# asking for the same file share one copy; Stage::CleanupResources empties it
+# with this. It is the one line of the ROM's Stage teardown the port's boot
+# genuinely owes, because the port runs the loader that fills the array.
+src/CleanCommonModelDataArr.c

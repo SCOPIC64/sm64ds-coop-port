@@ -179,6 +179,32 @@ u32 data_020a4be4 = 0;      /* running total of uploaded texture bytes */
 u32 data_020a4bcc = 0;
 u32 data_020a4bd8 = 0x18000u;
 
+/* ---- gate 31: the cursors are per-LEVEL ------------------------------------
+   The six words above are a bump allocator over texture VRAM and nothing ever
+   moved them back, because until the port could change levels there was only
+   ever one level's worth of uploads. The ROM resets them at the top of every
+   level boot -- InitialiseVramGlobals, called by Stage::InitResources -- and
+   without that the second boot walks the two arenas into each other and
+   Model::GetVramOffset reaches the game's own Crash(). That is exactly what
+   the second level change did, one frame after the new Player finished
+   loading his own textures.
+
+   This is InitialiseVramGlobals with the port's own recovered ceilings: the
+   ROM reads its two from a VRAM-configuration table (func_02053e34 /
+   func_02053e1c), and the port's are the constants above, recovered from
+   LoadCompressedTextureToVram and GetVramOffset together. Same six words, same
+   values they are declared with. */
+void port_model_vram_reset(void)
+{
+    data_020a4bc8 = 0;
+    data_020a4be8 = 0x20000u;
+    data_020a4be0 = 0x20000u;
+    data_020a4bdc = 0x40000u;
+    data_020a4be4 = 0;
+    data_020a4bcc = 0;
+    data_020a4bd8 = 0x18000u;
+}
+
 // ---- render context globals ----------------------------------------------
 u32 data_020a4bd4;          /* 1 << (scaleShift + 12), set by Render */
 void *data_020a4bd0;        /* current model matrix */

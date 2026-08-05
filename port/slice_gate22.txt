@@ -22,7 +22,11 @@
 # ---- the six own slots ----------------------------------------------------
 src/Door_Spawn.c
 src/func_ov100_021455a0.c
-src/func_ov100_0214542c.cpp
+# CleanupResources moved to a HOST COPY at gate 31 (port/unmatched/
+# Door_CleanupResources.cpp): it deletes the door's second Model through a
+# local shadow class at ROM slot 1, which the port's MSVC-ordered
+# _ZTV5Model uses for DoSetFile. Nothing dispatched it until there was a
+# level teardown; the first one faulted inside Model::AddToCommonModelDataArr.
 src/func_ov100_021454c4.c
 # func_ov100_02145550 (Behavior) and func_ov100_021453d8 (its callback
 # installer) are NOT here: both form an mwcc pointer-to-member of an

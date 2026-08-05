@@ -118,7 +118,9 @@ int data_0209f24c[8];
 int data_0209f268[8];
 int data_0209f26c[8];
 int data_0209f270[8];
-int data_0209f5e8[8];
+/* data_0209f5e8 (the COLOR fader) moved to hal/fader_wipes.cpp at gate 31:
+   Scene::SetFaders dispatches two of its virtuals, so zeroed storage is a
+   null vptr and the first LoadLevel faults on it. */
 int data_020a4d84[8];
 int data_02099fb0[8];
 int data_0209d4ac[8];
@@ -196,6 +198,19 @@ unsigned char data_ov002_02111180[4];
    ModelComponents pointer (Stage+0x874) here, and CopyTexPalFromLevelModel
    reads it back. kind:bss in config, so zero until LoadModel runs. */
 int data_0209f320;
+/* gate 31: StartFile's last global before the scene fade. kind:bss in config,
+   so zero is the boot value; the port's boot never set it because nothing
+   called StartFile. */
+unsigned char data_0209f228[4];
+/* gate 31: the two SetNumPlayers seats beside data_0209fc5c, which is already
+   above -- the player count and the per-slot controller index. kind:bss. */
+unsigned char data_0209fc50[4];
+char data_0209fc64[4];
+/* gate 31: the second word CleanCommonModelDataArr resets. Its two siblings
+   (the count at 0x0209cef8 and the array at 0x0209cefc) already have storage
+   in hal/model_host.cpp; this one had no reader until the level teardown
+   called the ROM's own reset. kind:bss, so zero is the boot value. */
+int data_0209cef0;
 }
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */
