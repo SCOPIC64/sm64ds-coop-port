@@ -125,6 +125,27 @@ void __sinit_ov084_0213035c(void);
 void __sinit_ov084_02130558(void);
 void __sinit_ov084_02130654(void);
 
+/* ---- gate 32: ov014, ov062 -----------------------------------------------
+   ov014 is Bob-omb Battlefield's OWN level overlay and it is mounted TWICE:
+   whole, for the object-table walks the level boot does, and per symbol here,
+   because CHAIN_CHOMP and CHAIN_CHOMP_FENCE reach their SharedFilePtrs and
+   their six-state table by name. That is exactly what gate 17 did to ov009.
+   ov062 is an ordinary actor overlay and carries KOOPA_THE_QUICK. */
+void port_ov014_pack_check(void);
+void port_ov014_syms_patch(void);
+void __sinit_ov014_021130ac(void);
+void __sinit_ov014_02113118(void);
+void __sinit_ov014_021132fc(void);
+void port_chain_chomp_states_seat(void);
+
+void port_ov062_pack_check(void);
+void port_ov062_syms_patch(void);
+void __sinit_ov062_0211cf30(void);
+void __sinit_ov062_0211d2d8(void);
+void __sinit_ov062_0211d4a0(void);
+void __sinit_ov062_0211d690(void);
+void __sinit_ov062_0211d6fc(void);
+
 /* the fish's seven {function, delta} statics, seated the same way -- its own
    Behavior is a host copy for the PMF reason, so both live in
    port/unmatched/Fish_Behavior.cpp */
@@ -352,4 +373,19 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov084_0213035c();
     __sinit_ov084_02130558();
     __sinit_ov084_02130654();
+
+    port_ov014_pack_check();
+    port_ov014_syms_patch();
+    __sinit_ov014_021130ac();
+    __sinit_ov014_02113118();
+    __sinit_ov014_021132fc();
+    port_chain_chomp_states_seat();
+
+    port_ov062_pack_check();
+    port_ov062_syms_patch();
+    __sinit_ov062_0211cf30();
+    __sinit_ov062_0211d2d8();
+    __sinit_ov062_0211d4a0();
+    __sinit_ov062_0211d690();
+    __sinit_ov062_0211d6fc();
 }

@@ -16,3 +16,9 @@ int _ZN6Player9IsOnShellEv(void *self)
 void _ZN6Player20RegisterEggCoinCountEjbb(void *self, unsigned n, int b2, int b3)
 { ((Player *)self)->Player::RegisterEggCoinCount(n, b2 != 0, b3 != 0); }
 }
+
+/* Model::HideMaterial (arm9 0x02016688), which KOOPA_THE_QUICK's Render calls
+   through its own shadow while the definition is a real method. */
+#include "Model.h"
+extern "C" void _ZN5Model12HideMaterialEii(void *self, int boneID, int listIdx)
+{ ((Model *)self)->Model::HideMaterial(boneID, listIdx); }

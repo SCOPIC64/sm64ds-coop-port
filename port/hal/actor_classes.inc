@@ -138,6 +138,18 @@ void hal_fill_goomba_vtable(void);
 extern unsigned char BobOmbBuddy_SpawnInfo[];   /* ov084 0x02130a14 */
 void *BobOmbBuddy_Spawn(void);                  /* ov084 0x0212d200 */
 void hal_fill_bob_omb_buddy_vtable(void);
+/* ov014 is Bob-omb Battlefield's OWN level overlay, mounted twice (whole for
+   the loaders, per symbol for these two classes' tables) -- the gate-17 shape
+   applied to a second level. */
+extern unsigned char ChainChomp_SpawnInfo[];      /* ov014 0x02114750 */
+void *ChainChomp_Spawn(void);                     /* ov014 0x02112d1c */
+void hal_fill_chain_chomp_vtable(void);
+extern unsigned char ChainChompFence_SpawnInfo[]; /* ov014 0x0211488c */
+void *ChainChompFence_Spawn(void);                /* ov014 0x0211307c */
+void hal_fill_chain_chomp_fence_vtable(void);
+extern unsigned char KoopaTheQuick_SpawnInfo[];   /* ov062 0x0211db78 */
+void *KoopaTheQuick_Spawn(void);                  /* ov062 0x0211aee0 */
+void hal_fill_koopa_the_quick_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \

@@ -90,4 +90,53 @@ int _ZN11BobOmbBuddy6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- CHAIN_CHOMP (actor 219, ov014) --------------------------------------
+   Its ModelAnim is at +0x150 and it draws at the actor's own scale, and then
+   it draws SEVEN MORE: the chain links live at +0x1dc on a 0x50 stride and
+   each is a plain Model rendered at 1.0. The ROM's loop is unconditional --
+   all seven every frame -- which is why the chomp's Render is longer than
+   every other one in this gate put together. */
+int _ZN10ChainChomp6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    /* ((B *)&mModelAnim)->m5(&mScaleX) */
+    ((ModelAnim *)(c + 0x150))->ModelAnim::Render((const Vector3 *)(c + 0x80));
+    for (int j = 0; j < 7; ++j)
+        ((Model *)(c + 0x1dc + j * 0x50))->Model::Render(0);
+    return 1;
+}
+
+/* ---- CHAIN_CHOMP_FENCE (actor 41, ov014) ---------------------------------
+   The wooden post the chomp is chained to. One early out on its own +0x31e
+   and one draw of the plain Model at +0xd4, at 1.0.
+
+   Its shadow declares SIX virtuals and takes the sixth, which is ROM slot 5 --
+   Model's Render. _ZTV5Model IS dual-filled (hal/cxxname_bridge.cpp puts
+   Render in slot 4 and slot 5 for exactly this), so this one would have worked
+   from src/. It is here anyway because the shadow's methods all return int
+   where Model::Render returns void, which MSVC decorates differently. */
+int _ZN15ChainChompFence6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    if (*(unsigned char *)(c + 0x31e) != 0)
+        return 1;
+    ((Model *)(c + 0xd4))->Model::Render(0);
+    return 1;
+}
+
+/* ---- KOOPA_THE_QUICK (actor 188, ov062) ----------------------------------
+   Hides material list 1 on bone 0 -- the shell he is not wearing while he
+   races -- and then draws the ModelAnim at +0x300 at the actor's own scale. */
+extern "C" void _ZN5Model12HideMaterialEii(void *self, int boneID, int listIdx);
+
+int _ZN13KoopaTheQuick6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    _ZN5Model12HideMaterialEii(c + 0x300, 0, 1);
+    /* ((Model *)&mModelAnim)->v5(&mScaleX) -- the shadow's sixth virtual, so
+       ROM slot 5, which on a ModelAnim is Render */
+    ((ModelAnim *)(c + 0x300))->ModelAnim::Render((const Vector3 *)(c + 0x80));
+    return 1;
+}
+
 }  /* extern "C" */

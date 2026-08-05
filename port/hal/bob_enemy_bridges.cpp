@@ -262,3 +262,39 @@ unsigned char data_0209f30d[4];
        in both TUs and includes nothing at all;
      * hal/bob_enemy_header_faces.cpp holds the ones whose class is in
        include/ and includes only those headers. */
+
+/* ---- gate 32's last three overlays ---------------------------------------
+   Three more kinds of the same two problems.
+
+   THE OVERLAY TAG IS WRONG IN FOUR NAMES. ov014, ov021, ov022 and ov034 are
+   all linked at the same DS base, so dsd's per-overlay naming can attach a
+   reference to the wrong one: ChainChomp's two destructors spell their own
+   vtable data_ov034_021147ec, and ChainChompFence's InitResources spells three
+   ov014 symbols with ov021 and ov022 tags. Every one is settled by ADDRESS --
+   0x021147ec is _ZTV10ChainChomp in ov014, 0x021149b8/0x021149c0 are ov014 bss
+   and 0x02114558 is ov014 data -- and by the reloc, which names overlay(14).
+   ChainChomp_Spawn's `func_020aed98` is the same skew without any tag at all:
+   it is ov002's Enemy constructor, the one gate 16 settled. */
+#pragma comment(linker, "/alternatename:_data_ov034_021147ec=__ZTV10ChainChomp")
+#pragma comment(linker, "/alternatename:_func_020aed98=__ZN5EnemyC2Ev")
+#pragma comment(linker, "/alternatename:?data_ov021_021149b8@@3PAHA=_data_ov014_021149b8")
+#pragma comment(linker, "/alternatename:_data_ov021_021149c0=_data_ov014_021149c0")
+#pragma comment(linker, "/alternatename:?data_ov022_02114558@@3PAHA=_data_ov014_02114558")
+#pragma comment(linker, "/alternatename:?data_ov014_02114970@@3DA=_data_ov014_02114970")
+#pragma comment(linker, "/alternatename:?data_ov014_02114980@@3DA=_data_ov014_02114980")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e004@@3PADA=_data_ov062_0211e004")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e004@@3USharedFilePtr@@A=_data_ov062_0211e004")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e00c@@3PADA=_data_ov062_0211e00c")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e00c@@3USharedFilePtr@@A=_data_ov062_0211e00c")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e014@@3PADA=_data_ov062_0211e014")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e014@@3USharedFilePtr@@A=_data_ov062_0211e014")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e01c@@3PADA=_data_ov062_0211e01c")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e01c@@3USharedFilePtr@@A=_data_ov062_0211e01c")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e024@@3PADA=_data_ov062_0211e024")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e024@@3USharedFilePtr@@A=_data_ov062_0211e024")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e02c@@3PADA=_data_ov062_0211e02c")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e02c@@3USharedFilePtr@@A=_data_ov062_0211e02c")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e034@@3PADA=_data_ov062_0211e034")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e034@@3USharedFilePtr@@A=_data_ov062_0211e034")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e03c@@3PADA=_data_ov062_0211e03c")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e03c@@3USharedFilePtr@@A=_data_ov062_0211e03c")

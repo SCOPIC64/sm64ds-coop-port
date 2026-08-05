@@ -346,3 +346,101 @@ src/func_ov084_02129cf4.c
 # a launch vector. ov074 is not mounted -- this is CODE only, and the function
 # reads nothing out of its own overlay's data.
 src/func_ov074_0212087c.c
+
+# ============================================================================
+# CHAIN_CHOMP (actor 219, ov014) and CHAIN_CHOMP_FENCE (actor 41, ov014)
+# ============================================================================
+#
+# ov014 is BOB-OMB BATTLEFIELD'S OWN LEVEL OVERLAY, so it is mounted twice --
+# whole for the loaders (PORT_LEVEL_OVERLAYS, the level-boot stream's) and per
+# symbol for these two classes' SharedFilePtrs and their state table. That is
+# gate 17's treatment of ov009 applied to the second level.
+#
+# Both ids read back out of their own SpawnInfo's +4 halfword: 219 and 41. The
+# third class in this overlay is SHUTTER_BOB (40), which is not part of this
+# gate.
+src/ChainChomp_Spawn.cpp
+src/_ZN10ChainChomp13InitResourcesEv.cpp
+src/_ZN10ChainChomp8BehaviorEv.cpp
+# _ZN10ChainChomp6RenderEv IS NOT HERE: the ModelAnim slot-5 case, and the
+# longest of them -- it draws the head plus seven chain links.
+src/_ZN10ChainChomp16CleanupResourcesEv.c
+src/_ZN10ChainChompD1Ev.c
+src/_ZN10ChainChompD0Ev.cpp
+# the twelve state halves, all matched -- no hole and no trap
+src/func_ov014_02111e74.cpp
+src/func_ov014_02111e14.c
+src/func_ov014_02111dc4.cpp
+src/func_ov014_02111ca8.cpp
+src/func_ov014_02111b70.c
+src/func_ov014_02111af0.c
+src/func_ov014_02111a6c.cpp
+src/func_ov014_021115ec.cpp
+src/func_ov014_021115c0.c
+src/func_ov014_0211150c.c
+src/func_ov014_021114d8.c
+src/func_ov014_02111484.c
+# func_ov014_02111ebc and func_ov014_02111f08 ARE NOT HERE: the change-state
+# and run-state pair, both mwcc pointer-to-member over an INCOMPLETE class --
+# the gate-16 case for the tenth time. Host copies plus the twelve-static seat
+# in port/unmatched/ChainChomp_States.cpp.
+# the chomp's own closure
+src/func_ov014_02111f54.cpp
+src/func_ov014_02111fb8.c
+src/func_ov014_02111fe0.c
+src/func_ov014_02112114.c
+src/func_ov014_021122dc.c
+src/func_ov014_0211236c.c
+src/func_ov014_0211250c.c
+src/func_ov014_02112788.c
+# ---- CHAIN_CHOMP_FENCE (actor 41) -----------------------------------------
+# The post the chomp is chained to, and a Platform: it carries its own
+# MovingMeshCollider and breaks when the chomp pulls hard enough.
+src/ChainChompFence_Spawn.c
+src/_ZN15ChainChompFence13InitResourcesEv.cpp
+src/_ZN15ChainChompFence8BehaviorEv.cpp
+# _ZN15ChainChompFence6RenderEv IS NOT HERE either: its shadow's six methods
+# all return int where Model::Render returns void, which MSVC decorates
+# differently even though the SLOT is the dual-filled one.
+src/_ZN15ChainChompFence16CleanupResourcesEv.cpp
+src/_ZN15ChainChompFenceD1Ev.c
+src/_ZN15ChainChompFenceD0Ev.c
+src/func_ov014_02112ea8.cpp
+# ---- ov014's own static initialisers ---------------------------------------
+src/__sinit_ov014_021130ac.c
+src/__sinit_ov014_02113118.c
+src/__sinit_ov014_021132fc.c
+src/_ZN6Player12Unk_020ca150Eh.cpp
+
+# ============================================================================
+# KOOPA_THE_QUICK (actor 188, ov062)
+# ============================================================================
+#
+# The racing koopa. The seventh actor overlay, which also carries CHUCKYA, the
+# two koopas, the koopa's flag and KLEPTO; only this one is registered.
+#
+# HE IS NOT IN BOB'S DEFAULT OBJECT TABLE. The level names him in a star group
+# the boot's filter does not load, so the way to see him run is the spawn hook
+# (SM64DS_SPAWN_ACTOR=188). His id reads back out of his own SpawnInfo's +4
+# halfword and his table's RTTI is daRNk_c, the racing nokonoko.
+#
+# NOTHING NEEDS A HOST COPY BUT THE RENDER: his Behavior dispatches no
+# pointer-to-member at all, which makes him the simplest class in this gate.
+src/KoopaTheQuick_Spawn.c
+src/_ZN13KoopaTheQuick13InitResourcesEv.cpp
+src/_ZN13KoopaTheQuick8BehaviorEv.cpp
+# _ZN13KoopaTheQuick6RenderEv IS NOT HERE: the ModelAnim slot-5 case.
+src/_ZN13KoopaTheQuick16CleanupResourcesEv.cpp
+src/_ZN13KoopaTheQuickD1Ev.c
+src/_ZN13KoopaTheQuickD0Ev.c
+src/func_ov062_0211aac0.c
+# ---- ov062's own static initialisers ---------------------------------------
+src/__sinit_ov062_0211cf30.c
+src/__sinit_ov062_0211d2d8.c
+src/__sinit_ov062_0211d4a0.c
+src/__sinit_ov062_0211d690.c
+src/__sinit_ov062_0211d6fc.c
+
+# --- linkloop round 6 ---
+src/_ZN5Sound22StopLoadedMusic_Layer2Ev.c
+src/_ZN5Sound15PlaySecretSoundEP5ActorPt.c

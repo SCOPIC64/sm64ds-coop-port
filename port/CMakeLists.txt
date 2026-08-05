@@ -619,7 +619,11 @@ endforeach()
 # it is not an actor overlay, but it wants exactly the same treatment --
 # packed run, relocations applied, interior pointers rebased to host.
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
-set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001 ov084)
+# ...and ov014 and ov062 with them. ov014 is a LEVEL overlay (Bob-omb
+# Battlefield's own) and is mounted a second time here, per symbol, because
+# CHAIN_CHOMP and CHAIN_CHOMP_FENCE reach their tables by name -- the gate-17
+# treatment of ov009 applied to the second level. ov062 is KOOPA_THE_QUICK's.
+set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001 ov084 ov014 ov062)
 set(ACTOR_OV_SYMS "")
 foreach(ovn IN LISTS PORT_ACTOR_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_syms.c")
@@ -775,7 +779,9 @@ set(GATE32_HOST_SOURCES
     # one that belongs to a BASE class: Enemy's own death-type table
     unmatched/Enemy_UpdateDeath.cpp
     # ...and for the ninth: the bob-omb buddy's three-state machine
-    unmatched/BobOmbBuddy_States.cpp)
+    unmatched/BobOmbBuddy_States.cpp
+    # ...and for the tenth: the chain chomp's six
+    unmatched/ChainChomp_States.cpp)
 
 # The header/definition collisions in this gate's closure: decl_common.h
 # declares each of these `(void*)` and its own TU defines it `(char*)`, which

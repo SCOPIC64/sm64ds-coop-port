@@ -414,3 +414,169 @@ int _ZN11BobOmbBuddy13InitResourcesEv(void *self)
 int _ZN11BobOmbBuddy8BehaviorEv(void *self)
 { return ((BobOmbBuddy *)self)->BobOmbBuddy::Behavior(); }
 }
+
+// ============================================================================
+// CHAIN_CHOMP (actor 219, ov014) and CHAIN_CHOMP_FENCE (actor 41, ov014)
+// ============================================================================
+//
+// _ZTV10ChainChomp at ov014 0x021147ec and _ZTV15ChainChompFence at
+// 0x021148b0. ov014 is Bob-omb Battlefield's OWN LEVEL OVERLAY, so it is
+// mounted twice: whole, for the loaders the level boot walks, and per symbol,
+// for the SharedFilePtrs and state tables these two classes reach by name.
+// That is the gate-17 shape, which did the same to ov009.
+//
+// Neither overrides anything past slot 17. The chomp's six-state machine is
+// its own pair of dispatchers (port/unmatched/ChainChomp_States.cpp).
+extern "C" {
+int _ZN10ChainChomp13InitResourcesEv(void *self);       /* face: below */
+int _ZN10ChainChomp8BehaviorEv(void *self);             /* face: below */
+int _ZN10ChainChomp6RenderEv(void *self);               /* host copy */
+int _ZN10ChainChomp16CleanupResourcesEv(void);
+void *_ZN10ChainChompD1Ev(void *self);
+void *_ZN10ChainChompD0Ev(void *self);
+void *_ZTV10ChainChomp[31];
+
+int _ZN15ChainChompFence13InitResourcesEv(void *self);  /* face: below */
+int _ZN15ChainChompFence8BehaviorEv(void *self);        /* face: below */
+int _ZN15ChainChompFence6RenderEv(void *self);          /* host copy */
+int _ZN15ChainChompFence16CleanupResourcesEv(void *self); /* face: below */
+int *_ZN15ChainChompFenceD1Ev(int *self);
+int *_ZN15ChainChompFenceD0Ev(int *self);
+void *_ZTV15ChainChompFence[31];
+}
+
+static int __fastcall cc_init(void *s, void *)
+{ return _ZN10ChainChomp13InitResourcesEv(s); }
+static int __fastcall cc_clean(void *, void *)
+{ return _ZN10ChainChomp16CleanupResourcesEv(); }
+static int __fastcall cc_behavior(void *s, void *)
+{ return _ZN10ChainChomp8BehaviorEv(s); }
+static int __fastcall cc_render(void *s, void *)
+{ port_actor_render_probe("CHAIN_CHOMP", (char *)s + 0x150);
+  return _ZN10ChainChomp6RenderEv(s); }
+static int __fastcall cc_d1(void *s, void *)
+{ return (int)(size_t)_ZN10ChainChompD1Ev(s); }
+static int __fastcall cc_d0(void *s, void *)
+{ return (int)(size_t)_ZN10ChainChompD0Ev(s); }
+
+extern "C" void port_chain_chomp_states_seat(void);     /* port/unmatched */
+/* The fence is a Platform, and its destructor installs the base table between
+   the two member teardowns -- hal/actor_classes.cpp owns that fill. */
+extern "C" void hal_fill_platform_vtable(void);
+
+extern "C" void hal_fill_chain_chomp_vtable(void)
+{
+    void **vt = _ZTV10ChainChomp;
+    port_chain_chomp_states_seat();
+    port_enemy_death_states_seat();
+    ac31_fill_shared(vt);
+    vt[0] = (void *)cc_init;
+    vt[3] = (void *)cc_clean;
+    vt[6] = (void *)cc_behavior;
+    vt[9] = (void *)cc_render;
+    vt[16] = (void *)cc_d1;
+    vt[17] = (void *)cc_d0;
+}
+
+static int __fastcall ccf_init(void *s, void *)
+{ return _ZN15ChainChompFence13InitResourcesEv(s); }
+static int __fastcall ccf_clean(void *s, void *)
+{ return _ZN15ChainChompFence16CleanupResourcesEv(s); }
+static int __fastcall ccf_behavior(void *s, void *)
+{ return _ZN15ChainChompFence8BehaviorEv(s); }
+static int __fastcall ccf_render(void *s, void *)
+{ port_actor_render_probe("CHAIN_CHOMP_FENCE", (char *)s + 0xd4);
+  return _ZN15ChainChompFence6RenderEv(s); }
+static int __fastcall ccf_d1(void *s, void *)
+{ return (int)(size_t)_ZN15ChainChompFenceD1Ev((int *)s); }
+static int __fastcall ccf_d0(void *s, void *)
+{ return (int)(size_t)_ZN15ChainChompFenceD0Ev((int *)s); }
+
+extern "C" void hal_fill_chain_chomp_fence_vtable(void)
+{
+    void **vt = _ZTV15ChainChompFence;
+    hal_fill_platform_vtable();
+    port_enemy_death_states_seat();
+    ac31_fill_shared(vt);
+    vt[0] = (void *)ccf_init;
+    vt[3] = (void *)ccf_clean;
+    vt[6] = (void *)ccf_behavior;
+    vt[9] = (void *)ccf_render;
+    vt[16] = (void *)ccf_d1;
+    vt[17] = (void *)ccf_d0;
+}
+
+// ============================================================================
+// KOOPA_THE_QUICK (actor 188, ov062)
+// ============================================================================
+//
+// _ZTV13KoopaTheQuick / _ZTV7daRNk_c, ov062 0x0211db9c -- daRNk_c is the
+// racing nokonoko. The seventh actor overlay, which also carries CHUCKYA, the
+// two koopas, the koopa's flag and KLEPTO.
+//
+// HE IS NOT IN THE LEVEL'S DEFAULT OBJECT TABLE. Bob-omb Battlefield names him
+// in a star group the boot's filter does not load (SM64DS_STAR_FILTER is what
+// reads the other halves back), so the way to see him run is the spawn hook.
+//
+// Nothing here needs a host copy but the Render: his Behavior dispatches no
+// pointer-to-member at all, which makes him the simplest class in this gate.
+extern "C" {
+int _ZN13KoopaTheQuick13InitResourcesEv(void *self);    /* face: below */
+int _ZN13KoopaTheQuick8BehaviorEv(void *self);          /* face: below */
+int _ZN13KoopaTheQuick6RenderEv(void *self);            /* host copy */
+int _ZN13KoopaTheQuick16CleanupResourcesEv(void *self); /* face: below */
+int *_ZN13KoopaTheQuickD1Ev(int *self);
+int *_ZN13KoopaTheQuickD0Ev(int *self);
+void *_ZTV13KoopaTheQuick[31];
+}
+#pragma comment(linker, "/alternatename:__ZTV7daRNk_c=__ZTV13KoopaTheQuick")
+
+static int __fastcall ktq_init(void *s, void *)
+{ return _ZN13KoopaTheQuick13InitResourcesEv(s); }
+static int __fastcall ktq_clean(void *s, void *)
+{ return _ZN13KoopaTheQuick16CleanupResourcesEv(s); }
+static int __fastcall ktq_behavior(void *s, void *)
+{ return _ZN13KoopaTheQuick8BehaviorEv(s); }
+static int __fastcall ktq_render(void *s, void *)
+{ port_actor_render_probe("KOOPA_THE_QUICK", (char *)s + 0x300);
+  return _ZN13KoopaTheQuick6RenderEv(s); }
+static int __fastcall ktq_d1(void *s, void *)
+{ return (int)(size_t)_ZN13KoopaTheQuickD1Ev((int *)s); }
+static int __fastcall ktq_d0(void *s, void *)
+{ return (int)(size_t)_ZN13KoopaTheQuickD0Ev((int *)s); }
+
+extern "C" void hal_fill_koopa_the_quick_vtable(void)
+{
+    void **vt = _ZTV13KoopaTheQuick;
+    port_enemy_death_states_seat();
+    ac31_fill_shared(vt);
+    vt[0] = (void *)ktq_init;
+    vt[3] = (void *)ktq_clean;
+    vt[6] = (void *)ktq_behavior;
+    vt[9] = (void *)ktq_render;
+    vt[16] = (void *)ktq_d1;
+    vt[17] = (void *)ktq_d0;
+}
+
+/* ---- the last three classes' method faces --------------------------------- */
+#include "ChainChomp.h"
+#include "ChainChompFence.h"
+#include "KoopaTheQuick.h"
+extern "C" {
+int _ZN10ChainChomp13InitResourcesEv(void *self)
+{ return ((ChainChomp *)self)->ChainChomp::InitResources(); }
+int _ZN10ChainChomp8BehaviorEv(void *self)
+{ return ((ChainChomp *)self)->ChainChomp::Behavior(); }
+int _ZN15ChainChompFence13InitResourcesEv(void *self)
+{ return ((ChainChompFence *)self)->ChainChompFence::InitResources(); }
+int _ZN15ChainChompFence8BehaviorEv(void *self)
+{ return ((ChainChompFence *)self)->ChainChompFence::Behavior(); }
+int _ZN15ChainChompFence16CleanupResourcesEv(void *self)
+{ return ((ChainChompFence *)self)->ChainChompFence::CleanupResources(); }
+int _ZN13KoopaTheQuick13InitResourcesEv(void *self)
+{ return ((KoopaTheQuick *)self)->KoopaTheQuick::InitResources(); }
+int _ZN13KoopaTheQuick8BehaviorEv(void *self)
+{ return ((KoopaTheQuick *)self)->KoopaTheQuick::Behavior(); }
+int _ZN13KoopaTheQuick16CleanupResourcesEv(void *self)
+{ return ((KoopaTheQuick *)self)->KoopaTheQuick::CleanupResources(); }
+}
