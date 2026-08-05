@@ -185,9 +185,19 @@ extern "C" void port_actor_census(void)
 }
 
 // ---- installation ----------------------------------------------------------
+extern "C" void hal_fill_moving_cylinder_vtables(void);
+
 extern "C" void port_actor_registry_install(void)
 {
     int n = 0;
+    /* The two actor-attached CYLINDER tables, before any class fills its own.
+       They belong to no single actor -- MovingCylinderClsn and its WithPos
+       child are shared bases that a dozen classes construct -- so they are
+       seated here rather than hung off whichever class happens to register
+       first. CylinderClsn::Process dispatches GetPos and GetOwnerID on every
+       node of data_0209cee8, and an unfilled table there is a call through
+       null on the first frame an actor cylinder is threaded. */
+    hal_fill_moving_cylinder_vtables();
     /* SM64DS_SKIP_CLASS=NAME[,NAME...] leaves a class unregistered, so the
        spine's own gate turns it away and the level boots without it. The
        cheapest way to ask "is this class the one breaking the run" -- it is

@@ -115,3 +115,9 @@ src/_ZN5Actor16TriplePoofDustAtERK7Vector3.c
 # MovingCylinderClsn D2 it chains to. Aliases in hal/cxx_aliases.cpp.
 src/_ZN25MovingCylinderClsnWithPosD1Ev.c
 src/_ZN18MovingCylinderClsnD2Ev.c
+# ...and the rest of the WithPos table, for the same reason gate 16 carries
+# the parent's: _ZTV25MovingCylinderClsnWithPos is [D1, D0, GetPos,
+# GetOwnerID], the last of those inherited through a linker veneer, so only D0
+# and GetPos are new files here.
+src/_ZN25MovingCylinderClsnWithPosD0Ev.c
+src/_ZN25MovingCylinderClsnWithPos6GetPosEv.c

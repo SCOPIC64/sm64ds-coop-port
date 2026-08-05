@@ -32,12 +32,27 @@ BSS_START = 0x0209B000
 
 # (symbol address, byte length, C element type). BSS addresses do not belong
 # here -- they are runtime-initialized and live in the HAL as storage.
+#
+# THE ELEMENT TYPE IS LOAD-BEARING and was wrong for the two OBJ size tables
+# until 2026-08-05. The emitter below only knew two widths, 4 for "int" and 2
+# for everything else, so "char" read the twelve-byte tables as SIX 16-BIT
+# values and declared them `char[6]`. Both the count and the values came out
+# wrong: MSVC truncated each halfword to its low byte, so the width table read
+# {8, 32, 16, 32, 8, 16} where the ROM has {8,16,32,64, 16,32,32,64, 8,8,16,32}.
+# OAM::GetObjWidth indexes it at `size + shape * 4`, up to 15, so every sprite
+# past shape 1 size 1 also read off the end of a six-byte array.
+#
+# The two are 16 rather than 12 for the same reason the ROM gets away with 12:
+# 0x020755ac is 0x020755a0 + 12, so the shape-3 row of the width table IS the
+# first row of the height table. Emitting 16 bytes each keeps every index the
+# code can form inside its own object and reading exactly the bytes the DS
+# reads. Shape 3 is the prohibited OBJ shape and no sprite uses it.
 TABLES = [
     (0x02082128, 48, "int"),        # Model ctor default Matrix4x3
     (0x02082190, 48, "int"),        # matrix Render uses for a NULL argument
     (0x02082214, 0x4000, "short"),  # s16 trig table the material bind indexes
-    (0x020755A0, 12, "char"),       # OBJ width table (shape x size)
-    (0x020755AC, 12, "char"),       # OBJ height table
+    (0x020755A0, 16, "unsigned char"),  # OBJ width table  (size + shape * 4)
+    (0x020755AC, 16, "unsigned char"),  # OBJ height table
 ]
 
 
@@ -282,8 +297,24 @@ def main():
         blob = data[off:off + length]
         if len(blob) != length:
             sys.exit(f"short read at {addr:#x}")
-        width = 4 if ctype == "int" else 2
-        fmt = "<i" if ctype == "int" else "<h"
+        # element width and unpack format PER TYPE. A missing entry is a hard
+        # error rather than a silent fallback: the old `4 if int else 2` read
+        # the byte tables as halfwords and emitted half as many, half-wrong
+        # elements (see the note above TABLES).
+        ELEM = {
+            "int": (4, "<i"),
+            "unsigned int": (4, "<I"),
+            "short": (2, "<h"),
+            "unsigned short": (2, "<H"),
+            "char": (1, "<b"),
+            "unsigned char": (1, "<B"),
+        }
+        if ctype not in ELEM:
+            sys.exit(f"romdata: no element width for C type {ctype!r}")
+        width, fmt = ELEM[ctype]
+        if length % width:
+            sys.exit(f"romdata: {addr:#x} length {length} is not a multiple "
+                     f"of {width} ({ctype})")
         vals = [struct.unpack_from(fmt, blob, i)[0] for i in range(0, length, width)]
         name = f"data_{addr:08x}"
         body = ", ".join(str(v) for v in vals)

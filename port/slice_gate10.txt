@@ -1286,3 +1286,22 @@ src/func_ov002_020e9464.c
 src/CollectStarInLevel.c
 src/func_ov002_020ea3a4.cpp
 src/CollectStar.c
+# The tree-grab chain. CylinderClsn::Process is the frame's overlap pass over
+# the list Update threads onto data_0209cee8 (Stage::Render calls it after the
+# transparent pass; the port calls it from the same spot in walk_window's
+# frame). Its notify bit (flags & 8) reaches func_02014f44 -> func_02014f5c,
+# which finds the PLAYER (0xbf) by unique id and hands the cylinder to
+# func_ov002_020caf98 -- the grab test that parks it at Player+0x37c and
+# enters ST_CLIMB (data_ov002_021106dc).
+#
+# Process is a HOST COPY in port/unmatched/ and the matched TU is deliberately
+# NOT here: it reaches GetPos/GetOwnerID through include/CylinderClsn.h, where
+# MSVC folds the Itanium D1/D0 pair into one slot and shifts every later
+# virtual down one -- so GetPos dispatches onto D0 and the first overlap pass
+# frees a tree cylinder mid-heap. The ROM slot order is pinned from the other
+# end by func_ov002_020caf98, which reads GetPos at slot 2. See the file
+# header.
+port/unmatched/CylinderClsn_Process.cpp
+src/func_02014f44.c
+src/func_02014f5c.c
+src/func_ov002_020caf98.cpp

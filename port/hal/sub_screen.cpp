@@ -55,6 +55,13 @@ extern "C" {
 void _ZN3OAM4LoadEv(void);
 unsigned int _ZN3OAM12EnableSubOAMEv(void);
 int hal_oam_layout_check(void);
+/* the sprite-template guard (hal/oam_lists.cpp): every OamAttr* the HUD and
+   the Minimap hand OAM::Render, checked for a missed pointer rebase */
+int hal_oam_templates_check(void);
+int hal_oam_walk_probe(void);
+/* the minimap's per-frame affine callback (port/unmatched/Minimap_Affine.cpp),
+   which is func_02019144's first beat */
+void port_minimap_affine_update(void);
 extern unsigned char data_0209e660;
 extern unsigned char data_0209caa0[];   /* the save block; byte 8 bit 7 = intro seen */
 extern signed char data_0209f2f8;       /* current level */
@@ -282,6 +289,24 @@ void hal_sub_screen_init(void *hwnd, int zoom)
    entry counters to zero, so this frame's Render calls fill from the start. */
 void hal_sub_screen_frame_begin(void)
 {
+    /* Once, on the first frame, and deliberately here rather than in init:
+       by now every pointer pass has run -- ovdata's per-overlay one from the
+       harness, the cross-overlay fixups from hal_fill_hud_vtable and
+       hal_fill_minimap_vtable -- and the HUD and the Minimap are about to walk
+       what those passes produced. hal/oam_lists.cpp says what a missed entry
+       costs and why the fault it causes lands nowhere near it. */
+    hal_oam_templates_check();
+    /* SM64DS_OAM_WALK_PROBE=1: show the fault itself, on a guarded page, so
+       the mechanism is reproducible rather than one run in a couple of
+       hundred. Once, and only when asked for. */
+    {
+        static int probed;
+        if (!probed && std::getenv("SM64DS_OAM_WALK_PROBE")) {
+            probed = 1;
+            hal_oam_walk_probe();
+        }
+    }
+
     static int tab_was;
     if (GetAsyncKeyState_ && !g_headless) {
         const int tab = (GetAsyncKeyState_(VK_TAB) & 0x8000) != 0;
@@ -323,6 +348,14 @@ void hal_sub_screen_present(unsigned int *dst, int w, int h)
         *(volatile unsigned *)0x04001000 =
             (*(volatile unsigned *)0x04001000 & ~0x1f00u) | (mask << 8);
     }
+    /* func_02019144's FIRST beat, which the port had been skipping: the scene
+       graphics block's own per-frame callback. For the Stage that is the
+       minimap's affine update, and without it BG3-sub keeps whatever matrix
+       boot seeded -- the identity -- so the minimap draws at 1:1 rather than
+       the level's own scale. port/unmatched/Minimap_Affine.cpp carries the
+       callback; the rest of func_02019144 is the layer-mask publish above and
+       the OAM upload below. */
+    port_minimap_affine_update();
     _ZN3OAM4LoadEv();
     if (!g_on) return;
     ntr::ppu_scanout_sub(g_sub);

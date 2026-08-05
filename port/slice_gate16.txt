@@ -150,6 +150,14 @@ src/_ZN8SignPostD0Ev.c
 # Platform helpers, and the four ov002 leaves its Behavior branches into.
 src/_ZN18MovingCylinderClsnC1Ev.c
 src/_ZN18MovingCylinderClsnD1Ev.c
+# ...and the rest of that class's ROM table. _ZTV18MovingCylinderClsn is
+# [D1, D0, GetPos, GetOwnerID] and hal/actor_classes.cpp fills all four, so D0
+# and both virtuals have to be in the build. While they were not, the table's
+# slots 2 and 3 stayed null and CylinderClsn::Process called address zero the
+# first frame the sign's trigger cylinder shared data_0209cee8 with anything.
+src/_ZN18MovingCylinderClsnD0Ev.c
+src/_ZN18MovingCylinderClsn6GetPosEv.cpp
+src/_ZN18MovingCylinderClsn10GetOwnerIDEv.cpp
 # ShadowModel::InitCuboid is NOT here. The shadow system is deferred (see
 # hal/cxxname_bridge.cpp): the cuboid template BMD at data_020ad524 is built
 # at runtime by boot code the port does not host, so the real InitCuboid

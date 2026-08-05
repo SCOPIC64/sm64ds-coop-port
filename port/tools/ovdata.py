@@ -376,12 +376,56 @@ def main():
     ivals = sorted((a, a + sz, n) for n, a, sz, _ in emitted)
     import bisect
     starts = [iv[0] for iv in ivals]
+    widest = max((e - s for s, e, _ in ivals), default=0)
 
+    # SYMBOLS OVERLAP, so the nearest preceding start is not the answer.
+    # A synthetic gap block is one run covering every un-symbolized target in
+    # a 0x100 neighbourhood, and named symbols sit inside it: ov002's
+    # port_ov002_gap_0210c548 is 1452 bytes and swallows six of them, the
+    # first being OAM::MM_STAR_MARKERS at 0x0210c5b8. A lookup that stopped at
+    # the nearest start answered "MM_STAR_MARKERS" for every target past
+    # 0x0210c5b8, found it did not reach, and returned NOTHING -- so those
+    # pointers stayed raw DS addresses.
+    #
+    # What that costs: HUD::RenderHealthMeter reads its sprite list out of
+    # data_ov002_0210c230, whose nine entries all point at 0x0210c5d8..0x678.
+    # Left un-rebased they point into the port's reserved DS main RAM, which
+    # is mapped and ZEROED, so OAM::Render's list walk never meets the
+    # 0xffff terminator and runs the full 2.9 MB to 0x02400000 -- one byte
+    # past the region -- and takes the process with it.
+    #
+    # So scan back over every candidate that could still reach v and pick
+    # among all of them, in this order:
+    #
+    #   1. A NAMED SYMBOL BEATS A GAP BLOCK. Named symbols are the storage the
+    #      game reaches BY NAME, and a pointer that aliases one has to land on
+    #      the same bytes or a write through the name is invisible through the
+    #      pointer. A gap block is only ever reached through a patched pointer,
+    #      so it never has that obligation.
+    #   2. Among named symbols, the SMALLEST -- the most specific.
+    #   3. Among gap blocks, the one that REACHES FURTHEST past v. Gap blocks
+    #      overlap each other: the run builder merges neighbours within 0x100
+    #      and later iterations lay short (t, t + 0x18) stubs over runs an
+    #      earlier iteration already covered, so ov002 has a 24-byte
+    #      port_ov002_gap_0210c158 sitting across a 212-byte
+    #      port_ov002_gap_0210c168. Both hold the same ROM bytes, but a walk
+    #      that starts at 0x0210c168 gets eight bytes from the first and 212
+    #      from the second, and running out of array is the failure this whole
+    #      pass exists to prevent. Take the one with the bytes.
     def covering(v):
+        gap_prefix = "port_%s_gap_" % ov
+        best = None
+        best_key = None
         i = bisect.bisect_right(starts, v) - 1
-        if i >= 0 and ivals[i][0] <= v < ivals[i][1]:
-            return ivals[i]
-        return None
+        while i >= 0 and v - ivals[i][0] <= widest:
+            s, e, n = ivals[i]
+            if s <= v < e:
+                is_gap = n.startswith(gap_prefix)
+                key = (is_gap, e - s if not is_gap else -(e - v))
+                if best_key is None or key < best_key:
+                    best, best_key = ivals[i], key
+            i -= 1
+        return best
 
     patches = []
     for name, a, size, blob in emitted:

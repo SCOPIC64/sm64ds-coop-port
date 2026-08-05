@@ -72,6 +72,36 @@
 //                           (0 = ramp to the stop); it lets go, and
 //                           SM64DS_SELFTEST_FREECAM=1 toggles the mod on
 //                           and off, at the same two points
+//      SM64DS_SELFTEST_JUMPSPAM=<period>  a ground jump every <period>
+//                           frames from f20, and
+//      SM64DS_JUMP_PROBE=1  the per-frame cost line that goes with it: the
+//                           raw phase times, the file loads and their
+//                           milliseconds, and the Player's animation word
+//                           beside the ModelAnim's playback cursor.
+//
+//                           WHAT IT MEASURED (2026-08-05, 3x300 frames,
+//                           JUMPSPAM=40, seven jumps a run): the per-jump
+//                           animation load is NOT a frame hitch and never
+//                           was. The 20 frames that change animation average
+//                           6.73ms and the other 279 average 6.71ms; the
+//                           slowest animation-change frame (7.51ms) is
+//                           faster than the slowest ordinary one (9.45ms);
+//                           no frame in 300 comes within 3x of the 33.3ms
+//                           budget. Every load costs 0.001-0.014ms and the
+//                           whole run's file work totals 0.056ms.
+//                           SM64DS_FS_NOCACHE=1 does not change that: the
+//                           Player's animations are 1.2-2.0 KB NARC
+//                           interiors, so even a full re-read and LZ77
+//                           decode is ~10us. The jump itself is clean --
+//                           animation 83 advances exactly 1.000 per frame
+//                           for its 13 frames while y arcs 254->419->254,
+//                           then the clamp flag holds the last pose for the
+//                           three frames of descent that are left.
+//      SM64DS_SELFTEST_LONGJUMP=1  run, crouch, jump: the long jump, for
+//                           the leg-twist investigation. Pair with
+//      SM64DS_BONE_PROBE=1..3  the per-frame bone rotation dump; =3 checks
+//                           every bone against an independent shortest-path
+//                           reference. See the probe for what it measured.
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -419,6 +449,12 @@ void port_course_respawn(void *player);
 int  port_star_collect(int starId);
 void port_give_player_coins(void *actor, void *player, int count, int kind);
 int  port_course_sound_probe(const char *when);
+/* the file-seam load meter (hal/fs.cpp), sampled by SM64DS_JUMP_PROBE */
+extern unsigned long port_fs_loads, port_fs_load_miss, port_fs_bytes;
+extern double port_fs_ms;
+/* the body-model selector Player::SetAnim itself uses to pick which of the
+   ten models at Player+0xdc the animation is installed on */
+unsigned _ZNK6Player14GetBodyModelIDEjb(char *self, unsigned a, char b);
 /* the bottom screen (hal/sub_screen.cpp): the OAM lifecycle, the engine-B
    scan-out and the corner panel it lands in. TAB toggles the panel. */
 void hal_sub_screen_init(void *hwnd, int zoom);
@@ -430,6 +466,11 @@ void hal_sub_screen_probe(void);
    with the split-symbol bridge the host Ctrl block needs) */
 void hal_sub_camera_input(void);
 }
+
+/* The frame's cylinder-overlap pass. The host copy in port/unmatched/ rather
+   than the matched TU: MSVC's one-slot destructor shifts GetPos onto D0 and
+   the first pass frees a cylinder. See that file's header. */
+extern "C" void port_cylinder_clsn_process(void);
 
 #ifdef NTR_HIRES
 static const int ZOOM = 1;
@@ -2110,6 +2151,7 @@ int main(void)
                 !getenv("SM64DS_SELFTEST_DASHJUMP") &&
                 !getenv("SM64DS_SELFTEST_PUNCH") &&
                 !getenv("SM64DS_SELFTEST_IDLE") &&
+                !getenv("SM64DS_SELFTEST_JUMPSPAM") &&
                 !decel_probe)
                 btn |= 2;
             if (selftest && getenv("SM64DS_SELFTEST_DASH") && frame >= 20)
@@ -2131,10 +2173,34 @@ int main(void)
                 if (frame >= 20) btn |= 0x800;
                 if (frame >= 60 && frame <= 63) btn |= 2;
             }
+            /* LONGJUMP probe: the leg-twist repro. The long jump is the run
+               plus crouch plus A combination -- dash from f20 to build top
+               run speed, R held from f60 so St_Walk_Main sees the crouch bit
+               under speed, and the A edge two frames later, which is what
+               St_Crouch_Main reads to enter ST_LONG_JUMP. The flight is
+               roughly 35 frames after that, so 140 frames covers entry,
+               flight and landing. */
+            if (selftest && getenv("SM64DS_SELFTEST_LONGJUMP")) {
+                if (frame >= 20) btn |= 0x800;
+                if (frame >= 60) btn |= 0x400;
+                if (frame >= 62 && frame <= 64) btn |= 2;
+            }
             /* punch probe: A-button edge at f40 */
             if (selftest && getenv("SM64DS_SELFTEST_PUNCH") &&
                 frame >= 40 && frame <= 42)
                 btn |= 1;
+            /* JUMPSPAM probe: the frame-hitch repro. A press edge every
+               <period> frames from f20, three frames held so the edge is not
+               missed. The default period of 40 is long enough that he lands
+               and is standing again before the next one, so every cycle is a
+               fresh ground jump rather than a triple-jump chain. Pair it with
+               SM64DS_JUMP_PROBE=1 to get the per-frame cost line. */
+            if (selftest && getenv("SM64DS_SELFTEST_JUMPSPAM")) {
+                const int period = atoi(getenv("SM64DS_SELFTEST_JUMPSPAM"));
+                const int p = period > 3 ? period : 40;
+                if (frame >= 20 && (frame - 20) % p < 3)
+                    btn |= 2;
+            }
             /* SWIM probe: a B-button STROKE every 24 frames. Swimming is the
                one locomotion in the game the stick alone cannot drive --
                St_Swim_Main moves him on the stroke, not on the tilt -- so a
@@ -3468,6 +3534,13 @@ int main(void)
                 hal_render_model(level_model, level_shift);
             }
         }
+        /* Stage::Render's collision beat, kept in its place in the order:
+           after the transparent pass, CylinderClsn::Process consumes the list
+           the behaviour phase threaded onto data_0209cee8 -- the overlap
+           pushbacks, and the notify chain that hands a grabbable cylinder to
+           the Player (slice_gate10, the tree-grab block). */
+        if (boot_spawns)
+            port_cylinder_clsn_process();
         /* phase 1, which is where func_02044120 ends: the scene tree's own
            housekeeping -- priority re-sorts, parent flag propagation, and the
            deferred list insertions for anything that spawned mid-phase. */
@@ -3566,6 +3639,187 @@ int main(void)
         /* the click flag is true for exactly the frame it landed on; the hold
            in g_mouse_left_down is what outlives it */
         g_mouse_click_new = 0;
+        /* SM64DS_JUMP_PROBE=1: the per-frame cost line the jump-hitch
+           investigation runs on. PH_FRAME's RAW time (not the smoothed one
+           the overlay draws), the file loads this frame and what they cost,
+           and the Player word that says whether the frame changed animation
+           at all: +0x63c is SetAnim's cached (id << 2). A hitch attributable
+           to the animation load has to show its milliseconds on the frame
+           +0x63c changes. */
+        if (selftest && getenv("SM64DS_JUMP_PROBE")) {
+            static unsigned long pl, pm, pb;
+            static double pms;
+            static unsigned prev_anim = 0xffffffffu;
+            const unsigned anim = *(unsigned *)(c + 0x63c);
+            /* the ModelAnim the animation actually landed on: Animation sits
+               at +0x50 of it (numFramesAndFlags 0x54, currFrame 0x58, speed
+               0x5c) and the BCA file pointer at 0x60 */
+            char *ma = ((char **)(c + 0xdc))
+                       [_ZNK6Player14GetBodyModelIDEjb(c, *(unsigned *)(c + 8)
+                                                          & 0xff, 0)];
+            printf("[jp] f%-4d frame=%6.3f in=%5.2f cam=%5.2f sub=%5.2f "
+                   "ras=%5.2f blit=%5.2f loads=%lu miss=%lu "
+                   "bytes=%lu fs=%6.3f anim=%u%s "
+                   "cf=%8.3f nff=%08x spd=%d file=%p y=%d\n",
+                   frame, g_clk.raw[PH_FRAME], g_clk.raw[PH_INPUT],
+                   g_clk.raw[PH_CAMERA], g_clk.raw[PH_SUBMIT],
+                   g_clk.raw[PH_RASTER], g_clk.raw[PH_BLIT],
+                   port_fs_loads - pl,
+                   port_fs_load_miss - pm, port_fs_bytes - pb,
+                   port_fs_ms - pms, anim >> 2,
+                   anim != prev_anim ? " CHANGED" : "",
+                   ma ? *(int *)(ma + 0x58) / 4096.0 : 0.0,
+                   ma ? *(unsigned *)(ma + 0x54) : 0u,
+                   ma ? *(int *)(ma + 0x5c) : 0,
+                   ma ? *(void **)(ma + 0x60) : (void *)0,
+                   *(int *)(c + 0x60) >> 12);
+            pl = port_fs_loads; pm = port_fs_load_miss; pb = port_fs_bytes;
+            pms = port_fs_ms;   prev_anim = anim;
+        }
+        /* SM64DS_BONE_PROBE=1: the per-frame BONE ROTATION dump the long-jump
+           leg-twist investigation runs on, and its detector.
+
+           The animated bone records are ModelComponents::bones -- Model+0x08
+           is the components block and its +0x08 is the array, stride 0x34,
+           the same reading func_020453c0 walks it with. The three rotation
+           components sit at +0x1a/+0x1c/+0x1e as the 12-bit binary angle the
+           keyframe interpolator produced, shifted up four (func_0204547c's
+           `<< 4`), so a half turn is 0x8000 and the useful unit is the
+           12-bit one.
+
+           A limb that twists reads as a component moving nearly half a turn
+           between two frames. Real animation never does that, so the probe
+           prints, per frame, the largest SHORTEST-PATH frame-to-frame delta
+           across every bone and names the bone and axis it belongs to. =1
+           prints only the maximum; =2 prints every bone every frame; =3 adds
+           the reference check below.
+
+           WHAT IT MEASURED (2026-08-05): the long-jump leg twist is NOT the
+           rotation interpolation going the long way around. =3 recomputes
+           every bone's rotation from the raw keyframes with an unambiguous
+           shortest-path lerp written out longhand and compares it against
+           what func_020456a0 produced. Across five movement probes
+           (LONGJUMP, JUMPSPAM, DASHJUMP, TURN, IDLE) at 299 frames each,
+           48 components a frame:
+
+               71,760 checks, 0 mismatches
+
+           Every wrap case the long jump hits is handled correctly. The
+           flight crosses the |lo-hi| >= 0x800 threshold five times -- bone 9
+           axis 0 at frames 63, 68 and 82, bone 12 axis 0 at frame 66 -- and
+           each one comes back the short way, e.g. lo=826 hi=-1288 is a direct
+           2114 and an interpolated 1982. The trig table func_02045178 and
+           func_02048234 index is the complete 4096-entry one, and both
+           matrix builders are matched source in gate 4b.
+
+           So whatever the twist is, it is downstream of the angles. This
+           probe rules out the interpolation and nothing else. */
+        if (selftest && getenv("SM64DS_BONE_PROBE")) {
+            static short prev[128][3];
+            static int seeded;
+            const int verbose = atoi(getenv("SM64DS_BONE_PROBE")) >= 2;
+            char *ma = ((char **)(c + 0xdc))
+                       [_ZNK6Player14GetBodyModelIDEjb(c, *(unsigned *)(c + 8)
+                                                          & 0xff, 0)];
+            char *bones = ma ? *(char **)(ma + 0x08 + 0x08) : 0;
+            char *bmd = ma ? *(char **)(ma + 0x08) : 0;
+            int nb = bmd ? *(int *)(bmd + 4) : 0;
+            if (nb > 128) nb = 128;
+            if (bones && nb > 0) {
+                int worst = 0, wb = -1, wa = -1, cur[3];
+                for (int b = 0; b < nb; ++b) {
+                    for (int a = 0; a < 3; ++a) {
+                        /* back down to the 12-bit angle the tables hold */
+                        cur[a] = (*(unsigned short *)(bones + b * 0x34 +
+                                                      0x1a + a * 2)) >> 4;
+                        int d = cur[a] - prev[b][a];
+                        if (d >= 0x800) d -= 0x1000;   /* shortest path */
+                        if (d < -0x800) d += 0x1000;
+                        if (seeded && (d > worst || -d > worst)) {
+                            worst = d < 0 ? -d : d;
+                            wb = b; wa = a;
+                        }
+                        prev[b][a] = (short)cur[a];
+                    }
+                    if (verbose)
+                        printf("[bone] f%-4d b%-3d rot=(%4d,%4d,%4d)\n",
+                               frame, b, cur[0], cur[1], cur[2]);
+                }
+                if (seeded)
+                    printf("[bone] f%-4d nb=%d maxdelta=%4d bone=%d axis=%d "
+                           "st=%08x\n", frame, nb, worst, wb, wa,
+                           *(void **)(c + 0x370)
+                               ? **(unsigned **)(c + 0x370) : 0u);
+                /* =3 also prints the two KEYFRAMES the rotation interpolator
+                   is between for the worst bone this frame, which is what
+                   says whether a big step is the data or the interpolation.
+                   BCA layout: +0x02 frame count, +0x0c the rotation table,
+                   +0x14 the per-bone descriptor array at 0x24 stride, whose
+                   rotation triple is (shift, flag, table index) at +0x0c,
+                   +0x10 and +0x14. func_020456a0 wraps when |lo-hi| >= 0x800,
+                   so a step pair whose implied |lo-hi| crosses that and did
+                   NOT come back short is the bug. */
+                if (seeded && atoi(getenv("SM64DS_BONE_PROBE")) >= 3) {
+                    char *bca = *(char **)(ma + 0x60);
+                    short *rot = bca ? *(short **)(bca + 0x0c) : 0;
+                    char *sb = bca ? *(char **)(bca + 0x14) : 0;
+                    int v = bca ? *(unsigned short *)(bca + 2) : 0;
+                    int idx = (int)((unsigned)(*(int *)(ma + 0x58) << 4) >> 16);
+                    int bad = 0, wraps = 0;
+                    for (int b = 0; sb && rot && b < nb; ++b) {
+                        for (int a = 0; a < 3; ++a) {
+                            char *src = sb + b * 0x24;
+                            int sh = (unsigned char)src[0x0c + a * 4];
+                            int fl = (unsigned char)src[0x0d + a * 4];
+                            int off = *(unsigned short *)(src + 0x0e + a * 4);
+                            const short *t = rot + off;
+                            int want;
+                            /* the reference: the same table walk, with an
+                               unambiguous shortest-path lerp written out */
+                            if (fl == 0)            want = (unsigned short)t[0];
+                            else if (sh == 0)       want = (unsigned short)t[idx];
+                            else {
+                                int base = ((v - 1) >> sh) << sh;
+                                int i = idx >> sh;
+                                if (idx >= base)
+                                    want = (unsigned short)t[i + (idx - base)];
+                                else {
+                                    int frac = idx - (i << sh);
+                                    int lo = t[i] & 0xfff, hi = t[i + 1] & 0xfff;
+                                    int d = hi - lo;
+                                    if (d > 0x800)  d -= 0x1000;
+                                    if (d < -0x800) d += 0x1000;
+                                    if (d >= 0x800 || d <= -0x800) ++wraps;
+                                    want = frac == 0 ? lo
+                                         : lo + (d * frac >> sh);
+                                }
+                            }
+                            want &= 0xfff;
+                            int got = (*(unsigned short *)(bones + b * 0x34 +
+                                                           0x1a + a * 2)) >> 4;
+                            int e = got - want;
+                            if (e > 0x800)  e -= 0x1000;
+                            if (e < -0x800) e += 0x1000;
+                            /* one unit of slack: the ROM rounds its lerp by
+                               truncation on the product, the reference by
+                               truncation on the delta */
+                            if (e > 1 || e < -1) {
+                                ++bad;
+                                printf("[bkf] f%-4d b%d ax%d shift=%d idx=%d "
+                                       "lo=%d hi=%d want=%d got=%d err=%d\n",
+                                       frame, b, a, sh, idx,
+                                       (int)t[idx >> sh] & 0xfff,
+                                       (int)t[(idx >> sh) + 1] & 0xfff,
+                                       want, got, e);
+                            }
+                        }
+                    }
+                    printf("[bref] f%-4d checked=%d mismatched=%d\n",
+                           frame, nb * 3, bad);
+                }
+                seeded = 1;
+            }
+        }
         if (selftest && (frame % 10) == 0)
             printf("[y] frame %d y=%d units %.1f\n", frame,
                    *(int *)(c + 0x60), *(int *)(c + 0x60) / 4096.0f);
