@@ -130,34 +130,87 @@ static const PortLevelDesc port_level_table[] = {
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
 
-/* SM64DS_LEVEL=<id> picks the level; the default stays 1 so every existing
-   run, hash and screenshot means what it meant. An id the port cannot mount
-   is named along with the ones it can rather than silently falling back --
-   a quiet fallback to the castle grounds would read as "Bob-omb Battlefield
-   boots" when it did not. */
+/* THE BOOT TARGET, and why it is not the env any more.
+   The port booted whatever SM64DS_LEVEL named and cached it once, which was
+   right while a run only ever entered one level. The moment the handoff
+   (hal/level_change.cpp) started warping BETWEEN levels it was wrong in the
+   worst way: the handoff latched the new level into data_0209f2f8 and called
+   port_stage_a_boot, but the mount below still resolved to the env-cached desc,
+   so a warp to Bob-omb Battlefield re-booted the castle grounds -- the census
+   came back the castle's, doubled, and the [lvl] line said "level 1 up" after a
+   select of level 6. Stage::InitResources has no such bug: it mounts
+   data_02092208[data_0209f2f8], the LVL_Overlay for the CURRENT level.
+
+   So the boot has an explicit target: the level id whoever is about to boot
+   wants. The handoff sets it to the level it latched (port_level_set_target,
+   called by hal/level_change.cpp), and the direct boot seeds it from
+   SM64DS_LEVEL through port_level_boot_target before the first mount. -1 means
+   "not set", the direct-boot case, and falls back to the env. This is a
+   separate word from data_0209f2f8 on purpose: data_0209f2f8 is bss and reads 0
+   (a valid level id) before any boot, so it cannot double as the sentinel. */
+static int g_boot_target = -1;
+
+static int port_level_env_want(void)
+{
+    static int want = -2;
+    if (want != -2)
+        return want;
+    const char *e = std::getenv("SM64DS_LEVEL");
+    want = e ? std::atoi(e) : 1;
+    return want;
+}
+
+/* The desc for a given level id, or null if the port cannot mount it. Never
+   aborts: a level with no row is a real answer the handoff declines with a
+   message, and the direct-boot resolver below turns null into the abort. */
+static const PortLevelDesc *port_level_desc_for(int id)
+{
+    for (int i = 0; i < PORT_LEVEL_COUNT; ++i)
+        if (port_level_table[i].id == id)
+            return &port_level_table[i];
+    return 0;
+}
+
+/* The level this boot is for: the explicit target when one is set, the env
+   otherwise. An id the port cannot mount is named along with the ones it can
+   rather than silently falling back -- a quiet fallback to the castle grounds
+   would read as "Bob-omb Battlefield boots" when it did not. */
 static const PortLevelDesc *port_level_desc(void)
 {
-    static const PortLevelDesc *sel;
-    if (sel)
-        return sel;
-    const char *e = std::getenv("SM64DS_LEVEL");
-    int want = e ? std::atoi(e) : 1;
-    for (int i = 0; i < PORT_LEVEL_COUNT; ++i)
-        if (port_level_table[i].id == want) {
-            sel = &port_level_table[i];
-            if (e)
-                std::printf("[level] %d = %s, %s\n", sel->id, sel->name,
-                            sel->overlay);
-            return sel;
-        }
-    std::fprintf(stderr, "FATAL: SM64DS_LEVEL=%d is not a hosted level. "
-                 "Hosted:", want);
+    int want = (g_boot_target >= 0) ? g_boot_target : port_level_env_want();
+    const PortLevelDesc *d = port_level_desc_for(want);
+    if (d)
+        return d;
+    std::fprintf(stderr, "FATAL: level %d is not a hosted level. Hosted:", want);
     for (int i = 0; i < PORT_LEVEL_COUNT; ++i)
         std::fprintf(stderr, " %d (%s)", port_level_table[i].id,
                      port_level_table[i].name);
     std::fprintf(stderr, "\n");
     std::abort();
     return 0;
+}
+
+/* The handoff's own hook: point the boot at the level it just latched. Called
+   by hal/level_change.cpp after port_level_latch, before port_stage_a_boot, so
+   the mount and every desc read below resolve to the WARPED-TO level rather
+   than the env-cached one. */
+extern "C" void port_level_set_target(int level)
+{
+    g_boot_target = level;
+}
+
+/* Seed the target from the env for the DIRECT boot, before the first mount.
+   The handoff does not call this: it sets the target itself. Only writes when
+   nothing has set a target yet, so a warp's target is never clobbered. Returns
+   the level it settled on. */
+extern "C" int port_level_boot_target(void)
+{
+    if (g_boot_target < 0) {
+        const PortLevelDesc *d = port_level_desc();   /* aborts on a bad env */
+        g_boot_target = d->id;
+        std::printf("[level] %d = %s, %s\n", d->id, d->name, d->overlay);
+    }
+    return g_boot_target;
 }
 
 extern "C" int port_level_id(void) { return port_level_desc()->id; }
@@ -538,6 +591,12 @@ extern "C" int data_0209d70c[];   /* hal/auto_bss.cpp */
 void *port_stage_a_boot(void *mc, int spawn)
 {
     g_stage_mc = mc;
+    /* Settle which level this boot is for BEFORE the mount reads it. The direct
+       boot seeds the target from SM64DS_LEVEL here; the handoff has already set
+       it to the latched level (port_level_set_target), so this is a no-op on
+       the warp path. Either way the mount below resolves to the right overlay
+       -- which is the whole fix for the warp booting the wrong level. */
+    port_level_boot_target();
     /* fx wrote this against the ov009-only mount; the lvl stream made the
        mount parameterised, and the guard wants to run for every level, so it
        rides the new call */
@@ -1426,6 +1485,7 @@ void _ZN13SharedFilePtr7ReleaseEv(struct PortSharedFilePtr *self);
 void _ZN5Stage18ResetMeshCollidersEv(void);
 int port_level_mount_register(int level, void *(*fn)(void));
 unsigned port_level_ds_overlay(int level);
+void port_actor_census_reset(void);      /* hal/actor_registry.cpp */
 }
 
 extern "C" void port_level_reset_host(void)
@@ -1462,6 +1522,10 @@ extern "C" void port_level_reset_host(void)
 
     g_entrance_entries = 0;
     g_entrance_count = 0;
+
+    /* the census counters, so the warped-into level reports what IT spawned
+       rather than the sum with the level it replaced (hal/actor_registry.cpp) */
+    port_actor_census_reset();
 
     data_ov002_0211118c = 0;
     data_020a0d8c[0] = 0;
