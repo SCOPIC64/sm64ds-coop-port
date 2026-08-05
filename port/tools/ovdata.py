@@ -376,12 +376,37 @@ def main():
     ivals = sorted((a, a + sz, n) for n, a, sz, _ in emitted)
     import bisect
     starts = [iv[0] for iv in ivals]
+    widest = max((e - s for s, e, _ in ivals), default=0)
 
+    # SYMBOLS OVERLAP, so the nearest preceding start is not the answer.
+    # A synthetic gap block is one run covering every un-symbolized target in
+    # a 0x100 neighbourhood, and named symbols sit inside it: ov002's
+    # port_ov002_gap_0210c548 is 1452 bytes and swallows six of them, the
+    # first being OAM::MM_STAR_MARKERS at 0x0210c5b8. A lookup that stopped at
+    # the nearest start answered "MM_STAR_MARKERS" for every target past
+    # 0x0210c5b8, found it did not reach, and returned NOTHING -- so those
+    # pointers stayed raw DS addresses.
+    #
+    # What that costs: HUD::RenderHealthMeter reads its sprite list out of
+    # data_ov002_0210c230, whose nine entries all point at 0x0210c5d8..0x678.
+    # Left un-rebased they point into the port's reserved DS main RAM, which
+    # is mapped and ZEROED, so OAM::Render's list walk never meets the
+    # 0xffff terminator and runs the full 2.9 MB to 0x02400000 -- one byte
+    # past the region -- and takes the process with it.
+    #
+    # So scan back over every candidate that could still reach v and take the
+    # SMALLEST one that does. Smallest is the most specific: a named symbol
+    # beats the gap block that happens to span it, which is what the DS's own
+    # flat memory would have given.
     def covering(v):
+        best = None
         i = bisect.bisect_right(starts, v) - 1
-        if i >= 0 and ivals[i][0] <= v < ivals[i][1]:
-            return ivals[i]
-        return None
+        while i >= 0 and v - ivals[i][0] <= widest:
+            s, e, n = ivals[i]
+            if s <= v < e and (best is None or e - s < best[1] - best[0]):
+                best = ivals[i]
+            i -= 1
+        return best
 
     patches = []
     for name, a, size, blob in emitted:
