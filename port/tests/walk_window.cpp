@@ -72,6 +72,31 @@
 //                           (0 = ramp to the stop); it lets go, and
 //                           SM64DS_SELFTEST_FREECAM=1 toggles the mod on
 //                           and off, at the same two points
+//      SM64DS_SELFTEST_JUMPSPAM=<period>  a ground jump every <period>
+//                           frames from f20, and
+//      SM64DS_JUMP_PROBE=1  the per-frame cost line that goes with it: the
+//                           raw phase times, the file loads and their
+//                           milliseconds, and the Player's animation word
+//                           beside the ModelAnim's playback cursor.
+//
+//                           WHAT IT MEASURED (2026-08-05, 3x300 frames,
+//                           JUMPSPAM=40, seven jumps a run): the per-jump
+//                           animation load is NOT a frame hitch and never
+//                           was. The 20 frames that change animation average
+//                           6.73ms and the other 279 average 6.71ms; the
+//                           slowest animation-change frame (7.51ms) is
+//                           faster than the slowest ordinary one (9.45ms);
+//                           no frame in 300 comes within 3x of the 33.3ms
+//                           budget. Every load costs 0.001-0.014ms and the
+//                           whole run's file work totals 0.056ms.
+//                           SM64DS_FS_NOCACHE=1 does not change that: the
+//                           Player's animations are 1.2-2.0 KB NARC
+//                           interiors, so even a full re-read and LZ77
+//                           decode is ~10us. The jump itself is clean --
+//                           animation 83 advances exactly 1.000 per frame
+//                           for its 13 frames while y arcs 254->419->254,
+//                           then the clamp flag holds the last pose for the
+//                           three frames of descent that are left.
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -370,6 +395,12 @@ void port_actor_render(void);        /* phase 5: the render bucket */
 void port_actor_scene_pass(void);    /* phase 1: scene-tree housekeeping */
 void port_actor_census(void);
 void port_actor_lists_probe(void);
+/* the file-seam load meter (hal/fs.cpp), sampled by SM64DS_JUMP_PROBE */
+extern unsigned long port_fs_loads, port_fs_load_miss, port_fs_bytes;
+extern double port_fs_ms;
+/* the body-model selector Player::SetAnim itself uses to pick which of the
+   ten models at Player+0xdc the animation is installed on */
+unsigned _ZNK6Player14GetBodyModelIDEjb(char *self, unsigned a, char b);
 /* the bottom screen (hal/sub_screen.cpp): the OAM lifecycle, the engine-B
    scan-out and the corner panel it lands in. TAB toggles the panel. */
 void hal_sub_screen_init(void *hwnd, int zoom);
@@ -1991,6 +2022,7 @@ int main(void)
                 !getenv("SM64DS_SELFTEST_DASHJUMP") &&
                 !getenv("SM64DS_SELFTEST_PUNCH") &&
                 !getenv("SM64DS_SELFTEST_IDLE") &&
+                !getenv("SM64DS_SELFTEST_JUMPSPAM") &&
                 !decel_probe)
                 btn |= 2;
             if (selftest && getenv("SM64DS_SELFTEST_DASH") && frame >= 20)
@@ -2016,6 +2048,18 @@ int main(void)
             if (selftest && getenv("SM64DS_SELFTEST_PUNCH") &&
                 frame >= 40 && frame <= 42)
                 btn |= 1;
+            /* JUMPSPAM probe: the frame-hitch repro. A press edge every
+               <period> frames from f20, three frames held so the edge is not
+               missed. The default period of 40 is long enough that he lands
+               and is standing again before the next one, so every cycle is a
+               fresh ground jump rather than a triple-jump chain. Pair it with
+               SM64DS_JUMP_PROBE=1 to get the per-frame cost line. */
+            if (selftest && getenv("SM64DS_SELFTEST_JUMPSPAM")) {
+                const int period = atoi(getenv("SM64DS_SELFTEST_JUMPSPAM"));
+                const int p = period > 3 ? period : 40;
+                if (frame >= 20 && (frame - 20) % p < 3)
+                    btn |= 2;
+            }
             /* SWIM probe: a B-button STROKE every 24 frames. Swimming is the
                one locomotion in the game the stick alone cannot drive --
                St_Swim_Main moves him on the stroke, not on the tilt -- so a
@@ -3205,6 +3249,43 @@ int main(void)
         /* the click flag is true for exactly the frame it landed on; the hold
            in g_mouse_left_down is what outlives it */
         g_mouse_click_new = 0;
+        /* SM64DS_JUMP_PROBE=1: the per-frame cost line the jump-hitch
+           investigation runs on. PH_FRAME's RAW time (not the smoothed one
+           the overlay draws), the file loads this frame and what they cost,
+           and the Player word that says whether the frame changed animation
+           at all: +0x63c is SetAnim's cached (id << 2). A hitch attributable
+           to the animation load has to show its milliseconds on the frame
+           +0x63c changes. */
+        if (selftest && getenv("SM64DS_JUMP_PROBE")) {
+            static unsigned long pl, pm, pb;
+            static double pms;
+            static unsigned prev_anim = 0xffffffffu;
+            const unsigned anim = *(unsigned *)(c + 0x63c);
+            /* the ModelAnim the animation actually landed on: Animation sits
+               at +0x50 of it (numFramesAndFlags 0x54, currFrame 0x58, speed
+               0x5c) and the BCA file pointer at 0x60 */
+            char *ma = ((char **)(c + 0xdc))
+                       [_ZNK6Player14GetBodyModelIDEjb(c, *(unsigned *)(c + 8)
+                                                          & 0xff, 0)];
+            printf("[jp] f%-4d frame=%6.3f in=%5.2f cam=%5.2f sub=%5.2f "
+                   "ras=%5.2f blit=%5.2f loads=%lu miss=%lu "
+                   "bytes=%lu fs=%6.3f anim=%u%s "
+                   "cf=%8.3f nff=%08x spd=%d file=%p y=%d\n",
+                   frame, g_clk.raw[PH_FRAME], g_clk.raw[PH_INPUT],
+                   g_clk.raw[PH_CAMERA], g_clk.raw[PH_SUBMIT],
+                   g_clk.raw[PH_RASTER], g_clk.raw[PH_BLIT],
+                   port_fs_loads - pl,
+                   port_fs_load_miss - pm, port_fs_bytes - pb,
+                   port_fs_ms - pms, anim >> 2,
+                   anim != prev_anim ? " CHANGED" : "",
+                   ma ? *(int *)(ma + 0x58) / 4096.0 : 0.0,
+                   ma ? *(unsigned *)(ma + 0x54) : 0u,
+                   ma ? *(int *)(ma + 0x5c) : 0,
+                   ma ? *(void **)(ma + 0x60) : (void *)0,
+                   *(int *)(c + 0x60) >> 12);
+            pl = port_fs_loads; pm = port_fs_load_miss; pb = port_fs_bytes;
+            pms = port_fs_ms;   prev_anim = anim;
+        }
         if (selftest && (frame % 10) == 0)
             printf("[y] frame %d y=%d units %.1f\n", frame,
                    *(int *)(c + 0x60), *(int *)(c + 0x60) / 4096.0f);

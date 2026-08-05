@@ -327,6 +327,38 @@ static void fs_cache_report(void)
             g_fs_misses, g_fcache_capped ? " (cap reached)" : "");
 }
 
+/* ---- the load meter -----------------------------------------------------
+   Counters a probe can sample either side of a frame to attribute that
+   frame's cost. They are always maintained (four adds on a path that already
+   allocates and memcpys a file, so the cost is not measurable) and nothing
+   reads them unless a probe asks. port_fs_ms is wall time spent INSIDE
+   SharedFilePtr::Load, which on a cache hit is the Allocate plus the memcpy
+   and on a miss is the disk read and the LZ77 decode as well.
+
+   QueryPerformanceCounter is declared by hand rather than by including
+   windows.h: this file defines u8/u16/u32 and carries DS-shaped structs, and
+   the Windows headers collide with several of them. */
+extern "C" __declspec(dllimport) int __stdcall
+    QueryPerformanceCounter(long long *);
+extern "C" __declspec(dllimport) int __stdcall
+    QueryPerformanceFrequency(long long *);
+
+extern "C" {
+unsigned long port_fs_loads;     /* SharedFilePtr::Load calls */
+unsigned long port_fs_load_miss; /* those that reached disk or a NARC */
+unsigned long port_fs_bytes;     /* bytes allocated and copied to callers */
+double port_fs_ms;               /* wall time inside Load */
+}
+
+static double fs_now_ms(void)
+{
+    static long long qpf;
+    long long n;
+    if (!qpf) QueryPerformanceFrequency(&qpf);
+    QueryPerformanceCounter(&n);
+    return (double)n * 1000.0 / (double)qpf;
+}
+
 /* read + decompress a loose FAT file into e's master copy. 1 on success. */
 static int fs_cache_fill(struct fs_cache_entry *e, unsigned fileID)
 {
@@ -382,7 +414,9 @@ void *_ZN13SharedFilePtr4LoadEv(struct SharedFilePtrC *self)
     int cached, admit, ok;
     u32 tsize;
     void *dst;
+    const double t0 = fs_now_ms();
 
+    port_fs_loads++;
     catalog_load();
     data_0209d3bc = self->fileID;
     if (!archive && (self->fileID >= MAX_FILES ||
@@ -426,8 +460,11 @@ void *_ZN13SharedFilePtr4LoadEv(struct SharedFilePtrC *self)
             slot->data = 0;
         }
         src = archive ? "archive" : "disk";
+        port_fs_load_miss++;
     }
 
+    port_fs_bytes += tsize;
+    port_fs_ms += fs_now_ms() - t0;
     if (fs_trace_on())
         fprintf(stderr, "fs: load id=%u size=%u source=%s\n",
                 self->fileID, tsize, src);
