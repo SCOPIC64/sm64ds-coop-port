@@ -757,12 +757,44 @@ extern void *data_0209f394[];          /* the local players, [0] is ours */
 const char *port_actor_class_name(unsigned id);
 }
 
+/* ---- classes that belong to a LEVEL overlay -------------------------------
+   Four of the registry's rows are ov009's, and their SharedFilePtrs are
+   constructed by ov009's own static initialisers -- which run only when ov009
+   is the mounted level overlay, the way the DS runs them. The level boot is
+   safe either way, because no other level's object table names these ids. The
+   debug hook is not: asking for one on another level reached an unconstructed
+   SharedFilePtr and died as "fs fileID 0 not in catalog", four layers down
+   from the thing that was actually wrong.
+
+   So the hook names it instead. This is a list of ids, not a mechanism: the
+   registry is where a class declares which overlay owns it, and when it does,
+   this reads it from there. */
+static const struct { unsigned id; int level; const char *what; }
+port_level_owned_class[] = {
+    {338, 1, "CASTLE_WATER (ov009)"},
+    {339, 1, "METAL_NET (ov009)"},
+    {342, 1, "FLAG (ov009)"},
+    {343, 1, "BIRD (ov009)"},
+};
+
 /* Spawn `id` at an explicit world position (Fix12i, i.e. units << 12) facing
    `yaw`. Returns the ActorBase* the spine built, or 0 when the registry gate
    turned the class away -- which it reports itself, on stdout. */
 extern "C" void *port_debug_spawn_at(unsigned id, unsigned param,
                                      int x, int y, int z, int yaw, int area)
 {
+    for (unsigned i = 0; i < sizeof port_level_owned_class /
+                             sizeof port_level_owned_class[0]; ++i)
+        if (port_level_owned_class[i].id == id &&
+            port_level_owned_class[i].level != port_level_id()) {
+            std::fprintf(stderr, "  [dbgspawn] actor %u is %s and level %d is "
+                         "booted, so its overlay's static initialisers never "
+                         "ran -- refusing rather than spawning it onto "
+                         "unconstructed file pointers\n", id,
+                         port_level_owned_class[i].what, port_level_id());
+            return 0;
+        }
+
     PortVec3 pos;
     PortVec3_16 rot;
     void *a;
