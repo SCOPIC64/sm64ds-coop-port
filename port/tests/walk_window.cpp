@@ -97,6 +97,11 @@
 //                           for its 13 frames while y arcs 254->419->254,
 //                           then the clamp flag holds the last pose for the
 //                           three frames of descent that are left.
+//      SM64DS_SELFTEST_LONGJUMP=1  run, crouch, jump: the long jump, for
+//                           the leg-twist investigation. Pair with
+//      SM64DS_BONE_PROBE=1..3  the per-frame bone rotation dump; =3 checks
+//                           every bone against an independent shortest-path
+//                           reference. See the probe for what it measured.
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -2049,6 +2054,18 @@ int main(void)
                 if (frame >= 20) btn |= 0x800;
                 if (frame >= 60 && frame <= 63) btn |= 2;
             }
+            /* LONGJUMP probe: the leg-twist repro. The long jump is the run
+               plus crouch plus A combination -- dash from f20 to build top
+               run speed, R held from f60 so St_Walk_Main sees the crouch bit
+               under speed, and the A edge two frames later, which is what
+               St_Crouch_Main reads to enter ST_LONG_JUMP. The flight is
+               roughly 35 frames after that, so 140 frames covers entry,
+               flight and landing. */
+            if (selftest && getenv("SM64DS_SELFTEST_LONGJUMP")) {
+                if (frame >= 20) btn |= 0x800;
+                if (frame >= 60) btn |= 0x400;
+                if (frame >= 62 && frame <= 64) btn |= 2;
+            }
             /* punch probe: A-button edge at f40 */
             if (selftest && getenv("SM64DS_SELFTEST_PUNCH") &&
                 frame >= 40 && frame <= 42)
@@ -3297,6 +3314,150 @@ int main(void)
                    *(int *)(c + 0x60) >> 12);
             pl = port_fs_loads; pm = port_fs_load_miss; pb = port_fs_bytes;
             pms = port_fs_ms;   prev_anim = anim;
+        }
+        /* SM64DS_BONE_PROBE=1: the per-frame BONE ROTATION dump the long-jump
+           leg-twist investigation runs on, and its detector.
+
+           The animated bone records are ModelComponents::bones -- Model+0x08
+           is the components block and its +0x08 is the array, stride 0x34,
+           the same reading func_020453c0 walks it with. The three rotation
+           components sit at +0x1a/+0x1c/+0x1e as the 12-bit binary angle the
+           keyframe interpolator produced, shifted up four (func_0204547c's
+           `<< 4`), so a half turn is 0x8000 and the useful unit is the
+           12-bit one.
+
+           A limb that twists reads as a component moving nearly half a turn
+           between two frames. Real animation never does that, so the probe
+           prints, per frame, the largest SHORTEST-PATH frame-to-frame delta
+           across every bone and names the bone and axis it belongs to. =1
+           prints only the maximum; =2 prints every bone every frame; =3 adds
+           the reference check below.
+
+           WHAT IT MEASURED (2026-08-05): the long-jump leg twist is NOT the
+           rotation interpolation going the long way around. =3 recomputes
+           every bone's rotation from the raw keyframes with an unambiguous
+           shortest-path lerp written out longhand and compares it against
+           what func_020456a0 produced. Across five movement probes
+           (LONGJUMP, JUMPSPAM, DASHJUMP, TURN, IDLE) at 299 frames each,
+           48 components a frame:
+
+               71,760 checks, 0 mismatches
+
+           Every wrap case the long jump hits is handled correctly. The
+           flight crosses the |lo-hi| >= 0x800 threshold five times -- bone 9
+           axis 0 at frames 63, 68 and 82, bone 12 axis 0 at frame 66 -- and
+           each one comes back the short way, e.g. lo=826 hi=-1288 is a direct
+           2114 and an interpolated 1982. The trig table func_02045178 and
+           func_02048234 index is the complete 4096-entry one, and both
+           matrix builders are matched source in gate 4b.
+
+           So whatever the twist is, it is downstream of the angles. This
+           probe rules out the interpolation and nothing else. */
+        if (selftest && getenv("SM64DS_BONE_PROBE")) {
+            static short prev[128][3];
+            static int seeded;
+            const int verbose = atoi(getenv("SM64DS_BONE_PROBE")) >= 2;
+            char *ma = ((char **)(c + 0xdc))
+                       [_ZNK6Player14GetBodyModelIDEjb(c, *(unsigned *)(c + 8)
+                                                          & 0xff, 0)];
+            char *bones = ma ? *(char **)(ma + 0x08 + 0x08) : 0;
+            char *bmd = ma ? *(char **)(ma + 0x08) : 0;
+            int nb = bmd ? *(int *)(bmd + 4) : 0;
+            if (nb > 128) nb = 128;
+            if (bones && nb > 0) {
+                int worst = 0, wb = -1, wa = -1, cur[3];
+                for (int b = 0; b < nb; ++b) {
+                    for (int a = 0; a < 3; ++a) {
+                        /* back down to the 12-bit angle the tables hold */
+                        cur[a] = (*(unsigned short *)(bones + b * 0x34 +
+                                                      0x1a + a * 2)) >> 4;
+                        int d = cur[a] - prev[b][a];
+                        if (d >= 0x800) d -= 0x1000;   /* shortest path */
+                        if (d < -0x800) d += 0x1000;
+                        if (seeded && (d > worst || -d > worst)) {
+                            worst = d < 0 ? -d : d;
+                            wb = b; wa = a;
+                        }
+                        prev[b][a] = (short)cur[a];
+                    }
+                    if (verbose)
+                        printf("[bone] f%-4d b%-3d rot=(%4d,%4d,%4d)\n",
+                               frame, b, cur[0], cur[1], cur[2]);
+                }
+                if (seeded)
+                    printf("[bone] f%-4d nb=%d maxdelta=%4d bone=%d axis=%d "
+                           "st=%08x\n", frame, nb, worst, wb, wa,
+                           *(void **)(c + 0x370)
+                               ? **(unsigned **)(c + 0x370) : 0u);
+                /* =3 also prints the two KEYFRAMES the rotation interpolator
+                   is between for the worst bone this frame, which is what
+                   says whether a big step is the data or the interpolation.
+                   BCA layout: +0x02 frame count, +0x0c the rotation table,
+                   +0x14 the per-bone descriptor array at 0x24 stride, whose
+                   rotation triple is (shift, flag, table index) at +0x0c,
+                   +0x10 and +0x14. func_020456a0 wraps when |lo-hi| >= 0x800,
+                   so a step pair whose implied |lo-hi| crosses that and did
+                   NOT come back short is the bug. */
+                if (seeded && atoi(getenv("SM64DS_BONE_PROBE")) >= 3) {
+                    char *bca = *(char **)(ma + 0x60);
+                    short *rot = bca ? *(short **)(bca + 0x0c) : 0;
+                    char *sb = bca ? *(char **)(bca + 0x14) : 0;
+                    int v = bca ? *(unsigned short *)(bca + 2) : 0;
+                    int idx = (int)((unsigned)(*(int *)(ma + 0x58) << 4) >> 16);
+                    int bad = 0, wraps = 0;
+                    for (int b = 0; sb && rot && b < nb; ++b) {
+                        for (int a = 0; a < 3; ++a) {
+                            char *src = sb + b * 0x24;
+                            int sh = (unsigned char)src[0x0c + a * 4];
+                            int fl = (unsigned char)src[0x0d + a * 4];
+                            int off = *(unsigned short *)(src + 0x0e + a * 4);
+                            const short *t = rot + off;
+                            int want;
+                            /* the reference: the same table walk, with an
+                               unambiguous shortest-path lerp written out */
+                            if (fl == 0)            want = (unsigned short)t[0];
+                            else if (sh == 0)       want = (unsigned short)t[idx];
+                            else {
+                                int base = ((v - 1) >> sh) << sh;
+                                int i = idx >> sh;
+                                if (idx >= base)
+                                    want = (unsigned short)t[i + (idx - base)];
+                                else {
+                                    int frac = idx - (i << sh);
+                                    int lo = t[i] & 0xfff, hi = t[i + 1] & 0xfff;
+                                    int d = hi - lo;
+                                    if (d > 0x800)  d -= 0x1000;
+                                    if (d < -0x800) d += 0x1000;
+                                    if (d >= 0x800 || d <= -0x800) ++wraps;
+                                    want = frac == 0 ? lo
+                                         : lo + (d * frac >> sh);
+                                }
+                            }
+                            want &= 0xfff;
+                            int got = (*(unsigned short *)(bones + b * 0x34 +
+                                                           0x1a + a * 2)) >> 4;
+                            int e = got - want;
+                            if (e > 0x800)  e -= 0x1000;
+                            if (e < -0x800) e += 0x1000;
+                            /* one unit of slack: the ROM rounds its lerp by
+                               truncation on the product, the reference by
+                               truncation on the delta */
+                            if (e > 1 || e < -1) {
+                                ++bad;
+                                printf("[bkf] f%-4d b%d ax%d shift=%d idx=%d "
+                                       "lo=%d hi=%d want=%d got=%d err=%d\n",
+                                       frame, b, a, sh, idx,
+                                       (int)t[idx >> sh] & 0xfff,
+                                       (int)t[(idx >> sh) + 1] & 0xfff,
+                                       want, got, e);
+                            }
+                        }
+                    }
+                    printf("[bref] f%-4d checked=%d mismatched=%d\n",
+                           frame, nb * 3, bad);
+                }
+                seeded = 1;
+            }
         }
         if (selftest && (frame % 10) == 0)
             printf("[y] frame %d y=%d units %.1f\n", frame,
