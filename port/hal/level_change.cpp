@@ -486,7 +486,58 @@ void port_fader_start_color(int frames, int toEnd, unsigned short color);
    for ov003 scenes, so it records the request here and the frame loop acts on
    it: run the colour fade, and when a scene handler exists (dScStarSel_c, the
    stretch), hand off to it. Until then the request is recorded and reported so
-   the flow is visible and the fade renders. */
+   the flow is visible and the fade renders.
+
+   ---- WHAT BOOTING dScStarSel_c NEEDS (the star select, scene 4) -----------
+   The boot chain is fully mapped and none of it is a guess:
+
+     data_02092664 = 4  (StartSceneFade set it)
+       -> Scene::SpawnIfNecessary  calls func_02013edc(4, param, 1)
+       -> func_02042fe4 -> func_02043098(4, 0, param, 1)   the spawn spine
+       -> (*(Fn*)data_020a4bb8[4])()   the factory for scene id 4
+       -> StarSelect_Spawn  (ov003, 0x020b04f0)
+
+   StarSelect_Spawn (src/StarSelect_Spawn.cpp) is small and portable-shaped:
+     - ActorBase::operator new(0x13c), ActorBase ctor
+     - vptr = data_ov003_020b1704   (the dScStarSel_c vtable, IN ov003)
+     - flags +0x13 |= 1|4
+     - func_020733a8(self+0x64, 2, 0x50, Model::ctor, Model::dtor)  two Models
+
+   The dScStarSel_c vtable (data_ov003_020b1704, from ov003 relocs) is:
+     slot 0  0x020af8a0   (a method, ov003)
+     slot 3  0x020af86c   CleanupResources           (ov003)
+     slot 6  0x020af038   Behavior                   (ov003, NONMATCHING src)
+     slot 7  0x0202e3d4   Scene::BeforeBehavior      (MAIN -- port HAS it)
+     slot 8  0x0202e3c8   Scene::AfterBehavior       (MAIN -- port HAS it)
+     slot 9  0x020ae6f4   Render (0x944 bytes of OAM) (ov003)
+     slot 12 0x020ae6f0   OnPendingDestroy           (ov003)
+   So the framework slots (Before/AfterBehavior) are already hosted; the
+   scene-specific slots (Behavior, Render, CleanupResources, InitResources)
+   are ov003 code.
+
+   WHAT IS TOO DEEP for a first pass, and why the port records-and-reports
+   rather than boots:
+     1. The vtable and the four ov003 methods are not mounted -- ov003 is
+        mounted for ONE data table (the row list), not its .text. Booting the
+        scene means mounting ov003 code + relocs, the same per-overlay work a
+        level mount is.
+     2. dScStarSel_c::Render is 0x944 bytes of OAM::Render calls -- the star
+        grid, the course thumbnails, the cursor -- built on the 2D sprite
+        engine and the star/coin SAVE DATA. The port's OAM path exists (gate
+        25) but the star-select graphics (its SpawnInfo-loaded 2D resources in
+        InitResources) are not staged.
+     3. dScStarSel_c::Behavior (0x020af038, above in this file's evidence) ends
+        in StartSceneFade(3,0,0) -- the star select's OWN handoff back into the
+        level (scene 3, the Stage boot). So the port's current path (title ->
+        level, with the fade) already produces the END STATE the star select
+        would hand to; what is missing is the intermediate star-choice UI, not
+        a different level outcome.
+
+   So the stretch is a real sub-project (mount ov003 .text, stage the star-grid
+   2D resources, host the OAM render), landed here as analysis. The fade flow
+   that would drive it is live: the request is recorded, the screen fades, and
+   the frame loop is the seam a real StarSelect_Spawn registration would plug
+   into (register a host factory at data_020a4bb8[4], then spawn on cover). */
 static int g_scene_fade_scene = -1;   /* pending scene id, -1 = none */
 
 extern "C" int port_scene_fade_pending(int *sceneId)
