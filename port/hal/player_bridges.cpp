@@ -406,9 +406,18 @@ extern signed char data_02092114;    /* queued in-level swap, -1 = none */
 void _ZN10ModelAnim24CopyERKS_Pcj(void *self, const void *src, char *nf,
                                   unsigned nof);
 
-int port_set_character(int chr)
+/* THE DOOR SWAP, operating on a given player. This is the game's own in-place
+   change (Player::SetRealCharacter, the path the character doors take), which
+   loads the incoming character's files through data_ov002_020ff480 and arms the
+   hat morph BEFORE it moves param1, then cancels the morph so the change is
+   instant. It replaces nothing about the Player except who it is -- the model,
+   the animation cursor, the state and the position all carry across untouched,
+   so there is no cold restart and no stand-freeze. Returns the same codes as
+   port_set_character (0 done, 1 no player, 2 out of range, 3 already that one).
+   port_set_character wraps this on the local player; port_player_set_character
+   routes to it as the default swap. */
+static int port_door_swap(char *c, int chr)
 {
-    char *c = (char *)data_0209f394[0];
     if (!c) return 1;
     /* SetRealCharacter masks with & 3 in two places but uses chr RAW in the
        other two (the ANIM_PTRS index and the chr + 0xc4 default-anim index),
@@ -523,6 +532,10 @@ int port_set_character(int chr)
     }
     return 0;
 }
+
+/* the local-player wrapper the debug menu reached for first */
+int port_set_character(int chr)
+{ return port_door_swap((char *)data_0209f394[0], chr); }
 
 void _ZN6Player16InitWingFeathersEb(void *self, unsigned char b_)
 { ((Player *)self)->Player::InitWingFeathers(b_ != 0); }
@@ -641,31 +654,21 @@ int data_020a6084[4], data_020a6088[2], data_020a8114[4];
    Here the real header is in scope and the call is an ordinary method call. */
 extern "C" { extern void *data_ov002_020ff480[]; }
 
-/* CHANGE CHARACTER ON THE SPOT. This is PORT CODE, deliberately, and it is
-   the second attempt -- the first one tried to reuse the game's own in-place
-   change and that was the wrong tree to bark up.
+/* THE LEGACY SWAP: rebuild the whole Player by re-running InitResources with a
+   rewritten spawn param. It works, but it is a COLD restart -- InitResources
+   re-runs func_ov002_020e5948 (the model/anim resource init), re-seats the
+   collision, and re-places the Player at the entrance, so the animation system
+   comes back at frame 0 and the Player stands frozen for a second or two while
+   it settles. That freeze is the whole reason for the door path below. Kept
+   behind SM64DS_SWAP_LEGACY=1 as a fallback while the door path proves out.
 
-   WHY THE GAME'S OWN PATH DOES NOT GENERALISE: Player::SetRealCharacter opens
-   with SetNewHatCharacter, which arms the multi-frame CAP sequence
-   func_ov002_020be3b0 drives. Caps are a Mario/Luigi/Wario mechanic. THERE IS
-   NO YOSHI CAP, so for Yoshi that sequence has no animation to run and leaves
-   an Animation with numFramesAndFlags of 0, which is the divide by zero in
-   WillHitFrame's `% num`. It was never going to work for the character most
-   worth testing, because the game never asks it to.
-
-   WHAT THIS DOES INSTEAD: Player::InitResources is the function that reads the
-   character out of the spawn param and loads exactly that character's models,
-   and it is the only thing that has to run for a character to be complete. So
-   rewrite the param and run it again. The param's layout is InitResources' own
-   unpacking, read back out of the fields it wrote: bits 0-2 character, 3-5 the
-   sub value at +0x6da, 6-7 the entrance index at +0x6d8. Bits 8+ feed
-   func_ov002_020c7dd0's entrance type, which a mid-level swap has no business
-   re-running, so they go in as 0.
-
-   Position, angle and speed are carried across, because InitResources places
-   the Player at the entrance and the point here is to change who you are, not
-   where you are. */
-extern "C" void port_player_set_character(void *player, unsigned ch)
+   The param's layout is InitResources' own unpacking, read back out of the
+   fields it wrote: bits 0-2 character, 3-5 the sub value at +0x6da, 6-7 the
+   entrance index at +0x6d8. Bits 8+ feed func_ov002_020c7dd0's entrance type,
+   which a mid-level swap has no business re-running, so they go in as 0.
+   Position, angle and speed are carried across because InitResources places the
+   Player at the entrance and the point is to change who you are, not where. */
+static void port_legacy_set_character(void *player, unsigned ch)
 {
     char *c = (char *)player;
     int pos[3], spd[4];
@@ -697,4 +700,39 @@ extern "C" void port_player_set_character(void *player, unsigned ch)
     *(int *)(c + 0xa4) = spd[1];
     *(int *)(c + 0xa8) = spd[2];
     *(int *)(c + 0xac) = spd[3];
+}
+
+/* CHANGE CHARACTER ON THE SPOT. Every entry point in the port -- F4, the debug
+   menu row, SM64DS_SWITCH, SM64DS_SELFTEST_SWAP -- comes through here, so the
+   default swap path is chosen in one place.
+
+   THE DEFAULT IS NOW THE DOOR PATH (port_door_swap). It is the game's own
+   in-place change: it loads the incoming character's files through
+   data_ov002_020ff480 and arms the hat morph engine (func_ov002_020be3b0, which
+   Player::Behavior already ticks every frame) BEFORE it moves param1, then
+   cancels the morph so the change is instant. The model, the animation cursor,
+   the current state and the position all carry across, so there is no cold
+   restart and no stand-freeze -- which is the whole point of preferring it.
+
+   The old worry was that the door path could not do Yoshi, because
+   SetRealCharacter arms the CAP morph and there is no Yoshi cap, leaving a
+   zero-length Animation that divides by zero on the next Advance. port_door_swap
+   already closes that: after SetRealCharacter it does the hat morph's own
+   stage-3 ModelAnim::Copy with dst != src, carrying the live cursor and frame
+   count off the outgoing character onto the incoming one, so the new body has a
+   playable animation whether or not a cap was involved.
+
+   SM64DS_SWAP_LEGACY=1 forces the old InitResources rebuild for an A/B. */
+extern "C" void port_player_set_character(void *player, unsigned ch)
+{
+    static int legacy = -1;
+    if (legacy < 0) legacy = std::getenv("SM64DS_SWAP_LEGACY") ? 1 : 0;
+    if (legacy) { port_legacy_set_character(player, (int)(ch & 3)); return; }
+
+    int rc = port_door_swap((char *)player, (int)(ch & 3));
+    /* the door path can decline (no player, already that character); the codes
+       are informational, but on an outright "no player" fall back to the legacy
+       rebuild rather than leaving the caller with nothing happening. */
+    if (rc == 1)
+        port_legacy_set_character(player, (int)(ch & 3));
 }
