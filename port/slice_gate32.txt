@@ -1,8 +1,11 @@
 # Gate 32: Bob-omb Battlefield's living cast.
 #
-# Six classes -- GOOMBA, BOB_OMB, BOB_OMB_BUDDY, CHAIN_CHOMP, KING_BOB_OMB and
-# KOOPA_THE_QUICK -- and they are the first ENEMY-family actors the port hosts.
-# Everything before this gate was furniture, ambience or a Platform.
+# Nine classes. Six are ENEMY-family, the first the port hosts -- BOB_OMB
+# (206), GOOMBA (200), BOB_OMB_BUDDY (181), CHAIN_CHOMP (219), KOOPA_THE_QUICK
+# (188) and KING_BOB_OMB (189) -- and three came in because one of those cannot
+# run without them: CHAIN_CHOMP_FENCE (41), STUMP (27), which the chomp spawns
+# itself and then writes through, and KOOPA_FLAG (205), the other half of the
+# race. Everything before this gate was furniture, ambience or a Platform.
 #
 # ---- what an Enemy costs that an Actor does not ---------------------------
 #
@@ -28,13 +31,15 @@
 #
 # ---- what needed a host copy ----------------------------------------------
 #
-# FIVE OF THE SIX RENDERS. Each dispatches slot 5 of its own ModelAnim through
+# SIX OF THE NINE RENDERS. Each dispatches slot 5 of its own ModelAnim through
 # a local shadow class, which is the ModelAnim slot-5 collision gates 17, 21
 # and 23 already wrote down: _ZTV9ModelAnim cannot be dual-filled the way
 # _ZTV5Model can, because MSVC's slot 5 there is Virtual18 and it takes a
 # second argument. Bodies in port/unmatched/BobEnemy_Renders.cpp.
-# KingBobOmb::Render is the exception -- it calls Model::Render by its Itanium
-# C name rather than through a shadow -- so it comes from src/ unchanged.
+# KingBobOmb::Render and the STUMP's are the exceptions -- the king calls
+# Model::Render by its Itanium C name rather than through a shadow, and the
+# post's shadow lands on _ZTV5Model, which IS dual-filled -- so both come from
+# src/ unchanged.
 
 # ============================================================================
 # BOB_OMB (actor 206, ov102)
