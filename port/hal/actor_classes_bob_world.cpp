@@ -248,7 +248,7 @@ void port_coin_states_seat(void);               /* port/unmatched */
 void _ZN12WithMeshClsnD1Ev(void *);
 void *_ZN18MovingCylinderClsnD1Ev(void *);
 void _ZN11ShadowModelD1Ev(void *);
-void _ZN11CommonModelD1Ev(void *);
+void *_ZN11CommonModelD1Ev(void *);
 void *_ZN5ActorD2Ev(void *);
 }
 /* Coin's own D0 spells its table by the RTTI name. */
