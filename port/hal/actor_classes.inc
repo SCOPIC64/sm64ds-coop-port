@@ -170,6 +170,9 @@ void hal_fill_rolling_iron_ball_vtable(void);
 extern unsigned char WarpPipe_SpawnInfo[];              /* ov102 0x0214e134 */
 void *WarpPipe_Spawn(void);
 void hal_fill_warp_pipe_vtable(void);
+extern unsigned char Warp_SpawnInfo[];                  /* ov002 0x0210ac98 */
+void *Warp_Spawn(void);                                 /* ov002 0x020ec534 */
+void hal_fill_warp_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -223,5 +226,6 @@ void hal_fill_warp_pipe_vtable(void);
      hal_fill_arrow_sign_vtable},                                              \
     {300, "ARROW_SIGN_RIGHT", ArrowSignRight_SpawnInfo, ArrowSignRight_Spawn,  \
      hal_fill_arrow_sign_vtable},                                              \
+    {347, "WARP", Warp_SpawnInfo, Warp_Spawn, hal_fill_warp_vtable},           \
     {298, "WARP_PIPE", WarpPipe_SpawnInfo, WarpPipe_Spawn,                     \
      hal_fill_warp_pipe_vtable},

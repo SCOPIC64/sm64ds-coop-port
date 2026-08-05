@@ -291,3 +291,20 @@ src/func_ov002_020f0438.cpp
 src/func_ov002_020f051c.c
 src/func_ov002_020f05f4.c
 src/IsCannonOpen.c
+
+# WARP (347) x4 -- the vtable at ov002 0x0210acbc, RTTI daWarpkun_c. What
+# Bob-omb Battlefield actually uses where the task asked for warp pipes: the
+# level names no pipe and four warp POINTS. Its factory spells the table by
+# the RTTI name and dsd never named it (the InvisibleSecret case again); all
+# seven slots are plain C-named funcs, so this class needs no header and no
+# face at all.
+src/Warp_Spawn.c
+src/func_ov002_020ec4c4.c
+src/func_ov002_020ec3fc.c
+# func_ov002_020ec410 is C++ inside a .c and goes through hostgen instead,
+# see GATE16_SYMS in CMakeLists.txt.
+src/func_ov002_020ec408.c
+src/func_ov002_020ec404.c
+src/func_ov002_020ec388.c
+src/WarpPlayer.c
+src/_ZN6Player7CanWarpEv.cpp

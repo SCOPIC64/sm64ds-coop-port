@@ -979,7 +979,9 @@ endforeach()
 # will not compile as C. hostgen emits .cpp with the symbols wrapped back to
 # C linkage, so the byte-verified tree is never edited.
 set(GATE16_SYMS _ZN5Actor22BeforeCleanupResourcesEv
-    func_ov002_020aefb8)
+    func_ov002_020aefb8
+    # Gate 33: the WARP's Behavior is C++ inside a .c -- the same case.
+    func_ov002_020ec410)
 set(GATE16_GEN "")
 foreach(sym IN LISTS GATE16_SYMS)
     if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")

@@ -172,3 +172,11 @@ struct ModelRenderFace { void Render(const Vector3 *scale); };
 #pragma comment(linker, "/alternatename:?Render@ModelRenderFace@@QAEXPBUVector3@@@Z=?Render@Model@@UAEXPBUVector3@@@Z")
 extern "C" void _ZN5Model6RenderEPK7Vector3(void *self, const void *scale)
 { ((ModelRenderFace *)self)->Render((const Vector3 *)scale); }
+
+/* Player::CanWarp -- the warp's own gate. src/_ZN6Player7CanWarpEv.cpp defines
+   it against include/Player.h, where it returns int; func_ov002_020ec410
+   declares it on its own shadow Player returning bool, and bool and int are
+   different types in a decorated name (_N against H). Same class, same
+   __thiscall, same absence of arguments, so the alias is exact -- and the ROM
+   returns 0 or 1 in r0 either way. */
+#pragma comment(linker, "/alternatename:?CanWarp@Player@@QAE_NXZ=?CanWarp@Player@@QAEHXZ")

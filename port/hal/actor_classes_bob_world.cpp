@@ -367,121 +367,6 @@ extern "C" void hal_fill_coin_vtable(void)
     vt[19] = (void *)coin_egg;
 }
 
-// ---- THE DEBUG SPAWN HOOK (port mod) ---------------------------------------
-//
-// NEEDS RECONCILING AT MERGE. port-beta-lvl is adding a general actor-spawn
-// debug hook and this is the minimal stand-in for it, scoped to this file so
-// that taking it out later is one deletion. It exists because the classes in
-// this gate belong to a level the port cannot boot yet: the boot in
-// hal/level_boot.cpp is wired to ov009 by name, and generalising it is
-// port-beta-lvl's work, not this gate's.
-//
-//     SM64DS_SPAWN_ACTOR=id[:param][,id[:param]...]
-//
-// Spawns each id once, at the local player's own position and area, on the
-// first tick after the level has finished booting. Ids are decimal or 0x
-// hex; the optional param is the level-table `param` word the actor reads out
-// of +8, which for most of these classes chooses a variant.
-//
-// It runs on the frame AFTER the boot rather than inside it so that the
-// spawn spine sees exactly the state a level-table spawn sees: the scene root
-// seated, the class table installed, the player alive and positioned.
-extern "C" {
-void *_ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(unsigned actorID,
-                                                   unsigned param1,
-                                                   const int *pos,
-                                                   const short *rot,
-                                                   int areaID,
-                                                   int deathTableID);
-extern int data_0209f394[];       /* the local players; [0] is the object */
-extern short data_ov002_0211118c; /* the per-level spawn counter */
-extern int data_020a4b78[];       /* the behaviour processing list */
-extern short data_0209f358[];     /* the coin counter GiveCoins increments */
-}
-
-static unsigned short g_watch[16];
-static int g_watch_n;
-
-extern "C" void port_bob_debug_spawn(void)
-{
-    static int done;
-    const char *spec;
-    const char *p;
-    const char *player;
-    int pos[3];
-    signed char area;
-
-    if (done)
-        return;
-    spec = std::getenv("SM64DS_SPAWN_ACTOR");
-    if (!spec) { done = 1; return; }
-    player = (const char *)(size_t)data_0209f394[0];
-    if (!player)
-        return;                  /* the boot has not produced him yet */
-    done = 1;
-
-    pos[0] = *(const int *)(player + 0x5c);
-    pos[1] = *(const int *)(player + 0x60);
-    pos[2] = *(const int *)(player + 0x64);
-    area = *(const signed char *)(player + 0xcc);
-
-    for (p = spec; *p; ) {
-        char *end;
-        long id = std::strtol(p, &end, 0);
-        long param = 0;
-        void *a;
-        if (end == p) break;
-        p = end;
-        if (*p == ':') { param = std::strtol(p + 1, &end, 0); p = end; }
-        while (*p == ',' || *p == ' ') ++p;
-        /* Two units above the player's feet, so a class that drops to the
-           ground has something to drop through. */
-        {
-            int at[3] = {pos[0], pos[1] + 0x20000, pos[2]};
-            short rot[3] = {0, 0, 0};
-            short uniq = data_ov002_0211118c++;
-            a = _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(
-                    (unsigned)id, (unsigned)param, at, rot, area, uniq);
-        }
-        std::printf("[spawnhook] actor %ld param 0x%lx at (%d,%d,%d) area %d "
-                    "-> %p\n", id, param, pos[0] >> 12, pos[1] >> 12,
-                    pos[2] >> 12, (int)area, a);
-        if (g_watch_n < (int)(sizeof g_watch / sizeof g_watch[0]))
-            g_watch[g_watch_n++] = (unsigned short)id;
-    }
-}
-
-/* The read-back, and it is what proves BEHAVIOUR rather than survival: every
-   sixty frames, how many of each watched id are still on the behaviour list,
-   where the first of them is, and what the coin counter says. A pickup shows
-   up here as the count going down and data_0209f358 going up in the same
-   report -- which is the whole of a coin working, and it also means the D1 in
-   slot 16 ran and AfterCleanupResources deallocated behind it. */
-extern "C" void port_bob_debug_watch(void)
-{
-    static int frame;
-    int i;
-    if (!g_watch_n || (frame++ % 60))
-        return;
-    std::printf("[watch] frame %d coins %d:", frame - 1, data_0209f358[0]);
-    for (i = 0; i < g_watch_n; ++i) {
-        int n = 0;
-        const int *first = 0;
-        for (int *node = (int *)(size_t)data_020a4b78[0]; node && n < 4096;
-             node = (int *)(size_t)node[1]) {
-            char *o = (char *)(size_t)node[2];
-            if (!o || *(unsigned short *)(o + 0xc) != g_watch[i])
-                continue;
-            if (!n++) first = (const int *)(o + 0x5c);
-        }
-        std::printf("  %u x%d", g_watch[i], n);
-        if (first)
-            std::printf(" @(%d,%d,%d)", first[0] >> 12, first[1] >> 12,
-                        first[2] >> 12);
-    }
-    std::printf("\n");
-}
-
 // ============================================================================
 // The rest of the roster whose overlay is ALREADY MOUNTED: ov002 (the engine
 // overlay, since gate 14), ov098 (gate 19), ov100 (gate 21) and ov102 (gate
@@ -984,4 +869,126 @@ extern "C" void hal_fill_warp_pipe_vtable(void)
     vt[12] = (void *)bw_pdes_base;
     vt[16] = (void *)wp_d1;
     vt[17] = (void *)bw_trap17;
+}
+
+// ---- WARP (347, ov002) x4 --------------------------------------------------
+//
+// The vtable at ov002 0x0210acbc, RTTI 11daWarpkun_c -- warp-kun, the warp
+// POINT. This is what Bob-omb Battlefield actually uses where the task asked
+// for warp pipes: SM64DS puts no pipe on this level, it puts four warps, and
+// the level's own tables name id 347 four times.
+//
+// Its factory spells the table by the RTTI name and dsd never gave it one, the
+// InvisibleSecret case again -- Warp_Spawn is ov002 0x020ec534 and its one
+// literal (relocs.txt, from 0x020ec568) is 0x0210acbc. Every one of its seven
+// slots is a plain C-named func_ov002_020ec* in its own TU, so this class needs
+// no header, no method face and no shadow declaration: it is the cheapest
+// class on the roster.
+//
+// 264-byte object with one MovingCylinderClsn at +0xd4, which is the trigger
+// volume. What it does when the player enters it is a position change inside
+// the same level, which is why it works here and the PIPE's level change does
+// not.
+extern "C" {
+int func_ov002_020ec4c4(char *self);     /* InitResources */
+int func_ov002_020ec3fc(char *self);     /* CleanupResources */
+int func_ov002_020ec410(char *self);     /* Behavior */
+int func_ov002_020ec408(char *self);     /* Render */
+void func_ov002_020ec404(char *self);    /* OnPendingDestroy */
+int *func_ov002_020ec388(int *self);     /* D1 */
+void *data_ov002_0210acbc[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV11daWarpkun_c=_data_ov002_0210acbc")
+static int __fastcall warp_init(void *s, void *)
+{ return func_ov002_020ec4c4((char *)s); }
+static int __fastcall warp_clean(void *s, void *)
+{ return func_ov002_020ec3fc((char *)s); }
+static int __fastcall warp_behavior(void *s, void *)
+{ return func_ov002_020ec410((char *)s); }
+static int __fastcall warp_render(void *s, void *)
+{ return func_ov002_020ec408((char *)s); }
+static int __fastcall warp_pdes(void *s, void *)
+{ func_ov002_020ec404((char *)s); return 0; }
+static int __fastcall warp_d1(void *s, void *)
+{ return (int)(size_t)func_ov002_020ec388((int *)s); }
+extern "C" void hal_fill_warp_vtable(void)
+{
+    void **vt = data_ov002_0210acbc;
+    bw_fill_shared(vt);
+    vt[0] = (void *)warp_init;
+    vt[3] = (void *)warp_clean;
+    vt[6] = (void *)warp_behavior;
+    vt[9] = (void *)warp_render;
+    vt[12] = (void *)warp_pdes;
+    vt[16] = (void *)warp_d1;
+    vt[17] = (void *)bw_trap17;
+}
+
+// ---- THE WATCH (port mod) --------------------------------------------------
+//
+// THE SPAWN HOOK IS NOT HERE ANY MORE. This gate carried a minimal one while
+// port-beta-lvl was still in flight; that branch is merged and its
+// port_debug_spawn / port_debug_spawn_at / port_debug_spawn_env in
+// hal/level_boot.cpp are the real thing, wired to the F5 menu and to the level
+// parameter. SM64DS_SPAWN_ACTOR is theirs now and this file only reads it to
+// know which ids to follow.
+//
+// What is left is the READ-BACK, and it is what proves BEHAVIOUR rather than
+// survival: every sixty frames, how many of each watched id are still on the
+// behaviour list, where the first of them is, and what the coin counter says.
+// A pickup shows up as the count going down and data_0209f358 going up in the
+// same report -- which is the whole of a coin working, and it also means the
+// D1 in slot 16 ran and AfterCleanupResources deallocated behind it.
+extern "C" {
+extern int data_020a4b78[];       /* the behaviour processing list */
+extern short data_0209f358[];     /* the coin counter GiveCoins increments */
+}
+
+static unsigned short g_watch[16];
+static int g_watch_n;
+
+/* Pick the ids up from the same variable the shared hook parses, once. */
+static void port_bob_watch_arm(void)
+{
+    static int done;
+    const char *p;
+    if (done) return;
+    done = 1;
+    p = std::getenv("SM64DS_SPAWN_ACTOR");
+    if (!p) return;
+    while (*p && g_watch_n < (int)(sizeof g_watch / sizeof g_watch[0])) {
+        char *end;
+        long id = std::strtol(p, &end, 0);
+        if (end == p) break;
+        p = end;
+        if (*p == ':') std::strtol(p + 1, &end, 0), p = end;
+        while (*p == ',' || *p == ' ') ++p;
+        g_watch[g_watch_n++] = (unsigned short)id;
+    }
+}
+
+extern "C" void port_bob_debug_watch(void)
+{
+    static int frame;
+    int i;
+    port_bob_watch_arm();
+    if (!g_watch_n || (frame++ % 60))
+        return;
+    std::printf("[watch] frame %d coins %d:", frame - 1, data_0209f358[0]);
+    for (i = 0; i < g_watch_n; ++i) {
+        int n = 0;
+        const int *first = 0;
+        for (int *node = (int *)(size_t)data_020a4b78[0]; node && n < 4096;
+             node = (int *)(size_t)node[1]) {
+            char *o = (char *)(size_t)node[2];
+            if (!o || *(unsigned short *)(o + 0xc) != g_watch[i])
+                continue;
+            if (!n++) first = (const int *)(o + 0x5c);
+        }
+        std::printf("  %u x%d", g_watch[i], n);
+        if (first)
+            std::printf(" @(%d,%d,%d)", first[0] >> 12, first[1] >> 12,
+                        first[2] >> 12);
+    }
+    std::printf("\n");
 }

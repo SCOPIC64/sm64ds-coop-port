@@ -82,3 +82,4 @@ ExclamationSwitch_SpawnInfo:0x1c InvisibleSecret_SpawnInfo:0x1c
 # and the registry fills it as host storage (hal/actor_classes_bob_world.cpp).
 data_ov002_020ff0ac data_ov002_021098e8 data_ov002_021098ec data_ov002_021098f0
 data_ov002_0210d7f4:0x8
+Warp_SpawnInfo:0x1c
