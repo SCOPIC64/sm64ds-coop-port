@@ -394,17 +394,36 @@ def main():
     # 0xffff terminator and runs the full 2.9 MB to 0x02400000 -- one byte
     # past the region -- and takes the process with it.
     #
-    # So scan back over every candidate that could still reach v and take the
-    # SMALLEST one that does. Smallest is the most specific: a named symbol
-    # beats the gap block that happens to span it, which is what the DS's own
-    # flat memory would have given.
+    # So scan back over every candidate that could still reach v and pick
+    # among all of them, in this order:
+    #
+    #   1. A NAMED SYMBOL BEATS A GAP BLOCK. Named symbols are the storage the
+    #      game reaches BY NAME, and a pointer that aliases one has to land on
+    #      the same bytes or a write through the name is invisible through the
+    #      pointer. A gap block is only ever reached through a patched pointer,
+    #      so it never has that obligation.
+    #   2. Among named symbols, the SMALLEST -- the most specific.
+    #   3. Among gap blocks, the one that REACHES FURTHEST past v. Gap blocks
+    #      overlap each other: the run builder merges neighbours within 0x100
+    #      and later iterations lay short (t, t + 0x18) stubs over runs an
+    #      earlier iteration already covered, so ov002 has a 24-byte
+    #      port_ov002_gap_0210c158 sitting across a 212-byte
+    #      port_ov002_gap_0210c168. Both hold the same ROM bytes, but a walk
+    #      that starts at 0x0210c168 gets eight bytes from the first and 212
+    #      from the second, and running out of array is the failure this whole
+    #      pass exists to prevent. Take the one with the bytes.
     def covering(v):
+        gap_prefix = "port_%s_gap_" % ov
         best = None
+        best_key = None
         i = bisect.bisect_right(starts, v) - 1
         while i >= 0 and v - ivals[i][0] <= widest:
             s, e, n = ivals[i]
-            if s <= v < e and (best is None or e - s < best[1] - best[0]):
-                best = ivals[i]
+            if s <= v < e:
+                is_gap = n.startswith(gap_prefix)
+                key = (is_gap, e - s if not is_gap else -(e - v))
+                if best_key is None or key < best_key:
+                    best, best_key = ivals[i], key
             i -= 1
         return best
 
