@@ -68,6 +68,7 @@ int _ZN4cstd4fdivEii(int a, int b);
 extern void *_ZTV19CylinderClsnWithPos[];
 extern void *_ZTV18MovingCylinderClsn[];
 extern void *_ZTV25MovingCylinderClsnWithPos[];
+extern void *_ZTV9LakituBro[];
 }
 
 /* PORT_TRACE_CYL=1 walks the list without dispatching anything and names each
@@ -77,6 +78,36 @@ extern void *_ZTV25MovingCylinderClsnWithPos[];
    slice, and the pass calls both on every node. */
 #include <stdio.h>
 #include <stdlib.h>
+static const char *cyl_vt_name(void **vt)
+{
+    if (vt == _ZTV19CylinderClsnWithPos)       return "CylinderClsnWithPos";
+    if (vt == _ZTV18MovingCylinderClsn)        return "MovingCylinderClsn";
+    if (vt == _ZTV25MovingCylinderClsnWithPos) return "MovingCylinderClsnWithPos";
+    return 0;
+}
+
+/* Walk what is left of the list and flag any node whose vt is no longer one
+   of the cylinder tables. `when` names the moment, so the first [cylbad] line
+   in the log is the step that corrupted it. The LakituBro table is printed as
+   a landmark because the frame-0 fault dispatches out of its slot 17. */
+static int cyl_scan(const char *when)
+{
+    int n = 0, bad = 0;
+    for (CylClsn *p = data_0209cee8; p && n <= 200; p = p->next, ++n) {
+        if (!cyl_vt_name(p->vt)) {
+            fprintf(stderr,
+                    "[cylbad] %s: node %d %p vt=%p (lakitu vt=%p delta=%ld) "
+                    "vt[2]=%p vt[3]=%p\n",
+                    when, n, (void *)p, (void *)p->vt,
+                    (void *)_ZTV9LakituBro,
+                    (long)((char *)p->vt - (char *)_ZTV9LakituBro),
+                    p->vt[2], p->vt[3]);
+            bad = 1;
+        }
+    }
+    return bad;
+}
+
 static void cyl_trace_list(void)
 {
     int n = 0;
@@ -109,16 +140,21 @@ extern "C" void port_cylinder_clsn_process(void)
     if (data_0209cee8 == 0)
         return;
 
-    {
-        static int trace = -1;
-        if (trace < 0) trace = getenv("PORT_TRACE_CYL") != 0;
-        if (trace) cyl_trace_list();
-    }
+    static int trace = -1;
+    if (trace < 0) trace = getenv("PORT_TRACE_CYL") != 0;
+    if (trace) cyl_trace_list();
 
     minDist = 0x1000;
+    int headidx = 0;
 
     do
     {
+        if (trace) {
+            const char *nm = cyl_vt_name(data_0209cee8->vt);
+            fprintf(stderr, "[cylhead] %2d %p %s\n", headidx,
+                    (void *)data_0209cee8, nm ? nm : "FOREIGN");
+            cyl_scan("head-top");
+        }
         pos0 = clsn_pos(data_0209cee8);
         owner0 = clsn_owner(data_0209cee8);
 
@@ -208,8 +244,13 @@ extern "C" void port_cylinder_clsn_process(void)
                                 overlap = 0;
                             else
                                 overlap = _ZN4cstd4fdivEii(t, dist);
+                            if (trace)
+                                fprintf(stderr, "[cylnotify] head=%p id=%08x\n",
+                                        (void *)data_0209cee8,
+                                        data_0209cee8->otherOwner);
                             func_02014f44(data_0209cee8->otherOwner,
                                           data_0209cee8);
+                            if (trace) cyl_scan("after-notify-head");
                         }
                         else
                             overlap = _ZN4cstd4fdivEii(overlap, dist);
@@ -235,7 +276,11 @@ extern "C" void port_cylinder_clsn_process(void)
                             overlap = 0;
                         else
                             overlap = _ZN4cstd4fdivEii(t, dist);
+                        if (trace)
+                            fprintf(stderr, "[cylnotify] other=%p id=%08x\n",
+                                    (void *)other, other->otherOwner);
                         func_02014f44(other->otherOwner, other);
+                        if (trace) cyl_scan("after-notify-other");
                     }
                     else
                         overlap = _ZN4cstd4fdivEii(overlap, dist);
@@ -278,6 +323,7 @@ extern "C" void port_cylinder_clsn_process(void)
             data_0209cee8->prev = 0;
             data_0209cee8->next = 0;
             data_0209cee8 = nxt;
+            ++headidx;
         }
     } while (data_0209cee8 != 0);
 }

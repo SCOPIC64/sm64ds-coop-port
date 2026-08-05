@@ -474,6 +474,7 @@ void hal_sub_camera_input(void);
    than the matched TU: MSVC's one-slot destructor shifts GetPos onto D0 and
    the first pass frees a cylinder. See that file's header. */
 extern "C" void port_cylinder_clsn_process(void);
+extern "C" void *_ZTV18MovingCylinderClsn[];
 
 #ifdef NTR_HIRES
 static const int ZOOM = 1;
@@ -1197,6 +1198,14 @@ int main(void)
     g_fake_snap = fake_snap;
     PORT_INSTALL_FAULT_PROBE();
     port_install_watchdog();
+    /* PORT_WATCH_MCC=1: who writes MovingCylinderClsn's GetPos/GetOwnerID
+       slots. This is the watch that caught SetPlayerGlobals' controller
+       loop straying out of a two-byte data_0209f4ae into the vtable
+       (hal/actor_vtables.cpp has the full story). Kept armed for the next
+       time a layout shift puts something else behind an undersized host
+       global. */
+    if (getenv("PORT_WATCH_MCC"))
+        port_watch_words(&_ZTV18MovingCylinderClsn[2], 2);
     setvbuf(stdout, NULL, _IONBF, 0);
     /* FLIGHT RECORDER (Tango's ask): every diagnostic this program
        writes to stderr -- unhosted states, spawn skips, fault dumps
