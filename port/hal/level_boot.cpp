@@ -518,30 +518,26 @@ extern "C" void port_scene_canary(const char *where);
    switched off (the geometry regression); 1 = the level's own object load. */
 extern "C" void port_particle_boot(void);   /* hal/particle_bridges.cpp */
 
-/* THE MESSAGE BOX IS NOT HOSTED, and it does not fail politely. func_0201f32c
+/* THE MESSAGE BOX DATA LAYER IS HOSTED now (hal/message_boot.cpp). func_0201f32c
    opens a message and its first line is
 
        if (*(u16 *)((char *)data_0209d70c + 8) <= (u16)arg0) return;
 
    which is the ROM's own bounds check against the message count. data_0209d70c
-   is zeroed storage, so on host that read is a null dereference at +8 rather
-   than the early-out. Pointing it at a zeroed header makes the count read 0, so
-   every message id fails the check and the whole function returns before it
-   touches anything else -- the same shape the sign-talk path is already guarded
-   with, done once here instead of at each call site.
-
-   Reachable the moment the Player is not Mario: the other characters' level
-   entry runs a message Mario's does not, and it faulted about two seconds in. */
-static unsigned char g_message_null_header[16];
+   now points at the real loaded bank header, so the count reads 711 and the
+   matched body runs. The seat is done through port_message_archive_seat, which
+   loads the bank once and is idempotent, so the early boot call and the a2 seat
+   both reach it and only the first does work. */
 extern "C" int data_0209d70c[];   /* hal/auto_bss.cpp */
+extern "C" void port_message_archive_seat(void);
 
 void *port_stage_a_boot(void *mc, int spawn)
 {
     g_stage_mc = mc;
     /* fx wrote this against the ov009-only mount; the lvl stream made the
-       mount parameterised, and the guard wants to run for every level, so it
-       rides the new call */
-    ((void **)data_0209d70c)[0] = g_message_null_header;
+       mount parameterised, and the bank load wants to happen before any level
+       logic can open a text box, so it rides the new call */
+    port_message_archive_seat();
     PortLvlOverlay *o = (PortLvlOverlay *)port_level_mount();
 
     /* STAGE B: THE TABLES ARE BACK ON. Stage A1 zeroed the Entrance, Door and
@@ -984,44 +980,33 @@ extern int data_0209ee90[];            /* +0x44 is the projection's W scale */
 extern int data_0209d70c[];            /* the message archive header pointer */
 }
 
-// ---- the message archive: mounted EMPTY, deliberately ----------------------
+// ---- the message archive: the REAL bank, loaded ----------------------------
 //
 // Bob-omb Battlefield is the first level the port boots whose own logic opens
-// a TEXT BOX, and it is not a bug on either side.
-//
-// func_ov002_020c44c4 is the Player's one-shot level-intro check. Its switch
-// is on data_0209f2f8, the current level, and `case 7: r4val = 8` is Bob-omb
-// Battlefield's tutorial message -- fired when
+// a TEXT BOX. func_ov002_020c44c4 is the Player's one-shot level-intro check;
+// its switch is on data_0209f2f8, the current level, and `case 7: r4val = 8` is
+// Bob-omb Battlefield's tutorial message -- fired when
 // SaveData::CountStarsCollectedInLevel comes back zero, which on a port with
 // a zeroed save block it always does. That runs the message state machine in
-// func_ov002_020c4188, whose case 2 calls func_0201f32c, and its first line is
+// func_ov002_020c4188, whose case 2 calls func_0201f32c, whose first line is
 //
 //     if (*(u16 *)((char *)data_0209d70c + 8) <= (u16)arg0) return;
 //
-// data_0209d70c is the pointer to the loaded message archive's header. Nothing
-// on the host loads one -- data/message/msg_data_eng.bin is real ROM data, but
-// reading it is the whole Message text subsystem, which is a long way from the
-// level boot -- so the pointer is zero and the read lands on address 8.
-//
-// The seam is not a branch: it is an EMPTY ARCHIVE. A zeroed header reports
-// zero messages, so the line above is the ROM'S OWN out-of-range path and
-// every message id is declined there. The rest of the state machine runs
-// exactly as it runs on hardware, minus the text: the camera flag goes on, the
-// wait counter runs down, data_0209d660 stays 0 so the "still displaying"
-// case falls straight through, and the player's 0x71e/0x71f reset. He stands
-// there for the length of a message he cannot read and then walks on.
-//
-// The moment the Message subsystem IS hosted, this seat goes away and the real
-// archive pointer takes its place. Until then it says so once.
-static unsigned char port_empty_message_header[0x28];
+// data_0209d70c is the pointer to the loaded message archive's header. This
+// seat now loads the REAL one: hal/message_boot.cpp's port_message_bank_load
+// runs the matched loader+parser logic (LoadFile(0x0431) ->
+// data/message/msg_data_eng.bin, decompressed by the fs layer; sections pinned)
+// so data_0209d70c[+8] reads the real messageCount (711) and func_0201f32c's
+// matched body runs for every valid id instead of early-returning.
+extern "C" int port_message_bank_load(void); /* hal/message_boot.cpp */
 
 extern "C" void port_message_archive_seat(void)
 {
     if (data_0209d70c[0])
         return;
-    data_0209d70c[0] = (int)(size_t)port_empty_message_header;
-    std::printf("[msg] no message archive is hosted; mounting an EMPTY one, so "
-                "every text box is declined by the ROM's own bounds check\n");
+    if (!port_message_bank_load())
+        std::fprintf(stderr, "[msg] message bank did not load; text boxes will "
+                     "be declined by the ROM's own bounds check\n");
 }
 
 // ---- the twelve shared models Stage::InitResources preloads ----------------
