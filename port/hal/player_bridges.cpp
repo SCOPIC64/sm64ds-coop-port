@@ -339,6 +339,148 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
     return 1;
 }
 
+/* ---- LIVE CHARACTER SWAP (port mod) ------------------------------------
+   The mod is the ENTRY POINT, not the swap. Player::SetRealCharacter is the
+   game's own permanent change -- the one the character doors call -- and it is
+   already instant: it starts the hat morph and then writes unk_73c = 0, which
+   cancels the morph's state machine before a single stage of it runs. So there
+   is nothing to reimplement here and nothing to animate away. What the port
+   owes it is a caller with guards, because the ROM only ever reaches it from
+   one place that has already checked everything.
+
+   All four body and head models are resident from InitResources
+   (func_ov002_020e5948), so no model loading happens. One thing does load: the
+   BCA for (current animation, new character). mCharFileBase is animId * 4, not
+   a per-character base, so ANIM_PTRS[base + chr] is a 2D lookup and only the
+   current row's Mario column is resident at boot.
+
+   Return codes exist so the caller can print WHY nothing happened rather than
+   looking broken: 0 done, 1 no player, 2 out of range, 3 already that one. */
+extern void *data_0209f394[];        /* per-player Actor*, cxxname_bridge's */
+extern short data_02092144[];        /* per-player health, high byte = HP */
+extern void *data_ov002_020ff480[];  /* ANIM_PTRS[anim*4 + char] */
+extern signed char data_02092114;    /* queued in-level swap, -1 = none */
+void _ZN10ModelAnim24CopyERKS_Pcj(void *self, const void *src, char *nf,
+                                  unsigned nof);
+
+int port_set_character(int chr)
+{
+    char *c = (char *)data_0209f394[0];
+    if (!c) return 1;
+    /* SetRealCharacter masks with & 3 in two places but uses chr RAW in the
+       other two (the ANIM_PTRS index and the chr + 0xc4 default-anim index),
+       so an out-of-range value would read past the table into whatever ov002
+       packed next. Reject it -- masking would silently hand back a different
+       character than the caller asked for. */
+    if (chr < 0 || chr > 3) return 2;
+    /* the body ModelAnim2 slots: null until InitResources has run, and
+       SetRealCharacter dereferences one with no check of its own */
+    if (!*(void **)(c + 0xdc)) return 1;
+    if ((int)(*(unsigned *)(c + 8) & 0xff) == chr) return 3;
+
+    /* A cap collect in flight is CANCELLED, not refused. Cancelling is what an
+       instant swap means, and refusing would be a trap: the debug menu pauses
+       the tick, so unk_73c can never advance while someone is holding the menu
+       open. Say it happened so an odd-looking result is attributable. */
+    if (((Player *)c)->Player::IsCollectingCap())
+        std::fprintf(stderr, "[chr] swap during a cap collect (unk_73c=%04x);"
+                             " the morph is cancelled\n",
+                     *(unsigned short *)(c + 0x73c));
+
+    /* SetRealCharacter ends in Heal(0x880) unconditionally. Save the whole
+       short, not just the HP byte -- the low byte is a fraction GiveHealth
+       works in. Without this every swap visibly refills the HUD hearts, which
+       makes the row useless for anything you were testing damage against. */
+    const unsigned pno = *(unsigned char *)(c + 0x6d8) & 3;
+    const short saved_hp = data_02092144[pno];
+    /* which body model is animating RIGHT NOW, before param1 moves */
+    const unsigned old_id =
+        _ZNK6Player14GetBodyModelIDEjb(c, *(unsigned *)(c + 8) & 0xff, 0);
+
+    ((Player *)c)->Player::SetRealCharacter((unsigned)chr);
+
+    /* KNOWN, LEFT ALONE DELIBERATELY: Luigi's head draws with the toon/flash
+       shading the power flower uses. The swap does not turn it on -- unk_73c
+       = 0 inside SetRealCharacter cancels func_ov002_020be3b0 before stage 1's
+       SetPolygonMode(m, 2) can run, which is what makes the swap instant. It
+       means stage 7, the only thing that turns the flash OFF, never runs
+       either, so a model already in that polygon mode keeps it. A
+       Player::TurnOffToonShading(chr) here clears it, but that is a rendering
+       question about Luigi's head model rather than part of the swap, and it
+       has not been eyeballed. Chip it separately. */
+
+    /* THE OTHER THING THE ROM'S CALLER ALREADY HAD RIGHT. data_02092114 is the
+       QUEUED in-level swap -- the file-select picker writes the character it
+       wants and func_ov002_020be008 performs it on the next landing, spawning
+       the cap actor and freezing the player in a no-control state while the
+       poof plays. -1 means "nothing queued", and the port never seats it: it
+       is plain zero-initialised storage, which reads as "a swap to Mario is
+       pending". Inert for as long as you ARE Mario, which is why nothing has
+       ever noticed. The moment param1 becomes anything else the poll fires and
+       drags you straight back, ~28 frames after the swap, through a state the
+       port does not host -- so you end up frozen as the character you asked
+       for. SetRealCharacter is a direct swap, so the honest value afterwards is
+       the one 020be008 itself writes when it has consumed the request. */
+    data_02092114 = -1;
+
+    data_02092144[pno] = saved_hp;
+    /* The body renders off param1, which the call above wrote, but the HEAD
+       renders off unk_6db, and the only thing that re-syncs unk_6db from
+       param1 is the tail of func_ov002_020e4bb8 -- inside Player::Behavior.
+       With the menu open the tick is skipped, so without this the new body
+       wears the old head for exactly as long as somebody is looking at it.
+       This is that same assignment, one tick early, and it is idempotent once
+       the tick resumes. */
+    *(unsigned char *)(c + 0x6db) = (unsigned char)chr;
+
+    /* THE ONE THING SetRealCharacter LEAVES TO ITS CALLER, and the reason a
+       swap that looked fine faulted on the next tick.
+
+       Its tail is ModelAnim2::Copy(body[m1], body[m2], newFile, 0) -- but it
+       assigns param1 = chr BEFORE computing both ids, so m1 == m2 and the copy
+       is a model onto itself. That cannot carry an animation across, and
+       body[chr] has no base Animation to begin with: InitResources
+       (func_ov002_020e5948) seats only otherAnim for all four models and the
+       base Animation for whoever you actually are. So the new model comes out
+       with numFramesAndFlags == 0, and Animation::Advance's `% len` on the
+       very next Player_AdvanceAnims is an integer divide by zero.
+
+       On the ROM this is invisible, because SetRealCharacter has exactly one
+       caller -- the character door -- and the door's state immediately calls
+       Player::SetAnim with a DIFFERENT animation id, which takes SetAnim's
+       slow path and seats the frame count off the new file. A swap that does
+       not change animation never gets that. Calling SetAnim here would not
+       help either: ModelAnim::SetAnim fast-paths when the file pointer already
+       matches, and SetRealCharacter's own Copy already stored it.
+
+       So do what the hat morph does. This is func_ov002_020be3b0's stage-3
+       call with the operands it has: dst != src, which carries the live
+       cursor, speed and frame count off the character who was walking a moment
+       ago onto the one who is now. */
+    {
+        const unsigned base = *(unsigned *)(c + 0x63c);
+        const unsigned new_id =
+            _ZNK6Player14GetBodyModelIDEjb(c, (unsigned)chr, 0);
+        void *dst = *(void **)(c + 0xdc + new_id * 4);
+        void *src = *(void **)(c + 0xdc + old_id * 4);
+        /* SharedFilePtr's layout is not recovered; +4 is the file pointer every
+           caller in src/ indexes, SetRealCharacter's own Copy argument included.
+           It is a real load off the file seam, so it can come back empty. */
+        char *bca = *(char **)((char *)data_ov002_020ff480[base + chr] + 4);
+        if (dst && src && dst != src && bca)
+            _ZN10ModelAnim24CopyERKS_Pcj(dst, src, bca, 0);
+        /* and say so if it still came out unplayable, rather than leaving the
+           divide to announce it */
+        if (!bca || !dst ||
+            (*(unsigned *)((char *)dst + 0x54) & ~0xc0000000u) == 0)
+            std::fprintf(stderr, "[chr] character %d came out with no playable "
+                                 "body animation (anim base %u, file %p) -- "
+                                 "Advance will divide by zero\n",
+                         chr, base, (void *)bca);
+    }
+    return 0;
+}
+
 void _ZN6Player16InitWingFeathersEb(void *self, unsigned char b_)
 { ((Player *)self)->Player::InitWingFeathers(b_ != 0); }
 extern "C++" int ApproachLinear(int &ref, int target, int step);

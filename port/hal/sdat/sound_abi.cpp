@@ -1,6 +1,8 @@
-// ARM argument ride-throughs on the sound path.
+// The src sound functions the host owns, each filtered out of
+// SLICE10_CAM_SOURCES in port/CMakeLists.txt.
 //
-// Five functions in the sound stack are declared in src/ with fewer
+// Most of them are ARM argument ride-throughs. Five functions in the sound
+// stack are declared in src/ with fewer
 // parameters than their callers pass. That is not a decomp error -- on ARM
 // the extra arguments sit in r1..r3 across a call that never names them, and
 // the callee's own call passes them straight on. mwccarm reproduces the ROM
@@ -19,6 +21,8 @@
 //   func_0204f7cc  (1 -> 3)  pan mode + value ride into Snd_SendCommand(4).
 //   func_0204f86c  (1 -> 3)  two riders into Snd_SendCommand(5, ...).
 //   func_0204fa2c  (1 -> 2)  the fade length rides into func_0204f5a0.
+//
+// The rest are not ride-throughs; each says why below.
 #include "sdat.h"
 
 #include <stdio.h>
@@ -168,5 +172,36 @@ void _ZN5Sound6Player19SetPlayableSeqCountEii(int playerId, int maxSeq)
     *(unsigned int *)(data_020a4d6c + playerId * 0x1c + 0x18) =
         (unsigned short)maxSeq;
 }
+
+// func_0203d974: "does anything still need loading off the card?" Every
+// group-load seam in the sound stack asks it first. Two independent reasons
+// the src version cannot run here, and they push the same way:
+//
+//   1. It reads *(u16 *)0x027ffc40 -- the DS main-RAM mirror -- literally, and
+//      ntr/io.cpp maps MAIN_BASE 0x02000000 for MAIN_SIZE 0x00400000, so
+//      0x027ffc40 is not mapped at all. The read is an access violation.
+//      slice_gate14.txt called this one: "harmless while nothing calls it, a
+//      fault the day something does."
+//   2. Even given the read, the DS-faithful answer is 0 -- and 0 is what sends
+//      func_02011f7c into func_020510a4(data_0209b498, data_0209b484) with
+//      data_0209b498 still null (plain BSS in hal/actor_vtables.cpp, because
+//      sd_sound_init_host deliberately SKIPs func_02050f34, the 1MB sound heap
+//      builder -- see the SKIP list in consumer.cpp). Null deref one call on.
+//
+// So 1 is not a convenience, it is the only workable answer. It is also the
+// same decision consumer.cpp already made at init ("SKIP func_020134d8:
+// residency is pre-seated, so there is nothing to load"), moved to the seam
+// where the game asks the question rather than the one place it was skipped.
+// sdat.cpp's RESIDENCY PRE-SEAT note is why it is TRUE and not just expedient:
+// the whole archive is in memory and all 282 FAT residency slots point at it.
+//
+// WHAT 1 COSTS, so the next reader does not have to rediscover it:
+//   - func_02011f7c still stores data_0209b478, the player voice-group byte.
+//     Nothing in src/ READS that byte, so this does not make a character's
+//     voice follow a swap; it means the swap does not crash.
+//   - Sound::LoadGroupAndSetBank takes its other branch under 1 and returns
+//     early for every group but 0x2f. That function is dead on this boot (the
+//     kuppa/intro tails), so 1 makes it more inert, not less.
+int func_0203d974(void) { return 1; }
 
 }  // extern "C"

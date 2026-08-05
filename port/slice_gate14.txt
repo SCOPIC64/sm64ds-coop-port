@@ -61,7 +61,9 @@ src/StartIntroCutscene.c
 # ContinueKuppaScriptIfNecessary returns on its first line) but the link
 # still needs them, and the real files are cheaper than the stubs would be
 # honest. func_0203d974 reads the DS's 0x027ffc40 hardware word directly:
-# harmless while nothing calls it, a fault the day something does.
+# harmless while nothing called it -- and the day something did has arrived.
+# The debug character swap calls Player::SetRealCharacter, which reaches it two
+# frames down the voice-bank load, so the host owns it now (see below).
 src/_ZN5Sound16LoadInitialGroupEi.cpp
 src/_ZN5Sound19LoadGroupAndSetBankEii.c
 # src/_ZN5Sound6Player19SetPlayableSeqCountEii.c is also listed in
@@ -70,7 +72,11 @@ src/_ZN5Sound19LoadGroupAndSetBankEii.c
 # separate object on the host, so hal/sdat/sound_abi.cpp hosts it. Listing it
 # here as well put it straight back into the link.
 src/DisableSoundPlayersForCredits.c
-src/func_0203d974.c
+# src/func_0203d974.c is the same case: also listed in slice_gate10.txt, where
+# SLICE10_CAM_SOURCES filters it out, and hosted in hal/sdat/sound_abi.cpp
+# because its 0x027ffc40 read is unmapped on the host and the DS-faithful
+# answer walks into a null sound heap. Left live here it would come straight
+# back into the link, since gate 14 is appended unfiltered.
 src/func_0203d7d4.c
 src/func_020134d8.c
 src/func_0205117c.c

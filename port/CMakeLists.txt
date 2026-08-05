@@ -950,7 +950,16 @@ foreach(src IN LISTS SLICE10_SOURCES)
        OR src MATCHES "/_ZN5Sound6Player19SetPlayableSeqCountEii\\.c$"
     # ...and Sound::Play, whose src calls func_02050cdc(void) and lets the
     # kind and id ride through in r0/r1.
-       OR src MATCHES "/_ZN5Sound4PlayEjjRK7Vector3\\.c$")
+       OR src MATCHES "/_ZN5Sound4PlayEjjRK7Vector3\\.c$"
+    # ...and func_0203d974, "does anything still need loading off the card".
+    # Its src reads the DS main-RAM mirror word 0x027ffc40 literally, which is
+    # past MAIN_BASE+MAIN_SIZE (ntr/include/ntr/mmio.h) and unmapped -- and the
+    # DS-faithful answer would then walk into a null sound heap. Hosted in
+    # sound_abi.cpp; the header there has the whole argument. It is listed in
+    # slice_gate14.txt as well, where it is commented out rather than filtered:
+    # gate 14 is appended unfiltered, so a live line there puts it straight back
+    # into the link (same as SetPlayableSeqCount above).
+       OR src MATCHES "/func_0203d974\\.c$")
         continue()
     endif()
     # gate 35: HitDeathPlane is that shape one more time -- it calls

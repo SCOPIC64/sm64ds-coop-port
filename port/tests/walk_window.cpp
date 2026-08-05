@@ -380,6 +380,9 @@ extern unsigned g_port_unhosted_hits;
    warp list (hal/level_boot.cpp) */
 int port_entrance_count(void);
 int port_entrance_record(int i, int *x, int *y, int *z, int *yaw);
+/* the live character swap (hal/player_bridges.cpp): 0 done, 1 no player,
+   2 out of range, 3 already that character */
+int port_set_character(int chr);
 /* the real level boot (hal/level_boot.cpp) */
 void port_level_probe(void);
 /* the level selector: SM64DS_LEVEL picks it, the debug menu's LEVEL row
@@ -894,7 +897,7 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
 }
 
 /* ---- THE DEBUG MENU (port mod) ----------------------------------------
-   F5. Deliberately small: the four things worth reaching mid-session without
+   F5. Deliberately small: the things worth reaching mid-session without
    restarting the program under a different environment, plus one status line.
    Up/down or the d-pad move, left/right change a value, and enter (or A) does
    what right does, so the whole thing works one-handed on a pad.
@@ -909,6 +912,7 @@ enum {
     MENU_WARP = 0,
     MENU_LEVEL,
     MENU_EXIT,
+    MENU_CHARACTER,
     MENU_SNAP,
     MENU_OVERLAY,
     MENU_CAMERA,
@@ -928,6 +932,11 @@ static int menu_entrance;             /* the entrance the warp row is showing */
    Rows the port cannot mount yet are still SHOWN, marked, because the point
    of the list is that it is the game's own and the gap is visible. */
 static int menu_level_row = 1;
+static const char *const CHR_NAME[4] = { "Mario", "Luigi", "Wario", "Yoshi" };
+/* the Player the character row reads and writes. Not data_0209f394[0] read
+   fresh inside menu_draw: that slot is only filled under boot_spawns, and the
+   draw runs on frames the boot may have skipped. Seated once below. */
+static void *g_menu_player;
 static int g_overlay_on;              /* F3, and the menu's overlay row */
 static char g_playlog[160] = "off";   /* the flight recorder's current file */
 
@@ -974,6 +983,12 @@ static void menu_draw(ntr::Framebuffer &fb)
     snprintf(ln[MENU_EXIT], sizeof ln[0],
              "exit course       ExitLevel() -> level 1 entrance 13   "
              "(here: level %d)", (int)data_0209f2f8);
+    if (g_menu_player)
+        snprintf(ln[MENU_CHARACTER], sizeof ln[0], "character         %s",
+                 CHR_NAME[*(int *)((char *)g_menu_player + 8) & 3]);
+    else
+        snprintf(ln[MENU_CHARACTER], sizeof ln[0],
+                 "character         no player");
     snprintf(ln[MENU_SNAP], sizeof ln[0], "fake snap         %s",
              g_fake_snap ? "ON (collider owner set at boot)" : "off");
     snprintf(ln[MENU_OVERLAY], sizeof ln[0], "stats overlay     %s",
@@ -1345,6 +1360,24 @@ int main(void)
 
     /* the castle grounds floor, gate-8 recipe */
     char *c = (char *)player;
+    g_menu_player = player;
+
+    /* SM64DS_CHARACTER=<0-3> picks who you start as, once, here -- not at a
+       frame number. The State objects SetNewHatCharacter tests are built by
+       __sinit_ov002_021019d0, which has already run by this point.
+       This is NOT the old SM64DS_FORCE_CHAR: that one pokes param1 raw for
+       the walljump probe and deliberately leaves the anim archive, the
+       globals and the head alone. This goes through the real swap. */
+    {
+        const char *ce = getenv("SM64DS_CHARACTER");
+        if (ce) {
+            const int want = atoi(ce);
+            const int r = port_set_character(want);
+            fprintf(stderr, "[chr] boot character %d (%s) -> %s\n", want,
+                    (unsigned)want < 4 ? CHR_NAME[want] : "?",
+                    r == 0 ? "ok" : r == 3 ? "already" : "refused");
+        }
+    }
     if (!real_boot) {
         static struct { unsigned short id; unsigned char refs; void *p; } kp;
         _ZN13SharedFilePtr9ConstructEj(&kp, 1941);
@@ -1764,6 +1797,21 @@ int main(void)
             if (now && !overlay_edge) g_overlay_on = !g_overlay_on;
             overlay_edge = now;
         }
+        /* F4 cycles the character with the menu CLOSED, mid-walk. Its own edge
+           latch, deliberately outside the menu's held-mask below, so it is not
+           one of the keys the menu swallows while it is open. */
+        {
+            static int chr_edge;
+            const int now = key_live(VK_F4);
+            if (now && !chr_edge && g_menu_player) {
+                const int cur = *(int *)((char *)g_menu_player + 8) & 3;
+                const int nxt = (cur + 1) & 3;
+                const int r = port_set_character(nxt);
+                fprintf(stderr, "[chr] F4 -> %d (%s)%s\n", nxt, CHR_NAME[nxt],
+                        r ? "  REFUSED" : "");
+            }
+            chr_edge = now;
+        }
         /* drain what the window procedure collected. Unconditionally, so a
            drag taken in DS-exact mode does not pile up and dump into the rig
            the moment F1 hands it the view. MOUSE_YAW is 48 binangs a pixel --
@@ -1905,7 +1953,16 @@ int main(void)
                            func_ov003_020ad814 does (+/-1, modulo the row
                            count); enter runs its else-branch. */
                         if (edge & (1u << 5)) {
-                            port_title_select(menu_level_row);
+                            /* a successful select CLOSES THE MENU: the level
+                               handoff poll below is gated on !menu_on (every
+                               pointer the menu holds goes stale across it),
+                               so staying open would park the warp forever --
+                               which is exactly what it did. */
+                            if (port_title_select(menu_level_row)) {
+                                menu_on = 0;
+                                fprintf(stderr, "[menu] closed for the level "
+                                        "handoff\n");
+                            }
                         } else if (dec) {
                             menu_level_row = (menu_level_row +
                                               port_title_rows() - 1) %
@@ -1919,6 +1976,20 @@ int main(void)
                         if (edge & (1u << 5)) {
                             fprintf(stderr, "[menu] ExitLevel()\n");
                             ExitLevel();
+                        }
+                        break;
+                    case MENU_CHARACTER:
+                        /* shaped like the camera row, not the warp row: a
+                           character swap is instant and reversible, so there
+                           is nothing to stage behind a second keypress. */
+                        if (g_menu_player) {
+                            char *pc = (char *)g_menu_player;
+                            const int cur = *(int *)(pc + 8) & 3;
+                            const int nxt = dec ? (cur + 3) & 3 : (cur + 1) & 3;
+                            const int r = port_set_character(nxt);
+                            fprintf(stderr, "[menu] character -> %d (%s)%s\n",
+                                    nxt, CHR_NAME[nxt],
+                                    r ? "  REFUSED" : "");
                         }
                         break;
                     case MENU_SNAP:
@@ -2222,6 +2293,28 @@ int main(void)
             if (selftest && getenv("SM64DS_SELFTEST_SWIM") &&
                 (frame % 24) < 3)
                 btn |= 2;
+            /* SM64DS_SELFTEST_SWAP=<n>[,<n>...] does mid-stride what F4 does by
+               hand: one swap every 20 frames from frame 30, with a walk cycle
+               already running and an animation partway through it. Two
+               different things need that. The boot swap SM64DS_CHARACTER takes
+               lands before the state machine has settled, which is not the path
+               a person uses; and a LIST is what catches the file bookkeeping,
+               because each swap releases the character it is leaving and loads
+               the one it is going to, so only a chain proves the pair stays
+               balanced across more than one hop. */
+            if (selftest && frame >= 30 && (frame - 30) % 20 == 0) {
+                const char *sw = getenv("SM64DS_SELFTEST_SWAP");
+                if (sw) {
+                    const int nth = (frame - 30) / 20;
+                    for (int k = 0; k < nth && sw; ++k)
+                        sw = strchr(sw, ',') ? strchr(sw, ',') + 1 : 0;
+                    if (sw && *sw) {
+                        const int want = atoi(sw);
+                        fprintf(stderr, "[chr] f%d selftest swap -> %d, rc %d\n",
+                                frame, want, port_set_character(want));
+                    }
+                }
+            }
             /* camera orbit through the game's own reader: func_02009e70
                tests data_0209f49c & 0x4300 -- L (0x200) rotates left, R
                (0x100) rotates right, 0x4000 is the snap-behind the input
@@ -2548,7 +2641,12 @@ int main(void)
             if (force_wj && frame == 10) {
                 /* SM64DS_FORCE_CHAR=<0-3> picks the row: 0/2 (Mario, Wario)
                    are hosted, 1/3 (Luigi, Yoshi) are not and have to come
-                   out as the mapper's loud no-op, not a wild jump. */
+                   out as the mapper's loud no-op, not a wild jump.
+                   NOT a character change, and not the one to copy: it pokes
+                   param1 raw on purpose, leaving the anim archive, the globals
+                   and the head where they were, because the probe wants the
+                   gravity row and nothing else. The real swap is
+                   port_set_character (F4, the menu row, SM64DS_CHARACTER). */
                 const char *fc = getenv("SM64DS_FORCE_CHAR");
                 if (fc) {
                     *(int *)(c + 0x008) = atoi(fc);
@@ -2627,6 +2725,10 @@ int main(void)
                     return 3;
                 }
                 c = (char *)player;
+                /* the character row's seat predates the level handoff and was
+                   boot-once; across a warp the old Player is torn down, so
+                   re-seat it here with everything else */
+                g_menu_player = player;
                 cam = data_0209f318;
                 level_shift = 0;
                 if (real_boot) {
