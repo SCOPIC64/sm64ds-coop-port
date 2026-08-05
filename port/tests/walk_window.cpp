@@ -383,10 +383,8 @@ void port_actor_render(void);        /* phase 5: the render bucket */
 void port_actor_scene_pass(void);    /* phase 1: scene-tree housekeeping */
 void port_actor_census(void);
 void port_actor_lists_probe(void);
-/* gate 32: SM64DS_BOB_SPAWN, the direct actor spawn that brings a class up
-   before its own level exists (hal/actor_spawn_probe_bob.cpp). No env, no
-   work. */
-void port_bob_spawn_probe(void *player, int frame);
+/* gate 32: what SM64DS_SPAWN_ACTOR spawned, read back off the behaviour list
+   once the run is over (hal/actor_spawn_probe_bob.cpp). No env, no output. */
 void port_bob_spawn_report(void);
 /* the bottom screen (hal/sub_screen.cpp): the OAM lifecycle, the engine-B
    scan-out and the corner panel it lands in. TAB toggles the panel. */
@@ -2468,7 +2466,6 @@ int main(void)
                the one Camera::Render published, in the ROM's own scene units,
                and Actor::BeforeBehavior reads exactly those three words to
                place every actor for the Clipper. */
-            port_bob_spawn_probe(player, frame);
             port_actor_tick();
         } else if (*(void **)(c + 0x370)) {
             hal_player_behavior(player);
