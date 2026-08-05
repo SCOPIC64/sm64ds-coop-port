@@ -116,18 +116,41 @@ void _ZN5Sound4PlayEjjRK7Vector3(unsigned kind, unsigned id, struct Vector3 *v)
         }
         return;
     }
+    // SM64DS_SND_TRACE also lights up the TWO SILENT RETURNS below. Both are
+    // the ROM's own 3D culls -- func_02048720 answers "no free positional
+    // voice for this priority", func_02048a1c answers "further away than this
+    // sound's distance limit" -- and on the ROM they are ordinary. On the
+    // port they were the shape of a whole class of bug: data_02099fac, the
+    // default distance limit, was zeroed HAL storage rather than the ROM's
+    // 550, so func_02048a1c culled EVERY positional sound in the game and
+    // Sound::Play returned without a word. A cull that cannot be told apart
+    // from silence is the one thing this path is not allowed to be.
     int t = s[5];
     if (t == 9 || t == 2) {
         void *r = func_02048720(v, (int)kind, (int)id);
-        if (r == 0) return;
+        if (r == 0) {
+            if (g_snd_trace_play)
+                fprintf(stderr, "[snd] Play(%u, %u) type %d: no positional "
+                        "voice free -- culled\n", kind, id, t);
+            return;
+        }
         Player_PlaySoundEffect((int)(size_t)r, kind, id);
         func_02048908(r, (int *)v);
         return;
     }
-    if (func_02048a1c((int *)v, (int)kind, (int)id) == 0) return;
+    if (func_02048a1c((int *)v, (int)kind, (int)id) == 0) {
+        if (g_snd_trace_play)
+            fprintf(stderr, "[snd] Play(%u, %u) type %d: out of range "
+                    "-- culled\n", kind, id, t);
+        return;
+    }
     Player_PlaySoundEffect((int)(size_t)data_0209b4a4, kind, id);
     func_02048d80(data_0209b4a4, (int *)v);
 }
+
+// Set from the consumer's own SM64DS_SND_TRACE read, so one variable arms
+// both halves of the trace.
+int g_snd_trace_play;
 
 // Sound::Player::SetPlayableSeqCount. Not a ride-through -- an ALIAS. The
 // src writes *(u32 *)(data_020a4d84 + id * 0x1c), and on the DS

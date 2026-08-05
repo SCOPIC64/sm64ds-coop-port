@@ -100,6 +100,11 @@ int data_0209e650[8];
 int data_0209f37c[8];
 int data_0209f40c[8];
 int data_0209f224[8];
+/* gate 35: the id of the star just collected. Its own storage rather than a
+   read into data_0209f224's generous default -- on the DS these are two
+   adjacent one-byte symbols, and only the port's padding makes the second
+   look like it is already covered by the first. */
+int data_0209f228[8];
 int data_0209b274[8];
 int data_0209b294[8];
 /* data_0209f5bc (the installed fader) moved to hal/fader_wipes.cpp: the
@@ -119,7 +124,11 @@ int data_0209f26c[8];
 int data_0209f270[8];
 int data_0209f5e8[8];
 int data_020a4d84[8];
-int data_02099fb0[8];
+/* data_02099fb0 moved to romdata (gate 35): it is file-backed arm9 data with
+   the value 4 in it, and it is the COUNT func_02048720 walks when it looks
+   for a free 3D voice. At 0 that loop never runs, pick stays -1, and every
+   type-9 sound effect in the game comes back "no positional voice free" --
+   which Sound::Play answers with a silent return. */
 int data_0209d4ac[8];
 int data_020a4c64[8];
 int data_020a4c70[8];

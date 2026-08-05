@@ -373,10 +373,18 @@ void *_ZTV18MovingCylinderClsn[12];
 
 /* gate-10 BSS ring (spawn/camera/collision-config globals; zeros are the
    pre-scene defaults) */
-short SUBLEVEL_LEVEL_TABLE[64];
+/* SUBLEVEL_LEVEL_TABLE moved to romdata (gate 35): it is file-backed arm9
+   data at 0x02075298, not BSS, and every star and coin record is filed under
+   what it returns. The `short[64]` here was also half the right stride --
+   decl_common.h declares it `signed char[]` and SublevelToLevel indexes it
+   that way. */
 int data_020991d8[8], data_02099264[8], data_02099274[8];
 int data_02099338[8], data_02099348[8], data_02099358[8], data_02099368[8];
-int data_020994cc[8], data_02099fa4[4], data_02099fa8[4], data_02099fac[4];
+int data_020994cc[8];
+/* data_02099fa4/fa8/fac moved to romdata (gate 35): they are file-backed arm9
+   data, not BSS, and data_02099fac is the 3D sound distance limit -- zeroed,
+   it culls every positional sound effect in the game and Sound::Play's
+   response to the cull is a silent return. */
 /* data_0209b008 moved to hal/camera_states.cpp: it is the first of the 19
    camera State objects, and the whole run has to carry the DS fn addresses */
 int data_0209b478[8], data_0209b484[4], data_0209b488[4];
