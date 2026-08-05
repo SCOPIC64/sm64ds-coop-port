@@ -789,6 +789,12 @@ uint32_t gx_state_hash()
     return h;
 }
 
+void gx_debug_matrices(int *mode, float pos[16], float proj[16]) {
+    if (mode) *mode = g.mode;
+    if (pos) for (int i = 0; i < 16; ++i) pos[i] = g.pos.m[i];
+    if (proj) for (int i = 0; i < 16; ++i) proj[i] = g.proj.m[i];
+}
+
 void gx_write_port(uint32_t addr, uint32_t value) {
     gx_stream_note(addr ^ value);
     const uint8_t cmd = static_cast<uint8_t>((addr - 0x04000400u) >> 2);
@@ -1254,3 +1260,4 @@ void gx_render(Framebuffer &fb) {
 }
 
 }  // namespace ntr
+

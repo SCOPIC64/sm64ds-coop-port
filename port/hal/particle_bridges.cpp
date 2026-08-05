@@ -354,8 +354,14 @@ extern "C" void port_particle_frame(void)
         char *node = *(char **)(engine + 4);
         static int shown;
         for (int guard = 0; node && guard < 8 && shown < 8; ++guard) {
-            char *ctx = *(char **)(node + 0x34);
-            char *plist = ctx ? *(char **)(ctx + 0x08) : 0;
+            /* From the ROM, not from a guess: the emit at 0x0204ab24 passes the
+               system node as `mgr`, and func_0204c304 links each new particle
+               with func_0204d9a0((List *)(mgr + 0x10), p). So the live particle
+               list hangs off the system at +0x10. */
+            std::printf("[fx]   lists: +0x08 head %p count %d | +0x10 head %p count %d\n",
+                        *(void **)(node + 0x08), *(int *)(node + 0x0c),
+                        *(void **)(node + 0x10), *(int *)(node + 0x14));
+            char *plist = *(char **)(node + 0x08);
             for (char *p = plist; p && shown < 8; p = *(char **)p) {
                 ++shown;
                 const double sx = (*(int *)(p + 0x14) + *(int *)(p + 0x08)) / 4096.0;
@@ -383,7 +389,27 @@ extern "C" void port_particle_frame(void)
        decoded to nothing. Print the triangles it added so the answer is read
        off the numbers instead of guessed. */
     size_t tris_before = 0;
-    if (fx_trace() >= 3) ntr::gx_polygons(tris_before);
+    if (fx_trace() >= 3) {
+        ntr::gx_polygons(tris_before);
+        /* The particle billboard is already in VIEW space: func_0204be40 sends
+           MTX_IDENTITY then MTX_MULT_4x3, which only lands the billboard alone
+           in the position matrix if the mode is a position mode. If the mode
+           is projection here, identity wipes the perspective and the view
+           stays in position, so every particle gets the view applied twice.
+           Print the state rather than assume it. */
+        static int said;
+        if (!said) {
+            said = 1;
+            int mode = -1;
+            float pos[16], proj[16];
+            ntr::gx_debug_matrices(&mode, pos, proj);
+            std::printf("[fx] at particle time MTX_MODE = %d (0 proj, 1 pos, "
+                        "2 pos+vec, 3 tex)\n", mode);
+            std::printf("[fx]   pos  row3 %.1f %.1f %.1f\n", pos[12], pos[13], pos[14]);
+            std::printf("[fx]   proj row0 %.3f %.3f  row3 %.1f %.1f\n",
+                        proj[0], proj[1], proj[12], proj[13]);
+        }
+    }
     /* SM64DS_FX_SCALE=1: an EXPERIMENT, not a fix. func_0204be40 multiplies a
        particle's stored position straight through data_0209b3ec and loads the
        result as the billboard, with no shift anywhere in between, so the
@@ -403,8 +429,23 @@ extern "C" void port_particle_frame(void)
     if (scale_fix)
         for (int i = 0; i < 9; ++i) data_0209b3ec[i] = saved[i];
     if (fx_trace() >= 3) {
+        /* AFTER the draw: if the identity-then-multiply worked, the position
+           matrix now holds the billboard alone, whose translation is the
+           particle in VIEW space. For the dust at scene (-150, 34.9, 837.8)
+           through this view matrix that is about (0, -15, -108). Anything
+           else means the billboard did not land where the ROM intends. */
         size_t tn = 0;
         const ntr::GxTriangle *ta = ntr::gx_polygons(tn);
+        static int said_after;
+        if (!said_after && tn > tris_before) {   /* only on a frame that DREW */
+            said_after = 1;
+            int mode = -1;
+            float pos[16], proj[16];
+            ntr::gx_debug_matrices(&mode, pos, proj);
+            std::printf("[fx] AFTER a real particle draw: mode %d, pos row3 "
+                        "%.1f %.1f %.1f  (billboard should be about 0 -15 -108)\n",
+                        mode, pos[12], pos[13], pos[14]);
+        }
         static int shown;
         if (tn > tris_before && shown < 6) {
             ++shown;
