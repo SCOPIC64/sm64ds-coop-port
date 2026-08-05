@@ -15,6 +15,7 @@
 #include "sdat.h"
 
 #include <math.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -102,6 +103,19 @@ void player_silence(int p)
         if (g_note[i].active && g_note[i].player == p) note_off(i, 1);
 }
 
+// Kill what ONE TRACK owns: the abnormal-death path. Tied notes outlive
+// their track on purpose (every SEQARC one-shot is "program, note, end"
+// and rings past 0xff until its sample ends), so a track that dies from a
+// desynced stream has to take its voices with it, or the garbage note it
+// keyed on the way out rings forever -- which is what the loud static in
+// the 2026-08-05 play session was.
+void track_silence(int p, int t)
+{
+    for (int i = 0; i < SD_CHANNELS; i++)
+        if (g_note[i].active && g_note[i].player == p && g_note[i].track == t)
+            note_off(i, 1);
+}
+
 void start_note(Player &pl, int pi, int ti, Track &tk, int note, int vel,
                 int ticks)
 {
@@ -186,11 +200,31 @@ int run_track(Player &pl, int pi, int ti)
             }
             int v = rd16s(s + tk.pc); tk.pc += 2; return v;
         };
+        // The VARLEN arguments (note duration, rest, program) take the
+        // prefixes too. A 0xA0-prefixed rest stores lo,hi as two s16s where
+        // the varlen would sit, and reading them as a varlen would walk the
+        // stream off by the difference. Spec correctness, not a live bug: a
+        // static walk of every SSEQ and SEQARC entry in the EU SDAT (calls
+        // and prefixes modelled) found no 0xA0 in front of a varlen anywhere,
+        // so the 2026-08-05 pc-6664 track death was NOT this -- see the
+        // unimplemented-opcode handler below for where that hunt points.
+        auto argVarlen = [&](void) -> sd_u32 {
+            if (useVar) {
+                int v = pl.var[s[tk.pc++] & (SD_VARS - 1)];
+                return (sd_u32)(v < 0 ? 0 : v);
+            }
+            if (useRandom) {
+                int lo = rd16s(s + tk.pc); tk.pc += 2;
+                int hi = rd16s(s + tk.pc); tk.pc += 2;
+                int v = rnd(lo, hi);
+                return (sd_u32)(v < 0 ? 0 : v);
+            }
+            return read_varlen(s, tk.pc);
+        };
 
         if (op < 0x80) {                        // note on
             int vel = s[tk.pc++];
-            sd_u32 dur = useVar ? (sd_u32)pl.var[s[tk.pc++] & (SD_VARS - 1)]
-                                : read_varlen(s, tk.pc);
+            sd_u32 dur = argVarlen();
             if (condition) start_note(pl, pi, ti, tk, op, vel, (int)dur);
             if (condition && tk.noteWait) tk.wait = (int)dur;
             continue;
@@ -198,14 +232,12 @@ int run_track(Player &pl, int pi, int ti)
 
         switch (op) {
         case 0x80: {                            // rest
-            sd_u32 d = useVar ? (sd_u32)pl.var[s[tk.pc++] & (SD_VARS - 1)]
-                              : read_varlen(s, tk.pc);
+            sd_u32 d = argVarlen();
             if (condition) tk.wait = (int)d;
             break;
         }
         case 0x81: {                            // program / bank change
-            sd_u32 v = useVar ? (sd_u32)pl.var[s[tk.pc++] & (SD_VARS - 1)]
-                              : read_varlen(s, tk.pc);
+            sd_u32 v = argVarlen();
             if (condition) tk.prog = (int)(v & 0x7f);
             break;
         }
@@ -313,10 +345,24 @@ int run_track(Player &pl, int pi, int ti)
                 static sd_u8 seen[256];
                 if (!seen[op]) {
                     seen[op] = 1;
+                    /* Every stream in the EU SDAT parses clean end to end
+                       under this dispatcher (statically walked, calls and
+                       prefixes modelled), so landing here means the pc or
+                       the seq POINTER went somewhere no stream reaches --
+                       state corruption, not a missing opcode. Name the
+                       stream so the playlog says which one died: the
+                       sdat-relative offset identifies it. */
+                    long rel = (pl.seq >= g_sdat.base &&
+                                pl.seq < g_sdat.base + g_sdat.size)
+                               ? (long)(pl.seq - g_sdat.base) : -1;
                     fprintf(stderr, "[sseq] unimplemented opcode 0x%02x "
-                            "(player %d track %d, pc %u) -- track ended\n",
-                            op, pi, ti, (unsigned)(tk.pc - 1));
+                            "(player %d track %d, pc %u, seq %p = "
+                            "sdat+0x%lx) -- track ended; no stream parses "
+                            "here, suspect a stomped pc or seq pointer\n",
+                            op, pi, ti, (unsigned)(tk.pc - 1),
+                            (const void *)pl.seq, rel);
                 }
+                track_silence(pi, ti);
                 tk.active = 0;
                 return 0;
             }
@@ -325,6 +371,7 @@ int run_track(Player &pl, int pi, int ti)
     // A track that never yields is malformed; stop it rather than hang.
     fprintf(stderr, "[sseq] player %d track %d ran 4096 commands without a "
             "wait -- stopped\n", pi, ti);
+    track_silence(pi, ti);
     tk.active = 0;
     return 0;
 }
@@ -349,6 +396,21 @@ int sd_seq_active(int p)
 int sd_seq_start(int p, const sd_u8 *seqData, const sd_u8 *sbnk)
 {
     if (p < 0 || p >= SD_PLAYERS || !seqData) return 0;
+    /* PORT_SSEQ_TRACE=1: every start with the stream's identity, so a later
+       abnormal track death can be matched to what was actually started on
+       that player. The 2026-08-05 session died at pc 6664 on a player whose
+       stream could not be named after the fact. */
+    {
+        static int trace = -1;
+        if (trace < 0) trace = getenv("PORT_SSEQ_TRACE") != 0;
+        if (trace) {
+            long rel = (seqData >= g_sdat.base &&
+                        seqData < g_sdat.base + g_sdat.size)
+                       ? (long)(seqData - g_sdat.base) : -1;
+            fprintf(stderr, "[sseq] start player %d seq %p (sdat+0x%lx)\n",
+                    p, (const void *)seqData, rel);
+        }
+    }
     sd_seq_stop(p);
 
     Player &pl = g_pl[p];

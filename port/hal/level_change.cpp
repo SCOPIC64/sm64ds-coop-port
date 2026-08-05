@@ -524,7 +524,13 @@ extern "C" int port_title_select(int i)
        dScStarSel_c, the star select, which is another ov003 scene. The port
        goes straight to the level, so the fade request is not made -- making
        it would park a pending scene id nothing can spawn. */
-    std::printf("[title] row %d -> level %d entrance %d\n", i, level,
-                entrance);
+    /* stderr, not stdout: the flight recorder captures stderr only, and the
+       2026-08-05 play session's "warp did not work" could not be read from
+       its playlog because this line was on the wrong stream. (What actually
+       happened: the row resets to 1 on every boot, and the selected row
+       mapped to level 1 entrance 0 -- a castle grounds re-entry that looks
+       like nothing happened.) */
+    std::fprintf(stderr, "[title] row %d -> level %d entrance %d\n", i, level,
+                 entrance);
     return 1;
 }

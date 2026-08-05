@@ -1981,6 +1981,29 @@ int main(void)
             if (edge & (1u << 0)) {
                 menu_on = !menu_on;
                 fprintf(stderr, "[menu] %s\n", menu_on ? "open" : "closed");
+                /* Park the level row somewhere USEFUL on open: the row
+                   resets to 1 each boot, and 1 is the castle grounds, so
+                   "open the menu, press enter" re-entered the level being
+                   stood in -- which reads as a warp that did nothing (the
+                   2026-08-05 session). Seat it on the first mounted row
+                   whose level is not the current one; navigation from
+                   there is unchanged. */
+                if (menu_on) {
+                    int lv = 0, en = 0;
+                    if (port_title_row(menu_level_row, &lv, &en) &&
+                        lv == (int)data_0209f2f8) {
+                        const int rows = port_title_rows();
+                        for (int k = 1; k < rows; ++k) {
+                            const int r = (menu_level_row + k) % rows;
+                            if (port_title_row(r, &lv, &en) &&
+                                port_level_is_mounted(lv) &&
+                                lv != (int)data_0209f2f8) {
+                                menu_level_row = r;
+                                break;
+                            }
+                        }
+                    }
+                }
             }
             if (menu_on) {
                 const int n_ent = port_entrance_count();
