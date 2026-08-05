@@ -42,7 +42,7 @@ if errorlevel 1 goto unpackfailed
 echo.
 
 :play
-"%KIT%\walk_window.exe" %*
+"%KIT%\demo-1.7.exe" %*
 if errorlevel 1 (
     echo.
     echo The game exited with an error. The lines above say why.
