@@ -252,6 +252,7 @@ static int __fastcall tree_d0(void *s, void *)
 { return (int)(size_t)_ZN4TreeD0Ev((char *)s); }
 
 extern "C" void hal_fill_cylinder_withpos_vtable(void);
+extern "C" void hal_fill_moving_cylinder_vtables(void);
 
 extern "C" void hal_fill_tree_vtable(void)
 {
@@ -597,6 +598,71 @@ extern "C" void hal_fill_cylinder_withpos_vtable(void)
     _ZTV19CylinderClsnWithPos[1] = (void *)ccp_d0;
     _ZTV19CylinderClsnWithPos[2] = (void *)ccp_getpos;
     _ZTV19CylinderClsnWithPos[3] = (void *)ccp_ownerid;
+}
+
+// ---- the two ACTOR-ATTACHED cylinder tables --------------------------------
+//
+// Same treatment, same reason, and the reason is what killed the tree-grab
+// chain on frame 0. _ZTV18MovingCylinderClsn (arm9 0x0208e6d4) and
+// _ZTV25MovingCylinderClsnWithPos (0x0208e704) are declared in
+// hal/actor_vtables.cpp as bare zeroed arrays and nothing filled them,
+// because until now nothing in the port dispatched a cylinder virtual --
+// every consumer read the objects' fields directly.
+//
+// CylinderClsn::Process is the consumer that does. It asks EVERY node on
+// data_0209cee8 for GetPos and GetOwnerID, and the castle grounds put seven
+// actor-attached cylinders on that list from the first frame: six
+// MovingCylinderClsn (the SIGN_POSTs' read triggers and the RABBITs) and one
+// MovingCylinderClsnWithPos, behind the 21 CylinderClsnWithPos the trees
+// thread. The tree table was filled and the actor ones were not, so the pass
+// walked 21 good nodes and then called address zero. That is the frame-0
+// crash the chain was backed out for; PORT_TRACE_CYL=1 in
+// port/unmatched/CylinderClsn_Process.cpp prints the list with both slots.
+//
+// Slot order is the ROM's, per include/MovingCylinderClsn.h: [0] D1, [1] D0,
+// [2] GetPos, [3] GetOwnerID. WithPos overrides GetPos only -- its ROM slot 3
+// is a 12-byte interworking veneer onto the parent's GetOwnerID, so the port
+// installs the parent's shim there rather than inventing an override.
+extern "C" {
+void *_ZTV18MovingCylinderClsn[];
+void *_ZTV25MovingCylinderClsnWithPos[];
+void *_ZN18MovingCylinderClsnD1Ev(void *self);
+void *_ZN18MovingCylinderClsnD0Ev(void *self);
+void *_ZN25MovingCylinderClsnWithPosD0Ev(void *self);
+/* WithPos::GetPos is a C file (it just returns this + 0x34), so it carries
+   the plain C name rather than the method mangling the parent's .cpp emits */
+void *_ZN25MovingCylinderClsnWithPos6GetPosEv(void *self);
+/* the WithPos D1 is already declared above, returning void */
+}
+#include "MovingCylinderClsnWithPos.h"
+
+static void *__fastcall mcc_d1(void *s, void *)
+{ return _ZN18MovingCylinderClsnD1Ev(s); }
+static void *__fastcall mcc_d0(void *s, void *)
+{ return _ZN18MovingCylinderClsnD0Ev(s); }
+static void *__fastcall mcc_getpos(void *s, void *)
+{ return &((MovingCylinderClsn *)s)->MovingCylinderClsn::GetPos(); }
+static unsigned __fastcall mcc_ownerid(void *s, void *)
+{ return ((MovingCylinderClsn *)s)->MovingCylinderClsn::GetOwnerID(); }
+
+static void *__fastcall mccp_d1(void *s, void *)
+{ _ZN25MovingCylinderClsnWithPosD1Ev(s); return s; }
+static void *__fastcall mccp_d0(void *s, void *)
+{ return _ZN25MovingCylinderClsnWithPosD0Ev(s); }
+static void *__fastcall mccp_getpos(void *s, void *)
+{ return _ZN25MovingCylinderClsnWithPos6GetPosEv(s); }
+
+extern "C" void hal_fill_moving_cylinder_vtables(void)
+{
+    _ZTV18MovingCylinderClsn[0] = (void *)mcc_d1;
+    _ZTV18MovingCylinderClsn[1] = (void *)mcc_d0;
+    _ZTV18MovingCylinderClsn[2] = (void *)mcc_getpos;
+    _ZTV18MovingCylinderClsn[3] = (void *)mcc_ownerid;
+
+    _ZTV25MovingCylinderClsnWithPos[0] = (void *)mccp_d1;
+    _ZTV25MovingCylinderClsnWithPos[1] = (void *)mccp_d0;
+    _ZTV25MovingCylinderClsnWithPos[2] = (void *)mccp_getpos;
+    _ZTV25MovingCylinderClsnWithPos[3] = (void *)mcc_ownerid;  /* inherited */
 }
 
 // ============================================================================
