@@ -229,7 +229,17 @@ unsigned char data_ov006_02140330[8], data_ov006_02140338[8];
    here. They are ov089's own mount now (gate 22): the DOOR indexes
    element 5 of both and walked off the end of the fiction. */
 int data_0209b48c, data_0209b4a0[4], data_0209b4ac;
-int data_020a4c48, data_020a4c4c, data_020a4c54[2], data_020a4c5c;
+/* The music fade engine's per-channel records: func_020490b0 runs i = 0..1
+   over ALL FOUR of these (c48 the u16 channel ids, c4c the ramp rate, c54
+   the target, c5c the current volume), and func_02049764 seeds [0] and [1]
+   of c4c/c54/c5c on every course boot. Hosted as bare ints, c4c[1] zeroed
+   data_020a4c54[0] behind it and c5c[1] wrote 0x7f000 over data_0209ee74,
+   the particle tracker one word later, which is what killed the direct
+   Bob-omb Battlefield boot the moment the level had a layer-1 track. The
+   fade loop then read what survived at that word back as a volume every
+   frame, which is the audio-corruption side of the same line. Full DS
+   extent for all of them; c48 is u16[2] on the DS, one int here. */
+int data_020a4c48, data_020a4c4c[2], data_020a4c54[2], data_020a4c5c[2];
 /* data_0209ee74 IS A SysTracker*, not storage: every src reference spells it
    `extern char *data_0209ee74` and then indexes off its VALUE
    (func_02022a4c reads +0x774, func_02022774 writes +0x7d0..+0x7dc,

@@ -484,6 +484,7 @@ void hal_sub_camera_input(void);
    the first pass frees a cylinder. See that file's header. */
 extern "C" void port_cylinder_clsn_process(void);
 extern "C" void *_ZTV18MovingCylinderClsn[];
+extern "C" void *data_0209ee74;   /* the particle SysTracker (hal/auto_bss) */
 
 #ifdef NTR_HIRES
 static const int ZOOM = 1;
@@ -1272,6 +1273,11 @@ int main(void)
        global. */
     if (getenv("PORT_WATCH_MCC"))
         port_watch_words(&_ZTV18MovingCylinderClsn[2], 2);
+    /* PORT_WATCH_TRACKER=1: who writes the particle tracker pointer. On the
+       direct Bob-omb Battlefield boot it read 0x0007f000 by frame 0 after a
+       healthy [fx] boot line, which is this same stomp class again. */
+    if (getenv("PORT_WATCH_TRACKER"))
+        port_watch_words(&data_0209ee74, 1);
     setvbuf(stdout, NULL, _IONBF, 0);
     /* FLIGHT RECORDER (Tango's ask): every diagnostic this program
        writes to stderr -- unhosted states, spawn skips, fault dumps
