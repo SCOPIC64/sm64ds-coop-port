@@ -55,6 +55,9 @@ extern "C" {
 void _ZN3OAM4LoadEv(void);
 unsigned int _ZN3OAM12EnableSubOAMEv(void);
 int hal_oam_layout_check(void);
+/* the sprite-template guard (hal/oam_lists.cpp): every OamAttr* the HUD and
+   the Minimap hand OAM::Render, checked for a missed pointer rebase */
+int hal_oam_templates_check(void);
 /* the minimap's per-frame affine callback (port/unmatched/Minimap_Affine.cpp),
    which is func_02019144's first beat */
 void port_minimap_affine_update(void);
@@ -285,6 +288,14 @@ void hal_sub_screen_init(void *hwnd, int zoom)
    entry counters to zero, so this frame's Render calls fill from the start. */
 void hal_sub_screen_frame_begin(void)
 {
+    /* Once, on the first frame, and deliberately here rather than in init:
+       by now every pointer pass has run -- ovdata's per-overlay one from the
+       harness, the cross-overlay fixups from hal_fill_hud_vtable and
+       hal_fill_minimap_vtable -- and the HUD and the Minimap are about to walk
+       what those passes produced. hal/oam_lists.cpp says what a missed entry
+       costs and why the fault it causes lands nowhere near it. */
+    hal_oam_templates_check();
+
     static int tab_was;
     if (GetAsyncKeyState_ && !g_headless) {
         const int tab = (GetAsyncKeyState_(VK_TAB) & 0x8000) != 0;
