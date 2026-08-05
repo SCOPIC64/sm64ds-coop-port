@@ -65,6 +65,7 @@ window. Gate 24 is the exception and keeps its own smoke.
 | 27 | `walk_window` | the HUD actor (id 334): hearts, coins, stars, timer, camera buttons |
 | 28 | `walk_window` | the Minimap actor (id 335), plus the BG3-sub tilemap and extended palette |
 | 30 | `walk_window` | the level is a parameter: `SM64DS_LEVEL` picks it, and Bob-omb Battlefield (level 6, ov014) boots and walks |
+| 33 | `walk_window` | Bob-omb Battlefield's mechanisms, terrain and pickups: its 60 coins and 8 red coins, the four warps, the six cannon lids, the arrow signs, the five secrets and the brick blocks |
 
 There is no gate 11: it was folded into the gate-10 walking campaign before
 either landed. Gates 25 through 28 were **renumbered at merge** because three

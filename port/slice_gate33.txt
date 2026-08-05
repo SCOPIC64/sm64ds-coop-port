@@ -308,3 +308,31 @@ src/func_ov002_020ec404.c
 src/func_ov002_020ec388.c
 src/WarpPlayer.c
 src/_ZN6Player7CanWarpEv.cpp
+
+# ---- CylinderClsn::Process, and it is the whole of "a coin can be picked up"
+# arm9 0x02014aa8, 0x49c bytes, matched, and never called in the port until
+# now. It is the PAIRWISE cylinder pass: it walks the list every actor's
+# CylinderClsn::Update links itself into, and for each overlapping pair it
+# writes hitFlags and otherOwner at CylinderClsn+0x20/+0x24 and unlinks the
+# node again.
+#
+# That is exactly the pair func_ov002_020b19dc reads. The coin's
+# MovingCylinderClsn sits at +0x178, so the flags it tests at +0x198 and the
+# owner it reads at +0x19c ARE this pass's two writes. With the pass never
+# running the words stay zero, the coin never learns it was touched, and a
+# hosted coin is a coin that cannot be collected -- which is what the first
+# Bob-omb Battlefield run measured: 60 coins alive and the counter at 0 with
+# Mario standing inside one.
+#
+# The ROM calls it from Stage::Render (arm9 0x0202ba14, inside 0x0202b8a4),
+# and the Stage's twenty slots are all traps in the port -- gate 26 landed it
+# as a scene root, not as a running actor. So the call goes where Stage::Render
+# would have made it: the head of the render phase, in port_actor_render.
+src/_ZN12CylinderClsn7ProcessEv.cpp
+src/func_02014f44.c
+src/func_02014f5c.c
+# func_02014f5c calls its ov002 target by an UNPREFIXED name -- func_020caf98
+# rather than func_ov002_020caf98 -- because its TU had no way to know the
+# address was in an overlay. Same function, one alias in
+# hal/actor_faces_bob.cpp.
+src/func_ov002_020caf98.cpp

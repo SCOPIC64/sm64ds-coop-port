@@ -296,8 +296,52 @@ extern "C" void port_actor_tick(void)
    host's render frame rather than with the rest of func_02044120. Nothing
    converts units here any more: the whole frame is scene units, which is
    what an actor's own Render writes. */
+/* GATE 33: the pairwise cylinder pass, arm9 0x02014aa8, BUILT AND WIRED BUT
+   OFF BY DEFAULT -- SM64DS_CYLINDER_PASS=1 turns it on.
+
+   It is the missing half of every cylinder interaction in the port. Each actor
+   calls CylinderClsn::Update to link its own node into data_0209cee8; this
+   walks that list, and for every overlapping pair writes hitFlags and
+   otherOwner at CylinderClsn+0x20/+0x24 and unlinks the node again. Those two
+   words are exactly what func_ov002_020b19dc reads at the coin's +0x198/+0x19c
+   to decide it was collected. With the pass never running they stay zero, and
+   Bob-omb Battlefield measures 60 coins alive with the counter at 0 while
+   Mario stands inside one. The ROM calls it from Stage::Render (arm9
+   0x0202ba14) and the Stage does not run here -- all twenty of its slots trap,
+   hal/stage_bridges.cpp -- so this is where Stage::Render would have made the
+   call: the head of the render phase.
+
+   WHY IT IS OFF: it is the MSVC DESTRUCTOR SLOT SHIFT, in the one shape the
+   dual-fill trick cannot serve. CylinderClsn declares ~CylinderClsn, then
+   GetPos, then GetOwnerID, so the ROM table is {D1, D0, GetPos, GetOwnerID} at
+   slots 0..3 while a header-compiled caller folds the two destructors into one
+   and counts GetPos at 1 and GetOwnerID at 2. CylinderClsn::Process is
+   header-compiled and dispatches both on every node.
+   hal_fill_cylinder_withpos_vtable fills ROM slots 0..3, which is right for
+   the Tree's shadow-TU callers, and _ZTV18MovingCylinderClsn -- what every
+   actor on this gate's roster carries -- is unfilled storage. The two
+   numberings COLLIDE (ROM slot 1 is D0, MSVC slot 1 is GetPos), so one array
+   cannot serve both the way _ZTV5Model's Render does at 4 and 5.
+
+   The fix is the one the MSVC-slot-shift note prescribes: keep the vtable
+   ROM-shaped and host-copy the consumer with explicit slot indices -- a host
+   Process reading slots 2 and 3 directly instead of dispatching. That is a
+   0x49c-byte transcription and a gate of its own. Turning the switch on
+   without it faults on the first frame with a jump to +0xffed0000, which is
+   the null at MSVC slot 1 of an unfilled table. */
+extern "C" void _ZN12CylinderClsn7ProcessEv(void);
+
+static int port_cylinder_pass_on(void)
+{
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_CYLINDER_PASS") != 0;
+    return on;
+}
+
 extern "C" void port_actor_render(void)
 {
+    if (port_cylinder_pass_on())
+        _ZN12CylinderClsn7ProcessEv();
     data_02099f24[0] = 5;
     func_02043fdc(data_020a4b98);
     data_02099f24[0] = 0;

@@ -180,3 +180,38 @@ extern "C" void _ZN5Model6RenderEPK7Vector3(void *self, const void *scale)
    __thiscall, same absence of arguments, so the alias is exact -- and the ROM
    returns 0 or 1 in r0 either way. */
 #pragma comment(linker, "/alternatename:?CanWarp@Player@@QAE_NXZ=?CanWarp@Player@@QAEHXZ")
+
+/* CylinderClsn::Process is a STATIC member (it walks a global list and takes
+   no `this`), so it is cdecl on both sides and the alias is exact. The
+   registry's call site spells it by its Itanium name. */
+#pragma comment(linker, "/alternatename:__ZN12CylinderClsn7ProcessEv=?Process@CylinderClsn@@SAXXZ")
+
+/* src/func_02014f5c.c calls ov002 0x020caf98 by an UNPREFIXED name: its own TU
+   had no way to know the address lands in an overlay, so it spelled it
+   func_020caf98 while the definition carries the ov002 prefix. One function,
+   two spellings, both cdecl. */
+#pragma comment(linker, "/alternatename:_func_020caf98=_func_ov002_020caf98")
+
+/* CylinderClsn::Process's own closure ends in ov002 0x020caf98, the Player's
+   "you were hit" path, which reaches four Player::State objects and
+   Player::ChangeState with C++ linkage. The four States are mounted ov002 data
+   and the alias is exact; ChangeState is the port's host copy in
+   port/unmatched/Player_ChangeState.cpp, which spells the argument as a
+   pointer where this caller spells it as a reference -- same address either
+   way, and both are __thiscall on the same class. */
+#pragma comment(linker, "/alternatename:?data_ov002_0211013c@@3UState@Player@@A=_data_ov002_0211013c")
+#pragma comment(linker, "/alternatename:?data_ov002_021101b4@@3UState@Player@@A=_data_ov002_021101b4")
+#pragma comment(linker, "/alternatename:?data_ov002_0211031c@@3UState@Player@@A=_data_ov002_0211031c")
+#pragma comment(linker, "/alternatename:?data_ov002_021106dc@@3UState@Player@@A=_data_ov002_021106dc")
+
+/* ?ChangeState@Player@@QAEHAAUState@1@@Z -- the caller declares it a member of
+   its own shadow Player; the definition is the host copy's C-named
+   _ZN6Player11ChangeStateERNS_5StateE. __thiscall against cdecl, so a face. */
+extern "C" int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *state);
+struct PlayerChangeStateFace {
+    struct State;
+    int ChangeState(State &st);
+};
+int PlayerChangeStateFace::ChangeState(State &st)
+{ return _ZN6Player11ChangeStateERNS_5StateE(this, &st); }
+#pragma comment(linker, "/alternatename:?ChangeState@Player@@QAEHAAUState@1@@Z=?ChangeState@PlayerChangeStateFace@@QAEHAAUState@1@@Z")
