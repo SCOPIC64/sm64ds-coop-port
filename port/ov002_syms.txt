@@ -65,3 +65,7 @@ data_ov002_020ff014
 data_ov002_02108284
 data_ov002_020ff028
 data_ov002_020ff01c
+# gate 32: the CLPS block actor 27's mesh collider resolves its surface types
+# through. The post the CHAIN_CHOMP is chained to lives in ov091, but its
+# collision block is one of ov002's shared ones.
+data_ov002_0210d874

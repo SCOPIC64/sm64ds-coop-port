@@ -1,0 +1,72 @@
+# The ov091 data gate 32 needs for actor 27, the POST the CHAIN_CHOMP is
+# chained to. ChainChomp::InitResources spawns it itself, so the chomp cannot
+# run without it.
+#
+# The gate-18 shape (see ov085_syms.txt for the long version): an ACTOR overlay
+# mounted PER SYMBOL with --pack, the overlay's WHOLE data span rather than a
+# hand-picked subset, the vtables left out because they are host arrays the
+# registry fills, and every *_SpawnInfo pinned to the record's real 0x1c.
+#
+# ONE VTABLE IS EXCLUDED BY ADDRESS, the ov100 treatment, and finding it took
+# the ROM's own RTTI. Scanning this overlay's data for words whose +4 is
+# Actor::BeforeInitResources (arm9 0x02011268) finds seven tables. Five carry a
+# _ZTV* name and the generator's own rule drops them. Two do not:
+#
+#   data_ov091_021352bc  RTTI 11daObjPile_c   <- ACTOR 27's OWN, and the
+#                                                registry fills it: EXCLUDED
+#   data_ov091_021351fc  RTTI 11daDsnBase_c   <- THWOMP's and GRINDEL's, and
+#                                                neither is registered, so it
+#                                                stays mounted as ordinary data
+#                                                and nothing dispatches it
+#
+# THE CONFIG'S _ZTV5Stump IS NOT ACTOR 27's TABLE. Stump_SpawnInfo (0x02135298,
+# +4 halfword 27) names factory Stump_Spawn at 0x02133938, and that factory's
+# literal pool installs 0x021352bc, whose RTTI is daObjPile_c. The table config
+# calls _ZTV5Stump lives at 0x021353ac, its RTTI is daHyuhyu_c, and it is
+# FWOOSH's -- actor 231, Fwoosh_Spawn's own literal. So the six _ZN5Stump*
+# bodies in src/ are Fwoosh's methods and actor 27's are the unnamed
+# func_ov091_* block the table points at. Same shape as ov100's DOOR: the port
+# compiles what the vtable points at and renames nothing.
+data_ov091_021344e8:0xc data_ov091_021344f4:0x8 data_ov091_021344fc:0x8
+data_ov091_02134504:0x10 data_ov091_02134514:0x10 data_ov091_02134ba0:0xc
+data_ov091_02134bac:0xc data_ov091_02134bb8:0xc data_ov091_02134bc4:0xc
+data_ov091_02134bd0:0xc data_ov091_02134bdc:0x1c
+RotatingUpDownPlatform_SpawnInfo:0x1c RotatingUpDownPlatformUtm_SpawnInfo:0x1c
+data_ov091_02134c30:0x4 data_ov091_02134c34:0x4 data_ov091_02134c38:0x24
+data_ov091_02134cdc:0x40 data_ov091_02134d1c:0x128 data_ov091_02134e44:0x8
+data_ov091_02134e4c:0x8 data_ov091_02134e54:0x8 data_ov091_02134e5c:0x8
+data_ov091_02134e64:0xc data_ov091_02134e70:0x10 ArrowPathLift_SpawnInfo:0x1c
+SquareMetalNetLift_SpawnInfo:0x1c data_ov091_02134f40:0xc
+data_ov091_02134f4c:0x14 SlidingPlatformBdw_SpawnInfo:0x1c
+SlidingPlatformBsWide_SpawnInfo:0x1c SlidingPlatformBsLong_SpawnInfo:0x1c
+SlidingPlatformRr_SpawnInfo:0x1c SlidingPlatformBfsSquare_SpawnInfo:0x1c
+SlidingPlatformBfsRectangle_SpawnInfo:0x1c SlidingPlatformWf_SpawnInfo:0x1c
+data_ov091_02135024:0x4 data_ov091_02135028:0x4 data_ov091_0213502c:0x54
+data_ov091_02135100:0x20 data_ov091_02135120:0xc data_ov091_0213512c:0xc
+data_ov091_02135138:0x18 Thwomp_SpawnInfo:0x1c data_ov091_021351fc:0x80
+data_ov091_0213527c:0xc data_ov091_02135288:0x10 Stump_SpawnInfo:0x1c
+data_ov091_0213533c:0x8 data_ov091_02135344:0x8 data_ov091_0213534c:0x8
+data_ov091_02135354:0x8 data_ov091_0213535c:0x8 data_ov091_02135364:0x8
+data_ov091_0213536c:0xc data_ov091_02135378:0x10 Fwoosh_SpawnInfo:0x1c
+data_ov091_02135440:0x8 data_ov091_02135448:0x8 data_ov091_02135450:0x8
+data_ov091_02135458:0x8 data_ov091_02135460:0xc data_ov091_0213546c:0xc
+data_ov091_02135478:0xc data_ov091_02135484:0xc data_ov091_02135490:0x8
+data_ov091_02135498:0x8 data_ov091_021354a0:0x8 data_ov091_021354a8:0x8
+data_ov091_021354b0:0xc data_ov091_021354bc:0xc data_ov091_021354c8:0xc
+data_ov091_021354d4:0xc data_ov091_021354e0:0x18 data_ov091_021354f8:0x8
+data_ov091_02135500:0x8 data_ov091_02135508:0x8 data_ov091_02135510:0x8
+data_ov091_02135518:0x8 data_ov091_02135520:0x8 data_ov091_02135528:0x8
+data_ov091_02135530:0x8 data_ov091_02135538:0x8 data_ov091_02135540:0x8
+data_ov091_02135548:0x8 data_ov091_02135550:0x8 data_ov091_02135558:0x8
+data_ov091_02135560:0x8 data_ov091_02135568:0xc data_ov091_02135574:0xc
+data_ov091_02135580:0xc data_ov091_0213558c:0xc data_ov091_02135598:0xc
+data_ov091_021355a4:0xc data_ov091_021355b0:0xc data_ov091_021355bc:0xc
+data_ov091_021355c8:0xc data_ov091_021355d4:0xc data_ov091_021355e0:0xc
+data_ov091_021355ec:0xc data_ov091_021355f8:0xc data_ov091_02135604:0xc
+data_ov091_02135610:0x8 data_ov091_02135618:0x8 data_ov091_02135620:0x8
+data_ov091_02135628:0xc data_ov091_02135634:0xc data_ov091_02135640:0xc
+data_ov091_0213564c:0x8 data_ov091_02135654:0x8 data_ov091_0213565c:0xc
+data_ov091_02135668:0xc data_ov091_02135674:0x8 data_ov091_0213567c:0x8
+data_ov091_02135684:0x8 data_ov091_0213568c:0xc data_ov091_02135698:0xc
+data_ov091_021356a4:0xc data_ov091_021356b0:0x10 data_ov091_021356c0:0x10
+data_ov091_021356d0:0x10

@@ -359,7 +359,13 @@ src/func_ov074_0212087c.c
 # Both ids read back out of their own SpawnInfo's +4 halfword: 219 and 41. The
 # third class in this overlay is SHUTTER_BOB (40), which is not part of this
 # gate.
-src/ChainChomp_Spawn.cpp
+# ChainChomp_Spawn IS NOT HERE: an ARM r0 RIDE-THROUGH, and the first one in
+# a spawn factory. Its matched source calls Enemy's constructor as
+# `func_020aed98()` with no argument, because operator new left the object in
+# r0 and the constructor wants `this` there. MSVC passes nothing, so the
+# constructor read the frame and ActorBase faulted on 0x000000db -- the actor
+# id in the spawn spine's stack slot. Host copy in
+# port/unmatched/ChainChomp_Spawn.cpp.
 src/_ZN10ChainChomp13InitResourcesEv.cpp
 src/_ZN10ChainChomp8BehaviorEv.cpp
 # _ZN10ChainChomp6RenderEv IS NOT HERE: the ModelAnim slot-5 case, and the
@@ -410,7 +416,61 @@ src/func_ov014_02112ea8.cpp
 src/__sinit_ov014_021130ac.c
 src/__sinit_ov014_02113118.c
 src/__sinit_ov014_021132fc.c
+# ---- what these two reach that no earlier class did ------------------------
+# The player state the chomp's lunge forces when it catches him, and the
+# rotation matrix its seven chain links are placed with.
+#
+# Particle::System::NewSimple, which the breaking fence also calls, IS NOT
+# HERE. hal/reverse_bridges.cpp has answered 0 for the whole particle tier
+# since gate 10 -- the real bodies walk a manager the host never seats -- so
+# the fence's decorated reference is faced onto that stub in
+# hal/bob_enemy_shadow_faces.cpp rather than onto src/.
 src/_ZN6Player12Unk_020ca150Eh.cpp
+src/Matrix4x3_FromRotationXYZExt.c
+
+# ============================================================================
+# STUMP (actor 27, ov091) -- the post the chomp is chained to
+# ============================================================================
+#
+# ChainChomp::InitResources spawns actor 27 itself and reads a word back out
+# of what it gets, so the chomp cannot run without this class. Measured: with
+# it unregistered the spawn returned null and InitResources faulted writing
+# through it.
+#
+# THE CONFIG'S CLASS NAMES ARE ON THE WRONG TABLE HERE. Stump_SpawnInfo's +4
+# halfword reads 27 and Stump_Spawn is its factory, but that factory installs
+# ov091 0x021352bc whose RTTI is daObjPile_c, while _ZTV5Stump at 0x021353ac
+# has RTTI daHyuhyu_c and is FWOOSH's -- actor 231's. So the six _ZN5Stump*
+# bodies are Fwoosh's methods, none of them are here, and what IS here is the
+# unnamed func_ov091_* block the real table points at. Same shape as ov100's
+# DOOR, gate 22.
+#
+# It is a Platform, so its table is THIRTY-TWO slots: slot 31 is
+# Platform::Kill. It is also the ground-pound target -- InitResources sets the
+# hit counter at +0x31e to 3 and slots 21 and 27 take one off it.
+src/Stump_Spawn.c
+src/func_ov091_021338ac.c
+src/func_ov091_02133738.cpp
+src/func_ov091_02133710.cpp
+src/func_ov091_021336cc.c
+src/func_ov091_021333fc.c
+# func_ov091_02133440 IS NOT HERE: the deleting destructor, written over the
+# shared header's VT0/VT1/G0 placeholders. Those are single global names in
+# this build, so it would install another TU's vtable and free against another
+# TU's heap. Slot 17 traps instead; nothing on this level destroys a post
+# through the deleting form.
+src/func_ov091_02133648.cpp
+src/func_ov091_021335d4.c
+src/func_ov091_021334b8.cpp
+src/func_ov091_02133498.c
+src/_ZN8Platform4KillEv.cpp
+# ---- ov091's own static initialisers, all six in ROM order -----------------
+src/__sinit_ov091_02134524.c
+src/__sinit_ov091_021345dc.c
+src/__sinit_ov091_021346e8.c
+src/__sinit_ov091_02134930.c
+src/__sinit_ov091_021349c4.c
+src/__sinit_ov091_02134a30.c
 
 # ============================================================================
 # KOOPA_THE_QUICK (actor 188, ov062)
@@ -434,6 +494,8 @@ src/_ZN13KoopaTheQuick16CleanupResourcesEv.cpp
 src/_ZN13KoopaTheQuickD1Ev.c
 src/_ZN13KoopaTheQuickD0Ev.c
 src/func_ov062_0211aac0.c
+# Model::HideMaterial, which his Render is the port's first caller of.
+src/_ZN5Model12HideMaterialEii.cpp
 # ---- ov062's own static initialisers ---------------------------------------
 src/__sinit_ov062_0211cf30.c
 src/__sinit_ov062_0211d2d8.c

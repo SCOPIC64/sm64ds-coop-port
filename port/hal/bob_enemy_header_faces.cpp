@@ -15,9 +15,14 @@ int _ZN6Player9IsOnShellEv(void *self)
 { return ((Player *)self)->Player::IsOnShell(); }
 void _ZN6Player20RegisterEggCoinCountEjbb(void *self, unsigned n, int b2, int b3)
 { ((Player *)self)->Player::RegisterEggCoinCount(n, b2 != 0, b3 != 0); }
+/* Player::Unk_020ca150 (ov002 0x020ca150), the state change the CHAIN_CHOMP's
+   lunge asks for when it catches the player. Same shape: an Itanium C-named
+   reference onto a definition that is a real method. */
+int _ZN6Player12Unk_020ca150Eh(void *self, unsigned char a)
+{ return ((Player *)self)->Player::Unk_020ca150(a); }
 }
 
-/* Model::HideMaterial (arm9 0x02016688), which KOOPA_THE_QUICK's Render calls
+/* Model::HideMaterial (arm9 0x02016a58), which KOOPA_THE_QUICK's Render calls
    through its own shadow while the definition is a real method. */
 #include "Model.h"
 extern "C" void _ZN5Model12HideMaterialEii(void *self, int boneID, int listIdx)

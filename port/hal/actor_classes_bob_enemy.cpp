@@ -507,6 +507,85 @@ extern "C" void hal_fill_chain_chomp_fence_vtable(void)
 }
 
 // ============================================================================
+// STUMP (actor 27, ov091) -- the post the CHAIN_CHOMP is chained to
+// ============================================================================
+//
+// _ZTV11daObjPile_c, ov091 0x021352bc. THE CONFIG NAMES THIS CLASS ON THE
+// WRONG TABLE, the ov100 DOOR case for the second time in this port and the
+// third naming bug the RTTI has settled this session.
+//
+//   Stump_SpawnInfo   ov091 0x02135298, +4 halfword 27, factory Stump_Spawn
+//   Stump_Spawn       ov091 0x02133938, and its literal pool installs
+//                     0x021352bc, whose RTTI reads daObjPile_c
+//   _ZTV5Stump        ov091 0x021353ac, RTTI daHyuhyu_c -- and that table is
+//                     FWOOSH's, installed by Fwoosh_Spawn for actor 231
+//
+// So the six _ZN5Stump* bodies in src/ implement FWOOSH, actor 27's own are
+// the unnamed func_ov091_* block the real table points at, and the port
+// compiles what the vtable points at and renames nothing.
+//
+// THIRTY-TWO SLOTS, not thirty-one. This is a Platform (Stump_Spawn calls
+// Platform's constructor and the D1 installs _ZTV10dBgActor_c between its two
+// member teardowns), and Platform appends Kill after Actor's tail: slot 31 of
+// the ROM's table is _ZN8Platform4KillEv.
+//
+// It is the ground-pound target. InitResources sets its hit counter at +0x31e
+// to 3; slot 21 (OnGroundPounded) and slot 27 (OnHitByMegaChar) both end in
+// func_ov091_021334b8, which takes one hit off it, and Behavior spawns five
+// coins when the player has twisted it far enough.
+extern "C" {
+int func_ov091_021338ac(char *self);            /* InitResources */
+int func_ov091_021336cc(void *self);            /* CleanupResources */
+int func_ov091_02133738(char *self);            /* Behavior */
+int func_ov091_02133710(void *self);            /* Render */
+int *func_ov091_021333fc(int *self);            /* D1 */
+void func_ov091_02133648(char *self, void *o);  /* slot 21, its own */
+void func_ov091_021335d4(char *self, void *o);  /* slot 27, its own */
+void _ZN8Platform4KillEv(void *self);           /* slot 31 */
+void *_ZTV11daObjPile_c[32];
+}
+/* Stump_Spawn spells the table by the address config left unnamed. */
+#pragma comment(linker, "/alternatename:_data_ov091_021352bc=__ZTV11daObjPile_c")
+
+static int __fastcall pile_init(void *s, void *)
+{ return func_ov091_021338ac((char *)s); }
+static int __fastcall pile_clean(void *s, void *)
+{ return func_ov091_021336cc(s); }
+static int __fastcall pile_behavior(void *s, void *)
+{ return func_ov091_02133738((char *)s); }
+static int __fastcall pile_render(void *s, void *)
+{ port_actor_render_probe("STUMP", (char *)s + 0xd4);
+  return func_ov091_02133710(s); }
+/* SLOT 16 IS LIVE: a post that has taken its third pound marks itself for
+   destruction and the cleanup pass dispatches D1 the next frame. Slot 17
+   keeps the trap -- src/func_ov091_02133440 is the deleting form and it is
+   written over the shared-header VT0/VT1/G0 placeholders, which are single
+   global names in this build and would resolve to another TU's objects. */
+static int __fastcall pile_d1(void *s, void *)
+{ return (int)(size_t)func_ov091_021333fc((int *)s); }
+static int __fastcall pile_pounded(void *s, void *, void *o)
+{ func_ov091_02133648((char *)s, o); return 0; }
+static int __fastcall pile_mega(void *s, void *, void *o)
+{ func_ov091_021335d4((char *)s, o); return 0; }
+static int __fastcall pile_kill(void *s, void *)
+{ _ZN8Platform4KillEv(s); return 0; }
+
+extern "C" void hal_fill_stump_vtable(void)
+{
+    void **vt = _ZTV11daObjPile_c;
+    hal_fill_platform_vtable();
+    ac31_fill_shared(vt);
+    vt[0] = (void *)pile_init;
+    vt[3] = (void *)pile_clean;
+    vt[6] = (void *)pile_behavior;
+    vt[9] = (void *)pile_render;
+    vt[16] = (void *)pile_d1;
+    vt[21] = (void *)pile_pounded;
+    vt[27] = (void *)pile_mega;
+    vt[31] = (void *)pile_kill;
+}
+
+// ============================================================================
 // KOOPA_THE_QUICK (actor 188, ov062)
 // ============================================================================
 //

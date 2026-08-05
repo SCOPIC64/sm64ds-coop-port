@@ -100,3 +100,35 @@ void Actor::LandingDust(bool b) { _ZN5Actor11LandingDustEb(this, b); }
 extern "C" void _Z14ApproachLinearRsss(short *x, short target, short step);
 void ApproachLinear(short &x, short target, short step)
 { _Z14ApproachLinearRsss(&x, target, step); }
+
+/* ---- ov014's four ---------------------------------------------------------
+   src/func_ov014_02112ea8.cpp -- the CHAIN_CHOMP_FENCE breaking apart --
+   declares its own shadow for each of these, and it names the actor class
+   `ActorS`, so MSVC decorates PoofDustAt against that name rather than against
+   Actor. Every definition is an Itanium C-named free function already in the
+   build; what follows is the decorated reference pointing at it.
+
+   MeshColliderBase::IsEnabled is not here. It is defined inline in that TU's
+   own shadow, so MSVC emits the load rather than a call. */
+struct MeshColliderBase { void Disable(); };
+struct ActorS { void PoofDustAt(const Vector3 &v); };
+struct Sound { static void PlayBank3(unsigned id, const Vector3 &v); };
+namespace Particle {
+struct System { static void *NewSimple(unsigned t, int x, int y, int z); };
+}
+
+extern "C" {
+void _ZN16MeshColliderBase7DisableEv(void *self);
+void _ZN5Actor10PoofDustAtERK7Vector3(void *self, const void *v);
+void _ZN5Sound9PlayBank3EjRK7Vector3(unsigned id, const void *v);
+void *_ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(unsigned t, int x, int y,
+                                                     int z);
+}
+
+void MeshColliderBase::Disable() { _ZN16MeshColliderBase7DisableEv(this); }
+void ActorS::PoofDustAt(const Vector3 &v)
+{ _ZN5Actor10PoofDustAtERK7Vector3(this, &v); }
+void Sound::PlayBank3(unsigned id, const Vector3 &v)
+{ _ZN5Sound9PlayBank3EjRK7Vector3(id, &v); }
+void *Particle::System::NewSimple(unsigned t, int x, int y, int z)
+{ return _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(t, x, y, z); }

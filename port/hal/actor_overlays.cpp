@@ -146,6 +146,22 @@ void __sinit_ov062_0211d4a0(void);
 void __sinit_ov062_0211d690(void);
 void __sinit_ov062_0211d6fc(void);
 
+/* ---- gate 32: ov091, which the CHAIN_CHOMP drags in ----------------------
+   ChainChomp::InitResources spawns actor 27 -- the post it is chained to --
+   and reads a word back out of it, so a level with a chomp and no ov091
+   faults on the first frame of the object walk. Six sinits, all of them
+   SharedFilePtr construction plus the state tables of classes this gate does
+   not register. No seat: actor 27's own class dispatches no
+   pointer-to-member. */
+void port_ov091_pack_check(void);
+void port_ov091_syms_patch(void);
+void __sinit_ov091_02134524(void);
+void __sinit_ov091_021345dc(void);
+void __sinit_ov091_021346e8(void);
+void __sinit_ov091_02134930(void);
+void __sinit_ov091_021349c4(void);
+void __sinit_ov091_02134a30(void);
+
 /* the fish's seven {function, delta} statics, seated the same way -- its own
    Behavior is a host copy for the PMF reason, so both live in
    port/unmatched/Fish_Behavior.cpp */
@@ -388,4 +404,13 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov062_0211d4a0();
     __sinit_ov062_0211d690();
     __sinit_ov062_0211d6fc();
+
+    port_ov091_pack_check();
+    port_ov091_syms_patch();
+    __sinit_ov091_02134524();
+    __sinit_ov091_021345dc();
+    __sinit_ov091_021346e8();
+    __sinit_ov091_02134930();
+    __sinit_ov091_021349c4();
+    __sinit_ov091_02134a30();
 }

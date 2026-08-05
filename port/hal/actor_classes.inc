@@ -150,6 +150,13 @@ void hal_fill_chain_chomp_fence_vtable(void);
 extern unsigned char KoopaTheQuick_SpawnInfo[];   /* ov062 0x0211db78 */
 void *KoopaTheQuick_Spawn(void);                  /* ov062 0x0211aee0 */
 void hal_fill_koopa_the_quick_vtable(void);
+/* Actor 27, the post the chomp is chained to. Its CLASS is daObjPile_c, not
+   the Stump the config's _ZTV5Stump names -- see the section header in
+   hal/actor_classes_bob_enemy.cpp. The SpawnInfo and factory names are the
+   right ones: that record's +4 halfword reads 27. */
+extern unsigned char Stump_SpawnInfo[];           /* ov091 0x02135298 */
+void *Stump_Spawn(void);                          /* ov091 0x02133938 */
+void hal_fill_stump_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -185,4 +192,9 @@ void hal_fill_koopa_the_quick_vtable(void);
     {206, "BOB_OMB", BobOmb_SpawnInfo, BobOmb_Spawn, hal_fill_bob_omb_vtable},  \
     {200, "GOOMBA", Goomba_SpawnInfo, Goomba_Spawn, hal_fill_goomba_vtable},    \
     {181, "BOB_OMB_BUDDY", BobOmbBuddy_SpawnInfo, BobOmbBuddy_Spawn,            \
-     hal_fill_bob_omb_buddy_vtable},
+     hal_fill_bob_omb_buddy_vtable},                                           \
+    {219, "CHAIN_CHOMP", ChainChomp_SpawnInfo, ChainChomp_Spawn,               \
+     hal_fill_chain_chomp_vtable},                                             \
+    {41, "CHAIN_CHOMP_FENCE", ChainChompFence_SpawnInfo, ChainChompFence_Spawn,\
+     hal_fill_chain_chomp_fence_vtable},                                       \
+    {27, "STUMP", Stump_SpawnInfo, Stump_Spawn, hal_fill_stump_vtable},

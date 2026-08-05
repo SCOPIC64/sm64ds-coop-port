@@ -273,15 +273,27 @@ unsigned char data_0209f30d[4];
    ov014 symbols with ov021 and ov022 tags. Every one is settled by ADDRESS --
    0x021147ec is _ZTV10ChainChomp in ov014, 0x021149b8/0x021149c0 are ov014 bss
    and 0x02114558 is ov014 data -- and by the reloc, which names overlay(14).
-   ChainChomp_Spawn's `func_020aed98` is the same skew without any tag at all:
-   it is ov002's Enemy constructor, the one gate 16 settled. */
+
+   ChainChomp_Spawn's `func_020aed98` is NOT one of these and is NOT aliased.
+   It is the same address as _ZN5EnemyC2Ev, but the source calls it with no
+   argument and relies on the r0 ride-through, so an alias would hand the
+   constructor stack garbage for `this`. That factory is a host copy instead --
+   port/unmatched/ChainChomp_Spawn.cpp says what the measurement was. */
 #pragma comment(linker, "/alternatename:_data_ov034_021147ec=__ZTV10ChainChomp")
-#pragma comment(linker, "/alternatename:_func_020aed98=__ZN5EnemyC2Ev")
 #pragma comment(linker, "/alternatename:?data_ov021_021149b8@@3PAHA=_data_ov014_021149b8")
 #pragma comment(linker, "/alternatename:_data_ov021_021149c0=_data_ov014_021149c0")
 #pragma comment(linker, "/alternatename:?data_ov022_02114558@@3PAHA=_data_ov014_02114558")
+/* The chomp's two animation SharedFilePtrs, ov014 0x02114970 and 0x02114980,
+   are spelled with a different type in every TU that reaches them -- `char`,
+   `int[]`, `void*[]` and a local two-word `struct S` -- so MSVC decorates the
+   same object four ways. One definition, four names.
+   func_ov019_02111f54 is the wrong-overlay-tag case again: chomp state 2's
+   main half calls it and the reloc at 0x02111afc names overlay(14). */
 #pragma comment(linker, "/alternatename:?data_ov014_02114970@@3DA=_data_ov014_02114970")
 #pragma comment(linker, "/alternatename:?data_ov014_02114980@@3DA=_data_ov014_02114980")
+#pragma comment(linker, "/alternatename:?data_ov014_02114970@@3US@@A=_data_ov014_02114970")
+#pragma comment(linker, "/alternatename:?data_ov014_02114980@@3US@@A=_data_ov014_02114980")
+#pragma comment(linker, "/alternatename:_func_ov019_02111f54=_func_ov014_02111f54")
 #pragma comment(linker, "/alternatename:?data_ov062_0211e004@@3PADA=_data_ov062_0211e004")
 #pragma comment(linker, "/alternatename:?data_ov062_0211e004@@3USharedFilePtr@@A=_data_ov062_0211e004")
 #pragma comment(linker, "/alternatename:?data_ov062_0211e00c@@3PADA=_data_ov062_0211e00c")
