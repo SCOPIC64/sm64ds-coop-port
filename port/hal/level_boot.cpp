@@ -8,7 +8,6 @@
 //
 // ---- the overlay mount ----------------------------------------------------
 //
-// Castle grounds is level 1, whose LVL_Overlay lives in ov009 at 0x02112bdc.
 // A DS overlay is linked at a fixed base and loaded there unrelocated, so the
 // ROM image already carries absolute pointers -- the object tables, the CLPS
 // block, the path nodes. Mounting it on the host is therefore two steps:
@@ -16,8 +15,59 @@
 // arrays break every walk that steps past the symbol dsd happened to name),
 // then rewrite the words the delink table says point back inside it.
 //
-// port_ov009_at() turns a DS address into the host address of the same byte,
+// port_ovNNN_at() turns a DS address into the host address of the same byte,
 // which is how every constant below is spelled.
+//
+// ---- WHICH overlay, and WHICH level -- the evidence ------------------------
+//
+// Three facts identify a level, and all three come out of the ROM rather than
+// out of the overlay numbering.
+//
+// 1. LoadLevelOverlays(level) is `LoadOverlay(data_020758c8[level])`, so the
+//    arm9 table at 0x020758c8 IS the level-to-overlay map. Read out of the
+//    decompressed arm9 it is 52 words, and it happens to be contiguous:
+//    level N -> overlay 8+N, level 1 -> ov009. That is a MEASUREMENT, not the
+//    assumption -- the map is what the table says, and the table is read.
+//
+// 2. Which level a given overlay is comes from its own LVL_Overlay: the four
+//    halfwords at +0x08 are the bmd/kcl/icg/icl OV0 HANDLES, and a handle is
+//    resolved through build/assets/handles.tsv -- the ROM's own handle table,
+//    which is what func_02018a24 reads and what hal/fs.cpp already loads to
+//    open any file at all.
+//
+//    RESOLVE THE HANDLE, DO NOT ARITHMETIC IT. The handle-to-FAT relation on
+//    the stage folders happens to be a constant subtraction, and deriving that
+//    constant from one assumed pair got both levels below wrong: ov009 read
+//    "main_garden" and ov015 read "bombhei_map", which put Bob-omb Battlefield
+//    on level 7. It is not. Through the real table ov009 is main_castle (the
+//    castle grounds, which is what the port has been booting all along) and
+//    ov015 is battan_king_map -- Whomp's Fortress, battan king being the Whomp
+//    King. Bob-omb Battlefield's bombhei_map is ov014's, so level 6.
+//
+// 3. Cross-checked twice, and both checks are decisive on their own.
+//
+//    SUBLEVEL_LEVEL_TABLE (arm9 0x02075298) maps a level to its COURSE number.
+//    Entries 1..5 are all 29, the castle and its floors; entry 6 is course 0
+//    and entry 7 is course 1. Course 0 is the first course, and the whole
+//    table walks in course order from there -- 8 and 9 both course 2 (Jolly
+//    Roger Bay and its ship), 10 and 11 both course 3 (Cool Cool Mountain and
+//    its slide).
+//
+//    The per-level OBJECT overlay table LoadOrUnloadObjectOverlays walks
+//    (data_02075998 selectors into data_02075804) gives level 6
+//    ov062/069/078/084/091/095/100. ov078 is KingBobOmb, and level 6 is the
+//    ONLY level in all 52 that loads it. The rest of the roster agrees:
+//    Koopa the Quick and the Koopa's flag (ov062), Bob-omb Buddy and the
+//    Goombas (ov084), the Stump and the sliding platform (ov091), SeesawBob,
+//    the seesaw bridge (ov095), and the Chain Chomp (ov100).
+//
+// So: castle grounds = level 1, ov009, LVL_Overlay 0x02112bdc.
+//     Bob-omb Battlefield = level 6, ov014, LVL_Overlay 0x02113434.
+//
+// Every level overlay is linked at the same base (0x021111a0) because the DS
+// only ever holds one. On the host each is its own array with its own
+// port_ovNNN_at(), so several can be mounted at once and the table below
+// picks the one the boot walks.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -29,12 +79,12 @@ void port_ov009_patch(void);
 void *port_ov009_at(unsigned ds);
 extern unsigned char port_ov009_image[];
 extern const unsigned port_ov009_ds_base, port_ov009_ds_end;
-}
 
-/* Castle grounds, level 1. */
-enum {
-    OV009_LVL_OVERLAY = 0x02112bdc,
-};
+void port_ov014_patch(void);
+void *port_ov014_at(unsigned ds);
+extern unsigned char port_ov014_image[];
+extern const unsigned port_ov014_ds_base, port_ov014_ds_end;
+}
 
 /* LVL_Overlay, the fields the boot uses. */
 struct PortLvlOverlay {
@@ -51,17 +101,93 @@ struct PortLvlOverlay {
     unsigned int unk18;          /* 0x18 */
 };
 
-extern "C" void *port_ov009_mount(void)
+/* One row per level the port can mount. Adding a level is this row plus its
+   overlay name in PORT_LEVEL_OVERLAYS (port/CMakeLists.txt); everything the
+   boot does past the mount is the level's own data driving matched src.
+   `own_sinits` marks the levels whose overlay ALSO has a per-symbol mount and
+   static initialisers hosted (hal/ov009_boot.cpp) -- gate 17's work, and so
+   far only the castle grounds has it. */
+struct PortLevelDesc {
+    int id;
+    const char *name;
+    const char *overlay;
+    unsigned lvl_overlay;
+    void (*patch)(void);
+    void *(*at)(unsigned);
+    const unsigned *ds_base;
+    const unsigned *ds_end;
+    int own_sinits;
+};
+
+static const PortLevelDesc port_level_table[] = {
+    {1, "castle grounds (main_castle)", "ov009", 0x02112bdc,
+     port_ov009_patch, port_ov009_at,
+     &port_ov009_ds_base, &port_ov009_ds_end, 1},
+    {6, "Bob-omb Battlefield (bombhei_map)", "ov014", 0x02113434,
+     port_ov014_patch, port_ov014_at,
+     &port_ov014_ds_base, &port_ov014_ds_end, 0},
+};
+
+enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
+
+/* SM64DS_LEVEL=<id> picks the level; the default stays 1 so every existing
+   run, hash and screenshot means what it meant. An id the port cannot mount
+   is named along with the ones it can rather than silently falling back --
+   a quiet fallback to the castle grounds would read as "Bob-omb Battlefield
+   boots" when it did not. */
+static const PortLevelDesc *port_level_desc(void)
+{
+    static const PortLevelDesc *sel;
+    if (sel)
+        return sel;
+    const char *e = std::getenv("SM64DS_LEVEL");
+    int want = e ? std::atoi(e) : 1;
+    for (int i = 0; i < PORT_LEVEL_COUNT; ++i)
+        if (port_level_table[i].id == want) {
+            sel = &port_level_table[i];
+            if (e)
+                std::printf("[level] %d = %s, %s\n", sel->id, sel->name,
+                            sel->overlay);
+            return sel;
+        }
+    std::fprintf(stderr, "FATAL: SM64DS_LEVEL=%d is not a hosted level. "
+                 "Hosted:", want);
+    for (int i = 0; i < PORT_LEVEL_COUNT; ++i)
+        std::fprintf(stderr, " %d (%s)", port_level_table[i].id,
+                     port_level_table[i].name);
+    std::fprintf(stderr, "\n");
+    std::abort();
+    return 0;
+}
+
+extern "C" int port_level_id(void) { return port_level_desc()->id; }
+extern "C" const char *port_level_name(void) { return port_level_desc()->name; }
+extern "C" int port_level_count(void) { return PORT_LEVEL_COUNT; }
+
+extern "C" int port_level_nth(int i, int *id, const char **name)
+{
+    if (i < 0 || i >= PORT_LEVEL_COUNT) return 0;
+    if (id) *id = port_level_table[i].id;
+    if (name) *name = port_level_table[i].name;
+    return 1;
+}
+
+/* Whether the CURRENT level's overlay has its own hosted sinits (gate 17). */
+extern "C" int port_level_has_own_sinits(void)
+{ return port_level_desc()->own_sinits; }
+
+extern "C" void *port_level_mount(void)
 {
     static void *lvl;
     if (lvl)
         return lvl;
-    port_ov009_patch();
-    lvl = port_ov009_at(OV009_LVL_OVERLAY);
+    const PortLevelDesc *d = port_level_desc();
+    d->patch();
+    lvl = d->at(d->lvl_overlay);
     if (!lvl) {
-        std::fprintf(stderr, "FATAL: ov009 mount: 0x%08x outside the overlay "
-                     "[0x%08x, 0x%08x)\n", (unsigned)OV009_LVL_OVERLAY,
-                     port_ov009_ds_base, port_ov009_ds_end);
+        std::fprintf(stderr, "FATAL: %s mount: 0x%08x outside the overlay "
+                     "[0x%08x, 0x%08x)\n", d->overlay, d->lvl_overlay,
+                     *d->ds_base, *d->ds_end);
         std::abort();
     }
     return lvl;
@@ -362,7 +488,7 @@ extern "C" void port_scene_canary(const char *where);
 void *port_stage_a_boot(void *mc, int spawn)
 {
     g_stage_mc = mc;
-    PortLvlOverlay *o = (PortLvlOverlay *)port_ov009_mount();
+    PortLvlOverlay *o = (PortLvlOverlay *)port_level_mount();
 
     /* STAGE B: THE TABLES ARE BACK ON. Stage A1 zeroed the Entrance, Door and
        Exit counts in the host copy of the overlay and dropped the sub-table
@@ -374,8 +500,15 @@ void *port_stage_a_boot(void *mc, int spawn)
         port_stage_suppress(o, (1u << LOADER_ENTRANCE) | (1u << LOADER_DOOR) |
                                    (1u << LOADER_EXIT), 1);
 
-    data_0209f2f8 = 1;          /* castle grounds */
-    data_0209f264[0] = 0;       /* entrance 0, the castle gate */
+    data_0209f2f8 = (signed char)port_level_id();
+    /* Entrance 0 is the level's first entrance record, which is where the
+       game puts you arriving from outside: the castle gate on the grounds,
+       the warp-pipe pad on Bob-omb Battlefield. SM64DS_ENTRANCE picks another
+       one; port_entrance_count() says how many the level has. */
+    {
+        const char *en = std::getenv("SM64DS_ENTRANCE");
+        data_0209f264[0] = en ? std::atoi(en) : 0;
+    }
     /* Star filter: the sub-table's group byte (kind >> 5) loads when it is 0
        or equal to this. ADVENTURE is 1, which is grp0 + grp1; SM64DS_STAR_FILTER
        is the knob that reads the other halves back (0 = grp0 alone). */
@@ -586,6 +719,147 @@ extern "C" void hal_fill_player_vtable(void)
 extern "C" int hal_player_process(void *self)
 { return func_02043288(self); }
 
+// ---- the direct actor-spawn hook -------------------------------------------
+//
+// Put one actor of a given class into the running level, on demand, without a
+// level that happens to name it. Written for the two streams bringing actor
+// classes up: a class can be exercised the moment its registry row lands,
+// against whatever level is booted, instead of waiting for a level whose own
+// object table calls for it.
+//
+// It is the LEVEL'S OWN SPAWN PATH and nothing else. LoadStandardObjects'
+// whole body is a loop of
+//
+//     Actor::Spawn(actorIDTable[e->raw], e->param, &pos, &rot, area, seq)
+//
+// so this calls exactly that, with the same per-level sequence counter
+// (data_ov002_0211118c, post-incremented like the loader does) and the same
+// area the caller asks for. Everything downstream is untouched: the pre-spawn
+// gate in hal/actor_registry.cpp still turns away an unregistered class and
+// names it, the ActorBase constructor still reads its two list priorities out
+// of the ROM SpawnInfo, and the actor lands on the same five processing lists
+// as one the boot spawned.
+//
+// The id is the ACTOR id (the registry's column, what
+// port_actor_class_name() answers to), not the raw object-table id that
+// data_ov002_0210cbf4 translates. That is the id the class rows are written
+// in, so it is the id to debug in.
+extern "C" {
+struct PortVec3 { int x, y, z; };
+struct PortVec3_16 { short x, y, z; };
+void *_ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(unsigned actorID,
+                                                   unsigned param1,
+                                                   const PortVec3 *pos,
+                                                   const PortVec3_16 *rot,
+                                                   int areaID,
+                                                   int deathTableID);
+extern void *data_0209f394[];          /* the local players, [0] is ours */
+const char *port_actor_class_name(unsigned id);
+}
+
+/* ---- classes that belong to a LEVEL overlay -------------------------------
+   Four of the registry's rows are ov009's, and their SharedFilePtrs are
+   constructed by ov009's own static initialisers -- which run only when ov009
+   is the mounted level overlay, the way the DS runs them. The level boot is
+   safe either way, because no other level's object table names these ids. The
+   debug hook is not: asking for one on another level reached an unconstructed
+   SharedFilePtr and died as "fs fileID 0 not in catalog", four layers down
+   from the thing that was actually wrong.
+
+   So the hook names it instead. This is a list of ids, not a mechanism: the
+   registry is where a class declares which overlay owns it, and when it does,
+   this reads it from there. */
+static const struct { unsigned id; int level; const char *what; }
+port_level_owned_class[] = {
+    {338, 1, "CASTLE_WATER (ov009)"},
+    {339, 1, "METAL_NET (ov009)"},
+    {342, 1, "FLAG (ov009)"},
+    {343, 1, "BIRD (ov009)"},
+};
+
+/* Spawn `id` at an explicit world position (Fix12i, i.e. units << 12) facing
+   `yaw`. Returns the ActorBase* the spine built, or 0 when the registry gate
+   turned the class away -- which it reports itself, on stdout. */
+extern "C" void *port_debug_spawn_at(unsigned id, unsigned param,
+                                     int x, int y, int z, int yaw, int area)
+{
+    for (unsigned i = 0; i < sizeof port_level_owned_class /
+                             sizeof port_level_owned_class[0]; ++i)
+        if (port_level_owned_class[i].id == id &&
+            port_level_owned_class[i].level != port_level_id()) {
+            std::fprintf(stderr, "  [dbgspawn] actor %u is %s and level %d is "
+                         "booted, so its overlay's static initialisers never "
+                         "ran -- refusing rather than spawning it onto "
+                         "unconstructed file pointers\n", id,
+                         port_level_owned_class[i].what, port_level_id());
+            return 0;
+        }
+
+    PortVec3 pos;
+    PortVec3_16 rot;
+    void *a;
+    short seq;
+
+    pos.x = x; pos.y = y; pos.z = z;
+    rot.x = 0; rot.y = (short)yaw; rot.z = 0;
+    seq = data_ov002_0211118c;
+    data_ov002_0211118c = (short)(seq + 1);
+    a = _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(id, param, &pos, &rot,
+                                                     area, seq);
+    std::printf("[dbgspawn] actor %u (%s) param 0x%x at (%d, %d, %d) yaw %04x "
+                "area %d -> %p\n", id, port_actor_class_name(id), param,
+                x >> 12, y >> 12, z >> 12, (unsigned short)yaw, area, a);
+    return a;
+}
+
+/* The common case: at the local player, facing the way he faces, in his area.
+   Player pos is +0x5c..0x64 and his facing yaw is +0x8e; area is the byte the
+   ActorBase constructor kept at +0x10. Falls back to the world origin when no
+   player exists yet, so an early call still reaches the registry gate rather
+   than dereferencing null. */
+extern "C" void *port_debug_spawn(unsigned id, unsigned param)
+{
+    const char *p = (const char *)data_0209f394[0];
+    if (!p) {
+        std::fprintf(stderr, "  [dbgspawn] no player yet, spawning actor %u "
+                     "at the origin\n", id);
+        return port_debug_spawn_at(id, param, 0, 0, 0, 0, 0);
+    }
+    return port_debug_spawn_at(id, param, *(const int *)(p + 0x5c),
+                               *(const int *)(p + 0x60),
+                               *(const int *)(p + 0x64),
+                               *(const short *)(p + 0x8e),
+                               *(const unsigned char *)(p + 0x10));
+}
+
+/* SM64DS_SPAWN_ACTOR=<id>[:<param>][,<id>[:<param>]...] fires the same hook
+   once, right after the boot, so a class can be exercised from the command
+   line with no rebuild. Ids are decimal or 0x-prefixed. */
+extern "C" void port_debug_spawn_env(void)
+{
+    const char *s = std::getenv("SM64DS_SPAWN_ACTOR");
+    if (!s)
+        return;
+    while (*s) {
+        char *end;
+        unsigned id = (unsigned)std::strtoul(s, &end, 0);
+        unsigned param = 0;
+        if (end == s) {
+            std::fprintf(stderr, "  [dbgspawn] SM64DS_SPAWN_ACTOR: cannot read "
+                         "an id at \"%s\"\n", s);
+            return;
+        }
+        s = end;
+        if (*s == ':')
+            param = (unsigned)std::strtoul(s + 1, (char **)&s, 0);
+        port_debug_spawn(id, param);
+        if (*s == ',')
+            ++s;
+        else
+            break;
+    }
+}
+
 /* ---- the entrance-driven boot ---------------------------------------------
    Seats everything LoadEntranceObjects reads, then runs the same boot with
    the Entrance table left switched on. The Player and the Camera come out of
@@ -601,10 +875,113 @@ extern int data_0209f32c[];            /* water level */
 extern int data_0209fc48;              /* the running cutscene, 0 = none */
 extern int data_0209f20c[], data_0209f294[], data_0209f2c4[], data_0209b454[];
 extern int data_0209ee90[];            /* +0x44 is the projection's W scale */
+extern int data_0209d70c[];            /* the message archive header pointer */
+}
+
+// ---- the message archive: mounted EMPTY, deliberately ----------------------
+//
+// Bob-omb Battlefield is the first level the port boots whose own logic opens
+// a TEXT BOX, and it is not a bug on either side.
+//
+// func_ov002_020c44c4 is the Player's one-shot level-intro check. Its switch
+// is on data_0209f2f8, the current level, and `case 7: r4val = 8` is Bob-omb
+// Battlefield's tutorial message -- fired when
+// SaveData::CountStarsCollectedInLevel comes back zero, which on a port with
+// a zeroed save block it always does. That runs the message state machine in
+// func_ov002_020c4188, whose case 2 calls func_0201f32c, and its first line is
+//
+//     if (*(u16 *)((char *)data_0209d70c + 8) <= (u16)arg0) return;
+//
+// data_0209d70c is the pointer to the loaded message archive's header. Nothing
+// on the host loads one -- data/message/msg_data_eng.bin is real ROM data, but
+// reading it is the whole Message text subsystem, which is a long way from the
+// level boot -- so the pointer is zero and the read lands on address 8.
+//
+// The seam is not a branch: it is an EMPTY ARCHIVE. A zeroed header reports
+// zero messages, so the line above is the ROM'S OWN out-of-range path and
+// every message id is declined there. The rest of the state machine runs
+// exactly as it runs on hardware, minus the text: the camera flag goes on, the
+// wait counter runs down, data_0209d660 stays 0 so the "still displaying"
+// case falls straight through, and the player's 0x71e/0x71f reset. He stands
+// there for the length of a message he cannot read and then walks on.
+//
+// The moment the Message subsystem IS hosted, this seat goes away and the real
+// archive pointer takes its place. Until then it says so once.
+static unsigned char port_empty_message_header[0x28];
+
+extern "C" void port_message_archive_seat(void)
+{
+    if (data_0209d70c[0])
+        return;
+    data_0209d70c[0] = (int)(size_t)port_empty_message_header;
+    std::printf("[msg] no message archive is hosted; mounting an EMPTY one, so "
+                "every text box is declined by the ROM's own bounds check\n");
+}
+
+// ---- the twelve shared models Stage::InitResources preloads ----------------
+//
+// Stage::InitResources' own line, between LoadGraphics2D and LoadModel:
+//
+//     for (i = 0; i < 0xC; i++) Model::LoadFile(data_020756f0[i]);
+//
+// Twelve SharedFilePtrs in ov002 -- the coin, the mushroom, the shared pickup
+// models -- loaded once at level boot so the classes that use them can read
+// SharedFilePtr::filePtr straight out without loading anything themselves.
+// Several do exactly that: OneUpMushroom::InitResources reads
+// data_ov002_0210d9b8.filePtr for mushroom types 11 and 12, Coin does the same
+// for its first two kinds, and neither has a LoadFile in front of it. The ROM
+// can afford that because this loop already ran.
+//
+// The port never carried the loop over, because the castle grounds happens to
+// name no object that takes the direct-read path. Bob-omb Battlefield names
+// eight type-11 mushrooms, and the first one walked a null BMD_File into
+// Model::AddToCommonModelDataArr, which takes a REFERENCE and hands it to
+// LoadTexAndPal -- a fault on hardware just as much as on the host.
+//
+// It is spelled by NAME rather than by mounting data_020756f0 itself. That
+// table is arm9 data holding twelve ov002 ADDRESSES, and on the host ov002's
+// symbols are separate arrays; mounting the words would hand Model::LoadFile
+// twelve DS addresses. The names are the same twelve targets, read out of the
+// arm9 relocation table, in the ROM's own order.
+extern "C" {
+void *_ZN5Model8LoadFileER13SharedFilePtr(void *sfp);
+extern unsigned char data_ov002_0210da48[], data_ov002_0210d9b8[],
+    data_ov002_0210da50[], data_ov002_0210d9f8[], data_ov002_0210da40[],
+    data_ov002_0210d9a0[], data_ov002_0210d9c0[], data_ov002_0210e7d8[],
+    data_ov002_0210e3a0[], data_ov002_0211094c[], data_ov002_0211095c[],
+    data_ov002_0210d9a8[];
+}
+
+extern "C" void port_stage_preload_shared_models(void)
+{
+    static void *const tbl[12] = {
+        data_ov002_0210da48, data_ov002_0210d9b8, data_ov002_0210da50,
+        data_ov002_0210d9f8, data_ov002_0210da40, data_ov002_0210d9a0,
+        data_ov002_0210d9c0, data_ov002_0210e7d8, data_ov002_0210e3a0,
+        data_ov002_0211094c, data_ov002_0211095c, data_ov002_0210d9a8,
+    };
+    static int done;
+    int loaded = 0;
+    if (done)
+        return;
+    done = 1;
+    for (int i = 0; i < 12; ++i) {
+        _ZN5Model8LoadFileER13SharedFilePtr(tbl[i]);
+        /* SharedFilePtr is {u16 fileID; u8 numRefs; u8 pad; char *filePtr} */
+        if (*(void *const *)((const char *)tbl[i] + 4))
+            ++loaded;
+        else
+            std::fprintf(stderr, "  [preload] shared model %d (handle %u) did "
+                         "not load\n", i, *(const unsigned short *)tbl[i]);
+    }
+    std::printf("[preload] %d/12 shared models seated\n", loaded);
 }
 
 extern "C" void port_stage_a2_seat(void)
 {
+    port_message_archive_seat();
+    port_stage_preload_shared_models();
+
     /* the scene tree root the spawn spine links under -- the real Stage.
        Constructing it IS the seating: Stage::Stage runs with data_020a4b6c[0]
        still null, so func_0203b438 takes its no-parent branch and writes the
@@ -652,11 +1029,16 @@ extern "C" void port_stage_a2_seat(void)
        spawn. hal/clsn_vtable.cpp has already seeded it with MeshCollider's. */
     hal_fill_moving_mesh_collider_vtable();
 
-    /* ov009's own four static initialisers, where the DS runs them: after the
-       overlay is mounted and before anything spawns. Every SharedFilePtr the
-       level's own actors load through is constructed there, and so are the
-       three Vector3 arrays the moat spawns its bubbles along. */
-    port_ov009_sinits();
+    /* The LEVEL overlay's own static initialisers, where the DS runs them:
+       after the overlay is mounted and before anything spawns. Every
+       SharedFilePtr the level's own actors load through is constructed there,
+       and so are the three Vector3 arrays the moat spawns its bubbles along.
+       Only ov009 has this hosted (gate 17), and on the DS a level overlay's
+       sinits run only when THAT overlay is the loaded one -- running the
+       castle grounds' under another level would seat its file pointers and
+       its Bird state table over bytes that level never reads. */
+    if (port_level_has_own_sinits())
+        port_ov009_sinits();
 
     /* and the ACTOR overlays' -- ov085 and up, the overlays that exist for a
        handful of classes several levels share (hal/actor_overlays.cpp). Same
@@ -719,21 +1101,23 @@ extern "C" int port_stage_path_guard(void *player)
 /* ---- probes --------------------------------------------------------------
    The boot is a pointer rewrite over Nintendo bytes followed by matched code
    walking it, so what matters is what the game ends up reading. */
-void port_ov009_probe(void)
+void port_level_probe(void)
 {
-    const PortLvlOverlay *o = (const PortLvlOverlay *)port_ov009_mount();
-    std::printf("[ov009] image %p .. %p (DS 0x%08x .. 0x%08x)\n",
-                (void *)port_ov009_image,
-                (void *)(port_ov009_image +
-                         (port_ov009_ds_end - port_ov009_ds_base)),
-                port_ov009_ds_base, port_ov009_ds_end);
-    std::printf("[ov009] LVL_Overlay: clps %p objTable %p bmd %u kcl %u "
-                "subTables %p subCount %u flags %02x\n",
+    const PortLvlOverlay *o = (const PortLvlOverlay *)port_level_mount();
+    const PortLevelDesc *d = port_level_desc();
+    const char *ov = d->overlay;
+    unsigned char *img = (unsigned char *)d->at(*d->ds_base);
+    std::printf("[%s] level %d = %s\n", ov, d->id, d->name);
+    std::printf("[%s] image %p .. %p (DS 0x%08x .. 0x%08x)\n", ov,
+                (void *)img, (void *)(img + (*d->ds_end - *d->ds_base)),
+                *d->ds_base, *d->ds_end);
+    std::printf("[%s] LVL_Overlay: clps %p objTable %p bmd %u kcl %u "
+                "subTables %p subCount %u flags %02x\n", ov,
                 (void *)o->clps, (void *)o->objTable, o->bmdFileId,
                 o->kclFileId, (void *)o->subTables, o->subCount, o->flags);
     unsigned n = *(const unsigned short *)o->objTable;
     const unsigned char *e = *(const unsigned char *const *)(o->objTable + 4);
-    std::printf("[ov009] objTable: %u kinds at %p\n", n, (const void *)e);
+    std::printf("[%s] objTable: %u kinds at %p\n", ov, n, (const void *)e);
     for (unsigned i = 0; i < n; ++i, e += 8)
         std::printf("        kind 0x%02x (grp %d idx %2d) count %3u entries %p\n",
                     e[0], (e[0] >> 5) & 7, e[0] & 0x1f, e[1],
@@ -745,7 +1129,7 @@ void port_ov009_probe(void)
             continue;
         unsigned m = *(const unsigned short *)t;
         const unsigned char *se = *(const unsigned char *const *)(t + 4);
-        std::printf("[ov009] sub[%u] table %p: %u kinds\n", s,
+        std::printf("[%s] sub[%u] table %p: %u kinds\n", ov, s,
                     (const void *)t, m);
         for (unsigned i = 0; i < m; ++i, se += 8)
             std::printf("        kind 0x%02x (grp %d idx %2d) count %3u "
@@ -761,7 +1145,7 @@ void _ZNK7PathPtr7GetNodeER7Vector3j(const void *self, int *out, unsigned idx);
 void port_stage_a_probe(void *mc_)
 {
     MeshCollider *mc = (MeshCollider *)mc_;
-    const PortLvlOverlay *o = (const PortLvlOverlay *)port_ov009_mount();
+    const PortLvlOverlay *o = (const PortLvlOverlay *)port_level_mount();
 
     /* CLPS: "CLPS" magic, u16 entry size, u16 count, then the records --
        byte 0 the surface type, byte 4 the path id (0xff = none). */
@@ -834,24 +1218,49 @@ void port_stage_a_probe(void *mc_)
                     *(int *)((char *)mc_ + 0x2c), *(int *)((char *)mc_ + 0x38));
     }
 
-    /* Paths: the table the two CLPS entries 16/17 bind to. */
+    /* Paths: the ones the level's OWN CLPS entries bind to.
+       The probe ids used to be the literals 5 and 3, which are the two the
+       castle grounds' entries 16 and 17 name. A level with no path table at
+       all -- Bob-omb Battlefield loads none -- sent PathPtr::FromID through a
+       null base and faulted inside the probe, with the boot itself already
+       finished and correct. Read the bindings out of the CLPS block instead,
+       so the probe reports whatever the booted level actually has. */
     std::printf("[path] table %p count %d nodes %p\n",
                 (void *)(size_t)data_020a0d84[0], data_020a0d8c[0],
                 (void *)(size_t)data_020a0d88[0]);
-    for (unsigned id = 0; id < 2; ++id) {
-        static const unsigned probe_ids[2] = {5, 3};
-        int path[2] = {0, 0};
-        _ZN7PathPtr6FromIDEj(path, probe_ids[id]);
-        unsigned nodes = _ZNK7PathPtr8NumNodesEv(path);
-        std::printf("[path] FromID(%u) -> rec %p firstNode %u count %u\n",
-                    probe_ids[id], (void *)(size_t)path[0],
-                    *(unsigned short *)(size_t)path[0], nodes);
-        for (unsigned k = 0; k < nodes && k < 4; ++k) {
-            int v[3];
-            _ZNK7PathPtr7GetNodeER7Vector3j(path, v, k);
-            std::printf("        node %u = (%.0f, %.0f, %.0f)\n", k,
-                        v[0] / 4096.0f, v[1] / 4096.0f, v[2] / 4096.0f);
+    if (!data_020a0d84[0] || data_020a0d8c[0] <= 0) {
+        std::printf("[path] this level binds no paths\n");
+        return;
+    }
+    {
+        unsigned seen = 0;                /* one bit per id already probed */
+        int probed = 0;
+        for (unsigned i = 0; i < ecount && probed < 4; ++i) {
+            unsigned id = clps[8 + i * esize + 4];
+            if (id == 0xff || id >= 32 || (seen & (1u << id)))
+                continue;
+            if ((int)id >= data_020a0d8c[0]) {
+                std::printf("[path] CLPS entry %u binds path %u, past the "
+                            "table's %d\n", i, id, data_020a0d8c[0]);
+                continue;
+            }
+            seen |= 1u << id;
+            ++probed;
+            int path[2] = {0, 0};
+            _ZN7PathPtr6FromIDEj(path, id);
+            unsigned nodes = _ZNK7PathPtr8NumNodesEv(path);
+            std::printf("[path] CLPS %u -> FromID(%u) -> rec %p firstNode %u "
+                        "count %u\n", i, id, (void *)(size_t)path[0],
+                        *(unsigned short *)(size_t)path[0], nodes);
+            for (unsigned k = 0; k < nodes && k < 4; ++k) {
+                int v[3];
+                _ZNK7PathPtr7GetNodeER7Vector3j(path, v, k);
+                std::printf("        node %u = (%.0f, %.0f, %.0f)\n", k,
+                            v[0] / 4096.0f, v[1] / 4096.0f, v[2] / 4096.0f);
+            }
         }
+        if (!probed)
+            std::printf("[path] no CLPS entry on this level binds a path\n");
     }
 }
 }  /* extern "C" */

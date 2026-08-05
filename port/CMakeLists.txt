@@ -548,17 +548,39 @@ add_custom_command(OUTPUT "${OV002DATA_C}"
             "${CMAKE_CURRENT_SOURCE_DIR}/ov002_syms.txt"
     COMMENT "ovdata ov002")
 
-# ov009 is the castle-grounds LEVEL overlay, and a level overlay cannot be
-# mounted symbol by symbol: its LVL_Overlay hangs nine object tables off one
-# base and the loaders walk them by count, straight across whatever symbol
-# boundaries dsd happened to name. --whole emits the entire image as one
-# array and rebases its internal pointers from the reloc table.
-set(OV009DATA_C "${CMAKE_BINARY_DIR}/host-src/ov009_data.c")
-add_custom_command(OUTPUT "${OV009DATA_C}"
-    COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ov009
-            "${OV009DATA_C}" --whole
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py"
-    COMMENT "ovdata ov009 (whole image)")
+# Gate 30: the LEVEL overlays, one whole-image mount each.
+#
+# A level overlay cannot be mounted symbol by symbol: its LVL_Overlay hangs
+# nine object tables off one base and the loaders walk them by count, straight
+# across whatever symbol boundaries dsd happened to name. --whole emits the
+# entire image as one array and rebases its internal pointers from the reloc
+# table.
+#
+# Every level overlay is linked at the SAME DS base (0x021111a0) because the
+# DS only ever has one loaded. On the host they are separate arrays and
+# port_ovNNN_at() is per-overlay, so hosting several at once is just several
+# mounts; hal/level_boot.cpp's table picks which one the boot walks.
+#
+#   ov009 = level 1, castle grounds  (data/stage/main_castle)
+#   ov014 = level 6, Bob-omb Battlefield  (data/stage/bombhei_map)
+#
+# Both facts come from the ROM, not from the overlay numbering: the arm9's
+# level-to-overlay table data_020758c8 maps level -> overlay, and each
+# overlay's LVL_Overlay names its own kcl/bmd/icg/icl OV0 HANDLES, resolved
+# through build/assets/handles.tsv rather than by arithmetic. See the evidence
+# note at the top of hal/level_boot.cpp, including what a derived handle
+# constant got wrong.
+set(PORT_LEVEL_OVERLAYS ov009 ov014)
+set(LEVEL_OV_DATA "")
+foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
+    set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
+    add_custom_command(OUTPUT "${ovn_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ${ovn}
+                "${ovn_out}" --whole
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py"
+        COMMENT "ovdata ${ovn} (whole image)")
+    list(APPEND LEVEL_OV_DATA "${ovn_out}")
+endforeach()
 
 # Gate 17: the level overlay's own actors. ov009 is mounted WHOLE for the
 # loaders; its actor code reaches its SharedFilePtrs, CLPS blocks and spawn
@@ -1027,7 +1049,7 @@ endforeach()
 # func_0200d81c -> Camera::ChangeState on every state change, so the smoke
 # needs the host dispatcher too or the first ChangeState calls a mwcc
 # member-function pointer.
-add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA_C}"
+add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -1055,7 +1077,7 @@ if(MSVC)
 endif()
 
 # Gate 12: the interactive window (same stack, windowed loop).
-add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C}"
+add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -1086,7 +1108,7 @@ if(MSVC)
 endif()
 
 # hires clone for screenshot sessions (4x resolution, ~1/16 the fps)
-add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C}"
+add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
