@@ -64,11 +64,18 @@ window. Gate 24 is the exception and keeps its own smoke.
 | 26 | `walk_window` | the boot spine: the real Stage actor replacing the harness-staged scene root |
 | 27 | `walk_window` | the HUD actor (id 334): hearts, coins, stars, timer, camera buttons |
 | 28 | `walk_window` | the Minimap actor (id 335), plus the BG3-sub tilemap and extended palette |
+| 30 | `walk_window` | the level is a parameter: `SM64DS_LEVEL` picks it, and Bob-omb Battlefield (level 6, ov014) boots and walks |
 
 There is no gate 11: it was folded into the gate-10 walking campaign before
 either landed. Gates 25 through 28 were **renumbered at merge** because three
 parallel streams each picked 24 the same night; the animation stream kept 24
-for BlendModelAnim.
+for BlendModelAnim. Gate 29 belongs to the unmerged `port-particles` branch.
+
+Gate 30's slice is empty of `src/`, which is the point rather than a gap: the
+boot was already generic matched code walking the level's own tables, so a
+second level cost no matched code at all. See the header of
+`slice_gate30.txt`, and the evidence chain at the top of `hal/level_boot.cpp`
+for how each level's identity is read out of the ROM.
 
 Supporting machinery: `tools/hostgen.py` (MMIO transform into the build
 tree; src/ is never edited), `tools/romdata.py` (ROM constants from the
