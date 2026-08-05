@@ -624,7 +624,8 @@ endforeach()
 # packed run, relocations applied, interior pointers rebased to host.
 # ov003 joins them for gate 31: not an actor overlay either, mounted for
 # exactly one table -- the debug level select's row list. See ov003_syms.txt.
-set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001 ov003)
+set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001 ov003 ov084
+    ov014 ov062 ov091 ov078)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -633,8 +634,6 @@ set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001 ov003)
 # ov091 is the one the chomp drags in: its InitResources spawns actor 27, the
 # post it is chained to, and a null back from that spawn is a fault. ov078 is
 # KING_BOB_OMB's, and level 6 is the only level of the fifty-two that loads it.
-set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001 ov084 ov014 ov062
-    ov091 ov078)
 set(ACTOR_OV_SYMS "")
 foreach(ovn IN LISTS PORT_ACTOR_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_syms.c")
