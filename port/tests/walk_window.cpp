@@ -357,6 +357,12 @@ int port_level_id(void);
 const char *port_level_name(void);
 int port_level_count(void);
 int port_level_nth(int i, int *id, const char **name);
+/* the direct actor-spawn hook (hal/level_boot.cpp): one actor of a given
+   class, through the level's own Actor::Spawn, at the player or anywhere */
+void *port_debug_spawn(unsigned id, unsigned param);
+void *port_debug_spawn_at(unsigned id, unsigned param,
+                          int x, int y, int z, int yaw, int area);
+void port_debug_spawn_env(void);
 void *port_stage_a_boot(void *mc, int spawn_entrances);
 void port_stage_a_probe(void *mc);
 void *port_stage_create(void);   /* hal/stage_bridges.cpp: the real Stage actor */
@@ -1185,6 +1191,11 @@ int main(void)
         port_stage_a_probe(g_mc);
         if (boot_spawns) {
             port_stage_tree_probe(data_0209f394[0], "PLAYER");
+            /* SM64DS_SPAWN_ACTOR=<id>[:<param>][,...]: put one actor of each
+               named class at the player, through the level's own spawn path.
+               Fired here, after the entrance made the player and before the
+               census, so an env-spawned class is counted with the rest. */
+            port_debug_spawn_env();
             port_actor_census();
             port_actor_lists_probe();
         }

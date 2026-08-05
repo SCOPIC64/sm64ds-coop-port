@@ -705,6 +705,115 @@ extern "C" void hal_fill_player_vtable(void)
 extern "C" int hal_player_process(void *self)
 { return func_02043288(self); }
 
+// ---- the direct actor-spawn hook -------------------------------------------
+//
+// Put one actor of a given class into the running level, on demand, without a
+// level that happens to name it. Written for the two streams bringing actor
+// classes up: a class can be exercised the moment its registry row lands,
+// against whatever level is booted, instead of waiting for a level whose own
+// object table calls for it.
+//
+// It is the LEVEL'S OWN SPAWN PATH and nothing else. LoadStandardObjects'
+// whole body is a loop of
+//
+//     Actor::Spawn(actorIDTable[e->raw], e->param, &pos, &rot, area, seq)
+//
+// so this calls exactly that, with the same per-level sequence counter
+// (data_ov002_0211118c, post-incremented like the loader does) and the same
+// area the caller asks for. Everything downstream is untouched: the pre-spawn
+// gate in hal/actor_registry.cpp still turns away an unregistered class and
+// names it, the ActorBase constructor still reads its two list priorities out
+// of the ROM SpawnInfo, and the actor lands on the same five processing lists
+// as one the boot spawned.
+//
+// The id is the ACTOR id (the registry's column, what
+// port_actor_class_name() answers to), not the raw object-table id that
+// data_ov002_0210cbf4 translates. That is the id the class rows are written
+// in, so it is the id to debug in.
+extern "C" {
+struct PortVec3 { int x, y, z; };
+struct PortVec3_16 { short x, y, z; };
+void *_ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(unsigned actorID,
+                                                   unsigned param1,
+                                                   const PortVec3 *pos,
+                                                   const PortVec3_16 *rot,
+                                                   int areaID,
+                                                   int deathTableID);
+extern void *data_0209f394[];          /* the local players, [0] is ours */
+const char *port_actor_class_name(unsigned id);
+}
+
+/* Spawn `id` at an explicit world position (Fix12i, i.e. units << 12) facing
+   `yaw`. Returns the ActorBase* the spine built, or 0 when the registry gate
+   turned the class away -- which it reports itself, on stdout. */
+extern "C" void *port_debug_spawn_at(unsigned id, unsigned param,
+                                     int x, int y, int z, int yaw, int area)
+{
+    PortVec3 pos;
+    PortVec3_16 rot;
+    void *a;
+    short seq;
+
+    pos.x = x; pos.y = y; pos.z = z;
+    rot.x = 0; rot.y = (short)yaw; rot.z = 0;
+    seq = data_ov002_0211118c;
+    data_ov002_0211118c = (short)(seq + 1);
+    a = _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(id, param, &pos, &rot,
+                                                     area, seq);
+    std::printf("[dbgspawn] actor %u (%s) param 0x%x at (%d, %d, %d) yaw %04x "
+                "area %d -> %p\n", id, port_actor_class_name(id), param,
+                x >> 12, y >> 12, z >> 12, (unsigned short)yaw, area, a);
+    return a;
+}
+
+/* The common case: at the local player, facing the way he faces, in his area.
+   Player pos is +0x5c..0x64 and his facing yaw is +0x8e; area is the byte the
+   ActorBase constructor kept at +0x10. Falls back to the world origin when no
+   player exists yet, so an early call still reaches the registry gate rather
+   than dereferencing null. */
+extern "C" void *port_debug_spawn(unsigned id, unsigned param)
+{
+    const char *p = (const char *)data_0209f394[0];
+    if (!p) {
+        std::fprintf(stderr, "  [dbgspawn] no player yet, spawning actor %u "
+                     "at the origin\n", id);
+        return port_debug_spawn_at(id, param, 0, 0, 0, 0, 0);
+    }
+    return port_debug_spawn_at(id, param, *(const int *)(p + 0x5c),
+                               *(const int *)(p + 0x60),
+                               *(const int *)(p + 0x64),
+                               *(const short *)(p + 0x8e),
+                               *(const unsigned char *)(p + 0x10));
+}
+
+/* SM64DS_SPAWN_ACTOR=<id>[:<param>][,<id>[:<param>]...] fires the same hook
+   once, right after the boot, so a class can be exercised from the command
+   line with no rebuild. Ids are decimal or 0x-prefixed. */
+extern "C" void port_debug_spawn_env(void)
+{
+    const char *s = std::getenv("SM64DS_SPAWN_ACTOR");
+    if (!s)
+        return;
+    while (*s) {
+        char *end;
+        unsigned id = (unsigned)std::strtoul(s, &end, 0);
+        unsigned param = 0;
+        if (end == s) {
+            std::fprintf(stderr, "  [dbgspawn] SM64DS_SPAWN_ACTOR: cannot read "
+                         "an id at \"%s\"\n", s);
+            return;
+        }
+        s = end;
+        if (*s == ':')
+            param = (unsigned)std::strtoul(s + 1, (char **)&s, 0);
+        port_debug_spawn(id, param);
+        if (*s == ',')
+            ++s;
+        else
+            break;
+    }
+}
+
 /* ---- the entrance-driven boot ---------------------------------------------
    Seats everything LoadEntranceObjects reads, then runs the same boot with
    the Entrance table left switched on. The Player and the Camera come out of
