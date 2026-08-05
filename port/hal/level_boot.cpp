@@ -84,6 +84,22 @@ void port_ov014_patch(void);
 void *port_ov014_at(unsigned ds);
 extern unsigned char port_ov014_image[];
 extern const unsigned port_ov014_ds_base, port_ov014_ds_end;
+
+/* ov010 = level 2, a castle interior floor (course 29). ov015 = level 7,
+   Whomp's Fortress (course 1). Both mounted --whole like the two above; the
+   generator emits these four symbols per overlay. Neither has its own
+   per-symbol mount (own_sinits = 0), so a class that lives only in that
+   overlay's data is unregistered and the pre-spawn gate skips it by name --
+   the level still boots walkable. See the recipe beside port_level_table[]. */
+void port_ov010_patch(void);
+void *port_ov010_at(unsigned ds);
+extern unsigned char port_ov010_image[];
+extern const unsigned port_ov010_ds_base, port_ov010_ds_end;
+
+void port_ov015_patch(void);
+void *port_ov015_at(unsigned ds);
+extern unsigned char port_ov015_image[];
+extern const unsigned port_ov015_ds_base, port_ov015_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -101,12 +117,40 @@ struct PortLvlOverlay {
     unsigned int unk18;          /* 0x18 */
 };
 
-/* One row per level the port can mount. Adding a level is this row plus its
-   overlay name in PORT_LEVEL_OVERLAYS (port/CMakeLists.txt); everything the
-   boot does past the mount is the level's own data driving matched src.
-   `own_sinits` marks the levels whose overlay ALSO has a per-symbol mount and
-   static initialisers hosted (hal/ov009_boot.cpp) -- gate 17's work, and so
-   far only the castle grounds has it. */
+/* ---- THE RECIPE: MOUNTING LEVEL N+1 ---------------------------------------
+   Adding a level is mechanical and this is the whole of it. Nothing past the
+   mount is per-level work: the object tables are the level's own data driving
+   matched src, and a class that this build does not register is skipped by name
+   at the pre-spawn gate (hal/actor_registry.cpp) rather than faulting.
+
+     1. Find the overlay and its LVL_Overlay address FROM THE ROM, not the
+        numbering. data_020758c8[level] is the overlay id (it is level+8), and
+        data_02092208[level] is the LVL_Overlay DS address. port_level_ds_overlay
+        (hal/level_change.cpp) reads the second, and port_level_mounts_install
+        below asserts every row against it, so a wrong address says so loudly.
+        The arm9 SUBLEVEL_LEVEL_TABLE (0x02075298) gives the course number,
+        which is the level's shape.
+
+     2. Add the overlay name to PORT_LEVEL_OVERLAYS in port/CMakeLists.txt. That
+        mounts it --whole and generates port_ovNNN_{patch,at,image,ds_base,
+        ds_end}. Slice-manifest edits are read at CONFIGURE time, so rerun cmake.
+
+     3. Declare those five symbols (the extern block above) and add one row here:
+        {level, name, "ovNNN", <LVL_Overlay DS addr>, port_ovNNN_patch,
+         port_ovNNN_at, &port_ovNNN_ds_base, &port_ovNNN_ds_end, 0}.
+        own_sinits stays 0 unless the overlay ALSO gets a per-symbol mount and
+        hosted static initialisers (gate 17, hal/ov009_boot.cpp) -- only the
+        castle grounds has that so far.
+
+     4. Add the mount thunk: a port_mount_row_N below and its slot in
+        port_level_mount_fns[]. PORT_LEVEL_COUNT sizes the caches off the table,
+        so the thunk count has to match the row count.
+
+   That is it. The level is then reachable by SM64DS_LEVEL=<id> at boot and by
+   the debug level select (SM64DS_LEVEL_SELECT=<id>, hal/level_change.cpp's
+   port_title_select over the ROM's own row table). Registering the level's own
+   actor classes is a separate, optional gate: without it the level boots and is
+   walkable with those classes skipped, which the census names. */
 struct PortLevelDesc {
     int id;
     const char *name;
@@ -126,6 +170,12 @@ static const PortLevelDesc port_level_table[] = {
     {6, "Bob-omb Battlefield (bombhei_map)", "ov014", 0x02113434,
      port_ov014_patch, port_ov014_at,
      &port_ov014_ds_base, &port_ov014_ds_end, 0},
+    {2, "castle interior floor (course 29)", "ov010", 0x0211229c,
+     port_ov010_patch, port_ov010_at,
+     &port_ov010_ds_base, &port_ov010_ds_end, 0},
+    {7, "Whomp's Fortress (course 1)", "ov015", 0x02113518,
+     port_ov015_patch, port_ov015_at,
+     &port_ov015_ds_base, &port_ov015_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -212,8 +262,10 @@ extern "C" void *port_level_mount(void)
    its row, which is the price of the registry not knowing about the table. */
 static void *port_mount_row_0(void) { return port_level_mount_at(0); }
 static void *port_mount_row_1(void) { return port_level_mount_at(1); }
+static void *port_mount_row_2(void) { return port_level_mount_at(2); }
+static void *port_mount_row_3(void) { return port_level_mount_at(3); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
-    port_mount_row_0, port_mount_row_1,
+    port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
 };
 
 // ---- the loader dispatch table ---------------------------------------------
