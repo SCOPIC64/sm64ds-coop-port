@@ -829,7 +829,18 @@ list(APPEND SLICE31_SOURCES
 set(GATE35_SYMS func_02049018)
 set(GATE35_GEN "")
 foreach(sym IN LISTS GATE35_SYMS)
-    list(APPEND SLICE32_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+    else()
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
+    endif()
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND GATE35_GEN "${sym_out}")
 endforeach()
 
 set(GATE32_HOST_SOURCES
@@ -879,7 +890,7 @@ foreach(sym IN LISTS GATE32_SYMS)
                 --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
         DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
         COMMENT "hostgen ${sym}")
-    list(APPEND GATE35_GEN "${sym_out}")
+    list(APPEND GATE32_GEN "${sym_out}")
 endforeach()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate35.txt" SLICE35_LINES)
