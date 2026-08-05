@@ -155,7 +155,7 @@ void _ZN9ModelAnimD1Ev(void *);
 void _ZN5ModelD1Ev(void *);
 void _ZN12WithMeshClsnD1Ev(void *);
 void _ZN25MovingCylinderClsnWithPosD1Ev(void *);
-void _ZN18MovingCylinderClsnD1Ev(void *);
+void *_ZN18MovingCylinderClsnD1Ev(void *);
 void _ZN9ModelBaseD2Ev(void *);
 void *_ZN5ActorD2Ev(void *);
 }

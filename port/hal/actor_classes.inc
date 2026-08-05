@@ -272,7 +272,7 @@ void hal_fill_king_bob_omb_vtable(void);
      hal_fill_arrow_sign_vtable},                                              \
     {347, "WARP", Warp_SpawnInfo, Warp_Spawn, hal_fill_warp_vtable},           \
     {298, "WARP_PIPE", WarpPipe_SpawnInfo, WarpPipe_Spawn,                     \
-     hal_fill_warp_pipe_vtable},
+     hal_fill_warp_pipe_vtable},                                           \
     /* ---- gate 32, Bob-omb Battlefield's cast (append-only block) ---- */    \
     {206, "BOB_OMB", BobOmb_SpawnInfo, BobOmb_Spawn, hal_fill_bob_omb_vtable},  \
     {200, "GOOMBA", Goomba_SpawnInfo, Goomba_Spawn, hal_fill_goomba_vtable},    \

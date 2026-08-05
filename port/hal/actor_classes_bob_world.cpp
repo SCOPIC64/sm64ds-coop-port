@@ -227,7 +227,7 @@ void *_ZTV4Coin[20];
 void port_coin_states_seat(void);               /* port/unmatched */
 /* the five member destructors the D1 body runs, in reverse order */
 void _ZN12WithMeshClsnD1Ev(void *);
-void _ZN18MovingCylinderClsnD1Ev(void *);
+void *_ZN18MovingCylinderClsnD1Ev(void *);
 void _ZN11ShadowModelD1Ev(void *);
 void _ZN11CommonModelD1Ev(void *);
 void *_ZN5ActorD2Ev(void *);

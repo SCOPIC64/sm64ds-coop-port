@@ -351,7 +351,7 @@ int *_ZN11BobOmbBuddyD0Ev(int *self);
 /* the three member teardowns the hosted D1 runs, plus Actor's D2 */
 void _ZN11ShadowModelD1Ev(void *);
 void _ZN9ModelAnimD1Ev(void *);
-void _ZN18MovingCylinderClsnD1Ev(void *);
+void *_ZN18MovingCylinderClsnD1Ev(void *);
 void *_ZN5ActorD2Ev(void *);
 void *_ZTV11BobOmbBuddy[31];
 }
