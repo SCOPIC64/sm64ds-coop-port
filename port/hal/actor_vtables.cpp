@@ -342,7 +342,19 @@ __declspec(align(8)) static unsigned char HAL_CAMERA[0x400];
 void *data_0209f318 = HAL_CAMERA;
 unsigned short data_0209f49c, data_0209f49e, data_0209f4a0;
 unsigned char data_0209f4ab;
-unsigned short data_0209f4ac, data_0209f4ae;
+/* Per-player controller records, stride 0x18, four players. The matched
+   writers index BOTH bases by player: InitControllerMode stores the mode
+   at data_0209f4ae + idx * 0x18, and the ov002 pause readers plus
+   Stage::PS_Update read data_0209f4ac + idx * 0x18. Hosted as bare shorts
+   these were two bytes each, so SetPlayerGlobals' four-player boot loop
+   strayed: player 1's byte landed in data_020a0e40[5], and player 2's
+   zeroed the low byte of _ZTV18MovingCylinderClsn[3] two symbols later,
+   which happened to turn mcc_ownerid (low byte 0x80) into lb_d0 (low byte
+   0x00) and sent the frame-0 cylinder pass into LakituBro's deleting
+   destructor. The two bases are distinct fields of the same DS record and
+   are only ever indexed apart, so separate full-extent backing is safe. */
+unsigned char data_0209f4ac[0x18 * 4];
+unsigned char data_0209f4ae[0x18 * 4];
 int data_020a0e40[8];
 }
 
