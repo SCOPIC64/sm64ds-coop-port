@@ -149,6 +149,7 @@ void Particle::SimpleCallback::SpawnParticles(System &sys)
 // archive's textures are uploaded into VRAM the level has already banked.
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 
 #include "ntr/gx.h"
 
@@ -289,21 +290,48 @@ extern "C" void port_particle_frame(void)
         for (int guard = 0; node && guard < 64; ++guard) {
             char *pentry = *(char **)(node + 0x18);
             char *base = *(char **)(engine + 0x1c);
-            /* Particle::System::New stores the spawn point already divided by
-               8 (its `args.a = a >> 3` trio) into the param block at +0x20.
-               Print it against Mario so the units question is answered by the
-               stored number rather than by reading the arithmetic. */
+            /* THE UNITS QUESTION, answered by the stored number. func_0204c304
+               seeds every new particle with `p->v14 = self->v14`, and
+               func_0204be40 renders `p14 + p8`. So the emitter's own v14 is the
+               base every particle inherits. Particle::System::New should have
+               put the spawn point there already divided by 8. Print it in both
+               readings next to Mario's world position and the answer is
+               whichever one matches. */
             {
-                char *pb = *(char **)(node + 0x0c);
-                if (pb)
-                    std::printf("[fx]   paramblk pos %.1f %.1f %.1f (scene) "
-                                "= %.1f %.1f %.1f (world)\n",
-                                *(int *)(pb + 0x20) / 4096.0,
-                                *(int *)(pb + 0x24) / 4096.0,
-                                *(int *)(pb + 0x28) / 4096.0,
-                                *(int *)(pb + 0x20) / 512.0,
-                                *(int *)(pb + 0x24) / 512.0,
-                                *(int *)(pb + 0x28) / 512.0);
+                /* Scan the node for the spawn point instead of trusting an
+                   offset. Mario stands at world (-1200, 254, 6800), so his x
+                   is -4915200 in fx12 world or -614400 in scene; print any
+                   word within 5% of either reading, with its offset. Whichever
+                   scale turns up is the scale the engine was handed. */
+                /* func_0204ae2c seats a system: position at +0x20, ZERO at
+                   +0x14, a pointer at +0x18. The system is therefore fine.
+                   func_0204be40 renders each PARTICLE as v14 + v8, so walk the
+                   live particle list (func_0204a730 links new particles onto
+                   the list at mgr+0x10) and print what a particle actually
+                   carries. */
+                std::printf("[fx]   sys pos +0x20 %.1f %.1f %.1f (scene)\n",
+                            *(int *)(node + 0x20) / 4096.0,
+                            *(int *)(node + 0x24) / 4096.0,
+                            *(int *)(node + 0x28) / 4096.0);
+                {
+                    /* func_0204a5c8 is the render walk: ctx = system+0x34,
+                       and the particle list it hands the billboard is ctx+0x8. */
+                    char *ctx = *(char **)(node + 0x34);
+                    char *plist = ctx ? *(char **)(ctx + 0x08) : 0;
+                    int shown = 0;
+                    for (char *p = plist; p && shown < 2; p = *(char **)p, ++shown)
+                        std::printf("[fx]     particle v8 %.1f %.1f %.1f  "
+                                    "v14 %.1f %.1f %.1f  sum %.1f %.1f %.1f\n",
+                                    *(int *)(p + 0x08) / 4096.0,
+                                    *(int *)(p + 0x0c) / 4096.0,
+                                    *(int *)(p + 0x10) / 4096.0,
+                                    *(int *)(p + 0x14) / 4096.0,
+                                    *(int *)(p + 0x18) / 4096.0,
+                                    *(int *)(p + 0x1c) / 4096.0,
+                                    (*(int *)(p + 0x14) + *(int *)(p + 0x08)) / 4096.0,
+                                    (*(int *)(p + 0x18) + *(int *)(p + 0x0c)) / 4096.0,
+                                    (*(int *)(p + 0x1c) + *(int *)(p + 0x10)) / 4096.0);
+                }
             }
             std::printf("[fx]   system %p interval=%u counter=%u pentry=%p "
                         "(id %d) def=%p\n",
@@ -316,6 +344,33 @@ extern "C" void port_particle_frame(void)
         }
     }
     _ZN8Particle10SysTracker6UpdateEv(t);   /* Stage::Render's call */
+
+    /* AFTER the update, when particles actually exist: what the billboard is
+       handed. func_0204be40 renders v14 + v8 per particle, and the system's
+       own spawn point is already correct scene units, so if the sum here is
+       world scale the base came from somewhere other than the system. */
+    if (fx_trace() >= 3) {
+        char *engine = *(char **)(t + 4);
+        char *node = *(char **)(engine + 4);
+        static int shown;
+        for (int guard = 0; node && guard < 8 && shown < 8; ++guard) {
+            char *ctx = *(char **)(node + 0x34);
+            char *plist = ctx ? *(char **)(ctx + 0x08) : 0;
+            for (char *p = plist; p && shown < 8; p = *(char **)p) {
+                ++shown;
+                const double sx = (*(int *)(p + 0x14) + *(int *)(p + 0x08)) / 4096.0;
+                const double sy = (*(int *)(p + 0x18) + *(int *)(p + 0x0c)) / 4096.0;
+                const double sz = (*(int *)(p + 0x1c) + *(int *)(p + 0x10)) / 4096.0;
+                std::printf("[fx]   PARTICLE base %.1f %.1f %.1f + off %.1f %.1f %.1f"
+                            " = %.1f %.1f %.1f  (system is -150 35 838 scene)\n",
+                            *(int *)(p + 0x14) / 4096.0, *(int *)(p + 0x18) / 4096.0,
+                            *(int *)(p + 0x1c) / 4096.0,
+                            *(int *)(p + 0x08) / 4096.0, *(int *)(p + 0x0c) / 4096.0,
+                            *(int *)(p + 0x10) / 4096.0, sx, sy, sz);
+            }
+            node = *(char **)node;
+        }
+    }
     /* SM64DS_NO_FX_RENDER=1 keeps the simulation and drops the submission,
        for A/B-ing what the particles actually put on the screen */
     static int no_render = -1;
@@ -388,3 +443,4 @@ extern "C" void port_particle_frame(void)
         ++n;
     }
 }
+
