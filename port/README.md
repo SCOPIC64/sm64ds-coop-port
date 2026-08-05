@@ -64,6 +64,11 @@ window. Gate 24 is the exception and keeps its own smoke.
 | 26 | `walk_window` | the boot spine: the real Stage actor replacing the harness-staged scene root |
 | 27 | `walk_window` | the HUD actor (id 334): hearts, coins, stars, timer, camera buttons |
 | 28 | `walk_window` | the Minimap actor (id 335), plus the BG3-sub tilemap and extended palette |
+| 31 | `walk_window` | the level HANDOFF: LoadLevel/ExitLevel tear the level down through the game own destroy path and bring the next one up |
+
+Gates 29 and 30 belong to other streams (particles and the generalised
+level mount); 31 is the handoff between them. The mount seam the two meet at
+is `port_level_mount_register` in `hal/level_change.cpp`.
 
 There is no gate 11: it was folded into the gate-10 walking campaign before
 either landed. Gates 25 through 28 were **renumbered at merge** because three
