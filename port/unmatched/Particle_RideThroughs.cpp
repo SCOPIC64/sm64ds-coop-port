@@ -74,8 +74,11 @@ void _ZN8Particle14SimpleCallback14SpawnParticlesERNS_6SystemE(void *self,
    the same reason. Particle::SysTracker::~SysTracker calls it as
    `func_0203cbc0(data_0209ee80)` to release the particle arena, so the
    pointer has to survive the hop. This one never crashed because nothing has
-   torn a level down yet -- it would have freed whatever was in r0. */
-void _ZdlPv(void *p);
-void func_0203cbc0(void *p) { _ZdlPv(p); }
+   torn a level down yet -- it would have freed whatever was in r0.
+
+   THE DEFINITION LIVES IN unmatched/func_02073244.c: gate 31 hosted the
+   same veneer for the Player's array-delete pair, identically, and the
+   particles merge made the pair the fifteenth collision. The linker layer
+   caught it, per the table. */
 
 }  /* extern "C" */
