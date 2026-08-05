@@ -624,9 +624,10 @@ endforeach()
 # CHAIN_CHOMP and CHAIN_CHOMP_FENCE reach their tables by name -- the gate-17
 # treatment of ov009 applied to the second level. ov062 is KOOPA_THE_QUICK's.
 # ov091 is the one the chomp drags in: its InitResources spawns actor 27, the
-# post it is chained to, and a null back from that spawn is a fault.
+# post it is chained to, and a null back from that spawn is a fault. ov078 is
+# KING_BOB_OMB's, and level 6 is the only level of the fifty-two that loads it.
 set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001 ov084 ov014 ov062
-    ov091)
+    ov091 ov078)
 set(ACTOR_OV_SYMS "")
 foreach(ovn IN LISTS PORT_ACTOR_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_syms.c")
@@ -786,7 +787,11 @@ set(GATE32_HOST_SOURCES
     # ...and for the tenth: the chain chomp's six
     unmatched/ChainChomp_States.cpp
     # the ARM r0 ride-through, in a spawn factory for the first time
-    unmatched/ChainChomp_Spawn.cpp)
+    unmatched/ChainChomp_Spawn.cpp
+    # ...and for the eleventh, the widest one yet: KING_BOB_OMB keeps the
+    # ADDRESS of a two-PMF record rather than an index, so both his setter and
+    # his Behavior do pointer arithmetic on a type MSVC doubles
+    unmatched/KingBobOmb_States.cpp)
 
 # The header/definition collisions in this gate's closure: decl_common.h
 # declares each of these `(void*)` and its own TU defines it `(char*)`, which
@@ -795,7 +800,11 @@ set(GATE32_HOST_SOURCES
 # func_ov084_021298d0 is here for a different reason: it is C++ inside a .c
 # (the gate-9 case), which mwccarm accepted and MSVC will not compile as C.
 # hostgen emits it as .cpp with the symbols wrapped back to C linkage.
-set(GATE32_SYMS func_ov102_0214b248 func_ov084_021298d0)
+# func_ov078_02124cf4 is the first kind again: decl_common.h declares
+# func_0200fa8c `(void*, int)` and func_ov078_02125c24 `(char*, int)` while
+# that TU declares both `(void*, int)`. One register on the ROM, two C2733s to
+# MSVC.
+set(GATE32_SYMS func_ov102_0214b248 func_ov084_021298d0 func_ov078_02124cf4)
 set(GATE32_GEN "")
 foreach(sym IN LISTS GATE32_SYMS)
     if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
@@ -1064,7 +1073,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/sub_actors.cpp hal/stage_bridges.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/blend_vtable.cpp hal/sub_screen.cpp hal/sub_actors.cpp hal/stage_bridges.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
@@ -1082,7 +1091,10 @@ target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 target_link_libraries(smoke_player PRIVATE ntr)
 target_compile_definitions(smoke_player PRIVATE SM64DS_PLATFORM_PC
-    PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}")
+    PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}"
+    # this target links hal/cxx_aliases.cpp, which already carries
+    # the Heap::_Deallocate face hal/blend_vtable.cpp repeats
+    PORT_CXX_ALIASES_LINKED)
 if(MSVC)
     target_compile_options(smoke_player PRIVATE /wd4311 /wd4312 /wd4068)
 endif()
@@ -1092,7 +1104,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/blend_vtable.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
@@ -1113,7 +1125,10 @@ target_include_directories(walk_window PRIVATE
 # 256x192 reads too chunky. 2x is ~12ms -> 60fps with frame pacing.
 target_link_libraries(walk_window PRIVATE ntr_2x)
 target_compile_definitions(walk_window PRIVATE SM64DS_PLATFORM_PC
-    PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}")
+    PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}"
+    # this target links hal/cxx_aliases.cpp, which already carries
+    # the Heap::_Deallocate face hal/blend_vtable.cpp repeats
+    PORT_CXX_ALIASES_LINKED)
 if(MSVC)
     target_compile_options(walk_window PRIVATE /wd4311 /wd4312 /wd4068)
 endif()
@@ -1123,7 +1138,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/blend_vtable.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
@@ -1141,7 +1156,10 @@ target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 target_link_libraries(walk_window_hires PRIVATE ntr_hires)
 target_compile_definitions(walk_window_hires PRIVATE SM64DS_PLATFORM_PC
-    PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}")
+    PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}"
+    # this target links hal/cxx_aliases.cpp, which already carries
+    # the Heap::_Deallocate face hal/blend_vtable.cpp repeats
+    PORT_CXX_ALIASES_LINKED)
 if(MSVC)
     target_compile_options(walk_window_hires PRIVATE /wd4311 /wd4312 /wd4068)
 endif()

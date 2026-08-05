@@ -180,6 +180,53 @@ void __sinit_ov091_02134930(void);
 void __sinit_ov091_021349c4(void);
 void __sinit_ov091_02134a30(void);
 
+/* ---- gate 32: ov078, KING_BOB_OMB's own overlay ---------------------------
+   Fifty-three functions, one class, one vtable, and level 6 is the only level
+   of the fifty-two that loads it. One sinit, which constructs thirteen
+   SharedFilePtrs and builds EIGHTEEN two-PMF state records out of thirty-six
+   8-byte statics at 0x02126ce0..0x02126df8. All thirty-six carry DS code
+   addresses, so the host bodies are seated over them before the copy -- the
+   rabbit's treatment -- and the two dispatchers that read those records are
+   host copies for the pointer-to-member reason
+   (port/unmatched/KingBobOmb_States.cpp). */
+void port_ov078_pack_check(void);
+void port_ov078_syms_patch(void);
+void __sinit_ov078_02126660(void);
+
+struct PortPmf4 { unsigned fn; int delta; };
+extern PortPmf4 data_ov078_02126ce0[], data_ov078_02126ce8[],
+    data_ov078_02126cf0[], data_ov078_02126cf8[], data_ov078_02126d00[],
+    data_ov078_02126d08[], data_ov078_02126d10[], data_ov078_02126d18[],
+    data_ov078_02126d20[], data_ov078_02126d28[], data_ov078_02126d30[],
+    data_ov078_02126d38[], data_ov078_02126d40[], data_ov078_02126d48[],
+    data_ov078_02126d50[], data_ov078_02126d58[], data_ov078_02126d60[],
+    data_ov078_02126d68[], data_ov078_02126d70[], data_ov078_02126d78[],
+    data_ov078_02126d80[], data_ov078_02126d88[], data_ov078_02126d90[],
+    data_ov078_02126d98[], data_ov078_02126da0[], data_ov078_02126da8[],
+    data_ov078_02126db0[], data_ov078_02126db8[], data_ov078_02126dc0[],
+    data_ov078_02126dc8[], data_ov078_02126dd0[], data_ov078_02126dd8[],
+    data_ov078_02126de0[], data_ov078_02126de8[], data_ov078_02126df0[],
+    data_ov078_02126df8[];
+
+void func_ov078_021238ac(void *); void func_ov078_02123a3c(void *);
+void func_ov078_02123aa0(void *); void func_ov078_02123bc4(void *);
+void func_ov078_02123c20(void *); void func_ov078_02123cf0(void *);
+void func_ov078_02123d3c(void *); void func_ov078_02123eb8(void *);
+void func_ov078_02123f1c(void *); void func_ov078_02123fb4(void *);
+void func_ov078_02124000(void *); void func_ov078_02124060(void *);
+void func_ov078_021240a0(void *); void func_ov078_021243c0(void *);
+void func_ov078_02124470(void *); void func_ov078_021244d0(void *);
+void func_ov078_02124520(void *); void func_ov078_02124778(void *);
+void func_ov078_021247bc(void *); void func_ov078_02124b40(void *);
+void func_ov078_02124bc4(void *); void func_ov078_02124c94(void *);
+void func_ov078_02124cf4(void *); void func_ov078_02124e9c(void *);
+void func_ov078_02124f28(void *); void func_ov078_021250d0(void *);
+void func_ov078_021250f8(void *); void func_ov078_02125350(void *);
+void func_ov078_02125448(void *); void func_ov078_02125734(void *);
+void func_ov078_02125790(void *); void func_ov078_021258e4(void *);
+void func_ov078_02125950(void *); void func_ov078_021259e4(void *);
+void func_ov078_021259ec(void *); void func_ov078_02125bc8(void *);
+
 /* the fish's seven {function, delta} statics, seated the same way -- its own
    Behavior is a host copy for the PMF reason, so both live in
    port/unmatched/Fish_Behavior.cpp */
@@ -361,6 +408,64 @@ static void port_koopa_quick_states_seat(void)
     }
 }
 
+/* Thirty-six halves, in the order __sinit_ov078_02126660 stores them: state
+   record first, then its init half and its main half. */
+static const struct { PortPmf4 *slot; unsigned rom; void (*host)(void *); }
+g_king_states[] = {
+    {data_ov078_02126d78, 0x02125bc8, func_ov078_02125bc8},   /* 0212710c */
+    {data_ov078_02126d40, 0x021259ec, func_ov078_021259ec},
+    {data_ov078_02126cf8, 0x021259e4, func_ov078_021259e4},   /* 0212700c */
+    {data_ov078_02126db8, 0x02125950, func_ov078_02125950},
+    {data_ov078_02126ce8, 0x021258e4, func_ov078_021258e4},   /* 0212701c */
+    {data_ov078_02126ce0, 0x02125790, func_ov078_02125790},
+    {data_ov078_02126d00, 0x02125734, func_ov078_02125734},   /* 0212703c */
+    {data_ov078_02126dc8, 0x02125448, func_ov078_02125448},
+    {data_ov078_02126df0, 0x02125350, func_ov078_02125350},   /* 0212704c */
+    {data_ov078_02126de8, 0x021250f8, func_ov078_021250f8},
+    {data_ov078_02126dd8, 0x021250d0, func_ov078_021250d0},   /* 0212707c */
+    {data_ov078_02126dd0, 0x02124f28, func_ov078_02124f28},
+    {data_ov078_02126d28, 0x02124e9c, func_ov078_02124e9c},   /* 0212708c */
+    {data_ov078_02126d38, 0x02124cf4, func_ov078_02124cf4},
+    {data_ov078_02126d98, 0x02124c94, func_ov078_02124c94},   /* 021270ac */
+    {data_ov078_02126d50, 0x02124bc4, func_ov078_02124bc4},
+    {data_ov078_02126d60, 0x02124b40, func_ov078_02124b40},   /* 021270bc */
+    {data_ov078_02126d20, 0x021247bc, func_ov078_021247bc},
+    {data_ov078_02126d70, 0x02124778, func_ov078_02124778},   /* 021270dc */
+    {data_ov078_02126d88, 0x02124520, func_ov078_02124520},
+    {data_ov078_02126d30, 0x021244d0, func_ov078_021244d0},   /* 021270ec */
+    {data_ov078_02126da0, 0x02124470, func_ov078_02124470},
+    {data_ov078_02126d08, 0x021243c0, func_ov078_021243c0},   /* 02126ffc */
+    {data_ov078_02126d80, 0x021240a0, func_ov078_021240a0},
+    {data_ov078_02126d10, 0x02124060, func_ov078_02124060},   /* 0212702c */
+    {data_ov078_02126cf0, 0x02124000, func_ov078_02124000},
+    {data_ov078_02126df8, 0x02123fb4, func_ov078_02123fb4},   /* 0212706c */
+    {data_ov078_02126de0, 0x02123f1c, func_ov078_02123f1c},
+    {data_ov078_02126dc0, 0x02123eb8, func_ov078_02123eb8},   /* 0212709c */
+    {data_ov078_02126db0, 0x02123d3c, func_ov078_02123d3c},
+    {data_ov078_02126d18, 0x02123cf0, func_ov078_02123cf0},   /* 021270cc */
+    {data_ov078_02126d48, 0x02123c20, func_ov078_02123c20},
+    {data_ov078_02126d90, 0x02123bc4, func_ov078_02123bc4},   /* 021270fc */
+    {data_ov078_02126da8, 0x02123aa0, func_ov078_02123aa0},
+    {data_ov078_02126d68, 0x02123a3c, func_ov078_02123a3c},   /* 0212705c */
+    {data_ov078_02126d58, 0x021238ac, func_ov078_021238ac},
+};
+
+static void port_king_bob_omb_states_seat(void)
+{
+    for (unsigned i = 0; i < sizeof g_king_states / sizeof g_king_states[0];
+         ++i) {
+        PortPmf4 *p = g_king_states[i].slot;
+        if (p->fn != g_king_states[i].rom || p->delta != 0) {
+            std::fprintf(stderr, "FATAL: KingBobOmb state half %u: the mount "
+                         "holds %08x/%d, the ROM's own table says %08x/0 -- "
+                         "WRONG BYTES\n", i, p->fn, p->delta,
+                         g_king_states[i].rom);
+            std::abort();
+        }
+        p->fn = (unsigned)(size_t)g_king_states[i].host;
+    }
+}
+
 static void port_rabbit_states_seat(void)
 {
     for (unsigned i = 0; i < sizeof g_rabbit_states / sizeof g_rabbit_states[0];
@@ -450,6 +555,11 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov062_0211d4a0();
     __sinit_ov062_0211d690();
     __sinit_ov062_0211d6fc();
+
+    port_ov078_pack_check();
+    port_ov078_syms_patch();
+    port_king_bob_omb_states_seat();
+    __sinit_ov078_02126660();
 
     port_ov091_pack_check();
     port_ov091_syms_patch();

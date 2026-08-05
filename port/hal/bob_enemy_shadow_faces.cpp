@@ -112,7 +112,16 @@ void ApproachLinear(short &x, short target, short step)
    own shadow, so MSVC emits the load rather than a call. */
 struct MeshColliderBase { void Disable(); };
 struct ActorS { void PoofDustAt(const Vector3 &v); };
-struct Sound { static void PlayBank3(unsigned id, const Vector3 &v); };
+/* Sound has no header at all -- every TU that reaches it declares its own
+   two-line shadow -- so the king's boss music pair lands here rather than in
+   hal/bob_enemy_header_faces.cpp. Both definitions are real static methods on
+   a shadow of the same name, and his own states name them by the Itanium C
+   name, so these are C faces onto them rather than alternatenames. */
+struct Sound {
+    static void PlayBank3(unsigned id, const Vector3 &v);
+    static void LoadAndSetMusic_Layer3(unsigned musicId);
+    static void Func_02048eb4();
+};
 namespace Particle {
 struct System { static void *NewSimple(unsigned t, int x, int y, int z); };
 }
@@ -132,3 +141,8 @@ void Sound::PlayBank3(unsigned id, const Vector3 &v)
 { _ZN5Sound9PlayBank3EjRK7Vector3(id, &v); }
 void *Particle::System::NewSimple(unsigned t, int x, int y, int z)
 { return _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(t, x, y, z); }
+
+extern "C" void _ZN5Sound22LoadAndSetMusic_Layer3Ej(unsigned musicId)
+{ Sound::LoadAndSetMusic_Layer3(musicId); }
+extern "C" void _ZN5Sound13Func_02048eb4Ev(void)
+{ Sound::Func_02048eb4(); }

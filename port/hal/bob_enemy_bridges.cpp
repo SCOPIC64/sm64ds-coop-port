@@ -325,4 +325,39 @@ unsigned char data_0209f30d[4];
 #pragma comment(linker, "/alternatename:?data_ov062_0211e034@@3PAHA=_data_ov062_0211e034")
 #pragma comment(linker, "/alternatename:?data_ov062_0211e03c@@3PAHA=_data_ov062_0211e03c")
 #pragma comment(linker, "/alternatename:?atan2@cstd@@YAHHH@Z=__ZN4cstd5atan2E5Fix12IiES1_")
+
+/* ---- KING_BOB_OMB's own two problems --------------------------------------
+   THE OVERLAY TAG IS WRONG ONCE MORE. Two of his states call ov078 0x02123804
+   and dsd named that address for ov080 as well, so the C spells it
+   _ZN13MontyMoleRockD0Ev. The reloc names overlay(78) and the body is his own
+   throw, not a destructor.
+
+   WithMeshClsn_IsOnGround is the same object under a different spelling: the
+   ROM's method is _ZNK12WithMeshClsn10IsOnGroundEv and one of his TUs declares
+   it as a plain C function under a hand-written name.
+
+   The rest is his thirteen SharedFilePtrs and two state records, each spelled
+   with whatever type its TU happened to declare. */
+#pragma comment(linker, "/alternatename:__ZN13MontyMoleRockD0Ev=_func_ov078_02123804")
+#pragma comment(linker, "/alternatename:_WithMeshClsn_IsOnGround=__ZNK12WithMeshClsn10IsOnGroundEv")
+#pragma comment(linker, "/alternatename:?SetAnim@BlendModelAnim@@QAEHAAUBCA_File@@HHHG@Z=__ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt")
+#pragma comment(linker, "/alternatename:?data_ov078_0212710c@@3UPMF@@A=_data_ov078_0212710c")
+#pragma comment(linker, "/alternatename:?data_ov078_0212709c@@3PADA=_data_ov078_0212709c")
+#pragma comment(linker, "/alternatename:?data_ov078_02126ee8@@3PAPAHA=_data_ov078_02126ee8")
+#pragma comment(linker, "/alternatename:?data_ov078_02126ee0@@3USharedFilePtr@@A=_data_ov078_02126ee0")
+#pragma comment(linker, "/alternatename:?data_ov078_02126ee8@@3USharedFilePtr@@A=_data_ov078_02126ee8")
+#pragma comment(linker, "/alternatename:?data_ov078_02126ef0@@3USharedFilePtr@@A=_data_ov078_02126ef0")
+#pragma comment(linker, "/alternatename:?data_ov078_02126ef8@@3USharedFilePtr@@A=_data_ov078_02126ef8")
+#pragma comment(linker, "/alternatename:?data_ov078_02126f00@@3USharedFilePtr@@A=_data_ov078_02126f00")
+#pragma comment(linker, "/alternatename:?data_ov078_02126f08@@3USharedFilePtr@@A=_data_ov078_02126f08")
+#pragma comment(linker, "/alternatename:?data_ov078_02126f10@@3USharedFilePtr@@A=_data_ov078_02126f10")
+#pragma comment(linker, "/alternatename:?data_ov078_02126f18@@3USharedFilePtr@@A=_data_ov078_02126f18")
+#pragma comment(linker, "/alternatename:?data_ov078_02126f20@@3USharedFilePtr@@A=_data_ov078_02126f20")
+#pragma comment(linker, "/alternatename:?data_ov078_02126f28@@3USharedFilePtr@@A=_data_ov078_02126f28")
+#pragma comment(linker, "/alternatename:?data_ov078_02126f30@@3USharedFilePtr@@A=_data_ov078_02126f30")
+#pragma comment(linker, "/alternatename:?data_ov078_02126f38@@3USharedFilePtr@@A=_data_ov078_02126f38")
+#pragma comment(linker, "/alternatename:?data_ov078_02126f40@@3USharedFilePtr@@A=_data_ov078_02126f40")
+#pragma comment(linker, "/alternatename:?data_ov078_0212703c@@3HA=_data_ov078_0212703c")
+#pragma comment(linker, "/alternatename:?data_ov078_02126f30@@3PAHA=_data_ov078_02126f30")
+#pragma comment(linker, "/alternatename:?data_02082128@@3UMatrix4x3@@A=_data_02082128")
 #pragma comment(linker, "/alternatename:?data_ov062_0211e03c@@3USharedFilePtr@@A=_data_ov062_0211e03c")

@@ -238,22 +238,36 @@ def is_asm(text):
 # declaring a dead alias and the TU's own definition untouched. One entry per
 # symbol, listed rather than pattern-matched, so a new collision has to be
 # looked at rather than silently absorbed.
+#
+# THE COLLIDING NAME IS NOT ALWAYS THE EMITTED ONE. func_ov078_02124cf4 defines
+# itself compatibly and re-declares two OTHER functions with a different
+# pointer type than decl_common.h gives them, so the entry names those two
+# instead. The value is (header, names to shadow); a bare string means "shadow
+# the emitted symbol itself", which is what the first three want.
 HEADER_SHADOW = {
     "func_ov002_020cfbdc": "decl_common.h",   # header void*, TU char*
     "func_ov002_020d6c60": "decl_common.h",   # header (char*, void*), TU (char*, char*)
     "func_ov102_0214b248": "decl_common.h",   # header void*, TU char*  (gate 32)
+    # gate 32, KING_BOB_OMB: header (char*,int)/(void*,int), TU (void*,int) for
+    # both
+    "func_ov078_02124cf4": ("decl_common.h",
+                            ("func_ov078_02125c24", "func_0200fa8c")),
 }
 
 
-def shadow_header_decl(text, sym, header):
-    """Hide the shared header's declaration of `sym` while it is included."""
+def shadow_header_decl(text, sym, spec):
+    """Hide the shared header's declaration of one or more names across its
+    include. `spec` is a header name, or (header, names)."""
+    if isinstance(spec, tuple):
+        header, names = spec
+    else:
+        header, names = spec, (sym,)
     inc = '#include "%s"' % header
     if inc not in text:
         return text, 0
-    return text.replace(
-        inc,
-        "#define %s %s__hdrshadow\n%s\n#undef %s" % (sym, sym, inc, sym),
-        1), 1
+    pre = "".join("#define %s %s__hdrshadow\n" % (n, n) for n in names)
+    post = "".join("\n#undef %s" % n for n in names)
+    return text.replace(inc, pre + inc + post, 1), 1
 
 
 def emit(src_path, out_dir, decomp_root, extern_data=False):

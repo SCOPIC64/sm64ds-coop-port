@@ -1,18 +1,24 @@
-# The ov078 data gate 32 needs for KING_BOB_OMB.
+# The ov078 data gate 32 needs for KING_BOB_OMB, and ov078 carries nothing
+# else: fifty-three functions, one class, one vtable.
+#
+# LEVEL 6 IS THE ONLY LEVEL OF THE FIFTY-TWO THAT LOADS THIS OVERLAY. The
+# arm9's own level-to-overlay tables name it once, which is what makes the king
+# Bob-omb Battlefield's and nobody else's.
 #
 # The gate-18 shape (see ov085_syms.txt for the long version): an ACTOR overlay
 # mounted PER SYMBOL with --pack, the overlay's WHOLE data span rather than a
 # hand-picked subset, the vtables left out because they are host arrays the
 # registry fills, and every *_SpawnInfo pinned to the record's real 0x1c.
 #
-# NO VTABLE HAS TO BE EXCLUDED BY ADDRESS, unlike ov100's. Checked rather than
-# assumed, the same way ov100's and ov102's were: every word in this overlay's
-# data whose +4 is Actor::BeforeInitResources (arm9 0x02011268) belongs to a
-# symbol that already carries a `_ZTV*` name, so the generator's own rule
-# catches all of them.
+# NO VTABLE HAS TO BE EXCLUDED BY ADDRESS, unlike ov100's and ov091's. Checked
+# rather than assumed: this overlay's data holds exactly one word whose +4 is
+# Actor::BeforeInitResources (arm9 0x02011268), it is 0x02126e4c, and config
+# already carries both _ZTV10KingBobOmb and _ZTV12daBombking_c on it, so the
+# generator's own rule drops it.
 #
-# One class, one id: KingBobOmb_SpawnInfo's +4 halfword reads 189 and the
-# ROM's RTTI for its table is daBombking_c.
+# KingBobOmb_SpawnInfo's +4 halfword reads 189, KingBobOmb_Spawn's literal pool
+# installs 0x02126e4c, and that table's RTTI name is daBombking_c. All three
+# agree, so there is nothing to settle here.
 data_ov078_02126ce0:0x8 data_ov078_02126ce8:0x8 data_ov078_02126cf0:0x8
 data_ov078_02126cf8:0x8 data_ov078_02126d00:0x8 data_ov078_02126d08:0x8
 data_ov078_02126d10:0x8 data_ov078_02126d18:0x8 data_ov078_02126d20:0x8

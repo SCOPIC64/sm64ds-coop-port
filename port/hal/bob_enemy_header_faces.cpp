@@ -33,6 +33,30 @@ int _ZN6Player12Unk_020c4f40Et(void *self, unsigned short a)
 extern "C" int _ZN5Actor14GetSubtractionEss(void *self, short a, short b)
 { return ((Actor *)self)->Actor::GetSubtraction(a, b); }
 
+/* KING_BOB_OMB's four. Model::Render (arm9 0x02016d20), BlendModelAnim's
+   Advance and SetAnim (0x02016468 and 0x020163e0) and Player::Unk_020c6a10
+   (ov002 0x020c6a10) are all real methods in src/ while his own TUs reach
+   them by their Itanium C names. */
+#include "Model.h"
+#include "BlendModelAnim.h"
+extern "C" {
+void _ZN5Model6RenderEPK7Vector3(void *self, const void *scale)
+{ ((Model *)self)->Model::Render((const Vector3 *)scale); }
+void _ZN14BlendModelAnim7AdvanceEv(void *self)
+{ ((BlendModelAnim *)self)->BlendModelAnim::Advance(); }
+int _ZN6Player12Unk_020c6a10Ej(void *self, unsigned a)
+{ return ((Player *)self)->Player::Unk_020c6a10(a); }
+}
+
+/* CommonModel::DoSetFile (arm9 0x02016144), which is the whole of that class's
+   ROM vtable past its two destructors, and the two Sound layer-3 methods the
+   king's boss music starts and stops. Same shape as the rest of this file. */
+#include "CommonModel.h"
+extern "C" int _ZN11CommonModel9DoSetFileEPcii(void *self, char *f, int a,
+                                               int b)
+{ return ((CommonModel *)self)->CommonModel::DoSetFile(f, a, b); }
+
+
 /* Model::HideMaterial (arm9 0x02016a58), which KOOPA_THE_QUICK's Render calls
    through its own shadow while the definition is a real method. */
 #include "Model.h"

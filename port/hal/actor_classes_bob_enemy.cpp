@@ -638,6 +638,102 @@ extern "C" void hal_fill_koopa_the_quick_vtable(void)
 }
 
 // ============================================================================
+// KING_BOB_OMB (actor 189, ov078)
+// ============================================================================
+//
+// _ZTV10KingBobOmb / _ZTV12daBombking_c, ov078 0x02126e4c. LEVEL 6 IS THE ONLY
+// LEVEL OF THE FIFTY-TWO THAT LOADS ov078, which is what makes him Bob-omb
+// Battlefield's and nobody else's, and the whole overlay is his: fifty-three
+// functions, one class, one vtable, one sinit.
+//
+// He overrides two of Actor's tail slots as well as the usual six: 12
+// (OnPendingDestroy, a four-byte body) and 29 (OnAimedAtWithEgg). Slots 18 and
+// 19 stay Actor's, so Yoshi cannot swallow him.
+//
+// HIS STATE IS A POINTER, not an index -- +0x420 holds the address of a
+// two-PMF record and eighteen of them live in ov078's bss. Both dispatchers
+// are host copies (port/unmatched/KingBobOmb_States.cpp) and all thirty-six
+// halves are seated in hal/actor_overlays.cpp.
+//
+// Object layout, from his own factory: WithMeshClsn at 0x110, BlendModelAnim
+// at 0x2cc, MovingCylinderClsnWithPos at 0x33c and 0x37c, CommonModel at
+// 0x3bc, ShadowModel at 0x3f8, 1292 bytes.
+extern "C" {
+int _ZN10KingBobOmb13InitResourcesEv(void *self);      /* face: below */
+int _ZN10KingBobOmb8BehaviorEv(void *self);            /* host copy */
+int _ZN10KingBobOmb6RenderEv(void *self);              /* face: below */
+int _ZN10KingBobOmb16CleanupResourcesEv(void);         /* thirteen releases */
+void _ZN10KingBobOmb16OnPendingDestroyEv(void);
+int *_ZN10KingBobOmbD1Ev(int *self);
+int *_ZN10KingBobOmbD0Ev(int *self);
+int func_ov078_021265f4(void);                         /* slot 29, his own */
+void *_ZTV10KingBobOmb[31];
+}
+#pragma comment(linker, "/alternatename:__ZTV12daBombking_c=__ZTV10KingBobOmb")
+
+static int __fastcall kbo_init(void *s, void *)
+{ return _ZN10KingBobOmb13InitResourcesEv(s); }
+static int __fastcall kbo_clean(void *, void *)
+{ return _ZN10KingBobOmb16CleanupResourcesEv(); }
+static int __fastcall kbo_behavior(void *s, void *)
+{ return _ZN10KingBobOmb8BehaviorEv(s); }
+static int __fastcall kbo_render(void *s, void *)
+{ port_actor_render_probe("KING_BOB_OMB", (char *)s + 0x2cc);
+  return _ZN10KingBobOmb6RenderEv(s); }
+static int __fastcall kbo_pdes(void *, void *)
+{ _ZN10KingBobOmb16OnPendingDestroyEv(); return 0; }
+static int __fastcall kbo_d1(void *s, void *)
+{ return (int)(size_t)_ZN10KingBobOmbD1Ev((int *)s); }
+static int __fastcall kbo_d0(void *s, void *)
+{ return (int)(size_t)_ZN10KingBobOmbD0Ev((int *)s); }
+static int __fastcall kbo_aimed(void *, void *)
+{ return func_ov078_021265f4(); }
+
+/* He is the first actor the port carries that owns a BlendModelAnim, so gate
+   24's own table has to be filled before his factory installs it -- and the
+   first that owns a CommonModel, whose table the port had never needed at all.
+   CommonModel's ROM table is arm9 0x0208e8a4 and it is THREE slots: D1, D0 and
+   DoSetFile, and word 3 is already the RTTI name string, which is how the
+   length is read rather than guessed. */
+extern "C" void hal_fill_blendmodelanim_vtable(void);
+extern "C" {
+void *_ZN11CommonModelD1Ev(void *self);
+void *_ZN11CommonModelD0Ev(void *self);
+int _ZN11CommonModel9DoSetFileEPcii(void *self, char *file, int a, int b);
+void *_ZTV11CommonModel[3];
+}
+static int __fastcall cm_d1(void *s, void *)
+{ return (int)(size_t)_ZN11CommonModelD1Ev(s); }
+static int __fastcall cm_d0(void *s, void *)
+{ return (int)(size_t)_ZN11CommonModelD0Ev(s); }
+static int __fastcall cm_dosetfile(void *s, void *, char *f, int a, int b)
+{ return _ZN11CommonModel9DoSetFileEPcii(s, f, a, b); }
+
+static void hal_fill_common_model_vtable(void)
+{
+    _ZTV11CommonModel[0] = (void *)cm_d1;
+    _ZTV11CommonModel[1] = (void *)cm_d0;
+    _ZTV11CommonModel[2] = (void *)cm_dosetfile;
+}
+
+extern "C" void hal_fill_king_bob_omb_vtable(void)
+{
+    void **vt = _ZTV10KingBobOmb;
+    hal_fill_blendmodelanim_vtable();
+    hal_fill_common_model_vtable();
+    port_enemy_death_states_seat();
+    ac31_fill_shared(vt);
+    vt[0] = (void *)kbo_init;
+    vt[3] = (void *)kbo_clean;
+    vt[6] = (void *)kbo_behavior;
+    vt[9] = (void *)kbo_render;
+    vt[12] = (void *)kbo_pdes;
+    vt[16] = (void *)kbo_d1;
+    vt[17] = (void *)kbo_d0;
+    vt[29] = (void *)kbo_aimed;
+}
+
+// ============================================================================
 // KOOPA_FLAG (actor 205, ov062)
 // ============================================================================
 //
@@ -725,4 +821,11 @@ int _ZN9KoopaFlag13InitResourcesEv(void *self)
 { return ((KoopaFlag *)self)->KoopaFlag::InitResources(); }
 int _ZN9KoopaFlag8BehaviorEv(void *self)
 { return ((KoopaFlag *)self)->KoopaFlag::Behavior(); }
+}
+#include "KingBobOmb.h"
+extern "C" {
+int _ZN10KingBobOmb13InitResourcesEv(void *self)
+{ return ((KingBobOmb *)self)->KingBobOmb::InitResources(); }
+int _ZN10KingBobOmb6RenderEv(void *self)
+{ return ((KingBobOmb *)self)->KingBobOmb::Render(); }
 }

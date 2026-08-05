@@ -160,6 +160,11 @@ void hal_fill_stump_vtable(void);
 extern unsigned char KoopaFlag_SpawnInfo[];       /* ov062 0x0211dc30 */
 void *KoopaFlag_Spawn(void);                      /* ov062 0x0211b208 */
 void hal_fill_koopa_flag_vtable(void);
+/* ov078 is KING_BOB_OMB's whole overlay, and level 6 is the only level of the
+   fifty-two that loads it. */
+extern unsigned char KingBobOmb_SpawnInfo[];      /* ov078 0x02126e28 */
+void *KingBobOmb_Spawn(void);                     /* ov078 0x021265fc */
+void hal_fill_king_bob_omb_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -204,4 +209,6 @@ void hal_fill_koopa_flag_vtable(void);
     {188, "KOOPA_THE_QUICK", KoopaTheQuick_SpawnInfo, KoopaTheQuick_Spawn,     \
      hal_fill_koopa_the_quick_vtable},                                         \
     {205, "KOOPA_FLAG", KoopaFlag_SpawnInfo, KoopaFlag_Spawn,                  \
-     hal_fill_koopa_flag_vtable},
+     hal_fill_koopa_flag_vtable},                                              \
+    {189, "KING_BOB_OMB", KingBobOmb_SpawnInfo, KingBobOmb_Spawn,              \
+     hal_fill_king_bob_omb_vtable},
