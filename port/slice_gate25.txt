@@ -1,4 +1,4 @@
-# Gate-24 slice: THE BOTTOM SCREEN.
+# Gate-25 slice: THE BOTTOM SCREEN. (Renumbered from 24 at merge.)
 #
 # Everything the sub engine draws is already matched; what this slice adds is
 # the code that puts bytes in front of it.

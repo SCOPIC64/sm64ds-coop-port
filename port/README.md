@@ -39,6 +39,37 @@ game data. `build-port.cmd` builds all of them into `build\port\`.
 | 8 | `smoke_clsn` | collision: the octree walk answers ground queries over level KCL |
 | 9 | `smoke_actor` | the actor framework: spawn, init, behave, render through vtable dispatch |
 
+From gate 10 on the slices stack rather than standing alone, so they are
+carried by two binaries instead of one smoke each: `smoke_player` runs the
+whole stack headless, and `walk_window` is the same stack in an interactive
+window. Gate 24 is the exception and keeps its own smoke.
+
+| Gate | Binary | What runs on host |
+|---|---|---|
+| 10 | `smoke_player` | Player spawns and stands: ten body/head models from real archives, InitResources end to end, the real `ChangeState` into `St_Walk` |
+| 12 | `walk_window` | the interactive window: WASD walks, ESC quits, camera follows |
+| 13 | `walk_window` | jump, camera-relative controls, and the real Camera actor's 19-state machine driving the projection |
+| 14 | `walk_window` | the real level boot: `Stage::LoadClsnAndObjects` over the castle grounds' own ov009, mounted whole |
+| 15 | `walk_window` | the game's own per-frame actor spine and real `WithMeshClsn` tracking (nothing calls `Player::Behavior` directly any more) |
+| 16 | `walk_window` | real objects on the castle grounds: the five processing lists plus the actor classes themselves |
+| 17 | `walk_window` | the level overlay's own actors, the first time any ov009 *code* compiles |
+| 18 | `walk_window` | ov085: the castle grounds' rabbits and the Lakitu with the camera |
+| 19 | `walk_window` | ov098: the cannon behind the grate on the west moat wall |
+| 20 | `walk_window` | the last two ov002 classes the level names: EXIT x4, WATERFALL_MIST x7 |
+| 21 | `walk_window` | ov100's butterfly and fish |
+| 22 | `walk_window` | ov100's doors, loaded by `LoadDoorObjects` rather than the standard loader |
+| 23 | `walk_window` | ov102's question block on the castle roof, the last id on the skip list |
+| 24 | `smoke_modelanim` | BlendModelAnim: the cross-fading ModelAnim, on the gate-7 stack |
+| 25 | `walk_window` | the bottom screen: the OAM lifecycle, `Stage::LoadGraphics2D`, `Stage::CheckCameraInput` |
+| 26 | `walk_window` | the boot spine: the real Stage actor replacing the harness-staged scene root |
+| 27 | `walk_window` | the HUD actor (id 334): hearts, coins, stars, timer, camera buttons |
+| 28 | `walk_window` | the Minimap actor (id 335), plus the BG3-sub tilemap and extended palette |
+
+There is no gate 11: it was folded into the gate-10 walking campaign before
+either landed. Gates 25 through 28 were **renumbered at merge** because three
+parallel streams each picked 24 the same night; the animation stream kept 24
+for BlendModelAnim.
+
 Supporting machinery: `tools/hostgen.py` (MMIO transform into the build
 tree; src/ is never edited), `tools/romdata.py` (ROM constants from the
 dsd-extracted image; Nintendo bytes stay out of git), `tools/ntr_manifest.py`

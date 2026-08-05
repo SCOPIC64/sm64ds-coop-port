@@ -1,4 +1,4 @@
-# Gate 24: the boot spine -- the real Stage actor.
+# Gate 26: the boot spine -- the real Stage actor. (Renumbered from 24 at merge.)
 #
 # The port's level boot already runs the game's own Stage::LoadClsnAndObjects
 # (gate 14) but against harness-staged storage: a bare MeshCollider in
