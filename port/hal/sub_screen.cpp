@@ -58,6 +58,7 @@ int hal_oam_layout_check(void);
 /* the sprite-template guard (hal/oam_lists.cpp): every OamAttr* the HUD and
    the Minimap hand OAM::Render, checked for a missed pointer rebase */
 int hal_oam_templates_check(void);
+int hal_oam_walk_probe(void);
 /* the minimap's per-frame affine callback (port/unmatched/Minimap_Affine.cpp),
    which is func_02019144's first beat */
 void port_minimap_affine_update(void);
@@ -295,6 +296,16 @@ void hal_sub_screen_frame_begin(void)
        what those passes produced. hal/oam_lists.cpp says what a missed entry
        costs and why the fault it causes lands nowhere near it. */
     hal_oam_templates_check();
+    /* SM64DS_OAM_WALK_PROBE=1: show the fault itself, on a guarded page, so
+       the mechanism is reproducible rather than one run in a couple of
+       hundred. Once, and only when asked for. */
+    {
+        static int probed;
+        if (!probed && std::getenv("SM64DS_OAM_WALK_PROBE")) {
+            probed = 1;
+            hal_oam_walk_probe();
+        }
+    }
 
     static int tab_was;
     if (GetAsyncKeyState_ && !g_headless) {

@@ -32,6 +32,9 @@
 // at an address in nobody's module.
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+
+#include <windows.h>
 
 extern "C" {
 
@@ -49,7 +52,16 @@ extern void *_ZN3OAM17VS_YELLOW_NUMBERSE[];
 /* ov001's digit table, which HUD::RenderCoinCount and its siblings index. */
 extern void *_ZN3OAM7NUMBERSE[];
 
+/* the WALKING overload, which is the one every sprite-list caller reaches:
+   OAM::RenderSub forwards straight to it. */
+void _ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii(int sub, void *attr, int x,
+                                                 int y, int pal, int prio,
+                                                 int sx, int sy, int rot,
+                                                 int mode);
+extern int data_0209e664;      /* the main shadow's entry counter */
+
 int hal_oam_templates_check(void);
+int hal_oam_walk_probe(void);
 
 }
 
@@ -135,5 +147,72 @@ extern "C" int hal_oam_templates_check(void)
     }
     if (!quiet)
         std::fprintf(stderr, "  [oam] sprite templates: %d bad entries\n", bad);
+    return bad;
+}
+
+/* SM64DS_OAM_WALK_PROBE=1: the fault itself, made deterministic.
+ *
+ * One zeroed OamAttr list exactly fills a committed page whose successor is
+ * RESERVED and unreadable, so a walk that runs off the end faults at a known
+ * address instead of 2.9 MB into the DS main-RAM reservation. Both halves of
+ * the bug are shown against that one list:
+ *
+ *   ON SCREEN   every entry emits, the counter reaches 0x80, Render returns.
+ *               128 entries of a 512-entry list, so the walk is bounded by the
+ *               counter and never nears the page end. This is why a missed
+ *               rebase was intermittent rather than constant.
+ *   OFF SCREEN  xOff past 0x100 culls every entry, so nothing emits, the
+ *               counter never moves, the `*pCount >= 0x80` guard never fires,
+ *               and the walk leaves the page.
+ *
+ * Returns 0 when both halves behave as described. */
+extern "C" int hal_oam_walk_probe(void)
+{
+    const int kEntries = 4096 / 8;
+    int bad = 0;
+
+    unsigned char *pg =
+        (unsigned char *)VirtualAlloc(0, 8192, MEM_RESERVE, PAGE_NOACCESS);
+    if (!pg || !VirtualAlloc(pg, 4096, MEM_COMMIT, PAGE_READWRITE)) {
+        std::fprintf(stderr, "  [oam] walk probe: no guarded page\n");
+        return 1;
+    }
+    std::memset(pg, 0, 4096);
+
+    const int saved = data_0209e664;
+
+    data_0209e664 = 0;
+    _ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii(0, pg, 64, 64, 2, 1,
+                                                0x1000, 0x1000, 0, -1);
+    const int on_screen = data_0209e664;
+    if (on_screen != 0x80) ++bad;
+    std::fprintf(stderr, "  [oam] walk probe, list at %08lx, %d entries, no "
+                 "terminator\n", (unsigned long)pg, kEntries);
+    std::fprintf(stderr, "  [oam]   on screen  (x=64):    %d entries emitted, "
+                 "returned\n", on_screen);
+
+    data_0209e664 = 0;
+    int faulted = 0;
+    unsigned long at = 0;
+    __try {
+        _ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii(0, pg, 0x108, 64, 2, 1,
+                                                    0x1000, 0x1000, 0, -1);
+    } __except (at = (unsigned long)GetExceptionInformation()
+                         ->ExceptionRecord->ExceptionInformation[1],
+                GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION
+                    ? EXCEPTION_EXECUTE_HANDLER
+                    : EXCEPTION_CONTINUE_SEARCH) {
+        faulted = 1;
+    }
+    const int off_screen = data_0209e664;
+    std::fprintf(stderr, "  [oam]   off screen (x=0x108): %d entries emitted, "
+                 "%s%s%08lx\n", off_screen,
+                 faulted ? "ACCESS VIOLATION at " : "returned", "", at);
+    if (!faulted || off_screen != 0 ||
+        at != (unsigned long)(pg + 4096)) ++bad;
+
+    data_0209e664 = saved;
+    VirtualFree(pg, 0, MEM_RELEASE);
+    std::fprintf(stderr, "  [oam] walk probe: %s\n", bad ? "UNEXPECTED" : "as described");
     return bad;
 }
