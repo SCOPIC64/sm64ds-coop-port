@@ -19,8 +19,17 @@
  * it is opening -- and it is seated by name. The castle grounds' cannon takes
  * state 0 or state 2 out of its own InitResources depending on the spawn
  * record's low two bits, and its Behavior does not dispatch at all while
- * those bits read 1, so on this level the trap is not reached. If a level
- * ever gets there the walk says which function is missing.
+ * those bits read 1, so on this level the trap is never reached.
+ *
+ * A LEVEL DID GET THERE. Bob-omb Battlefield carries eight cannons and one of
+ * them enters state 1 inside the first forty frames, so the trap used to abort
+ * the whole run before the level could be walked at all. It is a ONE-SHOT
+ * REPORT now rather than an abort: the state body does nothing, so that
+ * cannon's lid stops part-way through opening and every other actor, the
+ * collision and the player carry on. The gap is real and still says so -- once
+ * per run, by ROM address -- but a missing lid animation is not a reason for
+ * the rest of the game to stop. Put the abort back the moment 0x0213ade8 has a
+ * body; this is a hole being held open, not a decision.
  */
 #include <cstdio>
 #include <cstdlib>
@@ -45,9 +54,13 @@ void func_ov098_0213b0a4(void *);   /* state 0, the aim */
 
 static void port_cannon_state_0213ade8(void *)
 {
-    std::fprintf(stderr, "FATAL: Cannon state 1 (ov098 0x0213ade8) is "
-                 "UNMATCHED -- no host body exists\n");
-    std::abort();
+    static int said;
+    if (said)
+        return;
+    said = 1;
+    std::fprintf(stderr, "  [cannon] state 1 (ov098 0x0213ade8) is UNMATCHED -- "
+                 "no host body exists, so this lid stops mid-open. Said once "
+                 "per run.\n");
 }
 
 static const struct { PortPmf *slot; unsigned rom; void (*host)(void *); }

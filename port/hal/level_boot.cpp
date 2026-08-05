@@ -30,25 +30,39 @@
 //    assumption -- the map is what the table says, and the table is read.
 //
 // 2. Which level a given overlay is comes from its own LVL_Overlay: the four
-//    halfwords at +0x08 are the bmd/kcl/icg/icl file handles, and a handle is
-//    the FAT file id plus a constant (1941 = data/stage/main_garden/
-//    main_garden.kcl at FAT 1515, so +426, and every other level overlay
-//    resolves to a coherent data/stage/<name>/ folder under the same
-//    constant). ov009's read main_garden -- the castle grounds. ov015's read
-//    bombhei_map, which is Bob-omb Battlefield: bombhei is the Bob-omb, and
-//    data/enemy/bombking is that level's King Bob-omb.
+//    halfwords at +0x08 are the bmd/kcl/icg/icl OV0 HANDLES, and a handle is
+//    resolved through build/assets/handles.tsv -- the ROM's own handle table,
+//    which is what func_02018a24 reads and what hal/fs.cpp already loads to
+//    open any file at all.
 //
-// 3. Cross-checked against the per-level OBJECT overlay table that
-//    LoadOrUnloadObjectOverlays walks (data_02075998 selectors into
-//    data_02075804). Level 1 names ov085, which is exactly the overlay the
-//    castle grounds' rabbits and Lakitu already come from (gate 18). Level 7
-//    names ov062/079/084/091/094: Koopa the Quick, Chuckya, Klepto, Whomp,
-//    Bullet Bill, Bob-omb Buddy, Goomba, the tilting/sliding platforms, the
-//    Stump, and Hoot the Owl. That is Bob-omb Battlefield's roster and
-//    nothing else's.
+//    RESOLVE THE HANDLE, DO NOT ARITHMETIC IT. The handle-to-FAT relation on
+//    the stage folders happens to be a constant subtraction, and deriving that
+//    constant from one assumed pair got both levels below wrong: ov009 read
+//    "main_garden" and ov015 read "bombhei_map", which put Bob-omb Battlefield
+//    on level 7. It is not. Through the real table ov009 is main_castle (the
+//    castle grounds, which is what the port has been booting all along) and
+//    ov015 is battan_king_map -- Whomp's Fortress, battan king being the Whomp
+//    King. Bob-omb Battlefield's bombhei_map is ov014's, so level 6.
+//
+// 3. Cross-checked twice, and both checks are decisive on their own.
+//
+//    SUBLEVEL_LEVEL_TABLE (arm9 0x02075298) maps a level to its COURSE number.
+//    Entries 1..5 are all 29, the castle and its floors; entry 6 is course 0
+//    and entry 7 is course 1. Course 0 is the first course, and the whole
+//    table walks in course order from there -- 8 and 9 both course 2 (Jolly
+//    Roger Bay and its ship), 10 and 11 both course 3 (Cool Cool Mountain and
+//    its slide).
+//
+//    The per-level OBJECT overlay table LoadOrUnloadObjectOverlays walks
+//    (data_02075998 selectors into data_02075804) gives level 6
+//    ov062/069/078/084/091/095/100. ov078 is KingBobOmb, and level 6 is the
+//    ONLY level in all 52 that loads it. The rest of the roster agrees:
+//    Koopa the Quick and the Koopa's flag (ov062), Bob-omb Buddy and the
+//    Goombas (ov084), the Stump and the sliding platform (ov091), SeesawBob,
+//    the seesaw bridge (ov095), and the Chain Chomp (ov100).
 //
 // So: castle grounds = level 1, ov009, LVL_Overlay 0x02112bdc.
-//     Bob-omb Battlefield = level 7, ov015, LVL_Overlay 0x02113518.
+//     Bob-omb Battlefield = level 6, ov014, LVL_Overlay 0x02113434.
 //
 // Every level overlay is linked at the same base (0x021111a0) because the DS
 // only ever holds one. On the host each is its own array with its own
@@ -66,10 +80,10 @@ void *port_ov009_at(unsigned ds);
 extern unsigned char port_ov009_image[];
 extern const unsigned port_ov009_ds_base, port_ov009_ds_end;
 
-void port_ov015_patch(void);
-void *port_ov015_at(unsigned ds);
-extern unsigned char port_ov015_image[];
-extern const unsigned port_ov015_ds_base, port_ov015_ds_end;
+void port_ov014_patch(void);
+void *port_ov014_at(unsigned ds);
+extern unsigned char port_ov014_image[];
+extern const unsigned port_ov014_ds_base, port_ov014_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -106,12 +120,12 @@ struct PortLevelDesc {
 };
 
 static const PortLevelDesc port_level_table[] = {
-    {1, "castle grounds (main_garden)", "ov009", 0x02112bdc,
+    {1, "castle grounds (main_castle)", "ov009", 0x02112bdc,
      port_ov009_patch, port_ov009_at,
      &port_ov009_ds_base, &port_ov009_ds_end, 1},
-    {7, "Bob-omb Battlefield (bombhei_map)", "ov015", 0x02113518,
-     port_ov015_patch, port_ov015_at,
-     &port_ov015_ds_base, &port_ov015_ds_end, 0},
+    {6, "Bob-omb Battlefield (bombhei_map)", "ov014", 0x02113434,
+     port_ov014_patch, port_ov014_at,
+     &port_ov014_ds_base, &port_ov014_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -872,9 +886,69 @@ extern "C" void port_message_archive_seat(void)
                 "every text box is declined by the ROM's own bounds check\n");
 }
 
+// ---- the twelve shared models Stage::InitResources preloads ----------------
+//
+// Stage::InitResources' own line, between LoadGraphics2D and LoadModel:
+//
+//     for (i = 0; i < 0xC; i++) Model::LoadFile(data_020756f0[i]);
+//
+// Twelve SharedFilePtrs in ov002 -- the coin, the mushroom, the shared pickup
+// models -- loaded once at level boot so the classes that use them can read
+// SharedFilePtr::filePtr straight out without loading anything themselves.
+// Several do exactly that: OneUpMushroom::InitResources reads
+// data_ov002_0210d9b8.filePtr for mushroom types 11 and 12, Coin does the same
+// for its first two kinds, and neither has a LoadFile in front of it. The ROM
+// can afford that because this loop already ran.
+//
+// The port never carried the loop over, because the castle grounds happens to
+// name no object that takes the direct-read path. Bob-omb Battlefield names
+// eight type-11 mushrooms, and the first one walked a null BMD_File into
+// Model::AddToCommonModelDataArr, which takes a REFERENCE and hands it to
+// LoadTexAndPal -- a fault on hardware just as much as on the host.
+//
+// It is spelled by NAME rather than by mounting data_020756f0 itself. That
+// table is arm9 data holding twelve ov002 ADDRESSES, and on the host ov002's
+// symbols are separate arrays; mounting the words would hand Model::LoadFile
+// twelve DS addresses. The names are the same twelve targets, read out of the
+// arm9 relocation table, in the ROM's own order.
+extern "C" {
+void *_ZN5Model8LoadFileER13SharedFilePtr(void *sfp);
+extern unsigned char data_ov002_0210da48[], data_ov002_0210d9b8[],
+    data_ov002_0210da50[], data_ov002_0210d9f8[], data_ov002_0210da40[],
+    data_ov002_0210d9a0[], data_ov002_0210d9c0[], data_ov002_0210e7d8[],
+    data_ov002_0210e3a0[], data_ov002_0211094c[], data_ov002_0211095c[],
+    data_ov002_0210d9a8[];
+}
+
+extern "C" void port_stage_preload_shared_models(void)
+{
+    static void *const tbl[12] = {
+        data_ov002_0210da48, data_ov002_0210d9b8, data_ov002_0210da50,
+        data_ov002_0210d9f8, data_ov002_0210da40, data_ov002_0210d9a0,
+        data_ov002_0210d9c0, data_ov002_0210e7d8, data_ov002_0210e3a0,
+        data_ov002_0211094c, data_ov002_0211095c, data_ov002_0210d9a8,
+    };
+    static int done;
+    int loaded = 0;
+    if (done)
+        return;
+    done = 1;
+    for (int i = 0; i < 12; ++i) {
+        _ZN5Model8LoadFileER13SharedFilePtr(tbl[i]);
+        /* SharedFilePtr is {u16 fileID; u8 numRefs; u8 pad; char *filePtr} */
+        if (*(void *const *)((const char *)tbl[i] + 4))
+            ++loaded;
+        else
+            std::fprintf(stderr, "  [preload] shared model %d (handle %u) did "
+                         "not load\n", i, *(const unsigned short *)tbl[i]);
+    }
+    std::printf("[preload] %d/12 shared models seated\n", loaded);
+}
+
 extern "C" void port_stage_a2_seat(void)
 {
     port_message_archive_seat();
+    port_stage_preload_shared_models();
 
     /* the scene tree root the spawn spine links under -- the real Stage.
        Constructing it IS the seating: Stage::Stage runs with data_020a4b6c[0]

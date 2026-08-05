@@ -561,14 +561,16 @@ add_custom_command(OUTPUT "${OV002DATA_C}"
 # port_ovNNN_at() is per-overlay, so hosting several at once is just several
 # mounts; hal/level_boot.cpp's table picks which one the boot walks.
 #
-#   ov009 = level 1, castle grounds  (data/stage/main_garden)
-#   ov015 = level 7, Bob-omb Battlefield  (data/stage/bombhei_map)
+#   ov009 = level 1, castle grounds  (data/stage/main_castle)
+#   ov014 = level 6, Bob-omb Battlefield  (data/stage/bombhei_map)
 #
 # Both facts come from the ROM, not from the overlay numbering: the arm9's
 # level-to-overlay table data_020758c8 maps level -> overlay, and each
-# overlay's LVL_Overlay names its own kcl/bmd/icg/icl file handles. See the
-# evidence note at the top of hal/level_boot.cpp.
-set(PORT_LEVEL_OVERLAYS ov009 ov015)
+# overlay's LVL_Overlay names its own kcl/bmd/icg/icl OV0 HANDLES, resolved
+# through build/assets/handles.tsv rather than by arithmetic. See the evidence
+# note at the top of hal/level_boot.cpp, including what a derived handle
+# constant got wrong.
+set(PORT_LEVEL_OVERLAYS ov009 ov014)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
