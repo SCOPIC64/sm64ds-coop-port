@@ -1,5 +1,5 @@
-Super Mario 64 DS - PC port
-===========================
+Super Mario 64 DS - PC port, demo 1.7
+=====================================
 
 This is a work-in-progress PC build of Super Mario 64 DS, made from a
 decompilation of the game. It is the real game code running natively on your
@@ -20,13 +20,13 @@ WHAT YOU NEED
    downloaded from the internet is not the same thing and is not supported
    here.
 
-   North American and European cartridges both work.
+   European and North American cartridges both work.
 
 
 HOW TO PLAY
 -----------
 
-1. Copy your .nds file into this folder, so it sits next to play.bat.
+1. Copy your .nds file into the folder named PLACE EU ROM HERE.
 
 2. Double-click play.bat.
 
@@ -70,27 +70,49 @@ Extra keys:
 
     F1   change camera: chase rig, free camera, DS-exact stepped rotate
     F3   stats overlay (frame rate, where Mario is, what state he is in)
-    F5   debug menu: warp to any entrance in the level. Arrows or the d-pad
-         move, Enter or A picks. The game pauses while it is open.
+    F4   switch character on the spot: Mario, Luigi, Wario, Yoshi
+    F5   debug menu. Arrows or the d-pad move, Enter or A picks, F5 closes.
+         The game pauses while it is open. Rows:
+             warp to any entrance in the level
+             level select (the game's own table; picking a level loads it)
+             exit course
+             character
     Tab  show or hide the DS bottom screen under the main view
 
 
 WHAT YOU CAN DO IN IT
 ---------------------
 
-Mario spawns on the castle grounds. You can walk, run, jump, punch, crouch
-and swim around them, with sound, and the DS bottom screen is drawn under the
-main view.
+Mario spawns on the castle grounds: walking, running, jumping, punching,
+swimming, trees to climb, with sound and the DS bottom screen under the main
+view. Mario kicks up dust where the real game does.
 
-This is a port in progress rather than a finished game. There is no star
-select, no course entry and no saving yet.
+Open the F5 menu, go to the level select row, and pick level 6 to enter
+Bob-omb Battlefield. It is populated: coins, blocks, signs, cannons, Goombas,
+Bob-ombs, Chain Chomp, Koopa the Quick, King Bob-omb. You can take damage,
+lose a life, respawn, collect coins, and the course's own music plays.
+
+F4 (or the menu's character row) switches between Mario, Luigi, Wario and
+Yoshi mid-level. Yoshi's tongue is not wired up yet.
+
+This is a port in progress rather than a finished game. Two levels exist so
+far; the level select shows the game's full table with everything else marked
+"not mounted in this build". There is no star select and no saving yet.
+
+
+KNOWN ROUGH EDGES
+-----------------
+
+Sound can drift after a while: it starts right and can degrade into wrong
+noises the longer a session runs. Known, under investigation. Restarting the
+game resets it.
 
 
 IF SOMETHING GOES WRONG
 -----------------------
 
-"No .nds file in this folder"
-    Your dump is not here yet. It has to sit right next to play.bat and its
+"No .nds file"
+    Your dump is not here yet. Put it in the PLACE EU ROM HERE folder. Its
     name has to end in .nds.
 
 "That is not a Super Mario 64 DS dump"
@@ -117,7 +139,8 @@ WHAT IS IN THIS FOLDER
 ----------------------
 
     play.bat             starts the game (and unpacks the data the first time)
-    walk_window.exe      the game
+    demo-1.7.exe         the game
+    PLACE EU ROM HERE\   where your .nds dump goes
     extract_assets.ps1   unpacks your dump; you can also run it on its own
     README.txt           this file
 

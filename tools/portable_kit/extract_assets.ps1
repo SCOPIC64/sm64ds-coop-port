@@ -55,10 +55,16 @@ if (-not $Destination) {
 }
 
 # ---------------------------------------------------------------- find the rom
+# The named drop folder first; next to the script second, so a dump that was
+# placed the old way still works.
 if (-not $Rom) {
-    $found = @(Get-ChildItem -Path $Destination -Filter *.nds -File -ErrorAction SilentlyContinue)
+    $dropDir = Join-Path $Destination 'PLACE EU ROM HERE'
+    $found = @(Get-ChildItem -Path $dropDir -Filter *.nds -File -ErrorAction SilentlyContinue)
     if ($found.Count -eq 0) {
-        Stop-Politely "No .nds file found in $Destination."
+        $found = @(Get-ChildItem -Path $Destination -Filter *.nds -File -ErrorAction SilentlyContinue)
+    }
+    if ($found.Count -eq 0) {
+        Stop-Politely "No .nds file found in '$dropDir' or next to this script."
     }
     if ($found.Count -gt 1) {
         Write-Host ""

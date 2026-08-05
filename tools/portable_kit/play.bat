@@ -6,16 +6,16 @@ rem so pointing that at this folder is what makes the kit portable: the exe
 rem itself was built with an absolute path baked in that only exists on the
 rem machine that built it.
 setlocal
-title Super Mario 64 DS - PC port
+title Super Mario 64 DS - PC demo 1.7
 
 set "KIT=%~dp0"
 if "%KIT:~-1%"=="\" set "KIT=%KIT:~0,-1%"
 set "SM64DS_ASSET_ROOT=%KIT%"
 cd /d "%KIT%"
 
-if not exist "%KIT%\walk_window.exe" (
+if not exist "%KIT%\demo-1.7.exe" (
     echo.
-    echo walk_window.exe is missing from this folder. The kit is incomplete.
+    echo demo-1.7.exe is missing from this folder. The kit is incomplete.
     echo.
     pause
     exit /b 1
@@ -32,8 +32,11 @@ goto play
 echo.
 echo First run: unpacking the game data from your cartridge dump.
 echo.
+dir /b "%KIT%\PLACE EU ROM HERE\*.nds" >nul 2>&1
+if not errorlevel 1 goto haverom
 dir /b "%KIT%\*.nds" >nul 2>&1
 if errorlevel 1 goto norom
+:haverom
 powershell -NoProfile -ExecutionPolicy Bypass -File "%KIT%\extract_assets.ps1"
 if errorlevel 1 goto unpackfailed
 echo.
@@ -52,12 +55,11 @@ exit /b 0
 echo No .nds file in this folder.
 echo.
 echo This kit ships no game data. Copy the dump of your own Super Mario 64 DS
-echo cartridge into:
+echo cartridge (European or North American) into the folder:
 echo.
-echo     %KIT%
+echo     %KIT%\PLACE EU ROM HERE
 echo.
-echo so it sits next to play.bat, then run play.bat again. README.txt has the
-echo details.
+echo then run play.bat again. README.txt has the details.
 echo.
 pause
 exit /b 1

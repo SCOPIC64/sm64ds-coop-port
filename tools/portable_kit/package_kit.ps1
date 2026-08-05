@@ -34,7 +34,7 @@ $ErrorActionPreference = 'Stop'
 
 $here = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $repo = (Resolve-Path (Join-Path $here '..\..')).Path
-if (-not $Output) { $Output = Join-Path $repo 'build\kit\SM64DS-PC' }
+if (-not $Output) { $Output = Join-Path $repo 'build\kit\SM64DS-PC-demo-1.7' }
 
 $buildDir = Join-Path $repo 'build\port-kit'
 $exe = Join-Path $buildDir 'walk_window.exe'
@@ -81,7 +81,8 @@ if ($dumpbin) {
 }
 
 Write-Host "Assembling $Output"
-$kitFiles = 'walk_window.exe', 'play.bat', 'extract_assets.ps1', 'README.txt'
+$kitFiles = 'demo-1.7.exe', 'play.bat', 'extract_assets.ps1', 'README.txt',
+            'PLACE EU ROM HERE'
 
 # Never clear the folder out: the obvious way to test a kit is to drop a
 # cartridge dump into it and run it, and this must not be the thing that
@@ -98,7 +99,14 @@ if (Test-Path $Output) {
 }
 [void][IO.Directory]::CreateDirectory($Output)
 
-Copy-Item $exe (Join-Path $Output 'walk_window.exe') -Force
+Copy-Item $exe (Join-Path $Output 'demo-1.7.exe') -Force
+# The drop folder ships empty except for one line of instructions, so the
+# recipient sees where the dump goes before reading anything.
+$dropDir = Join-Path $Output 'PLACE EU ROM HERE'
+[void][IO.Directory]::CreateDirectory($dropDir)
+Set-Content -LiteralPath (Join-Path $dropDir 'put your sm64ds nds file in this folder.txt') `
+    -Value 'Copy the .nds dump of your own Super Mario 64 DS cartridge into this folder, then run play.bat.' `
+    -Encoding ASCII
 foreach ($name in 'play.bat', 'extract_assets.ps1', 'README.txt') {
     Copy-Item (Join-Path $here $name) (Join-Path $Output $name) -Force
 }
@@ -112,4 +120,4 @@ Write-Host "Kit ready:" -ForegroundColor Green
 Write-Host "    $Output"
 Write-Host ""
 Write-Host "Zip that folder and send it. The person on the other end drops their"
-Write-Host "own .nds dump in next to play.bat and double-clicks play.bat."
+Write-Host "own .nds dump into PLACE EU ROM HERE and double-clicks play.bat."
