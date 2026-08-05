@@ -38,5 +38,7 @@ data_ov001_020aba60 data_ov001_020aba68 _ZN3OAM7NUMBERSE
 _ZN3OAM16SMALL_STAR_EMPTYE data_ov001_020abac8 _ZN3OAM10POWER_STARE
 _ZN3OAM4COINE data_ov001_020abae0 data_ov001_020abae8
 data_ov001_020abaf0 data_ov001_020abaf8
-# gate 33: the four ov001 globals the CAP's particle helpers read.
+# gate 33 reads these as the CAP's particle helpers' globals; gate 32 reads
+# them as the cap tier's own storage (CapEnemy, ov001's archive slots). Two
+# streams found the same five symbols independently, so they are listed once.
 data_ov001_020ad470 data_ov001_020ad628 data_ov001_020ad62c data_ov001_020ad630 data_ov001_020ad634

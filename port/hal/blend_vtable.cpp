@@ -45,13 +45,18 @@
 // dispatches Heap::_Deallocate as an MSVC METHOD. That face normally lives in
 // hal/cxx_aliases.cpp:298-300, which the gate-7 stack does not link (it faces
 // dozens of symbols this target has no use for). The same three lines are
-// repeated below so gate 24 stands on its own. IF A TARGET EVER LINKS BOTH
-// THIS FILE AND cxx_aliases.cpp, delete this block -- it will be LNK2005.
+// repeated below so gate 24 stands on its own. A TARGET THAT LINKS BOTH THIS
+// FILE AND cxx_aliases.cpp must not take it twice, so it is behind
+// PORT_CXX_ALIASES_LINKED. Gate 32 is the first build that links both:
+// KING_BOB_OMB owns a BlendModelAnim and he spawns on Bob-omb Battlefield,
+// which is the moment the note above said would come.
 #include "BlendModelAnim.h"
 
+#ifndef PORT_CXX_ALIASES_LINKED
 extern "C" void _ZN4Heap10DeallocateEPv(void *self, void *ptr);
 struct Heap { void _Deallocate(void *ptr); };
 void Heap::_Deallocate(void *ptr) { _ZN4Heap10DeallocateEPv(this, ptr); }
+#endif
 
 static void __fastcall blend_dtor(void *, void *) {}
 static void __fastcall blend_dosetfile(void *self, void *, char *file, int a,

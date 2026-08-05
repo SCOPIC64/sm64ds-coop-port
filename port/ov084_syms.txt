@@ -1,0 +1,52 @@
+# The ov084 data gate 32 needs for the GOOMBA and the BOB_OMB_BUDDY.
+#
+# The gate-18 shape (see ov085_syms.txt for the long version): an ACTOR overlay
+# mounted PER SYMBOL with --pack, the overlay's WHOLE data span rather than a
+# hand-picked subset, the vtables left out because they are host arrays the
+# registry fills, and every *_SpawnInfo pinned to the record's real 0x1c.
+#
+# NO VTABLE HAS TO BE EXCLUDED BY ADDRESS, unlike ov100's. Checked rather than
+# assumed, the same way ov100's and ov102's were: every word in this overlay's
+# data whose +4 is Actor::BeforeInitResources (arm9 0x02011268) belongs to a
+# symbol that already carries a `_ZTV*` name, so the generator's own rule
+# catches all of them.
+#
+# The ids check out three ways. Goomba_SpawnInfo's +4 halfword reads 200 and
+# BobOmbBuddy_SpawnInfo's reads 181; each factory's literal pool installs the
+# table this file leaves out; and the ROM's RTTI names them daKrb_c (kuribo,
+# the goomba) and daRedBombhei_c (the red bomb-hei, which is the pink buddy).
+data_ov084_02130174:0x4 data_ov084_02130178:0x14 data_ov084_0213018c:0x28
+data_ov084_021301b4:0x14 data_ov084_021301c8:0x3c data_ov084_02130204:0x4
+data_ov084_02130208:0x3 data_ov084_0213020b:0x7 data_ov084_02130212:0x6
+data_ov084_02130218:0x10 data_ov084_02130228:0x10 data_ov084_02130238:0x10
+data_ov084_02130248:0x10 data_ov084_02130258:0x10 data_ov084_02130268:0x10
+data_ov084_02130278:0x1c data_ov084_02130294:0x8 data_ov084_0213029c:0x28
+data_ov084_021302c4:0x28 data_ov084_021302ec:0x8 data_ov084_021302f4:0x18
+data_ov084_0213030c:0x14 data_ov084_02130320:0x14 data_ov084_02130334:0x28
+data_ov084_02130880:0xc data_ov084_0213088c:0x10 data_ov084_0213089c:0x10
+data_ov084_021308ac:0x8 data_ov084_021308b4:0x8 data_ov084_021308bc:0x8
+data_ov084_021308c4:0x8 data_ov084_021308cc:0x8 data_ov084_021308d4:0xc
+data_ov084_021308e0:0xc Goomba_SpawnInfo:0x1c GoombaSmall_SpawnInfo:0x1c
+GoombaLarge_SpawnInfo:0x1c data_ov084_021309c4:0x8 data_ov084_021309cc:0x8
+data_ov084_021309d4:0x8 data_ov084_021309dc:0x8 data_ov084_021309e4:0x8
+data_ov084_021309ec:0x8 data_ov084_021309f4:0xc data_ov084_02130a00:0x14
+BobOmbBuddy_SpawnInfo:0x1c data_ov084_02130ab4:0xc data_ov084_02130ac0:0xc
+FirePiranhaPlant_SpawnInfo:0x1c FirePiranhaPlantBig_SpawnInfo:0x1c
+FirePiranhaPlantSmall_SpawnInfo:0x1c data_ov084_02130ba4:0x8
+data_ov084_02130bac:0x8 data_ov084_02130bb4:0x8 data_ov084_02130bbc:0x8
+data_ov084_02130bc4:0x8 data_ov084_02130bcc:0x8 data_ov084_02130bd4:0x8
+data_ov084_02130bdc:0x8 data_ov084_02130be4:0x8 data_ov084_02130bec:0xc
+data_ov084_02130bf8:0xc PiranhaPlant_SpawnInfo:0x1c data_ov084_02130cc0:0x8
+data_ov084_02130cc8:0x8 data_ov084_02130cd0:0x8 data_ov084_02130cd8:0x8
+data_ov084_02130ce0:0x8 data_ov084_02130ce8:0x8 data_ov084_02130cf0:0x8
+data_ov084_02130cf8:0x8 data_ov084_02130d00:0x8 data_ov084_02130d08:0xc
+data_ov084_02130d14:0xc data_ov084_02130d20:0xc data_ov084_02130d2c:0xc
+data_ov084_02130d38:0xc data_ov084_02130d44:0xc data_ov084_02130d50:0xc
+data_ov084_02130d5c:0xc data_ov084_02130d68:0xc data_ov084_02130d74:0x28
+data_ov084_02130d9c:0x8 data_ov084_02130da4:0x8 data_ov084_02130dac:0xc
+data_ov084_02130db8:0xc data_ov084_02130dc4:0x30 data_ov084_02130df4:0x8
+data_ov084_02130dfc:0x8 data_ov084_02130e04:0x8 data_ov084_02130e0c:0x8
+data_ov084_02130e14:0x8 data_ov084_02130e1c:0x8 data_ov084_02130e24:0x8
+data_ov084_02130e2c:0xc data_ov084_02130e38:0xc data_ov084_02130e44:0xc
+data_ov084_02130e50:0xc data_ov084_02130e5c:0xc data_ov084_02130e68:0xc
+data_ov084_02130e74:0xc data_ov084_02130e80:0x60

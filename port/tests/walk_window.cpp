@@ -455,6 +455,9 @@ extern double port_fs_ms;
 /* the body-model selector Player::SetAnim itself uses to pick which of the
    ten models at Player+0xdc the animation is installed on */
 unsigned _ZNK6Player14GetBodyModelIDEjb(char *self, unsigned a, char b);
+/* gate 32: what SM64DS_SPAWN_ACTOR spawned, read back off the behaviour list
+   once the run is over (hal/actor_spawn_probe_bob.cpp). No env, no output. */
+void port_bob_spawn_report(void);
 /* the bottom screen (hal/sub_screen.cpp): the OAM lifecycle, the engine-B
    scan-out and the corner panel it lands in. TAB toggles the panel. */
 void hal_sub_screen_init(void *hwnd, int zoom);
@@ -3865,6 +3868,7 @@ int main(void)
                spawner adds four) on top of the boot's numbers */
             if (boot_spawns)
                 port_actor_census();
+            port_bob_spawn_report();
             ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
             printf("selftest: %d frames, pos=(%d, %d, %d)\n", frame,
                    *(int *)(c + 0x5c), *(int *)(c + 0x60), *(int *)(c + 0x64));

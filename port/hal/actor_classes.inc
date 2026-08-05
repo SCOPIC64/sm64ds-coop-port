@@ -173,6 +173,50 @@ void hal_fill_warp_pipe_vtable(void);
 extern unsigned char Warp_SpawnInfo[];                  /* ov002 0x0210ac98 */
 void *Warp_Spawn(void);                                 /* ov002 0x020ec534 */
 void hal_fill_warp_vtable(void);
+/* ---- gate 32: BOB-OMB BATTLEFIELD'S LIVING CAST ---------------------------
+   The first ENEMY-family classes the port hosts, which is why they are in a
+   file of their own (hal/actor_classes_bob_enemy.cpp): their vtables are
+   THIRTY-ONE slots where every class above is twenty, because Actor appends
+   thirteen virtuals of its own past ActorBase's eighteen.
+   The ids are the ROM's own, cross-checked three ways: symbols/overlay_actors.md
+   (built from ACTOR_SPAWN_TABLE at arm9 0x02090864), each SpawnInfo's +4
+   halfword, and each class's RTTI name. */
+extern unsigned char BobOmb_SpawnInfo[];        /* ov102 0x0214e534 */
+void *BobOmb_Spawn(void);                       /* ov102 0x0214c6f8 */
+void hal_fill_bob_omb_vtable(void);
+extern unsigned char Goomba_SpawnInfo[];        /* ov084 0x021308ec */
+void *Goomba_Spawn(void);                       /* ov084 0x0212c0b0 */
+void hal_fill_goomba_vtable(void);
+extern unsigned char BobOmbBuddy_SpawnInfo[];   /* ov084 0x02130a14 */
+void *BobOmbBuddy_Spawn(void);                  /* ov084 0x0212d200 */
+void hal_fill_bob_omb_buddy_vtable(void);
+/* ov014 is Bob-omb Battlefield's OWN level overlay, mounted twice (whole for
+   the loaders, per symbol for these two classes' tables) -- the gate-17 shape
+   applied to a second level. */
+extern unsigned char ChainChomp_SpawnInfo[];      /* ov014 0x02114750 */
+void *ChainChomp_Spawn(void);                     /* ov014 0x02112d1c */
+void hal_fill_chain_chomp_vtable(void);
+extern unsigned char ChainChompFence_SpawnInfo[]; /* ov014 0x0211488c */
+void *ChainChompFence_Spawn(void);                /* ov014 0x0211307c */
+void hal_fill_chain_chomp_fence_vtable(void);
+extern unsigned char KoopaTheQuick_SpawnInfo[];   /* ov062 0x0211db78 */
+void *KoopaTheQuick_Spawn(void);                  /* ov062 0x0211aee0 */
+void hal_fill_koopa_the_quick_vtable(void);
+/* Actor 27, the post the chomp is chained to. Its CLASS is daObjPile_c, not
+   the Stump the config's _ZTV5Stump names -- see the section header in
+   hal/actor_classes_bob_enemy.cpp. The SpawnInfo and factory names are the
+   right ones: that record's +4 halfword reads 27. */
+extern unsigned char Stump_SpawnInfo[];           /* ov091 0x02135298 */
+void *Stump_Spawn(void);                          /* ov091 0x02133938 */
+void hal_fill_stump_vtable(void);
+extern unsigned char KoopaFlag_SpawnInfo[];       /* ov062 0x0211dc30 */
+void *KoopaFlag_Spawn(void);                      /* ov062 0x0211b208 */
+void hal_fill_koopa_flag_vtable(void);
+/* ov078 is KING_BOB_OMB's whole overlay, and level 6 is the only level of the
+   fifty-two that loads it. */
+extern unsigned char KingBobOmb_SpawnInfo[];      /* ov078 0x02126e28 */
+void *KingBobOmb_Spawn(void);                     /* ov078 0x021265fc */
+void hal_fill_king_bob_omb_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -229,3 +273,19 @@ void hal_fill_warp_vtable(void);
     {347, "WARP", Warp_SpawnInfo, Warp_Spawn, hal_fill_warp_vtable},           \
     {298, "WARP_PIPE", WarpPipe_SpawnInfo, WarpPipe_Spawn,                     \
      hal_fill_warp_pipe_vtable},
+    /* ---- gate 32, Bob-omb Battlefield's cast (append-only block) ---- */    \
+    {206, "BOB_OMB", BobOmb_SpawnInfo, BobOmb_Spawn, hal_fill_bob_omb_vtable},  \
+    {200, "GOOMBA", Goomba_SpawnInfo, Goomba_Spawn, hal_fill_goomba_vtable},    \
+    {181, "BOB_OMB_BUDDY", BobOmbBuddy_SpawnInfo, BobOmbBuddy_Spawn,            \
+     hal_fill_bob_omb_buddy_vtable},                                           \
+    {219, "CHAIN_CHOMP", ChainChomp_SpawnInfo, ChainChomp_Spawn,               \
+     hal_fill_chain_chomp_vtable},                                             \
+    {41, "CHAIN_CHOMP_FENCE", ChainChompFence_SpawnInfo, ChainChompFence_Spawn,\
+     hal_fill_chain_chomp_fence_vtable},                                       \
+    {27, "STUMP", Stump_SpawnInfo, Stump_Spawn, hal_fill_stump_vtable},        \
+    {188, "KOOPA_THE_QUICK", KoopaTheQuick_SpawnInfo, KoopaTheQuick_Spawn,     \
+     hal_fill_koopa_the_quick_vtable},                                         \
+    {205, "KOOPA_FLAG", KoopaFlag_SpawnInfo, KoopaFlag_Spawn,                  \
+     hal_fill_koopa_flag_vtable},                                              \
+    {189, "KING_BOB_OMB", KingBobOmb_SpawnInfo, KingBobOmb_Spawn,              \
+     hal_fill_king_bob_omb_vtable},

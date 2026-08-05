@@ -1,0 +1,51 @@
+# The ov078 data gate 32 needs for KING_BOB_OMB, and ov078 carries nothing
+# else: fifty-three functions, one class, one vtable.
+#
+# LEVEL 6 IS THE ONLY LEVEL OF THE FIFTY-TWO THAT LOADS THIS OVERLAY. The
+# arm9's own level-to-overlay tables name it once, which is what makes the king
+# Bob-omb Battlefield's and nobody else's.
+#
+# The gate-18 shape (see ov085_syms.txt for the long version): an ACTOR overlay
+# mounted PER SYMBOL with --pack, the overlay's WHOLE data span rather than a
+# hand-picked subset, the vtables left out because they are host arrays the
+# registry fills, and every *_SpawnInfo pinned to the record's real 0x1c.
+#
+# NO VTABLE HAS TO BE EXCLUDED BY ADDRESS, unlike ov100's and ov091's. Checked
+# rather than assumed: this overlay's data holds exactly one word whose +4 is
+# Actor::BeforeInitResources (arm9 0x02011268), it is 0x02126e4c, and config
+# already carries both _ZTV10KingBobOmb and _ZTV12daBombking_c on it, so the
+# generator's own rule drops it.
+#
+# KingBobOmb_SpawnInfo's +4 halfword reads 189, KingBobOmb_Spawn's literal pool
+# installs 0x02126e4c, and that table's RTTI name is daBombking_c. All three
+# agree, so there is nothing to settle here.
+data_ov078_02126ce0:0x8 data_ov078_02126ce8:0x8 data_ov078_02126cf0:0x8
+data_ov078_02126cf8:0x8 data_ov078_02126d00:0x8 data_ov078_02126d08:0x8
+data_ov078_02126d10:0x8 data_ov078_02126d18:0x8 data_ov078_02126d20:0x8
+data_ov078_02126d28:0x8 data_ov078_02126d30:0x8 data_ov078_02126d38:0x8
+data_ov078_02126d40:0x8 data_ov078_02126d48:0x8 data_ov078_02126d50:0x8
+data_ov078_02126d58:0x8 data_ov078_02126d60:0x8 data_ov078_02126d68:0x8
+data_ov078_02126d70:0x8 data_ov078_02126d78:0x8 data_ov078_02126d80:0x8
+data_ov078_02126d88:0x8 data_ov078_02126d90:0x8 data_ov078_02126d98:0x8
+data_ov078_02126da0:0x8 data_ov078_02126da8:0x8 data_ov078_02126db0:0x8
+data_ov078_02126db8:0x8 data_ov078_02126dc0:0x8 data_ov078_02126dc8:0x8
+data_ov078_02126dd0:0x8 data_ov078_02126dd8:0x8 data_ov078_02126de0:0x8
+data_ov078_02126de8:0x8 data_ov078_02126df0:0x8 data_ov078_02126df8:0x8
+data_ov078_02126e00:0xc data_ov078_02126e0c:0xc data_ov078_02126e18:0x10
+KingBobOmb_SpawnInfo:0x1c data_ov078_02126ee0:0x8 data_ov078_02126ee8:0x8
+data_ov078_02126ef0:0x8 data_ov078_02126ef8:0x8 data_ov078_02126f00:0x8
+data_ov078_02126f08:0x8 data_ov078_02126f10:0x8 data_ov078_02126f18:0x8
+data_ov078_02126f20:0x8 data_ov078_02126f28:0x8 data_ov078_02126f30:0x8
+data_ov078_02126f38:0x8 data_ov078_02126f40:0x8 data_ov078_02126f48:0xc
+data_ov078_02126f54:0xc data_ov078_02126f60:0xc data_ov078_02126f6c:0xc
+data_ov078_02126f78:0xc data_ov078_02126f84:0xc data_ov078_02126f90:0xc
+data_ov078_02126f9c:0xc data_ov078_02126fa8:0xc data_ov078_02126fb4:0xc
+data_ov078_02126fc0:0xc data_ov078_02126fcc:0xc data_ov078_02126fd8:0xc
+data_ov078_02126fe4:0xc data_ov078_02126ff0:0xc data_ov078_02126ffc:0x10
+data_ov078_0212700c:0x10 data_ov078_0212701c:0x10 data_ov078_0212702c:0x10
+data_ov078_0212703c:0x10 data_ov078_0212704c:0xc data_ov078_02127058:0x4
+data_ov078_0212705c:0x10 data_ov078_0212706c:0x10 data_ov078_0212707c:0x10
+data_ov078_0212708c:0x10 data_ov078_0212709c:0x10 data_ov078_021270ac:0x10
+data_ov078_021270bc:0x10 data_ov078_021270cc:0x10 data_ov078_021270dc:0x10
+data_ov078_021270ec:0x10 data_ov078_021270fc:0x10 data_ov078_0212710c:0x10
+data_ov078_0212711c:0x8 data_ov078_02127124:0x4 data_ov078_02127128:0x18
