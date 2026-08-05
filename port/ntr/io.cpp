@@ -120,6 +120,7 @@ bool io_init() {
     struct { uintptr_t base; size_t size; } regions[] = {
         {MAIN_BASE, MAIN_SIZE}, {IO_BASE, IO_SIZE}, {PLTT_BASE, PLTT_SIZE},
         {VRAM_BASE, VRAM_SIZE}, {OAM_BASE, OAM_SIZE},
+        {SHARED_BASE, SHARED_SIZE},
     };
     void *io = nullptr;
     for (const auto &r : regions) {
@@ -141,6 +142,15 @@ bool io_init() {
     // display-list pump spin-waits on bit 25 before touching the FIFO, so the
     // latch must come up idle or the wait never falls through.
     raw_write(0x04000600u, 0x06000000u, 4);
+    /* The shared block comes up saying the sound system is already busy.
+       func_0203d974 is `*(u16 *)0x27ffc40 == 2 || data_020a0f10`, and it is the
+       guard on func_02011f7c's ARM7 handshake -- the one that loads a
+       character's voice bank. Answering 1 skips the handshake and leaves the
+       bank id recorded, which is what the port wants: there is no ARM7, the
+       SDAT player owns banks, and the ROM path would reach for a core that is
+       not there. Reachable the moment the Player is anyone but Mario, since
+       func_ov002_020e6330 loads the bank off the character byte. */
+    *reinterpret_cast<volatile uint16_t *>(SHARED_BASE + 0xc40) = 2;
     return true;
 }
 

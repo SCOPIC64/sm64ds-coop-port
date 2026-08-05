@@ -199,6 +199,9 @@ typedef unsigned int u32;
 
 extern "C" {
 void *_ZN6PlayerC1Ev(void *self);
+/* Player::InitResources' own character-propagation helper: +0x6d9 forward
+   into the swap pair at +0x6dc/+0x6dd (src/func_ov002_020beabc.cpp) */
+void func_ov002_020beabc(void *p);
 void *_ZN4Heap13SetupRootHeapEv(void);
 void *_ZN9ActorBasenwEj(unsigned size);
 extern int data_0209b3ec[12];
@@ -367,9 +370,11 @@ void port_stage_a2_seat(void);
 /* the actor registry and the ROM's own processing lists (hal/actor_registry) */
 void port_actor_tick(void);          /* phases 4/2/3: cleanup, init, behaviour */
 void port_actor_render(void);        /* phase 5: the render bucket */
-/* gate 29: Particle::SysTracker::Update + Particle::RenderAll, the pair
-   Stage::Render and Stage::GraphCallback1 make on the ROM */
-void port_particle_frame(void);
+/* gate 29: the pair Stage::Render and Stage::GraphCallback1 make on the ROM,
+   and they are called from the two places those two run -- the simulation in
+   the actor bucket, the submission after the level pass */
+void port_particle_frame(void);      /* Stage::Render: SysTracker::Update */
+void port_particle_render(void);     /* GraphCallback1: Particle::RenderAll */
 void port_particle_counts(int *systems, int *particles);
 void port_actor_scene_pass(void);    /* phase 1: scene-tree housekeeping */
 void port_actor_census(void);
@@ -817,12 +822,61 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
    are next to each other for. */
 enum {
     MENU_WARP = 0,
+    MENU_CHARACTER,
     MENU_SNAP,
     MENU_OVERLAY,
     MENU_CAMERA,
     MENU_RECORDER,
     MENU_COUNT
 };
+
+/* ---- CHARACTER SWITCH (port mod, driven through the game's own save byte) --
+   THE CHARACTER IS SAVE DATA, not a Player field, and that is the whole reason
+   this is a boot setting rather than a live toggle. LoadEntranceObjects builds
+   the Player's spawn param as
+
+       f2 = data_0209caa0[0x41];  flags = f2 | (f1 << 3) | (i << 6) | (sl << 8)
+
+   and Player::InitResources unpacks bits 0-2 of that into +0x6d9. So the byte
+   is read once, at spawn, and everything downstream follows from it: the body
+   model slots at +0xdc are indexed by GetBodyModelID(character), +8 is the live
+   index Player_ScaleByCharFactor and the port's own render read,
+   func_ov002_020e4bb8 mirrors +8 into +0x6db for Player::Render, and
+   Sound::PlayCharVoice picks the voice bank off +0x6d9.
+
+   WHY NOT POKE IT LIVE, which was the first thing tried: InitResources loads
+   ONLY THE SPAWNED CHARACTER'S models. The other slots at +0xdc stay null, so
+   moving the index alone points Player_AdvanceAnims at a null model and
+   Animation::Advance divides by zero on the first frame. The ROM's own
+   character door (func_ov002_020be3b0) does the in-place swap properly, and it
+   loads the incoming character's files first through the SharedFilePtr table
+   at data_ov002_020ff480 before it moves anything. Hosting that is the job
+   that would make this row live; until then the row sets the save byte and the
+   next boot spawns whoever it names.
+
+   Yoshi is a separate caveat: St_YoshiPower and St_InYoshiMouth are matched in
+   src but are not wired into player_states.inc, so his tongue is a loud no-op.
+   Walking, running, jumping and the dust are character-agnostic code. */
+static const char *const CHAR_NAME[4] = { "Mario", "Luigi", "Wario", "Yoshi" };
+static int g_character;                     /* what the boot actually spawned */
+static int g_character_pending;             /* what the next boot will spawn */
+
+/* data_0209caa0 is declared int[] above (word 2 carries flag bits the boot
+   sets); LoadEntranceObjects reads the character as a BYTE at 0x41, which is
+   why this casts rather than indexing the int view. */
+static void character_set_pending(int ch)
+{
+    g_character_pending = ch & 3;
+    ((unsigned char *)data_0209caa0)[0x41] =
+        (unsigned char)g_character_pending;
+}
+
+/* Changes character on the spot by re-running Player::InitResources with a
+   rewritten spawn param, carrying position and speed across. Port code, not
+   the game's: the game's own in-place change is the CAP path, and there is no
+   Yoshi cap for it to run. The reasoning is in hal/player_bridges.cpp, where
+   it lives because it wants Player.h. SM64DS_SWITCH=<0..3> drives it headless. */
+extern "C" void port_player_set_character(void *player, unsigned ch);
 static int menu_on;
 static int menu_sel;
 static int menu_entrance;             /* the entrance the warp row is showing */
@@ -854,6 +908,9 @@ static void menu_draw(ntr::Framebuffer &fb)
     else
         snprintf(ln[MENU_WARP], sizeof ln[0],
                  "warp to entrance  none loaded");
+    snprintf(ln[MENU_CHARACTER], sizeof ln[0], "character         %s%s",
+             CHAR_NAME[g_character_pending & 3],
+             g_character_pending == g_character ? "" : "   enter to switch");
     snprintf(ln[MENU_SNAP], sizeof ln[0], "fake snap         %s",
              g_fake_snap ? "ON (collider owner set at boot)" : "off");
     snprintf(ln[MENU_OVERLAY], sizeof ln[0], "stats overlay     %s",
@@ -1183,6 +1240,16 @@ int main(void)
            sub-table is dropped, which is stage A1: geometry only. */
         if (boot_spawns)
             port_stage_a2_seat();
+        /* SM64DS_CHARACTER=0..3 (Mario, Luigi, Wario, Yoshi). It goes in HERE,
+           before the boot, because LoadEntranceObjects reads the save byte to
+           build the Player's spawn param and Player::InitResources loads that
+           character's models and no others. Setting it after the spawn gets a
+           Player whose model slot is null. */
+        if (const char *cs = getenv("SM64DS_CHARACTER")) {
+            character_set_pending(atoi(cs));
+            fprintf(stderr, "[char] spawning %s\n",
+                    CHAR_NAME[g_character_pending & 3]);
+        }
         void *lvl = port_stage_a_boot(g_mc, boot_spawns);
         level_bmd = *(unsigned short *)((char *)lvl + 8);
         port_stage_a_probe(g_mc);
@@ -1213,6 +1280,29 @@ int main(void)
 
     /* the castle grounds floor, gate-8 recipe */
     char *c = (char *)player;
+
+    /* Read the character back off the Player the spawn actually produced,
+       rather than assuming the save byte got through. Zeroed storage gives 0,
+       which IS Mario, but that is a property of the entrance param and not a
+       guarantee worth leaning on. */
+    g_character = *(unsigned char *)(c + 0x6d9) & 3;
+    g_character_pending = g_character;
+
+    /* SKIP THE CHARACTER INTRO CUTSCENE, which the other three spawn with and
+       Mario does not. func_ov002_020c4188 is that cutscene's state machine,
+       entered whenever +0x71e is nonzero, and it is built on two things the
+       port does not have: the Message box (func_0201f32c, guarded to a no-op
+       in hal/level_boot.cpp) and the camera-script calls that follow it. With
+       the message guarded it simply faults one step further along, on the
+       object the message was supposed to have made. Zeroing the cutscene id is
+       the honest version of "not hosted": the state machine returns on its
+       first line and the character just plays. No-op for Mario, who arrives
+       with it already 0. */
+    if (*(unsigned char *)(c + 0x71e)) {
+        fprintf(stderr, "[char] skipping intro cutscene %u (not hosted)\n",
+                (unsigned)*(unsigned char *)(c + 0x71e));
+        *(unsigned char *)(c + 0x71e) = 0;
+    }
     if (!real_boot) {
         static struct { unsigned short id; unsigned char refs; void *p; } kp;
         _ZN13SharedFilePtr9ConstructEj(&kp, 1941);
@@ -1538,8 +1628,16 @@ int main(void)
     W.RegisterClassA_(&wc);
     RECT r = {0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM};
     W.AdjustWindowRect_(&r, WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME, FALSE);
+    /* THE TITLE BAR IS THE CONTROLS CARD. There is nowhere else to put them
+       that does not cost a keypress to read: the F3 overlay is timings, the
+       F5 menu is state, and both of those you have to already know how to
+       open. The bar is the one surface that is legible before you touch
+       anything, so the keys live there. */
     HWND hwnd = W.CreateWindowExA_(0, "sm64ds_walk",
-                              "SM64DS port -- WASD walk, ESC quit",
+                              "SM64DS   |   WASD move   Shift dash   Space jump"
+                              "   X punch   Ctrl crouch   |   Q/E turn   R/F"
+                              " tilt   |   F1 camera   F3 stats   F5 menu"
+                              "   Tab panel   Esc quit",
                               (WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME) |
                                   WS_VISIBLE,
                               CW_USEDEFAULT, CW_USEDEFAULT,
@@ -1756,6 +1854,21 @@ int main(void)
                             } else {
                                 menu_entrance = (menu_entrance + 1) % n_ent;
                             }
+                        }
+                        break;
+                    case MENU_CHARACTER:
+                        /* left and right pick, enter changes -- the same shape
+                           as the warp row above */
+                        if (edge & (1u << 5)) {
+                            fprintf(stderr, "[menu] becoming %s\n",
+                                    CHAR_NAME[g_character_pending & 3]);
+                            port_player_set_character(c, g_character_pending);
+                            g_character = g_character_pending;
+                            an_pivot_live = 0;   /* do not ease across it */
+                        } else {
+                            g_character_pending =
+                                (dec ? g_character_pending + 3
+                                     : g_character_pending + 1) & 3;
                         }
                         break;
                     case MENU_SNAP:
@@ -2384,6 +2497,26 @@ int main(void)
                the one Camera::Render published, in the ROM's own scene units,
                and Actor::BeforeBehavior reads exactly those three words to
                place every actor for the Clipper. */
+            /* THE CHARACTER INTRO CUTSCENE IS NOT HOSTED, so hold its id at 0
+               every tick rather than once at startup -- the level-enter sets it
+               AFTER the Player exists, which is why clearing it at spawn did
+               nothing. func_ov002_020c4188 is that cutscene and it is built on
+               the Message box the port does not have; with the message guarded
+               to a no-op it just faults one step further along, on the object
+               the message was supposed to have made. Yoshi enters it every run
+               (Mario never does, Luigi and Wario survive 300 frames without
+               it), so this is the difference between Yoshi being playable and
+               not. Zero means the state machine returns on its first line. */
+            if (*(unsigned char *)(c + 0x71e)) {
+                static int said;
+                if (!said) {
+                    said = 1;
+                    fprintf(stderr, "[char] intro cutscene %u suppressed "
+                            "(not hosted)\n",
+                            (unsigned)*(unsigned char *)(c + 0x71e));
+                }
+                *(unsigned char *)(c + 0x71e) = 0;
+            }
             port_actor_tick();
         } else if (*(void **)(c + 0x370)) {
             hal_player_behavior(player);
@@ -2913,47 +3046,30 @@ int main(void)
                 size_t before = 0, after = 0;
                 if (selftest) ntr::gx_polygons(before);
                 port_actor_render();
-                /* THE PARTICLES GO HERE, in the same matrix regime as the
-                   actor bucket. Particle::RenderAll hands the engine
-                   data_0209b3ec -- the Clipper the actor renders already
-                   work in, ROM scene units -- so it has to be inside the
-                   bucket's window, before the harness converts the view
-                   matrix to world units for its own two draws. Update runs
-                   first, which is the order Stage::Render and
-                   Stage::GraphCallback1 run in. */
+                /* THE PARTICLE SIMULATION GOES HERE, which is where
+                   Stage::Render drives it. The SUBMISSION does not: it belongs
+                   after the level, where Stage::GraphCallback1 runs it, and it
+                   is called from there (port_particle_render, below the level
+                   pass). Drawing translucent particles ahead of the opaque
+                   level loses them all to the ground drawn over them. */
+                /* SM64DS_SWITCH=<0..3> drives the cap-block character change
+                   from a headless run, at frame 90, so the live path has a
+                   regression probe instead of only being reachable by hand
+                   through the F5 row. */
                 {
-                    size_t fx_before = 0, fx_after = 0;
-                    static int fx_tr = -1;
-                    if (fx_tr < 0)
-                        fx_tr = getenv("SM64DS_FX_TRACE") ? 1 : 0;
-                    if (fx_tr) ntr::gx_polygons(fx_before);
-                    port_particle_frame();
-                    if (fx_tr) {
-                        const ntr::GxTriangle *ft = ntr::gx_polygons(fx_after);
-                        if (fx_after != fx_before) {
-                            int sys = 0, par = 0;
-                            port_particle_counts(&sys, &par);
-                            float mnx = 1e30f, mxx = -1e30f, mny = 1e30f,
-                                  mxy = -1e30f, mnz = 1e30f, mxz = -1e30f;
-                            for (size_t i = fx_before; i < fx_after; ++i)
-                                for (int v = 0; v < 3; ++v) {
-                                    float X = ft[i].v[v].x, Y = ft[i].v[v].y,
-                                          Z = ft[i].v[v].z;
-                                    if (X < mnx) mnx = X;
-                                    if (X > mxx) mxx = X;
-                                    if (Y < mny) mny = Y;
-                                    if (Y > mxy) mxy = Y;
-                                    if (Z < mnz) mnz = Z;
-                                    if (Z > mxz) mxz = Z;
-                                }
-                            printf("[fx] frame %d: %zu triangles from %d "
-                                   "particles in %d systems, screen "
-                                   "x[%.0f..%.0f] y[%.0f..%.0f] z[%.3f..%.3f]\n",
-                                   frame, fx_after - fx_before, par, sys,
-                                   mnx, mxx, mny, mxy, mnz, mxz);
-                        }
+                    static int sw = -2;
+                    if (sw == -2) {
+                        const char *s = getenv("SM64DS_SWITCH");
+                        sw = s ? atoi(s) : -1;
+                    }
+                    if (sw >= 0 && frame == 90) {
+                        fprintf(stderr, "[char] SM64DS_SWITCH becoming %s\n",
+                                CHAR_NAME[sw & 3]);
+                        port_player_set_character(c, sw);
+                        g_character = g_character_pending = sw & 3;
                     }
                 }
+                port_particle_frame();
                 if (selftest) {
                     const ntr::GxTriangle *at = ntr::gx_polygons(after);
                     if (frame == 0 || getenv("SM64DS_TRACE_ACTOR_TRIS")) {
@@ -3165,6 +3281,45 @@ int main(void)
         size_t tris_before = 0;
         if (selftest) ntr::gx_polygons(tris_before);
         hal_render_player_world(player);
+        /* Stage::GraphCallback1: the particle submission, last, after every
+           opaque draw in the frame. The billboards carry their own absolute
+           position matrix so nothing above this line has to be preserved for
+           them; what they need is to be the last thing the raster sees. */
+        static int fx_no_actors = -1;
+        if (fx_no_actors < 0)
+            fx_no_actors = getenv("SM64DS_NO_ACTORS") ? 1 : 0;
+        if (boot_spawns && !fx_no_actors) {
+            size_t fx_before = 0, fx_after = 0;
+            static int fx_tr = -1;
+            if (fx_tr < 0) fx_tr = getenv("SM64DS_FX_TRACE") ? 1 : 0;
+            if (fx_tr) ntr::gx_polygons(fx_before);
+            port_particle_render();
+            if (fx_tr) {
+                const ntr::GxTriangle *ft = ntr::gx_polygons(fx_after);
+                if (fx_after != fx_before) {
+                    int sys = 0, par = 0;
+                    port_particle_counts(&sys, &par);
+                    float mnx = 1e30f, mxx = -1e30f, mny = 1e30f,
+                          mxy = -1e30f, mnz = 1e30f, mxz = -1e30f;
+                    for (size_t i = fx_before; i < fx_after; ++i)
+                        for (int v = 0; v < 3; ++v) {
+                            float X = ft[i].v[v].x, Y = ft[i].v[v].y,
+                                  Z = ft[i].v[v].z;
+                            if (X < mnx) mnx = X;
+                            if (X > mxx) mxx = X;
+                            if (Y < mny) mny = Y;
+                            if (Y > mxy) mxy = Y;
+                            if (Z < mnz) mnz = Z;
+                            if (Z > mxz) mxz = Z;
+                        }
+                    printf("[fx] frame %d: %zu triangles from %d particles in "
+                           "%d systems, screen x[%.0f..%.0f] y[%.0f..%.0f] "
+                           "z[%.3f..%.3f]\n",
+                           frame, fx_after - fx_before, par, sys,
+                           mnx, mxx, mny, mxy, mnz, mxz);
+                }
+            }
+        }
         ph_end(PH_SUBMIT, t_phase);
         if (selftest) {
             size_t tn = 0;

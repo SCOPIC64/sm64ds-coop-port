@@ -361,9 +361,27 @@ extern "C" void port_scene_canary(const char *where);
    switched off (the geometry regression); 1 = the level's own object load. */
 extern "C" void port_particle_boot(void);   /* hal/particle_bridges.cpp */
 
+/* THE MESSAGE BOX IS NOT HOSTED, and it does not fail politely. func_0201f32c
+   opens a message and its first line is
+
+       if (*(u16 *)((char *)data_0209d70c + 8) <= (u16)arg0) return;
+
+   which is the ROM's own bounds check against the message count. data_0209d70c
+   is zeroed storage, so on host that read is a null dereference at +8 rather
+   than the early-out. Pointing it at a zeroed header makes the count read 0, so
+   every message id fails the check and the whole function returns before it
+   touches anything else -- the same shape the sign-talk path is already guarded
+   with, done once here instead of at each call site.
+
+   Reachable the moment the Player is not Mario: the other characters' level
+   entry runs a message Mario's does not, and it faulted about two seconds in. */
+static unsigned char g_message_null_header[16];
+extern "C" int data_0209d70c[];   /* hal/auto_bss.cpp */
+
 void *port_stage_a_boot(void *mc, int spawn)
 {
     g_stage_mc = mc;
+    ((void **)data_0209d70c)[0] = g_message_null_header;
     PortLvlOverlay *o = (PortLvlOverlay *)port_ov009_mount();
 
     /* STAGE B: THE TABLES ARE BACK ON. Stage A1 zeroed the Entrance, Door and

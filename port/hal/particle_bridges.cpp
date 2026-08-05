@@ -160,6 +160,9 @@ void _ZN8Particle9RenderAllEv(void);
 void port_particle_vtables_check(void);
 void *port_stage_object(void);
 extern int data_0209b3ec[];    /* the engine view matrix, ROM scene units */
+/* the two VRAM cursor sets Initialise bridges between (hal/model_host.cpp) */
+extern unsigned data_020a4bc8, data_020a4bcc, data_020a4bd8, data_020a4be0;
+extern unsigned data_0209ee88, data_0209ee84, data_0209ee8c;
 extern void *data_0209ee74;    /* the tracker, set by SysTracker::SysTracker */
 }
 
@@ -200,6 +203,43 @@ extern "C" void port_particle_boot(void)
                      "is %p, Stage+0x50 is %p\n", data_0209ee74, (void *)t);
 
     _ZN8Particle10SysTracker10InitialiseEv(t);
+
+    /* RESERVE WHAT THE ARCHIVE JUST TOOK. Particle::Texture::AllocTexVram and
+       AllocPalVram allocate out of their OWN cursors -- data_0209ee88/84/8c,
+       which Initialise seeds by copying the Model allocator's data_020a4bc8/
+       cc/d8 (func_02045d10/cf0/ce0) and then advances in place. They never
+       write back, so as far as Model::LoadTexAndPal is concerned the space is
+       still free and the next model handed a palette is given the particle
+       archive's address.
+
+       On the ROM that is harmless because Stage::InitResources runs this LAST,
+       after every model the level is going to load; nothing allocates
+       afterwards. The port loads actor models lazily when the actors spawn,
+       which is after this point, so the second half of that guarantee does not
+       hold and the actor palettes land on top of the particle ones. Measured:
+       Mario's dust binds palette 0x122a0 and so do two of the level's
+       compressed textures, and the puffs come out grass green instead of the
+       white-to-grey the archive actually ships.
+
+       Pushing the cursors forward is the smallest fix that restores the ROM's
+       invariant rather than reordering the boot. The archive's non-4x4
+       textures need nothing: they go through Model::GetVramOffset, which
+       already moves the shared texture cursors itself.
+
+       THE 4x4 CURSOR MOVES IN LOCKSTEP WITH ITS INDEX CURSOR. Compressed
+       textures are two streams: LoadCompressedTextureToVram writes the blocks
+       at data_020a4bc8 and the index words at data_020a4be0, then advances
+       them by size and size>>1, which is what keeps the hardware's
+       "index address = slot1 + block_offset/2" rule true. Reserving the block
+       cursor without pushing the index cursor by half as much breaks that
+       pairing for every compressed texture loaded afterwards, and they decode
+       against the wrong index words. Caught by Luigi's head coming out as
+       speckle while Yoshi and Wario were clean. */
+    const unsigned blocks = data_0209ee88 - data_020a4bc8;
+    data_020a4bc8 = data_0209ee88;   /* 4x4 texture blocks */
+    data_020a4be0 += blocks >> 1;    /* their index words, same rule as above */
+    data_020a4bcc = data_0209ee84;   /* small palettes, rising */
+    data_020a4bd8 = data_0209ee8c;   /* large palettes, falling */
 
     char *engine = *(char **)(t + 4);
     if (!engine) {
@@ -242,6 +282,67 @@ extern "C" void port_particle_boot(void)
                     "ZERO emission interval; id 0xda (the Player's dust) "
                     "interval=%u\n", live, zero,
                     dust ? (unsigned)*(unsigned char *)(dust + 0x30) : 0u);
+
+        /* THE EMISSION RATE, def+0x04. func_0204c584 emits
+           floor((def->rate + sys->3a) / 0x1000) particles a call and nothing
+           else feeds that sum, so a definition with rate 0 can never emit --
+           the callback only carries the fractional remainder across frames.
+           Count them, and dump the dust's record next to one that is known to
+           work (id 0x24 emits at 409/4096), so a mis-parsed blob shows up as a
+           structural difference rather than a guess. */
+        unsigned zrate = 0;
+        for (unsigned i = 0; i < numA; ++i) {
+            char *rec = *(char **)(base + i * 0x20);
+            if (rec && *(int *)(rec + 4) == 0) ++zrate;
+        }
+        std::printf("  [fx] rates: %u of %u definitions have rate 0\n",
+                    zrate, live);
+        /* THE TEXTURE TABLE. func_0204a0dc parks the texel VRAM offset at
+           entry+4 and func_0204a028 the palette offset at entry+8, which is
+           exactly the pair func_0204af3c binds (TEXIMAGE_PARAM then
+           TEXPLTT_BASE). Print both against what the archive says the palette
+           should hold, so a wrong colour is attributed to the bind, the upload
+           or the decode rather than guessed at. */
+        if (fx_trace() >= 2) {
+            char *list = *(char **)(engine + 0x20);
+            const unsigned ntex = *(unsigned short *)(engine + 0x26);
+            std::printf("  [fx] %u particle textures\n", ntex);
+            for (unsigned i = 0; i < ntex; ++i) {
+                char *e = list + i * 0x14;
+                const unsigned tex = *(unsigned *)(e + 4);
+                const unsigned pal = *(unsigned *)(e + 8);
+                const unsigned par = *(unsigned *)(e + 0xc);
+                std::printf("  [fx]   tex %u: texAddr=%05x palAddr=%05x fmt=%u "
+                            "%ux%u pltt=%04x  pal:", i, tex, pal, par & 0xf,
+                            (unsigned)*(unsigned short *)(e + 0x10),
+                            (unsigned)*(unsigned short *)(e + 0x12),
+                            pal >> 4);
+                /* the palette bytes actually sitting in host texture-palette
+                   VRAM at the address the bind will point the hardware at */
+                const unsigned short *pv =
+                    (const unsigned short *)(0x06880000u + pal);
+                for (int k = 0; k < 4; ++k)
+                    std::printf(" %04X", pv[k]);
+                std::printf("\n");
+            }
+        }
+        static const unsigned probe[] = {0xda, 0x24, 0xb3};
+        for (unsigned k = 0; k < 3; ++k) {
+            char *e = base + probe[k] * 0x20;
+            char *r = *(char **)e;
+            std::printf("  [fx] def %02X: rec=%p rate=%d interval=%u\n",
+                        probe[k], (void *)r, r ? *(int *)(r + 4) : -1,
+                        r ? (unsigned)*(unsigned char *)(r + 0x30) : 0u);
+            std::printf("  [fx]   entry:");
+            for (int b = 0; b < 0x20; ++b)
+                std::printf(" %02X", (unsigned char)e[b]);
+            std::printf("\n");
+            if (!r) continue;
+            std::printf("  [fx]   rec  :");
+            for (int b = 0; b < 0x38; ++b)
+                std::printf(" %02X", (unsigned char)r[b]);
+            std::printf("\n");
+        }
     }
 }
 
@@ -281,10 +382,9 @@ extern "C" void port_particle_frame(void)
             std::printf("\n");
         }
     }
-    if (fx_trace() >= 2) {
-        /* walk the engine's active system list before the update: head at
-           engine+4, count at +8, each node's prev in word 0 (func_0204d9a0
-           writes node->prev = old, node->next = 0) */
+    if (fx_trace() >= 9) {
+        /* superseded by the post-update census below; kept behind a level
+           nothing sets so the old walk is still there to fall back on */
         char *engine = *(char **)(t + 4);
         char *node = *(char **)(engine + 4);
         for (int guard = 0; node && guard < 64; ++guard) {
@@ -345,38 +445,102 @@ extern "C" void port_particle_frame(void)
     }
     _ZN8Particle10SysTracker6UpdateEv(t);   /* Stage::Render's call */
 
-    /* AFTER the update, when particles actually exist: what the billboard is
-       handed. func_0204be40 renders v14 + v8 per particle, and the system's
-       own spawn point is already correct scene units, so if the sum here is
-       world scale the base came from somewhere other than the system. */
-    if (fx_trace() >= 3) {
+    /* THE CENSUS. One line per live system, one per live particle, taken after
+       the update so freshly emitted particles are visible and before RenderAll
+       so nothing has been consumed. Everything the placement question needs is
+       on these lines: where the system thinks it is, what its particles
+       inherited from it (func_0204c584 copies system+0x20 into particle+0x08),
+       and what the view matrix turns the sum into -- the same arithmetic
+       func_0204be40 does. So if the view column is sane and the billboard
+       still lands elsewhere the fault is in the render; if the view column is
+       already wrong the position was wrong before the render ever saw it. */
+    if (fx_trace() >= 2) {
+        static int fx_frame;
         char *engine = *(char **)(t + 4);
+        char *base = *(char **)(engine + 0x1c);
         char *node = *(char **)(engine + 4);
-        static int shown;
-        for (int guard = 0; node && guard < 8 && shown < 8; ++guard) {
-            /* From the ROM, not from a guess: the emit at 0x0204ab24 passes the
-               system node as `mgr`, and func_0204c304 links each new particle
-               with func_0204d9a0((List *)(mgr + 0x10), p). So the live particle
-               list hangs off the system at +0x10. */
-            std::printf("[fx]   lists: +0x08 head %p count %d | +0x10 head %p count %d\n",
-                        *(void **)(node + 0x08), *(int *)(node + 0x0c),
-                        *(void **)(node + 0x10), *(int *)(node + 0x14));
-            char *plist = *(char **)(node + 0x08);
-            for (char *p = plist; p && shown < 8; p = *(char **)p) {
-                ++shown;
-                const double sx = (*(int *)(p + 0x14) + *(int *)(p + 0x08)) / 4096.0;
-                const double sy = (*(int *)(p + 0x18) + *(int *)(p + 0x0c)) / 4096.0;
-                const double sz = (*(int *)(p + 0x1c) + *(int *)(p + 0x10)) / 4096.0;
-                std::printf("[fx]   PARTICLE base %.1f %.1f %.1f + off %.1f %.1f %.1f"
-                            " = %.1f %.1f %.1f  (system is -150 35 838 scene)\n",
+        const int *m = data_0209b3ec;
+        std::printf("[fx] census f%d: %d systems\n", fx_frame++,
+                    *(int *)(engine + 8));
+        for (int guard = 0; node && guard < 64; ++guard) {
+            char *pentry = *(char **)(node + 0x18);
+            /* the four gates func_0204a730 puts in front of the emit, in the
+               order it tests them, so a system that never emits names its own
+               reason instead of being guessed at:
+                 thresh (def+0x28): 0, or counter must be under it
+                 counter % interval (self+0x38 % self+0x58): must be 0
+                 self+0x1c bits 0 and 1: both must be clear
+               and then func_0204c584's own rate accumulator, which emits
+               floor((def->rate + self->3a) / 0x1000) particles. */
+            char *sdef = pentry ? *(char **)pentry : 0;
+            std::printf("[fx]   sys %p id=%d pos=(%.1f,%.1f,%.1f) prim=%d sec=%d"
+                        " | ctr=%u ival=%u thresh=%u f1c=%08X rate=%d acc=%d\n",
+                        (void *)node,
+                        pentry ? (int)((pentry - base) / 0x20) : -1,
+                        *(int *)(node + 0x20) / 4096.0,
+                        *(int *)(node + 0x24) / 4096.0,
+                        *(int *)(node + 0x28) / 4096.0,
+                        *(int *)(node + 0x0c), *(int *)(node + 0x14),
+                        (unsigned)*(unsigned short *)(node + 0x38),
+                        (unsigned)*(unsigned char *)(node + 0x58),
+                        sdef ? (unsigned)*(unsigned short *)(sdef + 0x28) : 0u,
+                        (unsigned)*(int *)(node + 0x1c),
+                        sdef ? *(int *)(sdef + 4) : -1,
+                        (int)*(short *)(node + 0x3a));
+            int shown = 0;
+            for (char *p = *(char **)(node + 0x08); p && shown < 3;
+                 p = *(char **)p, ++shown) {
+                const double sx = (*(int *)(p + 0x08) + *(int *)(p + 0x14)) / 4096.0;
+                const double sy = (*(int *)(p + 0x0c) + *(int *)(p + 0x18)) / 4096.0;
+                const double sz = (*(int *)(p + 0x10) + *(int *)(p + 0x1c)) / 4096.0;
+                const double vx = (sx * m[0] + sy * m[3] + sz * m[6]) / 4096.0 + m[9] / 4096.0;
+                const double vy = (sx * m[1] + sy * m[4] + sz * m[7]) / 4096.0 + m[10] / 4096.0;
+                const double vz = (sx * m[2] + sy * m[5] + sz * m[8]) / 4096.0 + m[11] / 4096.0;
+                std::printf("[fx]     p base=(%.1f,%.1f,%.1f) off=(%.1f,%.1f,%.1f)"
+                            " sum=(%.1f,%.1f,%.1f) view=(%.1f,%.1f,%.1f)\n",
+                            *(int *)(p + 0x08) / 4096.0, *(int *)(p + 0x0c) / 4096.0,
+                            *(int *)(p + 0x10) / 4096.0,
                             *(int *)(p + 0x14) / 4096.0, *(int *)(p + 0x18) / 4096.0,
                             *(int *)(p + 0x1c) / 4096.0,
-                            *(int *)(p + 0x08) / 4096.0, *(int *)(p + 0x0c) / 4096.0,
-                            *(int *)(p + 0x10) / 4096.0, sx, sy, sz);
+                            sx, sy, sz, vx, vy, vz);
             }
             node = *(char **)node;
         }
     }
+    if (fx_trace()) {
+        /* one line a second at 30fps, plus every frame the count changes, so
+           a dust puff that lives twelve frames still shows up */
+        static int n, last = -1, peak;
+        int sys = 0, par = 0;
+        port_particle_counts(&sys, &par);
+        if (par > peak) peak = par;
+        if (par != last || (n % 30) == 0) {
+            std::printf("[fx] frame %d: %d systems live, %d particles live "
+                        "(peak %d)\n", n, sys, par, peak);
+            last = par;
+        }
+        ++n;
+    }
+}
+
+/* Stage::GraphCallback1's call, and it has to run WHERE GraphCallback1 runs:
+   after Stage::Render has drawn the level. Particles are translucent and the
+   dust sits on the ground at Mario's feet, so submitting them ahead of the
+   opaque level pass loses every pixel to the ground drawn over them. Measured
+   both ways on the same frame: with the level suppressed the pass paints 5006
+   pixels, with it drawn afterwards it paints none.
+
+   Nothing in here depends on the GX position matrix, which is why it is free to
+   move: func_0204be40 puts the particle through data_0209b3ec itself and then
+   loads the billboard absolutely (MTX_IDENTITY, then MTX_MULT_4x3), so the only
+   state it reads is the scene-unit view matrix the whole frame already renders
+   in. */
+extern "C" void port_particle_render(void)
+{
+    char *t = tracker();
+    if (!t || !*(char **)(t + 4))
+        return;                       /* subsystem down; say nothing per frame */
+
     /* SM64DS_NO_FX_RENDER=1 keeps the simulation and drops the submission,
        for A/B-ing what the particles actually put on the screen */
     static int no_render = -1;
@@ -410,24 +574,15 @@ extern "C" void port_particle_frame(void)
                         proj[0], proj[1], proj[12], proj[13]);
         }
     }
-    /* SM64DS_FX_SCALE=1: an EXPERIMENT, not a fix. func_0204be40 multiplies a
-       particle's stored position straight through data_0209b3ec and loads the
-       result as the billboard, with no shift anywhere in between, so the
-       position it holds must already be in the same units as that matrix.
-       Dividing the matrix's 3x3 by 8 is the same arithmetic as converting the
-       position from world units to scene units, so if the particles are being
-       fed world positions this lands them where they belong and the real fix
-       belongs at whatever seats the position. */
-    int saved[9];
-    static int scale_fix = -1;
-    if (scale_fix < 0) scale_fix = std::getenv("SM64DS_FX_SCALE") ? 1 : 0;
-    if (scale_fix) {
-        for (int i = 0; i < 9; ++i) { saved[i] = data_0209b3ec[i]; data_0209b3ec[i] /= 8; }
-    }
+    /* SM64DS_FX_SCALE, the "the matrix is in the wrong units" experiment, is
+       GONE: the units were never wrong. The billboard translation this pass
+       produces matches the view matrix applied to the particle's own position
+       to the decimal, and the reason it used to come out at (-577, 31, -992)
+       was that the only systems with anything to emit were distant ones -- the
+       particle definition blob was truncated, so Mario's dust carried a record
+       of zeros and never spawned. See port/tools/romdata.py. */
     if (!no_render)
-        _ZN8Particle9RenderAllEv();         /* Stage::GraphCallback1's call */
-    if (scale_fix)
-        for (int i = 0; i < 9; ++i) data_0209b3ec[i] = saved[i];
+        _ZN8Particle9RenderAllEv();
     if (fx_trace() >= 3) {
         /* AFTER the draw: if the identity-then-multiply worked, the position
            matrix now holds the billboard alone, whose translation is the
@@ -465,23 +620,24 @@ extern "C" void port_particle_frame(void)
                     (t.v[2].x - t.v[0].x) * (t.v[1].y - t.v[0].y);
                 std::printf("[fx]     signed area %.3f%s\n", area,
                             area == 0.0f ? "  <-- DEGENERATE" : "");
+                /* The vertex colour is white, so whatever tint the puff ends
+                   up with came out of the bound palette. The archive's own dust
+                   palettes are white-to-grey (texture 2) and white-to-tan
+                   (texture 3) and it contains no green at all, so printing the
+                   DECODED texels says directly whether the right palette was
+                   bound or a neighbour's was. */
+                if (t.tex) {
+                    std::printf("[fx]     texels(%08X):", t.dbg_tex);
+                    int shownpx = 0;
+                    for (int q = 0; q < t.tw * t.th && shownpx < 6; ++q)
+                        if (t.tex[q] >> 24) {
+                            std::printf(" %08X", t.tex[q]);
+                            ++shownpx;
+                        }
+                    std::printf("%s\n", shownpx ? "" : " (all transparent)");
+                }
             }
         }
-    }
-
-    if (fx_trace()) {
-        /* one line a second at 30fps, plus every frame the count changes, so
-           a dust puff that lives twelve frames still shows up */
-        static int n, last = -1, peak;
-        int sys = 0, par = 0;
-        port_particle_counts(&sys, &par);
-        if (par > peak) peak = par;
-        if (par != last || (n % 30) == 0) {
-            std::printf("[fx] frame %d: %d systems live, %d particles live "
-                        "(peak %d)\n", n, sys, par, peak);
-            last = par;
-        }
-        ++n;
     }
 }
 
