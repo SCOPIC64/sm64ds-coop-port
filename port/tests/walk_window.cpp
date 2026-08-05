@@ -367,6 +367,10 @@ void port_stage_a2_seat(void);
 /* the actor registry and the ROM's own processing lists (hal/actor_registry) */
 void port_actor_tick(void);          /* phases 4/2/3: cleanup, init, behaviour */
 void port_actor_render(void);        /* phase 5: the render bucket */
+/* gate 29: Particle::SysTracker::Update + Particle::RenderAll, the pair
+   Stage::Render and Stage::GraphCallback1 make on the ROM */
+void port_particle_frame(void);
+void port_particle_counts(int *systems, int *particles);
 void port_actor_scene_pass(void);    /* phase 1: scene-tree housekeeping */
 void port_actor_census(void);
 void port_actor_lists_probe(void);
@@ -1043,6 +1047,11 @@ static void push_camera(const float eye_w[3], const float at_w[3])
 
 int main(void)
 {
+    /* fault_probe.h has been included here since gate 4 and was never armed,
+       so every crash in the window build printed nothing at all. It costs
+       nothing until something faults, and it prints a module-relative address
+       the .map file resolves. */
+    SetUnhandledExceptionFilter(port_fault_probe);
     /* world = KCL file x64. Default spawn: north end of the stone
        bridge (deck ~892), facing the walk south across it -- the shot
        that calibrates against real-game footage. Roof surface = 4916,
@@ -2904,6 +2913,15 @@ int main(void)
                 size_t before = 0, after = 0;
                 if (selftest) ntr::gx_polygons(before);
                 port_actor_render();
+                /* THE PARTICLES GO HERE, in the same matrix regime as the
+                   actor bucket. Particle::RenderAll hands the engine
+                   data_0209b3ec -- the Clipper the actor renders already
+                   work in, ROM scene units -- so it has to be inside the
+                   bucket's window, before the harness converts the view
+                   matrix to world units for its own two draws. Update runs
+                   first, which is the order Stage::Render and
+                   Stage::GraphCallback1 run in. */
+                port_particle_frame();
                 if (selftest) {
                     const ntr::GxTriangle *at = ntr::gx_polygons(after);
                     if (frame == 0 || getenv("SM64DS_TRACE_ACTOR_TRIS")) {

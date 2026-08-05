@@ -206,29 +206,13 @@ void Scene::SetAndStopColorFader() {}
 void Scene::SetFaders(FaderBrightness *) {}
 void Scene::StartSceneFade(unsigned, unsigned, unsigned short) {}
 
-struct Particle {
-    struct Callback;
-    struct System {
-        static void New(unsigned, unsigned, int, int, int,
-                        const Vector3_16 *, Particle::Callback *);
-    };
-};
-void Particle::System::New(unsigned, unsigned, int, int, int,
-                           const Vector3_16 *, Particle::Callback *) {}
-
-/* C-named particle effect entries (the real src bodies walk a particle
-   manager the host never seats -- St_Land's dust NewSimple faulted on
-   the null system). No-ops until the particle subsystem is hosted. */
-extern "C" {
-void *_ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(unsigned, int, int, int)
-{ return 0; }
-void *_ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(
-    unsigned, unsigned, int, int, int, const void *, float, void *)
-{ return 0; }
-void _ZN8Particle20RunningSlidingDustAtE5Fix12IiES1_S1_(int, int, int) {}
-void *_ZN8Particle6System12NewBigSplashE5Fix12IiES2_S2_(int, int, int)
-{ return 0; }
-}
+/* GATE 29 REMOVED FOUR NO-OPS FROM HERE.
+   Particle::System::New, ::NewSimple, ::NewBigSplash and
+   Particle::RunningSlidingDustAt were empty bodies, because the real src
+   walks a manager the host never seated and St_Land's dust NewSimple
+   faulted on the null system. All four are now the ROM's own matched
+   bodies, carried by slice_gate29.txt over a real SysTracker; the
+   MSVC-mangled C++ faces are aliased onto them in hal/cxx_aliases.cpp. */
 
 extern "C" int _ZN11RaycastLine10DetectClsnEv(void *self)
 { return ((RaycastLine *)self)->DetectClsn(); }

@@ -200,3 +200,24 @@ int data_0209f320;
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */
 namespace Sound { void UnsetPlayerVoiceGroup(); }
 void Sound::UnsetPlayerVoiceGroup() {}
+
+/* ---- gate 29: the particle engine's own BSS -------------------------------
+   data_0209ee78/7c/80 are the three cursors of the arena SysTracker::
+   Initialise carves out (base, end, current) and func_02023178 bump-allocates
+   from. 84/88/8c are the VRAM bases it caches off func_02045ce0/cf0/d10.
+   data_020a4d30 is the engine's scratch slot.
+
+   LCG_STATE_0204da4c is the particle RNG's state -- func_0204da4c multiplies
+   by 0x5eedf715 and adds 0x1b0cb173 three times to pick a random emission
+   direction. The additive constant means a zero seed is a perfectly good
+   seed, and starting at zero is what keeps a selftest frame reproducible. */
+extern "C" {
+int data_0209ee78[8];
+int data_0209ee7c[8];
+int data_0209ee80[8];
+int data_0209ee84[8];
+int data_0209ee88[8];
+int data_0209ee8c[8];
+int data_020a4d30[8];
+int LCG_STATE_0204da4c;
+}

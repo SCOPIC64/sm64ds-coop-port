@@ -198,16 +198,26 @@ EXTERN_DATA = re.compile(
     re.MULTILINE)
 
 
+# C99's `_Bool` keyword, which MSVC's C++ front end does not have. Everything
+# hostgen emits is compiled as C++, so the spelling has to become `bool` --
+# same width and same argument passing under cdecl on x86, so no ABI change.
+# Exactly one file in the decomp writes it (Particle::Callback::OnUpdate's
+# `_Bool active`), but the rewrite is general because the next one will not be
+# announced.
+CBOOL = re.compile(r"\b_Bool\b")
+
+
 def transform(text, extern_data=False):
     """Return (new_text, n_rewrites)."""
     text, n3 = ATTRIBUTE.subn("", text)
     text, n2 = VOIDPP_ARITH.subn(voidpp_char, text)
     text, n1 = MMIO_DEREF.subn(lambda m: f"NTR_MMIO({m.group(2).strip()}, {m.group(3)})", text)
     text, n5 = mmio_ptr(text)
+    text, n6 = CBOOL.subn("bool", text)
     n4 = 0
     if extern_data:
         text, n4 = EXTERN_DATA.subn(r"\1extern \2\3\4;", text)
-    return text, n1 + n2 + n3 + n4 + n5
+    return text, n1 + n2 + n3 + n4 + n5 + n6
 
 
 # ~110 files in the decomp are ARM assembly blocks -- CP15 cache ops, the CRT0,
@@ -241,7 +251,136 @@ def is_asm(text):
 HEADER_SHADOW = {
     "func_ov002_020cfbdc": "decl_common.h",   # header void*, TU char*
     "func_ov002_020d6c60": "decl_common.h",   # header (char*, void*), TU (char*, char*)
+    # gate 29: decl_Particle.h declares Initialise as (void*) with C++
+    # linkage, the TU defines it extern "C" over Particle__SysTracker*, and
+    # MSVC reads that as overloading a function with C linkage (C2733).
+    "_ZN8Particle10SysTracker10InitialiseEv": "decl_Particle.h",
 }
+
+
+# ---- DS INTEGER DIVISION -----------------------------------------------------
+#
+# mwccarm compiles `/` and `%` on ints to a call to __aeabi_idiv (ITCM
+# 0x01ffabe4), which on a ZERO DIVISOR returns quotient = numerator and
+# remainder = 0 and does not fault. x86's idiv raises instead. That is not a
+# corner case in this game: 181 of the 321 particle definitions ship a zero
+# emission interval, and func_0204a730 gates emission on
+# `counter % interval == 0` -- which the ROM reads as "every frame".
+#
+# The operands are rerouted through ds_idiv/ds_imod in hal/cstd_div.c, which
+# carry the ROM's semantics with the disassembly that proves them.
+#
+# WHY A TABLE OF EXACT STRINGS rather than a rewrite of the `/` and `%`
+# tokens: finding an operator's operands in C text means matching parens,
+# casts and precedence, and a regex that gets that subtly wrong would produce
+# code that compiles and computes the wrong number -- the worst possible
+# failure for a byte-matched decomp. Each site is named instead, and emit()
+# HARD ERRORS if a listed patch no longer matches its file, so this cannot rot
+# quietly: it breaks the build the moment the source moves.
+#
+# Only sites with a RUNTIME divisor are listed. Constant divisors (`/ 0xff`,
+# `/ 255`, `/ 4`) can never be zero and are left alone.
+DS_DIV = {
+    "func_0204a730": [
+        # the emission-interval gate, the one that crashes first
+        ("(u16)(*(u16 *)((char *)self + 0x38)) % (u8)(*(u8 *)((char *)self + 0x58))",
+         "ds_imod((u16)(*(u16 *)((char *)self + 0x38)), (u8)(*(u8 *)((char *)self + 0x58)))"),
+        ("(r0 >> 0xc) % (u8)(*(u8 *)(cfg + 0xe))",
+         "ds_imod((r0 >> 0xc), (u8)(*(u8 *)(cfg + 0xe)))"),
+        ("((s32)(e2e << 8)) / (s32)e2c",
+         "ds_idiv((s32)(e2e << 8), (s32)e2c)"),
+    ],
+    "func_0204c304": [
+        ("0xffff / (int)((u32)self->h2c >> 1)",
+         "ds_idiv(0xffff, (int)((u32)self->h2c >> 1))"),
+        ("0xffff / self->h2c", "ds_idiv(0xffff, self->h2c)"),
+    ],
+    "func_0204c584": [
+        ("d10 / count", "ds_idiv(d10, count)"),
+    ],
+    "func_0204d294": [
+        ("blueMul / denom", "ds_idiv(blueMul, denom)"),
+        ("redMul / denom", "ds_idiv(redMul, denom)"),
+        ("greenMul / denom", "ds_idiv(greenMul, denom)"),
+    ],
+    "_ZN8Particle6Jitter4FuncERNS_10EffectDataEPcR7Vector3": [
+        ("(int)*(u16*)(p + 0x2e) % (int)self->unk_006",
+         "ds_imod((int)*(u16*)(p + 0x2e), (int)self->unk_006)"),
+    ],
+}
+
+DS_DIV_DECL = """/* hostgen: DS integer-division semantics, see hal/cstd_div.c */
+#ifdef __cplusplus
+extern "C" {
+#endif
+int ds_idiv(int, int);
+int ds_imod(int, int);
+#ifdef __cplusplus
+}
+#endif
+"""
+
+
+# ---- CALLING CONVENTION: C++ VIRTUAL CALLS ON C VTABLES ----------------------
+#
+# On ARM a virtual call and a plain function-pointer call are the SAME thing:
+# `this` goes in r0 and the argument in r1 either way. MSVC splits them --
+# __thiscall puts `this` in ECX and leaves the argument on the stack, cdecl
+# puts both on the stack -- so a vtable that the decomp reaches BOTH ways
+# cannot be served by one host function.
+#
+# The particle Callback vtables are exactly that. Slot 1 (OnUpdate) is
+# dispatched cdecl through a typedef'd pointer in func_02021bec:
+#
+#     e->f10->vt->m[1](e->f10, e->fc, m)
+#
+# and slot 0 is dispatched cdecl in Particle::System::New:
+#
+#     o->vtable[0](o, p)
+#
+# but func_02021d1c declares a local shadow `struct Callback { virtual void
+# Run(void *); }` and calls `p6->Run(...)`, which MSVC compiles as a thiscall
+# virtual. Hosted unpatched, the callback reads its System argument off the
+# stack slot that held `this` and dereferences null on the first landing puff.
+#
+# The whole subsystem has exactly ONE such call, so the fix is to make that
+# one site dispatch the way its twenty-five siblings do -- explicitly, through
+# vptr[0], cdecl -- rather than to give slot 0 a second calling convention.
+# The local `virtual` declaration stays; only the call changes.
+VIRTUAL_CALL = {
+    "func_02021d1c": [
+        ("p6->Run(*(void **)(self + 0xc));",
+         "(*(void (***)(void *, void *))p6)[0]"
+         "((void *)p6, *(void **)(self + 0xc));"),
+    ],
+}
+
+
+def apply_patches(text, sym, table, what, decl=""):
+    """Exact-string patches, with a hard error if one stops matching."""
+    pats = table.get(sym)
+    if not pats:
+        return text, 0
+    n = 0
+    for old, new in pats:
+        if old not in text:
+            sys.exit(
+                "hostgen: %s: %s patch no longer matches:\n  %s\n"
+                "The source moved. Re-derive the expression -- do NOT drop "
+                "the patch, it is load-bearing." % (sym, what, old))
+        n += text.count(old)
+        text = text.replace(old, new)
+    return (decl + text) if decl else text, n
+
+
+def ds_div_patch(text, sym):
+    """Reroute the named divisions through the DS-semantics helpers."""
+    return apply_patches(text, sym, DS_DIV, "DS_DIV", DS_DIV_DECL)
+
+
+def virtual_call_patch(text, sym):
+    """Make a C++ virtual call on a C vtable dispatch cdecl, like its peers."""
+    return apply_patches(text, sym, VIRTUAL_CALL, "VIRTUAL_CALL")
 
 
 def shadow_header_decl(text, sym, header):
@@ -263,6 +402,8 @@ def emit(src_path, out_dir, decomp_root, extern_data=False):
     sym = src_path.stem
     if sym in HEADER_SHADOW:
         text, _ = shadow_header_decl(text, sym, HEADER_SHADOW[sym])
+    text, _ = ds_div_patch(text, sym)
+    text, _ = virtual_call_patch(text, sym)
     new, n = transform(text, extern_data)
     # Everything is emitted as C++ (NTR_MMIO expands to a template proxy), but
     # a .c source's symbols must keep C linkage: the port's other slices

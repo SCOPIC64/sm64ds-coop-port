@@ -110,32 +110,19 @@ extern "C" void hal_fill_stage_vtable(void)
 
 // ---- Particle::SysTracker::SysTracker -------------------------------------
 //
-// HONEST STUB, and the only one this file carries.
+// THE STUB THAT USED TO LIVE HERE IS GONE, and this file now carries none.
 //
 // Stage::Stage's second sub-object constructor is the particle system's, at
-// Stage+0x50. The real one is matched src (src/_ZN8Particle10SysTrackerC1Ev.c)
-// and it is not linked because its closure is a subsystem the port has not
-// brought up at all: func_02021c90, Particle::SimpleCallback::SimpleCallback,
-// func_020226a4, func_020225fc and the eleven data_0208f3xx vtables they
-// install. None of it is reachable today -- the tracker is read only by
-// Particle::SysTracker::Initialise and ::Update, neither of which runs.
+// Stage+0x50. It used to be an empty body that printed "the particle
+// subsystem is not hosted" once, on the reasoning that the tracker was read
+// only by Initialise and Update and neither ran.
 //
-// What the stub has to leave behind is a zeroed sub-object, and that is
-// already true on arrival: ActorBase::operator new (src/_ZN9ActorBasenwEj.cpp)
-// memsets the whole allocation before any constructor runs. So this writes
-// nothing and says so once. Replacing it is one line -- delete this function
-// and put src/_ZN8Particle10SysTrackerC1Ev.c in a slice with its closure.
-extern "C" void *_ZN8Particle10SysTrackerC1Ev(void *self)
-{
-    static int said;
-    if (!said) {
-        said = 1;
-        std::fprintf(stderr, "  [stage] Particle::SysTracker ctor stubbed "
-                     "(zeroed by ActorBase::operator new); the particle "
-                     "subsystem is not hosted\n");
-    }
-    return self;
-}
+// Gate 29 linked the real one. src/_ZN8Particle10SysTrackerC1Ev.c and its
+// whole closure -- func_02021c90, Particle::SimpleCallback::SimpleCallback,
+// func_020226a4, func_020225fc, and the thirteen data_0208f3xx vtables they
+// install -- are in slice_gate29.txt. The vtables are hal/particle_vtable.cpp.
+// Nothing is needed here any more: the constructor is ordinary matched src
+// and the linker finds it in the slice.
 
 // ---- construction ----------------------------------------------------------
 //

@@ -359,6 +359,8 @@ extern "C" void port_scene_canary(const char *where);
 
 /* `spawn` selects the stage: 0 = A1, the same boot with every spawner
    switched off (the geometry regression); 1 = the level's own object load. */
+extern "C" void port_particle_boot(void);   /* hal/particle_bridges.cpp */
+
 void *port_stage_a_boot(void *mc, int spawn)
 {
     g_stage_mc = mc;
@@ -434,6 +436,17 @@ void *port_stage_a_boot(void *mc, int spawn)
        every ray in the game. The walks do the ROM's shift now
        (port/unmatched/MeshCollider_DetectClsn_Sphere.cpp, BASIS CONVENTION)
        and SetFile's own values stand. */
+
+    /* THE PARTICLE SUBSYSTEM, at the point Stage::InitResources brings it up.
+       Its own line on the ROM is the second-to-last thing InitResources does
+       (0x0202d3dc, right after LoadSkybox):
+
+           Particle::SysTracker::Initialise((char *)thiz + 0x50);
+
+       which is here because the archive's textures are uploaded into VRAM
+       banks the level has already claimed, so it cannot run before the loads
+       above. Everything it needs is up by now. */
+    port_particle_boot();
     return o;
 }
 

@@ -62,6 +62,21 @@ NAMED = [
     "data_0208eeac",
     "data_0208f074",
     "data_0208f174",
+    # THE PARTICLE DEFINITIONS. 0x20ec bytes of arm9 .rodata, and the whole
+    # answer to "where do particle effects come from" -- not a file, not a
+    # narc, a blob compiled into the binary. Particle::SysTracker::Initialise
+    # memcmps its first 4 bytes against the 8-byte magic at data_0208f668; on
+    # a mismatch it treats the blob as LZ16 and decompresses it onto the heap.
+    # func_0204a17c then parses it into per-effect records and builds each
+    # one's Behavior[] array out of six flag bits. Zeroed storage here means
+    # every effect id resolves to a record of nothing.
+    "data_02075f14",
+    "data_0208f668",
+    # three 8-byte constants the particle render family reads (func_0204b028,
+    # func_0204b244) while building the camera-facing quad
+    "data_02099fb4",
+    "data_02099fbc",
+    "data_02099fc4",
     # cstd::atan2's lookup table: atan(i/1024) in binangs, i = 0..0x400, so
     # 0..0x2000 (45 degrees) and the quadrant fixups do the rest. EVERY
     # heading in the game runs through it -- Vec3_HorzAngle, Vec3_VertAngle,
