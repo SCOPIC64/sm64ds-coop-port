@@ -158,20 +158,39 @@ void *_ZTV11CommonModel[8];
 
 static int __fastcall cm_dosetfile(void *self, void *, char *file, int a, int b)
 { return ((CommonModel *)self)->CommonModel::DoSetFile(file, a, b); }
-static int __fastcall cm_dtor_trap(void *, void *)
-{
-    std::fprintf(stderr, "FATAL: CommonModel vtable slot 0 dispatched -- the "
-                 "port destroys a CommonModel by calling its D1 directly\n");
-    std::abort();
-    return 0;
-}
+/* MERGE DECISION, 2026-08-05, and the one in this consolidation that wants a
+   real test rather than a reading.
 
-static void hal_fill_common_model_vtable(void)
+   Gate 32 (King Bob-omb, the first actor to own a CommonModel) filled this
+   table in ROM numbering with the real destructors: D1, D0, DoSetFile. This
+   file filled it MSVC-first: a trap, then DoSetFile at both 1 and 2. Slot 1 is
+   the collision, because ROM wants D0 there and MSVC wants DoSetFile.
+
+   One table cannot serve both, so the verified path wins. The coins here are
+   measured working and their dispatcher is ModelBase::SetFile, which is
+   header-compiled and therefore counts MSVC slots: DoSetFile MUST be at 1.
+   Gate 32's teardown was never exercised in its 600-frame runs, so its D0 at
+   slot 1 is a reading rather than a measurement.
+
+   Slot 0 takes gate 32's REAL D1 rather than this file's abort, which is
+   strictly better: a teardown that does dispatch slot 0 destroys the object
+   instead of killing the process. What now has no slot is D0. If a CommonModel
+   is ever destroyed through ROM slot 1 it reaches DoSetFile with destructor
+   arguments, so that is the thing to suspect if King Bob-omb misbehaves on
+   despawn. */
+extern "C" void *_ZN11CommonModelD1Ev(void *self);
+static int __fastcall cm_d1(void *s, void *)
+{ return (int)(size_t)_ZN11CommonModelD1Ev(s); }
+
+extern "C" void port_fill_common_model_vtable(void)
 {
-    _ZTV11CommonModel[0] = (void *)cm_dtor_trap;
+    _ZTV11CommonModel[0] = (void *)cm_d1;
     _ZTV11CommonModel[1] = (void *)cm_dosetfile;   /* MSVC numbering */
     _ZTV11CommonModel[2] = (void *)cm_dosetfile;   /* ROM numbering */
 }
+
+static void hal_fill_common_model_vtable(void)
+{ port_fill_common_model_vtable(); }
 
 /* Coin::Render calls CommonModel::Render by its Itanium name from a TU that
    declared it extern "C", so the reference is cdecl and the definition is a

@@ -696,25 +696,18 @@ static int __fastcall kbo_aimed(void *, void *)
    DoSetFile, and word 3 is already the RTTI name string, which is how the
    length is read rather than guessed. */
 extern "C" void hal_fill_blendmodelanim_vtable(void);
+/* The CommonModel table is DEFINED AND FILLED in hal/actor_classes_bob_world.cpp,
+   which reached it first through the coins. Both gates wrote their own copy and
+   the two collided at link. The reasoning for the slot layout, including which
+   of the two fills won and why, is in the comment above
+   port_fill_common_model_vtable there. This gate keeps only the reference. */
 extern "C" {
-void *_ZN11CommonModelD1Ev(void *self);
-void *_ZN11CommonModelD0Ev(void *self);
-int _ZN11CommonModel9DoSetFileEPcii(void *self, char *file, int a, int b);
-void *_ZTV11CommonModel[3];
+void *_ZTV11CommonModel[];
+void port_fill_common_model_vtable(void);
 }
-static int __fastcall cm_d1(void *s, void *)
-{ return (int)(size_t)_ZN11CommonModelD1Ev(s); }
-static int __fastcall cm_d0(void *s, void *)
-{ return (int)(size_t)_ZN11CommonModelD0Ev(s); }
-static int __fastcall cm_dosetfile(void *s, void *, char *f, int a, int b)
-{ return _ZN11CommonModel9DoSetFileEPcii(s, f, a, b); }
 
 static void hal_fill_common_model_vtable(void)
-{
-    _ZTV11CommonModel[0] = (void *)cm_d1;
-    _ZTV11CommonModel[1] = (void *)cm_d0;
-    _ZTV11CommonModel[2] = (void *)cm_dosetfile;
-}
+{ port_fill_common_model_vtable(); }
 
 extern "C" void hal_fill_king_bob_omb_vtable(void)
 {
