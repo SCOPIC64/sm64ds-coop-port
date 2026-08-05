@@ -766,6 +766,15 @@ endforeach()
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate33.txt" SLICE33_LINES)
 set(SLICE33_SOURCES "")
 foreach(line IN LISTS SLICE33_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE33_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+list(APPEND SLICE33_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Coin_Behavior.cpp")
+
 # Gate 32: Bob-omb Battlefield's living cast -- the first ENEMY-family actor
 # classes the port hosts, and the first vtables past twenty slots. See the head
 # of slice_gate32.txt; the HAL seam is hal/actor_classes_bob_enemy.cpp and the
@@ -778,10 +787,8 @@ foreach(line IN LISTS SLICE32_LINES)
     if(line MATCHES "^#" OR line STREQUAL "")
         continue()
     endif()
-    list(APPEND SLICE33_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+    list(APPEND SLICE32_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
-list(APPEND SLICE33_SOURCES
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Coin_Behavior.cpp")
 
 # Gate 31: the level HANDOFF. Small on purpose -- almost all of it was already
 # linked by gate 10 (see the head of slice_gate31.txt); what is here is
