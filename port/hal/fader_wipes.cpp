@@ -66,11 +66,34 @@
 // wants anyway -- IsAtEnd, the predicate a scene transition waits on, reads
 // true immediately instead of waiting on a fade that can never render.
 #include <cstdio>
+#include <cstdlib>
 #include <new>
 
 typedef int Fix12i;
 
+/* The 20.12 approach helper Fader::AdvanceInterp uses. On the ROM it is spelled
+   func_0203ae58, but that name is bridged to ApproachLinear only in
+   hal/shims.cpp (the gate-1 smoke target); walk_window does not link that shim.
+   The matched function itself, ApproachLinear(int&, int, int), IS linked here
+   (src/_Z14ApproachLinearRiii.cpp), so call it by its mangled name directly.
+   Same one-frame 20.12 step the matched Fader::AdvanceInterp takes. */
+extern "C" void _Z14ApproachLinearRiii(int *value, int target, int step);
+
+/* SetBlendBrightness, the matched G2x routine, is what both FaderColor and
+   FaderWipe write the 2D master-blend register with. It is in slice_gate1, so
+   reuse it -- the host mapping at 0x4000050/0x4000054 latches the write and the
+   framebuffer compositor (walk_window.cpp) reads it back. */
+extern "C" void _ZN3G2x18SetBlendBrightnessEPVtts(volatile unsigned short *p,
+                                                  unsigned short val, short amt);
+
 namespace {
+
+/* Snap vs step: the historical stub snapped the interpolator to its target so
+   an invisible fade could not hold a transition open. Now the fade renders, so
+   it has to STEP -- but only when the frame loop is actually driving the
+   advance (port_fader_advance). A direct SetToStart/SetToEnd still snaps. The
+   flag is set for the duration of one driven advance. */
+int g_hal_fader_stepping;
 
 int hal_wipe_index(const void *self);
 
@@ -107,9 +130,38 @@ struct HalFaderWipe {
     virtual void DtorDeleting() {}                   /* 0x04  ROM D0 */
     virtual int AdvanceFade()                        /* 0x08 */
     {
-        hal_wipe_note("AdvanceFade", this);
-        currInterp = speed >= 0 ? 0x1000 : 0;
-        return 1;
+        /* Driven advance (the frame loop's port_fader_advance) STEPS the
+           interpolator one frame and writes the 2D master-blend register the
+           way FaderColor::AdvanceFade does, so the fade renders. Any other
+           caller keeps the old snap: a fade nobody is driving must not stall a
+           transition. */
+        if (!g_hal_fader_stepping) {
+            hal_wipe_note("AdvanceFade", this);
+            currInterp = speed >= 0 ? 0x1000 : 0;
+            return 1;
+        }
+        Fix12i old = currInterp;
+        Fix12i target = speed >= 0 ? 0x1000 : 0;
+        Fix12i step = speed >= 0 ? speed : -speed;
+        _Z14ApproachLinearRiii(&currInterp, target, step);
+        if (currInterp == old)
+            return currInterp == target;
+        /* FaderColor::AdvanceFade, verbatim on the numbers: color != 0 means a
+           WHITE fade (brightness increase), color == 0 a BLACK fade (decrease).
+           r is the 5-bit EVY coefficient, 0..0x10. Both 2D engines
+           (0x4000050 main, 0x4001050 sub) get it so the whole panel fades. */
+        int m = color ? 0x10 : -0x10;
+        int r = (currInterp * m) >> 12;
+        if (r != 0) {
+            _ZN3G2x18SetBlendBrightnessEPVtts(
+                (volatile unsigned short *)0x4000050, 0x3f, (short)r);
+            _ZN3G2x18SetBlendBrightnessEPVtts(
+                (volatile unsigned short *)0x4001050, 0x3f, (short)r);
+        } else {
+            *(volatile unsigned short *)0x4000050 = 0;
+            *(volatile unsigned short *)0x4001050 = 0;
+        }
+        return currInterp == target;
     }
     virtual int SetBackwardTime(int frames, int)     /* 0x0c */
     {
@@ -196,3 +248,92 @@ void *data_0209f324 = &hal_wipes[0];
 void *data_0209f5bc = &hal_wipes[0];
 }
 #pragma comment(linker, "/alternatename:_WIPES=_data_0209f324")
+
+/* ---- the per-frame fade driver -------------------------------------------
+   func_02018ec0 is the ROM's own per-frame fade advance: it reads
+   data_0209d4b0 -- the fader CURRENTLY IN MOTION, distinct from data_0209f5bc
+   the installed one -- and calls its AdvanceFade (vtable slot 0x08). The port
+   does not run func_02018ec0 (the port has its own frame loop, not
+   func_020197b8), so nothing advanced a fade. This is that driver, called from
+   walk_window.cpp's frame loop right where phase 2 (func_02019390) sits.
+
+   data_0209d4b0 is an int[8] in hal/cxx_aliases.cpp; its first word holds the
+   animating-fader pointer. When a fade reaches its resting end the driver
+   clears it, exactly as FUN_02029934 / FUN_02029a68 do, so the Stage::Behavior
+   gates that test `data_0209d4b0 == 0` come back true. */
+extern "C" {
+extern int data_0209d4b0[8];
+
+/* The animating fader, spelled through the same int[8] Stage::Behavior reads.
+   Nonzero while a fade is stepping. */
+static HalFaderWipe *port_fader_animating(void)
+{
+    return (HalFaderWipe *)(size_t)data_0209d4b0[0];
+}
+
+void port_fader_advance(void)
+{
+    HalFaderWipe *f = port_fader_animating();
+    if (!f)
+        return;
+    g_hal_fader_stepping = 1;
+    int at_target = f->AdvanceFade();
+    g_hal_fader_stepping = 0;
+    /* Settled: drop it out of motion so the next transition's gates open, and
+       leave the blend register at 0 when the fade landed fully OPEN (interp 0),
+       the way FUN_02029934 clears 0x4000050 at the end of a fade-in. */
+    if (at_target && f->currInterp == 0) {
+        data_0209d4b0[0] = 0;
+        *(volatile unsigned short *)0x4000050 = 0;
+        *(volatile unsigned short *)0x4001050 = 0;
+    } else if (at_target) {
+        data_0209d4b0[0] = 0;
+    }
+}
+
+/* Start a COLOR fade on the installed color fader (data_0209f5e8) and put it in
+   motion. frames is the fade length; toEnd != 0 fades toward interp 1.0 (screen
+   fully covered -- a fade-OUT to color), toEnd == 0 fades toward 0.0 (fade-IN,
+   screen clears). color is the fade colour word: 0 = black, nonzero = white.
+   This is the port's explicit stand-in for the Stage/Scene actor machinery that
+   would otherwise arm data_0209d4b0. */
+void port_fader_start_color(int frames, int toEnd, unsigned short color)
+{
+    HalFaderWipe *f = (HalFaderWipe *)(void *)data_0209f5e8;
+    f->color = color;
+    if (toEnd) {
+        f->currInterp = 0;
+        f->speed = frames > 0 ? (Fix12i)(0x1000 / frames) : 0x1000;
+    } else {
+        f->currInterp = 0x1000;
+        f->speed = frames > 0 ? -(Fix12i)(0x1000 / frames) : -0x1000;
+    }
+    /* install it as the scene's fader and arm it as the animating one */
+    data_0209f5bc = f;
+    data_0209d4b0[0] = (int)(size_t)f;
+    std::fprintf(stderr, "[fade] color start: frames=%d dir=%s color=%s "
+                 "interp=%d speed=%d\n", frames, toEnd ? "out" : "in",
+                 color ? "white" : "black", f->currInterp, f->speed);
+}
+
+/* Is a fade in motion right now, and how far along is it? Returns 1 and fills
+   *evy (0..16, the EVY coefficient the compositor darkens/brightens by) and
+   *toWhite (nonzero for a white fade, zero for black) when a fade is being
+   driven; 0 otherwise. Reads the blend registers the advance wrote, so the
+   compositor sees exactly what the ROM's own hardware path produced. */
+int port_fader_blend_state(int *evy, int *toWhite)
+{
+    unsigned short bldcnt = *(volatile unsigned short *)0x4000050;
+    unsigned short bldy = *(volatile unsigned short *)0x4000054;
+    int mode = (bldcnt >> 6) & 3;            /* 2 = brighten, 3 = darken */
+    if (mode != 2 && mode != 3)
+        return 0;
+    int e = bldy & 0x1f;
+    if (e > 16) e = 16;
+    if (e == 0)
+        return 0;
+    if (evy) *evy = e;
+    if (toWhite) *toWhite = (mode == 2);
+    return 1;
+}
+}  /* extern "C" */

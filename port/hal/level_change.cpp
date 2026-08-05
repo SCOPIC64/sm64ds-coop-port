@@ -466,7 +466,38 @@ void LoadLevelNoReturn(int level, unsigned entrance, unsigned star,
 void SetPlayerGlobals(void);
 void SetNumPlayers(unsigned n);
 extern unsigned char data_0209f2d8;         /* game mode */
+/* Scene::StartSceneFade is matched src (slice_gate10): it records the pending
+   scene id in data_02092664 and writes the fade colour into data_0209f5e8+0xc.
+   It does NOT put the fade in motion -- on the ROM the Scene actor's own
+   BeforeBehavior does that when it sees the pending scene. */
+void _ZN5Scene14StartSceneFadeEjjt(unsigned actorID, unsigned param,
+                                   unsigned short fadeColor);
+extern unsigned short data_02092664;         /* Scene::SetSceneToSpawn's id */
+extern unsigned short data_0209f5e8[];        /* the color fader (its +0xc word) */
+/* hal/fader_wipes.cpp: put the color fader in motion for the port's frame loop
+   to step, since the port has no Scene actor to arm data_0209d4b0. */
+void port_fader_start_color(int frames, int toEnd, unsigned short color);
 }
+
+/* ---- the scene-fade request (gate 31, deliverable 3) ----------------------
+   Scene::StartSceneFade parks a pending scene id in data_02092664 and a colour
+   in the fader. On the ROM the Scene actor consumes the pending id (spawns the
+   scene) once the fade has covered the screen. The port has no scene spawner
+   for ov003 scenes, so it records the request here and the frame loop acts on
+   it: run the colour fade, and when a scene handler exists (dScStarSel_c, the
+   stretch), hand off to it. Until then the request is recorded and reported so
+   the flow is visible and the fade renders. */
+static int g_scene_fade_scene = -1;   /* pending scene id, -1 = none */
+
+extern "C" int port_scene_fade_pending(int *sceneId)
+{
+    if (g_scene_fade_scene < 0)
+        return 0;
+    if (sceneId) *sceneId = g_scene_fade_scene;
+    return 1;
+}
+
+extern "C" void port_scene_fade_clear(void) { g_scene_fade_scene = -1; }
 
 enum { PORT_TITLE_ROWS = 0x36 };
 
@@ -482,7 +513,12 @@ extern "C" int port_title_row(int i, int *level, int *entrance)
     return r[0] >= 0;         /* -1 / -2 are the two scene sentinels */
 }
 
-/* The else-branch of func_ov003_020ad814, verbatim in the order it runs. */
+/* The else-branch of func_ov003_020ad814, now in the ROM's OWN order.
+   FaderColor is staged (hal/fader_wipes.cpp), so LoadLevel's opening
+   Scene::SetAndStopColorFader call is safe and the mount check no longer has to
+   come first to dodge a null fader slot. The ROM branch runs verbatim, then the
+   port refuses an unmounted row AFTER it -- which is what that function's
+   old comment promised staging the color fader would allow. */
 extern "C" int port_title_select(int i)
 {
     int level = 0, entrance = 0;
@@ -491,46 +527,46 @@ extern "C" int port_title_select(int i)
                      "a level\n", i, level);
         return 0;
     }
-    /* THE MOUNT CHECK COMES FIRST, ahead of the ROM's own order, and the
-       reason is a second unhosted piece rather than caution about the
-       handoff. LoadLevel opens with
 
-           if (data_02092110 < 0) Scene::SetAndStopColorFader();
-
-       and that reaches Scene::SetFaders, which dispatches through
-       data_0209f5bc and through data_0209f5e8 -- the COLOR fader. The port
-       has the WIPE faders staged (hal/fader_wipes.cpp) and not that one:
-       data_0209f5e8 is zeroed host storage, so the call lands on a null slot.
-       ExitLevel does not go through there (SetNextLevel writes the two words
-       itself), which is why the exit path works today and this one would
-       fault before the handoff ever ran.
-
-       So a row the port cannot mount is refused here, where the refusal is
-       free, instead of after a fader call that cannot survive. A row it CAN
-       mount runs the ROM's branch verbatim. Staging FaderColor the way
-       FaderWipe is staged removes this check. */
-    if (!port_level_is_mounted(level)) {
-        std::fprintf(stderr, "  [title] row %d is level %d (overlay %d), which "
-                     "is not mounted in this build -- refusing before "
-                     "LoadLevel, whose color-fader call is unhosted\n", i,
-                     level, port_level_overlay_id(level));
-        return 0;
-    }
+    /* dScTitle_c::Behavior's confirm branch, in order (func_ov003_020ad814):
+           data_0209f2d8 = 0;                       single player
+           LoadLevelNoReturn(level, entrance, 1, 0);
+           SetPlayerGlobals();
+           SetNumPlayers(1);
+           Scene::StartSceneFade(4, 0, 0);          hand to the star select
+           data_0209f5e8[6] = 0x7fff;               fade to WHITE
+       LoadLevelNoReturn opens with SetAndStopColorFader (safe now: the color
+       fader is a real object), so this runs whether or not the port can mount
+       the row. */
     data_0209f2d8 = 0;                 /* single player */
     LoadLevelNoReturn(level, (unsigned)entrance, 1, 0);
     SetPlayerGlobals();
     SetNumPlayers(1);
-    /* Scene::StartSceneFade(4, 0, 0) is the ROM's next line: it hands off to
-       dScStarSel_c, the star select, which is another ov003 scene. The port
-       goes straight to the level, so the fade request is not made -- making
-       it would park a pending scene id nothing can spawn. */
-    /* stderr, not stdout: the flight recorder captures stderr only, and the
-       2026-08-05 play session's "warp did not work" could not be read from
-       its playlog because this line was on the wrong stream. (What actually
-       happened: the row resets to 1 on every boot, and the selected row
-       mapped to level 1 entrance 0 -- a castle grounds re-entry that looks
-       like nothing happened.) */
-    std::fprintf(stderr, "[title] row %d -> level %d entrance %d\n", i, level,
-                 entrance);
+    /* Scene::StartSceneFade(4, 0, 0): records scene 4 (dScStarSel_c) as the
+       pending scene and sets the fade colour. data_0209f5e8[6] (+0xc) = 0x7fff
+       is the ROM's own next line: fade to WHITE, not black. */
+    _ZN5Scene14StartSceneFadeEjjt(4, 0, 0);
+    data_0209f5e8[6] = 0x7fff;
+    /* Record the scene request for the frame loop, and put the colour fade in
+       motion so it renders. 0x7fff (nonzero) is a white fade; 16 frames is the
+       DS default for a scene transition. */
+    g_scene_fade_scene = (int)data_02092664;
+    port_fader_start_color(16, 1, 0x7fff);
+    std::fprintf(stderr, "[title] row %d -> level %d entrance %d, scene fade to "
+                 "%d (white)\n", i, level, entrance, (int)data_02092664);
+
+    /* NOW the not-mounted refusal, after the ROM's own order. The level request
+       (data_02092110) that LoadLevelNoReturn wrote is consumed by the change
+       poll, which already declines an unmounted level with a message; but say
+       so here too, so a row that cannot boot is legible at the point of the
+       choice rather than only when the poll fires. The fade still ran, which is
+       the intended feedback that the button was seen. */
+    if (!port_level_is_mounted(level)) {
+        std::fprintf(stderr, "  [title] row %d is level %d (overlay %d), which "
+                     "is not mounted in this build -- the fade ran, the change "
+                     "poll will decline the boot\n", i, level,
+                     port_level_overlay_id(level));
+        /* leave data_02092110 for the poll to consume and report */
+    }
     return 1;
 }

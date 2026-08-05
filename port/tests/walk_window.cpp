@@ -430,6 +430,17 @@ void ExitLevel(void);
 void LoadLevelNoReturn(int level, unsigned entrance, unsigned star,
                        unsigned reason);
 extern signed char data_0209f2f8;    /* the level currently up */
+/* gate 31 faders (hal/fader_wipes.cpp): port_fader_advance steps whatever fade
+   is in motion one frame and writes the 2D master-blend register the ROM's own
+   FaderColor::AdvanceFade writes; port_fader_blend_state reads it back so the
+   compositor can fade the framebuffer. */
+void port_fader_advance(void);
+int port_fader_blend_state(int *evy, int *toWhite);
+void port_fader_start_color(int frames, int toEnd, unsigned short color);
+/* the scene-fade request the title-select hands off with. Recorded by the port
+   in hal/level_change.cpp and acted on by this frame loop. */
+int port_scene_fade_pending(int *sceneId);
+void port_scene_fade_clear(void);
 void port_actor_render(void);        /* phase 5: the render bucket */
 /* gate 29: the pair Stage::Render and Stage::GraphCallback1 make on the ROM,
    and they are called from the two places those two run -- the simulation in
@@ -2858,8 +2869,31 @@ int main(void)
            top of the frame is deliberate: the change runs after the frame's
            input has been taken and before anything reads the world, so no
            half of one frame ever sees two different levels. */
-        if (!menu_on && boot_spawns && port_level_change_pending()) {
+        /* THE SCENE FADE GATE. When a title-select armed a scene fade
+           (Scene::StartSceneFade), hold the boot until the fade has COVERED the
+           screen, so the old level is gone behind white before the new one
+           loads and the pop is hidden. Without a scene fade -- the ExitLevel,
+           death and warp-pipe paths -- the change applies the frame it is
+           pending, as before. */
+        int scene_fade = 0, scene_id = -1;
+        if (port_scene_fade_pending(&scene_id)) {
+            int evy = 0, tw = 0;
+            int covered = port_fader_blend_state(&evy, &tw) && evy >= 16;
+            scene_fade = covered ? 2 : 1;   /* 1 = still fading, 2 = covered */
+        }
+        if (!menu_on && boot_spawns && port_level_change_pending() &&
+            scene_fade != 1) {
             if (port_level_change_poll()) {
+                /* the level is up behind the cover: fade back IN and drop the
+                   scene request. Reveal with the SAME colour the cover used
+                   (white, 0x7fff) but the reverse direction, so the panel
+                   un-whitens to the new level rather than flashing to black. */
+                if (scene_fade == 2) {
+                    port_fader_start_color(16, 0, 0x7fff);
+                    port_scene_fade_clear();
+                    fprintf(stderr, "[fade] scene %d: covered, level booted, "
+                            "fading in\n", scene_id);
+                }
                 player = data_0209f394[0];
                 if (!player) {
                     fprintf(stderr, "[lvl] the new level spawned no player\n");
@@ -3084,6 +3118,13 @@ int main(void)
         } else {
             hal_player_st_wait_main(player);
         }
+        /* THE FADE STEPS HERE, and it steps every frame -- even with the menu
+           open and the game tick skipped -- because a fade transition must not
+           freeze while it is on screen. This is func_02018ec0's job in the
+           ROM's own frame (phase 2, func_02019390): advance the fader currently
+           in motion (data_0209d4b0) by one frame, which writes the 2D blend
+           register the compositor below reads. */
+        port_fader_advance();
         /* the real boot seats the path table, so the tracking's own binding
            stands -- except where the port's unfilled floor record invents
            one the level cannot produce (hal/level_boot.cpp) */
@@ -3923,6 +3964,43 @@ int main(void)
            With the panel toggled off this writes nothing. Before the overlay,
            so F3 text stays readable over the panel. */
         hal_sub_screen_present(&fb.px[0][0], ntr::SCREEN_W, ntr::SCREEN_H);
+
+        /* THE FADE COMPOSITE. The DS master-brightness blend (MASTER_BRIGHT,
+           reached through BLDCNT/BLDY at 0x4000050/0x4000054 for the main
+           engine and 0x4001050/0x4001054 for the sub) darkens or brightens the
+           WHOLE 2D panel in hardware after the scene is drawn -- BOTH screens,
+           which is why this composites after the sub-screen present but before
+           the host debug overlay (the overlay is not game content and must stay
+           readable through a fade). port_fader_advance wrote those registers
+           this frame; read them back and do the same fade over the finished
+           framebuffer. EVY is the 0..16 coefficient: fade-to-black is
+           rgb*(1 - evy/16), fade-to-white is rgb + (255-rgb)*evy/16, both per
+           channel, which is exactly the DS blend math (16/16 = full). */
+        {
+            int evy = 0, toWhite = 0;
+            if (port_fader_blend_state(&evy, &toWhite)) {
+                if (evy > 16) evy = 16;
+                for (int y = 0; y < ntr::SCREEN_H; ++y) {
+                    uint32_t *row = fb.px[y];
+                    for (int x = 0; x < ntr::SCREEN_W; ++x) {
+                        uint32_t p = row[x];
+                        int r = (p >> 16) & 0xff, g = (p >> 8) & 0xff,
+                            b = p & 0xff;
+                        if (toWhite) {
+                            r += ((255 - r) * evy) >> 4;
+                            g += ((255 - g) * evy) >> 4;
+                            b += ((255 - b) * evy) >> 4;
+                        } else {
+                            r -= (r * evy) >> 4;
+                            g -= (g * evy) >> 4;
+                            b -= (b * evy) >> 4;
+                        }
+                        row[x] = 0xFF000000u | ((uint32_t)r << 16) |
+                                 ((uint32_t)g << 8) | (uint32_t)b;
+                    }
+                }
+            }
+        }
 
         /* THE OVERLAY GOES HERE: after the raster owns the frame and before
            the blit hands it to GDI, so it is in the pixels rather than over
