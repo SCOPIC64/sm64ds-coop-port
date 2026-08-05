@@ -51,6 +51,12 @@ struct PortLvlOverlay {
     unsigned int unk18;          /* 0x18 */
 };
 
+/* IDEMPOTENT ON PURPOSE, and gate 31 is why. port_ov009_patch rewrites the
+   overlay image's own pointers in place, which is not something that can be
+   done twice -- a second pass would rebase already-rebased words. The cached
+   `lvl` was there to save the work; it is now load-bearing, because the level
+   handoff calls the mount again on every entry to the castle grounds. Any
+   mount registered with port_level_mount_register owes the same guarantee. */
 extern "C" void *port_ov009_mount(void)
 {
     static void *lvl;
@@ -229,11 +235,19 @@ struct PortSharedFilePtr *_ZN13SharedFilePtr9ConstructEj(struct PortSharedFilePt
                                                          unsigned);
 void _ZN13SharedFilePtr8LoadFileEv(struct PortSharedFilePtr *);
 
+/* The handle table is per-LEVEL, not per-run: the KCL and the object files a
+   level's boot loads through it are that level's. Gate 31 releases them on a
+   level change (port_level_reset_host below), which is why the storage is
+   file-scope now rather than function-static. */
+enum { PORT_LOADFILE_SLOTS = 16 };
+static PortSharedFilePtr g_loadfile_slot[PORT_LOADFILE_SLOTS];
+static int g_loadfile_used;
+
 void *LoadFile(int handle)
 {
-    enum { SLOTS = 16 };
-    static PortSharedFilePtr slot[SLOTS];
-    static int used;
+    enum { SLOTS = PORT_LOADFILE_SLOTS };
+    PortSharedFilePtr *const slot = g_loadfile_slot;
+    int &used = g_loadfile_used;
     for (int i = 0; i < used; ++i)
         if (slot[i].fileID && slot[i].filePtr &&
             (int)slot[i].fileID == handle)
@@ -497,6 +511,7 @@ int func_02043288(void *self);         /* port/unmatched: the behaviour Process 
    definitions are real MSVC __thiscall methods -- a linker alias would hand
    the body an ecx that never held `this`. */
 #include "ActorBase.h"
+#include "Actor.h"
 extern "C" int _ZN9ActorBase19BeforeInitResourcesEv(void *self)
 { return ((ActorBase *)self)->ActorBase::BeforeInitResources() ? 1 : 0; }
 
@@ -544,6 +559,41 @@ static int __fastcall ps_bren(void *s, void *)
 static void __fastcall ps_aren(void *s, void *, unsigned a)
 { ((ActorBase *)s)->ActorBase::AfterRender(a); }
 
+/* ---- the DESTROY slots (gate 31) ------------------------------------------
+   A level change destroys every actor the previous level spawned, the Player
+   among them, and the destroy path is the ROM's own: the cleanup Process runs
+   slots 4/3/5 and ActorBase::AfterCleanupResources then dispatches slot 16.
+   Four of those five trapped, so the first level change aborted inside the
+   Player rather than tearing him down.
+
+   Slots 4 and 5 are the shared Actor/ActorBase bodies every other class uses
+   (hal/actor_classes.cpp's ac_bclean / ac_aclean); 3 and 12 and 16 are the
+   Player's own matched src. Slot 17 (D0, the deleting form) stays trapped on
+   purpose: the ROM's teardown never dispatches it -- AfterCleanupResources
+   calls slot 16 and does the Memory::Deallocate itself -- so a call landing
+   there means something reached the Player through `delete`, which is a bug
+   worth an abort rather than a double free. */
+extern "C" {
+/* Faces, in hal/method_faces.cpp: both definitions are real methods. */
+int _ZN6Player16CleanupResourcesEv(void *self);
+void _ZN6Player16OnPendingDestroyEv(void *self);
+void *_ZN6PlayerD2Ev(void *self);
+}
+static int __fastcall ps_bclean(void *s, void *)
+{ return ((Actor *)s)->Actor::BeforeCleanupResources(); }
+static void __fastcall ps_aclean(void *s, void *, unsigned a)
+{ ((ActorBase *)s)->ActorBase::AfterCleanupResources(a); }
+static int __fastcall ps_clean(void *s, void *)
+{ return _ZN6Player16CleanupResourcesEv(s); }
+static void __fastcall ps_pdes(void *s, void *)
+{ _ZN6Player16OnPendingDestroyEv(s); }
+/* D1 is the complete-object destructor the ROM's slot 16 holds. The Player
+   has no virtual bases, so D1 and D2 are the same body and mwcc emits one;
+   MSVC's D2 spelling is what src/_ZN6PlayerD2Ev.cpp defines. It must NOT
+   deallocate -- the caller does that one line later. */
+static int __fastcall ps_d1(void *s, void *)
+{ return (int)(size_t)_ZN6PlayerD2Ev(s); }
+
 static const char *const hal_player_slot_name[20] = {
     "InitResources", "BeforeInitResources", "AfterInitResources",
     "CleanupResources", "BeforeCleanupResources", "AfterCleanupResources",
@@ -575,6 +625,11 @@ extern "C" void hal_fill_player_vtable(void)
     vt[9] = (void *)ps_render;
     vt[10] = (void *)ps_bren;
     vt[11] = (void *)ps_aren;
+    vt[3] = (void *)ps_clean;
+    vt[4] = (void *)ps_bclean;
+    vt[5] = (void *)ps_aclean;
+    vt[12] = (void *)ps_pdes;
+    vt[16] = (void *)ps_d1;
 }
 
 /* The per-frame tick the ROM's processing list runs on every actor:
@@ -603,8 +658,15 @@ extern int data_0209f20c[], data_0209f294[], data_0209f2c4[], data_0209b454[];
 extern int data_0209ee90[];            /* +0x44 is the projection's W scale */
 }
 
+extern "C" void port_level_mounts_install(void);
+
 extern "C" void port_stage_a2_seat(void)
 {
+    /* Which levels this build can mount. Registered before anything can ask,
+       which is here rather than in main: the handoff seam is boot state like
+       the registry and the sinits below it. */
+    port_level_mounts_install();
+
     /* the scene tree root the spawn spine links under -- the real Stage.
        Constructing it IS the seating: Stage::Stage runs with data_020a4b6c[0]
        still null, so func_0203b438 takes its no-parent branch and writes the
@@ -868,4 +930,158 @@ extern "C" int port_model_shrink_enabled(void)
     static int on = -1;
     if (on < 0) on = std::getenv("SM64DS_MODEL_SHRINK") != 0;
     return on;
+}
+
+// ---- gate 31: what the level change has to undo -----------------------------
+//
+// A level change tears the actors down through the game's own path (see
+// hal/level_change.cpp). What that path cannot reach is the host storage the
+// port's boot staged BESIDE the game -- storage the game never allocated and
+// so never frees. Two things are in that class here, and they are the two
+// this file owns.
+//
+//  1. THE HANDLE TABLE. LoadFile is the port's stand-in for func_0201818c and
+//     it caches one persistent SharedFilePtr per handle. The handles a boot
+//     asks for are the LEVEL's: its KCL, its object files. Carrying them into
+//     the next level would hold the old level's files loaded forever and, at
+//     sixteen slots, run the table out on the third or fourth change with
+//     "out of host file slots". Release is the ROM's own refcount drop
+//     (SharedFilePtr::Release -> func_02017c24 when the last reference goes),
+//     so the file image goes back to the game heap the same way it would on
+//     the DS.
+//
+//  2. THE ENTRANCE CACHE. g_entrance_entries points into the CURRENT level
+//     overlay's own bytes. After a change it points into the previous
+//     level's, which is exactly the stale-pointer shape a transition
+//     produces; the debug menu's warp list reads it.
+//
+// The sub-loader globals below it (path counts, fog, minimap, teleport) are
+// all rewritten by the next LoadClsnAndObjects before anything reads them, so
+// they are not strictly reset work. They are zeroed anyway: a level that
+// happens not to carry one of those tables would otherwise read the previous
+// level's count against the new level's pointer, and that is a fault rather
+// than a wrong number.
+extern "C" {
+void _ZN13SharedFilePtr7ReleaseEv(struct PortSharedFilePtr *self);
+void _ZN5Stage18ResetMeshCollidersEv(void);
+int port_level_mount_register(int level, void *(*fn)(void));
+unsigned port_level_ds_overlay(int level);
+}
+
+extern "C" void port_level_reset_host(void)
+{
+    /* THE SLOTS ARE DROPPED, NOT RELEASED, and that is a measured decision
+       rather than a shortcut. SharedFilePtr::Release ends in func_02017c24,
+       which hands filePtr back with Memory::Deallocate. Doing that here
+       faulted inside ExpandingHeapAllocator::UnlinkNode on the level's third
+       handle (1944, the level's icg/icl pair) every time -- the block was
+       already off the heap, so something else on the level owns that image
+       and gives it back during its own cleanup.
+
+       Which owner is the open question and it is worth answering, because
+       until it is, the images behind these handles are what a level change
+       leaks. The measurement is in the [lvl] line the change prints: heap
+       free before, after the teardown, and after the next level is up. On the
+       castle grounds re-entering itself the net is the number to watch, and
+       SM64DS_TRACE_LEVEL=1 names every slot it drops. A double free is a
+       corrupted heap two transitions later with no trail; a leak is a number
+       that goes down by a known amount. This takes the second one on purpose
+       until the ownership is settled. */
+    const int trace = std::getenv("SM64DS_TRACE_LEVEL") != 0;
+    for (int i = 0; i < g_loadfile_used; ++i) {
+        if (trace)
+            std::printf("  [lvl] dropping file slot %d: handle %u refs %u "
+                        "ptr %p\n", i, g_loadfile_slot[i].fileID,
+                        g_loadfile_slot[i].numRefs,
+                        (void *)g_loadfile_slot[i].filePtr);
+        g_loadfile_slot[i].fileID = 0;
+        g_loadfile_slot[i].numRefs = 0;
+        g_loadfile_slot[i].filePtr = 0;
+    }
+    g_loadfile_used = 0;
+
+    g_entrance_entries = 0;
+    g_entrance_count = 0;
+
+    data_ov002_0211118c = 0;
+    data_020a0d8c[0] = 0;
+    data_0209f31c[0] = 0;  data_0209f258[0] = 0;
+    data_0209f328[0] = 0;  data_0209f214[0] = 0;
+    data_0209f334[0] = 0;  data_0209f2e8[0] = 0;
+    data_0209f348[0] = 0;  data_0209f25c[0] = 0;
+    data_0209f2d0[0] = 0;
+    data_0209f338[0] = 0;
+    data_020a0d84[0] = 0;
+    data_020a0d88[0] = 0;
+}
+
+// ---- the Stage, between two levels -----------------------------------------
+//
+// The Stage object outlives the level (hal/level_change.cpp says why), so its
+// two level-owned sub-objects have to be put back to their pre-boot state by
+// hand.
+//
+//   +0x91c  the level MeshCollider. Stage::LoadClsnAndObjects SetFiles it and
+//           registers it, so what the next boot needs is the registry empty.
+//           Stage::ResetMeshColliders is the ROM's own zeroing of exactly that
+//           table (data_020a0c80, 0x18 entries) and it is what
+//           Stage::CleanupResources calls for the same reason.
+//
+//   +0x86c  the level Model. Stage::LoadModel overwrites it wholesale, so the
+//           only thing owed is the old BMD -- Model::~Model frees the block at
+//           +0x4c and ModelBase::~ModelBase the rest. The object is
+//           re-constructed straight after so the next LoadModel writes into a
+//           Model rather than into a corpse.
+//
+// The SKYBOX at +0x9bc is a Model the Stage NEWS off the game heap, and
+// Stage::LoadSkybox news another one every time it runs. Deleting it here is
+// what keeps a level change from leaking one skybox model per transition.
+extern "C" {
+void *_ZN5ModelD2Ev(void *self);
+void *_ZN5ModelC1Ev(void *self);
+void _ZN6Memory10DeallocateEPv(void *p);
+}
+
+extern "C" void port_level_stage_reseat(void *stagev)
+{
+    char *stage = (char *)stagev;
+
+    _ZN5Stage18ResetMeshCollidersEv();
+
+    /* the level model, in place */
+    _ZN5ModelD2Ev(stage + 0x86c);
+    _ZN5ModelC1Ev(stage + 0x86c);
+
+    /* the skybox, which is a pointer rather than a member */
+    void **sky = (void **)(stage + 0x9bc);
+    if (*sky) {
+        _ZN5ModelD2Ev(*sky);
+        _ZN6Memory10DeallocateEPv(*sky);
+        *sky = 0;
+    }
+}
+
+// ---- the level-1 mount, registered against the seam -------------------------
+//
+// port_ov009_mount already has the shape port_level_mount_register asks for:
+// no arguments, returns the host LVL_Overlay, idempotent. This is the whole
+// registration for the castle grounds, and it is the template for every level
+// the mount stream adds -- one line each, next to the mount itself.
+//
+// The DS address is asserted rather than assumed. data_02092208[1] is the
+// ROM's own answer for level 1 and OV009_LVL_OVERLAY is what this file was
+// written against; if a config rename ever moves one, the boot says so here
+// instead of mounting the wrong bytes.
+extern "C" void port_level_mounts_install(void)
+{
+    static int done;
+    if (done)
+        return;
+    done = 1;
+    const unsigned ds = port_level_ds_overlay(1);
+    if (ds != (unsigned)OV009_LVL_OVERLAY)
+        std::fprintf(stderr, "  [lvl] LEVEL 1 DISAGREES: the ROM's table says "
+                     "0x%08x, this file mounts 0x%08x\n", ds,
+                     (unsigned)OV009_LVL_OVERLAY);
+    port_level_mount_register(1, port_ov009_mount);
 }

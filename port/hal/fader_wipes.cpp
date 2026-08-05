@@ -66,6 +66,7 @@
 // wants anyway -- IsAtEnd, the predicate a scene transition waits on, reads
 // true immediately instead of waiting on a fade that can never render.
 #include <cstdio>
+#include <new>
 
 typedef int Fix12i;
 
@@ -150,6 +151,34 @@ int hal_wipe_index(const void *self)
     return (int)(d / (long long)sizeof(HalFaderWipe));
 }
 
+}  /* anonymous namespace */
+
+/* ---- gate 31: the COLOR fader, 0x0209f5e8 --------------------------------
+   The eighth object, and the one that is not in the WIPES array.
+   Scene::SetAndStopColorFader hands &data_0209f5e8 to Scene::SetFaders, which
+   installs it and, if the fader it is replacing is at one end of its travel,
+   dispatches the NEW one's SetToEnd or SetToStart -- ROM bytes 0x20 and 0x24,
+   the same two slots the wipes carry. The symbol was zeroed host storage in
+   hal/auto_bss.cpp, so that dispatch went through a null vptr and the very
+   first LoadLevel faulted there. That is why the port could LEAVE a level
+   through ExitLevel (SetNextLevel writes the two words itself and never
+   touches a fader) but not ENTER one through LoadLevel, which opens with
+   SetAndStopColorFader.
+
+   It is the same object as a wipe, deliberately. FaderColor and FaderWipe are
+   different ROM classes, but everything the port dispatches on either of them
+   is the Fader interpolator both inherit, and Scene::StartSceneFade writes the
+   colour into +0xc, which is where HalFaderWipe's `color` sits. Placement-new
+   rather than a plain C++ definition because the storage has to keep its C
+   name and its address. */
+extern "C" __declspec(align(8)) unsigned char
+    data_0209f5e8[sizeof(HalFaderWipe)] = {0};
+
+namespace {
+struct HalColorFaderInit {
+    HalColorFaderInit() { new (data_0209f5e8) HalFaderWipe(); }
+};
+HalColorFaderInit hal_color_fader_init;
 }  /* anonymous namespace */
 
 extern "C" {

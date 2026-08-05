@@ -596,7 +596,9 @@ endforeach()
 # ov001 joins the per-symbol mounts for the HUD's sprite templates (gate 27):
 # it is not an actor overlay, but it wants exactly the same treatment --
 # packed run, relocations applied, interior pointers rebased to host.
-set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001)
+# ov003 joins them for gate 31: not an actor overlay either, mounted for
+# exactly one table -- the debug level select's row list. See ov003_syms.txt.
+set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001 ov003)
 set(ACTOR_OV_SYMS "")
 foreach(ovn IN LISTS PORT_ACTOR_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_syms.c")
@@ -724,6 +726,25 @@ foreach(line IN LISTS SLICE28_LINES)
     endif()
     list(APPEND SLICE28_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+
+# Gate 31: the level HANDOFF. Small on purpose -- almost all of it was already
+# linked by gate 10 (see the head of slice_gate31.txt); what is here is
+# StartFile's own closure, the Player's destroy slots and the collider
+# registry reset. The driver is hal/level_change.cpp.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate31.txt" SLICE31_LINES)
+set(SLICE31_SOURCES "")
+foreach(line IN LISTS SLICE31_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE31_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+list(APPEND SLICE31_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Player_CleanupResources.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/func_02073244.c"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/SetNumPlayers.c"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Door_CleanupResources.cpp")
 # Gate 13: the real Camera actor. Adds its own slice plus the HAL seam, and
 # swaps three gate-10 files for host copies that only the camera needs
 # (see port/unmatched/): ChangeArea calls HideArea() with no argument and
@@ -976,7 +997,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/sub_actors.cpp hal/stage_bridges.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/sub_actors.cpp hal/stage_bridges.cpp hal/level_change.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
@@ -984,7 +1005,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
-    ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${GATE6_GEN}
+    ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE31_SOURCES} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
@@ -1003,7 +1024,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/level_change.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
@@ -1011,7 +1032,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
-    ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES} ${GATE6_GEN}
+    ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES} ${SLICE31_SOURCES} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
@@ -1033,7 +1054,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/level_change.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
@@ -1041,7 +1062,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
-    ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES} ${GATE6_GEN}
+    ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES} ${SLICE31_SOURCES} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})

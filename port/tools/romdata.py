@@ -87,6 +87,20 @@ NAMED = [
     # death states: SetNextLevel's sublevel -> (next level, entrance) table
     "data_02075638",
     "data_02092664",   # Scene::SetSceneToSpawn's pending-scene ID
+    # gate 31, the level handoff. Two 0xd0-byte tables, 52 entries each --
+    # the ROM's whole level count. data_02092208 is the LVL_Overlay address
+    # per level (Stage::InitResources indexes it); data_020758c8 the overlay
+    # id that carries it (LoadLevelOverlays indexes it, and it holds level+8
+    # for every one of the 52). Nintendo's own answer to "what is level N",
+    # so the port asks it rather than keeping a list beside it.
+    "data_02092208",
+    "data_020758c8",
+    # SetNextLevel's return-to-level latch. The ROM ships it -1 ("no recorded
+    # return point"), and the port had it as zeroed host storage -- so the
+    # first ExitLevel() read 0 and asked for level 0 instead of the castle
+    # grounds. Its two neighbours 0x02092118/0x02092120 were already here.
+    "data_0209211c",
+    "data_0208a0e0",   # the controller count SetNumPlayers writes
     "data_020889b0",   # func_0200ee68's demo/cutscene flag block (NoControl)
     "data_020755bc",   # character -> wipe type (StartExitCharacterWipe)
     # gate 13, the real Camera: the constant vectors the follow chain reads.

@@ -155,8 +155,78 @@ void _ZN9ModelAnimD1Ev(void *);
 void _ZN5ModelD1Ev(void *);
 void _ZN12WithMeshClsnD1Ev(void *);
 void _ZN25MovingCylinderClsnWithPosD1Ev(void *);
+void _ZN18MovingCylinderClsnD1Ev(void *);
+void _ZN9ModelBaseD2Ev(void *);
 void *_ZN5ActorD2Ev(void *);
 }
+
+/* ---- gate 31: the destructors that were still trapping --------------------
+   NINE of this file's classes left slot 16 on ac_trap16, and the reading was
+   that nothing on the castle grounds ever destroys one of them: the trees and
+   the birds die, the nets and the doors live from the level boot to the level
+   teardown. That held exactly as long as there WAS no level teardown. A level
+   change (gate 31) destroys every actor the level spawned, through the ROM's
+   own path, and the first one aborted on a QUESTION_BLOCK slot 16 in phase 4.
+
+   Four of the nine have a plain-C D1 in src and those are in slice_gate31.txt
+   (CASTLE_WATER, METAL_NET, WATERFALL_MIST, QUESTION_BLOCK). The other five
+   are written in the matched tree as real C++ destructors over SHADOW CLASSES
+   -- the layout spelled as one pad member plus the sub-objects -- so the body
+   is entirely compiler-generated member destruction, and MSVC would generate
+   it against a base destructor no TU in this build defines. Writing them out
+   is the recipe this file already documents for a hosted slot 16 and nothing
+   more: the class's own vtable, member D1s in REVERSE declaration order, then
+   Actor's D2. The member offsets are the shadows' own.
+
+   The vtable store the ROM's D1 opens with is left out on purpose. It exists
+   so a base destructor running mid-chain dispatches the base's virtuals; here
+   the object is one instruction from Memory::Deallocate and nothing dispatches
+   through it again, and writing it would mean naming a host vtable array per
+   class for no reader.
+
+   Slot 17 stays trapped in all nine. The ROM's teardown dispatches 16 and does
+   the Memory::Deallocate itself (port/unmatched/
+   ActorBase_AfterCleanupResources.cpp); a call landing on 17 means something
+   reached the actor through operator delete, which is worth an abort. */
+static int __fastcall ac_d1_actor_only(void *s, void *)
+{ return (int)(size_t)_ZN5ActorD2Ev(s); }
+static int __fastcall ac_d1_flag(void *s, void *)
+{
+    _ZN9ModelAnimD1Ev((char *)s + 0xd4);
+    return (int)(size_t)_ZN5ActorD2Ev(s);
+}
+static int __fastcall ac_d1_cannon(void *s, void *)
+{
+    _ZN18MovingCylinderClsnD1Ev((char *)s + 0x124);
+    _ZN5ModelD1Ev((char *)s + 0xd4);
+    return (int)(size_t)_ZN5ActorD2Ev(s);
+}
+/* src/_ZN4DoorD0Ev.c is the same chain with the deallocate on the end, which
+   is the cross-check that the member is a CommonModel at 0xd4.
+   CommonModel::~CommonModel is itself a vtable store plus ModelBase's D2, and
+   the store is the one this file leaves out, so the chain is spelled at its
+   bottom rather than through a symbol whose only other use would be a host
+   vtable array nobody dispatches through. */
+static int __fastcall ac_d1_door(void *s, void *)
+{
+    _ZN9ModelBaseD2Ev((char *)s + 0xd4);
+    return (int)(size_t)_ZN5ActorD2Ev(s);
+}
+
+/* The four whose D1 is plain C in src (slice_gate31.txt). Each already does
+   its own vtable stores and its own member chain; the thunk is only the
+   __fastcall face the slot needs. */
+extern "C" {
+int *_ZN11CastleWaterD1Ev(int *self);
+int *_ZN8MetalNetD1Ev(int *self);
+int *_ZN13QuestionBlockD1Ev(int *self);
+}
+static int __fastcall cw_d1(void *s, void *)
+{ return (int)(size_t)_ZN11CastleWaterD1Ev((int *)s); }
+static int __fastcall mn_d1(void *s, void *)
+{ return (int)(size_t)_ZN8MetalNetD1Ev((int *)s); }
+static int __fastcall qb_d1(void *s, void *)
+{ return (int)(size_t)_ZN13QuestionBlockD1Ev((int *)s); }
 
 /* Fill the ten shared slots plus the three traps; the caller writes its own
    six. Keeps each class's fill down to the lines that are actually its own. */
@@ -319,7 +389,7 @@ extern "C" void hal_fill_ambient_sound_vtable(void)
     /* 16/17 keep the trap: nothing on the castle grounds destroys one of
        these, and their two TUs need a shape the port has no reason to build
        (a real ~Actor and the VT/HEAP placeholders). */
-    vt[16] = (void *)ac_trap16;
+    vt[16] = (void *)ac_d1_actor_only;
     vt[17] = (void *)ac_trap17;
 }
 
@@ -716,7 +786,7 @@ extern "C" void hal_fill_castle_water_vtable(void)
     vt[6] = (void *)cw_behavior;
     vt[9] = (void *)cw_render;
     vt[12] = (void *)ac_pdes_base;
-    vt[16] = (void *)ac_trap16;
+    vt[16] = (void *)cw_d1;
     vt[17] = (void *)ac_trap17;
 }
 
@@ -757,7 +827,7 @@ extern "C" void hal_fill_metal_net_vtable(void)
     vt[6] = (void *)mn_behavior;
     vt[9] = (void *)mn_render;
     vt[12] = (void *)mn_pdes;
-    vt[16] = (void *)ac_trap16;
+    vt[16] = (void *)mn_d1;
     vt[17] = (void *)ac_trap17;
 }
 
@@ -795,7 +865,7 @@ extern "C" void hal_fill_flag_vtable(void)
     vt[6] = (void *)flag_behavior;
     vt[9] = (void *)flag_render;
     vt[12] = (void *)ac_pdes_base;
-    vt[16] = (void *)ac_trap16;
+    vt[16] = (void *)ac_d1_flag;
     vt[17] = (void *)ac_trap17;
 }
 
@@ -973,7 +1043,7 @@ extern "C" void hal_fill_cannon_vtable(void)
     vt[6] = (void *)cn_behavior;
     vt[9] = (void *)cn_render;
     vt[12] = (void *)ac_pdes_base;
-    vt[16] = (void *)ac_trap16;
+    vt[16] = (void *)ac_d1_cannon;
     vt[17] = (void *)ac_trap17;
 }
 
@@ -1043,7 +1113,7 @@ extern "C" void hal_fill_exit_vtable(void)
        teardown -- and src/_ZN11VirtualDoorD1Ev.cpp is a real C++ destructor
        over its own shadow hierarchy, which MSVC would emit under
        ??1VirtualDoor@@UAE@XZ against a layout that is not the ROM's. */
-    vt[16] = (void *)ac_trap16;
+    vt[16] = (void *)ac_d1_actor_only;
     vt[17] = (void *)ac_trap17;
 }
 
@@ -1089,7 +1159,11 @@ extern "C" void hal_fill_waterfall_mist_vtable(void)
     vt[6] = (void *)wm_behavior;
     vt[9] = (void *)wm_render;
     vt[12] = (void *)ac_pdes_base;
-    vt[16] = (void *)ac_trap16;
+    /* The class here is PoppingLavaBubbles, not WaterfallMist: the vtable
+       WaterfallMist_Spawn installs is _ZTV18PoppingLavaBubbles, and that
+       class's D1 is an empty body over an Actor base -- which is what this
+       section already says about slots 3, 9 and 12. */
+    vt[16] = (void *)ac_d1_actor_only;
     vt[17] = (void *)ac_trap17;
 }
 
@@ -1287,7 +1361,7 @@ extern "C" void hal_fill_door_vtable(void)
     vt[12] = (void *)dr_pdes;
     /* SLOTS 16/17 TRAP, the gate-17 reading: nothing on the castle grounds
        destroys a door -- the three live from the level boot to the teardown. */
-    vt[16] = (void *)ac_trap16;
+    vt[16] = (void *)ac_d1_door;
     vt[17] = (void *)ac_trap17;
 }
 
@@ -1340,6 +1414,6 @@ extern "C" void hal_fill_question_block_vtable(void)
     /* SLOTS 16/17 TRAP, the gate-17 reading: the castle grounds' one block is
        never destroyed -- its own Behavior parks it in state 2 when it is used
        rather than marking it. */
-    vt[16] = (void *)ac_trap16;
+    vt[16] = (void *)qb_d1;
     vt[17] = (void *)ac_trap17;
 }

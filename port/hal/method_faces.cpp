@@ -118,6 +118,17 @@ void _ZN6Player4HealEi(void *self, int amt)
 void _ZN9ActorBase18MarkForDestructionEv(void *self)
 { ((ActorBase *)self)->ActorBase::MarkForDestruction(); }
 
+/* Gate 31: the Player's two DESTROY faces. Both definitions are real
+   __thiscall methods -- Player::OnPendingDestroy in src, CleanupResources in
+   port/unmatched/ -- and hal/level_boot.cpp seats them in vtable slots 12 and
+   3, where the ROM's teardown dispatches them. Faces rather than
+   /alternatename aliases for the usual reason: a slot thunk entered with the
+   object in ecx would hand a cdecl body a `this` it never reads. */
+int _ZN6Player16CleanupResourcesEv(void *self)
+{ return ((Player *)self)->Player::CleanupResources(); }
+void _ZN6Player16OnPendingDestroyEv(void *self)
+{ ((Player *)self)->Player::OnPendingDestroy(); }
+
 /* Gate 15: Actor::BeforeBehavior is a .c-style TU that calls its base by
    Itanium name, while the definition is a real __thiscall method. */
 int _ZN9ActorBase14BeforeBehaviorEv(void *self)

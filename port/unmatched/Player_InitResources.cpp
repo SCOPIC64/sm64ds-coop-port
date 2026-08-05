@@ -57,7 +57,14 @@ extern "C" {
     u8 data_0209f250;
     u8 data_0209f2fc;
     int data_0209212c;
-    u8 data_0209211c;
+    /* NOT A DEFINITION. data_0209211c is SetNextLevel's return-to-level
+       latch, real arm9 .data that the ROM ships as -1, and romdata.py
+       carries it. Defining it here made it host storage starting at zero,
+       and the first ExitLevel() read that as "return to level 0" and asked
+       for a level the castle grounds never sends anyone to. Also s8 rather
+       than u8: every other TU reads it signed, and -1 is its whole "no
+       recorded return point" value. This TU only ever writes 2. */
+    extern s8 data_0209211c;
     u8 data_0209f200;
 }
 
