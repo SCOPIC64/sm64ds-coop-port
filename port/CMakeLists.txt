@@ -756,6 +756,15 @@ endforeach()
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate33.txt" SLICE33_LINES)
 set(SLICE33_SOURCES "")
 foreach(line IN LISTS SLICE33_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE33_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+list(APPEND SLICE33_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Coin_Behavior.cpp")
+
 # Gate 31: the level HANDOFF. Small on purpose -- almost all of it was already
 # linked by gate 10 (see the head of slice_gate31.txt); what is here is
 # StartFile's own closure, the Player's destroy slots and the collider
@@ -763,6 +772,18 @@ foreach(line IN LISTS SLICE33_LINES)
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate31.txt" SLICE31_LINES)
 set(SLICE31_SOURCES "")
 foreach(line IN LISTS SLICE31_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE31_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+list(APPEND SLICE31_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Player_CleanupResources.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/func_02073244.c"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/SetNumPlayers.c"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Door_CleanupResources.cpp")
+
 # Gate 35: the course loop -- damage, death, respawn, coins, the star and the
 # course's own sound. Small, because almost all of it was already linked; see
 # the head of slice_gate35.txt for what was actually missing.
@@ -800,18 +821,6 @@ foreach(line IN LISTS SLICE35_LINES)
     if(line MATCHES "^#" OR line STREQUAL "")
         continue()
     endif()
-    list(APPEND SLICE33_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
-endforeach()
-list(APPEND SLICE33_SOURCES
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Coin_Behavior.cpp")
-
-    list(APPEND SLICE31_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
-endforeach()
-list(APPEND SLICE31_SOURCES
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Player_CleanupResources.cpp"
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/func_02073244.c"
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/SetNumPlayers.c"
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Door_CleanupResources.cpp")
     list(APPEND SLICE35_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
