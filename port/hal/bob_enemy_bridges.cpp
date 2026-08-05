@@ -150,3 +150,115 @@ int ModelBase::SetFile(BMD_File *file, int a, int b)
    shadow system lands this becomes the same dispatch as SetFile above. */
 struct ShadowModel { int InitCylinder(); };
 int ShadowModel::InitCylinder() { return 1; }
+
+// ---- gate 32's ov084 tier ---------------------------------------------------
+//
+// The GOOMBA is the first class the port carries that wears Mario's cap, plays
+// a material animation and casts its own ground ray, so three more method
+// faces come with it. All three are the ordinary direction: the definitions
+// are real MSVC methods against include/ and the callers spell the C name.
+#include "BgCh.h"
+#include "MaterialChanger.h"
+
+extern "C" {
+/* MaterialChanger: two of its three are methods (SetFile already defines the
+   C name in its own TU). */
+void _ZN15MaterialChanger7PrepareER8BMD_FileR8BMA_File(void *self, void *bmd,
+                                                       void *bma)
+{ ((MaterialChanger *)self)->MaterialChanger::Prepare(*(BMD_File *)bmd,
+                                                      *(BMA_File *)bma); }
+void _ZN15MaterialChanger6UpdateER15ModelComponents(void *self, void *model)
+{ ((MaterialChanger *)self)->MaterialChanger::Update(*(ModelComponents *)model); }
+}
+
+/* func_ov084_02129238 builds a RaycastGround on its own stack and arms it
+   through three flag setters it declares as RaycastGround methods. They are
+   BgCh's -- RaycastGround carries a BgCh at its own offset 0, which is why the
+   ROM's inlined stores are the same three words -- and BgCh's own definitions
+   are matched src, in the build since gate 10. Shadow definitions rather than
+   aliases, because both sides are __thiscall. */
+struct RaycastGround {
+    void StartDetectingWater();
+    void StartDetectingToxic();
+    void StopDetectingOrdinary();
+};
+void RaycastGround::StartDetectingWater()
+{ ((BgCh *)this)->BgCh::StartDetectingWater(); }
+void RaycastGround::StartDetectingToxic()
+{ ((BgCh *)this)->BgCh::StartDetectingToxic(); }
+void RaycastGround::StopDetectingOrdinary()
+{ ((BgCh *)this)->BgCh::StopDetectingOrdinary(); }
+
+/* ov084 data under a second declared type, the cxx_aliases direction. */
+#pragma comment(linker, "/alternatename:?data_ov084_02130cf8@@3PADA=_data_ov084_02130cf8")
+#pragma comment(linker, "/alternatename:?data_ov084_02130278@@3PAPAXA=_data_ov084_02130278")
+#pragma comment(linker, "/alternatename:?data_ov002_02110304@@3UState@@A=_data_ov002_02110304")
+
+/* ---- the CAP TIER's method faces ------------------------------------------
+   Nine of CapEnemy's methods are real MSVC methods against include/CapEnemy.h
+   while every caller in ov084 spells the Itanium C name. */
+#include "CapEnemy.h"
+extern "C" {
+int _ZN8CapEnemy21DestroyIfCapNotNeededEv(void *self)
+{ return ((CapEnemy *)self)->CapEnemy::DestroyIfCapNotNeeded(); }
+void *_ZN8CapEnemy15RespawnIfHasCapEv(void *self)
+{ return ((CapEnemy *)self)->CapEnemy::RespawnIfHasCap(); }
+void _ZN8CapEnemy12Unk_02005d94Ev(void *self)
+{ ((CapEnemy *)self)->CapEnemy::Unk_02005d94(); }
+void _ZN8CapEnemy14RenderCapModelEPK7Vector3(void *self, const void *v)
+{ ((CapEnemy *)self)->CapEnemy::RenderCapModel((const Vector3 *)v); }
+}
+
+/* WithMeshClsn's flag helper. Its sibling Unk_0203589c is NOT declared in
+   include/WithMeshClsn.h -- its own TU invents a shadow for it -- so that one
+   is in hal/bob_enemy_shadow_faces.cpp with the other two of its kind. */
+#include "WithMeshClsn.h"
+extern "C" {
+void _ZN12WithMeshClsn22ClearJustHitGroundFlagEv(void *self)
+{ ((WithMeshClsn *)self)->WithMeshClsn::ClearJustHitGroundFlag(); }
+}
+
+/* ---- three more names spelled without their overlay, or with the wrong one -
+   func_020ff028 is data_ov002_020ff028 (the six per-character cap
+   SharedFilePtrs, read as an array of pointers); data_ov000_020ab3c4 is
+   func_ov001_020ab3c4, and the reloc at arm9 0x02006574 says module:overlay(1)
+   outright; func_020aea30 is ov002's, and the port hosts that one
+   (port/unmatched/Enemy_UpdateDeath.cpp). */
+#pragma comment(linker, "/alternatename:_func_020ff028=_data_ov002_020ff028")
+#pragma comment(linker, "/alternatename:_data_ov000_020ab3c4=_func_ov001_020ab3c4")
+#pragma comment(linker, "/alternatename:_func_020aea30=_func_ov002_020aea30")
+#pragma comment(linker, "/alternatename:?data_0209fc68@@3HA=_data_0209fc68")
+#pragma comment(linker, "/alternatename:?data_0209f2d8@@3HA=_data_0209f2d8_c")
+
+extern "C" {
+/* data_0208a0e0 is arm9 .data and its ROM byte is 1: the number of live
+   player slots func_02005e28 walks when the character is mega. The port runs
+   one local player, which is the same number. */
+unsigned char data_0208a0e0 = 1;
+
+/* the goomba's own "has this actor been counted" bss word */
+unsigned char data_0209f344[8];
+
+/* the red-coin counter NumRedCoins reads, arm9 bss */
+unsigned char data_0209f30d[4];
+}
+/* CapEnemy's own vtable is ov002 0x02108284, mounted with the rest of that
+   overlay's data. The constructor installs it and the derived factory
+   overwrites it two lines later, so nothing is ever dispatched through it --
+   the same reading data_ov002_021081e4 (Enemy's) already has. Its D0 spells it
+   by the RTTI name, so both spellings have to resolve to one object. */
+#pragma comment(linker, "/alternatename:__ZTV11dCapEnemy_c=_data_ov002_02108284")
+#pragma comment(linker, "/alternatename:?data_0209f344@@3PAEA=_data_0209f344")
+#pragma comment(linker, "/alternatename:?data_0209f284@@3EA=_data_0209f284")
+#pragma comment(linker, "/alternatename:?data_0209d6d4@@3GA=_data_0209d6d4")
+#pragma comment(linker, "/alternatename:?data_ov084_02130d9c@@3HA=_data_ov084_02130d9c")
+
+/* THE REST OF THIS GATE'S FACES ARE IN TWO OTHER FILES, and the split is
+   forced rather than tidy. A face has to be compiled next to the class the
+   caller named, and this TU has already spelled shadow Actor, Enemy, Player,
+   ModelBase and ShadowModel above -- including include/Camera.h or Player.h
+   here would redefine every one of them. So:
+     * hal/bob_enemy_shadow_faces.cpp holds the faces whose class is a SHADOW
+       in both TUs and includes nothing at all;
+     * hal/bob_enemy_header_faces.cpp holds the ones whose class is in
+       include/ and includes only those headers. */

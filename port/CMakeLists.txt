@@ -596,7 +596,8 @@ endforeach()
 # ov001 joins the per-symbol mounts for the HUD's sprite templates (gate 27):
 # it is not an actor overlay, but it wants exactly the same treatment --
 # packed run, relocations applied, interior pointers rebased to host.
-set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001)
+# ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
+set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001 ov084)
 set(ACTOR_OV_SYMS "")
 foreach(ovn IN LISTS PORT_ACTOR_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_syms.c")
@@ -744,17 +745,24 @@ set(GATE32_HOST_SOURCES
     hal/actor_classes_bob_enemy.cpp
     hal/actor_spawn_probe_bob.cpp
     hal/bob_enemy_bridges.cpp
+    hal/bob_enemy_shadow_faces.cpp
+    hal/bob_enemy_header_faces.cpp
     # the ModelAnim slot-5 collision, for the fourth gate running
     unmatched/BobEnemy_Renders.cpp
     # the mwcc pointer-to-member dispatch for the eighth time, and the first
     # one that belongs to a BASE class: Enemy's own death-type table
-    unmatched/Enemy_UpdateDeath.cpp)
+    unmatched/Enemy_UpdateDeath.cpp
+    # ...and for the ninth: the bob-omb buddy's three-state machine
+    unmatched/BobOmbBuddy_States.cpp)
 
 # The header/definition collisions in this gate's closure: decl_common.h
 # declares each of these `(void*)` and its own TU defines it `(char*)`, which
 # is one register on the ROM and C2733 to MSVC. hostgen's HEADER_SHADOW hides
 # the header's declaration across the include; src/ and include/ stay untouched.
-set(GATE32_SYMS func_ov102_0214b248)
+# func_ov084_021298d0 is here for a different reason: it is C++ inside a .c
+# (the gate-9 case), which mwccarm accepted and MSVC will not compile as C.
+# hostgen emits it as .cpp with the symbols wrapped back to C linkage.
+set(GATE32_SYMS func_ov102_0214b248 func_ov084_021298d0)
 set(GATE32_GEN "")
 foreach(sym IN LISTS GATE32_SYMS)
     if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")

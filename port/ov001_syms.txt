@@ -38,3 +38,9 @@ data_ov001_020aba60 data_ov001_020aba68 _ZN3OAM7NUMBERSE
 _ZN3OAM16SMALL_STAR_EMPTYE data_ov001_020abac8 _ZN3OAM10POWER_STARE
 _ZN3OAM4COINE data_ov001_020abae0 data_ov001_020abae8
 data_ov001_020abaf0 data_ov001_020abaf8
+# gate 32: the cap tier's own storage (CapEnemy, ov001's archive slots).
+data_ov001_020ad470
+data_ov001_020ad628
+data_ov001_020ad62c
+data_ov001_020ad630
+data_ov001_020ad634

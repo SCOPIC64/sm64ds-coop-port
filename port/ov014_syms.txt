@@ -1,0 +1,72 @@
+# The ov014 data gate 32 needs for the CHAIN_CHOMP and its CHAIN_CHOMP_FENCE.
+#
+# The gate-18 shape (see ov085_syms.txt for the long version): an ACTOR overlay
+# mounted PER SYMBOL with --pack, the overlay's WHOLE data span rather than a
+# hand-picked subset, the vtables left out because they are host arrays the
+# registry fills, and every *_SpawnInfo pinned to the record's real 0x1c.
+#
+# NO VTABLE HAS TO BE EXCLUDED BY ADDRESS, unlike ov100's. Checked rather than
+# assumed, the same way ov100's and ov102's were: every word in this overlay's
+# data whose +4 is Actor::BeforeInitResources (arm9 0x02011268) belongs to a
+# symbol that already carries a `_ZTV*` name, so the generator's own rule
+# catches all of them.
+#
+# CHAIN_CHOMP is 219 and CHAIN_CHOMP_FENCE is 41, both read back out of their
+# own SpawnInfo's +4 halfword. The third class in this overlay is SHUTTER_BOB
+# (40), Bob-omb Battlefield's own shutter, which is not part of this gate.
+data_ov014_02113380:0x4 data_ov014_02113384:0x4 data_ov014_02113388:0x8
+data_ov014_02113390:0x8 data_ov014_02113398:0x8 data_ov014_021133a0:0x8
+data_ov014_021133a8:0x8 data_ov014_021133b0:0xc data_ov014_021133bc:0x10
+data_ov014_021133cc:0x10 data_ov014_021133dc:0x10 data_ov014_021133ec:0x18
+data_ov014_02113404:0x18 data_ov014_0211341c:0x18 data_ov014_02113434:0x1c
+data_ov014_02113450:0x20 data_ov014_02113470:0x20 data_ov014_02113490:0x38
+data_ov014_021134c8:0x40 data_ov014_02113508:0x10 data_ov014_02113518:0x1c
+data_ov014_02113534:0x1c data_ov014_02113550:0x4 data_ov014_02113554:0x7c
+data_ov014_021135d0:0x4 data_ov014_021135d4:0x20 data_ov014_021135f4:0x7c
+data_ov014_02113670:0x64 data_ov014_021136d4:0x20 data_ov014_021136f4:0x1c
+data_ov014_02113710:0x2c data_ov014_0211373c:0x74 data_ov014_021137b0:0x34
+data_ov014_021137e4:0x14 data_ov014_021137f8:0x8 data_ov014_02113800:0x4
+data_ov014_02113804:0x1c data_ov014_02113820:0xc data_ov014_0211382c:0x34
+data_ov014_02113860:0x48 data_ov014_021138a8:0x14 data_ov014_021138bc:0x8
+data_ov014_021138c4:0x14 data_ov014_021138d8:0x18 data_ov014_021138f0:0xc
+data_ov014_021138fc:0x14 data_ov014_02113910:0x24 data_ov014_02113934:0x4c
+data_ov014_02113980:0x18 data_ov014_02113998:0x18 data_ov014_021139b0:0x20
+data_ov014_021139d0:0x24 data_ov014_021139f4:0xc data_ov014_02113a00:0x50
+data_ov014_02113a50:0x24 data_ov014_02113a74:0x2c data_ov014_02113aa0:0x10
+data_ov014_02113ab0:0xc data_ov014_02113abc:0x54 data_ov014_02113b10:0x1c
+data_ov014_02113b2c:0x24 data_ov014_02113b50:0x2c data_ov014_02113b7c:0x4
+data_ov014_02113b80:0x10 data_ov014_02113b90:0x48 data_ov014_02113bd8:0x30
+data_ov014_02113c08:0xc data_ov014_02113c14:0xc data_ov014_02113c20:0x8
+data_ov014_02113c28:0x20 data_ov014_02113c48:0x84 data_ov014_02113ccc:0x8
+data_ov014_02113cd4:0x18 data_ov014_02113cec:0x8 data_ov014_02113cf4:0x14
+data_ov014_02113d08:0x28 data_ov014_02113d30:0x60 data_ov014_02113d90:0x18
+data_ov014_02113da8:0x1c data_ov014_02113dc4:0x3c data_ov014_02113e00:0x50
+data_ov014_02113e50:0x1c data_ov014_02113e6c:0x1c data_ov014_02113e88:0x98
+data_ov014_02113f20:0x2c data_ov014_02113f4c:0x2c data_ov014_02113f78:0x50
+data_ov014_02113fc8:0x2c data_ov014_02113ff4:0x1c data_ov014_02114010:0xa8
+data_ov014_021140b8:0x34 data_ov014_021140ec:0xc data_ov014_021140f8:0x10
+data_ov014_02114108:0x74 data_ov014_0211417c:0x50 data_ov014_021141cc:0xd4
+data_ov014_021142a0:0x9c data_ov014_0211433c:0x14 data_ov014_02114350:0x30
+data_ov014_02114380:0x7c data_ov014_021143fc:0x5c data_ov014_02114458:0x40
+data_ov014_02114498:0xb4 data_ov014_0211454c:0xc data_ov014_02114558:0x10
+data_ov014_02114568:0x10 data_ov014_02114578:0x20 data_ov014_02114598:0x20
+data_ov014_021145b8:0xc data_ov014_021145c4:0xc data_ov014_021145d0:0x14
+ShutterBob_SpawnInfo:0x1c data_ov014_0211462c:0x5c data_ov014_02114688:0x8
+data_ov014_02114690:0x8 data_ov014_02114698:0x8 data_ov014_021146a0:0x8
+data_ov014_021146a8:0x8 data_ov014_021146b0:0x8 data_ov014_021146b8:0x8
+data_ov014_021146c0:0x8 data_ov014_021146c8:0x8 data_ov014_021146d0:0x8
+data_ov014_021146d8:0x8 data_ov014_021146e0:0x8 data_ov014_021146e8:0x8
+data_ov014_021146f0:0x8 data_ov014_021146f8:0x8 data_ov014_02114700:0xc
+data_ov014_0211470c:0xc data_ov014_02114718:0xc data_ov014_02114724:0xc
+data_ov014_02114730:0x10 data_ov014_02114740:0x10 ChainChomp_SpawnInfo:0x1c
+data_ov014_02114768:0x4 data_ov014_0211476c:0x58 data_ov014_021147c4:0x28
+data_ov014_02114824:0x3c data_ov014_02114860:0x8 data_ov014_02114868:0xc
+data_ov014_02114874:0x8 data_ov014_0211487c:0x10
+ChainChompFence_SpawnInfo:0x1c data_ov014_02114898:0x18
+data_ov014_021148b4:0x4 data_ov014_021148b8:0x28 data_ov014_021148e0:0x10
+data_ov014_021148f0:0x50 data_ov014_02114940:0x8 data_ov014_02114948:0x8
+data_ov014_02114950:0xc data_ov014_0211495c:0xc data_ov014_02114968:0x8
+data_ov014_02114970:0x8 data_ov014_02114978:0x8 data_ov014_02114980:0x8
+data_ov014_02114988:0xc data_ov014_02114994:0xc data_ov014_021149a0:0xc
+data_ov014_021149ac:0xc data_ov014_021149b8:0x8 data_ov014_021149c0:0x8
+data_ov014_021149c8:0xc data_ov014_021149d4:0xc

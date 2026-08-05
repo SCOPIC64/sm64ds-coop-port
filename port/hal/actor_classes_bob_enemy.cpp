@@ -252,3 +252,165 @@ extern "C" {
 int _ZN6BobOmb13InitResourcesEv(void *self)
 { return ((BobOmb *)self)->BobOmb::InitResources(); }
 }
+
+// ============================================================================
+// GOOMBA (actor 200, ov084)
+// ============================================================================
+//
+// _ZTV6Goomba / _ZTV7daKrb_c, ov084 0x02130948 (RTTI: daKrb_c -- kuribo is the
+// goomba). One class body serves three actor ids: 200 is the ordinary one, 201
+// the small one and 202 the large one, and InitResources reads which out of the
+// object record's param into mGoombaType at +0x460.
+//
+// It overrides three of Actor's own tail slots as well as the usual six:
+// 18 (OnYoshiTryEat -- Yoshi can swallow one), 19 (OnTurnIntoEgg) and 29
+// (OnAimedAtWithEgg).
+//
+// Object layout, from its own factory: MovingCylinderClsn at 0x180,
+// WithMeshClsn at 0x1b4, ModelAnim at 0x370, ShadowModel at 0x3d4,
+// MaterialChanger at 0x3fc.
+extern "C" {
+int _ZN6Goomba13InitResourcesEv(char *self);        /* C-named in its own TU */
+int _ZN6Goomba8BehaviorEv(void *self);              /* face: below */
+int _ZN6Goomba6RenderEv(void *self);                /* host copy */
+int _ZN6Goomba16CleanupResourcesEv(void *self);     /* face: below */
+void _ZN6Goomba16OnPendingDestroyEv(void);
+int *_ZN6GoombaD1Ev(int *self);
+int *_ZN6GoombaD0Ev(int *self);
+int func_ov084_0212bfc0(void *self);                /* slot 18, its own */
+void func_ov084_0212b344(void *self, void *player); /* slot 19, its own */
+int func_ov084_0212b30c(void *self);                /* slot 29, its own */
+void *_ZTV6Goomba[31];
+}
+/* The goomba's own D0 spells its table by the RTTI name. */
+#pragma comment(linker, "/alternatename:__ZTV7daKrb_c=__ZTV6Goomba")
+
+static int __fastcall gmb_init(void *s, void *)
+{ return _ZN6Goomba13InitResourcesEv((char *)s); }
+static int __fastcall gmb_clean(void *s, void *)
+{ return _ZN6Goomba16CleanupResourcesEv(s); }
+static int __fastcall gmb_behavior(void *s, void *)
+{ return _ZN6Goomba8BehaviorEv(s); }
+static int __fastcall gmb_render(void *s, void *)
+{ port_actor_render_probe("GOOMBA", (char *)s + 0x370);
+  return _ZN6Goomba6RenderEv(s); }
+static int __fastcall gmb_pdes(void *, void *)
+{ _ZN6Goomba16OnPendingDestroyEv(); return 0; }
+/* SLOT 16 IS LIVE: a squashed goomba marks itself for destruction and the
+   cleanup pass dispatches D1 the next frame. */
+static int __fastcall gmb_d1(void *s, void *)
+{ return (int)(size_t)_ZN6GoombaD1Ev((int *)s); }
+static int __fastcall gmb_d0(void *s, void *)
+{ return (int)(size_t)_ZN6GoombaD0Ev((int *)s); }
+static int __fastcall gmb_yoshi(void *s, void *)
+{ return func_ov084_0212bfc0(s); }
+static int __fastcall gmb_egg(void *s, void *, void *p)
+{ func_ov084_0212b344(s, p); return 0; }
+static int __fastcall gmb_aimed(void *s, void *)
+{ return func_ov084_0212b30c(s); }
+
+extern "C" void port_goomba_states_seat(void);          /* port/unmatched */
+
+extern "C" void hal_fill_goomba_vtable(void)
+{
+    void **vt = _ZTV6Goomba;
+    port_goomba_states_seat();
+    port_enemy_death_states_seat();
+    ac31_fill_shared(vt);
+    vt[0] = (void *)gmb_init;
+    vt[3] = (void *)gmb_clean;
+    vt[6] = (void *)gmb_behavior;
+    vt[9] = (void *)gmb_render;
+    vt[12] = (void *)gmb_pdes;
+    vt[16] = (void *)gmb_d1;
+    vt[17] = (void *)gmb_d0;
+    vt[18] = (void *)gmb_yoshi;
+    vt[19] = (void *)gmb_egg;
+    vt[29] = (void *)gmb_aimed;
+}
+
+// ============================================================================
+// BOB_OMB_BUDDY (actor 181, ov084)
+// ============================================================================
+//
+// _ZTV11BobOmbBuddy / _ZTV14daRedBombhei_c, ov084 0x02130a38 -- the red
+// bomb-hei, which is the pink buddy that opens the cannons. It overrides
+// nothing past slot 17: the whole class is six slots and a three-state
+// machine.
+//
+// Its Behavior is short because the machine is the class: change state through
+// func_ov084_0212c960, run the current one through func_ov084_0212c9a8, both
+// host copies for the pointer-to-member reason
+// (port/unmatched/BobOmbBuddy_States.cpp).
+extern "C" {
+int _ZN11BobOmbBuddy13InitResourcesEv(void *self);     /* face: below */
+int _ZN11BobOmbBuddy8BehaviorEv(void *self);           /* face: below */
+int _ZN11BobOmbBuddy6RenderEv(void *self);             /* host copy */
+int _ZN11BobOmbBuddy16CleanupResourcesEv(void);        /* two file releases */
+int *_ZN11BobOmbBuddyD0Ev(int *self);
+/* the three member teardowns the hosted D1 runs, plus Actor's D2 */
+void _ZN11ShadowModelD1Ev(void *);
+void _ZN9ModelAnimD1Ev(void *);
+void _ZN18MovingCylinderClsnD1Ev(void *);
+void *_ZN5ActorD2Ev(void *);
+void *_ZTV11BobOmbBuddy[31];
+}
+#pragma comment(linker, "/alternatename:__ZTV14daRedBombhei_c=__ZTV11BobOmbBuddy")
+
+static int __fastcall bbud_init(void *s, void *)
+{ return _ZN11BobOmbBuddy13InitResourcesEv(s); }
+static int __fastcall bbud_clean(void *, void *)
+{ return _ZN11BobOmbBuddy16CleanupResourcesEv(); }
+static int __fastcall bbud_behavior(void *s, void *)
+{ return _ZN11BobOmbBuddy8BehaviorEv(s); }
+static int __fastcall bbud_render(void *s, void *)
+{ port_actor_render_probe("BOB_OMB_BUDDY", (char *)s + 0x108);
+  return _ZN11BobOmbBuddy6RenderEv(s); }
+/* SLOT 16 IS HOSTED rather than taken from src. src/_ZN11BobOmbBuddyD1Ev.cpp
+   is a REAL C++ DESTRUCTOR -- `BobOmbBuddy::~BobOmbBuddy() {}` over a shadow
+   class with three members -- so MSVC emits ??1BobOmbBuddy@@UAE@XZ and calls
+   ??1ModelAnim@@QAE@XZ and two more that exist nowhere in this build. The body
+   below is src/_ZN11BobOmbBuddyD0Ev.c minus its final Memory::Deallocate,
+   which ActorBase::AfterCleanupResources performs itself after the dispatch
+   returns -- the Bird's treatment. */
+static int __fastcall bbud_d1(void *s, void *)
+{
+    *(int *)s = (int)(size_t)_ZTV11BobOmbBuddy;
+    _ZN11ShadowModelD1Ev((char *)s + 0x16c);
+    _ZN9ModelAnimD1Ev((char *)s + 0x108);
+    _ZN18MovingCylinderClsnD1Ev((char *)s + 0xd4);
+    _ZN5ActorD2Ev(s);
+    return (int)(size_t)s;
+}
+static int __fastcall bbud_d0(void *s, void *)
+{ return (int)(size_t)_ZN11BobOmbBuddyD0Ev((int *)s); }
+
+extern "C" void port_bob_omb_buddy_states_seat(void);   /* port/unmatched */
+
+extern "C" void hal_fill_bob_omb_buddy_vtable(void)
+{
+    void **vt = _ZTV11BobOmbBuddy;
+    port_bob_omb_buddy_states_seat();
+    port_enemy_death_states_seat();
+    ac31_fill_shared(vt);
+    vt[0] = (void *)bbud_init;
+    vt[3] = (void *)bbud_clean;
+    vt[6] = (void *)bbud_behavior;
+    vt[9] = (void *)bbud_render;
+    vt[16] = (void *)bbud_d1;
+    vt[17] = (void *)bbud_d0;
+}
+
+/* ---- ov084's method faces ------------------------------------------------- */
+#include "Goomba.h"
+#include "BobOmbBuddy.h"
+extern "C" {
+int _ZN6Goomba8BehaviorEv(void *self)
+{ return ((Goomba *)self)->Goomba::Behavior(); }
+int _ZN6Goomba16CleanupResourcesEv(void *self)
+{ return ((Goomba *)self)->Goomba::CleanupResources(); }
+int _ZN11BobOmbBuddy13InitResourcesEv(void *self)
+{ return ((BobOmbBuddy *)self)->BobOmbBuddy::InitResources(); }
+int _ZN11BobOmbBuddy8BehaviorEv(void *self)
+{ return ((BobOmbBuddy *)self)->BobOmbBuddy::Behavior(); }
+}

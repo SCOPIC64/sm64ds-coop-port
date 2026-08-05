@@ -29,6 +29,13 @@
  * addresses wherever the ROM propagates DS ones. This is the Rabbit's
  * treatment (hal/actor_overlays.cpp) applied to ov002.
  *
+ * ---- and the SECOND table -------------------------------------------------
+ *
+ * func_ov002_020aea30 is the same shape one table along: it dispatches
+ * data_ov002_0210db80[deathType - 1] with two int arguments, and that is the
+ * ENTER-DEATH half where 0210dbc0 is the per-frame half. Same sinit, same
+ * incomplete-class typedef, same treatment. Its eight bodies are matched too.
+ *
  * DEATH TYPE, one line each, in the order the table stores them:
  *   1  020ae64c  shrink while the timer runs, then the shared tail
  *   2  020ae608  wait for the ground, spawn the coin, kill and track
@@ -55,6 +62,21 @@ extern PortEnemyPmf data_ov002_021081b0[], data_ov002_021081a8[],
     data_ov002_02108148[], data_ov002_02108198[], data_ov002_02108190[],
     data_ov002_02108188[], data_ov002_02108180[], data_ov002_02108178[];
 extern PortEnemyPmf data_ov002_0210dbc0[];
+
+/* ...and the enter-death table's eight statics and its own bss copy */
+extern PortEnemyPmf data_ov002_021081b8[], data_ov002_02108150[],
+    data_ov002_02108168[], data_ov002_02108160[], data_ov002_02108158[],
+    data_ov002_02108170[], data_ov002_02108140[], data_ov002_021081a0[];
+extern PortEnemyPmf data_ov002_0210db80[];
+
+void func_ov002_020ae9f8(void *self, int a, int b);
+void func_ov002_020ae954(void *self, int a, int b);
+void func_ov002_020ae890(void *self, int a, int b);
+void func_ov002_020ae87c(void *self, int a, int b);
+void func_ov002_020ae844(void *self, int a, int b);
+void func_ov002_020ae80c(void *self, int a, int b);
+void func_ov002_020ae73c(void *self, int a, int b);
+void func_ov002_020aea2c(void *self, int a, int b);
 
 int func_ov002_020ae64c(void *self, void *clsn);
 int func_ov002_020ae608(void *self, void *clsn);
@@ -100,6 +122,20 @@ static void port_enemy_death_seat_one(PortEnemyPmf *p, unsigned rom,
     p->fn = (unsigned)(size_t)host;
 }
 
+typedef void (*PortEnemyEnterFn)(void *, int, int);
+
+static const struct { PortEnemyPmf *slot; unsigned rom; PortEnemyEnterFn host; }
+g_enemy_enter[] = {
+    {data_ov002_021081b8, 0x020ae9f8, func_ov002_020ae9f8},
+    {data_ov002_02108150, 0x020ae954, func_ov002_020ae954},
+    {data_ov002_02108168, 0x020ae890, func_ov002_020ae890},
+    {data_ov002_02108160, 0x020ae87c, func_ov002_020ae87c},
+    {data_ov002_02108158, 0x020ae844, func_ov002_020ae844},
+    {data_ov002_02108170, 0x020ae80c, func_ov002_020ae80c},
+    {data_ov002_02108140, 0x020ae73c, func_ov002_020ae73c},
+    {data_ov002_021081a0, 0x020aea2c, func_ov002_020aea2c},
+};
+
 extern "C" void port_enemy_death_states_seat(void)
 {
     static int done;
@@ -112,7 +148,38 @@ extern "C" void port_enemy_death_states_seat(void)
                                   g_enemy_death[i].host, "static", i);
         port_enemy_death_seat_one(&data_ov002_0210dbc0[i], g_enemy_death[i].rom,
                                   g_enemy_death[i].host, "table", i);
+        port_enemy_death_seat_one(g_enemy_enter[i].slot, g_enemy_enter[i].rom,
+                                  (PortEnemyDeathFn)g_enemy_enter[i].host,
+                                  "enter static", i);
+        port_enemy_death_seat_one(&data_ov002_0210db80[i], g_enemy_enter[i].rom,
+                                  (PortEnemyDeathFn)g_enemy_enter[i].host,
+                                  "enter table", i);
     }
+}
+
+/* HOST COPY of src/func_ov002_020aea30.c -- the enter-death dispatch. Its own
+   TU spells the table `void (C::*)(int, int)` with C incomplete, the same
+   quadrupled stride. Its callers spell it without the overlay tag. */
+extern "C" void func_ov002_020aea30(void *thiz, int a, int b)
+{
+    char *c = (char *)thiz;
+    int type = *(int *)(c + 0x10c);
+    if (type == 0)
+        return;
+    *(unsigned *)(c + 0xb0) &= ~0x10000000u;
+    *(short *)(c + 0x102) = 0;
+    {
+        const PortEnemyPmf *m = &data_ov002_0210db80[type - 1];
+        if (m->fn & 1) {
+            std::fprintf(stderr, "FATAL: Enemy enter-death type %d is a "
+                         "VIRTUAL member pointer (%08x/%d)\n", type, m->fn,
+                         m->delta);
+            std::abort();
+        }
+        ((PortEnemyEnterFn)(size_t)m->fn)(c + m->delta, a, b);
+    }
+    *(int *)(c + 0x9c) = -0x2000;
+    *(unsigned *)(c + 0xb0) &= ~0x10000000u;
 }
 
 extern "C" int _ZN5Enemy11UpdateDeathER12WithMeshClsn(void *thiz, void *clsn)

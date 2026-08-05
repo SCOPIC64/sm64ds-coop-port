@@ -61,3 +61,7 @@ _ZN7Minimap9spawnDataE _ZN3OAM15MM_PLAYER_ICONSE _ZN3OAM15MM_STAR_MARKERSE _ZN3O
 # gate 32: the two-entry coin-id table Enemy::SpawnCoin indexes by its own
 # +0x108 death-drop type. Not reached by any class before an enemy could die.
 data_ov002_020ff014
+# gate 32: the cap tier's own storage (CapEnemy, ov001's archive slots).
+data_ov002_02108284
+data_ov002_020ff028
+data_ov002_020ff01c

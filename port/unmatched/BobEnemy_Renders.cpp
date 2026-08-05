@@ -38,4 +38,56 @@ int _ZN6BobOmb6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- GOOMBA (actor 200, ov084) -------------------------------------------
+   Two early outs -- the engine hide at flag 0x40000 and the class's own
+   +0x111 -- then the draw, and the draw is bracketed by a SCALE SWAP: while
+   the goomba is in death type 1 (the squash) its three scale words are
+   multiplied by the per-size factor in data_ov084_02130258 for the duration of
+   one Render and put straight back. The ModelAnim is at +0x370 and takes the
+   actor's scale Vector3 at +0x80.
+
+   `backup` is volatile in the matched source and stays volatile here: it is
+   what stops the compiler from folding the restore into the multiply. */
+extern "C" int data_ov084_02130258[];
+extern "C" void _ZN15MaterialChanger6UpdateER15ModelComponents(char *self,
+                                                               void *model);
+extern "C" void _ZN8CapEnemy14RenderCapModelEPK7Vector3(void *self,
+                                                        const void *v);
+
+int _ZN6Goomba6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    int *scale = (int *)(c + 0x80);
+    volatile int backup[3];
+    if ((*(int *)(c + 0xb0) & 0x40000) != 0 || *(unsigned char *)(c + 0x111))
+        return 1;
+    backup[0] = scale[0];
+    backup[1] = scale[1];
+    backup[2] = scale[2];
+    if (*(int *)(c + 0x10c) == 1) {
+        int k = data_ov084_02130258[*(int *)(c + 0x460)];
+        for (int i = 0; i < 3; ++i)
+            scale[i] = (int)((((long long)scale[i] * k) + 0x800) >> 12);
+    }
+    /* ((Sub *)&mModelAnim)->m5(&mScaleX) */
+    ((ModelAnim *)(c + 0x370))->ModelAnim::Render((const Vector3 *)scale);
+    scale[0] = backup[0];
+    scale[1] = backup[1];
+    scale[2] = backup[2];
+    _ZN15MaterialChanger6UpdateER15ModelComponents(c + 0x3fc, c + 0x378);
+    _ZN8CapEnemy14RenderCapModelEPK7Vector3(c, 0);
+    return 1;
+}
+
+/* ---- BOB_OMB_BUDDY (actor 181, ov084) ------------------------------------
+   The whole body is one dispatch. Its ModelAnim is at +0x108 and it draws at
+   1.0 rather than at the actor's scale. */
+int _ZN11BobOmbBuddy6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    /* ((Base *)&mModelAnim)->m(0) */
+    ((ModelAnim *)(c + 0x108))->ModelAnim::Render(0);
+    return 1;
+}
+
 }  /* extern "C" */

@@ -111,6 +111,20 @@ void __sinit_ov102_0214d908(void);
 void __sinit_ov102_0214de70(void);
 void __sinit_ov102_0214dfac(void);
 
+/* ---- gate 32: ov084, the first ENEMY overlay -----------------------------
+   GOOMBA (and its small and large ids) and BOB_OMB_BUDDY, plus the four
+   piranha classes other levels name. Its three sinits construct every
+   SharedFilePtr the two classes load through and build two state tables: the
+   goomba's nine-entry one at data_ov084_02130e80 and the buddy's three-state
+   one at data_ov084_02130dc4. Only the buddy's is dispatched as a
+   pointer-to-member, so only its six statics are seated
+   (port/unmatched/BobOmbBuddy_States.cpp). */
+void port_ov084_pack_check(void);
+void port_ov084_syms_patch(void);
+void __sinit_ov084_0213035c(void);
+void __sinit_ov084_02130558(void);
+void __sinit_ov084_02130654(void);
+
 /* the fish's seven {function, delta} statics, seated the same way -- its own
    Behavior is a host copy for the PMF reason, so both live in
    port/unmatched/Fish_Behavior.cpp */
@@ -332,4 +346,10 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov102_0214d908();
     __sinit_ov102_0214de70();
     __sinit_ov102_0214dfac();
+
+    port_ov084_pack_check();
+    port_ov084_syms_patch();
+    __sinit_ov084_0213035c();
+    __sinit_ov084_02130558();
+    __sinit_ov084_02130654();
 }
