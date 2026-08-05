@@ -2385,6 +2385,18 @@ int main(void)
             if (selftest && getenv("SM64DS_SELFTEST_PUNCH") &&
                 frame >= 40 && frame <= 42)
                 btn |= 1;
+            /* TONGUE probe: the Yoshi ground-tongue repro. B (punch, bit 1) is
+               the tongue for Yoshi, but the BoB entrance keeps him in
+               St_LevelEnter until roughly frame 195, so a punch has to wait for
+               him to be walking. Press an edge every 40 frames from f210: three
+               frames held so the edge is not missed, long enough between that
+               St_YoshiPower runs to completion and drops back to walk before the
+               next one. Drive it as Yoshi (SM64DS_CHARACTER=3) in BoB
+               (SM64DS_LEVEL=6) with SM64DS_TRACE_STATE=2 to read the tongue
+               state chain 0x020d7ed0 (Init) / 0x020d7504 (Main). */
+            if (selftest && getenv("SM64DS_SELFTEST_TONGUE") &&
+                frame >= 210 && ((frame - 210) % 40) < 3)
+                btn |= 1;
             /* JUMPSPAM probe: the frame-hitch repro. A press edge every
                <period> frames from f20, three frames held so the edge is not
                missed. The default period of 40 is long enough that he lands

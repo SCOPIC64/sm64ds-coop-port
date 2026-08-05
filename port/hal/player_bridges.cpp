@@ -16,6 +16,11 @@
 #include "Heap.h"
 #include "ModelAnim.h"
 
+/* the geometry-engine polygon buffer, for the tongue render self-check
+   (SM64DS_TONGUE_PROBE); same forward decl cxxname_bridge.cpp uses so the
+   header's wider surface does not have to come in here */
+namespace ntr { struct GxTriangle; const GxTriangle *gx_polygons(std::size_t &n); }
+
 /* how many times hal_call_state_fn fell off the end of its switch this run --
    read by the F3 overlay in port/tests/walk_window.cpp */
 extern "C" unsigned g_port_unhosted_hits = 0;
@@ -222,6 +227,44 @@ void hal_render_player_world(void *player)
                 m43_mul((const int *)neck, scene, (int *)(head + 0x1c));
             ((void(__fastcall *)(void *, void *, const void *))(
                 ((void ***)head)[0][4]))(head, 0, 0);
+        }
+    }
+
+    /* YOSHI'S TONGUE. The tongue is a SEPARATE ModelAnim at Player +0x160, not
+       part of the body. St_YoshiPower drives it (func_ov002_020d71ec and case 5
+       SetAnim it directly), but the port's render path drew only the body at
+       +0xdc and the head at +0x154, so the tongue never appeared on screen --
+       the animation and the particle were both there, but the model that IS the
+       tongue was never handed to the geometry engine. The ROM's own Player
+       render walks the model's own components; here it is seated in the same
+       scene-space frame as the body (the tongue's BCA carries the extension off
+       the mouth) and rendered through its ModelAnim vtable.
+         The tongue model is only populated while Yoshi is mid-tongue, so this is
+       null every other frame and skipped. SM64DS_TONGUE_PROBE=1 reports the
+       first frame it is non-null, which is how the wiring was confirmed. */
+    {
+        ModelAnim *tongue = *(ModelAnim **)(c + 0x160);
+        static int probe = -1;
+        if (probe < 0) probe = std::getenv("SM64DS_TONGUE_PROBE") ? 1 : 0;
+        if (tongue) {
+            for (int i = 0; i < 12; ++i) ((int *)&tongue->mat4x3)[i] = scene[i];
+            tongue->ModelAnim::UpdateVerts();
+            if (probe) {
+                std::size_t n0 = 0, n1 = 0;
+                ntr::gx_polygons(n0);
+                tongue->ModelAnim::Render(0);
+                ntr::gx_polygons(n1);
+                static int said;
+                if (!said && n1 > n0) {
+                    said = 1;
+                    std::fprintf(stderr, "[tongue] +0x160 model=%p step=%u -- "
+                                 "tongue render emitted %d polygons\n",
+                                 (void *)tongue, *(unsigned char *)(c + 0x6e3),
+                                 (int)(n1 - n0));
+                }
+            } else {
+                tongue->ModelAnim::Render(0);
+            }
         }
     }
 }
