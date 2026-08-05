@@ -40,8 +40,9 @@ extern "C" int _ZN5Actor14GetSubtractionEss(void *self, short a, short b)
 #include "Model.h"
 #include "BlendModelAnim.h"
 extern "C" {
-void _ZN5Model6RenderEPK7Vector3(void *self, const void *scale)
-{ ((Model *)self)->Model::Render((const Vector3 *)scale); }
+/* Model::Render is faced in hal/actor_faces_bob.cpp, which gate 33 reached
+   first through the CAP. Both gates wrote the same face and the two
+   collided at link; this one keeps the reference only. */
 void _ZN14BlendModelAnim7AdvanceEv(void *self)
 { ((BlendModelAnim *)self)->BlendModelAnim::Advance(); }
 int _ZN6Player12Unk_020c6a10Ej(void *self, unsigned a)

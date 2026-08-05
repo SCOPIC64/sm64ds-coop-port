@@ -231,10 +231,10 @@ void _ZN12WithMeshClsn22ClearJustHitGroundFlagEv(void *self)
 #pragma comment(linker, "/alternatename:?data_0209f2d8@@3HA=_data_0209f2d8_c")
 
 extern "C" {
-/* data_0208a0e0 is arm9 .data and its ROM byte is 1: the number of live
-   player slots func_02005e28 walks when the character is mega. The port runs
-   one local player, which is the same number. */
-unsigned char data_0208a0e0 = 1;
+/* data_0208a0e0 (the live player-slot count func_02005e28 walks when the
+   character is mega) is arm9 .data and comes from romdata.py, which emits
+   the ROM's own byte. This gate defined it by hand as well and the two
+   collided at link; the ROM copy is the one that cannot drift. */
 
 /* the goomba's own "has this actor been counted" bss word */
 unsigned char data_0209f344[8];

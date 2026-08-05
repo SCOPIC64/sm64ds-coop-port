@@ -330,6 +330,10 @@ add_executable(smoke_modelanim tests/smoke_modelanim.cpp
     hal/blend_vtable.cpp hal/cstd_div.c
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE24_SOURCES} ${GATE4A_GEN} ${GATE4B_GEN}
+    # BlendModelAnim::D0 calls func_0203cbc0, whose src form is an ARM r0
+    # ride-through. The host copy that replaces it defines func_02073244
+    # beside it and otherwise only reaches targets through gate 31.
+    "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/func_02073244.c"
     "${ROMDATA_C}")
 target_include_directories(smoke_modelanim PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
