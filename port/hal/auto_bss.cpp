@@ -101,11 +101,6 @@ int data_0209e650[8];
 int data_0209f37c[8];
 int data_0209f40c[8];
 int data_0209f224[8];
-/* gate 35: the id of the star just collected. Its own storage rather than a
-   read into data_0209f224's generous default -- on the DS these are two
-   adjacent one-byte symbols, and only the port's padding makes the second
-   look like it is already covered by the first. */
-int data_0209f228[8];
 int data_0209b274[8];
 int data_0209b294[8];
 /* data_0209f5bc (the installed fader) moved to hal/fader_wipes.cpp: the
@@ -209,7 +204,15 @@ unsigned char data_ov002_02111180[4];
 int data_0209f320;
 /* gate 31: StartFile's last global before the scene fade. kind:bss in config,
    so zero is the boot value; the port's boot never set it because nothing
-   called StartFile. */
+   called StartFile.
+
+   Gate 35 also wants this one, as the id of the star just collected, and
+   declared it int[8] in its own branch. FOUR BYTES IS THE RIGHT SIZE: config
+   puts data_0209f22c at 0x0209f22c, so the extent is 4, and 32 would have
+   covered seven adjacent symbols. star_flow.cpp reads it as a single
+   `extern unsigned char`, which this serves. Same shape as the data_020a0e68
+   stomp: when two streams want one symbol, the symbol table decides, not
+   whichever declaration is more generous. */
 unsigned char data_0209f228[4];
 /* gate 31: the two SetNumPlayers seats beside data_0209fc5c, which is already
    above -- the player count and the per-slot controller index. kind:bss. */
