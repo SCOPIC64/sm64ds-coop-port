@@ -1,0 +1,254 @@
+// GATE 32: the vtables of Bob-omb Battlefield's living cast.
+//
+// Same law as hal/actor_classes.cpp -- ROM slot order, __fastcall thunks that
+// call QUALIFIED, unhosted slots trap by name -- with one thing every class
+// here has that no class before it did.
+//
+// ---- THIRTY-ONE SLOTS ------------------------------------------------------
+//
+// These are Actor subclasses through Enemy, and Actor appends thirteen
+// virtuals of its own past the eighteen ActorBase declares. The tables in the
+// ROM are 0x7c bytes, not 0x50: read _ZTV6Goomba (ov084 0x02130948) or
+// _ZTV6BobOmb (ov102 0x0214e558) with their relocations applied and slot 20 is
+// Actor::Virtual50, 21..28 are the eight combat hooks, 29 is the class's own
+// OnAimedAtWithEgg and 30 is Actor::OnAimedAtWithEggReturnVec.
+//
+// Every class the port carried before declared `void *_ZTV<X>[20]`, which was
+// true of what those classes needed and is not true here: a Goomba is reached
+// through slot 21 the moment Mario ground-pounds one. So the arrays below are
+// [31] and ac31_fill_shared writes all of the shared ones.
+//
+// THE CALL SITES COUNT ROM SLOTS. ov002's combat paths (func_ov002_020b36b4
+// and its family) dispatch through LOCAL SHADOW CLASSES declaring thirty-one
+// virtuals, so the numbering these arrays are filled in is the numbering the
+// caller uses. The header-compiled direction is the one that would diverge --
+// MSVC spends one slot on the destructor where Itanium spends two, so its
+// OnYoshiTryEat is 17 where the ROM's is 18 -- and no TU in the port's build
+// dispatches an Actor virtual that way.
+//
+// SLOT 30 TRAPS ON EVERY CLASS HERE. Actor::OnAimedAtWithEggReturnVec returns
+// a Vector3 BY VALUE, and the ROM's ABI puts the sret pointer in r0 with
+// `this` in r1 while MSVC's __thiscall pushes sret on the stack behind ecx.
+// A thunk cannot bridge that without a shape the port has no caller for:
+// nothing aims a Yoshi egg at anything while the character is Mario.
+#include <cstdio>
+#include <cstdlib>
+
+#include "Actor.h"
+#include "ActorBase.h"
+
+extern "C" {
+/* the ten shared lifecycle halves, the same functions hal/actor_classes.cpp
+   writes into every class it carries */
+int _ZN5Actor19BeforeInitResourcesEv(void *self);          /* slot 1  */
+void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a); /* slot 2 */
+int _ZN5Actor14BeforeBehaviorEv(void *self);               /* slot 7  */
+int _ZN5Actor12BeforeRenderEv(void *self);                 /* slot 10 */
+int _ZN5Actor13OnYoshiTryEatEv(void *self);                /* slot 18 */
+/* ...and Actor's own tail, slots 20 through 28. Every one is a two-line ROM
+   body: Virtual50 answers VS_FAIL and the eight combat hooks do nothing, which
+   is what a class that does not care about being hit inherits. */
+int _ZN5Actor9Virtual50Ev(void *self);                     /* slot 20 */
+void _ZN5Actor15OnGroundPoundedERS_(void *self, void *o);  /* slot 21 */
+void _ZN5Actor11OnAttacked1ERS_(void *self, void *o);      /* slot 22 */
+void _ZN5Actor11OnAttacked2ERS_(void *self, void *o);      /* slot 23 */
+void _ZN5Actor8OnKickedERS_(void *self, void *o);          /* slot 24 */
+void _ZN5Actor8OnPushedERS_(void *self, void *o);          /* slot 25 */
+void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* 26 */
+void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* 27 */
+void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* 28 */
+
+extern int data_02099f24[];          /* the frame phase the lists are in */
+extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
+const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
+void port_actor_render_probe(const char *cls, void *model); /* actor_classes */
+}
+
+/* ---- the trap -------------------------------------------------------------
+   One report for every trapped slot on every class in this gate, saying which
+   slot fired on which actor in which phase -- the form hal/actor_classes.cpp
+   settled on after a woken Bird's destructor spent a session disguised as a
+   slot-13 dispatch. */
+static void e31_trap_report(void *self, int slot)
+{
+    unsigned id = self ? *(unsigned short *)((char *)self + 0xc) : 0u;
+    std::fprintf(stderr,
+                 "FATAL: vtable slot %d is not hosted (actor id %u %s, "
+                 "phase %d, spawn step %d)\n",
+                 slot, id, port_actor_class_name(id), data_02099f24[0],
+                 (int)data_020a4b4c);
+    std::abort();
+}
+#define E31_TRAP(n) \
+    static int __fastcall e31_trap##n(void *s, void *) \
+    { e31_trap_report(s, n); return 0; }
+E31_TRAP(13) E31_TRAP(14) E31_TRAP(16) E31_TRAP(17) E31_TRAP(19) E31_TRAP(30)
+#undef E31_TRAP
+
+static int __fastcall e31_binit(void *s, void *)
+{ return _ZN5Actor19BeforeInitResourcesEv(s); }
+static void __fastcall e31_ainit(void *s, void *, unsigned a)
+{ _ZN5Actor18AfterInitResourcesEj(s, a); }
+static int __fastcall e31_bclean(void *s, void *)
+{ return ((Actor *)s)->Actor::BeforeCleanupResources(); }
+/* Slots 5, 8 and 11 are ARM tail-call veneers on the ROM: two instructions
+   that drop into ActorBase's implementation with the argument still riding in
+   r1. A host forward through the veneer's own C face would lose it, so the
+   thunk calls the target directly. */
+static void __fastcall e31_aclean(void *s, void *, unsigned a)
+{ ((ActorBase *)s)->ActorBase::AfterCleanupResources(a); }
+static int __fastcall e31_bbeh(void *s, void *)
+{ return _ZN5Actor14BeforeBehaviorEv(s); }
+static void __fastcall e31_abeh(void *s, void *, unsigned a)
+{ ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+static int __fastcall e31_bren(void *s, void *)
+{ return _ZN5Actor12BeforeRenderEv(s); }
+static void __fastcall e31_aren(void *s, void *, unsigned a)
+{ ((ActorBase *)s)->ActorBase::AfterRender(a); }
+static int __fastcall e31_pdes(void *s, void *)
+{ ((ActorBase *)s)->ActorBase::OnPendingDestroy(); return 0; }
+static int __fastcall e31_heap(void *s, void *)
+{ return ((ActorBase *)s)->ActorBase::OnHeapCreated(); }
+static int __fastcall e31_yoshi(void *s, void *)
+{ return _ZN5Actor13OnYoshiTryEatEv(s); }
+static int __fastcall e31_v50(void *s, void *)
+{ return _ZN5Actor9Virtual50Ev(s); }
+static int __fastcall e31_pounded(void *s, void *, void *o)
+{ _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
+static int __fastcall e31_atk1(void *s, void *, void *o)
+{ _ZN5Actor11OnAttacked1ERS_(s, o); return 0; }
+static int __fastcall e31_atk2(void *s, void *, void *o)
+{ _ZN5Actor11OnAttacked2ERS_(s, o); return 0; }
+static int __fastcall e31_kicked(void *s, void *, void *o)
+{ _ZN5Actor8OnKickedERS_(s, o); return 0; }
+static int __fastcall e31_pushed(void *s, void *, void *o)
+{ _ZN5Actor8OnPushedERS_(s, o); return 0; }
+static int __fastcall e31_cannon(void *s, void *, void *o)
+{ _ZN5Actor24OnHitByCannonBlastedCharERS_(s, o); return 0; }
+static int __fastcall e31_mega(void *s, void *, void *p)
+{ _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
+static int __fastcall e31_under(void *s, void *, void *o)
+{ _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
+
+/* The shared half of a 31-slot table: Actor's four Before/After pairs,
+   ActorBase::OnHeapCreated, Actor::OnYoshiTryEat, Virtual50 and the eight
+   combat hooks, plus the traps. A caller writes its own 0/3/6/9/12/16/17 and
+   whichever of 18/19/29 it overrides. */
+static void ac31_fill_shared(void **vt)
+{
+    vt[1] = (void *)e31_binit;
+    vt[2] = (void *)e31_ainit;
+    vt[4] = (void *)e31_bclean;
+    vt[5] = (void *)e31_aclean;
+    vt[7] = (void *)e31_bbeh;
+    vt[8] = (void *)e31_abeh;
+    vt[10] = (void *)e31_bren;
+    vt[11] = (void *)e31_aren;
+    vt[12] = (void *)e31_pdes;
+    vt[13] = (void *)e31_trap13;
+    vt[14] = (void *)e31_trap14;
+    vt[15] = (void *)e31_heap;
+    vt[16] = (void *)e31_trap16;
+    vt[17] = (void *)e31_trap17;
+    vt[18] = (void *)e31_yoshi;
+    vt[19] = (void *)e31_trap19;
+    vt[20] = (void *)e31_v50;
+    vt[21] = (void *)e31_pounded;
+    vt[22] = (void *)e31_atk1;
+    vt[23] = (void *)e31_atk2;
+    vt[24] = (void *)e31_kicked;
+    vt[25] = (void *)e31_pushed;
+    vt[26] = (void *)e31_cannon;
+    vt[27] = (void *)e31_mega;
+    vt[28] = (void *)e31_under;
+    vt[29] = (void *)e31_trap19;   /* overwritten by every class here */
+    vt[30] = (void *)e31_trap30;
+}
+
+// ============================================================================
+// BOB_OMB (actor 206, ov102)
+// ============================================================================
+//
+// _ZTV6BobOmb / _ZTV7daBmb_c, ov102 0x0214e558. The walking black bomb, and
+// the PINK ONE IS THE SAME CLASS: InitResources reads `param1 & 7` into +0x3f5
+// and branches on it, type 2 clearing the solid-collision bit and starting
+// inert. The friendly pink character is BOB_OMB_BUDDY, a different class in
+// ov084 entirely.
+//
+// Its SpawnInfo is already in port/ov102_syms.txt (gate 23 mounted the overlay
+// for the QUESTION_BLOCK) and its own +4 halfword reads 206, which is the
+// registry's cross-check.
+//
+// Object layout, from its own factory: MovingCylinderClsn at 0x110,
+// WithMeshClsn at 0x144, ModelAnim at 0x300, ShadowModel at 0x364, 1024 bytes.
+extern "C" {
+int _ZN6BobOmb13InitResourcesEv(void *self);       /* face: below */
+int _ZN6BobOmb8BehaviorEv(char *self);
+int _ZN6BobOmb6RenderEv(void *self);               /* host copy */
+int _ZN6BobOmb16CleanupResourcesEv(void);          /* three file releases */
+int *_ZN6BobOmbD1Ev(int *self);
+int *_ZN6BobOmbD0Ev(int *self);
+int func_ov102_0214c6e4(unsigned char *self);      /* slot 18, its own */
+void func_ov102_0214adc8(void *self, void *player); /* slot 19, its own */
+int func_ov102_0214aa10(void);                     /* slot 29, its own */
+void *_ZTV6BobOmb[31];
+}
+/* The bomb's own D0 spells its table by the RTTI name. */
+#pragma comment(linker, "/alternatename:__ZTV7daBmb_c=__ZTV6BobOmb")
+
+static int __fastcall bmb_init(void *s, void *)
+{ return _ZN6BobOmb13InitResourcesEv(s); }
+static int __fastcall bmb_clean(void *, void *)
+{ return _ZN6BobOmb16CleanupResourcesEv(); }
+static int __fastcall bmb_behavior(void *s, void *)
+{ return _ZN6BobOmb8BehaviorEv((char *)s); }
+static int __fastcall bmb_render(void *s, void *)
+{ port_actor_render_probe("BOB_OMB", (char *)s + 0x300);
+  return _ZN6BobOmb6RenderEv(s); }
+/* SLOT 16 IS LIVE. A bomb that is lit reaches its own blast and marks itself
+   for destruction, so the D1 the cleanup pass dispatches has to be the class's
+   own -- and src/_ZN6BobOmbD1Ev.c is already exactly the D0 body minus the
+   final Deallocate, which is what ActorBase::AfterCleanupResources performs
+   itself after the dispatch returns. */
+static int __fastcall bmb_d1(void *s, void *)
+{ return (int)(size_t)_ZN6BobOmbD1Ev((int *)s); }
+static int __fastcall bmb_d0(void *s, void *)
+{ return (int)(size_t)_ZN6BobOmbD0Ev((int *)s); }
+static int __fastcall bmb_yoshi(void *s, void *)
+{ return func_ov102_0214c6e4((unsigned char *)s); }
+static int __fastcall bmb_egg(void *s, void *, void *p)
+{ func_ov102_0214adc8(s, p); return 0; }
+static int __fastcall bmb_aimed(void *, void *)
+{ return func_ov102_0214aa10(); }
+
+/* The Enemy tier's own eight-entry death table (port/unmatched): its statics
+   carry DS code addresses until they are seated, and __sinit_ov002_02100938
+   copies them into the bss table the base class dispatches. Seated from the
+   first Enemy-family class to register, which is where the registry runs. */
+extern "C" void port_enemy_death_states_seat(void);
+
+extern "C" void hal_fill_bob_omb_vtable(void)
+{
+    void **vt = _ZTV6BobOmb;
+    port_enemy_death_states_seat();
+    ac31_fill_shared(vt);
+    vt[0] = (void *)bmb_init;
+    vt[3] = (void *)bmb_clean;
+    vt[6] = (void *)bmb_behavior;
+    vt[9] = (void *)bmb_render;
+    vt[16] = (void *)bmb_d1;
+    vt[17] = (void *)bmb_d0;
+    vt[18] = (void *)bmb_yoshi;
+    vt[19] = (void *)bmb_egg;
+    vt[29] = (void *)bmb_aimed;
+}
+
+/* ---- method faces ---------------------------------------------------------
+   The C-named references the vtables take onto definitions that are real MSVC
+   methods against include/. Everything else in this gate's classes is already
+   a C-named free function in its own TU. */
+#include "BobOmb.h"
+extern "C" {
+int _ZN6BobOmb13InitResourcesEv(void *self)
+{ return ((BobOmb *)self)->BobOmb::InitResources(); }
+}

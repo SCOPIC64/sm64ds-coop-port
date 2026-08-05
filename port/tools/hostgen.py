@@ -241,6 +241,7 @@ def is_asm(text):
 HEADER_SHADOW = {
     "func_ov002_020cfbdc": "decl_common.h",   # header void*, TU char*
     "func_ov002_020d6c60": "decl_common.h",   # header (char*, void*), TU (char*, char*)
+    "func_ov102_0214b248": "decl_common.h",   # header void*, TU char*  (gate 32)
 }
 
 

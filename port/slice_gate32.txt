@@ -1,0 +1,154 @@
+# Gate 32: Bob-omb Battlefield's living cast.
+#
+# Six classes -- GOOMBA, BOB_OMB, BOB_OMB_BUDDY, CHAIN_CHOMP, KING_BOB_OMB and
+# KOOPA_THE_QUICK -- and they are the first ENEMY-family actors the port hosts.
+# Everything before this gate was furniture, ambience or a Platform.
+#
+# ---- what an Enemy costs that an Actor does not ---------------------------
+#
+# THIRTY-ONE VTABLE SLOTS, not twenty. Actor appends thirteen virtuals of its
+# own after ActorBase's eighteen -- OnYoshiTryEat, OnTurnIntoEgg, Virtual50 and
+# the nine combat hooks (OnGroundPounded, OnAttacked1/2, OnKicked, OnPushed,
+# OnHitByCannonBlastedChar, OnHitByMegaChar, OnHitFromUnderneath) plus the two
+# egg ones -- and every one of these classes is reached through them. Read out
+# of the ROM's own tables: _ZTV6Goomba (ov084 0x02130948) and _ZTV6BobOmb
+# (ov102 0x0214e558) both run 0x7c bytes, and slot 20 in each is
+# Actor::Virtual50. The classes the port carried before declared their vtable
+# arrays [20] because nothing on the castle grounds dispatched past 19; an
+# enemy that Mario can jump on does, so hal/actor_classes_bob_enemy.cpp
+# declares [31] and fills all of them.
+#
+# THE CALLERS COUNT ROM SLOTS. Every ov002 combat path that dispatches one of
+# these -- func_ov002_020b36b4 and its family -- builds a LOCAL SHADOW CLASS
+# with thirty-one virtuals and dispatches through that, so the numbering the
+# host array is filled in is the numbering the call site uses. It is the
+# header-compiled direction that would diverge (MSVC folds D1/D0 into one
+# slot, so its OnYoshiTryEat is 17 where the ROM's is 18) and no TU in the
+# port's build takes it.
+#
+# ---- what needed a host copy ----------------------------------------------
+#
+# FIVE OF THE SIX RENDERS. Each dispatches slot 5 of its own ModelAnim through
+# a local shadow class, which is the ModelAnim slot-5 collision gates 17, 21
+# and 23 already wrote down: _ZTV9ModelAnim cannot be dual-filled the way
+# _ZTV5Model can, because MSVC's slot 5 there is Virtual18 and it takes a
+# second argument. Bodies in port/unmatched/BobEnemy_Renders.cpp.
+# KingBobOmb::Render is the exception -- it calls Model::Render by its Itanium
+# C name rather than through a shadow -- so it comes from src/ unchanged.
+
+# ============================================================================
+# BOB_OMB (actor 206, ov102)
+# ============================================================================
+#
+# The walking black bomb, and the pink one is the SAME CLASS: InitResources
+# reads `param1 & 7` into +0x3f5 and switches on it, so type 2 (the one that
+# clears the solid-collision bit and starts inert) and type 4 are the defused
+# and stationary variants. There is no separate pink class -- the pink
+# character in the level is BOB_OMB_BUDDY, which is its own class in ov084.
+#
+# ov102 IS ALREADY MOUNTED (gate 23 brought it up for the QUESTION_BLOCK), and
+# BobOmb_SpawnInfo is already in port/ov102_syms.txt, so this class costs no
+# overlay work at all. Its SpawnInfo's own +4 halfword reads 206.
+#
+# Its Behavior dispatches NO pointer-to-member: it is a straight-line body over
+# the Enemy helpers and a flag word at +0x3f6. Nothing here needs the gate-16
+# treatment.
+src/BobOmb_Spawn.c
+src/_ZN6BobOmb13InitResourcesEv.cpp
+src/_ZN6BobOmb8BehaviorEv.c
+# _ZN6BobOmb6RenderEv IS NOT HERE: the ModelAnim slot-5 case.
+# port/unmatched/BobEnemy_Renders.cpp.
+src/_ZN6BobOmb16CleanupResourcesEv.c
+src/_ZN6BobOmbD1Ev.c
+src/_ZN6BobOmbD0Ev.c
+# slot 18 (OnYoshiTryEat), slot 19 (OnTurnIntoEgg) and slot 29
+# (OnAimedAtWithEgg), all three the class's own
+src/func_ov102_0214c6e4.c
+src/func_ov102_0214adc8.c
+src/func_ov102_0214aa10.c
+# the bomb's own closure: the fuse, the blast, the throw and the water tests
+src/func_ov102_0214aa18.cpp
+src/func_ov102_0214ab1c.c
+src/func_ov102_0214ad40.c
+src/func_ov102_0214b03c.cpp
+src/func_ov102_0214b128.cpp
+# func_ov102_0214b248 IS NOT HERE: decl_common.h declares it `(void*)` and its
+# own TU defines it `(char*)`, which is one register on the ROM and C2733 to
+# MSVC. It goes through hostgen's HEADER_SHADOW, see GATE32_SYMS.
+src/func_ov102_0214b384.c
+src/func_ov102_0214b3b8.c
+src/func_ov102_0214b3f0.c
+src/func_ov102_0214b444.cpp
+src/func_ov102_0214b53c.cpp
+src/func_ov102_0214b988.cpp
+src/func_ov102_0214ba30.cpp
+src/func_ov102_0214bbd8.c
+src/func_ov102_0214bc20.c
+src/func_ov102_0214bcc8.c
+src/func_ov102_0214bd20.cpp
+src/func_ov102_0214bd90.c
+src/func_ov102_0214be1c.cpp
+src/func_ov102_0214beb4.c
+src/func_ov102_0214bf64.cpp
+src/func_ov102_0214c0b8.c
+
+# ---- the Enemy base's own methods -----------------------------------------
+# ov002's Enemy tier, which every class in this gate runs through. The
+# constructor (src/_ZN5EnemyC2Ev.cpp) and the destructor tail
+# (src/func_ov002_020aed18.c) came in with gate 16 for the 1-up mushroom; these
+# five are the per-frame half no earlier class reached.
+#
+# _ZN5Enemy14UpdateYoshiEatER12WithMeshClsn IS NOT HERE AND CANNOT BE: ov002
+# 0x020ade78 is a 0x3cc-byte hole with no C anywhere in src/. It answers "is
+# this actor inside Yoshi's mouth right now" and hal/actor_vtables.cpp has
+# answered 0 for it since gate 16, which is the ROM's own answer with Mario as
+# the character and no Yoshi in the level.
+src/_ZN5Enemy26UpdateKillByInvincibleCharER12WithMeshClsnR9ModelAnimj.cpp
+src/_ZN5Enemy22SpawnMegaCharParticlesER5ActorPc.cpp
+src/_ZN5Enemy27SpawnParticlesIfHitOtherObjER12CylinderClsn.cpp
+src/_ZN5Enemy9SpawnCoinEv.cpp
+# _ZN5Enemy11UpdateDeathER12WithMeshClsn IS NOT HERE: it dispatches an mwcc
+# pointer-to-member out of data_ov002_0210dbc0 whose class is INCOMPLETE at the
+# typedef, so MSVC would double the stride -- the gate-16 case for the eighth
+# time, and the first that belongs to a base class rather than one actor. Host
+# copy plus the eight-static seat in port/unmatched/Enemy_UpdateDeath.cpp.
+# All five death bodies the table names are matched, so that file carries no
+# trap. __sinit_ov002_02100938, which copies the statics into the bss table,
+# has been in the build since gate 10.
+src/func_ov002_020ae64c.c
+src/func_ov002_020ae608.c
+src/func_ov002_020ae4cc.cpp
+src/func_ov002_020ae454.cpp
+src/func_ov002_020aea24.c
+# the two the bomb's Behavior closes over: 020ada40 is the knockback the ROM
+# hands an enemy that has just hit something (BobOmb::Behavior spells it
+# `func_020ada40`, with no overlay tag; the reloc says ov002 and the alias is
+# in hal/bob_enemy_bridges.cpp), and Actor::PoofDust is Enemy::SpawnCoin's last
+# line.
+src/func_ov002_020ada40.cpp
+src/_ZN5Actor8PoofDustEv.c
+src/_ZN5Actor10PoofDustAtERK7Vector3.c
+# the egg lookup and its helper, which the bomb's death branch runs
+src/_ZN5Actor7FindEggER12CylinderClsn.c
+src/func_02010304.cpp
+
+# --- linkloop round 0 ---
+# The shared tail of death type 1, and the mega-form kill counter the
+# knockback bumps.
+src/func_ov002_020ae5c8.c
+src/_ZN6Player16IncMegaKillCountEv.cpp
+src/func_ov002_020f0e54.c
+
+# ---- Actor's own tail, slots 20 through 30 --------------------------------
+# The nine combat hooks plus Virtual50 and the egg pair. All of them are
+# two-line ROM bodies and none was ever in a slice, because no class before
+# this one had a vtable long enough to hold them.
+src/_ZN5Actor9Virtual50Ev.c
+src/_ZN5Actor15OnGroundPoundedERS_.c
+src/_ZN5Actor11OnAttacked1ERS_.c
+src/_ZN5Actor11OnAttacked2ERS_.c
+src/_ZN5Actor8OnKickedERS_.c
+src/_ZN5Actor8OnPushedERS_.c
+src/_ZN5Actor24OnHitByCannonBlastedCharERS_.c
+src/_ZN5Actor15OnHitByMegaCharER6Player.c
+src/_ZN5Actor19OnHitFromUnderneathERS_.c

@@ -121,6 +121,17 @@ void hal_fill_hud_vtable(void);
 extern unsigned char _ZN7Minimap9spawnDataE[];  /* ov002 0x0210c160 */
 int *_ZN7MinimapC1Ev(void);                     /* ov002 0x020fb8bc */
 void hal_fill_minimap_vtable(void);
+/* ---- gate 32: BOB-OMB BATTLEFIELD'S LIVING CAST ---------------------------
+   The first ENEMY-family classes the port hosts, which is why they are in a
+   file of their own (hal/actor_classes_bob_enemy.cpp): their vtables are
+   THIRTY-ONE slots where every class above is twenty, because Actor appends
+   thirteen virtuals of its own past ActorBase's eighteen.
+   The ids are the ROM's own, cross-checked three ways: symbols/overlay_actors.md
+   (built from ACTOR_SPAWN_TABLE at arm9 0x02090864), each SpawnInfo's +4
+   halfword, and each class's RTTI name. */
+extern unsigned char BobOmb_SpawnInfo[];        /* ov102 0x0214e534 */
+void *BobOmb_Spawn(void);                       /* ov102 0x0214c6f8 */
+void hal_fill_bob_omb_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -151,4 +162,6 @@ void hal_fill_minimap_vtable(void);
     {344, "FISH", Fish_SpawnInfo, Fish_Spawn, hal_fill_fish_vtable},             {353, "DOOR", Door_SpawnInfo, Door_Spawn, hal_fill_door_vtable},             {20, "QUESTION_BLOCK", QuestionBlock_SpawnInfo, QuestionBlock_Spawn,          hal_fill_question_block_vtable},         \
     {334, "HUD", _ZN3HUD9spawnDataE, port_factory_hud, hal_fill_hud_vtable},   \
     {335, "MINIMAP", _ZN7Minimap9spawnDataE, port_factory_minimap,             \
-     hal_fill_minimap_vtable},
+     hal_fill_minimap_vtable},                                                 \
+    /* ---- gate 32, Bob-omb Battlefield's cast (append-only block) ---- */    \
+    {206, "BOB_OMB", BobOmb_SpawnInfo, BobOmb_Spawn, hal_fill_bob_omb_vtable},

@@ -724,6 +724,53 @@ foreach(line IN LISTS SLICE28_LINES)
     endif()
     list(APPEND SLICE28_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+
+# Gate 32: Bob-omb Battlefield's living cast -- the first ENEMY-family actor
+# classes the port hosts, and the first vtables past twenty slots. See the head
+# of slice_gate32.txt; the HAL seam is hal/actor_classes_bob_enemy.cpp and the
+# direct-spawn probe that brings them up before their own level exists is
+# hal/actor_spawn_probe_bob.cpp.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate32.txt" SLICE32_LINES)
+set(SLICE32_SOURCES "")
+foreach(line IN LISTS SLICE32_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE32_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+set(GATE32_HOST_SOURCES
+    hal/actor_classes_bob_enemy.cpp
+    hal/actor_spawn_probe_bob.cpp
+    hal/bob_enemy_bridges.cpp
+    # the ModelAnim slot-5 collision, for the fourth gate running
+    unmatched/BobEnemy_Renders.cpp
+    # the mwcc pointer-to-member dispatch for the eighth time, and the first
+    # one that belongs to a BASE class: Enemy's own death-type table
+    unmatched/Enemy_UpdateDeath.cpp)
+
+# The header/definition collisions in this gate's closure: decl_common.h
+# declares each of these `(void*)` and its own TU defines it `(char*)`, which
+# is one register on the ROM and C2733 to MSVC. hostgen's HEADER_SHADOW hides
+# the header's declaration across the include; src/ and include/ stay untouched.
+set(GATE32_SYMS func_ov102_0214b248)
+set(GATE32_GEN "")
+foreach(sym IN LISTS GATE32_SYMS)
+    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+    else()
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
+    endif()
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND GATE32_GEN "${sym_out}")
+endforeach()
+
 # Gate 13: the real Camera actor. Adds its own slice plus the HAL seam, and
 # swaps three gate-10 files for host copies that only the camera needs
 # (see port/unmatched/): ChangeArea calls HideArea() with no argument and
@@ -984,7 +1031,8 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
-    ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${GATE6_GEN}
+    ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
+    ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
@@ -1011,7 +1059,8 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
-    ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES} ${GATE6_GEN}
+    ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
+    ${SLICE32_SOURCES} ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
@@ -1041,7 +1090,8 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
-    ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES} ${GATE6_GEN}
+    ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
+    ${SLICE32_SOURCES} ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
