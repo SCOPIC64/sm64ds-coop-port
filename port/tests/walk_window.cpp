@@ -401,6 +401,24 @@ void port_actor_render(void);        /* phase 5: the render bucket */
 void port_actor_scene_pass(void);    /* phase 1: scene-tree housekeeping */
 void port_actor_census(void);
 void port_actor_lists_probe(void);
+/* gate 35, the course loop (hal/star_flow.cpp): the boot seat plus one probe
+   per thing the gate has to be able to show moving. */
+void port_course_seat(void);
+int  port_course_health(void);
+int  port_course_coins(void);
+int  port_course_hurt(void *player, int kind);
+int  port_course_can_hurt(void *player);
+int  port_course_next_sublevel(void);
+int  port_course_hud_health(void);
+int  port_course_in_dead_state(void *player);
+void port_course_arm_watch(void);
+int  port_course_handoff_fired(void);
+int  port_course_drown_tick(void *player, int amount);
+void port_course_kill(void);
+void port_course_respawn(void *player);
+int  port_star_collect(int starId);
+void port_give_player_coins(void *actor, void *player, int count, int kind);
+int  port_course_sound_probe(const char *when);
 /* the bottom screen (hal/sub_screen.cpp): the OAM lifecycle, the engine-B
    scan-out and the corner panel it lands in. TAB toggles the panel. */
 void hal_sub_screen_init(void *hwnd, int zoom);
@@ -1590,6 +1608,16 @@ int main(void)
                *(int *)((char *)cam + 0xfc), *(int *)((char *)cam + 0x100));
     }
 
+    /* GATE 35: the course loop's own boot. After the level and the entrance,
+       because it reads data_0209f2f8 for the sound row and wants the Player
+       already spawned; before the frame loop, because the health words it
+       seats are what the HUD's first Behavior reads.
+       SM64DS_NO_COURSE_SEAT=1 goes back to the gate-28 state: the single
+       hand-written health word above, no lives, no music, and the queued
+       character swap left reading as pending. */
+    if (real_boot && !getenv("SM64DS_NO_COURSE_SEAT"))
+        port_course_seat();
+
     /* window */
     WNDCLASSA wc = {};
     wc.lpfnWndProc = wndproc;
@@ -2539,6 +2567,168 @@ int main(void)
                 game_ticked = 0;
             }
         }
+
+        /* GATE 35 PROBES. SM64DS_COURSE_PROBE=<what>[,<frame>] fires one of
+           the course-loop entry points at a frame and lets the game's own
+           code carry it from there. Everything here is a CALL into
+           hal/star_flow.cpp or matched src; nothing writes player state
+           except the coin probe's stand-in Actor, which only needs a position
+           for the chime to be placed at.
+
+             coin   Actor::GivePlayerCoins -- counter, health, chime, popup
+             hurt   Player::Hurt kind 1 (one wedge)
+             hurt2  Player::Hurt kind 2 (the knock-down)
+             drown  Heal(-0x100) a frame at a time until he is empty
+             death  the full chain: hurt to zero, then KillPlayer
+             star   the collect and the course-clear handoff
+
+           They run AFTER the entrance has finished with him (the default
+           frame is 40) because Player::Hurt's ChangeState is refused while
+           St_LevelEnter owns the state machine. */
+        /* SM64DS_SND_PROBE=N: count sounding voices and running sequence
+           players every N frames. This is the one part of the gate that
+           cannot be checked by hash, so it is checked by census. */
+        {
+            static int sp = -1;
+            if (sp < 0) {
+                const char *e = getenv("SM64DS_SND_PROBE");
+                sp = e ? atoi(e) : 0;
+            }
+            if (sp > 0 && frame % sp == 0) {
+                char when[32];
+                snprintf(when, sizeof when, "frame %d", frame);
+                port_course_sound_probe(when);
+            }
+        }
+
+        {
+            static int cp_read, cp_frame = 40, cp_done;
+            static char cp_what[16];
+            if (!cp_read) {
+                cp_read = 1;
+                const char *e = getenv("SM64DS_COURSE_PROBE");
+                if (e) {
+                    const char *comma = strchr(e, ',');
+                    size_t n = comma ? (size_t)(comma - e) : strlen(e);
+                    if (n > sizeof cp_what - 1) n = sizeof cp_what - 1;
+                    memcpy(cp_what, e, n);
+                    cp_what[n] = 0;
+                    if (comma) cp_frame = atoi(comma + 1);
+                }
+            }
+            if (cp_what[0] && frame >= cp_frame && !cp_done) {
+                const int done_after = 90;
+                if (frame == cp_frame) {
+                    /* snapshot the three next-level words BEFORE anything can
+                       move them, so "the handoff fired" is a change and not a
+                       non-zero (data_02092110 boots with the ROM's own 0xff) */
+                    port_course_arm_watch();
+                    fprintf(stderr, "[course] probe '%s' at frame %d: "
+                            "hp=%d coins=%d next-sublevel=%d\n", cp_what,
+                            frame, port_course_health(), port_course_coins(),
+                            port_course_next_sublevel());
+                }
+                if (!strcmp(cp_what, "coin")) {
+                    if (frame == cp_frame) {
+                        /* the stand-in for the coin ACTOR: GivePlayerCoins
+                           reads exactly one thing off it, Actor+0x74, and
+                           that is mCamSpacePos -- CAMERA-SPACE, not world.
+                           Sound::Play's 3D path measures it straight against
+                           the distance limit and derives the pan from its x,
+                           so a world position there reads as thousands of
+                           units away and the chime is culled without a word.
+                           Actor::BeforeBehavior fills it for every actor on
+                           the processing lists, which is why a real coin
+                           needs nothing extra; the stand-in is not on them,
+                           so it borrows the player's. */
+                        static char coin_actor[0x80];
+                        memcpy(coin_actor + 0x74, c + 0x74, 12);
+                        port_give_player_coins(coin_actor, player, 1, 0);
+                        fprintf(stderr, "[coin] one yellow -> coins=%d hp=%d\n",
+                                port_course_coins(), port_course_health());
+                        port_give_player_coins(coin_actor, player, 1, 2);
+                        fprintf(stderr, "[coin] one blue   -> coins=%d hp=%d\n",
+                                port_course_coins(), port_course_health());
+                        cp_done = 1;
+                    }
+                } else if (!strcmp(cp_what, "hurt") ||
+                           !strcmp(cp_what, "hurt2")) {
+                    if (frame == cp_frame) {
+                        port_course_hurt(player, cp_what[4] == '2' ? 2 : 1);
+                        cp_done = 1;
+                    }
+                } else if (!strcmp(cp_what, "drown")) {
+                    /* one HP a frame, which is faster than the water damage
+                       tick but the same call the water state makes */
+                    if (port_course_health() > 0)
+                        fprintf(stderr, "[drown] f%d hp=%d\n", frame,
+                                port_course_drown_tick(player, 0x100));
+                    else {
+                        fprintf(stderr, "[drown] empty at frame %d, "
+                                "state=%p\n", frame, *(void **)(c + 0x370));
+                        cp_done = 1;
+                    }
+                } else if (!strcmp(cp_what, "death")) {
+                    /* REAL damage, repeated, not a drain: the state
+                       transition that matters is the one Player::Hurt makes
+                       itself. func_ov002_020d91e0 answers "is he dead now"
+                       and only on 1 does Hurt change to data_ov002_0211010c,
+                       the DEAD state -- so hurting him to zero is the only
+                       way to see that branch taken. Every 8 frames, because
+                       Hurt is refused while the hurt state's invulnerability
+                       is still up. */
+                    static int empty_at = -1;
+                    if (port_course_health() > 0) {
+                        if (port_course_can_hurt(player))
+                            port_course_hurt(player, 2);
+                    } else {
+                        if (empty_at < 0) {
+                            empty_at = frame;
+                            fprintf(stderr, "[death] hp reached 0 at frame "
+                                    "%d, state=%p -- waiting for the ROM's "
+                                    "own St_DeadHit_Main -> KillPlayer\n",
+                                    frame, *(void **)(c + 0x370));
+                        }
+                        if (frame % 20 == 0)
+                            fprintf(stderr, "[death] f%d dead-state=%d "
+                                    "hud-hp=%d work=%u\n", frame,
+                                    port_course_in_dead_state(player),
+                                    port_course_hud_health(),
+                                    *(unsigned char *)(c + 0x6e5));
+                        if (port_course_handoff_fired()) {
+                            fprintf(stderr, "[death] the ROM fired the "
+                                    "handoff itself at frame %d: next "
+                                    "sublevel %d\n", frame,
+                                    port_course_next_sublevel());
+                            port_course_respawn(player);
+                            fprintf(stderr, "[respawn] hp=%d\n",
+                                    port_course_health());
+                            cp_done = 1;
+                        } else if (frame > empty_at + done_after * 3) {
+                            fprintf(stderr, "[death] the ROM had not fired it "
+                                    "after %d frames -- calling KillPlayer "
+                                    "directly so the handoff itself is still "
+                                    "shown\n", done_after * 3);
+                            port_course_kill();
+                            port_course_respawn(player);
+                            fprintf(stderr, "[respawn] hp=%d state=%p\n",
+                                    port_course_health(),
+                                    *(void **)(c + 0x370));
+                            cp_done = 1;
+                        }
+                    }
+                } else if (!strcmp(cp_what, "star")) {
+                    if (frame == cp_frame) {
+                        port_star_collect(0);
+                        cp_done = 1;
+                    }
+                } else if (frame == cp_frame) {
+                    fprintf(stderr, "[course] unknown probe '%s'\n", cp_what);
+                    cp_done = 1;
+                }
+            }
+        }
+
         if (menu_on) {
             game_ticked = 0;
         } else if (boot_spawns) {

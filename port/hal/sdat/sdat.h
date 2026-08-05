@@ -168,4 +168,8 @@ void sd_consumer_tick(void);
 // THE call site. Safe before init, safe with no audio device.
 extern "C" void sdat_host_tick(void);
 
+// SM64DS_SND_TRACE, shared: the consumer reads the environment and arms both
+// its own opcode log and Sound::Play's two cull reports in sound_abi.cpp.
+extern "C" int g_snd_trace_play;
+
 #endif

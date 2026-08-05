@@ -267,6 +267,8 @@ void sd_consumer_init(void)
     g_seeded = 1;
 
     g_trace = getenv("SM64DS_SND_TRACE") != 0;
+    /* the same switch arms Sound::Play's two cull reports (sound_abi.cpp) */
+    g_snd_trace_play = g_trace;
 
     // Seed the free list. This is func_0205b358's data effect, written out
     // by hand on purpose: that function is unusable on the host because it

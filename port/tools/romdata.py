@@ -145,6 +145,47 @@ NAMED = [
     # skybox" and returns early); entry 0 is 2040 = data/vrbox/vr01.bmd, the
     # castle grounds sky.
     "data_02075620",
+    # gate 35, the course loop.
+    #
+    # Actor::GivePlayerCoins' two parallel tables, indexed by coin KIND
+    # (0 yellow, 1 red, 2 blue): the coin VALUE and the id of the little
+    # count-popup actor the collect spawns. Both are what turns "an actor was
+    # touched" into a number on the HUD, so a zeroed pair is a coin worth
+    # nothing.
+    "data_02075230",   # u16[3] popup actor ids
+    "data_02075238",   # u32[3] coin values
+    # The per-sublevel SOUND row: three bytes each, {group, bank, bgm}, which
+    # config names as three separate one-byte symbols (data_02075768/69/6a)
+    # because Stage::InitResources reads the three columns with a stride of 3.
+    # The size has to be spelled: the delta-to-next-symbol rule would make the
+    # first column FOUR BYTES and cut off every level past the first.
+    # 0x02075804 is the next real symbol, so the run is 0x9c -- 0x34 rows.
+    "data_02075768:0x9c",
+    # SUBLEVEL -> COURSE. Every star and every coin record is filed under the
+    # answer, so zeroed storage credits all 52 sublevels to course 0. It was
+    # also DECLARED two different ways -- decl_common.h has it as `signed
+    # char[]`, which is what SublevelToLevel indexes, while the HAL defined it
+    # as `short[64]`, so even a filled table would have been read at half
+    # stride. The bytes settle it: [1] = 29, the castle grounds.
+    "SUBLEVEL_LEVEL_TABLE",
+    # THE 3D SOUND DISTANCE LIMITS, and the reason no positional sound effect
+    # has ever played on the port. func_02048a1c is the gate every
+    # Sound::Play with a Vector3 goes through:
+    #
+    #     lim = data_02099fac;  ...  if (lim < distance) return 0;
+    #
+    # and Sound::Play's caller-side response to that 0 is a silent return, so
+    # a zeroed limit culls every 3D sound in the game without a word. The ROM
+    # byte is 0x226 (550 units). All three are file-backed arm9 data below
+    # bss_start; they were sitting in the HAL as zeroed BSS.
+    "data_02099fa4", "data_02099fa8", "data_02099fac",
+    # ...and the other half of the same silence: data_02099fb0 is the COUNT
+    # func_02048720 walks looking for a free type-9 (positional) voice. The
+    # ROM byte is 4. At 0 the search loop never runs, `pick` stays -1, and
+    # every positional sound effect comes back "no voice free". func_02048e54
+    # and func_02048e94 also write 4 into it at runtime, and neither is on any
+    # path the port takes.
+    "data_02099fb0",
 ]
 
 
@@ -201,10 +242,17 @@ def named_entries(root, syms):
     addr_of = {n: a for a, n in syms}
     contig_names = {n for _, mem in contig_entries(syms) for n, _, _ in mem}
     out = []
-    for name in NAMED:
+    for entry in NAMED:
+        # "name" takes its size from the next symbol; "name:0xNN" spells it,
+        # for the symbols whose neighbour is a COLUMN of the same table rather
+        # than the next table (see data_02075768).
+        name, _, explicit = entry.partition(":")
         if name in contig_names:
             continue   # the run owns it
         a = addr_of[name]
+        if explicit:
+            out.append((name, a, int(explicit, 0)))
+            continue
         nxt = next((s for s, _ in syms if s > a), a + 4)
         out.append((name, a, max(4, nxt - a)))
     return out

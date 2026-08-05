@@ -67,7 +67,7 @@ window. Gate 24 is the exception and keeps its own smoke.
 | 30 | `walk_window` | the level is a parameter: `SM64DS_LEVEL` picks it, and Bob-omb Battlefield (level 6, ov014) boots and walks |
 | 31 | `walk_window` | the level HANDOFF: LoadLevel/ExitLevel tear the level down through the game's own destroy path and bring the next one up |
 | 33 | `walk_window` | Bob-omb Battlefield's mechanisms, terrain and pickups: its 60 coins and 8 red coins, the four warps, the six cannon lids, the arrow signs, the five secrets and the brick blocks |
-| 35 | `walk_window` | the course loop: coins into the counter, damage, death and respawn, the star collect and the course-clear handoff |
+| 35 | `walk_window` | the course loop: damage, death and respawn through the ROM's own states, coins into the counter and the health, the star's bookkeeping and the course-clear handoff, and the course's own sound group, bank and music |
 
 Gate 30 mounts a level and gate 31 changes between them; the seam they meet at
 is `port_level_mount_register` in `hal/level_change.cpp`, which gate 30's
@@ -76,13 +76,20 @@ is `port_level_mount_register` in `hal/level_change.cpp`, which gate 30's
 There is no gate 11: it was folded into the gate-10 walking campaign before
 either landed. Gates 25 through 28 were **renumbered at merge** because three
 parallel streams each picked 24 the same night; the animation stream kept 24
-for BlendModelAnim. Gate 29 belongs to the unmerged `port-particles` branch.
+for BlendModelAnim. Gate 29 belongs to the unmerged `port-particles` branch,
+and gates 32 and 34 to branches that had not merged when 35 landed.
 
 Gate 30's slice is empty of `src/`, which is the point rather than a gap: the
 boot was already generic matched code walking the level's own tables, so a
 second level cost no matched code at all. See the header of
 `slice_gate30.txt`, and the evidence chain at the top of `hal/level_boot.cpp`
 for how each level's identity is read out of the ROM.
+
+Gate 35 is driven by `SM64DS_COURSE_PROBE=<what>[,<frame>]` on `walk_window`:
+`coin`, `hurt`, `hurt2`, `drown`, `death`, `star`. `SM64DS_SND_PROBE=<N>`
+counts sounding voices every N frames, and `SM64DS_COURSE_MUSIC=<seq>`
+overrides the sublevel's own music row (the castle grounds' row really is
+"no layer-1 track"; Bob-omb Battlefield's is sequence 58).
 
 Supporting machinery: `tools/hostgen.py` (MMIO transform into the build
 tree; src/ is never edited), `tools/romdata.py` (ROM constants from the
