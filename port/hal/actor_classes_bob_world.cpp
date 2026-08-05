@@ -18,6 +18,35 @@
 // That last step matters because the config's class names are shifted by one
 // through a run of ov002 (the gate-20 finding), and the RTTI is the only
 // thing that says which way.
+//
+// ---- FIVE OF THE TWELVE ARE BUILT BUT NOT REGISTERED -----------------------
+//
+// CAP (269), HEALING_HEART (297), EXCLAMATION_SWITCH (11), WATER_BOMB (208)
+// and ROLLING_IRON_BALL (220) each fault on their first frame. Every one was
+// spawned ON ITS OWN with SM64DS_SPAWN_ACTOR, so the five results are five
+// independent measurements and not one class taking the others down.
+//
+// The healing heart's is the one that was followed to the bottom, and its
+// backtrace names the shape all five are likely to share:
+//
+//     main -> port_actor_render -> func_02043fdc -> func_0204322c
+//       -> port_actor_process -> Seaweed::Render +0x11
+//       -> ModelAnim::Virtual18 +0xe -> ModelAnim::Virtual10 +0x25
+//       -> Model::Virtual10 +0xc      reading through a NULL, eax = 0
+//
+// Model::Virtual10 is the bone-matrix copy and it is reading a model whose
+// file never arrived. That is the SAME root the coins hit and the same one
+// their preload closes by hand: Coin::InitResources hands SetFile a filePtr it
+// expects Stage::InitResources to have loaded, and Stage::InitResources does
+// not run in the port -- hal/stage_bridges.cpp fills all twenty of the Stage's
+// slots with a trap. The coins needed four entries out of one arm9 table and
+// those are hosted; a class-by-class answer for the rest of the preload is a
+// gate of its own, and the general answer is running the Stage.
+//
+// They are left BUILT -- slice, vtable fill, faces, all of it -- so the next
+// attempt starts with the link closed and only the preload to solve. What
+// they do not have is a registry row, so the spawn gate names them as skipped
+// instead of the process dying.
 #include <cstdio>
 #include <cstdlib>
 
@@ -451,4 +480,508 @@ extern "C" void port_bob_debug_watch(void)
                         first[2] >> 12);
     }
     std::printf("\n");
+}
+
+// ============================================================================
+// The rest of the roster whose overlay is ALREADY MOUNTED: ov002 (the engine
+// overlay, since gate 14), ov098 (gate 19), ov100 (gate 21) and ov102 (gate
+// 23). Each of these is a registry row, a vtable fill and nothing else -- no
+// new mount, no new sinit.
+//
+// Every vtable below was checked against the ROM's Itanium RTTI, because the
+// ov002 names ARE shifted through this run and the shift is what decides
+// which body a factory really installs:
+//
+//   id   SpawnInfo                    installs              RTTI
+//   15   BrickBlock_SpawnInfo         _ZTV13BigBrickBlock   13daObjBlockL_c
+//   322  MegaMushroomBlockTag_...     _ZTV10BrickBlock      19daObjBlockItemTag_c
+//   14   CannonHatch_SpawnInfo        _ZTV11CannonHatch     20daObjCannonShutter_c
+//   269  Cap_SpawnInfo                _ZTV13WaterfallMist   15daObjMarioCap_c
+//   297  HealingHeart_SpawnInfo       _ZTV7Seaweed          12daObjHeart_c
+//   11   ExclamationSwitch_SpawnInfo  _ZTV10StarSwitch      13daObjSwitch_c
+//   329  InvisibleSecret_SpawnInfo    _ZTV15InvisibleSecret 13daObjNumber_c
+//   299  ArrowSignLeft_SpawnInfo      _ZTV14ArrowSignRight  15daObjYajirusi_c
+//   300  ArrowSignRight_SpawnInfo     _ZTV14ArrowSignRight  (same table)
+//   208  WaterBomb_SpawnInfo          _ZTV9WaterBomb        7daWbm_c
+//   220  RollingIronBall_SpawnInfo    _ZTV15RollingIronBall 7daIbl_c
+//   298  WarpPipe_SpawnInfo           _ZTV13FortressTower   15daObjSimpleBg_c
+//
+// The ROM type names read: block-large, block-item-tag, cannon-shutter,
+// mario-cap, heart, switch, number, yajirushi (arrow), water-bomb, iron-ball,
+// simple-background. Every one is the thing its SpawnInfo says it is, and
+// none is the thing its vtable config name says. The port uses the file the
+// vtable points at and renames nothing, which is the gate-20 rule.
+//
+// BRICK_BLOCK (15) HAS NO FILL and that is not an omission: its factory
+// installs _ZTV13BigBrickBlock, which gate 16 already fills for
+// BLACK_BRICK_BLOCK (17). One class body serves six actor ids and switches on
+// its own, so 15 is a registry row and nothing more.
+//
+// SLOT 17 TRAPS ON EVERY CLASS HERE, the gate-17 and Bird reading: the ROM's
+// destroy path is AfterCleanupResources dispatching slot 16 and then
+// deallocating itself, so the deleting form is never called. Slot 16 is live
+// on all of them.
+
+extern "C" {
+void hal_fill_platform_vtable(void);      /* hal/actor_classes.cpp */
+void _ZN15TextureSequenceD1Ev(void *);
+void _ZN9ModelAnimD1Ev(void *);
+void _ZN5ModelD1Ev(void *);
+}
+
+// ---- MEGA_MUSHROOM_BLOCK_TAG (322, ov002) x8 -------------------------------
+//
+// _ZTV10BrickBlock, ov002 0x02108c18, RTTI 19daObjBlockItemTag_c. A tag rather
+// than a block: 220 bytes, no model of its own (slot 9 is ActorBase::Render in
+// the ROM's own table), and Bob-omb Battlefield puts eight of them on top of
+// other objects. Slot 16 is the ROM's D0 minus its Deallocate, which for this
+// class is the vtable store and Actor's D2 -- it has no members to destroy.
+#include "BrickBlock.h"
+extern "C" {
+int _ZN10BrickBlock13InitResourcesEv(char *self);
+void *_ZTV10BrickBlock[20];
+}
+static int __fastcall mmbt_init(void *s, void *)
+{ return _ZN10BrickBlock13InitResourcesEv((char *)s); }
+static int __fastcall mmbt_clean(void *s, void *)
+{ return ((BrickBlock *)s)->BrickBlock::CleanupResources(); }
+static int __fastcall mmbt_behavior(void *s, void *)
+{ return ((BrickBlock *)s)->BrickBlock::Behavior(); }
+static int __fastcall mmbt_render(void *s, void *)
+{ return ((ActorBase *)s)->ActorBase::Render(); }
+static int __fastcall mmbt_d1(void *s, void *)
+{
+    *(void **)s = (void *)_ZTV10BrickBlock;
+    _ZN5ActorD2Ev(s);
+    return (int)(size_t)s;
+}
+extern "C" void hal_fill_mega_mushroom_block_tag_vtable(void)
+{
+    void **vt = _ZTV10BrickBlock;
+    bw_fill_shared(vt);
+    vt[0] = (void *)mmbt_init;
+    vt[3] = (void *)mmbt_clean;
+    vt[6] = (void *)mmbt_behavior;
+    vt[9] = (void *)mmbt_render;
+    vt[12] = (void *)bw_pdes_base;
+    vt[16] = (void *)mmbt_d1;
+    vt[17] = (void *)bw_trap17;
+}
+
+// ---- CANNON_HATCH (14, ov002) x6 -------------------------------------------
+//
+// _ZTV11CannonHatch, ov002 0x02109d38, RTTI 20daObjCannonShutter_c. The lid on
+// a cannon: a Platform subclass with its own MovingMeshCollider, so it is
+// walkable while the cannon is shut. Bob-omb Battlefield names fourteen
+// CANNONs (gate 19's class) and six of these.
+//
+// Its Behavior is C-named in its own TU even though include/CannonHatch.h
+// declares it as a method, so the thunk calls the C name; taking the header at
+// its word would ask for a symbol nothing defines.
+#include "CannonHatch.h"
+extern "C" {
+int _ZN11CannonHatch8BehaviorEv(char *self);
+int *_ZN11CannonHatchD1Ev(int *self);
+void *_ZTV11CannonHatch[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV20daObjCannonShutter_c=__ZTV11CannonHatch")
+static int __fastcall ch_init(void *s, void *)
+{ return ((CannonHatch *)s)->CannonHatch::InitResources(); }
+static int __fastcall ch_clean(void *s, void *)
+{ return ((CannonHatch *)s)->CannonHatch::CleanupResources(); }
+static int __fastcall ch_behavior(void *s, void *)
+{ return _ZN11CannonHatch8BehaviorEv((char *)s); }
+static int __fastcall ch_render(void *s, void *)
+{
+    port_actor_render_probe("CANNON_HATCH", (char *)s + 0xd4);
+    return ((CannonHatch *)s)->CannonHatch::Render();
+}
+static int __fastcall ch_d1(void *s, void *)
+{ return (int)(size_t)_ZN11CannonHatchD1Ev((int *)s); }
+extern "C" void hal_fill_cannon_hatch_vtable(void)
+{
+    void **vt = _ZTV11CannonHatch;
+    hal_fill_platform_vtable();
+    bw_fill_shared(vt);
+    vt[0] = (void *)ch_init;
+    vt[3] = (void *)ch_clean;
+    vt[6] = (void *)ch_behavior;
+    vt[9] = (void *)ch_render;
+    vt[12] = (void *)bw_pdes_base;
+    vt[16] = (void *)ch_d1;
+    vt[17] = (void *)bw_trap17;
+}
+
+// ---- CAP (269, ov002) -------------------------------------------------------
+//
+// _ZTV13WaterfallMist, ov002 0x021095f0, RTTI 15daObjMarioCap_c. Mario's cap,
+// knocked off and lying on the ground: an Enemy subclass (1040 bytes) with a
+// ModelAnim, a ShadowModel and both collision shapes. One in Bob-omb
+// Battlefield and six on the castle grounds.
+//
+// THE VTABLE IS NOT THE ONE GATE 20 FILLS. Gate 20's WATERFALL_MIST (197)
+// installs _ZTV18PoppingLavaBubbles, whose RTTI is 16daObjWaterfall_c; the
+// table spelled _ZTV13WaterfallMist is this one. Two tables, two classes, and
+// the config names are one apart on both.
+//
+// Slots 18 and 19 are its own: the cap answers Yoshi and has a turn-into-egg
+// body, which for a hat is the ROM's own arrangement.
+#include "WaterfallMist.h"
+extern "C" {
+void _ZN13WaterfallMist16OnPendingDestroyEv(void);
+int *_ZN13WaterfallMistD1Ev(int *self);
+int func_ov002_020b8270(void);
+void func_ov002_020b81e0(char *self, int arg);
+void *_ZTV13WaterfallMist[20];
+}
+static int __fastcall cap_init(void *s, void *)
+{ return ((WaterfallMist *)s)->WaterfallMist::InitResources(); }
+static int __fastcall cap_clean(void *s, void *)
+{ return ((WaterfallMist *)s)->WaterfallMist::CleanupResources(); }
+static int __fastcall cap_behavior(void *s, void *)
+{ return ((WaterfallMist *)s)->WaterfallMist::Behavior(); }
+static int __fastcall cap_render(void *s, void *)
+{
+    port_actor_render_probe("CAP", (char *)s + 0x300);
+    return ((WaterfallMist *)s)->WaterfallMist::Render();
+}
+static int __fastcall cap_pdes(void *, void *)
+{ _ZN13WaterfallMist16OnPendingDestroyEv(); return 0; }
+static int __fastcall cap_d1(void *s, void *)
+{ return (int)(size_t)_ZN13WaterfallMistD1Ev((int *)s); }
+static int __fastcall cap_yoshi(void *, void *)
+{ return func_ov002_020b8270(); }
+static int __fastcall cap_egg(void *s, void *, int a)
+{ func_ov002_020b81e0((char *)s, a); return 0; }
+extern "C" void hal_fill_cap_vtable(void)
+{
+    void **vt = _ZTV13WaterfallMist;
+    bw_fill_shared(vt);
+    vt[0] = (void *)cap_init;
+    vt[3] = (void *)cap_clean;
+    vt[6] = (void *)cap_behavior;
+    vt[9] = (void *)cap_render;
+    vt[12] = (void *)cap_pdes;
+    vt[16] = (void *)cap_d1;
+    vt[17] = (void *)bw_trap17;
+    vt[18] = (void *)cap_yoshi;
+    vt[19] = (void *)cap_egg;
+}
+
+// ---- HEALING_HEART (297, ov002) --------------------------------------------
+//
+// _ZTV7Seaweed, ov002 0x02109c74, RTTI 12daObjHeart_c. The spinning heart that
+// refills the meter: 372 bytes, a ModelAnim at +0xd4 and a MovingCylinderClsn
+// at +0x138. Slot 16 is the ROM's D0 minus its Deallocate.
+#include "Seaweed.h"
+extern "C" {
+int _ZN7Seaweed16CleanupResourcesEv(char *self);
+int _ZN7Seaweed8BehaviorEv(char *self);
+void *_ZTV7Seaweed[20];
+}
+static int __fastcall hh_init(void *s, void *)
+{ return ((Seaweed *)s)->Seaweed::InitResources(); }
+static int __fastcall hh_clean(void *s, void *)
+{ return _ZN7Seaweed16CleanupResourcesEv((char *)s); }
+static int __fastcall hh_behavior(void *s, void *)
+{ return _ZN7Seaweed8BehaviorEv((char *)s); }
+static int __fastcall hh_render(void *s, void *)
+{
+    port_actor_render_probe("HEALING_HEART", (char *)s + 0xd4);
+    return ((Seaweed *)s)->Seaweed::Render();
+}
+static int __fastcall hh_d1(void *s, void *)
+{
+    *(void **)s = (void *)_ZTV7Seaweed;
+    _ZN18MovingCylinderClsnD1Ev((char *)s + 0x138);
+    _ZN9ModelAnimD1Ev((char *)s + 0xd4);
+    _ZN5ActorD2Ev(s);
+    return (int)(size_t)s;
+}
+extern "C" void hal_fill_healing_heart_vtable(void)
+{
+    void **vt = _ZTV7Seaweed;
+    bw_fill_shared(vt);
+    vt[0] = (void *)hh_init;
+    vt[3] = (void *)hh_clean;
+    vt[6] = (void *)hh_behavior;
+    vt[9] = (void *)hh_render;
+    vt[12] = (void *)bw_pdes_base;
+    vt[16] = (void *)hh_d1;
+    vt[17] = (void *)bw_trap17;
+}
+
+// ---- EXCLAMATION_SWITCH (11, ov002) ----------------------------------------
+//
+// _ZTV10StarSwitch, ov002 0x02109940, RTTI 13daObjSwitch_c. The floor switch
+// that fires an event: a Platform subclass (852 bytes) with a
+// MovingMeshCollider at +0x124, which is what makes it stand on. One on
+// Bob-omb Battlefield.
+//
+// This is the class the port's own notes record as a config naming bug --
+// ExclamationSwitch carries the Platform vtable. It does, in the sense that
+// its constructor is Platform's; the table its factory installs is
+// _ZTV10StarSwitch and the RTTI settles that it really is a switch.
+#include "StarSwitch.h"
+extern "C" {
+int _ZN10StarSwitch13InitResourcesEv(char *self);
+int *_ZN10StarSwitchD1Ev(int *self);
+void *_ZTV10StarSwitch[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV13daObjSwitch_c=__ZTV10StarSwitch")
+static int __fastcall xs_init(void *s, void *)
+{ return _ZN10StarSwitch13InitResourcesEv((char *)s); }
+static int __fastcall xs_clean(void *s, void *)
+{ return ((StarSwitch *)s)->StarSwitch::CleanupResources(); }
+static int __fastcall xs_behavior(void *s, void *)
+{ return ((StarSwitch *)s)->StarSwitch::Behavior(); }
+static int __fastcall xs_render(void *s, void *)
+{
+    port_actor_render_probe("EXCLAMATION_SWITCH", (char *)s + 0xd4);
+    return ((StarSwitch *)s)->StarSwitch::Render();
+}
+static int __fastcall xs_d1(void *s, void *)
+{ return (int)(size_t)_ZN10StarSwitchD1Ev((int *)s); }
+extern "C" void hal_fill_exclamation_switch_vtable(void)
+{
+    void **vt = _ZTV10StarSwitch;
+    hal_fill_platform_vtable();
+    bw_fill_shared(vt);
+    vt[0] = (void *)xs_init;
+    vt[3] = (void *)xs_clean;
+    vt[6] = (void *)xs_behavior;
+    vt[9] = (void *)xs_render;
+    vt[12] = (void *)bw_pdes_base;
+    vt[16] = (void *)xs_d1;
+    vt[17] = (void *)bw_trap17;
+}
+
+// ---- INVISIBLE_SECRET (329, ov002) x5 --------------------------------------
+//
+// THE CONFIG'S NAME IS SHIFTED HERE TOO, and this one is shifted onto a
+// vtable dsd never named at all -- the ov100 case (a real actor vtable left as
+// data_ovNNN_*), not the ov002 one. The chain, by address:
+//
+//   InvisibleSecret_SpawnInfo   ov002 0x0210b00c   actor 329
+//   InvisibleSecret_Spawn       ov002 0x020f085c, and its ONE literal
+//                               (relocs.txt: from 0x020f0890) is 0x0210b030
+//   data_ov002_0210b030         the vtable it installs, RTTI 9daSCoin_c
+//   _ZTV15InvisibleSecret       ov002 0x0210b0ec, RTTI 13daObjNumber_c, and
+//                               the record it follows is Number_SpawnInfo
+//                               at 0x0210b0c8
+//
+// So the table the config spells _ZTV15InvisibleSecret is NUMBER'S, the six
+// src files spelled _ZN15InvisibleSecret* are Number's methods, and this
+// class's own five slots are the unnamed func_ov002_020f0* family that
+// 0x0210b030 points at. Its object is 276 bytes with one MovingCylinderClsn
+// at +0xd4 -- which is what the factory builds, and which the Number files
+// would not fit.
+//
+// Slot 9 is ActorBase::Render in the ROM's own table: five of these on
+// Bob-omb Battlefield and none of them is drawn until it is touched.
+extern "C" {
+int func_ov002_020f07dc(char *self);     /* InitResources */
+int func_ov002_020f069c(char *self);     /* CleanupResources */
+int func_ov002_020f06c0(char *self);     /* Behavior */
+int *func_ov002_020f03c4(int *self);     /* D1 */
+/* The vtable is HOST STORAGE the registry fills, not mounted ROM bytes, so
+   the name dsd gave the address is declared here rather than emitted by
+   ovdata. The factory spells it by its RTTI name. */
+void *data_ov002_0210b030[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV9daSCoin_c=_data_ov002_0210b030")
+static int __fastcall is_init(void *s, void *)
+{ return func_ov002_020f07dc((char *)s); }
+static int __fastcall is_clean(void *s, void *)
+{ return func_ov002_020f069c((char *)s); }
+static int __fastcall is_behavior(void *s, void *)
+{ return func_ov002_020f06c0((char *)s); }
+static int __fastcall is_render(void *s, void *)
+{ return ((ActorBase *)s)->ActorBase::Render(); }
+static int __fastcall is_d1(void *s, void *)
+{ return (int)(size_t)func_ov002_020f03c4((int *)s); }
+extern "C" void hal_fill_invisible_secret_vtable(void)
+{
+    void **vt = data_ov002_0210b030;
+    bw_fill_shared(vt);
+    vt[0] = (void *)is_init;
+    vt[3] = (void *)is_clean;
+    vt[6] = (void *)is_behavior;
+    vt[9] = (void *)is_render;
+    vt[12] = (void *)bw_pdes_base;
+    vt[16] = (void *)is_d1;
+    vt[17] = (void *)bw_trap17;
+}
+
+// ---- ARROW_SIGN_LEFT (299) and ARROW_SIGN_RIGHT (300), ov098 ----------------
+//
+// _ZTV14ArrowSignRight, ov098 0x0213c3d8, RTTI 15daObjYajirusi_c (yajirushi:
+// arrow). Two ids, one class, one table -- the coins' arrangement again, and
+// the class reads its own id back to pick which way the arrow points. Bob-omb
+// Battlefield names two lefts and three rights on the mountain path.
+//
+// THE TABLE IS ALREADY REAL STORAGE and already carries this class's methods:
+// hal/actor_vtables.cpp defines _ZTV14ArrowSignRight as an initialised
+// twenty-slot array, because ArrowSignRight is the class gate 9 proved the
+// whole actor lifecycle with. What it does NOT carry is a registry row, and
+// its slots 13/14/16/17 abort by name from that gate's own trap set. Filling
+// it again at registration time replaces those with this gate's, so the two
+// ids get the same treatment as everything else on the roster; the gate-9
+// smoke keeps its own copy of the array and is untouched.
+#include "ArrowSignRight.h"
+extern "C" {
+int _ZN14ArrowSignRight13InitResourcesEv(char *self);
+int *_ZN14ArrowSignRightD1Ev(int *self);
+extern void *_ZTV14ArrowSignRight[20];
+}
+static int __fastcall as_init(void *s, void *)
+{ return _ZN14ArrowSignRight13InitResourcesEv((char *)s); }
+static int __fastcall as_clean(void *s, void *)
+{ return ((ArrowSignRight *)s)->ArrowSignRight::CleanupResources(); }
+static int __fastcall as_behavior(void *s, void *)
+{ return ((ArrowSignRight *)s)->ArrowSignRight::Behavior(); }
+static int __fastcall as_render(void *s, void *)
+{
+    port_actor_render_probe("ARROW_SIGN", (char *)s + 0xd4);
+    return ((ArrowSignRight *)s)->ArrowSignRight::Render();
+}
+static int __fastcall as_d1(void *s, void *)
+{ return (int)(size_t)_ZN14ArrowSignRightD1Ev((int *)s); }
+extern "C" void hal_fill_arrow_sign_vtable(void)
+{
+    void **vt = _ZTV14ArrowSignRight;
+    hal_fill_platform_vtable();
+    bw_fill_shared(vt);
+    vt[0] = (void *)as_init;
+    vt[3] = (void *)as_clean;
+    vt[6] = (void *)as_behavior;
+    vt[9] = (void *)as_render;
+    vt[12] = (void *)bw_pdes_base;
+    vt[16] = (void *)as_d1;
+    vt[17] = (void *)bw_trap17;
+}
+
+// ---- WATER_BOMB (208, ov098) x2 --------------------------------------------
+//
+// _ZTV9WaterBomb, ov098 0x0213c770, RTTI 7daWbm_c. The bomb a cannon fires.
+// Gate 19 mounted the overlay and named this class in its header without
+// registering it; Bob-omb Battlefield names two.
+#include "WaterBomb.h"
+extern "C" {
+int *_ZN9WaterBombD1Ev(int *self);
+void *_ZTV9WaterBomb[20];
+}
+static int __fastcall wb_init(void *s, void *)
+{ return ((WaterBomb *)s)->WaterBomb::InitResources(); }
+static int __fastcall wb_clean(void *s, void *)
+{ return ((WaterBomb *)s)->WaterBomb::CleanupResources(); }
+static int __fastcall wb_behavior(void *s, void *)
+{ return ((WaterBomb *)s)->WaterBomb::Behavior(); }
+static int __fastcall wb_render(void *s, void *)
+{
+    port_actor_render_probe("WATER_BOMB", (char *)s + 0x300);
+    return ((WaterBomb *)s)->WaterBomb::Render();
+}
+static int __fastcall wb_d1(void *s, void *)
+{ return (int)(size_t)_ZN9WaterBombD1Ev((int *)s); }
+extern "C" void hal_fill_water_bomb_vtable(void)
+{
+    void **vt = _ZTV9WaterBomb;
+    bw_fill_shared(vt);
+    vt[0] = (void *)wb_init;
+    vt[3] = (void *)wb_clean;
+    vt[6] = (void *)wb_behavior;
+    vt[9] = (void *)wb_render;
+    vt[12] = (void *)bw_pdes_base;
+    vt[16] = (void *)wb_d1;
+    vt[17] = (void *)bw_trap17;
+}
+
+// ---- ROLLING_IRON_BALL (220, ov100) x4 -------------------------------------
+//
+// _ZTV15RollingIronBall, ov100 0x02147f7c, RTTI 7daIbl_c (iron ball). The
+// balls that roll down the mountain, and one of the two classes on this
+// roster that MOVES on its own. Four on Bob-omb Battlefield: two on the upper
+// slope at (423,2620,-5428) and (1477,3745,-5526), two on the lower at
+// (-99,800,-3345) and (-1313,790,-3673). Gate 21 mounted ov100 and its header
+// already lists the iron ball as a class other levels name.
+#include "RollingIronBall.h"
+extern "C" {
+int *_ZN15RollingIronBallD1Ev(int *self);
+void *_ZTV15RollingIronBall[20];
+}
+static int __fastcall rib_init(void *s, void *)
+{ return ((RollingIronBall *)s)->RollingIronBall::InitResources(); }
+static int __fastcall rib_clean(void *s, void *)
+{ return ((RollingIronBall *)s)->RollingIronBall::CleanupResources(); }
+static int __fastcall rib_behavior(void *s, void *)
+{ return ((RollingIronBall *)s)->RollingIronBall::Behavior(); }
+static int __fastcall rib_render(void *s, void *)
+{
+    port_actor_render_probe("ROLLING_IRON_BALL", (char *)s + 0x2cc);
+    return ((RollingIronBall *)s)->RollingIronBall::Render();
+}
+static int __fastcall rib_d1(void *s, void *)
+{ return (int)(size_t)_ZN15RollingIronBallD1Ev((int *)s); }
+extern "C" void hal_fill_rolling_iron_ball_vtable(void)
+{
+    void **vt = _ZTV15RollingIronBall;
+    bw_fill_shared(vt);
+    vt[0] = (void *)rib_init;
+    vt[3] = (void *)rib_clean;
+    vt[6] = (void *)rib_behavior;
+    vt[9] = (void *)rib_render;
+    vt[12] = (void *)bw_pdes_base;
+    vt[16] = (void *)rib_d1;
+    vt[17] = (void *)bw_trap17;
+}
+
+// ---- WARP_PIPE (298, ov102) ------------------------------------------------
+//
+// _ZTV13FortressTower, ov102 0x0214e1d8, RTTI 15daObjSimpleBg_c -- a simple
+// background object with a collider, which is what a warp pipe is until
+// somebody stands on it. slice_gate23.txt already records that this table's
+// config name is the shifted one; the SpawnInfo at ov102 0x0214e134 is
+// WarpPipe's and the actor id is 298.
+//
+// BOB-OMB BATTLEFIELD DOES NOT NAME IT. The level's object tables have no
+// warp pipe -- SM64DS puts none there -- so this row is on the roster because
+// the task asks for warp pipes and ov102 is already mounted, not because the
+// level needs it. One row, and it is the class every level with a pipe uses.
+//
+// THE ENTRY AND EXIT TRANSITION IS NOT HERE. What the pipe does when Mario
+// stands on it is the Player's own warp state plus a fader wipe and a
+// level/entrance change, and the port has no level change: hal/level_boot.cpp
+// mounts ov009 by name. That is port-beta-lvl's seam, not this gate's.
+#include "FortressTower.h"
+extern "C" {
+int *_ZN13FortressTowerD1Ev(int *self);
+void *_ZTV13FortressTower[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV15daObjSimpleBg_c=__ZTV13FortressTower")
+static int __fastcall wp_init(void *s, void *)
+{ return ((FortressTower *)s)->FortressTower::InitResources(); }
+static int __fastcall wp_clean(void *s, void *)
+{ return ((FortressTower *)s)->FortressTower::CleanupResources(); }
+static int __fastcall wp_behavior(void *s, void *)
+{ return ((FortressTower *)s)->FortressTower::Behavior(); }
+static int __fastcall wp_render(void *s, void *)
+{
+    port_actor_render_probe("WARP_PIPE", (char *)s + 0xd4);
+    return ((FortressTower *)s)->FortressTower::Render();
+}
+static int __fastcall wp_d1(void *s, void *)
+{ return (int)(size_t)_ZN13FortressTowerD1Ev((int *)s); }
+extern "C" void hal_fill_warp_pipe_vtable(void)
+{
+    void **vt = _ZTV13FortressTower;
+    hal_fill_platform_vtable();
+    bw_fill_shared(vt);
+    vt[0] = (void *)wp_init;
+    vt[3] = (void *)wp_clean;
+    vt[6] = (void *)wp_behavior;
+    vt[9] = (void *)wp_render;
+    vt[12] = (void *)bw_pdes_base;
+    vt[16] = (void *)wp_d1;
+    vt[17] = (void *)bw_trap17;
 }

@@ -134,6 +134,42 @@ void *Coin_Spawn(void);                                 /* ov002 0x020b2b48 */
 void *RedCoin_Spawn(void);                              /* ov002 0x020b2af0 */
 void *BlueCoin_Spawn(void);                             /* ov002 0x020b2a98 */
 void hal_fill_coin_vtable(void);
+/* BRICK_BLOCK has no fill of its own: its factory installs
+   _ZTV13BigBrickBlock, which gate 16 already fills for BLACK_BRICK_BLOCK. */
+extern unsigned char BrickBlock_SpawnInfo[];            /* ov002 0x02108a24 */
+void *BrickBlock_Spawn(void);                           /* ov002 0x020b4708 */
+extern unsigned char MegaMushroomBlockTag_SpawnInfo[];  /* ov002 0x02108ba0 */
+void *MegaMushroomBlockTag_Spawn(void);
+void hal_fill_mega_mushroom_block_tag_vtable(void);
+extern unsigned char CannonHatch_SpawnInfo[];           /* ov002 0x02109d14 */
+void *CannonHatch_Spawn(void);
+void hal_fill_cannon_hatch_vtable(void);
+extern unsigned char Cap_SpawnInfo[];                   /* ov002 0x021095cc */
+void *Cap_Spawn(void);
+void hal_fill_cap_vtable(void);
+extern unsigned char HealingHeart_SpawnInfo[];          /* ov002 0x02109c50 */
+void *HealingHeart_Spawn(void);
+void hal_fill_healing_heart_vtable(void);
+extern unsigned char ExclamationSwitch_SpawnInfo[];     /* ov002 0x02109900 */
+void *ExclamationSwitch_Spawn(void);
+void hal_fill_exclamation_switch_vtable(void);
+extern unsigned char InvisibleSecret_SpawnInfo[];       /* ov002 0x0210b00c */
+void *InvisibleSecret_Spawn(void);
+void hal_fill_invisible_secret_vtable(void);
+extern unsigned char ArrowSignLeft_SpawnInfo[];         /* ov098 0x0213c398 */
+void *ArrowSignLeft_Spawn(void);
+extern unsigned char ArrowSignRight_SpawnInfo[];        /* ov098 0x0213c3b4 */
+void *ArrowSignRight_Spawn(void);
+void hal_fill_arrow_sign_vtable(void);
+extern unsigned char WaterBomb_SpawnInfo[];             /* ov098 0x0213c74c */
+void *WaterBomb_Spawn(void);
+void hal_fill_water_bomb_vtable(void);
+extern unsigned char RollingIronBall_SpawnInfo[];       /* ov100 0x02147f58 */
+void *RollingIronBall_Spawn(void);
+void hal_fill_rolling_iron_ball_vtable(void);
+extern unsigned char WarpPipe_SpawnInfo[];              /* ov102 0x0214e134 */
+void *WarpPipe_Spawn(void);
+void hal_fill_warp_pipe_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -169,4 +205,23 @@ void hal_fill_coin_vtable(void);
     {288, "COIN", Coin_SpawnInfo, Coin_Spawn, hal_fill_coin_vtable},           \
     {289, "RED_COIN", RedCoin_SpawnInfo, RedCoin_Spawn, hal_fill_coin_vtable}, \
     {290, "BLUE_COIN", BlueCoin_SpawnInfo, BlueCoin_Spawn,                     \
-     hal_fill_coin_vtable},
+     hal_fill_coin_vtable},                                                    \
+    {15, "BRICK_BLOCK", BrickBlock_SpawnInfo, BrickBlock_Spawn, 0},            \
+    {322, "MEGA_MUSHROOM_BLOCK_TAG", MegaMushroomBlockTag_SpawnInfo,           \
+     MegaMushroomBlockTag_Spawn, hal_fill_mega_mushroom_block_tag_vtable},     \
+    {14, "CANNON_HATCH", CannonHatch_SpawnInfo, CannonHatch_Spawn,             \
+     hal_fill_cannon_hatch_vtable},                                            \
+    /* CAP (269), HEALING_HEART (297), EXCLAMATION_SWITCH (11), WATER_BOMB  \
+       (208) and ROLLING_IRON_BALL (220) are BUILT BUT NOT REGISTERED. All  \
+       five fault on their first frame, each measured on its own with       \
+       SM64DS_SPAWN_ACTOR; the head of hal/actor_classes_bob_world.cpp      \
+       carries the backtrace and the reading. A class that dies on frame one\
+       is worse than the registry gate naming it as skipped. */             \
+    {329, "INVISIBLE_SECRET", InvisibleSecret_SpawnInfo, InvisibleSecret_Spawn,\
+     hal_fill_invisible_secret_vtable},                                        \
+    {299, "ARROW_SIGN_LEFT", ArrowSignLeft_SpawnInfo, ArrowSignLeft_Spawn,     \
+     hal_fill_arrow_sign_vtable},                                              \
+    {300, "ARROW_SIGN_RIGHT", ArrowSignRight_SpawnInfo, ArrowSignRight_Spawn,  \
+     hal_fill_arrow_sign_vtable},                                              \
+    {298, "WARP_PIPE", WarpPipe_SpawnInfo, WarpPipe_Spawn,                     \
+     hal_fill_warp_pipe_vtable},

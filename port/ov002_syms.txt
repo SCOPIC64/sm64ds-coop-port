@@ -71,3 +71,14 @@ Coin_SpawnInfo:0x1c RedCoin_SpawnInfo:0x1c BlueCoin_SpawnInfo:0x1c
 # reads with the attribute func_02037e58 classifies. Natural next-symbol
 # deltas: 0xc, 0xc and 0x18.
 data_ov002_020ff060 data_ov002_020ff06c data_ov002_020ff078
+# The seven ov002 SpawnInfo records gate 33 registers besides the coins.
+# Sizes pinned to the record's real 0x1c, the ov098/ov100 convention.
+BrickBlock_SpawnInfo:0x1c MegaMushroomBlockTag_SpawnInfo:0x1c
+CannonHatch_SpawnInfo:0x1c Cap_SpawnInfo:0x1c HealingHeart_SpawnInfo:0x1c
+ExclamationSwitch_SpawnInfo:0x1c InvisibleSecret_SpawnInfo:0x1c
+# Data the gate-33 classes' own InitResources/CleanupResources read.
+# data_ov002_0210b000 is the typeinfo record the vtable at 0x0210b030 follows;
+# 0x0210b030 itself is NOT here -- it is a real actor vtable dsd left unnamed
+# and the registry fills it as host storage (hal/actor_classes_bob_world.cpp).
+data_ov002_020ff0ac data_ov002_021098e8 data_ov002_021098ec data_ov002_021098f0
+data_ov002_0210d7f4:0x8
