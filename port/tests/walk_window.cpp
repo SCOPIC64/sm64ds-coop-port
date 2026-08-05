@@ -79,6 +79,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <process.h>   /* _execl: the debug menu's level row relaunches */
 
 /* user32/gdi32 are loaded DYNAMICALLY after io_init: a static import chain
    initializes the desktop heap before main, and on 32-bit that mapping can
@@ -824,7 +825,8 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
    while its TICK rate falls to zero. That divergence is what the two numbers
    are next to each other for. */
 enum {
-    MENU_WARP = 0,
+    MENU_LEVEL = 0,
+    MENU_WARP,
     MENU_SNAP,
     MENU_OVERLAY,
     MENU_CAMERA,
@@ -834,6 +836,41 @@ enum {
 static int menu_on;
 static int menu_sel;
 static int menu_entrance;             /* the entrance the warp row is showing */
+static int menu_level;                /* index into the hosted-level table */
+
+/* ---- the level row --------------------------------------------------------
+   The one row that cannot change what it shows in place. Everything else in
+   this menu flips a variable the next frame reads; the level is decided by
+   Stage::LoadClsnAndObjects, which runs once, before the window's loop, and
+   unwinding it would mean tearing down the collider, the actor lists, the
+   scene tree, every SharedFilePtr and both screens' VRAM.
+
+   So the row RELAUNCHES. Left and right pick from the same table
+   hal/level_boot.cpp mounts from, enter puts SM64DS_LEVEL in the environment
+   and re-execs this exe, and the new process boots the level from the top the
+   way SM64DS_LEVEL=<id> on the command line does. Nothing about the boot path
+   is special-cased for the menu, which is the point: the row is a shortcut for
+   the environment variable, not a second way in. */
+static void menu_relaunch_level(int id)
+{
+    char exe[MAX_PATH];
+    char val[16];
+    if (!GetModuleFileNameA(0, exe, sizeof exe)) {
+        fprintf(stderr, "[menu] cannot find this exe to relaunch\n");
+        return;
+    }
+    snprintf(val, sizeof val, "%d", id);
+    if (_putenv_s("SM64DS_LEVEL", val) != 0) {
+        fprintf(stderr, "[menu] cannot set SM64DS_LEVEL\n");
+        return;
+    }
+    fprintf(stderr, "[menu] relaunching into level %d\n", id);
+    fflush(0);
+    _execl(exe, exe, (char *)0);
+    /* only reached when the exec failed; the process is still this one */
+    fprintf(stderr, "[menu] relaunch failed, still on level %d\n",
+            port_level_id());
+}
 static int g_overlay_on;              /* F3, and the menu's overlay row */
 static char g_playlog[160] = "off";   /* the flight recorder's current file */
 
@@ -855,6 +892,14 @@ static void menu_draw(ntr::Framebuffer &fb)
     const int have = port_entrance_record(menu_entrance, &ex, &ey, &ez, &eyaw);
     const char *title = "DEBUG MENU   F5 close   arrows move   enter/right act";
 
+    {
+        int lid = 0;
+        const char *lname = "?";
+        port_level_nth(menu_level, &lid, &lname);
+        snprintf(ln[MENU_LEVEL], sizeof ln[0], "level             %d %s%s",
+                 lid, lname, lid == port_level_id() ? "   (running)"
+                                                    : "   enter reloads");
+    }
     if (have)
         snprintf(ln[MENU_WARP], sizeof ln[0],
                  "warp to entrance  %d of %d   (%d %d %d)", menu_entrance,
@@ -1145,6 +1190,16 @@ int main(void)
     const int boot_spawns = real_boot && getenv("SM64DS_BOOT_NOSPAWN") == 0;
     if (real_boot)
         port_level_probe();
+    /* open the menu's level row on what is actually running */
+    for (int i = 0; i < port_level_count(); ++i) {
+        int lid = 0;
+        if (port_level_nth(i, &lid, 0) && lid == port_level_id())
+            menu_level = i;
+    }
+    /* SM64DS_MENU=1 opens the debug menu at boot, which is the only way to
+       see it in a selftest frame: a selftest reads no live keys, so F5 never
+       arrives. It pauses the tick like any other open menu. */
+    menu_on = getenv("SM64DS_MENU") != 0;
 
     data_02092144[0] = 8 << 8;
     if (!boot_spawns) {
@@ -1731,6 +1786,22 @@ int main(void)
                     const int dec = (edge & (1u << 3)) != 0;
                     const int inc = (edge & ((1u << 4) | (1u << 5))) != 0;
                     if (dec || inc) switch (menu_sel) {
+                    case MENU_LEVEL: {
+                        const int n = port_level_count();
+                        if (n <= 0)
+                            break;
+                        if (edge & (1u << 5)) {
+                            int lid = 0;
+                            if (port_level_nth(menu_level, &lid, 0) &&
+                                lid != port_level_id())
+                                menu_relaunch_level(lid);
+                        } else if (dec) {
+                            menu_level = (menu_level + n - 1) % n;
+                        } else {
+                            menu_level = (menu_level + 1) % n;
+                        }
+                        break;
+                    }
                     case MENU_WARP:
                         if (n_ent > 0) {
                             /* left and right pick the entrance; enter warps */
