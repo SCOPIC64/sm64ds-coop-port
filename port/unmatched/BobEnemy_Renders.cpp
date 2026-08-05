@@ -139,4 +139,15 @@ int _ZN13KoopaTheQuick6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- KOOPA_FLAG (actor 205, ov062) ---------------------------------------
+   The other half of the race, and the shortest Render in the gate: one
+   dispatch on the ModelAnim at +0x108, drawn at 1.0. */
+int _ZN9KoopaFlag6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    /* ((Base *)&mModelAnim)->m(0) */
+    ((ModelAnim *)(c + 0x108))->ModelAnim::Render(0);
+    return 1;
+}
+
 }  /* extern "C" */

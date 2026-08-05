@@ -637,7 +637,67 @@ extern "C" void hal_fill_koopa_the_quick_vtable(void)
     vt[17] = (void *)ktq_d0;
 }
 
-/* ---- the last three classes' method faces --------------------------------- */
+// ============================================================================
+// KOOPA_FLAG (actor 205, ov062)
+// ============================================================================
+//
+// _ZTV9KoopaFlag / _ZTV9daRFlag_c, ov062 0x0211dc54 -- the racing flag, and
+// the other half of the koopa's race. It is a plain Actor rather than an
+// Enemy (KoopaFlag_Spawn calls Actor's constructor, not Enemy's), but its
+// table is still the thirty-one-slot shape, so ac31_fill_shared serves it.
+//
+// Its Behavior is the finish line: it asks Actor::FindWithID for the id it
+// was handed and watches for that actor's own id word to read 0xbf, PLAYER.
+// When it does it stops the level timer and starts a ninety-frame sound.
+extern "C" {
+int _ZN9KoopaFlag13InitResourcesEv(void *self);        /* face: below */
+int _ZN9KoopaFlag8BehaviorEv(void *self);              /* face: below */
+int _ZN9KoopaFlag6RenderEv(void *self);                /* host copy */
+int _ZN9KoopaFlag16CleanupResourcesEv(void);
+int *_ZN9KoopaFlagD0Ev(int *self);
+void *_ZTV9KoopaFlag[31];
+}
+#pragma comment(linker, "/alternatename:__ZTV9daRFlag_c=__ZTV9KoopaFlag")
+
+static int __fastcall kfl_init(void *s, void *)
+{ return _ZN9KoopaFlag13InitResourcesEv(s); }
+static int __fastcall kfl_clean(void *, void *)
+{ return _ZN9KoopaFlag16CleanupResourcesEv(); }
+static int __fastcall kfl_behavior(void *s, void *)
+{ return _ZN9KoopaFlag8BehaviorEv(s); }
+static int __fastcall kfl_render(void *s, void *)
+{ port_actor_render_probe("KOOPA_FLAG", (char *)s + 0x108);
+  return _ZN9KoopaFlag6RenderEv(s); }
+/* SLOT 16 IS HOSTED rather than taken from src, the bob-omb buddy's case for
+   the second time: src/_ZN9KoopaFlagD1Ev.cpp is a REAL C++ DESTRUCTOR over a
+   shadow class with two members, so MSVC emits ??1KoopaFlag@@UAE@XZ and calls
+   two member dtors that exist nowhere in this build. The body below is
+   src/_ZN9KoopaFlagD0Ev.c minus its final Memory::Deallocate, which
+   ActorBase::AfterCleanupResources performs itself after the dispatch. */
+static int __fastcall kfl_d1(void *s, void *)
+{
+    *(int *)s = (int)(size_t)_ZTV9KoopaFlag;
+    _ZN9ModelAnimD1Ev((char *)s + 0x108);
+    _ZN18MovingCylinderClsnD1Ev((char *)s + 0xd4);
+    _ZN5ActorD2Ev(s);
+    return (int)(size_t)s;
+}
+static int __fastcall kfl_d0(void *s, void *)
+{ return (int)(size_t)_ZN9KoopaFlagD0Ev((int *)s); }
+
+extern "C" void hal_fill_koopa_flag_vtable(void)
+{
+    void **vt = _ZTV9KoopaFlag;
+    ac31_fill_shared(vt);
+    vt[0] = (void *)kfl_init;
+    vt[3] = (void *)kfl_clean;
+    vt[6] = (void *)kfl_behavior;
+    vt[9] = (void *)kfl_render;
+    vt[16] = (void *)kfl_d1;
+    vt[17] = (void *)kfl_d0;
+}
+
+/* ---- the last four classes' method faces ---------------------------------- */
 #include "ChainChomp.h"
 #include "ChainChompFence.h"
 #include "KoopaTheQuick.h"
@@ -658,4 +718,11 @@ int _ZN13KoopaTheQuick8BehaviorEv(void *self)
 { return ((KoopaTheQuick *)self)->KoopaTheQuick::Behavior(); }
 int _ZN13KoopaTheQuick16CleanupResourcesEv(void *self)
 { return ((KoopaTheQuick *)self)->KoopaTheQuick::CleanupResources(); }
+}
+#include "KoopaFlag.h"
+extern "C" {
+int _ZN9KoopaFlag13InitResourcesEv(void *self)
+{ return ((KoopaFlag *)self)->KoopaFlag::InitResources(); }
+int _ZN9KoopaFlag8BehaviorEv(void *self)
+{ return ((KoopaFlag *)self)->KoopaFlag::Behavior(); }
 }

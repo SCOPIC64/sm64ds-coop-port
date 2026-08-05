@@ -20,7 +20,18 @@ void _ZN6Player20RegisterEggCoinCountEjbb(void *self, unsigned n, int b2, int b3
    reference onto a definition that is a real method. */
 int _ZN6Player12Unk_020ca150Eh(void *self, unsigned char a)
 { return ((Player *)self)->Player::Unk_020ca150(a); }
+/* Player::Unk_020c4f40 (ov002 0x020c4f40), the state KOOPA_THE_QUICK puts the
+   player into when he starts the race. */
+int _ZN6Player12Unk_020c4f40Et(void *self, unsigned short a)
+{ return ((Player *)self)->Player::Unk_020c4f40(a); }
 }
+
+/* Actor::GetSubtraction (arm9 0x0200f8d4), the absolute angle difference two
+   of the koopa's states run. Its definition is a real method; his own TUs
+   spell it by the Itanium C name. */
+#include "Actor.h"
+extern "C" int _ZN5Actor14GetSubtractionEss(void *self, short a, short b)
+{ return ((Actor *)self)->Actor::GetSubtraction(a, b); }
 
 /* Model::HideMaterial (arm9 0x02016a58), which KOOPA_THE_QUICK's Render calls
    through its own shadow while the definition is a real method. */

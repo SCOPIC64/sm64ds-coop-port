@@ -496,6 +496,61 @@ src/_ZN13KoopaTheQuickD0Ev.c
 src/func_ov062_0211aac0.c
 # Model::HideMaterial, which his Render is the port's first caller of.
 src/_ZN5Model12HideMaterialEii.cpp
+# ---- HIS SIX STATES --------------------------------------------------------
+# KoopaTheQuick::Behavior dispatches data_ov062_0211e0a4[state] the way the
+# Butterfly's matched source does -- it reads the pair as two plain ints and
+# does the virtual-bit and this-adjustment arithmetic itself -- so MSVC's
+# pointer-to-member representation never comes into it and there is no host
+# copy. What it does need is the SEAT: __sinit_ov062_0211d4a0 copies six
+# 8-byte statics into that table and every one of them is a DS code address.
+# Measured: unseated, a spawned koopa jumped straight to 0x0211a9c4, which is
+# state 0's own body in the overlay image. The seat is in
+# hal/actor_overlays.cpp with the butterfly's and the rabbit's.
+src/func_ov062_0211a9c4.c
+src/func_ov062_0211a740.cpp
+src/func_ov062_0211a1f4.c
+src/func_ov062_0211a168.c
+src/func_ov062_0211a0f0.c
+src/func_ov062_02119be0.c
+src/func_ov062_02119af0.cpp
+src/func_ov062_021199ac.c
+src/func_ov062_02119954.c
+src/func_ov062_02119800.cpp
+# ...and the five leaves the race reaches that no earlier class did: the
+# player state the koopa forces when he talks, the music layer the race
+# starts, the star the win spawns, and the two Actor searches his states run.
+src/_ZN6Player12Unk_020c4f40Et.cpp
+src/_ZN5Sound22LoadAndSetMusic_Layer2Ej.c
+src/_ZN5Actor14GetSubtractionEss.cpp
+src/_ZN5Actor19UntrackAndSpawnStarERajRK7Vector3j.c
+src/_ZN5Actor18ClosestWithActorIDEj.c
+
+# ---- KOOPA_FLAG (actor 205, ov062) ----------------------------------------
+# The flag at the top of the mountain, and the other half of the race: its
+# Behavior asks Actor::FindWithID for the id it was given and watches for that
+# actor's own id word to read 0xbf, which is PLAYER. When it does, the flag
+# stops the timer and starts a ninety-frame victory sound.
+#
+# The config's names check out: KoopaFlag_SpawnInfo's +4 halfword reads 205,
+# KoopaFlag_Spawn installs ov062 0x0211dc54, and that table's RTTI is
+# daRFlag_c (the racing flag) with all six method slots spelled _ZN9KoopaFlag*.
+#
+# HE IS NOT IN BOB'S DEFAULT OBJECT TABLE either, for the same reason the
+# koopa is not: the level names both in a star group the boot's filter does
+# not load. SM64DS_SPAWN_ACTOR=205 is how to see one.
+src/KoopaFlag_Spawn.c
+src/_ZN9KoopaFlag13InitResourcesEv.cpp
+src/_ZN9KoopaFlag8BehaviorEv.cpp
+# _ZN9KoopaFlag6RenderEv IS NOT HERE: the ModelAnim slot-5 case for the sixth
+# time in this gate. port/unmatched/BobEnemy_Renders.cpp.
+src/_ZN9KoopaFlag16CleanupResourcesEv.c
+# _ZN9KoopaFlagD1Ev IS NOT HERE: a real C++ destructor over a shadow class
+# with two members, so MSVC emits ??1KoopaFlag@@UAE@XZ and calls two member
+# dtors that exist nowhere. Slot 16 is hosted in
+# hal/actor_classes_bob_enemy.cpp as the D0 body minus its final Deallocate --
+# the Bird's treatment, and the bob-omb buddy's.
+src/_ZN9KoopaFlagD0Ev.c
+src/func_ov062_0211afbc.c
 # ---- ov062's own static initialisers ---------------------------------------
 src/__sinit_ov062_0211cf30.c
 src/__sinit_ov062_0211d2d8.c

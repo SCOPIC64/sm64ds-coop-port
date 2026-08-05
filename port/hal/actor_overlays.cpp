@@ -138,6 +138,24 @@ void __sinit_ov014_02113118(void);
 void __sinit_ov014_021132fc(void);
 void port_chain_chomp_states_seat(void);
 
+/* ---- KOOPA_THE_QUICK's six states ----------------------------------------
+   __sinit_ov062_0211d4a0 copies six {function, delta} statics at ov062
+   0x0211db30..0x0211db58 into data_ov062_0211e0a4, and his Behavior dispatches
+   whichever one is at +0x38c every frame. He needs NO HOST COPY -- the
+   matched source reads the pair as two plain ints and does the virtual-bit
+   and this-adjustment arithmetic itself, the butterfly's case -- but the
+   statics carry DS code addresses, so the host bodies are seated over them
+   before the sinit copies them. Measured: unseated, a spawned koopa jumped
+   straight to 0x0211a9c4, state 0's own body in the overlay image. */
+struct PortPmf3 { unsigned fn; int delta; };
+extern PortPmf3 data_ov062_0211db48[], data_ov062_0211db30[],
+    data_ov062_0211db58[], data_ov062_0211db50[], data_ov062_0211db40[],
+    data_ov062_0211db38[];
+
+void func_ov062_0211a9c4(void *); void func_ov062_0211a740(void *);
+void func_ov062_0211a1f4(void *); void func_ov062_0211a168(void *);
+void func_ov062_0211a0f0(void *); void func_ov062_02119be0(void *);
+
 void port_ov062_pack_check(void);
 void port_ov062_syms_patch(void);
 void __sinit_ov062_0211cf30(void);
@@ -316,6 +334,33 @@ g_rabbit_states[] = {
     {data_ov085_021300b4, 0x0212b75c, func_ov085_0212b75c},
 };
 
+static const struct { PortPmf3 *slot; unsigned rom; void (*host)(void *); }
+g_koopa_quick_states[] = {
+    {data_ov062_0211db48, 0x0211a9c4, func_ov062_0211a9c4},
+    {data_ov062_0211db30, 0x0211a740, func_ov062_0211a740},
+    {data_ov062_0211db58, 0x0211a1f4, func_ov062_0211a1f4},
+    {data_ov062_0211db50, 0x0211a168, func_ov062_0211a168},
+    {data_ov062_0211db40, 0x0211a0f0, func_ov062_0211a0f0},
+    {data_ov062_0211db38, 0x02119be0, func_ov062_02119be0},
+};
+
+static void port_koopa_quick_states_seat(void)
+{
+    for (unsigned i = 0;
+         i < sizeof g_koopa_quick_states / sizeof g_koopa_quick_states[0];
+         ++i) {
+        PortPmf3 *p = g_koopa_quick_states[i].slot;
+        if (p->fn != g_koopa_quick_states[i].rom || p->delta != 0) {
+            std::fprintf(stderr, "FATAL: KoopaTheQuick state %u: the mount "
+                         "holds %08x/%d, the ROM's own table says %08x/0 -- "
+                         "WRONG BYTES\n", i, p->fn, p->delta,
+                         g_koopa_quick_states[i].rom);
+            std::abort();
+        }
+        p->fn = (unsigned)(size_t)g_koopa_quick_states[i].host;
+    }
+}
+
 static void port_rabbit_states_seat(void)
 {
     for (unsigned i = 0; i < sizeof g_rabbit_states / sizeof g_rabbit_states[0];
@@ -399,6 +444,7 @@ extern "C" void port_actor_overlays_sinits(void)
 
     port_ov062_pack_check();
     port_ov062_syms_patch();
+    port_koopa_quick_states_seat();
     __sinit_ov062_0211cf30();
     __sinit_ov062_0211d2d8();
     __sinit_ov062_0211d4a0();

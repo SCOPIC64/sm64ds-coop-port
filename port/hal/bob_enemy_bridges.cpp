@@ -309,4 +309,20 @@ unsigned char data_0209f30d[4];
 #pragma comment(linker, "/alternatename:?data_ov062_0211e034@@3PADA=_data_ov062_0211e034")
 #pragma comment(linker, "/alternatename:?data_ov062_0211e034@@3USharedFilePtr@@A=_data_ov062_0211e034")
 #pragma comment(linker, "/alternatename:?data_ov062_0211e03c@@3PADA=_data_ov062_0211e03c")
+/* ---- KOOPA_FLAG's three ---------------------------------------------------
+   Its InitResources declares Animation::LoadFile returning void* where
+   BobOmb's declares it returning void and the definition returns char*; one
+   register in all three. Its two SharedFilePtrs and the level timer its
+   Behavior stops are the declared-type case again -- data_0209d4c8 is arm9
+   bss (hal/auto_bss.cpp) and the flag's TU spells it `extern char[]` in C++. */
+#pragma comment(linker, "/alternatename:?LoadFile@Animation@@SAPAXAAUSharedFilePtr@@@Z=__ZN9Animation8LoadFileER13SharedFilePtr")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e0d4@@3USharedFilePtr@@A=_data_ov062_0211e0d4")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e0dc@@3USharedFilePtr@@A=_data_ov062_0211e0dc")
+#pragma comment(linker, "/alternatename:?data_0209d4c8@@3PADA=_data_0209d4c8")
+/* ---- KOOPA_THE_QUICK's own six states -------------------------------------
+   Two more spellings of the same two SharedFilePtrs, and cstd::atan2 named
+   without its Fix12 typedefs by the state that turns him toward the player. */
+#pragma comment(linker, "/alternatename:?data_ov062_0211e034@@3PAHA=_data_ov062_0211e034")
+#pragma comment(linker, "/alternatename:?data_ov062_0211e03c@@3PAHA=_data_ov062_0211e03c")
+#pragma comment(linker, "/alternatename:?atan2@cstd@@YAHHH@Z=__ZN4cstd5atan2E5Fix12IiES1_")
 #pragma comment(linker, "/alternatename:?data_ov062_0211e03c@@3USharedFilePtr@@A=_data_ov062_0211e03c")

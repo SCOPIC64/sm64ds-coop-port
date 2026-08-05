@@ -157,6 +157,9 @@ void hal_fill_koopa_the_quick_vtable(void);
 extern unsigned char Stump_SpawnInfo[];           /* ov091 0x02135298 */
 void *Stump_Spawn(void);                          /* ov091 0x02133938 */
 void hal_fill_stump_vtable(void);
+extern unsigned char KoopaFlag_SpawnInfo[];       /* ov062 0x0211dc30 */
+void *KoopaFlag_Spawn(void);                      /* ov062 0x0211b208 */
+void hal_fill_koopa_flag_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -197,4 +200,8 @@ void hal_fill_stump_vtable(void);
      hal_fill_chain_chomp_vtable},                                             \
     {41, "CHAIN_CHOMP_FENCE", ChainChompFence_SpawnInfo, ChainChompFence_Spawn,\
      hal_fill_chain_chomp_fence_vtable},                                       \
-    {27, "STUMP", Stump_SpawnInfo, Stump_Spawn, hal_fill_stump_vtable},
+    {27, "STUMP", Stump_SpawnInfo, Stump_Spawn, hal_fill_stump_vtable},        \
+    {188, "KOOPA_THE_QUICK", KoopaTheQuick_SpawnInfo, KoopaTheQuick_Spawn,     \
+     hal_fill_koopa_the_quick_vtable},                                         \
+    {205, "KOOPA_FLAG", KoopaFlag_SpawnInfo, KoopaFlag_Spawn,                  \
+     hal_fill_koopa_flag_vtable},
