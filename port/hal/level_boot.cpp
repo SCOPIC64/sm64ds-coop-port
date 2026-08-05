@@ -1574,6 +1574,21 @@ extern "C" void port_level_reset_host(void)
 // The SKYBOX at +0x9bc is a Model the Stage NEWS off the game heap, and
 // Stage::LoadSkybox news another one every time it runs. Deleting it here is
 // what keeps a level change from leaking one skybox model per transition.
+//
+// WHY THIS IS NOT Stage::CleanupResources, checked against the src. The full
+// teardown (src/_ZN5Stage16CleanupResourcesEv.cpp) is host-hostile in three
+// places the port has no answer for: Scene::SetAndStopColorFader (the COLOR
+// fader the title path already routes around -- data_0209f5e8 is a null host
+// slot), func_02073244 over the FaderWipe array (the wipe subsystem the port
+// stages separately), and UnloadLevelOverlays / UnloadArchive (the NARC
+// archive path the port's fs seam replaces). Its Model::LoadAndSetFile
+// (src) also does NOT free the old BMD -- it overwrites modelFile and calls
+// SetFile -- so the D2/C1 reseat below is load-bearing, not belt-and-braces:
+// without it the previous level's BMD and ModelComponents leak and the render
+// walk reads stale components. So this is the level-owned-subobject SUBSET of
+// CleanupResources that is host-safe, and it stays until the boot hosts the
+// whole InitResources/CleanupResources pair with the archive, VRAM-bank and
+// fader subsystems fed (see the report's "what remains").
 extern "C" {
 void *_ZN5ModelD2Ev(void *self);
 void *_ZN5ModelC1Ev(void *self);

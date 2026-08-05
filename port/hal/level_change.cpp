@@ -84,6 +84,14 @@
 // level-owned sub-objects are re-seated in place, which is what
 // port_level_stage_reseat does. When the boot becomes Stage::InitResources
 // for real, this is the piece that goes away.
+//
+// WHAT THE HANDOFF NOW GETS RIGHT that it did not: the boot it drives mounts
+// the level it warped TO. The latch writes the new level into data_0209f2f8;
+// this file hands the same id to port_level_set_target before port_stage_a_boot,
+// so the boot's overlay mount and its sound-row seat resolve to the warped-to
+// level. Before that the boot resolved through the SM64DS_LEVEL-cached desc and
+// re-booted the castle grounds -- the census came back the castle's, doubled,
+// and this line said "level 1 up" after a select of level 6.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
