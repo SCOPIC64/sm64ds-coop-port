@@ -8,7 +8,6 @@
 //
 // ---- the overlay mount ----------------------------------------------------
 //
-// Castle grounds is level 1, whose LVL_Overlay lives in ov009 at 0x02112bdc.
 // A DS overlay is linked at a fixed base and loaded there unrelocated, so the
 // ROM image already carries absolute pointers -- the object tables, the CLPS
 // block, the path nodes. Mounting it on the host is therefore two steps:
@@ -16,8 +15,45 @@
 // arrays break every walk that steps past the symbol dsd happened to name),
 // then rewrite the words the delink table says point back inside it.
 //
-// port_ov009_at() turns a DS address into the host address of the same byte,
+// port_ovNNN_at() turns a DS address into the host address of the same byte,
 // which is how every constant below is spelled.
+//
+// ---- WHICH overlay, and WHICH level -- the evidence ------------------------
+//
+// Three facts identify a level, and all three come out of the ROM rather than
+// out of the overlay numbering.
+//
+// 1. LoadLevelOverlays(level) is `LoadOverlay(data_020758c8[level])`, so the
+//    arm9 table at 0x020758c8 IS the level-to-overlay map. Read out of the
+//    decompressed arm9 it is 52 words, and it happens to be contiguous:
+//    level N -> overlay 8+N, level 1 -> ov009. That is a MEASUREMENT, not the
+//    assumption -- the map is what the table says, and the table is read.
+//
+// 2. Which level a given overlay is comes from its own LVL_Overlay: the four
+//    halfwords at +0x08 are the bmd/kcl/icg/icl file handles, and a handle is
+//    the FAT file id plus a constant (1941 = data/stage/main_garden/
+//    main_garden.kcl at FAT 1515, so +426, and every other level overlay
+//    resolves to a coherent data/stage/<name>/ folder under the same
+//    constant). ov009's read main_garden -- the castle grounds. ov015's read
+//    bombhei_map, which is Bob-omb Battlefield: bombhei is the Bob-omb, and
+//    data/enemy/bombking is that level's King Bob-omb.
+//
+// 3. Cross-checked against the per-level OBJECT overlay table that
+//    LoadOrUnloadObjectOverlays walks (data_02075998 selectors into
+//    data_02075804). Level 1 names ov085, which is exactly the overlay the
+//    castle grounds' rabbits and Lakitu already come from (gate 18). Level 7
+//    names ov062/079/084/091/094: Koopa the Quick, Chuckya, Klepto, Whomp,
+//    Bullet Bill, Bob-omb Buddy, Goomba, the tilting/sliding platforms, the
+//    Stump, and Hoot the Owl. That is Bob-omb Battlefield's roster and
+//    nothing else's.
+//
+// So: castle grounds = level 1, ov009, LVL_Overlay 0x02112bdc.
+//     Bob-omb Battlefield = level 7, ov015, LVL_Overlay 0x02113518.
+//
+// Every level overlay is linked at the same base (0x021111a0) because the DS
+// only ever holds one. On the host each is its own array with its own
+// port_ovNNN_at(), so several can be mounted at once and the table below
+// picks the one the boot walks.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -29,12 +65,12 @@ void port_ov009_patch(void);
 void *port_ov009_at(unsigned ds);
 extern unsigned char port_ov009_image[];
 extern const unsigned port_ov009_ds_base, port_ov009_ds_end;
-}
 
-/* Castle grounds, level 1. */
-enum {
-    OV009_LVL_OVERLAY = 0x02112bdc,
-};
+void port_ov015_patch(void);
+void *port_ov015_at(unsigned ds);
+extern unsigned char port_ov015_image[];
+extern const unsigned port_ov015_ds_base, port_ov015_ds_end;
+}
 
 /* LVL_Overlay, the fields the boot uses. */
 struct PortLvlOverlay {
@@ -51,17 +87,93 @@ struct PortLvlOverlay {
     unsigned int unk18;          /* 0x18 */
 };
 
-extern "C" void *port_ov009_mount(void)
+/* One row per level the port can mount. Adding a level is this row plus its
+   overlay name in PORT_LEVEL_OVERLAYS (port/CMakeLists.txt); everything the
+   boot does past the mount is the level's own data driving matched src.
+   `own_sinits` marks the levels whose overlay ALSO has a per-symbol mount and
+   static initialisers hosted (hal/ov009_boot.cpp) -- gate 17's work, and so
+   far only the castle grounds has it. */
+struct PortLevelDesc {
+    int id;
+    const char *name;
+    const char *overlay;
+    unsigned lvl_overlay;
+    void (*patch)(void);
+    void *(*at)(unsigned);
+    const unsigned *ds_base;
+    const unsigned *ds_end;
+    int own_sinits;
+};
+
+static const PortLevelDesc port_level_table[] = {
+    {1, "castle grounds (main_garden)", "ov009", 0x02112bdc,
+     port_ov009_patch, port_ov009_at,
+     &port_ov009_ds_base, &port_ov009_ds_end, 1},
+    {7, "Bob-omb Battlefield (bombhei_map)", "ov015", 0x02113518,
+     port_ov015_patch, port_ov015_at,
+     &port_ov015_ds_base, &port_ov015_ds_end, 0},
+};
+
+enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
+
+/* SM64DS_LEVEL=<id> picks the level; the default stays 1 so every existing
+   run, hash and screenshot means what it meant. An id the port cannot mount
+   is named along with the ones it can rather than silently falling back --
+   a quiet fallback to the castle grounds would read as "Bob-omb Battlefield
+   boots" when it did not. */
+static const PortLevelDesc *port_level_desc(void)
+{
+    static const PortLevelDesc *sel;
+    if (sel)
+        return sel;
+    const char *e = std::getenv("SM64DS_LEVEL");
+    int want = e ? std::atoi(e) : 1;
+    for (int i = 0; i < PORT_LEVEL_COUNT; ++i)
+        if (port_level_table[i].id == want) {
+            sel = &port_level_table[i];
+            if (e)
+                std::printf("[level] %d = %s, %s\n", sel->id, sel->name,
+                            sel->overlay);
+            return sel;
+        }
+    std::fprintf(stderr, "FATAL: SM64DS_LEVEL=%d is not a hosted level. "
+                 "Hosted:", want);
+    for (int i = 0; i < PORT_LEVEL_COUNT; ++i)
+        std::fprintf(stderr, " %d (%s)", port_level_table[i].id,
+                     port_level_table[i].name);
+    std::fprintf(stderr, "\n");
+    std::abort();
+    return 0;
+}
+
+extern "C" int port_level_id(void) { return port_level_desc()->id; }
+extern "C" const char *port_level_name(void) { return port_level_desc()->name; }
+extern "C" int port_level_count(void) { return PORT_LEVEL_COUNT; }
+
+extern "C" int port_level_nth(int i, int *id, const char **name)
+{
+    if (i < 0 || i >= PORT_LEVEL_COUNT) return 0;
+    if (id) *id = port_level_table[i].id;
+    if (name) *name = port_level_table[i].name;
+    return 1;
+}
+
+/* Whether the CURRENT level's overlay has its own hosted sinits (gate 17). */
+extern "C" int port_level_has_own_sinits(void)
+{ return port_level_desc()->own_sinits; }
+
+extern "C" void *port_level_mount(void)
 {
     static void *lvl;
     if (lvl)
         return lvl;
-    port_ov009_patch();
-    lvl = port_ov009_at(OV009_LVL_OVERLAY);
+    const PortLevelDesc *d = port_level_desc();
+    d->patch();
+    lvl = d->at(d->lvl_overlay);
     if (!lvl) {
-        std::fprintf(stderr, "FATAL: ov009 mount: 0x%08x outside the overlay "
-                     "[0x%08x, 0x%08x)\n", (unsigned)OV009_LVL_OVERLAY,
-                     port_ov009_ds_base, port_ov009_ds_end);
+        std::fprintf(stderr, "FATAL: %s mount: 0x%08x outside the overlay "
+                     "[0x%08x, 0x%08x)\n", d->overlay, d->lvl_overlay,
+                     *d->ds_base, *d->ds_end);
         std::abort();
     }
     return lvl;
@@ -362,7 +474,7 @@ extern "C" void port_scene_canary(const char *where);
 void *port_stage_a_boot(void *mc, int spawn)
 {
     g_stage_mc = mc;
-    PortLvlOverlay *o = (PortLvlOverlay *)port_ov009_mount();
+    PortLvlOverlay *o = (PortLvlOverlay *)port_level_mount();
 
     /* STAGE B: THE TABLES ARE BACK ON. Stage A1 zeroed the Entrance, Door and
        Exit counts in the host copy of the overlay and dropped the sub-table
@@ -374,8 +486,15 @@ void *port_stage_a_boot(void *mc, int spawn)
         port_stage_suppress(o, (1u << LOADER_ENTRANCE) | (1u << LOADER_DOOR) |
                                    (1u << LOADER_EXIT), 1);
 
-    data_0209f2f8 = 1;          /* castle grounds */
-    data_0209f264[0] = 0;       /* entrance 0, the castle gate */
+    data_0209f2f8 = (signed char)port_level_id();
+    /* Entrance 0 is the level's first entrance record, which is where the
+       game puts you arriving from outside: the castle gate on the grounds,
+       the warp-pipe pad on Bob-omb Battlefield. SM64DS_ENTRANCE picks another
+       one; port_entrance_count() says how many the level has. */
+    {
+        const char *en = std::getenv("SM64DS_ENTRANCE");
+        data_0209f264[0] = en ? std::atoi(en) : 0;
+    }
     /* Star filter: the sub-table's group byte (kind >> 5) loads when it is 0
        or equal to this. ADVENTURE is 1, which is grp0 + grp1; SM64DS_STAR_FILTER
        is the knob that reads the other halves back (0 = grp0 alone). */
@@ -652,11 +771,16 @@ extern "C" void port_stage_a2_seat(void)
        spawn. hal/clsn_vtable.cpp has already seeded it with MeshCollider's. */
     hal_fill_moving_mesh_collider_vtable();
 
-    /* ov009's own four static initialisers, where the DS runs them: after the
-       overlay is mounted and before anything spawns. Every SharedFilePtr the
-       level's own actors load through is constructed there, and so are the
-       three Vector3 arrays the moat spawns its bubbles along. */
-    port_ov009_sinits();
+    /* The LEVEL overlay's own static initialisers, where the DS runs them:
+       after the overlay is mounted and before anything spawns. Every
+       SharedFilePtr the level's own actors load through is constructed there,
+       and so are the three Vector3 arrays the moat spawns its bubbles along.
+       Only ov009 has this hosted (gate 17), and on the DS a level overlay's
+       sinits run only when THAT overlay is the loaded one -- running the
+       castle grounds' under another level would seat its file pointers and
+       its Bird state table over bytes that level never reads. */
+    if (port_level_has_own_sinits())
+        port_ov009_sinits();
 
     /* and the ACTOR overlays' -- ov085 and up, the overlays that exist for a
        handful of classes several levels share (hal/actor_overlays.cpp). Same
@@ -719,21 +843,23 @@ extern "C" int port_stage_path_guard(void *player)
 /* ---- probes --------------------------------------------------------------
    The boot is a pointer rewrite over Nintendo bytes followed by matched code
    walking it, so what matters is what the game ends up reading. */
-void port_ov009_probe(void)
+void port_level_probe(void)
 {
-    const PortLvlOverlay *o = (const PortLvlOverlay *)port_ov009_mount();
-    std::printf("[ov009] image %p .. %p (DS 0x%08x .. 0x%08x)\n",
-                (void *)port_ov009_image,
-                (void *)(port_ov009_image +
-                         (port_ov009_ds_end - port_ov009_ds_base)),
-                port_ov009_ds_base, port_ov009_ds_end);
-    std::printf("[ov009] LVL_Overlay: clps %p objTable %p bmd %u kcl %u "
-                "subTables %p subCount %u flags %02x\n",
+    const PortLvlOverlay *o = (const PortLvlOverlay *)port_level_mount();
+    const PortLevelDesc *d = port_level_desc();
+    const char *ov = d->overlay;
+    unsigned char *img = (unsigned char *)d->at(*d->ds_base);
+    std::printf("[%s] level %d = %s\n", ov, d->id, d->name);
+    std::printf("[%s] image %p .. %p (DS 0x%08x .. 0x%08x)\n", ov,
+                (void *)img, (void *)(img + (*d->ds_end - *d->ds_base)),
+                *d->ds_base, *d->ds_end);
+    std::printf("[%s] LVL_Overlay: clps %p objTable %p bmd %u kcl %u "
+                "subTables %p subCount %u flags %02x\n", ov,
                 (void *)o->clps, (void *)o->objTable, o->bmdFileId,
                 o->kclFileId, (void *)o->subTables, o->subCount, o->flags);
     unsigned n = *(const unsigned short *)o->objTable;
     const unsigned char *e = *(const unsigned char *const *)(o->objTable + 4);
-    std::printf("[ov009] objTable: %u kinds at %p\n", n, (const void *)e);
+    std::printf("[%s] objTable: %u kinds at %p\n", ov, n, (const void *)e);
     for (unsigned i = 0; i < n; ++i, e += 8)
         std::printf("        kind 0x%02x (grp %d idx %2d) count %3u entries %p\n",
                     e[0], (e[0] >> 5) & 7, e[0] & 0x1f, e[1],
@@ -745,7 +871,7 @@ void port_ov009_probe(void)
             continue;
         unsigned m = *(const unsigned short *)t;
         const unsigned char *se = *(const unsigned char *const *)(t + 4);
-        std::printf("[ov009] sub[%u] table %p: %u kinds\n", s,
+        std::printf("[%s] sub[%u] table %p: %u kinds\n", ov, s,
                     (const void *)t, m);
         for (unsigned i = 0; i < m; ++i, se += 8)
             std::printf("        kind 0x%02x (grp %d idx %2d) count %3u "
@@ -761,7 +887,7 @@ void _ZNK7PathPtr7GetNodeER7Vector3j(const void *self, int *out, unsigned idx);
 void port_stage_a_probe(void *mc_)
 {
     MeshCollider *mc = (MeshCollider *)mc_;
-    const PortLvlOverlay *o = (const PortLvlOverlay *)port_ov009_mount();
+    const PortLvlOverlay *o = (const PortLvlOverlay *)port_level_mount();
 
     /* CLPS: "CLPS" magic, u16 entry size, u16 count, then the records --
        byte 0 the surface type, byte 4 the path id (0xff = none). */

@@ -350,7 +350,13 @@ extern unsigned g_port_unhosted_hits;
 int port_entrance_count(void);
 int port_entrance_record(int i, int *x, int *y, int *z, int *yaw);
 /* the real level boot (hal/level_boot.cpp) */
-void port_ov009_probe(void);
+void port_level_probe(void);
+/* the level selector: SM64DS_LEVEL picks it, the debug menu's LEVEL row
+   walks the same table. port_level_nth enumerates it. */
+int port_level_id(void);
+const char *port_level_name(void);
+int port_level_count(void);
+int port_level_nth(int i, int *id, const char **name);
 void *port_stage_a_boot(void *mc, int spawn_entrances);
 void port_stage_a_probe(void *mc);
 void *port_stage_create(void);   /* hal/stage_bridges.cpp: the real Stage actor */
@@ -1132,7 +1138,7 @@ int main(void)
     const int real_boot = getenv("SM64DS_LEGACY_BOOT") == 0;
     const int boot_spawns = real_boot && getenv("SM64DS_BOOT_NOSPAWN") == 0;
     if (real_boot)
-        port_ov009_probe();
+        port_level_probe();
 
     data_02092144[0] = 8 << 8;
     if (!boot_spawns) {
