@@ -202,6 +202,12 @@ void _ZN5Sound6Player19SetPlayableSeqCountEii(int playerId, int maxSeq)
 //   - Sound::LoadGroupAndSetBank takes its other branch under 1 and returns
 //     early for every group but 0x2f. That function is dead on this boot (the
 //     kuppa/intro tails), so 1 makes it more inert, not less.
-int func_0203d974(void) { return 1; }
+//
+// THE DEFINITION LIVES IN hal/star_flow.cpp. The star stream hosted this
+// same seam for the course boot (LoadGroupAndSetBank's first line) with the
+// same answer for the same two reasons, and the consolidation keeps that one;
+// a second `return 1` here was the six-stream merge's fourteenth collision,
+// caught by the linker. This block stays because the voice-group note above
+// is the character swap's story, not the course boot's.
 
 }  // extern "C"
