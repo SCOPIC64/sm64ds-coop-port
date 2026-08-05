@@ -150,12 +150,15 @@ void Particle::SimpleCallback::SpawnParticles(System &sys)
 #include <cstdio>
 #include <cstdlib>
 
+#include "ntr/gx.h"
+
 extern "C" {
 void _ZN8Particle10SysTracker10InitialiseEv(void *self);
 void _ZN8Particle10SysTracker6UpdateEv(void *self);
 void _ZN8Particle9RenderAllEv(void);
 void port_particle_vtables_check(void);
 void *port_stage_object(void);
+extern int data_0209b3ec[];    /* the engine view matrix, ROM scene units */
 extern void *data_0209ee74;    /* the tracker, set by SysTracker::SysTracker */
 }
 
@@ -264,6 +267,20 @@ extern "C" void port_particle_frame(void)
         return;                       /* subsystem down; say nothing per frame */
 
     if (fx_trace() >= 2) {
+        /* the view matrix Particle::RenderAll hands the engine, which every
+           particle's world position is multiplied by before the billboard
+           matrix is loaded (func_0204be40: MulVec3Mat4x3(&trans, mtx, &trans)) */
+        static int said_mtx;
+        if (!said_mtx) {
+            said_mtx = 1;
+            extern int data_0209b3ec[];
+            std::printf("[fx] view matrix data_0209b3ec:");
+            for (int i = 0; i < 12; ++i)
+                std::printf(" %d", data_0209b3ec[i]);
+            std::printf("\n");
+        }
+    }
+    if (fx_trace() >= 2) {
         /* walk the engine's active system list before the update: head at
            engine+4, count at +8, each node's prev in word 0 (func_0204d9a0
            writes node->prev = old, node->next = 0) */
@@ -272,6 +289,22 @@ extern "C" void port_particle_frame(void)
         for (int guard = 0; node && guard < 64; ++guard) {
             char *pentry = *(char **)(node + 0x18);
             char *base = *(char **)(engine + 0x1c);
+            /* Particle::System::New stores the spawn point already divided by
+               8 (its `args.a = a >> 3` trio) into the param block at +0x20.
+               Print it against Mario so the units question is answered by the
+               stored number rather than by reading the arithmetic. */
+            {
+                char *pb = *(char **)(node + 0x0c);
+                if (pb)
+                    std::printf("[fx]   paramblk pos %.1f %.1f %.1f (scene) "
+                                "= %.1f %.1f %.1f (world)\n",
+                                *(int *)(pb + 0x20) / 4096.0,
+                                *(int *)(pb + 0x24) / 4096.0,
+                                *(int *)(pb + 0x28) / 4096.0,
+                                *(int *)(pb + 0x20) / 512.0,
+                                *(int *)(pb + 0x24) / 512.0,
+                                *(int *)(pb + 0x28) / 512.0);
+            }
             std::printf("[fx]   system %p interval=%u counter=%u pentry=%p "
                         "(id %d) def=%p\n",
                         (void *)node, (unsigned)*(unsigned char *)(node + 0x58),
@@ -283,7 +316,62 @@ extern "C" void port_particle_frame(void)
         }
     }
     _ZN8Particle10SysTracker6UpdateEv(t);   /* Stage::Render's call */
-    _ZN8Particle9RenderAllEv();             /* Stage::GraphCallback1's call */
+    /* SM64DS_NO_FX_RENDER=1 keeps the simulation and drops the submission,
+       for A/B-ing what the particles actually put on the screen */
+    static int no_render = -1;
+    if (no_render < 0)
+        no_render = std::getenv("SM64DS_NO_FX_RENDER") ? 1 : 0;
+    /* SM64DS_FX_TRACE=3: what RenderAll actually put in the triangle buffer.
+       The subsystem simulates correctly and submits geometry, so anything
+       invisible is being lost between submission and the raster: a degenerate
+       billboard, an off-screen transform, a zero alpha, or a texture that
+       decoded to nothing. Print the triangles it added so the answer is read
+       off the numbers instead of guessed. */
+    size_t tris_before = 0;
+    if (fx_trace() >= 3) ntr::gx_polygons(tris_before);
+    /* SM64DS_FX_SCALE=1: an EXPERIMENT, not a fix. func_0204be40 multiplies a
+       particle's stored position straight through data_0209b3ec and loads the
+       result as the billboard, with no shift anywhere in between, so the
+       position it holds must already be in the same units as that matrix.
+       Dividing the matrix's 3x3 by 8 is the same arithmetic as converting the
+       position from world units to scene units, so if the particles are being
+       fed world positions this lands them where they belong and the real fix
+       belongs at whatever seats the position. */
+    int saved[9];
+    static int scale_fix = -1;
+    if (scale_fix < 0) scale_fix = std::getenv("SM64DS_FX_SCALE") ? 1 : 0;
+    if (scale_fix) {
+        for (int i = 0; i < 9; ++i) { saved[i] = data_0209b3ec[i]; data_0209b3ec[i] /= 8; }
+    }
+    if (!no_render)
+        _ZN8Particle9RenderAllEv();         /* Stage::GraphCallback1's call */
+    if (scale_fix)
+        for (int i = 0; i < 9; ++i) data_0209b3ec[i] = saved[i];
+    if (fx_trace() >= 3) {
+        size_t tn = 0;
+        const ntr::GxTriangle *ta = ntr::gx_polygons(tn);
+        static int shown;
+        if (tn > tris_before && shown < 6) {
+            ++shown;
+            std::printf("[fx] RenderAll added %u triangles:\n",
+                        (unsigned)(tn - tris_before));
+            for (size_t i = tris_before; i < tn && i < tris_before + 3; ++i) {
+                const ntr::GxTriangle &t = ta[i];
+                std::printf("[fx]   tri a(%.1f,%.1f,%.3f w%.2f) b(%.1f,%.1f,%.3f) "
+                            "c(%.1f,%.1f,%.3f) col %08X alpha %u cull %u tex %s %dx%d\n",
+                            t.v[0].x, t.v[0].y, t.v[0].z, t.v[0].w,
+                            t.v[1].x, t.v[1].y, t.v[1].z,
+                            t.v[2].x, t.v[2].y, t.v[2].z,
+                            t.v[0].color, (unsigned)t.alpha, (unsigned)t.cull,
+                            t.tex ? "yes" : "NULL", t.tw, t.th);
+                const float area =
+                    (t.v[1].x - t.v[0].x) * (t.v[2].y - t.v[0].y) -
+                    (t.v[2].x - t.v[0].x) * (t.v[1].y - t.v[0].y);
+                std::printf("[fx]     signed area %.3f%s\n", area,
+                            area == 0.0f ? "  <-- DEGENERATE" : "");
+            }
+        }
+    }
 
     if (fx_trace()) {
         /* one line a second at 30fps, plus every frame the count changes, so

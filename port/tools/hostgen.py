@@ -297,6 +297,15 @@ DS_DIV = {
     ],
     "func_0204c584": [
         ("d10 / count", "ds_idiv(d10, count)"),
+        # the per-particle setup at the tail: a palette index, and the two
+        # 0xffff reciprocals that become the particle's fade and scale rates.
+        # b34 and +0x2c are both routinely zero in the ROM's own definitions.
+        ("pal[(s >> 0x14) % pal[8]]",
+         "pal[ds_imod((int)(s >> 0x14), (int)pal[8])]"),
+        ("0xffff / (*(Def **)emitter)->b34",
+         "ds_idiv(0xffff, (*(Def **)emitter)->b34)"),
+        ("0xffff / *(u16 *)(p + 0x2c)",
+         "ds_idiv(0xffff, *(u16 *)(p + 0x2c))"),
     ],
     "func_0204d294": [
         ("blueMul / denom", "ds_idiv(blueMul, denom)"),

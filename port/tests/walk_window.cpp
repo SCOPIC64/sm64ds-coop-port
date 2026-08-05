@@ -2921,7 +2921,39 @@ int main(void)
                    matrix to world units for its own two draws. Update runs
                    first, which is the order Stage::Render and
                    Stage::GraphCallback1 run in. */
-                port_particle_frame();
+                {
+                    size_t fx_before = 0, fx_after = 0;
+                    static int fx_tr = -1;
+                    if (fx_tr < 0)
+                        fx_tr = getenv("SM64DS_FX_TRACE") ? 1 : 0;
+                    if (fx_tr) ntr::gx_polygons(fx_before);
+                    port_particle_frame();
+                    if (fx_tr) {
+                        const ntr::GxTriangle *ft = ntr::gx_polygons(fx_after);
+                        if (fx_after != fx_before) {
+                            int sys = 0, par = 0;
+                            port_particle_counts(&sys, &par);
+                            float mnx = 1e30f, mxx = -1e30f, mny = 1e30f,
+                                  mxy = -1e30f, mnz = 1e30f, mxz = -1e30f;
+                            for (size_t i = fx_before; i < fx_after; ++i)
+                                for (int v = 0; v < 3; ++v) {
+                                    float X = ft[i].v[v].x, Y = ft[i].v[v].y,
+                                          Z = ft[i].v[v].z;
+                                    if (X < mnx) mnx = X;
+                                    if (X > mxx) mxx = X;
+                                    if (Y < mny) mny = Y;
+                                    if (Y > mxy) mxy = Y;
+                                    if (Z < mnz) mnz = Z;
+                                    if (Z > mxz) mxz = Z;
+                                }
+                            printf("[fx] frame %d: %zu triangles from %d "
+                                   "particles in %d systems, screen "
+                                   "x[%.0f..%.0f] y[%.0f..%.0f] z[%.3f..%.3f]\n",
+                                   frame, fx_after - fx_before, par, sys,
+                                   mnx, mxx, mny, mxy, mnz, mxz);
+                        }
+                    }
+                }
                 if (selftest) {
                     const ntr::GxTriangle *at = ntr::gx_polygons(after);
                     if (frame == 0 || getenv("SM64DS_TRACE_ACTOR_TRIS")) {
