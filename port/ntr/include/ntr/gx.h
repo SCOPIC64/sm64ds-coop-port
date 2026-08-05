@@ -95,6 +95,8 @@ const GxTriangle *gx_polygons(size_t &count);
 // composites over whatever the 2D engine already drew.
 void gx_render(Framebuffer &fb);
 void gx_debug_proj(float out[16]);
+// the live matrix state, for tracking down a mis-placed draw
+void gx_debug_matrices(int *mode, float pos[16], float proj[16]);
 
 }  // namespace ntr
 

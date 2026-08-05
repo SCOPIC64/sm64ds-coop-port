@@ -579,3 +579,79 @@ int data_02099e94[4], data_02099ebc[4], data_02099ec4[4], data_02099fcc[4];
 int data_020a6084[4], data_020a6088[2], data_020a8114[4];
 
 }  /* extern "C" */
+
+/* ---- THE GAME'S OWN CHARACTER CHANGE ---------------------------------------
+   Player::SetRealCharacter is the cap-block path, the thing that runs when you
+   break a Luigi or Wario cap, hat animation and all. It is also the only
+   correct way to change character in place, because it does the part a bare
+   index write cannot: it Releases the outgoing character's file, LoadFiles the
+   incoming one, re-points the ModelAnim2 at it, swaps the voice bank through
+   func_ov002_020e6330 and writes the save byte at data_0209caa0[0x41] so the
+   choice survives. All of it is matched src already in the slices, gate 22 for
+   this and gate 10 for the rest.
+
+   THIS WRAPPER EXISTS ONLY FOR THE CALLING CONVENTION. The Itanium name is
+   /alternatename'd onto ?SetRealCharacter@Player@@QAEXI@Z, which is
+   __thiscall, so calling it through the C name from a TU without Player.h
+   passes `this` on the stack and leaves ecx holding whatever was there. That
+   is the garbage-ecx trap the port has already been bitten by three times.
+   Here the real header is in scope and the call is an ordinary method call. */
+extern "C" { extern void *data_ov002_020ff480[]; }
+
+/* CHANGE CHARACTER ON THE SPOT. This is PORT CODE, deliberately, and it is
+   the second attempt -- the first one tried to reuse the game's own in-place
+   change and that was the wrong tree to bark up.
+
+   WHY THE GAME'S OWN PATH DOES NOT GENERALISE: Player::SetRealCharacter opens
+   with SetNewHatCharacter, which arms the multi-frame CAP sequence
+   func_ov002_020be3b0 drives. Caps are a Mario/Luigi/Wario mechanic. THERE IS
+   NO YOSHI CAP, so for Yoshi that sequence has no animation to run and leaves
+   an Animation with numFramesAndFlags of 0, which is the divide by zero in
+   WillHitFrame's `% num`. It was never going to work for the character most
+   worth testing, because the game never asks it to.
+
+   WHAT THIS DOES INSTEAD: Player::InitResources is the function that reads the
+   character out of the spawn param and loads exactly that character's models,
+   and it is the only thing that has to run for a character to be complete. So
+   rewrite the param and run it again. The param's layout is InitResources' own
+   unpacking, read back out of the fields it wrote: bits 0-2 character, 3-5 the
+   sub value at +0x6da, 6-7 the entrance index at +0x6d8. Bits 8+ feed
+   func_ov002_020c7dd0's entrance type, which a mid-level swap has no business
+   re-running, so they go in as 0.
+
+   Position, angle and speed are carried across, because InitResources places
+   the Player at the entrance and the point here is to change who you are, not
+   where you are. */
+extern "C" void port_player_set_character(void *player, unsigned ch)
+{
+    char *c = (char *)player;
+    int pos[3], spd[4];
+    short ang;
+    unsigned param;
+
+    ch &= 3;
+    pos[0] = *(int *)(c + 0x5c);
+    pos[1] = *(int *)(c + 0x60);
+    pos[2] = *(int *)(c + 0x64);
+    ang = *(short *)(c + 0x8e);
+    spd[0] = *(int *)(c + 0x98);
+    spd[1] = *(int *)(c + 0xa4);
+    spd[2] = *(int *)(c + 0xa8);
+    spd[3] = *(int *)(c + 0xac);
+
+    param = ch | ((unsigned)*(unsigned char *)(c + 0x6da) << 3) |
+            ((unsigned)*(unsigned char *)(c + 0x6d8) << 6);
+    *(int *)(c + 8) = (int)param;
+    *(unsigned char *)(c + 0x6d9) = (unsigned char)ch;
+
+    _ZN6Player13InitResourcesEv(c);
+
+    *(int *)(c + 0x5c) = pos[0];
+    *(int *)(c + 0x60) = pos[1];
+    *(int *)(c + 0x64) = pos[2];
+    *(short *)(c + 0x8e) = ang;
+    *(int *)(c + 0x98) = spd[0];
+    *(int *)(c + 0xa4) = spd[1];
+    *(int *)(c + 0xa8) = spd[2];
+    *(int *)(c + 0xac) = spd[3];
+}

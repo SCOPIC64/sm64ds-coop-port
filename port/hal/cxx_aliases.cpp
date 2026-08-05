@@ -230,19 +230,29 @@ unsigned char data_ov006_02140330[8], data_ov006_02140338[8];
    element 5 of both and walked off the end of the fiction. */
 int data_0209b48c, data_0209b4a0[4], data_0209b4ac;
 int data_020a4c48, data_020a4c4c, data_020a4c54[2], data_020a4c5c;
-/* particle system tracker block (refs reach +0x7f0) */
-__declspec(align(8)) unsigned char PARTICLE_SYS_TRACKER[0x1000];
 /* data_0209ee74 IS A SysTracker*, not storage: every src reference spells it
    `extern char *data_0209ee74` and then indexes off its VALUE
    (func_02022a4c reads +0x774, func_02022774 writes +0x7d0..+0x7dc,
-   func_02022d44 passes +0x7f0). The block above was declared for it and never
-   pointed at, so the pointer stayed null and the first effect to fire took the
-   process with it -- the water splash func_ov002_020c0d90 spawns the instant
-   the Player's probe finds water, which is how the moat found this.
-   Particle::System::New is still the no-op in hal/reverse_bridges.cpp, so what
-   the tracker holds is a table of zero handles: the honest state for "no
-   particles alive", and no fault. */
-void *data_0209ee74[4] = {PARTICLE_SYS_TRACKER};
+   func_02022d44 passes +0x7f0).
+
+   THE 0x1000-BYTE STAND-IN THAT USED TO BACK IT IS GONE (gate 29). It was a
+   zeroed block standing in for a tracker that did not exist, with this
+   pointer initialised to it so the first effect to fire would find something
+   rather than take the process with it. The tracker is real now: it is the
+   Stage's own sub-object at Stage+0x50, and Particle::SysTracker::SysTracker
+   publishes it here itself -- `data_0209ee74 = this` is the second-to-last
+   line of src/_ZN8Particle10SysTrackerC1Ev.c. Nothing needs to seed it.
+
+   PARTICLE_SYS_TRACKER is the SAME STORAGE, not a second object. decl_common.h
+   declares it `extern char *PARTICLE_SYS_TRACKER` and
+   Particle::RunningSlidingDustAt -- the Player's skid and slide dust -- reads
+   its handle out of `PARTICLE_SYS_TRACKER + 0x750`; the ROM's own
+   RunningSlidingDustAt loads from 0x0209ee74 for exactly that (relocs.txt
+   from:0x02022bac to:0x0209ee74), so the two names are one global with two
+   spellings. Aliased rather than duplicated: as a separate array it read as a
+   null pointer and the first skid faulted at +0x750. */
+void *data_0209ee74[4];
+#pragma comment(linker, "/alternatename:_PARTICLE_SYS_TRACKER=_data_0209ee74")
 int data_0209f32c[4], data_0209b4a4[4];
 /* camera + player-list globals (gate-9 scoping notes) */
 int data_0209d4b0[8];
@@ -286,6 +296,31 @@ unsigned char *NestedHeapIterator::Next(HeapAllocator *h)
 #pragma comment(linker, "/alternatename:?data_0209f32c@@3HA=_data_0209f32c")
 #pragma comment(linker, "/alternatename:?func_02022d00@@YAIIIHHHPAX@Z=_func_02022d00")
 #pragma comment(linker, "/alternatename:?NewSimple@System@Particle@@SAXIHHH@Z=__ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_")
+/* ---- gate 29, the particle subsystem --------------------------------------
+   All of these are STATIC members or namespace-scope data, so both sides are
+   already cdecl and a plain alias is honest -- the four particle callbacks
+   that are __thiscall METHODS are not here, they get real forwarding faces in
+   hal/particle_bridges.cpp instead.
+
+   The six Particle::*::Func are the effect VM's whole dispatch surface:
+   func_0204a17c takes their addresses when it builds each definition's
+   Behavior[] array, and it is a .cpp that spells them as C++ statics while
+   the six defining TUs emit C names. */
+#pragma comment(linker, "/alternatename:?Func@Acceleration@Particle@@SAXAAUEffectData@2@PADAAUVector3@@@Z=__ZN8Particle12Acceleration4FuncERNS_10EffectDataEPcR7Vector3")
+#pragma comment(linker, "/alternatename:?Func@Jitter@Particle@@SAXAAUEffectData@2@PADAAUVector3@@@Z=__ZN8Particle6Jitter4FuncERNS_10EffectDataEPcR7Vector3")
+#pragma comment(linker, "/alternatename:?Func@Converge@Particle@@SAXAAUEffectData@2@PADAAUVector3@@@Z=__ZN8Particle8Converge4FuncERNS_10EffectDataEPcR7Vector3")
+#pragma comment(linker, "/alternatename:?Func@Turn@Particle@@SAXAAUEffectData@2@PADAAUVector3@@@Z=__ZN8Particle4Turn4FuncERNS_10EffectDataEPcR7Vector3")
+#pragma comment(linker, "/alternatename:?Func@LimitPlane@Particle@@SAXAAUEffectData@2@PADAAUVector3@@@Z=__ZN8Particle10LimitPlane4FuncERNS_10EffectDataEPcR7Vector3")
+#pragma comment(linker, "/alternatename:?Func@RadiusConverge@Particle@@SAXAAUEffectData@2@PADAAUVector3@@@Z=__ZN8Particle14RadiusConverge4FuncERNS_10EffectDataEPcR7Vector3")
+/* the C++ face of the spawn entry, reached from ov002 actor code */
+#pragma comment(linker, "/alternatename:?New@System@Particle@@SAXIIHHHPBUVector3_16@@PAUCallback@2@@Z=__ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE")
+/* the engine's globals, spelled without extern "C" by the .cpp TUs that
+   touch them: the tracker pointer, the two VRAM cursors, the default heap */
+#pragma comment(linker, "/alternatename:?data_0209ee74@@3PAUSomeGlobal@@A=_data_0209ee74")
+#pragma comment(linker, "/alternatename:?data_0209ee74@@3PAXA=_data_0209ee74")
+#pragma comment(linker, "/alternatename:?data_0209ee84@@3HA=_data_0209ee84")
+#pragma comment(linker, "/alternatename:?data_0209ee8c@@3HA=_data_0209ee8c")
+#pragma comment(linker, "/alternatename:?data_020a0ea0@@3PAXA=_data_020a0ea0")
 #pragma comment(linker, "/alternatename:?PlayBank0@Sound@@SAXIABUVector3@@@Z=__ZN5Sound9PlayBank0EjRK7Vector3")
 #pragma comment(linker, "/alternatename:?data_02082214@@3PAFA=_data_02082214")
 #pragma comment(linker, "/alternatename:?data_0209f264@@3EA=_data_0209f264")

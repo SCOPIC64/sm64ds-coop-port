@@ -29,6 +29,11 @@ constexpr uintptr_t IO_BASE   = 0x04000000u, IO_SIZE   = 0x00002000u;  // 2D/3D/
 constexpr uintptr_t PLTT_BASE = 0x05000000u, PLTT_SIZE = 0x00000800u;  // palettes
 constexpr uintptr_t VRAM_BASE = 0x06000000u, VRAM_SIZE = 0x00900000u;  // all banks
 constexpr uintptr_t OAM_BASE  = 0x07000000u, OAM_SIZE  = 0x00000800u;  // sprites
+// The ARM7/ARM9 shared block at the top of main RAM. It sits past MAIN_SIZE,
+// so it needs its own mapping: the DS puts main RAM at 0x02000000 with this
+// system area mirrored up at 0x027ff000, and the game reads it through raw
+// literals rather than through a symbol, so nothing else brings it in.
+constexpr uintptr_t SHARED_BASE = 0x027ff000u, SHARED_SIZE = 0x00001000u;
 
 // Bring every region up. Idempotent; false if any fixed mapping failed.
 bool io_init();

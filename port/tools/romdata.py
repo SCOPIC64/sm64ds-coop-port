@@ -80,6 +80,45 @@ NAMED = [
     "data_0208eeac",
     "data_0208f074",
     "data_0208f174",
+    # THE PARTICLE DEFINITIONS, and the whole answer to "where do particle
+    # effects come from" -- not a file, not a narc, a blob compiled into the
+    # binary. Particle::SysTracker::Initialise memcmps its first 4 bytes
+    # against the 8-byte magic at data_0208f668; on a mismatch it treats the
+    # blob as LZ16 and decompresses it onto the heap. func_0204a17c then
+    # parses it into per-effect records and builds each one's Behavior[]
+    # array out of six flag bits.
+    #
+    # THE SIZE IS PINNED, and it has to be. The blob is an uncompressed SPA
+    # archive whose own header says how big it is: " APS10_1" magic, at +0x08 a
+    # u16 emitter count (321) and a u16 texture count (46), at +0x10 the size of
+    # the emitter block, at +0x14 the size of the texture block and at +0x18
+    # where the texture block starts. Emitters begin at 0x20, so +0x18 is just
+    # 0x20 + emitters and the archive really ends at +0x18 plus +0x14: 0xc214,
+    # which is exactly where the next real symbol (data_02082128) begins.
+    #
+    # The config splits the span with nine boundary symbols (data_02078000,
+    # data_02080000 and friends) that are page-aligned, referenced by nothing
+    # and emitted by nothing, so the default "delta to the next symbol" rule
+    # handed the parser the first 0x20ec bytes, 17% of the archive.
+    #
+    # A SHORT BLOB DOES NOT FAIL LOUDLY, which is what makes it worth this
+    # comment. The header still parses, so the subsystem still reports its 321
+    # effects and allocates a record for every one of them; the ones whose data
+    # fell past the cut just come out as records of nothing. An all-zero record
+    # has rate 0, and func_0204c584 emits floor((rate + accumulator) / 0x1000)
+    # particles with nothing else feeding that sum, so those effects stay
+    # permanently silent while their systems live, move and tick exactly as
+    # they should. Mario's running and sliding dust is id 0xda and landed in
+    # the truncated tail. Cutting inside the TEXTURE block instead is the loud
+    # failure: Particle::Texture::AllocTexVram reads a garbage length and
+    # Model::GetVramOffset takes its Crash() branch during Stage::InitResources.
+    "data_02075f14:0xc214",
+    "data_0208f668",
+    # three 8-byte constants the particle render family reads (func_0204b028,
+    # func_0204b244) while building the camera-facing quad
+    "data_02099fb4",
+    "data_02099fbc",
+    "data_02099fc4",
     # cstd::atan2's lookup table: atan(i/1024) in binangs, i = 0..0x400, so
     # 0..0x2000 (45 degrees) and the quadrant fixups do the rest. EVERY
     # heading in the game runs through it -- Vec3_HorzAngle, Vec3_VertAngle,
@@ -261,15 +300,20 @@ def named_entries(root, syms):
     contig_names = {n for _, mem in contig_entries(syms) for n, _, _ in mem}
     out = []
     for entry in NAMED:
-        # "name" takes its size from the next symbol; "name:0xNN" spells it,
-        # for the symbols whose neighbour is a COLUMN of the same table rather
-        # than the next table (see data_02075768).
-        name, _, explicit = entry.partition(":")
+        # "name:0xSIZE" pins the extent explicitly. The default -- delta to the
+        # next symbol, the ovdata.py convention -- is only correct when the
+        # config happens to have no symbol inside the object, and for anything
+        # the game reads as one blob that is an assumption, not a fact: the
+        # config carries page-aligned boundary symbols (0x02078000, 0x02080000)
+        # that are not real objects and silently cut whatever spans them. The
+        # other reason for a pin: a neighbour that is a COLUMN of the same
+        # table rather than the next table (see data_02075768).
+        name, _, override = entry.partition(":")
         if name in contig_names:
             continue   # the run owns it
         a = addr_of[name]
-        if explicit:
-            out.append((name, a, int(explicit, 0)))
+        if override:
+            out.append((name, a, int(override, 0)))
             continue
         nxt = next((s for s, _ in syms if s > a), a + 4)
         out.append((name, a, max(4, nxt - a)))
@@ -285,6 +329,22 @@ def main():
     a = 0x0205A548 - BASE
     if anchor[a:a + 4] != b"\x0c\x10\xb0\xe8":
         sys.exit("arm9_dec.bin failed the Copy36Bytes anchor -- wrong image/base")
+
+    # The particle archive is the one NAMED entry whose true length is written
+    # down inside it, so check the pin against the header rather than trusting
+    # the comment next to it. Worth checking because getting this wrong is
+    # SILENT: the parse still succeeds and the effects that fell off the end
+    # simply never emit.
+    spa = 0x02075F14 - BASE
+    if anchor[spa:spa + 8] != b" APS10_1":
+        sys.exit("no SPA magic at 0x02075f14 -- the particle blob moved")
+    tex_size, tex_off = struct.unpack_from("<II", anchor, spa + 0x14)
+    spa_size = tex_off + tex_size
+    pinned = next((int(e.partition(":")[2], 0) for e in NAMED
+                   if e.startswith("data_02075f14:")), None)
+    if pinned != spa_size:
+        sys.exit(f"particle blob is pinned at {pinned:#x} but its own SPA "
+                 f"header says {spa_size:#x} -- fix the pin in NAMED")
     for addr, length, _ in TABLES:
         if addr + length > BSS_START:
             sys.exit(f"{addr:#x}+{length:#x} crosses into BSS -- not file-backed")

@@ -7,6 +7,8 @@
 // Sound/Scene statics that have no host backend yet are quiet stubs; the
 // port grows real ones with the audio/fader gates.
 
+#include <cstdio>
+
 struct Vector3 { int x, y, z; };
 struct Actor;
 struct OamAttr;
@@ -206,29 +208,13 @@ void Scene::SetAndStopColorFader() {}
 void Scene::SetFaders(FaderBrightness *) {}
 void Scene::StartSceneFade(unsigned, unsigned, unsigned short) {}
 
-struct Particle {
-    struct Callback;
-    struct System {
-        static void New(unsigned, unsigned, int, int, int,
-                        const Vector3_16 *, Particle::Callback *);
-    };
-};
-void Particle::System::New(unsigned, unsigned, int, int, int,
-                           const Vector3_16 *, Particle::Callback *) {}
-
-/* C-named particle effect entries (the real src bodies walk a particle
-   manager the host never seats -- St_Land's dust NewSimple faulted on
-   the null system). No-ops until the particle subsystem is hosted. */
-extern "C" {
-void *_ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(unsigned, int, int, int)
-{ return 0; }
-void *_ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(
-    unsigned, unsigned, int, int, int, const void *, float, void *)
-{ return 0; }
-void _ZN8Particle20RunningSlidingDustAtE5Fix12IiES1_S1_(int, int, int) {}
-void *_ZN8Particle6System12NewBigSplashE5Fix12IiES2_S2_(int, int, int)
-{ return 0; }
-}
+/* GATE 29 REMOVED FOUR NO-OPS FROM HERE.
+   Particle::System::New, ::NewSimple, ::NewBigSplash and
+   Particle::RunningSlidingDustAt were empty bodies, because the real src
+   walks a manager the host never seated and St_Land's dust NewSimple
+   faulted on the null system. All four are now the ROM's own matched
+   bodies, carried by slice_gate29.txt over a real SysTracker; the
+   MSVC-mangled C++ faces are aliased onto them in hal/cxx_aliases.cpp. */
 
 extern "C" int _ZN11RaycastLine10DetectClsnEv(void *self)
 { return ((RaycastLine *)self)->DetectClsn(); }
@@ -248,10 +234,40 @@ extern "C" void _ZN7Message7AddCharEc(char ch)
 { Message::AddChar(ch); }
 
 
+/* THE SPRITE LIST HAS TO BE TERMINATED, and OAM::Render trusts that it is.
+   Its walk advances OamAttr by OamAttr (8 bytes: u32 a01, u16 a2, u16 a3) and
+   the ONLY thing that stops it is a3 == 0xffff. Hand it a table that has no
+   terminator and it walks straight out of main RAM: on host that faults at
+   exactly 0x02400000, the first address past the 4MB mapping, which is the
+   crash that has been showing up as "rare, in OAM::Render, once the HUD and
+   minimap draw". On hardware main RAM mirrors every 4MB, so the same runaway
+   walk keeps reading and eventually finds a 0xffff by luck, which is how the
+   ROM gets away with it and why this only bites the port.
+
+   Checking for the terminator before the call turns that crash into one
+   skipped sprite and, more usefully, prints the address of the table that is
+   missing it -- which is the actual bug, some sprite table not being seated.
+   The bound is generous: the biggest real list here is well under 256. */
 extern "C" void *_ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii(
     int sub, void *attr, int x, int y, int pal, int pri,
     int sx, int sy, int rot, int mode)
 {
+    enum { OAM_MAX = 256 };
+    const unsigned short *a3 = (const unsigned short *)attr + 3;
+    int n = 0;
+    if (!attr) return 0;
+    for (; n < OAM_MAX; ++n, a3 += 4)
+        if (*a3 == 0xffffu) break;
+    if (n >= OAM_MAX) {
+        static const void *said;
+        if (said != attr) {
+            said = attr;
+            std::fprintf(stderr, "[oam] attr list at %p has no 0xffff "
+                         "terminator in %d entries, sprite skipped\n",
+                         attr, OAM_MAX);
+        }
+        return 0;
+    }
     Fix12<int> fsx, fsy;
     fsx.val = sx; fsy.val = sy;
     OAM::Render(sub != 0, (OamAttr *)attr, x, y, pal, pri, fsx, fsy, rot,

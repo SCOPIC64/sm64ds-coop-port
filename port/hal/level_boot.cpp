@@ -516,9 +516,32 @@ extern "C" void port_scene_canary(const char *where);
 
 /* `spawn` selects the stage: 0 = A1, the same boot with every spawner
    switched off (the geometry regression); 1 = the level's own object load. */
+extern "C" void port_particle_boot(void);   /* hal/particle_bridges.cpp */
+
+/* THE MESSAGE BOX IS NOT HOSTED, and it does not fail politely. func_0201f32c
+   opens a message and its first line is
+
+       if (*(u16 *)((char *)data_0209d70c + 8) <= (u16)arg0) return;
+
+   which is the ROM's own bounds check against the message count. data_0209d70c
+   is zeroed storage, so on host that read is a null dereference at +8 rather
+   than the early-out. Pointing it at a zeroed header makes the count read 0, so
+   every message id fails the check and the whole function returns before it
+   touches anything else -- the same shape the sign-talk path is already guarded
+   with, done once here instead of at each call site.
+
+   Reachable the moment the Player is not Mario: the other characters' level
+   entry runs a message Mario's does not, and it faulted about two seconds in. */
+static unsigned char g_message_null_header[16];
+extern "C" int data_0209d70c[];   /* hal/auto_bss.cpp */
+
 void *port_stage_a_boot(void *mc, int spawn)
 {
     g_stage_mc = mc;
+    /* fx wrote this against the ov009-only mount; the lvl stream made the
+       mount parameterised, and the guard wants to run for every level, so it
+       rides the new call */
+    ((void **)data_0209d70c)[0] = g_message_null_header;
     PortLvlOverlay *o = (PortLvlOverlay *)port_level_mount();
 
     /* STAGE B: THE TABLES ARE BACK ON. Stage A1 zeroed the Entrance, Door and
@@ -598,6 +621,17 @@ void *port_stage_a_boot(void *mc, int spawn)
        every ray in the game. The walks do the ROM's shift now
        (port/unmatched/MeshCollider_DetectClsn_Sphere.cpp, BASIS CONVENTION)
        and SetFile's own values stand. */
+
+    /* THE PARTICLE SUBSYSTEM, at the point Stage::InitResources brings it up.
+       Its own line on the ROM is the second-to-last thing InitResources does
+       (0x0202d3dc, right after LoadSkybox):
+
+           Particle::SysTracker::Initialise((char *)thiz + 0x50);
+
+       which is here because the archive's textures are uploaded into VRAM
+       banks the level has already claimed, so it cannot run before the loads
+       above. Everything it needs is up by now. */
+    port_particle_boot();
     return o;
 }
 

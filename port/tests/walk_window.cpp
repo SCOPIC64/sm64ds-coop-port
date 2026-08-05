@@ -230,6 +230,9 @@ typedef unsigned int u32;
 
 extern "C" {
 void *_ZN6PlayerC1Ev(void *self);
+/* Player::InitResources' own character-propagation helper: +0x6d9 forward
+   into the swap pair at +0x6dc/+0x6dd (src/func_ov002_020beabc.cpp) */
+void func_ov002_020beabc(void *p);
 void *_ZN4Heap13SetupRootHeapEv(void);
 void *_ZN9ActorBasenwEj(unsigned size);
 extern int data_0209b3ec[12];
@@ -380,9 +383,6 @@ extern unsigned g_port_unhosted_hits;
    warp list (hal/level_boot.cpp) */
 int port_entrance_count(void);
 int port_entrance_record(int i, int *x, int *y, int *z, int *yaw);
-/* the live character swap (hal/player_bridges.cpp): 0 done, 1 no player,
-   2 out of range, 3 already that character */
-int port_set_character(int chr);
 /* the real level boot (hal/level_boot.cpp) */
 void port_level_probe(void);
 /* the level selector: SM64DS_LEVEL picks it, the debug menu's LEVEL row
@@ -431,6 +431,12 @@ void LoadLevelNoReturn(int level, unsigned entrance, unsigned star,
                        unsigned reason);
 extern signed char data_0209f2f8;    /* the level currently up */
 void port_actor_render(void);        /* phase 5: the render bucket */
+/* gate 29: the pair Stage::Render and Stage::GraphCallback1 make on the ROM,
+   and they are called from the two places those two run -- the simulation in
+   the actor bucket, the submission after the level pass */
+void port_particle_frame(void);      /* Stage::Render: SysTracker::Update */
+void port_particle_render(void);     /* GraphCallback1: Particle::RenderAll */
+void port_particle_counts(int *systems, int *particles);
 void port_actor_scene_pass(void);    /* phase 1: scene-tree housekeeping */
 void port_actor_census(void);
 void port_actor_lists_probe(void);
@@ -919,6 +925,54 @@ enum {
     MENU_RECORDER,
     MENU_COUNT
 };
+
+/* ---- CHARACTER SWITCH (port mod, driven through the game's own save byte) --
+   THE CHARACTER IS SAVE DATA, not a Player field, and that is the whole reason
+   this is a boot setting rather than a live toggle. LoadEntranceObjects builds
+   the Player's spawn param as
+
+       f2 = data_0209caa0[0x41];  flags = f2 | (f1 << 3) | (i << 6) | (sl << 8)
+
+   and Player::InitResources unpacks bits 0-2 of that into +0x6d9. So the byte
+   is read once, at spawn, and everything downstream follows from it: the body
+   model slots at +0xdc are indexed by GetBodyModelID(character), +8 is the live
+   index Player_ScaleByCharFactor and the port's own render read,
+   func_ov002_020e4bb8 mirrors +8 into +0x6db for Player::Render, and
+   Sound::PlayCharVoice picks the voice bank off +0x6d9.
+
+   WHY NOT POKE IT LIVE, which was the first thing tried: InitResources loads
+   ONLY THE SPAWNED CHARACTER'S models. The other slots at +0xdc stay null, so
+   moving the index alone points Player_AdvanceAnims at a null model and
+   Animation::Advance divides by zero on the first frame. The ROM's own
+   character door (func_ov002_020be3b0) does the in-place swap properly, and it
+   loads the incoming character's files first through the SharedFilePtr table
+   at data_ov002_020ff480 before it moves anything. Hosting that is the job
+   that would make this row live; until then the row sets the save byte and the
+   next boot spawns whoever it names.
+
+   Yoshi is a separate caveat: St_YoshiPower and St_InYoshiMouth are matched in
+   src but are not wired into player_states.inc, so his tongue is a loud no-op.
+   Walking, running, jumping and the dust are character-agnostic code. */
+static const char *const CHAR_NAME[4] = { "Mario", "Luigi", "Wario", "Yoshi" };
+static int g_character;                     /* what the boot actually spawned */
+static int g_character_pending;             /* what the next boot will spawn */
+
+/* data_0209caa0 is declared int[] above (word 2 carries flag bits the boot
+   sets); LoadEntranceObjects reads the character as a BYTE at 0x41, which is
+   why this casts rather than indexing the int view. */
+static void character_set_pending(int ch)
+{
+    g_character_pending = ch & 3;
+    ((unsigned char *)data_0209caa0)[0x41] =
+        (unsigned char)g_character_pending;
+}
+
+/* Changes character on the spot by re-running Player::InitResources with a
+   rewritten spawn param, carrying position and speed across. Port code, not
+   the game's: the game's own in-place change is the CAP path, and there is no
+   Yoshi cap for it to run. The reasoning is in hal/player_bridges.cpp, where
+   it lives because it wants Player.h. SM64DS_SWITCH=<0..3> drives it headless. */
+extern "C" void port_player_set_character(void *player, unsigned ch);
 static int menu_on;
 static int menu_sel;
 static int menu_entrance;             /* the entrance the warp row is showing */
@@ -932,11 +986,6 @@ static int menu_entrance;             /* the entrance the warp row is showing */
    Rows the port cannot mount yet are still SHOWN, marked, because the point
    of the list is that it is the game's own and the gap is visible. */
 static int menu_level_row = 1;
-static const char *const CHR_NAME[4] = { "Mario", "Luigi", "Wario", "Yoshi" };
-/* the Player the character row reads and writes. Not data_0209f394[0] read
-   fresh inside menu_draw: that slot is only filled under boot_spawns, and the
-   draw runs on frames the boot may have skipped. Seated once below. */
-static void *g_menu_player;
 static int g_overlay_on;              /* F3, and the menu's overlay row */
 static char g_playlog[160] = "off";   /* the flight recorder's current file */
 
@@ -983,12 +1032,9 @@ static void menu_draw(ntr::Framebuffer &fb)
     snprintf(ln[MENU_EXIT], sizeof ln[0],
              "exit course       ExitLevel() -> level 1 entrance 13   "
              "(here: level %d)", (int)data_0209f2f8);
-    if (g_menu_player)
-        snprintf(ln[MENU_CHARACTER], sizeof ln[0], "character         %s",
-                 CHR_NAME[*(int *)((char *)g_menu_player + 8) & 3]);
-    else
-        snprintf(ln[MENU_CHARACTER], sizeof ln[0],
-                 "character         no player");
+    snprintf(ln[MENU_CHARACTER], sizeof ln[0], "character         %s%s",
+             CHAR_NAME[g_character_pending & 3],
+             g_character_pending == g_character ? "" : "   enter to switch");
     snprintf(ln[MENU_SNAP], sizeof ln[0], "fake snap         %s",
              g_fake_snap ? "ON (collider owner set at boot)" : "off");
     snprintf(ln[MENU_OVERLAY], sizeof ln[0], "stats overlay     %s",
@@ -1182,6 +1228,11 @@ static void push_camera(const float eye_w[3], const float at_w[3])
 
 int main(void)
 {
+    /* fault_probe.h has been included here since gate 4 and was never armed,
+       so every crash in the window build printed nothing at all. It costs
+       nothing until something faults, and it prints a module-relative address
+       the .map file resolves. */
+    SetUnhandledExceptionFilter(port_fault_probe);
     /* world = KCL file x64. Default spawn: north end of the stone
        bridge (deck ~892), facing the walk south across it -- the shot
        that calibrates against real-game footage. Roof surface = 4916,
@@ -1325,6 +1376,16 @@ int main(void)
            sub-table is dropped, which is stage A1: geometry only. */
         if (boot_spawns)
             port_stage_a2_seat();
+        /* SM64DS_CHARACTER=0..3 (Mario, Luigi, Wario, Yoshi). It goes in HERE,
+           before the boot, because LoadEntranceObjects reads the save byte to
+           build the Player's spawn param and Player::InitResources loads that
+           character's models and no others. Setting it after the spawn gets a
+           Player whose model slot is null. */
+        if (const char *cs = getenv("SM64DS_CHARACTER")) {
+            character_set_pending(atoi(cs));
+            fprintf(stderr, "[char] spawning %s\n",
+                    CHAR_NAME[g_character_pending & 3]);
+        }
         void *lvl = port_stage_a_boot(g_mc, boot_spawns);
         level_bmd = *(unsigned short *)((char *)lvl + 8);
         port_stage_a_probe(g_mc);
@@ -1360,23 +1421,28 @@ int main(void)
 
     /* the castle grounds floor, gate-8 recipe */
     char *c = (char *)player;
-    g_menu_player = player;
 
-    /* SM64DS_CHARACTER=<0-3> picks who you start as, once, here -- not at a
-       frame number. The State objects SetNewHatCharacter tests are built by
-       __sinit_ov002_021019d0, which has already run by this point.
-       This is NOT the old SM64DS_FORCE_CHAR: that one pokes param1 raw for
-       the walljump probe and deliberately leaves the anim archive, the
-       globals and the head alone. This goes through the real swap. */
-    {
-        const char *ce = getenv("SM64DS_CHARACTER");
-        if (ce) {
-            const int want = atoi(ce);
-            const int r = port_set_character(want);
-            fprintf(stderr, "[chr] boot character %d (%s) -> %s\n", want,
-                    (unsigned)want < 4 ? CHR_NAME[want] : "?",
-                    r == 0 ? "ok" : r == 3 ? "already" : "refused");
-        }
+    /* Read the character back off the Player the spawn actually produced,
+       rather than assuming the save byte got through. Zeroed storage gives 0,
+       which IS Mario, but that is a property of the entrance param and not a
+       guarantee worth leaning on. */
+    g_character = *(unsigned char *)(c + 0x6d9) & 3;
+    g_character_pending = g_character;
+
+    /* SKIP THE CHARACTER INTRO CUTSCENE, which the other three spawn with and
+       Mario does not. func_ov002_020c4188 is that cutscene's state machine,
+       entered whenever +0x71e is nonzero, and it is built on two things the
+       port does not have: the Message box (func_0201f32c, guarded to a no-op
+       in hal/level_boot.cpp) and the camera-script calls that follow it. With
+       the message guarded it simply faults one step further along, on the
+       object the message was supposed to have made. Zeroing the cutscene id is
+       the honest version of "not hosted": the state machine returns on its
+       first line and the character just plays. No-op for Mario, who arrives
+       with it already 0. */
+    if (*(unsigned char *)(c + 0x71e)) {
+        fprintf(stderr, "[char] skipping intro cutscene %u (not hosted)\n",
+                (unsigned)*(unsigned char *)(c + 0x71e));
+        *(unsigned char *)(c + 0x71e) = 0;
     }
     if (!real_boot) {
         static struct { unsigned short id; unsigned char refs; void *p; } kp;
@@ -1713,8 +1779,16 @@ int main(void)
     W.RegisterClassA_(&wc);
     RECT r = {0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM};
     W.AdjustWindowRect_(&r, WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME, FALSE);
+    /* THE TITLE BAR IS THE CONTROLS CARD. There is nowhere else to put them
+       that does not cost a keypress to read: the F3 overlay is timings, the
+       F5 menu is state, and both of those you have to already know how to
+       open. The bar is the one surface that is legible before you touch
+       anything, so the keys live there. */
     HWND hwnd = W.CreateWindowExA_(0, "sm64ds_walk",
-                              "SM64DS port -- WASD walk, ESC quit",
+                              "SM64DS   |   WASD move   Shift dash   Space jump"
+                              "   X punch   Ctrl crouch   |   Q/E turn   R/F"
+                              " tilt   |   F1 camera   F3 stats   F5 menu"
+                              "   Tab panel   Esc quit",
                               (WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME) |
                                   WS_VISIBLE,
                               CW_USEDEFAULT, CW_USEDEFAULT,
@@ -1803,12 +1877,12 @@ int main(void)
         {
             static int chr_edge;
             const int now = key_live(VK_F4);
-            if (now && !chr_edge && g_menu_player) {
-                const int cur = *(int *)((char *)g_menu_player + 8) & 3;
-                const int nxt = (cur + 1) & 3;
-                const int r = port_set_character(nxt);
-                fprintf(stderr, "[chr] F4 -> %d (%s)%s\n", nxt, CHR_NAME[nxt],
-                        r ? "  REFUSED" : "");
+            if (now && !chr_edge) {
+                const int nxt = (g_character + 1) & 3;
+                fprintf(stderr, "[chr] F4 becoming %s\n", CHAR_NAME[nxt]);
+                port_player_set_character(c, nxt);
+                g_character = g_character_pending = nxt;
+                an_pivot_live = 0;   /* do not ease across it */
             }
             chr_edge = now;
         }
@@ -1979,17 +2053,18 @@ int main(void)
                         }
                         break;
                     case MENU_CHARACTER:
-                        /* shaped like the camera row, not the warp row: a
-                           character swap is instant and reversible, so there
-                           is nothing to stage behind a second keypress. */
-                        if (g_menu_player) {
-                            char *pc = (char *)g_menu_player;
-                            const int cur = *(int *)(pc + 8) & 3;
-                            const int nxt = dec ? (cur + 3) & 3 : (cur + 1) & 3;
-                            const int r = port_set_character(nxt);
-                            fprintf(stderr, "[menu] character -> %d (%s)%s\n",
-                                    nxt, CHR_NAME[nxt],
-                                    r ? "  REFUSED" : "");
+                        /* left and right pick, enter changes -- the same shape
+                           as the warp row above */
+                        if (edge & (1u << 5)) {
+                            fprintf(stderr, "[menu] becoming %s\n",
+                                    CHAR_NAME[g_character_pending & 3]);
+                            port_player_set_character(c, g_character_pending);
+                            g_character = g_character_pending;
+                            an_pivot_live = 0;   /* do not ease across it */
+                        } else {
+                            g_character_pending =
+                                (dec ? g_character_pending + 3
+                                     : g_character_pending + 1) & 3;
                         }
                         break;
                     case MENU_SNAP:
@@ -2310,8 +2385,10 @@ int main(void)
                         sw = strchr(sw, ',') ? strchr(sw, ',') + 1 : 0;
                     if (sw && *sw) {
                         const int want = atoi(sw);
-                        fprintf(stderr, "[chr] f%d selftest swap -> %d, rc %d\n",
-                                frame, want, port_set_character(want));
+                        fprintf(stderr, "[chr] f%d selftest swap -> %d\n",
+                                frame, want);
+                        port_player_set_character(c, want);
+                        g_character = g_character_pending = want & 3;
                     }
                 }
             }
@@ -2646,7 +2723,8 @@ int main(void)
                    param1 raw on purpose, leaving the anim archive, the globals
                    and the head where they were, because the probe wants the
                    gravity row and nothing else. The real swap is
-                   port_set_character (F4, the menu row, SM64DS_CHARACTER). */
+                   port_player_set_character (F4, the menu row,
+                   SM64DS_CHARACTER, SM64DS_SWITCH). */
                 const char *fc = getenv("SM64DS_FORCE_CHAR");
                 if (fc) {
                     *(int *)(c + 0x008) = atoi(fc);
@@ -2725,10 +2803,11 @@ int main(void)
                     return 3;
                 }
                 c = (char *)player;
-                /* the character row's seat predates the level handoff and was
-                   boot-once; across a warp the old Player is torn down, so
-                   re-seat it here with everything else */
-                g_menu_player = player;
+                /* the character state was read off the boot's Player; across
+                   a warp the entrance spawned a fresh one (ExitLevel wipes
+                   the save byte too), so read it back with everything else */
+                g_character = *(unsigned char *)(c + 0x6d9) & 3;
+                g_character_pending = g_character;
                 cam = data_0209f318;
                 level_shift = 0;
                 if (real_boot) {
@@ -2916,6 +2995,26 @@ int main(void)
                the one Camera::Render published, in the ROM's own scene units,
                and Actor::BeforeBehavior reads exactly those three words to
                place every actor for the Clipper. */
+            /* THE CHARACTER INTRO CUTSCENE IS NOT HOSTED, so hold its id at 0
+               every tick rather than once at startup -- the level-enter sets it
+               AFTER the Player exists, which is why clearing it at spawn did
+               nothing. func_ov002_020c4188 is that cutscene and it is built on
+               the Message box the port does not have; with the message guarded
+               to a no-op it just faults one step further along, on the object
+               the message was supposed to have made. Yoshi enters it every run
+               (Mario never does, Luigi and Wario survive 300 frames without
+               it), so this is the difference between Yoshi being playable and
+               not. Zero means the state machine returns on its first line. */
+            if (*(unsigned char *)(c + 0x71e)) {
+                static int said;
+                if (!said) {
+                    said = 1;
+                    fprintf(stderr, "[char] intro cutscene %u suppressed "
+                            "(not hosted)\n",
+                            (unsigned)*(unsigned char *)(c + 0x71e));
+                }
+                *(unsigned char *)(c + 0x71e) = 0;
+            }
             port_actor_tick();
         } else if (*(void **)(c + 0x370)) {
             hal_player_behavior(player);
@@ -3445,6 +3544,30 @@ int main(void)
                 size_t before = 0, after = 0;
                 if (selftest) ntr::gx_polygons(before);
                 port_actor_render();
+                /* THE PARTICLE SIMULATION GOES HERE, which is where
+                   Stage::Render drives it. The SUBMISSION does not: it belongs
+                   after the level, where Stage::GraphCallback1 runs it, and it
+                   is called from there (port_particle_render, below the level
+                   pass). Drawing translucent particles ahead of the opaque
+                   level loses them all to the ground drawn over them. */
+                /* SM64DS_SWITCH=<0..3> drives the cap-block character change
+                   from a headless run, at frame 90, so the live path has a
+                   regression probe instead of only being reachable by hand
+                   through the F5 row. */
+                {
+                    static int sw = -2;
+                    if (sw == -2) {
+                        const char *s = getenv("SM64DS_SWITCH");
+                        sw = s ? atoi(s) : -1;
+                    }
+                    if (sw >= 0 && frame == 90) {
+                        fprintf(stderr, "[char] SM64DS_SWITCH becoming %s\n",
+                                CHAR_NAME[sw & 3]);
+                        port_player_set_character(c, sw);
+                        g_character = g_character_pending = sw & 3;
+                    }
+                }
+                port_particle_frame();
                 if (selftest) {
                     const ntr::GxTriangle *at = ntr::gx_polygons(after);
                     if (frame == 0 || getenv("SM64DS_TRACE_ACTOR_TRIS")) {
@@ -3663,6 +3786,45 @@ int main(void)
         size_t tris_before = 0;
         if (selftest) ntr::gx_polygons(tris_before);
         hal_render_player_world(player);
+        /* Stage::GraphCallback1: the particle submission, last, after every
+           opaque draw in the frame. The billboards carry their own absolute
+           position matrix so nothing above this line has to be preserved for
+           them; what they need is to be the last thing the raster sees. */
+        static int fx_no_actors = -1;
+        if (fx_no_actors < 0)
+            fx_no_actors = getenv("SM64DS_NO_ACTORS") ? 1 : 0;
+        if (boot_spawns && !fx_no_actors) {
+            size_t fx_before = 0, fx_after = 0;
+            static int fx_tr = -1;
+            if (fx_tr < 0) fx_tr = getenv("SM64DS_FX_TRACE") ? 1 : 0;
+            if (fx_tr) ntr::gx_polygons(fx_before);
+            port_particle_render();
+            if (fx_tr) {
+                const ntr::GxTriangle *ft = ntr::gx_polygons(fx_after);
+                if (fx_after != fx_before) {
+                    int sys = 0, par = 0;
+                    port_particle_counts(&sys, &par);
+                    float mnx = 1e30f, mxx = -1e30f, mny = 1e30f,
+                          mxy = -1e30f, mnz = 1e30f, mxz = -1e30f;
+                    for (size_t i = fx_before; i < fx_after; ++i)
+                        for (int v = 0; v < 3; ++v) {
+                            float X = ft[i].v[v].x, Y = ft[i].v[v].y,
+                                  Z = ft[i].v[v].z;
+                            if (X < mnx) mnx = X;
+                            if (X > mxx) mxx = X;
+                            if (Y < mny) mny = Y;
+                            if (Y > mxy) mxy = Y;
+                            if (Z < mnz) mnz = Z;
+                            if (Z > mxz) mxz = Z;
+                        }
+                    printf("[fx] frame %d: %zu triangles from %d particles in "
+                           "%d systems, screen x[%.0f..%.0f] y[%.0f..%.0f] "
+                           "z[%.3f..%.3f]\n",
+                           frame, fx_after - fx_before, par, sys,
+                           mnx, mxx, mny, mxy, mnz, mxz);
+                }
+            }
+        }
         ph_end(PH_SUBMIT, t_phase);
         if (selftest) {
             size_t tn = 0;
