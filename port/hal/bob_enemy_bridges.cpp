@@ -239,8 +239,8 @@ unsigned char data_0208a0e0 = 1;
 /* the goomba's own "has this actor been counted" bss word */
 unsigned char data_0209f344[8];
 
-/* the red-coin counter NumRedCoins reads, arm9 bss */
-unsigned char data_0209f30d[4];
+/* the red-coin counter NumRedCoins reads: DEFINED in hal/auto_bss.cpp, where
+   this gate's 4-byte sizing was carried over. */
 }
 /* CapEnemy's own vtable is ov002 0x02108284, mounted with the rest of that
    overlay's data. The constructor installs it and the derived factory

@@ -70,7 +70,13 @@ int data_0209f27c[8];
 int data_0209f284[8];
 int data_0209f294[8];
 int data_0209f2c4[8];
-int data_0209f30d[8];
+/* the red-coin counter NumRedCoins reads. Sized against the symbol table
+   rather than left at this file's generic int[8]: config puts data_0209f310
+   at 0x0209f310, so the extent is 3 bytes, and 32 was 29 bytes of slack over
+   the next four symbols. Gate 32 defined its own copy of this in
+   hal/bob_enemy_bridges.cpp; the definition lives here, which is where the
+   link sweep grows BSS. */
+unsigned char data_0209f30d[4];
 int data_0209f4a2[8];
 int data_0209f4a4[8];
 int data_0209f4a6[8];
