@@ -64,11 +64,19 @@ window. Gate 24 is the exception and keeps its own smoke.
 | 26 | `walk_window` | the boot spine: the real Stage actor replacing the harness-staged scene root |
 | 27 | `walk_window` | the HUD actor (id 334): hearts, coins, stars, timer, camera buttons |
 | 28 | `walk_window` | the Minimap actor (id 335), plus the BG3-sub tilemap and extended palette |
+| 35 | `walk_window` | the course loop: damage, death and respawn through the ROM's own states, coins into the counter and the health, the star's bookkeeping and the course-clear handoff, and the course's own sound group, bank and music |
 
 There is no gate 11: it was folded into the gate-10 walking campaign before
 either landed. Gates 25 through 28 were **renumbered at merge** because three
 parallel streams each picked 24 the same night; the animation stream kept 24
-for BlendModelAnim.
+for BlendModelAnim. Gates 29 through 34 belong to branches that had not merged
+when 35 landed.
+
+Gate 35 is driven by `SM64DS_COURSE_PROBE=<what>[,<frame>]` on `walk_window`:
+`coin`, `hurt`, `hurt2`, `drown`, `death`, `star`. `SM64DS_SND_PROBE=<N>`
+counts sounding voices every N frames, and `SM64DS_COURSE_MUSIC=<seq>`
+overrides the sublevel's own music row (the castle grounds' row really is
+"no layer-1 track"; Bob-omb Battlefield's is sequence 58).
 
 Supporting machinery: `tools/hostgen.py` (MMIO transform into the build
 tree; src/ is never edited), `tools/romdata.py` (ROM constants from the

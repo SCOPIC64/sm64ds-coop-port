@@ -1,0 +1,66 @@
+# Gate 35: the course loop -- damage, death, respawn, coins, the star, and the
+# course's own sound.
+#
+# Small on purpose. Almost the whole loop was ALREADY in the link: the hurt,
+# dead and respawn states came in with gate 10's tier-2 wave, KillPlayer /
+# ExitLevel / SetNextLevel / HitDeathPlane with it, GiveCoins with gate 16,
+# Event:: with gate 16, and the HUD that draws all of it with gate 27. What
+# was missing was the state those functions read (the player globals were
+# never seated by the game's own SetPlayerGlobals, so the queued character
+# swap read as pending and the life count was zero), the two entry points
+# nothing on the port called, and a caller for either.
+#
+# The seam is hal/star_flow.cpp. Everything below is matched src.
+
+# ---- the boot state the whole loop reads.
+# SetPlayerGlobals is the one that writes data_02092114 = -1. It also fills
+# all four health words with 0x880 and the life count with 4, which is what
+# KillPlayer branches on.
+src/SetPlayerGlobals.c
+src/InitControllerMode.c
+
+# ---- the COIN SEAM.
+# Actor::GivePlayerCoins is the single point where a coin actor stops being an
+# actor and becomes a number: the chime, GiveCoins into the counter,
+# Player::Heal into the health, and the count popup. A coin class calls this
+# and needs nothing else from the port. Its two tables (coin value by kind,
+# popup actor id by kind) are romdata entries.
+src/_ZN5Actor15GivePlayerCoinsER6Playerhj.c
+
+# ---- the course's sound row.
+# GetSoundGroupID indexes the per-sublevel {group, bank, bgm} table that
+# Stage::InitResources reads to pick the level's music and its SFX bank.
+src/GetSoundGroupID.c
+
+# ---- the star's bookkeeping.
+# IsStarCollectedInCurLevel is what makes "was this star NEW" answerable;
+# CollectStarInCurLevel / CollectStar / IsStarCollected are gate 10's.
+src/IsStarCollectedInCurLevel.c
+
+# NOT HERE, and each for a stated reason:
+#
+#   src/HitDeathPlane.c is an ARM argument ride-through (it calls SetNextLevel
+#   with the argument riding in r0 across a call its own declaration does not
+#   name). It is filtered out of SLICE10_CAM_SOURCES and hosted in
+#   hal/star_flow.cpp with the rider spelled, the same treatment as the five
+#   in hal/sdat/sound_abi.cpp.
+#
+#   src/func_0203d974.c reads the console-type halfword at 0x027ffc40, which
+#   no ntr region maps. It was harmless while nothing called it; the course
+#   sound boot calls it. Filtered out of slice_gate14's list and hosted in
+#   hal/star_flow.cpp -- see the header there for why the answer is 1 and what
+#   that costs.
+#
+#   PowerStar / StarMarker. The class closure is complete in src (Behavior,
+#   Render, InitResources, CleanupResources, AddStarMarker, both destructors)
+#   and its SpawnInfo and vtable are real ov002 data, so registering it is a
+#   mechanical follow-on. It is not here because the castle grounds names no
+#   star to hang it on and its InitResources is 0x820 bytes of star-model,
+#   silver-star and red-coin-star loading with no way to exercise any of it
+#   until a level with a star mounts. hal/star_flow.cpp's port_star_collect is
+#   the half that does not need the actor.
+
+# ---- the two the probes read back through: the coin total the HUD shows,
+# and Event::ClearBit, which the respawn releases the health meter with.
+src/NumCoins.c
+src/_ZN5Event8ClearBitEj.c

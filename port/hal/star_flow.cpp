@@ -1,0 +1,540 @@
+// Gate 35: the course loop -- what makes a level a GAME rather than a walk.
+//
+// Everything here is a SEAM onto matched src, not a reimplementation. The
+// game already owns damage, death, respawn, the coin counter and the star
+// bookkeeping; all of it is in the link and has been since gate 10. What was
+// missing is the state those functions read before they mean anything, and a
+// caller for the two or three entry points nothing on the port reaches yet.
+//
+// Four pieces:
+//
+//   port_course_seat()      the boot: player globals, the sound group/bank,
+//                           and the course's own music, all through the
+//                           game's own functions.
+//   Actor::GivePlayerCoins  the COIN SEAM. Matched src, added to the link
+//                           here. See the header over port_give_player_coins.
+//   port_star_collect()     the star's bookkeeping and the course-clear
+//                           handoff, which is the level-independent half of
+//                           func_ov002_020e8ef0 plus func_ov002_020c94a4's
+//                           ExitLevel tail.
+//   HitDeathPlane           an ARM argument ride-through, hosted here for the
+//                           same reason as the five in hal/sdat/sound_abi.cpp.
+//
+// plus a probe surface (port_course_probe_*) the harnesses drive so every
+// one of those paths can be shown moving with a log rather than asserted.
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+#include "sdat/sdat.h"
+
+extern "C" {
+
+// ---- the game's own functions this file calls ------------------------------
+void SetPlayerGlobals(void);
+int  GetSoundGroupID(int level, int sub);
+void _ZN5Sound19LoadGroupAndSetBankEii(int group, int bank);
+void _ZN5Sound22LoadAndSetMusic_Layer1Ei(int seqId);
+unsigned int _ZN5Sound6Play2DEjj(unsigned int bank, unsigned int id);
+unsigned int func_02012790(unsigned int id);
+void _ZN5Event6SetBitEj(unsigned int bit);
+int  _ZN5Event6GetBitEj(unsigned int bit);
+void _ZN5Event8ClearBitEj(unsigned int bit);
+void CollectStarInCurLevel(int starId);
+int  IsStarCollectedInCurLevel(int starId);
+void SetNextLevel(int reason);
+void StartExitCharacterWipe(void);
+void StartExitFaderWipe(int wipeType);
+void ExitLevel(void);
+void KillPlayer(void);
+void GiveCoins(int playerNo, int amount);
+short NumCoins(void);
+unsigned char NumStars(void);
+int  _ZN6Player9GetHealthEv(void *player);
+int  _ZN6Player4HealEi(void *player, int amt);
+int  _ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(void *self, void *src,
+                                             unsigned kind, int knockback,
+                                             unsigned char scaleByChar,
+                                             unsigned char special,
+                                             unsigned char particles);
+void _ZN5Actor15GivePlayerCoinsER6Playerhj(void *actor, void *player,
+                                           unsigned char count,
+                                           unsigned int kind);
+int  func_ov002_020d82f0(void *player);   /* Player::Hurt's own entry gate */
+void sdat_host_tick(void);
+
+// ---- the globals it reads and seats ----------------------------------------
+extern signed char  data_0209f2f8;    /* current sublevel */
+extern signed char  data_0209f2f4[];  /* lives */
+extern short        data_02092144[];  /* per-player health: HP<<8 | fraction */
+extern signed char  data_02092114;    /* QUEUED character swap; -1 = none */
+extern signed char  data_0208e428;    /* the SFX bank Player_PlaySoundEffect uses */
+extern unsigned char data_0209b47c;   /* the sound group currently loaded */
+extern unsigned char data_0209b478;
+extern unsigned char data_0209b480;   /* master "sound effects on" */
+extern unsigned char data_0209f220;   /* star filter */
+extern short        data_0209f358[];  /* per-player coin counter */
+extern unsigned char data_0209f228;   /* the star just collected */
+extern unsigned char data_0209f2ac;   /* 1 = it was NEW */
+extern unsigned char data_0209f250;   /* local player index */
+extern unsigned char data_02092110;   /* next sublevel  (SetNextLevel) */
+extern unsigned char data_0209f268;   /* next entrance  (SetNextLevel) */
+extern unsigned char data_0209f26c;   /* why we are leaving */
+extern void        *data_0209f394[];  /* per-player Actor* */
+extern unsigned char data_0209caa0[];
+/* {group, bank, bgm} x 0x34, from romdata. config names the three columns
+   separately (data_02075768/69/6a) because the ROM walks them with a stride
+   of three; the port emits the run once and does the same arithmetic. */
+extern unsigned char data_02075768[];
+
+}  // extern "C"
+
+// =============================================================================
+// HitDeathPlane: an ARM argument ride-through
+// =============================================================================
+//
+// src/HitDeathPlane.c declares `extern void SetNextLevel(void)` and calls it
+// with no arguments, while src/SetNextLevel.c defines `SetNextLevel(int arg)`.
+// That is the same shape as the five in hal/sdat/sound_abi.cpp: on ARM the
+// argument is already in r0 from HitDeathPlane's own frame and the ROM's
+// `bl` never touches it, so mwccarm reproduces the bytes with the callee
+// unnamed. On x86 cdecl nothing is pushed and SetNextLevel's `arg` reads
+// whatever the caller's stack happened to hold -- and `arg` is what lands in
+// data_0209f26c, the reason-for-leaving code the next scene reads.
+//
+// `arg` is HitDeathPlane's only live value at the call, and it is the same
+// quantity SetNextLevel's parameter already carries elsewhere: ExitLevel
+// passes 1 (course cleared) and KillPlayer passes 2 (died). So the rider is
+// named here and src is left alone. src/HitDeathPlane.c is filtered out of
+// SLICE10_CAM_SOURCES in port/CMakeLists.txt.
+extern "C" {
+void _ZN5Scene14StartSceneFadeEjjt(unsigned a, unsigned b, unsigned short c);
+
+void HitDeathPlane(int arg)
+{
+    if (data_0209f2f4[0] != 0 || arg == 0)
+        SetNextLevel(arg);
+    else
+        _ZN5Scene14StartSceneFadeEjjt(8, 0, 0);
+    StartExitFaderWipe(6);
+}
+}  // extern "C"
+
+// =============================================================================
+// The boot: the state the whole loop reads before any of it means anything
+// =============================================================================
+
+namespace {
+
+int g_seated;
+int g_course_music = -1;
+
+/* THE QUEUED SWAP TRAP. data_02092114 is the in-level character swap request
+   and -1 means "nothing queued"; SetPlayerGlobals is the only thing that ever
+   writes that -1. The port left the symbol zero-initialised, which reads as a
+   pending swap to character 0. It is inert while the local player IS Mario
+   (Player::InitResources takes the same branch either way), which is why the
+   port has walked around for eleven gates without noticing -- and it stops
+   being inert the moment anything queues a real swap or checks `>= 0`.
+   Running the game's own function is the fix, and it seats the health words
+   and the life count in the same call. */
+void seat_player_globals(void)
+{
+    SetPlayerGlobals();
+    fprintf(stderr, "[course] player globals: hp=%d/%d lives=%d "
+            "queued-swap=%d\n", data_02092144[0] >> 8, 8,
+            (int)data_0209f2f4[0], (int)data_02092114);
+}
+
+/* The course's sound row, exactly as Stage::InitResources reads it:
+
+       soundGroup = GetSoundGroupID(level)      -- data_02075768[level*3]
+       bank       = data_02075769[level*3]      -- ...[level*3 + 1]
+       Sound::LoadGroupAndSetBank(soundGroup, bank)
+       Sound::LoadAndSetMusic_Layer1(data_0207576a[level*3])
+
+   THE BANK IS WRITTEN HERE AND THAT IS DELIBERATE. LoadGroupAndSetBank is
+   matched src and in the link, but its first line is func_0203d974, whose
+   console-type read at 0x027ffc40 is outside every region ntr maps (main RAM
+   is 0x02000000..0x02400000), so on the host it is a fault, not an answer.
+   The port answers 1 -- see port_console_is_dsi below -- and the ROM's `1`
+   branch returns early for any group but 0x2f without recording anything.
+   Both branches END by storing the bank and the group, and those two words
+   are the whole observable effect once the load itself is a no-op (the SDAT
+   consumer pre-seats every FAT residency slot, so there is nothing to load).
+   So the port writes what the branch it did not take would have left behind,
+   and says so, rather than editing matched src or faking the load.
+
+   data_0208e428 matters concretely: Player_PlaySoundEffect passes it as the
+   BANK for every kind-3 sound, and a zero there forces bank 0 on sounds whose
+   own SEQARC entry names a different one. */
+void seat_course_sound(int level)
+{
+    const unsigned char *row = data_02075768 + level * 3;
+    const int group = GetSoundGroupID(level, 0);
+    const int bank = row[1];
+    /* SIGNED, and that is the whole meaning of the column: Stage::InitResources
+       declares it `extern s8 data_0207576a[]`, and LoadAndSetMusic_Layer1's
+       first branch is `if (j < 0) stop`. 0xff is "this sublevel has no layer-1
+       track", not "sequence 255" -- reading it unsigned asks the sequencer for
+       an entry 172 past the end of an 83-entry SSEQ table. */
+    int bgm = (signed char)row[2];
+
+    /* The SDAT root has to be seated before any of this: LoadAndSetMusic_Layer1
+       walks data_020a5bb8 + 0x84 unconditionally, and unlike Sound::Play it
+       does not self-initialise. One tick with nothing queued does it. */
+    sdat_host_tick();
+
+    _ZN5Sound19LoadGroupAndSetBankEii(group, bank);
+    data_0208e428 = (signed char)bank;
+    data_0209b47c = (unsigned char)group;
+    data_0209b478 = 0;
+    data_0209b480 = 1;                 /* master SFX flag; the consumer's
+                                          init sets it too, but the boot may
+                                          run before the first sound call */
+
+    /* SM64DS_COURSE_MUSIC=<seq> overrides the row. The castle grounds is
+       sublevel 1 and its row really does say -1 -- arriving there STOPS
+       layer 1, and what the player hears outside is the AMBIENT_SOUND_EFFECTS
+       actors, not a BGM. So the one level the port can boot today is also the
+       one that proves nothing about a course theme playing; this is how the
+       real thing (Bob-omb Battlefield is sublevel 6, group 6, bank 0x21,
+       sequence 58) gets exercised before that level mounts. */
+    const char *ov = std::getenv("SM64DS_COURSE_MUSIC");
+    if (ov) {
+        bgm = std::atoi(ov);
+        fprintf(stderr, "[course] SM64DS_COURSE_MUSIC=%d overrides the row\n",
+                bgm);
+    }
+
+    g_course_music = bgm;
+    fprintf(stderr, "[course] sublevel %d sound row: group=%d bank=0x%02x "
+            "bgm=%d (%s)\n", level, group, bank, bgm,
+            bgm < 0 ? "no layer-1 track" : "start");
+    _ZN5Sound22LoadAndSetMusic_Layer1Ei(bgm);
+    /* Push the START the music call just queued at the ARM9 half through the
+       hosted ARM7, so the first frame already has voices allocated rather
+       than a batch sitting in the ring. */
+    sdat_host_tick();
+}
+
+}  // namespace
+
+extern "C" {
+
+/* func_0203d974, hosted. Removed from slice_gate14's source list.
+ *
+ * The ROM reads the console-type halfword the firmware leaves at 0x027ffc40
+ * and answers "is this a DSi (or a debug unit)". Nothing maps that address on
+ * the host, so the src version is a fault waiting for its first caller, and
+ * it has one now: Sound::LoadGroupAndSetBank is on the course boot path.
+ *
+ * The port answers 1. Not because the host is a DSi, but because the 0 branch
+ * is the one that walks the SOUND HEAP -- func_020134d8 -> func_02051918 over
+ * data_0209b498, and func_0205117c's SolidHeapAllocator save/restore. That
+ * heap is built by func_02050f34, which hal/sdat/consumer.cpp SKIPs at init
+ * (hal/sdat/sdat.cpp seats an equivalent root instead), so data_0209b498 is
+ * null and the DS-faithful answer is a null dereference three calls down. The
+ * 1 branch is a clean early return for every group the game asks for.
+ *
+ * What that costs: nothing on the port, because there is nothing to load.
+ * What it hides: the bank/group store at the end of both branches, which
+ * seat_course_sound writes instead. When the sound heap is built for real
+ * (see the report), this returns to the src version and that store goes away.
+ */
+int func_0203d974(void)
+{
+    return 1;
+}
+
+/* Seat everything the course loop reads. Called once from the harness after
+   the level boot has run and the entrance has spawned the Player. */
+void port_course_seat(void)
+{
+    if (g_seated) return;
+    g_seated = 1;
+    seat_player_globals();
+    seat_course_sound((int)data_0209f2f8);
+}
+
+// =============================================================================
+// COINS -- and the seam with the coin actor
+// =============================================================================
+//
+// THE SEAM IS Actor::GivePlayerCoins, which is Nintendo's own and is now in
+// the link (slice_gate35.txt). It is the single point where a coin actor
+// stops being a coin actor and becomes a number:
+//
+//     void Actor::GivePlayerCoins(Player &p, u8 count, u32 kind)
+//       -> Sound::PlayBank3(0x11 or 0x12, this->pos)     the chime
+//       -> GiveCoins(p.mPlayerNo, count * data_02075238[kind])
+//       -> Player::Heal(&p, amount << 8)                 coins heal
+//       -> Actor::Spawn(data_02075230[kind], ...)        the count popup
+//
+// A coin class calls it from its own Behavior on the frame its collider
+// reports the player, with `kind` 0 for yellow, 1 for red and 2 for blue.
+// Nothing else is needed on the coin side and nothing here reaches into the
+// coin: the ROM function is the whole contract.
+//
+// port_give_player_coins is the same call with a C name, for callers that
+// have not got an Actor in hand (the probe below, and any host-side collect).
+
+void port_give_player_coins(void *actor, void *player, int count, int kind)
+{
+    _ZN5Actor15GivePlayerCoinsER6Playerhj(actor, player,
+                                          (unsigned char)count,
+                                          (unsigned int)kind);
+}
+
+// =============================================================================
+// THE STAR
+// =============================================================================
+//
+// port_star_collect is the level-independent half of func_ov002_020e8ef0
+// (PowerStar's own collect handler) followed by func_ov002_020c94a4's tail.
+// Both are matched src; neither can be CALLED here, because the first wants a
+// live PowerStar actor and the second a Player already in the star-get state,
+// and the PowerStar class is not registered yet -- its InitResources is 0x820
+// bytes of star-model, silver-star and red-coin-star loading, and the castle
+// grounds names no star to hang it on.
+//
+// So this is the bookkeeping and the handoff, written out, and it is the same
+// sequence in the same order:
+//
+//   Event 0x1e   "a star has been got this session". func_ov002_020e930c
+//                returns early on it, which is what stops a second star from
+//                starting a second cutscene.
+//   Event 0x1d   the HUD's own bit: HUD::UpdateHealthMeter forces the health
+//                meter into state 5 (retract) while it is set.
+//   data_0209f228 / data_0209f2ac   which star, and whether it was NEW -- the
+//                two words the star-select screen reads back on the way out.
+//   CollectStarInCurLevel           the save bit.
+//   func_02012790(0x2d)             the fanfare, Sound::Play2D(2, 0x2d).
+//   ExitLevel()                     SetNextLevel(1) + StartExitCharacterWipe,
+//                                   which is the course-clear handoff itself:
+//                                   next level 1 (the hub), and the wipe the
+//                                   current character's row of data_020755bc
+//                                   selects.
+//
+// What it is NOT: the star's spin, Mario's hands-up animation, and the
+// "COURSE CLEAR" message. Those are the cutscene, they live in the PowerStar
+// actor's state table and in Message::, and they are honestly missing rather
+// than faked. The handoff after them is here and fires.
+
+int port_star_collect(int starId)
+{
+    if (_ZN5Event6GetBitEj(0x1e)) {
+        fprintf(stderr, "[star] already collected this session -- ignored\n");
+        return 0;
+    }
+    const int wasNew = IsStarCollectedInCurLevel(starId) ? 0 : 1;
+
+    _ZN5Event6SetBitEj(0x1e);
+    _ZN5Event6SetBitEj(0x1d);
+    data_0209f228 = (unsigned char)starId;
+    data_0209f2ac = (unsigned char)wasNew;
+    CollectStarInCurLevel(starId);
+    func_02012790(0x2d);
+
+    fprintf(stderr, "[star] collected star %d in sublevel %d (%s), "
+            "total now %d\n", starId, (int)data_0209f2f8,
+            wasNew ? "NEW" : "already had it", (int)NumStars());
+
+    ExitLevel();
+    fprintf(stderr, "[star] course clear: ExitLevel -> next sublevel %d "
+            "entrance %d, reason %d, wipe for character %d\n",
+            (int)data_02092110, (int)data_0209f268, (int)data_0209f26c,
+            (int)data_0209caa0[0x41]);
+    return 1;
+}
+
+// =============================================================================
+// The probe surface
+// =============================================================================
+//
+// One entry point per thing the gate has to be able to SHOW moving. The
+// harness drives them from a frame number; nothing here runs on its own.
+
+int port_course_health(void)
+{
+    return data_02092144[data_0209f250] >> 8;
+}
+
+/* Sound, measured rather than asserted. Voices and sequencer players are the
+   two things that either exist or do not: sd_mix_active is the mixer's own
+   "is this hardware channel sounding", and sd_seq_active is "is this player
+   still walking its sequence". A submitted command that allocated nothing
+   shows up here as zeroes, which is the failure the [snd] log alone cannot
+   tell apart from silence in the source material. */
+extern int func_02049018(const int *camSpacePos);
+extern int data_02099fac;   /* the 3D distance limit, romdata */
+extern int data_02099fb0;   /* the type-9 voice-pool count, romdata */
+
+int port_course_sound_probe(const char *when)
+{
+    int voices = 0, players = 0;
+    for (int i = 0; i < 16; ++i) if (sd_mix_active(i)) ++voices;
+    for (int i = 0; i < 32; ++i) if (sd_seq_active(i)) ++players;
+    fprintf(stderr, "[snd-probe] %s: %d/16 voices sounding, %d/32 sequence "
+            "players running, bank=0x%02x group=%d music=%d\n",
+            when, voices, players, (unsigned char)data_0208e428,
+            (int)data_0209b47c, g_course_music);
+    /* the two numbers that decide whether a POSITIONAL sound is allowed to
+       exist at all, plus where the listener thinks the player is */
+    const char *p = (const char *)data_0209f394[data_0209f250];
+    if (p) {
+        const int *cs = (const int *)(p + 0x74);
+        fprintf(stderr, "[snd-probe]   listener-relative player = "
+                "(%d, %d, %d) scene, distance %d, limit %d, "
+                "positional voices %d\n",
+                cs[0] >> 12, cs[1] >> 12, cs[2] >> 12,
+                func_02049018(cs), data_02099fac, data_02099fb0);
+    }
+    return voices;
+}
+
+int port_course_coins(void)
+{
+    return NumCoins();
+}
+
+/* The handoff, OBSERVED rather than caused.
+ *
+ * SetNextLevel is the only thing that writes data_02092110 / data_0209f268 /
+ * data_0209f26c, and it has exactly three callers: ExitLevel (course
+ * cleared), KillPlayer (died) and HitDeathPlane (fell out of the world). So a
+ * change in that triple means the course has ended and nothing on the port
+ * had to say so.
+ *
+ * A CHANGE, not a non-zero value. data_02092110 is a NAMED romdata entry, so
+ * it boots with the ROM's own byte in it (0xff), and "is it non-zero" reads
+ * as fired before anything has happened -- which is what the first version of
+ * this probe reported. */
+int g_arm_watch[3];
+
+void port_course_arm_watch(void)
+{
+    g_arm_watch[0] = data_02092110;
+    g_arm_watch[1] = data_0209f268;
+    g_arm_watch[2] = data_0209f26c;
+}
+
+int port_course_handoff_fired(void)
+{
+    return data_02092110 != (unsigned char)g_arm_watch[0] ||
+           data_0209f268 != (unsigned char)g_arm_watch[1] ||
+           data_0209f26c != (unsigned char)g_arm_watch[2];
+}
+
+int port_course_next_sublevel(void)
+{
+    return (int)data_02092110;
+}
+
+/* Is he in a state that ends the life? data_ov002_0211010c is the one
+   Player::Hurt changes to when func_ov002_020d91e0 answers "dead", and
+   data_ov002_02110124 is its water twin -- the two the ROM itself compares
+   against in Player::Heal to refuse healing a corpse. Comparing the state
+   POINTER is exact; comparing a printed address is not. */
+extern int data_ov002_0211010c[];
+extern int data_ov002_02110124[];
+
+int port_course_in_dead_state(void *player)
+{
+    const void *st = *(void **)((char *)player + 0x370);
+    if (st == (void *)data_ov002_0211010c) return 1;
+    if (st == (void *)data_ov002_02110124) return 2;
+    return 0;
+}
+
+/* The HUD's own displayed health. St_DeadHit_Main will not call KillPlayer
+   until this has ticked down to 0, which is why the death is not instant: the
+   meter empties one wedge at a time and the state machine waits for it. */
+int port_course_hud_health(void)
+{
+    extern unsigned char data_ov002_0211117c;
+    return (int)data_ov002_0211117c;
+}
+
+/* Damage, through the game's own Player::Hurt.
+ *
+ * `kind` is the ROM's damage class: 1 is a normal hit (one wedge), 2 and up
+ * are the heavy ones that also knock Mario onto his back. Hurt derives the
+ * knockback angle from `src`, so the probe passes a point a body-length in
+ * front of him -- that is what an enemy standing there would be.
+ *
+ * Hurt itself does not subtract the health. It calls func_ov002_020d91e0,
+ * which is the piece that reads the cap state, applies the 1.5x no-cap
+ * penalty, calls Player::Heal(-damage) and answers "is he dead now" -- and
+ * on 1 it changes the state to the DEAD one rather than the hurt one. So the
+ * whole death decision is the ROM's; this only supplies the hit. */
+/* The ROM's own "may he be hurt right now" gate: the invincibility timer, the
+   mega/no-control flags and the already-taking-damage flag. An enemy's
+   collider hits every frame it overlaps and Player::Hurt refuses on all but
+   the first, so a probe that wants to land a SECOND hit has to ask this the
+   same way rather than count frames. */
+int port_course_can_hurt(void *player)
+{
+    return func_ov002_020d82f0(player);
+}
+
+int port_course_hurt(void *player, int kind)
+{
+    char *p = (char *)player;
+    int src[3];
+    const int hp_before = port_course_health();
+    src[0] = *(int *)(p + 0x5c) + 0x8000;   /* 8 units in +X */
+    src[1] = *(int *)(p + 0x60);
+    src[2] = *(int *)(p + 0x64);
+    const int r = _ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(
+        player, src, (unsigned)kind, 0x8000, 0, 0, 1);
+    const int dead = port_course_in_dead_state(player);
+    fprintf(stderr, "[hurt] kind=%d -> Hurt returned %d, hp %d -> %d, "
+            "step=%u, state=%s\n", kind, r, hp_before, port_course_health(),
+            *(unsigned char *)(p + 0x6e3),
+            dead == 1 ? "DEAD (data_ov002_0211010c)"
+                      : dead == 2 ? "DEAD-WATER (data_ov002_02110124)"
+                                  : "alive");
+    return r;
+}
+
+/* The drowning tick. Player::St_HurtWater is the underwater damage state and
+   the breath meter is the same health word, so drowning is Heal(-n) applied
+   while mIsUnderwater is set -- which is what the ROM's own water damage
+   does. Spelled here so a probe can drive it without a water volume. */
+int port_course_drown_tick(void *player, int amount)
+{
+    _ZN6Player4HealEi(player, -amount);
+    return port_course_health();
+}
+
+/* The death handoff, as the ROM fires it. St_DeadHit_Main calls KillPlayer
+   once the HUD's displayed health has ticked to zero; this is the same call
+   for a harness that wants it now. */
+void port_course_kill(void)
+{
+    const int lives = data_0209f2f4[0];
+    KillPlayer();
+    /* The handoff, read back as data: SetNextLevel fills the next sublevel
+       and its entrance out of data_02075638, and StartExitFaderWipe(4) arms
+       the wipe. Printing the two words is the difference between "the call
+       returned" and "the call did something". */
+    fprintf(stderr, "[death] KillPlayer: lives %d -> next sublevel %d "
+            "entrance %d, reason %d, exit wipe 4 armed\n",
+            lives, (int)data_02092110, (int)data_0209f268,
+            (int)data_0209f26c);
+}
+
+/* Respawn: put the health back the way the game does between lives and hand
+   the player to the respawn state. data_02092144 is what SetPlayerGlobals
+   fills at 0x880 and what every life starts from. */
+void port_course_respawn(void *player)
+{
+    data_02092144[data_0209f250] = 0x880;
+    _ZN5Event8ClearBitEj(0x1d);
+    fprintf(stderr, "[respawn] health restored to %d, health meter released\n",
+            port_course_health());
+    (void)player;
+}
+
+}  // extern "C"

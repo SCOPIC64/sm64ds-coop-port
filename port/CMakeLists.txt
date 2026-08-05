@@ -724,6 +724,47 @@ foreach(line IN LISTS SLICE28_LINES)
     endif()
     list(APPEND SLICE28_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+
+# Gate 35: the course loop -- damage, death, respawn, coins, the star and the
+# course's own sound. Small, because almost all of it was already linked; see
+# the head of slice_gate35.txt for what was actually missing.
+#
+# func_02049018 is the 3D sound DISTANCE function and it drives the DS square-
+# root unit directly (SQRTCNT/SQRT_PARAM/SQRT_RESULT at 0x40002b0). ntr maps
+# that page as plain memory and hooks the write-triggered registers, but only
+# through the NTR_MMIO macro hostgen substitutes -- a raw cast-deref writes the
+# byte and never runs the unit, so the function returned whatever was last left
+# in the result register. Measured before this: a player 95 scene units from
+# the listener came back 8192, past every distance limit in the game, and every
+# positional sound was culled. It goes through hostgen like every other TU that
+# touches hardware; src/func_02049018.c comes out of slice 10.
+set(GATE35_SYMS func_02049018)
+set(GATE35_GEN "")
+foreach(sym IN LISTS GATE35_SYMS)
+    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+    else()
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
+    endif()
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND GATE35_GEN "${sym_out}")
+endforeach()
+
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate35.txt" SLICE35_LINES)
+set(SLICE35_SOURCES "")
+foreach(line IN LISTS SLICE35_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE35_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gate 13: the real Camera actor. Adds its own slice plus the HAL seam, and
 # swaps three gate-10 files for host copies that only the camera needs
 # (see port/unmatched/): ChangeArea calls HideArea() with no argument and
@@ -774,6 +815,24 @@ foreach(src IN LISTS SLICE10_SOURCES)
        OR src MATCHES "/_ZN5Sound4PlayEjjRK7Vector3\\.c$")
         continue()
     endif()
+    # gate 35: HitDeathPlane is that shape one more time -- it calls
+    # SetNextLevel with the argument riding in r0 across a call its own
+    # declaration spells `(void)`. hal/star_flow.cpp names the rider.
+    # func_0203d974 comes out with it (it is listed in both slice 10 and slice
+    # 14): its 0x027ffc40 console-type read is in no region ntr maps, and the
+    # course sound boot is its first caller.
+    # ...and CollectStar, the WRITE half of the s8/int argument-width
+    # disagreement port/unmatched/NumStars.cpp already carries the read half
+    # of. port/unmatched/CollectStar.cpp takes the course id as s8.
+    if(src MATCHES "/HitDeathPlane\\.c$"
+       OR src MATCHES "/func_0203d974\\.c$"
+       OR src MATCHES "/CollectStar\\.c$"
+    # ...and func_02049018, the 3D sound distance function, which drives the
+    # DS square-root unit through raw cast-derefs and so has to go through
+    # hostgen's MMIO transform (GATE35_SYMS) rather than compile as it stands.
+       OR src MATCHES "/func_02049018\\.c$")
+        continue()
+    endif()
     list(APPEND SLICE10_CAM_SOURCES "${src}")
 endforeach()
 
@@ -803,6 +862,8 @@ set(LEVELBOOT_HOST_SOURCES
     # table it indexes; see each file's header.
     unmatched/OneUpMushroom_Behavior.cpp
     unmatched/NumStars.cpp
+    # gate 35: the WRITE half of the same s8/int argument-width disagreement
+    unmatched/CollectStar.cpp
     unmatched/SignPost_StateDispatch.cpp
     # gate 18: the third, LakituBro's eleven-state machine
     unmatched/LakituBro_Behavior.cpp
@@ -893,6 +954,12 @@ foreach(line IN LISTS SLICE14_LINES)
     if(line MATCHES "^#" OR line STREQUAL "")
         continue()
     endif()
+    # gate 35: func_0203d974 reads the console-type halfword at 0x027ffc40,
+    # which no ntr region maps. It was harmless while nothing called it; the
+    # course sound boot calls it. hal/star_flow.cpp hosts it.
+    if(line MATCHES "/func_0203d974\\.c$")
+        continue()
+    endif()
     list(APPEND SLICE14_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
@@ -976,7 +1043,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/sub_actors.cpp hal/stage_bridges.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/sub_actors.cpp hal/stage_bridges.cpp hal/star_flow.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
@@ -984,9 +1051,9 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" "${OV009DATA
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
-    ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${GATE6_GEN}
+    ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE35_SOURCES} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
-    ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
+    ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
 target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -1003,7 +1070,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/star_flow.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
@@ -1011,9 +1078,9 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" "${OV009DATA_C
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
-    ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES} ${GATE6_GEN}
+    ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES} ${SLICE35_SOURCES} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
-    ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
+    ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -1033,7 +1100,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/star_flow.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
@@ -1041,9 +1108,9 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" "${OV009
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
-    ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES} ${GATE6_GEN}
+    ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES} ${SLICE35_SOURCES} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
-    ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN}
+    ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
