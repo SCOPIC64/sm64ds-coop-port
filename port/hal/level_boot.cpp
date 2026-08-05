@@ -829,10 +829,53 @@ extern int data_0209f32c[];            /* water level */
 extern int data_0209fc48;              /* the running cutscene, 0 = none */
 extern int data_0209f20c[], data_0209f294[], data_0209f2c4[], data_0209b454[];
 extern int data_0209ee90[];            /* +0x44 is the projection's W scale */
+extern int data_0209d70c[];            /* the message archive header pointer */
+}
+
+// ---- the message archive: mounted EMPTY, deliberately ----------------------
+//
+// Bob-omb Battlefield is the first level the port boots whose own logic opens
+// a TEXT BOX, and it is not a bug on either side.
+//
+// func_ov002_020c44c4 is the Player's one-shot level-intro check. Its switch
+// is on data_0209f2f8, the current level, and `case 7: r4val = 8` is Bob-omb
+// Battlefield's tutorial message -- fired when
+// SaveData::CountStarsCollectedInLevel comes back zero, which on a port with
+// a zeroed save block it always does. That runs the message state machine in
+// func_ov002_020c4188, whose case 2 calls func_0201f32c, and its first line is
+//
+//     if (*(u16 *)((char *)data_0209d70c + 8) <= (u16)arg0) return;
+//
+// data_0209d70c is the pointer to the loaded message archive's header. Nothing
+// on the host loads one -- data/message/msg_data_eng.bin is real ROM data, but
+// reading it is the whole Message text subsystem, which is a long way from the
+// level boot -- so the pointer is zero and the read lands on address 8.
+//
+// The seam is not a branch: it is an EMPTY ARCHIVE. A zeroed header reports
+// zero messages, so the line above is the ROM'S OWN out-of-range path and
+// every message id is declined there. The rest of the state machine runs
+// exactly as it runs on hardware, minus the text: the camera flag goes on, the
+// wait counter runs down, data_0209d660 stays 0 so the "still displaying"
+// case falls straight through, and the player's 0x71e/0x71f reset. He stands
+// there for the length of a message he cannot read and then walks on.
+//
+// The moment the Message subsystem IS hosted, this seat goes away and the real
+// archive pointer takes its place. Until then it says so once.
+static unsigned char port_empty_message_header[0x28];
+
+extern "C" void port_message_archive_seat(void)
+{
+    if (data_0209d70c[0])
+        return;
+    data_0209d70c[0] = (int)(size_t)port_empty_message_header;
+    std::printf("[msg] no message archive is hosted; mounting an EMPTY one, so "
+                "every text box is declined by the ROM's own bounds check\n");
 }
 
 extern "C" void port_stage_a2_seat(void)
 {
+    port_message_archive_seat();
+
     /* the scene tree root the spawn spine links under -- the real Stage.
        Constructing it IS the seating: Stage::Stage runs with data_020a4b6c[0]
        still null, so func_0203b438 takes its no-parent branch and writes the
@@ -1069,24 +1112,49 @@ void port_stage_a_probe(void *mc_)
                     *(int *)((char *)mc_ + 0x2c), *(int *)((char *)mc_ + 0x38));
     }
 
-    /* Paths: the table the two CLPS entries 16/17 bind to. */
+    /* Paths: the ones the level's OWN CLPS entries bind to.
+       The probe ids used to be the literals 5 and 3, which are the two the
+       castle grounds' entries 16 and 17 name. A level with no path table at
+       all -- Bob-omb Battlefield loads none -- sent PathPtr::FromID through a
+       null base and faulted inside the probe, with the boot itself already
+       finished and correct. Read the bindings out of the CLPS block instead,
+       so the probe reports whatever the booted level actually has. */
     std::printf("[path] table %p count %d nodes %p\n",
                 (void *)(size_t)data_020a0d84[0], data_020a0d8c[0],
                 (void *)(size_t)data_020a0d88[0]);
-    for (unsigned id = 0; id < 2; ++id) {
-        static const unsigned probe_ids[2] = {5, 3};
-        int path[2] = {0, 0};
-        _ZN7PathPtr6FromIDEj(path, probe_ids[id]);
-        unsigned nodes = _ZNK7PathPtr8NumNodesEv(path);
-        std::printf("[path] FromID(%u) -> rec %p firstNode %u count %u\n",
-                    probe_ids[id], (void *)(size_t)path[0],
-                    *(unsigned short *)(size_t)path[0], nodes);
-        for (unsigned k = 0; k < nodes && k < 4; ++k) {
-            int v[3];
-            _ZNK7PathPtr7GetNodeER7Vector3j(path, v, k);
-            std::printf("        node %u = (%.0f, %.0f, %.0f)\n", k,
-                        v[0] / 4096.0f, v[1] / 4096.0f, v[2] / 4096.0f);
+    if (!data_020a0d84[0] || data_020a0d8c[0] <= 0) {
+        std::printf("[path] this level binds no paths\n");
+        return;
+    }
+    {
+        unsigned seen = 0;                /* one bit per id already probed */
+        int probed = 0;
+        for (unsigned i = 0; i < ecount && probed < 4; ++i) {
+            unsigned id = clps[8 + i * esize + 4];
+            if (id == 0xff || id >= 32 || (seen & (1u << id)))
+                continue;
+            if ((int)id >= data_020a0d8c[0]) {
+                std::printf("[path] CLPS entry %u binds path %u, past the "
+                            "table's %d\n", i, id, data_020a0d8c[0]);
+                continue;
+            }
+            seen |= 1u << id;
+            ++probed;
+            int path[2] = {0, 0};
+            _ZN7PathPtr6FromIDEj(path, id);
+            unsigned nodes = _ZNK7PathPtr8NumNodesEv(path);
+            std::printf("[path] CLPS %u -> FromID(%u) -> rec %p firstNode %u "
+                        "count %u\n", i, id, (void *)(size_t)path[0],
+                        *(unsigned short *)(size_t)path[0], nodes);
+            for (unsigned k = 0; k < nodes && k < 4; ++k) {
+                int v[3];
+                _ZNK7PathPtr7GetNodeER7Vector3j(path, v, k);
+                std::printf("        node %u = (%.0f, %.0f, %.0f)\n", k,
+                            v[0] / 4096.0f, v[1] / 4096.0f, v[2] / 4096.0f);
+            }
         }
+        if (!probed)
+            std::printf("[path] no CLPS entry on this level binds a path\n");
     }
 }
 }  /* extern "C" */
