@@ -211,8 +211,88 @@ extern "C" int hal_oam_walk_probe(void)
     if (!faulted || off_screen != 0 ||
         at != (unsigned long)(pg + 4096)) ++bad;
 
-    data_0209e664 = saved;
     VirtualFree(pg, 0, MEM_RELEASE);
+
+    /* AND THE REAL ONE. 0x0210c648 is where data_ov002_0210c230[0] pointed
+       before the rebase reached it -- the first of HUD::RenderHealthMeter's
+       nine sprite lists, as a bare DS address. It is inside the reservation
+       ntr/io.cpp maps at 0x02000000, so it reads as committed zeroed pages and
+       the walk runs to the end of the region. This is the fault that was
+       landing about once in 230 runs, driven through the game's own Render at
+       an off-screen offset. */
+    {
+        void *const was = (void *)0x0210c648u;
+        MEMORY_BASIC_INFORMATION mbi;
+        const int mapped = VirtualQuery(was, &mbi, sizeof mbi) &&
+                           mbi.State == MEM_COMMIT;
+        std::fprintf(stderr, "  [oam]   data_ov002_0210c230[0]'s old DS value "
+                     "%08lx: %s\n", (unsigned long)was,
+                     mapped ? "COMMITTED ZEROED PAGES (the walk runs)"
+                            : "not mapped (the walk faults on the first read)");
+        data_0209e664 = 0;
+        int hit = 0;
+        unsigned long real_at = 0;
+        __try {
+            _ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii(0, was, 0x108, 64, 2, 1,
+                                                        0x1000, 0x1000, 0, -1);
+        } __except (real_at = (unsigned long)GetExceptionInformation()
+                                  ->ExceptionRecord->ExceptionInformation[1],
+                    GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION
+                        ? EXCEPTION_EXECUTE_HANDLER
+                        : EXCEPTION_CONTINUE_SEARCH) {
+            hit = 1;
+        }
+        std::fprintf(stderr, "  [oam]   walking it off screen: %s%08lx"
+                     " (%lu entries in)\n",
+                     hit ? "ACCESS VIOLATION at " : "returned, no fault at ",
+                     real_at,
+                     hit ? (real_at - 0x0210c648u) / 8u : 0u);
+        /* Where the walk actually stopped, and what stopped it. The
+           reservation runs to 0x02400000 and is zeroed, so nothing inside it
+           terminates the list: the walk leaves it. What is on the other side
+           is the host allocator's business and differs run to run, which is
+           the whole of the intermittency. If the next pages are committed the
+           walk finds a halfword that happens to read 0xffff almost at once and
+           returns having emitted nothing; if they are not, this is the access
+           violation. */
+        const unsigned short *a = (const unsigned short *)was;
+        long n = 0;
+        int scan_hit = 0;
+        __try {
+            while (a[n * 4 + 3] != 0xffff) ++n;
+        } __except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION
+                        ? EXCEPTION_EXECUTE_HANDLER
+                        : EXCEPTION_CONTINUE_SEARCH) {
+            scan_hit = 1;
+        }
+        /* THE COIN FLIP. Nothing inside the reservation stops the walk, so
+           what decides the run is whether the page at 0x02400000 -- the one
+           immediately past it, which belongs to the host allocator and not to
+           the port -- happens to be committed. Committed: the walk reads on
+           and finds a halfword that reads 0xffff within a few dozen entries,
+           returns having emitted nothing, and the frame looks fine. Not
+           committed: access violation, inside OAM::Render, 2.9 MB from the
+           pointer that caused it. */
+        MEMORY_BASIC_INFORMATION past;
+        const int past_committed =
+            VirtualQuery((void *)0x02400000u, &past, sizeof past) &&
+            past.State == MEM_COMMIT;
+        std::fprintf(stderr, "  [oam]   reservation ends %ld entries in at "
+                     "02400000, page past it %s; %s\n",
+                     (long)((0x02400000u - 0x0210c648u) / 8u),
+                     past_committed ? "COMMITTED" : "not committed",
+                     scan_hit
+                         ? "no 0xffff before the walk left mapped memory"
+                         : "0xffff found past it");
+        if (!scan_hit)
+            std::fprintf(stderr, "  [oam]   first 0xffff %ld entries in, at "
+                         "%08lx -- %ld PAST the reservation, in whatever the "
+                         "host allocator put there\n", n,
+                         (unsigned long)(0x0210c648u + (unsigned)n * 8u),
+                         n - (long)((0x02400000u - 0x0210c648u) / 8u));
+    }
+
+    data_0209e664 = saved;
     std::fprintf(stderr, "  [oam] walk probe: %s\n", bad ? "UNEXPECTED" : "as described");
     return bad;
 }
