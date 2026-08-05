@@ -170,8 +170,8 @@ NAMED = [
     # count-popup actor the collect spawns. Both are what turns "an actor was
     # touched" into a number on the HUD, so a zeroed pair is a coin worth
     # nothing.
-    "data_02075230",   # u16[3] popup actor ids
-    "data_02075238",   # u32[3] coin values
+    # u16[3] popup actor ids
+    # u32[3] coin values
     # The per-sublevel SOUND row: three bytes each, {group, bank, bgm}, which
     # config names as three separate one-byte symbols (data_02075768/69/6a)
     # because Stage::InitResources reads the three columns with a stride of 3.
