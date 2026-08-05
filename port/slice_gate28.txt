@@ -71,10 +71,3 @@ src/func_020541b8.c
 # the callees no earlier slice pulled in
 src/Vec3_DivScalarInPlace.c
 src/_ZN6Player12Unk_020ca8f8Ev.cpp
-
-# THE AFFINE, which is what makes the minimap a MINIMAP rather than a 1:1
-# window on the map tiles. Minimap::Behavior hands the matrix to UpdateMinimap
-# and the ROM applies it from func_02019144's per-frame callback -- two
-# functions (0x020297f4 and 0x02055278) that have no source anywhere, so the
-# port carries them transcribed from the ROM. See the file header.
-port/unmatched/Minimap_Affine.cpp
