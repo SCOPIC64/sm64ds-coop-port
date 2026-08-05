@@ -121,6 +121,19 @@ void hal_fill_hud_vtable(void);
 extern unsigned char _ZN7Minimap9spawnDataE[];  /* ov002 0x0210c160 */
 int *_ZN7MinimapC1Ev(void);                     /* ov002 0x020fb8bc */
 void hal_fill_minimap_vtable(void);
+/* ---- gate 33: BOB-OMB BATTLEFIELD's mechanisms, terrain and pickups -------
+   Level 6, ov014. Every id here was read out of that level's own object
+   tables and resolved through the EU ACTOR_SPAWN_TABLE at arm9 0x02090864;
+   hal/actor_classes_bob_world.cpp carries the evidence and the vtable fills.
+   Kept as one contiguous block so the merge with the enemy stream, which
+   appends its own block, is a straight concatenation. */
+extern unsigned char Coin_SpawnInfo[];                  /* ov002 0x02108790 */
+extern unsigned char RedCoin_SpawnInfo[];               /* ov002 0x021087ac */
+extern unsigned char BlueCoin_SpawnInfo[];              /* ov002 0x021087c8 */
+void *Coin_Spawn(void);                                 /* ov002 0x020b2b48 */
+void *RedCoin_Spawn(void);                              /* ov002 0x020b2af0 */
+void *BlueCoin_Spawn(void);                             /* ov002 0x020b2a98 */
+void hal_fill_coin_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -151,4 +164,9 @@ void hal_fill_minimap_vtable(void);
     {344, "FISH", Fish_SpawnInfo, Fish_Spawn, hal_fill_fish_vtable},             {353, "DOOR", Door_SpawnInfo, Door_Spawn, hal_fill_door_vtable},             {20, "QUESTION_BLOCK", QuestionBlock_SpawnInfo, QuestionBlock_Spawn,          hal_fill_question_block_vtable},         \
     {334, "HUD", _ZN3HUD9spawnDataE, port_factory_hud, hal_fill_hud_vtable},   \
     {335, "MINIMAP", _ZN7Minimap9spawnDataE, port_factory_minimap,             \
-     hal_fill_minimap_vtable},
+     hal_fill_minimap_vtable},                                                 \
+    /* ---- gate 33: Bob-omb Battlefield, one contiguous block ---- */         \
+    {288, "COIN", Coin_SpawnInfo, Coin_Spawn, hal_fill_coin_vtable},           \
+    {289, "RED_COIN", RedCoin_SpawnInfo, RedCoin_Spawn, hal_fill_coin_vtable}, \
+    {290, "BLUE_COIN", BlueCoin_SpawnInfo, BlueCoin_Spawn,                     \
+     hal_fill_coin_vtable},

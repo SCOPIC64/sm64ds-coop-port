@@ -70,6 +70,7 @@ int data_0209f27c[8];
 int data_0209f284[8];
 int data_0209f294[8];
 int data_0209f2c4[8];
+int data_0209f30d[8];
 int data_0209f4a2[8];
 int data_0209f4a4[8];
 int data_0209f4a6[8];

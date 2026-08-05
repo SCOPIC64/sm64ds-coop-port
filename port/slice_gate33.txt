@@ -1,0 +1,152 @@
+# Gate 33: the MECHANISMS, TERRAIN OBJECTS and PICKUPS of Bob-omb Battlefield.
+#
+# ---- which level, and how that was settled ---------------------------------
+#
+# Bob-omb Battlefield is LEVEL 6 and its overlay is ov014. Three independent
+# reads agree:
+#
+#   1. src/_Z17LoadLevelOverlaysi.cpp loads data_020758c8[level]. That table
+#      (arm9 0x020758c8, 52 words up to data_02075998) is the identity plus
+#      eight: level 0 -> ov008, level 1 -> ov009 ... level 6 -> ov014. Castle
+#      grounds is level 1 and ov009, which is what gate 14 already mounts.
+#   2. The arm9 LVL_Overlay pointer table at 0x02092208 has entry 6 at
+#      0x02092220, and config/arm9/relocs.txt says that word targets
+#      0x02113434 in one of overlays(9,14,16,18,19,21,22,24,25,26,27,29,32,36,
+#      56). ov014 is in the set.
+#   3. ov014's own symbols name ChainChomp, ChainChompFence and ShutterBob --
+#      the chain chomp, its post, and the level-prefixed shutter. No other
+#      level has a chain chomp.
+#
+# The LVL_Overlay at ov014 0x02113434 gives bmd 1765, kcl 1763, one sub-table
+# with sixteen kinds, and 89 Standard + 88 Simple objects in group 0.
+#
+# ---- the roster, resolved by ADDRESS ---------------------------------------
+#
+# Every actor id below was read out of ov014's own object tables and then
+# resolved through the EU ACTOR_SPAWN_TABLE at arm9 0x02090864: entry [id] is
+# a SpawnInfo*, and the overlay that address lands in plus that overlay's
+# symbols.txt names the class. The vtable each factory installs was then
+# checked against the ROM's own Itanium RTTI (the typeinfo pointer four bytes
+# before the table, whose +4 is the name string), because the config's class
+# names are shifted by one through a run of ov002 -- the gate-20 finding.
+#
+#     id  SpawnInfo             installs                RTTI
+#     288 Coin_SpawnInfo        _ZTV4Coin               8daCoin_c
+#     289 RedCoin_SpawnInfo     _ZTV4Coin               (same table)
+#     290 BlueCoin_SpawnInfo    _ZTV4Coin               (same table)
+#
+# One class, three ids, one vtable: the three factories are byte-identical
+# apart from nothing at all, and Coin::InitResources / Behavior / Render read
+# mActorID back to tell which of the three they are.
+#
+# 290 is NOT in Bob-omb Battlefield's tables -- blue coins come from a
+# BlueCoinSwitch, which is its own class -- and is registered anyway because
+# it is the same table and the same factory shape. Registering it costs one
+# row and closes the third of the three ids the task names.
+
+# ---- the coin ---------------------------------------------------------------
+src/Coin_Spawn.c
+src/RedCoin_Spawn.c
+src/BlueCoin_Spawn.c
+src/_ZN4Coin13InitResourcesEv.c
+src/_ZN4Coin16CleanupResourcesEv.c
+src/_ZN4Coin6RenderEv.cpp
+# _ZN4Coin8BehaviorEv is NOT here: its last act is
+#
+#     (this->*data_ov002_0210dc70[mBehaviorType])();
+#
+# an mwcc pointer-to-member out of a nine-entry table, which MSVC has no
+# representation for -- the gate-16 case, for the sixth time. Host copy plus
+# the state seat in port/unmatched/Coin_Behavior.cpp.
+#
+# _ZN4CoinD1Ev is NOT here either, and for the OTHER standing reason: it is a
+# real C++ destructor over its own shadow hierarchy, so MSVC would emit it
+# under ??1Coin@@UAE@XZ and synthesise five member destructor calls of its
+# own. Slot 16 is the ROM's D0 body minus the final Deallocate, written by
+# hand in hal/actor_classes_bob_world.cpp -- the Bird's treatment, and this
+# class NEEDS it: a collected coin is destroyed every time one is touched.
+src/_ZN4CoinD0Ev.c
+
+# ---- the nine behaviour states -------------------------------------------
+# __sinit_ov002_02100c50 (already on the gate-10 list) copies nine
+# {function, delta} statics from ov002 0x02108730..0x02108770 into
+# data_ov002_0210dc70. Seven distinct functions; two of the nine slots are
+# duplicates (2 and 6 are both 0x020b1cc0, 7 and 1 are both 0x020b20b4).
+src/func_ov002_020b2150.cpp
+src/func_ov002_020b1a60.c
+src/func_ov002_020b2070.cpp
+src/func_ov002_020b1cc0.c
+src/func_ov002_020b1ad4.c
+src/func_ov002_020b1bfc.cpp
+src/func_ov002_020b20b4.cpp
+
+# ---- the five helpers Behavior closes over ---------------------------------
+src/func_ov002_020b10a0.c
+src/func_ov002_020b12ec.c
+src/func_ov002_020b14d8.c
+src/func_ov002_020b10e4.c
+src/func_ov002_020b19dc.c
+
+# ---- slots 18 and 19 -------------------------------------------------------
+# OnYoshiTryEat is eight bytes ("no") and OnTurnIntoEgg is the collect path.
+src/func_ov002_020b2a90.c
+src/func_ov002_020b2a34.c
+
+# --- linkloop round 0 -------------------------------------------------------
+# CommonModel: the coin carries two of them, and the class had never been
+# compiled for the host before -- the other hosted classes use Model or
+# ModelAnim. Six files, all matched.
+src/_ZN11CommonModelC1Ev.c
+src/_ZN11CommonModelD1Ev.c
+src/_ZN11CommonModelD0Ev.c
+src/_ZN11CommonModel6RenderEPK7Vector3.cpp
+src/_ZN11CommonModel9DoSetFileEPcii.cpp
+src/_ZN11CommonModel12SetPolygonIDEj.cpp
+src/_ZN11CommonModel13Func_020160ACEj.cpp
+# the red coin's own star: what the eighth one collected calls
+src/_ZN10StarMarker27SpawnRedCoinStarIfNecessaryEv.cpp
+src/_ZN5Actor18HorzAngleToFPlayerEv.c
+# the seven helpers the states and the collect path close over
+src/func_ov002_020b1328.c
+src/func_ov002_020b1674.cpp
+src/func_ov002_020b16c4.c
+src/func_ov002_020b1884.c
+src/func_ov002_020b1384.cpp
+src/func_ov002_020b13e0.cpp
+src/func_ov002_020b1008.c
+
+# ---- SLOTS 13 AND 14 ARE NOT HOSTED, and this is the size of the job ------
+# ActorBase::Virtual34 and Virtual38 (arm9 0x0204357c / 0x0204349c) are the
+# actor's own solid-heap creation, and the vtable law wants them wired rather
+# than trapped: a heap-pressure path calls Virtual34 on every actor on the
+# behaviour list, so a class that traps there dies on a frame that has nothing
+# to do with it. Gate 16 trapped them and said the Heap:: face was the reason.
+#
+# It was measured this time rather than assumed, by putting both files in and
+# following the link to the bottom. Both are matched, and so is everything
+# under them, but "everything under them" is the SOLID HEAP ALLOCATOR, which
+# the port has never hosted:
+#
+#   Heap::InitializeSolidHeapAsDefault -> SetupSolidHeapAsDefault
+#     -> Heap::CreateSolidHeap -> SolidHeap::SolidHeap + Heap::
+#        CreateSolidHeapAllocator -> SolidHeapAllocator::SolidHeapAllocator
+#   plus Heap::RestoreFromTemporary -> Heap::SetDefault
+#   plus Heap::_Destroy -> Heap::Destroy
+#   plus Heap::ResizeToFit -> Heap::Rescue
+#
+# and SolidHeap's constructor installs _ZTV9SolidHeap, a SIXTEEN-slot table
+# (arm9 0x02099d48, the same shape as _ZTV13ExpandingHeap in
+# hal/heap_vtable.cpp) whose every slot is a named SolidHeap V-method. So the
+# real bill is 17 SolidHeap files + 12 SolidHeapAllocator files + a synthetic
+# 16-slot vtable, which is a subsystem rather than two slots, and it belongs
+# in a gate of its own next to gate 3a's ExpandingHeap.
+#
+# The two slots therefore keep the gate-16 trap here, and the trap says which
+# slot fired on which actor in which phase.
+
+# --- linkloop round 1 -------------------------------------------------------
+# the red-coin counter pair the eighth coin's collect path reads and writes
+src/GiveRedCoins.c
+src/NumRedCoins.c
+# CommonModel::DoSetFile's own pool call
+src/func_02016e70.c

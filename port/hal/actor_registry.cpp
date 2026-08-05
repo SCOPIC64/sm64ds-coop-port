@@ -270,8 +270,19 @@ static void port_list_trace(const char *name, int *list)
     std::printf("\n");
 }
 
+/* GATE 33, AND IT NEEDS RECONCILING AT MERGE. The one call site of the debug
+   spawn hook in hal/actor_classes_bob_world.cpp: SM64DS_SPAWN_ACTOR spawns a
+   named actor id at the player's position on the first tick after the boot,
+   which is how the classes of a level the port cannot boot yet get exercised.
+   A no-op with the variable unset, and port-beta-lvl's general hook replaces
+   it whole. */
+extern "C" void port_bob_debug_spawn(void);
+extern "C" void port_bob_debug_watch(void);
+
 extern "C" void port_actor_tick(void)
 {
+    port_bob_debug_spawn();
+    port_bob_debug_watch();
     data_02099f24[0] = 4;
     port_list_trace("cleanup", data_020a4ba8);
     func_02043fdc(data_020a4ba8);
