@@ -82,6 +82,9 @@ ExclamationSwitch_SpawnInfo:0x1c InvisibleSecret_SpawnInfo:0x1c
 # (16) is the level's big breakable block; FortressTowerWall (46) is a
 # BigBrickBlock too by RTTI. Same 0x1c record size.
 BigBrickBlock_SpawnInfo:0x1c FortressTowerWall_SpawnInfo:0x1c
+# gate 49: OneUpMushroomBlockTag (321), Whomp's Fortress. Installs
+# _ZTV10BrickBlock, the tag class gate 33 fills for MEGA_MUSHROOM_BLOCK_TAG.
+OneUpMushroomBlockTag_SpawnInfo:0x1c
 # Data the gate-33 classes' own InitResources/CleanupResources read.
 # data_ov002_0210b000 is the typeinfo record the vtable at 0x0210b030 follows;
 # 0x0210b030 itself is NOT here -- it is a real actor vtable dsd left unnamed

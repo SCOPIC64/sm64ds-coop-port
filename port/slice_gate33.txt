@@ -261,6 +261,11 @@ src/_ZN13FortressTowerD1Ev.c
 src/BigBrickBlock_Spawn.c
 src/FortressTowerWall_Spawn.c
 
+# gate 49: OneUpMushroomBlockTag (321), Whomp's Fortress. Installs
+# _ZTV10BrickBlock, the tag class body gate 33 fills for MEGA_MUSHROOM_BLOCK_TAG
+# (322). One body serves both ids; the only new code is this Spawn factory.
+src/OneUpMushroomBlockTag_Spawn.c
+
 # --- linkloop round 3: the closure of the twelve above ----------------------
 src/IsCannonOpenInCurLevel.c
 src/UnloadSilverStarAndNumber.c

@@ -148,6 +148,10 @@ void *FortressTowerWall_Spawn(void);                    /* ov002 0x020b406c */
 extern unsigned char MegaMushroomBlockTag_SpawnInfo[];  /* ov002 0x02108ba0 */
 void *MegaMushroomBlockTag_Spawn(void);
 void hal_fill_mega_mushroom_block_tag_vtable(void);
+/* gate 49: ONE_UP_MUSHROOM_BLOCK_TAG (321), the same _ZTV10BrickBlock tag body
+   as MEGA_MUSHROOM_BLOCK_TAG -- no fill of its own. */
+extern unsigned char OneUpMushroomBlockTag_SpawnInfo[]; /* ov002 0x02108bf4 */
+void *OneUpMushroomBlockTag_Spawn(void);                /* ov002 0x020b4670 */
 extern unsigned char CannonHatch_SpawnInfo[];           /* ov002 0x02109d14 */
 void *CannonHatch_Spawn(void);
 void hal_fill_cannon_hatch_vtable(void);
@@ -269,6 +273,10 @@ void hal_fill_king_bob_omb_vtable(void);
      FortressTowerWall_Spawn, 0},                                              \
     {322, "MEGA_MUSHROOM_BLOCK_TAG", MegaMushroomBlockTag_SpawnInfo,           \
      MegaMushroomBlockTag_Spawn, hal_fill_mega_mushroom_block_tag_vtable},     \
+    /* gate 49: same tag body (installs _ZTV10BrickBlock, filled above), for   \
+       Whomp's Fortress. No fill of its own. */                               \
+    {321, "ONE_UP_MUSHROOM_BLOCK_TAG", OneUpMushroomBlockTag_SpawnInfo,        \
+     OneUpMushroomBlockTag_Spawn, 0},                                         \
     {14, "CANNON_HATCH", CannonHatch_SpawnInfo, CannonHatch_Spawn,             \
      hal_fill_cannon_hatch_vtable},                                            \
     {297, "HEALING_HEART", HealingHeart_SpawnInfo, HealingHeart_Spawn,      \
