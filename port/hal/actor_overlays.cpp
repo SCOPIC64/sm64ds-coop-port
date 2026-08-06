@@ -309,6 +309,19 @@ void func_ov100_021412d8(void *); void func_ov100_02140e44(void *);
 void func_ov100_02141470(void *); void func_ov100_021415bc(void *);
 void func_ov100_02141800(void *); void func_ov100_02141848(void *);
 
+/* ---- gate 51: the ROLLING_IRON_BALL's five states -------------------------
+   __sinit_ov100_021474e8 copies five {function, delta} statics from ov100
+   0x02147f18..0x02147f38 into data_ov100_0214867c, and RollingIronBall::Behavior
+   dispatches whichever one is at its +0x3d0 index every frame. Those statics
+   carry DS code addresses, so the host bodies are seated over them before the
+   sinit copies them. The iron ball is the BUTTERFLY case, no host copy needed:
+   its matched Behavior reads the pair as two plain ints and does the
+   virtual-bit and this-adjustment arithmetic itself. All five deltas are zero. */
+extern PortPmf2 data_ov100_02147f38[], data_ov100_02147f18[],
+    data_ov100_02147f20[], data_ov100_02147f30[], data_ov100_02147f28[];
+void func_ov100_02142b90(void *); void func_ov100_02142918(void *);
+void func_ov100_021424c0(void *); void func_ov100_0214272c(void *);
+
 }  /* extern "C" */
 
 static const struct { PortPmf2 *slot; unsigned rom; void (*host)(void *); }
@@ -451,6 +464,33 @@ static void port_butterfly_states_seat(void)
             std::abort();
         }
         p->fn = (unsigned)(size_t)g_butterfly_states[i].host;
+    }
+}
+
+/* gate 51: the ROLLING_IRON_BALL's five states, seated in record order (the
+   sinit's copy order). */
+static const struct { PortPmf2 *slot; unsigned rom; void (*host)(void *); }
+g_iron_ball_states[] = {
+    {data_ov100_02147f38, 0x02142b90, func_ov100_02142b90},
+    {data_ov100_02147f18, 0x02142918, func_ov100_02142918},
+    {data_ov100_02147f20, 0x021424c0, func_ov100_021424c0},
+    {data_ov100_02147f30, 0x0214272c, func_ov100_0214272c},
+    {data_ov100_02147f28, 0x021424c0, func_ov100_021424c0},
+};
+
+static void port_iron_ball_states_seat(void)
+{
+    for (unsigned i = 0;
+         i < sizeof g_iron_ball_states / sizeof g_iron_ball_states[0]; ++i) {
+        PortPmf2 *p = g_iron_ball_states[i].slot;
+        if (p->fn != g_iron_ball_states[i].rom || p->delta != 0) {
+            std::fprintf(stderr, "FATAL: RollingIronBall state %u: the mount "
+                         "holds %08x/%d, the ROM's own table says %08x/0 -- "
+                         "WRONG BYTES\n", i, p->fn, p->delta,
+                         g_iron_ball_states[i].rom);
+            std::abort();
+        }
+        p->fn = (unsigned)(size_t)g_iron_ball_states[i].host;
     }
 }
 
@@ -682,6 +722,9 @@ extern "C" void port_actor_overlays_sinits(void)
     /* gate 40: seat the STAR door's eight callback halves over the SOURCE
        statics before __sinit_ov100_02147a70 copies them into its nodes. */
     port_star_door_callbacks_seat();
+    /* gate 51: seat the ROLLING_IRON_BALL's five states over the SOURCE statics
+       before __sinit_ov100_021474e8 copies them into data_ov100_0214867c. */
+    port_iron_ball_states_seat();
     __sinit_ov100_021473bc();
     __sinit_ov100_021474e8();
     __sinit_ov100_021475a4();

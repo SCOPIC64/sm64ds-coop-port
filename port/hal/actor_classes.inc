@@ -365,7 +365,10 @@ void hal_fill_king_bob_omb_vtable(void);
     {269, "CAP", Cap_SpawnInfo, Cap_Spawn, hal_fill_cap_vtable},               \
     /* ---- gate 51: EXCLAMATION_SWITCH (11), the floor switch ---- */         \
     {11, "EXCLAMATION_SWITCH", ExclamationSwitch_SpawnInfo,                    \
-     ExclamationSwitch_Spawn, hal_fill_exclamation_switch_vtable},
+     ExclamationSwitch_Spawn, hal_fill_exclamation_switch_vtable},             \
+    /* ---- gate 51: ROLLING_IRON_BALL (220), Whomp's Fortress ---- */         \
+    {220, "ROLLING_IRON_BALL", RollingIronBall_SpawnInfo, RollingIronBall_Spawn,\
+     hal_fill_rolling_iron_ball_vtable},
     /* PEACH_PAINTING (38) is BLOCKED, see gate 42 below -- its InitResources
        spawns a RollingRock (ov052, an overlay the port does not mount) and
        reads data_ov052_02111e84, so registering it would fault on the first

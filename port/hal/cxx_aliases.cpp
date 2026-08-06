@@ -216,6 +216,17 @@ void SharedFilePtr_Destruct_TexSeq(void) {}
 void SharedFilePtr_Destruct_Anim(void) {}
 void *data_020aa3f0;                     /* MSL global-dtor chain head */
 
+/* PORT_HOST_ABI: SDK memset asm primitive (func_0205a588) -- the edge-preserving
+   RMW byte-fill the FS/decompress path uses. No C to compile under MSVC, so the
+   port spells it as memset, which is what its asm computes. gate 51 (the iron
+   ball's shatter path reaches it). */
+extern "C" void func_0205a588(void *p, int v, int n) { memset(p, v, n); }
+
+/* gate 51: the ROLLING_IRON_BALL's state TUs call func_020ad660 by its
+   un-prefixed name; the definition is the ov002-prefixed func_ov002_020ad660.
+   Same cdecl symbol, so a plain alias. */
+#pragma comment(linker, "/alternatename:_func_020ad660=_func_ov002_020ad660")
+
 /* PORT_HOST_ABI: soft reset -- ARM7 IPC, card reload, unmapped 0x27ffc40 read.
    crash-screen-only ITCM entry; trap keeps it honest if ever reached */
 void func_01ffdd98(int a) { (void)a; __debugbreak(); }

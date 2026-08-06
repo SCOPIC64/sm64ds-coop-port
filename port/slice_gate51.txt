@@ -64,3 +64,21 @@ src/func_ov002_020ba0f8.cpp
 src/func_ov002_020ba0bc.c
 src/func_02012310.c
 src/func_ov002_020e7104.c
+
+# ---- ROLLING_IRON_BALL (220, ov100): the four state functions + helpers -----
+# RollingIronBall::Behavior dispatches data_ov100_0214867c[idx] as a plain
+# {function, delta} pair (the butterfly case, no host copy); the seat is in
+# hal/actor_overlays.cpp. These are the four state functions and the ov100/ov002
+# helpers they reach that no earlier gate linked. The particle/collision/Actor
+# closure and the FS/decompress path are already host-provided (the ntr layer
+# and earlier gates), so nothing below descends into them.
+src/func_ov100_02142b90.c
+src/func_ov100_02142918.cpp
+src/func_ov100_021424c0.c
+src/func_ov100_0214272c.cpp
+src/func_ov100_02141fb0.cpp
+src/func_ov100_02142130.cpp
+src/func_ov100_02142264.cpp
+src/func_ov100_0214233c.cpp
+src/func_ov002_020ad660.cpp
+src/func_02012694.cpp
