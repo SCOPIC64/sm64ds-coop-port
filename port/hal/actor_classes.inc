@@ -261,7 +261,10 @@ void hal_fill_king_bob_omb_vtable(void);
     {297, "HEALING_HEART", HealingHeart_SpawnInfo, HealingHeart_Spawn,      \
      hal_fill_healing_heart_vtable},                                        \
     /* CAP (269), EXCLAMATION_SWITCH (11), WATER_BOMB (208) and             \
-       ROLLING_IRON_BALL (220) are BUILT BUT NOT REGISTERED. */            \
+       ROLLING_IRON_BALL (220) are BUILT BUT NOT REGISTERED -- each faults  \
+       a few frames in on a DS behavior pointer or, for the water bomb, a   \
+       Cannon-targeting cascade (func_ov098_0213a00c derefs a null actor at \
+       +0x5c once a bomb is on the list). See actor_classes_bob_world.cpp. */\
     {329, "INVISIBLE_SECRET", InvisibleSecret_SpawnInfo, InvisibleSecret_Spawn,\
      hal_fill_invisible_secret_vtable},                                        \
     {299, "ARROW_SIGN_LEFT", ArrowSignLeft_SpawnInfo, ArrowSignLeft_Spawn,     \
