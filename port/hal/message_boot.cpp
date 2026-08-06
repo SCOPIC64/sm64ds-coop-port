@@ -188,19 +188,33 @@ extern "C" void port_message_dump(int id)
                  "%02x %02x  text@%p\n", id, (unsigned)e->textOffset,
                  e->info[0], e->info[1], e->info[2], e->info[3], (const void *)t);
 
-    /* Walk to the 0xff terminator, capped, printing hex and printable ASCII. */
-    enum { CAP = 128 };
+    /* Walk to the 0xff terminator, capped, printing hex and DECODED text. The
+       encoding is not ASCII: AddChar (src/_ZN7Message7AddCharEc.cpp) turns each
+       byte into a font tile index. The Latin glyph run is contiguous --
+       upper A..Z = 0x0a..0x23, lower a..z = 0x2d..0x46, space = 0x4d, digits
+       0x00..0x09 -- so the common letters decode cleanly; anything outside that
+       is shown as {hh}. Control codes: 0xfd newline, 0xfe embedded-function
+       (MSG_GEN_TEXT_FUNCS, see the note in the report), 0xff end. This is a
+       decode aid, not the font's authority -- the font file is. */
+    enum { CAP = 160 };
     char hex[CAP * 3 + 1];
-    char asc[CAP + 1];
-    int n = 0;
+    char txt[CAP * 4 + 1];
+    int n = 0, tp = 0;
     for (; n < CAP; ++n) {
         unsigned char c = t[n];
         std::snprintf(hex + n * 3, 4, "%02x ", c);
-        asc[n] = (c >= 0x20 && c < 0x7f) ? (char)c : '.';
-        if (c == 0xff) { ++n; break; }
+        if (c == 0xff) { txt[tp++] = '\0'; ++n; break; }
+        else if (c == 0xfd) { txt[tp++] = '\\'; txt[tp++] = 'n'; }
+        else if (c == 0xfe) { tp += std::snprintf(txt + tp, 5, "[FN]"); }
+        else if (c >= 0x0a && c <= 0x23) txt[tp++] = (char)('A' + (c - 0x0a));
+        else if (c >= 0x2d && c <= 0x46) txt[tp++] = (char)('a' + (c - 0x2d));
+        else if (c <= 0x09) txt[tp++] = (char)('0' + c);
+        else if (c == 0x4d) txt[tp++] = ' ';
+        else tp += std::snprintf(txt + tp, 5, "{%02x}", c);
+        if (tp > CAP * 4 - 6) break;
     }
     hex[n * 3] = 0;
-    asc[n] = 0;
+    txt[tp < CAP * 4 ? tp : CAP * 4] = 0;
     std::fprintf(stderr, "[msg]   bytes (%d): %s\n", n, hex);
-    std::fprintf(stderr, "[msg]   ascii: %s\n", asc);
+    std::fprintf(stderr, "[msg]   text : \"%s\"\n", txt);
 }
