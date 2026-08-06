@@ -17,7 +17,7 @@
 #include "ModelAnim.h"
 
 /* the geometry-engine polygon buffer, for the tongue render self-check
-   (SM64DS_TONGUE_PROBE); same forward decl cxxname_bridge.cpp uses so the
+   (SM64DS_WINGS_PROBE); same forward decl cxxname_bridge.cpp uses so the
    header's wider surface does not have to come in here */
 namespace ntr { struct GxTriangle; const GxTriangle *gx_polygons(std::size_t &n); }
 
@@ -180,6 +180,14 @@ void hal_render_player_body_only(void *player)
    translation, the head composed through the body's own matrix (the neck
    bone is model-space) */
 extern "C" short data_02082214[];   /* s16 trig pairs [sin, cos], 4096 = 1 */
+/* the three matrix helpers and the scratch matrix Player::Render uses to seat
+   mModelAnim4 (+0x174); all four are matched and already in the link */
+extern "C" {
+void Matrix4x3_FromTranslation(void *m, int x, int y, int z);
+void Matrix4x3_ApplyInPlaceToRotationZ(void *m, int ang);
+void MulMat4x3Mat4x3(const void *a, const void *b, void *out);
+extern int data_020a0e68;
+}
 static void m43_mul(const int *a, const int *b, int *out)
 {
     for (int r = 0; r < 3; ++r)
@@ -230,41 +238,91 @@ void hal_render_player_world(void *player)
         }
     }
 
-    /* YOSHI'S TONGUE. The tongue is a SEPARATE ModelAnim at Player +0x160, not
-       part of the body. St_YoshiPower drives it (func_ov002_020d71ec and case 5
-       SetAnim it directly), but the port's render path drew only the body at
-       +0xdc and the head at +0x154, so the tongue never appeared on screen --
-       the animation and the particle were both there, but the model that IS the
-       tongue was never handed to the geometry engine. The ROM's own Player
-       render walks the model's own components; here it is seated in the same
-       scene-space frame as the body (the tongue's BCA carries the extension off
-       the mouth) and rendered through its ModelAnim vtable.
-         The tongue model is only populated while Yoshi is mid-tongue, so this is
-       null every other frame and skipped. SM64DS_TONGUE_PROBE=1 reports the
-       first frame it is non-null, which is how the wiring was confirmed. */
+    /* THE WING MODEL: Player::mModelAnim4, EMBEDDED at +0x174.
+       NOT the tongue, which is what an earlier pass here took it for. The gate
+       says so outright -- func_ov002_020e4bb8 ends with the render latches
+
+           *(u8*)(self + 0x6fe) = *(u8*)(self + 0x6fd);
+           *(u8*)(self + 0x700) = *(u8*)(self + 0x6ff);   <- mHasWings
+
+       so unk_700 is last frame's mHasWings, and the model it gates is the pair
+       of wings. That also explains the Yoshi special case below: his wings
+       hang off a different bone, with an offset and a quarter turn.
+
+       Player::Render (src/_ZN6Player6RenderEv.cpp) draws it like this:
+
+           if (unk_700 != 0) {
+               ModelBase::ApplyOpacity(this + 0x174, mOpacity, 0);
+               if (unk_6db == 3) {
+                   Matrix4x3_FromTranslation(&data_020a0e68, -0x1b33, -0x666, 0);
+                   Matrix4x3_ApplyInPlaceToRotationZ(&data_020a0e68, 0x4000);
+                   MulMat4x3Mat4x3(&data_020a0e68, bodyBones + 0x180, &data_020a0e68);
+                   mModelAnim4.Virtual18(&data_020a0e68, &mScale);
+               } else {
+                   mModelAnim4.Virtual18(bodyBones + 0x2d0, &mScale);
+               }
+           }
+
+       and all four parts of that matter. An earlier pass here drew
+       *(ModelAnim **)(c + 0x160) -- the pointer func_ov002_020d71ec SetAnims,
+       which is NOT the object Render walks -- with the body's own scene matrix,
+       through Render (slot 4), with no gate at all. What Tango saw was a
+       model upside down under every character's feet, on Mario as much as on
+       Yoshi: the probe said 198 polygons on frame 0 of a plain Mario boot,
+       from the same object either way.
+
+       THE TONGUE IS STILL NOT DRAWN. Removing this does not cost anything that
+       was working -- the wings were never in the right place -- but it does not
+       deliver the tongue either. Whatever draws the tongue, it is not
+       mModelAnim4, and unk_700 never opens on a tongue (SM64DS_WINGS_PROBE=1
+       through SM64DS_SELFTEST_TONGUE says the gate stays 0 the whole run).
+
+       Faithful now: gated on unk_700, the ROM's own two matrices, and
+       Virtual18 -- which is host slot 5 (_ZTV9ModelAnim is dtor 0, DoSetFile 1,
+       UpdateVerts 2, Virtual10 3, Render 4, Virtual18 5; see
+       hal/bob_enemy_bridges.cpp) and takes the matrix and the scale, unlike
+       Render. The bone matrix is composed through `scene` the way the head at
+       +0x154 is, because this path renders in scene space, not the ROM's
+       world space. */
     {
-        ModelAnim *tongue = *(ModelAnim **)(c + 0x160);
         static int probe = -1;
-        if (probe < 0) probe = std::getenv("SM64DS_TONGUE_PROBE") ? 1 : 0;
-        if (tongue) {
-            for (int i = 0; i < 12; ++i) ((int *)&tongue->mat4x3)[i] = scene[i];
-            tongue->ModelAnim::UpdateVerts();
-            if (probe) {
+        if (probe < 0) probe = std::getenv("SM64DS_WINGS_PROBE") ? 1 : 0;
+        char *m4 = c + 0x174;
+        unsigned char gate = *(unsigned char *)(c + 0x700);
+        if (probe) {
+            static int said, said_open;
+            if (!said) {
+                said = 1;
+                std::fprintf(stderr, "[wings] +0x174 gate unk_700=%u "
+                             "unk_6db=%u vptr=%p\n", gate,
+                             *(unsigned char *)(c + 0x6db), *(void **)m4);
+            }
+            if (gate && !said_open) {
+                said_open = 1;
                 std::size_t n0 = 0, n1 = 0;
                 ntr::gx_polygons(n0);
-                tongue->ModelAnim::Render(0);
-                ntr::gx_polygons(n1);
-                static int said;
-                if (!said && n1 > n0) {
-                    said = 1;
-                    std::fprintf(stderr, "[tongue] +0x160 model=%p step=%u -- "
-                                 "tongue render emitted %d polygons\n",
-                                 (void *)tongue, *(unsigned char *)(c + 0x6e3),
-                                 (int)(n1 - n0));
-                }
-            } else {
-                tongue->ModelAnim::Render(0);
+                std::fprintf(stderr, "[wings] gate OPENED (unk_700=%u, "
+                             "unk_6db=%u, step=%u)\n", gate,
+                             *(unsigned char *)(c + 0x6db),
+                             *(unsigned char *)(c + 0x6e3));
+                (void)n0; (void)n1;
             }
+        }
+        if (gate != 0) {
+            char *bones = *(char **)((char *)ma + 0x14);
+            int composed[12];
+            const int *src;
+            if (*(unsigned char *)(c + 0x6db) == 3) {
+                Matrix4x3_FromTranslation(&data_020a0e68, -0x1b33, -0x666, 0);
+                Matrix4x3_ApplyInPlaceToRotationZ(&data_020a0e68, 0x4000);
+                MulMat4x3Mat4x3(&data_020a0e68, bones + 0x180, &data_020a0e68);
+                src = (const int *)&data_020a0e68;
+            } else {
+                src = (const int *)(bones + 0x2d0);
+            }
+            m43_mul(src, scene, composed);
+            ((void(__fastcall *)(void *, void *, const void *))(
+                ((void ***)m4)[0][5]))(m4, composed, c + 0x80);
         }
     }
 }
