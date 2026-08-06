@@ -19,34 +19,45 @@
 // through a run of ov002 (the gate-20 finding), and the RTTI is the only
 // thing that says which way.
 //
-// ---- FIVE OF THE TWELVE ARE BUILT BUT NOT REGISTERED -----------------------
+// ---- HEALING_HEART IS REGISTERED (gate 45); FOUR STILL ARE NOT -------------
 //
-// CAP (269), HEALING_HEART (297), EXCLAMATION_SWITCH (11), WATER_BOMB (208)
-// and ROLLING_IRON_BALL (220) each fault on their first frame. Every one was
-// spawned ON ITS OWN with SM64DS_SPAWN_ACTOR, so the five results are five
-// independent measurements and not one class taking the others down.
+// HEALING_HEART (297)'s fault was the model preload, and the preload is now
+// hosted: hal/level_boot.cpp's port_stage_preload_shared_models runs
+// Stage::InitResources' own loop
 //
-// The healing heart's is the one that was followed to the bottom, and its
-// backtrace names the shape all five are likely to share:
+//     for (i = 0; i < 0xC; i++) Model::LoadFile(data_020756f0[i]);
+//
+// over all twelve SharedFilePtrs at level boot (12/12 seated). The heart's
+// backtrace was followed to the bottom and named exactly that gap:
 //
 //     main -> port_actor_render -> func_02043fdc -> func_0204322c
 //       -> port_actor_process -> Seaweed::Render +0x11
 //       -> ModelAnim::Virtual18 +0xe -> ModelAnim::Virtual10 +0x25
 //       -> Model::Virtual10 +0xc      reading through a NULL, eax = 0
 //
-// Model::Virtual10 is the bone-matrix copy and it is reading a model whose
-// file never arrived. That is the SAME root the coins hit and the same one
-// their preload closes by hand: Coin::InitResources hands SetFile a filePtr it
-// expects Stage::InitResources to have loaded, and Stage::InitResources does
-// not run in the port -- hal/stage_bridges.cpp fills all twenty of the Stage's
-// slots with a trap. The coins needed four entries out of one arm9 table and
-// those are hosted; a class-by-class answer for the rest of the preload is a
-// gate of its own, and the general answer is running the Stage.
+// Model::Virtual10 is the bone-matrix copy reading a model whose file never
+// arrived. With the twelve-model preload in place the SharedFilePtr::filePtr
+// the heart reads is populated, its first frame is clean, and it now spawns in
+// level 6 (census: HEALING_HEART x1) and runs 300 frames, exit 0.
 //
-// They are left BUILT -- slice, vtable fill, faces, all of it -- so the next
-// attempt starts with the link closed and only the preload to solve. What
-// they do not have is a registry row, so the spawn gate names them as skipped
-// instead of the process dying.
+// CAP (269), EXCLAMATION_SWITCH (11), WATER_BOMB (208) and ROLLING_IRON_BALL
+// (220) still fault, but NOT on the preload -- each dies a few frames later
+// jumping to a DS code address that is a state/behavior function the port has
+// not built or seated:
+//
+//   EXCLAMATION_SWITCH -> func_ov002_020ba4d8 dispatches through the shared
+//     mwcc PMF table data_ov002_0210e00c (StarSwitch indexes entries 1..4),
+//     which MSVC widens over an incomplete class and reads at the wrong stride
+//   WATER_BOMB         -> data_ov098_0213c724 holds func_ov098_0213b9d8, the
+//     WaterBomb behavior, which is in no slice (unbuilt DS address called)
+//   CAP / ROLLING_IRON_BALL -> the same shape, a table of DS behavior pointers
+//     that needs the class's closure added to the slice and the table seated
+//
+// Each is a per-class PMF/state seat of the kind port/unmatched/*_States.cpp
+// already carries for BobOmbBuddy, ChainChomp, KingBobOmb and SignPost. They
+// are left BUILT -- slice, vtable fill, faces -- so the next attempt starts
+// with the link closed and only the seat to write. Until then they have no
+// registry row, so the spawn gate names them as skipped instead of dying.
 #include <cstdio>
 #include <cstdlib>
 
@@ -715,6 +726,60 @@ extern "C" void hal_fill_invisible_secret_vtable(void)
     vt[12] = (void *)bw_pdes_base;
     vt[16] = (void *)is_d1;
     vt[17] = (void *)bw_trap17;
+}
+
+// ---- INVISIBLE_POLE (287, ov002) -- gate 46 --------------------------------
+//
+// RTTI 7daBar_c. Its factory (InvisiblePole_Spawn, 0x020b0710) installs
+// data_ov002_02108480, NOT the _ZTV13InvisiblePole the config's own
+// _ZN13InvisiblePole* methods belong to -- the gate-20 name shift, resolved by
+// address: the vtable's slot funcs are the func_ov002_020b0* family (05d0,
+// 0600, 0644, 064c, 0650, 0658, 067c), and the src for each carries its own
+// `VT0 = _ZTV7daBar_c` note. It is a moving-bar actor: a 216-byte object with a
+// MovingCylinderClsn at +0xd4, no PMF dispatch anywhere. Whomp's Fortress
+// names one; the same class serves it and the level's other bar ids.
+//
+// The vtable is HOST STORAGE the registry fills (the InvisibleSecret case),
+// aliased to _ZTV7daBar_c so the two destructor bodies that store VT0 back into
+// the object write the same host array. Slot 16 is D1 (05d0: MovingCylinderClsn
+// dtor + Actor::D2, no free) and slot 17 is D0 (0600: the same plus Deallocate)
+// -- both live, unlike the pickups whose D0 is never reached.
+extern "C" {
+int func_ov002_020b067c(char *self);   /* slot 0  InitResources */
+int func_ov002_020b0644(void);         /* slot 3  CleanupResources */
+int func_ov002_020b0658(char *self);   /* slot 6  Behavior */
+int func_ov002_020b0650(void);         /* slot 9  Render */
+void func_ov002_020b064c(void);        /* slot 12 OnPendingDestroy */
+int *func_ov002_020b05d0(int *self);   /* slot 16 D1 */
+int *func_ov002_020b0600(int *self);   /* slot 17 D0 */
+void *data_ov002_02108480[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV7daBar_c=_data_ov002_02108480")
+static int __fastcall ip_init(void *s, void *)
+{ return func_ov002_020b067c((char *)s); }
+static int __fastcall ip_clean(void *s, void *)
+{ return func_ov002_020b0644(); }
+static int __fastcall ip_behavior(void *s, void *)
+{ return func_ov002_020b0658((char *)s); }
+static int __fastcall ip_render(void *s, void *)
+{ return func_ov002_020b0650(); }
+static int __fastcall ip_pdes(void *s, void *)
+{ func_ov002_020b064c(); return 0; }
+static int __fastcall ip_d1(void *s, void *)
+{ return (int)(size_t)func_ov002_020b05d0((int *)s); }
+static int __fastcall ip_d0(void *s, void *)
+{ return (int)(size_t)func_ov002_020b0600((int *)s); }
+extern "C" void hal_fill_invisible_pole_vtable(void)
+{
+    void **vt = data_ov002_02108480;
+    bw_fill_shared(vt);
+    vt[0] = (void *)ip_init;
+    vt[3] = (void *)ip_clean;
+    vt[6] = (void *)ip_behavior;
+    vt[9] = (void *)ip_render;
+    vt[12] = (void *)ip_pdes;
+    vt[16] = (void *)ip_d1;
+    vt[17] = (void *)ip_d0;
 }
 
 // ---- ARROW_SIGN_LEFT (299) and ARROW_SIGN_RIGHT (300), ov098 ----------------

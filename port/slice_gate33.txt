@@ -252,6 +252,35 @@ src/_ZN13FortressTower8BehaviorEv.cpp
 src/_ZN13FortressTower6RenderEv.cpp
 src/_ZN13FortressTowerD1Ev.c
 
+# gate 48: BigBrickBlock (16) and FortressTowerWall (46) of Whomp's Fortress
+# (level 7). Both factories install _ZTV13BigBrickBlock, the class body gate 16
+# fills for BLACK_BRICK_BLOCK (17); one body serves six actor ids and switches
+# on mActorId. So the only new code is the two Spawn factories -- InitResources,
+# Behavior, Render and the destructors are already linked with black brick
+# block. Behavior has no PMF dispatch (Event bits and collision range only).
+src/BigBrickBlock_Spawn.c
+src/FortressTowerWall_Spawn.c
+
+# gate 49: OneUpMushroomBlockTag (321), Whomp's Fortress. Installs
+# _ZTV10BrickBlock, the tag class body gate 33 fills for MEGA_MUSHROOM_BLOCK_TAG
+# (322). One body serves both ids; the only new code is this Spawn factory.
+src/OneUpMushroomBlockTag_Spawn.c
+
+# gate 46: InvisiblePole (287), Whomp's Fortress -- RTTI daBar_c, a moving-bar
+# actor. Its real vtable is data_ov002_02108480 (the gate-20 name shift; the
+# factory's bodies are the func_ov002_020b0* family, not the config's
+# _ZN13InvisiblePole* methods). No PMF dispatch: Behavior/Render/Cleanup are
+# short and the bar's collision is a plain MovingCylinderClsn. The vtable is
+# filled by hand in hal/actor_classes_bob_world.cpp.
+src/InvisiblePole_Spawn.c
+src/func_ov002_020b067c.c
+src/func_ov002_020b0644.c
+src/func_ov002_020b0658.cpp
+src/func_ov002_020b0650.c
+src/func_ov002_020b064c.c
+src/func_ov002_020b05d0.c
+src/func_ov002_020b0600.c
+
 # --- linkloop round 3: the closure of the twelve above ----------------------
 src/IsCannonOpenInCurLevel.c
 src/UnloadSilverStarAndNumber.c

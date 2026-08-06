@@ -138,9 +138,20 @@ void hal_fill_coin_vtable(void);
    _ZTV13BigBrickBlock, which gate 16 already fills for BLACK_BRICK_BLOCK. */
 extern unsigned char BrickBlock_SpawnInfo[];            /* ov002 0x02108a24 */
 void *BrickBlock_Spawn(void);                           /* ov002 0x020b4708 */
+/* gate 48: BIG_BRICK_BLOCK (16) and FORTRESS_TOWER_WALL (46), Whomp's Fortress.
+   Both factories install _ZTV13BigBrickBlock too -- no fill of their own, same
+   as BRICK_BLOCK. */
+extern unsigned char BigBrickBlock_SpawnInfo[];         /* ov002 0x02108a40 */
+void *BigBrickBlock_Spawn(void);                        /* ov002 0x020b40fc */
+extern unsigned char FortressTowerWall_SpawnInfo[];     /* ov002 0x02108a94 */
+void *FortressTowerWall_Spawn(void);                    /* ov002 0x020b406c */
 extern unsigned char MegaMushroomBlockTag_SpawnInfo[];  /* ov002 0x02108ba0 */
 void *MegaMushroomBlockTag_Spawn(void);
 void hal_fill_mega_mushroom_block_tag_vtable(void);
+/* gate 49: ONE_UP_MUSHROOM_BLOCK_TAG (321), the same _ZTV10BrickBlock tag body
+   as MEGA_MUSHROOM_BLOCK_TAG -- no fill of its own. */
+extern unsigned char OneUpMushroomBlockTag_SpawnInfo[]; /* ov002 0x02108bf4 */
+void *OneUpMushroomBlockTag_Spawn(void);                /* ov002 0x020b4670 */
 extern unsigned char CannonHatch_SpawnInfo[];           /* ov002 0x02109d14 */
 void *CannonHatch_Spawn(void);
 void hal_fill_cannon_hatch_vtable(void);
@@ -156,6 +167,11 @@ void hal_fill_exclamation_switch_vtable(void);
 extern unsigned char InvisibleSecret_SpawnInfo[];       /* ov002 0x0210b00c */
 void *InvisibleSecret_Spawn(void);
 void hal_fill_invisible_secret_vtable(void);
+/* gate 46: INVISIBLE_POLE (287), RTTI daBar_c. Host-storage vtable, filled by
+   hand (the InvisibleSecret case). */
+extern unsigned char InvisiblePole_SpawnInfo[];         /* ov002 0x0210845c */
+void *InvisiblePole_Spawn(void);                        /* ov002 0x020b0710 */
+void hal_fill_invisible_pole_vtable(void);
 extern unsigned char ArrowSignLeft_SpawnInfo[];         /* ov098 0x0213c398 */
 void *ArrowSignLeft_Spawn(void);
 extern unsigned char ArrowSignRight_SpawnInfo[];        /* ov098 0x0213c3b4 */
@@ -254,18 +270,32 @@ void hal_fill_king_bob_omb_vtable(void);
     {290, "BLUE_COIN", BlueCoin_SpawnInfo, BlueCoin_Spawn,                     \
      hal_fill_coin_vtable},                                                    \
     {15, "BRICK_BLOCK", BrickBlock_SpawnInfo, BrickBlock_Spawn, 0},            \
+    /* gate 48: two more of the same class body (installs _ZTV13BigBrickBlock,  \
+       filled at gate 16), for Whomp's Fortress. No fill of their own, like     \
+       BRICK_BLOCK. */                                                          \
+    {16, "BIG_BRICK_BLOCK", BigBrickBlock_SpawnInfo, BigBrickBlock_Spawn, 0},   \
+    {46, "FORTRESS_TOWER_WALL", FortressTowerWall_SpawnInfo,                    \
+     FortressTowerWall_Spawn, 0},                                              \
     {322, "MEGA_MUSHROOM_BLOCK_TAG", MegaMushroomBlockTag_SpawnInfo,           \
      MegaMushroomBlockTag_Spawn, hal_fill_mega_mushroom_block_tag_vtable},     \
+    /* gate 49: same tag body (installs _ZTV10BrickBlock, filled above), for   \
+       Whomp's Fortress. No fill of its own. */                               \
+    {321, "ONE_UP_MUSHROOM_BLOCK_TAG", OneUpMushroomBlockTag_SpawnInfo,        \
+     OneUpMushroomBlockTag_Spawn, 0},                                         \
     {14, "CANNON_HATCH", CannonHatch_SpawnInfo, CannonHatch_Spawn,             \
      hal_fill_cannon_hatch_vtable},                                            \
-    /* CAP (269), HEALING_HEART (297), EXCLAMATION_SWITCH (11), WATER_BOMB  \
-       (208) and ROLLING_IRON_BALL (220) are BUILT BUT NOT REGISTERED. All  \
-       five fault on their first frame, each measured on its own with       \
-       SM64DS_SPAWN_ACTOR; the head of hal/actor_classes_bob_world.cpp      \
-       carries the backtrace and the reading. A class that dies on frame one\
-       is worse than the registry gate naming it as skipped. */             \
+    {297, "HEALING_HEART", HealingHeart_SpawnInfo, HealingHeart_Spawn,      \
+     hal_fill_healing_heart_vtable},                                        \
+    /* CAP (269), EXCLAMATION_SWITCH (11), WATER_BOMB (208) and             \
+       ROLLING_IRON_BALL (220) are BUILT BUT NOT REGISTERED -- each faults  \
+       a few frames in on a DS behavior pointer or, for the water bomb, a   \
+       Cannon-targeting cascade (func_ov098_0213a00c derefs a null actor at \
+       +0x5c once a bomb is on the list). See actor_classes_bob_world.cpp. */\
     {329, "INVISIBLE_SECRET", InvisibleSecret_SpawnInfo, InvisibleSecret_Spawn,\
      hal_fill_invisible_secret_vtable},                                        \
+    /* gate 46: the moving bar (RTTI daBar_c), Whomp's Fortress */             \
+    {287, "INVISIBLE_POLE", InvisiblePole_SpawnInfo, InvisiblePole_Spawn,      \
+     hal_fill_invisible_pole_vtable},                                          \
     {299, "ARROW_SIGN_LEFT", ArrowSignLeft_SpawnInfo, ArrowSignLeft_Spawn,     \
      hal_fill_arrow_sign_vtable},                                              \
     {300, "ARROW_SIGN_RIGHT", ArrowSignRight_SpawnInfo, ArrowSignRight_Spawn,  \
