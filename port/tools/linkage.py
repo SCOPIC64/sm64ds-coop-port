@@ -19,13 +19,146 @@ scaffolding that outlived its reason, and port_stage_a_boot is the example
 that motivated this file: a hand-written subset of Stage::InitResources, while
 Stage::InitResources sat in src/ decompiled and unlinked.
 
-    python port/tools/linkage.py [repo-root] [--queue]
+NOT every queue symbol is scaffolding, though. A matched src TU that is an ARM
+asm primitive, an ARM register ride-through, an mwcc pointer-to-member dispatch,
+or a poke of DS hardware the ntr layer does not model cannot compile-and-behave
+under MSVC no matter how much wiring is added -- the host definition IS the
+faithful stand-in. Those are host-ABI EXCEPTIONS, not unknowns, and this tool
+tells them apart: a host definition carrying a `PORT_HOST_ABI:` tag in the
+comment right above it is a documented exception; one without a tag is real
+replacement work still to be understood. The headline the port drives to zero
+is the UNDOCUMENTED queue, not the raw one.
+
+    python port/tools/linkage.py [repo-root] [--queue] [--exceptions]
+
+  --queue        list every queue symbol with its matched source
+  --exceptions   also print the documented host-ABI exceptions and their reasons
 """
 import os
 import re
 import sys
 
 HOST_DIRS = ("hal", "unmatched")
+
+# Directories a host object's source may live in, most specific first. fs.cpp
+# exists under both hal/ and ntr/; the queue's plain `fs.cpp.obj` is the hal one
+# and the ntr copy is namespaced (`ntr_2x:runtime.cpp.obj`), so hal wins here.
+HOST_SRC_DIRS = ("port/hal", "port/hal/sdat", "port/unmatched", "port/ntr",
+                 "port/tests")
+
+# A host definition is a documented host-ABI exception when the comment block
+# right above it carries this tag. The text after the colon is the reason;
+# trailing comment punctuation (*/) is stripped off.
+ABI_TAG = re.compile(r"PORT_HOST_ABI:\s*(.+?)\s*(?:\*/\s*)?$")
+
+
+def host_source_for(root, obj):
+    """Resolve a host .obj name to its source file, or None."""
+    # obj is like `cxx_aliases.cpp.obj` or `ntr_2x:runtime.cpp.obj`.
+    base = obj.split(":", 1)[-1]
+    stem = os.path.splitext(os.path.splitext(base)[0])[0]
+    for d in HOST_SRC_DIRS:
+        for ext in (".cpp", ".c"):
+            p = os.path.join(root, d, stem + ext)
+            if os.path.exists(p):
+                return p
+    return None
+
+
+IDENT = re.compile(r"[A-Za-z_]\w*")
+# Type/keyword tokens that share a definition line with the real symbol name.
+_SKIP_IDENT = {"extern", "static", "void", "int", "unsigned", "char", "short",
+               "long", "const", "signed", "struct", "return", "if", "for",
+               "while", "C"}
+
+
+def _is_comment_or_blank(stripped, in_block):
+    """(is_comment_or_blank, new_in_block) for a stripped source line."""
+    if stripped == "":
+        return True, in_block
+    if in_block:
+        # inside /* ... */; the block ends on the line carrying */
+        return True, (not stripped.endswith("*/"))
+    if stripped.startswith("//"):
+        return True, False
+    if stripped.startswith("/*"):
+        # a /* ... */ opener; stays open unless it also closes on this line
+        return True, (not stripped.endswith("*/"))
+    if stripped.startswith("*"):
+        return True, in_block
+    return False, in_block
+
+
+def _reasons_in(source_path):
+    """{symbol: reason} for every PORT_HOST_ABI tag in a host source file.
+
+    A tag documents the DEFINITION right below it. The reason binds to every
+    identifier on the first real code line after the tag -- skipping the rest of
+    the comment block, tracking /* ... */ state so a wrapped prose line does not
+    look like code. The definition may be `extern "C" void foo(...)`, a pointer
+    return `void *foo(...)`, or a plain method; the caller only ever asks about
+    names that are real queue symbols, so recording every identifier is safe.
+    """
+    try:
+        with open(source_path, errors="replace") as f:
+            lines = f.readlines()
+    except (OSError, TypeError):
+        return {}
+    out = {}
+    for i, line in enumerate(lines):
+        m = ABI_TAG.search(line)
+        if not m:
+            continue
+        reason = m.group(1)
+        # Is this tag line itself the tail of an open /* block? Find out by
+        # scanning down for the first genuine code line.
+        in_block = line.strip().startswith(("/*", "*")) and not line.strip().endswith("*/")
+        # If the tag is on a `// ...` line, no block is open.
+        if line.strip().startswith("//"):
+            in_block = False
+        j = i + 1
+        # Bind the reason to every identifier from the tag down to the end of
+        # the definition it documents. `func_02059824`'s definition is preceded
+        # by a forward-declaration of the body it calls, and several tags sit
+        # above a prototype line before the real definition; collecting the
+        # whole run to the opening `{` (or the closing `;` of a one-line body)
+        # catches the real symbol whichever line carries it. Extra prototype
+        # names are harmless -- the caller only ever asks about queue symbols.
+        # A blank line or a new comment block ends the run (the next tagged def).
+        run = 0
+        while j < len(lines) and run < 12:
+            st = lines[j].strip()
+            is_c, in_block = _is_comment_or_blank(st, in_block)
+            if is_c:
+                if st == "" and not in_block:
+                    break
+                j += 1
+                continue
+            for name in IDENT.findall(lines[j]):
+                if name not in _SKIP_IDENT:
+                    out.setdefault(name, reason)
+            # A `{` opens the definition body -- stop here. A line ending in `;`
+            # is a forward-declaration/prototype the definition sits below;
+            # keep going. `}` closes a one-line body -- stop.
+            if "{" in st or st.endswith("}"):
+                break
+            j += 1
+            run += 1
+    return out
+
+
+_REASON_CACHE = {}
+
+
+def abi_reason(source_path, sym):
+    """The PORT_HOST_ABI reason tagged above sym's definition, or None."""
+    if not source_path:
+        return None
+    reasons = _REASON_CACHE.get(source_path)
+    if reasons is None:
+        reasons = _reasons_in(source_path)
+        _REASON_CACHE[source_path] = reasons
+    return reasons.get(sym)
 
 
 def matched_index(root):
@@ -56,6 +189,7 @@ def map_symbols(mapfile):
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else "."
     show_queue = "--queue" in sys.argv
+    show_exceptions = "--exceptions" in sys.argv
 
     mapfile = os.path.join(root, "build", "port", "walk_window.map")
     if not os.path.exists(mapfile):
@@ -86,20 +220,60 @@ def main():
         print("no host object defines a symbol that src/ also has. Nothing to replace.")
         return 0
 
-    ranked = sorted(host_hits.items(), key=lambda kv: -len(kv[1]))
-    n = sum(len(v) for v in host_hits.values())
+    # Split each host object's symbols into documented host-ABI exceptions
+    # (a PORT_HOST_ABI tag sits above the definition) and undocumented ones.
+    src_cache = {}
+    documented = {}    # obj -> {sym: reason}
+    undocumented = {}  # obj -> set(sym)
+    for obj, s in host_hits.items():
+        source = src_cache.get(obj)
+        if source is None:
+            source = host_source_for(root, obj)
+            src_cache[obj] = source
+        for sym in s:
+            reason = abi_reason(source, sym)
+            if reason:
+                documented.setdefault(obj, {})[sym] = reason
+            else:
+                undocumented.setdefault(obj, set()).add(sym)
+
+    n_all = sum(len(v) for v in host_hits.values())
+    n_doc = sum(len(v) for v in documented.values())
+    n_undoc = sum(len(v) for v in undocumented.values())
+
     print("REPLACEMENT QUEUE: %d symbols across %d host objects are defined by a"
-          % (n, len(host_hits)))
-    print("host file while src/ carries a matched TU of the same name.")
+          % (n_all, len(host_hits)))
+    print("host file while src/ carries a matched TU of the same name. Of those,")
+    print("  %d are documented host-ABI exceptions (asm primitives, register"
+          % n_doc)
+    print("     ride-throughs, mwcc pointer-to-member, unmodelled DS hardware)")
+    print("  %d are undocumented -- the real replacement work" % n_undoc)
     print()
-    for obj, s in ranked:
-        print("  %-40s %d symbol(s)" % (obj, len(s)))
-        if show_queue:
-            for sym in sorted(s):
-                print("        %-46s %s" % (sym, matched[sym]))
-    if not show_queue:
+
+    # The undocumented queue is the work list.
+    if undocumented:
+        print("UNDOCUMENTED QUEUE (%d):" % n_undoc)
+        for obj, s in sorted(undocumented.items(), key=lambda kv: -len(kv[1])):
+            print("  %-40s %d symbol(s)" % (obj, len(s)))
+            if show_queue:
+                for sym in sorted(s):
+                    print("        %-46s %s" % (sym, matched[sym]))
+    else:
+        print("UNDOCUMENTED QUEUE (0): every queue symbol is a documented")
+        print("host-ABI exception. The only way to shrink it further is a")
+        print("toolchain that can run the ROM's ARM asm and hardware pokes.")
+
+    if show_exceptions:
         print()
-        print("re-run with --queue to list the symbols and their matched sources")
+        print("DOCUMENTED HOST-ABI EXCEPTIONS (%d):" % n_doc)
+        for obj, d in sorted(documented.items(), key=lambda kv: -len(kv[1])):
+            print("  %-40s %d symbol(s)" % (obj, len(d)))
+            for sym in sorted(d):
+                print("        %-30s %s" % (sym, d[sym]))
+
+    if not show_queue and not show_exceptions:
+        print()
+        print("re-run with --queue for sources, --exceptions for the reasons")
     return 0
 
 

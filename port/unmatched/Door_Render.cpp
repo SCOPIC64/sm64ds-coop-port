@@ -40,6 +40,7 @@ extern "C" {
 unsigned char IsAreaShowing(int idx);
 }
 
+// PORT_HOST_ABI: mwcc virtual-shadow dispatch (MSVC thiscall vs the slice's cdecl).
 extern "C" int func_ov100_021454c8(void *selfv)
 {
     char *c = (char *)selfv;

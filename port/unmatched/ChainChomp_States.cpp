@@ -112,6 +112,7 @@ static void port_chomp_call(const PortChompPmf *m, void *self, const char *half)
 }
 
 /* +0x610 is the state index both halves read; the change one writes it. */
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (MSVC widens PMF over an incomplete class).
 extern "C" void func_ov014_02111ebc(void *self, int i)
 {
     *(int *)((char *)self + 0x610) = i;
@@ -119,6 +120,7 @@ extern "C" void func_ov014_02111ebc(void *self, int i)
                     self, "init");
 }
 
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (MSVC widens PMF over an incomplete class).
 extern "C" void func_ov014_02111f08(void *self)
 {
     port_chomp_call(&data_ov014_0211476c[*(int *)((char *)self + 0x610)].main,

@@ -38,6 +38,7 @@ extern PortDoorElem data_ov100_02148204[];
 extern void *data_ov100_02148744;
 void port_model_family_delete(void *obj);
 
+// PORT_HOST_ABI: mwcc virtual-shadow dispatch (MSVC thiscall vs the slice's cdecl).
 int func_ov100_0214542c(char *c)
 {
     int idx = *(int *)(c + 8);

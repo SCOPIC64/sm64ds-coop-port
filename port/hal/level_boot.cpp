@@ -491,6 +491,9 @@ enum { PORT_LOADFILE_SLOTS = 16 };
 static PortSharedFilePtr g_loadfile_slot[PORT_LOADFILE_SLOTS];
 static int g_loadfile_used;
 
+/* PORT_HOST_ABI: src is func_0201818c(handle,1), the DS card archive loader;
+   the port's file seam is one level up at SharedFilePtr, so this expresses the
+   same contract there rather than driving card hardware. */
 void *LoadFile(int handle)
 {
     enum { SLOTS = PORT_LOADFILE_SLOTS };

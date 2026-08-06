@@ -19,7 +19,8 @@ typedef unsigned int u32;
 extern "C" {
 
 // ---- asm primitives ------------------------------------------------------
-/* 4x3 fx32 scale matrix from (sx,sy,sz): rows {sx,0,0},{0,sy,0},{0,0,sz},0 */
+/* PORT_HOST_ABI: ARM asm primitive (scale matrix), MSVC cannot assemble.
+   4x3 fx32 scale matrix from (sx,sy,sz): rows {sx,0,0},{0,sy,0},{0,0,sz},0 */
 void func_020527e8(int *m, int sx, int sy, int sz)
 {
     memset(m, 0, 12 * sizeof(int));
@@ -35,7 +36,8 @@ void func_020527e8(int *m, int sx, int sy, int sz)
  * eight bytes further along, so a forward word-at-a-time copy replicates the
  * pattern across the whole shadow. memcpy may not overlap at all and memmove
  * would copy backwards and produce one entry followed by garbage. The DS
- * primitive walks forward; so does this. */
+ * primitive walks forward; so does this.
+ * PORT_HOST_ABI: ARM asm primitive (word copy/fill), MSVC cannot assemble. */
 void MultiCopy_Int(int *src, int *dst, int len)
 {
     if (((unsigned)(size_t)src | (unsigned)(size_t)dst | (unsigned)len) & 3) {
@@ -47,7 +49,8 @@ void MultiCopy_Int(int *src, int *dst, int len)
     for (int i = 0; i < len / 4; ++i) dst[i] = src[i];
 }
 
-/* 32-byte-block copy primitive (asm on the DS). Forward, for the same reason. */
+/* 32-byte-block copy primitive (asm on the DS). Forward, for the same reason.
+   PORT_HOST_ABI: ARM asm primitive (32-byte block copy), MSVC cannot assemble. */
 void MultiCopy32Bytes(int *src, int *dst, int len)
 {
     for (int i = 0; i < len / 4; ++i) dst[i] = src[i];
@@ -106,7 +109,7 @@ int hal_oam_layout_check(void)
     return 0;
 }
 
-/* asm primitive: 4x3 fx32 identity */
+/* PORT_HOST_ABI: ARM asm primitive (4x3 identity), MSVC cannot assemble. */
 void Matrix4x3_LoadIdentity(int *m)
 {
     memset(m, 0, 12 * sizeof(int));
@@ -115,7 +118,8 @@ void Matrix4x3_LoadIdentity(int *m)
 
 /* asm primitive: expand a 3x3 fx32 matrix (read from a) into a 4x4 (b):
  * fourth column zero, last row {0,0,0,1.0}. The decomp declares the args
- * (dst,src) but r0 is the READ side; register semantics win here. */
+ * (dst,src) but r0 is the READ side; register semantics win here.
+ * PORT_HOST_ABI: ARM asm primitive (3x3->4x4 expand), MSVC cannot assemble. */
 void func_02052514(int *a, int *b)
 {
     for (int r = 0; r < 3; ++r) {
@@ -130,7 +134,8 @@ void func_02052514(int *a, int *b)
 
 /* ITCM fast-path display-list submit: same (channel, src, size) contract as
  * func_0205a358 (func_02044534 calls that one with identical arguments), so
- * the host forwards to the pump that gate 4a already proved byte-exact. */
+ * the host forwards to the pump that gate 4a already proved byte-exact.
+ * PORT_HOST_ABI: DS DMA-to-GXFIFO; ntr models the FIFO seam, not raw DMA. */
 void func_0205a358(int ch, int src, int size, void (*cb)(int), int arg);
 void func_01ffde98(int ch, int src, int size)
 {
@@ -295,6 +300,8 @@ extern "C" void _ZN2GX7LoadTexEPKvjj(const void *s, unsigned o, unsigned z)
 }
 
 // DMA fallback DMASyncWordTransfer uses; same synchronous copy semantics.
+// PORT_HOST_ABI: DS DMA register poke (0x040000b0 + 2-cycle barrier reads),
+//                the ntr layer models the FIFO seam, not raw DMA registers.
 extern "C" void DMAStartTransfer(int ch, int src, int dst, int ctrl);
 extern "C" void DMAStartTransferFB(unsigned char ch, u32 src, u32 dst, u32 ctrl)
 {

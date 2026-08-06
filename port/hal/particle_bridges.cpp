@@ -105,7 +105,8 @@ int func_02052f4c(int a, int b) { return _ZN4cstd3divEii(a, b); }
    family calls them per billboard to face the camera. Transcribed from the
    register writes in the asm blocks, offset for offset. */
 
-/* Matrix3x3_SetRotationZ @ 0x02052588: {c, s, 0, -s, c, 0, 0, 0, 1} */
+/* PORT_HOST_ABI: ARM/Thumb asm primitive (3x3 Z-rotation), MSVC cannot assemble.
+   Matrix3x3_SetRotationZ @ 0x02052588: {c, s, 0, -s, c, 0, 0, 0, 1} */
 void Matrix3x3_SetRotationZ(int *m, int s, int c)
 {
     m[0] = c;  m[1] = s;  m[2] = 0;
@@ -115,7 +116,8 @@ void Matrix3x3_SetRotationZ(int *m, int s, int c)
 
 /* func_0205256c @ 0x0205256c: the Y sibling, {c, 0, -s, 0, 1, 0, s, 0, c}.
    The asm writes by byte offset (m[8] is [r0,#32], m[6] is [r0,#24], m[2] is
-   [r0,#8], m[4] is [r0,#16]); this is that, in order. */
+   [r0,#8], m[4] is [r0,#16]); this is that, in order.
+   PORT_HOST_ABI: ARM/Thumb asm primitive (3x3 Y-rotation), MSVC cannot assemble. */
 void func_0205256c(int *m, int s, int c)
 {
     m[0] = c;  m[1] = 0;      m[2] = -s;

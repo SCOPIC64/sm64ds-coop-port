@@ -91,6 +91,7 @@ static void port_king_call(const PortKingPmf *m, void *self, const char *half)
 /* +0x420 is the state pointer both the setter and Behavior read. */
 #define PORT_KING_STATE(s) (*(PortKingState **)((char *)(s) + 0x420))
 
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (MSVC widens PMF over an incomplete class).
 extern "C" int KingBobOmb_SetState(void *self, void *state)
 {
     PortKingState *p = (PortKingState *)state;

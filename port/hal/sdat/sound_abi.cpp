@@ -41,6 +41,7 @@ void func_0204f5a0(u8 *thiz, int arg1);
 
 // func_0204f600(thiz) on ARM; r1 = sequence data, r2 = entry offset,
 // r3 = resident bank, all of which ride into func_0205adc4.
+// PORT_HOST_ABI: ARM r1..r3 argument ride-through (1 named param -> 4).
 int func_0204f600(void *thiz, int seqData, int entryOff, int bank)
 {
     func_0205adc4((void *)(size_t)(unsigned)*(u8 *)((char *)thiz + 0x3c),
@@ -53,6 +54,7 @@ int func_0204f600(void *thiz, int seqData, int entryOff, int bank)
 
 // func_0204f89c(c) on ARM; r1 = volume, riding into func_0205ad24's second
 // parameter (which the src file's own declaration does not name either).
+// PORT_HOST_ABI: ARM r1 argument ride-through (volume).
 void func_0204f89c(char **c, int volume)
 {
     u8 *p = (u8 *)*c;
@@ -60,6 +62,7 @@ void func_0204f89c(char **c, int volume)
 }
 
 // func_0204f7cc(c) on ARM; r1/r2 = the pan mode and value.
+// PORT_HOST_ABI: ARM r1/r2 argument ride-through (pan mode + value).
 void func_0204f7cc(char **c, int mode, int pan)
 {
     u8 *p = (u8 *)*c;
@@ -67,6 +70,7 @@ void func_0204f7cc(char **c, int mode, int pan)
 }
 
 // func_0204f86c(c) on ARM; r1/r2 ride into func_0205aaf4.
+// PORT_HOST_ABI: ARM r1/r2 argument ride-through.
 void func_0204f86c(char **c, int b, int d)
 {
     u8 *p = (u8 *)*c;
@@ -75,6 +79,7 @@ void func_0204f86c(char **c, int b, int d)
 
 // func_0204fa2c(p) on ARM; r1 = the fade length in frames, riding into
 // func_0204f5a0's second parameter. 0 means stop now, non-zero ramps down.
+// PORT_HOST_ABI: ARM r1 argument ride-through (fade length).
 int func_0204fa2c(int *p, int fade)
 {
     func_0204f5a0((u8 *)(size_t)(unsigned)*p, fade);

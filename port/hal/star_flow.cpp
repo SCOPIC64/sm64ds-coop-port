@@ -110,6 +110,7 @@ extern unsigned char data_02075768[];
 extern "C" {
 void _ZN5Scene14StartSceneFadeEjjt(unsigned a, unsigned b, unsigned short c);
 
+// PORT_HOST_ABI: ARM r0 ride-through -- src calls SetNextLevel(void) with arg in r0.
 void HitDeathPlane(int arg)
 {
     if (data_0209f2f4[0] != 0 || arg == 0)
@@ -241,6 +242,7 @@ extern "C" {
  * What it hides: the bank/group store at the end of both branches, which
  * seat_course_sound writes instead. When the sound heap is built for real
  * (see the report), this returns to the src version and that store goes away.
+ * PORT_HOST_ABI: src reads the unmapped console-type halfword at 0x027ffc40.
  */
 int func_0203d974(void)
 {

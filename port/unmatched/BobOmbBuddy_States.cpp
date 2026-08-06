@@ -110,6 +110,7 @@ static void port_buddy_call(const PortBuddyPmf *m, void *self, const char *half)
 }
 
 /* +0x1e4 is the state index the matched pair reads and writes. */
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (MSVC widens PMF over an incomplete class).
 extern "C" void func_ov084_0212c960(void *self, int i)
 {
     *(int *)((char *)self + 0x1e4) = i;
@@ -117,6 +118,7 @@ extern "C" void func_ov084_0212c960(void *self, int i)
                     self, "init");
 }
 
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (MSVC widens PMF over an incomplete class).
 extern "C" void func_ov084_0212c9a8(void *self)
 {
     port_buddy_call(&data_ov084_02130dc4[*(int *)((char *)self + 0x1e4)].main,

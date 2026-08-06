@@ -129,7 +129,9 @@ void *data_020a0eac_c;
 #pragma comment(linker, "/alternatename:_data_020a0eac=_data_020a0eac_c")
 /* C linkage since main's mangled-declaration sweep: ActorBase::operator new
    now spells this plain, so the definition has to be the plain name. The
-   alias below still catches any TU that kept the old C++ mangling. */
+   alias below still catches any TU that kept the old C++ mangling.
+   PORT_HOST_ABI: ARM r0/r1/r2 ride-through -- src veneer (int x) forwards p/v/n
+   through registers to the actual fill; host spells the args out. */
 extern "C" void func_0206e2f8(void *p, int v, unsigned n)
 {
     unsigned char *b = (unsigned char *)p;

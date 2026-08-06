@@ -104,7 +104,9 @@ extern "C" void _ZN6Memory10DeallocateEPv(void *p) { Memory::Deallocate(p); }
 extern "C" {
 u32 data_0209d3bc; /* last fileID touched; the game's FS breadcrumb */
 
-/* ov0 handle -> FAT file id (data_ov000_020bd4b8 on the DS) */
+/* ov0 handle -> FAT file id (data_ov000_020bd4b8 on the DS)
+   PORT_HOST_ABI: src reads the ROM's ov0 handle table (data_0209d3b8), not hosted;
+   the HAL resolves handles through the asset catalog instead. */
 u16 func_02018a24(u32 handle)
 {
     catalog_load();
@@ -118,7 +120,9 @@ u16 func_02018a24(u32 handle)
     return g_handle_to_id[handle];
 }
 
-/* LZ77 type-0x10 decode; src points at the u32 header */
+/* LZ77 type-0x10 decode; src points at the u32 header
+   PORT_HOST_ABI: src TU is an ARM asm hatch (VRAM-safe halfword dance),
+   MSVC cannot assemble; the HAL carries a byte-identical C decode. */
 void DecompressLZ16(void *src_, void *dst_)
 {
     const u8 *s = (const u8 *)src_;
@@ -576,7 +580,9 @@ static u8 *port_fs_read_raw(u32 handle, long *len_out)
 }
 
 /* func_0201817c: the file, still compressed, on the game's own heap so the
-   caller's Deallocate matches. */
+   caller's Deallocate matches.
+   PORT_HOST_ABI: src is func_0201818c(handle,0) -- the DS card loader (CpuCopy8
+   asm, CP15 flushes, FS_CloseFile); the HAL reimplements the load contract. */
 void *func_0201817c(u32 handle)
 {
     long len = 0;
@@ -597,7 +603,9 @@ void *func_0201817c(u32 handle)
 /* func_02018270: the file's bytes straight to an address. The card reads raw,
    but a compressed file arriving here would mean the caller wanted
    LoadCompressedFileAt, so decode rather than write an LZ header into VRAM --
-   and say so once, because it means the two are being confused. */
+   and say so once, because it means the two are being confused.
+   PORT_HOST_ABI: src drives the DS card loader (func_02018a24/func_020185c0/
+   func_020184e0 over card hardware); the HAL reimplements the load contract. */
 void func_02018270(u32 handle, u32 dest, int size)
 {
     long len = 0;
