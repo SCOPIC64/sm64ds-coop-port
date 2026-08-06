@@ -662,9 +662,15 @@ static int __fastcall xs_render(void *s, void *)
 }
 static int __fastcall xs_d1(void *s, void *)
 { return (int)(size_t)_ZN10StarSwitchD1Ev((int *)s); }
+extern "C" void port_exclamation_switch_states_seat(void);  /* port/unmatched */
 extern "C" void hal_fill_exclamation_switch_vtable(void)
 {
     void **vt = _ZTV10StarSwitch;
+    /* gate 51: seat the five-state PMF table data_ov002_0210e00c that
+       __sinit_ov002_02101588 left as DS code addresses. StarSwitch::Behavior
+       reaches it through the two host-copied dispatchers (OneUpMushroom case,
+       ExclamationSwitch_StateDispatch.cpp). */
+    port_exclamation_switch_states_seat();
     hal_fill_platform_vtable();
     bw_fill_shared(vt);
     vt[0] = (void *)xs_init;

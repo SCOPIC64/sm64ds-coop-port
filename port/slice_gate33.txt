@@ -297,8 +297,11 @@ src/func_ov002_020b7f7c.c
 src/func_ov002_020b9f00.c
 src/func_ov002_020b9f80.cpp
 src/func_ov002_020ba01c.cpp
-src/func_ov002_020ba4d8.cpp
-src/func_ov002_020ba520.cpp
+# func_ov002_020ba4d8 and func_ov002_020ba520 (the EXCLAMATION_SWITCH's two
+# state dispatchers) are EXCLUDED here: they form a pointer-to-member over an
+# incomplete class, which MSVC widens to the four-word representation and
+# strides data_ov002_0210e00c at 0x20 instead of 0x10. gate 51 host-copies both
+# (port/unmatched/ExclamationSwitch_StateDispatch.cpp), the OneUpMushroom case.
 src/func_ov002_020baa98.c
 src/func_ov002_020bc664.c
 src/func_ov002_020e6d88.c

@@ -1413,7 +1413,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES}
-    unmatched/Cap_StateDispatch.cpp ${SLICE51_SOURCES}
+    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -1451,7 +1451,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES}
-    unmatched/Cap_StateDispatch.cpp ${SLICE51_SOURCES}
+    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -1492,7 +1492,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES}
-    unmatched/Cap_StateDispatch.cpp ${SLICE51_SOURCES}
+    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
