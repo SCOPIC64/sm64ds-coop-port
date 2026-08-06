@@ -157,8 +157,19 @@ void start_note(Player &pl, int pi, int ti, Track &tk, int note, int vel,
     if (pan < 0) pan = 0;
     if (pan > 127) pan = 127;
 
+    /* /128, not /64. The DS pitch domain is 1/64 of a semitone (768 units to
+       the octave) and a full-scale bend has to come out at exactly
+       +-bendRange semitones. pitchBend is an s8, so full scale is +-128:
+
+           units     = bend * bendRange * 64 / 128 = bend * bendRange / 2
+           semitones = units / 64                  = bend * bendRange / 128
+
+       which is the same bend * bendRange / 2 units NitroSDK computes. At /64
+       every bend in the game was twice as deep as the DS plays it. The ground
+       loop re-randomises its bend every iteration with bendRange 2, so
+       walking warbled +-1.5 semitones instead of +-0.75. */
     double semis = (double)(key - n.baseNote)
-                 + (double)tk.bend * tk.bendRange / 64.0;
+                 + (double)tk.bend * tk.bendRange / 128.0;
     double rate = (double)w.sampleRate * pow(2.0, semis / 12.0) / SD_MIX_RATE;
     // Everything that can refuse the note is settled BEFORE a channel is
     // taken. Allocating first and then bailing on the rate left a stolen
