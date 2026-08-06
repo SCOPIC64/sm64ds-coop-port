@@ -556,7 +556,7 @@ src/func_ov002_020d8360.c
 src/func_ov002_020d85fc.cpp
 src/func_ov002_020d9298.cpp
 port/unmatched/func_ov002_020e444c.c
-src/func_ov002_020e4768.cpp
+port/unmatched/func_ov002_020e4768.cpp
 src/func_ov002_020e4990.c
 src/func_ov002_020eea84.c
 src/AddVec3.c
