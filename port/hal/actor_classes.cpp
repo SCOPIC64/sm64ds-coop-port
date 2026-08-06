@@ -1490,6 +1490,74 @@ extern "C" void hal_fill_star_door_vtable(void)
 }
 
 // ============================================================================
+// GATE 41: ov010's TRAP (actor 36) and LIGHT_BEAM (actor 37, shares this table)
+// ============================================================================
+//
+// _ZTV4Trap, ov010 0x02112ba8. The castle interior's traps and the light beam
+// through the entrance. LIGHT_BEAM is a variant of TRAP: its own Spawn
+// installs THIS SAME vtable (_ZTV4Trap) and it has no methods of its own, so
+// one fill serves both classes. The table wears three names -- config's
+// _ZTV4Trap, LIGHT_BEAM's RTTI _ZTV15daObjC1Hikari_c (hikari = light) at the
+// same address, and TRAP's own RTTI _ZTV14daObjC1_Trap_c that Trap_Spawn and
+// Trap's D0 spell -- so all three resolve to one host array.
+//
+// TRAP is Platform-derived (Trap_Spawn runs Platform's constructor and a Model
+// at 0x320), so the fill runs hal_fill_platform_vtable first, the SIGN_POST
+// shape. Nothing here dispatches a pointer-to-member: both Behavior and Render
+// are straight-line C++ methods. Slots 16/17 trap, the gate-17 reading --
+// nothing destroys a trap or the light beam on the castle-interior boot, and a
+// level teardown reaching one aborts loudly.
+extern "C" {
+int _ZN4Trap13InitResourcesEv(void *self);        /* face: method_faces */
+int _ZN4Trap8BehaviorEv(void *self);              /* face: method_faces */
+int _ZN4Trap6RenderEv(void *self);                /* face: method_faces */
+void _ZN4Trap16CleanupResourcesEv(void);          /* C in src */
+void *_ZTV4Trap[20];
+void hal_fill_platform_vtable(void);
+}
+#pragma comment(linker, "/alternatename:__ZTV15daObjC1Hikari_c=__ZTV4Trap")
+#pragma comment(linker, "/alternatename:__ZTV14daObjC1_Trap_c=__ZTV4Trap")
+
+static int __fastcall tr_init(void *s, void *)
+{ return _ZN4Trap13InitResourcesEv(s); }
+static int __fastcall tr_clean(void *, void *)
+{ _ZN4Trap16CleanupResourcesEv(); return 0; }
+static int __fastcall tr_behavior(void *s, void *)
+{ return _ZN4Trap8BehaviorEv(s); }
+static int __fastcall tr_render(void *s, void *)
+{ port_actor_render_probe("TRAP", (char *)s + 0x320);
+  return _ZN4Trap6RenderEv(s); }
+
+extern "C" void hal_fill_trap_vtable(void)
+{
+    void **vt = _ZTV4Trap;
+    hal_fill_platform_vtable();
+    ac_fill_shared(vt);
+    vt[0] = (void *)tr_init;
+    vt[3] = (void *)tr_clean;
+    vt[6] = (void *)tr_behavior;
+    vt[9] = (void *)tr_render;
+    vt[12] = (void *)ac_pdes_base;
+    vt[16] = (void *)ac_trap16;
+    vt[17] = (void *)ac_trap17;
+}
+
+// ============================================================================
+// GATE 42: ov010's PEACH_PAINTING (actor 38) -- BLOCKED
+// ============================================================================
+//
+// _ZTV13PeachPainting / _ZTV14daObjC1Peach_c, ov010 0x02112c68. Peach's
+// portrait over the castle-interior stairs. Its own six methods are all
+// straight-line C++ with no pointer-to-member and would fill exactly like
+// TRAP's, but PeachPainting::InitResources SPAWNS A ROLLING_ROCK
+// (RollingRock_Spawn) and reads data_ov052_02111e84 -- ov052 is an overlay
+// the port does not mount, so registering the class would fault on its first
+// InitResources. It is left out of the registry and its fill unwritten until
+// ov052 and the RollingRock's closure are hosted. The portrait's SpawnInfo is
+// mounted (ov010_syms.txt) and its methods are matched src; only the spawn
+// dependency blocks it.
+
+// ============================================================================
 // GATE 23: ov102's QUESTION_BLOCK
 // ============================================================================
 //

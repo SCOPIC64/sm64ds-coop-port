@@ -100,6 +100,19 @@ void __sinit_ov100_02147a70(void);
 void __sinit_ov100_02147bc0(void);
 void __sinit_ov100_02147d7c(void);
 
+/* ---- gate 41-42: ov010, level 2's own overlay, per symbol ----------------
+   TRAP, LIGHT_BEAM (which shares TRAP's vtable and methods) and
+   PEACH_PAINTING. Already mounted whole for the loaders; this is the second,
+   per-symbol mount so the actor code reaches its SpawnInfo records and CLPS
+   statics by name -- the gate-17 shape of ov009. Three sinits, all
+   SharedFilePtr construction and one five-element Vector3 copy; no state
+   table, because none of the three classes dispatches a pointer-to-member. */
+void port_ov010_pack_check(void);
+void port_ov010_syms_patch(void);
+void __sinit_ov010_0211203c(void);
+void __sinit_ov010_0211211c(void);
+void __sinit_ov010_0211215c(void);
+
 /* ov102: QUESTION_BLOCK (and the bob-omb, the koopa shell, the warp pipe and
    the rest of the level-furniture set other levels name). Its CODE has been
    compiled since gate 19 -- the cannon's link closure reached two of its
@@ -597,6 +610,13 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov100_02147a70();
     __sinit_ov100_02147bc0();
     __sinit_ov100_02147d7c();
+
+    /* gate 41-42: level 2's own overlay, per symbol. No state seat. */
+    port_ov010_pack_check();
+    port_ov010_syms_patch();
+    __sinit_ov010_0211203c();
+    __sinit_ov010_0211211c();
+    __sinit_ov010_0211215c();
 
     port_ov102_pack_check();
     port_ov102_syms_patch();

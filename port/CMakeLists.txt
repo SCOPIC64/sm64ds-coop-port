@@ -643,6 +643,11 @@ endforeach()
 # exactly one table -- the debug level select's row list. See ov003_syms.txt.
 set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001 ov003 ov084
     ov014 ov062 ov091 ov078)
+# gate 41-42: ov010 is level 2's own overlay, already mounted whole in
+# PORT_LEVEL_OVERLAYS; it joins the per-symbol mounts here so TRAP, LIGHT_BEAM
+# and PEACH_PAINTING reach their SpawnInfo records by name -- the gate-17 shape
+# of ov009/ov014 applied to the castle interior. See port/ov010_syms.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov010)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1253,7 +1258,9 @@ endforeach()
 # the actor classes their object tables name that were still printing as
 # skipped. Each gate's evidence is in the head of its slice_gateNN.txt and the
 # registry rows are in hal/actor_classes.inc.
-#   Gate 40: STAR_DOOR (354, ov100) -- reuses the DOOR vtable, one new symbol.
+#   Gate 40: STAR_DOOR (354, ov100) -- the config's mislabeled _ZN4Door family.
+#   Gate 41: TRAP (36) + LIGHT_BEAM (37), ov010, level 2's own overlay.
+#   Gate 42: PEACH_PAINTING (38), ov010.
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate40.txt" SLICE40_LINES)
 set(SLICE40_SOURCES "")
 foreach(line IN LISTS SLICE40_LINES)
@@ -1263,6 +1270,18 @@ foreach(line IN LISTS SLICE40_LINES)
     endif()
     list(APPEND SLICE40_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate41.txt" SLICE41_LINES)
+set(SLICE41_SOURCES "")
+foreach(line IN LISTS SLICE41_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE41_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+# Gate 42 (PEACH_PAINTING) is blocked on ov052/RollingRock and not built; no
+# slice_gate42 is wired until that overlay is hosted.
 
 # Gate 15: the per-frame actor spine (BeforeBehavior/Behavior/AfterBehavior),
 # which is what makes the real WithMeshClsn tracking work -- see the header of
@@ -1360,7 +1379,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
-    ${SLICE40_SOURCES}
+    ${SLICE40_SOURCES} ${SLICE41_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -1396,7 +1415,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     ${SLICE32_SOURCES} ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
-    ${SLICE40_SOURCES}
+    ${SLICE40_SOURCES} ${SLICE41_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -1435,7 +1454,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE32_SOURCES} ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
-    ${SLICE40_SOURCES}
+    ${SLICE40_SOURCES} ${SLICE41_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
