@@ -138,6 +138,13 @@ void hal_fill_coin_vtable(void);
    _ZTV13BigBrickBlock, which gate 16 already fills for BLACK_BRICK_BLOCK. */
 extern unsigned char BrickBlock_SpawnInfo[];            /* ov002 0x02108a24 */
 void *BrickBlock_Spawn(void);                           /* ov002 0x020b4708 */
+/* gate 48: BIG_BRICK_BLOCK (16) and FORTRESS_TOWER_WALL (46), Whomp's Fortress.
+   Both factories install _ZTV13BigBrickBlock too -- no fill of their own, same
+   as BRICK_BLOCK. */
+extern unsigned char BigBrickBlock_SpawnInfo[];         /* ov002 0x02108a40 */
+void *BigBrickBlock_Spawn(void);                        /* ov002 0x020b40fc */
+extern unsigned char FortressTowerWall_SpawnInfo[];     /* ov002 0x02108a94 */
+void *FortressTowerWall_Spawn(void);                    /* ov002 0x020b406c */
 extern unsigned char MegaMushroomBlockTag_SpawnInfo[];  /* ov002 0x02108ba0 */
 void *MegaMushroomBlockTag_Spawn(void);
 void hal_fill_mega_mushroom_block_tag_vtable(void);
@@ -254,6 +261,12 @@ void hal_fill_king_bob_omb_vtable(void);
     {290, "BLUE_COIN", BlueCoin_SpawnInfo, BlueCoin_Spawn,                     \
      hal_fill_coin_vtable},                                                    \
     {15, "BRICK_BLOCK", BrickBlock_SpawnInfo, BrickBlock_Spawn, 0},            \
+    /* gate 48: two more of the same class body (installs _ZTV13BigBrickBlock,  \
+       filled at gate 16), for Whomp's Fortress. No fill of their own, like     \
+       BRICK_BLOCK. */                                                          \
+    {16, "BIG_BRICK_BLOCK", BigBrickBlock_SpawnInfo, BigBrickBlock_Spawn, 0},   \
+    {46, "FORTRESS_TOWER_WALL", FortressTowerWall_SpawnInfo,                    \
+     FortressTowerWall_Spawn, 0},                                              \
     {322, "MEGA_MUSHROOM_BLOCK_TAG", MegaMushroomBlockTag_SpawnInfo,           \
      MegaMushroomBlockTag_Spawn, hal_fill_mega_mushroom_block_tag_vtable},     \
     {14, "CANNON_HATCH", CannonHatch_SpawnInfo, CannonHatch_Spawn,             \

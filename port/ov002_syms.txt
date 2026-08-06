@@ -76,6 +76,12 @@ data_ov002_020ff060 data_ov002_020ff06c data_ov002_020ff078
 BrickBlock_SpawnInfo:0x1c MegaMushroomBlockTag_SpawnInfo:0x1c
 CannonHatch_SpawnInfo:0x1c Cap_SpawnInfo:0x1c HealingHeart_SpawnInfo:0x1c
 ExclamationSwitch_SpawnInfo:0x1c InvisibleSecret_SpawnInfo:0x1c
+# gate 48: two more BigBrickBlock-family SpawnInfos for Whomp's Fortress
+# (level 7). Both factories install _ZTV13BigBrickBlock, the class body gate 16
+# already fills, so these are mount + slice + registry row only. BigBrickBlock
+# (16) is the level's big breakable block; FortressTowerWall (46) is a
+# BigBrickBlock too by RTTI. Same 0x1c record size.
+BigBrickBlock_SpawnInfo:0x1c FortressTowerWall_SpawnInfo:0x1c
 # Data the gate-33 classes' own InitResources/CleanupResources read.
 # data_ov002_0210b000 is the typeinfo record the vtable at 0x0210b030 follows;
 # 0x0210b030 itself is NOT here -- it is a real actor vtable dsd left unnamed
