@@ -648,6 +648,11 @@ set(PORT_ACTOR_OVERLAYS ov085 ov098 ov100 ov089 ov102 ov001 ov003 ov084
 # and PEACH_PAINTING reach their SpawnInfo records by name -- the gate-17 shape
 # of ov009/ov014 applied to the castle interior. See port/ov010_syms.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov010)
+# gate 50: ov080 is an ordinary actor overlay carrying the castle interior's
+# PAINTING (daPicGate_c, 307) among three other classes; mounted per symbol so
+# the actor reaches its SpawnInfo record, tuning tables and twelve state
+# statics by name. See port/ov080_syms.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov080)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1283,6 +1288,20 @@ endforeach()
 # Gate 42 (PEACH_PAINTING) is blocked on ov052/RollingRock and not built; no
 # slice_gate42 is wired until that overlay is hosted.
 
+# Gate 50: ov080's PAINTING (daPicGate_c, 307), the castle interior's portrait
+# gate. A different class from PEACH_PAINTING, in a different overlay, with no
+# cross-overlay spawn -- its closure is 28 matched ov080 TUs plus three sinits.
+# See the head of slice_gate50.txt and hal/actor_classes_painting.cpp.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate50.txt" SLICE50_LINES)
+set(SLICE50_SOURCES "")
+foreach(line IN LISTS SLICE50_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE50_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gate 15: the per-frame actor spine (BeforeBehavior/Behavior/AfterBehavior),
 # which is what makes the real WithMeshClsn tracking work -- see the header of
 # slice_gate15.txt for why prev-pos is load-bearing.
@@ -1380,6 +1399,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES}
+    hal/actor_classes_painting.cpp ${SLICE50_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -1416,6 +1436,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES}
+    hal/actor_classes_painting.cpp ${SLICE50_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -1455,6 +1476,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES}
+    hal/actor_classes_painting.cpp ${SLICE50_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"

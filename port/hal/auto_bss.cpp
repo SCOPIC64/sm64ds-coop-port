@@ -265,3 +265,9 @@ int data_0209ee8c[8];
 int data_020a4d30[8];
 int LCG_STATE_0204da4c;
 }
+
+/* gate 50: ov080's PAINTING (daPicGate_c, 307) bss is NOT here -- it is
+   mounted with the rest of the overlay in ov080_syms.txt so the DATA table
+   data_ov080_0212775c's pointers into it get rebased to host addresses. See
+   the header of port/ov080_syms.txt for why auto_bss would break the Shared
+   FilePtr walk. */

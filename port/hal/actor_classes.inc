@@ -116,6 +116,16 @@ extern unsigned char LightBeam_SpawnInfo[];             /* ov010 0x02112b84 */
 void *LightBeam_Spawn(void);                            /* ov010 0x02111dd0 */
 /* gate 42 PEACH_PAINTING (38) is BLOCKED (ov052/RollingRock); its symbols are
    mounted but the class is not registered -- see hal/actor_classes.cpp. */
+/* ---- gate 50: ov080's PAINTING (daPicGate_c, actor 307) ----
+   A DIFFERENT class from PEACH_PAINTING, in a different overlay, with no
+   cross-overlay spawn dependency. Its record's +4 halfword reads 307 and the
+   +0 word is Painting_Spawn (ov080 0x02126f8c), which the registry repoints to
+   the host factory. Its vtable is the 31-slot Actor table dsd left unnamed at
+   data_ov080_021282b4; hal/actor_classes_painting.cpp declares that as the
+   host array Painting_Spawn installs, and hal_fill_painting_vtable fills it. */
+extern unsigned char Painting_SpawnInfo[];             /* ov080 0x02128290 */
+void *Painting_Spawn(void);                            /* ov080 0x02126f8c */
+void hal_fill_painting_vtable(void);
 /* ---- gate 23: ov102's QUESTION_BLOCK ----
    The fifth overlay, and the last id on the castle grounds' skip list that is
    not a 2D system. Its name checks out against the ROM's RTTI
@@ -346,7 +356,10 @@ void hal_fill_king_bob_omb_vtable(void);
     {36, "TRAP", Trap_SpawnInfo, Trap_Spawn, hal_fill_trap_vtable},            \
     /* LIGHT_BEAM has no fill of its own: its factory installs _ZTV4Trap,     \
        which the TRAP row above already fills. */                            \
-    {37, "LIGHT_BEAM", LightBeam_SpawnInfo, LightBeam_Spawn, 0},
+    {37, "LIGHT_BEAM", LightBeam_SpawnInfo, LightBeam_Spawn, 0},               \
+    /* ---- gate 50: ov080's PAINTING (append-only block) ---- */              \
+    {307, "PAINTING", Painting_SpawnInfo, Painting_Spawn,                      \
+     hal_fill_painting_vtable},
     /* PEACH_PAINTING (38) is BLOCKED, see gate 42 below -- its InitResources
        spawns a RollingRock (ov052, an overlay the port does not mount) and
        reads data_ov052_02111e84, so registering it would fault on the first

@@ -199,6 +199,15 @@ int func_02017ab4(int x) { return x; }   /* static-dtor veneer: no-op */
 /* PORT_HOST_ABI: ARM r1 fileID ride-through into SharedFilePtr::Construct. */
 int func_02017b4c(void *self, unsigned id)
 { _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+/* PORT_HOST_ABI: ARM r1 fileID ride-through, gate 50 (ov080's PAINTING). The
+   third ov080 sinit constructs its SharedFilePtrs through func_020178cc, the
+   same one-arg veneer chain as func_02017acc (both end at func_02017e0c), so
+   the same host spell-out serves it. func_020178b4 is the matching dtor-chain
+   callback the sinit registers by address -- a host no-op like func_02017ab4,
+   because the card seam does not refcount. */
+int func_020178cc(void *self, unsigned id)
+{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+int func_020178b4(int x) { return x; }   /* fileptr dtor callback: host no-op */
 /* PORT_HOST_ABI: fileptr dtor body; host card seam does not refcount. */
 int func_02017e34(int x) { return x; }   /* fileptr dtor body: host no-op */
 /* PORT_HOST_ABI: fileptr dtor veneer; host card seam does not refcount. */
