@@ -11,6 +11,10 @@
 //                     data_020a6488, pops ring slot data_020a6498 and
 //                     splices that batch back onto the free list.
 //   func_0205b5d4     reads the ARM7's progress word (data_020a7fc0[0]).
+//   func_0205b608     reads the ARM7's PLAYER BITMASK (data_020a7fc0[1]).
+//                     That word is how the ARM9 learns a sound has FINISHED,
+//                     and it is the only way it can: see
+//                     publish_player_status and sd_sound_frame_host below.
 //
 // THE DEADLOCK, AND HOW IT IS CLOSED. func_0205b1d8 ends with
 //     do { func_0205b274(1); p = func_0205adf8(); } while (p == 0);
@@ -41,6 +45,7 @@
 // frame loop's tick finds a seeded pool instead of a null free list.
 #include "sdat.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,6 +78,65 @@ extern int data_0209b4a0[], data_0209b4b0[], data_0209b4a4[];
 extern int data_0209b53c[];
 extern unsigned char data_0209b4b4[];
 extern unsigned char data_0209b480;  /* the master "sound effects on" flag */
+
+/* The ARM9's own voice bookkeeping, for the census the trace prints.
+ * data_020a4d54 is the FREE voice list and data_020a4d60 the ACTIVE one;
+ * both are 0xc-byte NestedHeapIterators whose element count is the u16 at
+ * +8 (see NestedHeapIterator::AddLast / ::Remove, which are the only two
+ * functions that move it). data_020a4bf8 and data_020a4c18 are the 3D
+ * positional slot tables func_02048720 hands out, 8 bytes per slot, and a
+ * slot is free exactly when its first word is null. */
+extern unsigned char data_020a4d54[];
+extern unsigned char data_020a4d60[];
+extern int data_020a4bf8[];
+extern int data_020a4c18[];
+extern int data_02099fb0;            /* the type-9 pool's live count */
+
+/* The ARM9's per-frame sound maintenance. See sd_sound_frame_host. */
+void func_0204fafc(void);
+int func_0205b274(int blocking);
+}
+
+// The ARM9 half of the voice trace. The switch and the printer live in
+// mixer.cpp, which is the one file every sound harness links; this census
+// reads the game's own voice records, so it belongs where they are.
+void sd_vtrace_arm9_census(const char *when)
+{
+    if (!g_voice_trace) return;
+
+    int freeN   = *(unsigned short *)(data_020a4d54 + 8);
+    int activeN = *(unsigned short *)(data_020a4d60 + 8);
+
+    int p2 = 0, p9 = 0;
+    for (int i = 0; i < 2; i++) if (data_020a4bf8[i * 2]) p2++;
+    int n9 = data_02099fb0;
+    if (n9 < 0 || n9 > 6) n9 = 6;
+    for (int i = 0; i < n9; i++) if (data_020a4c18[i * 2]) p9++;
+
+    static int lastFree = -1, lastActive = -1, lastP2 = -1, lastP9 = -1;
+    if (freeN == lastFree && activeN == lastActive && p2 == lastP2 &&
+        p9 == lastP9)
+        return;
+    lastFree = freeN; lastActive = activeN; lastP2 = p2; lastP9 = p9;
+
+    sd_vtrace("arm9 voices free %2d active %2d | 3d slots type2 %d/2 "
+              "type9 %d/%d  (%s)%s\n", freeN, activeN, p2, p9, n9, when,
+              freeN == 0 ? "  <- FREE LIST EMPTY" : "");
+
+    // On a new low water mark, name the voices that are sitting on the pool,
+    // so "the pool is draining" can be told from "the pool is busy". The
+    // active list is a NestedHeapIterator with link offset 0x14 (its ctor
+    // argument in func_0204fc40), so the next pointer is at node+0x18.
+    static int low = 99;
+    if (freeN >= low) return;
+    low = freeN;
+    for (unsigned char *n = *(unsigned char **)data_020a4d60; n;
+         n = *(unsigned char **)(n + 0x18)) {
+        int id = n[0x3c];
+        sd_vtrace("  held by voice %2d: state %d, started %d, priority %3d, "
+                  "player %s\n", id, n[0x2c], n[0x2d], n[0x3d],
+                  sd_seq_active(id) ? "STILL SOUNDING" : "quiet");
+    }
 }
 
 namespace {
@@ -154,6 +218,13 @@ void exec(const Node *n)
         const sd_u8 *seq = (const sd_u8 *)(size_t)(unsigned)(n->b + n->c);
         const sd_u8 *bnk = (const sd_u8 *)(size_t)(unsigned)n->d;
         if (!seq || !bnk) break;
+        if (g_voice_trace) {
+            long rel = (seq >= g_sdat.base && seq < g_sdat.base + g_sdat.size)
+                       ? (long)(seq - g_sdat.base) : -1;
+            sd_vtrace("cmd  START player %2d seq sdat+0x%lx%s\n", slot, rel,
+                      sd_seq_active(slot) ? "  (over a player still sounding)"
+                                          : "");
+        }
         // func_0205b78c has normally already patched the bank's wave-link
         // slots by now; this fills any that are still empty and is a no-op
         // otherwise.
@@ -162,11 +233,20 @@ void exec(const Node *n)
         break;
     }
     case 0x01:                          // STOP_SEQ
+        SD_VT("cmd  STOP  player %2d%s\n", n->a & 31,
+              sd_seq_active(n->a & 31) ? "  (CUTS a player still sounding)"
+                                       : "");
         sd_seq_stop(n->a & 31);
         break;
     case 0x03: {                        // PLAYER_PARAM: b = param, c = value
+        // Param 4 is the 0..127 volume func_0205ad24 sends once at start.
+        // Param 6 is func_0205ad3c's, and it is a different animal: a SIGNED
+        // attenuation in tenths of a dB out of the ROM's own table, sent
+        // every frame by func_0204fafc for every voice that is sounding. It
+        // is the game's 3D distance volume and its fade ramps both.
         int slot = n->a & 31;
         if (n->b == 4) sd_seq_set_volume(slot, n->c);
+        else if (n->b == 6) sd_seq_set_volume_db10(slot, n->c);
         else note_param(3, n->b);
         break;
     }
@@ -210,6 +290,61 @@ void drain(void)
         g_consumed++;
         g_status[0] = g_consumed;       // the word func_0205b5d4 reads
     }
+}
+
+// THE OTHER HALF OF THE STATUS BLOCK.
+//
+// SNDSharedWork is not one word. Word 0 is the progress counter this file
+// already published; word 1 is the PLAYER BITMASK -- bit p set while ARM7
+// player p is still holding a sequence -- and it is not decoration. It is the
+// answer to "did that sound finish", and it is the only answer the ARM9 has:
+// func_0205b608 reads it and func_0204fafc recycles, on that bit alone, every
+// voice record whose player has gone quiet.
+//
+// Left at zero it reads as "no player is playing", which sounds harmless and
+// is not: func_0204fafc is the ONLY caller of func_0204f2d4 that runs on a
+// sound finishing, so with the word unpublished (or the function unrun) a
+// voice is never given back. The 16 records and the 3D positional slots
+// become one-way, and func_0204f364 and func_0204f63c spend the rest of the
+// session in their steal-or-refuse paths.
+void publish_player_status(void)
+{
+    g_status[1] = sd_seq_player_mask();
+}
+
+// The ARM9's own per-frame sound work, the same shape as sd_sound_init_host
+// above: func_0204f03c is the ROM's sound frame, called from func_020132d8,
+// and the port's frame loop has never reached either. Three of its five calls
+// run here; the two that do not say why.
+//
+//   RUN  func_0205b274(0) loop   reclaim every command batch the consumer has
+//                                finished, back onto the free list
+//   RUN  func_0204fafc           the voice maintenance: for each active voice,
+//                                confirm its START was consumed, then either
+//                                recycle it (its player has gone quiet) or
+//                                re-apply its distance volume and finish its
+//                                fade
+//   RUN  func_0205b070(0)        flush whatever the above queued
+//
+//   SKIP func_020508a0   the streamed-sound frame. It reads data_020a5634,
+//                        which sd_sound_init_host leaves zeroed, and returns
+//                        on its first line for that reason -- but it would
+//                        also be driving a stream this port does not have:
+//                        exec() has no handler for STRM_SETUP/STRM_PARAM and
+//                        would print if one ever arrived.
+//   SKIP func_020522c4   the four streamed-sound players, same reason, and
+//                        their data_020a5bd4 record array is defined nowhere
+//                        in the port because nothing has ever reached it.
+//
+// If the port grows streamed sound, those two come back here, not somewhere
+// new.
+void sd_sound_frame_host(void)
+{
+    publish_player_status();
+    while (func_0205b274(0) != 0)
+        ;
+    func_0204fafc();
+    func_0205b070(0);
 }
 
 // The game's own sound init, minus the four things that are hardware.
@@ -321,6 +456,7 @@ void sd_consumer_tick(void)
     // 0 this cannot re-enter func_0205b274, so it cannot re-enter the pump.
     func_0205b070(0);
     drain();
+    sd_vtrace_arm9_census("after drain");
 }
 
 // The seam. See the header comment for why this, and not a bigger pool.
@@ -340,6 +476,13 @@ extern "C" void func_0205a8c4(void *c);   /* Snd_SendCommand(0x13, c, 0,0,0) */
 
 extern "C" void sdat_host_tick(void)
 {
+    sd_consumer_init();
+    // The ARM9's sound frame first, then the ARM7's: that is the order on
+    // hardware (func_020132d8 -> func_0204f03c runs in the game's update, the
+    // other core consumes after), and it matters here because the recycle and
+    // the volume ramps func_0204fafc queues have to reach the same drain as
+    // everything else the frame sent.
+    sd_sound_frame_host();
     sd_consumer_tick();
 
     // SM64DS_SND_MUSIC=<seq id> starts a BGM through the game's OWN front
