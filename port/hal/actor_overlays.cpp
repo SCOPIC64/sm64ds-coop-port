@@ -113,6 +113,38 @@ void __sinit_ov010_0211203c(void);
 void __sinit_ov010_0211211c(void);
 void __sinit_ov010_0211215c(void);
 
+/* ---- gate 50: ov080, the castle interior's PAINTING (daPicGate_c, 307) -----
+   An ordinary actor overlay -- MontyMole, MontyMoleRock, CrazedCrate and the
+   PAINTING, of which level 2 names only the last -- mounted per symbol
+   (ov080_syms.txt) so the actor reaches its SpawnInfo record, its tuning
+   tables and its twelve {function, delta} state statics by name. Three sinits:
+   two build the SharedFilePtrs InitResources loads through, and
+   __sinit_ov080_02127b2c copies the twelve statics at 0x02128214..0x0212826c
+   into the BSS dispatch table data_ov080_02128628, one P2 {fn, delta} per
+   record. Those statics carry DS code addresses, so the host bodies are seated
+   over them before the copy -- the butterfly's treatment for a class whose
+   InitResources/Behavior/Render read the pair as two plain ints and do the
+   delta arithmetic themselves (all twelve deltas are zero, a complete class).
+   port/hal/actor_classes_painting.cpp holds the vtable fill. */
+void port_ov080_pack_check(void);
+void port_ov080_syms_patch(void);
+void __sinit_ov080_021278c0(void);
+void __sinit_ov080_02127a60(void);
+void __sinit_ov080_02127b2c(void);
+
+struct PortPmfPt { unsigned fn; int delta; };
+extern PortPmfPt data_ov080_02128214[], data_ov080_0212821c[],
+    data_ov080_02128224[], data_ov080_0212822c[], data_ov080_02128234[],
+    data_ov080_0212823c[], data_ov080_02128244[], data_ov080_0212824c[],
+    data_ov080_02128254[], data_ov080_0212825c[], data_ov080_02128264[],
+    data_ov080_0212826c[];
+
+void func_ov080_02126124(void *); void func_ov080_02126a54(void *);
+void func_ov080_021269b8(void *); void func_ov080_02126120(void *);
+void func_ov080_02125fd0(void *); void func_ov080_0212677c(void *);
+void func_ov080_021265ec(void *); void func_ov080_02125f00(void *);
+void func_ov080_021264ec(void *);
+
 /* ov102: QUESTION_BLOCK (and the bob-omb, the koopa shell, the warp pipe and
    the rest of the level-furniture set other levels name). Its CODE has been
    compiled since gate 19 -- the cannon's link closure reached two of its
@@ -277,6 +309,19 @@ void func_ov100_021412d8(void *); void func_ov100_02140e44(void *);
 void func_ov100_02141470(void *); void func_ov100_021415bc(void *);
 void func_ov100_02141800(void *); void func_ov100_02141848(void *);
 
+/* ---- gate 51: the ROLLING_IRON_BALL's five states -------------------------
+   __sinit_ov100_021474e8 copies five {function, delta} statics from ov100
+   0x02147f18..0x02147f38 into data_ov100_0214867c, and RollingIronBall::Behavior
+   dispatches whichever one is at its +0x3d0 index every frame. Those statics
+   carry DS code addresses, so the host bodies are seated over them before the
+   sinit copies them. The iron ball is the BUTTERFLY case, no host copy needed:
+   its matched Behavior reads the pair as two plain ints and does the
+   virtual-bit and this-adjustment arithmetic itself. All five deltas are zero. */
+extern PortPmf2 data_ov100_02147f38[], data_ov100_02147f18[],
+    data_ov100_02147f20[], data_ov100_02147f30[], data_ov100_02147f28[];
+void func_ov100_02142b90(void *); void func_ov100_02142918(void *);
+void func_ov100_021424c0(void *); void func_ov100_0214272c(void *);
+
 }  /* extern "C" */
 
 static const struct { PortPmf2 *slot; unsigned rom; void (*host)(void *); }
@@ -422,6 +467,33 @@ static void port_butterfly_states_seat(void)
     }
 }
 
+/* gate 51: the ROLLING_IRON_BALL's five states, seated in record order (the
+   sinit's copy order). */
+static const struct { PortPmf2 *slot; unsigned rom; void (*host)(void *); }
+g_iron_ball_states[] = {
+    {data_ov100_02147f38, 0x02142b90, func_ov100_02142b90},
+    {data_ov100_02147f18, 0x02142918, func_ov100_02142918},
+    {data_ov100_02147f20, 0x021424c0, func_ov100_021424c0},
+    {data_ov100_02147f30, 0x0214272c, func_ov100_0214272c},
+    {data_ov100_02147f28, 0x021424c0, func_ov100_021424c0},
+};
+
+static void port_iron_ball_states_seat(void)
+{
+    for (unsigned i = 0;
+         i < sizeof g_iron_ball_states / sizeof g_iron_ball_states[0]; ++i) {
+        PortPmf2 *p = g_iron_ball_states[i].slot;
+        if (p->fn != g_iron_ball_states[i].rom || p->delta != 0) {
+            std::fprintf(stderr, "FATAL: RollingIronBall state %u: the mount "
+                         "holds %08x/%d, the ROM's own table says %08x/0 -- "
+                         "WRONG BYTES\n", i, p->fn, p->delta,
+                         g_iron_ball_states[i].rom);
+            std::abort();
+        }
+        p->fn = (unsigned)(size_t)g_iron_ball_states[i].host;
+    }
+}
+
 /* ov085 0x0212b8dc IS NOT HOSTED, and it is the one hole in the rabbit. It is
    the Main half of state 0x021306cc -- the state Rabbit::InitResources itself
    enters on its own last line -- so it is what an ACTIVE rabbit runs every
@@ -564,6 +636,53 @@ static void port_rabbit_states_seat(void)
     }
 }
 
+/* ov080 0x021261f4 IS NOT HOSTED, and it is the one hole in the painting. It
+   is state record index 5's function -- the Render half a painting at spawn
+   flag mi=3 would reach (Render reads +0x10 off the object's +0x1a4 dispatch
+   pointer, which lands two records past the seated one). 0x2f8 bytes of it
+   have no C in src/ and no draft in nearmiss/db.jsonl. Measured: all six of
+   level 2's paintings run 300 frames fault-free without touching it, so the
+   class is registered and this seat names the function instead of jumping into
+   the overlay image -- what a hole should do. */
+static void port_painting_state_021261f4(void *)
+{
+    std::fprintf(stderr, "FATAL: Painting state 5's Render (ov080 "
+                 "0x021261f4) is UNMATCHED -- no host body exists\n");
+    std::abort();
+}
+
+static const struct { PortPmfPt *slot; unsigned rom; void (*host)(void *); }
+g_painting_states[] = {
+    {data_ov080_02128214, 0x02126124, func_ov080_02126124},
+    {data_ov080_0212821c, 0x021261f4, port_painting_state_021261f4},
+    {data_ov080_02128224, 0x02126a54, func_ov080_02126a54},
+    {data_ov080_0212822c, 0x021269b8, func_ov080_021269b8},
+    {data_ov080_02128234, 0x02126120, func_ov080_02126120},
+    {data_ov080_0212823c, 0x02125fd0, func_ov080_02125fd0},
+    {data_ov080_02128244, 0x02125fd0, func_ov080_02125fd0},
+    {data_ov080_0212824c, 0x0212677c, func_ov080_0212677c},
+    {data_ov080_02128254, 0x02126120, func_ov080_02126120},
+    {data_ov080_0212825c, 0x021265ec, func_ov080_021265ec},
+    {data_ov080_02128264, 0x02125f00, func_ov080_02125f00},
+    {data_ov080_0212826c, 0x021264ec, func_ov080_021264ec},
+};
+
+static void port_painting_states_seat(void)
+{
+    for (unsigned i = 0;
+         i < sizeof g_painting_states / sizeof g_painting_states[0]; ++i) {
+        PortPmfPt *p = g_painting_states[i].slot;
+        if (p->fn != g_painting_states[i].rom || p->delta != 0) {
+            std::fprintf(stderr, "FATAL: Painting state %u: the mount holds "
+                         "%08x/%d, the ROM's own table says %08x/0 -- WRONG "
+                         "BYTES\n", i, p->fn, p->delta,
+                         g_painting_states[i].rom);
+            std::abort();
+        }
+        p->fn = (unsigned)(size_t)g_painting_states[i].host;
+    }
+}
+
 extern "C" void port_actor_overlays_sinits(void)
 {
     static int done;
@@ -603,6 +722,9 @@ extern "C" void port_actor_overlays_sinits(void)
     /* gate 40: seat the STAR door's eight callback halves over the SOURCE
        statics before __sinit_ov100_02147a70 copies them into its nodes. */
     port_star_door_callbacks_seat();
+    /* gate 51: seat the ROLLING_IRON_BALL's five states over the SOURCE statics
+       before __sinit_ov100_021474e8 copies them into data_ov100_0214867c. */
+    port_iron_ball_states_seat();
     __sinit_ov100_021473bc();
     __sinit_ov100_021474e8();
     __sinit_ov100_021475a4();
@@ -617,6 +739,16 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov010_0211203c();
     __sinit_ov010_0211211c();
     __sinit_ov010_0211215c();
+
+    /* gate 50: ov080, the PAINTING. Seat the twelve state statics over their
+       host bodies BEFORE __sinit_ov080_02127b2c copies them into the BSS
+       dispatch table. */
+    port_ov080_pack_check();
+    port_ov080_syms_patch();
+    port_painting_states_seat();
+    __sinit_ov080_021278c0();
+    __sinit_ov080_02127a60();
+    __sinit_ov080_02127b2c();
 
     port_ov102_pack_check();
     port_ov102_syms_patch();

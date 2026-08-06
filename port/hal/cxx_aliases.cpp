@@ -199,6 +199,15 @@ int func_02017ab4(int x) { return x; }   /* static-dtor veneer: no-op */
 /* PORT_HOST_ABI: ARM r1 fileID ride-through into SharedFilePtr::Construct. */
 int func_02017b4c(void *self, unsigned id)
 { _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+/* PORT_HOST_ABI: ARM r1 fileID ride-through, gate 50 (ov080's PAINTING). The
+   third ov080 sinit constructs its SharedFilePtrs through func_020178cc, the
+   same one-arg veneer chain as func_02017acc (both end at func_02017e0c), so
+   the same host spell-out serves it. func_020178b4 is the matching dtor-chain
+   callback the sinit registers by address -- a host no-op like func_02017ab4,
+   because the card seam does not refcount. */
+int func_020178cc(void *self, unsigned id)
+{ _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+int func_020178b4(int x) { return x; }   /* fileptr dtor callback: host no-op */
 /* PORT_HOST_ABI: fileptr dtor body; host card seam does not refcount. */
 int func_02017e34(int x) { return x; }   /* fileptr dtor body: host no-op */
 /* PORT_HOST_ABI: fileptr dtor veneer; host card seam does not refcount. */
@@ -206,6 +215,17 @@ void SharedFilePtr_Destruct_TexSeq(void) {}
 /* PORT_HOST_ABI: fileptr dtor veneer; host card seam does not refcount. */
 void SharedFilePtr_Destruct_Anim(void) {}
 void *data_020aa3f0;                     /* MSL global-dtor chain head */
+
+/* PORT_HOST_ABI: SDK memset asm primitive (func_0205a588) -- the edge-preserving
+   RMW byte-fill the FS/decompress path uses. No C to compile under MSVC, so the
+   port spells it as memset, which is what its asm computes. gate 51 (the iron
+   ball's shatter path reaches it). */
+extern "C" void func_0205a588(void *p, int v, int n) { memset(p, v, n); }
+
+/* gate 51: the ROLLING_IRON_BALL's state TUs call func_020ad660 by its
+   un-prefixed name; the definition is the ov002-prefixed func_ov002_020ad660.
+   Same cdecl symbol, so a plain alias. */
+#pragma comment(linker, "/alternatename:_func_020ad660=_func_ov002_020ad660")
 
 /* PORT_HOST_ABI: soft reset -- ARM7 IPC, card reload, unmapped 0x27ffc40 read.
    crash-screen-only ITCM entry; trap keeps it honest if ever reached */

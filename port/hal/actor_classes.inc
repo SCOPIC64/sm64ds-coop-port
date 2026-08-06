@@ -116,6 +116,16 @@ extern unsigned char LightBeam_SpawnInfo[];             /* ov010 0x02112b84 */
 void *LightBeam_Spawn(void);                            /* ov010 0x02111dd0 */
 /* gate 42 PEACH_PAINTING (38) is BLOCKED (ov052/RollingRock); its symbols are
    mounted but the class is not registered -- see hal/actor_classes.cpp. */
+/* ---- gate 50: ov080's PAINTING (daPicGate_c, actor 307) ----
+   A DIFFERENT class from PEACH_PAINTING, in a different overlay, with no
+   cross-overlay spawn dependency. Its record's +4 halfword reads 307 and the
+   +0 word is Painting_Spawn (ov080 0x02126f8c), which the registry repoints to
+   the host factory. Its vtable is the 31-slot Actor table dsd left unnamed at
+   data_ov080_021282b4; hal/actor_classes_painting.cpp declares that as the
+   host array Painting_Spawn installs, and hal_fill_painting_vtable fills it. */
+extern unsigned char Painting_SpawnInfo[];             /* ov080 0x02128290 */
+void *Painting_Spawn(void);                            /* ov080 0x02126f8c */
+void hal_fill_painting_vtable(void);
 /* ---- gate 23: ov102's QUESTION_BLOCK ----
    The fifth overlay, and the last id on the castle grounds' skip list that is
    not a 2D system. Its name checks out against the ROM's RTTI
@@ -307,11 +317,18 @@ void hal_fill_king_bob_omb_vtable(void);
      hal_fill_cannon_hatch_vtable},                                            \
     {297, "HEALING_HEART", HealingHeart_SpawnInfo, HealingHeart_Spawn,      \
      hal_fill_healing_heart_vtable},                                        \
-    /* CAP (269), EXCLAMATION_SWITCH (11), WATER_BOMB (208) and             \
-       ROLLING_IRON_BALL (220) are BUILT BUT NOT REGISTERED -- each faults  \
-       a few frames in on a DS behavior pointer or, for the water bomb, a   \
-       Cannon-targeting cascade (func_ov098_0213a00c derefs a null actor at \
-       +0x5c once a bomb is on the list). See actor_classes_bob_world.cpp. */\
+    /* CAP (269), EXCLAMATION_SWITCH (11) and ROLLING_IRON_BALL (220) are     \
+       registered at gate 51 (their PMF state tables are now seated). WATER_  \
+       BOMB (208) remains BUILT BUT NOT REGISTERED and is the one BLOCKED     \
+       class of the four -- the blocker is on the CANNON side, not the bomb:  \
+       func_ov098_0213a36c walks a cannon-to-cannon linked list through the   \
+       +0x348 pointer that func_ov098_0213a00c's actor scan populates, and    \
+       once a bomb is on the actor list that chain is walked with a null      \
+       +0x348 (the port's spawn ordering does not build the same-id cannon    \
+       chain the ROM's actor list does). Every cannon function is matched src,\
+       so the fix is a spawn-ordering/chain-seat question, not undecompiled   \
+       code -- deferred as the hardest of the four. See the gate-51 note in   \
+       actor_classes_bob_world.cpp. */                                        \
     {329, "INVISIBLE_SECRET", InvisibleSecret_SpawnInfo, InvisibleSecret_Spawn,\
      hal_fill_invisible_secret_vtable},                                        \
     /* gate 46: the moving bar (RTTI daBar_c), Whomp's Fortress */             \
@@ -346,7 +363,18 @@ void hal_fill_king_bob_omb_vtable(void);
     {36, "TRAP", Trap_SpawnInfo, Trap_Spawn, hal_fill_trap_vtable},            \
     /* LIGHT_BEAM has no fill of its own: its factory installs _ZTV4Trap,     \
        which the TRAP row above already fills. */                            \
-    {37, "LIGHT_BEAM", LightBeam_SpawnInfo, LightBeam_Spawn, 0},
+    {37, "LIGHT_BEAM", LightBeam_SpawnInfo, LightBeam_Spawn, 0},               \
+    /* ---- gate 50: ov080's PAINTING (append-only block) ---- */              \
+    {307, "PAINTING", Painting_SpawnInfo, Painting_Spawn,                      \
+     hal_fill_painting_vtable},                                               \
+    /* ---- gate 51: CAP (269), the metal/vanish/wing cap on the ground ---- */\
+    {269, "CAP", Cap_SpawnInfo, Cap_Spawn, hal_fill_cap_vtable},               \
+    /* ---- gate 51: EXCLAMATION_SWITCH (11), the floor switch ---- */         \
+    {11, "EXCLAMATION_SWITCH", ExclamationSwitch_SpawnInfo,                    \
+     ExclamationSwitch_Spawn, hal_fill_exclamation_switch_vtable},             \
+    /* ---- gate 51: ROLLING_IRON_BALL (220), Whomp's Fortress ---- */         \
+    {220, "ROLLING_IRON_BALL", RollingIronBall_SpawnInfo, RollingIronBall_Spawn,\
+     hal_fill_rolling_iron_ball_vtable},
     /* PEACH_PAINTING (38) is BLOCKED, see gate 42 below -- its InitResources
        spawns a RollingRock (ov052, an overlay the port does not mount) and
        reads data_ov052_02111e84, so registering it would fault on the first
