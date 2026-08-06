@@ -40,7 +40,8 @@ extern "C" {
    src/func_0204a5bc.c is `void func_0204a5bc(void) { func_0204c584(); }`,
    the transcription of a two-instruction trampoline. Its own caller already
    spells two arguments (`extern void func_0204a5bc(int a, int b)` in
-   src/func_02049d60.c), so this just lets them through. */
+   src/func_02049d60.c), so this just lets them through.
+   PORT_HOST_ABI: ARM r0/r1 ride-through -- src trampoline is (void). */
 void func_0204c584(void *self, void *list);
 void func_0204a5bc(void *self, void *list) { func_0204c584(self, list); }
 

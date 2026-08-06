@@ -93,6 +93,7 @@ static const PortPmf *port_qblock_pmf(char *c, int half)
 }
 
 /* src/func_ov102_02149da8.cpp: change state, then run its enter half. */
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (MSVC widens PMF over an incomplete class).
 extern "C" void func_ov102_02149da8(void *selfv, int i)
 {
     char *c = (char *)selfv;
@@ -104,6 +105,7 @@ extern "C" void func_ov102_02149da8(void *selfv, int i)
 }
 
 /* src/func_ov102_02149df0.cpp: the per-frame half, Behavior's first line. */
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (MSVC widens PMF over an incomplete class).
 extern "C" void func_ov102_02149df0(void *selfv)
 {
     char *c = (char *)selfv;

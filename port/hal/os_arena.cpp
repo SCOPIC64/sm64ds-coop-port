@@ -45,20 +45,26 @@ extern "C" {
 // the OS globals object; the accessors ignore it, but the address must exist
 char data_020a0ea4[4];
 
+/* PORT_HOST_ABI: DS OS-arena globals live at unmapped 0x27ffda0; host substitutes
+   a deterministic calloc'd arena. */
 int func_02058ea0(void *) { arena_init(); return (int)(size_t)g_lo; }   /* arena lo */
+/* PORT_HOST_ABI: DS OS-arena globals live at unmapped 0x27ffdc4; host arena. */
 int func_02058eb4(void *) { arena_init(); return (int)(size_t)g_hi; }   /* arena hi */
 
 /* align `lo` up by `align`, bounded by hi -- mirrors OS_AllocFromArenaLo's
- * pre-alignment step as SetupRootHeap uses it */
+ * pre-alignment step as SetupRootHeap uses it
+ * PORT_HOST_ABI: DS OS-arena state (0x27ffda0) unmapped; host arena carve. */
 int func_02059040(void *, int lo, int hi, int align)
 {
     (void)hi;
     return (lo + align - 1) & ~(align - 1);
 }
 
+/* PORT_HOST_ABI: DS OS-arena globals live at unmapped 0x27ffda0; host arena. */
 void func_02058d58(void *, int newLo) { g_lo = (char *)(size_t)newLo; }  /* set lo */
 
-/* carve `size` bytes aligned `align` from the low side */
+/* carve `size` bytes aligned `align` from the low side
+   PORT_HOST_ABI: DS OS-arena state (0x27ffda0) unmapped; host arena carve. */
 void *func_02058cd0(void *, int size, int align)
 {
     arena_init();

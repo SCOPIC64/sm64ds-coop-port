@@ -160,6 +160,7 @@ extern "C" void port_enemy_death_states_seat(void)
 /* HOST COPY of src/func_ov002_020aea30.c -- the enter-death dispatch. Its own
    TU spells the table `void (C::*)(int, int)` with C incomplete, the same
    quadrupled stride. Its callers spell it without the overlay tag. */
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (MSVC widens PMF over an incomplete class).
 extern "C" void func_ov002_020aea30(void *thiz, int a, int b)
 {
     char *c = (char *)thiz;

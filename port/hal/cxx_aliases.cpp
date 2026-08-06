@@ -75,14 +75,16 @@ int _ZN4cstd6strcmpEPKcS1_(const char *a, const char *b)
 char *_ZN4cstd6strchrEPKcc(const char *s, char ch)
 { return cstd::strchr(s, ch); }
 
-/* MultiCopyHalf: halfword copy loop, (src, dst, byteCount) in r0-r2 */
+/* PORT_HOST_ABI: ARM asm primitive (halfword copy loop), MSVC cannot assemble.
+   MultiCopyHalf: halfword copy loop, (src, dst, byteCount) in r0-r2 */
 void MultiCopyHalf(unsigned short *src, unsigned short *dst, unsigned n)
 {
     for (unsigned i = 0; i < n; i += 2)
         *(unsigned short *)((char *)dst + i) = *(unsigned short *)((char *)src + i);
 }
 
-/* Thumb matrix builders (asm primitives; semantics from their headers):
+/* PORT_HOST_ABI: ARM/Thumb asm primitives (matrix builders), MSVC cannot assemble.
+   Thumb matrix builders (asm primitives; semantics from their headers):
    4x3 fx32 rotation matrices from (sin, cos), 4096 = 1.0 */
 void func_02052800(int *m, int s, int c)   /* X rotation */
 {
@@ -91,6 +93,7 @@ void func_02052800(int *m, int s, int c)   /* X rotation */
     m[6] = 0; m[7] = -s; m[8] = c;
     m[9] = 0; m[10] = 0; m[11] = 0;
 }
+/* PORT_HOST_ABI: ARM/Thumb asm primitive (Z-rotation matrix), MSVC cannot assemble. */
 void func_0205283c(int *m, int s, int c)   /* Z rotation */
 {
     m[0] = c; m[1] = s; m[2] = 0;
@@ -99,7 +102,8 @@ void func_0205283c(int *m, int s, int c)   /* Z rotation */
     m[9] = 0; m[10] = 0; m[11] = 0;
 }
 
-/* asm veneer func_02059824 just tail-calls its C body */
+/* PORT_HOST_ABI: ARM asm veneer (ldr/bx tail-call), MSVC cannot assemble.
+   asm veneer func_02059824 just tail-calls its C body */
 void func_02059834(void);
 void func_02059824(void) { func_02059834(); }
 
@@ -144,17 +148,21 @@ int func_01ff9e2c(unsigned a, unsigned b, unsigned c, unsigned d)
     return x < y;
 }
 
-/* ARMProcessorMode reads CPSR & 0x1f; host always reports system mode */
+/* PORT_HOST_ABI: reads the ARM CPSR mode bits, no host equivalent.
+   ARMProcessorMode reads CPSR & 0x1f; host always reports system mode */
 int ARMProcessorMode(void) { return 0x1f; }
 
 /* DS thread scheduler context ops. The port runs the game on ONE fiber (the
    ntr rt loop owns real scheduling), so a save reports "already resumed"
    (setjmp-nonzero) and the reschedule path backs out without switching.
-   A restore reaching the host would mean a second DS thread went live. */
+   A restore reaching the host would mean a second DS thread went live.
+   PORT_HOST_ABI: ARM register context save/restore, no host equivalent. */
 int ARMSaveContext(void *ctx) { (void)ctx; return 1; }
+/* PORT_HOST_ABI: ARM register context restore (second DS thread), no host equivalent. */
 void ARMRestoreContext(void *ctx) { (void)ctx; __debugbreak(); }
 
-/* func_02071644 (hand-asm): backward digit-carry increment over the decimal
+/* PORT_HOST_ABI: ARM asm primitive (hand-asm digit-carry), MSVC cannot assemble.
+   func_02071644 (hand-asm): backward digit-carry increment over the decimal
    buffer at obj+5; overflow at the first digit writes 1 and bumps the s16
    exponent at obj+2. */
 void func_02071644(unsigned char *obj, int len)
@@ -180,19 +188,27 @@ int _ZNK9Animation12WillHitFrameEi(void *self, int f)
    through a tail call the C decl never names (the ride-through catalog).
    Host spells out both args and routes to the HAL Construct. */
 void *_ZN13SharedFilePtr9ConstructEj(void *self, unsigned id);
+/* PORT_HOST_ABI: ARM r1 fileID ride-through into SharedFilePtr::Construct. */
 int func_02017acc(void *self, unsigned id)
 { _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+/* PORT_HOST_ABI: ARM r1 fileID ride-through into SharedFilePtr::Construct. */
 int SharedFilePtr_Construct_TexSeq(void *self, unsigned id)
 { _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+/* PORT_HOST_ABI: fileptr dtor veneer; host card seam does not refcount. */
 int func_02017ab4(int x) { return x; }   /* static-dtor veneer: no-op */
+/* PORT_HOST_ABI: ARM r1 fileID ride-through into SharedFilePtr::Construct. */
 int func_02017b4c(void *self, unsigned id)
 { _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+/* PORT_HOST_ABI: fileptr dtor body; host card seam does not refcount. */
 int func_02017e34(int x) { return x; }   /* fileptr dtor body: host no-op */
+/* PORT_HOST_ABI: fileptr dtor veneer; host card seam does not refcount. */
 void SharedFilePtr_Destruct_TexSeq(void) {}
+/* PORT_HOST_ABI: fileptr dtor veneer; host card seam does not refcount. */
 void SharedFilePtr_Destruct_Anim(void) {}
 void *data_020aa3f0;                     /* MSL global-dtor chain head */
 
-/* crash-screen-only ITCM entry; trap keeps it honest if ever reached */
+/* PORT_HOST_ABI: soft reset -- ARM7 IPC, card reload, unmapped 0x27ffc40 read.
+   crash-screen-only ITCM entry; trap keeps it honest if ever reached */
 void func_01ffdd98(int a) { (void)a; __debugbreak(); }
 
 int data_0209cdcc, data_0209cde4[4], data_0209cde8[4];

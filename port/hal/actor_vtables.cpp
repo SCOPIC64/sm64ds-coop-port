@@ -160,7 +160,8 @@ void hal_fileptr_release(void *self) { _ZN13SharedFilePtr7ReleaseEv(self); }
 
 
 extern "C" {
-/* asm primitive: plain 48-byte block copy (with writeback, unlike the
+/* PORT_HOST_ABI: ARM asm primitive (48-byte block copy), MSVC cannot assemble.
+   asm primitive: plain 48-byte block copy (with writeback, unlike the
    FIFO-fixed variant) */
 void Copy48Bytes(int *src, int *dst) { for (int i = 0; i < 12; ++i) dst[i] = src[i]; }
 int data_020a0e68[12];     /* Matrix4x3 scratch (0x30 on DS) -- was [4],
@@ -201,7 +202,8 @@ void hal_m43_roty(void *m, int a) { Matrix4x3_FromRotationY(m, a); }
 }
 
 extern "C" {
-/* asm primitive: 4x3 fx32 Y-rotation from (sin, cos):
+/* PORT_HOST_ABI: ARM/Thumb asm primitive (Y-rotation matrix), MSVC cannot assemble.
+   asm primitive: 4x3 fx32 Y-rotation from (sin, cos):
    rows {c,0,-s},{0,1,0},{s,0,c},{0,0,0} */
 void func_02052820(int *m, int s, int c)
 {
@@ -231,7 +233,8 @@ int hal_f0204424c(char *c) { return func_0204424c(c); }
 }
 
 extern "C" {
-/* MSL runtime array construction (asm on the DS, with EH frames the host
+/* PORT_HOST_ABI: MSL C++ array-construct asm with EH landing pad, MSVC cannot assemble.
+   MSL runtime array construction (asm on the DS, with EH frames the host
    does not need): apply the ctor forward across n elements. */
 void func_020733a8(void *base, int n, int stride,
                    void (*ctor)(void *), void (*dtor)(void *))
@@ -359,7 +362,8 @@ int data_020a0e40[8];
 }
 
 extern "C" {
-/* MSL array new-with-ctor (asm on the DS, EH machinery the host skips):
+/* PORT_HOST_ABI: MSL C++ array-new-with-cleanup asm + EH landing pad, MSVC cannot assemble.
+   MSL array new-with-ctor (asm on the DS, EH machinery the host skips):
    allocate count*size + an 8-byte cookie, record the count, construct
    forward. Layout mirrors the DS cookie so array-delete agrees. */
 void *func_0203cc0c(unsigned size);

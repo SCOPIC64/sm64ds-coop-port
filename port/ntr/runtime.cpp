@@ -98,6 +98,8 @@ void copy_words(const uint32_t *src, uint32_t *dst, int n) {
 // C linkage: in this port the decomp's .c files compile as C TUs (hostgen
 // wraps its transformed copies in extern "C"), so the copy primitives must
 // carry C names.
+// PORT_HOST_ABI: ARM asm primitive (ldmia/stmia) AND the GXFIFO-address seam
+//                (0x04000400 routes to gx_write_fifo, not a memory store).
 extern "C" void Copy36Bytes(int *src, int *dst) {
     copy_words(reinterpret_cast<const uint32_t *>(src), reinterpret_cast<uint32_t *>(dst), 9);
 }
@@ -105,6 +107,7 @@ extern "C" void Copy36Bytes(int *src, int *dst) {
 // stmia WITHOUT writeback: twelve words through the same port address. Only
 // ever used against the FIFO; for a memory destination the DS semantics would
 // overwrite the same three words four times, so a memory dst is a bug here.
+// PORT_HOST_ABI: ARM asm primitive AND the GXFIFO-address seam (0x04000400).
 extern "C" void Copy48BytesFixed(int *src, int *dst) {
     if (reinterpret_cast<uintptr_t>(dst) == 0x04000400u) {
         for (int i = 0; i < 12; ++i) ntr::gx_write_fifo(static_cast<uint32_t>(src[i]));
@@ -163,6 +166,8 @@ extern "C" void _ZN3IRQ15ClearInterruptsEj(unsigned) {}
 // DMA to the FIFO is the display-list path (func_0205a290). ctrl bit 30 is
 // IRQ-on-complete (the final chunk); a GXFIFO-destined chunk without it relies
 // on the half-empty IRQ to pump the next chunk.
+// PORT_HOST_ABI: src pokes DS DMA registers (REG_DMA_BASE); the host models the
+//                FIFO seam and synthesises the completion IRQ instead.
 extern "C" void DMAStartTransfer(int ch, int src, int dst, int ctrl) {
     const int words = ctrl & 0x1FFFFF;
     copy_words(reinterpret_cast<const uint32_t *>(static_cast<uintptr_t>(src)),

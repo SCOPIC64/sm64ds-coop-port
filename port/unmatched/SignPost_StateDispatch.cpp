@@ -89,6 +89,7 @@ extern "C" void port_sign_post_states_seat(void)
 }
 
 /* func_ov002_020bbd5c: enter state `i` -- store it, then run its Init. */
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (MSVC widens PMF over an incomplete class).
 extern "C" void func_ov002_020bbd5c(void *selfv, int i)
 {
     char *c = (char *)selfv;
@@ -101,6 +102,7 @@ extern "C" void func_ov002_020bbd5c(void *selfv, int i)
 }
 
 /* func_ov002_020bbda4: run the current state's Main. */
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (MSVC widens PMF over an incomplete class).
 extern "C" void func_ov002_020bbda4(void *selfv)
 {
     char *c = (char *)selfv;

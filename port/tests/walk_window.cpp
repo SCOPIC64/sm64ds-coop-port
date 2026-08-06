@@ -1312,6 +1312,9 @@ static void push_camera(const float eye_w[3], const float at_w[3])
     NTR_MMIO(uint32_t, 0x04000454) = 0;
 }
 
+/* PORT_HOST_ABI: the host program entry point (window + ntr bring-up + frame
+   loop). Name-collides with the ROM's boot spine src/main.c, which is the DS
+   init sequence and runs as its own decomp TU, not as this launcher shell. */
 int main(void)
 {
     /* fault_probe.h has been included here since gate 4 and was never armed,

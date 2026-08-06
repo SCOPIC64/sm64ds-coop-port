@@ -422,7 +422,9 @@ int hal_sub_screen_on(void) { return g_on ? 1 : 0; }
 // mean the branch analysis is wrong, not that the stub is.
 
 /* Only from LoadGraphics2D(b != 0), and the port passes b = false. Behind it
-   is Message::LoadTextVS and the whole message-box text engine. */
+   is Message::LoadTextVS and the whole message-box text engine.
+   PORT_HOST_ABI: src drives the card loader + asm copies into an unhosted 3D-font
+   VRAM path; the message-box text engine is not hosted. */
 void LoadFont3D(void)
 {
     static int said;
@@ -432,7 +434,9 @@ void LoadFont3D(void)
 
 /* Top-screen furniture: it rasterises the controller-mode caption into
    G2::GetBG2CharPtr through func_0201d590, the main engine's text path. The
-   bottom screen never reads any of it. */
+   bottom screen never reads any of it.
+   PORT_HOST_ABI: src writes the top-screen BG2 text layer, a subsystem the port
+   does not host. */
 void LoadControllerModeText(int a)
 {
     static int said;
@@ -442,7 +446,8 @@ void LoadControllerModeText(int a)
 }
 
 /* LoadFont's data_0209d698 == 2 branch only, which is the ov004 (VS-mode)
-   font destination. The port loads font 0. */
+   font destination. The port loads font 0.
+   PORT_HOST_ABI: src reads data_ov004_020beb60, and ov004 is not mounted. */
 int func_ov004_020adc4c(void)
 {
     std::printf("  [sub] func_ov004_020adc4c: ov004 is not mounted\n");

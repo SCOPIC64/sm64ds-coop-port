@@ -139,6 +139,7 @@ static int port_door_call(const PortPmf *p, char *self, void *arg)
 
 /* src/func_ov100_021453d8.cpp: seat the node at +0x140 and run its word-0
    pointer-to-member immediately. */
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (MSVC widens PMF over an incomplete class).
 extern "C" int func_ov100_021453d8(void *selfv, void *node, void *arg)
 {
     char *c = (char *)selfv;
@@ -153,6 +154,7 @@ extern "C" int func_ov100_021453d8(void *selfv, void *node, void *arg)
 
 /* src/func_ov100_02145550.cpp: the per-frame half. func_ov100_02145370
    returns the closest player, which is the argument the callback is handed. */
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (MSVC widens PMF over an incomplete class).
 extern "C" int func_ov100_02145550(void *selfv)
 {
     char *c = (char *)selfv;

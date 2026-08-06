@@ -529,6 +529,8 @@ void sd_consumer_tick(void)
 }
 
 // The seam. See the header comment for why this, and not a bigger pool.
+// PORT_HOST_ABI: src reads the ARM7's cross-core progress word (data_020a7fc0);
+//                the host has no second core, so this file pumps it instead.
 extern "C" unsigned int func_0205b5d4(void)
 {
     sd_consumer_init();

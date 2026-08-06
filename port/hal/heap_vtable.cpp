@@ -97,6 +97,8 @@ void *Allocate(u32 size, int align, Heap *heap)
 
 // Crash(): the game's fatal stop. Loud on host. C linkage for the .c TUs;
 // the C++-linkage references alias onto the same definition.
+// PORT_HOST_ABI: src halts forever (IRQ-disable + CP15 WaitForInterrupt loop)
+//                and drives the DS crash screen; the host reports and aborts.
 extern "C" void Crash(void)
 {
     fprintf(stderr, "FATAL: game Crash() reached\n");

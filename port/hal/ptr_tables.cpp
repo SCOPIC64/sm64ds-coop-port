@@ -83,7 +83,8 @@ extern "C" {
    ever issued. That trick exists for the DS's VRAM bus, which cannot take a
    byte write; on the host a plain byte copy is the same function. Its only
    caller in this slice is func_0205bc88, and it is not in
-   port/slice_ptrsweep.txt for exactly this reason. */
+   port/slice_ptrsweep.txt for exactly this reason.
+   PORT_HOST_ABI: ARM asm primitive (unaligned block copy), MSVC cannot assemble. */
 void CpuCopy8(const void *src, void *dst, unsigned int size)
 {
     const unsigned char *s = (const unsigned char *)src;
