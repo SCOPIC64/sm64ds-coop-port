@@ -1464,7 +1464,7 @@ int main(void)
        the honest version of "not hosted": the state machine returns on its
        first line and the character just plays. No-op for Mario, who arrives
        with it already 0. */
-    if (*(unsigned char *)(c + 0x71e)) {
+    if (*(unsigned char *)(c + 0x71e) && !getenv("SM64DS_INTRO_CUTSCENE")) {
         fprintf(stderr, "[char] skipping intro cutscene %u (not hosted)\n",
                 (unsigned)*(unsigned char *)(c + 0x71e));
         *(unsigned char *)(c + 0x71e) = 0;
@@ -3108,7 +3108,7 @@ int main(void)
                (Mario never does, Luigi and Wario survive 300 frames without
                it), so this is the difference between Yoshi being playable and
                not. Zero means the state machine returns on its first line. */
-            if (*(unsigned char *)(c + 0x71e)) {
+            if (*(unsigned char *)(c + 0x71e) && !getenv("SM64DS_INTRO_CUTSCENE")) {
                 static int said;
                 if (!said) {
                     said = 1;
