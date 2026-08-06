@@ -1090,6 +1090,13 @@ set(LEVELBOOT_HOST_SOURCES
     unmatched/func_02043288.cpp
     unmatched/func_0204322c.cpp
     unmatched/func_02043fdc.cpp
+    # ...and a fourth, dormant one: LoadEntranceObjects ends in
+    # StartEntranceFaderWipe() spelled (void), with the wipe type riding in r0
+    # from the `< 0` test right above it. Every entrance the port mounts takes
+    # that return, so the call never fires today -- see the file header for
+    # what it did and did not fix. Commented out of slice_gate14.txt in
+    # exchange.
+    unmatched/LoadEntranceObjects.cpp
     unmatched/func_02016ff4.cpp
     unmatched/ActorBase_AfterCleanupResources.cpp
     unmatched/func_ov002_020c6f3c.cpp
