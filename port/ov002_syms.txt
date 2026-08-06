@@ -94,3 +94,9 @@ data_ov002_020ff01c
 # through. The post the CHAIN_CHOMP is chained to lives in ov091, but its
 # collision block is one of ov002's shared ones.
 data_ov002_0210d874
+# gate 40: the three ov002 .bss globals Player::TryEnterStarDoor touches when
+# the STAR_DOOR's enter callback runs (func_ov100_02145e10). All bss, so they
+# mount as the ROM's own zeroed storage; sizes are the delta to the next config
+# symbol (0210e168, 0210f314, 0210f350). Reached only on player interaction,
+# never on the headless boot, but they have to link.
+data_ov002_0210e164:0x4 data_ov002_0210f308:0xc data_ov002_0210f344:0xc

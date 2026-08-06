@@ -1232,3 +1232,25 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    on the castle grounds. Fixing it properly needs per-TU G0/G1, which is a
    src-side change, not a port one. */
 #pragma comment(linker, "/alternatename:_G1=_data_ov002_0210e05c")
+
+/* ---- gate 40: STAR_DOOR's InitResources data references --------------------
+   _ZN4Door13InitResourcesEv.cpp declares its four data symbols with plain
+   `extern` (C++ linkage) and as arrays, so MSVC mangles them to names the C
+   mount and host globals do not carry. Each lands on the same C object every
+   other reader uses: data_ov100_02148934 / data_ov100_02148974 are the star
+   door's own ov100 records (mount), data_0209f250 the local-player index
+   (level_boot), data_0209f394 the local-player array (cxxname_bridge). Same
+   shape as the ov100 aliases at ~line 1048 above. */
+#pragma comment(linker, "/alternatename:?data_ov100_02148934@@3USharedFilePtr@@A=_data_ov100_02148934")
+#pragma comment(linker, "/alternatename:?data_ov100_02148974@@3PAHA=_data_ov100_02148974")
+#pragma comment(linker, "/alternatename:?data_0209f250@@3PAEA=_data_0209f250")
+#pragma comment(linker, "/alternatename:?data_0209f394@@3PAHA=_data_0209f394")
+/* the star door's eight callbacks reach two more, one per spelling: the
+   camera-relative geometry base (func_ov100_02145988) and the door's own
+   0x50-tagged CLPS row test (func_ov100_02145b10). data_ov100_02148390 is
+   mounted; data_020a0ebc is auto_bss's. */
+#pragma comment(linker, "/alternatename:?data_020a0ebc@@3DA=_data_020a0ebc")
+#pragma comment(linker, "/alternatename:?data_ov100_02148390@@3PAUE6@@A=_data_ov100_02148390")
+/* func_ov100_02145988 spells data_ov100_02148974 as a plain char, a third
+   mangling of the callback table the InitResources block spells as int*. */
+#pragma comment(linker, "/alternatename:?data_ov100_02148974@@3DA=_data_ov100_02148974")

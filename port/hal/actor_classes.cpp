@@ -1432,6 +1432,64 @@ extern "C" void hal_fill_door_vtable(void)
 }
 
 // ============================================================================
+// GATE 40: ov100's STAR_DOOR (actor 354) -- the config's _ZN4Door* family
+// ============================================================================
+//
+// _ZTV4Door / _ZTV12daStarGate_c, ov100 0x021483cc. Gate 22 found that config
+// swapped the two doors' names: the vtable config left as data_ov100_02148188
+// (RTTI 8daDoor_c) is the REAL door gate 22 hosts, and config's `_ZTV4Door`
+// is a SECOND table (RTTI 12daStarGate_c) with the whole _ZN4Door* method
+// family. So this fills the star door, whose Spawn installs _ZTV4Door and
+// whose own D0 spells the same table _ZTV12daStarGate_c -- the RABBIT's
+// dual-name case, so both spellings resolve to one host array.
+//
+// Its member is a CommonModel at 0xd4, the real door's layout, so slot 16
+// reuses ac_d1_door (member D2 then Actor's D2). D0 is plain C in src.
+// Nothing here is a host copy: both InitResources' and Behavior's
+// pointer-to-member sites are formed over COMPLETE local classes and both are
+// guarded off on a fresh boot (the callback table data_ov100_02148974 is
+// ov100 .bss, zeroed) -- see the head of slice_gate40.txt.
+extern "C" {
+int _ZN4Door13InitResourcesEv(void *self);      /* face: method_faces */
+int _ZN4Door8BehaviorEv(void *self);            /* face: method_faces */
+int _ZN4Door6RenderEv(int self);                /* C in src */
+int _ZN4Door16CleanupResourcesEv(void);         /* C in src */
+void _ZN4Door16OnPendingDestroyEv(void);        /* C in src */
+int *_ZN4DoorD0Ev(int *self);                   /* C in src */
+void *_ZTV4Door[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV12daStarGate_c=__ZTV4Door")
+
+static int __fastcall sd_init(void *s, void *)
+{ return _ZN4Door13InitResourcesEv(s); }
+static int __fastcall sd_clean(void *, void *)
+{ return _ZN4Door16CleanupResourcesEv(); }
+static int __fastcall sd_behavior(void *s, void *)
+{ return _ZN4Door8BehaviorEv(s); }
+static int __fastcall sd_render(void *s, void *)
+{ port_actor_render_probe("STAR_DOOR", (char *)s + 0xd4);
+  return _ZN4Door6RenderEv((int)(size_t)s); }
+static int __fastcall sd_pdes(void *, void *)
+{ _ZN4Door16OnPendingDestroyEv(); return 0; }
+static int __fastcall sd_d0(void *s, void *)
+{ return (int)(size_t)_ZN4DoorD0Ev((int *)s); }
+
+extern "C" void hal_fill_star_door_vtable(void)
+{
+    void **vt = _ZTV4Door;
+    ac_fill_shared(vt);
+    vt[0] = (void *)sd_init;
+    vt[3] = (void *)sd_clean;
+    vt[6] = (void *)sd_behavior;
+    vt[9] = (void *)sd_render;
+    vt[12] = (void *)sd_pdes;
+    /* slot 16: the member chain is the real door's (CommonModel at 0xd4), so
+       ac_d1_door serves it. slot 17 is the class's own C D0. */
+    vt[16] = (void *)ac_d1_door;
+    vt[17] = (void *)sd_d0;
+}
+
+// ============================================================================
 // GATE 23: ov102's QUESTION_BLOCK
 // ============================================================================
 //
