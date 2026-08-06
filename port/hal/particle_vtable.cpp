@@ -147,6 +147,44 @@ void *data_0208f464[2] = {
     UPDATE(_ZN8Particle21CleanParticleCallback8OnUpdateERNS_6SystemEb),
 };
 
+/* ---- the two dispatch tables func_0204b028 / func_0204b244 index ---------
+   THE SAME BUG SHAPE ONE MORE TIME, and this one crashed a play session
+   (2026-08-05, ~frame 9750, warping into Bob-omb Battlefield): a table of raw
+   DS code words, called directly.
+
+   romdata.py carried data_02099fb4 and data_02099fbc in its NAMED list as
+   "8-byte constants", so the port got the ROM's own bytes -- four DS
+   addresses -- and the billboard builder called straight through them:
+
+       data_02099fbc[g->axis](rotX, rotY, rot);   -- the axis rotation
+       data_02099fb4[g->flag](fa, fb);            -- the blend/cull pair
+
+   port_particle_render -> Particle::RenderAll -> func_02049ee8 ->
+   func_0204a5c8 -> func_0204af3c -> func_0204b244 -> 0x0204c0a8, which on the
+   host is unmapped memory. It survived this long because the four callees are
+   only ever named by these two tables, so the linker discarded three of them
+   as unreferenced and nothing pointed at the gap.
+
+   Defined here with host pointers, in the ROM's own order. Every entry is the
+   ROM's own relocation out of config/arm9/relocs.txt, quoted per line, and
+   removed from romdata.py's list in exchange. */
+void func_0204c0a8(int, int, void *);
+void func_0204c0e8(int, int, void *);
+void func_0204c24c(int, int);
+void func_0204c194(int, int);
+
+/* from:0x02099fbc to:0x0204c0a8 / from:0x02099fc0 to:0x0204c0e8 */
+void (*data_02099fbc[2])(int, int, void *) = {
+    func_0204c0a8,
+    func_0204c0e8,
+};
+
+/* from:0x02099fb4 to:0x0204c24c / from:0x02099fb8 to:0x0204c194 */
+void (*data_02099fb4[2])(unsigned char, unsigned char) = {
+    (void (*)(unsigned char, unsigned char))func_0204c24c,
+    (void (*)(unsigned char, unsigned char))func_0204c194,
+};
+
 /* Called once before the first frame. Cheap, and it catches the two ways
    this file can rot: a slot left null (the symbol got zeroed storage from
    somewhere else and this file lost the tie-break), and a slot holding
@@ -182,6 +220,24 @@ void port_particle_vtables_check(void)
                              addr[i], s, v);
                 std::abort();
             }
+        }
+    }
+    /* the two billboard dispatch tables, same test. These were raw ROM words
+       until 2026-08-05 and this loop is what would have said so on frame 0
+       instead of ten thousand frames into a play session. */
+    const void *disp[4] = {
+        (const void *)data_02099fbc[0], (const void *)data_02099fbc[1],
+        (const void *)data_02099fb4[0], (const void *)data_02099fb4[1],
+    };
+    static const unsigned dispaddr[4] = {
+        0x02099fbc, 0x02099fc0, 0x02099fb4, 0x02099fb8,
+    };
+    for (int i = 0; i < 4; ++i) {
+        const unsigned v = (unsigned)(unsigned long long)(unsigned long)disp[i];
+        if (!v || (v >= 0x01ff0000u && v < 0x02400000u)) {
+            std::fprintf(stderr, "FATAL: billboard dispatch word %08x holds "
+                         "%08x, not a host pointer\n", dispaddr[i], v);
+            std::abort();
         }
     }
 }

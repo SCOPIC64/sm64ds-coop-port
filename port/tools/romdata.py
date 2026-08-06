@@ -114,10 +114,16 @@ NAMED = [
     # Model::GetVramOffset takes its Crash() branch during Stage::InitResources.
     "data_02075f14:0xc214",
     "data_0208f668",
-    # three 8-byte constants the particle render family reads (func_0204b028,
-    # func_0204b244) while building the camera-facing quad
-    "data_02099fb4",
-    "data_02099fbc",
+    # One 8-byte constant the particle render family reads (func_0204b028,
+    # func_0204b244) while building the camera-facing quad.
+    #
+    # data_02099fb4 and data_02099fbc USED TO BE HERE and were not constants at
+    # all: each is two DS code addresses, indexed by the billboard's axis and
+    # flag fields and called through. Emitted as ROM bytes they were a direct
+    # jump into unmapped host memory, which is what crashed a play session on
+    # the Bob-omb warp. They are hosted with real function pointers in
+    # hal/particle_vtable.cpp now; putting either name back here would define
+    # the symbol twice and, if it won, restore the crash.
     "data_02099fc4",
     # cstd::atan2's lookup table: atan(i/1024) in binangs, i = 0..0x400, so
     # 0..0x2000 (45 degrees) and the quadrant fixups do the rest. EVERY
