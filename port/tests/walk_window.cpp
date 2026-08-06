@@ -297,6 +297,12 @@ extern unsigned char data_ov002_021106dc[];  /* _ZN6Player8ST_CLIMBE */
    0x0210a06c and 0x02109eec, and ov002's reloc table takes those three to
    St_LedgeHang_Init, _Main and _Cleanup exactly. */
 extern unsigned char data_ov002_0210ffec[];  /* _ZN6Player13ST_LEDGE_HANGE */
+/* ST_DEAD_PIT, the fell-out-of-the-world state. __sinit_ov002_021019d0 fills
+   0x02110124's lo/hi from 0x02109e04 and 0x0210a4dc, and ov002's reloc table
+   takes those two PMFs to St_DeadPit_Init and St_DeadPit_Main exactly. Its Init
+   case 1 is the ROM's own call to HitDeathPlane (out-of-bounds death), so a
+   ChangeState into it with mStateStep==1 drives the real OOB path. */
+extern unsigned char data_ov002_02110124[];  /* _ZN6Player11ST_DEAD_PITE */
 extern int data_ov002_02110a48[5];           /* Tree's five cylinder lists */
 extern int data_ov002_0211073c[];            /* 4 rows of {fn-or-vtoff, v} */
 int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *st);
@@ -505,6 +511,7 @@ extern "C" void *data_0209f5bc;   /* the installed fader (hal/fader_wipes) */
 extern "C" void *data_0209f324;   /* WIPES, the seven-wipe array */
 extern "C" signed char data_02092110;    /* the staged next level */
 extern "C" unsigned char data_0209f268;  /* the staged next entrance */
+extern "C" unsigned char data_0209f26c;  /* why we are leaving (2 = death) */
 
 #ifdef NTR_HIRES
 static const int ZOOM = 1;
@@ -2977,6 +2984,34 @@ int main(void)
                     menu_on = 0;
                     fprintf(stderr, "[menu] closed for the level handoff\n");
                 }
+            }
+
+            /* SM64DS_SELFTEST_OOB=<frame>: the fell-out-of-the-world death,
+               headless. At <frame> put the player into ST_DEAD_PIT
+               (data_ov002_02110124) with mStateStep==1, which is the exact state
+               and step the game reaches when Mario drops below the level's kill
+               plane: St_DeadPit_Init's case 1 calls HitDeathPlane, which through
+               SetNextLevel writes the re-entry request the level-change poll
+               honours the same frame. So this rides the real path -- death,
+               teardown, reload -- and the frames after <frame> are the re-entry
+               the reported crash happens on. Runs the ROM's own code; nothing
+               here writes the handoff words by hand. */
+            static int oob_frame = -1, oob_fired;
+            if (oob_frame < 0) {
+                const char *e = getenv("SM64DS_SELFTEST_OOB");
+                oob_frame = e ? atoi(e) : 0;
+            }
+            if (oob_frame > 0 && frame == oob_frame && !oob_fired && player) {
+                oob_fired = 1;
+                *(unsigned char *)(c + 0x6e3) = 1;   /* mStateStep = 1 */
+                fprintf(stderr, "[oob] f%d ChangeState -> ST_DEAD_PIT (%p), "
+                        "step 1: the ROM's HitDeathPlane path\n", frame,
+                        (void *)data_ov002_02110124);
+                _ZN6Player11ChangeStateERNS_5StateE(player,
+                                                    data_ov002_02110124);
+                fprintf(stderr, "[oob] after HitDeathPlane: next sublevel %d "
+                        "entrance %d reason %d\n", (int)port_course_next_sublevel(),
+                        (int)data_0209f268, (int)data_0209f26c);
             }
         }
 
