@@ -136,6 +136,18 @@ enum { PORT_ACTOR_IDS = 512 };
 static unsigned short g_spawned[PORT_ACTOR_IDS];
 static unsigned short g_skipped[PORT_ACTOR_IDS];
 
+/* The counters are per-BOOT, not per-run. A level change tears the previous
+   level's actors down and the next boot spawns its own; carrying the counts
+   across meant a warped-into level's census read the sum of both, which is
+   both harder to compare against a direct boot and wrong as a statement about
+   "what this level spawned". hal/level_change.cpp zeroes them in its teardown,
+   right where it drops the other per-level host state. */
+extern "C" void port_actor_census_reset(void)
+{
+    std::memset(g_spawned, 0, sizeof g_spawned);
+    std::memset(g_skipped, 0, sizeof g_skipped);
+}
+
 extern "C" int port_prespawn_hook(void *idv)
 {
     unsigned id = (unsigned)(size_t)idv;

@@ -84,6 +84,14 @@
 // level-owned sub-objects are re-seated in place, which is what
 // port_level_stage_reseat does. When the boot becomes Stage::InitResources
 // for real, this is the piece that goes away.
+//
+// WHAT THE HANDOFF NOW GETS RIGHT that it did not: the boot it drives mounts
+// the level it warped TO. The latch writes the new level into data_0209f2f8;
+// this file hands the same id to port_level_set_target before port_stage_a_boot,
+// so the boot's overlay mount and its sound-row seat resolve to the warped-to
+// level. Before that the boot resolved through the SM64DS_LEVEL-cached desc and
+// re-booted the castle grounds -- the census came back the castle's, doubled,
+// and this line said "level 1 up" after a select of level 6.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -113,6 +121,8 @@ void port_actor_scene_pass(void);
 void *port_stage_object(void);
 void *port_stage_a_boot(void *mc, int spawn);
 void port_level_reset_host(void);        /* hal/level_boot.cpp */
+void port_level_set_target(int level);   /* hal/level_boot.cpp: which level the
+                                            next port_stage_a_boot mounts */
 void CleanCommonModelDataArr(void);
 void port_model_vram_reset(void);   /* hal/model_host.cpp */
 void port_level_stage_reseat(void *stage);
@@ -419,6 +429,12 @@ extern "C" int port_level_change_apply(void)
     const unsigned free_torn = port_level_heap_free();
     port_level_reset_host();
     port_level_latch();
+    /* Point the boot at the level the latch just made current. Without this the
+       boot's mount resolved to the env-cached level and the warp re-booted the
+       castle grounds -- the [lvl] line said "level 1 up" after a select of
+       level 6, and the census came back the castle's, doubled. The latch put
+       the new level in data_0209f2f8; hand the same id to the boot. */
+    port_level_set_target((int)data_0209f2f8);
 
     void *stage = port_stage_object();
     if (!stage) {

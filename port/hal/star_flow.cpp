@@ -247,14 +247,31 @@ int func_0203d974(void)
     return 1;
 }
 
-/* Seat everything the course loop reads. Called once from the harness after
-   the level boot has run and the entrance has spawned the Player. */
+/* The sound row, run FROM THE BOOT at the point Stage::InitResources runs it.
+   InitResources seats the course's sound group/bank and layer-1 music between
+   its archive load and LoadClsnAndObjects (the block around lines 311-328 and
+   365-381 of src/_ZN5Stage13InitResourcesEv.cpp), driven by GetSoundGroupID,
+   Sound::LoadGroupAndSetBank and Sound::LoadAndSetMusic_Layer1 -- the same
+   matched functions seat_course_sound calls. Hosting it here, called from
+   port_stage_a_boot, is what lets the sound row ride EVERY boot the way the ROM
+   does, the warp included, instead of only the one gate-35 seat that ran once
+   per process. Per-boot guard, reset by the level change, so a warp re-seats.
+   The one non-matched write is the bank/group store the hosted func_0203d974==1
+   early return skips (see seat_course_sound's own note). */
+void port_boot_course_sound(int level)
+{
+    seat_course_sound(level);
+}
+
+/* Seat what the course loop reads that the boot does NOT: the player globals
+   (SetPlayerGlobals, which InitResources does not call -- the handoff and the
+   title path do). The sound row moved into the boot (port_boot_course_sound),
+   so this no longer seats it. Called once from the harness after the boot. */
 void port_course_seat(void)
 {
     if (g_seated) return;
     g_seated = 1;
     seat_player_globals();
-    seat_course_sound((int)data_0209f2f8);
 }
 
 // =============================================================================
