@@ -1222,9 +1222,18 @@ src/func_0205ad3c.c
 # of the first, which was never stopped and never will be. Every wall slide,
 # butt slide, hard turn and walk adds one more permanent copy of the same
 # looping effect, summing louder each time.
+# and the level-change half of the same contract. Scene::BeforeCleanupResources
+# (vtable slot 4) fires func_02011974(&data_0209b53c) on every level change: it
+# walks the same 0x40 entries as func_020119c8 but stops EVERY live handle,
+# ignoring the +6 refreshed flag the per-frame reaper spares. The port keeps the
+# Scene alive across levels so the slot never dispatches; hal/level_change.cpp
+# calls it by hand at teardown (through sd_sound_level_reap) so a loop whose
+# owner is torn down mid-change does not carry into the next level. Matched src,
+# was in no slice, called from nowhere.
 src/func_020119c8.c
 src/func_02011654.c
 src/func_02011aa0.c
+src/func_02011974.c
 src/func_020093d4.c
 src/func_020093f4.c
 src/func_0200ca14.c
