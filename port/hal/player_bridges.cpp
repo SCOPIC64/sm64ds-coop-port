@@ -187,6 +187,13 @@ void Matrix4x3_FromTranslation(void *m, int x, int y, int z);
 void Matrix4x3_ApplyInPlaceToRotationZ(void *m, int ang);
 void MulMat4x3Mat4x3(const void *a, const void *b, void *out);
 extern int data_020a0e68;
+/* base Model::Render, non-virtually -- the exact call Player::Render's i==3 arm
+   makes on the Yoshi head. C-linkage face over the matched
+   src/_ZN5Model6RenderEPK7Vector3.cpp, so the dispatch is non-virtual as in the
+   ROM: index 3 is a ModelAnim, and going through its own vtable Render slot
+   would re-run UpdateVerts, which is why Player::Render reaches past it to the
+   base method and renders the head at the pose the anim system already left. */
+void _ZN5Model6RenderEPK7Vector3(void *self, const void *pos);
 }
 static void m43_mul(const int *a, const int *b, int *out)
 {
@@ -203,6 +210,78 @@ static void m43_mul(const int *a, const int *b, int *out)
                             12) +
                       b[9 + c2];
 }
+
+/* THE HEAD-MODEL GROUP, Player::Render's second draw. Player::Render walks one
+   model out of the array at Player +0x154, indexed by
+   func_ov002_020becf4(this, unk_6db, 1), and forks on that index
+   (src/_ZN6Player6RenderEv.cpp lines 120-128):
+
+       if (i == 3) {                                    // Yoshi's head
+           Model::Render(mdl4, this+0x80);              // base, non-virtual, NO seat
+       } else {                                         // Mario/Luigi/Wario heads
+           *(M34*)mdl4->bones[0] = *(M34*)(bodyBones + 0x2d0);  // neck bone
+           mdl4->Virtual10(&mScale);
+       }
+
+   The array is seated in func_ov002_020e5948 (InitResources): the four
+   character heads load into indices 0-3 from data_ov002_0210a69c, and index 3
+   -- Yoshi -- is a ModelAnim (0x64 bytes, a base BCA anim) while 0-2 are plain
+   Models (0x50). func_ov002_020becf4 returns 3 for Yoshi in normal play (its
+   v==3 branch adds 4 only when unk_714, "something in the mouth", is set), so
+   i==3 is Yoshi's EVERY-FRAME head index, not a tongue-only case. That is why
+   it is special-cased at all: Mario/Luigi/Wario wear a separate cap model that
+   has to be pinned to the body's neck bone, but Yoshi's head is a full model
+   authored in body space and drawn at the player root.
+
+   THE MATRIX IS NOT SEATED HERE, and that is the whole correction over take 1.
+   func_ov002_020e444c -- which the port already runs every frame inside
+   Player::Behavior (func_ov002_020e4bb8 -> func_ov002_020e444c, and via
+   func_ov002_020e3f90 when Yoshi is carrying something) -- has already written
+   head+0x1c to the player-root matrix by the time render runs. In the port's
+   scene convention that value is bit-identical to the `scene` matrix the body
+   renders with (a head-vs-body matrix probe read head+0x1c == body+0x1c ==
+   scene on every frame). So the i==3 arm dispatches base Model::Render with
+   nothing seated, exactly as the ROM does.
+
+   Take 1 seated head+0x1c = scene by hand -- redundant, it already was -- and,
+   worse, believed i==3 meant "mid-tongue" and so it read as a new render on top
+   of the else arm the port still ran; the real fault the human saw (head gone,
+   a model upside down under the feet) is the else arm's neck-bone compose being
+   run over Yoshi's index-3 head, which is not neck-parented. Routing i==3 to the
+   ROM's own base Model::Render, and leaving every other head on the neck-bone
+   compose, is the fix.
+
+   SCOPE: this draws Yoshi's HEAD in the right place every frame. It does not on
+   its own make the tongue reach: the head ModelAnim's currFrame does not advance
+   in the port (St_YoshiPower_Main's Animation::Advance on +0x160 leaves it at 0
+   here), so the mouth/tongue animation stays at frame 0. Extending the tongue is
+   a separate open gap (the head anim never being advanced/posed), not this fork. */
+static void hal_render_head_group(char *c, char *head, unsigned hid,
+                                  ModelAnim *ma, const int *scene)
+{
+    if (hid == 3) {
+        /* Yoshi's head: mat4x3 already seated by func_ov002_020e444c this frame;
+           dispatch the BASE Model::Render (non-virtual) with c+0x80, exactly the
+           ROM's i==3 arm. Base, not the object's own slot 4: index 3 is a
+           ModelAnim, whose virtual Render would re-run UpdateVerts, and the ROM
+           calls Model::Render directly to render the head at the pose the anim
+           system already produced. */
+        _ZN5Model6RenderEPK7Vector3(head, c + 0x80);
+        return;
+    }
+
+    /* every other head: the port's scene-space stand-in for the ROM's neck-bone
+       compose. The ROM copies the body's neck bone into the head's bone[0] and
+       calls Virtual10; on host the head's mat4x3 is what Model::Render consumes,
+       so compose the neck transform through `scene` into head+0x1c and render
+       through the object's own slot 4 (Model::Render). */
+    char *neck = *(char **)((char *)ma + 0x14) + 0x2d0;
+    if (neck)
+        m43_mul((const int *)neck, scene, (int *)(head + 0x1c));
+    ((void(__fastcall *)(void *, void *, const void *))(
+        ((void ***)head)[0][4]))(head, 0, 0);
+}
+
 void hal_render_player_world(void *player)
 {
     char *c = (char *)player;
@@ -230,11 +309,7 @@ void hal_render_player_world(void *player)
     if (hid != 8 && hid != 9) {
         char *head = ((char **)(c + 0x154))[hid];
         if (head) {
-            char *neck = *(char **)((char *)ma + 0x14) + 0x2d0;
-            if (neck)
-                m43_mul((const int *)neck, scene, (int *)(head + 0x1c));
-            ((void(__fastcall *)(void *, void *, const void *))(
-                ((void ***)head)[0][4]))(head, 0, 0);
+            hal_render_head_group(c, head, hid, ma, scene);
         }
     }
 
