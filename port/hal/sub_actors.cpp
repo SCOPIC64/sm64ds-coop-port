@@ -96,7 +96,6 @@ static int port_sub_oam_nonzero(void)
 }
 extern int data_0209f334[]; extern unsigned char data_0209f2e8[];
 extern unsigned short *data_0209f340;
-extern void *_ZN3OAM15MM_PLAYER_ICONSE[];
 extern char _ZN3OAM8MM_ARROWE[];
 extern signed char data_ov002_02111148; extern unsigned char data_0209d454;
 extern void *data_0209f394[];   /* per-player Actor* */
@@ -437,7 +436,7 @@ int __fastcall map_render(void *s, void *)
 {
     /* SM64DS_MM_TRACE=1: the marker's own minimap coordinates and the live sub
        OAM count. A minimap that draws its map and no marker reads as a Render
-       bug and is usually a sprite-template one -- see port_mm_icons_patch. */
+       bug and is usually a sprite-template one -- see hal/oam_lists.cpp. */
     static int on = -1;
     if (on < 0) on = std::getenv("SM64DS_MM_TRACE") != 0;
     if (on) {
@@ -483,67 +482,22 @@ extern "C" void hal_fill_hud_vtable(void)
     port_ov001_pack_check();
 }
 
-// ---- the one cross-overlay pointer table -----------------------------------
+// The cross-overlay pointer tables used to be hand-written here.
 //
-// OAM::MM_PLAYER_ICONS is sixteen pointers in ov002 (0x0210c174) and every one
-// of them points into ov001 -- the sixteen MM_*_ICON OamAttr records at
-// 0x020ab800..0x020ab928, four per character times four cap states.
+// OAM::MM_PLAYER_ICONS is a pointer table in ov002 (0x0210c174) whose entries
+// all point into ov001, at the MM_*_ICON OamAttr records at 0x020ab800..0x920.
+// ovdata's per-mount pointer pass rewrites pointers whose TARGET is inside the
+// same mount, and each mount is its own invocation, so this one came out
+// holding DS addresses and OAM::RenderSub was handed 0x020ab800 -- which read
+// as "the minimap draws its map and no player marker", because the OAM entry
+// it built out of whatever sat at that host address was not a sprite.
 //
-// ovdata's pointer pass rewrites pointers whose TARGET is inside the same
-// mount, which is why the other three minimap tables need nothing here:
-// MM_VS_PLAYER_ICONS, MM_VS_PLAYER_ICONS_S and the two star-marker tables at
-// 0x0210c748 / 0x0210cac8 all point inside ov002 and come out already rebased.
-// This one table crosses, so the pass leaves DS addresses in it and
-// OAM::RenderSub is handed 0x020ab800 -- which reads as "the minimap draws its
-// map and no player marker", because the OAM entry it builds out of whatever
-// is at that host address is not a sprite.
-//
-// The order is the ROM's own, read out of overlay_0002.bin rather than guessed
-// from the names: the table is indexed `character + capState * 4`, and the
-// character order inside each group of four is not the order the symbol names
-// are declared in.
-extern "C" {
-extern unsigned char _ZN3OAM13MM_MARIO_ICONE[];
-extern unsigned char _ZN3OAM19MM_MARIO_W_CAP_ICONE[];
-extern unsigned char _ZN3OAM19MM_MARIO_L_CAP_ICONE[];
-extern unsigned char _ZN3OAM20MM_MARIO_NO_CAP_ICONE[];
-extern unsigned char _ZN3OAM13MM_LUIGI_ICONE[];
-extern unsigned char _ZN3OAM19MM_LUIGI_W_CAP_ICONE[];
-extern unsigned char _ZN3OAM19MM_LUIGI_M_CAP_ICONE[];
-extern unsigned char _ZN3OAM20MM_LUIGI_NO_CAP_ICONE[];
-extern unsigned char _ZN3OAM13MM_WARIO_ICONE[];
-extern unsigned char _ZN3OAM19MM_WARIO_L_CAP_ICONE[];
-extern unsigned char _ZN3OAM19MM_WARIO_M_CAP_ICONE[];
-extern unsigned char _ZN3OAM20MM_WARIO_NO_CAP_ICONE[];
-extern unsigned char _ZN3OAM13MM_YOSHI_ICONE[];
-extern unsigned char _ZN3OAM19MM_YOSHI_L_CAP_ICONE[];
-extern unsigned char _ZN3OAM19MM_YOSHI_M_CAP_ICONE[];
-extern unsigned char _ZN3OAM19MM_YOSHI_W_CAP_ICONE[];
-}
-
-static void port_mm_icons_patch(void)
-{
-    void *const src[16] = {
-        _ZN3OAM13MM_MARIO_ICONE,        /* 020ab800 */
-        _ZN3OAM19MM_MARIO_L_CAP_ICONE,  /* 020ab820 */
-        _ZN3OAM19MM_MARIO_W_CAP_ICONE,  /* 020ab808 */
-        _ZN3OAM20MM_MARIO_NO_CAP_ICONE, /* 020ab838 */
-        _ZN3OAM19MM_LUIGI_M_CAP_ICONE,  /* 020ab870 */
-        _ZN3OAM13MM_LUIGI_ICONE,        /* 020ab850 */
-        _ZN3OAM19MM_LUIGI_W_CAP_ICONE,  /* 020ab858 */
-        _ZN3OAM20MM_LUIGI_NO_CAP_ICONE, /* 020ab888 */
-        _ZN3OAM19MM_WARIO_M_CAP_ICONE,  /* 020ab8d0 */
-        _ZN3OAM19MM_WARIO_L_CAP_ICONE,  /* 020ab8b8 */
-        _ZN3OAM13MM_WARIO_ICONE,        /* 020ab8a0 */
-        _ZN3OAM20MM_WARIO_NO_CAP_ICONE, /* 020ab8a8 */
-        _ZN3OAM19MM_YOSHI_M_CAP_ICONE,  /* 020ab908 */
-        _ZN3OAM19MM_YOSHI_L_CAP_ICONE,  /* 020ab8f0 */
-        _ZN3OAM19MM_YOSHI_W_CAP_ICONE,  /* 020ab920 */
-        _ZN3OAM13MM_YOSHI_ICONE,        /* 020ab8e8 */
-    };
-    for (int i = 0; i < 16; ++i)
-        _ZN3OAM15MM_PLAYER_ICONSE[i] = src[i];
-}
+// port_cross_patch() (tools/ovdata.py --cross) now does this and every other
+// crossing, from relocs.txt rather than from a table copied out of the ROM by
+// hand. It reproduces the sixteen entries this function used to write, in the
+// same order, and adds the seventeenth the ROM table has and this did not, the
+// aliasing copy inside port_ov002_gap_0210c168, and forty-odd more between the
+// actor overlays. The harnesses call it next to port_ov002_patch().
 
 extern "C" void hal_fill_minimap_vtable(void)
 {
@@ -556,7 +510,6 @@ extern "C" void hal_fill_minimap_vtable(void)
     vt[12] = (void *)map_pdes;
     vt[16] = (void *)map_d1;
     vt[17] = (void *)map_d0;
-    port_mm_icons_patch();
 }
 
 // ---- the ov001 name aliases -------------------------------------------------

@@ -301,6 +301,11 @@ extern int data_ov002_02110a48[5];           /* Tree's five cylinder lists */
 extern int data_ov002_0211073c[];            /* 4 rows of {fn-or-vtoff, v} */
 int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *st);
 void port_ov002_patch(void);
+/* the pointers that leave their own mount, ovdata.py --cross. Order does not
+   matter against the per-mount passes: it writes host addresses into host
+   arrays, and a target is either inside its own mount or it is not, so the
+   sites are disjoint. */
+void port_cross_patch(void);
 void __sinit_ov002_02100560(void); void __sinit_ov002_02100938(void);
 void __sinit_ov002_02100adc(void); void __sinit_ov002_02100c50(void);
 void __sinit_ov002_02100d44(void); void __sinit_ov002_02100e50(void);
@@ -1314,6 +1319,7 @@ int main(void)
     hal_fill_modelanim2_vtable();
 
     port_ov002_patch();
+    port_cross_patch();
     __sinit_ov002_02100560(); __sinit_ov002_02100938();
     __sinit_ov002_02100adc(); __sinit_ov002_02100c50();
     __sinit_ov002_02100d44(); __sinit_ov002_02100e50();
