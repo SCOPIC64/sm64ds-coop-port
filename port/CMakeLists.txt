@@ -1302,6 +1302,19 @@ foreach(line IN LISTS SLICE50_LINES)
     list(APPEND SLICE50_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Gate 51: the CAP (WaterfallMist, 269), ov002. Built at gate 33, registered
+# here now that its nine-state PMF table is seated. See slice_gate51.txt and
+# unmatched/Cap_StateDispatch.cpp.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate51.txt" SLICE51_LINES)
+set(SLICE51_SOURCES "")
+foreach(line IN LISTS SLICE51_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE51_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gate 15: the per-frame actor spine (BeforeBehavior/Behavior/AfterBehavior),
 # which is what makes the real WithMeshClsn tracking work -- see the header of
 # slice_gate15.txt for why prev-pos is load-bearing.
@@ -1400,6 +1413,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES}
+    unmatched/Cap_StateDispatch.cpp ${SLICE51_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -1437,6 +1451,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES}
+    unmatched/Cap_StateDispatch.cpp ${SLICE51_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -1477,6 +1492,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES}
+    unmatched/Cap_StateDispatch.cpp ${SLICE51_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"

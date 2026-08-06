@@ -568,9 +568,14 @@ static int __fastcall cap_yoshi(void *, void *)
 { return func_ov002_020b8270(); }
 static int __fastcall cap_egg(void *s, void *, int a)
 { func_ov002_020b81e0((char *)s, a); return 0; }
+extern "C" void port_cap_states_seat(void);   /* port/unmatched */
 extern "C" void hal_fill_cap_vtable(void)
 {
     void **vt = _ZTV13WaterfallMist;
+    /* gate 51: seat the nine-state PMF table __sinit_ov002_02101064 left as DS
+       code addresses, the SignPost treatment -- WaterfallMist::Behavior
+       dispatches it through +0x3bc. */
+    port_cap_states_seat();
     bw_fill_shared(vt);
     vt[0] = (void *)cap_init;
     vt[3] = (void *)cap_clean;

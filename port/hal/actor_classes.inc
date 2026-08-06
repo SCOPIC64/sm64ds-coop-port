@@ -317,11 +317,13 @@ void hal_fill_king_bob_omb_vtable(void);
      hal_fill_cannon_hatch_vtable},                                            \
     {297, "HEALING_HEART", HealingHeart_SpawnInfo, HealingHeart_Spawn,      \
      hal_fill_healing_heart_vtable},                                        \
-    /* CAP (269), EXCLAMATION_SWITCH (11), WATER_BOMB (208) and             \
-       ROLLING_IRON_BALL (220) are BUILT BUT NOT REGISTERED -- each faults  \
-       a few frames in on a DS behavior pointer or, for the water bomb, a   \
-       Cannon-targeting cascade (func_ov098_0213a00c derefs a null actor at \
-       +0x5c once a bomb is on the list). See actor_classes_bob_world.cpp. */\
+    /* CAP (269) is registered at gate 51 (its nine-state PMF table is now    \
+       seated -- see the row below and Cap_StateDispatch.cpp).               \
+       EXCLAMATION_SWITCH (11), WATER_BOMB (208) and ROLLING_IRON_BALL (220) \
+       remain BUILT BUT NOT REGISTERED -- each faults a few frames in on a   \
+       DS behavior pointer or, for the water bomb, a Cannon-targeting        \
+       cascade (func_ov098_0213a00c derefs a null actor at +0x5c once a bomb \
+       is on the list). See actor_classes_bob_world.cpp. */                  \
     {329, "INVISIBLE_SECRET", InvisibleSecret_SpawnInfo, InvisibleSecret_Spawn,\
      hal_fill_invisible_secret_vtable},                                        \
     /* gate 46: the moving bar (RTTI daBar_c), Whomp's Fortress */             \
@@ -359,7 +361,9 @@ void hal_fill_king_bob_omb_vtable(void);
     {37, "LIGHT_BEAM", LightBeam_SpawnInfo, LightBeam_Spawn, 0},               \
     /* ---- gate 50: ov080's PAINTING (append-only block) ---- */              \
     {307, "PAINTING", Painting_SpawnInfo, Painting_Spawn,                      \
-     hal_fill_painting_vtable},
+     hal_fill_painting_vtable},                                               \
+    /* ---- gate 51: CAP (269), the metal/vanish/wing cap on the ground ---- */\
+    {269, "CAP", Cap_SpawnInfo, Cap_Spawn, hal_fill_cap_vtable},
     /* PEACH_PAINTING (38) is BLOCKED, see gate 42 below -- its InitResources
        spawns a RollingRock (ov052, an overlay the port does not mount) and
        reads data_ov052_02111e84, so registering it would fault on the first
