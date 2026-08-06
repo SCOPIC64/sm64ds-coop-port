@@ -187,12 +187,6 @@ void Matrix4x3_FromTranslation(void *m, int x, int y, int z);
 void Matrix4x3_ApplyInPlaceToRotationZ(void *m, int ang);
 void MulMat4x3Mat4x3(const void *a, const void *b, void *out);
 extern int data_020a0e68;
-/* the BASE Model::Render, non-virtually, which is exactly what Player::Render
-   calls on the tongue -- NOT the tongue object's own vtable slot, because +0x160
-   is a ModelAnim and its slot-4 Render would re-run UpdateVerts that
-   St_YoshiPower already advanced. This is the C-linkage face over the matched
-   src (hal/actor_faces_bob.cpp), so the dispatch is non-virtual, as in the ROM. */
-void _ZN5Model6RenderEPK7Vector3(void *self, const void *scale);
 }
 static void m43_mul(const int *a, const int *b, int *out)
 {
@@ -232,75 +226,15 @@ void hal_render_player_world(void *player)
     ma->ModelAnim::UpdateVerts();
     ma->ModelAnim::Render(0);
 
-    /* THE HEAD-MODEL GROUP, and YOSHI'S TONGUE within it. Player::Render walks
-       one model out of the array at Player +0x154, indexed by
-       func_ov002_020becf4(this, unk_6db, 1). For Yoshi mid-tongue (unk_6db == 3,
-       nothing caught so unk_714 == 0) that index is 3, and +0x154 + 3*4 = +0x160
-       is the tongue ModelAnim that St_YoshiPower SetAnims and advances.
-
-       Player::Render draws the group with a FORK on the index (src lines 120-128):
-
-           if (i == 3) {                                   // the tongue
-               Model::Render(mdl4, this+0x80);
-           } else {                                        // every other head
-               *(M34*)mdl4->bones[0] = *(M34*)(bodyBones + 0x2d0);   // neck bone
-               mdl4->Virtual10(&mScale);
-           }
-
-       The tongue is drawn with its OWN matrix, not the neck bone: it is parented
-       to the body root and its BCA carries the extension off the mouth, so the
-       whole tongue reach lives in the animation, not in a bone compose. An
-       earlier pass here drew +0x160 with the body's scene matrix through Render
-       with no gate -- but that was the WING model at +0x174, corrected in
-       3dcd9991f; the tongue was left undrawn (the fork's i==3 arm was never
-       hosted, so this block ran the neck-bone else arm over the tongue and put
-       it at the neck instead of the mouth).
-
-       Hosted faithfully now: for the tongue, seat its mat4x3 (+0x1c) to the same
-       scene frame the body model gets -- which is what the tongue's world matrix
-       IS in the ROM, the body root -- and dispatch Model::Render (MSVC slot 4:
-       _ZTV5Model folds D1/D0 into slot 0, so DoSetFile 1, UpdateVerts 2,
-       Virtual10 3, Render 4) with c+0x80, the position the body model renders
-       with. Model::Render composes mat4x3 with the engine view matrix
-       data_0209b3ec exactly as the body's ModelAnim::Render does, so the tongue
-       lands in the same frame as Yoshi. Every other head keeps the neck-bone
-       compose it had. */
     unsigned hid = func_ov002_020becf4(c, *(unsigned char *)(c + 0x6db), 1);
     if (hid != 8 && hid != 9) {
         char *head = ((char **)(c + 0x154))[hid];
         if (head) {
-            if (hid == 3) {
-                /* the tongue: its own frame is the body root, Model::Render.
-                   Seat mat4x3 to the same scene frame the body model gets (the
-                   ROM's tongue mat4x3 IS the body root) and dispatch the BASE
-                   Model::Render, non-virtually, with c+0x80 -- the position the
-                   body renders with. */
-                for (int i = 0; i < 12; ++i)
-                    ((int *)(head + 0x1c))[i] = scene[i];
-                static int tprobe = -1;
-                if (tprobe < 0)
-                    tprobe = std::getenv("SM64DS_TONGUE_PROBE") ? 1 : 0;
-                std::size_t n0 = 0, n1 = 0;
-                if (tprobe) ntr::gx_polygons(n0);
-                _ZN5Model6RenderEPK7Vector3(head, c + 0x80);
-                if (tprobe) {
-                    ntr::gx_polygons(n1);
-                    static int said;
-                    if (!said && n1 > n0) {
-                        said = 1;
-                        std::fprintf(stderr, "[tongue] +0x160 model=%p step=%u -- "
-                                     "tongue render emitted %d polygons\n",
-                                     (void *)head, *(unsigned char *)(c + 0x6e3),
-                                     (int)(n1 - n0));
-                    }
-                }
-            } else {
-                char *neck = *(char **)((char *)ma + 0x14) + 0x2d0;
-                if (neck)
-                    m43_mul((const int *)neck, scene, (int *)(head + 0x1c));
-                ((void(__fastcall *)(void *, void *, const void *))(
-                    ((void ***)head)[0][4]))(head, 0, 0);
-            }
+            char *neck = *(char **)((char *)ma + 0x14) + 0x2d0;
+            if (neck)
+                m43_mul((const int *)neck, scene, (int *)(head + 0x1c));
+            ((void(__fastcall *)(void *, void *, const void *))(
+                ((void ***)head)[0][4]))(head, 0, 0);
         }
     }
 
