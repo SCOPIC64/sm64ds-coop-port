@@ -98,8 +98,10 @@ void *func_02048720(struct Vector3 *v, int kind, int id);
 void  func_02048908(void *obj, int *p);
 int   func_02048a1c(int *v, int kind, int id);
 void  func_02048d80(void *obj, int *p);
+int   func_02049018(int *v);          /* listener-relative distance */
 void  Player_PlaySoundEffect(int x, unsigned a, unsigned b);
 extern int data_0209b4a4[];
+extern int data_02099fac;             /* the 3D distance limit, romdata */
 
 void _ZN5Sound4PlayEjjRK7Vector3(unsigned kind, unsigned id, struct Vector3 *v)
 {
@@ -136,9 +138,28 @@ void _ZN5Sound4PlayEjjRK7Vector3(unsigned kind, unsigned id, struct Vector3 *v)
             if (g_snd_trace_play)
                 fprintf(stderr, "[snd] Play(%u, %u) type %d: no positional "
                         "voice free -- culled\n", kind, id, t);
+            // func_02048720 is matched src and refuses for two reasons it
+            // does not distinguish to its caller: the sound is further than
+            // its limit, or every slot in its pool is held by something it
+            // may not take. Print both inputs rather than guess -- the
+            // census line right after says which pool is full.
+            SD_VT("play REFUSED Sound::Play(%u, %u) type %d: no 3D slot "
+                  "(distance %d, limit %d)\n", kind, id, t,
+                  func_02049018((int *)v), data_02099fac);
+            sd_vtrace_arm9_census("at the refusal");
             return;
         }
         Player_PlaySoundEffect((int)(size_t)r, kind, id);
+        // func_0204f63c writes the voice it took back into the owner slot and
+        // leaves it null if it could not get one (func_0204f934 has already
+        // cleared whatever was there). That null is the only place the ARM9's
+        // "no voice for you" answer is visible -- Sound::Play never looks at
+        // a return value -- so it is the one worth naming.
+        if (g_voice_trace && *(void **)r == 0) {
+            sd_vtrace("play REFUSED Sound::Play(%u, %u) type %d: the ARM9 "
+                      "voice pool gave out no voice\n", kind, id, t);
+            sd_vtrace_arm9_census("at the refusal");
+        }
         func_02048908(r, (int *)v);
         return;
     }
@@ -146,9 +167,16 @@ void _ZN5Sound4PlayEjjRK7Vector3(unsigned kind, unsigned id, struct Vector3 *v)
         if (g_snd_trace_play)
             fprintf(stderr, "[snd] Play(%u, %u) type %d: out of range "
                     "-- culled\n", kind, id, t);
+        SD_VT("play REFUSED Sound::Play(%u, %u) type %d: out of range\n",
+              kind, id, t);
         return;
     }
     Player_PlaySoundEffect((int)(size_t)data_0209b4a4, kind, id);
+    if (g_voice_trace && data_0209b4a4[0] == 0) {
+        sd_vtrace("play REFUSED Sound::Play(%u, %u) type %d: the ARM9 voice "
+                  "pool gave out no voice\n", kind, id, t);
+        sd_vtrace_arm9_census("at the refusal");
+    }
     func_02048d80(data_0209b4a4, (int *)v);
 }
 

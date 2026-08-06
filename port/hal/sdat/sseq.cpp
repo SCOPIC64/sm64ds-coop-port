@@ -50,6 +50,7 @@ struct Player {
     Track tr[SD_TRACKS];
     int tempo, tempoCount;
     int volume, pan;
+    int volDb10;            // PLAYER_PARAM 6: distance/fade attenuation
     sd_s16 var[SD_VARS];
 };
 
@@ -61,6 +62,7 @@ struct NoteSlot {
     int player, track;
     int ticks;              // -1 = tied, released explicitly
     int basePan;            // pan before the player's own bias
+    int baseDb10;           // volume before the player's own attenuation
 };
 NoteSlot g_note[SD_CHANNELS];
 
@@ -89,18 +91,19 @@ sd_u32 read_varlen(const sd_u8 *seq, sd_u32 &pc)
     return v;
 }
 
-void note_off(int ch, int release)
+void note_off(int ch, int release, const char *why)
 {
     if (ch < 0 || ch >= SD_CHANNELS) return;
     g_note[ch].active = 0;
-    if (release) sd_mix_release(ch); else sd_mix_kill(ch);
+    if (release) sd_mix_release(ch, why); else sd_mix_kill(ch, why);
 }
 
 // Kill everything a player owns.
 void player_silence(int p)
 {
     for (int i = 0; i < SD_CHANNELS; i++)
-        if (g_note[i].active && g_note[i].player == p) note_off(i, 1);
+        if (g_note[i].active && g_note[i].player == p)
+            note_off(i, 1, "player stopped out from under the note");
 }
 
 // Kill what ONE TRACK owns: the abnormal-death path. Tied notes outlive
@@ -113,28 +116,39 @@ void track_silence(int p, int t)
 {
     for (int i = 0; i < SD_CHANNELS; i++)
         if (g_note[i].active && g_note[i].player == p && g_note[i].track == t)
-            note_off(i, 1);
+            note_off(i, 1, "track died and took its voices with it");
 }
 
 void start_note(Player &pl, int pi, int ti, Track &tk, int note, int vel,
                 int ticks)
 {
-    if (!pl.sbnk) return;
+    if (!pl.sbnk) {
+        SD_VT("note p%d t%d key %d DROPPED: player has no bank\n", pi, ti,
+              note);
+        return;
+    }
     SdatNote n;
     const sd_u8 *swar = 0;
     int key = note + tk.transpose;
     if (key < 0) key = 0;
     if (key > 127) key = 127;
-    if (!sdat_bank_note(pl.sbnk, tk.prog, key, &n, &swar)) return;
+    if (!sdat_bank_note(pl.sbnk, tk.prog, key, &n, &swar)) {
+        SD_VT("note p%d t%d key %d DROPPED: program %d has no note there\n",
+              pi, ti, key, tk.prog);
+        return;
+    }
 
     SdatWave w;
-    if (!sdat_swar_wave(swar, n.swav, &w)) return;
+    if (!sdat_swar_wave(swar, n.swav, &w)) {
+        SD_VT("note p%d t%d key %d DROPPED: wave %d unresolvable\n", pi, ti,
+              key, n.swav);
+        return;
+    }
 
-    int ch = sd_mix_alloc(tk.priority);
-    if (ch < 0) return;
-
-    int db10 = sd_cnv_vol(vel) + sd_cnv_vol(tk.volume)
-             + sd_cnv_vol(tk.expression) + sd_cnv_vol(pl.volume);
+    int baseDb10 = sd_cnv_vol(vel) + sd_cnv_vol(tk.volume)
+                 + sd_cnv_vol(tk.expression) + sd_cnv_vol(pl.volume);
+    if (baseDb10 < -723) baseDb10 = -723;
+    int db10 = baseDb10 + pl.volDb10;
     if (db10 < -723) db10 = -723;
 
     int basePan = tk.panSet ? tk.pan : n.pan;
@@ -146,13 +160,32 @@ void start_note(Player &pl, int pi, int ti, Track &tk, int note, int vel,
     double semis = (double)(key - n.baseNote)
                  + (double)tk.bend * tk.bendRange / 64.0;
     double rate = (double)w.sampleRate * pow(2.0, semis / 12.0) / SD_MIX_RATE;
-    if (rate <= 0.0 || rate > 64.0) return;
+    // Everything that can refuse the note is settled BEFORE a channel is
+    // taken. Allocating first and then bailing on the rate left a stolen
+    // channel dead with the previous note's owner still recorded against it,
+    // which is a voice lost for nothing.
+    if (rate <= 0.0 || rate > 64.0) {
+        SD_VT("note p%d t%d key %d DROPPED: playback rate %.3f out of "
+              "range\n", pi, ti, key, rate);
+        return;
+    }
+
+    int ch = sd_mix_alloc(tk.priority);
+    if (ch < 0) {
+        SD_VT("note p%d t%d key %d DROPPED: no mixer channel free\n", pi, ti,
+              key);
+        return;
+    }
+    if (g_note[ch].active)
+        SD_VT("chan %2d taken from player %d track %d\n", ch,
+              g_note[ch].player, g_note[ch].track);
 
     sd_mix_start(ch, &w, &n, db10, pan, rate, tk.priority);
     g_note[ch].active = 1;
     g_note[ch].player = pi;
     g_note[ch].track = ti;
     g_note[ch].basePan = basePan;
+    g_note[ch].baseDb10 = baseDb10;
     // Duration 0 means "no scheduled note-off" -- the note runs until its
     // envelope or its sample ends. Every sound effect in the SEQARCs is
     // written that way (a lone "program change, note, end of track"), so
@@ -405,6 +438,19 @@ int sd_seq_active(int p)
     return 0;
 }
 
+// SNDSharedWork.playerStatus: one bit per player, set while that player is
+// still holding the sequence it was started with. `active` and not merely
+// "a track is running" is the right test -- sd_seq_frame keeps the player
+// marked active after its last track ends until the release tails finish,
+// which is exactly the window the DS's own player occupies.
+sd_u32 sd_seq_player_mask(void)
+{
+    sd_u32 m = 0;
+    for (int p = 0; p < SD_PLAYERS; p++)
+        if (g_pl[p].active) m |= 1u << p;
+    return m;
+}
+
 int sd_seq_start(int p, const sd_u8 *seqData, const sd_u8 *sbnk)
 {
     if (p < 0 || p >= SD_PLAYERS || !seqData) return 0;
@@ -423,6 +469,7 @@ int sd_seq_start(int p, const sd_u8 *seqData, const sd_u8 *sbnk)
                     p, (const void *)seqData, rel);
         }
     }
+    SD_VT("play %2d start\n", p);
     sd_seq_stop(p);
 
     Player &pl = g_pl[p];
@@ -450,6 +497,7 @@ int sd_seq_start(int p, const sd_u8 *seqData, const sd_u8 *sbnk)
 void sd_seq_stop(int p)
 {
     if (p < 0 || p >= SD_PLAYERS) return;
+    if (g_pl[p].active) SD_VT("play %2d stop\n", p);
     player_silence(p);
     memset(&g_pl[p], 0, sizeof g_pl[p]);
 }
@@ -458,6 +506,22 @@ void sd_seq_set_volume(int p, int v)
 {
     if (p < 0 || p >= SD_PLAYERS || !g_pl[p].active) return;
     g_pl[p].volume = v < 0 ? 0 : (v > 127 ? 127 : v);
+}
+
+// PLAYER_PARAM 6, the attenuation func_0204fafc recomputes every frame from
+// the voice's distance and its fade ramp. It arrives WHILE the sound plays --
+// that is the whole point of it -- so it reaches the notes already sounding,
+// the same way the positional pan does below.
+void sd_seq_set_volume_db10(int p, int db10)
+{
+    if (p < 0 || p >= SD_PLAYERS || !g_pl[p].active) return;
+    if (db10 > 0) db10 = 0;
+    if (db10 < -723) db10 = -723;
+    g_pl[p].volDb10 = db10;
+    for (int i = 0; i < SD_CHANNELS; i++) {
+        if (!g_note[i].active || g_note[i].player != p) continue;
+        sd_mix_set_vol(i, g_note[i].baseDb10 + db10);
+    }
 }
 
 void sd_seq_set_pan(int p, int v)
@@ -491,7 +555,8 @@ void sd_seq_frame(void)
             for (int i = 0; i < SD_CHANNELS; i++) {
                 if (!g_note[i].active || g_note[i].player != p) continue;
                 if (g_note[i].ticks < 0) continue;      // tied
-                if (--g_note[i].ticks <= 0) note_off(i, 1);
+                if (--g_note[i].ticks <= 0)
+                    note_off(i, 1, "note duration expired");
             }
 
             int any = 0;
@@ -508,7 +573,12 @@ void sd_seq_frame(void)
                 int ringing = 0;
                 for (int i = 0; i < SD_CHANNELS; i++)
                     if (g_note[i].active && g_note[i].player == p) ringing = 1;
-                if (!ringing) { pl.active = 0; break; }
+                if (!ringing) {
+                    SD_VT("play %2d finished: sequence ended and its tails "
+                          "are silent\n", p);
+                    pl.active = 0;
+                    break;
+                }
             }
         }
     }

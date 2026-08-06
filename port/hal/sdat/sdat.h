@@ -118,11 +118,16 @@ struct SdatChanKey { int player; int track; int note; };
 int sd_mix_alloc(int priority);
 void sd_mix_start(int ch, const SdatWave *w, const SdatNote *n,
                   int volume_db10, int pan, double rate, int priority);
-void sd_mix_release(int ch);          // enter the release phase
-void sd_mix_kill(int ch);             // immediate stop
+// Both take the REASON they are ending the voice. The reason is the whole
+// point of SM64DS_VOICE_TRACE: a per-frame voice count cannot tell "the note
+// finished" from "something took the channel away", and that difference is
+// the difference between working sound and sound that cuts out.
+void sd_mix_release(int ch, const char *why);   // enter the release phase
+void sd_mix_kill(int ch, const char *why);      // immediate stop
 int  sd_mix_active(int ch);
 void sd_mix_set(int ch, int volume_db10, int pan, double rate);
 void sd_mix_set_pan(int ch, int pan);   // retune a voice already sounding
+void sd_mix_set_vol(int ch, int volume_db10);   // ditto, volume only
 void sd_mix_frame(void);              // advance every envelope one 192Hz frame
 void sd_mix_render(sd_s16 *dst, int frames);   // stereo interleaved
 void sd_mix_reset(void);
@@ -139,10 +144,20 @@ int sd_cnv_vol(int v);
 int sd_seq_start(int player, const sd_u8 *seqData, const sd_u8 *sbnk);
 void sd_seq_stop(int player);
 void sd_seq_set_volume(int player, int vol);      // 0..127
+// The OTHER player volume: tenths of a dB in -723..0, straight out of the
+// ROM's own 0..127 table at data_02086384. func_0204fafc recomputes it every
+// frame for every sounding voice (distance attenuation plus whatever fade
+// ramp is running) and sends it as PLAYER_PARAM 6, so unlike the 0..127 one
+// this arrives while the sound is already playing and has to reach it.
+void sd_seq_set_volume_db10(int player, int db10);
 void sd_seq_set_pan(int player, int pan);         // 0..127, 64 centre
 void sd_seq_frame(void);                          // one 192Hz sequencer frame
 void sd_seq_reset(void);
 int  sd_seq_active(int player);
+
+// The bit per player the hardware publishes in SNDSharedWork.playerStatus.
+// Bit p is set while player p still owns the sequence it was started with.
+sd_u32 sd_seq_player_mask(void);
 
 // ---- output device ------------------------------------------------------
 
@@ -171,5 +186,20 @@ extern "C" void sdat_host_tick(void);
 // SM64DS_SND_TRACE, shared: the consumer reads the environment and arms both
 // its own opcode log and Sound::Play's two cull reports in sound_abi.cpp.
 extern "C" int g_snd_trace_play;
+
+// ---- voice trace --------------------------------------------------------
+
+// SM64DS_VOICE_TRACE=1. Latched once in sd_consumer_init, off by default,
+// and every call site is guarded by the flag so it costs one predictable
+// branch when off. Lines are tagged [vt] and cover the WHOLE chain a sound
+// effect travels: the ARM9's own voice records, the queue commands, the
+// sequencer's players and tracks, and the 16 mixer channels.
+extern "C" int g_voice_trace;
+void sd_vtrace(const char *fmt, ...);
+#define SD_VT(...) do { if (g_voice_trace) sd_vtrace(__VA_ARGS__); } while (0)
+
+// Snapshot the ARM9-side voice bookkeeping and print it if it moved. Called
+// once per hosted tick; also called by name at the interesting moments.
+void sd_vtrace_arm9_census(const char *when);
 
 #endif

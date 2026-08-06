@@ -20,8 +20,39 @@
 #include "sdat.h"
 
 #include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+// ---- the voice trace ----------------------------------------------------
+//
+// SM64DS_VOICE_TRACE=1. Every allocation and every release of a voice, with
+// the reason, at all three levels a sound effect travels through:
+//
+//   arm9   the 16 voice records func_0204fc40 builds, handed out by
+//          func_0204f364 and returned by func_0204f2d4, plus the 3D
+//          positional slots func_02048720 hands out. This is the level the
+//          game itself budgets against, and the only one that can answer
+//          "why did Sound::Play refuse". Printed by sd_vtrace_arm9_census in
+//          consumer.cpp, which is where those globals are reachable.
+//   play   sequencer players starting, stopping and finishing.
+//   chan   the 16 mixer channels, and every note that never got one.
+//
+// The switch is latched once (sd_mix_reset runs before any sound can) and
+// every call site is behind SD_VT, so with the variable off this costs one
+// predictable branch per event and nothing else.
+extern "C" int g_voice_trace;
+int g_voice_trace;
+
+void sd_vtrace(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    fputs("[vt] ", stderr);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+}
 
 namespace {
 
@@ -80,6 +111,11 @@ double db10_to_gain(int db10)
 
 void sd_mix_reset(void)
 {
+    static int latched;
+    if (!latched) {
+        latched = 1;
+        g_voice_trace = getenv("SM64DS_VOICE_TRACE") != 0;
+    }
     memset(g_ch, 0, sizeof g_ch);
     g_tickAcc = 0;
 }
@@ -94,14 +130,27 @@ int sd_mix_alloc(int priority)
         if (g_ch[i].priority > priority) continue;
         if (best < 0 || g_ch[i].priority < g_ch[best].priority) best = i;
     }
-    if (best >= 0) g_ch[best].active = 0;
+    if (best < 0) {
+        SD_VT("chan ALLOC FAILED: all 16 sounding, none at or below "
+              "priority %d\n", priority);
+        return -1;
+    }
+    SD_VT("chan %2d STOLEN for priority %d (victim priority %d)\n", best,
+          priority, g_ch[best].priority);
+    g_ch[best].active = 0;
     return best;
 }
 
 void sd_mix_start(int ch, const SdatWave *w, const SdatNote *n,
                   int volume_db10, int pan, double rate, int priority)
 {
-    if (ch < 0 || ch >= SD_CHANNELS || !w || !w->pcm || !w->totalSamples) return;
+    if (ch < 0 || ch >= SD_CHANNELS || !w || !w->pcm || !w->totalSamples) {
+        SD_VT("chan %2d start REFUSED: empty wave\n", ch);
+        return;
+    }
+    SD_VT("chan %2d start: %u samples%s, %d dB10, pan %d, prio %d\n", ch,
+          (unsigned)w->totalSamples, w->loop ? " looping" : "", volume_db10,
+          pan, priority);
     Channel &c = g_ch[ch];
     unsigned s = c.seq + 1;
     memset(&c, 0, sizeof c);
@@ -139,15 +188,24 @@ void sd_mix_set_pan(int ch, int pan)
     g_ch[ch].pan = pan < 0 ? 0 : (pan > 127 ? 127 : pan);
 }
 
-void sd_mix_release(int ch)
+void sd_mix_set_vol(int ch, int volume_db10)
 {
     if (ch < 0 || ch >= SD_CHANNELS || !g_ch[ch].active) return;
+    g_ch[ch].volDb10 = volume_db10 < -723 ? -723
+                     : (volume_db10 > 0 ? 0 : volume_db10);
+}
+
+void sd_mix_release(int ch, const char *why)
+{
+    if (ch < 0 || ch >= SD_CHANNELS || !g_ch[ch].active) return;
+    SD_VT("chan %2d release: %s\n", ch, why);
     g_ch[ch].state = ENV_RELEASE;
 }
 
-void sd_mix_kill(int ch)
+void sd_mix_kill(int ch, const char *why)
 {
     if (ch < 0 || ch >= SD_CHANNELS) return;
+    if (g_ch[ch].active) SD_VT("chan %2d kill: %s\n", ch, why);
     g_ch[ch].active = 0;
     g_ch[ch].state = ENV_OFF;
 }
@@ -179,7 +237,11 @@ void sd_mix_frame(void)
             break;
         case ENV_RELEASE:
             c.ampl -= c.releaseRate;
-            if (c.ampl <= AMPL_MIN) { c.active = 0; c.state = ENV_OFF; }
+            if (c.ampl <= AMPL_MIN) {
+                SD_VT("chan %2d off: envelope release reached silence\n", i);
+                c.active = 0;
+                c.state = ENV_OFF;
+            }
             break;
         default:
             break;
@@ -220,6 +282,8 @@ void sd_mix_render(sd_s16 *dst, int frames)
                         c.pos = c.loopStart + fmod(c.pos - c.loopStart, span);
                         idx = (sd_u32)c.pos;
                     } else {
+                        SD_VT("chan %2d off: sample ran out (%u samples, "
+                              "no loop)\n", i, (unsigned)c.total);
                         c.active = 0;
                         break;
                     }
