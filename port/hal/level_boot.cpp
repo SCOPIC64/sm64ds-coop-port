@@ -279,6 +279,11 @@ extern "C" int port_level_nth(int i, int *id, const char **name)
 extern "C" int port_level_has_own_sinits(void)
 { return port_level_desc()->own_sinits; }
 
+/* hal/ov009_boot.cpp -- runs ov009's four static initialisers. Forward-declared
+   here because port_stage_a_boot (below) calls it on every level-1 boot, before
+   the block near the file's end that also declares it for a2_seat's use. */
+extern "C" void port_ov009_sinits(void);
+
 /* IDEMPOTENT PER LEVEL, and gate 31 is why. d->patch() rewrites the overlay
    image's own pointers in place, which is not something that can be done
    twice: a second pass would rebase already-rebased words. The cache was an
@@ -680,6 +685,25 @@ void *port_stage_a_boot(void *mc, int spawn)
         data_0209f220[0] = sf ? std::atoi(sf) : 1;
     }
     data_0209f340 = (unsigned char *)o;
+
+    /* THE LEVEL OVERLAY'S OWN STATIC INITIALISERS, on EVERY boot, where the DS
+       runs them: after the overlay is mounted and the level is current, before
+       LoadClsnAndObjects spawns anything. Every SharedFilePtr the level's own
+       actors load through is Construct'd there (ov009: the Flag's model/anim
+       pair, data_ov009_02113eb8/eb0), so an actor that spawns before the sinit
+       has run reads a zeroed SharedFilePtr and Model::LoadFile faults on fileID
+       0. That is exactly what an out-of-bounds death did: HitDeathPlane sends
+       the player back to the castle grounds (level 1), the boot mounts ov009 and
+       LoadClsnAndObjects spawns a Flag -- but the ov009 sinits had only ever run
+       at process start (port_stage_a2_seat), so a session that BOOTED into a
+       different level (e.g. Whomp's Fortress) and then fell out never ran them.
+       Riding the boot puts them on every entry, the death re-entry included, the
+       way the ROM does; port_ov009_sinits is idempotent, so the fresh-boot
+       a2_seat call and this one do not double-construct. Guarded to the booted
+       level's own overlay, so the castle grounds' file pointers are not seated
+       under a level that never reads them. */
+    if (spawn && port_level_has_own_sinits())
+        port_ov009_sinits();
 
     /* THE SOUND ROW, where Stage::InitResources seats it: after the overlay is
        up and the level is current, before LoadClsnAndObjects. This is the block
