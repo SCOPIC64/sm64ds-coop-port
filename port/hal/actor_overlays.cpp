@@ -100,6 +100,19 @@ void __sinit_ov100_02147a70(void);
 void __sinit_ov100_02147bc0(void);
 void __sinit_ov100_02147d7c(void);
 
+/* ---- gate 41-42: ov010, level 2's own overlay, per symbol ----------------
+   TRAP, LIGHT_BEAM (which shares TRAP's vtable and methods) and
+   PEACH_PAINTING. Already mounted whole for the loaders; this is the second,
+   per-symbol mount so the actor code reaches its SpawnInfo records and CLPS
+   statics by name -- the gate-17 shape of ov009. Three sinits, all
+   SharedFilePtr construction and one five-element Vector3 copy; no state
+   table, because none of the three classes dispatches a pointer-to-member. */
+void port_ov010_pack_check(void);
+void port_ov010_syms_patch(void);
+void __sinit_ov010_0211203c(void);
+void __sinit_ov010_0211211c(void);
+void __sinit_ov010_0211215c(void);
+
 /* ov102: QUESTION_BLOCK (and the bob-omb, the koopa shell, the warp pipe and
    the rest of the level-furniture set other levels name). Its CODE has been
    compiled since gate 19 -- the cannon's link closure reached two of its
@@ -277,6 +290,75 @@ g_butterfly_states[] = {
     {data_ov100_02147e50, 0x021415bc, func_ov100_021415bc},
     {data_ov100_02147e58, 0x0214109c, func_ov100_0214109c},
 };
+
+/* ---- gate 40: the STAR_DOOR's eight callback halves -----------------------
+   __sinit_ov100_02147a70 builds five two-pair callback nodes
+   (data_ov100_02148974/84/94/54/64) out of eight {function, delta} statics at
+   0x0214833c..0x0214836c, and Door::Behavior (the config's _ZN4Door* family,
+   the STAR door) dispatches the second pair of whichever node its +0x110
+   pointer holds. Those statics carry DS code addresses, so the host bodies are
+   seated over the SOURCE side before the sinit copies them -- the rabbit's
+   treatment, for a class whose Behavior needs no host copy: the matched
+   Door::Behavior forms its PMF over a COMPLETE local `struct Base {}`, so
+   MSVC's smallest representation applies and the delta-0 pair is just the
+   function pointer. All eight funcs are matched src. */
+extern "C" {
+struct PortPmfSD { unsigned fn; int delta; };
+extern PortPmfSD data_ov100_02148334[], data_ov100_0214833c[],
+    data_ov100_02148344[], data_ov100_0214834c[], data_ov100_02148354[],
+    data_ov100_0214835c[], data_ov100_02148364[], data_ov100_0214836c[];
+int func_ov100_02145948(void *, void *); int func_ov100_02145988(void *, void *);
+int func_ov100_02145ab4(void *); int func_ov100_02145b10(void *, void *);
+int func_ov100_02145b7c(int, void *); int func_ov100_02145b9c(void *, void *);
+int func_ov100_02145c2c(void *); int func_ov100_02145c58(void *, void *);
+}
+
+/* Door::Behavior calls the seated pointer as `(base->*pmf)(res)` -- a
+   pointer-to-member over a COMPLETE empty Base, which MSVC lowers to a plain
+   __thiscall call (this in ecx, the one arg on the stack). __fastcall over
+   (self, edx-dummy, arg) captures the same two ABI slots the same way every
+   vtable thunk in the port does -- ecx=this, the dummy eats the nonexistent
+   edx, the one real arg comes off the stack -- and forwards to the __cdecl
+   func body (self and arg both on the stack). The two funcs that take only
+   (self) drop the arg. */
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch adapted to the port's __fastcall thunk ABI.
+static void __fastcall sd_cb_02145948(void *self, void *, void *arg) { func_ov100_02145948(self, arg); }
+static void __fastcall sd_cb_02145988(void *self, void *, void *arg) { func_ov100_02145988(self, arg); }
+static void __fastcall sd_cb_02145b9c(void *self, void *, void *arg) { func_ov100_02145b9c(self, arg); }
+static void __fastcall sd_cb_02145b7c(void *self, void *, void *arg) { func_ov100_02145b7c(0, arg); }
+static void __fastcall sd_cb_02145ab4(void *self, void *, void *)    { func_ov100_02145ab4(self); }
+static void __fastcall sd_cb_02145b10(void *self, void *, void *arg) { func_ov100_02145b10(self, arg); }
+static void __fastcall sd_cb_02145c2c(void *self, void *, void *)    { func_ov100_02145c2c(self); }
+static void __fastcall sd_cb_02145c58(void *self, void *, void *arg) { func_ov100_02145c58(self, arg); }
+
+static const struct { PortPmfSD *slot; unsigned rom; void *host; }
+g_star_door_callbacks[] = {
+    {data_ov100_02148334, 0x02145948, (void *)sd_cb_02145948},
+    {data_ov100_0214833c, 0x02145988, (void *)sd_cb_02145988},
+    {data_ov100_02148344, 0x02145b9c, (void *)sd_cb_02145b9c},
+    {data_ov100_0214834c, 0x02145b7c, (void *)sd_cb_02145b7c},
+    {data_ov100_02148354, 0x02145ab4, (void *)sd_cb_02145ab4},
+    {data_ov100_0214835c, 0x02145b10, (void *)sd_cb_02145b10},
+    {data_ov100_02148364, 0x02145c2c, (void *)sd_cb_02145c2c},
+    {data_ov100_0214836c, 0x02145c58, (void *)sd_cb_02145c58},
+};
+
+static void port_star_door_callbacks_seat(void)
+{
+    for (unsigned i = 0;
+         i < sizeof g_star_door_callbacks / sizeof g_star_door_callbacks[0];
+         ++i) {
+        PortPmfSD *p = g_star_door_callbacks[i].slot;
+        if (p->fn != g_star_door_callbacks[i].rom || p->delta != 0) {
+            std::fprintf(stderr, "FATAL: StarDoor callback %u: the mount holds "
+                         "%08x/%d, the ROM's own table says %08x/0 -- WRONG "
+                         "BYTES\n", i, p->fn, p->delta,
+                         g_star_door_callbacks[i].rom);
+            std::abort();
+        }
+        p->fn = (unsigned)(size_t)g_star_door_callbacks[i].host;
+    }
+}
 
 /* ---- ov089's key-model tables POINT OUT OF ov089 --------------------------
    LoadKeyModels indexes two arrays of SharedFilePtr POINTERS at ov089
@@ -518,6 +600,9 @@ extern "C" void port_actor_overlays_sinits(void)
     port_butterfly_states_seat();
     port_fish_states_seat();
     port_door_callbacks_seat();
+    /* gate 40: seat the STAR door's eight callback halves over the SOURCE
+       statics before __sinit_ov100_02147a70 copies them into its nodes. */
+    port_star_door_callbacks_seat();
     __sinit_ov100_021473bc();
     __sinit_ov100_021474e8();
     __sinit_ov100_021475a4();
@@ -525,6 +610,13 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov100_02147a70();
     __sinit_ov100_02147bc0();
     __sinit_ov100_02147d7c();
+
+    /* gate 41-42: level 2's own overlay, per symbol. No state seat. */
+    port_ov010_pack_check();
+    port_ov010_syms_patch();
+    __sinit_ov010_0211203c();
+    __sinit_ov010_0211211c();
+    __sinit_ov010_0211215c();
 
     port_ov102_pack_check();
     port_ov102_syms_patch();

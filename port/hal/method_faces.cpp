@@ -409,6 +409,37 @@ int _ZN9LakituBro13InitResourcesEv(void *self)
 { return ((LakituBro *)self)->LakituBro::InitResources(); }
 }
 
+/* ---- gate 40: ov100's STAR_DOOR (the config's _ZN4Door* family) ----------
+   Two C-named references onto method definitions, the gate-18 shape. The star
+   door's InitResources and Behavior are real C++ methods on `Door` (Door.h);
+   its Render, CleanupResources, OnPendingDestroy and D0 are already C-named in
+   src, and slot 16 reuses ac_d1_door (the member is a CommonModel at 0xd4, the
+   real door's layout), so only these two need a face. */
+#include "Door.h"
+extern "C" {
+int _ZN4Door13InitResourcesEv(void *self)
+{ return ((Door *)self)->Door::InitResources(); }
+int _ZN4Door8BehaviorEv(void *self)
+{ return ((Door *)self)->Door::Behavior(); }
+}
+
+/* ---- gate 41: ov010's TRAP (shared by LIGHT_BEAM) ------------------------
+   Three C-named references onto method definitions, the gate-18 shape. TRAP's
+   InitResources, Behavior and Render are real C++ methods; its
+   CleanupResources and D0 are already C-named in src, and slots 16/17 trap
+   (nothing destroys one on the castle-interior boot -- the gate-17 reading).
+   PEACH_PAINTING (gate 42) is blocked on ov052/RollingRock and unregistered,
+   so its faces are not written. */
+#include "Trap.h"
+extern "C" {
+int _ZN4Trap13InitResourcesEv(void *self)
+{ return ((Trap *)self)->Trap::InitResources(); }
+int _ZN4Trap8BehaviorEv(void *self)
+{ return ((Trap *)self)->Trap::Behavior(); }
+int _ZN4Trap6RenderEv(void *self)
+{ return ((Trap *)self)->Trap::Render(); }
+}
+
 /* Three more C-named references onto method definitions, reached through
    ov085's classes: the two Player talk-state reads the rabbit's caught
    branch consults, and ModelAnim::Render with an explicit scale (which the

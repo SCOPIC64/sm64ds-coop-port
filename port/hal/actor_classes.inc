@@ -95,6 +95,27 @@ void hal_fill_fish_vtable(void);
 extern unsigned char Door_SpawnInfo[];                  /* ov100 0x02148164 */
 void *Door_Spawn(void);                                 /* ov100 0x0214589c */
 void hal_fill_door_vtable(void);
+/* ---- gate 40: ov100's STAR_DOOR (354) ----
+   NOT the DOOR above. Config swapped the two doors' names: the _ZN4Door*
+   family is really the STAR door (RTTI daStarGate_c), so it has its own six
+   methods and its own vtable fill (hal_fill_star_door_vtable), distinct from
+   the real door's hal_fill_door_vtable. Its SpawnInfo is already mounted by
+   ov100_syms.txt at 0x021483a8; the record's +4 halfword reads 354. See the
+   head of slice_gate40.txt and the gate-40 section of hal/actor_classes.cpp. */
+extern unsigned char StarDoor_SpawnInfo[];              /* ov100 0x021483a8 */
+void *StarDoor_Spawn(void);                             /* ov100 0x021461d4 */
+void hal_fill_star_door_vtable(void);
+/* ---- gate 41: ov010's TRAP (36) and LIGHT_BEAM (37) ----
+   Level 2's own overlay, mounted per symbol (ov010_syms.txt). LIGHT_BEAM has
+   no fill of its own: its factory installs _ZTV4Trap, which the TRAP row
+   fills. Both records' +4 halfwords read 36 / 37. */
+extern unsigned char Trap_SpawnInfo[];                  /* ov010 0x02112ac0 */
+void *Trap_Spawn(void);                                 /* ov010 0x02111998 */
+void hal_fill_trap_vtable(void);
+extern unsigned char LightBeam_SpawnInfo[];             /* ov010 0x02112b84 */
+void *LightBeam_Spawn(void);                            /* ov010 0x02111dd0 */
+/* gate 42 PEACH_PAINTING (38) is BLOCKED (ov052/RollingRock); its symbols are
+   mounted but the class is not registered -- see hal/actor_classes.cpp. */
 /* ---- gate 23: ov102's QUESTION_BLOCK ----
    The fifth overlay, and the last id on the castle grounds' skip list that is
    not a 2D system. Its name checks out against the ROM's RTTI
@@ -318,4 +339,15 @@ void hal_fill_king_bob_omb_vtable(void);
     {205, "KOOPA_FLAG", KoopaFlag_SpawnInfo, KoopaFlag_Spawn,                  \
      hal_fill_koopa_flag_vtable},                                              \
     {189, "KING_BOB_OMB", KingBobOmb_SpawnInfo, KingBobOmb_Spawn,              \
-     hal_fill_king_bob_omb_vtable},
+     hal_fill_king_bob_omb_vtable},                                            \
+    /* ---- gates 40-44: levels 1 and 2 (append-only block) ---- */            \
+    {354, "STAR_DOOR", StarDoor_SpawnInfo, StarDoor_Spawn,                     \
+     hal_fill_star_door_vtable},                                              \
+    {36, "TRAP", Trap_SpawnInfo, Trap_Spawn, hal_fill_trap_vtable},            \
+    /* LIGHT_BEAM has no fill of its own: its factory installs _ZTV4Trap,     \
+       which the TRAP row above already fills. */                            \
+    {37, "LIGHT_BEAM", LightBeam_SpawnInfo, LightBeam_Spawn, 0},
+    /* PEACH_PAINTING (38) is BLOCKED, see gate 42 below -- its InitResources
+       spawns a RollingRock (ov052, an overlay the port does not mount) and
+       reads data_ov052_02111e84, so registering it would fault on the first
+       InitResources. Its vtable fill and faces are built but not registered. */
