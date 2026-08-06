@@ -1207,6 +1207,20 @@ foreach(line IN LISTS SLICE14_LINES)
     list(APPEND SLICE14_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Gate 36: the real Stage::InitResources, to replace port_stage_a_boot. The
+# function and all 45 of its direct callees are matched already; this is
+# wiring, not new code. Linked but NOT yet called -- the boot swap comes after
+# the closure resolves. See the head of slice_gate36.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate36.txt" SLICE36_LINES)
+set(SLICE36_SOURCES "")
+foreach(line IN LISTS SLICE36_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE36_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gate 15: the per-frame actor spine (BeforeBehavior/Behavior/AfterBehavior),
 # which is what makes the real WithMeshClsn tracking work -- see the header of
 # slice_gate15.txt for why prev-pos is load-bearing.

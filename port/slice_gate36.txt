@@ -1,0 +1,53 @@
+# Gate 36: the real Stage::InitResources.
+#
+# The port's boot has been port_stage_a_boot, a hand-written subset of this
+# function. The function itself has been sitting in src/ decompiled and unused
+# the whole time: _ZN5Stage13InitResourcesEv.cpp, terminal-floor (4 words
+# diverge from the ROM, a register-rename-only delta, functionally identical).
+# All 45 of its direct callees are matched too. Nothing here is written by
+# hand; this slice is the wiring.
+#
+# What replacing the boot buys, all of it currently blocked on the ROM's
+# teardown having no symmetric build half to undo:
+#   - Stage::CleanupResources can finally run: the twelve level-file
+#     SharedFilePtr releases and the per-area object lists at Stage+0x8bc,
+#     which is the ~50.8KB the port leaks on every level change
+#   - Sound::ResetPlayerVoiceGroup on level change
+#   - Message::ResetAllGlobals on level change
+#   - InitialiseVramGlobals in full, rather than the port_model_vram_reset
+#     slice of it
+#
+# ---- the function itself
+src/_ZN5Stage13InitResourcesEv.cpp
+src/Enable3dEngines.c
+src/ResetInput.c
+src/UnloadArchive.c
+src/LoadTextNarcs.c
+src/LoadArchive.c
+src/Initialise3dGraphics.cpp
+src/InitialiseVramGlobals.c
+src/func_02039218.c
+src/ResetKuppaScript.c
+src/LoadDebugFont.c
+src/IsLevelInsideCastle.c
+src/IsLevelTinyHugeIslandOutside.c
+src/func_020308a8.c
+src/func_0203da3c.c
+src/func_0203dad4.c
+src/func_ov001_020ab2e4.c
+src/engine/fader/_ZN9FaderWipeC1Ev.c
+src/engine/fader/_ZN9FaderWipeD1Ev.c
+src/_ZN5Scene20Initialise3dGraphicsEv.c
+src/_ZN4Heap10SetDefaultEv.cpp
+src/_ZN2GX15DisableAllBanksEv.c
+src/_ZN5Stage12SetVramBanksEv.c
+src/_ZN2GX15SetGraphicsModeEiii.c
+src/_ZN3GXS15SetGraphicsModeEi.cpp
+src/_ZN2GX6DispOnEv.c
+src/_Z17LoadLevelOverlaysi.cpp
+src/_ZN5Stage14LoadGraphics2DEbi.cpp
+src/engine/fader/_ZN9FaderWipe14LoadAndSetFileEt.cpp
+src/_ZN5Sound8SetMusicEjj.c
+src/_ZN5Stage7LoadFogEv.cpp
+src/_ZN5Stage23LoadTextureTransformersEv.cpp
+src/_ZN11ShadowModel8CleanAllEv.cpp
