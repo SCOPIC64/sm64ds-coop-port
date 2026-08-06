@@ -2402,6 +2402,18 @@ int main(void)
             if (selftest && getenv("SM64DS_SELFTEST_PUNCH") &&
                 frame >= 40 && frame <= 42)
                 btn |= 1;
+            /* TONGUE probe: the Yoshi ground-tongue repro. B (punch, bit 1) is
+               the tongue for Yoshi, but the BoB entrance keeps him in
+               St_LevelEnter until roughly frame 195, so a punch has to wait for
+               him to be walking. Press an edge every 40 frames from f210: three
+               frames held so the edge is not missed, long enough between that
+               St_YoshiPower runs to completion and drops back to walk before the
+               next one. Drive it as Yoshi (SM64DS_CHARACTER=3) in BoB
+               (SM64DS_LEVEL=6) with SM64DS_TRACE_STATE=2 to read the tongue
+               state chain 0x020d7ed0 (Init) / 0x020d7504 (Main). */
+            if (selftest && getenv("SM64DS_SELFTEST_TONGUE") &&
+                frame >= 210 && ((frame - 210) % 40) < 3)
+                btn |= 1;
             /* JUMPSPAM probe: the frame-hitch repro. A press edge every
                <period> frames from f20, three frames held so the edge is not
                missed. The default period of 40 is long enough that he lands
@@ -2444,7 +2456,34 @@ int main(void)
                                 frame, want);
                         port_player_set_character(c, want);
                         g_character = g_character_pending = want & 3;
+                        /* prove the swap TOOK: param1 (Player+8) is the live
+                           character index every downstream read keys off, so a
+                           mismatch here is the whole point of the chain failing.
+                           Prints PASS/FAIL so a headless run is a gate, not just
+                           a sequence of fire-and-forget pokes. */
+                        const int got = *(int *)((char *)c + 8) & 3;
+                        fprintf(stderr, "[chr] f%d swap %s: param1=%d want=%d\n",
+                                frame, got == (want & 3) ? "PASS" : "FAIL",
+                                got, want & 3);
                     }
+                }
+            }
+            /* SM64DS_SELFTEST_SWAPMOVE=<n>: one swap to character n, fired late
+               (frame 210) so it lands well after any level's entrance cutscene
+               and while forward is held -- the "switch DURING movement" the F4
+               path is judged by. The door swap must keep him in his walk state
+               across it; the state trace (SM64DS_TRACE_STATE=2) is where that
+               reads. Pair with SM64DS_WINDOW_SELFTEST>=240. */
+            if (selftest && frame == 210) {
+                const char *mv = getenv("SM64DS_SELFTEST_SWAPMOVE");
+                if (mv && *mv) {
+                    const int want = atoi(mv) & 3;
+                    fprintf(stderr, "[chr] f210 mid-run swap -> %d\n", want);
+                    port_player_set_character(c, (unsigned)want);
+                    g_character = g_character_pending = want;
+                    const int got = *(int *)((char *)c + 8) & 3;
+                    fprintf(stderr, "[chr] f210 swapmove %s: param1=%d want=%d\n",
+                            got == want ? "PASS" : "FAIL", got, want);
                 }
             }
             /* camera orbit through the game's own reader: func_02009e70
