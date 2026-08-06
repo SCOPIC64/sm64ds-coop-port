@@ -141,7 +141,12 @@ int sd_cnv_vol(int v);
 // Start a sequence. `seqData` points at the SSEQ bytecode (SSEQ base +
 // *(u32*)(base+0x18)) -- exactly what command 0 carries. `sbnk` is the
 // resident bank image. Returns 1 if a player slot was taken.
-int sd_seq_start(int player, const sd_u8 *seqData, const sd_u8 *sbnk);
+// seqBase is the bytecode base EVERY pc in the sequence is measured from --
+// for a SEQARC, the archive's whole DATA block, not the entry. startOff is
+// where this entry begins inside it. The two must stay separate; see the
+// header on the definition.
+int sd_seq_start(int player, const sd_u8 *seqBase, sd_u32 startOff,
+                 const sd_u8 *sbnk);
 void sd_seq_stop(int player);
 void sd_seq_set_volume(int player, int vol);      // 0..127
 // The OTHER player volume: tenths of a dB in -723..0, straight out of the
@@ -201,5 +206,10 @@ void sd_vtrace(const char *fmt, ...);
 // Snapshot the ARM9-side voice bookkeeping and print it if it moved. Called
 // once per hosted tick; also called by name at the interesting moments.
 void sd_vtrace_arm9_census(const char *when);
+
+// The same, for func_0201226c's 0x40-entry looping-handle table. Separate
+// from the voice census because the two pools drain independently: a handle
+// outlives its voice, and only this line shows a handle leak.
+void sd_vtrace_loop_census(const char *when);
 
 #endif

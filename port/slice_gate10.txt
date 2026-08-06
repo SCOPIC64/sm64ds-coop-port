@@ -1202,6 +1202,29 @@ src/func_0205b608.c
 src/func_02052438.c
 src/func_02052420.c
 src/func_0205ad3c.c
+# The OTHER half of the frame's sound maintenance, one level up from the
+# voices, and the last thing func_020132d8 does before the frame ends.
+#
+# func_0201226c is "start this looping sound, or refresh the one I started
+# last frame": it looks the caller's handle up in data_0209b53c and, finding
+# it, marks the entry +6 and returns the same handle; finding nothing, it
+# starts a new sound and hands back a new handle. Refresh, therefore, is the
+# ONLY thing keeping a looping sound alive, and func_020119c8 is the other
+# side of that contract. Once a frame it walks all 0x40 entries, clears the
+# +6 flag on everything that was refreshed, and on everything that was not
+# calls func_02011654 -> func_02011aa0 -> func_0204fa2c: stop the sound,
+# free the slot, point the allocation cursor at it.
+#
+# Nothing in the port ran it, so the table was one-way in exactly the way the
+# voice pool above used to be, with a louder failure. Player::ChangeState
+# zeroes mLoopingSoundHandle on every transition, so the next entry into a
+# sliding state cannot find its old handle and starts a SECOND sound on top
+# of the first, which was never stopped and never will be. Every wall slide,
+# butt slide, hard turn and walk adds one more permanent copy of the same
+# looping effect, summing louder each time.
+src/func_020119c8.c
+src/func_02011654.c
+src/func_02011aa0.c
 src/func_020093d4.c
 src/func_020093f4.c
 src/func_0200ca14.c
