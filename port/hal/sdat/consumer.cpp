@@ -95,6 +95,7 @@ extern int data_02099fb0;            /* the type-9 pool's live count */
 /* The ARM9's per-frame sound maintenance. See sd_sound_frame_host. */
 void func_0204fafc(void);
 int func_0205b274(int blocking);
+void func_020119c8(void *table);     /* the looping-handle reaper */
 }
 
 // The ARM9 half of the voice trace. The switch and the printer live in
@@ -137,6 +138,50 @@ void sd_vtrace_arm9_census(const char *when)
                   "player %s\n", id, n[0x2c], n[0x2d], n[0x3d],
                   sd_seq_active(id) ? "STILL SOUNDING" : "quiet");
     }
+}
+
+// The other pool in the sound stack, one level up from the voices, and the
+// one the voice census cannot see.
+//
+// data_0209b53c is func_0201226c's "start this looping sound, or refresh the
+// one I started last frame" table: an 8-byte header (a birth counter at +0
+// that becomes the handle, a round-robin allocation cursor at +4) followed by
+// 0x40 entries of 0x14 bytes. An entry is LIVE exactly when its first word --
+// the handle its caller is holding -- is non-zero, and +6 is the
+// refreshed-this-frame flag that func_020119c8 clears and then acts on.
+//
+// It gets its own line because a handle can be live here while the voice
+// underneath it is long gone, and because a live count that only ever climbs
+// is the signature of nothing reaping.
+void sd_vtrace_loop_census(const char *when)
+{
+    if (!g_voice_trace) return;
+
+    unsigned char *t = (unsigned char *)data_0209b53c;
+    int live = 0, fresh = 0;
+    for (int i = 0; i < 0x40; i++) {
+        unsigned char *e = t + 8 + i * 0x14;
+        if (*(int *)e == 0) continue;
+        live++;
+        if (e[6]) fresh++;
+    }
+
+    // How many sequencer players are actually running is what "louder"
+    // means: each leaked handle leaves one more player sounding the same
+    // sequence, and they sum.
+    unsigned mask = sd_seq_player_mask();
+    int players = 0;
+    for (unsigned m = mask; m; m &= m - 1) players++;
+
+    static int lastLive = -1, lastFresh = -1, lastPlayers = -1;
+    if (live == lastLive && fresh == lastFresh && players == lastPlayers)
+        return;
+    lastLive = live; lastFresh = fresh; lastPlayers = players;
+
+    sd_vtrace("3d loop handles live %2d/64 refreshed %2d, births %d, "
+              "seq players sounding %2d  (%s)%s\n",
+              live, fresh, *(int *)t, players, when,
+              live == 0x40 ? "  <- HANDLE TABLE FULL" : "");
 }
 
 namespace {
@@ -210,15 +255,23 @@ void exec(const Node *n)
         // a = voice id (the byte at voice+0x3c), b = sequence data base,
         // c = offset of this entry within it, d = resident SBNK.
         //
-        // b + c is the SEQARC case: func_02051a98 passes the SSAR's DATA
+        // b and c are the SEQARC case: func_02051a98 passes the SSAR's DATA
         // base in b and the entry's own offset in c, so a sound effect is
-        // one entry inside a packed archive. Music passes c = 0, so the
-        // same addition covers both.
+        // one entry inside a packed archive. Music passes c = 0, so the same
+        // pair covers both.
+        //
+        // They go to sd_seq_start SEPARATELY, and adding them here was a bug
+        // rather than a shortcut: b is the base every branch target in the
+        // stream is measured from, so an entry folded into the base sends
+        // its own first jump 0xc off into the neighbouring entry. See the
+        // header on sd_seq_start.
         int slot = n->a & 31;
-        const sd_u8 *seq = (const sd_u8 *)(size_t)(unsigned)(n->b + n->c);
+        const sd_u8 *base = (const sd_u8 *)(size_t)(unsigned)n->b;
+        sd_u32 off = (sd_u32)n->c;
         const sd_u8 *bnk = (const sd_u8 *)(size_t)(unsigned)n->d;
-        if (!seq || !bnk) break;
+        if (!base || !bnk) break;
         if (g_voice_trace) {
+            const sd_u8 *seq = base + off;
             long rel = (seq >= g_sdat.base && seq < g_sdat.base + g_sdat.size)
                        ? (long)(seq - g_sdat.base) : -1;
             sd_vtrace("cmd  START player %2d seq sdat+0x%lx%s\n", slot, rel,
@@ -229,7 +282,7 @@ void exec(const Node *n)
         // slots by now; this fills any that are still empty and is a no-op
         // otherwise.
         sdat_link_bank_waves((sd_u8 *)bnk);
-        sd_seq_start(slot, seq, bnk);
+        sd_seq_start(slot, base, off, bnk);
         break;
     }
     case 0x01:                          // STOP_SEQ
@@ -338,6 +391,20 @@ void publish_player_status(void)
 //
 // If the port grows streamed sound, those two come back here, not somewhere
 // new.
+//
+// AND ONE CALL FROM ONE LEVEL UP. func_020132d8 is the game's sound frame and
+// func_0204f03c is only its second-to-last line; the last is
+// func_020119c8(data_0209b53c), the looping-handle reaper, and it belongs
+// here for the same reason func_0204fafc does. func_0201226c hands a caller a
+// handle and keeps the sound alive only while the caller keeps presenting it
+// back; func_020119c8 is the half that notices when a caller stopped asking
+// and stops the sound. Left out, no looping sound in the game is ever stopped
+// on purpose. Every stop in an 1800-frame trace was a voice STEAL.
+//
+// Its position is the ROM's, after the flush rather than before: on hardware
+// the reaper's stop commands go into the queue behind everything
+// func_0204f03c already flushed, and the ARM7 picks them up on its own. Here
+// sd_consumer_tick drains immediately after, which is the same order.
 void sd_sound_frame_host(void)
 {
     publish_player_status();
@@ -345,6 +412,7 @@ void sd_sound_frame_host(void)
         ;
     func_0204fafc();
     func_0205b070(0);
+    func_020119c8(data_0209b53c);
 }
 
 // The game's own sound init, minus the four things that are hardware.
@@ -457,6 +525,7 @@ void sd_consumer_tick(void)
     func_0205b070(0);
     drain();
     sd_vtrace_arm9_census("after drain");
+    sd_vtrace_loop_census("after drain");
 }
 
 // The seam. See the header comment for why this, and not a bigger pool.

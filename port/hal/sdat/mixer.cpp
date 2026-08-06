@@ -148,9 +148,17 @@ void sd_mix_start(int ch, const SdatWave *w, const SdatNote *n,
         SD_VT("chan %2d start REFUSED: empty wave\n", ch);
         return;
     }
-    SD_VT("chan %2d start: %u samples%s, %d dB10, pan %d, prio %d\n", ch,
+    // The rate is the field an ear notices and a count cannot: it is sample
+    // frames consumed per output frame, so 1.0 plays the wave at the pitch
+    // it was recorded at and 0.25 is two octaves down AND four times as
+    // long. "Pitched down and stretched and dragging on" is this one number
+    // coming out small, and it belongs next to the length it multiplies.
+    SD_VT("chan %2d start: %u samples%s, %d dB10, pan %d, prio %d, "
+          "rate %.4f (%u Hz wave, %.0f ms)\n", ch,
           (unsigned)w->totalSamples, w->loop ? " looping" : "", volume_db10,
-          pan, priority);
+          pan, priority, rate, (unsigned)w->sampleRate,
+          rate > 0.0 ? (double)w->totalSamples * 1000.0 / (rate * SD_MIX_RATE)
+                     : 0.0);
     Channel &c = g_ch[ch];
     unsigned s = c.seq + 1;
     memset(&c, 0, sizeof c);

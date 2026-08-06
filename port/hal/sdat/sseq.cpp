@@ -169,6 +169,15 @@ void start_note(Player &pl, int pi, int ti, Track &tk, int note, int vel,
               "range\n", pi, ti, key, rate);
         return;
     }
+    // The inputs the rate is made of, printed whenever the note lands more
+    // than a semitone from the wave's own pitch. A sample that comes out low
+    // and long is one of these being wrong, and which one cannot be read
+    // back out of the rate alone.
+    if (semis < -1.0 || semis > 1.0)
+        SD_VT("note p%d t%d key %d: %+.2f semitones off base %d "
+              "(transpose %d, bend %d, range %d) -> rate %.4f\n",
+              pi, ti, key, semis, n.baseNote, tk.transpose, tk.bend,
+              tk.bendRange, rate);
 
     int ch = sd_mix_alloc(tk.priority);
     if (ch < 0) {
@@ -451,9 +460,38 @@ sd_u32 sd_seq_player_mask(void)
     return m;
 }
 
-int sd_seq_start(int p, const sd_u8 *seqData, const sd_u8 *sbnk)
+// startOff is the entry's offset inside seqBase, and it stays SEPARATE from
+// the base on purpose.
+//
+// Every pc in this player -- the initial one, every 0x94 jump, every 0x95
+// call, every 0x93 open-track -- is an offset from seqBase. In a SEQARC that
+// base is the archive's whole DATA block and the entry is somewhere inside
+// it, so folding the entry offset into the base (seqBase = base + entry, pc
+// = 0) reads correctly for exactly as long as the stream runs straight: the
+// first branch then lands at base + entry + target instead of base + target,
+// short by nothing on entry 0 and by the entry's own offset on every other
+// one.
+//
+// What that sounds like is the second half of the sliding-effect report.
+// SEQARC entry 67 at archive offset 0xd01 is a looping effect -- random
+// detune, random volume, one note, rest, jump back to 0xd23 -- and folded,
+// its jump landed 0xd01 further on, in the middle of another entry, on a
+// byte that reads as note 0. Note 0 under that track's transpose of -24 is
+// 60 semitones below the instrument's base note, so a 792-sample 16 kHz wave
+// came out five octaves down and ran 1669 ms instead of 49:
+//
+//   [vt] note p2 t0 key 0: -60.91 semitones off base 60 (transpose -24,
+//        bend -29, range 2) -> rate 0.0145
+//   [vt] chan  0 start: 792 samples, -17 dB10, pan 64, prio 64,
+//        rate 0.0145 (16000 Hz wave, 1669 ms)
+//
+// and a pc walking through data rather than code rarely meets an end-of-track
+// with an empty stack, so the track does not die either. Pitched down,
+// stretched out, and dragging on: one offset applied twice.
+int sd_seq_start(int p, const sd_u8 *seqBase, sd_u32 startOff,
+                 const sd_u8 *sbnk)
 {
-    if (p < 0 || p >= SD_PLAYERS || !seqData) return 0;
+    if (p < 0 || p >= SD_PLAYERS || !seqBase) return 0;
     /* PORT_SSEQ_TRACE=1: every start with the stream's identity, so a later
        abnormal track death can be matched to what was actually started on
        that player. The 2026-08-05 session died at pc 6664 on a player whose
@@ -462,11 +500,13 @@ int sd_seq_start(int p, const sd_u8 *seqData, const sd_u8 *sbnk)
         static int trace = -1;
         if (trace < 0) trace = getenv("PORT_SSEQ_TRACE") != 0;
         if (trace) {
-            long rel = (seqData >= g_sdat.base &&
-                        seqData < g_sdat.base + g_sdat.size)
-                       ? (long)(seqData - g_sdat.base) : -1;
-            fprintf(stderr, "[sseq] start player %d seq %p (sdat+0x%lx)\n",
-                    p, (const void *)seqData, rel);
+            const sd_u8 *entry = seqBase + startOff;
+            long rel = (entry >= g_sdat.base &&
+                        entry < g_sdat.base + g_sdat.size)
+                       ? (long)(entry - g_sdat.base) : -1;
+            fprintf(stderr, "[sseq] start player %d seq %p + 0x%lx "
+                    "(sdat+0x%lx)\n", p, (const void *)seqBase,
+                    (unsigned long)startOff, rel);
         }
     }
     SD_VT("play %2d start\n", p);
@@ -475,7 +515,7 @@ int sd_seq_start(int p, const sd_u8 *seqData, const sd_u8 *sbnk)
     Player &pl = g_pl[p];
     memset(&pl, 0, sizeof pl);
     pl.active = 1;
-    pl.seq = seqData;
+    pl.seq = seqBase;
     pl.sbnk = sbnk;
     pl.tempo = 120;
     pl.tempoCount = 0;
@@ -484,7 +524,7 @@ int sd_seq_start(int p, const sd_u8 *seqData, const sd_u8 *sbnk)
 
     Track &t0 = pl.tr[0];
     t0.active = 1;
-    t0.pc = 0;
+    t0.pc = startOff;
     t0.volume = 127; t0.expression = 127; t0.pan = 64;
     t0.bendRange = 2; t0.priority = 64; t0.noteWait = 1;
 

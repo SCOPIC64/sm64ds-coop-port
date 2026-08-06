@@ -57,14 +57,15 @@ static int start_seq(int id)
 
     printf("SEQ %d: file=%u bank=%u (file %u, %d wavearcs linked) vol=%d\n",
            id, fileId, bankId, rd32(be), linked, vol);
-    if (!sd_seq_start(0, bytecode, sbnk)) return 0;
+    if (!sd_seq_start(0, bytecode, 0, sbnk)) return 0;
     sd_seq_set_volume(0, vol);
     return 1;
 }
 
 // Resolve one entry of a SEQARC. This is the shape SM64DS's sound effects
 // take: func_02051a98 passes the archive's DATA base and the entry's own
-// offset separately, and the consumer adds them.
+// offset separately, and they stay separate all the way down -- the base is
+// what every branch target in the stream is measured from.
 static int start_sfx(int arc, int entry, int bankOverride)
 {
     sd_u8 *ae = sdat_info_entry(SDAT_REC_SEQARC, (sd_u32)arc);
@@ -104,7 +105,7 @@ static int start_sfx(int arc, int entry, int bankOverride)
     printf("SEQARC %d entry %d: dataOff=%u entryOff=%u bank=%u "
            "(%d wavearcs linked) vol=%d\n",
            arc, entry, dataOff, off, bankId, linked, vol);
-    if (!sd_seq_start(0, ssar + dataOff + off, sbnk)) return 0;
+    if (!sd_seq_start(0, ssar + dataOff, off, sbnk)) return 0;
     sd_seq_set_volume(0, vol);
     return 1;
 }
