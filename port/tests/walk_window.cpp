@@ -830,6 +830,63 @@ static short fc_yaw;             /* heading from the pivot to the eye */
 static short fc_pitch;           /* elevation of the eye above the pivot */
 static int fc_dist;              /* fixed-point world units */
 
+/* ---- WHOSE NUMBER THE DISTANCE IS -------------------------------------
+   The ROM's. func_02009e70 does not store a camera distance, it CONVERGES
+   one. Every frame the gameplay state does
+
+       Math_Function_0203b14c(&dist, sl, 0x400, r7 + 0x20000, 0x100);
+
+   where sl is the target the camera's own mode block carries -- the block
+   at +0x13c, its +0x20 field, scaled through func_020093f4 by the camera's
+   +0x104. So LenVec3(eye - at) off the actor is a MOVING number, and one
+   sample of it only means anything after the approach has settled.
+
+   The rig used to take exactly one sample, in fc_seed, and hold it for the
+   rest of the session. That is right for the F1 toggle it was written for
+   -- the camera has long since settled, so the sample is the settled value
+   and the toggle does not move the picture. It is wrong at a LEVEL ENTRY,
+   which is the other place the seed fires (boot, and the level handoff):
+   the entrance parks the camera at the far end of its approach, so the
+   sample IS the transient. Measured at the entry frame against what the
+   same camera reads ninety frames on, with the approach long done:
+
+       level 1  castle grounds   805 sampled, 840 settled   (-4%)
+       level 2                  1025 sampled, 763 settled  (+34%)
+       level 6  Bob-omb Bfield  2040 sampled, 806 settled  (+153%)
+       level 7                  1501 sampled, 561 settled  (+168%)
+
+   The castle grounds is where the rig was built and it lands within 4%,
+   which is why this went unnoticed; Bob-omb Battlefield's entrance swoops
+   in from two and a half times the gameplay distance, and the rig froze the
+   first frame of the swoop. Warping in from the castle it is plainer still:
+   the rig sat at 805 all through the castle, jumped to 2040 on the handoff
+   frame, and stayed there while the game's own camera came down to 840.
+
+   So the rig stops treating the distance as its own. It reads the actor
+   every frame, which is the number func_02009e70 spent that frame
+   converging, and the entrance swoop plays through the rig the way it plays
+   on hardware. The zoom control still wins when the player uses it: that
+   sets fc_dist_owned and the tracking stands down until the next seed hands
+   the distance back.
+
+   One rule for both rig modes, freecam included. The freecam orbits the
+   Camera actor's own look-at rather than Mario, so it is pinned to the same
+   camera and the same distance reads right there too; a player who wants to
+   hold a distance while inspecting something takes it with one press of the
+   zoom, which is the control that already meant that. */
+static int fc_dist_owned;        /* the player has zoomed; stop tracking */
+
+/* the Camera actor's own eye-to-look-at length */
+static int fc_cam_dist(void *cam)
+{
+    const char *k = (const char *)cam;
+    const int *at = (const int *)(k + 0x80);
+    const int *eye = (const int *)(k + 0x8c);
+    int d[3] = {eye[0] - at[0], eye[1] - at[1], eye[2] - at[2]};
+    int n = LenVec3(d);
+    return n < 0x40000 ? 0x40000 : n;
+}
+
 /* the analog rig's own pivot: Mario's position lifted to about chest height
    and eased, so the picture does not carry the per-frame jitter of a walk
    cycle into the lens */
@@ -868,17 +925,18 @@ static void fc_eye(const int *pivot, int *eye)
 }
 
 /* seed the rig from wherever the Camera actor is, so the toggle does not
-   move the picture */
+   move the picture. The distance goes back to being the game's (the block
+   above): a seed is the point at which the rig has no framing of its own to
+   defend, which is exactly when the ROM's number should be in charge. */
 static void fc_seed(void *cam)
 {
     char *k = (char *)cam;
     int *at = (int *)(k + 0x80);
     int *eye = (int *)(k + 0x8c);
-    int d[3] = {eye[0] - at[0], eye[1] - at[1], eye[2] - at[2]};
     fc_yaw = *(short *)(k + 0x17c);
     fc_pitch = Vec3_VertAngle(eye, at);
-    fc_dist = LenVec3(d);
-    if (fc_dist < 0x40000) fc_dist = 0x40000;
+    fc_dist = fc_cam_dist(cam);
+    fc_dist_owned = 0;
 }
 
 /* the analog rig's pivot, stepped once a frame. Eased toward Mario's chest at
@@ -2221,6 +2279,10 @@ int main(void)
                `rig_touched` is what tells the analog auto-recenter to keep its
                hands off -- the player is aiming the camera. */
             int rig_touched = 0;
+            /* the distance the game's camera converged to on the frame just
+               gone -- see the block above fc_seed. Ahead of the zoom keys so
+               a press this frame still lands on top of it. */
+            if (cam && !fc_dist_owned) fc_dist = fc_cam_dist(cam);
             {
                 const int r = fc_stick_rate(stick_rx, CAM_STEP) + mouse_dyaw;
                 if (r) { fc_yaw = (short)(fc_yaw + r); rig_touched = 1; }
@@ -2243,6 +2305,9 @@ int main(void)
                 if (pad_live && (pad.buttons & 0x0200)) zoom += 1;   /* RB */
                 zoom -= mouse_wheel;   /* wheel forward pulls the eye in */
                 if (zoom) {
+                    /* the player has taken the distance off the game; the
+                       tracking above stands down until the next fc_seed */
+                    fc_dist_owned = 1;
                     fc_dist += zoom * (fc_dist >> 5);
                     if (fc_dist < 0x30000) fc_dist = 0x30000;
                     if (fc_dist > 0x2000000) fc_dist = 0x2000000;
