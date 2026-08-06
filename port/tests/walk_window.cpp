@@ -501,6 +501,8 @@ void hal_sub_camera_input(void);
 extern "C" void port_cylinder_clsn_process(void);
 extern "C" void *_ZTV18MovingCylinderClsn[];
 extern "C" void *data_0209ee74;   /* the particle SysTracker (hal/auto_bss) */
+extern "C" void *data_0209f5bc;   /* the installed fader (hal/fader_wipes) */
+extern "C" void *data_0209f324;   /* WIPES, the seven-wipe array */
 extern "C" signed char data_02092110;    /* the staged next level */
 extern "C" unsigned char data_0209f268;  /* the staged next entrance */
 
@@ -1414,6 +1416,19 @@ int main(void)
         void *lvl = port_stage_a_boot(g_mc, boot_spawns);
         level_bmd = *(unsigned short *)((char *)lvl + 8);
         port_stage_a_probe(g_mc);
+        /* PORT_WATCH_FADER=1: who writes the INSTALLED fader's vtable
+           pointer. LoadEntranceObjects installs it during this boot (the
+           r0 ride-through, port/unmatched/LoadEntranceObjects.cpp), and
+           HUD::Behavior dispatches IsAtStart through it every frame, so a
+           write there is fatal a long way from the writer. */
+        if (getenv("PORT_WATCH_FADER") && data_0209f5bc) {
+            fprintf(stderr, "[fwatch] arming write-watch on fader %p "
+                    "(wipes at %p, stride %u)\n", data_0209f5bc,
+                    *(void **)&data_0209f324,
+                    (unsigned)((char *)data_0209f5bc -
+                               (char *)*(void **)&data_0209f324));
+            port_watch_words(data_0209f5bc, 1);
+        }
         if (boot_spawns) {
             port_stage_tree_probe(data_0209f394[0], "PLAYER");
             /* SM64DS_SPAWN_ACTOR=<id>[:<param>][,...]: put one actor of each

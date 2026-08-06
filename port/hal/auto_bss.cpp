@@ -62,8 +62,18 @@ int data_0209d700[8];
 int data_0209d704[8];
 int data_0209d708[8];
 int data_0209d70c[8];
-int data_0209d710[8];
-int data_0209d74c[8];
+/* SIZED BY ROM SPAN, not by the generous default. The eight symbols marked
+   this way are the ones whose delta to the next ROM symbol is bigger than the
+   32-byte default -- they are buffers, and a ROM routine that writes the WHOLE
+   object runs off the end of the host copy and into whatever the linker put
+   next. func_0201b7cc opens the message box with
+   MultiStore_Int(0, &data_0209d74c, 0xf00) and cleared 3808 bytes past the
+   default straight through hal_wipes[0]'s vtable pointer, which HUD::Behavior
+   then dispatched IsAtStart on. Same class as the undersized data_0209f4ae
+   that strayed into MovingCylinderClsn's vtable (hal/actor_vtables.cpp).
+   Re-audit with the delta-to-next-symbol rule after adding any symbol here. */
+int data_0209d710[0x3c / 4];    /* ROM span 0x3c */
+int data_0209d74c[0xf00 / 4];   /* ROM span 0xf00 -- the message text buffer */
 int data_0209f204[8];
 int data_0209f20c[8];
 int data_0209f27c[8];
@@ -105,7 +115,7 @@ int data_020a0e5a[8];
 int data_0209d6f8[8];
 int data_0209e650[8];
 int data_0209f37c[8];
-int data_0209f40c[8];
+int data_0209f40c[0x30 / 4];    /* ROM span 0x30 */
 int data_0209f224[8];
 int data_0209b274[8];
 int data_0209b294[8];
@@ -114,10 +124,10 @@ int data_0209b294[8];
 int data_0209fc4c[8];
 int data_020a0e58[8];
 int data_0209b004[8];
-int data_0209b138[8];
+int data_0209b138[0x138 / 4];   /* ROM span 0x138 */
 int data_0209b270[8];
 int data_0209b284[8];
-int data_0209b2a4[8];
+int data_0209b2a4[0x40 / 4];    /* ROM span 0x40 */
 int data_0209d4b4[8];
 int data_0209f1f0[8];
 int data_0209f24c[8];
@@ -127,7 +137,7 @@ int data_0209f270[8];
 /* data_0209f5e8 (the COLOR fader) moved to hal/fader_wipes.cpp at gate 31:
    Scene::SetFaders dispatches two of its virtuals, so zeroed storage is a
    null vptr and the first LoadLevel faults on it. */
-int data_020a4d84[8];
+int data_020a4d84[0x368 / 4];   /* ROM span 0x368 */
 /* data_02099fb0 moved to romdata (gate 35): it is file-backed arm9 data with
    the value 4 in it, and it is the COUNT func_02048720 walks when it looks
    for a free 3D voice. At 0 that loop never runs, pick stays -1, and every
@@ -135,7 +145,7 @@ int data_020a4d84[8];
    which Sound::Play answers with a silent return. */
 int data_0209d4ac[8];
 int data_020a4c64[8];
-int data_020a4c70[8];
+int data_020a4c70[0xc0 / 4];    /* ROM span 0xc0 */
 /* tier-2 state wave: DeadHit/Hurt read this arm9 bss word */
 int data_0209f28c[8];
 /* tier-2 round 2: arm9 bss the death/hurt/quicksand ring reads */
@@ -162,7 +172,7 @@ int data_0209b4a8[8];
    zero at load, so host storage is the whole of it. */
 int data_0209f2bc[8];
 int data_0209f2ac[8];
-int data_0209f4f8[16];   /* the per-level death table */
+int data_0209f4f8[0xc0 / 4];   /* the per-level death table; ROM span 0xc0 */
 int data_ov002_0210e14c[8];
 int data_ov002_0210f350[8];
 int data_ov002_0210f3b0[8];

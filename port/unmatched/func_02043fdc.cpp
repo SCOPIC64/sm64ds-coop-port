@@ -63,6 +63,45 @@ void port_scene_canary(const char *where)
     std::fflush(stdout);
 }
 
+/* SM64DS_FADER_WATCH=1: after every Process dispatch, check the installed
+   fader (data_0209f5bc) still carries a vptr, and name the ACTOR whose
+   dispatch left it broken. The reader that faults on a broken install
+   (HUD::Behavior's IsAtStart) runs a long way down the same list from
+   whoever installed it; this points at the writer. Off by default, free
+   when off. */
+extern void *data_0209f5bc;
+void port_fader_watch(void *actor)
+{
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_FADER_WATCH") != 0;
+    if (!on) return;
+    static void *last;
+    static void *last_vptr;
+    void *f = data_0209f5bc;
+    void *vptr = f ? *(void **)f : 0;
+    if (f != last) {
+        std::fprintf(stderr, "[fwatch] actor %p (id %u) set fader %p vptr %p",
+                     actor,
+                     actor ? *(unsigned *)((char *)actor + 8) & 0xffff : 0u,
+                     f, vptr);
+        if (f) {
+            unsigned *w = (unsigned *)f;
+            std::fprintf(stderr, "  words[%08x %08x %08x %08x %08x %08x]",
+                         w[0], w[1], w[2], w[3], w[4], w[5]);
+        }
+        if (actor && (*(unsigned *)((char *)actor + 8) & 0xffff) == 0)
+            std::fprintf(stderr, "  player-state %p",
+                         *(void **)((char *)actor + 0x370));
+        std::fprintf(stderr, "%s\n", vptr ? "" : "  <-- NULL VPTR");
+    } else if (vptr != last_vptr) {
+        std::fprintf(stderr, "[fwatch] fader %p VPTR CHANGED %p -> %p after "
+                     "actor %p (id %u)\n", f, last_vptr, vptr, actor,
+                     actor ? *(unsigned *)((char *)actor + 8) & 0xffff : 0u);
+    }
+    last = f;
+    last_vptr = vptr;
+}
+
 /* {head, tail, callback, 0}; node is {prev, next, owner, ...} */
 void *func_02043fdc(void *listv)
 {
@@ -77,6 +116,7 @@ void *func_02043fdc(void *listv)
         data_020a4b68[0] = (int)(size_t)node;
         next = (int *)(size_t)node[1];
         fn((void *)(size_t)node[2]);
+        port_fader_watch((void *)(size_t)node[2]);
         node = next;
     }
     data_020a4b68[0] = 0;
