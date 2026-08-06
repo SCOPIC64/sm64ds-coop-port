@@ -841,11 +841,31 @@ extern "C" void hal_fill_arrow_sign_vtable(void)
     vt[17] = (void *)bw_trap17;
 }
 
-// ---- WATER_BOMB (208, ov098) x2 --------------------------------------------
+// ---- WATER_BOMB (208, ov098) x2 -- BUILT BUT NOT REGISTERED (gate 51) -------
 //
 // _ZTV9WaterBomb, ov098 0x0213c770, RTTI 7daWbm_c. The bomb a cannon fires.
 // Gate 19 mounted the overlay and named this class in its header without
 // registering it; Bob-omb Battlefield names two.
+//
+// THE BLOCKER IS ON THE CANNON SIDE, run down at gate 51 (which registered the
+// other three of the four this file left blocked). It is not the bomb's own
+// state table -- that seats like the others -- but a cannon-to-cannon linked
+// list. func_ov098_0213a36c, the cannon's per-frame state driver, walks a
+// chain of same-id cannons through the +0x348 pointer:
+//
+//     p = c; while (1) { if (*(u8*)(p+0x340)==0) break;
+//                        p = *(char**)(p+0x348); if (p==0) break; }
+//
+// and func_ov098_0213a00c is the scan that populates c+0x344/0x348 from
+// Actor::FindWithActorID over every actor sharing the cannon's id. Once a
+// WATER_BOMB is on the actor list the walk faults, because the port's spawn
+// ordering does not build the same-id cannon chain the ROM's actor list gives
+// for free -- the +0x348 pointer a cannon expects to find its neighbour
+// through is null. Every cannon function (0213a00c/0a8/0e8/148/23c/36c,
+// 02137c8c) is matched src, so this is a spawn-ordering and chain-seat
+// question -- what links the cannons and when -- not undecompiled code. It is
+// the hardest of the four and is deferred; the fill and faces below stay built
+// so the next attempt starts with the link closed and only the chain to seat.
 #include "WaterBomb.h"
 extern "C" {
 int *_ZN9WaterBombD1Ev(int *self);
