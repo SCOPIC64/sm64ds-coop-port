@@ -68,10 +68,30 @@ NAMED = [
     "data_0208e610", "data_0208e624", "data_0208e634", "data_0208e648",
     "data_02092120",
     "data_02082178", "data_02090e80", "data_020914a0",
-    "data_02092584", "data_02092654", "data_02092668", "data_0208e500", "data_02086758", "data_02086a58", "data_0208e430", "data_02086b58",
+    "data_02092584", "data_02092654", "data_02092668", "data_0208e500", "data_02086a58", "data_0208e430", "data_02086b58",
     "data_0208e434", "data_0208e438", "data_0208e43c", "data_0208e440",
-    "data_0208e444", "data_02092124", "data_02086384", "data_0208e448", "data_02086bc0", "data_02086bd8", "data_02086c20", "data_02086c38", "data_02086c50", "data_02086c60", "data_02086c78", "data_02086c80", "data_02086c88", "data_02086c90", "data_02086ca0", "data_02086ca8", "data_02086cb0", "data_02086cb8", "data_02086cc0", "data_02086cd0", "data_02086cd8", "data_02086ce8", "data_02086cf0", "data_02086cf8", "data_02086d00", "data_02086d08", "data_02086d18", "data_02086d20", "data_02086d38", "data_02086d40", "data_02086d60", "data_02086d68", "data_02086d80", "data_02086d88", "data_02086d98", "data_02086da0", "data_02086dc0", "data_02086dd8", "data_02086df0", "data_02086e08", "data_02086e20", "data_02086e30", "data_02086e38", "data_02088fb8", "data_020890a0", "data_02092118", "data_02092110", "data_020876e4", "data_0208eecc", "data_02092134",
+    "data_0208e444", "data_02092124", "data_02086384", "data_0208e448", "data_02088fb8", "data_020890a0", "data_02092118", "data_02092110", "data_020876e4", "data_0208eecc", "data_02092134",
     "data_0208e42c",
+    # FORTY NAMES CAME OUT OF THE LINE ABOVE ON 2026-08-05, and every one of
+    # them was a called-through pointer table rather than data.
+    # port/tools/ptr_audit.py found them by intersecting this list with
+    # config/arm9/relocs.txt: data_02086758 is nine backup-media command
+    # handlers that src/func_0205c5e4.c indexes and calls, and the 39 records
+    # from data_02086bc0 to data_02086e38 are the kuppa script's camera
+    # commands, copied into data_0209b138 and dispatched by func_02008550.
+    # Emitted here they were the ROM's own bytes -- forty-eight DS code
+    # addresses -- which is the shape that killed a play session when the
+    # billboard's two tables had it (see the note by data_02099fc4 below).
+    # They are hosted with real host function pointers in
+    # port/hal/ptr_tables.cpp; putting any of the names back on this list would
+    # define the symbol twice and, if the byte copy won, restore the crash.
+    #
+    # ...and three plain constants the newly-linked handlers read, which had
+    # never been referenced before for the same reason. Two camera-space offset
+    # vectors, {0, 150, -600} and {600, 0, -400} in Fix12i, and the two ASCII
+    # bytes func_0205bc88 copies into its header buffer. No relocations in any
+    # of them; they really are data.
+    "data_02086ec0", "data_02086ed8", "data_0209a044",
     # gate 32: the coin tables Actor::GivePlayerCoins indexes (id and amount),
     # and the per-character cap-model constant data_0208a0e0 sits beside them.
     "data_02075230", "data_02075238",

@@ -764,6 +764,7 @@ void *port_stage_a_boot(void *mc, int spawn)
 // that matters -- the scene root, the player slots, the camera's boot inputs.
 extern "C" {
 int hal_camera_check_layout(void);
+void port_ptr_tables_check(void);
 void hal_fill_camera_vtable(void);
 void hal_camera_slots_harness_owned(void);
 void port_actor_registry_install(void);
@@ -1270,6 +1271,12 @@ extern "C" void port_stage_a2_seat(void)
 
     /* the five processing-list callbacks, then the class table and the gate */
     port_actor_lists_seat();
+    /* The two hosted ROM pointer tables, before anything can dispatch through
+       one. Both are reached from paths that only open up mid-session -- the
+       star-get cutscene and the backup-media engine -- so a slot that has
+       silently gone back to holding a DS address has to be caught here, on
+       frame 0, and not ten thousand frames in. hal/ptr_tables.cpp. */
+    port_ptr_tables_check();
     if (!hal_camera_check_layout())
         std::fprintf(stderr, "  [cam] LAYOUT CHECK FAILED\n");
     hal_fill_camera_vtable();
