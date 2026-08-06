@@ -1,0 +1,91 @@
+# The two ROM pointer tables the sweep found -- their CALLEES.
+#
+# port/tools/ptr_audit.py intersects romdata.py's NAMED list with
+# config/arm9/relocs.txt and reports every named symbol whose bytes
+# contain a relocated word. Two of its answers are tables that matched
+# code indexes and CALLS. Both are hosted with real host function
+# pointers in port/hal/ptr_tables.cpp, which is only possible if the
+# callees exist as host code -- that is this list.
+#
+# Nothing here is new decomp. Every file is matched src that had simply
+# never been named by any slice, because the only thing naming it was a
+# table of bytes.
+
+# ---- the card command table, data_02086758[9] ----
+# func_0205c5e4 does `ret = data_02086758[idx](self)` -- nine command
+# handlers for the backup-media engine, indexed by the command id its
+# callers pass (2, 3, 7, ...).
+src/func_0205bbdc.c
+src/func_0205bbe4.c
+src/func_0205bc0c.c
+src/func_0205bc88.c
+src/func_0205c048.c
+src/func_0205c264.c
+src/func_0205c378.c
+src/func_0205c410.c
+src/func_0205c448.c
+src/func_0205c480.c
+src/func_0205c4e4.c
+src/func_0205c528.cpp
+# src/CpuCopy8.c is deliberately NOT here. It is an asm primitive -- a
+# hand-tuned unaligned block copy with no C body to compile -- and
+# func_0205bc88 is its only caller in this slice. hal/ptr_tables.cpp carries
+# the host equivalent.
+
+# ---- the camera-script command table, the 39 records at 0x02086bc0 ----
+# func_02008550 copies the 39 records into data_0209b138[39] and
+# dispatches `(cam->*data_0209b138[msg[6]])(msg + 7, beg, end)` -- the
+# camera half of the kuppa/cutscene script ProcessKuppaScript walks.
+# The 39 handlers plus the helpers they reach that nothing else links.
+src/func_020070e8.c
+src/func_020071a8.c
+src/func_020071e0.c
+src/func_020072c4.c
+src/func_020073a0.c
+src/func_02007414.c
+src/func_02007450.c
+src/func_02007484.c
+src/func_020074e8.c
+src/func_0200751c.c
+src/func_02007548.c
+src/func_020075b4.c
+src/func_0200762c.c
+src/func_02007698.c
+src/func_02007758.c
+src/func_020077f0.c
+src/func_02007870.c
+src/func_020078c4.c
+src/func_02007910.c
+src/func_020079ac.c
+src/func_02007a8c.c
+src/func_02007b0c.c
+src/func_02007b98.c
+src/func_02007c14.c
+src/func_02007c9c.c
+src/func_02007cec.c
+src/func_02007d0c.c
+src/func_02007d58.c
+src/func_02007e5c.c
+src/func_02007f14.c
+src/func_02007fcc.c
+src/func_02008008.c
+src/func_02008028.c
+src/func_02008080.c
+src/func_020080b0.c
+src/func_020080f0.c
+src/func_0200814c.c
+src/func_02008200.c
+src/func_020082a0.c
+src/func_020082f8.c
+src/func_0200840c.c
+src/func_02008450.c
+src/func_02008474.c
+src/func_020084b0.c
+src/func_02008500.c
+src/func_02008b4c.c
+src/func_02009414.c
+src/func_020094a8.c
+src/func_0200d8ac.c
+src/func_0200e728.c
+src/ReadUnalignedUshort.c
+src/func_ov002_020effb8.c

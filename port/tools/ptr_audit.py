@@ -61,13 +61,41 @@ def load_relocs(root):
 
 
 def load_named(root):
-    """The NAMED list out of romdata.py, with explicit sizes where given."""
+    """Everything romdata.py emits ROM BYTES for: the NAMED list, with explicit
+    sizes where given, plus the CONTIG address runs.
+
+    The runs matter. romdata.py emits a run by walking config/arm9/symbols.txt
+    between two addresses, so its members appear nowhere in NAMED -- and a
+    sweep that only reads NAMED would call the whole camera-mode table clean
+    without ever looking at it. It happens to BE clean (no relocation in
+    0x02086fcc..0x020874f4), but that is a fact this tool should establish
+    rather than assume."""
     path = os.path.join(root, "port", "tools", "romdata.py")
     with open(path, errors="replace") as f:
         src = f.read()
     out = []
     for m in re.finditer(r'"([A-Za-z_]\w*)(?::(0x[0-9a-fA-F]+))?"', src):
         out.append((m.group(1), int(m.group(2), 16) if m.group(2) else None))
+    return out
+
+
+def load_contig(root, names):
+    """[(name, size)] for every symbol inside a CONTIG run of romdata.py."""
+    path = os.path.join(root, "port", "tools", "romdata.py")
+    with open(path, errors="replace") as f:
+        src = f.read()
+    body = re.search(r"^CONTIG = \[(.*?)^\]", src, re.S | re.M)
+    if not body:
+        return []
+    out = []
+    by_addr = sorted((a, n) for n, a in names.items())
+    for m in re.finditer(r'\(\s*"[^"]*"\s*,\s*(0x[0-9a-fA-F]+)\s*,'
+                         r'\s*(0x[0-9a-fA-F]+)\s*\)', body.group(1)):
+        start, end = int(m.group(1), 16), int(m.group(2), 16)
+        members = [(a, n) for a, n in by_addr if start <= a < end]
+        for i, (a, n) in enumerate(members):
+            nxt = members[i + 1][0] if i + 1 < len(members) else end
+            out.append((n, nxt - a))
     return out
 
 
@@ -94,7 +122,7 @@ def main():
     seated = host_text(root)
 
     rows = []
-    for name, size in load_named(root):
+    for name, size in load_named(root) + load_contig(root, names):
         base = names.get(name)
         if base is None:
             continue
