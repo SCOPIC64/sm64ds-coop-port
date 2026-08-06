@@ -167,6 +167,11 @@ void hal_fill_exclamation_switch_vtable(void);
 extern unsigned char InvisibleSecret_SpawnInfo[];       /* ov002 0x0210b00c */
 void *InvisibleSecret_Spawn(void);
 void hal_fill_invisible_secret_vtable(void);
+/* gate 46: INVISIBLE_POLE (287), RTTI daBar_c. Host-storage vtable, filled by
+   hand (the InvisibleSecret case). */
+extern unsigned char InvisiblePole_SpawnInfo[];         /* ov002 0x0210845c */
+void *InvisiblePole_Spawn(void);                        /* ov002 0x020b0710 */
+void hal_fill_invisible_pole_vtable(void);
 extern unsigned char ArrowSignLeft_SpawnInfo[];         /* ov098 0x0213c398 */
 void *ArrowSignLeft_Spawn(void);
 extern unsigned char ArrowSignRight_SpawnInfo[];        /* ov098 0x0213c3b4 */
@@ -288,6 +293,9 @@ void hal_fill_king_bob_omb_vtable(void);
        +0x5c once a bomb is on the list). See actor_classes_bob_world.cpp. */\
     {329, "INVISIBLE_SECRET", InvisibleSecret_SpawnInfo, InvisibleSecret_Spawn,\
      hal_fill_invisible_secret_vtable},                                        \
+    /* gate 46: the moving bar (RTTI daBar_c), Whomp's Fortress */             \
+    {287, "INVISIBLE_POLE", InvisiblePole_SpawnInfo, InvisiblePole_Spawn,      \
+     hal_fill_invisible_pole_vtable},                                          \
     {299, "ARROW_SIGN_LEFT", ArrowSignLeft_SpawnInfo, ArrowSignLeft_Spawn,     \
      hal_fill_arrow_sign_vtable},                                              \
     {300, "ARROW_SIGN_RIGHT", ArrowSignRight_SpawnInfo, ArrowSignRight_Spawn,  \

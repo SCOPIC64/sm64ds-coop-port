@@ -728,6 +728,60 @@ extern "C" void hal_fill_invisible_secret_vtable(void)
     vt[17] = (void *)bw_trap17;
 }
 
+// ---- INVISIBLE_POLE (287, ov002) -- gate 46 --------------------------------
+//
+// RTTI 7daBar_c. Its factory (InvisiblePole_Spawn, 0x020b0710) installs
+// data_ov002_02108480, NOT the _ZTV13InvisiblePole the config's own
+// _ZN13InvisiblePole* methods belong to -- the gate-20 name shift, resolved by
+// address: the vtable's slot funcs are the func_ov002_020b0* family (05d0,
+// 0600, 0644, 064c, 0650, 0658, 067c), and the src for each carries its own
+// `VT0 = _ZTV7daBar_c` note. It is a moving-bar actor: a 216-byte object with a
+// MovingCylinderClsn at +0xd4, no PMF dispatch anywhere. Whomp's Fortress
+// names one; the same class serves it and the level's other bar ids.
+//
+// The vtable is HOST STORAGE the registry fills (the InvisibleSecret case),
+// aliased to _ZTV7daBar_c so the two destructor bodies that store VT0 back into
+// the object write the same host array. Slot 16 is D1 (05d0: MovingCylinderClsn
+// dtor + Actor::D2, no free) and slot 17 is D0 (0600: the same plus Deallocate)
+// -- both live, unlike the pickups whose D0 is never reached.
+extern "C" {
+int func_ov002_020b067c(char *self);   /* slot 0  InitResources */
+int func_ov002_020b0644(void);         /* slot 3  CleanupResources */
+int func_ov002_020b0658(char *self);   /* slot 6  Behavior */
+int func_ov002_020b0650(void);         /* slot 9  Render */
+void func_ov002_020b064c(void);        /* slot 12 OnPendingDestroy */
+int *func_ov002_020b05d0(int *self);   /* slot 16 D1 */
+int *func_ov002_020b0600(int *self);   /* slot 17 D0 */
+void *data_ov002_02108480[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV7daBar_c=_data_ov002_02108480")
+static int __fastcall ip_init(void *s, void *)
+{ return func_ov002_020b067c((char *)s); }
+static int __fastcall ip_clean(void *s, void *)
+{ return func_ov002_020b0644(); }
+static int __fastcall ip_behavior(void *s, void *)
+{ return func_ov002_020b0658((char *)s); }
+static int __fastcall ip_render(void *s, void *)
+{ return func_ov002_020b0650(); }
+static int __fastcall ip_pdes(void *s, void *)
+{ func_ov002_020b064c(); return 0; }
+static int __fastcall ip_d1(void *s, void *)
+{ return (int)(size_t)func_ov002_020b05d0((int *)s); }
+static int __fastcall ip_d0(void *s, void *)
+{ return (int)(size_t)func_ov002_020b0600((int *)s); }
+extern "C" void hal_fill_invisible_pole_vtable(void)
+{
+    void **vt = data_ov002_02108480;
+    bw_fill_shared(vt);
+    vt[0] = (void *)ip_init;
+    vt[3] = (void *)ip_clean;
+    vt[6] = (void *)ip_behavior;
+    vt[9] = (void *)ip_render;
+    vt[12] = (void *)ip_pdes;
+    vt[16] = (void *)ip_d1;
+    vt[17] = (void *)ip_d0;
+}
+
 // ---- ARROW_SIGN_LEFT (299) and ARROW_SIGN_RIGHT (300), ov098 ----------------
 //
 // _ZTV14ArrowSignRight, ov098 0x0213c3d8, RTTI 15daObjYajirusi_c (yajirushi:

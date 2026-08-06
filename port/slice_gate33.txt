@@ -266,6 +266,21 @@ src/FortressTowerWall_Spawn.c
 # (322). One body serves both ids; the only new code is this Spawn factory.
 src/OneUpMushroomBlockTag_Spawn.c
 
+# gate 46: InvisiblePole (287), Whomp's Fortress -- RTTI daBar_c, a moving-bar
+# actor. Its real vtable is data_ov002_02108480 (the gate-20 name shift; the
+# factory's bodies are the func_ov002_020b0* family, not the config's
+# _ZN13InvisiblePole* methods). No PMF dispatch: Behavior/Render/Cleanup are
+# short and the bar's collision is a plain MovingCylinderClsn. The vtable is
+# filled by hand in hal/actor_classes_bob_world.cpp.
+src/InvisiblePole_Spawn.c
+src/func_ov002_020b067c.c
+src/func_ov002_020b0644.c
+src/func_ov002_020b0658.cpp
+src/func_ov002_020b0650.c
+src/func_ov002_020b064c.c
+src/func_ov002_020b05d0.c
+src/func_ov002_020b0600.c
+
 # --- linkloop round 3: the closure of the twelve above ----------------------
 src/IsCannonOpenInCurLevel.c
 src/UnloadSilverStarAndNumber.c

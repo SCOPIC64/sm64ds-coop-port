@@ -85,6 +85,12 @@ BigBrickBlock_SpawnInfo:0x1c FortressTowerWall_SpawnInfo:0x1c
 # gate 49: OneUpMushroomBlockTag (321), Whomp's Fortress. Installs
 # _ZTV10BrickBlock, the tag class gate 33 fills for MEGA_MUSHROOM_BLOCK_TAG.
 OneUpMushroomBlockTag_SpawnInfo:0x1c
+# gate 46: InvisiblePole (287), Whomp's Fortress. Its RTTI is daBar_c and its
+# real vtable is data_ov002_02108480 (the gate-20 name shift: the config's
+# _ZN13InvisiblePole* methods are a neighbour's; the factory installs the
+# func_ov002_020b0* bodies). SpawnInfo mounted here; the vtable is HOST STORAGE
+# the registry fills, so it is NOT mounted (the InvisibleSecret case).
+InvisiblePole_SpawnInfo:0x1c
 # Data the gate-33 classes' own InitResources/CleanupResources read.
 # data_ov002_0210b000 is the typeinfo record the vtable at 0x0210b030 follows;
 # 0x0210b030 itself is NOT here -- it is a real actor vtable dsd left unnamed
