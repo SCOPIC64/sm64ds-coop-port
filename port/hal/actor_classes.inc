@@ -258,12 +258,10 @@ void hal_fill_king_bob_omb_vtable(void);
      MegaMushroomBlockTag_Spawn, hal_fill_mega_mushroom_block_tag_vtable},     \
     {14, "CANNON_HATCH", CannonHatch_SpawnInfo, CannonHatch_Spawn,             \
      hal_fill_cannon_hatch_vtable},                                            \
-    /* CAP (269), HEALING_HEART (297), EXCLAMATION_SWITCH (11), WATER_BOMB  \
-       (208) and ROLLING_IRON_BALL (220) are BUILT BUT NOT REGISTERED. All  \
-       five fault on their first frame, each measured on its own with       \
-       SM64DS_SPAWN_ACTOR; the head of hal/actor_classes_bob_world.cpp      \
-       carries the backtrace and the reading. A class that dies on frame one\
-       is worse than the registry gate naming it as skipped. */             \
+    {297, "HEALING_HEART", HealingHeart_SpawnInfo, HealingHeart_Spawn,      \
+     hal_fill_healing_heart_vtable},                                        \
+    /* CAP (269), EXCLAMATION_SWITCH (11), WATER_BOMB (208) and             \
+       ROLLING_IRON_BALL (220) are BUILT BUT NOT REGISTERED. */            \
     {329, "INVISIBLE_SECRET", InvisibleSecret_SpawnInfo, InvisibleSecret_Spawn,\
      hal_fill_invisible_secret_vtable},                                        \
     {299, "ARROW_SIGN_LEFT", ArrowSignLeft_SpawnInfo, ArrowSignLeft_Spawn,     \
