@@ -474,6 +474,11 @@ void port_course_respawn(void *player);
 int  port_star_collect(int starId);
 void port_give_player_coins(void *actor, void *player, int count, int kind);
 int  port_course_sound_probe(const char *when);
+/* gate 31 loose end: the looping-sound reap. port_course_loop_start drives the
+   game's Sound::PlayLong at the player to put a live handle in data_0209b53c;
+   port_course_loop_live counts the live handles the reaper is meant to drain. */
+unsigned int port_course_loop_start(unsigned int prev, unsigned int soundId);
+int  port_course_loop_live(void);
 /* the file-seam load meter (hal/fs.cpp), sampled by SM64DS_JUMP_PROBE */
 extern unsigned long port_fs_loads, port_fs_load_miss, port_fs_bytes;
 extern double port_fs_ms;
@@ -2914,6 +2919,39 @@ int main(void)
                and the dispatch sits past that check -- so hold him airborne
                for the length of the probe. */
             if (force_wj && frame >= 10) *(unsigned char *)(c + 0x6de) = 1;
+        }
+        /* SM64DS_LOOP_PROBE=<frame>[,<soundId>]: the gate-31 loose end, the
+           level-change looping-sound reap. At <frame> it starts a looping sound
+           through the game's own Sound::PlayLong (the walk/slide states that
+           would start one depend on collision geometry the selftest does not
+           reach, so this drives the same function at the player directly). The
+           handle lands in data_0209b53c and the per-frame reaper keeps it alive
+           while the probe keeps refreshing it; when SM64DS_LEVEL_CYCLE fires,
+           func_02011974 -- the Scene::BeforeCleanupResources reap -- runs in the
+           teardown and empties the table. The probe reports the live count each
+           frame so the drop from 1 to 0 across the change is visible. */
+        if (selftest) {
+            static int lp_frame = -2, lp_sound = 3, lp_handle;
+            if (lp_frame < -1) {
+                const char *e = getenv("SM64DS_LOOP_PROBE");
+                lp_frame = -1;
+                if (e) {
+                    const char *comma = strchr(e, 44);
+                    lp_frame = atoi(e);
+                    if (comma) lp_sound = atoi(comma + 1);
+                }
+            }
+            if (lp_frame >= 0 && frame >= lp_frame) {
+                /* refresh every frame from the start frame on, the way an actor
+                   holding a loop does: pass the handle back so PlayLong finds it
+                   and marks it refreshed rather than starting a second sound.
+                   Exactly one handle stays live. */
+                lp_handle = (int)port_course_loop_start((unsigned)lp_handle,
+                                                        (unsigned)lp_sound);
+                if (frame % 30 == 0 || frame == lp_frame)
+                    fprintf(stderr, "[loop-probe] f%d handle %d, live %d\n",
+                            frame, lp_handle, port_course_loop_live());
+            }
         }
         /* SM64DS_LEVEL_CYCLE=<n>[,<period>]: run the whole handoff n times
            without a person at the keyboard. Each cycle calls the GAME'S OWN

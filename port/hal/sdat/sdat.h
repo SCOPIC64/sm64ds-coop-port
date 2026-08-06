@@ -188,6 +188,12 @@ void sd_consumer_tick(void);
 // THE call site. Safe before init, safe with no audio device.
 extern "C" void sdat_host_tick(void);
 
+// The level-change looping-sound reap, the ROM's Scene::BeforeCleanupResources
+// (func_02011974 over data_0209b53c). Stops every live looping handle
+// unconditionally, unlike the per-frame reaper which spares refreshed ones. The
+// level-change teardown calls it where the ROM's Scene teardown would fire it.
+extern "C" void sd_sound_level_reap(void);
+
 // SM64DS_SND_TRACE, shared: the consumer reads the environment and arms both
 // its own opcode log and Sound::Play's two cull reports in sound_abi.cpp.
 extern "C" int g_snd_trace_play;

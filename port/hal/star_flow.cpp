@@ -81,6 +81,14 @@ extern unsigned char data_02092110;   /* next sublevel  (SetNextLevel) */
 extern unsigned char data_0209f268;   /* next entrance  (SetNextLevel) */
 extern unsigned char data_0209f26c;   /* why we are leaving */
 extern void        *data_0209f394[];  /* per-player Actor* */
+/* Sound::PlayLong, the game's own "start or refresh a looping sound", and its
+   0x40-entry handle table. The loop probe drives PlayLong at the player's own
+   camera-space position (which the listener is centred on, so it clears the 3D
+   distance cull) and reads the table to prove the level-change reap emptied it. */
+extern unsigned int _ZN5Sound8PlayLongEjjjRK7Vector3j(unsigned int j1,
+    unsigned int j2, unsigned int j3, void *v, unsigned int j5);
+extern int data_0209b53c[];   /* PlayLong's handle table: 8-byte header, 0x40
+                                 entries of 0x14; live when entry+0 != 0 */
 extern unsigned char data_0209caa0[];
 /* {group, bank, bgm} x 0x34, from romdata. config names the three columns
    separately (data_02075768/69/6a) because the ROM walks them with a stride
@@ -408,6 +416,42 @@ int port_course_sound_probe(const char *when)
                 func_02049018(cs), data_02099fac, data_02099fb0);
     }
     return voices;
+}
+
+/* ---- the looping-sound reap, observed rather than asserted ----------------
+ *
+ * The per-frame reaper (func_020119c8) and the level-change reaper (func_02011974)
+ * both walk data_0209b53c, PlayLong's 0x40-entry handle table. An entry is LIVE
+ * exactly when its first word -- the handle its owner is holding -- is non-zero.
+ * This is the same count sd_vtrace_loop_census prints, exposed as a number the
+ * harness can read without the voice trace on. */
+int port_course_loop_live(void)
+{
+    int live = 0;
+    for (int i = 0; i < 0x40; i++)
+        if (data_0209b53c[2 + i * 5])   /* +8 header, then 0x14 (5 words) each */
+            live++;
+    return live;
+}
+
+/* Start a looping sound through the game's OWN Sound::PlayLong, at the player's
+ * camera-space position. That position (Actor+0x74, the same field the coin
+ * probe borrows) is what the listener is centred on, so func_02048a1c's distance
+ * cull passes and the loop actually starts -- the walk/slide states that would
+ * start one in play depend on collision geometry the straight-line selftest does
+ * not reach, so the table is otherwise empty. Sound id 3 is the ambient-loop
+ * kind AmbientSoundEffects::Behavior uses. Returns the handle PlayLong hands
+ * back (0 if it was culled), which is what mLoopingSoundHandle would hold. Pass
+ * the previous handle back in `prev` to REFRESH the same loop (PlayLong finds it
+ * and marks it, so exactly one handle stays live) the way an actor holding a
+ * loop does; pass 0 to start a fresh one. */
+unsigned int port_course_loop_start(unsigned int prev, unsigned int soundId)
+{
+    void *player = data_0209f394[data_0209f250];
+    if (!player)
+        return 0;
+    void *camSpacePos = (char *)player + 0x74;
+    return _ZN5Sound8PlayLongEjjjRK7Vector3j(prev, 3, soundId, camSpacePos, 0);
 }
 
 int port_course_coins(void)

@@ -95,7 +95,8 @@ extern int data_02099fb0;            /* the type-9 pool's live count */
 /* The ARM9's per-frame sound maintenance. See sd_sound_frame_host. */
 void func_0204fafc(void);
 int func_0205b274(int blocking);
-void func_020119c8(void *table);     /* the looping-handle reaper */
+void func_020119c8(void *table);     /* the per-frame looping-handle reaper */
+void func_02011974(void *table);     /* the level-change looping-handle reaper */
 }
 
 // The ARM9 half of the voice trace. The switch and the printer live in
@@ -463,6 +464,32 @@ void sd_sound_init_host(void)
 }
 
 }  // namespace
+
+// THE LEVEL-CHANGE LOOPING-SOUND REAP, and it is a different function from the
+// per-frame one above. func_020119c8 (sd_sound_frame_host) only reaps a handle
+// that was NOT refreshed this frame, so a looping sound whose owner is torn down
+// mid-frame -- the wall it was sliding on, the enemy it was chasing -- keeps its
+// +6 refreshed flag and survives the frame it should have died on. func_02011974
+// is the ROM's answer: it walks the same 0x40-entry data_0209b53c table and stops
+// EVERY live handle unconditionally, ignoring the refreshed flag. Compare
+// func_020119c8 (skip if +6==1) with func_02011974 (stop if field_0 != 0) -- the
+// second is the first with the refresh test removed.
+//
+// It is Scene::BeforeCleanupResources (_ZN5Scene22BeforeCleanupResourcesEv,
+// vtable slot 4) that fires it: func_02011974(&data_0209b53c) is that override's
+// whole body past the ActorBase base call. On the ROM the Scene actor is torn
+// down and respawned per level, so slot 4 runs on every level change and every
+// looping sound the old level started is stopped before the new level boots. The
+// port keeps the Scene alive across levels (hal/level_change.cpp, "NOT torn down,
+// deliberately"), so that slot never dispatches and the reap was lost --
+// func_02011974 was matched src in no slice, called from nowhere, exactly like
+// func_020119c8 was before the frame reaper was wired. hal/level_change.cpp calls
+// this from its teardown, at the point the ROM's Scene::BeforeCleanupResources
+// would have fired, before the new level boots.
+extern "C" void sd_sound_level_reap(void)
+{
+    func_02011974(data_0209b53c);
+}
 
 void sd_consumer_init(void)
 {

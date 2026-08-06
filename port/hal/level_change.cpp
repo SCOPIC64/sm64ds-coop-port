@@ -125,6 +125,9 @@ void port_level_set_target(int level);   /* hal/level_boot.cpp: which level the
                                             next port_stage_a_boot mounts */
 void CleanCommonModelDataArr(void);
 void port_model_vram_reset(void);   /* hal/model_host.cpp */
+void sd_sound_level_reap(void);     /* hal/sdat/consumer.cpp: the ROM's
+                                       Scene::BeforeCleanupResources reap */
+int  port_course_loop_live(void);   /* hal/star_flow.cpp: live loop handles */
 void port_level_stage_reseat(void *stage);
 unsigned _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *self);
 extern void *data_020a0eac;              /* Memory::gameHeapPtr */
@@ -406,6 +409,26 @@ extern "C" int port_level_change_apply(void)
                      "declined and the level stands\n");
         data_02092110 = -1;
         return 0;
+    }
+
+    /* THE LOOPING-SOUND REAP, the ROM's Scene::BeforeCleanupResources. On the
+       DS the Scene actor is respawned per level, so its slot-4 override fires on
+       every level change and calls func_02011974 over data_0209b53c, stopping
+       every looping sound the old level started before the new one boots. The
+       port keeps the Scene alive across levels (see the header note), so that
+       slot never dispatches; this is that reap, hosted at the same seam -- after
+       the actors that own the loops are gone, before the new level boots. The
+       per-frame reaper (func_020119c8) spares a loop refreshed on its last live
+       frame, so without this a sound whose owner is torn down mid-change carries
+       into the next level. */
+    {
+        int loops_before = port_course_loop_live();
+        sd_sound_level_reap();
+        int loops_after = port_course_loop_live();
+        if (loops_before || loops_after)
+            std::fprintf(stderr, "  [lvl] looping-sound reap "
+                         "(Scene::BeforeCleanupResources): %d live -> %d\n",
+                         loops_before, loops_after);
     }
 
     /* THE COMMON-MODEL ARRAY, and it is the ROM's own line. Model::LoadFile
