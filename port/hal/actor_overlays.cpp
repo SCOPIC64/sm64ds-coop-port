@@ -136,6 +136,13 @@ void __sinit_ov010_0211215c(void);
 void port_ov015_pack_check(void);
 void port_ov015_syms_patch(void);
 void port_knock_down_plank_states_seat(void);
+/* gate 149: ov020 is level 12's own overlay (Big Boo's Haunt), mounted whole and
+   per symbol; __sinit_ov020_0211372c Constructs HAUNTED_CHAIR's model
+   SharedFilePtr (data_ov020_02114af0, handle 0x2d0). The other ov020 sinit
+   builds the book classes' file pointers and is left out with them. */
+void port_ov020_pack_check(void);
+void port_ov020_syms_patch(void);
+void __sinit_ov020_0211372c(void);
 void __sinit_ov015_02112f9c(void);
 void __sinit_ov015_02112fdc(void);
 void __sinit_ov015_02113048(void);
@@ -837,6 +844,13 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov015_021132d0();
     __sinit_ov015_0211333c();
     __sinit_ov015_021133a8();
+
+    /* gate 149: level 12's own overlay, per symbol. No state seat -- HauntedChair
+       dispatches no pointer-to-member; its one sinit just Constructs its model
+       SharedFilePtr. */
+    port_ov020_pack_check();
+    port_ov020_syms_patch();
+    __sinit_ov020_0211372c();
 
     /* gates 64-69: ov079, the enemy cast. Seat WHOMP's twelve and BULLET_BILL's
        two state statics over the SOURCE side BEFORE the sinits copy them into

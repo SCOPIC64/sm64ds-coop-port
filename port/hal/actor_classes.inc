@@ -471,6 +471,16 @@ void *BrickBlockSwitchActivated_Spawn(void);                /* ov002 0x020b40cc 
    slice_gate123.txt. */
 extern unsigned char GreenShellBlockTag_SpawnInfo[];        /* ov002 0x02108bbc */
 void *GreenShellBlockTag_Spawn(void);                       /* ov002 0x020b4610 */
+/* ---- gate 149: HAUNTED_CHAIR (326), Big Boo's Haunt (ov020) ----
+   ov020 is level 12's own overlay, mounted whole and (gate 149) per symbol so
+   the class reaches its SpawnInfo record and its model SharedFilePtr by name.
+   The fill and factory are in hal/actor_classes_bbh.cpp. The level's other three
+   furniture classes (BOOKEND 327, BOOK_SHOT_SPAWNER 328, BOOK_SHOT 325) stay
+   skipped: BookShot's return-to-shelf behaviour calls an undecompiled ov063
+   function, so they are documented blockers rather than a stubbed boot. */
+extern unsigned char HauntedChair_SpawnInfo[];      /* ov020 0x021149f0 */
+void *HauntedChair_Spawn(void);                     /* ov020 0x02113494 */
+void hal_fill_haunted_chair_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -679,4 +689,7 @@ void *GreenShellBlockTag_Spawn(void);                       /* ov002 0x020b4610 
      /* Level 11's own overlay class; SpawnInfo from the per-symbol ov019 mount, \
         vtable filled by hal/actor_classes_ccm.cpp. */ \
      {356, "ICE_SLIDE_MANAGER", IceSlideManager_SpawnInfo, IceSlideManager_Spawn, \
-      hal_fill_ice_slide_manager_vtable},
+      hal_fill_ice_slide_manager_vtable}, \
+    /* ---- gate 149: HAUNTED_CHAIR (326), Big Boo's Haunt (ov020, level 12) ---- */ \
+    {326, "HAUNTED_CHAIR", HauntedChair_SpawnInfo, HauntedChair_Spawn, \
+     hal_fill_haunted_chair_vtable},

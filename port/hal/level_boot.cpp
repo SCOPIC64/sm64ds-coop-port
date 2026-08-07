@@ -259,6 +259,16 @@ void port_ov019_patch(void);
 void *port_ov019_at(unsigned ds);
 extern unsigned char port_ov019_image[];
 extern const unsigned port_ov019_ds_base, port_ov019_ds_end;
+
+/* ov020 = level 12, Big Boo's Haunt (data/stage/teresa_house), course 4.
+   data_020758c8[12] = 20, LVL_Overlay data_02092208[12] = 0x021138fc, OV0
+   handles at +8 (bmd 0x07d2/kcl 0x07cc/icg 0x07d3/icl 0x07d4) resolve directly
+   through handles.tsv to teresa_house's all.bmd/kcl/icg/icl;
+   SUBLEVEL_LEVEL_TABLE[12] = 4 = course 4, subCount 7. Mounted --whole. */
+void port_ov020_patch(void);
+void *port_ov020_at(unsigned ds);
+extern unsigned char port_ov020_image[];
+extern const unsigned port_ov020_ds_base, port_ov020_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -356,6 +366,9 @@ static const PortLevelDesc port_level_table[] = {
     {11, "Cool Cool Mountain slide (snow_slider, course 3)", "ov019", 0x02112c68,
      port_ov019_patch, port_ov019_at,
      &port_ov019_ds_base, &port_ov019_ds_end, 0},
+    {12, "Big Boo's Haunt (teresa_house, course 4)", "ov020", 0x021138fc,
+     port_ov020_patch, port_ov020_at,
+     &port_ov020_ds_base, &port_ov020_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -509,6 +522,7 @@ static void *port_mount_row_7(void) { return port_level_mount_at(7); }
 static void *port_mount_row_8(void) { return port_level_mount_at(8); }
 static void *port_mount_row_9(void) { return port_level_mount_at(9); }
 static void *port_mount_row_10(void) { return port_level_mount_at(10); }
+static void *port_mount_row_11(void) { return port_level_mount_at(11); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
@@ -518,6 +532,7 @@ static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_8,
     port_mount_row_9,
     port_mount_row_10,
+    port_mount_row_11,
 };
 
 // ---- the loader dispatch table ---------------------------------------------
