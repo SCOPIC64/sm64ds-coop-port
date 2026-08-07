@@ -45,6 +45,13 @@ int _ZNK12WithMeshClsn8IsOnWallEv(void *self);
 int _ZNK12WithMeshClsn13JustHitGroundEv(void *self);
 void *_ZN5Model8LoadFileER13SharedFilePtr(void *ptr);
 void *_ZN12MeshCollider8LoadFileER13SharedFilePtr(void *ptr);
+/* gate 42: the two methods PeachPainting's Behavior reaches by shadow name.
+   DistToCPlayer is C-named in src (slice_gate16); the ROM's ApplyOpacity is a
+   one-argument body (src/_ZN9ModelBase12ApplyOpacityEj.cpp), but the painting's
+   call passes the ROM's r2=1 as a second argument the body ignores, so the face
+   forwards only the opacity, the gate-16 reading of the same method. */
+int _ZN5Actor13DistToCPlayerEv(void *self);
+void _ZN9ModelBase12ApplyOpacityEj(void *self, unsigned a);
 }
 
 /* Actor: three methods the 1-up's type bodies and the sign's thrown state
@@ -58,6 +65,7 @@ struct Actor {
     void UpdatePos(CylinderClsn *clsn);
     void UpdatePosWithHorzSpeedAndAng();
     short ReflectAngle(int a, int b, short c);
+    int DistToCPlayer();          /* gate 42: PeachPainting::Behavior */
 };
 void Actor::UpdatePos(CylinderClsn *clsn)
 { _ZN5Actor9UpdatePosEP12CylinderClsn(this, clsn); }
@@ -65,6 +73,15 @@ void Actor::UpdatePosWithHorzSpeedAndAng()
 { _ZN5Actor28UpdatePosWithHorzSpeedAndAngEv(this); }
 short Actor::ReflectAngle(int a, int b, short c)
 { return _ZN5Actor12ReflectAngleE5Fix12IiES1_s(this, a, b, c); }
+int Actor::DistToCPlayer()
+{ return _ZN5Actor13DistToCPlayerEv(this); }
+
+/* gate 42: PeachPainting's Behavior/Render call ModelBase::ApplyOpacity with a
+   second argument (?ApplyOpacity@ModelBase@@QAEXIH@Z); the ROM body takes one,
+   so the face drops it. */
+struct ModelBase { void ApplyOpacity(unsigned int o, int x); };
+void ModelBase::ApplyOpacity(unsigned int o, int)
+{ _ZN9ModelBase12ApplyOpacityEj(this, o); }
 
 /* ?UpdateWMClsn@Enemy@@QAEXAAUWithMeshClsn@@I@Z */
 struct WithMeshClsn;

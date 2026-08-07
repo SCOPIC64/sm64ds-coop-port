@@ -427,9 +427,7 @@ int _ZN4Door8BehaviorEv(void *self)
    Three C-named references onto method definitions, the gate-18 shape. TRAP's
    InitResources, Behavior and Render are real C++ methods; its
    CleanupResources and D0 are already C-named in src, and slots 16/17 trap
-   (nothing destroys one on the castle-interior boot -- the gate-17 reading).
-   PEACH_PAINTING (gate 42) is blocked on ov052/RollingRock and unregistered,
-   so its faces are not written. */
+   (nothing destroys one on the castle-interior boot -- the gate-17 reading). */
 #include "Trap.h"
 extern "C" {
 int _ZN4Trap13InitResourcesEv(void *self)
@@ -438,6 +436,23 @@ int _ZN4Trap8BehaviorEv(void *self)
 { return ((Trap *)self)->Trap::Behavior(); }
 int _ZN4Trap6RenderEv(void *self)
 { return ((Trap *)self)->Trap::Render(); }
+}
+
+/* ---- gate 42: ov010's PEACH_PAINTING ------------------------------------
+   Three C-named references onto method definitions, the gate-18 shape.
+   InitResources, Behavior and Render are real C++ methods (the .cpp TUs);
+   CleanupResources and D0 are already C-named in src, and slot 16 is a pt_d1
+   thunk in hal/actor_classes.cpp (Model at 0xd4 then Actor::~Actor). The class
+   was mislabeled as blocked on ov052/RollingRock; the relocs prove both
+   references stay inside ov010 -- see slice_gate42.txt. */
+#include "PeachPainting.h"
+extern "C" {
+int _ZN13PeachPainting13InitResourcesEv(void *self)
+{ return ((PeachPainting *)self)->PeachPainting::InitResources(); }
+int _ZN13PeachPainting8BehaviorEv(void *self)
+{ return ((PeachPainting *)self)->PeachPainting::Behavior(); }
+int _ZN13PeachPainting6RenderEv(void *self)
+{ return ((PeachPainting *)self)->PeachPainting::Render(); }
 }
 
 /* Three more C-named references onto method definitions, reached through

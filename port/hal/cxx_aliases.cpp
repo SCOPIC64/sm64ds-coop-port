@@ -732,6 +732,20 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    files naming them ov006/ov007 describe a different overlay's bytes. */
 #pragma comment(linker, "/alternatename:_func_ov006_020e3078=_func_ov002_020e3078")
 #pragma comment(linker, "/alternatename:_func_ov007_020c5dec=_func_ov002_020c5dec")
+
+/* gate 42: the same shared-base illusion for PEACH_PAINTING. ov010, ov052 and
+   ov021 all link at 0x021111a0, so dsd named two of PeachPainting's OWN
+   internal references (an arm_call and a load, both module:overlay(10) in the
+   relocs) after ov052/ov021 symbols at the shared address:
+     * data_ov052_02111e84 (ov052's CLPS collision table) is really
+       func_ov010_02111e84, the InitResources matrix/scale helper.
+     * RollingRock_Spawn (ov021 0x02112d64) is really data_ov010_02112d64, the
+       8-byte BSS SharedFilePtr the ov010 sinits build; CleanupResources names
+       it directly. Its address is used as a SharedFilePtr, so the data symbol
+       is the right target. Both decls are C-linkage in decl_common's extern "C"
+       block, so the references are plain cdecl. */
+#pragma comment(linker, "/alternatename:_data_ov052_02111e84=_func_ov010_02111e84")
+#pragma comment(linker, "/alternatename:_RollingRock_Spawn=_data_ov010_02112d64")
 #pragma comment(linker, "/alternatename:?data_0208e42c@@3CA=_data_0208e42c")
 #pragma comment(linker, "/alternatename:?data_0209b470@@3CA=_data_0209b470")
 #pragma comment(linker, "/alternatename:?data_0209b490@@3HA=_data_0209b490")

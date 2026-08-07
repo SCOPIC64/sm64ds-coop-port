@@ -1285,8 +1285,22 @@ foreach(line IN LISTS SLICE41_LINES)
     endif()
     list(APPEND SLICE41_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
-# Gate 42 (PEACH_PAINTING) is blocked on ov052/RollingRock and not built; no
-# slice_gate42 is wired until that overlay is hosted.
+# Gate 42: PEACH_PAINTING (38), ov010. The ov052/RollingRock "blocker" was the
+# shared-base illusion -- ov010 and ov052 link at the same base, so dsd named
+# two of PeachPainting's OWN internal references (func_ov010_02111e84 and the
+# ov010 BSS SharedFilePtr data_ov010_02112d64) as ov052/ov021 symbols at the
+# shared address. The relocs say module:overlay(10) both times. No overlay is
+# mounted for this gate; the two mislabeled names are closed by /alternatename
+# in hal/actor_classes.cpp. See the head of slice_gate42.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate42.txt" SLICE42_LINES)
+set(SLICE42_SOURCES "")
+foreach(line IN LISTS SLICE42_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE42_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
 
 # Gate 50: ov080's PAINTING (daPicGate_c, 307), the castle interior's portrait
 # gate. A different class from PEACH_PAINTING, in a different overlay, with no
@@ -1411,7 +1425,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
-    ${SLICE40_SOURCES} ${SLICE41_SOURCES}
+    ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES}
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
@@ -1449,7 +1463,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     ${SLICE32_SOURCES} ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
-    ${SLICE40_SOURCES} ${SLICE41_SOURCES}
+    ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES}
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
@@ -1490,7 +1504,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE32_SOURCES} ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
-    ${SLICE40_SOURCES} ${SLICE41_SOURCES}
+    ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES}
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES}
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
