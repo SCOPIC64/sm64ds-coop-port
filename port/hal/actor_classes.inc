@@ -529,18 +529,12 @@ void *FortressWallBreakable_Spawn(void);          /* ov079 0x021275ac */
     {250, "PIRANHA_PLANT", PiranhaPlant_SpawnInfo, PiranhaPlant_Spawn,         \
      hal_fill_piranha_plant_vtable},                                          \
     {164, "WHOMP", Whomp_SpawnInfo, Whomp_Spawn, hal_fill_whomp_vtable_c},     \
-    {165, "WHOMP_KING", WhompKing_SpawnInfo, WhompKing_Spawn, 0},
-/* WHOMP/WHOMP_KING are LIVE (Fault 1 fixed). The other four ov079 rows are
-   still gated pending Fault 2 (a later boot-spawn's InitResources dispatch
-   wild-jumps to a corrupt vtable pointer after the walls' own InitResources
-   completed cleanly, a memory-corruption fault that needs the corrupting write
-   pinned). When each is fixed, drop a trailing backslash on the current
-   terminator and paste the row in as the new last (backslash-less) row.
-     {222, "BULLET_BILL", BulletBill_SpawnInfo, BulletBill_Spawn,
-         hal_fill_bullet_bill_vtable_c},
-     {43, "BILL_BLASTER", BillBlaster_SpawnInfo, BillBlaster_Spawn,
-         hal_fill_bill_blaster_vtable_c},
-     {47, "FORTRESS_WALL", FortressWall_SpawnInfo, FortressWall_Spawn,
-         hal_fill_fortress_wall_vtable_c},
-     {48, "FORTRESS_WALL_BREAKABLE", FortressWallBreakable_SpawnInfo,
-         FortressWallBreakable_Spawn, 0},                                     */
+    {165, "WHOMP_KING", WhompKing_SpawnInfo, WhompKing_Spawn, 0},              \
+    {222, "BULLET_BILL", BulletBill_SpawnInfo, BulletBill_Spawn,               \
+     hal_fill_bullet_bill_vtable_c},                                          \
+    {43, "BILL_BLASTER", BillBlaster_SpawnInfo, BillBlaster_Spawn,             \
+     hal_fill_bill_blaster_vtable_c},                                         \
+    {47, "FORTRESS_WALL", FortressWall_SpawnInfo, FortressWall_Spawn,          \
+     hal_fill_fortress_wall_vtable_c},                                        \
+    {48, "FORTRESS_WALL_BREAKABLE", FortressWallBreakable_SpawnInfo,           \
+     FortressWallBreakable_Spawn, 0},
