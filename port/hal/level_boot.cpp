@@ -269,6 +269,19 @@ void port_ov020_patch(void);
 void *port_ov020_at(unsigned ds);
 extern unsigned char port_ov020_image[];
 extern const unsigned port_ov020_ds_base, port_ov020_ds_end;
+
+/* ov021 = level 13, Hazy Maze Cave (data/stage/cave), course 5.
+   data_020758c8[13] = 21 (level+8, a read not an assumption), LVL_Overlay
+   data_02092208[13] = 0x021138c4, OV0 handles at LVL_Overlay+8 (bmd 0x0709/kcl
+   0x0706/icg 0x070a/icl 0x070b) resolve directly through build/assets/handles.tsv
+   -- the handle column, the delta-0 mapping the recent levels use -- to cave's
+   cave_all.bmd/cave.kcl/cave_icg.bin/cave_icl.bin; SUBLEVEL_LEVEL_TABLE[13]
+   (0x02075298) is 0x05 = course 5, subCount 8, a 61224-byte KCL (the largest
+   mounted so far). Mounted --whole; own_sinits 0. */
+void port_ov021_patch(void);
+void *port_ov021_at(unsigned ds);
+extern unsigned char port_ov021_image[];
+extern const unsigned port_ov021_ds_base, port_ov021_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -369,6 +382,9 @@ static const PortLevelDesc port_level_table[] = {
     {12, "Big Boo's Haunt (teresa_house, course 4)", "ov020", 0x021138fc,
      port_ov020_patch, port_ov020_at,
      &port_ov020_ds_base, &port_ov020_ds_end, 0},
+    {13, "Hazy Maze Cave (cave, course 5)", "ov021", 0x021138c4,
+     port_ov021_patch, port_ov021_at,
+     &port_ov021_ds_base, &port_ov021_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -523,6 +539,11 @@ static void *port_mount_row_8(void) { return port_level_mount_at(8); }
 static void *port_mount_row_9(void) { return port_level_mount_at(9); }
 static void *port_mount_row_10(void) { return port_level_mount_at(10); }
 static void *port_mount_row_11(void) { return port_level_mount_at(11); }
+/* level 13, appended self-contained: named for its level rather than its row
+   index because sibling agents add rows against the same base and the reviewer
+   renumbers the thunk index at merge. Its row is the last in port_level_table[],
+   so it mounts index PORT_LEVEL_COUNT-1. */
+static void *port_mount_row_lvl13(void) { return port_level_mount_at(PORT_LEVEL_COUNT - 1); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
@@ -533,6 +554,7 @@ static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_9,
     port_mount_row_10,
     port_mount_row_11,
+    port_mount_row_lvl13,
 };
 
 // ---- the loader dispatch table ---------------------------------------------

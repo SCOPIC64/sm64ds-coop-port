@@ -663,6 +663,13 @@ list(APPEND PORT_LEVEL_OVERLAYS ov019)
 # handles.tsv to teresa_house's all.bmd/kcl/icg/icl; SUBLEVEL_LEVEL_TABLE[12] = 4.
 # Mounted --whole; own_sinits 0.
 list(APPEND PORT_LEVEL_OVERLAYS ov020)
+# gate 156: ov021 = level 13, Hazy Maze Cave (data/stage/cave), course 5.
+# data_020758c8[13] = 21 (level+8, a read not an assumption), LVL_Overlay
+# data_02092208[13] = 0x021138c4, OV0 handles at +8 (bmd 0x0709/kcl 0x0706/
+# icg 0x070a/icl 0x070b) resolve directly through handles.tsv to cave's
+# cave_all.bmd/cave.kcl/cave_icg.bin/cave_icl.bin; SUBLEVEL_LEVEL_TABLE[13] = 5,
+# subCount 8, a 61224-byte KCL. Mounted --whole; own_sinits 0.
+list(APPEND PORT_LEVEL_OVERLAYS ov021)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
