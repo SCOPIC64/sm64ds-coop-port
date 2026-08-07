@@ -784,6 +784,23 @@ void __sinit_ov095_0213722c(void);
 void port_updownlift_states_seat(void);
 }
 
+/* ---- gate 176: ov071, SCUTTLEBUG's overlay (daSpd_c, 255), first mount ----
+   An ACTOR overlay (base 0x0211f000) carrying Scuttlebug, MrI/BigMrI, the
+   projectile and the Coffin; this gate hosts Scuttlebug. Four sinits, reach
+   audited self+arm9 only: __sinit_ov071_021226ac copies the eighteen state
+   SOURCE PMFs into the bss record array data_ov071_02122fa8, so the seat
+   (port/unmatched/Scuttlebug_StateDispatch.cpp) rewrites the SOURCE side
+   before it, the MontyMole/Crate ordering. */
+extern "C" {
+void port_ov071_pack_check(void);
+void port_ov071_syms_patch(void);
+void __sinit_ov071_021226ac(void);
+void __sinit_ov071_021228c8(void);
+void __sinit_ov071_02122a1c(void);
+void __sinit_ov071_02122a64(void);
+void port_scuttlebug_states_seat(void);
+}
+
 extern "C" void port_actor_overlays_sinits(void)
 {
     static int done;
@@ -941,6 +958,17 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov095_02136fe0();
     port_updownlift_states_seat();
     __sinit_ov095_0213722c();
+
+    /* gate 176: ov071, Scuttlebug's overlay, first mount. Seat the eighteen
+       state SOURCE PMFs over their host bodies BEFORE __sinit_ov071_021226ac
+       copies them into the bss record array. */
+    port_ov071_pack_check();
+    port_ov071_syms_patch();
+    port_scuttlebug_states_seat();
+    __sinit_ov071_021226ac();
+    __sinit_ov071_021228c8();
+    __sinit_ov071_02122a1c();
+    __sinit_ov071_02122a64();
 
     /* gate 143: ov019, Cool Cool Mountain's slide, IceSlideManager. No state
        seat. Only this class's own sinit runs; RacingPenguin's is left off. */

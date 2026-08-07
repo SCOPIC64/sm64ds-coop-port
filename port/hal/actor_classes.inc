@@ -520,6 +520,14 @@ void *BlueFlame_Spawn(void);                        /* ov002 0x020b59a8 (matched
 void hal_fill_blue_flame_vtable(void);
 extern unsigned char RedFlame_SpawnInfo[];          /* ov002 0x02108ef8, +4 reads 316 */
 void *RedFlame_Spawn(void);                         /* ov002 0x020b59e0 (matched src) */
+/* ---- gate 176: SCUTTLEBUG (255), ov071's first mount ----
+   The spider daSpd_c. Fresh per-symbol ov071 mount (ov071_syms.txt); the fill
+   is hal/actor_classes_scuttlebug.cpp, the closure slice_gate176.txt, the two
+   state dispatchers host-copied + the record seat in
+   port/unmatched/Scuttlebug_StateDispatch.cpp. */
+extern unsigned char Scuttlebug_SpawnInfo[];        /* ov071 0x02122c08, +4 reads 255 */
+void *Scuttlebug_Spawn(void);                       /* ov071 0x02120618 (matched src) */
+void hal_fill_scuttlebug_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -744,4 +752,7 @@ void *RedFlame_Spawn(void);                         /* ov002 0x020b59e0 (matched
        RED_FLAME reuses it, the GreenShellBlockTag shape ---- */ \
     {317, "BLUE_FLAME", BlueFlame_SpawnInfo, BlueFlame_Spawn, \
      hal_fill_blue_flame_vtable}, \
-    {316, "RED_FLAME", RedFlame_SpawnInfo, RedFlame_Spawn, 0},
+    {316, "RED_FLAME", RedFlame_SpawnInfo, RedFlame_Spawn, 0}, \
+    /* ---- gate 176: SCUTTLEBUG (255), ov071's first mount ---- */ \
+    {255, "SCUTTLEBUG", Scuttlebug_SpawnInfo, Scuttlebug_Spawn, \
+     hal_fill_scuttlebug_vtable},

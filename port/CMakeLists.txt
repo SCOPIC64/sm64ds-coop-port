@@ -505,6 +505,10 @@ endforeach()
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN5Actor13SpawnSoundObjEj.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN5Actor24KillAndTrackInDeathTableEv.c"
+    # gate 176: a //cpp-marked state body (local method shadows over extern "C"
+    # bodies), the same shape -- compiles as C++, no face needed (its own
+    # symbol is extern "C" inside the file).
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov071_0211f7d4.c"
     PROPERTIES LANGUAGE CXX)
 
 # func_ov002_020d708c is C++ inside a .c (a `virtual` vtable shadow), which
@@ -791,6 +795,11 @@ list(APPEND PORT_ACTOR_OVERLAYS ov079)
 # ov085/ov080/ov079 shape. Its three vtables (_ZTV9SeesawBob and the UpDownLift/
 # Flamethrower ones) are host arrays the registry fills. See port/ov095_syms.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov095)
+# gate 176: ov071 is SCUTTLEBUG's overlay (daSpd_c, 255), first mount. Per
+# symbol so the actor reaches its SpawnInfo, its model/anim SharedFilePtrs, the
+# eighteen state SOURCE PMFs and the bss state array by name. Its vtable is a
+# host array the registry fills. See port/ov071_syms.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov071)
 # gate 143: ov019 is level 11's own overlay (Cool Cool Mountain's slide),
 # already mounted whole in PORT_LEVEL_OVERLAYS; it joins the per-symbol mounts
 # here so IceSlideManager (356) reaches its SpawnInfo record and the two
@@ -1781,6 +1790,22 @@ foreach(line IN LISTS SLICE175_LINES)
     list(APPEND SLICE175_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Gate 176: SCUTTLEBUG (255), ov071's first mount. The closure is the factory,
+# the five lifecycle methods (three real C++ methods, two C forms), D0, the
+# eighteen state halves and their ov071 helpers, plus three arm9 C-form
+# helpers. The two state dispatchers are host copies with the source-side seat
+# (unmatched/Scuttlebug_StateDispatch.cpp); the fill is
+# hal/actor_classes_scuttlebug.cpp. See slice_gate176.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate176.txt" SLICE176_LINES)
+set(SLICE176_SOURCES "")
+foreach(line IN LISTS SLICE176_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE176_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gates 64-69: ov079's four static initialisers plus the six enemy classes'
 # matched lifecycle closures -- WHOMP (164), WHOMP_KING (165), BULLET_BILL (222),
 # BILL_BLASTER (43), FORTRESS_WALL (47), FORTRESS_WALL_BREAKABLE (48). The two
@@ -1951,6 +1976,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_updownlift.cpp ${SLICE173_SOURCES} unmatched/UpDownLiftBbh_Behavior.cpp
     hal/actor_classes_montymole.cpp ${SLICE174_SOURCES} unmatched/MontyMole_StateDispatch.cpp unmatched/MontyMole_1Up.cpp
     hal/actor_classes_flame.cpp ${SLICE175_SOURCES}
+    hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -1999,6 +2025,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     hal/actor_classes_updownlift.cpp ${SLICE173_SOURCES} unmatched/UpDownLiftBbh_Behavior.cpp
     hal/actor_classes_montymole.cpp ${SLICE174_SOURCES} unmatched/MontyMole_StateDispatch.cpp unmatched/MontyMole_1Up.cpp
     hal/actor_classes_flame.cpp ${SLICE175_SOURCES}
+    hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -2050,6 +2077,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_updownlift.cpp ${SLICE173_SOURCES} unmatched/UpDownLiftBbh_Behavior.cpp
     hal/actor_classes_montymole.cpp ${SLICE174_SOURCES} unmatched/MontyMole_StateDispatch.cpp unmatched/MontyMole_1Up.cpp
     hal/actor_classes_flame.cpp ${SLICE175_SOURCES}
+    hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp

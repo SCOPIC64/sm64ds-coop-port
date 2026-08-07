@@ -114,4 +114,23 @@ int _ZN13QuestionBlock6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- SCUTTLEBUG (actor 255, ov071, gate 176) ------------------------------
+   Two early outs -- the 0x40000 flag at +0xb0 and the +0x39c state gate --
+   then the draw through ModelAnim slot 5 with a null scale, which the matched
+   TU dispatches through a ROM-order local shadow. The host _ZTV9ModelAnim is
+   MSVC-ordered, so ROM slot 5 lands on Virtual18 and reads a null matrix (the
+   frame-20 fault the first cave boot caught).
+   PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish case. */
+int _ZN10Scuttlebug6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    if (*(int *)(c + 0xb0) & 0x40000)
+        return 1;
+    if (*(int *)(c + 0x39c) == 0)
+        return 1;
+    /* ((Obj *)this)->sub.method5(0) */
+    ((ModelAnim *)(c + 0xd4))->ModelAnim::Render(0);
+    return 1;
+}
+
 }  /* extern "C" */
