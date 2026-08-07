@@ -404,6 +404,16 @@ void hal_fill_power_star_vtable(void);
 extern unsigned char StarCamera_SpawnInfo[];      /* ov002 0x0210aa94, id 177 */
 void *StarCamera_Spawn(void);                     /* ov002 0x020ebe5c */
 void hal_fill_actor_base_vtable(void);
+/* ---- gate 102: FORTRESS_TOWER (49, ov102) ---------------------------------
+   Whomp's Fortress' tower, a Platform subclass (RTTI daObjSimpleBg_c). Its
+   factory FortressTower_Spawn installs _ZTV13FortressTower, the SAME table
+   WARP_PIPE (id 298) installs and hal_fill_warp_pipe_vtable already fills, so
+   this row carries no fill of its own. All five methods are already compiled
+   (gate 33's WARP_PIPE slice) and FortressTower_SpawnInfo is already mounted
+   (ov102_syms.txt); the record's +4 halfword reads 49. See slice_gate102.txt
+   and the WARP_PIPE section in hal/actor_classes_bob_world.cpp. */
+extern unsigned char FortressTower_SpawnInfo[];   /* ov102 0x0214e118, id 49 */
+void *FortressTower_Spawn(void);                  /* ov102 0x02148f2c */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -581,4 +591,8 @@ void hal_fill_actor_base_vtable(void);
     {47, "FORTRESS_WALL", FortressWall_SpawnInfo, FortressWall_Spawn, \
      hal_fill_fortress_wall_vtable_c}, \
     {48, "FORTRESS_WALL_BREAKABLE", FortressWallBreakable_SpawnInfo, \
-     FortressWallBreakable_Spawn, 0},
+     FortressWallBreakable_Spawn, 0}, \
+    /* ---- gate 102: FORTRESS_TOWER (49), Whomp's Fortress (ov102) ---- */ \
+    /* Installs _ZTV13FortressTower, filled by the WARP_PIPE row above; no \
+       fill of its own, the BIG_BRICK_BLOCK / LIGHT_BEAM shape. */ \
+    {49, "FORTRESS_TOWER", FortressTower_SpawnInfo, FortressTower_Spawn, 0},
