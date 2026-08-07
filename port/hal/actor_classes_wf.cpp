@@ -432,3 +432,21 @@ extern "C" void hal_fill_rotating_platform_wf_vtable(void)
 // func_02012664, Actor::UpdatePosWithOnlySpeed's void* spelling) were all worked
 // out; only the host-copy Behavior is left. Deferred as the one blocked platform
 // of the eight.
+
+// ============================================================================
+// FALL_BLOCK_WF (id 45) -- vtable 0x021148dc (_ZTV11FallBlockWf) -- BLOCKED
+// ============================================================================
+//
+// FallBlockWf_Spawn installs 0x021148dc, whose own InitResources/CleanupResources
+// and destructors are matched ov015 src -- but its slot-6 Behavior and slot-9
+// Render are func_ov098_0213a36c and func_ov098_0213a314, the ov098 CANNON's own
+// bodies (the daObjBk base FallBlockWf and the cannon share). func_ov098_0213a36c
+// is exactly the WATER_BOMB blocker walked down at gate 51: it walks a chain of
+// same-id actors through the +0x348 pointer that func_ov098_0213a00c's scan
+// populates from Actor::FindWithActorID, and the port's spawn ordering does not
+// build that same-id chain, so the walk reads a null +0x348 and faults. Every
+// function is matched src -- this is the same spawn-ordering/chain-seat question
+// the WATER_BOMB is deferred on, not undecompiled code -- so FALL_BLOCK_WF is
+// left blocked on the identical blocker rather than duplicating the fault here.
+// Its vtable is excluded from the ov015 mount like the other seven; no host array
+// is declared because the class is not registered.
