@@ -1,0 +1,26 @@
+# The ov019 data level 11's IceSlideManager names.
+#
+# ov019 is level 11's own overlay (data/stage/snow_slider, Cool Cool Mountain's
+# slide, course 3), already mounted WHOLE in PORT_LEVEL_OVERLAYS (its LVL_Overlay
+# object tables are walked across symbol boundaries by count). This is the SECOND
+# mount, per symbol, the gate-17 treatment ov009/ov014/ov010/ov015 already get:
+# IceSlideManager (356) reaches its SpawnInfo record and the construction-data
+# statics its InitResources reads BY NAME. The two mounts are disjoint pointer
+# graphs on purpose.
+#
+# THE VTABLE _ZTV15IceSlideManager IS LEFT OUT, the ov015/ov010/ov080 rule: it is
+# a host array the registry fills (hal/actor_classes_ccm.cpp), so mounting it
+# would hand the factory DS code addresses.
+#
+# IceSlideManager_SpawnInfo is pinned to the record's real 0x1c so the +4 id
+# halfword the registry cross-checks reads out of the right bytes (356 = 0x164).
+#
+# data_ov019_021135d8 and data_ov019_021135cc are the two bss statics
+# __sinit_ov019_02112b14 (this class's own sinit, matched src) writes and
+# IceSlideManager::InitResources reads back; emitted zeroed here, seeded by the
+# sinit at boot (hal/actor_overlays.cpp). The OTHER sinit,
+# __sinit_ov019_021127a4, is RacingPenguin's (259, not spawned by level 11) and
+# is deliberately not run -- it constructs a dozen SharedFilePtrs that class needs
+# and this one does not.
+IceSlideManager_SpawnInfo:0x1c
+data_ov019_021135d8 data_ov019_021135cc
