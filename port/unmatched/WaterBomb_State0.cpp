@@ -40,6 +40,8 @@ extern "C" void func_0201267c(u32 a, void *b, void *c, int d);
 extern s16 data_02082214[];
 #define M(x) ((long long)(int)(x))
 
+/* PORT_HOST_ABI: MSVC C2561 rejects the matched int-with-bare-return form;
+   identical body declared void, r0 dead at the only call site. */
 extern "C" void func_ov098_0213b9d8(char *self)
 {
     Vector3 v; Actor *player; s32 ang; s32 vel; u32 ua; int factor; int a; s16 sn, cs;

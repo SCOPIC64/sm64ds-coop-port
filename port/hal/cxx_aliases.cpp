@@ -207,6 +207,8 @@ int func_02017b4c(void *self, unsigned id)
    because the card seam does not refcount. */
 int func_020178cc(void *self, unsigned id)
 { _ZN13SharedFilePtr9ConstructEj(self, id); return (int)self; }
+/* PORT_HOST_ABI: fileptr dtor callback the third ov080 sinit registers by
+   address; host card seam does not refcount, so the body is a no-op. */
 int func_020178b4(int x) { return x; }   /* fileptr dtor callback: host no-op */
 /* PORT_HOST_ABI: fileptr dtor body; host card seam does not refcount. */
 int func_02017e34(int x) { return x; }   /* fileptr dtor body: host no-op */
@@ -743,7 +745,9 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
        8-byte BSS SharedFilePtr the ov010 sinits build; CleanupResources names
        it directly. Its address is used as a SharedFilePtr, so the data symbol
        is the right target. Both decls are C-linkage in decl_common's extern "C"
-       block, so the references are plain cdecl. */
+       block, so the references are plain cdecl.
+   PORT_HOST_ABI: dsd shared-base misname -- the ov021 name at 0x02112d64 is
+   ov010 BSS data in the running overlay set, aliased by address. */
 #pragma comment(linker, "/alternatename:_data_ov052_02111e84=_func_ov010_02111e84")
 #pragma comment(linker, "/alternatename:_RollingRock_Spawn=_data_ov010_02112d64")
 #pragma comment(linker, "/alternatename:?data_0208e42c@@3CA=_data_0208e42c")

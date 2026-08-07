@@ -37,6 +37,8 @@ void func_ov098_0213a8ec(void *);   /* the collider update callback */
 
 struct RG { char b[0x4c]; };
 
+/* PORT_HOST_ABI: MSVC C2733 rejects the matched TU's second extern-C decl;
+   body is the matched source's line for line, self-decl dropped. */
 extern "C" int func_ov098_0213a794(char *self, char **fp)
 {
     RG rc;

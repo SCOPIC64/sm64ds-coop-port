@@ -137,6 +137,10 @@ def _reasons_in(source_path):
             for name in IDENT.findall(lines[j]):
                 if name not in _SKIP_IDENT:
                     out.setdefault(name, reason)
+                    # /alternatename pragmas carry the MSVC `_` prefix the
+                    # map parser strips; bind the stripped form too so a tag
+                    # above an alias documents the symbol the queue asks for.
+                    out.setdefault(name.lstrip("_"), reason)
             # A `{` opens the definition body -- stop here. A line ending in `;`
             # is a forward-declaration/prototype the definition sits below;
             # keep going. `}` closes a one-line body -- stop.
@@ -178,8 +182,12 @@ def map_symbols(mapfile):
     out = []
     with open(mapfile, errors="replace") as f:
         for line in f:
+            # The flag column between the RVA and the object is `f`, `f i`, or
+            # absent (data rows). A bare \S* placeholder backtracks into the
+            # object name on flagless rows and truncates `ov010_syms.c.obj`
+            # to `c.obj`, so spell the flags out and anchor the object at EOL.
             m = re.match(
-                r"\s+[0-9a-fA-F]{4}:[0-9a-fA-F]{8}\s+(\S+)\s+[0-9a-fA-F]{8}\s+\S*\s*(\S+\.obj)",
+                r"\s+[0-9a-fA-F]{4}:[0-9a-fA-F]{8}\s+(\S+)\s+[0-9a-fA-F]{8}\s+(?:[fi]\s+)*(\S+\.obj)\s*$",
                 line)
             if m:
                 out.append((m.group(1).lstrip("_"), m.group(2)))
@@ -187,7 +195,8 @@ def map_symbols(mapfile):
 
 
 def main():
-    root = sys.argv[1] if len(sys.argv) > 1 else "."
+    positional = [a for a in sys.argv[1:] if not a.startswith("--")]
+    root = positional[0] if positional else "."
     show_queue = "--queue" in sys.argv
     show_exceptions = "--exceptions" in sys.argv
 
@@ -229,6 +238,13 @@ def main():
         source = src_cache.get(obj)
         if source is None:
             source = host_source_for(root, obj)
+            if source is None:
+                # A host object with no source under the host dirs is a
+                # generated seat (ovNNN_syms.c.obj). The only way a matched
+                # TU's name lands in one is an /alternatename alias, and
+                # cxx_aliases.cpp is the alias registry -- read the reason
+                # from the tag above the alias.
+                source = os.path.join(root, "port", "hal", "cxx_aliases.cpp")
             src_cache[obj] = source
         for sym in s:
             reason = abi_reason(source, sym)

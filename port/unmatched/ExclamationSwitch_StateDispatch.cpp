@@ -94,7 +94,10 @@ extern "C" void port_exclamation_switch_states_seat(void)
 }
 
 /* HOST COPY of func_ov002_020ba4d8: set the state index, call its INIT half.
-   The record for state i's init is data_ov002_0210e00c[2*i]. */
+   The record for state i's init is data_ov002_0210e00c[2*i]. MSVC strides the
+   incomplete-class PMF table at 0x20 and would dispatch a neighbour, so the
+   host copy reads the {function, 0} record directly.
+   PORT_HOST_ABI: mwcc pointer-to-member stride on the incomplete class. */
 extern "C" void func_ov002_020ba4d8(void *c, int i)
 {
     *(int *)((char *)c + 0x340) = i;
@@ -104,7 +107,8 @@ extern "C" void func_ov002_020ba4d8(void *c, int i)
 }
 
 /* HOST COPY of func_ov002_020ba520: call the current state's MAIN half.
-   The record for state idx's main is data_ov002_0210e00c[2*idx + 1]. */
+   The record for state idx's main is data_ov002_0210e00c[2*idx + 1].
+   PORT_HOST_ABI: same mwcc pointer-to-member stride limit as 020ba4d8. */
 extern "C" void func_ov002_020ba520(void *c)
 {
     int idx = *(int *)((char *)c + 0x340);
