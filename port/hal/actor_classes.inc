@@ -385,6 +385,25 @@ void *FortressWall_Spawn(void);                   /* ov079 0x0212757c */
 void hal_fill_fortress_wall_vtable_c(void);
 extern unsigned char FortressWallBreakable_SpawnInfo[]; /* ov079 0x02128070, id 48 */
 void *FortressWallBreakable_Spawn(void);          /* ov079 0x021275ac */
+/* ---- gate 89: POWER_STAR (178, ov002) -------------------------------------
+   An Enemy subclass whose vtable _ZTV9PowerStar (ov002 0x0210ab3c, 31 slots,
+   RTTI daStar_c) PowerStar_Spawn installs directly. SpawnInfo record from the
+   ov002 per-symbol mount (added to ov002_syms.txt); the record's +4 halfword
+   reads 178. Its Behavior dispatches a fourteen-entry pointer-to-member state
+   table, hosted in port/unmatched/PowerStar_States.cpp. See
+   hal/actor_classes_star.cpp. */
+extern unsigned char PowerStar_SpawnInfo[];       /* ov002 0x0210aa40, id 178 */
+void *PowerStar_Spawn(void);                      /* ov002 0x020ebf30 */
+void hal_fill_power_star_vtable(void);
+/* ---- gate 90: STAR_CAMERA (177, ov002) ------------------------------------
+   A bare Actor: StarCamera_Spawn installs NO vtable of its own, so it dispatches
+   the base Actor vtable _ZTV5Actor (data_0208e3a4). hal_fill_actor_base_vtable
+   fills that shared table -- provably safe, it is the only class that leaves it
+   installed. SpawnInfo from the ov002 mount; the record's +4 halfword reads
+   177. See hal/actor_classes_star.cpp. */
+extern unsigned char StarCamera_SpawnInfo[];      /* ov002 0x0210aa94, id 177 */
+void *StarCamera_Spawn(void);                     /* ov002 0x020ebe5c */
+void hal_fill_actor_base_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -546,6 +565,12 @@ void *FortressWallBreakable_Spawn(void);          /* ov079 0x021275ac */
     /* ---- gate 83: SEESAW_BOB (39), Bob-omb Battlefield (ov095) ---- */ \
     {39, "SEESAW_BOB", SeesawBob_SpawnInfo, SeesawBob_Spawn, \
      hal_fill_seesaw_bob_vtable}, \
+    /* ---- gate 89: POWER_STAR (178), ov002 ---- */ \
+    {178, "POWER_STAR", PowerStar_SpawnInfo, PowerStar_Spawn, \
+     hal_fill_power_star_vtable}, \
+    /* ---- gate 90: STAR_CAMERA (177), ov002 (bare Actor, base vtable) ---- */ \
+    {177, "STAR_CAMERA", StarCamera_SpawnInfo, StarCamera_Spawn, \
+     hal_fill_actor_base_vtable}, \
     /* ---- gates 64-69: Whomp's Fortress' enemy cast (ov079), now live ---- */ \
     {164, "WHOMP", Whomp_SpawnInfo, Whomp_Spawn, hal_fill_whomp_vtable_c}, \
     {165, "WHOMP_KING", WhompKing_SpawnInfo, WhompKing_Spawn, 0}, \

@@ -77,7 +77,14 @@ extern "C" void *_ZTV14ArrowSignRight[20] = {
 extern "C" {
 void *_ZTV8Platform[20];   /* ov002 0x0210ae38, dBgActor_c in the ROM's RTTI */
 int data_0208e4b8[20];   /* ActorBase-era vtable-ish install in Actor ctor */
-int data_0208e3a4[20];
+/* _ZTV5Actor, the base Actor vtable. 31 slots (the full Actor table, not the
+   20-slot ActorBase shape): STAR_CAMERA (gate 90) is a bare Actor that leaves
+   this installed as its final vtable and dispatches all 31, so it is FILLED by
+   hal_fill_actor_base_vtable in hal/actor_classes_star.cpp. For every other
+   class it is still only the transient ctor install, overwritten before any
+   dispatch -- filling it is invisible to them (see that file's proof).
+   void*[] (not int[]) so the fill's pointer stores are the array's own type. */
+void *data_0208e3a4[31];
 }
 
 // ---- ActorBase::ActorBase() transcription ---------------------------------
@@ -410,7 +417,11 @@ int data_0209b498[8], data_0209d574[8];
    runs 0x0209b53c..0x0209baa0 = 0x564. It was int[8] while sound was
    stubbed, so the init would have written 1.2KB past it. */
 int data_0209b53c[0x564 / 4];
-int data_0209f310[8], data_020a0f10[8], data_020a4bec[8];
+/* data_0209f310 (the VS-star obtained array base) moved to
+   hal/actor_classes_star.cpp: it and data_0209f311 are the ROM's own first two
+   bytes of one contiguous run NumVsStarsObtained walks, so they are hosted as
+   one grouped-section block there instead of two disjoint host objects. */
+int data_020a0f10[8], data_020a4bec[8];
 /* data_0209f340 is the CURRENT LVL_Overlay (Stage::GetSkyboxID,
    StartWithFarCamera and the render chain read its flag and skybox bits).
    With no level booted it parks on a zeroed block so every flag reads 0;

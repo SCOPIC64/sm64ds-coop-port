@@ -92,6 +92,10 @@ NAMED = [
     # bytes func_0205bc88 copies into its header buffer. No relocations in any
     # of them; they really are data.
     "data_02086ec0", "data_02086ed8", "data_0209a044",
+    # gate 89: a 779-byte arm9 .rodata table func_ov002_020e88a8 (a PowerStar
+    # state helper) reads a s16 out of at +0x56. No relocations in it -- pure
+    # data, byte-hosted the same as every table above.
+    "data_02082714",
     # gate 32: the coin tables Actor::GivePlayerCoins indexes (id and amount),
     # and the per-character cap-model constant data_0208a0e0 sits beside them.
     "data_02075230", "data_02075238",
