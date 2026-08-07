@@ -425,6 +425,17 @@ void *FortressTower_Spawn(void);                  /* ov102 0x02148f2c */
    and the EXCLAMATION_SWITCH section in hal/actor_classes_bob_world.cpp. */
 extern unsigned char StarSwitch_SpawnInfo[];      /* ov002 0x0210991c, id 12 */
 void *StarSwitch_Spawn(void);                     /* ov002 0x020baaac */
+/* ---- gate 128: EXCLAMATION_BLOCK (21, ov102) ------------------------------
+   Jolly Roger Bay's ship sublevel (level 9) prints id 0x15 (21) skipped. Its
+   factory ExclamationBlock_Spawn installs _ZTV13QuestionBlock, the SAME table
+   QUESTION_BLOCK (id 20) installs and hal_fill_question_block_vtable already
+   fills, so this row carries no fill of its own -- the FORTRESS_TOWER shape.
+   All of QuestionBlock's methods are already compiled and its host vtable is
+   already filled (gate 23), and ExclamationBlock_SpawnInfo is already mounted
+   (ov102_syms.txt); the record's +4 halfword reads 21. See slice_gate128.txt
+   and the QUESTION_BLOCK section in hal/actor_classes.cpp. */
+extern unsigned char ExclamationBlock_SpawnInfo[]; /* ov102 0x0214e404, id 21 */
+void *ExclamationBlock_Spawn(void);                /* ov102 0x0214a8ac */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -610,4 +621,8 @@ void *StarSwitch_Spawn(void);                     /* ov002 0x020baaac */
     /* ---- gate 103: STAR_SWITCH (12), Whomp's Fortress (ov002) ---- */ \
     /* Installs _ZTV10StarSwitch, filled by the EXCLAMATION_SWITCH row (with \
        its PMF state seat); no fill of its own. */ \
-    {12, "STAR_SWITCH", StarSwitch_SpawnInfo, StarSwitch_Spawn, 0},
+    {12, "STAR_SWITCH", StarSwitch_SpawnInfo, StarSwitch_Spawn, 0}, \
+    /* ---- gate 128: EXCLAMATION_BLOCK (21), Jolly Roger Bay ship (ov102) ---- */ \
+    /* Installs _ZTV13QuestionBlock, filled by the QUESTION_BLOCK row above; no \
+       fill of its own, the FORTRESS_TOWER / STAR_SWITCH shape. */ \
+    {21, "EXCLAMATION_BLOCK", ExclamationBlock_SpawnInfo, ExclamationBlock_Spawn, 0},
