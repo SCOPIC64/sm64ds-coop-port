@@ -1,0 +1,21 @@
+# Gate 78: BLUE_COIN_SWITCH (10), ov002. The ground-pound switch that turns the
+# level's blue-coin markers collectable. A Platform subclass; every own slot is
+# an extern-C C-linkage TU (the .cpp Render is extern "C" too), the Behavior a
+# plain state machine with no pointer-to-member. Factory + the six lifecycle
+# methods its vtable's own slots point at, and the one collider callback its
+# InitResources registers. Its SpawnInfo and the CLPS block it loads through are
+# mounted in ov002_syms.txt; the vtable is a host array the registry fills.
+src/BlueCoinSwitch_Spawn.c
+src/_ZN14BlueCoinSwitch13InitResourcesEv.c
+src/_ZN14BlueCoinSwitch16CleanupResourcesEv.c
+src/_ZN14BlueCoinSwitch8BehaviorEv.c
+src/_ZN14BlueCoinSwitch6RenderEv.cpp
+src/_ZN14BlueCoinSwitchD1Ev.c
+src/_ZN14BlueCoinSwitchD0Ev.c
+# the collider update callback InitResources registers (func_020393c4) and its
+# one-line forward to the shared ov002 body
+src/func_ov002_020f15b8.c
+src/func_ov002_020f1578.c
+# func_ov002_020f1578 asks the paired blue-coin marker (id 0xbf) whether the
+# player is in the ground-pound state; that predicate is one more ov002 body.
+src/func_ov002_020dd8b8.cpp

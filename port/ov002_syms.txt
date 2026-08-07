@@ -119,3 +119,9 @@ data_ov002_0210d874
 # symbol (0210e168, 0210f314, 0210f350). Reached only on player interaction,
 # never on the headless boot, but they have to link.
 data_ov002_0210e164:0x4 data_ov002_0210f308:0xc data_ov002_0210f344:0xc
+# gate 78: BLUE_COIN_SWITCH (10). Its SpawnInfo record (pinned to 0x1c so the +4
+# id halfword the registry cross-checks reads 10 out of the right bytes) and the
+# CLPS block its MovingMeshCollider resolves surface types through (0x20, the
+# delta to data_ov002_0210d714). The vtable _ZTV14BlueCoinSwitch is a host array
+# the registry fills, so it stays out of the mount, the ov080 rule.
+BlueCoinSwitch_SpawnInfo:0x1c data_ov002_0210d6f4

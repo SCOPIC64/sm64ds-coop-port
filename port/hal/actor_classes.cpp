@@ -475,6 +475,57 @@ extern "C" void hal_fill_black_brick_block_vtable(void)
     vt[17] = (void *)bbb_d0;
 }
 
+// ---- BLUE_COIN_SWITCH (actor 10, ov002) ------------------------------------
+//
+// _ZTV14BlueCoinSwitch, ov002 0x0210b26c (RTTI daObjBC_Switch_c). The switch
+// that, when ground-pounded, turns the level's blue-coin markers into collecta-
+// ble blue coins for a few seconds. A Platform subclass whose six own slots are
+// all extern-C C-linkage TUs (the .cpp Render is extern "C" too), so every thunk
+// calls the mangled name directly. Its Behavior is a plain state machine with no
+// pointer-to-member and no message path. The same 32-slot Platform table
+// BigBrickBlock has, hosted as a [20] the fill covers -- nothing dispatches a
+// slot past 19 (slot 31 is Platform::Kill, reached only by KillAndTrackIn-
+// DeathTable, which the ROM never triggers here).
+extern "C" {
+int _ZN14BlueCoinSwitch13InitResourcesEv(void *self);
+int _ZN14BlueCoinSwitch16CleanupResourcesEv(void *self);
+int _ZN14BlueCoinSwitch8BehaviorEv(void *self);
+int _ZN14BlueCoinSwitch6RenderEv(char *self);
+int *_ZN14BlueCoinSwitchD1Ev(int *self);
+int *_ZN14BlueCoinSwitchD0Ev(int *self);
+void *_ZTV14BlueCoinSwitch[20];
+}
+/* the destructors spell the class's own table by its RTTI name */
+#pragma comment(linker, "/alternatename:__ZTV16daObjBC_Switch_c=__ZTV14BlueCoinSwitch")
+static int __fastcall bcs_init(void *s, void *)
+{ return _ZN14BlueCoinSwitch13InitResourcesEv(s); }
+static int __fastcall bcs_clean(void *s, void *)
+{ return _ZN14BlueCoinSwitch16CleanupResourcesEv(s); }
+static int __fastcall bcs_behavior(void *s, void *)
+{ return _ZN14BlueCoinSwitch8BehaviorEv(s); }
+static int __fastcall bcs_render(void *s, void *)
+{
+    port_actor_render_probe("BLUE_COIN_SWITCH", (char *)s + 0xd4);
+    return _ZN14BlueCoinSwitch6RenderEv((char *)s);
+}
+static int __fastcall bcs_d1(void *s, void *)
+{ return (int)(size_t)_ZN14BlueCoinSwitchD1Ev((int *)s); }
+static int __fastcall bcs_d0(void *s, void *)
+{ return (int)(size_t)_ZN14BlueCoinSwitchD0Ev((int *)s); }
+extern "C" void hal_fill_blue_coin_switch_vtable(void)
+{
+    void **vt = _ZTV14BlueCoinSwitch;
+    hal_fill_platform_vtable();
+    ac_fill_shared(vt);
+    vt[0] = (void *)bcs_init;
+    vt[3] = (void *)bcs_clean;
+    vt[6] = (void *)bcs_behavior;
+    vt[9] = (void *)bcs_render;
+    vt[12] = (void *)ac_pdes_base;
+    vt[16] = (void *)bcs_d1;
+    vt[17] = (void *)bcs_d0;
+}
+
 // ---- SIGN_POST (actor 184, ov002) x5 ---------------------------------------
 //
 // _ZTV8SignPost, ov002 0x02109af8 (RTTI: daObjTatefuda_c -- tatefuda is a
