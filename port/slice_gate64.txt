@@ -25,7 +25,11 @@
 # decl_common.h C2733 header-shadow case (func_01ffb07c / func_020396d0).
 src/Whomp_Spawn.c
 src/WhompKing_Spawn.c
-src/_ZN5Whomp6RenderEv.cpp
+# _ZN5Whomp6RenderEv IS NOT HERE: it dispatches ModelAnim slot 5 through a local
+# six-virtual shadow (the ROM Render), which the host _ZTV9ModelAnim array
+# numbers as Virtual18 -- a c0000005 in func_02045074 the first frame a Whomp is
+# drawn. Host copy in port/unmatched/ModelAnim_Renders.cpp, the Butterfly/Fish/
+# QuestionBlock ModelAnim slot-5 case.
 src/_ZN5Whomp16CleanupResourcesEv.cpp
 src/_ZN5WhompD1Ev.c
 src/_ZN5WhompD0Ev.c

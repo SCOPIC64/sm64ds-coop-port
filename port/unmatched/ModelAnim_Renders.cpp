@@ -32,6 +32,32 @@
 
 extern "C" {
 
+/* ---- WHOMP (actor 164/165, ov079) ----------------------------------------
+   The same ModelAnim slot-5 collision as the three below, one overlay over.
+   src/_ZN5Whomp6RenderEv.cpp dispatches `((Sub *)&mModelAnim)->g5(0)` through a
+   LOCAL six-virtual shadow, so its "slot 5" is the ROM's ModelAnim::Render;
+   the host _ZTV9ModelAnim array's slot 5 is Virtual18, which reads a scale off
+   the stack and hands Model::Virtual10 garbage -> a c0000005 in func_02045074
+   the first frame a Whomp is drawn. Excluded from slice_gate64.txt and hosted
+   here, the Butterfly reading exactly.
+
+   mModelAnim is at 0x2cc, mTextureSequence at 0x330, mIsKing at 0x414 and
+   unk_404 the draw guard; the king variant runs the texture scroll first (its
+   ModelComponents arg is mModelAnim.data at 0x2cc+0x8 = 0x2d4). */
+int _ZN15TextureSequence6UpdateER15ModelComponents(void *seq, void *comp);
+
+int _ZN5Whomp6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    if (*(unsigned char *)(c + 0x404) == 0)
+        return 1;
+    if (*(unsigned char *)(c + 0x414) != 0)
+        _ZN15TextureSequence6UpdateER15ModelComponents(c + 0x330, c + 0x2d4);
+    /* ((Sub *)&mModelAnim)->g5(0) -- the ROM slot-5 Render, spelled qualified */
+    ((ModelAnim *)(c + 0x2cc))->ModelAnim::Render(0);
+    return 1;
+}
+
 /* ---- BUTTERFLY (actor 336, ov100) ----------------------------------------
    State 4 is the dormant one and does not draw. Past that it is the animated
    body while +0x3f1 is set and the plain wing Model at +0x138 otherwise, and

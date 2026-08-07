@@ -412,8 +412,11 @@ extern "C" void hal_fill_fortress_wall_vtable_c(void) { hal_fill_fortress_wall_v
 extern "C" {
 int _ZN5Whomp13InitResourcesEv(void *self)
 { return ((Whomp *)self)->Whomp::InitResources(); }
-int _ZN5Whomp6RenderEv(void *self)
-{ return ((Whomp *)self)->Whomp::Render(); }
+/* Whomp::Render is NOT faced here: it dispatches ModelAnim slot 5 through a
+   local six-virtual shadow (the ROM Render), which the host _ZTV9ModelAnim
+   array numbers as Virtual18. src/_ZN5Whomp6RenderEv.cpp is dropped from
+   slice_gate64.txt and _ZN5Whomp6RenderEv is the host copy in
+   port/unmatched/ModelAnim_Renders.cpp, the Butterfly/Fish/QuestionBlock case. */
 int _ZN5Whomp16CleanupResourcesEv(void *self)
 { return ((Whomp *)self)->Whomp::CleanupResources(); }
 int _ZN10BulletBill6RenderEv(void *self)
