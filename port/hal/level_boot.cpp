@@ -123,7 +123,34 @@ extern const unsigned port_ov011_ds_base, port_ov011_ds_end;
    evidence path the five above use. SUBLEVEL_LEVEL_TABLE[9] (0x02075298) is
    0x02 = course 2, an ordinary indoor stage with subCount=1 and only the
    standard hosted loaders. Mounted --whole like the five above; own_sinits
-   stays 0. */
+   stays 0.
+
+   ITS SKIPPED CAST, and why two of the three stay skipped. Level 9's census
+   names three unregistered classes. EXCLAMATION_BLOCK (21) is hosted at gate
+   128 -- it shares QUESTION_BLOCK's already-filled vtable, so it cost only its
+   factory. The other two each need a whole overlay's worth of new mount and
+   are documented blockers, not fake-booted:
+
+     - TREASURE_CHEST (13, ov064): fully decompiled (7 methods + two ov064
+       helpers func_ov064_0211a284/_0211a734), self-contained in ov064. BLOCKED
+       on a fresh per-symbol ov064 mount: ov064 is not mounted at all, and the
+       class reaches its SpawnInfo (0x0211c4e8), _ZTV13TreasureChest and two
+       bss SharedFilePtrs (data_ov064_0211c964/_0211c96c) by name. Those file
+       pointers are constructed by ov064's ten static initialisers, so hosting
+       it is the gate-64/gate-95 shape: a per-symbol ov064 mount, its sinits,
+       the vtable fill and the row. A multi-part gate, deferred.
+
+     - SHIP_WATER (62, ov017): fully decompiled, but its byte-matched
+       InitResources references its own overlay's statics by the ov055/ov056
+       symbol SPELLINGS (data_ov056_02111a60, data_ov055_02111a94) -- ov017,
+       ov055 and ov056 share base 0x021111a0, and the decomp TU was written
+       against the sibling overlays' names for the same bytes. Hosting it needs
+       a per-symbol ov017 mount (ShipWater_SpawnInfo, _ZTV9ShipWater,
+       data_ov017_02111c88) PLUS an alias-by-address that resolves the ov055/
+       ov056 spellings onto ov017's host bytes -- the "propagate config renames
+       BY ADDRESS" hazard. Its Behavior also gates on TREASURE_CHEST (waits for
+       every id-13 actor to be opened), so it wants that class first. Deferred
+       to a dedicated gate; the level boots and is walkable without it. */
 void port_ov017_patch(void);
 void *port_ov017_at(unsigned ds);
 extern unsigned char port_ov017_image[];
