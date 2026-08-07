@@ -528,6 +528,21 @@ void *RedFlame_Spawn(void);                         /* ov002 0x020b59e0 (matched
 extern unsigned char Scuttlebug_SpawnInfo[];        /* ov071 0x02122c08, +4 reads 255 */
 void *Scuttlebug_Spawn(void);                       /* ov071 0x02120618 (matched src) */
 void hal_fill_scuttlebug_vtable(void);
+/* ---- gate 177: ov064's first mount -- BULLY (215), BIG_BULLY (216),
+   ROTATING_FIREBAR (81), Lethal Lava Land's no-PMF trio. The bullies'
+   factories leave the vptr on the BASE table (VT1), so the registry rows
+   carry port_factory_* wrappers that reseat onto the host arrays -- the
+   Thwomp treatment, here mandatory. Fills hal/actor_classes_ov064.cpp,
+   closure slice_gate177.txt. */
+extern unsigned char Bully_SpawnInfo[];            /* ov064 0x0211b818, +4 reads 215 */
+extern unsigned char BigBully_SpawnInfo[];         /* ov064 0x0211b920, +4 reads 216 */
+extern unsigned char RotatingFirebar_SpawnInfo[];  /* ov064 0x0211bdec, +4 reads 81  */
+void *port_factory_bully(void);            /* wrapper: Bully_Spawn + reseat vptr */
+void *port_factory_big_bully(void);        /* wrapper: BigBully_Spawn + reseat   */
+void *RotatingFirebar_Spawn(void);         /* installs _ZTV15RotatingFirebar itself */
+void hal_fill_bully_vtable(void);
+void hal_fill_big_bully_vtable(void);
+void hal_fill_rotating_firebar_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -755,4 +770,10 @@ void hal_fill_scuttlebug_vtable(void);
     {316, "RED_FLAME", RedFlame_SpawnInfo, RedFlame_Spawn, 0}, \
     /* ---- gate 176: SCUTTLEBUG (255), ov071's first mount ---- */ \
     {255, "SCUTTLEBUG", Scuttlebug_SpawnInfo, Scuttlebug_Spawn, \
-     hal_fill_scuttlebug_vtable},
+     hal_fill_scuttlebug_vtable}, \
+    /* ---- gate 177: ov064's Bully family + firebar (Lethal Lava Land) ---- */ \
+    {215, "BULLY", Bully_SpawnInfo, port_factory_bully, hal_fill_bully_vtable}, \
+    {216, "BIG_BULLY", BigBully_SpawnInfo, port_factory_big_bully, \
+     hal_fill_big_bully_vtable}, \
+    {81, "ROTATING_FIREBAR", RotatingFirebar_SpawnInfo, RotatingFirebar_Spawn, \
+     hal_fill_rotating_firebar_vtable},

@@ -801,6 +801,21 @@ void __sinit_ov071_02122a64(void);
 void port_scuttlebug_states_seat(void);
 }
 
+/* ---- gate 177: ov064, Lethal Lava Land's actor overlay, first mount ----
+   Eleven sinits total; only the three that construct the SharedFilePtrs the
+   hosted trio reads run -- the other eight serve unhosted ov064 classes. The
+   lone cross-overlay reloc near the base table (0x0211b764 -> 0x021138bc) is
+   the base vtable's typeinfo word, static data left OUT of the mount, so no
+   sinit carries a cross-overlay reach. No state seat: none of the three
+   dispatches a pointer-to-member table. */
+extern "C" {
+void port_ov064_pack_check(void);
+void port_ov064_syms_patch(void);
+void __sinit_ov064_0211ae00(void);
+void __sinit_ov064_0211aee0(void);
+void __sinit_ov064_0211b0e4(void);
+}
+
 extern "C" void port_actor_overlays_sinits(void)
 {
     static int done;
@@ -969,6 +984,14 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov071_021228c8();
     __sinit_ov071_02122a1c();
     __sinit_ov071_02122a64();
+
+    /* gate 177: ov064, the lava overlay, first mount. No state seat; the
+       three sinits are the hosted trio's SharedFilePtr constructors. */
+    port_ov064_pack_check();
+    port_ov064_syms_patch();
+    __sinit_ov064_0211ae00();
+    __sinit_ov064_0211aee0();
+    __sinit_ov064_0211b0e4();
 
     /* gate 143: ov019, Cool Cool Mountain's slide, IceSlideManager. No state
        seat. Only this class's own sinit runs; RacingPenguin's is left off. */

@@ -1,0 +1,73 @@
+# Gate 177: BULLY (215), BIG_BULLY (216) and ROTATING_FIREBAR (81) -- the first
+# three classes out of ov064, Lethal Lava Land's actor overlay. The transitive
+# matched closure for all three, swept by reachability over the overlay's own
+# relocs: 46 TUs, every one fully matched, no asm-hatch. The fill is
+# hal/actor_classes_ov064.cpp; the mount is port/ov064_syms.txt.
+#
+# The three classes' method faces are C-named references onto the real MSVC
+# methods these .cpp files compile to (the Goomba reading); the .c bodies below
+# (Bully::Behavior, the func_ov064 helpers) are already C linkage.
+#
+# LEFT OUT ON PURPOSE: _ZN5BullyD0/D1Ev.c and _ZN8BigBullyD0/D1Ev.c. They store
+# the shared-header VT1 placeholder in the teardown chain -- one single global
+# name three other TUs spell for three different tables -- so they are host
+# thunks in the fill (bly_d0/bly_d1) instead, the montymole/flame treatment.
+# RotatingFirebar's D0/D1 stay here: they spell _ZTV8Platform and data_020a0eac
+# by name, both already hosted, so the fill just calls them.
+#
+# Also NOT here (already built): the Enemy base ctor/dtor func_ov002_020aed98 /
+# func_ov002_020aed18 and _ZN5EnemyC2Ev came in with gate 16; the Player::Burn
+# RotatingFirebar::Behavior reaches came in with gate 175's flame.
+src/BigBully_Spawn.c
+src/Bully_Spawn.c
+src/RotatingFirebar_Spawn.cpp
+src/_ZN15RotatingFirebar13InitResourcesEv.cpp
+src/_ZN15RotatingFirebar16CleanupResourcesEv.cpp
+src/_ZN15RotatingFirebar8BehaviorEv.cpp
+src/_ZN15RotatingFirebarD0Ev.c
+src/_ZN15RotatingFirebarD1Ev.c
+src/_ZN5Bully13InitResourcesEv.cpp
+src/_ZN5Bully16CleanupResourcesEv.cpp
+src/_ZN5Bully8BehaviorEv.c
+src/_ZN8BigBully13InitResourcesEv.cpp
+src/_ZN8BigBully8BehaviorEv.cpp
+src/func_ov064_02115f84.c
+src/func_ov064_02115f98.c
+src/func_ov064_02116110.cpp
+src/func_ov064_0211616c.c
+src/func_ov064_02116220.c
+src/func_ov064_02116348.c
+src/func_ov064_0211635c.c
+src/func_ov064_02116360.c
+src/func_ov064_02116374.cpp
+src/func_ov064_021163bc.c
+src/func_ov064_021163c0.cpp
+src/func_ov064_02116460.cpp
+src/func_ov064_02116560.cpp
+src/func_ov064_021165d4.c
+src/func_ov064_021165d8.cpp
+src/func_ov064_021166f0.c
+src/func_ov064_02116754.cpp
+src/func_ov064_02116bac.cpp
+src/func_ov064_02116d1c.cpp
+src/func_ov064_02116ec0.cpp
+src/func_ov064_0211712c.c
+src/func_ov064_02117140.c
+src/func_ov064_02117154.c
+src/func_ov064_02117168.c
+src/func_ov064_021171b0.c
+src/func_ov064_0211755c.c
+src/func_ov064_021175cc.cpp
+# The three Renders are NOT here: each is the ROM-order slot-5 dispatch
+# (the Whomp/Scuttlebug case); host copies in
+# port/unmatched/ModelAnim_Renders.cpp.
+# func_ov064_02117220 (AfterClsn) is a host copy: MSVC C2761 on the matched
+# TU's out-of-class member redeclarations -- unmatched/Bully_AfterClsn.cpp.
+# The three sinits that construct the trio's SharedFilePtrs, the range
+# helper the census sweep missed, and NOT func_ov064_02115ee0/f28 (the
+# unreachable base-table dtor bodies the host thunks replace).
+src/__sinit_ov064_0211ae00.c
+src/__sinit_ov064_0211aee0.c
+src/__sinit_ov064_0211b0e4.c
+src/_ZN5Actor15IsPlayerInRangeE5Fix12IiES1_S1_i.c
+src/_ZN5Actor15IsPlayerInRangeERK7Vector3i.c

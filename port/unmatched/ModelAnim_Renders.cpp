@@ -133,4 +133,18 @@ int _ZN10Scuttlebug6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- BULLY (215) / BIG_BULLY (216) / ROTATING_FIREBAR (81), ov064, gate 177.
+   All three matched Renders are the bare slot-5 draw through a six-virtual
+   ROM-order shadow -- no early outs. The bullies' ModelAnim sits at +0x110;
+   the firebar draws Platform's own plain Model at +0xd4.
+   PORT_HOST_ABI: ROM-order model slot-5 dispatch, the Whomp/Fish case. */
+int _ZN5Bully6RenderEv(void *selfv)
+{ ((ModelAnim *)((char *)selfv + 0x110))->ModelAnim::Render(0); return 1; }
+/* PORT_HOST_ABI: ROM-order model slot-5 dispatch, the Whomp/Fish case. */
+int _ZN8BigBully6RenderEv(void *selfv)
+{ ((ModelAnim *)((char *)selfv + 0x110))->ModelAnim::Render(0); return 1; }
+/* PORT_HOST_ABI: ROM-order model slot-5 dispatch, the Whomp/Fish case. */
+int _ZN15RotatingFirebar6RenderEv(void *selfv)
+{ ((Model *)((char *)selfv + 0xd4))->Model::Render(0); return 1; }
+
 }  /* extern "C" */

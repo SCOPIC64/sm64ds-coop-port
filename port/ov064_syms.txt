@@ -1,0 +1,70 @@
+# Gate 177: the FIRST mount of ov064 -- BULLY (215), BIG_BULLY (216) and
+# ROTATING_FIREBAR (81). ov064 is an ACTOR overlay (base 0x02115ee0), one of the
+# seven Lethal Lava Land carries; it holds thirteen classes and this gate hosts
+# the three the level's census names. The ov085/ov080/ov079/ov095 per-symbol
+# shape: the three classes reach their SpawnInfo records, their file-pointer
+# tables and the SharedFilePtr statics their three RUNNABLE sinits construct, all
+# BY NAME. --pack keeps the runs that are really one array contiguous.
+#
+# THE VTABLES STAY OUT, the ov080/ov095 rule. _ZTV5Bully (0x0211b870, 37 slots),
+# _ZTV8BigBully (0x0211b978, 37 slots) and _ZTV15RotatingFirebar (0x0211be10, 32
+# slots) each carry the vtable signature (the +4 word relocates to Actor::Before-
+# InitResources, arm9 0x02011268) and are HOST arrays hal/actor_classes_ov064.cpp
+# fills. So is the Bully/BigBully BASE-class 37-slot table data_ov064_0211b768:
+# its typeinfo word at 0x0211b764 relocates to 0x021138bc in the shared multi-
+# overlay level window (module:overlays(9,14,15,16,...)), so mounting it would
+# bake a cross-level pointer -- and nothing dispatches through it, the object
+# only holds it transiently between the Enemy base ctor and the derived factory's
+# reseat. It is left OUT and the base slots live only as the closure funcs.
+#
+# THE THREE IDS were cross-checked from the RAW ndspy image (extracted/overlays/
+# overlay_0064.bin -- the dsd export is stale, the ovdata.py trap): each record's
+# +0 word is its factory and its +4 halfword is its own id (215 / 216 / 81), and
+# ACTOR_SPAWN_TABLE (arm9 0x02090864) entries 0x02090bc0 / 0x02090bc4 / 0x020909a8
+# relocate to these three records. Each SpawnInfo is pinned to the record's real
+# 0x1c so the +4 id halfword the registry cross-checks reads out of the right
+# bytes (RotatingFirebar's natural next-symbol delta is 0x24, into the vtable).
+Bully_SpawnInfo:0x1c
+BigBully_SpawnInfo:0x1c
+RotatingFirebar_SpawnInfo:0x1c
+# Bully's own five-entry SharedFilePtr-pointer table (mFileTable, read by
+# InitResources and walked by CleanupResources' five Release calls). Its five
+# words relocate to the SFPs at 0x0211c660..0x0211c680 that __sinit_ov064_0211ae00
+# constructs -- both ends are in this mount, so the cross pass rebases them.
+data_ov064_0211b834
+# BigBully's own five-entry file table (unk_330 points at it), read the same way;
+# its words relocate to the SFPs __sinit_ov064_0211aee0 constructs (0x0211c6c4..
+# 0x0211c6e4).
+data_ov064_0211b93c
+# RotatingFirebar's three-pointer resource table (data_ov064_0211adbc): [0] the
+# model SFP (0x0211c790) and [1] the collider SFP (0x0211c798) that
+# __sinit_ov064_0211b0e4 constructs, and [2] the CLPS block data_ov064_0211bdac
+# that MovingMeshCollider::SetFile takes by reference. The CLPS block is plain
+# data in this overlay, so mount it too.
+data_ov064_0211adbc data_ov064_0211bdac
+# ---- the three RUNNABLE sinits' construction destinations (bss) -------------
+# __sinit_ov064_0211ae00 -> BULLY: five SharedFilePtrs (0x0211c660/68/70/78/80)
+# and their five destruct-node cells (0x0211c688/94/a0/ac/b8). Sized by the ROM
+# next-symbol deltas; all bss, so the mount is the ROM's own zeroed storage.
+data_ov064_0211c660 data_ov064_0211c668 data_ov064_0211c670 data_ov064_0211c678
+data_ov064_0211c680 data_ov064_0211c688 data_ov064_0211c694 data_ov064_0211c6a0
+data_ov064_0211c6ac data_ov064_0211c6b8
+# __sinit_ov064_0211aee0 -> BIG_BULLY: five SharedFilePtrs (0x0211c6c4/cc/d4/dc/e4)
+# and their five destruct-node cells (0x0211c6ec/f8/704/710/71c).
+data_ov064_0211c6c4 data_ov064_0211c6cc data_ov064_0211c6d4 data_ov064_0211c6dc
+data_ov064_0211c6e4 data_ov064_0211c6ec data_ov064_0211c6f8 data_ov064_0211c704
+data_ov064_0211c710 data_ov064_0211c71c
+# __sinit_ov064_0211b0e4 -> ROTATING_FIREBAR: the model SharedFilePtr (0x0211c790)
+# and the collider one (0x0211c798), plus their two destruct-node cells
+# (0x0211c7a0, 0x0211c7ac).
+data_ov064_0211c790 data_ov064_0211c798 data_ov064_0211c7a0 data_ov064_0211c7ac
+#
+# NOT RUN, so their statics stay OUT: the other eight ov064 sinits
+# (0211ae00's neighbours 0211afc0/b078/b150/b1d4/b4dc/b518/b59c/b698) construct
+# SharedFilePtrs and copy CLPS/collision records for the classes this gate does
+# NOT host -- MetalNetLift, LavaBubble, BowserPuzzle{Manager,Piece}, WaterRing,
+# TreasureChest, Clam, JetStream. Their reach audit is clean (every one only
+# touches ov064-internal bss and arm9 main; none carries a cross-overlay reloc),
+# so a follow-up gate can run its own subset without a hazard. The lone cross-
+# overlay reloc in this overlay's data (0x0211b764 -> 0x021138bc) is the base
+# vtable's typeinfo word, not a sinit body, and that vtable is not mounted.
