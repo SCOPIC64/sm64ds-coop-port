@@ -299,6 +299,30 @@ extern unsigned char RotatingPlatformWf_SpawnInfo[]; /* ov015 0x021147c4, id 50 
    onto the host table (hal/actor_classes_wf.cpp). */
 void *port_factory_rotating_platform_wf(void);
 void hal_fill_rotating_platform_wf_vtable(void);
+/* ---- gates 64-69: Whomp's Fortress' enemy cast (ov079) --------------------
+   Six classes, ids read from the arm9 ACTOR_SPAWN_TABLE (the ROM's numbers, not
+   the task's shorthand) and each SpawnInfo's +4 halfword. WHOMP/WHOMP_KING
+   share _ZTV5Whomp and FORTRESS_WALL/FORTRESS_WALL_BREAKABLE share
+   _ZTV12FortressWall, so only the first of each pair carries the vtable fill;
+   the second row's factory installs the same table (fill 0). SpawnInfo records
+   from the ov079 per-symbol mount (ov079_syms.txt). See
+   hal/actor_classes_wf_enemy.cpp. */
+extern unsigned char Whomp_SpawnInfo[];           /* ov079 0x02127c5c, id 164 */
+void *Whomp_Spawn(void);                          /* ov079 0x021265e8 */
+void hal_fill_whomp_vtable_c(void);
+extern unsigned char WhompKing_SpawnInfo[];       /* ov079 0x02127c40, id 165 */
+void *WhompKing_Spawn(void);                      /* ov079 0x02126588 */
+extern unsigned char BulletBill_SpawnInfo[];      /* ov079 0x02127ec4, id 222 */
+void *BulletBill_Spawn(void);                     /* ov079 0x02126d64 */
+void hal_fill_bullet_bill_vtable_c(void);
+extern unsigned char BillBlaster_SpawnInfo[];     /* ov079 0x02127f94, id 43 */
+void *BillBlaster_Spawn(void);                    /* ov079 0x021271b4 */
+void hal_fill_bill_blaster_vtable_c(void);
+extern unsigned char FortressWall_SpawnInfo[];    /* ov079 0x0212808c, id 47 */
+void *FortressWall_Spawn(void);                   /* ov079 0x0212757c */
+void hal_fill_fortress_wall_vtable_c(void);
+extern unsigned char FortressWallBreakable_SpawnInfo[]; /* ov079 0x02128070, id 48 */
+void *FortressWallBreakable_Spawn(void);          /* ov079 0x021275ac */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -420,4 +444,36 @@ void hal_fill_rotating_platform_wf_vtable(void);
      port_factory_rotating_platform_wf, hal_fill_rotating_platform_wf_vtable}, \
     /* ---- gate 42: ov010's PEACH_PAINTING (38) ---- */                       \
     {38, "PEACH_PAINTING", PeachPainting_SpawnInfo, PeachPainting_Spawn,       \
-     hal_fill_peach_painting_vtable},
+     hal_fill_peach_painting_vtable},                                          \
+    /* ---- gates 64-69: Whomp's Fortress' enemy cast (ov079) ------------------
+       BUILT AND WIRED BUT NOT REGISTERED BY DEFAULT. The mount, the four sinits,
+       WHOMP's and BULLET_BILL's state seats, the four vtable fills, the method
+       faces and the link bridges are all in place (hal/actor_classes_wf_enemy,
+       hal/wf_enemy_bridges, unmatched/Whomp_Behavior, unmatched/BulletBill_
+       Behavior, slice_gate64.txt) and every class SPAWNS and its InitResources
+       RUNS to completion (measured rv=1, models loaded, transforms allocated).
+       Two runtime faults remain, both downstream of a clean spawn+init and
+       neither an undecompiled-code blocker:
+         * WHOMP/WHOMP_KING: Whomp::Render dispatches Model::Virtual10 through the
+           ModelAnim, which faults in the bone/animation walk (func_02045074)
+           even though data.modelFile (0x04094c08) and data.transforms are set.
+           A model-render-pipeline interaction, not the mount or the vtable
+           (measured: the ModelAnim vtable IS _ZTV9ModelAnim and slot 1 IS the
+           host DoSetFile).
+         * BILL_BLASTER/BULLET_BILL/FORTRESS_WALL: a later boot-spawn's
+           InitResources dispatch (func_0204335c -> ActorBase::Process) wild-
+           jumps to a corrupt vtable pointer, AFTER the fortress walls' own
+           InitResources completed cleanly. A memory-corruption class of fault
+           that needs the corrupting write pinned before these can register.
+       Enable by hand (uncomment the rows) once those two faults are resolved;
+       the ROM ids and factories below are settled and cross-checked. */
+    /* {164, "WHOMP", Whomp_SpawnInfo, Whomp_Spawn, hal_fill_whomp_vtable_c}, */\
+    /* {165, "WHOMP_KING", WhompKing_SpawnInfo, WhompKing_Spawn, 0}, */\
+    /* {222, "BULLET_BILL", BulletBill_SpawnInfo, BulletBill_Spawn,
+        hal_fill_bullet_bill_vtable_c}, */\
+    /* {43, "BILL_BLASTER", BillBlaster_SpawnInfo, BillBlaster_Spawn,
+        hal_fill_bill_blaster_vtable_c}, */\
+    /* {47, "FORTRESS_WALL", FortressWall_SpawnInfo, FortressWall_Spawn,
+        hal_fill_fortress_wall_vtable_c}, */\
+    /* {48, "FORTRESS_WALL_BREAKABLE", FortressWallBreakable_SpawnInfo,
+        FortressWallBreakable_Spawn, 0}, */
