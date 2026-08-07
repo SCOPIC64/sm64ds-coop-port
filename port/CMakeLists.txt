@@ -578,6 +578,7 @@ list(APPEND OV_DATA_MAPS "${OV002DATA_C}.map")
 #   ov010 = level 2, a castle interior floor, course 29 (interior-shaped)
 #   ov015 = level 7, Whomp's Fortress, course 1 (open course)
 #   ov011 = level 3, the castle garden  (data/stage/main_garden), course 29
+#   ov016 = level 8, Jolly Roger Bay  (data/stage/kaizoku_irie), course 2
 #
 # Both facts come from the ROM, not from the overlay numbering: the arm9's
 # level-to-overlay table data_020758c8 maps level -> overlay (it is level+8),
@@ -599,6 +600,16 @@ set(PORT_LEVEL_OVERLAYS ov009 ov014 ov010 ov015)
 # ov098 ov100 ov102) is all already mounted except ov063, so its shared cast
 # spawns for free and only ov063-owned classes are skipped by name at the gate.
 list(APPEND PORT_LEVEL_OVERLAYS ov011)
+# gate 121: ov016 is level 8's own overlay, the first MAIN COURSE the port
+# mounts (data/stage/kaizoku_irie, Jolly Roger Bay, course 2). Read from the
+# ROM like the rest: the level->overlay map data_020758c8[8] = 16, the
+# LVL_Overlay table data_02092208[8] = 0x02113b90, and the four handles at
+# LVL_Overlay+8 (bmd 0x0761, kcl 0x075f, icg 0x0762, icl 0x0763) resolve
+# through build/assets/handles.tsv to kaizoku_irie's all.bmd/kcl/icg/icl. The
+# arm9 SUBLEVEL_LEVEL_TABLE (0x02075298) byte 8 is 2 = course 2, a big open
+# outdoor course: 384 load relocs and a 25609-byte KCL against the garden's 22
+# and small file. Mounted --whole like the six above; own_sinits stays 0.
+list(APPEND PORT_LEVEL_OVERLAYS ov016)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
