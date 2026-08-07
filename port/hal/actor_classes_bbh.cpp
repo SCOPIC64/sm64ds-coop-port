@@ -195,7 +195,9 @@ static int __fastcall hc_render(void *s, void *)
 static int __fastcall hc_d1(void *s, void *)
 {
     char *t = (char *)s;
-    *(void **)t = _ZTV9daChair_c;
+    /* the class's own vtable ADDRESS -- _ZTV9daChair_c is a scalar decl, so
+       reading its value would load slot 0, not the table's address */
+    *(void **)t = (void *)_ZTV12HauntedChair;
     _ZN12WithMeshClsnD1Ev(t + 0x1bc);
     _ZN25MovingCylinderClsnWithPosD1Ev(t + 0x17c);
     _ZN11ShadowModelD1Ev(t + 0x124);

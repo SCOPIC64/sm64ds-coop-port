@@ -14,8 +14,10 @@
 # slots 0/3/6/9/16/17 and whose rest are the shared Actor/ActorBase bodies
 # already in the build.
 #
-# HauntedChair_SpawnInfo is pinned to the record's real 0x1c so the +4 id
-# halfword the registry cross-checks reads 326.
+# HauntedChair_SpawnInfo delta-sizes to 12 bytes (data_ov020_021149fc sits at
+# +12 in ROM), NOT a :0x1c pin like ov019's record: --pack keeps 021149fc
+# contiguous at its ROM offset, so a read past +12 still lands on ROM bytes.
+# The +4 id halfword the registry cross-checks reads 326 either way.
 #
 # data_ov020_02114af0 is HauntedChair's model SharedFilePtr, in BSS past the
 # image (the overlay image ends at 0x02114aa0); __sinit_ov020_0211372c
