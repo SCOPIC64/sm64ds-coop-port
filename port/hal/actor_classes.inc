@@ -373,6 +373,16 @@ void *FortressWall_Spawn(void);                   /* ov079 0x0212757c */
 void hal_fill_fortress_wall_vtable_c(void);
 extern unsigned char FortressWallBreakable_SpawnInfo[]; /* ov079 0x02128070, id 48 */
 void *FortressWallBreakable_Spawn(void);          /* ov079 0x021275ac */
+/* ---- gate 89: POWER_STAR (178, ov002) -------------------------------------
+   An Enemy subclass whose vtable _ZTV9PowerStar (ov002 0x0210ab3c, 31 slots,
+   RTTI daStar_c) PowerStar_Spawn installs directly. SpawnInfo record from the
+   ov002 per-symbol mount (added to ov002_syms.txt); the record's +4 halfword
+   reads 178. Its Behavior dispatches a fourteen-entry pointer-to-member state
+   table, hosted in port/unmatched/PowerStar_States.cpp. See
+   hal/actor_classes_star.cpp. */
+extern unsigned char PowerStar_SpawnInfo[];       /* ov002 0x0210aa40, id 178 */
+void *PowerStar_Spawn(void);                      /* ov002 0x020ebf30 */
+void hal_fill_power_star_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -527,7 +537,10 @@ void *FortressWallBreakable_Spawn(void);          /* ov079 0x021275ac */
      FirePiranhaPlant_Spawn, hal_fill_fire_piranha_plant_vtable},             \
     /* gate 70: PIRANHA_PLANT (250), ov084 */                                  \
     {250, "PIRANHA_PLANT", PiranhaPlant_SpawnInfo, PiranhaPlant_Spawn,         \
-     hal_fill_piranha_plant_vtable},
+     hal_fill_piranha_plant_vtable},                                          \
+    /* ---- gate 89: POWER_STAR (178), ov002 ---- */                           \
+    {178, "POWER_STAR", PowerStar_SpawnInfo, PowerStar_Spawn,                  \
+     hal_fill_power_star_vtable},
     /* ---- gates 64-69: Whomp's Fortress' enemy cast (ov079) ------------------
        BUILT AND WIRED BUT NOT REGISTERED BY DEFAULT. The mount, the four sinits,
        WHOMP's and BULLET_BILL's state seats, the four vtable fills, the method

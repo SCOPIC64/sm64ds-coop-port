@@ -128,3 +128,10 @@ BlueCoinSwitch_SpawnInfo:0x1c data_ov002_0210d6f4
 # gate 79: STAR_MARKER (180). Its SpawnInfo record, pinned to 0x1c (the +4 id
 # reads 180). Its vtable _ZTV10StarMarker stays a host array, the ov080 rule.
 StarMarker_SpawnInfo:0x1c
+# gate 89: POWER_STAR (178). Its SpawnInfo record, pinned to 0x1c (the +4 id
+# reads 178). Its vtable _ZTV9PowerStar stays a host array the registry fills,
+# the ov080 rule (a mounted vtable would hand PowerStar_Spawn DS addresses).
+# data_ov002_0210aa0c is the Vector3 collision offset PowerStar::InitResources
+# and its Behavior read (SetPosRelativeToActor / MovingCylinderClsnWithPos::
+# Init); 12 bytes, no relocations, pure data.
+PowerStar_SpawnInfo:0x1c data_ov002_0210aa0c

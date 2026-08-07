@@ -410,7 +410,11 @@ int data_0209b498[8], data_0209d574[8];
    runs 0x0209b53c..0x0209baa0 = 0x564. It was int[8] while sound was
    stubbed, so the init would have written 1.2KB past it. */
 int data_0209b53c[0x564 / 4];
-int data_0209f310[8], data_020a0f10[8], data_020a4bec[8];
+/* data_0209f310 (the VS-star obtained array base) moved to
+   hal/actor_classes_star.cpp: it and data_0209f311 are the ROM's own first two
+   bytes of one contiguous run NumVsStarsObtained walks, so they are hosted as
+   one grouped-section block there instead of two disjoint host objects. */
+int data_020a0f10[8], data_020a4bec[8];
 /* data_0209f340 is the CURRENT LVL_Overlay (Stage::GetSkyboxID,
    StartWithFarCamera and the render chain read its flag and skybox bits).
    With no level booted it parks on a zeroed block so every flag reads 0;
