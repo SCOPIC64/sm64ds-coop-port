@@ -414,6 +414,17 @@ void hal_fill_actor_base_vtable(void);
    and the WARP_PIPE section in hal/actor_classes_bob_world.cpp. */
 extern unsigned char FortressTower_SpawnInfo[];   /* ov102 0x0214e118, id 49 */
 void *FortressTower_Spawn(void);                  /* ov102 0x02148f2c */
+/* ---- gate 103: STAR_SWITCH (12, ov002) ------------------------------------
+   Whomp's Fortress' star switch, a Platform subclass (RTTI daObjSwitch_c). Its
+   factory StarSwitch_Spawn installs _ZTV10StarSwitch, the SAME table
+   EXCLAMATION_SWITCH (id 11) installs and hal_fill_exclamation_switch_vtable
+   already fills (including the five-state PMF seat), so this row carries no
+   fill of its own. All five methods are already compiled (gate 33's
+   EXCLAMATION_SWITCH slice). This gate mounts StarSwitch_SpawnInfo (added to
+   ov002_syms.txt); the record's +4 halfword reads 12. See slice_gate103.txt
+   and the EXCLAMATION_SWITCH section in hal/actor_classes_bob_world.cpp. */
+extern unsigned char StarSwitch_SpawnInfo[];      /* ov002 0x0210991c, id 12 */
+void *StarSwitch_Spawn(void);                     /* ov002 0x020baaac */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -595,4 +606,8 @@ void *FortressTower_Spawn(void);                  /* ov102 0x02148f2c */
     /* ---- gate 102: FORTRESS_TOWER (49), Whomp's Fortress (ov102) ---- */ \
     /* Installs _ZTV13FortressTower, filled by the WARP_PIPE row above; no \
        fill of its own, the BIG_BRICK_BLOCK / LIGHT_BEAM shape. */ \
-    {49, "FORTRESS_TOWER", FortressTower_SpawnInfo, FortressTower_Spawn, 0},
+    {49, "FORTRESS_TOWER", FortressTower_SpawnInfo, FortressTower_Spawn, 0}, \
+    /* ---- gate 103: STAR_SWITCH (12), Whomp's Fortress (ov002) ---- */ \
+    /* Installs _ZTV10StarSwitch, filled by the EXCLAMATION_SWITCH row (with \
+       its PMF state seat); no fill of its own. */ \
+    {12, "STAR_SWITCH", StarSwitch_SpawnInfo, StarSwitch_Spawn, 0},
