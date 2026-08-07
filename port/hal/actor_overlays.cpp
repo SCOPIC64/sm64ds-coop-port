@@ -214,6 +214,9 @@ void port_ov080_syms_patch(void);
 void __sinit_ov080_021278c0(void);
 void __sinit_ov080_02127a60(void);
 void __sinit_ov080_02127b2c(void);
+/* gate 174: MONTY_MOLE's six-state seat --
+   port/unmatched/MontyMole_StateDispatch.cpp */
+extern "C" void port_monty_mole_states_seat(void);
 
 struct PortPmfPt { unsigned fn; int delta; };
 extern PortPmfPt data_ov080_02128214[], data_ov080_0212821c[],
@@ -875,10 +878,12 @@ extern "C" void port_actor_overlays_sinits(void)
 
     /* gate 50: ov080, the PAINTING. Seat the twelve state statics over their
        host bodies BEFORE __sinit_ov080_02127b2c copies them into the BSS
-       dispatch table. */
+       dispatch table. gate 174: seat MONTY_MOLE's six the same way BEFORE
+       __sinit_ov080_021278c0 copies them into data_ov080_02128438. */
     port_ov080_pack_check();
     port_ov080_syms_patch();
     port_painting_states_seat();
+    port_monty_mole_states_seat();
     __sinit_ov080_021278c0();
     __sinit_ov080_02127a60();
     __sinit_ov080_02127b2c();

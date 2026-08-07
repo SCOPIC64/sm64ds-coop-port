@@ -500,6 +500,15 @@ void hal_fill_crate_vtable(void);
 extern unsigned char UpDownLiftHmc_SpawnInfo[];     /* ov095 0x021375e8, +4 reads 33 */
 void *UpDownLiftHmc_Spawn(void);                    /* ov095 0x021367cc (matched src) */
 void hal_fill_up_down_lift_hmc_vtable(void);
+/* ---- gate 174: MONTY_MOLE (310), first of ov080's enemy cast ----
+   The burrowing mole, daChoropu_c. ov080 was mounted per symbol at gate 50
+   (PAINTING) and already carries the SpawnInfo, state statics and
+   SharedFilePtrs. The fill is hal/actor_classes_montymole.cpp, the closure
+   slice_gate174.txt, the Behavior host copy + state seat
+   port/unmatched/MontyMole_StateDispatch.cpp. */
+extern unsigned char MontyMole_SpawnInfo[];         /* ov080 0x02127fec, +4 reads 310 */
+void *MontyMole_Spawn(void);                        /* ov080 0x021249e0 (matched src) */
+void hal_fill_monty_mole_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -716,4 +725,7 @@ void hal_fill_up_down_lift_hmc_vtable(void);
     {194, "CRATE", Crate_SpawnInfo, Crate_Spawn, hal_fill_crate_vtable}, \
     /* ---- gate 173: UP_DOWN_LIFT_HMC (33), Hazy Maze Cave (ov095) ---- */ \
     {33, "UP_DOWN_LIFT_HMC", UpDownLiftHmc_SpawnInfo, UpDownLiftHmc_Spawn, \
-     hal_fill_up_down_lift_hmc_vtable},
+     hal_fill_up_down_lift_hmc_vtable}, \
+    /* ---- gate 174: MONTY_MOLE (310), ov080's enemy cast ---- */ \
+    {310, "MONTY_MOLE", MontyMole_SpawnInfo, MontyMole_Spawn, \
+     hal_fill_monty_mole_vtable},
