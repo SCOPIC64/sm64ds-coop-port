@@ -661,6 +661,16 @@ list(APPEND PORT_ACTOR_OVERLAYS ov080)
 # arrays the registry fills (two are unnamed data symbols dsd left as plain
 # data). See port/ov015_syms.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov015)
+# gates 64-69: ov079 is an ENEMY overlay (the ov078/ov079/ov080 set, all linked
+# at base 0x02123740 because the DS loads one at a time) carrying six of Whomp's
+# Fortress' living cast -- WHOMP (164), WHOMP_KING (165), BULLET_BILL (222),
+# BILL_BLASTER (43), FORTRESS_WALL (47) and FORTRESS_WALL_BREAKABLE (48).
+# Mounted per symbol so each class reaches its SpawnInfo record, its
+# SharedFilePtr construction statics and its two pointer-to-member state tables
+# by name -- the gate-32 shape of ov084/ov078. Its four vtables are host arrays
+# the registry fills (BillBlaster's is a plain data symbol dsd left unnamed).
+# See port/ov079_syms.txt and hal/actor_classes_wf_enemy.cpp.
+list(APPEND PORT_ACTOR_OVERLAYS ov079)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1416,6 +1426,51 @@ foreach(line IN LISTS SLICE79_LINES)
     list(APPEND SLICE79_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Gates 64-69: ov079's four static initialisers plus the six enemy classes'
+# matched lifecycle closures -- WHOMP (164), WHOMP_KING (165), BULLET_BILL (222),
+# BILL_BLASTER (43), FORTRESS_WALL (47), FORTRESS_WALL_BREAKABLE (48). The two
+# Behaviors that are host copies (WHOMP's and BULLET_BILL's PMF dispatch) are the
+# unmatched/ files appended below, not in the slice. See slice_gate64.txt and
+# hal/actor_classes_wf_enemy.cpp.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate64.txt" SLICE64_LINES)
+set(SLICE64_SOURCES "")
+foreach(line IN LISTS SLICE64_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE64_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+list(APPEND SLICE64_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/hal/actor_classes_wf_enemy.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/hal/wf_enemy_bridges.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Whomp_Behavior.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/BulletBill_Behavior.cpp")
+
+# Two ov079 TUs need hostgen, both mwcc-vs-MSVC syntax quirks the byte-verified
+# tree must not be edited for. _ZN5Whomp13InitResourcesEv is the decl_common.h
+# HEADER_SHADOW case (func_01ffb07c/func_020396d0 declared with one pointer
+# type in the header and another in the TU -- one register on the ROM, C2733 to
+# MSVC). func_ov079_02126f8c (BillBlaster::Behavior) declares its local struct's
+# members out of line as well as in-struct, which mwccarm tolerates and MSVC
+# rejects as C2761; hostgen's MEMBER_REDECL deletes the redundant copies.
+set(GATE64_SYMS _ZN5Whomp13InitResourcesEv func_ov079_02126f8c)
+set(GATE64_GEN "")
+foreach(sym IN LISTS GATE64_SYMS)
+    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+    else()
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
+    endif()
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND GATE64_GEN "${sym_out}")
+endforeach()
+
 # Gate 15: the per-frame actor spine (BeforeBehavior/Behavior/AfterBehavior),
 # which is what makes the real WithMeshClsn tracking work -- see the header of
 # slice_gate15.txt for why prev-pos is load-bearing.
@@ -1514,7 +1569,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
-    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES}
+    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -1556,7 +1611,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
-    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES}
+    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -1601,7 +1656,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
-    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES}
+    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp

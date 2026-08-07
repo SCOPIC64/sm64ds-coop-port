@@ -144,6 +144,30 @@ void __sinit_ov015_021132d0(void);
 void __sinit_ov015_0211333c(void);
 void __sinit_ov015_021133a8(void);
 
+/* ---- gates 64-69: ov079, Whomp's Fortress' enemy cast ---------------------
+   An ENEMY overlay (the ov078/ov079/ov080 set at base 0x02123740) carrying six
+   classes -- WHOMP (164), WHOMP_KING (165), BULLET_BILL (222), BILL_BLASTER
+   (43), FORTRESS_WALL (47) and FORTRESS_WALL_BREAKABLE (48). Mounted per symbol
+   (ov079_syms.txt) so each reaches its SpawnInfo record, SharedFilePtr
+   construction statics and state tables by name. Four sinits:
+   __sinit_ov079_02127618 constructs the Whomp/BulletBill SharedFilePtrs AND
+   copies twelve {fn, delta} statics into Whomp's bss state table
+   data_ov079_02128280; __sinit_ov079_021279d4 copies two more into BulletBill's
+   data_ov079_021282e0; the other two build FortressWall/BillBlaster file
+   pointers. Whomp and BulletBill both dispatch a pointer-to-member every frame,
+   so their statics are seated over the SOURCE side BEFORE the copies (the
+   Fish/King treatment) -- port/unmatched/Whomp_Behavior.cpp and
+   BulletBill_Behavior.cpp. FortressWall's Behavior is plain (matched src), so
+   it needs no seat. */
+void port_ov079_pack_check(void);
+void port_ov079_syms_patch(void);
+void __sinit_ov079_02127618(void);
+void __sinit_ov079_021279d4(void);
+void __sinit_ov079_02127a10(void);
+void __sinit_ov079_02127acc(void);
+void port_whomp_states_seat(void);
+void port_bullet_bill_states_seat(void);
+
 /* ---- gate 50: ov080, the castle interior's PAINTING (daPicGate_c, 307) -----
    An ordinary actor overlay -- MontyMole, MontyMoleRock, CrazedCrate and the
    PAINTING, of which level 2 names only the last -- mounted per symbol
@@ -785,6 +809,18 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov015_021132d0();
     __sinit_ov015_0211333c();
     __sinit_ov015_021133a8();
+
+    /* gates 64-69: ov079, the enemy cast. Seat WHOMP's twelve and BULLET_BILL's
+       two state statics over the SOURCE side BEFORE the sinits copy them into
+       the bss dispatch tables. */
+    port_ov079_pack_check();
+    port_ov079_syms_patch();
+    port_whomp_states_seat();
+    port_bullet_bill_states_seat();
+    __sinit_ov079_02127618();
+    __sinit_ov079_021279d4();
+    __sinit_ov079_02127a10();
+    __sinit_ov079_02127acc();
 
     /* gate 50: ov080, the PAINTING. Seat the twelve state statics over their
        host bodies BEFORE __sinit_ov080_02127b2c copies them into the BSS

@@ -266,6 +266,32 @@ HEADER_SHADOW = {
     # linkage, the TU defines it extern "C" over Particle__SysTracker*, and
     # MSVC reads that as overloading a function with C linkage (C2733).
     "_ZN8Particle10SysTracker10InitialiseEv": "decl_Particle.h",
+    # gates 64-69, WHOMP: decl_common.h declares func_01ffb07c (void*,void*)
+    # and func_020396d0 (int*,int), the TU declares them (void*,s32*) and
+    # (void*,int) -- one register on the ROM, two C2733s to MSVC.
+    "_ZN5Whomp13InitResourcesEv": ("decl_common.h",
+                                   ("func_01ffb07c", "func_020396d0")),
+}
+
+# ---- REDUNDANT OUT-OF-LINE MEMBER REDECLARATIONS ---------------------------
+#
+# mwccarm tolerates re-declaring a class member out of line with no body (a
+# harmless forward declaration); MSVC rejects it as C2761 "redeclaration of
+# member is not allowed". A handful of recovered TUs declare their local
+# struct's methods both inside the struct AND again just before the function
+# body. The out-of-line copies are pure noise -- the in-struct declarations
+# already give MSVC everything it needs -- so they are deleted here. Exact
+# strings, hard-errored by apply_patches if the source moves.
+MEMBER_REDECL = {
+    # gate 67, BILL_BLASTER: func_ov079_02126f8c (daObjBkKillerdai_c::Behavior)
+    "func_ov079_02126f8c": [
+        ("int Platform::UpdateKillByMegaChar(short, short, short, Fix12);\n", ""),
+        ("Actor* Actor_s::FindWithID(unsigned int);\n", ""),
+        ("Actor* Actor_s::ClosestPlayer();\n", ""),
+        ("Actor* Actor_s::Spawn(unsigned int, unsigned int, const Vector3&, "
+         "const Vector3_16*, int, int);\n", ""),
+        ("int Platform::IsClsnInRange(Fix12, Fix12);\n", ""),
+    ],
 }
 
 
@@ -403,6 +429,12 @@ def virtual_call_patch(text, sym):
     return apply_patches(text, sym, VIRTUAL_CALL, "VIRTUAL_CALL")
 
 
+def member_redecl_patch(text, sym):
+    """Delete redundant out-of-line member redeclarations (mwcc-tolerated,
+    C2761 to MSVC)."""
+    return apply_patches(text, sym, MEMBER_REDECL, "MEMBER_REDECL")
+
+
 def shadow_header_decl(text, sym, spec):
     """Hide the shared header's declaration of one or more names across its
     include. `spec` is a header name, or (header, names)."""
@@ -428,6 +460,7 @@ def emit(src_path, out_dir, decomp_root, extern_data=False):
         text, _ = shadow_header_decl(text, sym, HEADER_SHADOW[sym])
     text, _ = ds_div_patch(text, sym)
     text, _ = virtual_call_patch(text, sym)
+    text, _ = member_redecl_patch(text, sym)
     new, n = transform(text, extern_data)
     # Everything is emitted as C++ (NTR_MMIO expands to a template proxy), but
     # a .c source's symbols must keep C linkage: the port's other slices

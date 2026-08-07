@@ -1,0 +1,115 @@
+# Gates 64-69: ov079, Whomp's Fortress' ENEMY cast, mounted per symbol so the
+# six classes reach their SpawnInfo records, SharedFilePtr construction statics
+# and state tables by name.
+#
+# THE OVERLAY'S FOUR STATIC INITIALISERS run from hal/actor_overlays.cpp in
+# port_actor_overlays_sinits, after the mount and before the first spawn -- the
+# same place ov015/ov078 run. __sinit_ov079_02127618 also builds WHOMP's twelve-
+# entry state table and __sinit_ov079_021279d4 BULLET_BILL's two, so both classes
+# have their SOURCE statics seated over host bodies first (Whomp_Behavior.cpp,
+# BulletBill_Behavior.cpp, wired in CMakeLists).
+#
+# EVERY ov079 FUNCTION TU is here EXCEPT the two Behaviors that became host
+# copies (_ZN5Whomp8BehaviorEv, _ZN10BulletBill8BehaviorEv -- the mwcc PMF over
+# an incomplete class, MSVC's four-word representation). FortressWall::Behavior
+# is plain and stays matched src.
+#
+# The vtables are host arrays the registry fills (hal/actor_classes_wf_enemy.cpp)
+# -- excluded from the ov079 mount, the ov080/ov015 rule -- and the method faces
+# the four fills reference live in that same file.
+
+# gate 64: WHOMP (164) and gate 65: WHOMP_KING (165). One class (_ZTV5Whomp);
+# both factories build the same object. Lifecycle methods, dtors, the two
+# factories, and every func_ov079_* the Whomp closure reaches.
+# _ZN5Whomp13InitResourcesEv.cpp routed through hostgen (GATE64_SYMS): the
+# decl_common.h C2733 header-shadow case (func_01ffb07c / func_020396d0).
+src/Whomp_Spawn.c
+src/WhompKing_Spawn.c
+src/_ZN5Whomp6RenderEv.cpp
+src/_ZN5Whomp16CleanupResourcesEv.cpp
+src/_ZN5WhompD1Ev.c
+src/_ZN5WhompD0Ev.c
+src/func_ov079_02123804.c
+src/func_ov079_02123a8c.cpp
+src/func_ov079_02123b54.c
+src/func_ov079_02123b60.c
+src/func_ov079_02123bcc.c
+src/func_ov079_02123d4c.cpp
+src/func_ov079_02123e60.cpp
+src/func_ov079_02123f34.c
+src/func_ov079_02124008.c
+src/func_ov079_02124188.c
+src/func_ov079_021243e0.c
+src/func_ov079_02124530.c
+src/func_ov079_02124638.c
+src/func_ov079_021246d8.c
+src/func_ov079_021246dc.c
+src/func_ov079_021249f0.c
+src/func_ov079_02124b08.c
+src/func_ov079_02124dec.cpp
+src/func_ov079_02124ed4.c
+src/func_ov079_02125058.cpp
+src/func_ov079_0212522c.c
+src/func_ov079_02125240.cpp
+src/func_ov079_0212538c.c
+src/func_ov079_021254b4.c
+src/func_ov079_02125504.c
+src/func_ov079_021256d4.c
+src/func_ov079_021258fc.c
+src/func_ov079_02125b44.c
+
+# gate 66: BULLET_BILL (222). _ZTV10BulletBill / daKlr_c.
+src/BulletBill_Spawn.c
+src/_ZN10BulletBill13InitResourcesEv.c
+src/_ZN10BulletBill6RenderEv.cpp
+src/_ZN10BulletBill16CleanupResourcesEv.c
+src/_ZN10BulletBillD1Ev.c
+src/_ZN10BulletBillD0Ev.c
+src/func_ov079_021266fc.c
+src/func_ov079_02126704.c
+src/func_ov079_0212682c.c
+src/func_ov079_02126794.cpp
+
+# gate 67: BILL_BLASTER (43). Its vtable is data_ov079_02127fb8 (plain data
+# symbol); every override is a func_ov079_* free function.
+# func_ov079_02126f8c.cpp (BillBlaster::Behavior) routed through hostgen
+# (GATE64_SYMS): mwcc-tolerated out-of-line member redeclarations, C2761 to MSVC.
+src/BillBlaster_Spawn.c
+src/func_ov079_02126dbc.c
+src/func_ov079_02126e00.c
+src/func_ov079_02126e58.cpp
+src/func_ov079_02126ecc.cpp
+src/func_ov079_02126f04.c
+src/func_ov079_02126f64.cpp
+src/func_ov079_02127090.cpp
+
+# gate 68: FORTRESS_WALL (47) and gate 69: FORTRESS_WALL_BREAKABLE (48). One
+# class (_ZTV12FortressWall), a Platform; both factories build the same object.
+# Behavior is plain (matched src), so it is here rather than host-copied.
+src/FortressWall_Spawn.c
+src/FortressWallBreakable_Spawn.c
+src/_ZN12FortressWall13InitResourcesEv.cpp
+src/_ZN12FortressWall6RenderEv.cpp
+src/_ZN12FortressWall16CleanupResourcesEv.cpp
+src/_ZN12FortressWall8BehaviorEv.cpp
+src/_ZN12FortressWallD1Ev.c
+src/_ZN12FortressWallD0Ev.c
+src/func_ov079_02127280.cpp
+src/func_ov079_021272e0.cpp
+
+# the four static initialisers
+src/__sinit_ov079_02127618.c
+src/__sinit_ov079_021279d4.c
+src/__sinit_ov079_02127a10.c
+src/__sinit_ov079_02127acc.c
+
+# closure dependencies not pulled by any earlier slice:
+#   _ZN8Platform14KillByMegaCharER6Player -- FortressWall/BillBlaster's mega-hit
+#   func_0200f760                          -- BulletBill::Behavior's first call
+#   func_02011d38                          -- reached from the Whomp closure
+#   func_ov002_020dd8b8                    -- reached from func_ov079_02125058
+src/_ZN8Platform14KillByMegaCharER6Player.c
+src/func_0200f760.c
+src/func_02011d38.c
+src/func_02048f04.c
+src/func_ov002_020dd8b8.cpp
