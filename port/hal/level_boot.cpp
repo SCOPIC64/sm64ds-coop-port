@@ -185,6 +185,20 @@ void port_ov013_patch(void);
 void *port_ov013_at(unsigned ds);
 extern unsigned char port_ov013_image[];
 extern const unsigned port_ov013_ds_base, port_ov013_ds_end;
+
+/* ov020 = level 12, Big Boo's Haunt (data/stage/teresa_house), course 4 -- the
+   first COURSE-4 main course the port mounts. data_020758c8[12] = 20 (level+8,
+   a read not an assumption), LVL_Overlay data_02092208[12] = 0x021138fc, the
+   four OV0 handles at LVL_Overlay+8 (bmd 0x07d2 / kcl 0x07cc / icg 0x07d3 /
+   icl 0x07d4) resolve DIRECTLY through build/assets/handles.tsv -- the ov0
+   handle in the overlay image is the tsv handle, no arithmetic, the same table
+   the fs layer's func_02018a24 reads -- to teresa_house's all.bmd/kcl/icg/icl.
+   SUBLEVEL_LEVEL_TABLE[12] (0x02075298) is 0x04 = course 4, a main course with
+   subCount 7. Mounted --whole like the rest; own_sinits stays 0. */
+void port_ov020_patch(void);
+void *port_ov020_at(unsigned ds);
+extern unsigned char port_ov020_image[];
+extern const unsigned port_ov020_ds_base, port_ov020_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -276,6 +290,9 @@ static const PortLevelDesc port_level_table[] = {
     {5, "castle second floor (castle_2f, course 29)", "ov013", 0x02111844,
      port_ov013_patch, port_ov013_at,
      &port_ov013_ds_base, &port_ov013_ds_end, 0},
+    {12, "Big Boo's Haunt (teresa_house, course 4)", "ov020", 0x021138fc,
+     port_ov020_patch, port_ov020_at,
+     &port_ov020_ds_base, &port_ov020_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -427,6 +444,7 @@ static void *port_mount_row_5(void) { return port_level_mount_at(5); }
 static void *port_mount_row_6(void) { return port_level_mount_at(6); }
 static void *port_mount_row_7(void) { return port_level_mount_at(7); }
 static void *port_mount_row_8(void) { return port_level_mount_at(8); }
+static void *port_mount_row_9(void) { return port_level_mount_at(9); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
@@ -434,6 +452,7 @@ static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_6,
     port_mount_row_7,
     port_mount_row_8,
+    port_mount_row_9,
 };
 
 // ---- the loader dispatch table ---------------------------------------------

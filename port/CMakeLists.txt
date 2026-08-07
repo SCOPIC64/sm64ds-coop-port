@@ -634,6 +634,19 @@ list(APPEND PORT_LEVEL_OVERLAYS ov012)
 # LVL_Overlay+8 (raw 0x060b/0x0612/0x0613/0x0614, +232) resolve to castle_2f's
 # kcl/bmd/icg/icl. SUBLEVEL_LEVEL_TABLE[5] = 0x1d = course 29. own_sinits 0.
 list(APPEND PORT_LEVEL_OVERLAYS ov013)
+# gate 149: ov020 is level 12's own overlay (data/stage/teresa_house, Big Boo's
+# Haunt, course 4 -- the first course-4 main course the port mounts). Read from
+# the ROM: the level->overlay map data_020758c8[12] = 20 (level+8, a read not an
+# assumption), the LVL_Overlay table data_02092208[12] = 0x021138fc, and the four
+# OV0 handles at LVL_Overlay+8 (bmd 0x07d2, kcl 0x07cc, icg 0x07d3, icl 0x07d4)
+# resolve DIRECTLY through build/assets/handles.tsv -- the ov0 handle in the
+# overlay IS the tsv handle, no arithmetic; the fs layer's func_02018a24 reads
+# the same table (the "+232" mentioned beside the castle levels was a different
+# intermediate quantity, not the byte in the overlay image) -- to teresa_house's
+# all.bmd / kcl / icg / icl. SUBLEVEL_LEVEL_TABLE[12] (0x02075298) is 0x04 =
+# course 4, a big main course (subCount 7). Mounted --whole like the rest;
+# own_sinits stays 0.
+list(APPEND PORT_LEVEL_OVERLAYS ov020)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
