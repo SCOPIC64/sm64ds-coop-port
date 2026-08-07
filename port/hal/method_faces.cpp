@@ -365,6 +365,21 @@ int _ZN4Flag6RenderEv(void *self)
 { ((ModelAnim *)((char *)self + 0xd4))->ModelAnim::Render(0); return 1; }
 }
 
+/* ---- gate 143: level 11's own class, IceSlideManager (ov019) -------------
+   The Cool Cool Mountain slide manager (actor 356). Its InitResources and
+   Behavior are real __thiscall methods in src (.cpp against the generated
+   IceSlideManager.h), dispatched through vtable slots 0 and 6 by the
+   host-filled _ZTV15IceSlideManager (hal/actor_classes_ccm.cpp). Its D1/D0 are
+   not faced: slot 16 is the empty-~Actor form the vtable fill spells inline and
+   slot 17 traps. */
+#include "IceSlideManager.h"
+extern "C" {
+int _ZN15IceSlideManager13InitResourcesEv(void *self)
+{ return ((IceSlideManager *)self)->IceSlideManager::InitResources(); }
+int _ZN15IceSlideManager8BehaviorEv(void *self)
+{ return ((IceSlideManager *)self)->IceSlideManager::Behavior(); }
+}
+
 /* TextureTransformer: two slots (the destructor pair) and nothing else, so
    the vtable the constructor installs is storage. Its Prepare and Update are
    methods; the water reaches both by their Itanium names. */

@@ -144,6 +144,22 @@ void __sinit_ov015_021132d0(void);
 void __sinit_ov015_0211333c(void);
 void __sinit_ov015_021133a8(void);
 
+/* ---- gate 143: ov019, level 11's own overlay, per symbol ------------------
+   IceSlideManager (356, Cool Cool Mountain's slide). Already mounted whole for
+   the level boot; this is the second, per-symbol mount so the actor code reaches
+   its SpawnInfo record and the two construction-data statics its InitResources
+   reads by name -- the gate-17 shape of ov010/ov015. ONE sinit,
+   __sinit_ov019_02112b14: it writes the three source words into
+   data_ov019_021135d8 (which InitResources copies into unk_05c/060/064) and
+   registers data_ov019_021135cc on the global cleanup list. No state seat: the
+   class dispatches ordinary virtuals through its own host-filled vtable. The
+   overlay's OTHER sinit, __sinit_ov019_021127a4, is RacingPenguin's (259, not
+   spawned by level 11) and is left off -- it constructs a dozen SharedFilePtrs
+   this class does not touch. */
+void port_ov019_pack_check(void);
+void port_ov019_syms_patch(void);
+void __sinit_ov019_02112b14(void);
+
 /* ---- gates 64-69: ov079, Whomp's Fortress' enemy cast ---------------------
    An ENEMY overlay (the ov078/ov079/ov080 set at base 0x02123740) carrying six
    classes -- WHOMP (164), WHOMP_KING (165), BULLET_BILL (222), BILL_BLASTER
@@ -893,4 +909,10 @@ extern "C" void port_actor_overlays_sinits(void)
     port_ov095_syms_patch();
     __sinit_ov095_02136fe0();
     __sinit_ov095_0213722c();
+
+    /* gate 143: ov019, Cool Cool Mountain's slide, IceSlideManager. No state
+       seat. Only this class's own sinit runs; RacingPenguin's is left off. */
+    port_ov019_pack_check();
+    port_ov019_syms_patch();
+    __sinit_ov019_02112b14();
 }

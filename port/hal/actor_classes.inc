@@ -61,6 +61,12 @@ void hal_fill_metal_net_vtable(void);
 extern unsigned char Flag_SpawnInfo[];                  /* ov009 0x02113b7c */
 void *Flag_Spawn(void);                                 /* ov009 0x021121f0 */
 void hal_fill_flag_vtable(void);
+/* ---- gate 143: level 11's own class, IceSlideManager (356, ov019) ----
+   Cool Cool Mountain's slide. The SpawnInfo comes from the per-symbol ov019
+   mount (ov019_syms.txt); the vtable fill is hal/actor_classes_ccm.cpp. */
+extern unsigned char IceSlideManager_SpawnInfo[];       /* ov019 0x021133a8 */
+void *IceSlideManager_Spawn(void);                      /* ov019 0x0211274c */
+void hal_fill_ice_slide_manager_vtable(void);
 /* ---- gate 18: ov085, the first ACTOR overlay ----
    Not the engine overlay and not the level's -- six classes several levels
    share, of which the castle grounds names two. The SpawnInfo records come
@@ -668,4 +674,9 @@ void *GreenShellBlockTag_Spawn(void);                       /* ov002 0x020b4610 
     /* Installs _ZTV10BrickBlock, filled at gate 49; no fill of its own, the \
        ONE_UP_MUSHROOM_BLOCK_TAG shape. */ \
     {323, "GREEN_SHELL_BLOCK_TAG", GreenShellBlockTag_SpawnInfo, \
-     GreenShellBlockTag_Spawn, 0},
+     GreenShellBlockTag_Spawn, 0}, \
+     /* ---- gate 143: IceSlideManager (356), Cool Cool Mountain slide (ov019) ---- */ \
+     /* Level 11's own overlay class; SpawnInfo from the per-symbol ov019 mount, \
+        vtable filled by hal/actor_classes_ccm.cpp. */ \
+     {356, "ICE_SLIDE_MANAGER", IceSlideManager_SpawnInfo, IceSlideManager_Spawn, \
+      hal_fill_ice_slide_manager_vtable},
