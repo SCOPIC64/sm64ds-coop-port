@@ -425,6 +425,17 @@ void *FortressTower_Spawn(void);                  /* ov102 0x02148f2c */
    and the EXCLAMATION_SWITCH section in hal/actor_classes_bob_world.cpp. */
 extern unsigned char StarSwitch_SpawnInfo[];      /* ov002 0x0210991c, id 12 */
 void *StarSwitch_Spawn(void);                     /* ov002 0x020baaac */
+/* ---- gate 121: STATIC_ROCK (61, ov102) ------------------------------------
+   Jolly Roger Bay's rocks (level 8's biggest skipped class, x33), a Platform
+   subclass. Its factory StaticRock_Spawn installs _ZTV13FortressTower, the SAME
+   table FORTRESS_TOWER (id 49, gate 102) and WARP_PIPE (id 298, gate 33)
+   install and hal_fill_warp_pipe_vtable already fills, so this row carries no
+   fill of its own. All five methods are already compiled (gate 33's WARP_PIPE
+   slice) and StaticRock_SpawnInfo is already mounted (ov102_syms.txt); the
+   record's +4 halfword reads 61, matching ACTOR_SPAWN_TABLE[61]. See
+   slice_gate121.txt and the WARP_PIPE section in hal/actor_classes_bob_world.cpp. */
+extern unsigned char StaticRock_SpawnInfo[];      /* ov102 0x0214e0e0, id 61 */
+void *StaticRock_Spawn(void);                     /* ov102 0x02148f8c */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -610,4 +621,8 @@ void *StarSwitch_Spawn(void);                     /* ov002 0x020baaac */
     /* ---- gate 103: STAR_SWITCH (12), Whomp's Fortress (ov002) ---- */ \
     /* Installs _ZTV10StarSwitch, filled by the EXCLAMATION_SWITCH row (with \
        its PMF state seat); no fill of its own. */ \
-    {12, "STAR_SWITCH", StarSwitch_SpawnInfo, StarSwitch_Spawn, 0},
+    {12, "STAR_SWITCH", StarSwitch_SpawnInfo, StarSwitch_Spawn, 0}, \
+    /* ---- gate 121: STATIC_ROCK (61), Jolly Roger Bay (ov102) ---- */ \
+    /* Installs _ZTV13FortressTower, filled by the WARP_PIPE row above; no \
+       fill of its own, the FORTRESS_TOWER shape. */ \
+    {61, "STATIC_ROCK", StaticRock_SpawnInfo, StaticRock_Spawn, 0},
