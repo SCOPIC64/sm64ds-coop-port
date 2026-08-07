@@ -676,6 +676,26 @@ list(APPEND PORT_LEVEL_OVERLAYS ov020)
 # re-addressings. SUBLEVEL_LEVEL_TABLE[14] (0x02075298) is 0x06 = course 6, a
 # main course with subCount 1. Mounted --whole like the rest; own_sinits stays 0.
 list(APPEND PORT_LEVEL_OVERLAYS ov022)
+# gate 170: ov023 = level 15, Lethal Lava Land (data/stage/fire_mt), course 6 --
+# a sublevel of the fire main course (level 14 is the same course 6, ov022, the
+# main stage; 15 is its second area). Read from the ROM like the rest, all three
+# facts measured out of the arm9 tables in extracted/arm9_dec.bin at base
+# 0x02004000, verified against all twelve known-good levels first: the
+# level->overlay map data_020758c8[15] = 23 (level+8, a read not an assumption),
+# the LVL_Overlay table data_02092208[15] = 0x02111b88, and the four OV0 handles
+# at LVL_Overlay+8 (bmd 0x0748 / kcl 0x0745 / icg 0x0749 / icl 0x074a) resolve
+# DIRECTLY through build/assets/handles.tsv -- the ov0 handle in the overlay IS
+# the tsv handle, delta 0, the same mapping the known-good levels 8..12 use --
+# to fire_mt's fire_mt_all.bmd / fire_mt.kcl / fire_mt_icg.bin / fire_mt_icl.bin.
+# The handles must be read out of extracted/overlays/overlay_0023.bin (the
+# unpack.py output ovdata itself reads), NOT extracted/dsd/arm9_overlays/ov023.bin
+# -- the dsd export is stale and drifts these handle halfwords by a constant,
+# which is what the +232 the castle-level comments mention actually was.
+# SUBLEVEL_LEVEL_TABLE[15] (0x02075298) is 0x06 = course 6, subCount 1, a
+# 38002-byte KCL. Mounted --whole like the rest; own_sinits stays 0. This block
+# is append-only and self-contained (distinct overlay name); a reviewer folds it
+# into the sibling level streams at merge.
+list(APPEND PORT_LEVEL_OVERLAYS ov023)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")

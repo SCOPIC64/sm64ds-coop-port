@@ -343,6 +343,20 @@ void port_ov022_patch(void);
 void *port_ov022_at(unsigned ds);
 extern unsigned char port_ov022_image[];
 extern const unsigned port_ov022_ds_base, port_ov022_ds_end;
+
+/* ov023 = level 15, Lethal Lava Land's fire_mt sublevel, course 6.
+   data_020758c8[15] = 23, LVL_Overlay data_02092208[15] = 0x02111b88, OV0
+   handles at +8 (bmd 0x0748/kcl 0x0745/icg 0x0749/icl 0x074a) resolve directly
+   through handles.tsv to fire_mt's all.bmd/kcl/icg/icl (read the handles from
+   extracted/overlays/overlay_0023.bin, NOT the stale dsd export whose halfwords
+   drift by 232). SUBLEVEL_LEVEL_TABLE[15] = 6. Mounted --whole; own_sinits 0.
+   Its six-class skipped cast (Squasher, PoppingLavaBubbles, Flamethrower,
+   LavaBubble, Bully, PathLift) is documented in the port-w9-lvl15 commit; all
+   blocked on undecompiled bodies or an unmounted ov064, none a free share. */
+void port_ov023_patch(void);
+void *port_ov023_at(unsigned ds);
+extern unsigned char port_ov023_image[];
+extern const unsigned port_ov023_ds_base, port_ov023_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -446,6 +460,9 @@ static const PortLevelDesc port_level_table[] = {
     {14, "Lethal Lava Land (fire_land, course 6)", "ov022", 0x02113228,
      port_ov022_patch, port_ov022_at,
      &port_ov022_ds_base, &port_ov022_ds_end, 0},
+    {15, "Lethal Lava Land (fire_mt, course 6)", "ov023", 0x02111b88,
+     port_ov023_patch, port_ov023_at,
+     &port_ov023_ds_base, &port_ov023_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -604,6 +621,7 @@ static void *port_mount_row_11(void) { return port_level_mount_at(11); }
    append-only so a sibling stream adding a level against the same base does not
    collide; a reviewer renumbers to port_mount_row_12 at merge. */
 static void *port_mount_row_lvl14(void) { return port_level_mount_at(12); }
+static void *port_mount_row_13(void) { return port_level_mount_at(13); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
@@ -615,6 +633,7 @@ static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_10,
     port_mount_row_11,
     port_mount_row_lvl14,
+    port_mount_row_13,
 };
 
 // ---- the loader dispatch table ---------------------------------------------
