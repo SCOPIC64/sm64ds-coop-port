@@ -663,6 +663,19 @@ list(APPEND PORT_LEVEL_OVERLAYS ov019)
 # handles.tsv to teresa_house's all.bmd/kcl/icg/icl; SUBLEVEL_LEVEL_TABLE[12] = 4.
 # Mounted --whole; own_sinits 0.
 list(APPEND PORT_LEVEL_OVERLAYS ov020)
+# gate 163: ov022 = level 14, Lethal Lava Land (data/stage/fire_land), course 6.
+# Read from the ROM, not the overlay numbering: the level->overlay map
+# data_020758c8[14] = 22 (level+8, a read not an assumption), the LVL_Overlay
+# table data_02092208[14] = 0x02113228, and the four OV0 handles at LVL_Overlay+8
+# (bmd 0x0742 / kcl 0x0740 / icg 0x0743 / icl 0x0744) resolve DIRECTLY through
+# build/assets/handles.tsv -- the ov0 handle in the overlay IS the tsv handle, no
+# arithmetic, the delta-0 mapping the known-good levels use -- to fire_land's
+# all.bmd (26833) / kcl (22144) / icg.bin (21732) / icl.bin (512). Handles read
+# from the RAW ndspy overlay image (extracted/overlays/overlay_0022.bin), the
+# same image ovdata.py mounts; the dsd export is stale against config
+# re-addressings. SUBLEVEL_LEVEL_TABLE[14] (0x02075298) is 0x06 = course 6, a
+# main course with subCount 1. Mounted --whole like the rest; own_sinits stays 0.
+list(APPEND PORT_LEVEL_OVERLAYS ov022)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
