@@ -634,6 +634,18 @@ list(APPEND PORT_LEVEL_OVERLAYS ov012)
 # LVL_Overlay+8 (raw 0x060b/0x0612/0x0613/0x0614, +232) resolve to castle_2f's
 # kcl/bmd/icg/icl. SUBLEVEL_LEVEL_TABLE[5] = 0x1d = course 29. own_sinits 0.
 list(APPEND PORT_LEVEL_OVERLAYS ov013)
+# gate 142: ov019 is level 11's own overlay (data/stage/snow_slider, Cool Cool
+# Mountain's slide sublevel, course 3). Mounted whole like the seven above; read
+# from the ROM: the level->overlay map data_020758c8[11] = 19 (level+8, a read
+# not an assumption), the LVL_Overlay table data_02092208[11] = 0x02112c68, and
+# the four OV0 handles at LVL_Overlay+8 (raw bmd 0x07c4 / kcl 0x07c2 / icg 0x07c5
+# / icl 0x07c6) resolve through build/assets/handles.tsv -- looked up directly in
+# the handle column, the same delta-0 mapping the known-good levels 8 and 9 use
+# -- to snow_slider's all.bmd/kcl/icg.bin/icl.bin. SUBLEVEL_LEVEL_TABLE[11]
+# (0x02075298) is 3 = course 3, an outdoor slide with subCount = 1 (43 Standard
+# and Simple entries) and a 57805-byte KCL, the largest mounted so far.
+# own_sinits stays 0.
+list(APPEND PORT_LEVEL_OVERLAYS ov019)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
