@@ -125,3 +125,6 @@ data_ov002_0210e164:0x4 data_ov002_0210f308:0xc data_ov002_0210f344:0xc
 # delta to data_ov002_0210d714). The vtable _ZTV14BlueCoinSwitch is a host array
 # the registry fills, so it stays out of the mount, the ov080 rule.
 BlueCoinSwitch_SpawnInfo:0x1c data_ov002_0210d6f4
+# gate 79: STAR_MARKER (180). Its SpawnInfo record, pinned to 0x1c (the +4 id
+# reads 180). Its vtable _ZTV10StarMarker stays a host array, the ov080 rule.
+StarMarker_SpawnInfo:0x1c

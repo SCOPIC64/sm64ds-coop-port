@@ -32,6 +32,10 @@ void hal_fill_black_brick_block_vtable(void);
 extern unsigned char BlueCoinSwitch_SpawnInfo[];        /* ov002 0x0210b248 */
 void *BlueCoinSwitch_Spawn(void);                       /* ov002 0x020f15cc */
 void hal_fill_blue_coin_switch_vtable(void);
+/* ---- STAR_MARKER (180, ov002) ---- */
+extern unsigned char StarMarker_SpawnInfo[];            /* ov002 0x0210aa78 */
+void *StarMarker_Spawn(void);                           /* ov002 0x020ebe8c */
+void hal_fill_star_marker_vtable(void);
 /* ---- SIGN_POST (184, ov002) x5 ---- */
 extern unsigned char SignPost_SpawnInfo[];              /* ov002 0x02109ad4 */
 void *SignPost_Spawn(void);                             /* ov002 0x020bc3c8 */
@@ -326,6 +330,9 @@ void hal_fill_fall_block_wf_vtable(void);
     /* ---- gate 78: BLUE_COIN_SWITCH (10), ov002 ---- */                      \
     {10, "BLUE_COIN_SWITCH", BlueCoinSwitch_SpawnInfo, BlueCoinSwitch_Spawn,   \
      hal_fill_blue_coin_switch_vtable},                                       \
+    /* ---- gate 79: STAR_MARKER (180), ov002 ---- */                          \
+    {180, "STAR_MARKER", StarMarker_SpawnInfo, StarMarker_Spawn,              \
+     hal_fill_star_marker_vtable},                                            \
     {184, "SIGN_POST", SignPost_SpawnInfo, SignPost_Spawn,                    \
      hal_fill_sign_post_vtable},                                              \
     {276, "ONE_UP_MUSHROOM", OneUpMushroom_SpawnInfo, OneUpMushroom_Spawn,    \

@@ -475,6 +475,63 @@ extern "C" void hal_fill_black_brick_block_vtable(void)
     vt[17] = (void *)bbb_d0;
 }
 
+// ---- STAR_MARKER (actor 180, ov002) ----------------------------------------
+//
+// _ZTV10StarMarker, ov002 0x0210aab8 (RTTI daStarBase_c). The invisible marker
+// that holds a course star's spot: it drops a ground ray, plants a
+// MovingCylinderClsnWithPos trigger, and for the red-coin variant (kind 6)
+// spawns the POWER_STAR (id 0xb2) as a child -- guarded by `if (sp != 0)`, so an
+// unregistered POWER_STAR just leaves the child unspawned, no hard dependency.
+// A plain Actor subclass (the Rabbit shape), 20-slot vtable, own slots
+// 0/3/6/9/12/16/17. Init/Clean/Behavior/Render/OnPendingDestroy are real C++
+// methods (call qualified); D0 is extern-C .c; D1's matched .cpp is a real C++
+// destructor whose MSVC-synthesized member/base dtor calls do not resolve to the
+// extern-C ROM bodies, so its body is a host copy (port/unmatched/StarMarker_D1
+// .cpp) named _ZN10StarMarkerD1Ev, reached as a plain extern-C call. The
+// Behavior is a plain method with no pointer-to-member.
+//
+// InitResources/CleanupResources declare data_ov002_0210d9a8 as a C++ `extern
+// char`, which MSVC mangles to ?data_ov002_0210d9a8@@3DA; the mounted symbol is
+// the C-linkage _data_ov002_0210d9a8. Alias it, byte-faithful.
+#include "StarMarker.h"
+extern "C" {
+int *_ZN10StarMarkerD0Ev(int *self);                    /* .c, C linkage */
+int *_ZN10StarMarkerD1Ev(int *self);                    /* host copy, extern C */
+void *_ZTV10StarMarker[20];
+}
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9a8@@3DA=_data_ov002_0210d9a8")
+/* the destructors spell the class's own table by its RTTI name */
+#pragma comment(linker, "/alternatename:__ZTV12daStarBase_c=__ZTV10StarMarker")
+static int __fastcall sm_init(void *s, void *)
+{ return ((StarMarker *)s)->StarMarker::InitResources(); }
+static int __fastcall sm_clean(void *s, void *)
+{ return ((StarMarker *)s)->StarMarker::CleanupResources(); }
+static int __fastcall sm_behavior(void *s, void *)
+{ return ((StarMarker *)s)->StarMarker::Behavior(); }
+static int __fastcall sm_render(void *s, void *)
+{
+    port_actor_render_probe("STAR_MARKER", (char *)s + 0x114);
+    return ((StarMarker *)s)->StarMarker::Render();
+}
+static int __fastcall sm_pdes(void *s, void *)
+{ ((StarMarker *)s)->StarMarker::OnPendingDestroy(); return 0; }
+static int __fastcall sm_d1(void *s, void *)
+{ return (int)(size_t)_ZN10StarMarkerD1Ev((int *)s); }
+static int __fastcall sm_d0(void *s, void *)
+{ return (int)(size_t)_ZN10StarMarkerD0Ev((int *)s); }
+extern "C" void hal_fill_star_marker_vtable(void)
+{
+    void **vt = _ZTV10StarMarker;
+    ac_fill_shared(vt);
+    vt[0] = (void *)sm_init;
+    vt[3] = (void *)sm_clean;
+    vt[6] = (void *)sm_behavior;
+    vt[9] = (void *)sm_render;
+    vt[12] = (void *)sm_pdes;
+    vt[16] = (void *)sm_d1;
+    vt[17] = (void *)sm_d0;
+}
+
 // ---- BLUE_COIN_SWITCH (actor 10, ov002) ------------------------------------
 //
 // _ZTV14BlueCoinSwitch, ov002 0x0210b26c (RTTI daObjBC_Switch_c). The switch
