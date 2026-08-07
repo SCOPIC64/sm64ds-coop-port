@@ -357,6 +357,19 @@ void port_ov023_patch(void);
 void *port_ov023_at(unsigned ds);
 extern unsigned char port_ov023_image[];
 extern const unsigned port_ov023_ds_base, port_ov023_ds_end;
+
+/* ov021 = level 13, Hazy Maze Cave (data/stage/cave), course 5.
+   data_020758c8[13] = 21, LVL_Overlay data_02092208[13] = 0x021138c4, OV0
+   handles at +8 (bmd 0x0709/kcl 0x0706/icg 0x070a/icl 0x070b) resolve directly
+   through handles.tsv to cave's cave_all.bmd/kcl/icg/icl (61224-byte KCL, the
+   largest mounted); SUBLEVEL_LEVEL_TABLE[13] = 5, subCount 8. Mounted --whole;
+   own_sinits 0. The PAINTING (307) is gated on this level too, the levels-4/5
+   PMF host-ABI skip; its other skips need ov065/ov071 mounts (see the
+   port-w9-lvl13 commit). */
+void port_ov021_patch(void);
+void *port_ov021_at(unsigned ds);
+extern unsigned char port_ov021_image[];
+extern const unsigned port_ov021_ds_base, port_ov021_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -463,6 +476,9 @@ static const PortLevelDesc port_level_table[] = {
     {15, "Lethal Lava Land (fire_mt, course 6)", "ov023", 0x02111b88,
      port_ov023_patch, port_ov023_at,
      &port_ov023_ds_base, &port_ov023_ds_end, 0},
+    {13, "Hazy Maze Cave (cave, course 5)", "ov021", 0x021138c4,
+     port_ov021_patch, port_ov021_at,
+     &port_ov021_ds_base, &port_ov021_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -622,6 +638,7 @@ static void *port_mount_row_11(void) { return port_level_mount_at(11); }
    collide; a reviewer renumbers to port_mount_row_12 at merge. */
 static void *port_mount_row_lvl14(void) { return port_level_mount_at(12); }
 static void *port_mount_row_13(void) { return port_level_mount_at(13); }
+static void *port_mount_row_14(void) { return port_level_mount_at(14); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
@@ -634,6 +651,7 @@ static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_11,
     port_mount_row_lvl14,
     port_mount_row_13,
+    port_mount_row_14,
 };
 
 // ---- the loader dispatch table ---------------------------------------------

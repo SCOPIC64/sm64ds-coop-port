@@ -166,22 +166,36 @@ extern "C" void port_actor_census_reset(void)
    (castle_b1) and level 5 (castle_2f) carry mode>0 / high-texture params that
    fault one call into the state function (measured: a write to this+0x16c with
    this = 0xfffad16c). Hosting the three dispatchers is the fix, deferred; until
-   then the painting spawns on levels 1..3 and is skipped on 4/5. */
+   then the painting spawns on levels 1..3 and is skipped on 4/5.
+
+   Level 13 (Hazy Maze Cave, cave) carries a PAINTING too, and it faults on the
+   same PMF-stride path: measured, the id-0x133 spawn dispatches one call into
+   the mis-strided state function and writes through a `this` shifted into
+   unmapped memory (the identical func_0203b27c teardown fault at this+0x1b8 the
+   levels 4/5 paintings hit). Same blocker, same fix pending, so it joins the
+   list; the cave boots and is walkable with the painting skipped and named in
+   the census. */
 extern "C" int port_level_id(void);
 static int port_host_abi_blocked(unsigned id)
 {
     if (id == 307) {                       /* PAINTING, ov080 */
         int lvl = port_level_id();
-        if (lvl == 4 || lvl == 5)
+        if (lvl == 4 || lvl == 5 || lvl == 13)
             return 1;
     }
     return 0;
 }
 
+extern "C" const char *port_actor_class_name(unsigned id);
+
 extern "C" int port_prespawn_hook(void *idv)
 {
     unsigned id = (unsigned)(size_t)idv;
     if (id < PORT_ACTOR_IDS && data_020a4bb8[id] && !port_host_abi_blocked(id)) {
+        static int trc = -1;
+        if (trc < 0) trc = std::getenv("SM64DS_TRACE_SPAWN") != 0;
+        if (trc) std::fprintf(stderr, "  [spawn+] actor 0x%x %s proceed\n",
+                              id, port_actor_class_name(id));
         ++g_spawned[id];
         return 2;                     /* what a null hook returns: proceed */
     }
