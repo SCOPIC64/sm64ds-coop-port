@@ -158,3 +158,13 @@ PowerStar_SpawnInfo:0x1c data_ov002_0210aa0c
 # reads 177). It installs no vtable of its own -- it dispatches the base Actor
 # table _ZTV5Actor, filled by hal_fill_actor_base_vtable.
 StarCamera_SpawnInfo:0x1c
+# gate 122: BRICK_BLOCK_SWITCH_ACTIVATED (19), Jolly Roger Bay. Same class body
+# as BIG_BRICK_BLOCK -- its factory installs _ZTV13BigBrickBlock, filled by gate
+# 16's BLACK_BRICK_BLOCK. Its SpawnInfo record, pinned to 0x1c so the +4 id
+# halfword reads 19. The vtable stays a host array, the ov080 rule.
+BrickBlockSwitchActivated_SpawnInfo:0x1c
+# gate 123: GREEN_SHELL_BLOCK_TAG (323), Jolly Roger Bay. A tag body sharing
+# _ZTV10BrickBlock, the same table ONE_UP_MUSHROOM_BLOCK_TAG (gate 49) installs
+# and hal_fill_brick_block_tag_vtable already fills. Its SpawnInfo record, pinned
+# to 0x1c so the +4 id halfword reads 323.
+GreenShellBlockTag_SpawnInfo:0x1c
