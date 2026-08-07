@@ -266,6 +266,12 @@ void hal_fill_chain_chomp_fence_vtable(void);
 extern unsigned char ShutterBob_SpawnInfo[];      /* ov014 0x021145e4 */
 void *ShutterBob_Spawn(void);                     /* host copy, unmatched/ */
 void hal_fill_shutter_bob_vtable(void);
+/* gate 83: SEESAW_BOB (39), the fresh ov095 mount. A Platform subclass (RTTI
+   daObjSeesaw_c); SpawnInfo and the three file tables come from ov095_syms.txt,
+   the sinits from hal/actor_overlays.cpp. */
+extern unsigned char SeesawBob_SpawnInfo[];       /* ov095 0x02137484 */
+void *SeesawBob_Spawn(void);                      /* ov095 0x02135f94 */
+void hal_fill_seesaw_bob_vtable(void);
 extern unsigned char KoopaTheQuick_SpawnInfo[];   /* ov062 0x0211db78 */
 void *KoopaTheQuick_Spawn(void);                  /* ov062 0x0211aee0 */
 void hal_fill_koopa_the_quick_vtable(void);
@@ -536,7 +542,10 @@ void *FortressWallBreakable_Spawn(void);          /* ov079 0x021275ac */
      hal_fill_piranha_plant_vtable},                                           \
     /* ---- gate 82: SHUTTER_BOB (40), Bob-omb Battlefield (ov014) ---- */      \
     {40, "SHUTTER_BOB", ShutterBob_SpawnInfo, ShutterBob_Spawn,                \
-     hal_fill_shutter_bob_vtable},
+     hal_fill_shutter_bob_vtable},                                             \
+    /* ---- gate 83: SEESAW_BOB (39), Bob-omb Battlefield (ov095) ---- */       \
+    {39, "SEESAW_BOB", SeesawBob_SpawnInfo, SeesawBob_Spawn,                   \
+     hal_fill_seesaw_bob_vtable},
     /* ---- gates 64-69: Whomp's Fortress' enemy cast (ov079) ------------------
        BUILT AND WIRED BUT NOT REGISTERED BY DEFAULT. The mount, the four sinits,
        WHOMP's and BULLET_BILL's state seats, the four vtable fills, the method

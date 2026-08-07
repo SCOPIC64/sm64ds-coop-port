@@ -622,6 +622,86 @@ extern "C" void hal_fill_shutter_bob_vtable(void)
     vt[31] = (void *)shb_trap31;
 }
 
+// ---- SEESAW_BOB (39, ov095) x1 ---------------------------------------------
+//
+// _ZTV9SeesawBob (ov095 0x021374fc, RTTI daObjSeesaw_c). Bob-omb Battlefield's
+// tilting seesaw bridge, and a Platform subclass like the shutter. Level 6's
+// census printed id 39 skipped x1; ACTOR_SPAWN_TABLE entry [39] relocates to
+// SeesawBob_SpawnInfo at ov095 0x02137484 (that record's +4 reads 39), so the
+// resolution is the ROM's own. ov095 is a fresh per-symbol mount
+// (ov095_syms.txt); the SpawnInfo, its three file-pointer tables and the
+// SharedFilePtr statics the two ov095 sinits build all come from there.
+//
+// The 32-slot vtable overrides 0/3/6/9/16/17 AND slot 21 -- SeesawBob has a
+// real Render of its own (unlike the shutter) and its own OnGroundPounded
+// (func_ov095_021357d8, the rider's weight tilting the plank). Slot 12 is
+// ActorBase::OnPendingDestroy. Init/Clean/Behavior/Render are real C++ methods
+// (call qualified against include/SeesawBob.h); D1/D0 are the C-form .c
+// destructors. SeesawBob_Spawn is the matched src -- it installs _ZTV9SeesawBob
+// with a single store, so no host copy is needed. The vtable is a HOST array
+// the registry fills (the ov085/ov080 rule), deliberately NOT in ov095_syms.txt.
+#include "SeesawBob.h"
+extern "C" {
+int func_ov095_021357d8(char *self, char *other);   /* slot 21, OnGroundPounded */
+int *_ZN9SeesawBobD1Ev(int *self);                   /* .c, C linkage */
+int *_ZN9SeesawBobD0Ev(int *self);                   /* .c, C linkage */
+void *_ZTV9SeesawBob[32];
+}
+/* the destructors spell the class's own table by its RTTI name */
+#pragma comment(linker, "/alternatename:__ZTV13daObjSeesaw_c=__ZTV9SeesawBob")
+/* InitResources takes the ADDRESS of MeshColliderBase::UpdatePosWithTransform,
+   declared `extern int [...][]`, so MSVC mangles the reference as a DATA name
+   (?...@@3PAHA). The real static's MSVC symbol is the SAX... method; alias the
+   data spelling onto it -- the UpdatePosAndAngs @@3PAXA precedent in
+   cxx_aliases.cpp. */
+#pragma comment(linker, "/alternatename:?_ZN16MeshColliderBase22UpdatePosWithTransformERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_@@3PAHA=?UpdatePosWithTransform@MeshColliderBase@@SAXAAU1@PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z")
+static int __fastcall ssb_init(void *s, void *)
+{ return ((SeesawBob *)s)->SeesawBob::InitResources(); }
+static int __fastcall ssb_clean(void *s, void *)
+{ return ((SeesawBob *)s)->SeesawBob::CleanupResources(); }
+static int __fastcall ssb_behavior(void *s, void *)
+{ return ((SeesawBob *)s)->SeesawBob::Behavior(); }
+static int __fastcall ssb_render(void *s, void *)
+{
+    port_actor_render_probe("SEESAW_BOB", (char *)s + 0xd4);
+    return ((SeesawBob *)s)->SeesawBob::Render();
+}
+/* slot 21 takes a second argument (the pounder) in r1; the __fastcall thunk's
+   second slot carries it, so the ov095 body reads it straight. */
+static int __fastcall ssb_pounded(void *s, void *pounder)
+{ func_ov095_021357d8((char *)s, (char *)pounder); return 0; }
+static int __fastcall ssb_d1(void *s, void *)
+{ return (int)(size_t)_ZN9SeesawBobD1Ev((int *)s); }
+static int __fastcall ssb_d0(void *s, void *)
+{ return (int)(size_t)_ZN9SeesawBobD0Ev((int *)s); }
+extern "C" void hal_fill_seesaw_bob_vtable(void)
+{
+    void **vt = _ZTV9SeesawBob;
+    hal_fill_platform_vtable();
+    bw_fill_shared(vt);
+    vt[0] = (void *)ssb_init;
+    vt[3] = (void *)ssb_clean;
+    vt[6] = (void *)ssb_behavior;
+    vt[9] = (void *)ssb_render;
+    vt[12] = (void *)bw_pdes_base;
+    vt[16] = (void *)ssb_d1;
+    vt[17] = (void *)ssb_d0;
+    /* the Platform tail (20..31): base Actor virtuals, except slot 21 which
+       SeesawBob overrides. Trapped per slot otherwise. */
+    vt[20] = (void *)shb_trap20;
+    vt[21] = (void *)ssb_pounded;
+    vt[22] = (void *)shb_trap22;
+    vt[23] = (void *)shb_trap23;
+    vt[24] = (void *)shb_trap24;
+    vt[25] = (void *)shb_trap25;
+    vt[26] = (void *)shb_trap26;
+    vt[27] = (void *)shb_trap27;
+    vt[28] = (void *)shb_trap28;
+    vt[29] = (void *)shb_trap29;
+    vt[30] = (void *)shb_trap30;
+    vt[31] = (void *)shb_trap31;
+}
+
 // ---- CAP (269, ov002) -------------------------------------------------------
 //
 // _ZTV13WaterfallMist, ov002 0x021095f0, RTTI 15daObjMarioCap_c. Mario's cap,

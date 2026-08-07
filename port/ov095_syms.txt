@@ -1,0 +1,51 @@
+# The ov095 data SEESAW_BOB names -- Bob-omb Battlefield's seesaw bridge (39).
+#
+# ov095 is an ACTOR overlay (base 0x02135700, its own, not shared with the
+# ov078/079/080 set), one of the seven actor overlays level 6 loads
+# (ov062/069/078/084/091/095/100). It carries several classes -- SeesawBob,
+# SeesawUtm/Bdw/Bfs/Bs/Rr, the UpDownLift trio and a Flamethrower -- of which
+# level 6's census names only SEESAW_BOB (39). Its id and its SpawnInfo's own
+# +4 halfword were read from the arm9 ACTOR_SPAWN_TABLE (0x02090864): entry 39
+# relocates to SeesawBob_SpawnInfo at 0x02137484 and that record's +4 reads 39.
+#
+# This is the per-symbol mount (the gate-32/gate-77 ov085/ov080/ov079 shape):
+# SEESAW_BOB reaches its SpawnInfo, its three parallel file-pointer tables
+# (data_ov095_021374a0/a4/a8, columns of a 7-row 0xc-stride array indexed by the
+# variant byte at +0x31e), and the SharedFilePtr statics its InitResources and
+# CleanupResources Release, all BY NAME. --pack keeps the runs that are really
+# one array contiguous against the ROM's own spacing.
+#
+# THE THREE VTABLES ARE LEFT OUT, the ov085/ov080/ov079 rule: _ZTV9SeesawBob
+# (0x021374fc), _ZTV13UpDownLiftBbh (0x02137628) and _ZTV12Flamethrower
+# (0x021376f0) each carry the vtable signature (the +4 word relocates to
+# Actor::BeforeInitResources, arm9 0x02011268) and are HOST arrays the registry
+# fills. Only SeesawBob's is filled today (hal/actor_classes_bob_world.cpp).
+#
+# The two sinits (__sinit_ov095_02136fe0 and _0213722c, run from
+# hal/actor_overlays.cpp) construct the SharedFilePtrs the file tables point at;
+# both their targets are in this mount. data_ov095_02137910 is sinit2's
+# five-record copy destination -- pinned to 0x28 (5 * 8) so the whole struct is
+# hosted rather than the 4 bytes the next-symbol delta would give (it is the
+# last symbol, tail into bss).
+#
+# SeesawBob_SpawnInfo is pinned to the record's real 0x1c so the +4 id halfword
+# the registry cross-checks reads out of the right bytes (39).
+# data_ov095_02136f58 is the 4-int table func_ov095_0213579c indexes by the
+# rider's (p+8)&3 -- the seesaw's tilt-response coefficients. Plain ints, no
+# relocs; it sits well before the SpawnInfo, which --pack spans with a gap.
+data_ov095_02136f58
+SeesawBob_SpawnInfo:0x1c
+data_ov095_021374a0 data_ov095_021374a4 data_ov095_021374a8
+data_ov095_0213757c data_ov095_02137584 data_ov095_0213758c data_ov095_02137594
+data_ov095_0213759c
+data_ov095_02137780 data_ov095_02137788 data_ov095_02137790 data_ov095_02137798
+data_ov095_021377a0 data_ov095_021377a8 data_ov095_021377b0 data_ov095_021377b8
+data_ov095_021377c0 data_ov095_021377c8 data_ov095_021377d0 data_ov095_021377d8
+data_ov095_021377e0 data_ov095_021377e8 data_ov095_021377f0 data_ov095_021377fc
+data_ov095_02137808 data_ov095_02137814 data_ov095_02137820 data_ov095_0213782c
+data_ov095_02137838 data_ov095_02137844 data_ov095_02137850 data_ov095_0213785c
+data_ov095_02137868 data_ov095_02137874 data_ov095_02137880 data_ov095_0213788c
+data_ov095_02137898 data_ov095_021378a0 data_ov095_021378a8 data_ov095_021378b0
+data_ov095_021378b8 data_ov095_021378c0 data_ov095_021378c8 data_ov095_021378d4
+data_ov095_021378e0 data_ov095_021378ec data_ov095_021378f8 data_ov095_02137904
+data_ov095_02137910:0x28
