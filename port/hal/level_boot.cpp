@@ -113,6 +113,30 @@ void port_ov011_patch(void);
 void *port_ov011_at(unsigned ds);
 extern unsigned char port_ov011_image[];
 extern const unsigned port_ov011_ds_base, port_ov011_ds_end;
+
+/* ov012 = level 4, a castle basement floor (data/stage/castle_b1), course 29.
+   The level->overlay map data_020758c8[4] = 12 (level+8, a read not an
+   assumption), the LVL_Overlay table data_02092208[4] = 0x02111c54, and the
+   four OV0 handles at LVL_Overlay+8 (raw 0x0615/0x061b/0x061c/0x061d, +232 the
+   overlay handle base) resolve through build/assets/handles.tsv to castle_b1's
+   bmd/kcl/icg/icl -- the same evidence path the six above use.
+   SUBLEVEL_LEVEL_TABLE[4] (0x02075298) is 0x1d = course 29, the castle family,
+   interior-shaped like level 2 with only the standard hosted loaders. Mounted
+   --whole like the six above; own_sinits stays 0. */
+void port_ov012_patch(void);
+void *port_ov012_at(unsigned ds);
+extern unsigned char port_ov012_image[];
+extern const unsigned port_ov012_ds_base, port_ov012_ds_end;
+
+/* ov013 = level 5, the castle second floor (data/stage/castle_2f), course 29.
+   Same evidence path: data_020758c8[5] = 13, the LVL_Overlay table
+   data_02092208[5] = 0x02111844, and the four handles at LVL_Overlay+8 (raw
+   0x060b/0x0612/0x0613/0x0614, +232) resolve to castle_2f's bmd/kcl/icg/icl.
+   SUBLEVEL_LEVEL_TABLE[5] = 0x1d = course 29. Mounted --whole; own_sinits 0. */
+void port_ov013_patch(void);
+void *port_ov013_at(unsigned ds);
+extern unsigned char port_ov013_image[];
+extern const unsigned port_ov013_ds_base, port_ov013_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -192,6 +216,12 @@ static const PortLevelDesc port_level_table[] = {
     {3, "castle garden (main_garden, course 29)", "ov011", 0x021113ac,
      port_ov011_patch, port_ov011_at,
      &port_ov011_ds_base, &port_ov011_ds_end, 0},
+    {4, "castle basement (castle_b1, course 29)", "ov012", 0x02111c54,
+     port_ov012_patch, port_ov012_at,
+     &port_ov012_ds_base, &port_ov012_ds_end, 0},
+    {5, "castle second floor (castle_2f, course 29)", "ov013", 0x02111844,
+     port_ov013_patch, port_ov013_at,
+     &port_ov013_ds_base, &port_ov013_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -339,9 +369,11 @@ static void *port_mount_row_1(void) { return port_level_mount_at(1); }
 static void *port_mount_row_2(void) { return port_level_mount_at(2); }
 static void *port_mount_row_3(void) { return port_level_mount_at(3); }
 static void *port_mount_row_4(void) { return port_level_mount_at(4); }
+static void *port_mount_row_5(void) { return port_level_mount_at(5); }
+static void *port_mount_row_6(void) { return port_level_mount_at(6); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
-    port_mount_row_4,
+    port_mount_row_4, port_mount_row_5, port_mount_row_6,
 };
 
 // ---- the loader dispatch table ---------------------------------------------

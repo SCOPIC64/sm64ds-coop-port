@@ -599,6 +599,22 @@ set(PORT_LEVEL_OVERLAYS ov009 ov014 ov010 ov015)
 # ov098 ov100 ov102) is all already mounted except ov063, so its shared cast
 # spawns for free and only ov063-owned classes are skipped by name at the gate.
 list(APPEND PORT_LEVEL_OVERLAYS ov011)
+# gate 114: ov012 is level 4's own overlay (data/stage/castle_b1, a castle
+# basement floor, course 29). Mounted whole like the five above; read from the
+# ROM: the level->overlay map data_020758c8[4] = 12, the LVL_Overlay table
+# data_02092208[4] = 0x02111c54, and the four OV0 handles at LVL_Overlay+8
+# (raw 0x0615/0x061b/0x061c/0x061d) resolve through build/assets/handles.tsv --
+# the overlay's handle base is a constant +232 above the tsv index, confirmed
+# across all five known-good levels -- to castle_b1's kcl/bmd/icg/icl.
+# SUBLEVEL_LEVEL_TABLE[4] (0x02075298) is 0x1d = course 29, the castle family,
+# interior-shaped like level 2. own_sinits stays 0.
+list(APPEND PORT_LEVEL_OVERLAYS ov012)
+# gate 117: ov013 is level 5's own overlay (data/stage/castle_2f, the castle
+# second floor, course 29). Same evidence path: data_020758c8[5] = 13, the
+# LVL_Overlay table data_02092208[5] = 0x02111844, and the four handles at
+# LVL_Overlay+8 (raw 0x060b/0x0612/0x0613/0x0614, +232) resolve to castle_2f's
+# kcl/bmd/icg/icl. SUBLEVEL_LEVEL_TABLE[5] = 0x1d = course 29. own_sinits 0.
+list(APPEND PORT_LEVEL_OVERLAYS ov013)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
