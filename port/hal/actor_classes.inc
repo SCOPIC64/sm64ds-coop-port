@@ -264,6 +264,17 @@ void hal_fill_koopa_flag_vtable(void);
 extern unsigned char KingBobOmb_SpawnInfo[];      /* ov078 0x02126e28 */
 void *KingBobOmb_Spawn(void);                     /* ov078 0x021265fc */
 void hal_fill_king_bob_omb_vtable(void);
+/* ---- gates 60-63: Whomp's Fortress' mechanical platforms (ov015) ----------
+   Wired by the vtable each factory installs, not the class name the config
+   carries (the ov015 name shift; see hal/actor_classes_wf.cpp). SpawnInfo
+   records from the ov015 per-symbol mount (ov015_syms.txt); each +4 halfword
+   is the id below. */
+extern unsigned char TowerStep_SpawnInfo[];       /* ov015 0x0211462c, id 52 */
+void *TowerStep_Spawn(void);                      /* ov015 0x0211290c */
+void hal_fill_tower_step_vtable(void);
+extern unsigned char RotatingBridge_SpawnInfo[];  /* ov015 0x021146f0, id 51 */
+void *RotatingBridge_Spawn(void);                 /* ov015 0x02112ba0 */
+void hal_fill_rotating_bridge_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -374,7 +385,13 @@ void hal_fill_king_bob_omb_vtable(void);
      ExclamationSwitch_Spawn, hal_fill_exclamation_switch_vtable},             \
     /* ---- gate 51: ROLLING_IRON_BALL (220), Whomp's Fortress ---- */         \
     {220, "ROLLING_IRON_BALL", RollingIronBall_SpawnInfo, RollingIronBall_Spawn,\
-     hal_fill_rolling_iron_ball_vtable},
+     hal_fill_rolling_iron_ball_vtable},                                       \
+    /* ---- gate 60: TOWER_STEP (52), Whomp's Fortress (ov015) ---- */          \
+    {52, "TOWER_STEP", TowerStep_SpawnInfo, TowerStep_Spawn,                    \
+     hal_fill_tower_step_vtable},                                              \
+    /* ---- gate 61: ROTATING_BRIDGE (51), Whomp's Fortress (ov015) ---- */     \
+    {51, "ROTATING_BRIDGE", RotatingBridge_SpawnInfo, RotatingBridge_Spawn,     \
+     hal_fill_rotating_bridge_vtable},
     /* PEACH_PAINTING (38) is BLOCKED, see gate 42 below -- its InitResources
        spawns a RollingRock (ov052, an overlay the port does not mount) and
        reads data_ov052_02111e84, so registering it would fault on the first

@@ -1,0 +1,49 @@
+# Gate 59: ov015, level 7's own overlay (Whomp's Fortress mechanical
+# platforms), mounted per symbol so the eight platform classes reach their
+# SpawnInfo records and construction-data statics by name.
+#
+# THE OVERLAY'S SEVEN STATIC INITIALISERS. Each constructs the SharedFilePtr
+# objects a platform's InitResources loads its model/collider through and fills
+# the small per-class tuning tables. They run from hal/actor_overlays.cpp in
+# port_actor_overlays_sinits, after the mount and before the first spawn, the
+# same place ov010's three run. No state seat: none of these classes dispatches
+# a pointer-to-member.
+src/__sinit_ov015_02112f9c.c
+src/__sinit_ov015_02112fdc.c
+src/__sinit_ov015_02113048.c
+src/__sinit_ov015_02113264.c
+src/__sinit_ov015_021132d0.c
+src/__sinit_ov015_021133a8.c
+src/__sinit_ov015_0211333c.c
+
+# Gate 60: TOWER_STEP (id 52). Its factory installs vtable 0x02114650, so an
+# id-52 object runs the _ZN14MovingBarSmall* lifecycle. Factory + the five
+# lifecycle methods its vtable's own slots point at.
+src/TowerStep_Spawn.c
+src/_ZN14MovingBarSmall13InitResourcesEv.cpp
+src/_ZN14MovingBarSmall16CleanupResourcesEv.cpp
+src/_ZN14MovingBarSmall8BehaviorEv.c
+src/_ZN14MovingBarSmall6RenderEv.cpp
+src/_ZN14MovingBarSmallD1Ev.c
+
+# Gate 61: ROTATING_BRIDGE (id 51). Its factory installs vtable 0x02114714, so
+# an id-51 object runs the _ZN9TowerStep* lifecycle. Factory + the five
+# lifecycle methods.
+src/RotatingBridge_Spawn.c
+src/_ZN9TowerStep13InitResourcesEv.cpp
+src/_ZN9TowerStep16CleanupResourcesEv.cpp
+src/_ZN9TowerStep8BehaviorEv.cpp
+src/_ZN9TowerStep6RenderEv.cpp
+src/_ZN9TowerStepD1Ev.c
+
+# Helper closure the two platforms' InitResources/Behavior reach: two ov015
+# helpers and the two MeshColliderBase update paths their MovingMeshCollider
+# threads through (both matched src, not yet in any slice).
+src/func_ov015_021123c8.cpp
+src/func_ov015_021128f8.c
+src/func_ov015_021128e8.c
+src/_ZN16MeshColliderBase16UpdatePosAndAngsERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp
+src/_ZN16MeshColliderBase21UpdatePosWithVelocityERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp
+src/_ZN16MeshColliderBase22UpdatePosWithTransformERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp
+src/_ZN16MeshColliderBase25UpdateAngsWithAngularVelYERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp
+src/func_020393d4.c
