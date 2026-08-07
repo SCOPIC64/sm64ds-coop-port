@@ -282,7 +282,63 @@ extern const unsigned port_ov020_ds_base, port_ov020_ds_end;
    dsd export is stale against config re-addressings, which is why an early
    read of the dsd copy gave the wrong words. SUBLEVEL_LEVEL_TABLE[14]
    (0x02075298) is 0x06 = course 6, a main course with subCount 1. Mounted
-   --whole like the rest; own_sinits stays 0. */
+   --whole like the rest; own_sinits stays 0.
+
+   ITS SKIPPED CAST, and why every class stays skipped for now. Level 14's
+   census names 22 unregistered classes; each id resolves through
+   ACTOR_SPAWN_TABLE (arm9 0x02090864 + id*4) to a SpawnInfo, and the level's
+   object overlays are ov064/ov071/ov080/ov084/ov095 (from data_02075998[14]
+   selecting into data_02075804 -- the same LoadOrUnloadObjectOverlays walk the
+   level-6 note beside port_level_table[] describes; ov084/ov095 are already
+   mounted for other levels, ov064/ov071/ov080 are not). None of the 22 is a
+   free share of an already-hosted vtable. Grouped by blocker:
+
+     - ov022-RESIDENT (SpawnInfo in this level overlay) with NO decompiled
+       methods, only a Spawn factory: VOLCANO_RING (71, x1), LAVA_BRIDGE
+       (73, x2), FLOAT_ON_LAVA_PLATFORM (74, x1), LAVA_SEESAW (77, x1),
+       LAVA_PLANK (82, x3). Blocked on the class bodies not being decompiled.
+
+     - ov022-RESIDENT, fully decompiled, blocked on an ov022 CODE SLICE: only
+       ROLLING_LOG_LLL (70, x1) is self-contained in overlay terms (its
+       InitResources/Behavior/Cleanup/D0 reach no other overlay's data). It is
+       still blocked: its Behavior dispatches a state closure through a
+       pointer-to-member table at +0x108 that InitResources seats with
+       func_ov022_02112790(this, &data_ov022_02114690), and that table lives in
+       ov022 BSS (0x02114690 is past the image end 0x02114500) built by ov022's
+       own static initialisers. None of ov022's 46 decompiled func_ov022_* nor
+       its __sinit_ov022_* are in any build slice -- the overlay is mounted
+       --whole as DATA only, so the pmf words are DS code pointers no slice
+       patches to host addresses, and the first Behavior tick would call
+       through them. Hosting it is an ov022 code-slice + sinit + pmf-repoint
+       gate, deferred.
+
+     - ov022-RESIDENT but routing collision through ov064's CLPS block, so
+       BLOCKED on an ov064 mount: ROTATING_PLATFORM_LLL (80, x1) and
+       FLOATING_FLOOR_LLL_BIG (75, x1) both pass data_ov064_0211bb0c/ba6c as the
+       CLPS_Block to MovingMeshCollider::SetFile, and both spell CleanupResources
+       through the per-TU G0/G1 placeholders (the IceSheet wall, level 10's
+       note). FLOATING_FLOOR_LLL_SMALL (76, x3) reaches data_ov036/ov002 and
+       FALL_BLOCK_LLL (83, x9) calls func_ov080_* into ov080. Each needs a fresh
+       overlay mount plus per-TU G0/G1, deferred.
+
+     - HOME IN AN UNMOUNTED OBJECT OVERLAY, needing a fresh per-symbol mount
+       (the gate-64 shape -- a new overlay mount, its sinits, the vtable fill and
+       a row): ov064 holds METAL_NET_LIFT (69, x2), TILTING_PLATFORM_LLL
+       (72, x4), BOWSER_PUZZLE_PIECE (78, x14), BOWSER_PUZZLE_MANAGER (79, x1),
+       ROTATING_FIREBAR (81, x1), LAVA_BUBBLE (214, x7), BULLY (215, x5),
+       BIG_BULLY (216, x2); ov071 holds MR_I (262, x2); ov080 holds CRAZED_CRATE
+       (193, x1); ov095 holds FLAMETHROWER (318, x5). Several also reach ov002
+       and carry G0/G1, so the mount is only the first part.
+
+     - ARM9/ov000-adjacent, partially decompiled: POPPING_LAVA_BUBBLES (196, x1)
+       -- only Init/Behavior/D0 are decompiled and its spawnFunc is in ov000, a
+       base overlay; deferred.
+
+   All 22 are turned away by the pre-spawn gate by name and named in the census,
+   so the boot is honest about what did not spawn. None is a clean single-class
+   host: the tractable-looking one (RollingLogLll) needs an ov022 code slice the
+   port does not yet stand up, and the rest need overlay mounts or the per-TU
+   G0/G1 fix. Deferred as multi-part gates; the level boots and is walkable. */
 void port_ov022_patch(void);
 void *port_ov022_at(unsigned ds);
 extern unsigned char port_ov022_image[];
