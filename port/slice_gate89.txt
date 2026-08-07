@@ -14,6 +14,18 @@
 # (gate 10). __sinit_ov002_02106e40, which builds the state table, is compiled
 # (gate 10) and called inline in walk_window/smoke_player; the seat runs before
 # it.
+# gate 90: STAR_CAMERA (177), a bare Actor. Its Spawn plus the Actor base ctor
+# and the ActorBase/Actor base lifecycle virtuals its base vtable dispatches
+# (InitResources/Behavior/Render/Cleanup default to ActorBase; the two Virtual
+# hooks; Actor's own D1/D0). All matched src, pulled in for the base vtable fill.
+src/StarCamera_Spawn.cpp
+src/_ZN5ActorC1Ev.cpp
+src/_ZN9ActorBase13InitResourcesEv.cpp
+src/_ZN9ActorBase16CleanupResourcesEv.cpp
+src/_ZN9ActorBase8BehaviorEv.cpp
+src/_ZN9ActorBase6RenderEv.cpp
+src/_ZN5ActorD1Ev.cpp
+src/_ZN5ActorD0Ev.c
 src/PowerStar_Spawn.c
 src/_ZN9PowerStar13InitResourcesEv.cpp
 src/_ZN9PowerStar16CleanupResourcesEv.cpp

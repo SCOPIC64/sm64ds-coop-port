@@ -220,6 +220,19 @@ __declspec(allocate(".hvsstar$0001")) signed char data_0209f311[31];
    matched Itanium body. */
 #pragma comment(linker, "/alternatename:?New@System@Particle@@SAPAU12@IIHHHPBUVector3@@PAUCallback@2@@Z=__ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE")
 
+/* gate 90: _ZN5ActorC1Ev (the matched Actor base ctor StarCamera_Spawn calls)
+   declares its engine globals as bare typed C++ names, which MSVC mangles while
+   the port hosts them with C linkage (data_0208e3a4 here, the rest in
+   actor_vtables.cpp / actor_registry.cpp). Alias each mangled reference onto its
+   C symbol -- the same seam every gate uses for a .cpp that reaches a mount or
+   hal global outside extern "C". */
+#pragma comment(linker, "/alternatename:?data_0208e3a4@@3PAXA=_data_0208e3a4")
+#pragma comment(linker, "/alternatename:?data_0209b468@@3PAXA=_data_0209b468")
+#pragma comment(linker, "/alternatename:?data_0209b460@@3PAXA=_data_0209b460")
+#pragma comment(linker, "/alternatename:?data_0209b45c@@3PAXA=_data_0209b45c")
+#pragma comment(linker, "/alternatename:?data_0208e378@@3FA=_data_0208e378")
+#pragma comment(linker, "/alternatename:?data_020a4bb8@@3PAXA=_data_020a4bb8")
+
 static int __fastcall ps_init(void *s, void *)
 { return _ZN9PowerStar13InitResourcesEv(s); }
 static int __fastcall ps_clean(void *s, void *)
@@ -270,4 +283,118 @@ int _ZN9PowerStar16CleanupResourcesEv(void *self)
 { return ((PowerStar *)self)->PowerStar::CleanupResources(); }
 int _ZN9PowerStar6RenderEv(void *self)
 { return ((PowerStar *)self)->PowerStar::Render(); }
+}
+
+// ============================================================================
+// GATE 90: STAR_CAMERA (actor 177), the BASE Actor vtable _ZTV5Actor
+// ============================================================================
+//
+// StarCamera_Spawn (src/StarCamera_Spawn.cpp) is `new(0xd4) Actor` then
+// _ZN5ActorC1Ev -- it installs NO vtable of its own, so a spawned STAR_CAMERA
+// dispatches every virtual through the base Actor vtable, _ZTV5Actor at arm9
+// 0x0208e3a4 (aliased data_0208e3a4, 31 slots). The port kept that symbol as
+// zeroed transient storage, so registering STAR_CAMERA as-is dispatched through
+// nulls on the first frame.
+//
+// FILLING IT IS PROVABLY SAFE. _ZN5ActorC1Ev is the ONLY code that stores
+// data_0208e3a4 as an object's vptr, and it does so transiently: it writes
+// data_0208e4b8 (ActorDerived) then data_0208e3a4 (Actor), and every derived
+// class's own Spawn overwrites word 0 with its class vtable immediately after
+// the ctor returns. No virtual is dispatched between the ctor's store and the
+// derived overwrite (the ctor calls its bases QUALIFIED, never virtual), so the
+// contents of data_0208e3a4 are never read for any class but the one that
+// LEAVES it installed. StarCamera_Spawn is the ONLY such TU in src/ (verified:
+// it is the only file that calls _ZN5ActorC1Ev and installs no vtable after).
+// So this fill changes the behaviour of exactly one class -- STAR_CAMERA --
+// turning its null dispatches into the ROM's own Actor/ActorBase bodies, and is
+// invisible to every other class's ctor.
+//
+// The 31 slots are the ROM's own _ZTV5Actor (relocs.txt, 0x0208e3a4..0x0208e41c):
+// ActorBase's InitResources/CleanupResources/Behavior/Render at 0/3/6/9 (a bare
+// Actor overrides none of them), Actor's Before/After hooks, ActorBase's
+// Virtual34/38 at 13/14, OnHeapCreated at 15, Actor D1/D0 at 16/17, the Actor
+// defaults for OnYoshiTryEat/OnTurnIntoEgg/Virtual50 at 18/19/20 and the ten
+// combat hooks at 21..30. Slot 30 (OnAimedAtWithEggReturnVec) returns a Vector3
+// by value, an ABI a thunk cannot bridge, so it TRAPS -- nothing aims a Yoshi
+// egg at the star camera as Mario, the same trap every Enemy class carries.
+// The base bodies are real MSVC methods against include/ActorBase.h and
+// include/Actor.h, so the thunks call them QUALIFIED (never virtual), the same
+// way hal/actor_classes_wf_enemy.cpp reaches Actor's methods. The Actor tail
+// virtuals with C-named free-function TUs (OnYoshiTryEat/OnTurnIntoEgg/
+// OnAimedAtWithEgg, D1/D0) are declared extern "C".
+extern "C" {
+int _ZN9ActorBase13InitResourcesEv(void);                /* slot 0, C-free */
+int _ZN5Actor16OnAimedAtWithEggEv(void *self);           /* slot 29, C-free */
+int _ZN5Actor13OnYoshiTryEatEv(void *self);              /* slot 18, C-free */
+void _ZN5Actor13OnTurnIntoEggER6Player(void);            /* slot 19, C-free veneer */
+int *_ZN5ActorD1Ev(int *self);                           /* slot 16 */
+int *_ZN5ActorD0Ev(int *self);                           /* slot 17 */
+extern void *data_0208e3a4[];   /* _ZTV5Actor, storage in hal/actor_vtables.cpp */
+}
+
+static int __fastcall star_d1(void *s, void *)
+{ return (int)(size_t)_ZN5ActorD1Ev((int *)s); }
+static int __fastcall star_d0(void *s, void *)
+{ return (int)(size_t)_ZN5ActorD0Ev((int *)s); }
+
+static int __fastcall ab_init(void *s, void *)
+{ (void)s; return _ZN9ActorBase13InitResourcesEv(); }
+static int __fastcall ab_clean(void *s, void *)
+{ return ((ActorBase *)s)->ActorBase::CleanupResources(); }
+static int __fastcall ab_behavior(void *s, void *)
+{ return ((ActorBase *)s)->ActorBase::Behavior(); }
+static int __fastcall ab_render(void *s, void *)
+{ return ((ActorBase *)s)->ActorBase::Render(); }
+static int __fastcall ac_yoshi(void *s, void *)
+{ return _ZN5Actor13OnYoshiTryEatEv(s); }
+static int __fastcall ac_egg(void *s, void *, void *)
+{ _ZN5Actor13OnTurnIntoEggER6Player(); return 0; }
+static int __fastcall ac_aimed(void *s, void *)
+{ return _ZN5Actor16OnAimedAtWithEggEv(s); }
+
+/* The base Actor vtable is filled slot by slot HERE rather than through
+   star31_fill_shared. data_0208e3a4 is aliased to _ZTV5Actor and declared with
+   a different type (scalar void*) in src/_ZN5ActorC1Ev.cpp than here (void*[31]);
+   MSVC's optimiser exploited that cross-TU type disagreement to treat the
+   through-parameter stores star31_fill_shared makes into it as dead and drop
+   them (it did NOT for _ZTV9PowerStar, which no TU spells as a scalar). Filling
+   every slot in this function's own body sidesteps the elimination. The layout
+   is the ROM's 31-slot _ZTV5Actor. */
+extern "C" void hal_fill_actor_base_vtable(void)
+{
+    void **vt = data_0208e3a4;
+    vt[0] = (void *)ab_init;       /* ActorBase::InitResources (not overridden) */
+    vt[1] = (void *)star_binit;    /* Actor::BeforeInitResources */
+    vt[2] = (void *)star_ainit;    /* Actor::AfterInitResources */
+    vt[3] = (void *)ab_clean;      /* ActorBase::CleanupResources */
+    vt[4] = (void *)star_bclean;   /* Actor::BeforeCleanupResources */
+    vt[5] = (void *)star_aclean;   /* ActorBase::AfterCleanupResources */
+    vt[6] = (void *)ab_behavior;   /* ActorBase::Behavior */
+    vt[7] = (void *)star_bbeh;     /* Actor::BeforeBehavior */
+    vt[8] = (void *)star_abeh;     /* ActorBase::AfterBehavior */
+    vt[9] = (void *)ab_render;     /* ActorBase::Render */
+    vt[10] = (void *)star_bren;    /* Actor::BeforeRender */
+    vt[11] = (void *)star_aren;    /* ActorBase::AfterRender */
+    vt[12] = (void *)star_pdes;    /* ActorBase::OnPendingDestroy */
+    /* slots 13/14 (ActorBase::Virtual34/38, the per-instance heap hooks) trap
+       -- a bare STAR_CAMERA never dispatches them, the same treatment every
+       Enemy class gives 13/14. If the trap ever fires, host them. */
+    vt[13] = (void *)star_trap13;
+    vt[14] = (void *)star_trap14;
+    vt[15] = (void *)star_heap;    /* ActorBase::OnHeapCreated */
+    vt[16] = (void *)star_d1;      /* Actor::~Actor (D1) */
+    vt[17] = (void *)star_d0;      /* Actor::~Actor (D0) */
+    vt[18] = (void *)ac_yoshi;     /* Actor::OnYoshiTryEat default */
+    vt[19] = (void *)ac_egg;       /* Actor::OnTurnIntoEgg default */
+    vt[20] = (void *)star_v50;     /* Actor::Virtual50 */
+    vt[21] = (void *)star_pounded; /* the ten combat hooks */
+    vt[22] = (void *)star_atk1;
+    vt[23] = (void *)star_atk2;
+    vt[24] = (void *)star_kicked;
+    vt[25] = (void *)star_pushed;
+    vt[26] = (void *)star_cannon;
+    vt[27] = (void *)star_mega;
+    vt[28] = (void *)star_under;
+    vt[29] = (void *)ac_aimed;     /* Actor::OnAimedAtWithEgg */
+    vt[30] = (void *)star_trap30;  /* OnAimedAtWithEggReturnVec: Vector3 by value */
 }

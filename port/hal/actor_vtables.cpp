@@ -77,7 +77,14 @@ extern "C" void *_ZTV14ArrowSignRight[20] = {
 extern "C" {
 void *_ZTV8Platform[20];   /* ov002 0x0210ae38, dBgActor_c in the ROM's RTTI */
 int data_0208e4b8[20];   /* ActorBase-era vtable-ish install in Actor ctor */
-int data_0208e3a4[20];
+/* _ZTV5Actor, the base Actor vtable. 31 slots (the full Actor table, not the
+   20-slot ActorBase shape): STAR_CAMERA (gate 90) is a bare Actor that leaves
+   this installed as its final vtable and dispatches all 31, so it is FILLED by
+   hal_fill_actor_base_vtable in hal/actor_classes_star.cpp. For every other
+   class it is still only the transient ctor install, overwritten before any
+   dispatch -- filling it is invisible to them (see that file's proof).
+   void*[] (not int[]) so the fill's pointer stores are the array's own type. */
+void *data_0208e3a4[31];
 }
 
 // ---- ActorBase::ActorBase() transcription ---------------------------------

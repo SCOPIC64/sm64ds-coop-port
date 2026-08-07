@@ -135,3 +135,7 @@ StarMarker_SpawnInfo:0x1c
 # and its Behavior read (SetPosRelativeToActor / MovingCylinderClsnWithPos::
 # Init); 12 bytes, no relocations, pure data.
 PowerStar_SpawnInfo:0x1c data_ov002_0210aa0c
+# gate 90: STAR_CAMERA (177). Its SpawnInfo record, pinned to 0x1c (the +4 id
+# reads 177). It installs no vtable of its own -- it dispatches the base Actor
+# table _ZTV5Actor, filled by hal_fill_actor_base_vtable.
+StarCamera_SpawnInfo:0x1c
