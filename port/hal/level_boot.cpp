@@ -195,7 +195,56 @@ extern const unsigned port_ov013_ds_base, port_ov013_ds_end;
    +232 above the tsv index, confirmed across all nine known-good levels -- to
    snow_mt's all.bmd/kcl/icg/icl. SUBLEVEL_LEVEL_TABLE[10] (0x02075298) is
    0x03 = course 3, a 46876-byte KCL. Mounted --whole like the eight above;
-   own_sinits stays 0. */
+   own_sinits stays 0.
+
+   ITS SKIPPED CAST, and why every class stays skipped for now. Level 10's
+   census names eleven unregistered classes; each id resolves through
+   ACTOR_SPAWN_TABLE (arm9 0x02090864 + id*4) to a SpawnInfo, and none is a
+   free share of an already-hosted vtable. Grouped by blocker:
+
+     - ov018-RESIDENT, fully decompiled, blocked on per-TU G0/G1 storage:
+       ICE_SHEET (295, x1). Its vtable _ZTV8IceSheet (0x02113b34) and six
+       methods are all matched src; InitResources loads through two ov018 bss
+       SharedFilePtrs (data_ov018_02113c84/c7c) that __sinit_ov018_02112e00
+       Constructs -- that sinit is self-contained (only ov018 symbols) and
+       could ride port_actor_overlays_sinits the way ov015's does (gate 59),
+       with a per-symbol ov018 mount for the four bss statics + the SpawnInfo.
+       The wall is CleanupResources (slot 3) and D0 (slot 17): both spell their
+       operands through the shared-header placeholders G0/G1, which are SINGLE
+       GLOBAL names already pinned in cxx_aliases.cpp to SignPost's file
+       pointers and the Platform heap. IceSheet needs G0/G1 =
+       data_ov018_02113c84/c7c, a different address; with the current one-alias
+       resolution its Cleanup would Release SignPost's SharedFilePtrs instead,
+       a silent wrong-bytes fault the byte gate cannot see. Hosting it needs
+       per-TU G0/G1 (cxx_aliases.cpp line ~1266 names this as the real fix),
+       so deferred. The level boots and is walkable without it.
+
+     - ov018-RESIDENT, blocked on undecompiled ov018 bodies or cross-overlay
+       spellings: SKI_LIFT (63, x1) -- its InitResources reaches
+       data_ov036/ov056/ov022 sibling-overlay spellings (the base-0x021111a0
+       window sharing) AND an undecompiled func_ov018_02111d28; MOTHER_PENGUIN
+       (257, x1) -- only MotherPenguin_Spawn is decompiled; POWER_STAR_CREATE
+       (355, x1) -- its Behavior/D1/D0 are undecompiled func_ov018_* bodies
+       (02112730/021126d4/021126f8), so slots 6/16/17 would call into the
+       overlay image. Each is a multi-part gate; PowerStarCreate is BLOCKED on
+       undecompiled DS code outright.
+
+     - ACTOR-OVERLAY classes needing a fresh per-symbol mount, none a free
+       share: ICE_BLOCK (18, x4, ov081), MR_BLIZZARD (223, x3, ov081) and
+       SPINDRIFT (312, x5, ov080/ov081) live in ov080/ov081, neither mounted;
+       BABY_PENGUIN (256, x2, ov070/ov072) and id 272 (x1, ov070/072/074) live
+       in ov070's set, unmounted; HOOT_THE_OWL (234, x1, ov006/ov094) lives in
+       ov006/ov094, unmounted. Each is the gate-64/gate-83 shape (a new
+       per-symbol overlay mount, its sinits, the vtable fill and a row).
+
+     - ov002-RESIDENT but not a free share: RED_FLAME (316, x2, ov002).
+       RedFlame_Spawn installs _ZTV9BlueFlame, but BLUE_FLAME is not registered
+       in the port either (only its four methods are decompiled), so there is
+       no filled vtable to reuse the ExclamationBlock/QuestionBlock way; hosting
+       RED_FLAME means hosting BLUE_FLAME first. Deferred.
+
+   All eleven are turned away by the pre-spawn gate by name and named in the
+   census, so the boot is honest about what did not spawn. */
 void port_ov018_patch(void);
 void *port_ov018_at(unsigned ds);
 extern unsigned char port_ov018_image[];
