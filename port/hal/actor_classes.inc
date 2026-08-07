@@ -527,36 +527,14 @@ void *FortressWallBreakable_Spawn(void);          /* ov079 0x021275ac */
      FirePiranhaPlant_Spawn, hal_fill_fire_piranha_plant_vtable},             \
     /* gate 70: PIRANHA_PLANT (250), ov084 */                                  \
     {250, "PIRANHA_PLANT", PiranhaPlant_SpawnInfo, PiranhaPlant_Spawn,         \
-     hal_fill_piranha_plant_vtable},
-    /* ---- gates 64-69: Whomp's Fortress' enemy cast (ov079) ------------------
-       BUILT AND WIRED BUT NOT REGISTERED BY DEFAULT. The mount, the four sinits,
-       WHOMP's and BULLET_BILL's state seats, the four vtable fills, the method
-       faces and the link bridges are all in place (hal/actor_classes_wf_enemy,
-       hal/wf_enemy_bridges, unmatched/Whomp_Behavior, unmatched/BulletBill_
-       Behavior, slice_gate64.txt) and every class SPAWNS and its InitResources
-       RUNS to completion (measured rv=1, models loaded, transforms allocated).
-       Two runtime faults remain, both downstream of a clean spawn+init and
-       neither an undecompiled-code blocker:
-         * WHOMP/WHOMP_KING: Whomp::Render dispatches Model::Virtual10 through the
-           ModelAnim, which faults in the bone/animation walk (func_02045074)
-           even though data.modelFile (0x04094c08) and data.transforms are set.
-           A model-render-pipeline interaction, not the mount or the vtable
-           (measured: the ModelAnim vtable IS _ZTV9ModelAnim and slot 1 IS the
-           host DoSetFile).
-         * BILL_BLASTER/BULLET_BILL/FORTRESS_WALL: a later boot-spawn's
-           InitResources dispatch (func_0204335c -> ActorBase::Process) wild-
-           jumps to a corrupt vtable pointer, AFTER the fortress walls' own
-           InitResources completed cleanly. A memory-corruption class of fault
-           that needs the corrupting write pinned before these can register.
-       Enable by hand (uncomment the rows) once those two faults are resolved;
-       the ROM ids and factories below are settled and cross-checked. */
-    /* {164, "WHOMP", Whomp_SpawnInfo, Whomp_Spawn, hal_fill_whomp_vtable_c}, */\
-    /* {165, "WHOMP_KING", WhompKing_SpawnInfo, WhompKing_Spawn, 0}, */\
-    /* {222, "BULLET_BILL", BulletBill_SpawnInfo, BulletBill_Spawn,
-        hal_fill_bullet_bill_vtable_c}, */\
-    /* {43, "BILL_BLASTER", BillBlaster_SpawnInfo, BillBlaster_Spawn,
-        hal_fill_bill_blaster_vtable_c}, */\
-    /* {47, "FORTRESS_WALL", FortressWall_SpawnInfo, FortressWall_Spawn,
-        hal_fill_fortress_wall_vtable_c}, */\
-    /* {48, "FORTRESS_WALL_BREAKABLE", FortressWallBreakable_SpawnInfo,
-        FortressWallBreakable_Spawn, 0}, */
+     hal_fill_piranha_plant_vtable},                                          \
+    {164, "WHOMP", Whomp_SpawnInfo, Whomp_Spawn, hal_fill_whomp_vtable_c},     \
+    {165, "WHOMP_KING", WhompKing_SpawnInfo, WhompKing_Spawn, 0},              \
+    {222, "BULLET_BILL", BulletBill_SpawnInfo, BulletBill_Spawn,               \
+     hal_fill_bullet_bill_vtable_c},                                          \
+    {43, "BILL_BLASTER", BillBlaster_SpawnInfo, BillBlaster_Spawn,             \
+     hal_fill_bill_blaster_vtable_c},                                         \
+    {47, "FORTRESS_WALL", FortressWall_SpawnInfo, FortressWall_Spawn,          \
+     hal_fill_fortress_wall_vtable_c},                                        \
+    {48, "FORTRESS_WALL_BREAKABLE", FortressWallBreakable_SpawnInfo,           \
+     FortressWallBreakable_Spawn, 0},

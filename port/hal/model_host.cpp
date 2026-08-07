@@ -224,7 +224,16 @@ int data_020a4b98[4];
 int data_02099f24[4];
 
 // ---- common model data array (BSS on the DS) ------------------------------
-int data_0209cefc[3 * 64];  /* 64 records x 0xc */
+/* Sized by the ROM SPAN, not a guessed field count: data_0209cefc runs to the
+   next bss symbol data_0209d3ac at 0x0209cefc..0x0209d3ac = 0x4b0 = 1200 bytes
+   = 100 records of 0xc. The old 64 was a guess; Model::AddToCommonModelDataArr
+   appends a 0xc record and bumps data_0209cef8 with NO bounds check, so a level
+   whose live BMD set passes 64 (Whomp's Fortress with the ov079 cast: whomps,
+   bill blaster and the two fortress walls each register their own models) wrote
+   the 65th record past the array and straight onto the neighbouring _ZTV5Model
+   -- zeroing slot 2 (UpdateVerts) and faulting Stage::LoadModel's later dispatch
+   on the shared Model vtable. */
+int data_0209cefc[3 * 100]; /* 100 records x 0xc, the 0x4b0 ROM span */
 int data_0209cef8[1];       /* record count */
 int data_0208e738[1] = { 1 };   /* nonzero: upload textures on registration */
 int data_0208e87c[8];       /* ModelBase vtable storage; never dispatched */
