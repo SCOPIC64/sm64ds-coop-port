@@ -577,6 +577,7 @@ list(APPEND OV_DATA_MAPS "${OV002DATA_C}.map")
 #   ov014 = level 6, Bob-omb Battlefield  (data/stage/bombhei_map), course 0
 #   ov010 = level 2, a castle interior floor, course 29 (interior-shaped)
 #   ov015 = level 7, Whomp's Fortress, course 1 (open course)
+#   ov011 = level 3, the castle garden  (data/stage/main_garden), course 29
 #
 # Both facts come from the ROM, not from the overlay numbering: the arm9's
 # level-to-overlay table data_020758c8 maps level -> overlay (it is level+8),
@@ -590,6 +591,14 @@ list(APPEND OV_DATA_MAPS "${OV002DATA_C}.map")
 # port_level_table[] is the whole of it. The mount recipe lives in the header
 # docstring of tools/ovdata.py; the level-boot recipe beside port_level_table[].
 set(PORT_LEVEL_OVERLAYS ov009 ov014 ov010 ov015)
+# gate 95: ov011 is level 3's own overlay (data/stage/main_garden, the castle
+# garden, course 29). Mounted whole like the four above; the level->overlay map
+# data_020758c8[3] = 11, the LVL_Overlay table data_02092208[3] = 0x021113ac,
+# and the four handles at LVL_Overlay+8 resolve through build/assets/handles.tsv
+# to main_garden's kcl/bmd/icg/icl. Its actor-overlay roster (ov063 ov085 ov089
+# ov098 ov100 ov102) is all already mounted except ov063, so its shared cast
+# spawns for free and only ov063-owned classes are skipped by name at the gate.
+list(APPEND PORT_LEVEL_OVERLAYS ov011)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
