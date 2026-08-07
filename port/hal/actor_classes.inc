@@ -319,6 +319,16 @@ void hal_fill_sliding_platform_wf_vtable(void);
 extern unsigned char RotatingUpDownPlatform_SpawnInfo[]; /* ov091 0x02134bf8, id 29 */
 void *RotatingUpDownPlatform_Spawn(void);
 void hal_fill_rotating_up_down_platform_vtable(void);
+/* gate 71: FIRE_PIRANHA_PLANT (253). The ov015 name shift: its factory installs
+   the FirePiranhaPlantBig table, so it runs that class. No state seat. */
+extern unsigned char FirePiranhaPlant_SpawnInfo[];  /* ov084 0x02130acc, id 253 */
+void *FirePiranhaPlant_Spawn(void);
+void hal_fill_fire_piranha_plant_vtable(void);
+/* gate 70: PIRANHA_PLANT (250). Clean vtable install; its nine-state PMF
+   Behavior is a host copy (port/unmatched/PiranhaPlant_States.cpp). */
+extern unsigned char PiranhaPlant_SpawnInfo[];      /* ov084 0x02130c04, id 250 */
+void *PiranhaPlant_Spawn(void);
+void hal_fill_piranha_plant_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -450,4 +460,10 @@ void hal_fill_rotating_up_down_platform_vtable(void);
      SlidingPlatformWf_Spawn, hal_fill_sliding_platform_wf_vtable},           \
     /* gate 73: ROTATING_UP_DOWN_PLATFORM (29), ov091 (Utm name shift) */      \
     {29, "ROTATING_UP_DOWN_PLATFORM", RotatingUpDownPlatform_SpawnInfo,        \
-     RotatingUpDownPlatform_Spawn, hal_fill_rotating_up_down_platform_vtable},
+     RotatingUpDownPlatform_Spawn, hal_fill_rotating_up_down_platform_vtable}, \
+    /* gate 71: FIRE_PIRANHA_PLANT (253), ov084 (FirePiranhaPlantBig shift) */ \
+    {253, "FIRE_PIRANHA_PLANT", FirePiranhaPlant_SpawnInfo,                    \
+     FirePiranhaPlant_Spawn, hal_fill_fire_piranha_plant_vtable},             \
+    /* gate 70: PIRANHA_PLANT (250), ov084 */                                  \
+    {250, "PIRANHA_PLANT", PiranhaPlant_SpawnInfo, PiranhaPlant_Spawn,         \
+     hal_fill_piranha_plant_vtable},

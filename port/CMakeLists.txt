@@ -1370,6 +1370,27 @@ foreach(gate 70 71 72 73 74)
         list(APPEND SLICE_L7_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
     endforeach()
 endforeach()
+# gate 70: func_ov084_0212f460 is C++ inside a .c (the gate-9 case) -- it opens
+# an `extern "C"` block MSVC's C front end will not parse -- so it goes through
+# hostgen, which re-emits it as .cpp with the symbols wrapped back to C linkage.
+# (func_ov084_0212f33c uses a C99 compound literal MSVC warns on as C4576; that
+# is suppressed per target below rather than transformed.)
+set(GATE_L7_SYMS func_ov084_0212f460)
+set(GATE_L7_GEN "")
+foreach(sym IN LISTS GATE_L7_SYMS)
+    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+    else()
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
+    endif()
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND GATE_L7_GEN "${sym_out}")
+endforeach()
 
 # Gate 15: the per-frame actor spine (BeforeBehavior/Behavior/AfterBehavior),
 # which is what makes the real WithMeshClsn tracking work -- see the header of
@@ -1470,7 +1491,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES}
-    hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES}
+    hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(smoke_player PRIVATE
@@ -1483,7 +1504,7 @@ target_compile_definitions(smoke_player PRIVATE SM64DS_PLATFORM_PC
     # the Heap::_Deallocate face hal/blend_vtable.cpp repeats
     PORT_CXX_ALIASES_LINKED)
 if(MSVC)
-    target_compile_options(smoke_player PRIVATE /wd4311 /wd4312 /wd4068)
+    target_compile_options(smoke_player PRIVATE /wd4311 /wd4312 /wd4068 /wd4576)
 endif()
 
 # Gate 12: the interactive window (same stack, windowed loop).
@@ -1510,7 +1531,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES}
-    hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES}
+    hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window PRIVATE
@@ -1526,7 +1547,7 @@ target_compile_definitions(walk_window PRIVATE SM64DS_PLATFORM_PC
     # the Heap::_Deallocate face hal/blend_vtable.cpp repeats
     PORT_CXX_ALIASES_LINKED)
 if(MSVC)
-    target_compile_options(walk_window PRIVATE /wd4311 /wd4312 /wd4068)
+    target_compile_options(walk_window PRIVATE /wd4311 /wd4312 /wd4068 /wd4576)
 endif()
 
 # hires clone for screenshot sessions (4x resolution, ~1/16 the fps)
@@ -1553,7 +1574,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES}
-    hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES}
+    hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window_hires PRIVATE
@@ -1566,7 +1587,7 @@ target_compile_definitions(walk_window_hires PRIVATE SM64DS_PLATFORM_PC
     # the Heap::_Deallocate face hal/blend_vtable.cpp repeats
     PORT_CXX_ALIASES_LINKED)
 if(MSVC)
-    target_compile_options(walk_window_hires PRIVATE /wd4311 /wd4312 /wd4068)
+    target_compile_options(walk_window_hires PRIVATE /wd4311 /wd4312 /wd4068 /wd4576)
 endif()
 
 

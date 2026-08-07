@@ -1341,3 +1341,16 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?data_ov091_02134c34@@3PAPAXA=_data_ov091_02134c34")
 #pragma comment(linker, "/alternatename:?data_ov091_02134c34@@3PAUSFP@@A=_data_ov091_02134c34")
 #pragma comment(linker, "/alternatename:?data_020a0e68@@3PADA=_data_020a0e68")
+/* gates 70-71: the two piranhas' Init/spit closures declare four ov084 statics
+   with C++ types (SharedFilePtr tables as void**, a byte table, the arm9
+   Matrix4x3 scratch as int*), so MSVC mangles the references to names the ov084
+   mount does not carry. Each lands on the same C object the mount publishes. */
+#pragma comment(linker, "/alternatename:?data_ov084_02130e14@@3PAPAXA=_data_ov084_02130e14")
+#pragma comment(linker, "/alternatename:?data_ov084_02130e04@@3PAPAXA=_data_ov084_02130e04")
+#pragma comment(linker, "/alternatename:?data_ov084_02130e0c@@3PAPAXA=_data_ov084_02130e0c")
+#pragma comment(linker, "/alternatename:?data_ov084_02130294@@3PAEA=_data_ov084_02130294")
+#pragma comment(linker, "/alternatename:?data_020a0e68@@3PAHA=_data_020a0e68")
+/* gate 70: func_ov084_0212fc10 (a piranha state) calls ModelAnim::SetAnim by
+   its unprefixed C name func_02016748; the real symbol is the arm9 method, in
+   the build since gate 7. */
+#pragma comment(linker, "/alternatename:_func_02016748=__ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj")

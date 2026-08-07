@@ -425,3 +425,159 @@ int _ZN25RotatingUpDownPlatformUtm8BehaviorEv(void *self)
 int _ZN25RotatingUpDownPlatformUtm6RenderEv(void *self)
 { return ((RotatingUpDownPlatformUtm *)self)->RotatingUpDownPlatformUtm::Render(); }
 }
+
+// ============================================================================
+// FIRE_PIRANHA_PLANT (actor 253, ov084)
+//   -- vtable _ZTV19FirePiranhaPlantBig (ov084 0x02130b28)
+// ============================================================================
+//
+// THE ov015 NAME SHIFT once more: FirePiranhaPlant_Spawn (ov084 0x0212ea18)
+// installs _ZTV19FirePiranhaPlantBig, so an id-253 object runs the
+// FirePiranhaPlantBig class's lifecycle -- read out of the factory's own
+// vtable-store site in relocs.txt. Its SpawnInfo +4 halfword reads 253. RTTI
+// name daFPkn_c (the fire pakkun, the fire piranha).
+//
+// A THIRTY-ONE slot Enemy table. It overrides three of Actor's tail slots as
+// well as the usual six: 18 (func_ov084_0212e9f8, OnYoshiTryEat), 19
+// (func_ov084_0212e9d4, OnTurnIntoEgg) and 29 (func_ov084_0212e998,
+// OnAimedAtWithEgg). A 556-byte object with a ModelAnim at +0x110, a
+// MovingCylinderClsn at +0x174 and a MovingCylinderClsnWithPos at +0x1a8.
+//
+// Its Behavior dispatches NO pointer-to-member -- a straight switch on mState --
+// so it serves from src unchanged. Only its Render needs a host copy, the
+// ModelAnim slot-5 case: port/unmatched/PiranhaPlant_States.cpp.
+extern "C" {
+int _ZN19FirePiranhaPlantBig13InitResourcesEv(void *self);    /* C-named in its own TU */
+int _ZN19FirePiranhaPlantBig16CleanupResourcesEv(void *self); /* face: below */
+int _ZN19FirePiranhaPlantBig8BehaviorEv(void *self);          /* face: below */
+int _ZN19FirePiranhaPlantBig6RenderEv(void *self);            /* host copy */
+int *_ZN19FirePiranhaPlantBigD1Ev(int *self);                 /* .c */
+int *_ZN19FirePiranhaPlantBigD0Ev(int *self);                 /* .c */
+int func_ov084_0212e9f8(void *self);              /* slot 18, its own */
+void func_ov084_0212e9d4(void *self, void *p);    /* slot 19, its own */
+int func_ov084_0212e998(void *self);              /* slot 29, its own */
+void *_ZTV19FirePiranhaPlantBig[31];
+}
+/* The class D0 spells its table by the RTTI name. */
+#pragma comment(linker, "/alternatename:__ZTV8daFPkn_c=__ZTV19FirePiranhaPlantBig")
+
+static int __fastcall fpir_init(void *s, void *)
+{ return _ZN19FirePiranhaPlantBig13InitResourcesEv(s); }
+static int __fastcall fpir_clean(void *s, void *)
+{ return _ZN19FirePiranhaPlantBig16CleanupResourcesEv(s); }
+static int __fastcall fpir_behavior(void *s, void *)
+{ return _ZN19FirePiranhaPlantBig8BehaviorEv(s); }
+static int __fastcall fpir_render(void *s, void *)
+{ port_actor_render_probe("FIRE_PIRANHA_PLANT", (char *)s + 0x110);
+  return _ZN19FirePiranhaPlantBig6RenderEv(s); }
+static int __fastcall fpir_d1(void *s, void *)
+{ return (int)(size_t)_ZN19FirePiranhaPlantBigD1Ev((int *)s); }
+static int __fastcall fpir_d0(void *s, void *)
+{ return (int)(size_t)_ZN19FirePiranhaPlantBigD0Ev((int *)s); }
+static int __fastcall fpir_yoshi(void *s, void *)
+{ return func_ov084_0212e9f8(s); }
+static int __fastcall fpir_egg(void *s, void *, void *p)
+{ func_ov084_0212e9d4(s, p); return 0; }
+static int __fastcall fpir_aimed(void *s, void *)
+{ return func_ov084_0212e998(s); }
+
+extern "C" void hal_fill_fire_piranha_plant_vtable(void)
+{
+    void **vt = _ZTV19FirePiranhaPlantBig;
+    port_enemy_death_states_seat();
+    l7_fill_shared(vt);
+    vt[0] = (void *)fpir_init;
+    vt[3] = (void *)fpir_clean;
+    vt[6] = (void *)fpir_behavior;
+    vt[9] = (void *)fpir_render;
+    vt[16] = (void *)fpir_d1;
+    vt[17] = (void *)fpir_d0;
+    vt[18] = (void *)fpir_yoshi;
+    vt[19] = (void *)fpir_egg;
+    vt[29] = (void *)fpir_aimed;
+}
+
+/* InitResources is C-named in its own TU (like the goomba's); only Behavior and
+   CleanupResources are real MSVC methods that need a face. */
+#include "FirePiranhaPlantBig.h"
+extern "C" {
+int _ZN19FirePiranhaPlantBig16CleanupResourcesEv(void *self)
+{ return ((FirePiranhaPlantBig *)self)->FirePiranhaPlantBig::CleanupResources(); }
+int _ZN19FirePiranhaPlantBig8BehaviorEv(void *self)
+{ return ((FirePiranhaPlantBig *)self)->FirePiranhaPlantBig::Behavior(); }
+}
+
+// ============================================================================
+// PIRANHA_PLANT (actor 250, ov084) -- vtable _ZTV12PiranhaPlant (0x02130c28)
+// ============================================================================
+//
+// PiranhaPlant_Spawn (ov084 0x02130110) installs _ZTV12PiranhaPlant cleanly and
+// its own +4 halfword reads 250. RTTI daPkn_c (the pakkun, the piranha). A
+// 1148-byte Enemy object: ModelAnim at +0x110, Model at +0x174, WithMeshClsn at
+// +0x1c4, two MovingCylinderClsn at +0x380/+0x3b4 and a
+// MovingCylinderClsnWithPos at +0x3e8.
+//
+// A 31-slot Enemy table. It overrides slot 12 (its own OnPendingDestroy) and
+// slot 29 (func_ov084_0212ec58, OnAimedAtWithEgg); slots 18/19 stay Actor's, so
+// Yoshi cannot swallow it.
+//
+// ITS BEHAVIOR IS A POINTER-TO-MEMBER over a COMPLETE class, which MSVC narrows
+// to a 4-byte stride against the ROM's 8-byte state table, so Behavior is a host
+// copy that reads the table as two plain ints -- port/unmatched/PiranhaPlant_
+// States.cpp, which also carries the nine-state seat and both piranhas' Renders.
+extern "C" {
+int _ZN12PiranhaPlant13InitResourcesEv(void *self);    /* C-named in its own TU */
+int _ZN12PiranhaPlant16CleanupResourcesEv(void *self);  /* face: below */
+int _ZN12PiranhaPlant8BehaviorEv(void *self);           /* host copy */
+int _ZN12PiranhaPlant6RenderEv(void *self);             /* host copy */
+void _ZN12PiranhaPlant16OnPendingDestroyEv(void *self); /* slot 12, its own */
+int *_ZN12PiranhaPlantD1Ev(int *self);                  /* .c */
+int *_ZN12PiranhaPlantD0Ev(int *self);                  /* .c */
+int func_ov084_0212ec58(void *self);              /* slot 29, its own */
+void *_ZTV12PiranhaPlant[31];
+void port_piranha_plant_states_seat(void);        /* port/unmatched */
+}
+/* The class D0 spells its table by the RTTI name. */
+#pragma comment(linker, "/alternatename:__ZTV7daPkn_c=__ZTV12PiranhaPlant")
+
+static int __fastcall pir_init(void *s, void *)
+{ return _ZN12PiranhaPlant13InitResourcesEv(s); }
+static int __fastcall pir_clean(void *s, void *)
+{ return _ZN12PiranhaPlant16CleanupResourcesEv(s); }
+static int __fastcall pir_behavior(void *s, void *)
+{ return _ZN12PiranhaPlant8BehaviorEv(s); }
+static int __fastcall pir_render(void *s, void *)
+{ port_actor_render_probe("PIRANHA_PLANT", (char *)s + 0x110);
+  return _ZN12PiranhaPlant6RenderEv(s); }
+static int __fastcall pir_pdes(void *s, void *)
+{ _ZN12PiranhaPlant16OnPendingDestroyEv(s); return 0; }
+static int __fastcall pir_d1(void *s, void *)
+{ return (int)(size_t)_ZN12PiranhaPlantD1Ev((int *)s); }
+static int __fastcall pir_d0(void *s, void *)
+{ return (int)(size_t)_ZN12PiranhaPlantD0Ev((int *)s); }
+static int __fastcall pir_aimed(void *s, void *)
+{ return func_ov084_0212ec58(s); }
+
+extern "C" void hal_fill_piranha_plant_vtable(void)
+{
+    void **vt = _ZTV12PiranhaPlant;
+    port_piranha_plant_states_seat();
+    port_enemy_death_states_seat();
+    l7_fill_shared(vt);
+    vt[0] = (void *)pir_init;
+    vt[3] = (void *)pir_clean;
+    vt[6] = (void *)pir_behavior;
+    vt[9] = (void *)pir_render;
+    vt[12] = (void *)pir_pdes;
+    vt[16] = (void *)pir_d1;
+    vt[17] = (void *)pir_d0;
+    vt[29] = (void *)pir_aimed;
+}
+
+/* InitResources is C-named in its own TU; only CleanupResources is a real MSVC
+   method that needs a face. Behavior and Render are host copies. */
+#include "PiranhaPlant.h"
+extern "C" {
+int _ZN12PiranhaPlant16CleanupResourcesEv(void *self)
+{ return ((PiranhaPlant *)self)->PiranhaPlant::CleanupResources(); }
+}
