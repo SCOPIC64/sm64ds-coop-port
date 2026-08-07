@@ -312,3 +312,116 @@ int _ZN17SlidingPlatformWf8BehaviorEv(void *self)
 int _ZN17SlidingPlatformWf6RenderEv(void *self)
 { return ((SlidingPlatformWf *)self)->SlidingPlatformWf::Render(); }
 }
+
+// ============================================================================
+// ROTATING_UP_DOWN_PLATFORM (actor 29, ov091)
+//   -- vtable _ZTV25RotatingUpDownPlatformUtm (ov091 0x02134c5c)
+// ============================================================================
+//
+// THE ov015 NAME SHIFT for the third time in this port. RotatingUpDownPlatform_
+// Spawn (ov091 0x02131bdc) installs _ZTV25RotatingUpDownPlatformUtm, NOT the
+// plain RotatingUpDownPlatform table, so an id-29 object runs the Utm class's
+// lifecycle -- read out of the factory's own vtable-store site in relocs.txt,
+// not the class name the config carries. Its SpawnInfo +4 halfword reads 29.
+//
+// A THIRTY-TWO slot Platform table with its OWN Kill: slot 31 is
+// func_ov091_02131070, not ov002's Platform::Kill, and slot 27
+// (func_ov091_021310fc, OnHitByMegaChar) is its own too. 940-byte object with a
+// Model at +0xd4, a MovingMeshCollider at +0x124 and a ShadowModel at +0x320.
+// Init/Clean/Behavior/Render are real C++ methods; the two destructors are C.
+// Its Render dispatches Model slot 5 through a `void doit(int)` shadow, the
+// dual-filled slot, so it serves from src unchanged.
+#include "RotatingUpDownPlatformUtm.h"
+extern "C" {
+int _ZN25RotatingUpDownPlatformUtm13InitResourcesEv(void *self);    /* face */
+int _ZN25RotatingUpDownPlatformUtm16CleanupResourcesEv(void *self); /* face */
+int _ZN25RotatingUpDownPlatformUtm8BehaviorEv(void *self);          /* face */
+int _ZN25RotatingUpDownPlatformUtm6RenderEv(void *self);            /* face */
+int *_ZN25RotatingUpDownPlatformUtmD1Ev(int *self);                 /* .c */
+int *_ZN25RotatingUpDownPlatformUtmD0Ev(int *self);                 /* .c */
+void func_ov091_021310fc(void *self, void *o);   /* slot 27, its own */
+void func_ov091_02131070(void *self);            /* slot 31, its own Kill */
+void *_ZTV25RotatingUpDownPlatformUtm[32];
+int *RotatingUpDownPlatform_Spawn(void);
+}
+/* The class D1/D0 restore the vtable by its RTTI name mid-teardown. */
+#pragma comment(linker, "/alternatename:__ZTV23daObjRotateUpdownLift_c=__ZTV25RotatingUpDownPlatformUtm")
+
+/* ---- the Utm's own Kill (func_ov091_02131070) reaches three engine leaves ---
+   as C++-decorated calls over local shadow classes: Particle::System::NewSimple
+   (pointer-returning), Actor::PoofDustAt and Sound::PlayBank3. The particle
+   tier is stubbed to 0 in the port (hal/reverse_bridges.cpp), so NewSimple
+   returns null the way it does everywhere; the other two land on their C-name
+   definitions already in the build (slice_gate32 / slice_gate10). Faces here,
+   because bob_enemy_shadow_faces.cpp -- which carries the same three for the
+   Bob-omb enemies -- is not linked in these targets. */
+extern "C" {
+void *_ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(unsigned t, int x, int y, int z);
+void _ZN5Actor10PoofDustAtERK7Vector3(void *self, const void *v);
+void _ZN5Sound9PlayBank3EjRK7Vector3(unsigned id, const void *v);
+}
+namespace Particle {
+struct System { static System *NewSimple(unsigned t, int x, int y, int z); };
+System *System::NewSimple(unsigned t, int x, int y, int z)
+{ return (System *)_ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(t, x, y, z); }
+}
+struct L7Vector3 { int x, y, z; };
+struct ActorPoofFace { void PoofDustAt(const L7Vector3 &v); };
+void ActorPoofFace::PoofDustAt(const L7Vector3 &v)
+{ _ZN5Actor10PoofDustAtERK7Vector3(this, &v); }
+#pragma comment(linker, "/alternatename:?PoofDustAt@Actor@@QAEXABUVector3@@@Z=?PoofDustAt@ActorPoofFace@@QAEXABUL7Vector3@@@Z")
+namespace Sound {
+void PlayBank3(unsigned id, const L7Vector3 &v);
+void PlayBank3(unsigned id, const L7Vector3 &v)
+{ _ZN5Sound9PlayBank3EjRK7Vector3(id, &v); }
+}
+#pragma comment(linker, "/alternatename:?PlayBank3@Sound@@YAXIABUVector3@@@Z=?PlayBank3@Sound@@YAXIABUL7Vector3@@@Z")
+/* The particle stub itself, if bob_enemy_shadow_faces is not linked: the ROM's
+   NewSimple returns a node the caller ignores here (the platform only kills its
+   own collider), and the whole particle manager is unseated, so 0 is the
+   port's standing answer. */
+#pragma comment(linker, "/alternatename:__ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_=_port_l7_particle_newsimple_stub")
+extern "C" void *port_l7_particle_newsimple_stub(unsigned, int, int, int) { return 0; }
+static int __fastcall rud_init(void *s, void *)
+{ return _ZN25RotatingUpDownPlatformUtm13InitResourcesEv(s); }
+static int __fastcall rud_clean(void *s, void *)
+{ return _ZN25RotatingUpDownPlatformUtm16CleanupResourcesEv(s); }
+static int __fastcall rud_behavior(void *s, void *)
+{ return _ZN25RotatingUpDownPlatformUtm8BehaviorEv(s); }
+static int __fastcall rud_render(void *s, void *)
+{ port_actor_render_probe("ROTATING_UP_DOWN_PLATFORM", (char *)s + 0xd4);
+  return _ZN25RotatingUpDownPlatformUtm6RenderEv(s); }
+static int __fastcall rud_d1(void *s, void *)
+{ return (int)(size_t)_ZN25RotatingUpDownPlatformUtmD1Ev((int *)s); }
+static int __fastcall rud_d0(void *s, void *)
+{ return (int)(size_t)_ZN25RotatingUpDownPlatformUtmD0Ev((int *)s); }
+static int __fastcall rud_mega(void *s, void *, void *o)
+{ func_ov091_021310fc(s, o); return 0; }
+static int __fastcall rud_kill(void *s, void *)
+{ func_ov091_02131070(s); return 0; }
+
+extern "C" void hal_fill_rotating_up_down_platform_vtable(void)
+{
+    void **vt = _ZTV25RotatingUpDownPlatformUtm;
+    hal_fill_platform_vtable();
+    l7_fill_shared(vt);
+    vt[0] = (void *)rud_init;
+    vt[3] = (void *)rud_clean;
+    vt[6] = (void *)rud_behavior;
+    vt[9] = (void *)rud_render;
+    vt[16] = (void *)rud_d1;
+    vt[17] = (void *)rud_d0;
+    vt[27] = (void *)rud_mega;
+    vt[31] = (void *)rud_kill;
+}
+
+extern "C" {
+int _ZN25RotatingUpDownPlatformUtm13InitResourcesEv(void *self)
+{ return ((RotatingUpDownPlatformUtm *)self)->RotatingUpDownPlatformUtm::InitResources(); }
+int _ZN25RotatingUpDownPlatformUtm16CleanupResourcesEv(void *self)
+{ return ((RotatingUpDownPlatformUtm *)self)->RotatingUpDownPlatformUtm::CleanupResources(); }
+int _ZN25RotatingUpDownPlatformUtm8BehaviorEv(void *self)
+{ return ((RotatingUpDownPlatformUtm *)self)->RotatingUpDownPlatformUtm::Behavior(); }
+int _ZN25RotatingUpDownPlatformUtm6RenderEv(void *self)
+{ return ((RotatingUpDownPlatformUtm *)self)->RotatingUpDownPlatformUtm::Render(); }
+}

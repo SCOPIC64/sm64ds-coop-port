@@ -314,6 +314,11 @@ void hal_fill_thwomp_vtable(void);
 extern unsigned char SlidingPlatformWf_SpawnInfo[]; /* ov091 0x02135008, id 55 */
 void *SlidingPlatformWf_Spawn(void);
 void hal_fill_sliding_platform_wf_vtable(void);
+/* gate 73: ROTATING_UP_DOWN_PLATFORM (29). The ov015 name shift: its factory
+   installs the RotatingUpDownPlatformUtm table, so it runs Utm's methods. */
+extern unsigned char RotatingUpDownPlatform_SpawnInfo[]; /* ov091 0x02134bf8, id 29 */
+void *RotatingUpDownPlatform_Spawn(void);
+void hal_fill_rotating_up_down_platform_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -442,4 +447,7 @@ void hal_fill_sliding_platform_wf_vtable(void);
      hal_fill_thwomp_vtable},                                                  \
     /* gate 74: SLIDING_PLATFORM_WF (55), ov091 */                             \
     {55, "SLIDING_PLATFORM_WF", SlidingPlatformWf_SpawnInfo,                   \
-     SlidingPlatformWf_Spawn, hal_fill_sliding_platform_wf_vtable},
+     SlidingPlatformWf_Spawn, hal_fill_sliding_platform_wf_vtable},           \
+    /* gate 73: ROTATING_UP_DOWN_PLATFORM (29), ov091 (Utm name shift) */      \
+    {29, "ROTATING_UP_DOWN_PLATFORM", RotatingUpDownPlatform_SpawnInfo,        \
+     RotatingUpDownPlatform_Spawn, hal_fill_rotating_up_down_platform_vtable},

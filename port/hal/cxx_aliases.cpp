@@ -1332,3 +1332,12 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?data_ov091_0213502c@@3PADA=_data_ov091_0213502c")
 #pragma comment(linker, "/alternatename:?data_ov091_02134514@@3PAGA=_data_ov091_02134514")
 #pragma comment(linker, "/alternatename:?data_ov091_02134504@@3PAGA=_data_ov091_02134504")
+/* gate 73: RotatingUpDownPlatformUtm's Init and Clean declare their two SFP
+   tables with C++ types -- void** in Init, SFP* in Clean, two manglings of the
+   same mounted object -- and Behavior spells the arm9 Matrix4x3 scratch
+   data_020a0e68 as char* (a third mangling of the same host array). */
+#pragma comment(linker, "/alternatename:?data_ov091_02134c30@@3PAPAXA=_data_ov091_02134c30")
+#pragma comment(linker, "/alternatename:?data_ov091_02134c30@@3PAUSFP@@A=_data_ov091_02134c30")
+#pragma comment(linker, "/alternatename:?data_ov091_02134c34@@3PAPAXA=_data_ov091_02134c34")
+#pragma comment(linker, "/alternatename:?data_ov091_02134c34@@3PAUSFP@@A=_data_ov091_02134c34")
+#pragma comment(linker, "/alternatename:?data_020a0e68@@3PADA=_data_020a0e68")
