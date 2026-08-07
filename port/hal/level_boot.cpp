@@ -367,9 +367,13 @@ extern const unsigned port_ov023_ds_base, port_ov023_ds_end;
    PMF host-ABI skip; its other skips need ov065/ov071 mounts (see the
    port-w9-lvl13 commit).
 
-   GATE 172 HOSTED THE FIRST of that commit's "mounted roster overlay" five:
-   CRATE (194, ov098) spawns x1 -- census 134/27 up from 133/26. Corrections to
-   that commit's reading, re-derived while hosting:
+   GATES 172-175 HOSTED FOUR of that commit's skipped classes: CRATE (194,
+   ov098) x1, UP_DOWN_LIFT_HMC (33, ov095) x4, MONTY_MOLE (310, ov080) x3 and
+   RED_FLAME (316, ov002, sharing BLUE_FLAME 317's fresh fill) x17 -- census
+   158 spawned / 30 classes, 29 skipped / 11 classes, from 133/26 and 54/15.
+   The rest of the skip list is mount-gated (ov065/ov071, the ov060 window)
+   or individually blocked (PAINTING, PATH_LIFT, FLAMETHROWER). Corrections
+   to that commit's reading, re-derived while hosting:
      - FLAMETHROWER (318, ov095) was misfiled as a fill+row+closure candidate;
        its Behavior (0x021368f0, 0x470 bytes) is NOT decompiled, so it is
        blocked on the class body like level 14's lava cast, not on a fill.
