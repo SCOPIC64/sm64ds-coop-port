@@ -325,16 +325,10 @@ void hal_fill_king_bob_omb_vtable(void);
      hal_fill_healing_heart_vtable},                                        \
     /* CAP (269), EXCLAMATION_SWITCH (11) and ROLLING_IRON_BALL (220) are     \
        registered at gate 51 (their PMF state tables are now seated). WATER_  \
-       BOMB (208) remains BUILT BUT NOT REGISTERED and is the one BLOCKED     \
-       class of the four -- the blocker is on the CANNON side, not the bomb:  \
-       func_ov098_0213a36c walks a cannon-to-cannon linked list through the   \
-       +0x348 pointer that func_ov098_0213a00c's actor scan populates, and    \
-       once a bomb is on the actor list that chain is walked with a null      \
-       +0x348 (the port's spawn ordering does not build the same-id cannon    \
-       chain the ROM's actor list does). Every cannon function is matched src,\
-       so the fix is a spawn-ordering/chain-seat question, not undecompiled   \
-       code -- deferred as the hardest of the four. See the gate-51 note in   \
+       BOMB (208) is registered at gate 55 -- see the gate-55 note in         \
        actor_classes_bob_world.cpp. */                                        \
+    {208, "WATER_BOMB", WaterBomb_SpawnInfo, WaterBomb_Spawn,                 \
+     hal_fill_water_bomb_vtable},                                             \
     {329, "INVISIBLE_SECRET", InvisibleSecret_SpawnInfo, InvisibleSecret_Spawn,\
      hal_fill_invisible_secret_vtable},                                        \
     /* gate 46: the moving bar (RTTI daBar_c), Whomp's Fortress */             \

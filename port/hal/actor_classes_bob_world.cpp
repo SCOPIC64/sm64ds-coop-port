@@ -841,31 +841,39 @@ extern "C" void hal_fill_arrow_sign_vtable(void)
     vt[17] = (void *)bw_trap17;
 }
 
-// ---- WATER_BOMB (208, ov098) x2 -- BUILT BUT NOT REGISTERED (gate 51) -------
+// ---- WATER_BOMB (208, ov098) x2 -- REGISTERED (gate 55) --------------------
 //
 // _ZTV9WaterBomb, ov098 0x0213c770, RTTI 7daWbm_c. The bomb a cannon fires.
 // Gate 19 mounted the overlay and named this class in its header without
-// registering it; Bob-omb Battlefield names two.
+// registering it; Bob-omb Battlefield names two, and each fires more at the
+// player from its state-0 body, so the census count oscillates as bombs land
+// and MarkForDestruction retires them.
 //
-// THE BLOCKER IS ON THE CANNON SIDE, run down at gate 51 (which registered the
-// other three of the four this file left blocked). It is not the bomb's own
-// state table -- that seats like the others -- but a cannon-to-cannon linked
-// list. func_ov098_0213a36c, the cannon's per-frame state driver, walks a
-// chain of same-id cannons through the +0x348 pointer:
+// THE GATE-51 BLOCKER NOTE WAS WRONG about the mechanism. It was NOT a
+// cannon-to-cannon +0x348 chain -- func_ov098_0213a36c and func_ov098_0213a00c
+// (the +0x348 scan/walk) are not even in the link, and the cannon's own driver
+// (Cannon::Behavior -> func_ov098_0213a984, gate 19) does not touch that chain
+// on this level. The real cause was two ordinary gaps on the BOMB side, found
+// by registering it and reading the faults:
 //
-//     p = c; while (1) { if (*(u8*)(p+0x340)==0) break;
-//                        p = *(char**)(p+0x348); if (p==0) break; }
+//   1. WaterBomb::Behavior dispatches its three states through
+//      data_ov098_0213c930[unk_3c4], seeded by __sinit_ov098_0213c2b4 from the
+//      SOURCE statics data_ov098_0213c724/72c/71c. Those .fn words are DS code
+//      addresses (0213b9d8 / 0213bb1c / 0213b7e8), the ovdata contract, so the
+//      first bomb to reach its Behavior faulted jumping to 0x0213b9d8. Seated
+//      the same way as CAP and the iron ball, over the source statics before
+//      the sinit copies them -- port/unmatched/WaterBomb_StateDispatch.cpp.
+//   2. The three state bodies and the helper func_ov098_0213b520 were in no
+//      slice at all. Added to slice_gate33.txt. State 0
+//      (func_ov098_0213b9d8) is a host copy -- its matched src is int-returning
+//      with mwccarm bare `return;`, which MSVC's C++ front end rejects (C2561),
+//      and its (void) declaration of Actor::ClosestPlayer dropped the implicit
+//      `this` that the host cdecl definition reads off the stack; the copy
+//      passes self so ClosestPlayer scans from the real actor rather than a
+//      garbage `this`. port/unmatched/WaterBomb_State0.cpp.
 //
-// and func_ov098_0213a00c is the scan that populates c+0x344/0x348 from
-// Actor::FindWithActorID over every actor sharing the cannon's id. Once a
-// WATER_BOMB is on the actor list the walk faults, because the port's spawn
-// ordering does not build the same-id cannon chain the ROM's actor list gives
-// for free -- the +0x348 pointer a cannon expects to find its neighbour
-// through is null. Every cannon function (0213a00c/0a8/0e8/148/23c/36c,
-// 02137c8c) is matched src, so this is a spawn-ordering and chain-seat
-// question -- what links the cannons and when -- not undecompiled code. It is
-// the hardest of the four and is deferred; the fill and faces below stay built
-// so the next attempt starts with the link closed and only the chain to seat.
+// Both are the routine seat/closure shape the other three of the four already
+// took; there was no cannon-side infrastructure to build.
 #include "WaterBomb.h"
 extern "C" {
 int *_ZN9WaterBombD1Ev(int *self);

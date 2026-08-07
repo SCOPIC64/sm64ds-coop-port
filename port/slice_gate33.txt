@@ -368,3 +368,21 @@ src/func_02014f5c.c
 # address was in an overlay. Same function, one alias in
 # hal/actor_faces_bob.cpp.
 src/func_ov002_020caf98.cpp
+
+# gate 55: the WATER_BOMB's three-state closure. WaterBomb::Behavior dispatches
+# a {function, delta} pair out of data_ov098_0213c930[unk_3c4]; the three bodies
+# and the helper one of them calls were never in the link, so the seeded table
+# held DS code addresses and the first frame a bomb reached its Behavior faulted
+# jumping to 0x0213b9d8. All matched src; the table is reseated to these host
+# bodies by port/unmatched/WaterBomb_StateDispatch.cpp.
+#
+# State 0 (func_ov098_0213b9d8) is NOT here: src/func_ov098_0213b9d8.cpp is
+# declared int-returning but its body uses mwccarm's bare `return;` on every
+# early exit and falls off the end -- which mwccarm accepts and MSVC's C++ front
+# end rejects (C2561, "must return a value"). The state table calls it as
+# void(*)(char*) and ignores r0, so its host copy in
+# port/unmatched/WaterBomb_State0.cpp is the same body declared void -- the
+# Cannon_Behavior / Coin_Behavior "HOST COPY" idiom.
+src/func_ov098_0213b7e8.c
+src/func_ov098_0213bb1c.cpp
+src/func_ov098_0213b520.c
