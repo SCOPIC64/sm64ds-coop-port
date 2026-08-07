@@ -260,6 +260,12 @@ void hal_fill_chain_chomp_vtable(void);
 extern unsigned char ChainChompFence_SpawnInfo[]; /* ov014 0x0211488c */
 void *ChainChompFence_Spawn(void);                /* ov014 0x0211307c */
 void hal_fill_chain_chomp_fence_vtable(void);
+/* gate 82: SHUTTER_BOB (40), the same ov014 mount as the chain chomp. A
+   Platform subclass (RTTI daObjBSwdoor_c); SpawnInfo and data_ov014_021145c4
+   already come from ov014_syms.txt, so this is a HAL-only addition. */
+extern unsigned char ShutterBob_SpawnInfo[];      /* ov014 0x021145e4 */
+void *ShutterBob_Spawn(void);                     /* host copy, unmatched/ */
+void hal_fill_shutter_bob_vtable(void);
 extern unsigned char KoopaTheQuick_SpawnInfo[];   /* ov062 0x0211db78 */
 void *KoopaTheQuick_Spawn(void);                  /* ov062 0x0211aee0 */
 void hal_fill_koopa_the_quick_vtable(void);
@@ -527,7 +533,10 @@ void *FortressWallBreakable_Spawn(void);          /* ov079 0x021275ac */
      FirePiranhaPlant_Spawn, hal_fill_fire_piranha_plant_vtable},             \
     /* gate 70: PIRANHA_PLANT (250), ov084 */                                  \
     {250, "PIRANHA_PLANT", PiranhaPlant_SpawnInfo, PiranhaPlant_Spawn,         \
-     hal_fill_piranha_plant_vtable},
+     hal_fill_piranha_plant_vtable},                                           \
+    /* ---- gate 82: SHUTTER_BOB (40), Bob-omb Battlefield (ov014) ---- */      \
+    {40, "SHUTTER_BOB", ShutterBob_SpawnInfo, ShutterBob_Spawn,                \
+     hal_fill_shutter_bob_vtable},
     /* ---- gates 64-69: Whomp's Fortress' enemy cast (ov079) ------------------
        BUILT AND WIRED BUT NOT REGISTERED BY DEFAULT. The mount, the four sinits,
        WHOMP's and BULLET_BILL's state seats, the four vtable fills, the method

@@ -527,6 +527,101 @@ extern "C" void hal_fill_cannon_hatch_vtable(void)
     vt[17] = (void *)bw_trap17;
 }
 
+// ---- SHUTTER_BOB (40, ov014) x2 --------------------------------------------
+//
+// _ZTV10ShutterBob (ov014 0x02114608, RTTI daObjBSwdoor_c -- "B swing door").
+// Bob-omb Battlefield's own shutter, and a Platform subclass with a moving
+// mesh collider, the exact CANNON_HATCH shape. Level 6's census printed id 40
+// skipped x2; ACTOR_SPAWN_TABLE entry [40] relocates to ShutterBob_SpawnInfo
+// at ov014 0x021145e4 (that record's +4 reads 40), so the resolution is the
+// ROM's own. ov014 is already mounted (the chain chomp gate), and the
+// SpawnInfo plus the class's one data reference (data_ov014_021145c4) come out
+// of ov014_syms.txt, so this is a HAL-only class.
+//
+// The 32-slot vtable overrides 0/3/6/16/17. Slot 9 is func_ov002_020babf0,
+// the shared Platform model-render (the class has no Render of its own), and
+// slot 12 is ActorBase::OnPendingDestroy. Behavior/Init/Cleanup are real C++
+// methods (call qualified against include/ShutterBob.h); D1/D0 are the C-form
+// .c destructors, and slot 17 is a real deleting dtor rather than a trap. The
+// vtable is a HOST array the registry fills (the ov085/ov080 rule) -- it is
+// deliberately NOT in ov014_syms.txt, which mounting would hand a factory DS
+// code addresses.
+#include "ShutterBob.h"
+extern "C" {
+int func_ov002_020babf0(void *self);            /* the Platform model render */
+int *_ZN10ShutterBobD1Ev(int *self);            /* .c, C linkage */
+int *_ZN10ShutterBobD0Ev(int *self);            /* .c, C linkage */
+/* 32, not 20: the ROM's table is the full Platform width, and construction can
+   dispatch a slot past 19. A [20] host array leaves 20..31 reading adjacent
+   memory -- a wild call. */
+void *_ZTV10ShutterBob[32];
+}
+static int __fastcall shb_trap20(void *s, void *) { bw_trap_report(s, 20); return 0; }
+static int __fastcall shb_trap21(void *s, void *) { bw_trap_report(s, 21); return 0; }
+static int __fastcall shb_trap22(void *s, void *) { bw_trap_report(s, 22); return 0; }
+static int __fastcall shb_trap23(void *s, void *) { bw_trap_report(s, 23); return 0; }
+static int __fastcall shb_trap24(void *s, void *) { bw_trap_report(s, 24); return 0; }
+static int __fastcall shb_trap25(void *s, void *) { bw_trap_report(s, 25); return 0; }
+static int __fastcall shb_trap26(void *s, void *) { bw_trap_report(s, 26); return 0; }
+static int __fastcall shb_trap27(void *s, void *) { bw_trap_report(s, 27); return 0; }
+static int __fastcall shb_trap28(void *s, void *) { bw_trap_report(s, 28); return 0; }
+static int __fastcall shb_trap29(void *s, void *) { bw_trap_report(s, 29); return 0; }
+static int __fastcall shb_trap30(void *s, void *) { bw_trap_report(s, 30); return 0; }
+static int __fastcall shb_trap31(void *s, void *) { bw_trap_report(s, 31); return 0; }
+/* the destructors spell the class's own table by its RTTI name */
+#pragma comment(linker, "/alternatename:__ZTV14daObjBSwdoor_c=__ZTV10ShutterBob")
+/* InitResources reads data_ov014_021145c4 as a C++ `extern int`, which MSVC
+   mangles to ?data_ov014_021145c4@@3HA; the mounted symbol is the C-linkage
+   _data_ov014_021145c4. Alias it, byte-faithful (the STAR_MARKER precedent). */
+#pragma comment(linker, "/alternatename:?data_ov014_021145c4@@3HA=_data_ov014_021145c4")
+/* InitResources references MeshColliderBase::Enable with a CLASS-tagged Actor
+   (?Enable@MeshColliderBase@@QAEXPAVActor@@@Z), which no Actor.h-including TU
+   can emit -- hal/shutter_bob_face.cpp defines exactly that symbol, forwarding
+   to the C-linkage host wrapper. See that file's header. */
+static int __fastcall shb_init(void *s, void *)
+{ return ((ShutterBob *)s)->ShutterBob::InitResources(); }
+static int __fastcall shb_clean(void *s, void *)
+{ return ((ShutterBob *)s)->ShutterBob::CleanupResources(); }
+static int __fastcall shb_behavior(void *s, void *)
+{ return ((ShutterBob *)s)->ShutterBob::Behavior(); }
+static int __fastcall shb_render(void *s, void *)
+{
+    port_actor_render_probe("SHUTTER_BOB", (char *)s + 0xd4);
+    return func_ov002_020babf0(s);
+}
+static int __fastcall shb_d1(void *s, void *)
+{ return (int)(size_t)_ZN10ShutterBobD1Ev((int *)s); }
+static int __fastcall shb_d0(void *s, void *)
+{ return (int)(size_t)_ZN10ShutterBobD0Ev((int *)s); }
+extern "C" void hal_fill_shutter_bob_vtable(void)
+{
+    void **vt = _ZTV10ShutterBob;
+    hal_fill_platform_vtable();
+    bw_fill_shared(vt);
+    vt[0] = (void *)shb_init;
+    vt[3] = (void *)shb_clean;
+    vt[6] = (void *)shb_behavior;
+    vt[9] = (void *)shb_render;
+    vt[12] = (void *)bw_pdes_base;
+    vt[16] = (void *)shb_d1;
+    vt[17] = (void *)shb_d0;
+    /* the Platform tail (20..31): the Actor interaction virtuals plus
+       Platform::Kill. Nothing on the shutter's clean run dispatches these;
+       trapped per slot so if one ever fires it names itself. */
+    vt[20] = (void *)shb_trap20;
+    vt[21] = (void *)shb_trap21;
+    vt[22] = (void *)shb_trap22;
+    vt[23] = (void *)shb_trap23;
+    vt[24] = (void *)shb_trap24;
+    vt[25] = (void *)shb_trap25;
+    vt[26] = (void *)shb_trap26;
+    vt[27] = (void *)shb_trap27;
+    vt[28] = (void *)shb_trap28;
+    vt[29] = (void *)shb_trap29;
+    vt[30] = (void *)shb_trap30;
+    vt[31] = (void *)shb_trap31;
+}
+
 // ---- CAP (269, ov002) -------------------------------------------------------
 //
 // _ZTV13WaterfallMist, ov002 0x021095f0, RTTI 15daObjMarioCap_c. Mario's cap,
