@@ -53,7 +53,21 @@ src/_ZN13PoleBillboard8BehaviorEv.cpp
 src/_ZN13PoleBillboard6RenderEv.cpp
 src/_ZN13PoleBillboardD1Ev.c
 
-# Gate 63: MOVING_BAR_BIG (53) and MOVING_BAR_SMALL (54) are BLOCKED on the
+# Gate 63: ROTATING_PLATFORM_WF (id 50) installs the unnamed table
+# 0x021147e8 and runs the plain-C func_ov015_02112c* lifecycle; its Behavior and
+# Render are ov002's shared Platform bodies, already in the build, no PMF.
+src/RotatingPlatformWf_Spawn.c
+src/func_ov015_02112c98.c
+src/func_ov015_02112c84.c
+src/func_ov015_02112bd0.c
+src/func_ov015_02112c20.c
+# its ov002 shared Platform Behavior/Render/helpers (the floating-platform base)
+src/func_ov002_020b66f0.cpp
+src/func_ov002_020b6718.cpp
+src/func_ov002_020b676c.cpp
+src/func_ov002_020b66a8.c
+
+# MOVING_BAR_BIG (53) and MOVING_BAR_SMALL (54) are BLOCKED on the
 # KnockDownPlank::Behavior pointer-to-member seat (data_ov015_021149ec); see the
 # gate-63 note in hal/actor_classes_wf.cpp.
 

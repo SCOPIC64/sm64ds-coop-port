@@ -285,6 +285,12 @@ void hal_fill_knock_down_plank_vtable(void);
    _ZN14KnockDownPlank* methods, whose Behavior dispatches a pointer-to-member
    through data_ov015_021149ec); BLOCKED on that state seat, see the gate-63
    note in hal/actor_classes_wf.cpp. */
+extern unsigned char RotatingPlatformWf_SpawnInfo[]; /* ov015 0x021147c4, id 50 */
+/* its factory is a host wrapper: the raw RotatingPlatformWf_Spawn stores the
+   VT1 placeholder rather than a named vtable, so the wrapper reseats the vptr
+   onto the host table (hal/actor_classes_wf.cpp). */
+void *port_factory_rotating_platform_wf(void);
+void hal_fill_rotating_platform_wf_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -406,7 +412,10 @@ void hal_fill_knock_down_plank_vtable(void);
     {42, "POLE_BILLBOARD", PoleBillboard_SpawnInfo, PoleBillboard_Spawn,        \
      hal_fill_pole_billboard_vtable},                                          \
     {44, "KNOCK_DOWN_PLANK", KnockDownPlank_SpawnInfo, KnockDownPlank_Spawn,    \
-     hal_fill_knock_down_plank_vtable},
+     hal_fill_knock_down_plank_vtable},                                        \
+    /* ---- gate 63: ROTATING_PLATFORM_WF (50), Whomp's Fortress (ov015) ---- */ \
+    {50, "ROTATING_PLATFORM_WF", RotatingPlatformWf_SpawnInfo,                  \
+     port_factory_rotating_platform_wf, hal_fill_rotating_platform_wf_vtable},
     /* PEACH_PAINTING (38) is BLOCKED, see gate 42 below -- its InitResources
        spawns a RollingRock (ov052, an overlay the port does not mount) and
        reads data_ov052_02111e84, so registering it would fault on the first

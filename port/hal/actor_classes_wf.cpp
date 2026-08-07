@@ -339,6 +339,65 @@ extern "C" void hal_fill_knock_down_plank_vtable(void)
 }
 
 // ============================================================================
+// ROTATING_PLATFORM_WF (id 50) -- vtable 0x021147e8 (data_ov015_021147e8)
+// ============================================================================
+//
+// RotatingPlatformWf_Spawn installs the unnamed table data_ov015_021147e8
+// (config _ZTV17daObjBk_Ukisima_c, ukishima: floating island), an 800-byte
+// object with Model at +0xd4 and MovingMeshCollider at +0x124. Its own slots
+// are the plain-C func_ov015_02112c* family; its slot-6 Behavior and slot-9
+// Render are ov002's SHARED Platform bodies (func_ov002_020b6718 / 020b66f0),
+// already in the build, with no pointer-to-member anywhere. Whomp's Fortress
+// names the rotating platform.
+extern "C" {
+int func_ov015_02112c98(char *self);   /* slot 0  InitResources */
+int func_ov015_02112c84(char *self);   /* slot 3  CleanupResources */
+int func_ov002_020b6718(char *self);   /* slot 6  Behavior (ov002 base) */
+int func_ov002_020b66f0(char *self);   /* slot 9  Render (ov002 base) */
+int *func_ov015_02112bd0(int *self);   /* slot 16 D1 */
+void *data_ov015_021147e8[31];
+void *RotatingPlatformWf_Spawn(void);
+}
+#pragma comment(linker, "/alternatename:__ZTV17daObjBk_Ukisima_c=_data_ov015_021147e8")
+/* RotatingPlatformWf_Spawn is the one ov015 factory whose vtable store is the
+   shared-header VT1 placeholder (`p[0] = (int)VT1`), not a named _ZTV -- the
+   recovered source's byte-matched wildcard for the relocated word 0x021147e8.
+   VT1 is auto_bss's zeroed [8] array, so a raw spawn leaves the object
+   dispatching through nulls. The host factory calls the real spawn, then reseats
+   slot 0 onto this class's host vtable, the way the registry repoints a
+   SpawnInfo's +0 word. */
+extern "C" void *port_factory_rotating_platform_wf(void)
+{
+    void *p = RotatingPlatformWf_Spawn();
+    if (p)
+        *(void **)p = (void *)data_ov015_021147e8;
+    return p;
+}
+static int __fastcall rp_init(void *s, void *)
+{ return func_ov015_02112c98((char *)s); }
+static int __fastcall rp_clean(void *s, void *)
+{ return func_ov015_02112c84((char *)s); }
+static int __fastcall rp_behavior(void *s, void *)
+{ return func_ov002_020b6718((char *)s); }
+static int __fastcall rp_render(void *s, void *)
+{
+    port_actor_render_probe("ROTATING_PLATFORM_WF", (char *)s + 0xd4);
+    return func_ov002_020b66f0((char *)s);
+}
+static int __fastcall rp_d1(void *s, void *)
+{ return (int)(size_t)func_ov015_02112bd0((int *)s); }
+extern "C" void hal_fill_rotating_platform_wf_vtable(void)
+{
+    void **vt = data_ov015_021147e8;
+    wf_fill_shared(vt);
+    vt[0] = (void *)rp_init;
+    vt[3] = (void *)rp_clean;
+    vt[6] = (void *)rp_behavior;
+    vt[9] = (void *)rp_render;
+    vt[16] = (void *)rp_d1;
+}
+
+// ============================================================================
 // MOVING_BAR_BIG (id 53) and MOVING_BAR_SMALL (id 54) -- BLOCKED (gate 63)
 // ============================================================================
 //
