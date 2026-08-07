@@ -113,6 +113,21 @@ void port_ov011_patch(void);
 void *port_ov011_at(unsigned ds);
 extern unsigned char port_ov011_image[];
 extern const unsigned port_ov011_ds_base, port_ov011_ds_end;
+
+/* ov017 = level 9, the sunken pirate ship (data/stage/kaizoku_ship), course 2 --
+   Jolly Roger Bay's ship sublevel. The level->overlay map data_020758c8[9] = 17
+   (it is level+8, a read not an assumption), the LVL_Overlay table
+   data_02092208[9] = 0x02111a78, and the four OV0 handles at LVL_Overlay+8
+   (bmd 1894 / kcl 1892 / icg 1895 / icl 1896) resolve through
+   build/assets/handles.tsv to kaizoku_ship's bmd/kcl/icg/icl -- the same
+   evidence path the five above use. SUBLEVEL_LEVEL_TABLE[9] (0x02075298) is
+   0x02 = course 2, an ordinary indoor stage with subCount=1 and only the
+   standard hosted loaders. Mounted --whole like the five above; own_sinits
+   stays 0. */
+void port_ov017_patch(void);
+void *port_ov017_at(unsigned ds);
+extern unsigned char port_ov017_image[];
+extern const unsigned port_ov017_ds_base, port_ov017_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -192,6 +207,9 @@ static const PortLevelDesc port_level_table[] = {
     {3, "castle garden (main_garden, course 29)", "ov011", 0x021113ac,
      port_ov011_patch, port_ov011_at,
      &port_ov011_ds_base, &port_ov011_ds_end, 0},
+    {9, "sunken ship (kaizoku_ship, course 2)", "ov017", 0x02111a78,
+     port_ov017_patch, port_ov017_at,
+     &port_ov017_ds_base, &port_ov017_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -339,9 +357,11 @@ static void *port_mount_row_1(void) { return port_level_mount_at(1); }
 static void *port_mount_row_2(void) { return port_level_mount_at(2); }
 static void *port_mount_row_3(void) { return port_level_mount_at(3); }
 static void *port_mount_row_4(void) { return port_level_mount_at(4); }
+static void *port_mount_row_5(void) { return port_level_mount_at(5); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
+    port_mount_row_5,
 };
 
 // ---- the loader dispatch table ---------------------------------------------

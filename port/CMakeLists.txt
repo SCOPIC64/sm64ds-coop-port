@@ -599,6 +599,16 @@ set(PORT_LEVEL_OVERLAYS ov009 ov014 ov010 ov015)
 # ov098 ov100 ov102) is all already mounted except ov063, so its shared cast
 # spawns for free and only ov063-owned classes are skipped by name at the gate.
 list(APPEND PORT_LEVEL_OVERLAYS ov011)
+# gate 128: ov017 is level 9's own overlay (data/stage/kaizoku_ship, the sunken
+# pirate ship, course 2 -- Jolly Roger Bay's ship sublevel). Mounted whole like
+# the five above; the level->overlay map data_020758c8[9] = 17 (level+8, a read
+# not an assumption), the LVL_Overlay table data_02092208[9] = 0x02111a78, and
+# the four handles at LVL_Overlay+8 (bmd 1894 / kcl 1892 / icg 1895 / icl 1896)
+# resolve through build/assets/handles.tsv to kaizoku_ship's bmd/kcl/icg/icl.
+# SUBLEVEL_LEVEL_TABLE[9] (0x02075298) is 0x02 = course 2. Its actor-overlay
+# roster (ov064 plus the always-loaded ov098/ov102) has ov098 and ov102 already
+# mounted; ov064-owned classes are skipped by name at the gate. own_sinits 0.
+list(APPEND PORT_LEVEL_OVERLAYS ov017)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
