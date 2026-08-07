@@ -81,6 +81,11 @@ void port_cannon_states_seat(void);
    SOURCE side before the copy -- port/unmatched/WaterBomb_StateDispatch.cpp */
 void port_water_bomb_states_seat(void);
 
+/* gate 172: the CRATE's fourteen {function, delta} statics that
+   __sinit_ov098_0213c058 copies into data_ov098_0213c878, seated over the
+   SOURCE side before the copy -- port/unmatched/Crate_StateDispatch.cpp */
+void port_crate_states_seat(void);
+
 /* ov089: NO CLASS OF ITS OWN IS REGISTERED. The castle grounds' front-door
    pair asks LoadKeyModels for a key model, and that walks two arrays of
    SharedFilePtr pointers in ov089's bss which only ov089's own sinit builds.
@@ -795,6 +800,7 @@ extern "C" void port_actor_overlays_sinits(void)
     port_ov098_syms_patch();
     port_cannon_states_seat();
     port_water_bomb_states_seat();
+    port_crate_states_seat();
     __sinit_ov098_0213bf9c();
     __sinit_ov098_0213c058();
     __sinit_ov098_0213c214();

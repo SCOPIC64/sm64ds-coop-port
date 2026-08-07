@@ -365,7 +365,24 @@ extern const unsigned port_ov023_ds_base, port_ov023_ds_end;
    largest mounted); SUBLEVEL_LEVEL_TABLE[13] = 5, subCount 8. Mounted --whole;
    own_sinits 0. The PAINTING (307) is gated on this level too, the levels-4/5
    PMF host-ABI skip; its other skips need ov065/ov071 mounts (see the
-   port-w9-lvl13 commit). */
+   port-w9-lvl13 commit).
+
+   GATE 172 HOSTED THE FIRST of that commit's "mounted roster overlay" five:
+   CRATE (194, ov098) spawns x1 -- census 134/27 up from 133/26. Corrections to
+   that commit's reading, re-derived while hosting:
+     - FLAMETHROWER (318, ov095) was misfiled as a fill+row+closure candidate;
+       its Behavior (0x021368f0, 0x470 bytes) is NOT decompiled, so it is
+       blocked on the class body like level 14's lava cast, not on a fill.
+     - UP_DOWN_LIFT_HMC (33) is real but not free: _ZTV13UpDownLiftBbh
+       (0x02137628, 32-slot Platform shape) has NO host fill yet -- SEESAW_BOB's
+       gate-83 fill is the DIFFERENT _ZTV9SeesawBob -- and UpDownLiftBbh's
+       Behavior dispatches data_ov095_02137910 through an incomplete-class PMF,
+       so it needs a host-copy Behavior + seat (the WHOMP shape) on top of the
+       fill. All six class methods are matched src.
+     - MONTY_MOLE (310, ov080) closure is fully matched (16-slot vtable at
+       0x021280b0) but its Behavior PMF-dispatches data_ov080_02128438, seated
+       by __sinit_ov080_021278c0 from DS-address statics: a Crate-shaped
+       source-side seat gate. */
 void port_ov021_patch(void);
 void *port_ov021_at(unsigned ds);
 extern unsigned char port_ov021_image[];

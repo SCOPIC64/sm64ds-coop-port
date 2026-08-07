@@ -223,6 +223,17 @@ extern "C" int _ZNK12WithMeshClsn13GetWallResultEv(const void *self)
 extern "C" int _ZNK12WithMeshClsn14GetFloorResultEv(const void *self)
 { return ((const WithMeshClsn *)self)->GetFloorResult(); }
 
+/* gate 172: func_ov098_021390ec (Crate's state helper) declares a local
+   `struct SurfaceInfo { void CopyNormalTo(Vector3 &) const; }` and calls it as
+   a real method; the matched body is the C-form src
+   (_ZNK11SurfaceInfo12CopyNormalToER7Vector3.c, slice_gate8.txt), so the
+   method bridges to it -- an alias cannot cross the __thiscall/cdecl seam. */
+struct SurfaceInfo { void CopyNormalTo(Vector3 &) const; };
+extern "C" void _ZNK11SurfaceInfo12CopyNormalToER7Vector3(const void *self,
+                                                          Vector3 *v);
+void SurfaceInfo::CopyNormalTo(Vector3 &v) const
+{ _ZNK11SurfaceInfo12CopyNormalToER7Vector3(this, &v); }
+
 struct SphereClsn { int DetectClsn(); };
 extern "C" int _ZN10SphereClsn10DetectClsnEv(void *self)
 { return ((SphereClsn *)self)->DetectClsn(); }

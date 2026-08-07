@@ -481,6 +481,15 @@ void *GreenShellBlockTag_Spawn(void);                       /* ov002 0x020b4610 
 extern unsigned char HauntedChair_SpawnInfo[];      /* ov020 0x021149f0 */
 void *HauntedChair_Spawn(void);                     /* ov020 0x02113494 */
 void hal_fill_haunted_chair_vtable(void);
+/* ---- gate 172: CRATE (194), level 13's first fresh candidate (ov098) ----
+   The breakable wooden box, daObjBlockS_c. ov098 was already mounted per
+   symbol for the WaterBomb/FallBlockWf/ExclamationSwitch gates, so the
+   SpawnInfo, the state-table statics and the file tables are all in place;
+   the fill is hal/actor_classes_hmc.cpp, the closure slice_gate172.txt, and
+   the state-table seat port/unmatched/Crate_StateDispatch.cpp. */
+extern unsigned char Crate_SpawnInfo[];             /* ov098 0x0213c510 */
+void *Crate_Spawn(void);                            /* ov098 0x02139f04 */
+void hal_fill_crate_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -692,4 +701,6 @@ void hal_fill_haunted_chair_vtable(void);
       hal_fill_ice_slide_manager_vtable}, \
     /* ---- gate 149: HAUNTED_CHAIR (326), Big Boo's Haunt (ov020, level 12) ---- */ \
     {326, "HAUNTED_CHAIR", HauntedChair_SpawnInfo, HauntedChair_Spawn, \
-     hal_fill_haunted_chair_vtable},
+     hal_fill_haunted_chair_vtable}, \
+    /* ---- gate 172: CRATE (194), Hazy Maze Cave's first fresh class (ov098) ---- */ \
+    {194, "CRATE", Crate_SpawnInfo, Crate_Spawn, hal_fill_crate_vtable},
