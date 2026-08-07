@@ -299,6 +299,17 @@ extern unsigned char RotatingPlatformWf_SpawnInfo[]; /* ov015 0x021147c4, id 50 
    onto the host table (hal/actor_classes_wf.cpp). */
 void *port_factory_rotating_platform_wf(void);
 void hal_fill_rotating_platform_wf_vtable(void);
+/* ---- gates 70-74: Whomp's Fortress' level-7 enemies and platforms ----------
+   Two ov084 piranhas and three ov091 platform/Platform-enemy classes, wired by
+   the vtable each factory installs (the ov015 name shift twice more; see
+   hal/actor_classes_l7.cpp). ov084 and ov091 are already mounted (gate 32); the
+   SpawnInfo records come from ov084_syms.txt / ov091_syms.txt and each +4
+   halfword is the id below. */
+/* gate 72: THWOMP (161). Its factory leaves the vptr on the VT1 placeholder, so
+   its factory is a host wrapper that reseats it, the RotatingPlatformWf case. */
+extern unsigned char Thwomp_SpawnInfo[];          /* ov091 0x02135150, id 161 */
+void *port_factory_thwomp(void);
+void hal_fill_thwomp_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -420,4 +431,8 @@ void hal_fill_rotating_platform_wf_vtable(void);
      port_factory_rotating_platform_wf, hal_fill_rotating_platform_wf_vtable}, \
     /* ---- gate 42: ov010's PEACH_PAINTING (38) ---- */                       \
     {38, "PEACH_PAINTING", PeachPainting_SpawnInfo, PeachPainting_Spawn,       \
-     hal_fill_peach_painting_vtable},
+     hal_fill_peach_painting_vtable},                                          \
+    /* ---- gates 70-74: Whomp's Fortress' level-7 cast (append-only) ---- */   \
+    /* gate 72: THWOMP (161), ov091 */                                         \
+    {161, "THWOMP", Thwomp_SpawnInfo, port_factory_thwomp,                     \
+     hal_fill_thwomp_vtable},

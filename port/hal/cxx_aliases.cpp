@@ -1313,3 +1313,8 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    (?..@@3HA) of the same function the MovingBar path spells as a call. Land it
    on the same MSVC method. */
 #pragma comment(linker, "/alternatename:?_ZN16MeshColliderBase16UpdatePosAndAngsERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_@@3HA=?UpdatePosAndAngs@MeshColliderBase@@SAXAAU1@PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z")
+/* gate 72: func_ov091_02133254 (the THWOMP's InitResources helper) spells the
+   same static as an `extern void *` -- the ?..@@3PAXA data mangling of the
+   function whose address it stores through func_020393d4. Land it on the same
+   MSVC method as the int form above. */
+#pragma comment(linker, "/alternatename:?_ZN16MeshColliderBase16UpdatePosAndAngsERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_@@3PAXA=?UpdatePosAndAngs@MeshColliderBase@@SAXAAU1@PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z")

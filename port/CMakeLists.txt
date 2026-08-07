@@ -1350,6 +1350,27 @@ foreach(line IN LISTS SLICE59_LINES)
     list(APPEND SLICE59_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Gates 70-74: Whomp's Fortress' level-7 enemies and platforms (ov084, ov091).
+# Both overlays are already mounted (gate 32); these slices are the matched
+# lifecycle closures of the five classes, one file each. The HAL seam is
+# hal/actor_classes_l7.cpp and the piranha state seat plus the two enemy Renders
+# are unmatched/PiranhaPlant_States.cpp. See each slice_gate7N.txt header.
+set(SLICE_L7_SOURCES "")
+foreach(gate 70 71 72 73 74)
+    set(_gf "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate${gate}.txt")
+    if(NOT EXISTS "${_gf}")
+        continue()
+    endif()
+    file(STRINGS "${_gf}" _glines)
+    foreach(line IN LISTS _glines)
+        string(STRIP "${line}" line)
+        if(line MATCHES "^#" OR line STREQUAL "")
+            continue()
+        endif()
+        list(APPEND SLICE_L7_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+    endforeach()
+endforeach()
+
 # Gate 15: the per-frame actor spine (BeforeBehavior/Behavior/AfterBehavior),
 # which is what makes the real WithMeshClsn tracking work -- see the header of
 # slice_gate15.txt for why prev-pos is load-bearing.
@@ -1449,6 +1470,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES}
+    hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES}
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(smoke_player PRIVATE
@@ -1488,6 +1510,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES}
+    hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES}
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window PRIVATE
@@ -1530,6 +1553,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES}
+    hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES}
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window_hires PRIVATE
