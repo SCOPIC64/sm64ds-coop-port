@@ -114,8 +114,14 @@ void *Trap_Spawn(void);                                 /* ov010 0x02111998 */
 void hal_fill_trap_vtable(void);
 extern unsigned char LightBeam_SpawnInfo[];             /* ov010 0x02112b84 */
 void *LightBeam_Spawn(void);                            /* ov010 0x02111dd0 */
-/* gate 42 PEACH_PAINTING (38) is BLOCKED (ov052/RollingRock); its symbols are
-   mounted but the class is not registered -- see hal/actor_classes.cpp. */
+/* ---- gate 42: ov010's PEACH_PAINTING (38) ----
+   The prior "blocked on ov052/RollingRock" reading was the shared-base illusion
+   -- both mislabeled references stay inside ov010 (func_ov010_02111e84 and the
+   ov010 BSS SharedFilePtr data_ov010_02112d64), closed by /alternatename in
+   hal/actor_classes.cpp. Its SpawnInfo is mounted (ov010_syms.txt, +4 = 38). */
+extern unsigned char PeachPainting_SpawnInfo[];        /* ov010 0x02112c44 */
+void *PeachPainting_Spawn(void);                       /* ov010 0x02112004 */
+void hal_fill_peach_painting_vtable(void);
 /* ---- gate 50: ov080's PAINTING (daPicGate_c, actor 307) ----
    A DIFFERENT class from PEACH_PAINTING, in a different overlay, with no
    cross-overlay spawn dependency. Its record's +4 halfword reads 307 and the
@@ -374,8 +380,7 @@ void hal_fill_king_bob_omb_vtable(void);
      ExclamationSwitch_Spawn, hal_fill_exclamation_switch_vtable},             \
     /* ---- gate 51: ROLLING_IRON_BALL (220), Whomp's Fortress ---- */         \
     {220, "ROLLING_IRON_BALL", RollingIronBall_SpawnInfo, RollingIronBall_Spawn,\
-     hal_fill_rolling_iron_ball_vtable},
-    /* PEACH_PAINTING (38) is BLOCKED, see gate 42 below -- its InitResources
-       spawns a RollingRock (ov052, an overlay the port does not mount) and
-       reads data_ov052_02111e84, so registering it would fault on the first
-       InitResources. Its vtable fill and faces are built but not registered. */
+     hal_fill_rolling_iron_ball_vtable},                                        \
+    /* ---- gate 42: ov010's PEACH_PAINTING (38) ---- */                        \
+    {38, "PEACH_PAINTING", PeachPainting_SpawnInfo, PeachPainting_Spawn,        \
+     hal_fill_peach_painting_vtable},

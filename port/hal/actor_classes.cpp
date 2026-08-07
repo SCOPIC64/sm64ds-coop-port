@@ -1543,19 +1543,79 @@ extern "C" void hal_fill_trap_vtable(void)
 }
 
 // ============================================================================
-// GATE 42: ov010's PEACH_PAINTING (actor 38) -- BLOCKED
+// GATE 42: ov010's PEACH_PAINTING (actor 38)
 // ============================================================================
 //
 // _ZTV13PeachPainting / _ZTV14daObjC1Peach_c, ov010 0x02112c68. Peach's
-// portrait over the castle-interior stairs. Its own six methods are all
-// straight-line C++ with no pointer-to-member and would fill exactly like
-// TRAP's, but PeachPainting::InitResources SPAWNS A ROLLING_ROCK
-// (RollingRock_Spawn) and reads data_ov052_02111e84 -- ov052 is an overlay
-// the port does not mount, so registering the class would fault on its first
-// InitResources. It is left out of the registry and its fill unwritten until
-// ov052 and the RollingRock's closure are hosted. The portrait's SpawnInfo is
-// mounted (ov010_syms.txt) and its methods are matched src; only the spawn
-// dependency blocks it.
+// portrait over the castle-interior stairs. A prior sweep marked it BLOCKED on
+// ov052 and a RollingRock spawn; the ROM disagrees, and it was the shared-base
+// illusion the gate-40/41 readings already turn on. ov010 and ov052 (and ov021)
+// are all linked at 0x021111a0 because the DS only ever has one overlay of a
+// base loaded, so an address in one names a symbol in every other. dsd
+// attributed two of PeachPainting's OWN internal references to the ov052/ov021
+// names at the shared address:
+//
+//   * InitResources' `data_ov052_02111e84(this)` is an arm_call
+//     to:0x02111e84 module:overlay(10) -- func_ov010_02111e84, a three-line
+//     matrix/scale helper compiled in slice_gate42.txt. ov052's 0x02111e84 is a
+//     CLPS collision table (first word "CLPS"); calling it would crash.
+//   * The `RollingRock_Spawn` handed to Model::LoadFile is a load reloc
+//     to:0x02112d64 module:overlay(10) -- data_ov010_02112d64, an 8-byte BSS
+//     SharedFilePtr the ov010 sinits build, already mounted in ov010_syms.txt.
+//     CleanupResources names data_ov010_02112d64 directly, the cross-check.
+//
+// So there is no cross-overlay spawn and no RollingRock; ov052 is NOT mounted.
+// The two mislabeled names are closed by /alternatename below (data_ov052 ->
+// func_ov010, RollingRock_Spawn -> data_ov010's BSS SharedFilePtr).
+//
+// The vtable is the standard 31-slot Actor table (0x7c bytes): slot 12 is
+// ActorBase::OnPendingDestroy (ac_pdes_base, same word 0x02043ac0 as TRAP),
+// slots 0/3/6/9 the class's own four, slot 16 the D1 (Model at 0xd4 then
+// Actor::~Actor) and slot 17 the class's own C D0. Nothing dispatches a
+// pointer-to-member. PeachPainting_Spawn installs _ZTV13PeachPainting and D0
+// spells the dual name _ZTV14daObjC1Peach_c, so both resolve to one host array.
+extern "C" {
+int _ZN13PeachPainting13InitResourcesEv(void *self);   /* face: method_faces */
+int _ZN13PeachPainting8BehaviorEv(void *self);         /* face: method_faces */
+int _ZN13PeachPainting6RenderEv(void *self);           /* face: method_faces */
+int _ZN13PeachPainting16CleanupResourcesEv(void);      /* C in src */
+int *_ZN13PeachPaintingD0Ev(int *self);                /* C in src */
+void *_ZTV13PeachPainting[31];
+/* the D1 member chain: Model at 0xd4, then Actor::~Actor. */
+void _ZN5ModelD1Ev(void *);
+void *_ZN5ActorD2Ev(void *);
+}
+#pragma comment(linker, "/alternatename:__ZTV14daObjC1Peach_c=__ZTV13PeachPainting")
+
+static int __fastcall pt_init(void *s, void *)
+{ return _ZN13PeachPainting13InitResourcesEv(s); }
+static int __fastcall pt_clean(void *, void *)
+{ return _ZN13PeachPainting16CleanupResourcesEv(); }
+static int __fastcall pt_behavior(void *s, void *)
+{ return _ZN13PeachPainting8BehaviorEv(s); }
+static int __fastcall pt_render(void *s, void *)
+{ port_actor_render_probe("PEACH_PAINTING", (char *)s + 0xd4);
+  return _ZN13PeachPainting6RenderEv(s); }
+/* slot 16: the class's D1 is a shadow-class C++ destructor in src, so it is not
+   compiled; the chain is spelled here (Model at 0xd4 then Actor::~Actor), the
+   gate-31 recipe for a shadow-class slot 16. */
+static int __fastcall pt_d1(void *s, void *)
+{ _ZN5ModelD1Ev((char *)s + 0xd4); return (int)(size_t)_ZN5ActorD2Ev(s); }
+static int __fastcall pt_d0(void *s, void *)
+{ return (int)(size_t)_ZN13PeachPaintingD0Ev((int *)s); }
+
+extern "C" void hal_fill_peach_painting_vtable(void)
+{
+    void **vt = _ZTV13PeachPainting;
+    ac_fill_shared(vt);
+    vt[0] = (void *)pt_init;
+    vt[3] = (void *)pt_clean;
+    vt[6] = (void *)pt_behavior;
+    vt[9] = (void *)pt_render;
+    vt[12] = (void *)ac_pdes_base;
+    vt[16] = (void *)pt_d1;
+    vt[17] = (void *)pt_d0;
+}
 
 // ============================================================================
 // GATE 23: ov102's QUESTION_BLOCK
