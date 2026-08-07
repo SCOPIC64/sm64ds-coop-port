@@ -28,6 +28,14 @@ void hal_fill_ambient_sound_vtable(void);
 extern unsigned char BlackBrickBlock_SpawnInfo[];       /* ov002 0x02108a78 */
 void *BlackBrickBlock_Spawn(void);                      /* ov002 0x020b409c */
 void hal_fill_black_brick_block_vtable(void);
+/* ---- BLUE_COIN_SWITCH (10, ov002) ---- */
+extern unsigned char BlueCoinSwitch_SpawnInfo[];        /* ov002 0x0210b248 */
+void *BlueCoinSwitch_Spawn(void);                       /* ov002 0x020f15cc */
+void hal_fill_blue_coin_switch_vtable(void);
+/* ---- STAR_MARKER (180, ov002) ---- */
+extern unsigned char StarMarker_SpawnInfo[];            /* ov002 0x0210aa78 */
+void *StarMarker_Spawn(void);                           /* ov002 0x020ebe8c */
+void hal_fill_star_marker_vtable(void);
 /* ---- SIGN_POST (184, ov002) x5 ---- */
 extern unsigned char SignPost_SpawnInfo[];              /* ov002 0x02109ad4 */
 void *SignPost_Spawn(void);                             /* ov002 0x020bc3c8 */
@@ -288,11 +296,16 @@ extern unsigned char KnockDownPlank_SpawnInfo[];  /* ov015 0x021143fc, id 44 */
 void *KnockDownPlank_Spawn(void);                 /* ov015 0x02111b68 */
 void hal_fill_knock_down_plank_vtable(void);
 /* MOVING_BAR_BIG (53) and MOVING_BAR_SMALL (54) share vtable 0x0211458c (the
-   _ZN14KnockDownPlank* methods). BLOCKED: KnockDownPlank::Behavior forms its
-   per-frame pointer-to-member over a FORWARD-DECLARED struct, so MSVC gives it
-   the general (worst-case) PMF representation and a plain-address seat mangles
-   `this` at the call. Needs a host copy of Behavior (the Fish/Door treatment),
-   not code -- see the gate-63 note in hal/actor_classes_wf.cpp. */
+   _ZN14KnockDownPlank* methods); both factories install it. KnockDownPlank::
+   Behavior forms its per-frame pointer-to-member over a FORWARD-DECLARED struct,
+   so a host copy (port/unmatched/KnockDownPlank_Behavior.cpp) reads the table as
+   plain ints; the same file seats both {fn, delta} tables. See the note in
+   hal/actor_classes_wf.cpp. */
+extern unsigned char MovingBarBig_SpawnInfo[];    /* ov015 0x02114568, id 53 */
+void *MovingBarBig_Spawn(void);                   /* ov015 0x02112230 */
+extern unsigned char MovingBarSmall_SpawnInfo[];  /* ov015 0x0211454c, id 54 */
+void *MovingBarSmall_Spawn(void);                 /* ov015 0x02112260 */
+void hal_fill_moving_bar_vtable(void);            /* shared vtable 0x0211458c */
 extern unsigned char RotatingPlatformWf_SpawnInfo[]; /* ov015 0x021147c4, id 50 */
 /* its factory is a host wrapper: the raw RotatingPlatformWf_Spawn stores the
    VT1 placeholder rather than a named vtable, so the wrapper reseats the vptr
@@ -329,6 +342,13 @@ void hal_fill_fire_piranha_plant_vtable(void);
 extern unsigned char PiranhaPlant_SpawnInfo[];      /* ov084 0x02130c04, id 250 */
 void *PiranhaPlant_Spawn(void);
 void hal_fill_piranha_plant_vtable(void);
+/* FALL_BLOCK_WF (45), vtable 0x021148dc (_ZTV11FallBlockWf). The inherited
+   ov098-chain blocker was a phantom: the Behavior func_ov098_0213a36c is a plain
+   switch machine whose same-id walk is null-safe. Every slot is matched src; a
+   plain 32-slot fill and a slice reach it. See hal/actor_classes_wf.cpp. */
+extern unsigned char FallBlockWf_SpawnInfo[];     /* ov015 0x021148b8, id 45 */
+void *FallBlockWf_Spawn(void);                    /* ov015 0x02112dd0 */
+void hal_fill_fall_block_wf_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -337,6 +357,12 @@ void hal_fill_piranha_plant_vtable(void);
      AmbientSoundEffects_Spawn, hal_fill_ambient_sound_vtable},               \
     {17, "BLACK_BRICK_BLOCK", BlackBrickBlock_SpawnInfo,                      \
      BlackBrickBlock_Spawn, hal_fill_black_brick_block_vtable},               \
+    /* ---- gate 78: BLUE_COIN_SWITCH (10), ov002 ---- */                      \
+    {10, "BLUE_COIN_SWITCH", BlueCoinSwitch_SpawnInfo, BlueCoinSwitch_Spawn,   \
+     hal_fill_blue_coin_switch_vtable},                                       \
+    /* ---- gate 79: STAR_MARKER (180), ov002 ---- */                          \
+    {180, "STAR_MARKER", StarMarker_SpawnInfo, StarMarker_Spawn,              \
+     hal_fill_star_marker_vtable},                                            \
     {184, "SIGN_POST", SignPost_SpawnInfo, SignPost_Spawn,                    \
      hal_fill_sign_post_vtable},                                              \
     {276, "ONE_UP_MUSHROOM", OneUpMushroom_SpawnInfo, OneUpMushroom_Spawn,    \
@@ -448,6 +474,17 @@ void hal_fill_piranha_plant_vtable(void);
     /* ---- gate 63: ROTATING_PLATFORM_WF (50), Whomp's Fortress (ov015) ---- */\
     {50, "ROTATING_PLATFORM_WF", RotatingPlatformWf_SpawnInfo,                 \
      port_factory_rotating_platform_wf, hal_fill_rotating_platform_wf_vtable}, \
+    /* ---- gate 76: MOVING_BAR_BIG (53), MOVING_BAR_SMALL (54) ---- */         \
+    /* Both install vtable 0x0211458c (the _ZN14KnockDownPlank* methods) and    \
+       run KnockDownPlank's lifecycle; the shared fill is idempotent so the     \
+       second row re-runs it harmlessly. */                                    \
+    {53, "MOVING_BAR_BIG", MovingBarBig_SpawnInfo, MovingBarBig_Spawn,         \
+     hal_fill_moving_bar_vtable},                                              \
+    {54, "MOVING_BAR_SMALL", MovingBarSmall_SpawnInfo, MovingBarSmall_Spawn,   \
+     hal_fill_moving_bar_vtable},                                              \
+    /* ---- gate 77: FALL_BLOCK_WF (45), Whomp's Fortress (ov015/ov098) ---- */ \
+    {45, "FALL_BLOCK_WF", FallBlockWf_SpawnInfo, FallBlockWf_Spawn,            \
+     hal_fill_fall_block_wf_vtable},                                          \
     /* ---- gate 42: ov010's PEACH_PAINTING (38) ---- */                       \
     {38, "PEACH_PAINTING", PeachPainting_SpawnInfo, PeachPainting_Spawn,       \
      hal_fill_peach_painting_vtable},                                          \
