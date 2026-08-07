@@ -100,6 +100,19 @@ void port_ov015_patch(void);
 void *port_ov015_at(unsigned ds);
 extern unsigned char port_ov015_image[];
 extern const unsigned port_ov015_ds_base, port_ov015_ds_end;
+
+/* ov011 = level 3, the castle garden (data/stage/main_garden), course 29. The
+   level->overlay map data_020758c8[3] = 11 (it is level+8, a read not an
+   assumption), the LVL_Overlay table data_02092208[3] = 0x021113ac, and the
+   four OV0 handles at LVL_Overlay+8 resolve through build/assets/handles.tsv to
+   main_garden's bmd/kcl/icg/icl -- the same evidence path the four above use.
+   SUBLEVEL_LEVEL_TABLE[3] (0x02075298) is 0x1d = course 29, the castle family,
+   an ordinary outdoor level with subCount=1 and only the standard hosted
+   loaders. Mounted --whole like the four above; own_sinits stays 0. */
+void port_ov011_patch(void);
+void *port_ov011_at(unsigned ds);
+extern unsigned char port_ov011_image[];
+extern const unsigned port_ov011_ds_base, port_ov011_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -176,6 +189,9 @@ static const PortLevelDesc port_level_table[] = {
     {7, "Whomp's Fortress (course 1)", "ov015", 0x02113518,
      port_ov015_patch, port_ov015_at,
      &port_ov015_ds_base, &port_ov015_ds_end, 0},
+    {3, "castle garden (main_garden, course 29)", "ov011", 0x021113ac,
+     port_ov011_patch, port_ov011_at,
+     &port_ov011_ds_base, &port_ov011_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -322,8 +338,10 @@ static void *port_mount_row_0(void) { return port_level_mount_at(0); }
 static void *port_mount_row_1(void) { return port_level_mount_at(1); }
 static void *port_mount_row_2(void) { return port_level_mount_at(2); }
 static void *port_mount_row_3(void) { return port_level_mount_at(3); }
+static void *port_mount_row_4(void) { return port_level_mount_at(4); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
+    port_mount_row_4,
 };
 
 // ---- the loader dispatch table ---------------------------------------------
