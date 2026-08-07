@@ -403,18 +403,32 @@ extern "C" void hal_fill_rotating_platform_wf_vtable(void)
 //
 // Both factories install vtable 0x0211458c (config _ZTV14KnockDownPlank /
 // _ZTV19daObjBk_Dossunbar_c), so an id-53 or id-54 object runs KnockDownPlank's
-// lifecycle. KnockDownPlank::Behavior dispatches a POINTER-TO-MEMBER every
-// frame:
+// lifecycle. Every lifecycle function and both dispatch tables are matched src,
+// the two SpawnInfos are mounted (+4 = 53 / 54), the vtable fill and the two
+// {fn, delta} state-seats were written and pass their ROM checks -- and the
+// class still cannot be registered, on a MSVC PMF-representation wall rather than
+// any missing code. The measured shape, so the next attempt does not re-walk it:
 //
-//     (this->*(data_ov015_021149ec[this->idx].pmf))();
+//   KnockDownPlank::Behavior (the matched .cpp, MSVC-compiled) dispatches
+//       (((C *)this)->*(data_ov015_021149ec[idx].pmf))();
+//   over a struct C that is FORWARD-DECLARED (`struct C;`) at the point the
+//   PMF typedef is formed. To an incomplete type MSVC gives a pointer-to-member
+//   its GENERAL (worst-case-inheritance) representation -- a multi-word struct
+//   plus a this-adjust/vptr thunk at the call site -- not the single code
+//   pointer a complete single-inheritance class gets. Seating the bss table with
+//   a plain function address (the butterfly/star-door recipe, which works
+//   because those form the PMF over a COMPLETE Base) makes the call read a bogus
+//   adjustment: measured a spawned MOVING_BAR run 133 behaviours then fault in
+//   func_ov015_02111e60 with this in ecx=valid but the arg register =1, the
+//   general-PMF thunk having mangled `this` into the state index.
 //
-// data_ov015_021149ec is a bss dispatch table __sinit_ov015_02113048 fills from
-// ROM {function, delta} statics carrying DS code addresses, so the class needs
-// the state-seat treatment (the BobOmbBuddy/KingBobOmb precedent): seat host
-// bodies over the source statics before the sinit copies them. Every function
-// the table names is matched src, so this is a seating task, not undecompiled
-// code -- deferred as the one blocked platform of the eight. Its InitResources
-// also carries a decompiler cross-overlay mislabel (data_ov034_02114538, really
-// ov015's) that an alias closes. The classes NAMED PoleBillboard/KnockDownPlank
-// whose methods gates 62 register are the shifted ones; this table is the third
-// step of the shift and the only one that dispatches a PMF.
+// The port-faithful fix is a HOST COPY of KnockDownPlank::Behavior in
+// port/unmatched/ that reads the table entry as two plain ints and calls the
+// body directly (the Fish/Door treatment for exactly this reason), so MSVC's PMF
+// representation never enters -- NOT a src edit and NOT undecompiled code. The
+// two {fn, delta} tables (Behavior's data_ov015_021149ec and the state table
+// data_ov015_02114a24 that func_ov015_02111fb8 drives) and the aliases
+// InitResources needs (data_ov034_02114538 -> ov015, Sound::PlayBank3 spelled
+// func_02012664, Actor::UpdatePosWithOnlySpeed's void* spelling) were all worked
+// out; only the host-copy Behavior is left. Deferred as the one blocked platform
+// of the eight.

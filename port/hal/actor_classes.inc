@@ -282,9 +282,11 @@ extern unsigned char KnockDownPlank_SpawnInfo[];  /* ov015 0x021143fc, id 44 */
 void *KnockDownPlank_Spawn(void);                 /* ov015 0x02111b68 */
 void hal_fill_knock_down_plank_vtable(void);
 /* MOVING_BAR_BIG (53) and MOVING_BAR_SMALL (54) share vtable 0x0211458c (the
-   _ZN14KnockDownPlank* methods, whose Behavior dispatches a pointer-to-member
-   through data_ov015_021149ec); BLOCKED on that state seat, see the gate-63
-   note in hal/actor_classes_wf.cpp. */
+   _ZN14KnockDownPlank* methods). BLOCKED: KnockDownPlank::Behavior forms its
+   per-frame pointer-to-member over a FORWARD-DECLARED struct, so MSVC gives it
+   the general (worst-case) PMF representation and a plain-address seat mangles
+   `this` at the call. Needs a host copy of Behavior (the Fish/Door treatment),
+   not code -- see the gate-63 note in hal/actor_classes_wf.cpp. */
 extern unsigned char RotatingPlatformWf_SpawnInfo[]; /* ov015 0x021147c4, id 50 */
 /* its factory is a host wrapper: the raw RotatingPlatformWf_Spawn stores the
    VT1 placeholder rather than a named vtable, so the wrapper reseats the vptr
