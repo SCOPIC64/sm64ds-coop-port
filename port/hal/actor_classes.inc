@@ -436,6 +436,35 @@ void *StarSwitch_Spawn(void);                     /* ov002 0x020baaac */
    and the QUESTION_BLOCK section in hal/actor_classes.cpp. */
 extern unsigned char ExclamationBlock_SpawnInfo[]; /* ov102 0x0214e404, id 21 */
 void *ExclamationBlock_Spawn(void);                /* ov102 0x0214a8ac */
+/* ---- gate 121: STATIC_ROCK (61, ov102) ------------------------------------
+   Jolly Roger Bay's rocks (level 8's biggest skipped class, x33), a Platform
+   subclass. Its factory StaticRock_Spawn installs _ZTV13FortressTower, the SAME
+   table FORTRESS_TOWER (id 49, gate 102) and WARP_PIPE (id 298, gate 33)
+   install and hal_fill_warp_pipe_vtable already fills, so this row carries no
+   fill of its own. All five methods are already compiled (gate 33's WARP_PIPE
+   slice) and StaticRock_SpawnInfo is already mounted (ov102_syms.txt); the
+   record's +4 halfword reads 61, matching ACTOR_SPAWN_TABLE[61]. See
+   slice_gate121.txt and the WARP_PIPE section in hal/actor_classes_bob_world.cpp. */
+extern unsigned char StaticRock_SpawnInfo[];      /* ov102 0x0214e0e0, id 61 */
+void *StaticRock_Spawn(void);                     /* ov102 0x02148f8c */
+/* ---- gate 122: BRICK_BLOCK_SWITCH_ACTIVATED (19, ov002) -------------------
+   Jolly Roger Bay's switch-activated brick (x8). A Platform subclass whose
+   factory installs _ZTV13BigBrickBlock, the SAME table BRICK_BLOCK (15),
+   BIG_BRICK_BLOCK (16) and FORTRESS_TOWER_WALL (46) install and
+   hal_fill_black_brick_block_vtable already fills (gate 16). No fill of its own.
+   Its SpawnInfo is mounted in ov002_syms.txt; +4 reads 19, matching
+   ACTOR_SPAWN_TABLE[19]. See slice_gate122.txt. */
+extern unsigned char BrickBlockSwitchActivated_SpawnInfo[]; /* ov002 0x02108a5c */
+void *BrickBlockSwitchActivated_Spawn(void);                /* ov002 0x020b40cc */
+/* ---- gate 123: GREEN_SHELL_BLOCK_TAG (323, ov002) ------------------------
+   Jolly Roger Bay's green-shell block tag (x1). A tag body sharing
+   _ZTV10BrickBlock, the SAME table ONE_UP_MUSHROOM_BLOCK_TAG (321) and
+   MEGA_MUSHROOM_BLOCK_TAG (322) install and hal_fill_brick_block_tag_vtable
+   already fills (gate 49). No fill of its own. Its SpawnInfo is mounted in
+   ov002_syms.txt; +4 reads 323, matching ACTOR_SPAWN_TABLE[323]. See
+   slice_gate123.txt. */
+extern unsigned char GreenShellBlockTag_SpawnInfo[];        /* ov002 0x02108bbc */
+void *GreenShellBlockTag_Spawn(void);                       /* ov002 0x020b4610 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -625,4 +654,18 @@ void *ExclamationBlock_Spawn(void);                /* ov102 0x0214a8ac */
     /* ---- gate 128: EXCLAMATION_BLOCK (21), Jolly Roger Bay ship (ov102) ---- */ \
     /* Installs _ZTV13QuestionBlock, filled by the QUESTION_BLOCK row above; no \
        fill of its own, the FORTRESS_TOWER / STAR_SWITCH shape. */ \
-    {21, "EXCLAMATION_BLOCK", ExclamationBlock_SpawnInfo, ExclamationBlock_Spawn, 0},
+    {21, "EXCLAMATION_BLOCK", ExclamationBlock_SpawnInfo, ExclamationBlock_Spawn, 0}, \
+    /* ---- gate 121: STATIC_ROCK (61), Jolly Roger Bay (ov102) ---- */ \
+    /* Installs _ZTV13FortressTower, filled by the WARP_PIPE row above; no \
+       fill of its own, the FORTRESS_TOWER shape. */ \
+    {61, "STATIC_ROCK", StaticRock_SpawnInfo, StaticRock_Spawn, 0}, \
+    /* ---- gate 122: BRICK_BLOCK_SWITCH_ACTIVATED (19), Jolly Roger Bay ---- */ \
+    /* Installs _ZTV13BigBrickBlock, filled at gate 16; no fill of its own, the \
+       BIG_BRICK_BLOCK shape. */ \
+    {19, "BRICK_BLOCK_SWITCH_ACTIVATED", BrickBlockSwitchActivated_SpawnInfo, \
+     BrickBlockSwitchActivated_Spawn, 0}, \
+    /* ---- gate 123: GREEN_SHELL_BLOCK_TAG (323), Jolly Roger Bay ---- */ \
+    /* Installs _ZTV10BrickBlock, filled at gate 49; no fill of its own, the \
+       ONE_UP_MUSHROOM_BLOCK_TAG shape. */ \
+    {323, "GREEN_SHELL_BLOCK_TAG", GreenShellBlockTag_SpawnInfo, \
+     GreenShellBlockTag_Spawn, 0},

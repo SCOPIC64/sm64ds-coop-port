@@ -578,6 +578,7 @@ list(APPEND OV_DATA_MAPS "${OV002DATA_C}.map")
 #   ov010 = level 2, a castle interior floor, course 29 (interior-shaped)
 #   ov015 = level 7, Whomp's Fortress, course 1 (open course)
 #   ov011 = level 3, the castle garden  (data/stage/main_garden), course 29
+#   ov016 = level 8, Jolly Roger Bay  (data/stage/kaizoku_irie), course 2
 #
 # Both facts come from the ROM, not from the overlay numbering: the arm9's
 # level-to-overlay table data_020758c8 maps level -> overlay (it is level+8),
@@ -609,6 +610,14 @@ list(APPEND PORT_LEVEL_OVERLAYS ov011)
 # roster (ov064 plus the always-loaded ov098/ov102) has ov098 and ov102 already
 # mounted; ov064-owned classes are skipped by name at the gate. own_sinits 0.
 list(APPEND PORT_LEVEL_OVERLAYS ov017)
+# gate 121: ov016 is level 8's own overlay, the first MAIN COURSE the port
+# mounts (data/stage/kaizoku_irie, Jolly Roger Bay, course 2). Read from the
+# ROM like the rest: data_020758c8[8] = 16, LVL_Overlay data_02092208[8] =
+# 0x02113b90, handles at +8 (bmd 0x0761, kcl 0x075f, icg 0x0762, icl 0x0763)
+# resolve through build/assets/handles.tsv to kaizoku_irie's all.bmd/kcl/icg/icl.
+# SUBLEVEL_LEVEL_TABLE[8] = 2 = course 2, a big open course (384 load relocs, a
+# 25609-byte KCL). Mounted --whole like the rest; own_sinits stays 0.
+list(APPEND PORT_LEVEL_OVERLAYS ov016)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
@@ -1540,6 +1549,45 @@ foreach(line IN LISTS SLICE128_LINES)
     list(APPEND SLICE128_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Gate 121: STATIC_ROCK (61), Jolly Roger Bay (ov102). Shares _ZTV13FortressTower
+# (WARP_PIPE gate 33, FORTRESS_TOWER gate 102 install it); the one new symbol is
+# the factory StaticRock_Spawn. Registry row reuses hal_fill_warp_pipe_vtable.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate121.txt" SLICE121_LINES)
+set(SLICE121_SOURCES "")
+foreach(line IN LISTS SLICE121_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE121_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# Gate 122: BRICK_BLOCK_SWITCH_ACTIVATED (19), Jolly Roger Bay (ov002). Same body
+# as BIG_BRICK_BLOCK (_ZTV13BigBrickBlock, gate 16); the one new symbol is the
+# factory BrickBlockSwitchActivated_Spawn. SpawnInfo in ov002_syms.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate122.txt" SLICE122_LINES)
+set(SLICE122_SOURCES "")
+foreach(line IN LISTS SLICE122_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE122_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# Gate 123: GREEN_SHELL_BLOCK_TAG (323), Jolly Roger Bay (ov002). A tag body
+# sharing _ZTV10BrickBlock (gate 49); the one new symbol is the factory
+# GreenShellBlockTag_Spawn. SpawnInfo in ov002_syms.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate123.txt" SLICE123_LINES)
+set(SLICE123_SOURCES "")
+foreach(line IN LISTS SLICE123_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE123_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gates 64-69: ov079's four static initialisers plus the six enemy classes'
 # matched lifecycle closures -- WHOMP (164), WHOMP_KING (165), BULLET_BILL (222),
 # BILL_BLASTER (43), FORTRESS_WALL (47), FORTRESS_WALL_BREAKABLE (48). The two
@@ -1703,7 +1751,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
-    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES}
+    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES} ${SLICE121_SOURCES} ${SLICE122_SOURCES} ${SLICE123_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -1745,7 +1793,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
-    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES}
+    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES} ${SLICE121_SOURCES} ${SLICE122_SOURCES} ${SLICE123_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -1790,7 +1838,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
-    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES}
+    unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES} ${SLICE121_SOURCES} ${SLICE122_SOURCES} ${SLICE123_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
