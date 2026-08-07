@@ -148,16 +148,48 @@ extern "C" void port_actor_census_reset(void)
     std::memset(g_skipped, 0, sizeof g_skipped);
 }
 
+/* ---- host-ABI per-level spawn blockers ------------------------------------
+   A class can be hosted, registered and fault-free on one level and hit a host
+   translation limit on another because the level's object table hands it a
+   different tuning param. That is a real blocker, not a missing class, so it is
+   named here rather than left to fault: the gate turns the id away on the
+   listed levels exactly the way it turns away an unregistered class, and the
+   census reports it as skipped so the boot is honest about what did not spawn.
+
+   The PAINTING (daPicGate_c, 307, ov080) is the one case so far. Its
+   InitResources/Behavior/Render dispatch a per-mode state through a
+   pointer-to-member of an INCOMPLETE class; mwccarm makes that PMF 8 bytes and
+   the recovered Disp/Entry stride lands on the ROM's 8-byte {fn,delta} records,
+   but MSVC widens it to the 16-byte generic form, so &data_ov080_02128628[mi]
+   strides wrong and the call shifts `this` into unmapped memory. Level 2's six
+   paintings all carry mode 0 and survived by luck of the layout; level 4
+   (castle_b1) and level 5 (castle_2f) carry mode>0 / high-texture params that
+   fault one call into the state function (measured: a write to this+0x16c with
+   this = 0xfffad16c). Hosting the three dispatchers is the fix, deferred; until
+   then the painting spawns on levels 1..3 and is skipped on 4/5. */
+extern "C" int port_level_id(void);
+static int port_host_abi_blocked(unsigned id)
+{
+    if (id == 307) {                       /* PAINTING, ov080 */
+        int lvl = port_level_id();
+        if (lvl == 4 || lvl == 5)
+            return 1;
+    }
+    return 0;
+}
+
 extern "C" int port_prespawn_hook(void *idv)
 {
     unsigned id = (unsigned)(size_t)idv;
-    if (id < PORT_ACTOR_IDS && data_020a4bb8[id]) {
+    if (id < PORT_ACTOR_IDS && data_020a4bb8[id] && !port_host_abi_blocked(id)) {
         ++g_spawned[id];
         return 2;                     /* what a null hook returns: proceed */
     }
     if (id < PORT_ACTOR_IDS) {
         if (!g_skipped[id])
-            std::printf("  [spawn] actor 0x%x not registered, skipped\n", id);
+            std::printf("  [spawn] actor 0x%x %s, skipped\n", id,
+                        data_020a4bb8[id] ? "host-ABI blocked on this level"
+                                          : "not registered");
         ++g_skipped[id];
     }
     return 3;
