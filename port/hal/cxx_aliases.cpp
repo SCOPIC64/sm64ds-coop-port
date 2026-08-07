@@ -1313,3 +1313,44 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    (?..@@3HA) of the same function the MovingBar path spells as a call. Land it
    on the same MSVC method. */
 #pragma comment(linker, "/alternatename:?_ZN16MeshColliderBase16UpdatePosAndAngsERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_@@3HA=?UpdatePosAndAngs@MeshColliderBase@@SAXAAU1@PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z")
+/* gate 72: func_ov091_02133254 (the THWOMP's InitResources helper) spells the
+   same static as an `extern void *` -- the ?..@@3PAXA data mangling of the
+   function whose address it stores through func_020393d4. Land it on the same
+   MSVC method as the int form above. */
+#pragma comment(linker, "/alternatename:?_ZN16MeshColliderBase16UpdatePosAndAngsERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_@@3PAXA=?UpdatePosAndAngs@MeshColliderBase@@SAXAAU1@PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z")
+/* gate 74: SlidingPlatformWf::InitResources threads its collider through
+   MeshColliderBase::UpdatePosWithTransform, the third of the three update
+   statics; the src spells the C name and the .cpp defines the MSVC method
+   (slice_gate59), the same shape as UpdatePosAndAngs above. */
+#pragma comment(linker, "/alternatename:__ZN16MeshColliderBase22UpdatePosWithTransformERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_=?UpdatePosWithTransform@MeshColliderBase@@SAXAAU1@PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z")
+/* gate 74: SlidingPlatformWf::InitResources declares five of its ov091
+   construction-data tables with C++ types (SFP*, char*, u16*), so MSVC mangles
+   the references to names the ov091 per-symbol mount does not carry. Each lands
+   on the same C object the mount publishes -- the ov015 platform-data case. */
+#pragma comment(linker, "/alternatename:?data_ov091_02135024@@3PAUSFP@@A=_data_ov091_02135024")
+#pragma comment(linker, "/alternatename:?data_ov091_02135028@@3PADA=_data_ov091_02135028")
+#pragma comment(linker, "/alternatename:?data_ov091_0213502c@@3PADA=_data_ov091_0213502c")
+#pragma comment(linker, "/alternatename:?data_ov091_02134514@@3PAGA=_data_ov091_02134514")
+#pragma comment(linker, "/alternatename:?data_ov091_02134504@@3PAGA=_data_ov091_02134504")
+/* gate 73: RotatingUpDownPlatformUtm's Init and Clean declare their two SFP
+   tables with C++ types -- void** in Init, SFP* in Clean, two manglings of the
+   same mounted object -- and Behavior spells the arm9 Matrix4x3 scratch
+   data_020a0e68 as char* (a third mangling of the same host array). */
+#pragma comment(linker, "/alternatename:?data_ov091_02134c30@@3PAPAXA=_data_ov091_02134c30")
+#pragma comment(linker, "/alternatename:?data_ov091_02134c30@@3PAUSFP@@A=_data_ov091_02134c30")
+#pragma comment(linker, "/alternatename:?data_ov091_02134c34@@3PAPAXA=_data_ov091_02134c34")
+#pragma comment(linker, "/alternatename:?data_ov091_02134c34@@3PAUSFP@@A=_data_ov091_02134c34")
+#pragma comment(linker, "/alternatename:?data_020a0e68@@3PADA=_data_020a0e68")
+/* gates 70-71: the two piranhas' Init/spit closures declare four ov084 statics
+   with C++ types (SharedFilePtr tables as void**, a byte table, the arm9
+   Matrix4x3 scratch as int*), so MSVC mangles the references to names the ov084
+   mount does not carry. Each lands on the same C object the mount publishes. */
+#pragma comment(linker, "/alternatename:?data_ov084_02130e14@@3PAPAXA=_data_ov084_02130e14")
+#pragma comment(linker, "/alternatename:?data_ov084_02130e04@@3PAPAXA=_data_ov084_02130e04")
+#pragma comment(linker, "/alternatename:?data_ov084_02130e0c@@3PAPAXA=_data_ov084_02130e0c")
+#pragma comment(linker, "/alternatename:?data_ov084_02130294@@3PAEA=_data_ov084_02130294")
+#pragma comment(linker, "/alternatename:?data_020a0e68@@3PAHA=_data_020a0e68")
+/* gate 70: func_ov084_0212fc10 (a piranha state) calls ModelAnim::SetAnim by
+   its unprefixed C name func_02016748; the real symbol is the arm9 method, in
+   the build since gate 7. */
+#pragma comment(linker, "/alternatename:_func_02016748=__ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj")
