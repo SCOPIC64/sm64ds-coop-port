@@ -277,7 +277,48 @@ extern const unsigned port_ov020_ds_base, port_ov020_ds_end;
    -- the handle column, the delta-0 mapping the recent levels use -- to cave's
    cave_all.bmd/cave.kcl/cave_icg.bin/cave_icl.bin; SUBLEVEL_LEVEL_TABLE[13]
    (0x02075298) is 0x05 = course 5, subCount 8, a 61224-byte KCL (the largest
-   mounted so far). Mounted --whole; own_sinits 0. */
+   mounted so far). Mounted --whole; own_sinits 0.
+
+   ITS OBJECT-OVERLAY ROSTER, and its skipped cast. The per-level object overlay
+   table (LoadOrUnloadObjectOverlays walks data_02075998[13] selectors into
+   data_02075804) loads ov065 ov071 ov080 ov084 ov089 ov095 ov098 ov100 ov102 --
+   every one already mounted except ov065 and ov071. Boot census: 133 actors
+   spawned across 26 classes, 54 skipped across 15 classes. The 15 skipped, by
+   blocker:
+
+     - PAINTING (307, ov080) x1: hosted-elsewhere but host-ABI blocked. Its
+       mode>0 param faults on the PMF-stride limit levels 4/5 already hit, so it
+       joins port_host_abi_blocked (hal/actor_registry.cpp) for id 307. The gate
+       turns it away by name and the census reports it, the levels-4/5 reading.
+
+     - ov065-RESIDENT, overlay NOT mounted: DORRIE (168) x1, SNUFIT (236) x4,
+       SWOOP (237) x7. ov065 is Hazy Maze Cave's own actor overlay and is not
+       mounted; each is the gate-64/gate-83 shape (a per-symbol ov065 mount, its
+       sinits, the vtable fill and a row).
+
+     - ov071-RESIDENT, overlay NOT mounted: SCUTTLEBUG (255) x6, MR_I (262) x1.
+       Same shape, a per-symbol ov071 mount.
+
+     - MOUNTED roster overlay, class simply not registered yet: UP_DOWN_LIFT_HMC
+       (33, ov095) x4, MONTY_MOLE (310, ov080) x3, FLAMETHROWER (318, ov095) x3,
+       CRATE (194, ov098) x1, and PATH_LIFT (31, ov100) x1. These are the fresh
+       hosting candidates -- the overlay is up, so each wants only its vtable
+       fill, registry row and matched-src closure. PATH_LIFT was attempted first
+       (its SpawnInfo, six vtable-slot bodies and two file-pointer statics are all
+       ov100, already mounted and sinit-constructed), but its Behavior/Render pull
+       a wider ov002/ov100/ov006 closure than the leaf slots -- func_ov002_020efcf4/
+       020efc74, func_ov100_02146e70, PathLift::BaseBehavior, Vec3_Dist,
+       Platform2/3 methods, MeshColliderBase::Enable, plus a G2 shared-header
+       global and several ov002/ov100 data symbols not in the mount. That is a
+       multi-part gate with the G0/G1/G2 per-TU-global hazard, deferred rather
+       than half-wired; the level boots and is walkable without it.
+
+     - CROSS-CLASS / shared-window blockers: SHUTTER_HMC (67) x2, WORK_ELEVATOR
+       (68) x1, ROLLING_ROCK (221) x2 resolve into the base-0x021111a0 conditional
+       overlay window (ov060 is loaded only for idx 0x24/0x26/0x28, not level 13);
+       and RED_FLAME (316) x17 installs BlueFlame's vtable, but BLUE_FLAME is not
+       registered either, so hosting it means hosting BLUE_FLAME first (the
+       level-10 reading). Deferred. */
 void port_ov021_patch(void);
 void *port_ov021_at(unsigned ds);
 extern unsigned char port_ov021_image[];
