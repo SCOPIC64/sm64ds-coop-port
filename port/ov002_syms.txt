@@ -168,3 +168,7 @@ BrickBlockSwitchActivated_SpawnInfo:0x1c
 # and hal_fill_brick_block_tag_vtable already fills. Its SpawnInfo record, pinned
 # to 0x1c so the +4 id halfword reads 323.
 GreenShellBlockTag_SpawnInfo:0x1c
+# gate 175: the flames. Both factory records, pinned 0x1c (the record stride)
+# so the +4 id halfwords the registry cross-checks read 316 / 317. The vtable
+# _ZTV9BlueFlame stays OUT, a host array (hal/actor_classes_flame.cpp).
+RedFlame_SpawnInfo:0x1c BlueFlame_SpawnInfo:0x1c

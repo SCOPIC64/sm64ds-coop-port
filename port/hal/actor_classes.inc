@@ -509,6 +509,17 @@ void hal_fill_up_down_lift_hmc_vtable(void);
 extern unsigned char MontyMole_SpawnInfo[];         /* ov080 0x02127fec, +4 reads 310 */
 void *MontyMole_Spawn(void);                        /* ov080 0x021249e0 (matched src) */
 void hal_fill_monty_mole_vtable(void);
+/* ---- gate 175: BLUE_FLAME (317) + RED_FLAME (316), the cave's flames ----
+   One class (daObjFire_c, ov002), two matched factories installing
+   _ZTV9BlueFlame; RED_FLAME's row is fill=0 (the GreenShellBlockTag shape).
+   Level 13 names RED_FLAME x17. The fill and the Player::Burn face are
+   hal/actor_classes_flame.cpp; the closure slice_gate175.txt; no state
+   table, no seat. */
+extern unsigned char BlueFlame_SpawnInfo[];         /* ov002 0x02108f14, +4 reads 317 */
+void *BlueFlame_Spawn(void);                        /* ov002 0x020b59a8 (matched src) */
+void hal_fill_blue_flame_vtable(void);
+extern unsigned char RedFlame_SpawnInfo[];          /* ov002 0x02108ef8, +4 reads 316 */
+void *RedFlame_Spawn(void);                         /* ov002 0x020b59e0 (matched src) */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -728,4 +739,9 @@ void hal_fill_monty_mole_vtable(void);
      hal_fill_up_down_lift_hmc_vtable}, \
     /* ---- gate 174: MONTY_MOLE (310), ov080's enemy cast ---- */ \
     {310, "MONTY_MOLE", MontyMole_SpawnInfo, MontyMole_Spawn, \
-     hal_fill_monty_mole_vtable},
+     hal_fill_monty_mole_vtable}, \
+    /* ---- gate 175: the flames (ov002) -- BLUE_FLAME carries the fill, \
+       RED_FLAME reuses it, the GreenShellBlockTag shape ---- */ \
+    {317, "BLUE_FLAME", BlueFlame_SpawnInfo, BlueFlame_Spawn, \
+     hal_fill_blue_flame_vtable}, \
+    {316, "RED_FLAME", RedFlame_SpawnInfo, RedFlame_Spawn, 0},
