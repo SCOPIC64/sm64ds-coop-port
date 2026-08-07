@@ -269,6 +269,24 @@ void port_ov020_patch(void);
 void *port_ov020_at(unsigned ds);
 extern unsigned char port_ov020_image[];
 extern const unsigned port_ov020_ds_base, port_ov020_ds_end;
+
+/* ov023 = level 15, Lethal Lava Land (data/stage/fire_mt), course 6 -- a
+   sublevel of the fire main course (level 14, same course 6, is ov022, the main
+   stage). Read from the ROM, all three facts measured out of extracted/
+   arm9_dec.bin at base 0x02004000 and cross-checked against all twelve
+   known-good levels first: data_020758c8[15] = 23 (level+8, a read not an
+   assumption), LVL_Overlay data_02092208[15] = 0x02111b88, and the four OV0
+   handles at LVL_Overlay+8 (bmd 0x0748 / kcl 0x0745 / icg 0x0749 / icl 0x074a)
+   resolve DIRECTLY through build/assets/handles.tsv -- delta 0, the ov0 handle
+   is the tsv handle -- to fire_mt's all.bmd/kcl/icg/icl. Read the handles from
+   extracted/overlays/overlay_0023.bin (what ovdata reads), NOT the stale dsd
+   export whose handle halfwords drift by a constant. SUBLEVEL_LEVEL_TABLE[15]
+   (0x02075298) is 0x06 = course 6, subCount 1, a 38002-byte KCL. Mounted
+   --whole like the rest; own_sinits stays 0. */
+void port_ov023_patch(void);
+void *port_ov023_at(unsigned ds);
+extern unsigned char port_ov023_image[];
+extern const unsigned port_ov023_ds_base, port_ov023_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -369,6 +387,9 @@ static const PortLevelDesc port_level_table[] = {
     {12, "Big Boo's Haunt (teresa_house, course 4)", "ov020", 0x021138fc,
      port_ov020_patch, port_ov020_at,
      &port_ov020_ds_base, &port_ov020_ds_end, 0},
+    {15, "Lethal Lava Land (fire_mt, course 6)", "ov023", 0x02111b88,
+     port_ov023_patch, port_ov023_at,
+     &port_ov023_ds_base, &port_ov023_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -523,6 +544,11 @@ static void *port_mount_row_8(void) { return port_level_mount_at(8); }
 static void *port_mount_row_9(void) { return port_level_mount_at(9); }
 static void *port_mount_row_10(void) { return port_level_mount_at(10); }
 static void *port_mount_row_11(void) { return port_level_mount_at(11); }
+/* Level 15's thunk. Named by level rather than by row index (the row it lands on
+   is index 12 today) so this addition stays append-only and self-contained
+   against a sibling level stream adding another row against the same base; a
+   reviewer renumbers it to port_mount_row_12 at merge. */
+static void *port_mount_row_lvl15(void) { return port_level_mount_at(12); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
@@ -533,6 +559,7 @@ static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_9,
     port_mount_row_10,
     port_mount_row_11,
+    port_mount_row_lvl15,
 };
 
 // ---- the loader dispatch table ---------------------------------------------
