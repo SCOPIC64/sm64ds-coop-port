@@ -1318,3 +1318,17 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    function whose address it stores through func_020393d4. Land it on the same
    MSVC method as the int form above. */
 #pragma comment(linker, "/alternatename:?_ZN16MeshColliderBase16UpdatePosAndAngsERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_@@3PAXA=?UpdatePosAndAngs@MeshColliderBase@@SAXAAU1@PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z")
+/* gate 74: SlidingPlatformWf::InitResources threads its collider through
+   MeshColliderBase::UpdatePosWithTransform, the third of the three update
+   statics; the src spells the C name and the .cpp defines the MSVC method
+   (slice_gate59), the same shape as UpdatePosAndAngs above. */
+#pragma comment(linker, "/alternatename:__ZN16MeshColliderBase22UpdatePosWithTransformERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_=?UpdatePosWithTransform@MeshColliderBase@@SAXAAU1@PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z")
+/* gate 74: SlidingPlatformWf::InitResources declares five of its ov091
+   construction-data tables with C++ types (SFP*, char*, u16*), so MSVC mangles
+   the references to names the ov091 per-symbol mount does not carry. Each lands
+   on the same C object the mount publishes -- the ov015 platform-data case. */
+#pragma comment(linker, "/alternatename:?data_ov091_02135024@@3PAUSFP@@A=_data_ov091_02135024")
+#pragma comment(linker, "/alternatename:?data_ov091_02135028@@3PADA=_data_ov091_02135028")
+#pragma comment(linker, "/alternatename:?data_ov091_0213502c@@3PADA=_data_ov091_0213502c")
+#pragma comment(linker, "/alternatename:?data_ov091_02134514@@3PAGA=_data_ov091_02134514")
+#pragma comment(linker, "/alternatename:?data_ov091_02134504@@3PAGA=_data_ov091_02134504")

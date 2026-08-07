@@ -247,3 +247,68 @@ int _ZN6Thwomp8BehaviorEv(void *self)
 int _ZN6Thwomp6RenderEv(void *self)
 { return ((Thwomp *)self)->Thwomp::Render(); }
 }
+
+// ============================================================================
+// SLIDING_PLATFORM_WF (actor 55, ov091) -- _ZTV17SlidingPlatformWf (0x02135080)
+// ============================================================================
+//
+// SlidingPlatformWf_Spawn (ov091 0x021327e8) installs 0x02135080 cleanly and its
+// own +4 halfword reads 55. A THIRTY-TWO slot Platform table whose slot 31 is
+// Platform::Kill (ov002 0x020ee55c). An 816-byte object with a Model at +0xd4
+// and a MovingMeshCollider at +0x124; Whomp's Fortress names three of these.
+//
+// It overrides nothing past slot 17: the whole class is the six lifecycle slots
+// and Kill. Init/Clean/Behavior/Render/D1/D0 are all matched src -- Init/Clean/
+// Behavior/Render real C++ methods, the two destructors plain C -- and its
+// Render dispatches Model slot 5 through a `void m(int)` shadow, which
+// _ZTV5Model is dual-filled for, so it serves from src unchanged.
+#include "SlidingPlatformWf.h"
+extern "C" {
+int _ZN17SlidingPlatformWf13InitResourcesEv(void *self);    /* face: below */
+int _ZN17SlidingPlatformWf16CleanupResourcesEv(void *self); /* face: below */
+int _ZN17SlidingPlatformWf8BehaviorEv(void *self);          /* face: below */
+int _ZN17SlidingPlatformWf6RenderEv(void *self);            /* face: below */
+int *_ZN17SlidingPlatformWfD1Ev(int *self);                 /* .c, C linkage */
+int *_ZN17SlidingPlatformWfD0Ev(int *self);                 /* .c, C linkage */
+void *_ZTV17SlidingPlatformWf[32];
+}
+static int __fastcall swf_init(void *s, void *)
+{ return _ZN17SlidingPlatformWf13InitResourcesEv(s); }
+static int __fastcall swf_clean(void *s, void *)
+{ return _ZN17SlidingPlatformWf16CleanupResourcesEv(s); }
+static int __fastcall swf_behavior(void *s, void *)
+{ return _ZN17SlidingPlatformWf8BehaviorEv(s); }
+static int __fastcall swf_render(void *s, void *)
+{ port_actor_render_probe("SLIDING_PLATFORM_WF", (char *)s + 0xd4);
+  return _ZN17SlidingPlatformWf6RenderEv(s); }
+static int __fastcall swf_d1(void *s, void *)
+{ return (int)(size_t)_ZN17SlidingPlatformWfD1Ev((int *)s); }
+static int __fastcall swf_d0(void *s, void *)
+{ return (int)(size_t)_ZN17SlidingPlatformWfD0Ev((int *)s); }
+static int __fastcall swf_kill(void *s, void *)
+{ _ZN8Platform4KillEv(s); return 0; }
+
+extern "C" void hal_fill_sliding_platform_wf_vtable(void)
+{
+    void **vt = _ZTV17SlidingPlatformWf;
+    hal_fill_platform_vtable();
+    l7_fill_shared(vt);
+    vt[0] = (void *)swf_init;
+    vt[3] = (void *)swf_clean;
+    vt[6] = (void *)swf_behavior;
+    vt[9] = (void *)swf_render;
+    vt[16] = (void *)swf_d1;
+    vt[17] = (void *)swf_d0;
+    vt[31] = (void *)swf_kill;
+}
+
+extern "C" {
+int _ZN17SlidingPlatformWf13InitResourcesEv(void *self)
+{ return ((SlidingPlatformWf *)self)->SlidingPlatformWf::InitResources(); }
+int _ZN17SlidingPlatformWf16CleanupResourcesEv(void *self)
+{ return ((SlidingPlatformWf *)self)->SlidingPlatformWf::CleanupResources(); }
+int _ZN17SlidingPlatformWf8BehaviorEv(void *self)
+{ return ((SlidingPlatformWf *)self)->SlidingPlatformWf::Behavior(); }
+int _ZN17SlidingPlatformWf6RenderEv(void *self)
+{ return ((SlidingPlatformWf *)self)->SlidingPlatformWf::Render(); }
+}

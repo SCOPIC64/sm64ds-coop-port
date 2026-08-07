@@ -310,6 +310,10 @@ void hal_fill_rotating_platform_wf_vtable(void);
 extern unsigned char Thwomp_SpawnInfo[];          /* ov091 0x02135150, id 161 */
 void *port_factory_thwomp(void);
 void hal_fill_thwomp_vtable(void);
+/* gate 74: SLIDING_PLATFORM_WF (55). Clean vtable install, no wrapper. */
+extern unsigned char SlidingPlatformWf_SpawnInfo[]; /* ov091 0x02135008, id 55 */
+void *SlidingPlatformWf_Spawn(void);
+void hal_fill_sliding_platform_wf_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -435,4 +439,7 @@ void hal_fill_thwomp_vtable(void);
     /* ---- gates 70-74: Whomp's Fortress' level-7 cast (append-only) ---- */   \
     /* gate 72: THWOMP (161), ov091 */                                         \
     {161, "THWOMP", Thwomp_SpawnInfo, port_factory_thwomp,                     \
-     hal_fill_thwomp_vtable},
+     hal_fill_thwomp_vtable},                                                  \
+    /* gate 74: SLIDING_PLATFORM_WF (55), ov091 */                             \
+    {55, "SLIDING_PLATFORM_WF", SlidingPlatformWf_SpawnInfo,                   \
+     SlidingPlatformWf_Spawn, hal_fill_sliding_platform_wf_vtable},
