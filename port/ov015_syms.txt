@@ -1,0 +1,76 @@
+# The ov015 data the Whomp's Fortress mechanical platforms name.
+#
+# ov015 is level 7's own overlay, already mounted WHOLE in PORT_LEVEL_OVERLAYS
+# (its LVL_Overlay object tables are walked across symbol boundaries by count).
+# This is the SECOND mount, per symbol, the gate-17 treatment ov009/ov014/ov010
+# already get: the eight platform classes reach their SpawnInfo records and the
+# tuning/construction-data statics BY NAME, and --pack keeps the runs that are
+# really one array contiguous against the ROM's own spacing. The two mounts are
+# disjoint pointer graphs on purpose.
+#
+# THE SEVEN VTABLES ARE LEFT OUT, the ov085/ov010/ov080 rule. Five are named
+# (_ZTV13PoleBillboard, _ZTV14KnockDownPlank, _ZTV14MovingBarSmall,
+# _ZTV9TowerStep, _ZTV11FallBlockWf) and TWO are real actor vtables dsd left as
+# plain data (data_ov015_02114360 -- PoleBillboard's own daObjBkBillboard base
+# table -- and data_ov015_021147e8 -- RotatingPlatformWf's). All seven are HOST
+# arrays the registry fills; mounting one would hand a factory DS code
+# addresses. Identified by the vtable signature (the +4 word relocates to
+# Actor::BeforeInitResources, arm9 0x02011268).
+#
+# dsd's .p__sinit_* pointer entries are dropped -- not C identifiers; the port
+# calls the seven sinits by name.
+#
+# Every *_SpawnInfo is pinned to the record's real 0x1c so the +4 id halfword
+# the registry cross-checks reads out of the right bytes (42/44/45/50/51/52/
+# 53/54).
+data_ov015_02112e0c data_ov015_02112e10 data_ov015_02112e14 data_ov015_02112e30
+data_ov015_02112e5c data_ov015_02112f2c data_ov015_02112f58 data_ov015_02112f7c
+data_ov015_02113440 data_ov015_02113444 data_ov015_02113448 data_ov015_02113450
+data_ov015_02113458 data_ov015_02113464 data_ov015_02113470 data_ov015_02113480
+data_ov015_02113490 data_ov015_021134a0 data_ov015_021134b0 data_ov015_021134c0
+data_ov015_021134d0 data_ov015_021134e0 data_ov015_021134f0 data_ov015_02113500
+data_ov015_02113518 data_ov015_02113534 data_ov015_02113554 data_ov015_02113574
+data_ov015_02113594 data_ov015_021135b4 data_ov015_021135d4 data_ov015_021135f4
+data_ov015_02113614 data_ov015_02113634 data_ov015_02113654 data_ov015_02113674
+data_ov015_02113694 data_ov015_021136b4 data_ov015_021136d4 data_ov015_021136f4
+data_ov015_02113714 data_ov015_0211373c data_ov015_02113744 data_ov015_02113774
+data_ov015_021137a4 data_ov015_021137d4 data_ov015_021137e4 data_ov015_021137f8
+data_ov015_02113800 data_ov015_02113804 data_ov015_02113820 data_ov015_0211382c
+data_ov015_02113844 data_ov015_02113884 data_ov015_021138a8 data_ov015_021138bc
+data_ov015_021138c4 data_ov015_021138d8 data_ov015_021138e8 data_ov015_021138f0
+data_ov015_021138fc data_ov015_02113934 data_ov015_02113968 data_ov015_02113980
+data_ov015_02113998 data_ov015_021139b0 data_ov015_021139f4 data_ov015_02113a00
+data_ov015_02113a50 data_ov015_02113a74 data_ov015_02113aa0 data_ov015_02113aa8
+data_ov015_02113abc data_ov015_02113b10 data_ov015_02113b2c data_ov015_02113b50
+data_ov015_02113b7c data_ov015_02113b80 data_ov015_02113b90 data_ov015_02113c08
+data_ov015_02113c14 data_ov015_02113c20 data_ov015_02113c28 data_ov015_02113c48
+data_ov015_02113ccc data_ov015_02113cd4 data_ov015_02113cec data_ov015_02113cf4
+data_ov015_02113d30 data_ov015_02113d58 data_ov015_02113d90 data_ov015_02113da8
+data_ov015_02113dc4 data_ov015_02113e00 data_ov015_02113e50 data_ov015_02113e6c
+data_ov015_02113e88 data_ov015_02113f20 data_ov015_02113f4c data_ov015_02113f78
+data_ov015_02113ff4 data_ov015_02114010 data_ov015_021140b8 data_ov015_021140ec
+data_ov015_021140f8 data_ov015_02114108 data_ov015_0211417c data_ov015_021141cc
+data_ov015_021142a0 data_ov015_02114318 data_ov015_02114324 PoleBillboard_SpawnInfo:0x1c
+data_ov015_02114380 data_ov015_021143dc data_ov015_021143e8 KnockDownPlank_SpawnInfo:0x1c
+data_ov015_02114458 data_ov015_02114498 data_ov015_021144a0 data_ov015_021144a8
+data_ov015_021144b0 data_ov015_021144b8 data_ov015_021144c0 data_ov015_021144c8
+data_ov015_021144d0 data_ov015_021144d8 data_ov015_021144e0 data_ov015_021144e8
+data_ov015_021144f0 data_ov015_021144f8 data_ov015_02114500 data_ov015_02114508
+data_ov015_02114510 data_ov015_0211451c data_ov015_02114534 data_ov015_02114538
+data_ov015_0211453c MovingBarSmall_SpawnInfo:0x1c MovingBarBig_SpawnInfo:0x1c data_ov015_02114598
+data_ov015_021145e4 data_ov015_0211460c data_ov015_02114618 TowerStep_SpawnInfo:0x1c
+data_ov015_021146d0 data_ov015_021146dc RotatingBridge_SpawnInfo:0x1c data_ov015_02114750
+data_ov015_02114768 data_ov015_02114794 data_ov015_02114798 data_ov015_021147a4
+data_ov015_021147b0 RotatingPlatformWf_SpawnInfo:0x1c data_ov015_02114824 data_ov015_02114860
+data_ov015_02114868 data_ov015_02114874 data_ov015_0211487c data_ov015_02114880
+data_ov015_0211488c data_ov015_02114898 data_ov015_021148a0 data_ov015_021148b4
+FallBlockWf_SpawnInfo:0x1c data_ov015_021148e0 data_ov015_021148f0 data_ov015_02114960
+data_ov015_02114968 data_ov015_02114974 data_ov015_0211497c data_ov015_02114984
+data_ov015_02114990 data_ov015_0211499c data_ov015_021149a4 data_ov015_021149ac
+data_ov015_021149b4 data_ov015_021149bc data_ov015_021149c8 data_ov015_021149d4
+data_ov015_021149e0 data_ov015_021149ec data_ov015_021149f0 data_ov015_021149fc
+data_ov015_02114a18 data_ov015_02114a24 data_ov015_02114a5c data_ov015_02114a64
+data_ov015_02114a6c data_ov015_02114a78 data_ov015_02114a84 data_ov015_02114a8c
+data_ov015_02114a94 data_ov015_02114aa0 data_ov015_02114aac data_ov015_02114ab4
+data_ov015_02114abc data_ov015_02114ac8 data_ov015_02114ad4 data_ov015_02114adc
+data_ov015_02114ae4 data_ov015_02114af0

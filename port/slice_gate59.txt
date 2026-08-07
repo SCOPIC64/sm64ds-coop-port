@@ -1,0 +1,88 @@
+# Gate 59: ov015, level 7's own overlay (Whomp's Fortress mechanical
+# platforms), mounted per symbol so the eight platform classes reach their
+# SpawnInfo records and construction-data statics by name.
+#
+# THE OVERLAY'S SEVEN STATIC INITIALISERS. Each constructs the SharedFilePtr
+# objects a platform's InitResources loads its model/collider through and fills
+# the small per-class tuning tables. They run from hal/actor_overlays.cpp in
+# port_actor_overlays_sinits, after the mount and before the first spawn, the
+# same place ov010's three run. No state seat: none of these classes dispatches
+# a pointer-to-member.
+src/__sinit_ov015_02112f9c.c
+src/__sinit_ov015_02112fdc.c
+src/__sinit_ov015_02113048.c
+src/__sinit_ov015_02113264.c
+src/__sinit_ov015_021132d0.c
+src/__sinit_ov015_021133a8.c
+src/__sinit_ov015_0211333c.c
+
+# Gate 60: TOWER_STEP (id 52). Its factory installs vtable 0x02114650, so an
+# id-52 object runs the _ZN14MovingBarSmall* lifecycle. Factory + the five
+# lifecycle methods its vtable's own slots point at.
+src/TowerStep_Spawn.c
+src/_ZN14MovingBarSmall13InitResourcesEv.cpp
+src/_ZN14MovingBarSmall16CleanupResourcesEv.cpp
+src/_ZN14MovingBarSmall8BehaviorEv.c
+src/_ZN14MovingBarSmall6RenderEv.cpp
+src/_ZN14MovingBarSmallD1Ev.c
+
+# Gate 61: ROTATING_BRIDGE (id 51). Its factory installs vtable 0x02114714, so
+# an id-51 object runs the _ZN9TowerStep* lifecycle. Factory + the five
+# lifecycle methods.
+src/RotatingBridge_Spawn.c
+src/_ZN9TowerStep13InitResourcesEv.cpp
+src/_ZN9TowerStep16CleanupResourcesEv.cpp
+src/_ZN9TowerStep8BehaviorEv.cpp
+src/_ZN9TowerStep6RenderEv.cpp
+src/_ZN9TowerStepD1Ev.c
+
+# Gate 62: POLE_BILLBOARD (id 42) installs the billboard base vtable 0x02114360
+# (its own slots are the func_ov015_0211* family, slot 6 the ActorBase no-op),
+# and KNOCK_DOWN_PLANK (id 44) installs 0x02114420 and runs the
+# _ZN13PoleBillboard* lifecycle.
+src/PoleBillboard_Spawn.c
+src/func_ov015_021112a0.cpp
+src/func_ov015_02111254.c
+src/func_ov015_02111278.cpp
+src/func_ov015_021111a0.c
+src/func_ov015_021111d0.c
+src/KnockDownPlank_Spawn.c
+src/_ZN13PoleBillboard13InitResourcesEv.c
+src/_ZN13PoleBillboard16CleanupResourcesEv.cpp
+src/_ZN13PoleBillboard8BehaviorEv.cpp
+src/_ZN13PoleBillboard6RenderEv.cpp
+src/_ZN13PoleBillboardD1Ev.c
+
+# Gate 63: ROTATING_PLATFORM_WF (id 50) installs the unnamed table
+# 0x021147e8 and runs the plain-C func_ov015_02112c* lifecycle; its Behavior and
+# Render are ov002's shared Platform bodies, already in the build, no PMF.
+src/RotatingPlatformWf_Spawn.c
+src/func_ov015_02112c98.c
+src/func_ov015_02112c84.c
+src/func_ov015_02112bd0.c
+src/func_ov015_02112c20.c
+# its ov002 shared Platform Behavior/Render/helpers (the floating-platform base)
+src/func_ov002_020b66f0.cpp
+src/func_ov002_020b6718.cpp
+src/func_ov002_020b676c.cpp
+src/func_ov002_020b66a8.c
+
+# MOVING_BAR_BIG (53) and MOVING_BAR_SMALL (54) are BLOCKED on the
+# KnockDownPlank::Behavior pointer-to-member seat (data_ov015_021149ec); see the
+# gate-63 note in hal/actor_classes_wf.cpp.
+
+# Helper closure the two platforms' InitResources/Behavior reach: two ov015
+# helpers and the two MeshColliderBase update paths their MovingMeshCollider
+# threads through (both matched src, not yet in any slice).
+src/func_ov015_021123c8.cpp
+src/func_ov015_021128f8.c
+src/func_ov015_021128e8.c
+src/func_ov015_02111214.c
+src/func_ov015_021114f0.c
+src/func_ov015_0211166c.c
+src/_ZN9ActorBase8BehaviorEv.cpp
+src/_ZN16MeshColliderBase16UpdatePosAndAngsERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp
+src/_ZN16MeshColliderBase21UpdatePosWithVelocityERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp
+src/_ZN16MeshColliderBase22UpdatePosWithTransformERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp
+src/_ZN16MeshColliderBase25UpdateAngsWithAngularVelYERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp
+src/func_020393d4.c

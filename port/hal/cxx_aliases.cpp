@@ -1288,3 +1288,28 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 /* func_ov100_02145988 spells data_ov100_02148974 as a plain char, a third
    mangling of the callback table the InitResources block spells as int*. */
 #pragma comment(linker, "/alternatename:?data_ov100_02148974@@3DA=_data_ov100_02148974")
+
+/* ---- gate 60-61: ov015 platform data references (Whomp's Fortress) ---------
+   MovingBarSmall::InitResources declares three of its ov015 tuning words with
+   plain `extern void*` (C++ linkage: ?..@@3PAXA), so MSVC mangles them to
+   names the ov015 per-symbol mount does not carry. Each lands on the same C
+   object the mount publishes. */
+#pragma comment(linker, "/alternatename:?data_ov015_02114a64@@3PAXA=_data_ov015_02114a64")
+#pragma comment(linker, "/alternatename:?data_ov015_02114a5c@@3PAXA=_data_ov015_02114a5c")
+#pragma comment(linker, "/alternatename:?data_ov015_02113594@@3PAXA=_data_ov015_02113594")
+/* The two platforms' InitResources thread their MovingMeshCollider through
+   MeshColliderBase's two update statics, which src spells at C linkage
+   (_ZN16MeshColliderBase..) but the .cpp defines as real C++ methods (MSVC
+   ?..@@SAX..). Alias the C name onto the method the caller means -- the same
+   shape as the STAR_DOOR method aliases above. */
+#pragma comment(linker, "/alternatename:__ZN16MeshColliderBase16UpdatePosAndAngsERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_=?UpdatePosAndAngs@MeshColliderBase@@SAXAAU1@PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z")
+#pragma comment(linker, "/alternatename:__ZN16MeshColliderBase21UpdatePosWithVelocityERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_=?UpdatePosWithVelocity@MeshColliderBase@@SAXAAU1@PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z")
+/* gate 63: func_ov015_02112c84 (RotatingPlatformWf's CleanupResources) calls
+   func_ov002_020b66a8 by a name the decompiler emitted without the ov002_
+   prefix; the real symbol is the ov002 one, in the slice above. */
+#pragma comment(linker, "/alternatename:_func_020b66a8=_func_ov002_020b66a8")
+/* func_ov002_020b676c (RotatingPlatformWf's shared Behavior) spells
+   MeshColliderBase::UpdatePosAndAngs as an `extern int` -- a DATA mangling
+   (?..@@3HA) of the same function the MovingBar path spells as a call. Land it
+   on the same MSVC method. */
+#pragma comment(linker, "/alternatename:?_ZN16MeshColliderBase16UpdatePosAndAngsERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_@@3HA=?UpdatePosAndAngs@MeshColliderBase@@SAXAAU1@PAUActor@@AAUClsnResult@@AAUVector3@@PAUVector3_16@@4@Z")

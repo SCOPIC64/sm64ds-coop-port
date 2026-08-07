@@ -118,6 +118,26 @@ void __sinit_ov010_0211203c(void);
 void __sinit_ov010_0211211c(void);
 void __sinit_ov010_0211215c(void);
 
+/* ---- gate 59: ov015, level 7's own overlay, per symbol -------------------
+   The eight Whomp's Fortress platform classes (POLE_BILLBOARD, KNOCK_DOWN_
+   PLANK, FALL_BLOCK_WF, ROTATING_PLATFORM_WF, ROTATING_BRIDGE, TOWER_STEP,
+   MOVING_BAR_BIG, MOVING_BAR_SMALL). Already mounted whole for the level
+   boot; this is the second, per-symbol mount so the actor code reaches its
+   SpawnInfo records and construction-data statics by name -- the gate-17
+   shape of ov010. Seven sinits, all SharedFilePtr construction plus the small
+   per-class tuning tables the platform InitResources load through. No state
+   seat: none of these classes dispatches a pointer-to-member (each dispatches
+   an ordinary virtual through its own vtable, which the registry fills). */
+void port_ov015_pack_check(void);
+void port_ov015_syms_patch(void);
+void __sinit_ov015_02112f9c(void);
+void __sinit_ov015_02112fdc(void);
+void __sinit_ov015_02113048(void);
+void __sinit_ov015_02113264(void);
+void __sinit_ov015_021132d0(void);
+void __sinit_ov015_0211333c(void);
+void __sinit_ov015_021133a8(void);
+
 /* ---- gate 50: ov080, the castle interior's PAINTING (daPicGate_c, 307) -----
    An ordinary actor overlay -- MontyMole, MontyMoleRock, CrazedCrate and the
    PAINTING, of which level 2 names only the last -- mounted per symbol
@@ -745,6 +765,18 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov010_0211203c();
     __sinit_ov010_0211211c();
     __sinit_ov010_0211215c();
+
+    /* gate 59: level 7's own overlay, per symbol. No state seat -- every
+       platform dispatches an ordinary virtual through its own vtable. */
+    port_ov015_pack_check();
+    port_ov015_syms_patch();
+    __sinit_ov015_02112f9c();
+    __sinit_ov015_02112fdc();
+    __sinit_ov015_02113048();
+    __sinit_ov015_02113264();
+    __sinit_ov015_021132d0();
+    __sinit_ov015_0211333c();
+    __sinit_ov015_021133a8();
 
     /* gate 50: ov080, the PAINTING. Seat the twelve state statics over their
        host bodies BEFORE __sinit_ov080_02127b2c copies them into the BSS
