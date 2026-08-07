@@ -738,6 +738,18 @@ static void port_painting_states_seat(void)
     }
 }
 
+/* ---- gate 83: ov095, Bob-omb Battlefield's SEESAW BRIDGE ------------------
+   A fresh per-symbol actor-overlay mount for SEESAW_BOB (39). No state seat --
+   SeesawBob is a plain Platform subclass with no pointer-to-member table. The
+   two sinits construct the SharedFilePtrs the class's three file-pointer tables
+   (data_ov095_021374a0/a4/a8) index; both their targets are in the mount. */
+extern "C" {
+void port_ov095_pack_check(void);
+void port_ov095_syms_patch(void);
+void __sinit_ov095_02136fe0(void);
+void __sinit_ov095_0213722c(void);
+}
+
 extern "C" void port_actor_overlays_sinits(void)
 {
     static int done;
@@ -875,4 +887,10 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov091_02134930();
     __sinit_ov091_021349c4();
     __sinit_ov091_02134a30();
+
+    /* gate 83: ov095, the seesaw bridge. No state seat. */
+    port_ov095_pack_check();
+    port_ov095_syms_patch();
+    __sinit_ov095_02136fe0();
+    __sinit_ov095_0213722c();
 }

@@ -1,0 +1,46 @@
+# Gate 83: SEESAW_BOB (actor 39, ov095) -- Bob-omb Battlefield's seesaw bridge.
+#
+# ---- what it is, and how the id was settled --------------------------------
+#
+# Level 6's census printed id 39 skipped, x1. Resolved the ROM's own way:
+# ACTOR_SPAWN_TABLE entry [39] (arm9 0x02090864 + 39*4) relocates to the
+# SpawnInfo at 0x02137484, and the overlay whose symbols name that address is
+# ov095 -- SeesawBob_SpawnInfo, +4 halfword reads 39. ov095 is one of the seven
+# actor overlays level 6 loads (its own base 0x02135700). The overlay data is
+# a FRESH per-symbol mount (port/ov095_syms.txt, added to PORT_ACTOR_OVERLAYS).
+#
+# SeesawBob is a Platform subclass (RTTI daObjSeesaw_c), the same
+# CANNON_HATCH/SHUTTER_BOB shape. Its 32-slot vtable _ZTV9SeesawBob
+# (ov095 0x021374fc) overrides 0/3/6/9/16/17; slot 12 is ActorBase's own
+# OnPendingDestroy. The vtable is a HOST array the registry fills (the
+# ov085/ov080 rule), NOT mounted from ov095.
+#
+# ---- the closure -----------------------------------------------------------
+#
+# The six own methods plus five ov095 helpers they reach: 0213597c the model
+# matrix build, 021358cc the seesaw-tilt approach, 02135e90 -> 02135cdc ->
+# 0213579c the rider-angle math. Every deeper callee (Platform base,
+# MeshColliderBase, Model/MeshCollider loaders, Sound, Vec3/Matrix helpers) is
+# already in the link from the Platform-subclass gates. The SharedFilePtr file
+# tables (data_ov095_021374a0/a4/a8) are seated by the two ov095 sinits, run
+# from hal/actor_overlays.cpp. The HAL seam is hal/actor_classes_bob_world.cpp
+# (the SeesawBob section) and its vtable fill.
+#
+# SeesawBob_Spawn is the matched src: it installs _ZTV9SeesawBob (the class
+# name, not the RTTI name) with a SINGLE store, so it needs no host copy -- the
+# double-vtable-store misorder that forced ShutterBob's host copy is absent here.
+src/SeesawBob_Spawn.c
+src/_ZN9SeesawBob13InitResourcesEv.cpp
+src/_ZN9SeesawBob16CleanupResourcesEv.cpp
+src/_ZN9SeesawBob8BehaviorEv.cpp
+src/_ZN9SeesawBob6RenderEv.cpp
+src/_ZN9SeesawBobD1Ev.c
+src/_ZN9SeesawBobD0Ev.c
+src/func_ov095_021358cc.c
+src/func_ov095_0213597c.c
+src/func_ov095_02135e90.c
+src/func_ov095_02135cdc.c
+src/func_ov095_0213579c.c
+src/func_ov095_021357d8.c
+src/__sinit_ov095_02136fe0.c
+src/__sinit_ov095_0213722c.c
