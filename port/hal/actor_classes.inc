@@ -304,6 +304,13 @@ extern unsigned char RotatingPlatformWf_SpawnInfo[]; /* ov015 0x021147c4, id 50 
    onto the host table (hal/actor_classes_wf.cpp). */
 void *port_factory_rotating_platform_wf(void);
 void hal_fill_rotating_platform_wf_vtable(void);
+/* FALL_BLOCK_WF (45), vtable 0x021148dc (_ZTV11FallBlockWf). The inherited
+   ov098-chain blocker was a phantom: the Behavior func_ov098_0213a36c is a plain
+   switch machine whose same-id walk is null-safe. Every slot is matched src; a
+   plain 32-slot fill and a slice reach it. See hal/actor_classes_wf.cpp. */
+extern unsigned char FallBlockWf_SpawnInfo[];     /* ov015 0x021148b8, id 45 */
+void *FallBlockWf_Spawn(void);                    /* ov015 0x02112dd0 */
+void hal_fill_fall_block_wf_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -431,6 +438,9 @@ void hal_fill_rotating_platform_wf_vtable(void);
      hal_fill_moving_bar_vtable},                                              \
     {54, "MOVING_BAR_SMALL", MovingBarSmall_SpawnInfo, MovingBarSmall_Spawn,   \
      hal_fill_moving_bar_vtable},                                              \
+    /* ---- gate 77: FALL_BLOCK_WF (45), Whomp's Fortress (ov015/ov098) ---- */ \
+    {45, "FALL_BLOCK_WF", FallBlockWf_SpawnInfo, FallBlockWf_Spawn,            \
+     hal_fill_fall_block_wf_vtable},                                          \
     /* ---- gate 42: ov010's PEACH_PAINTING (38) ---- */                       \
     {38, "PEACH_PAINTING", PeachPainting_SpawnInfo, PeachPainting_Spawn,       \
      hal_fill_peach_painting_vtable},

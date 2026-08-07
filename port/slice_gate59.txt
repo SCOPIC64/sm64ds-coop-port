@@ -115,3 +115,33 @@ src/_ZN16MeshColliderBase21UpdatePosWithVelocityERS_P5ActorR10ClsnResultR7Vector
 src/_ZN16MeshColliderBase22UpdatePosWithTransformERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp
 src/_ZN16MeshColliderBase25UpdateAngsWithAngularVelYERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp
 src/func_020393d4.c
+
+# Gate 77: FALL_BLOCK_WF (45). Its factory installs 0x021148dc and it runs a
+# lifecycle split across ov015 (Init/Clean/D1/D0, cross-overlay veneers) and
+# ov098 (Behavior/Render/slots 27,31 and their helper closure). The inherited
+# "same-id chain null fault" blocker was a phantom -- the Behavior is a plain
+# switch machine with a null-safe walk, every slot is matched src, no PMF seat.
+src/FallBlockWf_Spawn.c
+src/_ZN11FallBlockWf13InitResourcesEv.c
+src/_ZN11FallBlockWf16CleanupResourcesEv.c
+src/_ZN11FallBlockWfD1Ev.c
+src/_ZN11FallBlockWfD0Ev.c
+# the ov098 (daObjBk base) behavior, render, death slots and their closure
+src/func_ov098_0213a36c.cpp
+src/func_ov098_0213a314.cpp
+src/func_ov098_0213a284.cpp
+src/func_ov098_0213a17c.cpp
+src/func_ov098_0213a00c.cpp
+src/func_ov098_0213a0a8.cpp
+src/func_ov098_0213a0e8.c
+src/func_ov098_0213a148.c
+src/func_ov098_0213a23c.c
+# the ov098 init/cleanup veneers FallBlockWf's ov015 methods tail-call into.
+# func_ov098_0213a794's matched .cpp cannot be compiled verbatim on MSVC (it
+# re-declares itself with a pointer type decl_common.h already declares, a C2733
+# extern-C overload), so its body is a host copy in
+# port/unmatched/FallBlockWf_InitVeneer.cpp; the cleanup veneer's .c compiles as
+# is.
+src/func_ov098_0213a2cc.c
+src/func_ov098_0213a8ec.c
+src/func_ov098_0213a8e0.c

@@ -487,19 +487,78 @@ extern "C" void hal_fill_moving_bar_vtable(void)
 }
 
 // ============================================================================
-// FALL_BLOCK_WF (id 45) -- vtable 0x021148dc (_ZTV11FallBlockWf) -- BLOCKED
+// FALL_BLOCK_WF (id 45) -- vtable 0x021148dc (_ZTV11FallBlockWf)
 // ============================================================================
 //
-// FallBlockWf_Spawn installs 0x021148dc, whose own InitResources/CleanupResources
-// and destructors are matched ov015 src -- but its slot-6 Behavior and slot-9
-// Render are func_ov098_0213a36c and func_ov098_0213a314, the ov098 CANNON's own
-// bodies (the daObjBk base FallBlockWf and the cannon share). func_ov098_0213a36c
-// is exactly the WATER_BOMB blocker walked down at gate 51: it walks a chain of
-// same-id actors through the +0x348 pointer that func_ov098_0213a00c's scan
-// populates from Actor::FindWithActorID, and the port's spawn ordering does not
-// build that same-id chain, so the walk reads a null +0x348 and faults. Every
-// function is matched src -- this is the same spawn-ordering/chain-seat question
-// the WATER_BOMB is deferred on, not undecompiled code -- so FALL_BLOCK_WF is
-// left blocked on the identical blocker rather than duplicating the fault here.
-// Its vtable is excluded from the ov015 mount like the other seven; no host array
-// is declared because the class is not registered.
+// FallBlockWf_Spawn installs 0x021148dc, an 844-byte object. The inherited
+// blocker -- "func_ov098_0213a36c walks a same-id chain through +0x348 and
+// faults on a null" -- is a PHANTOM. func_ov098_0213a36c IS the Behavior, and it
+// is a plain switch state machine with NO pointer-to-member. Its same-id walk is
+// null-safe: `p = *(char **)(p + 0x348); if (p == 0) break;` reads the next
+// pointer and breaks before dereferencing, and func_ov098_0213a00c only ever
+// stores a real Actor* there. Every slot is matched src, so there is no
+// undecompiled code and no PMF seat: a plain vtable fill and a slice reach it.
+//
+// The 32-slot table (this one has a real slot 31, the KillOrWhatever poof-dust
+// death effect Behavior case 2 and slot 27 both dispatch) overrides slots
+// 0/3/6/9/16/17/27/31 over the arm9 Platform tail the shared fill installs:
+//   slot 0  _ZN11FallBlockWf13InitResourcesEv   (ov015 .c, cross-overlay veneer)
+//   slot 3  _ZN11FallBlockWf16CleanupResourcesEv (ov015 .c veneer)
+//   slot 6  func_ov098_0213a36c                  (Behavior, the switch machine)
+//   slot 9  func_ov098_0213a314                  (Render)
+//   slot 16 _ZN11FallBlockWfD1Ev                 (ov015 .c)
+//   slot 17 _ZN11FallBlockWfD0Ev                 (ov015 .c, the deleting dtor --
+//           NOT a trap here, so it overrides wf_fill_shared's slot-17 trap)
+//   slot 27 func_ov098_0213a284                  (arms the death via slot 31)
+//   slot 31 func_ov098_0213a17c                  (KillOrWhatever)
+// The vtable answers to _ZTV11FallBlockWf; D1/D0 restore _ZTV10dBgActor_c and the
+// ov006 base data_ov006_0213c5bc mid-teardown (harmless host writes to a dying
+// object), so no extra RTTI alias is needed.
+extern "C" {
+int _ZN11FallBlockWf13InitResourcesEv(void *self);        /* .c, C linkage */
+int _ZN11FallBlockWf16CleanupResourcesEv(void *self);     /* .c, C linkage */
+int func_ov098_0213a36c(char *self);                      /* Behavior */
+int func_ov098_0213a314(char *self);                      /* Render */
+int *_ZN11FallBlockWfD1Ev(int *self);                     /* .c, C linkage */
+int *_ZN11FallBlockWfD0Ev(int *self);                     /* .c, C linkage */
+void func_ov098_0213a284(char *self);                     /* slot 27 */
+void func_ov098_0213a17c(char *self);                     /* slot 31 */
+void *_ZTV11FallBlockWf[32];
+}
+/* FallBlockWf's ov015 Init/CleanupResources are cross-overlay veneers that
+   tail-call the ov098 bodies by their UNPREFIXED spelling (func_0213a794 /
+   func_0213a2cc); alias those onto the real ov098 symbols. */
+#pragma comment(linker, "/alternatename:_func_0213a794=_func_ov098_0213a794")
+#pragma comment(linker, "/alternatename:_func_0213a2cc=_func_ov098_0213a2cc")
+static int __fastcall fb_init(void *s, void *)
+{ return _ZN11FallBlockWf13InitResourcesEv(s); }
+static int __fastcall fb_clean(void *s, void *)
+{ return _ZN11FallBlockWf16CleanupResourcesEv(s); }
+static int __fastcall fb_behavior(void *s, void *)
+{ return func_ov098_0213a36c((char *)s); }
+static int __fastcall fb_render(void *s, void *)
+{
+    port_actor_render_probe("FALL_BLOCK_WF", (char *)s + 0xd4);
+    return func_ov098_0213a314((char *)s);
+}
+static int __fastcall fb_d1(void *s, void *)
+{ return (int)(size_t)_ZN11FallBlockWfD1Ev((int *)s); }
+static int __fastcall fb_d0(void *s, void *)
+{ return (int)(size_t)_ZN11FallBlockWfD0Ev((int *)s); }
+static int __fastcall fb_slot27(void *s, void *)
+{ func_ov098_0213a284((char *)s); return 0; }
+static int __fastcall fb_slot31(void *s, void *)
+{ func_ov098_0213a17c((char *)s); return 0; }
+extern "C" void hal_fill_fall_block_wf_vtable(void)
+{
+    void **vt = _ZTV11FallBlockWf;
+    wf_fill_shared(vt);
+    vt[0] = (void *)fb_init;
+    vt[3] = (void *)fb_clean;
+    vt[6] = (void *)fb_behavior;
+    vt[9] = (void *)fb_render;
+    vt[16] = (void *)fb_d1;
+    vt[17] = (void *)fb_d0;    /* the ov098 base has a real deleting dtor here */
+    vt[27] = (void *)fb_slot27;
+    vt[31] = (void *)fb_slot31;
+}
