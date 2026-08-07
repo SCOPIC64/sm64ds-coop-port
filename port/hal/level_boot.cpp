@@ -282,7 +282,54 @@ extern const unsigned port_ov020_ds_base, port_ov020_ds_end;
    extracted/overlays/overlay_0023.bin (what ovdata reads), NOT the stale dsd
    export whose handle halfwords drift by a constant. SUBLEVEL_LEVEL_TABLE[15]
    (0x02075298) is 0x06 = course 6, subCount 1, a 38002-byte KCL. Mounted
-   --whole like the rest; own_sinits stays 0. */
+   --whole like the rest; own_sinits stays 0.
+
+   ITS SKIPPED CAST, and why every class stays skipped for now. Level 15's
+   census names six unregistered classes; each id resolves through
+   ACTOR_SPAWN_TABLE (arm9 0x02090864 + id*4) to a SpawnInfo, and none is a free
+   share of an already-hosted vtable (unlike ExclamationBlock at gate 128). Three
+   are BLOCKED on undecompiled DS code, three on a fresh overlay gate:
+
+     - BLOCKED on undecompiled DS code (a hosted vtable would call into overlay
+       image bytes as code, which the port cannot do faithfully):
+         SQUASHER (84, x1, ov023-resident). Seven of its methods are matched src,
+         but Behavior calls func_ov023_02111308 and func_ov023_0211124c and
+         InitResources calls func_ov026_02111308 -- all undecompiled overlay
+         bodies -- and its InitResources also reaches ov064's CLPS
+         (data_ov064_0211ba4c). Its SpawnInfo is Squasher_SpawnInfo (0x02111fc0).
+         POPPING_LAVA_BUBBLES (196, x1, ov002). Its Spawn installs the vtable
+         data_ov002_021093e0, whose slots 0/6/16/17 are undecompiled
+         func_ov002_020b6dd0/d84/d28/d4c. The decompiled _ZN18PoppingLavaBubbles*
+         methods belong to a DIFFERENT vtable, _ZTV18PoppingLavaBubbles, which is
+         WATERFALL_MIST's (id 197, already hosted at gate 20) -- the config names
+         both after the same class but they are two distinct actors, so id 196 is
+         not a free share of id 197.
+         FLAMETHROWER (318, x3, ov095). ov095 is mounted (gate 83) and its vtable
+         _ZTV12Flamethrower (0x021376f0) is already a host array the registry
+         could fill; InitResources, D1 and D0 are matched src, but Behavior (slot
+         6, _ZN12Flamethrower8BehaviorEv, 0x021368f0) is undecompiled. Its
+         SpawnInfo (Flamethrower_SpawnInfo 0x021376cc) is not yet in ov095_syms.
+
+     - BLOCKED on a fresh per-symbol overlay mount (all methods matched, but the
+       owning overlay is not mounted and the class reaches its SpawnInfo, vtable
+       and SharedFilePtr statics by name):
+         LAVA_BUBBLE (214, x2, ov064) and BULLY (215, x2, ov064). ov064 is not
+         mounted at all -- the same overlay level 9's TreasureChest blocker cites.
+         Each is the gate-64 shape: a per-symbol ov064 mount, its sinits, the
+         vtable fill and a row.
+         PATH_LIFT (31, x2, ov100). ov100 IS mounted (Butterfly/Fish at gate 21)
+         and PathLift_SpawnInfo plus its two file-ptr statics
+         (data_ov100_02148a54/5c) are already in ov100_syms.txt. All eighteen
+         vtable slots and the InitResources helper (func_ov100_0214700c) are
+         matched src. What is left is a full gate: host+fill the vtable
+         (data_ov100_0214857c), compile the eight PathLift TUs, and mount two new
+         ov002 symbols the Platform base swap and the collider need -- the CLPS
+         data_ov002_0210d7d4 and the Platform data data_ov002_0210af70 -- whose
+         own transitive closure (func_ov002_020efc74/cf4 -> data_ov002_0210af00,
+         func_ov002_020efe9c) pulls in more of ov002. A multi-part gate, deferred.
+
+   All six are turned away by the pre-spawn gate by name and named in the census,
+   so the boot is honest about what did not spawn. */
 void port_ov023_patch(void);
 void *port_ov023_at(unsigned ds);
 extern unsigned char port_ov023_image[];
