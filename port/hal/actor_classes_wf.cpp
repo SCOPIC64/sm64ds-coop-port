@@ -398,40 +398,93 @@ extern "C" void hal_fill_rotating_platform_wf_vtable(void)
 }
 
 // ============================================================================
-// MOVING_BAR_BIG (id 53) and MOVING_BAR_SMALL (id 54) -- BLOCKED (gate 63)
+// MOVING_BAR_BIG (id 53) and MOVING_BAR_SMALL (id 54) -- vtable 0x0211458c
 // ============================================================================
 //
-// Both factories install vtable 0x0211458c (config _ZTV14KnockDownPlank /
-// _ZTV19daObjBk_Dossunbar_c), so an id-53 or id-54 object runs KnockDownPlank's
-// lifecycle. Every lifecycle function and both dispatch tables are matched src,
-// the two SpawnInfos are mounted (+4 = 53 / 54), the vtable fill and the two
-// {fn, delta} state-seats were written and pass their ROM checks -- and the
-// class still cannot be registered, on a MSVC PMF-representation wall rather than
-// any missing code. The measured shape, so the next attempt does not re-walk it:
+// Both factories (MovingBarBig_Spawn / MovingBarSmall_Spawn) install vtable
+// 0x0211458c (config _ZTV14KnockDownPlank / _ZTV19daObjBk_Dossunbar_c), so an
+// id-53 or id-54 object runs KnockDownPlank's lifecycle -- an 824-byte object
+// (ActorBase::operator new(824)) built by Platform's ctor. The vtable's own
+// slots are KnockDownPlank's methods: slot 0 InitResources (0x021120fc, a real
+// C++ method), slot 3 CleanupResources (0x02112004, C++), slot 6 Behavior
+// (0x02112090), slot 9 Render (0x02112068, C++), slot 16 D1 (0x02111ba0, C).
 //
-//   KnockDownPlank::Behavior (the matched .cpp, MSVC-compiled) dispatches
+// The one wall this class hit was slot 6. KnockDownPlank::Behavior (the matched
+// .cpp, MSVC-compiled) dispatches
 //       (((C *)this)->*(data_ov015_021149ec[idx].pmf))();
-//   over a struct C that is FORWARD-DECLARED (`struct C;`) at the point the
-//   PMF typedef is formed. To an incomplete type MSVC gives a pointer-to-member
-//   its GENERAL (worst-case-inheritance) representation -- a multi-word struct
-//   plus a this-adjust/vptr thunk at the call site -- not the single code
-//   pointer a complete single-inheritance class gets. Seating the bss table with
-//   a plain function address (the butterfly/star-door recipe, which works
-//   because those form the PMF over a COMPLETE Base) makes the call read a bogus
-//   adjustment: measured a spawned MOVING_BAR run 133 behaviours then fault in
-//   func_ov015_02111e60 with this in ecx=valid but the arg register =1, the
-//   general-PMF thunk having mangled `this` into the state index.
+// over a struct C that is FORWARD-DECLARED (`struct C;`) at the point the PMF
+// typedef is formed, so MSVC gives the pointer-to-member its GENERAL
+// (worst-case-inheritance) representation -- a multi-word struct plus a this-
+// adjust/vptr thunk -- not the single code pointer a complete single-inheritance
+// class gets. Seating the bss table with a plain function address makes the call
+// read a bogus adjustment (a spawned MOVING_BAR ran 133 behaviours then faulted
+// in func_ov015_02111e60 with the arg register turned into the state index).
 //
-// The port-faithful fix is a HOST COPY of KnockDownPlank::Behavior in
-// port/unmatched/ that reads the table entry as two plain ints and calls the
-// body directly (the Fish/Door treatment for exactly this reason), so MSVC's PMF
-// representation never enters -- NOT a src edit and NOT undecompiled code. The
-// two {fn, delta} tables (Behavior's data_ov015_021149ec and the state table
-// data_ov015_02114a24 that func_ov015_02111fb8 drives) and the aliases
-// InitResources needs (data_ov034_02114538 -> ov015, Sound::PlayBank3 spelled
-// func_02012664, Actor::UpdatePosWithOnlySpeed's void* spelling) were all worked
-// out; only the host-copy Behavior is left. Deferred as the one blocked platform
-// of the eight.
+// The port-faithful fix, done: a HOST COPY of KnockDownPlank::Behavior in
+// port/unmatched/KnockDownPlank_Behavior.cpp reads the table entry as two plain
+// ints and calls the body directly (the Fish/Door/WaterBomb treatment for
+// exactly this reason), and seats BOTH of the class's {fn, delta} tables --
+// Behavior's data_ov015_021149ec and the table data_ov015_02114a24 that
+// func_ov015_02111fb8 drives -- over their host bodies before
+// __sinit_ov015_02113048 copies the fourteen source statics in. The seat runs
+// from hal/actor_overlays.cpp ahead of that sinit. All fourteen targets are
+// matched ov015 src and all deltas are 0, so nothing traps.
+//
+// The address 0x0211458c answers to both _ZTV names; MovingBar*_Spawn install
+// it as _ZTV14KnockDownPlank and the class D1 restores it as
+// _ZTV19daObjBk_Dossunbar_c, so both names are aliased onto the one host array.
+#include "KnockDownPlank.h"
+extern "C" {
+int _ZN14KnockDownPlank8BehaviorEv(void *self);          /* host copy, extern C */
+int *_ZN14KnockDownPlankD1Ev(int *self);                 /* .c, C linkage */
+void port_knock_down_plank_states_seat(void);            /* the two-table seat */
+void *_ZTV14KnockDownPlank[31];
+}
+#pragma comment(linker, "/alternatename:__ZTV19daObjBk_Dossunbar_c=__ZTV14KnockDownPlank")
+/* Four spelling bridges the recovered ov015 source needs, none of them a src
+   edit and all byte-faithful (same address, same bytes):
+   - KnockDownPlank::InitResources reads data_ov034_02114538, a dsd misprefix of
+     the ov015 collider-file table at 0x02114538; alias it onto the mounted
+     data_ov015_02114538.
+   - KnockDownPlank::CleanupResources declares data_ov015_02114534 as a C++
+     `extern char[]`, which MSVC mangles to ?data_ov015_02114534@@3PADA; the
+     mounted symbol is the C-linkage _data_ov015_02114534.
+   - func_ov015_02111d28 calls func_02012664, the plain-address spelling of
+     Sound::PlayBank3(unsigned, const Vector3&) at 0x02012664.
+   func_ov015_02111d98 also calls Actor::UpdatePosWithOnlySpeed(void*) as a C++
+   __thiscall method (?UpdatePosWithOnlySpeed@Actor@@QAEXPAX@Z); that one cannot
+   be an alias onto the __cdecl extern-C bridge (calling-convention mismatch, it
+   would read this=0), so it gets a real __thiscall shim in
+   port/unmatched/KnockDownPlank_Behavior.cpp. */
+#pragma comment(linker, "/alternatename:_data_ov034_02114538=_data_ov015_02114538")
+#pragma comment(linker, "/alternatename:?data_ov015_02114534@@3PADA=_data_ov015_02114534")
+#pragma comment(linker, "/alternatename:_func_02012664=__ZN5Sound9PlayBank3EjRK7Vector3")
+/* Init/Clean/Render are real C++ methods (the .cpp defines KnockDownPlank::<n>),
+   so the thunks call them QUALIFIED; Behavior is the host copy (extern "C") and
+   D1 is plain C, the TowerStep/ArrowSign shape. */
+static int __fastcall mb_init(void *s, void *)
+{ return ((KnockDownPlank *)s)->KnockDownPlank::InitResources(); }
+static int __fastcall mb_clean(void *s, void *)
+{ return ((KnockDownPlank *)s)->KnockDownPlank::CleanupResources(); }
+static int __fastcall mb_behavior(void *s, void *)
+{ return _ZN14KnockDownPlank8BehaviorEv(s); }
+static int __fastcall mb_render(void *s, void *)
+{
+    port_actor_render_probe("MOVING_BAR", (char *)s + 0xd4);
+    return ((KnockDownPlank *)s)->KnockDownPlank::Render();
+}
+static int __fastcall mb_d1(void *s, void *)
+{ return (int)(size_t)_ZN14KnockDownPlankD1Ev((int *)s); }
+extern "C" void hal_fill_moving_bar_vtable(void)
+{
+    void **vt = _ZTV14KnockDownPlank;
+    wf_fill_shared(vt);
+    vt[0] = (void *)mb_init;
+    vt[3] = (void *)mb_clean;
+    vt[6] = (void *)mb_behavior;
+    vt[9] = (void *)mb_render;
+    vt[16] = (void *)mb_d1;
+}
 
 // ============================================================================
 // FALL_BLOCK_WF (id 45) -- vtable 0x021148dc (_ZTV11FallBlockWf) -- BLOCKED

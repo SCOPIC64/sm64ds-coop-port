@@ -125,11 +125,17 @@ void __sinit_ov010_0211215c(void);
    boot; this is the second, per-symbol mount so the actor code reaches its
    SpawnInfo records and construction-data statics by name -- the gate-17
    shape of ov010. Seven sinits, all SharedFilePtr construction plus the small
-   per-class tuning tables the platform InitResources load through. No state
-   seat: none of these classes dispatches a pointer-to-member (each dispatches
-   an ordinary virtual through its own vtable, which the registry fills). */
+   per-class tuning tables the platform InitResources load through. ONE state
+   seat now: the MOVING_BAR pair / KNOCK_DOWN_PLANK's vtable (0x0211458c) runs
+   KnockDownPlank's lifecycle, whose Behavior dispatches a pointer-to-member out
+   of data_ov015_021149ec and whose state functions dispatch data_ov015_02114a24
+   through func_ov015_02111fb8. port_knock_down_plank_states_seat rewrites the
+   fourteen source statics __sinit_ov015_02113048 copies into those two tables,
+   over their host bodies, BEFORE the sinit runs. The other six platforms still
+   dispatch ordinary virtuals through their own vtables. */
 void port_ov015_pack_check(void);
 void port_ov015_syms_patch(void);
+void port_knock_down_plank_states_seat(void);
 void __sinit_ov015_02112f9c(void);
 void __sinit_ov015_02112fdc(void);
 void __sinit_ov015_02113048(void);
@@ -766,10 +772,12 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov010_0211211c();
     __sinit_ov010_0211215c();
 
-    /* gate 59: level 7's own overlay, per symbol. No state seat -- every
-       platform dispatches an ordinary virtual through its own vtable. */
+    /* gate 59: level 7's own overlay, per symbol. Seat the MOVING_BAR /
+       KNOCK_DOWN_PLANK class's fourteen state statics over their host bodies
+       BEFORE __sinit_ov015_02113048 copies them into the two dispatch tables. */
     port_ov015_pack_check();
     port_ov015_syms_patch();
+    port_knock_down_plank_states_seat();
     __sinit_ov015_02112f9c();
     __sinit_ov015_02112fdc();
     __sinit_ov015_02113048();

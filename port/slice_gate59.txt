@@ -67,9 +67,38 @@ src/func_ov002_020b6718.cpp
 src/func_ov002_020b676c.cpp
 src/func_ov002_020b66a8.c
 
-# MOVING_BAR_BIG (53) and MOVING_BAR_SMALL (54) are BLOCKED on the
-# KnockDownPlank::Behavior pointer-to-member seat (data_ov015_021149ec); see the
-# gate-63 note in hal/actor_classes_wf.cpp.
+# Gate 76: MOVING_BAR_BIG (53) and MOVING_BAR_SMALL (54). Both factories install
+# vtable 0x0211458c and run KnockDownPlank's lifecycle. Behavior is a host copy
+# (port/unmatched/KnockDownPlank_Behavior.cpp, in the CMake target lists next to
+# WaterBomb_StateDispatch.cpp) that reads the two {fn, delta} tables as plain
+# ints; here are the two factories, the four remaining lifecycle methods (Init/
+# Clean/Render/D1, plus D0 for the deleting destructor), and the fourteen state
+# bodies both dispatch tables (data_ov015_021149ec and data_ov015_02114a24) point
+# at. All matched ov015 src.
+src/MovingBarBig_Spawn.c
+src/MovingBarSmall_Spawn.c
+src/_ZN14KnockDownPlank13InitResourcesEv.cpp
+src/_ZN14KnockDownPlank16CleanupResourcesEv.cpp
+src/_ZN14KnockDownPlank6RenderEv.cpp
+src/_ZN14KnockDownPlankD1Ev.c
+src/_ZN14KnockDownPlankD0Ev.c
+# the Behavior table data_ov015_021149ec[0..6]
+src/func_ov015_02111f6c.c
+src/func_ov015_02111eec.c
+src/func_ov015_02111e80.c
+src/func_ov015_02111df4.c
+src/func_ov015_02111d98.cpp
+src/func_ov015_02111d4c.c
+src/func_ov015_02111ce0.cpp
+# the func_ov015_02111fb8 table data_ov015_02114a24[0..6] and its driver
+src/func_ov015_02111fb8.c
+src/func_ov015_02111fac.c
+src/func_ov015_02111f4c.c
+src/func_ov015_02111ee0.c
+src/func_ov015_02111e60.c
+src/func_ov015_02111dd4.c
+src/func_ov015_02111d8c.c
+src/func_ov015_02111d28.c
 
 # Helper closure the two platforms' InitResources/Behavior reach: two ov015
 # helpers and the two MeshColliderBase update paths their MovingMeshCollider

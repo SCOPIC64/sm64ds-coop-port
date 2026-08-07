@@ -1450,6 +1450,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES}
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
+    unmatched/KnockDownPlank_Behavior.cpp
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(smoke_player PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -1489,6 +1490,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES}
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
+    unmatched/KnockDownPlank_Behavior.cpp
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -1531,6 +1533,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES}
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
+    unmatched/KnockDownPlank_Behavior.cpp
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window_hires PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"

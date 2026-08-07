@@ -288,11 +288,16 @@ extern unsigned char KnockDownPlank_SpawnInfo[];  /* ov015 0x021143fc, id 44 */
 void *KnockDownPlank_Spawn(void);                 /* ov015 0x02111b68 */
 void hal_fill_knock_down_plank_vtable(void);
 /* MOVING_BAR_BIG (53) and MOVING_BAR_SMALL (54) share vtable 0x0211458c (the
-   _ZN14KnockDownPlank* methods). BLOCKED: KnockDownPlank::Behavior forms its
-   per-frame pointer-to-member over a FORWARD-DECLARED struct, so MSVC gives it
-   the general (worst-case) PMF representation and a plain-address seat mangles
-   `this` at the call. Needs a host copy of Behavior (the Fish/Door treatment),
-   not code -- see the gate-63 note in hal/actor_classes_wf.cpp. */
+   _ZN14KnockDownPlank* methods); both factories install it. KnockDownPlank::
+   Behavior forms its per-frame pointer-to-member over a FORWARD-DECLARED struct,
+   so a host copy (port/unmatched/KnockDownPlank_Behavior.cpp) reads the table as
+   plain ints; the same file seats both {fn, delta} tables. See the note in
+   hal/actor_classes_wf.cpp. */
+extern unsigned char MovingBarBig_SpawnInfo[];    /* ov015 0x02114568, id 53 */
+void *MovingBarBig_Spawn(void);                   /* ov015 0x02112230 */
+extern unsigned char MovingBarSmall_SpawnInfo[];  /* ov015 0x0211454c, id 54 */
+void *MovingBarSmall_Spawn(void);                 /* ov015 0x02112260 */
+void hal_fill_moving_bar_vtable(void);            /* shared vtable 0x0211458c */
 extern unsigned char RotatingPlatformWf_SpawnInfo[]; /* ov015 0x021147c4, id 50 */
 /* its factory is a host wrapper: the raw RotatingPlatformWf_Spawn stores the
    VT1 placeholder rather than a named vtable, so the wrapper reseats the vptr
@@ -418,6 +423,14 @@ void hal_fill_rotating_platform_wf_vtable(void);
     /* ---- gate 63: ROTATING_PLATFORM_WF (50), Whomp's Fortress (ov015) ---- */\
     {50, "ROTATING_PLATFORM_WF", RotatingPlatformWf_SpawnInfo,                 \
      port_factory_rotating_platform_wf, hal_fill_rotating_platform_wf_vtable}, \
+    /* ---- gate 76: MOVING_BAR_BIG (53), MOVING_BAR_SMALL (54) ---- */         \
+    /* Both install vtable 0x0211458c (the _ZN14KnockDownPlank* methods) and    \
+       run KnockDownPlank's lifecycle; the shared fill is idempotent so the     \
+       second row re-runs it harmlessly. */                                    \
+    {53, "MOVING_BAR_BIG", MovingBarBig_SpawnInfo, MovingBarBig_Spawn,         \
+     hal_fill_moving_bar_vtable},                                              \
+    {54, "MOVING_BAR_SMALL", MovingBarSmall_SpawnInfo, MovingBarSmall_Spawn,   \
+     hal_fill_moving_bar_vtable},                                              \
     /* ---- gate 42: ov010's PEACH_PAINTING (38) ---- */                       \
     {38, "PEACH_PAINTING", PeachPainting_SpawnInfo, PeachPainting_Spawn,       \
      hal_fill_peach_painting_vtable},
