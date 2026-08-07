@@ -36,12 +36,37 @@ src/_ZN9TowerStep8BehaviorEv.cpp
 src/_ZN9TowerStep6RenderEv.cpp
 src/_ZN9TowerStepD1Ev.c
 
+# Gate 62: POLE_BILLBOARD (id 42) installs the billboard base vtable 0x02114360
+# (its own slots are the func_ov015_0211* family, slot 6 the ActorBase no-op),
+# and KNOCK_DOWN_PLANK (id 44) installs 0x02114420 and runs the
+# _ZN13PoleBillboard* lifecycle.
+src/PoleBillboard_Spawn.c
+src/func_ov015_021112a0.cpp
+src/func_ov015_02111254.c
+src/func_ov015_02111278.cpp
+src/func_ov015_021111a0.c
+src/func_ov015_021111d0.c
+src/KnockDownPlank_Spawn.c
+src/_ZN13PoleBillboard13InitResourcesEv.c
+src/_ZN13PoleBillboard16CleanupResourcesEv.cpp
+src/_ZN13PoleBillboard8BehaviorEv.cpp
+src/_ZN13PoleBillboard6RenderEv.cpp
+src/_ZN13PoleBillboardD1Ev.c
+
+# Gate 63: MOVING_BAR_BIG (53) and MOVING_BAR_SMALL (54) are BLOCKED on the
+# KnockDownPlank::Behavior pointer-to-member seat (data_ov015_021149ec); see the
+# gate-63 note in hal/actor_classes_wf.cpp.
+
 # Helper closure the two platforms' InitResources/Behavior reach: two ov015
 # helpers and the two MeshColliderBase update paths their MovingMeshCollider
 # threads through (both matched src, not yet in any slice).
 src/func_ov015_021123c8.cpp
 src/func_ov015_021128f8.c
 src/func_ov015_021128e8.c
+src/func_ov015_02111214.c
+src/func_ov015_021114f0.c
+src/func_ov015_0211166c.c
+src/_ZN9ActorBase8BehaviorEv.cpp
 src/_ZN16MeshColliderBase16UpdatePosAndAngsERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp
 src/_ZN16MeshColliderBase21UpdatePosWithVelocityERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp
 src/_ZN16MeshColliderBase22UpdatePosWithTransformERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_.cpp

@@ -250,3 +250,112 @@ extern "C" void hal_fill_rotating_bridge_vtable(void)
     vt[9] = (void *)rb_render;
     vt[16] = (void *)rb_d1;
 }
+
+// ============================================================================
+// POLE_BILLBOARD (id 42) -- vtable 0x02114360, the billboard base table
+// ============================================================================
+//
+// PoleBillboard_Spawn installs the unnamed billboard base table
+// data_ov015_02114360 (config _ZTV18daObjBkBillboard_c), NOT the
+// _ZTV13PoleBillboard at 0x02114420 that carries the _ZN13PoleBillboard*
+// methods (which KNOCK_DOWN_PLANK installs below -- the name shift). So an
+// id-42 object is a plain billboard: a 292-byte object with a Model at +0xd4
+// and NO collider, whose slot-6 Behavior is ActorBase's own no-op and whose own
+// slots are the func_ov015_0211* family. Whomp's Fortress names several pole
+// billboards.
+extern "C" {
+int func_ov015_021112a0(char *self);   /* slot 0  InitResources (.cpp extern C) */
+int func_ov015_02111254(char *self);   /* slot 3  CleanupResources */
+int func_ov015_02111278(char *self);   /* slot 9  Render */
+int *func_ov015_021111a0(int *self);   /* slot 16 D1 */
+void *data_ov015_02114360[31];
+}
+#pragma comment(linker, "/alternatename:__ZTV18daObjBkBillboard_c=_data_ov015_02114360")
+static int __fastcall pb_init(void *s, void *)
+{ return func_ov015_021112a0((char *)s); }
+static int __fastcall pb_clean(void *s, void *)
+{ return func_ov015_02111254((char *)s); }
+/* slot 6 is ActorBase::Behavior, a base no-op the .cpp defines as a real
+   method. */
+static int __fastcall pb_behavior(void *s, void *)
+{ return ((ActorBase *)s)->ActorBase::Behavior(); }
+static int __fastcall pb_render(void *s, void *)
+{
+    port_actor_render_probe("POLE_BILLBOARD", (char *)s + 0xd4);
+    return func_ov015_02111278((char *)s);
+}
+static int __fastcall pb_d1(void *s, void *)
+{ return (int)(size_t)func_ov015_021111a0((int *)s); }
+extern "C" void hal_fill_pole_billboard_vtable(void)
+{
+    void **vt = data_ov015_02114360;
+    wf_fill_shared(vt);
+    vt[0] = (void *)pb_init;
+    vt[3] = (void *)pb_clean;
+    vt[6] = (void *)pb_behavior;
+    vt[9] = (void *)pb_render;
+    vt[16] = (void *)pb_d1;
+}
+
+// ============================================================================
+// KNOCK_DOWN_PLANK (id 44) -- vtable 0x02114420, the _ZN13PoleBillboard* methods
+// ============================================================================
+//
+// KnockDownPlank_Spawn installs 0x02114420 (config _ZTV13PoleBillboard /
+// _ZTV17daObjBk_Botaosi_c), so an id-44 object runs PoleBillboard's lifecycle:
+// a 924-byte object with Model at +0xd4, MovingMeshCollider at +0x124,
+// ShadowModel at +0x320. Init and Behavior are plain C in src (the .cpp files
+// define them extern "C"); Clean and Render are real C++ methods; D1 is C.
+#include "PoleBillboard.h"
+extern "C" {
+int _ZN13PoleBillboard13InitResourcesEv(char *self);  /* .c, C linkage */
+int _ZN13PoleBillboard8BehaviorEv(char *self);         /* .cpp extern "C" */
+int *_ZN13PoleBillboardD1Ev(int *self);                /* .c, C linkage */
+void *_ZTV13PoleBillboard[31];
+}
+#pragma comment(linker, "/alternatename:__ZTV17daObjBk_Botaosi_c=__ZTV13PoleBillboard")
+static int __fastcall kp_init(void *s, void *)
+{ return _ZN13PoleBillboard13InitResourcesEv((char *)s); }
+static int __fastcall kp_clean(void *s, void *)
+{ return ((PoleBillboard *)s)->PoleBillboard::CleanupResources(); }
+static int __fastcall kp_behavior(void *s, void *)
+{ return _ZN13PoleBillboard8BehaviorEv((char *)s); }
+static int __fastcall kp_render(void *s, void *)
+{
+    port_actor_render_probe("KNOCK_DOWN_PLANK", (char *)s + 0xd4);
+    return ((PoleBillboard *)s)->PoleBillboard::Render();
+}
+static int __fastcall kp_d1(void *s, void *)
+{ return (int)(size_t)_ZN13PoleBillboardD1Ev((int *)s); }
+extern "C" void hal_fill_knock_down_plank_vtable(void)
+{
+    void **vt = _ZTV13PoleBillboard;
+    wf_fill_shared(vt);
+    vt[0] = (void *)kp_init;
+    vt[3] = (void *)kp_clean;
+    vt[6] = (void *)kp_behavior;
+    vt[9] = (void *)kp_render;
+    vt[16] = (void *)kp_d1;
+}
+
+// ============================================================================
+// MOVING_BAR_BIG (id 53) and MOVING_BAR_SMALL (id 54) -- BLOCKED (gate 63)
+// ============================================================================
+//
+// Both factories install vtable 0x0211458c (config _ZTV14KnockDownPlank /
+// _ZTV19daObjBk_Dossunbar_c), so an id-53 or id-54 object runs KnockDownPlank's
+// lifecycle. KnockDownPlank::Behavior dispatches a POINTER-TO-MEMBER every
+// frame:
+//
+//     (this->*(data_ov015_021149ec[this->idx].pmf))();
+//
+// data_ov015_021149ec is a bss dispatch table __sinit_ov015_02113048 fills from
+// ROM {function, delta} statics carrying DS code addresses, so the class needs
+// the state-seat treatment (the BobOmbBuddy/KingBobOmb precedent): seat host
+// bodies over the source statics before the sinit copies them. Every function
+// the table names is matched src, so this is a seating task, not undecompiled
+// code -- deferred as the one blocked platform of the eight. Its InitResources
+// also carries a decompiler cross-overlay mislabel (data_ov034_02114538, really
+// ov015's) that an alias closes. The classes NAMED PoleBillboard/KnockDownPlank
+// whose methods gates 62 register are the shifted ones; this table is the third
+// step of the shift and the only one that dispatches a PMF.

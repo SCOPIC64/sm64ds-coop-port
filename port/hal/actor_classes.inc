@@ -275,6 +275,16 @@ void hal_fill_tower_step_vtable(void);
 extern unsigned char RotatingBridge_SpawnInfo[];  /* ov015 0x021146f0, id 51 */
 void *RotatingBridge_Spawn(void);                 /* ov015 0x02112ba0 */
 void hal_fill_rotating_bridge_vtable(void);
+extern unsigned char PoleBillboard_SpawnInfo[];   /* ov015 0x0211433c, id 42 */
+void *PoleBillboard_Spawn(void);                  /* ov015 0x021112dc */
+void hal_fill_pole_billboard_vtable(void);
+extern unsigned char KnockDownPlank_SpawnInfo[];  /* ov015 0x021143fc, id 44 */
+void *KnockDownPlank_Spawn(void);                 /* ov015 0x02111b68 */
+void hal_fill_knock_down_plank_vtable(void);
+/* MOVING_BAR_BIG (53) and MOVING_BAR_SMALL (54) share vtable 0x0211458c (the
+   _ZN14KnockDownPlank* methods, whose Behavior dispatches a pointer-to-member
+   through data_ov015_021149ec); BLOCKED on that state seat, see the gate-63
+   note in hal/actor_classes_wf.cpp. */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -391,7 +401,12 @@ void hal_fill_rotating_bridge_vtable(void);
      hal_fill_tower_step_vtable},                                              \
     /* ---- gate 61: ROTATING_BRIDGE (51), Whomp's Fortress (ov015) ---- */     \
     {51, "ROTATING_BRIDGE", RotatingBridge_SpawnInfo, RotatingBridge_Spawn,     \
-     hal_fill_rotating_bridge_vtable},
+     hal_fill_rotating_bridge_vtable},                                          \
+    /* ---- gate 62: POLE_BILLBOARD (42), KNOCK_DOWN_PLANK (44) ---- */          \
+    {42, "POLE_BILLBOARD", PoleBillboard_SpawnInfo, PoleBillboard_Spawn,        \
+     hal_fill_pole_billboard_vtable},                                          \
+    {44, "KNOCK_DOWN_PLANK", KnockDownPlank_SpawnInfo, KnockDownPlank_Spawn,    \
+     hal_fill_knock_down_plank_vtable},
     /* PEACH_PAINTING (38) is BLOCKED, see gate 42 below -- its InitResources
        spawns a RollingRock (ov052, an overlay the port does not mount) and
        reads data_ov052_02111e84, so registering it would fault on the first
