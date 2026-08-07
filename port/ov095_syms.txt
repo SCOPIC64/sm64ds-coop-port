@@ -49,3 +49,15 @@ data_ov095_02137898 data_ov095_021378a0 data_ov095_021378a8 data_ov095_021378b0
 data_ov095_021378b8 data_ov095_021378c0 data_ov095_021378c8 data_ov095_021378d4
 data_ov095_021378e0 data_ov095_021378ec data_ov095_021378f8 data_ov095_02137904
 data_ov095_02137910:0x28
+# gate 173: UP_DOWN_LIFT_HMC (33). The id-33 factory record, pinned 0x1c (the
+# record stride; the Bbh->Hmc and Hmc->Rr deltas are both 0x1c) so the +4 id
+# halfword the registry cross-checks reads out of the right bytes; then the two
+# variant-indexed SharedFilePtr-pointer tables InitResources reads (three words
+# each, relocs f68/6c/70 and f74/78/7c -> the mounted SharedFilePtrs above) and
+# the CLPS-block pointer table it hands MovingMeshCollider::SetFile (three
+# words, relocs a4/a8/ac). The five state statics and the runtime table
+# data_ov095_02137910 are already in the mount from gate 83; the vtable
+# _ZTV13UpDownLiftBbh stays OUT, a host array (hal/actor_classes_updownlift.cpp).
+UpDownLiftHmc_SpawnInfo:0x1c
+data_ov095_02136f68:0xc data_ov095_02136f74:0xc
+data_ov095_021375a4:0xc

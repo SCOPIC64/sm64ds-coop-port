@@ -776,6 +776,9 @@ void port_ov095_pack_check(void);
 void port_ov095_syms_patch(void);
 void __sinit_ov095_02136fe0(void);
 void __sinit_ov095_0213722c(void);
+/* gate 173: UP_DOWN_LIFT_HMC's five-state seat --
+   port/unmatched/UpDownLiftBbh_Behavior.cpp */
+void port_updownlift_states_seat(void);
 }
 
 extern "C" void port_actor_overlays_sinits(void)
@@ -924,10 +927,14 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov091_021349c4();
     __sinit_ov091_02134a30();
 
-    /* gate 83: ov095, the seesaw bridge. No state seat. */
+    /* gate 83: ov095, the seesaw bridge. gate 173: seat UP_DOWN_LIFT_HMC's five
+       state statics over their host bodies BEFORE __sinit_ov095_0213722c copies
+       them into data_ov095_02137910 (__sinit_ov095_02136fe0 does not touch the
+       state table). */
     port_ov095_pack_check();
     port_ov095_syms_patch();
     __sinit_ov095_02136fe0();
+    port_updownlift_states_seat();
     __sinit_ov095_0213722c();
 
     /* gate 143: ov019, Cool Cool Mountain's slide, IceSlideManager. No state

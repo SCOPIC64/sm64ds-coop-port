@@ -1,0 +1,36 @@
+# Gate 173: UP_DOWN_LIFT_HMC (33), the up-and-down platform lift (daUdlift_c),
+# level 13's second fresh hosting candidate (ov095, mounted per symbol at gate
+# 83 for SEESAW_BOB). One class UpDownLiftBbh, three ids (Bbh 32 / Hmc 33 / Rr
+# 131); this gate registers id 33, the 0x21 variant.
+#
+# The matched closure the host build compiles: the factory (UpDownLiftHmc_Spawn),
+# the two lifecycle methods and Render (real C++ methods against
+# include/UpDownLiftBbh.h, called qualified by the vtable fill in
+# hal/actor_classes_updownlift.cpp), both destructors (explicit-chain .c forms),
+# the five state-machine bodies the mState table dispatches, and their two
+# transitive ov095 helpers (func_ov095_02136788 the collision callback and its
+# tail func_ov095_02136764).
+#
+# _ZN13UpDownLiftBbh8BehaviorEv.cpp is DELIBERATELY NOT here: it dispatches the
+# state table data_ov095_02137910 through an incomplete-class pointer-to-member
+# (the WHOMP / OneUpMushroom case), so it is a HOST COPY with the table seat in
+# port/unmatched/UpDownLiftBbh_Behavior.cpp -- the source indexes the table by
+# mState directly (one 8-byte record per state, not the 2*i pairs the Crate
+# uses). The sinit that fills the runtime table (__sinit_ov095_0213722c) is
+# already in the build (hal/actor_overlays.cpp); the seat runs before it.
+#
+# Everything else in the closure is base/lifecycle code already linked by an
+# earlier gate (Actor/Platform/Model/MeshCollider/Memory), so it is not listed.
+src/UpDownLiftHmc_Spawn.c
+src/_ZN13UpDownLiftBbh13InitResourcesEv.cpp
+src/_ZN13UpDownLiftBbh16CleanupResourcesEv.cpp
+src/_ZN13UpDownLiftBbh6RenderEv.cpp
+src/_ZN13UpDownLiftBbhD1Ev.c
+src/_ZN13UpDownLiftBbhD0Ev.c
+src/func_ov095_02136368.c
+src/func_ov095_02136298.cpp
+src/func_ov095_02136178.c
+src/func_ov095_02136090.cpp
+src/func_ov095_02136104.cpp
+src/func_ov095_02136788.c
+src/func_ov095_02136764.cpp

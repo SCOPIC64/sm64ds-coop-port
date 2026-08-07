@@ -490,6 +490,16 @@ void hal_fill_haunted_chair_vtable(void);
 extern unsigned char Crate_SpawnInfo[];             /* ov098 0x0213c510 */
 void *Crate_Spawn(void);                            /* ov098 0x02139f04 */
 void hal_fill_crate_vtable(void);
+/* ---- gate 173: UP_DOWN_LIFT_HMC (33), Hazy Maze Cave's second fresh class
+   (ov095) ---- The up-and-down platform lift, daUdlift_c. ov095 was mounted
+   per symbol at gate 83 (SEESAW_BOB); this gate adds UpDownLiftHmc_SpawnInfo,
+   its two variant-indexed file tables and its CLPS table to that mount
+   (ov095_syms.txt). The fill is hal/actor_classes_updownlift.cpp, the closure
+   slice_gate173.txt, the Behavior host copy + state seat
+   port/unmatched/UpDownLiftBbh_Behavior.cpp. */
+extern unsigned char UpDownLiftHmc_SpawnInfo[];     /* ov095 0x021375e8, +4 reads 33 */
+void *UpDownLiftHmc_Spawn(void);                    /* ov095 0x021367cc (matched src) */
+void hal_fill_up_down_lift_hmc_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -703,4 +713,7 @@ void hal_fill_crate_vtable(void);
     {326, "HAUNTED_CHAIR", HauntedChair_SpawnInfo, HauntedChair_Spawn, \
      hal_fill_haunted_chair_vtable}, \
     /* ---- gate 172: CRATE (194), Hazy Maze Cave's first fresh class (ov098) ---- */ \
-    {194, "CRATE", Crate_SpawnInfo, Crate_Spawn, hal_fill_crate_vtable},
+    {194, "CRATE", Crate_SpawnInfo, Crate_Spawn, hal_fill_crate_vtable}, \
+    /* ---- gate 173: UP_DOWN_LIFT_HMC (33), Hazy Maze Cave (ov095) ---- */ \
+    {33, "UP_DOWN_LIFT_HMC", UpDownLiftHmc_SpawnInfo, UpDownLiftHmc_Spawn, \
+     hal_fill_up_down_lift_hmc_vtable},
