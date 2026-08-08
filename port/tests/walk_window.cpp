@@ -450,6 +450,14 @@ extern signed char data_0209f2f8;    /* the level currently up */
 void port_fader_advance(void);
 int port_fader_blend_state(int *evy, int *toWhite);
 void port_fader_start_color(int frames, int toEnd, unsigned short color);
+/* dialogue pipeline (hal/message_pump.cpp, hal/message_compositor.cpp,
+   hal/message_probe.cpp): pump ticks the box state machine (Stage's own
+   UpdateMessage dialogue arm); the compositor rasters engine A's 2D box over
+   the 3D frame; the probe opens a box headlessly for a visual check. */
+void port_message_pump(void);
+void port_message_composite_engine_a(void *fb);
+int port_probe_message_id(void);
+int port_probe_message_fire(void *player, int id);
 /* the scene-fade request the title-select hands off with. Recorded by the port
    in hal/level_change.cpp and acted on by this frame loop. */
 int port_scene_fade_pending(int *sceneId);
@@ -3352,6 +3360,25 @@ int main(void)
            in motion (data_0209d4b0) by one frame, which writes the 2D blend
            register the compositor below reads. */
         port_fader_advance();
+        /* THE MESSAGE-BOX PROBE (temporary), then THE PUMP. SM64DS_PROBE_MESSAGE
+           opens a dialogue box a few seconds in so the pipeline is checkable
+           without a real in-world caller (the sign's read-state Main is
+           unmatched and held in a parallel lane). Fire once at frame 90 (3s at
+           30fps), after the player exists and his St_Wait/Walk state is settled
+           so ShowMessage2's state guard admits the talk. */
+        {
+            const int probe_id = port_probe_message_id();
+            if (probe_id >= 0 && frame == 90) {
+                static int fired;
+                if (!fired) { fired = 1; port_probe_message_fire(player, probe_id); }
+            }
+        }
+        /* THE PUMP: Stage::UpdateMessage's dialogue arm, run every frame the way
+           Stage::Behavior runs it on the ROM. Advances Message::UpdateWindow +
+           Message::Update, which writes engine A's box registers that the
+           compositor below reads. Stepped here, after the player tick that can
+           open the box (St_Talk_Main -> func_0201f32c) and beside the fader. */
+        port_message_pump();
         /* the real boot seats the path table, so the tracking's own binding
            stands -- except where the port's unfilled floor record invents
            one the level cannot produce (hal/level_boot.cpp) */
@@ -4189,6 +4216,12 @@ int main(void)
         for (int y = 1; y < ntr::SCREEN_H; ++y)
             memcpy(fb.px[y], fb.px[0], ntr::SCREEN_W * sizeof(fb.px[0][0]));
         ntr::gx_render(fb);
+        /* ENGINE-A 2D OVER 3D. The top screen is engine A: its 2D BGs and OBJ
+           layer composite over the 3D frame in hardware. The dialogue box lives
+           there (BG3 + the cursor OBJ), so raster engine A's 2D and write only
+           the covered pixels over the 3D framebuffer. Before the fade composite,
+           so the box dims with the master-brightness blend the same as the DS. */
+        port_message_composite_engine_a(&fb);
         ph_end(PH_RASTER, t_phase);
         /* Bottom of the DS 2D frame: upload the shadows the game filled,
            rasterise engine B, and drop it into the corner at 1:1 DS pixels.

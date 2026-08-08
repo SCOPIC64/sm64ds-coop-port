@@ -325,29 +325,18 @@ int _ZN5Enemy14UpdateYoshiEatER12WithMeshClsn(void *, void *) { return 0; }
 // matched -- in that order.
 int _ZN6Player9StartTalkER9ActorBaseb(void *, void *, int) { return 0; }
 
-// Player::ShowMessage2 gets the same treatment for the same reason
-// (2026-08-07, the first session where a door actually asked): matched, held
-// out of slice_gate10, because its yes-branch enters the message state whose
-// Main is the unhosted dialogue box -- that state dims the screen through the
-// real blend path and then dispatches into machinery that is not there.
-// Returning 0 is this function's own state-guard "no", and the callers all
-// carry a real no-message arm: the door callback func_ov100_02144cf8 falls
-// through to the plain door-open path (its L240), the wrapper ShowMessage
-// (still matched, still compiled) passes the 0 up, and RecRoomCupboard just
-// does not speak. Restore the slice line and delete this when Message is
-// hosted.
-int _ZN6Player12ShowMessage2ER9ActorBasejPK7Vector3jj(void *, void *, unsigned,
-                                                      const void *, unsigned,
-                                                      unsigned)
-{
-    /* the door re-asks every frame while the player stands in the doorway,
-       so log the first ask and then one in every 512 */
-    static unsigned asks;
-    if ((asks++ & 0x1ff) == 0)
-        fprintf(stderr, "[msg] ShowMessage2 declined (dialogue box not "
-                "hosted; ask %u)\n", asks);
-    return 0;
-}
+// Player::ShowMessage2 was declined here (2026-08-07) because its yes-branch
+// enters the message state and nothing ticked the dialogue box. THE DECLINE IS
+// GONE (2026-08-08, the dialogue-pipeline session): the matched src is back in
+// slice_gate10 (_ZN6Player12ShowMessage2ER9ActorBasejPK7Vector3jj.cpp) and the
+// box now ticks -- hal/message_pump.cpp runs Message::UpdateWindow +
+// Message::Update every frame (Stage::UpdateMessage's own dialogue arm) and
+// hal/message_compositor path rasters engine A's 2D over the 3D frame. The one
+// earlier fear -- "dispatches into machinery that is not there" -- was the box
+// setup func_0201f32c, which is ordinary matched src writing the 2D engine
+// registers; it does not wild-call. The stub definition is removed so the
+// matched symbol from the slice is the one that links.
+
 
 /* The global event bitfield. Event::GetBit reads it and BLACK_BRICK_BLOCK's
    Behavior asks whether its own event has fired; nothing on the castle grounds
