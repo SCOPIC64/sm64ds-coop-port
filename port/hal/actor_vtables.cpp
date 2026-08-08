@@ -340,7 +340,12 @@ int _ZN6Player12ShowMessage2ER9ActorBasejPK7Vector3jj(void *, void *, unsigned,
                                                       const void *, unsigned,
                                                       unsigned)
 {
-    fprintf(stderr, "[msg] ShowMessage2 declined (dialogue box not hosted)\n");
+    /* the door re-asks every frame while the player stands in the doorway,
+       so log the first ask and then one in every 512 */
+    static unsigned asks;
+    if ((asks++ & 0x1ff) == 0)
+        fprintf(stderr, "[msg] ShowMessage2 declined (dialogue box not "
+                "hosted; ask %u)\n", asks);
     return 0;
 }
 
