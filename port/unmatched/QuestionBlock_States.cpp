@@ -15,12 +15,12 @@
  * stores; the encoding is the one read off the ROM in Door_Behavior.cpp, and
  * all six deltas are zero here too.
  *
- * ov102 0x021498e0 IS NOT DECOMPILED -- state 1's main half, the block
- * bouncing after it is hit -- and it is seated by name.
- * QuestionBlock::InitResources enters state 0 (func_ov102_02149da8(c, 0)) and
- * the castle grounds' one block is on the roof, so on this level the trap is
- * not reached. If a block is ever hit the walk says which function is
- * missing.
+ * ov102 0x021498e0 -- state 1's main half, the block bouncing after it is hit
+ * -- IS matched now (src/func_ov102_021498e0.cpp) and hosted, with its two
+ * pointer-to-member content tables, in
+ * port/unmatched/QuestionBlock_BounceDispatch.cpp (gate 180). The state row for
+ * it below points at that host frame; the old abort stub is gone. Hitting a
+ * ? block no longer aborts.
  */
 #include <cstdio>
 #include <cstdlib>
@@ -37,24 +37,18 @@ extern PortPmf data_ov102_0214e890[];      /* 3 entries x 2 pmfs */
 void func_ov102_02149d80(void *);   /* state 0 enter */
 void func_ov102_02149ccc(void *);   /* state 0 main  */
 void func_ov102_02149c78(void *);   /* state 1 enter */
+void func_ov102_021498e0(void *);   /* state 1 main  (host copy, gate 180) */
 void func_ov102_021498c4(void *);   /* state 2 enter */
 void func_ov102_02149878(void *);   /* state 2 main  */
 
 }  /* extern "C" */
-
-static void port_qblock_state_021498e0(void *)
-{
-    std::fprintf(stderr, "FATAL: QuestionBlock state 1's main (ov102 "
-                 "0x021498e0) is UNMATCHED -- no host body exists\n");
-    std::abort();
-}
 
 static const struct { PortPmf *slot; unsigned rom; void (*host)(void *); }
 g_qblock_states[] = {
     {data_ov102_0214e278, 0x02149d80, func_ov102_02149d80},
     {data_ov102_0214e260, 0x02149ccc, func_ov102_02149ccc},
     {data_ov102_0214e268, 0x02149c78, func_ov102_02149c78},
-    {data_ov102_0214e258, 0x021498e0, port_qblock_state_021498e0},
+    {data_ov102_0214e258, 0x021498e0, func_ov102_021498e0},
     {data_ov102_0214e3a0, 0x021498c4, func_ov102_021498c4},
     {data_ov102_0214e398, 0x02149878, func_ov102_02149878},
 };

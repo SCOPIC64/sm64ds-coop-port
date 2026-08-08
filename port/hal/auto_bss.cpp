@@ -189,6 +189,10 @@ int data_020a4b5c[4];
    so zero is what the boot leaves it at; ov089's own bss comes from the
    overlay mount. */
 int data_020a0ebc[3];
+/* gate 180: the QUESTION_BLOCK content body func_ov102_021492d4 reads it.
+   kind:bss at 0x020a0edc, real span 8 bytes (to data_020a0ee4); zero is the
+   boot value. */
+int data_020a0edc[2];
 /* gate 20: the EXIT's own scratch. func_ov002_020b0a0c stores the spawn
    record's entrance byte here on its way into LoadLevel; config/arm9 calls
    it kind:bss, so zero is what the boot leaves it at. */
