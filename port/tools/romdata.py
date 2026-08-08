@@ -100,6 +100,14 @@ NAMED = [
     # and the per-character cap-model constant data_0208a0e0 sits beside them.
     "data_02075230", "data_02075238",
     "data_0208ee44",
+    # The three MSG_GEN_TEXT_FUNCS embedded-text data tables (func_0201aca4 /
+    # func_0201adac read them on a 0xfe message escape): data_0208ee64 is the
+    # {100,10,1} decimal place-value divisors, data_0208ee6c the button-glyph
+    # font pairs, data_0208ee74 the 0..9 digit glyph indices. Pure data (no
+    # relocs in the range); zeroed storage would have printed all zeros.
+    "data_0208ee64",
+    "data_0208ee6c",
+    "data_0208ee74",
     "data_0208ee8c",
     "data_0208eeac",
     "data_0208f074",

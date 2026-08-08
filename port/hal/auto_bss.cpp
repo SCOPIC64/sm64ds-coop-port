@@ -1,7 +1,10 @@
 // GENERATED-ACCUMULATED zero storage for gate-10/11 BSS ring symbols.
 // Grown by the link-sweep loop; sizes are generous defaults.
 extern "C" {
-int MSG_GEN_TEXT_FUNCS[8];
+/* MSG_GEN_TEXT_FUNCS is NOT zeroed storage: it is a 3-entry function-pointer
+   table func_0201b7cc calls through on a 0xfe message control byte. Seated with
+   real host addresses in hal/message_gen_text.cpp -- a zeroed array here was a
+   null call (eip=0) on every multi-page line carrying an embedded-text escape. */
 int VT1[8];
 int data_0209b454[8];
 int data_0209b490[8];

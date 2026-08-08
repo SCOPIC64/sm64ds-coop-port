@@ -699,6 +699,17 @@ src/func_0201adfc.c
 src/func_0201b388.c
 src/func_0201b6f8.c
 src/func_0201b7cc.c
+# The three MSG_GEN_TEXT_FUNCS embedded-text generators (arm9 0x0208ee80, a
+# 3-entry function-pointer table func_0201b7cc calls through on a 0xfe control
+# byte in the message stream: star count, controller-button glyph, digit run).
+# The table was zeroed auto_bss storage, so every real multi-page line whose
+# text carries a 0xfe (the buddy's msg 42, the sign line 43, ...) called a null
+# pointer and crashed at eip=0. hal/message_gen_text.cpp seats the table with
+# these real host addresses; func_020138dc is func_0201aca4's rabbit-count dep.
+src/func_0201aca4.c
+src/func_0201ab6c.c
+src/func_0201adac.c
+src/func_020138dc.c
 src/func_02022a4c.c
 src/func_020353e0.c
 src/func_020353f4.c

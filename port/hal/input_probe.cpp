@@ -123,8 +123,16 @@ extern "C" void port_input_probe_buddy_trigger(int frame)
     char *player = (char *)find_actor_by_class(0xbf);
     if (!buddy || !player) return;
     unsigned int pid = *(unsigned int *)(player + 0x4);   /* player's unique id */
-    *(unsigned int *)(buddy + 0xf4) |= 0x8000000;
-    *(unsigned int *)(buddy + 0xf8) = pid;
+    static int entered, staged2;
+    /* Arm the buddy's clsn-detect fields ONLY until the talk is entered. Re-arming
+       every frame made his own state-0 main re-detect the player after each talk
+       closed and loop the whole talk over -- a headless artifact of standing in
+       for the collision cylinder. Once entered, leave the fields alone so the
+       buddy walks his real post-talk states. */
+    if (!entered) {
+        *(unsigned int *)(buddy + 0xf4) |= 0x8000000;
+        *(unsigned int *)(buddy + 0xf8) = pid;
+    }
     static int announced;
     if (!announced) {
         announced = 1;
@@ -142,7 +150,6 @@ extern "C" void port_input_probe_buddy_trigger(int frame)
        player while he is still in ST_WAIT. Once the talk is entered this stops.
        Nothing downstream is faked -- the buddy's state machine, the message and
        OpenCannonInCurLevel are all the matched code, driven in the ROM's order. */
-    static int entered, staged2;
     if (!entered && _ZN6Player12GetTalkStateEv(player) < 0) {
         int idx = (int)data_020a0e40; if (idx < 0 || idx > 3) idx = 0;
         *(unsigned short *)(data_0209f49e + idx * 0x18) |= 0x1;  /* A pressed */
@@ -154,28 +161,31 @@ extern "C" void port_input_probe_buddy_trigger(int frame)
                          _ZN6Player12GetTalkStateEv(player));
         }
     }
-    /* Let the player's REAL St_Talk state machine run to its exit step (6/7),
-       whose only remaining block is the talk-CAMERA latch cam+0x154 & 0x8000 --
-       the Camera actor clears it as it runs its own talk-mode teardown, camera
-       choreography the headless degenerate spawn never completes. Clear that one
-       latch bit so the player leaves ST_TALK (GetTalkState -> -1) the way he does
-       once the DS camera teardown finishes. Then put the buddy in his real
-       walk-back state 2 through his own ChangeState -- standing in for his
-       turn-to-face pose gate (his approach ANIMATION) -- so his state-2 main runs
-       and, seeing GetTalkState == -1, calls the matched OpenCannonInCurLevel().
-       The talk machine, GetTalkState and the cannon write are all real code. */
+    /* THE CAMERA TEARDOWN IS THE CAMERA'S NOW. St_Talk's exit step 6 waits on
+       cam+0x154 bit 15 (talk mode); on the DS the Camera clears it in its own
+       Camera::Behavior (block_7: when bit 3 is set, if bits 0xc000 are up it
+       clears them and ChangeStates back). That path runs on the host -- proven
+       by the cam154 trace going 0x4000 -> 0x8000 -> 0 while the player sits at
+       pstep 6, after which GetTalkState -> -1 on its own. The old stand-in
+       force-cleared bit 15 from here; that latch-clear is DELETED. The one piece
+       still driven is the buddy's own approach: his state machine reaches the
+       OpenCannon state (func_ov084_0212c1a0) only after a turn-to-face + walk-back
+       ANIMATION the headless degenerate spawn does not play, so once the talk is
+       genuinely over (GetTalkState < 0, the camera having cleared the latch) the
+       buddy is handed to that state through his OWN ChangeState. Its main then
+       walks GetTalkState 0->2->-1 and calls the matched OpenCannonInCurLevel().
+       The talk machine, the camera teardown, GetTalkState and the cannon write
+       are all real code -- only the buddy's missing approach animation is stood
+       in for. */
     if (entered && std::getenv("SM64DS_BUDDY_OPENCANNON")) {
-        extern char *data_0209f318;   /* the Camera singleton */
-        int pstep = *(unsigned char *)(player + 0x6e3);
-        if (data_0209f318 && (pstep == 6 || pstep == 7))
-            *(unsigned int *)(data_0209f318 + 0x154) &= ~0x8000;
-        /* once the talk is fully over, hand the buddy to state 2 to open it */
+        /* once the talk is fully over -- the CAMERA having cleared bit 15 on its
+           own -- hand the buddy to his OpenCannon state (its main opens it) */
         if (!staged2 && _ZN6Player12GetTalkStateEv(player) < 0) {
             staged2 = 1;
             func_ov084_0212c960(buddy, 2);
-            std::fprintf(stderr, "  [buddy] f%d talk over, buddy -> state 2; its "
-                         "state-2 main runs the real OpenCannonInCurLevel\n",
-                         frame);
+            std::fprintf(stderr, "  [buddy] f%d talk over (camera cleared the "
+                         "talk latch itself), buddy -> OpenCannon state; its main "
+                         "runs the real OpenCannonInCurLevel\n", frame);
         }
     }
     if (std::getenv("SM64DS_TRACE_BUDDY")) {
@@ -190,11 +200,14 @@ extern "C" void port_input_probe_buddy_trigger(int frame)
         unsigned pressed = *(unsigned short *)(data_0209f49e +
                                                (int)data_020a0e40 * 0x18);
         int pstep = *(unsigned char *)(player + 0x6e3);   /* mStateStep */
+        extern char *data_0209f318;   /* the Camera singleton */
+        unsigned camflags = data_0209f318
+            ? *(unsigned int *)(data_0209f318 + 0x154) : 0;
         std::fprintf(stderr, "  [buddy] f%d bstate=%d bsub=%d pstep=%d "
-                     "talkstate=%d msg=%d pressed=%03x&3=%d\n", frame, bstate,
-                     *(int *)(buddy + 0x1e8), pstep,
+                     "talkstate=%d msg=%d pressed=%03x&3=%d cam154=%08x\n", frame,
+                     bstate, *(int *)(buddy + 0x1e8), pstep,
                      _ZN6Player12GetTalkStateEv(player), (int)data_0209d660,
-                     pressed, pressed & 3);
+                     pressed, pressed & 3, camflags);
     }
 }
 
