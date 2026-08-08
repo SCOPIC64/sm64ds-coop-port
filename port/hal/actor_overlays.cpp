@@ -268,6 +268,9 @@ void __sinit_ov014_021130ac(void);
 void __sinit_ov014_02113118(void);
 void __sinit_ov014_021132fc(void);
 void port_chain_chomp_states_seat(void);
+/* gate 182: CHUCKYA's twenty state statics, seated over the SOURCE side --
+   port/unmatched/KoopaChuckya_StateDispatch.cpp */
+void port_chuckya_states_seat(void);
 
 /* ---- KOOPA_THE_QUICK's six states ----------------------------------------
    __sinit_ov062_0211d4a0 copies six {function, delta} statics at ov062
@@ -965,6 +968,7 @@ extern "C" void port_actor_overlays_sinits(void)
     port_ov062_pack_check();
     port_ov062_syms_patch();
     port_koopa_quick_states_seat();
+    port_chuckya_states_seat();   /* gate 182: BEFORE __sinit_ov062_0211cf30 */
     __sinit_ov062_0211cf30();
     __sinit_ov062_0211d2d8();
     __sinit_ov062_0211d4a0();
