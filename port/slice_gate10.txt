@@ -1361,3 +1361,25 @@ port/unmatched/CylinderClsn_Process.cpp
 src/func_02014f44.c
 src/func_02014f5c.c
 src/func_ov002_020caf98.cpp
+
+# the rest of the NoControl kind-entry family (the door's kind 7 came in
+# with the warp; these are the other nineteen kinds' entries -- pipes,
+# cutscene holds, talk/key/star doors -- wired in player_states.inc)
+src/func_ov002_020c9de4.c
+src/func_ov002_020c9d68.cpp
+src/func_ov002_020c9d1c.c
+src/func_ov002_020c9cc0.c
+src/func_ov002_020c9c00.c
+src/func_ov002_020c9b7c.c
+src/func_ov002_020c9b5c.c
+src/func_ov002_020c9ac0.cpp
+src/func_ov002_020c9b10.c
+src/func_ov002_020c9a04.c
+src/func_ov002_020c9998.c
+src/func_ov002_020c990c.c
+src/func_ov002_020c98a4.cpp
+src/func_ov002_020c9840.cpp
+src/func_ov002_020c97f8.cpp
+src/func_ov002_020c97e0.c
+# kind 0x10 (white/star door) swings the camera to state 0x0209b118
+src/func_0200d148.c

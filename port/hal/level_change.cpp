@@ -127,7 +127,8 @@ void CleanCommonModelDataArr(void);
 void port_model_vram_reset(void);   /* hal/model_host.cpp */
 void sd_sound_level_reap(void);     /* hal/sdat/consumer.cpp: the ROM's
                                        Scene::BeforeCleanupResources reap */
-int  port_course_loop_live(void);   /* hal/star_flow.cpp: live loop handles */
+int  port_course_loop_live(void);
+const char *port_actor_class_name(unsigned id);   /* hal/star_flow.cpp: live loop handles */
 void port_level_stage_reseat(void *stage);
 unsigned _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *self);
 extern void *data_020a0eac;              /* Memory::gameHeapPtr */
@@ -328,25 +329,46 @@ extern "C" int port_level_teardown(void)
     }
     /* The four processing lists have to be genuinely empty, not just free of
        actors this walk could see. A stale head is a dangling node the next
-       level's phase walk would step through. */
+       level's phase walk would step through.
+
+       Every non-stage actor is destroyed by this point (the rounds ran to
+       zero), so a non-stage node here is DANGLING -- a cleanup that never
+       unlinked. Declining the change over it (the first reading) was
+       unsound: the level's actors are already gone, so "the level stands"
+       handed the walk a world of freed objects and it faulted on the next
+       tick (playlog 001951, a stale cleanup node after the garden door).
+       Repair instead: keep the stage links, drop the dangling nodes BY NAME
+       so the leak is loud, and proceed with the boot. */
     struct { const char *name; int *list; } lists[4] = {
         {"behaviour", data_020a4b78}, {"pending", data_020a4b88},
         {"render", data_020a4b98}, {"cleanup", data_020a4ba8}};
     void *stage = port_stage_object();
-    int bad = 0;
     for (int i = 0; i < 4; ++i) {
+        int *keep_head = 0, *keep_tail = 0;
+        int dropped = 0;
         for (int *n = (int *)(size_t)lists[i].list[0]; n;
              n = (int *)(size_t)n[1]) {
-            if ((void *)(size_t)n[2] == stage)
+            if ((void *)(size_t)n[2] == stage) {
+                if (keep_tail) keep_tail[1] = (int)(size_t)n;
+                else keep_head = n;
+                keep_tail = n;
                 continue;
-            std::fprintf(stderr, "  [lvl] %s LIST NOT EMPTY: node %p actor "
-                         "%p\n", lists[i].name, (void *)n,
-                         (void *)(size_t)n[2]);
-            ++bad;
-            break;
+            }
+            unsigned id = 0xffff;
+            char *a = (char *)(size_t)n[2];
+            if (a) id = *(unsigned short *)(a + 0xc);
+            std::fprintf(stderr, "  [lvl] %s list: DROPPED dangling node %p "
+                         "(actor %p id 0x%x %s) -- its cleanup never "
+                         "unlinked\n", lists[i].name, (void *)n, (void *)a,
+                         id, id < 0x400 ? port_actor_class_name(id) : "?");
+            ++dropped;
+        }
+        if (dropped) {
+            if (keep_tail) keep_tail[1] = 0;
+            lists[i].list[0] = (int)(size_t)keep_head;
         }
     }
-    return bad == 0;
+    return 1;
 }
 
 /* ---- the change ----------------------------------------------------------- */

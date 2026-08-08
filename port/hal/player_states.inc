@@ -236,6 +236,23 @@
        table: per-side door anim, then step 7/8 so Main's 020c8cb0 walks
        Mario through. The missing piece of the door warp until 2026-08-08. */
     case 0x020c9c4c: func_ov002_020c9c4c((char *)self); return 1;
+    /* ...and the other nineteen kinds' entries (kinds 0/2/3 share 9de4) */
+    case 0x020c9de4: func_ov002_020c9de4((char *)self); return 1;
+    case 0x020c9d68: func_ov002_020c9d68((char *)self); return 1;
+    case 0x020c9d1c: func_ov002_020c9d1c((char *)self); return 1;
+    case 0x020c9cc0: func_ov002_020c9cc0((char *)self); return 1;
+    case 0x020c9c00: func_ov002_020c9c00((char *)self); return 1;
+    case 0x020c9b7c: func_ov002_020c9b7c((char *)self); return 1;
+    case 0x020c9b5c: func_ov002_020c9b5c((char *)self); return 1;
+    case 0x020c9ac0: func_ov002_020c9ac0((char *)self); return 1;
+    case 0x020c9b10: func_ov002_020c9b10((char *)self); return 1;
+    case 0x020c9a04: func_ov002_020c9a04((char *)self); return 1;
+    case 0x020c9998: func_ov002_020c9998((char *)self); return 1;
+    case 0x020c990c: func_ov002_020c990c((char *)self); return 1;
+    case 0x020c98a4: func_ov002_020c98a4((char *)self); return 1;
+    case 0x020c9840: func_ov002_020c9840((char *)self); return 1;
+    case 0x020c97f8: func_ov002_020c97f8((char *)self); return 1;
+    case 0x020c97e0: func_ov002_020c97e0((char *)self); return 1;
     case 0x020c816c: return ((Player *)self)->Player::St_NoControl_Main();
     case 0x020c976c: return ((Player *)self)->Player::St_NoControl_Init();
     case 0x020c8128: return ((Player *)self)->Player::St_NoControl_Cleanup();
