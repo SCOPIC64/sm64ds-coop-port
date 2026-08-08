@@ -235,6 +235,19 @@ extern "C" void port_input_probe_sign_trigger(int frame)
     if (!std::getenv("SM64DS_SIGN_TRIGGER")) return;
     if (frame < 60) return;
     static int entered;
+    /* TEMPORARY sign read-state trace: once the talk is entered, watch the
+       message-active flag, the box state and GetTalkState each frame, so a
+       headless run can see the box open, scroll and close. */
+    if (std::getenv("SM64DS_TRACE_SIGN")) {
+        char *sg = (char *)find_actor_by_class(184);
+        char *pl = (char *)find_actor_by_class(0xbf);
+        if (sg && pl)
+            std::fprintf(stderr,
+                "  [sign] f%d state=%d talk=%d msgActive=%d box=%d param=0x%x\n",
+                frame, *(int *)(sg + 0x354),
+                _ZN6Player12GetTalkStateEv(pl), (int)data_0209d660,
+                (int)data_0209d6bc, *(int *)(sg + 8));
+    }
     if (entered) return;
     char *sign = (char *)find_actor_by_class(184);
     char *player = (char *)find_actor_by_class(0xbf);

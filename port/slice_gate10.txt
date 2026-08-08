@@ -1107,7 +1107,9 @@ src/func_0200d6b4.c
 src/func_0200d768.c
 src/func_0200d7a4.c
 src/func_0200d89c.c
-src/func_0201fc88.c
+# src/func_0201fc88.c -- dropped: its (void) form drops the object-message id on
+#   the host ride-through; hal/cxx_aliases.cpp carries a veneer that spells it
+#   through to ObjectMessageIDToActualMessageID (the sign-box open path).
 src/func_ov002_020beb38.c
 src/func_ov002_020c47f4.cpp
 src/func_ov002_020cc660.c

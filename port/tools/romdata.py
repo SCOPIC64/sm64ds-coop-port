@@ -294,12 +294,31 @@ NAMED = [
 #
 # MSVC grouped sections put them back together: the linker concatenates
 # contributions to `.name$suffix` sorted by the full section name, so one
-# $NNN per symbol in address order lays the run out in ROM order. Every delta
-# in these runs is a multiple of 8, so align(8) packs with no interior
-# padding. (romdata_contig_check() in the HAL asserts the result at runtime.)
+# $NNN per symbol in address order lays the run out in ROM order. Each run
+# carries the alignment its deltas share (a delta that is not a multiple of the
+# alignment would pad and break the run), and the HAL asserts the result at
+# runtime.
+#
+# (tag, start, end, align). align defaults to 8.
 CONTIG = [
     # the camera-mode preset table: 33 records of 0x28, 0x528 total
-    ("cammod", 0x02086FCC, 0x020874F4),
+    ("cammod", 0x02086FCC, 0x020874F4, 8),
+    # THE OBJECT-MESSAGE REMAP TABLE, read as TWO OVERLAPPING VIEWS.
+    # ObjectMessageIDToActualMessageID walks one interleaved {key,value} u16
+    # table at 0x0208eeec: data_0208eeec[i].v (stride 4) is the key column and
+    # data_0208eeee[i].v (= data_0208eeec+2, same stride) is the value column.
+    # dsd named both halves, so the delta-to-next-symbol rule sizes data_0208eeec
+    # at 2 bytes -- and the walk then indexes a 4-byte host array off its end,
+    # remapping the sign/NPC object id to garbage so St_Talk_Main's box opens on
+    # an out-of-range text id and never activates. Laid out contiguously the two
+    # views alias the same bytes exactly as on the DS. The run runs to
+    # data_0208f021 (dsd's next name inside the same table, at an ODD address --
+    # dsd split the run mid-halfword); the walk reads keys up to index 0x61, past
+    # that name, so it has to be one host array too. align 1: the members pack
+    # byte-tight so every symbol lands at its exact ROM-relative offset, which is
+    # the whole point -- data_0208eeee must sit at data_0208eeec+2. x86 tolerates
+    # the unaligned u16 reads the Pair view then does.
+    ("objmsg", 0x0208EEEC, 0x0208F074, 1),
 ]
 
 
@@ -315,27 +334,28 @@ def symbol_table(root):
 
 
 def contig_entries(syms):
-    """[(tag, [(name, addr, size), ...])] for every run in CONTIG."""
+    """[(tag, align, [(name, addr, size), ...])] for every run in CONTIG."""
     runs = []
-    for tag, start, end in CONTIG:
+    for tag, start, end, align in CONTIG:
         members = [(a, n) for a, n in syms if start <= a < end]
         out = []
         for i, (a, n) in enumerate(members):
             nxt = members[i + 1][0] if i + 1 < len(members) else end
             size = nxt - a
-            if size % 8:
-                sys.exit(f"{tag}: {n} is {size:#x} bytes, not a multiple of 8 "
-                         "-- ordered sections would pad and break the run")
+            if size % align:
+                sys.exit(f"{tag}: {n} is {size:#x} bytes, not a multiple of "
+                         f"{align} -- ordered sections would pad and break the "
+                         "run")
             out.append((n, a, size))
         if not out or out[0][1] != start:
             sys.exit(f"{tag}: no symbol at the run start {start:#x}")
-        runs.append((tag, out))
+        runs.append((tag, align, out))
     return runs
 
 
 def named_entries(root, syms):
     addr_of = {n: a for a, n in syms}
-    contig_names = {n for _, mem in contig_entries(syms) for n, _, _ in mem}
+    contig_names = {n for _, _, mem in contig_entries(syms) for n, _, _ in mem}
     out = []
     for entry in NAMED:
         # "name:0xSIZE" pins the extent explicitly. The default -- delta to the
@@ -432,16 +452,18 @@ def main():
     lines.append("")
 
     # Grouped-section runs (see CONTIG).
-    for tag, members in contig_entries(syms):
+    for tag, align, members in contig_entries(syms):
         lines.append(f"/* run .{tag}: {members[0][1]:#010x} .. "
                      f"{members[-1][1] + members[-1][2]:#010x}, "
-                     f"{len(members)} symbols, laid out in ROM order */")
+                     f"{len(members)} symbols, laid out in ROM order "
+                     f"(align {align}) */")
         for i, (name, addr, size) in enumerate(members):
             sec = f".{tag}${i:04d}"
             lines.append(f'#pragma section("{sec}", read, write)')
             blob = data[addr - BASE:addr - BASE + size]
             body = ",".join(str(b) for b in blob)
-            lines.append(f'__declspec(allocate("{sec}")) __declspec(align(8)) '
+            lines.append(f'__declspec(allocate("{sec}")) '
+                         f'__declspec(align({align})) '
                          f"unsigned char {name}[{size}] = {{ {body} }};")
         first, last = members[0], members[-1]
         lines.append(f"unsigned {tag}_run_base = (unsigned)&{first[0]}[0];")

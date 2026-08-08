@@ -218,6 +218,29 @@ void SharedFilePtr_Destruct_TexSeq(void) {}
 void SharedFilePtr_Destruct_Anim(void) {}
 void *data_020aa3f0;                     /* MSL global-dtor chain head */
 
+/* PORT_HOST_ABI: the OBJECT-message box-open ride-through.
+ *
+ * St_Talk_Main opens a sign/NPC box (mStateWork==0) by calling
+ * func_0201fc88(mAttachOffsetY) -- the raw object-message id. On the DS that
+ * 0x24-byte function leaves the id in r0 across a call to
+ * ObjectMessageIDToActualMessageID, which reads r0 and remaps the object id to
+ * a real text id, then tail-calls func_0201f32c(text id) to raise the box. The
+ * matched src func_0201fc88.c spells BOTH callees argumentless to mirror that
+ * ride-through, so under MSVC the id is dropped: ObjectMessageIDToActualMessageID
+ * reads a stale register, remaps garbage, and the box opens on an invalid id
+ * and never activates (data_0209d660 stays 0). The plain-text path
+ * (func_0201f32c, mStateWork==1) that the message probe uses is unaffected,
+ * which is why the probe's box shows and a real sign's never did. This host
+ * veneer spells the id through both calls; src/func_0201fc88.c is dropped from
+ * slice_gate10 so this definition of _func_0201fc88 is the one that links, and
+ * the existing /alternatename maps St_Talk_Main's mangled call onto it. */
+extern "C" int ObjectMessageIDToActualMessageID(int id);
+extern "C" void func_0201f32c(int msgID);
+extern "C" void func_0201fc88(short id)
+{
+    func_0201f32c((short)ObjectMessageIDToActualMessageID(id));
+}
+
 /* PORT_HOST_ABI: SDK memset asm primitive (func_0205a588) -- the edge-preserving
    RMW byte-fill the FS/decompress path uses. No C to compile under MSVC, so the
    port spells it as memset, which is what its asm computes. gate 51 (the iron
