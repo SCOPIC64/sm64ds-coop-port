@@ -458,6 +458,16 @@ void port_message_pump(void);
 void port_message_composite_engine_a(void *fb);
 int port_probe_message_id(void);
 int port_probe_message_fire(void *player, int id);
+/* frame-scripted headless pad press (hal/input_probe.cpp): apply ORs the
+   scripted DS pad bits into the raw pad mirror before Stage::CheckInput; bits
+   returns the same word so the harness can fold it into its own button word.
+   TEMPORARY -- delete with the probe. */
+void port_input_probe_apply(int frame);
+unsigned short port_input_probe_bits(int frame);
+void port_input_probe_trace_msg(int frame);
+void port_input_probe_trace_cannon(int frame);
+void port_input_probe_buddy_trigger(int frame);
+void port_input_probe_sign_trigger(int frame);
 /* the scene-fade request the title-select hands off with. Recorded by the port
    in hal/level_change.cpp and acted on by this frame loop. */
 int port_scene_fade_pending(int *sceneId);
@@ -2415,6 +2425,11 @@ int main(void)
             if (!real_camera)
                 *(short *)((char *)data_020a1164 + 0) =
                     (short)((int)(cam_yaw * (32768.0f / 3.14159265f)) + 0x8000);
+            /* TEMPORARY headless input: OR any SM64DS_PROBE_INPUT press for this
+               frame into the raw pad mirror BEFORE CheckInput, so the remap and
+               the direct readers (IsButtonInputValid, Message::Update) both see
+               it. Does nothing without the env var. */
+            port_input_probe_apply(frame);
             _ZN5Stage10CheckInputEv();
             /* the matched TU writes its own data_0209f498 block; older
                TUs read per-field split symbols -- copy the record out */
@@ -2621,6 +2636,11 @@ int main(void)
                     btn |= 0x100;
             }
             if (menu_on) btn = 0;   /* enter/A belong to the menu, not to him */
+            /* TEMPORARY: fold the scripted probe's A/B into the button word so
+               StartTalk's b==0 gate (data_0209f49e & 3) sees the press, and the
+               camera-rotate readers do not (mask to bits 0-1). SM64DS_PROBE_INPUT. */
+            if (!menu_on)
+                btn |= (unsigned short)(port_input_probe_bits(frame) & 0x3);
             *(unsigned short *)(data_0209f49c + 0) = btn;
             *(unsigned short *)(data_0209f49e + 0) =
                 (unsigned short)(btn & (unsigned short)~btn_was);
@@ -3347,6 +3367,10 @@ int main(void)
                 }
                 data_0209f20c[0] = 0;
             }
+            /* TEMPORARY: arm the buddy's talk detection before the actor tick so
+               his state-0 main runs the real StartTalk. SM64DS_BUDDY_TRIGGER. */
+            port_input_probe_buddy_trigger(frame);
+            port_input_probe_sign_trigger(frame);   /* TEMPORARY: SM64DS_SIGN_TRIGGER */
             port_actor_tick();
         } else if (*(void **)(c + 0x370)) {
             hal_player_behavior(player);
@@ -3379,6 +3403,8 @@ int main(void)
            compositor below reads. Stepped here, after the player tick that can
            open the box (St_Talk_Main -> func_0201f32c) and beside the fader. */
         port_message_pump();
+        port_input_probe_trace_msg(frame);   /* TEMPORARY: SM64DS_TRACE_MSG */
+        port_input_probe_trace_cannon(frame);/* TEMPORARY: SM64DS_TRACE_CANNON */
         /* the real boot seats the path table, so the tracking's own binding
            stands -- except where the port's unfilled floor record invents
            one the level cannot produce (hal/level_boot.cpp) */

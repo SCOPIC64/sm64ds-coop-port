@@ -1,0 +1,360 @@
+// TEMPORARY PROBE: a frame-scripted pad press for headless runs.
+//
+// This is a test rig, not game behaviour. There is no person on the pad in a
+// headless selftest, so a dialogue box that reaches its page/close prompt
+// (Message::Update state 7/8, gated on IsButtonInputValid) holds forever, and a
+// talk that needs an A press to start never starts. This lets a run script the
+// presses from the command line so the whole talk chain -- open, advance, close
+// -- can be driven and captured with no rebuild.
+//
+//   SM64DS_PROBE_INPUT="120:A,180:A"   -- frame:button pairs, comma separated.
+//   On each listed frame the named DS pad bits are ORed into the pad mirror for
+//   that one frame. A range "120-123:A" holds the press across the frames
+//   120..123 inclusive (an edge can be missed if it lands on a paused frame, so
+//   a short hold is the safe way to guarantee the box sees it). Button letters:
+//     A B X Y  L R  U D (dpad)  START SELECT
+//   mapped to the DS KEYINPUT bit layout (A=bit0, B=bit1, ...). Case
+//   insensitive, '+' joins buttons on one frame ("120:A+B").
+//
+// WHY IT WRITES TWO SYMBOLS. On the DS, data_020a0e58 is PadData[4] with stride
+// 4 ({u16 held @ +0, u16 pressed @ +2}), so data_020a0e5a IS data_020a0e58+2 --
+// the same memory, pad 0's "pressed" field. In the port those are two separate
+// auto_bss symbols, so a write to one does not reach the other. IsButtonInputValid
+// and Message::Update read data_020a0e5a[player*2]; Stage::CheckInput reads
+// data_020a0e58[i].held/pressed and remaps it into the Ctrl block the walk
+// states read. To make one scripted press reach both consumers the probe writes
+// the DS mirror data_020a0e58 (held AND pressed) and the split pressed symbol
+// data_020a0e5a together, restoring the DS aliasing for that frame.
+//
+// Delete this file, its CMake lines and its two call sites in walk_window when a
+// real input source (a recorded demo, a person on the pad) drives the box.
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cctype>
+
+extern "C" {
+
+/* the DS KEYINPUT mirror (PadData[4], {u16 held, u16 pressed}) and the split
+   "pressed" symbol that overlays pad 0's pressed field on hardware */
+extern unsigned short data_020a0e58[];   /* [0]=pad0.held [1]=pad0.pressed ... */
+extern int data_020a0e5a[];              /* the pressed-word split symbol */
+extern unsigned char data_020a0e40;      /* the local player index */
+extern unsigned char data_0209d6bc;      /* the Message box state (Message::Update) */
+extern unsigned char data_0209d660;      /* nonzero while a message is active */
+
+}  /* extern "C" */
+
+/* TEMPORARY message-state trace: SM64DS_TRACE_MSG=1 logs the box state each
+   frame it is active, so a headless close can be watched frame by frame. */
+extern "C" void port_input_probe_trace_msg(int frame)
+{
+    if (!std::getenv("SM64DS_TRACE_MSG")) return;
+    static int was_active;
+    int active = data_0209d660 != 0;
+    if (active || was_active)
+        std::fprintf(stderr, "[msg] f%d active=%d state=%d\n",
+                     frame, active, (int)data_0209d6bc);
+    was_active = active;
+}
+
+/* TEMPORARY cannon-bit trace: SM64DS_TRACE_CANNON=1 reads the MATCHED
+   IsCannonOpenInCurLevel() each frame and logs the edge, so a headless run shows
+   the exact frame the Bob-omb Buddy's OpenCannonInCurLevel() flips the save bit
+   through the real talk path. This is the whole point of the seam. */
+extern "C" int IsCannonOpenInCurLevel(void);
+extern "C" void port_input_probe_trace_cannon(int frame)
+{
+    if (!std::getenv("SM64DS_TRACE_CANNON")) return;
+    static int last = -1;
+    int open = IsCannonOpenInCurLevel() != 0;
+    if (open != last) {
+        std::fprintf(stderr, "[cannon] f%d IsCannonOpenInCurLevel=%d%s\n",
+                     frame, open, last >= 0 && open ? "  <-- FLIPPED OPEN" : "");
+        last = open;
+    }
+}
+
+/* TEMPORARY talk-trigger for a headless Bob-omb Buddy proof.
+ *
+ * On the DS the buddy's state-0 main (func_ov084_0212c8b0) enters the talk only
+ * once its collision cylinder has detected the player: it reads its own +0xf4
+ * clsn flags for bit 0x8000000 and its +0xf8 clsn-partner id, finds that actor
+ * (the player, class 0xbf) and calls the REAL Player::StartTalk. The port does
+ * not yet drive that cylinder overlap for this parallel-lane class headlessly,
+ * so this stands in for JUST the detection: it sets +0xf4 |= 0x8000000 and
+ * +0xf8 = the player's unique id (player+0x4, what Actor::FindWithID matches),
+ * so the buddy's OWN state-0 main runs the real StartTalk on the real player.
+ * Everything downstream -- StartTalk, ChangeState(ST_TALK), the buddy's talk and
+ * walk-back states, ShowMessage, GetTalkState, OpenCannonInCurLevel -- is
+ * genuine matched code. Nothing here writes the cannon bit or fakes a talk.
+ *
+ *   SM64DS_BUDDY_TRIGGER=1  -- arm the detection each frame from frame 60 on.
+ *
+ * Delete with the probe when the buddy's cylinder overlap is hosted headlessly.
+ */
+extern "C" {
+extern void *data_0209b468;                 /* the live-actor list head node */
+extern void *_ZN5Actor10FindWithIDEj(unsigned int id);
+extern void func_ov084_0212c8b0(void *buddy);   /* buddy state-0 main */
+extern void func_ov084_0212c960(void *buddy, int i);  /* buddy ChangeState */
+extern unsigned char data_0209f49e[];        /* per-player pressed word, stride 0x18 */
+extern int _ZN6Player12GetTalkStateEv(void *p);
+}
+/* walk the list (Node{void*x0; Node*next@4; int*x8@8}) for the first actor
+   whose class word (+0xc) equals `cls`; return the actor (node+8) or 0. */
+static void *find_actor_by_class(unsigned short cls)
+{
+    struct Node { void *x0; Node *next; char **x8; };
+    Node *n = *(Node **)&data_0209b468;
+    while (n) {
+        char *a = (char *)n->x8;   /* node->x8 IS the actor pointer (node+8) */
+        if (a && *(unsigned short *)(a + 0xc) == cls)
+            return a;
+        n = n->next;
+    }
+    return 0;
+}
+extern "C" void port_input_probe_buddy_trigger(int frame)
+{
+    if (!std::getenv("SM64DS_BUDDY_TRIGGER")) return;
+    if (frame < 60) return;
+    char *buddy = (char *)find_actor_by_class(181);
+    char *player = (char *)find_actor_by_class(0xbf);
+    if (!buddy || !player) return;
+    unsigned int pid = *(unsigned int *)(player + 0x4);   /* player's unique id */
+    *(unsigned int *)(buddy + 0xf4) |= 0x8000000;
+    *(unsigned int *)(buddy + 0xf8) = pid;
+    static int announced;
+    if (!announced) {
+        announced = 1;
+        std::fprintf(stderr, "  [buddy] f%d armed talk detection: buddy %p, "
+                     "player %p (uid 0x%x); state-0 main will run the real "
+                     "Player::StartTalk\n", frame, (void *)buddy,
+                     (void *)player, pid);
+    }
+
+    /* Drive the entry ONCE, in the right order. On the DS the buddy's Behavior
+       runs before the player consumes the button, so StartTalk sees ST_WAIT +
+       A-pressed and enters ST_TALK. In the port the player node runs first, so
+       here (before the actor tick) we set the A-pressed bit and call the buddy's
+       OWN state-0 main directly: it runs the REAL Player::StartTalk on the real
+       player while he is still in ST_WAIT. Once the talk is entered this stops.
+       Nothing downstream is faked -- the buddy's state machine, the message and
+       OpenCannonInCurLevel are all the matched code, driven in the ROM's order. */
+    static int entered, staged2;
+    if (!entered && _ZN6Player12GetTalkStateEv(player) < 0) {
+        int idx = (int)data_020a0e40; if (idx < 0 || idx > 3) idx = 0;
+        *(unsigned short *)(data_0209f49e + idx * 0x18) |= 0x1;  /* A pressed */
+        func_ov084_0212c8b0(buddy);   /* real state-0 main -> real StartTalk */
+        if (_ZN6Player12GetTalkStateEv(player) >= 0) {
+            entered = 1;
+            std::fprintf(stderr, "  [buddy] f%d StartTalk ENTERED the talk: "
+                         "GetTalkState=%d\n", frame,
+                         _ZN6Player12GetTalkStateEv(player));
+        }
+    }
+    /* Let the player's REAL St_Talk state machine run to its exit step (6/7),
+       whose only remaining block is the talk-CAMERA latch cam+0x154 & 0x8000 --
+       the Camera actor clears it as it runs its own talk-mode teardown, camera
+       choreography the headless degenerate spawn never completes. Clear that one
+       latch bit so the player leaves ST_TALK (GetTalkState -> -1) the way he does
+       once the DS camera teardown finishes. Then put the buddy in his real
+       walk-back state 2 through his own ChangeState -- standing in for his
+       turn-to-face pose gate (his approach ANIMATION) -- so his state-2 main runs
+       and, seeing GetTalkState == -1, calls the matched OpenCannonInCurLevel().
+       The talk machine, GetTalkState and the cannon write are all real code. */
+    if (entered && std::getenv("SM64DS_BUDDY_OPENCANNON")) {
+        extern char *data_0209f318;   /* the Camera singleton */
+        int pstep = *(unsigned char *)(player + 0x6e3);
+        if (data_0209f318 && (pstep == 6 || pstep == 7))
+            *(unsigned int *)(data_0209f318 + 0x154) &= ~0x8000;
+        /* once the talk is fully over, hand the buddy to state 2 to open it */
+        if (!staged2 && _ZN6Player12GetTalkStateEv(player) < 0) {
+            staged2 = 1;
+            func_ov084_0212c960(buddy, 2);
+            std::fprintf(stderr, "  [buddy] f%d talk over, buddy -> state 2; its "
+                         "state-2 main runs the real OpenCannonInCurLevel\n",
+                         frame);
+        }
+    }
+    if (std::getenv("SM64DS_TRACE_BUDDY")) {
+        /* buddy state index +0x1e4, player state ptr +0x370, GetTalkState, and
+           the player pressed-button word StartTalk's b==0 gate reads
+           (data_0209f49e + idx*0x18 & 3) */
+        extern int _ZN6Player12GetTalkStateEv(void *p);
+        extern unsigned char data_0209f49e[];
+        extern unsigned char data_020a0e40;
+        int bstate = *(int *)(buddy + 0x1e4);
+        void *pstate = *(void **)(player + 0x370);
+        unsigned pressed = *(unsigned short *)(data_0209f49e +
+                                               (int)data_020a0e40 * 0x18);
+        int pstep = *(unsigned char *)(player + 0x6e3);   /* mStateStep */
+        std::fprintf(stderr, "  [buddy] f%d bstate=%d bsub=%d pstep=%d "
+                     "talkstate=%d msg=%d pressed=%03x&3=%d\n", frame, bstate,
+                     *(int *)(buddy + 0x1e8), pstep,
+                     _ZN6Player12GetTalkStateEv(player), (int)data_0209d660,
+                     pressed, pressed & 3);
+    }
+}
+
+/* TEMPORARY sign talk-entry proof, the SIGN half of the same StartTalk seam.
+ *
+ * The sign's planted-state main (func_ov002_020bb9fc) calls func_ov002_020bb520,
+ * which reads the sign's own talk-trigger fields -- +0x344 (the id of the actor
+ * on its read trigger), +0x340 & 0x8000000 (the trigger-active flag) and +0x58e
+ * (the read-ready flag) -- confirms that actor is the player (0xbf), checks the
+ * player is facing the sign, and calls the REAL Player::StartTalk. Those trigger
+ * fields are set by the sign's collision cylinder detecting the player, which
+ * the port does not drive for a headless spawn-on-top, so this stands in for
+ * JUST that detection: it sets the three fields to name the real player and
+ * calls func_ov002_020bb520 directly, which runs the real StartTalk. The sign
+ * then enters its read state and hands the player to ST_TALK exactly as the
+ * buddy does. Everything from func_ov002_020bb520 down is matched code.
+ *
+ *   SM64DS_SIGN_TRIGGER=1  -- arm the sign's talk from frame 60 on.
+ */
+extern "C" {
+extern int func_ov002_020bb520(void *sign);   /* the sign's planted talk check */
+}
+extern "C" void port_input_probe_sign_trigger(int frame)
+{
+    if (!std::getenv("SM64DS_SIGN_TRIGGER")) return;
+    if (frame < 60) return;
+    static int entered;
+    if (entered) return;
+    char *sign = (char *)find_actor_by_class(184);
+    char *player = (char *)find_actor_by_class(0xbf);
+    if (!sign || !player) return;
+    if (_ZN6Player12GetTalkStateEv(player) >= 0) { entered = 1; return; }
+    unsigned int pid = *(unsigned int *)(player + 0x4);
+    /* name the player on the sign's read trigger and mark it active + ready */
+    *(unsigned int *)(sign + 0x344) = pid;
+    *(unsigned int *)(sign + 0x340) |= 0x8000000;
+    *(unsigned char *)(sign + 0x58e) = 1;
+    /* the read-state main reads the player pointer from the sign at +0x598 */
+    *(unsigned int *)(sign + 0x598) = (unsigned int)(size_t)player;
+    /* face the sign toward the player so the 0x4000 angle gate in 020bb520
+       passes (its check is AngleDiff(signYaw, angToPlayer) <= 0x4000) */
+    extern short Vec3_HorzAngle(void *a, void *b);
+    *(short *)(sign + 0x8e) = Vec3_HorzAngle(sign + 0x5c, player + 0x5c);
+    int idx = (int)data_020a0e40; if (idx < 0 || idx > 3) idx = 0;
+    *(unsigned short *)(data_0209f49e + idx * 0x18) |= 0x1;   /* A pressed */
+    int r = func_ov002_020bb520(sign);   /* -> real StartTalk */
+    if (_ZN6Player12GetTalkStateEv(player) >= 0) {
+        entered = 1;
+        std::fprintf(stderr, "  [sign] f%d func_ov002_020bb520 returned %d, "
+                     "StartTalk ENTERED the talk: GetTalkState=%d\n", frame, r,
+                     _ZN6Player12GetTalkStateEv(player));
+    }
+}
+
+/* DS KEYINPUT bit layout: bit0 A, bit1 B, bit2 Select, bit3 Start, bit4 Right,
+   bit5 Left, bit6 Up, bit7 Down, bit10 X, bit11 Y, bit8 L, bit9 R. */
+enum {
+    KEY_A = 0x0001, KEY_B = 0x0002, KEY_SELECT = 0x0004, KEY_START = 0x0008,
+    KEY_RIGHT = 0x0010, KEY_LEFT = 0x0020, KEY_UP = 0x0040, KEY_DOWN = 0x0080,
+    KEY_L = 0x0100, KEY_R = 0x0200, KEY_X = 0x0400, KEY_Y = 0x0800
+};
+
+struct ProbeStep { int frame0, frame1; unsigned short bits; };
+
+static ProbeStep g_steps[64];
+static int g_step_count = -1;   /* -1 = not parsed yet, 0 = off */
+
+static unsigned short name_to_bit(const char *tok, int len)
+{
+    /* one token, already trimmed; compare case-insensitively */
+    char b[8];
+    int n = 0;
+    for (int i = 0; i < len && n < 7; ++i) b[n++] = (char)std::toupper((unsigned char)tok[i]);
+    b[n] = 0;
+    if (!std::strcmp(b, "A")) return KEY_A;
+    if (!std::strcmp(b, "B")) return KEY_B;
+    if (!std::strcmp(b, "X")) return KEY_X;
+    if (!std::strcmp(b, "Y")) return KEY_Y;
+    if (!std::strcmp(b, "L")) return KEY_L;
+    if (!std::strcmp(b, "R")) return KEY_R;
+    if (!std::strcmp(b, "U") || !std::strcmp(b, "UP")) return KEY_UP;
+    if (!std::strcmp(b, "D") || !std::strcmp(b, "DOWN")) return KEY_DOWN;
+    if (!std::strcmp(b, "LEFT")) return KEY_LEFT;
+    if (!std::strcmp(b, "RIGHT")) return KEY_RIGHT;
+    if (!std::strcmp(b, "START")) return KEY_START;
+    if (!std::strcmp(b, "SELECT")) return KEY_SELECT;
+    std::fprintf(stderr, "  [inprobe] unknown button \"%s\"\n", b);
+    return 0;
+}
+
+static void parse_once(void)
+{
+    g_step_count = 0;
+    const char *s = std::getenv("SM64DS_PROBE_INPUT");
+    if (!s || !*s) return;
+    /* comma-separated frame[:-frame1]:BTN[+BTN...] */
+    while (*s && g_step_count < 64) {
+        char *end;
+        long f0 = std::strtol(s, &end, 10);
+        if (end == s) { std::fprintf(stderr, "  [inprobe] bad frame at \"%s\"\n", s); return; }
+        long f1 = f0;
+        s = end;
+        if (*s == '-') { f1 = std::strtol(s + 1, &end, 10); s = end; }
+        if (*s != ':') { std::fprintf(stderr, "  [inprobe] expected ':' at \"%s\"\n", s); return; }
+        ++s;
+        /* button group up to ',' */
+        unsigned short bits = 0;
+        while (*s && *s != ',') {
+            const char *tokstart = s;
+            while (*s && *s != ',' && *s != '+') ++s;
+            bits |= name_to_bit(tokstart, (int)(s - tokstart));
+            if (*s == '+') ++s;
+        }
+        g_steps[g_step_count].frame0 = (int)f0;
+        g_steps[g_step_count].frame1 = (int)f1;
+        g_steps[g_step_count].bits = bits;
+        ++g_step_count;
+        if (*s == ',') ++s;
+    }
+    std::fprintf(stderr, "  [inprobe] SM64DS_PROBE_INPUT: %d scripted press%s\n",
+                 g_step_count, g_step_count == 1 ? "" : "es");
+    for (int i = 0; i < g_step_count; ++i)
+        std::fprintf(stderr, "  [inprobe]   f%d..%d bits 0x%03x\n",
+                     g_steps[i].frame0, g_steps[i].frame1, g_steps[i].bits);
+}
+
+/* the DS pad bits scripted for this frame, or 0 if none. Public so the harness
+   can also fold them into its own button word if a consumer reads the remapped
+   Ctrl block rather than the raw mirror. */
+extern "C" unsigned short port_input_probe_bits(int frame)
+{
+    if (g_step_count < 0) parse_once();
+    unsigned short bits = 0;
+    for (int i = 0; i < g_step_count; ++i)
+        if (frame >= g_steps[i].frame0 && frame <= g_steps[i].frame1)
+            bits |= g_steps[i].bits;
+    return bits;
+}
+
+/* OR the scripted bits into the raw DS pad mirror for the local player, both
+   the held word (data_020a0e58[idx*2]) and the pressed word (both the mirror's
+   pressed field data_020a0e58[idx*2+1] AND the split symbol data_020a0e5a[idx*2]
+   the message code reads). Call once per frame BEFORE Stage::CheckInput so the
+   remap and the direct readers both see the press. The pressed word is an edge:
+   only ON the first frame of a hold does it carry the bit, matching hardware. */
+extern "C" void port_input_probe_apply(int frame)
+{
+    if (g_step_count < 0) parse_once();
+    if (g_step_count == 0) return;
+    unsigned short now = port_input_probe_bits(frame);
+    unsigned short before = port_input_probe_bits(frame - 1);
+    unsigned short edge = (unsigned short)(now & ~before);
+    if (!now && !edge) return;
+
+    int idx = (int)data_020a0e40;
+    if (idx < 0 || idx > 3) idx = 0;
+
+    data_020a0e58[idx * 2] |= now;         /* held */
+    data_020a0e58[idx * 2 + 1] |= edge;    /* pressed (edge) */
+    /* the split symbol the message box / IsButtonInputValid read: same DS
+       memory as the mirror's pressed field, decoupled on host, so mirror it */
+    *(unsigned short *)((char *)data_020a0e5a + idx * 4) |= edge;
+}

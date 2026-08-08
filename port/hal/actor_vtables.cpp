@@ -314,16 +314,14 @@ unsigned char data_0209f1f4; /* ...and the flag it clears with it */
 // file goes in the slice.
 int _ZN5Enemy14UpdateYoshiEatER12WithMeshClsn(void *, void *) { return 0; }
 
-// Player::StartTalk IS matched, and that is the problem: it would put the
-// Player in the talk state and the SignPost in its read state, whose Main
-// (ov002 0x020bb614) is unmatched and whose body is the Message box -- font
-// pages, OAM, the dialogue driver, none of it hosted. Declining the talk is
-// the ROM's own "no" branch (StartTalk returns 0 from six of its arms), the
-// sign stays planted, and everything else about it still works: it turns to
-// face the player, it blocks him, it can be grabbed, thrown and it walks its
-// other four states. Remove this when Message is hosted AND 0x020bb614 is
-// matched -- in that order.
-int _ZN6Player9StartTalkER9ActorBaseb(void *, void *, int) { return 0; }
+// Player::StartTalk is LIVE (2026-08-08, the talk-entry session). The decline
+// stub is GONE: the matched src is in slice_gate10 (right after ShowMessage2).
+// Both preconditions the old note named are met -- Message is hosted (the
+// dialogue pump/compositor ticks the box) and the sign's read-state Main
+// (0x020bb614) is a logic-verified near-miss host copy in
+// SignPost_StateDispatch.cpp. StartTalk's yes-branch now really enters ST_TALK
+// and hands off to ShowMessage2; the sign, the Bob-omb Buddy and every other
+// talker reach the box through it.
 
 // Player::ShowMessage2 was declined here (2026-08-07) because its yes-branch
 // enters the message state and nothing ticked the dialogue box. THE DECLINE IS

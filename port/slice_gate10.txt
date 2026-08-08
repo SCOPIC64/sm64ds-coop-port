@@ -1342,6 +1342,18 @@ src/_ZN6Player12ShowMessage2ER9ActorBasejPK7Vector3jj.cpp
 # register writes. Matched src, but was in no slice; the pump calls it, so it
 # links here.
 src/_ZN7Message12UpdateWindowEv.cpp
+# Player::StartTalk is LIVE (2026-08-08, the talk-entry session). It was held
+# out with a refusing stub in hal/actor_vtables.cpp because its yes-branch puts
+# the player into the talk state, whose Main drives the (then-absent) Message
+# box. The box now ticks and composites and ShowMessage2 is live, so the whole
+# talk chain is real: the sign's planted-state check func_ov002_020bb520 ->
+# StartTalk -> ChangeState into ST_TALK (data_ov002_0211046c) -> St_Talk_Main ->
+# ShowMessage2. Its callees are already linked: IsState is here (above);
+# ChangeState is the host copy port/unmatched/Player_ChangeState.cpp (slice line
+# 8); all nine State records it reads are in the ov002 mount; the two controller
+# globals data_020a0e40/data_0209f49e are backed in hal/actor_vtables.cpp. The
+# stub is gone, so THIS matched symbol links.
+src/_ZN6Player9StartTalkER9ActorBaseb.cpp
 src/func_ov002_020e6fbc.cpp
 src/func_ov002_020e9464.c
 src/CollectStarInLevel.c
