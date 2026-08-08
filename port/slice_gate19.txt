@@ -21,9 +21,10 @@ src/Cannon_Spawn.c
 src/_ZN6Cannon13InitResourcesEv.cpp
 # _ZN6Cannon8BehaviorEv is NOT here either: it dispatches an mwcc
 # pointer-to-member out of a four-entry state table, the gate-16 case for the
-# fourth time, and one of the four states (ov098 0x0213ade8, the lid opening)
-# has no C in src/ at all. Host copy plus the state seat and the named trap in
-# port/unmatched/Cannon_Behavior.cpp.
+# fourth time. The dispatch frame and the state seat stay host
+# (port/unmatched/Cannon_Behavior.cpp); the state bodies are matched src.
+# State 1 (the lid opening) went byte-perfect at 2004/b56 in PR #1227:
+src/func_ov098_0213ade8.c
 src/_ZN6Cannon16CleanupResourcesEv.c
 # _ZN6Cannon6RenderEv is NOT here: it dispatches Model slots 3 and 5 through
 # a local shadow class, which is ROM numbering, and the host _ZTV5Model is
