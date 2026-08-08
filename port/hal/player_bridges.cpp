@@ -443,6 +443,7 @@ void hal_render_player_body_ex(void *player, int with_head)
 extern "C" int _ZN6Player18St_LevelEnter_MainEv(int *c);
 extern "C" int _ZN6Player12St_Jump_InitEv(char *c);
 extern "C" void func_ov002_020e200c(char *c);
+extern "C" void func_ov002_020c9c4c(char *c);
 extern "C" void func_ov002_020e1e70(char *c);
 extern "C" void func_ov002_020e1c20(char *c);
 /* Three state slots the ROM fills with plain ov002 functions rather than
@@ -489,6 +490,35 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
                 prev = ds_addr;
                 std::printf("  [state] 0x%08x y=%.1f\n", ds_addr,
                             *(int *)((char *)self + 0x60) / 4096.0);
+            }
+            /* =3: the LevelEnter entrance-step spin, byte by byte. The
+               step exits on FinishedAnim with the hold byte clear, so
+               those two plus the mode/step pair are the whole question. */
+            /* =3: the LevelEnter entrance-step spin, whichever step it is.
+               Every exit gate the seven step handlers use is here: the hold
+               byte, the global countdown, the no-control timer, and the
+               animation's cursor against its length. */
+            if (on >= 3 &&
+                (ds_addr == 0x020c75f0 || ds_addr == 0x020c7350 ||
+                 ds_addr == 0x020c71e0 || ds_addr == 0x020c7194 ||
+                 ds_addr == 0x020c72a4 || ds_addr == 0x020c70ac ||
+                 ds_addr == 0x020c6fe4)) {
+                extern int data_0209f2bc[];
+                char *c = (char *)self;
+                const unsigned id =
+                    _ZNK6Player14GetBodyModelIDEjb(c, *(int *)(c + 8) & 0xff, 0);
+                char *anim = *(char **)(c + 0xdc + id * 4) + 0x50;
+                std::fprintf(stderr,
+                             "  [enter] fn=%08x mode=%u step=%u hold6de=%u "
+                             "f2bc=%u hold6a6=%u cur=%d nff=0x%08x fin=%d\n",
+                             ds_addr,
+                             *(unsigned char *)(c + 0x6e3),
+                             *(unsigned char *)(c + 0x6e5),
+                             *(unsigned char *)(c + 0x6de),
+                             *(unsigned char *)data_0209f2bc,
+                             *(unsigned short *)(c + 0x6a6),
+                             *(int *)(anim + 8), *(unsigned *)(anim + 4),
+                             ((Animation *)anim)->Animation::Finished());
             }
         } else if (on) {
             static unsigned said[64];

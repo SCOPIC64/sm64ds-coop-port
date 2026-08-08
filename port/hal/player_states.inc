@@ -232,6 +232,10 @@
     /* NoControl: the cutscene/door/pipe state. Its Init dispatches a
        per-kind entry function through a sinit-built PMF table, so it runs
        from port/unmatched (hal_call_state_fn on the DS code word). */
+    /* the door-walk entry (kind 7), dispatched by NoControl_Init's PMF
+       table: per-side door anim, then step 7/8 so Main's 020c8cb0 walks
+       Mario through. The missing piece of the door warp until 2026-08-08. */
+    case 0x020c9c4c: func_ov002_020c9c4c((char *)self); return 1;
     case 0x020c816c: return ((Player *)self)->Player::St_NoControl_Main();
     case 0x020c976c: return ((Player *)self)->Player::St_NoControl_Init();
     case 0x020c8128: return ((Player *)self)->Player::St_NoControl_Cleanup();
