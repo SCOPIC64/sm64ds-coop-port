@@ -1021,6 +1021,15 @@ void *port_stage_a_boot(void *mc, int spawn)
                                    (1u << LOADER_EXIT), 1);
 
     data_0209f2f8 = (signed char)port_level_id();
+    /* TEMPORARY probe (hal/cannon_probe.cpp): SM64DS_CANNONS_OPEN=1 sets the
+       current level's cannon-unlock save bit through the matched setter, the
+       stand-in for Bob-omb Buddy's post-dialogue OpenCannonInCurLevel() until
+       the real talk flow drives it. Must run after data_0209f2f8 is set. */
+    {
+        extern void port_cannons_open_probe(void);
+        if (spawn)
+            port_cannons_open_probe();
+    }
     /* Entrance 0 is the level's first entrance record, which is where the
        game puts you arriving from outside: the castle gate on the grounds,
        the warp-pipe pad on Bob-omb Battlefield. SM64DS_ENTRANCE picks another
