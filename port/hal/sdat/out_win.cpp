@@ -34,6 +34,19 @@ sd_s16 g_mix[MIX_MAX * 2];      // scratch at SD_MIX_RATE, stereo interleaved
 int g_opened;                   // 0 untried, 1 device live, -1 no device
 int g_devRate = SD_MIX_RATE;
 
+// MUTED BY DEFAULT. The device still opens and the mixer still clocks off it,
+// so the sound engine's timing is identical either way -- the output buffers
+// are just zeroed on the way to the speaker. SM64DS_SOUND=1 unmutes (the
+// debug switch); SM64DS_NO_AUDIO=1 remains the stronger "no device at all".
+int g_muted = -1;               // -1 unread, 0 sound on, 1 muted
+
+int out_muted(void)
+{
+    if (g_muted < 0)
+        g_muted = getenv("SM64DS_SOUND") == 0;
+    return g_muted;
+}
+
 #if defined(_WIN32)
 typedef MMRESULT (WINAPI *pfnOpen)(HWAVEOUT *, UINT, const WAVEFORMATEX *,
                                    DWORD_PTR, DWORD_PTR, DWORD);
@@ -177,9 +190,10 @@ int sd_out_open(void)
         g_hdr[i].dwFlags |= WHDR_DONE;      // free to fill
     }
     g_opened = 1;
-    fprintf(stderr, "[sdat] waveOut open at %d Hz, %d x %d frames (%.0f ms)\n",
+    fprintf(stderr, "[sdat] waveOut open at %d Hz, %d x %d frames (%.0f ms)%s\n",
             g_devRate, NBUF, OUT_FRAMES,
-            1000.0 * NBUF * OUT_FRAMES / g_devRate);
+            1000.0 * NBUF * OUT_FRAMES / g_devRate,
+            out_muted() ? " -- MUTED (SM64DS_SOUND=1 for sound)" : "");
     return 1;
 #else
     fprintf(stderr, "[sdat] no audio backend on this platform -- silent\n");
@@ -239,6 +253,8 @@ void sd_out_push(void)
                 g_last[0] = g_mix[(need - 1) * 2];
                 g_last[1] = g_mix[(need - 1) * 2 + 1];
             }
+            if (out_muted())
+                memset(g_buf[i], 0, OUT_FRAMES * 2 * sizeof(sd_s16));
             g_hdr[i].dwFlags &= ~WHDR_DONE;
             g_hdr[i].dwBufferLength = OUT_FRAMES * 2 * sizeof(sd_s16);
             p_Write(g_dev, &g_hdr[i], sizeof(WAVEHDR));
