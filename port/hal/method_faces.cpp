@@ -560,3 +560,27 @@ int _ZN13QuestionBlock8BehaviorEv(void *self)
 int _ZN13QuestionBlock16CleanupResourcesEv(void *self)
 { return ((QuestionBlock *)self)->QuestionBlock::CleanupResources(); }
 }
+
+/* ---- gate 22: the door ring's Player entry points ------------------------
+   These were direct link aliases in cxx_aliases.cpp ("same body, no thunk
+   needed"), which on 32-bit MSVC called __thiscall methods with a cdecl
+   frame: garbage `this`, and for the one-stack-arg methods a 4-byte ESP
+   imbalance -- the 2026-08-07 door-open crash. Real faces, like everything
+   else in this file. The Camera pair lives in hal/door_ring_faces.cpp
+   because its defining TUs use a local Camera mirror, not include/Camera.h. */
+extern "C" {
+void _ZN6Player11OpenBigDoorEv(void *self)
+{ ((Player *)self)->OpenBigDoor(); }
+void _ZN6Player16SetRealCharacterEj(void *self, unsigned int chr_)
+{ ((Player *)self)->SetRealCharacter(chr_); }
+void _ZN6Player12Unk_020ca488Ev(void *self)
+{ ((Player *)self)->Unk_020ca488(); }
+int _ZN6Player21IsOpeningDoorWithStarEv(void *self)
+{ return ((Player *)self)->IsOpeningDoorWithStar(); }
+int _ZN6Player13TryTalkToDoorEh(void *self, unsigned char a)
+{ return ((Player *)self)->TryTalkToDoor(a); }
+int _ZN6Player16TryTalkToKeyDoorEv(void *self)
+{ return ((Player *)self)->TryTalkToKeyDoor(); }
+int _ZN6Player24TryExitWhiteDoorWithStarEv(void *self)
+{ return ((Player *)self)->TryExitWhiteDoorWithStar(); }
+}  /* extern "C" */

@@ -54,6 +54,8 @@
  */
 #include <cstdio>
 #include <cstdlib>
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
 extern "C" {
 
@@ -125,8 +127,64 @@ extern "C" void port_door_callbacks_seat(void)
     }
 }
 
-/* The dispatch itself, ROM encoding, shared by both call sites below. */
-static int port_door_call(const PortPmf *p, char *self, void *arg)
+/* The dispatch itself, ROM encoding, shared by both call sites below.
+   HARDENED 2026-08-07: real play reached the open flow for the first time and
+   something dispatched a non-code pointer (arena address, playlog
+   play_20260807_232848). Until that write is found, refuse to call anything
+   outside the image and name the node instead of wild-calling. */
+extern "C" IMAGE_DOS_HEADER __ImageBase;
+static int port_door_fn_in_image(unsigned fn)
+{
+    /* .text-only: the first check (whole image) passed arena/bss pointers,
+       which is exactly what the stomped node held. Executable sections only. */
+    static char *lo, *hi;
+    char *base = (char *)&__ImageBase;
+    if (!lo) {
+        IMAGE_NT_HEADERS32 *nt = (IMAGE_NT_HEADERS32 *)(base +
+            ((IMAGE_DOS_HEADER *)base)->e_lfanew);
+        IMAGE_SECTION_HEADER *s = IMAGE_FIRST_SECTION(nt);
+        for (unsigned i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++s) {
+            if (!(s->Characteristics & IMAGE_SCN_MEM_EXECUTE))
+                continue;
+            char *a = base + s->VirtualAddress;
+            char *b = a + s->Misc.VirtualSize;
+            if (!lo || a < lo) lo = a;
+            if (b > hi) hi = b;
+        }
+    }
+    return (char *)(size_t)fn >= lo && (char *)(size_t)fn < hi;
+}
+
+/* Per-door snapshot of the seated node and its two pairs, so the frame the
+   contents change is named instead of inferred. Four doors is plenty. */
+struct DoorNodeSnap { void *door, *node; PortPmf pairs[2]; };
+static DoorNodeSnap g_door_snaps[4];
+
+static void port_door_watch(void *door, void *node)
+{
+    DoorNodeSnap *s = 0;
+    for (unsigned i = 0; i < 4; ++i)
+        if (g_door_snaps[i].door == door || (!s && !g_door_snaps[i].door))
+            { s = &g_door_snaps[i]; if (g_door_snaps[i].door == door) break; }
+    if (!s)
+        return;
+    const PortPmf *p = (const PortPmf *)node;
+    if (s->door == door && s->node == node &&
+        s->pairs[0].fn == p[0].fn && s->pairs[0].delta == p[0].delta &&
+        s->pairs[1].fn == p[1].fn && s->pairs[1].delta == p[1].delta)
+        return;
+    if (s->door == door)
+        std::fprintf(stderr, "[door] node CHANGED under door=%p: node %p->%p "
+                     "lo %08x/%d -> %08x/%d  hi %08x/%d -> %08x/%d\n", door,
+                     s->node, node, s->pairs[0].fn, s->pairs[0].delta,
+                     p[0].fn, p[0].delta, s->pairs[1].fn, s->pairs[1].delta,
+                     p[1].fn, p[1].delta);
+    s->door = door; s->node = node; s->pairs[0] = p[0]; s->pairs[1] = p[1];
+    std::fflush(stderr);
+}
+
+static int port_door_call(const PortPmf *p, char *self, void *arg,
+                          const char *site)
 {
     char *adj = self + (p->delta >> 1);
     PortDoorFn f;
@@ -134,6 +192,13 @@ static int port_door_call(const PortPmf *p, char *self, void *arg)
         f = *(PortDoorFn *)(*(char **)adj + p->fn);   /* virtual: fn is an offset */
     else
         f = (PortDoorFn)(size_t)p->fn;
+    if (!port_door_fn_in_image((unsigned)(size_t)f)) {
+        std::fprintf(stderr, "[door] %s: REFUSED non-code callback: door=%p "
+                     "node=%p fn=%08x delta=%d resolved=%p\n", site, self,
+                     (const void *)p, p->fn, p->delta, (void *)f);
+        std::fflush(stderr);
+        return 1;
+    }
     return f(adj, arg);
 }
 
@@ -143,12 +208,17 @@ static int port_door_call(const PortPmf *p, char *self, void *arg)
 extern "C" int func_ov100_021453d8(void *selfv, void *node, void *arg)
 {
     char *c = (char *)selfv;
+    PortPmf *pairs = (PortPmf *)node;
+    std::fprintf(stderr, "[door] node install: door=%p node=%p lo=%08x/%d "
+                 "hi=%08x/%d\n", selfv, node, pairs[0].fn, pairs[0].delta,
+                 pairs[1].fn, pairs[1].delta);
+    std::fflush(stderr);
     *(void **)(c + 0x140) = node;
     {
         const PortPmf *p = (const PortPmf *)*(void **)(c + 0x140);
         if (p->fn == 0)
             return 1;
-        return port_door_call(p, c, arg);
+        return port_door_call(p, c, arg, "install");
     }
 }
 
@@ -159,9 +229,12 @@ extern "C" int func_ov100_02145550(void *selfv)
 {
     char *c = (char *)selfv;
     void *res = func_ov100_02145370(c);
-    const PortPmf *p = (const PortPmf *)(*(char **)(c + 0x140) + 8);
-    if (p->fn != 0)
-        port_door_call(p, c, res);
+    port_door_watch(selfv, *(void **)(c + 0x140));
+    {
+        const PortPmf *p = (const PortPmf *)(*(char **)(c + 0x140) + 8);
+        if (p->fn != 0)
+            port_door_call(p, c, res, "frame");
+    }
     return 1;
 }
 

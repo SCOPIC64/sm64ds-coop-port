@@ -1069,8 +1069,9 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    way, onto the camera the port already carries: the dispatcher in
    hal/camera_bridges.cpp and state 15 of the nineteen in
    hal/camera_states.cpp (0x020095c4 / 0x02009540 -- the exit look). */
-#pragma comment(linker, "/alternatename:__ZN6Camera10LookAtExitER5Actor=?LookAtExit@Camera@@QAEXAAUActor@@@Z")
-#pragma comment(linker, "/alternatename:?ChangeState@Camera@@QAEXPAUState@1@@Z=__ZN6Camera11ChangeStateEPNS_5StateE")
+/* LookAtExit and Camera::ChangeState were the same broken thiscall aliases
+   as the gate-22 door ring (one in each direction); both are real faces in
+   hal/door_ring_faces.cpp now. */
 #pragma comment(linker, "/alternatename:?data_0209b0f8@@3UState@Camera@@A=_data_0209b0f8")
 
 /* ---- gate 21: ov100's BUTTERFLY and FISH ------------------------------- */
@@ -1121,16 +1122,16 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?UnloadKeyModels@@YAXH@Z=_UnloadKeyModels")
 
 /* gate 22 round 1: the Player and Camera door entry points. Each is a real
-   C++ method in its own TU and each caller spells it the Itanium way -- the
-   method-face shape, expressed as a link alias because the two names are the
-   same body and neither side needs a thunk. */
-#pragma comment(linker, "/alternatename:__ZN6Player11OpenBigDoorEv=?OpenBigDoor@Player@@QAEXXZ")
-#pragma comment(linker, "/alternatename:__ZN6Player16SetRealCharacterEj=?SetRealCharacter@Player@@QAEXI@Z")
-#pragma comment(linker, "/alternatename:__ZN6Camera14GoBehindPlayerEj=?GoBehindPlayer@Camera@@QAEXI@Z")
-#pragma comment(linker, "/alternatename:__ZN6Player12Unk_020ca488Ev=?Unk_020ca488@Player@@QAEXXZ")
-#pragma comment(linker, "/alternatename:__ZN6Player21IsOpeningDoorWithStarEv=?IsOpeningDoorWithStar@Player@@QAEHXZ")
-#pragma comment(linker, "/alternatename:__ZN6Player13TryTalkToDoorEh=?TryTalkToDoor@Player@@QAEHE@Z")
-#pragma comment(linker, "/alternatename:__ZN6Player16TryTalkToKeyDoorEv=?TryTalkToKeyDoor@Player@@QAEHXZ")
+   C++ method in its own TU and each caller spells it the Itanium way. These
+   were link aliases here ("the two names are the same body and neither side
+   needs a thunk") -- WRONG on 32-bit MSVC: the method is __thiscall (this in
+   ecx, callee pops stack args) while the Itanium-name callers are cdecl
+   (self on the stack, caller pops). Every call through an alias ran with
+   garbage `this`, and the one-stack-arg methods also unbalanced ESP by 4:
+   the 2026-08-07 door-open crash was func_ov100_02144730's RET landing on
+   its own door argument after GoBehindPlayer's `ret 4`. The whole ring is
+   real cdecl faces in hal/method_faces.cpp now, LookAtExit and
+   TryExitWhiteDoorWithStar included. */
 #pragma comment(linker, "/alternatename:_func_020ca78c=_func_ov002_020ca78c")
 /* ...and the rest of the ring those two pulled in. */
 #pragma comment(linker, "/alternatename:?data_020873dc@@3HA=_data_020873dc")
@@ -1147,8 +1148,8 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?_ZN6Player12GetTalkStateEv@@YAHPAX@Z=__ZN6Player12GetTalkStateEv")
 #pragma comment(linker, "/alternatename:?_ZN6Player12Unk_020c9e5cEh@@YAHPAXE@Z=__ZN6Player12Unk_020c9e5cEh")
 
-/* gate 22 round 2: the last two of the door ring. */
-#pragma comment(linker, "/alternatename:__ZN6Player24TryExitWhiteDoorWithStarEv=?TryExitWhiteDoorWithStar@Player@@QAEHXZ")
+/* gate 22 round 2: the last of the door ring (TryExitWhiteDoorWithStar is a
+   face in hal/method_faces.cpp, see the round-1 note). */
 #pragma comment(linker, "/alternatename:?_ZN6Player17SetNoControlStateEhih@@YAHPAXEHE@Z=__ZN6Player17SetNoControlStateEhih")
 
 /* ---- gate 23: ov102's QUESTION_BLOCK ----------------------------------- */
