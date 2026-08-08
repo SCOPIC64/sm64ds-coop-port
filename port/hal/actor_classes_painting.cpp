@@ -205,11 +205,34 @@ static void pt_fill_shared(void **vt)
    OnPendingDestroy is an empty body; the ROM's slot-12 override is present so a
    painting does not fall to ActorBase::OnPendingDestroy. */
 static int __fastcall pt_init(void *s, void *)
-{ return func_ov080_02126ca0(s); }
+{
+    int r = func_ov080_02126ca0(s);
+    fprintf(stderr, "[paint] init: obj=%p buf=%p n=%u\n", s,
+            *(void **)((char *)s + 0x1a0),
+            *(unsigned short *)((char *)s + 0x1b8));
+    fflush(stderr);
+    return r;
+}
 static int __fastcall pt_clean(void *s, void *)
 { return func_ov080_02126bfc(s); }
 static int __fastcall pt_behavior(void *s, void *)
-{ return func_ov080_02126c60(s); }
+{
+    /* 2026-08-08, the star door to BoB: a painting ticked with +0x1a0 holding
+       a small integer, not the wave buffer -- reads like Behavior before
+       Init. Until the ordering is understood, refuse the tick and say so
+       rather than walking a garbage array. */
+    void *buf = *(void **)((char *)s + 0x1a0);
+    if ((size_t)buf < 0x10000) {
+        static unsigned squelch;
+        if ((squelch++ & 0xff) == 0)
+            fprintf(stderr, "[paint] tick REFUSED: obj=%p buf=%p n=%u "
+                    "(Behavior before Init?)\n", s, buf,
+                    *(unsigned short *)((char *)s + 0x1b8));
+        fflush(stderr);
+        return 1;
+    }
+    return func_ov080_02126c60(s);
+}
 /* The painting owns no Model at a fixed offset -- InitResources loads its
    textures straight to VRAM through func_ov080_02125630 rather than a
    Model/ModelAnim member -- so the render probe gets the object base, which is
