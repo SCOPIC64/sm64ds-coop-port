@@ -29,7 +29,12 @@ src/_ZN5ActorD0Ev.c
 src/PowerStar_Spawn.c
 src/_ZN9PowerStar13InitResourcesEv.cpp
 src/_ZN9PowerStar16CleanupResourcesEv.cpp
-src/_ZN9PowerStar6RenderEv.cpp
+# _ZN9PowerStar6RenderEv IS NOT HERE: it dispatches ModelAnim slot 5 through a
+# local six-virtual ROM-order shadow (sub.m5(&arg80)), which lands on the host
+# _ZTV9ModelAnim's Virtual18 (MSVC folds the two dtor slots into one) instead
+# of Render -- a two-arg method called with one arg, measured as a c0000005 at
+# actor+0x38 on the first drawn frame. Host copy in
+# port/unmatched/ModelAnim_Renders.cpp, the Whomp/Fish/QuestionBlock case.
 src/_ZN9PowerStarD0Ev.c
 src/_ZN9PowerStarD1Ev.c
 # the fourteen state bodies the host-copy Behavior dispatches

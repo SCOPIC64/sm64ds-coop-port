@@ -19,7 +19,8 @@
 //   slot 3  CleanupResources 020eac18 _ZN9PowerStar16CleanupResourcesEv (matched)
 //   slot 6  Behavior       020eb05c  _ZN9PowerStar8BehaviorEv -- HOST COPY
 //                          (the PMF state dispatch, port/unmatched/PowerStar_States)
-//   slot 9  Render         020eacf4  _ZN9PowerStar6RenderEv (matched)
+//   slot 9  Render         020eacf4  _ZN9PowerStar6RenderEv -- HOST COPY
+//                          (ModelAnim slot-5 dispatch, port/unmatched/ModelAnim_Renders.cpp)
 //   slot 16 D1             020e6c40  _ZN9PowerStarD1Ev (matched, C-named .c)
 //   slot 17 D0             020e6c90  _ZN9PowerStarD0Ev (matched, C-named .c)
 //   slot 18 OnYoshiTryEat  020e8ee8  func_ov002_020e8ee8 (matched)
@@ -281,8 +282,13 @@ int _ZN9PowerStar13InitResourcesEv(void *self)
 { return ((PowerStar *)self)->PowerStar::InitResources(); }
 int _ZN9PowerStar16CleanupResourcesEv(void *self)
 { return ((PowerStar *)self)->PowerStar::CleanupResources(); }
-int _ZN9PowerStar6RenderEv(void *self)
-{ return ((PowerStar *)self)->PowerStar::Render(); }
+/* PowerStar::Render is NOT faced here: it dispatches ModelAnim slot 5 through a
+   local six-virtual shadow (sub.m5(&arg80), the ROM Render), which the host
+   _ZTV9ModelAnim array numbers as Virtual18 (MSVC folds the two dtor slots into
+   one). src/_ZN9PowerStar6RenderEv.cpp is dropped from slice_gate89.txt and
+   _ZN9PowerStar6RenderEv is the host copy in port/unmatched/ModelAnim_Renders.cpp,
+   the Whomp/Butterfly/Fish/QuestionBlock case. Measured as a c0000005 EXECUTION
+   fault at actor+0x38 on the first drawn frame of a spawned star. */
 }
 
 // ============================================================================

@@ -133,6 +133,40 @@ int _ZN10Scuttlebug6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- POWER_STAR (178, ov002, gate 89) ------------------------------------
+   src/_ZN9PowerStar6RenderEv.cpp dispatches `sub.m5(&arg80)` through a LOCAL
+   six-virtual shadow class (`Sub`), so its "slot 5" is the ROM's
+   ModelAnim::Render; the host _ZTV9ModelAnim array's slot 5 is Virtual18,
+   which takes TWO arguments where the shadow passes one. It read its scale off
+   the stack and then handed Model::Virtual10 garbage -- MEASURED as a
+   c0000005 EXECUTION fault at actor+0x38 (the render node) the first frame the
+   debug-spawned star draws with its b1 draw-enable bit set (SM64DS_LEVEL=6
+   SM64DS_SPAWN_ACTOR=178:0x10, frame 1). This blocked King Bob-omb's star drop.
+
+   The body is the matched source line for line; only the two m5 dispatches are
+   spelled as the qualified ModelAnim::Render the ROM means. arg80 is at +0x80
+   (passed by address as the scale), the draw guards are fb0 & 0x40000 at +0xB0
+   and the b1/b2 bits at +0x4A2, and the two ModelAnims are at +0x30C and +0x370
+   (mSilverStarModel1/2). PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch,
+   the Whomp/Fish case. */
+int _ZN9PowerStar6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    if (*(int *)(c + 0x80) == 0)                    /* arg80.x == 0 */
+        return 1;
+    if ((*(unsigned int *)(c + 0xb0) & 0x40000) != 0)   /* fb0 locked */
+        return 1;
+    if ((*(unsigned short *)(c + 0x4a2) & 2) == 0)  /* b1 draw-enable clear */
+        return 1;
+    if ((*(unsigned short *)(c + 0x4a2) & 4) == 0)  /* b2 selects sub30c */
+        /* ((Sub *)&sub30c)->m5(&arg80) */
+        ((ModelAnim *)(c + 0x30c))->ModelAnim::Render((const Vector3 *)(c + 0x80));
+    else
+        /* ((Sub *)&sub370)->m5(&arg80) */
+        ((ModelAnim *)(c + 0x370))->ModelAnim::Render((const Vector3 *)(c + 0x80));
+    return 1;
+}
+
 /* ---- BULLY (215) / BIG_BULLY (216) / ROTATING_FIREBAR (81), ov064, gate 177.
    All three matched Renders are the bare slot-5 draw through a six-virtual
    ROM-order shadow -- no early outs. The bullies' ModelAnim sits at +0x110;
