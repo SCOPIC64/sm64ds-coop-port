@@ -165,27 +165,9 @@ extern "C" int func_ov100_02145550(void *selfv)
     return 1;
 }
 
-/* ---- THE ONE HOLE IN THE DOOR --------------------------------------------
- *
- * func_ov100_021451c4 -- the callback that runs when Mario is close enough to
- * push a door open -- asks Player::CanEnterDoor whether he may. That body
- * exists in src/, and its own header says NONMATCHING: "register allocation
- * (div=13). Logic verified correct vs ROM; not byte-matchable from C at
- * mwccarm 1.2/sp2p3. Counts as decompiled, not matched." The port compiles
- * matched src only, so it is seated by name here rather than compiled, the
- * reading gate 18 took for the rabbit's state 0x0212b8dc and gate 19 for the
- * cannon's state 1.
- *
- * IT IS NOT REACHED AS THE LEVEL BOOTS. The callback that would ask sits
- * behind Mario actually being at a door with the door's own approach test
- * passed, and the three castle doors on a fresh save are opened from the
- * inside of a level the port does not load yet. Measured: 3000 frames of the
- * walk without this firing.
- */
-extern "C" int _ZN6Player12CanEnterDoorEh(void *, unsigned char)
-{
-    std::fprintf(stderr, "FATAL: Player::CanEnterDoor is NONMATCHING -- no "
-                 "host body exists (src/_ZN6Player12CanEnterDoorEh.c)\n");
-    std::abort();
-    return 0;
-}
+/* The hole that used to be here (Player::CanEnterDoor trapped by name while
+ * its src body was NONMATCHING) closed 2026-08-07: the div=1 residue fell to
+ * the C++-virtual-dispatch respelling of the +0x48 vcall (PR #1223, notes
+ * 6bc), so the matched body now compiles from src/ via slice_gate22.txt like
+ * any other function, and the trap that fired the moment real play reached a
+ * door is gone. */

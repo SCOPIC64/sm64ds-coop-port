@@ -514,6 +514,9 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN5Bully8BehaviorEv.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov064_02116220.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov064_0211616c.c"
+    # gate 22 backfill: CanEnterDoor matched 2026-08-07 (PR #1223); //cpp-marked
+    # .c whose Door dummy-virtual struct needs C++, own symbol extern "C".
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN6Player12CanEnterDoorEh.c"
     PROPERTIES LANGUAGE CXX)
 
 # func_ov002_020d708c is C++ inside a .c (a `virtual` vtable shadow), which

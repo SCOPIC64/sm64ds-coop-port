@@ -104,12 +104,12 @@ src/func_0201277c.c
 src/func_ov002_020ca78c.c
 src/_ZN6Player24TryExitWhiteDoorWithStarEv.cpp
 src/SetTouchScreenDelay.c
-# src/_ZN6Player12CanEnterDoorEh.c IS DELIBERATELY NOT HERE. Its own header
-# says NONMATCHING -- "register allocation (div=13) ... counts as decompiled,
-# not matched" -- and the port compiles matched src only. It is the one hole
-# in the door, and it is seated by name in port/unmatched/Door_Behavior.cpp so
-# that if a door ever asks the question the walk says which function is
-# missing instead of failing to link or, worse, answering it wrongly.
+# CanEnterDoor was the one hole in the door (NONMATCHING, trapped by name in
+# port/unmatched/Door_Behavior.cpp) until 2026-08-07, when the div=1 residue
+# fell: the +0x48 vcall respelled as real C++ virtual dispatch restores the
+# natural arg homing and the plain source matches byte-identically (PR #1223,
+# notes/mwccarm-codegen.md 6bc). Matched src, so it compiles like any other.
+src/_ZN6Player12CanEnterDoorEh.c
 
 # ---- ov089's single static initialiser ------------------------------------
 # The one thing the fourth overlay is mounted for: it constructs the sixteen
