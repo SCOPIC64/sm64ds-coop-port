@@ -554,6 +554,18 @@ void *MetalNetLift_Spawn(void);   /* installs _ZTV17daObjFl_Amilift_c itself */
 void *LavaBubble_Spawn(void);     /* installs _ZTV10LavaBubble itself */
 void hal_fill_metal_net_lift_vtable(void);
 void hal_fill_lava_bubble_vtable(void);
+
+/* ---- gate 179: ov064's BowserPuzzle pair (Lethal Lava Land). The config
+   names cross the classes: id 78's factory installs _ZTV19BowserPuzzleManager
+   (the 828-byte piece class), id 79 is a 216-byte coordinator shell on the
+   mounted table data_ov064_0211c1d8. Both factories install their REAL table;
+   no reseat wrappers. */
+extern unsigned char BowserPuzzlePiece_SpawnInfo[];    /* ov064 0x0211c160, +4 reads 78 */
+extern unsigned char BowserPuzzleManager_SpawnInfo[];  /* ov064 0x0211c17c, +4 reads 79 */
+void *BowserPuzzlePiece_Spawn(void);     /* installs _ZTV19BowserPuzzleManager */
+void *port_factory_bowser_puzzle_shell(void); /* Manager_Spawn + reseat onto the host shell table */
+void hal_fill_bowser_puzzle_pair_vtables(void);
+void hal_fill_bowser_puzzle_shell_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -787,4 +799,4 @@ void hal_fill_lava_bubble_vtable(void);
     {216, "BIG_BULLY", BigBully_SpawnInfo, port_factory_big_bully, \
      hal_fill_big_bully_vtable}, \
     {81, "ROTATING_FIREBAR", RotatingFirebar_SpawnInfo, RotatingFirebar_Spawn, \
-     hal_fill_rotating_firebar_vtable},     /* ---- gate 178: ov064's METAL_NET_LIFT + LAVA_BUBBLE (Lethal Lava Land) ---- */     {69, "METAL_NET_LIFT", MetalNetLift_SpawnInfo, MetalNetLift_Spawn,      hal_fill_metal_net_lift_vtable},     {214, "LAVA_BUBBLE", LavaBubble_SpawnInfo, LavaBubble_Spawn,      hal_fill_lava_bubble_vtable},
+     hal_fill_rotating_firebar_vtable},     /* ---- gate 178: ov064's METAL_NET_LIFT + LAVA_BUBBLE (Lethal Lava Land) ---- */     {69, "METAL_NET_LIFT", MetalNetLift_SpawnInfo, MetalNetLift_Spawn,      hal_fill_metal_net_lift_vtable},     {214, "LAVA_BUBBLE", LavaBubble_SpawnInfo, LavaBubble_Spawn,      hal_fill_lava_bubble_vtable},     /* ---- gate 179: ov064's BowserPuzzle pair (Lethal Lava Land) ---- */     {78, "BOWSER_PUZZLE_PIECE", BowserPuzzlePiece_SpawnInfo,      BowserPuzzlePiece_Spawn, hal_fill_bowser_puzzle_pair_vtables},     {79, "BOWSER_PUZZLE_MANAGER", BowserPuzzleManager_SpawnInfo,      port_factory_bowser_puzzle_shell, hal_fill_bowser_puzzle_shell_vtable},

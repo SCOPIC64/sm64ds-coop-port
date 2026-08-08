@@ -1846,6 +1846,16 @@ foreach(line IN LISTS SLICE178_LINES)
     list(APPEND SLICE178_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate179.txt" SLICE179_LINES)
+set(SLICE179_SOURCES "")
+foreach(line IN LISTS SLICE179_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE179_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate180.txt" SLICE180_LINES)
 set(SLICE180_SOURCES "")
 foreach(line IN LISTS SLICE180_LINES)
@@ -2029,6 +2039,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
     hal/actor_classes_ov064.cpp ${SLICE177_SOURCES} unmatched/Bully_AfterClsn.cpp
     hal/actor_classes_ov064_gate178.cpp ${SLICE178_SOURCES} unmatched/Ov064Gate178_States.cpp
+    hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     ${SLICE180_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
@@ -2081,6 +2092,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
     hal/actor_classes_ov064.cpp ${SLICE177_SOURCES} unmatched/Bully_AfterClsn.cpp
     hal/actor_classes_ov064_gate178.cpp ${SLICE178_SOURCES} unmatched/Ov064Gate178_States.cpp
+    hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     ${SLICE180_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
@@ -2136,6 +2148,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
     hal/actor_classes_ov064.cpp ${SLICE177_SOURCES} unmatched/Bully_AfterClsn.cpp
     hal/actor_classes_ov064_gate178.cpp ${SLICE178_SOURCES} unmatched/Ov064Gate178_States.cpp
+    hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     ${SLICE180_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp

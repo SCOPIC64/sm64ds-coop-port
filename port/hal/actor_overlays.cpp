@@ -827,6 +827,13 @@ extern "C" {
 void port_ov064_gate178_states_seat(void);
 void __sinit_ov064_0211afc0(void);
 void __sinit_ov064_0211b150(void);
+/* gate 179: the BowserPuzzle pair's seats and sinits (Manager six-state PMF
+   table + the Piece's two-record Obj), both seated first. No cross-overlay
+   reloc in either. port/unmatched/BowserPuzzle_StateDispatch.cpp */
+void port_bowser_puzzle_manager_states_seat(void);
+void port_bowser_puzzle_piece_states_seat(void);
+void __sinit_ov064_0211b1d4(void);
+void __sinit_ov064_0211b4dc(void);
 }
 
 extern "C" void port_actor_overlays_sinits(void)
@@ -1010,6 +1017,11 @@ extern "C" void port_actor_overlays_sinits(void)
     port_ov064_gate178_states_seat();
     __sinit_ov064_0211afc0();   /* Amilift SFPs + Behavior state PMFs -> c750 */
     __sinit_ov064_0211b150();   /* LavaBubble state PMFs -> c7b8/c7c8 */
+    /* gate 179: seat both BowserPuzzle source PMF tables BEFORE their sinits. */
+    port_bowser_puzzle_manager_states_seat();
+    port_bowser_puzzle_piece_states_seat();
+    __sinit_ov064_0211b1d4();   /* Manager: SFPs + 6 state PMFs -> c904 */
+    __sinit_ov064_0211b4dc();   /* Piece: 2 state PMFs -> c934 */
 
     /* gate 143: ov019, Cool Cool Mountain's slide, IceSlideManager. No state
        seat. Only this class's own sinit runs; RacingPenguin's is left off. */
