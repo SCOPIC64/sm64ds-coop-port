@@ -306,3 +306,7 @@ src/func_ov002_020afa50.c
 src/func_ov002_020af908.c
 src/func_ov002_020af724.c
 src/_ZNK12WithMeshClsn12TouchesWaterEv.cpp
+# the sign read state (gate 181): the two player talk-approach helpers its
+# host body calls, both matched and tiny (0x18/0x2c)
+src/func_ov002_020bec84.c
+src/func_ov002_020bec9c.cpp
