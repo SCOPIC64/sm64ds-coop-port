@@ -178,11 +178,12 @@ extern "C" void port_actor_census_reset(void)
 extern "C" int port_level_id(void);
 static int port_host_abi_blocked(unsigned id)
 {
-    if (id == 307) {                       /* PAINTING, ov080 */
-        int lvl = port_level_id();
-        if (lvl == 4 || lvl == 5 || lvl == 13)
-            return 1;
-    }
+    /* The PAINTING's levels-4/5/13 skip came off 2026-08-08: the mis-strided
+       PMF dispatch behind those faults is hosted in
+       port/unmatched/Painting_Dispatch.cpp now (see the long note above),
+       and all three levels boot their paintings through it. Nothing is
+       host-ABI-blocked at the moment; the hook stays for the next case. */
+    (void)id;
     return 0;
 }
 
