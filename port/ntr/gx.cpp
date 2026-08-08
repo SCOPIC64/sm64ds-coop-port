@@ -178,6 +178,13 @@ void push_screen_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
     t.cull = static_cast<uint8_t>((g.poly_attr >> 6) & 3);
     t.alpha = static_cast<uint8_t>((g.poly_attr >> 16) & 31);
     t.wrap = g.tex_wrap;
+    /* TEXIMAGE_PARAM bits 26-28 are the format; 1 (A3I5) and 6 (A5I3)
+       are the two translucent-texture formats. Attr alpha 0 is wire and
+       draws with the opaque pass, same as the hardware. */
+    const uint32_t fmt = (g_teximage >> 26) & 7;
+    t.translucent = static_cast<uint8_t>(
+        (t.alpha >= 1 && t.alpha <= 30) ||
+        (t.tex && (fmt == 1 || fmt == 6)));
     t.dbg_tex = g_teximage;
     g.tris.push_back(t);
 }
@@ -1084,9 +1091,18 @@ void gx_render(Framebuffer &fb) {
         }
     }
 
-    /* One row band. tid picks the rows: tid, tid+nt, tid+2nt... */
+    /* One row band. tid picks the rows: tid, tid+nt, tid+2nt...
+       TWO PASSES, the hardware's own order: every opaque polygon first,
+       then the translucent ones, submission order kept within each pass.
+       The game leans on this -- the castle moat's water submits before
+       the terrain under it, and in one pass the opaque moat bed painted
+       over the already-blended surface. Rows are disjoint across threads,
+       so each thread runs both passes over its own rows and never sees
+       another thread's pixels. */
     auto band = [&](int tid, int nt) {
+    for (int pass = 0; pass < 2; ++pass)
     for (const GxTriangle &t : g.tris) {
+        if (static_cast<int>(t.translucent) != pass) continue;
         if (only && t.dbg_tex != only) continue;
         const GxVertex &a = t.v[0], &b = t.v[1], &c = t.v[2];
         const float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);

@@ -414,6 +414,8 @@ void *port_stage_create(void);   /* hal/stage_bridges.cpp: the real Stage actor 
 void port_stage_tree_probe(void *child, const char *what);
 void port_stage_render_model(void *self);  /* Stage::RenderModel, matched src */
 void port_stage_render_model_transparent(void *self);
+void port_stage_advance_anims(void *self); /* Stage::Render's first block: the
+                                              level's BTA texture animations */
 void port_stage_render_skybox(void *self); /* the +0x9bc Model, camera-glued */
 void _ZN5Stage9LoadModelEv(char *self);   /* matched src, slice_gate24 */
 void _ZN5Stage10LoadSkyboxEv(char *self); /* matched src, slice_gate26 */
@@ -3313,6 +3315,30 @@ int main(void)
                 }
                 *(unsigned char *)(c + 0x71e) = 0;
             }
+            /* THE SAVE-PROMPT FLAG, and this line is a stand-in for
+               Stage::LC_Update's own clear (its case-6 arm ends with
+               data_0209f20c = 0). A star-return landing's last entrance step
+               (func_ov002_020c7350, and _020c6fe4's arm) sets the flag to
+               open the "do you want to save?" prompt, and on the ROM the
+               Stage -- whose Scene-class BeforeBehavior is not gated by it --
+               drives that prompt and clears it. The port does not tick the
+               Stage's LC machinery, so a set flag would gate
+               Actor::BeforeBehavior for every actor forever: the player
+               finishes the landing jig and the world freezes one frame before
+               step 2 (the 2026-08-07 warp-freeze session). Clearing it here,
+               before the tick, is that one statement and nothing else; the
+               prompt it would have opened is not hosted. Retiring this is the
+               same named job as the +0x13 stand-in in stage_bridges.cpp: run
+               the Stage as an actor and let LC_Update own its flag. */
+            if (data_0209f20c[0]) {
+                static int said_lc;
+                if (!said_lc) {
+                    said_lc = 1;
+                    fprintf(stderr, "[lc] save-prompt flag cleared "
+                            "(Stage::LC_Update stand-in; prompt not hosted)\n");
+                }
+                data_0209f20c[0] = 0;
+            }
             port_actor_tick();
         } else if (*(void **)(c + 0x370)) {
             hal_player_behavior(player);
@@ -4070,6 +4096,10 @@ int main(void)
                    the second. (ShadowModel::RenderAll sits between them on the
                    ROM; the port's shadows are still the actors' own.) */
                 port_stage_render_skybox(stage);
+                /* Stage::Render's first block, in its place in the order:
+                   advance the shown areas' BTA texture animations (the
+                   waterfall), which RenderModel below then applies. */
+                port_stage_advance_anims(stage);
                 port_stage_render_model(stage);
                 port_stage_render_model_transparent(stage);
             } else {

@@ -37,6 +37,14 @@ src/_ZN5Stage9LoadModelEv.cpp
 # {125.0, 125.0, 125.0} scale.
 src/_ZN5Stage11RenderModelEv.cpp
 
+# ...and the table's FILLER: Stage::InitResources' own call that news a
+# TextureTransformer into the area-table slot of every area entry naming a
+# BTA. The port drives it from port_stage_advance_anims
+# (hal/stage_bridges.cpp), which also runs Stage::Render's first block -- the
+# per-frame Advance of every shown area's transformer -- so the waterfall
+# scrolls instead of holding frame 0.
+src/_ZN5Stage23LoadTextureTransformersEv.cpp
+
 # ...and its companion. Stage::Render's own order is RenderModel,
 # ShadowModel::RenderAll, RenderModelTransparent, and the two model passes are
 # exact inverses: RenderModel keeps the components whose polygon-attribute

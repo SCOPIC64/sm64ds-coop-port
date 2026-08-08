@@ -281,10 +281,67 @@ extern "C" void port_stage_tree_probe(void *child, const char *what)
 // so it lands in the map as ?RenderModel@Stage@@QAEXXZ and no C caller can
 // spell it. Same face pattern as hal/method_faces.cpp.
 #include "Stage.h"
+#include "Animation.h"
 extern "C" void port_stage_render_model(void *self)
 { ((Stage *)self)->Stage::RenderModel(); }
 extern "C" void port_stage_render_model_transparent(void *self)
 { ((Stage *)self)->Stage::RenderModelTransparent(); }
+
+/* THE LEVEL'S OWN TEXTURE ANIMATIONS -- the waterfall, and every other BTA
+   the stage model carries. Two halves of Stage code own them and the port
+   ran neither, so the waterfall held frame 0 (the 2026-08-07 session):
+
+     1. Stage::InitResources calls Stage::LoadTextureTransformers, which
+        news a TextureTransformer into the area table's +0 slot for every
+        area entry that names a BTA.
+     2. Stage::Render's first block advances every SHOWN area's transformer
+        each frame -- gated on the same pause trio Actor::BeforeBehavior
+        reads -- and RenderModel (which the port already runs) then applies
+        the current frame to the model's materials.
+
+   This bridge is both halves at the same seam. The load is lazy and re-runs
+   when the level id changes, because the port's level change keeps the Stage
+   alive and never runs Stage::CleanupResources -- the slots would otherwise
+   alias the OLD level's freed BTA file on the first post-change frame. The
+   clear leaks the 0x14-byte transformer objects the ROM's cleanup would
+   delete; a level change costs at most a few hundred bytes until the Stage
+   runs as a real actor and its own InitResources/CleanupResources pair owns
+   this. */
+extern "C" {
+extern signed char data_0209f2f8;                /* current level id */
+extern int data_0209f294[], data_0209f2c4[], data_0209f20c[];
+extern unsigned char *data_0209f340;             /* the level's area info */
+}
+extern "C" void port_stage_advance_anims(void *self)
+{
+    unsigned char *info = data_0209f340;
+    if (!info)
+        return;
+    const unsigned n = info[0x14];               /* area count */
+    char *slots = (char *)self + 0x8bc;          /* stride 0xc: anim, flag */
+
+    static int loaded_level = -2;
+    if (loaded_level != (int)data_0209f2f8) {
+        loaded_level = (int)data_0209f2f8;
+        for (unsigned i = 0; i < n; ++i)
+            *(void **)(slots + i * 0xc) = 0;     /* drop the old level's */
+        ((Stage *)self)->Stage::LoadTextureTransformers();
+        int live = 0;
+        for (unsigned i = 0; i < n; ++i)
+            if (*(void **)(slots + i * 0xc))
+                ++live;
+        std::printf("[stage] texture transformers: %d of %u areas animate "
+                    "(level %d)\n", live, n, loaded_level);
+    }
+
+    if ((data_0209f294[0] | data_0209f2c4[0] | data_0209f20c[0]) & 0xff)
+        return;
+    for (unsigned i = 0; i < n; ++i) {
+        Animation *a = *(Animation **)(slots + i * 0xc);
+        if (a && *(unsigned char *)(slots + i * 0xc + 4))
+            a->Animation::Advance();
+    }
+}
 
 /* The SKYBOX draw, which is Stage::Render's own block between RenderFog and
    RenderModel (src/_ZN5Stage6RenderEv.cpp): the Model that LoadSkybox parked

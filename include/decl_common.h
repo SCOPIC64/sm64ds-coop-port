@@ -2934,7 +2934,7 @@ extern void func_ov100_02145070(int);
 extern void func_ov100_02145170(char*, char*, struct Vector3*, struct Vector3*);
 extern void func_ov100_021453d8(char*, void*, int);
 extern void func_ov100_02145e10(char*, char*);
-extern void func_ov100_02146280(void);
+extern void func_ov100_02146280(char*);
 extern void func_ov100_0214629c(void*, int);
 extern void func_ov100_02146e70(void*);
 extern void func_ov102_02149da8(void*, int);

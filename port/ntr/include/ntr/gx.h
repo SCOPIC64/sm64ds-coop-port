@@ -43,6 +43,10 @@ struct GxTriangle {
     // TEXIMAGE_PARAM bits 16-19 as bit0 repeat S, bit1 repeat T, bit2 flip S,
     // bit3 flip T. A cleared repeat bit is CLAMP, not wrap.
     uint8_t wrap;
+    // The hardware's own render-order class: attribute alpha 1..30 or an
+    // A3I5/A5I3 texture puts the polygon in the translucent pass, which
+    // draws after every opaque polygon regardless of submission order.
+    uint8_t translucent;
     uint32_t dbg_tex;      // TEXIMAGE_PARAM that was bound (diagnostics only)
 };
 
