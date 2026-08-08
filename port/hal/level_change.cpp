@@ -346,12 +346,16 @@ extern "C" int port_level_teardown(void)
     for (int i = 0; i < 4; ++i) {
         int *keep_head = 0, *keep_tail = 0;
         int dropped = 0;
-        for (int *n = (int *)(size_t)lists[i].list[0]; n;
-             n = (int *)(size_t)n[1]) {
+        for (int *n = (int *)(size_t)lists[i].list[0]; n;) {
+            int *next = (int *)(size_t)n[1];
             if ((void *)(size_t)n[2] == stage) {
+                /* relink: prev then next, both directions */
+                n[0] = (int)(size_t)keep_tail;
+                n[1] = 0;
                 if (keep_tail) keep_tail[1] = (int)(size_t)n;
                 else keep_head = n;
                 keep_tail = n;
+                n = next;
                 continue;
             }
             unsigned id = 0xffff;
@@ -361,11 +365,21 @@ extern "C" int port_level_teardown(void)
                          "(actor %p id 0x%x %s) -- its cleanup never "
                          "unlinked\n", lists[i].name, (void *)n, (void *)a,
                          id, id < 0x400 ? port_actor_class_name(id) : "?");
+            /* scrub the dropped node's own links (the ROM unlink
+               func_0203b27c always zeroes both) so no stale interior
+               pointer into a freed object can ever be walked */
+            n[0] = 0; n[1] = 0;
             ++dropped;
+            n = next;
         }
         if (dropped) {
-            if (keep_tail) keep_tail[1] = 0;
+            /* Head AND TAIL. The first repair rewrote only list[0]; every
+               insert path (func_0203b244/func_0203b2ec via func_0204405c)
+               links through list[1], so a dropped former tail left the
+               next level appending through a freed actor's node -- the BoB
+               render-walk use-after-free of playlog 002712. */
             lists[i].list[0] = (int)(size_t)keep_head;
+            lists[i].list[1] = (int)(size_t)keep_tail;
         }
     }
     return 1;
