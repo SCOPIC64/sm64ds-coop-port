@@ -3,6 +3,10 @@
 # Six paintings on level 2's object table, all printed as skipped (- 307 x6)
 # until this gate. The class is an ordinary 31-slot Actor subclass whose seven
 # own methods are matched src (InitResources 0x02126ca0, CleanupResources
+# -- of which InitResources/Behavior/Render are HELD OUT since 2026-08-08:
+# their per-mode PMF dispatch is the incomplete-class case MSVC widens, so
+# they are host copies in port/unmatched/Painting_Dispatch.cpp (the door's
+# treatment). CleanupResources and OnPendingDestroy still compile from src.
 # 0x02126bfc, Behavior 0x02126c60, Render 0x02126c20, OnPendingDestroy
 # 0x02126c1c, D1 0x02125404, D0 0x02125428) plus the closure they reach.
 #
@@ -52,9 +56,6 @@ src/func_ov080_021269b8.c
 src/func_ov080_02126a54.c
 src/func_ov080_02126bfc.c
 src/func_ov080_02126c1c.c
-src/func_ov080_02126c20.cpp
-src/func_ov080_02126c60.cpp
-src/func_ov080_02126ca0.cpp
 src/Painting_Spawn.c
 
 # ---- two shared Actor tail methods the painting inherits (slots 19, 29) ----

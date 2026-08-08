@@ -1334,6 +1334,9 @@ set(LEVELBOOT_HOST_SOURCES
     unmatched/Door_Render.cpp
     # gate 23: the seventh, and the last on this level
     unmatched/QuestionBlock_States.cpp
+    # gate 50: the eighth -- the PAINTING's three per-mode dispatchers, the
+    # deferred fix from the registry note (mode-table stride + widened PMF)
+    unmatched/Painting_Dispatch.cpp
     # gates 21 and 23: the ModelAnim slot-5 collision, three more times
     unmatched/ModelAnim_Renders.cpp)
 
