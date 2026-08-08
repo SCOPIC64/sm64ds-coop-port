@@ -325,6 +325,25 @@ int _ZN5Enemy14UpdateYoshiEatER12WithMeshClsn(void *, void *) { return 0; }
 // matched -- in that order.
 int _ZN6Player9StartTalkER9ActorBaseb(void *, void *, int) { return 0; }
 
+// Player::ShowMessage2 gets the same treatment for the same reason
+// (2026-08-07, the first session where a door actually asked): matched, held
+// out of slice_gate10, because its yes-branch enters the message state whose
+// Main is the unhosted dialogue box -- that state dims the screen through the
+// real blend path and then dispatches into machinery that is not there.
+// Returning 0 is this function's own state-guard "no", and the callers all
+// carry a real no-message arm: the door callback func_ov100_02144cf8 falls
+// through to the plain door-open path (its L240), the wrapper ShowMessage
+// (still matched, still compiled) passes the 0 up, and RecRoomCupboard just
+// does not speak. Restore the slice line and delete this when Message is
+// hosted.
+int _ZN6Player12ShowMessage2ER9ActorBasejPK7Vector3jj(void *, void *, unsigned,
+                                                      const void *, unsigned,
+                                                      unsigned)
+{
+    fprintf(stderr, "[msg] ShowMessage2 declined (dialogue box not hosted)\n");
+    return 0;
+}
+
 /* The global event bitfield. Event::GetBit reads it and BLACK_BRICK_BLOCK's
    Behavior asks whether its own event has fired; nothing on the castle grounds
    sets one, so zero is the level's own state. */

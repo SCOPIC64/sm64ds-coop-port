@@ -1325,7 +1325,14 @@ src/Math_Function_0203b14c.c
 src/_ZN6Player11ShowMessageER9ActorBasejPK7Vector3jj.cpp
 src/CollectStarInCurLevel.c
 src/StartExitCharacterWipe.c
-src/_ZN6Player12ShowMessage2ER9ActorBasejPK7Vector3jj.cpp
+# src/_ZN6Player12ShowMessage2ER9ActorBasejPK7Vector3jj.cpp is HELD OUT, the
+# StartTalk treatment (hal/actor_vtables.cpp gate-16 refusals): it is matched,
+# but its yes-branch puts the Player in the message state whose Main is the
+# unhosted dialogue box (font pages, OAM, the driver), which dims the screen
+# and then runs off the map. The refusing stub answers 0, which is this
+# function's own state-guard "no", and every caller has a real no-message arm:
+# the door callback (func_ov100_02144cf8) falls through to the plain door-open
+# path. Put this line back and retire the stub when Message is hosted.
 src/func_ov002_020e6fbc.cpp
 src/func_ov002_020e9464.c
 src/CollectStarInLevel.c
