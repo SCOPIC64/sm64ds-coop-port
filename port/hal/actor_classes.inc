@@ -543,6 +543,17 @@ void *RotatingFirebar_Spawn(void);         /* installs _ZTV15RotatingFirebar its
 void hal_fill_bully_vtable(void);
 void hal_fill_big_bully_vtable(void);
 void hal_fill_rotating_firebar_vtable(void);
+
+/* ---- gate 178: ov064's second mount -- METAL_NET_LIFT (69, daObjFl_Amilift_c)
+   and LAVA_BUBBLE (214). id 69's factory installs the Amilift Platform table by
+   its RTTI name; both factories leave the REAL table (no reseat wrapper). Fills
+   hal/actor_classes_ov064_gate178.cpp, closure slice_gate178.txt. */
+extern unsigned char MetalNetLift_SpawnInfo[];  /* ov064 0x0211bc44, +4 reads 69  */
+extern unsigned char LavaBubble_SpawnInfo[];    /* ov064 0x0211bec8, +4 reads 214 */
+void *MetalNetLift_Spawn(void);   /* installs _ZTV17daObjFl_Amilift_c itself */
+void *LavaBubble_Spawn(void);     /* installs _ZTV10LavaBubble itself */
+void hal_fill_metal_net_lift_vtable(void);
+void hal_fill_lava_bubble_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -776,4 +787,4 @@ void hal_fill_rotating_firebar_vtable(void);
     {216, "BIG_BULLY", BigBully_SpawnInfo, port_factory_big_bully, \
      hal_fill_big_bully_vtable}, \
     {81, "ROTATING_FIREBAR", RotatingFirebar_SpawnInfo, RotatingFirebar_Spawn, \
-     hal_fill_rotating_firebar_vtable},
+     hal_fill_rotating_firebar_vtable},     /* ---- gate 178: ov064's METAL_NET_LIFT + LAVA_BUBBLE (Lethal Lava Land) ---- */     {69, "METAL_NET_LIFT", MetalNetLift_SpawnInfo, MetalNetLift_Spawn,      hal_fill_metal_net_lift_vtable},     {214, "LAVA_BUBBLE", LavaBubble_SpawnInfo, LavaBubble_Spawn,      hal_fill_lava_bubble_vtable},

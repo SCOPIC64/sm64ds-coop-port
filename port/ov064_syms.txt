@@ -68,3 +68,13 @@ data_ov064_0211c790 data_ov064_0211c798 data_ov064_0211c7a0 data_ov064_0211c7ac
 # so a follow-up gate can run its own subset without a hazard. The lone cross-
 # overlay reloc in this overlay's data (0x0211b764 -> 0x021138bc) is the base
 # vtable's typeinfo word, not a sinit body, and that vtable is not mounted.
+# gate 178: METAL_NET_LIFT (69, daObjFl_Amilift_c) resources
+MetalNetLift_SpawnInfo:0x1c
+data_ov064_0211bb6c
+data_ov064_0211bc0c data_ov064_0211bc14 data_ov064_0211bc1c
+data_ov064_0211c728 data_ov064_0211c730 data_ov064_0211c738 data_ov064_0211c744
+data_ov064_0211c750
+# gate 178: LAVA_BUBBLE (214) resources
+LavaBubble_SpawnInfo:0x1c
+data_ov064_0211be90 data_ov064_0211be98 data_ov064_0211bea0 data_ov064_0211bea8
+data_ov064_0211c7b8 data_ov064_0211c7c8

@@ -820,6 +820,15 @@ void __sinit_ov064_0211aee0(void);
 void __sinit_ov064_0211b0e4(void);
 }
 
+/* ---- gate 178: ov064's second mount -- METAL_NET_LIFT + LAVA_BUBBLE. Two more
+   sinits run (the Amilift SFP+state-PMF constructor and the LavaBubble state-PMF
+   copier), both seated first. Neither carries a cross-overlay reloc. */
+extern "C" {
+void port_ov064_gate178_states_seat(void);
+void __sinit_ov064_0211afc0(void);
+void __sinit_ov064_0211b150(void);
+}
+
 extern "C" void port_actor_overlays_sinits(void)
 {
     static int done;
@@ -997,6 +1006,10 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov064_0211ae00();
     __sinit_ov064_0211aee0();
     __sinit_ov064_0211b0e4();
+    /* gate 178: seat the two source PMF tables BEFORE their sinits copy them. */
+    port_ov064_gate178_states_seat();
+    __sinit_ov064_0211afc0();   /* Amilift SFPs + Behavior state PMFs -> c750 */
+    __sinit_ov064_0211b150();   /* LavaBubble state PMFs -> c7b8/c7c8 */
 
     /* gate 143: ov019, Cool Cool Mountain's slide, IceSlideManager. No state
        seat. Only this class's own sinit runs; RacingPenguin's is left off. */
