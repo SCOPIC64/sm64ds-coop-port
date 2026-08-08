@@ -1612,14 +1612,43 @@ extern "C" void hal_fill_star_door_vtable(void)
 // TRAP is Platform-derived (Trap_Spawn runs Platform's constructor and a Model
 // at 0x320), so the fill runs hal_fill_platform_vtable first, the SIGN_POST
 // shape. Nothing here dispatches a pointer-to-member: both Behavior and Render
-// are straight-line C++ methods. Slots 16/17 trap, the gate-17 reading --
-// nothing destroys a trap or the light beam on the castle-interior boot, and a
-// level teardown reaching one aborts loudly.
+// are straight-line C++ methods.
+//
+// CLEANUP AND DESTRUCTOR (gate 31 reading applied). The old note here said
+// slots 16/17 trap because nothing destroys a trap or the light beam on the
+// castle-interior boot. That held only while there was no level teardown; a
+// level change destroys every actor the level spawned through the ROM's own
+// ActorBase::AfterCleanupResources, and both of these classes reach it. Two
+// bugs sat in the path:
+//
+//   1. tr_clean swallowed CleanupResources' return. src returns 1
+//      (SharedFilePtr released, done); AfterCleanupResources only unlinks and
+//      destroys the node when cleanup reports done (func_0204322c maps 1 ->
+//      code 2), so returning 0 left TRAP and LIGHT_BEAM nodes dangling at
+//      teardown -- the stale-cleanup-node symptom of playlog 001951 (garden
+//      door) and the render-walk use-after-free of playlog 002712 (BoB). Fixed
+//      by forwarding the return.
+//
+//   2. Once cleanup reports done, AfterCleanupResources dispatches slot 16
+//      (D1). The ROM vtable at 0x02112ba8 puts _ZN4TrapD1Ev in slot 16 and
+//      _ZN4TrapD0Ev in slot 17, and BOTH classes share this one table -- but
+//      the two have different layouts and the shared dtor is written for only
+//      one of them. LIGHT_BEAM (LightBeam_Spawn, 364 bytes, Actor-derived) puts
+//      its Model at +0xd4 and a MovingCylinderClsnWithPos at +0x124, which is
+//      exactly the member chain _ZN4TrapD0Ev tears down. TRAP (Trap_Spawn, 944
+//      bytes, Platform-derived) puts its Model at +0x320 and has no
+//      MovingCylinderClsnWithPos at all, so running the 0xd4/0x124 chain on a
+//      TRAP would smash Platform's fields. So slot 16 (tr_d1) discriminates on
+//      the actor id at +0xc: LIGHT_BEAM (0x25) runs the real member chain,
+//      TRAP (0x24) does the Actor-level teardown only. Slot 17 keeps the trap,
+//      the sibling convention: AfterCleanupResources dispatches 16 and does the
+//      Deallocate itself, so a landing on the deleting form (17) means someone
+//      reached the actor through operator delete and deserves the abort.
 extern "C" {
 int _ZN4Trap13InitResourcesEv(void *self);        /* face: method_faces */
 int _ZN4Trap8BehaviorEv(void *self);              /* face: method_faces */
 int _ZN4Trap6RenderEv(void *self);                /* face: method_faces */
-void _ZN4Trap16CleanupResourcesEv(void);          /* C in src */
+int _ZN4Trap16CleanupResourcesEv(void);           /* C in src, returns 1 */
 void *_ZTV4Trap[20];
 void hal_fill_platform_vtable(void);
 }
@@ -1629,12 +1658,38 @@ void hal_fill_platform_vtable(void);
 static int __fastcall tr_init(void *s, void *)
 { return _ZN4Trap13InitResourcesEv(s); }
 static int __fastcall tr_clean(void *, void *)
-{ _ZN4Trap16CleanupResourcesEv(); return 0; }
+{ return _ZN4Trap16CleanupResourcesEv(); }
 static int __fastcall tr_behavior(void *s, void *)
 { return _ZN4Trap8BehaviorEv(s); }
 static int __fastcall tr_render(void *s, void *)
 { port_actor_render_probe("TRAP", (char *)s + 0x320);
   return _ZN4Trap6RenderEv(s); }
+
+/* Slot 16, the D1 (complete-object) destructor both classes share through the
+   one _ZTV4Trap table. The hosted slot 16 is the ROM D0's body minus its final
+   Memory::Deallocate, which AfterCleanupResources performs itself after the
+   dispatch returns (the file's gate-31 recipe). The ROM's _ZN4TrapD0Ev is
+   written for LIGHT_BEAM's layout only -- Model at +0xd4, MovingCylinderClsnWithPos
+   at +0x124, then Actor's D2 -- so we can only run that chain when the object
+   really is a LIGHT_BEAM. Discriminate on the actor id at +0xc. */
+static int __fastcall tr_d1(void *s, void *)
+{
+    unsigned id = *(unsigned short *)((char *)s + 0xc);
+    if (id == 0x25) {                 /* LIGHT_BEAM: the layout the ROM dtor fits */
+        _ZN25MovingCylinderClsnWithPosD1Ev((char *)s + 0x124);
+        _ZN5ModelD1Ev((char *)s + 0xd4);
+    }
+    /* TRAP (0x24): Actor-level teardown only. The ROM's 0xd4/0x124 chain is
+       LIGHT_BEAM's and would smash Platform's fields on a 944-byte TRAP, whose
+       Model lives at +0x320. LOUD LEAK: TRAP's Model at +0x320 is NOT torn down
+       here -- Trap_Spawn constructs it (Model::Model at +0x320) and nothing
+       else knows to free it, so a level change leaks one Model per castle-interior
+       trap. That is a bounded, non-corrupting leak; running the wrong-offset
+       chain to avoid it would corrupt. Left for whoever recovers TRAP's own D0
+       (the ROM shares _ZN4TrapD0Ev across both layouts, so there is no separate
+       matched TRAP dtor to call). */
+    return (int)(size_t)_ZN5ActorD2Ev(s);
+}
 
 extern "C" void hal_fill_trap_vtable(void)
 {
@@ -1646,7 +1701,9 @@ extern "C" void hal_fill_trap_vtable(void)
     vt[6] = (void *)tr_behavior;
     vt[9] = (void *)tr_render;
     vt[12] = (void *)ac_pdes_base;
-    vt[16] = (void *)ac_trap16;
+    vt[16] = (void *)tr_d1;
+    /* 17 keeps the trap: AfterCleanupResources dispatches 16 and does the
+       Deallocate itself; a landing on the deleting form means operator delete. */
     vt[17] = (void *)ac_trap17;
 }
 
