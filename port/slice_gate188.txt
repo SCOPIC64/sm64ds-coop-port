@@ -109,3 +109,36 @@ src/__sinit_ov016_021138bc.c
 src/__sinit_ov016_02113978.c
 src/__sinit_ov016_021139e4.c
 src/__sinit_ov016_02113a50.c
+#
+# ==== RESOLVED: SIG-RP heap stomp (was: RockPillar teardown crashes the
+# ExpandingHeap free list several actor-lifetimes later) ============
+# ROOT CAUSE: func_ov016_02112ae4.c (RockPillar CleanupResources) declared
+# `extern int G0[]; extern int G1[];` and called SharedFilePtr::Release on
+# both. Plain-C `G0`/`G1` are single global names binary-wide; cxx_aliases.cpp
+# separately aliases _G0=_data_020a0eac (gameHeapPtr) and
+# _G1=_data_ov002_0210e05c (SignPost's own SharedFilePtr slot) for OTHER TUs
+# that legitimately share those placeholder names. RockPillar's own extern
+# picked up those aliases by the same linker mechanism, so every RockPillar
+# teardown released the live heap pointer and SignPost's slot instead of its
+# own two files -- corrupting the ExpandingHeap free list. The later
+# UnlinkNode/walker-node crash (FAULT c0000005, node id 0x3a = ROCK_PILLAR)
+# was only the detector, not the fault site.
+# THE FIX (name-only, byte-identical class, MetalNet/CannonHatch-disease
+# pattern): func_ov016_02112ae4.c now releases data_ov016_02114e1c and
+# data_ov016_02114e24 directly -- RockPillar's REAL SharedFilePtrs, built by
+# __sinit_ov016_02113978 (already mounted, ov016_syms.txt lines 91-93) --
+# instead of the colliding G0/G1 names. decl_common.h already declares both
+# as `extern char foo[]`, so no new extern is needed in the file itself.
+# The alternatename pragmas in cxx_aliases.cpp are UNTOUCHED (other TUs still
+# depend on them for their own legitimate G0/G1 uses).
+# PROOF: SM64DS_LEVEL=8 SM64DS_SPAWN=5250,-5100,2050 SM64DS_STAR_FILTER=1
+# SM64DS_WINDOW_SELFTEST=300 SM64DS_FAULTS_FATAL=1 -- pre-fix: segfault at
+# +0x0002fa93, walker node actor id 0x3a (ROCK_PILLAR), c0000005; post-fix:
+# exit 0, clean 22-class census, no crash artifacts. JRB 600f regression
+# (SM64DS_LEVEL=8 SM64DS_ACTOR_PROBE=1 SM64DS_WINDOW_SELFTEST=600) unchanged:
+# 193/35 + 22/7 boot, 200/35 + 22/7 end, exit 0.
+# NOT FIXED (flagged, out of scope for this pass): 30 src/ TUs repo-wide still
+# carry the raw `extern int G0[]`/`G1[]` shape (grep `extern int G[0-9]\b`).
+# None are hosted in gates 191-193's ov018/ov081/ov072 mounts. Screen any
+# newly-carried TU for this pattern before compiling it in -- the same
+# collision fires the moment such a TU links against the wrong alias target.
