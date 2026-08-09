@@ -346,7 +346,22 @@ extern const unsigned port_ov018_ds_base, port_ov018_ds_end;
    3. data_020758c8[11] = 19, LVL_Overlay data_02092208[11] = 0x02112c68, OV0
    handles at +8 (bmd 0x07c4/kcl 0x07c2/icg 0x07c5/icl 0x07c6) resolve through
    handles.tsv to snow_slider's all.bmd/kcl/icg/icl; SUBLEVEL_LEVEL_TABLE[11] =
-   3 = course 3. A 57805-byte KCL. Mounted --whole; own_sinits 0. */
+   3 = course 3. A 57805-byte KCL. Mounted --whole; own_sinits 0.
+
+   GATE 189, the proof pass (post-188 build): boots with the FULL placed cast,
+   84 spawned \ 12 classes, 0 skipped -- the first course to boot with no
+   skip census at all. 900f soaks are deterministic (two runs byte-identical
+   on stdout) and clean under SM64DS_FAULTS_FATAL=1; proximity soaks at the
+   ICE_SLIDE_MANAGER, the DOOR, and the far COIN cluster all exit 0 with no
+   crash artifacts. Two of those proximity runs are cross-level witnesses:
+   walking into the DOOR fires a real handoff (11 -> 10 entrance 4, clean
+   heap teardown), and the coin-cluster spawn point rides the death/OOB exit
+   (11 -> 1 entrance 13 reason 2) into a fully-hosted castle grounds.
+   One PLAY-TIME gap the boot census cannot see: nearing the slide spawns
+   two ONE_UP_LOGO (331, 0x14b) that skip as unregistered -- OneUpLogo is
+   fully matched in ov002 (OneUpLogo_Spawn 0x020f1170, _ZTV9OneUpLogo
+   0x0210b1ac) and just needs its registry row; queued for the level-10
+   slice gate rather than hosted blind here. */
 void port_ov019_patch(void);
 void *port_ov019_at(unsigned ds);
 extern unsigned char port_ov019_image[];
