@@ -718,7 +718,7 @@ extern "C" void hal_fill_seesaw_bob_vtable(void)
 // body, which for a hat is the ROM's own arrangement.
 #include "WaterfallMist.h"
 extern "C" {
-void _ZN13WaterfallMist16OnPendingDestroyEv(void);
+void _ZN13WaterfallMist16OnPendingDestroyEv(char *c);
 int *_ZN13WaterfallMistD1Ev(int *self);
 int func_ov002_020b8270(void);
 void func_ov002_020b81e0(char *self, int arg);
@@ -735,8 +735,11 @@ static int __fastcall cap_render(void *s, void *)
     port_actor_render_probe("CAP", (char *)s + 0x300);
     return ((WaterfallMist *)s)->WaterfallMist::Render();
 }
-static int __fastcall cap_pdes(void *, void *)
-{ _ZN13WaterfallMist16OnPendingDestroyEv(); return 0; }
+/* OnPendingDestroy takes `this`; the earlier thunk called it with no argument,
+   so at level teardown MarkForDestruction ran WaterfallMist::OnPendingDestroy
+   over a garbage stack word and faulted. Pass the cap object. */
+static int __fastcall cap_pdes(void *s, void *)
+{ _ZN13WaterfallMist16OnPendingDestroyEv((char *)s); return 0; }
 static int __fastcall cap_d1(void *s, void *)
 { return (int)(size_t)_ZN13WaterfallMistD1Ev((int *)s); }
 static int __fastcall cap_yoshi(void *, void *)
