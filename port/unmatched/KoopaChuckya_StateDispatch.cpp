@@ -83,6 +83,14 @@ void func_ov062_02116e80(void *c);      /* the post step */
 void func_ov062_02116dbc(void *c);      /* the shadow drop */
 extern signed char data_0209f2f8;       /* the current level id */
 
+/* func_ov062_02117724's own callees (all matched arm9 TUs) + the sin/cos table */
+void func_0201267c(int a, char *b);      /* the shell-scrape sound */
+int _ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(
+    int a, int b, int x, int y, int z, int v, int cb);
+void _ZN8Particle19SetSelfDestructFlagEj(int id);
+char *_ZN8Particle6System12FromUniqueIDEj(int id);
+extern short data_02082214[];            /* the shared sin/cos fixed-point table */
+
 /* the State objects Behavior compares this+0x364 against (mounted bss) */
 extern unsigned char data_ov062_0211de70[], data_ov062_0211de90[],
     data_ov062_0211dea0[], data_ov062_0211dec0[], data_ov062_0211ded0[],
@@ -279,22 +287,93 @@ extern "C" void port_chuckya_states_seat(void)
     }
 }
 
-/* ---- THE STUB --------------------------------------------------------------
-   ov062 0x02117724 IS NOT HOSTED, and it is the one hole in KOOPA. It is the
-   shell-dust Particle helper his state-3 attack runs (callers:
-   func_ov062_02118718/02118b4c/02118cdc, each `if (state==3)` before the bl),
-   0x270 bytes with no C in src/. The closest draft is nearmiss/db.jsonl
-   divergences=5 (fanout-glm-5.2). The prototype matches all three matched
-   callers' own extern decl. It names the function instead of jumping into the
-   overlay image, which is what a hole should do; the landing measurement
-   decides whether the KOOPA row stays. CHUCKYA never calls it. */
+/* ---- HOST COPY (PORT_HOST_ABI) ---------------------------------------------
+   ov062 0x02117724 is KOOPA's state-3 shell-dust Particle helper, bl'd from
+   three matched Koopa helpers (func_ov062_02118718/02118b4c gate on
+   `if (state==3)`, func_ov062_02118cdc on `if (state==1)`). It was the one hole in KOOPA: an abort stub
+   that killed BoB star groups 4-7 at ~frame 9 the instant KOOPA reached state 3.
+
+   The byte-match is a TRUE FLOOR at 5 divergences (nearmiss/db.jsonl,
+   fanout-glm-5.2). The residue is two pure instruction-scheduler reorders in the
+   two coordinate-update branches -- an identical-multiset shuffle where the ROM
+   fills the pos.x store's delay slot with the second coordinate's multiply/load
+   (the one-slot load-delay-slot fill of notes/mwccarm-codegen.md 6o, the
+   func_ov060_02113740 family). Every source spelling that touches the two
+   branches (~12 tried) perturbs the upstream idx*2 array-index allocation and
+   regresses; 4500 whole-function + 1300 PERM_RANDOMIZE-scoped decomp-permuter
+   iterations found no size-correct improvement below 5 (all its "better" scores
+   are size-inflated dead-store candidates). So no bannered hand-asm (game logic)
+   -- this host copy reproduces the ROM's SEMANTICS line for line instead.
+
+   ROM 0x02117724 (disassembled): if the actor's shell-facing angle bucket at
+   +0x358 (h = (u16)((s32<<4)>>16)) falls in [a1,a2] or [a3,a4], and the
+   once-only latch +0x3cd is clear, latch it, run func_0201267c(0xe4, self+0x74)
+   (the shell-scrape sound), and -- unless the held/thrown flag +0x398 == 1 --
+   spawn one Particle::System::New(id 0xf9) dust burst at the actor's world
+   position (+0x5c/+0x60/+0x64), nudged k=(id==0xcb?0xf:0xa) units up in Y and k
+   units along the shell-facing normal read from the sin/cos table
+   data_02082214[ (ang+0x4000) bucket ]. On the low-side arm (h<=a2) the normal
+   is subtracted, on the high-side arm added. The spawned particle's field +0x50
+   (its own scale) is then rescaled by 0x800/4096 for KOOPA (id 0xcb) or
+   0x500/4096 otherwise, both with round-to-nearest (+0x800 >> 12) and a s16
+   clamp. Out of both bands: clear the +0x3cd latch. CHUCKYA (id != 0xcb) never
+   reaches it. */
 extern "C" void func_ov062_02117724(void *c, int a, int b, int d, int e)
 {
-    (void)c; (void)a; (void)b; (void)d; (void)e;
-    std::fprintf(stderr,
-                 "FATAL: func_ov062_02117724 (KOOPA's state-3 shell-dust "
-                 "Particle helper, ov062 0x02117724, 0x270 bytes) is UNMATCHED "
-                 "-- no host body exists. Closest draft: nearmiss/db.jsonl "
-                 "divergences=5 (fanout-glm-5.2)\n");
-    std::abort();
+    char *t = (char *)c;
+    unsigned int a1 = (unsigned int)a;
+    unsigned int a2 = (unsigned int)b;
+    unsigned int a3 = (unsigned int)d;
+    unsigned short a4 = (unsigned short)e;
+
+    unsigned int h = (unsigned int)(*(int *)(t + 0x358) << 4) >> 16;
+    if ((h >= a1 && h <= a2) || (h >= a3 && h <= a4)) {
+        int k, idx, uid;
+        short ang;
+        int px, py, pz;
+        char *ps;
+
+        if (*(unsigned char *)(t + 0x3cd) != 0) return;
+        *(unsigned char *)(t + 0x3cd) = 1;
+        func_0201267c(0xe4, t + 0x74);
+        if (*(unsigned char *)(t + 0x398) == 1) return;
+
+        ang = (short)(*(short *)(t + 0x8e) + 0x4000);
+        px = *(int *)(t + 0x5c);
+        py = *(int *)(t + 0x60);
+        pz = *(int *)(t + 0x64);
+        k = (*(unsigned short *)(t + 0xc) == 0xcb) ? 0xf : 0xa;
+        py += k << 12;
+
+        idx = (unsigned short)ang >> 4;
+        {
+            int i2 = idx * 2;
+            int i1 = i2 + 1;
+            int sv = data_02082214[i2];
+            int cv = data_02082214[i1];
+            if (h <= a2) {
+                px = px - k * sv;
+                pz = pz - k * cv;
+            } else {
+                px = k * sv + px;
+                pz = k * cv + pz;
+            }
+        }
+
+        uid = _ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(
+                  0, 0xf9, px, py, pz, 0, 0);
+        _ZN8Particle19SetSelfDestructFlagEj(0xf9);
+        if (uid == 0) return;
+        ps = _ZN8Particle6System12FromUniqueIDEj(uid);
+        if (ps == 0) return;
+
+        if (*(unsigned short *)(t + 0xc) == 0xcb)
+            *(int *)(ps + 0x50) =
+                (short)(((long long)*(int *)(ps + 0x50) * 0x800 + 0x800) >> 12);
+        else
+            *(int *)(ps + 0x50) =
+                (short)(((long long)*(int *)(ps + 0x50) * 0x500 + 0x800) >> 12);
+    } else {
+        *(unsigned char *)(t + 0x3cd) = 0;
+    }
 }

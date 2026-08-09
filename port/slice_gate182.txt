@@ -25,11 +25,17 @@
 #    it on Virtual10).
 #  - _ZN5Koopa6RenderEv.cpp: the ROM-order ModelAnim slot-5 shadow collision
 #    (ModelAnim at +0x300) -- host copy in port/unmatched/Koopa_Render.cpp.
-#  - func_ov062_02117724 (0x270 bytes): UNMATCHED, the one hole. KOOPA's
-#    state-3 shell-dust Particle helper, bl'd from three matched Koopa helpers
-#    below (02118718/02118b4c/02118cdc). Stubbed name-and-abort in
-#    unmatched/KoopaChuckya_StateDispatch.cpp; closest draft nearmiss/db.jsonl
-#    divergences=5 (fanout-glm-5.2). CHUCKYA never reaches it.
+#  - func_ov062_02117724 (0x270 bytes): KOOPA's state-3 shell-dust Particle
+#    helper, bl'd from three matched Koopa helpers below (02118718/02118b4c/
+#    02118cdc). HOST COPY (PORT_HOST_ABI) in unmatched/KoopaChuckya_StateDispatch.cpp
+#    -- was an abort stub that killed BoB star groups 4-7 at ~frame 9. The
+#    byte-match is a TRUE FLOOR at 5 divergences (nearmiss/db.jsonl,
+#    fanout-glm-5.2): two pure instruction-scheduler reorders in the coordinate-
+#    update branches (the one-slot load-delay-slot fill of mwccarm-codegen.md 6o,
+#    the func_ov060_02113740 family). ~12 source spellings + 5800 decomp-permuter
+#    iterations found no size-correct improvement below 5, so the host copy
+#    reproduces the ROM semantics line for line instead of bannered hand-asm.
+#    CHUCKYA never reaches it.
 #  - func_ov062_0211a740: NOT this gate's -- it is KOOPA_THE_QUICK's state 0
 #    body, already sliced and seated at gate 32 (an earlier reading mistook it
 #    for a Koopa slot-30 override; the Koopa table ends at 0x0211db2c and
