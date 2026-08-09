@@ -33,7 +33,17 @@ src/SeesawBob_Spawn.c
 src/_ZN9SeesawBob13InitResourcesEv.cpp
 src/_ZN9SeesawBob16CleanupResourcesEv.cpp
 src/_ZN9SeesawBob8BehaviorEv.cpp
-src/_ZN9SeesawBob6RenderEv.cpp
+# _ZN9SeesawBob6RenderEv IS NOT HERE: like PowerStar/Whomp/UpDownLiftBbh it
+# dispatches ModelAnim slot 5 through a local six-virtual ROM-order shadow
+# (b->m(0) off the ModelAnim at +0xd4), which lands on the host _ZTV9ModelAnim's
+# Virtual18 (MSVC folds the two dtor slots into one) instead of Render -- a two-arg
+# method called with one arg, measured as a c0000005 in Model::Virtual10 reached
+# via SeesawBob::Render -> ModelAnim::Virtual18 -> Virtual10 -> Model::Virtual10
+# the first frame the BoB king-area seesaw draws (natural king-defeat path).
+# The matched src is byte-identical to eleven other bare +0xd4 draws and ICF-folds
+# with them, so the ONE compiled body serves every one of their dispatches; leaving
+# it in makes SeesawBob's own vtable call fault. Host copy in
+# port/unmatched/ModelAnim_Renders.cpp, dispatched by C name from the vtable fill.
 src/_ZN9SeesawBobD1Ev.c
 src/_ZN9SeesawBobD0Ev.c
 src/func_ov095_021358cc.c

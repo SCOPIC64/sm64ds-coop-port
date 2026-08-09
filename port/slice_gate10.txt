@@ -822,7 +822,14 @@ src/func_ov002_020bd8c0.cpp
 src/func_ov002_020d9c70.c
 src/func_ov002_020da95c.c
 src/func_ov002_020f0918.c
-src/func_0200ee8c.c
+# func_0200ee8c IS NOT HERE: it declares GetStarCameraSetting `extern s32` and
+# uses the full return as the data_020876e4[] index, but the definition returns
+# unsigned char (AL only), so on x86 MSVC the dirty EAX high bytes produce an
+# out-of-range index (4097) and a garbage RunKuppaScript pointer -> a c0000005 in
+# ProcessKuppaScript the first frame of the star-get cutscene. Hosted with the
+# u8 return masked to the ROM's own 0xf in port/hal/star_flow.cpp (the
+# HitDeathPlane / sound_abi u8-ride-through pattern).
+# src/func_0200ee8c.c  (hosted in port/hal/star_flow.cpp)
 src/func_02037b1c.c
 src/func_02037f64.c
 src/func_02037f94.c

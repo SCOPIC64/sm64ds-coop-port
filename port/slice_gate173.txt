@@ -24,7 +24,13 @@
 src/UpDownLiftHmc_Spawn.c
 src/_ZN13UpDownLiftBbh13InitResourcesEv.cpp
 src/_ZN13UpDownLiftBbh16CleanupResourcesEv.cpp
-src/_ZN13UpDownLiftBbh6RenderEv.cpp
+# _ZN13UpDownLiftBbh6RenderEv IS NOT HERE: like PowerStar/Whomp/Scuttlebug it
+# dispatches ModelAnim slot 5 through a local six-virtual ROM-order shadow
+# (b->m(0) off the ModelAnim at +0xd4), which lands on the host _ZTV9ModelAnim's
+# Virtual18 (MSVC folds the two dtor slots into one) instead of Render -- a two-arg
+# method called with one arg, measured as a c0000005 in Model::Virtual10 reached
+# via UpDownLiftBbh::Render -> ModelAnim::Virtual18 -> Virtual10 -> Model::Virtual10
+# on the natural king-defeat path. Host copy in port/unmatched/ModelAnim_Renders.cpp.
 src/_ZN13UpDownLiftBbhD1Ev.c
 src/_ZN13UpDownLiftBbhD0Ev.c
 src/func_ov095_02136368.c

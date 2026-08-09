@@ -661,10 +661,15 @@ static int __fastcall ssb_clean(void *s, void *)
 { return ((SeesawBob *)s)->SeesawBob::CleanupResources(); }
 static int __fastcall ssb_behavior(void *s, void *)
 { return ((SeesawBob *)s)->SeesawBob::Behavior(); }
+/* the C name, not the C++ method: Render is a ModelAnim slot-5 host copy in
+   port/unmatched/ModelAnim_Renders.cpp (the Whomp/UpDownLiftBbh case), so the
+   matched src is dropped from slice_gate83.txt and this dispatches the host copy
+   by its extern-"C" name, the way ssb_behavior calls the class method. */
+extern "C" int _ZN9SeesawBob6RenderEv(void *self);   /* ModelAnim slot-5 host copy */
 static int __fastcall ssb_render(void *s, void *)
 {
     port_actor_render_probe("SEESAW_BOB", (char *)s + 0xd4);
-    return ((SeesawBob *)s)->SeesawBob::Render();
+    return _ZN9SeesawBob6RenderEv(s);
 }
 /* slot 21 takes a second argument (the pounder) in r1; the __fastcall thunk's
    second slot carries it, so the ov095 body reads it straight. */
@@ -783,10 +788,16 @@ static int __fastcall hh_clean(void *s, void *)
 { return _ZN7Seaweed16CleanupResourcesEv((char *)s); }
 static int __fastcall hh_behavior(void *s, void *)
 { return _ZN7Seaweed8BehaviorEv((char *)s); }
+/* the C name, not the C++ method: Seaweed::Render is a ModelAnim slot-5 host
+   copy in port/unmatched/ModelAnim_Renders.cpp (the Whomp/UpDownLiftBbh case), so
+   the matched src is dropped from slice_gate33.txt and this dispatches the host
+   copy by its extern-"C" name. HEALING_HEART shares _ZTV7Seaweed, so this is the
+   dispatch that actually faulted on the king-defeat path (frame 354). */
+extern "C" int _ZN7Seaweed6RenderEv(void *self);   /* ModelAnim slot-5 host copy */
 static int __fastcall hh_render(void *s, void *)
 {
     port_actor_render_probe("HEALING_HEART", (char *)s + 0xd4);
-    return ((Seaweed *)s)->Seaweed::Render();
+    return _ZN7Seaweed6RenderEv(s);
 }
 static int __fastcall hh_d1(void *s, void *)
 {

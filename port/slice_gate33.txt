@@ -199,7 +199,19 @@ src/HealingHeart_Spawn.c
 src/_ZN7Seaweed13InitResourcesEv.cpp
 src/_ZN7Seaweed16CleanupResourcesEv.c
 src/_ZN7Seaweed8BehaviorEv.c
-src/_ZN7Seaweed6RenderEv.cpp
+# _ZN7Seaweed6RenderEv IS NOT HERE: like PowerStar/Whomp/UpDownLiftBbh it
+# dispatches ModelAnim slot 5 through a local six-virtual ROM-order shadow
+# (b->m(0) off the ModelAnim at +0xd4), which lands on the host _ZTV9ModelAnim's
+# Virtual18 (MSVC folds the two dtor slots into one) instead of Render -- a two-arg
+# method called with one arg, measured as a c0000005 in Model::Virtual10 reached
+# via Seaweed::Render -> ModelAnim::Virtual18 -> Virtual10 -> Model::Virtual10 the
+# first frame the HEALING_HEART draws (it shares _ZTV7Seaweed, RTTI daObjHeart_c,
+# so it renders through Seaweed::Render) on the natural king-defeat path. The
+# matched src is byte-identical to eleven other bare +0xd4 draws and ICF-folds
+# with them, so leaving it in makes both HealingHeart's and Seaweed's own vtable
+# calls fault. Host copy in port/unmatched/ModelAnim_Renders.cpp, dispatched by
+# C name from the HealingHeart vtable fill in hal/actor_classes_bob_world.cpp.
+# (src/_ZN7Seaweed6RenderEv.cpp intentionally omitted)
 
 # EXCLAMATION_SWITCH (11) -- _ZTV10StarSwitch, RTTI daObjSwitch_c
 src/ExclamationSwitch_Spawn.c

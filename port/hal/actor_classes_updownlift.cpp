@@ -78,6 +78,7 @@ void port_actor_render_probe(const char *cls, void *model); /* actor_classes */
    the thunk calls the C name -- the Coin/WaterBomb reading. The seat rewrites
    the five state statics before the ov095 sinit copies them. */
 int _ZN13UpDownLiftBbh8BehaviorEv(void *self);   /* port/unmatched host copy */
+int _ZN13UpDownLiftBbh6RenderEv(void *self);     /* ModelAnim slot-5 host copy */
 void *_ZN13UpDownLiftBbhD1Ev(void *self);        /* slot 16, .c extern "C" */
 void *_ZN13UpDownLiftBbhD0Ev(void *self);        /* slot 17, .c extern "C" */
 void port_updownlift_states_seat(void);          /* port/unmatched */
@@ -170,7 +171,11 @@ static int __fastcall udl_behavior(void *s, void *)
 { return _ZN13UpDownLiftBbh8BehaviorEv(s); }
 static int __fastcall udl_render(void *s, void *)
 { port_actor_render_probe("UP_DOWN_LIFT_HMC", (char *)s + 0xd4);
-  return ((UpDownLiftBbh *)s)->UpDownLiftBbh::Render(); }
+  /* the C name, not the C++ method: Render is a ModelAnim slot-5 host copy in
+     port/unmatched/ModelAnim_Renders.cpp (the Whomp/Scuttlebug case), so the
+     matched src is dropped from slice_gate173.txt and this dispatches the host
+     copy by its extern-"C" name, the way udl_behavior does. */
+  return _ZN13UpDownLiftBbh6RenderEv(s); }
 static int __fastcall udl_d1(void *s, void *)
 { return (int)(size_t)_ZN13UpDownLiftBbhD1Ev(s); }
 static int __fastcall udl_d0(void *s, void *)

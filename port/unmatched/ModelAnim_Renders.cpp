@@ -181,4 +181,60 @@ int _ZN8BigBully6RenderEv(void *selfv)
 int _ZN15RotatingFirebar6RenderEv(void *selfv)
 { ((Model *)((char *)selfv + 0xd4))->Model::Render(0); return 1; }
 
+/* ---- UP_DOWN_LIFT_BBH (32/33/131, ov095, gate 173) -----------------------
+   The tenth walk into the ModelAnim slot-5 collision. src/_ZN13UpDownLiftBbh6RenderEv.cpp
+   dispatches through a LOCAL six-virtual shadow (`Base b; b->m(0)`) over a
+   `Derived { char pad[0xd4]; Base base; }`, so its "slot 5" is the ROM's
+   ModelAnim::Render off the ModelAnim at +0xd4. The host _ZTV9ModelAnim array's
+   slot 5 is Virtual18, a two-arg method called with the shadow's one arg -- it
+   read a scale off the stack and handed Model::Virtual10 a null matrix.
+   MEASURED as a c0000005 in Model::Virtual10 reached UpDownLiftBbh::Render(+0x11)
+   -> ModelAnim::Virtual18 -> ModelAnim::Virtual10 -> Model::Virtual10 through
+   port_actor_process, the first frame a lift draws on the natural king-defeat
+   path (SM64DS_LEVEL=6 SM64DS_KING_FORCE_DEFEAT=30, the defeat cutscene renders
+   the level's lifts). No early outs; the source is `b->m(0)`, one null-scale draw.
+   Excluded from slice_gate173.txt (the _ZN13UpDownLiftBbh6RenderEv line) and
+   hosted here, the Bully/Scuttlebug reading exactly.
+   PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish case. */
+int _ZN13UpDownLiftBbh6RenderEv(void *selfv)
+{ ((ModelAnim *)((char *)selfv + 0xd4))->ModelAnim::Render(0); return 1; }
+
+/* ---- HEALING_HEART via SEAWEED (297, ov002, gate 33) ---------------------
+   THE measured Bob-omb Battlefield fault once UpDownLiftBbh above stopped
+   faulting. HEALING_HEART (297) shares Seaweed's vtable (_ZTV7Seaweed, RTTI
+   daObjHeart_c) and so renders through Seaweed::Render, the same bare `b->m(0)`
+   off its ModelAnim at +0xd4 through a local six-virtual ROM-order shadow.
+   src/_ZN7Seaweed6RenderEv.cpp is byte-identical to eleven other bare +0xd4
+   draws (TowerStep/SeesawBob/MetalNet/MontyMole/...), so MSVC's ICF folds them
+   all to one body -- and that shared body lands on the host _ZTV9ModelAnim's
+   Virtual18 (a two-arg method) with the shadow's one arg, handing
+   Model::Virtual10 a null matrix. MEASURED as a c0000005 (reads null 00000000)
+   in Model::Virtual10 reached Seaweed::Render(+0x11) -> ModelAnim::Virtual18 ->
+   ModelAnim::Virtual10 -> Model::Virtual10 through port_actor_process, the first
+   frame the HEALING_HEART drew (actor 04811C74, SM64DS_ACTOR_PROBE named it) on
+   the natural king-defeat path (SM64DS_LEVEL=6 SM64DS_SPAWN=1501,4192,-5100
+   SM64DS_KING_FORCE_DEFEAT=90, frame 354). No early outs; the source is `b->m(0)`,
+   one null-scale draw. Excluded from slice_gate33.txt and dispatched by C name
+   from the HealingHeart vtable fill in hal/actor_classes_bob_world.cpp; fixes both
+   HealingHeart and any on-screen SEAWEED. The UpDownLiftBbh reading exactly.
+   PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish case. */
+int _ZN7Seaweed6RenderEv(void *selfv)
+{ ((ModelAnim *)((char *)selfv + 0xd4))->ModelAnim::Render(0); return 1; }
+
+/* ---- SEESAW_BOB (39, ov095, gate 83) -------------------------------------
+   A latent sibling of the collision above: SeesawBob (Bob-omb Battlefield's
+   seesaw bridge, in the king's arena sub-area at -2250,700,1000) draws the same
+   bare `b->m(0)` off its ModelAnim at +0xd4 through a local six-virtual ROM-order
+   shadow, dispatched as the C++ method at actor_classes_bob_world.cpp's ssb_render.
+   src/_ZN9SeesawBob6RenderEv.cpp is byte-identical to the fold group above, so its
+   own vtable call would land on the host _ZTV9ModelAnim's Virtual18 the first
+   frame the seesaw draws close enough. Hosted here pre-emptively with the same
+   qualified ModelAnim::Render dispatch as its siblings (the seesaw sits away from
+   the king so the SM64DS_SPAWN=1501,... camera never brought it on-screen before
+   the HEALING_HEART faulted first, but the collision is identical). Excluded from
+   slice_gate83.txt, dispatched by C name from the SeesawBob vtable fill.
+   PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish case. */
+int _ZN9SeesawBob6RenderEv(void *selfv)
+{ ((ModelAnim *)((char *)selfv + 0xd4))->ModelAnim::Render(0); return 1; }
+
 }  /* extern "C" */

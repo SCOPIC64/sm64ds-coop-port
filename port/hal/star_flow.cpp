@@ -601,3 +601,52 @@ void port_course_respawn(void *player)
 }
 
 }  // extern "C"
+
+// =============================================================================
+// func_0200ee8c: the star-get camera-script launcher -- a u8-return ride-through
+// =============================================================================
+//
+// src/func_0200ee8c.c is the star-get cutscene's script selector:
+//
+//     void func_0200ee8c(s32 arg0) {
+//         if (arg0 < 0) arg0 = GetStarCameraSetting(data_0209f224);
+//         RunKuppaScript(data_020876e4[arg0]);   // 6-entry table
+//     }
+//
+// It declares `extern s32 GetStarCameraSetting(s32)` and uses the FULL return as
+// the index into data_020876e4[6]. But GetStarCameraSetting is defined
+// `unsigned char GetStarCameraSetting(int)` -- `(data_02092134 >> (idx*4)) & 0xf`
+// -- so it only ever sets AL (verified in the obj: `and al,0Fh; ret`). On ARM the
+// s8/s32 declaration mismatch is harmless: the ROM's `bl` leaves the byte in r0
+// and the AND already cleared the top bits, so `data_020876e4[r0]` indexes 0..5.
+//
+// On x86 MSVC the __cdecl caller reads the WHOLE of EAX, whose high bytes
+// GetStarCameraSetting never wrote, so a call that should return 1 came back as
+// 0x00001001 = 4097. `data_020876e4[4097]` reads 0x4000 bytes past a 24-byte
+// table, hands RunKuppaScript a garbage pointer (0ffaff1e), and ProcessKuppaScript
+// faults c0000005 the first frame of the star-get cutscene. MEASURED on the
+// natural king-defeat + touch path (SM64DS_LEVEL=6 SM64DS_KING_FORCE_DEFEAT=90,
+// star state 4 -> collect handler -> St_NoControl_Main -> func_ov002_020c7ff8 ->
+// func_0200d4b0 -> here).
+//
+// The fix is the sound_abi.cpp / HitDeathPlane pattern: host the one function and
+// spell the return the width the ROM means. GetStarCameraSetting yields a 4-bit
+// value, so masking its result with 0xf reproduces exactly the ARM behaviour (the
+// only bits the ROM's own `& 0xf` and single-byte return could carry) and keeps
+// the index inside the 6-entry table. src/func_0200ee8c.c is filtered out of
+// slice_gate10.txt in exchange.
+// PORT_HOST_ABI: GetStarCameraSetting returns u8 (AL only); the src reads it as
+// s32 and indexes with it, so mask to the ROM's own 0xf here.
+extern "C" {
+extern void *data_020876e4[];
+extern signed char data_0209f224;
+extern int GetStarCameraSetting(int star);
+extern void RunKuppaScript(void *script);
+
+void func_0200ee8c(int arg0)
+{
+    if (arg0 < 0)
+        arg0 = GetStarCameraSetting((int)data_0209f224) & 0xf;
+    RunKuppaScript(data_020876e4[arg0]);
+}
+}  // extern "C"
