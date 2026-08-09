@@ -1337,6 +1337,10 @@ static void push_camera(const float eye_w[3], const float at_w[3])
     NTR_MMIO(uint32_t, 0x04000454) = 0;
 }
 
+/* fault_probe.h reads this into crash.txt/exit.txt as the death's frame
+   number; -1 is its weak fallback for harnesses without a frame loop. */
+extern "C" int port_last_frame = -1;
+
 /* PORT_HOST_ABI: the host program entry point (window + ntr bring-up + frame
    loop). Name-collides with the ROM's boot spine src/main.c, which is the DS
    init sequence and runs as its own decomp TU, not as this launcher shell. */
@@ -4582,6 +4586,7 @@ int main(void)
         sdat_host_tick();   /* hosted ARM7: drain the sound queue, feed the mixer */
         ++frame;   /* counts in live mode too -- the [cam-in]-style live
                       diagnostics carry a real frame number */
+        port_last_frame = frame;   /* fault_probe.h: crash.txt/exit.txt context */
         if (selftest && frame >= selftest) {
             for (int k = 0; k < g_amb_n; ++k) {
                 char *o = (char *)g_amb[k].o;

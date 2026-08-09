@@ -197,6 +197,143 @@ static LONG WINAPI port_fault_probe_with_file(EXCEPTION_POINTERS *ep)
     return port_fault_probe(ep);
 }
 
+/* ---- exit.txt: the silent-death catcher -----------------------------------
+   crash.txt covers deaths that raise an exception. A death that goes through
+   the ORDERLY door -- exit(), _exit(), quick_exit(), abort()'s tail,
+   ExitProcess() from any library -- raises nothing, so it leaves no crash.txt,
+   no WER record, and (buffered or not) a stdout that just stops. The Whomp's
+   Fortress wall area produced exactly that shape twice in real play and once
+   in a headless soak: process gone, exit code -1, nothing anywhere.
+
+   Every one of those doors funnels through ntdll's RtlExitUserProcess (the
+   CRT's exit and ExitProcess both end there), so one 5-byte jmp detour at its
+   entry catches them all regardless of which module called. The hook never
+   returns to the original: it logs and then terminates through
+   NtTerminateProcess, which is the same place RtlExitUserProcess was going.
+   TerminateProcess(self) and __fastfail still bypass this -- they bypass
+   everything -- and are called out in exit.txt's absence the way crash.txt's
+   header calls out fastfail.
+
+   INERT IN PRACTICE: exit.txt is written only for a NONZERO exit code, so
+   the selftest's clean exit(0) leaves nothing. Same raw-Win32 discipline as
+   crash.txt: static buffers, hand-rolled hex, CreateFileA/WriteFile. */
+/* The harness's frame counter, weak like the walker pointer so TUs without a
+   frame loop still link (the fallback reads -1). walk_window defines and
+   feeds the real one. */
+#ifdef __cplusplus
+extern "C" int port_last_frame;
+extern "C" __declspec(selectany) int port_fault_no_frame = -1;
+#else
+extern int port_last_frame;
+__declspec(selectany) int port_fault_no_frame = -1;
+#endif
+#pragma comment(linker, "/alternatename:_port_last_frame=_port_fault_no_frame")
+
+typedef LONG(__stdcall *port_NtTerminateProcess_t)(HANDLE, LONG);
+
+static void port_exit_write_file(unsigned code)
+{
+    static char path[MAX_PATH + 16];
+    static char buf[1024];
+    static volatile LONG once;
+    if (InterlockedExchange((volatile LONG *)&once, 1))
+        return;
+    {
+        DWORD n = GetModuleFileNameA(0, path, MAX_PATH);
+        while (n && path[n - 1] != 92 /* '\\' */)
+            --n;
+        lstrcpyA(path + n, "exit.txt");
+    }
+    {
+    char *base = (char *)GetModuleHandleA(0);
+    unsigned p = 0;
+#define PORT_EXIT_STR(s) do { const char *q = (s); \
+        while (*q && p < sizeof buf - 12) buf[p++] = *q++; } while (0)
+#define PORT_EXIT_HEX(v) do { if (p < sizeof buf - 12) { \
+        port_crash_hex(buf + p, (unsigned)(v)); p += 8; } } while (0)
+    PORT_EXIT_STR("walk_window silent exit\r\ncode      ");
+    PORT_EXIT_HEX(code);
+    PORT_EXIT_STR("\r\nmodule    ");
+    PORT_EXIT_HEX((uintptr_t)base);
+    PORT_EXIT_STR("\r\nframe     ");
+    PORT_EXIT_HEX((unsigned)port_last_frame);
+    if (data_020a4b68 && !IsBadReadPtr(data_020a4b68, 12)) {
+        char *a = (char *)(uintptr_t)data_020a4b68[2];
+        PORT_EXIT_STR("\r\nwalker    node ");
+        PORT_EXIT_HEX((uintptr_t)data_020a4b68);
+        PORT_EXIT_STR(" actor ");
+        PORT_EXIT_HEX((uintptr_t)a);
+        PORT_EXIT_STR(" id ");
+        PORT_EXIT_HEX((a && !IsBadReadPtr(a, 0x10))
+                      ? *(unsigned short *)(a + 0xc) : 0xffffu);
+    }
+    PORT_EXIT_STR("\r\ncallers (+module)");
+    {
+        void *frames[24];
+        unsigned n = CaptureStackBackTrace(0, 24, frames, 0);
+        unsigned i;
+        for (i = 0; i < n; ++i) {
+            unsigned v = (unsigned)(uintptr_t)frames[i];
+            PORT_EXIT_STR("\r\n  ");
+            if (v >= (unsigned)(uintptr_t)base &&
+                v < (unsigned)(uintptr_t)base + 0x200000) {
+                PORT_EXIT_STR("+");
+                PORT_EXIT_HEX(v - (unsigned)(uintptr_t)base);
+            } else {
+                PORT_EXIT_HEX(v);
+                PORT_EXIT_STR(" (outside module)");
+            }
+        }
+    }
+    PORT_EXIT_STR("\r\nresolve: offset -> build/port/walk_window.map\r\n");
+#undef PORT_EXIT_STR
+#undef PORT_EXIT_HEX
+    {
+        HANDLE f = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ, 0,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        if (f != INVALID_HANDLE_VALUE) {
+            DWORD wr;
+            WriteFile(f, buf, p, &wr, 0);
+            FlushFileBuffers(f);
+            CloseHandle(f);
+        }
+    }
+    }
+}
+
+static void __stdcall port_exit_hook(LONG code)
+{
+    if (code != 0)
+        port_exit_write_file((unsigned)code);
+    {
+        HMODULE nt = GetModuleHandleA("ntdll.dll");
+        port_NtTerminateProcess_t term = nt
+            ? (port_NtTerminateProcess_t)GetProcAddress(nt,
+                                                        "NtTerminateProcess")
+            : 0;
+        if (term)
+            term(GetCurrentProcess(), code);
+    }
+    TerminateProcess(GetCurrentProcess(), (UINT)code);   /* belt and braces */
+}
+
+static void port_install_exit_probe(void)
+{
+    HMODULE nt = GetModuleHandleA("ntdll.dll");
+    unsigned char *fn = nt
+        ? (unsigned char *)GetProcAddress(nt, "RtlExitUserProcess") : 0;
+    DWORD old;
+    if (!fn)
+        return;
+    if (!VirtualProtect(fn, 5, PAGE_EXECUTE_READWRITE, &old))
+        return;
+    fn[0] = 0xE9;   /* jmp rel32 to the hook; the original is never re-entered */
+    *(unsigned *)(fn + 1) =
+        (unsigned)((uintptr_t)port_exit_hook - ((uintptr_t)fn + 5));
+    VirtualProtect(fn, 5, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), fn, 5);
+}
+
 /* Redirected stdio is fully buffered under the MSVC CRT, so a hard death
    loses every line since the last flush; the two setvbuf calls make captures
    loss-free. Harmless on a console. */
@@ -205,6 +342,7 @@ static LONG WINAPI port_fault_probe_with_file(EXCEPTION_POINTERS *ep)
         setvbuf(stdout, NULL, _IONBF, 0); \
         AddVectoredExceptionHandler(1, port_crash_veh); \
         SetUnhandledExceptionFilter(port_fault_probe_with_file); \
+        port_install_exit_probe(); \
     } while (0)
 
 /* Hang watchdog (PORT_WATCHDOG=<seconds>): a helper thread suspends the
