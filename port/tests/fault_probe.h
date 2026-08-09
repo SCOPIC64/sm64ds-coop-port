@@ -7,6 +7,19 @@
 #include <windows.h>
 #include <stdio.h>
 
+/* The ROM's list walker (func_02043fdc) parks the node it is processing in
+   data_020a4b68 before every callback, so at fault time node[2] names the
+   actor whose phase code was running -- the question every actor-phase crash
+   asks first. Weak so the probe still links in TUs without the engine. */
+#ifdef __cplusplus
+extern "C" int *data_020a4b68;
+extern "C" __declspec(selectany) int *port_fault_no_walker = 0;
+#else
+extern int *data_020a4b68;
+__declspec(selectany) int *port_fault_no_walker = 0;
+#endif
+#pragma comment(linker, "/alternatename:_data_020a4b68=_port_fault_no_walker")
+
 static LONG WINAPI port_fault_probe(EXCEPTION_POINTERS *ep)
 {
     char *base = (char *)GetModuleHandleA(0);
@@ -15,6 +28,13 @@ static LONG WINAPI port_fault_probe(EXCEPTION_POINTERS *ep)
             (unsigned)((char *)ep->ExceptionRecord->ExceptionAddress - base),
             (unsigned)(ep->ExceptionRecord->NumberParameters > 1
                        ? ep->ExceptionRecord->ExceptionInformation[1] : 0));
+    if (data_020a4b68 && !IsBadReadPtr(data_020a4b68, 12)) {
+        char *a = (char *)(uintptr_t)data_020a4b68[2];
+        fprintf(stderr, "  walker node %p actor %p id 0x%x\n",
+                (void *)data_020a4b68, (void *)a,
+                (a && !IsBadReadPtr(a, 0x10)) ? *(unsigned short *)(a + 0xc)
+                                              : 0xffffu);
+    }
     void *frames[12];
     unsigned n = CaptureStackBackTrace(0, 12, frames, 0);
     for (unsigned i = 0; i < n; ++i)
@@ -226,17 +246,26 @@ static DWORD WINAPI port_watchdog_thread(LPVOID p)
    port_watch_words(addr, n) arms DR0..DR3 on the calling thread; the
    vectored handler prints the writer's module-relative EIP and keeps
    going. For finding who stomps a host global. */
+/* The watched base, so each event prints the current values: a refcount that
+   drains reads as a story, a pointer that flips names its moment. The 300 cap
+   replaces the old 8, which went quiet before the interesting event every
+   time it mattered (the sign-SFP drain sat behind twelve legitimate loads). */
+static unsigned *port_watch_base;
 static LONG WINAPI port_watch_handler(EXCEPTION_POINTERS *ep)
 {
     if (ep->ExceptionRecord->ExceptionCode != EXCEPTION_SINGLE_STEP)
         return EXCEPTION_CONTINUE_SEARCH;
     char *base = (char *)GetModuleHandleA(0);
     static int shown;
-    if (shown < 8) {
+    if (shown < 300) {
         ++shown;
-        fprintf(stderr, "[watch] write near watched words, eip=+0x%08x\n",
+        fprintf(stderr, "[watch] write near watched words, eip=+0x%08x",
                 (unsigned)((char *)ep->ExceptionRecord->ExceptionAddress -
                            base));
+        if (port_watch_base)
+            fprintf(stderr, "  now={%08x %08x}", port_watch_base[0],
+                    port_watch_base[1]);
+        fprintf(stderr, "\n");
         unsigned *sp = (unsigned *)ep->ContextRecord->Esp;
         int printed = 0;
         for (int i = 0; i < 64 && printed < 4; ++i) {
@@ -258,6 +287,7 @@ static LONG WINAPI port_watch_handler(EXCEPTION_POINTERS *ep)
 
 static void port_watch_words(void *addr, int nwords)
 {
+    port_watch_base = (unsigned *)addr;
     static int handler_in;
     if (!handler_in) {
         handler_in = 1;
