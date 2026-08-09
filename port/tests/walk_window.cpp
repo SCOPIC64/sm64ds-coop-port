@@ -3031,6 +3031,35 @@ int main(void)
                 else
                     ExitLevel();
             }
+            /* SM64DS_WARP_SEQ=<lvl>@<frame>[,<lvl>@<frame>...]: a scripted warp
+               chain for the level-teardown gates. At each listed frame it drives
+               the game's own LoadLevelNoReturn(level, 0, 1, 1) -- the same call
+               the debug select ends in -- so the change poll tears the current
+               level down and boots the next. Entrance 0 is every level's default
+               spawn. Nothing here writes the handoff words by hand. */
+            {
+                static const char *seq = 0;
+                static int seq_read;
+                if (!seq_read) { seq = getenv("SM64DS_WARP_SEQ"); seq_read = 1; }
+                if (seq) {
+                    const char *p = seq;
+                    while (*p) {
+                        int lv = atoi(p);
+                        const char *at = strchr(p, 64 /* '@' */);
+                        int fr = at ? atoi(at + 1) : -1;
+                        if (fr == frame) {
+                            printf("[warpseq] frame %d: warp to level %d "
+                                   "(heap free %u, actors %d)\n", frame, lv,
+                                   port_level_heap_free_bytes(),
+                                   port_actor_live_count());
+                            LoadLevelNoReturn(lv, 0, 1, 1);
+                        }
+                        const char *comma = strchr(p, 44 /* ',' */);
+                        if (!comma) break;
+                        p = comma + 1;
+                    }
+                }
+            }
             /* SM64DS_MENU_WARP_TEST=<row>[,<frame>]: the interactive shape
                of the same select, headless. SM64DS_MENU=1 boots with the
                menu open (game tick paused); at the frame this fires the
