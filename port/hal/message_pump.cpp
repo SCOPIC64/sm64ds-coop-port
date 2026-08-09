@@ -39,12 +39,41 @@
 // get in stage_bridges.cpp / level_boot.cpp: a stand-in for one line of the
 // Stage's own Behavior, to be retired the day the Stage runs as a real actor.
 //
-// THE SAVE-SCREEN ARM (data_0209d654 != 0) is deliberately NOT reproduced: it
-// drives SaveData::SaveCurrentFile and Message::DisplaySaving, the save prompt,
-// which is not a dialogue box and is not reachable from an in-world talk. Only
-// the data_0209d654 == 0 path -- Message::Update -- is the dialogue pump. If a
-// message ever comes up with data_0209d654 set, this logs once and skips it
-// rather than pretend to host the save flow.
+// THE SAVE-SCREEN ARM (data_0209d654 != 0) IS NOW SERVICED. It is the exact
+// tail of Stage::UpdateMessage (src/_ZN5Stage13UpdateMessageEv.cpp), the same
+// one line of the Stage's own Behavior this file already owns for the dialogue
+// arm. It is reached in ordinary play: PowerStar state 11 case 2
+// (func_ov002_020e9af4) calls Message::DisplaySaving(0x295) when the player picks
+// the save choice (t==1, the low two bits of the star's +0x4a2, seeded from the
+// message box's last choice data_0209d684). DisplaySaving arms
+// data_0209d654=1 / data_0209d660=1 / data_0209d6d4=0x295 and seats a countdown
+// data_0209d67c=0x3c. The DS ticks it every frame from Stage::Behavior; the port
+// skipped it, so the save box never closed, data_0209d660 never cleared, and the
+// star's case 3 waited on data_0209d660==0 forever -- the whole gameplay handoff
+// (func_ov002_020e8618: untrack, MarkForDestruction, Event bits) never ran, and
+// EVERY DisplaySaving caller in the game stalled the same way.
+//
+// The arm's body, byte for byte the matched Stage::UpdateMessage:
+//   UpdateWindow()==1 (box open), data_0209d654!=0, id==0x295:
+//     at data_0209d67c==0x3c run SaveData::SaveCurrentFile() ONCE; then decrement
+//     data_0209d67c by data_0208ee44 and, at 0, set data_0209d670=1 (request the
+//     window close). Message::UpdateWindow then animates the box shut and clears
+//     data_0209d660 itself.
+//   UpdateWindow()==0 (box shut), data_0209d654!=0, data_0209d660==0:
+//     id!=0x295 -> clear data_0209d654 (arm done); id==0x295 -> DisplaySaving(0x296),
+//     the "Saved!" confirmation, which loops the arm once more and on its own close
+//     (id 0x296 != 0x295) clears data_0209d654.
+//
+// THE ONE THING NOT HOSTED is the real file write. SaveData::SaveCurrentFile ->
+// SaveData::SaveFile -> SaveData::SaveDataToCart bottoms out on the DS backup-cart
+// hardware layer (func_0203da3c/func_0206045c/func_02057020/func_02060484), none
+// of which the port hosts, and none of which is in any build slice. The box CLOSE
+// does not depend on the write completing -- it is driven purely by the
+// data_0209d67c countdown -- so a host stub of SaveData::SaveCurrentFile
+// (port_save_current_file, below) stands in for JUST the leaf: it notes once to
+// stderr that the write is unhosted, naming the symbol, and returns success. When
+// a host save backend lands, that stub is the single place it plugs in. Nothing
+// is faked silently.
 #include <cstdio>
 #include <cstdlib>
 
@@ -62,11 +91,26 @@ extern "C" {
 
 void _ZN7Message6UpdateEv(void *self);     /* Message::Update, faced in reverse_bridges */
 
+static void port_save_current_file(void);  /* the save-write leaf, host stand-in (below) */
+
 extern unsigned char data_0209d660;   /* message-active flag */
 extern unsigned char data_0209d654;   /* save-screen flag (0 for a dialogue) */
 extern unsigned char data_0209d698;   /* box target screen: 0 engine A, 1/2 sub */
 extern unsigned char data_0209d6bc;   /* Message::Update state var */
 extern short         data_0209d6d4;   /* current message id (-1 = none) */
+
+/* the save-screen arm's own globals: the countdown data_0209d67c (seated 0x3c by
+   DisplaySaving), its per-frame step data_0208ee44 (the game's frame-count/rate,
+   1 at 60fps), and the window-close request data_0209d670 that Message::UpdateWindow
+   reads to animate the box shut. All matched-src symbols, all in the link. */
+extern unsigned char data_0209d67c;   /* save-screen countdown */
+extern int           data_0208ee44;   /* per-frame decrement step (frame rate) */
+extern unsigned char data_0209d670;   /* window close request */
+
+/* Message::DisplaySaving(u16) -- the matched save prompt (src/_ZN7Message13
+   DisplaySavingEt.cpp, in the link via slice_gate18). The arm re-fires it with
+   0x296 for the "Saved!" confirmation box. */
+void _ZN7Message13DisplaySavingEt(unsigned short id);
 
 /* THE ENGINE-A DISPLAY SYNC, the piece the port skips. On the DS func_02019144
    runs once per frame and, among other things, copies the software BG-offset
@@ -158,17 +202,19 @@ void port_message_pump(void)
        box open (d658/d64c grow to d6d0/d6c8) and Message::Update advance d6bc. */
     if (std::getenv("SM64DS_MSG_PUMP_DEBUG") && data_0209d660) {
         extern unsigned char data_0209d658, data_0209d64c, data_0209d6d0,
-            data_0209d6c8, data_0209d650, data_0209d6cc, data_0209d670;
+            data_0209d6c8, data_0209d650, data_0209d6cc;
         static int n;
-        if (n < 30) {
+        if (n < 1000) {
             ++n;
             std::fprintf(stderr, "[msgpump] active: d698=%u d6bc=%u id=%d "
-                         "cur(w=%u h=%u) max(w=%u h=%u) min(w=%u h=%u) close=%u\n",
+                         "cur(w=%u h=%u) max(w=%u h=%u) min(w=%u h=%u) close=%u | "
+                         "save(d654=%u d67c=%u)\n",
                          (unsigned)data_0209d698, (unsigned)data_0209d6bc,
                          (int)data_0209d6d4, (unsigned)data_0209d658,
                          (unsigned)data_0209d64c, (unsigned)data_0209d6d0,
                          (unsigned)data_0209d6c8, (unsigned)data_0209d650,
-                         (unsigned)data_0209d6cc, (unsigned)data_0209d670);
+                         (unsigned)data_0209d6cc, (unsigned)data_0209d670,
+                         (unsigned)data_0209d654, (unsigned)data_0209d67c);
         }
     }
 
@@ -186,14 +232,57 @@ void port_message_pump(void)
             port_message_flush_engine_a_regs();
             return;
         }
-        /* save-screen arm: not a dialogue box, not hosted */
-        static int said_save;
-        if (!said_save) {
-            said_save = 1;
-            std::fprintf(stderr, "[msg] pump: save-screen arm reached "
-                         "(data_0209d654=%u); not hosted, skipping\n",
-                         (unsigned)data_0209d654);
+        /* SAVE-SCREEN ARM (data_0209d654 != 0), the box is fully open.
+           Stage::UpdateMessage's save arm, verbatim. Only id 0x295 (the initial
+           "Now saving..." box) runs the write; every arm variant runs the same
+           countdown-to-close. */
+        if (data_0209d6d4 == 0x295) {
+            if (data_0209d67c == 0x3c)
+                port_save_current_file();   /* the write, at the countdown's top */
         }
+        if (data_0209d67c != 0) {
+            data_0209d67c -= (unsigned char)data_0208ee44;
+            if (data_0209d67c == 0)
+                data_0209d670 = 1;          /* request the window close */
+        }
+        return;
+    }
+
+    /* UpdateWindow()==0 with the save arm set: either the box is still animating
+       shut (data_0209d660 still 1 -- nothing to do, wait a frame) or it has fully
+       closed (UpdateWindow cleared data_0209d660). On close, id 0x295 hands off to
+       the "Saved!" confirmation 0x296; any other id ends the arm. */
+    if (data_0209d654 != 0) {
+        if (data_0209d660 != 0)
+            return;                         /* still closing */
+        if (data_0209d6d4 != 0x295) {
+            data_0209d654 = 0;              /* arm complete */
+            if (std::getenv("SM64DS_MSG_PUMP_DEBUG"))
+                std::fprintf(stderr, "[msgpump] SAVE ARM COMPLETE: box closed, "
+                             "data_0209d654 cleared, data_0209d660=%u (id was "
+                             "0x%x)\n", (unsigned)data_0209d660,
+                             (unsigned)(unsigned short)data_0209d6d4);
+            return;
+        }
+        _ZN7Message13DisplaySavingEt(0x296);  /* "Saved!" confirmation box */
+    }
+}
+
+/* The save-write leaf, host stand-in. On the DS this is
+   SaveData::SaveCurrentFile -> SaveData::SaveFile -> SaveData::SaveDataToCart,
+   which bottoms out on the backup-cart hardware the port does not host and which
+   is in no build slice, so calling the matched symbol would be an unresolved
+   external. The box close does not depend on the write, so this stubs JUST the
+   leaf: one-shot note to stderr naming the unhosted symbol, then success. This is
+   the single seam a real host save backend plugs into. */
+static void port_save_current_file(void)
+{
+    static int noted;
+    if (!noted) {
+        noted = 1;
+        std::fprintf(stderr, "[msg] save arm: file write is unhosted -- "
+                     "SaveData::SaveCurrentFile (_ZN8SaveData15SaveCurrentFileEv) "
+                     "not in any port slice; box closes, no file written\n");
     }
 }
 
