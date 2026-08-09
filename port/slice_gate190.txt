@@ -65,7 +65,14 @@ src/func_ov018_02112730.cpp
 # the shadow-class TU. src/_ZN9OneUpLogoD1Ev.cpp stays in src/ as the matched
 # proof; it is not part of the port build.
 src/OneUpLogo_Spawn.c
-src/_ZN9OneUpLogo13InitResourcesEv.cpp
+# InitResources: HOST COPY at unmatched/OneUpLogo_InitResources.cpp (wired in
+# CMakeLists). Calls TextureSequence::Prepare, a real 3-register method call
+# (this, &model, &animFile); the matched C's local 2-arg re-declaration of
+# the symbol drops `this` under cdecl, landing the port's `animFile` arg on
+# uninitialized stack. See FINAL_TABLE.csv's SHORT-1 row for this callee and
+# that file's header for the register-level proof (the Prepare veneer is a
+# pure passthrough tail-call, so whatever the caller loads in r0-r2 rides
+# straight into func_02046d50 unchanged).
 src/_ZN9OneUpLogo16CleanupResourcesEv.c
 src/_ZN9OneUpLogo8BehaviorEv.c
 src/_ZN9OneUpLogo6RenderEv.cpp
