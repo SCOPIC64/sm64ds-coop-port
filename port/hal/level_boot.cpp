@@ -1068,6 +1068,7 @@ void _ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR12MeshCollider(void *ovl,
 extern signed char data_0209f2f8;    /* current level */
 extern int data_0209f264[];          /* current entrance */
 extern int data_0209f220[];          /* current star filter */
+extern unsigned char *data_0209f344; /* VS star-order pointer (host: bob_enemy_bridges.cpp) */
 extern int data_0209212c;            /* world Y max */
 extern int data_020a0d84[];          /* path table base (auto_bss) */
 extern int data_020a0d88[];          /* path node base (auto_bss) */
@@ -1162,6 +1163,25 @@ void *port_stage_a_boot(void *mc, int spawn)
     {
         const char *sf = std::getenv("SM64DS_STAR_FILTER");
         data_0209f220[0] = sf ? std::atoi(sf) : 1;
+    }
+    /* data_0209f344: the VS star-order pointer Stage::InitResources:427 seats to
+       &VS_STAR_SPAWN_ORDERS[func_0203dad4() % 6]. The port hand-rolls the boot
+       and skips InitResources, so without this the pointer stays NULL and the
+       star-progress index data_0209f344[data_0209f208] faults (StarMarker::
+       Behavior +0x2e, SIG-2, WF star mission 2; plus the ov002/ov084 checks).
+       func_0203dad4() is just `return data_020a1040` (src/func_0203dad4.c), and
+       that gate-36 TU is not in the walk_window link set, so the row index is
+       computed from data_020a1040 directly -- the identical value the ROM's
+       expression evaluates to. data_020a1040 is the VS local-comms record
+       (hosted in hal/camera_bridges.cpp), zero in single player, so the row is
+       0; column 0 of every row is 0 and data_0209f208 is 0 in single player, so
+       the "is this my star" compare is inert for every real adventure marker --
+       the same result the DS produces. Host + table are in
+       hal/bob_enemy_bridges.cpp. */
+    {
+        extern unsigned char VS_STAR_SPAWN_ORDERS[6][0xC];
+        extern int data_020a1040;
+        data_0209f344 = &VS_STAR_SPAWN_ORDERS[(unsigned)data_020a1040 % 6][0];
     }
     data_0209f340 = (unsigned char *)o;
 

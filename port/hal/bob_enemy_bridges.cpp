@@ -236,8 +236,27 @@ extern "C" {
    the ROM's own byte. This gate defined it by hand as well and the two
    collided at link; the ROM copy is the one that cannot drift. */
 
-/* the goomba's own "has this actor been counted" bss word */
-unsigned char data_0209f344[8];
+/* data_0209f344 is the VS-mode star-order POINTER (u8*) in bss, not a goomba
+   bookkeeping word. Stage::InitResources:427 seats it at runtime to
+   &VS_STAR_SPAWN_ORDERS[func_0203dad4() % 6] -- one 12-byte row of the
+   versus per-round star-id permutation table (arm9 data 0x02075720). The port
+   hand-rolls its boot and never runs InitResources, so this stayed a zeroed
+   host and read back as a NULL pointer; StarMarker::Behavior, and the ov002/
+   ov084 star-progress checks, all index data_0209f344[data_0209f208] and
+   faulted (SIG-2, WF star mission 2). Hosted as a real pointer here and seated
+   in level_boot.cpp the way InitResources does. VS_STAR_SPAWN_ORDERS is the
+   ROM's own bytes (0x02075720, 6 rows x 12; each row starts with 0, so the
+   single-player index 0 yields star-id 0 and the "is this my star" compare is
+   inert for every real marker -- identical observable behavior to hardware). */
+unsigned char VS_STAR_SPAWN_ORDERS[6][0xC] = {
+    { 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 1, 3, 2, 4, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 2, 1, 3, 4, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 2, 3, 1, 4, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 3, 2, 1, 4, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 3, 1, 2, 4, 0, 0, 0, 0, 0, 0, 0 },
+};
+unsigned char *data_0209f344;
 
 /* the red-coin counter NumRedCoins reads: DEFINED in hal/auto_bss.cpp, where
    this gate's 4-byte sizing was carried over. */
