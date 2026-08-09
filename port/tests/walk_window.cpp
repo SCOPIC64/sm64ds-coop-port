@@ -1345,8 +1345,10 @@ int main(void)
     /* fault_probe.h has been included here since gate 4 and was never armed,
        so every crash in the window build printed nothing at all. It costs
        nothing until something faults, and it prints a module-relative address
-       the .map file resolves. */
-    SetUnhandledExceptionFilter(port_fault_probe);
+       the .map file resolves. The _with_file form also writes crash.txt next
+       to the exe with raw Win32, so a run without a captured stderr still
+       leaves the address behind. */
+    SetUnhandledExceptionFilter(port_fault_probe_with_file);
     /* world = KCL file x64. Default spawn: north end of the stone
        bridge (deck ~892), facing the walk south across it -- the shot
        that calibrates against real-game footage. Roof surface = 4916,
