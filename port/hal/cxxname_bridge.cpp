@@ -338,8 +338,41 @@ void hal_fill_modelanim2_vtable(void)
 }
 
 #include "ShadowModel.h"
+extern "C" void _ZN11ShadowModelD1Ev(void *self);
+/* Fallback so the narrow gate-8/9 harness (smoke_actor) still links: it slices
+   ShadowModel's constructor but not its destructor (slice_gate9.txt carries
+   _ZN11ShadowModelC1Ev only), yet it compiles this TU. The full targets
+   (walk_window, walk_window_hires, smoke_player) link the real matched D1 from
+   gate 10/16, which wins over this alternatename. The stub is never CALLED in
+   smoke_actor -- that harness spawns gate-8/9 collision actors, none of which
+   dispatch the shadow slot -- so it traps loudly if a target ever does reach it
+   without the real dtor. The InitCuboid/DropShadowScaleXYZ stubs above are the
+   same reasoning for the same reason. */
+extern "C" void hal_shadow_d1_fallback(void *)
+{ std::fprintf(stderr, "hal_shadow_d1_fallback: real _ZN11ShadowModelD1Ev not "
+                       "linked in this target but the shadow slot was reached\n");
+  std::abort(); }
+#pragma comment(linker, "/alternatename:__ZN11ShadowModelD1Ev=_hal_shadow_d1_fallback")
+/* combined dtor (Itanium D1) thunk, __fastcall to match the MSVC virtual ABI
+   the rest of this file's fills use (self in ecx, ignored second arg) */
+static void __fastcall shadow_dtor(void *self, void *)
+{ _ZN11ShadowModelD1Ev(self); }
 extern "C" {
-void hal_fill_shadow_vtable(void) {}   /* shadow system deferred */
+extern void *_ZTV11ShadowModel[8];
+void hal_fill_shadow_vtable(void)
+{
+    /* PowerStar state-5 lift-off destroys its drop shadow through slot 0
+       (ROM 0x020EA284-0x020EA2A4: r0=actor+0x3d4, ldr vptr, ldr vtable[0], blx).
+       Seat that single reachable slot; the double-unlink (this virtual call
+       plus the later non-virtual _ZN11ShadowModelD1Ev in PowerStarD1Ev) is
+       self-guarding in the matched source (ShadowModelD1Ev.c:33-51 checks
+       prev/head and zeroes both). */
+    _ZTV11ShadowModel[0] = (void *)shadow_dtor;
+    /* vt[1] (D0 deleting dtor) stays null DELIBERATELY: nothing reachable in
+       matched src dispatches it (every other ~90 embedders call the dtor
+       non-virtually by name). A loud crash here beats silently running a
+       wrong slot if an unmatched path ever reaches it. */
+}
 }
 
 extern "C" {
