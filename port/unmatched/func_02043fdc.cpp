@@ -353,7 +353,14 @@ static int port_dispatch_guarded(PortListFn fn, void *actor)
 }
 
 /* Public: clear the freeze set + class latches at level exit, so a leaked
-   actor's slot is reclaimed when its heap is torn down anyway. Idempotent. */
+   actor's slot is reclaimed when its heap is torn down anyway. Idempotent.
+
+   INVARIANT: the freeze set holds raw actor POINTERS, valid only for the level
+   that froze them, so it must be cleared on EVERY path between levels. Called
+   from BOTH sides: exit (port_level_teardown, level_change.cpp) and load
+   (port_stage_a_boot, level_boot.cpp) -- the load-side call is defensive, so a
+   future exit path that bypasses teardown can never carry a stale pointer into
+   a level where a new actor reuses the slot and gets wrongly skipped. */
 extern "C" void port_quarantine_reset(void)
 {
     port_q_frozen_n = 0;

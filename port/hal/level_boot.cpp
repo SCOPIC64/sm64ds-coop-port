@@ -1054,6 +1054,17 @@ extern "C" void port_message_archive_seat(void);
 void *port_stage_a_boot(void *mc, int spawn)
 {
     g_stage_mc = mc;
+    /* Defensive: clear the quarantine freeze set on the LOAD side too. The
+       teardown path (level_change.cpp) already resets it, but a future exit
+       path that bypasses teardown would otherwise carry stale frozen actor
+       POINTERS into this level, and a new actor reusing one of those heap
+       slots would be wrongly skipped. Resetting here makes "no stale set
+       survives into a level" true regardless of how the last one ended.
+       Idempotent, no-op on today's paths. */
+    {
+        extern void port_quarantine_reset(void);
+        port_quarantine_reset();
+    }
     /* Settle which level this boot is for BEFORE the mount reads it. The direct
        boot seeds the target from SM64DS_LEVEL here; the handoff has already set
        it to the latched level (port_level_set_target), so this is a no-op on

@@ -343,6 +343,10 @@ static void port_rich_dump(EXCEPTION_POINTERS *ep, unsigned code,
         PORT_RD_STR("\r\nmodule    ");
         PORT_RD_HEX((uintptr_t)base);
     }
+    /* COSMETIC: walk_window updates port_last_frame at the END of each frame,
+       so a fault early in a tick reports the previous frame's number, and a
+       death before the first frame completes reports -1. Off-by-one at worst;
+       accepted rather than moving the store into the hot loop's head. */
     PORT_RD_STR("\r\nframe     ");
     PORT_RD_DEC(port_last_frame);
     PORT_RD_STR("\r\nlevel     ");
