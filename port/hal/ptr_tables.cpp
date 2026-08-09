@@ -290,6 +290,58 @@ static const unsigned g_cam_script_addr[39] = {
     0x02086cb0, 0x02086ca8, 0x02086ca0,
 };
 
+// ---- table 3: data_020876e4, the Kuppa/star-get script-pointer table -------
+//
+// src/func_0200ee8c.c, the star-get camera-script launcher:
+//
+//     RunKuppaScript(data_020876e4[arg0]);
+//
+// reached from func_ov002_020c7ff8 (star-collect Player state; the s==3 boss
+// case passes index 5) -> func_0200d4b0 -> func_0200ee8c. Each slot is a
+// RELOCATED word pointing at a Kuppa-script bytecode blob; byte-copied by
+// romdata.py the port's data_020876e4[i] held six raw DS addresses, and
+// RunKuppaScript seated data_0209fc48 with one, so ProcessKuppaScript faulted
+// walking a garbage pointer (`while (*s != 0) { ...; s += *s; }`).
+//
+// Same bug class as tables 1 and 2. The difference is the targets are DATA, not
+// code: the six words point at five unique script blobs (slots 2 and 4 share
+// 0x0208776c). No relocation lands inside any blob, so each is byte-hosted
+// verbatim from arm9_dec.bin. Each blob is a run of length-prefixed records
+// terminated by a 0 byte -- ProcessKuppaScript's own walk -- so its size is
+// exactly the byte offset of that terminator plus one, never a boundary guess:
+//   0x02088388 -> 69, 0x020888f0 -> 92, 0x0208776c -> 44 (ends at the next
+//   symbol data_02087798), 0x020889b0 -> 103, 0x02088b14 -> 139.
+//
+// data_020876e4 is removed from romdata.py's NAMED list in exchange; putting
+// it back would define the symbol twice and, if the byte copy won, restore the
+// crash. func_0200ee8c.c reaches it as `extern void *data_020876e4[]` (C
+// linkage), which this definition satisfies the same way table 1's array does.
+//
+/* Byte-hosted script blobs, content from extracted/arm9_dec.bin (base
+   0x02004000), sizes walked to each blob's own 0 terminator. */
+static unsigned char kuppa_blob_02088388[69] = { 7,4,0,0,0,0,25,14,4,0,0,15,39,18,0,0,125,0,0,0,51,7,4,0,0,22,0,26,16,4,23,0,15,39,20,240,0,102,0,16,5,255,255,8,11,4,23,0,255,255,4,113,28,62,1,13,4,30,0,30,0,24,0,3,48,0,0,128,0 };
+static unsigned char kuppa_blob_020888f0[92] = { 7,4,0,0,0,0,17,14,4,0,0,15,39,18,0,0,125,0,0,0,51,16,4,0,0,30,0,20,88,2,76,0,16,16,255,255,8,11,4,55,0,15,39,21,227,255,29,0,15,4,55,0,15,39,22,122,19,4,0,0,0,0,0,15,4,55,0,15,39,22,0,0,0,0,0,0,128,0,13,4,30,0,30,0,24,0,4,48,0,0,128,0 };
+static unsigned char kuppa_blob_0208776c[44] = { 14,4,0,0,20,0,18,0,0,100,0,156,255,51,16,4,0,0,15,39,20,88,2,76,0,16,16,0,0,0,13,4,30,0,30,0,24,0,2,40,0,0,128,0 };
+static unsigned char kuppa_blob_020889b0[103] = { 14,4,0,0,20,0,19,0,0,100,0,156,255,51,16,4,0,0,39,0,20,88,2,76,0,16,16,0,0,0,13,4,30,0,30,0,24,0,2,40,0,0,128,14,4,75,0,102,0,19,0,0,100,0,56,255,7,15,4,50,0,15,39,22,0,0,0,0,0,0,0,2,15,4,50,0,80,0,22,0,136,255,255,0,0,0,0,15,4,70,0,90,0,22,0,160,0,0,0,0,0,0,0 };
+static unsigned char kuppa_blob_02088b14[139] = { 16,4,0,0,10,0,20,88,2,76,0,16,16,0,0,0,14,4,0,0,10,0,18,0,0,100,0,0,0,51,19,4,0,0,0,0,2,199,255,51,0,187,0,38,0,171,0,8,255,19,4,11,0,19,0,27,199,255,51,0,187,0,38,0,171,0,8,255,19,4,20,0,24,0,27,43,1,91,0,58,0,78,255,62,0,124,255,19,4,35,0,51,0,27,0,0,127,0,0,0,89,0,117,1,208,254,19,4,52,0,15,39,27,236,255,135,0,58,255,135,0,158,0,95,253,13,4,30,0,30,0,24,128,1,48,0,0,128,0 };
+
+/* from:0x020876e4 to:0x02088388 | 0x020876e8 to:0x020888f0
+   from:0x020876ec to:0x0208776c | 0x020876f0 to:0x020889b0
+   from:0x020876f4 to:0x0208776c | 0x020876f8 to:0x02088b14
+   Slots 2 and 4 share the 0x0208776c blob. */
+void *data_020876e4[6] = {
+    kuppa_blob_02088388,
+    kuppa_blob_020888f0,
+    kuppa_blob_0208776c,
+    kuppa_blob_020889b0,
+    kuppa_blob_0208776c,
+    kuppa_blob_02088b14,
+};
+
+static const unsigned g_kuppa_script_addr[6] = {
+    0x02088388, 0x020888f0, 0x0208776c, 0x020889b0, 0x0208776c, 0x02088b14,
+};
+
 /* Called once before the first frame, the sibling of
    port_particle_vtables_check(). It catches the two ways this file can rot: a
    slot left null (something else seated the symbol and this file lost the
@@ -317,6 +369,14 @@ void port_ptr_tables_check(void)
                          "%d) holds %08x, not a host pointer\n",
                          g_cam_script_addr[i], i,
                          (unsigned)(size_t)port_cam_script_records[i][0]);
+            std::abort();
+        }
+    for (int i = 0; i < 6; ++i)
+        if (port_ptr_slot_bad(data_020876e4[i])) {
+            std::fprintf(stderr, "FATAL: kuppa script table slot %d (ROM "
+                         "%08x) holds %08x, not a host pointer\n", i,
+                         g_kuppa_script_addr[i],
+                         (unsigned)(size_t)data_020876e4[i]);
             std::abort();
         }
 }

@@ -70,7 +70,14 @@ NAMED = [
     "data_02082178", "data_02090e80", "data_020914a0",
     "data_02092584", "data_02092654", "data_02092668", "data_0208e500", "data_02086a58", "data_0208e430", "data_02086b58",
     "data_0208e434", "data_0208e438", "data_0208e43c", "data_0208e440",
-    "data_0208e444", "data_02092124", "data_02086384", "data_0208e448", "data_02088fb8", "data_020890a0", "data_02092118", "data_02092110", "data_020876e4", "data_0208eecc", "data_02092134",
+    "data_0208e444", "data_02092124", "data_02086384", "data_0208e448", "data_02088fb8", "data_020890a0", "data_02092118", "data_02092110", "data_0208eecc", "data_02092134",
+    # data_020876e4 WAS HERE and was six RELOCATED words: the Kuppa/star-get
+    # script-pointer table func_0200ee8c indexes as data_020876e4[arg0] and
+    # RunKuppaScript runs. Byte-copied it held six raw DS addresses, so
+    # ProcessKuppaScript faulted walking a garbage pointer. Hosted with real
+    # host pointers to byte-copied script blobs in port/hal/ptr_tables.cpp
+    # (table 3); putting the name back here would define the symbol twice and,
+    # if the byte copy won, restore the crash.
     "data_0208e42c",
     # FORTY NAMES CAME OUT OF THE LINE ABOVE ON 2026-08-05, and every one of
     # them was a called-through pointer table rather than data.
