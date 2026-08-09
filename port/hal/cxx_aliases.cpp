@@ -1282,17 +1282,16 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    data_ov002_0210e05c and CleanupResources releases G1, so the pair has to
    land on one object.
 
-   Caveat, and it is a real one: G0/G1 are single global names, so every TU
-   that uses them collapses onto one target. Two are in the port's slices --
-   SignPost::CleanupResources and MetalNet::CleanupResources -- and only
-   SignPost's addresses are settled here. MetalNet's own literal pool holds
-   0x0210afb0/0x0210afa8 and its InitResources loads data_ov009_02113e90 and
-   data_ov009_02113e88, so MetalNet::CleanupResources releases SignPost's two
-   file pointers instead of its own. That was already true of G0 before this
-   line; G1 only makes it symmetric. It costs nothing until a MetalNet is
-   destroyed, and METAL_NET (class 339) is an ov009 actor that does not spawn
-   on the castle grounds. Fixing it properly needs per-TU G0/G1, which is a
-   src-side change, not a port one. */
+   G0/G1 are single global names, so every TU that uses them collapses onto
+   one target, and this alias binds that one target to SignPost's KCL. Only
+   SignPost may spell its files G0/G1 now: MetalNet::CleanupResources was the
+   other user in the port's slices and, before the src-side fix, its G0/G1
+   collapsed here too, so it released SignPost's two file pointers instead of
+   its own (the CannonHatch disease). That is FIXED at the source now --
+   src/_ZN8MetalNet16CleanupResourcesEv.cpp releases its own
+   data_ov009_02113e90 / data_ov009_02113e88 by name, so it no longer reaches
+   G0/G1 and this alias serves SignPost alone. The alias stays because SignPost
+   still needs it. */
 #pragma comment(linker, "/alternatename:_G1=_data_ov002_0210e05c")
 
 /* ---- gate 40: STAR_DOOR's InitResources data references --------------------
