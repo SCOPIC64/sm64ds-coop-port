@@ -223,6 +223,10 @@ static bool winapi_load(void)
 #include "ntr/mmio.h"
 #include "ntr/ppu.h"
 
+/* walk_window is the one TU that installs the crash probe, so it also emits the
+   external seams (port_rich_dump_ex, port_crash_dir_get) the quarantine walker
+   in port/unmatched/func_02043fdc.cpp weak-links against. */
+#define PORT_FAULT_PROBE_DEFINE_EXPORTS
 #include "fault_probe.h"
 #include "overlay_font.h"
 
@@ -1099,6 +1103,10 @@ static int menu_entrance;             /* the entrance the warp row is showing */
 static int menu_level_row = 1;
 static int g_overlay_on;              /* F3, and the menu's overlay row */
 static char g_playlog[160] = "off";   /* the flight recorder's current file */
+/* fault_probe.h's rich dump tails this after a crash; a stable pointer at the
+   buffer so the header does not need to name g_playlog's storage. "off" until
+   the recorder opens a real file below. */
+extern "C" const char *port_playlog_path = g_playlog;
 
 /* The harness ground snap and wall clamp, a boot-time const off
    SM64DS_FAKE_SNAP until now, so the A/B was a restart. It is a switch.

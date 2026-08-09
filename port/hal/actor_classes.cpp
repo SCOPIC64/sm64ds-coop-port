@@ -114,24 +114,36 @@ extern "C" {
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
+/* per-actor decline: quarantine this one actor (freeze) instead of aborting the
+   whole process, unless SM64DS_FAULTS_FATAL. port/unmatched/func_02043fdc.cpp */
+void port_actor_slot_decline(const char *what);
 }
 
 static void ac_trap_report(void *self, int slot)
 {
+    /* An unhosted vtable slot is a PER-ACTOR decline: this one actor reached a
+       method the port has not proved, but the rest of the level is fine. It
+       dispatches inside fn(actor), so port_actor_slot_decline raises a fault the
+       quarantine net catches -- the actor freezes, the frame goes on. Was a hard
+       std::abort() (the whole process for one actor); SM64DS_FAULTS_FATAL keeps
+       that behaviour for proof runs. */
+    static char msg[128];
     unsigned id = self ? *(unsigned short *)((char *)self + 0xc) : 0u;
     if (slot >= 0)
         std::fprintf(stderr,
-                     "FATAL: vtable slot %d is not hosted (actor id %u %s, "
+                     "UNHOSTED: vtable slot %d is not hosted (actor id %u %s, "
                      "phase %d, spawn step %d)\n",
                      slot, id, port_actor_class_name(id), data_02099f24[0],
                      (int)data_020a4b4c);
     else
         std::fprintf(stderr,
-                     "FATAL: a dBgActor_c base-table slot dispatched "
+                     "UNHOSTED: a dBgActor_c base-table slot dispatched "
                      "(actor id %u %s, phase %d, spawn step %d)\n",
                      id, port_actor_class_name(id), data_02099f24[0],
                      (int)data_020a4b4c);
-    std::abort();
+    std::snprintf(msg, sizeof msg, "unhosted vtable slot %d on id %u %s",
+                  slot, id, port_actor_class_name(id));
+    port_actor_slot_decline(msg);
 }
 static int __fastcall ac_trap13(void *s, void *) { ac_trap_report(s, 13); return 0; }
 static int __fastcall ac_trap14(void *s, void *) { ac_trap_report(s, 14); return 0; }

@@ -246,9 +246,16 @@ extern "C" void port_actor_census(void)
 // ---- installation ----------------------------------------------------------
 extern "C" void hal_fill_moving_cylinder_vtables(void);
 
+/* fault_probe.h's rich dump and the quarantine walker resolve actor ids to
+   class names through this weak pointer; wire it to the real table here (the one
+   TU that has both). Null in a bare smoke, where the dump prints "?". */
+typedef const char *(*port_classname_fn)(unsigned id);
+extern "C" port_classname_fn port_classname_resolver;
+
 extern "C" void port_actor_registry_install(void)
 {
     int n = 0;
+    port_classname_resolver = port_actor_class_name;
     /* The two actor-attached CYLINDER tables, before any class fills its own.
        They belong to no single actor -- MovingCylinderClsn and its WithPos
        child are shared bases that a dozen classes construct -- so they are

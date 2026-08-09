@@ -94,6 +94,379 @@ static void port_crash_hex(char *dst, unsigned v)
         dst[i] = h[(v >> (28 - 4 * i)) & 0xf];
 }
 
+/* ---- rotating rich dump: %TEMP%\sm64ds-crashes\crash-<ts>-<pid>.txt ---------
+   crash.txt/exit.txt above stay exactly as they were -- one file next to the
+   exe describing the LAST death, cheap and always present. This adds a SECOND
+   sink under %TEMP%\sm64ds-crashes\ that keeps a rolling history (the newest 5)
+   and carries "anything you would need": the crash.txt facts PLUS the game
+   context (level, player position, walker actor id + class name), the whole
+   SM64DS_* environment, the build's git tip, and a tail of the active playlog.
+
+   Split of work so the in-crash path stays simple and re-entrancy-safe:
+     - port_crash_dir_boot()   runs at STARTUP: makes the directory and prunes
+       old dumps to the newest 4 (leaving room for the one a crash will add).
+       Filesystem enumeration and DeleteFile happen here, never in-crash.
+     - port_rich_dump()        runs IN-CRASH: builds one static buffer with
+       raw Win32 + hand-rolled hex (no stdio, like crash.txt), writes ONE file,
+       and only THEN -- as the very last step -- copies the playlog tail, so a
+       failure reading the still-open playlog loses nothing already written.
+
+   The context globals are weak like the walker/frame pointers so a TU that does
+   not define them (a bare smoke) still links against the fallbacks. */
+#ifdef __cplusplus
+extern "C" signed char data_0209f2f8;                      /* current level */
+extern "C" __declspec(selectany) signed char port_fault_no_level = -1;
+extern "C" void *data_0209f394[];                          /* per-player Actor* */
+extern "C" __declspec(selectany) void *port_fault_no_players[8] = {0};
+extern "C" unsigned char data_0209f250;                    /* local player idx */
+extern "C" __declspec(selectany) unsigned char port_fault_no_pidx = 0;
+/* the build's git tip, embedded by CMake (host-src/port_gittip.c); a weak
+   fallback keeps a TU without the generated file linking. */
+extern "C" const char port_build_gittip[];
+extern "C" __declspec(selectany) const char port_fault_no_gittip[] = "unknown";
+/* the active playlog path (walk_window's g_playlog, exposed as a pointer);
+   null/"off" means stderr was left on the console, nothing to tail. */
+extern "C" const char *port_playlog_path;
+extern "C" __declspec(selectany) const char *port_fault_no_playlog = 0;
+#else
+extern signed char data_0209f2f8;
+__declspec(selectany) signed char port_fault_no_level = -1;
+extern void *data_0209f394[];
+__declspec(selectany) void *port_fault_no_players[8] = {0};
+extern unsigned char data_0209f250;
+__declspec(selectany) unsigned char port_fault_no_pidx = 0;
+extern const char port_build_gittip[];
+__declspec(selectany) const char port_fault_no_gittip[] = "unknown";
+extern const char *port_playlog_path;
+__declspec(selectany) const char *port_fault_no_playlog = 0;
+#endif
+#pragma comment(linker, "/alternatename:_data_0209f2f8=_port_fault_no_level")
+#pragma comment(linker, "/alternatename:_data_0209f394=_port_fault_no_players")
+#pragma comment(linker, "/alternatename:_data_0209f250=_port_fault_no_pidx")
+#pragma comment(linker, "/alternatename:_port_build_gittip=_port_fault_no_gittip")
+#pragma comment(linker, "/alternatename:_port_playlog_path=_port_fault_no_playlog")
+/* Class-name resolution goes through a weak DATA function pointer, not a direct
+   call. walk_window (which links hal/actor_registry.cpp) sets it to the real
+   port_actor_class_name; the bare smokes -- which install the probe but do NOT
+   link that HAL -- leave it null and the dump prints "?". A __declspec(selectany)
+   pointer defaulting to 0 is legal (data, external linkage, one deduped body)
+   and needs no alternatename gymnastics. hal/actor_registry.cpp's
+   port_actor_registry_install wires it up. */
+typedef const char *(*port_classname_fn)(unsigned id);
+#ifdef __cplusplus
+extern "C" __declspec(selectany) port_classname_fn port_classname_resolver = 0;
+#else
+__declspec(selectany) port_classname_fn port_classname_resolver = 0;
+#endif
+
+/* port_last_frame is declared with its weak fallback later (the exit.txt
+   block); the rich dump above uses it, so hoist just the DECLARATION here. The
+   alternatename that gives it a weak body stays in the one place, below. */
+#ifdef __cplusplus
+extern "C" int port_last_frame;
+#else
+extern int port_last_frame;
+#endif
+
+/* The crash-dump directory, resolved once at boot from %TEMP%. */
+static char port_crash_dir[MAX_PATH];
+
+/* Newest-N pruning: enumerate crash-*.txt, and while more than `keep` exist,
+   delete the oldest by last-write time. Called at boot with keep=4 (room for
+   the crash about to be written) and could be called with keep=5 after a write;
+   boot-only is enough because each run adds at most one dump. Uses FindFirst/
+   FindNext + DeleteFile -- no stdio, safe to call before the CRT is warm. */
+static void port_crash_prune(int keep)
+{
+    static char pat[MAX_PATH + 32];
+    WIN32_FIND_DATAA fd;
+    HANDLE h;
+    /* small fixed table: names + write times. Older than 64 dumps in a temp
+       dir would be pathological; cap and delete the overflow oldest-first. */
+    static char names[64][64];
+    static FILETIME times[64];
+    int n = 0, i, j;
+    if (!port_crash_dir[0])
+        return;
+    lstrcpyA(pat, port_crash_dir);
+    lstrcatA(pat, "\\crash-*.txt");
+    h = FindFirstFileA(pat, &fd);
+    if (h == INVALID_HANDLE_VALUE)
+        return;
+    do {
+        if (n < 64) {
+            lstrcpynA(names[n], fd.cFileName, sizeof names[0]);
+            times[n] = fd.ftLastWriteTime;
+            ++n;
+        }
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+    /* selection: while count > keep, find and delete the oldest remaining */
+    while (n > keep) {
+        int oldest = -1;
+        for (i = 0; i < 64; ++i) {
+            if (!names[i][0]) continue;
+            if (oldest < 0 ||
+                CompareFileTime(&times[i], &times[oldest]) < 0)
+                oldest = i;
+        }
+        if (oldest < 0)
+            break;
+        {
+            static char full[MAX_PATH + 80];
+            lstrcpyA(full, port_crash_dir);
+            lstrcatA(full, "\\");
+            lstrcatA(full, names[oldest]);
+            DeleteFileA(full);
+        }
+        names[oldest][0] = 0;
+        --n;
+    }
+    (void)j;
+}
+
+/* Boot: resolve %TEMP%\sm64ds-crashes, create it, prune to 4. Idempotent. */
+static void port_crash_dir_boot(void)
+{
+    DWORD n = GetEnvironmentVariableA("TEMP", port_crash_dir, MAX_PATH - 24);
+    if (!n || n >= MAX_PATH - 24)
+        n = GetEnvironmentVariableA("TMP", port_crash_dir, MAX_PATH - 24);
+    if (!n || n >= MAX_PATH - 24) {
+        /* last resort: next to the exe */
+        n = GetModuleFileNameA(0, port_crash_dir, MAX_PATH - 24);
+        while (n && port_crash_dir[n - 1] != 92) --n;
+        port_crash_dir[n] = 0;
+        lstrcatA(port_crash_dir, "sm64ds-crashes");
+    } else {
+        if (port_crash_dir[n - 1] == 92) port_crash_dir[n - 1] = 0;
+        lstrcatA(port_crash_dir, "\\sm64ds-crashes");
+    }
+    CreateDirectoryA(port_crash_dir, 0);
+    port_crash_prune(4);
+}
+
+/* Copy the last ~`maxbytes` of the active playlog into the open dump handle.
+   Done as the LAST step of the dump so a failure here (the playlog is still
+   open for writing by the CRT's redirected stderr; FILE_SHARE_READ lets us in)
+   costs nothing already written. Raw Win32, bounded read. */
+static void port_crash_append_playlog(HANDLE out)
+{
+    const char *pl = port_playlog_path;
+    HANDLE f;
+    LARGE_INTEGER sz;
+    static char tail[8192];      /* ~100 lines of the terse diagnostics */
+    DWORD rd, wr;
+    const char *hdr = "\r\n---- playlog tail ----\r\n";
+    if (!pl || pl[0] == 0 || (pl[0] == 'o' && pl[1] == 'f' && pl[2] == 'f'))
+        return;
+    f = CreateFileA(pl, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    if (f == INVALID_HANDLE_VALUE)
+        return;
+    WriteFile(out, hdr, (DWORD)lstrlenA(hdr), &wr, 0);
+    if (GetFileSizeEx(f, &sz)) {
+        LONG hi = 0;
+        if (sz.QuadPart > (LONGLONG)sizeof tail)
+            SetFilePointer(f, (LONG)(sz.QuadPart - (LONGLONG)sizeof tail),
+                           &hi, FILE_BEGIN);
+        while (ReadFile(f, tail, sizeof tail, &rd, 0) && rd)
+            WriteFile(out, tail, rd, &wr, 0);
+    }
+    CloseHandle(f);
+}
+
+/* The rich dump itself. `ep` may be null (the orderly-exit path passes null and
+   a code); `reason` is a short tag ("exception", "exit", "quarantine",
+   "quarantine-fatal"). One static buffer, hand-rolled hex, one file. */
+static void port_rich_dump(EXCEPTION_POINTERS *ep, unsigned code,
+                           const char *reason)
+{
+    static char path[MAX_PATH + 64];
+    static char buf[4096];
+    char *base = (char *)GetModuleHandleA(0);
+    unsigned p = 0;
+    SYSTEMTIME st;
+    HANDLE f;
+    if (!port_crash_dir[0])
+        port_crash_dir_boot();
+    GetLocalTime(&st);
+    /* crash-YYYYMMDD-HHMMSS-<pid>.txt */
+    {
+        char *d = path;
+        lstrcpyA(d, port_crash_dir);
+        d += lstrlenA(d);
+        *d++ = '\\';
+        lstrcpyA(d, "crash-");
+        d += 6;
+        /* build the timestamp digits by hand (port_crash_hex is 8-wide hex,
+           wrong for decimal date fields), simple 2/4-digit decimal helper */
+#define PORT_DEC(val, w) do { int _v = (int)(val), _w = (w), _k; \
+        for (_k = _w - 1; _k >= 0; --_k) { d[_k] = (char)('0' + _v % 10); \
+        _v /= 10; } d += _w; } while (0)
+        PORT_DEC(st.wYear, 4);  PORT_DEC(st.wMonth, 2); PORT_DEC(st.wDay, 2);
+        *d++ = '-';
+        PORT_DEC(st.wHour, 2);  PORT_DEC(st.wMinute, 2); PORT_DEC(st.wSecond, 2);
+        *d++ = '-';
+        PORT_DEC(GetCurrentProcessId(), 6);
+#undef PORT_DEC
+        lstrcpyA(d, ".txt");
+    }
+#define PORT_RD_STR(s) do { const char *q = (s); \
+        while (*q && p < sizeof buf - 16) buf[p++] = *q++; } while (0)
+#define PORT_RD_HEX(v) do { if (p < sizeof buf - 16) { \
+        port_crash_hex(buf + p, (unsigned)(v)); p += 8; } } while (0)
+#define PORT_RD_DEC(v) do { int _v=(int)(v),_n=0; char _t[12]; \
+        if (_v<0){ if(p<sizeof buf-16) buf[p++]='-'; _v=-_v; } \
+        do { _t[_n++]=(char)('0'+_v%10); _v/=10; } while(_v&&_n<11); \
+        while(_n && p<sizeof buf-16) buf[p++]=_t[--_n]; } while (0)
+    PORT_RD_STR("sm64ds-decomp port crash dump\r\nreason    ");
+    PORT_RD_STR(reason ? reason : "?");
+    PORT_RD_STR("\r\ngittip    ");
+    PORT_RD_STR(port_build_gittip);
+    PORT_RD_STR("\r\ncode      ");
+    PORT_RD_HEX(ep ? ep->ExceptionRecord->ExceptionCode : code);
+    if (ep) {
+        PORT_RD_STR("\r\naddress   ");
+        PORT_RD_HEX((uintptr_t)ep->ExceptionRecord->ExceptionAddress);
+        PORT_RD_STR("\r\nmodule    ");
+        PORT_RD_HEX((uintptr_t)base);
+        PORT_RD_STR("\r\noffset    +");
+        PORT_RD_HEX((uintptr_t)ep->ExceptionRecord->ExceptionAddress
+                    - (uintptr_t)base);
+        if (ep->ExceptionRecord->NumberParameters > 1) {
+            PORT_RD_STR("\r\naccess    ");
+            PORT_RD_HEX(ep->ExceptionRecord->ExceptionInformation[0]);
+            PORT_RD_STR(" at ");
+            PORT_RD_HEX(ep->ExceptionRecord->ExceptionInformation[1]);
+        }
+    } else {
+        PORT_RD_STR("\r\nmodule    ");
+        PORT_RD_HEX((uintptr_t)base);
+    }
+    PORT_RD_STR("\r\nframe     ");
+    PORT_RD_DEC(port_last_frame);
+    PORT_RD_STR("\r\nlevel     ");
+    PORT_RD_DEC(data_0209f2f8);
+    /* current player position: data_0209f394[local idx] is the Actor*, pos at
+       actor+0x5c/+0x60/+0x64 (three fx32 words). Guarded reads. */
+    {
+        void *pl = 0;
+        if (data_0209f250 < 8)
+            pl = data_0209f394[data_0209f250];
+        if (pl && !IsBadReadPtr(pl, 0x68)) {
+            char *a = (char *)pl;
+            PORT_RD_STR("\r\nplayer    actor ");
+            PORT_RD_HEX((uintptr_t)pl);
+            PORT_RD_STR(" pos ");
+            PORT_RD_DEC(*(int *)(a + 0x5c) >> 12);
+            PORT_RD_STR(",");
+            PORT_RD_DEC(*(int *)(a + 0x60) >> 12);
+            PORT_RD_STR(",");
+            PORT_RD_DEC(*(int *)(a + 0x64) >> 12);
+        } else {
+            PORT_RD_STR("\r\nplayer    (none)");
+        }
+    }
+    /* the walker's current actor (node[2]) + its class name. data_020a4b68's
+       first word is the node the walk parked before the faulting callback. */
+    if (data_020a4b68 && !IsBadReadPtr((void *)data_020a4b68, 12)) {
+        char *a = (char *)(uintptr_t)data_020a4b68[2];
+        unsigned id = (a && !IsBadReadPtr(a, 0x10))
+                      ? *(unsigned short *)(a + 0xc) : 0xffffu;
+        PORT_RD_STR("\r\nwalker    node ");
+        PORT_RD_HEX((uintptr_t)data_020a4b68);
+        PORT_RD_STR(" actor ");
+        PORT_RD_HEX((uintptr_t)a);
+        PORT_RD_STR(" id ");
+        PORT_RD_DEC(id == 0xffffu ? -1 : (int)id);
+        if (id != 0xffffu) {
+            PORT_RD_STR(" class ");
+            PORT_RD_STR(port_classname_resolver ? port_classname_resolver(id)
+                                                : "?");
+        }
+    } else {
+        PORT_RD_STR("\r\nwalker    (idle)");
+    }
+    /* registers + 32 stack return words (module-relative), like crash.txt but
+       wider. */
+    if (ep && ep->ContextRecord) {
+        CONTEXT *cx = ep->ContextRecord;
+        unsigned *sp;
+        int i, shown;
+        PORT_RD_STR("\r\neip ");  PORT_RD_HEX(cx->Eip);
+        PORT_RD_STR(" esp ");     PORT_RD_HEX(cx->Esp);
+        PORT_RD_STR(" ebp ");     PORT_RD_HEX(cx->Ebp);
+        PORT_RD_STR("\r\neax ");  PORT_RD_HEX(cx->Eax);
+        PORT_RD_STR(" ebx ");     PORT_RD_HEX(cx->Ebx);
+        PORT_RD_STR(" ecx ");     PORT_RD_HEX(cx->Ecx);
+        PORT_RD_STR(" edx ");     PORT_RD_HEX(cx->Edx);
+        PORT_RD_STR(" esi ");     PORT_RD_HEX(cx->Esi);
+        PORT_RD_STR(" edi ");     PORT_RD_HEX(cx->Edi);
+        PORT_RD_STR("\r\nstack (32 module return words)");
+        sp = (unsigned *)cx->Esp;
+        shown = 0;
+        for (i = 0; i < 512 && shown < 32; ++i) {
+            unsigned v;
+            if (IsBadReadPtr(sp + i, 4)) break;
+            v = sp[i];
+            if (v >= (unsigned)(uintptr_t)base &&
+                v < (unsigned)(uintptr_t)base + 0x200000) {
+                PORT_RD_STR("\r\n  +");
+                PORT_RD_HEX(v - (unsigned)(uintptr_t)base);
+                ++shown;
+            }
+        }
+    } else {
+        /* exit path: no context, sample the caller chain instead */
+        void *frames[32];
+        unsigned nn = CaptureStackBackTrace(0, 32, frames, 0), i;
+        PORT_RD_STR("\r\ncallers (module return words)");
+        for (i = 0; i < nn; ++i) {
+            unsigned v = (unsigned)(uintptr_t)frames[i];
+            if (v >= (unsigned)(uintptr_t)base &&
+                v < (unsigned)(uintptr_t)base + 0x200000) {
+                PORT_RD_STR("\r\n  +");
+                PORT_RD_HEX(v - (unsigned)(uintptr_t)base);
+            }
+        }
+    }
+    PORT_RD_STR("\r\nresolve: tools/resolve_crash.py <thisfile>"
+                "  (offsets -> build/port/walk_window.map)\r\n");
+    /* the SM64DS_* environment: scan the process block, emit every SM64DS_ var */
+    PORT_RD_STR("---- SM64DS_* env ----\r\n");
+    {
+        LPCH env = GetEnvironmentStringsA();
+        if (env) {
+            LPCH e = env;
+            while (*e) {
+                if (e[0] == 'S' && e[1] == 'M' && e[2] == '6' && e[3] == '4' &&
+                    e[4] == 'D' && e[5] == 'S' && e[6] == '_') {
+                    const char *q = e;
+                    while (*q && p < sizeof buf - 16) buf[p++] = *q++;
+                    PORT_RD_STR("\r\n");
+                }
+                while (*e) ++e;
+                ++e;
+            }
+            FreeEnvironmentStringsA(env);
+        }
+    }
+#undef PORT_RD_STR
+#undef PORT_RD_HEX
+#undef PORT_RD_DEC
+    f = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ, 0,
+                    CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+    if (f != INVALID_HANDLE_VALUE) {
+        DWORD wr;
+        WriteFile(f, buf, p, &wr, 0);
+        /* LAST step: the playlog tail, so a read failure here loses nothing
+           already committed above. */
+        port_crash_append_playlog(f);
+        FlushFileBuffers(f);
+        CloseHandle(f);
+    }
+}
+
 static void port_crash_write_file(EXCEPTION_POINTERS *ep)
 {
     static char path[MAX_PATH + 16];
@@ -173,6 +546,10 @@ static void port_crash_write_file(EXCEPTION_POINTERS *ep)
         }
     }
     }
+    /* the rolling rich dump under %TEMP%\sm64ds-crashes\, in addition to the
+       crash.txt next to the exe. The `once` guard above means the first crash
+       wins here too. */
+    port_rich_dump(ep, ep->ExceptionRecord->ExceptionCode, "exception");
 }
 
 static LONG WINAPI port_crash_veh(EXCEPTION_POINTERS *ep)
@@ -299,6 +676,9 @@ static void port_exit_write_file(unsigned code)
         }
     }
     }
+    /* the rolling rich dump too: an orderly nonzero exit is a death worth a
+       full record. No EXCEPTION_POINTERS on this path -- pass the code. */
+    port_rich_dump(0, code, "exit");
 }
 
 static void __stdcall port_exit_hook(LONG code)
@@ -340,6 +720,7 @@ static void port_install_exit_probe(void)
 #define PORT_INSTALL_FAULT_PROBE() do { \
         setvbuf(stderr, NULL, _IONBF, 0); \
         setvbuf(stdout, NULL, _IONBF, 0); \
+        port_crash_dir_boot(); /* make %TEMP%\sm64ds-crashes, prune to newest 4 */ \
         AddVectoredExceptionHandler(1, port_crash_veh); \
         SetUnhandledExceptionFilter(port_fault_probe_with_file); \
         port_install_exit_probe(); \
@@ -459,5 +840,27 @@ static void port_install_watchdog(void)
     if (!a.secs) a.secs = 10;
     CreateThread(0, 0, port_watchdog_thread, &a, 0, 0);
 }
+
+/* ---- external seams for the quarantine walker -----------------------------
+   port/unmatched/func_02043fdc.cpp catches per-actor faults but must not
+   include this header (it would pull the VEH/detour installers into a plain-C
+   actor TU). The one TU that installs the probe (walk_window) defines
+   PORT_FAULT_PROBE_DEFINE_EXPORTS before including, which emits these two
+   non-static entry points wrapping the static internals above. Every other TU
+   that includes this header leaves them out, so there is exactly one
+   definition. The walker weak-links against them. */
+#ifdef PORT_FAULT_PROBE_DEFINE_EXPORTS
+extern "C" void port_rich_dump_ex(EXCEPTION_POINTERS *ep, unsigned code,
+                                  const char *reason)
+{
+    port_rich_dump(ep, code, reason);
+}
+extern "C" const char *port_crash_dir_get(void)
+{
+    if (!port_crash_dir[0])
+        port_crash_dir_boot();
+    return port_crash_dir;
+}
+#endif
 
 #endif

@@ -117,6 +117,8 @@ extern unsigned char data_020758c8[];   /* level -> overlay id */
 /* the engine pieces the change drives */
 void _ZN9ActorBase18MarkForDestructionEv(void *self);
 void port_actor_tick(void);
+void port_quarantine_reset(void);   /* port/unmatched/func_02043fdc.cpp: clear
+                                       the per-actor fault freeze set */
 void port_actor_scene_pass(void);
 void *port_stage_object(void);
 void *port_stage_a_boot(void *mc, int spawn);
@@ -382,6 +384,11 @@ extern "C" int port_level_teardown(void)
             lists[i].list[1] = (int)(size_t)keep_tail;
         }
     }
+    /* Clear the per-actor quarantine freeze set: any actor frozen this level is
+       gone now (destroyed above, or dropped as a dangling node), so its pointer
+       in the freeze set is stale. Reset so the next level starts with a clean
+       net and reclaims the leaked slots. No-op when nothing was quarantined. */
+    port_quarantine_reset();
     return 1;
 }
 

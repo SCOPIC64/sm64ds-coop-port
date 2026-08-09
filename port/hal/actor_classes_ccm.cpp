@@ -54,6 +54,7 @@ void *_ZN5ActorD2Ev(void *self);                             /* slot 16 tail */
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
+  void port_actor_slot_decline(const char *what);  /* func_02043fdc.cpp: per-actor decline */
 
 /* The class's own two matched methods (ov019). */
 int _ZN15IceSlideManager13InitResourcesEv(void *self);       /* 0x0211271c */
@@ -65,11 +66,14 @@ static void ccm_trap_report(void *self, int slot)
 {
     unsigned id = self ? *(unsigned short *)((char *)self + 0xc) : 0u;
     std::fprintf(stderr,
-                 "FATAL: vtable slot %d is not hosted (actor id %u %s, "
+                 "UNHOSTED: vtable slot %d is not hosted (actor id %u %s, "
                  "phase %d, spawn step %d)\n",
                  slot, id, port_actor_class_name(id), data_02099f24[0],
                  (int)data_020a4b4c);
-    std::abort();
+    { static char _m[128];
+      std::snprintf(_m, sizeof _m, "unhosted vtable slot %d on id %u %s",
+                    slot, id, port_actor_class_name(id));
+      port_actor_slot_decline(_m); }
 }
 static int __fastcall ccm_trap13(void *s, void *) { ccm_trap_report(s, 13); return 0; }
 static int __fastcall ccm_trap14(void *s, void *) { ccm_trap_report(s, 14); return 0; }
