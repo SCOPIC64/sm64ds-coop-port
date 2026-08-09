@@ -88,6 +88,53 @@ extern short         data_0209d6d4;   /* current message id (-1 = none) */
 extern unsigned char data_0209d45c;   /* engine-A BG-enable layer mask */
 extern short data_0209d48c, data_0209d490;   /* BG3 hofs/vofs shadows */
 
+/* THE MESSAGE-BOX INPUT PUBLISH, the piece the port skips. On the DS the pad
+   record data_020a0e58 (PadData[4], stride 4: {u16 held @ +0, u16 pressed @ +2})
+   is filled by the pad read every frame, and data_020a0e5a is the SAME memory --
+   pad 0's pressed halfword -- read by IsButtonInputValid (src/IsButtonInputValid.c)
+   and Message::Update (src/_ZN7Message6UpdateEv.cpp) to advance and DISMISS the
+   box. The port splits those two into separate auto_bss symbols, and its input
+   layer publishes the face buttons into the game's remapped Ctrl block
+   (data_0209f49c held / data_0209f49e pressed) directly rather than through the
+   pad record, so nothing ever reaches data_020a0e5a. IsButtonInputValid then
+   reads 0 every frame, Message::Update never leaves its wait state, the box
+   cannot be dismissed and the player is softlocked (the castle-grounds door
+   bug -- the box opens and shows text, but there is no way out).
+
+   This restores the DS's pad aliasing for the one consumer that needs it: while a
+   message is active it republishes the local player's pressed face buttons into
+   the pad record (data_020a0e58's pressed halfword) and its overlay symbol
+   (data_020a0e5a), taking the press edge from the Ctrl block the input layer has
+   already filled this frame. The Ctrl-block pressed word carries A in bit 0 and B
+   in bit 1 (StartTalk's own gate reads data_0209f49e & 3), which is the same low
+   two bits IsButtonInputValid's mode-0 test (data_020a0e5a & 0xf) reads for A/B,
+   so the two low bits carry straight across with no remap. Reached only while a
+   message is up, so it touches the pad record for nothing else. */
+extern unsigned char data_020a0e40;          /* the local player index */
+extern unsigned short data_020a0e58[];       /* PadData[4]: [i*2] held, [i*2+1] pressed */
+extern unsigned short data_020a0e5a[];        /* pad0.pressed overlay the box reads */
+extern unsigned short data_0209f49e[];        /* Ctrl block: pressed-this-frame */
+
+static void port_message_publish_input(void)
+{
+    int idx = (int)data_020a0e40;
+    if (idx < 0 || idx > 3)
+        idx = 0;
+    /* A (bit0) and B (bit1) pressed this frame, from the remapped Ctrl block
+       (data_0209f49e is already a one-frame edge: the input layer writes it as
+       btn & ~btn_was), folded onto whatever the pad record's own pressed edge
+       carries (the D-pad, written fresh each frame by the input layer). */
+    unsigned short pressed = (unsigned short)(data_020a0e58[idx * 2 + 1] |
+                                              (data_0209f49e[0] & 0x3));
+    data_020a0e58[idx * 2 + 1] = pressed;
+    /* data_020a0e5a is the DS overlay of the pressed halfword -- the same memory
+       on hardware, split into its own symbol on the port and never otherwise
+       written. ASSIGN (not OR) so it tracks the pad record's per-frame edge
+       exactly, instead of latching a stale press that would dismiss every future
+       box on its first frame. */
+    data_020a0e5a[idx * 2] = pressed;
+}
+
 static void port_message_flush_engine_a_regs(void)
 {
     typedef volatile unsigned int vu32;
@@ -127,6 +174,11 @@ void port_message_pump(void)
 
     if (data_0209d660 == 0)
         return;                        /* no message active: same first line */
+
+    /* restore the DS pad aliasing the box's input readers depend on, so a real
+       A/B press can advance and dismiss the box (without it the box softlocks --
+       the castle-grounds door bug). Reached only while a message is active. */
+    port_message_publish_input();
 
     if (Message::UpdateWindow()) {     /* box fully open */
         if (data_0209d654 == 0) {
