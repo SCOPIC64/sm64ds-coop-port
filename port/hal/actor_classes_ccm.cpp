@@ -578,6 +578,85 @@ extern "C" void hal_fill_one_up_logo_vtable(void)
     /* no slot 31: OneUpLogo is Actor-derived, not Platform-derived -- 31 slots total */
 }
 
+// ============================================================================
+// SOUND_OBJECT (359) -- the positional sound emitter (daSoundObj_c, ov002),
+// a plain 31-slot Actor. Gate 190's FIX ROUND: hosting POWER_STAR_CREATE woke
+// a dormant PowerStar code path -- func_ov002_020e7e24 (slice_gate89, the
+// free-star state body) retries Actor::SpawnSoundObj(6) EVERY FRAME while its
+// +0x49e byte is 0xff, and only a SUCCESSFUL spawn sets it to 0x78 -- so the
+// PSC-spawned fifth star produced an unbounded 0x167-skip stream the boot
+// census could not see (bisect-confirmed: SM64DS_SKIP_CLASS=POWER_STAR_CREATE
+// removes every 359 skip; SKIP_CLASS=ICE_SHEET leaves them).
+//
+// _ZTV11SoundObject (ov002 0x0210c0dc) read with its relocations applied:
+//   0  InitResources    0x020f95e0  own (C-linkage .c, no face)
+//   3  CleanupResources 0x02043bf0  ActorBase's base body (shared)
+//   6  Behavior         0x020f94fc  own -- a REAL mwcc PMF dispatch through
+//                                    the seven bss cells data_ov002_0211110c,
+//                                    so the matched .cpp cannot compile for
+//                                    the port (MSVC's incomplete-class PMF is
+//                                    a different size than the table stride);
+//                                    HOST COPY + cell seat in
+//                                    port/unmatched/SoundObject_Behavior.cpp,
+//                                    the Cap_StateDispatch treatment
+//   9  Render           0x02043af0  ActorBase::Render no-op base (the class
+//                                    has NO model -- no slot-5 collision
+//                                    possible; +0xd4 holds a sound id)
+//  12  OnPendingDestroy 0x02043ac0  ActorBase's base body (shared)
+//  16  D1               0x020f934c  own -- stores _ZTV11SoundObject (its OWN
+//                                    table), Actor::D2; C-linkage, clean
+//  17  D0               0x020f9370  own -- the cons copy spelled the shared
+//                                    VT/HEAP placeholders; main's copy
+//                                    (carried, hash-verified) spells
+//                                    _ZTV11SoundObject + data_020a0eac
+//                                    directly. Its "recovered name:
+//                                    daSoundObj_c_OnYoshiTryEat" comment is
+//                                    the SAME name decoy PowerStarCreate's D0
+//                                    carries -- reloc slot 17, D0 body shape.
+//  18..30 all shared Actor defaults (OnYoshiTryEat included -- NOT
+//                                    overridden, the comment lies).
+// SpawnInfo 0x0210c064 (+0 factory 0x020f972c, +4 id 359); its +0x24 is
+// data_ov002_0210c088 -- a TUNING-TABLE column, NOT a vtable (the +0x24 rule
+// is the ov018 record shape, not ov002's); the factory installs
+// _ZTV11SoundObject by name directly (read from its own src), so there is no
+// installed-vtable decoy and no reseat wrapper.
+extern "C" {
+int _ZN11SoundObject13InitResourcesEv(void *self);   /* slot 0, C in src */
+int _ZN11SoundObject8BehaviorEv(char *self);         /* slot 6, HOST COPY */
+int _ZN11SoundObjectD1Ev(int *self);                 /* slot 16, C in src */
+int *_ZN11SoundObjectD0Ev(int *self);                /* slot 17, C in src (carried) */
+int *SoundObject_Spawn(void);                        /* installs _ZTV11SoundObject */
+int _ZTV11SoundObject[31];
+void port_sound_object_states_seat(void);            /* unmatched/SoundObject_Behavior.cpp */
+}
+
+static int __fastcall sob_init(void *s, void *)
+{ return _ZN11SoundObject13InitResourcesEv(s); }
+static int __fastcall sob_behavior(void *s, void *)
+{ return _ZN11SoundObject8BehaviorEv((char *)s); }
+static int __fastcall sob_d1(void *s, void *)
+{ return _ZN11SoundObjectD1Ev((int *)s); }
+static int __fastcall sob_d0(void *s, void *)
+{ return (int)(size_t)_ZN11SoundObjectD0Ev((int *)s); }
+
+extern "C" void hal_fill_sound_object_vtable(void)
+{
+    void **vt = (void **)_ZTV11SoundObject;
+    /* seat the seven dispatch cells __sinit_ov002_02107f88 left as DS code
+       addresses BEFORE anything dispatches them -- fills run after ov002's
+       boot sinits, the ordering the Cap seat already proves. */
+    port_sound_object_states_seat();
+    ccm190_fill_shared(vt);
+    vt[0]  = (void *)sob_init;
+    vt[3]  = (void *)psc_clean_base;   /* ActorBase base body, shared with PSC's thunk */
+    vt[6]  = (void *)sob_behavior;
+    vt[9]  = (void *)psc_render_base;  /* ActorBase base body, shared with PSC's thunk */
+    vt[12] = (void *)ccm_pdes;
+    vt[16] = (void *)sob_d1;
+    vt[17] = (void *)sob_d0;
+    /* no slot 31: a plain Actor, 31 slots total */
+}
+
 // ---- method faces -----------------------------------------------------------
 // The C-named references the thunks above take onto the real MSVC methods
 // against include/, the hal/actor_classes_jrb.cpp recipe. IceSheet's four
@@ -588,7 +667,8 @@ extern "C" void hal_fill_one_up_logo_vtable(void)
 // D1/D0 and OneUpLogo's Cleanup/Behavior/D0 are already C-linkage bodies (.c
 // files, or a .cpp inside an unqualified extern "C" block) -- no face.
 // PowerStarCreate has no real-method file at all (every own slot is a plain
-// C function, func_ov018_*).
+// C function, func_ov018_*). SoundObject's Init/D1/D0 are C-linkage .c bodies
+// and its Behavior is the host copy -- no face either.
 #include "IceSheet.h"
 #include "OneUpLogo.h"
 extern "C" {

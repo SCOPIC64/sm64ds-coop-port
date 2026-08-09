@@ -73,6 +73,60 @@ src/_ZN9OneUpLogoD0Ev.c
 # ---- the one sinit that runs (IceSheet's own, self-contained) -------------
 src/__sinit_ov018_02112e00.c
 #
+# ==== FIX ROUND: SOUND_OBJECT (359, daSoundObj_c, ov002) ====================
+# THE CALLER, identified by bisect (SM64DS_SKIP_CLASS=POWER_STAR_CREATE
+# removes every 0x167 skip; =ICE_SHEET leaves all 85): hosting
+# POWER_STAR_CREATE spawns a fifth, free-flying POWER_STAR, whose state body
+# func_ov002_020e7e24 (slice_gate89) retries Actor::SpawnSoundObj(6) EVERY
+# FRAME while its +0x49e byte reads 0xff -- only a SUCCESSFUL spawn sets it to
+# 0x78 and stops the retry. The four boot-placed stars sit in marker-linked
+# states that never reach that body, which is why gate 89 never saw it. All 85
+# skips land within the first ~120 frames (the star's early state window),
+# not spread over 600 -- the play-time gap the boot census cannot see.
+#
+# TRAP CHECKLIST, run like the other three classes:
+#  - ROM-shaped vtable: _ZTV11SoundObject host array, 31 words (0x0210c0dc..
+#    0x0210c154, plain Actor, no Kill), own slots 0/6/16/17 only.
+#  - SpawnInfo+0x24 decoy: +0x24 of the 0x0210c064 record is
+#    data_ov002_0210c088, a TUNING COLUMN, not a vtable -- the +0x24-is-vtable
+#    rule is the ov018 record shape and does NOT hold on ov002. The factory
+#    installs _ZTV11SoundObject by name (read from SoundObject_Spawn.c), so no
+#    decoy and no reseat; the registry's +4 id cross-check reads 359.
+#  - D1/D0 placeholder: D1 spells its OWN table, clean, stays in slice. D0's
+#    cons copy spelled the shared VT/HEAP placeholders -- main's copy (carried,
+#    hash-verified) spells _ZTV11SoundObject + data_020a0eac directly; with
+#    that carry both stay in the slice, no host thunk. D0 also carries the
+#    SAME "recovered name: OnYoshiTryEat" decoy comment PowerStarCreate's D0
+#    does; the reloc slot is 17 and the body shape is D0's.
+#  - Slot-5 Render: slot 9 is ActorBase::Render (0x02043af0), the no-op base
+#    body -- the class has NO model (+0xd4 is a sound id), collision
+#    impossible.
+#  - Romdata pointer tables: the c08a tuning-column mount run includes the
+#    relocated RTTI word at 0x0210c0d8; never dereferenced (see
+#    ov002_syms.txt's row-7 note).
+#  - Undersized globals: columns sized by natural next-symbol deltas
+#    (4/4/2/0x52), ending exactly at the unmounted vtable; the seven bss
+#    dispatch cells span 0x38 = 7 entries exactly (sel 7 is off-table on the
+#    DS too -- the host Behavior copy traps it loudly instead of reading the
+#    neighbour cell).
+#  - PMF: Behavior is a REAL mwcc PMF dispatch -> HOST COPY
+#    (port/unmatched/SoundObject_Behavior.cpp) + a seven-cell seat
+#    (port_sound_object_states_seat, the Cap_StateDispatch shape: verify each
+#    sinit-left DS address against the ROM's own record, then rewrite with the
+#    host body; abort on WRONG BYTES). The matched
+#    src/_ZN11SoundObject8BehaviorEv.cpp stays out of the build.
+# ---- SOUND_OBJECT's own bodies (matched src; Behavior is the host copy) ----
+src/SoundObject_Spawn.c
+src/_ZN11SoundObject13InitResourcesEv.c
+src/_ZN11SoundObjectD1Ev.c
+src/_ZN11SoundObjectD0Ev.c
+# ---- the three not-yet-compiled PMF state targets (matched src; the other
+# two, Sound::PlaySecretSound / Sound::PlaySmallSecretSound, are already in
+# slice_gate32 / slice_gate41) ----
+src/func_0200f7f0.c
+src/func_ov002_020f9468.c
+src/func_ov002_020f93a8.cpp
+#
 # NOT in this slice (present in src/, carried byte-identical from main, but
 # NOT compiled into this gate's build): SkiLift's cleanup fix
 # (_ZN7SkiLift16CleanupResourcesEv.cpp) and MotherPenguin's sinit fix

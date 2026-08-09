@@ -315,7 +315,15 @@ extern const unsigned port_ov013_ds_base, port_ov013_ds_end;
        vtable fill and a row).
 
    All eight are turned away by the pre-spawn gate by name and named in the
-   census, so the boot is honest about what did not spawn. */
+   census, so the boot is honest about what did not spawn.
+
+   GATE 190 FIX ROUND, a play-time discovery the boot census could not see:
+   hosting POWER_STAR_CREATE spawns a fifth, free-flying POWER_STAR whose
+   state body func_ov002_020e7e24 retries Actor::SpawnSoundObj(6) every frame
+   until the spawn SUCCEEDS -- so SOUND_OBJECT (359, ov002, fully matched) had
+   to be hosted with it (registry row + PMF cell seat + Behavior host copy,
+   hal/actor_classes_ccm.cpp + port/unmatched/SoundObject_Behavior.cpp). The
+   end-of-run census is the witness for this class, not the boot one. */
 void port_ov018_patch(void);
 void *port_ov018_at(unsigned ds);
 extern unsigned char port_ov018_image[];

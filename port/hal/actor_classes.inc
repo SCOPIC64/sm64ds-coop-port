@@ -83,6 +83,15 @@ void hal_fill_power_star_create_vtable(void);
 extern unsigned char OneUpLogo_SpawnInfo[];             /* ov002 0x0210b188 */
 void *OneUpLogo_Spawn(void);                            /* ov002 0x020f1170 */
 void hal_fill_one_up_logo_vtable(void);
+/* ---- gate 190 fix round: SOUND_OBJECT (359), ov002. The positional sound
+   emitter the free-flying POWER_STAR retries spawning every frame
+   (func_ov002_020e7e24, Actor::SpawnSoundObj(6)); hosting PSC's fifth star
+   made the retry stream visible. SpawnInfo joins the ov002 mount; the fill
+   (and the PMF cell seat) is hal/actor_classes_ccm.cpp +
+   port/unmatched/SoundObject_Behavior.cpp. */
+extern unsigned char SoundObject_SpawnInfo[];           /* ov002 0x0210c064 */
+void *SoundObject_Spawn(void);                          /* ov002 0x020f972c */
+void hal_fill_sound_object_vtable(void);
 /* ---- gate 18: ov085, the first ACTOR overlay ----
    Not the engine overlay and not the level's -- six classes several levels
    share, of which the castle grounds names two. The SpawnInfo records come
@@ -854,6 +863,8 @@ void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlat
       hal_fill_power_star_create_vtable}, \
      {331, "ONE_UP_LOGO", OneUpLogo_SpawnInfo, OneUpLogo_Spawn, \
       hal_fill_one_up_logo_vtable}, \
+     {359, "SOUND_OBJECT", SoundObject_SpawnInfo, SoundObject_Spawn, \
+      hal_fill_sound_object_vtable}, \
     /* ---- gate 149: HAUNTED_CHAIR (326), Big Boo's Haunt (ov020, level 12) ---- */ \
     {326, "HAUNTED_CHAIR", HauntedChair_SpawnInfo, HauntedChair_Spawn, \
      hal_fill_haunted_chair_vtable}, \

@@ -186,3 +186,21 @@ OneUpLogo_SpawnInfo:0x1c
 # type table, the BlueCoinSwitch/gate-78 CLPS shape (0x20 bytes, the delta to
 # the next symbol data_ov002_0210d774). Plain data, no relocations.
 data_ov002_0210d754:0x20
+# gate 190 fix round: SOUND_OBJECT (359). Its SpawnInfo record, pinned to 0x1c
+# so the +4 id halfword the registry cross-checks reads 359 (0x167). The
+# vtable _ZTV11SoundObject stays a host array (hal/actor_classes_ccm.cpp), the
+# ov080 rule. The seven PMF SOURCE records (data_ov002_0210c010..0210c040) and
+# the seven bss dispatch cells (data_ov002_0211110c) are ALREADY in this mount
+# (gate 10 linked __sinit_ov002_02107f88 against them).
+SoundObject_SpawnInfo:0x1c
+# The InitResources tuning table: four column views into one 0xc-stride run at
+# 0x0210c080 (rows indexed by the actor's param, 0..7 accepted). Natural
+# next-symbol deltas: c080[4] c084[4] c088[2], then c08a runs 0x52 to the
+# vtable at 0x0210c0dc -- that run INCLUDES the RTTI pointer word at 0x0210c0d8
+# (a relocated DS address). Dereference check, the romdata-pointer-table rule:
+# it is NEVER dereferenced -- only row 7's column-b read lands on it, and that
+# value is stored to +0xd8 and COMPARED against data_0209b490, not followed;
+# level 10's only user is Actor::SpawnSoundObj(6), row 6, wholly inside the
+# real table. Row 7 also has no dispatch cell (the bss table is 7 entries), a
+# latent off-table read on the DS itself; the host Behavior copy traps it.
+data_ov002_0210c080 data_ov002_0210c084 data_ov002_0210c088 data_ov002_0210c08a
