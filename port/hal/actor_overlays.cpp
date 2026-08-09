@@ -843,6 +843,21 @@ void port_bowser_puzzle_manager_states_seat(void);
 void port_bowser_puzzle_piece_states_seat(void);
 void __sinit_ov064_0211b1d4(void);
 void __sinit_ov064_0211b4dc(void);
+/* gate 188: ov016 per-symbol -- Jolly Roger Bay's six MOVER classes. Five
+   sinits construct the SharedFilePtrs each mover's InitResources reads; the
+   UNAGI one (021136ec) also copies the five PMF-dispatch cells, so seat Unagi's
+   nine state SOURCE records over their host bodies BEFORE it runs (the
+   Scuttlebug shape). None of the five carries a cross-overlay reloc (every body
+   only calls arm9-main func_02017acc/b4c/020731dc). port/unmatched/
+   Unagi_StateDispatch.cpp holds the two PMF dispatchers + the seat. */
+void port_ov016_pack_check(void);
+void port_ov016_syms_patch(void);
+void port_unagi_states_seat(void);
+void __sinit_ov016_021136ec(void);
+void __sinit_ov016_021138bc(void);
+void __sinit_ov016_02113978(void);
+void __sinit_ov016_021139e4(void);
+void __sinit_ov016_02113a50(void);
 }
 
 extern "C" void port_actor_overlays_sinits(void)
@@ -1041,4 +1056,19 @@ extern "C" void port_actor_overlays_sinits(void)
     port_ov019_pack_check();
     port_ov019_syms_patch();
     __sinit_ov019_02112b14();
+
+    /* gate 188: ov016, Jolly Roger Bay's own overlay, per-symbol mount for its
+       six MOVER classes. Seat UNAGI's nine state SOURCE PMFs over their host
+       bodies BEFORE __sinit_ov016_021136ec copies their addresses into the five
+       dispatch cells (d8c/d9c/dac/dbc/d7c). The other four sinits are the
+       ShipUp/RockPillar/ShipDown/FloatOnWater+SlidingBox SharedFilePtr
+       constructors; no state seat -- only Unagi dispatches a PMF table. */
+    port_ov016_pack_check();
+    port_ov016_syms_patch();
+    port_unagi_states_seat();
+    __sinit_ov016_021136ec();   /* UNAGI: 4 anim SFPs + 5 PMF dispatch cells */
+    __sinit_ov016_021138bc();   /* SHIP_UP: 4 SFPs */
+    __sinit_ov016_02113978();   /* ROCK_PILLAR: 2 SFPs */
+    __sinit_ov016_021139e4();   /* SHIP_DOWN: 2 SFPs */
+    __sinit_ov016_02113a50();   /* FLOAT_ON_WATER_PLATFORM_JRB / SLIDING_BOX */
 }

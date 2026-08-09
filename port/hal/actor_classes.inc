@@ -581,6 +581,44 @@ void *Chuckya_Spawn(void);   /* installs _ZTV7Chuckya itself */
 void *Koopa_Spawn(void);     /* installs _ZTV5Koopa itself */
 void hal_fill_chuckya_vtable(void);
 void hal_fill_koopa_vtable(void);
+
+/* ---- gate 188: ov016's six MOVER classes (Jolly Roger Bay). Per-symbol mount
+   ov016_syms.txt; fills hal/actor_classes_jrb.cpp; closure slice_gate188.txt.
+   Four host vtables (Unagi 31-slot Enemy, ShipUp 32 + RockPillar 32 + FloatOn-
+   Water 37, all Platform). ShipDown SHARES _ZTV6ShipUp and ShipUp_Spawn's body;
+   SlidingBox SHARES _ZTV23FloatOnWaterPlatformJrb and installs it directly.
+   FloatOnWaterPlatformJrb_Spawn's LAST vptr write is VT1 (the shared placeholder),
+   so it takes a reseat wrapper (the bully treatment); the other five factories
+   install their real table (or a shared real table) and need none.
+   THE CONFIG CLASS NAMES ARE A DECOY (the gate-178 Amilift pattern), read from
+   ov016's relocs: id 60 (FloatOnWaterPlatformJrb) installs data_ov016_02114bcc,
+   a 32-slot daObjKi_Ita_c BASE table with arm9 Platform defaults for
+   Behavior/Cleanup/Render and func_ov016_02112fa8/ef4/f44 for Init/D1/D0 -- so
+   it is the SIMPLE base with no slot-5 render and no coupling. id 313
+   (SlidingBox) installs _ZTV23FloatOnWaterPlatformJrb, the 37-slot DERIVED table
+   whose real _ZN23FloatOnWaterPlatformJrb* methods carry BOTH the slot-5 Render
+   collision AND the COUPLED Behavior (case 0 does FindWithActorID(0x39=SHIP_UP)
+   and self-destructs if the ship is absent), so id 313 only survives with
+   SHIP_UP hosted -- which this gate does. Both factories install their real
+   table as the last vptr write; neither needs a reseat wrapper. */
+extern unsigned char Unagi_SpawnInfo[];                    /* ov016 0x021148e0, +4 reads 242 */
+extern unsigned char ShipDown_SpawnInfo[];                 /* ov016 0x021149fc, +4 reads 56  */
+extern unsigned char ShipUp_SpawnInfo[];                   /* ov016 0x02114a18, +4 reads 57  */
+extern unsigned char RockPillar_SpawnInfo[];               /* ov016 0x02114adc, +4 reads 58  */
+extern unsigned char FloatOnWaterPlatformJrb_SpawnInfo[];  /* ov016 0x02114ba8, +4 reads 60  */
+extern unsigned char SlidingBox_SpawnInfo[];               /* ov016 0x02114c68, +4 reads 313 */
+void *Unagi_Spawn(void);                    /* installs _ZTV5Unagi itself */
+void *ShipUp_Spawn(void);                   /* installs _ZTV6ShipUp (shared by ShipDown) */
+void *ShipDown_Spawn(void);                 /* same body as ShipUp_Spawn */
+void *RockPillar_Spawn(void);               /* installs data_ov016_02114b00 (RockPillar table) */
+void *port_factory_float_on_water_jrb(void);/* id 60: FloatOnWaterPlatformJrb_Spawn writes the VT1 placeholder as its last
+                                               vptr write, so this wrapper reseats p[0] onto the host data_ov016_02114bcc table */
+void *SlidingBox_Spawn(void);               /* id 313: installs _ZTV23FloatOnWaterPlatformJrb (derived) directly */
+void hal_fill_unagi_vtable(void);
+void hal_fill_ship_up_vtable(void);
+void hal_fill_rock_pillar_vtable(void);
+void hal_fill_float_on_water_jrb_vtable(void);   /* fills data_ov016_02114bcc for id 60 */
+void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlatformJrb for id 313 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -819,4 +857,14 @@ void hal_fill_koopa_vtable(void);
      hal_fill_rotating_firebar_vtable},     /* ---- gate 178: ov064's METAL_NET_LIFT + LAVA_BUBBLE (Lethal Lava Land) ---- */     {69, "METAL_NET_LIFT", MetalNetLift_SpawnInfo, MetalNetLift_Spawn,      hal_fill_metal_net_lift_vtable},     {214, "LAVA_BUBBLE", LavaBubble_SpawnInfo, LavaBubble_Spawn,      hal_fill_lava_bubble_vtable},     /* ---- gate 179: ov064's BowserPuzzle pair (Lethal Lava Land) ---- */     {78, "BOWSER_PUZZLE_PIECE", BowserPuzzlePiece_SpawnInfo,      BowserPuzzlePiece_Spawn, hal_fill_bowser_puzzle_pair_vtables},     {79, "BOWSER_PUZZLE_MANAGER", BowserPuzzleManager_SpawnInfo,      port_factory_bowser_puzzle_shell, hal_fill_bowser_puzzle_shell_vtable},     /* ---- gate 182: ov062's KOOPA + CHUCKYA (Bob-omb Battlefield) ---- */     {190, "CHUCKYA", Chuckya_SpawnInfo, Chuckya_Spawn, hal_fill_chuckya_vtable}, \
     /* KOOPA (203) restored: his model fileptrs (data_ov062_0211cee0 -> ov002)
        now rebase through ovdata.py's per-target cross pass, so SF4 boots. */ \
-    {203, "KOOPA", Koopa_SpawnInfo, Koopa_Spawn, hal_fill_koopa_vtable},
+    {203, "KOOPA", Koopa_SpawnInfo, Koopa_Spawn, hal_fill_koopa_vtable}, \
+    /* ---- gate 188: ov016's six MOVER classes (Jolly Roger Bay) ---- */ \
+    {242, "UNAGI", Unagi_SpawnInfo, Unagi_Spawn, hal_fill_unagi_vtable}, \
+    {57, "SHIP_UP", ShipUp_SpawnInfo, ShipUp_Spawn, hal_fill_ship_up_vtable}, \
+    {56, "SHIP_DOWN", ShipDown_SpawnInfo, ShipDown_Spawn, hal_fill_ship_up_vtable}, \
+    {58, "ROCK_PILLAR", RockPillar_SpawnInfo, RockPillar_Spawn, \
+     hal_fill_rock_pillar_vtable}, \
+    {60, "FLOAT_ON_WATER_PLATFORM_JRB", FloatOnWaterPlatformJrb_SpawnInfo, \
+     port_factory_float_on_water_jrb, hal_fill_float_on_water_jrb_vtable}, \
+    {313, "SLIDING_BOX", SlidingBox_SpawnInfo, SlidingBox_Spawn, \
+     hal_fill_sliding_box_vtable},

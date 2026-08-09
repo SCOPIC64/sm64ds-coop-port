@@ -217,7 +217,43 @@ extern const unsigned port_ov017_ds_base, port_ov017_ds_end;
    because all of JRB's movers are in the skipped cast above. So the ride sweep
    is a no-op until FloatOnWaterPlatformJrb (or another mover) is hosted -- the
    contested-slot bomb cannot fire on a mover that never spawns. Flagged for the
-   follow-on gate. */
+   follow-on gate.
+
+   GATE 188: the six ov016 MOVERS are now hosted (per-symbol ov016 mount in
+   ov016_syms.txt + slice_gate188.txt + hal/actor_classes_jrb.cpp). Census is now
+   193 spawned / 35 classes, 22 skipped / 7 classes. All six spawn:
+   SHIP_DOWN (56) x1, SHIP_UP (57) x1, ROCK_PILLAR (58) x6,
+   FLOAT_ON_WATER_PLATFORM_JRB (60) x1, UNAGI (242) x3, SLIDING_BOX (313) x1.
+
+   THE CONFIG NAMES ARE A DECOY (the gate-178 Amilift pattern, from ov016 relocs):
+   id 60 installs data_ov016_02114bcc (the daObjKi_Ita_c base, plain Platform
+   defaults for Behavior/Cleanup/Render); id 313 installs the DERIVED
+   _ZTV23FloatOnWaterPlatformJrb, which carries the slot-5 Render and the COUPLED
+   Behavior (case 0 FindWithActorID(0x39=SHIP_UP) -> self-destruct if the ship is
+   absent). The chain survives because SHIP_UP is hosted.
+
+   RIDE SWEEP RESULT: SHIP_UP is a MovingMeshCollider; spawning Mario ON it
+   (SM64DS_SPAWN=4850,1100,2250) runs 900 frames clean under SM64DS_FAULTS_FATAL=1
+   -- the direct proof that gate-186's contested-slot seating (mmc_vtable.cpp)
+   covers a JRB mover, not only ov015's bridge. The bomb did NOT fire. Idle soaks
+   (300f/900f, Mario at the entrance) are clean too.
+
+   TWO documented residues:
+     - ROCK_PILLAR (58) faults c0000005 in ModelComponents::Render the first
+       on-screen frame it draws (measured f17 when Mario spawns adjacent), NOT the
+       collider and NOT the particle path (SM64DS_NO_FX_RENDER=1 still crashes;
+       SM64DS_RP_NORENDER moves the fault elsewhere in the same sequence). Its
+       render (func_ov016_02112b28) is the identical slot-5 Model dispatch that
+       SHIP_UP renders through cleanly, so the difference is the MODEL FILE: its
+       bmd (fs id 1173) loads but its Model at +0xd4 reaches Model::Render with a
+       bad/unbuilt ModelComponents. A model-BUILD issue for RockPillar's bmd, not
+       a mount or seating one -- deferred to the model-loader lane. Idle-far and
+       the other five movers are clean; the per-actor quarantine catches it, so
+       JRB stays walkable with RockPillar quarantined on approach.
+     - Each ROCK_PILLAR spawns a RockTriangle child (id 59, ov102, Actor::Spawn
+       (0x3b) in its InitResources) -- newly visible now that RockPillar runs its
+       Init. RockTriangle (x6) is skipped (unregistered); the ov102 mount for it
+       and KoopaShell (285) is the next follow-on. */
 void port_ov016_patch(void);
 void *port_ov016_at(unsigned ds);
 extern unsigned char port_ov016_image[];

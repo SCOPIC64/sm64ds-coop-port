@@ -1,0 +1,99 @@
+# Gate 188: the per-symbol mount of ov016 -- Jolly Roger Bay's own overlay
+# (data/stage/kaizoku_irie, base 0x021111a0) -- for its six MOVER classes:
+# SHIP_DOWN (56), SHIP_UP (57), ROCK_PILLAR (58), FLOAT_ON_WATER_PLATFORM_JRB
+# (60), UNAGI (242) and SLIDING_BOX (313). ov016 is already mounted --whole in
+# PORT_LEVEL_OVERLAYS (level 8's stage tables); that mount emits one
+# port_ov016_image[] and NO data_ov016_* symbols, so this per-symbol mount does
+# not collide -- the gate-143 ov019 / gate-32 ov014 double-mount shape.
+#
+# The gate-177/178 ov064 shape: each class reaches its SpawnInfo record, its
+# file-pointer / state-table statics and the bss cells its RUNNABLE sinit
+# constructs, all BY NAME. --pack keeps the runs that are really one array
+# contiguous.
+#
+# THE VTABLES STAY OUT, the ov080/ov095/ov064 rule. _ZTV5Unagi (0x02114958, 31
+# words), _ZTV6ShipUp (0x02114a3c, 32), the RockPillar table data_ov016_02114b00
+# (32) and _ZTV23FloatOnWaterPlatformJrb == _ZTV13daSlide_Box_c (0x02114c8c, 37;
+# an RTTI alias, one table two names) each carry the vtable signature (the +4
+# word relocates to Actor::BeforeInitResources, arm9 0x02011268) and are HOST
+# arrays hal/actor_classes_jrb.cpp fills. So they are LEFT OUT here and the base
+# slots live only as the closure funcs.
+#
+# THE SIX IDS were cross-checked from the RAW ndspy image (extracted/overlays/
+# overlay_0016.bin -- the dsd export is stale, the ovdata.py trap): each record's
+# +0 word is its factory (0x021129d0 / 021129a0 / 02112ec4 / 02112fbc / 02112588
+# / 02113510) and its +4 halfword is its own id (56/57/58/60/242/313). Each
+# SpawnInfo is pinned to the record's real 0x1c (or Unagi's 0x10) so the +4 id
+# halfword the registry cross-checks reads out of the right bytes; the natural
+# next-symbol delta on four of them is 0x24, which runs into trailing padding.
+Unagi_SpawnInfo:0x10
+ShipDown_SpawnInfo:0x1c
+ShipUp_SpawnInfo:0x1c
+RockPillar_SpawnInfo:0x1c
+FloatOnWaterPlatformJrb_SpawnInfo:0x1c
+SlidingBox_SpawnInfo:0x1c
+#
+# ---- UNAGI (242) source statics --------------------------------------------
+# Unagi is an Enemy with a five-variant PMF state table. __sinit_ov016_021136ec
+# copies five source PMF/pointer records (0x021148a0/a8, 0x021148b8/c0,
+# 0x02114888/80, 0x021148b0/90, BookSwitch_SpawnInfo/0x02114878) into the five
+# bss dispatch cells (data_ov016_02114d8c/d9c/dac/dbc/d7c). Every source word is
+# in this overlay -- mount them all so the copy reads the right bytes and the
+# BookSwitch_SpawnInfo address it stores resolves. The 6-model shadow table the
+# Render walks is data_ov016_02114908 (0x50 bytes).
+data_ov016_02114878 data_ov016_02114880 data_ov016_02114888 data_ov016_02114890
+BookSwitch_SpawnInfo
+data_ov016_021148a0 data_ov016_021148a8 data_ov016_021148b0 data_ov016_021148b8
+data_ov016_021148c0
+data_ov016_02114908
+#
+# ---- FLOAT_ON_WATER_PLATFORM_JRB (60, daObjKi_Ita_c) Init config block -------
+# func_ov016_02112fa8 (id 60's InitResources) passes &data_ov016_02114b8c to the
+# arm9 Platform helper func_020b5e58. Plain 0xc-byte config, mount it.
+data_ov016_02114b8c
+#
+# ---- SHIP_UP (57) / SHIP_DOWN (56) model-pointer table ---------------------
+# ShipUp/ShipDown share _ZTV6ShipUp and the daObjKi_Fune_c body; InitResources
+# picks its model/collision file by mModelIndex out of the pointer pair at
+# data_ov016_021136dc/e4 (immediately before the sinit block).
+data_ov016_021136dc data_ov016_021136e4
+#
+# ---- the CLPS collision blocks the MovingMeshColliders take by reference -----
+# FloatOnWaterPlatformJrb::InitResources passes data_ov016_02113bac to
+# MovingMeshCollider::SetFile; RockPillar's (func_ov016_02112e1c) passes
+# data_ov016_02113cac. ShipUp picks its block by mModelIndex out of the two-word
+# pointer table data_ov016_021149d4 -> {0x02113c6c, 0x02113c4c}; mount the table
+# and both blocks so the reloc lands inside this mount. Plain data, one CLPS
+# block (0x20 bytes) each.
+data_ov016_02113bac data_ov016_02113cac
+data_ov016_021149d4 data_ov016_02113c4c data_ov016_02113c6c
+#
+# ---- the RUNNABLE sinits' construction destinations (bss) -------------------
+# All five sinits build SharedFilePtrs (and Unagi's five PMF dispatch cells) in
+# this bss window 0x02114d20..0x02114e88. Sized by the ROM next-symbol deltas;
+# all bss, so the mount is the ROM's own zeroed storage. Cross-reloc audit: every
+# sinit body only calls arm9-main helpers (func_02017acc/func_02017b4c build a
+# SharedFilePtr, func_020731dc registers a destruct node, func_02017ab4 /
+# SharedFilePtr_Destruct_{Anim,Clsn} are the release callbacks) -- none carries a
+# cross-OVERLAY reloc, the ov064 clean-reach finding.
+#
+# __sinit_ov016_021136ec -> UNAGI: four anim SharedFilePtrs (d20/d28/d30/d38)
+# with their four destruct-node cells (d40/d58/d64/d70), plus the five PMF
+# dispatch cells (d7c/d8c/d9c/dac/dbc) and the spare d4c.
+data_ov016_02114d20 data_ov016_02114d28 data_ov016_02114d30 data_ov016_02114d38
+data_ov016_02114d40 data_ov016_02114d4c data_ov016_02114d58 data_ov016_02114d64
+data_ov016_02114d70 data_ov016_02114d7c data_ov016_02114d8c data_ov016_02114d9c
+data_ov016_02114dac data_ov016_02114dbc
+# __sinit_ov016_021138bc -> SHIP_UP: four SharedFilePtrs (dcc/dd4/ddc/de4) and
+# their four destruct-node cells (dec/df8/e04/e10).
+data_ov016_02114dcc data_ov016_02114dd4 data_ov016_02114ddc data_ov016_02114de4
+data_ov016_02114dec data_ov016_02114df8 data_ov016_02114e04 data_ov016_02114e10
+# __sinit_ov016_02113978 -> ROCK_PILLAR: two SharedFilePtrs (e1c/e24) + two
+# destruct-node cells (e2c/e38).
+data_ov016_02114e1c data_ov016_02114e24 data_ov016_02114e2c data_ov016_02114e38
+# __sinit_ov016_021139e4 -> SHIP_DOWN: two SharedFilePtrs (e44/e4c) + two
+# destruct-node cells (e54/e60).
+data_ov016_02114e44 data_ov016_02114e4c data_ov016_02114e54 data_ov016_02114e60
+# __sinit_ov016_02113a50 -> FLOAT_ON_WATER_PLATFORM_JRB / SLIDING_BOX: two
+# SharedFilePtrs (e6c model, e74 collision) + two destruct-node cells (e7c/e88).
+data_ov016_02114e6c data_ov016_02114e74 data_ov016_02114e7c data_ov016_02114e88

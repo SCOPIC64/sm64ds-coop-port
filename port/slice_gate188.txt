@@ -1,0 +1,111 @@
+# Gate 188: Jolly Roger Bay's six MOVER classes -- SHIP_DOWN (56), SHIP_UP (57),
+# ROCK_PILLAR (58), FLOAT_ON_WATER_PLATFORM_JRB (60), UNAGI (242), SLIDING_BOX
+# (313), the first per-symbol mount of ov016. The transitive matched closure of
+# all six, swept by the call graph over ov016's own relocs from each vtable-bound
+# method and the six factories. The fill is hal/actor_classes_jrb.cpp; the mount
+# adds port/ov016_syms.txt (ov016 was --whole in PORT_LEVEL_OVERLAYS already).
+#
+# FLOAT_ON_WATER_PLATFORM_JRB == daObjKi_Ita_c / daSlide_Box_c and SHARES its
+# 37-slot table with SLIDING_BOX; SHIP_DOWN shares SHIP_UP's body and _ZTV6ShipUp.
+#
+# LEFT OUT ON PURPOSE (host copies, port/unmatched/):
+#  - Jrb_Renders.cpp: _ZN6ShipUp6RenderEv, _ZN23FloatOnWaterPlatformJrb6RenderEv
+#    and func_ov016_02112b28 (RockPillar Render) are all the ROM-order model
+#    slot-5 shadow collision (six-virtual local Base, Model at +0xd4) -- the
+#    Whomp/Scuttlebug/Amilift seam. Unagi's Render (_ZN5Unagi6RenderEv) is NOT
+#    that shape (it calls _ZN5Model6RenderEPK7Vector3 directly), so it STAYS in.
+#  - Unagi_StateDispatch.cpp: _ZN5Unagi8BehaviorEv (inlines an mwcc PMF dispatch,
+#    the Scuttlebug __thiscall trap) and func_ov016_02111bf0 (the SetState+ENTER
+#    dispatcher, same trap) are host copies, plus the ten-source PMF state seat.
+#  - Unagi_BodyChain.cpp: func_ov016_02111c40 (Unagi's body-segment matrix chain)
+#    has no byte-match; the div=41 size-exact nearmiss draft (RMW-order-only
+#    divergence, all hosted deps) is the port body. See the file header.
+#  - The D1/D0 of ShipUp, FloatOnWaterPlatformJrb and RockPillar
+#    (func_ov016_02112a00 / 02112a44) each store the SHARED single-global
+#    placeholders (_ZTV10dBgActor_c, 196 spellers; VT0/VT1; G0) in the teardown
+#    chain -- one host definition would satisfy every speller with the wrong
+#    bytes and nothing would say so. So they are HOST THUNKS in the fill (the
+#    gate-177/178 bully treatment), NOT in this slice.
+#
+# KEPT: UNAGI's own D1/D0 (they spell _ZTV5Unagi, func_ov002_020aed18 and
+# data_020a0eac, all hosted); UNAGI's nine matched state bodies; every mover's
+# Init/Cleanup/Behavior that does not dispatch a PMF; the shared matrix builders.
+#
+# ---- the six factories ----
+src/ShipUp_Spawn.c
+src/ShipDown_Spawn.c
+src/RockPillar_Spawn.c
+src/FloatOnWaterPlatformJrb_Spawn.c
+src/Unagi_Spawn.c
+src/SlidingBox_Spawn.c
+# ---- SHIP_UP / SHIP_DOWN (daObjKi_Fune_c, _ZTV6ShipUp) ----
+# ShipUp D1/D0 are HOST THUNKS (they overwrite the vptr with the shared
+# _ZTV10dBgActor_c placeholder in the teardown chain, the 196-speller trap), so
+# they are OUT of the slice -- the fill in hal/actor_classes_jrb.cpp runs the
+# member-dtor chain (MovingMeshCollider +0x124, Model +0xd4, Actor D2; D0 also
+# Deallocate) with the derived table stored once.
+src/_ZN6ShipUp13InitResourcesEv.cpp
+src/_ZN6ShipUp16CleanupResourcesEv.cpp
+src/_ZN6ShipUp8BehaviorEv.cpp
+src/func_ov016_021126a8.c
+# ---- ROCK_PILLAR (daObjKi_Hasira_c, id 58, data_ov016_02114b00) ----
+# Init/Cleanup/Behavior + matrix builder. Render (func_ov016_02112b28) is a host
+# copy (slot-5). D1/D0 (func_ov016_02112a00/02112a44) write the _ZTV10dBgActor_c
+# placeholder -> host thunks in the fill, OUT of the slice.
+src/func_ov016_02112e1c.c
+src/func_ov016_02112ae4.c
+src/func_ov016_02112b50.c
+src/func_ov016_02112a9c.c
+# ---- FLOAT_ON_WATER_PLATFORM_JRB (id 60) == daObjKi_Ita_c BASE, data_ov016_02114bcc ----
+# The config name is a decoy (relocs: id 60 installs data_ov016_02114bcc). Its
+# only own overridden slot is Init (func_ov016_02112fa8); Behavior/Cleanup/Render
+# are the arm9 Platform (daObjKi_Ita_c base) defaults func_ov002_020b5c4c /
+# func_ov002_020b5be0 / func_ov002_020b5c24, and D1/D0 (func_ov016_02112ef4/
+# 02112f44) write the placeholder -> host thunks. So its Init + the two plain
+# Platform defaults (+ their two helpers) join the slice; the Platform Render
+# (020b5c24) is a slot-5 collision -> host copy in Jrb_Renders.cpp.
+src/func_ov016_02112fa8.c
+src/func_ov002_020b5be0.c
+src/func_ov002_020b5c4c.c
+src/func_ov002_020b5ab4.cpp
+src/func_ov002_020b5b98.c
+# func_ov016_02112fa8 (id 60 Init) calls the daObjKi_Ita_c full-init helper
+# func_ov002_020b5e58 (aliased from the bare func_020b5e58 name in Jrb_Aliases.cpp),
+# whose closure adds func_ov002_020b5fc4 -> func_ov002_020b5f9c.
+src/func_ov002_020b5e58.cpp
+src/func_ov002_020b5fc4.c
+src/func_ov002_020b5f9c.c
+# ---- SLIDING_BOX (id 313) == the DERIVED _ZN23FloatOnWaterPlatformJrb* class,
+# _ZTV23FloatOnWaterPlatformJrb -- carries the slot-5 Render (host copy) and the
+# COUPLED FindWithActorID(0x39=ShipUp) Behavior. Init/Cleanup/Behavior + matrix
+# builder join; Render is host, D1/D0 write the placeholder -> host thunks. ----
+src/_ZN23FloatOnWaterPlatformJrb13InitResourcesEv.cpp
+src/_ZN23FloatOnWaterPlatformJrb16CleanupResourcesEv.cpp
+src/_ZN23FloatOnWaterPlatformJrb8BehaviorEv.c
+src/func_ov016_021130a4.c
+# ---- UNAGI (eel, Enemy, _ZTV5Unagi) ----
+src/_ZN5Unagi13InitResourcesEv.cpp
+src/_ZN5Unagi16CleanupResourcesEv.c
+src/_ZN5Unagi16OnPendingDestroyEv.c
+src/_ZN5Unagi6RenderEv.c
+src/_ZN5UnagiD1Ev.c
+src/_ZN5UnagiD0Ev.cpp
+src/func_ov016_02111284.c
+# UNAGI's nine matched state bodies (dispatched by the host copies in
+# Unagi_StateDispatch.cpp via the seated source records):
+src/func_ov016_02111bac.cpp
+src/func_ov016_021119ec.c
+src/func_ov016_02111860.cpp
+src/func_ov016_02111758.cpp
+src/func_ov016_02111994.cpp
+src/func_ov016_021118b4.cpp
+src/func_ov016_02111718.cpp
+src/func_ov016_021115c0.c
+src/func_ov016_02111534.c
+# ---- the five sinits (RUNNABLE; they construct the movers' SharedFilePtrs and
+# UNAGI's PMF dispatch cells) ----
+src/__sinit_ov016_021136ec.c
+src/__sinit_ov016_021138bc.c
+src/__sinit_ov016_02113978.c
+src/__sinit_ov016_021139e4.c
+src/__sinit_ov016_02113a50.c
