@@ -237,4 +237,35 @@ int _ZN7Seaweed6RenderEv(void *selfv)
 int _ZN9SeesawBob6RenderEv(void *selfv)
 { ((ModelAnim *)((char *)selfv + 0xd4))->ModelAnim::Render(0); return 1; }
 
+/* ---- UNCHAINED_CHOMP (actor 337, ov100, gate 21) --------------------------
+   The eleventh+ walk into the ModelAnim slot-5 collision. src/_ZN14Unchained
+   Chomp6RenderEv.cpp dispatches through a LOCAL SIX-VIRTUAL SHADOW CLASS
+   (`struct B { ... virtual void m5(A* arg); }`) off mModelAnim at +0x30c
+   (include/UnchainedChomp.h, evidenced, not +0xd4 -- the ModelAnim sits deep in
+   this class's layout), so its "slot 5" is the ROM's ModelAnim::Render; the host
+   _ZTV9ModelAnim array's slot 5 is Virtual18, a two-argument method called with
+   the shadow's one arg -- the Whomp/Fish case. The first call passes the actor's
+   own scale (&mScaleX, +0x80); the second is a 5-iteration loop over the +0x370
+   Model array (stride 0x50, 6 constructed by Spawn/D1 but Render's own loop bound
+   stops at 5) with a NULL scale each time. The loop half needs no extra wiring:
+   _ZTV5Model[5] is dual-filled (hal/cxxname_bridge.cpp), so the qualified
+   Model::Render below is byte-faithful to what ROM slot 5 does there.
+   PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish case. */
+int _ZN14UnchainedChomp6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    ((ModelAnim *)(c + 0x30c))->ModelAnim::Render((const Vector3 *)(c + 0x80));
+    {
+        int j = 0;
+        char *p2 = c + 0x370;
+        for (;;) {
+            ((Model *)p2)->Model::Render(0);
+            j++;
+            p2 += 0x50;
+            if (j >= 5) break;
+        }
+    }
+    return 1;
+}
+
 }  /* extern "C" */

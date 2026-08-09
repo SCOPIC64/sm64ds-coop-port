@@ -1351,6 +1351,7 @@ set(LEVELBOOT_HOST_SOURCES
     unmatched/Cannon_Behavior.cpp
     # gate 21: the pointer-to-member dispatch for the fifth time
     unmatched/Fish_Behavior.cpp
+    unmatched/UnchainedChomp_Behavior.cpp
     # gate 22: the sixth, plus the Model slot the dual fill cannot serve
     unmatched/Door_Behavior.cpp
     unmatched/Door_Render.cpp

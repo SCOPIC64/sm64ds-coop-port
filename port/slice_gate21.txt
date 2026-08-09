@@ -121,3 +121,54 @@ src/_ZN18MovingCylinderClsnD2Ev.c
 # and GetPos are new files here.
 src/_ZN25MovingCylinderClsnWithPosD0Ev.c
 src/_ZN25MovingCylinderClsnWithPos6GetPosEv.c
+
+# ---- UNCHAINED_CHOMP (actor 337, ov100) -----------------------------------
+# The obstacle BoB star 3 (5 Silver Stars) needs; registered in
+# port/hal/actor_classes.inc / actor_classes.cpp. Behavior is a Whomp/Fish-
+# shaped mwcc PMF dispatch through a single Holder* at +0x668 -- the simplest
+# seen, a 2-entry {function,delta} pair (data_ov100_02147ff8 hi /
+# data_ov100_02148000 lo). Host copy + seat in
+# port/unmatched/UnchainedChomp_Behavior.cpp; the two PMF targets it seats are
+# func_ov100_02143aa4 (hi, the one Behavior reads) and func_ov100_02143ae0
+# (lo), both plain matched src added below, the Fish-precedent shape.
+# UnchainedChomp_Spawn IS NOT HERE: it calls Enemy's ctor func_020aed98
+# (=_ZN5EnemyC2Ev) with a no-arg r0 ride-through the matched src leaves implicit
+# (operator new -> ctor with `this` in r0), the ChainChomp_Spawn case. Host copy
+# in port/unmatched/UnchainedChomp_Behavior.cpp spells the argument.
+# InitResources IS NOT HERE either: it declares PathPtr as a real C++ class and
+# calls pp.FromID/NumNodes/GetNode as THISCALL members, whose MSVC-mangled names
+# nothing defines; the C-linkage _ZN7PathPtr* bodies (slice_gate10) are cdecl,
+# so an alias would mismatch the calling convention (verified: a c0000005 in
+# FromID). Host copy in UnchainedChomp_Behavior.cpp spells the PathPtr calls the
+# C-linkage way level_boot.cpp does.
+# _ZN14UnchainedChomp8BehaviorEv IS NOT HERE: mwcc PMF dispatch through the
+# +0x668 Holder (typedef'd over an incomplete Actor in the matched TU), the
+# Fish/Whomp/LakituBro case. Host copy in
+# port/unmatched/UnchainedChomp_Behavior.cpp, which also carries the 2-static seat.
+src/_ZN14UnchainedChomp16CleanupResourcesEv.c
+src/_ZN14UnchainedChomp16OnPendingDestroyEv.c
+# _ZN14UnchainedChomp6RenderEv IS NOT HERE: ModelAnim slot-5 shadow dispatch
+# off mModelAnim (+0x30c, not the usual +0xd4) plus a 5-iteration loop over the
+# +0x370 Model array. Host copy in port/unmatched/ModelAnim_Renders.cpp.
+# the two Behavior helpers (plain matched, no PMF/ModelAnim trickery)
+src/func_ov100_02143370.cpp
+src/func_ov100_02143b68.cpp
+# _ZN14UnchainedChomp8BehaviorEv IS NOT HERE, and NEITHER is func_ov100_02143b18:
+# both form a pointer-to-member while its class is INCOMPLETE (Behavior's Actor
+# stand-in; 02143b18's own `struct C;` typedef), so MSVC widens the PMF to the
+# 4-word rep and dispatches wrong -- the Door func_ov100_021453d8 case exactly.
+# Both are host copies in port/unmatched/UnchainedChomp_Behavior.cpp, which also
+# carries the 2-static seat. (The prep artifact mislabelled 02143b18 as safe
+# matched src; it is not.)
+# the two PMF targets the seat wires as host bodies (Fish precedent: real names
+# in the seat table). 02143aa4 (hi) is the one Behavior actually dispatches.
+src/func_ov100_02143aa4.c
+src/func_ov100_02143ae0.c
+# ...and 02143aa4's own three ov100 callees (its state-advance chain)
+src/func_ov100_0214344c.c
+src/func_ov100_021435e8.cpp
+src/func_ov100_021437d4.c
+# the two ctor/dtor helpers Spawn and D1 pass to func_020733a8 / __destroy_arr
+# (func_0203d384 and func_020072c0 are already in slice_gate10); leaf funcs.
+src/func_02011508.c
+src/func_0203d73c.c

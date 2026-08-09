@@ -366,6 +366,12 @@ void func_ov078_021259ec(void *); void func_ov078_02125bc8(void *);
    port/unmatched/Fish_Behavior.cpp */
 void port_fish_states_seat(void);
 
+/* the unchained chomp's two: __sinit_ov100_021475a4 copies data_ov100_02148000
+   (lo) and data_ov100_02147ff8 (hi) into data_ov100_021486f4, and both the
+   InitResources installer and Behavior dispatch through it. Seat the SOURCE
+   statics first -- port/unmatched/UnchainedChomp_Behavior.cpp. */
+void port_unchained_chomp_states_seat(void);
+
 /* the door's fifteen, likewise. __sinit_ov100_02147698 copies them into nine
    callback nodes, two pairs per node; the door dispatches word 0 when it
    seats a node and word 8 every frame -- port/unmatched/Door_Behavior.cpp */
@@ -876,6 +882,9 @@ extern "C" void port_actor_overlays_sinits(void)
     port_ov100_syms_patch();
     port_butterfly_states_seat();
     port_fish_states_seat();
+    /* gate 21: seat UNCHAINED_CHOMP's two states over the SOURCE statics before
+       __sinit_ov100_021475a4 copies them into data_ov100_021486f4. */
+    port_unchained_chomp_states_seat();
     port_door_callbacks_seat();
     /* gate 40: seat the STAR door's eight callback halves over the SOURCE
        statics before __sinit_ov100_02147a70 copies them into its nodes. */

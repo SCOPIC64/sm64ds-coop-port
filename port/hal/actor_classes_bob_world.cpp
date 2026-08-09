@@ -555,6 +555,17 @@ extern "C" {
 int func_ov002_020babf0(void *self);            /* the Platform model render */
 int *_ZN10ShutterBobD1Ev(int *self);            /* .c, C linkage */
 int *_ZN10ShutterBobD0Ev(int *self);            /* .c, C linkage */
+/* the base Actor interaction virtuals, slots 20..28 -- all matched no-op stubs
+   the A-press path dispatches (the bbh/bob_enemy shared-table mapping). */
+int  _ZN5Actor9Virtual50Ev(void *self);                      /* slot 20 */
+void _ZN5Actor15OnGroundPoundedERS_(void *self, void *o);    /* slot 21 */
+void _ZN5Actor11OnAttacked1ERS_(void *self, void *o);        /* slot 22 */
+void _ZN5Actor11OnAttacked2ERS_(void *self, void *o);        /* slot 23 */
+void _ZN5Actor8OnKickedERS_(void *self, void *o);            /* slot 24 */
+void _ZN5Actor8OnPushedERS_(void *self, void *o);            /* slot 25 */
+void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* slot 26 */
+void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* slot 27 */
+void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* slot 28 */
 /* 32, not 20: the ROM's table is the full Platform width, and construction can
    dispatch a slot past 19. A [20] host array leaves 20..31 reading adjacent
    memory -- a wild call. */
@@ -572,6 +583,20 @@ static int __fastcall shb_trap28(void *s, void *) { bw_trap_report(s, 28); retur
 static int __fastcall shb_trap29(void *s, void *) { bw_trap_report(s, 29); return 0; }
 static int __fastcall shb_trap30(void *s, void *) { bw_trap_report(s, 30); return 0; }
 static int __fastcall shb_trap31(void *s, void *) { bw_trap_report(s, 31); return 0; }
+/* slots 20..28: the base Actor interaction virtuals the A-press path dispatches
+   into the shutter (Virtual50 + the eight combat hooks). All matched no-op base
+   stubs -- the bbh/bob_enemy shared-table mapping. Verified live: with these
+   trapped, FAULTS_FATAL aborted on slot 25 (OnPushed) then slot 23 (OnAttacked2)
+   as the probe pushed into the shutter. Hosted, not trapped. */
+static int __fastcall shb_v50(void *s, void *)          { return _ZN5Actor9Virtual50Ev(s); }
+static int __fastcall shb_pounded(void *s, void *, void *o) { _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
+static int __fastcall shb_atk1(void *s, void *, void *o)    { _ZN5Actor11OnAttacked1ERS_(s, o); return 0; }
+static int __fastcall shb_atk2(void *s, void *, void *o)    { _ZN5Actor11OnAttacked2ERS_(s, o); return 0; }
+static int __fastcall shb_kicked(void *s, void *, void *o)  { _ZN5Actor8OnKickedERS_(s, o); return 0; }
+static int __fastcall shb_pushed(void *s, void *, void *o)  { _ZN5Actor8OnPushedERS_(s, o); return 0; }
+static int __fastcall shb_cannon(void *s, void *, void *o)  { _ZN5Actor24OnHitByCannonBlastedCharERS_(s, o); return 0; }
+static int __fastcall shb_mega(void *s, void *, void *p)    { _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
+static int __fastcall shb_under(void *s, void *, void *o)   { _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
 /* the destructors spell the class's own table by its RTTI name */
 #pragma comment(linker, "/alternatename:__ZTV14daObjBSwdoor_c=__ZTV10ShutterBob")
 /* InitResources reads data_ov014_021145c4 as a C++ `extern int`, which MSVC
@@ -610,17 +635,20 @@ extern "C" void hal_fill_shutter_bob_vtable(void)
     vt[16] = (void *)shb_d1;
     vt[17] = (void *)shb_d0;
     /* the Platform tail (20..31): the Actor interaction virtuals plus
-       Platform::Kill. Nothing on the shutter's clean run dispatches these;
-       trapped per slot so if one ever fires it names itself. */
-    vt[20] = (void *)shb_trap20;
-    vt[21] = (void *)shb_trap21;
-    vt[22] = (void *)shb_trap22;
-    vt[23] = (void *)shb_trap23;
-    vt[24] = (void *)shb_trap24;
-    vt[25] = (void *)shb_trap25;
-    vt[26] = (void *)shb_trap26;
-    vt[27] = (void *)shb_trap27;
-    vt[28] = (void *)shb_trap28;
+       Platform::Kill. Slots 20..28 are the base Virtual50 + eight combat hooks
+       the A-press interaction path dispatches into the shutter -- hosted with
+       the base no-op stubs (the bbh/bob_enemy mapping). 29 (OnAimedAtWithEgg),
+       30 (OnAimedAtWithEggReturnVec) and 31 (Platform::Kill) stay trapped: no
+       observed path reaches them, so they name themselves if one ever does. */
+    vt[20] = (void *)shb_v50;
+    vt[21] = (void *)shb_pounded;
+    vt[22] = (void *)shb_atk1;
+    vt[23] = (void *)shb_atk2;
+    vt[24] = (void *)shb_kicked;
+    vt[25] = (void *)shb_pushed;
+    vt[26] = (void *)shb_cannon;
+    vt[27] = (void *)shb_mega;
+    vt[28] = (void *)shb_under;
     vt[29] = (void *)shb_trap29;
     vt[30] = (void *)shb_trap30;
     vt[31] = (void *)shb_trap31;

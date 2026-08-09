@@ -1495,6 +1495,77 @@ extern "C" void hal_fill_fish_vtable(void)
     vt[17] = (void *)ac_trap17;
 }
 
+// ---- UNCHAINED_CHOMP (actor 337, ov100) ------------------------------------
+//
+// _ZTV14UnchainedChomp, ov100 (SpawnInfo at 0x02148020). The obstacle BoB star 3
+// (5 Silver Stars) needs; census-skipped today with no row here, not a crash.
+//
+// Behavior is a host copy for the same pointer-to-member reason Fish's is
+// (port/unmatched/UnchainedChomp_Behavior.cpp), the simplest ov100 PMF table: a
+// single Holder* at +0x668, not an N-state array. Render is the same ModelAnim
+// slot-5 shadow dispatch, off mModelAnim at +0x30c (ModelAnim_Renders.cpp).
+extern "C" {
+int _ZN14UnchainedChomp13InitResourcesEv(unsigned char *self);  /* host copy (PathPtr thiscall) */
+int _ZN14UnchainedChomp8BehaviorEv(void *self);                 /* host copy */
+int _ZN14UnchainedChomp6RenderEv(void *self);                   /* host copy */
+int _ZN14UnchainedChomp16CleanupResourcesEv(void);
+void _ZN14UnchainedChomp16OnPendingDestroyEv(void);
+void *_ZTV14UnchainedChomp[20];
+/* D1 teardown helpers (the other classes' D1 blocks use these too) */
+void __destroy_arr(void *p, int n, int sz, void *dtor);
+void func_02011508(void);
+void func_020072c0(void);
+void func_ov002_020aed18(void *);   /* the Enemy base D2 (ov002), already hosted */
+}
+
+static int __fastcall uc_init(void *s, void *)
+{ return _ZN14UnchainedChomp13InitResourcesEv((unsigned char *)s); }
+static int __fastcall uc_clean(void *, void *)
+{ return _ZN14UnchainedChomp16CleanupResourcesEv(); }
+static int __fastcall uc_behavior(void *s, void *)
+{ return _ZN14UnchainedChomp8BehaviorEv(s); }
+static int __fastcall uc_render(void *s, void *)
+{ port_actor_render_probe("UNCHAINED_CHOMP", (char *)s + 0x30c);
+  return _ZN14UnchainedChomp6RenderEv(s); }
+static int __fastcall uc_pdes(void *, void *)
+{ _ZN14UnchainedChomp16OnPendingDestroyEv(); return 0; }
+/* SLOT 16: the butterfly reading -- UnchainedChomp's matched Behavior never
+   calls MarkForDestruction itself, but D1 is still reachable through ordinary
+   AfterCleanupResources / level-unload teardown, so it is filled rather than
+   trapped. Body is src/_ZN14UnchainedChompD1Ev.cpp line for line (D1, not D0:
+   no final Deallocate). func_ov002_020aed18 is the shared Enemy base D2. */
+static void *__fastcall uc_d1(void *s, void *)
+{
+    char *c = (char *)s;
+    *(void **)c = (void *)_ZTV14UnchainedChomp;
+    __destroy_arr(c + 0x768, 6, 6, (void *)func_02011508);
+    __destroy_arr(c + 0x720, 6, 0xc, (void *)func_020072c0);
+    __destroy_arr(c + 0x6d8, 6, 0xc, (void *)func_020072c0);
+    _ZN11ShadowModelD1Ev(c + 0x640);
+    __destroy_arr(c + 0x550, 6, 0x28, (void *)_ZN11ShadowModelD1Ev);
+    __destroy_arr(c + 0x370, 6, 0x50, (void *)_ZN5ModelD1Ev);
+    _ZN9ModelAnimD1Ev(c + 0x30c);
+    _ZN12WithMeshClsnD1Ev(c + 0x150);
+    _ZN25MovingCylinderClsnWithPosD1Ev(c + 0x110);
+    func_ov002_020aed18(c);
+    return c;
+}
+
+extern "C" void hal_fill_unchained_chomp_vtable(void)
+{
+    void **vt = _ZTV14UnchainedChomp;
+    ac_fill_shared(vt);
+    vt[0] = (void *)uc_init;
+    vt[3] = (void *)uc_clean;
+    vt[6] = (void *)uc_behavior;
+    vt[9] = (void *)uc_render;
+    vt[12] = (void *)uc_pdes;
+    vt[16] = (void *)uc_d1;
+    /* 17 keeps the trap, the Butterfly/Fish reading: destroy is D1 + an explicit
+       Deallocate; nothing on this level calls the deleting form. */
+    vt[17] = (void *)ac_trap17;
+}
+
 // ============================================================================
 // GATE 22: ov100's DOOR
 // ============================================================================
