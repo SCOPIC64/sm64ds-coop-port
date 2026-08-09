@@ -1069,7 +1069,8 @@ foreach(line IN LISTS SLICE33_LINES)
     list(APPEND SLICE33_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 list(APPEND SLICE33_SOURCES
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Coin_Behavior.cpp")
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Coin_Behavior.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Coin_CollectDispatch.cpp")
 
 # Gate 32: Bob-omb Battlefield's living cast -- the first ENEMY-family actor
 # classes the port hosts, and the first vtables past twenty slots. See the head
