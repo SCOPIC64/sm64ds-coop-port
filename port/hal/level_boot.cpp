@@ -161,7 +161,63 @@ extern const unsigned port_ov017_ds_base, port_ov017_ds_end;
    = 16, LVL_Overlay data_02092208[8] = 0x02113b90, OV0 handles at +8 (bmd
    0x0761, kcl 0x075f, icg 0x0762, icl 0x0763) resolve through handles.tsv to
    kaizoku_irie's all.bmd/kcl/icg/icl; SUBLEVEL_LEVEL_TABLE[8] = 2 = course 2.
-   384 load relocs, a 25609-byte KCL. Mounted --whole; own_sinits 0. */
+   384 load relocs, a 25609-byte KCL. Mounted --whole; own_sinits 0.
+
+   GATE 187: L8 boots, walks and warps in and out clean. Census 182 spawned
+   (29 classes: PLAYER, COIN x61, STATIC_ROCK x33, GOOMBA x8, SIGN_POST x8,
+   RED_COIN/BLUE_COIN x8, FISH x6, CAP x5, STAR_MARKER x5, POWER_STAR x4,
+   INVISIBLE_POLE x4, and the rest of the furniture), 29 skipped (12 classes).
+   The warp handoff tears down clean both ways in one round: L1->L8 marks 51 and
+   leaves 0; L8->L6 marks 182 and leaves 0; L8->L1 marks 177 and leaves 0. An
+   8-viewpoint proximity sweep (240f each, the whole x[-12000..12000]/z[same]
+   footprint) and 300f/900f idle soaks all exit clean with no crash.txt and no
+   exit.txt. None of L7's teardown/render/sign-drain culprits (CAP-arg,
+   FIRE_PIRANHA ov084, BLUE_COIN_SWITCH G0, the TowerStep/MovingBarSmall sign
+   drain, the HealingHeart slot-5) fire here: those actors are ov015's, and JRB
+   spawns none of them.
+
+   ITS SKIPPED CAST, all 12 named off the ROM spawn table + config symbols.
+   Every one boots walkable with the class skipped and named in the census; each
+   is a deferred multi-part gate (the gate-64/95 per-symbol mount + sinits +
+   vtable fill + row shape), not fake-booted:
+
+     ov016-resident (6 classes, need a per-symbol ov016 mount running its five
+     __sinit_ov016_* to construct the SharedFilePtrs, since the whole-mount
+     leaves own_sinits 0):
+       - ShipDown (56), ShipUp (57): the sunken ship's rise/sink platforms.
+       - RockPillar (58, x6): the rising rock pillars.
+       - FloatOnWaterPlatformJrb (60): a MovingMeshCollider. Its InitResources
+         installs MeshColliderBase::UpdatePosWithTransform as the BeforeClsn
+         callback (func_020393d4 into the +0x124 collider) -- the EXACT
+         contested-slot family c9a1731da seats (the walls-area bridge fix). It
+         is the level's first rideable moving collider; hosting it is what the
+         RIDE sweep needs, and riding it is the direct test that this tree's
+         c9a1731da seating covers a JRB mover, not only ov015's bridge.
+       - Unagi (242, x3): the eel.
+       - SlidingBox (313): a sliding platform.
+
+     ov064-resident (3 classes, shared with the ship's cast, the same ov064
+     mount the level-9 note defers):
+       - TreasureChest (13, x4), JetStream (245, the water current), Clam
+         (315, x5).
+
+     ov002-resident (2 classes, already-mounted overlay but each an
+     alias-collision risk, not a clean free-match):
+       - Seaweed (296, x4): id 296 is a DIFFERENT actor from the id-297
+         HealingHeart that already reuses _ZTV7Seaweed in the port
+         (actor_classes_bob_world.cpp); hosting 296 needs that binding
+         disentangled first.
+       - MugenBgm (351): the looping-BGM trigger.
+
+     ov102-resident (1 class): KoopaShell (285), the ridden shell, needs the
+     ov102 shell-spawn path.
+
+   The RIDE sweep found NO active moving collider to ride: the collider registry
+   after boot is slot 0 only (the level's static 645-tri KCL, owner NULL),
+   because all of JRB's movers are in the skipped cast above. So the ride sweep
+   is a no-op until FloatOnWaterPlatformJrb (or another mover) is hosted -- the
+   contested-slot bomb cannot fire on a mover that never spawns. Flagged for the
+   follow-on gate. */
 void port_ov016_patch(void);
 void *port_ov016_at(unsigned ds);
 extern unsigned char port_ov016_image[];
