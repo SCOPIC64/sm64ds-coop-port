@@ -137,6 +137,25 @@ src/__sinit_ov016_02113a50.c
 # exit 0, clean 22-class census, no crash artifacts. JRB 600f regression
 # (SM64DS_LEVEL=8 SM64DS_ACTOR_PROBE=1 SM64DS_WINDOW_SELFTEST=600) unchanged:
 # 193/35 + 22/7 boot, 200/35 + 22/7 end, exit 0.
+# EXTENDED PROOF (unifying three crash-signature families as the SAME G0/G1
+# stomp, per Brain A's sig5-ab lane -- SIG-RP/SIG-WARP/SIG-5, 96 of 118 JRB
+# dumps): two more repros from Brain A's jrb-matrix run dir, run against this
+# worktree's own build (own private run dir, read-only reference to A's
+# .rec/.cmd recipe files only):
+#   g2_EXIT_A  (SIG-WARP shape): SM64DS_FAULTS_FATAL=1 SM64DS_LEVEL=8
+#     SM64DS_WINDOW_SELFTEST=300 SM64DS_STAR_FILTER=2 SM64DS_SPAWN=5550,-4650,1625
+#     -- pre-fix: c0000005 at +0x0002fabc, walker node actor id 0x3a
+#     (ROCK_PILLAR), same detector as the minimal repro; post-fix: exit 0,
+#     300-frame selftest completes, no crash artifacts.
+#   g5_SHIP_DOWN_RIDE_A (SIG-5 shape): SM64DS_FAULTS_FATAL=1 SM64DS_LEVEL=8
+#     SM64DS_WINDOW_SELFTEST=300 SM64DS_STAR_FILTER=5 SM64DS_SPAWN=5250,-5400,2050
+#     -- pre-fix: c0000005 at +0x0002fabc, walker node actor id 0x3a
+#     (ROCK_PILLAR), same detector; post-fix: exit 0, 300-frame selftest
+#     completes, no crash artifacts.
+# All three reps (minimal ROCK_PILLAR repro + g2_EXIT_A + g5_SHIP_DOWN_RIDE_A)
+# crash pre-fix on the identical walker-node id 0x3a detector and run clean
+# post-fix with this same one rename fix -- confirms the single root cause
+# behind all three dump families.
 # NOT FIXED (flagged, out of scope for this pass): 30 src/ TUs repo-wide still
 # carry the raw `extern int G0[]`/`G1[]` shape (grep `extern int G[0-9]\b`).
 # None are hosted in gates 191-193's ov018/ov081/ov072 mounts. Screen any
