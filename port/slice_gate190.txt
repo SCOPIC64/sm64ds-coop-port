@@ -1,0 +1,86 @@
+# Gate 190: CCM slice A -- ICE_SHEET (295) + POWER_STAR_CREATE (355) on a new
+# ov018 per-symbol mount, plus ONE_UP_LOGO (331) on the already-mounted ov002.
+# The fill is hal/actor_classes_ccm.cpp (already carries gate 142's
+# IceSlideManager); the mount adds port/ov018_syms.txt and one new SpawnInfo
+# line in port/ov002_syms.txt.
+#
+# ---- carried from main (post ffb3d311f #1083 + efa312c5e #1305) -----------
+# The cons-branch copies of IceSheet's D0/D1/CleanupResources spelled the
+# stale shared placeholders G0/G1 (pinned in cxx_aliases.cpp to SignPost's
+# file pointers); main's #1083 renamed them to the per-class
+# IceSheet_ModelFile/IceSheet_ClsnFile bss pair, source-side, no linker alias
+# needed on main -- this worktree adds the alias instead of editing the
+# matched src (see hal/actor_classes_ccm.cpp's two /alternatename pragmas).
+# func_ov018_021126f8 (PowerStarCreate's D0) and func_ov018_02112730
+# (PowerStarCreate's Behavior) also differ from the stale cons copies by the
+# same #1083 sweep (cross-overlay symbol fixes unrelated to their own vtable
+# slots). config/arm9/overlays/ov018/symbols.txt was carried wholesale (pure
+# renames, RTTI names + the two IceSheet bss aliases; ovdata.py reads this
+# file directly for symbol resolution). SkiLift's cleanup fix
+# (_ZN7SkiLift16CleanupResourcesEv.cpp) and MotherPenguin's sinit fix
+# (__sinit_ov018_02112c80.cpp), efa312c5e #1305, are carried too even though
+# neither class is hosted this gate -- both are matched src that must not
+# regress, and SkiLift/MotherPenguin stay unregistered (their sinits are not
+# called) so their fix has no runtime effect here, only correctness for a
+# later gate.
+# ---- the two factories -----------------------------------------------------
+src/IceSheet_Spawn.c
+src/PowerStarCreate_Spawn.c
+# ---- ICE_SHEET (daObjIceBoard_c, a Platform) -------------------------------
+# All 9 own vtable slots are matched src: the 6 the scope report named
+# (Init/Cleanup/Behavior/Render/D1/D0) plus three combat overrides the scope
+# report missed (OnGroundPounded slot 21, OnHitByMegaChar slot 27, Kill slot
+# 31 -- found by reading every relocation in _ZTV8IceSheet's 32-word span, not
+# just the six-method count). All three use the montymole/Crate shadow-vtable-
+# call shape (a local `struct { virtual ... }` whose Nth virtual is really
+# whatever the real installed vtable's same slot holds) and need no special
+# handling once the real slots are filled.
+src/_ZN8IceSheet13InitResourcesEv.cpp
+src/_ZN8IceSheet16CleanupResourcesEv.cpp
+src/_ZN8IceSheet8BehaviorEv.cpp
+src/_ZN8IceSheet6RenderEv.cpp
+src/_ZN8IceSheetD1Ev.c
+src/_ZN8IceSheetD0Ev.c
+src/func_ov018_021128e0.cpp
+src/func_ov018_02112858.cpp
+src/func_ov018_02112880.cpp
+# ---- POWER_STAR_CREATE (daSCre_c, an ActorBase-only 18-slot shape) ---------
+# Only 3 of its 18 slots are overridden (6 Behavior, 16 D1, 17 D0); slots
+# 0/3/9/12 take ActorBase's own shared base bodies UNCHANGED (confirmed by
+# reloc target address -- the class installs no InitResources/Cleanup/Render
+# override at all). func_ov018_021126f8 (slot 17) carries a stale "recovered
+# name: daSCre_c_OnYoshiTryEat" comment in main -- a name decoy, not a byte
+# problem: its reloc slot is 17 (D0's ROM position) and its body shape (store
+# own vtable, Actor::D2, Memory::Deallocate) is D0's. The table is only 18
+# words long (ends at 0x02113ab8; 0x02113abc is IceSheet's own RTTI, a
+# disjoint record), so there is no slot 18 for OnYoshiTryEat to occupy.
+src/func_ov018_021126d4.c
+src/func_ov018_021126f8.c
+src/func_ov018_02112730.cpp
+# ---- ONE_UP_LOGO (daObj1UpLogo_c, a plain 31-slot Actor, no Kill) ----------
+# D1 (src/_ZN9OneUpLogoD1Ev.cpp) is NOT in this slice: a real MSVC-synthesised
+# destructor over a local shadow Actor/Model/TextureSequence hierarchy with no
+# bodies of its own -- the gate-31 recipe (hal/actor_classes.cpp's
+# PeachPainting D1) spells the chain directly in the fill instead of compiling
+# the shadow-class TU. src/_ZN9OneUpLogoD1Ev.cpp stays in src/ as the matched
+# proof; it is not part of the port build.
+src/OneUpLogo_Spawn.c
+src/_ZN9OneUpLogo13InitResourcesEv.cpp
+src/_ZN9OneUpLogo16CleanupResourcesEv.c
+src/_ZN9OneUpLogo8BehaviorEv.c
+src/_ZN9OneUpLogo6RenderEv.cpp
+src/_ZN9OneUpLogoD0Ev.c
+# ---- the one sinit that runs (IceSheet's own, self-contained) -------------
+src/__sinit_ov018_02112e00.c
+#
+# NOT in this slice (present in src/, carried byte-identical from main, but
+# NOT compiled into this gate's build): SkiLift's cleanup fix
+# (_ZN7SkiLift16CleanupResourcesEv.cpp) and MotherPenguin's sinit fix
+# (__sinit_ov018_02112c80.cpp), efa312c5e #1305. Both reach data_ov018_*
+# statics that live OUTSIDE this gate's ov018_syms.txt mount (SkiLift's and
+# MotherPenguin's own bss/data windows, neither hosted) -- compiling them here
+# would pull in unresolved externals for symbols this gate deliberately does
+# not mount. They stay unregistered (their sinits are not called from
+# hal/actor_overlays.cpp), so the correctness fix has no runtime effect yet,
+# only keeps src/ in sync with main for a later gate that DOES mount SkiLift/
+# MotherPenguin's own windows.

@@ -858,6 +858,17 @@ list(APPEND PORT_ACTOR_OVERLAYS ov020)
 # _ZTV23FloatOnWaterPlatformJrb) are host arrays the registry fills. See
 # port/ov016_syms.txt and hal/actor_classes_jrb.cpp.
 list(APPEND PORT_ACTOR_OVERLAYS ov016)
+# gate 190: ov018 is level 10's own overlay (Cool Cool Mountain, snow_mt),
+# already mounted whole in PORT_LEVEL_OVERLAYS; it joins the per-symbol mounts
+# here so ICE_SHEET (295) reaches its SpawnInfo and its bss SharedFilePtr
+# window, and POWER_STAR_CREATE (355) reaches its SpawnInfo, both by name --
+# the gate-59/gate-188 shape of ov015/ov016 applied to a fourth level overlay.
+# Only IceSheet's own sinit (__sinit_ov018_02112e00) runs; SkiLift's and
+# MotherPenguin's (02112c14, 02112c80) stay off, the ov019 IceSlideManager/
+# RacingPenguin split (gate 143). Its two vtables (_ZTV8IceSheet and
+# PowerStarCreate's unnamed table data_ov018_02113a74) are host arrays the
+# registry fills. See port/ov018_syms.txt and hal/actor_classes_ccm.cpp.
+list(APPEND PORT_ACTOR_OVERLAYS ov018)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1924,6 +1935,20 @@ foreach(line IN LISTS SLICE188_LINES)
     list(APPEND SLICE188_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Gate 190: Cool Cool Mountain's CCM slice A -- ICE_SHEET (295) and
+# POWER_STAR_CREATE (355), ov018's own overlay, plus ONE_UP_LOGO (331) on the
+# already-mounted ov002. The fill is appended to hal/actor_classes_ccm.cpp
+# (already carries gate 142's IceSlideManager).
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate190.txt" SLICE190_LINES)
+set(SLICE190_SOURCES "")
+foreach(line IN LISTS SLICE190_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE190_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gates 64-69: ov079's four static initialisers plus the six enemy classes'
 # matched lifecycle closures -- WHOMP (164), WHOMP_KING (165), BULLET_BILL (222),
 # BILL_BLASTER (43), FORTRESS_WALL (47), FORTRESS_WALL_BREAKABLE (48). The two
@@ -2088,7 +2113,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES} ${SLICE121_SOURCES} ${SLICE122_SOURCES} ${SLICE123_SOURCES}
-    hal/actor_classes_ccm.cpp ${SLICE142_SOURCES}
+    hal/actor_classes_ccm.cpp ${SLICE142_SOURCES} ${SLICE190_SOURCES}
     hal/actor_classes_bbh.cpp ${SLICE149_SOURCES}
     hal/actor_classes_hmc.cpp ${SLICE172_SOURCES} unmatched/Crate_StateDispatch.cpp
     hal/actor_classes_updownlift.cpp ${SLICE173_SOURCES} unmatched/UpDownLiftBbh_Behavior.cpp
@@ -2147,7 +2172,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES} ${SLICE121_SOURCES} ${SLICE122_SOURCES} ${SLICE123_SOURCES}
-    hal/actor_classes_ccm.cpp ${SLICE142_SOURCES}
+    hal/actor_classes_ccm.cpp ${SLICE142_SOURCES} ${SLICE190_SOURCES}
     hal/actor_classes_bbh.cpp ${SLICE149_SOURCES}
     hal/actor_classes_hmc.cpp ${SLICE172_SOURCES} unmatched/Crate_StateDispatch.cpp
     hal/actor_classes_updownlift.cpp ${SLICE173_SOURCES} unmatched/UpDownLiftBbh_Behavior.cpp
@@ -2209,7 +2234,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES} ${SLICE121_SOURCES} ${SLICE122_SOURCES} ${SLICE123_SOURCES}
-    hal/actor_classes_ccm.cpp ${SLICE142_SOURCES}
+    hal/actor_classes_ccm.cpp ${SLICE142_SOURCES} ${SLICE190_SOURCES}
     hal/actor_classes_bbh.cpp ${SLICE149_SOURCES}
     hal/actor_classes_hmc.cpp ${SLICE172_SOURCES} unmatched/Crate_StateDispatch.cpp
     hal/actor_classes_updownlift.cpp ${SLICE173_SOURCES} unmatched/UpDownLiftBbh_Behavior.cpp

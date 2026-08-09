@@ -67,6 +67,22 @@ void hal_fill_flag_vtable(void);
 extern unsigned char IceSlideManager_SpawnInfo[];       /* ov019 0x021133a8 */
 void *IceSlideManager_Spawn(void);                      /* ov019 0x0211274c */
 void hal_fill_ice_slide_manager_vtable(void);
+/* ---- gate 190: level 10's own classes, ICE_SHEET (295) + POWER_STAR_CREATE
+   (355), Cool Cool Mountain (ov018). Both SpawnInfo records come from the
+   per-symbol ov018 mount (ov018_syms.txt); both vtable fills are in
+   hal/actor_classes_ccm.cpp. */
+extern unsigned char IceSheet_SpawnInfo[];              /* ov018 0x02113b10 */
+void *IceSheet_Spawn(void);                             /* ov018 0x02112a44 */
+void hal_fill_ice_sheet_vtable(void);
+extern unsigned char PowerStarCreate_SpawnInfo[];       /* ov018 0x02113a50 */
+void *PowerStarCreate_Spawn(void);                      /* ov018 0x0211278c */
+void hal_fill_power_star_create_vtable(void);
+/* ---- gate 190: ONE_UP_LOGO (331), ov002 (already mounted). Its SpawnInfo
+   joins the existing per-symbol ov002 mount; the vtable fill is
+   hal/actor_classes_ccm.cpp. */
+extern unsigned char OneUpLogo_SpawnInfo[];             /* ov002 0x0210b188 */
+void *OneUpLogo_Spawn(void);                            /* ov002 0x020f1170 */
+void hal_fill_one_up_logo_vtable(void);
 /* ---- gate 18: ov085, the first ACTOR overlay ----
    Not the engine overlay and not the level's -- six classes several levels
    share, of which the castle grounds names two. The SpawnInfo records come
@@ -830,6 +846,14 @@ void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlat
         vtable filled by hal/actor_classes_ccm.cpp. */ \
      {356, "ICE_SLIDE_MANAGER", IceSlideManager_SpawnInfo, IceSlideManager_Spawn, \
       hal_fill_ice_slide_manager_vtable}, \
+     /* ---- gate 190: CCM slice A -- ICE_SHEET + POWER_STAR_CREATE (ov018), \
+        ONE_UP_LOGO (ov002) ---- */ \
+     {295, "ICE_SHEET", IceSheet_SpawnInfo, IceSheet_Spawn, \
+      hal_fill_ice_sheet_vtable}, \
+     {355, "POWER_STAR_CREATE", PowerStarCreate_SpawnInfo, PowerStarCreate_Spawn, \
+      hal_fill_power_star_create_vtable}, \
+     {331, "ONE_UP_LOGO", OneUpLogo_SpawnInfo, OneUpLogo_Spawn, \
+      hal_fill_one_up_logo_vtable}, \
     /* ---- gate 149: HAUNTED_CHAIR (326), Big Boo's Haunt (ov020, level 12) ---- */ \
     {326, "HAUNTED_CHAIR", HauntedChair_SpawnInfo, HauntedChair_Spawn, \
      hal_fill_haunted_chair_vtable}, \

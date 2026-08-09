@@ -1,0 +1,43 @@
+# Gate 190: Cool Cool Mountain's own overlay (ov018, data/stage/snow_mt, base
+# 0x021111a0), the CCM slice A per-symbol mount -- ICE_SHEET (295) and
+# POWER_STAR_CREATE (355). ov018 is already mounted --whole in
+# PORT_LEVEL_OVERLAYS (CMakeLists.txt gate 135); this is the SECOND mount, per
+# symbol, the gate-17/gate-59/gate-188 treatment (ov009/ov015/ov016) applied to
+# a fourth level overlay's own classes.
+#
+# SKI_LIFT (63) and MOTHER_PENGUIN (257) stay OUT of this mount: SkiLift's
+# InitResources reaches window-shared ov036/ov056/ov022 statics (the
+# #1308-#1310 trap family, disasm-confirmed aliases needed first) and
+# MotherPenguin has only its factory decompiled. Neither class's own bss
+# window is mounted here, so a future gate can add them without touching this
+# file's rows.
+#
+# THE VTABLES STAY OUT, the ov080/ov095/ov064/ov016 rule: _ZTV8IceSheet
+# (0x02113b34, 32 words -- the full 31-slot Actor shape, own overrides at
+# 0/3/6/9/16/17/21/27/31) and PowerStarCreate's unnamed table
+# data_ov018_02113a74 (18 words -- the ActorBase-only shape, own overrides at
+# 6/16/17 only, no OnYoshiTryEat/combat tail) each carry the vtable signature
+# (+4 relocates to Actor::BeforeInitResources, arm9 0x02011268) and are HOST
+# arrays hal/actor_classes_ccm.cpp fills.
+#
+# ---- IDs cross-checked from relocs.txt (the ov016 recipe: SpawnInfo's +4
+# halfword is the id the registry cross-checks) ----
+# PowerStarCreate_SpawnInfo (0x02113a50, +4 -> 0x02113a54 = 0x163 = 355) --
+# +0 is the factory word (0x0211278c = PowerStarCreate_Spawn).
+# IceSheet_SpawnInfo (0x02113b10, +4 -> 0x02113b14 = 0x127 = 295) -- +0 is
+# 0x02112a44 = IceSheet_Spawn.
+PowerStarCreate_SpawnInfo:0x1c
+IceSheet_SpawnInfo:0x1c
+#
+# ---- IceSheet's bss window (the four cells __sinit_ov018_02112e00 builds) --
+# __sinit_ov018_02112e00 is SELF-CONTAINED (only ov018 symbols; verified by
+# reading its body) and constructs two SharedFilePtrs -- the Model file at
+# data_ov018_02113c84 (== IceSheet_ModelFile, aliased in config by #1083) and
+# the Clsn file at data_ov018_02113c7c (== IceSheet_ClsnFile) -- plus their two
+# destruct-node cells at 02113c98/02113c8c (void*[3], the func_020731dc shape).
+# IceSheet::InitResources reads the SharedFilePtrs by the raw data_ov018_*
+# names; IceSheet::CleanupResources (post #1083) reads them by the
+# IceSheet_ModelFile/ClsnFile aliases. Mount the raw names (the ov018_syms.txt
+# convention everywhere else in this file) and alias the alternate spelling in
+# the fill, the _ZTV14daObj1UpLogo_c/_ZTV9OneUpLogo treatment.
+data_ov018_02113c7c data_ov018_02113c84 data_ov018_02113c8c data_ov018_02113c98

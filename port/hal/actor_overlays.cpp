@@ -858,6 +858,14 @@ void __sinit_ov016_021138bc(void);
 void __sinit_ov016_02113978(void);
 void __sinit_ov016_021139e4(void);
 void __sinit_ov016_02113a50(void);
+/* gate 190: ov018 per-symbol -- Cool Cool Mountain's own overlay. Only
+   IceSheet's own sinit (021_2e00) runs; SkiLift's (02112c14) and
+   MotherPenguin's (02112c80) stay off -- neither class is hosted, the ov019
+   IceSlideManager/RacingPenguin split (gate 143). No state seat: IceSheet
+   dispatches no PMF table. */
+void port_ov018_pack_check(void);
+void port_ov018_syms_patch(void);
+void __sinit_ov018_02112e00(void);
 }
 
 extern "C" void port_actor_overlays_sinits(void)
@@ -1071,4 +1079,14 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov016_02113978();   /* ROCK_PILLAR: 2 SFPs */
     __sinit_ov016_021139e4();   /* SHIP_DOWN: 2 SFPs */
     __sinit_ov016_02113a50();   /* FLOAT_ON_WATER_PLATFORM_JRB / SLIDING_BOX */
+
+    /* gate 190: ov018, Cool Cool Mountain's own overlay, per-symbol mount for
+       ICE_SHEET + POWER_STAR_CREATE. Only IceSheet's own sinit runs (builds
+       its two SharedFilePtrs, the Model file at data_ov018_02113c84 and the
+       Clsn file at data_ov018_02113c7c); PowerStarCreate has no sinit of its
+       own (its Behavior spawns a POWER_STAR and self-destructs, no
+       SharedFilePtrs, no state seat). */
+    port_ov018_pack_check();
+    port_ov018_syms_patch();
+    __sinit_ov018_02112e00();   /* ICE_SHEET: Model + Clsn SharedFilePtrs */
 }

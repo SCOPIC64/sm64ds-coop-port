@@ -172,3 +172,17 @@ GreenShellBlockTag_SpawnInfo:0x1c
 # so the +4 id halfwords the registry cross-checks read 316 / 317. The vtable
 # _ZTV9BlueFlame stays OUT, a host array (hal/actor_classes_flame.cpp).
 RedFlame_SpawnInfo:0x1c BlueFlame_SpawnInfo:0x1c
+# gate 190: ONE_UP_LOGO (331), Cool Cool Mountain's ice-slide proximity spawn.
+# Its SpawnInfo record, pinned to 0x1c so the +4 id halfword the registry
+# cross-checks reads 331 (0x14b) out of the right bytes. The vtable
+# _ZTV9OneUpLogo (== the RTTI alias _ZTV14daObj1UpLogo_c its own D0 spells)
+# stays a host array hal/actor_classes_ccm.cpp fills, the ov080 rule; a
+# mounted vtable would hand OneUpLogo_Spawn DS code addresses. InitResources'
+# two SharedFilePtrs (data_ov002_02110a9c, data_ov002_02110aa4) are already in
+# this mount (the ov002 whole-class window above), so no new data symbols.
+OneUpLogo_SpawnInfo:0x1c
+# gate 190: ICE_SHEET's (ov018) CLPS block, in ov002 -- IceSheet::InitResources
+# passes &data_ov002_0210d754 to MovingMeshCollider::SetFile as the surface-
+# type table, the BlueCoinSwitch/gate-78 CLPS shape (0x20 bytes, the delta to
+# the next symbol data_ov002_0210d774). Plain data, no relocations.
+data_ov002_0210d754:0x20
