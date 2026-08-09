@@ -55,6 +55,61 @@ static s16 __fastcall mmc_angvel(void *s, void *)
 { return ((MMC *)s)->MMC::GetAngularVelY(); }
 static void __fastcall mmc_vel(void *s, void *, Vector3 *r)
 { ((MMC *)s)->MMC::GetVelocity(*r); }
+/* Slot 9 -- BeforeClsn, the platform-carry seat, inherited from
+   MeshColliderBase (MovingMeshCollider.h: "Overrides every slot except
+   BeforeClsn (slot 9) and GetSurfaceInfo"). A rider standing on a moving
+   collider fires this every collision step to run the beforeClsnCallback that
+   carries it along. The seed copy from _ZTV12MeshCollider now brings the base
+   body's shim across (hal/clsn_vtable.cpp slot_beforeclsn), but this table names
+   every slot it owns, so it is pinned here too rather than left implicit. Same
+   inlined ROM body as the base shim -- `beforeClsnCallback(this, actor, &res,
+   &pos, motionAng, ang)` off MeshColliderBase+0x18 with the arg-order swap --
+   for the same reason (the matched src TU is not linked in every target). */
+/* THE CARRY-SLOT INDEX SKEW, and why this shim swaps a slot.
+ *
+ * The seat bodies below (mmc_tpos/mmc_angvel/mmc_vel) are the derived
+ * MovingMeshCollider overrides a riding actor reads to be carried. The table
+ * is filled in ROM slot order -- BeforeClsn 9, TransformPos 10, GetAngularVelY
+ * 11, GetVelocity 12 -- because every ROM-transcribed shadow class that
+ * dispatches into a collider counts the Itanium TWO destructor slots
+ * (func_02038324's Obj::m9 hits BeforeClsn at 9, MovingMeshCollider::Transform's
+ * VObj::v12 hits GetVelocity at 12).
+ *
+ * But the carry is not driven by a ROM shadow. It is driven by the four MATCHED
+ * MeshColliderBase UpdatePos.../UpdateAngs... callbacks, and THOSE are compiled
+ * by MSVC against MeshColliderBase.h, where the destructor is ONE slot (the D1/D0
+ * fold this whole file already documents for slots 0-5). So MSVC emits their
+ * virtual calls one index LOW: UpdatePosWithTransform calls TransformPos through
+ * [ecx+0x24] = index 9, UpdateAngsWithAngularVelY calls GetAngularVelY through
+ * index 10, UpdatePosWithVelocity calls GetVelocity through [eax+0x2C] = index
+ * 11 (both confirmed by disassembly). Filled ROM-order, index 9 held
+ * mmc_beforeclsn, so UpdatePosWithTransform re-entered BeforeClsn instead of
+ * TransformPos and the carry recursed until pos went null -- the lift-ride
+ * crash's deeper fault.
+ *
+ * The fix seats each carry override at the MSVC index its caller reads:
+ * TransformPos at 9, GetAngularVelY at 10, GetVelocity at 11, and GetVelocity
+ * ALSO at 12 for the ROM shadow (Transform's v12). Indices 10/11 are read by no
+ * ROM shadow, so that is free. Index 9 is the ONE genuine collision: the ROM
+ * shadow needs BeforeClsn there, the MSVC carry needs TransformPos there. They
+ * never want it at the same instant -- BeforeClsn is the OUTER call
+ * (func_02038324 -> m9), TransformPos is INNER (reached only from the callback
+ * BeforeClsn invokes), and the callback never re-enters func_02038324. So the
+ * shim parks TransformPos in index 9 for the duration of the callback and puts
+ * BeforeClsn back on the way out. Single-threaded; the callback fully returns
+ * before this frame does. */
+static void __fastcall mmc_beforeclsn(void *s, void *, ClsnResult *res,
+                                      Actor *actor, Vector3 *pos,
+                                      Vector3_16 *motionAng, Vector3_16 *ang)
+{
+    MeshColliderBase *base = (MeshColliderBase *)s;
+    /* Park TransformPos in the MSVC carry index (9) for the callback, restore
+       BeforeClsn after. See the block comment above. */
+    void *saved9 = _ZTV18MovingMeshCollider[9];
+    _ZTV18MovingMeshCollider[9] = (void *)mmc_tpos;
+    base->beforeClsnCallback(base, actor, res, pos, motionAng, ang);
+    _ZTV18MovingMeshCollider[9] = saved9;
+}
 
 extern "C" void hal_fill_moving_mesh_collider_vtable(void)
 {
@@ -65,8 +120,15 @@ extern "C" void hal_fill_moving_mesh_collider_vtable(void)
     _ZTV18MovingMeshCollider[6] = (void *)mmc_ground;
     _ZTV18MovingMeshCollider[7] = (void *)mmc_line;
     _ZTV18MovingMeshCollider[8] = (void *)mmc_sphere;
-    _ZTV18MovingMeshCollider[10] = (void *)mmc_tpos;
-    _ZTV18MovingMeshCollider[11] = (void *)mmc_angvel;
+    /* Carry slots seated at the MSVC indices their matched callers read
+       (TransformPos 9, GetAngularVelY 10, GetVelocity 11), plus GetVelocity at
+       the ROM index 12 for MovingMeshCollider::Transform's v12 shadow. Index 9
+       starts as BeforeClsn for the ROM func_02038324 -> m9 entry; mmc_beforeclsn
+       parks mmc_tpos there for the duration of the callback. See the block
+       comment on mmc_beforeclsn for the full index-skew reasoning. */
+    _ZTV18MovingMeshCollider[9] = (void *)mmc_beforeclsn;
+    _ZTV18MovingMeshCollider[10] = (void *)mmc_angvel;
+    _ZTV18MovingMeshCollider[11] = (void *)mmc_vel;
     _ZTV18MovingMeshCollider[12] = (void *)mmc_vel;
     /* The three moving-collider DetectClsn bodies fill ONE static
        RaycastLine at arm9 0x020a0d0c and read the answer back out of two

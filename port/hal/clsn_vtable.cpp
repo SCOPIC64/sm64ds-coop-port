@@ -26,6 +26,35 @@ static void __fastcall slot_orig(void *self, void *, s16 tri, Vector3 *res)
 static int __fastcall slot_ray(void *self, void *, RaycastLine *ray)
 { return ((MeshCollider *)self)->MeshCollider::DetectClsn(*ray); }
 
+/* Slot 9 -- MeshColliderBase::BeforeClsn, the platform-carry seat. A moving
+   collider (a lift, a rotating platform) that an actor is STANDING ON fires
+   this every collision step; the body invokes the beforeClsnCallback the
+   platform's InitResources stored via func_020393d4 (UpdatePosWithTransform and
+   its siblings), which is what walks the rider along with the platform. Neither
+   MeshColliderBase overrides it nor does MovingMeshCollider, so both tables
+   inherit this one body (MeshColliderBase.h slot 9; MovingMeshCollider.h
+   "Overrides every slot except BeforeClsn (slot 9) and GetSurfaceInfo").
+   Left as slot_trap9 until this gate: the ride path was never proof-driven, so
+   the first actor to stand on a moving platform aborted here.
+
+   The one-line ROM body is inlined rather than dispatched to the matched
+   src (_ZN16MeshColliderBase10BeforeClsn...cpp): that TU rides slice_gate16,
+   which walk_window links but the gate-8/9 collision smoke targets do not, so a
+   qualified `MeshColliderBase::BeforeClsn` call would leave them unresolved and
+   only GATE8_EXTRA_SOURCES (CMakeLists) could repair that. The body is exactly
+   `beforeClsnCallback(this, actor, &res, &pos, motionAng, ang)` with the
+   documented arg-order swap (the virtual takes res-first, the callback
+   actor-first); the pointer lives at MeshColliderBase+0x18, its type spelled by
+   MeshColliderBase.h. PORT_HOST_ABI: __fastcall shim, ecx=this; the ROM body
+   transcribed, the WaterBomb/host-copy reading (one less cross-TU dependency). */
+static void __fastcall slot_beforeclsn(void *self, void *, ClsnResult *res,
+                                       Actor *actor, Vector3 *pos,
+                                       Vector3_16 *motionAng, Vector3_16 *ang)
+{
+    MeshColliderBase *base = (MeshColliderBase *)self;
+    base->beforeClsnCallback(base, actor, res, pos, motionAng, ang);
+}
+
 /* Ground overload (ROM slot 6) -- MeshCollider::DetectClsn(RaycastGround &),
    ITCM 0x01ffd3f8, 0x498 bytes, unmatched. Adapter: a stack RaycastLine
    straight down from the ground ray's own position by the ground ray's own
@@ -191,7 +220,7 @@ static int __fastcall slot_sphere(void *self, void *, void *sph)
         fprintf(stderr, "FATAL: MeshCollider vtable slot %d dispatched " \
                         "with no filler (clsn_vtable.cpp)\n", n); \
         abort(); }
-TRAP(0) TRAP(1) TRAP(6) TRAP(8) TRAP(9) TRAP(10) TRAP(11) TRAP(12)
+TRAP(0) TRAP(1) TRAP(6) TRAP(8) TRAP(10) TRAP(11) TRAP(12)
 
 // SLOT ORDER IS MSVC'S, NOT THE ROM'S. The dispatching code here is
 // MSVC-compiled against include/MeshCollider.h, and MSVC lays the table
@@ -211,7 +240,8 @@ extern "C" void *_ZTV12MeshCollider[13] = {
     (void *)slot_ground,        /* 6: DetectClsn(RaycastGround) - adapter */
     (void *)slot_ray,           /* 7: DetectClsn(RaycastLine) */
     (void *)slot_sphere,        /* 8: DetectClsn(SphereClsn) - stub */
-    (void *)slot_trap9, (void *)slot_trap10,
+    (void *)slot_beforeclsn,    /* 9: BeforeClsn - the platform-carry seat */
+    (void *)slot_trap10,
     (void *)slot_trap11, (void *)slot_trap12,
 };
 
