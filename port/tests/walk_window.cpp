@@ -310,6 +310,12 @@ extern unsigned char data_ov002_02110124[];  /* _ZN6Player11ST_DEAD_PITE */
 extern int data_ov002_02110a48[5];           /* Tree's five cylinder lists */
 extern int data_ov002_0211073c[];            /* 4 rows of {fn-or-vtoff, v} */
 int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *st);
+#ifdef PORT_ROM_CLEAN
+/* ROM-CLEAN: fill the zeroed ROM tables from build/assets/romdata.bin before
+   anything reads them. Loud FATAL if the file is missing/corrupt. Runs ahead of
+   port_ov002_patch and every sinit -- see hal/romdata_loader.cpp. */
+extern "C" void port_romdata_load(void);
+#endif
 void port_ov002_patch(void);
 /* the pointers that leave their own mount, ovdata.py --cross. Order does not
    matter against the per-mount passes: it writes host addresses into host
@@ -1430,6 +1436,14 @@ int main(void)
     if (!ntr::io_init()) { fprintf(stderr, "io_init failed\n"); return 2; }
     if (!winapi_load()) { fprintf(stderr, "winapi_load failed\n"); return 2; }
     pacer_begin();
+#ifdef PORT_ROM_CLEAN
+    /* ROM-CLEAN: load + verify the ROM tables from romdata.bin FIRST, before
+       any table is read. Loud FATAL if the file is missing, short, or fails its
+       manifest sha. The pointer-rebase passes below (port_ov002_patch,
+       port_cross_patch, the overlay syms patches) then run over the loaded
+       bytes exactly as they would over baked-in ones. */
+    port_romdata_load();
+#endif
     if (!_ZN4Heap13SetupRootHeapEv()) return 2;
     memset(data_0209b3ec, 0, 48);
     data_0209b3ec[0] = data_0209b3ec[4] = data_0209b3ec[8] = 0x1000;
