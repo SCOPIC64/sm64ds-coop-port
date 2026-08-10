@@ -922,29 +922,29 @@ void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlat
       hal_fill_ice_block_vtable}, \
      {312, "SPINDRIFT", Spindrift_SpawnInfo, Spindrift_Spawn, \
       hal_fill_spindrift_vtable}, \
-     /* ---- gate 193: the actual SNOWMAN (272), ov072 ---- */ \
-     /* BABY_PENGUIN (256) is NOT registered here -- crashes deep in the
-        shared actor-Process pipeline (func_0204322c/port_dispatch_guarded,
-        the same infra gate 192's MrBlizzard exclusion already implicated)
-        a handful of frames after boot, a corrupted-instruction-pointer
-        jump (module-relative fault offset far outside the module's own
-        code span) rather than a null-deref. Traced with a temporary debug
-        probe (removed): the 6-cell PMF seat is verified correct (all six
-        cells hold valid host function addresses, confirmed byte for byte
-        against overlay_0072.bin before rewriting), Behavior dispatches
-        cleanly for both spawned instances across ~25 frames with sane
-        cell data every time, and the crash is NOT render-frequency-
-        related (only one successful Render call precedes it). Isolated
-        to BABY_PENGUIN specifically (SM64DS_SKIP_CLASS=BABY_PENGUIN ->
-        exit 0; SKIP_CLASS=SNOWMAN still crashes). Needs the same ROM
-        disassembly access this lane does not have. SnowmanHead (273) and
-        SnowmanBody (274) also stay unregistered -- see port/ov072_syms.txt
-        for the class-identity derivation and the SnowmanHead spawn-then-
-        orphan coupling. BabyPenguin's own matched src, D0, six-cell PMF
-        seat and both host-copy translations stay in the tree, byte-locked
-        and ready, just unregistered in the actor-class table. */ \
+     /* ---- gate 193: the actual SNOWMAN (272) + BABY_PENGUIN (256), ov072 ---- */ \
+     /* BABY_PENGUIN's original exclusion ("corrupted-IP jump deep in the
+        shared actor-Process pipeline") is ROOT-CAUSED and FIXED
+        (babypenguin-crash lane): it was never pipeline infra -- the
+        matched _ZN11BabyPenguin6RenderEv.cpp dispatches ModelAnim slot 5
+        through a local six-virtual ROM-order shadow, which the host
+        _ZTV9ModelAnim numbers as Virtual18 (the documented ModelAnim
+        slot-5 collision, the Whomp/Butterfly/Fish case); Virtual18's
+        two-stack-arg trampoline skewed esp by 4 on return and the caller
+        ret'd into its own spilled `self` (measured: EIP == the actor
+        pointer, DEP execute-violation, first frame the near instance
+        drew -- the pipeline frame the dump named was the victim, not the
+        culprit). Fix: the Render TU is host-copied in
+        port/unmatched/ModelAnim_Renders.cpp and dropped from
+        slice_gate193.txt; full forensics in hal/actor_classes_ov072.cpp's
+        header and the commit message. SnowmanHead (273) and SnowmanBody
+        (274) stay unregistered -- see port/ov072_syms.txt for the
+        class-identity derivation and the SnowmanHead spawn-then-orphan
+        coupling. */ \
      {272, "SNOWMAN", data_ov072_02122954, func_ov072_02120c00, \
       hal_fill_snowman_vtable}, \
+     {256, "BABY_PENGUIN", BabyPenguin_SpawnInfo, BabyPenguin_Spawn, \
+      hal_fill_baby_penguin_vtable}, \
     /* ---- gate 149: HAUNTED_CHAIR (326), Big Boo's Haunt (ov020, level 12) ---- */ \
     {326, "HAUNTED_CHAIR", HauntedChair_SpawnInfo, HauntedChair_Spawn, \
      hal_fill_haunted_chair_vtable}, \

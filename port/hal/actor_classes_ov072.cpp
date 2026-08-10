@@ -24,17 +24,25 @@
 // registry's own "not registered" skip path, not a crash (verified at
 // runtime, see the commit message).
 //
-// BABY_PENGUIN (256) IS BUILT BUT NOT REGISTERED -- its six-cell PMF
-// state-dispatch table (data_ov072_02122d6c, both host-copy translations
-// port/unmatched/BabyPenguin_StateEnter.cpp / BabyPenguin_StateTick.cpp,
-// the func_ov072_02121d50 SHORT-1 fix in BabyPenguin_InitResources.cpp /
-// BabyPenguin_LandTransition.cpp) is all correct and seat-verified --
-// but the class crashes a handful of frames after boot with a corrupted-
-// instruction-pointer jump in the shared actor-Process pipeline, the
-// same infra gate 192's MrBlizzard exclusion already implicated. See the
-// commit message and hal_fill_baby_penguin_vtable's own header for the
-// full trace; the fill function stays defined below, ready, just
-// unregistered in port/hal/actor_classes.inc.
+// BABY_PENGUIN (256) IS REGISTERED (babypenguin-crash lane). The crash
+// that excluded it from gate 193 is ROOT-CAUSED and fixed: the matched
+// src _ZN11BabyPenguin6RenderEv.cpp dispatched ModelAnim slot 5 through a
+// local six-virtual ROM-order shadow, which the host _ZTV9ModelAnim
+// numbers as Virtual18 (the documented ModelAnim slot-5 collision, the
+// Whomp/Butterfly/Fish case) -- Virtual18's __fastcall trampoline pops
+// TWO stack words where the shadow call pushed one, the skewed caller
+// rets into its own spilled `self`, and the jump surfaces as a DEP
+// execute-violation inside port_actor_process's frame (which is why it
+// first read as a "shared actor-Process pipeline" bug -- the pipeline
+// was the victim frame, not the culprit). Fix: the matched Render TU is
+// dropped from slice_gate193.txt (byte-locked in src/ as proof) and
+// _ZN11BabyPenguin6RenderEv is a HOST COPY in
+// port/unmatched/ModelAnim_Renders.cpp with the dispatch spelled as the
+// qualified ModelAnim::Render. The six-cell PMF state table, the
+// func_ov072_02121d50 SHORT-1 fixes and both state host copies were
+// verified INNOCENT during the hunt (all seat-checked valid at the
+// moment of the crash). daBgSnwmn_c is not exposed: its +0xd4/+0x124
+// members are plain 0x50-stride Models and _ZTV5Model[5] is dual-filled.
 //
 // FindWithActorID(0x101) MOTHER COUPLING (BabyPenguin::Behavior): looks
 // up MOTHER_PENGUIN (id 257, hosted since gate 191) by actor id when in
@@ -355,17 +363,21 @@ extern "C" void hal_fill_baby_penguin_vtable(void)
 }
 
 // ---- method faces -----------------------------------------------------------
-// _ZN11BabyPenguin13InitResourcesEv, _ZN11BabyPenguin8BehaviorEv and
-// _ZN11BabyPenguin6RenderEv are real MSVC methods against BabyPenguin.h
-// (?InitResources@BabyPenguin@@... etc., not __ZN11BabyPenguin...) --
-// faced here, the IceSheet/OneUpLogo recipe. CleanupResources and
-// OnPendingDestroy are plain C-linkage .c bodies taking (void) -- no
-// face needed, declared extern "C" above and called directly.
+// _ZN11BabyPenguin13InitResourcesEv and _ZN11BabyPenguin8BehaviorEv are
+// real MSVC methods against BabyPenguin.h (?InitResources@BabyPenguin@@...
+// etc., not __ZN11BabyPenguin...) -- faced here, the IceSheet/OneUpLogo
+// recipe. CleanupResources and OnPendingDestroy are plain C-linkage .c
+// bodies taking (void) -- no face needed, declared extern "C" above and
+// called directly.
+// _ZN11BabyPenguin6RenderEv is NOT faced here: the matched Render TU
+// dispatches ModelAnim slot 5 through a local six-virtual shadow (the ROM
+// Render), which the host _ZTV9ModelAnim numbers as Virtual18. The TU is
+// dropped from slice_gate193.txt and _ZN11BabyPenguin6RenderEv is the
+// host copy in port/unmatched/ModelAnim_Renders.cpp, the Whomp/Butterfly/
+// Fish/QuestionBlock case (see this file's own header).
 extern "C" {
 int _ZN11BabyPenguin13InitResourcesEv(void *self)
 { return ((BabyPenguin *)self)->BabyPenguin::InitResources(); }
 int _ZN11BabyPenguin8BehaviorEv(void *self)
 { return ((BabyPenguin *)self)->BabyPenguin::Behavior(); }
-int _ZN11BabyPenguin6RenderEv(void *self)
-{ return ((BabyPenguin *)self)->BabyPenguin::Render(); }
 }

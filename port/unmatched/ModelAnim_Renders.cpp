@@ -268,4 +268,35 @@ int _ZN14UnchainedChomp6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- BABY_PENGUIN (actor 256, ov072, gate 193) ----------------------------
+   The collision that excluded BABY_PENGUIN from gate 193 -- root-caused by the
+   babypenguin-crash lane, MEASURED not reasoned: with src/_ZN11BabyPenguin6Render
+   Ev.cpp compiled from the slice, the first frame instance 1 drew (frame 126 of
+   the L10 selftest, actor 0x0481d620) died on a DEP execute-violation with
+   EIP == the actor pointer ITSELF. Raw-stack forensics (cdb at the first-chance
+   AV): the faulting instruction was a RET that popped `self` off the stack --
+   the 4-byte esp skew the bridge's own "trap-by-Virtual18" comment predicts.
+   The matched TU dispatches `sub.m(&mScaleX)` through a LOCAL SIX-VIRTUAL
+   ROM-order shadow off mModelAnim at +0xd4, so its "slot 5" is the ROM's
+   ModelAnim::Render; the host _ZTV9ModelAnim's slot 5 is Virtual18, whose
+   __fastcall trampoline pops TWO stack words where the shadow call pushed one.
+   The skewed caller then rets into its own spilled `self`. (The earlier
+   "corrupted-instruction-pointer jump in the shared actor-Process pipeline"
+   reading was the VICTIM frame, not the culprit: port_actor_process's frame is
+   simply where the skewed ret surfaces. daBgSnwmn_c is NOT exposed: its +0xd4/
+   +0x124 members are plain 0x50-stride Models, and _ZTV5Model[5] is dual-filled.)
+   Excluded from slice_gate193.txt, dispatched by C name from bp_render in
+   hal/actor_classes_ov072.cpp. Matched-source control flow line for line:
+   flags +0xb0 bit 0x40000 is the draw guard, the scale is the actor's own
+   Vector3 at +0x80 (mScaleX).
+   PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish case. */
+int _ZN11BabyPenguin6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    if (*(unsigned int *)(c + 0xb0) & 0x40000)
+        return 1;
+    ((ModelAnim *)(c + 0xd4))->ModelAnim::Render((const Vector3 *)(c + 0x80));
+    return 1;
+}
+
 }  /* extern "C" */

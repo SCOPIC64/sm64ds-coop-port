@@ -64,7 +64,20 @@ src/func_ov072_02121a84.c
 src/func_ov072_02121c94.c
 src/_ZN11BabyPenguin16CleanupResourcesEv.c
 src/_ZN11BabyPenguin16OnPendingDestroyEv.c
-src/_ZN11BabyPenguin6RenderEv.cpp
+# _ZN11BabyPenguin6RenderEv.cpp is NOT in this list -- the ModelAnim
+# slot-5 collision (the Whomp/Butterfly/Fish case): the matched TU
+# dispatches `sub.m(&mScaleX)` through a local six-virtual ROM-order
+# shadow off mModelAnim (+0xd4), so its "slot 5" is the ROM's
+# ModelAnim::Render; the host _ZTV9ModelAnim's slot 5 is Virtual18, whose
+# trampoline pops two stack words where the shadow pushed one -- the
+# skewed caller rets into its own spilled `self` (measured: EIP == the
+# actor pointer, DEP execute-violation, first frame instance 1 drew).
+# This was the whole "corrupted-IP jump in the shared actor-Process
+# pipeline" that excluded BABY_PENGUIN from this gate. HOST COPY:
+# port/unmatched/ModelAnim_Renders.cpp. The matched src stays byte-locked
+# in src/ as proof. daBgSnwmn_c's Render (func_ov072_021209c0.cpp, IN the
+# slice above) uses the same shadow idiom but on plain 0x50-stride Models
+# (+0xd4/+0x124), which _ZTV5Model[5]'s dual-fill serves correctly.
 src/func_ov072_02121fa0.c
 src/BabyPenguin_Spawn.c
 #
@@ -133,6 +146,8 @@ src/__sinit_ov072_02122414.c
 # func_ov072_02121d50 SHORT-1 -- NOT a Prepare bug, BabyPenguin has no
 # TextureSequence member and its own InitResources never calls Prepare),
 # src/func_ov072_021217ac.cpp (the land-transition helper, func_ov072_02121d50
-# SHORT-1, the same bug as InitResources' own call). All five stay
-# byte-locked in src/ as the matched proof; none is referenced from
-# CMakeLists' gate-193 source list.
+# SHORT-1, the same bug as InitResources' own call),
+# src/_ZN11BabyPenguin6RenderEv.cpp (the ModelAnim slot-5 collision, see
+# the note above; host copy in port/unmatched/ModelAnim_Renders.cpp).
+# All six stay byte-locked in src/ as the matched proof; none is
+# referenced from CMakeLists' gate-193 source list.
