@@ -484,8 +484,10 @@ int _ZN9Spindrift13InitResourcesEv(void *self)
 { return ((Spindrift *)self)->Spindrift::InitResources(); }
 int _ZN9Spindrift8BehaviorEv(void *self)
 { return ((Spindrift *)self)->Spindrift::Behavior(); }
-int _ZN9Spindrift6RenderEv(void *self)
-{ return ((Spindrift *)self)->Spindrift::Render(); }
+/* _ZN9Spindrift6RenderEv is NOT faced here -- the ModelAnim slot-5 collision.
+   The matched Spindrift::Render dispatches ROM slot 5 through a six-virtual
+   shadow off mModelAnim (+0x110); host copy in
+   port/unmatched/ModelAnim_Renders.cpp spells it as qualified ModelAnim::Render. */
 int _ZN10MrBlizzard13InitResourcesEv(void *self)
 { return ((MrBlizzard *)self)->MrBlizzard::InitResources(); }
 int _ZN10MrBlizzard8BehaviorEv(void *self)

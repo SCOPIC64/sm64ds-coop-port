@@ -42,7 +42,18 @@ src/func_ov081_021237ec.cpp
 src/func_ov081_02123910.cpp
 src/func_ov081_02123b20.cpp
 src/_ZN9Spindrift16CleanupResourcesEv.c
-src/_ZN9Spindrift6RenderEv.cpp
+# _ZN9Spindrift6RenderEv.cpp is NOT in this list -- the ModelAnim slot-5
+# collision (the Whomp/Butterfly/Fish/BabyPenguin case). The matched TU
+# dispatches `((Obj*)&mModelAnim)->m5(0)` through a local six-virtual
+# ROM-order shadow off mModelAnim (+0x110), so its "slot 5" is the ROM's
+# ModelAnim::Render; the host _ZTV9ModelAnim's slot 5 is Virtual18, a
+# two-arg method called with the shadow's one arg -- it reads a scale off
+# the stack and hands Model::Virtual10 a null matrix (measured: c0000005
+# in Model::Virtual10, module +0x31fbc, L10 SPINDRIFT quarantine). Latent
+# since this gate mounted ov081; 7c3e71d86's .text-layout shift flipped it
+# from survivable to faulting. HOST COPY:
+# port/unmatched/ModelAnim_Renders.cpp. The matched src stays byte-locked
+# in src/ as proof.
 src/_ZN9Spindrift8BehaviorEv.cpp
 src/_ZN9Spindrift13InitResourcesEv.cpp
 src/func_ov081_02123fd8.cpp
