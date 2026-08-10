@@ -2421,18 +2421,26 @@ extern "C" void port_level_reset_host(void)
        walks all three every frame and hands each non-null slot to GetMinimapID
        as `obj`, which reads obj->+0xcc as an AREA INDEX -- a signed byte. Left
        stale, a slot still points at an actor the previous level's teardown
-       destroyed, +0xcc is whatever the freed block now holds, and an index of
-       40 or -60 walks the eight-entry area table off both ends into a
-       non-zero word that GetMinimapID then dereferences as a list node. That
-       is the fault at GetMinimapID+0x33 (`sub ecx,dword ptr [eax]`).
+       destroyed, and +0xcc is whatever the freed block now holds.
+
+       The crash dump reads the whole chain out: edx 8 at the fault, so the
+       byte came back 8, and the area table is EIGHT entries (Stage+0x8bc,
+       0x60 bytes), so index 8 is one past the end and lands on the level
+       MeshCollider at Stage+0x91c. Its word at +8 was ffffffff, which is the
+       eax the faulting instruction dereferences -- GetMinimapID+0x33,
+       `sub ecx,dword ptr [eax]`, "access 00000000 at ffffffff".
 
        A direct boot never sees it because BSS starts zeroed, which is exactly
-       why this only ever showed up on the warp path.
+       why this only ever showed up on the warp path. Five of the fifteen
+       mounted levels leave a live pointer in f40c when they are torn down
+       (6, 7, 8, 9, 14), so the exposure is much wider than the one pair that
+       actually faults; which pairs pull the trigger depends on what the next
+       level's allocator puts in the freed block.
 
        Not carried, and why: data_0209f1f8 (the view-object count) is written
        by LoadViewObjects on every boot before anything reads it, and
        func_ov001_020ab2e4 is in ov001, which the port does not mount. */
-    if (!std::getenv("SM64DS_MM_ABLATE_MARKERS")) {
+    {
         extern int data_0209f40c[];
         extern unsigned char data_0209f3e8[];
         extern unsigned char data_0209f3a4[];
@@ -2530,22 +2538,25 @@ extern "C" void port_level_stage_reseat(void *stagev)
        which is what this whole function is, and it already does exactly this
        for the level Model at +0x86c and the skybox at +0x9bc.
 
-       The +8 word is the one that faults. LoadSimpleObjects builds the list
-       through LoadMinimapChangeObject on every boot, appending to whatever
-       head it finds; carried across a change it appends the new level's nodes
-       onto the previous level's, and Minimap::Behavior then walks a chain
-       whose tail is in memory the next level re-used. GetMinimapID+0x33 is
-       `sub ecx,dword ptr [eax]` -- the node deref inside that walk.
+       THIS IS NOT THE CRASH FIX, and the ablation says so rather than the
+       reasoning. Running the 7 -> 10 repro four times over the two clears in
+       this commit, one knob each: with only this memset the MINIMAP still
+       faults, with only the marker-array clear in port_level_reset_host it
+       does not. The faulting `obj` is a stale marker, not a stale list node.
 
-       Whomp's Fortress is the level that proves it: a tower level is full of
-       height-keyed minimap-change objects, and 7 -> 10 faults on entry where
-       every other pair in the 15x15 matrix does not.
+       What this one is for is the +8 word on its own terms. LoadSimpleObjects
+       builds the per-area minimap-change list through LoadMinimapChangeObject
+       on every boot, appending to whatever head it finds, and nothing ever
+       frees a node. Carried across a change it appends the new level's nodes
+       onto the previous level's, so the list grows without bound for a
+       session and GetMinimapID answers out of the wrong level's entries.
+       Four levels leave one behind (SM64DS_MM_STALE=1 over a boot of each:
+       7 and 13 and 15 leave one, 12 leaves five).
 
        Zeroing the +0 slots costs nothing extra: port_stage_advance_anims
        already drops them itself on the first frame after the level id changes,
        and leaks the same transformer objects either way. */
-    if (!std::getenv("SM64DS_MM_ABLATE_AREA"))
-        std::memset(stage + 0x8bc, 0, 0x60);
+    std::memset(stage + 0x8bc, 0, 0x60);
 
     /* the level model, in place */
     _ZN5ModelD2Ev(stage + 0x86c);
