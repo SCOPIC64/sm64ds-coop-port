@@ -911,13 +911,33 @@ void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlat
      {257, "MOTHER_PENGUIN", MotherPenguin_SpawnInfo, MotherPenguin_Spawn, \
       hal_fill_mother_penguin_vtable}, \
      /* ---- gate 192: ICE_BLOCK (18) + SPINDRIFT (312), ov081 ---- */ \
-     /* MR_BLIZZARD (223) is NOT registered here -- its Render crashes on a
-        pre-existing, shared-infra bug in func_0204488c (an unvalidated
-        Part.fc/Part.f8 forwarded straight to a raw DMA call), several
-        layers below anything this gate's own slice touches. See the
-        full trace in hal_fill_mr_blizzard_vtable's own header comment
-        (kept below, unregistered) and the commit message. Needs ROM
-        disassembly at 0x0204488c this lane does not have tooling for. */ \
+     /* MR_BLIZZARD (223) is NOT registered here. The ORIGINAL exclusion
+        reason (a func_0204488c "unvalidated raw-DMA source" fear) is
+        RESOLVED -- the dma verdict established Part.fc/f8 are rebased at
+        load and the synchronous forward is safe. Registration was then
+        attempted (babypenguin-crash lane, 2026-08-10) and found a
+        DIFFERENT, REAL blocker, measured not reasoned: a deterministic
+        frame-0 corruption in MrBlizzard::Behavior's callee chain. The
+        register MSVC keeps `this` in comes back from one of Behavior's
+        callees skewed to this+0x150 (the mWithMeshClsn member), after
+        which Behavior's tail stores (anim speed 0x1000 at +0x368) land
+        0x4b8 past its own base -- on the NEXT MrBlizzard's render-list
+        node next pointer -- and the render walk then follows 0x1000 and
+        dies (or, per-actor caught, quarantines both instances and
+        latches the class off). Proven by DR0 write-watch (writer EIP =
+        the +0x368 store in ?Behavior@MrBlizzard, register capture
+        esi=instance+0x150), an entry log showing the face only ever
+        receives correct `this` (so the skew happens MID-body), and the
+        bug SHAPE-SHIFTING when per-callee probes change codegen (the
+        same binary then faults at self+0xc inside the behavior dispatch
+        instead) -- a codegen-sensitive ABI/register-state violation in
+        one of: the seated tick handler, Actor::UpdatePos,
+        Enemy::UpdateWMClsn, func_ov081_021254d8, func_ov081_021243cc,
+        CylinderClsn::Clear/Update. The instrument that settles it:
+        single-step the callee list at the machine level (or a
+        frame-pointer-preserving wrapper around each callee) watching the
+        callee-saved register set across each boundary. Until that lands,
+        223 stays out: it cannot meet the zero-quarantine bar. */ \
      {18, "ICE_BLOCK", IceBlock_SpawnInfo, IceBlock_Spawn, \
       hal_fill_ice_block_vtable}, \
      {312, "SPINDRIFT", Spindrift_SpawnInfo, Spindrift_Spawn, \

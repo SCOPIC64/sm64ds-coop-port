@@ -354,28 +354,17 @@ static int __fastcall mb_clean(void *s, void *)
 { (void)s; return _ZN10MrBlizzard16CleanupResourcesEv(); }
 static int __fastcall mb_behavior(void *s, void *)
 { return _ZN10MrBlizzard8BehaviorEv(s); }
-/* KNOWN BUG, NOT FIXED HERE (out of this gate's slice -- shared geometry
-   infra, see slice_gate192.txt's own note and the commit message). Render
-   crashes on this class's specific BMD asset: func_0204488c (called from the
-   already-hosted port/unmatched/ModelComponents_Render.cpp) walks
-   Entry->Part records and unconditionally forwards Part.fc/Part.f8 to
-   func_01ffde98(channel, src, size) as a raw DMA source pointer + byte count
-   with NO validation. Traced via a temporary debug probe (removed): every
-   upstream pointer (data.file, node, arrA/arrB, the Entry, the Part's own
-   count/cmd) is well-formed, but the SAME Part record's trailing fc field
-   reads as uncorrelated garbage (0x67659164 seen, nowhere near any mounted
-   ov081 address) while the sibling field f8 reads a plausible byte count
-   (600). func_02044534 (the sibling "flags&1" branch) reads the identical
-   {count,cmd,f8,fc} shape at the identical offsets but forwards fc/f8 to
-   func_0205a358 (an IRQ-driven async transfer) instead of the synchronous
-   func_01ffde98 -- so the struct shape and offsets are not themselves in
-   question, only whether func_0204488c's specific ROM instruction stream
-   really passes Part.fc/Part.f8 as a raw pointer+size the way the C
-   recovery reads it, or whether those two words need the same
-   func_0205a358-style indirection this file's neighbour uses. Needs ROM
-   disassembly at 0x0204488c to settle, which this lane does not have
-   tooling for. MR_BLIZZARD (223) is EXCLUDED from this gate's registry
-   entry until resolved -- see hal_fill_mr_blizzard_vtable's caller. */
+/* HISTORY: the func_0204488c raw-DMA fear that first excluded MR_BLIZZARD
+   is RESOLVED (the dma verdict -- Part.fc/f8 are rebased at load; the
+   garbage fc the original probe read was pre-rebase, not a bad forward).
+   Registration was then attempted and found a DIFFERENT real blocker: a
+   deterministic frame-0 register-state corruption in Behavior's callee
+   chain (the `this` register comes back from a callee skewed to
+   this+0x150, the mWithMeshClsn; the tail's +0x368 store then stomps the
+   NEXT instance's render node). Full evidence chain + candidate list in
+   the gate-192 registry comment (port/hal/actor_classes.inc). 223 stays
+   unregistered until that seam is pinned; MrBlizzard::Render itself is
+   clean (calls Model::Render BY NAME -- no ModelAnim slot-5 exposure). */
 static int __fastcall mb_render(void *s, void *)
 { port_actor_render_probe("MR_BLIZZARD", (char *)s + 0x30c);
   return _ZN10MrBlizzard6RenderEv(s); }
