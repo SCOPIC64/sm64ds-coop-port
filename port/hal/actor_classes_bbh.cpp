@@ -49,6 +49,7 @@ void _ZN5Actor8OnPushedERS_(void *self, void *o);          /* slot 25 */
 void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* 26 */
 void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* 27 */
 void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* 28 */
+int _ZN5Actor16OnAimedAtWithEggEv(void *self);                     /* 29 */
 
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
@@ -103,6 +104,13 @@ static int __fastcall bbh_yoshi(void *s, void *)
 { return _ZN5Actor13OnYoshiTryEatEv(s); }
 static int __fastcall bbh_v50(void *s, void *)
 { return _ZN5Actor9Virtual50Ev(s); }
+/* Slot 29, Actor::OnAimedAtWithEgg (ov020 0x02114a88 -> 0x02010124). NOT
+   Virtual50: the two have the same arity, so nothing checks caught the swap,
+   but they return different things. OnAimedAtWithEgg returns the egg auto-aim
+   lock-on radius as a Fix12i, 81920 (0x14000, 20.0 in 20.12); Virtual50
+   returns VS_FAIL (1), which read as a radius is 1/4096 of a unit. */
+static int __fastcall bbh_aimed(void *s, void *)
+{ return _ZN5Actor16OnAimedAtWithEggEv(s); }
 static int __fastcall bbh_pounded(void *s, void *, void *o)
 { _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
 static int __fastcall bbh_atk1(void *s, void *, void *o)
@@ -151,7 +159,7 @@ static void bbh_fill_shared(void **vt)
     vt[26] = (void *)bbh_cannon;
     vt[27] = (void *)bbh_mega;
     vt[28] = (void *)bbh_under;
-    vt[29] = (void *)bbh_v50;    /* OnAimedAtWithEgg default */
+    vt[29] = (void *)bbh_aimed;  /* Actor::OnAimedAtWithEgg, the ROM's own default */
     vt[30] = (void *)bbh_trap30;
 }
 
