@@ -83,10 +83,13 @@
 // be an egg target, so those two NULLs are seated correctly here because the
 // ROM says so, not because they were crashing.
 //
-// THIS FILE IS NOT YET CLEAN: bp_egg at slot 19 is still an UNDERPOP
-// (OnTurnIntoEgg(Player&), want ret 4, got ret 0), reachable when Yoshi tries
-// to turn a Baby Penguin into an egg. It is owned by the port-c2-player-stack
-// lane and is deliberately left alone here rather than duplicated.
+// SLOT 19 IS CLEAN, and this note used to say otherwise. bp_egg
+// (OnTurnIntoEgg(Player&)) has to pop the argument the caller pushed, and it
+// does: it is declared with the stack parameter and emits ret 4. That fix is
+// owned by the port-c2-player-stack lane, which is why nothing here touches
+// it, and that lane landed AHEAD of this file in the 0.1.3 wave. abicheck
+// over the merged tree reads zero UNDERPOP and zero OVERPOP, so there is no
+// outstanding pop-contract defect in this file.
 //
 // GATE 193: the actual SNOWMAN (272), ov072. Fresh per-symbol mount
 // (port/ov072_syms.txt), the ov079/ov080/ov081 convention. A plain
