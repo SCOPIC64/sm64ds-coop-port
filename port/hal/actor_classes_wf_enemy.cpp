@@ -320,7 +320,18 @@ int func_ov079_02126f64(void *self);          /* slot 9  */
 int *func_ov079_02126dbc(int *self);          /* slot 16 */
 int *func_ov079_02126e00(int *self);          /* slot 17 */
 void func_ov079_02126ecc(char *self, void *player); /* slot 27 */
-unsigned char data_ov079_02127fb8[31 * 4];    /* the host vtable BillBlaster_Spawn installs */
+int func_ov079_02126e58(char *self);          /* slot 31, its own Kill */
+/* THIRTY-TWO slots, not 31. BillBlaster is a dBgActor_c (Platform) subclass,
+   so its table has Platform's tail slot, and here it is the class's OWN Kill
+   (ov079 0x02126e58: a poof particle, dust, bank-3 sound 0xf, then
+   ActorBase::MarkForDestruction). At 31 * 4 bytes slot 31 lay past the end and
+   nothing ever wrote it -- the same wild call as the ROTATING_BRIDGE repro in
+   hal/actor_classes_wf.cpp, in Whomp's Fortress, on a Bill Blaster that gets
+   killed.
+   Declared as bytes rather than void*[] because BillBlaster_Spawn installs it
+   through a char* face; the count is the slot count times four, so it moves
+   with the slot count. */
+unsigned char data_ov079_02127fb8[32 * 4];    /* the host vtable BillBlaster_Spawn installs */
 }
 
 static int __fastcall blz_init(void *s, void *)
@@ -337,6 +348,11 @@ static int __fastcall blz_d0(void *s, void *)
 { return (int)(size_t)func_ov079_02126e00((int *)s); }
 static int __fastcall blz_mega(void *s, void *, void *p)
 { func_ov079_02126ecc((char *)s, p); return 0; }
+/* slot 31, the Platform tail. BillBlaster overrides Platform::Kill with its
+   own body, which IS in the build (slice_gate64), so this runs the real thing
+   rather than declining. */
+static int __fastcall blz_kill(void *s, void *)
+{ return func_ov079_02126e58((char *)s); }
 
 static void hal_fill_bill_blaster_vtable(void)
 {
@@ -349,6 +365,7 @@ static void hal_fill_bill_blaster_vtable(void)
     vt[16] = (void *)blz_d1;
     vt[17] = (void *)blz_d0;
     vt[27] = (void *)blz_mega;
+    vt[31] = (void *)blz_kill;
 }
 
 // ============================================================================

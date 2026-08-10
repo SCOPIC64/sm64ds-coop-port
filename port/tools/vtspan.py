@@ -51,7 +51,13 @@ USAGE
         does the thunk seated in slot N run the body slot N is supposed to
         run?  Catches SAME-ARITY WRONG-BODY SEATS, which the sizing sweep and
         abicheck are both blind to.  See the --seats section below.  Exits 1
-        if any seat is wrong.
+        if any seat is wrong, 2 if nothing could be checked.
+
+        THE DISASSEMBLY MUST BE `dumpbin /disasm:nobytes`.  Plain /disasm puts
+        the encoded bytes between the address and the mnemonic, nothing parses,
+        and the run finds zero stores -- so a zero-checked run is a hard
+        FAILURE here, not a pass.  Generate it per object:
+            dumpbin /disasm:nobytes build/port/CMakeFiles/*/hal/*.obj
     python port/tools/vtspan.py <repo-root> <symbol> [<symbol>...]
         slot-by-slot dump of one table, each entry resolved to a name and
         cross-checked against the RAW ROM image word (never the dsd overlay
@@ -228,7 +234,32 @@ class Rom:
             if not e or e[0] != "load" or not self.is_code(e[1], e[2]):
                 break
             if n >= 31:
-                if (addr + 4 * n) in m["by_addr"]:
+                # THE SYMBOL TERMINATOR HAS THE SAME DISEASE THE SYMBOL BOUND
+                # HAS, and it took a second reviewer to find it: dsd sometimes
+                # emits a spurious data symbol exactly AT slot 31, and the
+                # terminator then under-reads a 32-slot Platform table as 31 --
+                # precisely the truncation this file's header blames the bound
+                # for. _ZTV11PyramidLift (ov025 0x021139d4) and
+                # data_ov026_02113ba4 both read as 31 that way; neither is
+                # hosted today, so it was latent, but the sweep would have
+                # cleared a [31] host array for either the day it was.
+                #
+                # Discriminator: what the word actually IS. Platform::Kill at
+                # index 31 means the table extends there, symbol or no symbol.
+                # It cannot false-positive the other way -- _ZTV17BowserPuzzle
+                # Piece stays 31 because its index-31 word is a class function
+                # followed by a zero adjustment word, a PMF pair, not Kill.
+                #
+                # RESIDUAL GAP, stated rather than papered over: a class that
+                # OVERRIDES Kill and also has a spurious symbol at 31 would
+                # still under-read. None exists in the tree today (every
+                # Kill-overriding table here has its next symbol at 32 or
+                # later), and closing it properly needs the typeinfo chain --
+                # ask whether the class descends from dBgActor_c -- rather than
+                # one address compare.
+                here = rel.get(addr + 4 * n)
+                kill_here = here and here[1] == PLATFORM_KILL
+                if (addr + 4 * n) in m["by_addr"] and not kill_here:
                     break
                 nx = rel.get(addr + 4 * (n + 1))
                 if nx and nx[1] == ACTOR_BINIT:
@@ -271,9 +302,42 @@ class Rom:
         print()
 
 
+# ANY element type, ANY constant-expression length.
+#
+# The first version of this pattern wanted `void *` or `int` and a decimal
+# literal, so it could not see
+#
+#     unsigned char data_ov079_02127fb8[31 * 4];
+#
+# which is BILL_BLASTER's table: 32 slots in the ROM, one short on the host,
+# slot 31 a real override (ov079 0x02126e58) that nothing ever wrote. The sweep
+# reported zero short tables with that array sitting in the tree, so "zero" was
+# a statement about the pattern's field of view rather than about the tree.
+#
+# So: any type, and the length is EVALUATED rather than parsed -- 31 * 4, 0x20
+# and 8 * SLOTS all resolve. A byte array divides back by its element size.
 DEF = re.compile(
-    r"^\s*(?:extern\s+\"C\"\s*\{?\s*)?(?:extern\s+)?(?:void\s*\*\s*|int\s+)"
-    r"((?:_ZTV|data_)\w+)\[(\d+)\]")
+    r"^\s*(?:extern\s+\"C\"\s*\{?\s*)?(?:extern\s+)?"
+    r"(?P<type>(?:unsigned\s+|signed\s+|const\s+|volatile\s+|struct\s+)*"
+    r"[A-Za-z_]\w*(?:\s*\*)*)\s*"
+    r"(?P<name>(?:_ZTV|data_)\w+)\s*\[(?P<len>[^\]]*)\]")
+
+ELEM_BYTES = {"char": 1, "unsigned char": 1, "signed char": 1, "u8": 1,
+              "short": 2, "unsigned short": 2, "u16": 2}
+
+
+def decl_slots(type_text, len_text):
+    """Slot count from a declaration, or None if the length is not constant."""
+    try:
+        n = int(eval(len_text, {"__builtins__": {}}, {}))
+    except Exception:
+        return None
+    t = " ".join(type_text.split())
+    if t.endswith("*"):
+        return n                              # void *x[N] is N pointers
+    # otherwise the declaration counts ELEMENTS, and a slot is four bytes:
+    # int[18] is 18 slots, unsigned char[31 * 4] is 31.
+    return n * ELEM_BYTES.get(t, 4) // 4
 
 
 def sweep(rom, root):
@@ -285,8 +349,10 @@ def sweep(rom, root):
                 continue                      # a declaration, not storage
             m = DEF.match(ln)
             if m:
-                found.setdefault(m.group(1), (str(p.relative_to(root)), i,
-                                              int(m.group(2))))
+                n = decl_slots(m.group("type"), m.group("len"))
+                if n is not None:
+                    found.setdefault(m.group("name"),
+                                     (str(p.relative_to(root)), i, n))
     short = []
     print("%-34s %-5s %-5s %-6s %s"
           % ("array", "host", "ROM", "bound", "defined at"))
@@ -401,8 +467,15 @@ def itanium_face(name):
 
 
 def load_disasm(d):
-    """({function: calls}, [(table, slot, thunk, fill, obj)]) from dumpbin."""
-    funcs, stores = {}, []
+    """({function: calls}, [(table, slot, thunk, fill, obj)]) from dumpbin.
+
+    REQUIRES `dumpbin /disasm:nobytes`. Plain /disasm interleaves the encoded
+    bytes between the address and the mnemonic, so INSN captures the first
+    opcode byte instead of the mnemonic, nothing parses as a call or a mov, and
+    the check finds zero stores. seats() treats zero checked fills as a hard
+    failure for exactly that reason: a silently-empty run of this tool is worse
+    than no tool, because CI would read it as a pass."""
+    funcs, stores, byteish = {}, [], 0
     for p in sorted(pathlib.Path(d).glob("*.txt")):
         raw = p.read_bytes()
         text = raw.decode("utf-16-le" if raw[:2] == b"\xff\xfe" else "utf-8",
@@ -412,6 +485,8 @@ def load_disasm(d):
             m = INSN.match(line)
             if m and cur is not None:
                 op, args = m.group(2).lower(), m.group(3)
+                if re.fullmatch(r"[0-9a-f]{2}", op):
+                    byteish += 1        # an encoded byte where a mnemonic goes
                 if op in ("call", "jmp"):
                     cur["calls"].append(args.strip())
                 elif op == "mov":
@@ -425,7 +500,7 @@ def load_disasm(d):
             if m and not line.startswith(" "):
                 cur = dict(sym=m.group(1), calls=[])
                 funcs.setdefault(m.group(1), cur)
-    return funcs, stores
+    return funcs, stores, byteish
 
 
 def seats(rom, disasm):
@@ -451,7 +526,7 @@ def seats(rom, disasm):
             return by_face[(m.group(2), m.group(1))]
         return None
 
-    funcs, stores = load_disasm(disasm)
+    funcs, stores, byteish = load_disasm(disasm)
     bad, checked, unchecked = [], 0, 0
     for tab, slot, thunk, fill, obj in stores:
         f = funcs.get(thunk)
@@ -466,6 +541,20 @@ def seats(rom, disasm):
             bad.append((slot, want, name, thunk, fill, obj))
     print("%d slot fills seat a shared arm9 body and were checked; %d hold "
           "class bodies or decline stubs and were not." % (checked, unchecked))
+    # A check that finds nothing to check has not passed, it has not run. This
+    # tool's whole value is being a gate, and a gate that goes green on
+    # malformed input is worse than no gate: CI reads it as coverage.
+    if checked == 0:
+        print("\nFAILED: nothing was checked, so nothing was verified.")
+        if byteish:
+            print("  %d instruction lines began with an encoded byte rather "
+                  "than a mnemonic." % byteish)
+            print("  This is plain `dumpbin /disasm` output. Regenerate it "
+                  "with /disasm:nobytes.")
+        else:
+            print("  No vtable stores parsed out of %s -- wrong directory, or "
+                  "the hal objects were not disassembled." % disasm)
+        return 2
     if not bad:
         print("no wrong-body seats")
         return 0
