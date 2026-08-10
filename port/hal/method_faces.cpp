@@ -607,4 +607,11 @@ int _ZN6Player16TryTalkToKeyDoorEv(void *self)
 { return ((Player *)self)->TryTalkToKeyDoor(); }
 int _ZN6Player24TryExitWhiteDoorWithStarEv(void *self)
 { return ((Player *)self)->TryExitWhiteDoorWithStar(); }
+/* gate 200: PushBlock's break branch grants the flower power-up
+   (func_ov002_020b979c) -- the daObjPowerUpItem_c inheritance is not just
+   RTTI trivia. Both matched src, real C++ methods. */
+void _ZN6Player16InitBalloonMarioEv(void *self)
+{ ((Player *)self)->InitBalloonMario(); }
+void _ZN6Player13InitFireYoshiEv(void *self)
+{ ((Player *)self)->InitFireYoshi(); }
 }  /* extern "C" */

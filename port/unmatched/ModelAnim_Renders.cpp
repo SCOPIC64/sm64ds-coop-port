@@ -371,4 +371,32 @@ int _ZN9Spindrift6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- PUSH_BLOCK (306, ov002, gate 200) -----------------------------------
+   src/_ZN9PushBlock6RenderEv.cpp dispatches through a LOCAL six-virtual
+   ROM-order shadow (`struct Sub { virtual int g0..g4(); virtual void
+   g5(void*); }`) over the class's two plain Models -- mModel1 at +0xd4 for
+   state 0, mModel2 at +0x124 for states 1 and 2 -- WITH the scale pointer
+   (&mScaleX, +0x80), the BabyPenguin argument shape over the SwitchPillar
+   plain-Model member. Draw guard +0xb0 & 0x40000, then the blink gate: the
+   +0x3ca counter under 0x2d skips odd frames. State selector +0x3c0 is the
+   same idx the host state dispatch (PushBlock_StateDispatch.cpp) stores.
+   Excluded from slice_gate200.txt, dispatched from hal/actor_classes_
+   ov002g200.cpp.
+   PORT_HOST_ABI: ROM-order model slot-5 dispatch, the Whomp/Fish case. */
+int _ZN9PushBlock6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    if (*(unsigned int *)(c + 0xb0) & 0x40000)
+        return 1;
+    unsigned char st = *(unsigned char *)(c + 0x3ca);
+    if (st < 0x2d && (st & 1))
+        return 1;
+    switch (*(int *)(c + 0x3c0)) {
+    case 0: ((Model *)(c + 0xd4))->Model::Render((const Vector3 *)(c + 0x80)); break;
+    case 1: ((Model *)(c + 0x124))->Model::Render((const Vector3 *)(c + 0x80)); break;
+    case 2: ((Model *)(c + 0x124))->Model::Render((const Vector3 *)(c + 0x80)); break;
+    }
+    return 1;
+}
+
 }  /* extern "C" */

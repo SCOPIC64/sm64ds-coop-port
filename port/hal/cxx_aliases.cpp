@@ -1494,3 +1494,18 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?data_ov094_02136ae8@@3PAPAXA=_data_ov094_02136ae8")
 #pragma comment(linker, "/alternatename:?data_ov094_02136af8@@3PAPAXA=_data_ov094_02136af8")
 #pragma comment(linker, "/alternatename:?data_ov094_02136b30@@3PAXA=_data_ov094_02136b30")
+
+/* gate 200 (PUSH_BLOCK 306 + MUGEN_BGM 351, ov002): the same shape.
+   PushBlock::InitResources declares data_ov002_0210d9d0/0210d9b0 as
+   `extern void**` outside extern "C"; MugenBgm's two real methods declare
+   _Znwj, Fog::Init and the arm9 cells data_0209f394/data_020a0ebc the same
+   way. The C-named definitions all exist (the ov002 mount, the hosted arm9
+   data, the operator-new seam, the sliced Fog::Init). */
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9d0@@3PAPAXA=_data_ov002_0210d9d0")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9b0@@3PAPAXA=_data_ov002_0210d9b0")
+#pragma comment(linker, "/alternatename:?_Znwj@@YAPAXI@Z=__Znwj")
+#pragma comment(linker, "/alternatename:?_ZN3Fog4InitEt5Fix12IiES1_@@YAXPAXGHH@Z=__ZN3Fog4InitEt5Fix12IiES1_")
+#pragma comment(linker, "/alternatename:?data_0209f394@@3PAPADA=_data_0209f394")
+#pragma comment(linker, "/alternatename:?data_020a0ebc@@3PAHA=_data_020a0ebc")
+#pragma comment(linker, "/alternatename:?data_ov002_0211028c@@3UState@@A=_data_ov002_0211028c")
+#pragma comment(linker, "/alternatename:?data_ov002_0211004c@@3HA=_data_ov002_0211004c")

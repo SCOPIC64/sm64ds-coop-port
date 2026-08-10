@@ -213,3 +213,6 @@ data_ov002_0210d8d4:0x20
 # but that symbol is ALREADY a real host array, hal/actor_vtables.cpp's own
 # `void *data_ov002_021081e4[20]` (Enemy's base vtable). No mount row here;
 # mounting it too would double-define the same C symbol.
+PowerFlower_SpawnInfo _ZTV9PushBlock MugenBgm_SpawnInfo _ZTV8MugenBgm
+data_ov002_0210d9b0 data_ov002_0210d9d0 data_ov002_02110af0 data_ov002_02110af4 data_ov002_02110af8
+data_ov002_0210af2c
