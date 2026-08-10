@@ -121,6 +121,9 @@ void func_02011508(void);
 void func_0203d73c(void);
 extern int _ZTV14UnchainedChomp;
 
+/* PORT_HOST_ABI: ARM no-arg ctor call ride-through (operator new's `this`
+   already sits in r0); cdecl needs it passed explicitly. ChainChomp_Spawn
+   shape. */
 void *UnchainedChomp_Spawn(void)
 {
     char *p = (char *)_ZN9ActorBasenwEj(0x7a4);

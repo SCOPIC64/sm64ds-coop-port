@@ -94,7 +94,13 @@ static void unagi_state_arrive(void *c)
 
 /* PORT_HOST_ABI: SetState + dispatch the ENTER half. The matched
  * func_ov016_02111bf0 forms the ROM PMF adjust over cell[0]; here cell+0 is a
- * plain { fn, 0 } and fn is called with `this`. */
+ * plain { fn, 0 } and fn is called with `this`. Also stands in for
+ * func_ov018_02111bf0, the cross-overlay alias typo in the recovered src,
+ * bridged onto this body by port/unmatched/Jrb_Aliases.cpp's own
+ * /alternatename pragma (forward-declared on the next line, matching
+ * Jrb_Aliases.cpp's own (void*,void*) signature, so this tag documents
+ * that bridged name too). */
+extern "C" int func_ov018_02111bf0(void *c, void *cell);
 extern "C" int func_ov016_02111bf0(void *c, PortPmf *cell)
 {
     *(PortPmf **)((char *)c + 0x34c) = cell;

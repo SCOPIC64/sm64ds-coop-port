@@ -29,6 +29,8 @@ int func_ov002_020b5e58(char *self, char *fp);
 }
 
 /* #1: the ov018 typo -> the ov016 host dispatcher. Both C linkage. */
+/* PORT_HOST_ABI: cross-overlay alias typo in the recovered src (func_ov018_
+   02111bf0 should read func_ov016_02111bf0); bridged, not a real ov018 body. */
 #pragma comment(linker, "/alternatename:_func_ov018_02111bf0=_func_ov016_02111bf0")
 /* #2: the bare func_020b5e58 -> the ov002 matched body. Both C linkage. */
 #pragma comment(linker, "/alternatename:_func_020b5e58=_func_ov002_020b5e58")

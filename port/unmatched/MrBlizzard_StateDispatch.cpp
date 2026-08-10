@@ -21,6 +21,10 @@ extern "C" {
 struct PortMrBlizzardPair { unsigned enter_fn, enter_delta, tick_fn, tick_delta; };
 typedef int (*PortMbFn)(void *);
 
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch on a deliberately
+   incomplete class (the SoundObject/Cap/BabyPenguin-state treatment);
+   MSVC's PMF representation there does not reproduce the ROM's
+   {function,delta} pair. */
 int func_ov081_02125488(char *c, PortMrBlizzardPair *p)
 {
     *(PortMrBlizzardPair **)(c + 0x3f8) = p;

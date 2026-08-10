@@ -55,6 +55,8 @@ extern "C" {
 /* ---- METAL_NET_LIFT (69) Render: the slot-5 collision -----------------------
    src/func_ov064_02117cfc.cpp: `Derived{ char pad[0xd4]; Base base; }` shadow,
    Model at +0xd4, dispatched as slot 5. Spelled qualified. */
+/* PORT_HOST_ABI: ModelAnim/Model slot-5 shadow-vtable dispatch (MSVC folds
+   the dtor slot, ROM slot 5 lands on Virtual18); the Whomp/Fish case. */
 int func_ov064_02117cfc(void *selfv)
 {
     /* PORT_HOST_ABI: ROM-order Model slot-5 dispatch, the Whomp/Fish case. */
@@ -76,6 +78,8 @@ void _ZN8Platform21UpdateModelPosAndRotYEv(void *self);
 int _ZN8Platform13IsClsnInRangeE5Fix12IiES1_(void *self, int a, int b);
 void _ZN8Platform19UpdateClsnPosAndRotEv(void *self);
 
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch over an 8-byte {fn,delta}
+   record (the Scuttlebug stride trap); MSVC would make the stride 4. */
 int func_ov064_02117d24(void *cv)
 {
     char *c = (char *)cv;
@@ -111,6 +115,8 @@ int func_ov064_02117d24(void *cv)
 /* ---- LAVA_BUBBLE (214) seeder-dispatcher func_ov064_021187ec ----------------
    src: `c->pp = p; if (*p == 0) return 1; return (c->**p)()` -- store the table
    base at +0x300, call record[0] (the ENTER state). The record is 8 bytes. */
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch over an 8-byte {fn,delta}
+   record (the Scuttlebug stride trap); MSVC would make the stride 4. */
 int func_ov064_021187ec(void *cv, void *tablev)
 {
     char *c = (char *)cv;

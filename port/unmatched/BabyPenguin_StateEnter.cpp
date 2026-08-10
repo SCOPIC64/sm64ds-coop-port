@@ -31,6 +31,10 @@ typedef void (*PortBpFn)(void *);
 /* No null guard, matching the matched src exactly (C::pp is always seated
  * by func_ov072_02121d50 before this can be reached, and the ROM body
  * itself is unconditional -- see the header for the full derivation). */
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch on a deliberately
+   incomplete class (the SoundObject/Cap/MrBlizzard-state treatment);
+   MSVC's PMF representation there does not reproduce the ROM's
+   {function,delta} pair. */
 void func_ov072_02121d18(char *c)
 {
     PortBabyPenguinPair *p = *(PortBabyPenguinPair **)(c + 0x35c);

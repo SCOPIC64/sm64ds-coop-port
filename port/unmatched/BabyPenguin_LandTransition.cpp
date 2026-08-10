@@ -22,6 +22,9 @@ bool _ZN5Actor17DetectRaycastClsnER7Vector3S1_b(Actor *thiz, Vector3 &a, Vector3
 void _ZN9Animation7AdvanceEv(void *anim);
 void _ZN12CylinderClsn5ClearEv(void *clsn);
 
+/* PORT_HOST_ABI: func_ov072_02121d50 SHORT-1 seam (BabyPenguin_InitResources'
+   own shape re-applied); the one-argument matched call needs its real
+   second argument (0) spelled explicitly under cdecl. */
 int func_ov072_021217ac(Actor *thiz)
 {
     char *c = (char *)thiz;

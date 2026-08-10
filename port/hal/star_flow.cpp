@@ -643,6 +643,8 @@ extern signed char data_0209f224;
 extern int GetStarCameraSetting(int star);
 extern void RunKuppaScript(void *script);
 
+/* PORT_HOST_ABI: GetStarCameraSetting returns u8 (AL only); cdecl reads all
+   of EAX, so mask to the ROM's own 0xf here (see the header above). */
 void func_0200ee8c(int arg0)
 {
     if (arg0 < 0)

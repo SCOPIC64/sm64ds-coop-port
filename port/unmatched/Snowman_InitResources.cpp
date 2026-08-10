@@ -62,6 +62,9 @@ extern int data_ov072_02122c48[];
 extern int data_ov072_02122c50[];
 extern int data_ov072_02122c40[];
 
+/* PORT_HOST_ABI: TextureSequence::Prepare calling-convention seam (the
+   SHORT-1 argsweep row, MotherPenguin's own shape re-applied); cdecl needs
+   the third argument spelled explicitly. */
 int func_ov072_02120a44(char *c)
 {
     char rg[0x50];

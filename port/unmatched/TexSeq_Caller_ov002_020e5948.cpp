@@ -163,6 +163,9 @@ extern int data_ov002_0210e7b0[];
 extern int data_ov002_0210ebb8[];
 extern int data_ov002_0210eb20[];
 
+/* PORT_HOST_ABI: TextureSequence::Prepare calling-convention seam (the
+   SHORT-1 argsweep row); the ROM's tail-call veneer rides r0-r2 straight
+   through, cdecl needs the third argument spelled explicitly. */
 void func_ov002_020e5948(void* arg0)
 {
     char* c = (char*)arg0;
