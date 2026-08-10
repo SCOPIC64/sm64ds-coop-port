@@ -24,8 +24,10 @@
     stripping or decoding anything here would break it.
 
 .PARAMETER Rom
-    Path to your .nds dump. Optional: if you leave it out, the script uses the
-    single .nds file sitting next to it.
+    Path to your .nds dump. Optional and taken first when supplied (the launcher
+    passes the file it found this way). If you leave it out, the script looks in
+    the drop folder next to it ("PLACE YOUR ROM HERE", or the older
+    "PLACE EU ROM HERE"), then falls back to a single .nds sitting next to it.
 
 .PARAMETER Destination
     Where to write extracted\ and build\. Defaults to this script's folder.
@@ -45,6 +47,17 @@ $ErrorActionPreference = 'Stop'
 function Write-Step($text) { Write-Host $text }
 function Write-Warn($text) { Write-Host $text -ForegroundColor Yellow }
 
+# Machine-readable progress for a host that is parsing stdout (the launcher).
+# One line, '##PROGRESS <pct> <short phase text>'. Percentages are honest against
+# the known phase weights below; the file dump dominates, so it owns the widest
+# band. A human running the script directly just sees these as extra lines; the
+# Write-Step narration is unchanged. Kept on its own line and flushed so the
+# launcher's line-reader gets it promptly.
+function Write-Prog([int]$pct, [string]$phase) {
+    if ($pct -lt 0) { $pct = 0 } elseif ($pct -gt 100) { $pct = 100 }
+    Write-Host ("##PROGRESS {0} {1}" -f $pct, $phase)
+}
+
 function Stop-Politely($text) {
     Write-Host ""
     Write-Host $text -ForegroundColor Red
@@ -59,11 +72,25 @@ if (-not $Destination) {
 }
 
 # ---------------------------------------------------------------- find the rom
-# The named drop folder first; next to the script second, so a dump that was
-# placed the old way still works.
+# An explicit -Rom wins (the launcher passes the file it validated). Otherwise
+# the named drop folder first -- try both the current bundle folder name and the
+# older one -- then next to the script, so a dump placed the old way still works.
 if (-not $Rom) {
-    $dropDir = Join-Path $Destination 'PLACE EU ROM HERE'
-    $found = @(Get-ChildItem -Path $dropDir -Filter *.nds -File -ErrorAction SilentlyContinue)
+    # The bundle ships the folder named 'PLACE YOUR ROM HERE'. The earlier kit
+    # used 'PLACE EU ROM HERE'; accept both so neither layout breaks. Report the
+    # one that actually exists (prefer the current name) in the no-ROM message.
+    $dropNames = @('PLACE YOUR ROM HERE', 'PLACE EU ROM HERE')
+    $dropDir = $null
+    $found = @()
+    foreach ($name in $dropNames) {
+        $candidate = Join-Path $Destination $name
+        if (Test-Path -LiteralPath $candidate -PathType Container) {
+            if (-not $dropDir) { $dropDir = $candidate }
+            $hits = @(Get-ChildItem -Path $candidate -Filter *.nds -File -ErrorAction SilentlyContinue)
+            if ($hits.Count -gt 0) { $found = $hits; break }
+        }
+    }
+    if (-not $dropDir) { $dropDir = Join-Path $Destination $dropNames[0] }
     if ($found.Count -eq 0) {
         $found = @(Get-ChildItem -Path $Destination -Filter *.nds -File -ErrorAction SilentlyContinue)
     }
@@ -103,6 +130,17 @@ $regions = @{ 'E' = 'North America'; 'P' = 'Europe'; 'J' = 'Japan';
 $regionLetter = $code.Substring(3, 1)
 $region = if ($regions.ContainsKey($regionLetter)) { $regions[$regionLetter] } else { "region '$regionLetter'" }
 
+# EU-only gate. The port and this kit's romdata.recipe.tsv are built from the
+# European ROM (game code ASMP). A USA/JP/... dump is genuine Super Mario 64 DS,
+# passes every header check above, and would otherwise grind all the way to the
+# romdata.bin checksum before failing with a confusing "not the revision this
+# build was made from" message. Reject it here, up front, by game code, with an
+# explicit reason so the player knows exactly which ROM to use.
+if ($code -ne 'ASMP') {
+    Stop-Politely ("This is the $region ROM (game code $code). This port is built from the " +
+                   "European ROM (ASMP), so its data will not come out of a $region cartridge.")
+}
+
 $fntOffset = [BitConverter]::ToUInt32($romBytes, 0x40)
 $fntSize   = [BitConverter]::ToUInt32($romBytes, 0x44)
 $fatOffset = [BitConverter]::ToUInt32($romBytes, 0x48)
@@ -124,6 +162,11 @@ if ($usedSize -gt $romBytes.Length) {
                    "but the file is only $($romBytes.Length). Re-dump the cartridge.")
 }
 Write-Step "Super Mario 64 DS ($code, $region), $([math]::Round($romBytes.Length / 1MB)) MB"
+# Phase weights (honest, against wall-clock on a normal run): the file dump
+# dominates (~2..70), then the handle table (70..80), then romdata.bin's
+# decompress+assemble+hash (80..99). Header/table parsing is instant, so we open
+# at 2 once the dump is confirmed good.
+Write-Prog 2 "Reading the file tables"
 
 # ------------------------------------------------------------- the file tables
 # FAT: one 8-byte {start, end} pair per file id.
@@ -182,6 +225,7 @@ Write-Step "Writing $($paths.Count) files to $filesRoot"
 $madeDirs = New-Object 'System.Collections.Generic.HashSet[string]'
 $written = 0
 $bytes = [long]0
+$total = $paths.Count
 foreach ($pair in $paths.GetEnumerator()) {
     $id = $pair.Key
     $relative = $pair.Value.Replace('/', '\')
@@ -194,9 +238,15 @@ foreach ($pair in $paths.GetEnumerator()) {
     [IO.File]::WriteAllBytes($target, $buffer)
     $written++
     $bytes += $length
-    if (($written % 500) -eq 0) { Write-Step "    $written of $($paths.Count)" }
+    if (($written % 500) -eq 0) {
+        Write-Step "    $written of $total"
+        # File dump spans 2..70. There are a few thousand files, so every 500
+        # keeps the bar moving well under 5s apart.
+        Write-Prog (2 + [int](68 * $written / $total)) "Unpacking file $written of $total"
+    }
 }
 Write-Step "    $written files, $([math]::Round($bytes / 1MB, 1)) MB"
+Write-Prog 70 "Unpacked $written files"
 
 # ------------------------------------------------------------ overlay 0 for the
 # handle table. The game asks for assets by handle, not by file id; overlay 0
@@ -264,6 +314,9 @@ $ov0Flags  = [int]([BitConverter]::ToUInt32($romBytes, $ovtOffset + 28) -shr 24)
 $ov0Length = [int]($fatEnd[$ov0FileId] - $fatStart[$ov0FileId])
 $ov0 = New-Object 'byte[]' $ov0Length
 [Array]::Copy($romBytes, [int]$fatStart[$ov0FileId], $ov0, 0, $ov0Length)
+# The BLZ decode below runs silently and is not instant, so announce it before
+# starting -- this is the step that looked hung in testing.
+Write-Prog 71 "Decompressing overlay 0"
 if ($ov0Flags -band 1) {
     try { $ov0 = Expand-Blz $ov0 }
     catch { Stop-Politely "Could not read overlay 0 of this dump ($_). Re-dump the cartridge." }
@@ -291,9 +344,14 @@ function Get-Kind($path) {
 }
 
 Write-Step "Reading the asset-handle table out of overlay 0"
+Write-Prog 72 "Reading the asset-handle table"
 $handleRows = New-Object Text.StringBuilder
 [void]$handleRows.Append("handle`thex_handle`tfile_id`thex_file_id`tpath`tkind`tsize`n")
 for ($h = 0; $h -lt $handleCount; $h++) {
+    # Handle table spans 72..80.
+    if (($h % 400) -eq 0 -and $h -gt 0) {
+        Write-Prog (72 + [int](8 * $h / $handleCount)) "Cataloguing asset handle $h of $handleCount"
+    }
     $pointer = [BitConverter]::ToUInt32($ov0, $tableOffset + $h * 4)
     $stringOffset = [int]($pointer - $ov0Ram)
     if ($stringOffset -lt 0 -or $stringOffset -ge $ov0.Length) {
@@ -328,6 +386,7 @@ $utf8 = New-Object Text.UTF8Encoding $false
 [IO.File]::WriteAllText((Join-Path $assetsDir 'files.tsv'), $fileRows.ToString(), $utf8)
 [IO.File]::WriteAllText((Join-Path $assetsDir 'handles.tsv'), $handleRows.ToString(), $utf8)
 Write-Step "    $($paths.Count) files and $handleCount handles catalogued"
+Write-Prog 80 "Rebuilding romdata.bin"
 
 # ------------------------------------------------------------ romdata.bin
 # ROM-CLEAN: the game's executable ships with every code-side data table
@@ -370,7 +429,13 @@ if (-not (Test-Path -LiteralPath $recipePath)) {
 
     Write-Step "Rebuilding romdata.bin ($($needed.Count) images to decompress -- the slow part, please wait)"
     $images = @{}
+    # Image decompression spans 80..97. Announce each image before decompressing
+    # it (the decompress itself is silent and can be a second or two), so the bar
+    # never sits still through this phase.
+    $imgDone = 0
+    $imgTotal = $needed.Count
     foreach ($src in $needed) {
+        Write-Prog (80 + [int](17 * $imgDone / $imgTotal)) "Decompressing $src ($($imgDone + 1) of $imgTotal)"
         if ($src -eq 'arm9') {
             # Program header: rom offset at 0x20, ram address 0x28, size 0x2C.
             # The payload is stored with the same back-to-front compression as
@@ -397,10 +462,12 @@ if (-not (Test-Path -LiteralPath $recipePath)) {
             $images[$src] = $raw
         }
         Write-Step "    $src ($([math]::Round($images[$src].Length / 1KB)) KB)"
+        $imgDone++
     }
 
     # Assemble. The buffer starts zeroed, so a range past its image's end
     # simply keeps its zeros.
+    Write-Prog 98 "Assembling and checking romdata.bin"
     $blob = New-Object 'byte[]' $blobTotal
     foreach ($line in $recipeLines) {
         if ($line.StartsWith('#')) { continue }
@@ -429,6 +496,7 @@ if (-not (Test-Path -LiteralPath $recipePath)) {
     }
 }
 
+Write-Prog 100 "Done"
 Write-Host ""
 Write-Host "Done. The game data is ready in $Destination" -ForegroundColor Green
 exit 0
