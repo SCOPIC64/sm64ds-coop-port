@@ -976,6 +976,14 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?G0@@3PAHA=_data_ov002_0210e064")
 #pragma comment(linker, "/alternatename:?G1@@3PAHA=_data_ov002_0210e05c")
 #pragma comment(linker, "/alternatename:_G0=_data_020a0eac")
+/* SignPost::CleanupResources carried from main names its two SharedFilePtrs
+   by role instead of G0/G1: SignPost_ModelFile = 0x0210e064 (released first,
+   ROM order) and SignPost_ClsnFile = 0x0210e05c (main's ov002 symbols.txt
+   rows 2795/2797 pin both addresses). The declarations sit outside the
+   file's extern "C" reach, so MSVC mangles them; same targets as the
+   G0/G1 rows above, which stay for any TU still spelling the placeholders. */
+#pragma comment(linker, "/alternatename:?SignPost_ModelFile@@3PAHA=_data_ov002_0210e064")
+#pragma comment(linker, "/alternatename:?SignPost_ClsnFile@@3PAHA=_data_ov002_0210e05c")
 /* src/_ZN18MovingCylinderClsnD1Ev.c spells its two constants by role: the
    base destructor at 0x02015058 is CylinderClsn::~CylinderClsn (D2) and the
    vtable it installs first is _ZTV18MovingCylinderClsn (0x0208e6d4). */
