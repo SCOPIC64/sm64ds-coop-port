@@ -635,7 +635,10 @@ src/func_ov078_021240a0.c
 src/func_ov078_02124060.cpp
 src/func_ov078_02124000.c
 src/func_ov078_02123fb4.cpp
-src/func_ov078_02123f1c.cpp
+# func_ov078_02123f1c: HOST COPY at unmatched/KingBobOmb_HeldHealthCheck.cpp (wired in
+# CMakeLists). The matched C calls Player::GetHealth() with no argument and relies on
+# the held Player (c->field_494) being live in ARM r0; cdecl drops it, so the host copy
+# passes c->field_494 explicitly. See that file's header.
 src/func_ov078_02123eb8.c
 src/func_ov078_02123d3c.c
 src/func_ov078_02123cf0.cpp

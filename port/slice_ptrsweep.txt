@@ -54,7 +54,10 @@ src/func_02007698.c
 src/func_02007758.c
 src/func_020077f0.c
 src/func_02007870.c
-src/func_020078c4.c
+# func_020078c4: HOST COPY at unmatched/Camera_ApproachAngleVeneer.cpp (wired in
+# CMakeLists). The matched C calls ApproachAngle with four arguments; the fifth
+# (maxStep) rides the stack as 0, which cdecl does not stage, so the host copy passes
+# the fifth argument (0) explicitly. See that file's header.
 src/func_02007910.c
 src/func_020079ac.c
 src/func_02007a8c.c

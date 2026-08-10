@@ -44,7 +44,10 @@ src/func_ov085_0212cc18.c
 # gate 13 hosted -- and places himself relative to it, which is why he can be
 # tried at all rather than deferred with the rest of the cutscene actors.
 src/LakituBro_Spawn.c
-src/_ZN9LakituBro13InitResourcesEv.cpp
+# _ZN9LakituBro13InitResourcesEv: HOST COPY at unmatched/TexSeq_Caller_LakituBro.cpp
+# (wired in CMakeLists). Its TextureSequence::Prepare call passes two arguments; the
+# host wrapper reshapes them into a 3-param thiscall and derefs an unwritten third
+# stack slot, so the host copy passes the real third argument. See that file's header.
 # _ZN9LakituBro8BehaviorEv is NOT here. It dispatches an mwcc
 # pointer-to-member out of an eleven-entry state table, and MSVC forms a PMF
 # over an incomplete class as the four-word general representation -- the

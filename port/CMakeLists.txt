@@ -956,6 +956,12 @@ foreach(line IN LISTS SLICE18_LINES)
     endif()
     list(APPEND SLICE18_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+# argfix: LakituBro::InitResources calls TextureSequence::Prepare with two
+# arguments; the host wrapper reshapes them into a 3-param thiscall and derefs an
+# unwritten third slot. Host copy passes the real third argument. Src line
+# commented out in slice_gate18.txt.
+list(APPEND SLICE18_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/TexSeq_Caller_LakituBro.cpp")
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate19.txt" SLICE19_LINES)
 set(SLICE19_SOURCES "")
@@ -1111,7 +1117,12 @@ foreach(line IN LISTS SLICE33_LINES)
 endforeach()
 list(APPEND SLICE33_SOURCES
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Coin_Behavior.cpp"
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Coin_CollectDispatch.cpp")
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Coin_CollectDispatch.cpp"
+     # argfix: func_ov002_020b10a0 calls StarMarker::SpawnRedCoinStarIfNecessary()
+     # with no argument and relies on func_ov002_020b1328's returned StarMarker
+     # riding ARM r0. Host copy captures and passes it. Src line commented out in
+     # slice_gate33.txt.
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/StarMarker_SpawnDispatch.cpp")
 
 # Gate 32: Bob-omb Battlefield's living cast -- the first ENEMY-family actor
 # classes the port hosts, and the first vtables past twenty slots. See the head
@@ -1127,6 +1138,11 @@ foreach(line IN LISTS SLICE32_LINES)
     endif()
     list(APPEND SLICE32_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+# argfix: func_ov078_02123f1c (King Bob-omb) calls Player::GetHealth() with no
+# argument and relies on the held Player (c->field_494) riding ARM r0. Host copy
+# passes it. Src line commented out in slice_gate32.txt.
+list(APPEND SLICE32_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/KingBobOmb_HeldHealthCheck.cpp")
 
 # Gate 31: the level HANDOFF. Small on purpose -- almost all of it was already
 # linked by gate 10 (see the head of slice_gate31.txt); what is here is
@@ -1276,6 +1292,12 @@ foreach(line IN LISTS SLICE_PTR_LINES)
     endif()
     list(APPEND SLICE_PTR_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+# argfix: func_020078c4 calls ApproachAngle with four arguments; the fifth
+# (maxStep=0) rides the stack, which cdecl does not stage. Host copy passes the
+# fifth argument explicitly. Src line commented out in slice_ptrsweep.txt; the
+# data_02086d88 pointer table (hal/ptr_tables.cpp) resolves to this copy.
+list(APPEND SLICE_PTR_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Camera_ApproachAngleVeneer.cpp")
 
 # gate 10 minus the two files the camera build replaces
 set(SLICE10_CAM_SOURCES "")
@@ -1357,6 +1379,17 @@ foreach(src IN LISTS SLICE10_SOURCES)
     endif()
     list(APPEND SLICE10_CAM_SOURCES "${src}")
 endforeach()
+
+# argfix (under-declared-implicit-arg bug class): three gate-10 callers whose
+# matched src drops an argument that rode an ARM register for free. Their src
+# lines are commented out in slice_gate10.txt; these host copies pass the missing
+# argument explicitly (register-proven per site). See each file's header.
+# (func_ov002_020e5948's TexSeq caller fix is Brain B's lane, handed over via
+# out/argfix/handoff/ -- not wired here.)
+list(APPEND SLICE10_CAM_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Player_ReleaseHeldDispatch.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Player_SwimMain.cpp"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/InitCrashScreen_ResetVeneer.cpp")
 
 # The hosted ARM7: native SDAT player behind the game's own command queue.
 set(SOUND_HOST_SOURCES
@@ -1496,6 +1529,11 @@ foreach(line IN LISTS SLICE14_LINES)
     endif()
     list(APPEND SLICE14_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+# argfix: Sound::LoadGroupAndSetBank calls func_0203d7d4() with no argument and
+# relies on func_020134d8's return riding ARM r0. Host copy passes it. Src line
+# commented out in slice_gate14.txt.
+list(APPEND SLICE14_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Sound_LoadGroupAndSetBank.cpp")
 
 # Gate 36: the real Stage::InitResources, to replace port_stage_a_boot. The
 # function and all 45 of its direct callees are matched already; this is
@@ -2155,6 +2193,13 @@ foreach(line IN LISTS SLICE16_LINES)
     endif()
     list(APPEND SLICE16_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+# argfix: Actor::DistToCPlayer (gate 16) and Actor::FarthestPlayer (gate 89) both
+# call Actor::ClosestPlayer() with no argument and rely on `this` riding ARM r0.
+# One host copy carries both wrappers; it is added here (both gates ship on the
+# same three targets, so add it once). Src lines commented out in slice_gate16.txt
+# and slice_gate89.txt.
+list(APPEND SLICE16_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Actor_ClosestPlayerWrappers.cpp")
 
 # The camera slice is on both binaries. The gate-13 State objects carry real
 # DS function addresses, and Player::ChangeState already reaches

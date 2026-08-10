@@ -81,7 +81,10 @@ src/func_ov002_020b1bfc.cpp
 src/func_ov002_020b20b4.cpp
 
 # ---- the five helpers Behavior closes over ---------------------------------
-src/func_ov002_020b10a0.c
+# func_ov002_020b10a0: HOST COPY at unmatched/StarMarker_SpawnDispatch.cpp (wired in
+# CMakeLists). The matched C calls StarMarker::SpawnRedCoinStarIfNecessary() with no
+# argument and relies on func_ov002_020b1328's returned StarMarker being live in ARM
+# r0; cdecl drops it, so the host copy captures and passes it. See that file's header.
 src/func_ov002_020b12ec.c
 src/func_ov002_020b14d8.c
 src/func_ov002_020b10e4.c

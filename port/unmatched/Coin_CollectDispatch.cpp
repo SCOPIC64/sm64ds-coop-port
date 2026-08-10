@@ -47,6 +47,7 @@ void func_ov002_020b16c4(char *self);
 void func_ov002_020b1674(char *self, char *p);
 void func_ov002_020b1884(char *self, char *p);   /* the real two-arg shape */
 
+// PORT_HOST_ABI: implicit-register-arg (callee func_ov002_020b1884 is (self, player); ARM rode the player in r1, the host passes it).
 int func_ov002_020b19dc(char *self)
 {
     unsigned int id = *(unsigned int *)(self + 0x19c);

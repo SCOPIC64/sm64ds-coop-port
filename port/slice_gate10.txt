@@ -234,7 +234,10 @@ src/func_0205b1d8.c
 src/func_0205b5d4.c
 src/_ZN5Model14SetPolygonModeEi.cpp
 src/_ZN15TextureSequence17UpdateFileOffsetsER8BTP_File.cpp
-src/InitCrashScreen.c
+# InitCrashScreen: HOST COPY at unmatched/InitCrashScreen_ResetVeneer.cpp (wired in
+# CMakeLists). The matched C calls Scene::ResetHardwareRegisters() with no argument;
+# the callee never dereferences `this`, so this is a DEFENSIVE fix (pass 0) not a
+# live crash. See that file's header.
 src/ShowCrashScreen.c
 src/_ZN4Heap6RescueEv.cpp
 src/func_02043060.c
@@ -643,7 +646,10 @@ src/func_02043f98.c
 src/func_02046bbc.c
 src/func_02054d88.c
 src/func_ov002_020bda48.c
-src/func_ov002_020bdb50.cpp
+# func_ov002_020bdb50: HOST COPY at unmatched/Player_ReleaseHeldDispatch.cpp
+# (wired in CMakeLists). The matched C calls func_ov002_020d5cec with no argument
+# and relies on the held object being live in ARM r0; cdecl drops it, so the host
+# copy passes *(char**)(c+0x360) explicitly. See that file's header.
 src/func_ov002_020bf40c.c
 src/func_ov002_020bfec0.c
 src/func_ov002_020c0cbc.c
@@ -1077,7 +1083,10 @@ src/_ZN6Player15St_Swallow_MainEv.cpp
 src/_ZN6Player15St_Swallow_InitEv.cpp
 src/_ZN6Player17St_SweepKick_MainEv.cpp
 src/_ZN6Player17St_SweepKick_InitEv.cpp
-src/_ZN6Player12St_Swim_MainEv.cpp
+# _ZN6Player12St_Swim_MainEv: HOST COPY at unmatched/Player_SwimMain.cpp (wired in
+# CMakeLists). The matched C calls Player::GetHealth() with no argument and relies
+# on `this` being live in ARM r0; cdecl drops it, so the host copy passes `this`
+# explicitly. This is the JRB SIG-SWIM crash. See that file's header.
 src/_ZN6Player12St_Swim_InitEv.cpp
 src/_ZN6Player15St_Swim_CleanupEv.cpp
 src/_ZN6Player12St_Talk_MainEv.cpp

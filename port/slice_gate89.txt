@@ -97,7 +97,10 @@ src/func_ov002_020e7454.c
 src/func_0203d024.c
 # named matched funcs the closure reaches
 src/NumVsStarsObtained.c
-src/_ZN5Actor14FarthestPlayerEv.c
+# _ZN5Actor14FarthestPlayerEv: HOST COPY at unmatched/Actor_ClosestPlayerWrappers.cpp
+# (wired in CMakeLists, added there alongside DistToCPlayer). The matched C calls
+# Actor::ClosestPlayer() with no argument and relies on `this` being live in ARM r0;
+# cdecl drops it, so the host copy passes `this` explicitly. See that file's header.
 src/_ZN8SaveData13GetCoinRecordEj.c
 src/_ZN8SaveData21SetCoinRecordIfHigherEah.c
 # Particle::System::New (the star-collect effect func_ov002_020e81e0 spawns)
