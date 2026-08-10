@@ -822,6 +822,22 @@ extern "C" void hal_fill_ski_lift_vtable(void)
     vt[3]  = (void *)skl_clean;
     vt[6]  = (void *)skl_behavior;
     vt[9]  = (void *)skl_render;
+    /* Slot 12, OnPendingDestroy. ccm190_fill_shared deliberately leaves 12 to
+       the caller (it is the one Actor-head slot classes commonly override, so
+       the shared half cannot guess it), and this fill was the only one in the
+       TU that never wrote it -- every other hal_fill_*_vtable here seats
+       ccm_pdes or its own body. Left zero, the slot was the LEVEL 10 EXIT
+       CRASH: ActorBase::MarkForDestruction ends in `jmp [vtable+0x30]`, so the
+       first teardown of Cool Cool Mountain jumped to address 0 and killed the
+       process, with no actor-walk guard around it to contain the fault.
+       ActorBase::OnPendingDestroy is what the ROM puts here, not a guess:
+       config/arm9/overlays/ov018/relocs.txt has
+           from:0x021138fc kind:load to:0x02043ac0 module:main
+       and 0x021138fc is data_ov018_021138cc + 0x30 (slot 12), while
+       0x02043ac0 is _ZN9ActorBase16OnPendingDestroyEv (an empty 4-byte body).
+       port/ov018_syms.txt's gate-191 derivation reads the same slot the same
+       way; the table was documented correctly and only the fill missed it. */
+    vt[12] = (void *)ccm_pdes;
     vt[16] = (void *)skl_d1;
     vt[17] = (void *)skl_d0;
     vt[27] = (void *)skl_mega;   /* own OnHitByMegaChar, overrides the shared default */
