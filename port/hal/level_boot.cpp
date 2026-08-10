@@ -1496,19 +1496,92 @@ static void __fastcall ps_pdes(void *s, void *)
 static int __fastcall ps_d1(void *s, void *)
 { return (int)(size_t)_ZN6PlayerD2Ev(s); }
 
-static const char *const hal_player_slot_name[20] = {
+/* ---- THE PLAYER'S TABLE IS THIRTY-ONE SLOTS, AND ONLY TWENTY WERE SEEDED --
+   data_ov002_0210a83c is _ZTV6Player, and it comes from the ov002 per-symbol
+   mount -- so slots 20..30 held the ROM's own DS addresses. Real storage, real
+   contents, and on host those resolve outside .text. The seed loop below
+   stopped at 20, so nothing ever overwrote them, and dispatching slot 25 on
+   the Player jumped to a DS address: exit -1073741819.
+
+   This table is invisible to a DECLARATION sweep twice over. It carries a
+   plain data name rather than a _ZTV name, the same blind spot that hid
+   BILL_BLASTER's table (ov079 0x02127fb8); and there is no array declaration
+   here at all, because the width lives in a loop bound. Only comparing what a
+   fill WRITES against the ROM span finds it, which is what
+   port/tools/vtspan.py --fills does.
+
+   Slots 20..30 are Actor's own interaction list, the same addresses every
+   other Actor table carries, and every body is already in the build. Slot 19
+   is Actor::OnTurnIntoEgg (arm9 0x02010154, slice_gate50) and was trapped for
+   want of seating rather than for a reason.
+
+   THERE IS NO SLOT 31. The Player is a plain Actor, not a Platform, and dsd's
+   next symbol (data_ov002_0210a8b8) sits exactly 31 words along -- writing one
+   would run off the end of the mounted symbol.
+
+   Reachability of the tail is UNPROVEN and is not claimed here: the wall and
+   floor dispatchers run on the player's own collider and look up what the
+   player is TOUCHING, so the Player cannot be its own target through them.
+   Something else would have to name the Player through a collision result.
+   The ROM says what belongs in these slots either way. */
+extern "C" {
+void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p);       /* 19 */
+int  _ZN5Actor9Virtual50Ev(void *self);                            /* 20 */
+void _ZN5Actor15OnGroundPoundedERS_(void *self, void *o);          /* 21 */
+void _ZN5Actor11OnAttacked1ERS_(void *self, void *o);              /* 22 */
+void _ZN5Actor11OnAttacked2ERS_(void *self, void *o);              /* 23 */
+void _ZN5Actor8OnKickedERS_(void *self, void *o);                  /* 24 */
+void _ZN5Actor8OnPushedERS_(void *self, void *o);                  /* 25 */
+void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* 26 */
+void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* 27 */
+void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* 28 */
+int  _ZN5Actor16OnAimedAtWithEggEv(void *self);                    /* 29 */
+}
+/* 19 and 21..28 take their argument PUSHED by the __thiscall caller, so each
+   thunk needs the dummy edx AND the named parameter or the caller's frame runs
+   short. */
+static int __fastcall ps_egg19(void *s, void *, void *p)
+{ _ZN5Actor13OnTurnIntoEggER6Player(s, p); return 0; }
+static int __fastcall ps_v50(void *s, void *)
+{ return _ZN5Actor9Virtual50Ev(s); }
+static int __fastcall ps_pounded(void *s, void *, void *o)
+{ _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
+static int __fastcall ps_atk1(void *s, void *, void *o)
+{ _ZN5Actor11OnAttacked1ERS_(s, o); return 0; }
+static int __fastcall ps_atk2(void *s, void *, void *o)
+{ _ZN5Actor11OnAttacked2ERS_(s, o); return 0; }
+static int __fastcall ps_kicked(void *s, void *, void *o)
+{ _ZN5Actor8OnKickedERS_(s, o); return 0; }
+static int __fastcall ps_pushed(void *s, void *, void *o)
+{ _ZN5Actor8OnPushedERS_(s, o); return 0; }
+static int __fastcall ps_cannon(void *s, void *, void *o)
+{ _ZN5Actor24OnHitByCannonBlastedCharERS_(s, o); return 0; }
+static int __fastcall ps_mega(void *s, void *, void *p)
+{ _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
+static int __fastcall ps_under(void *s, void *, void *o)
+{ _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
+static int __fastcall ps_aimed(void *s, void *)
+{ return _ZN5Actor16OnAimedAtWithEggEv(s); }
+
+#define HAL_PLAYER_SLOTS 31
+static const char *const hal_player_slot_name[HAL_PLAYER_SLOTS] = {
     "InitResources", "BeforeInitResources", "AfterInitResources",
     "CleanupResources", "BeforeCleanupResources", "AfterCleanupResources",
     "Behavior", "BeforeBehavior", "AfterBehavior",
     "Render", "BeforeRender", "AfterRender",
     "OnPendingDestroy", "Virtual34", "Virtual38", "OnHeapCreated",
-    "~Player (D1)", "~Player (D0)", "OnYoshiTryEat", "OnTurnIntoEgg"};
+    "~Player (D1)", "~Player (D0)", "OnYoshiTryEat", "OnTurnIntoEgg",
+    "Virtual50", "OnGroundPounded", "OnAttacked1", "OnAttacked2",
+    "OnKicked", "OnPushed", "OnHitByCannonBlastedChar", "OnHitByMegaChar",
+    "OnHitFromUnderneath", "OnAimedAtWithEgg", "OnAimedAtWithEggReturnVec"};
 static int hal_player_trap_slot;
 static int __fastcall ps_trap(void *, void *)
 {
     std::fprintf(stderr, "FATAL: Player vtable slot %d (%s) is not hosted\n",
                  hal_player_trap_slot,
-                 hal_player_slot_name[hal_player_trap_slot & 19]);
+                 (unsigned)hal_player_trap_slot < HAL_PLAYER_SLOTS
+                     ? hal_player_slot_name[hal_player_trap_slot]
+                     : "out of range");
     std::abort();
     return 0;
 }
@@ -1516,7 +1589,7 @@ static int __fastcall ps_trap(void *, void *)
 extern "C" void hal_fill_player_vtable(void)
 {
     void **vt = (void **)data_ov002_0210a83c;
-    for (int i = 0; i < 20; ++i)
+    for (int i = 0; i < HAL_PLAYER_SLOTS; ++i)
         vt[i] = (void *)ps_trap;
     vt[0] = (void *)ps_init;
     vt[1] = (void *)ps_binit;
@@ -1532,6 +1605,23 @@ extern "C" void hal_fill_player_vtable(void)
     vt[5] = (void *)ps_aclean;
     vt[12] = (void *)ps_pdes;
     vt[16] = (void *)ps_d1;
+    /* 19..29, the ROM's own contents. 17 (D0) and 18 keep the trap: 17 on
+       purpose, per the note above, and 18 because Player::OnYoshiTryEat is the
+       Player's OWN body (ov002 0x020e69b8) and is in no slice, so forwarding
+       to Actor's would run the wrong code rather than less code. 30 keeps the
+       trap too -- its ROM body returns a Vector3 by value and the sret
+       contract is unproved, the reading every other table in the port takes. */
+    vt[19] = (void *)ps_egg19;
+    vt[20] = (void *)ps_v50;
+    vt[21] = (void *)ps_pounded;
+    vt[22] = (void *)ps_atk1;
+    vt[23] = (void *)ps_atk2;
+    vt[24] = (void *)ps_kicked;
+    vt[25] = (void *)ps_pushed;
+    vt[26] = (void *)ps_cannon;
+    vt[27] = (void *)ps_mega;
+    vt[28] = (void *)ps_under;
+    vt[29] = (void *)ps_aimed;
 }
 
 /* The per-frame tick the ROM's processing list runs on every actor:

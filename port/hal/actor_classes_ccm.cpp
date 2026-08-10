@@ -2,9 +2,16 @@
 // vtable.
 //
 // Same law as hal/actor_classes.cpp and hal/actor_classes_wf.cpp -- ROM slot
-// order, __fastcall thunks that call QUALIFIED, unhosted slots trap by name --
-// and TWENTY SLOTS, the plain ActorBase shape (IceSlideManager is a direct
-// Actor subclass, not a Platform).
+// order, __fastcall thunks that call QUALIFIED, unhosted slots trap by name.
+//
+// THIRTY-ONE SLOTS. This header used to say TWENTY, "the plain ActorBase
+// shape, IceSlideManager is a direct Actor subclass, not a Platform" -- the
+// mirror of the wrong premise hal/actor_classes_wf.cpp carried. A direct Actor
+// subclass is THIRTY-ONE: twenty is the ActorBase shape, thirty-one adds
+// Actor's own interaction list at 20..30, and only a Platform subclass gets a
+// thirty-second. _ZTV15IceSlideManager (ov019 0x021133cc) is 31 words and its
+// 20..30 are the shared arm9 bodies, every one of them relocated in the ROM
+// image. Declared [20] and seeded to 19, slots 20..30 were never written.
 //
 // IceSlideManager (actor 356) is the one class level 11 spawns that lives in the
 // level's own overlay rather than a shared one, so it needs the per-symbol ov019
@@ -114,6 +121,43 @@ static int __fastcall ccm_clean_base(void *s, void *)
 static int __fastcall ccm_render_base(void *s, void *)
 { return ((ActorBase *)s)->ActorBase::Render(); }
 
+/* Actor's own interaction list, slots 20..30, which every table in this file
+   carries. Declared here rather than in the ONE_UP_LOGO block below because
+   IceSlideManager needs it too -- it is 31 slots, not 20. */
+extern "C" {
+int  _ZN5Actor9Virtual50Ev(void *self);                            /* 20 */
+void _ZN5Actor15OnGroundPoundedERS_(void *self, void *o);          /* 21 */
+void _ZN5Actor11OnAttacked1ERS_(void *self, void *o);              /* 22 */
+void _ZN5Actor11OnAttacked2ERS_(void *self, void *o);              /* 23 */
+void _ZN5Actor8OnKickedERS_(void *self, void *o);                  /* 24 */
+void _ZN5Actor8OnPushedERS_(void *self, void *o);                  /* 25 */
+void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* 26 */
+void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* 27 */
+void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* 28 */
+int  _ZN5Actor16OnAimedAtWithEggEv(void *self);                    /* 29 */
+}
+static int __fastcall ccm_v50(void *s, void *)
+{ return _ZN5Actor9Virtual50Ev(s); }
+static int __fastcall ccm_pounded(void *s, void *, void *o)
+{ _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
+static int __fastcall ccm_atk1(void *s, void *, void *o)
+{ _ZN5Actor11OnAttacked1ERS_(s, o); return 0; }
+static int __fastcall ccm_atk2(void *s, void *, void *o)
+{ _ZN5Actor11OnAttacked2ERS_(s, o); return 0; }
+static int __fastcall ccm_kicked(void *s, void *, void *o)
+{ _ZN5Actor8OnKickedERS_(s, o); return 0; }
+static int __fastcall ccm_pushed(void *s, void *, void *o)
+{ _ZN5Actor8OnPushedERS_(s, o); return 0; }
+static int __fastcall ccm_cannon(void *s, void *, void *o)
+{ _ZN5Actor24OnHitByCannonBlastedCharERS_(s, o); return 0; }
+static int __fastcall ccm_mega(void *s, void *, void *p)
+{ _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
+static int __fastcall ccm_under(void *s, void *, void *o)
+{ _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
+static int __fastcall ccm_aimed(void *s, void *)
+{ return _ZN5Actor16OnAimedAtWithEggEv(s); }
+static int __fastcall ccm_trap30(void *s, void *) { ccm_trap_report(s, 30); return 0; }
+
 /* Slot 16, D1. The ROM body is an empty ~IceSlideManager: no member sub-objects
    (the header is plain u8 fields), so it is Actor::D2 alone, the ac_d1_actor_only
    reading hal/actor_classes.cpp already documents. */
@@ -131,7 +175,7 @@ static int __fastcall ism_behavior(void *s, void *)
    actor. Defined here, not just declared: the `int` type and C linkage match
    the `extern int _ZTV15IceSlideManager[]` in decl_common.h that the factory
    TU sees. */
-extern "C" { int _ZTV15IceSlideManager[20]; }
+extern "C" { int _ZTV15IceSlideManager[31]; }
 
 /* IceSlideManager::InitResources (src, compiled C++) reads its construction data
    through `extern struct S3 data_ov019_021135d8;`, which MSVC decorates as a C++
@@ -168,6 +212,20 @@ extern "C" void hal_fill_ice_slide_manager_vtable(void)
     vt[12] = (void *)ccm_pdes;
     vt[16] = (void *)ism_d1;
     vt[17] = (void *)ccm_trap17;
+    /* 20..30, Actor's own list, which is what the ROM table holds --
+       IceSlideManager overrides none of it. Slot 30 declines: its ROM body
+       returns a Vector3 by value and the sret contract is unproved. */
+    vt[20] = (void *)ccm_v50;
+    vt[21] = (void *)ccm_pounded;
+    vt[22] = (void *)ccm_atk1;
+    vt[23] = (void *)ccm_atk2;
+    vt[24] = (void *)ccm_kicked;
+    vt[25] = (void *)ccm_pushed;
+    vt[26] = (void *)ccm_cannon;
+    vt[27] = (void *)ccm_mega;
+    vt[28] = (void *)ccm_under;
+    vt[29] = (void *)ccm_aimed;
+    vt[30] = (void *)ccm_trap30;
 }
 
 // ============================================================================
@@ -296,9 +354,9 @@ extern "C" void hal_fill_ice_slide_manager_vtable(void)
 extern "C" {
 void port_actor_render_probe(const char *cls, void *model); /* hal/actor_classes.cpp */
 /* the Actor-tail shared halves ccm190_fill_shared (below) binds at 18..29 for
-   both ICE_SHEET and ONE_UP_LOGO -- this TU's first declaration of the
-   31-slot Actor tail (IceSlideManager, above, is a plain 20-slot ActorBase
-   shape and never reaches past 19). */
+   both ICE_SHEET and ONE_UP_LOGO. 20..29 are declared once above, for
+   IceSlideManager, which is 31 slots like everything else here; 18 and 19 are
+   declared here. */
 int _ZN5Actor13OnYoshiTryEatEv(void *self);                        /* 18 */
 void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p);       /* 19 */
 int _ZN5Actor9Virtual50Ev(void *self);                             /* 20 */

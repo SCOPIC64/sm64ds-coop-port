@@ -305,7 +305,7 @@ void func_ov072_021209bc(void);            /* slot 12, own, empty body */
 int *func_ov072_02120824(int *self);       /* slot 16, D1 */
 int *func_ov072_02120874(int *self);       /* slot 17, D0 */
 void *func_ov072_02120c00(void);           /* installs the class's own (unnamed) vtable */
-int _ZTV11daBgSnwmn_c[31];                 /* the class's own vtable, host array -- ALL matched src spells it by this mangled name directly, no alias needed */
+int _ZTV11daBgSnwmn_c[31];   /* vtspan: data_ov072_02122978 */                 /* the class's own vtable, host array -- ALL matched src spells it by this mangled name directly, no alias needed */
 }
 
 static int __fastcall snm_init(void *s, void *)

@@ -531,7 +531,8 @@ extern "C" void *hal_actor_shared_pdes(void) { return (void *)ac_pdes_base; }
 // are Actor's own interaction list and 31 is Platform::Kill. The prefill loop
 // stopped at 20 with the array, so the width had to move with it or 20..31
 // would have stayed null.
-extern "C" { void *_ZTV10dBgActor_c[32]; extern void *_ZTV8Platform[32]; }
+extern "C" { void *_ZTV10dBgActor_c[32];   /* vtspan: _ZTV8Platform */
+              extern void *_ZTV8Platform[32]; }
 extern "C" void hal_fill_platform_vtable(void)
 {
     static int done;
@@ -1811,7 +1812,7 @@ int func_ov100_0214542c(void *self);      /* CleanupResources */
 int func_ov100_02145550(void *self);      /* Behavior -- host copy */
 int func_ov100_021454c8(void *self);      /* Render   -- host copy */
 void func_ov100_021454c4(void);           /* OnPendingDestroy */
-void *_ZTV8daDoor_c[31];
+void *_ZTV8daDoor_c[31];   /* vtspan: data_ov100_02148188 */
 }
 
 static int __fastcall dr_init(void *s, void *)

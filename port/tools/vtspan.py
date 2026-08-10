@@ -345,8 +345,13 @@ def sweep(rom, root):
     found = {}
     for p in sorted((pathlib.Path(root) / "port").rglob("*.cpp")):
         for i, ln in enumerate(p.read_text(errors="replace").splitlines(), 1):
-            if re.match(r"\s*extern\s", ln) and "=" not in ln:
-                continue                      # a declaration, not storage
+            # `extern int X[];` is a declaration and is rightly skipped.
+            # `extern "C" { int X[20]; }` is a DEFINITION, and skipping that
+            # hid _ZTV15IceSlideManager -- 20 host words against 31 in the ROM
+            # -- for as long as this sweep has existed.
+            if (re.match(r"\s*extern\s", ln) and '"C"' not in ln
+                    and "=" not in ln):
+                continue
             m = DEF.match(ln)
             if m:
                 n = decl_slots(m.group("type"), m.group("len"))
@@ -565,6 +570,217 @@ def seats(rom, disasm):
     return 1
 
 
+# ============================================================================
+# --fills: does the fill WRITE every slot the ROM table has?
+# ============================================================================
+#
+# WHY A THIRD CHECK
+#     --sweep reads DECLARATIONS. --seats reads what a seated thunk CALLS.
+#     Neither sees a table whose width lives in a loop bound and whose storage
+#     is not declared here at all:
+#
+#         void **vt = (void **)data_ov002_0210a83c;   // the ov002 mount
+#         for (int i = 0; i < 20; ++i)                // 31 slots in the ROM
+#             vt[i] = (void *)ps_trap;
+#
+#     That is the PLAYER. Slots 20..30 kept the mounted ROM image's own DS
+#     addresses, which on host resolve outside .text, and dispatching slot 25
+#     on the Player exits -1073741819. There is no array declaration to widen
+#     and no wrong body to catch -- the slot was simply never written.
+#
+#     Three of the tables found short this way carried a plain data_ name
+#     rather than a _ZTV name (data_ov002_0210a83c, data_ov079_02127fb8,
+#     data_ov015_021147e8). Naming, not just declaration shape, is the blind
+#     spot; this check keys off the fill instead of the name.
+#
+# WHAT IT READS
+#     The fills, from source. For each function it finds the table it binds
+#     (`void **vt = (void **)NAME` or a direct `NAME[i] =`), the slots it
+#     writes explicitly, the range any seed loop covers, and the slots any
+#     shared helper it calls writes -- resolved transitively. Then it asks the
+#     ROM how many slots the table has.
+#
+# ITS OWN FIELD OF VIEW, STATED RATHER THAN ASSUMED
+#     This is a source scan, so a fill that writes through a shape it does not
+#     model is invisible to it. That is exactly the failure that let the Player
+#     sit unnoticed, so every fill it CANNOT resolve is listed by name at the
+#     end instead of being silently dropped. An unresolved fill is a gap in the
+#     check, not a pass.
+
+FILLFN = re.compile(r"^(?:extern\s+\"C\"\s+)?(?:static\s+)?void\s+"
+                    r"(\w+)\s*\(([^)]*)\)\s*$")
+# ANY identifier, not just _ZTV/data_ prefixed: port_bp_shell_vtable and the
+# ov013 clock tables bind through host names of their own, and a prefix filter
+# here is the same naming blind spot that hid the Player's table from --sweep.
+BIND = re.compile(r"void\s*\*\s*(?:volatile\s*)?\*\s*(\w+)\s*=\s*"
+                  r"(?:\([^)]*\)\s*)?([A-Za-z_]\w*)\s*;")
+WRITE = re.compile(r"\b(\w+)\s*\[\s*(\d+)\s*\]\s*=")
+LOOP = re.compile(r"for\s*\(\s*(?:int\s+)?(\w+)\s*=\s*0\s*;\s*\1\s*<\s*"
+                  r"([^;]+?)\s*;")
+CALL = re.compile(r"\b(\w+)\s*\(\s*(?:\(void\s*\*\*\)\s*)?(\w+)\s*\)\s*;")
+
+
+def _fn_bodies(text):
+    """{name: body} for the brace-balanced top-level functions in a file."""
+    out, lines = {}, text.splitlines()
+    i = 0
+    while i < len(lines):
+        m = FILLFN.match(lines[i].rstrip())
+        if m and i + 1 < len(lines) and lines[i + 1].startswith("{"):
+            depth, j, buf = 0, i + 1, []
+            while j < len(lines):
+                depth += lines[j].count("{") - lines[j].count("}")
+                buf.append(lines[j])
+                j += 1
+                if depth == 0:
+                    break
+            out[m.group(1)] = "\n".join(buf)
+            i = j
+            continue
+        i += 1
+    return out
+
+
+ALIAS = re.compile(r'/alternatename:(\??[\w?@$]+)=(\??[\w?@$]+)')
+# Some host tables carry a name the ROM never had -- port_bp_shell_vtable
+# is invented outright, and _ZTV8dMeter_c is the config's name for a table
+# whose ROM symbol is _ZTV3HUD. There is no mechanical route from those to
+# an address, so the DECLARATION states it:
+#     void *_ZTV8dMeter_c[18];   /* vtspan: _ZTV3HUD */
+# Without it such a fill is unresolved, and an unresolved fill is a hole in
+# this check rather than a pass -- which is how the Player's table stayed
+# invisible. Annotate rather than skip.
+ANNOT = re.compile(r'(\w+)\s*\[[^\]]*\]\s*;.*?vtspan:\s*(\w+)')
+# `void **tabs[2] = { A, B }; ... void **vt = tabs[k];` -- one body
+# filling several tables identically, which is how the Platform base
+# table and its second name are seated.
+MULTIBIND = re.compile(r"void\s*\*\*\s*(\w+)\s*\[\s*\d+\s*\]\s*=\s*\{([^}]*)\}")
+
+
+def fills(rom, root):
+    consts = {"HAL_PLAYER_SLOTS": 31}
+    per_file, alias = {}, {}
+    for p in sorted((pathlib.Path(root) / "port").rglob("*.cpp")):
+        text = p.read_text(errors="replace")
+        for m in re.finditer(r"#define\s+(\w+)\s+(\d+)", text):
+            consts[m.group(1)] = int(m.group(2))
+        # A host array often carries the ROM's name only through an alias
+        # pragma -- _ZTV11daObjPile_c is really data_ov091_021352bc. Both
+        # directions, because the pragma is written either way round.
+        for m in ANNOT.finditer(text):
+            alias.setdefault(m.group(1), set()).add(m.group(2))
+        for m in ALIAS.finditer(text):
+            a = re.sub(r"^_", "", m.group(1))
+            b = re.sub(r"^_", "", m.group(2))
+            alias.setdefault(a, set()).add(b)
+            alias.setdefault(b, set()).add(a)
+        per_file[p] = _fn_bodies(text)
+
+    def resolve_table(name, seen=None):
+        """The ROM symbol behind a table name, following alias pragmas."""
+        seen = seen or set()
+        if name in seen:
+            return []
+        seen.add(name)
+        hits = list(rom.find(name))
+        if hits:
+            return hits
+        for other in sorted(alias.get(name, ())):
+            hits = resolve_table(other, seen)
+            if hits:
+                return hits
+        return []
+
+    def written(body, var, bodies, seen):
+        """Slot indices a body writes through `var`, following helpers."""
+        got = set()
+        for m in WRITE.finditer(body):
+            if m.group(1) == var:
+                got.add(int(m.group(2)))
+        for m in LOOP.finditer(body):
+            tail = body[m.end():m.end() + 200]
+            w = WRITE.search(tail)
+            if not (w and w.group(1) == var):
+                continue
+            try:
+                n = int(eval(m.group(2), {"__builtins__": {}}, dict(consts)))
+            except Exception:
+                continue
+            got |= set(range(n))
+        for m in CALL.finditer(body):
+            fn, arg = m.group(1), m.group(2)
+            if arg != var or fn in seen or fn not in bodies:
+                continue
+            seen.add(fn)
+            inner = bodies[fn]
+            im = re.search(r"\(\s*void\s*\*\*\s*(\w+)\s*\)", inner[:0])
+            got |= written(inner, "vt", bodies, seen)
+        return got
+
+    rows, unresolved, helpers = [], [], set()
+    # a shared helper is not a gap: it is reached with the bound variable from
+    # a fill that IS resolved, and its writes are already folded in below.
+    for p, bodies in per_file.items():
+        for fn, body in bodies.items():
+            b = BIND.search(body)
+            if not b:
+                continue
+            for m in CALL.finditer(body):
+                if m.group(2) == b.group(1) and m.group(1) in bodies:
+                    helpers.add(m.group(1))
+    for p, bodies in per_file.items():
+        for fn, body in bodies.items():
+            tables, var = [], None
+            b = BIND.search(body)
+            if b:
+                var, tables = b.group(1), [b.group(2)]
+            else:
+                m = MULTIBIND.search(body)
+                if m:
+                    var = "vt"
+                    tables = [x.strip() for x in m.group(2).split(",")
+                              if x.strip()]
+            if not tables:
+                if (fn not in helpers
+                        and re.search(r"\bvt\s*\[\s*\d+\s*\]\s*=", body)):
+                    unresolved.append((str(p.relative_to(root)), fn,
+                                       "table binding not modelled"))
+                continue
+            for table in tables:
+                hits = resolve_table(table)
+                if not hits:
+                    unresolved.append((str(p.relative_to(root)), fn,
+                                       "%s is a host-only name" % table))
+                    continue
+                module, addr = hits[0]
+                span, _ = rom.span(module, addr)
+                if span < 4:
+                    continue
+                got = written(body, var, bodies, set())
+                missing = sorted(set(range(span)) - got)
+                rows.append((table, fn, str(p.relative_to(root)), span,
+                             missing))
+
+    bad = [r for r in rows if r[4]]
+    print("%d fills resolved to a ROM table" % len(rows))
+    if bad:
+        print("\n=== %d FILLS LEAVE A SLOT UNWRITTEN ===" % len(bad))
+        for table, fn, where, span, missing in sorted(bad):
+            miss = ",".join(str(x) for x in missing[:12])
+            if len(missing) > 12:
+                miss += ",..."
+            print("%s (%s)\n        ROM has %d slots; never written: %s  [%s]"
+                  % (table, fn, span, miss, where))
+    else:
+        print("every resolved fill writes every slot its ROM table has")
+    if unresolved:
+        print("\n%d fill(s) this scan could NOT resolve -- a gap in the check, "
+              "not a pass:" % len(unresolved))
+        for where, fn, why in sorted(unresolved):
+            print("  %-38s %-34s %s" % (fn, why, where))
+    return 1 if bad else 0
+
+
 def main(argv):
     if len(argv) < 3:
         print(__doc__)
@@ -572,6 +788,8 @@ def main(argv):
     rom = Rom(argv[1])
     if argv[2] == "--sweep":
         return sweep(rom, argv[1])
+    if argv[2] == "--fills":
+        return fills(rom, argv[1])
     if argv[2] == "--seats":
         return seats(rom, argv[3])
     for want in argv[2:]:

@@ -342,7 +342,7 @@ extern "C" void hal_fill_bowser_puzzle_manager_vtable(void)
    registry wrapper below reseats the vptr onto this array -- a real
    placeholder-to-host reseat, the Bully treatment. Slots 3/9 are the ActorBase
    defaults per relocs. */
-static int port_bp_shell_vtable[31];
+static int port_bp_shell_vtable[31];   /* vtspan: data_ov064_0211c1d8 */
 static int __fastcall shl_init(void *s, void *)
 { return func_ov064_02119284(s); }
 static int __fastcall shl_clean(void *s, void *)
