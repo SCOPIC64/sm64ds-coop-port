@@ -317,4 +317,17 @@ void sd_mix_render(sd_s16 *dst, int frames)
             sd_mix_frame();
         }
     }
+
+    // Host master volume: one final scalar on the already-mixed stereo buffer.
+    // This is the output stage, not the DS mixer -- every voice, envelope and
+    // pan above stayed hardware-faithful; this only trims the summed result on
+    // the way out (and so the .wav dump and the device hear the same level).
+    // pct == 100 is a no-op fast path; pct == 0 zeroes (the old muted case).
+    int pct = out_volume_pct();
+    if (pct != 100) {
+        for (int i = 0; i < frames * 2; i++) {
+            sd_s32 s = (sd_s32)((long long)dst[i] * pct / 100);
+            dst[i] = (sd_s16)(s < -32768 ? -32768 : (s > 32767 ? 32767 : s));
+        }
+    }
 }

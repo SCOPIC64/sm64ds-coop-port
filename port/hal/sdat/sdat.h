@@ -172,6 +172,11 @@ int  sd_out_open(void);
 void sd_out_close(void);
 void sd_out_push(void);       // render + submit whatever the ring wants
 
+// Host master volume, 0..100. SM64DS_VOLUME sets it (default 50 = half); it is
+// read once and applied as a final linear scalar on the mixed stereo output.
+// This is the host output stage; the DS mixer and every envelope are untouched.
+int  out_volume_pct(void);
+
 // SM64DS_WAV_DUMP=<path> captures the mixed stream to a RIFF/WAVE file.
 void sd_wav_open(const char *path);
 void sd_wav_write(const sd_s16 *pcm, int frames);

@@ -34,18 +34,15 @@ sd_s16 g_mix[MIX_MAX * 2];      // scratch at SD_MIX_RATE, stereo interleaved
 int g_opened;                   // 0 untried, 1 device live, -1 no device
 int g_devRate = SD_MIX_RATE;
 
-// MUTED BY DEFAULT. The device still opens and the mixer still clocks off it,
-// so the sound engine's timing is identical either way -- the output buffers
-// are just zeroed on the way to the speaker. SM64DS_SOUND=1 unmutes (the
-// debug switch); SM64DS_NO_AUDIO=1 remains the stronger "no device at all".
-int g_muted = -1;               // -1 unread, 0 sound on, 1 muted
-
-int out_muted(void)
-{
-    if (g_muted < 0)
-        g_muted = getenv("SM64DS_SOUND") == 0;
-    return g_muted;
-}
+// HOST MASTER VOLUME. SM64DS_VOLUME is an integer 0..100 read once at boot; it
+// scales the already-mixed stereo output by vol/100 in linear amplitude
+// (50 -> half amplitude, 0 -> silent). This is a host output-stage gain only:
+// the DS mixer/sequencer, every per-voice envelope and every pan are untouched,
+// so timing and the .wav dump's shape are identical to hardware except for one
+// final scalar. Default is 50 (half) when the variable is unset. SM64DS_SOUND=1
+// is honoured for back-compat as "full volume" when SM64DS_VOLUME is not given.
+// SM64DS_NO_AUDIO=1 remains the stronger "no device at all".
+int g_volPct = -1;              // -1 unread, else 0..100
 
 #if defined(_WIN32)
 typedef MMRESULT (WINAPI *pfnOpen)(HWAVEOUT *, UINT, const WAVEFORMATEX *,
@@ -108,6 +105,24 @@ void render_mix(int frames)
 }
 
 }  // namespace
+
+// Host output-stage master volume, read once from SM64DS_VOLUME. See the
+// header on g_volPct above. External linkage: sd_mix_render applies it.
+int out_volume_pct(void)
+{
+    if (g_volPct < 0) {
+        const char *v = getenv("SM64DS_VOLUME");
+        if (v && *v) {
+            long n = strtol(v, 0, 10);
+            g_volPct = (int)(n < 0 ? 0 : (n > 100 ? 100 : n));
+        } else if (getenv("SM64DS_SOUND")) {
+            g_volPct = 100;     // legacy debug switch: full volume
+        } else {
+            g_volPct = 50;      // default: half volume
+        }
+    }
+    return g_volPct;
+}
 
 // ---- wav ----------------------------------------------------------------
 
@@ -190,10 +205,11 @@ int sd_out_open(void)
         g_hdr[i].dwFlags |= WHDR_DONE;      // free to fill
     }
     g_opened = 1;
-    fprintf(stderr, "[sdat] waveOut open at %d Hz, %d x %d frames (%.0f ms)%s\n",
+    fprintf(stderr, "[sdat] waveOut open at %d Hz, %d x %d frames (%.0f ms)\n",
             g_devRate, NBUF, OUT_FRAMES,
-            1000.0 * NBUF * OUT_FRAMES / g_devRate,
-            out_muted() ? " -- MUTED (SM64DS_SOUND=1 for sound)" : "");
+            1000.0 * NBUF * OUT_FRAMES / g_devRate);
+    fprintf(stderr, "[audio] master volume %d%%%s\n", out_volume_pct(),
+            out_volume_pct() == 0 ? " (silent)" : "");
     return 1;
 #else
     fprintf(stderr, "[sdat] no audio backend on this platform -- silent\n");
@@ -253,8 +269,8 @@ void sd_out_push(void)
                 g_last[0] = g_mix[(need - 1) * 2];
                 g_last[1] = g_mix[(need - 1) * 2 + 1];
             }
-            if (out_muted())
-                memset(g_buf[i], 0, OUT_FRAMES * 2 * sizeof(sd_s16));
+            // Master volume was already applied in sd_mix_render (the host
+            // output stage), so g_buf holds the level that goes to the speaker.
             g_hdr[i].dwFlags &= ~WHDR_DONE;
             g_hdr[i].dwBufferLength = OUT_FRAMES * 2 * sizeof(sd_s16);
             p_Write(g_dev, &g_hdr[i], sizeof(WAVEHDR));
