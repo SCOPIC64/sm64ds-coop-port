@@ -2320,6 +2320,8 @@ extern int data_0209f40c[];
 extern unsigned char data_0209f3e8[];
 extern unsigned char data_0209f3a4[];
 extern void *data_0209f314;
+extern void *data_0209f354;          /* the VIEW-OBJECT table pointer */
+extern unsigned char data_0209f1f8;  /* and its count */
 }
 
 static void port_minimap_stale_probe(const char *when)
@@ -2346,8 +2348,9 @@ static void port_minimap_stale_probe(const char *when)
 
     std::fprintf(stderr,
                  "[mm-stale] %s: area table %p anim=%d flag=%d CHANGELIST=%d | "
-                 "markers f40c=%d f3e8=%d f3a4=%d\n",
-                 when, (void *)area, anims, flags, heads, m40c, m3e8, m3a4);
+                 "markers f40c=%d f3e8=%d f3a4=%d | viewobj f354=%p f1f8=%d\n",
+                 when, (void *)area, anims, flags, heads, m40c, m3e8, m3a4,
+                 data_0209f354, (int)data_0209f1f8);
     if (area)
         for (int i = 0; i < 8; ++i)
             if (*(void **)(area + i * 0xc + 8))
@@ -2455,9 +2458,26 @@ extern "C" void port_level_reset_host(void)
        InitResources loop above, so a port that skips that loop keeps a Whomp
        pointer alive into the next level.
 
-       Not carried, and why: data_0209f1f8 (the view-object count) is written
-       by LoadViewObjects on every boot before anything reads it, and
-       func_ov001_020ab2e4 is in ov001, which the port does not mount. */
+       Not carried, and why. func_ov001_020ab2e4 is in ov001, which the port
+       does not mount.
+
+       data_0209f1f8 (the view-object count) is the interesting one, and the
+       first version of this comment got its reason wrong. It said the count is
+       "written by LoadViewObjects on every boot before anything reads it".
+       That is not a guarantee: LoadViewObjects is a SUB-TABLE loader, so it
+       runs only when the level DECLARES a type-4 table, and it re-seats the
+       POINTER data_0209f354 as well as the count (func_0202b0c4 writes both).
+       A destination with no view objects would therefore inherit both from the
+       level it replaced, and Camera::InitResources loops i < data_0209f1f8
+       through GetViewObj -> &data_0209f354[i].
+
+       Measured rather than argued: all fifteen mounted levels declare one and
+       re-seat both (counts 5, 11, 3, 6, 15, 4, 7, 1, 1, 4, 1, 21, 1, 2, 2), so
+       the carry is real at boot entry and overwritten by boot done on every
+       pair that exists today. LATENT, not live -- and it arms itself the day
+       someone mounts a level without view objects. Left out of this commit to
+       keep the diff to the fault it is about; it is the ROM's own line
+       (InitResources:302) and a one-line follow-up. */
     {
         extern int data_0209f40c[];
         extern unsigned char data_0209f3e8[];
