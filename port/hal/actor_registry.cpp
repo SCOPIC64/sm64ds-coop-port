@@ -407,7 +407,7 @@ static unsigned pp_unique_id_of(void *actor)
 
 static void port_pound_probe(void)
 {
-    static int armed = -1, at = 240;
+    static int armed = -1, at = 240, slot = 21;
     static unsigned want;
     static long frame;
     if (armed < 0) {
@@ -418,8 +418,11 @@ static void port_pound_probe(void)
             want = (unsigned)std::strtoul(e, &end, 0);
             if (end != e) {
                 armed = 1;
-                if (*end == ':')
-                    at = (int)std::strtol(end + 1, 0, 0);
+                if (*end == ':') {
+                    at = (int)std::strtol(end + 1, &end, 0);
+                    if (*end == ':')
+                        slot = (int)std::strtol(end + 1, 0, 0);
+                }
             }
         }
     }
@@ -436,6 +439,38 @@ static void port_pound_probe(void)
         std::fflush(stderr);
         return;
     }
+    /* SM64DS_POUND_PROBE=<id>:<frame>:19 dispatches slot 19, OnTurnIntoEgg,
+       instead of the pound. Slot 19 has no single ROM entry point the way
+       slot 21 has func_ov002_020ef2a4 -- the three call sites are Yoshi's --
+       so the shadow class below reproduces the call site rather than reusing
+       one: nineteen filler virtuals put the twentieth at vtable+0x4c, and
+       MSVC emits the same `call dword ptr [reg+0x4c]` with the Player in the
+       one pushed slot. Same contract, same instruction. */
+    if (slot == 19) {
+        struct EggSlot {
+            virtual void v0(); virtual void v1(); virtual void v2();
+            virtual void v3(); virtual void v4(); virtual void v5();
+            virtual void v6(); virtual void v7(); virtual void v8();
+            virtual void v9(); virtual void v10(); virtual void v11();
+            virtual void v12(); virtual void v13(); virtual void v14();
+            virtual void v15(); virtual void v16(); virtual void v17();
+            virtual void v18();
+            virtual int OnTurnIntoEgg(void *player);   /* vtable + 0x4c */
+        };
+        unsigned before = *(unsigned *)((char *)target + 0x438);
+        std::fprintf(stderr, "[pound] frame %ld: class %u %s actor %p, player "
+                     "%p -- dispatching slot 19 (OnTurnIntoEgg)\n", frame, want,
+                     port_actor_class_name(want), target, player);
+        std::fflush(stderr);
+        int r = ((EggSlot *)target)->OnTurnIntoEgg(player);
+        unsigned after = *(unsigned *)((char *)target + 0x438);
+        std::fprintf(stderr, "[pound] RETURNED %d -- frame survived; +0x438 "
+                     "%08x -> %08x (player is %p, a code address would be a "
+                     "dropped return address)\n", r, before, after, player);
+        std::fflush(stderr);
+        return;
+    }
+
     unsigned uid = pp_unique_id_of(target);
     if (uid == 0xffffffffu) {
         std::fprintf(stderr, "[pound] class %u actor %p has no unique id\n",
