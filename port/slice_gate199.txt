@@ -1,0 +1,47 @@
+# Gate 199: SWITCH_PILLAR (34) + BASEMENT_WATER (35), ov012 (level 4, castle
+# basement). Per-symbol ov012 mount (port/ov012_syms.txt). The mandatory
+# window-alias check for SpawnInfo addresses 0x02112320/0x021123e4 and the
+# class-identity swap between SwitchPillar/BasementWater are both documented
+# in port/ov012_syms.txt's own header.
+#
+# SWITCHPILLAR (daObjC0_Switch_c), a Platform, 32 slots (own OnGroundPounded
+# at slot 21, no own Kill). D1/D0 (func_ov012_021111a0/021111e4) are NOT in
+# this list -- both store their own table then overwrite with the shared
+# _ZTV10dBgActor_c placeholder, HOST THUNKS.
+src/func_ov012_0211123c.c
+src/func_ov012_021112ec.c
+src/func_ov012_0211134c.cpp
+src/func_ov012_02111370.c
+src/SwitchPillar_Spawn.c
+#
+# NOT in this list (host copies cover their slots instead):
+# src/func_ov012_021111a0.c (SwitchPillar D1), src/func_ov012_021111e4.c
+# (SwitchPillar D0), src/func_ov012_02111324.cpp (SwitchPillar's real
+# Render -- the ModelAnim/Model slot-5 shadow-vtable collision, host-copied
+# into the existing port/unmatched/ModelAnim_Renders.cpp instead). All
+# three stay byte-locked in src/ as the matched proof; none are referenced
+# from CMakeLists' gate-199 source list.
+#
+# BASEMENT_WATER (daObjC0Water_c), a Platform, 32 slots (no own Kill). Its
+# whole matched-src file family is misnamed `_ZN12SwitchPillar*` by dsd
+# (the class-identity swap, see ov012_syms.txt) -- the FILENAMES below are
+# the real ones on disk. D1/D0 (_ZN12SwitchPillarD1Ev/D0Ev) are NOT in this
+# list -- same shape, store own table then overwrite with the shared
+# placeholder, HOST THUNKS.
+src/_ZN12SwitchPillar16CleanupResourcesEv.cpp
+src/_ZN12SwitchPillar8BehaviorEv.cpp
+src/_ZN12SwitchPillar13InitResourcesEv.cpp
+src/BasementWater_Spawn.c
+#
+# NOT in this list: src/_ZN12SwitchPillarD1Ev.c, src/_ZN12SwitchPillarD0Ev.c
+# (BasementWater's own D1/D0, host thunks, byte-locked proof only), and
+# src/_ZN12SwitchPillar6RenderEv.cpp (BasementWater's REAL Render -- the
+# SAME ModelAnim/Model slot-5 shadow-vtable collision SwitchPillar's own
+# Render hits, correcting ov012_syms.txt's original "does not hit this
+# shape" read -- host-copied into unmatched/ModelAnim_Renders.cpp instead).
+#
+# ---- the two self-contained SharedFilePtr sinits (SwitchPillar's own +
+# BasementWater's own; both build ONLY SharedFilePtrs, no PMF table,
+# confirmed by reading their bodies) ----
+src/__sinit_ov012_02111a88.c
+src/__sinit_ov012_02111af4.c

@@ -133,6 +133,16 @@ void hal_fill_baby_penguin_vtable(void);
 extern unsigned char HootTheOwl_SpawnInfo[];            /* ov094 0x02136a34 */
 void *HootTheOwl_Spawn(void);                           /* ov094 0x02136798 */
 void hal_fill_hoot_the_owl_vtable(void);
+/* ---- gate 199: SWITCH_PILLAR (34) + BASEMENT_WATER (35), ov012 (level 4),
+   a fresh per-symbol mount (ov012_syms.txt) joining the existing whole
+   mount. SpawnInfo records come from that mount; both vtable fills are in
+   hal/actor_classes_ov012.cpp. */
+extern unsigned char SwitchPillar_SpawnInfo[];          /* ov012 0x02112320 */
+void *SwitchPillar_Spawn(void);                         /* ov012 0x02111420 */
+void hal_fill_switch_pillar_vtable(void);
+extern unsigned char BasementWater_SpawnInfo[];         /* ov012 0x021123e4 */
+void *BasementWater_Spawn(void);                        /* ov012 0x02111730 */
+void hal_fill_basement_water_vtable(void);
 /* ---- gate 18: ov085, the first ACTOR overlay ----
    Not the engine overlay and not the level's -- six classes several levels
    share, of which the castle grounds names two. The SpawnInfo records come
@@ -974,6 +984,11 @@ void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlat
      /* ---- gate 194: HOOT_THE_OWL (234), ov094 ---- */ \
      {234, "HOOT_THE_OWL", HootTheOwl_SpawnInfo, HootTheOwl_Spawn, \
       hal_fill_hoot_the_owl_vtable}, \
+     /* ---- gate 199: SWITCH_PILLAR (34) + BASEMENT_WATER (35), ov012 ---- */ \
+     {34, "SWITCH_PILLAR", SwitchPillar_SpawnInfo, SwitchPillar_Spawn, \
+      hal_fill_switch_pillar_vtable}, \
+     {35, "BASEMENT_WATER", BasementWater_SpawnInfo, BasementWater_Spawn, \
+      hal_fill_basement_water_vtable}, \
     /* ---- gate 149: HAUNTED_CHAIR (326), Big Boo's Haunt (ov020, level 12) ---- */ \
     {326, "HAUNTED_CHAIR", HauntedChair_SpawnInfo, HauntedChair_Spawn, \
      hal_fill_haunted_chair_vtable}, \

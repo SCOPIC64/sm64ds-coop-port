@@ -319,4 +319,34 @@ int _ZN10HootTheOwl6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- SWITCH_PILLAR (34, ov012, gate 199) ---------------------------------
+   src/func_ov012_02111324.cpp (the REAL SwitchPillar's own Render, the
+   daObjC0_Switch_c body -- see port/ov012_syms.txt's class-identity note)
+   dispatches through a LOCAL six-virtual ROM-order shadow
+   (`struct Base{...virtual void m(int);}; struct Derived{char pad[0xd4];
+   Base base;}; b->m(0);`) over a plain Model at +0xd4 -- the
+   RotatingFirebar bare-call shape exactly (no scale argument, a Platform's
+   own plain Model, not a ModelAnim). Excluded from slice_gate199.txt.
+   PORT_HOST_ABI: ROM-order model slot-5 dispatch, the Whomp/Fish case. */
+int func_ov012_02111324(void *selfv)
+{ ((Model *)((char *)selfv + 0xd4))->Model::Render(0); return 1; }
+
+/* ---- BASEMENT_WATER (35, ov012, gate 199) --------------------------------
+   src/_ZN12SwitchPillar6RenderEv.cpp -- despite the filename, BasementWater's
+   REAL Render (see port/ov012_syms.txt's class-identity note) -- calls
+   TextureTransformer::Update first (the Whomp king-variant texture-scroll
+   precedent, mTextureTransformer at +0x320, the ModelComponents arg at
+   +0xdc per the matched src's own offsets), then dispatches through the
+   SAME LOCAL six-virtual ROM-order shadow over the plain Model at +0xd4.
+   Excluded from slice_gate199.txt.
+   PORT_HOST_ABI: ROM-order model slot-5 dispatch, the Whomp/Fish case. */
+int _ZN18TextureTransformer6UpdateER15ModelComponents(void *tt, void *mc);
+int _ZN12SwitchPillar6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    _ZN18TextureTransformer6UpdateER15ModelComponents(c + 0x320, c + 0xdc);
+    ((Model *)(c + 0xd4))->Model::Render(0);
+    return 1;
+}
+
 }  /* extern "C" */

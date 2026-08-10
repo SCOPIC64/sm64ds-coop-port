@@ -914,6 +914,14 @@ void __sinit_ov072_02122414(void);
 void port_ov094_pack_check(void);
 void port_ov094_syms_patch(void);
 void __sinit_ov094_021367e8(void);
+/* gate 199: ov012 per-symbol -- SWITCH_PILLAR's own sinit + BASEMENT_
+   WATER's own sinit, both self-contained (each builds two SharedFilePtrs
+   only, no PMF table). ov012 is already whole-mounted (PORT_LEVEL_OVERLAYS,
+   gate 114); this is the SAME dual-mount shape ov009/ov014/ov010 use. */
+void port_ov012_pack_check(void);
+void port_ov012_syms_patch(void);
+void __sinit_ov012_02111a88(void);
+void __sinit_ov012_02111af4(void);
 }
 
 extern "C" void port_actor_overlays_sinits(void)
@@ -1170,4 +1178,13 @@ extern "C" void port_actor_overlays_sinits(void)
     port_ov094_pack_check();
     port_ov094_syms_patch();
     __sinit_ov094_021367e8();   /* HOOT_THE_OWL */
+
+    /* gate 199: ov012's two own-class sinits (SwitchPillar, BasementWater --
+       each self-contained, verified by reading their bodies: two
+       SharedFilePtrs each, no PMF table). ov012 is also whole-mounted
+       (PORT_LEVEL_OVERLAYS) for the level's own object-table walks. */
+    port_ov012_pack_check();
+    port_ov012_syms_patch();
+    __sinit_ov012_02111a88();   /* SWITCH_PILLAR */
+    __sinit_ov012_02111af4();   /* BASEMENT_WATER */
 }
