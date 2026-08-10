@@ -2432,7 +2432,7 @@ extern "C" void port_level_reset_host(void)
        Not carried, and why: data_0209f1f8 (the view-object count) is written
        by LoadViewObjects on every boot before anything reads it, and
        func_ov001_020ab2e4 is in ov001, which the port does not mount. */
-    {
+    if (!std::getenv("SM64DS_MM_ABLATE_MARKERS")) {
         extern int data_0209f40c[];
         extern unsigned char data_0209f3e8[];
         extern unsigned char data_0209f3a4[];
@@ -2544,7 +2544,8 @@ extern "C" void port_level_stage_reseat(void *stagev)
        Zeroing the +0 slots costs nothing extra: port_stage_advance_anims
        already drops them itself on the first frame after the level id changes,
        and leaks the same transformer objects either way. */
-    std::memset(stage + 0x8bc, 0, 0x60);
+    if (!std::getenv("SM64DS_MM_ABLATE_AREA"))
+        std::memset(stage + 0x8bc, 0, 0x60);
 
     /* the level model, in place */
     _ZN5ModelD2Ev(stage + 0x86c);
