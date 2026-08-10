@@ -360,9 +360,117 @@ static void port_list_trace(const char *name, int *list)
    unset. */
 extern "C" void port_bob_debug_watch(void);
 
+/* ---- SM64DS_POUND_PROBE: the ground-pound dispatch, on demand --------------
+   SM64DS_POUND_PROBE=<classId>[:<frame>] runs ONE real ground-pound hit on the
+   first live actor of that class, through the ROM's own hit path, on the given
+   frame (default 240). Unset, nothing below runs and nothing below is reached.
+
+   The path is func_ov002_020ef2a4, which Player::St_GroundPound_Main calls with
+   the player's WithMeshClsn and the player: it asks the collider whether the
+   player is on the ground, reads the floor ClsnResult's ClsnID, resolves that
+   id with Actor::FindWithID and dispatches vtable slot 21, OnGroundPounded, on
+   what it finds. Everything except the collider is the live game: the actor is
+   a real spawn with its real vtable, the argument is the real Player, and the
+   dispatch is the ROM function's own `call dword ptr [edx+0x54]`.
+
+   The collider is a zeroed scratch record, not the player's, so the probe can
+   name the target without having to stand on it: set the on-ground bit the
+   accessor reads and write the target's unique id where the floor result keeps
+   its ClsnID. The unique id is found by asking Actor::FindWithID, so no field
+   offset is assumed here. */
+extern "C" {
+int _ZNK12WithMeshClsn10IsOnGroundEv(void *c);
+void *_ZNK12WithMeshClsn14GetFloorResultEv(void *c);
+void *_ZN5Actor10FindWithIDEj(unsigned id);
+int func_ov002_020ef2a4(void *clsn, void *arg);
+}
+
+static void *pp_first_of_class(unsigned id)
+{
+    int n = 0;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node && n++ < 4096;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (o && *(unsigned short *)(o + 0xc) == (unsigned short)id)
+            return o;
+    }
+    return 0;
+}
+
+static unsigned pp_unique_id_of(void *actor)
+{
+    for (unsigned u = 0; u < 65536u; ++u)
+        if (_ZN5Actor10FindWithIDEj(u) == actor)
+            return u;
+    return 0xffffffffu;
+}
+
+static void port_pound_probe(void)
+{
+    static int armed = -1, at = 240;
+    static unsigned want;
+    static long frame;
+    if (armed < 0) {
+        const char *e = std::getenv("SM64DS_POUND_PROBE");
+        armed = 0;
+        if (e) {
+            char *end;
+            want = (unsigned)std::strtoul(e, &end, 0);
+            if (end != e) {
+                armed = 1;
+                if (*end == ':')
+                    at = (int)std::strtol(end + 1, 0, 0);
+            }
+        }
+    }
+    if (!armed || ++frame != at)
+        return;
+    armed = 0;
+
+    void *target = pp_first_of_class(want);
+    void *player = pp_first_of_class(191);
+    if (!target || !player) {
+        std::fprintf(stderr, "[pound] frame %ld: class %u %s, player %s -- "
+                     "nothing to hit\n", frame, want, target ? "up" : "ABSENT",
+                     player ? "up" : "ABSENT");
+        std::fflush(stderr);
+        return;
+    }
+    unsigned uid = pp_unique_id_of(target);
+    if (uid == 0xffffffffu) {
+        std::fprintf(stderr, "[pound] class %u actor %p has no unique id\n",
+                     want, target);
+        std::fflush(stderr);
+        return;
+    }
+
+    static unsigned char clsn[512];
+    std::memset(clsn, 0, sizeof clsn);
+    *(unsigned *)(clsn + 0x10) |= 0x10u;          /* WithMeshClsn::IsOnGround */
+    void *res = _ZNK12WithMeshClsn14GetFloorResultEv(clsn);
+    if (!res || !_ZNK12WithMeshClsn10IsOnGroundEv(clsn)) {
+        std::fprintf(stderr, "[pound] scratch collider will not report ground "
+                     "(res %p)\n", res);
+        std::fflush(stderr);
+        return;
+    }
+    *(unsigned *)((char *)res + 0x1c) = uid;      /* ClsnResult::GetClsnID */
+
+    std::fprintf(stderr, "[pound] frame %ld: class %u %s actor %p uid %u, "
+                 "player %p -- dispatching slot 21 through "
+                 "func_ov002_020ef2a4\n", frame, want,
+                 port_actor_class_name(want), target, uid, player);
+    std::fflush(stderr);
+    int hit = func_ov002_020ef2a4(clsn, player);
+    std::fprintf(stderr, "[pound] RETURNED %d -- the caller's frame survived "
+                 "the dispatch\n", hit);
+    std::fflush(stderr);
+}
+
 extern "C" void port_actor_tick(void)
 {
     port_bob_debug_watch();
+    port_pound_probe();
     data_02099f24[0] = 4;
     port_list_trace("cleanup", data_020a4ba8);
     func_02043fdc(data_020a4ba8);
