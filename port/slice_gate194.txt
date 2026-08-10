@@ -1,0 +1,98 @@
+# Gate 194: HOOT_THE_OWL (234), ov094. Fresh per-symbol mount
+# (port/ov094_syms.txt), the ov079/ov080/ov081/ov072 convention. Full slot
+# derivation, the ov006/ov094 dual-citation resolution, the two PMF disease
+# sites and the cross-overlay alias typo (needs no bridge) are all
+# documented in port/ov094_syms.txt's own header. Fill is
+# hal/actor_classes_ov094.cpp.
+#
+# HOOT_THE_OWL (daOwl_c), an Enemy, 31 slots, no own Kill. D1/D0 stay in
+# the slice: both store the class's own table directly (_ZTV10HootTheOwl /
+# _ZTV7daOwl_c, a one-speller D0, the MotherPenguin/daBgSnwmn_c shape), no
+# shared-placeholder overwrite.
+src/HootTheOwl_Spawn.c
+src/_ZN10HootTheOwlD1Ev.c
+src/_ZN10HootTheOwlD0Ev.c
+src/_ZN10HootTheOwl16CleanupResourcesEv.c
+src/_ZN10HootTheOwl16OnPendingDestroyEv.c
+src/_ZN10HootTheOwl13InitResourcesEv.cpp
+src/func_ov094_021361d8.c
+src/func_ov094_021362e0.c
+src/func_ov094_021357a4.c
+#
+# NOT in this slice (host copies cover their slots/calls instead):
+# src/_ZN10HootTheOwl8BehaviorEv.cpp (the PMF-on-incomplete-class dispatch,
+# ALSO carries the "func_ov096_021357a4" cross-overlay alias typo -- moot
+# once host-copied, see ov094_syms.txt), src/func_ov094_02136188.cpp (the
+# SAME PMF disease, the state-cell installer), src/_ZN10HootTheOwl6RenderEv.cpp
+# (the ModelAnim slot-5 shadow-vtable collision, the Whomp/Bully/BabyPenguin
+# case). All three stay byte-locked in src/ as the matched proof; none are
+# referenced from CMakeLists' gate-194 source list. Host copies:
+# port/unmatched/HootTheOwl_StateDispatch.cpp (both PMF sites),
+# port/unmatched/ModelAnim_Renders.cpp (Render, appended to the existing
+# shared file).
+#
+# THE TEN STATE-HANDLER BODIES the two PMF dispatch sites read through
+# function-pointer cells at self+0x3c8, each cell TWO 8-byte {fn,delta}
+# records back to back (enter/tick, __sinit_ov094_021367e8's own field
+# order shows -- data_ov094_02136b30/b40/b50/b60/b70, one array-of-2 per
+# state, 0x10 bytes/cell -- ROM-byte verified against overlay_0094.bin, see
+# port/ov094_syms.txt's header). All ten are PLAIN matched src -- none
+# dispatch a PMF themselves, they only CALL func_ov094_02136188 (the host
+# copy) BY NAME to transition state, the same shape MrBlizzard/BabyPenguin's
+# own state bodies take. func_ov094_02135ee0.cpp forms a real member call
+# on a local single-method `struct Player { int GetTalkState(); }` --
+# ALREADY a proven-working shape elsewhere in this port (src/func_ov078_
+# 02125950.cpp, the King Bob-omb family, takes the identical local-struct
+# shape and links via the existing cxx_aliases.cpp GetTalkState bridge).
+src/func_ov094_02135c28.c
+src/func_ov094_02136024.c
+src/func_ov094_02135bd4.cpp
+src/func_ov094_02135e64.cpp
+src/func_ov094_02136150.c
+src/func_ov094_021358b4.cpp
+src/func_ov094_0213598c.cpp
+src/func_ov094_02135fe0.c
+src/func_ov094_02135ee0.cpp
+src/func_ov094_021359d8.cpp
+#
+# THE SEAT: __sinit_ov094_021367e8 copies TEN 8-byte SOURCE records
+# (data_ov094_021369c0..02136a08, each a {fn,delta} pair, delta always 0 per
+# the raw overlay bytes) into the five bss cells above. Each source's OWN fn
+# word (reloc-confirmed against config/arm9/overlays/ov094/relocs.txt) is
+# one of the ten func_ov094_* bodies just above -- CODE addresses, which
+# ovdata.py's mount pointer-pass does NOT rebase (it only rebases pointers
+# into other MOUNTED DATA), so the raw mounted words are DS addresses. The
+# MrBlizzard/BabyPenguin/Unagi/Amilift/LavaBubble treatment: seat each
+# source record's fn word with its HOST body's address BEFORE the sinit
+# runs, verifying the mounted word against the ROM's own address first (a
+# wrong mount aborts instead of silently seating garbage). Seat function:
+# port_hoot_the_owl_states_seat() in hal/actor_classes_ov094.cpp, called
+# from hal_fill_hoot_the_owl_vtable() before InitResources can ever
+# dispatch through func_ov094_02136188.
+#
+# ONE CARE POINT: func_ov094_02136024/021358b4/02135ee0/021359d8 (the four
+# handlers that themselves CALL func_ov094_02136188 to transition state)
+# pass the ROM's own &data_ov094_02136bNN cell address -- the BSS
+# destination cell, not a source record -- so they are UNAFFECTED by the
+# seat (they always dispatch through whatever the CURRENT bss contents are,
+# host-seated by construction once the seat above has run once at boot).
+#
+# THE THREE NEW ov002 CARRY-HANDSHAKE LEAVES func_ov094_021357a4 and
+# func_ov094_021359d8 pull in -- not previously linked anywhere in the
+# port, added by this gate. All three call
+# _ZN6Player11ChangeStateERNS_5StateE (port/hal/reverse_bridges.cpp,
+# already hosted, no gap) and the already gate-10-hosted St_Owl_Main/Init/
+# Cleanup states: func_ov002_020df840 is func_ov094_021357a4's own callee
+# (the carry-start handshake); func_ov002_020df7f4/020df7ac are
+# func_ov094_021359d8's own callees (the carry-release handshake, both
+# state-handler bodies, plain matched src, listed above).
+src/func_ov002_020df840.c
+src/func_ov002_020df7f4.cpp
+src/func_ov002_020df7ac.c
+#
+# ---- the one own-class sinit (self-contained; builds SharedFilePtrs AND
+# the ten-record-to-five-cell state-table copy -- confirmed by reading its
+# own body; NO code-pointer table of its own to build ahead of it, unlike
+# MrBlizzard/BabyPenguin's sinits which build their OWN cell arrays inline
+# -- HootTheOwl's cells are separately-named mount symbols instead) ----
+src/__sinit_ov094_021367e8.c

@@ -1483,3 +1483,14 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    ModelFile=0x02114e24). */
 #pragma comment(linker, "/alternatename:_RockPillar_ClsnFile=_data_ov016_02114e1c")
 #pragma comment(linker, "/alternatename:_RockPillar_ModelFile=_data_ov016_02114e24")
+/* gate 194: the ov072_02122cac shape a third time. src/_ZN10HootTheOwl13
+   InitResourcesEv.cpp declares data_ov094_02136b40 as `extern void*`
+   OUTSIDE any extern "C" block; src/func_ov094_021359d8.cpp (a state
+   handler, plain matched src) declares data_ov094_02136ae8/02136af8 as
+   `extern void**` and data_ov094_02136b30 as `extern void*`, also outside
+   extern "C". All four are state cells the ov094 per-symbol mount already
+   publishes as flat C symbols under the plain names. */
+#pragma comment(linker, "/alternatename:?data_ov094_02136b40@@3PAXA=_data_ov094_02136b40")
+#pragma comment(linker, "/alternatename:?data_ov094_02136ae8@@3PAPAXA=_data_ov094_02136ae8")
+#pragma comment(linker, "/alternatename:?data_ov094_02136af8@@3PAPAXA=_data_ov094_02136af8")
+#pragma comment(linker, "/alternatename:?data_ov094_02136b30@@3PAXA=_data_ov094_02136b30")

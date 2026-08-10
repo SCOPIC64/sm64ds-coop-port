@@ -127,6 +127,12 @@ void hal_fill_snowman_vtable(void);
 extern unsigned char BabyPenguin_SpawnInfo[];           /* ov072 0x02122a6c */
 void *BabyPenguin_Spawn(void);                          /* ov072 0x02121fac */
 void hal_fill_baby_penguin_vtable(void);
+/* ---- gate 194: HOOT_THE_OWL (234), ov094, a fresh per-symbol mount
+   (ov094_syms.txt). SpawnInfo comes from that mount; the vtable fill is in
+   hal/actor_classes_ov094.cpp. */
+extern unsigned char HootTheOwl_SpawnInfo[];            /* ov094 0x02136a34 */
+void *HootTheOwl_Spawn(void);                           /* ov094 0x02136798 */
+void hal_fill_hoot_the_owl_vtable(void);
 /* ---- gate 18: ov085, the first ACTOR overlay ----
    Not the engine overlay and not the level's -- six classes several levels
    share, of which the castle grounds names two. The SpawnInfo records come
@@ -965,6 +971,9 @@ void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlat
       hal_fill_snowman_vtable}, \
      {256, "BABY_PENGUIN", BabyPenguin_SpawnInfo, BabyPenguin_Spawn, \
       hal_fill_baby_penguin_vtable}, \
+     /* ---- gate 194: HOOT_THE_OWL (234), ov094 ---- */ \
+     {234, "HOOT_THE_OWL", HootTheOwl_SpawnInfo, HootTheOwl_Spawn, \
+      hal_fill_hoot_the_owl_vtable}, \
     /* ---- gate 149: HAUNTED_CHAIR (326), Big Boo's Haunt (ov020, level 12) ---- */ \
     {326, "HAUNTED_CHAIR", HauntedChair_SpawnInfo, HauntedChair_Spawn, \
      hal_fill_haunted_chair_vtable}, \

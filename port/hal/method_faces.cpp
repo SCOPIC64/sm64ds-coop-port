@@ -102,6 +102,12 @@ int _ZN6Player12Unk_020c9e5cEh(void *self, unsigned char h)
 { return ((Player *)self)->Player::Unk_020c9e5c(h); }
 int _ZN6Player16St_Shell_CleanupEv(void *self)
 { return ((Player *)self)->Player::St_Shell_Cleanup(); }
+/* gate 194: func_ov002_020df7ac.c (one of HootTheOwl's ov002 carry-
+   handshake leaves) calls this flat name directly -- gate 10 already links
+   the matched src/_ZN6Player14St_Owl_CleanupEv.cpp body but nothing faced
+   it before now. */
+int _ZN6Player14St_Owl_CleanupEv(void *self)
+{ return ((Player *)self)->Player::St_Owl_Cleanup(); }
 void _ZN6Player18SetNewHatCharacterEjjb(void *self, unsigned a, unsigned b,
                                         unsigned char c)
 { ((Player *)self)->Player::SetNewHatCharacter(a, b, c != 0); }

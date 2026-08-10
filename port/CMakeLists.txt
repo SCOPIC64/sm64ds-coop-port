@@ -545,6 +545,9 @@ set_source_files_properties(
     # gate 22 backfill: CanEnterDoor matched 2026-08-07 (PR #1223); //cpp-marked
     # .c whose Door dummy-virtual struct needs C++, own symbol extern "C".
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN6Player12CanEnterDoorEh.c"
+    # gate 194: a //cpp-marked .c (a top-level `extern "C" {` block, invalid C),
+    # HootTheOwl's own state-transition helper.
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov094_02136024.c"
     PROPERTIES LANGUAGE CXX)
 
 # func_ov002_020d708c is C++ inside a .c (a `virtual` vtable shadow), which
@@ -899,6 +902,15 @@ list(APPEND PORT_ACTOR_OVERLAYS ov081)
 # daBgSnwmn_c until star 5 is collected) stay unregistered -- their own
 # sinits do not run. See port/ov072_syms.txt and port/slice_gate193.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov072)
+# gate 194: ov094, HOOT_THE_OWL's (234) own overlay. Fresh per-symbol mount.
+# Its own SpawnInfo record, SharedFilePtr construction statics and its
+# five-cell (ten-record) state-dispatch table reach it by name. Its vtable
+# (_ZTV10HootTheOwl == _ZTV7daOwl_c) is a host array
+# hal/actor_classes_ov094.cpp fills. The ov006/ov094 dual spawn-table
+# citation is a dual-dump artifact (ov094 is address-nested inside ov006's
+# much larger span), NOT co-residency -- no ov006 mount. See
+# port/ov094_syms.txt and port/slice_gate194.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov094)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -2062,6 +2074,18 @@ foreach(line IN LISTS SLICE193_LINES)
     list(APPEND SLICE193_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Gate 194: HOOT_THE_OWL (234), ov094. Fresh per-symbol ov094 mount
+# (port/ov094_syms.txt). The fill is hal/actor_classes_ov094.cpp.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate194.txt" SLICE194_LINES)
+set(SLICE194_SOURCES "")
+foreach(line IN LISTS SLICE194_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE194_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gates 64-69: ov079's four static initialisers plus the six enemy classes'
 # matched lifecycle closures -- WHOMP (164), WHOMP_KING (165), BULLET_BILL (222),
 # BILL_BLASTER (43), FORTRESS_WALL (47), FORTRESS_WALL_BREAKABLE (48). The two
@@ -2233,7 +2257,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES} ${SLICE121_SOURCES} ${SLICE122_SOURCES} ${SLICE123_SOURCES}
-    hal/actor_classes_ccm.cpp ${SLICE142_SOURCES} ${SLICE190_SOURCES} ${SLICE191_SOURCES} unmatched/SoundObject_Behavior.cpp unmatched/OneUpLogo_InitResources.cpp unmatched/MotherPenguin_InitResources.cpp unmatched/MotherPenguin_AfterClsnSeat.cpp unmatched/MotherPenguin_Behavior.cpp hal/actor_classes_ov081.cpp ${SLICE192_SOURCES} unmatched/MrBlizzard_StateDispatch.cpp unmatched/MrBlizzard_Behavior.cpp hal/actor_classes_ov072.cpp ${SLICE193_SOURCES} unmatched/Snowman_InitResources.cpp unmatched/BabyPenguin_StateEnter.cpp unmatched/BabyPenguin_StateTick.cpp unmatched/BabyPenguin_InitResources.cpp unmatched/BabyPenguin_LandTransition.cpp
+    hal/actor_classes_ccm.cpp ${SLICE142_SOURCES} ${SLICE190_SOURCES} ${SLICE191_SOURCES} unmatched/SoundObject_Behavior.cpp unmatched/OneUpLogo_InitResources.cpp unmatched/MotherPenguin_InitResources.cpp unmatched/MotherPenguin_AfterClsnSeat.cpp unmatched/MotherPenguin_Behavior.cpp hal/actor_classes_ov081.cpp ${SLICE192_SOURCES} unmatched/MrBlizzard_StateDispatch.cpp unmatched/MrBlizzard_Behavior.cpp hal/actor_classes_ov072.cpp ${SLICE193_SOURCES} unmatched/Snowman_InitResources.cpp unmatched/BabyPenguin_StateEnter.cpp unmatched/BabyPenguin_StateTick.cpp unmatched/BabyPenguin_InitResources.cpp unmatched/BabyPenguin_LandTransition.cpp hal/actor_classes_ov094.cpp ${SLICE194_SOURCES} unmatched/HootTheOwl_StateDispatch.cpp
     hal/actor_classes_bbh.cpp ${SLICE149_SOURCES}
     hal/actor_classes_hmc.cpp ${SLICE172_SOURCES} unmatched/Crate_StateDispatch.cpp
     hal/actor_classes_updownlift.cpp ${SLICE173_SOURCES} unmatched/UpDownLiftBbh_Behavior.cpp
@@ -2292,7 +2316,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES} ${SLICE121_SOURCES} ${SLICE122_SOURCES} ${SLICE123_SOURCES}
-    hal/actor_classes_ccm.cpp ${SLICE142_SOURCES} ${SLICE190_SOURCES} ${SLICE191_SOURCES} unmatched/SoundObject_Behavior.cpp unmatched/OneUpLogo_InitResources.cpp unmatched/MotherPenguin_InitResources.cpp unmatched/MotherPenguin_AfterClsnSeat.cpp unmatched/MotherPenguin_Behavior.cpp hal/actor_classes_ov081.cpp ${SLICE192_SOURCES} unmatched/MrBlizzard_StateDispatch.cpp unmatched/MrBlizzard_Behavior.cpp hal/actor_classes_ov072.cpp ${SLICE193_SOURCES} unmatched/Snowman_InitResources.cpp unmatched/BabyPenguin_StateEnter.cpp unmatched/BabyPenguin_StateTick.cpp unmatched/BabyPenguin_InitResources.cpp unmatched/BabyPenguin_LandTransition.cpp
+    hal/actor_classes_ccm.cpp ${SLICE142_SOURCES} ${SLICE190_SOURCES} ${SLICE191_SOURCES} unmatched/SoundObject_Behavior.cpp unmatched/OneUpLogo_InitResources.cpp unmatched/MotherPenguin_InitResources.cpp unmatched/MotherPenguin_AfterClsnSeat.cpp unmatched/MotherPenguin_Behavior.cpp hal/actor_classes_ov081.cpp ${SLICE192_SOURCES} unmatched/MrBlizzard_StateDispatch.cpp unmatched/MrBlizzard_Behavior.cpp hal/actor_classes_ov072.cpp ${SLICE193_SOURCES} unmatched/Snowman_InitResources.cpp unmatched/BabyPenguin_StateEnter.cpp unmatched/BabyPenguin_StateTick.cpp unmatched/BabyPenguin_InitResources.cpp unmatched/BabyPenguin_LandTransition.cpp hal/actor_classes_ov094.cpp ${SLICE194_SOURCES} unmatched/HootTheOwl_StateDispatch.cpp
     hal/actor_classes_bbh.cpp ${SLICE149_SOURCES}
     hal/actor_classes_hmc.cpp ${SLICE172_SOURCES} unmatched/Crate_StateDispatch.cpp
     hal/actor_classes_updownlift.cpp ${SLICE173_SOURCES} unmatched/UpDownLiftBbh_Behavior.cpp
@@ -2354,7 +2378,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES} ${SLICE121_SOURCES} ${SLICE122_SOURCES} ${SLICE123_SOURCES}
-    hal/actor_classes_ccm.cpp ${SLICE142_SOURCES} ${SLICE190_SOURCES} ${SLICE191_SOURCES} unmatched/SoundObject_Behavior.cpp unmatched/OneUpLogo_InitResources.cpp unmatched/MotherPenguin_InitResources.cpp unmatched/MotherPenguin_AfterClsnSeat.cpp unmatched/MotherPenguin_Behavior.cpp hal/actor_classes_ov081.cpp ${SLICE192_SOURCES} unmatched/MrBlizzard_StateDispatch.cpp unmatched/MrBlizzard_Behavior.cpp hal/actor_classes_ov072.cpp ${SLICE193_SOURCES} unmatched/Snowman_InitResources.cpp unmatched/BabyPenguin_StateEnter.cpp unmatched/BabyPenguin_StateTick.cpp unmatched/BabyPenguin_InitResources.cpp unmatched/BabyPenguin_LandTransition.cpp
+    hal/actor_classes_ccm.cpp ${SLICE142_SOURCES} ${SLICE190_SOURCES} ${SLICE191_SOURCES} unmatched/SoundObject_Behavior.cpp unmatched/OneUpLogo_InitResources.cpp unmatched/MotherPenguin_InitResources.cpp unmatched/MotherPenguin_AfterClsnSeat.cpp unmatched/MotherPenguin_Behavior.cpp hal/actor_classes_ov081.cpp ${SLICE192_SOURCES} unmatched/MrBlizzard_StateDispatch.cpp unmatched/MrBlizzard_Behavior.cpp hal/actor_classes_ov072.cpp ${SLICE193_SOURCES} unmatched/Snowman_InitResources.cpp unmatched/BabyPenguin_StateEnter.cpp unmatched/BabyPenguin_StateTick.cpp unmatched/BabyPenguin_InitResources.cpp unmatched/BabyPenguin_LandTransition.cpp hal/actor_classes_ov094.cpp ${SLICE194_SOURCES} unmatched/HootTheOwl_StateDispatch.cpp
     hal/actor_classes_bbh.cpp ${SLICE149_SOURCES}
     hal/actor_classes_hmc.cpp ${SLICE172_SOURCES} unmatched/Crate_StateDispatch.cpp
     hal/actor_classes_updownlift.cpp ${SLICE173_SOURCES} unmatched/UpDownLiftBbh_Behavior.cpp

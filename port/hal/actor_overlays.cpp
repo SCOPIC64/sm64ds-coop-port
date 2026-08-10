@@ -907,6 +907,13 @@ void port_ov072_pack_check(void);
 void port_ov072_syms_patch(void);
 void __sinit_ov072_02122350(void);
 void __sinit_ov072_02122414(void);
+/* gate 194: ov094 per-symbol -- HOOT_THE_OWL's own sinit, self-contained
+   (builds its four SharedFilePtrs and the ten-source-record-to-five-cell
+   state-table copy; no PMF table of its own to build, unlike MrBlizzard/
+   BabyPenguin's own sinits). */
+void port_ov094_pack_check(void);
+void port_ov094_syms_patch(void);
+void __sinit_ov094_021367e8(void);
 }
 
 extern "C" void port_actor_overlays_sinits(void)
@@ -1156,4 +1163,11 @@ extern "C" void port_actor_overlays_sinits(void)
     port_ov072_syms_patch();
     __sinit_ov072_02122350();   /* SNOWMAN (daBgSnwmn_c) */
     __sinit_ov072_02122414();   /* BABY_PENGUIN: also builds the 6-cell PMF table */
+
+    /* gate 194: ov094's own sinit (HootTheOwl -- self-contained, verified
+       by reading its body: four SharedFilePtrs + the ten-record-to-five-
+       cell state-table copy, no PMF table of its own). */
+    port_ov094_pack_check();
+    port_ov094_syms_patch();
+    __sinit_ov094_021367e8();   /* HOOT_THE_OWL */
 }

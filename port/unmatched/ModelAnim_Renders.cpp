@@ -299,4 +299,24 @@ int _ZN11BabyPenguin6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- HOOT_THE_OWL (234, ov094, gate 194) ---------------------------------
+   src/_ZN10HootTheOwl6RenderEv.cpp dispatches through a LOCAL six-virtual
+   ROM-order shadow (`struct O { ... virtual void m5(int); }; ((O*)&mModelAnim)
+   ->m5(0)`) over mModelAnim at +0x30c -- the Bully/BigBully bare-call shape,
+   no scale argument. The one early-out compares the state-cell pointer at
+   +0x3c8 (mCurrentState) against &data_ov094_02136b40 (the state table's
+   base, seated by this class's own InitResources); a real state means the
+   comparison is false and the draw runs. Excluded from slice_gate194.txt,
+   the Bully/Scuttlebug reading exactly.
+   PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish case. */
+int _ZN10HootTheOwl6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    extern char data_ov094_02136b40[];
+    if (*(void **)(c + 0x3c8) == (void *)data_ov094_02136b40)
+        return 1;
+    ((ModelAnim *)(c + 0x30c))->ModelAnim::Render(0);
+    return 1;
+}
+
 }  /* extern "C" */
