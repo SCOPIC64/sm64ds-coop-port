@@ -327,7 +327,8 @@ int _ZTV8IceSheet[32];
 /* Platform's OWN base table -- IceSheet's carried D1/D0 (src/_ZN8IceSheetD1Ev.c,
    src/_ZN8IceSheetD0Ev.c) each `extern int _ZTV8Platform[]` and store it as an
    intermediate vptr write. Already defined as a real host array in
-   hal/actor_vtables.cpp (`void *_ZTV8Platform[20]`) -- declared extern here
+   hal/actor_vtables.cpp (`void *_ZTV8Platform[32]`, the ROM's full Platform
+   width, and filled by hal_fill_platform_vtable) -- declared extern here
    (not redefined) so this TU only REFERENCES it, the usual second-write a
    Platform-derived class's D1/D0 takes. */
 extern int _ZTV8Platform[];

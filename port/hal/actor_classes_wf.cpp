@@ -167,9 +167,12 @@ static int __fastcall wf_egg(void *s, void *)
 static int __fastcall wf_kill(void *s, void *)
 { _ZN8Platform4KillEv(s); return 0; }
 
-/* The shared half of a 31-slot Platform table. A caller writes its own
-   0/3/6/9/16, and slot 12 stays ActorBase::OnPendingDestroy (the ROM's own
-   slot-12 target for all seven). Slot 17 traps: the ROM teardown dispatches
+/* The shared half, slots 1..30. Six of the seven tables here are 32-slot
+   Platform tables and the seventh (data_ov015_02114360, id 42) is a 31-slot
+   plain Actor; slot 31 belongs to the caller either way, so it is not written
+   here. A caller writes its own 0/3/6/9/16 and its 31, and slot 12 stays
+   ActorBase::OnPendingDestroy (the ROM's own slot-12 target for all seven).
+   Slot 17 traps: the ROM teardown dispatches
    slot 16 and Memory::Deallocate is done by ActorBase::AfterCleanupResources,
    so a call landing on 17 is worth an abort. */
 static void wf_fill_shared(void **vt)
