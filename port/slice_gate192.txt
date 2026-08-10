@@ -128,6 +128,11 @@ src/IceBlock_Spawn.c
 # ---- the three own-class sinits (self-contained; RUN) ----------------------
 # __sinit_ov081_021284b4 (Snowball) and __sinit_ov081_021284f0 (Moneybag)
 # stay OFF -- neither class is hosted.
+# NOTE (review round): __sinit_ov081_02128154 (MrBlizzard's own, including
+# its ten-cell PMF table build) RUNS even though MR_BLIZZARD (223) is
+# unregistered -- INERT: every write lands in MrBlizzard's own mounted
+# statics/bss, and with the class out of the registry nothing ever reads
+# them (no spawn -> no InitResources -> no dispatch through the cells).
 src/__sinit_ov081_021280e8.c
 src/__sinit_ov081_02128154.c
 src/__sinit_ov081_021287b8.c
@@ -136,3 +141,14 @@ src/__sinit_ov081_021287b8.c
 # src/_ZN8IceBlockD1Ev.c, src/_ZN8IceBlockD0Ev.c. Both stay byte-locked in
 # src/ as the matched proof; neither is referenced from CMakeLists' gate-192
 # source list.
+#
+# ==== RECORD CORRECTION (review round) ====
+# The gate-192 commit message described func_02044b30's SHORT-arg seam as
+# "independently re-derived" during the MrBlizzard crash chase, which
+# overstates it: that fix landed at GATE 4B (port/unmatched/
+# ModelComponents_Render.cpp, wired via slice_gate4b.txt) long before this
+# gate, and the gate-192 investigation merely CONFIRMED via the .map that
+# the host copy (not the matched TU) is what links. This lane's own second
+# SHORT-arg find was the func_02046d50/TextureSequence::Prepare caller
+# family (MotherPenguin gate 191, daBgSnwmn_c gate 193, OneUpLogo gate 190
+# fix round), plus func_ov072_02121d50's two callers (gate 193).

@@ -160,3 +160,17 @@ src/__sinit_ov018_02112c80.cpp
 # (MotherPenguin D1). All four are carried in src/ byte-identical to main/
 # their own last-verified state; none are referenced from CMakeLists' gate-191
 # source list.
+#
+# ==== RIDE PROOF (review round; the gate-191 commit shipped with this gap
+# documented honestly -- the reviewer then CONSTRUCTED the ride and it
+# passes) ====
+# SM64DS_SPAWN=549,-4350,6272 (directly above the lift's reported spawn
+# point): Mario lands and STANDS ON the SkiLift's MovingMeshCollider at
+# Y=-4500, 120f SM64DS_FAULTS_FATAL=1 contact run clean, exit 0. The
+# SM64DS_SKIP_CLASS=SKI_LIFT control run FALLS THROUGH at the same spawn
+# (no collider, Mario drops past Y=-4500), proving the standing surface is
+# the lift's own seated MovingMeshCollider and not level geometry. This
+# closes the gate-191 ride-sweep gap: the contested MovingMeshCollider
+# callback seating (the gate-186 canonical MSVC-index shape, see the
+# InitResources section above) is exercised under real contact, not just
+# proximity.

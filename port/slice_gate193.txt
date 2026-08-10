@@ -114,6 +114,14 @@ src/_ZN6Player8IsDivingEv.cpp
 # ---- the two own-class sinits (self-contained; RUN) -------------------
 # __sinit_ov072_02122018 (SnowmanBody) and __sinit_ov072_021221f8
 # (SnowmanHead) stay OFF -- neither class is hosted.
+# NOTE (review round): __sinit_ov072_02122414 (BabyPenguin's own, including
+# its six-cell PMF table build) RUNS even though BABY_PENGUIN (256) is
+# unregistered -- INERT: every write lands in BabyPenguin's own mounted
+# statics/bss, and with the class out of the registry nothing ever reads
+# them (no spawn -> no InitResources -> no dispatch through the cells).
+# The seat function (port_baby_penguin_states_seat) also never runs -- it
+# is called only from hal_fill_baby_penguin_vtable, which the registry no
+# longer invokes.
 src/__sinit_ov072_02122350.c
 src/__sinit_ov072_02122414.c
 #

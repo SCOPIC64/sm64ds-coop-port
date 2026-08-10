@@ -1464,3 +1464,11 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    generated host arrays are flat C u8[] under the plain names. */
 #pragma comment(linker, "/alternatename:?data_ov072_02122cac@@3PAPAXA=_data_ov072_02122cac")
 #pragma comment(linker, "/alternatename:?data_ov072_02122ca4@@3PAPAXA=_data_ov072_02122ca4")
+/* fix round (SIG-RP order): src/func_ov016_02112ae4.c carried wholesale
+   from main (hash-verified), which spells RockPillar's two SharedFilePtrs
+   by their friendly main-side names; this worktree's ov016 mount predates
+   the rename and mounts the raw address names. Mapping verified against
+   main's own config/arm9/overlays/ov016/symbols.txt (ClsnFile=0x02114e1c,
+   ModelFile=0x02114e24). */
+#pragma comment(linker, "/alternatename:_RockPillar_ClsnFile=_data_ov016_02114e1c")
+#pragma comment(linker, "/alternatename:_RockPillar_ModelFile=_data_ov016_02114e24")

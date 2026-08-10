@@ -123,14 +123,22 @@ src/__sinit_ov016_02113a50.c
 # own two files -- corrupting the ExpandingHeap free list. The later
 # UnlinkNode/walker-node crash (FAULT c0000005, node id 0x3a = ROCK_PILLAR)
 # was only the detector, not the fault site.
-# THE FIX (name-only, byte-identical class, MetalNet/CannonHatch-disease
-# pattern): func_ov016_02112ae4.c now releases data_ov016_02114e1c and
-# data_ov016_02114e24 directly -- RockPillar's REAL SharedFilePtrs, built by
-# __sinit_ov016_02113978 (already mounted, ov016_syms.txt lines 91-93) --
-# instead of the colliding G0/G1 names. decl_common.h already declares both
-# as `extern char foo[]`, so no new extern is needed in the file itself.
-# The alternatename pragmas in cxx_aliases.cpp are UNTOUCHED (other TUs still
-# depend on them for their own legitimate G0/G1 uses).
+# THE FIX (review-corrected in the fix round): src/func_ov016_02112ae4.c is
+# now CARRIED WHOLESALE from main, hash-verified (blob 05d287b40f) -- main
+# already landed the correct fix with friendly names, releasing
+# RockPillar_ModelFile (0x02114e24) FIRST, then RockPillar_ClsnFile
+# (0x02114e1c), matching the ROM's own literal-pool load order (reviewer
+# disassembled overlay_0016.bin: e24 loads first). This fix round's FIRST
+# revision released e1c before e24 -- runtime-equivalent (both Releases are
+# order-independent refcount drops) but wrong-bytes for the decomp gate and
+# a needless conflict with main; replaced. The friendly names resolve
+# through two new alternatename rows in cxx_aliases.cpp
+# (_RockPillar_ClsnFile=_data_ov016_02114e1c,
+# _RockPillar_ModelFile=_data_ov016_02114e24 -- mapping verified against
+# main's own config/arm9/overlays/ov016/symbols.txt); the raw address names
+# stay mounted (ov016_syms.txt line 93, built by __sinit_ov016_02113978).
+# The G0/G1 alternatename pragmas in cxx_aliases.cpp are UNTOUCHED (other
+# TUs still depend on them for their own legitimate G0/G1 uses).
 # PROOF: SM64DS_LEVEL=8 SM64DS_SPAWN=5250,-5100,2050 SM64DS_STAR_FILTER=1
 # SM64DS_WINDOW_SELFTEST=300 SM64DS_FAULTS_FATAL=1 -- pre-fix: segfault at
 # +0x0002fa93, walker node actor id 0x3a (ROCK_PILLAR), c0000005; post-fix:
