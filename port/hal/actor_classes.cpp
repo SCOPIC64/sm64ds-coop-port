@@ -22,11 +22,41 @@
 // because InitResources can dispatch through the vptr the constructor just
 // installed, which means the table must be up before the first spawn.
 //
+// ---- THE TABLES ARE NOT TWENTY SLOTS LONG ----------------------------------
+//
+// Every array in this file was written [20], the plain ActorBase width, and
+// every ROM table it stands in for is 31 or 32 words. Slot 21 is
+// OnGroundPounded, at byte offset 0x54; a [20] array is 0x50 bytes; so a
+// player ground-pounding an ordinary sign dispatched whatever the linker put
+// next in memory. That is a live crash on castle-grounds furniture, not a
+// latent hazard, and it fires on the objects a player stands on most.
+//
+// The width is not a style choice, it is the class's own base chain, and
+// port/tools/vtspan.py reads it out of the ROM's relocations:
+//
+//   31 slots  a plain Actor subclass. Slot 30 is Actor::
+//             OnAimedAtWithEggReturnVec (arm9 0x020100dc) and the table ends.
+//   32 slots  a Platform subclass. Slot 31 is Platform::Kill (ov002
+//             0x020ee55c) or the class's own override of it.
+//
+// The next-symbol delta is NOT the width: dsd emitted ambiguous data symbols
+// inside several of these tables, so the symbol bound truncates (_ZTV4Bird
+// reads as 10 words and is 31, _ZTV8MetalNet reads as 12 and is 32). Every
+// size below is the reloc run intersected with that bound, per vtspan.
+//
 // ---- the shared half -------------------------------------------------------
 //
-// Ten of the twenty slots are the same functions in every one of these
+// Ten of the first twenty slots are the same functions in every one of these
 // classes: Actor's four Before/After pairs, ActorBase::OnHeapCreated, and
-// Actor::OnYoshiTryEat. They are written once here.
+// Actor::OnYoshiTryEat. So is the whole 20..30 tail, which is Actor's own
+// interaction list -- Virtual50 plus the nine combat hooks plus the two egg
+// virtuals -- and every one of those bodies is already in the build. They are
+// written once here.
+//
+// SLOT 30 (OnAimedAtWithEggReturnVec) DECLINES rather than forwarding. Its ROM
+// body returns a Vector3 BY VALUE, so the host call needs an sret contract
+// this file has never proved, and the body is not in a slice; a named decline
+// is the honest seat. Same reading as hal/actor_classes_wf.cpp.
 #include <cstdio>
 #include <cstdlib>
 
@@ -39,6 +69,22 @@ void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a); /* slot 2 */
 int _ZN5Actor14BeforeBehaviorEv(void *self);           /* slot 7  */
 int _ZN5Actor12BeforeRenderEv(void *self);             /* slot 10 */
 int _ZN5Actor13OnYoshiTryEatEv(void *self);            /* slot 18 */
+/* Actor's own interaction list, slots 20..29, all matched arm9 bodies already
+   linked (slice_gate32 and slice_gate50). Read out of the ROM tables, not the
+   header: every one of them appears at these indices in _ZTV4Tree and its
+   twenty-four neighbours. */
+int  _ZN5Actor9Virtual50Ev(void *self);                      /* slot 20 */
+void _ZN5Actor15OnGroundPoundedERS_(void *self, void *o);    /* slot 21 */
+void _ZN5Actor11OnAttacked1ERS_(void *self, void *o);        /* slot 22 */
+void _ZN5Actor11OnAttacked2ERS_(void *self, void *o);        /* slot 23 */
+void _ZN5Actor8OnKickedERS_(void *self, void *o);            /* slot 24 */
+void _ZN5Actor8OnPushedERS_(void *self, void *o);            /* slot 25 */
+void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* slot 26 */
+void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* slot 27 */
+void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* slot 28 */
+int  _ZN5Actor16OnAimedAtWithEggEv(void *self);              /* slot 29 */
+/* slot 31 of a Platform table, ov002 0x020ee55c, already in the build */
+void _ZN8Platform4KillEv(void *self);
 }
 
 static int __fastcall ac_binit(void *s, void *)
@@ -103,6 +149,34 @@ static int __fastcall ac_yoshi(void *s, void *)
 static void __fastcall ac_pdes_base(void *s, void *)
 { ((ActorBase *)s)->ActorBase::OnPendingDestroy(); }
 
+/* Actor's own interaction tail, slots 20..29. Every one of these takes its
+   argument PUSHED by the __thiscall caller, so the thunk needs the dummy edx
+   AND the named parameter or it pops nothing and the caller's frame runs
+   short -- the same three-parameter shape hal/actor_classes_wf.cpp uses. */
+static int __fastcall ac_v50(void *s, void *)
+{ return _ZN5Actor9Virtual50Ev(s); }
+static int __fastcall ac_pounded(void *s, void *, void *o)
+{ _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
+static int __fastcall ac_atk1(void *s, void *, void *o)
+{ _ZN5Actor11OnAttacked1ERS_(s, o); return 0; }
+static int __fastcall ac_atk2(void *s, void *, void *o)
+{ _ZN5Actor11OnAttacked2ERS_(s, o); return 0; }
+static int __fastcall ac_kicked(void *s, void *, void *o)
+{ _ZN5Actor8OnKickedERS_(s, o); return 0; }
+static int __fastcall ac_pushed(void *s, void *, void *o)
+{ _ZN5Actor8OnPushedERS_(s, o); return 0; }
+static int __fastcall ac_cannon(void *s, void *, void *o)
+{ _ZN5Actor24OnHitByCannonBlastedCharERS_(s, o); return 0; }
+static int __fastcall ac_mega(void *s, void *, void *p)
+{ _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
+static int __fastcall ac_under(void *s, void *, void *o)
+{ _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
+static int __fastcall ac_egg(void *s, void *)
+{ return _ZN5Actor16OnAimedAtWithEggEv(s); }
+/* slot 31, the Platform tail. Only the Platform subclasses below write it. */
+static int __fastcall ac_kill(void *s, void *)
+{ _ZN8Platform4KillEv(s); return 0; }
+
 /* The trap. Slots 13/14 are the actor's own solid-heap creation, 19 is
    OnTurnIntoEgg, and 16/17 are the destructors where a class leaves them
    unhosted; a named abort is the honest placeholder for a slot the port has
@@ -150,6 +224,19 @@ static int __fastcall ac_trap14(void *s, void *) { ac_trap_report(s, 14); return
 static int __fastcall ac_trap16(void *s, void *) { ac_trap_report(s, 16); return 0; }
 static int __fastcall ac_trap17(void *s, void *) { ac_trap_report(s, 17); return 0; }
 static int __fastcall ac_trap19(void *s, void *) { ac_trap_report(s, 19); return 0; }
+/* The interaction-tail traps. A class that OVERRIDES one of Actor's 20..31
+   bodies has a body of its own that is not in any slice, so forwarding to
+   Actor's would run the wrong code; declining names the slot and the class
+   instead. Slot 30 declines for every class in this file (sret contract
+   unproved). Their own `ret` is unreachable -- port_actor_slot_decline either
+   aborts under SM64DS_FAULTS_FATAL or raises for the quarantine handler -- so
+   the two-parameter shape here is dead code, not a pop-contract break. */
+#define AC_TRAP(n) \
+    static int __fastcall ac_trap##n(void *s, void *) \
+    { ac_trap_report(s, n); return 0; }
+AC_TRAP(21) AC_TRAP(22) AC_TRAP(23) AC_TRAP(24)
+AC_TRAP(27) AC_TRAP(28) AC_TRAP(29) AC_TRAP(30) AC_TRAP(31)
+#undef AC_TRAP
 static int __fastcall plat_trap(void *s, void *) { ac_trap_report(s, -1); return 0; }
 
 /* ---- the pieces the hosted D1 destructors tear members down with -----------
@@ -257,6 +344,20 @@ static void ac_fill_shared(void **vt)
     vt[15] = (void *)ac_heap;
     vt[18] = (void *)ac_yoshi;
     vt[19] = (void *)ac_trap19;
+    /* Actor's interaction tail. Every table in this file is at least 31 words
+       and every one of them carries these arm9 bodies at these indices unless
+       the class overrides -- the overriders rewrite their own slots below. */
+    vt[20] = (void *)ac_v50;
+    vt[21] = (void *)ac_pounded;
+    vt[22] = (void *)ac_atk1;
+    vt[23] = (void *)ac_atk2;
+    vt[24] = (void *)ac_kicked;
+    vt[25] = (void *)ac_pushed;
+    vt[26] = (void *)ac_cannon;
+    vt[27] = (void *)ac_mega;
+    vt[28] = (void *)ac_under;
+    vt[29] = (void *)ac_egg;
+    vt[30] = (void *)ac_trap30;
 }
 
 // ---- TREE (actor 286, ov002) -----------------------------------------------
@@ -277,7 +378,7 @@ int _ZN4Tree8BehaviorEv(void);
 void _ZN4Tree16OnPendingDestroyEv(void);
 int _ZN4TreeD1Ev(char *self);
 void *_ZN4TreeD0Ev(char *self);
-void *_ZTV4Tree[20];
+void *_ZTV4Tree[31];
 extern int data_ov002_02110a48[5];   /* the five variant cylinder lists */
 }
 
@@ -376,7 +477,7 @@ extern "C" {
 int _ZN19AmbientSoundEffects6RenderEv(void);
 int _ZN19AmbientSoundEffects16CleanupResourcesEv(void);
 void _ZN19AmbientSoundEffects16OnPendingDestroyEv(void);
-void *_ZTV19AmbientSoundEffects[20];
+void *_ZTV19AmbientSoundEffects[31];
 }
 
 static int __fastcall amb_init(void *s, void *)
@@ -425,16 +526,21 @@ extern "C" void *hal_actor_shared_pdes(void) { return (void *)ac_pdes_base; }
 // It is only ever installed BETWEEN two member teardowns and nothing dispatches
 // through it while it is there, so the port gives it the shared half and traps
 // the rest: if a future class does dispatch, it says which slot.
-extern "C" { void *_ZTV10dBgActor_c[20]; }
+extern "C" { void *_ZTV10dBgActor_c[32]; }
 extern "C" void hal_fill_platform_vtable(void)
 {
     static int done;
     if (done) return;
     done = 1;
-    for (int i = 0; i < 20; ++i)
+    for (int i = 0; i < 32; ++i)
         _ZTV10dBgActor_c[i] = (void *)plat_trap;
     ac_fill_shared(_ZTV10dBgActor_c);
     _ZTV10dBgActor_c[12] = (void *)ac_pdes_base;
+    /* This IS the ROM's Platform base table (ov002 0x0210ae38) and it is 32
+       words: 20..30 are Actor's own interaction list and 31 is Platform::Kill.
+       The prefill loop stopped at 20 while the array did, so the width has to
+       move with it or 20..31 stay null. */
+    _ZTV10dBgActor_c[31] = (void *)ac_kill;
 }
 
 // ---- BLACK_BRICK_BLOCK (actor 17, ov002) x1 --------------------------------
@@ -451,7 +557,7 @@ extern "C" {
 int _ZN13BigBrickBlock13InitResourcesEv(void *self);
 int *_ZN13BigBrickBlockD1Ev(int *self);
 int *_ZN13BigBrickBlockD0Ev(int *self);
-void *_ZTV13BigBrickBlock[20];
+void *_ZTV13BigBrickBlock[32];
 }
 /* The destructors spell the class's own table by its RTTI name. */
 #pragma comment(linker, "/alternatename:__ZTV13daObjBlockL_c=__ZTV13BigBrickBlock")
@@ -485,6 +591,20 @@ extern "C" void hal_fill_black_brick_block_vtable(void)
     vt[12] = (void *)ac_pdes_base;
     vt[16] = (void *)bbb_d1;
     vt[17] = (void *)bbb_d0;
+    /* A 32-slot Platform table, and BLACK_BRICK_BLOCK overrides six of the
+       tail: 21 OnGroundPounded (ov002 0x020b382c), 22 OnAttacked1 (0x020b37ec),
+       23 OnAttacked2 (0x020b3788), 24 OnKicked (0x020b36dc), 27 OnHitByMegaChar
+       (0x020b36b4) and 31 Kill (0x020b38a0). All six are matched in src and
+       NONE is in a slice, so forwarding to Actor's shared body would run the
+       wrong code for a block a player is meant to break. They decline by name
+       until the bodies are in the build; the other tail slots keep the shared
+       Actor bodies ac_fill_shared just wrote, which is what the ROM has. */
+    vt[21] = (void *)ac_trap21;
+    vt[22] = (void *)ac_trap22;
+    vt[23] = (void *)ac_trap23;
+    vt[24] = (void *)ac_trap24;
+    vt[27] = (void *)ac_trap27;
+    vt[31] = (void *)ac_trap31;
 }
 
 // ---- STAR_MARKER (actor 180, ov002) ----------------------------------------
@@ -509,7 +629,7 @@ extern "C" void hal_fill_black_brick_block_vtable(void)
 extern "C" {
 int *_ZN10StarMarkerD0Ev(int *self);                    /* .c, C linkage */
 int *_ZN10StarMarkerD1Ev(int *self);                    /* host copy, extern C */
-void *_ZTV10StarMarker[20];
+void *_ZTV10StarMarker[31];
 }
 #pragma comment(linker, "/alternatename:?data_ov002_0210d9a8@@3DA=_data_ov002_0210d9a8")
 /* the destructors spell the class's own table by its RTTI name */
@@ -562,7 +682,7 @@ int _ZN14BlueCoinSwitch8BehaviorEv(void *self);
 int _ZN14BlueCoinSwitch6RenderEv(char *self);
 int *_ZN14BlueCoinSwitchD1Ev(int *self);
 int *_ZN14BlueCoinSwitchD0Ev(int *self);
-void *_ZTV14BlueCoinSwitch[20];
+void *_ZTV14BlueCoinSwitch[32];
 }
 /* the destructors spell the class's own table by its RTTI name */
 #pragma comment(linker, "/alternatename:__ZTV16daObjBC_Switch_c=__ZTV14BlueCoinSwitch")
@@ -593,6 +713,9 @@ extern "C" void hal_fill_blue_coin_switch_vtable(void)
     vt[12] = (void *)ac_pdes_base;
     vt[16] = (void *)bcs_d1;
     vt[17] = (void *)bcs_d0;
+    /* 32 slots. Slot 31 is Platform::Kill (ov002 0x020ee55c), not overridden
+       here, and 20..30 are Actor's own list ac_fill_shared already wrote. */
+    vt[31] = (void *)ac_kill;
 }
 
 // ---- SIGN_POST (actor 184, ov002) x5 ---------------------------------------
@@ -619,7 +742,7 @@ extern "C" {
 int _ZN8SignPost8BehaviorEv(char *self);
 int *_ZN8SignPostD1Ev(int *self);
 int *_ZN8SignPostD0Ev(int *self);
-void *_ZTV8SignPost[20];
+void *_ZTV8SignPost[32];
 }
 #pragma comment(linker, "/alternatename:__ZTV15daObjTatefuda_c=__ZTV8SignPost")
 
@@ -686,6 +809,21 @@ extern "C" void hal_fill_sign_post_vtable(void)
     vt[12] = (void *)ac_pdes_base;
     vt[16] = (void *)sp_d1;
     vt[17] = (void *)sp_d0;
+    /* SIGN_POST is a 32-slot Platform table and the worst instance of the [20]
+       bug in this file: the array ended at 0x50, _ZTV13OneUpMushroom starts
+       0x50 later with no padding, and slot 22 therefore landed on the 1-up's
+       slot 2 -- Actor::AfterInitResources, called with a sign as `this`. Slot
+       21 crashed outright (the confirmed level-3 repro).
+       Four of the tail are the sign's OWN bodies, matched in src and in no
+       slice: 21 OnGroundPounded (ov002 0x020bb27c, the post sinking a notch
+       and playing bank-3 sound 0x62), 22 OnAttacked1 (0x020bb23c), 27
+       OnHitByMegaChar (0x020bb374) and 31 Kill (0x020bb3b8). They decline by
+       name rather than run Actor's shared body, which is not what a sign
+       does. */
+    vt[21] = (void *)ac_trap21;
+    vt[22] = (void *)ac_trap22;
+    vt[27] = (void *)ac_trap27;
+    vt[31] = (void *)ac_trap31;
 }
 
 // ---- ONE_UP_MUSHROOM (actor 276, ov002) x3 ---------------------------------
@@ -710,7 +848,7 @@ int *_ZN13OneUpMushroomD1Ev(int *self);
 int *_ZN13OneUpMushroomD0Ev(int *self);
 int func_ov002_020af3a0(void);                       /* OnYoshiTryEat */
 void func_ov002_020af2b0(char *self, int arg);       /* OnTurnIntoEgg */
-void *_ZTV13OneUpMushroom[20];
+void *_ZTV13OneUpMushroom[31];
 }
 #pragma comment(linker, "/alternatename:__ZTV7da1up_c=__ZTV13OneUpMushroom")
 
@@ -889,7 +1027,7 @@ int _ZN4Bird8BehaviorEv(void *self);            /* host copy: hal/ov009_boot */
 int _ZN4Bird6RenderEv(void *self);
 int _ZN4Bird16CleanupResourcesEv(void);
 void _ZN4Bird16OnPendingDestroyEv(void);
-void *_ZTV4Bird[20];
+void *_ZTV4Bird[31];
 }
 /* The Bird's own D0 spells its table by the RTTI name. */
 #pragma comment(linker, "/alternatename:__ZTV9daSBird_c=__ZTV4Bird")
@@ -947,7 +1085,7 @@ int _ZN11CastleWater13InitResourcesEv(void *self);
 int _ZN11CastleWater16CleanupResourcesEv(void *self);
 int _ZN11CastleWater8BehaviorEv(void *self);
 int _ZN11CastleWater6RenderEv(void *self);
-void *_ZTV14daObjMcWater_c[20];        /* ov009 0x02113a18 */
+void *_ZTV14daObjMcWater_c[32];        /* ov009 0x02113a18 */
 }
 /* The water's own D0 spells this table by the class name. */
 #pragma comment(linker, "/alternatename:__ZTV11CastleWater=__ZTV14daObjMcWater_c")
@@ -974,6 +1112,10 @@ extern "C" void hal_fill_castle_water_vtable(void)
     vt[12] = (void *)ac_pdes_base;
     vt[16] = (void *)cw_d1;
     vt[17] = (void *)ac_trap17;
+    /* 32 slots; slot 31 is Platform::Kill unchanged in the ROM table. dsd left
+       an ambiguous symbol at word 14, so the symbol bound reads 14 here -- the
+       reloc run is what says 32. */
+    vt[31] = (void *)ac_kill;
 }
 
 // ---- METAL_NET (actor 339, ov009) x3 ---------------------------------------
@@ -987,7 +1129,7 @@ int _ZN8MetalNet8BehaviorEv(void *self);
 int _ZN8MetalNet6RenderEv(void *self);
 int _ZN8MetalNet16CleanupResourcesEv(void *self);
 void _ZN8MetalNet16OnPendingDestroyEv(void);
-void *_ZTV8MetalNet[20];
+void *_ZTV8MetalNet[32];
 }
 #pragma comment(linker, "/alternatename:__ZTV18daObjMc_Metalnet_c=__ZTV8MetalNet")
 
@@ -1015,6 +1157,8 @@ extern "C" void hal_fill_metal_net_vtable(void)
     vt[12] = (void *)mn_pdes;
     vt[16] = (void *)mn_d1;
     vt[17] = (void *)ac_trap17;
+    /* 32 slots; slot 31 is Platform::Kill unchanged in the ROM table. */
+    vt[31] = (void *)ac_kill;
 }
 
 // ---- FLAG (actor 342, ov009) x4 --------------------------------------------
@@ -1028,7 +1172,7 @@ int _ZN4Flag13InitResourcesEv(void *self);
 int _ZN4Flag8BehaviorEv(void *self);
 int _ZN4Flag6RenderEv(void *self);
 int _ZN4Flag16CleanupResourcesEv(void);
-void *_ZTV4Flag[20];
+void *_ZTV4Flag[31];
 }
 #pragma comment(linker, "/alternatename:__ZTV10daMcFlag_c=__ZTV4Flag")
 
@@ -1093,7 +1237,7 @@ void _ZN6Rabbit16OnPendingDestroyEv(void);
 int *_ZN6RabbitD1Ev(int *self);
 int *_ZN6RabbitD0Ev(int *self);
 int func_ov085_0212cc18(unsigned char *self);     /* slot 18, its own */
-void *_ZTV6Rabbit[20];
+void *_ZTV6Rabbit[31];
 }
 #pragma comment(linker, "/alternatename:__ZTV7daMip_c=__ZTV6Rabbit")
 
@@ -1160,7 +1304,7 @@ int _ZN9RabbitKey16CleanupResourcesEv(void);
 void _ZN9RabbitKey16OnPendingDestroyEv(void);
 int *_ZN9RabbitKeyD1Ev(int *self);
 int *_ZN9RabbitKeyD0Ev(int *self);
-void *_ZTV9RabbitKey[20];
+void *_ZTV9RabbitKey[31];
 }
 #pragma comment(linker, "/alternatename:__ZTV15daObj_Mip_Key_c=__ZTV9RabbitKey")
 
@@ -1212,7 +1356,7 @@ int _ZN9LakituBro16CleanupResourcesEv(void);
 void _ZN9LakituBro16OnPendingDestroyEv(void);
 int *_ZN9LakituBroD1Ev(int *self);
 int *_ZN9LakituBroD0Ev(int *self);
-void *_ZTV9LakituBro[20];
+void *_ZTV9LakituBro[31];
 }
 #pragma comment(linker, "/alternatename:__ZTV11daC_Jugem_c=__ZTV9LakituBro")
 
@@ -1268,7 +1412,7 @@ int _ZN6Cannon13InitResourcesEv(void *self);      /* face: method_faces */
 int _ZN6Cannon8BehaviorEv(void *self);            /* face: method_faces */
 int _ZN6Cannon6RenderEv(void *self);              /* host copy */
 int _ZN6Cannon16CleanupResourcesEv(void);
-void *_ZTV6Cannon[20];
+void *_ZTV6Cannon[31];
 }
 #pragma comment(linker, "/alternatename:__ZTV7daCnn_c=__ZTV6Cannon")
 
@@ -1333,7 +1477,7 @@ int _ZN11VirtualDoor8BehaviorEv(char *self);
 int _ZN11VirtualDoor6RenderEv(void);
 int _ZN11VirtualDoor16CleanupResourcesEv(void);
 void _ZN11VirtualDoor16OnPendingDestroyEv(void);
-void *_ZTV11VirtualDoor[20];
+void *_ZTV11VirtualDoor[31];
 }
 
 static int __fastcall ex_init(void *s, void *)
@@ -1386,7 +1530,7 @@ extern "C" void hal_fill_exit_vtable(void)
 extern "C" {
 int _ZN18PoppingLavaBubbles13InitResourcesEv(void *self);   /* face */
 int _ZN18PoppingLavaBubbles8BehaviorEv(char *self);
-void *_ZTV18PoppingLavaBubbles[20];
+void *_ZTV18PoppingLavaBubbles[31];
 }
 
 static int __fastcall wm_init(void *s, void *)
@@ -1446,7 +1590,7 @@ int _ZN9Butterfly8BehaviorEv(char *self);
 int _ZN9Butterfly6RenderEv(void *self);              /* face: method_faces */
 int _ZN9Butterfly16CleanupResourcesEv(void);
 void _ZN9Butterfly16OnPendingDestroyEv(void);
-void *_ZTV9Butterfly[20];
+void *_ZTV9Butterfly[31];
 }
 #pragma comment(linker, "/alternatename:__ZTV9daBtfly_c=__ZTV9Butterfly")
 
@@ -1516,7 +1660,7 @@ int _ZN4Fish8BehaviorEv(void *self);                 /* host copy */
 int _ZN4Fish6RenderEv(void *self);                   /* face: method_faces */
 int _ZN4Fish16CleanupResourcesEv(void *self);        /* face: method_faces */
 void _ZN4Fish16OnPendingDestroyEv(void);
-void *_ZTV4Fish[20];
+void *_ZTV4Fish[31];
 }
 #pragma comment(linker, "/alternatename:__ZTV8daFish_c=__ZTV4Fish")
 
@@ -1572,7 +1716,7 @@ int _ZN14UnchainedChomp8BehaviorEv(void *self);                 /* host copy */
 int _ZN14UnchainedChomp6RenderEv(void *self);                   /* host copy */
 int _ZN14UnchainedChomp16CleanupResourcesEv(void);
 void _ZN14UnchainedChomp16OnPendingDestroyEv(void);
-void *_ZTV14UnchainedChomp[20];
+void *_ZTV14UnchainedChomp[31];
 /* D1 teardown helpers (the other classes' D1 blocks use these too) */
 void __destroy_arr(void *p, int n, int sz, void *dtor);
 void func_02011508(void);
@@ -1626,6 +1770,10 @@ extern "C" void hal_fill_unchained_chomp_vtable(void)
     /* 17 keeps the trap, the Butterfly/Fish reading: destroy is D1 + an explicit
        Deallocate; nothing on this level calls the deleting form. */
     vt[17] = (void *)ac_trap17;
+    /* 31 slots, a plain Actor table. Slot 29 (OnAimedAtWithEgg) is the chomp's
+       own body (ov100 0x021442d4), matched in src and in no slice, so it
+       declines rather than answering Actor's default 20.0 lock-on radius. */
+    vt[29] = (void *)ac_trap29;
 }
 
 // ============================================================================
@@ -1654,7 +1802,7 @@ int func_ov100_0214542c(void *self);      /* CleanupResources */
 int func_ov100_02145550(void *self);      /* Behavior -- host copy */
 int func_ov100_021454c8(void *self);      /* Render   -- host copy */
 void func_ov100_021454c4(void);           /* OnPendingDestroy */
-void *_ZTV8daDoor_c[20];
+void *_ZTV8daDoor_c[31];
 }
 
 static int __fastcall dr_init(void *s, void *)
@@ -1709,7 +1857,7 @@ int _ZN4Door6RenderEv(int self);                /* C in src */
 int _ZN4Door16CleanupResourcesEv(void);         /* C in src */
 void _ZN4Door16OnPendingDestroyEv(void);        /* C in src */
 int *_ZN4DoorD0Ev(int *self);                   /* C in src */
-void *_ZTV4Door[20];
+void *_ZTV4Door[31];
 }
 #pragma comment(linker, "/alternatename:__ZTV12daStarGate_c=__ZTV4Door")
 
@@ -1794,7 +1942,7 @@ int _ZN4Trap13InitResourcesEv(void *self);        /* face: method_faces */
 int _ZN4Trap8BehaviorEv(void *self);              /* face: method_faces */
 int _ZN4Trap6RenderEv(void *self);                /* face: method_faces */
 int _ZN4Trap16CleanupResourcesEv(void);           /* C in src, returns 1 */
-void *_ZTV4Trap[20];
+void *_ZTV4Trap[31];
 void hal_fill_platform_vtable(void);
 }
 #pragma comment(linker, "/alternatename:__ZTV15daObjC1Hikari_c=__ZTV4Trap")
@@ -1950,7 +2098,7 @@ int _ZN13QuestionBlock13InitResourcesEv(char *self);
 int _ZN13QuestionBlock8BehaviorEv(void *self);          /* face: method_faces */
 int _ZN13QuestionBlock6RenderEv(void *self);            /* face: method_faces */
 int _ZN13QuestionBlock16CleanupResourcesEv(void *self); /* face: method_faces */
-void *_ZTV13QuestionBlock[20];
+void *_ZTV13QuestionBlock[32];
 }
 #pragma comment(linker, "/alternatename:__ZTV18daObjHatenaBlock_c=__ZTV13QuestionBlock")
 
@@ -1978,4 +2126,17 @@ extern "C" void hal_fill_question_block_vtable(void)
        rather than marking it. */
     vt[16] = (void *)qb_d1;
     vt[17] = (void *)ac_trap17;
+    /* 32 slots. Five of the tail are the block's own ov102 bodies, all matched
+       in src and none in a slice: 21 OnGroundPounded (0x02149820), 22
+       OnAttacked1 (0x021497c8), 24 OnKicked (0x02149770), 27 OnHitByMegaChar
+       (0x02149710) and 28 OnHitFromUnderneath (0x021496a4) -- the last is how
+       a question block answers being punched from below, so running Actor's
+       do-nothing there would be wrong rather than merely incomplete. Slot 31
+       is Platform::Kill, unchanged. */
+    vt[21] = (void *)ac_trap21;
+    vt[22] = (void *)ac_trap22;
+    vt[24] = (void *)ac_trap24;
+    vt[27] = (void *)ac_trap27;
+    vt[28] = (void *)ac_trap28;
+    vt[31] = (void *)ac_kill;
 }
