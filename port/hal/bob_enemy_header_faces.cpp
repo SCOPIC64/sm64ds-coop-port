@@ -63,3 +63,10 @@ extern "C" int _ZN11CommonModel9DoSetFileEPcii(void *self, char *f, int a,
 #include "Model.h"
 extern "C" void _ZN5Model12HideMaterialEii(void *self, int boneID, int listIdx)
 { ((Model *)self)->Model::HideMaterial(boneID, listIdx); }
+/* Model::ShowMaterial (arm9, the HideMaterial sibling), gate 192:
+   MrBlizzard's own Render (src/_ZN10MrBlizzard6RenderEv.cpp) calls it
+   through decl_Model.h's flat declaration while the matched definition
+   (src/_ZN5Model12ShowMaterialEii.cpp, gate 182) is a real method -- the
+   same seam HideMaterial already needed. */
+extern "C" void _ZN5Model12ShowMaterialEii(void *self, int boneID, int listIdx)
+{ ((Model *)self)->Model::ShowMaterial(boneID, listIdx); }

@@ -1,13 +1,27 @@
-//cpp
-// @symbol _ZN10MrBlizzard8BehaviorEv
-/* recovered: named members + shared header, real C++ method, declarations from a shared header */
+/* HOST COPY of src/_ZN10MrBlizzard8BehaviorEv.cpp -- the SAME PMF-on-an-
+ * incomplete-class seam port/unmatched/MrBlizzard_StateDispatch.cpp fixes
+ * for func_ov081_02125488, applied to MrBlizzard's own Behavior tick
+ * dispatch.
+ *
+ * THE PMF CALL. The matched src reads `PMF* p = pp + 1; (this->**p)();` --
+ * `pp` points at one of the ten state cells (a PortMrBlizzardPair:
+ * {enter_fn, enter_delta, tick_fn, tick_delta}); `pp + 1` (PMF-width, 8
+ * bytes) lands on the cell's SECOND half, i.e. tick_fn/tick_delta. MSVC's
+ * PMF representation for the matched src's deliberately-incomplete `struct
+ * C` is not a plain function pointer, so this dispatch does not reproduce
+ * the ROM's ABI on the host (see MrBlizzard_StateDispatch.cpp's header for
+ * the full derivation) -- confirmed by crash: id 0xdf (MR_BLIZZARD) faults
+ * at a near-null address the very first tick after gate 192 boots. This
+ * host copy is the matched src translated field for field with that one
+ * dispatch replaced by a plain function-pointer call through the seat's
+ * own struct layout (hal/actor_classes_ov081.cpp's PortMrBlizzardPair).
+ * The `pp+8 != 0` guard (matched src's `*(void**)((char*)pp + 8)`) becomes
+ * `cell->tick_fn != 0` -- the identical byte offset, read through the real
+ * type instead of a raw pointer.
+ */
 #include "decl_SaveData.h"
 #include "decl_common.h"
-/* recovered: named members + shared header, real C++ method */
 #include "MrBlizzard.h"
-struct C;
-typedef int (C::*PMF)();
-struct C { char pad[0x3f8]; PMF* pp; };
 extern "C" {
 extern int _ZN5Enemy26UpdateKillByInvincibleCharER12WithMeshClsnR9ModelAnimj(void* self, void* wm, void* anim, unsigned n);
 extern int _ZN5Enemy11UpdateDeathER12WithMeshClsn(void* self, void* wm);
@@ -24,11 +38,17 @@ extern void _ZN9Animation7AdvanceEv(void* self);
 extern char data_ov081_02128e24;
 extern char data_ov081_02128e84;
 extern char data_ov081_02128e64;
+extern char data_ov081_02128e94;
+extern void func_ov081_021254d8(void *c);
+extern void func_ov081_021243cc(void *c);
+
+struct PortMrBlizzardPair { unsigned enter_fn, enter_delta, tick_fn, tick_delta; };
+typedef int (*PortMbFn)(void *);
 }
 
 int MrBlizzard::Behavior()
 {
-    char* c = (char*)((C*)this);
+    char* c = (char*)this;
     void* r5;
     char* p;
     if (*(int*)(c + 0x41c) == 3) {
@@ -60,8 +80,8 @@ int MrBlizzard::Behavior()
         return 1;
     }
     if (*(int*)(c + 0x41c) == 2
-        && (char*)((C*)this)->pp != &data_ov081_02128e94
-        && (char*)((C*)this)->pp != &data_ov081_02128e24
+        && *(void**)(c + 0x3f8) != (void*)&data_ov081_02128e94
+        && *(void**)(c + 0x3f8) != (void*)&data_ov081_02128e24
         && _ZN8SaveData16HasPlayerLostCapEv()
         && *(int*)(c + 0x400) == 0) {
 
@@ -82,18 +102,19 @@ int MrBlizzard::Behavior()
     *(short*)(c + 0x8e) = *(short*)(c + 0x94);
     *(short*)(c + 0x90) = *(short*)(c + 0x96);
     DecIfAbove0_Short((unsigned short*)(c + 0x100));
-    if (*(void**)((char*)((C*)this)->pp + 8) != 0) {
-        PMF* p = ((C*)this)->pp + 1;
-        (((C*)this)->**p)();
+    {
+        PortMrBlizzardPair *cell = *(PortMrBlizzardPair **)(c + 0x3f8);
+        if (cell->tick_fn != 0)
+            ((PortMbFn)(size_t)cell->tick_fn)(c);
     }
     _ZN5Actor9UpdatePosEP12CylinderClsn(c, c + 0x110);
     if (*(int*)(c + 0x41c) == 0)
         _ZN5Enemy12UpdateWMClsnER12WithMeshClsnj(c, c + 0x150, 0);
     func_ov081_021254d8(c);
-    if ((char*)((C*)this)->pp != &data_ov081_02128e84
-        && (char*)((C*)this)->pp != &data_ov081_02128e64
-        && (char*)((C*)this)->pp != &data_ov081_02128e94
-        && (char*)((C*)this)->pp != &data_ov081_02128e24)
+    if (*(void**)(c + 0x3f8) != (void*)&data_ov081_02128e84
+        && *(void**)(c + 0x3f8) != (void*)&data_ov081_02128e64
+        && *(void**)(c + 0x3f8) != (void*)&data_ov081_02128e94
+        && *(void**)(c + 0x3f8) != (void*)&data_ov081_02128e24)
         func_ov081_021243cc(c);
     _ZN12CylinderClsn5ClearEv(c + 0x110);
     {

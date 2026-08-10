@@ -5,6 +5,9 @@
 #ifndef MRBLIZZARD_H
 #define MRBLIZZARD_H
 #include "types.h"
+#include "MovingCylinderClsnWithPos.h"
+#include "WithMeshClsn.h"
+#include "ModelAnim.h"
 
 struct MrBlizzard {
     u8  pad_000[0x8];
@@ -33,12 +36,18 @@ struct MrBlizzard {
     u8  pad_109[0x1];
     u8  unk_10a;            /* 0x10a */
     u8  pad_10b[0x5];
-    u8  mMovingCylinderClsnWithPos;            /* 0x110 */
-    u8  pad_111[0x3f];
-    u8  mWithMeshClsn;            /* 0x150 */
-    u8  pad_151[0x1bb];
-    u8  mModelAnim;            /* 0x30c */
-    u8  pad_30d[0x63];
+    /* MovingCylinderClsnWithPos member, named by the class's own destructor calling
+       MovingCylinderClsnWithPos's D1 at +0x110 -- a relocation the ROM build
+       checks. Was a u8 marker. [_ZN10MrBlizzardD1Ev.c] */
+    MovingCylinderClsnWithPos mMovingCylinderClsnWithPos;            /* 0x110 */
+    /* WithMeshClsn member, named by the class's own destructor calling
+       WithMeshClsn's D1 at +0x150 -- a relocation the ROM build
+       checks. Was a u8 marker. [_ZN10MrBlizzardD1Ev.c] */
+    WithMeshClsn mWithMeshClsn;            /* 0x150 */
+    /* ModelAnim member, named by the class's own destructor calling
+       ModelAnim's D1 at +0x30c -- a relocation the ROM build
+       checks. Was a u8 marker. [_ZN10MrBlizzardD1Ev.c] */
+    ModelAnim mModelAnim;            /* 0x30c */
     u8  mShadowModel;            /* 0x370 */
     u8  pad_371[0x8b];
     s32 unk_3fc;            /* 0x3fc */

@@ -1,0 +1,138 @@
+# Gate 192: ov081 trio -- ICE_BLOCK (18), MR_BLIZZARD (223), SPINDRIFT (312).
+# Fresh per-symbol ov081 mount (port/ov081_syms.txt), the ov079/ov080
+# convention: whole data span minus the three classes' own vtables minus
+# dsd's five .p__sinit_* pointer entries. Fill is
+# hal/actor_classes_ov081.cpp. Full slot derivation, the class-identity
+# cross-checks and the MrBlizzard PMF seat are documented in
+# port/ov081_syms.txt's own header.
+#
+# SNOWBALL and MONEYBAG stay UNREGISTERED: disjoint ranges from the three
+# hosted classes (confirmed both directions -- neither hosted class's own
+# closure calls into Snowball's or Moneybag's own functions), and their
+# sinits (__sinit_ov081_021284b4, __sinit_ov081_021284f0) are NOT run --
+# only the three own-class sinits below execute.
+#
+# ---- shared arm9 dependency: Enemy::~Enemy (Spindrift and MrBlizzard's
+# D1/D0 both call it as their own base-class D2). Self-contained (already-
+# hosted _ZN5ActorD2Ev + the already-hosted data_ov002_021081e4 vtable
+# array). Not previously mounted anywhere in the port. ----
+src/_ZN5EnemyD2Ev.c
+#
+# ---- func_ov081_02123910's (Spindrift's player-bump helper) own callee
+# closure: _ZN5Enemy20KillByInvincibleCharERK10Vector3_16R6Player and its
+# two ov004 (Bob-omb Battlefield) helpers -- all null-guard
+# data_ov004_020beb68 first and return doing nothing when it reads zero
+# (hal/actor_classes_ov081.cpp hosts it as a zero-initialized global for
+# exactly this). _ZN6Player10SpinBounceE5Fix12IiE and func_ov002_020e10a8
+# are two more previously-unmounted leaves of the same helper's closure. ----
+src/_ZN5Enemy20KillByInvincibleCharERK10Vector3_16R6Player.c
+src/func_ov004_020adc1c.c
+src/func_ov004_020adc00.c
+src/_ZN6Player10SpinBounceE5Fix12IiE.cpp
+src/func_ov002_020e10a8.cpp
+#
+# ---- SPINDRIFT (daHuwa_c), an Enemy, 32 slots (own Kill) -------------------
+# D1/D0 stay in the slice: both store _ZTV9Spindrift directly, their own
+# table, no shared-placeholder overwrite (the Unagi/IceSheet/RotatingFirebar
+# treatment).
+src/_ZN9SpindriftD1Ev.c
+src/_ZN9SpindriftD0Ev.c
+src/func_ov081_021237e4.c
+src/func_ov081_021237ec.cpp
+src/func_ov081_02123910.cpp
+src/func_ov081_02123b20.cpp
+src/_ZN9Spindrift16CleanupResourcesEv.c
+src/_ZN9Spindrift6RenderEv.cpp
+src/_ZN9Spindrift8BehaviorEv.cpp
+src/_ZN9Spindrift13InitResourcesEv.cpp
+src/func_ov081_02123fd8.cpp
+src/func_ov081_02124038.c
+src/Spindrift_Spawn.c
+#
+# ---- MR_BLIZZARD (daYuki_c), an Enemy, 32 slots (own Kill, own
+# OnPendingDestroy -- NOT the shared default) -------------------------------
+# D1/D0 stay in the slice: both store _ZTV10MrBlizzard directly (D0's own
+# RTTI alias spelling is _ZTV11daSnowman_c, a one-speller confirmed against
+# src -- not the ov016 shared-placeholder shape).
+#
+# func_ov081_02125488.cpp (installs a cell pointer and dispatches its
+# "enter" half via a REAL C++ PMF on a deliberately incomplete class) and
+# _ZN10MrBlizzard8BehaviorEv.cpp (dispatches the "tick" half the same way)
+# are BOTH NOT in this list -- MSVC's PMF representation for an incomplete
+# class does not reproduce the ROM's {function, delta} ABI on the host
+# (the SoundObject/Cap disease, confirmed by crash: id 0xdf faults on its
+# first tick with the matched src compiled directly). HOST COPIES instead:
+# port/unmatched/MrBlizzard_StateDispatch.cpp (installer) and
+# port/unmatched/MrBlizzard_Behavior.cpp (Behavior, PMF call replaced with
+# a plain function-pointer call, everything else translated field for
+# field). The ten cells __sinit_ov081_02128154 copies as DS code addresses
+# are seated at runtime by hal/actor_classes_ov081.cpp (verify-then-abort).
+# Both matched files stay byte-locked in src/ as proof, dropped from
+# CMakeLists' gate-192 source list.
+src/_ZN10MrBlizzardD1Ev.c
+src/_ZN10MrBlizzardD0Ev.c
+src/func_ov081_02124134.c
+src/func_ov081_0212423c.c
+src/func_ov081_021243cc.cpp
+src/func_ov081_021245e8.c
+src/func_ov081_021246a0.c
+src/func_ov081_0212479c.cpp
+src/func_ov081_02124894.c
+src/func_ov081_0212498c.c
+src/func_ov081_021249f4.c
+src/func_ov081_02124b08.c
+src/func_ov081_02124b98.cpp
+src/func_ov081_02124d14.cpp
+src/func_ov081_02124d50.cpp
+src/func_ov081_02124dfc.c
+src/func_ov081_02124e64.c
+src/func_ov081_02124ec0.c
+src/func_ov081_02124f20.cpp
+src/func_ov081_02124f7c.c
+src/func_ov081_02125038.cpp
+src/func_ov081_02125068.cpp
+src/func_ov081_021250c8.c
+src/func_ov081_02125200.c
+src/func_ov081_02125208.c
+src/func_ov081_0212538c.c
+src/func_ov081_021254d8.cpp
+src/_ZN10MrBlizzard16CleanupResourcesEv.c
+src/_ZN10MrBlizzard16OnPendingDestroyEv.c
+src/_ZN10MrBlizzard6RenderEv.cpp
+src/_ZN10MrBlizzard13InitResourcesEv.cpp
+src/func_ov081_02125eb8.c
+src/MrBlizzard_Spawn.c
+# func_ov081_021261b8 (MrBlizzard's own Kill, slot 31 -- confirmed by reloc)
+# sits inside delinks.txt's Snowball-labelled range (dsd's own file-discovery
+# order interleaves the two classes' bodies; address, not file grouping, is
+# ground truth here). Self-contained (no external calls at all), no
+# Snowball dependency risk.
+src/func_ov081_021261b8.c
+#
+# ---- ICE_BLOCK (daObjIceBlock_c), a Platform, 32 slots (own Kill) ----------
+# _ZN8IceBlockD1Ev.c and _ZN8IceBlockD0Ev.c are NOT in this list -- both
+# store their own table then OVERWRITE with the shared _ZTV8Platform
+# placeholder (the ShipUp/RockPillar/SkiLift gate-188/191 shape); the fill
+# runs the member-teardown chain directly instead. func_ov081_02127be0 is a
+# DIFFERENT function (a Behavior helper, address-confirmed -- sits right
+# after D0 ends, 0x02127be0..02127ccc), not D1; it stays in the slice.
+src/func_ov081_02127be0.cpp
+src/func_ov081_02127ccc.cpp
+src/func_ov081_02127cf4.c
+src/_ZN8IceBlock16CleanupResourcesEv.cpp
+src/_ZN8IceBlock6RenderEv.cpp
+src/_ZN8IceBlock8BehaviorEv.cpp
+src/_ZN8IceBlock13InitResourcesEv.cpp
+src/IceBlock_Spawn.c
+#
+# ---- the three own-class sinits (self-contained; RUN) ----------------------
+# __sinit_ov081_021284b4 (Snowball) and __sinit_ov081_021284f0 (Moneybag)
+# stay OFF -- neither class is hosted.
+src/__sinit_ov081_021280e8.c
+src/__sinit_ov081_02128154.c
+src/__sinit_ov081_021287b8.c
+#
+# NOT in this slice (host thunks cover their vtable slots instead):
+# src/_ZN8IceBlockD1Ev.c, src/_ZN8IceBlockD0Ev.c. Both stay byte-locked in
+# src/ as the matched proof; neither is referenced from CMakeLists' gate-192
+# source list.

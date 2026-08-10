@@ -5,6 +5,7 @@
 #ifndef ICEBLOCK_H
 #define ICEBLOCK_H
 #include "types.h"
+#include "Model.h"
 
 struct IceBlock {
     u8  pad_000[0x5c];
@@ -14,8 +15,10 @@ struct IceBlock {
     u8  pad_068[0x26];
     s16 mAngleY;            /* 0x08e */
     u8  pad_090[0x44];
-    u8  mModel;            /* 0x0d4 */
-    u8  pad_0d5[0x4f];
+    /* Model member, named by the class's own destructor calling
+       Model's D1 at +0x0d4 -- a relocation the ROM build
+       checks. Was a u8 marker. [_ZN8IceBlockD1Ev.c] */
+    Model mModel;            /* 0x0d4 */
     u8  mMeshCollider;            /* 0x124 */
     u8  pad_125[0x1fb];
     u8  mMovingCylinderClsn;            /* 0x320 */

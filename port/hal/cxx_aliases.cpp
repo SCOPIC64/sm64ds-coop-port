@@ -1401,3 +1401,42 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    virtual/non-virtual qualifier letter (U vs Q) differs in the mangling.
    Alias the call site's spelling onto the real one. */
 #pragma comment(linker, "/alternatename:?Render@Model@@QAEXPBUVector3@@@Z=?Render@Model@@UAEXPBUVector3@@@Z")
+/* gate 192: MrBlizzard's InitResources/Behavior (main's carried copies)
+   declare Actor::Spawn under the mangled name
+   _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16as (a signed-char/short tail
+   param spelling), extern "C" -- a different FLAT symbol than the one the
+   port already hosts, _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii (in the
+   build since gate 10). Actor::Spawn is cdecl-static with no `this` to
+   lose, so this is the same real ROM function under a second C-linkage
+   spelling -- the Enemy::SpawnCoin/PowerStarCreate precedent applied to a
+   second parameter-type spelling instead of a second declaring TU. */
+#pragma comment(linker, "/alternatename:__ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16as=__ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii")
+/* gate 192: several ov081 files declare data_ov081_* externs at file scope
+   OUTSIDE any extern "C" block (MrBlizzard's InitResources/Behavior, and
+   three helper functions), so MSVC C++-mangles the references -- the
+   ov084/piranha treatment. Each mounted symbol (port/ov081_syms.txt, plain
+   C-linkage unsigned char arrays) is aliased under every C++-mangled
+   spelling a caller's local type produces for it. Two different callers
+   spell data_ov081_02128998's tag differently (Vec3 vs Vector3) and
+   data_ov081_02128d98's differently (S2 vs void*) -- both spellings alias
+   onto the one real mount. */
+#pragma comment(linker, "/alternatename:?data_ov081_02128d90@@3PAXA=_data_ov081_02128d90")
+#pragma comment(linker, "/alternatename:?data_ov081_02128d98@@3PAXA=_data_ov081_02128d98")
+#pragma comment(linker, "/alternatename:?data_ov081_02128d98@@3US2@@A=_data_ov081_02128d98")
+#pragma comment(linker, "/alternatename:?data_ov081_02128d88@@3PAXA=_data_ov081_02128d88")
+#pragma comment(linker, "/alternatename:?data_ov081_02128da0@@3PAXA=_data_ov081_02128da0")
+#pragma comment(linker, "/alternatename:?data_ov081_02128998@@3UVec3@@A=_data_ov081_02128998")
+#pragma comment(linker, "/alternatename:?data_ov081_02128998@@3UVector3@@A=_data_ov081_02128998")
+#pragma comment(linker, "/alternatename:?data_ov081_02128e54@@3PAXA=_data_ov081_02128e54")
+#pragma comment(linker, "/alternatename:?data_ov081_02128e84@@3PAXA=_data_ov081_02128e84")
+#pragma comment(linker, "/alternatename:?data_ov081_02128e24@@3PAXA=_data_ov081_02128e24")
+#pragma comment(linker, "/alternatename:?data_ov081_02128db8@@3HA=_data_ov081_02128db8")
+#pragma comment(linker, "/alternatename:?data_ov081_02128e44@@3PADA=_data_ov081_02128e44")
+#pragma comment(linker, "/alternatename:?data_ov081_02128e64@@3PADA=_data_ov081_02128e64")
+/* gate 192: MrBlizzard's InitResources declares
+   _ZN25MovingCylinderClsnWithPos4InitEP5ActorRK7Vector35Fix12IiES6_jj
+   OUTSIDE any extern "C" block (right after the block that closes above
+   its own declaration), so MSVC mangles the call site's reference. The
+   real body (src/..., a plain .c file, C linkage by default, in the
+   build since gate 10) is the flat name. */
+#pragma comment(linker, "/alternatename:?_ZN25MovingCylinderClsnWithPos4InitEP5ActorRK7Vector35Fix12IiES6_jj@@YAXPAX0PBXHHII@Z=__ZN25MovingCylinderClsnWithPos4InitEP5ActorRK7Vector35Fix12IiES6_jj")

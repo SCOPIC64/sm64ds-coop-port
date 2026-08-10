@@ -204,3 +204,12 @@ SoundObject_SpawnInfo:0x1c
 # real table. Row 7 also has no dispatch cell (the bss table is 7 entries), a
 # latent off-table read on the DS itself; the host Behavior copy traps it.
 data_ov002_0210c080 data_ov002_0210c084 data_ov002_0210c088 data_ov002_0210c08a
+# gate 192: the CLPS_Block IceBlock::InitResources (ov081) passes to
+# MovingMeshCollider::SetFile. Next-symbol delta: 0x0210d8d4 -> 0x0210d8f4 =
+# 0x20 bytes.
+data_ov002_0210d8d4:0x20
+# gate 192: Enemy::~Enemy (_ZN5EnemyD2Ev, needed by Spindrift/MrBlizzard's
+# D1/D0) takes data_ov002_021081e4's ADDRESS as the Enemy vtable pointer --
+# but that symbol is ALREADY a real host array, hal/actor_vtables.cpp's own
+# `void *data_ov002_021081e4[20]` (Enemy's base vtable). No mount row here;
+# mounting it too would double-define the same C symbol.

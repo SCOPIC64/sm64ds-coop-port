@@ -101,6 +101,19 @@ void hal_fill_ski_lift_vtable(void);
 extern unsigned char MotherPenguin_SpawnInfo[];         /* ov018 0x02113998 */
 void *MotherPenguin_Spawn(void);                        /* ov018 0x0211267c */
 void hal_fill_mother_penguin_vtable(void);
+/* ---- gate 192: the ov081 trio -- ICE_BLOCK (18), MR_BLIZZARD (223),
+   SPINDRIFT (312), a fresh per-symbol mount (ov081_syms.txt). SpawnInfo
+   records come from that mount; all three vtable fills are in
+   hal/actor_classes_ov081.cpp. */
+extern unsigned char Spindrift_SpawnInfo[];             /* ov081 0x02128858 */
+void *Spindrift_Spawn(void);                            /* ov081 0x02124040 */
+void hal_fill_spindrift_vtable(void);
+extern unsigned char MrBlizzard_SpawnInfo[];            /* ov081 0x021289cc */
+void *MrBlizzard_Spawn(void);                           /* ov081 0x02125ec0 */
+void hal_fill_mr_blizzard_vtable(void);
+extern unsigned char IceBlock_SpawnInfo[];              /* ov081 0x02128ca0 */
+void *IceBlock_Spawn(void);                             /* ov081 0x021280a0 */
+void hal_fill_ice_block_vtable(void);
 /* ---- gate 18: ov085, the first ACTOR overlay ----
    Not the engine overlay and not the level's -- six classes several levels
    share, of which the castle grounds names two. The SpawnInfo records come
@@ -879,6 +892,18 @@ void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlat
       hal_fill_ski_lift_vtable}, \
      {257, "MOTHER_PENGUIN", MotherPenguin_SpawnInfo, MotherPenguin_Spawn, \
       hal_fill_mother_penguin_vtable}, \
+     /* ---- gate 192: ICE_BLOCK (18) + SPINDRIFT (312), ov081 ---- */ \
+     /* MR_BLIZZARD (223) is NOT registered here -- its Render crashes on a
+        pre-existing, shared-infra bug in func_0204488c (an unvalidated
+        Part.fc/Part.f8 forwarded straight to a raw DMA call), several
+        layers below anything this gate's own slice touches. See the
+        full trace in hal_fill_mr_blizzard_vtable's own header comment
+        (kept below, unregistered) and the commit message. Needs ROM
+        disassembly at 0x0204488c this lane does not have tooling for. */ \
+     {18, "ICE_BLOCK", IceBlock_SpawnInfo, IceBlock_Spawn, \
+      hal_fill_ice_block_vtable}, \
+     {312, "SPINDRIFT", Spindrift_SpawnInfo, Spindrift_Spawn, \
+      hal_fill_spindrift_vtable}, \
     /* ---- gate 149: HAUNTED_CHAIR (326), Big Boo's Haunt (ov020, level 12) ---- */ \
     {326, "HAUNTED_CHAIR", HauntedChair_SpawnInfo, HauntedChair_Spawn, \
      hal_fill_haunted_chair_vtable}, \

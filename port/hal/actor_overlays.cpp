@@ -869,6 +869,13 @@ void port_ov018_syms_patch(void);
 void __sinit_ov018_02112e00(void);
 void __sinit_ov018_02112c14(void);
 void __sinit_ov018_02112c80(void);
+/* gate 192: ov081 per-symbol -- the trio's own sinits (Spindrift, MrBlizzard,
+   IceBlock, each self-contained). Snowball's/Moneybag's stay off. */
+void port_ov081_pack_check(void);
+void port_ov081_syms_patch(void);
+void __sinit_ov081_021280e8(void);
+void __sinit_ov081_02128154(void);
+void __sinit_ov081_021287b8(void);
 }
 
 extern "C" void port_actor_overlays_sinits(void)
@@ -1098,4 +1105,14 @@ extern "C" void port_actor_overlays_sinits(void)
        self-contained (verified by reading their bodies), no state seat. */
     __sinit_ov018_02112c14();   /* SKI_LIFT: Model + Clsn SharedFilePtrs */
     __sinit_ov018_02112c80();   /* MOTHER_PENGUIN: 5x SharedFilePtrs + data copy */
+
+    /* gate 192: ov081's three own-class sinits (Spindrift, MrBlizzard,
+       IceBlock -- each self-contained, verified by reading their bodies).
+       Snowball's (021284b4) and Moneybag's (021284f0) stay OFF -- neither
+       class is hosted. */
+    port_ov081_pack_check();
+    port_ov081_syms_patch();
+    __sinit_ov081_021280e8();   /* SPINDRIFT */
+    __sinit_ov081_02128154();   /* MR_BLIZZARD: also builds the 10-cell PMF table */
+    __sinit_ov081_021287b8();   /* ICE_BLOCK */
 }

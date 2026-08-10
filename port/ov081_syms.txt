@@ -1,0 +1,58 @@
+# Gate 192: ov081, a 100% matched ACTOR overlay (113/113 chaos-db) carrying
+# five classes -- SPINDRIFT (312), MR_BLIZZARD (223), SNOWBALL (unhosted),
+# MONEYBAG (unhosted), ICE_BLOCK (18). Fresh per-symbol mount, the
+# ov079/ov080 convention: WHOLE data span (every data + bss symbol) MINUS
+# the three classes this gate hosts' own vtables (host arrays
+# hal/actor_classes_ov081.cpp fills) MINUS dsd's five .p__sinit_* pointer
+# entries (not C identifiers; the port calls the three sinits it runs by
+# name directly). ovdata.py's --pack mode pads the resulting address gaps
+# automatically, reproducing the ROM's own relative offsets.
+#
+# THE THREE VTABLES LEFT OUT: _ZTV9Spindrift (0x0212887c, 32 words, the full
+# Enemy shape with own Kill at 31), _ZTV10MrBlizzard (0x021289f0, 32 words,
+# own OnPendingDestroy at 12 -- NOT the shared default), _ZTV8IceBlock ==
+# _ZTV15daObjIceBlock_c (0x02128cc4, 32 words, the full Platform+Kill shape,
+# own Kill at 31). Every slot read with relocations applied (not just the
+# scope report's named subset):
+#
+#   SPINDRIFT (daHuwa_c):
+#     0 Init 0x02123ed0, 3 Cleanup 0x02123bec, 6 Behavior 0x02123c6c,
+#     9 Render 0x02123c1c, 12 OnPendingDestroy SHARED, 16 D1 0x02123740,
+#     17 D0 0x02123788, 18 OnYoshiTryEat 0x02124038, 19 OnTurnIntoEgg
+#     0x02123fd8, 29 OnAimedAtWithEgg 0x021237e4, 31 Kill 0x02124e64 (own).
+#
+#   MR_BLIZZARD (daYuki_c): a REAL 10-cell (5 states x enter/tick) PMF
+#     dispatch, sinit-copied as DS code addresses from data_ov081_0212893x
+#     range statics into data_ov081_02128e14..ea4 (10 x 8 bytes). Own slots:
+#     0 Init 0x02125ba0, 3 Cleanup 0x021257b0, 6 Behavior 0x0212588c,
+#     9 Render 0x02125820, 12 OnPendingDestroy 0x0212581c (OWN, not shared),
+#     16 D1 0x02124090, 17 D0 0x021240d8, 29 OnAimedAtWithEgg 0x02125eb8,
+#     31 Kill 0x021261b8.
+#
+#   ICE_BLOCK (daObjIceBlock_c, a Platform): 0 Init 0x02127ff0, 3 Cleanup
+#     0x02127d98, 6 Behavior 0x02127e1c, 9 Render 0x02127ddc, 12
+#     OnPendingDestroy SHARED, 16 D1 0x02127b34, 17 D0 0x02127b80, 27
+#     OnHitByMegaChar 0x02127ccc, 31 Kill 0x02127cf4 (own, per the report).
+#     InitResources calls MovingMeshCollider::SetFile with a CLPS_Block read
+#     from ov002 (data_ov002_0210d8d4, added to port/ov002_syms.txt).
+#
+# SNOWBALL and MONEYBAG stay UNREGISTERED this gate (disjoint ranges from
+# the three hosted classes, no own-class sinit runs for them) -- their own
+# SpawnInfo/vtable words are still present as plain packed data (harmless,
+# never installed by any factory this gate calls) since excluding them would
+# just be extra bookkeeping for the same --pack contiguity ovdata.py already
+# handles. Each vtable's own RTTI-alias spelling (_ZTV12daSnowball_c ==
+# _ZTV8Snowball, _ZTV8daGmch_c == _ZTV8Moneybag) is listed ONCE, not twice --
+# both names share the identical address, and --pack's overlap guard rejects
+# two symbols claiming the same bytes.
+#
+# ovdata.py's --pack size floor is max(4, next-symbol-delta): two adjacent
+# 2-byte fields (data_ov081_021289a4/a6, part of MrBlizzard's SpawnInfo
+# record) need explicit :0x2 overrides or the floor makes the first one
+# overlap the second.
+#
+# IDs cross-checked via arm9 relocs (12576/12781/12870, the scope report):
+# IceBlock SpawnInfo 0x02128ca0 / vtable 0x02128cc4; MrBlizzard SpawnInfo
+# 0x021289cc / vtable 0x021289f0; Spindrift SpawnInfo 0x02128858 / vtable
+# 0x0212887c.
+data_ov081_021280d8 data_ov081_02128840 data_ov081_0212884c Spindrift_SpawnInfo _ZTV8daHuwa_c data_ov081_021288f8 data_ov081_02128900 data_ov081_02128908 data_ov081_02128910 data_ov081_02128918 data_ov081_02128920 data_ov081_02128928 data_ov081_02128930 data_ov081_02128938 data_ov081_02128940 data_ov081_02128948 data_ov081_02128950 data_ov081_02128958 data_ov081_02128960 data_ov081_02128968 data_ov081_02128970 data_ov081_02128978 data_ov081_02128980 data_ov081_02128988 data_ov081_02128990 data_ov081_02128998 data_ov081_021289a4:0x2 data_ov081_021289a6:0x2 data_ov081_021289a8 data_ov081_021289b0 data_ov081_021289bc MrBlizzard_SpawnInfo _ZTV11daSnowman_c data_ov081_02128a6c data_ov081_02128a74 data_ov081_02128a7c data_ov081_02128a88 Snowball_SpawnInfo _ZTV8Snowball data_ov081_02128b38 data_ov081_02128b40 data_ov081_02128b48 data_ov081_02128b50 data_ov081_02128b58 data_ov081_02128b60 data_ov081_02128b68 data_ov081_02128b70 data_ov081_02128b78 data_ov081_02128b80 data_ov081_02128b88 data_ov081_02128b90 data_ov081_02128b98 data_ov081_02128ba0 data_ov081_02128ba8 data_ov081_02128bb0 data_ov081_02128bb8 data_ov081_02128bc0 data_ov081_02128bc8 data_ov081_02128bd4 Moneybag_SpawnInfo _ZTV8Moneybag data_ov081_02128c80 data_ov081_02128c8c IceBlock_SpawnInfo data_ov081_02128d60 data_ov081_02128d68 data_ov081_02128d70 data_ov081_02128d7c data_ov081_02128d88 data_ov081_02128d90 data_ov081_02128d98 data_ov081_02128da0 data_ov081_02128da8 data_ov081_02128db0 data_ov081_02128db8 data_ov081_02128dc0 data_ov081_02128dcc data_ov081_02128dd8 data_ov081_02128de4 data_ov081_02128df0 data_ov081_02128dfc data_ov081_02128e08 data_ov081_02128e14 data_ov081_02128e24 data_ov081_02128e34 data_ov081_02128e44 data_ov081_02128e54 data_ov081_02128e64 data_ov081_02128e74 data_ov081_02128e84 data_ov081_02128e94 data_ov081_02128ea4 data_ov081_02128eb4 data_ov081_02128ec4 data_ov081_02128ecc data_ov081_02128ed4 data_ov081_02128edc data_ov081_02128ee4 data_ov081_02128eec data_ov081_02128ef8 data_ov081_02128f04 data_ov081_02128f10 data_ov081_02128f1c data_ov081_02128f28 data_ov081_02128f34 data_ov081_02128f40 data_ov081_02128fd0 data_ov081_02128fd8 data_ov081_02128fe0 data_ov081_02128fec
