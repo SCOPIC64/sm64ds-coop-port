@@ -517,6 +517,12 @@ foreach(line IN LISTS SLICE10_LINES)
     endif()
     list(APPEND SLICE10_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+# fix round: func_ov002_020e5948's HOST COPY (the TexSeq Prepare SHORT-1
+# caller behind the L11 ONE_UP_MUSHROOM quarantine; Brain A's handoff,
+# re-verified against the byte-locked src -- exactly the Prepare arity
+# edits, nothing else). Replaces src/func_ov002_020e5948.c, commented out
+# of slice_gate10.txt.
+list(APPEND SLICE10_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/TexSeq_Caller_ov002_020e5948.cpp")
 
 # Two Actor entry points are C++ inside a .c, but a different shape from the
 # hostgen cases below: each is a real METHOD against Actor.h, so hostgen's

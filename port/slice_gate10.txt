@@ -56,7 +56,10 @@ src/func_ov002_020d36d8.c
 src/func_ov002_020d4540.c
 src/func_ov002_020d6368.c
 src/func_ov002_020e3078.c
-src/func_ov002_020e5948.c
+# func_ov002_020e5948: HOST COPY at unmatched/TexSeq_Caller_ov002_020e5948.cpp
+# (wired in CMakeLists). Its TextureSequence::Prepare calls pass two arguments; the
+# host wrapper reshapes them into a 3-param thiscall and reads/derefs an unwritten
+# third stack slot, so the host copy passes the real third argument. See header.
 src/func_ov002_020e6330.c
 src/func_ov002_020e6350.c
 src/func_ov002_020e63a4.c
