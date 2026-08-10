@@ -105,6 +105,7 @@ src/func_ov085_0212b4b4.c
 src/func_ov085_0212b75c.cpp
 src/func_ov085_0212b86c.c
 src/func_ov085_0212b8a0.c
+src/func_ov085_0212b8dc.cpp
 src/func_ov085_0212bc14.c
 src/func_ov085_0212bc78.cpp
 src/func_ov085_0212bcc8.c

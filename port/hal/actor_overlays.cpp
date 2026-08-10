@@ -55,7 +55,7 @@ void func_ov085_0212ae08(void *); void func_ov085_0212b3fc(void *);
 void func_ov085_0212b444(void *); void func_ov085_0212b478(void *);
 void func_ov085_0212b4b4(void *); void func_ov085_0212b75c(void *);
 void func_ov085_0212b86c(void *); void func_ov085_0212b8a0(void *);
-void func_ov085_0212bc14(void *);
+void func_ov085_0212b8dc(void *); void func_ov085_0212bc14(void *);
 
 /* LakituBro's twenty-two {function, delta} statics carry DS code addresses,
    and __sinit_ov085_0212fa40 copies them into his eleven State objects. Seat
@@ -593,31 +593,17 @@ static void port_iron_ball_states_seat(void)
     }
 }
 
-/* ov085 0x0212b8dc IS NOT HOSTED, and it is the one hole in the rabbit. It is
-   the Main half of state 0x021306cc -- the state Rabbit::InitResources itself
-   enters on its own last line -- so it is what an ACTIVE rabbit runs every
-   frame, and 0x338 bytes of it have no C in src/ at all
-   (config/arm9/overlays/ov085 names it; nothing decompiles it;
-   nearmiss/db.jsonl holds a draft that does not byte-match).
-
-   RABBIT is registered anyway, because on the castle grounds with a fresh
-   save it is not reached: rabbit id 7 (MIPS) is the only one whose
-   InitResources survives the save gate, and his own Behavior returns on its
-   first line while data_0209caa0 word 2 bit 17 is clear. Measured both ways
-   -- 3000 frames fault-free as the level boots, and this trap firing on frame
-   one with the two save bits forced on. It names the function instead of
-   jumping into the overlay image, which is what a hole should do. */
-static void port_rabbit_state_0212b8dc(void *)
-{
-    std::fprintf(stderr, "FATAL: Rabbit state 0x021306cc's Main (ov085 "
-                 "0x0212b8dc) is UNMATCHED -- no host body exists\n");
-    std::abort();
-}
+/* ov085 0x0212b8dc IS NOW HOSTED: the Main half of state 0x021306cc -- the
+   state Rabbit::InitResources itself enters on its own last line, so it is what
+   an ACTIVE rabbit runs every frame. It byte-matched at mwccarm 2004/b56
+   (linkcheck VERIFIED, 0 diffs) and landed as src/func_ov085_0212b8dc.cpp
+   (public main 3bcbc9aea / #1361). The last hole in the rabbit state table is
+   closed; the FATAL-refusal stub it used to carry is gone. */
 
 static const struct { PortPmf *slot; unsigned rom; void (*host)(void *); }
 g_rabbit_states[] = {
     {data_ov085_0213003c, 0x0212b4b4, func_ov085_0212b4b4},
-    {data_ov085_02130044, 0x0212b8dc, port_rabbit_state_0212b8dc},
+    {data_ov085_02130044, 0x0212b8dc, func_ov085_0212b8dc},
     {data_ov085_0213004c, 0x0212aaec, func_ov085_0212aaec},
     {data_ov085_02130054, 0x0212ad8c, func_ov085_0212ad8c},
     {data_ov085_0213005c, 0x0212b478, func_ov085_0212b478},
