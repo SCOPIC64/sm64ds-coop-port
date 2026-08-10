@@ -1563,6 +1563,26 @@ static int __fastcall ps_mega(void *s, void *, void *p)
 static int __fastcall ps_aimed(void *s, void *)
 { return _ZN5Actor16OnAimedAtWithEggEv(s); }
 
+/* SLOT 28 ONLY, and the distinction matters to a player. ps_trap below
+   abort()s, which takes the process down. The actor tables instead RAISE,
+   through port_actor_slot_decline (port/unmatched/func_02043fdc.cpp), and
+   port_dispatch_guarded's __except catches that: the actor freezes, a dump is
+   filed, the level keeps running. Slot 28 wants the second behaviour, because
+   an abort here would be a REGRESSION against what players already survive.
+
+   Scoped to this one seat on purpose. Every other trapping Player slot has
+   aborted all along, and converting this file's whole trap convention is a
+   broad behaviour change that has no business riding a hotfix. */
+extern "C" void port_actor_slot_decline(const char *what);
+static int __fastcall ps_decline28(void *, void *)
+{
+    std::fprintf(stderr,
+                 "UNHOSTED: Player vtable slot 28 (OnHitFromUnderneath) is not "
+                 "hosted -- two call sites, two conventions\n");
+    port_actor_slot_decline("unhosted vtable slot 28 on the Player");
+    return 0;
+}
+
 #define HAL_PLAYER_SLOTS 31
 static const char *const hal_player_slot_name[HAL_PLAYER_SLOTS] = {
     "InitResources", "BeforeInitResources", "AfterInitResources",
@@ -1648,9 +1668,17 @@ extern "C" void hal_fill_player_vtable(void)
        virtual, so both sites become thiscall and the slot can hold the real
        body. That is the port's established pattern and leaves src untouched.
 
+       It DECLINES rather than TRAPS. ps_trap abort()s, and an abort here
+       would be worse for a player than the unseated slot they have today: an
+       unseated slot is an execute-at-null that the quarantine net catches, so
+       the level survives with a dump. ps_decline28 raises the same catchable
+       fault the actor tables raise, so this slot is named and attributed like
+       a trap AND survivable like the quarantine. Best of the three outcomes,
+       and the only one that is not a regression against the live build.
+
        Derived from binary arithmetic on the cons build rather than from a
        repro, and recorded that way on purpose. */
-    vt[28] = (void *)ps_trap;
+    vt[28] = (void *)ps_decline28;
     vt[29] = (void *)ps_aimed;
 }
 
