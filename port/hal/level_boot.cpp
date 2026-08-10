@@ -2440,6 +2440,27 @@ extern "C" void port_level_reset_host(void)
         for (int i = 0; i < 9;  ++i) ((void **)data_0209f3e8)[i] = 0;
         for (int i = 0; i < 8;  ++i) ((void **)data_0209f3a4)[i] = 0;
     }
+
+    /* NO AREA IS SHOWING YET, which is Stage::InitResources:211 and belongs on
+       every level entry rather than once a process. The port ran it in
+       port_stage_a2_seat, so a warp carried the PREVIOUS level's area index
+       into the new level and it lands in two places:
+
+         ChangeArea, which the new level's Camera::InitResources calls, reads
+         `if (data_02092120 >= 0) HideArea(data_02092120)` -- clearing the
+         showing flag of whatever area the OLD level happened to be in, in the
+         NEW level's table, before ShowArea turns the right one on.
+
+         GetMinimapID's first line, which falls back to data_02092120 whenever
+         the object it is handed carries a negative area byte.
+
+       Both read a number the new level never chose. -1 is the ROM's own value
+       and it makes ChangeArea skip the hide, which is the behaviour a direct
+       boot already gets. */
+    {
+        extern signed char data_02092120;
+        data_02092120 = -1;
+    }
 }
 
 // ---- the Stage, between two levels -----------------------------------------
