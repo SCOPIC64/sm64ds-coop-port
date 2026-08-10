@@ -586,6 +586,9 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?data_ov002_0211013c@@3HA=_data_ov002_0211013c")
 #pragma comment(linker, "/alternatename:?data_0209f4a4@@3PAFA=_data_0209f4a4")
 #pragma comment(linker, "/alternatename:?data_0209f318@@3PAUCamera@@A=_data_0209f318")
+/* gate 18 (RABBIT_KEY): func_ov085_0212cd0c.cpp spells the live Camera as a
+   C++ `int *` at file scope -- the fourth spelling of the same object. */
+#pragma comment(linker, "/alternatename:?data_0209f318@@3PAHA=_data_0209f318")
 #pragma comment(linker, "/alternatename:?func_ov002_020d1164@@YAHPAX@Z=_func_ov002_020d1164")
 #pragma comment(linker, "/alternatename:?func_ov002_020d1204@@YAHPAX@Z=_func_ov002_020d1204")
 #pragma comment(linker, "/alternatename:?func_ov002_020d12b0@@YAHPAX@Z=_func_ov002_020d12b0")

@@ -47,6 +47,12 @@ extern PortPmf data_ov085_0213003c[], data_ov085_02130044[],
     data_ov085_0213007c[], data_ov085_02130084[], data_ov085_0213008c[],
     data_ov085_02130094[], data_ov085_0213009c[], data_ov085_021300a4[],
     data_ov085_021300ac[], data_ov085_021300b4[];
+/* the RABBIT_KEY's four {function, delta} statics: __sinit_ov085_0212f9bc
+   copies them into its two State objects (0213071c initial, 0213072c caught),
+   enter pair at +0 (fired once by func_ov085_0212d268 on seat), Main at +8
+   (Behavior's per-frame dispatch). */
+extern PortPmf data_ov085_02130174[], data_ov085_0213017c[],
+    data_ov085_02130184[], data_ov085_0213018c[];
 
 void func_ov085_0212a904(void *); void func_ov085_0212aaa4(void *);
 void func_ov085_0212aaec(void *); void func_ov085_0212ac3c(void *);
@@ -56,6 +62,9 @@ void func_ov085_0212b444(void *); void func_ov085_0212b478(void *);
 void func_ov085_0212b4b4(void *); void func_ov085_0212b75c(void *);
 void func_ov085_0212b86c(void *); void func_ov085_0212b8a0(void *);
 void func_ov085_0212b8dc(void *); void func_ov085_0212bc14(void *);
+/* the RABBIT_KEY's four state bodies (gate 18, the key-grant wave) */
+void func_ov085_0212cd80(void *); void func_ov085_0212d038(void *);
+void func_ov085_0212d108(void *); void func_ov085_0212d24c(void *);
 
 /* LakituBro's twenty-two {function, delta} statics carry DS code addresses,
    and __sinit_ov085_0212fa40 copies them into his eleven State objects. Seat
@@ -721,6 +730,35 @@ static void port_rabbit_states_seat(void)
     }
 }
 
+/* the RABBIT_KEY's four pairs, the same seat: verify the mount holds the ROM's
+   own address, then repoint at the host body BEFORE __sinit_ov085_0212f9bc
+   copies the pairs into the two live State objects. 0213017c is the CAUGHT
+   enter -- func_ov085_0212d038, the save-bit grant the missing registration
+   silently dropped. */
+static const struct { PortPmf *slot; unsigned rom; void (*host)(void *); }
+g_rabbit_key_states[] = {
+    {data_ov085_02130174, 0x0212cd80, func_ov085_0212cd80},
+    {data_ov085_0213017c, 0x0212d038, func_ov085_0212d038},
+    {data_ov085_02130184, 0x0212d24c, func_ov085_0212d24c},
+    {data_ov085_0213018c, 0x0212d108, func_ov085_0212d108},
+};
+
+static void port_rabbit_key_states_seat(void)
+{
+    for (unsigned i = 0;
+         i < sizeof g_rabbit_key_states / sizeof g_rabbit_key_states[0]; ++i) {
+        PortPmf *p = g_rabbit_key_states[i].slot;
+        if (p->fn != g_rabbit_key_states[i].rom || p->delta != 0) {
+            std::fprintf(stderr, "FATAL: RabbitKey state %u: the mount holds "
+                         "%08x/%d, the ROM's own table says %08x/0 -- WRONG "
+                         "BYTES\n", i, p->fn, p->delta,
+                         g_rabbit_key_states[i].rom);
+            std::abort();
+        }
+        p->fn = (unsigned)(size_t)g_rabbit_key_states[i].host;
+    }
+}
+
 /* ov080 0x021261f4 IS NOT HOSTED, and it is the one hole in the painting. It
    is state record index 5's function -- the Render half a painting at spawn
    flag mi=3 would reach (Render reads +0x10 off the object's +0x1a4 dispatch
@@ -882,6 +920,7 @@ extern "C" void port_actor_overlays_sinits(void)
     port_ov085_syms_patch();
     port_lakitu_bro_states_seat();
     port_rabbit_states_seat();
+    port_rabbit_key_states_seat();
     __sinit_ov085_0212f2a8();
     __sinit_ov085_0212f3a0();
     __sinit_ov085_0212f5ec();

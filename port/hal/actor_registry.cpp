@@ -201,10 +201,17 @@ extern "C" int port_prespawn_hook(void *idv)
         return 2;                     /* what a null hook returns: proceed */
     }
     if (id < PORT_ACTOR_IDS) {
-        if (!g_skipped[id])
+        if (!g_skipped[id]) {
             std::printf("  [spawn] actor 0x%x %s, skipped\n", id,
                         data_020a4bb8[id] ? "host-ABI blocked on this level"
                                           : "not registered");
+            /* stderr too: playlogs capture stderr, and a silent decline here is
+               how the rabbit-key grant (id 229) went missing without a trace.
+               Keep the decline quiet-but-VISIBLE in every real-play log. */
+            std::fprintf(stderr, "  [spawn-declined] actor 0x%x %s\n", id,
+                         data_020a4bb8[id] ? "host-ABI blocked on this level"
+                                           : "not registered");
+        }
         ++g_skipped[id];
     }
     return 3;

@@ -424,6 +424,24 @@ int _ZN9LakituBro13InitResourcesEv(void *self)
 { return ((LakituBro *)self)->LakituBro::InitResources(); }
 }
 
+/* ---- gate 18: RABBIT_KEY (actor 229) -- the caught rabbit's grant actor ----
+   RabbitKey's InitResources and Behavior are real C++ methods (they spell
+   qualified member calls), so each needs a C-named face for its vtable slot --
+   the gate-18 shape again. Render is NOT here: like the other two ov085
+   renders it is a HOST COPY (port/unmatched/Ov085_Renders.cpp). Its local
+   shadow-struct dispatch of Model slot 5 lands on the __fastcall mv_render
+   through a PLAIN cdecl pointer -- garbage `this` in ECX, measured as a
+   frame-1 DEP fault on the spawn-assisted key. The state PMF (this+0x188) is
+   handled by the hand-rolled dispatcher host copy
+   (port/unmatched/RabbitKey_StateSeat.cpp), not here. */
+#include "RabbitKey.h"
+extern "C" {
+int _ZN9RabbitKey13InitResourcesEv(void *self)
+{ return ((RabbitKey *)self)->RabbitKey::InitResources(); }
+int _ZN9RabbitKey8BehaviorEv(void *self)
+{ return ((RabbitKey *)self)->RabbitKey::Behavior(); }
+}
+
 /* ---- gate 40: ov100's STAR_DOOR (the config's _ZN4Door* family) ----------
    Two C-named references onto method definitions, the gate-18 shape. The star
    door's InitResources and Behavior are real C++ methods on `Door` (Door.h);

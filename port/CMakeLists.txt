@@ -962,6 +962,12 @@ endforeach()
 # commented out in slice_gate18.txt.
 list(APPEND SLICE18_SOURCES
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/TexSeq_Caller_LakituBro.cpp")
+# rabbit-key: func_ov085_0212d268 (the RABBIT_KEY seat-and-enter) is a real MSVC
+# pointer-to-member call over an incomplete class -- the gate-16 case. Host copy
+# with the mwcc {value, adj} dispatch hand-rolled; src line commented out in
+# slice_gate18.txt.
+list(APPEND SLICE18_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/RabbitKey_StateSeat.cpp")
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate19.txt" SLICE19_LINES)
 set(SLICE19_SOURCES "")

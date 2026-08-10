@@ -134,6 +134,9 @@ void hal_fill_baby_penguin_vtable(void);
 extern unsigned char Rabbit_SpawnInfo[];                /* ov085 0x021300d4 */
 void *Rabbit_Spawn(void);                               /* ov085 0x0212cc2c */
 void hal_fill_rabbit_vtable(void);
+extern unsigned char RabbitKey_SpawnInfo[];             /* ov085 0x021301b4 */
+void *RabbitKey_Spawn(void);                            /* ov085 0x0212d4e8 */
+void hal_fill_rabbit_key_vtable(void);
 extern unsigned char LakituBro_SpawnInfo[];             /* ov085 0x02130320 */
 void *LakituBro_Spawn(void);                            /* ov085 0x0212ed54 */
 void hal_fill_lakitu_bro_vtable(void);
@@ -704,6 +707,8 @@ void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlat
     {342, "FLAG", Flag_SpawnInfo, Flag_Spawn, hal_fill_flag_vtable},          \
     {343, "BIRD", Bird_SpawnInfo, Bird_Spawn, hal_fill_bird_vtable},          \
     {187, "RABBIT", Rabbit_SpawnInfo, Rabbit_Spawn, hal_fill_rabbit_vtable},  \
+    {229, "RABBIT_KEY", RabbitKey_SpawnInfo, RabbitKey_Spawn,                 \
+     hal_fill_rabbit_key_vtable},                                            \
     {235, "LAKITU_BRO", LakituBro_SpawnInfo, LakituBro_Spawn,                 \
      hal_fill_lakitu_bro_vtable},                                             \
     {207, "CANNON", Cannon_SpawnInfo, Cannon_Spawn, hal_fill_cannon_vtable}, \

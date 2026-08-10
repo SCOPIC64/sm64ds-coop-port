@@ -81,4 +81,29 @@ int _ZN9LakituBro6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- RABBIT_KEY (actor 229) ---------------------------------------------
+   The third ov085 render host copy, and the same final-dispatch reason with
+   a MEASURED twist: the matched TU dispatches slot +0x14 of the plain Model
+   at +0x110 through a local shadow struct whose fn field is a PLAIN (cdecl)
+   function pointer. _ZTV5Model[5] does dual-fill mv_render for the shadow
+   slot NUMBERING -- but mv_render is __fastcall(self, dummy, s), so the
+   cdecl shadow call leaves ECX garbage and mv_render renders a Model at
+   whatever ECX held (measured: the spawn-assisted key crashed frame 1,
+   ecx=13811ba3, DEP-exec fault). The numbering dual-fill cannot fix a
+   convention mismatch; the qualified call below is the draw the ROM means.
+   The angle bump is the caught-state spin (state == &data_ov085_0213072c,
+   the State object __sinit_ov085_0212f9bc builds). */
+extern char data_ov085_0213072c[];
+void func_ov085_0212d2b8(void *self);
+int _ZN9RabbitKey6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    if (*(void **)(c + 0x188) == (void *)data_ov085_0213072c)
+        *(short *)(c + 0x8e) += 0x500;
+    func_ov085_0212d2b8(c);
+    /* ((Sub *)&mModel)->fn14(this+0x110, 0): Model at +0x110, ROM slot 5. */
+    ((Model *)(c + 0x110))->Model::Render(0);
+    return 1;
+}
+
 }  /* extern "C" */

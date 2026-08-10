@@ -1131,6 +1131,68 @@ extern "C" void hal_fill_rabbit_vtable(void)
     vt[18] = (void *)rb_yoshi;
 }
 
+// ---- RABBIT_KEY (actor 229, ov085) -----------------------------------------
+//
+// _ZTV9RabbitKey / _ZTV15daObj_Mip_Key_c, ov085 0x021301d8 (RTTI daObj_Mip_Key_c).
+// The KEY the caught rabbit turns into. THIS is the actor that grants progress:
+// the caught-dialog state (func_ov085_0212ae08, already in gate 18) ends the talk
+// by calling Actor::Spawn(0xe5, ...) to make a RabbitKey at the rabbit's spot, and
+// the RabbitKey's own state machine writes the save "caught" bit (func_02013868 ->
+// data_0209caa0[3]), plays the caught cutscene (Player::SetNoControlState), and for
+// the eighth catch opens the minigame menu (StartMinigameMenu). Without this class
+// registered the id-229 spawn was declined by the prespawn gate and the whole grant
+// was skipped silently -- no key, and because the save bit never set, a re-talk
+// re-entered the caught dialog and stuck. Same 20-slot Enemy shape as RABBIT, no
+// own OnYoshiTryEat override (ROM slots 18+ are the base's). The state machine is a
+// PMF table (data_ov085_0213071c/072c) dispatched out of this+0x188; the four
+// {function, delta} statics are seated host-side by port_rabbit_key_states_seat
+// (hal/actor_overlays.cpp) before the sinit copies them. TWO HOST COPIES ride
+// along: the seat-and-enter func_ov085_0212d268 (a real MSVC PMF over an
+// incomplete class, the gate-16 case -- port/unmatched/RabbitKey_StateSeat.cpp)
+// and Render (shadow-struct Model slot-5 dispatch, cdecl into __fastcall --
+// port/unmatched/Ov085_Renders.cpp, the third ov085 render). Behavior's own
+// per-frame dispatch is hand-rolled in the matched source and safe as-is.
+extern "C" {
+int _ZN9RabbitKey13InitResourcesEv(void *self);   /* face: method_faces */
+int _ZN9RabbitKey8BehaviorEv(void *self);          /* face: method_faces */
+int _ZN9RabbitKey6RenderEv(void *self);            /* host copy: Ov085_Renders */
+int _ZN9RabbitKey16CleanupResourcesEv(void);
+void _ZN9RabbitKey16OnPendingDestroyEv(void);
+int *_ZN9RabbitKeyD1Ev(int *self);
+int *_ZN9RabbitKeyD0Ev(int *self);
+void *_ZTV9RabbitKey[20];
+}
+#pragma comment(linker, "/alternatename:__ZTV15daObj_Mip_Key_c=__ZTV9RabbitKey")
+
+static int __fastcall rk_init(void *s, void *)
+{ return _ZN9RabbitKey13InitResourcesEv(s); }
+static int __fastcall rk_clean(void *, void *)
+{ return _ZN9RabbitKey16CleanupResourcesEv(); }
+static int __fastcall rk_behavior(void *s, void *)
+{ return _ZN9RabbitKey8BehaviorEv(s); }
+static int __fastcall rk_render(void *s, void *)
+{ port_actor_render_probe("RABBIT_KEY", (char *)s + 0x110);
+  return _ZN9RabbitKey6RenderEv(s); }
+static int __fastcall rk_pdes(void *, void *)
+{ _ZN9RabbitKey16OnPendingDestroyEv(); return 0; }
+static int __fastcall rk_d1(void *s, void *)
+{ return (int)(size_t)_ZN9RabbitKeyD1Ev((int *)s); }
+static int __fastcall rk_d0(void *s, void *)
+{ return (int)(size_t)_ZN9RabbitKeyD0Ev((int *)s); }
+
+extern "C" void hal_fill_rabbit_key_vtable(void)
+{
+    void **vt = _ZTV9RabbitKey;
+    ac_fill_shared(vt);
+    vt[0] = (void *)rk_init;
+    vt[3] = (void *)rk_clean;
+    vt[6] = (void *)rk_behavior;
+    vt[9] = (void *)rk_render;
+    vt[12] = (void *)rk_pdes;
+    vt[16] = (void *)rk_d1;
+    vt[17] = (void *)rk_d0;
+}
+
 // ---- LAKITU_BRO (actor 235, ov085) x1 --------------------------------------
 //
 // _ZTV9LakituBro / _ZTV11daC_Jugem_c, ov085 0x02130344. The cameraman over

@@ -200,6 +200,10 @@ int data_020a0edc[2];
    record's entrance byte here on its way into LoadLevel; config/arm9 calls
    it kind:bss, so zero is what the boot leaves it at. */
 unsigned char data_0209f2c0[4];
+/* gate 18 (RABBIT_KEY): StartMinigameMenu's return-to-rec-room flag -- the
+   caught chain's 8th-catch terminal writes it before the scene fade.
+   kind:bss at 0x0209f298, span 4 (to data_0209f29c), zero is the boot value. */
+unsigned char data_0209f298[4];
 /* gate 27, the HUD: the star-count cache HUD::Render and RenderStarCount
    share, the red-coin counter, and the VS-mode 'results are up' flag. All
    kind:bss, so zero is the boot value. */
