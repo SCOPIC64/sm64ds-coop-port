@@ -2293,6 +2293,10 @@ void _ZN5Stage18ResetMeshCollidersEv(void);
 int port_level_mount_register(int level, void *(*fn)(void));
 unsigned port_level_ds_overlay(int level);
 void port_actor_census_reset(void);      /* hal/actor_registry.cpp */
+void port_stage_anims_rearm(void);       /* hal/stage_bridges.cpp: re-arm the
+                                            texture-transformer reload, which
+                                            keys off the level id and so cannot
+                                            see a self-warp */
 }
 
 // ---- SM64DS_MM_STALE=1: what the minimap inherits across a level change -----
@@ -2418,8 +2422,11 @@ extern "C" void port_level_reset_host(void)
        three ARRAYS. The three are the only entries in the block that hold ACTOR
        POINTERS: SetStarMarker/PowerStar::AddStarMarker file into f40c, ov001
        and func_0202a8e0 into f3e8, AddSpikeBomb into f3a4. Minimap::Behavior
-       walks all three every frame and hands each non-null slot to GetMinimapID
-       as `obj`, which reads obj->+0xcc as an AREA INDEX -- a signed byte. Left
+       walks all three every frame; f40c and f3e8 it hands to GetMinimapID as
+       `obj`, while the f3a4 loop reads o->+0xcc itself and never calls it --
+       a stale pointer is dereferenced either way, just down two paths.
+
+       GetMinimapID reads obj->+0xcc as an AREA INDEX -- a signed byte. Left
        stale, a slot still points at an actor the previous level's teardown
        destroyed, and +0xcc is whatever the freed block now holds.
 
@@ -2431,11 +2438,22 @@ extern "C" void port_level_reset_host(void)
        `sub ecx,dword ptr [eax]`, "access 00000000 at ffffffff".
 
        A direct boot never sees it because BSS starts zeroed, which is exactly
-       why this only ever showed up on the warp path. Five of the fifteen
-       mounted levels leave a live pointer in f40c when they are torn down
-       (6, 7, 8, 9, 14), so the exposure is much wider than the one pair that
-       actually faults; which pairs pull the trigger depends on what the next
-       level's allocator puts in the freed block.
+       why this only ever showed up on the warp path. THREE OF THE FOURTEEN
+       MEASURABLE levels leave a live pointer in f40c when they are torn down
+       (6, 7 and 14; level 10 is unmeasurable because warping out of it
+       hard-faults for an unrelated reason), so the exposure is wider than the
+       one pair that actually faults; which pairs pull the trigger depends on
+       what the next level's allocator puts in the freed block.
+
+       AND THE ROM REALLY DOES DEPEND ON THIS ZEROING, which is worth stating
+       carefully because the obvious stronger claim is false. Slots ARE cleared
+       on the way out in general: UntrackStar does SetStarMarker(slot, 0, 2),
+       and PowerStar, Coin and QuestionBlock all call it from their cleanups.
+       What has no such path is the actor that faults here -- Whomp::
+       InitResources calls Actor::TrackStar to file itself in, and no Whomp
+       file anywhere calls UntrackStar. Its slot is only ever emptied by the
+       InitResources loop above, so a port that skips that loop keeps a Whomp
+       pointer alive into the next level.
 
        Not carried, and why: data_0209f1f8 (the view-object count) is written
        by LoadViewObjects on every boot before anything reads it, and
@@ -2553,10 +2571,29 @@ extern "C" void port_level_stage_reseat(void *stagev)
        Four levels leave one behind (SM64DS_MM_STALE=1 over a boot of each:
        7 and 13 and 15 leave one, 12 leaves five).
 
-       Zeroing the +0 slots costs nothing extra: port_stage_advance_anims
-       already drops them itself on the first frame after the level id changes,
-       and leaks the same transformer objects either way. */
+       THE +0 SLOTS ARE NOT FREE, and an earlier draft of this comment claimed
+       they were. port_stage_advance_anims (hal/stage_bridges.cpp) is the ONLY
+       caller of Stage::LoadTextureTransformers in the port, and it re-loads
+       only when the level id CHANGES. Zero the slots without arming it and a
+       SELF-WARP -- level A to level A, where the id does not change -- leaves
+       every slot null with nothing left to refill them. Measured on levels 13,
+       7 and 1: one reload line in the whole run, and anim=0 after the second
+       entry where the first left 2, 1 and 1. That is texture animation dead
+       for the rest of the session.
+
+       So the memset is PAIRED WITH THE ARM rather than narrowed to the +4 and
+       +8 words. Narrowing would also have kept the fault fixed and the
+       animation alive, but it would have carried the previous boot's
+       transformer POINTERS across an entry that released and re-loaded the BTA
+       behind them -- a dangling walk of the same shape as the one this commit
+       is about. On the ROM the whole record is fresh, because
+       Stage::InitResources calls LoadTextureTransformers on every entry (src
+       line 388) into a Stage that was just constructed. Zero it all and reload
+       it all is the ROM's own shape, and it also closes the self-warp
+       aliasing that predates this commit -- the case the level-id guard was
+       never able to see. */
     std::memset(stage + 0x8bc, 0, 0x60);
+    port_stage_anims_rearm();
 
     /* the level model, in place */
     _ZN5ModelD2Ev(stage + 0x86c);
