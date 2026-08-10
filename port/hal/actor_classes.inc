@@ -92,6 +92,15 @@ void hal_fill_one_up_logo_vtable(void);
 extern unsigned char SoundObject_SpawnInfo[];           /* ov002 0x0210c064 */
 void *SoundObject_Spawn(void);                          /* ov002 0x020f972c */
 void hal_fill_sound_object_vtable(void);
+/* ---- gate 191: SKI_LIFT (63) + MOTHER_PENGUIN (257), ov018, extending the
+   gate-190 per-symbol mount (ov018_syms.txt). SpawnInfo records join the
+   same mount; both vtable fills are in hal/actor_classes_ccm.cpp. */
+extern unsigned char SkiLift_SpawnInfo[];               /* ov018 0x021138a8 */
+void *SkiLift_Spawn(void);                              /* ov018 0x02111818 */
+void hal_fill_ski_lift_vtable(void);
+extern unsigned char MotherPenguin_SpawnInfo[];         /* ov018 0x02113998 */
+void *MotherPenguin_Spawn(void);                        /* ov018 0x0211267c */
+void hal_fill_mother_penguin_vtable(void);
 /* ---- gate 18: ov085, the first ACTOR overlay ----
    Not the engine overlay and not the level's -- six classes several levels
    share, of which the castle grounds names two. The SpawnInfo records come
@@ -865,6 +874,11 @@ void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlat
       hal_fill_one_up_logo_vtable}, \
      {359, "SOUND_OBJECT", SoundObject_SpawnInfo, SoundObject_Spawn, \
       hal_fill_sound_object_vtable}, \
+     /* ---- gate 191: SKI_LIFT (63) + MOTHER_PENGUIN (257), ov018 ---- */ \
+     {63, "SKI_LIFT", SkiLift_SpawnInfo, SkiLift_Spawn, \
+      hal_fill_ski_lift_vtable}, \
+     {257, "MOTHER_PENGUIN", MotherPenguin_SpawnInfo, MotherPenguin_Spawn, \
+      hal_fill_mother_penguin_vtable}, \
     /* ---- gate 149: HAUNTED_CHAIR (326), Big Boo's Haunt (ov020, level 12) ---- */ \
     {326, "HAUNTED_CHAIR", HauntedChair_SpawnInfo, HauntedChair_Spawn, \
      hal_fill_haunted_chair_vtable}, \

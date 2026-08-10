@@ -380,6 +380,13 @@ int _ZTV14daObj1UpLogo_c[];   /* RTTI alias, ONE speller (_ZN9OneUpLogoD0Ev),
 #pragma comment(linker, "/alternatename:?IceSheet_ClsnFile@@3PAHA=_data_ov018_02113c7c")
 /* OneUpLogo's own D0 spells its table by this RTTI name (one speller only). */
 #pragma comment(linker, "/alternatename:__ZTV14daObj1UpLogo_c=__ZTV9OneUpLogo")
+/* MotherPenguin's own D0 (src/_ZN7SkiLiftD0Ev.c) spells its table by the
+   RTTI name _ZTV10daPgMthr_c (the class-identity finding: this IS
+   MotherPenguin's own table, not a shared placeholder, confirmed by the
+   scope report's SpawnInfo+0x24 cross-check) -- the same one-speller RTTI-
+   alias treatment as OneUpLogo/daObj1UpLogo_c, applied to gate 191's host
+   array _ZTV7SkiLift. */
+#pragma comment(linker, "/alternatename:__ZTV10daPgMthr_c=__ZTV7SkiLift")
 
 // ---- the shared Actor-tail half (18..30), reused by ICE_SHEET and
 // ONE_UP_LOGO -- this TU's own copy (hal/actor_classes_jrb.cpp's
@@ -684,4 +691,217 @@ int _ZN9OneUpLogo13InitResourcesEv(void *self)
 { return ((OneUpLogo *)self)->OneUpLogo::InitResources(); }
 int _ZN9OneUpLogo6RenderEv(void *self)
 { return ((OneUpLogo *)self)->OneUpLogo::Render(); }
+}
+
+// ============================================================================
+// GATE 191: SKI_LIFT (63) + MOTHER_PENGUIN (257), ov018's own overlay,
+// extending the gate-190 per-symbol mount (port/ov018_syms.txt). Full slot
+// derivation and the class-identity finding are documented in
+// port/ov018_syms.txt's gate-191 section; the short version:
+//
+// SKI_LIFT (63) is the daObjSm_Lift_c chain, own vtable data_ov018_021138cc,
+// 32 words (the full 31-slot Actor shape plus Platform's Kill tail). Own
+// overrides: 0 Init, 3 Cleanup, 6 Behavior, 9 Render, 16 D1, 17 D0
+// (HOST THUNKS -- store the class's own table then OVERWRITE with the
+// _ZTV10dBgActor_c / VT0+VT1 shared placeholders, the ShipUp/RockPillar
+// gate-188 shape), 27 OnHitByMegaChar, 31 Kill (the shared Platform base
+// body 0x020ee55c, already in the build -- NOT overridden by this class).
+//
+// MOTHER_PENGUIN (257) is the eight src/_ZN7SkiLift* files under a dsd-era
+// class-identity mislabel: MotherPenguin_Spawn.c installs _ZTV7SkiLift ==
+// _ZTV10daPgMthr_c, MotherPenguin's OWN table, not the real SkiLift's. 31
+// words, a plain Actor shape (no Kill). Own overrides: 0 Init (HOST COPY,
+// the TextureSequence::Prepare SHORT-1 fix, port/unmatched/
+// MotherPenguin_InitResources.cpp), 3 Cleanup, 6 Behavior, 9 Render, 12
+// OnPendingDestroy (own empty body, NOT the shared default), 16 D1 (a real
+// MSVC-synthesised destructor with no vtable store -- the OneUpLogo D1
+// shape, chain spelled directly, not compiled), 17 D0 (stores its OWN
+// table under the correct RTTI name -- stays in slice, the IceSheet D0
+// treatment).
+//
+// _ZN7SkiLift13InitResourcesEv.cpp's window-shared ov036/ov056/ov022
+// spellings (the #1308-#1310 trap family) are RESOLVED: carried
+// byte-identical from main HEAD post-c19c90882 (#1301), which renamed them
+// to their own ov018 names. tools/ovsweep.py's E2 rule no longer flags this
+// file (ov018/ov022/ov036/ov056 share load window base 0x021111a0, never
+// co-resident, confirmed both via the tool and by delinks.txt ownership).
+#include "SkiLift.h"
+extern "C" {
+/* the real SkiLift's own bodies (all matched src, C linkage except Behavior/
+   InitResources/CleanupResources/Render below which are real methods) */
+int func_ov018_021116b4(char *self);           /* slot 0, Init */
+int func_ov018_021112fc(void *self);            /* slot 3, Cleanup */
+int func_ov018_02111368(char *self);            /* slot 6, Behavior */
+int func_ov018_02111340(void *self);             /* slot 9, Render */
+void func_ov018_0211123c(char *self, void *p);  /* slot 27, OnHitByMegaChar */
+void *SkiLift_Spawn(void);                       /* installs data_ov018_021138cc */
+int data_ov018_021138cc[32];                     /* the class's own vtable, host array */
+extern int _ZTV8Platform[];                      /* Platform's own base table, already
+                                                      hosted (hal/actor_vtables.cpp) */
+void _ZN18MovingMeshColliderD1Ev(void *);        /* MovingMeshCollider at +0x124 */
+void _ZN5ModelD1Ev(void *);                      /* Model at +0xd4 (declared above too) */
+/* _ZN5ActorD2Ev is already declared (returns void*) at this file's own
+   line 52 -- no redeclaration here, the type must match exactly. */
+void _ZN6Memory10DeallocateEPvP4Heap(void *, void *);
+void hal_fill_platform_vtable(void);             /* hal/actor_classes.cpp, Platform's
+                                                      base table (the JRB/l7/ov064
+                                                      precedent for calling it here) */
+extern void *data_020a0eac;                      /* the game heap, already hosted */
+void _ZN8Platform4KillEv(void *self);             /* slot 31, shared base body (0x020ee55c) */
+
+/* MotherPenguin's own bodies. SkiLift::InitResources (the HOST COPY, Prepare
+   fix, port/unmatched/MotherPenguin_InitResources.cpp) and SkiLift::Behavior
+   are real C++ methods (matching the class named in the mangled symbol,
+   include/SkiLift.h -- MotherPenguin's real layout under the misnamed
+   header) -- faced as free functions below, the IceSheet/OneUpLogo
+   treatment, not declared extern "C" directly. */
+int _ZN7SkiLift13InitResourcesEv(void *self);     /* face below -- HOST COPY */
+int _ZN7SkiLift16CleanupResourcesEv(void);
+int _ZN7SkiLift8BehaviorEv(void *self);           /* face below */
+int _ZN7SkiLift6RenderEv(char *self);
+void _ZN7SkiLift16OnPendingDestroyEv(void);       /* slot 12, own empty body */
+int *_ZN7SkiLiftD0Ev(int *self);                  /* slot 17, spells _ZTV10daPgMthr_c */
+void *MotherPenguin_Spawn(void);                  /* installs _ZTV7SkiLift == _ZTV10daPgMthr_c */
+int _ZTV7SkiLift[31];                             /* == _ZTV10daPgMthr_c, host array */
+void _ZN9ModelAnimD1Ev(void *);                   /* ModelAnim at +0xd4 */
+void _ZN15TextureSequenceD1Ev(void *);            /* TextureSequence at +0x138 (declared
+                                                       above too) */
+void _ZN11ShadowModelD1Ev(void *);                /* ShadowModel at +0x14c */
+void _ZN18MovingCylinderClsnD1Ev(void *);         /* MovingCylinderClsn at +0x174 */
+void _ZN12WithMeshClsnD1Ev(void *);               /* WithMeshClsn at +0x1a8 */
+int _ZN13RacingPenguin16OnPendingDestroyEv(void); /* .c, called by MotherPenguin's Behavior */
+}
+
+// ---- SKI_LIFT fill (Platform, 32 slots, D1/D0 host thunks) -----------------
+static int __fastcall skl_init(void *s, void *)
+{ return func_ov018_021116b4((char *)s); }
+static int __fastcall skl_clean(void *s, void *)
+{ return func_ov018_021112fc(s); }
+static int __fastcall skl_behavior(void *s, void *)
+{ return func_ov018_02111368((char *)s); }
+static int __fastcall skl_render(void *s, void *)
+{ port_actor_render_probe("SKI_LIFT", (char *)s + 0xd4);
+  return func_ov018_02111340(s); }
+static int __fastcall skl_mega(void *s, void *, void *p)
+{ func_ov018_0211123c((char *)s, p); return 0; }
+static int __fastcall skl_kill(void *s, void *)
+{ _ZN8Platform4KillEv(s); return 0; }
+/* D1/D0 host thunks: the matched src stores data_ov018_021138cc (own table)
+   then OVERWRITES with the _ZTV10dBgActor_c / VT0+VT1 shared placeholders --
+   the ShipUp/RockPillar gate-188 shape, dropped from the slice. Store the
+   derived table once and run the chain high-address first: MovingMeshCollider
+   +0x124, Model +0xd4, then Actor's own D2. D0 also frees on the game heap;
+   D1's caller (ActorBase::AfterCleanupResources) frees itself after the
+   dispatch, so D1 stops before the Deallocate. */
+static int __fastcall skl_d1(void *s, void *)
+{
+    char *t = (char *)s;
+    *(void **)t = (void *)data_ov018_021138cc;
+    _ZN18MovingMeshColliderD1Ev(t + 0x124);
+    _ZN5ModelD1Ev(t + 0xd4);
+    _ZN5ActorD2Ev(t);
+    return (int)(size_t)s;
+}
+static int __fastcall skl_d0(void *s, void *)
+{
+    char *t = (char *)s;
+    *(void **)t = (void *)data_ov018_021138cc;
+    _ZN18MovingMeshColliderD1Ev(t + 0x124);
+    _ZN5ModelD1Ev(t + 0xd4);
+    _ZN5ActorD2Ev(t);
+    _ZN6Memory10DeallocateEPvP4Heap(t, data_020a0eac);
+    return (int)(size_t)s;
+}
+
+extern "C" void hal_fill_ski_lift_vtable(void)
+{
+    void **vt = (void **)data_ov018_021138cc;
+    hal_fill_platform_vtable();
+    ccm190_fill_shared(vt);
+    vt[0]  = (void *)skl_init;
+    vt[3]  = (void *)skl_clean;
+    vt[6]  = (void *)skl_behavior;
+    vt[9]  = (void *)skl_render;
+    vt[16] = (void *)skl_d1;
+    vt[17] = (void *)skl_d0;
+    vt[27] = (void *)skl_mega;   /* own OnHitByMegaChar, overrides the shared default */
+    vt[31] = (void *)skl_kill;   /* Platform's shared Kill body (0x020ee55c), NOT overridden */
+}
+
+// ---- MOTHER_PENGUIN fill (plain Actor, 31 slots, no Kill) ------------------
+static int __fastcall mpg_init(void *s, void *)
+{ return _ZN7SkiLift13InitResourcesEv(s); }
+static int __fastcall mpg_clean(void *s, void *)
+{ (void)s; return _ZN7SkiLift16CleanupResourcesEv(); }   /* .cpp body takes void */
+static int __fastcall mpg_behavior(void *s, void *)
+{ return _ZN7SkiLift8BehaviorEv(s); }
+static int __fastcall mpg_render(void *s, void *)
+{ port_actor_render_probe("MOTHER_PENGUIN", (char *)s + 0xd4);
+  return _ZN7SkiLift6RenderEv((char *)s); }
+static int __fastcall mpg_pdes(void *s, void *)
+{ (void)s; _ZN7SkiLift16OnPendingDestroyEv(); return 0; }  /* own empty body */
+/* D1: src/_ZN7SkiLiftD1Ev.cpp is a real MSVC-synthesised destructor
+   (SkiLift::~SkiLift(){}) over a LOCAL shadow class (ModelAnim/
+   TextureSequence/ShadowModel/MovingCylinderClsn/WithMeshClsn declared with
+   no bodies of their own) -- the OneUpLogo D1 shape (gate-31 PeachPainting
+   D1 recipe): not compiled, the chain spelled here instead. HIGH ADDRESS
+   FIRST (WithMeshClsn +0x1a8, MovingCylinderClsn +0x174, ShadowModel +0x14c,
+   TextureSequence +0x138, ModelAnim +0xd4), then Actor's own D2. No vtable-
+   store write -- MotherPenguin's D1/D0 never overwrite the vptr with a
+   placeholder (D0 stores _ZTV10daPgMthr_c, its OWN table), so nothing to
+   redo here that D0's real body does not already do itself. */
+static int __fastcall mpg_d1(void *s, void *)
+{
+    char *t = (char *)s;
+    _ZN12WithMeshClsnD1Ev(t + 0x1a8);
+    _ZN18MovingCylinderClsnD1Ev(t + 0x174);
+    _ZN11ShadowModelD1Ev(t + 0x14c);
+    _ZN15TextureSequenceD1Ev(t + 0x138);
+    _ZN9ModelAnimD1Ev(t + 0xd4);
+    _ZN5ActorD2Ev(t);
+    return (int)(size_t)s;
+}
+static int __fastcall mpg_d0(void *s, void *)
+{ return (int)(size_t)_ZN7SkiLiftD0Ev((int *)s); }
+
+/* MotherPenguin overrides no Actor-tail slot (18..30) -- confirmed by reloc
+   target address, every one the plain shared default -- so ccm190_fill_shared
+   covers 18..30 unmodified, no per-class override after. */
+extern "C" void port_mother_penguin_afterclsn_seat(void);   /* unmatched/
+                                                    MotherPenguin_AfterClsnSeat.cpp */
+extern "C" void hal_fill_mother_penguin_vtable(void)
+{
+    /* seat the AfterClsn code-pointer table cell __sinit_ov018_02112c80 left
+       as a DS code address BEFORE InitResources can dispatch through it
+       (func_ov018_021123d0 -> func_ov018_02112398), the SoundObject/Cap seat
+       ordering. */
+    port_mother_penguin_afterclsn_seat();
+    void **vt = (void **)_ZTV7SkiLift;
+    ccm190_fill_shared(vt);
+    vt[0]  = (void *)mpg_init;
+    vt[3]  = (void *)mpg_clean;
+    vt[6]  = (void *)mpg_behavior;
+    vt[9]  = (void *)mpg_render;
+    vt[12] = (void *)mpg_pdes;   /* MotherPenguin's own OnPendingDestroy, NOT the shared default */
+    vt[16] = (void *)mpg_d1;
+    vt[17] = (void *)mpg_d0;
+    /* no slot 31: MotherPenguin is Actor-derived, not Platform-derived -- 31 slots total */
+}
+
+// ---- method faces (gate 191) ------------------------------------------------
+// SkiLift::InitResources (the HOST COPY) and SkiLift::Behavior are real C++
+// methods against include/SkiLift.h (MotherPenguin's real layout under the
+// misnamed header, the same treatment IceSheet/OneUpLogo's own methods take
+// above). _ZN13RacingPenguin16OnPendingDestroyEv is already declared extern
+// "C" above (a plain C-linkage .c body, MotherPenguin's Behavior calls it
+// directly) -- no face needed, listed here only as the new callee this gate
+// adds to the build. SkiLift::Behavior() is now DEFINED in
+// port/unmatched/MotherPenguin_Behavior.cpp (the MSVC dtor-slot-shift host
+// copy), not matched src -- this face still applies unchanged, it just
+// resolves to the host copy's definition.
+extern "C" {
+int _ZN7SkiLift13InitResourcesEv(void *self)
+{ return ((SkiLift *)self)->SkiLift::InitResources(); }
+int _ZN7SkiLift8BehaviorEv(void *self)
+{ return ((SkiLift *)self)->SkiLift::Behavior(); }
 }

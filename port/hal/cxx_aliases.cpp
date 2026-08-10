@@ -1381,3 +1381,23 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    its unprefixed C name func_02016748; the real symbol is the arm9 method, in
    the build since gate 7. */
 #pragma comment(linker, "/alternatename:_func_02016748=__ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj")
+/* gate 191: func_ov018_0211123c (SkiLift's own OnHitByMegaChar) declares a
+   LOCAL `struct Platform { void KillByMegaChar(Player &); };` and calls it
+   through a qualified, non-virtual dispatch. Platform::KillByMegaChar is a
+   real method per include/Platform.h, but its matched body
+   (src/_ZN8Platform14KillByMegaCharER6Player.c, already in the build since
+   gate 64) is plain C linkage -- the flat ROM name, not MSVC's re-mangling
+   of the local declaration. Alias the mangled name the local struct produces
+   onto the real C body. */
+#pragma comment(linker, "/alternatename:?KillByMegaChar@Platform@@QAEXAAUPlayer@@@Z=__ZN8Platform14KillByMegaCharER6Player")
+/* gate 191: src/_ZN7SkiLift6RenderEv.cpp (MotherPenguin's own Render, under
+   the SkiLift misnomer) declares a LOCAL `struct Model { void Render(Vector3
+   const *); };` -- non-virtual -- and calls it through a qualified dispatch.
+   The real Model::Render (include/Model.h) IS virtual, so its matched body
+   (src/_ZN5Model6RenderEPK7Vector3.cpp, already in the build since gate 4b/33)
+   mangles as the VIRTUAL-qualifier form (?Render@Model@@UAEX...), while the
+   local non-virtual declaration's call site wants the NON-VIRTUAL-qualifier
+   form (?Render@Model@@QAEX...) -- same method, same body, only the
+   virtual/non-virtual qualifier letter (U vs Q) differs in the mangling.
+   Alias the call site's spelling onto the real one. */
+#pragma comment(linker, "/alternatename:?Render@Model@@QAEXPBUVector3@@@Z=?Render@Model@@UAEXPBUVector3@@@Z")

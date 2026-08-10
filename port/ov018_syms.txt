@@ -12,6 +12,116 @@
 # window is mounted here, so a future gate can add them without touching this
 # file's rows.
 #
+# ==== GATE 191 additions: SKI_LIFT (63) + MOTHER_PENGUIN (257) ============
+# The cross-overlay trap above is RESOLVED: main's c19c90882 (#1301) renamed
+# _ZN7SkiLift13InitResourcesEv.cpp's data_ov036/ov056/func_ov022 spellings to
+# their own ov018 names (ov018/ov022/ov036/ov056 all share load window base
+# 0x021111a0, never co-resident -- confirmed via tools/ovsweep.py E2, which
+# no longer flags this file; delinks.txt already claims it for ov018). The
+# file is carried into this worktree byte-identical from main HEAD.
+#
+# CLASS IDENTITY: the eight src/_ZN7SkiLift* files are MOTHER_PENGUIN's own
+# bodies under a dsd-era mislabel -- MotherPenguin_Spawn.c installs
+# _ZTV7SkiLift == _ZTV10daPgMthr_c at 0x021139bc (MotherPenguin_SpawnInfo
+# 0x02113998 +0x24). The REAL SkiLift (daObjSm_Lift_c) is the unnamed chain
+# func_ov018_021111a0..02111804 + SkiLift_Spawn.c, own vtable
+# data_ov018_021138cc.
+#
+# ---- SkiLift_SpawnInfo (0x021138a8) / MotherPenguin_SpawnInfo (0x02113998) --
+SkiLift_SpawnInfo:0x1c
+MotherPenguin_SpawnInfo:0x1c
+#
+# ---- SkiLift's OWN vtable, _ZTV14daObjSm_Lift_c == data_ov018_021138cc ----
+# 32 words (0x021138cc..0x02113948 inclusive), the full 31-slot Actor shape
+# PLUS Platform's Kill tail, read with relocations applied (every slot, not
+# just the six the scope report named):
+#   0  InitResources    0x021116b4  own (func_ov018_021116b4)
+#   3  CleanupResources 0x021112fc  own (func_ov018_021112fc)
+#   6  Behavior         0x02111368  own (func_ov018_02111368) -- NOT in the
+#                                    task's file list; found by reading the
+#                                    reloc, essential (real 0x34c-byte body)
+#   9  Render           0x02111340  own (func_ov018_02111340)
+#  12  OnPendingDestroy 0x02043ac0  ActorBase's base body (shared)
+#  16  D1               0x021111a0  own (func_ov018_021111a0) -- HOST THUNK:
+#                                    stores _ZTV14daObjSm_Lift_c then
+#                                    OVERWRITES with _ZTV10dBgActor_c, the
+#                                    196-speller SHARED PLACEHOLDER (the
+#                                    ShipUp/RockPillar gate-188 shape) -- NOT
+#                                    compiled, chain spelled in the fill.
+#  17  D0               0x021111e4  own (func_ov018_021111e4) -- SAME shape:
+#                                    stores VT0 then VT1 (decl_common.h's
+#                                    generic placeholders, the G0/G1 disease
+#                                    family) -- HOST THUNK, not compiled.
+#  27  OnHitByMegaChar  0x0211123c  own (func_ov018_0211123c)
+#  31  Kill (Platform)  0x020ee55c  shared base body (already in the build,
+#                                    the l7/ov064/jrb precedent)
+# Every other slot is the shared Actor/ActorBase half.
+#
+# ---- SkiLift's bss window (the sinit-built SharedFilePtrs + the CLPS block) -
+# __sinit_ov018_02112c14 is SELF-CONTAINED (only ov018 symbols; verified by
+# reading its body) and constructs two SharedFilePtrs -- data_ov018_02113bc8
+# (Model, InitResources' _ZN5Model8LoadFileER13SharedFilePtr arg) and
+# data_ov018_02113bc0 (Clsn/KCL, InitResources' _ZN12MeshCollider8LoadFileER13SharedFilePtr
+# arg) -- plus their two destruct-node cells at 02113bdc/02113bd0 (void*[3],
+# the func_020731dc shape, 12 bytes each by next-symbol delta). data_ov018_02112f48
+# is the CLPS_Block MovingMeshCollider::SetFile consumes, 0x10 bytes by
+# next-symbol delta (02112f48 -> 02112f58).
+data_ov018_02113bc8 data_ov018_02113bdc
+data_ov018_02113bc0 data_ov018_02113bd0
+data_ov018_02112f48
+#
+# ---- MotherPenguin's OWN vtable, _ZTV7SkiLift == _ZTV10daPgMthr_c at
+# 0x021139bc -- 31 words (0x021139bc..02113a34 inclusive), a PLAIN Actor
+# shape (no Kill, the next word 02113a38 is unreferenced / RTTI-adjacent),
+# read with relocations applied (every slot):
+#   0  InitResources    0x021124d0  own -- HOST COPY
+#                                    (port/unmatched/MotherPenguin_InitResources.cpp):
+#                                    the SAME TextureSequence::Prepare
+#                                    SHORT-1 hole OneUpLogo's gate-190
+#                                    follow-up fixes, a second independent
+#                                    caller. Matched src stays byte-locked,
+#                                    dropped from this slice.
+#   3  CleanupResources 0x021123ec  own (_ZN7SkiLift16CleanupResourcesEv.cpp)
+#   6  Behavior         0x02112480  own (_ZN7SkiLift8BehaviorEv.cpp)
+#   9  Render           0x02112454  own (_ZN7SkiLift6RenderEv.cpp)
+#  12  OnPendingDestroy 0x02112450  own (_ZN7SkiLift16OnPendingDestroyEv.c,
+#                                    empty body -- NOT the shared default,
+#                                    confirmed by reloc target address)
+#  16  D1               0x02111848  own (_ZN7SkiLiftD1Ev.cpp) -- a real
+#                                    MSVC-synthesised destructor with NO
+#                                    vtable store at all (the OneUpLogo D1
+#                                    shape) -- NOT compiled, chain spelled
+#                                    directly in the fill.
+#  17  D0               0x02111898  own (_ZN7SkiLiftD0Ev.c) -- stores
+#                                    _ZTV10daPgMthr_c, ITS OWN table under
+#                                    the correct RTTI name (not a shared
+#                                    placeholder) -- STAYS in slice, the
+#                                    IceSheet D0 treatment.
+# Every other slot (1/2/4/5/7/8/10/11/13/14/15/18-30) is the shared
+# Actor/ActorBase half -- confirmed by reloc target address, MotherPenguin
+# overrides no combat/tail slots (unlike SkiLift's own OnHitByMegaChar).
+#
+# ---- MotherPenguin's bss window: five SharedFilePtr pairs (Model, two
+# Animation, two TextureSequence) + their destruct-node cells, built by
+# __sinit_ov018_02112c80 (self-contained, only ov018 symbols, verified by
+# reading its body), plus the two 2-pointer arrays InitResources indexes
+# and a 0x30-byte static-to-instance data copy (0211394c..02113974 -> the
+# 02113c4c destination, six S2{int[2]} cells, natural symbol-table spacing --
+# NOT a --pack case, no gaps between the six source cells or the dest cells).
+data_ov018_02113c00 data_ov018_02113c28
+data_ov018_02113bf0 data_ov018_02113c10
+data_ov018_02113c08 data_ov018_02113c1c
+data_ov018_02113bf8 data_ov018_02113c34
+data_ov018_02113be8 data_ov018_02113c40
+# EXPLICIT SIZE: next-symbol delta undersizes both to 4 bytes (one pointer)
+# -- InitResources indexes each as a TWO-element array (data_ov018_02112c04[i]
+# for i=0,1), so both need the full 8 bytes or index [1] reads the next
+# symbol's bytes instead of its own second element (the undersized-globals
+# trap).
+data_ov018_02112c04:0x8 data_ov018_02112c0c:0x8
+data_ov018_0211394c data_ov018_02113954 data_ov018_0211395c data_ov018_02113964 data_ov018_0211396c data_ov018_02113974
+data_ov018_02113c4c
+#
 # THE VTABLES STAY OUT, the ov080/ov095/ov064/ov016 rule: _ZTV8IceSheet
 # (0x02113b34, 32 words -- the full 31-slot Actor shape, own overrides at
 # 0/3/6/9/16/17/21/27/31) and PowerStarCreate's unnamed table

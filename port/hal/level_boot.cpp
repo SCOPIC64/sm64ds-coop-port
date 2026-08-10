@@ -296,14 +296,17 @@ extern const unsigned port_ov013_ds_base, port_ov013_ds_end;
    riding port_actor_overlays_sinits the way ov015's does (gate 59). RED_FLAME
    (316, ov002) was ALSO hosted, at gate 175 (14h after this block was first
    written) -- it reuses BLUE_FLAME's filled vtable, the
-   ExclamationBlock/QuestionBlock shape. Eight remain, grouped by blocker:
+   ExclamationBlock/QuestionBlock shape.
 
-     - ov018-RESIDENT, blocked on undecompiled ov018 bodies or cross-overlay
-       spellings: SKI_LIFT (63, x1) -- its InitResources reaches
-       data_ov036/ov056/ov022 sibling-overlay spellings (the base-0x021111a0
-       window sharing, the #1308-#1310 trap family) AND an undecompiled
-       func_ov018_02111d28; MOTHER_PENGUIN (257, x1) -- only
-       MotherPenguin_Spawn is decompiled. Each is a multi-part gate.
+   GATE 191 hosts SKI_LIFT (63, x1) and MOTHER_PENGUIN (257, x1), the two
+   remaining ov018-resident classes. Both blockers above are resolved: main's
+   c19c90882 (#1301) fixed SkiLift::InitResources's data_ov036/ov056/ov022
+   sibling-overlay spellings to their own ov018 names (carried into this
+   worktree byte-identical); func_ov018_02111d28 is matched (its ShadowModel
+   RadHeight call spells the by-value-Fix12 ABI signature directly). The
+   eight src/_ZN7SkiLift* files turned out to be MOTHER_PENGUIN's own bodies
+   under a dsd-era class-identity mislabel, not the real SkiLift's -- see
+   port/slice_gate191.txt. Six remain, grouped by blocker:
 
      - ACTOR-OVERLAY classes needing a fresh per-symbol mount, none a free
        share: ICE_BLOCK (18, x4, ov081), MR_BLIZZARD (223, x3, ov081) and
@@ -314,7 +317,7 @@ extern const unsigned port_ov013_ds_base, port_ov013_ds_end;
        gate-64/gate-83 shape (a new per-symbol overlay mount, its sinits, the
        vtable fill and a row).
 
-   All eight are turned away by the pre-spawn gate by name and named in the
+   All six are turned away by the pre-spawn gate by name and named in the
    census, so the boot is honest about what did not spawn.
 
    GATE 190 FIX ROUND, a play-time discovery the boot census could not see:
