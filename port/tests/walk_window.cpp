@@ -492,6 +492,12 @@ void port_particle_counts(int *systems, int *particles);
 void port_actor_scene_pass(void);    /* phase 1: scene-tree housekeeping */
 void port_actor_census(void);
 void port_actor_lists_probe(void);
+/* the [lvl-perf] level-entry spans (hal/level_boot.cpp). The harness owns the
+   census and boot-dump brackets and the emit on the direct boot; the warp
+   path's brackets and emit live in hal/level_change.cpp. */
+double port_lvlperf_now(void);
+void port_lvlperf_note(int span, double ms);
+void port_lvlperf_emit(void);
 /* gate 35, the course loop (hal/star_flow.cpp): the boot seat plus one probe
    per thing the gate has to be able to show moving. */
 void port_course_seat(void);
@@ -1355,6 +1361,14 @@ static void push_camera(const float eye_w[3], const float at_w[3])
    number; -1 is its weak fallback for harnesses without a frame loop. */
 extern "C" int port_last_frame = -1;
 
+/* The buffered stdout's last mile (see the setvbuf note in main). The exit
+   probe's RtlExitUserProcess detour ends every orderly exit in
+   NtTerminateProcess, which skips the CRT's own stream teardown -- measured
+   as the end-of-run census and the "selftest:" line simply missing from a
+   captured stdout. atexit callbacks run inside exit() BEFORE that detour
+   fires, so this one gets the buffer out on every return from main. */
+static void stdout_flush_atexit(void) { fflush(stdout); }
+
 /* PORT_HOST_ABI: the host program entry point (window + ntr bring-up + frame
    loop). Name-collides with the ROM's boot spine src/main.c, which is the DS
    init sequence and runs as its own decomp TU, not as this launcher shell. */
@@ -1411,7 +1425,26 @@ int main(void)
        healthy [fx] boot line, which is this same stomp class again. */
     if (getenv("PORT_WATCH_TRACKER"))
         port_watch_words(&data_0209ee74, 1);
-    setvbuf(stdout, NULL, _IONBF, 0);
+    /* STDOUT IS FULLY BUFFERED, ON PURPOSE. It was unbuffered here for years,
+       and that made every printf its own blocking WriteFile against whatever
+       the sink is -- 2-6ms a line on a healthy console, worse on a degraded
+       one, forever if QuickEdit has a selection holding the console lock. A
+       level entry prints ~248 lines (the census, the spawn-skip lines, the
+       [clsn] CLPS dump), so the same 600-frame CCM selftest measured 2540ms
+       to a file, 7579ms to a console, and 22s to an undrained pipe. The 64KB
+       full buffer decouples the game loop from sink latency: the boot's
+       lines go out in ONE write at the fflush below the boot block, and the
+       frame loop flushes once per frame (one write, not hundreds).
+       What this does NOT buffer: stderr. Every FATAL, fault dump and trace
+       goes to stderr, which stays unbuffered (the flight recorder below
+       re-asserts that), so a hard crash still leaves the whole trail; the
+       most a fault can strand in this buffer is the current frame's stdout,
+       and orderly exits flush it through stdout_flush_atexit above (the CRT
+       teardown flush never runs here: the exit probe's detour terminates
+       first). */
+    static char stdout_buf[1 << 16];
+    setvbuf(stdout, stdout_buf, _IOFBF, sizeof stdout_buf);
+    atexit(stdout_flush_atexit);
     /* FLIGHT RECORDER (Tango's ask): every diagnostic this program
        writes to stderr -- unhosted states, spawn skips, fault dumps
        with registers and stack, the traces below -- lands in a
@@ -1477,8 +1510,13 @@ int main(void)
        still accepted and is now a no-op. */
     const int real_boot = getenv("SM64DS_LEGACY_BOOT") == 0;
     const int boot_spawns = real_boot && getenv("SM64DS_BOOT_NOSPAWN") == 0;
-    if (real_boot)
+    if (real_boot) {
+        /* [lvl-perf] span 3: the boot-dump printf blocks, timed apart from
+           the boot so time-inside-printf is its own number */
+        const double t0 = port_lvlperf_now();
         port_level_probe();
+        port_lvlperf_note(3, port_lvlperf_now() - t0);
+    }
     /* SM64DS_MENU=1 opens the debug menu at boot, which is the only way to
        see it in a selftest frame: a selftest reads no live keys, so F5 never
        arrives. It pauses the tick like any other open menu. */
@@ -1536,7 +1574,11 @@ int main(void)
         }
         void *lvl = port_stage_a_boot(g_mc, boot_spawns);
         level_bmd = *(unsigned short *)((char *)lvl + 8);
-        port_stage_a_probe(g_mc);
+        {
+            const double t0 = port_lvlperf_now();
+            port_stage_a_probe(g_mc);
+            port_lvlperf_note(3, port_lvlperf_now() - t0);
+        }
         /* PORT_WATCH_FADER=1: who writes the INSTALLED fader's vtable
            pointer. LoadEntranceObjects installs it during this boot (the
            r0 ride-through, port/unmatched/LoadEntranceObjects.cpp), and
@@ -1557,9 +1599,16 @@ int main(void)
                Fired here, after the entrance made the player and before the
                census, so an env-spawned class is counted with the rest. */
             port_debug_spawn_env();
-            port_actor_census();
+            {
+                const double t0 = port_lvlperf_now();
+                port_actor_census();
+                port_lvlperf_note(2, port_lvlperf_now() - t0);
+            }
             port_actor_lists_probe();
         }
+        /* the direct boot's one [lvl-perf] line; a warp's comes from
+           hal/level_change.cpp at the end of the change */
+        port_lvlperf_emit();
     }
 
     void *player;
@@ -2014,6 +2063,10 @@ int main(void)
     /* the bottom screen: dual OAM, the 2D frame, and the corner panel */
     hal_sub_screen_init(hwnd, ZOOM);
     hal_sub_screen_probe();
+
+    /* boot complete: everything the boot queued in the stdout buffer goes to
+       the sink here, in one write (see the setvbuf note above) */
+    fflush(stdout);
 
     static ntr::Framebuffer fb;
     MSG msg;
@@ -4609,6 +4662,8 @@ int main(void)
         ++frame;   /* counts in live mode too -- the [cam-in]-style live
                       diagnostics carry a real frame number */
         port_last_frame = frame;   /* fault_probe.h: crash.txt/exit.txt context */
+        /* the frame's stdout, one write; the setvbuf note above is why */
+        fflush(stdout);
         if (selftest && frame >= selftest) {
             for (int k = 0; k < g_amb_n; ++k) {
                 char *o = (char *)g_amb[k].o;

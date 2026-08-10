@@ -132,6 +132,12 @@ void sd_sound_level_reap(void);     /* hal/sdat/consumer.cpp: the ROM's
 int  port_course_loop_live(void);
 const char *port_actor_class_name(unsigned id);   /* hal/star_flow.cpp: live loop handles */
 void port_level_stage_reseat(void *stage);
+/* hal/level_boot.cpp: the [lvl-perf] level-entry spans. This file owns span
+   0 (teardown, everything between the change firing and the boot call) and
+   the emit on the warp path; the direct boot emits from walk_window. */
+double port_lvlperf_now(void);
+void port_lvlperf_note(int span, double ms);
+void port_lvlperf_emit(void);
 unsigned _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *self);
 extern void *data_020a0eac;              /* Memory::gameHeapPtr */
 
@@ -447,6 +453,7 @@ extern "C" int port_level_change_apply(void)
     std::fprintf(stderr, "[lvl] change: level %d -> %d, entrance %u, reason %u\n",
                 from, want, (unsigned)data_0209f268, (unsigned)data_0209f26c);
 
+    const double lvlperf_t0 = port_lvlperf_now();
     if (!port_level_teardown()) {
         std::fprintf(stderr, "  [lvl] teardown failed; the change is "
                      "declined and the level stands\n");
@@ -509,12 +516,15 @@ extern "C" int port_level_change_apply(void)
         return 0;
     }
     port_level_stage_reseat(stage);
+    /* [lvl-perf] span 0: everything between the change firing and the boot */
+    port_lvlperf_note(0, port_lvlperf_now() - lvlperf_t0);
     port_stage_a_boot((char *)stage + 0x91c, 1);
 
     const unsigned free_after = port_level_heap_free();
     std::fprintf(stderr, "[lvl] level %d up. heap free: %u before, %u torn down, %u "
                 "after (net %+d)\n", (int)data_0209f2f8, free_before,
                 free_torn, free_after, (int)free_after - (int)free_before);
+    port_lvlperf_emit();
     return 1;
 }
 

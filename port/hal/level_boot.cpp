@@ -1093,8 +1093,57 @@ extern "C" void port_boot_course_sound(int level);   /* hal/star_flow.cpp:
 extern "C" int data_0209d70c[];   /* hal/auto_bss.cpp */
 extern "C" void port_message_archive_seat(void);
 
+/* ---- [lvl-perf]: what a level entry costs ---------------------------------
+   Four QPC-bracketed spans, accumulated across one entry and printed as ONE
+   stderr line (so it lands in the playlog) by port_lvlperf_emit:
+
+       [lvl-perf] teardown=Xms boot=Yms census=Zms print=Wms
+
+   teardown is the level-change pre-boot span (level_change.cpp, zero on a
+   direct boot), boot is port_stage_a_boot below, census is port_actor_census,
+   and print is the boot-dump probe block (port_level_probe +
+   port_stage_a_probe) -- timed apart from the boot proper so time spent
+   INSIDE printf is its own number. That split is the point: the entry stall
+   this line was built to watch was stdout itself (an unbuffered console
+   costs 2-6ms PER LINE and a level entry prints ~248 of them; the setvbuf
+   note in walk_window.cpp has the measurements). A handful of QPC reads per
+   level entry, nothing per frame. QPC hand-declared so this file stays out
+   of windows.h. */
+extern "C" __declspec(dllimport) int __stdcall
+QueryPerformanceCounter(long long *);
+extern "C" __declspec(dllimport) int __stdcall
+QueryPerformanceFrequency(long long *);
+
+static double g_lvlperf_ms[4];   /* teardown, boot, census, print */
+
+extern "C" double port_lvlperf_now(void)
+{
+    static long long freq;
+    long long c;
+    if (!freq)
+        QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&c);
+    return c * 1000.0 / freq;
+}
+
+extern "C" void port_lvlperf_note(int span, double ms)
+{
+    if (span >= 0 && span < 4)
+        g_lvlperf_ms[span] += ms;
+}
+
+extern "C" void port_lvlperf_emit(void)
+{
+    std::fprintf(stderr,
+                 "[lvl-perf] teardown=%.1fms boot=%.1fms census=%.1fms "
+                 "print=%.1fms\n", g_lvlperf_ms[0], g_lvlperf_ms[1],
+                 g_lvlperf_ms[2], g_lvlperf_ms[3]);
+    g_lvlperf_ms[0] = g_lvlperf_ms[1] = g_lvlperf_ms[2] = g_lvlperf_ms[3] = 0;
+}
+
 void *port_stage_a_boot(void *mc, int spawn)
 {
+    const double lvlperf_t0 = port_lvlperf_now();
     g_stage_mc = mc;
     /* Defensive: clear the quarantine freeze set on the LOAD side too. The
        teardown path (level_change.cpp) already resets it, but a future exit
@@ -1266,6 +1315,7 @@ void *port_stage_a_boot(void *mc, int spawn)
        banks the level has already claimed, so it cannot run before the loads
        above. Everything it needs is up by now. */
     port_particle_boot();
+    port_lvlperf_note(1, port_lvlperf_now() - lvlperf_t0);
     return o;
 }
 
