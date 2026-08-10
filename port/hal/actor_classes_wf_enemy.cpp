@@ -194,7 +194,8 @@ int *_ZN5WhompD1Ev(int *self);
 int *_ZN5WhompD0Ev(int *self);
 void func_ov079_02123e60(char *self, void *player);  /* slot 27 */
 int func_ov079_02123b60(char *self);                 /* slot 29 */
-void func_ov079_02123b54(void);                      /* slot 30 */
+void func_ov079_02123b54(void);                      /* slot 30 veneer */
+void func_ov079_02123d4c(int *out, char *self);      /* slot 30, the body */
 void *_ZTV5Whomp[31];
 }
 
@@ -215,8 +216,16 @@ static int __fastcall whomp_mega(void *s, void *, void *p)
 { func_ov079_02123e60((char *)s, p); return 0; }
 static int __fastcall whomp_aimed(void *s, void *)
 { return func_ov079_02123b60((char *)s); }
-static int __fastcall whomp_s30(void *, void *)
-{ func_ov079_02123b54(); return 0; }
+/* Slot 30 is OnAimedAtWithEggReturnVec(), which returns a Vector3 BY VALUE:
+   MSVC passes the hidden result pointer as the one stack argument and the
+   callee returns it in eax and pops it. func_ov079_02123b54 is the ROM's
+   `ldr ip,[pc]; bx ip` veneer, which forwards r0/r1 untouched to
+   func_ov079_02123d4c(out, self); the veneer's x86 transcription is declared
+   void(void) and so drops both, which is why this dispatches the veneer's
+   one target directly. Written with two parameters the thunk popped nothing
+   and wrote through whatever the stale stack word pointed at. */
+static void *__fastcall whomp_s30(void *s, void *, void *out)
+{ func_ov079_02123d4c((int *)out, (char *)s); return out; }
 
 extern "C" void port_whomp_states_seat(void);   /* port/unmatched/Whomp_Behavior */
 

@@ -137,7 +137,16 @@ static int __fastcall crate_yoshi(void *s, void *)
 /* slot 19's second argument arrives on the stack, the cap_egg reading */
 static int __fastcall crate_egg(void *s, void *, void *o)
 { func_ov098_02139e78((char *)s, (char *)o); return 0; }
-static int __fastcall crate_pounded(void *s, void *)
+/* Slot 21 is OnGroundPounded(Actor &other), and its argument arrives the way
+   slot 19's does: on the stack. The ov098 body reads only r0 and ignores the
+   pounder, but the HOST caller still pushes it, because the slot's
+   declaration in include/Actor.h has the parameter. A __fastcall thunk
+   carries its first two parameters in ecx/edx and pops nothing; only a
+   declared THIRD parameter lands on the stack and makes the thunk `ret 4`.
+   Written with two, the pushed word outlives the call, the caller's epilogue
+   pops one slot short, and its `ret` takes the saved EBP -- a stack address
+   -- as the return address. Declare the argument, ignore it like the ROM. */
+static int __fastcall crate_pounded(void *s, void *, void *)
 { func_ov098_02139e44(s); return 0; }
 static int __fastcall crate_kill(void *s, void *)
 { func_ov098_02139070((char *)s); return 0; }

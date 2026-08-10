@@ -253,7 +253,10 @@ static int __fastcall ps_d0(void *s, void *)
 { return (int)(size_t)_ZN9PowerStarD0Ev((int *)s); }
 static int __fastcall ps_yoshi(void *s, void *)
 { return func_ov002_020e8ee8(s); }
-static int __fastcall ps_s19(void *s, void *)
+/* Slot 19 is OnTurnIntoEgg(Player &player): the pushed player has to be
+   declared so the thunk pops it, the way ps_yoshi's argument-free slot 18
+   does not have to. */
+static int __fastcall ps_s19(void *s, void *, void *)
 { return func_ov002_020e8edc(s); }
 static int __fastcall ps_aimed(void *s, void *)
 { return _ZN5Actor16OnAimedAtWithEggEv(s); }

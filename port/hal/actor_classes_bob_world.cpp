@@ -703,9 +703,15 @@ static int __fastcall ssb_render(void *s, void *)
     port_actor_render_probe("SEESAW_BOB", (char *)s + 0xd4);
     return _ZN9SeesawBob6RenderEv(s);
 }
-/* slot 21 takes a second argument (the pounder) in r1; the __fastcall thunk's
-   second slot carries it, so the ov095 body reads it straight. */
-static int __fastcall ssb_pounded(void *s, void *pounder)
+/* Slot 21 takes a second argument (the pounder) in r1 on the ROM side. On the
+   host it does NOT ride the __fastcall thunk's second slot: that slot is edx,
+   a register, and the caller of a thiscall vtable slot puts everything past
+   `this` on the STACK. A two-parameter thunk therefore read edx as the
+   pounder and, worse, popped nothing, so the caller's epilogue came up one
+   slot short and returned to its own saved EBP. The third parameter is the
+   pushed word, and declaring it both delivers the real pounder and makes the
+   thunk `ret 4`, the same shape crate_egg and whomp_mega already use. */
+static int __fastcall ssb_pounded(void *s, void *, void *pounder)
 { func_ov095_021357d8((char *)s, (char *)pounder); return 0; }
 static int __fastcall ssb_d1(void *s, void *)
 { return (int)(size_t)_ZN9SeesawBobD1Ev((int *)s); }

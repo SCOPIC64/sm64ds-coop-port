@@ -549,7 +549,11 @@ static int __fastcall fb_d1(void *s, void *)
 { return (int)(size_t)_ZN11FallBlockWfD1Ev((int *)s); }
 static int __fastcall fb_d0(void *s, void *)
 { return (int)(size_t)_ZN11FallBlockWfD0Ev((int *)s); }
-static int __fastcall fb_slot27(void *s, void *)
+/* Slot 27 is OnHitByMegaChar(Player &player): the caller pushes the player,
+   so the thunk needs the third parameter to pop it, even though the ov098
+   body reads only r0. Two parameters would leave the pushed word behind and
+   send the caller's `ret` to its saved EBP. */
+static int __fastcall fb_slot27(void *s, void *, void *)
 { func_ov098_0213a284((char *)s); return 0; }
 static int __fastcall fb_slot31(void *s, void *)
 { func_ov098_0213a17c((char *)s); return 0; }

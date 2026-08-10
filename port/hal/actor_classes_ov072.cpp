@@ -339,7 +339,11 @@ static int __fastcall bp_d0(void *s, void *)
 { return (int)(size_t)_ZN11BabyPenguinD0Ev((int *)s); }
 static int __fastcall bp_yoshi(void *s, void *)
 { (void)s; return func_ov072_02120cfc(); }
-static int __fastcall bp_egg(void *s, void *)
+/* Slot 19 is OnTurnIntoEgg(Player &player): the caller pushes the player, so
+   the thunk needs the third parameter to pop it, even though the ov072 body
+   takes nothing. Two parameters leave the pushed word behind and the
+   caller's `ret` lands on its saved EBP. */
+static int __fastcall bp_egg(void *s, void *, void *)
 { (void)s; func_ov072_02121fa0(); return 0; }
 
 extern "C" void hal_fill_baby_penguin_vtable(void)
