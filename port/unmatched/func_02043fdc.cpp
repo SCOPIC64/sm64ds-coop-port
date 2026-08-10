@@ -234,18 +234,38 @@ static int port_faults_fatal(void)
 
 /* Is this actor currently frozen? Either it is in the instance set, or its
    whole class is latched off. Cheap linear scan -- the set is tiny and this
-   runs once per node per phase. */
+   runs once per node per phase.
+
+   THE GUARD (playlog 041729, the level 6 -> 2 star-exit warp): this check runs
+   BEFORE the __try in port_dispatch_guarded, so the id read below was the one
+   unguarded dereference in the whole dispatch. A scene node whose owner word
+   had been stomped (0x62980, a garbage low pointer) faulted right here and
+   took the process down with "reason exception" -- bypassing the quarantine
+   net that exists precisely to survive a bad receiver. port_q_actor_id, the
+   sibling that reads the same field for the log line, has carried this exact
+   IsBadReadPtr guard since it was written. With the guard, a torn pointer
+   reads as not-frozen, faults INSIDE the __try on dispatch, and is frozen by
+   the net like any other bad actor; under SM64DS_FAULTS_FATAL the filter
+   still declines and the proof run dies hard with the full dump.
+
+   The instance-set scan moved ABOVE the guard: it is pure pointer identity,
+   so it needs no deref, and it is what makes the freeze stick for a garbage
+   pointer -- the first fault puts the bad value in the set, and every later
+   frame skips it there instead of re-faulting through the guard's not-frozen
+   path once per frame (measured: one quarantine line, not three hundred). */
 static int port_q_is_frozen(void *actor)
 {
     unsigned id;
     if (!actor)
         return 0;
-    id = *(unsigned short *)((char *)actor + 0xc);
-    if (id < PORT_Q_IDS && port_q_class_skip[id])
-        return 1;
     for (int i = 0; i < port_q_frozen_n; ++i)
         if (port_q_frozen[i] == actor)
             return 1;
+    if (IsBadReadPtr(actor, 0x10))
+        return 0;
+    id = *(unsigned short *)((char *)actor + 0xc);
+    if (id < PORT_Q_IDS && port_q_class_skip[id])
+        return 1;
     return 0;
 }
 
