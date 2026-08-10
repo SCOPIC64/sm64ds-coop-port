@@ -1534,6 +1534,8 @@ void _ZN5Actor8OnKickedERS_(void *self, void *o);                  /* 24 */
 void _ZN5Actor8OnPushedERS_(void *self, void *o);                  /* 25 */
 void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* 26 */
 void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* 27 */
+/* 28 is declared but deliberately NOT forwarded -- see the slot-28 note in
+   hal_fill_player_vtable. Kept so the list reads as the ROM's own. */
 void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* 28 */
 int  _ZN5Actor16OnAimedAtWithEggEv(void *self);                    /* 29 */
 }
@@ -1558,8 +1560,6 @@ static int __fastcall ps_cannon(void *s, void *, void *o)
 { _ZN5Actor24OnHitByCannonBlastedCharERS_(s, o); return 0; }
 static int __fastcall ps_mega(void *s, void *, void *p)
 { _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
-static int __fastcall ps_under(void *s, void *, void *o)
-{ _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
 static int __fastcall ps_aimed(void *s, void *)
 { return _ZN5Actor16OnAimedAtWithEggEv(s); }
 
@@ -1620,7 +1620,37 @@ extern "C" void hal_fill_player_vtable(void)
     vt[25] = (void *)ps_pushed;
     vt[26] = (void *)ps_cannon;
     vt[27] = (void *)ps_mega;
-    vt[28] = (void *)ps_under;
+    /* SLOT 28 DECLINES, and it is the one slot here that cannot be seated at
+       all with a single thunk. Actor slot 28 has TWO call sites in this binary
+       with INCOMPATIBLE conventions:
+
+         thiscall  func_ov002_020eeca8+0x44   call [reg+0x70]
+                   -- `this` in ecx, the argument pushed, CALLEE pops
+         cdecl     func_ov002_020cef84+0x23f  mov eax,[reg+0x70]; call eax;
+                                              add esp,8
+                   -- (self, a) both pushed, CALLER pops 8
+
+       A __fastcall thunk that forwards Actor::OnHitFromUnderneath emits
+       `ret 4`. That satisfies the thiscall site and BREAKS the cdecl one: the
+       caller pushes 8, the callee pops 4, the caller pops 8, and esp ends four
+       bytes high. It also reads `this` from ecx while the cdecl site passed it
+       on the stack, so it gets the wrong argument as well. No single word in
+       this slot satisfies both conventions.
+
+       That trade is bad in the direction that matters. An unseated slot is a
+       null/DS-address call: loud, named in a dump, and caught. A four-byte
+       stack imbalance escapes the quarantine net entirely and fails later with
+       nothing attached to it. So this declines by name until the call is
+       modelled uniformly -- strictly better than either failure.
+
+       FOLLOW-UP, not done here and wanting its own review: a host copy of
+       func_ov002_020cef84 in port/unmatched modelling that call as a C++
+       virtual, so both sites become thiscall and the slot can hold the real
+       body. That is the port's established pattern and leaves src untouched.
+
+       Derived from binary arithmetic on the cons build rather than from a
+       repro, and recorded that way on purpose. */
+    vt[28] = (void *)ps_trap;
     vt[29] = (void *)ps_aimed;
 }
 
