@@ -47,6 +47,11 @@ USAGE
     python port/tools/vtspan.py <repo-root> --sweep
         every function-pointer table defined under port/, host size vs ROM
         span, with the undersized ones called out.  Exits 1 if any is short.
+    python port/tools/vtspan.py <repo-root> --seats <dumpbin-disasm-dir>
+        does the thunk seated in slot N run the body slot N is supposed to
+        run?  Catches SAME-ARITY WRONG-BODY SEATS, which the sizing sweep and
+        abicheck are both blind to.  See the --seats section below.  Exits 1
+        if any seat is wrong.
     python port/tools/vtspan.py <repo-root> <symbol> [<symbol>...]
         slot-by-slot dump of one table, each entry resolved to a name and
         cross-checked against the RAW ROM image word (never the dsd overlay
@@ -56,6 +61,7 @@ USAGE
     platform tables are data_ov015_02114360 and data_ov015_021147e8, so a
     _ZTV-only scan cannot see them.
 """
+import collections
 import pathlib
 import re
 import sys
@@ -301,6 +307,175 @@ def sweep(rom, root):
     return 1 if short else 0
 
 
+# ============================================================================
+# --seats: does the thunk in slot N run the body slot N is supposed to run?
+# ============================================================================
+#
+# THE DEFECT CLASS THIS CATCHES, AND WHY NOTHING ELSE DOES
+#     A fill can seat the right ARITY in the wrong SLOT. abicheck reads pop
+#     sizes out of the emitted code, and a same-arity swap emits identical pop
+#     sizes, so its report is byte-identical before and after the fix. The
+#     sizing sweep above is blind to it too: the array is the right length and
+#     every entry is a real function.
+#
+#     Real instances, more than one: a table seating Actor::Virtual50 (returns
+#     1) in slot 29, where the ROM has Actor::OnAimedAtWithEgg (returns
+#     0x14000, the egg auto-aim lock-on radius in 20.12 -- 20.0 units). Both
+#     are `int f(Actor *)`, so the frame contract is fine and Yoshi's auto-aim
+#     simply has no lock-on radius on that class.
+#
+# WHERE THE SLOT NUMBERS COME FROM
+#     Not from a header and not from a comment. Every Actor-layout table in the
+#     ROM votes: a table is Actor-layout when its word [1] is
+#     Actor::BeforeInitResources, and across the 276 of them each shared arm9
+#     body occupies exactly ONE index, unanimously. That agreement is the
+#     authority.
+#
+#     It has to be, because the matched sources disagree with it. Every
+#     src/_ZN5Actor* body from slot 18 up carries a header comment exactly one
+#     slot LOW -- Virtual50 says 19, OnAimedAtWithEgg says 28 -- while the
+#     bodies at slots 0..15 all say the right number. The boundary is the
+#     destructor pair: those comments are in MSVC numbering, where Itanium's
+#     D1/D0 fold into one deleting-destructor slot and everything past it
+#     shifts down by one. They are not wrong in their own frame. They are wrong
+#     for a ROM-shaped array, and seating a port vtable from them reproduces
+#     the swap exactly.
+#
+# SCOPE, HONESTLY
+#     This checks the SHARED arm9/ov002 bodies only -- the thirty functions
+#     every Actor table draws on. A slot holding a class's own overlay body is
+#     reported as unchecked rather than guessed at.
+#
+#     It is table-agnostic on purpose. Most port fills write through a
+#     `void **vt` parameter, so the table base is in a register and one
+#     object's disassembly does not say which class it belongs to. It does not
+#     need to: a thunk that calls Actor::Virtual50 seated at slot 29 is a
+#     defect whichever table it is in.
+#
+#     One inference NOT made here, because it is false: that a symbol reached
+#     only by kind:load relocations is unreachable. Virtual dispatch IS a load
+#     followed by an indirect call, so reloc kinds say nothing about
+#     reachability in either direction.
+
+FUNCHEAD = re.compile(r"^(\S+)(?:\s+\(.*\))?:\s*$")
+INSN = re.compile(r"^\s+([0-9A-F]+):\s+(\S+)\s*(.*?)\s*$")
+VTSTORE = re.compile(
+    r"dword ptr \[(?P<tab>[A-Za-z_?@$][\w?@$]*|e[a-z]{2})"
+    r"(?:\+(?P<off>[0-9A-F]+)h)?\]\s*,\s*offset (?P<sym>\S+)")
+
+
+def canonical_slots(rom):
+    """address -> slot index, for bodies every Actor-layout table agrees on."""
+    votes = collections.defaultdict(collections.Counter)
+    for mod, m in rom.mod.items():
+        rel = m["relocs"]
+        for addr, (kind, to, tmod) in rel.items():
+            if kind != "load":
+                continue
+            nx = rel.get(addr + 4)
+            if not (nx and nx[1] == ACTOR_BINIT):
+                continue                    # addr is not a table's slot 0
+            run, _ = rom.span(mod, addr)
+            if run < 18:
+                continue
+            for i in range(run):
+                e = rel.get(addr + 4 * i)
+                if e:
+                    votes[e[1]][i] += 1
+    return {a: next(iter(c)) for a, c in votes.items()
+            if len(c) == 1 and sum(c.values()) >= 5}
+
+
+def itanium_face(name):
+    """_ZN9ActorBase13AfterBehaviorEj -> ('ActorBase', 'AfterBehavior')."""
+    m = re.match(r"_ZN(\d+)", name)
+    if not m:
+        return None
+    i, n = m.end(1), int(m.group(1))
+    cls, rest = name[i:i + n], name[i + n:]
+    m = re.match(r"(\d+)", rest)
+    if not m:
+        return None
+    k = int(m.group(1))
+    return cls, rest[m.end():m.end() + k]
+
+
+def load_disasm(d):
+    """({function: calls}, [(table, slot, thunk, fill, obj)]) from dumpbin."""
+    funcs, stores = {}, []
+    for p in sorted(pathlib.Path(d).glob("*.txt")):
+        raw = p.read_bytes()
+        text = raw.decode("utf-16-le" if raw[:2] == b"\xff\xfe" else "utf-8",
+                          "replace")
+        cur = None
+        for line in text.splitlines():
+            m = INSN.match(line)
+            if m and cur is not None:
+                op, args = m.group(2).lower(), m.group(3)
+                if op in ("call", "jmp"):
+                    cur["calls"].append(args.strip())
+                elif op == "mov":
+                    s = VTSTORE.search(args)
+                    if s:
+                        stores.append((s.group("tab"),
+                                       int(s.group("off") or "0", 16) // 4,
+                                       s.group("sym"), cur["sym"], p.name))
+                continue
+            m = FUNCHEAD.match(line)
+            if m and not line.startswith(" "):
+                cur = dict(sym=m.group(1), calls=[])
+                funcs.setdefault(m.group(1), cur)
+    return funcs, stores
+
+
+def seats(rom, disasm):
+    canon = canonical_slots(rom)
+    by_cname, by_face = {}, {}
+    for a, slot in canon.items():
+        n = rom.name_of(a, "main")
+        if not n.startswith("_ZN"):
+            n = rom.name_of(a, "overlay(2)")
+        if not n.startswith("_ZN"):
+            continue
+        by_cname["_" + n] = (slot, n)       # MSVC prefixes C symbols with _
+        f = itanium_face(n)
+        if f:
+            by_face[f] = (slot, n)
+
+    def resolve(callee):
+        c = callee.split()[-1].strip()
+        if c in by_cname:
+            return by_cname[c]
+        m = re.match(r"\?(\w+)@(\w+)@@", c)
+        if m and (m.group(2), m.group(1)) in by_face:
+            return by_face[(m.group(2), m.group(1))]
+        return None
+
+    funcs, stores = load_disasm(disasm)
+    bad, checked, unchecked = [], 0, 0
+    for tab, slot, thunk, fill, obj in stores:
+        f = funcs.get(thunk)
+        hits = {resolve(c) for c in f["calls"]} if f else set()
+        hits = {h for h in hits if h}
+        if len(hits) != 1:
+            unchecked += 1                  # a class body, or a decline stub
+            continue
+        want, name = next(iter(hits))
+        checked += 1
+        if want != slot:
+            bad.append((slot, want, name, thunk, fill, obj))
+    print("%d slot fills seat a shared arm9 body and were checked; %d hold "
+          "class bodies or decline stubs and were not." % (checked, unchecked))
+    if not bad:
+        print("no wrong-body seats")
+        return 0
+    print("\n=== %d WRONG-BODY SEATS ===" % len(bad))
+    for slot, want, name, thunk, fill, obj in sorted(bad):
+        print("slot %-2d runs %s, whose ROM slot is %d" % (slot, name, want))
+        print("        thunk %s, written by %s  [%s]" % (thunk, fill, obj))
+    return 1
+
+
 def main(argv):
     if len(argv) < 3:
         print(__doc__)
@@ -308,6 +483,8 @@ def main(argv):
     rom = Rom(argv[1])
     if argv[2] == "--sweep":
         return sweep(rom, argv[1])
+    if argv[2] == "--seats":
+        return seats(rom, argv[3])
     for want in argv[2:]:
         hits = list(rom.find(want))
         if not hits:
