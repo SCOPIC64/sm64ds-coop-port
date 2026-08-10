@@ -1025,6 +1025,18 @@ if(PORT_ROM_CLEAN)
         DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob_verify.py"
                 "${ROMDATA_BIN}" "${ROMDATA_MANIFEST}"
         COMMENT "romblob self-check: blob bytes == baked bytes")
+    # The portable kit rebuilds romdata.bin on the player's machine from their
+    # own dump; the recipe is the shippable how (offsets and hashes, zero ROM
+    # bytes). Generated here, self-verified against the local extracted images,
+    # so it can never drift from the manifest it names.
+    set(ROMDATA_RECIPE "${PORT_REPO_ROOT_ABS}/build/assets/romdata.recipe.tsv")
+    add_custom_command(
+        OUTPUT "${ROMDATA_RECIPE}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob_recipe.py"
+                "${ROMDATA_MANIFEST}" "${ROMDATA_RECIPE}"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob_recipe.py"
+                "${ROMDATA_MANIFEST}"
+        COMMENT "romblob recipe: manifest -> kit extraction recipe")
 endif()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate18.txt" SLICE18_LINES)
@@ -2413,7 +2425,8 @@ if(PORT_ROM_CLEAN)
                    hal/romdata_loader.cpp)
     target_compile_definitions(walk_window PRIVATE PORT_ROM_CLEAN)
     add_custom_target(romblob_ready_ww DEPENDS "${ROMDATA_BIN}"
-        "${CMAKE_BINARY_DIR}/assets/romblob_verified.stamp")
+        "${CMAKE_BINARY_DIR}/assets/romblob_verified.stamp"
+        "${ROMDATA_RECIPE}")
     add_dependencies(walk_window romblob_ready_ww)
 endif()
 if(MSVC)

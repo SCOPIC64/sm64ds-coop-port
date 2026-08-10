@@ -9,6 +9,10 @@
         extracted\dsd\files\<path>     every file, byte for byte as the card has it
         build\assets\files.tsv         file id -> path index, rebuilt from the dump
         build\assets\handles.tsv       game handle -> file id, read out of overlay 0
+        build\assets\romdata.bin       code-side data tables, rebuilt from the dump
+                                       (the kit's romdata.recipe.tsv says where each
+                                       piece lives; the file is hash-checked before
+                                       it is written)
 
     Nothing is downloaded and nothing is installed. Windows PowerShell 5.1 is
     enough; there is no Python, no ndspy and no other dependency.
@@ -324,6 +328,106 @@ $utf8 = New-Object Text.UTF8Encoding $false
 [IO.File]::WriteAllText((Join-Path $assetsDir 'files.tsv'), $fileRows.ToString(), $utf8)
 [IO.File]::WriteAllText((Join-Path $assetsDir 'handles.tsv'), $handleRows.ToString(), $utf8)
 Write-Step "    $($paths.Count) files and $handleCount handles catalogued"
+
+# ------------------------------------------------------------ romdata.bin
+# ROM-CLEAN: the game's executable ships with every code-side data table
+# zeroed and fills them at boot from build\assets\romdata.bin. The kit ships
+# romdata.recipe.tsv -- offsets and hashes only, no game bytes -- and this
+# stage rebuilds romdata.bin from the dump: decompress the arm9 program and
+# the overlays the recipe names, copy each range, hash-check the result.
+# Ranges that reach past a decompressed image are runtime-zero (bss) and stay
+# zero, exactly as the recipe's hashes expect.
+$recipePath = Join-Path $Destination 'romdata.recipe.tsv'
+if (-not (Test-Path -LiteralPath $recipePath)) {
+    $recipePath = Join-Path $Destination 'build\assets\romdata.recipe.tsv'
+}
+if (-not (Test-Path -LiteralPath $recipePath)) {
+    Write-Warn "No romdata.recipe.tsv next to this script -- skipping romdata.bin."
+    Write-Warn "The game will refuse to start without it; re-download the kit."
+} else {
+    $recipeLines = [IO.File]::ReadAllLines($recipePath)
+    if ($recipeLines.Count -lt 2 -or $recipeLines[0] -notmatch '^# romdata-recipe v1 ([0-9a-f]{64}) (\d+)$') {
+        Stop-Politely "romdata.recipe.tsv is damaged. Re-download the kit."
+    }
+    $wantSha = $Matches[1]
+    $blobTotal = [int]$Matches[2]
+
+    # Which images the recipe needs, and where the overlays sit in the dump.
+    $needed = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($line in $recipeLines) {
+        if ($line.StartsWith('#')) { continue }
+        [void]$needed.Add($line.Split("`t")[2])
+    }
+    $ovByName = @{}
+    for ($i = 0; $i -lt [int]($ovtSize / 32); $i++) {
+        $e = $ovtOffset + $i * 32
+        $ovId = [BitConverter]::ToUInt32($romBytes, $e)
+        $ovByName[('ov{0:d3}' -f $ovId)] = @(
+            [int][BitConverter]::ToUInt32($romBytes, $e + 24),          # file id
+            [int]([BitConverter]::ToUInt32($romBytes, $e + 28) -shr 24) # flags
+        )
+    }
+
+    Write-Step "Rebuilding romdata.bin ($($needed.Count) images to decompress -- the slow part, please wait)"
+    $images = @{}
+    foreach ($src in $needed) {
+        if ($src -eq 'arm9') {
+            # Program header: rom offset at 0x20, ram address 0x28, size 0x2C.
+            # The payload is stored with the same back-to-front compression as
+            # the overlays.
+            $a9Off  = [int][BitConverter]::ToUInt32($romBytes, 0x20)
+            $a9Size = [int][BitConverter]::ToUInt32($romBytes, 0x2C)
+            $a9 = New-Object 'byte[]' $a9Size
+            [Array]::Copy($romBytes, $a9Off, $a9, 0, $a9Size)
+            try { $images[$src] = Expand-Blz $a9 }
+            catch { Stop-Politely "Could not read this dump's program data ($_). Re-dump the cartridge." }
+        } else {
+            if (-not $ovByName.ContainsKey($src)) {
+                Stop-Politely ("This dump is Super Mario 64 DS but not a revision this build knows: " +
+                               "it has no overlay '$src'.")
+            }
+            $fileId = $ovByName[$src][0]
+            $length = [int]($fatEnd[$fileId] - $fatStart[$fileId])
+            $raw = New-Object 'byte[]' $length
+            [Array]::Copy($romBytes, [int]$fatStart[$fileId], $raw, 0, $length)
+            if ($ovByName[$src][1] -band 1) {
+                try { $raw = Expand-Blz $raw }
+                catch { Stop-Politely "Could not read overlay '$src' of this dump ($_). Re-dump the cartridge." }
+            }
+            $images[$src] = $raw
+        }
+        Write-Step "    $src ($([math]::Round($images[$src].Length / 1KB)) KB)"
+    }
+
+    # Assemble. The buffer starts zeroed, so a range past its image's end
+    # simply keeps its zeros.
+    $blob = New-Object 'byte[]' $blobTotal
+    foreach ($line in $recipeLines) {
+        if ($line.StartsWith('#')) { continue }
+        $f = $line.Split("`t")
+        $off = [int]$f[0]; $size = [int]$f[1]; $img = $images[$f[2]]; $srcOff = [int]$f[3]
+        $have = [Math]::Min($size, [Math]::Max(0, $img.Length - $srcOff))
+        if ($have -gt 0) { [Array]::Copy($img, $srcOff, $blob, $off, $have) }
+    }
+
+    $sha = [BitConverter]::ToString(
+        [Security.Cryptography.SHA256]::Create().ComputeHash($blob)).Replace('-', '').ToLowerInvariant()
+    if ($sha -ne $wantSha) {
+        Stop-Politely ("The rebuilt romdata.bin does not match its checksum -- this dump is " +
+                       "Super Mario 64 DS but not the revision this build was made from ($code).")
+    }
+    [IO.File]::WriteAllBytes((Join-Path $assetsDir 'romdata.bin'), $blob)
+    Write-Step "    romdata.bin verified ($blobTotal bytes, checksum OK)"
+
+    # The game verifies romdata.bin at boot against romdata.manifest, which the
+    # kit ships next to this script; put it where the game looks.
+    $manifestSrc = Join-Path $Destination 'romdata.manifest'
+    if (Test-Path -LiteralPath $manifestSrc) {
+        Copy-Item -LiteralPath $manifestSrc (Join-Path $assetsDir 'romdata.manifest') -Force
+    } elseif (-not (Test-Path -LiteralPath (Join-Path $assetsDir 'romdata.manifest'))) {
+        Write-Warn "No romdata.manifest in the kit -- the game will refuse to start; re-download the kit."
+    }
+}
 
 Write-Host ""
 Write-Host "Done. The game data is ready in $Destination" -ForegroundColor Green
