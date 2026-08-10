@@ -51,6 +51,9 @@
 #include <cstdlib>
 #include <cstring>
 
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
 extern "C" {
 
 /* storage: hal/actor_vtables.cpp (actorID -> SpawnInfo*) */
@@ -418,6 +421,45 @@ struct PpEggSlot {
     virtual int OnTurnIntoEgg(void *player);          /* vtable + 0x4c */
 };
 
+/* SM64DS_VT_AUDIT=<frame> prints, once, the slot-21 entry of every class
+   actually alive on this level, as a module-relative offset. Resolving those
+   offline against walk_window.map and checking each for `ret 4` is a complete
+   audit of what the level can really dispatch, which a scan of vtable-fill
+   code shapes is not: a fill can write a slot through a register the scanner
+   does not model, and only the live table settles it. */
+static void port_vt_audit(void)
+{
+    static int armed = -1, at = 0;
+    static long frame;
+    if (armed < 0) {
+        const char *e = std::getenv("SM64DS_VT_AUDIT");
+        armed = 0;
+        if (e) { at = (int)std::strtol(e, 0, 0); armed = at > 0; }
+    }
+    if (!armed || ++frame != at)
+        return;
+    armed = 0;
+    unsigned char seen[PORT_ACTOR_IDS];
+    std::memset(seen, 0, sizeof seen);
+    char *base = (char *)(size_t)GetModuleHandleA(0);
+    int n = 0;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node && n++ < 4096;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o) continue;
+        unsigned id = *(unsigned short *)(o + 0xc);
+        if (id >= PORT_ACTOR_IDS || seen[id]) continue;
+        seen[id] = 1;
+        char **vt = *(char ***)o;
+        if (!vt) { std::printf("[vt] id %3u %-24s NO VTABLE\n", id,
+                               port_actor_class_name(id)); continue; }
+        std::printf("[vt] id %3u %-24s vt %p slot21 +%08x\n", id,
+                    port_actor_class_name(id), (void *)vt,
+                    (unsigned)(size_t)(vt[21] - base));
+    }
+    std::fflush(stdout);
+}
+
 static void port_pound_probe(void)
 {
     static int armed = -1, at = 240, slot = 21;
@@ -519,6 +561,7 @@ extern "C" void port_actor_tick(void)
 {
     port_bob_debug_watch();
     port_pound_probe();
+    port_vt_audit();
     data_02099f24[0] = 4;
     port_list_trace("cleanup", data_020a4ba8);
     func_02043fdc(data_020a4ba8);
