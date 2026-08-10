@@ -705,6 +705,35 @@ extern "C" int port_level_has_own_sinits(void)
    the block near the file's end that also declares it for a2_seat's use. */
 extern "C" void port_ov009_sinits(void);
 
+/* STATIC_ROCK (id 61, x33 -- JRB's biggest class) reads its CLPS collision block
+   out of the ov102 factory table data_ov102_0214e190[idx*0xc]; idx 0 is
+   STATIC_ROCK and that word points at DS 0x02113ccc, a "CLPS" record inside the
+   loaded level overlay. That overlay base (0x021111a0) is shared by eleven level
+   overlays, so the pointer is ambiguous cross-mount and ovdata.py --cross keeps
+   it RAW rather than guess a level (see port/tools/ovdata.py, "AN AMBIGUOUS DS
+   RANGE IS DROPPED, NOT GUESSED AT"). Left raw, MeshCollider::GetSurfaceInfo ->
+   func_020381cc dereferences a DS address the host never mapped -- the SIG-CLSN
+   crash. STATIC_ROCK only spawns in Jolly Roger Bay, so the level that owns that
+   block is always ov016: rebase the one word to ov016's mounted copy right after
+   ov016's whole-mount patch runs, per JRB mount, the ov089_keymodels_fixup
+   pattern. The other two idx-0 table words (0214e188/0214e18c, model + KCL
+   fileptrs) target ov102 itself and are rebased by the normal per-mount pass. */
+extern "C" unsigned char data_ov102_0214e190[];
+static void port_jrb_staticrock_clps_seat(void)
+{
+    unsigned *w = (unsigned *)(data_ov102_0214e190 + 0);
+    if (*w == 0x02113ccc)
+        *w = (unsigned)(size_t)port_ov016_at(0x02113ccc);
+    else if (*w < 0x02000000u || *w >= 0x02400000u)
+        return;   /* already host-rebased (idempotent re-entry) */
+    else {
+        std::fprintf(stderr, "FATAL: STATIC_ROCK CLPS seat: data_ov102_"
+                     "0214e190[0] holds %08x, ROM says 02113ccc -- WRONG "
+                     "BYTES\n", *w);
+        std::abort();
+    }
+}
+
 /* IDEMPOTENT PER LEVEL, and gate 31 is why. d->patch() rewrites the overlay
    image's own pointers in place, which is not something that can be done
    twice: a second pass would rebase already-rebased words. The cache was an
@@ -720,6 +749,10 @@ static void *port_level_mount_at(int idx)
         return mounted[idx];
     const PortLevelDesc *d = &port_level_table[idx];
     d->patch();
+    /* JRB owns STATIC_ROCK's cross-mount CLPS pointer; seat it now that ov016's
+       image is mounted and port_ov016_at can resolve the DS address to host. */
+    if (d->patch == port_ov016_patch)
+        port_jrb_staticrock_clps_seat();
     void *lvl = d->at(d->lvl_overlay);
     if (!lvl) {
         std::fprintf(stderr, "FATAL: %s mount: 0x%08x outside the overlay "
