@@ -2,8 +2,27 @@
 //
 // Same law as hal/actor_classes.cpp and hal/actor_classes_bob_enemy.cpp -- ROM
 // slot order, __fastcall thunks that call QUALIFIED, unhosted slots trap by
-// name -- and THIRTY-ONE SLOTS, because these are Actor subclasses through
-// Platform (dBgActor_c), not the twenty-slot ActorBase shape.
+// name.
+//
+// ---- THE WIDTH: "31 because Platform" WAS THE BUG ---------------------------
+//
+// This header used to say THIRTY-ONE SLOTS, because these are Actor subclasses
+// through Platform. That is backwards and it cost a live crash. Thirty-one is
+// the PLAIN ACTOR width: slot 30 is Actor::OnAimedAtWithEggReturnVec and the
+// table ends. A Platform subclass has a THIRTY-SECOND slot, Platform::Kill
+// (ov002 0x020ee55c), and six of the seven tables here are Platform
+// subclasses. Written [31], each left slot 31 reading past the end:
+//
+//     SM64DS_LEVEL=7 SM64DS_KILL_SLOT31=51@300
+//     [kill31] actor 0481D40C id 51 class ROTATING_BRIDGE vptr 00B66600
+//              slot31 00000000
+//     code c0000005, access 00000008 at 00000000, eip 00000000
+//
+// The exception is data_ov015_02114360 (id 42 POLE_BILLBOARD), which is a
+// plain Actor rather than a Platform and really is 31. CHECK THE CLASS BEFORE
+// GROWING ANYTHING: port/tools/vtspan.py reads the width out of the reloc run,
+// and the next-symbol bound lies for five of these seven (_ZTV14KnockDownPlank
+// reads as 3 words and is 32).
 //
 // ---- THE ov015 NAME SHIFT --------------------------------------------------
 //
@@ -66,6 +85,8 @@ void _ZN5Actor8OnPushedERS_(void *self, void *o);          /* slot 25 */
 void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* 26 */
 void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* 27 */
 void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* 28 */
+int  _ZN5Actor16OnAimedAtWithEggEv(void *self);                    /* 29 */
+void _ZN8Platform4KillEv(void *self);                              /* 31 */
 
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
@@ -91,7 +112,13 @@ static void wf_trap_report(void *self, int slot)
 #define WF_TRAP(n) \
     static int __fastcall wf_trap##n(void *s, void *) \
     { wf_trap_report(s, n); return 0; }
-WF_TRAP(13) WF_TRAP(14) WF_TRAP(17) WF_TRAP(19) WF_TRAP(30)
+WF_TRAP(13) WF_TRAP(14) WF_TRAP(17) WF_TRAP(19)
+/* 23/24/27/31 are for the classes below that OVERRIDE one of Actor's tail
+   bodies with an ov015 body that is matched in src but in no slice; running
+   Actor's shared body there would be the wrong code, not merely less code.
+   30 declines for all seven: its ROM body returns a Vector3 by value and the
+   sret contract is unproved. */
+WF_TRAP(23) WF_TRAP(24) WF_TRAP(27) WF_TRAP(30) WF_TRAP(31)
 #undef WF_TRAP
 
 static int __fastcall wf_binit(void *s, void *)
@@ -134,6 +161,11 @@ static int __fastcall wf_mega(void *s, void *, void *p)
 { _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
 static int __fastcall wf_under(void *s, void *, void *o)
 { _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
+static int __fastcall wf_egg(void *s, void *)
+{ return _ZN5Actor16OnAimedAtWithEggEv(s); }
+/* slot 31, the Platform tail; the five tables that do not override it */
+static int __fastcall wf_kill(void *s, void *)
+{ _ZN8Platform4KillEv(s); return 0; }
 
 /* The shared half of a 31-slot Platform table. A caller writes its own
    0/3/6/9/16, and slot 12 stays ActorBase::OnPendingDestroy (the ROM's own
@@ -166,7 +198,11 @@ static void wf_fill_shared(void **vt)
     vt[26] = (void *)wf_cannon;
     vt[27] = (void *)wf_mega;
     vt[28] = (void *)wf_under;
-    vt[29] = (void *)wf_v50;    /* the Platform tail's own, per class below */
+    /* Slot 29 is Actor::OnAimedAtWithEgg (arm9 0x02010124), the egg lock-on
+       radius. It used to forward to Virtual50, which is a different function
+       returning a different constant; the ROM tables all name 0x02010124
+       here. */
+    vt[29] = (void *)wf_egg;
     vt[30] = (void *)wf_trap30;
 }
 
@@ -186,7 +222,7 @@ extern "C" {
 int _ZN14MovingBarSmall13InitResourcesEv(char *self);  /* .cpp, but extern "C" */
 int _ZN14MovingBarSmall8BehaviorEv(char *self);   /* .c, C linkage */
 int *_ZN14MovingBarSmallD1Ev(int *self);          /* .c, C linkage */
-void *_ZTV14MovingBarSmall[31];
+void *_ZTV14MovingBarSmall[32];
 }
 /* The address 0x02114650 answers to both _ZTV names; the class D1 restores it
    by its RTTI name. */
@@ -213,6 +249,11 @@ extern "C" void hal_fill_tower_step_vtable(void)
     vt[6] = (void *)ts_behavior;
     vt[9] = (void *)ts_render;
     vt[16] = (void *)ts_d1;
+    /* 32 slots. _ZTV14MovingBarSmall overrides two of the tail with its own
+       ov015 bodies, both matched in src and in no slice: 27 OnHitByMegaChar
+       (0x021123a0) and 31 Kill (0x0211233c). */
+    vt[27] = (void *)wf_trap27;
+    vt[31] = (void *)wf_trap31;
 }
 
 // ============================================================================
@@ -228,7 +269,7 @@ extern "C" void hal_fill_tower_step_vtable(void)
 #include "TowerStep.h"
 extern "C" {
 int *_ZN9TowerStepD1Ev(int *self);                /* .c, C linkage */
-void *_ZTV9TowerStep[31];
+void *_ZTV9TowerStep[32];
 }
 #pragma comment(linker, "/alternatename:__ZTV17daObjBk_Rotebar_c=__ZTV9TowerStep")
 static int __fastcall rb_init(void *s, void *)
@@ -253,6 +294,9 @@ extern "C" void hal_fill_rotating_bridge_vtable(void)
     vt[6] = (void *)rb_behavior;
     vt[9] = (void *)rb_render;
     vt[16] = (void *)rb_d1;
+    /* 32 slots -- this is ROTATING_BRIDGE's table, the class the slot-31 probe
+       crashed on. Slot 31 is Platform::Kill, not overridden. */
+    vt[31] = (void *)wf_kill;
 }
 
 // ============================================================================
@@ -299,6 +343,9 @@ extern "C" void hal_fill_pole_billboard_vtable(void)
     vt[6] = (void *)pb_behavior;
     vt[9] = (void *)pb_render;
     vt[16] = (void *)pb_d1;
+    /* THIRTY-ONE and correct: id 42 POLE_BILLBOARD installs the billboard base
+       table, which is a plain Actor and not a Platform, so it has no slot 31.
+       The only one of the seven that does not grow. */
 }
 
 // ============================================================================
@@ -315,7 +362,7 @@ extern "C" {
 int _ZN13PoleBillboard13InitResourcesEv(char *self);  /* .c, C linkage */
 int _ZN13PoleBillboard8BehaviorEv(char *self);         /* .cpp extern "C" */
 int *_ZN13PoleBillboardD1Ev(int *self);                /* .c, C linkage */
-void *_ZTV13PoleBillboard[31];
+void *_ZTV13PoleBillboard[32];
 }
 #pragma comment(linker, "/alternatename:__ZTV17daObjBk_Botaosi_c=__ZTV13PoleBillboard")
 static int __fastcall kp_init(void *s, void *)
@@ -340,6 +387,14 @@ extern "C" void hal_fill_knock_down_plank_vtable(void)
     vt[6] = (void *)kp_behavior;
     vt[9] = (void *)kp_render;
     vt[16] = (void *)kp_d1;
+    /* 32 slots. _ZTV13PoleBillboard overrides four of the tail with its own
+       ov015 bodies, all matched in src and none in a slice: 23 OnAttacked2
+       (0x02111408), 24 OnKicked (0x021113fc), 27 OnHitByMegaChar (0x021113c0)
+       and 31 Kill, which is Platform's (0x020ee55c). */
+    vt[23] = (void *)wf_trap23;
+    vt[24] = (void *)wf_trap24;
+    vt[27] = (void *)wf_trap27;
+    vt[31] = (void *)wf_kill;
 }
 
 // ============================================================================
@@ -359,7 +414,7 @@ int func_ov015_02112c84(char *self);   /* slot 3  CleanupResources */
 int func_ov002_020b6718(char *self);   /* slot 6  Behavior (ov002 base) */
 int func_ov002_020b66f0(char *self);   /* slot 9  Render (ov002 base) */
 int *func_ov015_02112bd0(int *self);   /* slot 16 D1 */
-void *data_ov015_021147e8[31];
+void *data_ov015_021147e8[32];
 void *RotatingPlatformWf_Spawn(void);
 }
 #pragma comment(linker, "/alternatename:__ZTV17daObjBk_Ukisima_c=_data_ov015_021147e8")
@@ -399,6 +454,8 @@ extern "C" void hal_fill_rotating_platform_wf_vtable(void)
     vt[6] = (void *)rp_behavior;
     vt[9] = (void *)rp_render;
     vt[16] = (void *)rp_d1;
+    /* 32 slots; slot 31 is Platform::Kill. dsd's bound reads 15 words here. */
+    vt[31] = (void *)wf_kill;
 }
 
 // ============================================================================
@@ -442,7 +499,7 @@ extern "C" {
 int _ZN14KnockDownPlank8BehaviorEv(void *self);          /* host copy, extern C */
 int *_ZN14KnockDownPlankD1Ev(int *self);                 /* .c, C linkage */
 void port_knock_down_plank_states_seat(void);            /* the two-table seat */
-void *_ZTV14KnockDownPlank[31];
+void *_ZTV14KnockDownPlank[32];
 }
 #pragma comment(linker, "/alternatename:__ZTV19daObjBk_Dossunbar_c=__ZTV14KnockDownPlank")
 /* Four spelling bridges the recovered ov015 source needs, none of them a src
@@ -488,6 +545,11 @@ extern "C" void hal_fill_moving_bar_vtable(void)
     vt[6] = (void *)mb_behavior;
     vt[9] = (void *)mb_render;
     vt[16] = (void *)mb_d1;
+    /* 32 slots. _ZTV14KnockDownPlank overrides two of the tail with its own
+       ov015 bodies, both matched in src and in no slice: 27 OnHitByMegaChar
+       (0x02111cb8) and 31 Kill (0x02111c3c). dsd's bound reads 3 words. */
+    vt[27] = (void *)wf_trap27;
+    vt[31] = (void *)wf_trap31;
 }
 
 // ============================================================================
