@@ -349,4 +349,26 @@ int _ZN12SwitchPillar6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- SPINDRIFT (actor 312, ov081, gate 192) -------------------------------
+   The same collision, one overlay over. src/_ZN9Spindrift6RenderEv.cpp guards
+   on the +0xb0 & 0x40000 draw bit, then dispatches `((Obj*)&mModelAnim)->m5(0)`
+   through a LOCAL six-virtual ROM-order shadow off mModelAnim at +0x110 (the
+   render probe's own offset), so its "slot 5" is the ROM's ModelAnim::Render;
+   the host _ZTV9ModelAnim's slot 5 is Virtual18, a two-arg method called with
+   the shadow's one arg -- it read a scale off the stack and handed
+   Model::Virtual10 a null matrix. MEASURED as a c0000005 in Model::Virtual10
+   (module offset +0x31fbc) the first frame a spindrift drew on the L10 selftest
+   -- the deterministic quarantine 7c3e71d86's .text-layout shift exposed. The
+   src is `o->m5(0)`: one null-scale draw, no scale arg. Excluded from
+   slice_gate192.txt, dispatched by C name from spd_render (actor_classes_ov081).
+   PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish case. */
+int _ZN9Spindrift6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    if (*(unsigned int *)(c + 0xb0) & 0x40000)
+        return 1;
+    ((ModelAnim *)(c + 0x110))->ModelAnim::Render(0);
+    return 1;
+}
+
 }  /* extern "C" */

@@ -213,11 +213,31 @@ endforeach()
 
 # ROM constants (sine table, default matrices): generated locally from the
 # extracted arm9 image so Nintendo bytes never enter the repo.
+# ROM-CLEAN (2026-08-10): when ON, romdata.py / ovdata.py emit ZEROED arrays and
+# a sidecar blob part; the ROMBLOB command below consolidates every part into
+# build/assets/romdata.bin (+ manifest + dispatch) and hal/romdata_loader.cpp
+# loads it at boot, so the shipped exe embeds no ROM bytes. Default OFF: every
+# other target keeps baking the bytes in exactly as before -- see
+# out/rom-clean/DESIGN.md and port/tools/romblob_common.py.
+option(PORT_ROM_CLEAN "Move baked ROM tables out of the exe into a runtime blob" OFF)
+if(PORT_ROM_CLEAN)
+    set(ROMCLEAN_FLAG --rom-clean)
+else()
+    set(ROMCLEAN_FLAG "")
+endif()
+# Every emitter that ships ROM bytes appends its .blobmap here; ROMBLOB reads them.
+set(ROMCLEAN_PARTS "")
+
 set(ROMDATA_C "${CMAKE_BINARY_DIR}/host-src/romdata.c")
 add_custom_command(OUTPUT "${ROMDATA_C}"
     COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/romdata.py" "${ROMDATA_C}"
+            ${ROMCLEAN_FLAG}
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/romdata.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob_common.py"
     COMMENT "romdata from extracted/arm9_dec.bin")
+if(PORT_ROM_CLEAN)
+    list(APPEND ROMCLEAN_PARTS "${ROMDATA_C}.blobmap")
+endif()
 
 add_executable(smoke_model tests/smoke_model.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
@@ -598,10 +618,15 @@ set(OV002DATA_C "${CMAKE_BINARY_DIR}/host-src/ov002_data.c")
 add_custom_command(OUTPUT "${OV002DATA_C}" "${OV002DATA_C}.map"
     COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ov002
             "${OV002DATA_C}" --from-list "${CMAKE_CURRENT_SOURCE_DIR}/ov002_syms.txt"
+            ${ROMCLEAN_FLAG}
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob_common.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/ov002_syms.txt"
     COMMENT "ovdata ov002")
 list(APPEND OV_DATA_MAPS "${OV002DATA_C}.map")
+if(PORT_ROM_CLEAN)
+    list(APPEND ROMCLEAN_PARTS "${OV002DATA_C}.blobmap")
+endif()
 
 # Gate 30: the LEVEL overlays, one whole-image mount each.
 #
@@ -751,11 +776,15 @@ foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
     add_custom_command(OUTPUT "${ovn_out}" "${ovn_out}.map"
         COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ${ovn}
-                "${ovn_out}" --whole
+                "${ovn_out}" --whole ${ROMCLEAN_FLAG}
         DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob_common.py"
         COMMENT "ovdata ${ovn} (whole image)")
     list(APPEND LEVEL_OV_DATA "${ovn_out}")
     list(APPEND OV_DATA_MAPS "${ovn_out}.map")
+    if(PORT_ROM_CLEAN)
+        list(APPEND ROMCLEAN_PARTS "${ovn_out}.blobmap")
+    endif()
 endforeach()
 
 # Gate 17: the level overlay's own actors. ov009 is mounted WHOLE for the
@@ -768,11 +797,15 @@ set(OV009SYMS_C "${CMAKE_BINARY_DIR}/host-src/ov009_syms.c")
 add_custom_command(OUTPUT "${OV009SYMS_C}" "${OV009SYMS_C}.map"
     COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ov009
             "${OV009SYMS_C}" --from-list
-            "${CMAKE_CURRENT_SOURCE_DIR}/ov009_syms.txt" --pack
+            "${CMAKE_CURRENT_SOURCE_DIR}/ov009_syms.txt" --pack ${ROMCLEAN_FLAG}
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob_common.py"
             "${CMAKE_CURRENT_SOURCE_DIR}/ov009_syms.txt"
     COMMENT "ovdata ov009 (per symbol, packed)")
 list(APPEND OV_DATA_MAPS "${OV009SYMS_C}.map")
+if(PORT_ROM_CLEAN)
+    list(APPEND ROMCLEAN_PARTS "${OV009SYMS_C}.blobmap")
+endif()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate17.txt" SLICE17_LINES)
 set(SLICE17_SOURCES "")
@@ -934,12 +967,16 @@ foreach(ovn IN LISTS PORT_ACTOR_OVERLAYS)
     add_custom_command(OUTPUT "${ovn_out}" "${ovn_out}.map"
         COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ${ovn}
                 "${ovn_out}" --from-list
-                "${CMAKE_CURRENT_SOURCE_DIR}/${ovn}_syms.txt" --pack
+                "${CMAKE_CURRENT_SOURCE_DIR}/${ovn}_syms.txt" --pack ${ROMCLEAN_FLAG}
         DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob_common.py"
                 "${CMAKE_CURRENT_SOURCE_DIR}/${ovn}_syms.txt"
         COMMENT "ovdata ${ovn} (per symbol, packed)")
     list(APPEND ACTOR_OV_SYMS "${ovn_out}")
     list(APPEND OV_DATA_MAPS "${ovn_out}.map")
+    if(PORT_ROM_CLEAN)
+        list(APPEND ROMCLEAN_PARTS "${ovn_out}.blobmap")
+    endif()
 endforeach()
 
 # THE CROSS-MOUNT POINTER PASS, last because it needs every map.
@@ -967,6 +1004,61 @@ add_custom_command(OUTPUT "${OVCROSS_C}"
             "${OVCROSS_C}" ${OV_DATA_MAPS}
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ${OV_DATA_MAPS}
     COMMENT "ovdata --cross (pointers between mounted overlays)")
+
+# ROM-CLEAN consolidation, last because it needs every emitter's part. It
+# concatenates the .blobpart files into build/assets/romdata.bin, writes the
+# manifest the loader checks, and generates romdata_dispatch.c
+# (port_romdata_load_all). walk_window links the dispatch + hal/romdata_loader.
+# The list is walk_window's exact emitter set; a target with a different set
+# would need its own blob, but only the shipped window is ROM-clean today.
+# The blob lands in the REPO-ROOT build/assets/ (beside files.tsv/handles.tsv):
+# the loader resolves <asset_root>/build/assets/romdata.bin -- the same seam
+# fs.cpp uses for the catalogs -- and asset_root defaults to PORT_REPO_ROOT,
+# which is the repo root, NOT ${CMAKE_BINARY_DIR} (= build/port).
+set(ROMDATA_BIN "${PORT_REPO_ROOT_ABS}/build/assets/romdata.bin")
+set(ROMDATA_MANIFEST "${PORT_REPO_ROOT_ABS}/build/assets/romdata.manifest")
+set(ROMDATA_DISPATCH_C "${CMAKE_BINARY_DIR}/host-src/romdata_dispatch.c")
+if(PORT_ROM_CLEAN)
+    # The .blobpart/.blobmap sidecars are written by the SAME emitter commands
+    # that write the .c files, so depend on the .c OUTPUTs (which CMake knows how
+    # to build) and mark the parts GENERATED. Depending on the parts directly
+    # would be "no rule to make target" -- they are side-effects, not OUTPUTs.
+    set(ROMCLEAN_C_OUTPUTS "${ROMDATA_C}" "${OV002DATA_C}" ${LEVEL_OV_DATA}
+        "${OV009SYMS_C}" ${ACTOR_OV_SYMS})
+    set_source_files_properties(${ROMCLEAN_PARTS} PROPERTIES GENERATED TRUE)
+    add_custom_command(
+        OUTPUT "${ROMDATA_BIN}" "${ROMDATA_MANIFEST}" "${ROMDATA_DISPATCH_C}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob.py"
+                "${ROMDATA_BIN}" "${ROMDATA_MANIFEST}" "${ROMDATA_DISPATCH_C}"
+                ${ROMCLEAN_PARTS}
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob.py"
+                ${ROMCLEAN_C_OUTPUTS}
+        COMMENT "romblob: consolidate ROM tables -> build/assets/romdata.bin")
+    # A build-time self-check: the blob slices must byte-match the arrays the
+    # emitters would bake. Guards against a drift between the two code paths.
+    add_custom_command(
+        OUTPUT "${CMAKE_BINARY_DIR}/assets/romblob_verified.stamp"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob_verify.py"
+                "${PORT_REPO_ROOT_ABS}" "${CMAKE_BINARY_DIR}"
+                "${ROMDATA_MANIFEST}" "${ROMDATA_BIN}"
+        COMMAND ${CMAKE_COMMAND} -E touch
+                "${CMAKE_BINARY_DIR}/assets/romblob_verified.stamp"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob_verify.py"
+                "${ROMDATA_BIN}" "${ROMDATA_MANIFEST}"
+        COMMENT "romblob self-check: blob bytes == baked bytes")
+    # The portable kit rebuilds romdata.bin on the player's machine from their
+    # own dump; the recipe is the shippable how (offsets and hashes, zero ROM
+    # bytes). Generated here, self-verified against the local extracted images,
+    # so it can never drift from the manifest it names.
+    set(ROMDATA_RECIPE "${PORT_REPO_ROOT_ABS}/build/assets/romdata.recipe.tsv")
+    add_custom_command(
+        OUTPUT "${ROMDATA_RECIPE}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob_recipe.py"
+                "${ROMDATA_MANIFEST}" "${ROMDATA_RECIPE}"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/romblob_recipe.py"
+                "${ROMDATA_MANIFEST}"
+        COMMENT "romblob recipe: manifest -> kit extraction recipe")
+endif()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate18.txt" SLICE18_LINES)
 set(SLICE18_SOURCES "")
@@ -2370,6 +2462,19 @@ target_compile_definitions(walk_window PRIVATE SM64DS_PLATFORM_PC
     # this target links hal/cxx_aliases.cpp, which already carries
     # the Heap::_Deallocate face hal/blend_vtable.cpp repeats
     PORT_CXX_ALIASES_LINKED)
+# ROM-CLEAN: the shipped window loads its ROM tables from romdata.bin at boot.
+# The dispatch (generated) + loader come in as extra sources, PORT_ROM_CLEAN
+# turns on the port_romdata_load() call in walk_window.cpp, and a custom target
+# makes the blob + self-check a build prerequisite.
+if(PORT_ROM_CLEAN)
+    target_sources(walk_window PRIVATE "${ROMDATA_DISPATCH_C}"
+                   hal/romdata_loader.cpp)
+    target_compile_definitions(walk_window PRIVATE PORT_ROM_CLEAN)
+    add_custom_target(romblob_ready_ww DEPENDS "${ROMDATA_BIN}"
+        "${CMAKE_BINARY_DIR}/assets/romblob_verified.stamp"
+        "${ROMDATA_RECIPE}")
+    add_dependencies(walk_window romblob_ready_ww)
+endif()
 if(MSVC)
     target_compile_options(walk_window PRIVATE /wd4311 /wd4312 /wd4068 /wd4576)
 endif()
@@ -2429,6 +2534,12 @@ target_compile_definitions(walk_window_hires PRIVATE SM64DS_PLATFORM_PC
     # this target links hal/cxx_aliases.cpp, which already carries
     # the Heap::_Deallocate face hal/blend_vtable.cpp repeats
     PORT_CXX_ALIASES_LINKED)
+if(PORT_ROM_CLEAN)
+    target_sources(walk_window_hires PRIVATE "${ROMDATA_DISPATCH_C}"
+                   hal/romdata_loader.cpp)
+    target_compile_definitions(walk_window_hires PRIVATE PORT_ROM_CLEAN)
+    add_dependencies(walk_window_hires romblob_ready_ww)
+endif()
 if(MSVC)
     target_compile_options(walk_window_hires PRIVATE /wd4311 /wd4312 /wd4068 /wd4576)
 endif()
