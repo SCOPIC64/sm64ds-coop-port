@@ -526,21 +526,30 @@ extern "C" void *hal_actor_shared_pdes(void) { return (void *)ac_pdes_base; }
 // It is only ever installed BETWEEN two member teardowns and nothing dispatches
 // through it while it is there, so the port gives it the shared half and traps
 // the rest: if a future class does dispatch, it says which slot.
-extern "C" { void *_ZTV10dBgActor_c[32]; }
+//
+// THIRTY-TWO WORDS, not twenty. This is the ROM's Platform base table: 20..30
+// are Actor's own interaction list and 31 is Platform::Kill. The prefill loop
+// stopped at 20 with the array, so the width had to move with it or 20..31
+// would have stayed null.
+extern "C" { void *_ZTV10dBgActor_c[32]; extern void *_ZTV8Platform[32]; }
 extern "C" void hal_fill_platform_vtable(void)
 {
     static int done;
     if (done) return;
     done = 1;
-    for (int i = 0; i < 32; ++i)
-        _ZTV10dBgActor_c[i] = (void *)plat_trap;
-    ac_fill_shared(_ZTV10dBgActor_c);
-    _ZTV10dBgActor_c[12] = (void *)ac_pdes_base;
-    /* This IS the ROM's Platform base table (ov002 0x0210ae38) and it is 32
-       words: 20..30 are Actor's own interaction list and 31 is Platform::Kill.
-       The prefill loop stopped at 20 while the array did, so the width has to
-       move with it or 20..31 stay null. */
-    _ZTV10dBgActor_c[31] = (void *)ac_kill;
+    /* _ZTV8Platform (hal/actor_vtables.cpp) is the SAME ROM table under the
+       other name a destructor TU may spell; it was plain zeroed storage, so a
+       dispatch through it while it was the installed vptr called address 0.
+       Both get the same contents. */
+    void **tabs[2] = { _ZTV10dBgActor_c, _ZTV8Platform };
+    for (int k = 0; k < 2; ++k) {
+        void **vt = tabs[k];
+        for (int i = 0; i < 32; ++i)
+            vt[i] = (void *)plat_trap;
+        ac_fill_shared(vt);
+        vt[12] = (void *)ac_pdes_base;
+        vt[31] = (void *)ac_kill;
+    }
 }
 
 // ---- BLACK_BRICK_BLOCK (actor 17, ov002) x1 --------------------------------

@@ -169,7 +169,7 @@ static int __fastcall bw_trap19(void *s, void *) { bw_trap_report(s, 19); return
    Their own `ret` is unreachable -- port_actor_slot_decline aborts or raises
    for the quarantine handler -- so the two-parameter shape is dead code. */
 #define BW_TRAP(n)     static int __fastcall bw_trap##n(void *s, void *)     { bw_trap_report(s, n); return 0; }
-BW_TRAP(21) BW_TRAP(29) BW_TRAP(30) BW_TRAP(31)
+BW_TRAP(21) BW_TRAP(22) BW_TRAP(27) BW_TRAP(29) BW_TRAP(30) BW_TRAP(31)
 #undef BW_TRAP
 
 /* Actor's own interaction tail. Slots 21..28 take an argument the __thiscall
@@ -1095,6 +1095,13 @@ extern "C" void hal_fill_arrow_sign_vtable(void)
     vt[12] = (void *)bw_pdes_base;
     vt[16] = (void *)as_d1;
     vt[17] = (void *)bw_trap17;
+    /* 32 slots (ov098 0x0213c3d8; the next-symbol bound reads 23 and is
+       wrong). Two of the tail are the sign's own bodies, matched in src and in
+       no slice: 22 OnAttacked1 (0x02137d40) and 27 OnHitByMegaChar
+       (0x02137d80). Slot 31 is its own Kill (0x02137ccc), also unbuilt. */
+    vt[22] = (void *)bw_trap22;
+    vt[27] = (void *)bw_trap27;
+    vt[31] = (void *)bw_trap31;
 }
 
 // ---- WATER_BOMB (208, ov098) x2 -- REGISTERED (gate 55) --------------------
