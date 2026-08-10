@@ -337,7 +337,12 @@ int func_ov018_02112730(void *self);         /* slot 6, Behavior */
 int func_ov018_021126d4(void *self);         /* slot 16, D1 */
 int *func_ov018_021126f8(void *self);        /* slot 17, D0 (the name decoy) */
 int *PowerStarCreate_Spawn(void);            /* installs data_ov018_02113a74 */
-int data_ov018_02113a74[18];                 /* the unnamed vtable, host array */
+/* THIRTY-ONE, not 18. dsd emitted an ambiguous symbol (data_ov018_02113abc)
+   at word 18 of this table, so the next-symbol bound reads 18 and the earlier
+   note here said "the table is 18 words, ends here". The reloc run says 31:
+   18..30 are Actor's own list, and slot 31 is _ZTI15daObjIceBoard_c, the RTTI
+   record of the NEXT object. A plain Actor table, no Platform Kill. */
+int data_ov018_02113a74[31];                 /* the unnamed vtable, host array */
 }
 /* func_ov018_02112730.cpp (Behavior) declares its OWN local `struct Actor {
    static int Spawn(unsigned, unsigned, const Vector3&, const Vector3_16*,
@@ -542,7 +547,23 @@ extern "C" void hal_fill_power_star_create_vtable(void)
     vt[12] = (void *)ccm_pdes;
     vt[16] = (void *)psc_d1;
     vt[17] = (void *)psc_d0;
-    /* no slot 18+: the table is 18 words, ends here */
+    /* 18..30: the shared Actor tail. POWER_STAR_CREATE overrides none of it --
+       every one of those words in the ROM table is the arm9 base body -- so it
+       takes the same halves ccm190_fill_shared binds for ICE_SHEET and
+       ONE_UP_LOGO. Slot 30 declines (Vector3 by value, sret unproved). */
+    vt[18] = (void *)ccm190_yoshi;
+    vt[19] = (void *)ccm190_egg;
+    vt[20] = (void *)ccm190_v50;
+    vt[21] = (void *)ccm190_pounded;
+    vt[22] = (void *)ccm190_atk1;
+    vt[23] = (void *)ccm190_atk2;
+    vt[24] = (void *)ccm190_kicked;
+    vt[25] = (void *)ccm190_pushed;
+    vt[26] = (void *)ccm190_cannon;
+    vt[27] = (void *)ccm190_mega;
+    vt[28] = (void *)ccm190_under;
+    vt[29] = (void *)ccm190_aimed;
+    vt[30] = (void *)ccm190_trap30;
 }
 
 // ---- ONE_UP_LOGO fill (Actor, 31 slots, no Kill) ---------------------------

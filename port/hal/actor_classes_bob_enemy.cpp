@@ -440,13 +440,18 @@ void *_ZN10ChainChompD1Ev(void *self);
 void *_ZN10ChainChompD0Ev(void *self);
 void *_ZTV10ChainChomp[31];
 
+void _ZN8Platform4KillEv(void *self);                   /* slot 31 */
 int _ZN15ChainChompFence13InitResourcesEv(void *self);  /* face: below */
 int _ZN15ChainChompFence8BehaviorEv(void *self);        /* face: below */
 int _ZN15ChainChompFence6RenderEv(void *self);          /* host copy */
 int _ZN15ChainChompFence16CleanupResourcesEv(void *self); /* face: below */
 int *_ZN15ChainChompFenceD1Ev(int *self);
 int *_ZN15ChainChompFenceD0Ev(int *self);
-void *_ZTV15ChainChompFence[31];
+/* THIRTY-TWO, not 31: the fence is a Platform subclass (ov014 0x021148b0) and
+   its slot 31 is Platform::Kill. Thirty-one is the plain Actor width. dsd left
+   an ambiguous symbol at word 1, so the next-symbol bound reads 1 here and the
+   reloc run is what says 32. */
+void *_ZTV15ChainChompFence[32];
 }
 
 static int __fastcall cc_init(void *s, void *)
@@ -491,6 +496,8 @@ static int __fastcall ccf_behavior(void *s, void *)
 static int __fastcall ccf_render(void *s, void *)
 { port_actor_render_probe("CHAIN_CHOMP_FENCE", (char *)s + 0xd4);
   return _ZN15ChainChompFence6RenderEv(s); }
+static int __fastcall ccf_kill(void *s, void *)
+{ _ZN8Platform4KillEv(s); return 0; }
 static int __fastcall ccf_d1(void *s, void *)
 { return (int)(size_t)_ZN15ChainChompFenceD1Ev((int *)s); }
 static int __fastcall ccf_d0(void *s, void *)
@@ -508,6 +515,9 @@ extern "C" void hal_fill_chain_chomp_fence_vtable(void)
     vt[9] = (void *)ccf_render;
     vt[16] = (void *)ccf_d1;
     vt[17] = (void *)ccf_d0;
+    /* slot 31, the Platform tail; the fence does not override it. pile_kill is
+       the same one-line forward to _ZN8Platform4KillEv the stump takes. */
+    vt[31] = (void *)ccf_kill;
 }
 
 // ============================================================================
