@@ -1440,3 +1440,27 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    real body (src/..., a plain .c file, C linkage by default, in the
    build since gate 10) is the flat name. */
 #pragma comment(linker, "/alternatename:?_ZN25MovingCylinderClsnWithPos4InitEP5ActorRK7Vector35Fix12IiES6_jj@@YAXPAX0PBXHHII@Z=__ZN25MovingCylinderClsnWithPos4InitEP5ActorRK7Vector35Fix12IiES6_jj")
+/* gate 193: func_ov072_02120a08.cpp (daBgSnwmn_c::Behavior, matched src)
+   declares data_ov072_02122c70 as `extern const Vector3`, which MSVC
+   mangles WITH the const qualifier; ovdata.py's generated host array is a
+   flat C u8[12] under the plain name. */
+#pragma comment(linker, "/alternatename:?data_ov072_02122c70@@3UVector3@@B=_data_ov072_02122c70")
+/* gate 193: src/_ZN11BabyPenguinD0Ev.c spells the class's own table as
+   _ZTV9daPgBby_c (a plain C-linkage name, dsd's RTTI-derived spelling),
+   the same address as hal/actor_classes_ov072.cpp's own host array
+   _ZTV11BabyPenguin. */
+#pragma comment(linker, "/alternatename:__ZTV9daPgBby_c=__ZTV11BabyPenguin")
+/* gate 193: func_ov072_02120e50.cpp (daBgSnwmn_c's own Behavior-adjacent
+   penguin-catch helper, matched src) calls Player::TryGrab through a
+   LOCAL shadow class declaring it `bool TryGrab(Actor&)` -- MSVC mangles
+   the RETURN TYPE in, producing ?TryGrab@Player@@QAE_NAAUActor@@@Z (_N =
+   bool). The real body (src/_ZN6Player7TryGrabER5Actor.cpp, gate 10,
+   already in the build) is extern "C", flat, returns plain int -- same
+   ABI-level truthy return, different label only. */
+#pragma comment(linker, "/alternatename:?TryGrab@Player@@QAE_NAAUActor@@@Z=__ZN6Player7TryGrabER5Actor")
+/* gate 193: func_ov072_021218dc.cpp (BabyPenguin's own state-machine
+   body, matched src) declares data_ov072_02122cac/02122ca4 as `extern
+   void*[]` OUTSIDE any extern "C" block, so MSVC mangles them; ovdata.py's
+   generated host arrays are flat C u8[] under the plain names. */
+#pragma comment(linker, "/alternatename:?data_ov072_02122cac@@3PAPAXA=_data_ov072_02122cac")
+#pragma comment(linker, "/alternatename:?data_ov072_02122ca4@@3PAPAXA=_data_ov072_02122ca4")

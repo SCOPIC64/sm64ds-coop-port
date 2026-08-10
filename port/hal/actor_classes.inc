@@ -114,6 +114,19 @@ void hal_fill_mr_blizzard_vtable(void);
 extern unsigned char IceBlock_SpawnInfo[];              /* ov081 0x02128ca0 */
 void *IceBlock_Spawn(void);                             /* ov081 0x021280a0 */
 void hal_fill_ice_block_vtable(void);
+/* ---- gate 193: ov072's BABY_PENGUIN (256) + the actual SNOWMAN (272,
+   the unnamed daBgSnwmn_c block -- NOT SnowmanBody/SnowmanHead, see
+   port/ov072_syms.txt), a fresh per-symbol mount (ov072_syms.txt).
+   SpawnInfo records come from that mount; both vtable fills are in
+   hal/actor_classes_ov072.cpp. daBgSnwmn_c's own SpawnInfo has no clean
+   dsd name -- data_ov072_02122954 is what the ROM's own spawn table
+   entry resolves to. */
+extern unsigned char data_ov072_02122954[];             /* ov072 0x02122954 */
+void *func_ov072_02120c00(void);                        /* ov072 0x02120c00 */
+void hal_fill_snowman_vtable(void);
+extern unsigned char BabyPenguin_SpawnInfo[];           /* ov072 0x02122a6c */
+void *BabyPenguin_Spawn(void);                          /* ov072 0x02121fac */
+void hal_fill_baby_penguin_vtable(void);
 /* ---- gate 18: ov085, the first ACTOR overlay ----
    Not the engine overlay and not the level's -- six classes several levels
    share, of which the castle grounds names two. The SpawnInfo records come
@@ -904,6 +917,29 @@ void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlat
       hal_fill_ice_block_vtable}, \
      {312, "SPINDRIFT", Spindrift_SpawnInfo, Spindrift_Spawn, \
       hal_fill_spindrift_vtable}, \
+     /* ---- gate 193: the actual SNOWMAN (272), ov072 ---- */ \
+     /* BABY_PENGUIN (256) is NOT registered here -- crashes deep in the
+        shared actor-Process pipeline (func_0204322c/port_dispatch_guarded,
+        the same infra gate 192's MrBlizzard exclusion already implicated)
+        a handful of frames after boot, a corrupted-instruction-pointer
+        jump (module-relative fault offset far outside the module's own
+        code span) rather than a null-deref. Traced with a temporary debug
+        probe (removed): the 6-cell PMF seat is verified correct (all six
+        cells hold valid host function addresses, confirmed byte for byte
+        against overlay_0072.bin before rewriting), Behavior dispatches
+        cleanly for both spawned instances across ~25 frames with sane
+        cell data every time, and the crash is NOT render-frequency-
+        related (only one successful Render call precedes it). Isolated
+        to BABY_PENGUIN specifically (SM64DS_SKIP_CLASS=BABY_PENGUIN ->
+        exit 0; SKIP_CLASS=SNOWMAN still crashes). Needs the same ROM
+        disassembly access this lane does not have. SnowmanHead (273) and
+        SnowmanBody (274) also stay unregistered -- see port/ov072_syms.txt
+        for the class-identity derivation and the SnowmanHead spawn-then-
+        orphan coupling. BabyPenguin's own matched src, D0, six-cell PMF
+        seat and both host-copy translations stay in the tree, byte-locked
+        and ready, just unregistered in the actor-class table. */ \
+     {272, "SNOWMAN", data_ov072_02122954, func_ov072_02120c00, \
+      hal_fill_snowman_vtable}, \
     /* ---- gate 149: HAUNTED_CHAIR (326), Big Boo's Haunt (ov020, level 12) ---- */ \
     {326, "HAUNTED_CHAIR", HauntedChair_SpawnInfo, HauntedChair_Spawn, \
      hal_fill_haunted_chair_vtable}, \

@@ -876,6 +876,13 @@ void port_ov081_syms_patch(void);
 void __sinit_ov081_021280e8(void);
 void __sinit_ov081_02128154(void);
 void __sinit_ov081_021287b8(void);
+/* gate 193: ov072 per-symbol -- daBgSnwmn_c's ("SNOWMAN") and
+   BabyPenguin's own sinits, each self-contained. SnowmanBody's/
+   SnowmanHead's stay off. */
+void port_ov072_pack_check(void);
+void port_ov072_syms_patch(void);
+void __sinit_ov072_02122350(void);
+void __sinit_ov072_02122414(void);
 }
 
 extern "C" void port_actor_overlays_sinits(void)
@@ -1115,4 +1122,13 @@ extern "C" void port_actor_overlays_sinits(void)
     __sinit_ov081_021280e8();   /* SPINDRIFT */
     __sinit_ov081_02128154();   /* MR_BLIZZARD: also builds the 10-cell PMF table */
     __sinit_ov081_021287b8();   /* ICE_BLOCK */
+
+    /* gate 193: ov072's two own-class sinits (daBgSnwmn_c/"SNOWMAN",
+       BabyPenguin -- each self-contained, verified by reading their
+       bodies). SnowmanBody's (02122018) and SnowmanHead's (021221f8)
+       stay OFF -- neither class is hosted. */
+    port_ov072_pack_check();
+    port_ov072_syms_patch();
+    __sinit_ov072_02122350();   /* SNOWMAN (daBgSnwmn_c) */
+    __sinit_ov072_02122414();   /* BABY_PENGUIN: also builds the 6-cell PMF table */
 }
