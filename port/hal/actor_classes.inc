@@ -143,6 +143,18 @@ void hal_fill_switch_pillar_vtable(void);
 extern unsigned char BasementWater_SpawnInfo[];         /* ov012 0x021123e4 */
 void *BasementWater_Spawn(void);                        /* ov012 0x02111730 */
 void hal_fill_basement_water_vtable(void);
+/* ---- gate 200: PUSH_BLOCK (306) + MUGEN_BGM (351), ov002 (already
+   mounted; the SpawnInfo/vtable symbols joined ov002_syms.txt for this
+   gate). id 306's records are dsd's "PowerFlower" names -- a naming-race
+   decoy; PowerFlower_Spawn installs _ZTV9PushBlock itself (no SpawnInfo
+   +0x24 vtable word for this id). Both fills are in
+   hal/actor_classes_ov002g200.cpp. */
+extern unsigned char PowerFlower_SpawnInfo[];           /* ov002 0x021097a0, +4 reads 306 */
+void *PowerFlower_Spawn(void);                          /* ov002 0x020b9e0c */
+void hal_fill_pushblock_vtable(void);
+extern unsigned char MugenBgm_SpawnInfo[];              /* ov002 0x0210b560, +4 reads 351 */
+void *MugenBgm_Spawn(void);                             /* ov002 0x020f1f40 */
+void hal_fill_mugen_bgm_vtable(void);
 /* ---- gate 18: ov085, the first ACTOR overlay ----
    Not the engine overlay and not the level's -- six classes several levels
    share, of which the castle grounds names two. The SpawnInfo records come
@@ -989,6 +1001,12 @@ void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlat
       hal_fill_switch_pillar_vtable}, \
      {35, "BASEMENT_WATER", BasementWater_SpawnInfo, BasementWater_Spawn, \
       hal_fill_basement_water_vtable}, \
+     /* ---- gate 200: PUSH_BLOCK (306, the "PowerFlower" decoy) + MUGEN_BGM
+        (351), ov002 ---- */ \
+     {306, "PUSH_BLOCK", PowerFlower_SpawnInfo, PowerFlower_Spawn, \
+      hal_fill_pushblock_vtable}, \
+     {351, "MUGEN_BGM", MugenBgm_SpawnInfo, MugenBgm_Spawn, \
+      hal_fill_mugen_bgm_vtable}, \
     /* ---- gate 149: HAUNTED_CHAIR (326), Big Boo's Haunt (ov020, level 12) ---- */ \
     {326, "HAUNTED_CHAIR", HauntedChair_SpawnInfo, HauntedChair_Spawn, \
      hal_fill_haunted_chair_vtable}, \
