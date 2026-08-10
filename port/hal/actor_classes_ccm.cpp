@@ -479,6 +479,15 @@ extern "C" void hal_fill_ice_sheet_vtable(void)
     vt[3]  = (void *)ics_clean;
     vt[6]  = (void *)ics_behavior;
     vt[9]  = (void *)ics_render;
+    /* Slot 12, OnPendingDestroy: the same hole SKI_LIFT had, and the second
+       half of the level 10 exit crash. With SKI_LIFT alone fixed the teardown
+       walked from victim 14 to victim 89 and died on this table instead.
+       ROM-verified the same way, config/arm9/overlays/ov018/relocs.txt:
+           from:0x02113b64 kind:load to:0x02043ac0 module:main
+       where 0x02113b64 is _ZTV8IceSheet (0x02113b34) + 0x30 and 0x02043ac0 is
+       _ZN9ActorBase16OnPendingDestroyEv. Both Platform-derived fills in this
+       TU missed 12; the Actor-derived ones all seat it. */
+    vt[12] = (void *)ccm_pdes;
     vt[16] = (void *)ics_d1;
     vt[17] = (void *)ics_d0;
     vt[21] = (void *)ics_pounded;   /* own OnGroundPounded, overrides the shared default */
@@ -825,7 +834,7 @@ extern "C" void hal_fill_ski_lift_vtable(void)
     /* Slot 12, OnPendingDestroy. ccm190_fill_shared deliberately leaves 12 to
        the caller (it is the one Actor-head slot classes commonly override, so
        the shared half cannot guess it), and this fill was the only one in the
-       TU that never wrote it -- every other hal_fill_*_vtable here seats
+       TU that never wrote it. Every other hal_fill_*_vtable here seats
        ccm_pdes or its own body. Left zero, the slot was the LEVEL 10 EXIT
        CRASH: ActorBase::MarkForDestruction ends in `jmp [vtable+0x30]`, so the
        first teardown of Cool Cool Mountain jumped to address 0 and killed the
