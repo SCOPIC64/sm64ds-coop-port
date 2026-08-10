@@ -405,6 +405,19 @@ static unsigned pp_unique_id_of(void *actor)
     return 0xffffffffu;
 }
 
+/* Nineteen filler virtuals put the twentieth at vtable+0x4c, so MSVC emits
+   the same `call dword ptr [reg+0x4c]` for it that the ROM's three Yoshi
+   call sites emit for slot 19. Declared, never defined: only the call is
+   wanted, and the object is always a real actor with a real vtable. */
+struct PpEggSlot {
+    virtual void v0(); virtual void v1(); virtual void v2(); virtual void v3();
+    virtual void v4(); virtual void v5(); virtual void v6(); virtual void v7();
+    virtual void v8(); virtual void v9(); virtual void v10(); virtual void v11();
+    virtual void v12(); virtual void v13(); virtual void v14(); virtual void v15();
+    virtual void v16(); virtual void v17(); virtual void v18();
+    virtual int OnTurnIntoEgg(void *player);          /* vtable + 0x4c */
+};
+
 static void port_pound_probe(void)
 {
     static int armed = -1, at = 240, slot = 21;
@@ -447,26 +460,26 @@ static void port_pound_probe(void)
        MSVC emits the same `call dword ptr [reg+0x4c]` with the Player in the
        one pushed slot. Same contract, same instruction. */
     if (slot == 19) {
-        struct EggSlot {
-            virtual void v0(); virtual void v1(); virtual void v2();
-            virtual void v3(); virtual void v4(); virtual void v5();
-            virtual void v6(); virtual void v7(); virtual void v8();
-            virtual void v9(); virtual void v10(); virtual void v11();
-            virtual void v12(); virtual void v13(); virtual void v14();
-            virtual void v15(); virtual void v16(); virtual void v17();
-            virtual void v18();
-            virtual int OnTurnIntoEgg(void *player);   /* vtable + 0x4c */
-        };
-        unsigned before = *(unsigned *)((char *)target + 0x438);
+        /* Two readbacks, one per class. POWER_STAR's body stores the argument
+           it was handed at +0x438, so that word says whether the argument
+           survived the veneer; every Actor has shouldBeKilled at +0xf, which
+           is what BabyPenguin's OnTurnIntoEgg exists to set. */
+        int star = (want == 178);
+        unsigned arg0 = star ? *(unsigned *)((char *)target + 0x438) : 0u;
+        unsigned char kill0 = *((unsigned char *)target + 0xf);
         std::fprintf(stderr, "[pound] frame %ld: class %u %s actor %p, player "
                      "%p -- dispatching slot 19 (OnTurnIntoEgg)\n", frame, want,
                      port_actor_class_name(want), target, player);
         std::fflush(stderr);
-        int r = ((EggSlot *)target)->OnTurnIntoEgg(player);
-        unsigned after = *(unsigned *)((char *)target + 0x438);
-        std::fprintf(stderr, "[pound] RETURNED %d -- frame survived; +0x438 "
-                     "%08x -> %08x (player is %p, a code address would be a "
-                     "dropped return address)\n", r, before, after, player);
+        int r = ((PpEggSlot *)target)->OnTurnIntoEgg(player);
+        unsigned char kill1 = *((unsigned char *)target + 0xf);
+        std::fprintf(stderr, "[pound] RETURNED %d -- frame survived; "
+                     "shouldBeKilled %u -> %u\n", r, kill0, kill1);
+        if (star)
+            std::fprintf(stderr, "[pound] POWER_STAR +0x438 %08x -> %08x "
+                         "(player is %p; a module code address there is the "
+                         "dropped-argument bug)\n", arg0,
+                         *(unsigned *)((char *)target + 0x438), player);
         std::fflush(stderr);
         return;
     }

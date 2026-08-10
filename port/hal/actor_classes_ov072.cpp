@@ -231,7 +231,7 @@ int _ZN11BabyPenguin6RenderEv(void *self);                /* slot 9, faced */
 void _ZN11BabyPenguin16OnPendingDestroyEv(void);        /* slot 12, own, .c body takes void */
 int *_ZN11BabyPenguinD0Ev(int *self);                    /* slot 17, spells its own table */
 int func_ov072_02120cfc(void);                            /* slot 18, own OnYoshiTryEat, returns 7 */
-void func_ov072_02121fa0(void);                           /* slot 19, own OnTurnIntoEgg */
+void func_ov072_02121fa0(void *self);                     /* slot 19, own OnTurnIntoEgg */
 void *BabyPenguin_Spawn(void);                             /* installs _ZTV11BabyPenguin */
 int _ZTV11BabyPenguin[31];
 
@@ -340,11 +340,14 @@ static int __fastcall bp_d0(void *s, void *)
 static int __fastcall bp_yoshi(void *s, void *)
 { (void)s; return func_ov072_02120cfc(); }
 /* Slot 19 is OnTurnIntoEgg(Player &player): the caller pushes the player, so
-   the thunk needs the third parameter to pop it, even though the ov072 body
-   takes nothing. Two parameters leave the pushed word behind and the
-   caller's `ret` lands on its saved EBP. */
+   the thunk needs the third parameter to pop it. The ov072 body takes
+   nothing of its own, but it is the ROM's `ldr ip,[pc]; bx ip` veneer onto
+   ActorBase::MarkForDestruction, and a veneer is a tail jump on the host
+   too, so it forwards whatever this thunk pushed. Pushing nothing left
+   MarkForDestruction reading this thunk's own return address as its self,
+   marking a code address for destruction and leaving the penguin alive. */
 static int __fastcall bp_egg(void *s, void *, void *)
-{ (void)s; func_ov072_02121fa0(); return 0; }
+{ func_ov072_02121fa0(s); return 0; }
 
 extern "C" void hal_fill_baby_penguin_vtable(void)
 {
