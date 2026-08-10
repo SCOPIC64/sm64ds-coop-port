@@ -1174,10 +1174,14 @@ extern "C" void port_lvlperf_emit(void)
     g_lvlperf_ms[0] = g_lvlperf_ms[1] = g_lvlperf_ms[2] = g_lvlperf_ms[3] = 0;
 }
 
+/* SM64DS_MM_STALE=1 probe; defined beside port_level_reset_host below. */
+static void port_minimap_stale_probe(const char *when);
+
 void *port_stage_a_boot(void *mc, int spawn)
 {
     const double lvlperf_t0 = port_lvlperf_now();
     g_stage_mc = mc;
+    port_minimap_stale_probe("boot entry");
     /* Defensive: clear the quarantine freeze set on the LOAD side too. The
        teardown path (level_change.cpp) already resets it, but a future exit
        path that bypasses teardown would otherwise carry stale frozen actor
@@ -1348,6 +1352,7 @@ void *port_stage_a_boot(void *mc, int spawn)
        banks the level has already claimed, so it cannot run before the loads
        above. Everything it needs is up by now. */
     port_particle_boot();
+    port_minimap_stale_probe("boot done");
     port_lvlperf_note(1, port_lvlperf_now() - lvlperf_t0);
     return o;
 }
@@ -2290,6 +2295,63 @@ unsigned port_level_ds_overlay(int level);
 void port_actor_census_reset(void);      /* hal/actor_registry.cpp */
 }
 
+// ---- SM64DS_MM_STALE=1: what the minimap inherits across a level change -----
+//
+// GetMinimapID reads two independent things the ROM hands it FRESH on every
+// level and the port, which keeps one Stage alive across levels, does not:
+//
+//   1. the level AREA TABLE at Stage+0x8bc (stride 0xc). Its +8 word is the
+//      head of the per-area MINIMAP-CHANGE list that LoadSimpleObjects builds
+//      through LoadMinimapChangeObject, and GetMinimapID walks that list --
+//      `sub ecx,dword ptr [eax]` at GetMinimapID+0x33 is the node deref.
+//   2. the three MARKER ARRAYS Minimap::Behavior hands GetMinimapID as `obj`:
+//      data_0209f40c (12 star markers), data_0209f3e8 (9 stars),
+//      data_0209f3a4 (8 spike bombs). Stage::InitResources zeroes all three
+//      on every entry (src/_ZN5Stage13InitResourcesEv.cpp:284..300).
+//
+// The probe prints both at the top of the boot, BEFORE anything this level
+// loads has run, so a non-zero line is by definition the previous level's.
+extern "C" {
+extern int data_0209f40c[];
+extern unsigned char data_0209f3e8[];
+extern unsigned char data_0209f3a4[];
+extern void *data_0209f314;
+}
+
+static void port_minimap_stale_probe(const char *when)
+{
+    static int on = -1;
+    if (on < 0)
+        on = std::getenv("SM64DS_MM_STALE") != 0;
+    if (!on)
+        return;
+
+    const char *area = (const char *)data_0209f314;
+    int heads = 0, flags = 0, anims = 0;
+    if (area) {
+        for (int i = 0; i < 8; ++i) {
+            if (*(void **)(area + i * 0xc + 0)) ++anims;
+            if (*(unsigned char *)(area + i * 0xc + 4)) ++flags;
+            if (*(void **)(area + i * 0xc + 8)) ++heads;
+        }
+    }
+    int m40c = 0, m3e8 = 0, m3a4 = 0;
+    for (int i = 0; i < 12; ++i) if (data_0209f40c[i]) ++m40c;
+    for (int i = 0; i < 9; ++i)  if (((void **)data_0209f3e8)[i]) ++m3e8;
+    for (int i = 0; i < 8; ++i)  if (((void **)data_0209f3a4)[i]) ++m3a4;
+
+    std::fprintf(stderr,
+                 "[mm-stale] %s: area table %p anim=%d flag=%d CHANGELIST=%d | "
+                 "markers f40c=%d f3e8=%d f3a4=%d\n",
+                 when, (void *)area, anims, flags, heads, m40c, m3e8, m3a4);
+    if (area)
+        for (int i = 0; i < 8; ++i)
+            if (*(void **)(area + i * 0xc + 8))
+                std::fprintf(stderr, "[mm-stale]   area %d change-list head "
+                             "%p\n", i, *(void **)(area + i * 0xc + 8));
+    std::fflush(stderr);
+}
+
 extern "C" void port_level_reset_host(void)
 {
     /* THE SLOTS ARE DROPPED, NOT RELEASED, and that is a measured decision
@@ -2339,6 +2401,45 @@ extern "C" void port_level_reset_host(void)
     data_0209f338[0] = 0;
     data_020a0d84[0] = 0;
     data_020a0d88[0] = 0;
+
+    /* THE THREE MARKER ARRAYS, and they are the ROM's own lines rather than
+       port hygiene. Stage::InitResources zeroes eight things in one block
+       (src/_ZN5Stage13InitResourcesEv.cpp:284..307):
+
+           for (i = 0; i < 0xC; i++) data_0209f40c[i] = 0;
+           for (i = 0; i < 9;   i++) data_0209f3e8[i] = 0;
+           func_ov001_020ab2e4();
+           for (i = 0; i < 8;   i++) data_0209f3a4[i] = 0;
+           data_0209f1f8 = 0; data_0209f2d0 = 0; data_0209f258 = 0;
+           data_0209f2e8 = 0; data_0209f25c = 0; data_0209f338 = 0;
+
+       The port hand-rolls the boot and skips InitResources, so this function is
+       where that block lands -- and it carried the five scalars and not the
+       three ARRAYS. The three are the only entries in the block that hold ACTOR
+       POINTERS: SetStarMarker/PowerStar::AddStarMarker file into f40c, ov001
+       and func_0202a8e0 into f3e8, AddSpikeBomb into f3a4. Minimap::Behavior
+       walks all three every frame and hands each non-null slot to GetMinimapID
+       as `obj`, which reads obj->+0xcc as an AREA INDEX -- a signed byte. Left
+       stale, a slot still points at an actor the previous level's teardown
+       destroyed, +0xcc is whatever the freed block now holds, and an index of
+       40 or -60 walks the eight-entry area table off both ends into a
+       non-zero word that GetMinimapID then dereferences as a list node. That
+       is the fault at GetMinimapID+0x33 (`sub ecx,dword ptr [eax]`).
+
+       A direct boot never sees it because BSS starts zeroed, which is exactly
+       why this only ever showed up on the warp path.
+
+       Not carried, and why: data_0209f1f8 (the view-object count) is written
+       by LoadViewObjects on every boot before anything reads it, and
+       func_ov001_020ab2e4 is in ov001, which the port does not mount. */
+    {
+        extern int data_0209f40c[];
+        extern unsigned char data_0209f3e8[];
+        extern unsigned char data_0209f3a4[];
+        for (int i = 0; i < 12; ++i) data_0209f40c[i] = 0;
+        for (int i = 0; i < 9;  ++i) ((void **)data_0209f3e8)[i] = 0;
+        for (int i = 0; i < 8;  ++i) ((void **)data_0209f3a4)[i] = 0;
+    }
 }
 
 // ---- the Stage, between two levels -----------------------------------------
@@ -2388,6 +2489,41 @@ extern "C" void port_level_stage_reseat(void *stagev)
     char *stage = (char *)stagev;
 
     _ZN5Stage18ResetMeshCollidersEv();
+
+    /* THE AREA TABLE, the third level-owned member of the Stage and the one
+       this function was missing. Stage+0x8bc, stride 0xc, eight entries: the
+       extent is the Stage's own layout (include/Stage.h -- unk_8bc then
+       pad_8bd[0x5f], the next member being the level MeshCollider at +0x91c),
+       so 0x60 bytes, and the stride is the one ShowArea/HideArea/
+       IsAreaShowing, LoadMinimapChangeObject and port_stage_advance_anims all
+       index by. Per entry: a TextureTransformer* at +0, the "this area is
+       showing" flag at +4, and at +8 the head of the per-area MINIMAP-CHANGE
+       list.
+
+       On the ROM this needs no code. The Stage is destroyed and rebuilt per
+       level, so Stage::InitResources always finds the table zeroed, and
+       Stage::CleanupResources sets data_0209f314 = 0 so GetMinimapID's own
+       `if (table == 0) return the LVL_Overlay default` guard covers the gap in
+       between. The port keeps ONE Stage alive across levels on purpose
+       (hal/level_change.cpp says why), so it owes that freshness by hand --
+       which is what this whole function is, and it already does exactly this
+       for the level Model at +0x86c and the skybox at +0x9bc.
+
+       The +8 word is the one that faults. LoadSimpleObjects builds the list
+       through LoadMinimapChangeObject on every boot, appending to whatever
+       head it finds; carried across a change it appends the new level's nodes
+       onto the previous level's, and Minimap::Behavior then walks a chain
+       whose tail is in memory the next level re-used. GetMinimapID+0x33 is
+       `sub ecx,dword ptr [eax]` -- the node deref inside that walk.
+
+       Whomp's Fortress is the level that proves it: a tower level is full of
+       height-keyed minimap-change objects, and 7 -> 10 faults on entry where
+       every other pair in the 15x15 matrix does not.
+
+       Zeroing the +0 slots costs nothing extra: port_stage_advance_anims
+       already drops them itself on the first frame after the level id changes,
+       and leaks the same transformer objects either way. */
+    std::memset(stage + 0x8bc, 0, 0x60);
 
     /* the level model, in place */
     _ZN5ModelD2Ev(stage + 0x86c);
