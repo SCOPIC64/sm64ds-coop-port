@@ -116,6 +116,15 @@ src/_ZN13BigBrickBlock6RenderEv.cpp
 src/_ZN13BigBrickBlock16CleanupResourcesEv.cpp
 src/_ZN13BigBrickBlockD1Ev.c
 src/_ZN13BigBrickBlockD0Ev.c
+# The combat tail the ov002 relocations put on this table: slot 21
+# OnGroundPounded (0x02108b30 -> 0x020b382c) and the slot 31 Kill it
+# delegates to (0x02108b58 -> 0x020b38a0). Slot 22 OnAttacked1
+# (0x020b37ec) and slot 23 OnAttacked2 (0x020b3788) are deliberately NOT
+# here; see hal/actor_classes.cpp for why they stay trapped.
+src/func_ov002_020b382c.cpp
+src/func_ov002_020b38a0.c
+# Kill delegates to this one leaf (no further calls of its own).
+src/func_ov002_020b363c.c
 # ...and the ring it closes over: the MovingMeshCollider face, the Platform
 # helpers its lifecycle drives, and the event/star bits it reads.
 src/_ZN18MovingMeshColliderD1Ev.c

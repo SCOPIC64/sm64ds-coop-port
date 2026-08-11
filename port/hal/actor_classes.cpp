@@ -589,6 +589,19 @@ static int __fastcall bbb_d1(void *s, void *)
 static int __fastcall bbb_d0(void *s, void *)
 { return (int)(size_t)_ZN13BigBrickBlockD0Ev((int *)s); }
 
+/* Slot 21, OnGroundPounded(Actor &other). The declared third parameter is the
+   pounder: the caller pushes it and a __fastcall thunk only pops what it
+   declares, so two parameters would leave it on the stack. The body reads it
+   (its `a->f8` is the pounder's +8) and dispatches slot 31 as a C++ virtual,
+   which is why 31 is seated below rather than left trapped. */
+extern "C" void func_ov002_020b382c(void *self, void *other);
+static int __fastcall bbb_pounded(void *s, void *, void *other)
+{ func_ov002_020b382c(s, other); return 0; }
+/* Slot 31, Kill(). No arguments, so nothing to pop. */
+extern "C" void func_ov002_020b38a0(char *self);
+static int __fastcall bbb_kill(void *s, void *)
+{ func_ov002_020b38a0((char *)s); return 0; }
+
 extern "C" void hal_fill_black_brick_block_vtable(void)
 {
     void **vt = _ZTV13BigBrickBlock;
@@ -604,17 +617,39 @@ extern "C" void hal_fill_black_brick_block_vtable(void)
     /* A 32-slot Platform table, and BLACK_BRICK_BLOCK overrides six of the
        tail: 21 OnGroundPounded (ov002 0x020b382c), 22 OnAttacked1 (0x020b37ec),
        23 OnAttacked2 (0x020b3788), 24 OnKicked (0x020b36dc), 27 OnHitByMegaChar
-       (0x020b36b4) and 31 Kill (0x020b38a0). All six are matched in src and
-       NONE is in a slice, so forwarding to Actor's shared body would run the
-       wrong code for a block a player is meant to break. They decline by name
-       until the bodies are in the build; the other tail slots keep the shared
-       Actor bodies ac_fill_shared just wrote, which is what the ROM has. */
-    vt[21] = (void *)ac_trap21;
+       (0x020b36b4) and 31 Kill (0x020b38a0). Every address here is the ov002
+       relocation for base 0x02108adc + 4N, not a recovered name: actor id 15
+       is spelled BrickBlock in the registry but installs THIS table (RTTI
+       13daObjBlockL_c, the Large one), so a name-led read seats the wrong
+       class's bodies. Slots 28/29/30 relocate to main (0x0201012c, 0x02010124,
+       0x020100dc), the shared arm9 Actor bodies, and keep the shared thunks
+       ac_fill_shared just wrote.
+
+       21 and 31 are seated. 21 is the ground pound three players reported, and
+       it DELEGATES to 31: seating 21 alone would have moved the decline one
+       level down into Kill and still frozen the Player, which looks fixed and
+       is not. Both bodies are sliced with it (slice_gate16.txt) and 31's whole
+       closure was already linked.
+
+       22 AND 23 STAY TRAPPED ON PURPOSE, and this is not an oversight to tidy
+       up later. Slot 23's only dispatcher, src/func_ov002_020ef070.cpp:73,
+       models the vtable as plain function pointers taking self explicitly,
+       which is cdecl -- both arguments pushed and the CALLER cleaning eight --
+       while every seated thunk here is thiscall and pops its own. One word
+       cannot satisfy both, the same conflict slot 28 has, and seating a real
+       body under a cdecl caller trades a clean freeze for a corrupted stack.
+       Slot 22 is worse than merely blocked: its body (0x020b37ec) reaches slot
+       31 through `fn(c)`, a cdecl call, so seating 22 would put a cdecl caller
+       back on the slot 31 that was just seated thiscall and recreate the
+       conflict on a slot that is currently fine. Both need the host-copy
+       transform in unmatched/Player_HeadBonk.cpp before they can be seated.
+       Slot 24 is the same shape via src/func_ov002_020eeeb8.cpp:90. */
+    vt[21] = (void *)bbb_pounded;
     vt[22] = (void *)ac_trap22;
     vt[23] = (void *)ac_trap23;
     vt[24] = (void *)ac_trap24;
     vt[27] = (void *)ac_trap27;
-    vt[31] = (void *)ac_trap31;
+    vt[31] = (void *)bbb_kill;
 }
 
 // ---- STAR_MARKER (actor 180, ov002) ----------------------------------------
