@@ -1130,6 +1130,12 @@ list(APPEND SLICE18_SOURCES
 # slice_gate18.txt.
 list(APPEND SLICE18_SOURCES
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/RabbitKey_StateSeat.cpp")
+# r0-passthrough: func_ov085_0212b8dc (the RABBIT's state Main, daMip_c) calls
+# Actor::ClosestPlayer() with no argument, relying on `this` riding ARM r0. Host
+# copy passes `c`; src line commented out in slice_gate18.txt. (the actor-187
+# RABBIT null-this +0x5c crash, reachable once slot 19 made the rabbit swallowable)
+list(APPEND SLICE18_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov085_Rabbit_b8dc.cpp")
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate19.txt" SLICE19_LINES)
 set(SLICE19_SOURCES "")
