@@ -430,6 +430,167 @@ static void port_level_latch(void)
     data_02092110 = -1;
 }
 
+/* ---- WHAT A DECLINE OWES THE PLAYER ---------------------------------------
+   Consuming the request is not the whole of a decline. Whatever asked for the
+   level had already begun handing the player over, and on the ROM it never has
+   to take that back, because on the ROM the level always boots.
+
+   THE ONE THAT BIT TWO PLAYERS is the painting warp: EXIT (actor 349, class
+   VirtualDoor, ov002), which is hosted and ticks on every mounted level. Its
+   Behavior takes the player with the ROM's own
+
+       Player::SetNoControlState(6, -1, 0)
+
+   -- an INDEFINITE no-control -- and then, for a wall painting, seeds a
+   counter at the exit's +0x98 and pins the player's depth to it a frame at a
+   time until it clamps at -0x300000, which is 768 units behind the painting
+   plane. At the clamp it calls LoadLevel, and here we are.
+
+   Left alone, the decline below writes data_02092110 = -1 and returns, and
+   NOTHING undoes either half:
+     - the player stays in the no-control state, forever, because the argument
+       was -1;
+     - the exit's counter stays at the clamp, so the next frame clamps again,
+       calls LoadLevel again and is declined again, at frame rate.
+   Measured on castle_2f walking into the Snowman's Land painting (level 19,
+   not mounted): 124 declines in a 220-frame run, the player 768 units inside
+   the wall, and from there falling with no bottom and no rescue -- the run
+   ended with him 8900 units under the level and still in the same state.
+
+   The TILTED records -- the floor holes rather than the wall paintings, the
+   ones whose rotX is not zero (Rainbow Ride, Bowser in the Sky, rainbow_mario
+   on castle_2f, koopa2 in the basement) -- take the OTHER branch: they call
+   LoadLevel on the trigger frame and never seed the counter. So they decline
+   ONCE and go quiet, and the player is frozen with no repeating line to send
+   us. Same freeze, no evidence.
+
+   ---- WHY THE UNDO IS HERE AND NOT IN THE EXIT ------------------------------
+   Because the exit cannot see a decline. The whole body of
+   VirtualDoor::Behavior sits behind `data_02092110 < 0`, and after a decline
+   that word IS -1 -- byte-identical to "nothing pending", which is the ROM's
+   idle state. No bit anywhere distinguishes "no request" from "a request was
+   refused". Giving the exit one means either editing src/, which is gated
+   against the ROM's bytes, or shadowing a matched Behavior in port/hal with a
+   second copy that drifts from it.
+
+   And the exit is not the only requester. LoadLevel is reached from the star
+   flow, ExitLevel, HitDeathPlane, KillPlayer, the warp pipes and the debug
+   menu; teaching each one to notice a decline is this fix N times. The decline
+   site is the single place that knows a change was refused, and which level
+   was refused, on the frame it happened -- it already owns the consume line --
+   and everything the undo needs is reachable from it through the game's own
+   accessors.
+
+   ---- WHAT IT UNDOES, AND WHAT IT DELIBERATELY DOES NOT ---------------------
+   CONTROL comes back through the ROM's own way out of a no-control state, not
+   a flag cleared by hand: Player::Unk_020ca150(4) (ov002 0x020ca150), which is
+   what ov014's own actor calls to hand control back after its cutscene. It is
+   guarded on IsState(ST_NO_CONTROL), so it is a no-op when the requester was
+   not a cutscene at all, and its body is ChangeState(&data_ov002_0211013c) --
+   one of the four states ChangeState's own gate lets a no-control player leave
+   to. ChangeState is what clears the state: mIsControlDisabled directly, and
+   mIsNoControl through func_ov002_020c9e18. Nothing here writes either.
+
+   POSITION is undone only where the exit MOVED him, and the exit's own two
+   words say whether it did. +0x98 is the pull counter: non-zero means this
+   exit is mid pull-in and dragged him, zero means it never touched him. So:
+
+     - mid pull-in (a wall painting): put him back on the side of the plane he
+       came in from, at the depth the exit itself recorded when it took him
+       (+0x88, which the pull branch never writes, so it still holds the
+       crossing), MIRRORED across the plane -- the side he came from is by
+       definition the other side of the coordinate he crossed to, which needs
+       no assumption about which way the exit faces. His height is clamped back
+       into the exit's OWN trigger box, because the pull put him behind a wall
+       with no floor and he has been falling ever since; the bottom of that box
+       is the lowest point at which the ROM itself considers him to be at this
+       painting, and at a painting that is the floor in front of it. Then the
+       counter is cleared and +0x88 is set to where he now is, so the next
+       frame sees no crossing and the exit is armed again exactly as it was
+       before he walked up to it.
+
+     - never pulled (a tilted floor hole): HE IS NOT MOVED. The exit did not
+       displace him -- it fired on the trigger frame and the decline lands the
+       same frame -- so he is exactly where his own falling put him, one
+       stride into the mouth of the hole. Putting him back above it would only
+       drop him in again, and the record names no place to stand. Handing
+       control back is the whole of it, and it is enough: measured on
+       rainbow_mario (level 34) the frozen player falls through the level for
+       ever, and the frame control comes back the game's own ground contact
+       catches him 60 units down and he walks out.
+
+   NOT TOUCHED: the screen. Measured on both variants, the blend registers read
+   clear through the whole decline, so there is nothing covered to reopen, and
+   opening a wipe nobody closed would be inventing a transition. Nothing is
+   drawn and nothing is said on screen; whether a refused course should say so
+   is a product decision that has not been made.
+
+   NOT TOUCHED: anything on the path where the level change SUCCEEDS. This runs
+   only from a decline. */
+extern "C" {
+extern unsigned char data_0209f250;      /* local player index */
+extern void *data_0209f394[];            /* per-player Actor* */
+/* the same two calls VirtualDoor::Behavior itself uses */
+char *_ZN5Actor15FindWithActorIDEjPS_(unsigned int id, void *prev);
+void MulVec3Mat4x3(const void *in, const void *m, void *out);
+void InvMat4x3(const void *in, void *out);
+/* the ROM's own return from a no-control state (hal/bob_enemy_header_faces) */
+int _ZN6Player12Unk_020ca150Eh(void *self, unsigned char a);
+}
+
+enum { PORT_ACTOR_EXIT = 349 };
+
+/* The exit that is mid pull-in, or null. Only one can be: the counter is
+   seeded when the exit takes the player and cleared when it lets go, and
+   there is one player. */
+static char *port_exit_pulling(void)
+{
+    for (char *e = _ZN5Actor15FindWithActorIDEjPS_(PORT_ACTOR_EXIT, 0); e;
+         e = _ZN5Actor15FindWithActorIDEjPS_(PORT_ACTOR_EXIT, e))
+        if (*(int *)(e + 0x98) != 0)
+            return e;
+    return 0;
+}
+
+static void port_level_change_declined(void)
+{
+    char *player = (char *)data_0209f394[data_0209f250];
+    if (!player)
+        return;
+
+    char *ex = port_exit_pulling();
+    if (ex) {
+        /* +0xd4 is the exit's world-to-local matrix, built and inverted by
+           VirtualDoor::InitResources; the pull reads the player through it
+           and writes him back through its inverse, so this is that, once,
+           backwards. */
+        int local[3], inv[12];
+        MulVec3Mat4x3(player + 0x5c, ex + 0xd4, local);
+        local[2] = -*(int *)(ex + 0x88);
+        if (local[1] < 0)
+            local[1] = 0;
+        else if (local[1] > *(int *)(ex + 0x84))
+            local[1] = *(int *)(ex + 0x84);
+        InvMat4x3(ex + 0xd4, inv);
+        MulVec3Mat4x3(local, inv, player + 0x5c);
+
+        *(int *)(ex + 0x98) = 0;         /* let go of him */
+        *(int *)(ex + 0x88) = local[2];  /* and see him where he now is, so
+                                            standing still is not a crossing */
+        std::fprintf(stderr, "  [lvl] the exit had him 768 units in: pull "
+                     "released, put back at the painting (%d, %d, %d)\n",
+                     *(int *)(player + 0x5c) >> 12,
+                     *(int *)(player + 0x60) >> 12,
+                     *(int *)(player + 0x64) >> 12);
+    }
+
+    /* and the half that matters even when no exit asked: give control back. */
+    if (_ZN6Player12Unk_020ca150Eh(player, 4))
+        std::fprintf(stderr, "  [lvl] control handed back to the player "
+                     "(Player::Unk_020ca150, the ROM's own way out of "
+                     "SetNoControlState)\n");
+}
+
 extern "C" int port_level_change_apply(void)
 {
     if (data_02092110 < 0)
@@ -447,6 +608,7 @@ extern "C" int port_level_change_apply(void)
                      "\n", want, port_level_overlay_id(want),
                      port_level_ds_overlay(want));
         data_02092110 = -1;        /* consume it: a stuck request re-fires */
+        port_level_change_declined();   /* and take back the handover */
         return 0;
     }
 
@@ -458,6 +620,12 @@ extern "C" int port_level_change_apply(void)
         std::fprintf(stderr, "  [lvl] teardown failed; the change is "
                      "declined and the level stands\n");
         data_02092110 = -1;
+        /* DELIBERATELY NOT port_level_change_declined() here. This decline is
+           downstream of the teardown, which destroys every actor including
+           the Player, so data_0209f394 is dangling by the time we reach it and
+           handing "the player" control back would be a use-after-free. The
+           unmounted decline above is the only one that runs with the level
+           still standing. */
         return 0;
     }
 
