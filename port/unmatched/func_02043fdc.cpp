@@ -702,6 +702,17 @@ static int port_dispatch_guarded(PortListFn fn, void *actor)
    (port_stage_a_boot, level_boot.cpp) -- the load-side call is defensive, so a
    future exit path that bypasses teardown can never carry a stale pointer into
    a level where a new actor reuses the slot and gets wrongly skipped. */
+/* How many actors the instance freeze set is holding. The level teardown asks
+   so it can say, in the log, how many it reaped and whether the set it is about
+   to clear had anything in it -- the difference between a run that proves the
+   clear happened and one where the operator has to take it on faith. Reports
+   the INSTANCE leg only: the class latch is a rate limit on ids, not a set of
+   objects, and there is nothing to reap for it. */
+extern "C" int port_quarantine_frozen_count(void)
+{
+    return port_q_frozen_n;
+}
+
 extern "C" void port_quarantine_reset(void)
 {
     port_q_frozen_n = 0;

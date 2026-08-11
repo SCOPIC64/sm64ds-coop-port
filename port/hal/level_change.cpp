@@ -126,6 +126,9 @@ void _ZN9ActorBase18MarkForDestructionEv(void *self);
 void port_actor_tick(void);
 void port_quarantine_reset(void);   /* port/unmatched/func_02043fdc.cpp: clear
                                        the per-actor fault freeze set */
+int  port_quarantine_frozen_count(void);  /* same TU: how many actors
+                                       the instance freeze set holds, so the
+                                       teardown log can say what it reaped */
 int  port_quarantine_is_frozen(void *actor);  /* same TU: is this actor frozen?
                                        teardown excludes a frozen actor from the
                                        live census it pumps -- a frozen actor is
@@ -423,6 +426,147 @@ static void port_level_name_survivors(void)
     }
 }
 
+/* Unlink every quarantine-frozen actor from ALL FIVE structures the engine
+   walks -- the four processing lists and the scene tree -- and answer how many
+   frozen nodes are still linked afterwards. Zero means the freeze set is now
+   safe to clear.
+
+   THIS IS WHAT MAKES THE RESET SAFE ON A PATH THAT KEEPS THE LEVEL. Clearing
+   the freeze set un-freezes the actor, and an un-frozen actor is dispatched
+   again -- which, in a level whose other actors the teardown rounds have
+   already destroyed, is a walk over wreckage. The freeze is the only thing
+   holding it back only for as long as it is still LINKED. Once it is out of
+   every list and out of the tree, nothing can reach it to dispatch it, the
+   object is simply leaked, and the freeze set is holding nothing but stale
+   pointers. So: unlink first, then clear. That ordering is the whole reason the
+   clear can move upstream of the decline.
+
+   It answers a COUNT rather than void, and the count is checked, because
+   func_0203b3c0 refuses a scene node that still has children. If one frozen
+   node cannot come out, clearing the set would hand a dead object back to the
+   scene walk -- exactly the failure this exists to prevent -- so the caller
+   keeps the freeze in that case and says so out loud. Failing back to the old
+   permanent freeze is bad; failing forward into a per-frame walk over a dead
+   actor is worse. */
+static int port_level_drop_frozen(void)
+{
+    struct { const char *name; int *list; } lists[4] = {
+        {"behaviour", data_020a4b78}, {"pending", data_020a4b88},
+        {"render", data_020a4b98}, {"cleanup", data_020a4ba8}};
+    int stuck = 0;
+    for (int i = 0; i < 4; ++i) {
+        int *keep_head = 0, *keep_tail = 0;
+        int dropped = 0, guard = 0;
+        int *n = (int *)(size_t)lists[i].list[0];
+        for (; n && guard < 8192; ++guard) {
+            int *next = (int *)(size_t)n[1];
+            char *a = (char *)(size_t)n[2];
+            /* keep everything that is not frozen, the stage and a null owner
+               included: the generic dangling-node drop further down owns those
+               and it only runs once the rounds have converged. This pass is
+               allowed to run on a level that is going to STAND, so it must
+               touch nothing but the frozen. */
+            if (!a || !port_quarantine_is_frozen(a)) {
+                n[0] = (int)(size_t)keep_tail;
+                n[1] = 0;
+                if (keep_tail) keep_tail[1] = (int)(size_t)n;
+                else keep_head = n;
+                keep_tail = n;
+                n = next;
+                continue;
+            }
+            if (IsBadReadPtr(a, 0x10))
+                std::fprintf(stderr, "  [lvl] %s list: REAPED frozen node %p "
+                             "(actor %p id UNREADABLE) -- quarantined, so its "
+                             "cleanup never ran\n", lists[i].name, (void *)n,
+                             (void *)a);
+            else {
+                const unsigned id = *(unsigned short *)(a + 0xc);
+                std::fprintf(stderr, "  [lvl] %s list: REAPED frozen node %p "
+                             "(actor %p id 0x%x %s) -- quarantined, so its "
+                             "cleanup never ran\n", lists[i].name, (void *)n,
+                             (void *)a, id,
+                             id < 0x400 ? port_actor_class_name(id) : "?");
+            }
+            n[0] = 0; n[1] = 0;      /* the ROM unlink zeroes both; so do we */
+            ++dropped;
+            n = next;
+        }
+        if (dropped) {
+            /* head AND tail: every insert path links through list[1] */
+            lists[i].list[0] = (int)(size_t)keep_head;
+            lists[i].list[1] = (int)(size_t)keep_tail;
+        }
+    }
+    /* the scene tree, the fifth structure. Snapshot then unlink in REVERSE
+       pre-order, for the reason spelled out at the success-path drop below. */
+    {
+        static void *snode[1024];
+        int sn = 0, guard = 0;
+        int *n = (int *)(size_t)data_020a4b6c[0];
+        for (; n && guard < 8192; n = (int *)func_0203b394(n), ++guard) {
+            char *a = (char *)(size_t)n[4];
+            if (!a || !port_quarantine_is_frozen(a))
+                continue;
+            if (sn == (int)(sizeof snode / sizeof snode[0])) {
+                std::fprintf(stderr, "  [lvl] scene tree: FROZEN WALK DID NOT "
+                             "FINISH (cap %d) -- the freeze set will be kept\n",
+                             sn);
+                ++stuck;
+                break;
+            }
+            snode[sn++] = n;
+        }
+        for (int i = sn - 1; i >= 0; --i) {
+            int *nd = (int *)snode[i];
+            if (func_0203b3c0(data_020a4b6c, nd)) {
+                std::fprintf(stderr, "  [lvl] scene tree: REAPED frozen node "
+                             "%p (actor %p)\n", (void *)nd,
+                             (void *)(size_t)nd[4]);
+                continue;
+            }
+            std::fprintf(stderr, "  [lvl] scene tree: COULD NOT DROP frozen "
+                         "node %p (actor %p) -- it still has children\n",
+                         (void *)nd, (void *)(size_t)nd[4]);
+            ++stuck;
+        }
+    }
+    return stuck;
+}
+
+/* SM64DS_TEST_NOCONVERGE=<n>: force the next <n> teardowns down the DECLINE
+   branch whatever the census says. TEST BUILDS ONLY (PORT_TEST_HOOKS), and
+   compiled out of everything else -- it collapses to a `return 0` the optimiser
+   deletes.
+
+   It exists because the fix makes the branch it tests UNREACHABLE from a
+   quarantine, which is the point of the fix and also means the decline path's
+   own repair -- reaping the frozen actors and clearing the freeze set before
+   returning -- would otherwise never execute in any proof run. A path that
+   cannot be reached cannot be shown to work, and "we reasoned about it" is what
+   the previous attempt offered. This reaches it. */
+#ifndef PORT_TEST_HOOKS
+#define PORT_TEST_HOOKS 0
+#endif
+#if PORT_TEST_HOOKS
+static int port_test_noconverge(void)
+{
+    static int n = -1;
+    if (n < 0) {
+        const char *e = std::getenv("SM64DS_TEST_NOCONVERGE");
+        n = e ? std::atoi(e) : 0;
+        if (n > 0)
+            std::fprintf(stderr, "  [lvl] [testnc] ARMED: the next %d "
+                         "teardown(s) will be forced to DECLINE. TEST BUILD.\n",
+                         n);
+    }
+    if (n > 0) { --n; return 1; }
+    return 0;
+}
+#else
+static int port_test_noconverge(void) { return 0; }
+#endif
+
 extern "C" int port_level_teardown(void)
 {
     const int trace = std::getenv("SM64DS_TRACE_LEVEL") != 0;
@@ -440,52 +584,72 @@ extern "C" int port_level_teardown(void)
         if (!left)
             break;
     }
+    /* ---- REAP THE FROZEN, THEN CLEAR THE FREEZE SET, ON BOTH PATHS ---------
+
+       This sits ABOVE the verdict on purpose, and that position is half the
+       fix. The reset used to be at the very tail, so the `return 0` below
+       skipped it: once a teardown declined, the freeze set was never cleared
+       again for the rest of the session, the frozen actor kept blocking every
+       later census, and every later level change was refused. Permanent, from
+       one caught fault. Moving the clear upstream of the decline is what makes
+       a declined change survivable rather than terminal.
+
+       It is only sound because the drop runs FIRST. Clearing the set un-freezes
+       the actor, and an un-frozen actor gets dispatched again -- in a level
+       whose other actors these rounds have already destroyed, that is a walk
+       over wreckage, and it is the reason the clear was left on the success
+       path in the first place. port_level_drop_frozen answers that by taking
+       the actor out of all five structures the engine walks before the set is
+       touched: after it, nothing can reach the object to dispatch it, so
+       un-freezing it cannot resurrect anything. If a node will not come out,
+       the count says so and the freeze is KEPT -- failing back to the old
+       permanent freeze is bad, dispatching a dead actor every frame is worse.
+
+       The other objection to clearing here was the class latch, the rate
+       limiter that stops the second fault of a class becoming a fault every
+       frame. It is cleared too, and the flood it guarded against does not
+       follow: the frozen instances are unlinked, so they cannot fault again,
+       and any survivor that faults gets frozen on its first fault, after which
+       the filter writes no second dump for it. The bound is one dump per actor,
+       which is the bound a freshly booted level already has.
+
+       port_stage_a_boot also resets on the load side, which covers a level that
+       BOOTS. It cannot cover a level that stands, which is precisely the state
+       a decline leaves behind, and that is the state that was poisoning
+       sessions. */
+    {
+        const int stuck = port_level_drop_frozen();
+        const int held = port_quarantine_frozen_count();
+        if (stuck) {
+            std::fprintf(stderr, "  [lvl] quarantine: %d frozen node(s) could "
+                         "not be unlinked -- KEEPING the freeze set (%d actor%s)"
+                         " rather than handing a dead actor back to the walk\n",
+                         stuck, held, held == 1 ? "" : "s");
+        } else if (held) {
+            std::fprintf(stderr, "  [lvl] quarantine: %d frozen actor%s reaped "
+                         "from every list and the scene tree; CLEARING the "
+                         "freeze set\n", held, held == 1 ? "" : "s");
+            port_quarantine_reset();
+        } else {
+            port_quarantine_reset();   /* no-op; keeps the class latch honest */
+        }
+    }
     int left = port_level_live_count();
+    if (port_test_noconverge() && !left)
+        left = 1;                      /* test builds only; see the note above */
     if (left) {
         std::fprintf(stderr, "  [lvl] TEARDOWN DID NOT CONVERGE: %d actors "
                      "still live after %d rounds -- the change will be DECLINED "
                      "and the player is stranded in the leaving state\n",
                      left, rounds);
         port_level_name_survivors();
-        /* NO port_quarantine_reset() HERE, and that is deliberate. Read the
-           other way round it looks like the bug: the reset at the tail is on
-           the success path, so this return skips it and a frozen actor stays
-           frozen for the rest of the session. Three reasons it stays skipped,
-           in increasing order of how much they matter.
+        /* The freeze set has already been reaped and cleared above, so this
+           return no longer poisons the session: the next level change starts
+           from a clean net and can converge.
 
-           IT WOULD RE-DISPATCH INTO A HALF-DESTROYED WORLD. This branch is
-           reached only after sixteen teardown rounds have already destroyed
-           every OTHER actor in the level. The frozen object itself is leaked,
-           not freed, so it is not a dangling pointer -- but everything it holds
-           a reference to is gone, and un-freezing it here puts its Behavior
-           back into a per-frame walk over that wreckage. That is where the
-           freed reads come from, and it would trade a stranded player for a
-           crash.
-
-           IT WOULD CLEAR THE CLASS LATCH, which is the rate limiter. The latch
-           is what stops the second fault of a class from becoming a fault every
-           frame. Reset it on a path that then keeps the level running and a
-           persistently faulting actor re-faults on the next tick, and the one
-           after, each one writing a quarantine.log line and a rolling dump into
-           the player crash directory. That is a report-directory flood on a
-           path players already reach, which is the opposite of what this lane
-           is for.
-
-           AND IT BUYS NOTHING, because the staleness it would guard against is
-           already handled from the other side: port_stage_a_boot calls
-           port_quarantine_reset at the top of every level boot
-           (hal/level_boot.cpp). A stale pointer therefore cannot cross into a
-           new level no matter how the previous one ended, so holding the freeze
-           through a decline costs nothing.
-
-           The permanent freeze is not what strands anybody either. A frozen
-           actor no longer blocks convergence at all (it is excluded from the
-           census above and reaped below), so quarantine cannot reach this
-           branch: the proof run that force-freezes the PLAYER and warps 1 -> 5
-           converges and boots. Anything that DOES reach this branch is a
-           second, non-quarantine cause -- the reports from BlazeTendo and
-           felonthoughts that got stuck with no quarantine recorded -- and the
-           survivor line just above is what will name it.
+           Anything reaching this branch now is a second, non-quarantine cause
+           -- a frozen actor cannot block the census any more -- and the
+           survivor line just above is what names it.
 
            ONE HOLE, WRITTEN DOWN RATHER THAN FIXED. Neither freeze leg covers
            everything. The instance set caps at PORT_Q_MAX (256) and the class
@@ -673,19 +837,14 @@ extern "C" int port_level_teardown(void)
     data_0209f318 = 0;
     data_0209f2c4 = 0;
 
-    /* Clear the per-actor quarantine freeze set. Say what is actually true: a
-       frozen actor is NOT gone. Its object and its dedicated heap are still
-       allocated and stay allocated until the process exits -- the freeze is a
-       deliberate leak, and nothing above frees it. What the drops above DO
-       guarantee is that it is now unlinked from all five structures the engine
-       walks (the four processing lists and the scene tree), so it is
-       unreachable: clearing the set cannot resurrect it into a phase walk.
-       That is the whole precondition for this call. The pointers in the set are
-       kept only so the census and the drops can recognise a frozen actor, and
-       both are done; keeping them past this point would instead risk a NEW
-       actor allocated at a recycled address being skipped for a fault it never
-       had. No-op when nothing was quarantined. */
-    port_quarantine_reset();
+    /* The freeze set was reaped and cleared BEFORE the verdict, not here. There
+       used to be a port_quarantine_reset() at this line and it was the second
+       half of the bug: it is downstream of the `return 0` above, so the one
+       path that needed it most -- the declined one, which keeps the level and
+       therefore keeps the frozen actor -- was the one path that never reached
+       it. Nothing re-freezes between there and here (the drops above dispatch
+       no actor code), so a second call would be a no-op that invited a reader
+       to think this was where the clearing happened. It is not. */
     return 1;
 }
 
