@@ -7,6 +7,34 @@
 #include <windows.h>
 #include <stdio.h>
 
+/* A stack word is only a RETURN ADDRESS if it points at code. The probe used
+   to accept any word inside the module's [base, base+0x200000) window, but that
+   window also covers the module's .data/.rdata/.bss: a data pointer parked on
+   the stack (e.g. &ac_trap_report's static msg[128], a constant .data address)
+   would be printed as a "module return word", and the crash classifier keys
+   families on the FIRST such word -- so a data address seeded bogus families
+   (the +0019be40 cluster, byte-identical across builds because it is data, not
+   shifting code). This predicate gates labelling on executability: a candidate
+   is a return address only if its page is COMMITTED and carries an EXECUTE
+   protection (PAGE_EXECUTE / _READ / _READWRITE / _WRITECOPY). .data/.rdata/
+   .bss (RW or RO), heap, and stack pages fail it and are no longer labelled.
+   VirtualQuery is used rather than parsing PE section headers because it needs
+   no module bookkeeping the probe does not already have and reflects the real
+   runtime page protection of whatever module the word lands in. Cost is one
+   syscall per candidate; the scans cap at 96/512 words so this stays cheap, and
+   it only runs in the crash path. */
+static int port_addr_is_exec(uintptr_t addr)
+{
+    MEMORY_BASIC_INFORMATION mbi;
+    if (VirtualQuery((LPCVOID)addr, &mbi, sizeof mbi) != sizeof mbi)
+        return 0;
+    if (mbi.State != MEM_COMMIT)
+        return 0;
+    return (mbi.Protect & (PAGE_EXECUTE | PAGE_EXECUTE_READ |
+                           PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY))
+           != 0;
+}
+
 /* The ROM's list walker (func_02043fdc) parks the node it is processing in
    data_020a4b68 before every callback, so at fault time node[2] names the
    actor whose phase code was running -- the question every actor-phase crash
@@ -58,7 +86,8 @@ static LONG WINAPI port_fault_probe(EXCEPTION_POINTERS *ep)
             if (IsBadReadPtr(sp + i, 4)) break;
             v = sp[i];
             if (v >= (unsigned)(uintptr_t)base &&
-                v < (unsigned)(uintptr_t)base + 0x200000)
+                v < (unsigned)(uintptr_t)base + 0x200000 &&
+                port_addr_is_exec((uintptr_t)v))
                 fprintf(stderr, "  stack[%02d] +0x%08x\n", i,
                         (unsigned)(v - (unsigned)(uintptr_t)base));
         }
@@ -414,7 +443,8 @@ static void port_rich_dump(EXCEPTION_POINTERS *ep, unsigned code,
             if (IsBadReadPtr(sp + i, 4)) break;
             v = sp[i];
             if (v >= (unsigned)(uintptr_t)base &&
-                v < (unsigned)(uintptr_t)base + 0x200000) {
+                v < (unsigned)(uintptr_t)base + 0x200000 &&
+                port_addr_is_exec((uintptr_t)v)) {
                 PORT_RD_STR("\r\n  +");
                 PORT_RD_HEX(v - (unsigned)(uintptr_t)base);
                 ++shown;
@@ -428,7 +458,8 @@ static void port_rich_dump(EXCEPTION_POINTERS *ep, unsigned code,
         for (i = 0; i < nn; ++i) {
             unsigned v = (unsigned)(uintptr_t)frames[i];
             if (v >= (unsigned)(uintptr_t)base &&
-                v < (unsigned)(uintptr_t)base + 0x200000) {
+                v < (unsigned)(uintptr_t)base + 0x200000 &&
+                port_addr_is_exec((uintptr_t)v)) {
                 PORT_RD_STR("\r\n  +");
                 PORT_RD_HEX(v - (unsigned)(uintptr_t)base);
             }
@@ -529,7 +560,8 @@ static void port_crash_write_file(EXCEPTION_POINTERS *ep)
             if (IsBadReadPtr(sp + i, 4)) break;
             v = sp[i];
             if (v >= (unsigned)(uintptr_t)base &&
-                v < (unsigned)(uintptr_t)base + 0x200000) {
+                v < (unsigned)(uintptr_t)base + 0x200000 &&
+                port_addr_is_exec((uintptr_t)v)) {
                 PORT_CRASH_STR("\r\n  +");
                 PORT_CRASH_HEX(v - (unsigned)(uintptr_t)base);
                 ++printed;
@@ -755,7 +787,8 @@ static DWORD WINAPI port_watchdog_thread(LPVOID p)
             if (IsBadReadPtr(sp + i, 4)) break;
             v = sp[i];
             if (v >= (unsigned)(uintptr_t)base &&
-                v < (unsigned)(uintptr_t)base + 0x200000)
+                v < (unsigned)(uintptr_t)base + 0x200000 &&
+                port_addr_is_exec((uintptr_t)v))
                 fprintf(stderr, "  stack[%02d] +0x%08x\n", i,
                         (unsigned)(v - (unsigned)(uintptr_t)base));
         }
@@ -796,7 +829,8 @@ static LONG WINAPI port_watch_handler(EXCEPTION_POINTERS *ep)
             if (IsBadReadPtr(sp + i, 4)) break;
             v = sp[i];
             if (v >= (unsigned)(uintptr_t)base &&
-                v < (unsigned)(uintptr_t)base + 0x200000) {
+                v < (unsigned)(uintptr_t)base + 0x200000 &&
+                port_addr_is_exec((uintptr_t)v)) {
                 fprintf(stderr, "    caller? +0x%08x\n",
                         (unsigned)(v - (unsigned)(uintptr_t)base));
                 ++printed;
