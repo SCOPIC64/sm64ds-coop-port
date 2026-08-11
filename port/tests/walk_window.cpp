@@ -41,6 +41,13 @@
 // come from WithMeshClsn's own tracking through the hosted sphere pass. No
 // harness stands in for anything in the physics loop.
 //
+// Interactive keyboard and mouse only act while this window is the FOREGROUND
+// one. Alt-tab away and the stick and the buttons go to neutral that frame;
+// come back and whatever was still held has to be released before it counts
+// again, so no press made in another window arrives here late. None of the
+// scripted input paths go through that gate: a selftest, SM64DS_PROBE_INPUT and
+// the SM64DS_SELFTEST_* probes drive a hidden, unfocused run exactly as before.
+//
 // Env: SM64DS_LEGACY_BOOT=1 the pre-gate-14 harness staging instead of the
 //                           level's own boot (hand-built spawn context, KCL
 //                           mounted by hand, no entrance record)
@@ -102,6 +109,11 @@
 //      SM64DS_BONE_PROBE=1..3  the per-frame bone rotation dump; =3 checks
 //                           every bone against an independent shortest-path
 //                           reference. See the probe for what it measured.
+//      SM64DS_INPUT_NOFOCUSGATE=1  read the interactive keyboard whether this
+//                           window has focus or not, the way it worked before
+//                           the gate. Nothing in the tree sets it. It is here
+//                           so a harness that genuinely wants background key
+//                           reads has a documented switch instead of a patch.
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -541,6 +553,9 @@ void port_bob_spawn_report(void);
 /* the bottom screen (hal/sub_screen.cpp): the OAM lifecycle, the engine-B
    scan-out and the corner panel it lands in. TAB toggles the panel. */
 void hal_sub_screen_init(void *hwnd, int zoom);
+/* the focus gate (hal/sub_screen.cpp): 1 when this window is the foreground
+   one, so an interactive key read can be trusted to be meant for this program */
+int hal_window_focused(void);
 void hal_sub_screen_frame_begin(void);
 void hal_sub_screen_present(unsigned int *dst, int w, int h);
 void hal_sub_screen_probe(void);
@@ -2107,8 +2122,40 @@ int main(void)
        through here and reads released -- the scripted probes
        (SM64DS_SELFTEST_* above and below) are the only input a selftest
        has. The pad and the mouse-look are gated the same way where they
-       are read. */
-    auto key_live = [&](int vk) { return !selftest && W.GetAsyncKeyState_(vk) < 0; };
+       are read.
+
+       SECOND GATE, focus: the same machine-global read meant that a player who
+       alt-tabbed and typed somewhere else kept walking Mario around, and that a
+       direction held at the moment they left stayed held forever.
+       hal_window_focused() is false whenever this window is not the foreground
+       one, and then every interactive key here reads RELEASED. That is also the
+       release: the pad words further down are rebuilt from these reads every
+       frame, so the frame focus goes away is the frame the stick and the
+       buttons go to neutral, with no separate teardown to keep in step.
+
+       Nothing a player pressed while away arrives late either. There is no
+       queue to replay -- these are level reads, not messages -- but a key still
+       physically down on the way back would otherwise read as a fresh press and
+       fire the edge latches (F1, F3, F4, the menu). So on the focus-regained
+       edge every key is marked STALE, and a stale key keeps reading released
+       until it is seen physically up. Pressing it again after that works
+       normally.
+
+       key_stale is indexed by virtual-key code, which is what every caller
+       passes and is 0..255 by definition; the bounds test is there because this
+       lambda is the one place that would turn a typo into a stray write. */
+    unsigned char key_stale[256] = {0};
+    int focus_was = 1;   /* launch focused = launch unchanged */
+    auto key_live = [&](int vk) -> int {
+        if (selftest) return 0;
+        if (!hal_window_focused()) return 0;
+        const int down = W.GetAsyncKeyState_(vk) < 0;
+        if ((unsigned)vk < 256) {
+            if (!down) { key_stale[vk] = 0; return 0; }
+            if (key_stale[vk]) return 0;
+        }
+        return down;
+    };
     int frame = 0;
     float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
@@ -2164,6 +2211,16 @@ int main(void)
         }
         ph_begin(&t_frame);
         ph_begin(&t_phase);
+        /* the focus edge, read once a frame BEFORE any key is. Coming back,
+           every key starts stale, so whatever the player was holding in the
+           other window has to be released before this one will see it. Going
+           away needs no work: key_live is already returning released, which is
+           what empties the pad words below. */
+        if (!selftest) {
+            const int now = hal_window_focused();
+            if (now && !focus_was) memset(key_stale, 1, sizeof key_stale);
+            focus_was = now;
+        }
         {
             const int now = key_live(VK_F3);
             if (now && !overlay_edge) g_overlay_on = !g_overlay_on;
@@ -2254,12 +2311,16 @@ int main(void)
             static unsigned menu_prev;
             unsigned held = 0;
             unsigned edge;
-            if (W.GetAsyncKeyState_(VK_F5) < 0)     held |= 1u << 0;
-            if (W.GetAsyncKeyState_(VK_UP) < 0)     held |= 1u << 1;
-            if (W.GetAsyncKeyState_(VK_DOWN) < 0)   held |= 1u << 2;
-            if (W.GetAsyncKeyState_(VK_LEFT) < 0)   held |= 1u << 3;
-            if (W.GetAsyncKeyState_(VK_RIGHT) < 0)  held |= 1u << 4;
-            if (W.GetAsyncKeyState_(VK_RETURN) < 0) held |= 1u << 5;
+            /* through key_live, not the raw read, so the menu is behind the
+               focus gate and the stale-key latch with everything else. Under a
+               selftest this block never runs at all, so routing it here changes
+               nothing an automated run sees. */
+            if (key_live(VK_F5))     held |= 1u << 0;
+            if (key_live(VK_UP))     held |= 1u << 1;
+            if (key_live(VK_DOWN))   held |= 1u << 2;
+            if (key_live(VK_LEFT))   held |= 1u << 3;
+            if (key_live(VK_RIGHT))  held |= 1u << 4;
+            if (key_live(VK_RETURN)) held |= 1u << 5;
             if (pad_live) {
                 if (pad.buttons & 0x0001) held |= 1u << 1;   /* d-pad up    */
                 if (pad.buttons & 0x0002) held |= 1u << 2;   /* d-pad down  */
