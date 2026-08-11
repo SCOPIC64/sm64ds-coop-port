@@ -352,10 +352,14 @@ static void port_quarantine_actor(void *actor, unsigned code, unsigned off)
             class_latched_now = 1;
         }
     }
-    /* freeze this instance (option b) unless the class is already latched --
-       then it is covered class-wide and needs no per-instance slot */
-    if ((id >= PORT_Q_IDS || !port_q_class_skip[id]) &&
-        port_q_frozen_n < PORT_Q_MAX) {
+    /* Freeze this instance. It used to be skipped once the class was latched,
+       on the reasoning that a latched class is covered class-wide and needs no
+       per-instance slot. It is covered for DISPATCH, which is what
+       port_q_is_frozen answers -- but the level teardown also has to be able to
+       name the individual objects it is reaping, and the freeze set is the only
+       record of them. Recording it costs one pointer and closes the asymmetry
+       that reopened the soft-lock on the SECOND fault of a class. */
+    if (port_q_frozen_n < PORT_Q_MAX) {
         /* de-dup */
         int have = 0;
         for (int i = 0; i < port_q_frozen_n; ++i)
@@ -627,6 +631,35 @@ extern "C" void port_quarantine_reset(void)
         port_q_class_count[i] = 0;
         port_q_class_skip[i] = 0;
     }
+}
+
+/* Public: is this actor currently frozen by the quarantine net? The level
+   teardown asks so it can exclude a frozen actor from the live census it
+   pumps to convergence. A frozen actor is NEVER dispatched (port_dispatch_
+   guarded returns early for it), so its own CleanupResources can never run
+   and it can never unlink itself -- which means a teardown that counts it
+   can never reach zero, and the whole level change is declined (the
+   "1 actor still live after 16 rounds" soft-lock). Excluding it here lets
+   teardown converge; the frozen node is then reaped by name by the
+   dangling-node drop at the tail of port_level_teardown, and its pointer is
+   cleared from the freeze set by port_quarantine_reset on the same path.
+
+   IT IS port_q_is_frozen, LITERALLY. The first version of this function was a
+   second implementation that knew only the INSTANCE leg, and the two
+   predicates then disagreed on exactly the case the rate limiter exists for.
+   Once a class has faulted twice its latch is set, and from then on every
+   instance of that id is frozen by the CLASS leg before dispatch -- it never
+   faults, so it never reaches port_quarantine_actor and (before the change
+   above) never entered the instance set. The dispatch side skipped it, the
+   teardown side counted it, it never unlinked, and the teardown declined
+   again: the same soft-lock the reap was written to remove, reachable from the
+   second fault of any class onward. Delegating instead of duplicating is what
+   makes that unrepresentable. The instance scan inside is pure pointer
+   identity and runs before the guarded id read, so this is still safe to call
+   on a torn actor pointer. */
+extern "C" int port_quarantine_is_frozen(void *actor)
+{
+    return port_q_is_frozen(actor);
 }
 
 /* {head, tail, callback, 0}; node is {prev, next, owner, ...} */

@@ -95,6 +95,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+/* IsBadReadPtr, for the two places here that have to read an actor whose
+   pointer may already be torn (port_level_name_survivors on the decline path
+   and the scene-tree drop). It is the same guard port_q_is_frozen and
+   port_q_actor_id in port/unmatched/func_02043fdc.cpp have carried since
+   playlog 041729, and this file needs it for the same reason. */
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
 extern "C" {
 
@@ -119,6 +126,22 @@ void _ZN9ActorBase18MarkForDestructionEv(void *self);
 void port_actor_tick(void);
 void port_quarantine_reset(void);   /* port/unmatched/func_02043fdc.cpp: clear
                                        the per-actor fault freeze set */
+int  port_quarantine_is_frozen(void *actor);  /* same TU: is this actor frozen?
+                                       teardown excludes a frozen actor from the
+                                       live census it pumps -- a frozen actor is
+                                       never dispatched, so it never runs its own
+                                       cleanup and never unlinks, and a census
+                                       that counts it can never converge.
+                                       It answers for BOTH freeze legs (the
+                                       instance set and the class latch); see the
+                                       note on its definition for why a
+                                       teardown-side predicate that knew only the
+                                       instance leg reopened the soft-lock. */
+/* the ROM's own list primitives (src/func_0203b3c0.c, src/func_0203b394.c):
+   scene-tree unlink, and the scene-tree pre-order successor. The drop at the
+   tail of the teardown needs both -- see the scene-tree pass there. */
+int   func_0203b3c0(void *list, void *node);
+void *func_0203b394(void *node);
 void port_actor_scene_pass(void);
 void *port_stage_object(void);
 void *port_stage_a_boot(void *mc, int spawn);
@@ -145,6 +168,12 @@ void port_lvlperf_note(int span, double ms);
 void port_lvlperf_emit(void);
 unsigned _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *self);
 extern void *data_020a0eac;              /* Memory::gameHeapPtr */
+
+/* the three actor-pointer cells Stage::CleanupResources clears, hosted at the
+   teardown below because the port never runs Stage::CleanupResources */
+extern void *data_0209f394[];        /* the local players, [0] is ours */
+extern void *data_0209f318;          /* the Camera */
+extern unsigned char data_0209f2c4;  /* the input/VS-timer suppress flag */
 
 extern int data_020a4b6c[];   /* scene tree     {head, cb, 0} */
 extern int data_020a4b78[];   /* behaviour list {head, tail, cb, 0} */
@@ -274,13 +303,21 @@ static int port_level_live_count(void)
 {
     int n = 0;
     void *stage = port_stage_object();
+    /* A quarantine-frozen actor is never dispatched, so it can never run its
+       own CleanupResources and never unlinks itself. Counting it here would
+       make the teardown loop never converge (the "1 actor still live after 16
+       rounds" soft-lock a persistent frozen actor produced). Exclude it: it is
+       reaped by name by the dangling-node drop at the tail of the teardown once
+       the real actors are gone. */
     for (int *node = (int *)(size_t)data_020a4b78[0]; node && n < 8192;
          node = (int *)(size_t)node[1])
-        if (node[2] && (void *)(size_t)node[2] != stage)
+        if (node[2] && (void *)(size_t)node[2] != stage &&
+            !port_quarantine_is_frozen((void *)(size_t)node[2]))
             ++n;
     for (int *node = (int *)(size_t)data_020a4b88[0]; node && n < 8192;
          node = (int *)(size_t)node[1])
-        if (node[2] && (void *)(size_t)node[2] != stage)
+        if (node[2] && (void *)(size_t)node[2] != stage &&
+            !port_quarantine_is_frozen((void *)(size_t)node[2]))
             ++n;
     return n;
 }
@@ -299,13 +336,20 @@ static int port_level_mark_all(void)
        relinks nodes under the walk. */
     static void *victim[4096];
     int v = 0;
+    /* Skip frozen actors: MarkForDestruction runs the actor's OnPendingDestroy
+       synchronously, which for a frozen actor is exactly the code that faulted
+       and was quarantined -- running it here would re-enter the faulting path
+       (and OnPendingDestroy is NOT inside the walker's __try). The frozen node
+       is reaped by name by the dangling-node drop after convergence. */
     for (int *node = (int *)(size_t)data_020a4b78[0]; node && v < 4096;
          node = (int *)(size_t)node[1])
-        if (node[2] && (void *)(size_t)node[2] != stage)
+        if (node[2] && (void *)(size_t)node[2] != stage &&
+            !port_quarantine_is_frozen((void *)(size_t)node[2]))
             victim[v++] = (void *)(size_t)node[2];
     for (int *node = (int *)(size_t)data_020a4b88[0]; node && v < 4096;
          node = (int *)(size_t)node[1])
-        if (node[2] && (void *)(size_t)node[2] != stage)
+        if (node[2] && (void *)(size_t)node[2] != stage &&
+            !port_quarantine_is_frozen((void *)(size_t)node[2]))
             victim[v++] = (void *)(size_t)node[2];
     for (int i = 0; i < v; ++i) {
         char *o = (char *)victim[i];
@@ -315,6 +359,68 @@ static int port_level_mark_all(void)
         ++n;
     }
     return n;
+}
+
+/* Name every non-stage actor still on the two pumped lists, with its class and
+   whether the quarantine net is holding it. This runs only on the path that
+   declines a level change, and it is the difference between a player report
+   that says "TEARDOWN DID NOT CONVERGE: 1 actors still live" and one that says
+   WHICH actor. A decline strands the player -- the fader has already wiped and
+   the leaving state is latched, so the level never changes and the player reads
+   it as "can't move after collecting a star" -- so the next such report needs
+   to name the blocker rather than leave it to be guessed at. Changes nothing.
+
+   IT MUST NOT DEREFERENCE THE ACTOR UNGUARDED, and the reason is that the most
+   likely input to this function is exactly the input that would fault on it.
+   A node whose owner word has been stomped is counted by port_level_live_count
+   BY DESIGN: port_q_is_frozen reads an unreadable pointer as not-frozen, so a
+   torn owner keeps the census above zero and lands us here. That is the case
+   this diagnostic exists to name. Reading a+0xc and a+0xf without a guard would
+   therefore fault on its own headline case, outside any __try, and turn a
+   player soft-lock -- bad, but survivable and reported -- into a hard crash, on
+   a path players demonstrably already reach. port_q_actor_id and
+   port_q_is_frozen have carried this guard since playlog 041729 (a scene node
+   with owner 0x62980 that took the process down through exactly this kind of
+   unguarded read); this is the same guard for the same reason.
+
+   AN UNREADABLE ID IS NOT A REASON TO SKIP THE ENTRY, it is the single most
+   valuable thing this function could report: it says the survivor is not merely
+   stuck but corrupt, which points at a stray write rather than at a cleanup
+   that never ran. So the line degrades to the address plus "id UNREADABLE"
+   instead of vanishing. */
+static void port_level_name_survivors(void)
+{
+    void *stage = port_stage_object();
+    struct { const char *name; int *list; } lists[2] = {
+        {"behaviour", data_020a4b78}, {"pending", data_020a4b88}};
+    for (int i = 0; i < 2; ++i) {
+        int guard = 0;
+        for (int *node = (int *)(size_t)lists[i].list[0];
+             node && guard < 8192; node = (int *)(size_t)node[1], ++guard) {
+            char *a = (char *)(size_t)node[2];
+            if (!a || (void *)a == stage)
+                continue;
+            /* the freeze check is pointer identity first and is itself guarded,
+               so it is safe on a torn pointer */
+            const int frozen = port_quarantine_is_frozen(a);
+            if (IsBadReadPtr(a, 0x10)) {
+                std::fprintf(stderr, "  [lvl]   STILL LIVE: actor %p id "
+                             "UNREADABLE (the owner word is torn -- a stray "
+                             "write, not a cleanup that never ran) on the %s "
+                             "list%s\n", (void *)a, lists[i].name,
+                             frozen ? " -- QUARANTINE-FROZEN" : "");
+                continue;
+            }
+            {
+                const unsigned id = *(unsigned short *)(a + 0xc);
+                std::fprintf(stderr, "  [lvl]   STILL LIVE: actor %p id 0x%x "
+                             "(%s) on the %s list, marked %d%s\n", (void *)a,
+                             id, id < 0x400 ? port_actor_class_name(id) : "?",
+                             lists[i].name, (int)*(unsigned char *)(a + 0xf),
+                             frozen ? " -- QUARANTINE-FROZEN" : "");
+            }
+        }
+    }
 }
 
 extern "C" int port_level_teardown(void)
@@ -337,7 +443,61 @@ extern "C" int port_level_teardown(void)
     int left = port_level_live_count();
     if (left) {
         std::fprintf(stderr, "  [lvl] TEARDOWN DID NOT CONVERGE: %d actors "
-                     "still live after %d rounds\n", left, rounds);
+                     "still live after %d rounds -- the change will be DECLINED "
+                     "and the player is stranded in the leaving state\n",
+                     left, rounds);
+        port_level_name_survivors();
+        /* NO port_quarantine_reset() HERE, and that is deliberate. Read the
+           other way round it looks like the bug: the reset at the tail is on
+           the success path, so this return skips it and a frozen actor stays
+           frozen for the rest of the session. Three reasons it stays skipped,
+           in increasing order of how much they matter.
+
+           IT WOULD RE-DISPATCH INTO A HALF-DESTROYED WORLD. This branch is
+           reached only after sixteen teardown rounds have already destroyed
+           every OTHER actor in the level. The frozen object itself is leaked,
+           not freed, so it is not a dangling pointer -- but everything it holds
+           a reference to is gone, and un-freezing it here puts its Behavior
+           back into a per-frame walk over that wreckage. That is where the
+           freed reads come from, and it would trade a stranded player for a
+           crash.
+
+           IT WOULD CLEAR THE CLASS LATCH, which is the rate limiter. The latch
+           is what stops the second fault of a class from becoming a fault every
+           frame. Reset it on a path that then keeps the level running and a
+           persistently faulting actor re-faults on the next tick, and the one
+           after, each one writing a quarantine.log line and a rolling dump into
+           the player crash directory. That is a report-directory flood on a
+           path players already reach, which is the opposite of what this lane
+           is for.
+
+           AND IT BUYS NOTHING, because the staleness it would guard against is
+           already handled from the other side: port_stage_a_boot calls
+           port_quarantine_reset at the top of every level boot
+           (hal/level_boot.cpp). A stale pointer therefore cannot cross into a
+           new level no matter how the previous one ended, so holding the freeze
+           through a decline costs nothing.
+
+           The permanent freeze is not what strands anybody either. A frozen
+           actor no longer blocks convergence at all (it is excluded from the
+           census above and reaped below), so quarantine cannot reach this
+           branch: the proof run that force-freezes the PLAYER and warps 1 -> 5
+           converges and boots. Anything that DOES reach this branch is a
+           second, non-quarantine cause -- the reports from BlazeTendo and
+           felonthoughts that got stuck with no quarantine recorded -- and the
+           survivor line just above is what will name it.
+
+           ONE HOLE, WRITTEN DOWN RATHER THAN FIXED. Neither freeze leg covers
+           everything. The instance set caps at PORT_Q_MAX (256) and the class
+           latch table only spans ids below PORT_Q_IDS (512), so an actor with
+           an id at or above 512, or an unreadable id, that faults after 256
+           instances are already frozen in this level is held by neither leg:
+           port_quarantine_is_frozen answers no, the census counts it, and it
+           blocks convergence exactly the way things did before the reap. It
+           needs 256 frozen instances in a single level to reach, and it fails
+           back to pre-fix behaviour rather than to something worse, so it is
+           not worth code today -- but the survivor line above is what would
+           expose it, and this is the note that says what to suspect. */
         return 0;
     }
     /* The four processing lists have to be genuinely empty, not just free of
@@ -395,10 +555,136 @@ extern "C" int port_level_teardown(void)
             lists[i].list[1] = (int)(size_t)keep_tail;
         }
     }
-    /* Clear the per-actor quarantine freeze set: any actor frozen this level is
-       gone now (destroyed above, or dropped as a dangling node), so its pointer
-       in the freeze set is stale. Reset so the next level starts with a clean
-       net and reclaims the leaked slots. No-op when nothing was quarantined. */
+    /* THE SCENE TREE, which is the FIFTH structure an actor is linked into and
+       the one the four-list drop above cannot see.
+       ActorBase::AfterCleanupResources unlinks TWO things, not one: the
+       cleanup-list node at self+0x28 (func_0203b27c over data_020a4ba8) AND the
+       SceneNode at self+0x14 (func_0203b3c0 over data_020a4b6c). A frozen actor
+       runs neither. Dropping only its four processing-list nodes left its
+       SceneNode in the tree, so func_020441cc walked into the next level still
+       dispatching that actor's scene phase off a dead object -- every frame,
+       forever, because port_quarantine_reset below had meanwhile cleared the
+       freeze set that was the only thing skipping it. Measured with
+       SM64DS_SCENE_CANARY=1 across a 1 -> 5 warp: 65 nodes on the control, 66
+       with a frozen actor.
+       Unlink with the ROM's own primitive rather than by hand, and REVERSE the
+       pre-order snapshot before unlinking: func_0203b3c0 refuses a node that
+       still has children (n->f4 != 0), and pre-order lists a parent before its
+       children, so walking the snapshot backwards retires every child before
+       its parent. Snapshot first for the same reason the victim list above does
+       -- the unlink rewrites the sibling links under the walk.
+
+       The owner read is GUARDED for the same reason the survivor diagnostic
+       above is: an actor reached through a dangling node is exactly the actor
+       whose owner word is most likely to be torn, and this one runs on the
+       SUCCESS path, so a fault here would crash a level change that was
+       otherwise about to work. NOTE, not fixed here: the four-list drop above
+       and port_level_mark_all read the same +0xc and +0xf unguarded. Those are
+       pre-existing and are left alone deliberately -- widening the change to
+       chase them would put an unrelated edit in a commit whose repro is about
+       the scene tree. They are worth their own pass.
+
+       And the snapshot SAYS SO WHEN IT TRUNCATES. A silent cap reads as "we
+       walked the whole tree" when we did not, which is the worst possible thing
+       for a diagnostic whose entire job is to prove the tree came out empty --
+       the canary count would come back short and nothing would explain why.
+       1024 is far past the 83 nodes the castle grounds carries, so hitting it
+       means something else is wrong and the line is the first thing that would
+       say so. */
+    {
+        static void *snode[1024];
+        int sn = 0, guard = 0, truncated = 0;
+        int *n = (int *)(size_t)data_020a4b6c[0];
+        for (; n && guard < 8192; n = (int *)func_0203b394(n), ++guard) {
+            if ((void *)(size_t)n[4] == stage)
+                continue;
+            if (sn == (int)(sizeof snode / sizeof snode[0])) { truncated = 1; break; }
+            snode[sn++] = n;
+        }
+        if (truncated || guard >= 8192)
+            std::fprintf(stderr, "  [lvl] scene tree: WALK DID NOT FINISH "
+                         "(%d nodes snapshotted, cap %d, steps %d) -- nodes "
+                         "past this point are NOT dropped and will survive into "
+                         "the next level\n", sn,
+                         (int)(sizeof snode / sizeof snode[0]), guard);
+        for (int i = sn - 1; i >= 0; --i) {
+            int *nd = (int *)snode[i];
+            char *a = (char *)(size_t)nd[4];
+            const int readable = a && !IsBadReadPtr(a, 0x10);
+            const int ok = func_0203b3c0(data_020a4b6c, nd);
+            const char *verb = ok ? "DROPPED" : "COULD NOT DROP";
+            if (!readable)
+                std::fprintf(stderr, "  [lvl] scene tree: %s dangling node %p "
+                             "(actor %p id UNREADABLE) -- its cleanup never "
+                             "unlinked\n", verb, (void *)nd, (void *)a);
+            else {
+                const unsigned id = *(unsigned short *)(a + 0xc);
+                std::fprintf(stderr, "  [lvl] scene tree: %s dangling node %p "
+                             "(actor %p id 0x%x %s) -- its cleanup never "
+                             "unlinked\n", verb, (void *)nd, (void *)a, id,
+                             id < 0x400 ? port_actor_class_name(id) : "?");
+            }
+        }
+    }
+
+    /* THE STAGE TEARDOWN'S OWN POINTER CLEARS, and they are the ROM's lines,
+       not the port's invention. Stage::CleanupResources
+       (src/_ZN5Stage16CleanupResourcesEv.cpp) ends its actor half with
+
+           for (k = 0; k < 4; k++) data_0209f394[k] = 0;   the local players
+           data_0209f318 = 0;                              the Camera
+           data_0209f2c4 = 0;
+
+       three lines below the CleanCommonModelDataArr() the change already hosts
+       for exactly the same reason. The port keeps the Stage alive across levels
+       so Stage::CleanupResources never runs, and these three were the half of
+       it nobody had picked up: after a teardown they still hold the addresses
+       of actors that have just been destroyed.
+
+       That was a use-after-free waiting for a heap layout that noticed. It
+       noticed as soon as a quarantine leak shifted one: with a frozen PLAYER
+       leaked, the next level's Player was allocated 0x778 lower, and the STALE
+       data_0209f318 -- the freed previous Camera at +0x5c0 into that block --
+       now pointed INSIDE the live Player. Camera::ChangeState's
+       `self->unk_138 = state` then wrote four bytes at camera+0x138, which is
+       Player+0x6f9, which is mIsMetal. Player::GetBodyModelID answers 4 for a
+       metal player, func_ov002_020e5948 deliberately never seats body model 4
+       on levels 2/4/5 (no metal cap indoors), and Player::SetAnim's
+       `*(int *)(model + 0x60) = 0` went through a null: FAULT c0000005
+       accessing 00000060 in the new level's Player spawn, 2/2 reproducible.
+       Nothing about that is quarantine-specific -- any leak or allocator shift
+       could have aimed the same stale pointer somewhere else -- so the fix is
+       the ROM's own clear, at the seam the ROM's own sibling line already
+       occupies, rather than anything about the frozen actor. LoadEntranceObjects
+       refills both arrays on the next boot (it is the writer for both), so
+       clearing them here is the same window the DS has.
+
+       WHICH OF THE THREE, measured rather than argued. One binary, the three
+       clears each behind their own switch, the same forced-PLAYER-freeze
+       1 -> 5 warp: keeping data_0209f318 reproduces
+       "FAULT c0000005 accessing 00000060", exit 139. Keeping data_0209f394 or
+       data_0209f2c4 instead exits 0. So the Camera pointer is the one that was
+       killing players; the other two are its siblings in the same ROM
+       statement, stale for the same reason, and are cleared because leaving a
+       known-dangling pointer live to wait for a different heap layout is how
+       this one got found in the first place. */
+    for (int k = 0; k < 4; ++k)
+        data_0209f394[k] = 0;
+    data_0209f318 = 0;
+    data_0209f2c4 = 0;
+
+    /* Clear the per-actor quarantine freeze set. Say what is actually true: a
+       frozen actor is NOT gone. Its object and its dedicated heap are still
+       allocated and stay allocated until the process exits -- the freeze is a
+       deliberate leak, and nothing above frees it. What the drops above DO
+       guarantee is that it is now unlinked from all five structures the engine
+       walks (the four processing lists and the scene tree), so it is
+       unreachable: clearing the set cannot resurrect it into a phase walk.
+       That is the whole precondition for this call. The pointers in the set are
+       kept only so the census and the drops can recognise a frozen actor, and
+       both are done; keeping them past this point would instead risk a NEW
+       actor allocated at a recycled address being skipped for a fault it never
+       had. No-op when nothing was quarantined. */
     port_quarantine_reset();
     return 1;
 }
