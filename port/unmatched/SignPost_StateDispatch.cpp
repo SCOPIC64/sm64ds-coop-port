@@ -33,9 +33,27 @@
  * conditional-cast shift-pair split vs load-hoist collision). Semantics are
  * exact, so the body below is the near-miss C, the cannon-lid precedent.
  * It walks the player to the sign, turns both, then hands off to
- * Player::ShowMessage2 -- which the port declines until the Message gate
- * lands, so with dialogue absent a sign read approaches and idles rather
- * than aborting. Replace with matched src the day the floor breaks.
+ * Player::ShowMessage2. Replace with matched src the day the floor breaks.
+ *
+ * THE OLD NOTE HERE SAID ShowMessage2 IS DECLINED AND THAT A SIGN READ
+ * "APPROACHES AND IDLES". THAT HAS BEEN FALSE SINCE 2026-08-08: the decline
+ * was removed, the matched src is back in slice_gate10, and hal/message_pump.cpp
+ * ticks Message::UpdateWindow + Message::Update every frame, so the box really
+ * opens. Traced live (SM64DS_SIGN_TRIGGER=1 SM64DS_TRACE_SIGN=1, level 3): the
+ * read state runs sub 0 turn for 15 frames, sub 1 walk, sub 2 face for 15
+ * frames, then ShowMessage2 fires and the box reaches state 7 and stays there
+ * until dismissed. Anyone debugging the reported sign soft-lock should not
+ * start from "the message is declined", because it is not.
+ *
+ * WHAT THE TRACE DOES SHOW, for whoever picks that up: sub-state 1 drives the
+ * PLAYER'S POSITION (Vec3_ApproachHorz on player+0x5c, 0xa000 per frame toward
+ * a point 0x78000 in front of the sign) with NO timeout and NO abort. It ran
+ * 302 frames in one probe because the trigger fired from 3140 units away. If
+ * that walk is ever blocked -- geometry between the player and the read point,
+ * which is exactly the shape of "a sign right outside a cave" -- it never
+ * arrives and the player is held in the talk state indefinitely. That is the
+ * surviving candidate. NOT reproduced; the machine converged in every position
+ * tried (3140, 300 and 120 units out).
  */
 #include <cstdio>
 #include <cstdlib>

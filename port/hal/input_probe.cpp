@@ -230,6 +230,8 @@ extern "C" void port_input_probe_buddy_trigger(int frame)
 extern "C" {
 extern int func_ov002_020bb520(void *sign);   /* the sign's planted talk check */
 }
+extern "C" int Vec3_HorzDist(void *a, void *b);
+
 extern "C" void port_input_probe_sign_trigger(int frame)
 {
     if (!std::getenv("SM64DS_SIGN_TRIGGER")) return;
@@ -241,12 +243,20 @@ extern "C" void port_input_probe_sign_trigger(int frame)
     if (std::getenv("SM64DS_TRACE_SIGN")) {
         char *sg = (char *)find_actor_by_class(184);
         char *pl = (char *)find_actor_by_class(0xbf);
+        /* +0x58d is the read state's own sub-state (0 turn, 1 walk, 2 face and
+           animate) and the player's yaw at +0x8e is what the loop drives. Both
+           are needed to tell "waiting for the box", which is correct, from
+           "turning him forever", which is the reported soft-lock. */
         if (sg && pl)
             std::fprintf(stderr,
-                "  [sign] f%d state=%d talk=%d msgActive=%d box=%d param=0x%x\n",
+                "  [sign] f%d state=%d sub=%d talk=%d msgActive=%d box=%d "
+                "yaw=%04x dist=%d param=0x%x\n",
                 frame, *(int *)(sg + 0x354),
+                (int)*(unsigned char *)(sg + 0x58d),
                 _ZN6Player12GetTalkStateEv(pl), (int)data_0209d660,
-                (int)data_0209d6bc, *(int *)(sg + 8));
+                (int)data_0209d6bc,
+                (unsigned)(unsigned short)*(short *)(pl + 0x8e),
+                Vec3_HorzDist(pl + 0x5c, sg + 0x5c), *(int *)(sg + 8));
     }
     if (entered) return;
     char *sign = (char *)find_actor_by_class(184);
