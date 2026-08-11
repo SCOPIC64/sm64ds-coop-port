@@ -919,6 +919,19 @@ static int __fastcall xs_render(void *s, void *)
 }
 static int __fastcall xs_d1(void *s, void *)
 { return (int)(size_t)_ZN10StarSwitchD1Ev((int *)s); }
+/* Slot 21, OnGroundPounded. The switch has its OWN body (ov002 0x020b9fec,
+   StarSwitch_OnGroundPounded), not Actor's do-nothing: a ground pound is how
+   this switch fires its event. The ROM body takes only `this` and ignores the
+   pounder, but the slot's one linked dispatcher is thiscall and PUSHES the
+   pounder (walk_window.exe 0x45de24: `mov ecx,this / push [ebp+0xc] /
+   call [edx+0x54]`, and it does NO `add esp` afterwards, so the callee pops the
+   word). A three-parameter __fastcall veneer reads `this` from ecx, names the
+   pushed pounder so MSVC emits `ret 4`, and drops it -- the same shape
+   ssb_pounded and bbb_pounded already ship. A two-parameter thunk would read
+   edx as the pounder, pop nothing, and return the caller one slot short. */
+extern "C" void func_ov002_020b9fec(char *self);   /* slice_gate33 */
+static int __fastcall xs_pounded(void *s, void *, void *)
+{ func_ov002_020b9fec((char *)s); return 0; }
 extern "C" void port_exclamation_switch_states_seat(void);  /* port/unmatched */
 extern "C" void hal_fill_exclamation_switch_vtable(void)
 {
@@ -938,10 +951,11 @@ extern "C" void hal_fill_exclamation_switch_vtable(void)
     vt[16] = (void *)xs_d1;
     vt[17] = (void *)bw_trap17;
     /* 32 slots. Slot 21 (OnGroundPounded) is the switch's own body, ov002
-       0x020b9fec -- matched in src, in no slice -- so it declines by name
-       rather than run Actor's do-nothing: a ground pound is how this switch
-       is meant to be pressed. Slot 31 is Platform::Kill. */
-    vt[21] = (void *)bw_trap21;
+       0x020b9fec -- matched src, now enrolled in slice_gate33 -- seated through
+       the thiscall veneer xs_pounded (ret 4, matching the sole linked dispatch
+       site at 0x45de24). A ground pound now runs the body instead of declining.
+       Slot 31 is Platform::Kill. */
+    vt[21] = (void *)xs_pounded;
     vt[31] = (void *)bw_kill;
 }
 
