@@ -255,11 +255,15 @@ src/_ZN14ArrowSignRightD1Ev.c
 # callees (Player::IncMegaKillCount, Platform::KillByMegaChar, func_02012694 for
 # 27; Particle::System::NewSimple, Actor::DisappearPoofDustAt, Sound::PlayBank3,
 # ActorBase::MarkForDestruction for 31) were already linked. Slot 22 OnAttacked1
-# (0x02137d40) is NOT enrolled: it tail-dispatches slot 31 through a cdecl
-# function-pointer idiom that mismatches slot 31's thiscall veneer, a false-fix
-# one call deep -- left trapped, see the fill comment.
+# (0x02137d40) is now seated through as_atk1 (thiscall, ret 4). Its raw src
+# tail-dispatches slot 31 through a cdecl function-pointer idiom that mismatches
+# slot 31's thiscall veneer, a false-fix one call deep, so it is NOT sliced;
+# src/func_ov098_02137d40.cpp -- HOST COPY: unmatched/ArrowSign_OnAttacked1.cpp
+# (the inner slot-31 dispatch remodelled as a C++ virtual so the site is
+# thiscall and lands on as_kill). The Player_HeadBonk pattern.
 src/func_ov098_02137d80.c
 src/func_ov098_02137ccc.cpp
+port/unmatched/ArrowSign_OnAttacked1.cpp
 
 # WATER_BOMB (208) x2 -- _ZTV9WaterBomb, RTTI daWbm_c
 src/WaterBomb_Spawn.c

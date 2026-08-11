@@ -1133,6 +1133,20 @@ static int __fastcall as_mega(void *s, void *, void *player)
 extern "C" int func_ov098_02137ccc(char *self);  /* slice_gate33 */
 static int __fastcall as_kill(void *s, void *)
 { return func_ov098_02137ccc((char *)s); }
+/* Slot 22, OnAttacked1(Actor &). The sign has its OWN body (ov098 0x02137d40,
+   ArrowSignRight_OnAttacked1). Its one linked dispatcher (func_ov002_020ef228,
+   walk_window.exe 0x481474) is thiscall and PUSHES the attacker, so a
+   three-parameter __fastcall veneer reads `this` from ecx, names the pushed
+   argument to force `ret 4`, and forwards -- the bw_atk1 shape. The body's only
+   closure is a tail-dispatch of its OWN slot 31 (Kill); the raw src models that
+   inner call as a cdecl function-pointer idiom, which mismatches slot 31's
+   thiscall veneer. The HOST COPY unmatched/ArrowSign_OnAttacked1.cpp remodels
+   the inner dispatch as a C++ thiscall virtual so it lands on as_kill correctly,
+   the Player_HeadBonk treatment. With that the chain closes on the already
+   linked slot-31 body. */
+extern "C" void func_ov098_02137d40(void *self, char *o);  /* HOST COPY, slice_gate33 */
+static int __fastcall as_atk1(void *s, void *, void *o)
+{ func_ov098_02137d40(s, (char *)o); return 0; }
 extern "C" void hal_fill_arrow_sign_vtable(void)
 {
     void **vt = _ZTV14ArrowSignRight;
@@ -1153,19 +1167,20 @@ extern "C" void hal_fill_arrow_sign_vtable(void)
        with no arg (ret 0), each read from the linked binary, and neither body
        dispatches a further vtable slot so both chains are closed.
 
-       SLOT 22 (OnAttacked1, 0x02137d40) STAYS TRAPPED. Its one linked
+       SLOT 22 (OnAttacked1, 0x02137d40) is NOW SEATED. Its one linked
        dispatcher (func_ov002_020ef228, walk_window.exe 0x481474) is thiscall,
-       so a ret-4 veneer would balance the OUTER call -- but the recovered body
+       so the ret-4 as_atk1 veneer balances the OUTER call. The recovered body
        tail-dispatches slot 31 through a plain function-pointer idiom
        (`c->vt->f[0x7c/4](c)`, a `int(*)(void*)`), which MSVC compiles as a
-       CDECL indirect call: it PUSHES c, loads the vtable into ecx (not `this`),
-       `call [ecx+0x7c]`, then `pop ecx` to clean. That inner cdecl call does not
-       match slot 31's thiscall veneer (wrong `this`, double stack-clean), so
-       seating slot 22 as-is is a false-fix one call deep. Closing it needs a
-       host copy that models the inner dispatch as a real C++ thiscall virtual
-       (the Player_HeadBonk treatment), which is more than a veneer seat, so the
-       slot is left on its balanced trap and reported rather than forced. */
-    vt[22] = (void *)bw_trap22;
+       CDECL indirect call: it PUSHES c, loads the vtable (not `this` in ecx),
+       `call [reg+0x7c]`, then cleans the pushed word. That did not match slot
+       31's thiscall veneer (as_kill, ret 0), a false-fix one call deep. The
+       HOST COPY unmatched/ArrowSign_OnAttacked1.cpp models the inner dispatch
+       as a real C++ thiscall virtual so MSVC emits `mov ecx,reg / call
+       [reg+0x7c]` with nothing pushed -- byte for byte what slot 31's linked
+       dispatchers emit -- and the chain closes on the already linked slot-31
+       body. The Player_HeadBonk treatment. */
+    vt[22] = (void *)as_atk1;
     vt[27] = (void *)as_mega;
     vt[31] = (void *)as_kill;
 }
