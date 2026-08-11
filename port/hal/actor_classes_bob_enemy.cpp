@@ -45,6 +45,7 @@ void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a); /* slot 2 */
 int _ZN5Actor14BeforeBehaviorEv(void *self);               /* slot 7  */
 int _ZN5Actor12BeforeRenderEv(void *self);                 /* slot 10 */
 int _ZN5Actor13OnYoshiTryEatEv(void *self);                /* slot 18 */
+int _ZN5Actor16OnAimedAtWithEggEv(void *self);             /* slot 29 default */
 /* ...and Actor's own tail, slots 20 through 28. Every one is a two-line ROM
    body: Virtual50 answers VS_FAIL and the eight combat hooks do nothing, which
    is what a class that does not care about being hit inherits. */
@@ -87,7 +88,7 @@ static void e31_trap_report(void *self, int slot)
 #define E31_TRAP(n) \
     static int __fastcall e31_trap##n(void *s, void *) \
     { e31_trap_report(s, n); return 0; }
-E31_TRAP(13) E31_TRAP(14) E31_TRAP(16) E31_TRAP(17) E31_TRAP(19) E31_TRAP(30)
+E31_TRAP(13) E31_TRAP(14) E31_TRAP(16) E31_TRAP(17) E31_TRAP(30)
 #undef E31_TRAP
 
 static int __fastcall e31_binit(void *s, void *)
@@ -118,6 +119,18 @@ static int __fastcall e31_yoshi(void *s, void *)
 { return _ZN5Actor13OnYoshiTryEatEv(s); }
 static int __fastcall e31_v50(void *s, void *)
 { return _ZN5Actor9Virtual50Ev(s); }
+/* slot 29, Actor::OnAimedAtWithEgg -- the INHERITED default for every class in
+   this gate that has no egg-aim body of its own. Read the ROM tables + 0x74
+   with relocs applied (_ZTV10ChainChomp, _ZTV13KoopaTheQuick, _ZTV9KoopaFlag,
+   _ZTV11BobOmbBuddy, _ZTV15ChainChompFence, _ZTV11daObjPile_c) and slot 29
+   lands on arm9 0x02010124, Actor::OnAimedAtWithEgg -- the same default bbh's
+   bbh_aimed and painting's pt_aimed seat. It returns the egg auto-aim lock-on
+   radius (81920 == 20.0 in 20.12); the caller reads it thiscall (this in ecx,
+   no stack args, ret 0), so this veneer forwards ecx and cleans nothing. The
+   three classes with their own body (BobOmb, Goomba, KingBobOmb) overwrite it
+   below; the six without inherit this, where a trap used to sit. */
+static int __fastcall e31_aimed(void *s, void *)
+{ return _ZN5Actor16OnAimedAtWithEggEv(s); }
 static int __fastcall e31_pounded(void *s, void *, void *o)
 { _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
 static int __fastcall e31_atk1(void *s, void *, void *o)
@@ -174,7 +187,8 @@ static void ac31_fill_shared(void **vt)
     vt[26] = (void *)e31_cannon;
     vt[27] = (void *)e31_mega;
     vt[28] = (void *)e31_under;
-    vt[29] = (void *)e31_trap19;   /* overwritten by every class here */
+    vt[29] = (void *)e31_aimed;    /* Actor::OnAimedAtWithEgg, the ROM default;
+                                      classes with their own body override it */
     vt[30] = (void *)e31_trap30;
 }
 
