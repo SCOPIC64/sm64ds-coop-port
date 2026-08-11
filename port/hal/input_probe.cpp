@@ -231,6 +231,7 @@ extern "C" {
 extern int func_ov002_020bb520(void *sign);   /* the sign's planted talk check */
 }
 extern "C" int Vec3_HorzDist(void *a, void *b);
+static int port_sign_prev_dist;
 
 extern "C" void port_input_probe_sign_trigger(int frame)
 {
@@ -247,16 +248,31 @@ extern "C" void port_input_probe_sign_trigger(int frame)
            animate) and the player's yaw at +0x8e is what the loop drives. Both
            are needed to tell "waiting for the box", which is correct, from
            "turning him forever", which is the reported soft-lock. */
-        if (sg && pl)
+        if (sg && pl) {
+            int d = Vec3_HorzDist(pl + 0x5c, sg + 0x5c);
+            /* `step` is how much of the 0xa000 the walk ACTUALLY achieved last
+               frame. Vec3_ApproachHorz writes the player's x/z directly and is
+               collision-blind, so the ONLY way it can fail to arrive is
+               something writing his position back. A step short of 0xa000 is
+               that happening, and it is the whole hazard in one number. */
             std::fprintf(stderr,
                 "  [sign] f%d state=%d sub=%d talk=%d msgActive=%d box=%d "
-                "yaw=%04x dist=%d param=0x%x\n",
+                "yaw=%04x dist=%d step=%d spd=%d sign=(%d,%d,%d) param=0x%x\n",
                 frame, *(int *)(sg + 0x354),
                 (int)*(unsigned char *)(sg + 0x58d),
                 _ZN6Player12GetTalkStateEv(pl), (int)data_0209d660,
                 (int)data_0209d6bc,
                 (unsigned)(unsigned short)*(short *)(pl + 0x8e),
-                Vec3_HorzDist(pl + 0x5c, sg + 0x5c), *(int *)(sg + 8));
+                d, port_sign_prev_dist ? port_sign_prev_dist - d : 0,
+                /* the player's own horizontal speed. Every earlier approach
+                   started from a standing start, so this was 0 and the walk
+                   had nothing to contend with -- which is why "nothing fights
+                   the write" was measured on a case that could not fight. */
+                *(int *)(pl + 0x98),
+                *(int *)(sg + 0x5c) >> 12, *(int *)(sg + 0x60) >> 12,
+                *(int *)(sg + 0x64) >> 12, *(int *)(sg + 8));
+            port_sign_prev_dist = d;
+        }
     }
     if (entered) return;
     char *sign = (char *)find_actor_by_class(184);
