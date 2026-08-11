@@ -26,6 +26,12 @@
 #include "WithMeshClsn.h"
 
 extern "C++" int ApproachLinear2(short &x, short target, short step);
+/* src/_Z14ApproachLinearRsss.cpp -- a DIFFERENT function from ApproachLinear2,
+   not a spelling of it. ApproachLinear wraps the difference back to s16
+   (`(short)(x - target)`) both before and after the step, so on an ANGLE it
+   turns the short way round and still recognises a crossing that happens
+   through the s16 wrap. ApproachLinear2 compares in int and does neither. */
+extern "C++" int ApproachLinear(short &x, short target, short step);
 
 extern "C" {
 
@@ -166,8 +172,17 @@ extern "C" void _ZN6Player17St_PunchKick_InitEv(void *self)
 { ((Player *)self)->Player::St_PunchKick_Init(); }
 #pragma comment(linker, "/alternatename:?_ZN6Player14St_OnWall_InitEv@@YAXPAD@Z=__ZN6Player14St_OnWall_InitEv")
 #pragma comment(linker, "/alternatename:?_ZN6Player17St_PunchKick_InitEv@@YAXPAX@Z=__ZN6Player17St_PunchKick_InitEv")
+/* This face used to call ApproachLinear2 -- a copy of the body two hundred
+   lines up, where that IS the right callee. The two ROM functions differ only
+   on angles that wrap, so every caller that gates a state change on the
+   arrival flag could stall: ApproachLinear2 turns the long way round and, when
+   the crossing lands through the s16 wrap, never reports arrival at all. That
+   is the SignPost read loop turning the player forever instead of opening its
+   message box (sub-state 2, step 0x800, target = sign yaw + 0x8000: any sign
+   placed within +/-0x800 of yaw 0 hangs for 25% to 99.95% of approach angles).
+   156 src/ TUs reach ApproachLinear through this face. */
 extern "C" int _Z14ApproachLinearRsss(short *x, short target, short step)
-{ return ApproachLinear2(*x, target, step); }
+{ return ApproachLinear(*x, target, step); }
 extern "C" int _ZN6Player15IsCollectingCapEv(char *self)
 { return ((Player *)self)->Player::IsCollectingCap(); }
 

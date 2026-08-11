@@ -499,6 +499,9 @@ void port_input_probe_trace_msg(int frame);
 void port_input_probe_trace_cannon(int frame);
 void port_input_probe_buddy_trigger(int frame);
 void port_input_probe_sign_trigger(int frame);
+void port_probe_alcheck(void);
+void port_probe_sign_yaw(void);
+void port_probe_chomp(int frame);
 /* the scene-fade request the title-select hands off with. Recorded by the port
    in hal/level_change.cpp and acted on by this frame loop. */
 int port_scene_fade_pending(int *sceneId);
@@ -3865,6 +3868,9 @@ int main(void)
                his state-0 main runs the real StartTalk. SM64DS_BUDDY_TRIGGER. */
             port_input_probe_buddy_trigger(frame);
             port_input_probe_sign_trigger(frame);   /* TEMPORARY: SM64DS_SIGN_TRIGGER */
+            port_probe_alcheck();
+            port_probe_sign_yaw();
+            port_probe_chomp(frame);
             port_actor_tick();
         } else if (*(void **)(c + 0x370)) {
             hal_player_behavior(player);
