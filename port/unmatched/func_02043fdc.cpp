@@ -33,6 +33,17 @@ void port_scene_canary(const char *where);
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+
+/* The test-hook switch, hoisted here because TWO places in this file compile
+   against it and the second one (port_quarantine_actor's stderr line) comes
+   well before the hook itself. 0 means the SM64DS_TEST_QUARANTINE fault
+   injector is not in the object file at all, which is what every build that is
+   not an explicit proof run gets. See the long note on the hook near the bottom
+   of this file, and the PORT_TEST_HOOKS option in port/CMakeLists.txt. */
+#ifndef PORT_TEST_HOOKS
+#define PORT_TEST_HOOKS 0
+#endif
+
 extern "C" {
 /* SM64DS_SCENE_CANARY=1: walk the scene tree and report the first node whose
    owner back-pointer is not node-0x14.
@@ -232,6 +243,31 @@ static int port_faults_fatal(void)
     return v;
 }
 
+/* Non-zero for exactly the window of a fault the SM64DS_TEST_QUARANTINE hook at
+   the bottom of this file raised on purpose, and never at any other time.
+
+   IT IS A SUPPRESSION FLAG, not a label. Tagging a harness dump "testhook" and
+   writing it into the crash directory anyway was the wrong answer: that
+   directory is the player report intake, it keeps only the newest five dumps,
+   and fault_probe.h's first-chance VEH claims a one-shot "first crash wins"
+   latch the moment any access violation goes past it. A forced fault that lands
+   there costs a real report its slot and burns the latch that would have caught
+   the crash the operator was actually hunting. So while this is set, NOTHING is
+   written to disk: no rolling dump from the quarantine filter, no quarantine.log
+   line, and no crash.txt or dump from the VEH/UEF either -- fault_probe.h reads
+   the same flag (see port_crash_write_file). The stderr line carries everything
+   a proof run needs.
+
+   Shared with fault_probe.h through a pair of identical selectany definitions:
+   nothing defines it strongly, so the two COMDATs fold to one object and both
+   sides read and write the same int. It has to live here and not behind
+   PORT_TEST_HOOKS because fault_probe.h reads it in every build.
+
+   Cleared as soon as the quarantine is recorded. It deliberately stays set when
+   SM64DS_FAULTS_FATAL makes the filter decline: the process is dying from a
+   fault the harness manufactured, and that is still not a crash report. */
+extern "C" __declspec(selectany) int port_fault_synthetic = 0;
+
 /* Is this actor currently frozen? Either it is in the instance set, or its
    whole class is latched off. Cheap linear scan -- the set is tiny and this
    runs once per node per phase.
@@ -283,9 +319,12 @@ static unsigned port_q_actor_id(void *actor)
 static void port_q_log(void *actor, unsigned id, unsigned code, unsigned off)
 {
     static char path[300];
-    const char *dir = port_crash_dir_get();
+    const char *dir;
     FILE *f;
     SYSTEMTIME st;
+    if (port_fault_synthetic)
+        return;      /* harness-raised: the crash directory never hears about it */
+    dir = port_crash_dir_get();
     if (!dir || !dir[0])
         return;
     std::snprintf(path, sizeof path, "%s\\quarantine.log", dir);
@@ -325,13 +364,32 @@ static void port_quarantine_actor(void *actor, unsigned code, unsigned off)
             port_q_frozen[port_q_frozen_n++] = actor;
     }
     port_q_log(actor, id, code, off);
+    /* The TESTHOOK suffix is inside the #if, not behind a runtime test on
+       port_fault_synthetic. A runtime test still compiles the literal into the
+       binary, so a shipped build carried the string "TESTHOOK" in its .rdata
+       for a hook that is not in it -- text that reads, to anyone who greps a
+       release, as evidence that test hooks are enabled. The flag itself has to
+       stay outside the #if because fault_probe.h reads it in every build; only
+       the string goes. */
+#if PORT_TEST_HOOKS
+    std::fprintf(stderr,
+        "[quarantine] actor %p id %u (%s) faulted (code %08x +%08x) -- "
+        "FROZEN, frame continues%s%s\n",
+        actor, id, port_q_class(id),
+        code, off, class_latched_now ? " (class latched off, rate-limited)"
+                                     : "",
+        port_fault_synthetic ? " [TESTHOOK -- forced, nothing written to the "
+                               "crash directory]" : "");
+#else
     std::fprintf(stderr,
         "[quarantine] actor %p id %u (%s) faulted (code %08x +%08x) -- "
         "FROZEN, frame continues%s\n",
         actor, id, port_q_class(id),
         code, off, class_latched_now ? " (class latched off, rate-limited)"
                                      : "");
+#endif
     std::fflush(stderr);
+    port_fault_synthetic = 0;
 }
 
 /* The SEH filter: write the rich dump (once, with full context) and decide
@@ -345,13 +403,189 @@ static int port_q_filter(EXCEPTION_POINTERS *ep, unsigned *code, unsigned *off)
     *off = (unsigned)((char *)ep->ExceptionRecord->ExceptionAddress - base);
     /* the rich dump: full context, tagged so the file names the mechanism.
        The VEH already wrote crash.txt for this exception; this adds the rolling
-       rich dump with the actor context. Under FAULTS_FATAL the tag says so. */
-    port_rich_dump_ex(ep, *code,
-                      port_faults_fatal() ? "quarantine-fatal" : "quarantine");
+       rich dump with the actor context. Under FAULTS_FATAL the tag says so.
+       Skipped entirely for a fault the test hook manufactured: see
+       port_fault_synthetic. There is no "testhook" tag any more because there
+       is no file to tag -- a dump that is not written cannot be misread. */
+    if (!port_fault_synthetic)
+        port_rich_dump_ex(ep, *code,
+                          port_faults_fatal() ? "quarantine-fatal"
+                                              : "quarantine");
     if (port_faults_fatal())
         return EXCEPTION_CONTINUE_SEARCH;   /* let it die hard */
     return EXCEPTION_EXECUTE_HANDLER;       /* swallow -> quarantine + continue */
 }
+
+/* TEST HOOK -- SM64DS_TEST_QUARANTINE="<actorId>[@<frame>][,<actorId>@<frame>]".
+   No behaviour unless the env var is set. When set, this force-freezes a live
+   actor whose id (the u16 at +0xc) matches <actorId> once the frame loop
+   reaches <frame>, by raising the SAME catchable AV a real per-actor decline
+   raises (port_actor_slot_decline) from INSIDE port_dispatch_guarded's __try.
+   That drives the exact quarantine path a real fault takes: the filter writes
+   the dump, the __except body freezes the actor, the walk continues. <frame>
+   is compared against port_last_frame (walk_window's frame counter; -1 in a
+   harness without one, so this never fires in a bare smoke).
+
+   COMMA-SEPARATED RULES fire independently, each once. That is what lets a
+   proof drive the SECOND fault of a class -- "191@30,191@60" freezes one
+   PLAYER instance, then trips the class rate limit on the next one -- which
+   is the case the class-latch asymmetry above broke and which a
+   one-rule-only hook could not reach at all.
+
+   IT IS NOT IN A BUILD A PLAYER RUNS. PORT_TEST_HOOKS defaults to 0 and the
+   whole hook -- parser, rule table, env read, call site -- is #if'd out of the
+   object file; port_test_quarantine_should_fire compiles to a `return 0` the
+   optimiser deletes at the call site. It defaulted ON in the first draft, on
+   the reasoning that walk_window is the binary the proof commands drive, which
+   is true and is beside the point: build-port.cmd configures
+   CMAKE_BUILD_TYPE=Release, so "defaults on" meant a deliberate way to
+   force-fault an arbitrary actor id, read out of the environment, shipped in
+   every binary anyone builds. A proof needs it; a player must not have it, and
+   the proof is the one that gets to pass a flag. Turn it on for a proof build
+   with `build-port.cmd -DPORT_TEST_HOOKS=ON` (port/CMakeLists.txt), which also
+   prints a build-log warning naming the binary as test-only.
+
+   IT WRITES NOTHING TO THE CRASH DIRECTORY. The fault it raises sets
+   port_fault_synthetic for its duration, and every disk artifact on the fault
+   path -- the quarantine filter's rolling dump, quarantine.log, and
+   fault_probe.h's crash.txt and VEH/UEF dump -- is suppressed while that is
+   set. The first draft tagged the files "quarantine-testhook" and wrote them
+   anyway; see port_fault_synthetic for why tagging was not enough. The proof
+   evidence is the stderr transcript. The default lives at the top of this file
+   because port_quarantine_actor, well above here, also has to compile a
+   different string under it. */
+
+#if PORT_TEST_HOOKS
+/* port_last_frame is walk_window's frame counter. Carry the SAME weak fallback
+   and the SAME alternatename directive fault_probe.h carries, rather than
+   relying on some other TU in the link having included that header: this file
+   is the actor walker and it links into targets (the bare smokes) that have no
+   fault_probe.h TU at all. Both definitions are selectany and both directives
+   are byte-identical, so a link that has the header too folds them. Without
+   this the first target to link the walker without the probe fails with
+   LNK2019 on _port_last_frame. */
+extern "C" int port_last_frame;
+extern "C" __declspec(selectany) int port_fault_no_frame = -1;
+#pragma comment(linker, "/alternatename:_port_last_frame=_port_fault_no_frame")
+
+enum { PORT_TESTQ_RULES = 8 };
+static int port_test_q_armed = -1;      /* -1 unparsed, 0 off, 1 armed */
+static int port_testq_id[PORT_TESTQ_RULES];
+static int port_testq_frame[PORT_TESTQ_RULES];
+static unsigned char port_testq_fired[PORT_TESTQ_RULES];
+static int port_testq_n;
+
+static void port_test_quarantine_reject(const char *why, const char *what)
+{
+    std::fprintf(stderr, "[testq] IGNORING SM64DS_TEST_QUARANTINE: %s (%s). "
+                 "Expected <actorId>[@<frame>] rules, comma separated, e.g. "
+                 "\"191@30\" or \"191@30,191@60\"; ids are 0..65535 decimal "
+                 "(0x prefix accepted).\n", why, what ? what : "");
+    std::fflush(stderr);
+}
+
+/* strtol, not atoi. atoi cannot report failure: it answers 0 for any
+   non-numeric string, so a typo, a stray quote or an empty value silently
+   armed the hook against ACTOR ID 0 -- a real id -- and force-faulted whatever
+   that happened to be. Every field is now parsed with an end pointer, range
+   checked, and the whole variable is rejected as one rather than half-applied,
+   because a half-parsed rule is worse than none. */
+static void port_test_quarantine_parse(void)
+{
+    const char *e = std::getenv("SM64DS_TEST_QUARANTINE");
+    port_test_q_armed = 0;
+    port_testq_n = 0;
+    if (!e || !*e)
+        return;
+    while (*e && port_testq_n < PORT_TESTQ_RULES) {
+        char *end = 0;
+        long id, frame = 0;
+        while (*e == ' ' || *e == '\t')
+            ++e;
+        id = std::strtol(e, &end, 0);
+        if (end == e) { port_test_quarantine_reject("no actor id", e); return; }
+        if (id < 0 || id > 0xffff) {
+            port_test_quarantine_reject("actor id out of 0..65535", e);
+            return;
+        }
+        e = end;
+        if (*e == '@') {
+            const char *fs = e + 1;
+            char *fe = 0;
+            frame = std::strtol(fs, &fe, 0);
+            if (fe == fs) {
+                port_test_quarantine_reject("no frame after '@'", e);
+                return;
+            }
+            if (frame < 0) {
+                port_test_quarantine_reject("negative frame", e);
+                return;
+            }
+            e = fe;
+        }
+        port_testq_id[port_testq_n] = (int)id;
+        port_testq_frame[port_testq_n] = (int)frame;
+        port_testq_fired[port_testq_n] = 0;
+        ++port_testq_n;
+        if (*e == ',') { ++e; continue; }
+        if (*e == 0) break;
+        port_test_quarantine_reject("trailing junk", e);
+        port_testq_n = 0;
+        return;
+    }
+    if (*e != 0 && port_testq_n >= PORT_TESTQ_RULES) {
+        port_test_quarantine_reject("more than 8 rules", e);
+        port_testq_n = 0;
+        return;
+    }
+    if (port_testq_n) {
+        port_test_q_armed = 1;
+        std::fprintf(stderr, "[testq] ARMED with %d rule(s):", port_testq_n);
+        for (int i = 0; i < port_testq_n; ++i)
+            std::fprintf(stderr, " id %d at frame %d", port_testq_id[i],
+                         port_testq_frame[i]);
+        std::fprintf(stderr, "  -- THIS IS A TEST HARNESS BUILD (PORT_TEST_HOOKS)"
+                     " AND A TEST HARNESS RUN. The faults it raises write "
+                     "NOTHING to the crash directory; this transcript is the "
+                     "only record.\n");
+        std::fflush(stderr);
+    }
+}
+
+static int port_test_quarantine_should_fire(void *actor)
+{
+    if (port_test_q_armed == 0)          /* the shipped, unset path */
+        return 0;
+    if (port_test_q_armed < 0) {
+        port_test_quarantine_parse();
+        if (port_test_q_armed == 0)
+            return 0;
+    }
+    if (!actor || IsBadReadPtr(actor, 0x10))
+        return 0;
+    {
+        const int id = (int)*(unsigned short *)((char *)actor + 0xc);
+        for (int i = 0; i < port_testq_n; ++i) {
+            if (port_testq_fired[i] || port_testq_id[i] != id)
+                continue;
+            if (port_last_frame < port_testq_frame[i])
+                continue;
+            port_testq_fired[i] = 1;
+            /* from here to the __except body every crash artifact is
+               suppressed; the raise is ours, not the game's */
+            port_fault_synthetic = 1;
+            std::fprintf(stderr, "[testq] rule %d: force-quarantine actor %p "
+                         "id %d at frame %d (the same AV path a real fault "
+                         "takes)\n", i, actor, id, port_last_frame);
+            std::fflush(stderr);
+            return 1;
+        }
+    }
+    return 0;
+}
+#else
+static int port_test_quarantine_should_fire(void *) { return 0; }
+#endif  /* PORT_TEST_HOOKS */
 
 /* Dispatch one actor's phase callback under the quarantine net. Kept in its own
    function because MSVC forbids __try/__except in a function that also needs
@@ -363,6 +597,11 @@ static int port_dispatch_guarded(PortListFn fn, void *actor)
     if (port_q_is_frozen(actor))
         return 1;               /* frozen: never dispatch again (leak until exit) */
     __try {
+        /* test-only: raise the real per-actor decline AV so this actor is frozen
+           through the exact path a genuine fault would take. No-op unless
+           SM64DS_TEST_QUARANTINE is set (see port_test_quarantine_should_fire). */
+        if (port_test_quarantine_should_fire(actor))
+            RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, 0);
         fn(actor);
     } __except (port_q_filter(GetExceptionInformation(), &code, &off)) {
         /* only reached when the filter chose to swallow (not FAULTS_FATAL) */

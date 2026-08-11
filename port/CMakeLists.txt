@@ -14,6 +14,30 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MAP")
 add_compile_options(/Oy-)
 
+# Test-only fault injection: SM64DS_TEST_QUARANTINE, the hook in
+# port/unmatched/func_02043fdc.cpp that force-freezes an actor by raising the
+# access violation a real per-actor decline raises. A proof run needs it to
+# reproduce a quarantine on demand; a player must never carry a way to force a
+# fault on an arbitrary actor id read out of the environment, so it is OFF
+# unless a build asks for it by name. build-port.cmd forwards its arguments to
+# cmake:
+#
+#     build-port.cmd -DPORT_TEST_HOOKS=ON
+#
+# It is a cache variable, so a tree configured for a proof STAYS a proof tree;
+# configure a fresh build directory (or pass -DPORT_TEST_HOOKS=OFF) for anything
+# that ships. The warning is there so a proof binary is identifiable from the
+# build log and not only from the source.
+option(PORT_TEST_HOOKS
+       "compile the SM64DS_TEST_QUARANTINE fault-injection hook (TEST BUILDS ONLY)"
+       OFF)
+if(PORT_TEST_HOOKS)
+    add_compile_definitions(PORT_TEST_HOOKS=1)
+    message(WARNING
+        "PORT_TEST_HOOKS=ON: these binaries carry the SM64DS_TEST_QUARANTINE "
+        "fault-injection hook and are TEST ONLY. Do not ship them.")
+endif()
+
 # Gate 1: compile the manifest slice out of ../src plus the HAL, link the
 # smoke runner. 32-bit host only -- platform.h enforces it at compile time.
 
