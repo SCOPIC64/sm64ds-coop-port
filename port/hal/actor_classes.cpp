@@ -2247,8 +2247,30 @@ extern "C" void hal_fill_question_block_vtable(void)
        CALLEE to pop it. Slot 31 is Platform::Kill, unchanged. */
     vt[21] = (void *)qb_pounded;
     vt[22] = (void *)qb_atk1;
-    vt[24] = (void *)qb_kicked;
     vt[27] = (void *)qb_mega;
     vt[28] = (void *)qb_under;
     vt[31] = (void *)ac_kill;
+
+    /* SLOT 24 STAYS TRAPPED, DELIBERATELY, and this is not an oversight.
+       Slots 21/22/27/28 above are safe because every linked dispatch site for
+       them is thiscall: the receiver arrives in ECX and the callee pops the one
+       pushed argument, which is what the three-parameter veneer's `ret 4` does.
+       Slot 24 is the exception. Its only linked dispatcher is
+       func_ov002_020eeeb8 (map VA 0x0045E940, dispatch at 0x0045EAA4), and that
+       site is CDECL: BOTH arguments are pushed, the receiver is NOT in ECX, and
+       the CALLER cleans up via a batched `add esp,10h`. It therefore requires a
+       callee that pops NOTHING.
+
+       ac_trap24 is the two-parameter shape, so it emits a bare `ret` popping 0,
+       which balances that caller exactly. Seating qb_kicked here instead would
+       emit `ret 4` against a caller that also cleans up, over-popping by one
+       slot, and would read `this` out of ECX when the real receiver was pushed.
+       That trades a survivable decline for stack corruption, which is strictly
+       worse than the behaviour it replaces.
+
+       The wider slot-24 mismatch is pre-existing (ac_kicked at line 379 has the
+       same three-parameter shape on the base Actor fill) and wants its own fix,
+       but it must not be widened here. Seat this only once slot 24 has a veneer
+       whose emitted return matches the cdecl site. */
+    vt[24] = (void *)ac_trap24;
 }
