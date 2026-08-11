@@ -2513,6 +2513,8 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     # dialogue pipeline (2026-08-08): the box pump (Stage::UpdateMessage's
     # dialogue arm), the engine-A 2D-over-3D compositor, and the headless probe.
     hal/message_pump.cpp hal/message_compositor.cpp hal/message_probe.cpp hal/message_gen_text.cpp hal/input_probe.cpp
+    # the launcher's settings.json, read by the game (camera turn direction)
+    hal/host_settings.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -2588,6 +2590,8 @@ endif()
 add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
     # dialogue pipeline (2026-08-08): pump, engine-A compositor, headless probe.
     hal/message_pump.cpp hal/message_compositor.cpp hal/message_probe.cpp hal/message_gen_text.cpp hal/input_probe.cpp
+    # the launcher's settings.json, read by the game (camera turn direction)
+    hal/host_settings.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
