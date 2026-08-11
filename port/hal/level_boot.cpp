@@ -1388,6 +1388,7 @@ void hal_camera_slots_harness_owned(void);
 void port_actor_registry_install(void);
 void port_actor_lists_seat(void);
 void hal_fill_moving_mesh_collider_vtable(void);
+void hal_fill_meshcolliderbase_vtable(void);
 void port_ov009_sinits(void);
 void port_actor_overlays_sinits(void);
 extern void *data_0209f318;
@@ -2018,6 +2019,11 @@ extern "C" void port_stage_a2_seat(void)
        collider list, so their vtable's own overrides go in before anything can
        spawn. hal/clsn_vtable.cpp has already seeded it with MeshCollider's. */
     hal_fill_moving_mesh_collider_vtable();
+
+    /* Batch-2 linkage seat: the MeshColliderBase base table's own matched
+       bodies. C2 installs the vptr; this fill names the bodies so they link.
+       Present only in the slice_gate16 targets (walk_window family). */
+    hal_fill_meshcolliderbase_vtable();
 
     /* The LEVEL overlay's own static initialisers, where the DS runs them:
        after the overlay is mounted and before anything spawns. Every

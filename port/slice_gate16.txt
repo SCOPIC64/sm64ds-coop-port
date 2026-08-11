@@ -235,6 +235,21 @@ src/_ZN10SphereClsnD1Ev.c
 src/_ZN11ShadowModelD1Ev.c
 src/_ZN12WithMeshClsnD1Ev.c
 src/_ZN16MeshColliderBase10BeforeClsnER10ClsnResultP5ActorR7Vector3P10Vector3_16S7_.cpp
+# BATCH 2 LINKAGE SEAT: the rest of the MeshColliderBase base cluster. Its
+# vtable (_ZTV16MeshColliderBase) is seated with these real matched bodies in
+# hal/meshcolliderbase_vtable.cpp; the already-linked base ctor C2 installs the
+# vptr, so naming the bodies there pulls them in. BeforeClsn (slot 9) was
+# already above. Slots 3/4/5 are pure-virtual nulls (no body). Every one of
+# these is a 2004/b56 byte-match, sizes 0x4..0x38, real ARM entries.
+src/_ZN16MeshColliderBaseD2Ev.c
+src/_ZN16MeshColliderBaseD0Ev.c
+src/_ZN16MeshColliderBase9Virtual08Ev.cpp
+src/_ZN16MeshColliderBase10DetectClsnER13RaycastGround.cpp
+src/_ZN16MeshColliderBase10DetectClsnER11RaycastLine.cpp
+src/_ZN16MeshColliderBase10DetectClsnER10SphereClsn.cpp
+src/_ZN16MeshColliderBase12TransformPosERK7Vector3RS0_.cpp
+src/_ZN16MeshColliderBase14GetAngularVelYEv.cpp
+src/_ZN16MeshColliderBase11GetVelocityER7Vector3.cpp
 # _ZN5Actor13DistToCPlayerEv: HOST COPY at unmatched/Actor_ClosestPlayerWrappers.cpp
 # (wired in CMakeLists). The matched C calls Actor::ClosestPlayer() with no argument
 # and relies on `this` being live in ARM r0; cdecl drops it, so the host copy passes
