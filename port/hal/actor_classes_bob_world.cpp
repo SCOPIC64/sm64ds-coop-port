@@ -1104,6 +1104,35 @@ static int __fastcall as_render(void *s, void *)
 }
 static int __fastcall as_d1(void *s, void *)
 { return (int)(size_t)_ZN14ArrowSignRightD1Ev((int *)s); }
+/* Slot 27, OnHitByMegaChar(Player &). The sign has its OWN body (ov098
+   0x02137d80, ArrowSignRight_OnHitByMegaChar), not Actor's do-nothing. Both of
+   the slot's linked dispatch sites are thiscall and PUSH the mega char: the two
+   sites are func_ov002_020eed24 (walk_window.exe 0x45345e: `mov ecx,this /
+   push [ebp+0xc] / call [edx+0x6c]`, then `mov eax,1 / pop / ret`, NO add esp)
+   and func_ov102_02149ccc (0x485fd3: `mov ecx,esi / push edi / call [eax+0x6c]
+   / pop edi / pop esi`, again no caller cleanup). The callee pops the word, so
+   a three-parameter __fastcall veneer reads `this` from ecx, names the pushed
+   char to force `ret 4`, and forwards -- the same shape xs_pounded/ssb_pounded
+   ship. The body's closure (Player::IncMegaKillCount, func_02012694,
+   Platform::KillByMegaChar) is all linked and dispatches no further vtable slot,
+   so the chain terminates here. */
+extern "C" void func_ov098_02137d80(void *self, void *player);  /* slice_gate33 */
+static int __fastcall as_mega(void *s, void *, void *player)
+{ func_ov098_02137d80(s, player); return 0; }
+/* Slot 31, Kill(). The sign has its OWN Kill (ov098 0x02137ccc,
+   ArrowSignRight_Kill -- a poof-dust + Sound::PlayBank3 + MarkForDestruction
+   body), not the generic Platform::Kill. Every linked slot-31 dispatch site is
+   thiscall with NO stack argument: the object's vptr is loaded, `this` is put in
+   ecx, and `call [reg+0x7c]` runs with nothing pushed and no caller cleanup
+   (e.g. walk_window.exe 0x4cc1db: `mov ecx,esi / mov eax,[esi] / call
+   [eax+0x7c]`). Platform::Kill takes only `this` and returns void, so a
+   two-parameter __fastcall veneer (this in ecx, the dummy edx, `ret 0`) matches.
+   The body closes over Particle::System::NewSimple, Actor::DisappearPoofDustAt,
+   Sound::PlayBank3 and ActorBase::MarkForDestruction -- all linked, none a
+   vtable dispatch, so the chain terminates here. */
+extern "C" int func_ov098_02137ccc(char *self);  /* slice_gate33 */
+static int __fastcall as_kill(void *s, void *)
+{ return func_ov098_02137ccc((char *)s); }
 extern "C" void hal_fill_arrow_sign_vtable(void)
 {
     void **vt = _ZTV14ArrowSignRight;
@@ -1117,12 +1146,28 @@ extern "C" void hal_fill_arrow_sign_vtable(void)
     vt[16] = (void *)as_d1;
     vt[17] = (void *)bw_trap17;
     /* 32 slots (ov098 0x0213c3d8; the next-symbol bound reads 23 and is
-       wrong). Two of the tail are the sign's own bodies, matched in src and in
-       no slice: 22 OnAttacked1 (0x02137d40) and 27 OnHitByMegaChar
-       (0x02137d80). Slot 31 is its own Kill (0x02137ccc), also unbuilt. */
+       wrong). Three of the tail are the sign's own bodies, matched in src.
+       Slot 27 (OnHitByMegaChar, 0x02137d80) and slot 31 (Kill, 0x02137ccc) are
+       now enrolled in slice_gate33 and seated through the veneers above: slot
+       27's two linked dispatchers are thiscall (ret 4), slot 31's are thiscall
+       with no arg (ret 0), each read from the linked binary, and neither body
+       dispatches a further vtable slot so both chains are closed.
+
+       SLOT 22 (OnAttacked1, 0x02137d40) STAYS TRAPPED. Its one linked
+       dispatcher (func_ov002_020ef228, walk_window.exe 0x481474) is thiscall,
+       so a ret-4 veneer would balance the OUTER call -- but the recovered body
+       tail-dispatches slot 31 through a plain function-pointer idiom
+       (`c->vt->f[0x7c/4](c)`, a `int(*)(void*)`), which MSVC compiles as a
+       CDECL indirect call: it PUSHES c, loads the vtable into ecx (not `this`),
+       `call [ecx+0x7c]`, then `pop ecx` to clean. That inner cdecl call does not
+       match slot 31's thiscall veneer (wrong `this`, double stack-clean), so
+       seating slot 22 as-is is a false-fix one call deep. Closing it needs a
+       host copy that models the inner dispatch as a real C++ thiscall virtual
+       (the Player_HeadBonk treatment), which is more than a veneer seat, so the
+       slot is left on its balanced trap and reported rather than forced. */
     vt[22] = (void *)bw_trap22;
-    vt[27] = (void *)bw_trap27;
-    vt[31] = (void *)bw_trap31;
+    vt[27] = (void *)as_mega;
+    vt[31] = (void *)as_kill;
 }
 
 // ---- WATER_BOMB (208, ov098) x2 -- REGISTERED (gate 55) --------------------

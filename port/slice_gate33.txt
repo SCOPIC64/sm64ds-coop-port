@@ -246,6 +246,20 @@ src/func_ov002_020f03c4.c
 # both binaries, so only the left factory and the destructor are new here.
 src/ArrowSignLeft_Spawn.c
 src/_ZN14ArrowSignRightD1Ev.c
+# The sign's own interaction bodies, matched src, were in no slice so slots 27
+# and 31 declined by name. Now enrolled and seated through as_mega / as_kill in
+# hal/actor_classes_bob_world.cpp. Slot 27 OnHitByMegaChar (0x02137d80) is
+# thiscall (ret 4, two linked dispatchers at walk_window 0x45345e and 0x485fd3);
+# slot 31 Kill (0x02137ccc) is thiscall with no arg (ret 0). Neither body
+# dispatches a further vtable slot, so both closures are closed and their
+# callees (Player::IncMegaKillCount, Platform::KillByMegaChar, func_02012694 for
+# 27; Particle::System::NewSimple, Actor::DisappearPoofDustAt, Sound::PlayBank3,
+# ActorBase::MarkForDestruction for 31) were already linked. Slot 22 OnAttacked1
+# (0x02137d40) is NOT enrolled: it tail-dispatches slot 31 through a cdecl
+# function-pointer idiom that mismatches slot 31's thiscall veneer, a false-fix
+# one call deep -- left trapped, see the fill comment.
+src/func_ov098_02137d80.c
+src/func_ov098_02137ccc.cpp
 
 # WATER_BOMB (208) x2 -- _ZTV9WaterBomb, RTTI daWbm_c
 src/WaterBomb_Spawn.c
