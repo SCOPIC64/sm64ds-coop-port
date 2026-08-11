@@ -386,6 +386,9 @@ int _ZNK12WithMeshClsn10IsOnGroundEv(void *c);
 void *_ZNK12WithMeshClsn14GetFloorResultEv(void *c);
 void *_ZN5Actor10FindWithIDEj(unsigned id);
 int func_ov002_020ef2a4(void *clsn, void *arg);
+int func_ov002_020eee3c(void *clsn, void *arg);
+int _ZNK12WithMeshClsn8IsOnWallEv(void *c);
+void *_ZNK12WithMeshClsn13GetWallResultEv(void *c);
 }
 
 static void *pp_first_of_class(unsigned id)
@@ -443,6 +446,27 @@ static void port_vt_audit(void)
     std::memset(seen, 0, sizeof seen);
     char *base = (char *)(size_t)GetModuleHandleA(0);
     int n = 0;
+
+    /* The set this audit walks has to be the set the CALLER can reach.
+       func_ov002_020cef84 reaches its target through Actor::FindWithID, not
+       through the behaviour list, and the two are different registries: an
+       actor can be findable without being on the behaviour list. Enumerating
+       by asking FindWithID for every id is exact and assumes nothing about
+       the list's layout. Printed with the same [vt] shape. */
+    for (unsigned u = 0; u < 8192u; ++u) {
+        char *o = (char *)_ZN5Actor10FindWithIDEj(u);
+        if (!o) continue;
+        unsigned id = *(unsigned short *)(o + 0xc);
+        char **vt = *(char ***)o;
+        std::printf("[vtfind] uid %5u id %3u %-28s vt %p", u, id,
+                    id < PORT_ACTOR_IDS ? port_actor_class_name(id) : "?",
+                    (void *)vt);
+        if (!vt) { std::printf(" NO VTABLE\n"); continue; }
+        for (int s = 18; s <= 31; ++s)
+            std::printf(" %d:+%08x", s, (unsigned)(size_t)(vt[s] - base));
+        std::printf("\n");
+    }
+
     for (int *node = (int *)(size_t)data_020a4b78[0]; node && n++ < 4096;
          node = (int *)(size_t)node[1]) {
         char *o = (char *)(size_t)node[2];
@@ -453,9 +477,11 @@ static void port_vt_audit(void)
         char **vt = *(char ***)o;
         if (!vt) { std::printf("[vt] id %3u %-24s NO VTABLE\n", id,
                                port_actor_class_name(id)); continue; }
-        std::printf("[vt] id %3u %-24s vt %p slot21 +%08x\n", id,
-                    port_actor_class_name(id), (void *)vt,
-                    (unsigned)(size_t)(vt[21] - base));
+        std::printf("[vt] id %3u %-28s vt %p", id,
+                    port_actor_class_name(id), (void *)vt);
+        for (int s = 18; s <= 31; ++s)
+            std::printf(" %d:+%08x", s, (unsigned)(size_t)(vt[s] - base));
+        std::printf("\n");
     }
     std::fflush(stdout);
 }
@@ -536,22 +562,47 @@ static void port_pound_probe(void)
 
     static unsigned char clsn[512];
     std::memset(clsn, 0, sizeof clsn);
-    *(unsigned *)(clsn + 0x10) |= 0x10u;          /* WithMeshClsn::IsOnGround */
-    void *res = _ZNK12WithMeshClsn14GetFloorResultEv(clsn);
-    if (!res || !_ZNK12WithMeshClsn10IsOnGroundEv(clsn)) {
-        std::fprintf(stderr, "[pound] scratch collider will not report ground "
-                     "(res %p)\n", res);
+    int hit;
+    if (slot == 25) {
+        /* The WALL half of the same pair. func_ov002_020eee3c is what
+           func_ov002_020ef2a4 is, with IsOnWall/GetWallResult in place of the
+           floor pair and slot 25, OnPushed, in place of slot 21: whatever the
+           player is pushing against gets OnPushed(player). Walking into a
+           thing, which is why it reaches players far more often than a pound
+           does. */
+        *(unsigned char *)(clsn + 0x90) |= 0x8u;  /* WithMeshClsn::IsOnWall */
+        void *res = _ZNK12WithMeshClsn13GetWallResultEv(clsn);
+        if (!res || !_ZNK12WithMeshClsn8IsOnWallEv(clsn)) {
+            std::fprintf(stderr, "[pound] scratch collider will not report a "
+                         "wall (res %p, flags %02x)\n", res,
+                         *(unsigned char *)(clsn + 0x90));
+            std::fflush(stderr);
+            return;
+        }
+        *(unsigned *)((char *)res + 0x1c) = uid;
+        std::fprintf(stderr, "[pound] frame %ld: class %u %s actor %p uid %u, "
+                     "player %p -- dispatching slot 25 through "
+                     "func_ov002_020eee3c\n", frame, want,
+                     port_actor_class_name(want), target, uid, player);
         std::fflush(stderr);
-        return;
+        hit = func_ov002_020eee3c(clsn, player);
+    } else {
+        *(unsigned *)(clsn + 0x10) |= 0x10u;      /* WithMeshClsn::IsOnGround */
+        void *res = _ZNK12WithMeshClsn14GetFloorResultEv(clsn);
+        if (!res || !_ZNK12WithMeshClsn10IsOnGroundEv(clsn)) {
+            std::fprintf(stderr, "[pound] scratch collider will not report "
+                         "ground (res %p)\n", res);
+            std::fflush(stderr);
+            return;
+        }
+        *(unsigned *)((char *)res + 0x1c) = uid;  /* ClsnResult::GetClsnID */
+        std::fprintf(stderr, "[pound] frame %ld: class %u %s actor %p uid %u, "
+                     "player %p -- dispatching slot 21 through "
+                     "func_ov002_020ef2a4\n", frame, want,
+                     port_actor_class_name(want), target, uid, player);
+        std::fflush(stderr);
+        hit = func_ov002_020ef2a4(clsn, player);
     }
-    *(unsigned *)((char *)res + 0x1c) = uid;      /* ClsnResult::GetClsnID */
-
-    std::fprintf(stderr, "[pound] frame %ld: class %u %s actor %p uid %u, "
-                 "player %p -- dispatching slot 21 through "
-                 "func_ov002_020ef2a4\n", frame, want,
-                 port_actor_class_name(want), target, uid, player);
-    std::fflush(stderr);
-    int hit = func_ov002_020ef2a4(clsn, player);
     std::fprintf(stderr, "[pound] RETURNED %d -- the caller's frame survived "
                  "the dispatch\n", hit);
     std::fflush(stderr);
