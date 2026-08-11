@@ -45,15 +45,30 @@
  * until dismissed. Anyone debugging the reported sign soft-lock should not
  * start from "the message is declined", because it is not.
  *
- * WHAT THE TRACE DOES SHOW, for whoever picks that up: sub-state 1 drives the
- * PLAYER'S POSITION (Vec3_ApproachHorz on player+0x5c, 0xa000 per frame toward
- * a point 0x78000 in front of the sign) with NO timeout and NO abort. It ran
- * 302 frames in one probe because the trigger fired from 3140 units away. If
- * that walk is ever blocked -- geometry between the player and the read point,
- * which is exactly the shape of "a sign right outside a cave" -- it never
- * arrives and the player is held in the talk state indefinitely. That is the
- * surviving candidate. NOT reproduced; the machine converged in every position
- * tried (3140, 300 and 120 units out).
+ * SUB-STATE 1 HAS NO TIMEOUT AND NO ABORT. It drives the PLAYER'S POSITION
+ * (Vec3_ApproachHorz on player+0x5c, 0xa000 per frame toward a point 0x78000
+ * in front of the sign), and Vec3_ApproachHorz writes x/z DIRECTLY and is
+ * collision-blind -- its arrival test is horizontal length only. So the walk
+ * can only fail to arrive if something writes the player's position back
+ * between sign ticks.
+ *
+ * MEASURED, AND IT DOES NOT. Eight approach directions at radius 700 around
+ * the level-3 sign at (-400,0,-3500), plus three head-on distances: the walk
+ * arrived every time, and across ~683 walk frames the achieved step was always
+ * the full 0xa000 to within fixed-point rounding (40918..40957), never short
+ * and never negative. While the talk owns the player his own movement is
+ * suspended, so nothing contests the write. The no-timeout loop is a real
+ * hazard on paper and it did not fire in anything reachable from here; making
+ * it fire would need a THIRD party moving him (a moving platform, knockback,
+ * a current), not level geometry.
+ *
+ * THE REPORTED SOFT-LOCK IS THEREFORE STILL UNEXPLAINED, and specifically the
+ * ROTATION is: sub 0 turns for 15 frames and converges, sub 2 turns for 15 and
+ * converges, and sub 0 cannot chase an unstable angle because the read point
+ * is 0x78000 (120 units) out and the proximity escape fires at 0x32000 (200),
+ * so the player can never be near enough to that point to destabilise
+ * Vec3_HorzAngle while still in sub 0. Two hypotheses tested, both negative.
+ * Do not treat this machine as the known cause.
  */
 #include <cstdio>
 #include <cstdlib>
