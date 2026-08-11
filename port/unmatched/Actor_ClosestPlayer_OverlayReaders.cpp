@@ -22,6 +22,39 @@
  * The four byte-locked sources are commented out of their slice gates (32, 70,
  * 194, 203) in favour of these copies; the sources are unchanged.
  */
+
+/* STILL-RAW Actor::ClosestPlayer zero-argument readers (LATENT, not yet hosted).
+ *
+ * Eight more readers open the same r0 passthrough seam but are NOT in the build
+ * today: their overlays are not currently mounted in the port (map hits 0), so
+ * host copying them now would only add dead code. Each is a latent live bug the
+ * instant its overlay gets hosted. A dropped receiver makes ClosestPlayer read
+ * off a null base (Vec3_Dist from garbage + 0x5c), the null this + 0x5c fault,
+ * the same class as the live rabbit crash (see Actor_ClosestPlayerWrappers.cpp,
+ * corpus id 9e164e92).
+ *
+ * NONE of the eight is listed in any port/slice_gate*.txt manifest (checked on
+ * cons commit 24c2dcf75), so there is no arrival line to annotate; this block is
+ * the registry instead. BEFORE un-commenting or otherwise hosting the overlay
+ * that carries one of these, host copy the reader to PASS the receiver first
+ * (exactly the value the ROM leaves in r0), the way the four copies below and
+ * the wrappers file do. Per seat gate item 4: a newly hosted overlay carrying
+ * known raw readers.
+ *
+ *   src/func_ov018_02111b3c.c                 (ov018, calls ClosestPlayer() no arg)
+ *   src/func_ov020_02111fc4.cpp               (ov020, calls ClosestPlayer() no arg)
+ *   src/func_ov032_02111350.c                 (ov032, calls ClosestPlayer() no arg)
+ *   src/func_ov060_02111f08.c                 (ov060, calls ClosestPlayer() no arg)
+ *   src/func_ov066_02119398.cpp               (ov066, calls ClosestPlayer() no arg)
+ *   src/unnamed/ov063/func_ov063_02117650.c   (ov063, calls ClosestPlayer() no arg)
+ *   src/_ZN5Actor23HorzAngleToCPlayerOrAngEv.c (Actor::HorzAngleToCPlayerOrAng, no arg;
+ *                                              already noted in-slice as "in no slice")
+ *   src/actors/Boo/_ZN3Boo13InitResourcesEv.c (Boo::InitResources: its two call sites
+ *                                              already pass c, so it is safe on the host
+ *                                              as written, but its extern is declared
+ *                                              zero-arg style; keep the c argument if the
+ *                                              declaration is ever reprototyped.)
+ */
 #include "common.h"
 
 /* one real one-arg (this) shape, shared by all four copies below */
