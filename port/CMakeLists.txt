@@ -1136,6 +1136,13 @@ list(APPEND SLICE18_SOURCES
 # RABBIT null-this +0x5c crash, reachable once slot 19 made the rabbit swallowable)
 list(APPEND SLICE18_SOURCES
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov085_Rabbit_b8dc.cpp")
+# r0-passthrough: four LakituBro (daC_Jugem_c) state bodies -- func_ov085_
+# 0212d9b8/dd10/e310/e4a4 -- each call Actor::ClosestPlayer() with no argument,
+# relying on `this` riding ARM r0. Host copies pass each body's own receiver; src
+# lines commented out in slice_gate18.txt. e4a4 (caught/grab state) is the site
+# caught taking a leaked receiver on a level-1 run.
+list(APPEND SLICE18_SOURCES
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov085_LakituBro_ClosestPlayer.cpp")
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate19.txt" SLICE19_LINES)
 set(SLICE19_SOURCES "")
@@ -1387,7 +1394,14 @@ set(GATE32_HOST_SOURCES
     # ...and for the eleventh, the widest one yet: KING_BOB_OMB keeps the
     # ADDRESS of a two-PMF record rather than an index, so both his setter and
     # his Behavior do pointer arithmetic on a type MSVC doubles
-    unmatched/KingBobOmb_States.cpp)
+    unmatched/KingBobOmb_States.cpp
+    # r0-passthrough overlay readers: func_ov084_02129cf4 (gate 32),
+    # func_ov084_0212f204 (gate 70), func_ov094_02136024 (gate 194) and
+    # func_ov102_02149078 (gate 203) each call Actor::ClosestPlayer() with no
+    # argument (this rode ARM r0). Host copies pass each body's own receiver; src
+    # lines commented out in their slice gates. Grouped here because all four ship
+    # on the same three targets this GATE32 host set is added to.
+    unmatched/Actor_ClosestPlayer_OverlayReaders.cpp)
 
 # The header/definition collisions in this gate's closure: decl_common.h
 # declares each of these `(void*)` and its own TU defines it `(char*)`, which

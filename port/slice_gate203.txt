@@ -57,4 +57,7 @@ src/func_ov102_02149820.c
 # Actor::ClosestPlayer (slice_gate9/33), data_0209f2f8 and data_0209f32c
 # (arm9 mounts) -- are already in the link, as is
 # Player::IncMegaKillCount (slice_gate32) for slot 27.
-src/func_ov102_02149078.c
+# func_ov102_02149078: r0-passthrough. Calls Actor::ClosestPlayer() with no
+# argument (this rode ARM r0). HOST COPY passes `self` explicitly at
+# port/unmatched/Actor_ClosestPlayer_OverlayReaders.cpp. Byte-locked src unchanged.
+# src/func_ov102_02149078.c

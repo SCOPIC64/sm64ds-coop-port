@@ -176,11 +176,16 @@ src/func_ov085_0212d5dc.cpp
 src/func_ov085_0212d724.c
 src/func_ov085_0212d73c.c
 src/func_ov085_0212d8ec.c
-src/func_ov085_0212d9b8.c
+# LakituBro r0-passthrough set: func_ov085_0212d9b8/dd10/e310/e4a4 each call
+# Actor::ClosestPlayer() with no argument (this rode ARM r0). HOST COPIES pass the
+# state body's own receiver at port/unmatched/Ov085_LakituBro_ClosestPlayer.cpp.
+# e4a4 is the caught/grab state caught taking a leaked receiver on a level-1 run.
+# The four byte-locked sources are unchanged.
+# src/func_ov085_0212d9b8.c
 src/func_ov085_0212db04.cpp
 src/func_ov085_0212dbdc.c
 src/func_ov085_0212dcfc.c
-src/func_ov085_0212dd10.cpp
+# src/func_ov085_0212dd10.cpp  -- HOST COPY (Ov085_LakituBro_ClosestPlayer.cpp)
 src/func_ov085_0212ddc4.cpp
 src/func_ov085_0212de5c.cpp
 src/func_ov085_0212df84.cpp
@@ -188,9 +193,9 @@ src/func_ov085_0212e078.cpp
 src/func_ov085_0212e180.c
 src/func_ov085_0212e19c.c
 src/func_ov085_0212e2ec.c
-src/func_ov085_0212e310.cpp
+# src/func_ov085_0212e310.cpp  -- HOST COPY (Ov085_LakituBro_ClosestPlayer.cpp)
 src/func_ov085_0212e480.c
-src/func_ov085_0212e4a4.c
+# src/func_ov085_0212e4a4.c  -- HOST COPY (Ov085_LakituBro_ClosestPlayer.cpp)
 src/func_ov085_0212e59c.c
 src/func_ov085_0212e5ac.c
 src/func_ov085_0212e720.c
