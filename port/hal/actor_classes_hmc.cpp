@@ -92,9 +92,17 @@ static void hmc_trap_report(void *self, int slot)
 #define HMC_TRAP(n) \
     static int __fastcall hmc_trap##n(void *s, void *) \
     { hmc_trap_report(s, n); return 0; }
-HMC_TRAP(13) HMC_TRAP(14) HMC_TRAP(20) HMC_TRAP(22) HMC_TRAP(23) HMC_TRAP(24)
+HMC_TRAP(13) HMC_TRAP(14) HMC_TRAP(20) HMC_TRAP(22)
 HMC_TRAP(25) HMC_TRAP(26) HMC_TRAP(27) HMC_TRAP(28) HMC_TRAP(29) HMC_TRAP(30)
 #undef HMC_TRAP
+/* Slots 23/24 take the three-parameter shape so they emit `ret 4`: their one
+   dispatch site each is now thiscall (Actor_OnAttacked2Dispatch.cpp /
+   Actor_OnKickedDispatch.cpp), which pushes one argument the callee must pop.
+   Body identical to the HMC_TRAP shape; only the pop contract widens. */
+static int __fastcall hmc_trap23(void *s, void *, void *)
+{ hmc_trap_report(s, 23); return 0; }
+static int __fastcall hmc_trap24(void *s, void *, void *)
+{ hmc_trap_report(s, 24); return 0; }
 
 // ---- the shared half -------------------------------------------------------
 static int __fastcall hmc_binit(void *s, void *)

@@ -271,9 +271,21 @@ static int __fastcall ac_trap17(void *s, void *) { ac_trap_report(s, 17); return
 #define AC_TRAP(n) \
     static int __fastcall ac_trap##n(void *s, void *) \
     { ac_trap_report(s, n); return 0; }
-AC_TRAP(21) AC_TRAP(22) AC_TRAP(23) AC_TRAP(24)
+AC_TRAP(21) AC_TRAP(22)
 AC_TRAP(27) AC_TRAP(28) AC_TRAP(29) AC_TRAP(30) AC_TRAP(31)
 #undef AC_TRAP
+/* Slots 23 and 24 take the THREE-parameter shape so they emit `ret 4`, not a
+   bare `ret`. Their one dispatch site each is now thiscall (the receiver in
+   ECX and the single pushed argument popped by the callee -- see
+   unmatched/Actor_OnAttacked2Dispatch.cpp and Actor_OnKickedDispatch.cpp), and
+   a two-parameter trap on those slots would emit a bare `ret` that pops nothing
+   against a caller that pushes one, leaving a stale word. The body is identical
+   to the AC_TRAP shape above -- decline still names the slot and the class --
+   only the pop contract widens to match the seated ac_atk2/ac_kicked bodies. */
+static int __fastcall ac_trap23(void *s, void *, void *)
+{ ac_trap_report(s, 23); return 0; }
+static int __fastcall ac_trap24(void *s, void *, void *)
+{ ac_trap_report(s, 24); return 0; }
 static int __fastcall plat_trap(void *s, void *) { ac_trap_report(s, -1); return 0; }
 
 /* ---- the pieces the hosted D1 destructors tear members down with -----------
@@ -668,19 +680,19 @@ extern "C" void hal_fill_black_brick_block_vtable(void)
        is not. Both bodies are sliced with it (slice_gate16.txt) and 31's whole
        closure was already linked.
 
-       22 AND 23 STAY TRAPPED ON PURPOSE, and this is not an oversight to tidy
-       up later. Slot 23's only dispatcher, src/func_ov002_020ef070.cpp:73,
-       models the vtable as plain function pointers taking self explicitly,
-       which is cdecl -- both arguments pushed and the CALLER cleaning eight --
-       while every seated thunk here is thiscall and pops its own. One word
-       cannot satisfy both, the same conflict slot 28 has, and seating a real
-       body under a cdecl caller trades a clean freeze for a corrupted stack.
-       Slot 22 is worse than merely blocked: its body (0x020b37ec) reaches slot
-       31 through `fn(c)`, a cdecl call, so seating 22 would put a cdecl caller
-       back on the slot 31 that was just seated thiscall and recreate the
-       conflict on a slot that is currently fine. Both need the host-copy
-       transform in unmatched/Player_HeadBonk.cpp before they can be seated.
-       Slot 24 is the same shape via src/func_ov002_020eeeb8.cpp:90. */
+       22 AND 23 STAY TRAPPED here, but the reason narrowed. Slot 23's only
+       dispatcher (was src/func_ov002_020ef070.cpp:73) modelled the vtable as
+       plain cdecl function pointers while every seated thunk here is thiscall;
+       one word could not satisfy both. That dispatcher is now the thiscall
+       host copy unmatched/Actor_OnAttacked2Dispatch.cpp (slot 24's is
+       unmatched/Actor_OnKickedDispatch.cpp), and ac_trap23/ac_trap24 are the
+       three-parameter shape that emits `ret 4` to match it, so the convention
+       conflict is gone. 23 stays on ac_trap23 only because its real body is
+       not sliced yet -- seating it is a follow-up, not this change. Slot 22 is
+       still genuinely blocked: its body (0x020b37ec) reaches slot 31 through
+       `fn(c)`, a cdecl call, so seating 22 would put a cdecl caller back onto
+       the slot 31 this file seated thiscall; it needs its own dispatcher
+       converted first, the transform in unmatched/Player_HeadBonk.cpp. */
     vt[21] = (void *)bbb_pounded;
     vt[22] = (void *)ac_trap22;
     vt[23] = (void *)ac_trap23;
@@ -2263,26 +2275,22 @@ extern "C" void hal_fill_question_block_vtable(void)
     vt[28] = (void *)qb_under;
     vt[31] = (void *)ac_kill;
 
-    /* SLOT 24 STAYS TRAPPED, DELIBERATELY, and this is not an oversight.
-       Slots 21/22/27/28 above are safe because every linked dispatch site for
-       them is thiscall: the receiver arrives in ECX and the callee pops the one
-       pushed argument, which is what the three-parameter veneer's `ret 4` does.
-       Slot 24 is the exception. Its only linked dispatcher is
-       func_ov002_020eeeb8 (map VA 0x0045E940, dispatch at 0x0045EAA4), and that
-       site is CDECL: BOTH arguments are pushed, the receiver is NOT in ECX, and
-       the CALLER cleans up via a batched `add esp,10h`. It therefore requires a
-       callee that pops NOTHING.
+    /* SLOT 24 STAYS TRAPPED here, but only because its real body is not sliced
+       yet -- the convention conflict that used to block it is closed. Slots
+       21/22/27/28 above are safe because every linked dispatch site for them is
+       thiscall: the receiver arrives in ECX and the callee pops the one pushed
+       argument, which is what the three-parameter veneer's `ret 4` does. Slot
+       24's only dispatcher used to be the exception -- func_ov002_020eeeb8 was
+       CDECL, both arguments pushed and the CALLER cleaning up via a batched
+       `add esp,10h`, which needed a callee that popped NOTHING. That dispatcher
+       is now the thiscall host copy unmatched/Actor_OnKickedDispatch.cpp, so
+       the site pushes one argument and expects the callee to pop it, exactly
+       like the seated slot-24 bodies (ac_kicked, and every override, already
+       emit `ret 4`). ac_trap24 is now the three-parameter shape too, so it
+       balances the thiscall caller instead of over-popping it.
 
-       ac_trap24 is the two-parameter shape, so it emits a bare `ret` popping 0,
-       which balances that caller exactly. Seating qb_kicked here instead would
-       emit `ret 4` against a caller that also cleans up, over-popping by one
-       slot, and would read `this` out of ECX when the real receiver was pushed.
-       That trades a survivable decline for stack corruption, which is strictly
-       worse than the behaviour it replaces.
-
-       The wider slot-24 mismatch is pre-existing (ac_kicked at line 379 has the
-       same three-parameter shape on the base Actor fill) and wants its own fix,
-       but it must not be widened here. Seat this only once slot 24 has a veneer
-       whose emitted return matches the cdecl site. */
+       So qb_kicked CAN be seated here safely now; it is simply the follow-up,
+       not this change. This commit converts the dispatcher and widens the trap
+       as one atomic unit and seats no new body. */
     vt[24] = (void *)ac_trap24;
 }

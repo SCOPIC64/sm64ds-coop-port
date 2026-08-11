@@ -119,8 +119,16 @@ WF_TRAP(13) WF_TRAP(14) WF_TRAP(17)
    Actor's shared body there would be the wrong code, not merely less code.
    30 declines for all seven: its ROM body returns a Vector3 by value and the
    sret contract is unproved. */
-WF_TRAP(23) WF_TRAP(24) WF_TRAP(27) WF_TRAP(30) WF_TRAP(31)
+WF_TRAP(27) WF_TRAP(30) WF_TRAP(31)
 #undef WF_TRAP
+/* Slots 23/24 take the three-parameter shape so they emit `ret 4`: their one
+   dispatch site each is now thiscall (Actor_OnAttacked2Dispatch.cpp /
+   Actor_OnKickedDispatch.cpp), which pushes one argument the callee must pop.
+   Body identical to the WF_TRAP shape; only the pop contract widens. */
+static int __fastcall wf_trap23(void *s, void *, void *)
+{ wf_trap_report(s, 23); return 0; }
+static int __fastcall wf_trap24(void *s, void *, void *)
+{ wf_trap_report(s, 24); return 0; }
 
 static int __fastcall wf_binit(void *s, void *)
 { return _ZN5Actor19BeforeInitResourcesEv(s); }

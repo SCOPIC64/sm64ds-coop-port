@@ -583,6 +583,16 @@ list(APPEND SLICE10_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/TexSeq_Caller
 # src/func_ov002_020cef84.cpp with the dispatch remodelled as a C++ virtual
 # so both sites are thiscall, which is what lets slot 28 hold a real body.
 list(APPEND SLICE10_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Player_HeadBonk.cpp")
+# Slots 23 and 24 have exactly one dispatch site each, and both model the vtable
+# as plain cdecl function pointers while every seated slot-23/24 body is
+# thiscall; see unmatched/Actor_OnAttacked2Dispatch.cpp and
+# unmatched/Actor_OnKickedDispatch.cpp. These copies are
+# src/func_ov002_020ef070.cpp and src/func_ov002_020eeeb8.cpp with the dispatch
+# remodelled as a C++ virtual so each site is thiscall, which is what lets slots
+# 23/24 hold real bodies (and stops the base ac_atk2/ac_kicked seats over-popping
+# on every dispatch). Both src lines are commented out of slice_gate10.txt.
+list(APPEND SLICE10_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Actor_OnAttacked2Dispatch.cpp")
+list(APPEND SLICE10_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Actor_OnKickedDispatch.cpp")
 
 # Two Actor entry points are C++ inside a .c, but a different shape from the
 # hostgen cases below: each is a real METHOD against Actor.h, so hostgen's
