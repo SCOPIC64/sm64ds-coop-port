@@ -1,7 +1,16 @@
 cmake_minimum_required(VERSION 3.16)
 project(sm64ds-port C CXX)
 # Link the static CRT so shipped exes never depend on the VC++ redist (CMP0091).
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+# Release 0.1.6 shipped dynamically linked because nothing pinned this and CMake
+# defaults to the DLL runtime, so a player without the redist could not start the
+# game at all, and that failure produces no crash dump and never reaches intake.
+# This must stay GLOBAL and stay above the targets: a per-target property on the
+# shipped exe alone would leave the test harnesses on the dynamic default, and a
+# harness linked differently from the shipped artifact resolves addresses that do
+# not match what players run. The generator expression keeps the debug CRT for
+# Debug builds, so heap and iterator assertions still fire while chasing
+# allocator bugs; plain "MultiThreaded" would silently link the release CRT there.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MAP")
 add_compile_options(/Oy-)
 
