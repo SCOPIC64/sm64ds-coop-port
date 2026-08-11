@@ -209,6 +209,50 @@ static int   port_q_frozen_n;
 static unsigned char port_q_class_count[PORT_Q_IDS]; /* quarantines per id */
 static unsigned char port_q_class_skip[PORT_Q_IDS];  /* id-level skip latch */
 
+/* --- THE DECLINE TARGET: who the net is supposed to freeze ------------------
+
+   The comment below says the raise "lets the quarantine net freeze just that
+   actor". It did not. port_dispatch_guarded's __except froze the WALKER -- the
+   actor whose phase callback the list walk was inside -- and an interaction
+   slot is dispatched from the ATTACKER's callback, not the receiver's. So every
+   trapped interaction slot on a piece of level furniture froze the PLAYER:
+
+     Player::Behavior -> ground pound / punch / head bonk
+       -> receiver's vtable slot 21 / 23 / 28
+         -> ac_trap_report -> port_actor_slot_decline -> RaiseException
+           -> __except in port_dispatch_guarded, walking the PLAYER's node
+             -> port_quarantine_actor(THE PLAYER)
+
+   Measured, not reasoned: thirty-one PLAYER-walker quarantines in the live
+   report index across four shipped builds and ten levels, twenty-six of them
+   followed in the same playlog by
+
+     [lvl] TEARDOWN DID NOT CONVERGE: 1 actors still live after 16 rounds
+     [lvl] teardown failed; the change is declined and the level stands
+
+   which is the second half of the same bug: a frozen actor is never dispatched
+   again, so it is never destroyed, so no level change can ever complete for the
+   rest of the session. One punch on one brick ends the run.
+
+   The fix is attribution, not a seat. port_actor_slot_decline_for latches the
+   actor that actually declined; the __except prefers that latch over the
+   walker. A trapped brick then freezes the BRICK -- it stops rendering and
+   stops responding, which is the honest presentation of an unhosted slot -- and
+   the player walks away. Call sites that cannot name a receiver keep the old
+   entry point and the old walker attribution.
+
+   THE RAISE IS NOT OPTIONAL and must not be turned into a plain return. These
+   trap thunks are two-parameter __fastcall and emit a bare `ret` that pops
+   nothing, while several of the slots they sit on are dispatched by callers
+   that push arguments. Their `ret` is only safe because control never reaches
+   it. Suppressing the raise for an already-frozen target would make it
+   reachable and desync the caller's frame. Repeats are made cheap in the FILTER
+   instead (no second rich dump), where nothing about the return path changes.
+
+   Single-threaded: the game loop is one thread, the latch is set microseconds
+   before the raise and cleared by the handler that consumes it. */
+static void *port_q_decline_target;
+
 /* Shared "per-actor decline" for the HAL trap sites that used to std::abort()
    on an unhosted vtable slot or an unhosted actor state. Those declines fire
    INSIDE fn(actor) -- within the quarantine __try -- but abort() is an orderly
@@ -234,6 +278,17 @@ extern "C" void port_actor_slot_decline(const char *what)
     /* raise a catchable AV; the enclosing port_dispatch_guarded __except sees
        it, writes the dump, freezes the actor, and the walk continues. */
     RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, 0);
+}
+
+/* Same decline, but NAMING the actor that declined. Trap sites that know their
+   receiver call this one; the __except then freezes the receiver instead of
+   whichever actor's phase callback the walk happened to be inside. Call sites
+   that genuinely cannot name a receiver keep port_actor_slot_decline above and
+   keep the walker attribution, which for them is the correct answer. */
+extern "C" void port_actor_slot_decline_for(void *actor, const char *what)
+{
+    port_q_decline_target = actor;
+    port_actor_slot_decline(what);
 }
 
 static int port_faults_fatal(void)
@@ -408,10 +463,22 @@ static int port_q_filter(EXCEPTION_POINTERS *ep, unsigned *code, unsigned *off)
     /* the rich dump: full context, tagged so the file names the mechanism.
        The VEH already wrote crash.txt for this exception; this adds the rolling
        rich dump with the actor context. Under FAULTS_FATAL the tag says so.
-       Skipped entirely for a fault the test hook manufactured: see
+
+       TWO reasons to write no file, and they are independent.
+
+       A fault the test hook manufactured is not a crash report at all: see
        port_fault_synthetic. There is no "testhook" tag any more because there
-       is no file to tag -- a dump that is not written cannot be misread. */
-    if (!port_fault_synthetic)
+       is no file to tag -- a dump that is not written cannot be misread.
+
+       And a NAMED decline whose target is already frozen writes no SECOND dump.
+       Attribution keeps the player alive, which means he can walk back and hit
+       the same dead brick again, and every hit re-raises -- the raise cannot be
+       suppressed (the trap thunks' `ret` is only safe because it is
+       unreachable), but the FILE it produces can be, and must be: these dumps
+       upload into the live player index. The freeze and the unwind are
+       unchanged; only the write is skipped. */
+    if (!port_fault_synthetic &&
+        !(port_q_decline_target && port_q_is_frozen(port_q_decline_target)))
         port_rich_dump_ex(ep, *code,
                           port_faults_fatal() ? "quarantine-fatal"
                                               : "quarantine");
@@ -598,8 +665,13 @@ static int port_test_quarantine_should_fire(void *) { return 0; }
 static int port_dispatch_guarded(PortListFn fn, void *actor)
 {
     unsigned code = 0, off = 0;
+    void *victim;
     if (port_q_is_frozen(actor))
         return 1;               /* frozen: never dispatch again (leak until exit) */
+    /* Clear before the call, not after: a latch left behind by an earlier
+       decline must never be able to blame this actor's unrelated fault on
+       somebody else. Only a decline raised inside THIS fn(actor) can set it. */
+    port_q_decline_target = 0;
     __try {
         /* test-only: raise the real per-actor decline AV so this actor is frozen
            through the exact path a genuine fault would take. No-op unless
@@ -608,10 +680,16 @@ static int port_dispatch_guarded(PortListFn fn, void *actor)
             RaiseException(EXCEPTION_ACCESS_VIOLATION, 0, 0, 0);
         fn(actor);
     } __except (port_q_filter(GetExceptionInformation(), &code, &off)) {
-        /* only reached when the filter chose to swallow (not FAULTS_FATAL) */
-        port_quarantine_actor(actor, code, off);
+        /* only reached when the filter chose to swallow (not FAULTS_FATAL).
+           A named decline freezes the actor that declined; anything else --
+           a real access violation somewhere in this callback -- still freezes
+           the actor being walked, which is the only thing we know about it. */
+        victim = port_q_decline_target ? port_q_decline_target : actor;
+        port_q_decline_target = 0;
+        port_quarantine_actor(victim, code, off);
         return 1;
     }
+    port_q_decline_target = 0;
     return 0;
 }
 
