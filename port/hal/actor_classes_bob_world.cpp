@@ -97,6 +97,7 @@ void _ZN5Actor8OnPushedERS_(void *self, void *o);              /* slot 25 */
 void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* slot 26 */
 void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* slot 27 */
 void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* slot 28 */
+void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p);   /* slot 19 */
 int  _ZN5Actor16OnAimedAtWithEggEv(void *self);                /* slot 29 */
 void _ZN8Platform4KillEv(void *self);                          /* slot 31 */
 extern int data_02099f24[];               /* the frame phase */
@@ -161,7 +162,13 @@ static int __fastcall bw_trap13(void *s, void *) { bw_trap_report(s, 13); return
 static int __fastcall bw_trap14(void *s, void *) { bw_trap_report(s, 14); return 0; }
 static int __fastcall bw_trap16(void *s, void *) { bw_trap_report(s, 16); return 0; }
 static int __fastcall bw_trap17(void *s, void *) { bw_trap_report(s, 17); return 0; }
-static int __fastcall bw_trap19(void *s, void *) { bw_trap_report(s, 19); return 0; }
+/* slot 19, OnTurnIntoEgg(Player &player): the caller PUSHES the player, so the
+   three-parameter veneer pops it. The ROM reloc at each of these tables + 0x4c
+   lands on arm9 0x02010154, Actor::OnTurnIntoEgg, a tail-call veneer to
+   KillAndTrackInDeathTable, so Yoshi swallowing one kills AND tracks it for
+   respawn. Trapping the slot froze the actor forever instead. */
+static int __fastcall bw_turn_egg(void *s, void *, void *p)
+{ _ZN5Actor13OnTurnIntoEggER6Player(s, p); return 0; }
 /* The interaction-tail traps. Slot 30 declines for every table here (its ROM
    body returns a Vector3 by value and the sret contract is unproved); the
    others are for classes that OVERRIDE one of Actor's tail bodies with one
@@ -212,7 +219,7 @@ static void bw_fill_shared(void **vt)
     vt[14] = (void *)bw_trap14;
     vt[15] = (void *)bw_heap;
     vt[18] = (void *)bw_yoshi;
-    vt[19] = (void *)bw_trap19;
+    vt[19] = (void *)bw_turn_egg;
     /* Actor's interaction tail, in every table here; the two classes that
        override one of these rewrite their own slot below. */
     vt[20] = (void *)bw_v50;

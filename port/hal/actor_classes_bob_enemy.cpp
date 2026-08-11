@@ -57,6 +57,7 @@ void _ZN5Actor8OnPushedERS_(void *self, void *o);          /* slot 25 */
 void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* 26 */
 void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* 27 */
 void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* 28 */
+void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p);       /* 19 */
 
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
@@ -133,6 +134,14 @@ static int __fastcall e31_mega(void *s, void *, void *p)
 { _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
 static int __fastcall e31_under(void *s, void *, void *o)
 { _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
+/* slot 19, OnTurnIntoEgg(Player &player): the caller PUSHES the player, so the
+   three-parameter veneer pops it. The ROM reloc at each of these tables + 0x4c
+   lands on arm9 0x02010154, Actor::OnTurnIntoEgg (a tail-call veneer to
+   KillAndTrackInDeathTable). Seating it lets Yoshi swallow-and-respawn as the
+   ROM does; trapping it froze the actor forever. Classes with their OWN egg
+   body (BobOmb, Goomba) override this slot below. */
+static int __fastcall e31_turn_egg(void *s, void *, void *p)
+{ _ZN5Actor13OnTurnIntoEggER6Player(s, p); return 0; }
 
 /* The shared half of a 31-slot table: Actor's four Before/After pairs,
    ActorBase::OnHeapCreated, Actor::OnYoshiTryEat, Virtual50 and the eight
@@ -155,7 +164,7 @@ static void ac31_fill_shared(void **vt)
     vt[16] = (void *)e31_trap16;
     vt[17] = (void *)e31_trap17;
     vt[18] = (void *)e31_yoshi;
-    vt[19] = (void *)e31_trap19;
+    vt[19] = (void *)e31_turn_egg;
     vt[20] = (void *)e31_v50;
     vt[21] = (void *)e31_pounded;
     vt[22] = (void *)e31_atk1;
@@ -662,7 +671,10 @@ extern "C" void hal_fill_koopa_the_quick_vtable(void)
 //
 // He overrides two of Actor's tail slots as well as the usual six: 12
 // (OnPendingDestroy, a four-byte body) and 29 (OnAimedAtWithEgg). Slots 18 and
-// 19 stay Actor's, so Yoshi cannot swallow him.
+// 19 stay Actor's: the ROM reloc at his table + 0x4c lands on arm9 0x02010154,
+// Actor::OnTurnIntoEgg (the swallow-and-track handler), so keeping the default
+// is what lets Yoshi swallow him and have him respawn, as the ROM does.
+// ac31_fill_shared seats that default (e31_turn_egg).
 //
 // HIS STATE IS A POINTER, not an index -- +0x420 holds the address of a
 // two-PMF record and eighteen of them live in ov078's bss. Both dispatchers

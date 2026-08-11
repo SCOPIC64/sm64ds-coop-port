@@ -85,6 +85,7 @@ void _ZN5Actor8OnPushedERS_(void *self, void *o);          /* slot 25 */
 void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* 26 */
 void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* 27 */
 void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* 28 */
+void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p);       /* 19 */
 int  _ZN5Actor16OnAimedAtWithEggEv(void *self);                    /* 29 */
 void _ZN8Platform4KillEv(void *self);                              /* 31 */
 
@@ -112,7 +113,7 @@ static void wf_trap_report(void *self, int slot)
 #define WF_TRAP(n) \
     static int __fastcall wf_trap##n(void *s, void *) \
     { wf_trap_report(s, n); return 0; }
-WF_TRAP(13) WF_TRAP(14) WF_TRAP(17) WF_TRAP(19)
+WF_TRAP(13) WF_TRAP(14) WF_TRAP(17)
 /* 23/24/27/31 are for the classes below that OVERRIDE one of Actor's tail
    bodies with an ov015 body that is matched in src but in no slice; running
    Actor's shared body there would be the wrong code, not merely less code.
@@ -163,6 +164,13 @@ static int __fastcall wf_under(void *s, void *, void *o)
 { _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
 static int __fastcall wf_egg(void *s, void *)
 { return _ZN5Actor16OnAimedAtWithEggEv(s); }
+/* slot 19, OnTurnIntoEgg(Player &player): the caller PUSHES the player, so the
+   three-parameter veneer pops it. The ROM reloc at each of these tables + 0x4c
+   lands on arm9 0x02010154, Actor::OnTurnIntoEgg (a tail-call veneer to
+   KillAndTrackInDeathTable). Seating it lets Yoshi swallow-and-respawn these
+   as the ROM does; trapping it froze the actor forever. */
+static int __fastcall wf_turn_egg(void *s, void *, void *p)
+{ _ZN5Actor13OnTurnIntoEggER6Player(s, p); return 0; }
 /* slot 31, the Platform tail; the five tables that do not override it */
 static int __fastcall wf_kill(void *s, void *)
 { _ZN8Platform4KillEv(s); return 0; }
@@ -191,7 +199,7 @@ static void wf_fill_shared(void **vt)
     vt[15] = (void *)wf_heap;
     vt[17] = (void *)wf_trap17;
     vt[18] = (void *)wf_yoshi;
-    vt[19] = (void *)wf_trap19;
+    vt[19] = (void *)wf_turn_egg;
     vt[20] = (void *)wf_v50;
     vt[21] = (void *)wf_pounded;
     vt[22] = (void *)wf_atk1;
