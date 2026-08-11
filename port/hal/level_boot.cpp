@@ -1005,6 +1005,23 @@ void *LoadFile(int handle)
     return s->filePtr;
 }
 
+/* Pin the slot behind `handle` as PERSISTENT, so the per-level teardown
+   (port_level_reset_host) leaves it loaded across level changes. The message
+   bank is loaded once at game boot through this same table (message_boot.cpp),
+   not per level, and its section pointers stay pinned in globals for the whole
+   run; freeing its image on the first level change would leave the message
+   system reading a freed block. Everything else in the table is a level's own
+   file, dropped on the change (and the KCL freed). `pad` carries the flag (it
+   is otherwise unused, and the ROM's SharedFilePtr has nothing there either). */
+void port_loadfile_pin_persistent(int handle)
+{
+    for (int i = 0; i < g_loadfile_used; ++i)
+        if ((int)g_loadfile_slot[i].fileID == handle) {
+            g_loadfile_slot[i].pad = 1;
+            return;
+        }
+}
+
 /* Method faces: the three MeshCollider helpers the boot calls by their
    Itanium names while their definitions are real MSVC members. */
 void _ZN12MeshCollider17UpdateFileOffsetsER8KCL_File(void *file)
@@ -2359,37 +2376,166 @@ static void port_minimap_stale_probe(const char *when)
     std::fflush(stderr);
 }
 
+/* ---- freeing the level's KCL image (the biggest slice of the ~108KB-per-
+   re-entry game-heap leak) -----------------------------------------------------
+   LoadFile allocates one game-heap block per handle through fs_hand_out ->
+   Memory::Allocate. Almost every image is owned by something the teardown
+   already frees: an actor's cleanup frees the ones it loaded, and
+   port_level_stage_reseat frees the Stage's own level Model (+0x86c) and skybox
+   (+0x9bc), which frees the BMDs behind them. The one image NOTHING frees is the
+   level's KCL: Stage::LoadClsnAndObjects loads it straight through this table and
+   registers it into the persistent Stage's MeshCollider, and the port resets
+   that registry (Stage::ResetMeshColliders) without freeing the image. So the
+   castle grounds re-entering itself leaked its KCL -- main_castle.kcl, 71732
+   bytes in the heap -- every cycle. That is the bulk of the drift the [lvl]
+   line reported (108168 bytes total, actor census steady at 51).
+
+   This frees EXACTLY that one image and drops the rest, because the KCL is the
+   only slot whose owner is the port itself. The KCL's OV0 handle is the level's
+   own datum: LVL_Overlay+0x0a (PortLvlOverlay.kclFileId), read from the ROM's
+   own overlay for the level being torn down (data_0209f2f8, the current level,
+   before port_level_latch advances it). Trying to free MORE than the KCL is
+   what an earlier draft got wrong: releasing every still-allocated slot freed
+   the level Model's and skybox's BMD images out from under the reseat that was
+   about to hand them back, corrupting the allocator's free list (the next
+   MemoryLeft walk faulted). Freeing precisely the one orphaned handle avoids
+   guessing.
+
+   A guard on the block's own header keeps this safe against a double free even
+   so: a live ExpandingHeapAllocator block carries the used-node magic 0x5544 in
+   the two bytes at userPtr-0x10 (src/ExpandingHeapAllocator AllocateNode ->
+   CreateNode(...,0x5544)). If the KCL image was somehow already freed, the magic
+   no longer reads 0x5544 and the release is skipped. SM64DS_TRACE_LEVEL=1
+   reports what it did.
+
+   RESOLVE EARLY, FREE LATE -- and the split is not cosmetic. The Stage's
+   MeshCollider registry POINTS AT this image (LoadClsnAndObjects registered it),
+   and Stage::ResetMeshColliders is what clears that registry. That reset runs in
+   port_level_stage_reseat, LATER than port_level_reset_host. Freeing the image
+   in reset_host, as an earlier draft did, returns the block to the allocator
+   while the registry is still holding a live pointer into it: six clean
+   re-entries happened not to dereference it in that window, but any future
+   teardown, collision query or trace that walked the registry between reset_host
+   and ResetMeshColliders would read freed memory -- a rare, unreproducible
+   crash. So this is split in two:
+
+     port_level_capture_kcl()  -- runs in port_level_reset_host, BEFORE
+       port_level_latch advances data_0209f2f8. It resolves the handle from the
+       level being torn down (its own LVL_Overlay, +0x0a) and COPIES the slot's
+       SharedFilePtr aside. It frees nothing. The resolution must happen here,
+       from the old level's overlay, because the latch is about to point
+       data_0209f2f8 at the incoming level -- reading kclFileId after the latch
+       would name the WRONG level's KCL.
+
+     port_level_free_captured_kcl()  -- runs in port_level_stage_reseat, AFTER
+       Stage::ResetMeshColliders() has emptied the registry. By construction the
+       registry no longer references the image, so the free has no live pointer
+       to invalidate. SharedFilePtr::Release operates entirely on the passed
+       struct (fileID, numRefs, filePtr -> Memory::Deallocate; src), so the
+       aside copy frees the right block even though reset_host has since zeroed
+       the live table slot. The 0x5544 magic guard rides on the captured filePtr.
+
+   Splitting this way keeps the ROM-shaped resolution order (handle named from
+   the outgoing level) while making the free order safe by construction (image
+   returned only after the last thing pointing at it is cleared). The KCL alone
+   was measured stable across repeated re-entries (heap held to a fixed baseline,
+   no fault, census 51); the rest of the table is dropped as before, its images
+   the owners' to free. */
+extern "C" void *port_level_overlay(int level);   /* hal/level_change.cpp */
+
+/* The KCL slot captured in port_level_reset_host (from the outgoing level) and
+   freed in port_level_stage_reseat, after ResetMeshColliders clears the registry
+   that points at the image. A copy, not an index: reset_host zeroes the live
+   table slot before the free runs, but SharedFilePtr::Release only needs the
+   struct's own fields, so the aside copy frees the right block. */
+static PortSharedFilePtr g_pending_kcl;
+static int g_have_pending_kcl;
+
+/* Resolve the outgoing level's KCL handle and stash its slot for a late free.
+   Called from port_level_reset_host BEFORE port_level_latch, so data_0209f2f8
+   still names the level being torn down. Frees nothing. */
+static void port_level_capture_kcl(void)
+{
+    const int trace = std::getenv("SM64DS_TRACE_LEVEL") != 0;
+    g_have_pending_kcl = 0;
+    const int level = (int)data_0209f2f8;
+    PortLvlOverlay *ov = (PortLvlOverlay *)port_level_overlay(level);
+    if (!ov)
+        return;
+    const unsigned kcl = ov->kclFileId;
+    for (int i = 0; i < g_loadfile_used; ++i) {
+        if (g_loadfile_slot[i].fileID != kcl)
+            continue;
+        g_pending_kcl = g_loadfile_slot[i];   /* copy fileID/numRefs/filePtr */
+        g_have_pending_kcl = 1;
+        if (trace)
+            std::printf("  [lvl] captured the level's KCL for a late free: "
+                        "handle %u ptr %p\n", kcl,
+                        (void *)g_loadfile_slot[i].filePtr);
+        return;
+    }
+    if (trace)
+        std::printf("  [lvl] no KCL slot for handle %u to capture\n", kcl);
+}
+
+/* Free the KCL image captured by port_level_capture_kcl. Called from
+   port_level_stage_reseat AFTER Stage::ResetMeshColliders() has emptied the
+   registry, so nothing live points into the block being returned. */
+static void port_level_free_captured_kcl(void)
+{
+    if (!g_have_pending_kcl)
+        return;
+    const int trace = std::getenv("SM64DS_TRACE_LEVEL") != 0;
+    g_have_pending_kcl = 0;
+    char *fp = g_pending_kcl.filePtr;
+    const unsigned short mg = fp ? *(unsigned short *)(fp - 0x10) : 0;
+    if (fp && mg == 0x5544) {
+        if (trace)
+            std::printf("  [lvl] releasing the level's KCL: handle %u ptr "
+                        "%p size %u (registry cleared, nothing else owns it)\n",
+                        (unsigned)g_pending_kcl.fileID, (void *)fp,
+                        *(unsigned *)(fp - 0xc));
+        _ZN13SharedFilePtr7ReleaseEv(&g_pending_kcl);
+    } else if (trace) {
+        std::printf("  [lvl] KCL handle %u already reclaimed (magic %04x); "
+                    "not freeing\n", (unsigned)g_pending_kcl.fileID, mg);
+    }
+}
+
 extern "C" void port_level_reset_host(void)
 {
-    /* THE SLOTS ARE DROPPED, NOT RELEASED, and that is a measured decision
-       rather than a shortcut. SharedFilePtr::Release ends in func_02017c24,
-       which hands filePtr back with Memory::Deallocate. Doing that here
-       faulted inside ExpandingHeapAllocator::UnlinkNode on the level's third
-       handle (1944, the level's icg/icl pair) every time -- the block was
-       already off the heap, so something else on the level owns that image
-       and gives it back during its own cleanup.
+    /* Capture the outgoing level's KCL slot (the one LoadFile image the port
+       itself orphans -- see port_level_capture_kcl) for a late free. It resolves
+       the handle HERE, before port_level_latch advances data_0209f2f8, but the
+       image is not returned to the allocator until port_level_stage_reseat has
+       run Stage::ResetMeshColliders and emptied the registry that points at it. */
+    port_level_capture_kcl();
 
-       Which owner is the open question and it is worth answering, because
-       until it is, the images behind these handles are what a level change
-       leaks. The measurement is in the [lvl] line the change prints: heap
-       free before, after the teardown, and after the next level is up. On the
-       castle grounds re-entering itself the net is the number to watch, and
-       SM64DS_TRACE_LEVEL=1 names every slot it drops. A double free is a
-       corrupted heap two transitions later with no trail; a leak is a number
-       that goes down by a known amount. This takes the second one on purpose
-       until the ownership is settled. */
+    /* THE HANDLE TABLE, dropped not released. Every OTHER image here is owned by
+       something the teardown frees (an actor, or the Stage's Model/skybox that
+       port_level_stage_reseat hands back); releasing them here would double-free
+       the owner's block. The slots are zeroed so the next level starts with an
+       empty table and re-loads its own files. */
     const int trace = std::getenv("SM64DS_TRACE_LEVEL") != 0;
+    int keep = 0;
     for (int i = 0; i < g_loadfile_used; ++i) {
+        if (g_loadfile_slot[i].pad) {           /* persistent (message bank) */
+            if (keep != i) g_loadfile_slot[keep] = g_loadfile_slot[i];
+            ++keep;
+            continue;
+        }
         if (trace)
-            std::printf("  [lvl] dropping file slot %d: handle %u refs %u "
-                        "ptr %p\n", i, g_loadfile_slot[i].fileID,
-                        g_loadfile_slot[i].numRefs,
+            std::printf("  [lvl] dropping file slot %d: handle %u ptr %p\n", i,
+                        g_loadfile_slot[i].fileID,
                         (void *)g_loadfile_slot[i].filePtr);
+    }
+    for (int i = keep; i < g_loadfile_used; ++i) {
         g_loadfile_slot[i].fileID = 0;
         g_loadfile_slot[i].numRefs = 0;
         g_loadfile_slot[i].filePtr = 0;
+        g_loadfile_slot[i].pad = 0;
     }
-    g_loadfile_used = 0;
+    g_loadfile_used = keep;
 
     g_entrance_entries = 0;
     g_entrance_count = 0;
@@ -2556,6 +2702,12 @@ extern "C" void port_level_stage_reseat(void *stagev)
     char *stage = (char *)stagev;
 
     _ZN5Stage18ResetMeshCollidersEv();
+
+    /* The registry that pointed at the outgoing level's KCL image is now empty,
+       so it is safe to return that image to the allocator. port_level_reset_host
+       captured it (from the level being torn down) before the latch; free it
+       here, after the reset, so nothing live points into the block. */
+    port_level_free_captured_kcl();
 
     /* THE AREA TABLE, the third level-owned member of the Stage and the one
        this function was missing. Stage+0x8bc, stride 0xc, eight entries: the
