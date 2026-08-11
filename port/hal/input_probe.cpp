@@ -410,3 +410,103 @@ extern "C" void port_input_probe_apply(int frame)
        memory as the mirror's pressed field, decoupled on host, so mirror it */
     *(unsigned short *)((char *)data_020a0e5a + idx * 4) |= edge;
 }
+
+/* ===================================================================
+ * SPIN INVESTIGATION PROBES (env-gated, test rig only).
+ *
+ * 1. SM64DS_ALCHECK=1
+ *    Calls the LINKED C-linkage face _Z14ApproachLinearRsss with angle
+ *    pairs the ROM's own ApproachLinear converges on in <= 41 frames, and
+ *    reports how many frames the linked face actually takes. This is the
+ *    negative control: it FAILS on a tree where the face is mis-seated.
+ *
+ * 2. SM64DS_SIGN_YAW=<decimal>
+ *    Once the sign's read state is entered, hold the sign's yaw (+0x8e) at
+ *    this value every frame, so a headless run can model a sign whose
+ *    PLACEMENT yaw is the given value. The existing trigger overwrites
+ *    +0x8e with "point at the player", which destroys the one input the
+ *    read loop's sub-2 target is built from (target = yaw + 0x8000).
+ *
+ * 3. SM64DS_CHOMP_FREE=<frame>, SM64DS_TRACE_CHOMP=1
+ *    Force the chain chomp's break-free transition by calling the ROM's own
+ *    func_ov014_02111f54 (the same call state 1 and state 2 make every
+ *    frame), and trace its state machine. Reproduces the outcome of pounding
+ *    the post without needing to navigate to it.
+ * =================================================================== */
+extern "C" {
+extern int _Z14ApproachLinearRsss(short *x, short target, short step);
+extern int func_ov014_02111f54(void *chomp);
+extern short _ZN5Actor18HorzAngleToCPlayerEv(void *self);
+}
+
+extern "C" void port_probe_alcheck(void)
+{
+    if (!std::getenv("SM64DS_ALCHECK")) return;
+    static int done; if (done) return; done = 1;
+    /* {start, target, step, ROM frames} -- ROM figures from an exhaustive
+       sweep of src/_Z14ApproachLinearRsss.cpp over all 65536 start angles. */
+    static const struct { short x, t, s; int rom; const char *who; } K[] = {
+        {  0x0000, (short)0x8000, 0x800, 16, "SIGN  read sub-2, sign yaw 0"    },
+        {  0x4000, (short)0x8000, 0x800, 16, "SIGN  read sub-2, sign yaw 0"    },
+        { (short)0xC000, (short)0x8000, 0x800, 16, "SIGN read sub-2, yaw 0"    },
+        {  0x1000, (short)0x8200, 0x800, 16, "SIGN  read sub-2, sign yaw 512"  },
+        {  0x0000,        0x7fff, 0x320, 41, "CHOMP free sub-0, player at 180" },
+    };
+    int fails = 0;
+    std::fprintf(stderr, "[alcheck] linked _Z14ApproachLinearRsss:\n");
+    for (unsigned i = 0; i < sizeof(K)/sizeof(K[0]); ++i) {
+        short x = K[i].x; int f = 0;
+        for (f = 1; f <= 4000; ++f)
+            if (_Z14ApproachLinearRsss(&x, K[i].t, K[i].s)) break;
+        int bad = (f > 4000) || (f > K[i].rom);
+        if (bad) ++fails;
+        std::fprintf(stderr,
+            "[alcheck]   %-34s x=%6d t=%6d step=%4d : ROM %2d fr, linked %s -> %s\n",
+            K[i].who, K[i].x, K[i].t, K[i].s, K[i].rom,
+            (f > 4000) ? "NEVER CONVERGED" : "converged", bad ? "FAIL" : "ok");
+    }
+    std::fprintf(stderr, "[alcheck] RESULT: %s (%d of %d failed)\n",
+                 fails ? "FAIL" : "PASS", fails, (int)(sizeof(K)/sizeof(K[0])));
+}
+
+extern "C" void port_probe_sign_yaw(void)
+{
+    const char *e = std::getenv("SM64DS_SIGN_YAW");
+    if (!e) return;
+    char *sg = (char *)find_actor_by_class(184);
+    if (!sg) return;
+    if (*(int *)(sg + 0x354) != 1) return;      /* only while in the read state */
+    *(short *)(sg + 0x8e) = (short)std::atoi(e);
+}
+
+extern "C" void port_probe_chomp(int frame)
+{
+    char *ch = (char *)find_actor_by_class(219);
+    if (!ch) return;
+    /* the post the chomp spawned and chained itself to: its id is at +0x608.
+       func_ov014_02111f54 (the break-free, called by state 1 AND state 2 every
+       frame) refuses while the post's +0x31e is non-zero, so that byte is the
+       pounded-the-post gate. Clearing it is what pounding it does. */
+    char *post = (char *)_ZN5Actor10FindWithIDEj(*(unsigned *)(ch + 0x608));
+    const char *fr = std::getenv("SM64DS_CHOMP_FREE");
+    if (fr && post && frame >= std::atoi(fr) && *(unsigned char *)(post + 0x31e)) {
+        std::fprintf(stderr, "  [chomp] f%d post +0x31e %d -> 0 (post pounded)\n",
+                     frame, (int)*(unsigned char *)(post + 0x31e));
+        *(unsigned char *)(post + 0x31e) = 0;
+    }
+    if (!std::getenv("SM64DS_TRACE_CHOMP")) return;
+    /* print only when something changes, plus a heartbeat */
+    static int p_state = -99, p_sub = -99; static int last;
+    int st = *(int *)(ch + 0x610), sub = (int)*(unsigned char *)(ch + 0x604);
+    if (st == p_state && sub == p_sub && frame - last < 60) return;
+    p_state = st; p_sub = sub; last = frame;
+    std::fprintf(stderr,
+        "  [chomp] f%d state=%d sub=%d yaw=%6d tgtAng=%6d landed=%d "
+        "y=%d floor=%d freed=%d post31e=%d\n",
+        frame, st, sub, (int)*(short *)(ch + 0x8e),
+        (int)_ZN5Actor18HorzAngleToCPlayerEv(ch),
+        (int)*(unsigned char *)(ch + 0x61c),
+        *(int *)(ch + 0x60) >> 12, *(int *)(ch + 0x5f0) >> 12,
+        (int)*(unsigned char *)(ch + 0x605),
+        post ? (int)*(unsigned char *)(post + 0x31e) : -1);
+}
