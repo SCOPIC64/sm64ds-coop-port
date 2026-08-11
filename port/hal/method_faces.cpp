@@ -1,3 +1,46 @@
+// ===========================================================================
+// C-linkage forwarder faces are LOAD-BEARING PLUMBING, not boilerplate.
+//
+// Every function below is a one-line forwarder that reads as trivial. Each one
+// stands between the ROM's calling convention and the host's, and a face that
+// looks correct can be silently wrong in three ways. All three have shipped or
+// nearly shipped from this file; none is hypothetical.
+//
+//   1. WRONG TARGET. A face can forward to a plausible SIBLING instead of the
+//      intended function. _Z14ApproachLinearRsss (below) forwarded to
+//      ApproachLinear2, a near-identical copy 140 lines away that differs only
+//      in whether it wraps to s16. It worked on every scalar and hung only on
+//      angles, so it passed review and shipped (signs spinning forever). 156
+//      src TUs reach ApproachLinear through this one face.
+//
+//   2. DROPPED RECEIVER. A method face reached in the zero-argument ()-form
+//      drops the `this` the ROM delivered in a register. Actor::FarthestPlayer
+//      calls _ZN5Actor13ClosestPlayerEv() with no receiver, so ClosestPlayer
+//      reads this+0x5c off a null or garbage base. For a direct ClosestPlayer
+//      reader that is a crash (the rabbit soft-lock); for FarthestPlayer it is
+//      a SILENT wrong result, which is worse.
+//
+//   3. MIS-BRIDGED RECEIVER. A face entered by a thunk (or tail-called into)
+//      with the object pushed on the stack must move it into ECX before the
+//      real __thiscall body. Actor::OnTurnIntoEgg is a jmp tail-call into the
+//      extern-C _ZN5Actor24KillAndTrackInDeathTableEv face (below), which is
+//      correct only because that bridge is sized right. A cdecl body entered
+//      with `this` still in ECX (or an aliased __thiscall body entered from a
+//      cdecl frame) is the 2026-08-07 door-open crash; see the gate-22 note.
+//
+// PER-FACE REVIEW CHECKLIST. Verify each from the EMITTED bytes, never from the
+// C signature (a different-signature sibling compiles fine through a face):
+//   (a) TARGET  -- the call goes to the intended function, not a plausible
+//                  sibling of the same shape.
+//   (b) ARITY   -- the argument count matches the ROM callee's; a wrong-arity
+//                  sibling still compiles clean.
+//   (c) RECEIVER-- `this` is delivered: passed as the first argument for a
+//                  dropped-receiver face, bridged into ECX for a thiscall face.
+//
+// These read as plumbing, reviewers skim plumbing, and each of the three above
+// shipped or nearly shipped. Meet the class before you skim the next forwarder.
+// ===========================================================================
+//
 // C-linkage faces for METHOD-form definitions (gate 10/11 Behavior ring).
 //
 // The defining src files compile real methods against the shared headers;
