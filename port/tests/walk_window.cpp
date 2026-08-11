@@ -385,6 +385,10 @@ extern int data_0209f43c[];          /* the Clipper (hal/camera_bridges) */
 extern int data_020a4b78[];          /* the behaviour processing list */
 int _ZN7Clipper13Func_020150E8ER7Vector35Fix12IiEPh(void *clipper, void *pos,
                                                     int clip, unsigned char *h);
+/* the two matrix calls VirtualDoor::Behavior itself uses to put the Player in
+   an exit's local frame and to take a local point back out to the world */
+void MulVec3Mat4x3(const void *in, const void *m, void *out);
+void InvMat4x3(const void *in, void *out);
 extern void *data_0209f318;          /* the Camera singleton */
 extern signed char data_02092120;    /* currently shown area, -1 = none */
 extern unsigned char data_0209f250;  /* local player index */
@@ -553,6 +557,76 @@ extern "C" void *data_0209f324;   /* WIPES, the seven-wipe array */
 extern "C" signed char data_02092110;    /* the staged next level */
 extern "C" unsigned char data_0209f268;  /* the staged next entrance */
 extern "C" unsigned char data_0209f26c;  /* why we are leaving (2 = death) */
+
+/* ---- THE EXIT PROBE: the painting warp, reproducible without a keyboard ----
+   Two players walked into the Snowman's Land painting on castle_2f and the
+   build does not host Snowman's Land, so the level change was declined and
+   they were left with no control inside the wall. Reproducing that by hand
+   means holding W at the right painting for the right number of frames; this
+   makes it one env var and one frame number.
+
+   SM64DS_EXIT_PROBE=1 dumps the level's EXIT actors (349, class VirtualDoor)
+   once the level is up: index, world position, which level the record sends
+   you to, and whether the record is a WALL painting (rotX 0, the exit that
+   seeds the pull-in counter) or a tilted FLOOR hole (rotX != 0, the exit that
+   fires the load and the wipe immediately). The index is what ENTER takes.
+
+   SM64DS_EXIT_ENTER=<index>[,<frame>] walks the Player into that exit. The
+   ROM's trigger is a SIGN CHANGE of the Player's Z in the exit's own local
+   frame while he is inside the box, so the probe puts him in the box on the
+   near side for one frame and just past the plane on the next -- the two
+   frames a walk produces, through the same VirtualDoor::Behavior test. It
+   writes nothing but the Player's position, and never touches the exit. */
+static char *port_exit_nth(int idx)
+{
+    int n = 0;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o || *(unsigned short *)(o + 0xc) != 349)
+            continue;
+        if (n++ == idx)
+            return o;
+    }
+    return 0;
+}
+
+static void port_exit_dump(void)
+{
+    int n = 0;
+    for (int *node = (int *)(size_t)data_020a4b78[0]; node;
+         node = (int *)(size_t)node[1]) {
+        char *o = (char *)(size_t)node[2];
+        if (!o || *(unsigned short *)(o + 0xc) != 349)
+            continue;
+        const unsigned p1 = *(unsigned *)(o + 8);
+        const int rotX = *(short *)(o + 0x8c);
+        fprintf(stderr, "[exit] %2d at (%d,%d,%d) -> level %d entrance %d  "
+                "rotX %d rotY %d  box x+-%d y0..%d  %s\n",
+                n, *(int *)(o + 0x5c) >> 12, *(int *)(o + 0x60) >> 12,
+                *(int *)(o + 0x64) >> 12,
+                (int)(signed char)(p1 >> 24), (int)((p1 >> 16) & 0xff),
+                rotX, *(short *)(o + 0x8e),
+                *(int *)(o + 0x80) >> 12, *(int *)(o + 0x84) >> 12,
+                rotX ? "FLOOR HOLE (tilted: loads at once)"
+                     : "WALL PAINTING (pull-in)");
+        ++n;
+    }
+    fprintf(stderr, "[exit] %d exits on this level\n", n);
+}
+
+/* Put `player` inside exit `ex`'s box at local (0, y, z). */
+static void port_exit_place(char *ex, char *player, int z)
+{
+    int local[3], inv[12];
+    MulVec3Mat4x3(player + 0x5c, ex + 0xd4, local);
+    local[0] = 0;
+    if (local[1] < 0 || local[1] > *(int *)(ex + 0x84))
+        local[1] = *(int *)(ex + 0x84) >> 1;
+    local[2] = z;
+    InvMat4x3(ex + 0xd4, inv);
+    MulVec3Mat4x3(local, inv, player + 0x5c);
+}
 
 #ifdef NTR_HIRES
 static const int ZOOM = 1;
@@ -3193,6 +3267,63 @@ int main(void)
                 fprintf(stderr, "[oob] after HitDeathPlane: next sublevel %d "
                         "entrance %d reason %d\n", (int)port_course_next_sublevel(),
                         (int)data_0209f268, (int)data_0209f26c);
+            }
+
+            /* ---- SM64DS_EXIT_PROBE / SM64DS_EXIT_ENTER (see the top of the
+               file). The dump waits for the level to be up; the entry is the
+               two frames a walk into the painting produces. Once it has
+               fired, one line a frame says whether the Player still has
+               control and what the exit's pull counter is doing, which is
+               the whole of the soft lock in two numbers. */
+            static int ex_dumped, ex_idx = -2, ex_frame, ex_fired;
+            if (ex_idx == -2) {
+                const char *e = getenv("SM64DS_EXIT_ENTER");
+                ex_idx = -1;
+                if (e) {
+                    ex_frame = 60;
+                    sscanf(e, "%d,%d", &ex_idx, &ex_frame);
+                }
+            }
+            if (!ex_dumped && frame == 30 &&
+                (getenv("SM64DS_EXIT_PROBE") || ex_idx >= 0)) {
+                ex_dumped = 1;
+                port_exit_dump();
+            }
+            if (ex_idx >= 0 && player && frame >= ex_frame &&
+                frame <= ex_frame + 1) {
+                char *ex = port_exit_nth(ex_idx);
+                if (ex) {
+                    /* +0x30000 is 48 units, one walking stride, so the two
+                       frames straddle the plane the way a stride does. */
+                    port_exit_place(ex, c, frame == ex_frame ? 0x30000
+                                                            : -0x30000);
+                    ex_fired = 1;
+                    fprintf(stderr, "[exit] f%d placed at local z %s the "
+                            "plane -> world (%d,%d,%d)\n", frame,
+                            frame == ex_frame ? "in front of" : "past",
+                            *(int *)(c + 0x5c) >> 12,
+                            *(int *)(c + 0x60) >> 12,
+                            *(int *)(c + 0x64) >> 12);
+                }
+            }
+            if (ex_fired && player) {
+                char *ex = port_exit_nth(ex_idx);
+                int local[3] = {0, 0, 0};
+                if (ex)
+                    MulVec3Mat4x3(c + 0x5c, ex + 0xd4, local);
+                fprintf(stderr, "[exit-watch] f%d pos(%d,%d,%d) localz %d "
+                        "ctrl_disabled %u nocontrol %u kind %u state %p "
+                        "step %u | exit pull %d lastz %d | pending %d\n",
+                        frame, *(int *)(c + 0x5c) >> 12,
+                        *(int *)(c + 0x60) >> 12, *(int *)(c + 0x64) >> 12,
+                        local[2] >> 12,
+                        *(unsigned char *)(c + 0x6f6),
+                        *(unsigned char *)(c + 0x709),
+                        *(unsigned char *)(c + 0x70a),
+                        *(void **)(c + 0x370), *(unsigned char *)(c + 0x6e3),
+                        ex ? *(int *)(ex + 0x98) >> 12 : 0,
+                        ex ? *(int *)(ex + 0x88) >> 12 : 0,
+                        (int)data_02092110);
             }
         }
 
