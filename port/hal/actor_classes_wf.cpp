@@ -114,12 +114,14 @@ static void wf_trap_report(void *self, int slot)
     static int __fastcall wf_trap##n(void *s, void *) \
     { wf_trap_report(s, n); return 0; }
 WF_TRAP(13) WF_TRAP(14) WF_TRAP(17)
-/* 23/24/27/31 are for the classes below that OVERRIDE one of Actor's tail
-   bodies with an ov015 body that is matched in src but in no slice; running
-   Actor's shared body there would be the wrong code, not merely less code.
-   30 declines for all seven: its ROM body returns a Vector3 by value and the
-   sret contract is unproved. */
-WF_TRAP(27) WF_TRAP(30) WF_TRAP(31)
+/* 23/24 are for the two classes below that OVERRIDE one of Actor's tail bodies
+   with an ov015 body that is matched in src but in no slice; running Actor's
+   shared body there would be the wrong code, not merely less code. 27 and 31
+   used to trap here too, but the mega/kill cluster's own ov015 bodies are now
+   sliced and seated (kp_mega/ts_mega/mb_mega for 27, ts_kill/mb_kill for 31; see
+   below). 30 declines for all seven: its ROM body returns a Vector3 by value and
+   the sret contract is unproved. */
+WF_TRAP(30)
 #undef WF_TRAP
 /* Slots 23/24 take the three-parameter shape so they emit `ret 4`: their one
    dispatch site each is now thiscall (Actor_OnAttacked2Dispatch.cpp /
@@ -182,6 +184,39 @@ static int __fastcall wf_turn_egg(void *s, void *, void *p)
 /* slot 31, the Platform tail; the five tables that do not override it */
 static int __fastcall wf_kill(void *s, void *)
 { _ZN8Platform4KillEv(s); return 0; }
+
+/* ---- the mega/kill cluster's own ov015 bodies (gate 60/62/76) --------------
+   Three of these seven classes override slot 27 (OnHitByMegaChar) and, for two
+   of them, slot 31 (Kill) with their own ov015 bodies rather than Actor's /
+   Platform's. Each is a real function entry (push {r4,lr}, receiver out of r0),
+   matched src, now sliced.
+
+   Slot 27 takes the three-parameter __fastcall shape so it emits `ret 4`: its
+   dispatch site pushes the Player argument the callee pops, the wf_mega
+   contract. Slot 31's dispatch is a same-object virtual out of the
+   slot-27 body (`ldr [r0]; ldr [r1,#0x7c]; blx r1` in the ROM, `c->m()` in the
+   recovered C++), so it is thiscall with no argument: the no-arg __fastcall
+   veneer reads the receiver from ECX and emits `ret` (no pop), the wf_kill
+   convention. The two slot-27 bodies MUST land their same-object slot-31
+   dispatch on these real thiscall Kill bodies, which is why each pair is seated
+   into the one host table together. */
+extern "C" {
+void func_ov015_021113c0(void *self, void *player);  /* KDP  slot 27 */
+void func_ov015_0211233c(void *self);                /* TS   slot 31 Kill */
+void func_ov015_021123a0(void *self, int player);    /* TS   slot 27 */
+void func_ov015_02111c3c(void *self);                /* MB   slot 31 Kill */
+void func_ov015_02111cb8(void *self, int player);    /* MB   slot 27 */
+}
+static int __fastcall kp_mega(void *s, void *, void *p)
+{ func_ov015_021113c0(s, p); return 0; }
+static int __fastcall ts_mega(void *s, void *, void *p)
+{ func_ov015_021123a0(s, (int)(size_t)p); return 0; }
+static int __fastcall ts_kill(void *s, void *)
+{ func_ov015_0211233c(s); return 0; }
+static int __fastcall mb_mega(void *s, void *, void *p)
+{ func_ov015_02111cb8(s, (int)(size_t)p); return 0; }
+static int __fastcall mb_kill(void *s, void *)
+{ func_ov015_02111c3c(s); return 0; }
 
 /* The shared half, slots 1..30. Six of the seven tables here are 32-slot
    Platform tables and the seventh (data_ov015_02114360, id 42) is a 31-slot
@@ -270,9 +305,11 @@ extern "C" void hal_fill_tower_step_vtable(void)
     vt[16] = (void *)ts_d1;
     /* 32 slots. _ZTV14MovingBarSmall overrides two of the tail with its own
        ov015 bodies, both matched in src and in no slice: 27 OnHitByMegaChar
-       (0x021123a0) and 31 Kill (0x0211233c). */
-    vt[27] = (void *)wf_trap27;
-    vt[31] = (void *)wf_trap31;
+       (0x021123a0) and 31 Kill (0x0211233c). Seated together (gate 60): the
+       slot-27 body dispatches this same object's slot 31 through the vptr, so
+       ts_kill must be the thiscall Kill it lands on. */
+    vt[27] = (void *)ts_mega;
+    vt[31] = (void *)ts_kill;
 }
 
 // ============================================================================
@@ -409,10 +446,11 @@ extern "C" void hal_fill_knock_down_plank_vtable(void)
     /* 32 slots. _ZTV13PoleBillboard overrides four of the tail with its own
        ov015 bodies, all matched in src and none in a slice: 23 OnAttacked2
        (0x02111408), 24 OnKicked (0x021113fc), 27 OnHitByMegaChar (0x021113c0)
-       and 31 Kill, which is Platform's (0x020ee55c). */
+       and 31 Kill, which is Platform's (0x020ee55c). Slot 27 is seated now
+       (gate 62, kp_mega -> func_ov015_021113c0); 23/24 stay trapped. */
     vt[23] = (void *)wf_trap23;
     vt[24] = (void *)wf_trap24;
-    vt[27] = (void *)wf_trap27;
+    vt[27] = (void *)kp_mega;
     vt[31] = (void *)wf_kill;
 }
 
@@ -566,9 +604,11 @@ extern "C" void hal_fill_moving_bar_vtable(void)
     vt[16] = (void *)mb_d1;
     /* 32 slots. _ZTV14KnockDownPlank overrides two of the tail with its own
        ov015 bodies, both matched in src and in no slice: 27 OnHitByMegaChar
-       (0x02111cb8) and 31 Kill (0x02111c3c). dsd's bound reads 3 words. */
-    vt[27] = (void *)wf_trap27;
-    vt[31] = (void *)wf_trap31;
+       (0x02111cb8) and 31 Kill (0x02111c3c). dsd's bound reads 3 words. Seated
+       together (gate 76): the slot-27 body dispatches this object's own slot 31
+       through the vptr, so mb_kill must be the thiscall Kill it lands on. */
+    vt[27] = (void *)mb_mega;
+    vt[31] = (void *)mb_kill;
 }
 
 // ============================================================================
