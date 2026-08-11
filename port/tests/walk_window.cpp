@@ -389,6 +389,10 @@ int _ZN7Clipper13Func_020150E8ER7Vector35Fix12IiEPh(void *clipper, void *pos,
    an exit's local frame and to take a local point back out to the world */
 void MulVec3Mat4x3(const void *in, const void *m, void *out);
 void InvMat4x3(const void *in, void *out);
+/* three of the Camera's nineteen states, for the exit probe: the one
+   Camera::InitResources boots into, the one the ROM's own "follow him again"
+   (func_0200d5c0) picks, and the one Camera::LookAtExit parks in. */
+extern int data_0209b008[], data_0209b078[], data_0209b0f8[];
 extern void *data_0209f318;          /* the Camera singleton */
 extern signed char data_02092120;    /* currently shown area, -1 = none */
 extern unsigned char data_0209f250;  /* local player index */
@@ -615,14 +619,20 @@ static void port_exit_dump(void)
     fprintf(stderr, "[exit] %d exits on this level\n", n);
 }
 
-/* Put `player` inside exit `ex`'s box at local (0, y, z). */
-static void port_exit_place(char *ex, char *player, int z)
+/* Put `player` at local (0, y, z) in exit `ex`'s frame, or -- with `beside` --
+   one box-width to the side of it, where the exit's own x test turns him away
+   but its Behavior still records where he is. */
+static void port_exit_place(char *ex, char *player, int z, int beside)
 {
     int local[3], inv[12];
     MulVec3Mat4x3(player + 0x5c, ex + 0xd4, local);
-    local[0] = 0;
+    local[0] = beside ? *(int *)(ex + 0x80) * 2 : 0;
+    /* local y 0 is the bottom of the trigger box, which for a painting is
+       where it meets the floor -- a walking player's own height. Snapping to
+       the middle of the box instead drops him in from mid-air and every
+       reading afterwards has a fall in it that a walk does not. */
     if (local[1] < 0 || local[1] > *(int *)(ex + 0x84))
-        local[1] = *(int *)(ex + 0x84) >> 1;
+        local[1] = 0;
     local[2] = z;
     InvMat4x3(ex + 0xd4, inv);
     MulVec3Mat4x3(local, inv, player + 0x5c);
@@ -3288,19 +3298,51 @@ int main(void)
                 (getenv("SM64DS_EXIT_PROBE") || ex_idx >= 0)) {
                 ex_dumped = 1;
                 port_exit_dump();
+                /* Camera state pointer is +0x138 and the flags word is +0x154.
+                   Bit 0x10 of that word is the lock Camera::LookAtExit sets
+                   after its own ChangeState, and Camera::ChangeState refuses
+                   every later state change while it is set. */
+                fprintf(stderr, "[exit] camera states: boot %p, follow "
+                        "(func_0200d5c0) %p, look-at-exit %p; camera is in "
+                        "%p flags %08x\n",
+                        (void *)data_0209b008, (void *)data_0209b078,
+                        (void *)data_0209b0f8,
+                        data_0209f318 ? *(void **)((char *)data_0209f318
+                                                   + 0x138) : 0,
+                        data_0209f318 ? *(unsigned *)((char *)data_0209f318
+                                                      + 0x154) : 0);
             }
-            if (ex_idx >= 0 && player && frame >= ex_frame &&
-                frame <= ex_frame + 1) {
+            /* Three writes. The PRIME, two frames early, puts him on the near
+               side but OUTSIDE the box in x: the exit's Behavior records his
+               z (its +0x88) without the box test passing, so the teleport in
+               from wherever he spawned cannot itself read as a crossing --
+               without it the first reading is a spurious entry and every
+               number after it has a warp in it that a walk does not.
+               Then the near side inside the box, EX_SETTLE frames for the
+               game's own collision to land him on the floor there, then one
+               stride past the plane, which is the trigger.
+               A floor hole needs no push: he falls through its plane on his
+               own during the settle, which is the real way in, so the last
+               write is skipped once he has already been taken over. */
+            enum { EX_SETTLE = 12 };
+            if (ex_idx >= 0 && player &&
+                (frame == ex_frame - 2 || frame == ex_frame ||
+                 frame == ex_frame + EX_SETTLE)) {
                 char *ex = port_exit_nth(ex_idx);
-                if (ex) {
-                    /* +0x30000 is 48 units, one walking stride, so the two
-                       frames straddle the plane the way a stride does. */
-                    port_exit_place(ex, c, frame == ex_frame ? 0x30000
-                                                            : -0x30000);
+                const int taken = *(unsigned char *)(c + 0x6f6) != 0;
+                if (ex && !(frame == ex_frame + EX_SETTLE && taken)) {
+                    /* +-0x30000 is 48 units, about one walking stride, so the
+                       last two writes straddle the plane the way a stride
+                       does. */
+                    port_exit_place(ex, c, frame == ex_frame + EX_SETTLE
+                                               ? -0x30000 : 0x30000,
+                                    frame == ex_frame - 2);
                     ex_fired = 1;
-                    fprintf(stderr, "[exit] f%d placed at local z %s the "
-                            "plane -> world (%d,%d,%d)\n", frame,
-                            frame == ex_frame ? "in front of" : "past",
+                    fprintf(stderr, "[exit] f%d placed %s -> world "
+                            "(%d,%d,%d)\n", frame,
+                            frame == ex_frame - 2 ? "beside the box (prime)"
+                            : frame == ex_frame ? "in front of the plane"
+                                                : "one stride past the plane",
                             *(int *)(c + 0x5c) >> 12,
                             *(int *)(c + 0x60) >> 12,
                             *(int *)(c + 0x64) >> 12);
@@ -3311,9 +3353,12 @@ int main(void)
                 int local[3] = {0, 0, 0};
                 if (ex)
                     MulVec3Mat4x3(c + 0x5c, ex + 0xd4, local);
+                int evy = 0, tw = 0;
+                const int blend = port_fader_blend_state(&evy, &tw);
                 fprintf(stderr, "[exit-watch] f%d pos(%d,%d,%d) localz %d "
                         "ctrl_disabled %u nocontrol %u kind %u state %p "
-                        "step %u | exit pull %d lastz %d | pending %d\n",
+                        "step %u | exit pull %d lastz %d | pending %d | "
+                        "screen %s\n",
                         frame, *(int *)(c + 0x5c) >> 12,
                         *(int *)(c + 0x60) >> 12, *(int *)(c + 0x64) >> 12,
                         local[2] >> 12,
@@ -3323,7 +3368,16 @@ int main(void)
                         *(void **)(c + 0x370), *(unsigned char *)(c + 0x6e3),
                         ex ? *(int *)(ex + 0x98) >> 12 : 0,
                         ex ? *(int *)(ex + 0x88) >> 12 : 0,
-                        (int)data_02092110);
+                        (int)data_02092110,
+                        !blend ? "clear" : evy >= 16
+                            ? (tw ? "COVERED white" : "COVERED black")
+                            : (tw ? "fading white" : "fading black"));
+                if (data_0209f318)
+                    fprintf(stderr, "[exit-cam] f%d state %p flags %08x%s\n",
+                            frame, *(void **)((char *)data_0209f318 + 0x138),
+                            *(unsigned *)((char *)data_0209f318 + 0x154),
+                            (*(unsigned *)((char *)data_0209f318 + 0x154)
+                             & 0x10) ? "  LOCKED (LookAtExit)" : "");
             }
         }
 
