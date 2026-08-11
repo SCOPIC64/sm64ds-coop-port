@@ -348,3 +348,8 @@ src/func_ov002_020bec9c.cpp
 # never dispatch (they never delete the level collider).
 src/_ZN12MeshColliderD0Ev.c
 src/_ZN12MeshColliderD1Ev.c
+# BATCH 3 LINKAGE SEAT 2: MovingMeshCollider's own deleting dtor (D0,
+# 0x0203a444, 2004/b56 byte-match), seated into slot 0 of _ZTV18MovingMeshCollider
+# by hal/mmc_vtable.cpp, replacing the wrong-class MeshCollider D0 the seed copy
+# left there. Edge live via SIGN_POST / BLACK_BRICK_BLOCK, which Enable an MMC.
+src/_ZN18MovingMeshColliderD0Ev.c

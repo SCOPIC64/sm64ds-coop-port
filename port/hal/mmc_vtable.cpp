@@ -33,10 +33,18 @@ int _ZN18MovingMeshCollider10DetectClsnER13RaycastGround(void *self, void *g);
 int _ZN18MovingMeshCollider10DetectClsnER11RaycastLine(void *self, void *r);
 int _ZN18MovingMeshCollider10DetectClsnER10SphereClsn(void *self, void *s);
 extern unsigned char data_020a0d0c[], data_020a0d1c[], data_020a0d60[];
+/* BATCH-3 LINKAGE SEAT: the MovingMeshCollider's OWN deleting dtor (D0, arm9
+   0x0203a444, 2004/b56 byte-match). The seed table copies MeshCollider's D0
+   into slot 0, which is the wrong class body for a moving collider; this seats
+   MMC's own. Flat-C `MMC *D0(MMC *this)` (this on the stack), so slot 0 takes
+   the ecx->arg adapter below rather than the body directly. */
+void *_ZN18MovingMeshColliderD0Ev(void *self);
 }
 
 typedef MovingMeshCollider MMC;
 
+static void __fastcall mmc_dtor(void *s, void *)
+{ _ZN18MovingMeshColliderD0Ev(s); }
 static void __fastcall mmc_v08(void *s, void *)
 { ((MMC *)s)->MMC::Virtual08(); }
 static void __fastcall mmc_norm(void *s, void *, s16 tri, Vector3 *res)
@@ -113,6 +121,9 @@ static void __fastcall mmc_beforeclsn(void *s, void *, ClsnResult *res,
 
 extern "C" void hal_fill_moving_mesh_collider_vtable(void)
 {
+    /* Batch-3: slot 0 gets MovingMeshCollider's OWN deleting dtor, replacing
+       the MeshCollider D0 the seed copy left there (the wrong class body). */
+    _ZTV18MovingMeshCollider[0] = (void *)mmc_dtor;
     _ZTV18MovingMeshCollider[2] = (void *)mmc_v08;
     _ZTV18MovingMeshCollider[3] = (void *)mmc_norm;
     _ZTV18MovingMeshCollider[4] = (void *)mmc_orig;
