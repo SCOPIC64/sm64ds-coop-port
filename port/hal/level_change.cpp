@@ -450,6 +450,17 @@ static void port_level_name_survivors(void)
    actor is worse. */
 static int port_level_drop_frozen(void)
 {
+    /* NOTHING FROZEN IS THE OVERWHELMING COMMON CASE, and it gets to cost
+       nothing. Without this the walk below relinks every node on all four
+       lists on EVERY level change just to discover it has nothing to drop.
+       The relink is order-preserving and a no-op in effect, but "in effect" is
+       not the same as "does not write", and a level change that has never seen
+       a quarantine should not have this pass touching the engine's lists at
+       all. The class latch cannot be set without the instance set being
+       non-empty (every quarantine records its instance), so a count of zero
+       really does mean nothing is frozen by either leg. */
+    if (port_quarantine_frozen_count() == 0)
+        return 0;
     struct { const char *name; int *list; } lists[4] = {
         {"behaviour", data_020a4b78}, {"pending", data_020a4b88},
         {"render", data_020a4b98}, {"cleanup", data_020a4ba8}};
