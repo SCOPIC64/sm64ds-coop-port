@@ -134,3 +134,24 @@ extern "C" int func_ov085_0212b8dc(char* c)
     ApproachAngle((short*)(c + 0x94), *(s16*)(c + 0x424), 1, 0x500, 0x500);
     return 1;
 }
+
+/* CORRECTION TO THE MERGE MESSAGE ABOVE THIS FILE'S ARRIVAL.
+   The commit that merged this fix claims "the rabbit keeps its key, and its
+   dialogue comes back". The first half is right and the second is WRONG, and
+   the wrong half was mine rather than this file's author's.
+
+   This fix stops the rabbit FAULTING, so it is no longer frozen and no longer
+   vanishes. It does NOT restore the dialogue and does NOT deliver the castle
+   key. Those need a player pointer at rabbit+0x45c, which two places READ
+   (_ZN6Rabbit8BehaviorEv.c:85 gating the whole talk block, and
+   func_ov085_0212ae08.c:44, the caught-dialog state that ends by spawning the
+   key) and which NOTHING in the tree writes. The single writer,
+   _ZN6Rabbit8BehaviorEv.c:150, sits inside a branch guarded by
+   Enemy::UpdateYoshiEat, and that is a host stub returning 0 unconditionally
+   (hal/actor_vtables.cpp), because slice_gate32.txt records ov002 0x020ade78
+   as a 0x3cc-byte hole with no C anywhere in src/.
+
+   So the whole in-mouth arm of Rabbit::Behavior is dead code, and the key
+   spawn is unreachable. Measured both ways: every run on both the fixed and
+   the unfixed build ends with zero keys in the world. That is a SEPARATE open
+   bug and UpdateYoshiEat is the real ticket, not this field. */
