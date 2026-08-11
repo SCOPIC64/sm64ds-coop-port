@@ -2275,22 +2275,27 @@ extern "C" void hal_fill_question_block_vtable(void)
     vt[28] = (void *)qb_under;
     vt[31] = (void *)ac_kill;
 
-    /* SLOT 24 STAYS TRAPPED here, but only because its real body is not sliced
-       yet -- the convention conflict that used to block it is closed. Slots
-       21/22/27/28 above are safe because every linked dispatch site for them is
-       thiscall: the receiver arrives in ECX and the callee pops the one pushed
-       argument, which is what the three-parameter veneer's `ret 4` does. Slot
-       24's only dispatcher used to be the exception -- func_ov002_020eeeb8 was
-       CDECL, both arguments pushed and the CALLER cleaning up via a batched
+    /* SLOT 24 IS SEATED with qb_kicked, the block's own OnKicked (ov102
+       0x02149770). The convention conflict that used to block it is closed.
+       Slots 21/22/27/28 above are safe because every linked dispatch site for
+       them is thiscall: the receiver arrives in ECX and the callee pops the one
+       pushed argument, which is what the three-parameter veneer's `ret 4` does.
+       Slot 24's only dispatcher used to be the exception -- func_ov002_020eeeb8
+       was CDECL, both arguments pushed and the CALLER cleaning up via a batched
        `add esp,10h`, which needed a callee that popped NOTHING. That dispatcher
        is now the thiscall host copy unmatched/Actor_OnKickedDispatch.cpp, so
        the site pushes one argument and expects the callee to pop it, exactly
        like the seated slot-24 bodies (ac_kicked, and every override, already
-       emit `ret 4`). ac_trap24 is now the three-parameter shape too, so it
-       balances the thiscall caller instead of over-popping it.
+       emit `ret 4`). qb_kicked is the same three-parameter __fastcall veneer
+       that emits `ret 4`, so it balances the now-thiscall caller.
 
-       So qb_kicked CAN be seated here safely now; it is simply the follow-up,
-       not this change. This commit converts the dispatcher and widens the trap
-       as one atomic unit and seats no new body. */
-    vt[24] = (void *)ac_trap24;
+       The body (func_ov102_02149770) was already sliced with its four siblings
+       in slice_gate203.txt, and its whole closure is in the link: it consults
+       func_ov102_02149078 (the refusal test, whose zero-argument ClosestPlayer
+       read is already host copied in Actor_ClosestPlayer_OverlayReaders.cpp)
+       and ends in func_ov102_02149da8(c, 1), the state-1 bounce already hosted.
+       It dispatches no vtable slot of its own, so there is no tail chain to
+       seat alongside it. This is the follow-up seat the dispatcher conversion
+       unblocked. */
+    vt[24] = (void *)qb_kicked;
 }
