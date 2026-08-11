@@ -215,8 +215,11 @@ extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
 /* per-actor decline: quarantine this one actor (freeze) instead of aborting the
-   whole process, unless SM64DS_FAULTS_FATAL. port/unmatched/func_02043fdc.cpp */
+   whole process, unless SM64DS_FAULTS_FATAL. port/unmatched/func_02043fdc.cpp
+   The _for form NAMES the actor, which is what makes the freeze land on the
+   receiver rather than on whoever was being walked when the slot dispatched. */
 void port_actor_slot_decline(const char *what);
+void port_actor_slot_decline_for(void *actor, const char *what);
 }
 
 static void ac_trap_report(void *self, int slot)
@@ -226,7 +229,16 @@ static void ac_trap_report(void *self, int slot)
        dispatches inside fn(actor), so port_actor_slot_decline raises a fault the
        quarantine net catches -- the actor freezes, the frame goes on. Was a hard
        std::abort() (the whole process for one actor); SM64DS_FAULTS_FATAL keeps
-       that behaviour for proof runs. */
+       that behaviour for proof runs.
+
+       "THE ACTOR" HAS TO BE `self`, AND FOR THE INTERACTION TAIL IT WAS NOT.
+       Slots 20..31 are dispatched by the ATTACKER, inside the attacker's own
+       phase callback, so the walk is standing on the Player when a brick's
+       slot 21/23/28 declines here. The net freezes whatever it is walking, so
+       it froze the Player: he stops moving, and because a frozen actor is never
+       dispatched again he is never destroyed either, so every later level
+       change fails to converge and is declined for the rest of the session.
+       Naming `self` here is what puts the freeze on the brick. */
     static char msg[128];
     unsigned id = self ? *(unsigned short *)((char *)self + 0xc) : 0u;
     if (slot >= 0)
@@ -243,7 +255,7 @@ static void ac_trap_report(void *self, int slot)
                      (int)data_020a4b4c);
     std::snprintf(msg, sizeof msg, "unhosted vtable slot %d on id %u %s",
                   slot, id, port_actor_class_name(id));
-    port_actor_slot_decline(msg);
+    port_actor_slot_decline_for(self, msg);
 }
 static int __fastcall ac_trap13(void *s, void *) { ac_trap_report(s, 13); return 0; }
 static int __fastcall ac_trap14(void *s, void *) { ac_trap_report(s, 14); return 0; }
