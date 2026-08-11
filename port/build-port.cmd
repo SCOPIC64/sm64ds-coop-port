@@ -10,6 +10,9 @@ set "PATH=%CMAKEBIN%\CMake\bin;%CMAKEBIN%\Ninja;%PATH%"
 rem Fail before configure if a slice gate activates a receiver dropping raw reader.
 python "%~dp0tools\closestplayer_guard.py"
 if errorlevel 1 exit /b 1
+rem Fail before configure if a NEW guessed vtable body got seated past the baseline.
+python "%~dp0tools\inferred_stub_guard.py"
+if errorlevel 1 exit /b 1
 cmake -S "%~dp0." -B "%~dp0..\build\port" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM="%CMAKEBIN%\Ninja\ninja.exe" %*
 if errorlevel 1 exit /b 1
 ninja -C "%~dp0..\build\port"
