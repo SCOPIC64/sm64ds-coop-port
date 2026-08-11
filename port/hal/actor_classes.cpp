@@ -2182,6 +2182,33 @@ static int __fastcall qb_render(void *s, void *)
 { port_actor_render_probe("QUESTION_BLOCK", (char *)s + 0x320);
   return _ZN13QuestionBlock6RenderEv(s); }
 
+/* GATE 203: the block's own five HIT slots, ov102, all matched src and now
+   sliced (port/slice_gate203.txt). Every one of them is `(self, other)` on the
+   ROM -- the caller PUSHES the other actor -- so every veneer here takes the
+   THREE-parameter __fastcall shape (self in ecx, the dummy in edx, the
+   argument pushed) and MSVC emits `ret 4` for it. A two-parameter veneer would
+   emit a bare `ret`, pop nothing, and desync the caller's frame: that exact
+   mistake on this exact slot 28 is what hal/actor_classes_ov072.cpp records as
+   a live stack smash. The emitted `C2 04 00` is checked against the LINKED
+   binary, not inferred from these signatures. */
+extern "C" {
+void func_ov102_021496a4(void *self, void *other);  /* 28 OnHitFromUnderneath */
+void func_ov102_02149710(void *self, void *player); /* 27 OnHitByMegaChar     */
+void func_ov102_02149770(void *self, void *other);  /* 24 OnKicked            */
+void func_ov102_021497c8(void *self, void *other);  /* 22 OnAttacked1         */
+void func_ov102_02149820(void *self, void *other);  /* 21 OnGroundPounded     */
+}
+static int __fastcall qb_under(void *s, void *, void *o)
+{ func_ov102_021496a4(s, o); return 0; }
+static int __fastcall qb_mega(void *s, void *, void *p)
+{ func_ov102_02149710(s, p); return 0; }
+static int __fastcall qb_kicked(void *s, void *, void *o)
+{ func_ov102_02149770(s, o); return 0; }
+static int __fastcall qb_atk1(void *s, void *, void *o)
+{ func_ov102_021497c8(s, o); return 0; }
+static int __fastcall qb_pounded(void *s, void *, void *o)
+{ func_ov102_02149820(s, o); return 0; }
+
 extern "C" void hal_fill_question_block_vtable(void)
 {
     void **vt = _ZTV13QuestionBlock;
@@ -2196,17 +2223,32 @@ extern "C" void hal_fill_question_block_vtable(void)
        rather than marking it. */
     vt[16] = (void *)qb_d1;
     vt[17] = (void *)ac_trap17;
-    /* 32 slots. Five of the tail are the block's own ov102 bodies, all matched
-       in src and none in a slice: 21 OnGroundPounded (0x02149820), 22
-       OnAttacked1 (0x021497c8), 24 OnKicked (0x02149770), 27 OnHitByMegaChar
-       (0x02149710) and 28 OnHitFromUnderneath (0x021496a4) -- the last is how
-       a question block answers being punched from below, so running Actor's
-       do-nothing there would be wrong rather than merely incomplete. Slot 31
-       is Platform::Kill, unchanged. */
-    vt[21] = (void *)ac_trap21;
-    vt[22] = (void *)ac_trap22;
-    vt[24] = (void *)ac_trap24;
-    vt[27] = (void *)ac_trap27;
-    vt[28] = (void *)ac_trap28;
+    /* 32 slots. Five of the tail are the block's own ov102 bodies: 21
+       OnGroundPounded (0x02149820), 22 OnAttacked1 (0x021497c8), 24 OnKicked
+       (0x02149770), 27 OnHitByMegaChar (0x02149710) and 28
+       OnHitFromUnderneath (0x021496a4) -- the last is how a question block
+       answers being punched from below, so running Actor's do-nothing there
+       would be wrong rather than merely incomplete.
+
+       GATE 203 SEATS ALL FIVE. They were on ac_trapNN because they were in no
+       slice; slice_gate203.txt links them and their one shared helper
+       (func_ov102_02149078). The trap was not a harmless placeholder here: it
+       calls port_actor_slot_decline, the quarantine net catches the fault, and
+       the actor FREEZES for the rest of the level. Every one of these five
+       bodies ends in func_ov102_02149da8(c, 1) -- enter state 1, the bounce,
+       which gate 180 already hosts -- so trapping them is precisely what kept
+       the box from opening while the state table underneath was mounted and
+       correct the whole time. The reported symptom, "softlock when trying to
+       open exclamation box in jrb ship from below", is slot 28's.
+
+       Each is the THREE-parameter veneer: the ROM body is (self, other) and
+       both dispatch sites (src/func_ov002_020eeca8.cpp and the head-bonk host
+       copy unmatched/Player_HeadBonk.cpp) push the argument and expect the
+       CALLEE to pop it. Slot 31 is Platform::Kill, unchanged. */
+    vt[21] = (void *)qb_pounded;
+    vt[22] = (void *)qb_atk1;
+    vt[24] = (void *)qb_kicked;
+    vt[27] = (void *)qb_mega;
+    vt[28] = (void *)qb_under;
     vt[31] = (void *)ac_kill;
 }

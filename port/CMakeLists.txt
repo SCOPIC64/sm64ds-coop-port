@@ -2122,6 +2122,23 @@ foreach(line IN LISTS SLICE180_LINES)
     list(APPEND SLICE180_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Gate 203: the QUESTION_BLOCK / EXCLAMATION_BLOCK's five HIT slots -- the
+# vtable tail that ENTERS state 1, which gate 180 then runs. Gate 23 left
+# slots 21/22/24/27/28 on ac_trapNN because their ov102 bodies were in no
+# slice, so hitting the block raised a fault the quarantine net caught and the
+# actor froze instead of opening. Slot 28 (0x021496a4) is OnHitFromUnderneath,
+# the jump-into-it-from-below hit that is how the box is meant to be opened.
+# See slice_gate203.txt and the QUESTION_BLOCK section in hal/actor_classes.cpp.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate203.txt" SLICE203_LINES)
+set(SLICE203_SOURCES "")
+foreach(line IN LISTS SLICE203_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE203_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gate 188: Jolly Roger Bay's six MOVER classes' matched lifecycle closure. The
 # host copies (the three slot-5 renders + Unagi's PMF dispatch/Behavior + the
 # body-segment near-miss) are unmatched/{Jrb_Renders,Unagi_StateDispatch,
@@ -2425,7 +2442,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     unmatched/Unagi_StateDispatch.cpp unmatched/Unagi_BodyChain.cpp unmatched/Jrb_Aliases.cpp
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp unmatched/Koopa_Render.cpp
-    ${SLICE180_SOURCES}
+    ${SLICE180_SOURCES} ${SLICE203_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -2484,7 +2501,7 @@ add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DAT
     unmatched/Unagi_StateDispatch.cpp unmatched/Unagi_BodyChain.cpp unmatched/Jrb_Aliases.cpp
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp unmatched/Koopa_Render.cpp
-    ${SLICE180_SOURCES}
+    ${SLICE180_SOURCES} ${SLICE203_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -2559,7 +2576,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     unmatched/Unagi_StateDispatch.cpp unmatched/Unagi_BodyChain.cpp unmatched/Jrb_Aliases.cpp
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp unmatched/Koopa_Render.cpp
-    ${SLICE180_SOURCES}
+    ${SLICE180_SOURCES} ${SLICE203_SOURCES}
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp

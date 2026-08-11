@@ -389,6 +389,71 @@ int func_ov002_020ef2a4(void *clsn, void *arg);
 int func_ov002_020eee3c(void *clsn, void *arg);
 int _ZNK12WithMeshClsn8IsOnWallEv(void *c);
 void *_ZNK12WithMeshClsn13GetWallResultEv(void *c);
+/* the CEILING third of the same family, for SM64DS_POUND_PROBE=<id>:<f>:28.
+   func_ov002_020eeca8 is func_ov002_020ef2a4 with the hit-ceiling accessors in
+   place of the floor pair and slot 28, OnHitFromUnderneath, in place of slot
+   21 (`a->m70(arg)`, vtable+0x70). It is the ROM function the player's ceiling
+   collision runs; the head-bonk raycast (unmatched/Player_HeadBonk.cpp) is the
+   other site and reaches the same slot with the same __thiscall contract.
+   func_02035638 is the hit-ceiling accessor (`c[0x90] & 0x10`) and
+   func_0203567c the ceiling ClsnResult (`c + 0x30`) -- both matched src, so
+   the flag bit and the record offset below are read off the ROM's own
+   accessors rather than assumed. */
+int func_ov002_020eeca8(void *clsn, void *arg);
+int func_02035638(void *c);
+void *func_0203567c(void *c);
+unsigned _ZNK10ClsnResult9GetClsnIDEv(void *r);
+/* the block's own refusal test and the closest-player cache it consults */
+int func_ov102_02149078(void *self);
+void *_ZN5Actor13ClosestPlayerEv(void *self);
+extern signed char data_0209f2f8;      /* current level */
+extern void *data_0209b458;            /* the closest-player cache itself */
+}
+
+/* Gate 203's read-back. The QuestionBlock/ExclamationBlock keeps its state
+   index at +0x3e8 and the character that hit it at +0x3f2; state 1 is the
+   bounce and state 2 is spent. Printing those two across the hit is what
+   distinguishes "the box opened" from "the frame did not crash". */
+static void pp_qblock_state(const char *when, void *o)
+{
+    if (!o)
+        return;
+    /* +0x9c and +0xa8 are the recoil the slot-28 body writes BEFORE it
+       consults the refusal test, so they separate "the body never ran" from
+       "the body ran and was refused" without guessing which. */
+    std::fprintf(stderr, "[pound]   %-6s block state %d  ch %u  recoil "
+                 "%08x/%08x\n", when,
+                 *(int *)((char *)o + 0x3e8),
+                 *(unsigned char *)((char *)o + 0x3f2),
+                 *(unsigned *)((char *)o + 0x9c),
+                 *(unsigned *)((char *)o + 0xa8));
+    std::fflush(stderr);
+}
+
+/* After the hit, follow the block for a while: entering state 1 only proves
+   the trigger fired, and the payout happens when the bounce runs out and
+   func_ov102_021498e0 spawns the content and parks it in state 2. */
+static void *g_qb_watch;
+static int g_qb_watch_left;
+
+static void pp_qblock_follow(void)
+{
+    static int last = -99;
+    if (!g_qb_watch || g_qb_watch_left <= 0)
+        return;
+    --g_qb_watch_left;
+    int st = *(int *)((char *)g_qb_watch + 0x3e8);
+    if (st != last) {
+        last = st;
+        std::fprintf(stderr, "[pound]   watch  block state -> %d (%d frames "
+                     "left)\n", st, g_qb_watch_left);
+        std::fflush(stderr);
+    }
+    if (g_qb_watch_left == 0) {
+        std::fprintf(stderr, "[pound]   watch  FINAL block state %d\n", st);
+        std::fflush(stderr);
+        g_qb_watch = 0;
+    }
 }
 
 static void *pp_first_of_class(unsigned id)
@@ -563,6 +628,62 @@ static void port_pound_probe(void)
     static unsigned char clsn[512];
     std::memset(clsn, 0, sizeof clsn);
     int hit;
+    if (slot == 28) {
+        /* The CEILING third: whatever the player's head is under gets
+           OnHitFromUnderneath(player). This is the exclamation/question
+           block's own opening trigger. Flag and record offset both come from
+           the matched accessors, not from a guess: func_02035638 tests
+           c[0x90] & 0x10 and func_0203567c returns c + 0x30. */
+        *(unsigned char *)(clsn + 0x90) |= 0x10u;   /* hit-ceiling */
+        void *res = func_0203567c(clsn);
+        if (!res || !func_02035638(clsn)) {
+            std::fprintf(stderr, "[pound] scratch collider will not report a "
+                         "ceiling (res %p, flags %02x)\n", res,
+                         *(unsigned char *)(clsn + 0x90));
+            std::fflush(stderr);
+            return;
+        }
+        *(unsigned *)((char *)res + 0x1c) = uid;
+        if (_ZNK10ClsnResult9GetClsnIDEv(res) != uid) {
+            std::fprintf(stderr, "[pound] ceiling ClsnID readback %u != uid "
+                         "%u -- the rig would dispatch on the wrong actor\n",
+                         _ZNK10ClsnResult9GetClsnIDEv(res), uid);
+            std::fflush(stderr);
+            return;
+        }
+        std::fprintf(stderr, "[pound] frame %ld: class %u %s actor %p uid %u, "
+                     "player %p -- dispatching slot 28 "
+                     "(OnHitFromUnderneath) through func_ov002_020eeca8\n",
+                     frame, want, port_actor_class_name(want), target, uid,
+                     player);
+        std::fflush(stderr);
+        pp_qblock_state("before", target);
+        /* The refusal test the five hit slots all consult, read directly so a
+           refusal is distinguishable from a dispatch that never landed. Its
+           own inputs are printed beside it: the level it switches on, the
+           cached closest player, and the +0x706 byte it actually tests. */
+        {
+            void *cp_arg = _ZN5Actor13ClosestPlayerEv(target);
+            std::fprintf(stderr, "[pound]   gate   func_ov102_02149078 -> %d "
+                         "| level %d | cache %p | ClosestPlayer(this) %p "
+                         "+0x706 %u | player %p +0x706 %u\n",
+                         func_ov102_02149078(target), (int)data_0209f2f8,
+                         (void *)data_0209b458, cp_arg,
+                         cp_arg ? *(unsigned char *)((char *)cp_arg + 0x706) : 0u,
+                         player, *(unsigned char *)((char *)player + 0x706));
+            std::fflush(stderr);
+        }
+        hit = func_ov002_020eeca8(clsn, player);
+        std::fprintf(stderr, "[pound] RETURNED %d -- the caller's frame "
+                     "survived the dispatch\n", hit);
+        pp_qblock_state("after", target);
+        /* and follow it: state 1 is the bounce, and the block reaches state 2
+           only by running func_ov102_021498e0 to its end, which is where the
+           content is actually spawned. */
+        g_qb_watch = target;
+        g_qb_watch_left = 90;
+        return;
+    }
     if (slot == 25) {
         /* The WALL half of the same pair. func_ov002_020eee3c is what
            func_ov002_020ef2a4 is, with IsOnWall/GetWallResult in place of the
@@ -612,6 +733,7 @@ extern "C" void port_actor_tick(void)
 {
     port_bob_debug_watch();
     port_pound_probe();
+    pp_qblock_follow();
     port_vt_audit();
     data_02099f24[0] = 4;
     port_list_trace("cleanup", data_020a4ba8);
