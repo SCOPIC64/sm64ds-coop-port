@@ -202,7 +202,10 @@ src/func_ov085_0212e858.c
 # the THUMB bit -- see the alias in hal/method_faces.cpp.
 src/Vec3_ApproachHorz.c
 src/_ZN5Actor11UpdateCarryER6PlayerRK7Vector3.cpp
-src/_ZN5Actor18HorzAngleToCPlayerEv.c
+# _ZN5Actor18HorzAngleToCPlayerEv: HOST COPY at unmatched/Actor_ClosestPlayerWrappers.cpp
+# (wired in CMakeLists). The matched C calls Actor::ClosestPlayer() with no argument
+# and relies on `this` being live in ARM r0; cdecl drops it, so ClosestPlayer measures
+# from garbage+0x5c. That is the RABBIT fault in crash 9e164e92 (read at 0x0000005c).
 src/_ZN6Camera6SetPosERK7Vector3.c
 src/_ZN6Camera9SetLookAtERK7Vector3.c
 src/_ZN6Player12GetTalkStateEv.cpp

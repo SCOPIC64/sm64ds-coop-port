@@ -69,6 +69,11 @@ void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a); /* slot 2 */
 int _ZN5Actor14BeforeBehaviorEv(void *self);           /* slot 7  */
 int _ZN5Actor12BeforeRenderEv(void *self);             /* slot 10 */
 int _ZN5Actor13OnYoshiTryEatEv(void *self);            /* slot 18 */
+/* slot 19. The ROM body is a tail-call veneer to KillAndTrackInDeathTable and
+   MSVC emits it as a bare `jmp` too, so the caller's pushed `self` is what the
+   veneer's target reads -- the two-argument call here is what makes that word
+   the right one. Same shape hal/actor_classes_painting.cpp uses. */
+void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p);  /* slot 19 */
 /* Actor's own interaction list, slots 20..29, all matched arm9 bodies already
    linked (slice_gate32 and slice_gate50). Read out of the ROM tables, not the
    header: every one of them appears at these indices in _ZTV4Tree and its
@@ -173,17 +178,38 @@ static int __fastcall ac_under(void *s, void *, void *o)
 { _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
 static int __fastcall ac_egg(void *s, void *)
 { return _ZN5Actor16OnAimedAtWithEggEv(s); }
+/* slot 19, OnTurnIntoEgg(Player &player). Three parameters, like the rest of
+   this group: the caller PUSHES the player, so the thunk has to pop it. */
+static int __fastcall ac_turn_egg(void *s, void *, void *p)
+{ _ZN5Actor13OnTurnIntoEggER6Player(s, p); return 0; }
 /* slot 31, the Platform tail. Only the Platform subclasses below write it. */
 static int __fastcall ac_kill(void *s, void *)
 { _ZN8Platform4KillEv(s); return 0; }
 
-/* The trap. Slots 13/14 are the actor's own solid-heap creation, 19 is
-   OnTurnIntoEgg, and 16/17 are the destructors where a class leaves them
-   unhosted; a named abort is the honest placeholder for a slot the port has
-   not proved. One report serves every trapped slot, and it says WHICH slot
-   fired on WHICH actor in WHICH phase -- the old per-class form printed
-   "slot 13" from whatever slot it sat in, and a woken Bird's destructor
-   spent a session disguised as a slot-13 dispatch. */
+/* The trap. Slots 13/14 are the actor's own solid-heap creation and 16/17 are
+   the destructors where a class leaves them unhosted; a named abort is the
+   honest placeholder for a slot the port has not proved. One report serves
+   every trapped slot, and it says WHICH slot fired on WHICH actor in WHICH
+   phase -- the old per-class form printed "slot 13" from whatever slot it sat
+   in, and a woken Bird's destructor spent a session disguised as a slot-13
+   dispatch.
+
+   SLOT 19 IS NO LONGER ONE OF THEM. It used to trap here on the reading that
+   OnTurnIntoEgg was unproved, and that reading is out of date: gate 50 linked
+   Actor::OnTurnIntoEgg (arm9 0x02010154) when the PAINTING became the first
+   hosted class to inherit the Actor default, and every class in this file
+   inherits the same word. The ROM's own tables say so -- for all
+   twenty-three plain-Actor classes here the reloc at vtable+0x4c lands on
+   0x02010154, e.g. _ZTV6Rabbit (ov085 0x021300f8) slot 19 -> 0x02010154 -- and
+   the one class that overrides it (ONEUP_MUSHROOM, func_ov002_020af2b0)
+   already writes its own body over the shared fill.
+
+   The cost of the trap was not a diagnostic: a trapped slot RAISES, the
+   quarantine net catches it, and the actor is frozen for the rest of the level
+   (unmatched/func_02043fdc.cpp). Actor::OnTurnIntoEgg is a tail-call veneer to
+   KillAndTrackInDeathTable, so what the ROM does when Yoshi swallows one of
+   these is kill it AND track it so it comes back. Trapping the slot turned a
+   respawnable death into a permanent freeze -- the rabbit that never returns. */
 extern "C" {
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
@@ -223,7 +249,6 @@ static int __fastcall ac_trap13(void *s, void *) { ac_trap_report(s, 13); return
 static int __fastcall ac_trap14(void *s, void *) { ac_trap_report(s, 14); return 0; }
 static int __fastcall ac_trap16(void *s, void *) { ac_trap_report(s, 16); return 0; }
 static int __fastcall ac_trap17(void *s, void *) { ac_trap_report(s, 17); return 0; }
-static int __fastcall ac_trap19(void *s, void *) { ac_trap_report(s, 19); return 0; }
 /* The interaction-tail traps. A class that OVERRIDES one of Actor's 20..31
    bodies has a body of its own that is not in any slice, so forwarding to
    Actor's would run the wrong code; declining names the slot and the class
@@ -343,7 +368,7 @@ static void ac_fill_shared(void **vt)
     vt[14] = (void *)ac_trap14;
     vt[15] = (void *)ac_heap;
     vt[18] = (void *)ac_yoshi;
-    vt[19] = (void *)ac_trap19;
+    vt[19] = (void *)ac_turn_egg;
     /* Actor's interaction tail. Every table in this file is at least 31 words
        and every one of them carries these arm9 bodies at these indices unless
        the class overrides -- the overriders rewrite their own slots below. */

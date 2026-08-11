@@ -239,7 +239,10 @@ src/_ZN16MeshColliderBase10BeforeClsnER10ClsnResultP5ActorR7Vector3P10Vector3_16
 # (wired in CMakeLists). The matched C calls Actor::ClosestPlayer() with no argument
 # and relies on `this` being live in ARM r0; cdecl drops it, so the host copy passes
 # `this` explicitly. See that file's header. (FarthestPlayer is in the same copy.)
-src/_ZN5Actor15IsPlayerInRangeEi.c
+# _ZN5Actor15IsPlayerInRangeEi: HOST COPY at unmatched/Actor_ClosestPlayerWrappers.cpp
+# (wired in CMakeLists). The matched C calls Actor::ClosestPlayer() with no argument
+# and relies on `this` being live in ARM r0; cdecl drops it, so ClosestPlayer measures
+# from garbage+0x5c. That is the RABBIT fault in crash 9e164e92 (read at 0x0000005c).
 src/_ZN5Actor19DisappearPoofDustAtERK7Vector3.c
 src/_ZN5Actor24KillAndTrackInDeathTableEv.c
 src/_ZN6Player14IsFrontSlidingEv.cpp

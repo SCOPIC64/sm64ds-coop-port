@@ -111,7 +111,10 @@ src/_ZN11CommonModel12SetPolygonIDEj.cpp
 src/_ZN11CommonModel13Func_020160ACEj.cpp
 # the red coin's own star: what the eighth one collected calls
 src/_ZN10StarMarker27SpawnRedCoinStarIfNecessaryEv.cpp
-src/_ZN5Actor18HorzAngleToFPlayerEv.c
+# _ZN5Actor18HorzAngleToFPlayerEv: HOST COPY at unmatched/Actor_ClosestPlayerWrappers.cpp
+# (wired in CMakeLists). The matched C calls Actor::ClosestPlayer() with no argument
+# and relies on `this` being live in ARM r0; cdecl drops it, so ClosestPlayer measures
+# from garbage+0x5c. That is the RABBIT fault in crash 9e164e92 (read at 0x0000005c).
 # the seven helpers the states and the collect path close over
 src/func_ov002_020b1328.c
 src/func_ov002_020b1674.cpp
