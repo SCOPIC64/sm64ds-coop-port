@@ -1471,6 +1471,73 @@ static void stdout_flush_atexit(void) { fflush(stdout); }
 /* PORT_HOST_ABI: the host program entry point (window + ntr bring-up + frame
    loop). Name-collides with the ROM's boot spine src/main.c, which is the DS
    init sequence and runs as its own decomp TU, not as this launcher shell. */
+/* ---- startup_error.txt: the only channel a failed START has ----------------
+   A crash mid-session leaves crash.txt, a playlog and a report the player can
+   send. A failure BEFORE the window opens leaves none of that: the process
+   exits cleanly, so there is no dump, and the launcher only ever saw an exit
+   code. That is how the fixed-address failure in ntr/io.cpp reached us as four
+   lines of stderr and nothing else, and why one player could not start the game
+   at all with nothing on screen to say why.
+
+   So a startup failure writes one plain-language file next to the exe. The
+   launcher reads it after a non-zero exit and shows it (SM64DSLauncher's
+   MainForm), which is the same shape as the extraction failure path: the child
+   says what went wrong in words, the launcher is the thing with a window to put
+   them in. Raw Win32 and a static buffer, the same discipline crash.txt and
+   exit.txt keep, because this runs on a path where the process is already
+   known to be in trouble. */
+static void port_startup_error_path(char *path, unsigned cap)
+{
+    DWORD n = GetModuleFileNameA(0, path, cap);
+    while (n && path[n - 1] != 92 /* '\\' */)
+        --n;
+    lstrcpynA(path + n, "startup_error.txt", (int)(cap - n));
+}
+
+static void port_startup_error_clear(void)
+{
+    char path[MAX_PATH + 32];
+    port_startup_error_path(path, sizeof path);
+    DeleteFileA(path);
+}
+
+static void port_startup_error_write(const char *text)
+{
+    char path[MAX_PATH + 32];
+    HANDLE f;
+    port_startup_error_path(path, sizeof path);
+    f = CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ, 0, CREATE_ALWAYS,
+                    FILE_ATTRIBUTE_NORMAL, 0);
+    if (f != INVALID_HANDLE_VALUE) {
+        DWORD wr;
+        WriteFile(f, text, (DWORD)lstrlenA(text), &wr, 0);
+        FlushFileBuffers(f);
+        CloseHandle(f);
+    }
+}
+
+/* Also say it on screen, for the player who double-clicked the exe instead of
+   using the launcher. user32 is loaded here rather than imported, for the same
+   reason winapi_load below does it: a static import chain maps the desktop heap
+   before main and that mapping can land in the DS ranges. By the time this runs
+   the reservation has already been decided, so loading it now costs nothing.
+   SM64DS_NO_DIALOG=1 suppresses the box for automated runs, which must never
+   block on a modal nobody is there to dismiss. */
+static void port_startup_error_show(const char *text)
+{
+    HMODULE u32;
+    int (WINAPI *mb)(HWND, LPCSTR, LPCSTR, UINT);
+    if (getenv("SM64DS_NO_DIALOG") || getenv("SM64DS_WINDOW_SELFTEST"))
+        return;
+    u32 = LoadLibraryA("user32.dll");
+    if (!u32)
+        return;
+    mb = (int(WINAPI *)(HWND, LPCSTR, LPCSTR, UINT))
+         GetProcAddress(u32, "MessageBoxA");
+    if (mb)
+        mb(0, text, "Super Mario 64 DS could not start", 0x10 /* MB_ICONERROR */);
+}
+
 int main(void)
 {
     /* fault_probe.h has been included here since gate 4 and was never armed,
@@ -1565,7 +1632,40 @@ int main(void)
             fprintf(stderr, "[recorder] session start\n");
         }
     }
-    if (!ntr::io_init()) { fprintf(stderr, "io_init failed\n"); return 2; }
+    /* A stale file from an earlier run must never be read as this run's verdict.
+       Clear it before the decision, write it only if the decision goes badly. */
+    port_startup_error_clear();
+    if (!ntr::io_init()) {
+        /* THE FAILURE A PLAYER USED TO GET IN SILENCE. Three places now, all of
+           them cheap because none of it runs unless the start already failed:
+           the technical block goes to the log for us, the plain sentence goes
+           in a file for the launcher, and the same sentence goes on screen for
+           someone running the exe directly. */
+        fprintf(stderr, "io_init failed\n");
+        fputs(ntr::io_reserve_detail(), stderr);
+        {
+            const char *say = ntr::io_reserve_player_text();
+            if (say[0]) {
+                port_startup_error_write(say);
+                port_startup_error_show(say);
+            }
+        }
+        return 2;
+    }
+    /* Which stage actually won the fixed ranges, and how many passes it took.
+       One line, always, because "it wins more often now" is not a claim a log
+       can be read for afterwards, and the stage number is. 1 = the TLS callback
+       at process start, 2 = here in main, which is where it used to happen. A
+       stage 2 on a healthy machine means the early claim lost and the retry
+       rescued it, which is worth seeing in a player's log. */
+    fprintf(stderr, "[io] fixed ranges: stage %d, %u attempt(s), lost %02x\n",
+            ntr::io_reserve_stage_won(), ntr::io_reserve_attempts(),
+            ntr::io_reserve_lost_mask());
+    /* A start that SURVIVED a lost range still needs the record. Losing main
+       memory is not fatal, but it is the difference between two runs of the same
+       build and it is the shape a later mystery crash grows out of, so the same
+       block that a fatal loss prints goes in the log here too. */
+    if (ntr::io_reserve_lost_mask()) fputs(ntr::io_reserve_detail(), stderr);
     if (!winapi_load()) { fprintf(stderr, "winapi_load failed\n"); return 2; }
     pacer_begin();
 #ifdef PORT_ROM_CLEAN

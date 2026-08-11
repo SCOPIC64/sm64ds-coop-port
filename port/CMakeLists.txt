@@ -2473,7 +2473,13 @@ if(MSVC)
 endif()
 
 # Gate 12: the interactive window (same stack, windowed loop).
-add_executable(walk_window tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
+#
+# tests/io_pressure.cpp is the negative control for ntr/io.cpp's fixed-address
+# reservation: it takes 0x02000000 before the game asks for it, so the failure a
+# player hit can be reproduced on demand against THIS binary rather than against
+# a special build of it. Inert unless SM64DS_IO_PRESSURE_AT is set in the
+# environment, and nothing in the tree sets it.
+add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
     # dialogue pipeline (2026-08-08): the box pump (Stage::UpdateMessage's
     # dialogue arm), the engine-A 2D-over-3D compositor, and the headless probe.
     hal/message_pump.cpp hal/message_compositor.cpp hal/message_probe.cpp hal/message_gen_text.cpp hal/input_probe.cpp
