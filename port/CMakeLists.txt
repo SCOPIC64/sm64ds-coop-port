@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(sm64ds-port C CXX)
+# Link the static CRT so shipped exes never depend on the VC++ redist (CMP0091).
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MAP")
 add_compile_options(/Oy-)
 
