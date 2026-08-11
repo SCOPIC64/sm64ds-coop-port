@@ -241,6 +241,7 @@ static bool winapi_load(void)
 #define PORT_FAULT_PROBE_DEFINE_EXPORTS
 #include "fault_probe.h"
 #include "overlay_font.h"
+#include "hal/host_settings.h"   /* settings.json, the launcher's file */
 
 typedef unsigned int u32;
 
@@ -2160,6 +2161,19 @@ int main(void)
     float cam_yaw = 0.0f;   /* camera heading around Mario, radians */
     float cam_pitch = 0.13f; /* camera tilt above level, radians (R/F) */
     const int trace_cam = getenv("SM64DS_TRACE_CAM") != 0;
+    /* Which way the camera turns when the player pushes a camera control to
+       the right, as a signed step on the camera's heading. -1 by default:
+       push right, pan right. settings.json's SwapCameraTurnDirection returns
+       +1, which is what this program did before. Read once at boot, like the
+       volume, so it takes effect the next time the player presses Play.
+
+       EVERY horizontal camera control below multiplies by this one value --
+       Q and E, the right stick, the bumpers, the mouse, and all three camera
+       modes -- so no two of them can end up disagreeing about which way is
+       right. See port/hal/host_settings.h for the measurement the default
+       comes from; the DS has none of these controls, so there was never a
+       hardware binding to be faithful to. */
+    const int cam_turn = host_camera_turn_sign();
     /* SM64DS_DECEL_PROBE=1 (under a selftest): hold the stick and the dash
        button until DECEL_RELEASE, then let go of both and log the horizontal
        speed every frame until it reaches zero. The point is the SHAPE of the
@@ -2545,7 +2559,10 @@ int main(void)
                a press this frame still lands on top of it. */
             if (cam && !fc_dist_owned) fc_dist = fc_cam_dist(cam);
             {
-                const int r = fc_stick_rate(stick_rx, CAM_STEP) + mouse_dyaw;
+                /* stick and mouse are both a rightward push measured to the
+                   right, so both take cam_turn as-is */
+                const int r = (fc_stick_rate(stick_rx, CAM_STEP) + mouse_dyaw)
+                              * cam_turn;
                 if (r) { fc_yaw = (short)(fc_yaw + r); rig_touched = 1; }
             }
             {
@@ -2558,8 +2575,13 @@ int main(void)
                 if (t < -0x1000) t = -0x1000;    /* a little from below */
                 fc_pitch = (short)t;
             }
-            if (key_live('Q')) { fc_yaw -= CAM_STEP / 2; rig_touched = 1; }
-            if (key_live('E')) { fc_yaw += CAM_STEP / 2; rig_touched = 1; }
+            {
+                /* Q pushes left, E pushes right, off the same sign as the
+                   stick so the keyboard and the pad cannot disagree */
+                const int qe = (CAM_STEP / 2) * cam_turn;
+                if (key_live('Q')) { fc_yaw = (short)(fc_yaw - qe); rig_touched = 1; }
+                if (key_live('E')) { fc_yaw = (short)(fc_yaw + qe); rig_touched = 1; }
+            }
             {
                 int zoom = 0;
                 if (pad_live && (pad.buttons & 0x0100)) zoom -= 1;   /* LB */
@@ -2609,14 +2631,17 @@ int main(void)
             if (pad.lx < -12000 || (pad.buttons & 4)) dx -= 1;
             if (pad.lx > 12000 || (pad.buttons & 8)) dx += 1;
             if (pad.rx < -10000 || pad.rx > 10000) {
-                cam_yaw += 0.045f * (pad.rx / 32768.0f);
+                cam_yaw += cam_turn * 0.045f * (pad.rx / 32768.0f);
                 orbiting = 1;
             }
             if (pad.ry > 10000 && cam_pitch < 0.85f) cam_pitch += 0.02f;
             if (pad.ry < -10000 && cam_pitch > -0.15f) cam_pitch -= 0.02f;
         }
-        if (key_live('Q')) { cam_yaw -= 0.045f; orbiting = 1; }
-        if (key_live('E')) { cam_yaw += 0.045f; orbiting = 1; }
+        /* the pre-Camera-actor dev rig (SM64DS_OLD_CAMERA). It never reaches a
+           player, but it takes cam_turn too so nobody debugging in it has to
+           remember that this one camera turns the other way. */
+        if (key_live('Q')) { cam_yaw -= cam_turn * 0.045f; orbiting = 1; }
+        if (key_live('E')) { cam_yaw += cam_turn * 0.045f; orbiting = 1; }
         if (key_live('R') && cam_pitch < 0.85f)
             cam_pitch += 0.02f;
         if (key_live('F') && cam_pitch > -0.15f)
@@ -2846,18 +2871,31 @@ int main(void)
                it is written -- the Camera actor is left following Mario so
                there is something clean to hand back to. */
             if (real_camera && cam_mode == CAM_DS) {
-                if (key_live('Q')) btn |= 0x200;
-                if (key_live('E')) btn |= 0x100;
+                /* The two bits func_02009e70 reads, picked by the same
+                   cam_turn the rig steps its heading with, so DS mode and
+                   analog mode turn the same way for the same push. 0x100
+                   raises the heading (the ROM adds +0x400 for it) and 0x200
+                   lowers it, and a rising heading is the view panning left,
+                   so a rightward push takes 0x200 by default. Which host
+                   control feeds which bit is the port's own choice: the DS
+                   had L and R and none of these controls. */
+                const unsigned cam_bit_right = (cam_turn > 0) ? 0x100u : 0x200u;
+                const unsigned cam_bit_left  = (cam_turn > 0) ? 0x200u : 0x100u;
+                if (key_live('Q')) btn |= cam_bit_left;
+                if (key_live('E')) btn |= cam_bit_right;
                 if (key_live('C')) btn |= 0x4000;
-                if (stick_rx < -10000) btn |= 0x200;
-                if (stick_rx > 10000) btn |= 0x100;
+                if (stick_rx < -10000) btn |= cam_bit_left;
+                if (stick_rx > 10000) btn |= cam_bit_right;
                 if (pad_live) {
-                    if (pad.buttons & 0x0100) btn |= 0x200;  /* LB -> cam L */
-                    if (pad.buttons & 0x0200) btn |= 0x100;  /* RB -> cam R */
+                    if (pad.buttons & 0x0100) btn |= cam_bit_left;   /* LB */
+                    if (pad.buttons & 0x0200) btn |= cam_bit_right;  /* RB */
                 }
-                /* orbit probe: hold the rotate-right bit from frame 20 --
-                   the camera's own heading and the angle it publishes must
-                   both move, and W must keep walking away from the lens */
+                /* orbit probe: hold one of func_02009e70's own rotate bits
+                   from frame 20 -- the camera's heading and the angle it
+                   publishes must both move, and W must keep walking away
+                   from the lens. Deliberately the raw bit and not
+                   cam_bit_right: this probes the ROM's reader, so it must
+                   not move when a player's binding preference does. */
                 if (selftest && getenv("SM64DS_SELFTEST_ORBIT") && frame >= 20)
                     btn |= 0x100;
             }
@@ -3837,7 +3875,7 @@ int main(void)
                         "[cam-in] f%03d rx=%6d ry=%6d fc=%d yaw=%04x "
                         "pitch=%04x dist=%d held=%04x edge=%04x fl=%08x "
                         "a17c=%04x a186=%04x a19e=%04x turn=%u wall=%u "
-                        "pub=%04x\n",
+                        "pub=%04x mario=%04x\n",
                         frame, stick_rx, stick_ry, cam_mode,
                         (unsigned short)fc_yaw, (unsigned short)fc_pitch,
                         fc_dist >> 12,
@@ -3849,7 +3887,15 @@ int main(void)
                         (unsigned short)*(short *)((char *)cam + 0x19e),
                         *(unsigned short *)((char *)cam + 0x1a0),
                         *(unsigned char *)((char *)cam + 0x1a6),
-                        (unsigned short)*(short *)((char *)data_020a1164));
+                        (unsigned short)*(short *)((char *)data_020a1164),
+                        /* Mario's own facing. Paired with `pub` this is what
+                           says which world direction is SCREEN-right: the
+                           walk is camera-relative, so facing minus pub is the
+                           stick direction the game resolved, and its offset
+                           from the straight-ahead 0x8000 has the sign of the
+                           side being pushed. Nothing reads it, it just makes
+                           the camera binding measurable without a screenshot. */
+                        (unsigned short)*(short *)(c + 0x8e));
         }
         ph_end(PH_CAMERA, t_phase);
         /* no speed clamp: the accel tables get real input-mode data now
