@@ -340,3 +340,11 @@ src/_ZNK12WithMeshClsn12TouchesWaterEv.cpp
 # host body calls, both matched and tiny (0x18/0x2c)
 src/func_ov002_020bec84.c
 src/func_ov002_020bec9c.cpp
+# BATCH 3 LINKAGE SEAT: the concrete MeshCollider destructor pair. D0 (deleting,
+# 0x0203982c) is seated into slot 0 of _ZTV12MeshCollider at boot by
+# hal/meshcollider_dtor_seat.cpp; D1 (complete, 0x02039864) is kept referenced
+# there. Both 2004/b56 byte-matches. walk_window family only (this slice), since
+# their ROM bodies drag func callees the gate-8/9 smoke targets do not carry and
+# never dispatch (they never delete the level collider).
+src/_ZN12MeshColliderD0Ev.c
+src/_ZN12MeshColliderD1Ev.c
