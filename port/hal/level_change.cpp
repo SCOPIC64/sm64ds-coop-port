@@ -122,7 +122,12 @@ void port_quarantine_reset(void);   /* port/unmatched/func_02043fdc.cpp: clear
 void port_actor_scene_pass(void);
 void *port_stage_object(void);
 void *port_stage_a_boot(void *mc, int spawn);
-void port_level_reset_host(void);        /* hal/level_boot.cpp */
+void port_level_reset_host(void);        /* hal/level_boot.cpp (also captures the
+                                            outgoing level's orphaned KCL image --
+                                            the ~108KB re-entry leak -- for
+                                            port_level_stage_reseat to free once
+                                            ResetMeshColliders has cleared the
+                                            registry that points at it) */
 void port_level_set_target(int level);   /* hal/level_boot.cpp: which level the
                                             next port_stage_a_boot mounts */
 void CleanCommonModelDataArr(void);
