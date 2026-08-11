@@ -543,6 +543,11 @@ endforeach()
 # edits, nothing else). Replaces src/func_ov002_020e5948.c, commented out
 # of slice_gate10.txt.
 list(APPEND SLICE10_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/TexSeq_Caller_ov002_020e5948.cpp")
+# Slot 28 has two dispatch sites and the two matched transcriptions disagree
+# on calling convention; see unmatched/Player_HeadBonk.cpp. This copy is
+# src/func_ov002_020cef84.cpp with the dispatch remodelled as a C++ virtual
+# so both sites are thiscall, which is what lets slot 28 hold a real body.
+list(APPEND SLICE10_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Player_HeadBonk.cpp")
 
 # Two Actor entry points are C++ inside a .c, but a different shape from the
 # hostgen cases below: each is a real METHOD against Actor.h, so hostgen's
