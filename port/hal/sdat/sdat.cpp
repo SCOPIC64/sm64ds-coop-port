@@ -123,6 +123,17 @@ struct WaveCache {
 };
 static std::unordered_map<const void *, WaveCache> g_waves;
 
+/* Drop every decoded wave. The cache is keyed by SWAV record ADDRESSES in the
+   game arena, and an address only names the same sample while the arena around
+   it stands still. A save-state restore that crossed an area rolls the arena
+   back to different sample data at the same addresses, so the keys would hand
+   out the other area's audio. lk6_savestate_load calls this beside the other
+   sd_*_reset calls; the cache refills on demand at the next note-on. */
+void sd_waves_reset(void)
+{
+    g_waves.clear();
+}
+
 // Decode one SWAV record (12-byte header + payload) into mono s16.
 static const WaveCache *decode_swav(const sd_u8 *rec)
 {

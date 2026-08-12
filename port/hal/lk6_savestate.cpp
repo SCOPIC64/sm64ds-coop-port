@@ -76,8 +76,20 @@
 // path additionally silences the sequencer and mixer (sd_seq_reset +
 // sd_mix_reset); the game re-triggers sounds from the restored state on the next
 // tick. The wave decode cache (hal/sdat/sdat.cpp g_waves) is keyed by SWAV
-// record addresses in the arena; for a same-level restore those addresses hold
-// identical sample data, so the restored cache stays correct.
+// record addresses in the arena; those keys only mean the same thing when the
+// restore does not cross an area, so the load path drops it (sd_waves_reset)
+// and it refills on demand.
+//
+// THE HARDWARE CONTENT STORES (captured since 0.2.2)
+// --------------------------------------------------
+// Palette, video and sprite memory are reserved host memory at the DS addresses
+// (ntr/io.cpp), written at area-mount time, and belong to neither the arena nor
+// .dsstate. Not capturing them was the 0.2.1 cross-area bug: save, walk into a
+// door or painting (the new area's textures upload over the same VRAM offsets),
+// load -- the world rolls back, the pixels do not, and every texture reference
+// resolves into the wrong area's bytes. The slot now carries the three regions
+// via the port_hw_regions_* hooks, and restoring them drops the ntr texture
+// decode cache so the next bind re-decodes from the restored VRAM.
 //
 // WHAT IS NOT IN .dsstate ON PURPOSE (host-only, must not roll back)
 // -----------------------------------------------------------------
@@ -100,6 +112,7 @@ typedef unsigned int u32;
 void sd_seq_reset(void);
 void sd_mix_reset(void);
 void sd_consumer_reset(void);
+void sd_waves_reset(void);
 
 extern "C" {
 // hal/os_arena.cpp
@@ -107,6 +120,18 @@ void *port_arena_base(void);
 void *port_arena_end(void);
 void *port_arena_cursor(void);
 void  port_arena_set_cursor(void *p);
+
+// ntr/io.cpp: the game-mutable hardware content stores (palette, video and
+// sprite memory). Their allocator cursors are hosted globals in .dsstate and
+// always rolled back; the BYTES at the reserved DS addresses were not, which
+// is the 0.2.1 cross-area bug: save, mount another area (its textures upload
+// over the same VRAM offsets), load -- the world rolls back, the pixels do
+// not. size is 0 when the regions are not reserved (the savestate smoke links
+// no ntr and stubs all three); copy_in also drops the ntr texture decode
+// cache, since the bytes under its keys just changed.
+unsigned port_hw_regions_size(void);
+void port_hw_regions_copy_out(void *dst);
+void port_hw_regions_copy_in(const void *src);
 
 // The two sentinels hal/dsstate_seg.cpp places at the low and high ends of the
 // .dsstate section family. The captured out-of-arena region is the bytes
@@ -135,6 +160,8 @@ struct Slot {
     void  *arena_cursor; // captured low-water carve pointer
     char  *globals;      // captured [dsstate_lo, dsstate_hi) bytes
     size_t globals_size;
+    char  *hw;           // captured palette + video + sprite memory bytes
+    size_t hw_size;      // port_hw_regions_size() at save; 0 = not captured
 };
 
 Slot g_slot;
@@ -167,31 +194,43 @@ int lk6_savestate_save(void)
         return 0;
     }
 
-    // Allocate first, commit second: if either malloc fails, keep the prior
+    // The hardware content stores (palette, video, sprite memory). 0 in a
+    // build that reserves none of them (the headless smokes); when present,
+    // they are captured with everything else, because a save that skipped them
+    // is exactly the 0.2.1 cross-area texture bug.
+    size_t hsz = port_hw_regions_size();
+
+    // Allocate first, commit second: if any malloc fails, keep the prior
     // slot untouched.
     char *na = (char *)malloc(asz);
     char *ng = (char *)malloc(gsz);
-    if (!na || !ng) {
-        free(na); free(ng);
-        fprintf(stderr, "[savestate] out of memory (%zu + %zu bytes); "
-                        "save ignored\n", asz, gsz);
+    char *nh = hsz ? (char *)malloc(hsz) : 0;
+    if (!na || !ng || (hsz && !nh)) {
+        free(na); free(ng); free(nh);
+        fprintf(stderr, "[savestate] out of memory (%zu + %zu + %zu bytes); "
+                        "save ignored\n", asz, gsz, hsz);
         return 0;
     }
 
     memcpy(na, base, asz);
     memcpy(ng, dsstate_base(), gsz);
+    if (hsz)
+        port_hw_regions_copy_out(nh);
 
     free(g_slot.arena);
     free(g_slot.globals);
+    free(g_slot.hw);
     g_slot.arena        = na;
     g_slot.arena_size   = asz;
     g_slot.arena_cursor = port_arena_cursor();
     g_slot.globals      = ng;
     g_slot.globals_size = gsz;
+    g_slot.hw           = nh;
+    g_slot.hw_size      = hsz;
     g_slot.valid        = 1;
 
-    fprintf(stderr, "[savestate] saved: arena %zu bytes, dsstate %zu bytes\n",
-            asz, gsz);
+    fprintf(stderr, "[savestate] saved: arena %zu bytes, dsstate %zu bytes, "
+                    "hw %zu bytes\n", asz, gsz, hsz);
     return 1;
 }
 
@@ -223,9 +262,21 @@ int lk6_savestate_load(void)
                 dsstate_size(), g_slot.globals_size);
         return 0;
     }
+    if (port_hw_regions_size() != g_slot.hw_size) {
+        // Same discipline for the hardware stores: the region set is fixed for
+        // the process lifetime, so a mismatch means the slot came from a build
+        // with a different capture shape. Refuse rather than restore a world
+        // whose textures cannot be put back with it.
+        fprintf(stderr, "[savestate] hw regions changed (%u vs saved %zu); "
+                        "load refused\n",
+                port_hw_regions_size(), g_slot.hw_size);
+        return 0;
+    }
 
     memcpy(base, g_slot.arena, g_slot.arena_size);
     memcpy(dsstate_base(), g_slot.globals, g_slot.globals_size);
+    if (g_slot.hw_size)
+        port_hw_regions_copy_in(g_slot.hw);   /* also drops the decode cache */
     port_arena_set_cursor(g_slot.arena_cursor);
 
     // The audio path is the one thing that cannot be memcpy'd back cleanly:
@@ -240,9 +291,16 @@ int lk6_savestate_load(void)
     // restore leaves the two halves disagreeing and func_0205b274 walks the
     // free list into a null. Re-seed both halves together.
     sd_consumer_reset();
+    // The wave decode cache is keyed by SWAV record ADDRESSES in the arena.
+    // Its own comment scoped that keying to a same-level restore; a cross-area
+    // restore rolls the arena back to different sample data at the same
+    // addresses, so the keys would serve the other area's decoded audio. Drop
+    // it; it refills on demand.
+    sd_waves_reset();
 
     fprintf(stderr, "[savestate] restored: arena %zu bytes, dsstate %zu bytes, "
-                    "audio reset\n", g_slot.arena_size, g_slot.globals_size);
+                    "hw %zu bytes, audio reset\n", g_slot.arena_size,
+            g_slot.globals_size, g_slot.hw_size);
     return 1;
 }
 

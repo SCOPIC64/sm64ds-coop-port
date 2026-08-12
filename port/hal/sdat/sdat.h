@@ -166,6 +166,12 @@ void sd_seq_frame(void);                          // one 192Hz sequencer frame
 void sd_seq_reset(void);
 int  sd_seq_active(int player);
 
+// Drop the decoded-wave cache. It keys on SWAV record addresses in the game
+// arena, so it is only valid while the arena stands still; a save-state
+// restore that crossed an area invalidates every key. Called by
+// lk6_savestate_load beside the other resets; refills on demand.
+void sd_waves_reset(void);
+
 // The bit per player the hardware publishes in SNDSharedWork.playerStatus.
 // Bit p is set while player p still owns the sequence it was started with.
 sd_u32 sd_seq_player_mask(void);

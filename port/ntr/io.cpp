@@ -584,6 +584,81 @@ int io_reserve_stage_won() { return g_stage_won; }
 
 }  // namespace ntr
 
+/* ---- save-state capture of the game-mutable hardware regions ---------------
+   The save state (hal/lk6_savestate.cpp) captures the arena and the .dsstate
+   section, and for one area that is the whole game. What it did NOT capture
+   until 0.2.2 is the hardware content stores this file reserves: palette
+   memory, video memory and sprite memory. Their allocator CURSORS are hosted
+   globals in .dsstate and rolled back fine; the BYTES at these addresses did
+   not, so a save in one area restored after mounting another came back with
+   the new area's textures under the old area's world -- the cross-area
+   texture-destruction bug (the same visual damage as the stale-VRAM minimap
+   bug, reached through the save state instead of a warp).
+
+   These three hooks are the fix's transport. They live here because this file
+   owns the region table and knows what is actually held; hal/lk6_savestate.cpp
+   calls them through plain C declarations so it stays free of ntr headers, and
+   smoke_savestate (which links no ntr) stubs them to size 0, keeping its
+   capture exactly what it always was.
+
+   The order of regions inside the blob is the kRegions order, fixed by
+   construction. IO register shadows and the shared block are deliberately NOT
+   captured: the game rewrites the per-frame registers on the next tick, and
+   restoring shadows the host GX layer has already consumed would desynchronize
+   host state rather than roll it back. Palette, video and sprite memory are
+   the stores written at MOUNT time, which is exactly what a cross-area restore
+   has to put back. */
+namespace {
+// The three content-store regions, by base address, in blob order.
+const uintptr_t kHwCaptureBases[] = { ntr::PLTT_BASE, ntr::VRAM_BASE,
+                                      ntr::OAM_BASE };
+
+int hw_region_index(uintptr_t base)
+{
+    for (unsigned i = 0; i < ntr::kRegionCount; ++i)
+        if (ntr::kRegions[i].base == base)
+            return (int)i;
+    return -1;
+}
+}  // namespace
+
+extern "C" unsigned port_hw_regions_size(void)
+{
+    unsigned total = 0;
+    for (uintptr_t base : kHwCaptureBases) {
+        const int i = hw_region_index(base);
+        if (i < 0 || !ntr::g_held[i])
+            return 0;   /* any store missing: no hw capture (headless smokes) */
+        total += (unsigned)ntr::kRegions[i].size;
+    }
+    return total;
+}
+
+extern "C" void port_hw_regions_copy_out(void *dst)
+{
+    char *p = (char *)dst;
+    for (uintptr_t base : kHwCaptureBases) {
+        const int i = hw_region_index(base);
+        std::memcpy(p, (const void *)base, ntr::kRegions[i].size);
+        p += ntr::kRegions[i].size;
+    }
+}
+
+extern "C" void port_hw_regions_copy_in(const void *src)
+{
+    const char *p = (const char *)src;
+    for (uintptr_t base : kHwCaptureBases) {
+        const int i = hw_region_index(base);
+        std::memcpy((void *)base, p, ntr::kRegions[i].size);
+        p += ntr::kRegions[i].size;
+    }
+    /* The 3D texture decode cache keys on VRAM words plus a cheap content
+       probe; a probe is not a proof, and the bytes under every key just
+       changed. Drop it and let the next bind re-decode from the restored
+       VRAM. The 2D side re-reads VRAM every frame and keeps no cache. */
+    ntr::gx_invalidate_textures();
+}
+
 #if defined(_WIN32)
 // ---------------------------------------------------------------------------
 // THE EARLY CLAIM.
