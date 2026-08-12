@@ -134,6 +134,21 @@ void sd_waves_reset(void)
     g_waves.clear();
 }
 
+/* Put THIS process's SDAT root back into data_020a5bb8. The global is a hosted
+   DS symbol, so a save state captures and restores it like any other -- but
+   what it holds is a HOST BOOT POINTER (sdat_init's calloc'd root object), not
+   game state: it is written once at boot and never changes during play. An
+   in-process restore rewrites it with the same value, harmless. A DISK state
+   from an earlier run rewrites it with the OTHER process's heap address, and
+   the first sound lookup (func_02050c14 walking root+0x84) dereferences a
+   pointer into a heap that no longer exists. lk6_savestate_load calls this
+   after the section copy so the live root always wins. */
+void sd_sdat_reseat(void)
+{
+    if (g_sdat.root)
+        data_020a5bb8 = g_sdat.root;   /* the extern "C" decl at the top */
+}
+
 // Decode one SWAV record (12-byte header + payload) into mono s16.
 static const WaveCache *decode_swav(const sd_u8 *rec)
 {
