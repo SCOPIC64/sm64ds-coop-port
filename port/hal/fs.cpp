@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "dsstate_seg.h"
 
 typedef unsigned int u32;
 typedef unsigned short u16;
@@ -102,7 +103,9 @@ void Deallocate(void *p);
 extern "C" void _ZN6Memory10DeallocateEPv(void *p) { Memory::Deallocate(p); }
 
 extern "C" {
+DSSTATE_BEGIN
 u32 data_0209d3bc; /* last fileID touched; the game's FS breadcrumb */
+DSSTATE_END
 
 /* ov0 handle -> FAT file id (data_ov000_020bd4b8 on the DS)
    PORT_HOST_ABI: src reads the ROM's ov0 handle table (data_0209d3b8), not hosted;

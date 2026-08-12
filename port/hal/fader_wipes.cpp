@@ -68,6 +68,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <new>
+#include "dsstate_seg.h"
 
 typedef int Fix12i;
 
@@ -223,8 +224,10 @@ int hal_wipe_index(const void *self)
    colour into +0xc, which is where HalFaderWipe's `color` sits. Placement-new
    rather than a plain C++ definition because the storage has to keep its C
    name and its address. */
+DSSTATE_BEGIN
 extern "C" __declspec(align(8)) unsigned char
     data_0209f5e8[sizeof(HalFaderWipe)] = {0};
+DSSTATE_END
 
 namespace {
 struct HalColorFaderInit {
@@ -234,6 +237,7 @@ HalColorFaderInit hal_color_fader_init;
 }  /* anonymous namespace */
 
 extern "C" {
+DSSTATE_BEGIN
 /* 0x0209f324: the pointer Stage::InitResources fills and every wipe caller
    derefs. WIPES is what the two fader-wipe entry points call the same
    word. */
@@ -246,6 +250,7 @@ void *data_0209f324 = &hal_wipes[0];
    starts. Wipe 0 is an arbitrary but valid choice: it sits at currInterp
    = 0, which is what "no fade in progress" looks like. */
 void *data_0209f5bc = &hal_wipes[0];
+DSSTATE_END
 }
 #pragma comment(linker, "/alternatename:_WIPES=_data_0209f324")
 

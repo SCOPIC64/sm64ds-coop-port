@@ -64,6 +64,7 @@
 #include "Actor.h"
 #include "ActorBase.h"
 #include "ActorDerived.h"
+#include "dsstate_seg.h"
 
 extern "C" {
 /* HUD's own C-named halves: the two destructors */
@@ -162,10 +163,10 @@ extern "C" void _ZN7Minimap19UpdateLevelSpecificEv(void)
     extern "C" __declspec(allocate(sec)) __declspec(align(4))     \
     unsigned char name[size] = {0}
 
-MMBLK(".mmblk$0000", data_0209f3a4, 0x20);   /* 8 Obj* -- the red-coin markers */
-MMBLK(".mmblk$0001", data_0209f3c4, 0x04);
-MMBLK(".mmblk$0002", data_0209f3c8, 0x20);
-MMBLK(".mmblk$0003", data_0209f3e8, 0x24);   /* 9 Obj* -- the star markers */
+MMBLK(".dsstate$mmblk0000", data_0209f3a4, 0x20);   /* 8 Obj* -- the red-coin markers */
+MMBLK(".dsstate$mmblk0001", data_0209f3c4, 0x04);
+MMBLK(".dsstate$mmblk0002", data_0209f3c8, 0x20);
+MMBLK(".dsstate$mmblk0003", data_0209f3e8, 0x24);   /* 9 Obj* -- the star markers */
 
 #undef MMBLK
 
@@ -251,6 +252,7 @@ extern "C" void port_minimap_affine_update(void)
 }
 
 extern "C" {
+DSSTATE_BEGIN
 /* Standalone, and zero on this boot -- nothing on the castle grounds writes
    them, so the branches they gate stay off and say nothing. */
 unsigned char data_0209f288;          /* "draw the second marker set" flag */
@@ -267,6 +269,7 @@ unsigned data_020a60a4;               /* GXS ext-palette: the saved VRAM bank */
    never read for a value that matters. */
 unsigned char data_0209f4a8[0x60];
 unsigned char data_0209f4a9[0x60];
+DSSTATE_END
 }
 
 // ---- the faces --------------------------------------------------------------

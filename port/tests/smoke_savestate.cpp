@@ -64,21 +64,33 @@ void *port_arena_base(void);
 void *port_arena_end(void);
 void *port_arena_cursor(void);
 extern int LCG_STATE_0204da4c;
-// out-of-arena globals the snapshot must restore through g_blocks, NOT through
-// the arena copy. The test fingerprints these directly (data_0209b3ec, the
-// render camera matrix, is already declared above) so that dropping any of them
-// from g_blocks would fail this test rather than pass silently.
+// out-of-arena globals the snapshot must restore through the .dsstate section,
+// NOT through the arena copy. The test fingerprints these directly (data_0209b3ec,
+// the render camera matrix, is already declared above) so that dropping any of
+// them from the captured section would fail this test rather than pass silently.
 extern char _ZN6Memory16rootHeapIteratorE[0x20];   /* heap registry head */
 extern u32  data_020a4bc8;                          /* a VRAM bump cursor */
+// A hosted global that was NEVER in the old hand-picked list: the message-active
+// mode/lock flag (auto_bss.cpp). It is the kind of symbol the 0.2.0 snapshot
+// dropped -- set it after save, and only a whole-.dsstate capture rolls it back.
+// Fingerprinting it here is acceptance test 2 (a mode/lock global rolls back)
+// run on the underlying global, alongside the arena/actor checks.
+extern unsigned char data_0209d660;                 /* message-active lock */
 }
 
-// lk6_savestate_load() calls the sdat audio reset on restore. The full sdat
+// lk6_savestate_load() calls the sdat audio resets on restore. The full sdat
 // host stack is far more than this actor smoke needs to link, and the audio
 // reset is a no-op for a headless run with no device open, so this test
-// provides the two symbols directly. In the shipped walk_window build these
-// resolve to the real hal/sdat/sseq.cpp and hal/sdat/mixer.cpp.
+// provides the symbols directly. In the shipped walk_window build these
+// resolve to the real hal/sdat/sseq.cpp, mixer.cpp and consumer.cpp.
+//
+// Note what this means for coverage: the command-queue reset that keeps a
+// restore from faulting in func_0205b274 is stubbed out HERE, so this test
+// cannot see that bug. It is the walk_window reproducer
+// (SM64DS_SS_SAVE/SM64DS_SS_LOAD) that covers it, against the real queue.
 void sd_seq_reset(void) {}
 void sd_mix_reset(void) {}
+void sd_consumer_reset(void) {}
 
 typedef int (__thiscall *Fn0)(void *);
 static int vcall0(void *actor, int slot)
@@ -130,6 +142,7 @@ struct Fingerprint {
     char     heaphead[0x20]; // heap registry root iterator (out-of-arena)
     int      cammat[12];     // render camera matrix (out-of-arena)
     u32      vramcur;        // a VRAM bump cursor (out-of-arena)
+    unsigned char msglock;   // message-active lock (never in the old list)
 };
 
 static Fingerprint fingerprint(int *actor)
@@ -145,6 +158,7 @@ static Fingerprint fingerprint(int *actor)
     memcpy(f.heaphead, _ZN6Memory16rootHeapIteratorE, sizeof f.heaphead);
     memcpy(f.cammat, data_0209b3ec, sizeof f.cammat);
     f.vramcur = data_020a4bc8;
+    f.msglock = data_0209d660;
     return f;
 }
 
@@ -155,7 +169,7 @@ static int fp_equal(const Fingerprint &a, const Fingerprint &b)
            a.pos[2] == b.pos[2] && a.timer == b.timer &&
            memcmp(a.heaphead, b.heaphead, sizeof a.heaphead) == 0 &&
            memcmp(a.cammat, b.cammat, sizeof a.cammat) == 0 &&
-           a.vramcur == b.vramcur;
+           a.vramcur == b.vramcur && a.msglock == b.msglock;
 }
 
 int main(void)
@@ -232,12 +246,16 @@ int main(void)
     *(int *)((char *)actor + 0x64) = 0x00000000;
     *(int *)((char *)actor + 0x70) = 0x00000000;
     LCG_STATE_0204da4c = 0x0badc0de;
-    // stomp the out-of-arena globals too: these restore through g_blocks, not
-    // through the arena copy, so mangling them here proves the block path works
-    // (and would catch a block dropped from g_blocks).
+    // stomp the out-of-arena globals too: these restore through the .dsstate
+    // section, not through the arena copy, so mangling them here proves the
+    // section path works (and would catch one dropped from the capture).
     memset(_ZN6Memory16rootHeapIteratorE, 0x5a, sizeof(_ZN6Memory16rootHeapIteratorE));
     for (int k = 0; k < 12; ++k) data_0209b3ec[k] = 0x0badf00d;
     data_020a4bc8 = 0xdeadbeefu;
+    // the message-active lock: set it the way opening a dialogue would. It was
+    // never in the old hand-picked list, so only a whole-.dsstate capture rolls
+    // it back. Saved value was 0 (boot), so this is a real divergence.
+    data_0209d660 = 1;
     Fingerprint diverged = fingerprint(actor);
     printf("  diverged fingerprint: hash=%016llx rng=%08x pos0=%08x\n",
            (unsigned long long)diverged.hash, (unsigned)diverged.rng,
@@ -264,10 +282,14 @@ int main(void)
     CHECK(after.pos[2] == saved.pos[2]);
     CHECK(after.timer == saved.timer);
     // the out-of-arena block path specifically: heap head, camera matrix, VRAM
-    // cursor all came back through g_blocks.
+    // cursor all came back through the .dsstate section.
     CHECK(memcmp(after.heaphead, saved.heaphead, sizeof after.heaphead) == 0);
     CHECK(memcmp(after.cammat, saved.cammat, sizeof after.cammat) == 0);
     CHECK(after.vramcur == saved.vramcur);
+    // the widened capture, specifically: a hosted global outside the old list
+    // (the message-active lock) rolled back too. This is the assertion that
+    // would have caught the 0.2.0 crash class.
+    CHECK(after.msglock == saved.msglock);
     CHECK(fp_equal(saved, after));
 
     // ---- (7) keep running after the load -----------------------------------

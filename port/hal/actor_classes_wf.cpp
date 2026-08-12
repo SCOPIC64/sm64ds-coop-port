@@ -65,6 +65,7 @@
 // ActorBase::OnPendingDestroy for all seven (their vtables' slot 12 is the arm9
 // 0x02043ac0), which the shared fill already installs.
 #include <cstdio>
+#include "dsstate_seg.h"
 #include <cstdlib>
 
 #include "Actor.h"
@@ -372,7 +373,9 @@ int func_ov015_021112a0(char *self);   /* slot 0  InitResources (.cpp extern C) 
 int func_ov015_02111254(char *self);   /* slot 3  CleanupResources */
 int func_ov015_02111278(char *self);   /* slot 9  Render */
 int *func_ov015_021111a0(int *self);   /* slot 16 D1 */
+DSSTATE_BEGIN
 void *data_ov015_02114360[31];
+DSSTATE_END
 }
 #pragma comment(linker, "/alternatename:__ZTV18daObjBkBillboard_c=_data_ov015_02114360")
 static int __fastcall pb_init(void *s, void *)
@@ -471,7 +474,9 @@ int func_ov015_02112c84(char *self);   /* slot 3  CleanupResources */
 int func_ov002_020b6718(char *self);   /* slot 6  Behavior (ov002 base) */
 int func_ov002_020b66f0(char *self);   /* slot 9  Render (ov002 base) */
 int *func_ov015_02112bd0(int *self);   /* slot 16 D1 */
+DSSTATE_BEGIN
 void *data_ov015_021147e8[32];
+DSSTATE_END
 void *RotatingPlatformWf_Spawn(void);
 }
 #pragma comment(linker, "/alternatename:__ZTV17daObjBk_Ukisima_c=_data_ov015_021147e8")

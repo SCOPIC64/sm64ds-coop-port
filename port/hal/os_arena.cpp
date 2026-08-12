@@ -5,6 +5,7 @@
 // set-low). On host the arena is one big malloc'd block, initialized on
 // first use so the smoke needs no setup call.
 #include <stdlib.h>
+#include "dsstate_seg.h"
 
 typedef unsigned int u32;
 
@@ -64,7 +65,9 @@ void  port_arena_set_cursor(void *p) { g_lo = (char *)p; }
 
 extern "C" {
 // the OS globals object; the accessors ignore it, but the address must exist
+DSSTATE_BEGIN
 char data_020a0ea4[4];
+DSSTATE_END
 
 /* PORT_HOST_ABI: DS OS-arena globals live at unmapped 0x27ffda0; host substitutes
    a deterministic calloc'd arena. */

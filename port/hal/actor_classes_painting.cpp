@@ -36,6 +36,7 @@
 // and deallocates) -- kept live because the ROM's teardown does call it,
 // unlike the world-file classes whose slot 17 traps.
 #include <cstdio>
+#include "dsstate_seg.h"
 #include <cstdlib>
 
 #include "Actor.h"
@@ -74,7 +75,9 @@ int func_ov080_02126c20(void *self);      /* slot 9  Render (PMF dispatch) */
 void func_ov080_02126c1c(void);           /* slot 12 OnPendingDestroy (empty) */
 int func_ov080_02125404(void *self);      /* slot 16 D1 */
 
+DSSTATE_BEGIN
 void *data_ov080_021282b4[33];            /* the host vtable Painting_Spawn installs */
+DSSTATE_END
 
 /* The ROM D0 (func_ov080_02125428) is the D1 body plus one Deallocate against
    the game heap, but its recovered src spells the vtable and the heap through

@@ -491,24 +491,22 @@ extern "C" void sd_sound_level_reap(void)
     func_02011974(data_0209b53c);
 }
 
-void sd_consumer_init(void)
+/* Put the command queue back in its just-booted shape: free list relinked, ring
+   empty, every cursor at zero.
+ *
+ * Called from sd_consumer_init at boot and from lk6_savestate_load on a restore.
+ * The restore needs it because this queue is described TWICE -- by the DS-named
+ * globals (data_020a6484 head, data_020a6494 tail, data_020a6498 read index,
+ * data_020a64a0 in flight, ...) and by the host statics beside them (g_readIdx,
+ * g_consumed) -- and the save state captures the first set but not the second.
+ * Rolling back half of a cursor pair leaves the two disagreeing: the restored
+ * read index walks a ring slot the host side has already reclaimed, and
+ * func_0205b274's `while (*node)` chases a stale link into a null. Resetting
+ * both sides together is the same treatment the sequencer and mixer already get
+ * (sd_seq_reset / sd_mix_reset) and for the same reason: this is live plumbing,
+ * not game state, and the game re-fills it on the next tick. */
+void sd_consumer_reset(void)
 {
-    if (g_seeded) return;
-    g_seeded = 1;
-
-    g_trace = getenv("SM64DS_SND_TRACE") != 0;
-    /* the same switch arms Sound::Play's two cull reports (sound_abi.cpp) */
-    g_snd_trace_play = g_trace;
-
-    // Seed the free list. This is func_0205b358's data effect, written out
-    // by hand on purpose: that function is unusable on the host because it
-    // depends on three symbols being ADJACENT in DS memory --
-    //   data_020a6760 (pool) + 0x1800 == data_020a7f60 (callback table),
-    //   data_020a7760 + 0x7e8      == the pool's LAST node, and
-    //   data_020a7f48              == that same last node,
-    // which it uses to zero pool[255].next and to seat the tail pointer.
-    // Host symbols are separate objects, so running it would write past two
-    // of them. The three lines below are what it means, not where it wrote.
     Node *pool = (Node *)data_020a6760;
     for (int i = 0; i < NODES - 1; i++) pool[i].next = &pool[i + 1];
     pool[NODES - 1].next = 0;
@@ -527,6 +525,27 @@ void sd_consumer_init(void)
     data_020a7fc0 = g_status;
     g_consumed = 0;
     g_readIdx = 0;
+}
+
+void sd_consumer_init(void)
+{
+    if (g_seeded) return;
+    g_seeded = 1;
+
+    g_trace = getenv("SM64DS_SND_TRACE") != 0;
+    /* the same switch arms Sound::Play's two cull reports (sound_abi.cpp) */
+    g_snd_trace_play = g_trace;
+
+    // Seed the free list. This is func_0205b358's data effect, written out
+    // by hand on purpose: that function is unusable on the host because it
+    // depends on three symbols being ADJACENT in DS memory --
+    //   data_020a6760 (pool) + 0x1800 == data_020a7f60 (callback table),
+    //   data_020a7760 + 0x7e8      == the pool's LAST node, and
+    //   data_020a7f48              == that same last node,
+    // which it uses to zero pool[255].next and to seat the tail pointer.
+    // Host symbols are separate objects, so running it would write past two
+    // of them. The three lines below are what it means, not where it wrote.
+    sd_consumer_reset();
 
     // func_0205b358 would now send command 0x19 to tell the ARM7 where the
     // status block is. There is no message to send: this consumer owns the

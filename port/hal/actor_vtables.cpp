@@ -12,6 +12,7 @@
 
 #include "ActorBase.h"
 #include "ArrowSignRight.h"
+#include "dsstate_seg.h"
 
 // The lifecycle definitions are MSVC methods (ArrowSignRight.h/ActorBase.h
 // real classes); InitResources alone is a C-named free function. Every shim
@@ -87,6 +88,7 @@ extern "C" void *_ZTV14ArrowSignRight[32] = {
 };
 
 // Base vtables the ctor chain installs transiently: storage only.
+DSSTATE_BEGIN
 extern "C" {
 /* ov002 0x0210ae38, dBgActor_c in the ROM's RTTI. THIRTY-TWO words: 18..30
    are Actor's own list and 31 is Platform::Kill. It was [20], so a Platform
@@ -482,4 +484,5 @@ int data_0209f5c0[8];
    _ZN11ShadowModel10InitCuboidEv in hal/cxxname_bridge.cpp. */
 int data_020ad560[0x3c / 4];
 }
+DSSTATE_END
 

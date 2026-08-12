@@ -75,6 +75,8 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include "dsstate_seg.h"
+
 extern "C" {
 
 /* THE ONE PRIMITIVE THE CALLEES REACH THAT HAS NO C BODY. src/CpuCopy8.c is
@@ -116,6 +118,7 @@ unsigned int func_0205c448(char *);
    from:0x02086768 to:0x0205c048 | 0x0208676c to:0x0205bc88
    from:0x02086770 to:0x0205bc0c | 0x02086774 to:0x0205bbe4
    from:0x02086778 to:0x0205bbdc */
+DSSTATE_BEGIN
 unsigned int (*data_02086758[9])(char *) = {
     func_0205c448,
     func_0205c410,
@@ -337,6 +340,7 @@ void *data_020876e4[6] = {
     kuppa_blob_0208776c,
     kuppa_blob_02088b14,
 };
+DSSTATE_END
 
 static const unsigned g_kuppa_script_addr[6] = {
     0x02088388, 0x020888f0, 0x0208776c, 0x020889b0, 0x0208776c, 0x02088b14,

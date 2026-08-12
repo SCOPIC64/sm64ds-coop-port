@@ -17,6 +17,7 @@
 #include "ntr/gx.h"
 
 #include <cstring>
+#include "hal/dsstate_seg.h"
 
 // ---------------------------------------------------------------------------
 // Interrupt control. The ARM originals set/clear the CPSR I bit and return the
@@ -135,9 +136,16 @@ extern "C" void func_020553c0(unsigned addr) {
 // ---------------------------------------------------------------------------
 
 extern "C" {
-// storage for the game's DMA bookkeeping (BSS on the DS)
+// storage for the game's DMA bookkeeping (BSS on the DS). These two are the
+// only DS globals this host library owns, and they are real save state rather
+// than host bookkeeping: the callback table holds the handlers the game itself
+// registered through func_02056e98. Everything else in this file (the window,
+// frame pacing, the IE stand-in below) deliberately stays out of the capture.
+// See hal/dsstate_seg.h.
+DSSTATE_BEGIN
 int data_020a6460[8];                                   /* GX-DMA state */
 struct { unsigned handler, active, arg; } data_020a60c4[8]; /* per-channel cbs */
+DSSTATE_END
 }
 
 namespace {

@@ -45,6 +45,7 @@
 // sharing is the ROM's, not a simplification -- see the to: addresses.
 #include <cstdio>
 #include <cstdlib>
+#include "dsstate_seg.h"
 
 extern "C" {
 
@@ -73,6 +74,7 @@ void _ZN8Particle21CleanParticleCallback8OnUpdateERNS_6SystemEb(void *, void *, 
 #define SPAWN(f) ((void *)&f)
 #define UPDATE(f) ((void *)&f)
 
+DSSTATE_BEGIN
 /* BubbleCallback.  from:0x0208f3a4 to:0x02022640 | 0x0208f3a8 to:0x02022464 */
 void *data_0208f3a4[2] = {
     SPAWN(_ZN8Particle14SimpleCallback14SpawnParticlesERNS_6SystemE),
@@ -184,6 +186,7 @@ void (*data_02099fb4[2])(unsigned char, unsigned char) = {
     (void (*)(unsigned char, unsigned char))func_0204c24c,
     (void (*)(unsigned char, unsigned char))func_0204c194,
 };
+DSSTATE_END
 
 /* Called once before the first frame. Cheap, and it catches the two ways
    this file can rot: a slot left null (the symbol got zeroed storage from

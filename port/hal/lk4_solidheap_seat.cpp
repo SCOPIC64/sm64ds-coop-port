@@ -36,6 +36,7 @@
 // verbatim from the link errors (the heap_globals law).
 
 #include "types.h"
+#include "dsstate_seg.h"
 
 // Flat C references -> the MSVC-method definitions the matched TUs emit
 // (decorated names read from the compiled objs with dumpbin /SYMBOLS):
@@ -93,7 +94,9 @@ extern "C" {
 extern void *data_0208e3a4[31];       /* _ZTV5Actor, hal/actor_vtables.cpp */
 
 void *_ZTV9SolidHeap[16];             /* installed by SolidHeap C1 */
+DSSTATE_BEGIN
 void *data_020a0ea8;                  /* Memory::tmpHeapPtr */
+DSSTATE_END
 
 /* the flat .c bodies */
 void *_ZN9SolidHeapD1Ev(void *self);              /* slot 0 */

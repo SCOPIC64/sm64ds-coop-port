@@ -97,6 +97,7 @@
 // port/unmatched/Jrb_Renders.cpp and out of slice_gate188.txt. Unagi's Render is
 // NOT a collision (Model::Render by C name) and stays in the slice.
 #include <cstdio>
+#include "dsstate_seg.h"
 #include <cstdlib>
 
 #include "Actor.h"
@@ -191,8 +192,12 @@ void _ZN8Platform4KillEv(void *self);       /* slot 31, Platform's own */
 int _ZTV5Unagi[31];
 int _ZTV6ShipUp[32];
 int _ZTV23FloatOnWaterPlatformJrb[37];   /* id 313 SlidingBox (derived) */
+DSSTATE_BEGIN
 int data_ov016_02114b00[32];             /* id 58 RockPillar (daObjKi_Hasira_c) */
+DSSTATE_END
+DSSTATE_BEGIN
 int data_ov016_02114bcc[32];             /* id 60 FloatOnWaterPlatformJrb (daObjKi_Ita_c base) */
+DSSTATE_END
 }
 
 /* Two DISTINCT tables, two RTTI aliases (the decoy inversion, from relocs):

@@ -6,7 +6,10 @@
 // that walks it -- a too-small array here is silent corruption of whatever
 // the linker happens to place next, not a crash, so the arithmetic is spelled
 // out rather than rounded up.
+#include "../dsstate_seg.h"
+
 extern "C" {
+DSSTATE_BEGIN
 
 // The 16 voice records. func_0204fc40 runs i = 0..15 writing +0x2c and +0x3c
 // and adding each to the free list, so the stride is 0x40 and 16 * 0x40 =
@@ -36,4 +39,5 @@ int data_020a4d48, data_020a4d4c, data_020a4d50;
 int data_020a55fc;
 unsigned char data_020a5634[0x50];
 
+DSSTATE_END
 }

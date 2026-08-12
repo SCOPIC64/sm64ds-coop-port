@@ -67,6 +67,7 @@
 
 #include "MeshCollider.h"
 #include "ntr/mmio.h"
+#include "hal/dsstate_seg.h"
 
 /* Completed here the way the line walk next door completes it: the 8-byte CLPS
    entry then the face normal, pinned by SurfaceInfo::CopyNormalTo (0x02037dcc).
@@ -147,7 +148,9 @@ s32  _ZN4BgCh21ShouldPassThroughImplEPvRK4CLPSRKS_b(void *self, const void *info
    seed: c[0] = 0xfc0, c[1] = 0xff, c[2..4] = 0. GetSurfaceInfo rewrites all
    five before every read, so the seed only ever describes the state before the
    first prism of the first frame. */
+DSSTATE_BEGIN
 u32 data_020a0cec[5] = { 0xfc0u, 0xffu, 0u, 0u, 0u };
+DSSTATE_END
 
 /* Stage telemetry, read by the probes -- the g_walk_dbg convention from the
    line walk next door, cheap enough to keep permanently.

@@ -6,6 +6,8 @@
 // lifted verbatim from the link log; each maps to its cdecl C name.
 #include <string.h>
 
+#include "dsstate_seg.h"
+
 #pragma comment(linker, "/alternatename:?FUN_02029a68@@YAXXZ=_FUN_02029a68")
 #pragma comment(linker, "/alternatename:?_ZN6Player11ChangeStateERNS_5StateE@@YAXPAUPlayer@@PAUState@@@Z=__ZN6Player11ChangeStateERNS_5StateE")
 #pragma comment(linker, "/alternatename:?_ZN6Player11ChangeStateERNS_5StateE@@YAXPAXPAUState@@@Z=__ZN6Player11ChangeStateERNS_5StateE")
@@ -61,8 +63,10 @@
 
 extern "C" {
 /* BSS the aliased data references land on (non-ov002 ring) */
+DSSTATE_BEGIN
 int data_0208e6ec[4]; short data_02092144[4];
 void *data_020992a4[4], *data_020992b4[4];
+DSSTATE_END
 /* data_0209b0c8 moved to hal/camera_states.cpp (camera State object 12) */
 
 }
@@ -216,7 +220,9 @@ int func_02017e34(int x) { return x; }   /* fileptr dtor body: host no-op */
 void SharedFilePtr_Destruct_TexSeq(void) {}
 /* PORT_HOST_ABI: fileptr dtor veneer; host card seam does not refcount. */
 void SharedFilePtr_Destruct_Anim(void) {}
+DSSTATE_BEGIN
 void *data_020aa3f0;                     /* MSL global-dtor chain head */
+DSSTATE_END
 
 /* PORT_HOST_ABI: the OBJECT-message box-open ride-through.
  *
@@ -256,6 +262,7 @@ extern "C" void func_0205a588(void *p, int v, int n) { memset(p, v, n); }
    crash-screen-only ITCM entry; trap keeps it honest if ever reached */
 void func_01ffdd98(int a) { (void)a; __debugbreak(); }
 
+DSSTATE_BEGIN
 int data_0209cdcc, data_0209cde4[4], data_0209cde8[4];
 int data_020a4b4c, data_020a4b50;
 int data_020a7fc0[8];
@@ -333,6 +340,7 @@ int data_0209f274[8];
 int data_0209a5ec, data_0209a5f4[2], data_0209a5fc, data_0209a600;
 int data_0209a604, data_0209a60c[2], data_0209a614, data_0209a618;
 int data_0209a61c[4], data_020a6128, data_020a6134[4];
+DSSTATE_END
 }
 
 #pragma comment(linker, "/alternatename:__ZN2GX12SetBankForBGEt=?SetBankForBG@GX@@YAXG@Z")

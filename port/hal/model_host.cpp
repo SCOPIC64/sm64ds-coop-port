@@ -14,6 +14,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "dsstate_seg.h"
+
 typedef unsigned int u32;
 
 extern "C" {
@@ -85,12 +87,13 @@ void MultiCopy32Bytes(int *src, int *dst, int len)
     __declspec(allocate(sec)) __declspec(align(4))               \
     type name[count]
 
+DSSTATE_BEGIN
 unsigned char data_0209e660 = 1;
 int data_0209e664, data_0209e668, data_0209e66c, data_0209e670;
 /* main OAM shadow, 0x400 bytes, spelled as the ROM's three symbols */
-OAMSHADOW(".oamsh$0000", data_0209e674, unsigned int, 2);      /* +0x000 */
-OAMSHADOW(".oamsh$0001", data_0209e67c, int, 6);               /* +0x008 */
-OAMSHADOW(".oamsh$0002", data_0209e694, int, 0xf8);            /* +0x020 */
+OAMSHADOW(".dsstate$oamsh0000", data_0209e674, unsigned int, 2);      /* +0x000 */
+OAMSHADOW(".dsstate$oamsh0001", data_0209e67c, int, 6);               /* +0x008 */
+OAMSHADOW(".dsstate$oamsh0002", data_0209e694, int, 0xf8);            /* +0x020 */
 unsigned int data_0209ea74[0x100];   /* sub OAM shadow, its own 0x400 */
 
 #undef OAMSHADOW
@@ -258,6 +261,7 @@ void *VTable_Animation_ModelAnimThunk[8];
 void *_ZTV16MeshColliderBase[13];
 unsigned char data_020a0c78[8]; /* the default CLPS ENTRY (8-byte storage,
                                    func_02037e9c fills it on first lookup) */
+DSSTATE_END
 
 // 0x02099f80..0x02099f94 USED TO LIVE HERE, on the reading that 0x02099xxx
 // was past bss_start and so runtime-initialized. It is not: the arm9's real

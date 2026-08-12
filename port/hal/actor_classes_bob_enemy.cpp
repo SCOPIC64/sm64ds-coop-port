@@ -36,6 +36,7 @@
 
 #include "Actor.h"
 #include "ActorBase.h"
+#include "dsstate_seg.h"
 
 extern "C" {
 /* the ten shared lifecycle halves, the same functions hal/actor_classes.cpp
@@ -579,7 +580,13 @@ int *func_ov091_021333fc(int *self);            /* D1 */
 void func_ov091_02133648(char *self, void *o);  /* slot 21, its own */
 void func_ov091_021335d4(char *self, void *o);  /* slot 27, its own */
 void _ZN8Platform4KillEv(void *self);           /* slot 31 */
+/* A hosted vtable array, not a ROM constant: hal fills its slots at boot, so
+   it is mutable hosted state and belongs in the captured section along with
+   the /alternatename alias below, which is the same storage under the name
+   the config left unnamed. See hal/dsstate_seg.h. */
+DSSTATE_BEGIN
 void *_ZTV11daObjPile_c[32];
+DSSTATE_END
 }
 /* Stump_Spawn spells the table by the address config left unnamed. */
 #pragma comment(linker, "/alternatename:_data_ov091_021352bc=__ZTV11daObjPile_c")

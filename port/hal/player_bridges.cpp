@@ -16,6 +16,8 @@
 #include "Heap.h"
 #include "ModelAnim.h"
 
+#include "dsstate_seg.h"
+
 /* the geometry-engine polygon buffer, for the tongue render self-check
    (SM64DS_WINGS_PROBE); same forward decl cxxname_bridge.cpp uses so the
    header's wider surface does not have to come in here */
@@ -791,6 +793,7 @@ int _ZN4Heap6IntactEv(void *self)
 /* data_0209b44c is NOT here: it is the one-byte area id, hosted in
    hal/actor_vtables.cpp so the smoke targets that link no player bridge
    still get it, and so writer and reader share one object. */
+DSSTATE_BEGIN
 int data_0208e428[8], data_0209b480[4];
 int data_020a4d60[8], data_020a6438[8], data_020a6488[4], data_020a648c[4];
 int data_020a6490[4], data_020a649c[4], data_020a64a0[4], data_020a64a4[4];
@@ -812,6 +815,7 @@ int data_020a4b58[4], data_020a4b68[4], data_020a60f4[4];
 __declspec(align(8)) unsigned char data_023c0000[64];
 int data_02099e94[4], data_02099ebc[4], data_02099ec4[4], data_02099fcc[4];
 int data_020a6084[4], data_020a6088[2], data_020a8114[4];
+DSSTATE_END
 
 }  /* extern "C" */
 
