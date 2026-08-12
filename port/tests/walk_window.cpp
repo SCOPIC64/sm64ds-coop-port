@@ -1472,9 +1472,11 @@ extern "C" int port_last_frame = -1;
    fires, so this one gets the buffer out on every return from main. */
 static void stdout_flush_atexit(void) { fflush(stdout); }
 
-/* PORT_HOST_ABI: the host program entry point (window + ntr bring-up + frame
-   loop). Name-collides with the ROM's boot spine src/main.c, which is the DS
-   init sequence and runs as its own decomp TU, not as this launcher shell. */
+/* The host program entry point (window + ntr bring-up + frame loop). It
+   name-collides with the ROM's boot spine src/main.c, which is the DS init
+   sequence and runs as its own decomp TU, not as this launcher shell. The
+   machine-read PORT_HOST_ABI tag sits directly above int main(void) below so
+   linkage.py's reason binder reaches it. */
 /* ---- startup_error.txt: the only channel a failed START has ----------------
    A crash mid-session leaves crash.txt, a playlog and a report the player can
    send. A failure BEFORE the window opens leaves none of that: the process
@@ -1542,6 +1544,12 @@ static void port_startup_error_show(const char *text)
         mb(0, text, "Super Mario 64 DS could not start", 0x10 /* MB_ICONERROR */);
 }
 
+/* PORT_HOST_ABI: the host program entry point (window + ntr bring-up + frame
+   loop). Name-collides with the ROM's boot spine src/main.c, which is the DS
+   init sequence and runs as its own decomp TU, not as this launcher shell. The
+   host process needs its own main() to open the window and pump frames; the
+   ROM's void main(void) links as a decomp TU that the host boot path calls,
+   not as the process entry point. */
 int main(void)
 {
     /* fault_probe.h has been included here since gate 4 and was never armed,
