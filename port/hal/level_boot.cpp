@@ -1564,10 +1564,18 @@ void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* 27 */
    hal_fill_player_vtable. Kept so the list reads as the ROM's own. */
 void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* 28 */
 int  _ZN5Actor16OnAimedAtWithEggEv(void *self);                    /* 29 */
+/* 18 is the Player's OWN body (ov002 0x020e69b8), not Actor's: a real MSVC
+   method TU (src/_ZN6Player13OnYoshiTryEatEv.cpp, slice_gate16) whose whole
+   body is `return 1` -- Yoshi cannot eat the Player. Flat name bridged to the
+   method the TU emits; the mangling was read out of the compiled obj. */
+int  _ZN6Player13OnYoshiTryEatEv(void *self);                      /* 18 */
 }
+#pragma comment(linker, "/alternatename:__ZN6Player13OnYoshiTryEatEv=?OnYoshiTryEat@Player@@UAEHXZ")
 /* 19 and 21..28 take their argument PUSHED by the __thiscall caller, so each
    thunk needs the dummy edx AND the named parameter or the caller's frame runs
    short. */
+static int __fastcall ps_yoshi18(void *s, void *)
+{ return _ZN6Player13OnYoshiTryEatEv(s); }
 static int __fastcall ps_egg19(void *s, void *, void *p)
 { _ZN5Actor13OnTurnIntoEggER6Player(s, p); return 0; }
 static int __fastcall ps_v50(void *s, void *)
@@ -1651,12 +1659,14 @@ extern "C" void hal_fill_player_vtable(void)
     vt[5] = (void *)ps_aclean;
     vt[12] = (void *)ps_pdes;
     vt[16] = (void *)ps_d1;
-    /* 19..29, the ROM's own contents. 17 (D0) and 18 keep the trap: 17 on
-       purpose, per the note above, and 18 because Player::OnYoshiTryEat is the
-       Player's OWN body (ov002 0x020e69b8) and is in no slice, so forwarding
-       to Actor's would run the wrong code rather than less code. 30 keeps the
-       trap too -- its ROM body returns a Vector3 by value and the sret
-       contract is unproved, the reading every other table in the port takes. */
+    /* 18..29, the ROM's own contents. 17 (D0) keeps the trap on purpose, per
+       the note above. 18 is the Player's OWN OnYoshiTryEat (ov002 0x020e69b8),
+       seated now that its TU rides slice_gate16 -- while it was in no slice
+       the slot trapped, since forwarding to Actor's would run the wrong code
+       rather than less code. 30 keeps the trap -- its ROM body returns a
+       Vector3 by value and the sret contract is unproved, the reading every
+       other table in the port takes. */
+    vt[18] = (void *)ps_yoshi18;
     vt[19] = (void *)ps_egg19;
     vt[20] = (void *)ps_v50;
     vt[21] = (void *)ps_pounded;

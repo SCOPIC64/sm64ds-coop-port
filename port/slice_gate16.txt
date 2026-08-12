@@ -372,3 +372,9 @@ src/_ZN22ExpandingHeapAllocator18MaxAllocatableSizeEi.cpp
 # trap prefill with the ROM's own contents. walk_window family only.
 src/_ZN8PlatformD2Ev.c
 src/_ZN8PlatformD0Ev.c
+# LINKAGE SEAT (lk2): Player::OnYoshiTryEat (ov002 0x020e69b8), the Player's
+# own slot 18 body, a real MSVC method TU (returns 1: Yoshi cannot eat the
+# Player). Seated into slot 18 of the Player table (data_ov002_0210a83c) by
+# hal/level_boot.cpp, which until now kept the trap there because this body
+# was in no slice and forwarding to Actor's would run the wrong code.
+src/_ZN6Player13OnYoshiTryEatEv.cpp
