@@ -1,0 +1,4 @@
+# slice_w1l3.txt -- lane-owned slice for the linkage campaign (run linkw).
+# One matched src TU per line, path relative to the repo root, comments with #.
+# THIS FILE HAS ONE OWNER (lane l3); other lanes never touch it, which is what
+# keeps five parallel seat lanes out of CMakeLists.txt and each other.

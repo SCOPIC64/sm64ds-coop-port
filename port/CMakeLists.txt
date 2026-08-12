@@ -1238,6 +1238,55 @@ foreach(line IN LISTS SLICE20_LINES)
     list(APPEND SLICE20_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Linkage-campaign lane slices (run linkw): five files, one OWNER each, so
+# five parallel seat lanes add matched TUs without ever editing this file or
+# each other's lists. Same reader shape as the gate slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w1l1.txt" SLICE_W1L1_LINES)
+set(SLICE_W1L1_SOURCES "")
+foreach(line IN LISTS SLICE_W1L1_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W1L1_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w1l2.txt" SLICE_W1L2_LINES)
+set(SLICE_W1L2_SOURCES "")
+foreach(line IN LISTS SLICE_W1L2_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W1L2_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w1l3.txt" SLICE_W1L3_LINES)
+set(SLICE_W1L3_SOURCES "")
+foreach(line IN LISTS SLICE_W1L3_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W1L3_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w1l4.txt" SLICE_W1L4_LINES)
+set(SLICE_W1L4_SOURCES "")
+foreach(line IN LISTS SLICE_W1L4_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W1L4_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w1l5.txt" SLICE_W1L5_LINES)
+set(SLICE_W1L5_SOURCES "")
+foreach(line IN LISTS SLICE_W1L5_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W1L5_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate21.txt" SLICE21_LINES)
 set(SLICE21_SOURCES "")
 foreach(line IN LISTS SLICE21_LINES)
@@ -2552,6 +2601,8 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
+    ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
+    ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -2620,6 +2671,8 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
+    ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
+    ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -2719,6 +2772,8 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
     ${SLICE15_SOURCES} ${SLICE16_SOURCES} ${SLICE17_SOURCES}
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
+    ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
+    ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
