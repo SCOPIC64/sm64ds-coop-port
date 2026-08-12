@@ -459,6 +459,13 @@ void port_stage_a2_seat(void);
 int lk6_savestate_save(void);
 int lk6_savestate_load(void);
 int lk6_savestate_has(void);
+/* disk-backed save state (hal/lk7_persist.cpp): makes the slot survive a
+   restart. write() mirrors a successful save to <exedir>\savestate.bin,
+   read() loads it at startup; available() is 1 only when the arena is at its
+   fixed base so disk states can relocate. */
+int lk7_persist_write(void);
+int lk7_persist_read(void);
+int lk7_persist_available(void);
 
 /* Two seconds of on-screen text for the save-state actions. Every earlier
    report of "F8 did nothing" was undiagnosable because the only evidence was a
@@ -1324,8 +1331,12 @@ static void menu_draw(ntr::Framebuffer &fb)
     snprintf(ln[MENU_CAMERA], sizeof ln[0], "camera            %s",
              cam_mode_name(cam_mode));
     snprintf(ln[MENU_RECORDER], sizeof ln[0], "recorder          %s", g_playlog);
-    snprintf(ln[MENU_SAVESTATE], sizeof ln[0], "save state        F8   %s",
-             lk6_savestate_has() ? "(slot in use, overwrite)" : "(slot empty)");
+    /* the disk suffix tells the player whether a save will outlive the run: it
+       does only when the arena is at its fixed base, which is what lets a disk
+       state's pointers relocate on the next launch (hal/lk7_persist.cpp). */
+    snprintf(ln[MENU_SAVESTATE], sizeof ln[0], "save state        F8   %s%s",
+             lk6_savestate_has() ? "(slot in use, overwrite)" : "(slot empty)",
+             lk7_persist_available() ? " to disk" : " this run only");
     snprintf(ln[MENU_LOADSTATE], sizeof ln[0], "load state        F9   %s",
              lk6_savestate_has() ? "(restore slot)" : "(no state saved)");
 
@@ -2376,6 +2387,24 @@ int main(void)
        the sink here, in one write (see the setvbuf note above) */
     fflush(stdout);
 
+    /* Disk save state, read exactly once, here: the world is fully booted (the
+       disk state describes a booted world, so restoring earlier would be
+       stomped by the rest of boot) and the frame loop has not started. Never in
+       a selftest: the comparator runs must stay deterministic, and a stray
+       savestate.bin beside the exe would silently swap the world out from
+       under them. */
+    /* SM64DS_SS_DISKLOAD=1 opts a selftest INTO the disk read, for the
+       cross-restart reproducer: run one saves to disk (SM64DS_SS_DISK=1), run
+       two boots with this set and must land on the first run's hardware hash.
+       Without the env, selftests never touch savestate.bin, so the comparator
+       runs stay deterministic. */
+    if ((!selftest || getenv("SM64DS_SS_DISKLOAD")) && lk7_persist_available()) {
+        if (lk7_persist_read()) {
+            an_pivot_live = 0;   /* no ease across the load */
+            ss_note("state loaded from disk (F9 reloads it)");
+        }
+    }
+
     static ntr::Framebuffer fb;
     MSG msg;
     for (;;) {
@@ -2430,9 +2459,18 @@ int main(void)
             static int save_edge, load_edge;
             const int save_now = key_live(VK_F8);
             const int load_now = key_live(VK_F9);
-            if (save_now && !save_edge)
-                ss_note(lk6_savestate_save() ? "state saved (F9 loads it)"
-                                             : "state NOT saved (see log)");
+            if (save_now && !save_edge) {
+                if (lk6_savestate_save()) {
+                    /* mirror to disk; the toast tells the player whether this
+                       save will outlive the run, which is the difference every
+                       "it did not save" report was actually about */
+                    ss_note(lk7_persist_write()
+                                ? "state saved to disk (F9 loads it)"
+                                : "state saved for THIS RUN (F9 loads it)");
+                } else {
+                    ss_note("state NOT saved (see log)");
+                }
+            }
             if (load_now && !load_edge) {
                 if (lk6_savestate_load()) {
                     an_pivot_live = 0;   /* no ease across */
@@ -2471,7 +2509,9 @@ int main(void)
                                         reachable in a plain headless walk. */
         if (selftest) {
             static int ss_env, ss_save_fr = -1, ss_load_fr = -1,
-                       ss_lock = 0, ss_assert = 0, ss_expect_mount = 0;
+                       ss_lock = 0, ss_assert = 0, ss_expect_mount = 0,
+                       ss_disk = 0;
+            static unsigned long long ss_expect_hw;
             static unsigned char ss_lock_at_save;
             static int ss_saw_save = 0;
             static unsigned long long ss_hash_at_save;
@@ -2483,6 +2523,13 @@ int main(void)
                 if (l) ss_load_fr = atoi(l);
                 ss_lock = getenv("SM64DS_SS_LOCK") != 0;
                 ss_assert = getenv("SM64DS_SS_ASSERT") != 0;
+                ss_disk = getenv("SM64DS_SS_DISK") != 0;
+                /* the cross-restart reproducer's second half: this run did not
+                   save, it BOOTED from run one's savestate.bin, so the hash to
+                   hold the restore to arrives from outside (run one's printed
+                   save hash) instead of from a save frame in this process */
+                if (const char *xh = getenv("SM64DS_SS_EXPECT_HW"))
+                    ss_expect_hw = strtoull(xh, 0, 16);
                 /* the cross-area variant: something between save and load is
                    expected to MOUNT another area (SM64DS_EXIT_ENTER drives the
                    real door path). Requiring the hardware stores to have
@@ -2492,6 +2539,12 @@ int main(void)
             }
             if (ss_save_fr >= 0 && frame == ss_save_fr) {
                 lk6_savestate_save();
+                /* the cross-restart reproducer's first half: mirror this save
+                   to savestate.bin so a SECOND run (SM64DS_SS_DISKLOAD=1) can
+                   boot from it and compare hashes across the restart */
+                if (ss_disk)
+                    fprintf(stderr, "[ss-repro] f%d disk write: %s\n", frame,
+                            lk7_persist_write() ? "ok" : "SKIPPED/FAILED");
                 ss_lock_at_save = data_0209d660;
                 ss_hash_at_save = ss_hw_hash();
                 ss_saw_save = 1;
@@ -2511,7 +2564,7 @@ int main(void)
                         "hw=%016llx (%s the saved hash)\n", frame,
                         (unsigned)data_0209d660, pre,
                         pre == ss_hash_at_save ? "STILL" : "differs from");
-                if (ss_expect_mount && pre == ss_hash_at_save) {
+                if (ss_expect_mount && ss_saw_save && pre == ss_hash_at_save) {
                     fprintf(stderr, "[ss-repro] FAIL(vacuous): the hardware "
                             "stores never changed between save and load, so "
                             "no area mounted and a cross-area restore was not "
@@ -2535,12 +2588,16 @@ int main(void)
                     ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
                     return 3;
                 }
-                if (ss_assert && post != ss_hash_at_save) {
+                /* the reference hash: this run's own save when there was one,
+                   else the one passed in for a cross-restart run. Neither set
+                   means there is nothing sound to hold the restore to. */
+                const unsigned long long want =
+                    ss_saw_save ? ss_hash_at_save : ss_expect_hw;
+                if (ss_assert && want && post != want) {
                     fprintf(stderr, "[ss-repro] FAIL: the hardware stores did "
                             "NOT roll back on restore (post-load %016llx, "
-                            "saved %016llx) -- the world came back under "
-                            "another area's textures, the 0.2.1 cross-area "
-                            "bug\n", post, ss_hash_at_save);
+                            "expected %016llx) -- the world came back under "
+                            "another area's textures\n", post, want);
                     ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
                     return 4;
                 }
@@ -2789,10 +2846,14 @@ int main(void)
                            The toast fires here too: highlighting the row and
                            closing the menu does NOT save, and the only way a
                            player can learn that is being shown the difference. */
-                        if (edge & (1u << 5))
-                            ss_note(lk6_savestate_save()
-                                        ? "state saved (F9 loads it)"
-                                        : "state NOT saved (see log)");
+                        if (edge & (1u << 5)) {
+                            if (lk6_savestate_save())
+                                ss_note(lk7_persist_write()
+                                            ? "state saved to disk (F9 loads it)"
+                                            : "state saved for THIS RUN (F9 loads it)");
+                            else
+                                ss_note("state NOT saved (see log)");
+                        }
                         break;
                     case MENU_LOADSTATE:
                         /* enter/right only: restore the slot. A no-op with no

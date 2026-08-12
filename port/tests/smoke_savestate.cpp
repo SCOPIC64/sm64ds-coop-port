@@ -92,6 +92,7 @@ void sd_seq_reset(void) {}
 void sd_mix_reset(void) {}
 void sd_consumer_reset(void) {}
 void sd_waves_reset(void) {}
+void sd_sdat_reseat(void) {}
 
 // The hardware content stores (palette/video/sprite memory) need NO stub: this
 // smoke links the ntr library, so lk6_savestate reaches the real

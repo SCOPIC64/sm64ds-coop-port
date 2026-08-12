@@ -113,6 +113,7 @@ void sd_seq_reset(void);
 void sd_mix_reset(void);
 void sd_consumer_reset(void);
 void sd_waves_reset(void);
+void sd_sdat_reseat(void);
 
 extern "C" {
 // hal/os_arena.cpp
@@ -297,6 +298,13 @@ int lk6_savestate_load(void)
     // addresses, so the keys would serve the other area's decoded audio. Drop
     // it; it refills on demand.
     sd_waves_reset();
+    // One captured global is a HOST BOOT POINTER, not game state: data_020a5bb8
+    // holds sdat_init's heap-allocated root. An in-process restore rewrites it
+    // with the same value; a DISK state from an earlier run (lk7) rewrites it
+    // with a heap address that no longer exists, and the first sound lookup
+    // walks it into a fault. Re-seat the live process's own root, which is
+    // correct in both cases.
+    sd_sdat_reseat();
 
     fprintf(stderr, "[savestate] restored: arena %zu bytes, dsstate %zu bytes, "
                     "hw %zu bytes, audio reset\n", g_slot.arena_size,

@@ -595,6 +595,37 @@ if(MSVC)
     target_compile_options(smoke_savestate PRIVATE /wd4311 /wd4312 /wd4068)
 endif()
 
+# Disk-persistence verification (lane lk7): the same actor world, plus
+# hal/lk7_persist.cpp. The parent saves and mirrors to savestate.bin, then
+# spawns a SECOND PROCESS of itself which loads the disk state and must land on
+# the identical arena hash -- the save surviving the process ending is the
+# whole point, so the test crosses a real process boundary. Two header-refusal
+# cases (corrupted magic, stale gittip) run in the parent afterwards.
+add_executable(smoke_persist tests/smoke_persist.cpp
+    hal/lk6_savestate.cpp hal/lk7_persist.cpp hal/dsstate_seg.cpp
+    hal/auto_bss.cpp
+    hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
+    hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp
+    "${PORT_GITTIP_C}"
+    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
+    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES} ${GATE8_EXTRA_SOURCES}
+    ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} "${ROMDATA_C}")
+target_include_directories(smoke_persist PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(smoke_persist PRIVATE ntr)
+target_compile_definitions(smoke_persist PRIVATE SM64DS_PLATFORM_PC
+    PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}")
+if(MSVC)
+    target_compile_options(smoke_persist PRIVATE /wd4311 /wd4312 /wd4068)
+    # A disk state stores absolute pointers into the exe image (every actor's
+    # vtable), so the image must load at the same base every run. See the
+    # matching flag on walk_window, which is the base the shipped states use.
+    target_link_options(smoke_persist PRIVATE /DYNAMICBASE:NO)
+endif()
+
 # Gate 10: Player spawns and stands (the walking campaign).
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
 set(SLICE10_SOURCES "")
@@ -2577,7 +2608,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/host_settings.cpp
     # in-memory save state (lane lk6): F8/F9 snapshot and restore of the hosted
     # DS arena plus the out-of-arena game globals.
-    hal/lk6_savestate.cpp hal/dsstate_seg.cpp
+    hal/lk6_savestate.cpp hal/lk7_persist.cpp hal/dsstate_seg.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/meshcolliderbase_vtable.cpp hal/meshcollider_dtor_seat.cpp hal/lk1_eh_vmax_seat.cpp hal/lk2_platform_dtor_seat.cpp hal/model_dtor_seat.cpp hal/lk4_eh_dtor_seat.cpp hal/lk4_solidheap_seat.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -2647,6 +2678,14 @@ if(PORT_ROM_CLEAN)
 endif()
 if(MSVC)
     target_compile_options(walk_window PRIVATE /wd4311 /wd4312 /wd4068 /wd4576)
+    # No ASLR for the shipped window: a disk save state (hal/lk7_persist
+    # .cpp) stores absolute pointers into the exe image -- every actor's
+    # vtable pointer -- and they only relocate if the image loads at the
+    # SAME base on the next launch. ASLR rebases once per boot, which
+    # would refuse every state written before a reboot. The header still
+    # checks the base, so if anything rebases the exe anyway the state is
+    # refused with a message rather than loaded onto dangling pointers.
+    target_link_options(walk_window PRIVATE /DYNAMICBASE:NO)
 endif()
 
 # The save state captures the whole .dsstate section (hal/dsstate_seg.h). Fail
@@ -2668,7 +2707,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/host_settings.cpp
     # in-memory save state (lane lk6): F8/F9 snapshot and restore of the hosted
     # DS arena plus the out-of-arena game globals.
-    hal/lk6_savestate.cpp hal/dsstate_seg.cpp
+    hal/lk6_savestate.cpp hal/lk7_persist.cpp hal/dsstate_seg.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/meshcolliderbase_vtable.cpp hal/meshcollider_dtor_seat.cpp hal/lk1_eh_vmax_seat.cpp hal/lk2_platform_dtor_seat.cpp hal/model_dtor_seat.cpp hal/lk4_eh_dtor_seat.cpp hal/lk4_solidheap_seat.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -2728,6 +2767,14 @@ if(PORT_ROM_CLEAN)
 endif()
 if(MSVC)
     target_compile_options(walk_window_hires PRIVATE /wd4311 /wd4312 /wd4068 /wd4576)
+    # No ASLR for the shipped window: a disk save state (hal/lk7_persist
+    # .cpp) stores absolute pointers into the exe image -- every actor's
+    # vtable pointer -- and they only relocate if the image loads at the
+    # SAME base on the next launch. ASLR rebases once per boot, which
+    # would refuse every state written before a reboot. The header still
+    # checks the base, so if anything rebases the exe anyway the state is
+    # refused with a message rather than loaded onto dangling pointers.
+    target_link_options(walk_window_hires PRIVATE /DYNAMICBASE:NO)
 endif()
 
 

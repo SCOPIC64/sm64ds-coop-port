@@ -172,6 +172,12 @@ int  sd_seq_active(int player);
 // lk6_savestate_load beside the other resets; refills on demand.
 void sd_waves_reset(void);
 
+// Re-seat data_020a5bb8 with THIS process's SDAT root. The global is captured
+// like any hosted DS symbol, but it holds a host boot pointer, so a disk state
+// from an earlier run would restore a heap address that no longer exists.
+// Called by lk6_savestate_load after the section copy; idempotent.
+void sd_sdat_reseat(void);
+
 // The bit per player the hardware publishes in SNDSharedWork.playerStatus.
 // Bit p is set while player p still owns the sequence it was started with.
 sd_u32 sd_seq_player_mask(void);
