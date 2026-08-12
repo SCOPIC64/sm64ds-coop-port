@@ -6,12 +6,43 @@
 // first use so the smoke needs no setup call.
 #include <stdlib.h>
 #include "dsstate_seg.h"
+#include <stdio.h>
+
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 typedef unsigned int u32;
 
 enum { HOST_ARENA = 8 << 20 };   /* 8 MB: larger than the DS main-RAM arena */
 
 static char *g_lo, *g_hi;
+
+/* WHY THE ARENA WANTS A FIXED BASE (lane lk7, save states that outlive the run)
+   ---------------------------------------------------------------------------
+   The in-memory save state (hal/lk6_savestate.cpp) memcpy's the whole arena and
+   restores it verbatim, which works because the block never moves for the life
+   of the process: a pointer captured at save still addresses the same arena
+   offset after restore. A save state written to DISK has to survive the process
+   ENDING. On the next launch the arena is a fresh allocation, and a plain calloc
+   lands wherever the host allocator puts it, which is a different absolute
+   address every run. The disk state is full of raw absolute pointers into the
+   arena (actor-list heads, model-matrix pointers, intrusive next-links), so it
+   only loads correctly if the arena comes up at the SAME base it had when the
+   state was written.
+
+   So the arena is reserved at a fixed host address with VirtualAlloc, the same
+   technique ntr/io.cpp uses to pin the DS ranges. The base sits above every DS
+   range (main RAM 0x02000000..0x02400000, the shared block at 0x027ff000, and
+   the MMIO/VRAM ranges up to 0x07000800) and well below 2GB so the truncating
+   32-bit round-trips the loaders do stay exact. If the reservation fails at
+   boot (something else holds the range), the arena falls back to calloc and the
+   persist layer refuses disk load/save for the run; the in-memory slot still
+   works exactly as before. port_arena_is_fixed() reports which path we took. */
+#if defined(_WIN32)
+enum : size_t { ARENA_FIXED_BASE = 0x30000000u };  /* 768 MB, above the DS ranges */
+static int g_fixed_base;                            /* 1 = VirtualAlloc'd at ARENA_FIXED_BASE */
+#endif
 
 /* THE ARENA HAS TO BE DETERMINISTIC. It was a plain malloc, which left two
    things different on every run: the contents (whatever the host allocator
@@ -42,6 +73,27 @@ static void arena_init(void)
         const char *env = getenv("SM64DS_HOST_ARENA_MB");
         size_t mb = env ? (size_t)atoi(env) : 0;
         size_t size = mb ? mb << 20 : (size_t)HOST_ARENA;
+
+#if defined(_WIN32)
+        /* Try the fixed base first. ARENA_FIXED_BASE is 64K-aligned, so the
+           reservation starts exactly there and no post-alignment is needed --
+           the base is deterministic across runs, which is what the disk save
+           state leans on. VirtualAlloc zeroes committed pages, matching the
+           calloc'd DS arena. */
+        void *fixed = VirtualAlloc((void *)ARENA_FIXED_BASE, size,
+                                   MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+        if (fixed) {
+            g_lo = (char *)fixed;
+            g_hi = g_lo + size;
+            g_base = g_lo;
+            g_fixed_base = 1;
+            return;
+        }
+        /* Fell through: something holds 0x30000000. Say so once and keep the
+           game running on a calloc'd arena; the persist layer reads
+           port_arena_is_fixed() and turns disk states off for the run. */
+        fprintf(stderr, "[savestate] arena not at fixed base; disk states off this run\n");
+#endif
         char *base = (char *)calloc(size + ARENA_ALIGN, 1);
         if (!base) return;
         g_lo = (char *)(((size_t)base + (ARENA_ALIGN - 1))
@@ -61,6 +113,22 @@ void *port_arena_base(void)   { arena_init(); return g_base; }
 void *port_arena_end(void)    { arena_init(); return g_hi; }
 void *port_arena_cursor(void) { arena_init(); return g_lo; }
 void  port_arena_set_cursor(void *p) { g_lo = (char *)p; }
+
+/* 1 if the arena came up at its fixed host base (VirtualAlloc succeeded), 0 if
+   it fell back to calloc. The disk save state (hal/lk7_persist.cpp) is only
+   loadable and savable when this is 1, because a disk state carries absolute
+   pointers into the arena and only a fixed base makes them valid across a
+   restart. On non-Windows the arena is always calloc'd, so this is 0 and disk
+   states are off (the shipped port is Windows-only). */
+int port_arena_is_fixed(void)
+{
+    arena_init();
+#if defined(_WIN32)
+    return g_fixed_base;
+#else
+    return 0;
+#endif
+}
 }
 
 extern "C" {
