@@ -1393,6 +1393,7 @@ void hal_seat_meshcollider_dtor(void);
 void hal_seat_expandingheap_vmax(void);
 void hal_seat_platform_dtors(void);
 void hal_fill_enemy_base_vtable(void);
+void hal_seat_expandingheap_dtors(void);
 void hal_seat_model_family_dtors(void);
 void port_ov009_sinits(void);
 void port_actor_overlays_sinits(void);
@@ -2065,6 +2066,13 @@ extern "C" void port_stage_a2_seat(void)
        dispatched through; the fill gives it the shared half plus the class's
        own destructor pair, the ROM's contents. hal/actor_classes.cpp. */
     hal_fill_enemy_base_vtable();
+
+    /* Lane-lk4 linkage seat: ExpandingHeap's dtor chain (D1/D0/VDestroy) and
+       its last two allocator forwarders (VDeallocateAll/VMemoryLeft) into
+       slots 0/1/2/5/12, closing the class. walk_window family only; the D0
+       closure needs Memory::operator_delete2 (gate 16), which the minimal
+       root-heap targets do not link, so those keep the traps. */
+    hal_seat_expandingheap_dtors();
 
     /* The LEVEL overlay's own static initialisers, where the DS runs them:
        after the overlay is mounted and before anything spawns. Every

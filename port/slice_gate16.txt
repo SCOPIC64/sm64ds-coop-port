@@ -401,3 +401,22 @@ src/_ZN9AnimationD0Ev.c
 src/_ZN9ModelAnimD0Ev.c
 src/_ZN10ModelAnim2D0Ev.c
 src/_ZN14BlendModelAnimD0Ev.c
+# LANE-LK4 LINKAGE SEAT 2: ExpandingHeap's dtor chain and its last two
+# allocator forwarders, closing the class. D1 (0x0203c9f0), D0 (0x0203c9c0)
+# and VDestroy (0x0203c72c) are flat .c; VDeallocateAll (0x0203c4b0) and
+# VMemoryLeft (0x0203c5ac) are MSVC methods bridged to the flat-C allocator
+# bodies by hal/lk4_eh_dtor_seat.cpp, which seats slots 0/1/2/5/12 of
+# _ZTV13ExpandingHeap at boot (walk_window family only). The audited closure
+# rides along: Heap::D2 (the D0/D1 callee), HeapAllocator::Destroy/Remove
+# (the VDestroy chain) and the ExpandingHeapAllocator DeallocateAll/
+# InvokeDeallocate pair. Every deeper callee was already linked.
+src/_ZN13ExpandingHeapD1Ev.c
+src/_ZN13ExpandingHeapD0Ev.c
+src/_ZN13ExpandingHeap8VDestroyEv.c
+src/_ZN13ExpandingHeap14VDeallocateAllEv.cpp
+src/_ZN13ExpandingHeap11VMemoryLeftEv.cpp
+src/_ZN4HeapD2Ev.c
+src/_ZN13HeapAllocator7DestroyEv.cpp
+src/_ZN13HeapAllocator6RemoveEv.cpp
+src/_ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj.cpp
+src/_ZN22ExpandingHeapAllocator16InvokeDeallocateEPvPS_j.cpp
