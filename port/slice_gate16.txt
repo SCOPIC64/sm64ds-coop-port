@@ -353,3 +353,13 @@ src/_ZN12MeshColliderD1Ev.c
 # by hal/mmc_vtable.cpp, replacing the wrong-class MeshCollider D0 the seed copy
 # left there. Edge live via SIGN_POST / BLACK_BRICK_BLOCK, which Enable an MMC.
 src/_ZN18MovingMeshColliderD0Ev.c
+# LANE-LK1 LINKAGE SEAT: ExpandingHeap's VMax pair (VMaxAllocationUnitSize
+# 0x0203c5f8, VMaxAllocatableSize 0x0203c5d0) and the allocator's
+# MaxAllocatableSize (0x0204e0f8) they both forward to, all 2004/b56
+# byte-matches. Seated into slots 10/11 of _ZTV13ExpandingHeap at boot by
+# hal/lk1_eh_vmax_seat.cpp, walk_window family only: MaxAllocatableSize calls
+# cstd::abs (gate 4b), which the minimal root-heap targets do not link, so
+# those keep the traps.
+src/_ZN13ExpandingHeap22VMaxAllocationUnitSizeEv.cpp
+src/_ZN13ExpandingHeap19VMaxAllocatableSizeEv.cpp
+src/_ZN22ExpandingHeapAllocator18MaxAllocatableSizeEi.cpp

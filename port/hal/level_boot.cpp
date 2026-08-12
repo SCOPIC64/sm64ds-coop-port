@@ -1390,6 +1390,7 @@ void port_actor_lists_seat(void);
 void hal_fill_moving_mesh_collider_vtable(void);
 void hal_fill_meshcolliderbase_vtable(void);
 void hal_seat_meshcollider_dtor(void);
+void hal_seat_expandingheap_vmax(void);
 void port_ov009_sinits(void);
 void port_actor_overlays_sinits(void);
 extern void *data_0209f318;
@@ -2031,6 +2032,12 @@ extern "C" void port_stage_a2_seat(void)
        family only; the gate-8/9 smoke targets keep the trap (they never delete
        the level collider). */
     hal_seat_meshcollider_dtor();
+
+    /* Lane-lk1 linkage seat: ExpandingHeap's VMax pair into slots 10/11 of
+       _ZTV13ExpandingHeap. walk_window family only; the pair's allocator
+       callee needs gate 4b's cstd::abs, which the minimal root-heap targets
+       do not link, so those keep the traps (no caller evidence anywhere). */
+    hal_seat_expandingheap_vmax();
 
     /* The LEVEL overlay's own static initialisers, where the DS runs them:
        after the overlay is mounted and before anything spawns. Every
