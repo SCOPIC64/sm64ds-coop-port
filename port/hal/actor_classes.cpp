@@ -602,6 +602,46 @@ extern "C" void hal_fill_platform_vtable(void)
     }
 }
 
+// ---- Enemy, the other ov002 base table the ctor chain installs -------------
+//
+// data_ov002_021081e4 is the Enemy base vtable (ov002, 31 slots, plain Actor
+// shape). hal/actor_vtables.cpp holds the storage: the Enemy ctor
+// (func_ov002_020aed98, spelled _ZN5EnemyC2Ev) installs it and the derived
+// factory overwrites it two lines later, and the already-linked
+// _ZN5EnemyD2Ev restores it mid-teardown -- installed only between two member
+// teardowns, never dispatched through, the same reading as the Platform base
+// table above.
+//
+// LINKAGE SEAT (lk2). The ROM's table carries exactly two of the class's own
+// bodies: slot 16 the complete-object destructor (_ZN5EnemyD2Ev, linked) and
+// slot 17 the deleting one (_ZN5EnemyD0Ev, clean flat-C matched src that was
+// in no slice). Seating the pair gives the hosted table the ROM's contents
+// and is the reference edge that pulls D0 into the link; every other slot is
+// an Actor/ActorBase main body the shared half already writes. D0's VT and
+// HEAP placeholders are settled in hal/cxx_aliases.cpp next to the Platform
+// pair's G0 row.
+extern "C" {
+int _ZN5EnemyD2Ev(int *self);    /* slot 16 body (ov002 0x020aed74) */
+int *_ZN5EnemyD0Ev(int *self);   /* slot 17 body (ov002 0x020aed3c) */
+extern void *data_ov002_021081e4[31];   /* storage: hal/actor_vtables.cpp */
+}
+static int __fastcall en_d1(void *s, void *)
+{ return _ZN5EnemyD2Ev((int *)s); }
+static int __fastcall en_d0(void *s, void *)
+{ return (int)(size_t)_ZN5EnemyD0Ev((int *)s); }
+
+extern "C" void hal_fill_enemy_base_vtable(void)
+{
+    void **vt = data_ov002_021081e4;
+    for (int i = 0; i < 31; ++i)
+        vt[i] = (void *)plat_trap;
+    ac_fill_shared(vt);
+    vt[12] = (void *)ac_pdes_base;
+    vt[16] = (void *)en_d1;
+    vt[17] = (void *)en_d0;
+    /* 31 words, no slot 31: the Enemy is a plain Actor, not a Platform. */
+}
+
 // ---- BLACK_BRICK_BLOCK (actor 17, ov002) x1 --------------------------------
 //
 // _ZTV13BigBrickBlock, ov002 0x02108adc. One class body serves six actor ids

@@ -378,3 +378,11 @@ src/_ZN8PlatformD0Ev.c
 # hal/level_boot.cpp, which until now kept the trap there because this body
 # was in no slice and forwarding to Actor's would run the wrong code.
 src/_ZN6Player13OnYoshiTryEatEv.cpp
+# LINKAGE SEAT (lk2): the Enemy base table's own deleting destructor
+# (_ZN5EnemyD0Ev, ov002 0x020aed3c), seated into slot 17 of
+# data_ov002_021081e4 by hal_fill_enemy_base_vtable (hal/actor_classes.cpp)
+# next to the already-linked D2 at 16. The base table is installed only
+# mid-teardown and never dispatched through; the seat gives the hosted
+# storage the ROM's contents. Its VT/HEAP placeholders are settled in
+# hal/cxx_aliases.cpp (Enemy base vtable, game heap word).
+src/_ZN5EnemyD0Ev.c

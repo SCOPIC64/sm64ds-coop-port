@@ -979,6 +979,16 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?G0@@3PAHA=_data_ov002_0210e064")
 #pragma comment(linker, "/alternatename:?G1@@3PAHA=_data_ov002_0210e05c")
 #pragma comment(linker, "/alternatename:_G0=_data_020a0eac")
+/* VT/HEAP, the other two shared-header placeholder names, settled the same
+   way for their ONE linked reader: src/_ZN5EnemyD0Ev.c (the Enemy base
+   table's deleting destructor, seated by hal_fill_enemy_base_vtable). Its
+   ROM relocs are the Enemy base vtable ov002 0x021081e4 for the vptr store
+   and the 0x020a0eac game heap word for the Memory::Deallocate argument.
+   These names are SINGLE in this build, the actor_classes_bob_enemy.cpp
+   caveat: a second VT-spelling TU cannot join a target that links this
+   reader, its store would land on the Enemy's objects. */
+#pragma comment(linker, "/alternatename:_VT=_data_ov002_021081e4")
+#pragma comment(linker, "/alternatename:_HEAP=_data_020a0eac")
 /* SignPost::CleanupResources carried from main names its two SharedFilePtrs
    by role instead of G0/G1: SignPost_ModelFile = 0x0210e064 (released first,
    ROM order) and SignPost_ClsnFile = 0x0210e05c (main's ov002 symbols.txt

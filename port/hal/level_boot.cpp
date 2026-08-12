@@ -1392,6 +1392,7 @@ void hal_fill_meshcolliderbase_vtable(void);
 void hal_seat_meshcollider_dtor(void);
 void hal_seat_expandingheap_vmax(void);
 void hal_seat_platform_dtors(void);
+void hal_fill_enemy_base_vtable(void);
 void port_ov009_sinits(void);
 void port_actor_overlays_sinits(void);
 extern void *data_0209f318;
@@ -2057,6 +2058,12 @@ extern "C" void port_stage_a2_seat(void)
        nothing dispatches through it, so the seat is the ROM's contents where
        the trap prefill stood. hal/lk2_platform_dtor_seat.cpp. */
     hal_seat_platform_dtors();
+
+    /* Linkage seat: the Enemy base table (data_ov002_021081e4), same reading
+       as the Platform base pair -- installed only mid-teardown, never
+       dispatched through; the fill gives it the shared half plus the class's
+       own destructor pair, the ROM's contents. hal/actor_classes.cpp. */
+    hal_fill_enemy_base_vtable();
 
     /* The LEVEL overlay's own static initialisers, where the DS runs them:
        after the overlay is mounted and before anything spawns. Every
