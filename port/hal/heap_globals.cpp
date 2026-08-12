@@ -13,12 +13,19 @@
 // TUs are C (plain-name definitions). Each alias below names the x86-32
 // decorated forms.
 
+#include "dsstate_seg.h"
+
 extern "C" {
 // The single real storage. Memory::rootHeapIterator is a NestedHeapIterator
 // (a list head); the decomp TUs address it as a blob. 0x20 covers the
-// evidenced fields with room; the ctor initializes it.
+// evidenced fields with room; the ctor initializes it. Both are hosted DS
+// globals the save state must roll back (the list head threads INTO the
+// arena), so they live in the .dsstate capture section -- they were in the
+// old hand-picked list and stay captured under the section scheme.
+DSSTATE_BEGIN
 char _ZN6Memory16rootHeapIteratorE[0x20];
 int _ZN6Memory25isRootHeapIterInitializedE;
+DSSTATE_END
 
 // SDK asm primitive (stmia burst fill) -> plain word fill on host. The
 // frontier classifies its TU as HAL-owned; this is the HAL half.

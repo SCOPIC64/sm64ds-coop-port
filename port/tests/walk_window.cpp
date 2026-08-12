@@ -2396,6 +2396,78 @@ int main(void)
             save_edge = save_now;
             load_edge = load_now;
         }
+        /* SCRIPTED SAVE-STATE REPRODUCER (headless, selftest only).
+           This is the regression rig for the 0.2.0 restore crash: real players
+           save, then a message/cutscene changes hosted mode-lock state that
+           lives OUTSIDE the arena, then they restore, and the game either
+           faults in Player::SetAnim on a null BCA_File* (the ANIM_PTRS
+           SharedFilePtr table, data_ov002_020ff480, is a hosted overlay global
+           the pre-fix snapshot never captured) or stays wedged in a message the
+           arena has already rolled away from.
+
+               SM64DS_SS_SAVE=<frame>   fire lk6_savestate_save() at this frame
+               SM64DS_SS_LOAD=<frame>   fire lk6_savestate_load() at this frame
+               SM64DS_SS_LOCK=1         between save and load, force the hosted
+                                        message-active lock (data_0209d660) set,
+                                        the way opening a dialogue would, so the
+                                        restore has a specific out-of-arena bit
+                                        to prove it rolls back
+               SM64DS_SS_ASSERT=1       capture data_0209d660 at save and assert
+                                        it equals that value after load; a
+                                        non-zero exit if the lock survived the
+                                        restore. This is acceptance test 2 (the
+                                        mode/lock global rolls back) run
+                                        directly on the underlying global, since
+                                        a full castle-grounds cutscene is not
+                                        reachable in a plain headless walk. */
+        if (selftest) {
+            static int ss_env, ss_save_fr = -1, ss_load_fr = -1,
+                       ss_lock = 0, ss_assert = 0;
+            static unsigned char ss_lock_at_save;
+            static int ss_saw_save = 0;
+            if (!ss_env) {
+                ss_env = 1;
+                const char *s = getenv("SM64DS_SS_SAVE");
+                const char *l = getenv("SM64DS_SS_LOAD");
+                if (s) ss_save_fr = atoi(s);
+                if (l) ss_load_fr = atoi(l);
+                ss_lock = getenv("SM64DS_SS_LOCK") != 0;
+                ss_assert = getenv("SM64DS_SS_ASSERT") != 0;
+            }
+            if (ss_save_fr >= 0 && frame == ss_save_fr) {
+                lk6_savestate_save();
+                ss_lock_at_save = data_0209d660;
+                ss_saw_save = 1;
+                fprintf(stderr, "[ss-repro] f%d save: msglock(d660)=%u\n",
+                        frame, (unsigned)data_0209d660);
+            }
+            /* perturb the out-of-arena lock strictly between save and load, so
+               the world provably diverges on a hosted global the arena copy
+               does not own */
+            if (ss_lock && ss_saw_save && ss_load_fr >= 0 &&
+                frame > ss_save_fr && frame < ss_load_fr)
+                data_0209d660 = 1;
+            if (ss_load_fr >= 0 && frame == ss_load_fr) {
+                fprintf(stderr, "[ss-repro] f%d pre-load: msglock(d660)=%u\n",
+                        frame, (unsigned)data_0209d660);
+                if (lk6_savestate_load()) an_pivot_live = 0;
+                fprintf(stderr, "[ss-repro] f%d post-load: msglock(d660)=%u "
+                        "(saved %u)\n", frame, (unsigned)data_0209d660,
+                        (unsigned)ss_lock_at_save);
+                if (ss_assert && data_0209d660 != ss_lock_at_save) {
+                    fprintf(stderr, "[ss-repro] FAIL: message-lock global "
+                            "data_0209d660 did NOT roll back on restore "
+                            "(post-load %u, saved %u) -- a hosted DS global "
+                            "outside the capture set survived the load\n",
+                            (unsigned)data_0209d660, (unsigned)ss_lock_at_save);
+                    ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
+                    return 3;
+                }
+                if (ss_assert)
+                    fprintf(stderr, "[ss-repro] PASS: message-lock global "
+                            "rolled back on restore\n");
+            }
+        }
         /* drain what the window procedure collected. Unconditionally, so a
            drag taken in DS-exact mode does not pile up and dump into the rig
            the moment F1 hands it the view. MOUSE_YAW is 48 binangs a pixel --

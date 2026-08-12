@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "MeshColliderBase.h"
+#include "dsstate_seg.h"
 
 extern "C" {
 void hal_fileptr_release(void *self);
@@ -86,8 +87,10 @@ void *_ZN5Model8LoadFileER13SharedFilePtr(void *fp)
 }
 
 // BSS the shadow/collider systems use
+DSSTATE_BEGIN
 char data_020ad524[0x40];       /* ShadowModel's template BMD stub */
 void *data_020a0c80[24];        /* the collision actor registry (gate 8) */
+DSSTATE_END
 }
 
 #include "MeshCollider.h"
@@ -122,6 +125,18 @@ extern "C" void _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(
 // operator new support: the game heap pointer for actors (the smoke seeds
 // it with the root heap), and the zero-fill veneer -- its DS chain rides
 // arguments through registers, so the host supplies the semantics direct.
+//
+// DELIBERATELY OUTSIDE .dsstate: this is the real storage behind the game
+// heap word data_020a0eac (the two /alternatename lines below), so it IS a
+// hosted DS global -- but a BOOT-CONSTANT one. The ROM writes it exactly once,
+// in Heap::InitializeGameHeap off the main.c boot spine (func_0201a054), and
+// the port seeds it once before the frame loop (walk_window.cpp / the smoke
+// preambles). Nothing writes it during play, so it cannot diverge between a
+// save and a load, and a snapshot of it would restore the value it already
+// holds. Excluded so the capture stays exactly "state that can change";
+// tools/dsstate_guard.py records the same exclusion by name. If a future level
+// path ever re-initializes the game heap mid-session, move this inside a
+// DSSTATE_BEGIN/END bracket and drop the guard exemption.
 extern "C" {
 void *data_020a0eac_c;
 }
@@ -147,6 +162,7 @@ extern "C" int _ZN16MeshColliderBase6EnableEP5Actor(void *self, void *actor)
     return ((MeshColliderBase *)self)->MeshColliderBase::Enable((Actor *)actor);
 }
 extern "C" {
+DSSTATE_BEGIN
 /* player-list globals ClosestPlayer scans: empty world -> null result */
 int data_0208e37c[2];
 int data_0208e380[2];
@@ -154,6 +170,7 @@ int data_0209b450[2];
 int data_0209b458[2];
 int data_0209f21c[8];
 int data_0209f394[8];
+DSSTATE_END
 }
 
 extern "C" void _ZN6Memory10DeallocateEPv(void *p);

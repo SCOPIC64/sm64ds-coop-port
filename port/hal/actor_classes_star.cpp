@@ -200,11 +200,11 @@ int _ZN5Actor16OnAimedAtWithEggEv(void *self);     /* slot 29 */
    $NNNN contributions to one section, laid out in address order, the same
    idiom romdata.py's CONTIG runs use. A generous 8-byte head keeps room for
    the 4-byte ROM run (f310..f313) plus slack. */
-#pragma section(".hvsstar$0000", read, write)
-#pragma section(".hvsstar$0001", read, write)
+#pragma section(".dsstate$hvsstar0000", read, write)
+#pragma section(".dsstate$hvsstar0001", read, write)
 extern "C" {
-__declspec(allocate(".hvsstar$0000")) signed char data_0209f310[1];
-__declspec(allocate(".hvsstar$0001")) signed char data_0209f311[31];
+__declspec(allocate(".dsstate$hvsstar0000")) signed char data_0209f310[1];
+__declspec(allocate(".dsstate$hvsstar0001")) signed char data_0209f311[31];
 }
 /* func_ov002_020d94cc declares data_0209f310 as a bare `signed char` outside
    extern "C" (a second, C++-mangled spelling); alias it onto the C symbol. */

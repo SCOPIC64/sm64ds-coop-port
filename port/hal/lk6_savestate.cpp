@@ -3,11 +3,36 @@
 // WHAT A SAVE STATE IS HERE
 // -------------------------
 // One in-memory slot. Snapshot (F8 / the debug menu) copies the whole hosted
-// DS main-RAM arena plus a short list of game-mutable host globals that live
-// OUTSIDE the arena into a heap buffer. Restore (F9 / the debug menu) copies
-// those bytes straight back and silences the audio mixer so nothing keeps
-// playing off the pre-restore sequencer state. The slot survives for the
-// process lifetime; it is not written to disk.
+// DS main-RAM arena plus every game-mutable hosted DS global that lives OUTSIDE
+// the arena into a heap buffer. Restore (F9 / the debug menu) copies those
+// bytes straight back and silences the audio mixer so nothing keeps playing off
+// the pre-restore sequencer state. The slot survives for the process lifetime;
+// it is not written to disk.
+//
+// WHY THE OUT-OF-ARENA SET IS A LINKER SECTION, NOT A LIST
+// -------------------------------------------------------
+// The 0.2.0 slot captured the arena plus a hand-picked list of 23 out-of-arena
+// globals. Real players crashed after a restore: Player::SetAnim read a null
+// BCA_File* out of the ANIM_PTRS SharedFilePtr table (ov002's
+// data_ov002_020ff480), a hosted overlay global the list never named. The arena
+// rolled back to the saved animation while that table -- Released and reloaded
+// as the player animated between save and load -- did not, so the file pointer
+// came back null. A dialogue or cutscene left the same way: the message-active
+// lock (data_0209d660) is a hosted global outside the list, so a restore rolled
+// the world back but left the game wedged in the message.
+//
+// A hand list that has to be grown for every hosted symbol IS that bug. So the
+// out-of-arena set is now defined by a linker section, not a list. Every file
+// that hosts DS globals brackets them with DSSTATE_BEGIN/END (hal/dsstate_seg.h)
+// and the overlay-data generators emit the same markers, which routes all of
+// them -- auto_bss, model_host, the overlay data/pack/whole mounts, the sound
+// bss, every bridge -- into one .dsstate section. hal/dsstate_seg.cpp brackets
+// that section with two sentinels, and the snapshot copies the bytes between
+// them. A newly hosted global is captured the moment it is placed in the
+// section; there is nothing to keep in sync by hand. The dsstate_guard build
+// step (tools/dsstate_guard.py) fails the build if a hosted DS symbol landed
+// OUTSIDE the section, so a file that forgets the markers is caught at build
+// time rather than by a player.
 //
 // WHY THE ARENA IS THE BULK OF IT
 // -------------------------------
@@ -28,30 +53,40 @@
 // freshly restored data. So the cursor is captured and restored like any other
 // value.
 //
-// WHAT LIVES OUTSIDE THE ARENA (and so is listed explicitly below)
-// ----------------------------------------------------------------
-// A number of DS BSS symbols are hosted as ordinary C globals in hal/*.cpp
-// rather than inside the arena. The correctness-critical ones for a same-level
-// restore are the actor processing-list heads (list heads that thread INTO the
-// arena), the particle-engine RNG and its arena cursors, the common-model-data
-// registry, the render camera matrix, the texture-VRAM bump cursors, and the
-// current-model-matrix pointer. Each is named by its real symbol below with its
-// exact declared size and snapshotted byte-for-byte. See the coverage note at
-// the bottom of this file for what is deliberately NOT in the set and why that
-// is safe for a within-session restore.
+// WHAT LIVES OUTSIDE THE ARENA (and so is captured as the .dsstate section)
+// ------------------------------------------------------------------------
+// A large set of DS BSS/data symbols are hosted as ordinary C globals in
+// hal/*.cpp and in the generated overlay-data files rather than inside the
+// arena: the actor processing-list heads, the particle-engine RNG and its arena
+// cursors, the common-model-data registry, the render camera matrix, the
+// texture-VRAM cursors, the message and cutscene mode/lock flags, the ANIM_PTRS
+// SharedFilePtr table every overlay actor animates through, and much more. All
+// of them are routed into one linker section, .dsstate, by the DSSTATE_BEGIN/END
+// markers in each hosting file (see hal/dsstate_seg.h). The snapshot copies the
+// whole section in one shot, so any hosted global is captured by virtue of
+// being in the section -- there is no per-symbol list to keep current.
 //
 // WHAT IS DELIBERATELY NOT CAPTURED (reset instead)
 // -------------------------------------------------
 // The SDAT host audio path keeps live sequencer players and mixer channels
 // (hal/sdat/sseq.cpp g_pl/g_note, hal/sdat/mixer.cpp g_ch) plus a phase
-// accumulator. Their pointers address the arena, so restoring the arena keeps
-// them valid, but the mixer phase and note envelopes would be a few frames
-// ahead of the restored world. Rather than reason about that drift we silence
-// the sequencer and mixer on restore (sd_seq_reset + sd_mix_reset); the game
-// re-triggers sounds from the restored state on the next tick. The wave decode
-// cache (hal/sdat/sdat.cpp g_waves) is keyed by SWAV record addresses in the
-// arena; for a same-level restore those addresses hold identical sample data,
-// so the cache stays correct and needs no flush.
+// accumulator. Their storage IS in .dsstate and so is copied back like anything
+// else, but the mixer phase and note envelopes would be a few frames ahead of
+// the restored world if merely restored, so after the section copy the load
+// path additionally silences the sequencer and mixer (sd_seq_reset +
+// sd_mix_reset); the game re-triggers sounds from the restored state on the next
+// tick. The wave decode cache (hal/sdat/sdat.cpp g_waves) is keyed by SWAV
+// record addresses in the arena; for a same-level restore those addresses hold
+// identical sample data, so the restored cache stays correct.
+//
+// WHAT IS NOT IN .dsstate ON PURPOSE (host-only, must not roll back)
+// -----------------------------------------------------------------
+// Host bookkeeping that describes the SESSION, not the game: the playlog path
+// and frame counter (walk_window.cpp), telemetry, the launcher glue, ntr_2x's
+// host framebuffer/window state, and the C runtime's own globals (locale, FILE
+// tables). None of those files use the DSSTATE markers, so their globals stay in
+// the ordinary .bss/.data the snapshot never touches. Rolling the frame counter
+// or a FILE* back would be wrong.
 
 #include <stdlib.h>
 #include <string.h>
@@ -64,6 +99,7 @@ typedef unsigned int u32;
 // block below or the linker looks for a C-mangled symbol that does not exist.
 void sd_seq_reset(void);
 void sd_mix_reset(void);
+void sd_consumer_reset(void);
 
 extern "C" {
 // hal/os_arena.cpp
@@ -72,109 +108,36 @@ void *port_arena_end(void);
 void *port_arena_cursor(void);
 void  port_arena_set_cursor(void *p);
 
-// ---- game-mutable host globals that live OUTSIDE the arena ----------------
-// Referenced by their real DS symbol names; taking their address to snapshot
-// them is a read, it does not redefine or move any storage. Sizes are the
-// exact declared extents from hal/model_host.cpp and hal/auto_bss.cpp.
-
-// the heap registry root iterator (hal/heap_globals.cpp): the list head/tail/
-// count for every heap that hangs directly off the root. It threads INTO the
-// arena (the HeapAllocator objects it links live in arena-carved storage), so
-// if the game creates or destroys a root-level heap between save and load, this
-// head describes the post-save topology while the restored arena describes the
-// saved one. Capturing it keeps the two in step. isRootHeapIterInitialized is
-// invariant after the first heap comes up but is captured too so the snapshot
-// is internally consistent.
-extern char _ZN6Memory16rootHeapIteratorE[0x20];
-extern int  _ZN6Memory25isRootHeapIterInitializedE;
-
-// actor processing-list heads (hal/model_host.cpp): list heads that thread into
-// arena-resident actor records.
-extern int data_020a4b78[4];
-extern int data_020a4b88[4];
-extern int data_020a4b98[4];
-extern int data_02099f24[4];
-// the Process cleanup list head/tail/callback and the teardown id hook
-// (hal/auto_bss.cpp).
-extern int data_020a4ba8[8];
-extern int data_020a4b5c[4];
-// common-model-data registry: 100 records of 0xc, plus the live count
-// (hal/model_host.cpp).
-extern int data_0209cefc[3 * 100];
-extern int data_0209cef8[1];
-// the render camera matrix and the bound model-matrix pointer
-// (hal/model_host.cpp).
-extern int data_0209b3ec[12];
-extern void *data_020a4bd0;
-// texture-VRAM bump cursors (hal/model_host.cpp): where uploads have reached.
-extern u32 data_020a4bc8;
-extern u32 data_020a4be8;
-extern u32 data_020a4be0;
-extern u32 data_020a4bdc;
-extern u32 data_020a4be4;
-extern u32 data_020a4bcc;
-extern u32 data_020a4bd8;
-// particle-engine RNG state and its arena bump cursors (hal/auto_bss.cpp).
-extern int LCG_STATE_0204da4c;
-extern int data_0209ee78[8];
-extern int data_0209ee7c[8];
-extern int data_0209ee80[8];
+// The two sentinels hal/dsstate_seg.cpp places at the low and high ends of the
+// .dsstate section family. The captured out-of-arena region is the bytes
+// between them: &dsstate_hi - &dsstate_lo, recomputed by the linker every build.
+extern char dsstate_lo;
+extern char dsstate_hi;
 }
 
 namespace {
 
-struct Block { void *addr; size_t size; const char *name; };
-
-// The explicit out-of-arena set. sizeof is taken on the real definitions above
-// so the snapshot tracks whatever those declarations say; a size mismatch would
-// be a compile error, not a silent short copy.
-const Block g_blocks[] = {
-    { _ZN6Memory16rootHeapIteratorE, sizeof _ZN6Memory16rootHeapIteratorE,
-      "heap_root_iterator" },
-    { &_ZN6Memory25isRootHeapIterInitializedE,
-      sizeof _ZN6Memory25isRootHeapIterInitializedE, "heap_root_iter_init" },
-    { data_020a4b78, sizeof data_020a4b78, "actor_list_head_0" },
-    { data_020a4b88, sizeof data_020a4b88, "actor_list_head_1" },
-    { data_020a4b98, sizeof data_020a4b98, "actor_list_head_2" },
-    { data_02099f24, sizeof data_02099f24, "actor_list_head_3" },
-    { data_020a4ba8, sizeof data_020a4ba8, "process_cleanup_list" },
-    { data_020a4b5c, sizeof data_020a4b5c, "process_teardown_hook" },
-    { data_0209cefc, sizeof data_0209cefc, "common_model_records" },
-    { data_0209cef8, sizeof data_0209cef8, "common_model_count" },
-    { data_0209b3ec, sizeof data_0209b3ec, "render_camera_matrix" },
-    { &data_020a4bd0, sizeof data_020a4bd0, "bound_model_matrix_ptr" },
-    { &data_020a4bc8, sizeof data_020a4bc8, "vram_tex_cursor_lo0" },
-    { &data_020a4be8, sizeof data_020a4be8, "vram_tex_ceil0" },
-    { &data_020a4be0, sizeof data_020a4be0, "vram_tex_cursor_lo1" },
-    { &data_020a4bdc, sizeof data_020a4bdc, "vram_tex_ceil1" },
-    { &data_020a4be4, sizeof data_020a4be4, "vram_tex_uploaded_bytes" },
-    { &data_020a4bcc, sizeof data_020a4bcc, "vram_pal_cursor_lo" },
-    { &data_020a4bd8, sizeof data_020a4bd8, "vram_pal_ceil" },
-    { &LCG_STATE_0204da4c, sizeof LCG_STATE_0204da4c, "particle_rng" },
-    { data_0209ee78, sizeof data_0209ee78, "particle_arena_base" },
-    { data_0209ee7c, sizeof data_0209ee7c, "particle_arena_end" },
-    { data_0209ee80, sizeof data_0209ee80, "particle_arena_cursor" },
-};
-const int g_block_count = (int)(sizeof g_blocks / sizeof g_blocks[0]);
+char  *dsstate_base() { return &dsstate_lo; }
+size_t dsstate_size()
+{
+    // The linker orders .dsstate$aaa (dsstate_lo) before every $mmm/$pk... run
+    // and .dsstate$zzz (dsstate_hi) after them, so hi is always >= lo. Guard
+    // anyway: a zero or inverted span means the section collapsed (a build
+    // without the sentinels) and the caller must not copy a bogus length.
+    char *lo = &dsstate_lo, *hi = &dsstate_hi;
+    return hi > lo ? (size_t)(hi - lo) : 0;
+}
 
 struct Slot {
     int    valid;
     char  *arena;        // captured [base, end) bytes
     size_t arena_size;   // end - base
     void  *arena_cursor; // captured low-water carve pointer
-    char  *globals;      // captured out-of-arena blocks, concatenated
+    char  *globals;      // captured [dsstate_lo, dsstate_hi) bytes
     size_t globals_size;
 };
 
 Slot g_slot;
-
-size_t globals_total()
-{
-    size_t t = 0;
-    for (int i = 0; i < g_block_count; ++i)
-        t += g_blocks[i].size;
-    return t;
-}
 
 } // namespace
 
@@ -192,7 +155,17 @@ int lk6_savestate_save(void)
         return 0;
     }
     size_t asz = (size_t)(end - base);
-    size_t gsz = globals_total();
+    size_t gsz = dsstate_size();
+    if (gsz == 0) {
+        // The sentinels collapsed: the .dsstate section is empty, which only
+        // happens in a build where hal/dsstate_seg.cpp did not link or no file
+        // routed a global into the section. Capturing the arena alone would be
+        // the old partial snapshot that crashed on restore, so refuse rather
+        // than ship a state that cannot restore correctly.
+        fprintf(stderr, "[savestate] .dsstate section is empty; save ignored "
+                        "(build is missing the hosted-DS-state section)\n");
+        return 0;
+    }
 
     // Allocate first, commit second: if either malloc fails, keep the prior
     // slot untouched.
@@ -206,11 +179,7 @@ int lk6_savestate_save(void)
     }
 
     memcpy(na, base, asz);
-    size_t off = 0;
-    for (int i = 0; i < g_block_count; ++i) {
-        memcpy(ng + off, g_blocks[i].addr, g_blocks[i].size);
-        off += g_blocks[i].size;
-    }
+    memcpy(ng, dsstate_base(), gsz);
 
     free(g_slot.arena);
     free(g_slot.globals);
@@ -221,8 +190,8 @@ int lk6_savestate_save(void)
     g_slot.globals_size = gsz;
     g_slot.valid        = 1;
 
-    fprintf(stderr, "[savestate] saved: arena %zu bytes, %d globals %zu bytes\n",
-            asz, g_block_count, gsz);
+    fprintf(stderr, "[savestate] saved: arena %zu bytes, dsstate %zu bytes\n",
+            asz, gsz);
     return 1;
 }
 
@@ -245,22 +214,35 @@ int lk6_savestate_load(void)
                 base ? (size_t)(end - base) : 0, g_slot.arena_size);
         return 0;
     }
+    if (dsstate_size() != g_slot.globals_size) {
+        // The section is fixed at link time, so a mismatch means the running
+        // binary is not the one that saved (a disk state from another build,
+        // once lk7's persistence lands). Refuse rather than copy a wrong length.
+        fprintf(stderr, "[savestate] dsstate section changed (%zu vs saved "
+                        "%zu); load refused\n",
+                dsstate_size(), g_slot.globals_size);
+        return 0;
+    }
 
     memcpy(base, g_slot.arena, g_slot.arena_size);
-    size_t off = 0;
-    for (int i = 0; i < g_block_count; ++i) {
-        memcpy(g_blocks[i].addr, g_slot.globals + off, g_blocks[i].size);
-        off += g_blocks[i].size;
-    }
+    memcpy(dsstate_base(), g_slot.globals, g_slot.globals_size);
     port_arena_set_cursor(g_slot.arena_cursor);
 
     // The audio path is the one thing that cannot be memcpy'd back cleanly:
-    // silence it and let the restored game re-trigger sound on the next tick.
+    // even though its storage rode back in with the section above, the live
+    // sequencer phase and mixer envelopes would be a few frames ahead of the
+    // restored world. Silence them and let the restored game re-trigger sound.
     sd_seq_reset();
     sd_mix_reset();
+    // Same reasoning one layer down, and this one FAULTS rather than just
+    // sounding wrong. The ARM7 command queue is described by DS-named globals
+    // (captured) and by host cursors sitting beside them (not captured), so a
+    // restore leaves the two halves disagreeing and func_0205b274 walks the
+    // free list into a null. Re-seed both halves together.
+    sd_consumer_reset();
 
-    fprintf(stderr, "[savestate] restored: arena %zu bytes, %d globals, "
-                    "audio reset\n", g_slot.arena_size, g_block_count);
+    fprintf(stderr, "[savestate] restored: arena %zu bytes, dsstate %zu bytes, "
+                    "audio reset\n", g_slot.arena_size, g_slot.globals_size);
     return 1;
 }
 
@@ -271,39 +253,28 @@ int lk6_savestate_has(void) { return g_slot.valid; }
 
 // ---- COVERAGE NOTE ---------------------------------------------------------
 // COVERED: the whole hosted DS main-RAM arena (the entire heap object graph:
-// Player, actors, camera, collision, model records, allocations), the arena
-// carve cursor, the heap registry root iterator and its init flag, the actor
-// processing-list heads, the Process cleanup list and teardown hook, the
-// common-model-data registry and count, the render camera matrix, the bound
-// model-matrix pointer, the texture-VRAM bump cursors, the particle RNG and its
-// arena cursors.
+// Player, actors, camera, collision, model records, allocations) plus the arena
+// carve cursor, and EVERY hosted DS global routed into the .dsstate section by
+// the DSSTATE_BEGIN/END markers -- the actor processing-list heads, the heap
+// registry root iterator, the Process cleanup list, the common-model-data
+// registry, the render camera matrix, the texture-VRAM cursors, the particle
+// RNG, the message/cutscene mode and lock flags, the ANIM_PTRS SharedFilePtr
+// table and every other overlay-data global, the sound bss, and the bridge
+// state. The set is defined by section membership, not by a list here, so a
+// newly hosted global is captured the moment its file uses the markers. The
+// dsstate_guard build step fails the build if a hosted DS symbol landed outside
+// the section.
 //
-// NOT CAPTURED, RESET ON LOAD: the SDAT sequencer players, mixer channels and
-// phase accumulator (silenced via sd_seq_reset / sd_mix_reset). The game
-// re-triggers sound from the restored world.
+// RESET ON LOAD (captured, then re-silenced): the SDAT sequencer players, mixer
+// channels and phase accumulator ride back in with the section, but the live
+// mixer phase would be a few frames ahead of the restored world, so the load
+// path calls sd_seq_reset / sd_mix_reset after the copy and the game re-triggers
+// sound from the restored state on the next tick. This is the one deliberate
+// departure from a byte-exact restore.
 //
-// KNOWN PARTIAL (host audio bookkeeping): the sound subsystem keeps its own
-// voice and sound-heap iterators (hal/sdat and hal/player_bridges.cpp, e.g.
-// data_020a5bc8 / data_020a4d54 / data_020a4d60) that are neither captured nor
-// rebuilt by the two resets above. Silencing the mixer stops anything reading a
-// stale voice, but a sound object created or destroyed between save and load
-// leaves those voice-list heads describing the post-save topology. In practice
-// the reset plus the game re-triggering sound covers the audible cases; a
-// sound-heap walk immediately after a restore that straddled a voice
-// alloc/free is the residual risk. Left out deliberately: capturing them is the
-// same mechanism as the heap root iterator above and can be added to g_blocks
-// if it ever surfaces as an audible fault.
-//
-// NOT CAPTURED, LEFT ALONE (safe because the next tick overwrites them from
-// arena-resident state, or they are pure host bookkeeping): the per-frame pad
-// shadows (data_0209f49x), the HUD star/red-coin/results caches
-// (data_0209f2d4/30c/fc9c), the 2D scroll offsets and camera-button latches
-// (data_0209d46x/47x/49x), and host-only counters (frame index, telemetry).
-// These are cosmetic for at most one frame after a restore. If a future need
-// arises to make the restore bit-exact on those too, add each symbol to
-// g_blocks above with its declared size; the design does not otherwise change.
-//
-// The OAM shadow buffers (hal/model_host.cpp data_0209e674 / data_0209ea74) are
-// rebuilt from scratch every frame by hal_sub_screen_frame_begin before any
-// sprite is drawn, so they carry nothing across a frame boundary and need no
-// snapshot.
+// DELIBERATELY OUTSIDE .dsstate (host-only, must NOT roll back): the playlog
+// path and frame counter, telemetry, the launcher glue, ntr_2x's host window
+// and framebuffer state, and the C runtime's own globals (locale, FILE tables).
+// Those files do not use the DSSTATE markers, so their storage stays in the
+// ordinary .bss/.data the snapshot never touches. Rolling the frame counter or a
+// FILE* back would corrupt the session, not the game.

@@ -132,6 +132,12 @@ void sd_mix_frame(void);              // advance every envelope one 192Hz frame
 void sd_mix_render(sd_s16 *dst, int frames);   // stereo interleaved
 void sd_mix_reset(void);
 
+// Re-seed the command queue (free list, ring, cursors) to its booted shape.
+// Boot calls it through sd_consumer_init; a save-state restore calls it beside
+// sd_seq_reset/sd_mix_reset, because the queue's DS-named globals are captured
+// while the host cursors next to them are not. See the note on the definition.
+void sd_consumer_reset(void);
+
 // dB conversion shared by the sequencer and the mixer: 0..127 -> tenths of
 // a dB in -723..0, the DS's own volume range.
 int sd_cnv_vol(int v);

@@ -16,7 +16,7 @@
 // dialogue lands. It calls nothing the game does not: OpenCannonInCurLevel ->
 // OpenCannonInLevel(data_0209f2f8) -> SublevelToLevel -> OpenCannon(course),
 // which is data_0209caa0[4] |= 1<<course -- the staged save block
-// (.savblk$0000, hal/level_boot.cpp). It is idempotent (OR of a bit already
+// (.dsstate$savblk0000, hal/level_boot.cpp). It is idempotent (OR of a bit already
 // set) and reads the current level from data_0209f2f8, so it must run AFTER
 // level_boot sets data_0209f2f8 = port_level_id() and on the spawn boot path
 // only. Its one call site is described in the wiring report; delete this file

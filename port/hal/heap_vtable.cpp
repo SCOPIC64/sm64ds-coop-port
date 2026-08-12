@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include "dsstate_seg.h"
 
 typedef unsigned int u32;
 
@@ -50,11 +51,13 @@ struct ExpandingHeapAllocator {
 };
 
 // ---- globals the root-heap chain stores through --------------------------
+DSSTATE_BEGIN
 extern "C" {
 void *data_020a0e9c;   /* Heap::rootHeap */
 void *data_020a0ea0;   /* Memory::defaultHeapPtr */
 int data_02099d90;     /* heap bring-up state flag */
 }
+DSSTATE_END
 
 // ---- allocator methods -> the C-linkage definitions from gate 2 ----------
 extern "C" {

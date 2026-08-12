@@ -73,6 +73,7 @@
 #include <cstring>
 
 #include "MeshCollider.h"
+#include "dsstate_seg.h"
 
 extern "C" {
 void port_ov009_patch(void);
@@ -917,6 +918,7 @@ static void port_load14(void *t, int a, unsigned b)
 
 extern "C" {
 typedef void (*PortObjLoader)(void *, int, unsigned);
+DSSTATE_BEGIN
 PortObjLoader data_ov002_0210cbb8[32] = {
     port_load0,        /*  0 */
     port_load1,        /*  1 */
@@ -935,6 +937,7 @@ PortObjLoader data_ov002_0210cbb8[32] = {
     port_load14,      /* 14 */
     /* 15..31: the ROM's overrun, made explicit */
 };
+DSSTATE_END
 }  /* extern "C" */
 
 /* Two loaders define plain C++ names (their TUs never wrapped the definition
@@ -1036,6 +1039,7 @@ int _ZNK12MeshCollider13GetUnkOctreeYEv(const void *self)
 // Every "Load<Kind>Objects" that is not a spawner is a two-word veneer:
 // store the table pointer in one global, the count in another. Storage only;
 // the consumers (minimap, fog, teleport) are Stage B and C.
+DSSTATE_BEGIN
 short data_ov002_0211118c;   /* the per-level spawn counter, ov002 bss */
 int data_02092138;           /* world Y min (func_0202a850) */
 int data_020a0d8c[4];        /* path count */
@@ -1049,6 +1053,7 @@ unsigned char data_0209f2d0[4];                                /* teleport dest
                                                                   data_0209f330
                                                                   is auto_bss */
 int data_0209f338[4];        /* the unused type-13 word */
+DSSTATE_END
 /* the CURRENT LVL_Overlay: storage is hal/actor_vtables.cpp, parked on a
    zeroed block for the no-level case; the boot points it at the real one */
 extern unsigned char *data_0209f340;
@@ -1071,10 +1076,10 @@ extern unsigned char *data_0209f340;
     extern "C" __declspec(allocate(sec)) __declspec(align(2))    \
     unsigned char name[size] = {0}
 
-SAVEBLK(".savblk$0000", data_0209caa0, 0x14);
-SAVEBLK(".savblk$0001", data_0209cab4, 0x1e);
-SAVEBLK(".savblk$0002", data_0209cad2, 0x12);
-SAVEBLK(".savblk$0003", data_0209cae4, 0x10);
+SAVEBLK(".dsstate$savblk0000", data_0209caa0, 0x14);
+SAVEBLK(".dsstate$savblk0001", data_0209cab4, 0x1e);
+SAVEBLK(".dsstate$savblk0002", data_0209cad2, 0x12);
+SAVEBLK(".dsstate$savblk0003", data_0209cae4, 0x10);
 
 #undef SAVEBLK
 

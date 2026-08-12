@@ -270,9 +270,9 @@ void hal_fill_mmc_vtable(void)
     extern "C" __declspec(allocate(sec)) __declspec(align(4))    \
     unsigned char name[size] = {0}
 
-CLSNSCRATCH(".mmcray$0000", data_020a0d0c, 0x10);
-CLSNSCRATCH(".mmcray$0001", data_020a0d1c, 0x44);
-CLSNSCRATCH(".mmcray$0002", data_020a0d60, 0x24);
+CLSNSCRATCH(".dsstate$mmcray0000", data_020a0d0c, 0x10);
+CLSNSCRATCH(".dsstate$mmcray0001", data_020a0d1c, 0x44);
+CLSNSCRATCH(".dsstate$mmcray0002", data_020a0d60, 0x24);
 
 #undef CLSNSCRATCH
 

@@ -12,6 +12,7 @@
 #include "ActorDerived.h"
 #include "Camera.h"
 #include "PathPtr.h"
+#include "dsstate_seg.h"
 
 /* Camera::Render calls View::Render() as a METHOD (its TU declares a local
    `struct View`); src defines the function at C linkage. Same shape as the
@@ -173,25 +174,25 @@ extern "C" void hal_camera_slots_harness_owned(void)
     unsigned char name[size] = {0}
 
 /* 0x020a1040 .. 0x020a1064: the local record (0x24) */
-COMM(".camcomm$0000", data_020a1040, 4);
-COMM(".camcomm$0001", data_020a1044, 2);
-COMM(".camcomm$0002", data_020a1046, 2);
-COMM(".camcomm$0003", data_020a1048, 4);
-COMM(".camcomm$0004", data_020a104c, 2);
-COMM(".camcomm$0005", data_020a104e, 2);
-COMM(".camcomm$0006", data_020a1050, 2);
-COMM(".camcomm$0007", data_020a1052, 0x12);
+COMM(".dsstate$camcomm0000", data_020a1040, 4);
+COMM(".dsstate$camcomm0001", data_020a1044, 2);
+COMM(".dsstate$camcomm0002", data_020a1046, 2);
+COMM(".dsstate$camcomm0003", data_020a1048, 4);
+COMM(".dsstate$camcomm0004", data_020a104c, 2);
+COMM(".dsstate$camcomm0005", data_020a104e, 2);
+COMM(".dsstate$camcomm0006", data_020a1050, 2);
+COMM(".dsstate$camcomm0007", data_020a1052, 0x12);
 
 /* 0x020a1154 .. 0x020a11e4: four per-player records (0x24 each) */
-COMM(".camrec$0000", data_020a1154, 0xc);
-COMM(".camrec$0001", data_020a1160, 2);
-COMM(".camrec$0002", data_020a1162, 2);
-COMM(".camrec$0003", data_020a1164, 2);
-COMM(".camrec$0004", data_020a1166, 0x12);
-COMM(".camrec$0005", data_020a1178, 4);
-COMM(".camrec$0006", data_020a117c, 0x24);
-COMM(".camrec$0007", data_020a11a0, 0x24);
-COMM(".camrec$0008", data_020a11c4, 0x20);
+COMM(".dsstate$camrec0000", data_020a1154, 0xc);
+COMM(".dsstate$camrec0001", data_020a1160, 2);
+COMM(".dsstate$camrec0002", data_020a1162, 2);
+COMM(".dsstate$camrec0003", data_020a1164, 2);
+COMM(".dsstate$camrec0004", data_020a1166, 0x12);
+COMM(".dsstate$camrec0005", data_020a1178, 4);
+COMM(".dsstate$camrec0006", data_020a117c, 0x24);
+COMM(".dsstate$camrec0007", data_020a11a0, 0x24);
+COMM(".dsstate$camrec0008", data_020a11c4, 0x20);
 
 #undef COMM
 
@@ -238,6 +239,7 @@ int hal_camera_check_layout(void)
    (data_0209f1f8 = 0) InitResources skips its whole scan, and the camera
    stays in mode 10 -- the correct minimal behaviour for a level whose
    Stage loader has not run (R14). */
+DSSTATE_BEGIN
 static char hal_area_table[64 * 12];
 static char hal_viewobj_table[64 * 0xe];
 void *data_0209f314 = hal_area_table;
@@ -267,6 +269,7 @@ int data_0209ee90[0x348 / 4];
    whenever the test fails, which on the castle grounds is the AUTHENTIC
    dormancy of the ambient set (bird/butterfly/fish), not a port gap. */
 int data_0209f43c[0x5c / 4];
+DSSTATE_END
 
 /* Camera::SaveCameraStateBeforeTalk is called ARGLESS by both its callers
    (func_02005324 and func_02009a8c, which the community names func_0200cc5c):

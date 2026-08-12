@@ -1,5 +1,15 @@
 // GENERATED-ACCUMULATED zero storage for gate-10/11 BSS ring symbols.
 // Grown by the link-sweep loop; sizes are generous defaults.
+//
+// These are hosted DS BSS globals -- mutable game state (message and cutscene
+// mode flags, the Process cleanup list, the particle cursors, and much more) --
+// so they are routed into the .dsstate section the save state captures. The
+// DSSTATE_BEGIN/END markers set the default bss/data segment for every global
+// between them; the link-sweep loop that grows this file emits new symbols
+// inside the bracket, so anything it adds is captured with no further work. See
+// hal/dsstate_seg.h.
+#include "dsstate_seg.h"
+DSSTATE_BEGIN
 extern "C" {
 /* MSG_GEN_TEXT_FUNCS is NOT zeroed storage: it is a 3-entry function-pointer
    table func_0201b7cc calls through on a 0xfe message control byte. Seated with
@@ -251,11 +261,13 @@ char data_0209fc64[4];
    called the ROM's own reset. kind:bss, so zero is the boot value. */
 int data_0209cef0;
 }
+DSSTATE_END
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */
 namespace Sound { void UnsetPlayerVoiceGroup(); }
 void Sound::UnsetPlayerVoiceGroup() {}
 
+DSSTATE_BEGIN
 /* ---- gate 29: the particle engine's own BSS -------------------------------
    data_0209ee78/7c/80 are the three cursors of the arena SysTracker::
    Initialise carves out (base, end, current) and func_02023178 bump-allocates
@@ -276,6 +288,7 @@ int data_0209ee8c[8];
 int data_020a4d30[8];
 int LCG_STATE_0204da4c;
 }
+DSSTATE_END
 
 /* gate 50: ov080's PAINTING (daPicGate_c, 307) bss is NOT here -- it is
    mounted with the rest of the overlay in ov080_syms.txt so the DATA table

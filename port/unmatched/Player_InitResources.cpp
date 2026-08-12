@@ -10,6 +10,7 @@
 // -O4,p (only stack u8[N]={0} does); small asm block reproduces it.
 // Also: pin data_0209f2d8 in local `d` so ==2 keeps r1 bool (preserves r0);
 // decl order td,tx,tz + load order for RaycastGround pos regs.
+#include "hal/dsstate_seg.h"
 typedef signed char s8;
 typedef unsigned char u8;
 typedef short s16;
@@ -44,6 +45,11 @@ extern "C" {
     void func_020072c0(void);
     void func_0203d384(void);
 
+/* The definitions below are hosted DS globals (the player's resource and
+   spawn latches), so they go in the section the save state captures. A
+   restore that left these behind would keep the pre-save player-init state
+   alive underneath a restored world. See hal/dsstate_seg.h. */
+DSSTATE_BEGIN
     u8 data_0209f2d8;
     s8 data_0209f2f8;
     u8 data_0209f254;
@@ -66,6 +72,7 @@ extern "C" {
        recorded return point" value. This TU only ever writes 2. */
     extern s8 data_0209211c;
     u8 data_0209f200;
+DSSTATE_END
 }
 
 struct V3 { int x, y, z; };

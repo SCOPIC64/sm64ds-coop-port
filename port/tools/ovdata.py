@@ -234,11 +234,23 @@ def whole_mode(root, ov, ovid, base, data, out_path):
     lines += [
         "typedef unsigned char u8;",
         "",
+        # The whole-overlay image is mutable game state (SharedFilePtr caches,
+        # actor tables) that a save state has to roll back, so route it into the
+        # .dsstate section the snapshot captures. The section declaration must
+        # come first: without it a bss-flavoured contribution gets different
+        # characteristics from the sentinels' section and the linker silently
+        # splits .dsstate in two, leaving these bytes outside the captured span
+        # (LNK4078). See hal/dsstate_seg.h.
+        '#pragma section(".dsstate$mmm", read, write)',
+        '#pragma data_seg(".dsstate$mmm")',
+        '#pragma bss_seg(".dsstate$mmm")',
         f"/* {len(data):#x} bytes of image + {bss:#x} of bss, one object so the"
         " game's",
         " * table walks stay inside it however far past a symbol they step. */",
         f"__declspec(align(8)) u8 {tag}_image[{total}] = "
         f"{{ {romblob_common.init_body(data)} }};",
+        "#pragma data_seg()",
+        "#pragma bss_seg()",
         f"const unsigned {tag}_ds_base = {base:#010x}u;",
         f"const unsigned {tag}_ds_end = {base + total:#010x}u;",
         "",
@@ -505,6 +517,19 @@ def main():
     if romblob_common.ROM_CLEAN:
         lines.append("#include <string.h>")
     lines += ["typedef unsigned char u8;", ""]
+    # Overlay data is mutable game state (SharedFilePtr caches, actor and anim
+    # tables) a save state must roll back. The plain per-symbol arrays below
+    # come out in the default rw data unless routed, so set the .dsstate default
+    # segment before them and clear it after. Packed mounts (--pack) place each
+    # symbol in its own .dsstate$pkNNN slot explicitly, so they do not lean on
+    # this default. The section declaration comes first so a bss-flavoured array
+    # here carries the same characteristics as the sentinels' section; without it
+    # the linker splits .dsstate in two and these bytes fall outside the captured
+    # span (LNK4078). See hal/dsstate_seg.h.
+    if not pack:
+        lines.append('#pragma section(".dsstate$mmm", read, write)')
+        lines.append('#pragma data_seg(".dsstate$mmm")')
+        lines.append('#pragma bss_seg(".dsstate$mmm")')
     # --pack: THE SYMBOLS KEEP THEIR ROM SPACING.
     #
     # dsd names a symbol wherever code happened to reference one, so a single
@@ -548,6 +573,15 @@ def main():
 
     if pack:
         tag = f"pk{ovid:03d}"
+        # A packed mount keeps each symbol in its own section slot so the run
+        # reproduces the ROM's spacing. Route those slots INTO the .dsstate
+        # section the save state captures: one base section .dsstate, grouped
+        # (and ordered) by a per-mount, per-slot suffix after the single `$`.
+        # MSVC merges grouped sections by the text after the first `$`, so
+        # pkNNN_SSSS sorts this mount's slots in order and drops the whole run
+        # between the .dsstate$aaa/$zzz sentinels. See hal/dsstate_seg.h.
+        def pksect(s):
+            return f".dsstate$pk{ovid:03d}_{s:04d}"
         pack_rows.sort()
         slot = 0
         prev_end = None
@@ -576,15 +610,15 @@ def main():
                 # only to pad the run so the named symbols keep their ROM
                 # spacing, and its bytes are never read directly.
                 lines.append(
-                    f'__pragma(section(".{tag}${slot:04d}", read, write))'
-                    f' __declspec(allocate(".{tag}${slot:04d}"))'
+                    f'__pragma(section("{pksect(slot)}", read, write))'
+                    f' __declspec(allocate("{pksect(slot)}"))'
                     f' __declspec(align({rom_align(prev_end)}))'
                     f' static u8 {tag}_gap_{prev_end:08x}'
                     f'[{gap}] = {{ 0 }};')
                 slot += 1
             lines.append(
-                f'__pragma(section(".{tag}${slot:04d}", read, write))'
-                f' __declspec(allocate(".{tag}${slot:04d}"))'
+                f'__pragma(section("{pksect(slot)}", read, write))'
+                f' __declspec(allocate("{pksect(slot)}"))'
                 f' __declspec(align({rom_align(a)}))'
                 f' u8 {name}[{size}] = '
                 f'{{ {romblob_common.init_body(blob_of[name])} }};')
@@ -692,6 +726,14 @@ def main():
                 patches.append("    *(unsigned int *)(%s + %d) = "
                                "(unsigned int)(%s + %d);"
                                % (name, off, hit[2], v - hit[0]))
+    # Close the .dsstate default segment opened for the plain mount so the
+    # apply/patch code and anything after it stays in the ordinary segments.
+    # (data_seg does not affect functions, but the synthetic gap arrays above
+    # are data and had to land in .dsstate too, which they did while it was
+    # open.) Packed mounts never opened it.
+    if not pack:
+        lines.append('#pragma data_seg()')
+        lines.append('#pragma bss_seg()')
     lines.append("")
     lines.append("void port_%s_%spatch(void)\n{"
                  % (ov, "syms_" if pack else ""))

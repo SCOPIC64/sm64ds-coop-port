@@ -121,6 +121,10 @@ add_library(ntr STATIC
     ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/ppu_sub.cpp ntr/lz77.cpp
     ntr/rt.cpp ntr/runtime.cpp ntr/fs.cpp ntr/bmd.cpp)
 target_include_directories(ntr PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ntr/include")
+# ntr/runtime.cpp hosts two DS DMA globals (data_020a60c4/data_020a6460) that
+# are real save state, so it needs hal/dsstate_seg.h. PRIVATE: only this
+# library reads it, consumers keep their own include set.
+target_include_directories(ntr PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 if(MSVC)
     target_compile_options(ntr PRIVATE /wd4311 /wd4312)
 endif()
@@ -131,6 +135,10 @@ add_library(ntr_2x STATIC
     ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/ppu_sub.cpp ntr/lz77.cpp
     ntr/rt.cpp ntr/runtime.cpp ntr/fs.cpp ntr/bmd.cpp)
 target_include_directories(ntr_2x PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ntr/include")
+# ntr/runtime.cpp hosts two DS DMA globals (data_020a60c4/data_020a6460) that
+# are real save state, so it needs hal/dsstate_seg.h. PRIVATE: only this
+# library reads it, consumers keep their own include set.
+target_include_directories(ntr_2x PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_definitions(ntr_2x PUBLIC NTR_HIRES2)
 if(MSVC)
     target_compile_options(ntr_2x PRIVATE /wd4311 /wd4312)
@@ -142,6 +150,10 @@ add_library(ntr_hires STATIC
     ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/ppu_sub.cpp ntr/lz77.cpp
     ntr/rt.cpp ntr/runtime.cpp ntr/fs.cpp ntr/bmd.cpp)
 target_include_directories(ntr_hires PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ntr/include")
+# ntr/runtime.cpp hosts two DS DMA globals (data_020a60c4/data_020a6460) that
+# are real save state, so it needs hal/dsstate_seg.h. PRIVATE: only this
+# library reads it, consumers keep their own include set.
+target_include_directories(ntr_hires PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_definitions(ntr_hires PUBLIC NTR_HIRES)
 if(MSVC)
     target_compile_options(ntr_hires PRIVATE /wd4311 /wd4312)
@@ -565,7 +577,7 @@ endif()
 # Save-state verification (lane lk6): the same actor world as smoke_actor, plus
 # hal/lk6_savestate.cpp, driving save -> diverge -> load -> byte-exact compare.
 add_executable(smoke_savestate tests/smoke_savestate.cpp
-    hal/lk6_savestate.cpp hal/auto_bss.cpp
+    hal/lk6_savestate.cpp hal/dsstate_seg.cpp hal/auto_bss.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -2565,7 +2577,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/host_settings.cpp
     # in-memory save state (lane lk6): F8/F9 snapshot and restore of the hosted
     # DS arena plus the out-of-arena game globals.
-    hal/lk6_savestate.cpp
+    hal/lk6_savestate.cpp hal/dsstate_seg.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/meshcolliderbase_vtable.cpp hal/meshcollider_dtor_seat.cpp hal/lk1_eh_vmax_seat.cpp hal/lk2_platform_dtor_seat.cpp hal/model_dtor_seat.cpp hal/lk4_eh_dtor_seat.cpp hal/lk4_solidheap_seat.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -2637,6 +2649,17 @@ if(MSVC)
     target_compile_options(walk_window PRIVATE /wd4311 /wd4312 /wd4068 /wd4576)
 endif()
 
+# The save state captures the whole .dsstate section (hal/dsstate_seg.h). Fail
+# the build if a hosted DS global landed OUTSIDE it: that symbol would not roll
+# back on a restore, which is exactly the class of bug that shipped in 0.2.0
+# (the ANIM_PTRS table crashing Player::SetAnim on a null BCA_File*). The map
+# the guard reads is the one /MAP already writes next to the exe.
+add_custom_command(TARGET walk_window POST_BUILD
+    COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/dsstate_guard.py"
+            "$<TARGET_FILE_DIR:walk_window>/walk_window.map"
+    VERBATIM
+    COMMENT "dsstate_guard: hosted DS globals all inside .dsstate")
+
 # hires clone for screenshot sessions (4x resolution, ~1/16 the fps)
 add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_OV_DATA}
     # dialogue pipeline (2026-08-08): pump, engine-A compositor, headless probe.
@@ -2645,7 +2668,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/host_settings.cpp
     # in-memory save state (lane lk6): F8/F9 snapshot and restore of the hosted
     # DS arena plus the out-of-arena game globals.
-    hal/lk6_savestate.cpp
+    hal/lk6_savestate.cpp hal/dsstate_seg.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/meshcolliderbase_vtable.cpp hal/meshcollider_dtor_seat.cpp hal/lk1_eh_vmax_seat.cpp hal/lk2_platform_dtor_seat.cpp hal/model_dtor_seat.cpp hal/lk4_eh_dtor_seat.cpp hal/lk4_solidheap_seat.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp

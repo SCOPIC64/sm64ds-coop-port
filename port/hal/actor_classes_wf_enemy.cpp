@@ -42,6 +42,7 @@
 // Yoshi egg at anything as Mario. FortressWall is a Platform whose slot 30 is
 // the arm9 base body, filled by the shared pass.
 #include <cstdio>
+#include "dsstate_seg.h"
 #include <cstdlib>
 
 #include "Actor.h"
@@ -331,7 +332,9 @@ int func_ov079_02126e58(char *self);          /* slot 31, its own Kill */
    Declared as bytes rather than void*[] because BillBlaster_Spawn installs it
    through a char* face; the count is the slot count times four, so it moves
    with the slot count. */
+DSSTATE_BEGIN
 unsigned char data_ov079_02127fb8[32 * 4];    /* the host vtable BillBlaster_Spawn installs */
+DSSTATE_END
 }
 
 static int __fastcall blz_init(void *s, void *)

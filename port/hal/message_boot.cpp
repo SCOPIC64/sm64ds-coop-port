@@ -45,6 +45,7 @@
 #include <cctype>
 
 #include "MessageBank.h"
+#include "dsstate_seg.h"
 
 extern "C" {
 
@@ -65,8 +66,10 @@ extern int data_0209d70c[];   /* gMessageInfoSection (the header func_0201f32c r
 
 /* Written by the real parser, read by nothing matched. Defined below so the
    host copy stores everything the ROM parser does. */
+DSSTATE_BEGIN
 int data_0209d6e8;            /* gMessageBankHeader */
 int data_0209d6ec;            /* gMessageDataSection */
+DSSTATE_END
 
 void port_message_dump(int id); /* defined below */
 

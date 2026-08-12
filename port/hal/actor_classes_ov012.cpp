@@ -14,6 +14,7 @@
 // RockPillar/SkiLift shape) -- dropped from slice_gate199.txt, byte-locked
 // matched-src proof only.
 #include <cstdio>
+#include "dsstate_seg.h"
 #include <cstdlib>
 
 #include "Actor.h"
@@ -52,8 +53,10 @@ int func_ov012_02111324(void *self);       /* slot 9, Render -- HOST COPY,
                                                unmatched/ModelAnim_Renders.cpp */
 void func_ov012_0211123c(char *self);      /* slot 21, own OnGroundPounded */
 void *SwitchPillar_Spawn(void);            /* installs data_ov012_02112344 */
+DSSTATE_BEGIN
 int data_ov012_02112344[32];               /* SwitchPillar's own vtable, unnamed by
                                                dsd -- host array */
+DSSTATE_END
 
 /* BASEMENT_WATER (daObjC0Water_c) own bodies -- misnamed _ZN12SwitchPillar*
    by dsd (the class-identity swap), matched src under those filenames */

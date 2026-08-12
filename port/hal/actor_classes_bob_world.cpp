@@ -75,6 +75,7 @@
 // with the link closed and only the seat to write. Until then they have no
 // registry row, so the spawn gate names them as skipped instead of dying.
 #include <cstdio>
+#include "dsstate_seg.h"
 #include <cstdlib>
 
 #include "Actor.h"
@@ -990,7 +991,9 @@ int *func_ov002_020f03c4(int *self);     /* D1 */
 /* The vtable is HOST STORAGE the registry fills, not mounted ROM bytes, so
    the name dsd gave the address is declared here rather than emitted by
    ovdata. The factory spells it by its RTTI name. */
+DSSTATE_BEGIN
 void *data_ov002_0210b030[31];
+DSSTATE_END
 }
 #pragma comment(linker, "/alternatename:__ZTV9daSCoin_c=_data_ov002_0210b030")
 static int __fastcall is_init(void *s, void *)
@@ -1040,7 +1043,9 @@ int func_ov002_020b0650(void);         /* slot 9  Render */
 void func_ov002_020b064c(void);        /* slot 12 OnPendingDestroy */
 int *func_ov002_020b05d0(int *self);   /* slot 16 D1 */
 int *func_ov002_020b0600(int *self);   /* slot 17 D0 */
+DSSTATE_BEGIN
 void *data_ov002_02108480[31];
+DSSTATE_END
 }
 #pragma comment(linker, "/alternatename:__ZTV7daBar_c=_data_ov002_02108480")
 static int __fastcall ip_init(void *s, void *)
@@ -1369,7 +1374,9 @@ int func_ov002_020ec410(char *self);     /* Behavior */
 int func_ov002_020ec408(char *self);     /* Render */
 void func_ov002_020ec404(char *self);    /* OnPendingDestroy */
 int *func_ov002_020ec388(int *self);     /* D1 */
+DSSTATE_BEGIN
 void *data_ov002_0210acbc[31];
+DSSTATE_END
 }
 #pragma comment(linker, "/alternatename:__ZTV11daWarpkun_c=_data_ov002_0210acbc")
 static int __fastcall warp_init(void *s, void *)

@@ -45,6 +45,7 @@
 // unk_05c/060/064 and arms a 0x78-frame timer; Behavior waits for the player
 // within 0x180000, plays a sound, counts the timer down and kills the actor.
 #include <cstdio>
+#include "dsstate_seg.h"
 #include <cstdlib>
 
 #include "Actor.h"
@@ -401,7 +402,9 @@ int *PowerStarCreate_Spawn(void);            /* installs data_ov018_02113a74 */
    note here said "the table is 18 words, ends here". The reloc run says 31:
    18..30 are Actor's own list, and slot 31 is _ZTI15daObjIceBoard_c, the RTTI
    record of the NEXT object. A plain Actor table, no Platform Kill. */
+DSSTATE_BEGIN
 int data_ov018_02113a74[31];                 /* the unnamed vtable, host array */
+DSSTATE_END
 }
 /* func_ov018_02112730.cpp (Behavior) declares its OWN local `struct Actor {
    static int Spawn(unsigned, unsigned, const Vector3&, const Vector3_16*,
@@ -824,7 +827,9 @@ int func_ov018_02111368(char *self);            /* slot 6, Behavior */
 int func_ov018_02111340(void *self);             /* slot 9, Render */
 void func_ov018_0211123c(char *self, void *p);  /* slot 27, OnHitByMegaChar */
 void *SkiLift_Spawn(void);                       /* installs data_ov018_021138cc */
+DSSTATE_BEGIN
 int data_ov018_021138cc[32];                     /* the class's own vtable, host array */
+DSSTATE_END
 extern int _ZTV8Platform[];                      /* Platform's own base table, already
                                                       hosted (hal/actor_vtables.cpp) */
 void _ZN18MovingMeshColliderD1Ev(void *);        /* MovingMeshCollider at +0x124 */

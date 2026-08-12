@@ -28,6 +28,7 @@
 // _ZTV5Model[5] is dual-filled (hal/cxxname_bridge.cpp), the Tree/ov072/l7
 // precedent -- NOT the ModelAnim slot-5 collision.
 #include <cstdio>
+#include "dsstate_seg.h"
 #include <cstdlib>
 
 #include "Actor.h"
@@ -65,10 +66,12 @@ int func_ov013_021112a8(char *self);       /* slot 6, Behavior (the swing) */
 int func_ov013_02111280(void *self);       /* slot 9, Render (from src,
                                                plain-Model slot-5) */
 void *ClockPaintingPendulum_Spawn(void);   /* installs data_ov013_02112128 */
+DSSTATE_BEGIN
 int data_ov013_02112128[31];               /* Pendulum's own vtable, unnamed
                                                and five-way split by dsd --
                                                host array spanning
                                                0x02112128..0x021121a4 */
+DSSTATE_END
 
 /* CLOCK_HAND_SHORT/LONG shared own bodies -- real C++ methods against
    ClockPaintingHandShort.h, faced below (Render too: it compiles from src

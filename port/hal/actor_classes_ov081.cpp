@@ -36,6 +36,8 @@
 // BoB. Declared here as a zero-initialized host global (never written by
 // anything in this build) so those guards see the same zero the ROM's own
 // unmounted-overlay BSS would read.
+#include "dsstate_seg.h"
+DSSTATE_BEGIN
 extern "C" int data_ov004_020beb68;
 int data_ov004_020beb68 = 0;
 /* data_0209b308[2] is read INSIDE the same function, but only after the
@@ -43,6 +45,7 @@ int data_ov004_020beb68 = 0;
    still needs to link. Zero-initialized, never read at runtime. */
 extern "C" int data_0209b308[4];
 int data_0209b308[4] = {0, 0, 0, 0};
+DSSTATE_END
 
 #include <cstdio>
 #include <cstdlib>

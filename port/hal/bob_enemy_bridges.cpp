@@ -15,6 +15,7 @@
 // are, and both are the ROM's own answer rather than a guess.
 #include <cstdio>
 #include <cstdlib>
+#include "dsstate_seg.h"
 
 extern "C" {
 /* the C-named definitions the aliases below land on */
@@ -256,7 +257,9 @@ unsigned char VS_STAR_SPAWN_ORDERS[6][0xC] = {
     { 0, 3, 2, 1, 4, 0, 0, 0, 0, 0, 0, 0 },
     { 0, 3, 1, 2, 4, 0, 0, 0, 0, 0, 0, 0 },
 };
+DSSTATE_BEGIN
 unsigned char *data_0209f344;
+DSSTATE_END
 
 /* the red-coin counter NumRedCoins reads: DEFINED in hal/auto_bss.cpp, where
    this gate's 4-byte sizing was carried over. */
