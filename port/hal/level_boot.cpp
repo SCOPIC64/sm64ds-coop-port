@@ -1391,6 +1391,7 @@ void hal_fill_moving_mesh_collider_vtable(void);
 void hal_fill_meshcolliderbase_vtable(void);
 void hal_seat_meshcollider_dtor(void);
 void hal_seat_expandingheap_vmax(void);
+void hal_seat_platform_dtors(void);
 void port_ov009_sinits(void);
 void port_actor_overlays_sinits(void);
 extern void *data_0209f318;
@@ -2038,6 +2039,14 @@ extern "C" void port_stage_a2_seat(void)
        callee needs gate 4b's cstd::abs, which the minimal root-heap targets
        do not link, so those keep the traps (no caller evidence anywhere). */
     hal_seat_expandingheap_vmax();
+
+    /* Linkage seat: Platform's own destructor pair into slots 16/17 of the
+       hosted base table (both storage names), the bodies the ROM's table at
+       ov002 0x0210ae38 carries there. walk_window family only, next to the
+       collider seats above; the base table is only installed mid-teardown and
+       nothing dispatches through it, so the seat is the ROM's contents where
+       the trap prefill stood. hal/lk2_platform_dtor_seat.cpp. */
+    hal_seat_platform_dtors();
 
     /* The LEVEL overlay's own static initialisers, where the DS runs them:
        after the overlay is mounted and before anything spawns. Every

@@ -363,3 +363,12 @@ src/_ZN18MovingMeshColliderD0Ev.c
 src/_ZN13ExpandingHeap22VMaxAllocationUnitSizeEv.cpp
 src/_ZN13ExpandingHeap19VMaxAllocatableSizeEv.cpp
 src/_ZN22ExpandingHeapAllocator18MaxAllocatableSizeEi.cpp
+# LINKAGE SEAT (lk2): Platform's own destructor pair -- the two bodies the
+# ROM's base table at ov002 0x0210ae38 carries in slots 16/17 (D1 spelled
+# D2Ev by config, D0 deleting). Seated into both hosted storage names
+# (_ZTV10dBgActor_c and _ZTV8Platform) at boot by
+# hal/lk2_platform_dtor_seat.cpp; the base table is only installed
+# mid-teardown and nothing dispatches through it, so the seat replaces the
+# trap prefill with the ROM's own contents. walk_window family only.
+src/_ZN8PlatformD2Ev.c
+src/_ZN8PlatformD0Ev.c
