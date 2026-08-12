@@ -82,7 +82,7 @@ extern unsigned char data_0209d660;                 /* message-active lock */
 // host stack is far more than this actor smoke needs to link, and the audio
 // reset is a no-op for a headless run with no device open, so this test
 // provides the symbols directly. In the shipped walk_window build these
-// resolve to the real hal/sdat/sseq.cpp, mixer.cpp and consumer.cpp.
+// resolve to the real hal/sdat/sseq.cpp, mixer.cpp, consumer.cpp and sdat.cpp.
 //
 // Note what this means for coverage: the command-queue reset that keeps a
 // restore from faulting in func_0205b274 is stubbed out HERE, so this test
@@ -91,6 +91,16 @@ extern unsigned char data_0209d660;                 /* message-active lock */
 void sd_seq_reset(void) {}
 void sd_mix_reset(void) {}
 void sd_consumer_reset(void) {}
+void sd_waves_reset(void) {}
+
+// The hardware content stores (palette/video/sprite memory) need NO stub: this
+// smoke links the ntr library, so lk6_savestate reaches the real
+// port_hw_regions_* hooks in ntr/io.cpp, and the slot simply carries whatever
+// the reservation pass actually held (all three regions normally, size 0 if a
+// range was lost to another module). Either way the arena and .dsstate halves
+// of this test are unchanged. The cross-area texture roll-back those regions
+// exist for is walk_window reproducer territory (SM64DS_SS_* +
+// SM64DS_EXIT_ENTER), where another area actually mounts.
 
 typedef int (__thiscall *Fn0)(void *);
 static int vcall0(void *actor, int slot)

@@ -459,6 +459,47 @@ void port_stage_a2_seat(void);
 int lk6_savestate_save(void);
 int lk6_savestate_load(void);
 int lk6_savestate_has(void);
+
+/* Two seconds of on-screen text for the save-state actions. Every earlier
+   report of "F8 did nothing" was undiagnosable because the only evidence was a
+   line on stderr, which a player never sees: a press eaten by the focus gate,
+   a menu row left unconfirmed and a save that genuinely happened all looked
+   identical. The toast is drawn every frame after the menu (so neither the
+   menu nor the overlay hides it) and says which of the three it was. */
+static char ss_toast[64];
+static int  ss_toast_left;
+static void ss_note(const char *msg)
+{
+    snprintf(ss_toast, sizeof ss_toast, "%s", msg);
+    ss_toast_left = 120;
+}
+
+/* ntr/io.cpp: the hardware content stores the save state captures. The
+   reproducer below hashes them to PROVE a restore put the bytes back, because
+   "the run kept stepping" is satisfiable with the wrong textures on screen --
+   that is precisely how the 0.2.1 cross-area bug shipped. */
+extern "C" unsigned port_hw_regions_size(void);
+extern "C" void port_hw_regions_copy_out(void *dst);
+
+/* FNV-1a over the hardware stores, through the same copy-out the save uses.
+   One lazily allocated buffer; ~9.5MB, three hashes an assert run. */
+static unsigned long long ss_hw_hash(void)
+{
+    static char *buf;
+    const unsigned n = port_hw_regions_size();
+    if (!n) return 0;
+    if (!buf) {
+        buf = (char *)malloc(n);
+        if (!buf) return 0;
+    }
+    port_hw_regions_copy_out(buf);
+    unsigned long long h = 1469598103934665603ull;
+    for (unsigned i = 0; i < n; ++i) {
+        h ^= (unsigned char)buf[i];
+        h *= 1099511628211ull;
+    }
+    return h;
+}
 /* the actor registry and the ROM's own processing lists (hal/actor_registry) */
 void port_actor_tick(void);          /* phases 4/2/3: cleanup, init, behaviour */
 /* gate 31: the level handoff (hal/level_change.cpp). port_level_change_poll
@@ -2389,9 +2430,17 @@ int main(void)
             static int save_edge, load_edge;
             const int save_now = key_live(VK_F8);
             const int load_now = key_live(VK_F9);
-            if (save_now && !save_edge) lk6_savestate_save();
+            if (save_now && !save_edge)
+                ss_note(lk6_savestate_save() ? "state saved (F9 loads it)"
+                                             : "state NOT saved (see log)");
             if (load_now && !load_edge) {
-                if (lk6_savestate_load()) an_pivot_live = 0;  /* no ease across */
+                if (lk6_savestate_load()) {
+                    an_pivot_live = 0;   /* no ease across */
+                    ss_note("state loaded");
+                } else {
+                    ss_note(lk6_savestate_has() ? "state NOT loaded (see log)"
+                                                : "no state saved yet (F8 saves)");
+                }
             }
             save_edge = save_now;
             load_edge = load_now;
@@ -2422,9 +2471,10 @@ int main(void)
                                         reachable in a plain headless walk. */
         if (selftest) {
             static int ss_env, ss_save_fr = -1, ss_load_fr = -1,
-                       ss_lock = 0, ss_assert = 0;
+                       ss_lock = 0, ss_assert = 0, ss_expect_mount = 0;
             static unsigned char ss_lock_at_save;
             static int ss_saw_save = 0;
+            static unsigned long long ss_hash_at_save;
             if (!ss_env) {
                 ss_env = 1;
                 const char *s = getenv("SM64DS_SS_SAVE");
@@ -2433,13 +2483,21 @@ int main(void)
                 if (l) ss_load_fr = atoi(l);
                 ss_lock = getenv("SM64DS_SS_LOCK") != 0;
                 ss_assert = getenv("SM64DS_SS_ASSERT") != 0;
+                /* the cross-area variant: something between save and load is
+                   expected to MOUNT another area (SM64DS_EXIT_ENTER drives the
+                   real door path). Requiring the hardware stores to have
+                   actually CHANGED before the load makes a mistimed run fail
+                   loudly instead of passing without testing anything. */
+                ss_expect_mount = getenv("SM64DS_SS_EXPECT_MOUNT") != 0;
             }
             if (ss_save_fr >= 0 && frame == ss_save_fr) {
                 lk6_savestate_save();
                 ss_lock_at_save = data_0209d660;
+                ss_hash_at_save = ss_hw_hash();
                 ss_saw_save = 1;
-                fprintf(stderr, "[ss-repro] f%d save: msglock(d660)=%u\n",
-                        frame, (unsigned)data_0209d660);
+                fprintf(stderr, "[ss-repro] f%d save: msglock(d660)=%u "
+                        "hw=%016llx\n", frame, (unsigned)data_0209d660,
+                        ss_hash_at_save);
             }
             /* perturb the out-of-arena lock strictly between save and load, so
                the world provably diverges on a hosted global the arena copy
@@ -2448,12 +2506,26 @@ int main(void)
                 frame > ss_save_fr && frame < ss_load_fr)
                 data_0209d660 = 1;
             if (ss_load_fr >= 0 && frame == ss_load_fr) {
-                fprintf(stderr, "[ss-repro] f%d pre-load: msglock(d660)=%u\n",
-                        frame, (unsigned)data_0209d660);
+                const unsigned long long pre = ss_hw_hash();
+                fprintf(stderr, "[ss-repro] f%d pre-load: msglock(d660)=%u "
+                        "hw=%016llx (%s the saved hash)\n", frame,
+                        (unsigned)data_0209d660, pre,
+                        pre == ss_hash_at_save ? "STILL" : "differs from");
+                if (ss_expect_mount && pre == ss_hash_at_save) {
+                    fprintf(stderr, "[ss-repro] FAIL(vacuous): the hardware "
+                            "stores never changed between save and load, so "
+                            "no area mounted and a cross-area restore was not "
+                            "tested. Check SM64DS_EXIT_ENTER's index/frame "
+                            "and give the mount more frames.\n");
+                    ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
+                    return 5;
+                }
                 if (lk6_savestate_load()) an_pivot_live = 0;
+                const unsigned long long post = ss_hw_hash();
                 fprintf(stderr, "[ss-repro] f%d post-load: msglock(d660)=%u "
-                        "(saved %u)\n", frame, (unsigned)data_0209d660,
-                        (unsigned)ss_lock_at_save);
+                        "(saved %u) hw=%016llx\n", frame,
+                        (unsigned)data_0209d660, (unsigned)ss_lock_at_save,
+                        post);
                 if (ss_assert && data_0209d660 != ss_lock_at_save) {
                     fprintf(stderr, "[ss-repro] FAIL: message-lock global "
                             "data_0209d660 did NOT roll back on restore "
@@ -2463,9 +2535,18 @@ int main(void)
                     ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
                     return 3;
                 }
+                if (ss_assert && post != ss_hash_at_save) {
+                    fprintf(stderr, "[ss-repro] FAIL: the hardware stores did "
+                            "NOT roll back on restore (post-load %016llx, "
+                            "saved %016llx) -- the world came back under "
+                            "another area's textures, the 0.2.1 cross-area "
+                            "bug\n", post, ss_hash_at_save);
+                    ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
+                    return 4;
+                }
                 if (ss_assert)
-                    fprintf(stderr, "[ss-repro] PASS: message-lock global "
-                            "rolled back on restore\n");
+                    fprintf(stderr, "[ss-repro] PASS: message-lock global and "
+                            "the hardware stores rolled back on restore\n");
             }
         }
         /* drain what the window procedure collected. Unconditionally, so a
@@ -2704,14 +2785,27 @@ int main(void)
                     case MENU_SAVESTATE:
                         /* enter/right only: snapshot into the slot. Same call
                            F8 makes; the menu pauses the tick, which is as safe
-                           a between-frames point as the top-of-loop latch. */
-                        if (edge & (1u << 5)) lk6_savestate_save();
+                           a between-frames point as the top-of-loop latch.
+                           The toast fires here too: highlighting the row and
+                           closing the menu does NOT save, and the only way a
+                           player can learn that is being shown the difference. */
+                        if (edge & (1u << 5))
+                            ss_note(lk6_savestate_save()
+                                        ? "state saved (F9 loads it)"
+                                        : "state NOT saved (see log)");
                         break;
                     case MENU_LOADSTATE:
                         /* enter/right only: restore the slot. A no-op with no
                            saved state. */
                         if (edge & (1u << 5)) {
-                            if (lk6_savestate_load()) an_pivot_live = 0;
+                            if (lk6_savestate_load()) {
+                                an_pivot_live = 0;
+                                ss_note("state loaded");
+                            } else {
+                                ss_note(lk6_savestate_has()
+                                            ? "state NOT loaded (see log)"
+                                            : "no state saved yet (F8 saves)");
+                            }
                         }
                         break;
                     default:
@@ -4952,6 +5046,16 @@ int main(void)
             ovl_draw(fb, os);
         }
         if (menu_on) menu_draw(fb);
+        /* the save-state toast, over everything, bottom-left. Decremented here
+           rather than in the tick so the menu's pause does not freeze it. */
+        if (ss_toast_left > 0) {
+            --ss_toast_left;
+            const int tw = (int)strlen(ss_toast) * OVL_ADVANCE * OVL_SCALE;
+            const int ty = ntr::SCREEN_H - OVL_LINE - 4;
+            ovl_shade(fb, 2, ty - 2, tw + 8 * OVL_SCALE,
+                      OVL_LINE + 4 * OVL_SCALE);
+            ovl_text(fb, 4 + OVL_SCALE, ty, ss_toast, 0xFFFFFFFFu);
+        }
 
         ph_begin(&t_phase);
         W.StretchDIBits_(hdc, 0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM,
