@@ -562,6 +562,27 @@ if(MSVC)
     target_compile_options(smoke_actor PRIVATE /wd4311 /wd4312 /wd4068)
 endif()
 
+# Save-state verification (lane lk6): the same actor world as smoke_actor, plus
+# hal/lk6_savestate.cpp, driving save -> diverge -> load -> byte-exact compare.
+add_executable(smoke_savestate tests/smoke_savestate.cpp
+    hal/lk6_savestate.cpp hal/auto_bss.cpp
+    hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
+    hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
+    hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp
+    ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
+    ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES} ${GATE8_EXTRA_SOURCES}
+    ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} "${ROMDATA_C}")
+target_include_directories(smoke_savestate PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(smoke_savestate PRIVATE ntr)
+target_compile_definitions(smoke_savestate PRIVATE SM64DS_PLATFORM_PC
+    PORT_REPO_ROOT="${PORT_REPO_ROOT_ABS}")
+if(MSVC)
+    target_compile_options(smoke_savestate PRIVATE /wd4311 /wd4312 /wd4068)
+endif()
+
 # Gate 10: Player spawns and stands (the walking campaign).
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate10.txt" SLICE10_LINES)
 set(SLICE10_SOURCES "")
@@ -2539,6 +2560,9 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/message_pump.cpp hal/message_compositor.cpp hal/message_probe.cpp hal/message_gen_text.cpp hal/input_probe.cpp
     # the launcher's settings.json, read by the game (camera turn direction)
     hal/host_settings.cpp
+    # in-memory save state (lane lk6): F8/F9 snapshot and restore of the hosted
+    # DS arena plus the out-of-arena game globals.
+    hal/lk6_savestate.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/meshcolliderbase_vtable.cpp hal/meshcollider_dtor_seat.cpp hal/lk1_eh_vmax_seat.cpp hal/lk2_platform_dtor_seat.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -2616,6 +2640,9 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/message_pump.cpp hal/message_compositor.cpp hal/message_probe.cpp hal/message_gen_text.cpp hal/input_probe.cpp
     # the launcher's settings.json, read by the game (camera turn direction)
     hal/host_settings.cpp
+    # in-memory save state (lane lk6): F8/F9 snapshot and restore of the hosted
+    # DS arena plus the out-of-arena game globals.
+    hal/lk6_savestate.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/meshcolliderbase_vtable.cpp hal/meshcollider_dtor_seat.cpp hal/lk1_eh_vmax_seat.cpp hal/lk2_platform_dtor_seat.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
