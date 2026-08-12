@@ -1395,6 +1395,7 @@ void hal_seat_platform_dtors(void);
 void hal_fill_enemy_base_vtable(void);
 void hal_seat_expandingheap_dtors(void);
 void hal_seat_model_family_dtors(void);
+void hal_seat_solidheap(void);
 void port_ov009_sinits(void);
 void port_actor_overlays_sinits(void);
 extern void *data_0209f318;
@@ -2111,6 +2112,13 @@ extern "C" void port_stage_a2_seat(void)
        family only (hal/model_dtor_seat.cpp rides the same targets as the
        MeshCollider dtor seat). */
     hal_seat_model_family_dtors();
+
+    /* Lane-lk4 linkage seat: the solid-heap face. SolidHeap's own sixteen
+       slot table filled with its matched bodies, and ActorBase::Virtual34/38
+       (the per-instance heap hooks) into slots 13/14 of _ZTV5Actor, after
+       the registry install's STAR_CAMERA fill trapped them. walk_window
+       family only (hal/lk4_solidheap_seat.cpp). */
+    hal_seat_solidheap();
 
     std::printf("[a2] scene root %p\n", port_stage_object());
 }

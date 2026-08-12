@@ -420,3 +420,48 @@ src/_ZN13HeapAllocator7DestroyEv.cpp
 src/_ZN13HeapAllocator6RemoveEv.cpp
 src/_ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj.cpp
 src/_ZN22ExpandingHeapAllocator16InvokeDeallocateEPvPS_j.cpp
+# LANE-LK4 LINKAGE SEAT 3: the solid-heap face, the batch the header note
+# above deferred by name (slots 13/14 "pull the whole Heap:: allocator face
+# in"). The closure was audited first: every member is a matched TU or was
+# already linked, no host-ABI floor, no hardware poke, no inferred body.
+# hal/lk4_solidheap_seat.cpp hosts _ZTV9SolidHeap (sixteen slots, the Heap
+# shape) and data_020a0ea8 (Memory::tmpHeapPtr), fills the table with
+# SolidHeap's own matched bodies, and seats ActorBase::Virtual34/Virtual38
+# (the per-instance heap hooks) into slots 13/14 of _ZTV5Actor at boot,
+# after the registry install's STAR_CAMERA fill trapped them. walk_window
+# family only.
+src/_ZN9ActorBase9Virtual34Ejj.cpp
+src/_ZN9ActorBase9Virtual38Ejj.cpp
+src/_ZN4Heap28InitializeSolidHeapAsDefaultEjPS_i.cpp
+src/_ZN4Heap23SetupSolidHeapAsDefaultEjPS_i.c
+src/_ZN4Heap15CreateSolidHeapEjPS_i.c
+src/_ZN4Heap24CreateSolidHeapAllocatorEPvjj.c
+src/_ZN4Heap10SetDefaultEv.cpp
+# _ZN4Heap11ResizeToFitEv: C++ inside a .c, rides GATE16_SYMS (hostgen).
+src/_ZN4Heap20RestoreFromTemporaryEv.c
+src/_ZN4Heap8_DestroyEv.cpp
+src/_ZN4Heap7DestroyEv.cpp
+src/_ZN9SolidHeapC1EPvjP4HeapP18SolidHeapAllocator.c
+src/_ZN18SolidHeapAllocatorC1EPvj.c
+src/_ZN9SolidHeapD1Ev.c
+src/_ZN9SolidHeapD0Ev.c
+src/_ZN9SolidHeap8VDestroyEv.c
+src/_ZN9SolidHeap9VAllocateEjj.cpp
+src/_ZN9SolidHeap11VDeallocateEPv.cpp
+src/_ZN9SolidHeap14VDeallocateAllEv.cpp
+src/_ZN9SolidHeap7VIntactEv.cpp
+src/_ZN9SolidHeap7VRescueEv.cpp
+src/_ZN9SolidHeap11VReallocateEPvj.cpp
+src/_ZN9SolidHeap7VSizeofEPv.cpp
+src/_ZN9SolidHeap22VMaxAllocationUnitSizeEv.cpp
+src/_ZN9SolidHeap19VMaxAllocatableSizeEv.cpp
+src/_ZN9SolidHeap11VMemoryLeftEv.cpp
+src/_ZN9SolidHeap10VSetNodeIDEj.cpp
+src/_ZN9SolidHeap10VGetNodeIDEv.cpp
+src/_ZN9SolidHeap12VResizeToFitEv.c
+src/func_0204ebb8.c
+src/_ZN18SolidHeapAllocator10MemoryLeftEi.c
+src/_ZN18SolidHeapAllocator14TryResizeToFitEv.c
+src/_ZN4Heap6RescueEv.cpp
+src/_ZN18SolidHeapAllocator8AllocateEji.c
+src/_ZN18SolidHeapAllocator10ReallocateEPvj.c
