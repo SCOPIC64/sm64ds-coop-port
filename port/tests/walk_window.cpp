@@ -454,6 +454,11 @@ unsigned _ZN5Stage11GetSkyboxIDEv(void);  /* the LVL_Overlay's skybox bits */
 extern int data_0209f320;                 /* the Stage's ModelComponents */
 int port_stage_path_guard(void *player);
 void port_stage_a2_seat(void);
+/* in-memory save state (hal/lk6_savestate.cpp): F8/F9 and the debug menu.
+   save/load return 1 when they acted, has() drives the menu label. */
+int lk6_savestate_save(void);
+int lk6_savestate_load(void);
+int lk6_savestate_has(void);
 /* the actor registry and the ROM's own processing lists (hal/actor_registry) */
 void port_actor_tick(void);          /* phases 4/2/3: cleanup, init, behaviour */
 /* gate 31: the level handoff (hal/level_change.cpp). port_level_change_poll
@@ -1153,6 +1158,8 @@ enum {
     MENU_OVERLAY,
     MENU_CAMERA,
     MENU_RECORDER,
+    MENU_SAVESTATE,     /* enter: snapshot the game into the in-memory slot */
+    MENU_LOADSTATE,     /* enter: restore the in-memory slot (F9's twin) */
     MENU_COUNT
 };
 
@@ -1276,6 +1283,10 @@ static void menu_draw(ntr::Framebuffer &fb)
     snprintf(ln[MENU_CAMERA], sizeof ln[0], "camera            %s",
              cam_mode_name(cam_mode));
     snprintf(ln[MENU_RECORDER], sizeof ln[0], "recorder          %s", g_playlog);
+    snprintf(ln[MENU_SAVESTATE], sizeof ln[0], "save state        F8   %s",
+             lk6_savestate_has() ? "(slot in use, overwrite)" : "(slot empty)");
+    snprintf(ln[MENU_LOADSTATE], sizeof ln[0], "load state        F9   %s",
+             lk6_savestate_has() ? "(restore slot)" : "(no state saved)");
 
     for (i = 0; i < MENU_COUNT; ++i) {
         const int lw = (int)strlen(ln[i]) * OVL_ADVANCE * OVL_SCALE;
@@ -2366,6 +2377,25 @@ int main(void)
             }
             chr_edge = now;
         }
+        /* F8 SNAPSHOTS the game, F9 RESTORES it. Their own edge latches, up
+           here at the top of the frame after the message drain and before this
+           frame's tick, which is the between-frames point the save state wants:
+           the previous tick is fully complete and nothing is mid-update. A load
+           with no prior save is a safe no-op (lk6_savestate_load says so and
+           does nothing). Deliberately outside the menu's held-mask below so
+           they work during live play whether or not the menu is open, and so
+           the menu never swallows them. */
+        {
+            static int save_edge, load_edge;
+            const int save_now = key_live(VK_F8);
+            const int load_now = key_live(VK_F9);
+            if (save_now && !save_edge) lk6_savestate_save();
+            if (load_now && !load_edge) {
+                if (lk6_savestate_load()) an_pivot_live = 0;  /* no ease across */
+            }
+            save_edge = save_now;
+            load_edge = load_now;
+        }
         /* drain what the window procedure collected. Unconditionally, so a
            drag taken in DS-exact mode does not pile up and dump into the rig
            the moment F1 hands it the view. MOUSE_YAW is 48 binangs a pixel --
@@ -2597,6 +2627,19 @@ int main(void)
                             if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
                             fprintf(stderr, "[menu] camera %s\n",
                                     cam_mode_name(cam_mode));
+                        }
+                        break;
+                    case MENU_SAVESTATE:
+                        /* enter/right only: snapshot into the slot. Same call
+                           F8 makes; the menu pauses the tick, which is as safe
+                           a between-frames point as the top-of-loop latch. */
+                        if (edge & (1u << 5)) lk6_savestate_save();
+                        break;
+                    case MENU_LOADSTATE:
+                        /* enter/right only: restore the slot. A no-op with no
+                           saved state. */
+                        if (edge & (1u << 5)) {
+                            if (lk6_savestate_load()) an_pivot_live = 0;
                         }
                         break;
                     default:
