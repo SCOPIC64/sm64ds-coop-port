@@ -386,3 +386,18 @@ src/_ZN6Player13OnYoshiTryEatEv.cpp
 # storage the ROM's contents. Its VT/HEAP placeholders are settled in
 # hal/cxx_aliases.cpp (Enemy base vtable, game heap word).
 src/_ZN5EnemyD0Ev.c
+# LANE-LK4 LINKAGE SEAT: the model family's own deleting dtors (D0), seated
+# into slot 0 of the five hosted primary tables at boot by
+# hal/model_dtor_seat.cpp (Model 0x02016ce0, Animation 0x02015cc4,
+# BlendModelAnim 0x02016644, plus ModelAnim and ModelAnim2), replacing the
+# no-op fillers (ModelAnim family) and the never-written nulls (Model,
+# Animation). Every callee is already linked: the D1/D2 chain came with the
+# class slices, func_0203cbc0 / Memory::operator_delete2 with the gate-16
+# MeshCollider dtor pair. walk_window family only; the secondary
+# Animation-subobject thunk tables keep their no-ops (this-adjust bodies,
+# not these primary-this D0s).
+src/_ZN5ModelD0Ev.c
+src/_ZN9AnimationD0Ev.c
+src/_ZN9ModelAnimD0Ev.c
+src/_ZN10ModelAnim2D0Ev.c
+src/_ZN14BlendModelAnimD0Ev.c

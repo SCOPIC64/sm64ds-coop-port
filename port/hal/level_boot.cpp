@@ -1393,6 +1393,7 @@ void hal_seat_meshcollider_dtor(void);
 void hal_seat_expandingheap_vmax(void);
 void hal_seat_platform_dtors(void);
 void hal_fill_enemy_base_vtable(void);
+void hal_seat_model_family_dtors(void);
 void port_ov009_sinits(void);
 void port_actor_overlays_sinits(void);
 extern void *data_0209f318;
@@ -2094,6 +2095,15 @@ extern "C" void port_stage_a2_seat(void)
     hal_fill_camera_vtable();
     hal_camera_slots_harness_owned();
     port_actor_registry_install();
+
+    /* Lane-lk4 linkage seat: the model family's own deleting dtors (D0) into
+       slot 0 of the five hosted primary tables. AFTER the registry install on
+       purpose: King Bob-omb's registry fill rewrites the BlendModelAnim slot
+       with its no-op, and this seat has to win every level boot. walk_window
+       family only (hal/model_dtor_seat.cpp rides the same targets as the
+       MeshCollider dtor seat). */
+    hal_seat_model_family_dtors();
+
     std::printf("[a2] scene root %p\n", port_stage_object());
 }
 
