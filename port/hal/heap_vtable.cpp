@@ -35,12 +35,18 @@ struct ExpandingHeap {
     bool VIntact();
     void VRescue();
     u32 VResizeToFit();
+    /* LINKAGE SEAT 2: the NodeID pair. Real matched forwarders to the
+       allocator's own (flat-C) NodeID accessors, bridged below. */
+    u32 VGetNodeID();
+    void VSetNodeID(u32 id);
 };
 struct ExpandingHeapAllocator {
     void *Allocate(u32 size, int align);
     void *Reallocate(void *p, u32 size);
     static u32 SizeofInternal(void *p);
     u32 MemoryLeft();
+    u32 GetNodeID();
+    void SetNodeID(u32 id);
 };
 
 // ---- globals the root-heap chain stores through --------------------------
@@ -63,6 +69,16 @@ u32 ExpandingHeapAllocator::SizeofInternal(void *p)
 { return _ZN22ExpandingHeapAllocator14SizeofInternalEPv(p); }
 u32 ExpandingHeapAllocator::MemoryLeft()
 { return _ZN22ExpandingHeapAllocator10MemoryLeftEv(this); }
+/* LINKAGE SEAT 2: the NodeID accessors. The V-method TUs call these as C++
+   methods while the definitions are flat C (self on the stack), the same
+   two-name-space bridge Allocate and MemoryLeft take above. The flat
+   SetNodeID returns the OLD id; the ROM's method face is void, so it drops. */
+extern "C" u32 _ZN22ExpandingHeapAllocator9GetNodeIDEv(void *self);
+extern "C" int _ZN22ExpandingHeapAllocator9SetNodeIDEj(void *self, u32 id);
+u32 ExpandingHeapAllocator::GetNodeID()
+{ return _ZN22ExpandingHeapAllocator9GetNodeIDEv(this); }
+void ExpandingHeapAllocator::SetNodeID(u32 id)
+{ _ZN22ExpandingHeapAllocator9SetNodeIDEj(this, id); }
 /* gate 16: ExpandingHeap::VReallocate calls the allocator as a method while
    its definition is a C name, the Allocate case one line up. */
 extern "C" u32 _ZN22ExpandingHeapAllocator10ReallocateEPvj(void *self,
@@ -164,6 +180,14 @@ static void __fastcall slot_rescue(void *self, void *)
 { ((ExpandingHeap *)self)->VRescue(); }
 static u32 __fastcall slot_resizetofit(void *self, void *)
 { return ((ExpandingHeap *)self)->VResizeToFit(); }
+/* LINKAGE SEAT 2: slots 13/14, the class's own matched NodeID forwarders
+   (arm9 0x0203c3f8 VSetNodeID, 0x0203c3e0 VGetNodeID, 2004/b56
+   byte-matches), which reach the allocator's flat-C accessors through the
+   method bridges above. */
+static void __fastcall slot_setnodeid(void *self, void *, u32 id)
+{ ((ExpandingHeap *)self)->VSetNodeID(id); }
+static u32 __fastcall slot_getnodeid(void *self, void *)
+{ return ((ExpandingHeap *)self)->VGetNodeID(); }
 
 #define TRAP(n) \
     static void __fastcall slot_trap##n(void *, void *) { \
@@ -171,7 +195,7 @@ static u32 __fastcall slot_resizetofit(void *self, void *)
                         "with no caller evidence (see heap_vtable.cpp)\n", n); \
         abort(); }
 TRAP(0) TRAP(1) TRAP(2) TRAP(5)
-TRAP(10) TRAP(11) TRAP(12) TRAP(13) TRAP(14)
+TRAP(10) TRAP(11) TRAP(12)
 
 extern "C" void *_ZTV13ExpandingHeap[16] = {
     (void *)slot_trap0, (void *)slot_trap1, (void *)slot_trap2,
@@ -183,6 +207,7 @@ extern "C" void *_ZTV13ExpandingHeap[16] = {
     (void *)slot_realloc,      /* 8: VReallocate */
     (void *)slot_sizeof,       /* 9: VSizeof */
     (void *)slot_trap10, (void *)slot_trap11, (void *)slot_trap12,
-    (void *)slot_trap13, (void *)slot_trap14,
+    (void *)slot_setnodeid,    /* 13: VSetNodeID - real matched body */
+    (void *)slot_getnodeid,    /* 14: VGetNodeID - real matched body */
     (void *)slot_resizetofit,  /* 15: VResizeToFit - real matched body */
 };

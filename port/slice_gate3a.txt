@@ -34,3 +34,13 @@ src/_ZN22ExpandingHeapAllocator10MemoryLeftEv.cpp
 src/_ZN13ExpandingHeap7VIntactEv.cpp
 src/_ZN13ExpandingHeap7VRescueEv.cpp
 src/_ZN13ExpandingHeap12VResizeToFitEv.cpp
+# LINKAGE SEAT 2: the NodeID pair (VSetNodeID 0x0203c3f8, VGetNodeID
+# 0x0203c3e0) and the allocator's own flat-C accessors they forward to
+# (SetNodeID 0x0204e0e8, GetNodeID 0x0204e0e0). heap_vtable.cpp seats the
+# V-methods into slots 13/14 of _ZTV13ExpandingHeap and bridges the C++
+# method calls to the flat definitions; no further callees, so the whole
+# chain is safe in the gate every target links.
+src/_ZN13ExpandingHeap10VSetNodeIDEj.cpp
+src/_ZN13ExpandingHeap10VGetNodeIDEv.cpp
+src/_ZN22ExpandingHeapAllocator9SetNodeIDEj.cpp
+src/_ZN22ExpandingHeapAllocator9GetNodeIDEv.c
