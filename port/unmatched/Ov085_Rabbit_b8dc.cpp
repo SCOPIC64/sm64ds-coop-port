@@ -29,6 +29,30 @@
  * ClosestPlayer. The byte-locked src is unchanged; its slice line (gate 18) is
  * commented out in favour of this copy. The body below is the matched source's
  * control flow line for line.
+ *
+ * PROOF (run linkw, lane l1). The raw TU still carries the bare call on both
+ * the declaration and the call line, and the port's own guard names it:
+ *
+ *     $ python -c "import closestplayer_guard as g; \
+ *                  print(g.scan_file(P, P))"    # P = src/func_ov085_0212b8dc.cpp
+ *     src/func_ov085_0212b8dc.cpp:13: zero-argument _ZN5Actor13ClosestPlayerEv
+ *     src/func_ov085_0212b8dc.cpp:34: zero-argument _ZN5Actor13ClosestPlayerEv
+ *
+ * The host face it would land on is one-argument cdecl --
+ * hal/reverse_bridges.cpp:45 declares `void *_ZN5Actor13ClosestPlayerEv(void *self)`
+ * and :141 defines `Player *Actor::ClosestPlayer() { return (Player *)
+ * _ZN5Actor13ClosestPlayerEv(this); }` -- so a zero-argument call hands it
+ * whatever word sits at [esp+4]. There is no host-side repair for that: the
+ * receiver is not merely in the wrong register, it was never materialised, and
+ * MSVC has no calling convention that invents it. Only the caller can supply
+ * `c`, and the caller is this TU.
+ *
+ * ONE CAVEAT worth writing down for whoever seats the next lane slice:
+ * tools/closestplayer_guard.py enumerates port/slice_gate*.txt only (its
+ * gate_active_files filters on `n.startswith("slice_gate")`), so the wave-1
+ * lane slices port/slice_w1l*.txt are NOT covered. Adding this raw src to
+ * slice_w1l1.txt and re-running the guard printed OK over an unchanged 3896
+ * TUs. The guard's protection here is the doc, not the build.
  */
 #include "types.h"
 
@@ -52,6 +76,7 @@ extern "C" {
     extern void* data_ov085_021305c8[];
 }
 
+/* PORT_HOST_ABI: implicit-register-arg -- Actor::ClosestPlayer is a nonstatic member whose `this` rode the caller's own r0 into the bl, so the raw src calls it with zero arguments; the host face is one-argument cdecl (hal/reverse_bridges.cpp:45,141) and reads stack garbage as `this`, the live RABBIT crash (null base + 0x5c in Vec3_Dist). Only the caller can supply the receiver. */
 extern "C" int func_ov085_0212b8dc(char* c)
 {
     char* player = (char*)_ZN5Actor13ClosestPlayerEv(c);   /* <- this rode r0 */

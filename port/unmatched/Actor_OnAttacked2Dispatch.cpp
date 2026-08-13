@@ -26,6 +26,39 @@
  *
  * WHAT IT IS IN THE GAME. A collision cast picks a target and tells it it was
  * attacked (slot 23, scale 0x64 -- the narrower of the two OnAttacked casts).
+ *
+ * PROOF (run linkw, lane l1). Both spellings compiled standalone with the port's
+ * own cl, /O2 /FAsc, and read off the listing. The raw src:
+ *
+ *     ; (*(void (**)(void *, char *))(*(int *)a + 0x5c))(a, actor);
+ *       8b 01      mov  eax, DWORD PTR [ecx]
+ *       53         push ebx            ; actor
+ *       51         push ecx            ; a -- the RECEIVER, pushed, not in ecx
+ *       8b 40 5c   mov  eax, DWORD PTR [eax+92]
+ *       ff d0      call eax
+ *       ...
+ *       83 c4 10   add  esp, 16        ; the caller cleans all four words
+ *
+ * this file:
+ *
+ *     ; ((Atk2Actor *)a)->OnAttacked2(actor);
+ *       8b 10      mov  edx, DWORD PTR [eax]
+ *       8b c8      mov  ecx, eax       ; a -- the receiver, in ecx as `this`
+ *       53         push ebx            ; actor
+ *       ff 52 5c   call DWORD PTR [edx+92]
+ *       ...
+ *       83 c4 08   add  esp, 8         ; two words, not four
+ *
+ * The eight-byte cleanup versus sixteen is the whole difference: the seated
+ * callee pops the argument itself. Slot 23 is seated in thirty classes and
+ * every seat is the __fastcall ret-4 shape (hal/actor_classes.cpp:402
+ * `vt[23] = ac_atk2`, defined at :167 as
+ * `static int __fastcall ac_atk2(void *s, void *, void *o)`), so linking the
+ * raw src would read `this` from whatever ecx happened to hold, take the
+ * receiver as its `other` argument, and leave esp four bytes low on every
+ * dispatch. No MSVC switch reaches the wanted shape: /Gr puts the second
+ * argument in edx and pops nothing, /Gz pops eight. On ARM both spellings are
+ * the same three instructions, which is why byte-locked src carries both.
  */
 typedef struct { int x, y, z; } Vector3;
 typedef struct {
@@ -65,6 +98,7 @@ struct Atk2Actor {
     virtual void OnAttacked2(char *other);   /* vtable + 0x5c */
 };
 
+/* PORT_HOST_ABI: cdecl-vs-thiscall vtable dispatch -- the raw src emits `push ebx / push ecx / call [eax+0x5c]` with the receiver PUSHED and the caller cleaning sixteen bytes, while all thirty seated slot-23 bodies are __fastcall ret-4 veneers reading `this` from ecx (hal/actor_classes.cpp:167,402). One vtable word cannot be both; listings in the block above. */
 extern "C" int func_ov002_020ef070(void *unused, char *actor)
 {
     Vector3 v1, v2;

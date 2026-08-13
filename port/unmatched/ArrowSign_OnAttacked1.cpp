@@ -12,11 +12,19 @@
  * register (not `this` in ecx), `call [reg+0x7c]` runs, and the CALLER cleans
  * the one pushed word (a `pop`). Slot 31 is seated in this port as __thiscall
  * with NO stack argument (as_kill / func_ov098_02137ccc, ret 0): the receiver
- * arrives in ecx and nothing is pushed. One vtable word cannot satisfy both.
- * The inner cdecl call pushes a word the thiscall callee never pops, so it
- * over-cleans against a callee that took nothing -- seating slot 22 as-is is a
- * false-fix one call deep. Until this inner site is thiscall, slot 22 stays on
- * its balanced trap (bw_trap22).
+ * arrives in ecx and nothing is pushed. One vtable word cannot satisfy both,
+ * and seating slot 22 on the raw src is a false-fix one call deep. Until this
+ * inner site is thiscall, slot 22 stays on its balanced trap (bw_trap22).
+ *
+ * WHAT EXACTLY BREAKS (corrected 2026-08-12, run linkw lane l1: an earlier
+ * reading of this file called it a stack-cleanup mismatch, and the listing
+ * says otherwise). The stack does balance -- the raw src pushes one word and
+ * pops it itself, and as_kill's `ret 0` leaves it there to pop. What breaks is
+ * the RECEIVER. MSVC loads the vtable pointer into ecx to reach the slot, so
+ * ecx holds the VTABLE, not the object, when the call lands; as_kill is
+ * __fastcall and reads `this` out of ecx, so ArrowSignRight_Kill would run
+ * against _ZTV14ArrowSignRight and read the sign's fields out of vtable words.
+ * A wrong-receiver call, not a leaked word.
  *
  * This is the same divergence, and the same fix, that slot 28 has in
  * unmatched/Player_HeadBonk.cpp. This copy is the matched source above, line
@@ -32,6 +40,32 @@
  * OnAttacked1 it reads the attacker's kind word (+0xc == 0xce) and, if it
  * matches, kills itself through its own slot 31 (ArrowSignRight_Kill: a
  * poof-dust + Sound::PlayBank3 + MarkForDestruction).
+ *
+ * PROOF (run linkw, lane l1). Both spellings compiled standalone with the port's
+ * own cl, /O2 /FAsc; the whole body is short enough to quote entire.
+ * src/func_ov098_02137d40.cpp:
+ *
+ *     ; c->vt->f[0x7c/4](c);
+ *       8b 44 24 04  mov  eax, DWORD PTR _c$[esp-4]
+ *       50           push eax          ; c, pushed
+ *       8b 08        mov  ecx, DWORD PTR [eax]   ; ecx = the VTABLE
+ *       8b 41 7c     mov  eax, DWORD PTR [ecx+124]
+ *       ff d0        call eax
+ *       59           pop  ecx
+ *
+ * this file:
+ *
+ *     ; ((KillSelf *)c)->Kill();
+ *       8b 4c 24 04  mov  ecx, DWORD PTR _c$[esp-4]   ; ecx = the OBJECT
+ *       8b 01        mov  eax, DWORD PTR [ecx]
+ *       ff 60 7c     jmp  DWORD PTR [eax+124]         ; tail call, nothing pushed
+ *
+ * ecx holds the vtable in the first and the object in the second, and slot 31's
+ * seat reads `this` from ecx (hal/actor_classes_bob_world.cpp:1139
+ * `static int __fastcall as_kill(void *s, void *)`, seated at :1190). That is
+ * the defect: not a lost word, a wrong `this`. On ARM both spellings are
+ * `ldr r1,[r0] / ldr pc,[r1,#0x7c]` with the object already in r0, which is why
+ * the transcription had no reason to prefer either.
  */
 
 /* The one changed line's shape. Thirty-one filler virtuals put the
@@ -52,6 +86,7 @@ struct KillSelf {
     virtual void Kill();   /* vtable + 0x7c */
 };
 
+/* PORT_HOST_ABI: cdecl-vs-thiscall vtable dispatch -- the raw src's inner slot-31 call leaves the VTABLE POINTER in ecx and pushes `this` (`push eax / mov ecx,[eax] / call [ecx+0x7c] / pop ecx`), while the seated slot-31 veneer as_kill is __fastcall and reads `this` from ecx (hal/actor_classes_bob_world.cpp:1139,1190). Wrong receiver, not a lost word; listings in the block above. */
 extern "C" void func_ov098_02137d40(void *c, char *o)
 {
     unsigned r = (*(unsigned short *)(o + 0xc) == 0xce) ? 1u : 0u;
