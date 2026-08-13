@@ -35,6 +35,38 @@
  * is looked up by its collision id and told OnHitFromUnderneath. It is
  * bonking your head on something: the reported "softlock when trying to open
  * exclamation box in jrb ship from below" arrives here.
+ *
+ * PROOF (run linkw, lane l1). Both spellings compiled standalone with the port's
+ * own cl, /O2 /FAsc, and read off the listing. src/func_ov002_020cef84.cpp:
+ *
+ *     ; (*(void (**)(void *, char *))(*(int *)a + 0x70))(a, self);
+ *       8b 01      mov  eax, DWORD PTR [ecx]
+ *       56         push esi            ; self
+ *       51         push ecx            ; a -- the RECEIVER, pushed, not in ecx
+ *       8b 40 70   mov  eax, DWORD PTR [eax+112]
+ *       ff d0      call eax
+ *       83 c4 08   add  esp, 8         ; the caller cleans BOTH words
+ *
+ * this file:
+ *
+ *     ; ((HbActor *)a)->OnHitFromUnderneath(self);
+ *       8b 10      mov  edx, DWORD PTR [eax]
+ *       8b c8      mov  ecx, eax       ; a -- the receiver, in ecx as `this`
+ *       56         push esi            ; self
+ *       ff 52 70   call DWORD PTR [edx+112]
+ *                                      ; no cleanup: the callee pops it
+ *
+ * The other dispatcher of the SAME slot, src/func_ov002_020eeca8.cpp, is
+ * byte-locked too and spells the call `a->m70(arg)` on a struct of twenty-nine
+ * virtuals -- a real C++ virtual, so MSVC emits the thiscall form above. Two
+ * matched TUs, one vtable word, two conventions: this divergence lives entirely
+ * on the host, since on ARM both are `mov r0,a / mov r1,self / ldr pc,[vt+0x70]`.
+ * Thirty classes seat slot 28 and every seat is the __fastcall ret-4 shape
+ * (hal/actor_classes.cpp:407 `vt[28] = ac_under`, defined at :175 as
+ * `static int __fastcall ac_under(void *s, void *, void *o)`), so the cdecl
+ * spelling is the outlier and it is the one that gets converted. No MSVC switch
+ * reaches the wanted shape: /Gr puts the second argument in edx and pops
+ * nothing, /Gz pops eight.
  */
 typedef struct { int a, b; } Pair2i;
 typedef struct { int x, y, z; } Vector3;
@@ -82,6 +114,7 @@ struct HbActor {
     virtual void OnHitFromUnderneath(char *other);   /* vtable + 0x70 */
 };
 
+/* PORT_HOST_ABI: cdecl-vs-thiscall vtable dispatch -- slot 28's OTHER byte-locked dispatcher (src/func_ov002_020eeca8.cpp) spells the same call as a C++ virtual, so one vtable word would have to be both conventions at once; this TU emits `push esi / push ecx / call [eax+0x70] / add esp,8` against thirty __fastcall ret-4 seats (hal/actor_classes.cpp:175,407). Listings in the block above. */
 extern "C" int func_ov002_020cef84(char *self)
 {
     char rl[0x78];
