@@ -477,13 +477,23 @@ void *_ZTV10ModelAnim2[12];
 void *VTable_Animation_ModelAnim2Thunk[12];
 void *data_020a5bb8;            /* table root pointer (func_02050xxx family) */
 int data_0209f5c0[8];
-/* ShadowModel's cylinder template BMD stub. The ROM record is 0x3c bytes
-   (0x020ad560 up to its bone at 0x020ad59c) and this was 0x20, so a reader
-   that trusted the header ran off the end. Still zeros -- the real bytes are
-   static .data in ov001 -- mounted, cuboid bytes named since wave 3, but THIS
-   host array still shadows data_ov001_020ad560; see the writeup above
-   _ZN11ShadowModel10InitCuboidEv in hal/cxxname_bridge.cpp. */
-int data_020ad560[0x3c / 4];
+/* data_020ad560 USED TO BE A ZEROED int[0x3c/4] HERE (run linkw wave 4, lane
+   w4-a), the exact counterpart of the cuboid's host array that wave 3 removed
+   from hal/cxxname_bridge.cpp. It is the cylinder shadow's template BMD and it
+   is not bss: 0x3c bytes of ov001 .data, mounted by name in
+   port/ov001_syms.txt since wave 3 with its bone (0x020ad5dc), its material
+   (0x020ad4c4) and the four words they reach. The host array is gone so the
+   matched src/_ZN11ShadowModel12InitCylinderEv.cpp, which spells the arm9 name,
+   resolves onto the ROM bytes instead of reading zeros over them. */
 }
 DSSTATE_END
+/* The mount emits ov001's own spelling and the matched TU spells the arm9 name;
+   both are data at the same address, so the alias is exact -- the same pattern
+   hal/cxxname_bridge.cpp uses for the cuboid's data_020ad524 one line over.
+   /alternatename only fires for an UNDEFINED symbol, which is why the host
+   array above had to go rather than merely be renamed. Harmless in the three
+   narrow harnesses that compile this file without the ov001 mount
+   (smoke_actor, smoke_savestate, smoke_persist): nothing in them references
+   either spelling, and the directive is inert for a symbol nobody asks for. */
+#pragma comment(linker, "/alternatename:_data_020ad560=_data_ov001_020ad560")
 

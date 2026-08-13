@@ -258,3 +258,44 @@ src/_ZN11ShadowModel10InitCuboidEv.cpp
 # lane's final report, not here, because the seat line belongs to
 # tests/walk_window.cpp and that file is frozen this wave.
 # ===========================================================================
+
+# ===========================================================================
+# LANE w4-a (run linkw, wave 4). THE CYLINDER SHADOW, and w3-a's handoff taken
+# line for line. No slice line is added by this half; the three files w3-a
+# named were the whole of it.
+#
+#   hal/player_bridges.cpp     the `void ...(void *) {}` stub replaced by the
+#                              C-name bridge into the matched method
+#   hal/bob_enemy_bridges.cpp  the `int ShadowModel::InitCylinder() {return 1;}`
+#                              MSVC face deleted
+#   hal/actor_vtables.cpp      the host `int data_020ad560[0x3c/4]` removed and
+#                              the arm9 spelling aliased onto the ov001 mount
+#
+# WHY THERE IS NO SLICE LINE HERE, measured in this tree rather than assumed:
+# src/_ZN11ShadowModel12InitCylinderEv.cpp is already an active line of
+# slice_gate10.txt (line 128), and SLICE10_CAM_SOURCES reaches all three
+# targets that compile these host files (walk_window, walk_window_hires,
+# smoke_player). A second line would put the same object in the same link.
+# w3-a said the same thing; this is the confirmation, not a new claim.
+#
+# WHAT THE MAP SAYS AFTER THE SWAP (walk_window.map, this tree):
+#   ?InitCylinder@ShadowModel@@QAEXXZ   _ZN11ShadowModel12InitCylinderEv.cpp.obj
+#     -- it was absent before, dropped by /OPT:REF for want of a reference
+#   ?InitCylinder@ShadowModel@@QAEHXZ   actor_faces_bob.cpp.obj
+#     -- the int spelling now folds onto ShadowModelFace::InitCylinder, i.e.
+#        the /alternatename that was there all along finally fires
+#   _data_020ad560 and _data_ov001_020ad560 both at 0x00986b20, ov001_syms.c.obj
+#     -- one object, two names, and the host zeros gone
+# linkage 3939 -> 3940.
+#
+# THE ONE THING THE HANDOFF DID NOT PREDICT. smoke_player faulted on the swap:
+# c0000005 accessing 0, with ?InitCylinder@ShadowModel@@QAEXXZ + 0xe called
+# from func_ov002_020e5948 + 0x6d7, which is Mario's own drop shadow at
+# Player + 0x2ac. That harness hand-fills its vtables and calls
+# hal_fill_shadow_vtable, which seats slot 0 only; hal_seat_model_family_dtors,
+# which seats _ZTV11ShadowModel[1] = DoSetFile, is called from
+# port_stage_a2_seat and never runs there. walk_window does run it, and runs
+# 1000 frames through the same call without a word. The bridge therefore checks
+# the seat and no-ops with one stderr line where it is missing -- the wave-3
+# abort-vs-no-op lesson, and the reason is written out at the bridge.
+# ===========================================================================

@@ -794,18 +794,78 @@ int _ZN6Player9GetHealthEv(void *self)
 void _ZN4BgCh19StartDetectingWaterEv(void *self)
 { ((BgCh *)self)->BgCh::StartDetectingWater(); }
 
-/* SHADOW SYSTEM DEFERRED (matches InitCuboid, cxxname_bridge.cpp, which now
-   carries the full writeup). The template BMD at data_020ad560 is NOT
-   runtime-built: it is static .data in overlay 1, a complete BMD_File with one
-   bone at 0x020ad5dc and one material at 0x020ad4c4. Parsing the stub does
-   walk garbage -- ov001 IS mounted (and wave 3 named the shadow-template
-   bytes), but the CYLINDER chain stays unreferenced until this stub is
-   swapped; not because a
-   builder is missing.
+/* THE CYLINDER SHADOW IS NO LONGER DEFERRED (run linkw wave 4, lane w4-a).
+   This was `void _ZN11ShadowModel12InitCylinderEv(void *) {}`, the stub that
+   kept the matched body out of the image; it is now the ordinary C-name-to-
+   method bridge, the same shape as _ZN11ShadowModel10InitCuboidEv in
+   hal/cxxname_bridge.cpp, and the body it reaches is the matched
+   src/_ZN11ShadowModel12InitCylinderEv.cpp.
 
-   Note the stub is also UNDERSIZED where it is declared (actor_vtables.cpp):
-   the ROM record is 0x3c bytes, 0x020ad560 to the bone at 0x020ad59c. */
-void _ZN11ShadowModel12InitCylinderEv(void *) {}
+   The three things that had to be true first, and are:
+     - the template BMD at data_020ad560 is static .data in overlay 1, 0x3c
+       bytes with one bone at 0x020ad5dc and one material at 0x020ad4c4, and
+       wave 3 named that chain in port/ov001_syms.txt;
+     - the host zero copy of data_020ad560 that would have shadowed the mount
+       is gone from hal/actor_vtables.cpp, which now aliases the arm9 spelling
+       onto the ov001 one;
+     - _ZTV11ShadowModel[1] holds ShadowModel::DoSetFile (hal/model_dtor_seat
+       .cpp, seated in wave 1 and called from port_stage_a2_seat), so the
+       vtable dispatch ModelBase::SetFile makes lands on a real body.
+
+   IT RETURNS int, AND THE VALUE IS DERIVED RATHER THAN CHOSEN. The ROM's
+   InitCylinder is a TAIL BRANCH into SetFile, which tail-branches into
+   DoSetFile, so r0 leaves this function carrying DoSetFile's result -- and
+   BobOmb::InitResources tests it (`if (InitCylinder() == 0) return 0;`, see
+   the ride-through block in hal/bob_enemy_bridges.cpp). The matched
+   ShadowModel::InitCylinder and ModelBase::SetFile are both declared void by
+   the decomp, so the value cannot ride out of a host call the way it rides out
+   of the ARM one. It does not have to be guessed at either: matched
+   src/_ZN11ShadowModel9DoSetFileEPcii.cpp returns 0 exactly when it has just
+   stored data = 0 and 1 in every other path, so `data != 0` read back off the
+   object after the call IS that return value, not a stand-in for it.
+
+   THE SEAT CHECK IS NOT DEFENSIVE PROGRAMMING, IT IS A MEASURED HARNESS GAP,
+   and it is the wave-3 abort-vs-no-op lesson (hal/cxxname_bridge.cpp) landing
+   in a new place. The matched body's SetFile dispatches DoSetFile through
+   _ZTV11ShadowModel[1], which hal/model_dtor_seat.cpp seats inside
+   hal_seat_model_family_dtors -- and that runs from port_stage_a2_seat, so
+   walk_window and walk_window_hires have it from process start. smoke_player
+   does NOT: it hand-fills the host vtables and calls hal_fill_shadow_vtable,
+   which by its own comment seats slot 0 only. Measured, not assumed -- with
+   the bridge unguarded, smoke_player faults c0000005 accessing 0 with
+   ?InitCylinder@ShadowModel@@QAEXXZ + 0xe on the stack under
+   func_ov002_020e5948 + 0x6d7 (Mario's own drop shadow, Player + 0x2ac), while
+   walk_window runs 1000 frames through that same call.
+
+   So the guard fires only where the host never filled the slot, and there it
+   reproduces that harness's baseline exactly: an InitCylinder that installs
+   nothing, which is what the stub gave smoke_player for its whole green
+   history. It returns 0 for the same reason the line below returns data != 0
+   -- no DoSetFile ran, so no data was attached -- and the one caller in that
+   target ignores the value anyway (port/unmatched/TexSeq_Caller_ov002_
+   020e5948.cpp declares this void). It complains on stderr the first time
+   rather than staying silent, because in a target that DOES seat the slot the
+   same line would mean the seat had regressed and the shadows had stopped
+   drawing. The real fix is one call in tests/smoke_player.cpp
+   (hal_seat_model_family_dtors, beside the four hal_fill_*_vtable calls) or
+   one line in hal/cxxname_bridge.cpp's hal_fill_shadow_vtable; neither file is
+   this lane's. */
+int _ZN11ShadowModel12InitCylinderEv(void *self)
+{
+    void **vt = *(void ***)self;
+    if (!vt || !vt[1]) {
+        static int told;
+        if (!told) {
+            told = 1;
+            std::fprintf(stderr, "InitCylinder: _ZTV11ShadowModel[1] "
+                         "(DoSetFile) is null in this target -- no shadow "
+                         "installed\n");
+        }
+        return 0;
+    }
+    ((ShadowModel *)self)->ShadowModel::InitCylinder();
+    return ((ShadowModel *)self)->data != 0;
+}
 
 void _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File(void *self, void *bmd,
                                                        void *btp)

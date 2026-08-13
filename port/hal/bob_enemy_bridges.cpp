@@ -32,7 +32,8 @@ int _ZNK12WithMeshClsn13JustHitGroundEv(void *self);
 int _ZNK12WithMeshClsn10IsOnGroundEv(const void *self);
 void _ZN5Actor8PoofDustEv(void *self);
 int func_ov002_020ada40(void *self, void *v, void *other, unsigned r);
-extern int data_020ad560[];        /* the cylinder template BMD (stub bytes) */
+/* data_020ad560 was declared here for the InitCylinder stub below, which no
+   longer exists; the matched TU declares the template itself. */
 }
 
 /* ---- static/namespace functions: same ABI, different spelling -------------
@@ -141,16 +142,24 @@ int ModelBase::SetFile(BMD_File *file, int a, int b)
     return ((PortDoSetFile)vt[1])(this, 0, (char *)file, a, b);
 }
 
-/* InitCylinder is `SetFile(&data_020ad560, 1, -1)`, and THE SHADOW SYSTEM IS
-   DEFERRED: hal/cxxname_bridge.cpp records the three reasons (ov001 is not
-   mounted so the template BMD's bytes are absent, _ZTV11ShadowModel is eight
-   nulls, and no per-frame RenderAll caller is hosted), and
-   hal/player_bridges.cpp already stubs the C-named spelling of this same
-   function to nothing. So this one does not call SetFile either -- it returns
-   the ROM's success value, 1, which is what the callers test for. When the
-   shadow system lands this becomes the same dispatch as SetFile above. */
-struct ShadowModel { int InitCylinder(); };
-int ShadowModel::InitCylinder() { return 1; }
+/* ?InitCylinder@ShadowModel@@QAEHXZ IS GONE FROM THIS FILE (run linkw wave 4,
+   lane w4-a), the same handover hal/actor_class_faces.cpp made for InitCuboid
+   in wave 3. It used to be a local `struct ShadowModel { int InitCylinder(); }`
+   with the body `return 1` -- the ROM's success value, returned WITHOUT the
+   SetFile call that earns it, because the shadow system was deferred: the
+   template BMD's ov001 bytes read as zeros, _ZTV11ShadowModel[1] was null, and
+   hal/player_bridges.cpp stubbed the C-named spelling to nothing. All three of
+   those are now false (wave 1 seated DoSetFile, wave 3 named the ov001 shadow
+   templates, and this wave swapped the C-name stub for a real bridge).
+
+   Deleting the definition hands the decorated name to the matched TU with the
+   call site untouched. It does not need a new /alternatename: this file is
+   compiled into exactly three targets (walk_window, walk_window_hires,
+   smoke_player -- GATE32_HOST_SOURCES), all three also compile
+   hal/actor_faces_bob.cpp, and its ShadowModelFace fallback already aliases
+   this name onto the C spelling. That fallback is the reason the int survives:
+   the matched method is declared void, and the ride-through value is
+   reconstructed in the C bridge (hal/player_bridges.cpp has the derivation). */
 
 // ---- gate 32's ov084 tier ---------------------------------------------------
 //
