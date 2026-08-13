@@ -48,8 +48,9 @@ src/_ZN12CylinderClsnD0Ev.c
 # puts at base+4:
 #   from:0x02092684 to:0x0202e638 _ZN5Scene19BeforeInitResourcesEv
 # Storage is `void *_ZTV5Scene[20]` in hal/stage_bridges.cpp; no fill in the
-# tree writes a slot of it, and the src/ TUs that name the table (28 mention,
-# 25 store -- w3-b review recount) only store
+# tree writes a slot of it, and the src/ TUs that name the table (28 mention it,
+# 28 store, 0 write a slot -- re-measured for the wave-4 slot-7 seat, which
+# CORRECTS the "25 store" this line carried from the w3-b review) only store
 # its ADDRESS as a transient vptr. The sweep is written out in the seat's own
 # comment. What blocked this head in wave 2 was data_0209f1e4, the DS BSS word
 # Scene::ResetFadersAndSound clears; hal/auto_bss.cpp hosts it now.
@@ -101,3 +102,102 @@ src/DMASyncFillTransfer.c
 src/_ZN5Scene12BeforeRenderEv.c
 src/_ZN5SceneD1Ev.c
 src/_ZN5SceneD0Ev.c
+
+# ==== WAVE 4, LANE w4-d ====================================================
+# ---- _ZTV5Scene slot 7, and the eight TUs behind it -----------------------
+# Reference edge: hal_seat_w2_dtor_heads writes the word config/arm9/relocs.txt
+# puts at base+0x1c:
+#   from:0x0209269c to:0x0202e3d4 _ZN5Scene14BeforeBehaviorEv
+# and config/arm9/symbols.txt puts _ZN5Scene14BeforeBehaviorEv
+# kind:function(arm,size=0x1fc) at 0x0202e3d4. (0x0209269c - 0x02092680)/4 = 7.
+# Same storage, same three re-proven conditions as slots 1/10/16/17 -- the
+# sweep is re-run in the seat's own comment, not carried from wave 3.
+#
+# THE HEAD ITSELF. Its receiver arrives as an ordinary first argument
+# (`int _ZN5Scene14BeforeBehaviorEv(char *self)` inside extern "C"), so slot 7
+# takes the same ecx->arg adapter the other four use and needs no face of its
+# own.
+src/_ZN5Scene14BeforeBehaviorEv.cpp
+# the pause branch: func_02023544 resets sound and the two mode bytes, and its
+# own callees func_02011c8c / GetSoundMode / SetSoundMode are already linked.
+src/func_02023544.c
+src/func_0202fd2c.c
+src/func_0202ed48.c
+# and func_0202ed48's two: the record writer and the IRQ-side teardown. The
+# second one stores to 0x4000208 / 0x4000000 / 0x4001000 textually, which is
+# the shape gate 4a hostgens -- but it is NOT a gate-4a symbol (CMakeLists.txt
+# GATE4A_SYMS lists nine and this is not one of them), and those addresses are
+# real committed pages in the host: port/ntr/io.cpp reserves the DS I/O region
+# at its own address, which is why hal/message_pump.cpp already writes
+# *(vu32*)0x4000000 straight. So it compiles and links from src/ unchanged.
+src/func_0202ed14.c
+src/func_0202fb30.c
+# the processing-list walk behind the pause-bit branch. Its two callees
+# (func_0203b358, func_0203b394) are already in the map. Linking it is what
+# retires hal/stage_bridges.cpp's stand-in for that one statement -- see the
+# note at stage_bridges.cpp:204, which names this exact function as the
+# blocker. NOT retired by this lane: the stand-in stays until the Stage takes
+# its processing-list seat, because nothing dispatches slot 7 yet.
+src/func_020431c4.c
+# FaderBrightness::SetForwardTime, reached by its Itanium C name from the head.
+# The face is in hal/method_faces.cpp with its checklist and its one recorded
+# hazard. This line is safe against the gate-1 slice, which also lists this TU:
+# slice_gate1.txt feeds SLICE_SOURCES, and the only target that carries that is
+# `smoke`, which carries no slice_w1l2 line. The three targets that DO carry
+# this file (walk_window, walk_window_hires, smoke_player) carry no gate-1
+# line, so there is no second object and no LNK2005.
+src/engine/fader/_ZN15FaderBrightness14SetForwardTimeEj.cpp
+#
+# NOT LINES HERE, and each for a measured reason:
+#   _ZN15FaderBrightness7IsAtEndEv is already linked (slice_w1l3.txt seats it
+#     for hal/fader_wipes.cpp); only its C name was missing, so it gets a face
+#     and no slice line.
+#   ActorBase::BeforeBehavior, ActorBase::MarkForDestruction and
+#     Scene::StartSceneFade were already in walk_window.map before this batch.
+#   func_02023498, the one TU that writes data_0209f1e0 non-zero, is NOT added.
+#     Nothing references it, so a line would be a /OPT:REF no-op -- and it is
+#     also the reason the head's whole first branch is dead in the port, which
+#     two comments (hal/auto_bss.cpp and hal/method_faces.cpp) depend on.
+
+# ---- _ZTV5Scene slots 4, 8 and 11 -----------------------------------------
+# Three of the four faces wave 3 left blocked in hal/method_faces.cpp, which
+# this lane owns this wave. The ROM's own three words:
+#   from:0x02092690 to:0x0202e5f0 _ZN5Scene22BeforeCleanupResourcesEv
+#   from:0x020926a0 to:0x0202e3c8 _ZN5Scene13AfterBehaviorEj
+#   from:0x020926ac to:0x0202e398 _ZN5Scene11AfterRenderEj
+# (0x10/4 = 4, 0x20/4 = 8, 0x2c/4 = 11.)
+#
+# Slot 4 is the straightforward one: the body passes its own receiver and only
+# the C-linkage name of its base call was undefined. Its other two references
+# (func_02011974 and data_0209b53c) were already resolved.
+src/_ZN5Scene22BeforeCleanupResourcesEv.c
+# Slots 8 and 11 are the ROM's TAIL VENEERS, and they are here because their
+# callees turned out to be empty -- `ret 4`, three bytes, no receiver read and
+# no argument read, folded onto one address by /OPT:ICF. The dropped receiver
+# the veneers' void() shape implies therefore cannot be wrong the way
+# method_faces.cpp's failure mode 2 means. The two listings and the reading are
+# beside the tagged definitions in that file.
+src/_ZN5Scene13AfterBehaviorEj.cpp
+src/_ZN5Scene11AfterRenderEj.cpp
+#
+# SLOT 2 IS RULED OUT, and this is the listing that rules it out rather than a
+# judgement call. Scene::AfterInitResources is the same veneer shape, but its
+# callee is not empty:
+#   ?AfterInitResources@ActorDerived@@UAEXI@Z:
+#     cmp   dword ptr [ebp+8],1                reads the ARGUMENT
+#     mov   esi,ecx / call ?MarkForDestruction@ActorBase@@QAEXXZ
+#                                              reads the RECEIVER
+#     push  dword ptr [ebp+8] / mov ecx,esi
+#     call  ?AfterInitResources@ActorBase@@UAEXI@Z
+# so a dropped-receiver definition would run MarkForDestruction on whatever
+# ecx held. That is the crash half of failure mode 2, not the silent half, and
+# there is no side-channel-free way to hand it the two values the ROM rides
+# through in r0/r1. Blocked, and the reason is now measured.
+#
+# SLOT 5 STAYS OUT, re-confirmed rather than carried: config/arm9/symbols.txt
+# puts data_02092660 at 0x02092660 kind:data(any), and
+# src/_ZN5Scene21AfterCleanupResourcesEj.cpp DEFINES it at namespace scope
+# inside extern "C" -- a definition, not a tentative one -- so the symbol lands
+# in ordinary .bss, outside .dsstate, and dsstate_guard rejects it. Hosting it
+# in hal/auto_bss.cpp would be a second definition. The fix is in src/, which
+# is read-only for every lane in this campaign.

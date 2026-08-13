@@ -305,6 +305,69 @@ extern "C" void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a)
 extern "C" int _ZN9ActorBase12BeforeRenderEv(void *self)
 { return ((ActorBase *)self)->ActorBase::BeforeRender(); }
 
+/* wave 4 lane d: the same shape one slot over, for _ZTV5Scene slot 4.
+   src/_ZN5Scene22BeforeCleanupResourcesEv.c is ordinary C and DOES pass its
+   receiver (`_ZN9ActorBase22BeforeCleanupResourcesEv(thiz)`); only the
+   C-linkage cdecl name was undefined. The matched ActorBase body is already in
+   the link as ?BeforeCleanupResources@ActorBase@@UAEHXZ -- UAE, so a face and
+   not an alias, and the checklist reads the same as its BeforeRender sibling
+   above: qualified target (its near-sibling BeforeInitResources is a different
+   slot and a different predicate), no arguments, receiver passed and cast. */
+extern "C" int _ZN9ActorBase22BeforeCleanupResourcesEv(void *self)
+{ return ((ActorBase *)self)->ActorBase::BeforeCleanupResources(); }
+
+/* ---- wave 4 lane d: _ZTV5Scene slots 8 and 11, the two ROM TAIL VENEERS ----
+   A no-op forwarder is exactly the kind of plumbing this file's header says
+   gets skimmed, so here is the full reading before the two lines.
+
+   src/_ZN5Scene13AfterBehaviorEj.cpp and src/_ZN5Scene11AfterRenderEj.cpp are
+   ARM tail-call veneers -- `ldr ip,[pc]; bx ip; .word <ActorBase body>` -- so
+   the ROM never gives them a frame at all: r0 (`this`) and r1 (the
+   VirtualFuncSuccess code) ride straight through. The decompilation spells
+   that as a void() calling a void(), which is the dropped-receiver shape this
+   file lists as failure mode 2, and it is why wave 3 left both slots blocked.
+
+   WHAT SETTLES IT IS THE CALLEE, not the veneer. Both ROM bodies are empty --
+
+       void ActorBase::AfterBehavior(unsigned int vfSuccess_) { u32 v = ...; }
+
+   and MSVC agrees, three bytes each, dumpbin /disasm on their own objects:
+
+       ?AfterBehavior@ActorBase@@UAEXI@Z:   00000000: C2 04 00   ret 4
+       ?AfterRender@ActorBase@@UAEXI@Z:     00000000: C2 04 00   ret 4
+
+   -- so identical that /OPT:ICF folds them onto one address in the map
+   (both at 0043dd10). Neither reads ecx, neither reads [ebp+8]. A dropped
+   receiver cannot be wrong here in the way mode 2 means, because there is no
+   read to be wrong: the failure mode needs a `this+0x5c`, and these have no
+   loads at all.
+
+   SO THIS DEFINITION IS THE BEHAVIOUR, EXACTLY, and it is correct for every
+   caller rather than only for the Scene path. The only other src/ TU that
+   spells either C name is the Actor veneer of the same pair
+   (src/_ZN5Actor13AfterBehaviorEj.cpp, src/_ZN5Actor11AfterRenderEj.cpp,
+   neither in the map today), and the ROM tail-jumps those to the SAME empty
+   bodies -- so if a later lane links them, they resolve here and are still
+   right.
+
+   THE ONE THING IT IS NOT is a bridge into the matched body: the port's slot-8
+   dispatch reaches this, not ?AfterBehavior@ActorBase@@UAEXI@Z. That gap is
+   three bytes of `ret 4`, and both definitions are TAGGED rather than left to
+   linkage.py's face heuristic, which would otherwise call them faces over a
+   linked matched TU and be wrong about what they are. The fuller-fidelity
+   alternative -- park the receiver and the argument in the slot adapter and
+   have these read them back -- was weighed and NOT taken: it buys nothing
+   observable over `ret 4` and adds a side channel with a live constraint to
+   keep. */
+/* PORT_HOST_ABI: the ROM body is `ret 4` and reads neither ecx nor its
+   argument, so this IS its behaviour; the matched body is emitted
+   __thiscall-with-an-argument and the veneer's own void() declaration cannot
+   enter it without leaving ESP four bytes light on every dispatch. */
+extern "C" void _ZN9ActorBase13AfterBehaviorEj(void) {}
+/* PORT_HOST_ABI: same as AfterBehavior above -- `ret 4`, no receiver read, no
+   argument read; /OPT:ICF folds the two matched bodies onto one address. */
+extern "C" void _ZN9ActorBase11AfterRenderEj(void) {}
+
 /* gate 16: ModelBase::ApplyOpacity is a real method whose only caller,
    Tree::Render, spells it as an Itanium C name (and passes a third argument
    the ROM's r2 carried into a two-parameter body; cdecl lets the caller keep
@@ -641,6 +704,79 @@ int _ZN13QuestionBlock8BehaviorEv(void *self)
 { return ((QuestionBlock *)self)->QuestionBlock::Behavior(); }
 int _ZN13QuestionBlock16CleanupResourcesEv(void *self)
 { return ((QuestionBlock *)self)->QuestionBlock::CleanupResources(); }
+}
+
+/* ---- wave 4 lane d: the two FaderBrightness faces Scene::BeforeBehavior needs
+   src/_ZN5Scene14BeforeBehaviorEv.cpp declares both of these as C-linkage free
+   functions TAKING THE RECEIVER:
+
+       extern void _ZN15FaderBrightness14SetForwardTimeEj(FaderBrightness*, u32);
+       extern int  _ZN15FaderBrightness7IsAtEndEv(FaderBrightness*);
+
+   and passes &data_0209f5d0 to each. The definitions are real virtual methods
+   in src/engine/fader/, so MSVC emits them as ?SetForwardTime@FaderBrightness
+   @@UAEHI@Z and ?IsAtEnd@FaderBrightness@@UAEHXZ. Faces and not
+   /alternatename aliases, for this file's own reason: both are UAE, virtual
+   __thiscall, so an alias would enter them with `this` in whatever ecx held
+   and (for SetForwardTime) one stack argument too many. Checklist:
+     (a) TARGET  -- qualified `FaderBrightness::` calls, so neither can land on
+                    a sibling; IsAtStart is the near-identical one and it is a
+                    DIFFERENT predicate (currInterp == 0 vs == 0x1000).
+     (b) ARITY   -- IsAtEnd none, SetForwardTime one u32, matching the ROM
+                    bodies and the two declarations above.
+     (c) RECEIVER-- passed as the first argument and cast, which is what the
+                    caller delivers; the qualified call puts it in ecx.
+
+   IsAtEnd's matched TU is ALREADY in the link (slice_w1l3.txt seats it for
+   hal/fader_wipes.cpp) -- only the C name was missing, so that face is a name
+   and nothing else. SetForwardTime's TU is not, and slice_w1l2.txt adds it.
+
+   Both checks are from the EMITTED BYTES, this file's own rule, not from the
+   signatures. dumpbin /disasm on method_faces.cpp.obj:
+
+       __ZN15FaderBrightness14SetForwardTimeEj:
+         push ebp / mov ebp,esp
+         push  dword ptr [ebp+0Ch]          the frames argument, one of them
+         mov   ecx,dword ptr [ebp+8]        the receiver, into ecx
+         call  ?SetForwardTime@FaderBrightness@@UAEHI@Z
+       __ZN15FaderBrightness7IsAtEndEv:
+         push ebp / mov ebp,esp
+         mov   ecx,dword ptr [ebp+8]        the receiver, into ecx
+         pop ebp
+         jmp   ?IsAtEnd@FaderBrightness@@UAEHXZ
+
+   -- so the target is the intended one and not IsAtStart, the arity is right,
+   and the receiver reaches ecx in both. IsAtEnd's tail jmp is safe because XZ
+   takes no stack argument: the callee's bare `ret` returns to the face's own
+   caller with the cdecl argument still on the stack, which that caller cleans.
+
+   ONE HAZARD, INHERITED FROM THE BODY AND NOT FROM THE FACE, recorded because
+   slice_w1l3.txt's fader block declined to seat this same body over it. The
+   matched FaderBrightness::SetForwardTime ends in `return IsAtEnd();`
+   UNQUALIFIED, which is a virtual call through the receiver's vptr -- read out
+   of the body's own object rather than predicted from the C:
+
+       ?SetForwardTime@FaderBrightness@@UAEHI@Z:
+         ...
+         mov   eax,dword ptr [esi]          esi is `this`; eax is the vptr
+         call  dword ptr [eax+14h]          ROM slot 5 = IsAtEnd
+
+   so on a null vptr it faults reading [0x14]. The only
+   receiver that reaches it here is &data_0209f5d0, whose host storage is
+   zeroed BSS because the port does not link the ROM's static initialiser for
+   it (src/__sinit_02074edc.c) -- so that dispatch would fault on a null vptr.
+   It cannot run: every call site is behind `data_0209f1e0 != 0`, and the only
+   TU that ever writes that byte non-zero (src/func_02023498.c) is not in the
+   link. The sizing note in hal/auto_bss.cpp carries the same constraint at the
+   storage, and slice_w1l2.txt's blocked list names the job that would lift it
+   (the ROM-class swap slice_w1l3.txt already scoped). Do not wake the branch
+   without giving data_0209f5d0 a real vptr first. */
+#include "FaderBrightness.h"
+extern "C" {
+int _ZN15FaderBrightness7IsAtEndEv(void *self)
+{ return ((FaderBrightness *)self)->FaderBrightness::IsAtEnd(); }
+int _ZN15FaderBrightness14SetForwardTimeEj(void *self, u32 frames)
+{ return ((FaderBrightness *)self)->FaderBrightness::SetForwardTime(frames); }
 }
 
 /* ---- gate 22: the door ring's Player entry points ------------------------

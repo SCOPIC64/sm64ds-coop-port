@@ -282,6 +282,69 @@ int data_0209cef0;
    either: all three touches in the tree are single-word. include/decl_common.h
    already declares it `void *`, which is what this definition is. */
 void *data_0209f1e4;
+
+/* ---- wave 4 lane d: the five globals Scene::BeforeBehavior's closure reads --
+   Slot 7 of _ZTV5Scene (config/arm9/relocs.txt from:0x0209269c to:0x0202e3d4)
+   is Scene::BeforeBehavior, and its callee closure -- func_02023544,
+   func_0202ed48, func_0202ed14, func_0202fb30 -- reads five DS BSS symbols the
+   port hosted nowhere. Every one is kind:bss in config/arm9/symbols.txt, so
+   zero is the value the ROM's own boot leaves them at, EXCEPT data_0209f5d0
+   (see its own note below).
+
+   EVERY SIZE IS THE DELTA TO THE NEXT SYMBOL, the rule the buffer comment
+   further up this file sets out, not this file's generic int[8]. Read out of
+   config/arm9/symbols.txt, one subtraction each:
+
+       data_0209f1e0 .. data_0209f1e4   4 bytes
+       data_0209b2fc .. data_0209b300   4 bytes
+       data_0209b300 .. data_0209b304   4 bytes
+       data_0209f5d0 .. data_0209f5dc  12 bytes  (0xc)
+       data_0209f61c .. data_0209f648  44 bytes  (0x2c)
+
+   THE LAST ONE IS THE INTERESTING SIZE, and it runs the opposite way from the
+   data_0209d74c overrun the header describes: the generic int[8] would be too
+   SMALL, not too large. src/func_0202ed14.c writes its argument's byte at
+   +0x28, so the object has to be at least 0x29 bytes; 32 would have put that
+   store one byte past the end and into whatever the linker parked next.
+   src/func_0202fb30.c reads the same +0x28 and copies +0x18 into +0x14. 44
+   covers both with the ROM's own extent and no guessing. */
+
+/* the paused/suspended flag. src/func_02023498.c is the only writer that ever
+   sets it (`data_0209f1e0 = 1` on the pause edge) and that TU is not in the
+   link, so on the port it stays 0 -- which is what makes the whole first
+   branch of Scene::BeforeBehavior unreachable. decl_common.h does not declare
+   this one; src/func_02023544.c and src/func_02023498.c both spell it
+   `extern unsigned char`, which this serves. */
+unsigned char data_0209f1e0[4];
+
+/* the two bytes func_02023544 clears beside it. decl_common.h:1781 already
+   declares data_0209b2fc as `u8`, which this serves. */
+unsigned char data_0209b2fc[4];
+unsigned char data_0209b300[4];
+
+/* the record func_0202ed48 resets: 44 bytes by the rule above, and the ROM
+   writes eight of its fields through func_0202ed14. */
+int data_0209f61c[0x2c / 4];   /* ROM span 0x2c */
+
+/* THE BRIGHTNESS FADER, and the one symbol here where zero is NOT the ROM's
+   boot value. src/__sinit_02074edc.c is the ROM's static initialiser for it:
+   it installs a vtable, sets currInterp to 0x1000, and registers a destructor.
+   The port does not link that sinit, so this storage is zeroed BSS and its
+   FIRST WORD -- the vptr -- is null.
+
+   THAT IS SAFE HERE AND IT IS NOT LUCK, but it is a real constraint and the
+   next lane through has to keep it. Only two touches of this object reach the
+   binary, both from Scene::BeforeBehavior, and both are behind
+   `data_0209f1e0 != 0`, which no linked writer ever makes true (above). One of
+   the two, the matched FaderBrightness::SetForwardTime, ENDS IN AN UNQUALIFIED
+   IsAtEnd() -- a virtual call through this vptr -- so on a null vptr it would
+   fault. See the note in hal/method_faces.cpp beside its face, and
+   slice_w1l2.txt's blocked list: giving this object a real vptr is the
+   ROM-class swap slice_w1l3.txt already names, not a line here.
+
+   Twelve bytes, the ROM extent, which is also exactly the C view of the class
+   in include/FaderBrightness.h (vtable 0x0, currInterp 0x4, speed 0x8). */
+int data_0209f5d0[0xc / 4];    /* ROM span 0xc */
 }
 DSSTATE_END
 
