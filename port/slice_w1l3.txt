@@ -98,10 +98,14 @@ src/_ZN4Heap18InitializeGameHeapEjPS_.c
 # from +0x000892b1 (inside RenderAll), accessing 0 -- `self->sub->count` with
 # self null, self being the node's ModelComponents at +0x08.
 #
-# The shadow list is NOT empty on the port. Actor::DropShadowScaleXYZ is a host
-# no-op in hal/cxxname_bridge.cpp, but Actor::DropShadowRadHeight is not: its C
+# The shadow list is NOT empty on the port. Actor::DropShadowRadHeight's C
 # spelling resolves to the matched src/ body, which calls ShadowModel::InitModel
 # for real, and Butterfly::Behavior takes that path every frame on this level.
+# (This paragraph used to open by contrasting that against Actor::DropShadow
+# ScaleXYZ, "a host no-op in hal/cxxname_bridge.cpp". True when written, wrong
+# now: the wave-4 block at the end of this file gives DropShadowScaleXYZ the
+# matched body too, so both siblings feed the list. The RenderAll fault below
+# is unaffected -- it is about what is IN the nodes, not how many.)
 # The node that lands has data == 0 because ShadowModel::InitCuboid IS stubbed
 # -- the cuboid template BMD is static .data in overlay 1 at 0x020ad524, and
 # the port's ov001 mount is per-symbol and covers only 0x020ab800..0x020abb00,
@@ -183,6 +187,46 @@ src/engine/fader/_ZN15FaderBrightness7IsAtEndEv.cpp
 #      filesystem the port does not mount -- the same null-sub shape that
 #      faulted ShadowModel::RenderAll in wave 2. A working fader is
 #      player-facing; this wants a compositor decision, not a slice line.
+
+# ---- wave 4: the shadow the port was NOT dropping ---------------------------
+# Actor::DropShadowScaleXYZ. The host definition in hal/cxxname_bridge.cpp was
+# an empty body -- seven unnamed parameters and `{}` -- so every caller that
+# asked for a scaled drop shadow got silence. It is the first entry off the
+# fixed linkage.py's SHADOW bucket: a host body standing where a matched TU
+# exists and never reaches the binary.
+#
+# THE REFERENCE EDGE IS ALREADY THERE, which is why this is one line and no
+# seat. /OPT:REF keeps a matched TU only if something names it, and nine TUs in
+# walk_window.map already call this symbol by its C spelling: SignPost::Behavior
+# and ArrowSignRight::Behavior plus func_ov015_021114f0, func_ov015_021123c8,
+# func_ov079_02124188, func_ov091_02131160, func_ov091_02133098,
+# func_ov098_021396a4 and func_ov102_02149ea4. Those calls are what kept the
+# empty stub in the map through /OPT:REF; they now reach the ROM's body.
+#
+# AND THEY FIRE, counted rather than assumed, because a swap nothing calls is
+# not a swap. A scratch build put a call counter in the fallback in
+# hal/cxxname_bridge.cpp and held this line out so walk_window resolved onto
+# it: the 300-frame control reported 1800 calls, six per frame, on the
+# castle-grounds boot alone (five SIGN_POST spawn there). The empty body was
+# being asked for a shadow six times a frame and returning nothing. Scratch
+# reverted; no counter is in the tree.
+#
+# WHY THIS ONE IS SAFE TO TURN ON, stated so a reviewer does not have to take
+# it on trust. The matched TU is the structural twin of Actor::DropShadow
+# RadHeight, which the port has linked and run every frame since before this
+# wave: same self-declared `struct Actor { char _pad[0xb0]; u32 flags; }`, same
+# `flags & 0x10` early-out, same call into ShadowModel::InitModel with scalar
+# args. Both the RadHeight TU and the InitModel TU are already in
+# walk_window.map, so neither the Actor offset nor the InitModel signature is
+# new information -- this line only widens a path the build already walks.
+#
+# AND IT DOES NOT REACH A RENDERER. ShadowModel::RenderAll is still not seated
+# (the fault is written out above), so the extra nodes go on the list that
+# ShadowModel::CleanAll drains at the top of every behaviour phase and nothing
+# reads them. The 300-frame control position is unchanged by this line, which
+# is the expected result: InitModel writes the ShadowModel and the two list
+# globals, and nothing feeds back into actor behaviour.
+src/_ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j.c
 
 # ---- mined and NOT taken (kept here so wave 2 does not re-mine them) --------
 # _ZN11ShadowModel10InitCuboidEv.cpp

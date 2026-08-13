@@ -121,8 +121,55 @@ void ShadowModelCuboidFallback::InitCuboid() {}
 #pragma comment(linker, "/alternatename:?InitCuboid@ShadowModel@@QAEXXZ=?InitCuboid@ShadowModelCuboidFallback@@QAEXXZ")
 
 extern "C" {
-void _ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j(
-    void *, void *, void *, int, int, int, unsigned) {}
+/* ACTOR::DROPSHADOWSCALEXYZ IS GONE FROM THIS FILE, and what stood here was
+   `... (void *, void *, void *, int, int, int, unsigned) {}` -- an empty body,
+   not a bridge. Nine linked callers reached it and got nothing: SignPost and
+   ArrowSignRight's Behavior methods and seven ov functions, all of them in
+   walk_window.map, all of them asking for a shadow every frame they ran.
+
+   HOW OFTEN, counted rather than assumed, because a swap nothing calls is not
+   a swap. A scratch build put a call counter in the fallback below, kept the
+   slice line out so walk_window resolved onto it, and ran the 300-frame
+   control: 1800 calls, six per frame, on the castle-grounds boot alone (the
+   level spawns five SIGN_POST). Reverted; the counter is not in the tree.
+
+   The matched TU takes over: src/_ZN5Actor18DropShadowScaleXYZER11ShadowModel
+   R9Matrix4x35Fix12IiES5_S5_j.c, now listed in port/slice_w1l3.txt. It is
+   plain C, it spells all seven arguments, and it is the structural twin of
+   Actor::DropShadowRadHeight -- same `flags & 0x10` test at Actor+0xb0, same
+   ShadowModel::InitModel call -- which has been linked and running every
+   frame since before this wave (walk_window.map lists both the matched
+   DropShadowRadHeight TU and its InitModel callee). There is no host body
+   left to bridge into, so nothing here forwards; the C name IS the matched
+   definition now.
+
+   THE THREE NARROW HARNESSES STILL NEED A DEFAULT, and they said so rather
+   than being guessed at. smoke_actor, smoke_savestate and smoke_persist
+   compile this TU but do NOT carry SLICE_W1L3_SOURCES, and deleting the stub
+   broke all three the same way:
+
+     _ZN14ArrowSignRight8BehaviorEv.cpp.obj : error LNK2019: unresolved
+     external symbol __ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x3
+     5Fix12IiES5_S5_j referenced in function "public: int __thiscall
+     ArrowSignRight::Behavior(void)"
+
+   walk_window, walk_window_hires and smoke_player carry the slice and link
+   the real body, which wins over an /alternatename. This is the same shape as
+   hal_shadow_d1_fallback below and the InitCuboid fallback further down, with
+   one difference: no shadow class is needed, because the symbol being
+   defaulted is a plain cdecl C name and not a __thiscall method.
+
+   AND IT IS A NO-OP, on w3-a's evidence rather than on principle. That lane
+   wrote its InitCuboid fallback as an abort() first, reasoning that a narrow
+   harness has no business installing a shadow, and running it disproved that
+   outright. Here the argument is even shorter: an empty body is what EVERY
+   target had before this change, so returning quietly is precisely the three
+   harnesses' existing baseline, and an abort would break them on a body they
+   have been calling all along. If they ever need the real shadow, the fix is
+   SLICE_W1L3_SOURCES in port/CMakeLists.txt, which is not this lane's file. */
+extern "C" void hal_dropshadow_scalexyz_fallback(void *, void *, void *,
+                                                 int, int, int, unsigned) {}
+#pragma comment(linker, "/alternatename:__ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j=_hal_dropshadow_scalexyz_fallback")
 void _ZN13SharedFilePtr8LoadFileEv(void *fp);
 void *_ZN5Model8LoadFileER13SharedFilePtr(void *fp)
 {
@@ -435,8 +482,14 @@ extern "C" void _ZN11ShadowModelD1Ev(void *self);
    gate 10/16, which wins over this alternatename. The stub is never CALLED in
    smoke_actor -- that harness spawns gate-8/9 collision actors, none of which
    dispatch the shadow slot -- so it traps loudly if a target ever does reach it
-   without the real dtor. The InitCuboid/DropShadowScaleXYZ stubs above are the
-   same reasoning for the same reason. */
+   without the real dtor. THE SENTENCE THAT USED TO END THIS COMMENT IS DEAD:
+   it called InitCuboid and DropShadowScaleXYZ "the same reasoning for the same
+   reason", and neither is a stub any more. w3-a gave InitCuboid the matched
+   body plus a no-op fallback, this wave gave DropShadowScaleXYZ the matched
+   body outright, and this one -- an abort -- is now the only trap of its kind
+   in the file. That difference is the point: an abort is right where reaching
+   the fallback would be a bug, and w3-a measured that it is NOT right for a
+   body the narrow harnesses have been calling all along. */
 extern "C" void hal_shadow_d1_fallback(void *)
 { std::fprintf(stderr, "hal_shadow_d1_fallback: real _ZN11ShadowModelD1Ev not "
                        "linked in this target but the shadow slot was reached\n");
