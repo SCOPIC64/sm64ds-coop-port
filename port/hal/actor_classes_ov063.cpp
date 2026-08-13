@@ -293,17 +293,16 @@ DSSTATE_BEGIN
 void *_ZTV3Boo[31];
 DSSTATE_END
 }
-struct Boo;
-struct Boo_ { int CleanupResources(); int Render(); };
+struct Boo { int CleanupResources(); int Render(); };
 static int __fastcall boo_init(void *s, void *)
 { return _ZN3Boo13InitResourcesEv((char *)s); }
 static int __fastcall boo_clean(void *s, void *)
-{ return ((Boo_ *)s)->Boo_::CleanupResources(); }
+{ return ((Boo *)s)->Boo::CleanupResources(); }
 static int __fastcall boo_behavior(void *s, void *)
 { return _ZN3Boo8BehaviorEv(s); }
 static int __fastcall boo_render(void *s, void *)
 { port_actor_render_probe("BOO", (char *)s + 0x3e4);
-  return ((Boo_ *)s)->Boo_::Render(); }
+  return ((Boo *)s)->Boo::Render(); }
 static int __fastcall boo_pdes(void *s, void *)
 { (void)s; _ZN3Boo16OnPendingDestroyEv(); return 0; }
 static int __fastcall boo_d1(void *s, void *)
@@ -404,16 +403,16 @@ DSSTATE_END
 }
 /* the RTTI base spelling; the D1/D0 restore the table by this name */
 #pragma comment(linker, "/alternatename:__ZTV11daTBasket_c=__ZTV7BooCage")
-struct BooCage_ { int InitResources(); int Behavior(); int Render(); };
+struct BooCage { int InitResources(); int Behavior(); int Render(); };
 static int __fastcall bc_init(void *s, void *)
-{ return ((BooCage_ *)s)->BooCage_::InitResources(); }
+{ return ((BooCage *)s)->BooCage::InitResources(); }
 static int __fastcall bc_clean(void *s, void *)
 { return _ZN7BooCage16CleanupResourcesEv(); }
 static int __fastcall bc_behavior(void *s, void *)
-{ return ((BooCage_ *)s)->BooCage_::Behavior(); }
+{ return ((BooCage *)s)->BooCage::Behavior(); }
 static int __fastcall bc_render(void *s, void *)
 { port_actor_render_probe("BOO_CAGE", (char *)s + 0x300);
-  return ((BooCage_ *)s)->BooCage_::Render(); }
+  return ((BooCage *)s)->BooCage::Render(); }
 static int __fastcall bc_d1(void *s, void *)
 { return (int)(size_t)_ZN7BooCageD1Ev(s); }
 static int __fastcall bc_d0(void *s, void *)
@@ -460,16 +459,16 @@ DSSTATE_END
 }
 /* the RTTI base spelling; the matched D0 restores the table by this name */
 #pragma comment(linker, "/alternatename:__ZTV11daTrsTrap_c=__ZTV12MansionSteps")
-struct MansionSteps_ { int CleanupResources(); int Render(); };
+struct MansionSteps { int CleanupResources(); int Render(); };
 static int __fastcall ms_init(void *s, void *)
 { return _ZN12MansionSteps13InitResourcesEv((char *)s); }
 static int __fastcall ms_clean(void *s, void *)
-{ return ((MansionSteps_ *)s)->MansionSteps_::CleanupResources(); }
+{ return ((MansionSteps *)s)->MansionSteps::CleanupResources(); }
 static int __fastcall ms_behavior(void *s, void *)
 { return _ZN12MansionSteps8BehaviorEv((char *)s); }
 static int __fastcall ms_render(void *s, void *)
 { port_actor_render_probe("MANSION_STEPS", (char *)s + 0xd4);
-  return ((MansionSteps_ *)s)->MansionSteps_::Render(); }
+  return ((MansionSteps *)s)->MansionSteps::Render(); }
 static int __fastcall ms_pdes(void *s, void *)
 { (void)s; _ZN12MansionSteps16OnPendingDestroyEv(); return 0; }
 static int __fastcall ms_d1(void *s, void *)
@@ -530,11 +529,11 @@ extern "C" void *port_factory_fall_block_bbh(void)
         *(void **)p = (void *)_ZTV12FallBlockBbh;
     return p;
 }
-struct FallBlockBbh_ { int InitResources(); int CleanupResources(); };
+struct FallBlockBbh { int InitResources(); int CleanupResources(); };
 static int __fastcall fbb_init(void *s, void *)
-{ return ((FallBlockBbh_ *)s)->FallBlockBbh_::InitResources(); }
+{ return ((FallBlockBbh *)s)->FallBlockBbh::InitResources(); }
 static int __fastcall fbb_clean(void *s, void *)
-{ return ((FallBlockBbh_ *)s)->FallBlockBbh_::CleanupResources(); }
+{ return ((FallBlockBbh *)s)->FallBlockBbh::CleanupResources(); }
 static int __fastcall fbb_behavior(void *s, void *)
 { return func_ov098_0213a36c((char *)s); }
 static int __fastcall fbb_render(void *s, void *)
@@ -579,24 +578,44 @@ extern "C" void hal_fill_fall_block_bbh_vtable(void)
 // its state table is seated in ov63_bringup above.
 extern "C" {
 int *_ZN8MadPianoD1Ev(void *self);              /* slot 16, matched .c */
+/* what mp_clean spells out by hand (see its banner) */
+int _ZN16MeshColliderBase9IsEnabledEv(void *self);
+void _ZN16MeshColliderBase7DisableEv(void *self);
+void _ZN13SharedFilePtr7ReleaseEv(void *sfp);
+extern unsigned char data_ov063_0211ef80[], data_ov063_0211ef88[],
+                     data_ov063_0211ef90[];
 void *_ZN8MadPianoD0Ev(void *thiz);             /* slot 17, matched extern-C */
 void *MadPiano_Spawn(void);
 DSSTATE_BEGIN
 void *_ZTV8MadPiano[32];
 DSSTATE_END
 }
-struct MadPiano_ {
-    int InitResources(); int CleanupResources(); int Behavior(); int Render();
-};
+struct MadPiano { int InitResources(); int Behavior(); int Render(); };
 static int __fastcall mp_init(void *s, void *)
-{ return ((MadPiano_ *)s)->MadPiano_::InitResources(); }
+{ return ((MadPiano *)s)->MadPiano::InitResources(); }
+/* slot 3, HOST THUNK, not the matched TU: src/actors/MadPiano/
+   _ZN8MadPiano16CleanupResourcesEv.cpp spells its three SharedFilePtrs
+   G0/G1/G2, and hal/cxx_aliases.cpp has already bound G0/G1 to SignPost's
+   ov002 pointers -- linking it would Release SignPost's LIVE files on every
+   level-12 teardown. The ov045 PoleLift ep_clean ruling, one global deeper.
+   The ROM body (0x0211de3c, disassembled + relocs): IsEnabled on the
+   collider at +0x124, Disable if so, then Release on 0x0211ef80 (model),
+   0x0211ef90 (attack anim), 0x0211ef88 (collision), in that pool order. */
 static int __fastcall mp_clean(void *s, void *)
-{ return ((MadPiano_ *)s)->MadPiano_::CleanupResources(); }
+{
+    char *t = (char *)s;
+    if (_ZN16MeshColliderBase9IsEnabledEv(t + 0x124))
+        _ZN16MeshColliderBase7DisableEv(t + 0x124);
+    _ZN13SharedFilePtr7ReleaseEv(data_ov063_0211ef80);
+    _ZN13SharedFilePtr7ReleaseEv(data_ov063_0211ef90);
+    _ZN13SharedFilePtr7ReleaseEv(data_ov063_0211ef88);
+    return 1;
+}
 static int __fastcall mp_behavior(void *s, void *)
-{ return ((MadPiano_ *)s)->MadPiano_::Behavior(); }
+{ return ((MadPiano *)s)->MadPiano::Behavior(); }
 static int __fastcall mp_render(void *s, void *)
 { port_actor_render_probe("MAD_PIANO", (char *)s + 0x320);
-  return ((MadPiano_ *)s)->MadPiano_::Render(); }
+  return ((MadPiano *)s)->MadPiano::Render(); }
 static int __fastcall mp_d1(void *s, void *)
 { return (int)(size_t)_ZN8MadPianoD1Ev(s); }
 static int __fastcall mp_d0(void *s, void *)
@@ -634,6 +653,34 @@ extern "C" void _ZN5Model12SetPolygonIDEi(void *self, int id)
 //    arm9 body (0x020061b0, linked). The dropped return matches the caller,
 //    which ignores it.
 extern "C" void *_ZN8CapEnemy10ReleaseCapERK7Vector3(void *self, const Vector3 *v);
-struct CapEnemy { void ReleaseCap(const Vector3 &v); };
+struct CapEnemy {
+    void ReleaseCap(const Vector3 &v);
+    void UpdateCapPos(const Vector3 &p, const Vector3_16 &a);
+};
 void CapEnemy::ReleaseCap(const Vector3 &v)
 { _ZN8CapEnemy10ReleaseCapERK7Vector3(this, &v); }
+//
+// 3. _ZN8CapEnemy12UpdateCapPosERK7Vector3RK10Vector3_16: the Boo render
+//    host copy calls it by C name; the matched TU compiles as the real MSVC
+//    method. Same bridge, opposite direction from 2.
+extern "C" void _ZN8CapEnemy12UpdateCapPosERK7Vector3RK10Vector3_16(
+    void *self, const Vector3 *p, const Vector3_16 *a)
+{ ((CapEnemy *)self)->CapEnemy::UpdateCapPos(*p, *a); }
+
+// ---- MSVC-typed spellings of mounted C storage -----------------------------
+// Matched .cpp TUs declare these outside extern "C", so MSVC mangles the
+// reference while the mount defines the one real C symbol -- the
+// data_02082128 M48 case (hal/actor_classes_bbh.cpp), eleven ov063 words
+// deep. Data only; a data alias has no this-register contract to break.
+#pragma comment(linker, "/alternatename:?data_ov063_0211edc4@@3USharedFilePtr@@A=_data_ov063_0211edc4")
+#pragma comment(linker, "/alternatename:?data_ov063_0211edcc@@3USharedFilePtr@@A=_data_ov063_0211edcc")
+#pragma comment(linker, "/alternatename:?data_ov063_0211edd4@@3USharedFilePtr@@A=_data_ov063_0211edd4")
+#pragma comment(linker, "/alternatename:?data_ov063_0211eddc@@3USharedFilePtr@@A=_data_ov063_0211eddc")
+#pragma comment(linker, "/alternatename:?data_ov063_0211ede4@@3USharedFilePtr@@A=_data_ov063_0211ede4")
+#pragma comment(linker, "/alternatename:?data_ov063_0211edec@@3USharedFilePtr@@A=_data_ov063_0211edec")
+#pragma comment(linker, "/alternatename:?data_ov063_0211edf4@@3USharedFilePtr@@A=_data_ov063_0211edf4")
+#pragma comment(linker, "/alternatename:?data_ov063_0211edec@@3PAXA=_data_ov063_0211edec")
+/* MadPianoD0's vtable externs sit outside its extern-C block, same rule;
+   both names already have host storage (this file / hal/actor_vtables.cpp) */
+#pragma comment(linker, "/alternatename:?_ZTV8MadPiano@@3PAPAXA=__ZTV8MadPiano")
+#pragma comment(linker, "/alternatename:?_ZTV8Platform@@3PAPAXA=__ZTV8Platform")

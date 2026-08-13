@@ -122,7 +122,10 @@ src/unnamed/ov063/func_ov063_0211dd84.c
 
 # ---- the named Boo pack ----------------------------------------------------
 src/actors/Boo/Boo_Spawn.cpp
-src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+# _ZN3Boo13InitResourcesEv.c: K&R ClosestPlayer declaration trips
+# tools/closestplayer_guard.py (its calls DO pass the receiver); faithful
+# mirror with the declaration reprototyped:
+port/unmatched/Boo_InitResources.c
 src/actors/Boo/_ZN3Boo16CleanupResourcesEv.cpp
 src/actors/Boo/_ZN3Boo16OnPendingDestroyEv.c
 src/actors/Boo/_ZN3Boo6RenderEv.cpp
@@ -158,7 +161,10 @@ src/actors/FallBlockBbh/_ZN12FallBlockBbhD0Ev.c
 src/actors/FallBlockBbh/_ZN12FallBlockBbhD1Ev.c
 src/actors/MadPiano/MadPiano_Spawn.cpp
 src/actors/MadPiano/_ZN8MadPiano13InitResourcesEv.cpp
-src/actors/MadPiano/_ZN8MadPiano16CleanupResourcesEv.cpp
+# _ZN8MadPiano16CleanupResourcesEv.cpp OUT: spells its three SharedFilePtrs
+# G0/G1/G2, and cxx_aliases.cpp binds G0/G1 to SignPost's live ov002
+# pointers -- host thunk mp_clean in hal/actor_classes_ov063.cpp instead
+# (the ov045 PoleLift ep_clean ruling)
 src/actors/MadPiano/_ZN8MadPiano6RenderEv.cpp
 src/actors/MadPiano/_ZN8MadPiano8BehaviorEv.cpp
 src/actors/MadPiano/_ZN8MadPianoD0Ev.cpp
@@ -171,6 +177,10 @@ src/unnamed/ov063/__sinit_ov063_0211e590.c
 src/actors/MadPiano/__sinit_ov063_0211e5fc.c
 
 # ---- closure ---------------------------------------------------------------
+src/_ZN8CapEnemy12UpdateCapPosERK7Vector3RK10Vector3_16.cpp
+src/_ZN5Actor9TrackStarEjj.c
+src/_ZNK12WithMeshClsn13JustHitGroundEv.c
+src/_ZN6Player15JumpIntoBooCageER7Vector3.cpp
 src/func_02011d14.c
 src/func_02048ed4.c
 src/func_ov002_020c51d0.cpp
@@ -183,3 +193,13 @@ port/unmatched/Boo_Teleport.c
 port/unmatched/Boo_CrossNamedDispatch.c
 port/unmatched/MansionSteps_InitResources.c
 port/unmatched/Bbh_PmfDispatch.c
+port/unmatched/Bbh_MethodFaces.cpp
+
+# ---- the lane's own fills and faces ----------------------------------------
+port/hal/actor_classes_ov063.cpp
+
+# ---- the mounted-overlay stragglers level 12 names -------------------------
+# UP_DOWN_LIFT_BBH (32, ov095): the third id of gate 173's daUdlift_c trio;
+# only the factory is new (it stores _ZTV13UpDownLiftBbh directly, its own
+# src), everything else already in the build.
+src/UpDownLiftBbh_Spawn.c

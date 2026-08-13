@@ -754,6 +754,45 @@ void hal_fill_pole_lift_vtable(void);                /* fills _ZTV15FireSeaEleva
 void hal_fill_extending_platform_vtable(void);       /* fills _ZTV8PoleLift, 31 */
 void hal_fill_floating_floor_bfs_vtable(void);       /* fills data_ov045_02112f50, 32 */
 void hal_fill_fall_block_bfs_vtable(void);           /* fills _ZTV12FallBlockBfs, 32 */
+/* ---- run linkw wave 5 (lane w5-A): ov063, Big Boo's Haunt's own cast ----
+   Ten ids, six tables, first ov063 mount (port/ov063_syms.txt). The id map
+   was re-derived from the raw image + the arm9 spawn table and this config
+   has NO ov045-style naming shift -- every SpawnInfo's word[0] is its own
+   name's Spawn and its +4 halfword the id (derivation in
+   hal/actor_classes_ov063.cpp). BigBoo shares Boo's table (its own matched
+   Spawn stores &_ZTV3Boo); the four furniture ids share MansionSteps'
+   (one daTrsTrap_c class, four records, mode off the id at +0xc). Only
+   FallBlockBbh needs a factory wrapper: its Spawn's last vptr write is the
+   shared-header VT1 placeholder, the port_factory_fall_block_bfs shape.
+   MansionSteps' InitResources SPAWNS ids 65 and 213 at runtime and writes
+   through the results unchecked, so 65's own row and BOOK_SWITCH 213 (ov020,
+   the straggler block) must stay registered with 158. */
+extern unsigned char Boo_SpawnInfo[];            /* ov063 0x0211e770, +4 reads 209 */
+void *Boo_Spawn(void);                           /* ov063 0x0211c590 */
+extern unsigned char BigBoo_SpawnInfo[];         /* ov063 0x0211e78c, +4 reads 210 */
+void *BigBoo_Spawn(void);                        /* ov063 0x0211c520 */
+extern unsigned char BigBooIcon_SpawnInfo[];     /* ov063 0x0211e7c4, +4 reads 211 */
+void *BigBooIcon_Spawn(void);                    /* ov063 0x0211c4a0 */
+extern unsigned char BooCage_SpawnInfo[];        /* ov063 0x0211e7a8, +4 reads 212 */
+void *BooCage_Spawn(void);                       /* ov063 0x0211c4d0 */
+extern unsigned char MansionSteps_SpawnInfo[];   /* ov063 0x0211ea10, +4 reads 65 */
+void *MansionSteps_Spawn(void);                  /* ov063 0x0211d360 */
+extern unsigned char Bookshelf_SpawnInfo[];      /* ov063 0x0211ea2c, +4 reads 158 */
+void *Bookshelf_Spawn(void);                     /* ov063 0x0211d320 */
+extern unsigned char MerryGoRound_SpawnInfo[];   /* ov063 0x0211ea48, +4 reads 159 */
+void *MerryGoRound_Spawn(void);                  /* ov063 0x0211d2e0 */
+extern unsigned char TrapDoor_SpawnInfo[];       /* ov063 0x0211ea64, +4 reads 160 */
+void *TrapDoor_Spawn(void);                      /* ov063 0x0211d2a0 */
+extern unsigned char FallBlockBbh_SpawnInfo[];   /* ov063 0x0211eb34, +4 reads 66 */
+void *port_factory_fall_block_bbh(void);         /* VT1 wrapper over ov063 0x0211d47c */
+extern unsigned char MadPiano_SpawnInfo[];       /* ov063 0x0211ed10, +4 reads 249 */
+void *MadPiano_Spawn(void);                      /* ov063 0x0211e128 */
+void hal_fill_boo_vtable(void);                  /* fills _ZTV3Boo, 31 (209+210) */
+void hal_fill_big_boo_icon_vtable(void);         /* fills _ZTV10BigBooIcon, 31 */
+void hal_fill_boo_cage_vtable(void);             /* fills _ZTV7BooCage, 31 */
+void hal_fill_mansion_steps_vtable(void);        /* fills _ZTV12MansionSteps, 31 (x4 ids) */
+void hal_fill_fall_block_bbh_vtable(void);       /* fills _ZTV12FallBlockBbh, 32 */
+void hal_fill_mad_piano_vtable(void);            /* fills _ZTV8MadPiano, 32 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1107,4 +1146,23 @@ void hal_fill_fall_block_bfs_vtable(void);           /* fills _ZTV12FallBlockBfs
     {145, "FLOATING_FLOOR_BFS", FloatingFloorBfs_SpawnInfo, \
      port_factory_floating_floor_bfs, hal_fill_floating_floor_bfs_vtable}, \
     {139, "FALL_BLOCK_BFS", FallBlockBfs_SpawnInfo, \
-     port_factory_fall_block_bfs, hal_fill_fall_block_bfs_vtable},
+     port_factory_fall_block_bfs, hal_fill_fall_block_bfs_vtable}, \
+    /* ---- run linkw wave 5 (lane w5-A): ov063, Big Boo's Haunt's cast ---- */ \
+    {209, "BOO", Boo_SpawnInfo, Boo_Spawn, hal_fill_boo_vtable}, \
+    {210, "BIG_BOO", BigBoo_SpawnInfo, BigBoo_Spawn, hal_fill_boo_vtable}, \
+    {211, "BIG_BOO_ICON", BigBooIcon_SpawnInfo, BigBooIcon_Spawn, \
+     hal_fill_big_boo_icon_vtable}, \
+    {212, "BOO_CAGE", BooCage_SpawnInfo, BooCage_Spawn, \
+     hal_fill_boo_cage_vtable}, \
+    {65, "MANSION_STEPS", MansionSteps_SpawnInfo, MansionSteps_Spawn, \
+     hal_fill_mansion_steps_vtable}, \
+    {158, "BOOKSHELF", Bookshelf_SpawnInfo, Bookshelf_Spawn, \
+     hal_fill_mansion_steps_vtable}, \
+    {159, "MERRY_GO_ROUND", MerryGoRound_SpawnInfo, MerryGoRound_Spawn, \
+     hal_fill_mansion_steps_vtable}, \
+    {160, "TRAP_DOOR", TrapDoor_SpawnInfo, TrapDoor_Spawn, \
+     hal_fill_mansion_steps_vtable}, \
+    {66, "FALL_BLOCK_BBH", FallBlockBbh_SpawnInfo, \
+     port_factory_fall_block_bbh, hal_fill_fall_block_bbh_vtable}, \
+    {249, "MAD_PIANO", MadPiano_SpawnInfo, MadPiano_Spawn, \
+     hal_fill_mad_piano_vtable},

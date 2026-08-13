@@ -61,3 +61,12 @@ data_ov095_02137910:0x28
 UpDownLiftHmc_SpawnInfo:0x1c
 data_ov095_02136f68:0xc data_ov095_02136f74:0xc
 data_ov095_021375a4:0xc
+# run linkw wave 5 (lane w5-A): UP_DOWN_LIFT_BBH (32), the 0x20 variant of the
+# same daUdlift_c trio, joins for Big Boo's Haunt. Its SpawnInfo is flagged
+# `ambiguous` in config (the ov095 window is shared); resolved by the raw
+# record in extracted/overlays/overlay_0095.bin: word[0] = 0x021367fc =
+# UpDownLiftBbh_Spawn, +4 halfword = 32, +6 = 300. Everything else the
+# variant reads (the f68/f74 file tables, the CLPS table, the state machine)
+# is variant-indexed storage already mounted above; the class code and vtable
+# are gate 173's, shared across all three ids.
+UpDownLiftBbh_SpawnInfo:0x1c
