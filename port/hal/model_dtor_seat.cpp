@@ -91,11 +91,13 @@
 //   _ZN9ModelBaseD1Ev -- same folding, one slot up: data_0208e87c[0] can hold
 //     one of the two ModelBase dtors and the deleting one is the useful half.
 //   _ZThn80_N{9ModelAnim,14BlendModelAnim,10ModelAnim2}D{0,1}Ev -- the six
-//     Animation-subobject thunks. Their matched TUs are mwcc ARTEFACT sources
-//     (a synthetic two-base hierarchy whose only job is to make the compiler
-//     emit a this-adjusting thunk); all six spell the same MSVC symbol as each
-//     other, so they cannot even coexist in one link, let alone stand in for
-//     the ROM's thunks. The VTable_Animation_*Thunk tables keep their no-ops.
+//     Animation-subobject thunks. Their matched TUs are mwcc ARTEFACT sources:
+//     a synthetic two-base hierarchy whose only job is to make the compiler
+//     emit a this-adjusting thunk, and the D0 and D1 file of each pair are
+//     byte-identical. Under MSVC each pair therefore defines the SAME symbol
+//     (??1ModelAnim@@UAE@XZ and its two siblings) twice, and that symbol is
+//     also the one a real ModelAnim destructor would take. They cannot be
+//     linked. The VTable_Animation_*Thunk tables keep their no-ops.
 // ===========================================================================
 
 #include "ShadowModel.h"
