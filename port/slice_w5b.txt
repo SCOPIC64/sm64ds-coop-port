@@ -1,0 +1,185 @@
+# slice_w5b.txt -- lane-owned slice for the linkage campaign (run linkw,
+# wave 5, lane w5-B: Hazy Maze Cave's cast). One matched src TU per line,
+# path relative to the repo root, comments with #. ONE OWNER (lane w5-B);
+# other lanes never touch it.
+#
+# A SLICE LINE ALONE DOES NOT LINK A TU (/OPT:REF). Every line below has its
+# reference edge in hal/actor_classes_ov065.cpp (the seven fills, the
+# factories, ov65_bringup's sinit calls) or in the four host copies under
+# port/unmatched/ (Ov065_StateDispatch's seat rows, the three Behaviors'
+# helper calls). Post-build, every line was checked against walk_window.map
+# -- no line sits here looking seated.
+#
+# FIVE MATCHED ov065 TUs ARE DELIBERATELY ABSENT, each with a host copy
+# instead (the gate-173 PMF ruling, measured -- see
+# port/unmatched/Ov065_StateDispatch.cpp's banner):
+#   src/_ZN6Snufit8BehaviorEv.cpp     incomplete-class PMF read at table+8
+#   src/_ZN5Swoop8BehaviorEv.cpp      same
+#   src/_ZN6Dorrie8BehaviorEv.cpp     16-byte PMF stride over 8-byte records
+#   src/func_ov065_0211691c.cpp       16-byte PMF over the whole table
+#   src/func_ov065_02117944.cpp       same
+# ONE MORE IS ABSENT BECAUSE src/ NEVER BANKED IT: func_ov065_02118838
+# (Dorrie's neck chain, 0x414 bytes) -- hosted in
+# port/unmatched/Dorrie_Behavior.cpp until the decomp matches it.
+# src/func_ov065_02116364 exists TWICE (.c and .cpp); the .c is the
+# delinks-bound TU (config/arm9/overlays/ov065/delinks.txt) and is the one
+# sliced.
+# THE TTC SUBSET (ten classes, their seven sinits, their TUs) IS PARKED per
+# the wave-5 census: no bootable level reaches it, and a wired-but-dead TU is
+# the measured gate-6 mistake.
+
+# ---- SNUFIT (236): factory, methods, states ---------------------------------
+src/Snufit_Spawn.c
+src/_ZN6SnufitD1Ev.c
+src/_ZN6SnufitD0Ev.c
+src/_ZN6Snufit16CleanupResourcesEv.c
+src/_ZN6Snufit16OnPendingDestroyEv.c
+src/_ZN6Snufit6RenderEv.cpp
+src/_ZN6Snufit13InitResourcesEv.cpp
+src/func_ov065_02115f84.c
+src/func_ov065_02115ff0.c
+src/func_ov065_021162c0.c
+src/func_ov065_02116328.c
+src/func_ov065_02116364.c
+src/func_ov065_02116588.cpp
+src/func_ov065_021165d8.cpp
+src/func_ov065_0211672c.c
+src/func_ov065_02116744.c
+src/func_ov065_021168a8.cpp
+src/func_ov065_0211696c.c
+src/func_ov065_02116f0c.c
+src/func_ov065_02116f14.cpp
+src/func_ov065_02116f40.c
+
+# ---- SWOOP (237) ------------------------------------------------------------
+src/Swoop_Spawn.c
+src/_ZN5SwoopD1Ev.c
+src/_ZN5SwoopD0Ev.c
+src/_ZN5Swoop16CleanupResourcesEv.c
+src/_ZN5Swoop16OnPendingDestroyEv.c
+src/_ZN5Swoop6RenderEv.cpp
+src/_ZN5Swoop13InitResourcesEv.cpp
+src/func_ov065_0211704c.c
+src/func_ov065_02117404.cpp
+src/func_ov065_021175b0.c
+src/func_ov065_02117624.c
+src/func_ov065_021176fc.cpp
+src/func_ov065_02117780.c
+src/func_ov065_021177e4.cpp
+src/func_ov065_02117888.c
+src/func_ov065_021178fc.c
+src/func_ov065_02117994.c
+src/func_ov065_02117eac.c
+src/func_ov065_02117eb4.cpp
+src/func_ov065_02117ee0.c
+
+# ---- DORRIE (168) + DORRIE_CAP (169) ---------------------------------------
+src/Dorrie_Spawn.cpp
+src/DorrieCap_Spawn.c
+src/_ZN6DorrieD1Ev.cpp
+src/_ZN6DorrieD0Ev.cpp
+src/_ZN9DorrieCapD1Ev.c
+src/_ZN9DorrieCapD0Ev.c
+src/_ZN6Dorrie16CleanupResourcesEv.cpp
+src/_ZN6Dorrie6RenderEv.cpp
+src/_ZN9DorrieCap6RenderEv.cpp
+src/_ZN9DorrieCap8BehaviorEv.cpp
+src/_ZN6Dorrie13InitResourcesEv.cpp
+src/_ZN9DorrieCap13InitResourcesEv.cpp
+src/func_ov065_021180b8.c
+src/func_ov065_021180d4.c
+src/func_ov065_02118248.cpp
+src/func_ov065_021182e4.cpp
+src/func_ov065_021183c8.c
+src/func_ov065_02118634.c
+src/func_ov065_02118c4c.c
+src/func_ov065_02118cc4.c
+src/func_ov065_02119210.c
+src/func_ov065_0211956c.c
+src/func_ov065_02119594.c
+src/func_ov065_021195bc.c
+src/func_ov065_021195d0.c
+src/func_ov065_021195e4.c
+src/func_ov065_021196bc.c
+
+# ---- ov065's three HMC sinits (edge: ov65_bringup) --------------------------
+src/__sinit_ov065_0211c110.c
+src/__sinit_ov065_0211c2a8.c
+src/__sinit_ov065_0211c440.c
+
+# ---- WORK_ELEVATOR (68) -----------------------------------------------------
+src/WorkElevator_Spawn.cpp
+src/_ZN12WorkElevatorD1Ev.cpp
+src/_ZN12WorkElevatorD0Ev.c
+src/_ZN12WorkElevator16CleanupResourcesEv.cpp
+src/_ZN12WorkElevator6RenderEv.cpp
+src/_ZN12WorkElevator8BehaviorEv.c
+src/_ZN12WorkElevator13InitResourcesEv.cpp
+src/func_ov021_0211129c.c
+# src/func_ov021_02111434.c is NOT here: it ends in a two-instruction mwcc
+# asm veneer (ands r0,r0,#1; bx lr) MSVC cannot compile -- hosted in
+# port/unmatched/WorkElevator_Mtx.cpp until hostgen grows asm excision (U5).
+src/func_ov021_02111ec4.c
+src/func_ov021_02111edc.cpp
+src/func_ov021_02111f1c.c
+src/func_ov021_02111f34.cpp
+src/func_ov021_02111f74.c
+src/func_ov021_02111f8c.cpp
+src/func_ov021_02111fcc.c
+src/func_ov021_02111fe4.c
+src/func_ov021_02112024.cpp
+src/func_ov021_02112128.c
+
+# ---- ROLLING_ROCK (221) -----------------------------------------------------
+src/RollingRock_Spawn.c
+src/_ZN11RollingRockD1Ev.c
+src/_ZN11RollingRockD0Ev.c
+src/_ZN11RollingRock16CleanupResourcesEv.c
+src/_ZN11RollingRock6RenderEv.cpp
+src/_ZN11RollingRock8BehaviorEv.c
+src/_ZN11RollingRock13InitResourcesEv.cpp
+src/func_ov021_0211228c.c
+src/func_ov021_02112294.c
+src/func_ov021_021122fc.cpp
+src/func_ov021_021123b0.c
+src/func_ov021_02112544.cpp
+src/func_ov021_021127b4.c
+
+# ---- SHUTTER_HMC (67): no Render TU -- slot 9 is ov002's shared body --------
+src/ShutterHmc_Spawn.c
+src/_ZN10ShutterHmcD1Ev.c
+src/_ZN10ShutterHmcD0Ev.c
+src/_ZN10ShutterHmc16CleanupResourcesEv.cpp
+src/_ZN10ShutterHmc8BehaviorEv.cpp
+src/_ZN10ShutterHmc13InitResourcesEv.cpp
+
+# ---- ov021's three sinits (edge: ov65_bringup) ------------------------------
+src/__sinit_ov021_02113500.c
+src/__sinit_ov021_02113688.c
+src/__sinit_ov021_021136c8.c
+
+# ---- the sqrt closure (edge: WE's rider-push callback + the hostgen four) --
+# func_02053008 / func_020531a4 / func_02052fdc / func_02053130 are HOSTGEN
+# sources (SQRTUNIT_SYMS in port/CMakeLists.txt), not slice lines --
+# func_02053130's role-named externs ride hostgen's MMIO_EXTERN table.
+# These are the plain-math TUs of the same chain.
+src/Quaternion_Normalize.c
+src/Quaternion_FromVector3.c
+src/Quaternion_SLerp.c
+src/Matrix4x3_FromQuaternion.c
+src/Matrix3x3_FromQuaternion.c
+src/func_0203cebc.c
+
+# ---- the arm9 base body the Snufit/Swoop knockback states call --------------
+# (call target 0x02010518 re-derived from the reloc runs; the probe's other
+# class-b suggestion, _ZN6EyerokD0Ev, was a shared-window NAME RACE and is
+# aliased by address in hal/actor_classes_ov065.cpp instead of sliced)
+src/_ZN5Actor24BumpedUnderneathByPlayerER6Player.cpp
+
+# ---- the lane's host files (the slice reader takes any repo path) -----------
+port/hal/actor_classes_ov065.cpp
+port/unmatched/Ov065_StateDispatch.cpp
+port/unmatched/Snufit_Behavior.cpp
+port/unmatched/Swoop_Behavior.cpp
+port/unmatched/Dorrie_Behavior.cpp
+port/unmatched/WorkElevator_Mtx.cpp

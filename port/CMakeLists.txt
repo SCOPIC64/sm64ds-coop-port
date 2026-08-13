@@ -1190,6 +1190,22 @@ list(APPEND PORT_ACTOR_OVERLAYS ov046)
 # first registry fill (ov70_bringup) -- the same actor_overlays.cpp handoff
 # hal/actor_classes_ov045.cpp records.
 list(APPEND PORT_ACTOR_OVERLAYS ov070)
+# run linkw wave 5 (lane w5-B): ov065, first mount -- Hazy Maze Cave's enemy
+# overlay (Snufit 236, Swoop 237, Dorrie 168, DorrieCap 169; the ten Ttc*
+# classes ride the mount as data but stay unregistered, the parked subset).
+# Its four HMC vtables are host arrays hal/actor_classes_ov065.cpp fills; the
+# five Ttc vtables are excluded and hosted nowhere (the ov045 id-141
+# precedent). Bring-up rides the registry fill (ov65_bringup), the w4-b
+# pattern -- no lane owns hal/actor_overlays.cpp this wave. See
+# port/ov065_syms.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov065)
+# ...and ov021 (level 13's own overlay, already whole-mounted per gate 156)
+# joins the per-symbol mounts too, so WORK_ELEVATOR (68), ROLLING_ROCK (221)
+# and SHUTTER_HMC (67) reach their SpawnInfo records, CLPS blocks, tuning
+# tables and sinit-built SharedFilePtrs by name -- the ov010/ov019/ov045
+# dual-mount shape. Its three vtables are host arrays the same file fills.
+# See port/ov021_syms.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov021)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1400,6 +1416,10 @@ endforeach()
 #   ntr/io.cpp's widened SQRT_PARAM trigger; the numeric proof is in the
 #   commit that landed the mechanism. Quaternion_Normalize (slice_w1l4's
 #   restored id-141 chain) and Quaternion_FromVector3 are the callers.
+#   Folded from lane w5-B (the level-13 reach evidence): the same unit is
+#   pulled in by WORK_ELEVATOR's rider-push callback (func_ov021_02112024
+#   -> Quaternion_Normalize), closing the id-141 sqrt gap
+#   hal/actor_classes_ov045.cpp names from the HMC cast as well.
 #   OV70GEN -- func_ov070_0211f0a4, the census's measured compile fail (C4716;
 #   hostgen's FALLS_OFF_RETURN table documents the returned value).
 set(SQRTUNIT_SYMS func_02053008 func_02053130 func_020531a4 func_02052fdc)
@@ -1464,6 +1484,17 @@ foreach(line IN LISTS SLICE_W5E_LINES)
         continue()
     endif()
     list(APPEND SLICE_W5E_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+# run linkw wave 5, lane w5-B (Hazy Maze Cave's cast); same reader shape,
+# one owner.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w5b.txt" SLICE_W5B_LINES)
+set(SLICE_W5B_SOURCES "")
+foreach(line IN LISTS SLICE_W5B_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W5B_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate21.txt" SLICE21_LINES)
@@ -2820,6 +2851,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
+    ${SLICE_W5B_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -2891,6 +2923,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
+    ${SLICE_W5B_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -2993,6 +3026,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
+    ${SLICE_W5B_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}

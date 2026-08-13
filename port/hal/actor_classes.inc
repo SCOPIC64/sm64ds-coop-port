@@ -790,6 +790,35 @@ void hal_fill_amp_vtable(void);                      /* fills _ZTV3Amp, 31 */
 void hal_fill_flame_chomp_vtable(void);              /* fills _ZTV10FlameChomp, 31 */
 void hal_fill_flame_chomp_fire_vtable(void);         /* fills _ZTV14FlameChompFire, 31 */
 void hal_fill_popping_lava_bubbles_vtable(void);     /* fills data_ov002_021093e0, 31 */
+/* ---- run linkw wave 5 (lane w5-B): Hazy Maze Cave's cast ----
+   ov065's HMC subset + ov021's resident trio, both freshly per-symbol
+   mounted (port/ov065_syms.txt, port/ov021_syms.txt). THE CAST MAP WAS
+   RE-DERIVED, five reads per class, and the names are NOT shifted in either
+   overlay -- the full derivation and every table width is in
+   hal/actor_classes_ov065.cpp. Six factories store their own table by a
+   real name and register directly; ShutterHmc_Spawn is the ov045 factory-F
+   shape (base first, own second, own spelled VT1) and gets the wrapper. */
+extern unsigned char Snufit_SpawnInfo[];        /* ov065 0x0211cb80, +4 reads 236 */
+void *Snufit_Spawn(void);                       /* ov065 0x02116f48 */
+extern unsigned char Swoop_SpawnInfo[];         /* ov065 0x0211cc7c, +4 reads 237 */
+void *Swoop_Spawn(void);                        /* ov065 0x02117ee8 */
+extern unsigned char Dorrie_SpawnInfo[];        /* ov065 0x0211cd84, +4 reads 168 */
+void *Dorrie_Spawn(void);                       /* ov065 0x02119634 */
+extern unsigned char DorrieCap_SpawnInfo[];     /* ov065 0x0211cda0, +4 reads 169 */
+void *DorrieCap_Spawn(void);                    /* ov065 0x021195ec */
+extern unsigned char WorkElevator_SpawnInfo[];  /* ov021 0x02114768, +4 reads 68 */
+void *WorkElevator_Spawn(void);                 /* ov021 0x02112168 */
+extern unsigned char RollingRock_SpawnInfo[];   /* ov021 0x02114824, +4 reads 221 */
+void *RollingRock_Spawn(void);                  /* ov021 0x02112d64 */
+extern unsigned char ShutterHmc_SpawnInfo[];    /* ov021 0x021148f0, +4 reads 67 */
+void *port_factory_shutter_hmc(void);           /* VT1 wrapper over ov021 0x02112ed4 */
+void hal_fill_snufit_vtable(void);              /* fills _ZTV6Snufit, 31 */
+void hal_fill_swoop_vtable(void);               /* fills _ZTV5Swoop, 31 */
+void hal_fill_dorrie_vtable(void);              /* fills _ZTV6Dorrie, 31 */
+void hal_fill_dorrie_cap_vtable(void);          /* fills _ZTV9DorrieCap, 31+2 */
+void hal_fill_work_elevator_vtable(void);       /* fills _ZTV12WorkElevator, 32 */
+void hal_fill_rolling_rock_vtable(void);        /* fills _ZTV11RollingRock, 31 */
+void hal_fill_shutter_hmc_vtable(void);         /* fills _ZTV10ShutterHmc, 32 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1160,4 +1189,6 @@ void hal_fill_popping_lava_bubbles_vtable(void);     /* fills data_ov002_021093e
     {271, "FLAME_CHOMP_FIRE", FlameChompFire_SpawnInfo, FlameChompFire_Spawn, \
      hal_fill_flame_chomp_fire_vtable}, \
     {196, "POPPING_LAVA_BUBBLES", PoppingLavaBubbles_SpawnInfo, \
-     PoppingLavaBubbles_Spawn, hal_fill_popping_lava_bubbles_vtable},
+     PoppingLavaBubbles_Spawn, hal_fill_popping_lava_bubbles_vtable},     /* ---- run linkw wave 5 (lane w5-B): Hazy Maze Cave's cast (level 13);
+       DORRIE_CAP is never in a level's object list -- Dorrie spawns id 169
+       at runtime, and the registry row is what that spawn finds ---- */     {236, "SNUFIT", Snufit_SpawnInfo, Snufit_Spawn, hal_fill_snufit_vtable},     {237, "SWOOP", Swoop_SpawnInfo, Swoop_Spawn, hal_fill_swoop_vtable},     {168, "DORRIE", Dorrie_SpawnInfo, Dorrie_Spawn, hal_fill_dorrie_vtable},     {169, "DORRIE_CAP", DorrieCap_SpawnInfo, DorrieCap_Spawn,      hal_fill_dorrie_cap_vtable},     {68, "WORK_ELEVATOR", WorkElevator_SpawnInfo, WorkElevator_Spawn,      hal_fill_work_elevator_vtable},     {221, "ROLLING_ROCK", RollingRock_SpawnInfo, RollingRock_Spawn,      hal_fill_rolling_rock_vtable},     {67, "SHUTTER_HMC", ShutterHmc_SpawnInfo, port_factory_shutter_hmc,      hal_fill_shutter_hmc_vtable},

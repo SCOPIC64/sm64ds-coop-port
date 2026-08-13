@@ -75,6 +75,10 @@ NAMED = [
     # reads -- Quaternion_FromVector3's fallback (data_02075b04) and the
     # tilting Behavior's slerp rest pose (data_02092768). Both 0x10, both
     # reloc-free (checked config/arm9/relocs.txt over the full spans).
+    # Lane w5-b reached the same pair from level 13: the WorkElevator
+    # rider-push chain reads them too -- func_ov021_02112024 resets its
+    # orientation from data_02092768 and Quaternion_FromVector3 falls
+    # back to data_02075b04.
     "data_02075b04", "data_02092768",
     "data_02082178", "data_02090e80", "data_020914a0",
     "data_02092584", "data_02092654", "data_02092668", "data_0208e500", "data_02086a58", "data_0208e430", "data_02086b58",

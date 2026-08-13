@@ -418,6 +418,12 @@ void io_write(uint32_t addr, uint64_t value, unsigned width) {
     raw_write(addr, value, width);
 
     // Writing the low half of the operand is what starts the unit on hardware.
+    // SQRT_PARAM is 64-bit and the game writes it as two 32-bit words (the
+    // hostgen'd func_02053008 stores 0x40002b8 then 0x40002bc); GBATEK has a
+    // write to EITHER half restarting the unit, and dispatching only on the
+    // low word left SQRT_RESULT computed from the stale high half -- found on
+    // the WorkElevator rider-push chain (run linkw wave 5, lane w5-b).
+    // Recomputing on both halves is idempotent for low-word-only writers.
     if (addr == DIV_DENOM || addr == DIV_NUMER || addr == DIVCNT) run_divide();
     // The sqrt trigger covers BOTH halves of the 64-bit parameter. The ROM's
     // own driver (func_02053008, and its sibling func_020531a4) writes
