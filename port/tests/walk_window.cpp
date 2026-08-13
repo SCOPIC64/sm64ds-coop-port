@@ -513,6 +513,36 @@ static void ss_note(const char *msg)
     ss_toast_left = 120;
 }
 
+/* THE SHADOW LIST'S TWO STATICS, seated at the two points Stage::Render and
+   Stage::Behavior call them. Both bodies are matched src/ and both were being
+   discarded by /OPT:REF because the port's transcription of those two Stage
+   methods skipped the calls.
+
+   This is a method-shadow declaration, the same trick hal/heap_vtable.cpp uses:
+   MSVC mangles a static member off the class NAME and the signature only, so
+   `?RenderAll@ShadowModel@@SAXXZ` from here is the same symbol the real
+   definition (src/_ZN11ShadowModel9RenderAllEv.cpp, which includes the full
+   include/ShadowModel.h) exports. No layout is assumed and none is used.
+
+   WHAT THEY DO HERE, exactly: both walk the global intrusive shadow list at
+   data_0209cef4, and on the port that list is ALWAYS EMPTY. The only thing that
+   ever links a node onto it is ShadowModel::InitModel, reached through
+   Actor::DropShadowScaleXYZ, and both of those are host no-ops because the
+   cuboid/cylinder shadow template BMDs live in overlay 1 and the port does not
+   mount ov001 (the reasons are written out in hal/cxxname_bridge.cpp). So
+   RenderAll runs its terminal `data_0209ceec = 1` and CleanAll its terminal
+   `data_0209ceec = 0`, and the loop bodies -- including RenderAll's calls to
+   func_02046120 and func_02046088, which set the per-material polygon-attribute
+   alpha for the two shadow passes -- do not execute yet. They link because
+   RenderAll names them, which is the ROM's own reference edge, and they will
+   run unchanged the day ov001 mounts. Nothing else in the game reads
+   data_0209ceec: src/ has exactly three TUs that touch it and all three are
+   ShadowModel's own. */
+struct ShadowModel {
+    static void RenderAll();
+    static void CleanAll();
+};
+
 /* ntr/io.cpp: the hardware content stores the save state captures. The
    reproducer below hashes them to PROVE a restore put the bytes back, because
    "the run kept stepping" is satisfiable with the wrong textures on screen --
@@ -4632,6 +4662,20 @@ int main(void)
            one the level cannot produce (hal/level_boot.cpp) */
         if (real_boot)
             port_stage_path_guard(player);
+        /* Stage::Behavior's LAST statement, in its place. The ROM's is
+
+               if ((u8)(data_0209f294 | (data_0209f2c4 | data_0209f20c)) == 0)
+                   if ((data_0209b454 & ~0x20000000) == 0)
+                       ShadowModel::CleanAll();
+
+           and the port holds all four of those globals at 0 for this boot
+           (hal/level_boot.cpp seeds them next to the camera state), so the
+           guard is unconditionally taken and spelling it out here would only
+           be repeating a constant. game_ticked is the one condition that is
+           NOT constant: the ROM never reaches Stage::Behavior at all on a
+           paused frame, and menu_on clears game_ticked for exactly that. */
+        if (game_ticked)
+            ShadowModel::CleanAll();
         ph_end(PH_INPUT, t_phase);
         /* THE DECEL CURVE. One line per frame after the tick, so the speed
            printed is the one this frame's physics produced. dv is the change
@@ -5376,14 +5420,15 @@ int main(void)
                    Model glued to the camera eye (hal/stage_bridges.cpp); the
                    two model passes are the same Model drawn twice with
                    inverse visibility masks -- the moat water only exists in
-                   the second. (ShadowModel::RenderAll sits between them on the
-                   ROM; the port's shadows are still the actors' own.) */
+                   the second, and ShadowModel::RenderAll sits between them --
+                   it is the ROM's own call now, not a comment. */
                 port_stage_render_skybox(stage);
                 /* Stage::Render's first block, in its place in the order:
                    advance the shown areas' BTA texture animations (the
                    waterfall), which RenderModel below then applies. */
                 port_stage_advance_anims(stage);
                 port_stage_render_model(stage);
+                ShadowModel::RenderAll();
                 port_stage_render_model_transparent(stage);
             } else {
                 hal_render_model(level_model, level_shift);

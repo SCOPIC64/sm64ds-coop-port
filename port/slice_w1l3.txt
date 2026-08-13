@@ -41,6 +41,38 @@ src/_ZN9ModelBaseD0Ev.c
 # already linked before this wave.
 src/_ZN4Heap18InitializeGameHeapEjPS_.c
 
+# ---- wave 2: the shadow list's two statics ----------------------------------
+# Wave 1 parked these below as "they come in with Stage, not before it". That
+# turned out to be one step stronger than the evidence. The ROM's callers are
+# indeed only the three Stage methods --
+#   from:0x0202b99c -> 0x02015d38  ShadowModel::RenderAll, inside Stage::Render
+#   from:0x0202bc38 -> 0x02015e14  ShadowModel::CleanAll,  inside Stage::Behavior
+#   from:0x0202c20c -> 0x02015e14  ShadowModel::CleanAll,  inside Stage::Behavior
+#   from:0x0202d484 -> 0x02015e14  ShadowModel::CleanAll,  in Stage::InitResources
+# -- but the port already TRANSCRIBES Stage::Render and Stage::Behavior by hand
+# in tests/walk_window.cpp, in the ROM's own order, and both transcriptions
+# simply skipped these two calls. Restoring them at those exact points needs no
+# Stage seat at all. RenderAll goes between RenderModel and
+# RenderModelTransparent (Stage::Render lines 109-111 of the matched TU) and
+# CleanAll goes at the end of the behaviour phase (Stage::Behavior's last
+# statement), both in walk_window.cpp.
+#
+# RenderAll's own two callees come with it: it names func_02046120 and
+# func_02046088 (the per-material polygon-attribute alpha writes for the two
+# shadow passes), which is the reference edge /OPT:REF wants, so those two need
+# only to be COMPILED. None of these four is in any slice this target builds --
+# CleanAll's only other listing is slice_gate36.txt, which CMakeLists.txt reads
+# into SLICE36_SOURCES and then never adds to a target, so it compiles nothing.
+#
+# HONEST SCOPE: the shadow list at data_0209cef4 is always empty on the port,
+# because ShadowModel::InitModel is only reached through
+# Actor::DropShadowScaleXYZ and both are host no-ops until ov001 mounts. The two
+# statics run their terminal store; the loop bodies do not execute yet.
+src/_ZN11ShadowModel9RenderAllEv.cpp
+src/_ZN11ShadowModel8CleanAllEv.cpp
+src/func_02046088.c
+src/func_02046120.c
+
 # ---- mined and NOT taken (kept here so wave 2 does not re-mine them) --------
 # _ZN11ShadowModel10InitCuboidEv.cpp
 #     hal/actor_class_faces.cpp defines the same ?InitCuboid@ShadowModel@@QAEXXZ.
@@ -51,11 +83,10 @@ src/_ZN4Heap18InitializeGameHeapEjPS_.c
 # _ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File.cpp
 #     hal/method_faces.cpp already carries the truthful shape: the ROM veneer
 #     takes (bmd, bta) with no `this`, so the matched METHOD cannot be called.
-# _ZN11ShadowModel9RenderAllEv.cpp, _ZN11ShadowModel8CleanAllEv.cpp
-#     plus their callees src/func_02046088.c and src/func_02046120.c. Statics
-#     whose only callers are Stage::Render, Stage::Behavior and
-#     Stage::InitResources -- all three matched, all three still unlinked
-#     behind hal/level_boot.cpp. They come in with Stage, not before it.
+#     (the four shadow-list files that used to be parked here were TAKEN in
+#     wave 2 -- see the block above. The ROM callers were read correctly; what
+#     was missed is that the port hand-transcribes two of those three callers,
+#     so the call sites exist without the Stage seat.)
 # _ZN11ShadowModel12InitCylinderEv.cpp
 #     both spellings are host-stubbed (hal/bob_enemy_bridges.cpp returns 1,
 #     hal/player_bridges.cpp is a no-op) because the shadow template BMDs live
