@@ -106,6 +106,12 @@ NAMED = [
     # state helper) reads a s16 out of at +0x56. No relocations in it -- pure
     # data, byte-hosted the same as every table above.
     "data_02082714",
+    # run linkw wave 5 (lane w5-b): the two identity quaternions the
+    # WorkElevator rider-push chain reads -- func_ov021_02112024 resets its
+    # orientation from data_02092768 and Quaternion_FromVector3 falls back to
+    # data_02075b04. Both are {0, 0, 0, 0x1000}, 16 bytes, zero relocations
+    # (checked against config/arm9/relocs.txt before listing) -- pure data.
+    "data_02092768", "data_02075b04",
     # gate 32: the coin tables Actor::GivePlayerCoins indexes (id and amount),
     # and the per-character cap-model constant data_0208a0e0 sits beside them.
     "data_02075230", "data_02075238",
