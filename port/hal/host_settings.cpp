@@ -85,13 +85,15 @@ int looks_like_json_object(const char *s)
     return b > a && b[-1] == '}';
 }
 
-/* Find `key` used as an object KEY and read the JSON true/false after it.
-   Returns dflt unless a real boolean is there.
+/* Find `key` used as an object KEY and return a pointer at the first
+   character of its value, or null. Every reader below is built on this, so
+   there is one notion of "used as an object KEY" in this file rather than
+   one per type.
 
    Strings that are values rather than keys are stepped over, so a credit
    name that happens to contain the key's spelling cannot be mistaken for
    the key itself. */
-int json_bool(const char *s, const char *key, int dflt)
+const char *json_value(const char *s, const char *key)
 {
     const size_t klen = strlen(key);
     for (const char *p = s; *p; ++p) {
@@ -99,7 +101,7 @@ int json_bool(const char *s, const char *key, int dflt)
         const char *name = p + 1;
         const char *end = name;
         while (*end && *end != '"' && *end != '\\') ++end;
-        if (*end != '"') {           /* escape or unterminated: stop here */
+        if (*end != '"') {
             if (!*end) break;
             p = end;
             continue;
@@ -107,20 +109,78 @@ int json_bool(const char *s, const char *key, int dflt)
         const int is_key = (size_t)(end - name) == klen && ieq(name, key, klen);
         const char *q = end + 1;
         while (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n') ++q;
-        if (*q != ':') { p = end; continue; }   /* a string value, not a key */
+        if (*q != ':') { p = end; continue; }
         ++q;
         while (*q == ' ' || *q == '\t' || *q == '\r' || *q == '\n') ++q;
-        if (is_key) {
-            /* length before the compare: ieq reads a fixed count, so a
-               value shorter than the literal must never reach it */
-            const size_t vlen = strlen(q);
-            if (vlen >= 4 && ieq(q, "true", 4)) return 1;
-            if (vlen >= 5 && ieq(q, "false", 5)) return 0;
-            return dflt;             /* present but not a boolean */
-        }
-        p = q - 1;                   /* carry on from the value */
+        if (is_key) return q;
+        p = q - 1;
     }
+    return 0;
+}
+
+/* One past the last character of the value token starting at `v`. A quoted
+   string ends at its closing quote; anything else ends at the first
+   separator. Only ever asked about the scalars this file writes, so it does
+   not need to walk a nested object or array. */
+const char *json_value_end(const char *v)
+{
+    if (*v == '"') {
+        const char *p = v + 1;
+        while (*p && *p != '"') p += (*p == '\\' && p[1]) ? 2 : 1;
+        return *p ? p + 1 : p;
+    }
+    {
+        const char *p = v;
+        while (*p && *p != ',' && *p != '}' && *p != ']' && *p != ' ' &&
+               *p != '\t' && *p != '\r' && *p != '\n')
+            ++p;
+        return p;
+    }
+}
+
+/* The JSON true/false after `key`. Returns dflt unless a real boolean is
+   there, so a key present but half-edited reads as absent. */
+int json_bool(const char *s, const char *key, int dflt)
+{
+    const char *v = json_value(s, key);
+    if (!v) return dflt;
+    /* length before the compare: ieq reads a fixed count, so a value shorter
+       than the literal must never reach it */
+    const size_t vlen = strlen(v);
+    if (vlen >= 4 && ieq(v, "true", 4)) return 1;
+    if (vlen >= 5 && ieq(v, "false", 5)) return 0;
     return dflt;
+}
+
+/* Find `key` used as an object KEY and read a decimal integer after it.
+   Returns dflt unless digits (optionally signed) are actually there, so a
+   key a player half-edited lands on the default like every other reader. */
+int json_int(const char *s, const char *key, int dflt)
+{
+    const char *v = json_value(s, key);
+    if (!v) return dflt;
+    if (*v == '"') ++v;              /* "16" is as good as 16 here */
+    {
+        const char *p = v;
+        if (*p == '-' || *p == '+') ++p;
+        if (*p < '0' || *p > '9') return dflt;
+    }
+    return (int)strtol(v, 0, 10);
+}
+
+/* Copy `key`'s value token into out (a quoted string arrives unquoted, so a
+   caller comparing against "analog" does not have to know how it was
+   written). 1 when a value was there and fitted, 0 otherwise. */
+int json_str(const char *s, const char *key, char *out, size_t cap)
+{
+    const char *v = json_value(s, key);
+    if (!v || !cap) return 0;
+    const char *e = json_value_end(v);
+    if (*v == '"') { ++v; if (e > v) --e; }
+    if ((size_t)(e - v) >= cap) return 0;
+    memcpy(out, v, (size_t)(e - v));
+    out[e - v] = '\0';
+    return 1;
 }
 
 /* Where settings.json can be. The launcher puts the launcher exe, the game
@@ -168,21 +228,202 @@ int find_settings(char *out, size_t cap)
     return 0;
 }
 
+/* Where settings.json WOULD go when there is not one yet. Same candidate
+   order as find_settings and the same answer whenever a file exists, so a
+   save lands on the file a load read. Beside the exe is the bundle layout,
+   so that is the one a fresh save creates. */
+int settings_write_path(char *out, size_t cap)
+{
+    if (find_settings(out, cap)) return 1;
+#ifdef _WIN32
+    {
+        char exe[MAX_PATH];
+        DWORD n = GetModuleFileNameA(NULL, exe, MAX_PATH);
+        if (n > 0 && n < MAX_PATH) {
+            char *slash = strrchr(exe, '\\');
+            char *fwd = strrchr(exe, '/');
+            if (fwd && (!slash || fwd > slash)) slash = fwd;
+            if (slash) {
+                *slash = '\0';
+                if (strlen(exe) + 16 < cap) {
+                    snprintf(out, cap, "%s\\settings.json", exe);
+                    return 1;
+                }
+            }
+        }
+    }
+#endif
+    {
+        const char *root = getenv("SM64DS_ASSET_ROOT");
+        if (root && *root && strlen(root) + 16 < cap) {
+            snprintf(out, cap, "%s/settings.json", root);
+            return 1;
+        }
+    }
+    snprintf(out, cap, "settings.json");
+    return 1;
+}
+
+/* A COPY of `s` with `key` set to `val` -- which is a whole JSON value token,
+   quotes and all, because the caller knows whether it is writing a string or
+   a number. The key's existing value is replaced where it is; a key that is
+   not there yet is inserted just inside the opening brace. Null on any
+   failure, which every caller reads as "do not write anything".
+
+   Replacing rather than rewriting is the whole point. settings.json is the
+   LAUNCHER's file and it owns keys this program has never heard of (volume,
+   crash reports, whatever the launcher grows next). A save that serialized
+   the three values this file knows about would silently drop the rest, and
+   the player would find out by losing their volume. Every byte that is not
+   one of the values being set comes out the far side unchanged. */
+char *json_set(const char *s, const char *key, const char *val)
+{
+    const char *cut_a, *cut_b;
+    const char *insert = 0;
+    char *out;
+    size_t need;
+
+    const char *v = json_value(s, key);
+    if (v) {
+        cut_a = v;
+        cut_b = json_value_end(v);
+    } else {
+        /* just past the opening brace, which looks_like_json_object has
+           already proved is there (BOM and leading space included) */
+        const char *b = s;
+        while (*b && *b != '{') ++b;
+        if (!*b) return 0;
+        cut_a = cut_b = b + 1;
+        insert = key;
+    }
+
+    need = strlen(s) + strlen(val) + (insert ? strlen(key) + 8 : 0) + 8;
+    out = (char *)malloc(need);
+    if (!out) return 0;
+    {
+        char *w = out;
+        memcpy(w, s, (size_t)(cut_a - s));
+        w += cut_a - s;
+        if (insert) {
+            *w++ = '\n';
+            *w++ = ' ';
+            *w++ = ' ';
+            *w++ = '"';
+            memcpy(w, key, strlen(key));
+            w += strlen(key);
+            *w++ = '"';
+            *w++ = ':';
+            *w++ = ' ';
+        }
+        memcpy(w, val, strlen(val));
+        w += strlen(val);
+        if (insert) *w++ = ',';
+        memcpy(w, cut_b, strlen(cut_b) + 1);
+    }
+    return out;
+}
+
+/* Whole text to `path`, through a sibling temp file and a replacing rename.
+   A settings.json truncated by a crash mid-write would read as malformed and
+   throw away every launcher key in it, and the launcher's own loader would
+   do the same; going via a temp means the file a reader sees is either the
+   old one or the new one. */
+int write_text(const char *path, const char *text)
+{
+    char tmp[1024];
+    if (strlen(path) + 5 >= sizeof tmp) return 0;
+    snprintf(tmp, sizeof tmp, "%s.tmp", path);
+    {
+        FILE *f = fopen(tmp, "wb");
+        size_t n = strlen(text);
+        if (!f) return 0;
+        if (fwrite(text, 1, n, f) != n) { fclose(f); remove(tmp); return 0; }
+        if (fclose(f) != 0) { remove(tmp); return 0; }
+    }
+#ifdef _WIN32
+    if (!MoveFileExA(tmp, path, MOVEFILE_REPLACE_EXISTING)) {
+        remove(tmp);
+        return 0;
+    }
+#else
+    if (rename(tmp, path) != 0) { remove(tmp); return 0; }
+#endif
+    return 1;
+}
+
 int g_loaded;
 int g_swap_camera_turn;              /* default 0 */
+
+/* ---- HOW RUNNING WORKS -------------------------------------------------
+   The DS had no run button. Mario runs when the stick is pushed past about
+   seven eighths of its travel (func_ov002_020d4748 and its siblings test the
+   input record's magnitude against 0xdc7 of 0x1000, with a 0x80 of
+   hysteresis), and the DS's stick was the touch screen. A host pad has a
+   real stick and a host keyboard has neither, so this program has always
+   fed the game the D-pad path -- full magnitude, all the time -- and put
+   running on a HELD BUTTON, which is a binding the hardware never had.
+
+   These three settings pick which of those the player gets. They shape the
+   input record on the way in and nothing else: the game reads the same
+   fields it always read, and src/ has no idea any of this exists.
+
+     RunMode         "button" (default) | "analog" | "auto"
+     RunButtonKey    Win32 virtual-key code for the keyboard binding.
+                     Default 0x10, which is shift -- what the window has
+                     always used. 0 means no keyboard binding at all.
+     RunButtonPad    XInput button mask for the pad binding. Default 0x4000,
+                     which is X on an Xbox layout -- again what the window
+                     has always used. 0 means no pad binding.
+
+   A missing file, a missing key or a value that will not parse is the
+   default, so a player who never opens the menu gets exactly the program
+   that shipped before this existed. */
+int g_run_mode;                      /* default RUN_BUTTON (0) */
+int g_run_key;                       /* default 0x10, VK_SHIFT */
+int g_run_pad;                       /* default 0x4000, pad X */
+
+const char *const RUN_MODE_KEY[3] = { "button", "analog", "auto" };
 
 void load_once(void)
 {
     if (g_loaded) return;
     g_loaded = 1;
     g_swap_camera_turn = 0;
+    g_run_mode = 0;
+    g_run_key = 0x10;
+    g_run_pad = 0x4000;
 
     char path[1024];
     if (!find_settings(path, sizeof path)) return;
     char *text = slurp(path);
     if (!text) return;
-    if (looks_like_json_object(text))
+    if (looks_like_json_object(text)) {
         g_swap_camera_turn = json_bool(text, "SwapCameraTurnDirection", 0);
+        /* the mode by NAME, and by number as well: the launcher serializes a
+           C# enum as an integer unless it is told otherwise, and a player
+           editing by hand will write the word */
+        char mode[16];
+        if (json_str(text, "RunMode", mode, sizeof mode)) {
+            int matched = 0;
+            for (int i = 0; i < 3; ++i)
+                if (strlen(mode) == strlen(RUN_MODE_KEY[i]) &&
+                    ieq(mode, RUN_MODE_KEY[i], strlen(mode))) {
+                    g_run_mode = i;
+                    matched = 1;
+                }
+            if (!matched) {
+                const int n = json_int(text, "RunMode", 0);
+                if (n >= 0 && n <= 2) g_run_mode = n;
+            }
+        }
+        /* a binding outside the code space is a typo, not a choice */
+        {
+            const int k = json_int(text, "RunButtonKey", 0x10);
+            if (k >= 0 && k <= 0xff) g_run_key = k;
+            const int p = json_int(text, "RunButtonPad", 0x4000);
+            if (p >= 0 && p <= 0xffff) g_run_pad = p;
+        }
+    }
     free(text);
 
     /* Said out loud only when a setting is off its default, so an ordinary
@@ -190,6 +431,10 @@ void load_once(void)
        non-default choices were in force. */
     if (g_swap_camera_turn)
         fprintf(stderr, "[settings] SwapCameraTurnDirection on (%s)\n", path);
+    if (g_run_mode || g_run_key != 0x10 || g_run_pad != 0x4000)
+        fprintf(stderr, "[settings] RunMode %s key 0x%02x pad 0x%04x (%s)\n",
+                RUN_MODE_KEY[g_run_mode], (unsigned)g_run_key,
+                (unsigned)g_run_pad, path);
 }
 
 }  /* namespace */
@@ -204,4 +449,93 @@ extern "C" int host_camera_turn_sign(void)
 {
     load_once();
     return g_swap_camera_turn ? 1 : -1;
+}
+
+/* RunMode: 0 button, 1 analog, 2 auto. See the block above load_once for
+   what each one is and why the DS did not need any of them. */
+extern "C" int host_setting_run_mode(void)
+{
+    load_once();
+    return g_run_mode;
+}
+
+/* The keyboard virtual-key code and the XInput button mask bound to running.
+   Zero on either one means that device has no run binding. */
+extern "C" int host_setting_run_key(void)
+{
+    load_once();
+    return g_run_key;
+}
+
+extern "C" int host_setting_run_pad(void)
+{
+    load_once();
+    return g_run_pad;
+}
+
+/* Take the three values and PERSIST them, so a choice made in the debug menu
+   is still there after a restart -- which is the whole reason this is a
+   settings key and not a runtime toggle. Returns 1 when the file on disk now
+   says so.
+
+   The in-memory values move whether or not the write lands: a player who
+   changed the mode is owed the change for the rest of this run even if the
+   folder is read-only, and the failure is on stderr rather than in their
+   face. Every key this program did not write is carried across untouched
+   (see json_set). */
+extern "C" int host_setting_save_run(int mode, int key, int pad)
+{
+    load_once();
+    if (mode < 0 || mode > 2) mode = 0;
+    if (key < 0 || key > 0xff) key = 0;
+    if (pad < 0 || pad > 0xffff) pad = 0;
+    g_run_mode = mode;
+    g_run_key = key;
+    g_run_pad = pad;
+
+    char path[1024];
+    if (!settings_write_path(path, sizeof path)) return 0;
+
+    char *base = slurp(path);
+    if (base && !looks_like_json_object(base)) {
+        /* a file that will not parse is one the loader is already ignoring,
+           so replacing it loses nothing a reader was going to honour */
+        free(base);
+        base = 0;
+    }
+    if (!base) {
+        base = (char *)malloc(4);
+        if (!base) return 0;
+        memcpy(base, "{\n}", 4);
+    }
+
+    char val[24];
+    int ok = 1;
+    snprintf(val, sizeof val, "\"%s\"", RUN_MODE_KEY[mode]);
+    char *a = json_set(base, "RunMode", val);
+    free(base);
+    if (!a) ok = 0;
+    char *b = 0, *cc = 0;
+    if (ok) {
+        snprintf(val, sizeof val, "%d", key);
+        b = json_set(a, "RunButtonKey", val);
+        free(a);
+        a = 0;
+        if (!b) ok = 0;
+    }
+    if (ok) {
+        snprintf(val, sizeof val, "%d", pad);
+        cc = json_set(b, "RunButtonPad", val);
+        free(b);
+        b = 0;
+        if (!cc) ok = 0;
+    }
+    if (ok) ok = write_text(path, cc);
+    free(a);
+    free(b);
+    free(cc);
+    if (!ok)
+        fprintf(stderr, "[settings] could not write %s -- the run mode is "
+                        "set for this run only\n", path);
+    return ok;
 }
