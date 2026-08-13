@@ -103,12 +103,20 @@ src/_ZN14FlameChompFire16OnPendingDestroyEv.c
 src/_ZN14FlameChompFire6RenderEv.cpp
 src/_ZN14FlameChompFire8BehaviorEv.cpp
 src/_ZN14FlameChompFireD0Ev.c
+# ...and the collider initialiser both chomp InitResources bodies call (the
+# link named it; its decorated free-function spelling is aliased in the fill
+# file).
+src/_ZN25MovingCylinderClsnWithPos4InitEP5ActorRK7Vector35Fix12IiES6_jj.c
 
 # ---- the probe's class-b closure ------------------------------------------
 # The two TUs whose absence the census link measured (LNK2019 with all 59
 # wired): the FlyGuy state machine names both.
+# src/_ZN5Actor23HorzAngleToCPlayerOrAngEv.c IS NOT LINKED RAW: it is a
+# zero-argument Actor::ClosestPlayer reader (the r0-passthrough seam; the
+# closestplayer seat gate catches it by name). The receiver-passing host copy
+# below stands in, the OverlayReaders recipe; the matched source is unchanged.
 src/FlyGuy_ChangeState.cpp
-src/_ZN5Actor23HorzAngleToCPlayerOrAngEv.c
+port/unmatched/Actor_HorzAngleToCPlayerOrAng.cpp
 
 # ---- ov070's four static initialisers -------------------------------------
 # SharedFilePtrs, dtor-chain nodes, and the state PMF copies. Run from
@@ -130,11 +138,11 @@ src/_ZN6Player5ShockEj.cpp
 # The registered spawn and the one own-slot body that is a faithful matched
 # TU (D1). Init/Behavior/D0 carry the inferred-stub marker; their bodies are
 # inline transcriptions in actor_classes_ov070.cpp's id-196 section --
-# listings quoted there, same rule as the ov070 pair. func_02022c3c is the
-# particle position tracker Behavior calls (matched, unmarked).
+# listings quoted there, same rule as the ov070 pair. func_02022c3c, the
+# particle position tracker Behavior calls, is NOT here: gate 29 already
+# builds it (a line here was the link's one duplicate-definition finding).
 src/PoppingLavaBubbles_Spawn.c
 src/func_ov002_020b6d28.c
-src/func_02022c3c.c
 
 # ---- the two host files, carried as slice lines ---------------------------
 # The wave-2 self-registration pattern (slice lines resolve against the repo

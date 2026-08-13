@@ -485,15 +485,18 @@ src/func_ov002_020b6374.c
 src/func_ov002_020b62cc.c
 src/func_ov002_020b6074.cpp
 
-# ---- the quaternion/Fix12 closure (5 TUs) ---------------------------------
+# ---- the quaternion/Fix12 closure (6 TUs) ---------------------------------
 # Quaternion_Normalize is the sqrt unit's caller; Quaternion_FromVector3
-# pulls cstd::fdiv (linked), func_0203cebc (recursive, self-contained) and
-# func_020531a4 (hostgen, above); Matrix4x3_FromQuaternion and
-# Quaternion_SLerp are pure.
+# pulls cstd::fdiv (linked), func_0203cebc (recursive, self-contained), the
+# identity constant data_02075b04 (romdata NAMED, beside data_02092768 the
+# tilting Behavior's rest pose) and func_020531a4 (hostgen, above);
+# Matrix4x3_FromQuaternion delegates to Matrix3x3_FromQuaternion (the link
+# named it) and Quaternion_SLerp is pure.
 src/Quaternion_Normalize.c
 src/Quaternion_FromVector3.c
 src/Quaternion_SLerp.c
 src/Matrix4x3_FromQuaternion.c
+src/Matrix3x3_FromQuaternion.c
 src/func_0203cebc.c
 
 # ---- ExtendingMeshCollider (17 TUs) ---------------------------------------

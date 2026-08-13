@@ -249,6 +249,30 @@ int func_ov070_02121eb0(void *);
 #pragma comment(linker, "/alternatename:?data_ov070_021235cc@@3DA=_data_ov070_021235cc")
 #pragma comment(linker, "/alternatename:?data_ov070_021235ec@@3UD2@@A=_data_ov070_021235ec")
 #pragma comment(linker, "/alternatename:?data_ov070_021235f4@@3UD1@@A=_data_ov070_021235f4")
+/* ...and the second wave of spellings the LINK named once the pack's method
+   TUs compiled: Amp::InitResources declares its SharedFilePtrs by their real
+   type (a different decoration than the probe's shadow-typed ones above),
+   plus its pointer table, its rest vector, and the arm9 identity matrix
+   data_02082128 under two more local-type spellings (romdata.c owns the one
+   real C symbol; the bbh file already carries its @@3UM48@@A spelling). */
+#pragma comment(linker, "/alternatename:?data_ov070_021235ec@@3USharedFilePtr@@A=_data_ov070_021235ec")
+#pragma comment(linker, "/alternatename:?data_ov070_021235fc@@3USharedFilePtr@@A=_data_ov070_021235fc")
+#pragma comment(linker, "/alternatename:?data_ov070_02123604@@3USharedFilePtr@@A=_data_ov070_02123604")
+#pragma comment(linker, "/alternatename:?data_ov070_021222e0@@3PAPAUSharedFilePtr@@A=_data_ov070_021222e0")
+#pragma comment(linker, "/alternatename:?data_ov070_0212365c@@3UVector3@@A=_data_ov070_0212365c")
+#pragma comment(linker, "/alternatename:?data_02082128@@3DA=_data_02082128")
+#pragma comment(linker, "/alternatename:?data_02082128@@3UBlk@@A=_data_02082128")
+/* Amp::CleanupResources walks its two-pointer SharedFilePtr table under an
+   ov074 FUNCTION spelling -- the shared-load-window naming race (ov070/ov074
+   both cover 0x021222e0; dsd's ov074 export won inside that one TU). The use
+   is address-only (indexed reads, never called), so the alias is storage
+   identity, not a code seam. */
+#pragma comment(linker, "/alternatename:_func_ov074_021222e0=_data_ov070_021222e0")
+/* FlameChomp/FlameChompFire InitResources declare the collider initialiser's
+   Itanium name without extern "C", so MSVC decorates it as a C++ free
+   function (@@YA, cdecl) -- alias-legal onto the matched TU's C symbol, the
+   bowserpuzzle UpdatePosWithTransform precedent. */
+#pragma comment(linker, "/alternatename:?_ZN25MovingCylinderClsnWithPos4InitEP5ActorRK7Vector35Fix12IiES6_jj@@YAXPAX0PBUVector3@@HHII@Z=__ZN25MovingCylinderClsnWithPos4InitEP5ActorRK7Vector35Fix12IiES6_jj")
 
 /* Two WithMeshClsn method spellings the pack's C++ TUs want under their own
    declared return types. Same __thiscall bodies, already defined for the
