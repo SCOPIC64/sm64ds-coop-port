@@ -71,9 +71,11 @@ src/_ZN4Heap18InitializeGameHeapEjPS_.c
 # spelling resolves to the matched src/ body, which calls ShadowModel::InitModel
 # for real, and Butterfly::Behavior takes that path every frame on this level.
 # The node that lands has data == 0 because ShadowModel::InitCuboid IS stubbed
-# (the cuboid template BMD is static .data in overlay 1, unmounted). Guarding
-# the loop would be inventing behaviour the ROM does not have, so RenderAll and
-# its two callees func_02046088 / func_02046120 wait for ov001.
+# -- the cuboid template BMD is static .data in overlay 1 at 0x020ad524, and
+# the port's ov001 mount is per-symbol and covers only 0x020ab800..0x020abb00,
+# the HUD's sprite templates (port/ov001_syms.txt). Guarding the loop would be
+# inventing behaviour the ROM does not have, so RenderAll and its two callees
+# func_02046088 / func_02046120 wait for the shadow half of ov001.
 #
 # Worth recording: RenderAll ran green when CleanAll sat at the END of the
 # behaviour phase, because the list was force-emptied after the actors filled

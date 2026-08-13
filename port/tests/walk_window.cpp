@@ -4604,12 +4604,16 @@ int main(void)
            Butterfly::Behavior takes that path every frame on this level (the
            boot census spawns butterflies). So a real ShadowModel goes on the
            list with data == 0, because the thing that would have filled it is
-           ShadowModel::InitCuboid and that IS stubbed -- the cuboid template
-           BMD is static .data in overlay 1 and the port does not mount ov001.
+           ShadowModel::InitCuboid and that IS stubbed. The cuboid template BMD
+           is static .data in overlay 1 at 0x020ad524, and the port's ov001
+           mount is per-symbol and covers only 0x020ab800..0x020abb00, the HUD's
+           sprite templates (port/ov001_syms.txt). The template's bytes are not
+           in the build.
 
            RenderAll dereferences that null on its first node. Guarding it here
            would be inventing behaviour the ROM does not have, so it waits for
-           ov001. Note also that seating RenderAll with this CleanAll call left
+           the shadow half of ov001. Note also that seating RenderAll with this
+           CleanAll call left
            at the END of the behaviour phase runs clean -- but only because the
            list is force-emptied after the actors fill it and before RenderAll
            reads it, which is the wrong order and would draw no shadows at all
