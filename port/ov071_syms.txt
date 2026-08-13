@@ -71,3 +71,8 @@ data_ov071_02123038 data_ov071_02123040 data_ov071_02123048
 data_ov071_02123064 data_ov071_02123070 data_ov071_0212307c data_ov071_02123088
 data_ov071_021230b8 data_ov071_021230c4 data_ov071_021230d0 data_ov071_021230d8
 data_ov071_021230e0 data_ov071_021230ec:0x14
+# run linkw wave 5 (lane w5-A): COFFIN (64) joins. Its record is config-named
+# and `ambiguous` (the shared ov070/071/073/074 window); settled by the raw
+# readback in overlay_0071.bin: w0 = 0x02122670 = Coffin_Spawn, +4 reads 64.
+# Span 0x1c by the next symbol (data_ov071_02122ecc, the state table).
+Coffin_SpawnInfo

@@ -819,6 +819,69 @@ void hal_fill_dorrie_cap_vtable(void);          /* fills _ZTV9DorrieCap, 31+2 */
 void hal_fill_work_elevator_vtable(void);       /* fills _ZTV12WorkElevator, 32 */
 void hal_fill_rolling_rock_vtable(void);        /* fills _ZTV11RollingRock, 31 */
 void hal_fill_shutter_hmc_vtable(void);         /* fills _ZTV10ShutterHmc, 32 */
+/* ---- run linkw wave 5 (lane w5-A): ov063, Big Boo's Haunt's own cast ----
+   Ten ids, six tables, first ov063 mount (port/ov063_syms.txt). The id map
+   was re-derived from the raw image + the arm9 spawn table and this config
+   has NO ov045-style naming shift -- every SpawnInfo's word[0] is its own
+   name's Spawn and its +4 halfword the id (derivation in
+   hal/actor_classes_ov063.cpp). BigBoo shares Boo's table (its own matched
+   Spawn stores &_ZTV3Boo); the four furniture ids share MansionSteps'
+   (one daTrsTrap_c class, four records, mode off the id at +0xc). Only
+   FallBlockBbh needs a factory wrapper: its Spawn's last vptr write is the
+   shared-header VT1 placeholder, the port_factory_fall_block_bfs shape.
+   MansionSteps' InitResources SPAWNS ids 65 and 213 at runtime and writes
+   through the results unchecked, so 65's own row and BOOK_SWITCH 213 (ov020,
+   the straggler block) must stay registered with 158. */
+extern unsigned char Boo_SpawnInfo[];            /* ov063 0x0211e770, +4 reads 209 */
+void *Boo_Spawn(void);                           /* ov063 0x0211c590 */
+extern unsigned char BigBoo_SpawnInfo[];         /* ov063 0x0211e78c, +4 reads 210 */
+void *BigBoo_Spawn(void);                        /* ov063 0x0211c520 */
+extern unsigned char BigBooIcon_SpawnInfo[];     /* ov063 0x0211e7c4, +4 reads 211 */
+void *BigBooIcon_Spawn(void);                    /* ov063 0x0211c4a0 */
+extern unsigned char BooCage_SpawnInfo[];        /* ov063 0x0211e7a8, +4 reads 212 */
+void *BooCage_Spawn(void);                       /* ov063 0x0211c4d0 */
+extern unsigned char MansionSteps_SpawnInfo[];   /* ov063 0x0211ea10, +4 reads 65 */
+void *MansionSteps_Spawn(void);                  /* ov063 0x0211d360 */
+extern unsigned char Bookshelf_SpawnInfo[];      /* ov063 0x0211ea2c, +4 reads 158 */
+void *Bookshelf_Spawn(void);                     /* ov063 0x0211d320 */
+extern unsigned char MerryGoRound_SpawnInfo[];   /* ov063 0x0211ea48, +4 reads 159 */
+void *MerryGoRound_Spawn(void);                  /* ov063 0x0211d2e0 */
+extern unsigned char TrapDoor_SpawnInfo[];       /* ov063 0x0211ea64, +4 reads 160 */
+void *TrapDoor_Spawn(void);                      /* ov063 0x0211d2a0 */
+extern unsigned char FallBlockBbh_SpawnInfo[];   /* ov063 0x0211eb34, +4 reads 66 */
+void *port_factory_fall_block_bbh(void);         /* VT1 wrapper over ov063 0x0211d47c */
+extern unsigned char MadPiano_SpawnInfo[];       /* ov063 0x0211ed10, +4 reads 249 */
+void *MadPiano_Spawn(void);                      /* ov063 0x0211e128 */
+void hal_fill_boo_vtable(void);                  /* fills _ZTV3Boo, 31 (209+210) */
+void hal_fill_big_boo_icon_vtable(void);         /* fills _ZTV10BigBooIcon, 31 */
+void hal_fill_boo_cage_vtable(void);             /* fills _ZTV7BooCage, 31 */
+void hal_fill_mansion_steps_vtable(void);        /* fills _ZTV12MansionSteps, 31 (x4 ids) */
+void hal_fill_fall_block_bbh_vtable(void);       /* fills _ZTV12FallBlockBbh, 32 */
+void hal_fill_mad_piano_vtable(void);            /* fills _ZTV8MadPiano, 32 */
+/* ---- w5-A stragglers: the ov020 BOOK CAST + UP_DOWN_LIFT_BBH (ov095) ----
+   Four book ids on two tables (all four records config-`ambiguous`, each
+   settled by its own bytes; the 213 record and factory are UNNAMED in
+   config -- data_ov020_02114898 / func_ov020_021127f4). 213 is what
+   Bookshelf's InitResources spawns 3x unchecked. UpDownLiftBbh (32) is the
+   third id of gate 173's daUdlift_c trio and reuses its fill wholesale. */
+extern unsigned char Bookend_SpawnInfo[];        /* ov020 0x02114860, +4 reads 327 */
+void *Bookend_Spawn(void);                       /* ov020 0x02112880 */
+extern unsigned char BookShot_SpawnInfo[];       /* ov020 0x021148b4, +4 reads 325 */
+void *BookShot_Spawn(void);                      /* ov020 0x021128dc */
+extern unsigned char data_ov020_02114898[];      /* BookSwitch record, +4 reads 213 */
+void *func_ov020_021127f4(void);                 /* BookSwitch factory */
+extern unsigned char BookShotSpawner_SpawnInfo[]; /* ov020 0x0211487c, +4 reads 328 */
+void *BookShotSpawner_Spawn(void);               /* ov020 0x02112850 */
+void hal_fill_book_shot_vtable(void);            /* fills _ZTV8BookShot, 31 (327/325/213) */
+void hal_fill_book_shot_spawner_vtable(void);    /* fills _ZTV15BookShotSpawner, 31 */
+extern unsigned char UpDownLiftBbh_SpawnInfo[];  /* ov095 0x021375cc, +4 reads 32 */
+void *UpDownLiftBbh_Spawn(void);                 /* ov095 0x021367fc */
+extern unsigned char CrazedCrate_SpawnInfo[];    /* ov080 0x02128174, +4 reads 193 */
+void *CrazedCrate_Spawn(void);                   /* ov080 0x021253b4 */
+void hal_fill_crazed_crate_vtable(void);         /* fills _ZTV11CrazedCrate, 31 */
+extern unsigned char Coffin_SpawnInfo[];         /* ov071 0x02122eb0, +4 reads 64 */
+void *Coffin_Spawn(void);                        /* ov071 0x02122670 */
+void hal_fill_coffin_vtable(void);               /* fills _ZTV6Coffin, 32 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1191,4 +1254,37 @@ void hal_fill_shutter_hmc_vtable(void);         /* fills _ZTV10ShutterHmc, 32 */
     {196, "POPPING_LAVA_BUBBLES", PoppingLavaBubbles_SpawnInfo, \
      PoppingLavaBubbles_Spawn, hal_fill_popping_lava_bubbles_vtable},     /* ---- run linkw wave 5 (lane w5-B): Hazy Maze Cave's cast (level 13);
        DORRIE_CAP is never in a level's object list -- Dorrie spawns id 169
-       at runtime, and the registry row is what that spawn finds ---- */     {236, "SNUFIT", Snufit_SpawnInfo, Snufit_Spawn, hal_fill_snufit_vtable},     {237, "SWOOP", Swoop_SpawnInfo, Swoop_Spawn, hal_fill_swoop_vtable},     {168, "DORRIE", Dorrie_SpawnInfo, Dorrie_Spawn, hal_fill_dorrie_vtable},     {169, "DORRIE_CAP", DorrieCap_SpawnInfo, DorrieCap_Spawn,      hal_fill_dorrie_cap_vtable},     {68, "WORK_ELEVATOR", WorkElevator_SpawnInfo, WorkElevator_Spawn,      hal_fill_work_elevator_vtable},     {221, "ROLLING_ROCK", RollingRock_SpawnInfo, RollingRock_Spawn,      hal_fill_rolling_rock_vtable},     {67, "SHUTTER_HMC", ShutterHmc_SpawnInfo, port_factory_shutter_hmc,      hal_fill_shutter_hmc_vtable},
+       at runtime, and the registry row is what that spawn finds ---- */     {236, "SNUFIT", Snufit_SpawnInfo, Snufit_Spawn, hal_fill_snufit_vtable},     {237, "SWOOP", Swoop_SpawnInfo, Swoop_Spawn, hal_fill_swoop_vtable},     {168, "DORRIE", Dorrie_SpawnInfo, Dorrie_Spawn, hal_fill_dorrie_vtable},     {169, "DORRIE_CAP", DorrieCap_SpawnInfo, DorrieCap_Spawn,      hal_fill_dorrie_cap_vtable},     {68, "WORK_ELEVATOR", WorkElevator_SpawnInfo, WorkElevator_Spawn,      hal_fill_work_elevator_vtable},     {221, "ROLLING_ROCK", RollingRock_SpawnInfo, RollingRock_Spawn,      hal_fill_rolling_rock_vtable},     {67, "SHUTTER_HMC", ShutterHmc_SpawnInfo, port_factory_shutter_hmc,      hal_fill_shutter_hmc_vtable}, \
+    /* ---- run linkw wave 5 (lane w5-A): ov063, Big Boo's Haunt's cast ---- */ \
+    {209, "BOO", Boo_SpawnInfo, Boo_Spawn, hal_fill_boo_vtable}, \
+    {210, "BIG_BOO", BigBoo_SpawnInfo, BigBoo_Spawn, hal_fill_boo_vtable}, \
+    {211, "BIG_BOO_ICON", BigBooIcon_SpawnInfo, BigBooIcon_Spawn, \
+     hal_fill_big_boo_icon_vtable}, \
+    {212, "BOO_CAGE", BooCage_SpawnInfo, BooCage_Spawn, \
+     hal_fill_boo_cage_vtable}, \
+    {65, "MANSION_STEPS", MansionSteps_SpawnInfo, MansionSteps_Spawn, \
+     hal_fill_mansion_steps_vtable}, \
+    {158, "BOOKSHELF", Bookshelf_SpawnInfo, Bookshelf_Spawn, \
+     hal_fill_mansion_steps_vtable}, \
+    {159, "MERRY_GO_ROUND", MerryGoRound_SpawnInfo, MerryGoRound_Spawn, \
+     hal_fill_mansion_steps_vtable}, \
+    {160, "TRAP_DOOR", TrapDoor_SpawnInfo, TrapDoor_Spawn, \
+     hal_fill_mansion_steps_vtable}, \
+    {66, "FALL_BLOCK_BBH", FallBlockBbh_SpawnInfo, \
+     port_factory_fall_block_bbh, hal_fill_fall_block_bbh_vtable}, \
+    {249, "MAD_PIANO", MadPiano_SpawnInfo, MadPiano_Spawn, \
+     hal_fill_mad_piano_vtable}, \
+    /* ---- w5-A stragglers: the book cast (ov020) + the ov095 lift ---- */ \
+    {327, "BOOKEND", Bookend_SpawnInfo, Bookend_Spawn, \
+     hal_fill_book_shot_vtable}, \
+    {325, "BOOK_SHOT", BookShot_SpawnInfo, BookShot_Spawn, \
+     hal_fill_book_shot_vtable}, \
+    {213, "BOOK_SWITCH", data_ov020_02114898, func_ov020_021127f4, \
+     hal_fill_book_shot_vtable}, \
+    {328, "BOOK_SHOT_SPAWNER", BookShotSpawner_SpawnInfo, \
+     BookShotSpawner_Spawn, hal_fill_book_shot_spawner_vtable}, \
+    {32, "UP_DOWN_LIFT_BBH", UpDownLiftBbh_SpawnInfo, UpDownLiftBbh_Spawn, \
+     hal_fill_up_down_lift_hmc_vtable}, \
+    {193, "CRAZED_CRATE", CrazedCrate_SpawnInfo, CrazedCrate_Spawn, \
+     hal_fill_crazed_crate_vtable}, \
+    {64, "COFFIN", Coffin_SpawnInfo, Coffin_Spawn, hal_fill_coffin_vtable},

@@ -1227,6 +1227,15 @@ list(APPEND PORT_ACTOR_OVERLAYS ov065)
 # dual-mount shape. Its three vtables are host arrays the same file fills.
 # See port/ov021_syms.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov021)
+# run linkw wave 5 (lane w5-A): ov063, Big Boo's Haunt's ACTOR overlay, first
+# mount -- Boo/BigBoo/BigBooIcon/BooCage, the four daTrsTrap_c furniture ids,
+# FallBlockBbh and MadPiano reach their SpawnInfo records, tuning tables and
+# SharedFilePtr statics by name (the ov079/ov080/ov081 shape; ov063 is not a
+# level overlay, so there is no whole-image half). Its six vtables are host
+# arrays hal/actor_classes_ov063.cpp fills; the mount bring-up and the four
+# sinits run from the registry fill (the ov045 lane-ownership pattern). See
+# port/ov063_syms.txt and port/slice_w5a.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov063)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1516,6 +1525,19 @@ foreach(line IN LISTS SLICE_W5B_LINES)
         continue()
     endif()
     list(APPEND SLICE_W5B_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 5, lane w5-A: Big Boo's Haunt's cast (ov063 + host copies).
+# See the header of port/slice_w5a.txt for the six exclusions and the four
+# byte-verified host copies.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w5a.txt" SLICE_W5A_LINES)
+set(SLICE_W5A_SOURCES "")
+foreach(line IN LISTS SLICE_W5A_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W5A_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate21.txt" SLICE21_LINES)
@@ -2872,7 +2894,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
-    ${SLICE_W5B_SOURCES}
+    ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -2944,7 +2966,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
-    ${SLICE_W5B_SOURCES}
+    ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -3047,7 +3069,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
-    ${SLICE_W5B_SOURCES}
+    ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}

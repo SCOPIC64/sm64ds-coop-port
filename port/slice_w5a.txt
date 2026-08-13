@@ -1,0 +1,296 @@
+# run linkw wave 5, lane w5-A: Big Boo's Haunt COMPLETE -- the ov063 pack.
+#
+# The 96 probed func_ov063 TUs minus SIX, each excluded for a measured reason
+# and host-copied in port/unmatched (banners carry the derivations):
+#   func_ov063_02116d38.c / func_ov063_021192d4.c / func_ov063_02116f48.cpp
+#       spell ov063 callees by ov065/ov066 names (the shared-window naming
+#       race) -> Boo_CrossNamedDispatch.c, corrected BY ADDRESS
+#   func_ov063_02117650.c   drops the ClosestPlayer receiver (the registered
+#       ov063 entry in Actor_ClosestPlayer_OverlayReaders.cpp's latent list)
+#       -> Boo_Teleport.c
+#   func_ov063_0211ddac.cpp / func_ov063_0211ddf4.cpp   mwcc PMF dispatch
+#       over data_ov063_0211efbc (the Painting stride trap) ->
+#       Bbh_PmfDispatch.c
+# Named-class TUs minus THREE:
+#   _ZN12MansionSteps8BehaviorEv.cpp   same PMF trap over data_ov063_0211ef38
+#       -> Bbh_PmfDispatch.c
+#   _ZN10BigBooIconD1Ev.cpp / _ZN12MansionStepsD1Ev.cpp   real MSVC
+#       destructors (auto-emitted member-dtor calls would resolve to MSVC
+#       names that do not exist) -> host D1 thunks in the fills, the
+#       HauntedChair hc_d1 recipe (hal/actor_classes_bbh.cpp)
+# Four bodies have NO matched TU anywhere (cons and main checked 2026-08-13);
+# each ships as a byte-verified host copy (equal size, divergences all
+# register renames/scheduling -- the banners quote the abverify numbers):
+#   _ZN3Boo8BehaviorEv               -> port/unmatched/Boo_Behavior.c
+#   func_ov063_021166ac              -> port/unmatched/Boo_RenderUpdate.c
+#   func_ov063_02117cdc              -> port/unmatched/Boo_StateTalk.c
+#   _ZN12MansionSteps13InitResourcesEv -> port/unmatched/MansionSteps_InitResources.c
+# Closure: the Boo talk sequence reaches func_02011d14 -> func_02048ed4
+# (both matched veneers, three hops end on the linked func_02048fd4) and
+# func_ov002_020c51d0 (matched, its two externs already linked).
+
+src/unnamed/ov063/func_ov063_021160c4.c
+src/unnamed/ov063/func_ov063_021160d4.c
+src/unnamed/ov063/func_ov063_02116190.c
+src/unnamed/ov063/func_ov063_02116244.c
+src/unnamed/ov063/func_ov063_021162c8.cpp
+src/unnamed/ov063/func_ov063_021163d0.c
+src/unnamed/ov063/func_ov063_0211640c.c
+src/unnamed/ov063/func_ov063_021169c4.cpp
+src/unnamed/ov063/func_ov063_02116a1c.c
+src/unnamed/ov063/func_ov063_02116bf0.c
+src/unnamed/ov063/func_ov063_02116bf4.c
+src/unnamed/ov063/func_ov063_02116d98.c
+src/unnamed/ov063/func_ov063_02116dbc.c
+src/unnamed/ov063/func_ov063_02116df0.c
+src/unnamed/ov063/func_ov063_02116e14.cpp
+src/unnamed/ov063/func_ov063_02116fac.c
+src/unnamed/ov063/func_ov063_021172a8.c
+src/unnamed/ov063/func_ov063_02117364.c
+src/unnamed/ov063/func_ov063_0211776c.cpp
+src/unnamed/ov063/func_ov063_021177b0.c
+src/unnamed/ov063/func_ov063_02117b0c.c
+src/unnamed/ov063/func_ov063_02118458.c
+src/unnamed/ov063/func_ov063_0211873c.c
+src/unnamed/ov063/func_ov063_02118914.c
+src/unnamed/ov063/func_ov063_021189f4.c
+src/unnamed/ov063/func_ov063_02118b2c.c
+src/unnamed/ov063/func_ov063_02118b98.c
+src/unnamed/ov063/func_ov063_02118cd8.c
+src/unnamed/ov063/func_ov063_02118ddc.cpp
+src/unnamed/ov063/func_ov063_02118e5c.c
+src/unnamed/ov063/func_ov063_02118ea0.c
+src/unnamed/ov063/func_ov063_02118eac.c
+src/unnamed/ov063/func_ov063_02118f24.c
+src/unnamed/ov063/func_ov063_02118f50.c
+src/unnamed/ov063/func_ov063_02118f74.c
+src/unnamed/ov063/func_ov063_02119074.c
+src/unnamed/ov063/func_ov063_02119274.c
+src/unnamed/ov063/func_ov063_0211934c.cpp
+src/unnamed/ov063/func_ov063_0211975c.cpp
+src/unnamed/ov063/func_ov063_02119870.c
+src/unnamed/ov063/func_ov063_02119894.c
+src/unnamed/ov063/func_ov063_02119960.c
+src/unnamed/ov063/func_ov063_02119a2c.c
+src/unnamed/ov063/func_ov063_02119a50.c
+src/unnamed/ov063/func_ov063_02119ab0.c
+src/unnamed/ov063/func_ov063_02119b1c.c
+src/unnamed/ov063/func_ov063_02119b84.c
+src/unnamed/ov063/func_ov063_02119bb0.c
+src/unnamed/ov063/func_ov063_02119c18.c
+src/unnamed/ov063/func_ov063_02119c58.cpp
+src/unnamed/ov063/func_ov063_02119cc0.c
+src/unnamed/ov063/func_ov063_02119e38.c
+src/unnamed/ov063/func_ov063_0211a030.c
+src/unnamed/ov063/func_ov063_0211a0a8.c
+src/unnamed/ov063/func_ov063_0211a0dc.cpp
+src/unnamed/ov063/func_ov063_0211a3d0.cpp
+src/unnamed/ov063/func_ov063_0211a564.c
+src/unnamed/ov063/func_ov063_0211a634.c
+src/unnamed/ov063/func_ov063_0211a6f0.c
+src/unnamed/ov063/func_ov063_0211a718.c
+src/unnamed/ov063/func_ov063_0211a76c.c
+src/unnamed/ov063/func_ov063_0211a810.c
+src/unnamed/ov063/func_ov063_0211a8a4.cpp
+src/unnamed/ov063/func_ov063_0211a960.c
+src/unnamed/ov063/func_ov063_0211a964.c
+src/unnamed/ov063/func_ov063_0211aa34.c
+src/unnamed/ov063/func_ov063_0211ab68.c
+src/unnamed/ov063/func_ov063_0211ad00.c
+src/unnamed/ov063/func_ov063_0211adb4.c
+src/unnamed/ov063/func_ov063_0211adfc.c
+src/unnamed/ov063/func_ov063_0211c480.cpp
+src/unnamed/ov063/func_ov063_0211c684.c
+src/unnamed/ov063/func_ov063_0211c6f8.cpp
+src/unnamed/ov063/func_ov063_0211c770.c
+src/unnamed/ov063/func_ov063_0211c7b0.c
+src/unnamed/ov063/func_ov063_0211c82c.c
+src/unnamed/ov063/func_ov063_0211c89c.c
+src/unnamed/ov063/func_ov063_0211cae8.c
+src/unnamed/ov063/func_ov063_0211cb54.c
+src/unnamed/ov063/func_ov063_0211cc18.c
+src/unnamed/ov063/func_ov063_0211d270.cpp
+src/unnamed/ov063/func_ov063_0211d28c.c
+src/unnamed/ov063/func_ov063_0211d5f4.c
+src/unnamed/ov063/func_ov063_0211d828.cpp
+src/unnamed/ov063/func_ov063_0211d88c.c
+src/unnamed/ov063/func_ov063_0211d8cc.cpp
+src/unnamed/ov063/func_ov063_0211dba4.c
+src/unnamed/ov063/func_ov063_0211dbb8.c
+src/unnamed/ov063/func_ov063_0211dd78.c
+src/unnamed/ov063/func_ov063_0211dd84.c
+
+# ---- the named Boo pack ----------------------------------------------------
+src/actors/Boo/Boo_Spawn.cpp
+# _ZN3Boo13InitResourcesEv.c: K&R ClosestPlayer declaration trips
+# tools/closestplayer_guard.py (its calls DO pass the receiver); faithful
+# mirror with the declaration reprototyped:
+port/unmatched/Boo_InitResources.c
+src/actors/Boo/_ZN3Boo16CleanupResourcesEv.cpp
+src/actors/Boo/_ZN3Boo16OnPendingDestroyEv.c
+src/actors/Boo/_ZN3Boo6RenderEv.cpp
+src/actors/Boo/_ZN3BooD0Ev.c
+src/actors/Boo/_ZN3BooD1Ev.c
+src/actors/BigBoo/BigBoo_Spawn.cpp
+src/actors/BigBooIcon/BigBooIcon_Spawn.c
+src/actors/BigBooIcon/_ZN10BigBooIcon13InitResourcesEv.cpp
+src/actors/BigBooIcon/_ZN10BigBooIconD0Ev.c
+src/actors/BooCage/BooCage_Spawn.c
+src/actors/BooCage/_ZN7BooCage13InitResourcesEv.cpp
+src/actors/BooCage/_ZN7BooCage16CleanupResourcesEv.c
+src/actors/BooCage/_ZN7BooCage6RenderEv.cpp
+src/actors/BooCage/_ZN7BooCage8BehaviorEv.cpp
+src/actors/BooCage/_ZN7BooCageD0Ev.c
+src/actors/BooCage/_ZN7BooCageD1Ev.c
+
+# ---- the furniture (one class, four ids) -----------------------------------
+src/actors/MansionSteps/MansionSteps_Spawn.c
+src/actors/Bookshelf/Bookshelf_Spawn.c
+src/actors/MerryGoRound/MerryGoRound_Spawn.c
+src/actors/TrapDoor/TrapDoor_Spawn.c
+src/actors/MansionSteps/_ZN12MansionSteps16CleanupResourcesEv.cpp
+src/actors/MansionSteps/_ZN12MansionSteps16OnPendingDestroyEv.c
+src/actors/MansionSteps/_ZN12MansionSteps6RenderEv.cpp
+src/actors/MansionSteps/_ZN12MansionStepsD0Ev.c
+
+# ---- FallBlockBbh + MadPiano -----------------------------------------------
+src/actors/FallBlockBbh/FallBlockBbh_Spawn.c
+src/actors/FallBlockBbh/_ZN12FallBlockBbh13InitResourcesEv.cpp
+src/actors/FallBlockBbh/_ZN12FallBlockBbh16CleanupResourcesEv.cpp
+src/actors/FallBlockBbh/_ZN12FallBlockBbhD0Ev.c
+src/actors/FallBlockBbh/_ZN12FallBlockBbhD1Ev.c
+src/actors/MadPiano/MadPiano_Spawn.cpp
+src/actors/MadPiano/_ZN8MadPiano13InitResourcesEv.cpp
+# _ZN8MadPiano16CleanupResourcesEv.cpp OUT: spells its three SharedFilePtrs
+# G0/G1/G2, and cxx_aliases.cpp binds G0/G1 to SignPost's live ov002
+# pointers -- host thunk mp_clean in hal/actor_classes_ov063.cpp instead
+# (the ov045 PoleLift ep_clean ruling)
+src/actors/MadPiano/_ZN8MadPiano6RenderEv.cpp
+src/actors/MadPiano/_ZN8MadPiano8BehaviorEv.cpp
+src/actors/MadPiano/_ZN8MadPianoD0Ev.cpp
+src/actors/MadPiano/_ZN8MadPianoD1Ev.c
+
+# ---- the four sinits (called from ov63_bringup) ----------------------------
+src/unnamed/ov063/__sinit_ov063_0211e29c.c
+src/unnamed/ov063/__sinit_ov063_0211e3cc.c
+src/unnamed/ov063/__sinit_ov063_0211e590.c
+src/actors/MadPiano/__sinit_ov063_0211e5fc.c
+
+# ---- closure ---------------------------------------------------------------
+src/_ZN8CapEnemy12UpdateCapPosERK7Vector3RK10Vector3_16.cpp
+src/_ZN5Actor9TrackStarEjj.c
+src/_ZNK12WithMeshClsn13JustHitGroundEv.c
+src/_ZN6Player15JumpIntoBooCageER7Vector3.cpp
+src/func_02011d14.c
+src/func_02048ed4.c
+src/func_ov002_020c51d0.cpp
+
+# ---- host copies (banners carry the byte-verification numbers) -------------
+port/unmatched/Boo_Behavior.c
+port/unmatched/Boo_RenderUpdate.c
+port/unmatched/Boo_StateTalk.c
+port/unmatched/Boo_Teleport.c
+port/unmatched/Boo_CrossNamedDispatch.c
+port/unmatched/MansionSteps_InitResources.c
+port/unmatched/Bbh_PmfDispatch.c
+port/unmatched/Bbh_MethodFaces.cpp
+
+# ---- the lane's own fills and faces ----------------------------------------
+port/hal/actor_classes_ov063.cpp
+
+# ---- the mounted-overlay stragglers level 12 names -------------------------
+# UP_DOWN_LIFT_BBH (32, ov095): the third id of gate 173's daUdlift_c trio;
+# only the factory is new (it stores _ZTV13UpDownLiftBbh directly, its own
+# src), everything else already in the build.
+src/UpDownLiftBbh_Spawn.c
+
+# THE BOOK CAST (ov020): Bookend 327 + BookShot 325 + BookSwitch 213 +
+# BookShotSpawner 328. src/BookSwitch_Spawn.c is a recovered-name file that
+# is NOT the 213 factory (it takes a pointer and writes two fields; the real
+# factory is the unnamed func_ov020_021127f4) and stays out.
+# _ZN15BookShotSpawnerD1Ev.cpp OUT: real MSVC destructor, host thunk bks_d1
+# in hal/actor_classes_ov063.cpp (the hc_d1 recipe).
+src/Bookend_Spawn.c
+src/BookShot_Spawn.c
+src/BookShotSpawner_Spawn.c
+src/func_ov020_021127f4.c
+src/func_ov020_021127a4.cpp
+src/func_ov020_021127cc.c
+src/_ZN8BookShot13InitResourcesEv.cpp
+src/_ZN8BookShot16CleanupResourcesEv.cpp
+src/_ZN8BookShot6RenderEv.cpp
+src/_ZN8BookShot8BehaviorEv.cpp
+src/_ZN8BookShotD0Ev.c
+src/_ZN8BookShotD1Ev.c
+src/_ZN15BookShotSpawner13InitResourcesEv.cpp
+src/_ZN15BookShotSpawner16CleanupResourcesEv.cpp
+src/_ZN15BookShotSpawner8BehaviorEv.cpp
+src/_ZN15BookShotSpawnerD0Ev.c
+src/__sinit_ov020_02113674.c
+
+# BookShot's behaviour closure (the flying-book state machine): 12 matched
+# ov020 TUs plus two host-copied fixes (func_ov020_02111418's data_ov048
+# window name, func_ov020_02111fc4's dropped ClosestPlayer receiver -- see
+# port/unmatched/Book_WindowAndReceiverFixes.cpp).
+src/func_ov020_021112b0.c
+src/func_ov020_02111340.c
+src/func_ov020_021115ac.c
+src/func_ov020_0211174c.c
+src/func_ov020_021119dc.c
+src/func_ov020_02111aa8.c
+src/func_ov020_02111b28.cpp
+src/func_ov020_02111c30.c
+src/func_ov020_02111ee0.cpp
+src/func_ov020_02112080.cpp
+src/func_ov020_02112110.cpp
+src/func_ov020_0211216c.cpp
+port/unmatched/Book_WindowAndReceiverFixes.cpp
+# ...and the last three book-closure edges: the bump-from-underneath body,
+# cstd::atan2 (the 021112b0 aim math), and two role-name aliases below.
+src/_ZN5Actor24BumpedUnderneathByPlayerER6Player.cpp
+src/_ZN4cstd5atan2E5Fix12IiES1_.c
+
+# CRAZED_CRATE (193, ov080): everything data-side was already mounted; these
+# are the class TUs, the six state bodies, the state-set helper and the two
+# slot overrides. The two PMF dispatchers (func_ov080_02125104/021250c8) are
+# host copies in Bbh_PmfDispatch.c; the D1 is a host thunk.
+src/CrazedCrate_Spawn.c
+# _ZN11CrazedCrate13InitResourcesEv.cpp: drops the state setter's second
+# argument (the r1-passthrough seam; ROM passes 0) -- mirrored with the
+# ROM's value spelled out:
+port/unmatched/CrazedCrate_InitResources.cpp
+src/_ZN11CrazedCrate16CleanupResourcesEv.c
+src/_ZN11CrazedCrate16OnPendingDestroyEv.c
+src/_ZN11CrazedCrate6RenderEv.cpp
+src/_ZN11CrazedCrate8BehaviorEv.cpp
+src/_ZN11CrazedCrateD0Ev.c
+src/func_ov080_02124ac4.c
+src/func_ov080_02124acc.cpp
+# func_ov080_02124e60.c: same dropped second argument (ROM r1=0):
+port/unmatched/CrazedCrate_State2Tick.c
+src/func_ov080_02124eb0.c
+src/func_ov080_02124edc.cpp
+src/func_ov080_02124fec.c
+src/func_ov080_0212500c.cpp
+src/func_ov080_0212509c.c
+src/func_ov080_0212513c.c
+src/func_ov080_02124c3c.cpp
+src/func_ov080_02125318.cpp
+
+# COFFIN (64, ov071): fill + slice only (mount and sinit already live).
+# The two PMF dispatchers (func_ov071_021223c8/02122414) are host copies in
+# Bbh_PmfDispatch.c.
+src/Coffin_Spawn.c
+# _ZN6Coffin13InitResourcesEv.cpp: five file-scope member redeclarations
+# are C2761 under MSVC; mirrored minus those lines:
+port/unmatched/Coffin_InitResources.cpp
+src/_ZN6Coffin16CleanupResourcesEv.cpp
+src/_ZN6Coffin6RenderEv.cpp
+src/_ZN6Coffin8BehaviorEv.cpp
+src/_ZN6CoffinD0Ev.c
+src/_ZN6CoffinD1Ev.c
+src/func_ov071_02122080.c
+src/func_ov071_021220c8.cpp
+src/func_ov071_02122194.c
+src/func_ov071_021221bc.c
+src/func_ov071_021223b0.c

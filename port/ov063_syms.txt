@@ -1,0 +1,126 @@
+# run linkw wave 5 (lane w5-A): ov063, Big Boo's Haunt's ACTOR overlay, first
+# mount. Boo (209), BigBoo (210), BigBooIcon (211), BooCage (212),
+# MansionSteps (65), Bookshelf (158), MerryGoRound (159), TrapDoor (160),
+# FallBlockBbh (66) and MadPiano (249) reach their SpawnInfo records, tuning
+# tables, typeinfo records and SharedFilePtr statics by name -- the
+# ov079/ov080/ov081 shape (an ordinary actor overlay, per-symbol mount only;
+# ov063 is not a level overlay, so there is no whole-image half).
+#
+# Overlay record (extracted/dsd/arm9_overlays/overlays.yaml, id 63):
+#   base 0x02115ee0, code_size 0x8ee0 (image ends 0x0211edc0 = .bss start),
+#   bss_size 0x220 (bss ends 0x0211efe0), compressed: true -- so raw reads
+#   come from extracted/overlays/overlay_0063.bin (the decompressed image);
+#   the dsd export extracted/dsd/arm9_overlays/ov063.bin is the COMPRESSED
+#   image and reading it is reading noise (the ov045 lesson, re-checked).
+#
+# ==== THE ID MAP WAS RE-DERIVED, AND THIS CONFIG HAS NO NAMING SHIFT =======
+# ov063 shares its load window with ov065 and ov075 (all three cover
+# 0x0211c880+), so every id row was settled by reading the raw SpawnInfo out
+# of overlay_0063.bin itself: word[0] must land on the class's own Spawn
+# INSIDE ov063 and word[1]'s low half must be the id the spawn table reached
+# it from. All ten records agree with the config names:
+#   0x0211e770 Boo_SpawnInfo          w0=0x0211c590 Boo_Spawn          id 209
+#   0x0211e78c BigBoo_SpawnInfo       w0=0x0211c520 BigBoo_Spawn       id 210
+#   0x0211e7a8 BooCage_SpawnInfo      w0=0x0211c4d0 BooCage_Spawn      id 212
+#   0x0211e7c4 BigBooIcon_SpawnInfo   w0=0x0211c4a0 BigBooIcon_Spawn   id 211
+#   0x0211ea10 MansionSteps_SpawnInfo w0=0x0211d360 MansionSteps_Spawn id 65
+#   0x0211ea2c Bookshelf_SpawnInfo    w0=0x0211d320 Bookshelf_Spawn    id 158
+#   0x0211ea48 MerryGoRound_SpawnInfo w0=0x0211d2e0 MerryGoRound_Spawn id 159
+#   0x0211ea64 TrapDoor_SpawnInfo     w0=0x0211d2a0 TrapDoor_Spawn     id 160
+#   0x0211eb34 FallBlockBbh_SpawnInfo w0=0x0211d47c FallBlockBbh_Spawn id 66
+#   0x0211ed10 MadPiano_SpawnInfo     w0=0x0211e128 MadPiano_Spawn     id 249
+# (dsd's block-labels-start-at-the-Spawn shift, which scrambled ov045's
+# names, does NOT afflict ov063's config: the Spawn stored in each record is
+# the record's own name's Spawn.)
+#
+# ==== SIX VTABLES LEFT OUT ==================================================
+# The ov015/ov016/ov080/ov045 rule: a mounted vtable hands a factory DS code
+# addresses, so the six tables are HOST ARRAYS hal/actor_classes_ov063.cpp
+# fills. Spans, from the raw image (each table's own-slot reads confirmed
+# against the class's D1/D0/method addresses; width by the vtspan.py rule --
+# a word past slot 30 that is not a function ends the table at 31):
+#   0x0211e828..0x0211e8a4  _ZTV3Boo, 31 slots (own 0/3/6/9/12/16/17/18/29;
+#                           slot 18 func_ov063_0211c480, slot 29
+#                           func_ov063_021160c4). SHARED BY BigBoo (210):
+#                           BigBoo_Spawn stores &_ZTV3Boo too (its own src).
+#   0x0211e8ac..0x0211e928  _ZTV10BigBooIcon, 31 slots (own 0/16/17 only)
+#   0x0211e930..0x0211e9ac  _ZTV7BooCage == _ZTV11daTBasket_c, 31 slots
+#   0x0211ea88..0x0211eb04  _ZTV12MansionSteps == _ZTV11daTrsTrap_c, 31
+#                           slots, SHARED BY ALL FOUR furniture ids
+#                           (65/158/159/160 -- each Spawn stores this one
+#                           name; one class, four SpawnInfo records)
+#   0x0211eb58..0x0211ebd8  _ZTV12FallBlockBbh, 32 slots -- slot 31 is
+#                           func_ov098_0213a17c, the same ov098 inherited
+#                           quad (6/9/27/31) FALL_BLOCK_WF and FALL_BLOCK_BFS
+#                           already seat
+#   0x0211ed34..0x0211edc0  _ZTV8MadPiano, 32 slots -- slot 31 is
+#                           0x020ee55c Platform::Kill (the piano is a
+#                           Platform), then 12 bytes of .data align padding
+# The two words IN FRONT of each table ({0, typeinfo}) are the mwcc RTTI
+# header; each lives inside the PREVIOUS listed symbol's next-symbol span
+# (TrapDoor_SpawnInfo's span is 0x24 = 0x1c record + 8 header, and so on), so
+# they mount as inert data without being named. BooCage's header sits inside
+# the EXCLUDED _ZTV10BigBooIcon span and is not mounted at all; nothing
+# dispatches through a header (no dynamic_cast in this cast), same as ov045.
+#
+# dsd's ".p__sinit_*" .ctor entries are left out (not C identifiers), and so
+# are the four __sinit_ov063_* FUNCTION bodies -- all four are matched src
+# TUs on slice_w5a.txt, called from ov63_bringup() in
+# hal/actor_classes_ov063.cpp (the ov045 lane-ownership pattern: no wave-5
+# lane owns hal/actor_overlays.cpp, so the bring-up rides the registry fill).
+#
+# ==== ONE SIZE OVERRIDE ====================================================
+# data_ov063_0211efbc is the LAST symbol in bss, so the next-symbol delta
+# floors it at 4 bytes. __sinit_ov063_0211e5fc (matched src) writes FOUR
+# 8-byte pairs through it (a 0x20-byte Entry quad). Pinned to the ROM span
+# that is left: bss end 0x0211efe0 - 0x0211efbc = 0x24.
+
+# ---- .rodata 0x0211e1c0..0x0211e29c ---------------------------------------
+data_ov063_0211e1c0 data_ov063_0211e1c8 data_ov063_0211e1d0
+data_ov063_0211e1dc data_ov063_0211e1e4 data_ov063_0211e1ec
+data_ov063_0211e22c data_ov063_0211e26c data_ov063_0211e270
+data_ov063_0211e27c data_ov063_0211e28c
+
+# ---- .data 0x0211e720..0x0211edc0 -----------------------------------------
+# The first six are the mwcc typeinfo records (12-byte si_class_type_info
+# nodes; the vtable headers point into them). Mounted as plain data.
+data_ov063_0211e720 data_ov063_0211e72c data_ov063_0211e738
+data_ov063_0211e744 data_ov063_0211e750 data_ov063_0211e760
+Boo_SpawnInfo BigBoo_SpawnInfo BooCage_SpawnInfo BigBooIcon_SpawnInfo
+data_ov063_0211e7e0
+data_ov063_0211e9ac data_ov063_0211e9b4 data_ov063_0211e9bc
+data_ov063_0211e9c4 data_ov063_0211e9cc data_ov063_0211e9d8
+data_ov063_0211e9e8 data_ov063_0211e9f8
+MansionSteps_SpawnInfo Bookshelf_SpawnInfo MerryGoRound_SpawnInfo
+TrapDoor_SpawnInfo
+data_ov063_0211eb04 data_ov063_0211eb10 data_ov063_0211eb1c
+FallBlockBbh_SpawnInfo
+data_ov063_0211ebd8 data_ov063_0211ebf8 data_ov063_0211ec18
+data_ov063_0211ec38 data_ov063_0211ec58 data_ov063_0211ec78
+data_ov063_0211ec98 data_ov063_0211ecb8 data_ov063_0211ecd8
+data_ov063_0211ece0 data_ov063_0211ece8 data_ov063_0211ecf0
+data_ov063_0211ecf8 data_ov063_0211ed04
+MadPiano_SpawnInfo
+
+# ---- .bss 0x0211edc0..0x0211efe0 ------------------------------------------
+# The Boo pack's SharedFilePtr statics and their destructor-chain nodes
+# (built by the four matched sinits), the furniture file table, and
+# MadPiano's three gPiano* objects (data_ov063_0211ef80/ef88/ef90 under
+# include/MadPianoResources.h's role names).
+data_ov063_0211edc0 data_ov063_0211edc4 data_ov063_0211edcc
+data_ov063_0211edd4 data_ov063_0211eddc data_ov063_0211ede4
+data_ov063_0211edec data_ov063_0211edf4 data_ov063_0211edfc
+data_ov063_0211ee08 data_ov063_0211ee14 data_ov063_0211ee20
+data_ov063_0211ee2c data_ov063_0211ee38 data_ov063_0211ee44
+data_ov063_0211ee50 data_ov063_0211ee5c data_ov063_0211ee68
+data_ov063_0211ee74 data_ov063_0211ee80 data_ov063_0211ee8c
+data_ov063_0211ee98 data_ov063_0211eea0 data_ov063_0211eea8
+data_ov063_0211eeb0 data_ov063_0211eeb8 data_ov063_0211eec0
+data_ov063_0211eec8 data_ov063_0211eed0 data_ov063_0211eed8
+data_ov063_0211eee4 data_ov063_0211eef0 data_ov063_0211eefc
+data_ov063_0211ef08 data_ov063_0211ef14 data_ov063_0211ef20
+data_ov063_0211ef2c data_ov063_0211ef38 data_ov063_0211ef58
+data_ov063_0211ef60 data_ov063_0211ef68 data_ov063_0211ef74
+data_ov063_0211ef80 data_ov063_0211ef88 data_ov063_0211ef90
+data_ov063_0211ef98 data_ov063_0211efa4 data_ov063_0211efb0
+data_ov063_0211efbc:0x24
