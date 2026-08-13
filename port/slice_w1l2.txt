@@ -157,3 +157,46 @@ src/engine/fader/_ZN15FaderBrightness14SetForwardTimeEj.cpp
 #     Nothing references it, so a line would be a /OPT:REF no-op -- and it is
 #     also the reason the head's whole first branch is dead in the port, which
 #     two comments (hal/auto_bss.cpp and hal/method_faces.cpp) depend on.
+
+# ---- _ZTV5Scene slots 4, 8 and 11 -----------------------------------------
+# Three of the four faces wave 3 left blocked in hal/method_faces.cpp, which
+# this lane owns this wave. The ROM's own three words:
+#   from:0x02092690 to:0x0202e5f0 _ZN5Scene22BeforeCleanupResourcesEv
+#   from:0x020926a0 to:0x0202e3c8 _ZN5Scene13AfterBehaviorEj
+#   from:0x020926ac to:0x0202e398 _ZN5Scene11AfterRenderEj
+# (0x10/4 = 4, 0x20/4 = 8, 0x2c/4 = 11.)
+#
+# Slot 4 is the straightforward one: the body passes its own receiver and only
+# the C-linkage name of its base call was undefined. Its other two references
+# (func_02011974 and data_0209b53c) were already resolved.
+src/_ZN5Scene22BeforeCleanupResourcesEv.c
+# Slots 8 and 11 are the ROM's TAIL VENEERS, and they are here because their
+# callees turned out to be empty -- `ret 4`, three bytes, no receiver read and
+# no argument read, folded onto one address by /OPT:ICF. The dropped receiver
+# the veneers' void() shape implies therefore cannot be wrong the way
+# method_faces.cpp's failure mode 2 means. The two listings and the reading are
+# beside the tagged definitions in that file.
+src/_ZN5Scene13AfterBehaviorEj.cpp
+src/_ZN5Scene11AfterRenderEj.cpp
+#
+# SLOT 2 IS RULED OUT, and this is the listing that rules it out rather than a
+# judgement call. Scene::AfterInitResources is the same veneer shape, but its
+# callee is not empty:
+#   ?AfterInitResources@ActorDerived@@UAEXI@Z:
+#     cmp   dword ptr [ebp+8],1                reads the ARGUMENT
+#     mov   esi,ecx / call ?MarkForDestruction@ActorBase@@QAEXXZ
+#                                              reads the RECEIVER
+#     push  dword ptr [ebp+8] / mov ecx,esi
+#     call  ?AfterInitResources@ActorBase@@UAEXI@Z
+# so a dropped-receiver definition would run MarkForDestruction on whatever
+# ecx held. That is the crash half of failure mode 2, not the silent half, and
+# there is no side-channel-free way to hand it the two values the ROM rides
+# through in r0/r1. Blocked, and the reason is now measured.
+#
+# SLOT 5 STAYS OUT, re-confirmed rather than carried: config/arm9/symbols.txt
+# puts data_02092660 at 0x02092660 kind:data(any), and
+# src/_ZN5Scene21AfterCleanupResourcesEj.cpp DEFINES it at namespace scope
+# inside extern "C" -- a definition, not a tentative one -- so the symbol lands
+# in ordinary .bss, outside .dsstate, and dsstate_guard rejects it. Hosting it
+# in hal/auto_bss.cpp would be a second definition. The fix is in src/, which
+# is read-only for every lane in this campaign.

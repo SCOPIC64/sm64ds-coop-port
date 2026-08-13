@@ -89,16 +89,19 @@
 // THE HEAD IS EIGHTEEN WORDS, and every one of them is a cited relocation
 // (from:0x02092680 through from:0x020926c4; dsd's next data symbol is
 // 0x020926c8, so 0x48/4 = 18 -- the same eighteen-entry shape the Stage's
-// table has). FIVE of the eighteen are seated: slots 1, 7, 10, 16 and 17.
+// table has). EIGHT of the eighteen are seated: 1, 4, 7, 8, 10, 11, 16, 17.
 //
 //     slot  reloc        body                                 why
 //      1    0x02092684   Scene::BeforeInitResources           seated
+//      4    0x02092690   Scene::BeforeCleanupResources        seated (wave 4)
 //      7    0x0209269c   Scene::BeforeBehavior                seated (wave 4)
+//      8    0x020926a0   Scene::AfterBehavior                 seated (wave 4)
 //     10    0x020926a8   Scene::BeforeRender                  seated
+//     11    0x020926ac   Scene::AfterRender                   seated (wave 4)
 //     16    0x020926c0   Scene::~Scene (D1)                   seated
 //     17    0x020926c4   Scene::~Scene (D0)                   seated
 //      0,3,6,9,12,13,14,15   ActorBase faces                  already linked
-//      2,4,5,8,11            see group 4 at the bottom        blocked
+//      2,5                   see group 4 at the bottom        blocked
 //
 // Slots 0, 3, 6, 9, 12, 13, 14 and 15 name ActorBase faces whose TUs are
 // already in the map, so a seat there buys no edge at all.
@@ -343,10 +346,20 @@ void *_ZN12CylinderClsnD0Ev(void *self);   /* arm9 0x0201507c */
 extern void *_ZTV5Scene[];
 
 int _ZN5Scene19BeforeInitResourcesEv(void *self);   /* arm9 0x0202e638 */
+int _ZN5Scene22BeforeCleanupResourcesEv(void *self);/* arm9 0x0202e5f0 */
 int _ZN5Scene14BeforeBehaviorEv(void *self);        /* arm9 0x0202e3d4 */
 int _ZN5Scene12BeforeRenderEv(void *self);          /* arm9 0x0202e3a4 */
 void *_ZN5SceneD1Ev(void *self);                    /* arm9 0x0202e140 */
 void *_ZN5SceneD0Ev(void *self);                    /* arm9 0x0202e170 */
+
+/* The two ROM tail veneers. Their matched TUs take no arguments at all -- the
+   ROM rides `this` and the VirtualFuncSuccess code through r0/r1 -- so the
+   adapters below take the dispatch's receiver and argument and then drop both,
+   which is sound only because the bodies at the end of the chain are `ret 4`.
+   The whole reading is in hal/method_faces.cpp beside the two tagged
+   definitions those veneers call. */
+void _ZN5Scene13AfterBehaviorEj(void);              /* arm9 0x0202e3c8 */
+void _ZN5Scene11AfterRenderEj(void);                /* arm9 0x0202e398 */
 
 }
 
@@ -358,9 +371,29 @@ static int __fastcall scene_before_init(void *self, void *)
     return _ZN5Scene19BeforeInitResourcesEv(self);
 }
 
+static int __fastcall scene_before_cleanup(void *self, void *)
+{
+    return _ZN5Scene22BeforeCleanupResourcesEv(self);
+}
+
 static int __fastcall scene_before_behavior(void *self, void *)
 {
     return _ZN5Scene14BeforeBehaviorEv(self);
+}
+
+/* slots 8 and 11: the dispatch arrives __thiscall with `this` in ecx and the
+   VirtualFuncSuccess code on the stack. Both are named and then deliberately
+   unused -- the veneer they call takes neither, and its callee is `ret 4`. */
+static void __fastcall scene_after_behavior(void *self, void *, unsigned)
+{
+    (void)self;
+    _ZN5Scene13AfterBehaviorEj();
+}
+
+static void __fastcall scene_after_render(void *self, void *, unsigned)
+{
+    (void)self;
+    _ZN5Scene11AfterRenderEj();
 }
 
 static int __fastcall scene_before_render(void *self, void *)
@@ -376,8 +409,11 @@ extern "C" void hal_seat_w2_dtor_heads(void)
     data_0208e6ec[0] = (int)(size_t)cyl_d1;
     data_0208e6ec[1] = (int)(size_t)cyl_d0;
     _ZTV5Scene[1] = (void *)scene_before_init;
+    _ZTV5Scene[4] = (void *)scene_before_cleanup;
     _ZTV5Scene[7] = (void *)scene_before_behavior;
+    _ZTV5Scene[8] = (void *)scene_after_behavior;
     _ZTV5Scene[10] = (void *)scene_before_render;
+    _ZTV5Scene[11] = (void *)scene_after_render;
     _ZTV5Scene[16] = (void *)scene_d1;
     _ZTV5Scene[17] = (void *)scene_d0;
 }
@@ -478,17 +514,18 @@ W2SeatDtorHeads g_w2_seat_dtor_heads;
 //    the top of this file with the chain behind slot 1 (func_0205583c,
 //    Initialise3dGraphics, func_020554bc, func_020556d0, G3X::SetClearColor
 //    and the geometry-engine helpers) in slice_w1l2.txt. Wave 4 added slot 7
-//    (Scene::BeforeBehavior) with eight more TUs and five more hosted globals;
-//    its own block is at the top of this file.
+//    (Scene::BeforeBehavior) with eight more TUs and five more hosted globals,
+//    then slots 4, 8 and 11 once this lane also owned hal/method_faces.cpp.
+//    Slot 7's own block is at the top of this file.
 //
-//    FIVE SLOTS OF THIS TABLE REMAIN. Four of them are blocked on
-//    hal/method_faces.cpp and the fifth on src/, which is read-only for every
-//    lane in this campaign. The four split two ways, and both ways are
-//    method_faces.cpp's own documented failure modes rather than anything
-//    about the seat.
+//    TWO SLOTS OF THIS TABLE REMAIN, and neither is blocked on a file any lane
+//    in this campaign can own.
 //
-//    (a) DROPPED RECEIVER -- slots 2, 8 and 11. Their matched bodies are ARM
-//        tail-call veneers that rely on the receiver riding through in r0:
+//    (a) DROPPED RECEIVER -- slot 2, and ONLY slot 2. This entry used to read
+//        "slots 2, 8 and 11", and the reason it does not any more is a
+//        measurement rather than a change of mind. All three matched bodies
+//        are ARM tail-call veneers that rely on the receiver riding through in
+//        r0:
 //          src/_ZN5Scene18AfterInitResourcesEj.cpp
 //            extern "C" void _ZN12ActorDerived18AfterInitResourcesEj(void);
 //            void _ZN5Scene18AfterInitResourcesEj(void) { <callee>(); }
@@ -496,24 +533,41 @@ W2SeatDtorHeads g_w2_seat_dtor_heads;
 //        The callees exist in the map ONLY under their MSVC decorations
 //        (?AfterInitResources@ActorDerived@@UAEXI@Z,
 //        ?AfterBehavior@ActorBase@@UAEXI@Z, ?AfterRender@ActorBase@@UAEXI@Z --
-//        all UAE, virtual __thiscall, taking an argument). Closing that with
-//        an /alternatename the way G3X::SetClearColor is closed above would
-//        NOT be the same move: SetClearColor is SAX (static __cdecl) and its
-//        caller passes all five arguments, whereas aliasing a no-argument
-//        cdecl reference onto a __thiscall body ships exactly the
-//        dropped-receiver bug hal/method_faces.cpp's header lists as failure
-//        mode 2 (the Actor::FarthestPlayer silent-wrong-result class). The
-//        honest fix is a receiver-passing face in that file, three lines,
-//        reviewed against that file's (a)/(b)/(c) checklist.
+//        all UAE, virtual __thiscall, taking an argument), so what matters is
+//        what each CALLEE does with the two values the veneer cannot deliver.
+//        Read out of their own objects:
 //
-//    (b) A MISSING RECEIVER-PASSING FACE -- slot 4. Scene::BeforeCleanup-
-//        Resources is ordinary C and DOES pass its receiver
-//        (`_ZN9ActorBase22BeforeCleanupResourcesEv(thiz)`), but the C-linkage
-//        cdecl name it calls is not defined anywhere; only
-//        ?BeforeCleanupResources@ActorBase@@UAEHXZ is. hal/method_faces.cpp
-//        line 305 already carries the exact face this needs for the sibling
-//        slot -- `extern "C" int _ZN9ActorBase12BeforeRenderEv(void *self)` --
-//        so this is one more line beside it, in that file.
+//          ?AfterBehavior@ActorBase@@UAEXI@Z    ret 4          (three bytes)
+//          ?AfterRender@ActorBase@@UAEXI@Z      ret 4          (three bytes)
+//          ?AfterInitResources@ActorDerived@@UAEXI@Z
+//              cmp   dword ptr [ebp+8],1        reads the ARGUMENT
+//              mov   esi,ecx
+//              call  ?MarkForDestruction@ActorBase@@QAEXXZ
+//                                               reads the RECEIVER
+//              push  dword ptr [ebp+8] / mov ecx,esi
+//              call  ?AfterInitResources@ActorBase@@UAEXI@Z
+//
+//        Slots 8 and 11 are therefore SEATED: their callees read neither
+//        value, so the drop cannot be wrong the way method_faces.cpp's failure
+//        mode 2 means -- that mode needs a `this+0x5c` load and these have no
+//        loads at all. Both are tagged host-ABI definitions in that file with
+//        the listings beside them.
+//
+//        Slot 2 stays blocked and now for a reason with bytes behind it: its
+//        callee would run MarkForDestruction on whatever ecx happened to hold.
+//        That is the CRASH half of mode 2, not the silent half, and an
+//        /alternatename would be no better -- the G3X::SetClearColor alias
+//        above works because that one is SAX (static __cdecl) with all five
+//        arguments passed. Unblocking slot 2 means handing the callee the r0/r1
+//        pair through a side channel the slot adapter parks, which is a
+//        mechanism with a live constraint, not three lines.
+//
+//    (b) TAKEN IN WAVE 4 -- slot 4. Scene::BeforeCleanupResources is ordinary C
+//        and DOES pass its receiver
+//        (`_ZN9ActorBase22BeforeCleanupResourcesEv(thiz)`); only the C-linkage
+//        cdecl name it calls was undefined, since only
+//        ?BeforeCleanupResources@ActorBase@@UAEHXZ existed. That is one face
+//        beside the BeforeRender one it copies, and this lane owned the file.
 //
 //    (c) STORAGE THE MATCHED TU DEFINES ITSELF -- slot 5. MEASURED, not
 //        predicted: the slot was seated, the TU sliced in, and the build was
