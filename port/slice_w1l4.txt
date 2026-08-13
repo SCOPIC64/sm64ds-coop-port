@@ -19,13 +19,13 @@
 # owns, and a TU with no honest edge available stays out of this file rather
 # than sitting here looking seated.
 
-# ---- the family's five deleting destructors --------------------------------
+# ---- the family's deleting destructors -------------------------------------
 # Each is slot 1 of a ROM vtable the port hosts as zeroed storage, with the
-# class's complete-object destructor (already linked) at slot 0. The slot
-# numbers come from config/arm9/relocs.txt and the class identities from
-# config/arm9/symbols.txt; both are spelled out in the seat.
+# class's complete-object destructor at slot 0. The slot numbers come from
+# config/arm9/relocs.txt and the class identities from config/arm9/symbols.txt;
+# both are spelled out in the seat.
 # Reference edge: hal_seat_meshcollider_dtor in port/hal/meshcollider_dtor_seat.cpp,
-# which level_boot already calls, now fills those ten slots.
+# which level_boot already calls, now fills those slot pairs.
 #   func_020373b8  WithMeshClsn::~WithMeshClsn   D0, 0x020373b8
 #   func_020374f0  RaycastGround::~RaycastGround D0, 0x020374f0
 #   func_02037710  RaycastLine::~RaycastLine     D0, 0x02037710
@@ -37,3 +37,11 @@ src/func_020374f0.c
 src/func_02037710.c
 src/func_02037c40.c
 src/func_02038114.c
+
+# The same two-word head for the two classes dsd never named: the base whose
+# teardown WithMeshClsn's D0 calls (D1 0x02035504, D0 0x020354e0, table
+# data_020991d8) and the subobject RaycastLine's D0 tears down at this+0x64
+# (D1 0x0203ac50 already linked, D0 0x0203ac2c, table data_020994cc).
+src/func_02035504.c
+src/func_020354e0.c
+src/func_0203ac2c.c
