@@ -438,31 +438,63 @@ src/func_ov002_020b646c.cpp
 src/func_ov002_020b6584.c
 src/func_ov002_020b6424.c
 
-# ---- (G) TILTING_PLATFORM_BFS (141) IS MEASURED BUT NOT HOSTED ------------
-# The only one of the six that is not, and the reason is port-wide rather than
-# anything about ov045. Its own four slots and both of its ov002 slots are
-# matched src. The chain stops one step past them: func_ov002_020b6244 (its
-# base InitResources) installs func_ov002_020b6374 as the collider's beforeClsn
-# callback, that calls func_ov002_020b62cc, and that calls Quaternion_Normalize
-# -> func_02053130, which spins on SQRTCNT's busy bit and reads SQRT_RESULT
-# through C externs at 0x040002b0/0x040002b4 that nothing defines.
+# ---- (G) TILTING_PLATFORM_BFS (141): HELD IN WAVE 4, RESTORED IN WAVE 5 ---
+# Wave 4 measured the class complete but held it back on one port-wide gap:
+# its rider-push chain -- func_ov002_020b6244 (base InitResources) installs
+# func_ov002_020b6374 as the collider's beforeClsn callback, that calls
+# func_ov002_020b62cc, and that reaches Quaternion_Normalize ->
+# func_02053130 -> the DS SQUARE-ROOT UNIT, which the host modeled but no
+# write path ever triggered.
 #
-# port/ntr/io.cpp DOES model the divide and square-root units, but only behind
-# io_write(): a raw volatile store at 0x040002b8 -- exactly what the matched
-# func_02053008 does -- lands in the mapped page and never runs run_sqrt(), so
-# hosting func_02053130 alone would still read a stale result. The gap is the
-# sqrt pair only (func_02053008, func_02053130): reciprocal_async, fdiv_result
-# and ldiv_result already link as hostgen NTR_MMIO TUs (gates 8/13, mediated
-# through run_divide), and func_02053200 is linked and live on id 148's
-# SetScaleY path. The sqrt pair belongs to the port's math layer, not to a
-# level's actor cast.
+# WAVE 5 (lane w5-c) CLOSED THE GAP the way this block prescribed: the unit's
+# four drivers (func_02053008, func_02053130, func_020531a4, func_02052fdc)
+# are hostgen NTR_MMIO TUs (the run_divide pattern applied to run_sqrt;
+# SQRTUNIT_GEN in port/CMakeLists.txt), ntr/io.cpp's sqrt trigger covers both
+# SQRT_PARAM halves because the drivers write the operand in the HIGH half
+# last, and hostgen's MMIO_EXTERN table binds func_02053130's role-named
+# SQRTCNT/SQRT_RESULT externs to the proxy. Numeric proof in that commit.
 #
-# SO 141 STAYS UNREGISTERED and the 23 TUs behind it stay out: its own four
-# bodies and Spawn, six ov002 bodies, and twelve quaternion/Fix12 TUs. Two of
-# level 37's twenty platform instances ride on it. Re-enabling is a
-# self-contained follow-up: host the sqrt pair the way hostgen gates 8/13
-# host the divide unit (the run_divide pattern), then restore the id-141
-# section of hal/actor_classes_ov045.cpp, its registry row and these lines.
+# So the lines below are the restored closure, re-measured at restore time
+# (wave 4 estimated "twelve quaternion/Fix12 TUs"; the measured closure is
+# FIVE slice TUs -- Quaternion_SLerp needs no callee at all and the four unit
+# drivers ride hostgen, not this file). The id-141 section of
+# hal/actor_classes_ov045.cpp, its registry row and the aliases live with the
+# other five classes' machinery.
+
+# ---- 141's own bodies and factory (5 TUs) ---------------------------------
+# Reference edge: hal_fill_tilting_platform_bfs_vtable and
+# port_factory_tilting_platform_bfs in hal/actor_classes_ov045.cpp, reached
+# from the 141 registry row.
+src/TiltingPlatformBfs_Spawn.c
+src/_ZN16FloatingFloorBfs13InitResourcesEv.c
+src/_ZN16FloatingFloorBfs16CleanupResourcesEv.c
+src/_ZN16FloatingFloorBfsD1Ev.c
+src/_ZN16FloatingFloorBfsD0Ev.c
+
+# ---- the ov002 tilting base 141 inherits (7 TUs) --------------------------
+# Slots 6/9 (Behavior/Render), the base Init/Cleanup pair its veneers reach
+# under unprefixed spellings (aliased in the fill file), the beforeClsn
+# callback the base Init installs, and the two quaternion feeders that
+# callback runs. func_ov002_020b6144 is here at last -- the 145 block below
+# recorded why it had to wait for exactly this section.
+src/func_ov002_020b616c.c
+src/func_ov002_020b6144.cpp
+src/func_ov002_020b6244.c
+src/func_ov002_020b60fc.c
+src/func_ov002_020b6374.c
+src/func_ov002_020b62cc.c
+src/func_ov002_020b6074.cpp
+
+# ---- the quaternion/Fix12 closure (5 TUs) ---------------------------------
+# Quaternion_Normalize is the sqrt unit's caller; Quaternion_FromVector3
+# pulls cstd::fdiv (linked), func_0203cebc (recursive, self-contained) and
+# func_020531a4 (hostgen, above); Matrix4x3_FromQuaternion and
+# Quaternion_SLerp are pure.
+src/Quaternion_Normalize.c
+src/Quaternion_FromVector3.c
+src/Quaternion_SLerp.c
+src/Matrix4x3_FromQuaternion.c
+src/func_0203cebc.c
 
 # ---- ExtendingMeshCollider (17 TUs) ---------------------------------------
 # Reference edge: hal/w2_emc_seat.cpp, which defines _ZTV21ExtendingMeshCollider

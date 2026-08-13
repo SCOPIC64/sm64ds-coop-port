@@ -1,8 +1,11 @@
 // RUN LINKW WAVE 4: BOWSER IN THE FIRE SEA'S PLATFORM CAST (ov045, level 37).
+// (WAVE 5, lane w5-c: all SIX hosted -- the sqrt unit id 141 was waiting on
+// is live, so its section below is the real fill now, and the twenty
+// level-37 platform instances are all served.)
 //
-// Six classes measured, FIVE hosted, eighteen of the twenty level-37 instances.
-// Every own vtable slot of all six is backed by matched src; id 141 is held back
-// for a port-wide reason spelled out in its own section below. Same law as
+// Six classes measured, all six hosted (141 landed a wave after the other
+// five). Every own vtable slot of all six is backed by matched src; 141's
+// wave-4 holdback and its wave-5 release are its own section. Same law as
 // hal/actor_classes_wf.cpp, which is the exemplar this file is built on --
 // another level overlay's platform cast, another one-class naming shift, the
 // same 32-slot Platform tables and the same ov002/ov098 inherited slots.
@@ -281,8 +284,7 @@ static int __fastcall ov45_egg(void *s, void *)
 { return _ZN5Actor16OnAimedAtWithEggEv(s); }
 /* slot 31, the Platform tail; four of the six ROM tables take it unchanged
    (140/141/142/145) -- 139's slot 31 is func_ov098_0213a17c and 148 has no
-   slot 31 at all. Of the hosted arrays this fills 140/142/145; 141's table
-   is deliberately not hosted. */
+   slot 31 at all. Fills 140/141/142/145. */
 static int __fastcall ov45_kill(void *s, void *)
 { _ZN8Platform4KillEv(s); return 0; }
 
@@ -625,45 +627,92 @@ extern "C" void hal_fill_floating_floor_bfs_vtable(void)
 }
 
 // ============================================================================
-// TILTING_PLATFORM_BFS (id 141) -- table 0x02113020, NOT HOSTED THIS WAVE
+// TILTING_PLATFORM_BFS (id 141) -- table 0x02113020, the _ZN16FloatingFloorBfs*
+// bodies. HOSTED IN WAVE 5 (lane w5-c); wave 4 held it back for the one
+// port-wide gap its chain crossed, and that gap is closed:
+//
+//   func_ov002_020b616c  (slot 6) slerps the platform toward the rider's push
+//   func_ov002_020b6244  (its base InitResources) installs
+//   func_ov002_020b6374  as the collider's beforeClsn callback ->
+//   func_ov002_020b62cc  -> Quaternion_FromVector3 -> Quaternion_Normalize
+//                        -> func_02053130 -> THE HARDWARE SQRT UNIT.
+//
+// The unit's four drivers (func_02053008 / func_02053130 / func_020531a4 /
+// func_02052fdc) are hostgen NTR_MMIO TUs now, run_sqrt-mediated exactly the
+// way gates 8/13 host the divide unit -- ntr/io.cpp's sqrt trigger covers
+// both SQRT_PARAM halves (the ROM's drivers write the operand in the HIGH
+// half last) and hostgen's MMIO_EXTERN table routes func_02053130's
+// role-named SQRTCNT/SQRT_RESULT externs through the proxy. The numeric
+// proof against the unit's defined arithmetic is in the commit that landed
+// the mechanism.
 // ============================================================================
 //
-// The one class of the six left out, and the reason is a port-wide gap rather
-// than anything about ov045. Its table is measured and its own four slots
-// (0/3/16/17, the _ZN16FloatingFloorBfs* bodies) are all matched src; slots 6
-// and 9 are ov002's TILTING pair, func_ov002_020b616c and func_ov002_020b6144,
-// also matched. The chain stops one step past that:
-//
-//   func_ov002_020b616c  slerps the platform toward the rider's push and calls
-//   func_ov002_020b6074  -> Matrix4x3_FromQuaternion, fine
-//   func_ov002_020b6244  (its InitResources) installs func_ov002_020b6374 as
-//                        the collider's beforeClsn callback, which calls
-//   func_ov002_020b62cc  -> Quaternion_FromVector3, fine
-//                        -> Quaternion_Normalize
-//   Quaternion_Normalize -> func_02053130, which is a thin wrapper over the DS
-//                        DIVIDE AND SQUARE-ROOT UNITS: it spins on SQRTCNT's
-//                        busy bit and reads SQRT_RESULT, both declared in the
-//                        matched TU as C externs at 0x040002b0/0x040002b4 that
-//                        nothing defines.
-//
-// THAT IS NOT SEATABLE FROM HERE, and the reason is worth writing down so the
-// next lane does not try. port/ntr/io.cpp DOES model both units, but only
-// behind io_write(): a raw volatile store straight at 0x040002b8 (which is
-// exactly what the matched func_02053008 does) lands in the mapped page and
-// never runs run_sqrt(), so SQRT_RESULT stays stale. Hosting func_02053130
-// alone would not fix that. The gap is exactly the sqrt pair (func_02053008,
-// func_02053130) -- the divide side is ALREADY hosted: reciprocal_async,
-// fdiv_result and ldiv_result link as hostgen NTR_MMIO TUs (gates 8 and 13,
-// mediated through run_divide), and func_02053200 is linked and live today on
-// id 148's SetScaleY path. The sqrt pair belongs to the port's math layer,
-// not to a level's actor cast.
-//
-// SO id 141 STAYS UNREGISTERED, its two instances stay in level 37's skipped
-// count, and re-enabling it is a small, self-contained follow-up: host the
-// sqrt pair the way hostgen gates 8/13 host the divide unit (the run_divide
-// pattern, not hal/cstd_div.c's refusal), then restore this section, its
-// registry row and its slice lines. Everything else about the class is
-// already measured and in port/slice_w1l4.txt.
+// 848-byte object built by Platform's constructor; Model at +0xd4,
+// MovingMeshCollider at +0x124 (both straight out of the D1/D0 chains, which
+// also settle the member order). Two of them on level 37. Own slots
+// 0/3/16/17; its Init and Cleanup are two-line veneers onto ov002's tilting
+// base pair (func_020b6244 / func_020b60fc, spelled unprefixed -- the same
+// window-race the Ukishima veneers hit, aliased below) through the
+// three-word file table data_ov045_02112fdc; Behavior and Render are ov002's
+// TILTING pair, and the beforeClsn callback its base Init installs is what
+// pushes the tilt toward the rider through the quaternion chain above.
+extern "C" {
+int _ZN16FloatingFloorBfs13InitResourcesEv(void *self);     /* slot 0  */
+int _ZN16FloatingFloorBfs16CleanupResourcesEv(void *self);  /* slot 3  */
+int func_ov002_020b616c(char *self);   /* slot 6  Behavior (ov002 base) */
+int func_ov002_020b6144(void *self);   /* slot 9  Render   (ov002 base) */
+int *_ZN16FloatingFloorBfsD1Ev(int *self);                  /* slot 16 */
+int *_ZN16FloatingFloorBfsD0Ev(int *self);                  /* slot 17 */
+void *TiltingPlatformBfs_Spawn(void);
+DSSTATE_BEGIN
+void *_ZTV16FloatingFloorBfs[32];
+DSSTATE_END
+}
+/* gura = the tilting one. The Spawn spells the ov002 BASE table with this
+   RTTI name and the D1/D0 open their teardown with it (their FINAL transient
+   store is the zeroed VT2, the dying-object reading in this file's header);
+   the alias points at the own table, the 145/Ukishima treatment exactly. The
+   base-table spelling _ZTV10dBgActor_c and the D0's G0 heap word are already
+   defined port-wide (hal/actor_classes.cpp, hal/cxx_aliases.cpp). */
+#pragma comment(linker, "/alternatename:__ZTV15daObjKm2_Gura_c=__ZTV16FloatingFloorBfs")
+/* The two ov002 veneer targets, spelled unprefixed in the 141 bodies. */
+#pragma comment(linker, "/alternatename:_func_020b6244=_func_ov002_020b6244")
+#pragma comment(linker, "/alternatename:_func_020b60fc=_func_ov002_020b60fc")
+/* The factory ends on `p[0] = Gura; p[0] = VT1;` -- base store then the
+   zeroed placeholder, trap (F). The wrapper reseats the ROM's final value. */
+extern "C" void *port_factory_tilting_platform_bfs(void)
+{
+    void *p = TiltingPlatformBfs_Spawn();
+    if (p)
+        *(void **)p = (void *)_ZTV16FloatingFloorBfs;
+    return p;
+}
+static int __fastcall tp_init(void *s, void *)
+{ return _ZN16FloatingFloorBfs13InitResourcesEv(s); }
+static int __fastcall tp_clean(void *s, void *)
+{ return _ZN16FloatingFloorBfs16CleanupResourcesEv(s); }
+static int __fastcall tp_behavior(void *s, void *)
+{ return func_ov002_020b616c((char *)s); }
+static int __fastcall tp_render(void *s, void *)
+{ port_actor_render_probe("TILTING_PLATFORM_BFS", (char *)s + 0xd4);
+  return func_ov002_020b6144(s); }
+static int __fastcall tp_d1(void *s, void *)
+{ return (int)(size_t)_ZN16FloatingFloorBfsD1Ev((int *)s); }
+static int __fastcall tp_d0(void *s, void *)
+{ return (int)(size_t)_ZN16FloatingFloorBfsD0Ev((int *)s); }
+extern "C" void hal_fill_tilting_platform_bfs_vtable(void)
+{
+    ov45_bringup();
+    void *volatile *vt = (void *volatile *)_ZTV16FloatingFloorBfs;
+    ov45_fill_shared(vt);
+    vt[0]  = (void *)tp_init;
+    vt[3]  = (void *)tp_clean;
+    vt[6]  = (void *)tp_behavior;
+    vt[9]  = (void *)tp_render;
+    vt[16] = (void *)tp_d1;
+    vt[17] = (void *)tp_d0;
+    vt[31] = (void *)ov45_kill;
+}
 
 // ============================================================================
 // FALL_BLOCK_BFS (id 139) -- table 0x021130f4, the _ZN12FallBlockBfs* bodies
