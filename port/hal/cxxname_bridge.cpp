@@ -60,8 +60,67 @@ void _ZN8Platform21UpdateModelPosAndRotYEv(void *self)
    empty, so ModelBase::SetFile's vtable+0x8 dispatch would fault even once the
    data lands; (3) no per-frame ShadowModel::RenderAll caller is matched in
    src/ outside UnknownVsEntry::Render, so the host render path would have to
-   call it. Until those, InitCuboid and the drop-shadow install stay no-ops. */
-void _ZN11ShadowModel10InitCuboidEv(void *) {}
+   call it.
+
+   RUN LINKW WAVE 3 (lane w3-a): (1) AND (2) ARE NOW CLEARED FOR THE CUBOID,
+   so this is no longer a stub -- it is the ordinary C-name-to-method bridge,
+   and the body it reaches is the matched src/_ZN11ShadowModel10InitCuboidEv.cpp.
+
+   (1) was half wrong even as written. ov001 HAS been mounted since gate 27;
+   what was missing is that the mount named only the HUD's sprite templates, so
+   --pack emitted 0x020ad478..0x020ad628 as a ZEROED gap and the template BMD
+   read as 432 bytes of nothing. The bytes were present and zero, not absent.
+   port/ov001_syms.txt now names the cuboid's nine symbols, reloc-followed out
+   of the template rather than taken as a span.
+   (2) was cleared by lane l3 in wave 1: hal/model_dtor_seat.cpp:157 puts
+   ShadowModel::DoSetFile in _ZTV11ShadowModel[1], and level_boot.cpp:2119
+   calls that seat inside port_stage_a2_seat, so it is live in walk_window and
+   not only in the smokes (hal_fill_shadow_vtable below is still empty and is
+   still only called from the four smoke mains -- it is NOT what unblocked
+   this).
+   (3) is still open and is the reason ShadowModel::RenderAll is not seated.
+   It is ALSO no longer the whole story: the node that faults belongs to a
+   BUTTERFLY, and a butterfly's two shadows are cylinders, not cuboids. See
+   port/slice_w1l1.txt under LANE w3-a for the measured chain. */
+void _ZN11ShadowModel10InitCuboidEv(void *self)
+{ ((ShadowModel *)self)->ShadowModel::InitCuboid(); }
+}   /* extern "C" -- reopened below, after the fallback's C++ linkage */
+
+/* THE NARROW HARNESSES NEED A FALLBACK, same shape as hal_shadow_d1_fallback
+   further down this file. Three targets compile this TU but do NOT carry
+   SLICE_W1L1_SOURCES -- smoke_actor, smoke_savestate and smoke_persist -- so
+   in those the matched InitCuboid does not exist and the bridge above is an
+   unresolved external. walk_window, walk_window_hires and smoke_player carry
+   the slice and link the real body, which WINS over an /alternatename.
+
+   The fallback is a method on a differently-named class rather than a plain
+   function, because the symbol being defaulted is __thiscall: a real C++
+   method has that ABI exactly, and no hand-decorated @name@4 has to be
+   guessed at. hal/actor_faces_bob.cpp uses the same construction for
+   ShadowModel::InitCylinder.
+
+   IT IS A NO-OP, AND THE FIRST VERSION OF IT WAS NOT. This was written as an
+   abort() first, on the same reasoning hal_shadow_d1_fallback states -- that a
+   narrow harness has no business installing a shadow, so reaching the fallback
+   would be a bug worth stopping on. Running it disproved that: smoke_savestate
+   and smoke_persist BOTH reach InitCuboid, and both aborted with exit 127 on
+   the very first run. They do install a cuboid shadow.
+
+   So the abort was wrong and the no-op is right, for a reason that is worth
+   more than the guess it replaced. Those two targets have been running an
+   InitCuboid that did nothing since gate 27 -- that is what the old
+   `void _ZN11ShadowModel10InitCuboidEv(void *) {}` gave every target -- and
+   they are green against exactly that behaviour. Returning quietly here
+   reproduces their baseline bit for bit; aborting would have made this lane's
+   change break two harnesses that never had a shadow system to begin with.
+   The real fix is to give them SLICE_W1L1_SOURCES in port/CMakeLists.txt,
+   which is not this lane's file. Until then this is a scoped no-op, not a
+   claim that nothing reaches it. */
+struct ShadowModelCuboidFallback { void InitCuboid(); };
+void ShadowModelCuboidFallback::InitCuboid() {}
+#pragma comment(linker, "/alternatename:?InitCuboid@ShadowModel@@QAEXXZ=?InitCuboid@ShadowModelCuboidFallback@@QAEXXZ")
+
+extern "C" {
 void _ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j(
     void *, void *, void *, int, int, int, unsigned) {}
 void _ZN13SharedFilePtr8LoadFileEv(void *fp);
@@ -88,10 +147,23 @@ void *_ZN5Model8LoadFileER13SharedFilePtr(void *fp)
 
 // BSS the shadow/collider systems use
 DSSTATE_BEGIN
-char data_020ad524[0x40];       /* ShadowModel's template BMD stub */
+/* data_020ad524 USED TO BE A ZEROED char[0x40] HERE (run linkw wave 3, w3-a).
+   It is the cuboid shadow's template BMD, and it is not bss and not the
+   port's to invent: it is 0x3c bytes of ov001 .data, now mounted by name in
+   port/ov001_syms.txt with its bone, its material and the four words they
+   reach. The host array is gone so the reference below resolves onto the ROM
+   bytes instead of shadowing them with zeros. Note the old array was also
+   OVERSIZED (0x40 against the ROM's 0x3c), which would have put the bone's
+   first word inside the template had anyone walked it. */
 void *data_020a0c80[24];        /* the collision actor registry (gate 8) */
 DSSTATE_END
 }
+/* The mount emits ov001's own spelling; the matched TU and every other caller
+   spell the arm9 name. Both are data at the same address, so the alias is
+   exact -- the same pattern hal/sub_actors.cpp uses for OAM::LIFE_ICONS and
+   its four siblings. /alternatename only fires for an UNDEFINED symbol, which
+   is why the host array above had to go rather than merely be renamed. */
+#pragma comment(linker, "/alternatename:_data_020ad524=_data_ov001_020ad524")
 
 #include "MeshCollider.h"
 #include "ModelBase.h"

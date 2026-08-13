@@ -42,3 +42,86 @@ data_ov001_020abaf0 data_ov001_020abaf8
 # them as the cap tier's own storage (CapEnemy, ov001's archive slots). Two
 # streams found the same five symbols independently, so they are listed once.
 data_ov001_020ad470 data_ov001_020ad628 data_ov001_020ad62c data_ov001_020ad630 data_ov001_020ad634
+
+# ---------------------------------------------------------------------------
+# run linkw wave 3 (lane w3-a): THE SHADOW TEMPLATES.
+#
+# The two shadow template BMDs are static .data in this overlay, and until now
+# every byte of them was a HOLE. That is worth stating precisely, because the
+# port did not read garbage here -- it read ZEROS, and for a different reason
+# than three separate source comments claimed.
+#
+# --pack pads the space between two named symbols with a ZEROED gap array, and
+# data_ov001_020ad470 (8 bytes) and data_ov001_020ad628 are both on the line
+# above. So 0x020ad478..0x020ad628 -- 432 bytes holding BOTH templates, both
+# their bones and both their materials -- was emitted as one zero-filled pad.
+# That is the "the real body parses a zero stub" that hal/actor_class_faces.cpp
+# and hal/cxxname_bridge.cpp describe: not absent bytes, PRESENT ZERO bytes.
+#
+# THE CUBOID CHAIN IS LIVE. src/_ZN11ShadowModel10InitCuboidEv.cpp is seated
+# this wave and its body is SetFile(&data_020ad524, 1, -1), so every symbol
+# below is storage the matched code genuinely reaches. Each was found by
+# following relocs.txt out of the template, not by taking a span, and each is
+# sized by its own next-symbol delta (config/arm9/overlays/ov001/symbols.txt).
+# Verified against the raw image (extracted/overlays/overlay_0001.bin, 12800
+# bytes = base 0x020aa420 .. .data end 0x020ad620, which is the whole file --
+# the yaml's code_size 8032 is the COMPRESSED length and sizes nothing here):
+#
+#   data_ov001_020ad524  0x3c  the cuboid BMD_File. numBones 1, numMaterials 1,
+#                              numTextures 0, numPalettes 0 -- a flat untextured
+#                              quad, which is what a drop shadow is.
+#     +0x08 -> 0x020ad59c        bones      data_ov001_020ad59c  0x40
+#     +0x10 -> 0x020ab618        unk_10     data_ov001_020ab618  0x08
+#     +0x28 -> 0x020ad4f4        materials  data_ov001_020ad4f4  0x30
+#     +0x2c -> 0x020ad644        unk_2c     data_ov001_020ad644  bss, 4
+#   the bone at 0x020ad59c reaches three more:
+#     +0x04 -> 0x020ad4a8        data_ov001_020ad4a8  0x0c
+#     +0x34 -> 0x020ab5fc        materialIds  data_ov001_020ab5fc  0x04
+#     +0x38 -> 0x020ab5f8        data_ov001_020ab5f8  0x04
+#   the material at 0x020ad4f4 reaches one more:
+#     +0x00 -> 0x020ad49c        data_ov001_020ad49c  0x0c   (shared with the
+#                                cylinder material -- listed once)
+#
+# The material's flags word at +0x24 reads 0x001f0080 in the ROM, which is the
+# record func_02046120 rewrites (0x30 stride, &= 0xc0ffff0f, opacity into
+# bits 16..20). The bytes and the code agree, which is the check that the
+# addresses above are the shadow's and not a neighbour's.
+#
+# WHY THE 0x020ab5f8 SYMBOLS ARE NAMED RATHER THAN LEFT TO THE GAP PASS.
+# delinks.txt puts .text at 0x020aa420..0x020ab5f8 and .data at 0x020ab800, so
+# these four sit in the unclassified hole between the two. They ARE inside
+# ovdata's packed DATA_WIN (which starts at .text end), so the transitive gap
+# pass would have covered them as port_ov001_gap_* blocks. Named is better:
+# make_covering prefers a named symbol over a gap block, and a named symbol is
+# sized by its own delta instead of the gap pass's max(t+0x18, next).
+data_ov001_020ab5f8 data_ov001_020ab5fc data_ov001_020ab618
+data_ov001_020ad49c data_ov001_020ad4a8 data_ov001_020ad4f4
+data_ov001_020ad524 data_ov001_020ad59c data_ov001_020ad644
+
+# THE CYLINDER CHAIN IS MOUNTED AND NOT YET REFERENCED. READ THIS BEFORE
+# ASSUMING IT IS LIVE.
+#
+# Same shape as the cuboid, one address over: BMD 0x020ad560 (0x3c), bone
+# 0x020ad5dc (0x44), material 0x020ad4c4 (0x30), unk_10 0x020ab610 (0x08),
+# unk_2c 0x020ad640 (bss), bone+0x04 0x020ad4b4 (0x10), materialIds
+# 0x020ab608 (0x04), bone+0x38 0x020ab60c (0x04), and the same shared
+# 0x020ad49c the cuboid material points at.
+#
+# Nothing reads these bytes today. src/_ZN11ShadowModel12InitCylinderEv.cpp
+# spells its template `data_020ad560`, and that NAME is still a host zero
+# array in hal/actor_vtables.cpp:485 -- so the matched body, if it were seated,
+# would read the host zeros and never touch this mount. Lane w3-a owns neither
+# that file nor the two host stubs that keep the matched body out of the image
+# (hal/player_bridges.cpp:806, hal/bob_enemy_bridges.cpp:153), so the cylinder
+# seat is reported blocked rather than forced.
+#
+# They are mounted anyway for one honest reason: --pack would otherwise emit
+# this run as the zero gap described at the top of this block, and the ROM
+# object these bytes belong to is the same run as the cuboid's (the two bones
+# are adjacent, 0x020ad59c..0x5dc..0x620, and the two materials are adjacent
+# at 0x020ad4c4..0x4f4..0x524). Mounting the whole run is what the header of
+# this file already argues for the HUD templates. The handoff is three lines,
+# and it is written out in port/slice_w1l1.txt under LANE w3-a.
+data_ov001_020ab608 data_ov001_020ab60c data_ov001_020ab610
+data_ov001_020ad4b4 data_ov001_020ad4c4 data_ov001_020ad560
+data_ov001_020ad5dc data_ov001_020ad640

@@ -98,8 +98,27 @@ extern "C" int _ZN6Player7SetAnimEji5Fix12IiEj(void *, unsigned, int, int,
 void Player::SetAnim(unsigned a, int b, int f, unsigned d)
 { _ZN6Player7SetAnimEji5Fix12IiEj(this, a, b, f, d); }
 
-struct ClsnResult { int GetClsnID() const; };
-int ClsnResult::GetClsnID() const { return _ZNK10ClsnResult9GetClsnIDEv(this); }
+/* ClsnResult::GetClsnID is the MATCHED body now (run linkw wave 3, w3-a).
+   src/_ZNK10ClsnResult9GetClsnIDEv.cpp declares it `u32`, and MSVC puts the
+   return type in the decoration, so the matched symbol is
+   ?GetClsnID@ClsnResult@@QBEIXZ. The shadow here used to say `int`, which
+   decorates ...QBEHXZ -- a different symbol entirely, which is exactly why
+   w2-a found "the two never meet and no duplicate is raised". Spelling the
+   shadow `unsigned` makes this declaration name the matched body, and the
+   definition that used to sit on the next line is deleted so the matched TU
+   supplies it. The TU was already compiled (slice_gate10.txt) and only ever
+   stripped for want of a reference, so no slice line is needed. */
+struct ClsnResult { unsigned GetClsnID() const; };
+
+/* The `int`-returning spelling kept alive for whoever still emits it. Same
+   __thiscall, no arguments, result in EAX either way, so this is a pure
+   return-type face -- the construction hal/actor_faces_bob.cpp uses for
+   ShadowModel::InitCylinder. It is an /alternatename rather than a second
+   definition so it costs nothing when nothing references it. */
+struct ClsnResultIntFace { int GetClsnID() const; };
+int ClsnResultIntFace::GetClsnID() const
+{ return (int)((const ClsnResult *)this)->ClsnResult::GetClsnID(); }
+#pragma comment(linker, "/alternatename:?GetClsnID@ClsnResult@@QBEHXZ=?GetClsnID@ClsnResultIntFace@@QBEHXZ")
 
 struct WithMeshClsn {
     int IsOnGround() const;
@@ -294,10 +313,17 @@ struct Camera { void SetFlag_3(); };
 extern "C" void _ZN6Camera9SetFlag_3Ev(void *self)
 { ((Camera *)self)->SetFlag_3(); }
 
-/* REAL BODY here, not a hop back to the method: the method shadow above
-   already forwards to this C name, and forwarding back made a mutual
-   tail-call -- /O2 turned it into a two-instruction jmp cycle that hung
-   the first real-collision frame (WATCHDOG pinned EIP inside it).
-   Field per src/_ZNK10ClsnResult9GetClsnIDEv.cpp: objID at +0x1c. */
+/* THE HOST BODY IS GONE (run linkw wave 3, w3-a). It read the objID at +0x1c
+   itself; the matched src/_ZNK10ClsnResult9GetClsnIDEv.cpp reads
+   ((const u32 *)this)[7], the same word, and now owns the work. This is the
+   reference edge that stops /OPT:REF discarding it: 22 of its 27 ROM callers
+   are in the image and every one of them calls this C name.
+
+   THE JMP-CYCLE HAZARD THIS COMMENT USED TO WARN ABOUT DOES NOT APPLY, and
+   the reason is worth keeping. The old cycle was method -> C name -> method
+   with BOTH ends being ...QBEHXZ, so /O2 folded it into a two-instruction jmp
+   loop that hung the first real-collision frame. The method this forwards to
+   now is ...QBEIXZ, the matched body, which reads the field and returns. One
+   hop, and the far end does real work rather than hopping back. */
 extern "C" int _ZNK10ClsnResult9GetClsnIDEv(const void *self)
-{ return (int)((const unsigned *)self)[7]; }
+{ return (int)((const ClsnResult *)self)->ClsnResult::GetClsnID(); }
