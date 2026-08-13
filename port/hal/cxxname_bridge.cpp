@@ -38,6 +38,9 @@ void _ZN16MeshColliderBase7DisableEv(void *self)
 #include "Platform.h"
 #include "ShadowModel.h"
 #include "Model.h"
+/* Model.h only forward-declares SharedFilePtr; the Model::LoadFile face below
+   binds a reference to one, so it needs the complete (fieldless) declaration. */
+#include "SharedFilePtr.h"
 extern "C" {
 void _ZN8Platform19UpdateClsnPosAndRotEv(void *self)
 { ((Platform *)self)->Platform::UpdateClsnPosAndRot(); }
@@ -170,25 +173,48 @@ extern "C" {
 extern "C" void hal_dropshadow_scalexyz_fallback(void *, void *, void *,
                                                  int, int, int, unsigned) {}
 #pragma comment(linker, "/alternatename:__ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j=_hal_dropshadow_scalexyz_fallback")
-void _ZN13SharedFilePtr8LoadFileEv(void *fp);
+/* MODEL::LOADFILE IS A FACE AGAIN, and it was not one before. This definition
+   used to be a hand-expanded copy of the matched Model::LoadFile -- LoadFile,
+   read filePtr, check numRefs, UpdateFileOffsets, AddToCommonModelDataArr --
+   written out so each load stage could carry its own PORT_TRACE_SETFILE line.
+
+   port/tools/linkage.py counted it in the FACES bucket, and the docstring on
+   that bucket says exactly why that reading could not be trusted: a map proves
+   both definitions are linked, not that the host one forwards. This was the
+   case the caveat is about. The matched TU is in the binary because other
+   callers reach it by its MSVC name, while everything arriving on the ROM's C
+   name got this copy instead.
+
+   Worse, the copy was not equal. The matched body ends the numRefs == 1 branch
+   with ptr.ReallocateModelFile(); this one dropped it, on the true observation
+   that reallocation is a DS heap shrink with nothing to do on host. True but
+   unnecessary: hal/gx_upload_bridge.cpp already hosts
+   SharedFilePtr::ReallocateModelFile as an empty body, so the matched body's
+   call lands on a real no-op rather than on nothing. Forwarding costs one call
+   into a function that returns immediately, and buys back a body the port was
+   restating.
+
+   THE SPLIT THIS CLOSES. Model::LoadFile is spelled three ways in the tree and
+   the map had them landing in two places: the ROM's C name and the two
+   /alternatename decorations in hal/actor_faces_bob.cpp,
+   hal/bob_enemy_bridges.cpp and hal/actor_classes_bowserpuzzle.cpp all reached
+   THIS body, while any TU compiled against include/Model.h's `static void
+   *LoadFile(SharedFilePtr &)` reached the matched one. Same ROM function, two
+   host bodies, picked by how a caller spelled the return type. One hop here
+   puts all three spellings on the matched body.
+
+   The trace stays, at the granularity a forwarder can honestly offer: the
+   handle going in and the buffer coming out. */
 void *_ZN5Model8LoadFileER13SharedFilePtr(void *fp)
 {
     int trace = getenv("PORT_TRACE_SETFILE") != 0;
     if (trace)
         fprintf(stderr, "  model_loadfile fp=%p id=%u refs=%u\n", fp,
                 *(unsigned short *)fp, ((unsigned char *)fp)[2]);
-    /* expanded body of the matched Model::LoadFile so the load stages are
-       individually traceable on host (Reallocate is a DS heap shrink, no-op
-       here -- see gx_upload_bridge.cpp) */
-    _ZN13SharedFilePtr8LoadFileEv(fp);
-    void *filePtr = *(void **)((char *)fp + 4);
-    if (((unsigned char *)fp)[2] == 1 && filePtr != 0) {
-        if (trace) fprintf(stderr, "    fixups buf=%p\n", filePtr);
-        Model::UpdateFileOffsets(*(BMD_File *)filePtr);
-        if (trace) fprintf(stderr, "    offsets ok\n");
-        Model::AddToCommonModelDataArr(*(BMD_File *)filePtr);
-        if (trace) fprintf(stderr, "    common-arr ok\n");
-    }
+    void *filePtr = Model::LoadFile(*(SharedFilePtr *)fp);
+    if (trace)
+        fprintf(stderr, "    model_loadfile -> buf=%p refs=%u\n", filePtr,
+                ((unsigned char *)fp)[2]);
     return filePtr;
 }
 
