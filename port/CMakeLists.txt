@@ -353,6 +353,31 @@ foreach(sym IN LISTS GATE8_SYMS)
     list(APPEND GATE8_GEN "${sym_out}")
 endforeach()
 
+# run linkw wave 5 (lane w5-B): the raw sqrt pair's literal-MMIO members --
+# func_02053008 writes SQRTCNT/SQRT_PARAM through literal casts, and
+# func_020531a4/func_02052fdc are the divider+sqrt read tails of the same
+# family; all three hostgen clean. func_02053130 reaches the unit through
+# NAMED externs hostgen cannot rewrite and is a host copy instead
+# (port/unmatched/Sqrt_Result.cpp). This closes the id-141 sqrt gap
+# hal/actor_classes_ov045.cpp names, pulled in by WORK_ELEVATOR's rider-push
+# callback (func_ov021_02112024 -> Quaternion_Normalize).
+set(W5B_SYMS func_02053008 func_020531a4 func_02052fdc)
+set(W5B_GEN "")
+foreach(sym IN LISTS W5B_SYMS)
+    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+    else()
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
+    endif()
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND W5B_GEN "${sym_out}")
+endforeach()
+
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate8.txt" SLICE8_LINES)
 set(SLICE8_SOURCES "")
 foreach(line IN LISTS SLICE8_LINES)
@@ -1149,6 +1174,22 @@ list(APPEND PORT_ACTOR_OVERLAYS ov013)
 # LANE OWNERSHIP block in hal/actor_classes_ov045.cpp for why and for the
 # actor_overlays.cpp block that should replace it. See port/ov045_syms.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov045)
+# run linkw wave 5 (lane w5-B): ov065, first mount -- Hazy Maze Cave's enemy
+# overlay (Snufit 236, Swoop 237, Dorrie 168, DorrieCap 169; the ten Ttc*
+# classes ride the mount as data but stay unregistered, the parked subset).
+# Its four HMC vtables are host arrays hal/actor_classes_ov065.cpp fills; the
+# five Ttc vtables are excluded and hosted nowhere (the ov045 id-141
+# precedent). Bring-up rides the registry fill (ov65_bringup), the w4-b
+# pattern -- no lane owns hal/actor_overlays.cpp this wave. See
+# port/ov065_syms.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov065)
+# ...and ov021 (level 13's own overlay, already whole-mounted per gate 156)
+# joins the per-symbol mounts too, so WORK_ELEVATOR (68), ROLLING_ROCK (221)
+# and SHUTTER_HMC (67) reach their SpawnInfo records, CLPS blocks, tuning
+# tables and sinit-built SharedFilePtrs by name -- the ov010/ov019/ov045
+# dual-mount shape. Its three vtables are host arrays the same file fills.
+# See port/ov021_syms.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov021)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1358,6 +1399,17 @@ foreach(line IN LISTS SLICE_W1L5_LINES)
         continue()
     endif()
     list(APPEND SLICE_W1L5_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+# run linkw wave 5, lane w5-B (Hazy Maze Cave's cast); same reader shape,
+# one owner.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w5b.txt" SLICE_W5B_LINES)
+set(SLICE_W5B_SOURCES "")
+foreach(line IN LISTS SLICE_W5B_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W5B_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate21.txt" SLICE21_LINES)
@@ -2713,6 +2765,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES}
+    ${SLICE_W5B_SOURCES} ${W5B_GEN}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -2783,6 +2836,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES}
+    ${SLICE_W5B_SOURCES} ${W5B_GEN}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -2884,6 +2938,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES}
+    ${SLICE_W5B_SOURCES} ${W5B_GEN}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
