@@ -177,14 +177,20 @@ void push_screen_tri(const GxVertex &a, const GxVertex &b, const GxVertex &c) {
     t.tex = g.tex_rgba; t.tw = g.tw; t.th = g.th;
     t.cull = static_cast<uint8_t>((g.poly_attr >> 6) & 3);
     t.alpha = static_cast<uint8_t>((g.poly_attr >> 16) & 31);
+    t.mode = static_cast<uint8_t>((g.poly_attr >> 4) & 3);
+    t.polyid = static_cast<uint8_t>((g.poly_attr >> 24) & 63);
     t.wrap = g.tex_wrap;
     /* TEXIMAGE_PARAM bits 26-28 are the format; 1 (A3I5) and 6 (A5I3)
        are the two translucent-texture formats. Attr alpha 0 is wire and
-       draws with the opaque pass, same as the hardware. */
+       draws with the opaque pass, same as the hardware. Mode-3 (shadow)
+       polygons are translucent-class regardless of alpha: their stencil
+       protocol below reads the depth the opaque pass has already settled,
+       and the mask/draw pair must run in submission order inside one pass. */
     const uint32_t fmt = (g_teximage >> 26) & 7;
     t.translucent = static_cast<uint8_t>(
         (t.alpha >= 1 && t.alpha <= 30) ||
-        (t.tex && (fmt == 1 || fmt == 6)));
+        (t.tex && (fmt == 1 || fmt == 6)) ||
+        t.mode == 3);
     t.dbg_tex = g_teximage;
     g.tris.push_back(t);
 }
@@ -1041,6 +1047,42 @@ void gx_render(Framebuffer &fb) {
     for (int y = 1; y < SCREEN_H; ++y)
         std::memcpy(depth[y], depth[0], SCREEN_W * sizeof(float));
 
+    /* --- shadow-polygon (POLYGON_ATTR mode 3) machinery -------------------
+       GBATEK's two-step protocol, and the reason a per-pixel stencil bit and
+       a per-pixel polygon ID exist at all. The game renders each drop shadow
+       as a closed VOLUME twice: first every material's attr set to mode 3 /
+       ID 0 / back faces only (func_02046120), then mode 3 / ID nonzero /
+       front faces only (func_02046088). The hardware's reading:
+
+         ID 0 (the mask):  where the depth test FAILS, set the pixel's
+                           stencil bit. No colour, no depth. A back face
+                           failing the depth test means the surface in the
+                           framebuffer is in front of the volume's far wall.
+         ID 1..63 (the draw): where the stencil bit is set, CLEAR it; then,
+                           if the depth test passes (the near wall is in
+                           front of that same surface -- so the surface is
+                           inside the volume) and the pixel's recorded
+                           polygon ID differs from the shadow's (a caster
+                           does not shadow itself), blend the shadow colour
+                           at the polygon's alpha. Depth is never written.
+
+       Rasterising those two passes as ordinary geometry is exactly the
+       wave-4 cone: the volume's own walls drawn as a column under the actor
+       (run linkw, w4a review pinned it). The buffers clear per frame and the
+       whole apparatus stays untouched -- one predictable branch -- for any
+       frame that submits no mode-3 polygon. */
+    static uint8_t stencil[SCREEN_H][SCREEN_W];
+    static uint8_t attrid[SCREEN_H][SCREEN_W];
+    bool have_shadow = false;
+    for (const GxTriangle &t : g.tris)
+        if (t.mode == 3) { have_shadow = true; break; }
+    if (have_shadow) {
+        std::memset(stencil, 0, sizeof stencil);
+        /* 0 is the clear plane's polygon ID (CLEAR_COLOR bits 24-29 reset
+           value); pixels no opaque polygon reaches keep it. */
+        std::memset(attrid, 0, sizeof attrid);
+    }
+
     /* SM64DS_TEX_ONLY=<hex teximage>: draw only the polygons that were
        bound to that texture, so a material can be located on screen
        without guessing from colour. */
@@ -1100,10 +1142,24 @@ void gx_render(Framebuffer &fb) {
        so each thread runs both passes over its own rows and never sees
        another thread's pixels. */
     auto band = [&](int tid, int nt) {
+    bool prev_mask = false;
     for (int pass = 0; pass < 2; ++pass)
     for (const GxTriangle &t : g.tris) {
         if (static_cast<int>(t.translucent) != pass) continue;
         if (only && t.dbg_tex != only) continue;
+        if (have_shadow && pass == 1) {
+            /* The stencil clears when a NEW mask group begins -- a mask
+               polygon arriving after any non-mask polygon -- so one
+               volume's leftover bits cannot leak into the next volume's
+               draw. Every band walks the same list in the same order and
+               clears only its own rows, so this is the single-thread
+               semantics exactly. */
+            const bool is_mask = t.mode == 3 && t.polyid == 0;
+            if (is_mask && !prev_mask)
+                for (int y = tid; y < SCREEN_H; y += nt)
+                    std::memset(stencil[y], 0, SCREEN_W);
+            prev_mask = is_mask;
+        }
         const GxVertex &a = t.v[0], &b = t.v[1], &c = t.v[2];
         const float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
         if (std::fabs(area) < 1e-6f) continue;
@@ -1159,6 +1215,107 @@ void gx_render(Framebuffer &fb) {
 
         /* first row of this band at or after miny */
         const int y_first = miny + (((tid - miny) % nt) + nt) % nt;
+
+        if (t.mode == 3) {
+            /* Shadow polygons, the two-step protocol from the block comment
+               at the buffers above. Both loops share the standard loop's
+               coverage and barycentric arithmetic -- same expressions, same
+               order -- and neither ever writes depth. */
+            if (t.polyid == 0) {
+                /* the mask: set stencil where the depth test FAILS; no
+                   colour, no depth, no texture */
+                for (int y = y_first; y <= maxy; y += nt) {
+                    const float py = y + 0.5f;
+                    const float r0 = eax * (py - a.y);
+                    const float r1 = ebx * (py - b.y);
+                    const float r2 = ecx * (py - c.y);
+                    const float *drow = depth[y];
+                    uint8_t *srow = stencil[y];
+                    for (int x = minx; x <= maxx; ++x) {
+                        const float px = x + 0.5f;
+                        const float n0 = r0 - eay * (px - a.x);
+                        const float n1 = r1 - eby * (px - b.x);
+                        const float n2 = r2 - ecy * (px - c.x);
+                        if (!((n0 >= 0 && n1 >= 0 && n2 >= 0) ||
+                              (n0 <= 0 && n1 <= 0 && n2 <= 0)))
+                            continue;
+                        const float w0 = n0 / area, w1 = n1 / area,
+                                    w2 = n2 / area;
+                        const float l0 = w1, l1 = w2, l2 = w0;
+                        const float z = l0 * a.z + l1 * b.z + l2 * c.z;
+                        if (z >= drow[x]) srow[x] = 1;
+                    }
+                }
+            } else {
+                /* the drawn shadow: examine stencilled pixels, clear the
+                   bit whether it draws or not, blend where the depth test
+                   passes and the recorded polygon ID differs */
+                for (int y = y_first; y <= maxy; y += nt) {
+                    const float py = y + 0.5f;
+                    const float r0 = eax * (py - a.y);
+                    const float r1 = ebx * (py - b.y);
+                    const float r2 = ecx * (py - c.y);
+                    const float *drow = depth[y];
+                    uint8_t *srow = stencil[y];
+                    const uint8_t *irow = attrid[y];
+                    uint32_t *frow = fb.px[y];
+                    for (int x = minx; x <= maxx; ++x) {
+                        const float px = x + 0.5f;
+                        const float n0 = r0 - eay * (px - a.x);
+                        const float n1 = r1 - eby * (px - b.x);
+                        const float n2 = r2 - ecy * (px - c.x);
+                        if (!((n0 >= 0 && n1 >= 0 && n2 >= 0) ||
+                              (n0 <= 0 && n1 <= 0 && n2 <= 0)))
+                            continue;
+                        if (!srow[x]) continue;
+                        srow[x] = 0;
+                        const float w0 = n0 / area, w1 = n1 / area,
+                                    w2 = n2 / area;
+                        const float l0 = w1, l1 = w2, l2 = w0;
+                        const float z = l0 * a.z + l1 * b.z + l2 * c.z;
+                        if (z >= drow[x]) continue;
+                        if (irow[x] == t.polyid) continue;
+                        uint32_t texel = 0xFFFFFFFFu;
+                        if (textured) {
+                            const float iw = l0 * iwa + l1 * iwb + l2 * iwc;
+                            float uu, vv;
+                            if (iw > 1e-9f) {
+                                uu = (l0 * a.u * iwa + l1 * b.u * iwb +
+                                      l2 * c.u * iwc) / iw;
+                                vv = (l0 * a.v * iwa + l1 * b.v * iwb +
+                                      l2 * c.v * iwc) / iw;
+                            } else {
+                                uu = l0 * a.u + l1 * b.u + l2 * c.u;
+                                vv = l0 * a.v + l1 * b.v + l2 * c.v;
+                            }
+                            const int ui = tex_coord(uu, t.tw, rep_s, flip_s);
+                            const int vi = tex_coord(vv, t.th, rep_t, flip_t);
+                            texel = t.tex[vi * t.tw + ui];
+                            if ((texel >> 24) == 0) continue;
+                        }
+                        auto ch = [&](int k, int sh) {
+                            const float v = l0 * acol[k] + l1 * bcol[k] +
+                                            l2 * ccol[k];
+                            const float m = inv255.v[(texel >> sh) & 0xFF];
+                            const int i = static_cast<int>(v * m + 0.5f);
+                            return static_cast<uint32_t>(
+                                i < 0 ? 0 : (i > 255 ? 255 : i));
+                        };
+                        const uint32_t tex_a = texel >> 24;
+                        const uint32_t sa = (poly_a * tex_a + 127) / 255;
+                        const uint32_t dst = frow[x];
+                        auto bl = [&](int k, int sh) {
+                            const uint32_t s = ch(k, sh);
+                            const uint32_t d = (dst >> sh) & 0xFF;
+                            return ((s * sa + d * (31 - sa)) / 31) & 0xFF;
+                        };
+                        frow[x] = 0xFF000000u | (bl(0, 16) << 16) |
+                                  (bl(1, 8) << 8) | bl(2, 0);
+                    }
+                }
+            }
+            continue;
+        }
         for (int y = y_first; y <= maxy; y += nt) {
             const float py = y + 0.5f;
             /* the half of each edge function that only moves with the row */
@@ -1167,6 +1324,7 @@ void gx_render(Framebuffer &fb) {
             const float r2 = ecx * (py - c.y);
             float *drow = depth[y];
             uint32_t *frow = fb.px[y];
+            uint8_t *irow = attrid[y];
             for (int x = minx; x <= maxx; ++x) {
                 const float px = x + 0.5f;
                 /* Coverage is decided on the undivided edge functions. The
@@ -1226,6 +1384,11 @@ void gx_render(Framebuffer &fb) {
                     drow[x] = z;
                     frow[x] = 0xFF000000u | (ch(0, 16) << 16) | (ch(1, 8) << 8)
                               | ch(2, 0);
+                    /* the ID travels with the depth write so a shadow can
+                       recognise its own caster; one predictable branch on
+                       shadow-free frames, and the colour above is untouched
+                       either way */
+                    if (have_shadow) irow[x] = t.polyid;
                 } else {
                     /* translucent: blend over the framebuffer, keep depth
                        (DS translucent polys depth-test but do not write) */
