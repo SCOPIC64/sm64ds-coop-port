@@ -156,3 +156,134 @@ src/func_0203ac2c.c
 # class at 0x02112e80 is the extending platform however the symbol is spelled.
 # Ami_Bou is the pole. Trust the spawn names, treat the _ZTV spellings as labels
 # on storage rather than as class identity.
+
+# ============================================================================
+# WAVE 3: ov045 IS MOUNTED. What the block above was waiting for is done, and
+# three of its readings need amending. The mount itself is the commit "Bowser
+# in the Fire Sea is the sixteenth level the port mounts": ov045 is LEVEL 37,
+# data/stage/koopa2_map, course 16, LVL_Overlay 0x021124d4, in
+# PORT_LEVEL_OVERLAYS with a port_level_table row. It boots under
+# SM64DS_FAULTS_FATAL=1, census 82 spawned over 18 classes, 33 skipped over 14.
+# Six of those skipped ids are this overlay's platform cast, and they are the
+# subject of the rest of this section.
+#
+# ---- AMENDMENT 1: the naming shift is WIDER than "the _ZTV spellings" -------
+#
+# The note above is right that the spawn names win and the _ZTV names are off by
+# one class. What it does not say is that the METHOD names are off the same way,
+# which matters much more, because a fill that trusts them faces the wrong
+# class's body under the right class's name.
+#
+# The true map was derived three independent ways and all three agree on all six
+# classes, so it is not a reading, it is a measurement:
+#   (1) the SpawnInfo RECORD, raw bytes out of extracted/overlays/overlay_0045
+#       .bin: word0 is the Spawn address, word1's low half is the actor id
+#   (2) LAYOUT: every class's data is [SpawnInfo][+0x24 vtable], exactly, x6
+#   (3) each Spawn's own literal pool holds exactly one table address
+# and then the check that proves it: every one of the six tables' own slots
+# lands INSIDE that class's own code block, zero strays across all six.
+#
+# The block boundaries are the thing dsd got wrong. mwcc lays each class out as
+# [bodies..., Spawn], ending the block at the Spawn; dsd names each block as if
+# it STARTED there. So a body carrying the name _ZN15FireSeaElevator... sits in
+# the block after FireSeaElevator_Spawn, which is PoleLift's.
+#
+#   id   TRUE class            table       bodies are spelled       count in L37
+#   140  FireSeaElevator       0x02112cf4  func_ov045_021111a0..    x1
+#   142  PoleLift              0x02112dbc  _ZN15FireSeaElevator*    x4
+#   148  ExtendingPlatform     0x02112e80  _ZN8PoleLift*            x1
+#   145  FloatingFloorBfs      0x02112f50  func_ov045_02111b14..    x3
+#   141  TiltingPlatformBfs    0x02113020  _ZN16FloatingFloorBfs*   x2
+#   139  FallBlockBfs          0x021130f4  _ZN12FallBlockBfs*       x9
+#
+# FallBlockBfs is the one class whose names are NOT shifted (it is last in
+# address order and its table label and body names both land on its own block),
+# so "everything is off by one" is also wrong. Use the table, not a rule.
+#
+# The two RTTI names settle it independently and both side with the spawn names:
+# 0x02112e80 is _ZTV17daObjKm2_Nobiru_c (nobiru, the one that stretches) and its
+# spawn is the one calling the ExtendingMeshCollider constructor; 0x02112dbc is
+# _ZTV18daObjKm2_Ami_Bou_c, the pole. On both tables that carry an RTTI name the
+# RTTI agrees with the spawn name and disagrees with the _ZTV and method names.
+#
+# GOOD NEWS from the same sweep: every own vtable slot of all six classes has a
+# matched src TU. Nothing in this cast is blocked on an undecompiled body. The
+# own slots are 0/3/6/9/16/17 for 140 and 142, the same plus 12 for 148, and
+# 0/3/16/17 for 145/141/139.
+#
+# ---- AMENDMENT 2: ov045's sinits DO NOT all link, and one is a live trap ----
+#
+# ov045 has six static initialisers (.init 0x021121a8..0x0211242c, six 0x6c-byte
+# bodies at 021121a8, 02112214, 02112280, 021122ec, 02112358, 021123c0) and they
+# are what build the cast's SharedFilePtrs. All six have matched src TUs. They
+# still cannot be linked as a set, and the reason is a window-alias collision
+# that the linker will not report.
+#
+# __sinit_ov045_02112280 IS THE POISONED ONE, and it is the ONLY one: all six
+# names were swept across src/ and the other five are referenced by nothing but
+# their own defining TU. Three src TUs use this one spelling, with three
+# different TYPES:
+#   src/__sinit_ov045_02112280.c   DEFINES  void __sinit_ov045_02112280(void)
+#   src/func_ov013_0211133c.cpp    declares extern int  ...[]  and hands it to
+#                                  Model::LoadFile as a SharedFilePtr
+#   src/func_ov026_021122b0.c      declares extern void ...(void *) and CALLS it
+# They are three different overlays' contents at the same window address
+# 0x02112280, and dsd's ov045 export won the naming race for all three. The port
+# already resolves ov013's half: hal/actor_classes_ov013.cpp carries
+#   /alternatename:___sinit_ov045_02112280=_data_ov013_02112280
+# and that pragma works ONLY while the name is undefined. Linking
+# src/__sinit_ov045_02112280.c defines it, the alternatename goes inert, and
+# ov013's CLOCK_PENDULUM hands Model::LoadFile the address of an ov045 function
+# instead of its own SharedFilePtr, while its CleanupResources keeps releasing
+# the real one under the other spelling (data_ov013_02112280). MSVC resolves C
+# symbols by name and does not type-check, so this links clean and is wrong on
+# level 5, nowhere near the file that caused it.
+#
+# RESOLVED, DELIBERATELY, and this is the standing decision for the file:
+# 0x02112280 stays OUT of port/ov045_syms.txt and src/__sinit_ov045_02112280.c
+# stays OUT of every slice. The exclusion is forced, not preferred. Undoing it
+# is not a slice-line edit: it needs ov013's reference moved off the ov045
+# spelling FIRST (in hal/actor_classes_ov013.cpp, which no wave-3 lane owns),
+# and then ov026's too if ov026 is ever hosted. A future lane that wants that
+# sinit's SharedFilePtr should host the one initialisation by hand rather than
+# link the TU, the way gate 17 hosts ov009's.
+#
+# ---- AMENDMENT 3: the EMC table, re-derived rather than carried forward -----
+#
+# The 13-slot table above was re-read off config/arm9/relocs.txt from scratch and
+# laid beside _ZTV18MovingMeshCollider (0x02099434) slot for slot. It confirms
+# the block above exactly: 0..12 with slot 13 carrying no relocation, and the
+# shape is MovingMeshCollider's with SEVEN slots overridden, not four. Slots
+# 0, 1 (the D1/D0 pair), 2, 4, 6, 7 and 8 are ExtendingMeshCollider's own; slots
+# 3, 5, 9, 10, 11 and 12 are byte-identical to MovingMeshCollider's. The three
+# load sites (0x0203ab64, 0x0203ab88, 0x0203abac) and the single ROM-wide
+# constructor caller (ov045 0x02111b00, inside id 148's Spawn) both re-confirm.
+#
+# THE NUMBERING, settled by the same argument mmc_vtable.cpp already makes and
+# now with the same table shape under it. The host fill is 13 slots:
+#   [0]  emc_dtor    EMC D1/D0 folded, MSVC gives the destructor ONE slot
+#   [1]  must still be WRITTEN (see the storage note below)
+#   [2]  emc_v08                       ROM slot 2,  0x0203aa0c
+#   [3]  emc_norm    GetNormal, ROM slot 4 shifted down one by the dtor fold
+#   [4]  and [5] BOTH GetTriangleOrigin, the fill-it-twice the MMC file uses
+#   [6]  [7] [8] the three DetectClsn at their ROM indices, because every
+#        caller in src is a transcribed shadow counting two destructor slots
+#   [9]  BeforeClsn, with ITS OWN park-and-restore shim
+#   [10] GetAngularVelY  [11] GetVelocity  [12] GetVelocity again
+#
+# THE CARRY-SLOT TRAP, restated for this table specifically. mmc_beforeclsn
+# parks TransformPos in _ZTV18MovingMeshCollider[9] BY NAME. An
+# ExtendingMeshCollider instance dispatches through ITS OWN table, so reusing
+# that shim parks slot 9 of the wrong array and leaves BeforeClsn sitting in the
+# index UpdatePosWithTransform is about to call on the EMC table. That is the
+# lift-ride recursion, and on this overlay it would be a rider standing on the
+# stretching platform, which is the whole point of the class. The EMC fill needs
+# its own shim writing _ZTV21ExtendingMeshCollider[9].
+#
+# ONE DIFFERENCE FROM MMC THAT IS EASY TO MISS. MovingMeshCollider's table is
+# pre-existing storage that was seeded with ROM values, so its fill only writes
+# the slots it changes and slot 1 is left alone. _ZTV21ExtendingMeshCollider has
+# NO storage at all (include/decl_common.h declares it extern and nothing
+# defines it, which is the finding this file opens with). A fresh host array is
+# ZEROED, so EVERY slot has to be written, including the six inherited ones and
+# slot 1. A slot left unwritten is a null dispatch, not a ROM value.
