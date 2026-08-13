@@ -430,9 +430,10 @@ src/__sinit_ov045_021123c0.c
 # hal/actor_classes_ov045.cpp for func_ov002_020b6494 and func_ov002_020b646c,
 # and the two alternatename rows there binding the unprefixed spellings
 # func_020b6584 / func_020b6424 onto the ov002 symbols the veneers reach.
-# func_ov002_020b6144 IS NOT HERE: it is 141's Render, and with 141 unhosted
-# nothing would name it -- /OPT:REF drops the object and the line would sit
-# there looking seated, which is exactly what this file's header forbids.
+# func_ov002_020b6144 was deliberately NOT here while 141 stayed unhosted
+# (nothing would have named it; /OPT:REF drops an unreferenced object and the
+# line would sit there looking seated, which the header forbids). The wave-5
+# section (G) below carries it now, named by 141's fill.
 src/func_ov002_020b6494.c
 src/func_ov002_020b646c.cpp
 src/func_ov002_020b6584.c
@@ -475,7 +476,7 @@ src/_ZN16FloatingFloorBfsD0Ev.c
 # Slots 6/9 (Behavior/Render), the base Init/Cleanup pair its veneers reach
 # under unprefixed spellings (aliased in the fill file), the beforeClsn
 # callback the base Init installs, and the two quaternion feeders that
-# callback runs. func_ov002_020b6144 is here at last -- the 145 block below
+# callback runs. func_ov002_020b6144 is here at last -- the 145 block above
 # recorded why it had to wait for exactly this section.
 src/func_ov002_020b616c.c
 src/func_ov002_020b6144.cpp
