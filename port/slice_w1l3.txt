@@ -25,6 +25,22 @@ src/_ZN18TextureTransformerD0Ev.c
 # _ZTV9ModelBase's function-slot start (ROM 0x0208e880 -> 0x020170e8).
 src/_ZN9ModelBaseD0Ev.c
 
+# ---- wave 2: the game heap --------------------------------------------------
+# The port aliased the game-heap word straight onto the root heap and skipped
+# the ROM's factory. func_0201a054, the main.c boot spine, calls
+# Heap::InitializeGameHeap(0x3b000, 0) at arm9 0x0201a108 and gets a real
+# ExpandingHeap child carved from the root. Naming it from
+# tests/walk_window.cpp is the reference edge /OPT:REF needs.
+#
+# Only ONE line is needed. Heap::CreateExpandingHeap, the body this one calls,
+# has been compiled into these targets since gate 3a (slice_gate3a.txt) and was
+# being discarded by /OPT:REF because nothing reached it; the call from
+# InitializeGameHeap is what puts it in the map. So this single line seats TWO
+# TUs. The rest of the closure -- Heap::Allocate, Heap::Deallocate,
+# Heap::CreateExpandingHeapAllocator, ExpandingHeap::ExpandingHeap -- was
+# already linked before this wave.
+src/_ZN4Heap18InitializeGameHeapEjPS_.c
+
 # ---- mined and NOT taken (kept here so wave 2 does not re-mine them) --------
 # _ZN11ShadowModel10InitCuboidEv.cpp
 #     hal/actor_class_faces.cpp defines the same ?InitCuboid@ShadowModel@@QAEXXZ.

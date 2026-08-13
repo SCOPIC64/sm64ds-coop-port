@@ -272,6 +272,12 @@ void *_ZN6PlayerC1Ev(void *self);
    into the swap pair at +0x6dc/+0x6dd (src/func_ov002_020beabc.cpp) */
 void func_ov002_020beabc(void *p);
 void *_ZN4Heap13SetupRootHeapEv(void);
+/* the ROM's own game-heap factory, off the main.c boot spine -- see the call
+   site below for the two arguments and where they come from */
+void _ZN4Heap18InitializeGameHeapEjPS_(unsigned size, void *root);
+/* the game heap's allocator, read for the boot report only: how much of the
+   ROM's 0x3b000 the port's boot actually spends */
+unsigned _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *self);
 void *_ZN9ActorBasenwEj(unsigned size);
 extern int data_0209b3ec[12];
 extern unsigned short data_020a4b54;
@@ -1994,7 +2000,41 @@ int main(void)
         static unsigned short spawn_info[4] = {0, 0, 100, 100};
         data_020a4bb8[0] = spawn_info;
     }
-    data_020a0eac_c = data_020a0ea0;
+    /* THE GAME HEAP, the ROM's own chain instead of an alias.
+       This line used to be `data_020a0eac_c = data_020a0ea0;` -- the game heap
+       word pointed straight at the root heap, so every allocation the game made
+       came out of the whole host arena and the ROM's own heap object never
+       existed. func_0201a054, the main.c boot spine, does this instead:
+
+           0x0201a100  e3a00a3b   MOV r0, #0x3b000
+           0x0201a104  e3a01000   MOV r1, #0
+           0x0201a108  eb00884f   BL  0x0203c24c   Heap::InitializeGameHeap
+
+       so the size is a hard immediate, 0x3b000 = 241664 bytes, and the parent
+       is NULL. Nothing is derived from the OS arena, which is why there is
+       nothing here for the port to invent: the arena only decides how big the
+       ROOT heap is (Heap::SetupRootHeap above), and the game heap is a fixed
+       carve out of that. Heap::CreateExpandingHeap resolves the NULL parent to
+       data_020a0ea0, takes size+0x18 from it, builds the allocator over the
+       0x3b000 payload and runs the ExpandingHeap constructor over the header.
+       Both bodies are src/, byte-matched, and reached by name from here. */
+    _ZN4Heap18InitializeGameHeapEjPS_(0x3b000, 0);
+    if (!data_020a0eac_c) {
+        /* Heap::Allocate Crash()es on a failed carve when the parent's flag
+           word has 0x4000 set, which Heap::Heap sets, so a null here means
+           CreateExpandingHeapAllocator refused the span rather than the root
+           heap running dry. Either way the game has no heap and every later
+           allocation is undefined; stop while the reason is still on screen. */
+        fprintf(stderr, "InitializeGameHeap returned null -- no game heap\n");
+        return 2;
+    }
+    /* One line of evidence that 0x3b000 is the right number for the port and
+       not just for the DS: the free space in the game heap right after the
+       carve, and again at the end of a selftest. The DS budget is the budget. */
+    fprintf(stderr, "[heap] game heap %p, 0x%x bytes, %u free after boot\n",
+            data_020a0eac_c, 0x3b000u,
+            _ZN22ExpandingHeapAllocator10MemoryLeftEv(
+                *(void **)((char *)data_020a0eac_c + 0x14)));
 
     /* Game mode 0 (adventure) -- LoadClsnAndObjects branches its minimap
        and HUD spawns on this, and Stage::CheckInput reads it later. */
@@ -5777,6 +5817,15 @@ int main(void)
                 port_actor_census();
             port_bob_spawn_report();
             ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
+            /* the other half of the boot's [heap] line: what the run itself
+               spent out of the ROM's 0x3b000. A number that keeps falling
+               across frame counts is a leak; one that stops falling is the
+               game living inside the budget the DS gave it. */
+            if (data_020a0eac_c)
+                fprintf(stderr, "[heap] %u free after %d frames\n",
+                        _ZN22ExpandingHeapAllocator10MemoryLeftEv(
+                            *(void **)((char *)data_020a0eac_c + 0x14)),
+                        frame);
             printf("selftest: %d frames, pos=(%d, %d, %d)\n", frame,
                    *(int *)(c + 0x5c), *(int *)(c + 0x60), *(int *)(c + 0x64));
             return 0;
