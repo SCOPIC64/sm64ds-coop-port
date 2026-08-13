@@ -1,0 +1,156 @@
+# run linkw wave 5 (lane w5-B): ov065's HMC CAST, per symbol.
+#
+# ov065 is an ACTOR overlay (base 0x02115ee0, its own window, shared by
+# address with ov063/ov075 -- see the alias check below), one of the overlays
+# level 13 (Hazy Maze Cave) loads. It carries FOURTEEN classes: the HMC four
+# -- Snufit (236), Swoop (237), Dorrie (168), DorrieCap (169) -- and the ten
+# Ttc* classes (108-118), whose level (TTC) has no bootable row today. The
+# Ttc* subset is PARKED per the wave-5 census: its data rides this mount
+# (whole-data-span doctrine) but no Ttc registry row exists, no Ttc sinit
+# runs, and no Ttc TU is sliced. Wiring code with zero reach is the measured
+# gate-6 mistake at pack scale (census part 2).
+#
+# This is a first mount (ov065 was never in PORT_ACTOR_OVERLAYS); the
+# ov079/ov080/ov095 shape: SpawnInfo records, state-record source statics,
+# file-pointer tables and the sinit-built SharedFilePtr bss, all BY NAME.
+#
+# ==== MANDATORY WINDOW-ALIAS CHECK (the gate-199/202 rule) ==================
+# All four HMC SpawnInfo addresses are flagged `ambiguous` in config/arm9/
+# overlays/ov065/symbols.txt (ov063/ov065/ov075 share this window). RESOLVED
+# by reading the raw bytes out of extracted/overlays/overlay_0065.bin (base
+# 0x02115ee0 -- ov065 is compressed:true in overlays.yaml, so the dsd export
+# extracted/dsd/arm9_overlays/ov065.bin is the COMPRESSED image and reading
+# halfwords out of it is reading noise), against the arm9 spawn table at
+# 0x02090864 + id*4 in extracted/arm9_dec.bin:
+#   id 236 -> 0x0211cb80  word[0]=0x02116f48 Snufit_Spawn     word[1]&0xffff=236
+#   id 237 -> 0x0211cc7c  word[0]=0x02117ee8 Swoop_Spawn      word[1]&0xffff=237
+#   id 168 -> 0x0211cd84  word[0]=0x02119634 Dorrie_Spawn     word[1]&0xffff=168
+#   id 169 -> 0x0211cda0  word[0]=0x021195ec DorrieCap_Spawn  word[1]&0xffff=169
+# Every record's spawn word lands inside ov065 itself and every id matches the
+# spawn-table slot it was reached from. UNLIKE ov045, the dsd names here are
+# NOT shifted: each class's D1..Init..Spawn run is contiguous and its _ZTV
+# lands right after its own SpawnInfo -- verified per class by (4) each
+# table's slot 0 landing in that class's own code block and (5) each Spawn's
+# own vtable-store relocation naming that table.
+#
+# TWO SHARED-WINDOW NAME RACES, resolved against ov065's OWN config (the
+# probe's p10 list carried them under the ov075 spelling): the Snufit state
+# TUs spell two of their SharedFilePtrs data_ov075_0211d608 / _0211d650.
+# Both addresses are ov065 bss (config lines 267/274, built by Snufit's own
+# sinit 0x0211c110); the ov075 names are another module's dsd export winning
+# the naming race at a shared-window address. Aliased onto the ov065 mount
+# names in hal/actor_classes_ov065.cpp; nothing named ov075 is mounted here.
+# The probe's two _ZTV16daObjCtMecha03_c/_05_c externs are NOT ov065 names at
+# all (not in its config) -- they are Ttc-subset dtor spellings from the same
+# race, and the Ttc TUs that spell them are parked with their subset.
+#
+# ==== NINE VTABLE SPANS LEFT OUT ===========================================
+# The four HMC tables are HOST ARRAYS hal/actor_classes_ov065.cpp fills (the
+# ov015/ov016/ov080 rule -- a mounted vtable hands a factory DS code
+# addresses). Their spans, each pinned by the reloc run AND by the next dsd
+# data symbol landing on the span end:
+#   0x0211cba4..0x0211cc20  _ZTV6Snufit    == _ZTV15daYurei_Mucho_c  31 slots
+#   0x0211cca0..0x0211cd1c  _ZTV5Swoop     == _ZTV12daBasabasa_c    31 slots
+#   0x0211cdc4..0x0211ce48  _ZTV9DorrieCap == _ZTV12daDossyCap_c    31 slots
+#                           + word31 = 0 + word32 -> 0x0211cd40 (the daDossy_c
+#                           typeinfo record; no reloc reads 0x0211ce40/44, but
+#                           a reloc-invisible vptr[32] read cannot be ruled
+#                           out, so the host array carries the FULL 33-word
+#                           span -- the slot-31-undersizing lesson)
+#   0x0211ce48..0x0211cec4  _ZTV6Dorrie                             31 slots
+# The five Ttc vtables (0x0211d028, 0x0211d1ec, 0x0211d3b4, 0x0211d494,
+# 0x0211d568) are ALSO left out and are NOT hosted anywhere -- the ov045
+# id-141 precedent: their classes are parked, nothing references the names,
+# and mounting a vtable is the one thing the rule forbids.
+#
+# ==== STATE-RECORD SOURCE STATICS: DS CODE ADDRESSES =======================
+# data_ov065_0211cb20..cb58 (Snufit, 8 records), _0211cc20..cc58 (Swoop, 8)
+# and _0211cd1c/cd24/cd2c (Dorrie, 3) are 8-byte {fn, 0} records whose fn
+# words are ov065 CODE addresses (read off the image; the ovdata pointer pass
+# rebases only data-covered words, so mounted code words stay DS values).
+# The class sinits copy them into the bss runtime tables below. port_ov065_
+# states_seat (port/unmatched/Ov065_StateSeat.cpp) rewrites each SOURCE
+# record's fn with its host body BEFORE the sinits run, checking the mounted
+# word against the ROM address first -- the UpDownLift recipe verbatim.
+#
+# ==== SINIT OWNERSHIP (the ov019 rule: only spawned classes' sinits run) ===
+# Ten sinits; per-class ownership derived from each sinit's bss targets vs
+# each class's own bss reads (relocs):
+#   __sinit_ov065_0211c110  Snufit   (bss 0x0211d600..d680)   RUNS
+#   __sinit_ov065_0211c2a8  Swoop    (bss 0x0211d690..d710)   RUNS
+#   __sinit_ov065_0211c440  Dorrie + DorrieCap (d720..d7fc)   RUNS
+#   0211c660 0211c76c 0211c7d8 0211c890 0211c8fc 0211c9b8 0211ca74
+#            Ttc subset (d814..d9e8)                          PARKED, not run
+# The bring-up rides the first registry fill in hal/actor_classes_ov065.cpp
+# (the w4-b ov045 pattern; no lane owns hal/actor_overlays.cpp this wave).
+#
+# ==== SIZES ================================================================
+# All sizes are next-config-symbol deltas (tools/ovdata.py); the one pin is
+# the last bss symbol: data_ov065_0211d9e8:0x18 = 0x0211da00 (bss end, base
+# 0x02115ee0 + code 0x7720 + bss_size 0x400) minus 0x0211d9e8 -- the ov045
+# last-symbol rule, the 4-byte floor would undersize it.
+# dsd's ".p__sinit_*" .ctor words (0x0211cae0..cb04) are left out (not C
+# identifiers), and every __sinit body is a FUNCTION, mounted never.
+
+data_ov065_0211c078 data_ov065_0211c080 data_ov065_0211c08c
+data_ov065_0211c0a8 data_ov065_0211c0b0 data_ov065_0211c0b8
+data_ov065_0211c0c8 data_ov065_0211c0d0 data_ov065_0211c0d4
+data_ov065_0211cb20 data_ov065_0211cb28 data_ov065_0211cb30
+data_ov065_0211cb38 data_ov065_0211cb40 data_ov065_0211cb48
+data_ov065_0211cb50 data_ov065_0211cb58 data_ov065_0211cb60
+data_ov065_0211cb6c Snufit_SpawnInfo data_ov065_0211cc20
+data_ov065_0211cc28 data_ov065_0211cc30 data_ov065_0211cc38
+data_ov065_0211cc40 data_ov065_0211cc48 data_ov065_0211cc50
+data_ov065_0211cc58 data_ov065_0211cc60 data_ov065_0211cc6c
+Swoop_SpawnInfo data_ov065_0211cd1c data_ov065_0211cd24
+data_ov065_0211cd2c data_ov065_0211cd34 data_ov065_0211cd40
+data_ov065_0211cd4c data_ov065_0211cd58 data_ov065_0211cd68
+Dorrie_SpawnInfo DorrieCap_SpawnInfo data_ov065_0211cec4
+data_ov065_0211cee4 data_ov065_0211cf04 data_ov065_0211cf24
+data_ov065_0211cf44 data_ov065_0211cf64 data_ov065_0211cf84
+data_ov065_0211cfa4 data_ov065_0211cfa8 data_ov065_0211cfac
+data_ov065_0211cfb8 data_ov065_0211cfd0 data_ov065_0211cfd4
+data_ov065_0211cfd8 TtcRotatingCube_SpawnInfo TtcRotatingPrism_SpawnInfo
+data_ov065_0211d0a8 data_ov065_0211d0b4 data_ov065_0211d0c8
+data_ov065_0211d0ec data_ov065_0211d16c data_ov065_0211d174
+data_ov065_0211d180 data_ov065_0211d194 data_ov065_0211d198
+data_ov065_0211d19c TtcConveyorBeltSmall_SpawnInfo TtcConveyorBeltLarge_SpawnInfo
+data_ov065_0211d26c data_ov065_0211d270 data_ov065_0211d27c
+TTC_MovingBar_SpawnInfo data_ov065_0211d2b4 data_ov065_0211d334
+data_ov065_0211d338 data_ov065_0211d344 data_ov065_0211d35c
+data_ov065_0211d360 data_ov065_0211d364 TtcRotatingGear_SpawnInfo
+TtcRotatingTriangle_SpawnInfo data_ov065_0211d434 data_ov065_0211d440
+TtcMovingCubeA_SpawnInfo TtcMovingCubeB_SpawnInfo data_ov065_0211d514
+data_ov065_0211d520 data_ov065_0211d530 TTC_MovingBeam_SpawnInfo
+data_ov065_0211d600 data_ov065_0211d608 data_ov065_0211d610
+data_ov065_0211d618 data_ov065_0211d620 data_ov065_0211d62c
+data_ov065_0211d638 data_ov065_0211d644 data_ov065_0211d650
+data_ov065_0211d660 data_ov065_0211d670 data_ov065_0211d680
+data_ov065_0211d690 data_ov065_0211d698 data_ov065_0211d6a0
+data_ov065_0211d6a8 data_ov065_0211d6b0 data_ov065_0211d6bc
+data_ov065_0211d6c8 data_ov065_0211d6d4 data_ov065_0211d6e0
+data_ov065_0211d6f0 data_ov065_0211d700 data_ov065_0211d710
+data_ov065_0211d720 data_ov065_0211d728 data_ov065_0211d730
+data_ov065_0211d738 data_ov065_0211d740 data_ov065_0211d748
+data_ov065_0211d750 data_ov065_0211d758 data_ov065_0211d760
+data_ov065_0211d768 data_ov065_0211d770 data_ov065_0211d778
+data_ov065_0211d784 data_ov065_0211d790 data_ov065_0211d79c
+data_ov065_0211d7a8 data_ov065_0211d7b4 data_ov065_0211d7c0
+data_ov065_0211d7cc data_ov065_0211d7d8 data_ov065_0211d7e4
+data_ov065_0211d7f0 data_ov065_0211d7fc data_ov065_0211d814
+data_ov065_0211d81c data_ov065_0211d824 data_ov065_0211d82c
+data_ov065_0211d834 data_ov065_0211d83c data_ov065_0211d844
+data_ov065_0211d850 data_ov065_0211d85c data_ov065_0211d868
+data_ov065_0211d874 data_ov065_0211d880 data_ov065_0211d88c
+data_ov065_0211d894 data_ov065_0211d89c data_ov065_0211d8a8
+data_ov065_0211d8b4 data_ov065_0211d8bc data_ov065_0211d8c4
+data_ov065_0211d8cc data_ov065_0211d8d4 data_ov065_0211d8e0
+data_ov065_0211d8ec data_ov065_0211d8f8 data_ov065_0211d904
+data_ov065_0211d90c data_ov065_0211d914 data_ov065_0211d920
+data_ov065_0211d92c data_ov065_0211d934 data_ov065_0211d93c
+data_ov065_0211d944 data_ov065_0211d94c data_ov065_0211d958
+data_ov065_0211d964 data_ov065_0211d970 data_ov065_0211d97c
+data_ov065_0211d984 data_ov065_0211d98c data_ov065_0211d994
+data_ov065_0211d99c data_ov065_0211d9a8 data_ov065_0211d9b4
+data_ov065_0211d9bc data_ov065_0211d9c0 data_ov065_0211d9cc
+data_ov065_0211d9d4 data_ov065_0211d9dc data_ov065_0211d9e8:0x18
