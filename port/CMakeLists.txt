@@ -1907,10 +1907,47 @@ endforeach()
 list(APPEND SLICE14_SOURCES
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Sound_LoadGroupAndSetBank.cpp")
 
-# Gate 36: the real Stage::InitResources, to replace port_stage_a_boot. The
-# function and all 45 of its direct callees are matched already; this is
-# wiring, not new code. Linked but NOT yet called -- the boot swap comes after
-# the closure resolves. See the head of slice_gate36.txt.
+# Gate 36: the real Stage::InitResources, to replace port_stage_a_boot.
+#
+# SLICE36_SOURCES IS INERT. It is parsed here and added to NO target, so these
+# 33 lines compile nothing and link nothing. The comment that stood here said
+# "Linked but NOT yet called", which was false in its first half: nothing is
+# linked. The list is kept because it is the gate's inventory and because the
+# measurement below is worth having written down, not because it is wired.
+#
+# WHY IT STAYS THAT WAY, measured in wave 4 rather than argued. Adding
+# ${SLICE36_SOURCES} to walk_window and building fails the link with 43
+# distinct unresolved externals and ZERO duplicate definitions -- so the
+# blocker is not a clash with the host boot, it is that the slice does not
+# close. The 43 sort into three groups and none of them is a line in a file:
+#
+#   22  storage the port hosts nowhere: data_020755e0/5f0/600/6f0/720/769/76a,
+#       data_0208ecf4, data_0208ee00, data_02092130, data_02092778,
+#       data_0209d4a8, data_0209f278, data_0209f290, data_0209f300,
+#       data_0209f304, data_020758c8, data_020a0f04, data_ov001_020ad620,
+#       data_ov001_020ad624, _ZTV9FaderWipe, and LoadOrUnloadObjectOverlays
+#   15  matched TUs that exist in src/ and are not on this slice at all:
+#       GetControllerMode, LoadOverlay, _ZN5ColorD1Ev, the five GX::SetBankFor*
+#       setters, func_02018908, func_02018934, func_020190b8, func_02023408,
+#       func_0203d81c, func_02053e1c, func_02053e34
+#    6  ON THIS SLICE ALREADY and still unresolved: _Z17LoadLevelOverlaysi,
+#       ShadowModel::CleanAll, Stage::LoadGraphics2D, Stage::LoadFog,
+#       Stage::LoadTextureTransformers, FaderWipe::LoadAndSetFile
+#
+# That last group is what decides it. Those six .cpp files define the real C++
+# METHOD -- src/_ZN5Stage7LoadFogEv.cpp compiles `void Stage::LoadFog()`, which
+# MSVC mangles ?LoadFog@Stage@@... -- while Stage::InitResources calls the
+# ROM's C name __ZN5Stage7LoadFogEv. Listing the file does not produce the
+# symbol its caller wants; a hand-written face does, the way
+# hal/method_faces.cpp already carries its own. So the slice head's "all 45
+# direct callees are matched, nothing here is written by hand, this slice is
+# the wiring" does not survive a build: six faces have to be written, 22
+# globals hosted and 15 more callees enrolled before the boot swap it describes
+# is reachable at all. Wiring it in today only breaks the build, which is why
+# the honest move is to leave it inert and say so.
+#
+# ShadowModel::CleanAll is the one line here that IS doing work today, and it
+# does it from slice_w1l3.txt instead -- see the block in that file.
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate36.txt" SLICE36_LINES)
 set(SLICE36_SOURCES "")
 foreach(line IN LISTS SLICE36_LINES)
