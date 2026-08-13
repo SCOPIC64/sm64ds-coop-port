@@ -48,7 +48,7 @@
  * `c`, and the caller is this TU.
  *
  * ONE CAVEAT worth writing down for whoever seats the next lane slice:
- * tools/closestplayer_guard.py enumerates port/slice_gate*.txt only (its
+ * port/tools/closestplayer_guard.py enumerated port/slice_gate*.txt only (its
  * gate_active_files filters on `n.startswith("slice_gate")`), so the wave-1
  * lane slices port/slice_w1l*.txt are NOT covered. Adding this raw src to
  * slice_w1l1.txt and re-running the guard printed OK over an unchanged 3896

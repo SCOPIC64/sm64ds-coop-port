@@ -385,10 +385,13 @@ void hal_fill_shadow_vtable(void)
        self-guarding in the matched source (ShadowModelD1Ev.c:33-51 checks
        prev/head and zeroes both). */
     _ZTV11ShadowModel[0] = (void *)shadow_dtor;
-    /* vt[1] (D0 deleting dtor) stays null DELIBERATELY: nothing reachable in
-       matched src dispatches it (every other ~90 embedders call the dtor
-       non-virtually by name). A loud crash here beats silently running a
-       wrong slot if an unmatched path ever reaches it. */
+    /* vt[1] is DoSetFile under this tree's MSVC numbering (ROM slots 0+1 fold
+       into MSVC 0, so ROM slot 2 = MSVC 1, the same fold _ZTV5Model[1] gets
+       elsewhere in this file). hal/model_dtor_seat.cpp seats the matched
+       ShadowModel::DoSetFile there. An earlier version of this comment called
+       vt[1] "the D0 slot, null deliberately", which was ROM numbering leaking
+       into an MSVC-numbered fill; the folded table gives the D0 no slot of
+       its own. */
 }
 }
 

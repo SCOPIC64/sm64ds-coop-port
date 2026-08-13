@@ -114,7 +114,7 @@ struct HbActor {
     virtual void OnHitFromUnderneath(char *other);   /* vtable + 0x70 */
 };
 
-/* PORT_HOST_ABI: cdecl-vs-thiscall vtable dispatch -- slot 28's OTHER byte-locked dispatcher (src/func_ov002_020eeca8.cpp) spells the same call as a C++ virtual, so one vtable word would have to be both conventions at once; this TU emits `push esi / push ecx / call [eax+0x70] / add esp,8` against thirty __fastcall ret-4 seats (hal/actor_classes.cpp:175,407). Listings in the block above. */
+/* PORT_HOST_ABI: cdecl-vs-thiscall vtable dispatch -- slot 28's OTHER byte-locked dispatcher (src/func_ov002_020eeca8.cpp) spells the same call as a C++ virtual, so one vtable word would have to be both conventions at once; this TU emits `push esi / push ecx / call [eax+0x70] / add esp,8` against thirty __fastcall ret-4 seats (hal/actor_classes.cpp:177,407). Listings in the block above. */
 extern "C" int func_ov002_020cef84(char *self)
 {
     char rl[0x78];
