@@ -284,6 +284,9 @@ static void ov63_bringup(void)
 extern "C" {
 int _ZN3Boo13InitResourcesEv(char *c);          /* slot 0, matched .c */
 int _ZN3Boo8BehaviorEv(void *c);                /* slot 6, HOST COPY  */
+int _ZN3Boo6RenderEv(void *selfv);              /* slot 9, HOST COPY --
+                        the ModelAnim slot-5 collision, the fault that held
+                        the wave-5 close (ModelAnim_Renders.cpp) */
 void _ZN3Boo16OnPendingDestroyEv(void);         /* slot 12, matched .c (empty) */
 int _ZN3BooD1Ev(void *self);                    /* slot 16, matched .c */
 int *_ZN3BooD0Ev(void *self);                   /* slot 17, matched .c */
@@ -295,7 +298,7 @@ DSSTATE_BEGIN
 void *_ZTV3Boo[31];
 DSSTATE_END
 }
-struct Boo { int CleanupResources(); int Render(); };
+struct Boo { int CleanupResources(); };
 static int __fastcall boo_init(void *s, void *)
 { return _ZN3Boo13InitResourcesEv((char *)s); }
 static int __fastcall boo_clean(void *s, void *)
@@ -304,7 +307,7 @@ static int __fastcall boo_behavior(void *s, void *)
 { return _ZN3Boo8BehaviorEv(s); }
 static int __fastcall boo_render(void *s, void *)
 { port_actor_render_probe("BOO", (char *)s + 0x3e4);
-  return ((Boo *)s)->Boo::Render(); }
+  return _ZN3Boo6RenderEv(s); }
 static int __fastcall boo_pdes(void *s, void *)
 { (void)s; _ZN3Boo16OnPendingDestroyEv(); return 0; }
 static int __fastcall boo_d1(void *s, void *)

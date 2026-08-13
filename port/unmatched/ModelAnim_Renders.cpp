@@ -407,4 +407,66 @@ int _ZN9PushBlock6RenderEv(void *selfv)
     return 1;
 }
 
+/* ---- BOO (209) / BIG_BOO (210), ov063, wave 5a -----------------------------
+   The collision that held the wave-5 close. src/actors/Boo/_ZN3Boo6RenderEv.cpp
+   dispatches `((Model*)&mModelAnim)->Render(&unk_080)` through a LOCAL
+   six-virtual shadow (`struct Model { f0..f4; virtual Render(const Vector3*)
+   }`), so its "slot 5" is the ROM's ModelAnim::Render off mModelAnim at
+   +0x380; the host _ZTV9ModelAnim's slot 5 is Virtual18, a two-arg method
+   called with the shadow's one arg -- the Whomp/Fish case. MEASURED as
+   c0000005 at func_0204488c+0x10a accessing 00000009 on frame 0 of the L2
+   selftest (SM64DS_LEVEL=2 SM64DS_FAULTS_FATAL=1): Virtual18 read its scale
+   off the stack (the fault dump's eax=1) and passed it down as
+   func_0204488c's color pointer, so color[2] read address 1+8=9. The
+   faulting Boo is level 2's variant-4 one (objTable entry id 0x43, param
+   0xff04); its variant-0xb twin at the same position self-destructs at 0
+   stars (the NumStars<3 gate) before it can draw. BBH's six Boos never
+   showed the collision: the L12 selftest keeps them all behind the +0xb0
+   0x40000 cull bit (unshown rooms), so level 12 passing was vacuous for
+   this path. Level 3 (castle garden) has two surviving Boos on the same
+   body and inherits this fix. The held-item draw (mModel, a plain 0x50
+   Model at +0x3e4) is safe through the dual-filled _ZTV5Model, spelled
+   qualified like its siblings; BIG_BOO shares _ZTV3Boo and this body.
+   Excluded from slice_w5a.txt, dispatched by C name from boo_render
+   (hal/actor_classes_ov063.cpp). Matched-source control flow line for
+   line: cull +0xb0 & 0x40000, the +0x5d4 flag word's bit 3 (0x8) is the
+   draw-enable and bit 1 (0x2) the held-item draw, +0x5c8 < 8 skips the
+   body draw, states >= 0xc except 0xf hide material pair (0, 2), and the
+   +0x10c != 8 / +0x5cc == 3 branch is the ROM's own DIRECT (non-virtual)
+   Model::Render on the ModelAnim, kept direct here.
+   PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish case. */
+void _ZN8CapEnemy14RenderCapModelEPK7Vector3(void *thiz, const void *v);
+void _ZN5Model12HideMaterialEii(void *self, int boneID, int listIdx);
+int _ZN3Boo6RenderEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    if (*(unsigned int *)(c + 0xb0) & 0x40000)
+        return 1;
+    {
+        unsigned short f = *(unsigned short *)(c + 0x5d4);
+        if (!(f & 8))
+            return 1;
+        if (f & 2)
+            /* ((Model *)&mModel)->Render(&unk_510) -- Model's slot 5, the
+               dual-filled one */
+            ((Model *)(c + 0x3e4))->Model::Render((const Vector3 *)(c + 0x510));
+        _ZN8CapEnemy14RenderCapModelEPK7Vector3(c, 0);
+    }
+    if (*(unsigned char *)(c + 0x5c8) < 8)
+        return 1;
+    {
+        unsigned char st = *(unsigned char *)(c + 0x5cf);
+        if (st >= 0xc && st != 0xf)
+            _ZN5Model12HideMaterialEii(c + 0x380, 0, 2);
+    }
+    if (*(int *)(c + 0x10c) != 8 && *(unsigned char *)(c + 0x5cc) == 3)
+        /* the matched TU's own direct _ZN5Model6RenderEPK7Vector3 call */
+        ((Model *)(c + 0x380))->Model::Render((const Vector3 *)(c + 0x80));
+    else
+        /* ((Model *)&mModelAnim)->Render(&unk_080) -- ROM slot 5, spelled
+           qualified */
+        ((ModelAnim *)(c + 0x380))->ModelAnim::Render((const Vector3 *)(c + 0x80));
+    return 1;
+}
+
 }  /* extern "C" */
