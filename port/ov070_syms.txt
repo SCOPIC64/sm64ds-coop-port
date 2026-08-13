@@ -24,8 +24,10 @@
 # spawn-table slot it was reached from (0x02090864 + id*4). NO NAMING SHIFT in
 # this overlay, checked class by class: each *_Spawn's literal pool stores the
 # vtable adjacent to its own SpawnInfo, and every own slot of all four tables
-# lands inside the TU carrying that class's name (delinks.txt agrees on all
-# 26 own slots). ov045's shift is ov045's, not a law of dsd.
+# stays inside its own class's code -- 33 own slots measured, 28 in
+# class-named TUs and 5 in address-named TUs of the same class, zero
+# cross-class (delinks.txt, class by class). ov045's shift is ov045's, not
+# a law of dsd.
 #
 # ==== FOUR SYMBOLS LEFT OUT =================================================
 # The four vtables are HOST ARRAYS hal/actor_classes_ov070.cpp fills (the

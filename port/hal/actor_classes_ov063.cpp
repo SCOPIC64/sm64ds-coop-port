@@ -30,9 +30,11 @@
 // trapdoor / 0x9e bookshelf / else merry-go-round).
 //
 // ---- WIDTHS, by the vtspan.py rule ----------------------------------------
-// Boo / BigBooIcon / BooCage / MansionSteps are 31 slots: the word past each
-// slot 30 is data (0x00000000 -- the {0, typeinfo} RTTI header of the NEXT
-// table; ov063 packs them back to back). FallBlockBbh is 32 with slot 31 =
+// Boo / BigBooIcon / BooCage / MansionSteps are 31 slots. The word past
+// slot 30 differs per table: for Boo and BigBooIcon it is 0x00000000 (the
+// {0, typeinfo} RTTI header of the NEXT table; ov063 packs them back to
+// back), for BooCage it is a furniture PMF function pointer, and for
+// MansionSteps a typeinfo word. FallBlockBbh is 32 with slot 31 =
 // func_ov098_0213a17c -- the SAME inherited ov098 quad (6/9/27/31)
 // FALL_BLOCK_WF and FALL_BLOCK_BFS seat, all four bodies already linked.
 // MadPiano is 32 with slot 31 = 0x020ee55c Platform::Kill (the piano is a

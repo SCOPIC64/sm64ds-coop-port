@@ -16,3 +16,10 @@ if errorlevel 1 exit /b 1
 cmake -S "%~dp0." -B "%~dp0..\build\port" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM="%CMAKEBIN%\Ninja\ninja.exe" %*
 if errorlevel 1 exit /b 1
 ninja -C "%~dp0..\build\port"
+if errorlevel 1 exit /b 1
+rem Fail after link if any /alternatename LHS is also a DEFINED symbol in the
+rem map -- a defined LHS defeats the alias silently (the wave-5 R1/R2 class;
+rem EyerokD0 and the data_ov075 aliases flip the same way if their overlays
+rem land). Post-link by design: the guard needs walk_window.map.
+python "%~dp0tools\alternatename_guard.py" --map "%~dp0..\build\port\walk_window.map"
+if errorlevel 1 exit /b 1

@@ -528,14 +528,17 @@ extern const unsigned port_ov045_ds_base, port_ov045_ds_end;
      course 16, subCount 1, flags 0 -- an ordinary one-area arena, no sublevel
      tricks.
 
-   ITS OBJECT-OVERLAY SET IS ONE OVERLAY, BY THE ARM9'S OWN SPECIAL CASE.
+   ITS OBJECT-OVERLAY SET IS ov060 + ov089, BY THE ARM9'S OWN SPECIAL CASE.
    LoadOrUnloadObjectOverlays (src/_Z26LoadOrUnloadObjectOverlaysPFviEi.cpp)
    short-circuits idx 0x24/0x26/0x28 (levels 36/38/40, the three koopaN_boss
    arenas): each loads ov060 unconditionally and RETURNS EARLY, skipping even
-   the ov098/ov102 tail every other level loads. So the arena's whole cast
-   lives in ov060 (Bowser/BowserTail/BowserFire/BowserShockwaves/SpikeBomb and
-   the arena platform classes), and its census skips that cast by name until
-   the ov060 pack is hosted. Mounted --whole like the rest; own_sinits 0. */
+   the ov098/ov102 tail every other level loads -- but the selector loop runs
+   BEFORE that early return, and its row [0,0,0,0,1,0,0] ALSO loads ov089
+   (KEY 282, LAST_STAR 283, the boss-reward spawns; load-bearing for whoever
+   wires the KEY drop). So the arena's own cast lives in ov060
+   (Bowser/BowserTail/BowserFire/BowserShockwaves/SpikeBomb and the arena
+   platform classes), and its census skips that cast by name until the ov060
+   pack is hosted. Mounted --whole like the rest; own_sinits 0. */
 void port_ov046_patch(void);
 void *port_ov046_at(unsigned ds);
 extern unsigned char port_ov046_image[];

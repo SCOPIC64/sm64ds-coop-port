@@ -18,9 +18,10 @@
 # All four HMC SpawnInfo addresses are flagged `ambiguous` in config/arm9/
 # overlays/ov065/symbols.txt (ov063/ov065/ov075 share this window). RESOLVED
 # by reading the raw bytes out of extracted/overlays/overlay_0065.bin (base
-# 0x02115ee0 -- ov065 is compressed:true in overlays.yaml, so the dsd export
-# extracted/dsd/arm9_overlays/ov065.bin is the COMPRESSED image and reading
-# halfwords out of it is reading noise), against the arm9 spawn table at
+# 0x02115ee0 -- the dsd export extracted/dsd/arm9_overlays/ov065.bin is a
+# DELINKED image whose relocated words are rebased by the export, so reading
+# record words out of it reads rewritten values, not the ROM's), against the
+# arm9 spawn table at
 # 0x02090864 + id*4 in extracted/arm9_dec.bin:
 #   id 236 -> 0x0211cb80  word[0]=0x02116f48 Snufit_Spawn     word[1]&0xffff=236
 #   id 237 -> 0x0211cc7c  word[0]=0x02117ee8 Swoop_Spawn      word[1]&0xffff=237
@@ -69,7 +70,7 @@
 # words are ov065 CODE addresses (read off the image; the ovdata pointer pass
 # rebases only data-covered words, so mounted code words stay DS values).
 # The class sinits copy them into the bss runtime tables below. port_ov065_
-# states_seat (port/unmatched/Ov065_StateSeat.cpp) rewrites each SOURCE
+# states_seat (port/unmatched/Ov065_StateDispatch.cpp) rewrites each SOURCE
 # record's fn with its host body BEFORE the sinits run, checking the mounted
 # word against the ROM address first -- the UpDownLift recipe verbatim.
 #

@@ -431,11 +431,16 @@ void io_write(uint32_t addr, uint64_t value, unsigned width) {
     // the HIGH half LAST -- so a trigger on the base address alone runs the
     // unit before the operand has landed and leaves SQRT_RESULT stale, which
     // is exactly GBATEK's model inverted (the unit restarts on any write to
-    // SQRTCNT or either SQRT_PARAM half). The divide side is NOT widened the
-    // same way on purpose: every divide client in the build (reciprocal_async,
-    // cstd::div and friends) stores NUMER/DENOM as single 64-bit writes at the
-    // base addresses, so the existing equality tests are the ones that fire,
-    // and this change must not perturb that unit at all.
+    // SQRTCNT or either SQRT_PARAM half). The widening also silently fixed a
+    // SECOND split-half SQRT_PARAM writer already in the build:
+    // func_02053274 (slice_gate10), the same high-half-last store order.
+    // The divide side is NOT widened the same way on purpose -- and not
+    // because divide clients write single 64-bit stores at base (they do
+    // not: cstd::mod, cstd::div and two others store 32-bit at the base
+    // addresses). The true invariant is that every divide-side store lands
+    // at a trigger address (ARMMathLoadState reaches the unit via DIVCNT),
+    // so the existing equality tests are the ones that fire, and this
+    // change must not perturb that unit at all.
     else if (addr == SQRT_PARAM || addr == SQRT_PARAM + 4 || addr == SQRTCNT)
         run_sqrt();
     // Geometry: 0x4000400 is the packed FIFO, 0x4000440.. are the command ports.

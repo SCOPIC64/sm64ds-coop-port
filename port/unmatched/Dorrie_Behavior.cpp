@@ -18,7 +18,7 @@
  * below is the near-miss DB's structurally-aligned draft (same 1044-byte
  * size as the ROM body; divergences are register/schedule shaped), audited
  * against the ROM's own anchors before adoption: the literal pool at
- * 0x02118bf0 carries 0x020a0e68 / 0x0211c078 / 0x02082214 / offsets
+ * 0x02118c34 carries 0x020a0e68 / 0x0211c078 / 0x02082214 / offsets
  * 0x1184-0x1188, the loop closes on `cmp r5, #7` (seven segments, matching
  * the seven-pointer table at 0x0211cd68), and the row stride is +0x200 per
  * segment. HOST COPY, not matched src: when the decomp banks the real TU,

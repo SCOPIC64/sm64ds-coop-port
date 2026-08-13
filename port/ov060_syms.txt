@@ -1,9 +1,11 @@
 # run linkw wave 5 (lane w5-e): ov060, the BOWSER-FIGHT ACTOR PACK, per symbol.
 #
-# ov060 is the object overlay the three koopaN_boss arenas load -- and the ONLY
-# one they load: LoadOrUnloadObjectOverlays short-circuits idx 0x24/0x26/0x28
-# (levels 36/38/40) to ov060 with an early return, skipping even the ov098/
-# ov102 tail. First mount of this overlay (base 0x02111900, code 0x02111900..
+# ov060 is the object overlay the three koopaN_boss arenas load -- alongside
+# ov089, which the selector row loads BEFORE LoadOrUnloadObjectOverlays
+# short-circuits idx 0x24/0x26/0x28 (levels 36/38/40) to ov060 with an early
+# return, skipping even the ov098/ov102 tail (ov089 carries KEY 282 /
+# LAST_STAR 283, the boss-reward spawns -- the KEY-drop wave's hook).
+# First mount of this overlay (base 0x02111900, code 0x02111900..
 # 0x02119260, data ..0x0211abe0, bss ..0x0211b240; compressed:true, so every
 # raw byte below was read from extracted/overlays/overlay_0060.bin, never the
 # dsd export).
@@ -16,7 +18,7 @@
 #
 #   id  class               Spawn       SpawnInfo   true table  width
 #   279 Bowser              0x02116428  0x0211a5f4  0x0211a6b8  31
-#   278 BowserTail          0x021163f0  0x0211a610  0x0211a634  32 (slot 31 = ROM zero)
+#   278 BowserTail          0x021163f0  0x0211a610  0x0211a634  31 (then _ZTV6Bowser's RTTI header)
 #   280 BowserFire          0x02117938  0x0211a7d0  0x0211a7f4  31 (EnemyC2 base)
 #   281 BowserShockwaves    0x021191f4  0x0211ab30  0x0211ab54  31 (+0x10 .data zero pad)
 #   284 SpikeBomb           0x02118cbc  0x0211aa68  0x0211aa8c  31
@@ -35,10 +37,11 @@
 # The seven vtables are excluded (the ov015/ov016/ov045 rule: a mounted vtable
 # hands a factory DS code addresses); hal/actor_classes_ov060.cpp hosts the
 # one this lane registers (166) and documents the other six for wave 6.
-# BowserTail's _ZTV span is 33 words; the 33rd (0x0211a6b4, a pointer to
-# data_ov060_0211a5cc) has NO reader anywhere -- no load reloc targets it and
-# no src file names it -- an orphan word dsd folded into the span; dropped
-# with the exclusion. BowserShockwaves' span floors at 35 words; the last four
+# BowserTail's dsd _ZTV span is 33 words but the table is 31: the last two
+# words (0x0211a6b0/0x0211a6b4, a zero and a pointer to data_ov060_0211a5cc)
+# are _ZTV6Bowser's {offset-to-top, typeinfo} RTTI header -- the NEXT table's
+# header words, not an orphan word plus a ROM zero; dsd folded them into the
+# span. BowserShockwaves' span floors at 35 words; the last four
 # are ROM zeros (.data align padding, the FallBlockBfs shape), table is 31.
 #
 # ==== THE OV066-WINDOW SPELLINGS (three words, plus four MSVC ones) =========

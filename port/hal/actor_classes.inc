@@ -1252,9 +1252,21 @@ void hal_fill_coffin_vtable(void);               /* fills _ZTV6Coffin, 32 */
     {271, "FLAME_CHOMP_FIRE", FlameChompFire_SpawnInfo, FlameChompFire_Spawn, \
      hal_fill_flame_chomp_fire_vtable}, \
     {196, "POPPING_LAVA_BUBBLES", PoppingLavaBubbles_SpawnInfo, \
-     PoppingLavaBubbles_Spawn, hal_fill_popping_lava_bubbles_vtable},     /* ---- run linkw wave 5 (lane w5-B): Hazy Maze Cave's cast (level 13);
+     PoppingLavaBubbles_Spawn, hal_fill_popping_lava_bubbles_vtable}, \
+    /* ---- run linkw wave 5 (lane w5-B): Hazy Maze Cave's cast (level 13);
        DORRIE_CAP is never in a level's object list -- Dorrie spawns id 169
-       at runtime, and the registry row is what that spawn finds ---- */     {236, "SNUFIT", Snufit_SpawnInfo, Snufit_Spawn, hal_fill_snufit_vtable},     {237, "SWOOP", Swoop_SpawnInfo, Swoop_Spawn, hal_fill_swoop_vtable},     {168, "DORRIE", Dorrie_SpawnInfo, Dorrie_Spawn, hal_fill_dorrie_vtable},     {169, "DORRIE_CAP", DorrieCap_SpawnInfo, DorrieCap_Spawn,      hal_fill_dorrie_cap_vtable},     {68, "WORK_ELEVATOR", WorkElevator_SpawnInfo, WorkElevator_Spawn,      hal_fill_work_elevator_vtable},     {221, "ROLLING_ROCK", RollingRock_SpawnInfo, RollingRock_Spawn,      hal_fill_rolling_rock_vtable},     {67, "SHUTTER_HMC", ShutterHmc_SpawnInfo, port_factory_shutter_hmc,      hal_fill_shutter_hmc_vtable}, \
+       at runtime, and the registry row is what that spawn finds ---- */ \
+    {236, "SNUFIT", Snufit_SpawnInfo, Snufit_Spawn, hal_fill_snufit_vtable}, \
+    {237, "SWOOP", Swoop_SpawnInfo, Swoop_Spawn, hal_fill_swoop_vtable}, \
+    {168, "DORRIE", Dorrie_SpawnInfo, Dorrie_Spawn, hal_fill_dorrie_vtable}, \
+    {169, "DORRIE_CAP", DorrieCap_SpawnInfo, DorrieCap_Spawn, \
+     hal_fill_dorrie_cap_vtable}, \
+    {68, "WORK_ELEVATOR", WorkElevator_SpawnInfo, WorkElevator_Spawn, \
+     hal_fill_work_elevator_vtable}, \
+    {221, "ROLLING_ROCK", RollingRock_SpawnInfo, RollingRock_Spawn, \
+     hal_fill_rolling_rock_vtable}, \
+    {67, "SHUTTER_HMC", ShutterHmc_SpawnInfo, port_factory_shutter_hmc, \
+     hal_fill_shutter_hmc_vtable}, \
     /* ---- run linkw wave 5 (lane w5-A): ov063, Big Boo's Haunt's cast ---- */ \
     {209, "BOO", Boo_SpawnInfo, Boo_Spawn, hal_fill_boo_vtable}, \
     {210, "BIG_BOO", BigBoo_SpawnInfo, BigBoo_Spawn, hal_fill_boo_vtable}, \

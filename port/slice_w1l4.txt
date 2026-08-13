@@ -457,7 +457,7 @@ src/func_ov002_020b6424.c
 #
 # So the lines below are the restored closure, re-measured at restore time
 # (wave 4 estimated "twelve quaternion/Fix12 TUs"; the measured closure is
-# FIVE slice TUs -- Quaternion_SLerp needs no callee at all and the four unit
+# SIX slice TUs -- Quaternion_SLerp needs no callee at all and the four unit
 # drivers ride hostgen, not this file). The id-141 section of
 # hal/actor_classes_ov045.cpp, its registry row and the aliases live with the
 # other five classes' machinery.

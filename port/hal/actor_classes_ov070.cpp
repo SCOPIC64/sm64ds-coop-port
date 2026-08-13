@@ -22,9 +22,10 @@
 // Every word[1] low half reads back the id it was reached from through the
 // arm9 spawn table (0x02090864 + id*4). NO NAMING SHIFT in this overlay --
 // checked, not assumed: each Spawn's literal pool stores the table adjacent
-// to its own SpawnInfo, and all 26 own vtable slots land inside TUs carrying
-// their own class's name (delinks.txt, class by class). ov045's off-by-one is
-// ov045's.
+// to its own SpawnInfo, and all 33 own vtable slots stay inside their own
+// class's code (28 in class-named TUs, 5 in address-named TUs of the same
+// class, zero cross-class; delinks.txt, class by class). ov045's off-by-one
+// is ov045's.
 //
 // ALL FOUR TABLES ARE 31 SLOTS: each span is pinned by the next dsd symbol
 // AND by the reloc run ending at slot 30 (slots 31+ carry no relocation).

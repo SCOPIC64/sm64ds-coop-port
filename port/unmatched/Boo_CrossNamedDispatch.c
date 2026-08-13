@@ -1,6 +1,7 @@
 /* HOST COPIES of three ov063 TUs whose matched sources spell a callee by
- * ANOTHER overlay's name -- the shared-window naming race (ov063, ov065 and
- * ov075 all load at the same window; dsd's export race handed three ov063
+ * ANOTHER overlay's name -- the shared-window naming race (the exact-share
+ * trio is ov063/ov065/ov066; ov075 merely overlaps the window; dsd's
+ * export race handed three ov063
  * addresses their ov065/ov066 spellings, the /alternatename:_data_ov059_...
  * =_func_ov045_... case from hal/actor_classes_ov045.cpp in source form):
  *

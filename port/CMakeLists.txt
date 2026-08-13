@@ -977,9 +977,12 @@ list(APPEND PORT_LEVEL_OVERLAYS ov045)
 # (17580) / koopa2_boss_icl.bin (512); handles read from
 # extracted/overlays/overlay_0046.bin, never the dsd export.
 # SUBLEVEL_LEVEL_TABLE[38] = 0x10 = course 16, subCount 1, flags 0. The arena's
-# object-overlay set is ov060 ALONE: LoadOrUnloadObjectOverlays short-circuits
-# idx 0x24/0x26/0x28 (the three koopaN_boss arenas) to ov060 with an early
-# return, skipping even the ov098/ov102 tail. Mounted --whole; own_sinits 0.
+# object-overlay set is ov060 + ov089: LoadOrUnloadObjectOverlays
+# short-circuits idx 0x24/0x26/0x28 (the three koopaN_boss arenas) to ov060
+# with an early return, skipping even the ov098/ov102 tail -- but the
+# selector loop runs first, and its row also loads ov089 (KEY 282 /
+# LAST_STAR 283, the boss-reward spawns; the KEY-drop wave's hook).
+# Mounted --whole; own_sinits 0.
 # Shared-window note (the ov045 calibration above): ov046's footprint is
 # 0x021111a0..0x021116e0 (code 1344, bss 0, overlays.yaml; compressed:true like
 # ov045) and sits entirely inside windows already contested by the sixteen
@@ -1190,11 +1193,12 @@ list(APPEND PORT_ACTOR_OVERLAYS ov013)
 # actor_overlays.cpp block that should replace it. See port/ov045_syms.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov045)
 # run linkw wave 5 (lane w5-e): ov060, the Bowser-fight actor pack -- the
-# overlay all three koopaN_boss arenas load (and the only one they load, by
-# LoadOrUnloadObjectOverlays' own idx-0x24/0x26/0x28 early return). First
+# overlay all three koopaN_boss arenas load (alongside ov089, which the
+# selector row loads BEFORE LoadOrUnloadObjectOverlays' idx-0x24/0x26/0x28
+# early return: KEY 282 / LAST_STAR 283, the boss-reward spawns). First
 # mount, per symbol; the full seven-class cast map, the one dsd label shift
 # and the width pins are in port/ov060_syms.txt. One class registers this
-# wave (BOWSER_FIRE_SEA_ARENA 166, level 38's floor); the pack's 106 TUs and
+# wave (BOWSER_FIRE_SEA_ARENA 166, level 38's floor); the pack's 105 TUs and
 # six sinits ride port/slice_w5e.txt. See hal/actor_classes_ov060.cpp.
 list(APPEND PORT_ACTOR_OVERLAYS ov060)
 # w5-e: ov046 (level 38's own overlay, whole-mounted this same lane) joins
