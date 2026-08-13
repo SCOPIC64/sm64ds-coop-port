@@ -19,9 +19,21 @@ Wave 5 hit this class twice (w5b_review.md R1/R2):
 
 The same flip is latent for _ZN6EyerokD0Ev and the data_ov075 aliases if
 their overlays ever land. This guard turns the whole class into a build
-failure: it parses every /alternatename directive the build carries, parses
-the linked map's defined symbols, and FAILS listing each alias whose LHS is
-also a defined symbol in the map.
+failure.
+
+HOW THE MAP TELLS THE TWO CASES APART. When an alias FIRES, link.exe
+publishes the LHS as a public at the RHS's address, so both names appear in
+the map AT THE SAME ADDRESS -- that is the healthy shape and it covers
+nearly every alias in the build. When the alias is DEFEATED, the LHS is a
+real definition with its OWN address (and the RHS keeps its own, or is
+/OPT:REF-stripped entirely). So the mechanical test is per directive:
+
+  LHS absent from the map ................................. OK (unused)
+  LHS present, RHS present, SAME address .................. OK (alias fired)
+  LHS present at a DIFFERENT address than RHS ............. FAIL (defeated)
+  LHS present, RHS absent ................................. FAIL (defeated;
+      the LHS definition satisfied every reference and the RHS died to
+      /OPT:REF -- exactly R1's shape when the data symbol goes unreferenced)
 
 Directive sources covered, both ways an /alternatename enters the link:
 
@@ -38,11 +50,23 @@ cannot see what the linker resolved). A missing, empty, or truncated map is
 itself a FAIL -- a failed link truncates walk_window.map to zero bytes, and
 measuring nothing must never read as clean.
 
-Exit 0: no alias LHS is defined in the map. Exit 1: at least one defeated
-alias (or an unreadable map), each listed with its source file and the fix
-that wave 5 used: delete the dead alternatename and, if the old routing is
-still needed, compile the referencing TUs with a per-source
--DLHS=RHS rename (see the R1/R2 blocks in port/CMakeLists.txt).
+THE BASELINE. The full binary carries a reviewed set of aliases whose LHS
+is deliberately defined -- the port's weak-symbol idiom: fallback stubs that
+only fire in reduced binaries (tests/fault_probe.h, the cxxname_bridge
+fallbacks, the l7 particle stub), and MSVC-mangle faces/forwarders that
+coexist with the Itanium body on purpose (the w4-c LoadFile forwarder
+shape). Those read as "defeated" in the map but are the design. They are
+frozen in alternatename_baseline.txt, the inferred_stub_guard ratchet
+pattern: the guard FAILS on any defeated pair NOT in the baseline (that is
+the R1/R2 arrival shape -- a newly sliced TU defining an alias LHS), and the
+baseline may only shrink. Regenerate after a reviewed change with --update;
+never hand-add a pair to unblock a build.
+
+Exit 0: no defeated alias outside the baseline. Exit 1: at least one new
+defeated alias (or an unreadable map), each listed with its source file and
+the fix wave 5 used: delete the dead alternatename and, if the old routing
+is still needed, compile the referencing TUs with a per-source -DLHS=RHS
+rename (see the R1/R2 blocks in port/CMakeLists.txt).
 """
 
 import argparse
@@ -52,8 +76,8 @@ import sys
 
 PORT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# A real linker directive line. Group 1 = LHS, group 2 = RHS. Decorated names
-# (leading underscore cdecl, ?...@@ MSVC C++) are matched as-is against the
+# A real linker directive. Group 1 = LHS, group 2 = RHS. Decorated names
+# (leading-underscore cdecl, ?...@@ MSVC C++) are matched as-is against the
 # map, which lists decorated names too.
 ALT_RE = re.compile(r'/alternatename:([^\s"=]+)=([^\s")]+)')
 PRAGMA_RE = re.compile(r'#\s*pragma\s+comment\s*\(\s*linker\s*,')
@@ -92,22 +116,48 @@ def collect_directives(port_dir):
     return out
 
 
-def parse_map_defined(map_path):
-    """Return the set of defined symbol names from an MSVC .map file.
+def parse_map_publics(map_path):
+    """Return {symbol: 'SECTION:OFFSET'} from the MSVC map's publics section.
 
-    The publics section lists one defined symbol per line:
-      0001:00000000  _symbol  00401000 f  lib:object
-    Rows are recognized by the section:offset shape of the first field, which
-    holds for every publics row and for no header/prologue line.
+    Rows look like
+        0001:000edd30       _func_020b5e58             004eed30 f   obj
+    The section runs from the 'Publics by Value' header to the 'entry point
+    at' line; the trailing 'Static symbols' block is deliberately excluded
+    (TU-local names must not shadow an alias LHS).
     """
-    defined = set()
+    publics = {}
     addr_re = re.compile(r'^[0-9a-fA-F]{4}:[0-9a-fA-F]{8,16}$')
+    in_publics = False
     with open(map_path, 'r', encoding='utf-8', errors='replace') as f:
         for line in f:
+            if 'Publics by Value' in line:
+                in_publics = True
+                continue
+            if line.lstrip().startswith('entry point at'):
+                break
+            if not in_publics:
+                continue
             parts = line.split()
             if len(parts) >= 2 and addr_re.match(parts[0]):
-                defined.add(parts[1])
-    return defined
+                publics.setdefault(parts[1], parts[0])
+    return publics
+
+
+def baseline_path():
+    return os.path.join(PORT_DIR, 'tools', 'alternatename_baseline.txt')
+
+
+def load_baseline():
+    pairs = set()
+    try:
+        with open(baseline_path(), 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    pairs.add(line)
+    except OSError:
+        pass
+    return pairs
 
 
 def main():
@@ -118,6 +168,9 @@ def main():
                     help='linked MSVC map file (default: %(default)s)')
     ap.add_argument('--port', default=PORT_DIR,
                     help='port tree to scan for directives (default: %(default)s)')
+    ap.add_argument('--update', action='store_true',
+                    help='rewrite the baseline PAIRS block from the live '
+                         'defeated set (reviewed changes only)')
     args = ap.parse_args()
 
     if not os.path.isfile(args.map):
@@ -130,32 +183,73 @@ def main():
         return 1
 
     directives = collect_directives(args.port)
-    defined = parse_map_defined(args.map)
-    if not defined:
-        print('alternatename_guard: FAIL -- no defined symbols parsed from %s'
+    publics = parse_map_publics(args.map)
+    if not publics:
+        print('alternatename_guard: FAIL -- no publics parsed from %s'
               % args.map)
         print('  (map exists but has no publics rows; the link is suspect)')
         return 1
 
-    defeated = [(lhs, rhs, rel, ln) for (lhs, rhs, rel, ln) in directives
-                if lhs in defined]
+    defeated = []
+    fired = 0
+    for lhs, rhs, rel, ln in directives:
+        la = publics.get(lhs)
+        if la is None:
+            continue                      # unused alias: fine
+        ra = publics.get(rhs)
+        if ra is not None and la == ra:
+            fired += 1                    # alias fired: LHS rides RHS's address
+            continue
+        defeated.append((lhs, rhs, rel, ln, la, ra))
+
+    if args.update:
+        lines = sorted(set('%s=%s' % (lhs, rhs)
+                           for lhs, rhs, _, _, _, _ in defeated))
+        try:
+            old = open(baseline_path(), 'r').read()
+        except OSError:
+            old = ''
+        head = [l for l in old.splitlines() if l.startswith('#')]
+        with open(baseline_path(), 'w') as f:
+            for l in head:
+                f.write(l + '\n')
+            for l in lines:
+                f.write(l + '\n')
+        print('alternatename_guard: baseline rewritten, %d pair(s)'
+              % len(lines))
+        return 0
+
+    baseline = load_baseline()
+    live = {'%s=%s' % (lhs, rhs) for lhs, rhs, _, _, _, _ in defeated}
+    stale = sorted(baseline - live)
+    if stale:
+        print('alternatename_guard: note -- %d baseline pair(s) no longer '
+              'defeated (baseline can be tightened with --update):'
+              % len(stale))
+        for pair in stale:
+            print('  %s' % pair)
+    defeated = [d for d in defeated
+                if '%s=%s' % (d[0], d[1]) not in baseline]
+
     if defeated:
-        print('alternatename_guard: FAIL -- %d defeated alias(es): the LHS is'
+        print('alternatename_guard: FAIL -- %d NEW defeated alias(es), not in'
               % len(defeated))
-        print('a DEFINED symbol in the map, so the /alternatename is inert and')
-        print('references bind to the new definition, not the intended RHS.')
-        for lhs, rhs, rel, ln in defeated:
+        print('the baseline: each LHS below is DEFINED at its own address, so')
+        print('the /alternatename is inert and references bind to the')
+        print('definition, not the intended RHS (the R1/R2 arrival shape).')
+        for lhs, rhs, rel, ln, la, ra in defeated:
             print('  %s:%d' % (rel, ln))
             print('    /alternatename:%s=%s' % (lhs, rhs))
-            print('    %s is defined in %s' % (lhs, os.path.basename(args.map)))
+            print('    LHS at %s, RHS %s' % (la, ra if ra else 'NOT IN MAP'))
         print('Fix (the wave-5 R1/R2 recipe): delete the dead alternatename;')
         print('if the old routing is still needed, compile the referencing TUs')
         print('with a per-source -DLHS=RHS (see the R1/R2 blocks in')
         print('port/CMakeLists.txt).')
         return 1
 
-    print('alternatename_guard: OK -- %d alias(es) scanned, none defeated '
-          '(%d defined symbols)' % (len(directives), len(defined)))
+    print('alternatename_guard: OK -- %d directive(s) scanned, %d fired, '
+          '%d baseline-known, 0 new defeats (%d publics)'
+          % (len(directives), fired, len(live), len(publics)))
     return 0
 
 

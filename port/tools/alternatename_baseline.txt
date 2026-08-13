@@ -1,0 +1,47 @@
+# alternatename_baseline.txt
+#
+# The frozen allowlist of /alternatename directives whose LHS is DELIBERATELY
+# defined in the full walk_window link -- the port's weak-symbol idiom, in
+# three reviewed shapes:
+#
+#   * fallback stubs that only fire in reduced binaries: tests/fault_probe.h's
+#     no-walker/no-level/no-players/no-frame family, the cxxname_bridge
+#     shadow fallbacks, heap_vtable's align4 fallback, the l7 particle stub,
+#     the actor_faces_bob faces. In walk_window the real definition links and
+#     the stub dies to /OPT:REF -- by design.
+#   * MSVC-mangle faces/forwarders coexisting with the Itanium body (the w4-c
+#     LoadFile forwarder shape; MemoryLeft, FindWithID, Enable): references
+#     bind to the face, the face forwards to the body.
+#   * data bridges whose LHS became hosted after the alias landed
+#     (data_0209f2d8, data_ov021_021149c0, EnemyC2).
+#
+# port/tools/alternatename_guard.py fails the build if the linked map shows a
+# defeated alias NOT on this list -- that is the R1/R2 arrival shape (a newly
+# sliced TU defining an alias LHS at its own address; w5b_review.md). This
+# list is a RATCHET: it can only SHRINK. When an alias here is deleted or its
+# routing moves to a per-source -D rename, regenerate with:
+#     python port/tools/alternatename_guard.py --update
+# Never add a pair here by hand to unblock a build.
+#
+# One LHS=RHS pair per line, sorted.
+?ChangeState@Player@@QAEHAAUState@1@@Z=?ChangeState@PlayerChangeStateFace@@QAEHAAUState@1@@Z
+?Enable@MeshColliderBase@@QAEXPAUActor@@@Z=?Enable@MeshColliderBase@@QAEHPAUActor@@@Z
+?FindWithID@Actor@@SAPAU1@I@Z=__ZN5Actor10FindWithIDEj
+?InitCuboid@ShadowModel@@QAEXXZ=?InitCuboid@ShadowModelCuboidFallback@@QAEXXZ
+?LoadFile@MeshCollider@@SAPAUKCL_File@@AAUSharedFilePtr@@@Z=__ZN12MeshCollider8LoadFileER13SharedFilePtr
+?MemoryLeft@ExpandingHeapAllocator@@QAEIXZ=__ZN22ExpandingHeapAllocator10MemoryLeftEv
+?SetFile@ModelBase@@QAEHPAUBMD_File@@HH@Z=?SetFile@ModelBaseFace@@QAEHPAUBMD_File@@HH@Z
+__ZN11ShadowModelD1Ev=_hal_shadow_d1_fallback
+__ZN4Heap8AllocateEj=_hal_heap_allocate_align4
+__ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j=_hal_dropshadow_scalexyz_fallback
+__ZN5EnemyC2Ev=_func_ov002_020aed98
+__ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_=_port_l7_particle_newsimple_stub
+_data_0209f250=_port_fault_no_pidx
+_data_0209f2d8=_data_0209f2d8_c
+_data_0209f2f8=_port_fault_no_level
+_data_0209f394=_port_fault_no_players
+_data_020a4b68=_port_fault_no_walker
+_data_ov021_021149c0=_data_ov014_021149c0
+_port_build_gittip=_port_fault_no_gittip
+_port_last_frame=_port_fault_no_frame
+_port_playlog_path=_port_fault_no_playlog
