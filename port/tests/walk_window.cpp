@@ -523,11 +523,14 @@ static void ss_note(const char *msg)
    definition (src/_ZN11ShadowModel8CleanAllEv.cpp, which includes the full
    include/ShadowModel.h) exports. No layout is assumed and none is used.
 
-   Its sibling ShadowModel::RenderAll is NOT declared here on purpose. See the
-   call site above port_actor_tick for the evidence; the short version is that
-   the port really does put nodes on this list and they have no model attached,
-   so RenderAll faults on the first one. */
+   Its sibling ShadowModel::RenderAll is declared here too (run linkw wave 5,
+   lane w5-d; wave 4's seat came back out because ntr drew the shadow volume
+   itself, and that wall is down -- see the call site in the render order
+   below). Same method-shadow trick, same reason it is exact: both are
+   statics, so the decorated name is the class name and the signature and
+   nothing else. */
 struct ShadowModel {
+    static void RenderAll();
     static void CleanAll();
 };
 
@@ -4583,11 +4586,14 @@ int main(void)
            no-spawn boot too; menu_on because the ROM does not reach
            Stage::Behavior at all on a paused frame.
 
-           AND ITS SIBLING STAYS OUT. Stage::Render's ShadowModel::RenderAll,
-           which belongs between RenderModel and RenderModelTransparent below,
-           CANNOT be seated yet, and this is the measurement rather than a
-           guess -- it was seated, and walk_window took an access violation on
-           frame 1:
+           AND ITS SIBLING IS SEATED BELOW, THE WALL DOWN AT LAST (run linkw
+           wave 5, lane w5-d). Stage::Render's ShadowModel::RenderAll sits
+           between RenderModel and RenderModelTransparent below, and the
+           two-layer history is why the ordering HERE matters and why a green
+           run alone never proved anything.
+
+           Layer one, wave 3: seated, and walk_window took an access
+           violation on frame 1:
 
              FAULT code c0000005 at +0x000893c8 accessing 00000000
                stack[03] +0x000892b1
@@ -4595,39 +4601,38 @@ int main(void)
            +0x893c8 is eight bytes into func_02046120 and +0x892b1 is inside
            RenderAll, i.e. `int n = self->sub->count` with self null, where
            self is the list node's `data` (its ModelComponents at +0x08).
+           That was the InitCylinder stub leaving nodes empty; wave 4's first
+           half fixed the chain and the fault with it.
 
-           Wave 4 measured the rest of the wall: even with the template
-           mounted and the null gone, ntr rasterizes POLYGON_ATTR mode-3
-           (shadow) polygons as ordinary translucent geometry -- gx.cpp
-           decodes only cull and alpha from that register -- so RenderAll
-           draws the shadow VOLUME itself as a visible column under the
-           actor. The seat waits on ntr stencil / polygon-mode-3 support
-           (run linkw, w4-a review), not on anything in this file.
+           Layer two, wave 4: seated again, ran clean, drew WRONG. ntr then
+           rasterized POLYGON_ATTR mode-3 (shadow) polygons as ordinary
+           translucent geometry -- gx.cpp decoded only cull and alpha from
+           that register -- so RenderAll painted the shadow VOLUME itself as
+           a visible column under the actor (Tango's cone, tallest mid-jump
+           because scale.y carries the drop height). The w4a review reverted
+           the seat and queued the raster work.
 
-           The list is NOT empty on the port, which is what
-           hal/cxxname_bridge.cpp's note implies and what I assumed too.
-           Actor::DropShadowScaleXYZ was a host no-op when this was measured
-           (wave 4 swapped it to the matched body; the crash story below
-           predates that and stands), but
-           Actor::DropShadowRadHeight was NOT: its C spelling resolves to the
-           matched src/ body, which calls ShadowModel::InitModel for real, and
-           Butterfly::Behavior takes that path every frame on this level (the
-           boot census spawns butterflies). So a real ShadowModel goes on the
-           list with data == 0, because the thing that would have filled it is
-           ShadowModel::InitCuboid and that IS stubbed. The cuboid template BMD
-           is static .data in overlay 1 at 0x020ad524, and the port's ov001
-           mount is per-symbol and covers only 0x020ab800..0x020abb00, the HUD's
-           sprite templates (port/ov001_syms.txt). The template's bytes are not
-           in the build.
+           That work landed this wave: gx.cpp carries a per-pixel stencil
+           bit and polygon-ID buffer and GBATEK's two-step shadow protocol
+           (mask ID 0 stencils depth-fail pixels; draw ID nonzero blends
+           where the stencil is set, the depth test passes and the IDs
+           differ). The volume no longer draws; its intersection with the
+           ground does.
 
-           RenderAll dereferences that null on its first node. Guarding it here
-           would be inventing behaviour the ROM does not have, so it waits for
-           the shadow half of ov001. Note also that seating RenderAll with this
-           CleanAll call left
-           at the END of the behaviour phase runs clean -- but only because the
-           list is force-emptied after the actors fill it and before RenderAll
-           reads it, which is the wrong order and would draw no shadows at all
-           once ov001 lands. A green run for that reason is not a seat. */
+           Why the list is not empty, for the record: Butterfly::Behavior
+           calls the matched Actor::DropShadowRadHeight every frame on this
+           level (the boot census spawns butterflies), which calls
+           ShadowModel::InitModel for real, so real nodes ride the list from
+           frame 1 and RenderAll has real work the moment it is called.
+
+           WHAT A GREEN RUN DOES NOT PROVE, still. Seating RenderAll with
+           this CleanAll call moved to the END of the behaviour phase also
+           runs clean -- but only because the list is force-emptied after
+           the actors fill it and before RenderAll reads it, which is the
+           wrong order and draws no shadows at all. That is why CleanAll
+           stays here, above the tick, and why the seat is held to pixels
+           and triangles rather than exit codes: SM64DS_SHADOW_TRIS=1 prints
+           what the seat submits per frame (see the call site). */
         if (real_boot && !menu_on)
             ShadowModel::CleanAll();
         if (menu_on) {
@@ -5121,8 +5126,11 @@ int main(void)
                    Model glued to the camera eye (hal/stage_bridges.cpp); the
                    two model passes are the same Model drawn twice with
                    inverse visibility masks -- the moat water only exists in
-                   the second. (ShadowModel::RenderAll sits between them on the
-                   ROM; the port's shadows are still the actors' own.) */
+                   the second. (ShadowModel::RenderAll sits between them on
+                   the ROM and in the frame loop below; this one-shot probe
+                   re-render leaves it out on purpose -- RenderAll sets the
+                   freeze flag and rewrites material attrs, so it runs once
+                   per frame, at its seat.) */
                 port_stage_render_skybox(stage);
                 port_stage_render_model(stage);
                 port_stage_render_model_transparent(stage);
@@ -5471,16 +5479,55 @@ int main(void)
                    Model glued to the camera eye (hal/stage_bridges.cpp); the
                    two model passes are the same Model drawn twice with
                    inverse visibility masks -- the moat water only exists in
-                   the second. (ShadowModel::RenderAll sits between them on the
-                   ROM; see the CleanAll block above for what stops it.) */
+                   the second. (ShadowModel::RenderAll sits between them, on
+                   the ROM and here.) */
                 port_stage_render_skybox(stage);
                 /* Stage::Render's first block, in its place in the order:
                    advance the shown areas' BTA texture animations (the
                    waterfall), which RenderModel below then applies. */
                 port_stage_advance_anims(stage);
                 port_stage_render_model(stage);
-                /* ShadowModel::RenderAll() BELONGS HERE and cannot go in yet;
-                   the reason is written out beside the CleanAll call above. */
+                /* ShadowModel::RenderAll, in its place in Stage::Render's own
+                   order: after the opaque model pass, before the transparent
+                   one. The shadows are drawn onto the ground the pass above
+                   just laid down, and the moat water in the pass below goes
+                   over them. The ntr side of this call is real now: the two
+                   mode-3 material passes RenderAll runs per node stencil the
+                   volume against the depth buffer instead of painting it
+                   (the wave-4 cone; see the CleanAll block above for the
+                   full history).
+
+                   SM64DS_SHADOW_TRIS=1 prints what this call submits, which
+                   is the only honest way to see it work: the walk selftest
+                   holds its canonical position whether shadows draw or not,
+                   so an exit code says nothing about them. The count is read
+                   off the geometry engine's own polygon list, the same probe
+                   the [actors] and [fx] lines use. */
+                {
+                    static int sh_tr = -1;
+                    if (sh_tr < 0) sh_tr = getenv("SM64DS_SHADOW_TRIS") ? 1 : 0;
+                    size_t sh_before = 0, sh_after = 0;
+                    if (sh_tr) ntr::gx_polygons(sh_before);
+                    ShadowModel::RenderAll();
+                    if (sh_tr) {
+                        const ntr::GxTriangle *st2 = ntr::gx_polygons(sh_after);
+                        float mnx = 1e30f, mxx = -1e30f, mny = 1e30f,
+                              mxy = -1e30f;
+                        for (size_t i = sh_before; i < sh_after; ++i)
+                            for (int v = 0; v < 3; ++v) {
+                                if (st2[i].v[v].x < mnx) mnx = st2[i].v[v].x;
+                                if (st2[i].v[v].x > mxx) mxx = st2[i].v[v].x;
+                                if (st2[i].v[v].y < mny) mny = st2[i].v[v].y;
+                                if (st2[i].v[v].y > mxy) mxy = st2[i].v[v].y;
+                            }
+                        printf("[shadow] frame %d: %zu triangles", frame,
+                               sh_after - sh_before);
+                        if (sh_after != sh_before)
+                            printf(", screen x[%.0f..%.0f] y[%.0f..%.0f]",
+                                   mnx, mxx, mny, mxy);
+                        printf("\n");
+                    }
+                }
                 port_stage_render_model_transparent(stage);
             } else {
                 hal_render_model(level_model, level_shift);

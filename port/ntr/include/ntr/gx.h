@@ -46,7 +46,18 @@ struct GxTriangle {
     // The hardware's own render-order class: attribute alpha 1..30 or an
     // A3I5/A5I3 texture puts the polygon in the translucent pass, which
     // draws after every opaque polygon regardless of submission order.
+    // Mode-3 (shadow) polygons ride this pass too, whatever their alpha:
+    // their stencil protocol needs the depth buffer already final.
     uint8_t translucent;
+    // POLYGON_ATTR bits 4-5: 0 modulation, 1 decal, 2 toon/highlight,
+    // 3 shadow. Only 3 changes the raster's behaviour (GBATEK shadow
+    // polygons); 1 and 2 draw as modulation, same as before they existed.
+    uint8_t mode;
+    // POLYGON_ATTR bits 24-29. For mode-3 polygons the ID selects the role:
+    // 0 is the stencil mask, nonzero is the drawn shadow. For everything
+    // else it is recorded per pixel so a shadow can refuse to fall on its
+    // own caster (equal IDs do not shadow).
+    uint8_t polyid;
     uint32_t dbg_tex;      // TEXIMAGE_PARAM that was bound (diagnostics only)
 };
 
