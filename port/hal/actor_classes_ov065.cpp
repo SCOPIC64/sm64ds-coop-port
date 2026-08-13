@@ -594,7 +594,6 @@ extern "C" void hal_fill_rolling_rock_vtable(void)
 // case ov045's (B) block describes. The factory is the wave's one VT1
 // wrapper: see the header and port/ov021_syms.txt.
 extern "C" {
-int _ZN10ShutterHmc8BehaviorEvC(void *self);         /* see the face below */
 int func_ov002_020babf0(void *self);                 /* slot 9, ov002 base */
 int *_ZN10ShutterHmcD1Ev(int *t);                    /* slot 16 */
 int *_ZN10ShutterHmcD0Ev(int *t);                    /* slot 17 */
