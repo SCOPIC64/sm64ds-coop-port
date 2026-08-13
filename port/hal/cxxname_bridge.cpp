@@ -472,7 +472,50 @@ void *_ZN5Model23AddToCommonModelDataArrER8BMD_File(void *file)
 { return Model::AddToCommonModelDataArr(*(BMD_File *)file); }
 void *func_0203cc0c(unsigned size);
 void _ZN6Memory10DeallocateEPv(void *p);
-/* the DS global operator new/delete route through the Memory layer */
+
+/* THE DS GLOBAL operator new. src/_Znwj.cpp is byte-matched and it is a
+   THREE-INSTRUCTION ARM VENEER -- `ldr ip, [pc]; bx ip; .word 0x203cc0c` --
+   transcribed exactly as `void _Znwj(void) { func_0203cc0c(); }`. It names no
+   parameter because it MOVES none: the allocation size the caller left in r0
+   is still in r0 when func_0203cc0c reads it. Compile that under 32-bit cdecl
+   and the size is on the caller's stack, nothing pushes it a second time, and
+   func_0203cc0c reads _Znwj's own return address as the byte count. No slice
+   position fixes that, and no target could carry both definitions anyway --
+   the matched TU and this one spell the same C symbol.
+
+   HEAP IDENTITY IS NOT AT STAKE, which is the thing worth checking before
+   touching operator new at all. The callee below is the ROM's own next hop,
+   matched and linked: build/port/walk_window.map lists _func_0203cc0c against
+   func_0203cc0c.c.obj, and that TU is `Heap::Allocate(data_020a0ea0, size)`.
+   So this definition reaches the ROM's game-heap word through the ROM's own
+   body. The argument is the only thing it adds.
+   PORT_HOST_ABI: ARM r0 ride-through; src/_Znwj.cpp names no size. */
 void *_Znwj(unsigned size) { return func_0203cc0c(size); }
+
+/* THE DS GLOBAL operator delete2, the same shape one address down.
+   src/_ZN6Memory16operator_delete2EPv.cpp is the veneer at 0x203cbcc
+   (`ldr ip, [pc]; bx ip; .word 0x203cbf0`), transcribed `void
+   _ZN6Memory16operator_delete2EPv(void) { _ZdlPv(); }` -- it hands _ZdlPv the
+   pointer that is already in r0, and under cdecl it hands it nothing. The
+   port has been ruling on this exact veneer shape since gate 24: the same
+   finding is written out in slice_gate24.txt and slice_gate31.txt for
+   func_0203cbc0, the OTHER ROM veneer onto _ZdlPv, which is hosted in
+   unmatched/func_02073244.c for the same reason.
+
+   THE ROUTE ENDS IN THE ROM'S HEAP, checked rather than assumed, and it is
+   NOT the ROM's hop sequence. The ROM goes _ZdlPv -> defaultHeapPtr
+   ->_Deallocate -> (a third veneer) -> Heap::Deallocate. This goes through
+   the matched Memory::Deallocate(void*) -> Memory::Deallocate(void*, 0),
+   which falls back to the same defaultHeapPtr and calls the same
+   Heap::Deallocate, whose body is a single dispatch of vtable slot 4. Same
+   heap pointer, same virtual, more hops.
+
+   The extra hops are deliberate. _ZdlPv reaches walk_window and smoke_player
+   only -- it is absent from the smoke_actor, smoke_savestate and smoke_persist
+   maps -- while this definition has to resolve in all five targets that
+   compile this file, and Memory::Deallocate's C name does resolve in all five.
+   Pointing this at _ZdlPv would buy one hop of ROM shape at the price of an
+   /alternatename fallback in three harnesses.
+   PORT_HOST_ABI: ARM r0 ride-through; the src veneer names no pointer. */
 void _ZN6Memory16operator_delete2EPv(void *p) { _ZN6Memory10DeallocateEPv(p); }
 }
