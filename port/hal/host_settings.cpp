@@ -280,6 +280,7 @@ char *json_set(const char *s, const char *key, const char *val)
 {
     const char *cut_a, *cut_b;
     const char *insert = 0;
+    int comma = 0;
     char *out;
     size_t need;
 
@@ -295,9 +296,19 @@ char *json_set(const char *s, const char *key, const char *val)
         if (!*b) return 0;
         cut_a = cut_b = b + 1;
         insert = key;
+        /* the separator only when something FOLLOWS. An object with no
+           members at all is the case that made this necessary: a trailing
+           comma is not JSON, System.Text.Json refuses to read it, and the
+           launcher would have lost the file on the first save it made into
+           an empty one. */
+        {
+            const char *t = cut_b;
+            while (*t == ' ' || *t == '\t' || *t == '\r' || *t == '\n') ++t;
+            comma = *t != '}' && *t != '\0';
+        }
     }
 
-    need = strlen(s) + strlen(val) + (insert ? strlen(key) + 8 : 0) + 8;
+    need = strlen(s) + strlen(val) + (insert ? strlen(key) + 12 : 0) + 8;
     out = (char *)malloc(need);
     if (!out) return 0;
     {
@@ -317,7 +328,18 @@ char *json_set(const char *s, const char *key, const char *val)
         }
         memcpy(w, val, strlen(val));
         w += strlen(val);
-        if (insert) *w++ = ',';
+        if (comma) {
+            *w++ = ',';
+            /* one member a line, the way the launcher writes it. Only when
+               the next thing along is not already on its own line, so a
+               pretty-printed file keeps its own shape. */
+            if (*cut_b != '\n' && *cut_b != '\r' && *cut_b != ' ' &&
+                *cut_b != '\t') {
+                *w++ = '\n';
+                *w++ = ' ';
+                *w++ = ' ';
+            }
+        }
         memcpy(w, cut_b, strlen(cut_b) + 1);
     }
     return out;
