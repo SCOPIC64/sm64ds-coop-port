@@ -59,8 +59,10 @@ extern unsigned short data_020a4b54;    /* pending actor ID */
 extern void **data_020a4bb8;            /* actorID -> SpawnInfo* */
 void *data_ov098_0213c380[6];
 char data_ov098_0213c384[0x18];
-extern void *data_020a0eac_c;           /* actor heap = root heap */
+extern void *data_020a0eac_c;           /* Memory::gameHeapPtr */
 extern void *data_020a0ea0;             /* defaultHeapPtr */
+void _ZN4Heap18InitializeGameHeapEjPS_(unsigned size, void *root);
+unsigned _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *alloc);
 extern void *data_0209f394[];           /* the player array */
 extern unsigned char data_0209f21c;     /* player count */
 void hal_fill_model_vtable(void);
@@ -145,16 +147,31 @@ static int *boot_actor_world()
     data_020a4b54 = 0x12b;
     static unsigned short spawn_info[4] = { 0, 0, 100, 100 };
     data_020a4bb8[0x12b] = spawn_info;
-    /* HAND-SEED RETAINED for the same measured reason as smoke_actor.cpp:
-       src/_ZN4Heap18InitializeGameHeapEjPS_.c is listed only in
-       slice_w1l3.txt, this target's source list does not carry that slice, and
-       adding it is a port/CMakeLists.txt edit owned by another lane this wave.
-       walk_window.cpp and smoke_player.cpp run the ROM's carve instead. This
-       smoke crosses a real process boundary, so when it converts BOTH
-       processes must convert together -- they are the same exe, which is what
-       makes that safe, and the gittip header refuses a stale disk state
-       anyway. */
-    data_020a0eac_c = data_020a0ea0;
+    /* THE GAME HEAP, the ROM's own chain instead of an alias -- the same
+       bring-up walk_window.cpp, smoke_player.cpp, smoke_actor.cpp and
+       smoke_savestate.cpp do. This line used to be
+       `data_020a0eac_c = data_020a0ea0;`, the game-heap word aliased onto the
+       root heap, and the retained-hand-seed comment here said the conversion
+       goes with the port/CMakeLists.txt line that carries
+       src/_ZN4Heap18InitializeGameHeapEjPS_.c onto this target. That line is
+       in, so this is that conversion.
+       BOTH PROCESSES CONVERT TOGETHER, which is what that comment required and
+       what this placement gives for free: the parent and the spawned child are
+       the SAME exe and both reach the game heap only through this one
+       function, so there is no build in which one side carves and the other
+       aliases. The gittip header refuses a disk state from any other build
+       anyway, so a savestate.bin written before this change is rejected rather
+       than loaded against a differently-shaped arena. */
+    _ZN4Heap18InitializeGameHeapEjPS_(0x3b000, 0);
+    CHECK(data_020a0eac_c != NULL);
+    if (!data_020a0eac_c) {
+        fprintf(stderr, "InitializeGameHeap returned null -- no game heap\n");
+        return NULL;
+    }
+    fprintf(stderr, "[heap] game heap %p, 0x%x bytes, %u free after carve\n",
+            data_020a0eac_c, 0x3b000u,
+            _ZN22ExpandingHeapAllocator10MemoryLeftEv(
+                *(void **)((char *)data_020a0eac_c + 0x14)));
     static SharedFilePtrC sign_model, sign_kcl;
     _ZN13SharedFilePtr9ConstructEj(&sign_model, 1177);
     _ZN13SharedFilePtr9ConstructEj(&sign_kcl, 1178);
@@ -169,6 +186,12 @@ static int *boot_actor_world()
     int *actor = ArrowSignRight_Spawn();
     CHECK(actor != NULL);
     if (!actor) return NULL;
+    /* where the actor landed, printed for the same reason smoke_actor prints
+       it: under the old hand-seed this came back at the ROOT heap's top, and
+       the carve above is only doing something if the actor is inside the
+       0x3b000 payload the game heap owns. Both processes print their own, so
+       the two-process half of this smoke shows the carve twice. */
+    printf("  spawned at %p (game heap %p)\n", (void *)actor, data_020a0eac_c);
     CHECK(vcall0(actor, 0) == 1);           // InitResources
     reset_scene();
     return actor;

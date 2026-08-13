@@ -556,7 +556,29 @@ foreach(line IN LISTS SLICE9_LINES)
     list(APPEND SLICE9_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
-add_executable(smoke_actor tests/smoke_actor.cpp
+# THE GAME HEAP for the three actor-world smokes below.
+#
+# tests/walk_window.cpp and tests/smoke_player.cpp call
+# Heap::InitializeGameHeap(0x3b000, 0), the carve func_0201a054 performs at
+# arm9 0x0201a108 (re-derived here from extracted/arm9_dec.bin: the prelude
+# reads e3a00a3b / e3a01000 / eb00884f, so r0 = 0x3b000, r1 = 0, and the BL
+# lands on 0x0203c24c). smoke_actor, smoke_savestate and smoke_persist were
+# instead hand-seeding `data_020a0eac_c = data_020a0ea0` -- the game-heap word
+# aliased straight onto the root heap, so the ROM's heap object never existed
+# and the smokes disagreed with the boot spine about how the heap comes up.
+# Lane w3-c measured the link failure that blocked the conversion and left the
+# reason at each seat; this is the CMake half it named.
+#
+# The TU is listed in slice_w1l3.txt, but SLICE_W1L3_SOURCES is built further
+# down this file, after these three targets, so the one file is named directly
+# rather than hoisting that block over three gates. One line is all it takes:
+# Heap::CreateExpandingHeap, the body it calls, has been compiled into these
+# targets since gate 3a and was being discarded by /OPT:REF because nothing
+# reached it.
+set(HEAP_INITGAME_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4Heap18InitializeGameHeapEjPS_.c")
+
+add_executable(smoke_actor tests/smoke_actor.cpp "${HEAP_INITGAME_SRC}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -576,7 +598,7 @@ endif()
 
 # Save-state verification (lane lk6): the same actor world as smoke_actor, plus
 # hal/lk6_savestate.cpp, driving save -> diverge -> load -> byte-exact compare.
-add_executable(smoke_savestate tests/smoke_savestate.cpp
+add_executable(smoke_savestate tests/smoke_savestate.cpp "${HEAP_INITGAME_SRC}"
     hal/lk6_savestate.cpp hal/dsstate_seg.cpp hal/auto_bss.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
@@ -601,7 +623,7 @@ endif()
 # the identical arena hash -- the save surviving the process ending is the
 # whole point, so the test crosses a real process boundary. Two header-refusal
 # cases (corrupted magic, stale gittip) run in the parent afterwards.
-add_executable(smoke_persist tests/smoke_persist.cpp
+add_executable(smoke_persist tests/smoke_persist.cpp "${HEAP_INITGAME_SRC}"
     hal/lk6_savestate.cpp hal/lk7_persist.cpp hal/dsstate_seg.cpp
     hal/auto_bss.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
