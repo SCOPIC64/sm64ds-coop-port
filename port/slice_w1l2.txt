@@ -24,3 +24,20 @@ src/_ZN4HeapD0Ev.c
 # hal/heap_vtable.cpp keeps its old host copy as an alternatename fallback for
 # the ten targets that carry gate 4b without this slice.
 src/_ZN4Heap8AllocateEj.cpp
+
+# ==== WAVE 2, LANE w2-b ====================================================
+# The reader below resolves every line against the REPO ROOT, so this file can
+# also carry the lane's own host source. That is deliberate: it is the one
+# wiring point this lane owns, and it keeps the seat out of CMakeLists.txt.
+port/hal/w2_dtor_heads.cpp
+
+# ---- _ZTV12CylinderClsn (arm9 0x0208e6ec) slots 0 and 1 -------------------
+# Reference edge: hal_seat_w2_dtor_heads in port/hal/w2_dtor_heads.cpp, which
+# writes the two words config/arm9/relocs.txt puts there:
+#   from:0x0208e6ec to:0x020150a8 _ZN12CylinderClsnD1Ev
+#   from:0x0208e6f0 to:0x0201507c _ZN12CylinderClsnD0Ev
+# The D1 body writes 0x0208e6ec as the object's own vptr, which is what fixes
+# the index convention. Storage is hal/cxx_aliases.cpp and no fill in the tree
+# ever wrote a slot in it.
+src/_ZN12CylinderClsnD1Ev.c
+src/_ZN12CylinderClsnD0Ev.c
