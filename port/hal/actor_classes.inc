@@ -754,6 +754,18 @@ void hal_fill_pole_lift_vtable(void);                /* fills _ZTV15FireSeaEleva
 void hal_fill_extending_platform_vtable(void);       /* fills _ZTV8PoleLift, 31 */
 void hal_fill_floating_floor_bfs_vtable(void);       /* fills data_ov045_02112f50, 32 */
 void hal_fill_fall_block_bfs_vtable(void);           /* fills _ZTV12FallBlockBfs, 32 */
+
+/* ---- run linkw wave 5 (lane w5-e): the Bowser fight arena's floor ----
+   ov060 joins the per-symbol mounts (port/ov060_syms.txt, which carries the
+   whole seven-class cast map, the SpikeBomb/SkyPlatform dsd label shift and
+   the width pins). ONE class registers this wave: BOWSER_FIRE_SEA_ARENA
+   (166, daKpa2Bg_c), level 38's walkable floor. The other six are measured
+   and banked -- Bowser's two raw state-pair tables and SkyPlatform's bss
+   Entry dispatch need StateDispatch seats first, and Bowser without
+   BowserTail is a null child spawn (hal/actor_classes_ov060.cpp's header). */
+extern unsigned char BowserFireSeaArena_SpawnInfo[]; /* ov060 0x0211a88c, +4 reads 166 */
+void *BowserFireSeaArena_Spawn(void);                /* ov060 0x02117cdc */
+void hal_fill_bowser_fire_sea_arena_vtable(void);    /* fills _ZTV18BowserFireSeaArena, 32 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1107,4 +1119,9 @@ void hal_fill_fall_block_bfs_vtable(void);           /* fills _ZTV12FallBlockBfs
     {145, "FLOATING_FLOOR_BFS", FloatingFloorBfs_SpawnInfo, \
      port_factory_floating_floor_bfs, hal_fill_floating_floor_bfs_vtable}, \
     {139, "FALL_BLOCK_BFS", FallBlockBfs_SpawnInfo, \
-     port_factory_fall_block_bfs, hal_fill_fall_block_bfs_vtable},
+     port_factory_fall_block_bfs, hal_fill_fall_block_bfs_vtable}, \
+    /* ---- run linkw wave 5: the Bowser fight arena's floor (level 38);
+       the other six ov060 classes are measured but not hosted, see
+       hal/actor_classes_ov060.cpp ---- */ \
+    {166, "BOWSER_FIRE_SEA_ARENA", BowserFireSeaArena_SpawnInfo, \
+     BowserFireSeaArena_Spawn, hal_fill_bowser_fire_sea_arena_vtable},

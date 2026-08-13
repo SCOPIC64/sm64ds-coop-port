@@ -510,6 +510,36 @@ void port_ov045_patch(void);
 void *port_ov045_at(unsigned ds);
 extern unsigned char port_ov045_image[];
 extern const unsigned port_ov045_ds_base, port_ov045_ds_end;
+
+/* ov046 = LEVEL 38, the Bowser in the Fire Sea BATTLE ARENA
+   (data/stage/koopa2_boss), course 16 -- the first boss arena the port mounts,
+   the second half of the level-37 course. Read from the ROM like the rest, and
+   the whole pipeline re-validated against all sixteen mounted rows before
+   anything about ov046 was believed (every known id/overlay/LVL_Overlay
+   reproduces exactly):
+     data_020758c8[38] = 46 (WORD table, the ov045 correction), LVL_Overlay
+     data_02092208[38] = 0x02111560, OV0 handles at LVL_Overlay+8 (bmd 0x0777 /
+     kcl 0x0775 / icg 0x0778 / icl 0x0779) resolve DIRECTLY through
+     build/assets/handles.tsv -- delta 0, the mapping levels 8..15 and 37 use --
+     to koopa2_boss's koopa2_boss_all.bmd (4908) / koopa2_boss.kcl (2561) /
+     koopa2_boss_icg.bin (17580) / koopa2_boss_icl.bin (512). Handles read from
+     extracted/overlays/overlay_0046.bin, the image ovdata mounts, never the
+     dsd export. SUBLEVEL_LEVEL_TABLE[38] (0x02075298, byte table) = 0x10 =
+     course 16, subCount 1, flags 0 -- an ordinary one-area arena, no sublevel
+     tricks.
+
+   ITS OBJECT-OVERLAY SET IS ONE OVERLAY, BY THE ARM9'S OWN SPECIAL CASE.
+   LoadOrUnloadObjectOverlays (src/_Z26LoadOrUnloadObjectOverlaysPFviEi.cpp)
+   short-circuits idx 0x24/0x26/0x28 (levels 36/38/40, the three koopaN_boss
+   arenas): each loads ov060 unconditionally and RETURNS EARLY, skipping even
+   the ov098/ov102 tail every other level loads. So the arena's whole cast
+   lives in ov060 (Bowser/BowserTail/BowserFire/BowserShockwaves/SpikeBomb and
+   the arena platform classes), and its census skips that cast by name until
+   the ov060 pack is hosted. Mounted --whole like the rest; own_sinits 0. */
+void port_ov046_patch(void);
+void *port_ov046_at(unsigned ds);
+extern unsigned char port_ov046_image[];
+extern const unsigned port_ov046_ds_base, port_ov046_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -622,6 +652,9 @@ static const PortLevelDesc port_level_table[] = {
     {37, "Bowser in the Fire Sea (koopa2_map, course 16)", "ov045", 0x021124d4,
      port_ov045_patch, port_ov045_at,
      &port_ov045_ds_base, &port_ov045_ds_end, 0},
+    {38, "Bowser fight arena (koopa2_boss, course 16)", "ov046", 0x02111560,
+     port_ov046_patch, port_ov046_at,
+     &port_ov046_ds_base, &port_ov046_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -818,6 +851,8 @@ static void *port_mount_row_14(void) { return port_level_mount_at(14); }
 /* Level 37's row is table index 15. Named by level, the port_mount_row_lvl14
    convention, so a sibling stream appending its own level does not collide. */
 static void *port_mount_row_lvl37(void) { return port_level_mount_at(15); }
+/* Level 38's row is table index 16, the same append-only convention. */
+static void *port_mount_row_lvl38(void) { return port_level_mount_at(16); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
@@ -832,6 +867,7 @@ static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_13,
     port_mount_row_14,
     port_mount_row_lvl37,
+    port_mount_row_lvl38,
 };
 
 // ---- the loader dispatch table ---------------------------------------------
