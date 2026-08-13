@@ -706,6 +706,27 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov094_02136024.c"
     PROPERTIES LANGUAGE CXX)
 
+# Wave-5 close surgery (w5b_review.md R1/R2): two /alternatename routes died
+# when w5-b sliced the real bodies under the aliases' LHS names -- a defined
+# LHS defeats /alternatename silently. The affected caller TUs get per-source
+# renames instead; the dead pragmas are deleted from hal/cxx_aliases.cpp and
+# hal/actor_classes_koopa_chuckya.cpp (the alternatename guard enforces the
+# class from here on).
+# R1: PeachPainting::InitResources spells ov010's SharedFilePtr BSS as
+# RollingRock_Spawn (dsd shared-base misname, gate 42); the real
+# RollingRock_Spawn (ov021, id 221's factory) links since wave 5.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13PeachPainting13InitResourcesEv.cpp"
+    PROPERTIES COMPILE_DEFINITIONS "RollingRock_Spawn=data_ov010_02112d64")
+# R2: three ov062 caller TUs spell a shared-base address by its ov065 name,
+# and that name is now Swoop's genuinely different real body (sliced in
+# wave 5) -- rename the reference back to the ov062 body they always called.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov062_02118058.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov062_021180d4.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov062_02118a00.cpp"
+    PROPERTIES COMPILE_DEFINITIONS "func_ov065_02117994=func_ov062_02117994")
+
 # func_ov002_020d708c is C++ inside a .c (a `virtual` vtable shadow), which
 # MSVC will not compile as C. hostgen.py already emits .cpp with the symbols
 # wrapped back to C linkage, so route it through hostgen rather than editing

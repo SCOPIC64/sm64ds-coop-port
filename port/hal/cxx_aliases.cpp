@@ -780,10 +780,15 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
        it directly. Its address is used as a SharedFilePtr, so the data symbol
        is the right target. Both decls are C-linkage in decl_common's extern "C"
        block, so the references are plain cdecl.
+       Since wave 5 the REAL RollingRock_Spawn (ov021, id 221's factory) links
+       too, and a defined LHS defeats /alternatename silently -- so this route
+       is a per-source -DRollingRock_Spawn=data_ov010_02112d64 on the
+       PeachPainting TU in port/CMakeLists.txt (w5b_review.md R1), not a
+       pragma here.
    PORT_HOST_ABI: dsd shared-base misname -- the ov021 name at 0x02112d64 is
-   ov010 BSS data in the running overlay set, aliased by address. */
+   ov010 BSS data in the running overlay set; the ov052 name is aliased by
+   address below, the ov021 name renamed per-TU. */
 #pragma comment(linker, "/alternatename:_data_ov052_02111e84=_func_ov010_02111e84")
-#pragma comment(linker, "/alternatename:_RollingRock_Spawn=_data_ov010_02112d64")
 #pragma comment(linker, "/alternatename:?data_0208e42c@@3CA=_data_0208e42c")
 #pragma comment(linker, "/alternatename:?data_0209b470@@3CA=_data_0209b470")
 #pragma comment(linker, "/alternatename:?data_0209b490@@3HA=_data_0209b490")

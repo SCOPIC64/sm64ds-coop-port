@@ -161,13 +161,17 @@ int _ZTV5Koopa[31];
 #pragma comment(linker, "/alternatename:__ZTV10daHolhei_c=__ZTV7Chuckya")
 #pragma comment(linker, "/alternatename:__ZTV8daNknk_c=__ZTV5Koopa")
 
-/* Shared-base sibling spellings: three ov062 bodies whose CALLERS spell them
+/* Shared-base sibling spellings: two ov062 bodies whose CALLERS spell them
    by the sibling overlays' names (dsd names a shared-image function under the
    overlay that saw it first). Same address family, same cdecl bodies -- alias
-   the sibling names onto the ov062 TUs this gate slices. */
+   the sibling names onto the ov062 TUs this gate slices.
+   The third sibling spelling that used to sit here, func_ov065_02117994, is
+   Swoop's genuinely DIFFERENT real body since wave 5 (w5-b slices it); a
+   defined LHS defeats /alternatename silently, so the three ov062 caller TUs
+   are compiled with a per-source -Dfunc_ov065_02117994=func_ov062_02117994
+   in port/CMakeLists.txt instead (w5b_review.md R2). */
 #pragma comment(linker, "/alternatename:_func_ov066_02118cdc=_func_ov062_02118cdc")
 #pragma comment(linker, "/alternatename:_func_ov066_02118a50=_func_ov062_02118a50")
-#pragma comment(linker, "/alternatename:_func_ov065_02117994=_func_ov062_02117994")
 
 /* Particle::RunningSlidingDustAt, spelled as the MSVC static-member mangle by
    func_ov062_02118004.cpp; the body is the C-named matched TU (slice_gate29).
