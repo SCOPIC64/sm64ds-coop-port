@@ -89,12 +89,36 @@
 // THE HEAD IS EIGHTEEN WORDS, and every one of them is a cited relocation
 // (from:0x02092680 through from:0x020926c4; dsd's next data symbol is
 // 0x020926c8, so 0x48/4 = 18 -- the same eighteen-entry shape the Stage's
-// table has). Only slot 1 is seated in this batch. Slots 0, 3, 6, 9, 12, 13,
-// 14 and 15 name ActorBase faces that are ALREADY in the map, so a seat there
-// buys no edge and would only invent an adapter for a body whose real face is
-// a __thiscall C++ method (CleanupResources) or a no-argument C body
-// (InitResources). The other nine slots are unlinked matched TUs and are
-// listed in group 4 below with what each still needs.
+// table has). FOUR of the eighteen are seated: slots 1, 10, 16 and 17.
+//
+//     slot  reloc        body                                 why
+//      1    0x02092684   Scene::BeforeInitResources           seated
+//     10    0x020926a8   Scene::BeforeRender                  seated
+//     16    0x020926c0   Scene::~Scene (D1)                   seated
+//     17    0x020926c4   Scene::~Scene (D0)                   seated
+//      0,3,6,9,12,13,14,15   ActorBase faces                  already linked
+//      2,4,5,7,8,11          see group 4 at the bottom        blocked
+//
+// Slots 0, 3, 6, 9, 12, 13, 14 and 15 name ActorBase faces whose TUs are
+// already in the map, so a seat there buys no edge at all.
+//
+// THE FOUR SEATED SLOTS ARE THE ONES WHOSE ABI ACTUALLY LINES UP, which is
+// the whole of the difference between this batch and the six blocked slots.
+// Each of the four matched bodies is flat C or extern "C", takes its receiver
+// as an ORDINARY FIRST ARGUMENT, and calls callees whose C-linkage cdecl names
+// the map already defines:
+//
+//     Scene::BeforeRender  -> _ZN9ActorBase12BeforeRenderEv, and the C name is
+//                             defined by hal/method_faces.cpp:305 as
+//                             `int f(void *self)` -- receiver passed, not
+//                             dropped
+//     Scene::~Scene D1/D0  -> _ZN9ActorBaseD2Ev (flat C, pointer argument) and
+//                             _ZN6Memory10DeallocateEPvP4Heap, both already
+//                             C-named in the map, plus data_0208e4b8 and
+//                             data_020a0eac which are hosted
+//
+// so nothing here needs an adapter invented for it. The six blocked slots all
+// fail that test in one of two documented ways and are written up below.
 //
 // RE-PROVING THE THREE THINGS THE MECHANISM DEPENDS ON.
 //
@@ -206,6 +230,9 @@ void *_ZN12CylinderClsnD0Ev(void *self);   /* arm9 0x0201507c */
 extern void *_ZTV5Scene[];
 
 int _ZN5Scene19BeforeInitResourcesEv(void *self);   /* arm9 0x0202e638 */
+int _ZN5Scene12BeforeRenderEv(void *self);          /* arm9 0x0202e3a4 */
+void *_ZN5SceneD1Ev(void *self);                    /* arm9 0x0202e140 */
+void *_ZN5SceneD0Ev(void *self);                    /* arm9 0x0202e170 */
 
 }
 
@@ -217,11 +244,22 @@ static int __fastcall scene_before_init(void *self, void *)
     return _ZN5Scene19BeforeInitResourcesEv(self);
 }
 
+static int __fastcall scene_before_render(void *self, void *)
+{
+    return _ZN5Scene12BeforeRenderEv(self);
+}
+
+static void *__fastcall scene_d1(void *self, void *) { return _ZN5SceneD1Ev(self); }
+static void *__fastcall scene_d0(void *self, void *) { return _ZN5SceneD0Ev(self); }
+
 extern "C" void hal_seat_w2_dtor_heads(void)
 {
     data_0208e6ec[0] = (int)(size_t)cyl_d1;
     data_0208e6ec[1] = (int)(size_t)cyl_d0;
     _ZTV5Scene[1] = (void *)scene_before_init;
+    _ZTV5Scene[10] = (void *)scene_before_render;
+    _ZTV5Scene[16] = (void *)scene_d1;
+    _ZTV5Scene[17] = (void *)scene_d0;
 }
 
 // ---- how this fill gets called ---------------------------------------------
@@ -312,20 +350,66 @@ W2SeatDtorHeads g_w2_seat_dtor_heads;
 //    Sound, VRAM banks, skybox, fog, the 2D graphics load and the whole
 //    LVL_Overlay path), which is a lane of its own, not a head seat.
 //
-// 4. A HEAD WHOSE BODY NEEDS STORAGE THE PORT DOES NOT HOST. _ZTV5Scene
-//    (0x02092680) is genuine storage in hal/stage_bridges.cpp that no fill
-//    writes and nothing dispatches -- the right shape -- and its two words are
-//    from:0x02092680 -> 0x02043c80 _ZN9ActorBase13InitResourcesEv (already
-//    linked) and from:0x02092684 -> 0x0202e638 _ZN5Scene19BeforeInitResourcesEv
-//    (matched, unlinked). Seating index 1 would be +1, but its callee chain
-//    reaches _ZN5Scene19ResetFadersAndSoundEv, which writes data_0209f1e4 --
-//    a dsd BSS symbol at 0x0209f1e4 that the port hosts NOWHERE, in hal/ or in
-//    the generated romdata. Linking the body means first deciding where that
-//    global lives and how wide it is, which is a hosting decision for the file
-//    that owns that BSS ring, not something a head seat should invent. Left
-//    for a lane that owns it; the chain behind it (func_0205583c,
-//    Initialise3dGraphics, func_020554bc, func_020556d0, G3X::SetClearColor)
-//    is all matched and all unlinked, so it is worth more than one TU.
+// 4. _ZTV5Scene -- TAKEN IN WAVE 3, and this entry is now the record of what
+//    is LEFT of it. Wave 2 blocked the whole table on one missing global:
+//    slot 1's callee chain reaches Scene::ResetFadersAndSound, which writes
+//    data_0209f1e4, and the port hosted that dsd BSS symbol nowhere.
+//    hal/auto_bss.cpp hosts it now, and slots 1, 10, 16 and 17 are seated at
+//    the top of this file with the chain behind slot 1 (func_0205583c,
+//    Initialise3dGraphics, func_020554bc, func_020556d0, G3X::SetClearColor
+//    and the geometry-engine helpers) in slice_w1l2.txt.
+//
+//    SIX SLOTS OF THIS TABLE REMAIN, and every one is blocked on the same
+//    file: hal/method_faces.cpp, which this lane does not own. They split two
+//    ways, and both ways are that file's own documented failure modes rather
+//    than anything about the seat.
+//
+//    (a) DROPPED RECEIVER -- slots 2, 8 and 11. Their matched bodies are ARM
+//        tail-call veneers that rely on the receiver riding through in r0:
+//          src/_ZN5Scene18AfterInitResourcesEj.cpp
+//            extern "C" void _ZN12ActorDerived18AfterInitResourcesEj(void);
+//            void _ZN5Scene18AfterInitResourcesEj(void) { <callee>(); }
+//        and the same shape for Scene::AfterBehavior and Scene::AfterRender.
+//        The callees exist in the map ONLY under their MSVC decorations
+//        (?AfterInitResources@ActorDerived@@UAEXI@Z,
+//        ?AfterBehavior@ActorBase@@UAEXI@Z, ?AfterRender@ActorBase@@UAEXI@Z --
+//        all UAE, virtual __thiscall, taking an argument). Closing that with
+//        an /alternatename the way G3X::SetClearColor is closed above would
+//        NOT be the same move: SetClearColor is SAX (static __cdecl) and its
+//        caller passes all five arguments, whereas aliasing a no-argument
+//        cdecl reference onto a __thiscall body ships exactly the
+//        dropped-receiver bug hal/method_faces.cpp's header lists as failure
+//        mode 2 (the Actor::FarthestPlayer silent-wrong-result class). The
+//        honest fix is a receiver-passing face in that file, three lines,
+//        reviewed against that file's (a)/(b)/(c) checklist.
+//
+//    (b) A MISSING RECEIVER-PASSING FACE -- slot 4. Scene::BeforeCleanup-
+//        Resources is ordinary C and DOES pass its receiver
+//        (`_ZN9ActorBase22BeforeCleanupResourcesEv(thiz)`), but the C-linkage
+//        cdecl name it calls is not defined anywhere; only
+//        ?BeforeCleanupResources@ActorBase@@UAEHXZ is. hal/method_faces.cpp
+//        line 305 already carries the exact face this needs for the sibling
+//        slot -- `extern "C" int _ZN9ActorBase12BeforeRenderEv(void *self)` --
+//        so this is one more line beside it, in that file.
+//
+//    (c) STORAGE THE MATCHED TU DEFINES ITSELF -- slot 5. MEASURED, not
+//        predicted: the slot was seated, the TU sliced in, and the build was
+//        run. It fails at the guard.
+//
+//          dsstate_guard: 1 hosted DS symbol(s) are OUTSIDE .dsstate
+//          [0x94c000, 0x99b1dc) and would NOT be captured by a save state:
+//            _data_02092660  @ 0x00826ee1
+//              (_ZN5Scene21AfterCleanupResourcesEj.cpp.obj)
+//
+//        src/_ZN5Scene21AfterCleanupResourcesEj.cpp does not merely reference
+//        data_02092660, it DEFINES it (`extern "C" { unsigned char
+//        data_02092660; }` at namespace scope in a .cpp is a definition, not a
+//        tentative one), so the global lands in ordinary .bss and a restore
+//        would not roll it back. The guard's own advice is to fix it "in the
+//        file that DEFINES each symbol", and that file is src/, read-only for
+//        this lane. Hosting it in hal/auto_bss.cpp instead is not the way out
+//        either -- that is a second definition of the same symbol. The seat
+//        and the slice line were both reverted.
 //
 // 5. LIVE ACTOR AND ENGINE TABLES. The remaining eighteen are overlay actor
 //    vtables (OneUpLogo, SkiLift, BabyPenguin, MrBlizzard, LakituBro,
@@ -337,11 +421,27 @@ W2SeatDtorHeads g_w2_seat_dtor_heads;
 //    InitResources, a loader or a SpawnParticles that the port currently
 //    services with a host stand-in. Swapping one in is a behaviour change in
 //    live code and belongs to the lane that owns that actor or subsystem, not
-//    to a destructor-head seat. Two of them are worth flagging anyway:
+//    to a destructor-head seat. One of them is worth flagging:
 //    data_ov002_0210cbb8[1] is LoadEntranceObjects, served by
-//    unmatched/LoadEntranceObjects.cpp, and the four particle tables put
-//    Particle::SimpleCallback::SpawnParticles at index 0 in the ROM where
-//    hal/particle_vtable.cpp seats the BASE Particle::Callback::SpawnParticles.
+//    unmatched/LoadEntranceObjects.cpp.
+//
+//    RETRACTED (wave 3): this note used to also flag "the four particle tables
+//    put Particle::SimpleCallback::SpawnParticles at index 0 in the ROM where
+//    hal/particle_vtable.cpp seats the BASE Particle::Callback::SpawnParticles."
+//    THAT WAS WRONG and there is no discrepancy to chase. Lane w3-e re-derived
+//    all thirteen particle tables against config/arm9/relocs.txt and found zero
+//    mismatches; this lane re-derived them independently before retracting,
+//    rather than taking the ruling on report. All 26 words agree with the ROM,
+//    and the four tables in question -- data_0208f3a4 (Bubble), data_0208f3c4
+//    (SimpleCallback), data_0208f3e4 (Splash) and data_0208f444
+//    (FitWaterSimple) -- already seat SimpleCallback::SpawnParticles, because
+//    the ROM's own slot-0 relocation on each of them lands on 0x02022640,
+//    which config/arm9/symbols.txt names
+//    _ZN8Particle14SimpleCallback14SpawnParticlesERNS_6SystemE. The nine that
+//    seat the base take 0x020226d0, which is Callback::SpawnParticles. The
+//    sharing is the ROM's, exactly as particle_vtable.cpp's own header says.
+//    The original claim came from reading the seats without resolving the
+//    to: addresses.
 //
 // ONE CAVEAT ON THE OVERLAY HALF OF THE SWEEP. Overlays share address space,
 // so an address resolved across all 101 configs can come back with a class

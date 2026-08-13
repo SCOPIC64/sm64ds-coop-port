@@ -84,3 +84,18 @@ src/func_02055464.c
 src/func_02055490.c
 src/func_0205a064.c
 src/DMASyncFillTransfer.c
+
+# ---- _ZTV5Scene slots 10, 16 and 17 --------------------------------------
+# The same table, the same three re-proven conditions, three more of the ROM's
+# own words:
+#   from:0x020926a8 to:0x0202e3a4 _ZN5Scene12BeforeRenderEv
+#   from:0x020926c0 to:0x0202e140 _ZN5SceneD1Ev
+#   from:0x020926c4 to:0x0202e170 _ZN5SceneD0Ev
+# These three and slot 1 are the four whose matched bodies take the receiver as
+# an ordinary first argument and whose callees are already C-named in the map,
+# so no face and no adapter has to be invented for them. The other six unlinked
+# slots of this table are blocked on hal/method_faces.cpp, which this lane does
+# not own -- the reasons are in the seat file's group 4.
+src/_ZN5Scene12BeforeRenderEv.c
+src/_ZN5SceneD1Ev.c
+src/_ZN5SceneD0Ev.c
