@@ -413,6 +413,9 @@ static void *fs_hand_out(const struct fs_cache_entry *e)
 /* SharedFilePtr::Load -- the seam. Same contract as 0x02017c54. */
 struct SharedFilePtrC { u16 fileID; u8 numRefs; void *filePtr; };
 
+// PORT_HOST_ABI: DS card hardware (overlay-file table, card streaming,
+//   CP15 flushes); the HAL reimplements the contract. See SEAM LEVEL in the
+//   header.
 void *_ZN13SharedFilePtr4LoadEv(struct SharedFilePtrC *self)
 {
     struct fs_cache_entry *e, tmp;
@@ -631,6 +634,8 @@ void func_02018270(u32 handle, u32 dest, int size)
 
 /* Construct: host ABI spells out both args (see header comment) */
 void func_02017e0c(void *self, u32 arg); /* portable src/ */
+// PORT_HOST_ABI: ARM register ride-through: the ROM leaves ov0FileID in
+//   r1 across a call that names one argument. See the header's ABI note.
 struct SharedFilePtrC *_ZN13SharedFilePtr9ConstructEj(
         struct SharedFilePtrC *self, u32 ov0FileID)
 {

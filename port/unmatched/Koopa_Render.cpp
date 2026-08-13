@@ -34,6 +34,8 @@
 #include "Model.h"
 #include "ModelAnim.h"
 
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 extern "C" int _ZN5Koopa6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;

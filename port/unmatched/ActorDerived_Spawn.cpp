@@ -31,6 +31,9 @@ int func_02042ffc(unsigned id, void *parent, unsigned param1, int flags)
     return func_02043098(id, (char *)parent + 0x14, param1, flags);
 }
 
+/* PORT_HOST_ABI: ARM register ride-through: the ROM veneer leaves param1
+ * and flags in r2/r3 across a call that names two arguments. See the
+ * header. */
 void *_ZN12ActorDerived5SpawnEjP9ActorBaseii(unsigned id, void *parent,
                                              unsigned param1, int flags)
 {

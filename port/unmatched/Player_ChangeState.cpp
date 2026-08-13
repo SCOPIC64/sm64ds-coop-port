@@ -24,6 +24,9 @@ extern unsigned char data_ov002_02110364[];
 
 typedef unsigned char StateBytes;
 
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch; the State objects are
+//   emitted overlay bytes read at raw DS offsets, not host PMFs. See the
+//   header.
 extern "C" int _ZN6Player11ChangeStateERNS_5StateE(struct Player *self,
                                                    StateBytes *newState) {
     *(StateBytes **)((char *)&self->unk_378) = newState;

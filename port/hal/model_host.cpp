@@ -148,9 +148,17 @@ void func_01ffde98(int ch, int src, int size)
 // ---- GX bank plumbing ----------------------------------------------------
 // Begin/End LoadTex unmap the destination banks to LCDC and remap after; the
 // host VRAM window is always CPU-visible, so they are no-ops.
+// PORT_HOST_ABI: DS VRAM bank remap (LCDC unmap/remap); the host VRAM
+//   window is always CPU-visible. See the GX bank plumbing note above.
 void _ZN2GX12BeginLoadTexEv(void) {}
+// PORT_HOST_ABI: DS VRAM bank remap (LCDC unmap/remap); the host VRAM
+//   window is always CPU-visible. See the GX bank plumbing note above.
 void _ZN2GX10EndLoadTexEv(void) {}
+// PORT_HOST_ABI: DS VRAM bank remap (LCDC unmap/remap); the host VRAM
+//   window is always CPU-visible. See the GX bank plumbing note above.
 void _ZN2GX16BeginLoadTexPlttEv(void) {}
+// PORT_HOST_ABI: DS VRAM bank remap (LCDC unmap/remap); the host VRAM
+//   window is always CPU-visible. See the GX bank plumbing note above.
 void _ZN2GX14EndLoadTexPlttEv(void) {}
 
 // GX::LoadTex destination resolution (see src/_ZN2GX7LoadTexEPKvjj.cpp):
@@ -332,6 +340,8 @@ extern "C" void DMAStartTransferFB(unsigned char ch, u32 src, u32 dst, u32 ctrl)
 // func_0203cc0c; that shape breaks on cdecl (the callee would read the
 // wrong stack slot), so the host bridge passes the argument explicitly.
 extern "C" void *func_0203cc0c(unsigned size);
+// PORT_HOST_ABI: ARM register ride-through: the ROM is a tail-call veneer
+//   to func_0203cc0c that never names its argument. See the note above.
 extern "C" void *_ZN6Memory13operator_new2Ej(unsigned size)
 {
     return func_0203cc0c(size);

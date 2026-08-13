@@ -20,6 +20,9 @@ void _ZN5ModelD1Ev(void *self);
 void _ZN25MovingCylinderClsnWithPosD1Ev(void *self);
 void *_ZN5ActorD2Ev(void *self);
 
+/* PORT_HOST_ABI: MSVC synthesises the base/member destructor calls under
+ * its own manglings, which do not resolve to the extern-C ROM bodies. See
+ * the header. */
 int *_ZN10StarMarkerD1Ev(int *t)
 {
     t[0] = (int)(size_t)_ZTV12daStarBase_c;

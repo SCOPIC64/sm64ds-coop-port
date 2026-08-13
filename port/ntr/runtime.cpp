@@ -24,8 +24,12 @@
 // previous masked state (0x80 = was disabled).
 // ---------------------------------------------------------------------------
 
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mrs/msr on
+//   the CPSR I bit. See the Interrupt control block above.
 extern "C" unsigned int _ZN3IRQ7DisableEv(void) { return ntr::rt_irq_disable(); }
 extern "C" unsigned int _ZN3IRQ6EnableEv(void) { return ntr::rt_irq_enable(); }
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mrs/msr on
+//   the CPSR I bit. See the Interrupt control block above.
 extern "C" unsigned int _ZN3IRQ7RestoreEj(unsigned int prev) {
     return ntr::rt_irq_restore(prev);
 }
@@ -158,22 +162,32 @@ unsigned g_ie;                      // IE word stand-in
 void (*g_gxfifo_handler)(void);     // handler for mask 0x200000
 }  // namespace
 
+// PORT_HOST_ABI: src walks the DS IRQ vector tables (data_02099fe4,
+//   data_020a60c4); the host models the one handler it dispatches.
 extern "C" void *_ZN3IRQ13GetIRQHandlerEj(unsigned mask) {
     return mask == 0x200000u ? reinterpret_cast<void *>(g_gxfifo_handler) : nullptr;
 }
+// PORT_HOST_ABI: src walks the DS IRQ vector tables (data_02099fe4,
+//   data_020a60c4); the host models the one handler it dispatches.
 extern "C" void _ZN3IRQ13SetIRQHandlerEjPFvvE(unsigned mask, void (*h)(void)) {
     if (mask == 0x200000u) g_gxfifo_handler = h;
 }
+// PORT_HOST_ABI: src pokes the DS interrupt registers (IME 0x4000208, IE
+//   0x4000210); the host keeps the IE word stand-in above.
 extern "C" unsigned _ZN3IRQ10EnableIRQsEj(unsigned mask) {
     const unsigned prev = g_ie;
     g_ie |= mask;
     return prev;
 }
+// PORT_HOST_ABI: src pokes the DS interrupt registers (IME 0x4000208, IE
+//   0x4000210); the host keeps the IE word stand-in above.
 extern "C" unsigned _ZN3IRQ11DisableIRQsEj(unsigned mask) {
     const unsigned prev = g_ie;
     g_ie &= ~mask;
     return prev;
 }
+// PORT_HOST_ABI: src pokes the DS interrupt registers (IME 0x4000208, IF
+//   0x4000214), which the ntr layer does not model.
 extern "C" void _ZN3IRQ15ClearInterruptsEj(unsigned) {}
 
 // DMA to the FIFO is the display-list path (func_0205a290). ctrl bit 30 is
@@ -201,9 +215,15 @@ extern "C" void DMAStartTransfer(int ch, int src, int dst, int ctrl) {
 // ---------------------------------------------------------------------------
 
 extern "C" void _ZN4CP1514FlushDataCacheEv(void) {}
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15
+//   cache maintenance. See the CP15 block above -- host memory is coherent.
 extern "C" void _ZN4CP1514FlushDataCacheEjj(unsigned int, unsigned int) {}
 extern "C" void _ZN4CP1516DrainWriteBufferEv(void) {}
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15
+//   cache maintenance. See the CP15 block above -- host memory is coherent.
 extern "C" void _ZN4CP1519InvalidateDataCacheEjj(unsigned int, unsigned int) {}
 extern "C" void _ZN4CP1526InvalidateInstructionCacheEjj(unsigned int, unsigned int) {}
 extern "C" void _ZN4CP1527FlushAndInvalidateDataCacheEv(void) {}
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15
+//   cache maintenance. See the CP15 block above -- host memory is coherent.
 extern "C" void _ZN4CP1527FlushAndInvalidateDataCacheEjj(unsigned int, unsigned int) {}

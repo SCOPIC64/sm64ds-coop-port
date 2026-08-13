@@ -103,6 +103,8 @@ extern "C" int KingBobOmb_SetState(void *self, void *state)
     return 1;
 }
 
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch; MSVC's PMF over an
+ * incomplete class is the wider general representation. See the header. */
 extern "C" int _ZN10KingBobOmb8BehaviorEv(void *self)
 {
     char *c = (char *)self;

@@ -103,6 +103,8 @@ int _ZN5Actor19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
 int _ZN9Animation7AdvanceEv(void *a);
 extern int data_020a0e68[12];
 
+// PORT_HOST_ABI: mwcc pointer-to-member dispatch (obj = this + (ptr >>
+//   1), bit 0 selects a vtable offset). See the note above.
 int _ZN4Bird8BehaviorEv(void *selfv)
 {
     char *c = (char *)selfv;

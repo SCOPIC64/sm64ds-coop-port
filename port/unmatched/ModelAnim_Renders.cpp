@@ -46,6 +46,8 @@ extern "C" {
    ModelComponents arg is mModelAnim.data at 0x2cc+0x8 = 0x2d4). */
 int _ZN15TextureSequence6UpdateER15ModelComponents(void *seq, void *comp);
 
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 int _ZN5Whomp6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
@@ -62,6 +64,8 @@ int _ZN5Whomp6RenderEv(void *selfv)
    State 4 is the dormant one and does not draw. Past that it is the animated
    body while +0x3f1 is set and the plain wing Model at +0x138 otherwise, and
    the second one carries the actor's own scale Vector3 at +0x80. */
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 int _ZN9Butterfly6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
@@ -80,6 +84,8 @@ int _ZN9Butterfly6RenderEv(void *selfv)
 /* ---- FISH (actor 344, ov100) ---------------------------------------------
    One early out -- +0x159 is the flag its own spawner state sets while the
    shoal has not hatched -- and the draw. */
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 int _ZN4Fish6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
@@ -97,6 +103,8 @@ int _ZN4Fish6RenderEv(void *selfv)
    actor's own scale. */
 extern int data_0209caa0;
 
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 int _ZN13QuestionBlock6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;

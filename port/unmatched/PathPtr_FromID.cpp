@@ -19,6 +19,9 @@ extern "C" {
 
 extern int data_020a0d84;   /* the path table base the level boot seats */
 
+/* PORT_HOST_ABI: ARM register ride-through: mwcc returns the two-word
+ * struct through a caller slot in r0; MSVC returns it in EAX:EDX. See the
+ * header. */
 void _ZN7PathPtr6FromIDEj(void *self, unsigned id)
 {
     *(int *)self = data_020a0d84 + (int)id * 6;

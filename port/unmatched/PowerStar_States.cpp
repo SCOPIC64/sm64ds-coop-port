@@ -121,6 +121,8 @@ extern "C" void port_power_star_states_seat(void)
 /* HOST COPY of PowerStar::Behavior. The body is the matched source
    (src/_ZN9PowerStar8BehaviorEv.cpp) line for line; only the pointer-to-member
    dispatch is spelled as a plain call through data_ov002_021109d8[idx].fn. */
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch; MSVC's PMF over an
+ * incomplete class is the wider general representation. See the header. */
 extern "C" int _ZN9PowerStar8BehaviorEv(void *selfv)
 {
     char *self = (char *)selfv;

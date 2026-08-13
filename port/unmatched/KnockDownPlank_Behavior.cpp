@@ -134,6 +134,8 @@ extern "C" void port_knock_down_plank_states_seat(void)
     }
 }
 
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch; MSVC's PMF over an
+ * incomplete class is the wider general representation. See the header. */
 extern "C" int _ZN14KnockDownPlank8BehaviorEv(void *selfv)
 {
     char *c = (char *)selfv;

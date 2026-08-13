@@ -31,6 +31,9 @@ int _ZN4cstd4fdivEii(int, int);
 int _ZN4cstd11fdiv_resultEv(void);
 s64 _ZN4cstd11ldiv_resultEv(void);
 
+/* PORT_HOST_ABI: the matrix payload leaves through a register-bound
+ * pointer into the GX MMIO port, which hostgen's literal-address rewrite
+ * cannot see. See the header. */
 void _ZN3G3i13PerspectiveW_E5Fix12IiES1_S1_S1_S1_S1_bP9Matrix4x3(
     int sinF, int cosF, int aspect, int n, int f, int scaleW, int flag,
     int *mtx)

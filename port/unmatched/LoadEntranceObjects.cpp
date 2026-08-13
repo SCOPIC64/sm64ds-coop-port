@@ -88,6 +88,8 @@ void* _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(u32 id, u32 flags, const Vect
 void* _ZN12ActorDerived5SpawnEjP9ActorBaseii(u32 id, void* base, int a, int b);
 void StartEntranceFaderWipe(int index);
 
+/* PORT_HOST_ABI: ARM argument ride-through into StartEntranceFaderWipe,
+ * which the matched TU declares void(void). See the header. */
 void _Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij(struct ObjSubTable* tbl, int p2, u32 p3)
 {
     u32 sl;

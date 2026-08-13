@@ -13,6 +13,8 @@
  */
 typedef int s32;
 
+/* PORT_HOST_ABI: src is a thin wrapper over the DS hardware divider's
+ * MMIO (the DIV registers, spinning on DIV_BUSY). See the header. */
 s32 _ZN4cstd4fdivEii(s32 a, s32 b)
 {
     if (b == 0)

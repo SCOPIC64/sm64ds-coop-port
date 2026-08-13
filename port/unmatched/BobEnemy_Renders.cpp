@@ -28,6 +28,8 @@ extern "C" {
    +0x3f3 is the "I have a model to draw" flag InitResources sets last, and
    bit 0x40000 of the actor flags is the engine's own hide. The ModelAnim is at
    +0x300 and takes the actor's own scale Vector3 at +0x80. */
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 int _ZN6BobOmb6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
@@ -54,6 +56,8 @@ extern "C" void _ZN15MaterialChanger6UpdateER15ModelComponents(char *self,
 extern "C" void _ZN8CapEnemy14RenderCapModelEPK7Vector3(void *self,
                                                         const void *v);
 
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 int _ZN6Goomba6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
@@ -82,6 +86,8 @@ int _ZN6Goomba6RenderEv(void *selfv)
 /* ---- BOB_OMB_BUDDY (actor 181, ov084) ------------------------------------
    The whole body is one dispatch. Its ModelAnim is at +0x108 and it draws at
    1.0 rather than at the actor's scale. */
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 int _ZN11BobOmbBuddy6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
@@ -96,6 +102,8 @@ int _ZN11BobOmbBuddy6RenderEv(void *selfv)
    each is a plain Model rendered at 1.0. The ROM's loop is unconditional --
    all seven every frame -- which is why the chomp's Render is longer than
    every other one in this gate put together. */
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 int _ZN10ChainChomp6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
@@ -115,6 +123,9 @@ int _ZN10ChainChomp6RenderEv(void *selfv)
    Render in slot 4 and slot 5 for exactly this), so this one would have worked
    from src/. It is here anyway because the shadow's methods all return int
    where Model::Render returns void, which MSVC decorates differently. */
+/* PORT_HOST_ABI: ROM-order model slot-5 dispatch; the shadow's methods
+ * return int where Model::Render returns void, which MSVC decorates
+ * differently. */
 int _ZN15ChainChompFence6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
@@ -129,6 +140,8 @@ int _ZN15ChainChompFence6RenderEv(void *selfv)
    races -- and then draws the ModelAnim at +0x300 at the actor's own scale. */
 extern "C" void _ZN5Model12HideMaterialEii(void *self, int boneID, int listIdx);
 
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 int _ZN13KoopaTheQuick6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
@@ -142,6 +155,8 @@ int _ZN13KoopaTheQuick6RenderEv(void *selfv)
 /* ---- KOOPA_FLAG (actor 205, ov062) ---------------------------------------
    The other half of the race, and the shortest Render in the gate: one
    dispatch on the ModelAnim at +0x108, drawn at 1.0. */
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 int _ZN9KoopaFlag6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
