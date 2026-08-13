@@ -643,6 +643,52 @@ int _ZN13QuestionBlock16CleanupResourcesEv(void *self)
 { return ((QuestionBlock *)self)->QuestionBlock::CleanupResources(); }
 }
 
+/* ---- wave 4 lane d: the two FaderBrightness faces Scene::BeforeBehavior needs
+   src/_ZN5Scene14BeforeBehaviorEv.cpp declares both of these as C-linkage free
+   functions TAKING THE RECEIVER:
+
+       extern void _ZN15FaderBrightness14SetForwardTimeEj(FaderBrightness*, u32);
+       extern int  _ZN15FaderBrightness7IsAtEndEv(FaderBrightness*);
+
+   and passes &data_0209f5d0 to each. The definitions are real virtual methods
+   in src/engine/fader/, so MSVC emits them as ?SetForwardTime@FaderBrightness
+   @@UAEHI@Z and ?IsAtEnd@FaderBrightness@@UAEHXZ. Faces and not
+   /alternatename aliases, for this file's own reason: both are UAE, virtual
+   __thiscall, so an alias would enter them with `this` in whatever ecx held
+   and (for SetForwardTime) one stack argument too many. Checklist:
+     (a) TARGET  -- qualified `FaderBrightness::` calls, so neither can land on
+                    a sibling; IsAtStart is the near-identical one and it is a
+                    DIFFERENT predicate (currInterp == 0 vs == 0x1000).
+     (b) ARITY   -- IsAtEnd none, SetForwardTime one u32, matching the ROM
+                    bodies and the two declarations above.
+     (c) RECEIVER-- passed as the first argument and cast, which is what the
+                    caller delivers; the qualified call puts it in ecx.
+
+   IsAtEnd's matched TU is ALREADY in the link (slice_w1l3.txt seats it for
+   hal/fader_wipes.cpp) -- only the C name was missing, so that face is a name
+   and nothing else. SetForwardTime's TU is not, and slice_w1l2.txt adds it.
+
+   ONE HAZARD, INHERITED FROM THE BODY AND NOT FROM THE FACE, recorded because
+   slice_w1l3.txt's fader block declined to seat this same body over it. The
+   matched FaderBrightness::SetForwardTime ends in `return IsAtEnd();`
+   UNQUALIFIED, which is a virtual call through the receiver's vptr. The only
+   receiver that reaches it here is &data_0209f5d0, whose host storage is
+   zeroed BSS because the port does not link the ROM's static initialiser for
+   it (src/__sinit_02074edc.c) -- so that dispatch would fault on a null vptr.
+   It cannot run: every call site is behind `data_0209f1e0 != 0`, and the only
+   TU that ever writes that byte non-zero (src/func_02023498.c) is not in the
+   link. The sizing note in hal/auto_bss.cpp carries the same constraint at the
+   storage, and slice_w1l2.txt's blocked list names the job that would lift it
+   (the ROM-class swap slice_w1l3.txt already scoped). Do not wake the branch
+   without giving data_0209f5d0 a real vptr first. */
+#include "FaderBrightness.h"
+extern "C" {
+int _ZN15FaderBrightness7IsAtEndEv(void *self)
+{ return ((FaderBrightness *)self)->FaderBrightness::IsAtEnd(); }
+int _ZN15FaderBrightness14SetForwardTimeEj(void *self, u32 frames)
+{ return ((FaderBrightness *)self)->FaderBrightness::SetForwardTime(frames); }
+}
+
 /* ---- gate 22: the door ring's Player entry points ------------------------
    These were direct link aliases in cxx_aliases.cpp ("same body, no thunk
    needed"), which on 32-bit MSVC called __thiscall methods with a cdecl

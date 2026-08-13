@@ -101,3 +101,59 @@ src/DMASyncFillTransfer.c
 src/_ZN5Scene12BeforeRenderEv.c
 src/_ZN5SceneD1Ev.c
 src/_ZN5SceneD0Ev.c
+
+# ==== WAVE 4, LANE w4-d ====================================================
+# ---- _ZTV5Scene slot 7, and the eight TUs behind it -----------------------
+# Reference edge: hal_seat_w2_dtor_heads writes the word config/arm9/relocs.txt
+# puts at base+0x1c:
+#   from:0x0209269c to:0x0202e3d4 _ZN5Scene14BeforeBehaviorEv
+# and config/arm9/symbols.txt puts _ZN5Scene14BeforeBehaviorEv
+# kind:function(arm,size=0x1fc) at 0x0202e3d4. (0x0209269c - 0x02092680)/4 = 7.
+# Same storage, same three re-proven conditions as slots 1/10/16/17 -- the
+# sweep is re-run in the seat's own comment, not carried from wave 3.
+#
+# THE HEAD ITSELF. Its receiver arrives as an ordinary first argument
+# (`int _ZN5Scene14BeforeBehaviorEv(char *self)` inside extern "C"), so slot 7
+# takes the same ecx->arg adapter the other four use and needs no face of its
+# own.
+src/_ZN5Scene14BeforeBehaviorEv.cpp
+# the pause branch: func_02023544 resets sound and the two mode bytes, and its
+# own callees func_02011c8c / GetSoundMode / SetSoundMode are already linked.
+src/func_02023544.c
+src/func_0202fd2c.c
+src/func_0202ed48.c
+# and func_0202ed48's two: the record writer and the IRQ-side teardown. The
+# second one stores to 0x4000208 / 0x4000000 / 0x4001000 textually, which is
+# the shape gate 4a hostgens -- but it is NOT a gate-4a symbol (CMakeLists.txt
+# GATE4A_SYMS lists nine and this is not one of them), and those addresses are
+# real committed pages in the host: port/ntr/io.cpp reserves the DS I/O region
+# at its own address, which is why hal/message_pump.cpp already writes
+# *(vu32*)0x4000000 straight. So it compiles and links from src/ unchanged.
+src/func_0202ed14.c
+src/func_0202fb30.c
+# the processing-list walk behind the pause-bit branch. Its two callees
+# (func_0203b358, func_0203b394) are already in the map. Linking it is what
+# retires hal/stage_bridges.cpp's stand-in for that one statement -- see the
+# note at stage_bridges.cpp:204, which names this exact function as the
+# blocker. NOT retired by this lane: the stand-in stays until the Stage takes
+# its processing-list seat, because nothing dispatches slot 7 yet.
+src/func_020431c4.c
+# FaderBrightness::SetForwardTime, reached by its Itanium C name from the head.
+# The face is in hal/method_faces.cpp with its checklist and its one recorded
+# hazard. This line is safe against the gate-1 slice, which also lists this TU:
+# slice_gate1.txt feeds SLICE_SOURCES, and the only target that carries that is
+# `smoke`, which carries no slice_w1l2 line. The three targets that DO carry
+# this file (walk_window, walk_window_hires, smoke_player) carry no gate-1
+# line, so there is no second object and no LNK2005.
+src/engine/fader/_ZN15FaderBrightness14SetForwardTimeEj.cpp
+#
+# NOT LINES HERE, and each for a measured reason:
+#   _ZN15FaderBrightness7IsAtEndEv is already linked (slice_w1l3.txt seats it
+#     for hal/fader_wipes.cpp); only its C name was missing, so it gets a face
+#     and no slice line.
+#   ActorBase::BeforeBehavior, ActorBase::MarkForDestruction and
+#     Scene::StartSceneFade were already in walk_window.map before this batch.
+#   func_02023498, the one TU that writes data_0209f1e0 non-zero, is NOT added.
+#     Nothing references it, so a line would be a /OPT:REF no-op -- and it is
+#     also the reason the head's whole first branch is dead in the port, which
+#     two comments (hal/auto_bss.cpp and hal/method_faces.cpp) depend on.
