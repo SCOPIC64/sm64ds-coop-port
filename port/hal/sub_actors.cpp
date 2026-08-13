@@ -319,16 +319,47 @@ extern "C" int _ZN6Player12Unk_020ca8f8Ev(void *s)
 { return ((Player *)s)->Player::Unk_020ca8f8(); }
 
 /* Stage::RenderBouncingArrows draws from an OamAttr template at ov001
-   0x020abd88 that config does not name, and nothing in emitted DATA points at
-   it, so ovdata cannot pull it in either -- naming it is a config change.
-   HUD::Render reaches this only when data_0209f284 is set, which is zeroed bss
-   on the port's boot. Stubbed by name, and it says so if that ever changes. */
+   0x020abd88. HUD::Render reaches it only when data_0209f284 is set, which is
+   zeroed bss on the port's boot, so the stub below has never actually fired.
+   It says so if that ever changes.
+
+   THE OLD REASON HERE WAS WRONG, and slice_gate27.txt repeats it. This comment
+   used to say the template is one "config does not name", and concluded that
+   "naming it is a config change, not a port change". Config names it already --
+   config/arm9/overlays/ov001/symbols.txt:111 reads
+
+       _ZN3OAM14BOUNCING_ARROWE kind:data(any) addr:0x020abd88 ambiguous
+
+   -- the same `ambiguous` shape as the five HUD tables aliased at the bottom of
+   this file, and for the same reason: ov000 and ov001 share base 0x020aa420, so
+   dsd could not attribute the address. config/arm9/overlays/ov000/symbols.txt
+   :282 carries the ov000 misattribution. So this is a PORT change, and a small
+   one. The rest of the old comment does survive checking: the only two relocs
+   to 0x020abd88 are from:0x02023db4, inside Stage::RenderBouncingArrows itself
+   (its own literal pool), and ov075 from:0x02117058, the literal pool at the
+   tail of func_ov075_02116f40 -- both CODE, so nothing in emitted DATA points
+   at it and ovdata's pointer pass genuinely cannot pull it in.
+
+   WHAT THE SEAT NEEDS, four steps, and only the first is missing:
+     1. _ZN3OAM14BOUNCING_ARROWE added to port/ov001_syms.txt. THIS IS THE ONLY
+        BLOCKER -- 0x020abd88 sits past that mount's 0x020ab800..0x020abb00
+        span, and ov001_syms.txt is not this lane's file in wave 3.
+     2. an alternatename here, exactly like the five below:
+        /alternatename:_func_020abd88=__ZN3OAM14BOUNCING_ARROWE
+     3. src/_ZN5Stage20RenderBouncingArrowsEv.cpp on a slice walk_window reads.
+     4. this stub deleted, so the matched body owns the symbol.
+   Nothing else is missing, checked rather than assumed: the matched body's six
+   data references (data_0208ee44, data_020a0db0, data_0209f2c4, data_0209f284,
+   data_0209f2d8, data_0209f248) are all hosted in hal/auto_bss.cpp, and the
+   ten-argument OAM::Render it calls is already in walk_window.map from its own
+   matched TU (_ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii.cpp.obj). */
 extern "C" void _ZN5Stage20RenderBouncingArrowsEv(void)
 {
     static int said;
     if (!said++)
         std::printf("  [hud] Stage::RenderBouncingArrows reached: its sprite "
-                    "template at ov001 0x020abd88 is unnamed in config\n");
+                    "template, ov001 0x020abd88 = OAM::BOUNCING_ARROW, is "
+                    "named in config but outside the port's ov001 mount\n");
 }
 
 /* ...and the reverse. CalculateDigits' TU is a .c file, so it defines the C

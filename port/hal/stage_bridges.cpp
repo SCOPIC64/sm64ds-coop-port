@@ -205,8 +205,14 @@ extern "C" void *port_stage_create(void)
        here rather than in the ctor because the ctor is matched src. Retiring
        it is a named job: link _ZN5Scene14BeforeBehaviorEv, give the Stage the
        processing-list seat its SpawnInfo already describes, and let slot 7 do
-       it. That also needs func_020431c4 and the data_0209f5bc scene manager,
-       which is why it is not this commit. */
+       it. That also needs func_020431c4 and a live data_0209f5bc, which is why
+       it is not this commit. (data_0209f5bc is NOT a "scene manager", as this
+       comment used to call it: Scene::SetFaders ends on `data_0209f5bc = thiz`
+       with thiz a FaderBrightness*, and dispatches ROM bytes 0x14 and 0x18 --
+       IsAtStart and IsAtEnd -- through it. It is the INSTALLED FADER, which is
+       how hal/fader_wipes.cpp describes and defines it. Scene::BeforeBehavior
+       dispatches three of its slots before it ever reaches the pause-bit
+       branch this line stands in for.) */
     *(unsigned char *)((char *)g_stage + 0x13) &= (unsigned char)~(1 | 4);
 
     std::printf("[stage] flags +0x13 = 0x%02x after the stand-in clear "
@@ -306,7 +312,30 @@ extern "C" void port_stage_render_model_transparent(void *self)
    clear leaks the 0x14-byte transformer objects the ROM's cleanup would
    delete; a level change costs at most a few hundred bytes until the Stage
    runs as a real actor and its own InitResources/CleanupResources pair owns
-   this. */
+   this.
+
+   THE DOUBLE-LOAD, for whoever seats Stage::InitResources. Right now this
+   bridge is the ONLY caller of Stage::LoadTextureTransformers in the port --
+   Stage::InitResources does not run here at all -- so there is no double load
+   today and none of this is a live bug. But the matched Stage::InitResources
+   calls LoadTextureTransformers itself (src/_ZN5Stage13InitResourcesEv.cpp
+   line 388), into a Stage it has just constructed. Seat it without touching
+   this file and BOTH fire on the same entry: InitResources loads into fresh
+   slots, then the level id changes, then the guard below sees a new id, zeroes
+   the slots InitResources just filled and loads a SECOND set. The first set is
+   unreachable from that moment -- 0x14 bytes per animating area, per entry,
+   with no CleanupResources to take them back.
+
+   The two halves are already coupled through port_stage_anims_rearm(), which
+   hal/level_boot.cpp calls when it memsets the area records (the self-warp
+   case, where the level id alone cannot see that the BTA was released and
+   re-loaded). So the seat is a PAIR, not a single change: whoever gives
+   Stage::InitResources the real call has to drop this bridge's load half and
+   the rearm call together, leaving only the per-frame advance below -- which is
+   the half that belongs to Stage::Render and is the only half the ROM runs
+   every frame. Doing one without the other is the leak above, or, if the rearm
+   goes first, texture animation dead for the rest of the session (measured on
+   levels 13, 7 and 1 -- see the comment at hal/level_boot.cpp:2823). */
 extern "C" {
 extern signed char data_0209f2f8;                /* current level id */
 extern int data_0209f294[], data_0209f2c4[], data_0209f20c[];

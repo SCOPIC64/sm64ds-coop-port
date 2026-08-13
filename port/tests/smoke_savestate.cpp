@@ -213,6 +213,14 @@ int main(void)
     data_020a4b54 = 0x12b;
     static unsigned short spawn_info[4] = { 0, 0, 100, 100 };
     data_020a4bb8[0x12b] = spawn_info;
+    /* HAND-SEED RETAINED for the same measured reason as smoke_actor.cpp:
+       src/_ZN4Heap18InitializeGameHeapEjPS_.c is listed only in
+       slice_w1l3.txt, this target's source list does not carry that slice, and
+       adding it is a port/CMakeLists.txt edit owned by another lane this wave.
+       walk_window.cpp and smoke_player.cpp run the ROM's carve instead. When
+       this one converts, the saved arena bytes move with it -- save and load
+       are the same process and the same build, so the byte-exact compare holds
+       either way, but a shipped savestate.bin does not cross the change. */
     data_020a0eac_c = data_020a0ea0;
     static SharedFilePtrC sign_model, sign_kcl;
     _ZN13SharedFilePtr9ConstructEj(&sign_model, 1177);

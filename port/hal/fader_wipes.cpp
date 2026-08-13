@@ -17,12 +17,13 @@
 // FaderWipe's fade is a ModelComponents::Render of a mesh that
 // FaderWipe::LoadAndSetFile pulls from the stage filesystem, which the
 // port does not mount, so nothing draws. The interpolator the rest of the
-// engine polls IS real: the four functions that own it
-// (FaderBrightness::SetToStart / SetToEnd / IsAtStart / IsAtEnd) are
-// three-line matched bodies and mirroring them costs nothing. AdvanceFade
-// is the one deliberate divergence -- it snaps currInterp to its target
-// instead of stepping, because a fade nobody can see should not hold a
-// scene transition open for 30 frames.
+// engine polls IS real, and since wave 3 it is not merely mirrored: the five
+// matched bodies that own it are CALLED from the slots below -- see the
+// delegation note after the slot table. AdvanceFade keeps one deliberate
+// divergence: an UNDRIVEN advance snaps currInterp to its target rather than
+// stepping, because a fade nobody is driving must not hold a scene transition
+// open for 30 frames, while port_fader_advance's driven advance steps for real
+// so the fade renders.
 //
 // ---- SLOT ORDER: the ROM's, not MSVC's ------------------------------------
 //
@@ -65,20 +66,55 @@
 // (currInterp = 0x1000) rather than its start, which is the outcome the port
 // wants anyway -- IsAtEnd, the predicate a scene transition waits on, reads
 // true immediately instead of waiting on a fade that can never render.
+//
+// ---- WHAT IS HOST HERE AND WHAT IS THE DECOMP -----------------------------
+//
+// The table below is a host CLASS, because the ROM slot order above is the
+// whole point of it and MSVC will not emit that order for a class derived from
+// the ROM's Fader. But the ARITHMETIC inside the slots is no longer host: the
+// five interpolator bodies that carry it are matched TUs, and this file now
+// CALLS them instead of restating them (slice_w1l3.txt seats the five):
+//
+//     Fader::AdvanceInterp            the one-frame 20.12 step
+//     FaderBrightness::SetToStart     currInterp = 0
+//     FaderBrightness::SetToEnd       currInterp = 0x1000
+//     FaderBrightness::IsAtStart      currInterp == 0
+//     FaderBrightness::IsAtEnd        currInterp == 0x1000
+//
+// The cast is a reinterpret, not a base conversion: Fader is vptr at 0x0 then
+// currInterp 0x4 and speed 0x8 (include/Fader.h, pinned by the bytes), which is
+// exactly HalFaderWipe's prefix, and every one of the five is reached QUALIFIED
+// so no call re-dispatches through the host table.
+//
+// THREE SLOTS ARE DELIBERATELY NOT DELEGATED, and the reason is the MSVC dtor
+// fold. FaderBrightness's matched SetForwardTime/SetBackwardTime end in a
+// VIRTUAL IsAtEnd()/IsAtStart(), and IsBetweenStartAndEnd is two more. Under
+// mwcc those resolve at ROM slots 5 and 6; MSVC folds D1/D0 into one slot, so
+// on a HalFaderWipe -- which spends two slots keeping ROM byte order -- a
+// FaderBrightness-slot-4 call lands on SetForwardTime and a slot-5 call on
+// IsAtStart. Slot 4 is the dangerous one: it takes two ints under __thiscall,
+// so a no-argument virtual landing there unbalances the stack. Those three stay
+// host, spelled to match the matched bodies they cannot safely call.
 #include <cstdio>
 #include <cstdlib>
 #include <new>
 #include "dsstate_seg.h"
+/* The ROM classes whose interpolator this file mirrors. Included for the
+   LAYOUT and the method declarations, never to derive from. Pulls types.h,
+   whose `typedef s32 Fix12i` is the same `int` this file used to typedef
+   locally, so the local typedef is gone rather than shadowed. */
+#include "FaderBrightness.h"
 
-typedef int Fix12i;
-
-/* The 20.12 approach helper Fader::AdvanceInterp uses. On the ROM it is spelled
-   func_0203ae58, but that name is bridged to ApproachLinear only in
-   hal/shims.cpp (the gate-1 smoke target); walk_window does not link that shim.
-   The matched function itself, ApproachLinear(int&, int, int), IS linked here
-   (src/_Z14ApproachLinearRiii.cpp), so call it by its mangled name directly.
-   Same one-frame 20.12 step the matched Fader::AdvanceInterp takes. */
-extern "C" void _Z14ApproachLinearRiii(int *value, int target, int step);
+/* Fader::AdvanceInterp calls the 20.12 approach helper by its ROM spelling,
+   func_0203ae58. That name is DEFINED only in hal/shims.cpp, the gate-1 smoke's
+   target, which walk_window does not link -- so seating AdvanceInterp leaves it
+   unresolved unless this file supplies it. The matched ApproachLinear(int&,
+   int, int) IS linked here (src/_Z14ApproachLinearRiii.cpp, reached through the
+   C face in hal/player_bridges.cpp), and the two agree on the cdecl signature;
+   func_0203ae58 is declared void and ApproachLinear returns int, which a cdecl
+   caller discards. alternatename rather than a definition, so that a target
+   which DOES link shims.cpp keeps its own strong one and nothing collides. */
+#pragma comment(linker, "/alternatename:_func_0203ae58=__Z14ApproachLinearRiii")
 
 /* SetBlendBrightness, the matched G2x routine, is what both FaderColor and
    FaderWipe write the 2D master-blend register with. It is in slice_gate1, so
@@ -143,8 +179,9 @@ struct HalFaderWipe {
         }
         Fix12i old = currInterp;
         Fix12i target = speed >= 0 ? 0x1000 : 0;
-        Fix12i step = speed >= 0 ? speed : -speed;
-        _Z14ApproachLinearRiii(&currInterp, target, step);
+        /* the step itself is the matched body: it picks target and |step| from
+           the sign of speed exactly as the three lines here used to */
+        ((Fader *)(void *)this)->Fader::AdvanceInterp();
         if (currInterp == old)
             return currInterp == target;
         /* FaderColor::AdvanceFade, verbatim on the numbers: color != 0 means a
@@ -164,6 +201,10 @@ struct HalFaderWipe {
         }
         return currInterp == target;
     }
+    /* 0x0c / 0x10 -- NOT delegated: the matched bodies end in a virtual
+       IsAtStart()/IsAtEnd() that would land one slot off here. See the dtor-fold
+       note in the header. The arithmetic below is the matched arithmetic:
+       cstd::fdiv(+-0x1000, frames << 12) is +-0x1000 / frames. */
     virtual int SetBackwardTime(int frames, int)     /* 0x0c */
     {
         speed = frames ? -(Fix12i)(0x1000 / frames) : -0x1000;
@@ -174,8 +215,11 @@ struct HalFaderWipe {
         speed = frames ? (Fix12i)(0x1000 / frames) : 0x1000;
         return HalFaderWipe::IsAtEnd();
     }
-    virtual int IsAtStart() { return currInterp == 0; }        /* 0x14 */
-    virtual int IsAtEnd() { return currInterp == 0x1000; }     /* 0x18 */
+    /* 0x14 / 0x18 -- the matched predicates, reached qualified */
+    virtual int IsAtStart()
+    { return ((FaderBrightness *)(void *)this)->FaderBrightness::IsAtStart(); }
+    virtual int IsAtEnd()
+    { return ((FaderBrightness *)(void *)this)->FaderBrightness::IsAtEnd(); }
     virtual int IsBetweenStartAndEnd()                         /* 0x1c */
     {
         return HalFaderWipe::IsAtStart() == 0 &&
@@ -184,12 +228,12 @@ struct HalFaderWipe {
     virtual void SetToEnd()                                    /* 0x20 */
     {
         hal_wipe_note("SetToEnd", this);
-        currInterp = 0x1000;
+        ((FaderBrightness *)(void *)this)->FaderBrightness::SetToEnd();
     }
     virtual void SetToStart()                                  /* 0x24 */
     {
         hal_wipe_note("SetToStart", this);
-        currInterp = 0;
+        ((FaderBrightness *)(void *)this)->FaderBrightness::SetToStart();
     }
     virtual void HalTail28() { hal_wipe_note("tail slot 0x28", this); }
     virtual void HalTail2c() { hal_wipe_note("tail slot 0x2c", this); }

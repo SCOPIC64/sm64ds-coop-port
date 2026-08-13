@@ -25,8 +25,10 @@ void *_ZN9ActorBasenwEj(unsigned size);
 extern int data_0209b3ec[12];
 extern unsigned short data_020a4b54;
 extern void **data_020a4bb8;
-extern void *data_020a0eac_c;
-extern void *data_020a0ea0;
+extern void *data_020a0eac_c;                /* Memory::gameHeapPtr */
+extern void *data_020a0ea0;                  /* defaultHeapPtr (gate 3a) */
+void _ZN4Heap18InitializeGameHeapEjPS_(unsigned size, void *root);
+unsigned _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *alloc);
 void hal_fill_model_vtable(void);
 void hal_fill_shadow_vtable(void);
 void hal_fill_mmc_vtable(void);
@@ -201,7 +203,30 @@ int main(void)
     data_020a4b54 = 0;
     static unsigned short spawn_info[4] = { 0, 0, 100, 100 };
     data_020a4bb8[0] = spawn_info;
-    data_020a0eac_c = data_020a0ea0;
+
+    /* THE GAME HEAP, the ROM's own chain instead of an alias -- the same
+       bring-up tests/walk_window.cpp does, so the smoke and the game configure
+       the heap the same way. This line used to be
+       `data_020a0eac_c = data_020a0ea0;`, which pointed the game-heap word
+       straight at the root heap: every allocation came out of the whole host
+       arena and the ROM's own heap object never existed. func_0201a054, the
+       main.c boot spine, calls Heap::InitializeGameHeap(0x3b000, 0) instead --
+       a hard immediate and a NULL parent, no arena arithmetic. See
+       walk_window.cpp for the disassembly and slice_w1l3.txt for the verified
+       encoding. ActorBase::operator new below takes the Player out of this
+       heap by name -- Memory::Allocate(size, -4, data_020a0eac), a negative
+       alignment, so from the tail -- which is what makes the carve exercised
+       here and not merely performed. */
+    _ZN4Heap18InitializeGameHeapEjPS_(0x3b000, 0);
+    CHECK(data_020a0eac_c != NULL);
+    if (!data_020a0eac_c) {
+        fprintf(stderr, "InitializeGameHeap returned null -- no game heap\n");
+        return 2;
+    }
+    fprintf(stderr, "[heap] game heap %p, 0x%x bytes, %u free after carve\n",
+            data_020a0eac_c, 0x3b000u,
+            _ZN22ExpandingHeapAllocator10MemoryLeftEv(
+                *(void **)((char *)data_020a0eac_c + 0x14)));
 
     void *player = _ZN9ActorBasenwEj(0x800);
     CHECK(player != NULL);
