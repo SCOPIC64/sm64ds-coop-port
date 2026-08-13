@@ -205,8 +205,14 @@ extern "C" void *port_stage_create(void)
        here rather than in the ctor because the ctor is matched src. Retiring
        it is a named job: link _ZN5Scene14BeforeBehaviorEv, give the Stage the
        processing-list seat its SpawnInfo already describes, and let slot 7 do
-       it. That also needs func_020431c4 and the data_0209f5bc scene manager,
-       which is why it is not this commit. */
+       it. That also needs func_020431c4 and a live data_0209f5bc, which is why
+       it is not this commit. (data_0209f5bc is NOT a "scene manager", as this
+       comment used to call it: Scene::SetFaders ends on `data_0209f5bc = thiz`
+       with thiz a FaderBrightness*, and dispatches ROM bytes 0x14 and 0x18 --
+       IsAtStart and IsAtEnd -- through it. It is the INSTALLED FADER, which is
+       how hal/fader_wipes.cpp describes and defines it. Scene::BeforeBehavior
+       dispatches three of its slots before it ever reaches the pause-bit
+       branch this line stands in for.) */
     *(unsigned char *)((char *)g_stage + 0x13) &= (unsigned char)~(1 | 4);
 
     std::printf("[stage] flags +0x13 = 0x%02x after the stand-in clear "

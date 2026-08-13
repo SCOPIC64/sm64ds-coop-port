@@ -29,8 +29,20 @@
 // WHY A HOST COPY AND NOT THE MATCHED FILE. src/_ZN5Stage13UpdateMessageEv.cpp
 // is a STUB: it defines its own empty Message::UpdateWindow / Message::Update /
 // Message::DisplaySaving / SaveData::SaveCurrentFile locally and calls those,
-// so linking it would (a) collide with the real Message symbols already in the
-// slice and (b) tick nothing. And Stage::Behavior itself pulls in the entire
+// so linking it would TICK NOTHING -- the message box would be driven by four
+// empty bodies. That reason alone is decisive.
+//
+// (This comment used to give a second reason, that linking it would "collide
+// with the real Message symbols already in the slice". That one does not
+// survive checking and has been dropped: MSVC encodes the return type and the
+// static/instance distinction into a member function's decorated name, so the
+// stub's `static bool Message::UpdateWindow()` decorates to
+// ?UpdateWindow@Message@@SA_NXZ while the real one in walk_window.map is
+// ?UpdateWindow@Message@@SAHXZ, and the stub's `static void Message::Update()`
+// is ?Update@Message@@SAXXZ against the real ?Update@Message@@QAEXXZ. Different
+// symbols, no collision. The other two resolve against C names entirely.)
+//
+// And Stage::Behavior itself pulls in the entire
 // pause/VS/level-change machinery (PS_Update, VE_Init, Scene::SetSceneToSpawn,
 // data_0209f5bc->v5 ...), none of which the port hosts. So this file is the ONE
 // statement of Stage::Behavior that owns the message box -- UpdateMessage's own
