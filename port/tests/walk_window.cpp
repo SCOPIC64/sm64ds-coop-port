@@ -513,33 +513,21 @@ static void ss_note(const char *msg)
     ss_toast_left = 120;
 }
 
-/* THE SHADOW LIST'S TWO STATICS, seated at the two points Stage::Render and
-   Stage::Behavior call them. Both bodies are matched src/ and both were being
-   discarded by /OPT:REF because the port's transcription of those two Stage
-   methods skipped the calls.
+/* ShadowModel::CleanAll, seated at the point Stage::Behavior calls it. The
+   body is matched src/ and was being discarded by /OPT:REF because the port's
+   hand transcription of Stage::Behavior had skipped the call.
 
    This is a method-shadow declaration, the same trick hal/heap_vtable.cpp uses:
    MSVC mangles a static member off the class NAME and the signature only, so
-   `?RenderAll@ShadowModel@@SAXXZ` from here is the same symbol the real
-   definition (src/_ZN11ShadowModel9RenderAllEv.cpp, which includes the full
+   `?CleanAll@ShadowModel@@SAXXZ` from here is the same symbol the real
+   definition (src/_ZN11ShadowModel8CleanAllEv.cpp, which includes the full
    include/ShadowModel.h) exports. No layout is assumed and none is used.
 
-   WHAT THEY DO HERE, exactly: both walk the global intrusive shadow list at
-   data_0209cef4, and on the port that list is ALWAYS EMPTY. The only thing that
-   ever links a node onto it is ShadowModel::InitModel, reached through
-   Actor::DropShadowScaleXYZ, and both of those are host no-ops because the
-   cuboid/cylinder shadow template BMDs live in overlay 1 and the port does not
-   mount ov001 (the reasons are written out in hal/cxxname_bridge.cpp). So
-   RenderAll runs its terminal `data_0209ceec = 1` and CleanAll its terminal
-   `data_0209ceec = 0`, and the loop bodies -- including RenderAll's calls to
-   func_02046120 and func_02046088, which set the per-material polygon-attribute
-   alpha for the two shadow passes -- do not execute yet. They link because
-   RenderAll names them, which is the ROM's own reference edge, and they will
-   run unchanged the day ov001 mounts. Nothing else in the game reads
-   data_0209ceec: src/ has exactly three TUs that touch it and all three are
-   ShadowModel's own. */
+   Its sibling ShadowModel::RenderAll is NOT declared here on purpose. See the
+   call site above port_actor_tick for the evidence; the short version is that
+   the port really does put nodes on this list and they have no model attached,
+   so RenderAll faults on the first one. */
 struct ShadowModel {
-    static void RenderAll();
     static void CleanAll();
 };
 
@@ -4565,6 +4553,69 @@ int main(void)
             }
         }
 
+        /* Stage::Behavior's LAST statement, and it goes HERE rather than at the
+           end of the port's behaviour phase. The ROM's own text is
+
+               if ((u8)(data_0209f294 | (data_0209f2c4 | data_0209f20c)) == 0)
+                   if ((data_0209b454 & ~0x20000000) == 0)
+                       ShadowModel::CleanAll();
+
+           and the port holds all four of those globals at 0 for this boot
+           (hal/level_boot.cpp seeds them beside the camera state), so writing
+           the guard out would only be repeating a constant.
+
+           WHY BEFORE THE ACTOR TICK. The three ShadowModel TUs describe a
+           freeze protocol between them: InitModel refuses to link a node while
+           data_0209ceec is set, RenderAll SETS it as its last act, CleanAll
+           CLEARS it. So a frame's registrations can only happen after that
+           frame's CleanAll and before its RenderAll, and the registrations are
+           made from actors' own Behavior methods (SignPost::Behavior and
+           ArrowSignRight::Behavior are the two matched examples). On the ROM
+           that works because the Stage ticks at the head of the behaviour list
+           -- its spawn record at 0x0209213c carries behaviour priority 3
+           against the hundreds other classes use. The port's equivalent of
+           "before every other actor's Behavior" is right here, above
+           port_actor_tick. Putting it at the end of the phase instead would
+           empty the list the actors had just filled, and once ov001 mounts
+           that would be shadows that never draw.
+
+           real_boot rather than boot_spawns because the Stage exists on the
+           no-spawn boot too; menu_on because the ROM does not reach
+           Stage::Behavior at all on a paused frame.
+
+           AND ITS SIBLING STAYS OUT. Stage::Render's ShadowModel::RenderAll,
+           which belongs between RenderModel and RenderModelTransparent below,
+           CANNOT be seated yet, and this is the measurement rather than a
+           guess -- it was seated, and walk_window took an access violation on
+           frame 1:
+
+             FAULT code c0000005 at +0x000893c8 accessing 00000000
+               stack[03] +0x000892b1
+
+           +0x893c8 is eight bytes into func_02046120 and +0x892b1 is inside
+           RenderAll, i.e. `int n = self->sub->count` with self null, where
+           self is the list node's `data` (its ModelComponents at +0x08).
+
+           The list is NOT empty on the port, which is what
+           hal/cxxname_bridge.cpp's note implies and what I assumed too.
+           Actor::DropShadowScaleXYZ is indeed a host no-op there, but
+           Actor::DropShadowRadHeight is NOT: its C spelling resolves to the
+           matched src/ body, which calls ShadowModel::InitModel for real, and
+           Butterfly::Behavior takes that path every frame on this level (the
+           boot census spawns butterflies). So a real ShadowModel goes on the
+           list with data == 0, because the thing that would have filled it is
+           ShadowModel::InitCuboid and that IS stubbed -- the cuboid template
+           BMD is static .data in overlay 1 and the port does not mount ov001.
+
+           RenderAll dereferences that null on its first node. Guarding it here
+           would be inventing behaviour the ROM does not have, so it waits for
+           ov001. Note also that seating RenderAll with this CleanAll call left
+           at the END of the behaviour phase runs clean -- but only because the
+           list is force-emptied after the actors fill it and before RenderAll
+           reads it, which is the wrong order and would draw no shadows at all
+           once ov001 lands. A green run for that reason is not a seat. */
+        if (real_boot && !menu_on)
+            ShadowModel::CleanAll();
         if (menu_on) {
             game_ticked = 0;
         } else if (boot_spawns) {
@@ -4662,20 +4713,6 @@ int main(void)
            one the level cannot produce (hal/level_boot.cpp) */
         if (real_boot)
             port_stage_path_guard(player);
-        /* Stage::Behavior's LAST statement, in its place. The ROM's is
-
-               if ((u8)(data_0209f294 | (data_0209f2c4 | data_0209f20c)) == 0)
-                   if ((data_0209b454 & ~0x20000000) == 0)
-                       ShadowModel::CleanAll();
-
-           and the port holds all four of those globals at 0 for this boot
-           (hal/level_boot.cpp seeds them next to the camera state), so the
-           guard is unconditionally taken and spelling it out here would only
-           be repeating a constant. game_ticked is the one condition that is
-           NOT constant: the ROM never reaches Stage::Behavior at all on a
-           paused frame, and menu_on clears game_ticked for exactly that. */
-        if (game_ticked)
-            ShadowModel::CleanAll();
         ph_end(PH_INPUT, t_phase);
         /* THE DECEL CURVE. One line per frame after the tick, so the speed
            printed is the one this frame's physics produced. dv is the change
@@ -5420,15 +5457,16 @@ int main(void)
                    Model glued to the camera eye (hal/stage_bridges.cpp); the
                    two model passes are the same Model drawn twice with
                    inverse visibility masks -- the moat water only exists in
-                   the second, and ShadowModel::RenderAll sits between them --
-                   it is the ROM's own call now, not a comment. */
+                   the second. (ShadowModel::RenderAll sits between them on the
+                   ROM; see the CleanAll block above for what stops it.) */
                 port_stage_render_skybox(stage);
                 /* Stage::Render's first block, in its place in the order:
                    advance the shown areas' BTA texture animations (the
                    waterfall), which RenderModel below then applies. */
                 port_stage_advance_anims(stage);
                 port_stage_render_model(stage);
-                ShadowModel::RenderAll();
+                /* ShadowModel::RenderAll() BELONGS HERE and cannot go in yet;
+                   the reason is written out beside the CleanAll call above. */
                 port_stage_render_model_transparent(stage);
             } else {
                 hal_render_model(level_model, level_shift);
