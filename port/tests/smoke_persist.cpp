@@ -145,6 +145,15 @@ static int *boot_actor_world()
     data_020a4b54 = 0x12b;
     static unsigned short spawn_info[4] = { 0, 0, 100, 100 };
     data_020a4bb8[0x12b] = spawn_info;
+    /* HAND-SEED RETAINED for the same measured reason as smoke_actor.cpp:
+       src/_ZN4Heap18InitializeGameHeapEjPS_.c is listed only in
+       slice_w1l3.txt, this target's source list does not carry that slice, and
+       adding it is a port/CMakeLists.txt edit owned by another lane this wave.
+       walk_window.cpp and smoke_player.cpp run the ROM's carve instead. This
+       smoke crosses a real process boundary, so when it converts BOTH
+       processes must convert together -- they are the same exe, which is what
+       makes that safe, and the gittip header refuses a stale disk state
+       anyway. */
     data_020a0eac_c = data_020a0ea0;
     static SharedFilePtrC sign_model, sign_kcl;
     _ZN13SharedFilePtr9ConstructEj(&sign_model, 1177);

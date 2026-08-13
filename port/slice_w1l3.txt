@@ -40,6 +40,38 @@ src/_ZN9ModelBaseD0Ev.c
 # Heap::CreateExpandingHeapAllocator, ExpandingHeap::ExpandingHeap -- was
 # already linked before this wave.
 src/_ZN4Heap18InitializeGameHeapEjPS_.c
+#
+# ---- wave 3: the ENCODING, re-derived, and who else can call it ------------
+# The BL word at 0x0201a108 is eb00884f, NOT eb0083fc. Re-derived three ways
+# in wave 3 before copying it anywhere:
+#   extracted/arm9_dec.bin at base 0x02004000, offset 0x0201a108-0x02004000
+#     reads eb00884f; imm24 = 0x00884f, so the target is
+#     0x0201a108 + 8 + 0x00884f*4 = 0x0203c24c, which is the address in this
+#     TU's own header comment.
+#   eb0083fc decodes to 0x0201a110 + 0x0083fc*4 = 0x0203b100, which is not
+#     Heap::InitializeGameHeap and is not any address this call site names.
+#   a whole-image scan for the two-word prelude 3b0aa0e3 0010a0e3
+#     (MOV r0,#0x3b000 / MOV r1,#0) finds exactly ONE occurrence in arm9_dec,
+#     at 0x0201a100, and its third word is eb00884f.
+# tests/walk_window.cpp:2029 carries eb0083fc after a wave-2 review fixup and
+# wants correcting at wave close; walk_window.cpp is frozen for lane w3-c.
+# The immediate 0x3b000 and the NULL parent are unaffected -- only the printed
+# encoding of the BL is wrong, so no behaviour rides on this.
+#
+# tests/smoke_player.cpp now makes the same call, which is a second reference
+# edge for this line and the reason the four smokes stopped disagreeing with
+# the boot spine about how the game heap comes up. THREE smokes could NOT be
+# converted: smoke_actor, smoke_savestate and smoke_persist do not carry
+# SLICE_W1L3_SOURCES, so the TU is absent from their targets and the converted
+# call dies at link with
+#   error LNK2019: unresolved external symbol
+#   __ZN4Heap18InitializeGameHeapEjPS_ referenced in function _main
+# (measured on smoke_actor, then reverted). The unblock is one line per target
+# in port/CMakeLists.txt -- either ${SLICE_W1L3_SOURCES} added to the three
+# add_executable calls at lines 559 / 579 / 604, or just this one file path --
+# and CMakeLists.txt had a different single owner in wave 3. Note the slice
+# variable is defined at line 1262, BELOW those three targets, so a mover has
+# to hoist the file(STRINGS) block or name the file directly.
 
 # ---- wave 2: the shadow list, one static of two -----------------------------
 # Wave 1 parked the shadow-list files below as "they come in with Stage, not
