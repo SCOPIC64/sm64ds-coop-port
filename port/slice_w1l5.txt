@@ -85,14 +85,12 @@ src/func_ov002_020ee5d0.c
 #   EnterWhirlpool   no caller anywhere in src/ yet
 #   JumpIntoBooCage  no caller anywhere in src/ yet
 #   CanPause         no caller in src/ yet (the arm9 pause menu calls it)
-#   D0               vtable slot 17, seated by hal/level_boot.cpp
 src/_ZN6Player12GetHurtStateEv.cpp
 src/_ZN6Player5ShockEj.cpp
 src/_ZN6Player8BlowAwayEs.cpp
 src/_ZN6Player14EnterWhirlpoolEv.cpp
 src/_ZN6Player15JumpIntoBooCageER7Vector3.cpp
 src/_ZN6Player8CanPauseEv.cpp
-src/_ZN6PlayerD0Ev.cpp
 
 # ---------------------------------------------------------------------------
 # NOT SEATABLE, and why. None of these is a wiring problem this lane can fix.
@@ -129,6 +127,14 @@ src/_ZN6PlayerD0Ev.cpp
 #       _ZN6Player12St_Null_InitEv         ov006's 0x020cac30; same shape.
 #       _ZN6Player6ST_OWLE                 an ov006 class, not a Player member
 #         at all -- see the note in the src file.
+#
+# (b2) _ZN6PlayerD0Ev is matched and links clean, and it is still left out: it
+#     is vtable slot 17, which hal/level_boot.cpp traps ON PURPOSE. The ROM's
+#     teardown never dispatches the deleting destructor -- AfterCleanupResources
+#     calls slot 16 and does the Memory::Deallocate itself -- so a call landing
+#     in slot 17 means something reached the Player through `delete`, and the
+#     trap is the bug report. Seating a body for a slot the port deliberately
+#     wants to abort on is the wrong direction, however cheap the line is.
 #
 # (c) MSVC rejects the TU outright. src/func_ov002_020e3e00.cpp redeclares
 #     func_0203c178 / MulMat3x3Mat3x3 / func_02016acc and its own
