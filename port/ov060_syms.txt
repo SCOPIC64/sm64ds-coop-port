@@ -1,0 +1,142 @@
+# run linkw wave 5 (lane w5-e): ov060, the BOWSER-FIGHT ACTOR PACK, per symbol.
+#
+# ov060 is the object overlay the three koopaN_boss arenas load -- and the ONLY
+# one they load: LoadOrUnloadObjectOverlays short-circuits idx 0x24/0x26/0x28
+# (levels 36/38/40) to ov060 with an early return, skipping even the ov098/
+# ov102 tail. First mount of this overlay (base 0x02111900, code 0x02111900..
+# 0x02119260, data ..0x0211abe0, bss ..0x0211b240; compressed:true, so every
+# raw byte below was read from extracted/overlays/overlay_0060.bin, never the
+# dsd export).
+#
+# ==== THE CAST MAP, five reads per row (the w4-b method) ====================
+# arm9 ACTOR_SPAWN_TABLE 0x02090864 + id*4 -> SpawnInfo; SpawnInfo raw
+# word[1]&0xffff == id; word[0] == the named Spawn inside ov060; each Spawn's
+# own vtable-store reloc names the class's true table; widths pinned by the
+# reloc run AND the next dsd symbol. All seven rows agree on all five reads:
+#
+#   id  class               Spawn       SpawnInfo   true table  width
+#   279 Bowser              0x02116428  0x0211a5f4  0x0211a6b8  31
+#   278 BowserTail          0x021163f0  0x0211a610  0x0211a634  32 (slot 31 = ROM zero)
+#   280 BowserFire          0x02117938  0x0211a7d0  0x0211a7f4  31 (EnemyC2 base)
+#   281 BowserShockwaves    0x021191f4  0x0211ab30  0x0211ab54  31 (+0x10 .data zero pad)
+#   284 SpikeBomb           0x02118cbc  0x0211aa68  0x0211aa8c  31
+#   166 BowserFireSeaArena  0x02117cdc  0x0211a88c  0x0211a8b0  32 (Platform::Kill @31)
+#   167 BowserSkyPlatform   0x02118408  0x0211a964  0x0211a9b0  32 (Platform::Kill @31)
+#
+# ONE dsd LABEL SHIFT (the shared-window naming trap the census documents):
+# the table at 0x0211aa8c labeled _ZTV17BowserSkyPlatform == _ZTV9daKirai_c is
+# SPIKE BOMB's (SpikeBomb_Spawn stores it; kirai = the naval mine; the slot
+# bodies carry the shifted _ZN17BowserSkyPlatform* method spellings).
+# BowserSkyPlatform's true table is the UNNAMED data_ov060_0211a9b0 -- its own
+# D1/D0 (func_ov060_02117d1c/02117d60) restore it as _ZTV10daKpa3Bg_c, the
+# koopa3 arena platform. The spawn names are the correct ones; use the table.
+#
+# ==== SEVEN SYMBOLS LEFT OUT ================================================
+# The seven vtables are excluded (the ov015/ov016/ov045 rule: a mounted vtable
+# hands a factory DS code addresses); hal/actor_classes_ov060.cpp hosts the
+# one this lane registers (166) and documents the other six for wave 6.
+# BowserTail's _ZTV span is 33 words; the 33rd (0x0211a6b4, a pointer to
+# data_ov060_0211a5cc) has NO reader anywhere -- no load reloc targets it and
+# no src file names it -- an orphan word dsd folded into the span; dropped
+# with the exclusion. BowserShockwaves' span floors at 35 words; the last four
+# are ROM zeros (.data align padding, the FallBlockBfs shape), table is 31.
+#
+# ==== THE OV066-WINDOW SPELLINGS (three words, plus four MSVC ones) =========
+# ov066 (Eyerok) shares this window (its base 0x02115ee0 overlaps ov060's
+# upper half). Three of ov060's own bss cells are spelled data_ov066_* by some
+# ov060 TUs (dsd's naming race): 0x0211ac20, 0x0211ac68, 0x0211acd0. All three
+# exist below under their ov060 names with clean 8-byte deltas -- the ov060
+# sinits construct SharedFilePtrs in them under the ov060 spellings -- and
+# hal/actor_classes_ov060.cpp aliases the ov066 spellings (and the four
+# MSVC-decorated C++ spellings the probe surfaced) onto this one storage.
+# ov066 itself is NOT wired (reach zero, parked; census p11 evidence banked).
+#
+# ==== DATA->CODE WORDS, mounted raw ON PURPOSE ==============================
+# The pair tables at 0x0211a4e0..0x0211a5c0 and 0x0211a734..0x0211a7c0
+# (Bowser's state machines) and the three callback pairs at 0x0211a930/38/40
+# (copied into bss 0x0211b1ac by __sinit_ov060_0211a000, dispatched ONLY by
+# BowserSkyPlatform's Behavior -- measured, reloc reader 0x021182ac) hold
+# ov060 CODE addresses the pointer pass cannot rebase. They stay raw: no
+# class registered by this lane reads them (BowserFireSeaArena's whole
+# closure was reloc-walked: two func_ov060 helpers, the seated BeforeClsn
+# installer func_020393d4, its two SharedFilePtrs, and ONE ov046 CLPS --
+# nothing touches these tables). Hosting Bowser/SkyPlatform means seating
+# these (the MrBlizzard/Crate StateDispatch shape) -- wave 6's work, banked.
+#
+# ==== ONE SIZE OVERRIDE =====================================================
+# data_ov060_0211b228 is the last symbol; the next-symbol delta floors at 4.
+# Pinned to the ROM span that is left: bss end 0x0211b240 - 0x0211b228 = 0x18.
+
+data_ov060_02119264 data_ov060_02119268 data_ov060_0211927c
+data_ov060_02119294:0x2 data_ov060_02119296:0x2 data_ov060_02119298
+data_ov060_021192dc data_ov060_0211934c data_ov060_02119358
+data_ov060_02119364 data_ov060_02119514 data_ov060_0211953c
+data_ov060_02119564 data_ov060_02119568 data_ov060_0211956c
+data_ov060_0211a4e0 data_ov060_0211a4e8 data_ov060_0211a4f0
+data_ov060_0211a4f8 data_ov060_0211a500 data_ov060_0211a508
+data_ov060_0211a510 data_ov060_0211a518 data_ov060_0211a520
+data_ov060_0211a528 data_ov060_0211a530 data_ov060_0211a538
+data_ov060_0211a540 data_ov060_0211a548 data_ov060_0211a550
+data_ov060_0211a558 data_ov060_0211a560 data_ov060_0211a568
+data_ov060_0211a570 data_ov060_0211a578 data_ov060_0211a580
+data_ov060_0211a588 data_ov060_0211a590 data_ov060_0211a598
+data_ov060_0211a5a0 data_ov060_0211a5a8 data_ov060_0211a5b0
+data_ov060_0211a5b8 data_ov060_0211a5c0 data_ov060_0211a5cc
+data_ov060_0211a5d8 data_ov060_0211a5e4 Bowser_SpawnInfo
+BowserTail_SpawnInfo data_ov060_0211a734 data_ov060_0211a73c
+data_ov060_0211a744 data_ov060_0211a74c data_ov060_0211a754
+data_ov060_0211a75c data_ov060_0211a764 data_ov060_0211a76c
+data_ov060_0211a774 data_ov060_0211a77c data_ov060_0211a784
+data_ov060_0211a78c data_ov060_0211a794 data_ov060_0211a79c
+data_ov060_0211a7a4 data_ov060_0211a7ac data_ov060_0211a7b4
+data_ov060_0211a7c0 BowserFire_SpawnInfo data_ov060_0211a870
+data_ov060_0211a87c BowserFireSeaArena_SpawnInfo data_ov060_0211a930
+data_ov060_0211a938 data_ov060_0211a940 data_ov060_0211a948
+data_ov060_0211a954 BowserSkyPlatform_SpawnInfo data_ov060_0211a980
+data_ov060_0211aa30 data_ov060_0211aa38 data_ov060_0211aa40
+data_ov060_0211aa48 data_ov060_0211aa50 data_ov060_0211aa5c
+SpikeBomb_SpawnInfo data_ov060_0211ab08 data_ov060_0211ab14
+data_ov060_0211ab20 BowserShockwaves_SpawnInfo data_ov060_0211abe0
+data_ov060_0211abe8 data_ov060_0211abf0 data_ov060_0211abf8
+data_ov060_0211ac00 data_ov060_0211ac08 data_ov060_0211ac10
+data_ov060_0211ac18 data_ov060_0211ac20 data_ov060_0211ac28
+data_ov060_0211ac30 data_ov060_0211ac38 data_ov060_0211ac40
+data_ov060_0211ac48 data_ov060_0211ac50 data_ov060_0211ac58
+data_ov060_0211ac60 data_ov060_0211ac68 data_ov060_0211ac70
+data_ov060_0211ac78 data_ov060_0211ac80 data_ov060_0211ac88
+data_ov060_0211ac90 data_ov060_0211ac98 data_ov060_0211aca0
+data_ov060_0211aca8 data_ov060_0211acb0 data_ov060_0211acb8
+data_ov060_0211acc0 data_ov060_0211acc8 data_ov060_0211acd0
+data_ov060_0211acd8 data_ov060_0211ace0 data_ov060_0211ace8
+data_ov060_0211acf0 data_ov060_0211acf8 data_ov060_0211ad04
+data_ov060_0211ad10 data_ov060_0211ad1c data_ov060_0211ad28
+data_ov060_0211ad34 data_ov060_0211ad40 data_ov060_0211ad4c
+data_ov060_0211ad58 data_ov060_0211ad64 data_ov060_0211ad70
+data_ov060_0211ad7c data_ov060_0211ad88 data_ov060_0211ad94
+data_ov060_0211ada0 data_ov060_0211adac data_ov060_0211adb8
+data_ov060_0211adc4 data_ov060_0211add0 data_ov060_0211addc
+data_ov060_0211ade8 data_ov060_0211adf4 data_ov060_0211ae00
+data_ov060_0211ae0c data_ov060_0211ae18 data_ov060_0211ae24
+data_ov060_0211ae30 data_ov060_0211ae3c data_ov060_0211ae48
+data_ov060_0211ae54 data_ov060_0211ae60 data_ov060_0211ae6c
+data_ov060_0211ae78 data_ov060_0211ae84 data_ov060_0211ae90
+data_ov060_0211ae9c data_ov060_0211aeb4 data_ov060_0211aed4
+data_ov060_0211af74 data_ov060_0211afb4 data_ov060_0211aff4
+data_ov060_0211affc data_ov060_0211b004 data_ov060_0211b010
+data_ov060_0211b01c data_ov060_0211b024 data_ov060_0211b02c
+data_ov060_0211b034 data_ov060_0211b03c data_ov060_0211b044
+data_ov060_0211b04c data_ov060_0211b054 data_ov060_0211b05c
+data_ov060_0211b064 data_ov060_0211b06c data_ov060_0211b074
+data_ov060_0211b07c data_ov060_0211b084 data_ov060_0211b08c
+data_ov060_0211b094 data_ov060_0211b09c data_ov060_0211b0a4
+data_ov060_0211b0ac data_ov060_0211b0b4 data_ov060_0211b0bc
+data_ov060_0211b0c8 data_ov060_0211b0d4 data_ov060_0211b0e0
+data_ov060_0211b0ec data_ov060_0211b0f8 data_ov060_0211b104
+data_ov060_0211b110 data_ov060_0211b11c data_ov060_0211b128
+data_ov060_0211b134 data_ov060_0211b140 data_ov060_0211b14c
+data_ov060_0211b158 data_ov060_0211b164 data_ov060_0211b170
+data_ov060_0211b17c data_ov060_0211b188 data_ov060_0211b194
+data_ov060_0211b1a0 data_ov060_0211b1ac data_ov060_0211b1c4
+data_ov060_0211b1cc data_ov060_0211b1d8 data_ov060_0211b1f8
+data_ov060_0211b200 data_ov060_0211b208 data_ov060_0211b210
+data_ov060_0211b21c data_ov060_0211b228:0x18

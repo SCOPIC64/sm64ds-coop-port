@@ -1,0 +1,175 @@
+# slice_w5e.txt -- lane-owned slice for the linkage campaign (run linkw,
+# wave 5, lane w5-e: the Bowser fight arena). One matched src TU per line,
+# path relative to the repo root, comments with #. ONE OWNER (lane w5-e).
+#
+# What this slice wires:
+#  - the 106 func_ov060_* TUs (census probe p9: all compile clean under MSVC,
+#    53 blockers all storage/faces, zero duplicates -- every blocker is paid
+#    by port/ov060_syms.txt + the aliases/faces in hal/actor_classes_ov060.cpp)
+#  - ov060's six static initialisers (SharedFilePtr construction + the three
+#    bss Entry copies; all six link, none has ov045's shared-window sinit trap)
+#  - the five class-b TUs the probe measured (matched, listed nowhere else)
+#  - Sound::StopLoadedMusic_Layer1 (its src spells the C++ method directly --
+#    hal/reverse_bridges.cpp's own note says it "just joins the slice")
+#  - BOWSER_FIRE_SEA_ARENA's five linkable bodies + Spawn. Its
+#    CleanupResources is the ONE ov060 body held out: it spells its two
+#    SharedFilePtrs G0/G1, which hal/cxx_aliases.cpp binds to SignPost's live
+#    ov002 pointers -- the identical PoleLift trap w4-b documented; linking it
+#    would Release SignPost's files on every arena teardown. The host thunk
+#    (arena_clean, the ep_clean recipe) carries the real pair from relocs
+#    0x02117b94/98: data_ov060_0211affc (model) then data_ov060_0211aff4
+#    (clsn), behind the same IsEnabled-guarded Disable the ROM body runs.
+#  - the registry/fill/face host file hal/actor_classes_ov060.cpp.
+#
+# The OTHER six classes' named bodies (_ZN6Bowser*, _ZN10BowserTail*,
+# _ZN10BowserFire*, _ZN16BowserShockwaves*, the shifted _ZN17BowserSkyPlatform*
+# = SpikeBomb's, and BowserSkyPlatform's func bodies already in the 106) stay
+# out until their classes host: Bowser's two state-pair tables and the
+# koopa3 platform's bss Entry dispatch need the StateDispatch treatment
+# first (see ov060_syms.txt's data->code section). Registering Bowser without
+# BowserTail would also hand its init a null child spawn -- the ov091 rule.
+
+# ---- the arena class (166), five linkable bodies + Spawn -------------------
+src/_ZN18BowserFireSeaArena13InitResourcesEv.cpp
+src/_ZN18BowserFireSeaArena8BehaviorEv.cpp
+src/_ZN18BowserFireSeaArena6RenderEv.cpp
+src/_ZN18BowserFireSeaArenaD1Ev.c
+src/_ZN18BowserFireSeaArenaD0Ev.c
+src/BowserFireSeaArena_Spawn.c
+
+# ---- ov060's six static initialisers ---------------------------------------
+src/__sinit_ov060_021195dc.c
+src/__sinit_ov060_02119df0.c
+src/__sinit_ov060_02119f94.c
+src/__sinit_ov060_0211a000.c
+src/__sinit_ov060_0211a388.c
+src/__sinit_ov060_0211a428.c
+
+# ---- the probe's five class-b TUs ------------------------------------------
+src/AddSpikeBomb.c
+src/Bowser_IsAnimAtLastFrame.cpp
+src/ClearSpikeBomb.c
+src/CopyTexPalFromLevelModel.c
+src/func_02038408.c
+# ...whose body calls func_02036acc (the probe could not see past the
+# first unresolved ring; the linker did):
+src/func_02036acc.c
+src/func_0203842c.cpp
+src/func_02038824.cpp
+
+# Sound::StopLoadedMusic_Layer1: ALREADY LINKED via slice_gate10.txt:1212 --
+# the probe's class-c want resolves against it; no line here (duplicate).
+
+# ---- the registry/fill/face host file --------------------------------------
+port/hal/actor_classes_ov060.cpp
+
+# ---- the 106 func_ov060_* TUs (probe p9) -----------------------------------
+src/func_ov060_02111a28.cpp
+src/func_ov060_02111c68.c
+src/func_ov060_02111cc0.cpp
+# func_ov060_02111f08 (the boss-camera state machine) is a zero-argument
+# Actor::ClosestPlayer reader (the receiver-dropping r0 seam); hosted as a
+# receiver-passing copy in port/unmatched/Actor_ClosestPlayer_OverlayReaders
+# .cpp per the closestplayer guard's remedy; the byte-locked src stays out.
+src/func_ov060_02112350.c
+src/func_ov060_021123a0.c
+src/func_ov060_021123c8.c
+src/func_ov060_021123dc.c
+src/func_ov060_02112434.cpp
+src/func_ov060_021125f0.c
+src/func_ov060_02112724.c
+src/func_ov060_021128c0.cpp
+src/func_ov060_02112ba8.cpp
+src/func_ov060_02112bfc.c
+src/func_ov060_02112d48.c
+src/func_ov060_02112ddc.cpp
+src/func_ov060_02112ee0.cpp
+src/func_ov060_021130c0.c
+src/func_ov060_02113260.c
+src/func_ov060_021132a4.c
+src/func_ov060_02113404.c
+src/func_ov060_021134ac.c
+src/func_ov060_02113564.c
+src/func_ov060_021135fc.c
+src/func_ov060_02113710.c
+src/func_ov060_02113740.c
+src/func_ov060_02113a94.c
+src/func_ov060_02113b5c.cpp
+src/func_ov060_02113d20.cpp
+src/func_ov060_02113d8c.cpp
+src/func_ov060_02113fcc.c
+src/func_ov060_02113ff4.c
+src/func_ov060_021142b4.c
+src/func_ov060_02114300.c
+src/func_ov060_021143b8.c
+src/func_ov060_021145a8.c
+src/func_ov060_021145d4.c
+src/func_ov060_0211469c.cpp
+src/func_ov060_021146d0.c
+src/func_ov060_02114858.c
+src/func_ov060_02114b60.c
+src/func_ov060_02114d08.c
+src/func_ov060_02114e9c.cpp
+src/func_ov060_02114f88.c
+src/func_ov060_02114ff8.c
+src/func_ov060_02115018.c
+src/func_ov060_02115060.c
+src/func_ov060_021150c4.c
+src/func_ov060_021150d0.cpp
+src/func_ov060_021151d4.c
+src/func_ov060_02115314.c
+src/func_ov060_021153f8.c
+src/func_ov060_021154e8.c
+src/func_ov060_02115518.c
+src/func_ov060_021156ec.c
+src/func_ov060_02115718.c
+src/func_ov060_02115744.c
+src/func_ov060_0211577c.c
+src/func_ov060_02115a84.cpp
+src/func_ov060_02115b0c.c
+src/func_ov060_02115b84.cpp
+src/func_ov060_02115c1c.c
+src/func_ov060_02115d50.c
+src/func_ov060_02115d68.cpp
+src/func_ov060_02116518.c
+src/func_ov060_02116740.cpp
+src/func_ov060_021167c8.c
+src/func_ov060_021167ec.c
+src/func_ov060_021168c4.cpp
+src/func_ov060_021169b0.c
+src/func_ov060_021169f8.c
+src/func_ov060_02116b18.c
+src/func_ov060_02116b68.c
+src/func_ov060_02116c68.c
+src/func_ov060_02116f74.c
+src/func_ov060_02116f90.c
+src/func_ov060_0211712c.c
+src/func_ov060_021171e8.c
+src/func_ov060_0211722c.c
+src/func_ov060_021172c8.c
+src/func_ov060_021172e0.cpp
+src/func_ov060_0211747c.c
+src/func_ov060_02117624.cpp
+src/func_ov060_02117a3c.c
+src/func_ov060_02117a64.c
+src/func_ov060_02117ae0.c
+src/func_ov060_02117d1c.c
+src/func_ov060_02117d60.c
+src/func_ov060_02117db8.c
+src/func_ov060_021180e0.cpp
+src/func_ov060_021181b4.c
+src/func_ov060_021181e8.c
+src/func_ov060_0211822c.cpp
+src/func_ov060_02118254.cpp
+src/func_ov060_021182b0.cpp
+src/func_ov060_021183cc.c
+src/func_ov060_021183f4.c
+src/func_ov060_021184bc.c
+src/func_ov060_02118544.c
+src/func_ov060_021185c4.c
+src/func_ov060_02118690.c
+src/func_ov060_021186d8.c
+src/func_ov060_02118728.c
+src/func_ov060_02118834.c
+src/func_ov060_021188e8.c
+src/func_ov060_02118970.c
