@@ -340,29 +340,30 @@ extern "C" int _ZN6Player12Unk_020ca8f8Ev(void *s)
    tail of func_ov075_02116f40 -- both CODE, so nothing in emitted DATA points
    at it and ovdata's pointer pass genuinely cannot pull it in.
 
-   WHAT THE SEAT NEEDS, four steps, and only the first is missing:
-     1. _ZN3OAM14BOUNCING_ARROWE added to port/ov001_syms.txt. THIS IS THE ONLY
-        BLOCKER -- 0x020abd88 sits past that mount's 0x020ab800..0x020abb00
-        span, and ov001_syms.txt is not this lane's file in wave 3.
-     2. an alternatename here, exactly like the five below:
-        /alternatename:_func_020abd88=__ZN3OAM14BOUNCING_ARROWE
-     3. src/_ZN5Stage20RenderBouncingArrowsEv.cpp on a slice walk_window reads.
-     4. this stub deleted, so the matched body owns the symbol.
-   Nothing else is missing, checked rather than assumed: the matched body's six
-   data references (data_0208ee44, data_020a0db0, data_0209f2c4, data_0209f284,
-   data_0209f2d8, data_0209f248) are all in walk_window.map already (most in
+   THE SEAT LANDED (w6-c, run linkw). The four steps the paragraph below used
+   to list are all in: the template is mounted (w4-e put _ZN3OAM14BOUNCING_ARROWE
+   in port/ov001_syms.txt with the derivation), the alternatename binding the
+   matched body's func_020abd88 spelling to the mounted template sits with the
+   five HUD tables at the bottom of this file, the matched TU rides
+   port/slice_w1l5.txt, and the stub that used to sit right here is gone --
+   src/_ZN5Stage20RenderBouncingArrowsEv.cpp owns the symbol now. HUD::Render
+   is the call edge that keeps it live (data_0209f284-gated, zeroed bss on this
+   boot, so the arrows draw only on a level that sets it).
+
+   GUARD NOTE, because the wave-5 R1/R2 class makes this worth spelling out:
+   the alternatename below is the healthy weak-alias shape, not a defeat
+   waiting to happen. The matched TU DECLARES func_020abd88 (`extern void
+   func_020abd88(void);`) and never defines it -- the LHS stays undefined in
+   the link, the alias fires, and both names resolve to the ov001 mount's
+   template bytes. alternatename_guard sees LHS and RHS at one address: OK.
+
+   Checked rather than assumed at seat time: the matched body's six data
+   references (data_0208ee44, data_020a0db0, data_0209f2c4, data_0209f284,
+   data_0209f2d8, data_0209f248) are all in walk_window.map (most in
    hal/auto_bss.cpp; data_0208ee44 in romdata, data_0209f2d8 in
    Player_InitResources.cpp -- w3-c review attribution), and the
-   ten-argument OAM::Render it calls is already in walk_window.map from its own
+   ten-argument OAM::Render it calls is in walk_window.map from its own
    matched TU (_ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii.cpp.obj). */
-extern "C" void _ZN5Stage20RenderBouncingArrowsEv(void)
-{
-    static int said;
-    if (!said++)
-        std::printf("  [hud] Stage::RenderBouncingArrows reached: its sprite "
-                    "template, ov001 0x020abd88 = OAM::BOUNCING_ARROW, is "
-                    "named in config but outside the port's ov001 mount\n");
-}
 
 /* ...and the reverse. CalculateDigits' TU is a .c file, so it defines the C
    name, while RenderCoinCount and RenderLifeCount call it as a member. */
@@ -550,16 +551,19 @@ extern "C" void hal_fill_minimap_vtable(void)
 
 // ---- the ov001 name aliases -------------------------------------------------
 //
-// The HUD's render TUs name five sprite tables by address because dsd could
+// The HUD's render TUs name six sprite tables by address because dsd could
 // not attribute them: ov000 and ov001 share the base 0x020aa420, and ov000
 // holds filename strings where ov001 holds OamAttr records. config names all
-// five in ov001, and both names are DATA at the same address, so each alias is
-// exact -- no calling convention to get wrong.
+// six in ov001, and both names are DATA at the same address, so each alias is
+// exact -- no calling convention to get wrong. The sixth is the bouncing-arrow
+// template Stage::RenderBouncingArrows draws from (the w4-e mount, seated
+// w6-c; see the seat note above).
 #pragma comment(linker, "/alternatename:_func_020ab948=__ZN3OAM10LIFE_ICONSE")
 #pragma comment(linker, "/alternatename:_func_020ab9c8=__ZN3OAM5TIMESE")
 #pragma comment(linker, "/alternatename:_func_020aba70=__ZN3OAM7NUMBERSE")
 #pragma comment(linker, "/alternatename:_func_020abad0=__ZN3OAM10POWER_STARE")
 #pragma comment(linker, "/alternatename:_func_020abad8=__ZN3OAM4COINE")
+#pragma comment(linker, "/alternatename:_func_020abd88=__ZN3OAM14BOUNCING_ARROWE")
 /* the same table under its ov000-prefixed misattribution, which one TU uses */
 #pragma comment(linker, "/alternatename:_data_ov000_020aba70=__ZN3OAM7NUMBERSE")
 #pragma comment(linker, "/alternatename:_data_ov000_020ab9c8=__ZN3OAM5TIMESE")
