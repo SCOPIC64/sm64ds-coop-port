@@ -41,3 +41,46 @@ port/hal/w2_dtor_heads.cpp
 # ever wrote a slot in it.
 src/_ZN12CylinderClsnD1Ev.c
 src/_ZN12CylinderClsnD0Ev.c
+
+# ==== WAVE 3, LANE w3-b ====================================================
+# ---- _ZTV5Scene (arm9 0x02092680) slot 1, and the chain behind it ---------
+# Reference edge: hal_seat_w2_dtor_heads writes the word config/arm9/relocs.txt
+# puts at base+4:
+#   from:0x02092684 to:0x0202e638 _ZN5Scene19BeforeInitResourcesEv
+# Storage is `void *_ZTV5Scene[20]` in hal/stage_bridges.cpp; no fill in the
+# tree writes a slot of it, and the eight TUs that name the table only store
+# its ADDRESS as a transient vptr. The sweep is written out in the seat's own
+# comment. What blocked this head in wave 2 was data_0209f1e4, the DS BSS word
+# Scene::ResetFadersAndSound clears; hal/auto_bss.cpp hosts it now.
+src/_ZN5Scene19BeforeInitResourcesEv.c
+# the two faces the head calls
+src/_ZN5Scene19ResetFadersAndSoundEv.c
+src/_ZN5Scene20Initialise3dGraphicsEv.c
+# Scene::Initialise3dGraphics' own callees. The global Initialise3dGraphics(int)
+# is listed in slice_gate36.txt, but that list is INERT: CMakeLists.txt builds
+# SLICE36_SOURCES and then never adds it to a target, so the TU was not even
+# compiled, let alone linked. It is listed here so the head's call resolves. If
+# gate 36 is ever wired to a target, drop this line rather than carrying both.
+src/Initialise3dGraphics.cpp
+src/func_0205583c.c
+src/func_020554bc.c
+src/func_020556d0.c
+src/_ZN3G3X13SetClearColorEtiiib.cpp
+# and theirs: the geometry-engine reset helpers and the DMA/matrix primitives.
+#
+# TWO OF THE CALLEES ARE NOT LINES HERE, and both would be duplicate symbols:
+#   func_02055780, the reset func_0205583c opens with, is a GATE 4A symbol.
+#     Those touch MMIO textually, so CMakeLists.txt builds them from a
+#     hostgen-emitted copy under the build tree instead of from src/; adding
+#     the src/ line as well is LNK2005 (measured: "_func_02055780 already
+#     defined in func_02055780.c.obj"). Nothing referenced the hostgen copy
+#     before this chain, so it was dropped by /OPT:REF and this is still the
+#     edge that pulls it in.
+#   func_020553c0, the FIFO flush func_02055780 itself calls, is a HAND-ASM
+#     PRIMITIVE (32 identical stmia to a command port) and does not compile as
+#     C at all -- MSVC gives C2054 on the `asm` block. port/ntr/runtime.cpp
+#     carries it as a documented host-ABI exception.
+src/func_02055464.c
+src/func_02055490.c
+src/func_0205a064.c
+src/DMASyncFillTransfer.c

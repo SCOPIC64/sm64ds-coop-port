@@ -60,6 +60,139 @@
 // directly -- the same convention hal/meshcollider_dtor_seat.cpp and
 // hal/model_dtor_seat.cpp use for every slot they seat.
 // ===========================================================================
+//
+// ===========================================================================
+// SEATED (wave 3, lane w3-b): _ZTV5Scene, arm9 0x02092680, slot 1.
+//
+// This is the head group 4 at the bottom of this file found and could not
+// take. Group 4's blocker was storage, not shape: the body's callee chain
+// reaches Scene::ResetFadersAndSound, which writes data_0209f1e4, and the
+// port hosted that DS BSS symbol nowhere. It is hosted now, in
+// hal/auto_bss.cpp with its sizing evidence, so the head can be seated.
+//
+// THE ROM's OWN WORD, config/arm9/relocs.txt:
+//
+//     from:0x02092684 kind:load to:0x0202e638 module:main
+//
+// and config/arm9/symbols.txt puts a Scene virtual on both ends:
+//
+//     _ZTV5Scene                       kind:data(any)          addr:0x02092680
+//     _ZN5Scene19BeforeInitResourcesEv kind:function(arm,...)  addr:0x0202e638
+//
+// THE INDEX CONVENTION IS THE TABLE'S OWN. 0x02092684 is base+4, so this is
+// slot 1, and slot 1 of an ActorBase-derived table is BeforeInitResources by
+// the slot order hal/stage_bridges.cpp reads out of the sibling table at
+// 0x020921c0. The two tables agree face for face: 0x02092680's slot 0 is
+// ActorBase::InitResources and 0x0209268c's is ActorBase::CleanupResources,
+// which are slots 0 and 3 of that order.
+//
+// THE HEAD IS EIGHTEEN WORDS, and every one of them is a cited relocation
+// (from:0x02092680 through from:0x020926c4; dsd's next data symbol is
+// 0x020926c8, so 0x48/4 = 18 -- the same eighteen-entry shape the Stage's
+// table has). Only slot 1 is seated in this batch. Slots 0, 3, 6, 9, 12, 13,
+// 14 and 15 name ActorBase faces that are ALREADY in the map, so a seat there
+// buys no edge and would only invent an adapter for a body whose real face is
+// a __thiscall C++ method (CleanupResources) or a no-argument C body
+// (InitResources). The other nine slots are unlinked matched TUs and are
+// listed in group 4 below with what each still needs.
+//
+// RE-PROVING THE THREE THINGS THE MECHANISM DEPENDS ON.
+//
+// (a) REAL HOSTED STORAGE. `void *_ZTV5Scene[20]` in hal/stage_bridges.cpp,
+//     line 83, in that file's extern "C" block. It is the port's own array,
+//     not an alias of another table and not romdata.
+//
+// (b) NOTHING ELSE WRITES THE TABLE. The mechanism below is a pre-main
+//     static initialiser, so it is only sound if no runtime fill writes the
+//     same storage -- a fill would simply overwrite the seat and the port's
+//     table would still not carry the ROM's word. Swept, and this is the
+//     evidence, not a recollection:
+//
+//       - grep for `_ZTV5Scene` and `data_02092680` across the whole tree
+//         (port/, src/, unmatched/, include/, config/) returns: the
+//         definition in hal/stage_bridges.cpp:83, prose in that file's
+//         comment and in this one, the config row, the decl_common.h
+//         declaration, and eleven src/ TUs.
+//       - hal/stage_bridges.cpp's own fill, hal_fill_stage_vtable, writes
+//         _ZTV5Stage[0..19]. It does NOT touch _ZTV5Scene; that array is
+//         labelled "transient ctor install, storage only" on its own line.
+//       - ALL ELEVEN src/ mentions write the table's ADDRESS into an object's
+//         vptr. Not one of them stores into _ZTV5Scene[i]. Read out:
+//           _ZN5StageC3Ev.c      *(int*)p = (int)_ZTV5Scene;
+//           _ZN5StageD0Ev.c      thiz->vtable = (void **)_ZTV5Scene;
+//           _ZN5StageD2Ev.c      thiz->vtable = (void **)_ZTV5Scene;
+//           _ZN5SceneD0Ev.c      self->vtable = (void **)_ZTV5Scene;
+//           _ZN5SceneD1Ev.c      self->vtable = &_ZTV5Scene;
+//           _ZN5SceneD2Ev.c      self->vtable = &_ZTV5Scene;
+//           _ZN9BootSceneD0Ev.c  self->vtable = (void **)_ZTV5Scene;
+//           StarSelect_Spawn.cpp *(void***)p = (void**)_ZTV5Scene;
+//         (plus three that only name it in a comment). So the storage has
+//         exactly one writer, and after this change that writer is this file.
+//
+// (c) NOTHING DISPATCHES IT, and the reason is structural rather than lucky.
+//     _ZTV5Scene is an INTERMEDIATE-BASE table in the Itanium ctor/dtor
+//     chain, and every one of the eight writers above overwrites the vptr
+//     with another table before the object is used -- there is no call
+//     between the two stores in any of them:
+//
+//       _ZN5StageC3Ev   data_0208e4b8, then _ZTV5Scene, then _ZTV5Stage (wins)
+//       _ZN5SceneD0Ev   _ZTV5Scene, then data_0208e4b8, then ~ActorBase
+//       _ZN5SceneD1/D2  same pair
+//       _ZN5StageD0/D2  _ZTV5Stage, three sub-object dtors, then _ZTV5Scene,
+//                       then data_0208e4b8 -- the Scene store is the second
+//                       to last statement and nothing reads it
+//       StarSelect_Spawn data_0208e4b8, then _ZTV5Scene, then
+//                       data_ov003_020b1704 (wins)
+//       _ZN9BootSceneD0Ev same shape as the Scene dtors
+//
+//     And only ONE of those eight is in the link today: _ZN5StageC3Ev, the
+//     three-store constructor whose last store wins. The other seven are not
+//     in walk_window.map at all. So no live object has _ZTV5Scene as its
+//     vptr at any point a virtual could be called, which is the same
+//     condition the CylinderClsn seat above rests on.
+//
+// WHAT THE BODY DOES IF IT EVER IS DISPATCHED. Scene::BeforeInitResources
+// calls Scene::ResetFadersAndSound and then Scene::Initialise3dGraphics, and
+// the second half of that chain (Initialise3dGraphics, func_0205583c,
+// func_020554bc, func_020556d0) is nothing but stores to DS I/O registers at
+// 0x0400xxxx. Those addresses ARE mapped in the host -- port/ntr/ppu.cpp puts
+// engine A's register file at 0x04000000 and hal/message_pump.cpp already
+// writes *(vu32 *)0x4000000 directly -- so this is a poke of the modelled
+// register file, not a wild store. It still never runs today, per (c).
+//
+// ABI. Slot 1's matched body is flat C, `Bool f(struct Scene *self)` with
+// `self` on the stack; an MSVC vtable dispatch arrives __thiscall with `this`
+// in ecx, so the slot takes the same ecx->arg adapter every other seat in
+// this family uses, and this one forwards the return value because the face
+// returns one (0 aborts the level init).
+// ===========================================================================
+
+// ---- one linkage alias the chain needs -------------------------------------
+//
+// The C-LINKAGE FLIP, the same one hal/cxx_aliases.cpp exists for, one class
+// further down this chain. src/Initialise3dGraphics.cpp calls the clear-colour
+// register write as `extern "C" void _ZN3G3X13SetClearColorEtiiib(...)`, but
+// the matched definition, src/_ZN3G3X13SetClearColorEtiiib.cpp, writes it as a
+// real C++ static member:
+//
+//     struct G3X { static void SetClearColor(unsigned short, int, int, int, bool); };
+//     void G3X::SetClearColor(...) { ... }
+//
+// so MSVC emits it decorated and the Itanium name is undefined. The decorated
+// name is lifted verbatim from the object rather than written out by hand:
+//
+//     dumpbin /symbols _ZN3G3X13SetClearColorEtiiib.cpp.obj
+//     009 00000000 SECT3 notype () External | ?SetClearColor@G3X@@SAXGHHH_N@Z
+//         (public: static void __cdecl G3X::SetClearColor(unsigned short,int,int,int,bool))
+//
+// This is the exact shape hal/cxx_aliases.cpp already closes for IRQ::Disable
+// and IRQ::Restore, and it runs in the same direction those two do -- the
+// alias names an undefined symbol and points it at a defined one, nothing is
+// redefined. It lives here rather than in cxx_aliases.cpp only because this
+// lane owns this file and not that one; it belongs in cxx_aliases.cpp with the
+// rest of the family whenever a change that owns that file passes through.
+#pragma comment(linker, \
+    "/alternatename:__ZN3G3X13SetClearColorEtiiib=?SetClearColor@G3X@@SAXGHHH_N@Z")
 
 extern "C" {
 
@@ -69,15 +202,26 @@ extern int data_0208e6ec[];
 void *_ZN12CylinderClsnD1Ev(void *self);   /* arm9 0x020150a8 */
 void *_ZN12CylinderClsnD0Ev(void *self);   /* arm9 0x0201507c */
 
+/* _ZTV5Scene -- storage `void *_ZTV5Scene[20]` in hal/stage_bridges.cpp */
+extern void *_ZTV5Scene[];
+
+int _ZN5Scene19BeforeInitResourcesEv(void *self);   /* arm9 0x0202e638 */
+
 }
 
 static void __fastcall cyl_d1(void *self, void *) { _ZN12CylinderClsnD1Ev(self); }
 static void __fastcall cyl_d0(void *self, void *) { _ZN12CylinderClsnD0Ev(self); }
 
+static int __fastcall scene_before_init(void *self, void *)
+{
+    return _ZN5Scene19BeforeInitResourcesEv(self);
+}
+
 extern "C" void hal_seat_w2_dtor_heads(void)
 {
     data_0208e6ec[0] = (int)(size_t)cyl_d1;
     data_0208e6ec[1] = (int)(size_t)cyl_d0;
+    _ZTV5Scene[1] = (void *)scene_before_init;
 }
 
 // ---- how this fill gets called ---------------------------------------------

@@ -260,6 +260,28 @@ char data_0209fc64[4];
    in hal/model_host.cpp; this one had no reader until the level teardown
    called the ROM's own reset. kind:bss, so zero is the boot value. */
 int data_0209cef0;
+/* wave 3 lane b: the slot the Scene head chain clears.
+   Scene::ResetFadersAndSound (src/_ZN5Scene19ResetFadersAndSoundEv.c) writes
+   `data_0209f1e4 = 0` right after Scene::SetFaders installs the brightness
+   fader, and Scene::BeforeBehavior (src/_ZN5Scene14BeforeBehaviorEv.cpp) is
+   the reader: on zero it parks &data_0209f5d0 here, and func_0202345c loads
+   it back and walks it as a `void **`. So the slot holds a POINTER, and null
+   is both the boot value and the value the reset writes, which is what makes
+   kind:bss storage the whole of it.
+
+   FOUR BYTES, sized by the delta-to-next-symbol rule the buffer comment
+   above sets out, not by this file's generic int[8]. config/arm9/symbols.txt:
+
+       data_0209f1e0 kind:bss addr:0x0209f1e0
+       data_0209f1e4 kind:bss addr:0x0209f1e4
+       data_0209f1e8 kind:bss addr:0x0209f1e8
+
+   so the ROM extent is 0x0209f1e8 - 0x0209f1e4 = 4, and the generous default
+   would have been 28 bytes of slack lying across the next seven symbols --
+   the data_0209f228 shape exactly. There is no overrun to leave room for
+   either: all three touches in the tree are single-word. include/decl_common.h
+   already declares it `void *`, which is what this definition is. */
+void *data_0209f1e4;
 }
 DSSTATE_END
 
