@@ -122,9 +122,15 @@ def gate_active_files(port_dir, repo_dir, ordered, seen):
     blank lines and lines that start with '#', treat the rest as a path
     relative to the repo root. Keep only the ones under src/ that exist.
     """
+    # slice_* rather than slice_gate*: the linkage campaign's owner-locked lane
+    # slices (slice_w1l1.txt ..) enroll src TUs through the same CMake reader,
+    # so a receiver-dropping raw TU added there must trip this guard exactly as
+    # a gate line would. The narrower filter was a blind spot lane l1 proved by
+    # enrolling the rabbit TU (two bare ClosestPlayer calls) and watching the
+    # guard stay green.
     gate_names = sorted(
         n for n in os.listdir(port_dir)
-        if n.startswith("slice_gate") and n.endswith(".txt")
+        if n.startswith("slice_") and n.endswith(".txt")
     )
     for name in gate_names:
         gate_path = os.path.join(port_dir, name)
