@@ -2,3 +2,34 @@
 # One matched src TU per line, path relative to the repo root, comments with #.
 # THIS FILE HAS ONE OWNER (lane l1); other lanes never touch it, which is what
 # keeps five parallel seat lanes out of CMakeLists.txt and each other.
+#
+# EMPTY ON PURPOSE, and the reason is worth the next lane's time.
+#
+# A slice line alone cannot raise "linked into walk_window". walk_window links
+# without /DEBUG, so link.exe runs its default /OPT:REF and drops every COMDAT
+# nothing references; cl emits each of these bodies as its own COMDAT. A slice
+# line therefore compiles a TU and hands the linker an object it is free to
+# throw away, and it does.
+#
+# Measured, not assumed. Seventy-five unlinked matched TUs from ov002 and ov098
+# were mined for this lane: compiled with walk_window's own flags, their object
+# symbol tables read, the set closed under its own dependencies so no survivor
+# leaned on a TU that stayed out, zero duplicate definitions against the map's
+# publics. They built and linked clean. The headline did not move -- 3881 before
+# and 3881 after -- and none of the seventy-five appears in walk_window.map.
+# Of the 4261 objects on the link line, 132 contribute nothing to the image,
+# and all seventy-five were in that set.
+#
+# That is not a mining failure, it is arithmetic. If a linked object referenced
+# an unlinked TU the link would already be failing, so no unlinked TU is
+# referenced by the linked set; every reference that exists today resolves,
+# either to another matched TU or to a host stand-in. The host stand-ins are
+# exactly what port/tools/linkage.py calls the replacement queue, and that queue
+# is now fully ruled on (132 of 132 documented). What grows the headline from
+# here is a REFERENCE: a hal veneer or vtable seat naming the body, which lives
+# in files this lane does not own. Seat first, then add the slice line.
+#
+# The five host copies this lane owns were each judged on that basis and each is
+# a real host-ABI exception, tagged with its reason and the MSVC listing behind
+# it (unmatched/Player_HeadBonk.cpp, Actor_OnAttacked2Dispatch.cpp,
+# Actor_OnKickedDispatch.cpp, Ov085_Rabbit_b8dc.cpp, ArrowSign_OnAttacked1.cpp).
