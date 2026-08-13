@@ -223,3 +223,14 @@ data_ov002_0210af2c
 # 27 records of {step, dx, dy, dz} shorts, 0xd8 to the next symbol, which is
 # the whole table: the reader indexes [idx]..[idx+3] and probes [idx+2].
 data_ov002_0210a8b8
+# run linkw wave 5 / lane w5-c: POPPING_LAVA_BUBBLES (196) joins the registry
+# (the OneUpLogo/SoundObject recipe: SpawnInfo joins the existing ov002
+# mount). Its vtable data_ov002_021093e0 is NOT here -- host storage the
+# registry fills (hal/actor_classes_ov070.cpp's id-196 section), the
+# ov095/ov080 rule. Record read raw out of overlay_0002.bin: word[0] =
+# 0x020b6dd8 PoppingLavaBubbles_Spawn, word[1] low half = 196. The two rows
+# before it are the RTTI record its +0x20 word points at and that record's
+# name string ("11daObjLava_c" -- the ROM's own name for the class), so the
+# pointer pass can rebase the chain.
+data_ov002_021093a0 data_ov002_021093ac
+PoppingLavaBubbles_SpawnInfo

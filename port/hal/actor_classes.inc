@@ -749,11 +749,15 @@ extern unsigned char FloatingFloorBfs_SpawnInfo[];   /* ov045 0x02112f2c, +4 rea
 void *port_factory_floating_floor_bfs(void);         /* VT1 wrapper over ov045 0x02111bf4 */
 extern unsigned char FallBlockBfs_SpawnInfo[];       /* ov045 0x021130d0, +4 reads 139 */
 void *port_factory_fall_block_bfs(void);             /* VT1 wrapper over ov045 0x02111e24 */
+/* wave 5 (lane w5-c): the sixth class, released by the hosted sqrt unit */
+extern unsigned char TiltingPlatformBfs_SpawnInfo[]; /* ov045 0x02112ffc, +4 reads 141 */
+void *port_factory_tilting_platform_bfs(void);       /* VT1 wrapper over ov045 0x02111d0c */
 void hal_fill_fire_sea_elevator_vtable(void);        /* fills data_ov045_02112cf4, 32 slots */
 void hal_fill_pole_lift_vtable(void);                /* fills _ZTV15FireSeaElevator, 32 */
 void hal_fill_extending_platform_vtable(void);       /* fills _ZTV8PoleLift, 31 */
 void hal_fill_floating_floor_bfs_vtable(void);       /* fills data_ov045_02112f50, 32 */
 void hal_fill_fall_block_bfs_vtable(void);           /* fills _ZTV12FallBlockBfs, 32 */
+void hal_fill_tilting_platform_bfs_vtable(void);     /* fills _ZTV16FloatingFloorBfs, 32 */
 
 /* ---- run linkw wave 5 (lane w5-e): the Bowser fight arena's floor ----
    ov060 joins the per-symbol mounts (port/ov060_syms.txt, which carries the
@@ -766,6 +770,26 @@ void hal_fill_fall_block_bfs_vtable(void);           /* fills _ZTV12FallBlockBfs
 extern unsigned char BowserFireSeaArena_SpawnInfo[]; /* ov060 0x0211a88c, +4 reads 166 */
 void *BowserFireSeaArena_Spawn(void);                /* ov060 0x02117cdc */
 void hal_fill_bowser_fire_sea_arena_vtable(void);    /* fills _ZTV18BowserFireSeaArena, 32 */
+/* ---- run linkw wave 5 (lane w5-c): ov070's enemy pack + the two engine-side
+   census finds for level 37. SpawnInfo records from the fresh per-symbol
+   ov070 mount (port/ov070_syms.txt; ids re-read from the raw overlay image,
+   NO naming shift in this overlay -- see hal/actor_classes_ov070.cpp) and,
+   for 196, from the existing ov002 mount. All four factories store their own
+   host table by real name, so all four register directly; every fill is in
+   hal/actor_classes_ov070.cpp. FlyGuy (232) stays OFF: no bootable level
+   spawns it. */
+extern unsigned char Amp_SpawnInfo[];                /* ov070 0x02123254, +4 reads 266 */
+void *Amp_Spawn(void);                               /* ov070 0x021210ac */
+extern unsigned char FlameChomp_SpawnInfo[];         /* ov070 0x0212334c, +4 reads 270 */
+void *FlameChomp_Spawn(void);                        /* ov070 0x02121af8 */
+extern unsigned char FlameChompFire_SpawnInfo[];     /* ov070 0x02123424, +4 reads 271 */
+void *FlameChompFire_Spawn(void);                    /* ov070 0x021221fc */
+extern unsigned char PoppingLavaBubbles_SpawnInfo[]; /* ov002 0x021093bc, +4 reads 196 */
+void *PoppingLavaBubbles_Spawn(void);                /* ov002 0x020b6dd8 */
+void hal_fill_amp_vtable(void);                      /* fills _ZTV3Amp, 31 */
+void hal_fill_flame_chomp_vtable(void);              /* fills _ZTV10FlameChomp, 31 */
+void hal_fill_flame_chomp_fire_vtable(void);         /* fills _ZTV14FlameChompFire, 31 */
+void hal_fill_popping_lava_bubbles_vtable(void);     /* fills data_ov002_021093e0, 31 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1109,7 +1133,8 @@ void hal_fill_bowser_fire_sea_arena_vtable(void);    /* fills _ZTV18BowserFireSe
     {313, "SLIDING_BOX", SlidingBox_SpawnInfo, SlidingBox_Spawn, \
      hal_fill_sliding_box_vtable}, \
     /* ---- run linkw wave 4: ov045's platform cast, five of six (level 37);
-       141 is measured but not hosted, see hal/actor_classes_ov045.cpp ---- */ \
+       wave 5 (lane w5-c) released the sixth, 141, on the hosted sqrt unit --
+       see hal/actor_classes_ov045.cpp ---- */ \
     {140, "FIRE_SEA_ELEVATOR", FireSeaElevator_SpawnInfo, \
      FireSeaElevator_Spawn, hal_fill_fire_sea_elevator_vtable}, \
     {142, "POLE_LIFT", PoleLift_SpawnInfo, PoleLift_Spawn, \
@@ -1120,8 +1145,19 @@ void hal_fill_bowser_fire_sea_arena_vtable(void);    /* fills _ZTV18BowserFireSe
      port_factory_floating_floor_bfs, hal_fill_floating_floor_bfs_vtable}, \
     {139, "FALL_BLOCK_BFS", FallBlockBfs_SpawnInfo, \
      port_factory_fall_block_bfs, hal_fill_fall_block_bfs_vtable}, \
+    {141, "TILTING_PLATFORM_BFS", TiltingPlatformBfs_SpawnInfo, \
+     port_factory_tilting_platform_bfs, hal_fill_tilting_platform_bfs_vtable}, \
     /* ---- run linkw wave 5: the Bowser fight arena's floor (level 38);
        the other six ov060 classes are measured but not hosted, see
        hal/actor_classes_ov060.cpp ---- */ \
     {166, "BOWSER_FIRE_SEA_ARENA", BowserFireSeaArena_SpawnInfo, \
-     BowserFireSeaArena_Spawn, hal_fill_bowser_fire_sea_arena_vtable},
+     BowserFireSeaArena_Spawn, hal_fill_bowser_fire_sea_arena_vtable}, \
+    /* ---- run linkw wave 5 (lane w5-c): the rest of level 37's roaming cast.
+       FLAME_CHOMP_FIRE is not level-placed; the chomp spawns it live. ---- */ \
+    {266, "AMP", Amp_SpawnInfo, Amp_Spawn, hal_fill_amp_vtable}, \
+    {270, "FLAME_CHOMP", FlameChomp_SpawnInfo, FlameChomp_Spawn, \
+     hal_fill_flame_chomp_vtable}, \
+    {271, "FLAME_CHOMP_FIRE", FlameChompFire_SpawnInfo, FlameChompFire_Spawn, \
+     hal_fill_flame_chomp_fire_vtable}, \
+    {196, "POPPING_LAVA_BUBBLES", PoppingLavaBubbles_SpawnInfo, \
+     PoppingLavaBubbles_Spawn, hal_fill_popping_lava_bubbles_vtable},

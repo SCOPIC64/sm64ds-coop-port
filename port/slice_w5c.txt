@@ -1,0 +1,155 @@
+# slice_w5c.txt -- lane-owned slice for the linkage campaign (run linkw,
+# wave 5, lane w5-c). One matched src TU per line, path relative to the repo
+# root, comments with #. THIS FILE HAS ONE OWNER (lane w5-c).
+#
+# THE ov070 ENEMY PACK plus its two engine-side registry companions, cut to
+# what the three fills in port/hal/actor_classes_ov070.cpp actually reference
+# (the reference-edge law at the top of slice_w1l4.txt). The night census
+# probed 59 func_ov070 TUs; this file carries 51 of them, and each exclusion
+# is a measurement, not a preference:
+#
+#   func_ov070_0211f0a4    the probed COMPILE FAIL (C4716, an int body that
+#                          falls off its end into a void face) -- built from
+#                          the hostgen emission instead (OV70GEN in
+#                          port/CMakeLists.txt, FALLS_OFF_RETURN table)
+#   func_ov070_021211bc    \  the seven "recovered from vtable slot identity"
+#   func_ov070_02121bdc    |  GUESS bodies in the pack. No matched TU calls
+#   func_ov070_02121438    |  any of them by name (swept); they were reached
+#   func_ov070_02121fb0    |  only through ROM vtable slots and PMF records.
+#   func_ov070_021204e4    |  The two slot-18 bodies and the two Kill state
+#   func_ov070_02120518    |  roots the fills DO need are inline host
+#   func_ov070_021204ec    /  transcriptions in actor_classes_ov070.cpp
+#                             (per-instruction, listings quoted there), so the
+#                             inferred-stub baseline stays at two.
+#
+# The four class D1Ev.cpp TUs are also deliberately absent: real MSVC
+# destructors over TU-local shadow structs (??1Amp@@UAE@XZ against member
+# teardowns the port does not define) -- the E2 treatment, host chains in the
+# fill file, each verified against the ROM listing.
+
+# ---- the 51 probed pack bodies --------------------------------------------
+src/func_ov070_0211f100.cpp
+src/func_ov070_0211f368.cpp
+src/func_ov070_0211f450.c
+src/func_ov070_0211f48c.c
+src/func_ov070_0211f5f0.cpp
+src/func_ov070_0211f62c.c
+src/func_ov070_0211f694.cpp
+src/func_ov070_0211f6e0.c
+src/func_ov070_0211fa80.c
+src/func_ov070_0211fae4.c
+src/func_ov070_0211fd60.c
+src/func_ov070_0211fd98.c
+src/func_ov070_0211ffa8.cpp
+src/func_ov070_02120070.cpp
+src/func_ov070_02120644.cpp
+src/func_ov070_02120724.c
+src/func_ov070_021208a4.c
+src/func_ov070_02120910.cpp
+src/func_ov070_021209e4.cpp
+src/func_ov070_02120bf8.cpp
+src/func_ov070_02120cac.cpp
+src/func_ov070_02120ce4.c
+src/func_ov070_02120d34.cpp
+src/func_ov070_02120d70.cpp
+src/func_ov070_02120da8.c
+src/func_ov070_021211c4.cpp
+src/func_ov070_02121298.cpp
+src/func_ov070_02121310.cpp
+src/func_ov070_021213cc.c
+src/func_ov070_021214f8.cpp
+src/func_ov070_02121548.c
+src/func_ov070_0212156c.c
+src/func_ov070_021216b8.c
+src/func_ov070_02121710.cpp
+src/func_ov070_021217ac.c
+src/func_ov070_0212180c.cpp
+src/func_ov070_02121848.cpp
+src/func_ov070_02121880.c
+src/func_ov070_02121a64.c
+src/func_ov070_02121ae0.c
+src/func_ov070_02121be4.cpp
+src/func_ov070_02121c8c.c
+src/func_ov070_02121cbc.c
+src/func_ov070_02121d50.cpp
+src/func_ov070_02121e14.cpp
+src/func_ov070_02121eb0.c
+src/func_ov070_02121ef8.c
+src/func_ov070_02121f18.cpp
+src/func_ov070_02121fd0.cpp
+src/func_ov070_0212200c.cpp
+src/func_ov070_02122044.c
+
+# ---- the three registered classes' named bodies and factories -------------
+# Reference edge: the three fills. The D1Ev TUs are host chains (header).
+src/Amp_Spawn.c
+src/_ZN3Amp13InitResourcesEv.cpp
+src/_ZN3Amp16CleanupResourcesEv.c
+src/_ZN3Amp16OnPendingDestroyEv.c
+src/_ZN3Amp6RenderEv.cpp
+src/_ZN3Amp8BehaviorEv.cpp
+src/_ZN3AmpD0Ev.c
+src/FlameChomp_Spawn.c
+src/_ZN10FlameChomp13InitResourcesEv.cpp
+src/_ZN10FlameChomp16CleanupResourcesEv.c
+src/_ZN10FlameChomp16OnPendingDestroyEv.c
+src/_ZN10FlameChomp6RenderEv.cpp
+src/_ZN10FlameChomp8BehaviorEv.cpp
+src/_ZN10FlameChompD0Ev.c
+src/FlameChompFire_Spawn.c
+src/_ZN14FlameChompFire13InitResourcesEv.cpp
+src/_ZN14FlameChompFire16CleanupResourcesEv.c
+src/_ZN14FlameChompFire16OnPendingDestroyEv.c
+src/_ZN14FlameChompFire6RenderEv.cpp
+src/_ZN14FlameChompFire8BehaviorEv.cpp
+src/_ZN14FlameChompFireD0Ev.c
+# ...and the collider initialiser both chomp InitResources bodies call (the
+# link named it; its decorated free-function spelling is aliased in the fill
+# file).
+src/_ZN25MovingCylinderClsnWithPos4InitEP5ActorRK7Vector35Fix12IiES6_jj.c
+
+# ---- the probe's class-b closure ------------------------------------------
+# The two TUs whose absence the census link measured (LNK2019 with all 59
+# wired): the FlyGuy state machine names both.
+# src/_ZN5Actor23HorzAngleToCPlayerOrAngEv.c IS NOT LINKED RAW: it is a
+# zero-argument Actor::ClosestPlayer reader (the r0-passthrough seam; the
+# closestplayer seat gate catches it by name). The receiver-passing host copy
+# below stands in, the OverlayReaders recipe; the matched source is unchanged.
+src/FlyGuy_ChangeState.cpp
+port/unmatched/Actor_HorzAngleToCPlayerOrAng.cpp
+
+# ---- ov070's four static initialisers -------------------------------------
+# SharedFilePtrs, dtor-chain nodes, and the state PMF copies. Run from
+# ov70_bringup AFTER the PMF seat rewrites the source records. Each name is
+# referenced by nothing but its own defining TU (swept src-wide; the ov045
+# 0x02112280 collision has no counterpart here).
+src/__sinit_ov070_02122afc.c
+src/__sinit_ov070_02122d80.cpp
+src/__sinit_ov070_02122f30.c
+src/__sinit_ov070_02123030.c
+
+# ---- the pack's cross-class face targets ----------------------------------
+# Player::Shock is a real method (its face is in actor_classes_ov070.cpp);
+# the TU's own deps (func_ov002_020d82f0/020d91e0, Player::ChangeState,
+# data_ov002_021100c4) are all in today's map, checked one by one.
+src/_ZN6Player5ShockEj.cpp
+
+# ---- POPPING_LAVA_BUBBLES (196, ov002), the census's second bonus find ----
+# The registered spawn and the one own-slot body that is a faithful matched
+# TU (D1). Init/Behavior/D0 carry the inferred-stub marker; their bodies are
+# inline transcriptions in actor_classes_ov070.cpp's id-196 section --
+# listings quoted there, same rule as the ov070 pair. func_02022c3c, the
+# particle position tracker Behavior calls, is NOT here: gate 29 already
+# builds it (a line here was the link's one duplicate-definition finding).
+src/PoppingLavaBubbles_Spawn.c
+src/func_ov002_020b6d28.c
+
+# ---- the two host files, carried as slice lines ---------------------------
+# The wave-2 self-registration pattern (slice lines resolve against the repo
+# root, so port/hal/ paths build without touching CMakeLists.txt). NO OTHER
+# WRITER re-proved: _ZTV3Amp / _ZTV10FlameChomp / _ZTV14FlameChompFire are
+# defined in actor_classes_ov070.cpp and nowhere else (swept port/hal,
+# port/unmatched, src/), and all four ov070 vtables are excluded from
+# port/ov070_syms.txt by name.
+port/hal/actor_classes_ov070.cpp
+port/hal/ov070_shadow_faces.cpp

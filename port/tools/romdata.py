@@ -70,6 +70,12 @@ NAMED = [
     "data_0208e5e4", "data_0208e5f0", "data_0208e5fc", "data_0208e608",
     "data_0208e610", "data_0208e624", "data_0208e634", "data_0208e648",
     "data_02092120",
+    # run linkw wave 5 (lane w5-c): the two identity-quaternion constants
+    # (x,y,z,w) = (0,0,0,0x1000) the restored TILTING_PLATFORM_BFS chain
+    # reads -- Quaternion_FromVector3's fallback (data_02075b04) and the
+    # tilting Behavior's slerp rest pose (data_02092768). Both 0x10, both
+    # reloc-free (checked config/arm9/relocs.txt over the full spans).
+    "data_02075b04", "data_02092768",
     "data_02082178", "data_02090e80", "data_020914a0",
     "data_02092584", "data_02092654", "data_02092668", "data_0208e500", "data_02086a58", "data_0208e430", "data_02086b58",
     "data_0208e434", "data_0208e438", "data_0208e43c", "data_0208e440",

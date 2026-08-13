@@ -367,6 +367,73 @@ int ds_imod(int, int);
 """
 
 
+# ---- MMIO REACHED THROUGH ROLE-NAMED EXTERNS ---------------------------------
+#
+# One register-access shape the two passes above cannot see: a TU that declares
+# the register as a C extern BY ROLE NAME and lets the linker bind the address.
+#
+#     extern volatile u16 SQRTCNT;     /* 0x040002b0 */
+#     extern volatile s32 SQRT_RESULT; /* 0x040002b4 */
+#     sqrtcnt = &SQRTCNT;
+#     while (*sqrtcnt & 0x8000);
+#     ... (s64)SQRT_RESULT ...
+#
+# On the ROM those externs were resolved to the I/O addresses at link time.
+# The host cannot do that (no image section lives at 0x04000000; the pages are
+# VirtualAlloc'd at runtime by ntr/io.cpp), so the access is rewritten to the
+# same NTR_MMIO proxy the literal shapes get, register address taken from the
+# TU's own comment and re-checked against GBATEK (SQRTCNT 0x40002b0,
+# SQRT_RESULT 0x40002b4). Exact strings, hard-errored like DS_DIV, because a
+# role name is program text and a regex over it would be guessing.
+#
+# src/func_02053130.c is the only file in src/ with this shape today (swept
+# 2026-08-13: `extern volatile` over the 0x04xxxxxx window comments). Its
+# sibling unit drivers func_02053008 / func_020531a4 / func_02052fdc bind the
+# registers by literal cast or bound pointer and need no entry here.
+MMIO_EXTERN = {
+    "func_02053130": [
+        # the busy-bit spin: SQRTCNT through the proxy; the local pointer
+        # binding goes with it (keeping it would keep the &SQRTCNT reference)
+        ("    sqrtcnt = &SQRTCNT;\n    while (*sqrtcnt & 0x8000)\n        ;",
+         "    while (NTR_MMIO(u16, 0x40002b0) & 0x8000)\n        ;"),
+        # the result read, at the width the ROM read it
+        ("(s64)SQRT_RESULT", "(s64)(s32)NTR_MMIO(s32, 0x40002b4)"),
+    ],
+}
+
+
+def mmio_extern_patch(text, sym):
+    """Route role-named register externs through the NTR_MMIO proxy."""
+    return apply_patches(text, sym, MMIO_EXTERN, "MMIO_EXTERN")
+
+
+# ---- INT BODIES THAT FALL OFF THE END ----------------------------------------
+#
+# mwccarm lets a non-void function end without a return (the value is whatever
+# r0 held); MSVC makes that C4716, a hard error. The recovered TU below ends on
+# a call to a face the port defines VOID (Actor::KillAndTrackInDeathTable, a
+# real void method in matched src), so the ROM's r0 at that point is the leftover
+# of an interior call -- unrecoverable without giving the whole KATIDT chain int
+# faces. The patch returns 1, the value every sibling state handler in ov070
+# returns, and the caveat is real but bounded: the one reader of this return is
+# FlyGuy's state dispatcher, and FlyGuy is unregistered (no bootable level
+# spawns it), so the value is dead until a FlyGuy lane lands -- which should
+# re-derive it before trusting it.
+FALLS_OFF_RETURN = {
+    "func_ov070_0211f0a4": [
+        ("    a->KillAndTrackInDeathTable();\n}",
+         "    a->KillAndTrackInDeathTable();\n"
+         "    return 1;  /* hostgen FALLS_OFF_RETURN: see the table's note */\n"
+         "}"),
+    ],
+}
+
+
+def falls_off_return_patch(text, sym):
+    """Give a falls-off-the-end int body the documented return."""
+    return apply_patches(text, sym, FALLS_OFF_RETURN, "FALLS_OFF_RETURN")
+
+
 # ---- CALLING CONVENTION: C++ VIRTUAL CALLS ON C VTABLES ----------------------
 #
 # On ARM a virtual call and a plain function-pointer call are the SAME thing:
@@ -459,6 +526,8 @@ def emit(src_path, out_dir, decomp_root, extern_data=False):
     if sym in HEADER_SHADOW:
         text, _ = shadow_header_decl(text, sym, HEADER_SHADOW[sym])
     text, _ = ds_div_patch(text, sym)
+    text, _ = mmio_extern_patch(text, sym)
+    text, _ = falls_off_return_patch(text, sym)
     text, _ = virtual_call_patch(text, sym)
     text, _ = member_redecl_patch(text, sym)
     new, n = transform(text, extern_data)

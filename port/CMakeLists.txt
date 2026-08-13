@@ -1181,6 +1181,15 @@ list(APPEND PORT_ACTOR_OVERLAYS ov060)
 # block, which BowserFireSeaArena::InitResources reaches by name under a
 # shared-window spelling. See port/ov046_syms.txt's header.
 list(APPEND PORT_ACTOR_OVERLAYS ov046)
+# run linkw wave 5 (lane w5-c): ov070, the Amp/FlameChomp/FlameChompFire pack
+# (level 37's roaming enemies; FlyGuy rides the mount unregistered). Fresh
+# per-symbol mount, ids re-read from the raw overlay image; the four vtables
+# are host arrays hal/actor_classes_ov070.cpp fills, and the state PMF source
+# records are seated with host bodies before the sinits copy them (the
+# Scuttlebug treatment; see port/ov070_syms.txt). The bring-up runs from the
+# first registry fill (ov70_bringup) -- the same actor_overlays.cpp handoff
+# hal/actor_classes_ov045.cpp records.
+list(APPEND PORT_ACTOR_OVERLAYS ov070)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1382,6 +1391,51 @@ foreach(line IN LISTS SLICE_W1L4_LINES)
     endif()
     list(APPEND SLICE_W1L4_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+# run linkw wave 5 (lane w5-c): the ov070 enemy pack + the level-37 census
+# closers. Two hostgen groups ride with the slice:
+#   SQRTUNIT -- the hardware square-root unit's four drivers. func_02053008 /
+#   func_020531a4 write the unit through bound pointers, func_02052fdc reads
+#   it through literal derefs, and func_02053130 reaches it through role-named
+#   externs (hostgen's MMIO_EXTERN table). All four route through run_sqrt via
+#   ntr/io.cpp's widened SQRT_PARAM trigger; the numeric proof is in the
+#   commit that landed the mechanism. Quaternion_Normalize (slice_w1l4's
+#   restored id-141 chain) and Quaternion_FromVector3 are the callers.
+#   OV70GEN -- func_ov070_0211f0a4, the census's measured compile fail (C4716;
+#   hostgen's FALLS_OFF_RETURN table documents the returned value).
+set(SQRTUNIT_SYMS func_02053008 func_02053130 func_020531a4 func_02052fdc)
+set(SQRTUNIT_GEN "")
+foreach(sym IN LISTS SQRTUNIT_SYMS)
+    set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND SQRTUNIT_GEN "${sym_out}")
+endforeach()
+set(OV70GEN_SYMS func_ov070_0211f0a4)
+set(OV70GEN "")
+foreach(sym IN LISTS OV70GEN_SYMS)
+    set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND OV70GEN "${sym_out}")
+endforeach()
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w5c.txt" SLICE_W5C_LINES)
+set(SLICE_W5C_SOURCES "")
+foreach(line IN LISTS SLICE_W5C_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W5C_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w1l5.txt" SLICE_W1L5_LINES)
 set(SLICE_W1L5_SOURCES "")
 foreach(line IN LISTS SLICE_W1L5_LINES)
@@ -2765,6 +2819,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
+    ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -2835,6 +2890,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
+    ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -2936,6 +2992,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
+    ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}

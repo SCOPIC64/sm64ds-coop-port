@@ -419,7 +419,19 @@ void io_write(uint32_t addr, uint64_t value, unsigned width) {
 
     // Writing the low half of the operand is what starts the unit on hardware.
     if (addr == DIV_DENOM || addr == DIV_NUMER || addr == DIVCNT) run_divide();
-    else if (addr == SQRT_PARAM || addr == SQRTCNT) run_sqrt();
+    // The sqrt trigger covers BOTH halves of the 64-bit parameter. The ROM's
+    // own driver (func_02053008, and its sibling func_020531a4) writes
+    // SQRT_PARAM as two 32-bit stores, LOW half first and the real operand in
+    // the HIGH half LAST -- so a trigger on the base address alone runs the
+    // unit before the operand has landed and leaves SQRT_RESULT stale, which
+    // is exactly GBATEK's model inverted (the unit restarts on any write to
+    // SQRTCNT or either SQRT_PARAM half). The divide side is NOT widened the
+    // same way on purpose: every divide client in the build (reciprocal_async,
+    // cstd::div and friends) stores NUMER/DENOM as single 64-bit writes at the
+    // base addresses, so the existing equality tests are the ones that fire,
+    // and this change must not perturb that unit at all.
+    else if (addr == SQRT_PARAM || addr == SQRT_PARAM + 4 || addr == SQRTCNT)
+        run_sqrt();
     // Geometry: 0x4000400 is the packed FIFO, 0x4000440.. are the command ports.
     // These execute on write and leave nothing readable behind, so unlike every
     // other block they cannot be served by the memory window alone.
