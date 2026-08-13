@@ -2,3 +2,25 @@
 # One matched src TU per line, path relative to the repo root, comments with #.
 # THIS FILE HAS ONE OWNER (lane l2); other lanes never touch it, which is what
 # keeps five parallel seat lanes out of CMakeLists.txt and each other.
+#
+# WHAT A LINE HERE BUYS, AND WHAT IT DOES NOT. Adding a TU compiles it and
+# hands it to the linker, but the link runs with /OPT:REF (Release, no
+# /DEBUG), so an object nothing references is dropped again before the map is
+# written and the TU does not count as linked. Measured on this branch:
+# src/func_02058158.c added on its own built its .obj, linked clean, and left
+# linkage.py at 3881. Every line below therefore arrives with a reference
+# edge in one of this lane's hal files -- a vtable slot the ROM's own table
+# names, or the face a linked caller already calls.
+
+# ---- the Heap BASE class -------------------------------------------------
+# _ZTV4Heap (data_02099d90) slots 0 and 1, seated in hal/lk4_eh_dtor_seat.cpp.
+# config/arm9/relocs.txt names both bodies at those two words:
+#   from:0x02099d90 to:0x0203ca44 _ZN4HeapD1Ev
+#   from:0x02099d94 to:0x0203ca20 _ZN4HeapD0Ev
+src/_ZN4HeapD1Ev.c
+src/_ZN4HeapD0Ev.c
+# Heap::Allocate(unsigned) at 0x0203c28c, the body behind the flat name gate
+# 4b's func_0203cc0c calls. The converting face is in hal/lk4_eh_dtor_seat.cpp;
+# hal/heap_vtable.cpp keeps its old host copy as an alternatename fallback for
+# the ten targets that carry gate 4b without this slice.
+src/_ZN4Heap8AllocateEj.cpp

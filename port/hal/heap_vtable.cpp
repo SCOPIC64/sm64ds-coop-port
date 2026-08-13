@@ -51,11 +51,34 @@ struct ExpandingHeapAllocator {
 };
 
 // ---- globals the root-heap chain stores through --------------------------
+//
+// data_02099d90 is _ZTV4Heap, the BASE class's vtable, and it was hosted here
+// as a four-byte int labelled "heap bring-up state flag". That label was
+// wrong. Three matched TUs store its ADDRESS into an object's vptr word at
+// +0x00 -- src/_ZN4HeapC1EPvjP4Heap.c (`heap->vtable = &data_02099d90`),
+// src/_ZN4HeapD2Ev.c and src/_ZN4HeapD1Ev.c -- and nothing anywhere reads it
+// as a value. config/arm9/relocs.txt settles the shape:
+//
+//   from:0x02099d90 to:0x0203ca44   _ZN4HeapD1Ev   (slot 0, complete dtor)
+//   from:0x02099d94 to:0x0203ca20   _ZN4HeapD0Ev   (slot 1, deleting dtor)
+//   0x02099d98..0x02099dcc          no relocations -- zero words
+//
+// so the ROM's table is the same SIXTEEN-slot Heap shape _ZTV13ExpandingHeap
+// carries below, with two real bodies and fourteen null slots (Heap declares
+// the rest pure virtual; see the class in src/_ZN4Heap11ResizeToFitEv.c).
+// 0x02099d90 + 16*4 + 8 lands exactly on _ZTV13ExpandingHeap at 0x02099dd8,
+// which is the sizing check.
+//
+// The storage is the right SHAPE here, for every target, so a stray dispatch
+// cannot run off the end of it; the CONTENTS are seated on the walk_window
+// family in hal/lk4_eh_dtor_seat.cpp, where the matched dtor pair rides.
+// Targets without that seat keep the zeros, which is what they had when this
+// was an int.
 DSSTATE_BEGIN
 extern "C" {
 void *data_020a0e9c;   /* Heap::rootHeap */
 void *data_020a0ea0;   /* Memory::defaultHeapPtr */
-int data_02099d90;     /* heap bring-up state flag */
+void *data_02099d90[16];   /* _ZTV4Heap */
 }
 DSSTATE_END
 
@@ -140,10 +163,20 @@ extern "C" void Crash(void)
 
 // Heap::Allocate(u32): the one-argument overload the allocator veneer path
 // uses (func_0203cc0c). Align 4, same as Memory::Allocate(u32)'s default.
-extern "C" void *_ZN4Heap8AllocateEj(void *self, u32 size)
+//
+// FALLBACK NOW, NOT THE FACE. src/_ZN4Heap8AllocateEj.cpp is the ROM's own
+// body (arm9 0x0203c28c) and it is seated on the walk_window family, where
+// hal/lk4_eh_dtor_seat.cpp defines the flat __cdecl name func_0203cc0c calls
+// and forwards it into that matched method. This file, though, links into
+// sixteen targets and ten of them carry gate 4b (func_0203cc0c) without
+// slice_w1l2, so they still need a definition of the flat name. Hence the
+// /alternatename: on the three seated targets the real face wins and this
+// body is never reached; everywhere else the alias supplies it, unchanged.
+extern "C" void *hal_heap_allocate_align4(void *self, u32 size)
 {
     return (void *)(size_t)((Heap *)self)->Allocate(size, 4);
 }
+#pragma comment(linker, "/alternatename:__ZN4Heap8AllocateEj=_hal_heap_allocate_align4")
 
 // ---- the synthetic vtable ------------------------------------------------
 //
