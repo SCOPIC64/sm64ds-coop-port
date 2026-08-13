@@ -45,3 +45,114 @@ src/func_02038114.c
 src/func_02035504.c
 src/func_020354e0.c
 src/func_0203ac2c.c
+
+# ---- ExtendingMeshCollider: WHY THE WHOLE CLUSTER STAYS OUT -----------------
+#
+# Wave 2 went looking for the one collision class this lane left behind, and it
+# stays behind for a reason that is worth writing down so the next lane does not
+# re-derive it or, worse, seat it and call it linked.
+#
+# THE PORT HAS NO STORAGE FOR ITS VTABLE. include/decl_common.h line 2971
+# declares _ZTV21ExtendingMeshCollider extern and no object anywhere defines it.
+# That is not an oversight to fix in passing. Every other zeroed table this lane
+# seated already existed in the port because something referenced it (the
+# actor_vtables identity tags), so seating it added the ROM's own words to
+# storage that was already there. Creating storage nothing references is a
+# different act.
+#
+# NOTHING DISPATCHES IT, AND NOTHING CAN, on the overlay set the port mounts.
+# config/arm9/relocs.txt loads 0x02099490 from exactly three sites:
+#
+#   from:0x0203ab64  ExtendingMeshCollider::~ExtendingMeshCollider  D0
+#   from:0x0203ab88  ExtendingMeshCollider::~ExtendingMeshCollider  D1
+#   from:0x0203abac  ExtendingMeshCollider::ExtendingMeshCollider   C1
+#
+# its own three structors and no one else. There is no identity-tag comparison
+# site of the kind that keeps the other seven tables honest. And the constructor
+# has exactly ONE caller in the entire ROM, every module searched:
+#
+#   config/arm9/overlays/ov045/relocs.txt
+#   from:0x02111b00 kind:arm_call to:0x0203ab8c module:main
+#
+# which is inside ExtendingPlatform_Spawn (ov045 0x02111ad4). ov045 is not in
+# PORT_LEVEL_OVERLAYS (CMakeLists.txt line 776 and the appends after it), so the
+# single construction site is in a module the port does not mount. A seat here
+# would fill a table no code reaches, in a build where the class it belongs to
+# can never be constructed.
+#
+# THE THREE HELPERS ARE EMC-PRIVATE. func_0203aa74, func_0203aa10 and
+# func_0203abb0 are unlinked, and every call site of all three lies inside
+# 0x0203a4dc..0x0203a9d4, which is EMC's own GetNormal and DetectClsn bodies.
+# They arrive only if EMC's bodies arrive. By contrast func_020374b8,
+# func_020375ec and func_02035394 are ALREADY in walk_window.map: the
+# MovingMeshCollider DetectClsn triple names them and that triple is seated in
+# hal/mmc_vtable.cpp, so they were never lane work. func_01ffb0fc is ITCM and
+# the port hosts no TU for it at all.
+#
+# THE ROM TABLE, read off config/arm9/relocs.txt at 0x02099490, thirteen slots:
+#
+#   [0]  0x0203ab68  ~ExtendingMeshCollider  D1
+#   [1]  0x0203ab3c  ~ExtendingMeshCollider  D0
+#   [2]  0x0203aa0c  Virtual08
+#   [3]  0x01ffd920  MeshCollider::GetSurfaceInfo        (itcm, inherited)
+#   [4]  0x0203a4dc  GetNormal
+#   [5]  0x02039e60  MovingMeshCollider::GetTriangleOrigin      (inherited)
+#   [6]  0x0203a8fc  DetectClsn(RaycastGround&)
+#   [7]  0x0203a594  DetectClsn(RaycastLine&)
+#   [8]  0x0203a660  DetectClsn(SphereClsn&)
+#   [9]  0x02039438  MeshColliderBase::BeforeClsn               (inherited)
+#   [10] 0x02039930  MovingMeshCollider::TransformPos           (inherited)
+#   [11] 0x02039924  MovingMeshCollider::GetAngularVelY         (inherited)
+#   [12] 0x02039908  MovingMeshCollider::GetVelocity            (inherited)
+#
+# 0x020994c4 carries no relocation because it is the next class's offset-to-top
+# word, the same two-words-per-head structure this file's seat documents. So the
+# table is MovingMeshCollider's shape exactly, with four slots overridden (2, 4,
+# 6, 7, 8) and the rest inherited.
+#
+# THE NUMBERING A SEAT WOULD USE is therefore settled, not open: it is the
+# mixture hal/mmc_vtable.cpp already argues for, because the table is the same
+# shape and the same callers read it. Slots 0 through 5 are MSVC's, which folds
+# the D1/D0 pair into one slot and so shifts GetNormal down to host index 3 and
+# takes GetTriangleOrigin at both 4 and 5; slots 6 through 8 are the ROM's,
+# because every DetectClsn caller in src is a transcribed shadow class counting
+# two destructor slots.
+#
+# AND THE CARRY SLOTS CARRY A TRAP. mmc_vtable.cpp seats TransformPos at 9,
+# GetAngularVelY at 10, GetVelocity at 11 and again at 12, because the matched
+# MeshColliderBase carry callbacks are MSVC-compiled and read one index low
+# while the ROM shadows read the ROM index. Its mmc_beforeclsn shim resolves the
+# one genuine collision at index 9 by parking TransformPos there for the
+# duration of the callback. That shim writes _ZTV18MovingMeshCollider[9] BY
+# NAME. An ExtendingMeshCollider instance dispatches through its OWN table, so
+# reusing that shim would park slot 9 of the wrong table and leave BeforeClsn
+# sitting in the index UpdatePosWithTransform is about to call, which is exactly
+# the recursion that produced the lift-ride crash. A seat here needs its own
+# park-and-restore shim against its own storage.
+#
+# WHAT LANDING IT ACTUALLY TAKES, none of it in a file this lane owns:
+#   port/CMakeLists.txt              mount ov045 (it sits at the level-overlay
+#                                    base 0x021111a0, so it is a level mount,
+#                                    PORT_LEVEL_OVERLAYS plus a port_level_table
+#                                    row, not the actor-overlay recipe)
+#   port/ov045_syms.txt              new, the SpawnInfo records
+#   port/hal/level_boot.cpp          the port_level_table row, and the call to
+#                                    whatever seat function gets written
+#   port/hal/actor_classes.inc       the registry row
+#   port/hal/actor_classes_ov045.cpp new, the vtable fill
+# ov045 holds the Bowser in the Fire Sea platform cast (FireSeaElevator_Spawn,
+# PoleLift_Spawn, ExtendingPlatform_Spawn, FloatingFloorBfs_Spawn,
+# TiltingPlatformBfs_Spawn, FallBlockBfs_Spawn), so it is a level-hosting job,
+# not a linkage seat.
+#
+# ONE NAMING NOTE for whoever does it. The recovered spawn names and the
+# recovered vtable names are off by one class against each other, and the spawn
+# names are the correct ones. ExtendingPlatform_Spawn stores _ZTV8PoleLift, and
+# PoleLift_Spawn stores _ZTV15FireSeaElevator. The ROM settles it: ov045's
+# symbols.txt gives both of those vtable addresses a second, RTTI-derived name,
+# 0x02112e80 is also _ZTV17daObjKm2_Nobiru_c and 0x02112dbc is also
+# _ZTV18daObjKm2_Ami_Bou_c. Nobiru is the one that stretches, and the spawn that
+# stores its table is the one that constructs the ExtendingMeshCollider, so the
+# class at 0x02112e80 is the extending platform however the symbol is spelled.
+# Ami_Bou is the pole. Trust the spawn names, treat the _ZTV spellings as labels
+# on storage rather than as class identity.
