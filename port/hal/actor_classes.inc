@@ -725,6 +725,35 @@ void hal_fill_ship_up_vtable(void);
 void hal_fill_rock_pillar_vtable(void);
 void hal_fill_float_on_water_jrb_vtable(void);   /* fills data_ov016_02114bcc for id 60 */
 void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlatformJrb for id 313 */
+/* ---- run linkw wave 4: ov045's platform cast (Bowser in the Fire Sea) ----
+   Six classes, twenty instances on level 37. ov045 was whole-mounted in wave 3
+   and joins the per-symbol mounts for this (port/ov045_syms.txt), so every
+   SpawnInfo below is real ROM storage the registry and the class code share.
+   THE CLASS NAMES HERE ARE THE SPAWN NAMES, NOT THE METHOD OR _ZTV NAMES: dsd
+   ends each mwcc class block at its Spawn and then labels the block as if it
+   started there, so the bodies and vtable labels sit one class late. Five
+   independent reads settle every row -- the arm9 spawn table, the raw SpawnInfo
+   id halfword, the Spawn address in the record, each table's slot 0, and each
+   Spawn's own vtable store. Full derivation in hal/actor_classes_ov045.cpp.
+   Three factories are wrappers: their matched Spawn's LAST vptr write is the
+   shared-header VT1 placeholder (a zeroed host array), so the wrapper reseats
+   p[0] onto the class's host table, the port_factory_rotating_platform_wf
+   recipe. The other three store a real name and are registered directly. */
+extern unsigned char FireSeaElevator_SpawnInfo[];    /* ov045 0x02112cd0, +4 reads 140 */
+void *FireSeaElevator_Spawn(void);                   /* ov045 0x021114dc */
+extern unsigned char PoleLift_SpawnInfo[];           /* ov045 0x02112d98, +4 reads 142 */
+void *PoleLift_Spawn(void);                          /* ov045 0x02111808 */
+extern unsigned char ExtendingPlatform_SpawnInfo[];  /* ov045 0x02112e5c, +4 reads 148 */
+void *ExtendingPlatform_Spawn(void);                 /* ov045 0x02111ad4 */
+extern unsigned char FloatingFloorBfs_SpawnInfo[];   /* ov045 0x02112f2c, +4 reads 145 */
+void *port_factory_floating_floor_bfs(void);         /* VT1 wrapper over ov045 0x02111bf4 */
+extern unsigned char FallBlockBfs_SpawnInfo[];       /* ov045 0x021130d0, +4 reads 139 */
+void *port_factory_fall_block_bfs(void);             /* VT1 wrapper over ov045 0x02111e24 */
+void hal_fill_fire_sea_elevator_vtable(void);        /* fills data_ov045_02112cf4, 32 slots */
+void hal_fill_pole_lift_vtable(void);                /* fills _ZTV15FireSeaElevator, 32 */
+void hal_fill_extending_platform_vtable(void);       /* fills _ZTV8PoleLift, 31 */
+void hal_fill_floating_floor_bfs_vtable(void);       /* fills data_ov045_02112f50, 32 */
+void hal_fill_fall_block_bfs_vtable(void);           /* fills _ZTV12FallBlockBfs, 32 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1066,4 +1095,16 @@ void hal_fill_sliding_box_vtable(void);          /* fills _ZTV23FloatOnWaterPlat
     {60, "FLOAT_ON_WATER_PLATFORM_JRB", FloatOnWaterPlatformJrb_SpawnInfo, \
      port_factory_float_on_water_jrb, hal_fill_float_on_water_jrb_vtable}, \
     {313, "SLIDING_BOX", SlidingBox_SpawnInfo, SlidingBox_Spawn, \
-     hal_fill_sliding_box_vtable},
+     hal_fill_sliding_box_vtable}, \
+    /* ---- run linkw wave 4: ov045's platform cast, five of six (level 37);
+       141 is measured but not hosted, see hal/actor_classes_ov045.cpp ---- */ \
+    {140, "FIRE_SEA_ELEVATOR", FireSeaElevator_SpawnInfo, \
+     FireSeaElevator_Spawn, hal_fill_fire_sea_elevator_vtable}, \
+    {142, "POLE_LIFT", PoleLift_SpawnInfo, PoleLift_Spawn, \
+     hal_fill_pole_lift_vtable}, \
+    {148, "EXTENDING_PLATFORM", ExtendingPlatform_SpawnInfo, \
+     ExtendingPlatform_Spawn, hal_fill_extending_platform_vtable}, \
+    {145, "FLOATING_FLOOR_BFS", FloatingFloorBfs_SpawnInfo, \
+     port_factory_floating_floor_bfs, hal_fill_floating_floor_bfs_vtable}, \
+    {139, "FALL_BLOCK_BFS", FallBlockBfs_SpawnInfo, \
+     port_factory_fall_block_bfs, hal_fill_fall_block_bfs_vtable},

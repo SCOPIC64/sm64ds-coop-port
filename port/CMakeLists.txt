@@ -1137,6 +1137,18 @@ list(APPEND PORT_ACTOR_OVERLAYS ov012)
 # shared by BOTH hands) are host arrays hal/actor_classes_ov013.cpp fills.
 # See port/ov013_syms.txt and port/slice_gate202.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov013)
+# run linkw wave 4 (lane w4-b): ov045 (level 37's own overlay, already
+# whole-mounted per gate 204) joins the per-symbol mounts too, so Bowser in the
+# Fire Sea's six-class platform cast -- FALL_BLOCK_BFS (139), FIRE_SEA_ELEVATOR
+# (140), TILTING_PLATFORM_BFS (141), POLE_LIFT (142), FLOATING_FLOOR_BFS (145)
+# and EXTENDING_PLATFORM (148) -- reaches its SpawnInfo records, SharedFilePtrs,
+# CLPS blocks and file tables by name. Same dual-mount shape as ov012/ov013.
+# Its six vtables are host arrays hal/actor_classes_ov045.cpp fills. This mount
+# runs port_ov045_pack_check/port_ov045_syms_patch and the five linkable ov045
+# sinits from the registry fill rather than from hal/actor_overlays.cpp; see the
+# LANE OWNERSHIP block in hal/actor_classes_ov045.cpp for why and for the
+# actor_overlays.cpp block that should replace it. See port/ov045_syms.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov045)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because

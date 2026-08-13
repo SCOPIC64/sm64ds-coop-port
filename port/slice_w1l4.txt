@@ -287,3 +287,229 @@ src/func_0203ac2c.c
 # defines it, which is the finding this file opens with). A fresh host array is
 # ZEROED, so EVERY slot has to be written, including the six inherited ones and
 # slot 1. A slot left unwritten is a null dispatch, not a ROM value.
+
+# ============================================================================
+# WAVE 4 (lane w4-b): THE CAST IS HOSTED, AND ExtendingMeshCollider WITH IT.
+#
+# Everything the two blocks above were waiting on is landed. ov045 now has a
+# per-symbol mount beside its whole-image one (port/ov045_syms.txt), five of
+# the six classes are registered (hal/actor_classes.inc) and filled
+# (hal/actor_classes_ov045.cpp), and _ZTV21ExtendingMeshCollider finally has
+# storage, thirteen written slots and its own park-and-restore shim
+# (hal/w2_emc_seat.cpp). The lines below are the reference edges' other half.
+#
+# THREE READINGS ABOVE NEEDED AMENDING, all three measured here; then four
+# traps, of which (G) is the one that costs a class:
+#
+# (A) THE TABLES ARE 32 SLOTS, not 31. Amendment 1 lists the own slots as
+#     0/3/6/9/16/17 (+12 for 148) and stops there. Five of the six are Platform
+#     subclasses and carry Platform::Kill (ov002 0x020ee55c) at slot 31; only
+#     ExtendingPlatform's table is 31 wide. hal/actor_classes_wf.cpp's header
+#     records what a [31] array cost on ov015 (slot 31 read past the end and
+#     took the process). Each width is pinned twice here: by the reloc run, and
+#     by the next dsd data symbol, which lands exactly on every table's end.
+#
+# (B) THREE CLASSES INHERIT Behavior AND Render FROM ANOTHER OVERLAY. Their own
+#     slots really are only 0/3/16/17, but slots 6 and 9 are not arm9 bodies the
+#     shared half covers:
+#       141  6 func_ov002_020b616c   9 func_ov002_020b6144
+#       145  6 func_ov002_020b6494   9 func_ov002_020b646c
+#       139  6 func_ov098_0213a36c   9 func_ov098_0213a314
+#            27 func_ov098_0213a284  31 func_ov098_0213a17c
+#     139's four are the SAME ov098 bodies FALL_BLOCK_WF (id 45) already seats
+#     and were already in walk_window.map. 145's two, and the two ov002 veneer
+#     targets its Init/Cleanup reach, are new and in the list below. 141's pair
+#     is what (G) is about.
+#
+# (C) THE EMC TABLE HAS SEVEN OVERRIDDEN SLOTS. Amendment 3 already corrected
+#     the "four" in the first block; re-read from config/arm9/relocs.txt here it
+#     is 0, 1, 2, 4, 6, 7, 8 own and 3, 5, 9, 10, 11, 12 inherited, thirteen
+#     slots with 0x020994c4 carrying no relocation. Confirmed.
+#
+# AND FOUR TRAPS NEITHER BLOCK NAMES:
+#
+# (D) EXTENDING_PLATFORM NEEDS THE POISONED SINIT'S FILE POINTERS.
+#     _ZN8PoleLift13InitResourcesEv (id 148's slot 0) reads data_ov045_021131d8
+#     and data_ov045_021131d0, which is exactly the pair __sinit_ov045_02112280
+#     builds. The standing decision in Amendment 2 holds unchanged -- that TU
+#     stays out of every slice and the name stays undefined so ov013's
+#     alternatename keeps binding -- and the cost is paid the way Amendment 2
+#     itself prescribes: hal/actor_classes_ov045.cpp hosts that ONE
+#     initialisation by hand (four calls, file ids 1635/1636 read off the body).
+#
+# (E) _ZN8PoleLift16CleanupResourcesEv IS THE ONE BODY THAT CANNOT BE LINKED.
+#     It spells its two SharedFilePtrs G0/G1, and hal/cxx_aliases.cpp has bound
+#     ?G0@@3PAHA / ?G1@@3PAHA to SignPost's ov002 pointers -- single global
+#     names, as that file warns. relocs.txt (0x02111968/0x0211196c) says the ROM
+#     body releases 0x021131d8 then 0x021131d0. Linking it would Release
+#     SignPost's LIVE SharedFilePtrs every time level 37 tears down. It is
+#     replaced by a host thunk (ep_clean) and is one of two cast TUs held out.
+#
+# (E2) _ZN8PoleLiftD1Ev IS THE OTHER ONE. It is a real MSVC destructor written
+#     over struct declarations LOCAL to its own .cpp, so it exports no C name at
+#     all and its member teardowns resolve to ??1Actor@@UAE@XZ / ??1Model@@QAE@XZ
+#     / ??1ExtendingMeshCollider@@QAE@XZ, none of which the port defines -- the
+#     link says so outright. The chain it means is the one its D0 sibling spells
+#     and relocs.txt confirms at 0x02111854/5c/64/74; ep_d1 is that chain. Same
+#     treatment gate 199/200/202 gave ov013's destructor pairs.
+#
+# (F) THREE FACTORIES END ON THE VT1 PLACEHOLDER. FloatingFloorBfs_Spawn,
+#     TiltingPlatformBfs_Spawn and FallBlockBfs_Spawn each finish with a store
+#     of VT1 into p[0]. Disassembled, the ROM stores the BASE table first and
+#     the OWN table second, so the recovered source's RTTI name is on the base
+#     store and VT1 is on the own one -- and VT1 is hal/auto_bss.cpp's zeroed
+#     [8]. Each of the three gets a port_factory_ wrapper that reseats p[0]
+#     after the real Spawn, the port_factory_rotating_platform_wf recipe. The
+#     other three factories store a real name and register directly.
+#
+# THE D1/D0 PLACEHOLDERS ARE FINE AND THE TWELVE BODIES LINK. Those spell their
+# intermediate base-table restores VT0/VT1/VT2, which hal/actor_vtables.cpp
+# keeps as zeroed storage precisely because they are installed transiently
+# during teardown and never dispatched -- and here each store sits between two
+# direct calls. Same reading hal/actor_classes_wf.cpp records for FALL_BLOCK_WF.
+# G0 in the six D0 bodies is the game heap, already aliased to _data_020a0eac,
+# which is the word relocs.txt has at each of those six literal-pool slots.
+
+# ---- the five hosted classes' own bodies and factories (34 TUs) -----------
+# Reference edge: hal/actor_classes_ov045.cpp's five fills and two factory
+# wrappers, reached from the five registry rows in hal/actor_classes.inc.
+# _ZN8PoleLift16CleanupResourcesEv and _ZN8PoleLiftD1Ev are deliberately absent
+# -- see (E) and (E2), and 141's five are held out by (G). Every other own-slot
+# body of the five hosted classes, and all five of their factories, is here.
+src/FireSeaElevator_Spawn.c
+src/func_ov045_021111a0.c
+src/func_ov045_021111e4.c
+src/func_ov045_0211123c.c
+src/func_ov045_02111274.cpp
+src/func_ov045_0211129c.c
+src/func_ov045_021113ec.c
+src/func_ov045_021114a8.cpp
+src/func_ov045_021114c8.c
+src/PoleLift_Spawn.c
+src/_ZN15FireSeaElevatorD1Ev.c
+src/_ZN15FireSeaElevatorD0Ev.c
+src/_ZN15FireSeaElevator16CleanupResourcesEv.cpp
+src/_ZN15FireSeaElevator6RenderEv.cpp
+src/_ZN15FireSeaElevator8BehaviorEv.cpp
+src/_ZN15FireSeaElevator13InitResourcesEv.cpp
+src/ExtendingPlatform_Spawn.c
+src/_ZN8PoleLiftD0Ev.c
+src/_ZN8PoleLift16OnPendingDestroyEv.c
+src/_ZN8PoleLift6RenderEv.cpp
+src/_ZN8PoleLift8BehaviorEv.cpp
+src/_ZN8PoleLift13InitResourcesEv.cpp
+src/func_ov045_021118c4.cpp
+src/func_ov045_021118f8.c
+src/FloatingFloorBfs_Spawn.c
+src/func_ov045_02111b14.c
+src/func_ov045_02111b64.c
+src/func_ov045_02111bc8.c
+src/func_ov045_02111bdc.c
+src/FallBlockBfs_Spawn.c
+src/_ZN12FallBlockBfsD1Ev.c
+src/_ZN12FallBlockBfsD0Ev.c
+src/_ZN12FallBlockBfs16CleanupResourcesEv.c
+src/_ZN12FallBlockBfs13InitResourcesEv.c
+
+# ---- five of ov045's six static initialisers ------------------------------
+# They build the cast's SharedFilePtrs (a model file and a collision file each,
+# with their destructor-chain nodes). Reference edge: ov45_bringup in
+# hal/actor_classes_ov045.cpp, which the six registry fills all call through one
+# done-guard. THE SIXTH, __sinit_ov045_02112280, IS NOT HERE AND MUST NOT BE --
+# Amendment 2 above is the standing decision and (D) is what it costs.
+src/__sinit_ov045_021121a8.c
+src/__sinit_ov045_02112214.c
+src/__sinit_ov045_021122ec.c
+src/__sinit_ov045_02112358.c
+src/__sinit_ov045_021123c0.c
+
+# ---- the ov002 shared-platform base 145 inherits (4 TUs) ------------------
+# FLOATING_FLOOR_BFS takes slots 6/9 straight out of ov002 and its Init and
+# Cleanup are two-line veneers onto ov002's shared pair through the three-word
+# file table data_ov045_02112f08. Reference edges: the ff_ thunks in
+# hal/actor_classes_ov045.cpp for func_ov002_020b6494 and func_ov002_020b646c,
+# and the two alternatename rows there binding the unprefixed spellings
+# func_020b6584 / func_020b6424 onto the ov002 symbols the veneers reach.
+# func_ov002_020b6144 IS NOT HERE: it is 141's Render, and with 141 unhosted
+# nothing would name it -- /OPT:REF drops the object and the line would sit
+# there looking seated, which is exactly what this file's header forbids.
+src/func_ov002_020b6494.c
+src/func_ov002_020b646c.cpp
+src/func_ov002_020b6584.c
+src/func_ov002_020b6424.c
+
+# ---- (G) TILTING_PLATFORM_BFS (141) IS MEASURED BUT NOT HOSTED ------------
+# The only one of the six that is not, and the reason is port-wide rather than
+# anything about ov045. Its own four slots and both of its ov002 slots are
+# matched src. The chain stops one step past them: func_ov002_020b6244 (its
+# base InitResources) installs func_ov002_020b6374 as the collider's beforeClsn
+# callback, that calls func_ov002_020b62cc, and that calls Quaternion_Normalize
+# -> func_02053130, which spins on SQRTCNT's busy bit and reads SQRT_RESULT
+# through C externs at 0x040002b0/0x040002b4 that nothing defines.
+#
+# port/ntr/io.cpp DOES model the divide and square-root units, but only behind
+# io_write(): a raw volatile store at 0x040002b8 -- exactly what the matched
+# func_02053008 does -- lands in the mapped page and never runs run_sqrt(), so
+# hosting func_02053130 alone would still read a stale result. The whole
+# reciprocal/sqrt family (_ZN4cstd16reciprocal_asyncE5Fix12IiE,
+# _ZN4cstd11fdiv_resultEv, _ZN4cstd11ldiv_resultEv, func_02053008,
+# func_02053130, func_02053200) is unhosted in this build for the reason
+# hal/cstd_div.c gives for cstd::fdiv: a thin wrapper over MMIO that cannot run
+# on a host. That belongs to the port's math layer, not to a level's actor
+# cast.
+#
+# SO 141 STAYS UNREGISTERED and the 23 TUs behind it stay out: its own four
+# bodies and Spawn, six ov002 bodies, and twelve quaternion/Fix12 TUs. Two of
+# level 37's twenty platform instances ride on it. Re-enabling is a
+# self-contained follow-up: host the reciprocal/sqrt family the way
+# hal/cstd_div.c hosts the divide, then restore the id-141 section of
+# hal/actor_classes_ov045.cpp, its registry row and these lines.
+
+# ---- ExtendingMeshCollider (17 TUs) ---------------------------------------
+# Reference edge: hal/w2_emc_seat.cpp, which defines _ZTV21ExtendingMeshCollider
+# and writes all thirteen slots, called from hal/actor_classes_ov045.cpp's
+# bring-up before any of the cast registers. The seat is reachable at last
+# because ov045 is mounted and EXTENDING_PLATFORM (148) is registered, so the
+# class's ONE ROM-wide constructor caller (ov045 0x02111b00, inside
+# ExtendingPlatform_Spawn) is in the build and level 37 places one.
+#
+# THE THREE HELPERS COME IN WITH THE BODIES, exactly as the first block
+# predicted: every call site of func_0203aa74, func_0203aa10 and func_0203abb0
+# lies inside EMC's own GetNormal and DetectClsn. func_020374b8, func_020375ec
+# and func_02035394 were already in the map (the MovingMeshCollider DetectClsn
+# triple names them) and func_01ffb0fc is ITCM, hosted by hal/method_faces.cpp.
+# func_0203a420 is the base subobject destructor both structors call,
+# func_0203a4b8 the base constructor C1 calls, func_020396c0 the enable-mode
+# setter id 148's InitResources uses, func_0203aad0 the scale reader its
+# Behavior and Render both dispatch on.
+src/_ZN21ExtendingMeshColliderC1Ev.c
+src/_ZN21ExtendingMeshColliderD1Ev.c
+src/_ZN21ExtendingMeshColliderD0Ev.c
+src/_ZN21ExtendingMeshCollider9Virtual08Ev.cpp
+src/_ZN21ExtendingMeshCollider9GetNormalEsR7Vector3.cpp
+src/_ZN21ExtendingMeshCollider10DetectClsnER13RaycastGround.cpp
+src/_ZN21ExtendingMeshCollider10DetectClsnER11RaycastLine.c
+src/_ZN21ExtendingMeshCollider10DetectClsnER10SphereClsn.cpp
+src/_ZN21ExtendingMeshCollider7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block.c
+src/_ZN21ExtendingMeshCollider9SetScaleYE5Fix12IiE.c
+src/func_0203aa74.c
+src/func_0203aa10.c
+src/func_0203abb0.c
+src/func_0203aad0.c
+src/func_0203a420.c
+src/func_0203a4b8.c
+src/func_020396c0.c
+
+# ---- the two host files, carried as slice lines ----------------------------
+# The wave-2 self-registration pattern (port/hal/w2_dtor_heads.cpp in
+# slice_w1l2.txt): the slice reader resolves every line against the repo root,
+# so a port/hal/ path builds without touching port/CMakeLists.txt. NO OTHER
+# WRITER constraint re-proved for both: the six vtable arrays
+# (data_ov045_02112cf4, _ZTV15FireSeaElevator, _ZTV8PoleLift,
+# data_ov045_02112f50, _ZTV16FloatingFloorBfs, _ZTV12FallBlockBfs) and
+# _ZTV21ExtendingMeshCollider are DEFINED in these two files and in no other --
+# swept across port/hal, port/unmatched and src/, and the six ov045 tables are
+# excluded from the ov045 mount by name in port/ov045_syms.txt, so the generator
+# cannot become a second writer either.
+port/hal/actor_classes_ov045.cpp
+port/hal/w2_emc_seat.cpp
