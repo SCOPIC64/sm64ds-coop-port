@@ -61,6 +61,24 @@ void func_0204a5bc(void *self, void *list) { func_0204c584(self, list); }
 void func_02049d60(void *engine, void *sys);
 extern void *data_0209ee74;
 
+/* THE TAG THIS BODY WAS OWED. Everything above is the reason; this is the
+   reason written where port/tools/linkage.py can read it. Without it the tool
+   lists this definition as a SHADOW -- a host body standing in front of a
+   matched TU that could take over -- and that reading is wrong here, because
+   the matched TU cannot be made to work under any stack ABI.
+
+   The matched body's last statement is `func_02049d60(data_0209ee74->p)`.
+   ONE argument. The System reference the method was ENTERED with is still in
+   r1 at that call, and func_02049d60's own transcription reads a second
+   parameter (`void func_02049d60(int b, int a)`), so on ARM it receives &sys
+   without either side naming it. cdecl has no such register: nothing pushes
+   &sys, and the callee takes whatever sits above the return address.
+
+   That is measured, not deduced. Hosting the three bodies verbatim faulted in
+   func_0204c584 with a definition pointer of 1 on the first landing puff, and
+   slice_gate29.txt keeps this TU out of the gate-29 slice under the heading
+   "NOT HERE: three ARM argument ride-throughs" for exactly that.
+   PORT_HOST_ABI: ARM r1 ride-through; the matched TU never names &sys. */
 void _ZN8Particle14SimpleCallback14SpawnParticlesERNS_6SystemE(void *self,
                                                                void *sys)
 {

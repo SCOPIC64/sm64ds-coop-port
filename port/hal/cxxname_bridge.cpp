@@ -38,6 +38,9 @@ void _ZN16MeshColliderBase7DisableEv(void *self)
 #include "Platform.h"
 #include "ShadowModel.h"
 #include "Model.h"
+/* Model.h only forward-declares SharedFilePtr; the Model::LoadFile face below
+   binds a reference to one, so it needs the complete (fieldless) declaration. */
+#include "SharedFilePtr.h"
 extern "C" {
 void _ZN8Platform19UpdateClsnPosAndRotEv(void *self)
 { ((Platform *)self)->Platform::UpdateClsnPosAndRot(); }
@@ -121,27 +124,97 @@ void ShadowModelCuboidFallback::InitCuboid() {}
 #pragma comment(linker, "/alternatename:?InitCuboid@ShadowModel@@QAEXXZ=?InitCuboid@ShadowModelCuboidFallback@@QAEXXZ")
 
 extern "C" {
-void _ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j(
-    void *, void *, void *, int, int, int, unsigned) {}
-void _ZN13SharedFilePtr8LoadFileEv(void *fp);
+/* ACTOR::DROPSHADOWSCALEXYZ IS GONE FROM THIS FILE, and what stood here was
+   `... (void *, void *, void *, int, int, int, unsigned) {}` -- an empty body,
+   not a bridge. Nine linked callers reached it and got nothing: SignPost and
+   ArrowSignRight's Behavior methods and seven ov functions, all of them in
+   walk_window.map, all of them asking for a shadow every frame they ran.
+
+   HOW OFTEN, counted rather than assumed, because a swap nothing calls is not
+   a swap. A scratch build put a call counter in the fallback below, kept the
+   slice line out so walk_window resolved onto it, and ran the 300-frame
+   control: 1800 calls, six per frame, on the castle-grounds boot alone (the
+   level spawns five SIGN_POST). Reverted; the counter is not in the tree.
+
+   The matched TU takes over: src/_ZN5Actor18DropShadowScaleXYZER11ShadowModel
+   R9Matrix4x35Fix12IiES5_S5_j.c, now listed in port/slice_w1l3.txt. It is
+   plain C, it spells all seven arguments, and it is the structural twin of
+   Actor::DropShadowRadHeight -- same `flags & 0x10` test at Actor+0xb0, same
+   ShadowModel::InitModel call -- which has been linked and running every
+   frame since before this wave (walk_window.map lists both the matched
+   DropShadowRadHeight TU and its InitModel callee). There is no host body
+   left to bridge into, so nothing here forwards; the C name IS the matched
+   definition now.
+
+   THE THREE NARROW HARNESSES STILL NEED A DEFAULT, and they said so rather
+   than being guessed at. smoke_actor, smoke_savestate and smoke_persist
+   compile this TU but do NOT carry SLICE_W1L3_SOURCES, and deleting the stub
+   broke all three the same way:
+
+     _ZN14ArrowSignRight8BehaviorEv.cpp.obj : error LNK2019: unresolved
+     external symbol __ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x3
+     5Fix12IiES5_S5_j referenced in function "public: int __thiscall
+     ArrowSignRight::Behavior(void)"
+
+   walk_window, walk_window_hires and smoke_player carry the slice and link
+   the real body, which wins over an /alternatename. This is the same shape as
+   hal_shadow_d1_fallback below and the InitCuboid fallback further down, with
+   one difference: no shadow class is needed, because the symbol being
+   defaulted is a plain cdecl C name and not a __thiscall method.
+
+   AND IT IS A NO-OP, on w3-a's evidence rather than on principle. That lane
+   wrote its InitCuboid fallback as an abort() first, reasoning that a narrow
+   harness has no business installing a shadow, and running it disproved that
+   outright. Here the argument is even shorter: an empty body is what EVERY
+   target had before this change, so returning quietly is precisely the three
+   harnesses' existing baseline, and an abort would break them on a body they
+   have been calling all along. If they ever need the real shadow, the fix is
+   SLICE_W1L3_SOURCES in port/CMakeLists.txt, which is not this lane's file. */
+extern "C" void hal_dropshadow_scalexyz_fallback(void *, void *, void *,
+                                                 int, int, int, unsigned) {}
+#pragma comment(linker, "/alternatename:__ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j=_hal_dropshadow_scalexyz_fallback")
+/* MODEL::LOADFILE IS A FACE AGAIN, and it was not one before. This definition
+   used to be a hand-expanded copy of the matched Model::LoadFile -- LoadFile,
+   read filePtr, check numRefs, UpdateFileOffsets, AddToCommonModelDataArr --
+   written out so each load stage could carry its own PORT_TRACE_SETFILE line.
+
+   port/tools/linkage.py counted it in the FACES bucket, and the docstring on
+   that bucket says exactly why that reading could not be trusted: a map proves
+   both definitions are linked, not that the host one forwards. This was the
+   case the caveat is about. The matched TU is in the binary because other
+   callers reach it by its MSVC name, while everything arriving on the ROM's C
+   name got this copy instead.
+
+   Worse, the copy was not equal. The matched body ends the numRefs == 1 branch
+   with ptr.ReallocateModelFile(); this one dropped it, on the true observation
+   that reallocation is a DS heap shrink with nothing to do on host. True but
+   unnecessary: hal/gx_upload_bridge.cpp already hosts
+   SharedFilePtr::ReallocateModelFile as an empty body, so the matched body's
+   call lands on a real no-op rather than on nothing. Forwarding costs one call
+   into a function that returns immediately, and buys back a body the port was
+   restating.
+
+   THE SPLIT THIS CLOSES. Model::LoadFile is spelled three ways in the tree and
+   the map had them landing in two places: the ROM's C name and the two
+   /alternatename decorations in hal/actor_faces_bob.cpp,
+   hal/bob_enemy_bridges.cpp and hal/actor_classes_bowserpuzzle.cpp all reached
+   THIS body, while any TU compiled against include/Model.h's `static void
+   *LoadFile(SharedFilePtr &)` reached the matched one. Same ROM function, two
+   host bodies, picked by how a caller spelled the return type. One hop here
+   puts all three spellings on the matched body.
+
+   The trace stays, at the granularity a forwarder can honestly offer: the
+   handle going in and the buffer coming out. */
 void *_ZN5Model8LoadFileER13SharedFilePtr(void *fp)
 {
     int trace = getenv("PORT_TRACE_SETFILE") != 0;
     if (trace)
         fprintf(stderr, "  model_loadfile fp=%p id=%u refs=%u\n", fp,
                 *(unsigned short *)fp, ((unsigned char *)fp)[2]);
-    /* expanded body of the matched Model::LoadFile so the load stages are
-       individually traceable on host (Reallocate is a DS heap shrink, no-op
-       here -- see gx_upload_bridge.cpp) */
-    _ZN13SharedFilePtr8LoadFileEv(fp);
-    void *filePtr = *(void **)((char *)fp + 4);
-    if (((unsigned char *)fp)[2] == 1 && filePtr != 0) {
-        if (trace) fprintf(stderr, "    fixups buf=%p\n", filePtr);
-        Model::UpdateFileOffsets(*(BMD_File *)filePtr);
-        if (trace) fprintf(stderr, "    offsets ok\n");
-        Model::AddToCommonModelDataArr(*(BMD_File *)filePtr);
-        if (trace) fprintf(stderr, "    common-arr ok\n");
-    }
+    void *filePtr = Model::LoadFile(*(SharedFilePtr *)fp);
+    if (trace)
+        fprintf(stderr, "    model_loadfile -> buf=%p refs=%u\n", filePtr,
+                ((unsigned char *)fp)[2]);
     return filePtr;
 }
 
@@ -435,8 +508,14 @@ extern "C" void _ZN11ShadowModelD1Ev(void *self);
    gate 10/16, which wins over this alternatename. The stub is never CALLED in
    smoke_actor -- that harness spawns gate-8/9 collision actors, none of which
    dispatch the shadow slot -- so it traps loudly if a target ever does reach it
-   without the real dtor. The InitCuboid/DropShadowScaleXYZ stubs above are the
-   same reasoning for the same reason. */
+   without the real dtor. THE SENTENCE THAT USED TO END THIS COMMENT IS DEAD:
+   it called InitCuboid and DropShadowScaleXYZ "the same reasoning for the same
+   reason", and neither is a stub any more. w3-a gave InitCuboid the matched
+   body plus a no-op fallback, this wave gave DropShadowScaleXYZ the matched
+   body outright, and this one -- an abort -- is now the only trap of its kind
+   in the file. That difference is the point: an abort is right where reaching
+   the fallback would be a bug, and w3-a measured that it is NOT right for a
+   body the narrow harnesses have been calling all along. */
 extern "C" void hal_shadow_d1_fallback(void *)
 { std::fprintf(stderr, "hal_shadow_d1_fallback: real _ZN11ShadowModelD1Ev not "
                        "linked in this target but the shadow slot was reached\n");
@@ -472,7 +551,50 @@ void *_ZN5Model23AddToCommonModelDataArrER8BMD_File(void *file)
 { return Model::AddToCommonModelDataArr(*(BMD_File *)file); }
 void *func_0203cc0c(unsigned size);
 void _ZN6Memory10DeallocateEPv(void *p);
-/* the DS global operator new/delete route through the Memory layer */
+
+/* THE DS GLOBAL operator new. src/_Znwj.cpp is byte-matched and it is a
+   THREE-INSTRUCTION ARM VENEER -- `ldr ip, [pc]; bx ip; .word 0x203cc0c` --
+   transcribed exactly as `void _Znwj(void) { func_0203cc0c(); }`. It names no
+   parameter because it MOVES none: the allocation size the caller left in r0
+   is still in r0 when func_0203cc0c reads it. Compile that under 32-bit cdecl
+   and the size is on the caller's stack, nothing pushes it a second time, and
+   func_0203cc0c reads _Znwj's own return address as the byte count. No slice
+   position fixes that, and no target could carry both definitions anyway --
+   the matched TU and this one spell the same C symbol.
+
+   HEAP IDENTITY IS NOT AT STAKE, which is the thing worth checking before
+   touching operator new at all. The callee below is the ROM's own next hop,
+   matched and linked: build/port/walk_window.map lists _func_0203cc0c against
+   func_0203cc0c.c.obj, and that TU is `Heap::Allocate(data_020a0ea0, size)`.
+   So this definition reaches the ROM's game-heap word through the ROM's own
+   body. The argument is the only thing it adds.
+   PORT_HOST_ABI: ARM r0 ride-through; src/_Znwj.cpp names no size. */
 void *_Znwj(unsigned size) { return func_0203cc0c(size); }
+
+/* THE DS GLOBAL operator delete2, the same shape one address down.
+   src/_ZN6Memory16operator_delete2EPv.cpp is the veneer at 0x203cbcc
+   (`ldr ip, [pc]; bx ip; .word 0x203cbf0`), transcribed `void
+   _ZN6Memory16operator_delete2EPv(void) { _ZdlPv(); }` -- it hands _ZdlPv the
+   pointer that is already in r0, and under cdecl it hands it nothing. The
+   port has been ruling on this exact veneer shape since gate 24: the same
+   finding is written out in slice_gate24.txt and slice_gate31.txt for
+   func_0203cbc0, the OTHER ROM veneer onto _ZdlPv, which is hosted in
+   unmatched/func_02073244.c for the same reason.
+
+   THE ROUTE ENDS IN THE ROM'S HEAP, checked rather than assumed, and it is
+   NOT the ROM's hop sequence. The ROM goes _ZdlPv -> defaultHeapPtr
+   ->_Deallocate -> (a third veneer) -> Heap::Deallocate. This goes through
+   the matched Memory::Deallocate(void*) -> Memory::Deallocate(void*, 0),
+   which falls back to the same defaultHeapPtr and calls the same
+   Heap::Deallocate, whose body is a single dispatch of vtable slot 4. Same
+   heap pointer, same virtual, more hops.
+
+   The extra hops are deliberate. _ZdlPv reaches walk_window and smoke_player
+   only -- it is absent from the smoke_actor, smoke_savestate and smoke_persist
+   maps -- while this definition has to resolve in all five targets that
+   compile this file, and Memory::Deallocate's C name does resolve in all five.
+   Pointing this at _ZdlPv would buy one hop of ROM shape at the price of an
+   /alternatename fallback in three harnesses.
+   PORT_HOST_ABI: ARM r0 ride-through; the src veneer names no pointer. */
 void _ZN6Memory16operator_delete2EPv(void *p) { _ZN6Memory10DeallocateEPv(p); }
 }
