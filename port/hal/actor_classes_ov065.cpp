@@ -560,7 +560,10 @@ DSSTATE_END
 }
 #include "WorkElevator.h"
 /* the shared-window race: WorkElevator_Spawn spells its own-table store
-   func_ov075_0211478c; ov021's config names that address _ZTV12WorkElevator */
+   func_ov075_0211478c; ov021's config names that address _ZTV12WorkElevator.
+   PORT_HOST_ABI: shared-window name race -- src/func_ov075_0211478c.c is
+   ov075's OWN body at the same window address (a different overlay's image),
+   and linking it here would hand WorkElevator VS-mode code for a vtable. */
 #pragma comment(linker, "/alternatename:_func_ov075_0211478c=__ZTV12WorkElevator")
 static int __fastcall we_init(void *s, void *)
 { return _ZN12WorkElevator13InitResourcesEv((char *)s); }
