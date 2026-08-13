@@ -492,6 +492,9 @@ extern "C" void func_ov002_020c6fe4(char *c);
 /* ST_CLIMB's two host entries, port/unmatched/Player_St_Climb.cpp */
 extern "C" int port_player_st_climb_init(void *self);
 extern "C" int port_player_st_climb_main(void *self);
+/* Player::St_EndingFly_Main, under the flat name the ov002 world gives it
+   (the sinit's PMF table pairs it with the EndingFly state; see the case). */
+extern "C" int func_ov002_020c3d1c(char *self);
 
 extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 {
@@ -564,18 +567,25 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
          _ZN6Player22St_SwingPlayer_CleanupEv  0x020d9fc4
          _ZN6Player19St_SwingPlayer_InitEv     0x020da3b0
 
-       Both state families still have an unhosted Main, and that is a stated
-       hole rather than an oversight:
-         St_SwingPlayer_Main 0x020d9fec has no matched src TU at all.
-         St_EndingFly_Main   is matched but does not link -- it reads
-           data_ov007_02103254, and ov007 belongs to another lane.
-       So these three establish the state the ROM establishes, and the two
-       Main misses keep announcing themselves through g_port_unhosted_hits
-       below. That is closer to the ROM than what was here before, where the
-       state was entered and nothing ran at all: Climb is the worked example
-       of what a silently skipped Init costs (see port/unmatched/
+       SwingPlayer still has an unhosted Main, and that is a stated hole
+       rather than an oversight: St_SwingPlayer_Main 0x020d9fec has no
+       matched src TU at all, and the miss keeps announcing itself through
+       g_port_unhosted_hits below. Climb is the worked example of what a
+       silently skipped state body costs (see port/unmatched/
        Player_St_Climb.cpp -- the anim never changes and the entry speed is
-       never zeroed, which reads as a freeze that then slides). */
+       never zeroed, which reads as a freeze that then slides).
+
+       EndingFly's Main is NOT the ov007-named body an earlier version of
+       this comment blamed. The ov002 sinit's own PMF state table pairs the
+       EndingFly state object (0x0211058c) with func_ov002_020c3d1c: the
+       wave-2 mount lane derived that from the relocation triple, and its
+       reviewer re-derived it by reconstructing all 81 state objects from
+       the sinit's store sequence. The ov007 body at the same address is a
+       different overlay's function that 86 ov007-internal calls reach and
+       no PMF cell anywhere names. The case below dispatches the ov002 body;
+       its data (the 27-record rising-spiral step table data_ov002_0210a8b8
+       and the kuppa script data_02088610) rode in with the wave-2 mounts. */
+    case 0x020c3d1c: return func_ov002_020c3d1c((char *)self);
     case 0x020c3d6c: return ((Player *)self)->Player::St_EndingFly_Init();
     case 0x020d9fc4: return ((Player *)self)->Player::St_SwingPlayer_Cleanup();
     case 0x020da3b0: return ((Player *)self)->Player::St_SwingPlayer_Init();

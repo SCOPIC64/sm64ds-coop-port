@@ -42,6 +42,11 @@ src/_ZN6Player22St_SwingPlayer_CleanupEv.cpp
 # non-existent file, which is the quiet half of that mistake. Notes go above.
 #
 # ov002 player-module helpers. The caller each one waits on:
+# (WAVE-2 RECONCILIATION: the "blocked" notes on 020c3148/020c3160 and the
+# wave-1 unseatable rulings on 020c3bdc/020c3d1c/020c2fec/020c38a0 below are
+# SUPERSEDED -- the wave-2 mount lane mounted their data, this file seats all
+# of them, and the dispatcher case in hal/player_bridges.cpp is the edge
+# that lights the chain. Wave-1 prose kept for the derivation record.)
 #   020c3148  func_ov002_020c38a0 (blocked, see below)
 #   020c3160  func_ov002_020c2fec (blocked, see below)
 #   020c37a4  func_ov002_020c38a0, func_ov002_020c3a48
@@ -107,7 +112,9 @@ src/_ZN6Player8CanPauseEv.cpp
 # Read straight out of config/arm9/overlays/ov002/relocs.txt:
 #     0x02106dac -> cell 0x0210a51c -> 0x020c3d6c  _ZN6Player17St_EndingFly_InitEv
 #     0x02106db0 -> cell 0x0210a0bc -> 0x020c3d1c  func_ov002_020c3d1c
-#     0x02106db4 ->      0x02110804               the State object itself
+#     0x02106db4 ->      0x02110804               (a pool argument word; the
+#     EndingFly State object itself is 0x0211058c -- the reviewer's full
+#     81-state reconstruction of the sinit store sequence settled that)
 # The same triple shape names OpeningWakeUp, LongJump, PunchKick and
 # GroundPound correctly two cells earlier, so the pairing is the sinit's, not
 # a guess. func_ov002_020c3d1c IS Player::St_EndingFly_Main; ov007's body at
