@@ -125,3 +125,44 @@ data_ov001_020ad524 data_ov001_020ad59c data_ov001_020ad644
 data_ov001_020ab608 data_ov001_020ab60c data_ov001_020ab610
 data_ov001_020ad4b4 data_ov001_020ad4c4 data_ov001_020ad560
 data_ov001_020ad5dc data_ov001_020ad640
+
+# ---------------------------------------------------------------------------
+# run linkw wave 4 (lane w4-e): THE BOUNCING ARROW'S SPRITE TEMPLATE.
+#
+# Stage::RenderBouncingArrows draws from an OamAttr list at 0x020abd88, which
+# is past the 0x020ab800..0x020abb00 run at the top of this file. config names
+# it -- config/arm9/overlays/ov001/symbols.txt:111 reads
+#
+#     _ZN3OAM14BOUNCING_ARROWE kind:data(any) addr:0x020abd88 ambiguous
+#
+# -- the same `ambiguous` shape as the five HUD tables, and for the same
+# reason: ov000 and ov001 share base 0x020aa420, so dsd could not attribute
+# the address, and config/arm9/overlays/ov000/symbols.txt:282 carries the
+# ov000 misattribution as data_ov000_020abd88. That is lane w3-c's finding and
+# it re-checks: this is a PORT change, not a config change.
+#
+# THE EXTENT IS 16 BYTES AND THE ROM AGREES WITH CONFIG ABOUT IT. That is the
+# part worth checking rather than assuming, because OAM::Render is handed this
+# pointer and WALKS it -- a short mount is the unbounded-walk failure the
+# cross-mount pointer pass in port/CMakeLists.txt describes. Read out of
+# extracted/overlays/overlay_0001.bin (base 0x020aa420, 12800 bytes):
+#
+#   OamAttr is { u32 a01; u16 a2; u16 a3; }, 8 bytes, and OAM::Render returns
+#   on a3 == 0xffff after handling that entry.
+#     0x020abd88  a01=41f800f4 a2=1080 a3=0000
+#     0x020abd90  a01=01f84004 a2=10a2 a3=ffff   <- terminator
+#   so the list is exactly two entries and ends at 0x020abd98, which is where
+#   the next config symbol starts. The next-symbol delta this mount is sized
+#   by and the ROM's own terminator land on the same byte.
+#
+# 0x020abd98 is NOT taken with it: it reads 020abf20 / 020abdd8 / 020ac078 /
+# 020abda8, a pointer table into this overlay and a different object.
+#
+# NOT YET REFERENCED, and read this before assuming it is live. The matched
+# body src/_ZN5Stage20RenderBouncingArrowsEv.cpp spells the template
+# func_020abd88 and is not on any slice walk_window reads; the port's own
+# stand-in in hal/sub_actors.cpp defines the same C symbol today. Seating the
+# matched body needs that stub deleted and the func_020abd88 alternatename
+# added beside it, both in hal/sub_actors.cpp, which is not this lane's file.
+# The measurement and the handoff are in port/slice_w1l5.txt under LANE w4-e.
+_ZN3OAM14BOUNCING_ARROWE
