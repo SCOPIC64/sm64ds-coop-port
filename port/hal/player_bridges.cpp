@@ -552,6 +552,33 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
     }
     switch (ds_addr) {
 #include "player_states.inc"
+    /* run linkw / lane l5: the last state-fn addresses in ov002's symbol
+       table that the generated .inc does not carry. All three are matched
+       src TUs, seated through port/slice_w1l5.txt, and all three are real
+       __thiscall methods, so the call goes through the Player class exactly
+       the way every method case in the .inc above does.
+
+       Addresses read out of config/arm9/overlays/ov002/symbols.txt, not
+       guessed from a neighbouring case:
+         _ZN6Player17St_EndingFly_InitEv       0x020c3d6c
+         _ZN6Player22St_SwingPlayer_CleanupEv  0x020d9fc4
+         _ZN6Player19St_SwingPlayer_InitEv     0x020da3b0
+
+       Both state families still have an unhosted Main, and that is a stated
+       hole rather than an oversight:
+         St_SwingPlayer_Main 0x020d9fec has no matched src TU at all.
+         St_EndingFly_Main   is matched but does not link -- it reads
+           data_ov007_02103254, and ov007 belongs to another lane.
+       So these three establish the state the ROM establishes, and the two
+       Main misses keep announcing themselves through g_port_unhosted_hits
+       below. That is closer to the ROM than what was here before, where the
+       state was entered and nothing ran at all: Climb is the worked example
+       of what a silently skipped Init costs (see port/unmatched/
+       Player_St_Climb.cpp -- the anim never changes and the entry speed is
+       never zeroed, which reads as a freeze that then slides). */
+    case 0x020c3d6c: return ((Player *)self)->Player::St_EndingFly_Init();
+    case 0x020d9fc4: return ((Player *)self)->Player::St_SwingPlayer_Cleanup();
+    case 0x020da3b0: return ((Player *)self)->Player::St_SwingPlayer_Init();
     }
     /* Every miss here is a state the port silently does not run, and the only
        record of it used to be a line in the flight recorder that nobody reads
