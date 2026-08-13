@@ -28,3 +28,34 @@
 # (BookShot's state-9 behaviour calls an undecompiled ov063 function).
 HauntedChair_SpawnInfo data_ov020_021149fc
 data_ov020_02114af0 data_ov020_02114af8
+
+# run linkw wave 5 (lane w5-A): the BOOK CAST joins -- Bookend (327),
+# BookShotSpawner (328), BookShot (325) and the unnamed BookSwitch record
+# (213, data_ov020_02114898; its factory is the unnamed func_ov020_021127f4,
+# settled by the record's own bytes -- every record in this cluster is
+# config-`ambiguous` and each was verified: w0 = its own factory inside
+# ov020, +4 halfword = the id). The cluster 0x02114844..0x021148d8 is ONE
+# contiguous --pack run; dsd split two records (Bookend +0x14/data_02114874,
+# BookShot +4/data_021148b8), and the registry's +4 id readback crosses those
+# splits, so the run's contiguity is load-bearing. data_ov020_021148b8's span
+# also carries the spawner table's RTTI header (inert). The two vtables
+# (_ZTV15BookShotSpawner 0x021148d8 with its interior splits
+# data_ov020_021148e0/021148f0, _ZTV8BookShot 0x0211495c) stay OUT -- host
+# arrays hal/actor_classes_ov063.cpp fills.
+data_ov020_02114844 data_ov020_02114850
+Bookend_SpawnInfo data_ov020_02114874
+BookShotSpawner_SpawnInfo data_ov020_0211488c
+data_ov020_02114898
+BookShot_SpawnInfo data_ov020_021148b8
+# the two 12-byte nodes between BookShot's table and HauntedChair's record
+data_ov020_021149d8 data_ov020_021149e4
+# the four book SharedFilePtrs __sinit_ov020_02113674 builds (models
+# 0x2c8/0x2cb, anims 0x2c9/0x2ca) and their destructor-chain nodes; the
+# node at 0x02114ad8 is 12 bytes by the ROM's own write (func_020731dc
+# stores three words) -- dsd's interior split data_ov020_02114adc would
+# floor it to 4, so the node is pinned and the split skipped.
+data_ov020_02114aa0 data_ov020_02114aa8 data_ov020_02114ab0
+data_ov020_02114ab8 data_ov020_02114ac0 data_ov020_02114acc
+data_ov020_02114ad8:0xc data_ov020_02114ae4
+# the book state machine's tuning word (4 bytes, next symbol 0211482c)
+data_ov020_02114828

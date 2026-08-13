@@ -684,3 +684,324 @@ extern "C" void _ZN8CapEnemy12UpdateCapPosERK7Vector3RK10Vector3_16(
    both names already have host storage (this file / hal/actor_vtables.cpp) */
 #pragma comment(linker, "/alternatename:?_ZTV8MadPiano@@3PAPAXA=__ZTV8MadPiano")
 #pragma comment(linker, "/alternatename:?_ZTV8Platform@@3PAPAXA=__ZTV8Platform")
+/* ...and the ov020 book TUs' spellings of the four SharedFilePtrs (two TUs,
+   two type vocabularies for the same storage) plus two @@YA cdecl free
+   functions -- the one alias-legal class (hal/cxx_aliases.cpp's law). */
+#pragma comment(linker, "/alternatename:?data_ov020_02114aa0@@3USharedFilePtr@@A=_data_ov020_02114aa0")
+#pragma comment(linker, "/alternatename:?data_ov020_02114aa8@@3USharedFilePtr@@A=_data_ov020_02114aa8")
+#pragma comment(linker, "/alternatename:?data_ov020_02114ab0@@3USharedFilePtr@@A=_data_ov020_02114ab0")
+#pragma comment(linker, "/alternatename:?data_ov020_02114ab8@@3USharedFilePtr@@A=_data_ov020_02114ab8")
+#pragma comment(linker, "/alternatename:?data_ov020_02114aa0@@3HA=_data_ov020_02114aa0")
+#pragma comment(linker, "/alternatename:?data_ov020_02114ab8@@3HA=_data_ov020_02114ab8")
+#pragma comment(linker, "/alternatename:?LoadBlueCoinModel@@YAXPAX@Z=_LoadBlueCoinModel")
+#pragma comment(linker, "/alternatename:?_ZN5Model8LoadFileER13SharedFilePtr@@YAXPAX@Z=__ZN5Model8LoadFileER13SharedFilePtr")
+/* two role-name spellings in the book closure: func_ov020_021112b0 calls
+   Actor_ClosestPlayer WITH the receiver (checked -- alias-legal, both cdecl)
+   and cstd_atan2 for _ZN4cstd5atan2E5Fix12IiES1_ (matched, on the slice) */
+#pragma comment(linker, "/alternatename:_Actor_ClosestPlayer=__ZN5Actor13ClosestPlayerEv")
+#pragma comment(linker, "/alternatename:_cstd_atan2=__ZN4cstd5atan2E5Fix12IiES1_")
+
+// ============================================================================
+// THE MOUNTED-OVERLAY STRAGGLERS, part 1: THE BOOK CAST (ov020)
+// ============================================================================
+//
+// Gate 149 hosted HAUNTED_CHAIR and deferred the books because BookShot's
+// state-9 behaviour calls func_ov063_0211cae8 -- an ov063 body this lane's
+// slice now carries. Four ids on TWO tables, re-derived from the raw image
+// (overlay_0020.bin, base 0x021111a0; every SpawnInfo below is flagged
+// `ambiguous` in config and was settled by its record's own bytes):
+//
+//   id   class            record       factory            table
+//   327  Bookend          0x02114860   Bookend_Spawn      _ZTV8BookShot
+//   325  BookShot         0x021148b4   BookShot_Spawn     _ZTV8BookShot
+//   213  BookSwitch       0x02114898   func_ov020_021127f4  _ZTV8BookShot
+//        (the record is UNNAMED in config -- data_ov020_02114898 -- and its
+//        factory is the unnamed 0x021127f4, an Enemy ctor + five subobjects
+//        storing _ZTV8BookShot; src/BookSwitch_Spawn.c is a recovered-name
+//        file that is NOT this factory -- it takes a pointer and writes two
+//        fields -- and stays out of the build)
+//   328  BookShotSpawner  0x0211487c   BookShotSpawner_Spawn  _ZTV15BookShotSpawner
+//
+// 213 is the id MansionSteps' Bookshelf mode spawns 3x UNCHECKED (the
+// library-puzzle books), which is why it must ride with 158.
+//
+// _ZTV8BookShot == _ZTV8daBook_c (0x0211495c, 31 slots): own 0/3/6/9/16/17
+// plus 18 (func_ov020_021127cc -- Yoshi refusal, returns 2 for id 0x147) and
+// 29 (func_ov020_021127a4, the egg-aim radius). _ZTV15BookShotSpawner
+// (0x021148d8, 31 slots; dsd split its interior at 021148e0/021148f0, both
+// excluded with it): own 0/3/6/16/17, slot 9 the ActorBase::Render BASE body
+// (0x02043af0, the BigBooIcon treatment). Widths by the vtspan rule: each
+// table's word past slot 30 is data (0/RTTI header).
+//
+// The spawner's D1 (src/_ZN15BookShotSpawnerD1Ev.cpp) is a real MSVC
+// destructor -- host thunk below, chain from its matched D0 minus the
+// Deallocate (that D0's `t[0] = VT` restore rides cxx_aliases' _VT ->
+// data_ov002_021081e4 single-global alias; a dying-object store between two
+// direct calls, never dispatched -- the wf/ov045 ruling, unchanged here).
+//
+// The four book SharedFilePtrs (data_ov020_02114aa0/ab8 models 0x2c8/0x2cb,
+// 02114aa8/02114ab0 anims 0x2c9/0x2ca) are built by the matched
+// __sinit_ov020_02113674, which nothing called before this lane (gate 149
+// runs only HauntedChair's 0211372c from hal/actor_overlays.cpp). It runs
+// from bk_bringup below -- same lane-ownership note as ov63_bringup; fold
+// both into actor_overlays.cpp when someone owns it.
+extern "C" {
+int _ZN8BookShot6RenderEv(char *c);              /* slot 9, matched extern-C */
+int _ZN15BookShotSpawner8BehaviorEv(char *c);    /* slot 6, matched extern-C */
+int *_ZN8BookShotD1Ev(void *t);                  /* slot 16, matched .c */
+int *_ZN8BookShotD0Ev(void *t);                  /* slot 17, matched .c */
+int func_ov020_021127cc(char *c);                /* slot 18, matched */
+int func_ov020_021127a4(char *c);                /* slot 29, matched */
+int *_ZN15BookShotSpawnerD0Ev(void *t);          /* slot 17, matched .c */
+void *Bookend_Spawn(void);
+void *BookShot_Spawn(void);
+void *func_ov020_021127f4(void);                 /* BookSwitch's factory */
+void *BookShotSpawner_Spawn(void);
+void __sinit_ov020_02113674(void);               /* the book SharedFilePtrs */
+DSSTATE_BEGIN
+void *_ZTV8BookShot[31];
+void *_ZTV15BookShotSpawner[31];
+DSSTATE_END
+}
+#pragma comment(linker, "/alternatename:__ZTV8daBook_c=__ZTV8BookShot")
+struct BookShot { int InitResources(); int CleanupResources(); int Behavior(); };
+struct BookShotSpawner { int InitResources(); int CleanupResources(); };
+
+static void bk_bringup(void)
+{
+    static int done;
+    if (done)
+        return;
+    done = 1;
+    __sinit_ov020_02113674();
+}
+
+static int __fastcall bk_init(void *s, void *)
+{ return ((BookShot *)s)->BookShot::InitResources(); }
+static int __fastcall bk_clean(void *s, void *)
+{ return ((BookShot *)s)->BookShot::CleanupResources(); }
+static int __fastcall bk_behavior(void *s, void *)
+{ return ((BookShot *)s)->BookShot::Behavior(); }
+static int __fastcall bk_render(void *s, void *)
+{ port_actor_render_probe("BOOK", (char *)s + 0x174);
+  return _ZN8BookShot6RenderEv((char *)s); }
+static int __fastcall bk_d1(void *s, void *)
+{ return (int)(size_t)_ZN8BookShotD1Ev(s); }
+static int __fastcall bk_d0(void *s, void *)
+{ return (int)(size_t)_ZN8BookShotD0Ev(s); }
+static int __fastcall bk_yoshi(void *s, void *)
+{ return func_ov020_021127cc((char *)s); }
+static int __fastcall bk_egg(void *s, void *)
+{ return func_ov020_021127a4((char *)s); }
+extern "C" void hal_fill_book_shot_vtable(void)
+{
+    bk_bringup();
+    void *volatile *vt = (void *volatile *)_ZTV8BookShot;
+    ov63_fill_shared(vt);
+    vt[0]  = (void *)bk_init;
+    vt[3]  = (void *)bk_clean;
+    vt[6]  = (void *)bk_behavior;
+    vt[9]  = (void *)bk_render;
+    vt[16] = (void *)bk_d1;
+    vt[17] = (void *)bk_d0;
+    vt[18] = (void *)bk_yoshi;
+    vt[29] = (void *)bk_egg;
+}
+
+static int __fastcall bks_init(void *s, void *)
+{ return ((BookShotSpawner *)s)->BookShotSpawner::InitResources(); }
+static int __fastcall bks_clean(void *s, void *)
+{ return ((BookShotSpawner *)s)->BookShotSpawner::CleanupResources(); }
+static int __fastcall bks_behavior(void *s, void *)
+{ return _ZN15BookShotSpawner8BehaviorEv((char *)s); }
+static int __fastcall bks_render(void *s, void *)
+{ return ((ActorBase *)s)->ActorBase::Render(); }
+static int __fastcall bks_d1(void *s, void *)
+{
+    *(void **)s = (void *)_ZTV15BookShotSpawner;
+    _ZN5ActorD2Ev(s);
+    return (int)(size_t)s;
+}
+static int __fastcall bks_d0(void *s, void *)
+{ return (int)(size_t)_ZN15BookShotSpawnerD0Ev(s); }
+extern "C" void hal_fill_book_shot_spawner_vtable(void)
+{
+    bk_bringup();
+    void *volatile *vt = (void *volatile *)_ZTV15BookShotSpawner;
+    ov63_fill_shared(vt);
+    vt[0]  = (void *)bks_init;
+    vt[3]  = (void *)bks_clean;
+    vt[6]  = (void *)bks_behavior;
+    vt[9]  = (void *)bks_render;
+    vt[16] = (void *)bks_d1;
+    vt[17] = (void *)bks_d0;
+}
+
+// ============================================================================
+// THE STRAGGLERS, part 2: CRAZED_CRATE (193, ov080) -- _ZTV11CrazedCrate ==
+// _ZTV9daBttBk_c (0x02128198), 31 slots
+// ============================================================================
+//
+// The bouncing crate. Record 0x02128174 verified (w0 = 0x021253b4 =
+// CrazedCrate_Spawn, +4 reads 193); the record, its file table and the whole
+// state machinery are ALREADY in the ov080 mount (gate 50/174); its
+// SharedFilePtr sinit (__sinit_ov080_02127a60) already runs at boot. What was
+// missing is exactly this fill, the row, the slice lines and the two
+// dispatch host copies (Bbh_PmfDispatch.c's addendum).
+//
+// Own slots: 0/3/6/9/12/16/17 plus 18 (func_ov080_02124ac4, a constant
+// refusal -- the body takes no receiver on the ROM either) and 19
+// (func_ov080_02125318, OnTurnIntoEgg(self, player), the 3-param contract).
+// Init/Behavior/Render are real methods. D1 is a real MSVC destructor ->
+// host thunk, chain from its matched D0 (_ZTV9daBttBk_c restore -- aliased
+// below -- then WithMeshClsn +0x180, MovingCylinderClsn +0x14c, ShadowModel
+// +0x124, Model +0xd4, ActorD2) minus the Deallocate.
+//
+// THE STATE TABLE IS RE-SEATED HERE: __sinit_ov080_02127a60 copied the ROM's
+// six {fn, 0} pairs (DS code addresses) into data_ov080_0212847c before the
+// registry ran. The fill overwrites all six fn words with the host bodies;
+// raw-image pair values in the comments (delta stays 0 on all six).
+extern "C" {
+int _ZN11CrazedCrate16CleanupResourcesEv(void);     /* slot 3, matched .c */
+void _ZN11CrazedCrate16OnPendingDestroyEv(void);    /* slot 12, matched .c */
+int *_ZN11CrazedCrateD0Ev(void *t);                 /* slot 17, matched .c */
+int func_ov080_02124ac4(void);                      /* slot 18, matched */
+void func_ov080_02125318(char *self, void *player); /* slot 19, matched */
+void *CrazedCrate_Spawn(void);
+void _ZN12WithMeshClsnD1Ev(void *self);
+void _ZN18MovingCylinderClsnD1Ev(void *self);
+void _ZN11ShadowModelD1Ev(void *self);
+/* the six state bodies the table seat installs (all matched, on the slice) */
+void func_ov080_0212509c(char *c);   /* state 0 enter  <- src pair 0x0212814c */
+void func_ov080_0212500c(char *c);   /* state 0 tick   <- 0x02128144 */
+void func_ov080_02124fec(char *c);   /* state 1 enter  <- 0x0212813c */
+void func_ov080_02124edc(char *c);   /* state 1 tick   <- 0x02128154 */
+void func_ov080_02124eb0(char *c);   /* state 2 enter  <- 0x0212812c */
+void func_ov080_02124e60(char *c);   /* state 2 tick   <- 0x02128134 */
+extern unsigned char data_ov080_0212847c[];
+DSSTATE_BEGIN
+void *_ZTV11CrazedCrate[31];
+DSSTATE_END
+}
+#pragma comment(linker, "/alternatename:__ZTV9daBttBk_c=__ZTV11CrazedCrate")
+struct CrazedCrate { int InitResources(); int Behavior(); int Render(); };
+static int __fastcall cc_init(void *s, void *)
+{ return ((CrazedCrate *)s)->CrazedCrate::InitResources(); }
+static int __fastcall cc_clean(void *s, void *)
+{ return _ZN11CrazedCrate16CleanupResourcesEv(); }
+static int __fastcall cc_behavior(void *s, void *)
+{ return ((CrazedCrate *)s)->CrazedCrate::Behavior(); }
+static int __fastcall cc_render(void *s, void *)
+{ port_actor_render_probe("CRAZED_CRATE", (char *)s + 0xd4);
+  return ((CrazedCrate *)s)->CrazedCrate::Render(); }
+static int __fastcall cc_pdes(void *s, void *)
+{ (void)s; _ZN11CrazedCrate16OnPendingDestroyEv(); return 0; }
+static int __fastcall cc_d1(void *s, void *)
+{
+    char *t = (char *)s;
+    *(void **)t = (void *)_ZTV11CrazedCrate;
+    _ZN12WithMeshClsnD1Ev(t + 0x180);
+    _ZN18MovingCylinderClsnD1Ev(t + 0x14c);
+    _ZN11ShadowModelD1Ev(t + 0x124);
+    _ZN5ModelD1Ev(t + 0xd4);
+    _ZN5ActorD2Ev(t);
+    return (int)(size_t)s;
+}
+static int __fastcall cc_d0(void *s, void *)
+{ return (int)(size_t)_ZN11CrazedCrateD0Ev(s); }
+static int __fastcall cc_yoshi(void *s, void *)
+{ (void)s; return func_ov080_02124ac4(); }
+static int __fastcall cc_turn_egg(void *s, void *, void *p)
+{ func_ov080_02125318((char *)s, p); return 0; }
+extern "C" void hal_fill_crazed_crate_vtable(void)
+{
+    void *volatile *vt = (void *volatile *)_ZTV11CrazedCrate;
+    ov63_fill_shared(vt);
+    vt[0]  = (void *)cc_init;
+    vt[3]  = (void *)cc_clean;
+    vt[6]  = (void *)cc_behavior;
+    vt[9]  = (void *)cc_render;
+    vt[12] = (void *)cc_pdes;
+    vt[16] = (void *)cc_d1;
+    vt[17] = (void *)cc_d0;
+    vt[18] = (void *)cc_yoshi;
+    vt[19] = (void *)cc_turn_egg;
+    /* the state-table re-seat (see the header block) */
+    {
+        static void *const seat[6] = {
+            (void *)func_ov080_0212509c, (void *)func_ov080_0212500c,
+            (void *)func_ov080_02124fec, (void *)func_ov080_02124edc,
+            (void *)func_ov080_02124eb0, (void *)func_ov080_02124e60,
+        };
+        int i;
+        for (i = 0; i < 6; ++i) {
+            *(void *volatile *)(data_ov080_0212847c + i * 8) = seat[i];
+            *(int volatile *)(data_ov080_0212847c + i * 8 + 4) = 0;
+        }
+    }
+}
+
+// ============================================================================
+// THE STRAGGLERS, part 3: COFFIN (64, ov071) -- _ZTV6Coffin (0x02122efc),
+// 32 slots
+// ============================================================================
+//
+// The basement's six rocking coffins. Record 0x02122eb0 verified against the
+// raw image (w0 = 0x02122670 = Coffin_Spawn, +4 reads 64 -- the ov071 window
+// is shared with ov070/073/074, so the readback is the law). A Platform:
+// slot 31 is 0x020ee55c Platform::Kill; own slots 0/3/6/9/16/17, all four
+// lifecycle bodies real methods, both destructors plain .c. Everything
+// data-side was already in the ov071 mount (gate 176), and its sinit
+// (__sinit_ov071_02122a64: model 0x5b4 + clsn 0x5b5 + the state-table copy)
+// already runs at boot -- so like the crate this is a fill + rows + slice
+// affair, plus the two dispatcher host copies (Bbh_PmfDispatch.c, addendum
+// 2) and the four-word state-table re-seat below.
+extern "C" {
+int *_ZN6CoffinD1Ev(void *t);                   /* slot 16, matched .c */
+int *_ZN6CoffinD0Ev(void *t);                   /* slot 17, matched .c */
+void *Coffin_Spawn(void);
+/* the four state bodies the re-seat installs (matched, on the slice) */
+void func_ov071_021223b0(char *c);   /* entry 0 pmf@0 <- src pair 0x02122e74 */
+void func_ov071_021221bc(char *c);   /* entry 0 pmf@8 <- 0x02122e8c */
+void func_ov071_02122194(char *c);   /* entry 1 pmf@0 <- 0x02122e84 */
+void func_ov071_021220c8(char *c);   /* entry 1 pmf@8 <- 0x02122e7c */
+extern unsigned char data_ov071_02122ecc[];
+DSSTATE_BEGIN
+void *_ZTV6Coffin[32];
+DSSTATE_END
+}
+struct Coffin { int InitResources(); int CleanupResources(); int Behavior(); int Render(); };
+static int __fastcall cf_init(void *s, void *)
+{ return ((Coffin *)s)->Coffin::InitResources(); }
+static int __fastcall cf_clean(void *s, void *)
+{ return ((Coffin *)s)->Coffin::CleanupResources(); }
+static int __fastcall cf_behavior(void *s, void *)
+{ return ((Coffin *)s)->Coffin::Behavior(); }
+static int __fastcall cf_render(void *s, void *)
+{ port_actor_render_probe("COFFIN", (char *)s + 0xd4);
+  return ((Coffin *)s)->Coffin::Render(); }
+static int __fastcall cf_d1(void *s, void *)
+{ return (int)(size_t)_ZN6CoffinD1Ev(s); }
+static int __fastcall cf_d0(void *s, void *)
+{ return (int)(size_t)_ZN6CoffinD0Ev(s); }
+extern "C" void hal_fill_coffin_vtable(void)
+{
+    void *volatile *vt = (void *volatile *)_ZTV6Coffin;
+    ov63_fill_shared(vt);
+    vt[0]  = (void *)cf_init;
+    vt[3]  = (void *)cf_clean;
+    vt[6]  = (void *)cf_behavior;
+    vt[9]  = (void *)cf_render;
+    vt[16] = (void *)cf_d1;
+    vt[17] = (void *)cf_d0;
+    vt[31] = (void *)ov63_kill;
+    /* the 20-byte-entry state-table re-seat (Bbh_PmfDispatch.c addendum 2) */
+    *(void *volatile *)(data_ov071_02122ecc + 0)  = (void *)func_ov071_021223b0;
+    *(int volatile *)(data_ov071_02122ecc + 4)   = 0;
+    *(void *volatile *)(data_ov071_02122ecc + 8)  = (void *)func_ov071_021221bc;
+    *(int volatile *)(data_ov071_02122ecc + 12)  = 0;
+    *(void *volatile *)(data_ov071_02122ecc + 20) = (void *)func_ov071_02122194;
+    *(int volatile *)(data_ov071_02122ecc + 24)  = 0;
+    *(void *volatile *)(data_ov071_02122ecc + 28) = (void *)func_ov071_021220c8;
+    *(int volatile *)(data_ov071_02122ecc + 32)  = 0;
+}

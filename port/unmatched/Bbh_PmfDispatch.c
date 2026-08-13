@@ -30,6 +30,7 @@
  */
 
 extern unsigned char data_ov063_0211ef38[];
+extern unsigned char data_ov071_02122ecc[];
 extern unsigned char data_ov063_0211efbc[];
 extern int func_ov063_0211c684(char *c);
 extern int func_ov063_0211c6f8(char *c);
@@ -75,5 +76,69 @@ void func_ov063_0211ddac(char *c, int i)
 void func_ov063_0211ddf4(char *c)
 {
     unsigned char *e = data_ov063_0211efbc + (*(int *)(c + 0x6c8)) * 16;
+    bbh_pmf_call(e + 8, c);
+}
+
+/* ---- run linkw wave 5 addendum: CRAZED_CRATE's two dispatchers (ov080) ----
+ *
+ * The crate keeps a POINTER to its current state record at +0x36c
+ * (func_ov080_0212513c, matched and on the slice, computes it as
+ * data_ov080_0212847c + state*16 -- three states, each TWO mwcc {fn, delta}
+ * pairs). These two helpers dispatch through that pointer: 0x02125104 calls
+ * the record's FIRST pair (state enter), 0x021250c8 the SECOND (state tick).
+ * Same MSVC 16-byte-PMF stride break as above, spelled out here; the six
+ * pair values are re-seated with host bodies by hal_fill_crazed_crate_vtable
+ * AFTER __sinit_ov080_02127a60 copies the ROM's DS-address pairs in (that
+ * sinit already runs at boot from hal/actor_overlays.cpp, so the
+ * seat-the-sources-first Painting shape cannot apply; overwriting the copied
+ * DESTINATION is the same final state).
+ */
+
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch through the state-record
+   pointer at +0x36c; the matched func_ov080_02125104.cpp mis-strides under
+   MSVC. First pair = state enter. */
+void func_ov080_02125104(char *c)
+{
+    unsigned char *pp = *(unsigned char **)(c + 0x36c);
+    bbh_pmf_call(pp, c);
+}
+
+/* PORT_HOST_ABI: same ruling -- the matched func_ov080_021250c8.cpp calls
+   the SECOND pair (state tick) at record +8. */
+void func_ov080_021250c8(char *c)
+{
+    unsigned char *pp = *(unsigned char **)(c + 0x36c);
+    bbh_pmf_call(pp + 8, c);
+}
+
+/* ---- run linkw wave 5 addendum 2: the COFFIN's two dispatchers (ov071) ----
+ *
+ * The coffin's state table data_ov071_02122ecc is TWO 20-byte entries
+ * ({pmf@0, pmf@8, extra-ptr@0x10}), filled by __sinit_ov071_02122a64
+ * (already running at boot) from four 8-byte source pairs; the sinit's own
+ * matched source spells the destination struct out, and the raw pairs read
+ * {func_ov071_021223b0,0} {func_ov071_021221bc,0} for entry 0 and
+ * {func_ov071_02122194,0} {func_ov071_021220c8,0} for entry 1 (deltas all
+ * zero). hal_fill_coffin_vtable re-seats the four fn words with the host
+ * bodies after the sinit ran, the CrazedCrate treatment. The dispatchers:
+ * 0x021223c8 sets the state index at +0x320 and calls pmf@0; 0x02122414
+ * calls pmf@8 of the current entry.
+ */
+
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch over 20-byte entries; the
+   matched func_ov071_021223c8.cpp mis-strides under MSVC's 16-byte PMF. */
+void func_ov071_021223c8(char *c, int i)
+{
+    unsigned char *e;
+    *(int *)(c + 0x320) = i;
+    e = data_ov071_02122ecc + (*(int *)(c + 0x320)) * 20;
+    bbh_pmf_call(e, c);
+}
+
+/* PORT_HOST_ABI: same ruling -- the matched func_ov071_02122414.cpp calls
+   the entry's SECOND pair (+8). */
+void func_ov071_02122414(char *c)
+{
+    unsigned char *e = data_ov071_02122ecc + (*(int *)(c + 0x320)) * 20;
     bbh_pmf_call(e + 8, c);
 }

@@ -40,3 +40,36 @@ bool WithMeshClsn::JustHitGround() const
 struct Player { void JumpIntoBooCage(Vector3 &v); };
 void Player::JumpIntoBooCage(Vector3 &v)
 { _ZN6Player15JumpIntoBooCageER7Vector3(this, &v); }
+
+/* ---- Coffin closure addendum: three return-type spellings ------------------
+ * Coffin::InitResources (host mirror) declares int-returning SetFile pair
+ * and a KCL_File*-returning MeshCollider::LoadFile; the linked MSVC bodies
+ * spell void/char* returns, so those mangles do not exist. Same bridge, into
+ * the matched C-linkage bodies (all three in the map).
+ */
+struct BMD_File;
+struct KCL_File;
+struct SharedFilePtr;
+struct Matrix4x3;
+struct CLPS_Block;
+typedef int Fix12_;
+
+extern "C" {
+void *_ZN12MeshCollider8LoadFileER13SharedFilePtr(SharedFilePtr *f);
+int _ZN18MovingMeshCollider7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block(
+    void *self, KCL_File *f, const Matrix4x3 *m, int s, short n, CLPS_Block *c);
+}
+
+/* ModelBase::SetFile's int-returning spelling is already bridged by
+   hal/bob_enemy_bridges.cpp -- not repeated here (build 9's LNK2005). */
+
+struct MeshCollider { static KCL_File *LoadFile(SharedFilePtr &f); };
+KCL_File *MeshCollider::LoadFile(SharedFilePtr &f)
+{ return (KCL_File *)_ZN12MeshCollider8LoadFileER13SharedFilePtr(&f); }
+
+struct MovingMeshCollider {
+    int SetFile(KCL_File *f, const Matrix4x3 &m, Fix12_ s, short n, CLPS_Block &c);
+};
+int MovingMeshCollider::SetFile(KCL_File *f, const Matrix4x3 &m, Fix12_ s,
+                                short n, CLPS_Block &c)
+{ return _ZN18MovingMeshCollider7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block(this, f, &m, s, n, &c); }

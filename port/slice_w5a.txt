@@ -203,3 +203,94 @@ port/hal/actor_classes_ov063.cpp
 # only the factory is new (it stores _ZTV13UpDownLiftBbh directly, its own
 # src), everything else already in the build.
 src/UpDownLiftBbh_Spawn.c
+
+# THE BOOK CAST (ov020): Bookend 327 + BookShot 325 + BookSwitch 213 +
+# BookShotSpawner 328. src/BookSwitch_Spawn.c is a recovered-name file that
+# is NOT the 213 factory (it takes a pointer and writes two fields; the real
+# factory is the unnamed func_ov020_021127f4) and stays out.
+# _ZN15BookShotSpawnerD1Ev.cpp OUT: real MSVC destructor, host thunk bks_d1
+# in hal/actor_classes_ov063.cpp (the hc_d1 recipe).
+src/Bookend_Spawn.c
+src/BookShot_Spawn.c
+src/BookShotSpawner_Spawn.c
+src/func_ov020_021127f4.c
+src/func_ov020_021127a4.cpp
+src/func_ov020_021127cc.c
+src/_ZN8BookShot13InitResourcesEv.cpp
+src/_ZN8BookShot16CleanupResourcesEv.cpp
+src/_ZN8BookShot6RenderEv.cpp
+src/_ZN8BookShot8BehaviorEv.cpp
+src/_ZN8BookShotD0Ev.c
+src/_ZN8BookShotD1Ev.c
+src/_ZN15BookShotSpawner13InitResourcesEv.cpp
+src/_ZN15BookShotSpawner16CleanupResourcesEv.cpp
+src/_ZN15BookShotSpawner8BehaviorEv.cpp
+src/_ZN15BookShotSpawnerD0Ev.c
+src/__sinit_ov020_02113674.c
+
+# BookShot's behaviour closure (the flying-book state machine): 12 matched
+# ov020 TUs plus two host-copied fixes (func_ov020_02111418's data_ov048
+# window name, func_ov020_02111fc4's dropped ClosestPlayer receiver -- see
+# port/unmatched/Book_WindowAndReceiverFixes.cpp).
+src/func_ov020_021112b0.c
+src/func_ov020_02111340.c
+src/func_ov020_021115ac.c
+src/func_ov020_0211174c.c
+src/func_ov020_021119dc.c
+src/func_ov020_02111aa8.c
+src/func_ov020_02111b28.cpp
+src/func_ov020_02111c30.c
+src/func_ov020_02111ee0.cpp
+src/func_ov020_02112080.cpp
+src/func_ov020_02112110.cpp
+src/func_ov020_0211216c.cpp
+port/unmatched/Book_WindowAndReceiverFixes.cpp
+# ...and the last three book-closure edges: the bump-from-underneath body,
+# cstd::atan2 (the 021112b0 aim math), and two role-name aliases below.
+src/_ZN5Actor24BumpedUnderneathByPlayerER6Player.cpp
+src/_ZN4cstd5atan2E5Fix12IiES1_.c
+
+# CRAZED_CRATE (193, ov080): everything data-side was already mounted; these
+# are the class TUs, the six state bodies, the state-set helper and the two
+# slot overrides. The two PMF dispatchers (func_ov080_02125104/021250c8) are
+# host copies in Bbh_PmfDispatch.c; the D1 is a host thunk.
+src/CrazedCrate_Spawn.c
+# _ZN11CrazedCrate13InitResourcesEv.cpp: drops the state setter's second
+# argument (the r1-passthrough seam; ROM passes 0) -- mirrored with the
+# ROM's value spelled out:
+port/unmatched/CrazedCrate_InitResources.cpp
+src/_ZN11CrazedCrate16CleanupResourcesEv.c
+src/_ZN11CrazedCrate16OnPendingDestroyEv.c
+src/_ZN11CrazedCrate6RenderEv.cpp
+src/_ZN11CrazedCrate8BehaviorEv.cpp
+src/_ZN11CrazedCrateD0Ev.c
+src/func_ov080_02124ac4.c
+src/func_ov080_02124acc.cpp
+# func_ov080_02124e60.c: same dropped second argument (ROM r1=0):
+port/unmatched/CrazedCrate_State2Tick.c
+src/func_ov080_02124eb0.c
+src/func_ov080_02124edc.cpp
+src/func_ov080_02124fec.c
+src/func_ov080_0212500c.cpp
+src/func_ov080_0212509c.c
+src/func_ov080_0212513c.c
+src/func_ov080_02124c3c.cpp
+src/func_ov080_02125318.cpp
+
+# COFFIN (64, ov071): fill + slice only (mount and sinit already live).
+# The two PMF dispatchers (func_ov071_021223c8/02122414) are host copies in
+# Bbh_PmfDispatch.c.
+src/Coffin_Spawn.c
+# _ZN6Coffin13InitResourcesEv.cpp: five file-scope member redeclarations
+# are C2761 under MSVC; mirrored minus those lines:
+port/unmatched/Coffin_InitResources.cpp
+src/_ZN6Coffin16CleanupResourcesEv.cpp
+src/_ZN6Coffin6RenderEv.cpp
+src/_ZN6Coffin8BehaviorEv.cpp
+src/_ZN6CoffinD0Ev.c
+src/_ZN6CoffinD1Ev.c
+src/func_ov071_02122080.c
+src/func_ov071_021220c8.cpp
+src/func_ov071_02122194.c
+src/func_ov071_021221bc.c
+src/func_ov071_021223b0.c

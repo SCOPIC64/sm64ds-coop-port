@@ -793,6 +793,30 @@ void hal_fill_boo_cage_vtable(void);             /* fills _ZTV7BooCage, 31 */
 void hal_fill_mansion_steps_vtable(void);        /* fills _ZTV12MansionSteps, 31 (x4 ids) */
 void hal_fill_fall_block_bbh_vtable(void);       /* fills _ZTV12FallBlockBbh, 32 */
 void hal_fill_mad_piano_vtable(void);            /* fills _ZTV8MadPiano, 32 */
+/* ---- w5-A stragglers: the ov020 BOOK CAST + UP_DOWN_LIFT_BBH (ov095) ----
+   Four book ids on two tables (all four records config-`ambiguous`, each
+   settled by its own bytes; the 213 record and factory are UNNAMED in
+   config -- data_ov020_02114898 / func_ov020_021127f4). 213 is what
+   Bookshelf's InitResources spawns 3x unchecked. UpDownLiftBbh (32) is the
+   third id of gate 173's daUdlift_c trio and reuses its fill wholesale. */
+extern unsigned char Bookend_SpawnInfo[];        /* ov020 0x02114860, +4 reads 327 */
+void *Bookend_Spawn(void);                       /* ov020 0x02112880 */
+extern unsigned char BookShot_SpawnInfo[];       /* ov020 0x021148b4, +4 reads 325 */
+void *BookShot_Spawn(void);                      /* ov020 0x021128dc */
+extern unsigned char data_ov020_02114898[];      /* BookSwitch record, +4 reads 213 */
+void *func_ov020_021127f4(void);                 /* BookSwitch factory */
+extern unsigned char BookShotSpawner_SpawnInfo[]; /* ov020 0x0211487c, +4 reads 328 */
+void *BookShotSpawner_Spawn(void);               /* ov020 0x02112850 */
+void hal_fill_book_shot_vtable(void);            /* fills _ZTV8BookShot, 31 (327/325/213) */
+void hal_fill_book_shot_spawner_vtable(void);    /* fills _ZTV15BookShotSpawner, 31 */
+extern unsigned char UpDownLiftBbh_SpawnInfo[];  /* ov095 0x021375cc, +4 reads 32 */
+void *UpDownLiftBbh_Spawn(void);                 /* ov095 0x021367fc */
+extern unsigned char CrazedCrate_SpawnInfo[];    /* ov080 0x02128174, +4 reads 193 */
+void *CrazedCrate_Spawn(void);                   /* ov080 0x021253b4 */
+void hal_fill_crazed_crate_vtable(void);         /* fills _ZTV11CrazedCrate, 31 */
+extern unsigned char Coffin_SpawnInfo[];         /* ov071 0x02122eb0, +4 reads 64 */
+void *Coffin_Spawn(void);                        /* ov071 0x02122670 */
+void hal_fill_coffin_vtable(void);               /* fills _ZTV6Coffin, 32 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1165,4 +1189,18 @@ void hal_fill_mad_piano_vtable(void);            /* fills _ZTV8MadPiano, 32 */
     {66, "FALL_BLOCK_BBH", FallBlockBbh_SpawnInfo, \
      port_factory_fall_block_bbh, hal_fill_fall_block_bbh_vtable}, \
     {249, "MAD_PIANO", MadPiano_SpawnInfo, MadPiano_Spawn, \
-     hal_fill_mad_piano_vtable},
+     hal_fill_mad_piano_vtable}, \
+    /* ---- w5-A stragglers: the book cast (ov020) + the ov095 lift ---- */ \
+    {327, "BOOKEND", Bookend_SpawnInfo, Bookend_Spawn, \
+     hal_fill_book_shot_vtable}, \
+    {325, "BOOK_SHOT", BookShot_SpawnInfo, BookShot_Spawn, \
+     hal_fill_book_shot_vtable}, \
+    {213, "BOOK_SWITCH", data_ov020_02114898, func_ov020_021127f4, \
+     hal_fill_book_shot_vtable}, \
+    {328, "BOOK_SHOT_SPAWNER", BookShotSpawner_SpawnInfo, \
+     BookShotSpawner_Spawn, hal_fill_book_shot_spawner_vtable}, \
+    {32, "UP_DOWN_LIFT_BBH", UpDownLiftBbh_SpawnInfo, UpDownLiftBbh_Spawn, \
+     hal_fill_up_down_lift_hmc_vtable}, \
+    {193, "CRAZED_CRATE", CrazedCrate_SpawnInfo, CrazedCrate_Spawn, \
+     hal_fill_crazed_crate_vtable}, \
+    {64, "COFFIN", Coffin_SpawnInfo, Coffin_Spawn, hal_fill_coffin_vtable},
