@@ -885,6 +885,41 @@ list(APPEND PORT_LEVEL_OVERLAYS ov023)
 # cave_all.bmd/cave.kcl/cave_icg.bin/cave_icl.bin; SUBLEVEL_LEVEL_TABLE[13] = 5,
 # subCount 8, a 61224-byte KCL. Mounted --whole; own_sinits 0.
 list(APPEND PORT_LEVEL_OVERLAYS ov021)
+# gate 204: ov045 = level 37, Bowser in the Fire Sea (data/stage/koopa2_map),
+# course 16 -- the first level the port mounts outside the 1..15 block, and the
+# platform overlay the collision family's ExtendingMeshCollider has been waiting
+# on (port/slice_w1l4.txt records why the class could not be seated without it).
+# Read from the ROM like the rest, and calibrated against all fifteen mounted
+# rows before anything about ov045 was believed:
+#   data_020758c8[37] = 45, LVL_Overlay data_02092208[37] = 0x021124d4, OV0
+#   handles at LVL_Overlay+8 (bmd 0x0782 / kcl 0x077a / icg 0x0783 / icl 0x0784)
+#   resolve DIRECTLY through build/assets/handles.tsv -- delta 0, the mapping
+#   levels 8..15 use -- to koopa2_map's koopa2_map_all.bmd (30726) /
+#   koopa2_map.kcl (33715) / koopa2_map_icg.bin (34352) / koopa2_map_icl.bin.
+#   SUBLEVEL_LEVEL_TABLE[37] (0x02075298) is 0x10 = course 16, subCount 1.
+# koopa2 is the ROM's own name for the second Bowser stage: levels 35/36 are
+# course 15 (koopa1, Dark World), 37/38 course 16, 39 course 17.
+#
+# A CORRECTION TO THE COMMENTS ABOVE, since a later level had to re-derive it:
+# data_020758c8 is a WORD table, stride 4, not the byte table "data_020758c8[N]"
+# reads as. Byte-stride gets every one of the fifteen known levels wrong (level
+# 4 comes back as ov9); word-stride reproduces all fifteen exactly. Same for
+# data_02092208. hal/level_change.cpp's port_level_overlay_id already reads it
+# with the *4, so only the prose was loose.
+#
+# The handles must come from extracted/overlays/overlay_0045.bin -- ov045 is
+# compressed:true in overlays.yaml, so extracted/dsd/arm9_overlays/ov045.bin is
+# the COMPRESSED image and reading handle halfwords out of it is reading noise,
+# the trap the ov023 block above describes from the other direction.
+#
+# THE SHARED-WINDOW QUESTION, asked before the mount rather than after: ov045's
+# footprint is 0x021111a0..0x02113280 (code 8160 + bss 256), and ovdata.py
+# --cross drops a target that lands in MORE THAN ONE mounted window. Every
+# address in ov045's window already sits inside both ov009's (..0x02113ee0) and
+# ov016's (..0x02114ea0), so it is already contested by two mounts and this
+# mount cannot flip a single target from resolved to raw. Measured, not
+# reasoned: 127 rebased / 4115 raw / 704 contested both before and after.
+list(APPEND PORT_LEVEL_OVERLAYS ov045)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")

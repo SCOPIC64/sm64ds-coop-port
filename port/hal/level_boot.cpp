@@ -489,6 +489,27 @@ void port_ov021_patch(void);
 void *port_ov021_at(unsigned ds);
 extern unsigned char port_ov021_image[];
 extern const unsigned port_ov021_ds_base, port_ov021_ds_end;
+
+/* ov045 = LEVEL 37, Bowser in the Fire Sea (data/stage/koopa2_map), course 16 --
+   the first level hosted outside the 1..15 block, and the one the collision
+   family's ExtendingMeshCollider needs (port/slice_w1l4.txt).
+   data_020758c8[37] = 45, LVL_Overlay data_02092208[37] = 0x021124d4, OV0
+   handles at +8 (bmd 0x0782/kcl 0x077a/icg 0x0783/icl 0x0784) resolve directly
+   through handles.tsv to koopa2_map's all.bmd/kcl/icg/icl; SUBLEVEL_LEVEL_TABLE
+   [37] = 16, subCount 1, a 33715-byte KCL. Mounted --whole; own_sinits 0.
+
+   Both arm9 tables are WORD tables (stride 4). The recipe above and the level
+   comments in CMakeLists say "data_020758c8[level]" as if it were bytes; read
+   that way it gets all fifteen known levels wrong, so the read here is the *4
+   one port_level_ds_overlay/port_level_overlay_id already do.
+
+   The handles were read out of extracted/overlays/overlay_0045.bin: ov045 is
+   compressed:true, so the dsd export is the compressed image and its halfwords
+   are not handles at all. */
+void port_ov045_patch(void);
+void *port_ov045_at(unsigned ds);
+extern unsigned char port_ov045_image[];
+extern const unsigned port_ov045_ds_base, port_ov045_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -598,6 +619,9 @@ static const PortLevelDesc port_level_table[] = {
     {13, "Hazy Maze Cave (cave, course 5)", "ov021", 0x021138c4,
      port_ov021_patch, port_ov021_at,
      &port_ov021_ds_base, &port_ov021_ds_end, 0},
+    {37, "Bowser in the Fire Sea (koopa2_map, course 16)", "ov045", 0x021124d4,
+     port_ov045_patch, port_ov045_at,
+     &port_ov045_ds_base, &port_ov045_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -791,6 +815,9 @@ static void *port_mount_row_11(void) { return port_level_mount_at(11); }
 static void *port_mount_row_lvl14(void) { return port_level_mount_at(12); }
 static void *port_mount_row_13(void) { return port_level_mount_at(13); }
 static void *port_mount_row_14(void) { return port_level_mount_at(14); }
+/* Level 37's row is table index 15. Named by level, the port_mount_row_lvl14
+   convention, so a sibling stream appending its own level does not collide. */
+static void *port_mount_row_lvl37(void) { return port_level_mount_at(15); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
@@ -804,6 +831,7 @@ static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_lvl14,
     port_mount_row_13,
     port_mount_row_14,
+    port_mount_row_lvl37,
 };
 
 // ---- the loader dispatch table ---------------------------------------------
