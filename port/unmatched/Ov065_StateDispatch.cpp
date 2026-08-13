@@ -136,6 +136,8 @@ extern "C" void port_ov065_states_seat(void)
  * Snufit's Behavior reads the SECOND record of the same table (+8) -- the
  * pair is {enter/act, per-frame} -- so the two dispatchers together cover
  * both words the seat rewrote. */
+/* PORT_HOST_ABI: mwcc pointer-to-member over a forward-declared class --
+   MSVC's 16-byte general form reads garbage adjustment fields. */
 extern "C" int func_ov065_0211691c(char *c, unsigned *table)
 {
     *(unsigned **)(c + 0x3bc) = table;
@@ -145,6 +147,7 @@ extern "C" int func_ov065_0211691c(char *c, unsigned *table)
 }
 
 /* ---- func_ov065_02117944, HOST COPY: Swoop's twin at +0x420 ---------------- */
+/* PORT_HOST_ABI: same mwcc pointer-to-member form as func_ov065_0211691c. */
 extern "C" int func_ov065_02117944(char *c, unsigned *table)
 {
     *(unsigned **)(c + 0x420) = table;

@@ -31,6 +31,9 @@ void func_02053008(int x);
 long long _ZN4cstd11ldiv_resultEv(void);
 }
 
+/* PORT_HOST_ABI: unmodelled DS hardware reached through NAMED externs
+   (SQRTCNT/SQRT_RESULT) that hostgen's literal-cast rewriter cannot touch;
+   this body reads the modeled unit through NTR_MMIO instead. */
 extern "C" int func_02053130(int r0)
 {
     int r4 = r0;

@@ -153,6 +153,8 @@ extern "C" void func_ov065_02118838(char *r6)
     } while (i < 7);
 }
 
+/* PORT_HOST_ABI: mwcc pointer-to-member ARRAY stride (16-byte general
+   form over the ROM's 8-byte records) -- the gate-173 class. */
 extern "C" int _ZN6Dorrie8BehaviorEv(void *self)
 {
     char *c = (char *)self;

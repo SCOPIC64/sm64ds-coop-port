@@ -44,6 +44,8 @@ extern int data_ov065_0211d650[];
 extern int data_ov065_0211d660[];
 }
 
+/* PORT_HOST_ABI: mwcc pointer-to-member read at table+8 over the
+   incomplete Enemy -- the gate-173 widening, measured. */
 extern "C" int _ZN6Snufit8BehaviorEv(void *self)
 {
     char *c = (char *)self;

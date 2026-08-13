@@ -136,8 +136,65 @@ static void ov65_trap_report(void *self, int slot)
 #define OV65_TRAP(n) \
     static int __fastcall ov65_trap##n(void *s, void *) \
     { ov65_trap_report(s, n); return 0; }
-OV65_TRAP(13) OV65_TRAP(14) OV65_TRAP(30)
+OV65_TRAP(13) OV65_TRAP(14) OV65_TRAP(17) OV65_TRAP(30)
 #undef OV65_TRAP
+
+// ---- name races and the decorated-data bridge ------------------------------
+// Two kinds of alias, both the scuttlebug file's precedent:
+//
+// (1) BY-ADDRESS races. func_ov065_021162c0 (a Snufit state) spells its call
+// to 0x02115f84 `_ZN6EyerokD0Ev` -- ov066 shares this load window and its
+// dsd export won the naming race; the reloc at 0x02116314 lands on ov065's
+// OWN func_ov065_02115f84, in this lane's slice. Slicing Eyerok's real D0
+// (the probe's class-b suggestion) would have called another overlay's
+// destructor on a live Snufit -- the window trap, caught by re-deriving.
+#pragma comment(linker, "/alternatename:__ZN6EyerokD0Ev=_func_ov065_02115f84")
+//
+// (2) DECORATED-DATA spellings. The cast's .cpp TUs declare mounted storage
+// without extern "C", so MSVC mangles the type into the name; every one
+// binds onto the one C-named mount array (the ?data_020a0e68@@3UMtx43@@A
+// precedent). The three ov075 spellings are the shared-window race again --
+// all three addresses are ov065's own bss, Snufit's SharedFilePtrs.
+#pragma comment(linker, "/alternatename:?data_ov021_02113a60@@3UMatrix4x3@@A=_data_ov021_02113a60")
+#pragma comment(linker, "/alternatename:?data_ov021_02113a80@@3UMatrix4x3@@A=_data_ov021_02113a80")
+#pragma comment(linker, "/alternatename:?data_ov021_021149a0@@3USharedFilePtr@@A=_data_ov021_021149a0")
+#pragma comment(linker, "/alternatename:?data_ov021_021149a8@@3USharedFilePtr@@A=_data_ov021_021149a8")
+#pragma comment(linker, "/alternatename:?data_ov021_021149b0@@3USharedFilePtr@@A=_data_ov021_021149b0")
+#pragma comment(linker, "/alternatename:?data_ov021_021149b8@@3USharedFilePtr@@A=_data_ov021_021149b8")
+#pragma comment(linker, "/alternatename:?data_ov021_02114a50@@3USharedFilePtr@@A=_data_ov021_02114a50")
+#pragma comment(linker, "/alternatename:?data_ov065_0211c080@@3PAPAUSharedFilePtr@@A=_data_ov065_0211c080")
+#pragma comment(linker, "/alternatename:?data_ov065_0211c080@@3PAPAXA=_data_ov065_0211c080")
+#pragma comment(linker, "/alternatename:?data_ov065_0211c08c@@3PAPAUSharedFilePtr@@A=_data_ov065_0211c08c")
+#pragma comment(linker, "/alternatename:?data_ov065_0211c08c@@3PAPAXA=_data_ov065_0211c08c")
+#pragma comment(linker, "/alternatename:?data_ov065_0211d600@@3USharedFilePtr@@A=_data_ov065_0211d600")
+#pragma comment(linker, "/alternatename:?data_ov065_0211d618@@3USharedFilePtr@@A=_data_ov065_0211d618")
+#pragma comment(linker, "/alternatename:?data_ov065_0211d670@@3UPMF@@A=_data_ov065_0211d670")
+#pragma comment(linker, "/alternatename:?data_ov065_0211d690@@3USharedFilePtr@@A=_data_ov065_0211d690")
+#pragma comment(linker, "/alternatename:?data_ov065_0211d698@@3USharedFilePtr@@A=_data_ov065_0211d698")
+#pragma comment(linker, "/alternatename:?data_ov065_0211d6a0@@3USharedFilePtr@@A=_data_ov065_0211d6a0")
+#pragma comment(linker, "/alternatename:?data_ov065_0211d6a8@@3USharedFilePtr@@A=_data_ov065_0211d6a8")
+#pragma comment(linker, "/alternatename:?data_ov065_0211d700@@3UPMF@@A=_data_ov065_0211d700")
+#pragma comment(linker, "/alternatename:?data_ov065_0211d720@@3HA=_data_ov065_0211d720")
+#pragma comment(linker, "/alternatename:?data_ov065_0211d720@@3USharedFilePtr@@A=_data_ov065_0211d720")
+#pragma comment(linker, "/alternatename:?data_ov075_0211d608@@3USharedFilePtr@@A=_data_ov065_0211d608")
+#pragma comment(linker, "/alternatename:?data_ov075_0211d610@@3USharedFilePtr@@A=_data_ov065_0211d610")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9c0@@3HA=_data_ov002_0210d9c0")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9c0@@3UG@@A=_data_ov002_0210d9c0")
+#pragma comment(linker, "/alternatename:?data_ov002_0210d9c0@@3USharedFilePtr@@A=_data_ov002_0210d9c0")
+//
+// WorkElevator::InitResources declares its five callback bodies as plain
+// int OBJECTS (it only takes their addresses); bind the decorated data
+// spellings onto the function symbols.
+#pragma comment(linker, "/alternatename:?func_ov021_02111edc@@3HA=_func_ov021_02111edc")
+#pragma comment(linker, "/alternatename:?func_ov021_02111f34@@3HA=_func_ov021_02111f34")
+#pragma comment(linker, "/alternatename:?func_ov021_02111f8c@@3HA=_func_ov021_02111f8c")
+#pragma comment(linker, "/alternatename:?func_ov021_02111fe4@@3HA=_func_ov021_02111fe4")
+#pragma comment(linker, "/alternatename:?func_ov021_02112128@@3HA=_func_ov021_02112128")
+//
+// Dorrie's Init spells MeshColliderBase::Enable with a void return over
+// struct Actor; the linked body is the int-return spelling. Same __thiscall
+// body, eax ignored -- the GetFloorResult precedent.
+#pragma comment(linker, "/alternatename:?Enable@MeshColliderBase@@QAEXPAUActor@@@Z=?Enable@MeshColliderBase@@QAEHPAUActor@@@Z")
 
 // ---- the shared half, slots 1..30 of the 31-slot Actor/Enemy shape ---------
 // Every word read off this lane's seven reloc runs; they agree slot for slot
@@ -210,7 +267,7 @@ static void ov65_fill_shared(void *volatile *vt)
     vt[13] = (void *)ov65_trap13;
     vt[14] = (void *)ov65_trap14;
     vt[15] = (void *)ov65_heap;
-    vt[17] = (void *)ov65_trap30;   /* replaced by every caller (real D0s) */
+    vt[17] = (void *)ov65_trap17;   /* replaced by every caller (real D0s) */
     vt[18] = (void *)ov65_yoshi;
     vt[19] = (void *)ov65_turn_egg;
     vt[20] = (void *)ov65_v50;
@@ -433,7 +490,6 @@ extern "C" void hal_fill_dorrie_vtable(void)
 // Slot 3 is ActorBase::CleanupResources (the reloc's own word, 0x02043bf0)
 // and slot 12 the ActorBase default: the cap has no resources of its own.
 extern "C" {
-int _ZN9DorrieCap8BehaviorEv(void *self);            /* slot 6, sliced .cpp (no PMF) */
 int *_ZN9DorrieCapD1Ev(int *t);                      /* slot 16 */
 int *_ZN9DorrieCapD0Ev(int *t);                      /* slot 17 */
 int func_ov065_021195e4(void);                       /* slot 18 */
@@ -452,7 +508,7 @@ static int __fastcall dc_init(void *s, void *)
 static int __fastcall dc_clean(void *s, void *)
 { return ((ActorBase *)s)->ActorBase::CleanupResources(); }
 static int __fastcall dc_behavior(void *s, void *)
-{ return _ZN9DorrieCap8BehaviorEv(s); }
+{ return ((DorrieCap *)s)->DorrieCap::Behavior(); }
 static int __fastcall dc_render(void *s, void *)
 { port_actor_render_probe("DORRIE_CAP", (char *)s + 0xf0);
   return ((DorrieCap *)s)->DorrieCap::Render(); }
