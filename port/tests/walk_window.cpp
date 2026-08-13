@@ -3420,9 +3420,14 @@ int main(void)
                What the game then does with it is entirely the game's:
                func_ov002_020bf224 scales the speed target by mag/0x1000, so
                the speed is linear in that deflection, and the walk/run flag
-               flips when mag crosses 0xdc7 with 0x80 of hysteresis, which is
-               87.2 percent of the travel going up and 86.1 coming back down.
-               Those are the ROM's numbers and this code does not touch them.
+               flips when mag crosses 0xdc7 with 0x80 of hysteresis -- 0xe47
+               of 0x1000 to break into a run and back under 0xdc7 to drop out
+               of it, which is 89.2 and 86.1 percent of the usable travel, or
+               91.8 and 89.4 percent of the whole stick once the dead zone is
+               counted back in. Those are the ROM's numbers and nothing here
+               touches them -- so running in this mode does mean pushing the
+               stick most of the way, which is what pushing the touch stick
+               most of the way did.
 
                A stick inside the dead zone falls through with CheckInput's
                answer untouched, which is button mode -- so analog mode on a
