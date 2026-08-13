@@ -25,6 +25,68 @@ src/_ZN18TextureTransformerD0Ev.c
 # _ZTV9ModelBase's function-slot start (ROM 0x0208e880 -> 0x020170e8).
 src/_ZN9ModelBaseD0Ev.c
 
+# ---- wave 2: the game heap --------------------------------------------------
+# The port aliased the game-heap word straight onto the root heap and skipped
+# the ROM's factory. func_0201a054, the main.c boot spine, calls
+# Heap::InitializeGameHeap(0x3b000, 0) at arm9 0x0201a108 and gets a real
+# ExpandingHeap child carved from the root. Naming it from
+# tests/walk_window.cpp is the reference edge /OPT:REF needs.
+#
+# Only ONE line is needed. Heap::CreateExpandingHeap, the body this one calls,
+# has been compiled into these targets since gate 3a (slice_gate3a.txt) and was
+# being discarded by /OPT:REF because nothing reached it; the call from
+# InitializeGameHeap is what puts it in the map. So this single line seats TWO
+# TUs. The rest of the closure -- Heap::Allocate, Heap::Deallocate,
+# Heap::CreateExpandingHeapAllocator, ExpandingHeap::ExpandingHeap -- was
+# already linked before this wave.
+src/_ZN4Heap18InitializeGameHeapEjPS_.c
+
+# ---- wave 2: the shadow list, one static of two -----------------------------
+# Wave 1 parked the shadow-list files below as "they come in with Stage, not
+# before it". The ROM callers really are only the three Stage methods --
+#   from:0x0202b99c -> 0x02015d38  ShadowModel::RenderAll, inside Stage::Render
+#   from:0x0202bc38 -> 0x02015e14  ShadowModel::CleanAll,  inside Stage::Behavior
+#   from:0x0202c20c -> 0x02015e14  ShadowModel::CleanAll,  inside Stage::Behavior
+#   from:0x0202d484 -> 0x02015e14  ShadowModel::CleanAll,  in Stage::InitResources
+# -- but the port already TRANSCRIBES Stage::Render and Stage::Behavior by hand
+# in tests/walk_window.cpp, in the ROM's own order, and both transcriptions had
+# simply skipped these calls. So no Stage seat is needed to reach them.
+#
+# CleanAll goes in, above port_actor_tick. It is Stage::Behavior's LAST
+# statement but it belongs before the other actors tick, because the three
+# ShadowModel TUs describe a freeze protocol -- InitModel refuses while
+# data_0209ceec is set, RenderAll sets it, CleanAll clears it -- and the
+# registrations come from actors' own Behavior methods. The ROM gets that
+# ordering from the Stage's behaviour priority of 3 (spawn record 0x0209213c);
+# the port gets it from where the call sits.
+#
+# RENDERALL DOES NOT GO IN, and this is measured, not assumed. Seated between
+# RenderModel and RenderModelTransparent, walk_window takes an access violation
+# on frame 1: FAULT c0000005 at +0x000893c8 (eight bytes into func_02046120)
+# from +0x000892b1 (inside RenderAll), accessing 0 -- `self->sub->count` with
+# self null, self being the node's ModelComponents at +0x08.
+#
+# The shadow list is NOT empty on the port. Actor::DropShadowScaleXYZ is a host
+# no-op in hal/cxxname_bridge.cpp, but Actor::DropShadowRadHeight is not: its C
+# spelling resolves to the matched src/ body, which calls ShadowModel::InitModel
+# for real, and Butterfly::Behavior takes that path every frame on this level.
+# The node that lands has data == 0 because ShadowModel::InitCuboid IS stubbed
+# -- the cuboid template BMD is static .data in overlay 1 at 0x020ad524, and
+# the port's ov001 mount is per-symbol and covers only 0x020ab800..0x020abb00,
+# the HUD's sprite templates (port/ov001_syms.txt). Guarding the loop would be
+# inventing behaviour the ROM does not have, so RenderAll and its two callees
+# func_02046088 / func_02046120 wait for the shadow half of ov001.
+#
+# Worth recording: RenderAll ran green when CleanAll sat at the END of the
+# behaviour phase, because the list was force-emptied after the actors filled
+# it and before RenderAll read it. That is the wrong order and would draw no
+# shadows at all once ov001 lands, so that green run was not a seat.
+#
+# CleanAll's only other listing is slice_gate36.txt, which port/CMakeLists.txt
+# reads into SLICE36_SOURCES and then never adds to a target, so it compiles
+# nothing and this line is the one that does the work.
+src/_ZN11ShadowModel8CleanAllEv.cpp
+
 # ---- mined and NOT taken (kept here so wave 2 does not re-mine them) --------
 # _ZN11ShadowModel10InitCuboidEv.cpp
 #     hal/actor_class_faces.cpp defines the same ?InitCuboid@ShadowModel@@QAEXXZ.
@@ -35,11 +97,10 @@ src/_ZN9ModelBaseD0Ev.c
 # _ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File.cpp
 #     hal/method_faces.cpp already carries the truthful shape: the ROM veneer
 #     takes (bmd, bta) with no `this`, so the matched METHOD cannot be called.
-# _ZN11ShadowModel9RenderAllEv.cpp, _ZN11ShadowModel8CleanAllEv.cpp
-#     plus their callees src/func_02046088.c and src/func_02046120.c. Statics
-#     whose only callers are Stage::Render, Stage::Behavior and
-#     Stage::InitResources -- all three matched, all three still unlinked
-#     behind hal/level_boot.cpp. They come in with Stage, not before it.
+#     (the four shadow-list files that used to be parked here were TAKEN in
+#     wave 2 -- see the block above. The ROM callers were read correctly; what
+#     was missed is that the port hand-transcribes two of those three callers,
+#     so the call sites exist without the Stage seat.)
 # _ZN11ShadowModel12InitCylinderEv.cpp
 #     both spellings are host-stubbed (hal/bob_enemy_bridges.cpp returns 1,
 #     hal/player_bridges.cpp is a no-op) because the shadow template BMDs live

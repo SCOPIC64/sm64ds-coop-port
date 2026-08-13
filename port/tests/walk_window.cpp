@@ -272,6 +272,12 @@ void *_ZN6PlayerC1Ev(void *self);
    into the swap pair at +0x6dc/+0x6dd (src/func_ov002_020beabc.cpp) */
 void func_ov002_020beabc(void *p);
 void *_ZN4Heap13SetupRootHeapEv(void);
+/* the ROM's own game-heap factory, off the main.c boot spine -- see the call
+   site below for the two arguments and where they come from */
+void _ZN4Heap18InitializeGameHeapEjPS_(unsigned size, void *root);
+/* the game heap's allocator, read for the boot report only: how much of the
+   ROM's 0x3b000 the port's boot actually spends */
+unsigned _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *self);
 void *_ZN9ActorBasenwEj(unsigned size);
 extern int data_0209b3ec[12];
 extern unsigned short data_020a4b54;
@@ -506,6 +512,24 @@ static void ss_note(const char *msg)
     snprintf(ss_toast, sizeof ss_toast, "%s", msg);
     ss_toast_left = 120;
 }
+
+/* ShadowModel::CleanAll, seated at the point Stage::Behavior calls it. The
+   body is matched src/ and was being discarded by /OPT:REF because the port's
+   hand transcription of Stage::Behavior had skipped the call.
+
+   This is a method-shadow declaration, the same trick hal/heap_vtable.cpp uses:
+   MSVC mangles a static member off the class NAME and the signature only, so
+   `?CleanAll@ShadowModel@@SAXXZ` from here is the same symbol the real
+   definition (src/_ZN11ShadowModel8CleanAllEv.cpp, which includes the full
+   include/ShadowModel.h) exports. No layout is assumed and none is used.
+
+   Its sibling ShadowModel::RenderAll is NOT declared here on purpose. See the
+   call site above port_actor_tick for the evidence; the short version is that
+   the port really does put nodes on this list and they have no model attached,
+   so RenderAll faults on the first one. */
+struct ShadowModel {
+    static void CleanAll();
+};
 
 /* ntr/io.cpp: the hardware content stores the save state captures. The
    reproducer below hashes them to PROVE a restore put the bytes back, because
@@ -1994,7 +2018,41 @@ int main(void)
         static unsigned short spawn_info[4] = {0, 0, 100, 100};
         data_020a4bb8[0] = spawn_info;
     }
-    data_020a0eac_c = data_020a0ea0;
+    /* THE GAME HEAP, the ROM's own chain instead of an alias.
+       This line used to be `data_020a0eac_c = data_020a0ea0;` -- the game heap
+       word pointed straight at the root heap, so every allocation the game made
+       came out of the whole host arena and the ROM's own heap object never
+       existed. func_0201a054, the main.c boot spine, does this instead:
+
+           0x0201a100  e3a00a3b   MOV r0, #0x3b000
+           0x0201a104  e3a01000   MOV r1, #0
+           0x0201a108  eb00884f   BL  0x0203c24c   Heap::InitializeGameHeap
+
+       so the size is a hard immediate, 0x3b000 = 241664 bytes, and the parent
+       is NULL. Nothing is derived from the OS arena, which is why there is
+       nothing here for the port to invent: the arena only decides how big the
+       ROOT heap is (Heap::SetupRootHeap above), and the game heap is a fixed
+       carve out of that. Heap::CreateExpandingHeap resolves the NULL parent to
+       data_020a0ea0, takes size+0x18 from it, builds the allocator over the
+       0x3b000 payload and runs the ExpandingHeap constructor over the header.
+       Both bodies are src/, byte-matched, and reached by name from here. */
+    _ZN4Heap18InitializeGameHeapEjPS_(0x3b000, 0);
+    if (!data_020a0eac_c) {
+        /* Heap::Allocate Crash()es on a failed carve when the parent's flag
+           word has 0x4000 set, which Heap::Heap sets, so a null here means
+           CreateExpandingHeapAllocator refused the span rather than the root
+           heap running dry. Either way the game has no heap and every later
+           allocation is undefined; stop while the reason is still on screen. */
+        fprintf(stderr, "InitializeGameHeap returned null -- no game heap\n");
+        return 2;
+    }
+    /* One line of evidence that 0x3b000 is the right number for the port and
+       not just for the DS: the free space in the game heap right after the
+       carve, and again at the end of a selftest. The DS budget is the budget. */
+    fprintf(stderr, "[heap] game heap %p, 0x%x bytes, %u free after boot\n",
+            data_020a0eac_c, 0x3b000u,
+            _ZN22ExpandingHeapAllocator10MemoryLeftEv(
+                *(void **)((char *)data_020a0eac_c + 0x14)));
 
     /* Game mode 0 (adventure) -- LoadClsnAndObjects branches its minimap
        and HUD spawns on this, and Stage::CheckInput reads it later. */
@@ -4495,6 +4553,73 @@ int main(void)
             }
         }
 
+        /* Stage::Behavior's LAST statement, and it goes HERE rather than at the
+           end of the port's behaviour phase. The ROM's own text is
+
+               if ((u8)(data_0209f294 | (data_0209f2c4 | data_0209f20c)) == 0)
+                   if ((data_0209b454 & ~0x20000000) == 0)
+                       ShadowModel::CleanAll();
+
+           and the port holds all four of those globals at 0 for this boot
+           (hal/level_boot.cpp seeds them beside the camera state), so writing
+           the guard out would only be repeating a constant.
+
+           WHY BEFORE THE ACTOR TICK. The three ShadowModel TUs describe a
+           freeze protocol between them: InitModel refuses to link a node while
+           data_0209ceec is set, RenderAll SETS it as its last act, CleanAll
+           CLEARS it. So a frame's registrations can only happen after that
+           frame's CleanAll and before its RenderAll, and the registrations are
+           made from actors' own Behavior methods (SignPost::Behavior and
+           ArrowSignRight::Behavior are the two matched examples). On the ROM
+           that works because the Stage ticks at the head of the behaviour list
+           -- its spawn record at 0x0209213c carries behaviour priority 3
+           against the hundreds other classes use. The port's equivalent of
+           "before every other actor's Behavior" is right here, above
+           port_actor_tick. Putting it at the end of the phase instead would
+           empty the list the actors had just filled, and once ov001 mounts
+           that would be shadows that never draw.
+
+           real_boot rather than boot_spawns because the Stage exists on the
+           no-spawn boot too; menu_on because the ROM does not reach
+           Stage::Behavior at all on a paused frame.
+
+           AND ITS SIBLING STAYS OUT. Stage::Render's ShadowModel::RenderAll,
+           which belongs between RenderModel and RenderModelTransparent below,
+           CANNOT be seated yet, and this is the measurement rather than a
+           guess -- it was seated, and walk_window took an access violation on
+           frame 1:
+
+             FAULT code c0000005 at +0x000893c8 accessing 00000000
+               stack[03] +0x000892b1
+
+           +0x893c8 is eight bytes into func_02046120 and +0x892b1 is inside
+           RenderAll, i.e. `int n = self->sub->count` with self null, where
+           self is the list node's `data` (its ModelComponents at +0x08).
+
+           The list is NOT empty on the port, which is what
+           hal/cxxname_bridge.cpp's note implies and what I assumed too.
+           Actor::DropShadowScaleXYZ is indeed a host no-op there, but
+           Actor::DropShadowRadHeight is NOT: its C spelling resolves to the
+           matched src/ body, which calls ShadowModel::InitModel for real, and
+           Butterfly::Behavior takes that path every frame on this level (the
+           boot census spawns butterflies). So a real ShadowModel goes on the
+           list with data == 0, because the thing that would have filled it is
+           ShadowModel::InitCuboid and that IS stubbed. The cuboid template BMD
+           is static .data in overlay 1 at 0x020ad524, and the port's ov001
+           mount is per-symbol and covers only 0x020ab800..0x020abb00, the HUD's
+           sprite templates (port/ov001_syms.txt). The template's bytes are not
+           in the build.
+
+           RenderAll dereferences that null on its first node. Guarding it here
+           would be inventing behaviour the ROM does not have, so it waits for
+           the shadow half of ov001. Note also that seating RenderAll with this
+           CleanAll call left
+           at the END of the behaviour phase runs clean -- but only because the
+           list is force-emptied after the actors fill it and before RenderAll
+           reads it, which is the wrong order and would draw no shadows at all
+           once ov001 lands. A green run for that reason is not a seat. */
+        if (real_boot && !menu_on)
+            ShadowModel::CleanAll();
         if (menu_on) {
             game_ticked = 0;
         } else if (boot_spawns) {
@@ -5337,13 +5462,15 @@ int main(void)
                    two model passes are the same Model drawn twice with
                    inverse visibility masks -- the moat water only exists in
                    the second. (ShadowModel::RenderAll sits between them on the
-                   ROM; the port's shadows are still the actors' own.) */
+                   ROM; see the CleanAll block above for what stops it.) */
                 port_stage_render_skybox(stage);
                 /* Stage::Render's first block, in its place in the order:
                    advance the shown areas' BTA texture animations (the
                    waterfall), which RenderModel below then applies. */
                 port_stage_advance_anims(stage);
                 port_stage_render_model(stage);
+                /* ShadowModel::RenderAll() BELONGS HERE and cannot go in yet;
+                   the reason is written out beside the CleanAll call above. */
                 port_stage_render_model_transparent(stage);
             } else {
                 hal_render_model(level_model, level_shift);
@@ -5777,6 +5904,15 @@ int main(void)
                 port_actor_census();
             port_bob_spawn_report();
             ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
+            /* the other half of the boot's [heap] line: what the run itself
+               spent out of the ROM's 0x3b000. A number that keeps falling
+               across frame counts is a leak; one that stops falling is the
+               game living inside the budget the DS gave it. */
+            if (data_020a0eac_c)
+                fprintf(stderr, "[heap] %u free after %d frames\n",
+                        _ZN22ExpandingHeapAllocator10MemoryLeftEv(
+                            *(void **)((char *)data_020a0eac_c + 0x14)),
+                        frame);
             printf("selftest: %d frames, pos=(%d, %d, %d)\n", frame,
                    *(int *)(c + 0x5c), *(int *)(c + 0x60), *(int *)(c + 0x64));
             return 0;
