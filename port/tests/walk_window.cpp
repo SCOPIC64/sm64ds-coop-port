@@ -2026,7 +2026,7 @@ int main(void)
 
            0x0201a100  e3a00a3b   MOV r0, #0x3b000
            0x0201a104  e3a01000   MOV r1, #0
-           0x0201a108  eb0083fc   BL  0x0203c24c   Heap::InitializeGameHeap
+           0x0201a108  eb00884f   BL  0x0203c24c   Heap::InitializeGameHeap
 
        so the size is a hard immediate, 0x3b000 = 241664 bytes, and the parent
        is NULL. Nothing is derived from the OS arena, which is why there is
