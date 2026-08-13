@@ -119,6 +119,71 @@ src/_ZN4Heap18InitializeGameHeapEjPS_.c
 # nothing and this line is the one that does the work.
 src/_ZN11ShadowModel8CleanAllEv.cpp
 
+# ---- wave 3: the fader interpolator, five bodies the port was restating -----
+# hal/fader_wipes.cpp hosts the seven-wipe array as a host CLASS, because the
+# ROM's vtable BYTE ORDER is what the raw-offset callers need and MSVC will not
+# emit that order for a class derived from Fader. That much stays host. But the
+# arithmetic in the slots was a hand restatement of five matched bodies, and
+# these five were compiled into NO walk_window object at all: they sit in
+# slice_gate1.txt, the gate-1 smoke's slice, which is not in walk_window's slice
+# set -- so all five were MISSING from the map rather than merely stripped from
+# it. Verified against build/port/walk_window.map before the change: zero hits
+# for SetToStart/SetToEnd/IsAtStart/IsAtEnd@FaderBrightness and
+# AdvanceInterp@Fader, and no .obj for any of them under walk_window.dir.
+#
+# The reference edges are in hal/fader_wipes.cpp, one per body, each reached
+# QUALIFIED off a reinterpreted HalFaderWipe* -- legal because include/Fader.h
+# pins vptr 0x0 / currInterp 0x4 / speed 0x8, exactly HalFaderWipe's prefix.
+src/engine/fader/_ZN5Fader13AdvanceInterpEv.cpp
+src/engine/fader/_ZN15FaderBrightness10SetToStartEv.cpp
+src/engine/fader/_ZN15FaderBrightness8SetToEndEv.cpp
+src/engine/fader/_ZN15FaderBrightness9IsAtStartEv.cpp
+src/engine/fader/_ZN15FaderBrightness7IsAtEndEv.cpp
+# Fader::AdvanceInterp drags one name with it: it calls the 20.12 approach
+# helper by the ROM spelling func_0203ae58, which only hal/shims.cpp defines and
+# walk_window does not link that file. fader_wipes.cpp supplies it as an
+# alternatename onto the C face of the matched ApproachLinear, so a target that
+# DOES link shims.cpp keeps its own strong definition and nothing collides.
+#
+# NOT TAKEN, and this is the interesting half. FaderBrightness's SetForwardTime
+# / SetBackwardTime / IsBetweenStartAndEnd are matched too and are NOT seated,
+# because each ENDS IN A VIRTUAL CALL. Under mwcc IsAtStart/IsAtEnd are ROM
+# slots 5 and 6; MSVC folds the two destructor slots into one, and HalFaderWipe
+# spends two slots holding ROM byte order, so a FaderBrightness slot-4 dispatch
+# lands on HalFaderWipe::SetForwardTime -- which takes two ints under
+# __thiscall, so a no-argument virtual arriving there unbalances the stack.
+# Slot 5 is merely the wrong predicate. Seating those three needs the wipe table
+# to BE a FaderBrightness, which is the ROM-class swap below, not a slice line.
+#
+# THE ROM-CLASS SWAP (data_0209f324 = the ROM's own construction) -- wave 4+.
+# Stage::InitResources builds the array as
+#     data_0209f324 = func_02073470(7, 0x60, 8, FaderWipe::FaderWipe,
+#                                               FaderWipe::~FaderWipe);
+# and every piece of that now exists: func_02073470 has a host body in
+# hal/actor_vtables.cpp, and FaderWipe's ctor, both dtors, AdvanceFade and
+# LoadAndSetFile are all matched under src/engine/fader/. Three things block it,
+# and only the third is hard:
+#   1. _ZTV9FaderWipe (arm9 0x0208ea9c) is not hosted anywhere in the port. Its
+#      ten slots resolve, by config/arm9/relocs.txt, to FaderWipe D1/D0/
+#      AdvanceFade then seven FaderBrightness bodies -- all matched -- so a
+#      hal_fill_* over hosted storage would seat it in ROM order and, unlike a
+#      host class, SOLVE the dtor-fold skew rather than work around it.
+#   2. slice_gate36.txt already lists the FaderWipe ctor/dtor/LoadAndSetFile,
+#      but port/CMakeLists.txt reads it into SLICE36_SOURCES and never adds it
+#      to a target, so it compiles nothing.
+#   3. THE FADE WOULD STOP RENDERING, which is why this was not forced here.
+#      The matched FaderWipe::AdvanceFade writes the MAIN engine's blend
+#      register (0x4000050) only on its cur == 0x1000 branch, and writes the SUB
+#      engine's (0x4001050) on the common path. The port's compositor reads
+#      0x4000050 / 0x4000054 (port_fader_blend_state, below), so through most of
+#      a fade it would see nothing and the screen would not darken. The host
+#      AdvanceFade writes BOTH engines every step, and that divergence is what
+#      makes the fade visible. The matched body also calls ModelComponents::
+#      Render on a Model that FaderWipe::LoadAndSetFile fills from the stage
+#      filesystem the port does not mount -- the same null-sub shape that
+#      faulted ShadowModel::RenderAll in wave 2. A working fader is
+#      player-facing; this wants a compositor decision, not a slice line.
+
 # ---- mined and NOT taken (kept here so wave 2 does not re-mine them) --------
 # _ZN11ShadowModel10InitCuboidEv.cpp
 #     hal/actor_class_faces.cpp defines the same ?InitCuboid@ShadowModel@@QAEXXZ.
