@@ -128,7 +128,14 @@ src/actors/Boo/Boo_Spawn.cpp
 port/unmatched/Boo_InitResources.c
 src/actors/Boo/_ZN3Boo16CleanupResourcesEv.cpp
 src/actors/Boo/_ZN3Boo16OnPendingDestroyEv.c
-src/actors/Boo/_ZN3Boo6RenderEv.cpp
+# _ZN3Boo6RenderEv.cpp OUT: dispatches the mModelAnim (+0x380) draw through a
+# LOCAL six-virtual shadow (ROM slot 5 = ModelAnim::Render; the host
+# _ZTV9ModelAnim slot 5 = Virtual18, two args) -- MEASURED as c0000005 at
+# func_0204488c+0x10a accessing 00000009 on frame 0 of the L2 selftest (the
+# stack-read scale, eax=1, rode down as func_0204488c's color pointer).
+# Level 12 never showed it: all six BBH Boos sit behind the +0xb0 0x40000
+# cull bit there. Host copy in port/unmatched/ModelAnim_Renders.cpp, the
+# Whomp/Fish recipe.
 src/actors/Boo/_ZN3BooD0Ev.c
 src/actors/Boo/_ZN3BooD1Ev.c
 src/actors/BigBoo/BigBoo_Spawn.cpp
