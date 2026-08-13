@@ -146,17 +146,23 @@ extern "C" void DeathTable_SetBit(int id);
 extern "C" void _ZN5Actor17TrackInDeathTableEv(void *self)
 { DeathTable_SetBit(*(short *)((char *)self + 0xce)); }
 
-/* ?InitCuboid@ShadowModel@@QAEXXZ -- SIGN_POST asks for its cuboid shadow
-   through a method on its own shadow declaration, and the shadow system is
-   deferred: data_020ad524, the template BMD, is static .data in overlay 1 and
-   the port never mounts ov001, so the real body parses a zero stub (NOT a
-   missing runtime builder, as this comment used to say; cxxname_bridge.cpp
-   carries the corrected writeup). Forward to the same no-op every C-named
-   caller already gets. The sign is drawn without its shadow until ov001's
-   data is mounted. */
-extern "C" void _ZN11ShadowModel10InitCuboidEv(void *self);
-struct ShadowModel { void InitCuboid(); };
-void ShadowModel::InitCuboid() { _ZN11ShadowModel10InitCuboidEv(this); }
+/* ?InitCuboid@ShadowModel@@QAEXXZ IS GONE FROM THIS FILE (run linkw wave 3,
+   lane w3-a). It used to be a local `struct ShadowModel { void InitCuboid(); }`
+   whose method forwarded to the C name, which at the time was a no-op in
+   hal/cxxname_bridge.cpp -- so SIGN_POST asked for its cuboid shadow and got
+   nothing.
+
+   That declaration decorated to exactly the same symbol the matched TU
+   defines, and slice_w1l3.txt recorded it as the reason
+   src/_ZN11ShadowModel10InitCuboidEv.cpp could not be taken in wave 2 ("that
+   file belongs to no lane this wave, so the duplicate cannot be cleared").
+   This wave owns the file, so the duplicate is cleared by deletion and the
+   matched body owns the name. SIGN_POST's call site is unchanged and now
+   reaches the ROM's own InitCuboid, which does SetFile(&data_020ad524, 1, -1)
+   against the ov001 bytes port/ov001_syms.txt mounts.
+
+   The C name keeps a definition -- it is now the ordinary bridge in the other
+   direction (C name -> matched method), in hal/cxxname_bridge.cpp. */
 
 /* WithMeshClsn::TouchesWater is declared only inside its own TU (not in
    include/WithMeshClsn.h), and the sign's thrown and dropped states call it by

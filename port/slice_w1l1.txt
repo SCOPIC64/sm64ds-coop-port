@@ -188,3 +188,73 @@
 # hal/actor_faces_bob.cpp and hal/bob_enemy_bridges.cpp to own, or it will
 # reach the same wall.
 # ===========================================================================
+
+# ===========================================================================
+# LANE w3-a (run linkw, wave 3). NOT EMPTY ANY MORE. Three host stand-ins
+# retired for their matched bodies, and the shadow templates mounted.
+#
+# w2-a's closing paragraph asked for hal/reverse_bridges.cpp and two of the
+# bob files. This lane got reverse_bridges.cpp, actor_class_faces.cpp and
+# cxxname_bridge.cpp, and that is exactly the difference between the three
+# swaps below and the one that is still blocked.
+#
+# ---------------------------------------------------------------------------
+# THE CUBOID SHADOW, and the correction that made it possible.
+#
+# Only ONE line below is a slice line, because the other two matched TUs were
+# already compiled and merely stripped -- GetClsnID rides slice_gate10.txt and
+# TouchesWater rides slice_gate16.txt, and both were in w2-a's 132. Their
+# swaps are pure reference edges in the host files. InitCuboid was in no slice
+# at all, so it needs the line.
+src/_ZN11ShadowModel10InitCuboidEv.cpp
+#
+# The edge: SIGN_POST calls the METHOD ?InitCuboid@ShadowModel@@QAEXXZ, and
+# hal/actor_class_faces.cpp used to define that decorated name itself over a
+# local one-method struct. Deleting it hands the name to the matched TU with
+# the call site untouched. The C-named callers reach the same body through
+# hal/cxxname_bridge.cpp, which is now a real bridge instead of `{}`.
+#
+# The data: port/ov001_syms.txt now names the cuboid's nine symbols. The wave-1
+# note that ov001 "is not mounted" was wrong in a way that matters -- it has
+# been mounted since gate 27, but only for the HUD sprites, and --pack pads
+# between named symbols with ZEROS. So the template was 432 bytes of present
+# zero, not absent bytes. Reading a zero BMD_File gives numBones 0 and
+# numMaterials 0, which is why the stub was harmless and why nothing crashed.
+#
+# ---------------------------------------------------------------------------
+# THE RENDERALL CHAIN IS STILL BLOCKED, AND WAVE 2 NAMED THE WRONG TEMPLATE.
+#
+# slice_w1l3.txt's wave-2 note says the faulting node "has data == 0 because
+# ShadowModel::InitCuboid IS stubbed". Measured, that is the wrong half:
+#
+#   src/_ZN9Butterfly13InitResourcesEv.cpp:38  InitCylinder on this+0x188
+#   src/_ZN9Butterfly13InitResourcesEv.cpp:40  InitCylinder on this+0x1b0
+#   src/_ZN9Butterfly8BehaviorEv.cpp:73        DropShadowRadHeight on c+0x188
+#   src/_ZN9Butterfly8BehaviorEv.cpp:78        DropShadowRadHeight on c+0x1b0
+#
+# The two ShadowModels the butterfly registers every frame are the same two it
+# initialises, and both are CYLINDERS. InitCuboid never runs on that path, so
+# seating it cannot fill node->data for the node that faults. It is the
+# cylinder that has to land, and the cylinder needs three files this lane does
+# not own:
+#
+#   hal/player_bridges.cpp:806     void _ZN11ShadowModel12InitCylinderEv(void*){}
+#                                  the C name every live caller calls
+#   hal/bob_enemy_bridges.cpp:153  int ShadowModel::InitCylinder(){ return 1; }
+#                                  the MSVC name, the ride-through return
+#   hal/actor_vtables.cpp:485      int data_020ad560[0x3c / 4];
+#                                  a zero host copy of the template the matched
+#                                  body reads BY NAME, which would shadow the
+#                                  ov001 mount even if the body were seated
+#
+# The bytes are already waiting: port/ov001_syms.txt mounts the cylinder chain
+# this wave. The handoff is one line per file -- delete the two stubs, delete
+# the host array and alias _data_020ad560 to _data_ov001_020ad560 the way
+# cxxname_bridge.cpp now does for the cuboid, then add
+# src/_ZN11ShadowModel12InitCylinderEv.cpp's reference edge (it is already
+# compiled, via slice_gate10.txt, so no slice line is needed).
+#
+# THE SCRATCH PROOF and the exact one-line RenderAll seat are written up in the
+# lane's final report, not here, because the seat line belongs to
+# tests/walk_window.cpp and that file is frozen this wave.
+# ===========================================================================
