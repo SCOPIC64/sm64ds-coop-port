@@ -19,20 +19,62 @@ scaffolding that outlived its reason, and port_stage_a_boot is the example
 that motivated this file: a hand-written subset of Stage::InitResources, while
 Stage::InitResources sat in src/ decompiled and unlinked.
 
-NOT every queue symbol is scaffolding, though. A matched src TU that is an ARM
-asm primitive, an ARM register ride-through, an mwcc pointer-to-member dispatch,
-or a poke of DS hardware the ntr layer does not model cannot compile-and-behave
-under MSVC no matter how much wiring is added -- the host definition IS the
-faithful stand-in. Those are host-ABI EXCEPTIONS, not unknowns, and this tool
-tells them apart: a host definition carrying a `PORT_HOST_ABI:` tag in the
-comment right above it is a documented exception; one without a tag is real
-replacement work still to be understood. The headline the port drives to zero
-is the UNDOCUMENTED queue, not the raw one.
+NOT every queue symbol is scaffolding, though. This tool sorts every queue hit
+into three buckets, and only the first of them is work:
 
-    python port/tools/linkage.py [repo-root] [--queue] [--exceptions]
+  SHADOWS     a host file defines the symbol and the matched TU of that name
+              is NOT in the binary. The host body is what runs. This is the
+              replacement work list -- the number the port drives to zero.
 
-  --queue        list every queue symbol with its matched source
+  FACES       a host file defines the symbol AND the matched TU of that name
+              IS in the binary. Both can coexist because they are different
+              symbols to the linker: the matched .cpp compiles a real C++
+              method (MSVC mangles it `?Allocate@Heap@@...`) while the host
+              file defines the ROM's Itanium C name (`_ZN4Heap8AllocateEji`)
+              that the ROM's own vtables and call sites use. hal/heap_vtable
+              and hal/cxxname_bridge are full of these, and they are the
+              OPPOSITE of scaffolding -- they are the bridge that lets a
+              C-named ROM caller reach the decompiled method.
+              READ THE CAVEAT: a map cannot prove forwarding. All this bucket
+              knows is that both definitions are linked. That is consistent
+              with a face that forwards into the matched body, and equally
+              consistent with a host body that duplicates it while the matched
+              TU is kept alive by some other caller -- which WOULD be
+              scaffolding. Deciding takes reading the host definition. The
+              bucket is listed separately so it is neither counted as work nor
+              silently forgiven.
+
+  EXCEPTIONS  a matched src TU that is an ARM asm primitive, an ARM register
+              ride-through, an mwcc pointer-to-member dispatch, or a poke of DS
+              hardware the ntr layer does not model cannot compile-and-behave
+              under MSVC no matter how much wiring is added -- the host
+              definition IS the faithful stand-in. A host definition carrying a
+              `PORT_HOST_ABI:` tag in the comment right above it is one of
+              these. The tag is a human ruling, so it wins over the other two
+              buckets: a tagged symbol is an exception whether or not the
+              matched TU also links.
+
+THE DECORATION RULE, and the bug it replaced. This is a 32-bit MSVC link, so
+an `extern "C"` function gets exactly ONE leading underscore in the /MAP:
+`func_02049d60` appears as `_func_02049d60`. The ROM's C++ symbols are carried
+through the port as C names that ALREADY start with an underscore, so
+`_ZN4Heap8AllocateEji` appears as `__ZN4Heap8AllocateEji`. This file used to
+undecorate with `sym.lstrip("_")`, which strips EVERY leading underscore and
+turned that into `ZN4Heap8AllocateEji` -- a name no matched TU is called, so
+every single `_ZN*`-named host definition fell out of the queue unseen. The
+queue read 132 when the honest number was ~447. Strip exactly one.
+
+    python port/tools/linkage.py [repo-root] [--queue] [--exceptions] [--faces]
+
+  --queue        list every SHADOW symbol with its matched source
   --exceptions   also print the documented host-ABI exceptions and their reasons
+  --faces        also print the face bucket, host object by host object
+
+With no repo-root argument this measures the checkout the script itself lives
+in, not the current directory. It used to root at CWD, which reads the same
+from the repo root and silently measures nothing (or another checkout's map)
+from anywhere else. The resolved root and map are printed above every run, so
+a pasted reading always says which tree and which binary it came from.
 """
 import os
 import re
@@ -140,7 +182,10 @@ def _reasons_in(source_path):
                     # /alternatename pragmas carry the MSVC `_` prefix the
                     # map parser strips; bind the stripped form too so a tag
                     # above an alias documents the symbol the queue asks for.
-                    out.setdefault(name.lstrip("_"), reason)
+                    # Same one-underscore rule as the map parser, or a tag
+                    # above a `__ZN...` alias would bind a name the queue
+                    # never asks about.
+                    out.setdefault(undecorate(name), reason)
             # A `{` opens the definition body -- stop here. A line ending in `;`
             # is a forward-declaration/prototype the definition sits below;
             # keep going. `}` closes a one-line body -- stop.
@@ -177,6 +222,20 @@ def matched_index(root):
     return out
 
 
+def undecorate(sym):
+    """Undo MSVC's cdecl decoration: exactly ONE leading underscore.
+
+    32-bit MSVC prefixes every `extern "C"` symbol with a single `_`. The ROM's
+    C++ names travel through the port as C identifiers that already begin with
+    an underscore, so `_ZN4Heap8AllocateEji` is emitted `__ZN4Heap8AllocateEji`
+    and only the FIRST underscore is decoration. `lstrip("_")` eats both and
+    loses the name; taking one character keeps `_ZN...` intact and still
+    undecorates the plain `_func_020226d0` case correctly. Decorated C++ names
+    (`?Allocate@Heap@@...`) carry no underscore prefix and pass through.
+    """
+    return sym[1:] if sym.startswith("_") else sym
+
+
 def map_symbols(mapfile):
     """[(symbol, objfile)] out of an MSVC /MAP."""
     out = []
@@ -190,20 +249,33 @@ def map_symbols(mapfile):
                 r"\s+[0-9a-fA-F]{4}:[0-9a-fA-F]{8}\s+(\S+)\s+[0-9a-fA-F]{8}\s+(?:[fi]\s+)*(\S+\.obj)\s*$",
                 line)
             if m:
-                out.append((m.group(1).lstrip("_"), m.group(2)))
+                out.append((undecorate(m.group(1)), m.group(2)))
     return out
+
+
+def default_root():
+    """The checkout this script lives in: <root>/port/tools/linkage.py."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    return os.path.dirname(os.path.dirname(here))
 
 
 def main():
     positional = [a for a in sys.argv[1:] if not a.startswith("--")]
-    root = positional[0] if positional else "."
+    root = positional[0] if positional else default_root()
     show_queue = "--queue" in sys.argv
     show_exceptions = "--exceptions" in sys.argv
+    show_faces = "--faces" in sys.argv
 
     mapfile = os.path.join(root, "build", "port", "walk_window.map")
     if not os.path.exists(mapfile):
         print("no %s -- build walk_window first" % mapfile)
         return 2
+
+    # Say which tree and which binary this reading came from. A linkage number
+    # is only quotable next to these two lines.
+    print("repo root : %s" % os.path.abspath(root))
+    print("map       : %s" % os.path.abspath(mapfile))
+    print()
 
     matched = matched_index(root)
     syms = map_symbols(mapfile)
@@ -229,11 +301,13 @@ def main():
         print("no host object defines a symbol that src/ also has. Nothing to replace.")
         return 0
 
-    # Split each host object's symbols into documented host-ABI exceptions
-    # (a PORT_HOST_ABI tag sits above the definition) and undocumented ones.
+    # Split each host object's symbols three ways. Order matters: the
+    # PORT_HOST_ABI tag is a human ruling and wins, then a matched TU that is
+    # itself linked marks a face, and what is left is the work list.
     src_cache = {}
-    documented = {}    # obj -> {sym: reason}
-    undocumented = {}  # obj -> set(sym)
+    documented = {}    # obj -> {sym: reason}   EXCEPTIONS, tagged
+    faces = {}         # obj -> set(sym)        matched TU is linked too
+    undocumented = {}  # obj -> set(sym)        SHADOWS, the work list
     for obj, s in host_hits.items():
         source = src_cache.get(obj)
         if source is None:
@@ -250,11 +324,14 @@ def main():
             reason = abi_reason(source, sym)
             if reason:
                 documented.setdefault(obj, {})[sym] = reason
+            elif sym in linked_stems:
+                faces.setdefault(obj, set()).add(sym)
             else:
                 undocumented.setdefault(obj, set()).add(sym)
 
     n_all = sum(len(v) for v in host_hits.values())
     n_doc = sum(len(v) for v in documented.values())
+    n_face = sum(len(v) for v in faces.values())
     n_undoc = sum(len(v) for v in undocumented.values())
 
     print("REPLACEMENT QUEUE: %d symbols across %d host objects are defined by a"
@@ -263,21 +340,40 @@ def main():
     print("  %d are documented host-ABI exceptions (asm primitives, register"
           % n_doc)
     print("     ride-throughs, mwcc pointer-to-member, unmodelled DS hardware)")
-    print("  %d are undocumented -- the real replacement work" % n_undoc)
+    print("  %d are FACES -- the matched TU of that name is linked too, so the"
+          % n_face)
+    print("     host definition is most likely the C-name bridge INTO it, not a")
+    print("     stand-in for it. Not work; not proven either (see --faces)")
+    print("  %d are SHADOWS -- no matched TU of that name reaches the binary,"
+          % n_undoc)
+    print("     so the host body is what runs. This is the replacement work")
     print()
 
-    # The undocumented queue is the work list.
+    # The shadow queue is the work list.
     if undocumented:
-        print("UNDOCUMENTED QUEUE (%d):" % n_undoc)
+        print("UNDOCUMENTED QUEUE / SHADOWS (%d):" % n_undoc)
         for obj, s in sorted(undocumented.items(), key=lambda kv: -len(kv[1])):
             print("  %-40s %d symbol(s)" % (obj, len(s)))
             if show_queue:
                 for sym in sorted(s):
                     print("        %-46s %s" % (sym, matched[sym]))
     else:
-        print("UNDOCUMENTED QUEUE (0): every queue symbol is a documented")
-        print("host-ABI exception. The only way to shrink it further is a")
-        print("toolchain that can run the ROM's ARM asm and hardware pokes.")
+        print("UNDOCUMENTED QUEUE / SHADOWS (0): every queue symbol is a")
+        print("documented host-ABI exception or a face over a linked matched")
+        print("TU. The only way to shrink it further is a toolchain that can")
+        print("run the ROM's ARM asm and hardware pokes.")
+
+    print()
+    print("FACES (%d): host definition and matched TU BOTH linked. The matched"
+          % n_face)
+    print("code is in the binary; these carry the ROM's C name to it. A map")
+    print("cannot prove the host definition forwards rather than duplicates,")
+    print("so read one before quoting it as either.")
+    for obj, s in sorted(faces.items(), key=lambda kv: -len(kv[1])):
+        print("  %-40s %d symbol(s)" % (obj, len(s)))
+        if show_faces:
+            for sym in sorted(s):
+                print("        %-46s %s" % (sym, matched[sym]))
 
     if show_exceptions:
         print()
@@ -287,9 +383,10 @@ def main():
             for sym in sorted(d):
                 print("        %-30s %s" % (sym, d[sym]))
 
-    if not show_queue and not show_exceptions:
+    if not show_queue or not show_exceptions or not show_faces:
         print()
-        print("re-run with --queue for sources, --exceptions for the reasons")
+        print("re-run with --queue for shadow sources, --faces for the face")
+        print("list, --exceptions for the documented reasons")
     return 0
 
 

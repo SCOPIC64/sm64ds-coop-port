@@ -40,9 +40,40 @@
 // runtime before the first frame.
 //
 // Slot 0 is SpawnParticles, slot 1 is OnUpdate. Note that slot 0 is SHARED:
-// nine of the thirteen classes never override SpawnParticles and take either
+// eight of the thirteen classes never override SpawnParticles and take either
 // Particle::Callback's (a bare `return`) or Particle::SimpleCallback's. That
 // sharing is the ROM's, not a simplification -- see the to: addresses.
+// Five seat their own: Callback (f3b4), SimpleCallback (f3c4),
+// EndingStarGlitter (f3d4), CheckLava (f404), Scale (f414). Of the eight that
+// inherit, three take SimpleCallback's (Bubble f3a4, Splash f3e4,
+// FitWaterSimple f444) and five take Callback's (CheckWater f3f4,
+// CheckWaterRipple f424, Clip f434, FitWater f454, CleanParticle f464) -- so
+// SimpleCallback::SpawnParticles is slot 0 of FOUR tables and Callback's is
+// slot 0 of six.
+//
+// THAT SPLIT HAS BEEN CHALLENGED ONCE, AND IT HELD. A 2026-08-12 vtable-head
+// sweep (the group-5 note in hal/w2_dtor_heads.cpp) reported that "the four
+// particle tables put Particle::SimpleCallback::SpawnParticles at index 0 in
+// the ROM where hal/particle_vtable.cpp seats the BASE
+// Particle::Callback::SpawnParticles." Re-derived mechanically, all 26 slots
+// agree with the ROM and none of the four is mis-seated; the seats have been
+// these since the file was written. Re-check takes two greps, which is the
+// whole reason every line carries its from:/to: pair:
+//
+//     config/arm9/relocs.txt   from:0x0208f3a4 -> to:0x02022640
+//     config/arm9/symbols.txt  0x02022640 = SimpleCallback::SpawnParticles
+//                              0x020226d0 = Callback::SpawnParticles (size 4)
+//
+// WHAT THE SWEEP WAS PROBABLY SEEING, because it is a real and separate fact:
+// the matched TU src/_ZN8Particle14SimpleCallback14SpawnParticlesERNS_6SystemE
+// .cpp does NOT link. It is one of the three ARM argument ride-throughs
+// (slice_gate29.txt keeps it out on purpose), so the body those four slot-0
+// seats actually reach is the host copy in
+// port/unmatched/Particle_RideThroughs.cpp -- same C name, cdecl, arguments
+// made explicit. So "the decompiled SimpleCallback::SpawnParticles is not in
+// the binary" is true, and "the vtable seats the wrong class" is not. The
+// distinction is the whole difference between a fidelity bug and a documented
+// host-ABI exception, and slot 0 here is the second one.
 #include <cstdio>
 #include <cstdlib>
 #include "dsstate_seg.h"
