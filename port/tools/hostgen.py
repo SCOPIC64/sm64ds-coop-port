@@ -407,6 +407,33 @@ def mmio_extern_patch(text, sym):
     return apply_patches(text, sym, MMIO_EXTERN, "MMIO_EXTERN")
 
 
+# ---- INT BODIES THAT FALL OFF THE END ----------------------------------------
+#
+# mwccarm lets a non-void function end without a return (the value is whatever
+# r0 held); MSVC makes that C4716, a hard error. The recovered TU below ends on
+# a call to a face the port defines VOID (Actor::KillAndTrackInDeathTable, a
+# real void method in matched src), so the ROM's r0 at that point is the leftover
+# of an interior call -- unrecoverable without giving the whole KATIDT chain int
+# faces. The patch returns 1, the value every sibling state handler in ov070
+# returns, and the caveat is real but bounded: the one reader of this return is
+# FlyGuy's state dispatcher, and FlyGuy is unregistered (no bootable level
+# spawns it), so the value is dead until a FlyGuy lane lands -- which should
+# re-derive it before trusting it.
+FALLS_OFF_RETURN = {
+    "func_ov070_0211f0a4": [
+        ("    a->KillAndTrackInDeathTable();\n}",
+         "    a->KillAndTrackInDeathTable();\n"
+         "    return 1;  /* hostgen FALLS_OFF_RETURN: see the table's note */\n"
+         "}"),
+    ],
+}
+
+
+def falls_off_return_patch(text, sym):
+    """Give a falls-off-the-end int body the documented return."""
+    return apply_patches(text, sym, FALLS_OFF_RETURN, "FALLS_OFF_RETURN")
+
+
 # ---- CALLING CONVENTION: C++ VIRTUAL CALLS ON C VTABLES ----------------------
 #
 # On ARM a virtual call and a plain function-pointer call are the SAME thing:
@@ -500,6 +527,7 @@ def emit(src_path, out_dir, decomp_root, extern_data=False):
         text, _ = shadow_header_decl(text, sym, HEADER_SHADOW[sym])
     text, _ = ds_div_patch(text, sym)
     text, _ = mmio_extern_patch(text, sym)
+    text, _ = falls_off_return_patch(text, sym)
     text, _ = virtual_call_patch(text, sym)
     text, _ = member_redecl_patch(text, sym)
     new, n = transform(text, extern_data)
