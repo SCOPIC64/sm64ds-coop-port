@@ -48,7 +48,8 @@ src/_ZN12CylinderClsnD0Ev.c
 # puts at base+4:
 #   from:0x02092684 to:0x0202e638 _ZN5Scene19BeforeInitResourcesEv
 # Storage is `void *_ZTV5Scene[20]` in hal/stage_bridges.cpp; no fill in the
-# tree writes a slot of it, and the eight TUs that name the table only store
+# tree writes a slot of it, and the src/ TUs that name the table (28 mention,
+# 25 store -- w3-b review recount) only store
 # its ADDRESS as a transient vptr. The sweep is written out in the seat's own
 # comment. What blocked this head in wave 2 was data_0209f1e4, the DS BSS word
 # Scene::ResetFadersAndSound clears; hal/auto_bss.cpp hosts it now.
@@ -79,7 +80,8 @@ src/_ZN3G3X13SetClearColorEtiiib.cpp
 #   func_020553c0, the FIFO flush func_02055780 itself calls, is a HAND-ASM
 #     PRIMITIVE (32 identical stmia to a command port) and does not compile as
 #     C at all -- MSVC gives C2054 on the `asm` block. port/ntr/runtime.cpp
-#     carries it as a documented host-ABI exception.
+#     SHOULD carry it as a documented host-ABI exception; the tag was
+#     missing until the wave-3 close added it (ntr/runtime.cpp).
 src/func_02055464.c
 src/func_02055490.c
 src/func_0205a064.c

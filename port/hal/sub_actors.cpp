@@ -350,7 +350,9 @@ extern "C" int _ZN6Player12Unk_020ca8f8Ev(void *s)
      4. this stub deleted, so the matched body owns the symbol.
    Nothing else is missing, checked rather than assumed: the matched body's six
    data references (data_0208ee44, data_020a0db0, data_0209f2c4, data_0209f284,
-   data_0209f2d8, data_0209f248) are all hosted in hal/auto_bss.cpp, and the
+   data_0209f2d8, data_0209f248) are all in walk_window.map already (most in
+   hal/auto_bss.cpp; data_0208ee44 in romdata, data_0209f2d8 in
+   Player_InitResources.cpp -- w3-c review attribution), and the
    ten-argument OAM::Render it calls is already in walk_window.map from its own
    matched TU (_ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii.cpp.obj). */
 extern "C" void _ZN5Stage20RenderBouncingArrowsEv(void)

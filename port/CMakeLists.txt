@@ -918,7 +918,11 @@ list(APPEND PORT_LEVEL_OVERLAYS ov021)
 # address in ov045's window already sits inside both ov009's (..0x02113ee0) and
 # ov016's (..0x02114ea0), so it is already contested by two mounts and this
 # mount cannot flip a single target from resolved to raw. Measured, not
-# reasoned: 127 rebased / 4115 raw / 704 contested both before and after.
+# reasoned: before the mount 127 rebased / 4115 raw / 704 contested; after,
+# 133 / 4327 / 705 -- the six new rebased pointers are all ov045's own and
+# ZERO pre-existing pointers changed or were lost (patch-body diff, w3-d
+# review). The raw total grows because ov045's image adds addresses; do not
+# read 4327 as a regression when calibrating the next mount.
 list(APPEND PORT_LEVEL_OVERLAYS ov045)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)

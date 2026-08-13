@@ -798,7 +798,9 @@ void _ZN4BgCh19StartDetectingWaterEv(void *self)
    carries the full writeup). The template BMD at data_020ad560 is NOT
    runtime-built: it is static .data in overlay 1, a complete BMD_File with one
    bone at 0x020ad5dc and one material at 0x020ad4c4. Parsing the stub does
-   walk garbage, but because the port never mounts ov001, not because a
+   walk garbage -- ov001 IS mounted (and wave 3 named the shadow-template
+   bytes), but the CYLINDER chain stays unreferenced until this stub is
+   swapped; not because a
    builder is missing.
 
    Note the stub is also UNDERSIZED where it is declared (actor_vtables.cpp):

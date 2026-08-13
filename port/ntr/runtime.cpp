@@ -118,7 +118,12 @@ extern "C" void Copy48BytesFixed(int *src, int *dst) {
 }
 
 // The FIFO flush primitive: 32 no-writeback stmia of four zeroed registers,
-// 128 NOP command words that push any partially-packed command through.
+// 128 NOP command words that push any partially-packed command through.
+// PORT_HOST_ABI: hand-asm primitive (banner-marked in src/), a raw stmia
+// loop into the GXFIFO port; the ntr layer models the flush, not the
+// instruction stream. Tag added at the wave-3 close after a Scene seat gave
+// it its first caller and the untagged body surfaced as the queue's only
+// regression.
 extern "C" void func_020553c0(unsigned addr) {
     if (addr == 0x04000400u)
         for (int i = 0; i < 128; ++i) ntr::gx_write_fifo(0);

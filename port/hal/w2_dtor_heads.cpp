@@ -136,11 +136,12 @@
 //         (port/, src/, unmatched/, include/, config/) returns: the
 //         definition in hal/stage_bridges.cpp:83, prose in that file's
 //         comment and in this one, the config row, the decl_common.h
-//         declaration, and eleven src/ TUs.
+//         declaration, and the src/ TUs that name it (28 mention it; 25
+//         store its address; none writes a slot -- w3-b review recount).
 //       - hal/stage_bridges.cpp's own fill, hal_fill_stage_vtable, writes
 //         _ZTV5Stage[0..19]. It does NOT touch _ZTV5Scene; that array is
 //         labelled "transient ctor install, storage only" on its own line.
-//       - ALL ELEVEN src/ mentions write the table's ADDRESS into an object's
+//       - ALL 25 storing src/ mentions write the table's ADDRESS into an object's
 //         vptr. Not one of them stores into _ZTV5Scene[i]. Read out:
 //           _ZN5StageC3Ev.c      *(int*)p = (int)_ZTV5Scene;
 //           _ZN5StageD0Ev.c      thiz->vtable = (void **)_ZTV5Scene;
@@ -169,7 +170,9 @@
 //                       data_ov003_020b1704 (wins)
 //       _ZN9BootSceneD0Ev same shape as the Scene dtors
 //
-//     And only ONE of those eight is in the link today: _ZN5StageC3Ev, the
+//     And three of those are in the link today (StageC3Ev plus the Scene
+//     D1/D0 pair the second commit sliced in, each overwriting the vptr
+//     before any call -- w3-b review recount), led by _ZN5StageC3Ev, the
 //     three-store constructor whose last store wins. The other seven are not
 //     in walk_window.map at all. So no live object has _ZTV5Scene as its
 //     vptr at any point a virtual could be called, which is the same
@@ -437,7 +440,9 @@ W2SeatDtorHeads g_w2_seat_dtor_heads;
 //    (FitWaterSimple) -- already seat SimpleCallback::SpawnParticles, because
 //    the ROM's own slot-0 relocation on each of them lands on 0x02022640,
 //    which config/arm9/symbols.txt names
-//    _ZN8Particle14SimpleCallback14SpawnParticlesERNS_6SystemE. The nine that
+//    _ZN8Particle14SimpleCallback14SpawnParticlesERNS_6SystemE. SIX seat the base (f3b4 f3f4 f424 f434 f454 f464) and three seat their
+//    own class's override (f3d4 EndingStarGlitter, f404 CheckLava, f414
+//    Scale) -- w3-b recount. The six that
 //    seat the base take 0x020226d0, which is Callback::SpawnParticles. The
 //    sharing is the ROM's, exactly as particle_vtable.cpp's own header says.
 //    The original claim came from reading the seats without resolving the
