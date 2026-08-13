@@ -115,6 +115,9 @@ struct WithMeshClsn {
     void Init(Actor *actor, int radius, int height, Vector3_16 *v, int t);
     int IsOnWall() const;
     int JustHitGround() const;
+    /* TouchesWater is DECLARED here and deliberately not defined -- the
+       matched TU defines it. See the block further down. */
+    int TouchesWater() const;
 };
 int WithMeshClsn::IsOnWall() const
 { return _ZNK12WithMeshClsn8IsOnWallEv((void *)this); }
@@ -166,9 +169,27 @@ extern "C" void _ZN5Actor17TrackInDeathTableEv(void *self)
 
 /* WithMeshClsn::TouchesWater is declared only inside its own TU (not in
    include/WithMeshClsn.h), and the sign's thrown and dropped states call it by
-   its Itanium name. The C face is the mirror of the shadow-class ones above:
-   this side declares the method, forwards to the definition. */
-extern "C" int _ZNK12WithMeshClsn12TouchesWaterEv(const void *self);
-extern "C" int SurfaceInfo_TestFlag0x20(const void *p);
+   its Itanium name.
+
+   THE MATCHED BODY OWNS THE WORK NOW (run linkw wave 3, w3-a). The host body
+   here read SurfaceInfo_TestFlag0x20(this + 0x34) directly;
+   src/_ZNK12WithMeshClsn12TouchesWaterEv.cpp calls the same helper at the same
+   offset, so this is a swap with no behaviour change to argue about -- the
+   only difference is which object file the instructions come from. The TU was
+   already compiled (slice_gate16.txt) and stripped for want of a reference, so
+   this C face IS the reference edge and no slice line is needed. 5 of its 7
+   ROM callers are in the image.
+
+   TouchesWater is declared on the WithMeshClsn shadow ABOVE rather than on a
+   fresh local one. A second `struct WithMeshClsn` in this file would be a
+   redefinition -- this file includes no headers, but it already declares that
+   class at the Init/IsOnWall/JustHitGround face. MSVC decorates a method off
+   the class NAME and signature only, so ?TouchesWater@WithMeshClsn@@QBEHXZ
+   from that declaration is the symbol the matched TU exports; no layout is
+   assumed and the `pad` the matched TU carries is not repeated.
+
+   SurfaceInfo_TestFlag0x20 is no longer named here. The matched body calls it
+   with the same `this + 0x34`, so the reference simply moved into the TU that
+   does the work. */
 extern "C" int _ZNK12WithMeshClsn12TouchesWaterEv(const void *self)
-{ return SurfaceInfo_TestFlag0x20((const char *)self + 0x34); }
+{ return ((const WithMeshClsn *)self)->WithMeshClsn::TouchesWater(); }
