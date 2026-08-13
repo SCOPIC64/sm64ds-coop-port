@@ -48,8 +48,9 @@ src/_ZN12CylinderClsnD0Ev.c
 # puts at base+4:
 #   from:0x02092684 to:0x0202e638 _ZN5Scene19BeforeInitResourcesEv
 # Storage is `void *_ZTV5Scene[20]` in hal/stage_bridges.cpp; no fill in the
-# tree writes a slot of it, and the src/ TUs that name the table (28 mention,
-# 25 store -- w3-b review recount) only store
+# tree writes a slot of it, and the src/ TUs that name the table (28 mention it,
+# 28 store, 0 write a slot -- re-measured for the wave-4 slot-7 seat, which
+# CORRECTS the "25 store" this line carried from the w3-b review) only store
 # its ADDRESS as a transient vptr. The sweep is written out in the seat's own
 # comment. What blocked this head in wave 2 was data_0209f1e4, the DS BSS word
 # Scene::ResetFadersAndSound clears; hal/auto_bss.cpp hosts it now.
