@@ -23,9 +23,20 @@
 //   The last left click is published in framebuffer pixels for the touch
 //   bridge; see g_mouse_click_x.
 //   F5  the debug menu: warp to any of the level's own entrances, the fake-
-//   snap A/B, the overlay, the camera mode, and the recorder's filename.
+//   snap A/B, the overlay, the camera mode, how running works, and the
+//   recorder's filename.
 //   Arrows or the d-pad move, enter or A acts. It PAUSES THE GAME TICK while
 //   it is open and keeps rendering, so the scene freezes and the view does not.
+//   RUN MODE is two of its rows. The DS had no run button -- it ran off how
+//   far the touch-screen stick was pushed -- so every way of running on a host
+//   is the port's own choice, and the menu is where that choice is made:
+//   BUTTON holds run on a key or a pad button (shift and X by default, and
+//   this is what the window has always done), ANALOG reads the run out of the
+//   left stick's deflection the way the hardware read it out of the touch
+//   stick, and AUTO holds it down for you. The rebind row captures the next
+//   key or pad button pressed. All three are settings.json keys, so a choice
+//   outlives the run; see the RUN_ block above the menu enum for the mapping
+//   and port/hal/host_settings.cpp for the file.
 //   F3  the stats overlay: frame rate, the per-phase millisecond budget,
 //   triangle and actor counts, where Mario is and what state he is in, and
 //   how many times the port has fallen through a state it does not host.
@@ -243,6 +254,16 @@ static bool winapi_load(void)
 #include "overlay_font.h"
 #include "hal/host_settings.h"   /* settings.json, the launcher's file */
 
+/* The run-mode half of settings.json (hal/host_settings.cpp). Declared here
+   rather than in hal/host_settings.h because the header belongs to another
+   stream in this campaign and this lane owns only the two files it edits;
+   the linkage is plain extern "C" either way, so folding these three lines
+   into the header later is a move, not a change. */
+extern "C" int host_setting_run_mode(void);
+extern "C" int host_setting_run_key(void);
+extern "C" int host_setting_run_pad(void);
+extern "C" int host_setting_save_run(int mode, int key, int pad);
+
 typedef unsigned int u32;
 
 extern "C" {
@@ -273,6 +294,11 @@ extern int data_0209f4a6[];   /* pad stick WORLD angle -- auto_bss split
                                  symbol, NOT data_0209f4a0+6 on host */
 /* the real input processor (Stage::CheckInput) and its environment */
 void _ZN5Stage10CheckInputEv(void);
+/* the ROM's own atan2, the one CheckInput builds the stick record's angle
+   with. The analog run mode below fills that record from a host stick, so it
+   goes through the same function rather than a host atan2f: same table, same
+   quantization, same answer the touch path would have produced. */
+short _ZN4cstd5atan2E5Fix12IiES1_(int y, int x);
 unsigned int _ZNK6Player14GetBodyModelIDEjb(char *, unsigned int, char);
 extern int data_0209f498[];    /* CheckInput's own Ctrl[4] block */
 extern int data_0209f4a2[];    /* split: stick nx */
@@ -1205,11 +1231,145 @@ enum {
     MENU_SNAP,
     MENU_OVERLAY,
     MENU_CAMERA,
+    MENU_RUNMODE,       /* left/right: how running works (the block below) */
+    MENU_RUNBIND,       /* enter: capture the next press as the run button */
     MENU_RECORDER,
     MENU_SAVESTATE,     /* enter: snapshot the game into the in-memory slot */
     MENU_LOADSTATE,     /* enter: restore the in-memory slot (F9's twin) */
     MENU_COUNT
 };
+
+/* ---- HOW RUNNING WORKS (port mod, pure input shaping) -------------------
+   THE DS HAD NO RUN BUTTON. Its stick was the touch screen, and the game
+   decides between walking and running from HOW FAR that stick is pushed:
+   func_ov002_020d4748, func_ov002_020d1f78 and their siblings all read the
+   same pair of fields out of the input record and branch on
+
+       touching == 0  ->  running iff the held word has 0x800
+       touching != 0  ->  running iff the magnitude is past ~0xdc7 of 0x1000
+                          (0x80 of hysteresis on top, so the flip does not
+                          chatter around the threshold)
+
+   and the SPEED TARGET is scaled by that same magnitude -- func_ov002_020bf224
+   is literally `base * mag >> 12`, floored. So the game already has an analog
+   run and always did; the port simply never fed it one. This window has fed
+   the D-pad branch since it existed: magnitude pinned at 0x1000, touching
+   zero, running on a held 0x800 that the hardware never had a button for.
+
+   These three modes pick which of those branches the player's controls
+   reach. Nothing here is game logic. The record the game reads is the record
+   the game has always read, filled in by the host the way the hardware would
+   have filled it in, and src/ neither knows nor could tell.
+
+     RUN_BUTTON  what this program has always done. The bound key or pad
+                 button sets 0x800 while it is held, the record stays on the
+                 D-pad branch, and letting go walks. The DEFAULT, so a player
+                 who never opens this menu is playing the same program.
+     RUN_ANALOG  when a pad stick is actually pushed, the record is filled
+                 from it instead -- touching set, magnitude and direction
+                 from the deflection -- and the GAME's own thresholds do the
+                 rest. Partial push walks, past ~87 percent runs, and the
+                 speed in between is the ROM's own multiply. With no pad, or
+                 with the stick inside its dead zone, this is button mode:
+                 there is no deflection to read off a keyboard.
+     RUN_AUTO    0x800 is held for you, always. No button, always running.
+
+   The run BINDING is per device on purpose. Rebinding to a key leaves the
+   pad alone and rebinding to a pad button leaves the keyboard alone, because
+   a player who moves run off shift on the keyboard has said nothing about
+   what X should do on a controller. */
+enum { RUN_BUTTON = 0, RUN_ANALOG, RUN_AUTO, RUN_MODE_COUNT };
+static const char *const RUN_MODE_NAME[RUN_MODE_COUNT] = {
+    "button   (hold it to run)",
+    "analog   (how far the stick is pushed)",
+    "auto     (always running, no button)"
+};
+static int g_run_mode;                /* settings.json RunMode */
+static int g_run_key = 0x10;          /* settings.json RunButtonKey, VK_SHIFT */
+static int g_run_pad = 0x4000;        /* settings.json RunButtonPad, pad X */
+
+/* THE REBIND CAPTURE, armed from the menu's rebind row and read by the window
+   procedure. A capture has to swallow the press it is capturing, or binding
+   run to F3 would also toggle the overlay on the way past and binding it to
+   escape would close the game -- and escape is the one key the window
+   procedure, not the frame loop, acts on. So the capture lives where the
+   presses arrive: while it is armed, WM_KEYDOWN never reaches the escape
+   branch and never reaches the window at all, and the key it saw is handed
+   to the frame loop through g_rebind_key.
+
+   Level key reads are gated too, one line inside key_live, so nothing that
+   was already held keeps steering while a person is picking a button. */
+static int g_rebind_capture;          /* armed: swallow presses, report them */
+static int g_rebind_key;              /* the virtual-key the proc last saw */
+
+/* Keys and pad buttons this program has already spoken for. Binding run to
+   one of them would not produce a conflict a player could see and undo; it
+   would produce a menu that cannot be closed, or a game that quits when you
+   start running. So the capture refuses them and says so, which is the one
+   case where refusing is friendlier than obeying. */
+static int run_key_reserved(int vk)
+{
+    if (vk == VK_ESCAPE || vk == VK_RETURN) return 1;   /* quit, menu act */
+    if (vk >= VK_F1 && vk <= VK_F9) return 1;           /* the port's own row */
+    if (vk >= VK_LEFT && vk <= VK_DOWN) return 1;       /* menu navigation */
+    /* the bottom-screen panel, and it is read in hal/sub_screen.cpp rather
+       than through this file's key_live -- so a binding on it would fire the
+       panel from outside every gate here */
+    if (vk == VK_TAB) return 1;
+    return 0;
+}
+static int run_pad_reserved(unsigned mask)
+{
+    /* the d-pad (0x000f) and A (0x1000) drive the menu, BACK (0x0020) opens
+       it, and the right stick's click (0x0080) is the freecam toggle */
+    return (mask & 0x10afu) != 0;
+}
+
+/* A printable name for a binding. The letters and digits are their own ASCII
+   so they need no table, and everything a player is likely to reach for is
+   in the short one; anything else prints as its code, which is at least the
+   number they would put in settings.json by hand. */
+static const char *run_key_name(int vk, char *buf, size_t cap)
+{
+    static const struct { int vk; const char *name; } NAMED[] = {
+        { 0,           "unbound"   }, { VK_SHIFT,   "shift"     },
+        { VK_CONTROL,  "ctrl"      }, { VK_MENU,    "alt"       },
+        { VK_SPACE,    "space"     }, { VK_TAB,     "tab"       },
+        { VK_LSHIFT,   "left shift"}, { VK_RSHIFT,  "right shift" },
+        { VK_LCONTROL, "left ctrl" }, { VK_RCONTROL,"right ctrl"},
+        { VK_CAPITAL,  "caps lock" }, { VK_BACK,    "backspace" },
+        { VK_OEM_3,    "backtick"  }, { VK_OEM_COMMA, "comma"   },
+        { VK_OEM_PERIOD, "period"  }, { VK_OEM_2,   "slash"     },
+        { VK_OEM_1,    "semicolon" }, { VK_OEM_7,   "quote"     },
+        { VK_OEM_4,    "["         }, { VK_OEM_6,   "]"         },
+        { VK_OEM_MINUS,"-"         }, { VK_OEM_PLUS,"="         },
+    };
+    for (unsigned i = 0; i < sizeof NAMED / sizeof NAMED[0]; ++i)
+        if (NAMED[i].vk == vk) return NAMED[i].name;
+    if ((vk >= 'A' && vk <= 'Z') || (vk >= '0' && vk <= '9')) {
+        snprintf(buf, cap, "%c", (char)vk);
+        return buf;
+    }
+    snprintf(buf, cap, "key 0x%02x", (unsigned)vk);
+    return buf;
+}
+static const char *run_pad_name(int mask, char *buf, size_t cap)
+{
+    switch (mask) {
+    case 0:      return "unbound";
+    case 0x1000: return "pad A";
+    case 0x2000: return "pad B";
+    case 0x4000: return "pad X";
+    case 0x8000: return "pad Y";
+    case 0x0100: return "pad LB";
+    case 0x0200: return "pad RB";
+    case 0x0010: return "pad start";
+    case 0x0040: return "left stick click";
+    default: break;
+    }
+    snprintf(buf, cap, "pad 0x%04x", (unsigned)mask);
+    return buf;
+}
 
 /* ---- CHARACTER SWITCH (port mod, driven through the game's own save byte) --
    THE CHARACTER IS SAVE DATA, not a Player field, and that is the whole reason
@@ -1330,6 +1490,23 @@ static void menu_draw(ntr::Framebuffer &fb)
              g_overlay_on ? "on" : "off");
     snprintf(ln[MENU_CAMERA], sizeof ln[0], "camera            %s",
              cam_mode_name(cam_mode));
+    snprintf(ln[MENU_RUNMODE], sizeof ln[0], "run mode          %s",
+             RUN_MODE_NAME[g_run_mode]);
+    /* the binding row shows BOTH devices, because it can set either one and a
+       player who has only ever rebound the keyboard should still be able to
+       see what the pad is doing */
+    {
+        char kb[16], pb[16];
+        if (g_rebind_capture)
+            snprintf(ln[MENU_RUNBIND], sizeof ln[0],
+                     "rebind run        press the new key or pad button "
+                     "(esc cancels)");
+        else
+            snprintf(ln[MENU_RUNBIND], sizeof ln[0],
+                     "rebind run        %s / %s   enter to rebind",
+                     run_key_name(g_run_key, kb, sizeof kb),
+                     run_pad_name(g_run_pad, pb, sizeof pb));
+    }
     snprintf(ln[MENU_RECORDER], sizeof ln[0], "recorder          %s", g_playlog);
     /* the disk suffix tells the player whether a save will outlive the run: it
        does only when the arena is at its fixed base, which is what lets a disk
@@ -1409,6 +1586,18 @@ static void mo_release(void)
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
     if (m == WM_DESTROY) { mo_release(); W.PostQuitMessage_(0); return 0; }
+    /* AHEAD OF THE ESCAPE BRANCH, deliberately: while the rebind row is
+       capturing, a press is a BINDING and nothing else, escape included --
+       otherwise the one key a player would reach for to back out would close
+       the game instead. Bit 30 of lParam is the previous key state, so the
+       auto-repeat of a key still held from arming the capture is ignored and
+       only a fresh press counts. WM_SYSKEYDOWN as well as WM_KEYDOWN, or alt
+       would be the one key on the board a player could not bind and would
+       open the system menu behind the capture instead. */
+    if ((m == WM_KEYDOWN || m == WM_SYSKEYDOWN) && g_rebind_capture) {
+        if (!(l & (1 << 30))) g_rebind_key = (int)w;
+        return 0;
+    }
     if (m == WM_KEYDOWN && w == VK_ESCAPE) { mo_release(); W.PostQuitMessage_(0); return 0; }
     switch (m) {
     case WM_RBUTTONDOWN:
@@ -2323,6 +2512,12 @@ int main(void)
     int focus_was = 1;   /* launch focused = launch unchanged */
     auto key_live = [&](int vk) -> int {
         if (selftest) return 0;
+        /* while the rebind row is capturing, the whole window is deaf: the
+           press being captured must not also be a camera toggle or a save
+           state, and whatever was already held must not keep steering while
+           a person is choosing a button. One line here covers every caller,
+           which is why there is not a gate at each of them. */
+        if (g_rebind_capture) return 0;
         if (!hal_window_focused()) return 0;
         const int down = W.GetAsyncKeyState_(vk) < 0;
         if ((unsigned)vk < 256) {
@@ -2348,6 +2543,38 @@ int main(void)
        comes from; the DS has none of these controls, so there was never a
        hardware binding to be faithful to. */
     const int cam_turn = host_camera_turn_sign();
+    /* HOW RUNNING WORKS, read once at boot beside the camera setting and for
+       the same reason: a change takes effect the next time the player presses
+       Play, except that this one can also be changed from the menu, which
+       writes it straight back to settings.json.
+
+       A SELFTEST IS PINNED TO THE DEFAULT. Every automated run reads no live
+       key and no live pad already (key_live and pad_live both return nothing
+       under one), so leaving the mode free would only mean a settings.json
+       that happened to be beside the exe could move a comparator run -- and a
+       comparator run that quietly depends on a player's preferences file is
+       worse than no comparator. run_mode() is the one value the rest of the
+       loop reads, so that pin is a single line rather than a gate per use.
+       Nothing can move g_run_mode under a selftest either -- the menu is the
+       only writer and the whole menu block is behind !selftest -- so the pin
+       is belt and braces on top of that, not the only thing holding it. */
+    g_run_mode = host_setting_run_mode();
+    g_run_key = host_setting_run_key();
+    g_run_pad = host_setting_run_pad();
+    auto run_mode = [&]() -> int { return selftest ? RUN_BUTTON : g_run_mode; };
+    /* said once at boot whatever it is, unlike the settings loader's
+       off-default-only line: "which run mode was this player in" is the first
+       question a movement report raises, and a support log that only mentions
+       the setting when it is non-default cannot answer it */
+    {
+        char kb[16], pb[16];
+        fprintf(stderr, "[run] mode %s, run on %s / %s%s\n",
+                RUN_MODE_NAME[run_mode()],
+                run_key_name(g_run_key, kb, sizeof kb),
+                run_pad_name(g_run_pad, pb, sizeof pb),
+                selftest && g_run_mode != RUN_BUTTON
+                    ? "   (selftest: pinned to button)" : "");
+    }
     /* SM64DS_DECEL_PROBE=1 (under a selftest): hold the stick and the dash
        button until DECEL_RELEASE, then let go of both and log the horizontal
        speed every frame until it reaches zero. The point is the SHAPE of the
@@ -2667,6 +2894,66 @@ int main(void)
         static XPad pad;
         int pad_live = !selftest && XInputGetState_ && XInputGetState_(0, &pad) == 0;
         int orbiting = 0;
+        /* ---- THE REBIND CAPTURE, ahead of every other reader of this frame's
+           input. The keyboard half already arrived through the window
+           procedure (see g_rebind_capture up there); this is the pad half and
+           the decision about what to do with either.
+
+           Ending with pad_live cleared is the pad's version of the one line
+           inside key_live: past this point the frame sees no pad at all, so
+           the button being bound cannot also open the menu, toggle the freecam
+           or nudge the camera on its way to becoming a binding. */
+        if (g_rebind_capture) {
+            static unsigned bind_pad_prev = ~0u;   /* first frame: no edges */
+            const unsigned now = pad_live ? (unsigned)pad.buttons : 0u;
+            const unsigned fresh = now & ~bind_pad_prev;
+            bind_pad_prev = now;
+            int done = 0;
+            if (g_rebind_key) {
+                const int vk = g_rebind_key;
+                g_rebind_key = 0;
+                if (vk == VK_ESCAPE) {
+                    ss_note("rebind cancelled");
+                    done = 1;
+                } else if (run_key_reserved(vk)) {
+                    ss_note("that key belongs to the window, pick another");
+                } else {
+                    char kb[16], msg[64];
+                    g_run_key = vk;
+                    host_setting_save_run(g_run_mode, g_run_key, g_run_pad);
+                    snprintf(msg, sizeof msg, "run is now %s",
+                             run_key_name(vk, kb, sizeof kb));
+                    ss_note(msg);
+                    done = 1;
+                }
+            } else if (fresh) {
+                /* one button per press: the lowest set bit, so a thumb that
+                   lands on two at once binds one of them instead of a mask
+                   that no single press can ever reproduce */
+                const unsigned bit = fresh & (unsigned)(-(int)fresh);
+                if (run_pad_reserved(bit)) {
+                    ss_note("that pad button drives the menu, pick another");
+                } else {
+                    char pb[16], msg[64];
+                    g_run_pad = (int)bit;
+                    host_setting_save_run(g_run_mode, g_run_key, g_run_pad);
+                    snprintf(msg, sizeof msg, "run is now %s",
+                             run_pad_name((int)bit, pb, sizeof pb));
+                    ss_note(msg);
+                    done = 1;
+                }
+            }
+            if (done) {
+                g_rebind_capture = 0;
+                bind_pad_prev = ~0u;
+                /* every key that is down right now is marked stale, the same
+                   trick the focus-regained edge uses: the key just bound is
+                   still physically held, and without this it would read as a
+                   fresh press the instant the capture ends */
+                memset(key_stale, 1, sizeof key_stale);
+            }
+            pad_live = 0;
+        }
         /* ---- THE DEBUG MENU'S OWN INPUT. It runs before anything else reads
            the keyboard, and while it is open it swallows the keys it uses and
            the tick is skipped below, so nothing it does can also be a walk.
@@ -2837,6 +3124,37 @@ int main(void)
                             if (cam_mode == CAM_ANALOG) an_pivot_live = 0;
                             fprintf(stderr, "[menu] camera %s\n",
                                     cam_mode_name(cam_mode));
+                        }
+                        break;
+                    case MENU_RUNMODE:
+                        /* left and right cycle it and enter acts as right, the
+                           same shape as the camera row. Persisted on the spot
+                           rather than at exit: this program is one a player
+                           does sometimes crash, and a preference that only
+                           survives a clean shutdown is a preference that gets
+                           lost exactly when they were experimenting. */
+                        g_run_mode = dec ? (g_run_mode + RUN_MODE_COUNT - 1) %
+                                               RUN_MODE_COUNT
+                                         : (g_run_mode + 1) % RUN_MODE_COUNT;
+                        host_setting_save_run(g_run_mode, g_run_key, g_run_pad);
+                        fprintf(stderr, "[run] mode %s\n",
+                                RUN_MODE_NAME[g_run_mode]);
+                        break;
+                    case MENU_RUNBIND:
+                        /* enter/right only: arm the capture. Left does nothing
+                           on purpose -- there is no "previous binding" to walk
+                           back to, and a row that changed a binding by being
+                           scrolled past would be a trap. */
+                        if (edge & (1u << 5)) {
+                            g_rebind_capture = 1;
+                            g_rebind_key = 0;
+                            /* enter is still physically down. Marking every
+                               key stale here is what stops it being read as
+                               the binding on the very next frame; the window
+                               procedure ignores its auto-repeat for the same
+                               reason. */
+                            memset(key_stale, 1, sizeof key_stale);
+                            ss_note("press the new run button (esc cancels)");
                         }
                         break;
                     case MENU_SAVESTATE:
@@ -3073,6 +3391,71 @@ int main(void)
                 *(short *)data_0209f4a6 = *(const short *)(q + 0x0e);
                 data_0209f4ac[0] = *(const unsigned char *)(q + 0x14);
             }
+            /* ---- RUN MODE ANALOG: the record, refilled from the pad's left
+               stick. See the RUN_ mode block up by the menu enum for why this
+               is the game's own analog path and not a new one.
+
+               CheckInput has just written the D-PAD answer: magnitude pinned
+               at 0x1000, touching zero, direction quantized to the eight
+               table entries. That is right for a keyboard and wrong for a
+               stick, so when there IS a stick and it is off its rest, the
+               same five fields are written again the way CheckInput's TOUCH
+               branch writes them -- and every reader downstream, the walk
+               core included, cannot tell which branch filled them in.
+
+               The mapping, end to end. XInput reports each axis as +-32767,
+               so the deflection is the radius sqrt(lx^2+ly^2) clamped to the
+               stop, and the usable travel starts at XInput's own left-stick
+               floor (7849) rather than at zero, so a stick that rests a
+               little off centre is still at rest:
+
+                   mag = 0x1000 * (len - 7849) / (32767 - 7849)
+
+               clamped into 0..0x1000. Direction goes in as the touch screen's
+               axes -- x right, y DOWN, which is why the stick's up becomes a
+               negative dy -- and the angle through the ROM's own atan2 rather
+               than a host one, so it lands on the same table entry the
+               hardware would have picked.
+
+               What the game then does with it is entirely the game's:
+               func_ov002_020bf224 scales the speed target by mag/0x1000, so
+               the speed is linear in that deflection, and the walk/run flag
+               flips when mag crosses 0xdc7 with 0x80 of hysteresis -- 0xe47
+               of 0x1000 to break into a run and back under 0xdc7 to drop out
+               of it, which is 89.2 and 86.1 percent of the usable travel, or
+               91.8 and 89.4 percent of the whole stick once the dead zone is
+               counted back in. Those are the ROM's numbers and nothing here
+               touches them -- so running in this mode does mean pushing the
+               stick most of the way, which is what pushing the touch stick
+               most of the way did.
+
+               A stick inside the dead zone falls through with CheckInput's
+               answer untouched, which is button mode -- so analog mode on a
+               keyboard, or with the pad put down, is exactly the program that
+               shipped before. */
+            if (!selftest && run_mode() == RUN_ANALOG && pad_live && !menu_on) {
+                const int DEAD = 7849;      /* XInput's left-stick floor */
+                const int FULL = 32767;
+                const int dxs = pad.lx;
+                const int dys = -pad.ly;    /* stick up is touch-screen up */
+                double len = sqrt((double)dxs * dxs + (double)dys * dys);
+                if (len > FULL) len = FULL;
+                if (len > DEAD) {
+                    int mag = (int)(4096.0 * (len - DEAD) / (FULL - DEAD));
+                    if (mag > 0x1000) mag = 0x1000;
+                    if (mag < 0) mag = 0;
+                    *(short *)(data_0209f4a0 + 0) = (short)mag;
+                    *(short *)data_0209f4a2 =
+                        (short)((double)dxs * mag / len);
+                    *(short *)data_0209f4a4 =
+                        (short)((double)dys * mag / len);
+                    *(short *)data_0209f4a6 =
+                        _ZN4cstd5atan2E5Fix12IiES1_(dxs, dys);
+                    /* the field the walk/run branch keys off: "the player is
+                       on the analog stick, read the deflection" */
+                    data_0209f4ac[0] = 1;
+                }
+            }
             /* camera lazy-follow, from the same intended direction */
             if ((dx || dz) && !orbiting) {
                 float head = cam_yaw + atan2f((float)-dx, (float)dz);
@@ -3092,7 +3475,10 @@ int main(void)
             static unsigned short btn_was;
             unsigned short btn = 0;
             if (key_live(VK_SPACE)) btn |= 2;
-            if (key_live(VK_SHIFT)) btn |= 0x800;
+            /* THE RUN BUTTON, from wherever the player put it. Shift by
+               default, so an untouched settings.json is the line that was
+               here before; zero means they unbound the keyboard half. */
+            if (g_run_key && key_live(g_run_key)) btn |= 0x800;
             if (key_live(VK_CONTROL)) btn |= 0x400;
             if (key_live('X')) btn |= 1;
             if (pad_live) {
@@ -3105,12 +3491,30 @@ int main(void)
                    bit is 0x400 (St_Crouch_Main holds on it, St_Land
                    enters with it, Crawl exits by it). */
                 if (pad.buttons & 0x1000) btn |= 2;      /* A  -> jump  */
-                if (pad.buttons & 0x4000) btn |= 0x800;  /* X  -> dash  */
+                /* X by default; the rebind row moves it (0 = unbound) */
+                if (g_run_pad && (pad.buttons & (unsigned)g_run_pad))
+                    btn |= 0x800;
                 if (pad.buttons & 0x2000) btn |= 1;      /* B  -> punch */
                 if (pad.rt > 100) btn |= 0x400;          /* RT -> crouch */
                 /* the bumpers are camera-rotate and go in with the rest of
                    the rotate input below, where the freecam gate is */
             }
+            /* ---- RUN MODE AUTO: the run bit, held for them. Literally that
+               and nothing else -- no exception for standing still, because
+               the honest reading of "always running, no button" is that the
+               button is always down, and inventing a host-side exception
+               would put a rule in the input layer that the game does not have.
+               It follows that the charged dash St_Wait_Main builds while the
+               run button is held standing still (+0x6e5 counting to 0x1e,
+               then the 30-frame window at +0x6ed) is ALWAYS armed in this
+               mode. That is what holding the button does on hardware; it is
+               listed as a thing to feel rather than papered over here.
+
+               Never under a selftest and never with the menu open: run_mode()
+               is pinned to button for the first and btn is zeroed below for
+               the second, but this reads menu_on itself so the intent is at
+               the line rather than three lines away. */
+            if (run_mode() == RUN_AUTO && !menu_on) btn |= 0x800;
             /* selftest: synthetic hop at frame 30 (walking start speed) */
             if (selftest && frame >= 30 && frame <= 33 &&
                 !getenv("SM64DS_SELFTEST_DASHJUMP") &&
