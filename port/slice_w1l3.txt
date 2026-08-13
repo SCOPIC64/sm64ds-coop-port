@@ -2,3 +2,48 @@
 # One matched src TU per line, path relative to the repo root, comments with #.
 # THIS FILE HAS ONE OWNER (lane l3); other lanes never touch it, which is what
 # keeps five parallel seat lanes out of CMakeLists.txt and each other.
+#
+# Lane l3 seats the MODEL/ANIMATION family. A line here only earns its place if
+# something REFERENCES the TU: Release links with /OPT:REF, so a matched TU
+# that nothing names is discarded before it reaches walk_window.map and moves
+# port/tools/linkage.py's headline by zero. Every line below has its reference
+# edge in hal/model_dtor_seat.cpp, and that file's SEAT block cites the ROM
+# vtable relocation that puts each body in its slot.
+
+# ---- wave 1: the model family's unfilled vtable slots -----------------------
+# ShadowModel's DoSetFile, the slot ModelBase::SetFile dispatches. Null since
+# gate 9, which is why the port stubs ShadowModel::InitCylinder rather than let
+# it dispatch. ROM from:0x0208e870 -> 0x02015ef4.
+src/_ZN11ShadowModel9DoSetFileEPcii.cpp
+# The three Animation-derived deleting destructors, into their folded slot 0.
+# Their tables were all zeros before this wave. ROM 0x0208e7d8 / 0x0208e7f8 /
+# 0x0208e7c8 respectively.
+src/_ZN15TextureSequenceD0Ev.c
+src/_ZN15MaterialChangerD0Ev.c
+src/_ZN18TextureTransformerD0Ev.c
+# ModelBase's deleting destructor, into data_0208e87c[0] -- data_0208e87c is
+# _ZTV9ModelBase's function-slot start (ROM 0x0208e880 -> 0x020170e8).
+src/_ZN9ModelBaseD0Ev.c
+
+# ---- mined and NOT taken (kept here so wave 2 does not re-mine them) --------
+# _ZN11ShadowModel10InitCuboidEv.cpp
+#     hal/actor_class_faces.cpp defines the same ?InitCuboid@ShadowModel@@QAEXXZ.
+#     That file belongs to no lane this wave, so the duplicate cannot be cleared.
+# _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3.cpp
+#     port/unmatched/ModelComponents_Render.cpp is the host copy that spells out
+#     the material index the ROM leaves riding in r1. Host-ABI, not scaffolding.
+# _ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File.cpp
+#     hal/method_faces.cpp already carries the truthful shape: the ROM veneer
+#     takes (bmd, bta) with no `this`, so the matched METHOD cannot be called.
+# _ZN11ShadowModel9RenderAllEv.cpp, _ZN11ShadowModel8CleanAllEv.cpp
+#     plus their callees src/func_02046088.c and src/func_02046120.c. Statics
+#     whose only callers are Stage::Render, Stage::Behavior and
+#     Stage::InitResources -- all three matched, all three still unlinked
+#     behind hal/level_boot.cpp. They come in with Stage, not before it.
+# _ZN11ShadowModel12InitCylinderEv.cpp
+#     both spellings are host-stubbed (hal/bob_enemy_bridges.cpp returns 1,
+#     hal/player_bridges.cpp is a no-op) because the shadow template BMDs live
+#     in ov001 and the port does not mount it. Neither file is this lane's.
+# _ZN11ShadowModelD0Ev.c, _ZN9ModelBaseD1Ev.c
+#     MSVC folds the ROM's two dtor slots into one, and for these two classes
+#     the folded slot is already spoken for. See hal/model_dtor_seat.cpp.
