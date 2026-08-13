@@ -216,3 +216,10 @@ data_ov002_0210d8d4:0x20
 PowerFlower_SpawnInfo _ZTV9PushBlock MugenBgm_SpawnInfo _ZTV8MugenBgm
 data_ov002_0210d9b0 data_ov002_0210d9d0 data_ov002_02110af0 data_ov002_02110af4 data_ov002_02110af8
 data_ov002_0210af2c
+# run linkw wave 2 / lane w2-e: the animation-step table func_ov002_020c2fec
+# walks. It is the last unmounted symbol on the chain behind ov002's real
+# St_EndingFly_Main (func_ov002_020c3d1c -> func_ov002_020c38a0 ->
+# func_ov002_020c2fec), so without it that whole state stays unlinkable.
+# 27 records of {step, dx, dy, dz} shorts, 0xd8 to the next symbol, which is
+# the whole table: the reader indexes [idx]..[idx+3] and probes [idx+2].
+data_ov002_0210a8b8

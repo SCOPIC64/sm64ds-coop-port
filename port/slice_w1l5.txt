@@ -93,6 +93,44 @@ src/_ZN6Player15JumpIntoBooCageER7Vector3.cpp
 src/_ZN6Player8CanPauseEv.cpp
 
 # ---------------------------------------------------------------------------
+# WAVE 2 / LANE w2-e: ov002's REAL St_EndingFly_Main and everything under it.
+#
+# Wave 1 left 0x020c3d1c as a suspicion: ov002 and ov007 both have a function
+# there (they share base 0x020ad660 and the DS only ever loads one), ov007's
+# is named _ZN6Player17St_EndingFly_MainEv by the community config, and ov002's
+# is the anonymous func_ov002_020c3d1c. Pattern evidence pointed at ov002 and
+# was not enough to act on.
+#
+# The ROM settles it. __sinit_ov002_021019d0 is the constructor for every
+# Player::State object, and it builds each one from a pair of 8-byte PMF cells
+# in ov002 .data, Init cell first, then Main, then the State's own bss address.
+# Read straight out of config/arm9/overlays/ov002/relocs.txt:
+#     0x02106dac -> cell 0x0210a51c -> 0x020c3d6c  _ZN6Player17St_EndingFly_InitEv
+#     0x02106db0 -> cell 0x0210a0bc -> 0x020c3d1c  func_ov002_020c3d1c
+#     0x02106db4 ->      0x02110804               the State object itself
+# The same triple shape names OpeningWakeUp, LongJump, PunchKick and
+# GroundPound correctly two cells earlier, so the pairing is the sinit's, not
+# a guess. func_ov002_020c3d1c IS Player::St_EndingFly_Main; ov007's body at
+# the same address is a leaf helper reached by 86 arm_calls inside ov007 and
+# never by a PMF cell, which is not the shape of a state function at all.
+#
+# So the seat is ov002's body, and the reach is one hal_call_state_fn case at
+# 0x020c3d1c -- port/hal/player_bridges.cpp, which this lane does not own, so
+# that line is a handoff and these five are the prepared side of it. Until the
+# case lands /OPT:REF strips all five, exactly like the supply seats above.
+#
+#   020c3d1c  St_EndingFly_Main; calls 020c3bdc, 020c3a48 (seated), 020c38a0
+#   020c3bdc  calls func_0200eec8 and func_ov002_020c3cf0 (seated)
+#   0200eec8  arm9; RunKuppaScript(data_02088610)
+#   020c38a0  calls func_ov002_020c2fec, plus 020c3148/020c37a4 (both seated)
+#   020c2fec  walks data_ov002_0210a8b8, mounted for this in port/ov002_syms.txt
+src/func_0200eec8.c
+src/func_ov002_020c2fec.c
+src/func_ov002_020c38a0.c
+src/func_ov002_020c3bdc.c
+src/func_ov002_020c3d1c.c
+
+# ---------------------------------------------------------------------------
 # NOT SEATABLE, and why. None of these is a wiring problem this lane can fix.
 #
 # (a) A host definition of the same symbol is already in the build, so the seat

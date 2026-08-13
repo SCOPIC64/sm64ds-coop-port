@@ -224,6 +224,14 @@ NAMED = [
     # gate 14, the level boot: the two kuppa scripts
     # ContinueKuppaScriptIfNecessary compares the pending pointer against.
     "data_02087c00", "data_02089608",
+    # run linkw wave 2 / lane w2-e: a third kuppa script, the one
+    # func_0200eec8 hands straight to RunKuppaScript. Same shape as the two
+    # above -- an opcode stream that runs out into zero padding well inside
+    # its 0x50 extent, so the next-symbol delta is the whole script and no
+    # size pin is needed. Mounted because func_0200eec8 is the last
+    # unresolved link on ov002's real St_EndingFly_Main chain
+    # (func_ov002_020c3d1c -> func_ov002_020c3bdc -> func_0200eec8).
+    "data_02088610",
     # the Camera's SpawnInfo, for the entrance path's actor registry
     "Camera_SpawnInfo",
     # the STAGE's, for the boot spine: the ActorBase constructor reads the
