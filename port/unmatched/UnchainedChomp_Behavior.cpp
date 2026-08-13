@@ -171,6 +171,9 @@ extern void *data_ov100_021486ac;
 extern void *data_ov100_021486b4;
 extern int data_ov100_02148008[3];
 
+/* PORT_HOST_ABI: the matched TU calls PathPtr members as thiscall while
+ * the C-linkage ROM bodies are cdecl (measured c0000005). See the note
+ * above. */
 int _ZN14UnchainedChomp13InitResourcesEv(unsigned char *thiz)
 {
     char *c = (char *)thiz;

@@ -25,6 +25,9 @@ extern "C" void NormalizeVec3(Vector3 *v, Vector3 *out);
 extern "C" void CrossVec3(const Vector3 *a, const Vector3 *b, Vector3 *out);
 extern "C" int DotVec3(const Vector3 *a, const Vector3 *b);
 
+/* PORT_HOST_ABI: the matrix payload leaves through a register-bound
+ * pointer into the GX MMIO port, which hostgen's literal-address rewrite
+ * cannot see. See the header. */
 extern "C" void _ZN3G3i7LookAt_EPK7Vector3S2_S2_bP9Matrix4x3(
     const Vector3 *at, const Vector3 *up, const Vector3 *eye, char draw,
     Matrix4x3_ *mat)

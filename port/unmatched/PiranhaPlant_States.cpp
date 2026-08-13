@@ -190,6 +190,8 @@ extern "C" int _ZN12PiranhaPlant8BehaviorEv(void *selfv)
    unk_170 == data_ov084_02130df4's second word (the anim table's frame count).
    ModelAnim slot 5 is the host case; Model slot 5 is dual-filled. */
 extern "C" { extern int data_ov084_02130df4[]; }   /* {file, frames} pair */
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 extern "C" int _ZN12PiranhaPlant6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
@@ -207,6 +209,8 @@ extern "C" int _ZN12PiranhaPlant6RenderEv(void *selfv)
    Runs the FirePiranhaPlantBig class. mModelAnim at +0x110, mScale at +0x204,
    the engine hide at flag 0x40000 of unk_0b0. Draws at a uniform scale built
    from mScale. */
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 extern "C" int _ZN19FirePiranhaPlantBig6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;

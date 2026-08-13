@@ -98,6 +98,8 @@ extern "C" void port_sound_object_states_seat(void)
  * +0xd4 s32 sound id, +0xd8 s32 volume floor, +0xdc u16 counter (the arg the
  * dispatch passes by address), +0xde u16 target. +8 is the actor's param word
  * (the sel). */
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch; MSVC's PMF over an
+ * incomplete class is the wider general representation. See the header. */
 extern "C" int _ZN11SoundObject8BehaviorEv(char *cc)
 {
     int sel = *(int *)(cc + 8);

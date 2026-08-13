@@ -183,6 +183,8 @@ extern "C" void func_ov002_020aea30(void *thiz, int a, int b)
     *(unsigned *)(c + 0xb0) &= ~0x10000000u;
 }
 
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch; MSVC's PMF over an
+ * incomplete class is the wider general representation. See the header. */
 extern "C" int _ZN5Enemy11UpdateDeathER12WithMeshClsn(void *thiz, void *clsn)
 {
     char *c = (char *)thiz;

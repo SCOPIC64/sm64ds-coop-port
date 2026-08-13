@@ -36,8 +36,10 @@ extern void **data_020a4bb8;            /* actorID -> SpawnInfo* */
    owns the storage and seeds both views with its own SharedFilePtr objects. */
 void *data_ov098_0213c380[6];
 char data_ov098_0213c384[0x18];
-extern void *data_020a0eac_c;           /* actor heap = root heap */
+extern void *data_020a0eac_c;           /* Memory::gameHeapPtr */
 extern void *data_020a0ea0;             /* defaultHeapPtr (gate 3a) */
+void _ZN4Heap18InitializeGameHeapEjPS_(unsigned size, void *root);
+unsigned _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *alloc);
 extern void *data_0209f394[];           /* the player array */
 extern unsigned char data_0209f21c;     /* player count */
 void hal_fill_model_vtable(void);
@@ -93,21 +95,29 @@ int main(void)
     data_020a4b54 = 0x12b;
     static unsigned short spawn_info[4] = { 0, 0, 100, 100 };
     data_020a4bb8[0x12b] = spawn_info;
-    /* HAND-SEED RETAINED, and this is measured rather than left alone.
-       tests/walk_window.cpp and tests/smoke_player.cpp both call
-       Heap::InitializeGameHeap(0x3b000, 0) here instead, so the game heap is
-       the ROM's own carve; smoke_actor cannot, because
-       src/_ZN4Heap18InitializeGameHeapEjPS_.c is listed only in
-       slice_w1l3.txt and this target's source list stops at
-       SLICE2/3A/3B/4B/7/8/9 (3a carries Heap::CreateExpandingHeap, the callee,
-       but not its caller). Converting it fails to link:
-         smoke_actor.cpp.obj : error LNK2019: unresolved external symbol
-         __ZN4Heap18InitializeGameHeapEjPS_ referenced in function _main
-       Adding the TU is a port/CMakeLists.txt edit, and that file has a
-       different single owner this wave. slice_w1l3.txt records the one-line
-       unblock. Until then ArrowSignRight_Spawn allocates out of the whole
-       root heap instead of a 0x3b000 child. */
-    data_020a0eac_c = data_020a0ea0;
+    /* THE GAME HEAP, the ROM's own chain instead of an alias -- the same
+       bring-up tests/walk_window.cpp and tests/smoke_player.cpp do, so all
+       four now configure the heap the way the boot spine does. This line used
+       to be `data_020a0eac_c = data_020a0ea0;`, which pointed the game-heap
+       word straight at the root heap: ArrowSignRight_Spawn allocated out of
+       the whole host arena and the ROM's own heap object never existed.
+       func_0201a054 calls Heap::InitializeGameHeap(0x3b000, 0) instead -- a
+       hard immediate and a NULL parent, no arena arithmetic. See
+       walk_window.cpp for the disassembly and slice_w1l3.txt for the verified
+       encoding. The retained-hand-seed comment that stood here recorded the
+       link failure that blocked this (the TU rode slice_w1l3.txt, which this
+       target did not carry); port/CMakeLists.txt now names the one file on
+       this target, which is the unblock that comment asked for. */
+    _ZN4Heap18InitializeGameHeapEjPS_(0x3b000, 0);
+    CHECK(data_020a0eac_c != NULL);
+    if (!data_020a0eac_c) {
+        fprintf(stderr, "InitializeGameHeap returned null -- no game heap\n");
+        return 2;
+    }
+    fprintf(stderr, "[heap] game heap %p, 0x%x bytes, %u free after carve\n",
+            data_020a0eac_c, 0x3b000u,
+            _ZN22ExpandingHeapAllocator10MemoryLeftEv(
+                *(void **)((char *)data_020a0eac_c + 0x14)));
     static SharedFilePtrC sign_model, sign_kcl;
     _ZN13SharedFilePtr9ConstructEj(&sign_model, 1177);
     _ZN13SharedFilePtr9ConstructEj(&sign_kcl, 1178);

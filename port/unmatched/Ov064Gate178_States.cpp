@@ -142,6 +142,8 @@ void _ZN5Enemy12UpdateWMClsnER12WithMeshClsnj(void *self, void *wm, unsigned int
 void _ZN12CylinderClsn5ClearEv(void *self);
 void _ZN12CylinderClsn6UpdateEv(void *self);
 
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch; MSVC's PMF over an
+ * incomplete class is the wider general representation. See the header. */
 int _ZN10LavaBubble8BehaviorEv(void *cv)
 {
     char *c = (char *)cv;

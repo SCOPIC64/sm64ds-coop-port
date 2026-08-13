@@ -36,6 +36,8 @@ extern signed char data_02092120;   /* the area currently shown */
    Two early outs (dormant, and the Clipper's off-screen bit), the scale the
    rabbit renders at, a walk that stamps its colour variant into every one of
    the model's materials, the mirror-room special case, and the draw. */
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 int _ZN6Rabbit6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
@@ -70,6 +72,8 @@ int _ZN6Rabbit6RenderEv(void *selfv)
 /* ---- LAKITU_BRO (actor 235) ---------------------------------------------
    One early out, the texture-sequence advance that animates his lens, and
    the draw at unit scale. */
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 int _ZN9LakituBro6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;
@@ -95,6 +99,9 @@ int _ZN9LakituBro6RenderEv(void *selfv)
    the State object __sinit_ov085_0212f9bc builds). */
 extern char data_ov085_0213072c[];
 void func_ov085_0212d2b8(void *self);
+/* PORT_HOST_ABI: ROM-order model slot-5 dispatch AND a convention
+ * mismatch: the shadow's fn field is cdecl where mv_render is __fastcall.
+ * See the note above. */
 int _ZN9RabbitKey6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;

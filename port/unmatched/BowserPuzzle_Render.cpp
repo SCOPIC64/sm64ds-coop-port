@@ -18,6 +18,8 @@
  */
 #include "Model.h"
 
+/* PORT_HOST_ABI: ROM-order ModelAnim slot-5 dispatch, the Whomp/Fish
+ * case. */
 extern "C" int _ZN19BowserPuzzleManager6RenderEv(void *selfv)
 {
     /* ((Base *)&((Derived *)this)->base)->m(0) -- Model's slot 5, null scale */

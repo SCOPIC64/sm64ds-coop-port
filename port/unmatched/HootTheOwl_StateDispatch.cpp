@@ -143,6 +143,8 @@ extern void func_ov094_021361d8(void *);
 extern void func_ov094_021362e0(void *);
 extern void func_ov094_021357a4(void *);
 
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch; MSVC's PMF over an
+ * incomplete class is the wider general representation. See the header. */
 int _ZN10HootTheOwl8BehaviorEv(void *selfv)
 {
     char *c = (char *)selfv;

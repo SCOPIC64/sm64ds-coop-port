@@ -15,6 +15,9 @@
  */
 #include "Model.h"
 
+/* PORT_HOST_ABI: ROM-order model slot-3 dispatch: ROM 3 is UpdateVerts,
+ * MSVC 3 is Virtual10, and that slot cannot be dual-filled. See the
+ * header. */
 extern "C" int _ZN6Cannon6RenderEv(void *selfv)
 {
     char *c = (char *)selfv;

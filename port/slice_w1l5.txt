@@ -200,3 +200,50 @@ src/func_ov002_020c3d1c.c
 #                                        port/ov002_syms.txt, so the overlay's
 #                                        data image does not seat it
 #       func_ov002_020c38a0              via func_ov002_020c2fec
+
+# ---- LANE w4-e (run linkw, wave 4): THE BOUNCING ARROW -----------------------
+# NOT A LINE HERE, and this is measured rather than reasoned. The template is
+# mounted this wave -- port/ov001_syms.txt now names _ZN3OAM14BOUNCING_ARROWE
+# at 0x020abd88, sized 16 bytes, with the ROM's own OamAttr terminator agreeing
+# with the config symbol boundary to the byte (the derivation is in that file).
+# That was step 1 of the four hal/sub_actors.cpp lists, and w3-c called it the
+# only blocker. It was not the only one. Adding
+#
+#     src/_ZN5Stage20RenderBouncingArrowsEv.cpp
+#
+# to this slice and building names two more, both in hal/sub_actors.cpp:
+#
+#   _ZN5Stage20RenderBouncingArrowsEv.cpp.obj : error LNK2005:
+#     __ZN5Stage20RenderBouncingArrowsEv already defined in sub_actors.cpp.obj
+#   _ZN5Stage20RenderBouncingArrowsEv.cpp.obj : error LNK2019: unresolved
+#     external symbol _func_020abd88 referenced in function
+#     __ZN5Stage20RenderBouncingArrowsEv
+#   walk_window.exe : fatal error LNK1120: 1 unresolved externals
+#
+# (identical on walk_window, walk_window_hires and smoke_player; the probe was
+# reverted.) The first is that file's stub, which defines the same C symbol --
+# the matched TU is extern "C" too, so the two collide rather than coexist as a
+# face. The second is that the matched body spells the template func_020abd88
+# while the mount emits the config name; the alternatename that binds them is
+# step 2 of the same list. So steps 2 and 4 are one file's edit and neither is
+# available to a lane that does not own it.
+#
+# THE CALL EDGE IS REAL AND ALREADY IN THE BINARY, which is why this is worth
+# handing off rather than parking: _ZN3HUD6RenderEv.cpp.obj is in
+# walk_window.map and calls _ZN5Stage20RenderBouncingArrowsEv by the C name.
+# Stage::Render, Stage::LC_Render, Stage::PS_Render and func_ov003_020b0814
+# call it too and none of those four is linked, so HUD::Render is the whole
+# edge today. The stub still says it has never fired -- HUD::Render reaches it
+# only when data_0209f284 is set, and that is zeroed bss on this boot -- so
+# seating the matched body is a linkage win first and a visible one only on a
+# level that sets it.
+#
+# HANDOFF, for whoever owns hal/sub_actors.cpp next wave. Three edits, in one
+# commit with this slice line, and nothing else is missing:
+#   1. delete the extern "C" _ZN5Stage20RenderBouncingArrowsEv stub
+#   2. add /alternatename:_func_020abd88=__ZN3OAM14BOUNCING_ARROWE beside the
+#      five HUD aliases already at the bottom of that file
+#   3. add src/_ZN5Stage20RenderBouncingArrowsEv.cpp to a slice walk_window
+#      reads (this one will do)
+# The six data references the body needs are in walk_window.map already and so
+# is the ten-argument OAM::Render, both re-checked this wave against the map.
