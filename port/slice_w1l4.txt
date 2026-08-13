@@ -2,3 +2,46 @@
 # One matched src TU per line, path relative to the repo root, comments with #.
 # THIS FILE HAS ONE OWNER (lane l4); other lanes never touch it, which is what
 # keeps five parallel seat lanes out of CMakeLists.txt and each other.
+#
+# LANE l4 IS THE COLLISION FAMILY. Its eight classes were already linked before
+# this campaign started -- MeshCollider, MeshColliderBase, MovingMeshCollider,
+# WithMeshClsn, RaycastGround, RaycastLine, SphereClsn and ClsnResult all reach
+# walk_window through the gate-8/16 slices -- so what was left unlinked was the
+# loose func_0203xxxx layer around them.
+#
+# A SLICE LINE ALONE DOES NOT LINK A TU. The port builds Release with
+# /INCREMENTAL:NO, so the linker runs /OPT:REF and drops every function no
+# surviving object mentions. Nine collision-family TUs were added here as a
+# first pass and the resulting walk_window.exe came out byte-for-byte identical
+# to the one without them: same size, not one new row in the map, linkage
+# headline unmoved. A TU counts as linked only once something in the link NAMES
+# it, so each line below is paired with a reference edge in a file this lane
+# owns, and a TU with no honest edge available stays out of this file rather
+# than sitting here looking seated.
+
+# ---- the family's deleting destructors -------------------------------------
+# Each is slot 1 of a ROM vtable the port hosts as zeroed storage, with the
+# class's complete-object destructor at slot 0. The slot numbers come from
+# config/arm9/relocs.txt and the class identities from config/arm9/symbols.txt;
+# both are spelled out in the seat.
+# Reference edge: hal_seat_meshcollider_dtor in port/hal/meshcollider_dtor_seat.cpp,
+# which level_boot already calls, now fills those slot pairs.
+#   func_020373b8  WithMeshClsn::~WithMeshClsn   D0, 0x020373b8
+#   func_020374f0  RaycastGround::~RaycastGround D0, 0x020374f0
+#   func_02037710  RaycastLine::~RaycastLine     D0, 0x02037710
+#   func_02037c40  SphereClsn::~SphereClsn       D0, 0x02037c40
+#   func_02038114  ClsnResult::~ClsnResult       D0, 0x02038114
+# (the reader takes a whole line as a path, so the names go above, not inline)
+src/func_020373b8.c
+src/func_020374f0.c
+src/func_02037710.c
+src/func_02037c40.c
+src/func_02038114.c
+
+# The same two-word head for the two classes dsd never named: the base whose
+# teardown WithMeshClsn's D0 calls (D1 0x02035504, D0 0x020354e0, table
+# data_020991d8) and the subobject RaycastLine's D0 tears down at this+0x64
+# (D1 0x0203ac50 already linked, D0 0x0203ac2c, table data_020994cc).
+src/func_02035504.c
+src/func_020354e0.c
+src/func_0203ac2c.c
