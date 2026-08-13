@@ -153,13 +153,17 @@ void func_01ffde98(int ch, int src, int size)
 void _ZN2GX12BeginLoadTexEv(void) {}
 // PORT_HOST_ABI: DS VRAM bank remap (LCDC unmap/remap); the host VRAM
 //   window is always CPU-visible. See the GX bank plumbing note above.
-void _ZN2GX10EndLoadTexEv(void) {}
+//   One host duty rides the remap point: an upload batch just finished, so
+//   the 3D texture decode cache must drop (see hal_tex_cache_drop below).
+void hal_tex_cache_drop(void);
+void _ZN2GX10EndLoadTexEv(void) { hal_tex_cache_drop(); }
 // PORT_HOST_ABI: DS VRAM bank remap (LCDC unmap/remap); the host VRAM
 //   window is always CPU-visible. See the GX bank plumbing note above.
 void _ZN2GX16BeginLoadTexPlttEv(void) {}
 // PORT_HOST_ABI: DS VRAM bank remap (LCDC unmap/remap); the host VRAM
 //   window is always CPU-visible. See the GX bank plumbing note above.
-void _ZN2GX14EndLoadTexPlttEv(void) {}
+//   Palette uploads change bytes under the same cache keys; same drop.
+void _ZN2GX14EndLoadTexPlttEv(void) { hal_tex_cache_drop(); }
 
 // GX::LoadTex destination resolution (see src/_ZN2GX7LoadTexEPKvjj.cpp):
 //   data_020a60ac  base window address        -> texture slots at 0x06800000
@@ -309,6 +313,16 @@ DSSTATE_END
 namespace GX {
 void LoadTex(const void *src, unsigned offset, unsigned size);
 }
+/* The 3D texture decode cache keys on VRAM words plus a cheap content probe;
+   a probe is not a proof, and an upload batch just changed the bytes under
+   some keys (a new template's allocation can shift the whole layout, which is
+   how the wave-4 review caught a level's terrain recoloring). Drop the cache
+   at End LoadTex/LoadTexPltt and let the next bind re-decode -- the same
+   reasoning io.cpp applies on savestate restore. */
+namespace ntr {
+void gx_invalidate_textures();
+}
+extern "C" void hal_tex_cache_drop(void) { ntr::gx_invalidate_textures(); }
 /* SM64DS_TEX_LOG=1: every texel upload that reaches fake VRAM, with the
    two arena cursors either side of it. Reads as the ledger the bind log
    is checked against. */

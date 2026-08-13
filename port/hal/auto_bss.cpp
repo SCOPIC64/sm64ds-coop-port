@@ -323,7 +323,8 @@ unsigned char data_0209b2fc[4];
 unsigned char data_0209b300[4];
 
 /* the record func_0202ed48 resets: 44 bytes by the rule above, and the ROM
-   writes eight of its fields through func_0202ed14. */
+   writes nine of its fields through func_0202ed14 (eight fresh values plus
+   +0x18 copied from +0x14). */
 int data_0209f61c[0x2c / 4];   /* ROM span 0x2c */
 
 /* THE BRIGHTNESS FADER, and the one symbol here where zero is NOT the ROM's
@@ -333,8 +334,10 @@ int data_0209f61c[0x2c / 4];   /* ROM span 0x2c */
    FIRST WORD -- the vptr -- is null.
 
    THAT IS SAFE HERE AND IT IS NOT LUCK, but it is a real constraint and the
-   next lane through has to keep it. Only two touches of this object reach the
-   binary, both from Scene::BeforeBehavior, and both are behind
+   next lane through has to keep it. Only two dispatch-relevant touches of
+   this object reach the binary, both from Scene::BeforeBehavior (the head
+   also writes field4 and parks the address in data_0209f1e4, behind the same
+   guard), and both are behind
    `data_0209f1e0 != 0`, which no linked writer ever makes true (above). One of
    the two, the matched FaderBrightness::SetForwardTime, ENDS IN AN UNQUALIFIED
    IsAtEnd() -- a virtual call through this vptr -- so on a null vptr it would

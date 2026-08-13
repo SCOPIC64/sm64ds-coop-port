@@ -41,8 +41,10 @@
 //
 // ---- THE WIDTH: THIRTY-TWO, not thirty-one --------------------------------
 //
-// Five of the six are Platform subclasses with Platform::Kill (ov002
-// 0x020ee55c) at slot 31; only ExtendingPlatform's table is 31 slots wide. This
+// Five of the six tables are 32 slots wide; only ExtendingPlatform's is 31.
+// Four of the wide ones carry Platform::Kill (ov002 0x020ee55c) at slot 31
+// (ids 140/141/142/145); FallBlockBfs's slot 31 is func_ov098_0213a17c, per
+// its own inherited-slots block below. This
 // is the bug hal/actor_classes_wf.cpp's header describes ("31 because Platform
 // WAS THE BUG" -- a [31] array left slot 31 reading past the end and took the
 // process). Each width here is pinned twice: by the reloc run, and by the
@@ -277,7 +279,10 @@ static int __fastcall ov45_under(void *s, void *, void *o)
 { _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
 static int __fastcall ov45_egg(void *s, void *)
 { return _ZN5Actor16OnAimedAtWithEggEv(s); }
-/* slot 31, the Platform tail; five of the six tables take it unchanged */
+/* slot 31, the Platform tail; four of the six ROM tables take it unchanged
+   (140/141/142/145) -- 139's slot 31 is func_ov098_0213a17c and 148 has no
+   slot 31 at all. Of the hosted arrays this fills 140/142/145; 141's table
+   is deliberately not hosted. */
 static int __fastcall ov45_kill(void *s, void *)
 { _ZN8Platform4KillEv(s); return 0; }
 
@@ -505,8 +510,11 @@ static int __fastcall ep_init(void *s, void *)
    .cpp spells its two SharedFilePtrs G0/G1, which hal/cxx_aliases.cpp has bound
    to SignPost's ov002 pointers; linking it would Release those live. relocs.txt
    (0x02111968/0x0211196c) says the ROM releases 0x021131d8 then 0x021131d0, and
-   the body ahead of them is IsEnabled/Disable on the collider at +0x158 --
-   func_02039140 and func_02017b64 twice at 0x02111944/4c/54. */
+   the body ahead of them is one unconditional MeshColliderBase::Disable
+   (func_02039140) on the collider at +0x158, then SharedFilePtr::Release
+   (func_02017b64) twice, at 0x02111944/4c/54. The IsEnabled guard below is
+   behavior-identical: Disable's own body no-ops on a disabled collider
+   (slotIdx 0x18 is exactly IsEnabled's test). */
 static int __fastcall ep_clean(void *s, void *)
 {
     char *t = (char *)s;
@@ -643,18 +651,19 @@ extern "C" void hal_fill_floating_floor_bfs_vtable(void)
 // behind io_write(): a raw volatile store straight at 0x040002b8 (which is
 // exactly what the matched func_02053008 does) lands in the mapped page and
 // never runs run_sqrt(), so SQRT_RESULT stays stale. Hosting func_02053130
-// alone would not fix that -- the whole reciprocal/sqrt family
-// (_ZN4cstd16reciprocal_asyncE5Fix12IiE, _ZN4cstd11fdiv_resultEv,
-// _ZN4cstd11ldiv_resultEv, func_02053008, func_02053200) is unhosted in this
-// build for the same reason hal/cstd_div.c gives for cstd::fdiv: "a thin
-// wrapper over MMIO [that] cannot run on a host". That family belongs to the
-// port's math layer, not to a level's actor cast.
+// alone would not fix that. The gap is exactly the sqrt pair (func_02053008,
+// func_02053130) -- the divide side is ALREADY hosted: reciprocal_async,
+// fdiv_result and ldiv_result link as hostgen NTR_MMIO TUs (gates 8 and 13,
+// mediated through run_divide), and func_02053200 is linked and live today on
+// id 148's SetScaleY path. The sqrt pair belongs to the port's math layer,
+// not to a level's actor cast.
 //
 // SO id 141 STAYS UNREGISTERED, its two instances stay in level 37's skipped
 // count, and re-enabling it is a small, self-contained follow-up: host the
-// reciprocal/sqrt family the way hal/cstd_div.c hosts the divide, then restore
-// this section, its registry row and its slice lines. Everything else about the
-// class is already measured and in port/slice_w1l4.txt.
+// sqrt pair the way hostgen gates 8/13 host the divide unit (the run_divide
+// pattern, not hal/cstd_div.c's refusal), then restore this section, its
+// registry row and its slice lines. Everything else about the class is
+// already measured and in port/slice_w1l4.txt.
 
 // ============================================================================
 // FALL_BLOCK_BFS (id 139) -- table 0x021130f4, the _ZN12FallBlockBfs* bodies

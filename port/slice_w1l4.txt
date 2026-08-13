@@ -450,20 +450,19 @@ src/func_ov002_020b6424.c
 # port/ntr/io.cpp DOES model the divide and square-root units, but only behind
 # io_write(): a raw volatile store at 0x040002b8 -- exactly what the matched
 # func_02053008 does -- lands in the mapped page and never runs run_sqrt(), so
-# hosting func_02053130 alone would still read a stale result. The whole
-# reciprocal/sqrt family (_ZN4cstd16reciprocal_asyncE5Fix12IiE,
-# _ZN4cstd11fdiv_resultEv, _ZN4cstd11ldiv_resultEv, func_02053008,
-# func_02053130, func_02053200) is unhosted in this build for the reason
-# hal/cstd_div.c gives for cstd::fdiv: a thin wrapper over MMIO that cannot run
-# on a host. That belongs to the port's math layer, not to a level's actor
-# cast.
+# hosting func_02053130 alone would still read a stale result. The gap is the
+# sqrt pair only (func_02053008, func_02053130): reciprocal_async, fdiv_result
+# and ldiv_result already link as hostgen NTR_MMIO TUs (gates 8/13, mediated
+# through run_divide), and func_02053200 is linked and live on id 148's
+# SetScaleY path. The sqrt pair belongs to the port's math layer, not to a
+# level's actor cast.
 #
 # SO 141 STAYS UNREGISTERED and the 23 TUs behind it stay out: its own four
 # bodies and Spawn, six ov002 bodies, and twelve quaternion/Fix12 TUs. Two of
 # level 37's twenty platform instances ride on it. Re-enabling is a
-# self-contained follow-up: host the reciprocal/sqrt family the way
-# hal/cstd_div.c hosts the divide, then restore the id-141 section of
-# hal/actor_classes_ov045.cpp, its registry row and these lines.
+# self-contained follow-up: host the sqrt pair the way hostgen gates 8/13
+# host the divide unit (the run_divide pattern), then restore the id-141
+# section of hal/actor_classes_ov045.cpp, its registry row and these lines.
 
 # ---- ExtendingMeshCollider (17 TUs) ---------------------------------------
 # Reference edge: hal/w2_emc_seat.cpp, which defines _ZTV21ExtendingMeshCollider
@@ -504,9 +503,10 @@ src/func_020396c0.c
 # The wave-2 self-registration pattern (port/hal/w2_dtor_heads.cpp in
 # slice_w1l2.txt): the slice reader resolves every line against the repo root,
 # so a port/hal/ path builds without touching port/CMakeLists.txt. NO OTHER
-# WRITER constraint re-proved for both: the six vtable arrays
+# WRITER constraint re-proved for both: the hosted vtable arrays
 # (data_ov045_02112cf4, _ZTV15FireSeaElevator, _ZTV8PoleLift,
-# data_ov045_02112f50, _ZTV16FloatingFloorBfs, _ZTV12FallBlockBfs) and
+# data_ov045_02112f50, _ZTV12FallBlockBfs -- _ZTV16FloatingFloorBfs is
+# deliberately defined NOWHERE, since nothing links id 141's bodies) and
 # _ZTV21ExtendingMeshCollider are DEFINED in these two files and in no other --
 # swept across port/hal, port/unmatched and src/, and the six ov045 tables are
 # excluded from the ov045 mount by name in port/ov045_syms.txt, so the generator

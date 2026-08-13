@@ -759,7 +759,9 @@ int _ZN13QuestionBlock16CleanupResourcesEv(void *self)
        ?SetForwardTime@FaderBrightness@@UAEHI@Z:
          ...
          mov   eax,dword ptr [esi]          esi is `this`; eax is the vptr
-         call  dword ptr [eax+14h]          ROM slot 5 = IsAtEnd
+         call  dword ptr [eax+14h]          MSVC/host slot 5 = IsAtEnd
+                                            (MSVC folds the two dtor slots;
+                                            ROM numbering puts IsAtEnd at 6)
 
    so on a null vptr it faults reading [0x14]. The only
    receiver that reaches it here is &data_0209f5d0, whose host storage is

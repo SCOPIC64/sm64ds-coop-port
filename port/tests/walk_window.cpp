@@ -4596,10 +4596,20 @@ int main(void)
            RenderAll, i.e. `int n = self->sub->count` with self null, where
            self is the list node's `data` (its ModelComponents at +0x08).
 
+           Wave 4 measured the rest of the wall: even with the template
+           mounted and the null gone, ntr rasterizes POLYGON_ATTR mode-3
+           (shadow) polygons as ordinary translucent geometry -- gx.cpp
+           decodes only cull and alpha from that register -- so RenderAll
+           draws the shadow VOLUME itself as a visible column under the
+           actor. The seat waits on ntr stencil / polygon-mode-3 support
+           (run linkw, w4-a review), not on anything in this file.
+
            The list is NOT empty on the port, which is what
            hal/cxxname_bridge.cpp's note implies and what I assumed too.
-           Actor::DropShadowScaleXYZ is indeed a host no-op there, but
-           Actor::DropShadowRadHeight is NOT: its C spelling resolves to the
+           Actor::DropShadowScaleXYZ was a host no-op when this was measured
+           (wave 4 swapped it to the matched body; the crash story below
+           predates that and stands), but
+           Actor::DropShadowRadHeight was NOT: its C spelling resolves to the
            matched src/ body, which calls ShadowModel::InitModel for real, and
            Butterfly::Behavior takes that path every frame on this level (the
            boot census spawns butterflies). So a real ShadowModel goes on the
