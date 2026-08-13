@@ -58,6 +58,7 @@ extern struct H data_020a0e68;
 #define FLAGS16 (*(unsigned short *)((long long)(c + 0x5d4)))
 #define FLAGS16T (*(unsigned short *)((long long)((char *)((long long)c) + 0x5d4)))
 
+/* PORT_HOST_ABI: faithful mirror of the matched TU; its K&R ClosestPlayer declaration trips closestplayer_guard, reprototyped one-arg (calls already pass the receiver) */
 int _ZN3Boo13InitResourcesEv(char *c)
 {
     int cond;

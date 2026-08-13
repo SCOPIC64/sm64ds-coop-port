@@ -6,6 +6,7 @@
  * Nothing else differs.
  */
 extern int func_ov080_0212513c(char *c, int i); /* host edit: true arity */
+/* PORT_HOST_ABI: r1-passthrough seam -- the matched TU drops the state setter second argument; the ROM passes 0 (measured at 0x02124e94) */
 int func_ov080_02124e60(char *c) {
     int v = *(int*)(c + 0xb0);
     int b1 = (v & 0x20000) ? 1 : 0;

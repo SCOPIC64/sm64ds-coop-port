@@ -19,6 +19,7 @@ extern int Vec3_HorzDist(struct Vector3 *a, struct Vector3 *b);
 extern short Vec3_HorzAngle(struct Vector3 *a, struct Vector3 *b);
 extern int data_0209e650;
 
+/* PORT_HOST_ABI: r0-passthrough seam -- the matched TU drops the ClosestPlayer receiver; passed explicitly here */
 void func_ov063_02117650(char *self)
 {
     struct Vector3 ppos;
