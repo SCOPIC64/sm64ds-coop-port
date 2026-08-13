@@ -1312,13 +1312,17 @@ static int run_key_reserved(int vk)
     if (vk == VK_ESCAPE || vk == VK_RETURN) return 1;   /* quit, menu act */
     if (vk >= VK_F1 && vk <= VK_F9) return 1;           /* the port's own row */
     if (vk >= VK_LEFT && vk <= VK_DOWN) return 1;       /* menu navigation */
+    /* the bottom-screen panel, and it is read in hal/sub_screen.cpp rather
+       than through this file's key_live -- so a binding on it would fire the
+       panel from outside every gate here */
+    if (vk == VK_TAB) return 1;
     return 0;
 }
 static int run_pad_reserved(unsigned mask)
 {
-    /* d-pad and A drive the menu, BACK opens it, the right stick's click is
-       the freecam toggle */
-    return (mask & 0x104fu) != 0;
+    /* the d-pad (0x000f) and A (0x1000) drive the menu, BACK (0x0020) opens
+       it, and the right stick's click (0x0080) is the freecam toggle */
+    return (mask & 0x10afu) != 0;
 }
 
 /* A printable name for a binding. The letters and digits are their own ASCII
@@ -1499,7 +1503,7 @@ static void menu_draw(ntr::Framebuffer &fb)
                      "(esc cancels)");
         else
             snprintf(ln[MENU_RUNBIND], sizeof ln[0],
-                     "rebind run        %s / %s   enter, then the new key",
+                     "rebind run        %s / %s   enter to rebind",
                      run_key_name(g_run_key, kb, sizeof kb),
                      run_pad_name(g_run_pad, pb, sizeof pb));
     }
@@ -1587,8 +1591,10 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
        otherwise the one key a player would reach for to back out would close
        the game instead. Bit 30 of lParam is the previous key state, so the
        auto-repeat of a key still held from arming the capture is ignored and
-       only a fresh press counts. */
-    if (m == WM_KEYDOWN && g_rebind_capture) {
+       only a fresh press counts. WM_SYSKEYDOWN as well as WM_KEYDOWN, or alt
+       would be the one key on the board a player could not bind and would
+       open the system menu behind the capture instead. */
+    if ((m == WM_KEYDOWN || m == WM_SYSKEYDOWN) && g_rebind_capture) {
         if (!(l & (1 << 30))) g_rebind_key = (int)w;
         return 0;
     }
