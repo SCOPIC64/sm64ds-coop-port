@@ -668,10 +668,37 @@ int _ZN13QuestionBlock16CleanupResourcesEv(void *self)
    hal/fader_wipes.cpp) -- only the C name was missing, so that face is a name
    and nothing else. SetForwardTime's TU is not, and slice_w1l2.txt adds it.
 
+   Both checks are from the EMITTED BYTES, this file's own rule, not from the
+   signatures. dumpbin /disasm on method_faces.cpp.obj:
+
+       __ZN15FaderBrightness14SetForwardTimeEj:
+         push ebp / mov ebp,esp
+         push  dword ptr [ebp+0Ch]          the frames argument, one of them
+         mov   ecx,dword ptr [ebp+8]        the receiver, into ecx
+         call  ?SetForwardTime@FaderBrightness@@UAEHI@Z
+       __ZN15FaderBrightness7IsAtEndEv:
+         push ebp / mov ebp,esp
+         mov   ecx,dword ptr [ebp+8]        the receiver, into ecx
+         pop ebp
+         jmp   ?IsAtEnd@FaderBrightness@@UAEHXZ
+
+   -- so the target is the intended one and not IsAtStart, the arity is right,
+   and the receiver reaches ecx in both. IsAtEnd's tail jmp is safe because XZ
+   takes no stack argument: the callee's bare `ret` returns to the face's own
+   caller with the cdecl argument still on the stack, which that caller cleans.
+
    ONE HAZARD, INHERITED FROM THE BODY AND NOT FROM THE FACE, recorded because
    slice_w1l3.txt's fader block declined to seat this same body over it. The
    matched FaderBrightness::SetForwardTime ends in `return IsAtEnd();`
-   UNQUALIFIED, which is a virtual call through the receiver's vptr. The only
+   UNQUALIFIED, which is a virtual call through the receiver's vptr -- read out
+   of the body's own object rather than predicted from the C:
+
+       ?SetForwardTime@FaderBrightness@@UAEHI@Z:
+         ...
+         mov   eax,dword ptr [esi]          esi is `this`; eax is the vptr
+         call  dword ptr [eax+14h]          ROM slot 5 = IsAtEnd
+
+   so on a null vptr it faults reading [0x14]. The only
    receiver that reaches it here is &data_0209f5d0, whose host storage is
    zeroed BSS because the port does not link the ROM's static initialiser for
    it (src/__sinit_02074edc.c) -- so that dispatch would fault on a null vptr.
