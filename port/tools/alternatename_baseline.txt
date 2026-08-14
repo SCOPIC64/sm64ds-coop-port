@@ -13,7 +13,14 @@
 #     LoadFile forwarder shape; MemoryLeft, FindWithID, Enable): references
 #     bind to the face, the face forwards to the body.
 #   * data bridges whose LHS became hosted after the alias landed
-#     (data_0209f2d8, data_ov021_021149c0, EnemyC2).
+#     (data_ov021_021149c0, EnemyC2).
+#
+# RATCHET TURNED, run linkw wave 6 close: _data_0209f2d8=_data_0209f2d8_c is
+# GONE. Lane w6-C's hostgen work (ROLE_DATA / ASM_EXCISION, item 3) stopped that
+# alias being defeated, the guard reported it as a baseline pair no longer
+# defeated, and the pair was removed BY HAND -- one line, the confirmed
+# tightening -- rather than by a blanket --update, so nothing else in this
+# reviewed set moved with it.
 #
 # port/tools/alternatename_guard.py fails the build if the linked map shows a
 # defeated alias NOT on this list -- that is the R1/R2 arrival shape (a newly
@@ -37,7 +44,6 @@ __ZN5Actor18DropShadowScaleXYZER11ShadowModelR9Matrix4x35Fix12IiES5_S5_j=_hal_dr
 __ZN5EnemyC2Ev=_func_ov002_020aed98
 __ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_=_port_l7_particle_newsimple_stub
 _data_0209f250=_port_fault_no_pidx
-_data_0209f2d8=_data_0209f2d8_c
 _data_0209f2f8=_port_fault_no_level
 _data_0209f394=_port_fault_no_players
 _data_020a4b68=_port_fault_no_walker

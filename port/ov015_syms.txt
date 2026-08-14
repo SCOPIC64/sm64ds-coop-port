@@ -23,6 +23,19 @@
 # Every *_SpawnInfo is pinned to the record's real 0x1c so the +4 id halfword
 # the registry cross-checks reads out of the right bytes (42/44/45/50/51/52/
 # 53/54).
+#
+# SHARED-CELL CAVEAT, 0x02111b68 (run linkw wave 6 close, from lane w6-A).
+# ov089's KEY state 3 (func_ov089_0213162c) ends with `data_02111b68 = 1`, a
+# write into the shared level-overlay window that belongs to
+# overlays(8,13,15,17,23,24,33,41,43,47,53,54,55,56) -- THIS overlay among
+# them. hal/actor_classes_ov089.cpp defines host zero storage under the bare C
+# name `data_02111b68` because NO MOUNT DEFINES THAT SPELLING (ov013 mounts the
+# cell as data_ov013_02111b68, ov015 hosts the same address as code under
+# KnockDownPlank_Spawn) and because KEY is reachable only under ov046, where no
+# owner of the cell is loaded. If either stops being true -- a build where an
+# owning overlay and the KEY can both run, or a mount generated under the bare
+# C name -- the ov089 definition MUST GO and the name must resolve to the mount
+# instead, or the port keeps two objects for one DS cell.
 data_ov015_02112e0c data_ov015_02112e10 data_ov015_02112e14 data_ov015_02112e30
 data_ov015_02112e5c data_ov015_02112f2c data_ov015_02112f58 data_ov015_02112f7c
 data_ov015_02113440 data_ov015_02113444 data_ov015_02113448 data_ov015_02113450

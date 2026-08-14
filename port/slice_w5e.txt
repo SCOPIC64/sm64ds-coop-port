@@ -77,7 +77,8 @@ src/func_ov060_021123c8.c
 src/func_ov060_021123dc.c
 # src/func_ov060_02112434.cpp -- HELD OUT by lane w6-A: BOWSER's flag pass dispatches its state
 #   table through an MSVC pointer-to-member whose stride is not the ROM's 8
-#   (measured 4). Host copy in port/unmatched/Ov060_StateDispatch.cpp.
+#   (measured 16 -- re-measured at the wave-6 close; the lane banked 4).
+#   Host copy in port/unmatched/Ov060_StateDispatch.cpp.
 # src/func_ov060_02112434.cpp
 src/func_ov060_021125f0.c
 src/func_ov060_02112724.c
@@ -132,7 +133,8 @@ src/func_ov060_02115a84.cpp
 src/func_ov060_02115b0c.c
 # src/func_ov060_02115b84.cpp -- HELD OUT by lane w6-A: BOWSER TAIL's frame pass dispatches its state
 #   table through an MSVC pointer-to-member whose stride is not the ROM's 8
-#   (measured 4). Host copy in port/unmatched/Ov060_StateDispatch.cpp.
+#   (measured 16 -- re-measured at the wave-6 close; the lane banked 4).
+#   Host copy in port/unmatched/Ov060_StateDispatch.cpp.
 # src/func_ov060_02115b84.cpp
 src/func_ov060_02115c1c.c
 src/func_ov060_02115d50.c
@@ -168,7 +170,8 @@ src/func_ov060_021181e8.c
 src/func_ov060_0211822c.cpp
 # src/func_ov060_02118254.cpp -- HELD OUT by lane w6-A: SKY PLATFORM's Behavior dispatches its state
 #   table through an MSVC pointer-to-member whose stride is not the ROM's 8
-#   (measured 4). Host copy in port/unmatched/Ov060_StateDispatch.cpp.
+#   (measured 16 -- re-measured at the wave-6 close; the lane banked 4).
+#   Host copy in port/unmatched/Ov060_StateDispatch.cpp.
 # src/func_ov060_02118254.cpp
 src/func_ov060_021182b0.cpp
 src/func_ov060_021183cc.c

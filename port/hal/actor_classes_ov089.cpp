@@ -110,12 +110,33 @@ void *_ZTV3Key[31];
    address belongs to overlays(8,13,15,17,23,24,33,41,43,47,53,54,55,56) --
    the ordinary course overlays where a key is normally collected -- and NOT
    to ov046, whose image ends at 0x021116e0, so in a koopaN_boss arena the ROM
-   is writing past its own level overlay into ov060's loaded image. No mount in
-   this build owns the cell and nothing in this build reads it, so it gets
-   hosted zero storage (the auto_bss.cpp shape, kept here because this lane
-   owns the only reference). Routed into .dsstate like every hosted DS global.
-   If a level overlay that DOES own 0x02111b68 is ever mounted per symbol, this
-   definition has to go and the name resolve to that mount instead. */
+   is writing past its own level overlay into ov060's loaded image.
+
+   CORRECTED at the wave-6 close (the lane wrote "no mount owns the cell",
+   which is wrong): TWO of the fourteen overlays in that very list are mounted
+   in this build and both already claim 0x02111b68.
+
+     ov013 mounts it as DATA -- ov013_syms.txt carries
+     `data_ov013_02111b68:0x4`, four bytes of the clock furniture's statics.
+     ov015 hosts it as CODE -- KnockDownPlank_Spawn IS ov015 0x02111b68
+     (hal/actor_classes.inc, the MOVING_BAR / KNOCK_DOWN_PLANK row).
+
+   What is true is narrower and is the only reason this definition is legal:
+   NO MOUNT DEFINES THIS C NAME. ov013 spells its cell `data_ov013_02111b68`
+   and ov015 spells its body `KnockDownPlank_Spawn`, so the plain
+   `data_02111b68` the KEY body names is undefined without the line below, and
+   nothing in this build reads it. It gets hosted zero storage (the
+   auto_bss.cpp shape, kept here because this lane owns the only reference)
+   and is routed into .dsstate like every hosted DS global.
+
+   There is no live divergence today only because KEY is reachable solely
+   under ov046, the arena, where none of the fourteen owners is loaded. THE
+   MUST-GO CAVEAT: the moment a level overlay that owns 0x02111b68 is mounted
+   in a build where the KEY can also run -- or a mount is ever generated under
+   the bare C name -- this definition has to go and the name has to resolve to
+   that mount instead, or the port silently keeps two objects for one DS cell.
+   The same caveat is written beside the ov013 and ov015 mounts and in
+   ov089_syms.txt so a mount lane meets it where it works. */
 int data_02111b68;
 DSSTATE_END
 }
@@ -218,10 +239,14 @@ static int __fastcall key_d1(void *s, void *)
 { return (int)(size_t)_ZN3KeyD1Ev((int *)s); }
 static int __fastcall key_d0(void *s, void *)
 { return (int)(size_t)_ZN3KeyD0Ev((int *)s); }
-/* slot 19 takes the three-parameter shape so it emits `ret 4`: the dispatch
-   site pushes the Player the callee pops -- the wf_turn_egg contract. */
 static int __fastcall key_yoshi(void *s, void *)
 { (void)s; return func_ov089_02131f4c(); }
+/* slot 19 takes the three-parameter shape so it emits `ret 4`: the dispatch
+   site pushes the Player the callee pops -- the wf_turn_egg contract. And it
+   FORWARDS that Player: func_ov089_02131f04 hands it to
+   func_ov089_02131df4/02131dcc, so dropping the argument here would be a
+   silent wrong call, not a harmless extra. Slot 18 next to it genuinely takes
+   nothing, which is what made the wrong shape look plausible. */
 static int __fastcall key_turn_egg(void *s, void *, void *p)
 { return func_ov089_02131f04(s, p); }
 

@@ -146,7 +146,11 @@ src/func_ov002_020c3d1c.c
 #       _ZN6Player8BehaviorEv           port/unmatched/Player_Behavior.cpp
 #       _ZN6Player11ChangeStateERNS_5StateE  port/unmatched/Player_ChangeState.cpp
 #       _ZN6Player16CleanupResourcesEv  port/unmatched/Player_CleanupResources.cpp
-#       _ZN6Player13InitResourcesEv     port/unmatched/Player_InitResources.cpp
+#       _ZN6Player13InitResourcesEv     -- NO LONGER A HOST COPY (wave 6, w6-C
+#         item 3): the matched source hosts itself through hostgen ASM_EXCISION
+#         out of HOSTABI_RETIRE_SYMS. port/unmatched/Player_InitResources.cpp
+#         is retired and bannered. The symbol is still not a slice line here --
+#         it needs --extern-data, which a slice line cannot carry.
 #       _ZN6Player12St_Jump_MainEv      port/unmatched/Player_St_Jump_Main.cpp
 #       _ZN6Player17St_NoControl_InitEv port/unmatched/Player_St_NoControl_Init.cpp
 #       _ZN6Player16St_WallJump_MainEv  port/unmatched/Player_St_WallJump_Main.cpp

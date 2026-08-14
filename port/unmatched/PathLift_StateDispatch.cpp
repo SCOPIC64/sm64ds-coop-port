@@ -101,7 +101,15 @@ void port_pathlift_states_seat(void)
 
 /* The two-case dispatch both bodies share, spelled once. `pair` is the mwcc
    PMF: delta>>1 adjusts `this`, delta&1 selects the virtual path, and in the
-   virtual path word0 is a BYTE OFFSET into the adjusted object's vtable. */
+   virtual path word0 is a BYTE OFFSET into the adjusted object's vtable.
+
+   A NULL fn IS FATAL, not skippable. The ROM does an unconditional blx here,
+   so a zero would be a jump to zero on the DS; a host `if (fn)` would turn
+   that into a silently skipped state tick, which is the one failure this file
+   promises never to produce. Loud, named, and stopped -- the ov60_hole shape
+   in port/unmatched/Ov060_StateDispatch.cpp. The seat above verifies every
+   record against the ROM before any dispatch can run, so reaching this abort
+   means something rewrote the table after the seat. */
 static void pl_pmf_call(char *c, const PortPathLiftPair *pair)
 {
     char *self = c + (pair->delta >> 1);
@@ -110,8 +118,15 @@ static void pl_pmf_call(char *c, const PortPathLiftPair *pair)
         char *vt = *(char **)self;
         fn = *(unsigned *)(vt + fn);
     }
-    if (fn)
-        ((void (*)(void *))(size_t)fn)(self);
+    if (!fn) {
+        std::fprintf(stderr, "FATAL: PathLift state dispatch: null function "
+                     "for record {fn=%08x, delta=%d}%s -- the ROM does an "
+                     "unconditional blx here, so this is a wrong table, not a "
+                     "no-op\n", pair->fn, pair->delta,
+                     (pair->delta & 1) ? " (virtual path)" : "");
+        std::abort();
+    }
+    ((void (*)(void *))(size_t)fn)(self);
 }
 
 /* PORT_HOST_ABI: mwcc pointer-to-member dispatch on a deliberately

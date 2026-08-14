@@ -1,3 +1,18 @@
+// ===========================================================================
+// RETIRED -- THIS FILE IS NOT IN ANY BUILD. Run linkw wave 6, lane w6-C item 3.
+//
+// The condition the header below set ("retires when inline-asm excision lands
+// in hostgen") HAPPENED: hostgen gained ASM_EXCISION and the MATCHED source
+// _ZN6Player13InitResourcesEv now hosts itself, driven from
+// HOSTABI_RETIRE_SYMS in port/CMakeLists.txt (it needs --extern-data, which a
+// slice line cannot carry, which is why it is not a slice line). The slice
+// entry in slice_gate10.txt is commented out.
+//
+// Kept, not deleted, because it is the readable record of which one asm block
+// was substituted and why -- but nothing below this banner is compiled, and
+// nothing here should be treated as describing the current build.
+// ===========================================================================
+//
 // HOST COPY of src/_ZN6Player13InitResourcesEv.cpp -- one inline ARM
 // asm block (a 20-byte zero loop, kept as asm in src/ purely for the
 // byte match) substituted with its C semantics. Everything else is

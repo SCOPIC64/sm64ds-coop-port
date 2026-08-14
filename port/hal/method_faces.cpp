@@ -39,6 +39,22 @@
 //
 // These read as plumbing, reviewers skim plumbing, and each of the three above
 // shipped or nearly shipped. Meet the class before you skim the next forwarder.
+//
+// HOW YOU CANNOT CHECK A FACE: BY LOOKING FOR IT IN THE MAP. (Written down at
+// the wave-6 close, from lane w6-D's H5.) A face is usually the only reference
+// to the body it forwards to, and it is usually one line. MSVC inlines the
+// body into the face inside the same TU, and /OPT:REF then drops the external
+// nothing references any more -- so the symbol is ABSENT from walk_window.map
+// while the behaviour it carries is fully present, folded into the face.
+// _ZN8PathLift12BaseBehaviorEv is the measured instance: PORT_HOST_ABI tagged
+// on its definition, live in the binary, invisible as a public.
+//
+// Two consequences worth carrying. An absence from the map is NOT evidence
+// that a face is missing, dead or unlinked -- prove those from the source list
+// and the call sites instead. And linkage.py counts queue rows by symbol name,
+// so a folded-away face is not counted; a by-name audit of the queue will
+// undercount by exactly the faces the linker folded, and that is the tool
+// being honest about the binary, not a bug.
 // ===========================================================================
 //
 // C-linkage faces for METHOD-form definitions (gate 10/11 Behavior ring).

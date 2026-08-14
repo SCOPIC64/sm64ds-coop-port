@@ -1,10 +1,18 @@
-/* THE BOWSER FIGHT'S STATE MACHINES -- ov060's six pointer-to-member dispatch
- * tables, seated with host bodies, and host copies of the five dispatchers
- * whose pointer-to-member STRIDE does not match the ROM record.
+/* THE BOWSER FIGHT'S STATE MACHINES -- ov060's SEVEN runtime pointer-to-member
+ * dispatch tables, filled from SIX source runs, seated with host bodies, plus
+ * host copies of the five dispatchers whose pointer-to-member STRIDE does not
+ * match the ROM record.
+ *
+ * Six and seven are both right and they count different things, which is what
+ * the lane's "six tables" wording elided: there are six runs of source statics
+ * that a sinit copies, and BOWSER FIRE's run (sixteen records at 0x0211a734)
+ * fills TWO runtime tables out of one run, its init half and its behaviour
+ * half.  The seven below are the runtime bss tables the dispatchers read, and
+ * that is the count that governs the seats.
  *
  * run linkw wave 6, lane w6-A.
  *
- * ==== THE SIX TABLES, RE-DERIVED FROM THE OVERLAY IMAGE =====================
+ * ==== THE SEVEN TABLES, RE-DERIVED FROM THE OVERLAY IMAGE ===================
  *
  * Every one is bss, filled by an ov060 sinit out of 8-byte {code, adj} source
  * statics in .data, and every one of the 50 source records reads adj == 0 (the
@@ -25,7 +33,10 @@
  *   0x0211afb4 (0x40)      8    __sinit_ov060_02119df0  BowserFire::Behavior
  *                                                       (idx +0x35c)
  *   0x0211b1d8 (0x20)      4    __sinit_ov060_0211a388  SpikeBomb::Behavior
- *                                                       (16-byte records, idx +0x170)
+ *                                                       (8-byte records -- it
+ *                                                       reads the table as
+ *                                                       int[] and indexes
+ *                                                       [idx*2], idx +0x170)
  *   0x0211b1ac (0x18)      3    __sinit_ov060_0211a000  func_ov060_02118254
  *                                                       (SKY PLATFORM, idx +0x328)
  *
@@ -34,17 +45,20 @@
  * 0x0211a734 run is BOWSER FIRE's (both of its halves), and 0x0211a4e0 itself
  * is not a dispatch record at all -- it is the four-halfword message-id table
  * func_ov060_02115518 indexes with the actor's +0x414 variant byte.  Bowser's
- * own dispatch starts one record later, at 0x0211a4e8.  There are SIX tables,
- * not two, and one of them (SpikeBomb's) was not in the bank at all.
+ * own dispatch starts one record later, at 0x0211a4e8.  There are six source
+ * runs and seven runtime tables, not two of anything, and one of them
+ * (SpikeBomb's) was not in the bank at all.
  *
  * ==== WHY FIVE DISPATCHERS ARE HOST COPIES AND TWO ARE NOT ==================
  *
  * The ROM record is 8 bytes.  MSVC's pointer-to-member size depends on what it
- * knows about the class at the point the type is formed, and none of the five
- * shapes in this pack land on 8.  MEASURED with this build's compiler
- * (MSVC 19.44 x86, the same switches the port builds with):
+ * knows about the class at the point the type is formed, and none of the
+ * pointer-to-member shapes in this pack lands on 8.  RE-MEASURED at the wave-6
+ * close with this build's compiler (MSVC 19.44 x86, the same switches the port
+ * builds with).  The first row below was banked as 4 while the lane ran and is
+ * corrected here -- the forward-declared-C case measures 16:
  *
- *   forward-declared C, DEFINED later in the same TU  ->  4
+ *   forward-declared C, DEFINED later in the same TU  ->  16
  *     (func_ov060_02112434, func_ov060_02115b84, func_ov060_02118254)
  *   complete empty `struct Actor { }`                 ->  4
  *     (_ZN10BowserFire13InitResourcesEv)
@@ -53,10 +67,20 @@
  *   plain `struct { int a, b; }` + manual decode      ->  8   <-- correct
  *     (func_ov060_021128c0, _ZN17BowserSkyPlatform8BehaviorEv)
  *
- * A 4-byte stride reads record 0 correctly and then walks the adj words, so
- * state 0 runs and every other state calls through a zero -- the fault only
- * appears once the fight leaves its first state, which is exactly the shape
- * that survives a short census and dies in play.  On top of the stride, MSVC
+ * The last row is not a pointer-to-member at all, it is two ints read by hand,
+ * so NOTHING this pack hands MSVC as a pointer-to-member measures the ROM's 8.
+ * All six host copies of this landing stay justified: the five here and Key's
+ * dispatcher in port/unmatched/Ov089_StateDispatch.cpp, whose complete
+ * single-inheritance class with a vtable measures 4.
+ *
+ * Either wrong stride destroys the table, in opposite directions.  A 16-byte
+ * stride over-steps by exactly two records, so state 1 calls record 2's
+ * function and the back half of the table runs off its own end into whatever
+ * bss follows.  A 4-byte stride under-steps: it reads record 0 correctly and
+ * then walks the adj words, so state 0 runs and every other state calls
+ * through a zero.  Both shapes survive a short census -- the fight opens in
+ * state 0 either way -- and die once it advances, which is exactly the failure
+ * this pack exists to keep out.  On top of the stride, MSVC
  * emits a __thiscall through a pointer-to-member (receiver in ecx) while every
  * ov060 state body is a cdecl `func_ov060_xxxxxxxx(char *)` -- so even a
  * correctly strided read would hand the body a garbage argument.  Both faults
@@ -418,6 +442,8 @@ void func_ov060_0211577c(char *c);
 extern int data_0209e650;
 extern char *data_0209f318;
 }
+/* PORT_HOST_ABI: MSVC C2761 rejects the matched TU's out-of-class member
+   redeclarations; body is the matched source's line for line. */
 extern "C" int _ZN6Bowser8BehaviorEv(void *selfv)
 {
     char *c = (char *)selfv;

@@ -321,9 +321,20 @@ DSSTATE_END
 /* Memory_Deallocate IS ARM9 0x0203c1e8, THE TWO-ARGUMENT OVERLOAD, and the
    one-argument binding this line used to carry was the level-change heap fault.
 
-   The name is the placeholder src/_ZN9ActorBase21AfterCleanupResourcesEj.c
-   spells for the last statement of the actor teardown, and that TU says which
-   ROM function it is in its own comment:
+   THE CALLER THAT ACTUALLY LINKS, named precisely. `Memory_Deallocate` is the
+   placeholder src/_ZN9ActorBase21AfterCleanupResourcesEj.c spells for the last
+   statement of the actor teardown, but that src TU is not what the binary
+   compiles. What links is hostgen's --extern-data rewrite of it, generated
+   from GATE9_SYMS in port/CMakeLists.txt into
+   build/host-src/src/_ZN9ActorBase21AfterCleanupResourcesEj.cpp, which keeps
+   the call below verbatim and only rehomes the three role-named engine globals
+   onto the HAL. (While lane w6-B ran, the caller was a third file --
+   port/unmatched/ActorBase_AfterCleanupResources.cpp, the hand-written host
+   copy -- and the lane's write-up named the src TU as though it were the one
+   linking. That host copy is RETIRED as of lane w6-C item 3 and bannered as
+   such. The src TU is ROM truth and the reference for the lines below; the
+   hostgen output is the code that runs.) The src TU says which ROM function
+   this is in its own comment:
 
        void Memory_Deallocate(void*, struct Heap*);   // 0x0203c1e8
        ...

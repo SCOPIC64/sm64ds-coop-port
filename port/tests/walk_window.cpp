@@ -5962,9 +5962,25 @@ int main(void)
             port_bob_spawn_report();
             ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
             /* the other half of the boot's [heap] line: what the run itself
-               spent out of the ROM's 0x3b000. A number that keeps falling
-               across frame counts is a leak; one that stops falling is the
-               game living inside the budget the DS gave it. */
+               spent out of the ROM's 0x3b000.
+
+               READ IT CAREFULLY -- the obvious reading is wrong, and the port
+               shipped on the wrong reading for four waves. A number that keeps
+               falling across frame counts is a leak, yes. But a number that
+               STOPS falling is not automatically the game living inside its
+               budget: it is equally the shape of frees that never come back to
+               THIS allocator. Wave 6 measured exactly that. The castle boot sat
+               flat at 182600 free while 31 actors died on the opening frames,
+               and flat was the symptom -- every one of those frees was being
+               linked into the DEFAULT heap's free list by a dropped argument in
+               hal/cxxname_bridge.cpp (see the Memory_Deallocate banner there).
+               With the argument restored the same boot reads 25212 bytes
+               higher and the free node grows on every death.
+
+               So: falling means a leak, flat means EITHER a steady state OR a
+               leak into somewhere else, and only a free-list walk tells the two
+               apart. w2c.md's "flat at 182600, no leak" is the reading this
+               paragraph exists to retire. */
             if (data_020a0eac_c)
                 fprintf(stderr, "[heap] %u free after %d frames\n",
                         _ZN22ExpandingHeapAllocator10MemoryLeftEv(

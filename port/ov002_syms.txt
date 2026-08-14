@@ -248,8 +248,13 @@ PoppingLavaBubbles_SpawnInfo
 #   syms patch can rebase those three tails instead of leaving them pointing
 #   at reserved DS main RAM. Nothing dereferences them today; they are here
 #   so the seated table is honest end to end.
-# NOT here, deliberately: data_ov002_0210af70, PathLiftActor_c's 33-slot
-# vtable. That is host storage the registry fills
+# NOT here, deliberately: data_ov002_0210af70, dPathLiftActor_c's 33-slot
+# vtable. (The class name is dPathLiftActor_c. The RTTI string at 0x0210af18
+# reads "16dPathLiftActor_c", re-read out of extracted/overlays/overlay_0002.bin
+# at the wave-6 close because the lane wrote it "16PathLiftActor_c" -- 16 is the
+# Itanium length prefix and only the d-form is 16 characters long. A config PR
+# that takes a class name from here must take the d-form.)
+# That is host storage the registry fills
 # (hal/actor_classes_ov100pl.cpp), the ov095/ov080/data_ov002_021081e4 rule --
 # mounting it would hand the factory a table of DS code addresses.
 data_ov002_0210af00 data_ov002_0210d7d4

@@ -15,7 +15,16 @@
 //                            v
 //                     PathLiftActor_c       data_ov002_0210af70, 33 slots
 //                            |               (ov002; RTTI name string
-//                            |                0x0210af18 "16PathLiftActor_c",
+//                            |                0x0210af18 "16dPathLiftActor_c",
+//                            |                i.e. the class is dPathLiftActor_c
+//                            |                -- the 16 is the Itanium length
+//                            |                prefix and dPathLiftActor_c is
+//                            |                exactly 16 characters, which is
+//                            |                the check the lane's
+//                            |                "16PathLiftActor_c" reading fails
+//                            |                (that name is 15). Config PRs
+//                            |                would inherit the wrong class
+//                            |                name from the old spelling,
 //                            |                typeinfo record 0x0210af0c whose
 //                            |                base word is Platform's
 //                            |                0x021089ec; vtable[-1] at
@@ -56,10 +65,13 @@
 // Everything else in both tables is the shared Actor/ActorBase half, word for
 // word identical between the two.
 //
-// PathLiftActor_c is a PURE INTERMEDIATE. Its table is stored by exactly six
-// sites in the whole ROM (config relocs, `to:0x0210af70`): its own two
-// destructors, ov100's three (D1, D0, the factory) and ov036's three -- and
-// NO SpawnInfo anywhere names it. Nothing is ever live as one: in all three
+// PathLiftActor_c is a PURE INTERMEDIATE. Its table is stored by exactly EIGHT
+// sites in the whole ROM (config relocs, `to:0x0210af70` -- counted again at
+// the wave-6 close, where the lane's "six" was an arithmetic slip against its
+// own list): its own two destructors (ov002 0x020ef380, 0x020ef3e0), ov100's
+// three (0x02146de0 D1, 0x02146e60 D0, 0x02147394 the factory) and ov036's
+// three (0x021121bc, 0x0211223c, 0x021125a0) -- and
+// NO SpawnInfo anywhere names it. Nothing is ever live as one: at all eight
 // sites the vptr passes through the base table inside a window with no
 // virtual dispatch on `this` (the factory's window runs the Model[3] array
 // ctor and PathPtrC1, both on interior addresses; the destructors' window
