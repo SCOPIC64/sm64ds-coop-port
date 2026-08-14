@@ -727,6 +727,34 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov062_02118a00.cpp"
     PROPERTIES COMPILE_DEFINITIONS "func_ov065_02117994=func_ov062_02117994")
 
+# run linkw wave 6, lane w6-D: THE SAME DISEASE A THIRD TIME, and this one
+# would have linked SILENTLY on two of its three references.
+# src/func_ov100_02147054.c (PATH_LIFT's CleanupResources) releases its three
+# SharedFilePtrs through the shared-header ROLE-NAME placeholders G0/G1/G2 --
+# and G0/G1 are SINGLE GLOBAL NAMES hal/cxx_aliases.cpp has already bound to
+# other objects (_G0 -> _data_020a0eac, the GAME HEAP pointer; _G1 ->
+# _data_ov002_0210e05c, SignPost's KCL). Only G2 came back as a link error;
+# the other two would have resolved quietly and released the wrong storage --
+# exactly the CannonHatch/MetalNet failure cxx_aliases.cpp:1313 describes,
+# which was fixed there at the SOURCE. The byte-verified tree is not editable
+# from here, so the caller gets the per-source rename instead (the R1/R2
+# remedy above).
+# The three targets are the ROM's own, read off this body's literal pool in
+# release order (0x02147098/9c/a0, each feeding the next
+# SharedFilePtr::Release at 0x02147078/80/88):
+#   G0 = data_ov002_0210d9f0   G1 = data_ov100_02148a54   G2 = data_ov100_02148a5c
+# The rename cannot go straight to the mount names: G1/G2 arrive from
+# include/decl_common.h:396-397 as `extern int G1[];` while the same header
+# already declares data_ov100_02148a54/5c as scalars at 1280-1281, and MSVC
+# rejects the redeclaration (C2040, measured). So the three go to private
+# names this lane owns, and hal/actor_classes_ov100pl.cpp binds each onto the
+# mounted object with a C-name /alternatename -- one indirection, no header
+# edit, and each LHS is undefined everywhere so the alias cannot be defeated.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov100_02147054.c"
+    PROPERTIES COMPILE_DEFINITIONS
+    "G0=port_pathlift_file0;G1=port_pathlift_file1;G2=port_pathlift_file2")
+
 # func_ov002_020d708c is C++ inside a .c (a `virtual` vtable shadow), which
 # MSVC will not compile as C. hostgen.py already emits .cpp with the symbols
 # wrapped back to C linkage, so route it through hostgen rather than editing
@@ -1542,6 +1570,23 @@ foreach(line IN LISTS SLICE_W5A_LINES)
         continue()
     endif()
     list(APPEND SLICE_W5A_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 6, lane w6-D: PATH_LIFT (31) and the PathLift base branch --
+# ov100's daObjPathLift_c over ov002's PathLiftActor_c over Platform, the
+# first three-level hierarchy this port hosts that is split across overlays.
+# Same reader shape, one owner. The header of port/slice_w6d.txt carries the
+# reloc-derived closure, the two PMF host copies and the ov006 naming trap;
+# the hierarchy map and both 33-slot widths are in
+# hal/actor_classes_ov100pl.cpp.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w6d.txt" SLICE_W6D_LINES)
+set(SLICE_W6D_SOURCES "")
+foreach(line IN LISTS SLICE_W6D_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W6D_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate21.txt" SLICE21_LINES)
@@ -2898,7 +2943,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
-    ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES}
+    ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -2970,7 +3015,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
-    ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES}
+    ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -3073,7 +3118,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
-    ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES}
+    ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}

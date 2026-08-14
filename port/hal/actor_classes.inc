@@ -882,6 +882,16 @@ void hal_fill_crazed_crate_vtable(void);         /* fills _ZTV11CrazedCrate, 31 
 extern unsigned char Coffin_SpawnInfo[];         /* ov071 0x02122eb0, +4 reads 64 */
 void *Coffin_Spawn(void);                        /* ov071 0x02122670 */
 void hal_fill_coffin_vtable(void);               /* fills _ZTV6Coffin, 32 */
+/* ---- run linkw wave 6 (lane w6-D): PATH_LIFT (31), ov100's leaf over
+   ov002's PathLiftActor_c. Both routes agree: arm9 spawn table
+   0x02090864 + 31*4 = 0x020908e0 holds 0x02148558, and that record read RAW
+   out of extracted/overlays/overlay_0100.bin is
+   {0x02147328, 0x012b001f, ...} -- word[0] is PathLift_Spawn inside ov100
+   and word[1]'s low half is 31. The full hierarchy, both 33-slot widths and
+   the ov006 naming trap are in hal/actor_classes_ov100pl.cpp. ---- */
+extern unsigned char PathLift_SpawnInfo[];       /* ov100 0x02148558, +4 reads 31 */
+void *PathLift_Spawn(void);                      /* ov100 0x02147328 */
+void hal_fill_path_lift_vtable(void);            /* fills data_ov100_0214857c, 33 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1299,4 +1309,14 @@ void hal_fill_coffin_vtable(void);               /* fills _ZTV6Coffin, 32 */
      hal_fill_up_down_lift_hmc_vtable}, \
     {193, "CRAZED_CRATE", CrazedCrate_SpawnInfo, CrazedCrate_Spawn, \
      hal_fill_crazed_crate_vtable}, \
-    {64, "COFFIN", Coffin_SpawnInfo, Coffin_Spawn, hal_fill_coffin_vtable},
+    {64, "COFFIN", Coffin_SpawnInfo, Coffin_Spawn, hal_fill_coffin_vtable}, \
+    /* ---- run linkw wave 6 (lane w6-D): PATH_LIFT, the first three-level
+       hierarchy this port hosts that is SPLIT ACROSS OVERLAYS
+       (daObjPathLift_c in ov100 over PathLiftActor_c in ov002 over
+       Platform). Both 33-slot tables, the inherited slot-32 AfterClsn and
+       the shared WAIT/PATH/FALL machine are in
+       hal/actor_classes_ov100pl.cpp. PathLift_Spawn's FINAL vptr write is
+       its own table by a real name, so no factory wrapper. Placed on
+       levels 13 (x1) and 15 (x2). ---- */ \
+    {31, "PATH_LIFT", PathLift_SpawnInfo, PathLift_Spawn, \
+     hal_fill_path_lift_vtable},
