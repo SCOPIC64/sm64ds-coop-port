@@ -386,13 +386,18 @@ extern "C" void _ZN5Model17UpdateFileOffsetsER8BMD_File(BMD_File *f)
    Heap methods reached by Itanium name from func_02017060; _Sizeof is the ARM
    two-instruction veneer onto Sizeof, so the face calls the target directly
    rather than forwarding through a body that would drop both arguments. */
-/* gate 16: the actor teardown is a HOST COPY now (see
-   port/unmatched/ActorBase_AfterCleanupResources.cpp -- the matched TU defines
-   three engine globals rather than declaring them), so the slot-5 thunks that
-   call the method need the method to exist. */
-extern "C" void _ZN9ActorBase21AfterCleanupResourcesEj(void *self, unsigned a);
-void ActorBase::AfterCleanupResources(u32 a)
-{ _ZN9ActorBase21AfterCleanupResourcesEj(this, a); }
+/* gate 16: the actor teardown, FLIPPED. It used to be a host copy owning the
+   Itanium name while this face supplied the MSVC method for the slot-5 thunks.
+   The matched TU is in the binary now (hostgen --extern-data homes its three
+   role-named engine globals on the HAL -- see GATE9_SYMS), and a matched TU
+   that spells a real C++ member IS the MSVC method, so this face would be a
+   duplicate of it. What is missing instead is the ROM's own C name, which the
+   vtables and the Itanium call sites use: the face runs the other way now, the
+   ordinary reverse-bridge shape. Qualified call, so the C name reaches
+   ActorBase's body rather than re-dispatching through the vptr it was
+   presumably called through. */
+extern "C" void _ZN9ActorBase21AfterCleanupResourcesEj(void *self, unsigned a)
+{ ((ActorBase *)self)->ActorBase::AfterCleanupResources(a); }
 
 extern "C" int _ZN4Heap7_SizeofEPv(void *self, void *p)
 { return ((Heap *)self)->Heap::Sizeof(p); }

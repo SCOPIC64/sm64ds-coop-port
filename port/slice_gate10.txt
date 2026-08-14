@@ -1,6 +1,9 @@
 # Gate-10 slice: Player spawns and stands. On the full prior stack.
 src/_ZN6PlayerC1Ev.cpp
-port/unmatched/Player_InitResources.cpp
+# port/unmatched/Player_InitResources.cpp RETIRED -- the matched source hosts
+# itself now, through hostgen's ASM_EXCISION. It is built from
+# HOSTABI_RETIRE_SYMS in CMakeLists.txt rather than from a slice line, because
+# it needs --extern-data and a slice line carries no flags.
 src/_ZN6Player12St_Wait_InitEv.cpp
 src/_ZN6Player12St_Wait_MainEv.cpp
 src/_ZN6Player12St_Walk_InitEv.cpp

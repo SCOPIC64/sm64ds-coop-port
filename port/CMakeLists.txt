@@ -529,6 +529,14 @@ endif()
 # Gate 9: the actor framework -- ArrowSignRight's full lifecycle.
 # One .c file carries C++ syntax (mwccarm accepted it); hostgen's
 # emit-as-cpp with extern "C" wrap makes it legal.
+#
+# --extern-data is load-bearing here and was missing until w6-c. The file
+# spells its three engine globals by ROLE (gGlobalA / gGlobalB /
+# Memory::gameHeapPtr) rather than as data_<hex>, so without the flag hostgen
+# emitted them as private file-scope objects: this TU compiled, linked and
+# unlinked dead actors from a one-byte char while the real scene tree in
+# hal/actor_vtables.cpp kept them. Every target below ran that body. See
+# hostgen's ROLE_DATA map for the address of each name.
 set(GATE9_SYMS _ZN9ActorBase21AfterCleanupResourcesEj)
 set(GATE9_GEN "")
 foreach(sym IN LISTS GATE9_SYMS)
@@ -540,7 +548,7 @@ foreach(sym IN LISTS GATE9_SYMS)
     set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
     add_custom_command(OUTPUT "${sym_out}"
         COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
-                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+                --out "${CMAKE_BINARY_DIR}/host-src" --extern-data ${sym}
         DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
         COMMENT "hostgen ${sym}")
     list(APPEND GATE9_GEN "${sym_out}")
@@ -582,7 +590,11 @@ add_executable(smoke_actor tests/smoke_actor.cpp "${HEAP_INITGAME_SRC}"
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp
+    # auto_bss.cpp owns data_020a4ba8, the cleanup list. Gate 9's matched TU
+    # reads it from the HAL now (--extern-data + ROLE_DATA) instead of from a
+    # private one-byte object of its own, so this smoke has to link the file
+    # that actually holds it -- the sibling smokes at the same gate already do.
+    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/auto_bss.cpp
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_SOURCES} ${GATE8_EXTRA_SOURCES}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE9_GEN} "${ROMDATA_C}")
@@ -1984,7 +1996,9 @@ set(LEVELBOOT_HOST_SOURCES
     # exchange.
     unmatched/LoadEntranceObjects.cpp
     unmatched/func_02016ff4.cpp
-    unmatched/ActorBase_AfterCleanupResources.cpp
+    # unmatched/ActorBase_AfterCleanupResources.cpp RETIRED -- the matched
+    # source hosts itself now, through hostgen's ROLE_DATA map. See
+    # HOSTABI_RETIRE_SYMS.
     unmatched/func_ov002_020c6f3c.cpp
     # gate 16: two more mwcc pointer-to-member dispatches, both in actor
     # classes the registry carries. MSVC forms a PMF over an INCOMPLETE class
@@ -2820,6 +2834,44 @@ foreach(sym IN LISTS GATE15_SYMS)
     list(APPEND GATE15_GEN "${sym_out}")
 endforeach()
 
+# HOST-ABI RETIREMENT: Player::InitResources, the host copy that existed only
+# because hostgen could not read one asm block, now that it can.
+#
+# The file said so in its own header, and it was the vacuous-pass shape rather
+# than a link failure: the hand copy compiled, linked and ran, and only a
+# reader comparing it line by line with the matched source could tell whether
+# it had drifted.
+#
+# The match note explains the block -- it is there to force mwccarm's CLEAR
+# codegen shape (5 x 4 strb post-inc), not to compute anything, and what it
+# computes is a 20-byte zero over a fresh allocation. hostgen's ASM_EXCISION
+# substitutes the C semantics, per-symbol and exact-text, so the day the
+# source moves the build stops rather than silently substituting C for
+# instructions nobody re-read.
+#
+# --extern-data because the TU defines a dozen data_<hex> latches at file
+# scope that hal/level_boot.cpp and the dsstate section own.
+#
+# ActorBase::AfterCleanupResources, the OTHER file this retirement was written
+# for, turned out not to need a block of its own: gate 9 was already hostgen'ing
+# that symbol for the actor smokes, just without --extern-data. See GATE9_SYMS.
+set(HOSTABI_RETIRE_SYMS _ZN6Player13InitResourcesEv)
+set(HOSTABI_RETIRE_GEN "")
+foreach(sym IN LISTS HOSTABI_RETIRE_SYMS)
+    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+    else()
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
+    endif()
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" --extern-data ${sym}
+        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND HOSTABI_RETIRE_GEN "${sym_out}")
+endforeach()
+
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate15.txt" SLICE15_LINES)
 set(SLICE15_SOURCES "")
 foreach(line IN LISTS SLICE15_LINES)
@@ -2905,6 +2957,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
+    ${GATE9_GEN} ${HOSTABI_RETIRE_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES} ${SLICE121_SOURCES} ${SLICE122_SOURCES} ${SLICE123_SOURCES}
@@ -2979,6 +3032,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE32_SOURCES} ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
+    ${GATE9_GEN} ${HOSTABI_RETIRE_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES} ${SLICE121_SOURCES} ${SLICE122_SOURCES} ${SLICE123_SOURCES}
@@ -3082,6 +3136,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE32_SOURCES} ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
     ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
+    ${GATE9_GEN} ${HOSTABI_RETIRE_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
     unmatched/Cap_StateDispatch.cpp unmatched/ExclamationSwitch_StateDispatch.cpp ${SLICE51_SOURCES} ${SLICE59_SOURCES} ${SLICE78_SOURCES} ${SLICE79_SOURCES} ${SLICE82_SOURCES} ${SLICE83_SOURCES} ${SLICE64_SOURCES} ${GATE64_GEN} ${SLICE89_SOURCES} ${SLICE102_SOURCES} ${SLICE103_SOURCES} ${SLICE128_SOURCES} ${SLICE121_SOURCES} ${SLICE122_SOURCES} ${SLICE123_SOURCES}

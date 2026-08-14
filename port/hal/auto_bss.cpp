@@ -375,6 +375,29 @@ int data_0209ee88[8];
 int data_0209ee8c[8];
 int data_020a4d30[8];
 int LCG_STATE_0204da4c;
+
+/* THE TWO THE FAULT PROBE WAS ANSWERING FOR. Retiring
+   port/unmatched/Player_InitResources.cpp (w6-c, HOSTABI_RETIRE_SYMS) took
+   away the definition site for the level id and the local player index, and
+   nothing failed to link: tests/fault_probe.h carries
+   /alternatename:_data_0209f2f8=_port_fault_no_level and the matching
+   _data_0209f250=_port_fault_no_pidx, weak fallbacks meant to fire only in
+   the reduced probe binaries. They fired in the full walk_window instead, so
+   the game would have read the level it was standing in out of a fault-probe
+   placeholder.
+
+   The alias guard could not see it: both aliases FIRED, which is the shape it
+   reads as healthy, and both pairs sit in alternatename_baseline.txt as
+   reviewed weak-symbol idiom. dsstate_guard is what caught it, by noticing
+   two hosted DS globals had landed outside the captured section.
+
+   Four bytes each by next-symbol delta in config/arm9/symbols.txt
+   (0209f250/0209f254, 0209f2f8/0209f2fc), not the one byte the retired copy
+   declared. Here rather than in hal/level_boot.cpp beside the other six of
+   that retirement because level_boot re-declares data_0209f2f8 as a scalar
+   `signed char` further down its own file. */
+unsigned char data_0209f250[4];   /* local player index */
+signed char   data_0209f2f8[4];   /* level / sublevel id */
 }
 DSSTATE_END
 
