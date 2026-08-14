@@ -19,12 +19,14 @@
 //
 // WHAT WAVE 6 ADDED, and what the wave-5 bank got wrong:
 //   - The bank recorded "Bowser's two state-pair tables, 0x0211a4e0.. and
-//     0x0211a734..".  Re-derived from the READERS, there are SIX tables and
-//     neither of those attributions holds: 0x0211a734 is BOWSER FIRE's (both
+//     0x0211a734..".  Re-derived from the READERS, ov060 has SIX source runs
+//     filling SEVEN runtime tables (BOWSER FIRE's one run of sixteen records
+//     fills two of them, its init half and its behaviour half), and neither of
+//     those attributions holds: 0x0211a734 is BOWSER FIRE's (both
 //     of its halves), 0x0211a4e0 is the four-halfword message-id table
 //     func_ov060_02115518 indexes and Bowser's own records start at
-//     0x0211a4e8, and SPIKE BOMB has a sixth table at 0x0211b1d8 that was not
-//     in the bank at all.  The full map, all 50 seated records and the
+//     0x0211a4e8, and SPIKE BOMB has a table of its own at 0x0211b1d8 that was
+//     not in the bank at all.  The full map, all 50 seated records and the
 //     measured pointer-to-member sizes are in
 //     port/unmatched/Ov060_StateDispatch.cpp.
 //   - Bowser's init spawns 278 AND 280 and writes through both results with
@@ -515,7 +517,7 @@ static int __fastcall spikebomb_d0(void *s, void *)
 { return (int)(size_t)_ZN17BowserSkyPlatformD0Ev((int *)s); }
 extern "C" void hal_fill_spike_bomb_vtable(void)
 {
-    ov60_bringup();
+    port_ov60_bringup();
     void *volatile *vt = (void *volatile *)_ZTV17BowserSkyPlatform;
     ov60_fill_shared(vt);
     vt[0]  = (void *)spikebomb_init;
@@ -554,11 +556,23 @@ extern "C" void hal_fill_spike_bomb_vtable(void)
 // which the arena already loads through the selector row, and its registry row
 // is in hal/actor_classes_ov089.cpp: it has to be in the same landing as
 // Bowser or his defeat sequence faults the same way his init would.
-// (Its sibling spawn, 0x11b = 283 LAST_STAR, IS ignored; the other four
-// ov060-internal spawn sites -- func_ov060_02114858, 02115b0c, 02116b68,
-// 0211747c -- ignore their results too, and func_ov060_021172e0 null-checks
-// both of its. That is the whole sweep: nine Actor::Spawn sites in the pack,
-// four of them writing through the result, all four covered.)
+// (Its sibling spawn, 0x11b = 283 LAST_STAR, IS ignored.
+//
+// TWO MORE WRITERS, named here because the lane's prose left them anonymous:
+// func_ov060_021167ec spawns 0x118 = 280 once and writes f92/f94/f96 and
+// +0x360 through the result, and func_ov060_021169f8 spawns 0x118 at THREE
+// sites and writes +0x360 through each. Neither null-checks. Both are already
+// safe in this landing because 280 registers with Bowser -- but they are safe
+// as a by-product of his init needing it, not because a registration decision
+// was ever made for them, which is exactly why they are written down here.
+//
+// The remaining ov060-internal sites -- func_ov060_02114858, 02115b0c,
+// 02116b68, 0211747c -- ignore their results, and func_ov060_021172e0
+// null-checks both of its. That is the whole sweep: NINE functions in the pack
+// call Actor::Spawn, sixteen call sites between them, FOUR of those functions
+// write through a result without a check (Bowser's InitResources, his defeat
+// path func_ov060_021135fc, func_ov060_021167ec and func_ov060_021169f8), and
+// every id those four reach -- 278, 280, 282 -- registers in this landing.)
 //
 // BOWSER 279, table 0x0211a6b8, 31 slots. Own 0/3/6/9/12/16/17 -- he is the
 // one class in this pack that overrides OnPendingDestroy (slot 12), so his
@@ -608,7 +622,7 @@ static int __fastcall bowser_d0(void *s, void *)
 { return (int)(size_t)_ZN6BowserD0Ev((int *)s); }
 extern "C" void hal_fill_bowser_vtable(void)
 {
-    ov60_bringup();
+    port_ov60_bringup();
     void *volatile *vt = (void *volatile *)_ZTV6Bowser;
     ov60_fill_shared(vt);
     vt[0]  = (void *)bowser_init;
@@ -639,7 +653,7 @@ static int __fastcall btail_d0(void *s, void *)
 { return (int)(size_t)_ZN10BowserTailD0Ev((int *)s); }
 extern "C" void hal_fill_bowser_tail_vtable(void)
 {
-    ov60_bringup();
+    port_ov60_bringup();
     void *volatile *vt = (void *volatile *)_ZTV10BowserTail;
     ov60_fill_shared(vt);
     vt[0]  = (void *)btail_init;
@@ -664,7 +678,7 @@ static int __fastcall bfire_d0(void *s, void *)
 { return (int)(size_t)_ZN10BowserFireD0Ev((int *)s); }
 extern "C" void hal_fill_bowser_fire_vtable(void)
 {
-    ov60_bringup();
+    port_ov60_bringup();
     void *volatile *vt = (void *volatile *)_ZTV10BowserFire;
     ov60_fill_shared(vt);
     vt[0]  = (void *)bfire_init;
@@ -711,7 +725,7 @@ static int __fastcall skyplat_d0(void *s, void *)
 { return (int)(size_t)func_ov060_02117d60((int *)s); }
 extern "C" void hal_fill_bowser_sky_platform_vtable(void)
 {
-    ov60_bringup();
+    port_ov60_bringup();
     void *volatile *vt = (void *volatile *)data_ov060_0211a9b0;
     ov60_fill_shared(vt);
     vt[0]  = (void *)skyplat_init;
