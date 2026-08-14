@@ -176,8 +176,8 @@ int func_ov060_021182b0(void *self);                       /* slot 0  */
 int func_ov060_021181e8(void *self);                       /* slot 3  */
 int func_ov060_02118254(void *self);                       /* slot 6  */
 int func_ov060_0211822c(void *self);                       /* slot 9  */
-int func_ov060_02117d1c(void *self);                       /* slot 16 */
-int func_ov060_02117d60(void *self);                       /* slot 17 */
+int *func_ov060_02117d1c(int *self);                       /* slot 16 */
+int *func_ov060_02117d60(int *self);                       /* slot 17 */
 void *BowserSkyPlatform_Spawn(void);
 
 DSSTATE_BEGIN
@@ -223,9 +223,15 @@ DSSTATE_END
 #pragma comment(linker, "/alternatename:?data_ov060_0211ac20@@3PAHA=_data_ov060_0211ac20")
 #pragma comment(linker, "/alternatename:?data_ov060_0211ac68@@3PAHA=_data_ov060_0211ac68")
 #pragma comment(linker, "/alternatename:?data_ov060_0211ac70@@3PAHA=_data_ov060_0211ac70")
-#pragma comment(linker, "/alternatename:?data_ov060_0211ae9c@@3PAP8C@@AEXXZA=_data_ov060_0211ae9c")
 #pragma comment(linker, "/alternatename:?data_ov060_0211aed4@@3PAUTabEnt@@A=_data_ov060_0211aed4")
-#pragma comment(linker, "/alternatename:?data_ov060_0211b1ac@@3PAUEntry@@A=_data_ov060_0211b1ac")
+/* The @@3PAP8C@@AEXXZA (0x0211ae9c) and @@3PAUEntry@@A (0x0211b1ac) siblings
+   of the line above are GONE in wave 6: the two TUs that spelled those cells
+   at C++ linkage -- func_ov060_02115b84 and func_ov060_02118254 -- are host
+   copies now and use the C name. The guard reads an unreferenced LHS as
+   "unused, OK", so leaving them would have been inert rather than wrong; they
+   are removed because they would read as live documentation of a spelling
+   nothing emits any more. The TabEnt one stays: func_ov060_021128c0 is still
+   matched src and still spells it that way. */
 
 /* Two statics wanted by pack TUs under their STRUCT-tagged MSVC decorations
    (the class-tagged PAV variants already exist in hal/actor_faces_bob.cpp;
@@ -700,9 +706,9 @@ static int __fastcall skyplat_render(void *s, void *)
 { port_actor_render_probe("BOWSER_SKY_PLATFORM", (char *)s + 0xd4);
   return func_ov060_0211822c(s); }
 static int __fastcall skyplat_d1(void *s, void *)
-{ return func_ov060_02117d1c(s); }
+{ return (int)(size_t)func_ov060_02117d1c((int *)s); }
 static int __fastcall skyplat_d0(void *s, void *)
-{ return func_ov060_02117d60(s); }
+{ return (int)(size_t)func_ov060_02117d60((int *)s); }
 extern "C" void hal_fill_bowser_sky_platform_vtable(void)
 {
     ov60_bringup();

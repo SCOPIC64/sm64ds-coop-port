@@ -94,8 +94,12 @@ int _ZN3Key8BehaviorEv(void *self);  /* slot 6, HOST COPY (Ov089_StateDispatch) 
 int _ZN3Key6RenderEv(void *self);   /* slot 9, HOST COPY (Ov089_Renders.cpp) */
 int *_ZN3KeyD1Ev(int *self);                      /* slot 16 */
 int *_ZN3KeyD0Ev(int *self);                      /* slot 17 */
-int func_ov089_02131f4c(void *self);              /* slot 18, OnYoshiTryEat  */
-int func_ov089_02131f04(void *self);              /* slot 19, OnTurnIntoEgg  */
+/* slot 18 takes NO argument in src (it returns a constant 4 and never reads
+   the receiver); slot 19 takes the Player the dispatch site pushes and USES
+   it -- it forwards it to func_ov089_02131df4/02131dcc. Both signatures are
+   the matched TUs' own, so the thunks below drop nothing. */
+int func_ov089_02131f4c(void);                    /* slot 18, OnYoshiTryEat  */
+int func_ov089_02131f04(void *self, void *p);     /* slot 19, OnTurnIntoEgg  */
 void *Key_Spawn(void);
 void *LastStar_Spawn(void);
 
@@ -217,9 +221,9 @@ static int __fastcall key_d0(void *s, void *)
 /* slot 19 takes the three-parameter shape so it emits `ret 4`: the dispatch
    site pushes the Player the callee pops -- the wf_turn_egg contract. */
 static int __fastcall key_yoshi(void *s, void *)
-{ return func_ov089_02131f4c(s); }
+{ (void)s; return func_ov089_02131f4c(); }
 static int __fastcall key_turn_egg(void *s, void *, void *p)
-{ (void)p; return func_ov089_02131f04(s); }
+{ return func_ov089_02131f04(s, p); }
 
 extern "C" void hal_fill_key_vtable(void)
 {
