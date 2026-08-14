@@ -140,7 +140,7 @@ void *SpikeBomb_Spawn(void);
 /* BOWSER (279) */
 int _ZN6Bowser13InitResourcesEv(void *self);               /* slot 0  */
 int _ZN6Bowser16CleanupResourcesEv(void);                  /* slot 3  */
-int _ZN6Bowser8BehaviorEv(void *self);                     /* slot 6  */
+int _ZN6Bowser8BehaviorEv(void *self);   /* slot 6, HOST COPY (StateDispatch) */
 int _ZN6Bowser6RenderEv(void *self);   /* slot 9, HOST COPY (Ov060_Renders) */
 void _ZN6Bowser16OnPendingDestroyEv(void);                 /* slot 12 */
 int *_ZN6BowserD0Ev(int *self);                            /* slot 17 */
@@ -730,7 +730,6 @@ int _ZN18BowserFireSeaArena6RenderEv(void *self)
 // BowserSkyPlatform.h spellings -- the header is generated from the matched
 // functions' own evidence, so it is SPIKE BOMB's layout under that name.
 #include "BowserSkyPlatform.h"
-#include "Bowser.h"
 #include "BowserTail.h"
 extern "C" {
 int _ZN17BowserSkyPlatform13InitResourcesEv(void *self)
@@ -739,8 +738,6 @@ int _ZN17BowserSkyPlatform8BehaviorEv(void *self)
 { return ((BowserSkyPlatform *)self)->BowserSkyPlatform::Behavior(); }
 int _ZN17BowserSkyPlatform6RenderEv(void *self)
 { return ((BowserSkyPlatform *)self)->BowserSkyPlatform::Render(); }
-int _ZN6Bowser8BehaviorEv(void *self)
-{ return ((Bowser *)self)->Bowser::Behavior(); }
 int _ZN10BowserTail13InitResourcesEv(void *self)
 { return ((BowserTail *)self)->BowserTail::InitResources(); }
 int _ZN10BowserTail8BehaviorEv(void *self)

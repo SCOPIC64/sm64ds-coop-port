@@ -90,7 +90,7 @@ void port_actor_render_probe(const char *cls, void *model); /* hal/actor_classes
 /* KEY's own bodies */
 int _ZN3Key13InitResourcesEv(void *self);         /* slot 0  */
 int _ZN3Key16CleanupResourcesEv(void *self);      /* slot 3  */
-int _ZN3Key8BehaviorEv(void *self);               /* slot 6  */
+int _ZN3Key8BehaviorEv(void *self);  /* slot 6, HOST COPY (Ov089_StateDispatch) */
 int _ZN3Key6RenderEv(void *self);   /* slot 9, HOST COPY (Ov089_Renders.cpp) */
 int *_ZN3KeyD1Ev(int *self);                      /* slot 16 */
 int *_ZN3KeyD0Ev(int *self);                      /* slot 17 */
@@ -101,12 +101,45 @@ void *LastStar_Spawn(void);
 
 DSSTATE_BEGIN
 void *_ZTV3Key[31];
+/* func_ov089_0213162c (KEY state 3) ends with `data_02111b68 = 1`, a write
+   into the twenty-way-shared LEVEL-OVERLAY window. ov089's relocs say that
+   address belongs to overlays(8,13,15,17,23,24,33,41,43,47,53,54,55,56) --
+   the ordinary course overlays where a key is normally collected -- and NOT
+   to ov046, whose image ends at 0x021116e0, so in a koopaN_boss arena the ROM
+   is writing past its own level overlay into ov060's loaded image. No mount in
+   this build owns the cell and nothing in this build reads it, so it gets
+   hosted zero storage (the auto_bss.cpp shape, kept here because this lane
+   owns the only reference). Routed into .dsstate like every hosted DS global.
+   If a level overlay that DOES own 0x02111b68 is ever mounted per symbol, this
+   definition has to go and the name resolve to that mount instead. */
+int data_02111b68;
 DSSTATE_END
 }
 
 /* The RTTI spelling the D1/D0 restore the table by (the daKpa2Bg_c line in
    hal/actor_classes_ov060.cpp, once more): same table, sibling name. */
 #pragma comment(linker, "/alternatename:__ZTV10daObjKey_c=__ZTV3Key")
+
+/* The MSVC-decorated spellings the two Key .cpp bodies use for storage the
+   per-symbol ov089/ov002 mounts already define under the C name (the
+   actor_faces_bob / bowserpuzzle @@3PA precedent; data aliases are exact,
+   there is no `this` to lose). InitResources and CleanupResources declare the
+   SAME cells with different element types -- `char` in one, `int *` in the
+   other -- so each cell needs both decorations aliased onto the one storage. */
+#pragma comment(linker, "/alternatename:?data_ov002_0211094c@@3DA=_data_ov002_0211094c")
+#pragma comment(linker, "/alternatename:?data_ov002_02110964@@3PAHA=_data_ov002_02110964")
+#pragma comment(linker, "/alternatename:?data_ov089_02132b40@@3DA=_data_ov089_02132b40")
+#pragma comment(linker, "/alternatename:?data_ov089_021328b4@@3PAHA=_data_ov089_021328b4")
+#pragma comment(linker, "/alternatename:?data_ov089_02132ca4@@3DA=_data_ov089_02132ca4")
+#pragma comment(linker, "/alternatename:?data_ov089_02132c40@@3DA=_data_ov089_02132c40")
+#pragma comment(linker, "/alternatename:?data_ov089_02132c40@@3PAHA=_data_ov089_02132c40")
+#pragma comment(linker, "/alternatename:?data_ov089_02132c48@@3DA=_data_ov089_02132c48")
+#pragma comment(linker, "/alternatename:?data_ov089_02132c48@@3PAHA=_data_ov089_02132c48")
+#pragma comment(linker, "/alternatename:?data_ov089_02132c60@@3DA=_data_ov089_02132c60")
+#pragma comment(linker, "/alternatename:?data_ov089_02132c60@@3PAHA=_data_ov089_02132c60")
+#pragma comment(linker, "/alternatename:?data_ov089_02132c70@@3DA=_data_ov089_02132c70")
+#pragma comment(linker, "/alternatename:?data_ov089_02132c70@@3PAHA=_data_ov089_02132c70")
+#pragma comment(linker, "/alternatename:?data_0209cef0@@3HA=_data_0209cef0")
 
 // ---- the trap --------------------------------------------------------------
 static void ov89_trap_report(void *self, int slot)
@@ -234,6 +267,4 @@ int _ZN3Key13InitResourcesEv(void *self)
 { return ((Key *)self)->Key::InitResources(); }
 int _ZN3Key16CleanupResourcesEv(void *self)
 { return ((Key *)self)->Key::CleanupResources(); }
-int _ZN3Key8BehaviorEv(void *self)
-{ return ((Key *)self)->Key::Behavior(); }
 }

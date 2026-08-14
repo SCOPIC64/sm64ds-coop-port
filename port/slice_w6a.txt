@@ -70,7 +70,9 @@ src/_ZN17BowserSkyPlatformD0Ev.c
 src/Bowser_Spawn.c
 src/_ZN6Bowser13InitResourcesEv.c
 src/_ZN6Bowser16CleanupResourcesEv.c
-src/_ZN6Bowser8BehaviorEv.cpp
+# src/_ZN6Bowser8BehaviorEv.cpp -- HELD OUT: does not compile under MSVC
+#   (C2761 x6, shadow members re-declared at namespace scope). Host copy in
+#   port/unmatched/Ov060_StateDispatch.cpp.
 src/_ZN6Bowser16OnPendingDestroyEv.c
 src/_ZN6BowserD0Ev.c
 
@@ -103,8 +105,28 @@ src/Key_Spawn.c
 src/LastStar_Spawn.c
 src/_ZN3Key13InitResourcesEv.cpp
 src/_ZN3Key16CleanupResourcesEv.cpp
-src/_ZN3Key8BehaviorEv.cpp
+# src/_ZN3Key8BehaviorEv.cpp -- HELD OUT: forms its pointer-to-member over a
+#   complete single-inheritance class with a vtable, which MSVC represents in
+#   FOUR bytes against the ROM record's eight. Host copy + the eight-record
+#   seat in port/unmatched/Ov089_StateDispatch.cpp.
 src/_ZN3KeyD1Ev.c
 src/_ZN3KeyD0Ev.c
-src/func_ov089_02131f4c.c
+port/unmatched/Ov089_StateDispatch.cpp
+# ov089's remaining bodies -- the whole overlay's code, ten TUs. Nothing here
+# was ever linked: the gate-18 mount took ov089's DATA (the doors' key-model
+# arrays) and left its code stripped.
+src/func_ov089_02130fb4.c
+src/func_ov089_0213115c.cpp
+src/func_ov089_021311c0.c
+src/func_ov089_0213162c.c
+src/func_ov089_02131b18.c
+src/func_ov089_02131dcc.c
+src/func_ov089_02131df4.c
 src/func_ov089_02131f04.cpp
+src/func_ov089_02131f4c.c
+src/func_ov089_02131f54.cpp
+src/LoadKeyModels.cpp
+src/UnloadKeyModels.cpp
+# the arm9 helper Bowser's init hands the tail actor to
+src/func_02011d50.c
+src/func_02048f24.c

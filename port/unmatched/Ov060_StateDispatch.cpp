@@ -388,6 +388,73 @@ extern "C" int _ZN10BowserFire8BehaviorEv(char *c)
     return 1;
 }
 
+/* ============ HOST COPY 6: _ZN6Bowser8BehaviorEv ==========================
+ * NOT a pointer-to-member fault -- src/_ZN6Bowser8BehaviorEv.cpp does not
+ * COMPILE under MSVC at all. It declares six shadow-class members and then
+ * re-declares each of them at namespace scope:
+ *
+ *     struct Actor { Actor *ClosestPlayer(); ... };
+ *     Actor *Actor::ClosestPlayer();          <- C2761
+ *
+ * which mwcc accepts and MSVC rejects with C2761 "redeclaration of member is
+ * not allowed", six times. Measured on this tree: the TU is the only compile
+ * failure in the whole wave-6 landing. (The by-address decomp-side fix for
+ * this shape is wave-6 cut item 9 and belongs to main, not to the port.)
+ *
+ * Transcribed line for line, offsets from include/Bowser.h. The
+ * ClosestPlayer call site passes the actor, which is the value the ROM leaves
+ * in r0 -- the receiver seam the closestplayer guard watches for does not open
+ * here (the src spells it `((Actor *)this)->ClosestPlayer()`, a real receiver,
+ * not the zero-arg reader shape). */
+extern "C" {
+int RandomIntInternal(int *seed);
+void *_ZN5Actor13ClosestPlayerEv(void *self);
+void *_ZN5Actor15FindWithActorIDEjPS_(unsigned id, void *prev);
+void _ZN9Animation7AdvanceEv(void *a);
+void _ZN25MovingCylinderClsnWithPos21SetPosRelativeToActorERK7Vector3(
+    void *self, const void *v);
+void func_ov060_02111a28(char *c);
+void func_ov060_0211577c(char *c);
+extern int data_0209e650;
+extern char *data_0209f318;
+}
+extern "C" int _ZN6Bowser8BehaviorEv(void *selfv)
+{
+    char *c = (char *)selfv;
+    RandomIntInternal(&data_0209e650);
+    *(int *)(c + 0x3a0) = (int)(size_t)_ZN5Actor13ClosestPlayerEv(c);
+    if (*(char **)(c + 0x3a0) != 0) {
+        char *t = *(char **)(c + 0x3a0);
+        *(short *)(c + 0x406) = Vec3_HorzAngle(c + 0x5c, t + 0x5c);
+        *(int *)(c + 0x3ec) = Vec3_HorzDist(c + 0x5c, t + 0x5c);
+    } else {
+        *(short *)(c + 0x406) = *(short *)(c + 0x8e);
+        *(int *)(c + 0x3ec) = ~0x80000000;
+    }
+    func_ov060_02112434((unsigned char *)c);
+    func_ov060_02111a28(c);
+    *(short *)(c + 0x94) = *(short *)(c + 0x8e);
+    *(int *)(c + 0x130) = *(int *)(c + 0x3f8);
+    _ZN9Animation7AdvanceEv(c + 0x124);
+    func_ov060_0211577c(c);
+    *(char **)(data_0209f318 + 0x114) = c;
+    _ZN12CylinderClsn5ClearEv(c + 0x360);
+    {
+        int v[3];
+        v[2] = 0x50000;
+        v[0] = 0;
+        v[1] = 0;
+        _ZN25MovingCylinderClsnWithPos21SetPosRelativeToActorERK7Vector3(
+            c + 0x360, v);
+    }
+    _ZN12CylinderClsn6UpdateEv(c + 0x360);
+    if (*(unsigned char *)(c + 0x42b) != 0) {
+        if (_ZN5Actor15FindWithActorIDEjPS_(0x10d, 0) == 0)
+            *(unsigned char *)(c + 0x42b) = 0;
+    }
+    return 1;
+}
+
 /* ============ THE SEAT ====================================================
  * Rewrites each SOURCE static's code word with its host body BEFORE the sinits
  * copy it into the runtime table (the WaterBomb / LakituBro / Crate reading:
