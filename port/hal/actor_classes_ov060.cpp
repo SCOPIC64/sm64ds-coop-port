@@ -2,7 +2,10 @@
 // level 38 (koopa2_boss), one class hosted, six measured and banked.
 //
 // ov060 is the pack all three koopaN_boss arenas load (LoadOrUnloadObject-
-// Overlays short-circuits idx 0x24/0x26/0x28 to ov060 alone, an arm9 read).
+// Overlays short-circuits idx 0x24/0x26/0x28 to ov060 with an early return --
+// but the SELECTOR LOOP runs first, so those levels also get ov089, the
+// boss-reward pack: KEY 282 / LAST_STAR 283. An arm9 read, corrected in
+// wave 6 from the "ov060 alone" the first draft of this file said).
 // This lane mounts it per symbol (port/ov060_syms.txt, where the full cast
 // map, the one dsd label shift and every width pin are written down), wires
 // its 106 func_ov060_* TUs and six sinits (port/slice_w5e.txt), and hosts
@@ -86,6 +89,12 @@ void port_ov060_pack_check(void);
 void port_ov060_syms_patch(void);
 void port_ov046_pack_check(void);
 void port_ov046_syms_patch(void);
+/* run linkw wave 6 (lane w6-A): the six state tables' seat. Rewrites the 50
+   SOURCE statics with host bodies BEFORE the sinits copy them into bss (the
+   Crate/WaterBomb ordering); see port/unmatched/Ov060_StateDispatch.cpp for
+   the table map, the measured pointer-to-member sizes and the two named
+   holes. */
+void port_ov060_states_seat(void);
 /* ov060's six sinits, all linkable (no ov045-style shared-window sinit) */
 void __sinit_ov060_021195dc(void);
 void __sinit_ov060_02119df0(void);
@@ -109,8 +118,68 @@ extern int data_ov060_0211affc[], data_ov060_0211aff4[];
 /* the Enable face's C-linkage dispatcher (hal/cxxname_bridge.cpp routing) */
 int _ZN16MeshColliderBase6EnableEP5Actor(void *self, void *actor);
 
+/* ---- run linkw wave 6 (lane w6-A): the fight's own five classes ---------- */
+/* member teardowns the three .cpp-destructor host thunks spell by hand */
+void *_ZN5ActorD2Ev(void *self);
+void _ZN5ModelD1Ev(void *self);
+void _ZN9ModelAnimD1Ev(void *self);
+void _ZN15TextureSequenceD1Ev(void *self);
+void _ZN12WithMeshClsnD1Ev(void *self);
+void _ZN11ShadowModelD1Ev(void *self);
+void _ZN18MovingCylinderClsnD1Ev(void *self);
+void _ZN25MovingCylinderClsnWithPosD1Ev(void *self);
+
+/* SPIKE BOMB (284) -- the SHIFTED spellings, see the class block below */
+int _ZN17BowserSkyPlatform13InitResourcesEv(void *self);   /* slot 0  */
+int _ZN17BowserSkyPlatform16CleanupResourcesEv(void);      /* slot 3  */
+int _ZN17BowserSkyPlatform8BehaviorEv(void *self);         /* slot 6  */
+int _ZN17BowserSkyPlatform6RenderEv(void *self);           /* slot 9  */
+int *_ZN17BowserSkyPlatformD0Ev(int *self);                /* slot 17 */
+void *SpikeBomb_Spawn(void);
+
+/* BOWSER (279) */
+int _ZN6Bowser13InitResourcesEv(void *self);               /* slot 0  */
+int _ZN6Bowser16CleanupResourcesEv(void);                  /* slot 3  */
+int _ZN6Bowser8BehaviorEv(void *self);                     /* slot 6  */
+int _ZN6Bowser6RenderEv(void *self);   /* slot 9, HOST COPY (Ov060_Renders) */
+void _ZN6Bowser16OnPendingDestroyEv(void);                 /* slot 12 */
+int *_ZN6BowserD0Ev(int *self);                            /* slot 17 */
+void *Bowser_Spawn(void);
+
+/* BOWSER TAIL (278) */
+int _ZN10BowserTail13InitResourcesEv(void *self);          /* slot 0  */
+int _ZN10BowserTail16CleanupResourcesEv(void);             /* slot 3  */
+int _ZN10BowserTail8BehaviorEv(void *self);                /* slot 6  */
+int _ZN10BowserTail6RenderEv(void);                        /* slot 9  */
+int *_ZN10BowserTailD0Ev(int *self);                       /* slot 17 */
+void *BowserTail_Spawn(void);
+
+/* BOWSER FIRE (280) -- an Enemy build; Init/Behavior are HOST COPIES */
+int _ZN10BowserFire13InitResourcesEv(void *self);          /* slot 0  */
+int _ZN10BowserFire16CleanupResourcesEv(void);             /* slot 3  */
+int _ZN10BowserFire8BehaviorEv(void *self);                /* slot 6  */
+int _ZN10BowserFire6RenderEv(void);                        /* slot 9  */
+int *_ZN10BowserFireD1Ev(int *self);                       /* slot 16 */
+int *_ZN10BowserFireD0Ev(int *self);                       /* slot 17 */
+void *BowserFire_Spawn(void);
+
+/* BOWSER SKY PLATFORM (167) -- every own body is a func_ov060_* already in
+   slice_w5e.txt; only slot 6 is a host copy (Ov060_StateDispatch). */
+int func_ov060_021182b0(void *self);                       /* slot 0  */
+int func_ov060_021181e8(void *self);                       /* slot 3  */
+int func_ov060_02118254(void *self);                       /* slot 6  */
+int func_ov060_0211822c(void *self);                       /* slot 9  */
+int func_ov060_02117d1c(void *self);                       /* slot 16 */
+int func_ov060_02117d60(void *self);                       /* slot 17 */
+void *BowserSkyPlatform_Spawn(void);
+
 DSSTATE_BEGIN
 void *_ZTV18BowserFireSeaArena[32];
+void *_ZTV17BowserSkyPlatform[31];   /* SPIKE BOMB's table, 0x0211aa8c */
+void *_ZTV6Bowser[31];               /* 0x0211a6b8 */
+void *_ZTV10BowserTail[31];          /* 0x0211a634 */
+void *_ZTV10BowserFire[31];          /* 0x0211a7f4 */
+void *data_ov060_0211a9b0[32];       /* BOWSER SKY PLATFORM's, Kill @31 */
 DSSTATE_END
 }
 
@@ -122,6 +191,15 @@ DSSTATE_END
 
 /* The arena CLPS spelling onto the one-symbol ov046 mount (header note). */
 #pragma comment(linker, "/alternatename:_func_021115bc=_data_ov046_021115bc")
+
+/* run linkw wave 6 (lane w6-A): the RTTI spellings the four .c destructors
+   restore their tables by. Same table, sibling name -- the daKpa2Bg_c line
+   above, four more times. kirai = the naval mine = SPIKE BOMB (the label
+   shift; the daKirai_c name belongs to the table SpikeBomb_Spawn stores). */
+#pragma comment(linker, "/alternatename:__ZTV9daKirai_c=__ZTV17BowserSkyPlatform")
+#pragma comment(linker, "/alternatename:__ZTV7daKpa_c=__ZTV6Bowser")
+#pragma comment(linker, "/alternatename:__ZTV11daKpaTail_c=__ZTV10BowserTail")
+#pragma comment(linker, "/alternatename:__ZTV11daKpaFire_c=__ZTV10BowserFire")
 
 /* The ov066-window spellings of ov060's own bss cells (ov060_syms.txt's
    window note): same bytes, one storage, sibling names aliased on. */
@@ -310,6 +388,9 @@ static void ov60_bringup(void)
     port_ov060_syms_patch();
     port_ov046_pack_check();
     port_ov046_syms_patch();
+    /* BEFORE the sinits: all six state tables are bss the sinits fill from
+       .data source records holding DS code addresses. */
+    port_ov060_states_seat();
     __sinit_ov060_021195dc();
     __sinit_ov060_02119df0();
     __sinit_ov060_02119f94();
@@ -365,6 +446,270 @@ extern "C" void hal_fill_bowser_fire_sea_arena_vtable(void)
     vt[31] = (void *)ov60_kill;
 }
 
+// ============================================================================
+// SPIKE BOMB (id 284) -- table 0x0211aa8c, 31 slots        run linkw wave 6
+// ============================================================================
+//
+// THE LABEL SHIFT, re-confirmed on this tree rather than inherited: the table
+// dsd names _ZTV17BowserSkyPlatform / _ZTV9daKirai_c is the one SpikeBomb_Spawn
+// stores (src/SpikeBomb_Spawn.c, `p[0] = (int)_ZTV17BowserSkyPlatform`), and
+// its slot bodies carry the shifted _ZN17BowserSkyPlatform* spellings.
+// BowserSkyPlatform_Spawn stores the UNNAMED data_ov060_0211a9b0 instead.
+// The semantics settle it a fourth way: this class's InitResources ends in
+// AddSpikeBomb(this), which claims a slot in the eight-entry global
+// data_0209f3a4 -- and level 38 places exactly EIGHT id-284 objects.
+//
+// Own slots 0/3/6/9/16/17, no Platform tail (31 slots, the plain Actor shape;
+// this is an Actor build with a Model at +0xd4 and a
+// MovingCylinderClsnWithPos at +0x124, 432 bytes).
+//
+// EVERY BODY IS MATCHED SRC. Two things that would normally hold bodies out
+// do NOT apply here, both checked:
+//   - Behavior decodes its state record BY HAND (`struct {int a,b;}`, an
+//     8-byte read, then a cdecl call through the first word) instead of
+//     forming an MSVC pointer-to-member, so its stride is the ROM's. It only
+//     needs the four source records at 0x0211aa30/38/40/48 seated, which
+//     port_ov060_states_seat does.
+//   - Render's `((Sub *)&mModel)->m(0)` six-virtual local shadow lands on
+//     _ZTV5Model slot 5, and hal/cxxname_bridge.cpp DUAL-FILLS that table
+//     (slot 4 and slot 5 both Render) precisely for shadow-TU dispatch. This
+//     is not the ModelAnim collision -- ModelAnim cannot be dual-filled
+//     because Virtual18 already occupies its slot 5, and this class has no
+//     ModelAnim.
+static int __fastcall spikebomb_init(void *s, void *)
+{ return _ZN17BowserSkyPlatform13InitResourcesEv(s); }
+static int __fastcall spikebomb_clean(void *s, void *)
+{ return _ZN17BowserSkyPlatform16CleanupResourcesEv(); }
+static int __fastcall spikebomb_behavior(void *s, void *)
+{ return _ZN17BowserSkyPlatform8BehaviorEv(s); }
+static int __fastcall spikebomb_render(void *s, void *)
+{ port_actor_render_probe("SPIKE_BOMB", (char *)s + 0xd4);
+  return _ZN17BowserSkyPlatform6RenderEv(s); }
+/* slot 16, HOST THUNK: src/_ZN17BowserSkyPlatformD1Ev.cpp is a real MSVC
+   destructor over a shadow class, so MSVC emits ??1BowserSkyPlatform@@UAE@XZ
+   and auto-calls ??1Model@@QAE@XZ and two more that exist nowhere in this
+   build -- the BigBooIcon/HauntedChair case. The chain below is what its
+   matched D0 (.c, linked) spells minus the Deallocate. */
+static int __fastcall spikebomb_d1(void *s, void *)
+{
+    *(void **)s = (void *)_ZTV17BowserSkyPlatform;
+    _ZN25MovingCylinderClsnWithPosD1Ev((char *)s + 0x124);
+    _ZN5ModelD1Ev((char *)s + 0xd4);
+    _ZN5ActorD2Ev(s);
+    return (int)(size_t)s;
+}
+static int __fastcall spikebomb_d0(void *s, void *)
+{ return (int)(size_t)_ZN17BowserSkyPlatformD0Ev((int *)s); }
+extern "C" void hal_fill_spike_bomb_vtable(void)
+{
+    ov60_bringup();
+    void *volatile *vt = (void *volatile *)_ZTV17BowserSkyPlatform;
+    ov60_fill_shared(vt);
+    vt[0]  = (void *)spikebomb_init;
+    vt[3]  = (void *)spikebomb_clean;
+    vt[6]  = (void *)spikebomb_behavior;
+    vt[9]  = (void *)spikebomb_render;
+    vt[16] = (void *)spikebomb_d1;
+    vt[17] = (void *)spikebomb_d0;
+}
+
+// ============================================================================
+// BOWSER (279) + BOWSER TAIL (278) + BOWSER FIRE (280)     run linkw wave 6
+// ============================================================================
+//
+// THESE THREE LAND TOGETHER, and that is not a preference. Bowser's
+// InitResources ends with two Actor::Spawn calls and writes through BOTH
+// results without a null check (src/_ZN6Bowser13InitResourcesEv.c, verified on
+// this tree, not inherited from the wave-5 bank):
+//
+//     a1 = Actor::Spawn(0x118 = 280 BOWSER FIRE, ...);
+//     *(int *)(a1 + 0x2cc) = *(int *)(c + 4);            <- unchecked
+//     a2 = Actor::Spawn(0x116 = 278 BOWSER TAIL, ...);
+//     *(int *)(c + 0x3a8) = *(int *)(a2 + 4);            <- unchecked read
+//     *(int *)(a2 + 0x108) = *(int *)(c + 4);            <- unchecked
+//     func_02011d50(a2);
+//
+// The port's Actor::Spawn returns null for an unregistered class (that is what
+// the census counts as a skip), so a Bowser registered alone faults on his
+// first init frame at null+0x2cc. 279 without 280 and 278 is not a smaller
+// step, it is a crash.
+//
+// A THIRD CLASS IS REACHED THE SAME WAY, one level deeper, and this one was
+// NOT in the wave-5 bank: func_ov060_021135fc -- Bowser's defeat path, reached
+// from func_ov060_02112ee0 and func_ov060_021130c0 -- spawns 0x11a (282 KEY)
+// and writes `*(short *)(spawned + 0x440)` unchecked. KEY lives in ov089,
+// which the arena already loads through the selector row, and its registry row
+// is in hal/actor_classes_ov089.cpp: it has to be in the same landing as
+// Bowser or his defeat sequence faults the same way his init would.
+// (Its sibling spawn, 0x11b = 283 LAST_STAR, IS ignored; the other four
+// ov060-internal spawn sites -- func_ov060_02114858, 02115b0c, 02116b68,
+// 0211747c -- ignore their results too, and func_ov060_021172e0 null-checks
+// both of its. That is the whole sweep: nine Actor::Spawn sites in the pack,
+// four of them writing through the result, all four covered.)
+//
+// BOWSER 279, table 0x0211a6b8, 31 slots. Own 0/3/6/9/12/16/17 -- he is the
+// one class in this pack that overrides OnPendingDestroy (slot 12), so his
+// fill writes it AFTER ov60_fill_shared. His Behavior dispatches two of the
+// three tables the seat covers (0x0211aeb4 through func_ov060_02112434, then
+// 0x0211aed4 through func_ov060_021128c0, which aeb4[0] points at).
+// Slot 16 is a HOST THUNK -- src/_ZN6BowserD1Ev.cpp is a real MSVC destructor
+// over a shadow class (the BigBooIcon case); the chain is his matched D0's,
+// minus the Deallocate. Slot 9 is a HOST COPY, the ModelAnim slot-5 collision
+// (port/unmatched/Ov060_Renders.cpp).
+//
+// BOWSER TAIL 278, table 0x0211a634, 31 slots -- width 31, not the 33 the dsd
+// span reads: the two words past it are _ZTV6Bowser's {offset-to-top,
+// typeinfo} RTTI header (re-read from the image this wave, slot 31 raw zero,
+// slot 32 a pointer to data_ov060_0211a5cc which is _ZTV6Bowser's typeinfo).
+// Own 0/3/6/9/16/17; slot 16 is the same .cpp-destructor host thunk. Its
+// Behavior runs func_ov060_02115b84 (host copy) over the third seated table.
+//
+// BOWSER FIRE 280, table 0x0211a7f4, 31 slots, an EnemyC2 build. Own
+// 0/3/6/9/16/17, and BOTH of its own state-driven bodies are host copies:
+// InitResources forms its pointer-to-member over a complete empty `struct
+// Actor { }` (stride 4) and Behavior over a never-defined one (stride 16),
+// against the ROM's 8. Its D1/D0 are .c and link directly.
+static int __fastcall bowser_init(void *s, void *)
+{ return _ZN6Bowser13InitResourcesEv(s); }
+static int __fastcall bowser_clean(void *s, void *)
+{ return _ZN6Bowser16CleanupResourcesEv(); }
+static int __fastcall bowser_behavior(void *s, void *)
+{ return _ZN6Bowser8BehaviorEv(s); }
+static int __fastcall bowser_render(void *s, void *)
+{ port_actor_render_probe("BOWSER", (char *)s + 0xd4);
+  return _ZN6Bowser6RenderEv(s); }
+static int __fastcall bowser_pdes(void *s, void *)
+{ (void)s; _ZN6Bowser16OnPendingDestroyEv(); return 0; }
+static int __fastcall bowser_d1(void *s, void *)
+{
+    *(void **)s = (void *)_ZTV6Bowser;
+    _ZN25MovingCylinderClsnWithPosD1Ev((char *)s + 0x360);
+    _ZN11ShadowModelD1Ev((char *)s + 0x308);
+    _ZN12WithMeshClsnD1Ev((char *)s + 0x14c);
+    _ZN15TextureSequenceD1Ev((char *)s + 0x138);
+    _ZN9ModelAnimD1Ev((char *)s + 0xd4);
+    _ZN5ActorD2Ev(s);
+    return (int)(size_t)s;
+}
+static int __fastcall bowser_d0(void *s, void *)
+{ return (int)(size_t)_ZN6BowserD0Ev((int *)s); }
+extern "C" void hal_fill_bowser_vtable(void)
+{
+    ov60_bringup();
+    void *volatile *vt = (void *volatile *)_ZTV6Bowser;
+    ov60_fill_shared(vt);
+    vt[0]  = (void *)bowser_init;
+    vt[3]  = (void *)bowser_clean;
+    vt[6]  = (void *)bowser_behavior;
+    vt[9]  = (void *)bowser_render;
+    vt[12] = (void *)bowser_pdes;   /* after the shared fill, which writes 12 */
+    vt[16] = (void *)bowser_d1;
+    vt[17] = (void *)bowser_d0;
+}
+
+static int __fastcall btail_init(void *s, void *)
+{ return _ZN10BowserTail13InitResourcesEv(s); }
+static int __fastcall btail_clean(void *s, void *)
+{ return _ZN10BowserTail16CleanupResourcesEv(); }
+static int __fastcall btail_behavior(void *s, void *)
+{ return _ZN10BowserTail8BehaviorEv(s); }
+static int __fastcall btail_render(void *s, void *)
+{ (void)s; return _ZN10BowserTail6RenderEv(); }
+static int __fastcall btail_d1(void *s, void *)
+{
+    *(void **)s = (void *)_ZTV10BowserTail;
+    _ZN18MovingCylinderClsnD1Ev((char *)s + 0xd4);
+    _ZN5ActorD2Ev(s);
+    return (int)(size_t)s;
+}
+static int __fastcall btail_d0(void *s, void *)
+{ return (int)(size_t)_ZN10BowserTailD0Ev((int *)s); }
+extern "C" void hal_fill_bowser_tail_vtable(void)
+{
+    ov60_bringup();
+    void *volatile *vt = (void *volatile *)_ZTV10BowserTail;
+    ov60_fill_shared(vt);
+    vt[0]  = (void *)btail_init;
+    vt[3]  = (void *)btail_clean;
+    vt[6]  = (void *)btail_behavior;
+    vt[9]  = (void *)btail_render;
+    vt[16] = (void *)btail_d1;
+    vt[17] = (void *)btail_d0;
+}
+
+static int __fastcall bfire_init(void *s, void *)
+{ return _ZN10BowserFire13InitResourcesEv(s); }
+static int __fastcall bfire_clean(void *s, void *)
+{ return _ZN10BowserFire16CleanupResourcesEv(); }
+static int __fastcall bfire_behavior(void *s, void *)
+{ return _ZN10BowserFire8BehaviorEv(s); }
+static int __fastcall bfire_render(void *s, void *)
+{ (void)s; return _ZN10BowserFire6RenderEv(); }
+static int __fastcall bfire_d1(void *s, void *)
+{ return (int)(size_t)_ZN10BowserFireD1Ev((int *)s); }
+static int __fastcall bfire_d0(void *s, void *)
+{ return (int)(size_t)_ZN10BowserFireD0Ev((int *)s); }
+extern "C" void hal_fill_bowser_fire_vtable(void)
+{
+    ov60_bringup();
+    void *volatile *vt = (void *volatile *)_ZTV10BowserFire;
+    ov60_fill_shared(vt);
+    vt[0]  = (void *)bfire_init;
+    vt[3]  = (void *)bfire_clean;
+    vt[6]  = (void *)bfire_behavior;
+    vt[9]  = (void *)bfire_render;
+    vt[16] = (void *)bfire_d1;
+    vt[17] = (void *)bfire_d0;
+}
+
+// ============================================================================
+// BOWSER SKY PLATFORM (167) -- table data_ov060_0211a9b0, 32 slots
+// ============================================================================
+//
+// The other half of the label shift: the koopa3 arena's floor (daKpa3Bg_c),
+// whose table carries NO _ZTV name because dsd handed that name to the table
+// SpikeBomb actually uses. A Platform build (812 bytes, PlatformC2, Model at
+// +0xd4 like every Platform), so slot 31 is Platform::Kill and the width is
+// 32 -- both read off the reloc run.
+//
+// Every own body is already a linked func_ov060_* (slice_w5e.txt); only its
+// Spawn joins this lane's slice. Slot 6 is the host copy: it dispatches the
+// three-record bss table at 0x0211b1ac through a pointer-to-member whose
+// stride is 4, not 8. Slot 9's `((Base *)(self + 0xd4))->m(0)` six-virtual
+// shadow lands on _ZTV5Model slot 5, which cxxname_bridge dual-fills -- the
+// SpikeBomb reading, and Platform::Platform is what puts a plain Model there
+// (src/_ZN8PlatformC2Ev.c, `Model::Model(this + 0xd4)`).
+//
+// NOT PLACED IN LEVEL 38 -- this is level 40's floor (koopa3_boss). It
+// registers here because the seat, the mount and the cast map are all in hand
+// and the row costs one line; level 40's mount is a separate lane.
+static int __fastcall skyplat_init(void *s, void *)
+{ return func_ov060_021182b0(s); }
+static int __fastcall skyplat_clean(void *s, void *)
+{ return func_ov060_021181e8(s); }
+static int __fastcall skyplat_behavior(void *s, void *)
+{ return func_ov060_02118254(s); }
+static int __fastcall skyplat_render(void *s, void *)
+{ port_actor_render_probe("BOWSER_SKY_PLATFORM", (char *)s + 0xd4);
+  return func_ov060_0211822c(s); }
+static int __fastcall skyplat_d1(void *s, void *)
+{ return func_ov060_02117d1c(s); }
+static int __fastcall skyplat_d0(void *s, void *)
+{ return func_ov060_02117d60(s); }
+extern "C" void hal_fill_bowser_sky_platform_vtable(void)
+{
+    ov60_bringup();
+    void *volatile *vt = (void *volatile *)data_ov060_0211a9b0;
+    ov60_fill_shared(vt);
+    vt[0]  = (void *)skyplat_init;
+    vt[3]  = (void *)skyplat_clean;
+    vt[6]  = (void *)skyplat_behavior;
+    vt[9]  = (void *)skyplat_render;
+    vt[16] = (void *)skyplat_d1;
+    vt[17] = (void *)skyplat_d0;
+    vt[31] = (void *)ov60_kill;
+}
+
 // ---- method faces ----------------------------------------------------------
 // The three bodies src defines as real C++ methods against
 // BowserFireSeaArena.h (Init/Behavior/Render; the D1/D0 are .c and callable
@@ -378,4 +723,26 @@ int _ZN18BowserFireSeaArena8BehaviorEv(void *self)
 { return ((BowserFireSeaArena *)self)->BowserFireSeaArena::Behavior(); }
 int _ZN18BowserFireSeaArena6RenderEv(void *self)
 { return ((BowserFireSeaArena *)self)->BowserFireSeaArena::Render(); }
+}
+
+// run linkw wave 6 (lane w6-A): the same recipe for the five wave-6 bodies src
+// defines as real C++ methods. SPIKE BOMB's three are under the shifted
+// BowserSkyPlatform.h spellings -- the header is generated from the matched
+// functions' own evidence, so it is SPIKE BOMB's layout under that name.
+#include "BowserSkyPlatform.h"
+#include "Bowser.h"
+#include "BowserTail.h"
+extern "C" {
+int _ZN17BowserSkyPlatform13InitResourcesEv(void *self)
+{ return ((BowserSkyPlatform *)self)->BowserSkyPlatform::InitResources(); }
+int _ZN17BowserSkyPlatform8BehaviorEv(void *self)
+{ return ((BowserSkyPlatform *)self)->BowserSkyPlatform::Behavior(); }
+int _ZN17BowserSkyPlatform6RenderEv(void *self)
+{ return ((BowserSkyPlatform *)self)->BowserSkyPlatform::Render(); }
+int _ZN6Bowser8BehaviorEv(void *self)
+{ return ((Bowser *)self)->Bowser::Behavior(); }
+int _ZN10BowserTail13InitResourcesEv(void *self)
+{ return ((BowserTail *)self)->BowserTail::InitResources(); }
+int _ZN10BowserTail8BehaviorEv(void *self)
+{ return ((BowserTail *)self)->BowserTail::Behavior(); }
 }

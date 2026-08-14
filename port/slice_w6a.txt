@@ -1,0 +1,110 @@
+# slice_w6a.txt -- lane-owned slice for the linkage campaign (run linkw,
+# wave 6, lane w6-A: THE BOWSER FIGHT). One matched src TU per line, path
+# relative to the repo root, comments with #. ONE OWNER (lane w6-A).
+#
+# Wave 5 (lane w5-e) mounted ov060 per symbol and registered ONE class, the
+# arena floor (166). The other ~103 pack TUs were in the link and
+# /OPT:REF-stripped, because nothing reached them. This slice plus the
+# registry rows in hal/actor_classes_ov060.cpp are what reaches them.
+#
+# WHAT LANDS HERE, and why each body is where it is:
+#
+#  SPIKE BOMB (284, x8 placed in level 38) -- the whole class, under the
+#  SHIFTED _ZN17BowserSkyPlatform* spellings (port/ov060_syms.txt's label-shift
+#  note; SpikeBomb_Spawn stores the table dsd labelled _ZTV17BowserSkyPlatform,
+#  and the class registers itself in the eight-slot global data_0209f3a4 the
+#  level fills exactly eight of -- the shift's own confirmation).
+#  Its Behavior decodes its state record BY HAND into a two-int struct and
+#  calls a cdecl function pointer, so it is correct as matched src and stays
+#  here; only the words it calls need the seat.
+#  Its Render dispatches slot 5 through a six-virtual local shadow on a plain
+#  Model at +0xd4 -- NOT the ModelAnim slot-5 collision: hal/cxxname_bridge.cpp
+#  dual-fills _ZTV5Model slot 4 AND slot 5 with Render for exactly this case.
+#
+#  BOWSER (279) + BOWSER TAIL (278) + BOWSER FIRE (280) -- one landing, not
+#  three. Bowser::InitResources spawns 0x118 (280) and 0x116 (278) and writes
+#  through BOTH results with no null check (a1+0x2cc; a2+4 read, a2+0x108
+#  written, func_02011d50(a2)), so a Bowser registered without either child
+#  faults on his first init frame. Verified in src, not inherited.
+#
+#  BOWSER SKY PLATFORM (167, daKpa3Bg_c) -- the koopa3 arena's floor. Its
+#  vtable is the UNNAMED data_ov060_0211a9b0 (the other half of the label
+#  shift) and all six own bodies are func_ov060_* already in slice_w5e.txt;
+#  only its Spawn joins here.
+#
+# HELD OUT (host copies in port/unmatched/Ov060_StateDispatch.cpp, banner
+# there carries the measured pointer-to-member sizes):
+#   func_ov060_02112434, func_ov060_02115b84, func_ov060_02118254
+#     (commented out of slice_w5e.txt in this lane's first commit)
+#   _ZN10BowserFire13InitResourcesEv, _ZN10BowserFire8BehaviorEv
+#     (never in a slice)
+# HELD OUT (ModelAnim slot-5 collision, host copy in
+# port/unmatched/Ov060_Renders.cpp):
+#   _ZN6Bowser6RenderEv
+
+# ---- the ov089 registry/fill/face host file (ov060's is in slice_w5e.txt) --
+port/hal/actor_classes_ov089.cpp
+
+# ---- the state seat + the five pointer-to-member host copies --------------
+port/unmatched/Ov060_StateDispatch.cpp
+# ---- the two ModelAnim slot-5 Renders --------------------------------------
+port/unmatched/Ov060_Renders.cpp
+port/unmatched/Ov089_Renders.cpp
+
+# ---- SPIKE BOMB (284) -- the shifted spellings ----------------------------
+# D1 is HELD OUT: src/_ZN17BowserSkyPlatformD1Ev.cpp is a real MSVC destructor
+# over a shadow class, so it emits ??1BowserSkyPlatform@@UAE@XZ and auto-calls
+# member destructors that exist nowhere in this build -- the BigBooIcon case.
+# Host thunk (its matched D0's chain minus the Deallocate) in
+# hal/actor_classes_ov060.cpp.
+src/SpikeBomb_Spawn.c
+src/_ZN17BowserSkyPlatform13InitResourcesEv.cpp
+src/_ZN17BowserSkyPlatform8BehaviorEv.cpp
+src/_ZN17BowserSkyPlatform6RenderEv.cpp
+src/_ZN17BowserSkyPlatform16CleanupResourcesEv.c
+src/_ZN17BowserSkyPlatformD0Ev.c
+
+# ---- BOWSER (279) ----------------------------------------------------------
+# D1 held out for the same reason as SpikeBomb's; Render held out as the
+# ModelAnim slot-5 collision (Ov060_Renders.cpp).
+src/Bowser_Spawn.c
+src/_ZN6Bowser13InitResourcesEv.c
+src/_ZN6Bowser16CleanupResourcesEv.c
+src/_ZN6Bowser8BehaviorEv.cpp
+src/_ZN6Bowser16OnPendingDestroyEv.c
+src/_ZN6BowserD0Ev.c
+
+# ---- BOWSER TAIL (278) -- Bowser's init spawns it unchecked ----------------
+# D1 held out (real MSVC destructor), the same host thunk shape.
+src/BowserTail_Spawn.c
+src/_ZN10BowserTail13InitResourcesEv.cpp
+src/_ZN10BowserTail16CleanupResourcesEv.c
+src/_ZN10BowserTail8BehaviorEv.cpp
+src/_ZN10BowserTail6RenderEv.c
+src/_ZN10BowserTailD0Ev.c
+
+# ---- BOWSER FIRE (280) -- Bowser's init spawns it unchecked ----------------
+# InitResources and Behavior are host copies (pointer-to-member stride 4 and
+# 16 against the ROM's 8); both D-bodies are .c and link.
+src/BowserFire_Spawn.c
+src/_ZN10BowserFire16CleanupResourcesEv.c
+src/_ZN10BowserFire6RenderEv.c
+src/_ZN10BowserFireD1Ev.c
+src/_ZN10BowserFireD0Ev.c
+
+# ---- BOWSER SKY PLATFORM (167) -- level 40's floor, all bodies already wired
+src/BowserSkyPlatform_Spawn.c
+
+# ---- KEY (282) + LAST_STAR (283), ov089 -- the boss reward ------------------
+# Bowser's defeat path (func_ov060_021135fc) spawns 282 and writes through the
+# result unchecked. One vtable serves both ids. Render is the ModelAnim slot-5
+# collision (Ov089_Renders.cpp).
+src/Key_Spawn.c
+src/LastStar_Spawn.c
+src/_ZN3Key13InitResourcesEv.cpp
+src/_ZN3Key16CleanupResourcesEv.cpp
+src/_ZN3Key8BehaviorEv.cpp
+src/_ZN3KeyD1Ev.c
+src/_ZN3KeyD0Ev.c
+src/func_ov089_02131f4c.c
+src/func_ov089_02131f04.cpp
