@@ -19,7 +19,12 @@
 # (0x021374fc), _ZTV13UpDownLiftBbh (0x02137628) and _ZTV12Flamethrower
 # (0x021376f0) each carry the vtable signature (the +4 word relocates to
 # Actor::BeforeInitResources, arm9 0x02011268) and are HOST arrays the registry
-# fills. Only SeesawBob's is filled today (hal/actor_classes_bob_world.cpp).
+# fills. All three are filled now, one file each:
+# hal/actor_classes_bob_world.cpp (SeesawBob, gate 83),
+# hal/actor_classes_updownlift.cpp (the UpDownLift trio, gate 173 + w5-A) and
+# hal/actor_classes_flamethrower.cpp (Flamethrower, run linkw wave 6 lane
+# w6-f). The line this replaced said only SeesawBob's was filled, which went
+# stale at gate 173.
 #
 # The two sinits (__sinit_ov095_02136fe0 and _0213722c, run from
 # hal/actor_overlays.cpp) construct the SharedFilePtrs the file tables point at;

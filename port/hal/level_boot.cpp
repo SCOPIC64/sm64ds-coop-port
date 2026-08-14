@@ -425,8 +425,13 @@ extern const unsigned port_ov020_ds_base, port_ov020_ds_end;
        (72, x4), BOWSER_PUZZLE_PIECE (78, x14), BOWSER_PUZZLE_MANAGER (79, x1),
        ROTATING_FIREBAR (81, x1), LAVA_BUBBLE (214, x7), BULLY (215, x5),
        BIG_BULLY (216, x2); ov071 holds MR_I (262, x2); ov080 holds CRAZED_CRATE
-       (193, x1); ov095 holds FLAMETHROWER (318, x5). Several also reach ov002
-       and carry G0/G1, so the mount is only the first part.
+       (193, x1). Several also reach ov002 and carry G0/G1, so the mount is only
+       the first part.
+       (run linkw wave 6, lane w6-f: FLAMETHROWER (318, x5 here) was in this
+       list and no longer belongs in it -- ov095 has been mounted per symbol
+       since gate 83, so the class was never overlay-blocked; what blocked it
+       was the undecompiled Behavior, and that is now a host copy. Hosted, and
+       level 14's census reads 180/29 where it read 175/34.)
 
      - ARM9/ov000-adjacent, partially decompiled: POPPING_LAVA_BUBBLES (196, x1)
        -- only Init/Behavior/D0 are decompiled and its spawnFunc is in ov000, a
@@ -450,7 +455,13 @@ extern const unsigned port_ov022_ds_base, port_ov022_ds_end;
    drift by 232). SUBLEVEL_LEVEL_TABLE[15] = 6. Mounted --whole; own_sinits 0.
    Its six-class skipped cast (Squasher, PoppingLavaBubbles, Flamethrower,
    LavaBubble, Bully, PathLift) is documented in the port-w9-lvl15 commit; all
-   blocked on undecompiled bodies or an unmounted ov064, none a free share. */
+   blocked on undecompiled bodies or an unmounted ov064, none a free share.
+   Most of the six have landed since, the last of them FLAMETHROWER (318, x3
+   here) in run linkw wave 6, lane w6-f: the undecompiled body that blocked it
+   was its Behavior, and that is now the host copy
+   port/unmatched/Flamethrower_Behavior.c. Measured on that lane, level 15's
+   census goes 50 spawned / 6 skipped -> 53 / 3, and the whole remaining skip
+   list is ids 31 (x2) and 84 (x1). */
 void port_ov023_patch(void);
 void *port_ov023_at(unsigned ds);
 extern unsigned char port_ov023_image[];
@@ -470,11 +481,21 @@ extern const unsigned port_ov023_ds_base, port_ov023_ds_end;
    RED_FLAME (316, ov002, sharing BLUE_FLAME 317's fresh fill) x17 -- census
    158 spawned / 30 classes, 29 skipped / 11 classes, from 133/26 and 54/15.
    The rest of the skip list is mount-gated (ov065/ov071, the ov060 window)
-   or individually blocked (PAINTING, PATH_LIFT, FLAMETHROWER). Corrections
-   to that commit's reading, re-derived while hosting:
+   or individually blocked (PAINTING, PATH_LIFT). Corrections to that commit's
+   reading, re-derived while hosting:
      - FLAMETHROWER (318, ov095) was misfiled as a fill+row+closure candidate;
        its Behavior (0x021368f0, 0x470 bytes) is NOT decompiled, so it is
        blocked on the class body like level 14's lava cast, not on a fill.
+       RETIRED by run linkw wave 6, lane w6-f. The reading above is still the
+       right one -- the Behavior is genuinely undecompiled and no matched TU of
+       that name exists -- but "blocked" is no longer the outcome: the method is
+       hosted as a per-instruction transcription of the ROM listing
+       (port/unmatched/Flamethrower_Behavior.c), the other four methods are
+       matched src in slice_w6f.txt, and the fill is
+       hal/actor_classes_flamethrower.cpp. FLAMETHROWER is registered and
+       spawns on all four levels that place it (13 x3, 14 x5, 15 x3, 37 x3);
+       level 13's census went 183/5 -> 186/2 on the lane's own builds. The
+       skip list here is now ids 31 (x1) and 262 (x1).
      - UP_DOWN_LIFT_HMC (33) is real but not free: _ZTV13UpDownLiftBbh
        (0x02137628, 32-slot Platform shape) has NO host fill yet -- SEESAW_BOB's
        gate-83 fill is the DIFFERENT _ZTV9SeesawBob -- and UpDownLiftBbh's
