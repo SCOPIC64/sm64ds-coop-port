@@ -461,6 +461,7 @@ extern "C" void func_ov060_021140c0(char *r4)
             _ZN5Actor13SpawnFireballERK7Vector3PK10Vector3_165Fix12IiES7_j(
                 r4, &pos, &rot, 0x1e000, 0xa000, 0);
             func_02012694(0x122, r4 + 0x74);
+            ov60_ran("BOWSER state 9 SPIT (SpawnFireball branch)", r4);
         }
     }
 
@@ -553,6 +554,7 @@ extern "C" void func_ov060_02116d78(char *r4)
     /* 0x02116ecc..0x02116f2c -- on touching the floor, sixteen times out of
        seventeen leave a 0x118 behind, then die */
     if (_ZNK12WithMeshClsn10IsOnGroundEv(r4 + 0x110) != 0) {
+        ov60_ran("BOWSERFIRE state 5 GROUND (Spawn+destroy branch)", r4);
         if (((unsigned)RandomIntInternal(&data_0209e650) >> 0x10) % 17 != 0)
             _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(
                 0x118, 6, r4 + 0x5c, 0, *(signed char *)(r4 + 0xcc), -1);
