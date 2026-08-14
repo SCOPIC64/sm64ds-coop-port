@@ -23,9 +23,10 @@ copied first, the build stops here with the fix spelled out.
 
 The build compiles a TU one of two ways, and this guard covers both:
 
-  (a) slice gate active: an uncommented src/ line in a port/slice_gate*.txt
-      file. The gate foreach in CMakeLists.txt turns each such line into a
-      SLICE<N>_SOURCES entry.
+  (a) slice gate active: any uncommented .c/.cpp line in a port/slice_*.txt
+      file, wherever it points. The gate foreach in CMakeLists.txt turns each
+      such line into a SLICE<N>_SOURCES entry, and it does that for a
+      port/unmatched or port/hal line exactly as readily as for a src/ one.
 
   (b) direct CMake source append: a literal .c or .cpp path fed straight to a
       source list in port/CMakeLists.txt, through list(APPEND ..._SOURCES),
@@ -140,7 +141,20 @@ def gate_active_files(port_dir, repo_dir, ordered, seen):
                 if not line or line.startswith("#"):
                     continue
                 rel = line.replace("\\", "/")
-                if not rel.startswith("src/"):
+                # NO PATH FILTER. This used to keep only `src/` lines, and
+                # that was the hole w5-A named: a slice line enrolls a HOST
+                # file just as readily as a matched one -- slice_gate10.txt
+                # carried port/unmatched/Player_InitResources.cpp for most of
+                # this campaign -- and CMake turns both into the same
+                # SLICE<N>_SOURCES entry. A raw zero-argument reader in a
+                # slice-enrolled port/unmatched or port/hal file was invisible
+                # to path (a) because of the filter, and invisible to path (b)
+                # too, because (b) reads LITERAL paths out of CMakeLists.txt
+                # and a slice-enrolled file's path appears only in the .txt.
+                # The one shape that evaded both is the one a future host
+                # author is most likely to produce: a host copy that is
+                # enrolled by slice line and still carries the raw call.
+                if not rel.endswith((".c", ".cpp")):
                     continue
                 _add(ordered, seen, repo_dir, os.path.join(repo_dir, rel))
 
