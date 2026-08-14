@@ -1,5 +1,6 @@
-// RUN LINKW WAVE 5 (lane w5-e): THE BOWSER FIGHT ARENA'S FLOOR -- ov060,
-// level 38 (koopa2_boss), one class hosted, six measured and banked.
+// THE BOWSER FIGHT -- ov060, level 38 (koopa2_boss). Wave 5 (lane w5-e)
+// mounted the overlay and hosted the arena FLOOR; wave 6 (lane w6-A) hosts the
+// other five classes and level 38 reaches ZERO SKIPS.
 //
 // ov060 is the pack all three koopaN_boss arenas load (LoadOrUnloadObject-
 // Overlays short-circuits idx 0x24/0x26/0x28 to ov060 with an early return --
@@ -11,21 +12,27 @@
 // its 106 func_ov060_* TUs and six sinits (port/slice_w5e.txt), and hosts
 // BOWSER_FIRE_SEA_ARENA (166, daKpa2Bg_c) -- the tilting platform that IS
 // the arena's walkable floor. With it skipped, the level-38 census boots
-// honest but Mario has nothing to stand on except the lava.
+// honest but Mario has nothing to stand on except the lava. Wave 6 adds
+// SPIKE_BOMB (284, x8 placed), BOWSER (279), BOWSER_TAIL (278), BOWSER_FIRE
+// (280) and BOWSER_SKY_PLATFORM (167) in port/slice_w6a.txt, and ov089's
+// KEY/LAST_STAR in hal/actor_classes_ov089.cpp.
 //
-// WHY ONLY ONE CLASS THIS WAVE, measured not guessed:
-//   - Bowser (279) dispatches two 8-byte state-pair tables (0x0211a4e0..,
-//     0x0211a734..) whose words are ov060 CODE addresses the mount keeps raw;
-//     hosting him is the MrBlizzard/Crate StateDispatch shape, and his init
-//     spawns BowserTail (278) -- registering one without the other risks the
-//     ov091 null-child fault. BowserFire (280) and Shockwaves (281) are his
-//     fight-time spawns; SpikeBomb (284) is placed x8 but its Behavior is
-//     part of the same fight choreography. BowserSkyPlatform (167,
-//     daKpa3Bg_c) dispatches the bss Entry triple __sinit_ov060_0211a000
-//     copies from the raw code-pair words at 0x0211a930/38/40 (reloc reader
-//     0x021182ac, measured). All six need seats this lane does not build;
-//     their cast map, widths and factory shapes are banked in
-//     port/ov060_syms.txt for wave 6.
+// WHAT WAVE 6 ADDED, and what the wave-5 bank got wrong:
+//   - The bank recorded "Bowser's two state-pair tables, 0x0211a4e0.. and
+//     0x0211a734..".  Re-derived from the READERS, there are SIX tables and
+//     neither of those attributions holds: 0x0211a734 is BOWSER FIRE's (both
+//     of its halves), 0x0211a4e0 is the four-halfword message-id table
+//     func_ov060_02115518 indexes and Bowser's own records start at
+//     0x0211a4e8, and SPIKE BOMB has a sixth table at 0x0211b1d8 that was not
+//     in the bank at all.  The full map, all 50 seated records and the
+//     measured pointer-to-member sizes are in
+//     port/unmatched/Ov060_StateDispatch.cpp.
+//   - Bowser's init spawns 278 AND 280 and writes through both results with
+//     no null check, and his defeat path spawns 282 (ov089's KEY) and writes
+//     through that one too -- so 279/278/280/282 register in ONE landing.
+//     Bowser Shockwaves (281) is the one class still out: its two Actor::Spawn
+//     sites ignore their results (checked), and its Render is the ModelAnim
+//     slot-5 collision on TWO ModelAnims.
 //   - The arena class's closure was reloc-walked body by body: two
 //     func_ov060 helpers (02117a64/02117ae0, in the slice), the already-
 //     seated BeforeClsn installer func_020393d4 (the c9a1731da family), its
