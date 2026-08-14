@@ -1237,9 +1237,13 @@ list(APPEND PORT_ACTOR_OVERLAYS ov045)
 # selector row loads BEFORE LoadOrUnloadObjectOverlays' idx-0x24/0x26/0x28
 # early return: KEY 282 / LAST_STAR 283, the boss-reward spawns). First
 # mount, per symbol; the full seven-class cast map, the one dsd label shift
-# and the width pins are in port/ov060_syms.txt. One class registers this
-# wave (BOWSER_FIRE_SEA_ARENA 166, level 38's floor); the pack's 105 TUs and
-# six sinits ride port/slice_w5e.txt. See hal/actor_classes_ov060.cpp.
+# and the width pins are in port/ov060_syms.txt. Wave 5 registered ONE
+# class (BOWSER_FIRE_SEA_ARENA 166, level 38's floor) and left the pack's 105
+# TUs and six sinits in the link but /OPT:REF-stripped; wave 6 (lane w6-A)
+# added the other five rows -- SpikeBomb 284, Bowser 279, BowserTail 278,
+# BowserFire 280, BowserSkyPlatform 167 -- plus the seat of the six state
+# tables they dispatch. port/slice_w5e.txt + port/slice_w6a.txt. See
+# hal/actor_classes_ov060.cpp.
 list(APPEND PORT_ACTOR_OVERLAYS ov060)
 # w5-e: ov046 (level 38's own overlay, whole-mounted this same lane) joins
 # the per-symbol mounts with ONE symbol -- the arena platform's private CLPS
@@ -1558,6 +1562,20 @@ foreach(line IN LISTS SLICE_W5E_LINES)
         continue()
     endif()
     list(APPEND SLICE_W5E_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+# run linkw wave 6, lane w6-A: THE FIGHT -- the five remaining ov060 classes
+# (SpikeBomb 284, Bowser 279, BowserTail 278, BowserFire 280, BowserSkyPlatform
+# 167) and ov089's boss reward (Key 282, LastStar 283). Same one-owner
+# contract; the coupling between 279/278/280/282 is measured, see that file's
+# header and hal/actor_classes.inc's wave-6 row block.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w6a.txt" SLICE_W6A_LINES)
+set(SLICE_W6A_SOURCES "")
+foreach(line IN LISTS SLICE_W6A_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W6A_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 # run linkw wave 5, lane w5-B (Hazy Maze Cave's cast); same reader shape,
 # one owner.
@@ -3007,6 +3025,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
+    ${SLICE_W6A_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
@@ -3081,6 +3100,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
+    ${SLICE_W6A_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
@@ -3186,6 +3206,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE18_SOURCES} ${SLICE19_SOURCES} ${SLICE20_SOURCES}
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
+    ${SLICE_W6A_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}

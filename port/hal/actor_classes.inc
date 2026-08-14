@@ -770,6 +770,36 @@ void hal_fill_tilting_platform_bfs_vtable(void);     /* fills _ZTV16FloatingFloo
 extern unsigned char BowserFireSeaArena_SpawnInfo[]; /* ov060 0x0211a88c, +4 reads 166 */
 void *BowserFireSeaArena_Spawn(void);                /* ov060 0x02117cdc */
 void hal_fill_bowser_fire_sea_arena_vtable(void);    /* fills _ZTV18BowserFireSeaArena, 32 */
+/* ---- run linkw wave 6 (lane w6-A): THE FIGHT ITSELF ----
+   The other five ov060 classes wave 5 measured and banked, plus ov089's two.
+   Every one of the seven factories stores its table by a REAL name, so all
+   seven register directly -- no VT1 wrappers anywhere in this cast.
+   THE COUPLING IS MEASURED, NOT STYLISTIC: Bowser::InitResources spawns
+   0x118 (280) and 0x116 (278) and writes through both results with no null
+   check, and his defeat path (func_ov060_021135fc) spawns 0x11a (282) and
+   writes through that one too. 279 alone, or 279+278+280 without 282, is a
+   null-pointer store, not a smaller step. The state tables all seven read are
+   seated in port/unmatched/Ov060_StateDispatch.cpp. */
+extern unsigned char SpikeBomb_SpawnInfo[];          /* ov060 0x0211aa68, +4 reads 284 */
+void *SpikeBomb_Spawn(void);                         /* ov060 0x02118cbc */
+extern unsigned char Bowser_SpawnInfo[];             /* ov060 0x0211a5f4, +4 reads 279 */
+void *Bowser_Spawn(void);                            /* ov060 0x02116428 */
+extern unsigned char BowserTail_SpawnInfo[];         /* ov060 0x0211a610, +4 reads 278 */
+void *BowserTail_Spawn(void);                        /* ov060 0x021163f0 */
+extern unsigned char BowserFire_SpawnInfo[];         /* ov060 0x0211a7d0, +4 reads 280 */
+void *BowserFire_Spawn(void);                        /* ov060 0x02117938 */
+extern unsigned char BowserSkyPlatform_SpawnInfo[];  /* ov060 0x0211a964, +4 reads 167 */
+void *BowserSkyPlatform_Spawn(void);                 /* ov060 0x02118408 */
+extern unsigned char Key_SpawnInfo[];                /* ov089 0x02132b68, +4 reads 282 */
+void *Key_Spawn(void);                               /* ov089 0x02132828 */
+extern unsigned char LastStar_SpawnInfo[];           /* ov089 0x02132b84, +4 reads 283 */
+void *LastStar_Spawn(void);                          /* ov089 0x021327d0 */
+void hal_fill_spike_bomb_vtable(void);          /* fills _ZTV17BowserSkyPlatform, 31 */
+void hal_fill_bowser_vtable(void);              /* fills _ZTV6Bowser, 31 */
+void hal_fill_bowser_tail_vtable(void);         /* fills _ZTV10BowserTail, 31 */
+void hal_fill_bowser_fire_vtable(void);         /* fills _ZTV10BowserFire, 31 */
+void hal_fill_bowser_sky_platform_vtable(void); /* fills data_ov060_0211a9b0, 32 */
+void hal_fill_key_vtable(void);                 /* fills _ZTV3Key, 31 (both ids) */
 /* ---- run linkw wave 5 (lane w5-c): ov070's enemy pack + the two engine-side
    census finds for level 37. SpawnInfo records from the fresh per-symbol
    ov070 mount (port/ov070_syms.txt; ids re-read from the raw overlay image,
@@ -1265,6 +1295,25 @@ void hal_fill_path_lift_vtable(void);            /* fills data_ov100_0214857c, 3
        hal/actor_classes_ov060.cpp ---- */ \
     {166, "BOWSER_FIRE_SEA_ARENA", BowserFireSeaArena_SpawnInfo, \
      BowserFireSeaArena_Spawn, hal_fill_bowser_fire_sea_arena_vtable}, \
+    /* ---- run linkw wave 6 (lane w6-A): the rest of the Bowser fight.
+       284 is the level's eight placed mines; 279 is the boss and 278/280 are
+       the two children his init spawns with unchecked writes through the
+       results; 167 is level 40's floor (not placed in 38); 282/283 are
+       ov089's boss reward, which the arena already has resident through the
+       selector row, and 282 is spawned-and-written-through on the defeat
+       path. LAST_STAR rides KEY's fill -- ov089 defines one vtable and both
+       factories store it (the BLUE_FLAME/RED_FLAME shape). ---- */ \
+    {284, "SPIKE_BOMB", SpikeBomb_SpawnInfo, SpikeBomb_Spawn, \
+     hal_fill_spike_bomb_vtable}, \
+    {279, "BOWSER", Bowser_SpawnInfo, Bowser_Spawn, hal_fill_bowser_vtable}, \
+    {278, "BOWSER_TAIL", BowserTail_SpawnInfo, BowserTail_Spawn, \
+     hal_fill_bowser_tail_vtable}, \
+    {280, "BOWSER_FIRE", BowserFire_SpawnInfo, BowserFire_Spawn, \
+     hal_fill_bowser_fire_vtable}, \
+    {167, "BOWSER_SKY_PLATFORM", BowserSkyPlatform_SpawnInfo, \
+     BowserSkyPlatform_Spawn, hal_fill_bowser_sky_platform_vtable}, \
+    {282, "KEY", Key_SpawnInfo, Key_Spawn, hal_fill_key_vtable}, \
+    {283, "LAST_STAR", LastStar_SpawnInfo, LastStar_Spawn, 0}, \
     /* ---- run linkw wave 5 (lane w5-c): the rest of level 37's roaming cast.
        FLAME_CHOMP_FIRE is not level-placed; the chomp spawns it live. ---- */ \
     {266, "AMP", Amp_SpawnInfo, Amp_Spawn, hal_fill_amp_vtable}, \

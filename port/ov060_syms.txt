@@ -54,17 +54,40 @@
 # MSVC-decorated C++ spellings the probe surfaced) onto this one storage.
 # ov066 itself is NOT wired (reach zero, parked; census p11 evidence banked).
 #
-# ==== DATA->CODE WORDS, mounted raw ON PURPOSE ==============================
-# The pair tables at 0x0211a4e0..0x0211a5c0 and 0x0211a734..0x0211a7c0
-# (Bowser's state machines) and the three callback pairs at 0x0211a930/38/40
-# (copied into bss 0x0211b1ac by __sinit_ov060_0211a000, dispatched ONLY by
-# BowserSkyPlatform's Behavior -- measured, reloc reader 0x021182ac) hold
-# ov060 CODE addresses the pointer pass cannot rebase. They stay raw: no
-# class registered by this lane reads them (BowserFireSeaArena's whole
-# closure was reloc-walked: two func_ov060 helpers, the seated BeforeClsn
-# installer func_020393d4, its two SharedFilePtrs, and ONE ov046 CLPS --
-# nothing touches these tables). Hosting Bowser/SkyPlatform means seating
-# these (the MrBlizzard/Crate StateDispatch shape) -- wave 6's work, banked.
+# ==== DATA->CODE WORDS -- SEATED IN WAVE 6 =================================
+# These runs hold ov060 CODE addresses the pointer pass cannot rebase. Wave 5
+# mounted them raw because the one class it registered never reads them
+# (BowserFireSeaArena's whole closure was reloc-walked: two func_ov060
+# helpers, the seated BeforeClsn installer func_020393d4, its two
+# SharedFilePtrs, and ONE ov046 CLPS -- nothing touches these tables).
+#
+# Wave 6 (lane w6-A) registered the other five classes and seated all of them,
+# and in doing so CORRECTED this section. There are SIX tables, not two, and
+# the wave-5 attributions were wrong on both counts:
+#
+#   0x0211a4e0        NOT a dispatch table. Four halfwords of MESSAGE IDS,
+#                     indexed by the actor's +0x414 variant byte in
+#                     func_ov060_02115518. No reloc lands on it.
+#   0x0211a4e8..a5b8  BOWSER's twenty records -> bss 0x0211aed4, read by
+#                     func_ov060_021128c0 (idx +0x40c).
+#   0x0211a510..a578  BOWSER's four -> bss 0x0211aeb4, read by
+#                     func_ov060_02112434 (idx +0x410). Interleaved with the
+#                     twenty above in the image; the sinit's copy order is the
+#                     only thing that separates them.
+#   0x0211a548..a558  BOWSER TAIL's three -> bss 0x0211ae9c, read by
+#                     func_ov060_02115b84 (idx +0x110).
+#   0x0211a734..a7ac  BOWSER FIRE's sixteen -> bss 0x0211af74 (init, eight)
+#                     and 0x0211afb4 (behaviour, eight). NOT Bowser's.
+#   0x0211aa30..aa48  SPIKE BOMB's four -> bss 0x0211b1d8, read by its own
+#                     Behavior. Not in the wave-5 bank at all.
+#   0x0211a930/38/40  SKY PLATFORM's three -> bss 0x0211b1ac, read by
+#                     func_ov060_02118254 (idx +0x328).
+#
+# All 50 records read adj == 0. port/unmatched/Ov060_StateDispatch.cpp seats
+# every one over the SOURCE static before the sinits copy it (the Crate
+# ordering), checking each against the ROM address first. Two of the fifty
+# (func_ov060_021140c0, func_ov060_02116d78) are undecompiled and carry
+# abort-and-name stubs.
 #
 # ==== ONE SIZE OVERRIDE =====================================================
 # data_ov060_0211b228 is the last symbol; the next-symbol delta floors at 4.

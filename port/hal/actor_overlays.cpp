@@ -94,6 +94,7 @@ void port_water_bomb_states_seat(void);
    __sinit_ov098_0213c058 copies into data_ov098_0213c878, seated over the
    SOURCE side before the copy -- port/unmatched/Crate_StateDispatch.cpp */
 void port_crate_states_seat(void);
+void port_ov089_states_seat(void);  /* run linkw wave 6, lane w6-A */
 
 /* ov089: NO CLASS OF ITS OWN IS REGISTERED. The castle grounds' front-door
    pair asks LoadKeyModels for a key model, and that walks two arrays of
@@ -975,6 +976,10 @@ extern "C" void port_actor_overlays_sinits(void)
     port_ov089_pack_check();
     port_ov089_syms_patch();
     port_ov089_keymodels_fixup();
+    /* run linkw wave 6 (lane w6-A): BEFORE the sinit copies the eight
+       {code, adj} records into data_ov089_02132cec -- KEY/LAST_STAR's state
+       machine. port/unmatched/Ov089_StateDispatch.cpp. */
+    port_ov089_states_seat();
     __sinit_ov089_021328d4();
 
     port_ov100_pack_check();
