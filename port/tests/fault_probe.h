@@ -104,13 +104,37 @@ static LONG WINAPI port_fault_probe(EXCEPTION_POINTERS *ep)
    stdio -- so the next silent death still names an address. The DS game ships
    its own crash screen (ShowCrashScreen); this is the host's.
 
-   Installed twice: a FIRST-chance vectored handler on the codes that are fatal
-   in this codebase (nothing here handles an AV), so the file is written even
-   when the unhandled-filter never runs (exhausted stack, CRT death); and from
-   the unhandled filter for everything that does reach it. CREATE_ALWAYS: the
-   file describes the LAST crash. Offsets resolve against the /MAP file the
-   build already writes (build/port/walk_window.map): section offset =
-   printed offset - 0x1000 for .text symbols.
+   Installed twice: a FIRST-chance vectored handler, and the unhandled filter.
+   CREATE_ALWAYS: the file describes the LAST crash. Offsets resolve against the
+   /MAP file the build already writes (build/port/walk_window.map): section
+   offset = printed offset - 0x1000 for .text symbols.
+
+   THE VECTORED HANDLER IS DELIBERATELY NARROW, and it was not always. It was
+   written on the assumption that "nothing here handles an AV", which was true
+   the day it landed (714f22216) and stopped being true in 825e06083, the commit
+   that added the per-actor quarantine: port_dispatch_guarded wraps every actor
+   tick in a __try/__except that CATCHES an access violation, freezes the actor
+   and lets the frame continue. A vectored handler runs FIRST-chance, before any
+   __except filter, so every quarantined actor fault -- a fault the player
+   survives and never sees -- reached port_crash_write_file and spent its
+   one-shot `once` latch. From that moment the process could no longer report
+   anything: the crash that actually killed the run later in the session wrote
+   no crash.txt and no rolling dump, because the latch was already claimed by a
+   fault that had been handled. The player's evidence was a dump of the wrong
+   fault, or nothing at all, and it failed SILENTLY.
+
+   So the vectored handler now claims the latch only for the two codes where the
+   unhandled filter genuinely cannot be relied on to run:
+     - 0xC00000FD stack overflow, where the filter may never get a stack
+     - 0xC0000409 stack-buffer-overrun, raised via __fastfail/int 29h, which
+       bypasses the unhandled filter entirely
+   Neither is something the quarantine's __except is in a position to swallow
+   and keep playing through. Every other fatal code is left to the unhandled
+   filter, which by construction runs only for an exception that NOTHING
+   handled -- which is the precise definition of the crash worth reporting.
+   A quarantined fault is not a crash and must not be filed as one; it already
+   files its own rolling dump, tagged "quarantine", from the quarantine filter
+   itself (port/unmatched/func_02043fdc.cpp).
 
    STATUS_STACK_BUFFER_OVERRUN (0xC0000409 via __fastfail/int 29h) never raises
    a catchable exception on modern CPUs; if crash.txt stays absent across a
@@ -616,14 +640,21 @@ static void port_crash_write_file(EXCEPTION_POINTERS *ep)
 
 static LONG WINAPI port_crash_veh(EXCEPTION_POINTERS *ep)
 {
+    /* ONLY the codes the unhandled filter cannot be trusted to see. Anything a
+       __except downstream might catch and continue through must NOT reach the
+       writer from here: it would spend the one-shot latch on a fault the player
+       survived and silently disable the report for the crash that follows. See
+       the block comment above crash.txt for the full account.
+
+       The codes below are not survivable-and-continued by the quarantine, and
+       both can skip the unhandled filter, so first-chance is the only place
+       they can be caught at all. Everything else -- access violation, in-page
+       error, illegal instruction, divide by zero, privileged instruction --
+       reaches port_fault_probe_with_file when, and only when, nothing handled
+       it. */
     switch (ep->ExceptionRecord->ExceptionCode) {
-    case 0xC0000005u:   /* access violation */
-    case 0xC0000006u:   /* in-page error */
-    case 0xC000001Du:   /* illegal instruction */
-    case 0xC0000094u:   /* integer divide by zero */
-    case 0xC0000096u:   /* privileged instruction */
     case 0xC00000FDu:   /* stack overflow: the UEF may never get a stack */
-    case 0xC0000409u:   /* stack-buffer-overrun, when raised as an exception */
+    case 0xC0000409u:   /* stack-buffer-overrun via __fastfail: skips the UEF */
         port_crash_write_file(ep);
         break;
     }
