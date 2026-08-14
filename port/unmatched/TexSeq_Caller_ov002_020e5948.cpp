@@ -60,8 +60,6 @@ extern void _ZN11ShadowModel12InitCylinderEv(void* thiz);
 extern s32 _ZNK6Player14GetBodyModelIDEjb(void* thiz, u32 a, s32 b);
 extern void _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File(void* bmd, void* btp, void* btp2);
 extern void _ZN15TextureSequence7SetFileER8BTP_Filei5Fix12IiEj(void* thiz, void* f, s32 i, Fix12i fx, u32 j);
-extern int port_heap_audit_frame(const char* tag);   /* TEMPORARY w6-B */
-extern int w6b_vptr_note(const char* tag, void* c);  /* TEMPORARY w6-B */
 
 extern s8 data_0209f310[];
 extern u8 data_0209f2d8;
@@ -171,7 +169,6 @@ extern int data_ov002_0210eb20[];
 void func_ov002_020e5948(void* arg0)
 {
     char* c = (char*)arg0;
-    port_heap_audit_frame("ldr-entry"); w6b_vptr_note("ldr-entry", c);    /* TEMPORARY w6-B */
     s32 i;
     s32 j;
     s32 bodyId;
@@ -192,7 +189,6 @@ void func_ov002_020e5948(void* arg0)
     _ZN9Animation8LoadFileER13SharedFilePtr(data_ov002_0210eb98);
     _ZN9Animation8LoadFileER13SharedFilePtr(data_ov002_0210eb88);
     _ZN9Animation8LoadFileER13SharedFilePtr(data_ov002_0210e4c0);
-    port_heap_audit_frame("ldr-anims7"); w6b_vptr_note("ldr-anims7", c);   /* TEMPORARY w6-B */
 
     if (data_0209f310[*(u8*)(c + 0x6D8)] != 0) {
         LoadSilverStarAndNumber();
@@ -220,7 +216,6 @@ void func_ov002_020e5948(void* arg0)
     }
     }
 
-    port_heap_audit_frame("ldr-char"); w6b_vptr_note("ldr-char", c);     /* TEMPORARY w6-B */
     _ZN15TextureSequence8LoadFileER13SharedFilePtr(data_ov002_0210e500);
     _ZN15TextureSequence8LoadFileER13SharedFilePtr(data_ov002_0210e1c8);
     _ZN15TextureSequence8LoadFileER13SharedFilePtr(data_ov002_0210e770);
@@ -247,7 +242,6 @@ void func_ov002_020e5948(void* arg0)
     _ZN15TextureSequence8LoadFileER13SharedFilePtr(data_ov002_0210ecb8);
     _ZN15TextureSequence8LoadFileER13SharedFilePtr(data_ov002_0210e8d0);
     _ZN15TextureSequence8LoadFileER13SharedFilePtr(data_ov002_0210ebd8);
-    port_heap_audit_frame("ldr-texseq1"); w6b_vptr_note("ldr-texseq1", c);  /* TEMPORARY w6-B */
 
     {
         s32 mode;
@@ -304,7 +298,6 @@ void func_ov002_020e5948(void* arg0)
             _ZN15TextureSequence8LoadFileER13SharedFilePtr(data_ov002_0210e728);
         }
     }
-    port_heap_audit_frame("ldr-texseq2"); w6b_vptr_note("ldr-texseq2", c);  /* TEMPORARY w6-B */
 
     {
         s32 mode;
@@ -319,7 +312,6 @@ void func_ov002_020e5948(void* arg0)
     }
 
     _ZN9Animation8LoadFileER13SharedFilePtr(data_ov002_020ff480[*(s32*)(c + 0x63C)]);
-    port_heap_audit_frame("ldr-charanim"); w6b_vptr_note("ldr-charanim", c); /* TEMPORARY w6-B */
 
     i = 0;
     do {
@@ -333,10 +325,8 @@ void func_ov002_020e5948(void* arg0)
         *(s32*)(c + 0x27C + i * 4) = func_ov002_020e6bb0(*(void**)(c + 0xDC + i * 4));
         i++;
     } while (i < 4);
-    port_heap_audit_frame("ldr-body4"); w6b_vptr_note("ldr-body4", c);    /* TEMPORARY w6-B */
 
     func_ov002_020e6780(c);
-    port_heap_audit_frame("ldr-e6780"); w6b_vptr_note("ldr-e6780", c);    /* TEMPORARY w6-B */
 
     i = 0;
     do {
@@ -359,7 +349,6 @@ void func_ov002_020e5948(void* arg0)
         *(s32*)(c + 0x28C + i * 4) = func_ov002_020e6bb0(*(void**)(c + 0x154 + i * 4));
         i++;
     } while (i < 4);
-    port_heap_audit_frame("ldr-head4"); w6b_vptr_note("ldr-head4", c);    /* TEMPORARY w6-B */
 
     j = 0;
     do {
@@ -375,7 +364,6 @@ void func_ov002_020e5948(void* arg0)
         }
         j++;
     } while (j < 4);
-    port_heap_audit_frame("ldr-head8"); w6b_vptr_note("ldr-head8", c);    /* TEMPORARY w6-B */
 
     {
         s32 mode;
@@ -386,7 +374,6 @@ void func_ov002_020e5948(void* arg0)
             if (p != 0) {
                 p = _ZN5ModelC1Ev(p);
             }
-            port_heap_audit_frame("ldr-pre1D8"); w6b_vptr_note("ldr-pre1D8", c);  /* TEMPORARY w6-B */
             *(void**)(c + 0x1D8) = p;
             _ZN9ModelBase7SetFileEP8BMD_Fileii(*(void**)(c + 0x1D8), _ZN5Model8LoadFileER13SharedFilePtr(data_ov002_0210da38), 1, -1);
 
@@ -396,11 +383,9 @@ void func_ov002_020e5948(void* arg0)
                 if (p != 0) {
                     p = _ZN10ModelAnim2C1Ev(p);
                 }
-                port_heap_audit_frame("ldr-preEC"); w6b_vptr_note("ldr-preEC", c);   /* TEMPORARY w6-B */
                 *(void**)(c + 0xEC) = p;
                 _ZN9ModelBase7SetFileEP8BMD_Fileii(*(void**)(c + 0xEC), _ZN5Model8LoadFileER13SharedFilePtr(data_ov002_0210e780), 1, -1);
                 _ZN10ModelAnim213Func_020162C4Eji5Fix12IiEt(*(void**)(c + 0xEC), ((s32*)data_ov002_020ff480[0xC6])[1], 0, 0x1000, 0);
-                port_heap_audit_frame("ldr-preF0"); w6b_vptr_note("ldr-preF0", c);   /* TEMPORARY w6-B */
                 _ZN9ModelBase7SetFileEP8BMD_Fileii(c + 0xF0, _ZN5Model8LoadFileER13SharedFilePtr(data_ov002_0210e6f8), 1, 1);
                 _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(c + 0xF0, (void*)data_ov002_0210e750[1], 0, 0x1000, 0);
                 _ZN9ModelBase7SetFileEP8BMD_Fileii(c + 0x174, _ZN5Model8LoadFileER13SharedFilePtr(data_ov002_0210e7b0), 1, 1);
@@ -412,7 +397,6 @@ void func_ov002_020e5948(void* arg0)
         }
     }
 
-    port_heap_audit_frame("ldr-caps"); w6b_vptr_note("ldr-caps", c);     /* TEMPORARY w6-B */
     _ZN11ShadowModel12InitCylinderEv(c + 0x2AC);
 
     bodyId = _ZNK6Player14GetBodyModelIDEjb(c, 3, 0);
