@@ -97,6 +97,16 @@ int func_0204fa2c(int *p, int fade)
 // legitimately returns 0 for an id whose group was never loaded, and on
 // hardware the game is never in that state. Printing once and returning is
 // the honest answer instead of reproducing a crash the DS would not have.
+//
+// RULED (w6-c item 3). This is the ride-through class, the same one the five
+// functions at the top of this file are in, and it is documented as such
+// rather than left in the replacement queue: the src is not wrong and there
+// is nothing to replace it with. mwccarm passes kind and id in r0/r1 and the
+// callee is declared (void), which is a spelling MSVC cannot reproduce at
+// any optimisation level -- a cdecl host callee reads its own stack slots.
+// The two host additions above it (sd_consumer_init and the null guard) do
+// not change the ruling; they are why the ride-through is survivable on a
+// host, and both are argued in their own comments.
 struct Vector3 { int x, y, z; };
 void *func_02050cdc(int kind, int idx);
 void *func_02048720(struct Vector3 *v, int kind, int id);
@@ -108,6 +118,8 @@ void  Player_PlaySoundEffect(int x, unsigned a, unsigned b);
 extern int data_0209b4a4[];
 extern int data_02099fac;             /* the 3D distance limit, romdata */
 
+// PORT_HOST_ABI: ARM r0/r1 argument ride-through into a (void)-declared
+// resolver, plus a host null guard where the DS could not reach the state.
 void _ZN5Sound4PlayEjjRK7Vector3(unsigned kind, unsigned id, struct Vector3 *v)
 {
     // Self-initialise. Not every harness has a frame loop calling
@@ -198,7 +210,24 @@ int g_snd_trace_play;
 // "how many sequences may this player run", so a lost write means it thinks
 // the limit is 0 and evicts a voice on every single sound. Writing through
 // data_020a4d6c keeps the two views aliased.
+//
+// RULED (w6-c item 3), and the comment above is right that it is not a
+// ride-through, so the reason is spelled for what it is: two ROM symbols
+// naming ONE array at a fixed 0x18 offset, which separate host objects
+// cannot express. The src is correct about the ROM and unlinkable on a host
+// for a reason that has nothing to do with argument passing.
+//
+// THE RETIREMENT RECIPE, since this one has a real one and the port already
+// owns the machinery: give data_020a4d6c and data_020a4d84 adjacent grouped
+// sections the way hal/level_boot.cpp's SAVEBLK macro puts the five-way
+// split of data_0209caa0 back in ROM order, sized so data_020a4d84 lands at
+// data_020a4d6c + 0x18. tools/ovdata.py --pack does the same thing per
+// overlay symbol. With the two symbols genuinely overlapping, the matched TU
+// links and this host body retires. It is a seat, not a ruling, so it wants
+// its own lane rather than a line in this one.
 extern unsigned char data_020a4d6c[];
+// PORT_HOST_ABI: two ROM symbols over one array (data_020a4d84 IS
+// data_020a4d6c + 0x18); separate host objects cannot alias.
 void _ZN5Sound6Player19SetPlayableSeqCountEii(int playerId, int maxSeq)
 {
     if (playerId < 0 || playerId >= 32) return;

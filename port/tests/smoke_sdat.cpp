@@ -7,12 +7,38 @@
 //
 //   smoke_sdat                       BGM 58 (NCS_BGM_CHIJOU, castle grounds)
 //   smoke_sdat --seq 58              a SEQ table entry by id
-//   smoke_sdat --sfx 0:1             SEQARC 0 entry 1 (NCS_SE_PT_JUMP_N)
+//   smoke_sdat --sfx 0:3             SEQARC 0 entry 3, an audible one
+//                                    (entries 0 and 1 both sit at archive
+//                                    offset 0 and their stream ends at once,
+//                                    so they render silence by the archive's
+//                                    own content -- not a useful example)
 //   smoke_sdat --seconds 4           how long to render
 //   SM64DS_WAV_DUMP=out.wav          write the mix to a RIFF/WAVE file
 //
 // Exit code is 0 only if the render was audible (peak above a floor), so CI
 // can tell "played" from "parsed and produced silence".
+//
+// THE HOST MASTER VOLUME IS PINNED TO UNITY HERE, and that is the whole
+// reason this file knows the variable's name. sd_mix_render's last act is a
+// linear scalar on the already-mixed buffer -- out_volume_pct(), driven by
+// SM64DS_VOLUME. sdat.h and mixer.cpp both say what it is in the same words:
+// the host OUTPUT stage, not the DS mixer, with every voice, envelope and pan
+// above it untouched. So it is not part of what this test measures, and it is
+// the one knob that can make a perfectly working player report silence.
+//
+// It did. SM64DS_VOLUME=0 was set as a persistent USER-level Windows
+// environment variable on the campaign's build machine, every shell inherited
+// it, and this smoke reported "FAIL: output is silent (peak 0)" across many
+// sessions while the player underneath was healthy: the sequencer started its
+// notes, the envelopes ran, the ADPCM decoded, and the mix peaked at full
+// scale one statement before the trim zeroed it. A gate that reports the
+// player broken when the output stage was told to be quiet cannot tell the
+// two apart, which is the same objection hal/sdat/sound_abi.cpp already makes
+// about a cull that cannot be told apart from silence.
+//
+// Pinning is the fix rather than a workaround because the trim is downstream
+// of everything under test. The inherited value is printed, never hidden, so
+// a reader can still see what the environment asked for.
 #include "../hal/sdat/sdat.h"
 
 #include <math.h>
@@ -134,6 +160,21 @@ int main(int argc, char **argv)
         }
     }
 
+    // Pin the host output stage to unity BEFORE anything can read it --
+    // out_volume_pct() latches its value on the first call, and the first
+    // call is inside sd_mix_render. See the header comment for why the trim
+    // is not under test here.
+    const char *inheritedVol = getenv("SM64DS_VOLUME");
+#if defined(_WIN32)
+    _putenv_s("SM64DS_VOLUME", "100");
+#else
+    setenv("SM64DS_VOLUME", "100", 1);
+#endif
+    if (inheritedVol && *inheritedVol && strcmp(inheritedVol, "100") != 0)
+        printf("host master volume: inherited SM64DS_VOLUME=%s, pinned to 100 "
+               "for the measurement (output stage, not the player)\n",
+               inheritedVol);
+
     if (!sdat_init()) return 1;
     sd_mix_reset();
     sd_seq_reset();
@@ -174,9 +215,10 @@ int main(int argc, char **argv)
 
     double rms = sqrt(sumsq / (double)(total * 2));
     printf("rendered %.2f s at %d Hz: peak=%d (%.1f%% FS) rms=%.1f "
-           "(%.1f%% FS) nonzero=%.1f%%\n",
+           "(%.1f%% FS) nonzero=%.1f%% (master %d%%)\n",
            seconds, SD_MIX_RATE, peak, 100.0 * peak / 32767.0, rms,
-           100.0 * rms / 32767.0, 100.0 * nonzero / (double)(total * 2));
+           100.0 * rms / 32767.0, 100.0 * nonzero / (double)(total * 2),
+           out_volume_pct());
     if (firstSound >= 0)
         printf("first non-zero sample at %.3f s\n",
                (double)firstSound / SD_MIX_RATE);

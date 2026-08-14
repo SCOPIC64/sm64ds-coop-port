@@ -64,6 +64,23 @@
     __pragma(bss_seg(".dsstate$mmm"))                                          \
     __pragma(data_seg(".dsstate$mmm"))
 
+/* A LATER `extern` RE-DECLARATION IN THE SAME TU UNDOES THIS, silently.
+ *
+ * MSVC fixes a symbol's segment from the declaration it saw last, not from the
+ * one that defined it. So a file that defines `int data_0209fc48;` inside the
+ * bracket and then, several hundred lines on in its own forward-declare block,
+ * writes `extern int data_0209fc48;` while the default segment is back in
+ * force, gets a symbol in ordinary .bss -- outside [dsstate_lo, dsstate_hi)
+ * and not captured. Nothing warns: the file compiles, it links, and the
+ * bracket around the definition still looks right.
+ *
+ * hal/level_boot.cpp had exactly that shape for two of the six globals the
+ * w6-c Player::InitResources retirement moved into it, and dsstate_guard is
+ * what found it -- inside ONE DSSTATE block, the four symbols with no later
+ * re-declaration landed in the section and the two with one landed outside.
+ * The fix is to delete the redundant declaration; the definition is already in
+ * scope above it. */
+
 /* Restore the default (unnamed) segments so anything after the hosted block --
  * a host-only helper's static, a string literal pool -- is not swept in. */
 #define DSSTATE_END                                                            \

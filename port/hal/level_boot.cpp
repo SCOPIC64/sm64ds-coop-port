@@ -1171,6 +1171,43 @@ SAVEBLK(".dsstate$savblk0003", data_0209cae4, 0x10);
 
 #undef SAVEBLK
 
+// ---- the six the Player::InitResources retirement handed back --------------
+//
+// port/unmatched/Player_InitResources.cpp used to be the definition site for
+// these, because a hand-written host copy is free to own storage. The matched
+// source hosts itself now (HOSTABI_RETIRE_SYMS), and it goes through
+// --extern-data, which is the port's standing claim that engine BSS is the
+// HAL's -- so the storage comes here rather than staying in a src TU.
+//
+// EVERY ONE IS FOUR BYTES, taken from config/arm9/symbols.txt by next-symbol
+// delta, not from the width the one function that used them happened to
+// declare. The retired copy spelled three of them `u8` and one `s8`; the
+// ROM's own symbol grid puts the next symbol four bytes on in every case
+// (0209f200/0209f204, 0209f254/0209f258, 0209f2fc/0209f300,
+// 02092114/02092118), so a one-byte host object left three bytes of a ROM
+// global sitting on whatever the linker put next. Same reasoning and same
+// spelling as the sub-loader block above.
+//
+// data_02092114 and data_0209212c are kind:data(any) in the symbol table
+// rather than bss, and they are zero-initialised here because that is exactly
+// what the retired host copy did -- this is a move, not a correction.
+// data_02092114 reads as a queued character swap where -1 means "none"
+// (hal/star_flow.cpp and hal/player_bridges.cpp both say so), so a host zero
+// is a queued swap to character 0 at boot. That is the data_0209211c trap the
+// retired file's own comment describes, one symbol over, and it was already
+// live before this move; it wants its ROM initial value re-derived rather
+// than a guess folded into a retirement commit.
+DSSTATE_BEGIN
+extern "C" {
+unsigned char data_0209f200[4];   /* level-enter mode latch         */
+unsigned char data_0209f254[4];   /* the star / silver-star request */
+unsigned char data_0209f2fc[4];   /* the "lost the cap" check gate  */
+signed char   data_02092114[4];   /* queued character swap, -1 none */
+int           data_0209212c;      /* the spawn probe's Y            */
+int           data_0209fc48;      /* the running cutscene, 0 = none */
+}
+DSSTATE_END
+
 // ---- Stage A ---------------------------------------------------------------
 //
 // A1 runs the real boot with every spawner switched off, so what it proves is
@@ -1202,7 +1239,10 @@ extern signed char data_0209f2f8;    /* current level */
 extern int data_0209f264[];          /* current entrance */
 extern int data_0209f220[];          /* current star filter */
 extern unsigned char *data_0209f344; /* VS star-order pointer (host: bob_enemy_bridges.cpp) */
-extern int data_0209212c;            /* world Y max */
+/* data_0209212c (world Y max) is DEFINED above, in the retirement block. Do
+   not re-declare it here: a second declaration outside the DSSTATE pragma
+   region moves the symbol back to the default segment and the save state
+   stops capturing it. See the note in hal/dsstate_seg.h. */
 extern int data_020a0d84[];          /* path table base (auto_bss) */
 extern int data_020a0d88[];          /* path node base (auto_bss) */
 
@@ -1977,7 +2017,9 @@ extern int data_0209fc5c[];            /* per-player "this slot is live" */
 extern unsigned char data_02092128[];  /* per-player character */
 extern signed char data_02092120;      /* currently shown area, -1 = none */
 extern int data_0209f32c[];            /* water level */
-extern int data_0209fc48;              /* the running cutscene, 0 = none */
+/* data_0209fc48 (the running cutscene) is DEFINED above, in the retirement
+   block, and must not be re-declared here -- see the note at the other
+   removed declaration and in hal/dsstate_seg.h. */
 extern int data_0209f20c[], data_0209f294[], data_0209f2c4[], data_0209b454[];
 extern int data_0209ee90[];            /* +0x44 is the projection's W scale */
 extern int data_0209d70c[];            /* the message archive header pointer */

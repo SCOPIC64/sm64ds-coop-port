@@ -198,6 +198,59 @@ EXTERN_DATA = re.compile(
     re.MULTILINE)
 
 
+# ENGINE BSS SPELLED BY ROLE: `char gGlobalA;` at file scope.
+#
+# EXTERN_DATA above catches engine BSS only when the decomp spelled it
+# `data_<hex>`, and a delinked TU does not have to. A decompiler who knew what
+# the address WAS is free to name it: ActorBase::AfterCleanupResources writes
+#
+#     char gGlobalA;                    /* 0x020a4b6c, the scene tree     */
+#     char gGlobalB;                    /* 0x020a4ba8, the cleanup list   */
+#     struct Heap* Memory_gameHeapPtr;  /* 0x020a0eac                     */
+#
+# which is a perfectly good delinked TU -- the addresses come back from the
+# relocation table and the declared width is whatever that one function needed.
+# It is also the vacuous-pass shape, and the worst one in this file: the name
+# does not look like storage, so --extern-data left it alone, the TU LINKED
+# CLEAN, and at run time the teardown unlinked the actor from a private
+# one-byte object and freed it against a null heap. No link error, no crash at
+# the seam, just a scene tree that quietly never lost its dead nodes.
+#
+# So the map is by ADDRESS, taken from the decomp's own comment on each line,
+# and the rewrite is the same one EXTERN_DATA performs: the definition becomes
+# a declaration of the hosted symbol, at the width the src itself declared,
+# and the role name is #define'd onto it so every use in the body -- including
+# `&gGlobalA`, which is how both list heads are passed -- resolves to the
+# engine's storage.
+#
+# Listed rather than pattern-matched, like HEADER_SHADOW: a role name is a
+# human judgement about which address a word means, and the next one has to be
+# looked at rather than guessed from its spelling.
+ROLE_DATA_HOSTS = {
+    "gGlobalA":           "data_020a4b6c",
+    "gGlobalB":           "data_020a4ba8",
+    "Memory_gameHeapPtr": "data_020a0eac",
+}
+
+# One character class and one quantifier, deliberately: the obvious spelling
+# of "a type is a run of words and stars" nests quantifiers and backtracks
+# exponentially on every non-matching line in the file.
+ROLE_DATA = re.compile(
+    r"^([ \t]*)(?!extern\b|static\b|typedef\b|return\b)"
+    r"([A-Za-z_][\w \t*]*[ \t*])(" + "|".join(ROLE_DATA_HOSTS) + r")"
+    r"([ \t]*(?:\[[^\];=]*\])?)[ \t]*;",
+    re.MULTILINE)
+
+
+def role_data_extern(m):
+    """One role-named engine global -> a declaration of its hosted symbol."""
+    indent, typ, role, arr = m.group(1), m.group(2), m.group(3), m.group(4)
+    host = ROLE_DATA_HOSTS[role]
+    return ("%sextern %s%s%s;  /* hostgen ROLE_DATA: %s lives here */\n"
+            "%s#define %s %s"
+            % (indent, typ, host, arr, role, indent, role, host))
+
+
 # C99's `_Bool` keyword, which MSVC's C++ front end does not have. Everything
 # hostgen emits is compiled as C++, so the spelling has to become `bool` --
 # same width and same argument passing under cdecl on x86, so no ABI change.
@@ -214,10 +267,11 @@ def transform(text, extern_data=False):
     text, n1 = MMIO_DEREF.subn(lambda m: f"NTR_MMIO({m.group(2).strip()}, {m.group(3)})", text)
     text, n5 = mmio_ptr(text)
     text, n6 = CBOOL.subn("bool", text)
-    n4 = 0
+    n4 = n7 = 0
     if extern_data:
         text, n4 = EXTERN_DATA.subn(r"\1extern \2\3\4;", text)
-    return text, n1 + n2 + n3 + n4 + n5 + n6
+        text, n7 = ROLE_DATA.subn(role_data_extern, text)
+    return text, n1 + n2 + n3 + n4 + n5 + n6 + n7
 
 
 # ~110 files in the decomp are ARM assembly blocks -- CP15 cache ops, the CRT0,
@@ -230,6 +284,69 @@ ASM_BLOCK = re.compile(r"^\s*(?:extern\s+\"C\"\s+)?(?:__)?asm\s", re.MULTILINE)
 
 def is_asm(text):
     return bool(ASM_BLOCK.search(text))
+
+
+# ---- INLINE ASM EXCISION -----------------------------------------------------
+#
+# The rule above is right about the ~110 whole-file ARM shims: a CP15 cache op
+# or a context switch has no C semantics to substitute, so it is reimplemented
+# by hand and stays enumerable. It is wrong about one narrower shape -- a C
+# function with ONE small asm block in the middle of it, where the block exists
+# purely to make mwccarm emit a particular instruction sequence and the thing
+# it computes is plain C.
+#
+# Player::InitResources is the whole class. Its match note says why the block
+# is there:
+#
+#     Heap zero of operator_new(0x14) at +0x588 uses mwccarm CLEAR shape
+#     (4x strb post-inc). Pure C never emits that for a heap pointer under
+#     -O4,p (only stack u8[N]={0} does); small asm block reproduces it.
+#
+# So the asm is a CODEGEN instruction, not a computation: five iterations of
+# four post-incrementing byte stores over the fresh 0x14-byte allocation, which
+# is memset(q, 0, 0x14) and nothing else. The host has no reason to care which
+# instructions a DS compiler picked to reach that state, and refusing the file
+# over it costs the whole function -- which is why the hand-written host copy
+# in port/unmatched/ exists, byte-identical to the matched source apart from
+# these seven lines.
+#
+# Excision is exact-text and per-symbol, through the same apply_patches that
+# hard-errors when a patch stops matching. That is deliberate: an asm block
+# whose text drifted is an asm block nobody has re-read, and substituting C for
+# instructions you have not looked at is exactly the vacuous pass this file
+# keeps trying to avoid. Adding an entry here is a claim that someone read the
+# instructions and the C says the same thing.
+#
+# The other three asm-block files in src/ are NOT candidates and must not be
+# added without the same reading: ov091/ov009 are NONMATCHING hand-asm hatches
+# (there is no C semantics to recover -- the asm IS the decomp) and
+# func_0205950c writes CPSR (a host has no such register).
+ASM_EXCISION = {
+    "_ZN6Player13InitResourcesEv": [
+        ("""    asm {
+      mov r1, #5
+      mov r0, #0
+    Lzero:
+      strb r0, [q], #1
+      strb r0, [q], #1
+      strb r0, [q], #1
+      strb r0, [q], #1
+      subs r1, r1, #1
+      bne Lzero
+    }""",
+         "    /* hostgen ASM_EXCISION: the matched source zeroes this fresh\n"
+         "       0x14-byte allocation with mwccarm's CLEAR shape (5 x 4 strb\n"
+         "       post-inc) because pure C will not emit that for a heap\n"
+         "       pointer under -O4,p. The state it reaches is a 20-byte\n"
+         "       zero. */\n"
+         "    for (int zi_ = 0; zi_ < 0x14; ++zi_) q[zi_] = 0;"),
+    ],
+}
+
+
+def asm_excision_patch(text, sym):
+    """Substitute C semantics for the codegen-only asm blocks we have read."""
+    return apply_patches(text, sym, ASM_EXCISION, "ASM_EXCISION")
 
 
 # A shared header can declare a symbol with a different pointer parameter type
@@ -525,12 +642,21 @@ def emit(src_path, out_dir, decomp_root, extern_data=False):
     sym = src_path.stem
     if sym in HEADER_SHADOW:
         text, _ = shadow_header_decl(text, sym, HEADER_SHADOW[sym])
+    text, _ = asm_excision_patch(text, sym)
     text, _ = ds_div_patch(text, sym)
     text, _ = mmio_extern_patch(text, sym)
     text, _ = falls_off_return_patch(text, sym)
     text, _ = virtual_call_patch(text, sym)
     text, _ = member_redecl_patch(text, sym)
     new, n = transform(text, extern_data)
+    # An excision that left an asm block behind would emit a file MSVC cannot
+    # read, and the file was only let past the skip in main() on the promise
+    # that its blocks were all accounted for. Say so here rather than at the
+    # compiler.
+    if sym in ASM_EXCISION and is_asm(new):
+        sys.exit("hostgen: %s: ASM_EXCISION ran but an asm block is still "
+                 "present. Every block in the file has to be read and listed "
+                 "before it can be emitted." % sym)
     # Everything is emitted as C++ (NTR_MMIO expands to a template proxy), but
     # a .c source's symbols must keep C linkage: the port's other slices
     # compile the decomp's .c files as real C, and mixing linkages per-symbol
@@ -583,7 +709,7 @@ def main():
     skipped = []
     for path in targets:
         text = path.read_text(encoding="utf-8", errors="replace")
-        if is_asm(text):
+        if is_asm(text) and path.stem not in ASM_EXCISION:
             skipped.append(path.stem)
             if not args.all:
                 print(f"{path.name:<44}   ARM asm -- needs a host implementation")

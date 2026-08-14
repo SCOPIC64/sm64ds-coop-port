@@ -284,7 +284,7 @@ static void ov65_fill_shared(void *volatile *vt)
 }
 
 // ---- the mount bring-up ----------------------------------------------------
-static void ov65_bringup(void)
+extern "C" void port_ov65_bringup(void)
 {
     static int done;
     if (done)
@@ -357,7 +357,7 @@ static int __fastcall sn_aimed(void *s, void *)
 { (void)s; return func_ov065_02116f0c(); }
 extern "C" void hal_fill_snufit_vtable(void)
 {
-    ov65_bringup();
+    port_ov65_bringup();
     void *volatile *vt = (void *volatile *)_ZTV6Snufit;
     ov65_fill_shared(vt);
     vt[0]  = (void *)sn_init;
@@ -420,7 +420,7 @@ static int __fastcall sw_aimed(void *s, void *)
 { (void)s; return func_ov065_02117eac(); }
 extern "C" void hal_fill_swoop_vtable(void)
 {
-    ov65_bringup();
+    port_ov65_bringup();
     void *volatile *vt = (void *volatile *)_ZTV5Swoop;
     ov65_fill_shared(vt);
     vt[0]  = (void *)sw_init;
@@ -469,7 +469,7 @@ static int __fastcall do_d0(void *s, void *)
 { return (int)(size_t)_ZN6DorrieD0Ev(s); }
 extern "C" void hal_fill_dorrie_vtable(void)
 {
-    ov65_bringup();
+    port_ov65_bringup();
     void *volatile *vt = (void *volatile *)_ZTV6Dorrie;
     ov65_fill_shared(vt);
     vt[0]  = (void *)do_init;
@@ -520,7 +520,7 @@ static int __fastcall dc_yoshi(void *s, void *)
 { (void)s; return func_ov065_021195e4(); }
 extern "C" void hal_fill_dorrie_cap_vtable(void)
 {
-    ov65_bringup();
+    port_ov65_bringup();
     void *volatile *vt = (void *volatile *)_ZTV9DorrieCap;
     ov65_fill_shared(vt);
     vt[0]  = (void *)dc_init;
@@ -581,7 +581,7 @@ static int __fastcall we_d0(void *s, void *)
 { return _ZN12WorkElevatorD0Ev(s); }
 extern "C" void hal_fill_work_elevator_vtable(void)
 {
-    ov65_bringup();
+    port_ov65_bringup();
     void *volatile *vt = (void *volatile *)_ZTV12WorkElevator;
     ov65_fill_shared(vt);
     vt[0]  = (void *)we_init;
@@ -632,7 +632,7 @@ static int __fastcall rr_aimed(void *s, void *)
 { (void)s; return func_ov021_0211228c(); }
 extern "C" void hal_fill_rolling_rock_vtable(void)
 {
-    ov65_bringup();
+    port_ov65_bringup();
     void *volatile *vt = (void *volatile *)_ZTV11RollingRock;
     ov65_fill_shared(vt);
     vt[0]  = (void *)rr_init;
@@ -689,7 +689,7 @@ static int __fastcall sh_d0(void *s, void *)
 { return (int)(size_t)_ZN10ShutterHmcD0Ev((int *)s); }
 extern "C" void hal_fill_shutter_hmc_vtable(void)
 {
-    ov65_bringup();
+    port_ov65_bringup();
     void *volatile *vt = (void *volatile *)_ZTV10ShutterHmc;
     ov65_fill_shared(vt);
     vt[0]  = (void *)sh_init;

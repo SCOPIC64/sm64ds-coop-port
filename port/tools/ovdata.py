@@ -492,6 +492,46 @@ def main():
     syms.sort()
     addr_of = {n: a for a, n in syms}
 
+    # THE LAST SYMBOL OF A SECTION HAS NO NEXT SYMBOL, and four bytes is not a
+    # safe guess for it.
+    #
+    # Sizes below come from next-symbol deltas, which is right everywhere
+    # except at the end of the list: dsd names a symbol wherever code
+    # referenced one, and the final one in an overlay's table owns everything
+    # from its address to the end of its SECTION. ov018's
+    # data_ov018_02113c98 is the whole class -- last line of its symbols.txt,
+    # so the delta fell through to a+4 and the host gave a 40-byte ROM global
+    # (0x02113c98 to the .bss end at 0x02113cc0) four bytes of storage.
+    #
+    # That is the ICE_SLIDE_MANAGER trample, and it is why it was
+    # LAYOUT-DEPENDENT. MSVC merges grouped sections by the text after the
+    # `$`, so .dsstate$pk018_0041 lands immediately before .dsstate$pk019_0000
+    # -- and pk019_0000 is IceSlideManager_SpawnInfo. Writing 40 bytes into a
+    # 4-byte host object put bytes 8 and 9 straight onto SpawnInfo+4, the id
+    # halfword the registry cross-checks, which is why the symptom was
+    # "SpawnInfo says id 21932, registry says 356" before registration ever
+    # ran. In a build where some other pack sorts between the two the same
+    # overrun lands on an unwatched neighbour and says nothing at all.
+    #
+    # So the fallback is the containing section's end, from delinks.txt, and
+    # every size is clamped to it: a symbol may run to the end of its own
+    # section and never past it.
+    sections = []
+    for line in (root / f"config/arm9/overlays/{ov}/delinks.txt").read_text().splitlines():
+        ms = re.search(r"^\s*\.(\w+)\s+start:0x([0-9a-fA-F]+)\s+end:0x([0-9a-fA-F]+)",
+                       line)
+        if ms:
+            sections.append((int(ms.group(2), 16), int(ms.group(3), 16)))
+        elif sections and not line.startswith(" "):
+            break        # past the section table, into the per-file listing
+
+    def section_end(a):
+        """End of the delinks section containing `a`, or None if unlisted."""
+        for s, e in sections:
+            if s <= a < e:
+                return e
+        return None
+
     # The DS applies the overlay's relocation table at load: the static image
     # holds pre-reloc junk where a pointer will live, and relocs.txt records
     # word-address -> target. Apply those before emitting, or every baked
@@ -557,7 +597,14 @@ def main():
         if name not in addr_of:
             sys.exit(f"{name} not in {ov} symbols")
         a = addr_of[name]
-        nxt = next((s for s, _ in syms if s > a), a + 4)
+        end = section_end(a)
+        # No next symbol means the end of the section owns the rest (see the
+        # note where `sections` is built); a next symbol past the section end
+        # belongs to the section after this one and must not stretch this
+        # symbol across the boundary.
+        nxt = next((s for s, _ in syms if s > a), end if end else a + 4)
+        if end:
+            nxt = min(nxt, end)
         size = override if override else max(4, nxt - a)
         off = a - base
         blob = data[off:off + size]
