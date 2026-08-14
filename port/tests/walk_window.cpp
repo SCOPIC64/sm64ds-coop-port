@@ -1806,12 +1806,22 @@ static int mo_wheel;             /* accumulated notches, forward positive */
 
 /* THE TOUCH BRIDGE'S HANDOFF. The DS has a touchscreen and this program has a
    mouse, and the last left click is where the two meet. Position is in
-   FRAMEBUFFER pixels -- client coordinates divided by ZOOM -- so a consumer
-   gets the same numbers at either tier without knowing which one it is on.
-   `g_mouse_click_new` is true for exactly the frame the click landed on and
-   `g_mouse_left_down` is the hold, which is what a drag on a touchscreen is.
-   NOTHING IN THIS FILE READS ANY OF IT: it is published for the touch bridge
-   a sibling stream is building. */
+   FRAMEBUFFER pixels, so a consumer gets the same numbers at either tier
+   without knowing which one it is on.
+
+   IT IS NO LONGER A DIVIDE BY ZOOM. The window resizes, so the frame is
+   scaled to fit the client area and centred inside it, and the inverse of
+   that fit is hal_present_client_to_fb (hal/sub_screen.cpp) -- the same
+   function the bottom-screen stylus goes through, which is the point of it
+   being one function.
+
+   A CLICK IN A LETTERBOX BAR IS NOT A CLICK ON THE PICTURE, and these words
+   say so: the position keeps the last on-picture click and `g_mouse_click_new`
+   stays down for a bar click, the same answer poll_touch gives the stylus.
+   `g_mouse_click_new` is true for exactly the frame an on-picture click landed
+   on and `g_mouse_left_down` is the hold, which is what a drag on a
+   touchscreen is. NOTHING IN THIS FILE READS ANY OF IT: it is published for
+   the touch bridge a sibling stream is building. */
 int g_mouse_click_x, g_mouse_click_y;
 int g_mouse_click_new;
 int g_mouse_left_down;
@@ -1878,10 +1888,21 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
            edge the way an off-window drag always was, so the published point
            stays a framebuffer pixel. */
         int cx = 0, cy = 0;
-        /* the return is deliberately dropped: a click in a bar still fills
-           cx/cy with the clamped edge point, which is the same answer an
-           off-window drag always published here */
-        hal_present_client_to_fb((short)LOWORD(l), (short)HIWORD(l), &cx, &cy);
+        /* THE RETURN IS HONOURED, the way poll_touch honours it. A click in a
+           letterbox bar is off the picture, and publishing the clamped edge
+           pixel for it would hand the touch bridge a stylus press on the rim
+           of the screen that the player never made -- a bug with no reader
+           today and therefore no way to notice it later. Off the picture: the
+           hold still latches (a drag that starts on the picture and wanders
+           into a bar is still a drag) but no new click position is published. */
+        const int on_picture = hal_present_client_to_fb(
+            (short)LOWORD(l), (short)HIWORD(l), &cx, &cy);
+        g_mouse_left_down = 1;
+        if (!on_picture) {
+            fprintf(stderr, "[mouse] click off-picture (letterbox bar), "
+                            "not published\n");
+            return 0;
+        }
         if (cx < 0) cx = 0;
         if (cy < 0) cy = 0;
         if (cx >= ntr::SCREEN_W) cx = ntr::SCREEN_W - 1;
@@ -1889,7 +1910,6 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         g_mouse_click_x = cx;
         g_mouse_click_y = cy;
         g_mouse_click_new = 1;
-        g_mouse_left_down = 1;
         fprintf(stderr, "[mouse] click %d,%d fb\n", cx, cy);
         return 0;
     }
@@ -1915,7 +1935,14 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
        dirty and WM_PAINT is re-posted forever. */
     case WM_PAINT:
         present();
-        if (W.ValidateRect_) W.ValidateRect_(h, 0);
+        /* The validate is what ends the paint. Without it the region stays
+           dirty and WM_PAINT is re-posted forever, so if ValidateRect is the
+           one name in this file that failed to resolve, this branch must NOT
+           swallow the message -- DefWindowProc's BeginPaint/EndPaint pair
+           validates it instead. Falling through is the safe answer; returning
+           0 here would spin the message loop at 100% of a core. */
+        if (!W.ValidateRect_) break;
+        W.ValidateRect_(h, 0);
         return 0;
     /* "Handled, and I painted nothing." The default erase fills the client
        area with the class brush before the picture lands on top of it, which
@@ -2791,12 +2818,14 @@ int main(void)
             g_present_filter = PRESENT_FILTER_HALFTONE;
     }
     RECT r = {0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM};
-    /* WS_THICKFRAME IS BACK. It was cleared to stop a resize the present
-       path could not follow; the present path follows one now, so the sizing
-       border is the window behaving like every other window on the desktop
-       -- drag an edge, snap it to half the screen, double-click the title
-       bar. The default client size is unchanged, so a run nobody touches
-       opens exactly where it always did. */
+    /* WS_THICKFRAME IS BACK, and it has to be back in BOTH places -- this
+       call and the CreateWindowExA below. Changing it here alone is a silent
+       no-op that looks like the fix: AdjustWindowRect only decides how big to
+       ask for, and on Windows 11 it returns the SAME frame metrics with and
+       without the sizing border (measured: identical rect for both styles), so
+       the window opens at exactly the size it always did and every screenshot
+       looks right while the sizing border is still not there. The style the
+       window actually gets is the CreateWindowExA argument. */
     W.AdjustWindowRect_(&r, WS_OVERLAPPEDWINDOW, FALSE);
     /* THE TITLE BAR IS THE CONTROLS CARD. There is nowhere else to put them
        that does not cost a keypress to read: the F3 overlay is timings, the
@@ -2808,8 +2837,9 @@ int main(void)
                               "   X punch   Ctrl crouch   |   Q/E turn   R/F"
                               " tilt   |   F1 camera   F3 stats   F5 menu"
                               "   F12 fullscreen   Tab panel   Esc quit",
-                              (WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME) |
-                                  WS_VISIBLE,
+                              /* the sizing border is here, not in the
+                                 AdjustWindowRect above; see that note */
+                              WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                               CW_USEDEFAULT, CW_USEDEFAULT,
                               r.right - r.left, r.bottom - r.top, 0, 0,
                               wc.hInstance, 0);
