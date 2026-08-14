@@ -859,6 +859,90 @@ extern "C" int port_level_teardown(void)
     return 1;
 }
 
+/* ==== TEMPORARY DIAGNOSTIC (lane w6-B) -- REVERT BEFORE COMMIT ==============
+   Heap-integrity audit for the 38->1 heap-lifecycle fault. Walks the game
+   heap's ExpandingHeapAllocator free and used lists and validates:
+     - node tags (free 0x4652, used 0x5544)
+     - free list address-sorted, regions inside the arena, non-overlapping
+     - no free region overlaps any used region
+   Layout from matched src (_ZN22ExpandingHeapAllocatorC1EPvj.c):
+   alloc+0x18/+0x1c arena, +0x24 free {head,tail}, +0x2c used {head,tail};
+   MemoryNode {u16 tag; u16 pad; u32 size; prev; next}, data at +0x10.
+   SM64DS_HEAP_AUDIT=1 enables; prints the FIRST violation per tag then keeps
+   counting. */
+extern "C" { extern void *data_020a0eac; }
+static int port_heap_audit(const char *tag)
+{
+    if (!data_020a0eac) return 0;
+    char *alloc = *(char **)((char *)data_020a0eac + 4);
+    if (!alloc) return 0;
+    unsigned lo = *(unsigned *)(alloc + 0x18), hi = *(unsigned *)(alloc + 0x1c);
+    int bad = 0;
+    struct Node { unsigned short tag, pad; unsigned size; Node *prev, *next; };
+    /* pass 1: free list */
+    Node *f = *(Node **)(alloc + 0x24);
+    unsigned prev_end = 0;
+    int guard = 0;
+    for (Node *n = f; n && guard < 65536; n = n->next, ++guard) {
+        unsigned s = (unsigned)(size_t)n, e = s + 0x10 + n->size;
+        if (n->tag != 0x4652) {
+            std::fprintf(stderr, "[heap-audit:%s] FREE node %p tag %04x (want "
+                         "4652) size %u\n", tag, (void *)n, n->tag, n->size);
+            ++bad;
+        }
+        if (s < lo || e > hi) {
+            std::fprintf(stderr, "[heap-audit:%s] FREE node %p [%08x..%08x] "
+                         "outside arena [%08x..%08x]\n", tag, (void *)n, s, e,
+                         lo, hi);
+            ++bad;
+        }
+        if (s < prev_end) {
+            std::fprintf(stderr, "[heap-audit:%s] FREE list UNSORTED/OVERLAP: "
+                         "node %p starts %08x before prev end %08x\n", tag,
+                         (void *)n, s, prev_end);
+            ++bad;
+        }
+        prev_end = e;
+    }
+    /* pass 2: used list, and cross-check each used region against free list */
+    Node *u = *(Node **)(alloc + 0x2c);
+    guard = 0;
+    for (Node *n = u; n && guard < 65536; n = n->next, ++guard) {
+        unsigned s = (unsigned)(size_t)n, e = s + 0x10 + n->size;
+        if (n->tag != 0x5544) {
+            std::fprintf(stderr, "[heap-audit:%s] USED node %p tag %04x (want "
+                         "5544) size %u\n", tag, (void *)n, n->tag, n->size);
+            ++bad;
+        }
+        int g2 = 0;
+        for (Node *m = f; m && g2 < 65536; m = m->next, ++g2) {
+            unsigned ms = (unsigned)(size_t)m, me = ms + 0x10 + m->size;
+            if (ms < e && s < me) {
+                std::fprintf(stderr, "[heap-audit:%s] OVERLAP: used node %p "
+                             "[%08x..%08x] (data %08x size %u) vs FREE node %p "
+                             "[%08x..%08x]\n", tag, (void *)n, s, e, s + 0x10,
+                             n->size, (void *)m, ms, me);
+                ++bad;
+            }
+        }
+    }
+    if (bad)
+        std::fprintf(stderr, "[heap-audit:%s] %d violation(s)\n", tag, bad);
+    return bad;
+}
+static int port_heap_audit_on(void)
+{
+    static int on = -1;
+    if (on < 0) on = std::getenv("SM64DS_HEAP_AUDIT") != 0;
+    return on;
+}
+extern "C" int port_heap_audit_frame(const char *tag)
+{
+    if (!port_heap_audit_on()) return 0;
+    return port_heap_audit(tag);
+}
+/* ==== END TEMPORARY DIAGNOSTIC ============================================= */
+
 /* ---- the change ----------------------------------------------------------- */
 
 static unsigned port_level_heap_free(void)
@@ -1076,6 +1160,7 @@ extern "C" int port_level_change_apply(void)
     std::fprintf(stderr, "[lvl] change: level %d -> %d, entrance %u, reason %u\n",
                 from, want, (unsigned)data_0209f268, (unsigned)data_0209f26c);
 
+    port_heap_audit_frame("change-fire");        /* TEMPORARY w6-B */
     const double lvlperf_t0 = port_lvlperf_now();
     if (!port_level_teardown()) {
         std::fprintf(stderr, "  [lvl] teardown failed; the change is "
@@ -1089,6 +1174,7 @@ extern "C" int port_level_change_apply(void)
            still standing. */
         return 0;
     }
+    port_heap_audit_frame("teardown-done");      /* TEMPORARY w6-B */
 
     /* THE LOOPING-SOUND REAP, the ROM's Scene::BeforeCleanupResources. On the
        DS the Scene actor is respawned per level, so its slot-4 override fires on
@@ -1120,7 +1206,9 @@ extern "C" int port_level_change_apply(void)
        the next level's first Model::LoadFile walks one: the second boot got
        as far as spawning the castle grounds' butterflies and then called
        through a freed entry. */
+    port_heap_audit_frame("sound-reap");         /* TEMPORARY w6-B */
     CleanCommonModelDataArr();
+    port_heap_audit_frame("common-model");       /* TEMPORARY w6-B */
 
     /* and the texture-VRAM cursors, which are the port's own expression of
        InitialiseVramGlobals -- the line Stage::InitResources opens a level
@@ -1130,6 +1218,7 @@ extern "C" int port_level_change_apply(void)
 
     const unsigned free_torn = port_level_heap_free();
     port_level_reset_host();
+    port_heap_audit_frame("reset-host");         /* TEMPORARY w6-B */
     port_level_latch();
     /* Point the boot at the level the latch just made current. Without this the
        boot's mount resolved to the env-cached level and the warp re-booted the
@@ -1145,9 +1234,11 @@ extern "C" int port_level_change_apply(void)
         return 0;
     }
     port_level_stage_reseat(stage);
+    port_heap_audit_frame("stage-reseat");       /* TEMPORARY w6-B */
     /* [lvl-perf] span 0: everything between the change firing and the boot */
     port_lvlperf_note(0, port_lvlperf_now() - lvlperf_t0);
     port_stage_a_boot((char *)stage + 0x91c, 1);
+    port_heap_audit_frame("boot-done");          /* TEMPORARY w6-B */
 
     const unsigned free_after = port_level_heap_free();
     std::fprintf(stderr, "[lvl] level %d up. heap free: %u before, %u torn down, %u "
@@ -1163,6 +1254,17 @@ extern "C" int port_level_change_apply(void)
    loop as any other. */
 extern "C" int port_level_change_poll(void)
 {
+    /* TEMPORARY w6-B: per-frame audit so a free-list corruption is caught on
+       the frame it happens, not at the change. */
+    if (port_heap_audit_on()) {
+        static int frame_no, said;
+        ++frame_no;
+        if (port_heap_audit_frame("frame") && !said) {
+            std::fprintf(stderr, "[heap-audit] FIRST BAD FRAME: poll #%d\n",
+                         frame_no);
+            said = 1;
+        }
+    }
     if (data_02092110 < 0)
         return 0;
     return port_level_change_apply();
