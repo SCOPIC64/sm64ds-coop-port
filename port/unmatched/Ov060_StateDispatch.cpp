@@ -93,15 +93,15 @@
  * pointer, so they are RIGHT as matched src and stay in the slice.  They still
  * need the seat: the words they call are DS code addresses.
  *
- * ==== TWO NAMED HOLES =======================================================
+ * ==== THE TWO NAMED HOLES ARE NOW VERIFIED HOST COPIES (run linkw, w7a) =====
  *
- * func_ov060_021140c0 (0x1f4 bytes, BOWSER state 9) and func_ov060_02116d78
- * (0x1fc bytes, BOWSER FIRE behaviour state 5) are UNMATCHED -- no TU of
- * either name exists in src/ on this tree.  Both are seated with an
- * abort-and-name stub, the Koopa-0x02117724 / Rabbit-0x0212b8dc precedent: the
- * link is satisfied, the seat's ROM check still runs, and if the fight ever
- * reaches those two states the port says which one instead of jumping into the
- * overlay image.
+ * func_ov060_021140c0 (BOWSER state 9) and func_ov060_02116d78 (BOWSER FIRE
+ * behaviour state 5) are still UNMATCHED -- no TU of either name exists in
+ * src/ on this tree -- but they are no longer abort stubs.  Both spans were
+ * re-derived from the overlay image and transcribed instruction for
+ * instruction; the verification record is in each body's own banner below.
+ * The old abort-and-name stubs (the Koopa-0x02117724 / Rabbit-0x0212b8dc
+ * precedent) are gone: the two states now RUN.
  */
 #include <cstdio>
 #include <cstdlib>
@@ -224,18 +224,346 @@ void func_ov060_02117624(char *c);
 
 }  /* extern "C" */
 
-/* ============ THE TWO NAMED HOLES ========================================= */
-static void ov60_hole(const char *what, unsigned rom)
-{
-    std::fprintf(stderr, "FATAL: ov060 state body %s (ROM 0x%08x) is NOT "
-                 "decompiled -- the Bowser fight reached a state this port "
-                 "cannot run\n", what, rom);
-    std::abort();
+/* ============ THE TWO FORMERLY-NAMED HOLES ===============================
+ * Both bodies below are HOST COPIES transcribed instruction for instruction
+ * from the overlay image, NOT matched src and NOT guesses.  When the decomp
+ * banks the real TUs they retire for the slice line.
+ *
+ * ---- SPANS, RE-DERIVED (the old header's 0x1f4 / 0x1fc were CARRIED) ------
+ * Bytes read from extracted/overlays/overlay_0060.bin at base 0x02111900
+ * (extracted/dsd/arm9_overlays/overlays.yaml, ov060: base_address 34674944 =
+ * 0x02111900, bss_size 1632).  Each span is confirmed TWICE and the two
+ * derivations agree:
+ *
+ *   func_ov060_021140c0  0x021140c0..0x021142b3 = 0x1f4 bytes = 125 words
+ *     116 instructions, push {r4-r8,lr} @0x021140c0 .. bx lr @0x0211428c
+ *     +  9 literal words 0x02114290..0x021142b0, the last one (0x00000423)
+ *        reached by this function's own ldr [pc, #0x68] @0x02114240
+ *     next symbol func_ov060_021142b4; 0x021142b4 - 0x021140c0 = 0x1f4
+ *
+ *   func_ov060_02116d78  0x02116d78..0x02116f73 = 0x1fc bytes = 127 words
+ *     121 instructions, push {r4,r5,r6,lr} @0x02116d78 .. bx lr @0x02116f58
+ *     +  6 literal words 0x02116f5c..0x02116f70, the last one (0x00000011)
+ *        reached by this function's own ldr [pc, #0x78] @0x02116ef0
+ *     next symbol func_ov060_02116f74; 0x02116f74 - 0x02116d78 = 0x1fc
+ *
+ * ---- HOW THEY WERE VERIFIED, AND WHAT THAT DOES NOT COVER -----------------
+ * The decomp oracle (mwccarm -> byte compare) is NOT AVAILABLE on this
+ * machine: tools/mwccarm/2004/b56/mwccarm.exe does not exist in either the
+ * repo or the worktree (tools/permuter/mwccarm_compile.sh names that path),
+ * and tangos match reports "no compiler at 2004/b56" on a KNOWN-matched
+ * control (src/func_ov060_02113fcc.c).  So neither body claims a compiler
+ * diff.  What each body DOES claim, and what the reviewer can re-run:
+ *
+ *   1. TOTAL ACCOUNTING.  Every one of the 125 + 127 words is classified as
+ *      instruction or literal, and every instruction is mapped to a statement
+ *      below.  Nothing in either span is unexplained.
+ *   2. EVERY CALL TARGET AND EVERY RELOCATED LOAD is confirmed against
+ *      config/arm9/overlays/ov060/relocs.txt, independently of the
+ *      disassembly.  For 0x021140c0 that table lists exactly 7 arm_call rows
+ *      and 3 load rows; for 0x02116d78 exactly 6 arm_call rows (0x02043824
+ *      TWICE -- the body really does call MarkForDestruction on two paths)
+ *      and 2 load rows.  The counts and targets match the transcription
+ *      one for one, and the literals the reloc table does NOT list are
+ *      therefore plain numeric constants, not addresses -- which is what
+ *      proves 0x92492493 / 0xcccccccd / 0xaaaaaaab / 0xf0f0f0f1 are division
+ *      magics and not pointers.
+ *   3. NO CHANGED CONSTANT, OFFSET OR BRANCH TARGET.  Every immediate, every
+ *      structure offset and every branch is listed in the per-body banner.
+ *      The divisors are re-derived from the magics, not guessed:
+ *        0xcccccccd, umull + lsr #3          -> unsigned / 10
+ *        0xaaaaaaab, umull + lsr #1          -> unsigned / 3
+ *        0xf0f0f0f1, umull + lsr #4          -> unsigned / 17
+ *        0x92492493, smull + add n + asr #9  -> signed  / 896
+ *          (2^41 / 896 = 2454267026.28, ceil = 2454267027 = 0x92492493, the
+ *           exact round-up magic; the trailing "+ (n >>> 31)" is C's
+ *           round-toward-zero correction, i.e. plain `/ 896`)
+ *   4. THE TRANSCRIPTION IDIOMS are the ones the MATCHED siblings in this
+ *      same pack already use, so the shapes are not invented here:
+ *        ((u32)RandomIntInternal(&data_0209e650) >> 0x10) % 10
+ *            -- src/func_ov060_021150d0.cpp, src/func_ov060_021151d4.c
+ *        data_02082214[(*(u16 *)p >> 4) * 2] / [... * 2 + 1]
+ *            -- src/func_ov060_021128c0.cpp, src/func_0203cc28.c
+ *            (table re-read from arm9_dec.bin: entry[2i]=sin, [2i+1]=cos,
+ *             scale 0x1000, 4096 entries -- checked at i=0/512/1024)
+ *        *(u16 *)((c + 0x300) + 0xfc)  for the +0x3fc / +0x374 counters
+ *            -- src/func_ov060_02113d8c.cpp, src/func_ov060_021128c0.cpp
+ *
+ * What this standard does NOT establish is that mwccarm would emit these
+ * exact 116 / 121 instructions from this exact C.  It establishes that the
+ * SEMANTICS are the ROM's, word for word, with no constant, offset or call
+ * target altered.  That is the strongest claim this machine can support and
+ * the report says so.
+ */
+
+extern "C" {
+/* what the two host copies below call, beyond the block above */
+int _ZN6Player9GetHealthEv(void *self);        /* ov002 0x020bf548, thiscall
+                                                  receiver in r0 -- a REAL
+                                                  receiver, not the zero-arg
+                                                  reader shape the
+                                                  closestplayer guard hunts */
+int _ZNK9Animation12WillHitFrameEi(void *anim, int frame);   /* 0x02015a98 */
+void _ZN5Actor13SpawnFireballERK7Vector3PK10Vector3_165Fix12IiES7_j(
+    void *self, const void *pos, const void *rot, int horzSpeed, int unk35c,
+    unsigned param1);                                        /* 0x020102b0 */
+void func_02012694(int id, void *pos);                       /* 0x02012694 */
+bool Bowser_IsAnimAtLastFrame(void *c);        /* ov060 0x02115a30 -- the
+                                                  matched TU returns bool, so
+                                                  this decl says bool: an int
+                                                  decl would read the undefined
+                                                  high 24 bits of MSVC's al */
+void func_ov060_02111cc0(char *c, int idx, int fix);   /* ov060 0x02111cc0 --
+                                                  THREE arguments: the ROM
+                                                  callee reads r0/r1/r2 and the
+                                                  matched TU spends r2 on its
+                                                  SetAnim frame argument, so a
+                                                  one-argument decl would hand
+                                                  it a garbage animation id */
+void func_ov060_02116518(char *self, unsigned kind, int a2, int a3);
+                                                        /* ov060 0x02116518 */
+void *_ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(
+    unsigned actorID, unsigned param1, const void *pos, const void *rot,
+    int areaID, int deathTableID);                           /* 0x02010e2c */
+void _ZN9ActorBase18MarkForDestructionEv(void *self);        /* 0x02043824 */
+int RandomIntInternal(int *seed);                            /* 0x0203b990 */
+extern int data_0209e650;             /* the shared LCG seed both bodies draw */
+extern short data_02082214[];         /* arm9 sin/cos table, {sin,cos} pairs */
+extern int data_ov060_0211abe0[2];    /* the 0x36c SharedFilePtr; [1] is the
+                                         BCA_File* the sinit's Construct
+                                         resolves -- 8 bytes wide, next ov060
+                                         symbol is data_ov060_0211abe8 */
 }
-extern "C" void func_ov060_021140c0(char *c)
-{ (void)c; ov60_hole("func_ov060_021140c0 (BOWSER state 9)", 0x021140c0); }
-extern "C" void func_ov060_02116d78(char *c)
-{ (void)c; ov60_hole("func_ov060_02116d78 (BOWSER FIRE state 5)", 0x02116d78); }
+
+namespace {
+/* the two locals func_ov060_021140c0 hands Actor::SpawnFireball; the ROM
+   builds them in its own 0x20-byte frame at sp+0x10 (Vector3) and sp+8
+   (Vector3_16) and passes their addresses */
+struct Ov60Vec3 { int x, y, z; };
+struct Ov60Vec3_16 { unsigned short x, y, z; };
+}
+static_assert(sizeof(Ov60Vec3) == 12, "SpawnFireball's Vector3 is 3 words");
+static_assert(sizeof(Ov60Vec3_16) == 6, "SpawnFireball's Vector3_16 is 3 halfwords");
+static_assert(sizeof(short) == 2, "data_02082214 is indexed as s16[]");
+static_assert(sizeof(PortPmf) == 8, "the ROM's dispatch record is 8 bytes");
+
+/* ---- lane w7a's proof-of-life trace ---------------------------------------
+ * OFF unless SM64DS_OV060_TRACE is set, stderr only, and it touches no game
+ * state, so every stdout-comparing gate is byte-identical with the variable
+ * set or unset.  It exists because walk_window has no per-actor state probe
+ * and the two states this file just filled are exactly the ones that had to
+ * be OBSERVED running. */
+namespace {
+bool ov60_trace(void)
+{
+    static int on = -1;
+    if (on < 0) on = (std::getenv("SM64DS_OV060_TRACE") != 0);
+    return on != 0;
+}
+int g_ov60_frame;                    /* Bowser::Behavior ticks = fight frames */
+struct Ov60Seen { const void *who; int state; };
+Ov60Seen g_ov60_seen[16];
+int g_ov60_nseen;
+void ov60_note(const char *what, const void *who, int state)
+{
+    int i;
+    for (i = 0; i < g_ov60_nseen; ++i)
+        if (g_ov60_seen[i].who == who)
+            break;
+    if (i == g_ov60_nseen) {
+        if (g_ov60_nseen >= 16)
+            return;                 /* trace capacity only; no game state */
+        g_ov60_seen[i].who = who;
+        g_ov60_seen[i].state = -1;
+        ++g_ov60_nseen;
+    }
+    if (g_ov60_seen[i].state == state)
+        return;
+    if (ov60_trace())
+        std::fprintf(stderr, "[ov060] frame %d: %s %p state %d -> %d\n",
+                     g_ov60_frame, what, who, g_ov60_seen[i].state, state);
+    g_ov60_seen[i].state = state;
+}
+void ov60_ran(const char *what, const void *who)
+{
+    if (ov60_trace())
+        std::fprintf(stderr, "[ov060] frame %d: %s RAN on %p\n",
+                     g_ov60_frame, what, who);
+}
+}
+
+/* ============ VERIFIED HOST COPY 7: func_ov060_021140c0 ===================
+ * BOWSER state 9 -- record data_ov060_0211a5a0 (overlay words 021140c0 /
+ * 00000000), which __sinit_ov060_021195dc copies to
+ * data_ov060_0211aed4[4].hi, i.e. 8-byte record 9 of the twenty-record table
+ * func_ov060_021128c0 indexes with *(s32 *)(c + 0x40c).  Reached from
+ * src/func_ov060_021150d0.cpp and src/func_ov060_021151d4.c, both of which
+ * pick it on a RandomIntInternal draw.
+ *
+ * ROM 0x021140c0, 0x1f4 bytes, 116 instructions + 9 literals.
+ *
+ * CALLS (all 7 confirmed in relocs.txt, in order of first appearance):
+ *   0x021140e8 -> 0x020bf548 overlay(2)  _ZN6Player9GetHealthEv
+ *   0x021140f8 -> 0x0203b990 main       RandomIntInternal
+ *   0x02114160 -> 0x02015a98 main       _ZNK9Animation12WillHitFrameEi
+ *   0x02114204 -> 0x020102b0 main       Actor::SpawnFireball
+ *   0x02114210 -> 0x02012694 main       func_02012694
+ *   0x02114218 -> 0x02115a30 overlay(60) Bowser_IsAnimAtLastFrame
+ *   0x02114278 -> 0x02111cc0 overlay(60) func_ov060_02111cc0
+ * RELOCATED LOADS (all 3): 0x0209e650, 0x0211abe0, 0x02082214.
+ * PLAIN LITERALS (6): cccccccd, 0000000a, aaaaaaab, 00000003, 00000122,
+ *   00000423 -- none of them in relocs.txt, so none of them is an address.
+ * OFFSETS: 0x3fc(=0x300+0xfc) 0x3a0 0x428 0x134 0x124 0x5c 0x60 0x64 0x8c
+ *   0x8e 0x90 0x74 0x423 0x40c 0x12c.
+ * IMMEDIATES: 4, 16(shift), 10, 3, 1, 5, 0xe8, 0x58000, 0x1000, 0x1e000,
+ *   0xa000, 0, 0x122, 0x14.
+ * BRANCHES: bne 0x2114144 (skip the volley pick), beq 0x21140f4 + ble
+ *   0x211413c (the `||` short circuit and its else), b 0x2114144, bne/beq
+ *   0x2114214 (the two anim guards), the conditional epilogue at 0x02114220,
+ *   bne 0x211426c and b 0x211427c.  Every one is reproduced structurally.
+ * PORT_HOST_ABI: none -- this is a plain cdecl body; it is a host copy only
+ * because no matched TU of this name exists. */
+extern "C" void func_ov060_021140c0(char *r4)
+{
+    ov60_ran("BOWSER state 9 (021140c0)", r4);
+
+    /* 0x021140cc..0x02114140 -- on the first frame of the state (the
+       dispatcher zeroes +0x3fc on every state change) pick how many volleys
+       this pass fires: 3 when the player is hurt, else 1 + rand%10%3. */
+    if (*(unsigned short *)((r4 + 0x300) + 0xfc) == 0) {
+        if (*(void **)(r4 + 0x3a0) == 0 ||
+            _ZN6Player9GetHealthEv(*(void **)(r4 + 0x3a0)) > 4) {
+            unsigned rv = (unsigned)RandomIntInternal(&data_0209e650) >> 0x10;
+            *(unsigned char *)(r4 + 0x428) = (unsigned char)(rv % 10 % 3 + 1);
+        } else {
+            *(unsigned char *)(r4 + 0x428) = 3;
+        }
+    }
+
+    /* 0x02114144..0x02114210 -- while the 0x36c animation is the one loaded,
+       spit a fireball on the frame the animation crosses frame 5. */
+    if (*(int *)(r4 + 0x134) == data_ov060_0211abe0[1]) {
+        if (_ZNK9Animation12WillHitFrameEi(r4 + 0x124, 5) != 0) {
+            Ov60Vec3 pos;
+            Ov60Vec3_16 rot;
+            int i;
+            pos.x = *(int *)(r4 + 0x5c);
+            pos.y = *(int *)(r4 + 0x60);
+            pos.z = *(int *)(r4 + 0x64);
+            rot.y = *(unsigned short *)(r4 + 0x8e);
+            rot.x = *(unsigned short *)(r4 + 0x8c);
+            rot.z = *(unsigned short *)(r4 + 0x90);
+            i = rot.y >> 4;
+            pos.x = data_02082214[i * 2] * 0xe8 + *(int *)(r4 + 0x5c);
+            pos.z = data_02082214[i * 2 + 1] * 0xe8 + *(int *)(r4 + 0x64);
+            pos.y = *(int *)(r4 + 0x60) + 0x58000;
+            rot.x = 0x1000;
+            _ZN5Actor13SpawnFireballERK7Vector3PK10Vector3_165Fix12IiES7_j(
+                r4, &pos, &rot, 0x1e000, 0xa000, 0);
+            func_02012694(0x122, r4 + 0x74);
+        }
+    }
+
+    /* 0x02114214..0x02114228 -- everything past here waits for the animation
+       to reach its last frame. */
+    if (!Bowser_IsAnimAtLastFrame(r4))
+        return;
+
+    /* 0x0211422c..0x02114278 -- count the volley off; when the count reaches
+       the number picked above, drop back to state 0.  If the spit animation
+       is NOT the one loaded, load it (index 0x14) instead. */
+    if (*(int *)(r4 + 0x134) == data_ov060_0211abe0[1]) {
+        *(unsigned char *)(r4 + 0x423) =
+            (unsigned char)(*(unsigned char *)(r4 + 0x423) + 1);
+        if (*(unsigned char *)(r4 + 0x423) >= *(unsigned char *)(r4 + 0x428))
+            *(int *)(r4 + 0x40c) = 0;
+    } else {
+        func_ov060_02111cc0(r4, 0x14, 0);
+    }
+
+    /* 0x0211427c..0x0211428c */
+    *(int *)(r4 + 0x12c) = 0;
+}
+
+/* ============ VERIFIED HOST COPY 8: func_ov060_02116d78 ===================
+ * BOWSER FIRE behaviour state 5 -- record data_ov060_0211a774 (overlay words
+ * 02116d78 / 00000000), which __sinit_ov060_02119df0 copies to
+ * data_ov060_0211afb4.p5, i.e. record 5 of the eight-record behaviour table
+ * _ZN10BowserFire8BehaviorEv indexes with *(int *)(c + 0x35c).
+ *
+ * ROM 0x02116d78, 0x1fc bytes, 121 instructions + 6 literals.
+ *
+ * CALLS (all 6 confirmed in relocs.txt, in order):
+ *   0x02116ec8 -> 0x02116518 overlay(60) func_ov060_02116518
+ *   0x02116ed0 -> 0x020356e8 main       _ZNK12WithMeshClsn10IsOnGroundEv
+ *   0x02116ee0 -> 0x0203b990 main       RandomIntInternal
+ *   0x02116f24 -> 0x02010e2c main       Actor::Spawn
+ *   0x02116f2c -> 0x02043824 main       ActorBase::MarkForDestruction
+ *   0x02116f4c -> 0x02043824 main       ActorBase::MarkForDestruction
+ *     -- TWO rows for 0x02043824 in the reloc table, so the double call on the
+ *        ground path (destroy, then fall through to the age check and destroy
+ *        again) is the ROM's own behaviour, not a transcription slip.
+ * RELOCATED LOADS (both): 0x02082214, 0x0209e650.
+ * PLAIN LITERALS (4): 00000255, 92492493, f0f0f0f1, 00000011.
+ * OFFSETS: 0x360 0x92 0x94 0x98 0xa4 0xa8 0xac 0x5c 0x60 0x64 0x110 0xcc
+ *   0x374(=0x300+0x74).
+ * IMMEDIATES: 0x5000, 0x255, 0x800, 0x200, 4(shift), 896, 0x9a, 1, 12,
+ *   0x118, 6, -1, 0x3c, 16(shift), 17.
+ * BRANCHES: the four conditional-execution blocks (addlt/strlt at
+ *   0x02116d90, addgt/strhgt at 0x02116db0, the lo-conditional epilogue at
+ *   0x02116f3c), beq 0x2116f30, beq 0x2116f28.  All reproduced structurally.
+ * PORT_HOST_ABI: none -- plain cdecl; host copy only because no matched TU of
+ * this name exists. */
+extern "C" void func_ov060_02116d78(char *r4)
+{
+    int a, b;
+
+    ov60_ran("BOWSERFIRE state 5 (02116d78)", r4);
+
+    /* 0x02116d84..0x02116da4 -- grow the flame up to its cap */
+    if (*(int *)(r4 + 0x360) < 0x5000)
+        *(int *)(r4 + 0x360) += 0x255;
+
+    /* 0x02116da8..0x02116dbc -- pitch back toward level */
+    if (*(short *)(r4 + 0x92) > 0x800)
+        *(short *)(r4 + 0x92) = (short)(*(short *)(r4 + 0x92) - 0x200);
+
+    /* 0x02116dc0..0x02116e7c -- speed from (pitch 0x92, yaw 0x94, speed 0x98)
+       through the arm9 sin/cos table.  The three components are computed with
+       exactly the table entries and the exactly one divisor the ROM uses:
+       x and z divide by 896, y does not divide at all. */
+    a = *(unsigned short *)(r4 + 0x92) >> 4;
+    b = *(unsigned short *)(r4 + 0x94) >> 4;
+    *(int *)(r4 + 0xa4) = *(int *)(r4 + 0x98) * data_02082214[a * 2]
+                          * data_02082214[b * 2 + 1] / 896;
+    a = *(unsigned short *)(r4 + 0x92) >> 4;
+    *(int *)(r4 + 0xa8) = -*(int *)(r4 + 0x98) * data_02082214[a * 2];
+    a = *(unsigned short *)(r4 + 0x92) >> 4;
+    b = *(unsigned short *)(r4 + 0x94) >> 4;
+    *(int *)(r4 + 0xac) = -*(int *)(r4 + 0x98) * data_02082214[a * 2]
+                          * data_02082214[b * 2] / 896;
+
+    /* 0x02116e80..0x02116ec8 -- integrate, then drive the flame particle at
+       twelve times the current size */
+    *(int *)(r4 + 0x5c) += *(int *)(r4 + 0xa4);
+    *(int *)(r4 + 0x60) += *(int *)(r4 + 0xa8);
+    *(int *)(r4 + 0x64) += *(int *)(r4 + 0xac);
+    func_ov060_02116518(r4, 0x9a, 1, *(int *)(r4 + 0x360) * 12);
+
+    /* 0x02116ecc..0x02116f2c -- on touching the floor, sixteen times out of
+       seventeen leave a 0x118 behind, then die */
+    if (_ZNK12WithMeshClsn10IsOnGroundEv(r4 + 0x110) != 0) {
+        if (((unsigned)RandomIntInternal(&data_0209e650) >> 0x10) % 17 != 0)
+            _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(
+                0x118, 6, r4 + 0x5c, 0, *(signed char *)(r4 + 0xcc), -1);
+        _ZN9ActorBase18MarkForDestructionEv(r4);
+    }
+
+    /* 0x02116f30..0x02116f58 -- and die of old age at 60 frames */
+    if (*(unsigned short *)((r4 + 0x300) + 0x74) < 0x3c)
+        return;
+    _ZN9ActorBase18MarkForDestructionEv(r4);
+}
 
 /* ============ HOST COPY 1: func_ov060_02112434 ============================
  * BOWSER's per-frame target/flag pass, called from Bowser::Behavior.  Line for
@@ -389,6 +717,7 @@ extern "C" int _ZN10BowserFire13InitResourcesEv(char *c)
  * PORT_HOST_ABI: mwcc pointer-to-member stride/receiver, the Crate case. */
 extern "C" int _ZN10BowserFire8BehaviorEv(char *c)
 {
+    ov60_note("BOWSERFIRE", c, *(int *)(c + 0x35c));   /* w7a trace, stderr */
     *(int *)(c + 0x370) += 1;
     {
         PortPmf *e = &data_ov060_0211afb4[*(int *)(c + 0x35c)];
@@ -447,6 +776,8 @@ extern char *data_0209f318;
 extern "C" int _ZN6Bowser8BehaviorEv(void *selfv)
 {
     char *c = (char *)selfv;
+    ++g_ov60_frame;                                   /* w7a trace, stderr */
+    ov60_note("BOWSER", c, *(int *)(c + 0x40c));
     RandomIntInternal(&data_0209e650);
     *(int *)(c + 0x3a0) = (int)(size_t)_ZN5Actor13ClosestPlayerEv(c);
     if (*(char **)(c + 0x3a0) != 0) {
