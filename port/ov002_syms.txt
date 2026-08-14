@@ -234,3 +234,23 @@ data_ov002_0210a8b8
 # pointer pass can rebase the chain.
 data_ov002_021093a0 data_ov002_021093ac
 PoppingLavaBubbles_SpawnInfo
+# run linkw wave 6 / lane w6-D: PATH_LIFT (31, ov100) needs three more words
+# off the PathLift BASE branch that lives here in ov002. Sizes are the plain
+# next-symbol deltas, no override:
+#   data_ov002_0210af00  0xc   the Vector3 constant {0x2000,0x2000,0x2000}
+#                              func_ov002_020efc74 copies onto the stack once
+#                              per Model in the +0x320 array (next symbol
+#                              0x0210af0c, the typeinfo record)
+#   data_ov002_0210d7d4  the CLPS block func_ov100_021471e0 hands
+#                              MovingMeshCollider::SetFile
+#   the three state-name strings the 20-byte records' last word points at
+#   ("WAIT" 0x0210aec0, "PATH" 0x0210aec8, "FALL" 0x0210aeb8): mounted so the
+#   syms patch can rebase those three tails instead of leaving them pointing
+#   at reserved DS main RAM. Nothing dereferences them today; they are here
+#   so the seated table is honest end to end.
+# NOT here, deliberately: data_ov002_0210af70, PathLiftActor_c's 33-slot
+# vtable. That is host storage the registry fills
+# (hal/actor_classes_ov100pl.cpp), the ov095/ov080/data_ov002_021081e4 rule --
+# mounting it would hand the factory a table of DS code addresses.
+data_ov002_0210af00 data_ov002_0210d7d4
+data_ov002_0210aeb8 data_ov002_0210aec0 data_ov002_0210aec8
