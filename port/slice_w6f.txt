@@ -1,0 +1,47 @@
+# slice_w6f.txt -- lane-owned slice for the linkage campaign (run linkw,
+# wave 6, lane w6-f). One matched src TU per line, path relative to the repo
+# root, comments with #. THIS FILE HAS ONE OWNER (lane w6-f).
+#
+# FLAMETHROWER (318, ov095, RTTI daObjFlamethrower_c). The fill is
+# hal/actor_classes_flamethrower.cpp; the mount append is ov095_syms.txt.
+#
+# The class has FIVE methods in the ROM and four of them are matched. The fifth,
+# _ZN12Flamethrower8BehaviorEv (0x021368f0, 0x470 bytes), has NO matched TU --
+# config/arm9/overlays/ov095/delinks.txt lists the other four and not this one,
+# and the near-miss DB's best attempt still sits at 154 divergences. It is a
+# HOST COPY, port/unmatched/Flamethrower_Behavior.c, transcribed per
+# instruction from the ROM listing; when the decomp lands a byte match, that TU
+# replaces the host copy on this line and the file is deleted.
+src/Flamethrower_Spawn.cpp
+src/_ZN12Flamethrower13InitResourcesEv.cpp
+src/_ZN12FlamethrowerD1Ev.cpp
+src/_ZN12FlamethrowerD0Ev.cpp
+
+# ---- the reference edges ---------------------------------------------------
+#
+# The four TUs above and the Behavior host copy reference 13 distinct call
+# targets plus their own construction closure. Every one of those was checked
+# against walk_window.map on this lane's OWN baseline build (b8ff3d0b7,
+# C:\tmp\wl19base) and all but four were ALREADY LINKED, so they are not listed
+# here: DecIfAbove0_Short, _ZN5Sound8PlayLongEjjjRK7Vector3j,
+# Matrix4x3_FromRotationXYZExt, MulVec3Mat4x3, Vec3_Add,
+# _ZN5Actor10FindWithIDEj, _ZN6Player4BurnEv (gate 175 brought it in, with its
+# face), _ZN12CylinderClsn5ClearEv, _ZN12CylinderClsn6UpdateEv,
+# _ZN19CylinderClsnWithPos4InitERK7Vector35Fix12IiES4_jj,
+# _ZN19CylinderClsnWithPosC1Ev/D1Ev, _ZN9ActorBasenwEj, _ZN5ActorC2Ev,
+# _ZN5ActorD2Ev, _ZN6Memory10DeallocateEPvP4Heap, func_020733a8,
+# __destroy_arr, func_020072c0, func_0203d384.
+#
+# The four that were NOT linked are the particle emitters the Behavior fires,
+# one pair per variant. They are wrappers over Particle::System::New (already
+# linked) on the global tracker data_0209ee74 (already hosted, cxx_aliases.cpp),
+# so each adds itself and nothing else:
+#
+#   func_020226fc   effect id 0x50   \  the (param & 0xff) != 0xff pair
+#   func_02022774   effect id 0x4f   /
+#   func_02022864   effect id 0x51   \  the == 0xff pair
+#   func_020227ec   effect id 0x52   /
+src/func_020226fc.c
+src/func_02022774.c
+src/func_020227ec.c
+src/func_02022864.c

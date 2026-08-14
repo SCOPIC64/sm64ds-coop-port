@@ -70,3 +70,43 @@ data_ov095_021375a4:0xc
 # is variant-indexed storage already mounted above; the class code and vtable
 # are gate 173's, shared across all three ids.
 UpDownLiftBbh_SpawnInfo:0x1c
+# run linkw wave 6 (lane w6-f): FLAMETHROWER (318), the last ov095 class and
+# the one that skips on FOUR mounted levels (13/14/15/37). Its record is
+# `ambiguous` in config the same way every ov095 record is (ov006 spans this
+# window: base 0x020bbb00 + code_size 0x7ebc0 covers 0x021376cc, and arm9
+# relocs.txt spells the spawn-table entry `module:overlays(6,95)`). Settled by
+# the RAW ov095 image, never the dsd export: overlay_0095.bin at file offset
+# 0x021376cc - 0x02135700 reads
+#     d4 6e 13 02  3e 01  3c 01  02 00 00 00  00 00 00 00
+#     00 00 50 00  00 00 00 01  00 00 00 00
+# = word[0] 0x02136ed4 = Flamethrower_Spawn, +4 halfword 0x013e = 318, +6
+# halfword 0x013c = 316.
+#
+# WIDTH 0x1c, and here the default would be WRONG, not merely loose: the next
+# symbol is _ZTV12Flamethrower at 0x021376f0, so a next-symbol delta would pin
+# 0x24 and swallow the vtable's mwcc RTTI header word at 0x021376ec (a RELOC to
+# the typeinfo record at 0x021376a8) into an actor record. 0x1c is the measured
+# stride of every record in this overlay -- the seven Seesaws run
+# 0x021373dc/f8/0x02137414/30/4c/68/84 and the three UpDownLifts run
+# 0x021375cc/e8/0x02137604, all deltas exactly 0x1c -- and UpDownLiftRr shows
+# the identical shape one section up: a 0x1c record followed by a 4-byte pad
+# before the next table's RTTI word. Adjacency checked both ways: 0x021376cc +
+# 0x1c = 0x021376e8, clear of the vtable, and clear of the UpDownLift section
+# above (which ends at 0x02137604 + 0x1c) and of the mounted
+# data_ov095_02137780 run below.
+#
+# The vtable itself stays OUT, the rule this file's header already states: it
+# is the host array hal/actor_classes_flamethrower.cpp defines and the registry
+# fills.
+Flamethrower_SpawnInfo:0x1c
+# and the three constant tables the class indexes by segment. The matched
+# InitResources reads two of them BY NAME already (data_ov095_02136fb0 the
+# reach, data_ov095_02136f80 the collider radius/height scale, both declared in
+# include/decl_common.h inside its extern "C" block, so no C++ data spelling is
+# emitted and no alias is needed); data_ov095_02136f98 is the Behavior's second
+# particle argument. Twelve entries each -- s32, s16, s16 -- and the
+# next-symbol deltas already give exactly 0x30/0x18/0x18 (the run is contiguous:
+# f80 + 0x18 = f98, f98 + 0x18 = fb0, fb0 + 0x30 = __sinit_ov095_02136fe0), so
+# these need no pin. None of the three carries a relocation, so they add
+# nothing to the pointer-rebase pass.
+data_ov095_02136f80 data_ov095_02136f98 data_ov095_02136fb0

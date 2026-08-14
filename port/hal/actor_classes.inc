@@ -882,6 +882,17 @@ void hal_fill_crazed_crate_vtable(void);         /* fills _ZTV11CrazedCrate, 31 
 extern unsigned char Coffin_SpawnInfo[];         /* ov071 0x02122eb0, +4 reads 64 */
 void *Coffin_Spawn(void);                        /* ov071 0x02122670 */
 void hal_fill_coffin_vtable(void);               /* fills _ZTV6Coffin, 32 */
+/* ---- run linkw wave 6 (lane w6-f): FLAMETHROWER (318, ov095) ----
+   daObjFlamethrower_c, the wall jet of fire. The one class on the board that
+   skips on FOUR mounted levels at once (13 x3, 14 x5, 15 x3, 37 x3). Lane w5-C
+   left it BLOCKED because Behavior has no matched TU; this gate hosts that one
+   method as a per-instruction host copy
+   (port/unmatched/Flamethrower_Behavior.c) and slices the other four
+   (slice_w6f.txt). The fill is hal/actor_classes_flamethrower.cpp, 31 slots,
+   with the reloc-pinned slot map in its banner. */
+extern unsigned char Flamethrower_SpawnInfo[];   /* ov095 0x021376cc, +4 reads 318 */
+void *Flamethrower_Spawn(void);                  /* ov095 0x02136ed4 */
+void hal_fill_flamethrower_vtable(void);         /* fills _ZTV12Flamethrower, 31 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1299,4 +1310,7 @@ void hal_fill_coffin_vtable(void);               /* fills _ZTV6Coffin, 32 */
      hal_fill_up_down_lift_hmc_vtable}, \
     {193, "CRAZED_CRATE", CrazedCrate_SpawnInfo, CrazedCrate_Spawn, \
      hal_fill_crazed_crate_vtable}, \
-    {64, "COFFIN", Coffin_SpawnInfo, Coffin_Spawn, hal_fill_coffin_vtable},
+    {64, "COFFIN", Coffin_SpawnInfo, Coffin_Spawn, hal_fill_coffin_vtable}, \
+    /* ---- run linkw wave 6 (lane w6-f): the ov095 flamethrower ---- */ \
+    {318, "FLAMETHROWER", Flamethrower_SpawnInfo, Flamethrower_Spawn, \
+     hal_fill_flamethrower_vtable},
