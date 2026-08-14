@@ -32,16 +32,25 @@ src/_ZN12FlamethrowerD0Ev.cpp
 # _ZN5ActorD2Ev, _ZN6Memory10DeallocateEPvP4Heap, func_020733a8,
 # __destroy_arr, func_020072c0, func_0203d384.
 #
-# The four that were NOT linked are the particle emitters the Behavior fires,
-# one pair per variant. They are wrappers over Particle::System::New (already
-# linked) on the global tracker data_0209ee74 (already hosted, cxx_aliases.cpp),
-# so each adds itself and nothing else:
+# The four particle emitters the Behavior fires -- one pair per variant --
 #
 #   func_020226fc   effect id 0x50   \  the (param & 0xff) != 0xff pair
 #   func_02022774   effect id 0x4f   /
 #   func_02022864   effect id 0x51   \  the == 0xff pair
 #   func_020227ec   effect id 0x52   /
-src/func_020226fc.c
-src/func_02022774.c
-src/func_020227ec.c
-src/func_02022864.c
+#
+# ARE NOT LISTED HERE, and the reason is a trap worth writing down. They read as
+# MISSING in the baseline walk_window.map, which is what sent the first draft of
+# this file to add them -- but the map is an inventory of what SURVIVED the
+# link, not of what was available to it. All four are already compiled into
+# every target as hostgen'd objects (build/port/host-src/src/func_02022*.cpp,
+# emitted from GATE29_GEN, which lists these same four .c files as hostgen
+# INPUTS in slice_gate29.txt). Nothing in the baseline build referenced them, so
+# /OPT:REF dropped the bodies and no public reached the map. Adding the .c forms
+# here compiles a SECOND definition of each and the link dies with four
+# LNK2005s (measured on this lane, build 1). The Behavior's calls are what make
+# the existing hostgen'd bodies live; no slice line is needed or allowed.
+#
+# The rule this leaves behind: a "not in the map" reading is only a link-closure
+# gap if the symbol is also absent from every gate's hostgen input list and from
+# every other slice. Check both before adding a line.
