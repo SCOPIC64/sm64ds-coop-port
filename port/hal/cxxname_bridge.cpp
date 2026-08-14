@@ -318,8 +318,55 @@ int data_0209f394[8];
 DSSTATE_END
 }
 
-extern "C" void _ZN6Memory10DeallocateEPv(void *p);
-extern "C" void Memory_Deallocate(void *p) { _ZN6Memory10DeallocateEPv(p); }
+/* Memory_Deallocate IS ARM9 0x0203c1e8, THE TWO-ARGUMENT OVERLOAD, and the
+   one-argument binding this line used to carry was the level-change heap fault.
+
+   The name is the placeholder src/_ZN9ActorBase21AfterCleanupResourcesEj.c
+   spells for the last statement of the actor teardown, and that TU says which
+   ROM function it is in its own comment:
+
+       void Memory_Deallocate(void*, struct Heap*);   // 0x0203c1e8
+       ...
+       Memory_Deallocate(this, Memory_gameHeapPtr);
+
+   0x0203c1e8 is Memory::Deallocate(void*, Heap*). 0x0203c1b4 is the OTHER
+   overload, Memory::Deallocate(void*), which forwards with a NULL heap and so
+   frees against Memory::defaultHeapPtr. This bridge was bound to that one, and
+   because both sides are C linkage and __cdecl the teardown's second argument
+   was accepted and discarded in silence -- no warning, no link error, no gate.
+   Every actor in the game was freed against the wrong heap.
+
+   WHAT THAT DOES, measured on the 38 -> 1 death exit (game heap 0x30000060,
+   default 0x30000000):
+     - ExpandingHeapAllocator::Deallocate splices the node out through its OWN
+       prev/next, so the GAME heap's used list loses it correctly...
+     - ...but FreeNode links the freed region into the DEFAULT heap's free list,
+       so the game heap's free region never grows back. Six actors torn down at
+       the arena exit and the free node stayed at [300000b0..30039414], byte for
+       byte, all six times.
+     - and when the freed node is the game list's head or tail, UnlinkNode
+       writes the neighbour into the DEFAULT allocator's head/tail word instead,
+       leaving the game heap's own tail pointing at a node that no longer
+       exists. The next AllocateNode appends through that dangling tail, so the
+       next level's Player never reaches the used list at all -- and the storage
+       it occupies is, as far as both allocators are concerned, nobody's.
+       SharedFilePtr::Load then hands a 328-byte file buffer out at the live
+       player's address and the memcpy walks the inline ModelAnim's vptr at
+       player+0xF0 to zero: FAULT in ModelBase::SetFile+0x6, which is the
+       crash w5-E pinned register-for-register.
+   The DS never sees any of this because on the DS the teardown always passed
+   the game heap; the port lost the argument at this line.
+
+   THE CALL IS BY C++ NAME, not by the Itanium spelling: the C-linkage
+   __ZN6Memory10DeallocateEPvP4Heap only exists where hal/cxx_aliases.cpp is
+   linked, and this TU rides three smokes that do not carry it. The matched TU
+   is C++ (it defines ?Deallocate@Memory@@YAXPAXPAVHeap@@@Z), and slice_gate3a
+   is in every target that compiles this file, so naming the method resolves
+   everywhere with no new alias. */
+class Heap;
+namespace Memory { void Deallocate(void *ptr, Heap *heap); }
+extern "C" void Memory_Deallocate(void *p, void *heap)
+{ Memory::Deallocate(p, (Heap *)heap); }
 extern "C" int hal_f0204424c(char *c);
 int func_0204424c(int c) { return hal_f0204424c((char *)c); }
 

@@ -250,7 +250,12 @@ void func_02052820(int *m, int s, int c)
 // are the gate-3a Memory layer's. Destroy is never reached in the gate
 // (the smoke does not tear its heap-owning actor down), so it traps.
 extern "C" {
-void Memory_Deallocate(void *p);
+/* TWO arguments -- 0x0203c1e8, Memory::Deallocate(void*, Heap*). Nothing in
+   this TU calls it, but the declaration has to agree with the definition in
+   hal/cxxname_bridge.cpp: at C linkage a one-argument spelling compiles and
+   links against a two-argument definition without a word, and that silence is
+   exactly how the actor teardown lost its heap argument. */
+void Memory_Deallocate(void *p, void *heap);
 void Heap_Destroy(void *h)
 {
     (void)h;
