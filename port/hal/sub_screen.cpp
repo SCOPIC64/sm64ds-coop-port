@@ -32,6 +32,17 @@
 // The touch bridge polls the cursor rather than taking window messages, so
 // walk_window.cpp needs no wndproc changes: the panel is a rectangle on the
 // screen and a click inside it is a stylus press at the same DS pixel.
+//
+// THE PRESENT RECTANGLE lives here for the same reason the touch does. Once
+// the window became resizable, "client pixel divided by zoom" stopped being
+// the framebuffer pixel -- the frame is now scaled to fit whatever the client
+// area is and centred inside it, with black bars on whichever axis is over. A
+// stylus press that did not undo that scaling would land somewhere else on
+// the bottom screen at every window size but the default, so the two halves
+// of the arithmetic have to stay together. walk_window.cpp publishes the
+// rectangle it presented into; poll_touch below runs it backwards. Unset (a
+// binary that opens no window, or one whose present path never ran) falls
+// back to the plain zoom divide, which is what every caller did before.
 #include <cstdio>
 #include <cstdlib>
 
@@ -52,6 +63,9 @@ public:
 };
 
 extern "C" {
+/* the present rectangle, defined at the bottom of this file */
+void hal_present_set_rect(int x, int y, int w, int h);
+int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy);
 void _ZN3OAM4LoadEv(void);
 unsigned int _ZN3OAM12EnableSubOAMEv(void);
 int hal_oam_layout_check(void);
@@ -103,6 +117,9 @@ int g_x0, g_y0;            // panel origin in framebuffer pixels
 int g_div = 2;             // panel downscale divisor (SM64DS_SUB_SCALE)
 int g_zoom = 1;
 HWND g_hwnd;
+// The client rectangle the framebuffer was last presented into, in client
+// pixels. Width zero means nobody has presented yet.
+int g_pr_x, g_pr_y, g_pr_w, g_pr_h;
 
 BOOL(WINAPI *GetCursorPos_)(POINT *);
 BOOL(WINAPI *ScreenToClient_)(HWND, POINT *);
@@ -127,10 +144,18 @@ void poll_touch(void)
         GetAsyncKeyState_ && (GetAsyncKeyState_(VK_LBUTTON) & 0x8000)) {
         POINT p;
         if (GetCursorPos_(&p) && ScreenToClient_(g_hwnd, &p)) {
-            /* panel pixels back to DS pixels: the panel is drawn at 1/g_div */
-            const int fx = ((int)p.x / g_zoom - g_x0) * g_div;
-            const int fy = ((int)p.y / g_zoom - g_y0) * g_div;
-            if (fx >= 0 && fx < ntr::SUB_W && fy >= 0 && fy < ntr::SUB_H) {
+            /* client pixels to framebuffer pixels (the present rectangle, run
+               backwards), then panel pixels to DS pixels: the panel is drawn
+               at 1/g_div */
+            int bx, by;
+            /* a click in a letterbox bar is not on the panel however close
+               the clamp puts it, so the inside answer gates the press */
+            const int on_picture =
+                hal_present_client_to_fb((int)p.x, (int)p.y, &bx, &by);
+            const int fx = (bx - g_x0) * g_div;
+            const int fy = (by - g_y0) * g_div;
+            if (on_picture && fx >= 0 && fx < ntr::SUB_W && fy >= 0 &&
+                fy < ntr::SUB_H) {
                 down = 1;
                 sx = (unsigned char)fx;
                 sy = (unsigned char)fy;
@@ -455,6 +480,57 @@ void hal_sub_camera_input(void)
 }
 
 int hal_sub_screen_on(void) { return g_on ? 1 : 0; }
+
+/* THE PRESENT RECTANGLE, both directions.
+ *
+ * walk_window.cpp's present() computes where the framebuffer landed inside the
+ * client area and calls the setter with it; every consumer that has to turn a
+ * mouse position into a game position calls the mapper. Keeping the two in one
+ * place is the point: the forward arithmetic changes if the fit ever does, and
+ * a second copy of the inverse somewhere else is how a resize feature quietly
+ * breaks stylus aim.
+ *
+ * The mapper RETURNS whether the point was inside the picture, and fills the
+ * framebuffer point either way -- clamped to the nearest edge pixel when it
+ * was not. Callers that care about the difference (a click in a letterbox bar
+ * is not a stylus press) test the return; callers that only ever want a valid
+ * framebuffer coordinate can ignore it and get the old clamped behaviour.
+ */
+void hal_present_set_rect(int x, int y, int w, int h)
+{
+    g_pr_x = x;
+    g_pr_y = y;
+    g_pr_w = w;
+    g_pr_h = h;
+}
+
+int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy)
+{
+    int x, y;
+    if (g_pr_w > 0 && g_pr_h > 0) {
+        /* the inverse of the fit: shift by the letterbox origin, then scale
+           the picture's client size back to the framebuffer's */
+        x = (int)(((long long)(cx - g_pr_x) * ntr::SCREEN_W) / g_pr_w);
+        y = (int)(((long long)(cy - g_pr_y) * ntr::SCREEN_H) / g_pr_h);
+        /* a negative client offset truncates toward zero, which would fold
+           the first row of bar pixels onto row 0 of the picture. Push those
+           back out so an inside/outside answer is exact at the seam. */
+        if (cx < g_pr_x) x = -1;
+        if (cy < g_pr_y) y = -1;
+    } else {
+        /* nothing has presented yet: the fixed-zoom divide this was before */
+        x = cx / (g_zoom > 0 ? g_zoom : 1);
+        y = cy / (g_zoom > 0 ? g_zoom : 1);
+    }
+    const int inside = x >= 0 && y >= 0 && x < ntr::SCREEN_W && y < ntr::SCREEN_H;
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x >= ntr::SCREEN_W) x = ntr::SCREEN_W - 1;
+    if (y >= ntr::SCREEN_H) y = ntr::SCREEN_H - 1;
+    if (fx) *fx = x;
+    if (fy) *fy = y;
+    return inside;
+}
 
 // ---- the three leaves LoadGraphics2D names but never reaches ---------------
 //
