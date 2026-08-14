@@ -395,7 +395,7 @@ void ov60_ran(const char *what, const void *who)
 /* ============ VERIFIED HOST COPY 7: func_ov060_021140c0 ===================
  * BOWSER state 9 -- record data_ov060_0211a5a0 (overlay words 021140c0 /
  * 00000000), which __sinit_ov060_021195dc copies to
- * data_ov060_0211aed4[4].hi, i.e. 8-byte record 9 of the twenty-record table
+ * data_ov060_0211aed4 + 0x48, i.e. 8-byte record 9 of the twenty-record table
  * func_ov060_021128c0 indexes with *(s32 *)(c + 0x40c).  Reached from
  * src/func_ov060_021150d0.cpp and src/func_ov060_021151d4.c, both of which
  * pick it on a RandomIntInternal draw.
