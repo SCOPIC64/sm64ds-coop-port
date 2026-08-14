@@ -154,6 +154,22 @@ struct WinApi {
     SHORT(WINAPI *GetAsyncKeyState_)(int);
     int(WINAPI *StretchDIBits_)(HDC, int, int, int, int, int, int, int, int,
                                 const void *, const BITMAPINFO *, UINT, DWORD);
+    /* the present path's own surface: the client rect the frame is fitted
+       into, the bars around it, and the two stretch modes (see present()) */
+    BOOL(WINAPI *GetClientRect_)(HWND, RECT *);
+    BOOL(WINAPI *ValidateRect_)(HWND, const RECT *);
+    BOOL(WINAPI *PatBlt_)(HDC, int, int, int, int, DWORD);
+    int(WINAPI *SetStretchBltMode_)(HDC, int);
+    BOOL(WINAPI *SetBrushOrgEx_)(HDC, int, int, POINT *);
+    /* F12's borderless fullscreen: style swap, monitor bounds, and the
+       placement the restore springs back to */
+    LONG(WINAPI *GetWindowLongA_)(HWND, int);
+    LONG(WINAPI *SetWindowLongA_)(HWND, int, LONG);
+    BOOL(WINAPI *SetWindowPos_)(HWND, HWND, int, int, int, int, UINT);
+    HMONITOR(WINAPI *MonitorFromWindow_)(HWND, DWORD);
+    BOOL(WINAPI *GetMonitorInfoA_)(HMONITOR, MONITORINFO *);
+    BOOL(WINAPI *GetWindowPlacement_)(HWND, WINDOWPLACEMENT *);
+    BOOL(WINAPI *SetWindowPlacement_)(HWND, const WINDOWPLACEMENT *);
     HWND(WINAPI *SetCapture_)(HWND);
     BOOL(WINAPI *ReleaseCapture_)(void);
     BOOL(WINAPI *GetCursorPos_)(POINT *);
@@ -207,6 +223,24 @@ static bool winapi_load(void)
     W.AdjustWindowRect_ = (decltype(W.AdjustWindowRect_))GetProcAddress(u, "AdjustWindowRect");
     W.GetAsyncKeyState_ = (decltype(W.GetAsyncKeyState_))GetProcAddress(u, "GetAsyncKeyState");
     W.StretchDIBits_ = (decltype(W.StretchDIBits_))GetProcAddress(g, "StretchDIBits");
+    W.GetClientRect_ = (decltype(W.GetClientRect_))GetProcAddress(u, "GetClientRect");
+    W.ValidateRect_ = (decltype(W.ValidateRect_))GetProcAddress(u, "ValidateRect");
+    W.PatBlt_ = (decltype(W.PatBlt_))GetProcAddress(g, "PatBlt");
+    W.SetStretchBltMode_ =
+        (decltype(W.SetStretchBltMode_))GetProcAddress(g, "SetStretchBltMode");
+    W.SetBrushOrgEx_ =
+        (decltype(W.SetBrushOrgEx_))GetProcAddress(g, "SetBrushOrgEx");
+    W.GetWindowLongA_ = (decltype(W.GetWindowLongA_))GetProcAddress(u, "GetWindowLongA");
+    W.SetWindowLongA_ = (decltype(W.SetWindowLongA_))GetProcAddress(u, "SetWindowLongA");
+    W.SetWindowPos_ = (decltype(W.SetWindowPos_))GetProcAddress(u, "SetWindowPos");
+    W.MonitorFromWindow_ =
+        (decltype(W.MonitorFromWindow_))GetProcAddress(u, "MonitorFromWindow");
+    W.GetMonitorInfoA_ =
+        (decltype(W.GetMonitorInfoA_))GetProcAddress(u, "GetMonitorInfoA");
+    W.GetWindowPlacement_ =
+        (decltype(W.GetWindowPlacement_))GetProcAddress(u, "GetWindowPlacement");
+    W.SetWindowPlacement_ =
+        (decltype(W.SetWindowPlacement_))GetProcAddress(u, "SetWindowPlacement");
     W.SetCapture_ = (decltype(W.SetCapture_))GetProcAddress(u, "SetCapture");
     W.ReleaseCapture_ = (decltype(W.ReleaseCapture_))GetProcAddress(u, "ReleaseCapture");
     W.GetCursorPos_ = (decltype(W.GetCursorPos_))GetProcAddress(u, "GetCursorPos");
@@ -663,6 +697,14 @@ void port_bob_spawn_report(void);
 /* the bottom screen (hal/sub_screen.cpp): the OAM lifecycle, the engine-B
    scan-out and the corner panel it lands in. TAB toggles the panel. */
 void hal_sub_screen_init(void *hwnd, int zoom);
+/* THE PRESENT RECTANGLE, published so the touch bridge can undo it
+   (hal/sub_screen.cpp holds it because poll_touch lives there and links into
+   binaries this file is not part of). Set once per present with the client
+   pixels the framebuffer was scaled into; the mapper turns a client point
+   back into a framebuffer point and returns 0 for a point in the letterbox
+   bars, which is outside the picture and therefore not a touch. */
+void hal_present_set_rect(int x, int y, int w, int h);
+int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy);
 /* the focus gate (hal/sub_screen.cpp): 1 when this window is the foreground
    one, so an interactive key read can be trusted to be meant for this program */
 int hal_window_focused(void);
@@ -1337,7 +1379,10 @@ static int g_rebind_key;              /* the virtual-key the proc last saw */
 static int run_key_reserved(int vk)
 {
     if (vk == VK_ESCAPE || vk == VK_RETURN) return 1;   /* quit, menu act */
-    if (vk >= VK_F1 && vk <= VK_F9) return 1;           /* the port's own row */
+    /* the port's own row. F10 is in it because Windows itself takes F10 as
+       the menu-bar activator, so a run bound to it would open the system
+       menu on every step; F11 and F12 are the fullscreen toggle. */
+    if (vk >= VK_F1 && vk <= VK_F12) return 1;
     if (vk >= VK_LEFT && vk <= VK_DOWN) return 1;       /* menu navigation */
     /* the bottom-screen panel, and it is read in hal/sub_screen.cpp rather
        than through this file's key_live -- so a binding on it would fire the
@@ -1568,6 +1613,175 @@ static void menu_draw(ntr::Framebuffer &fb)
     }
 }
 
+/* ---- PRESENT (port mod) -----------------------------------------------
+   THE FRAME, FITTED TO WHATEVER SIZE THE WINDOW IS NOW.
+
+   What was here before was one line:
+
+       StretchDIBits(hdc, 0, 0, SCREEN_W * ZOOM, SCREEN_H * ZOOM, ...)
+
+   -- a destination rectangle that is a compile-time constant. That is fine
+   for a window that cannot change size, and the window was created
+   WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME to make sure of it. But clearing
+   WS_THICKFRAME only removes the SIZING BORDER; WS_MAXIMIZEBOX survives it,
+   so the maximize button and a double-click on the title bar still worked and
+   still do exactly what they say. The client area then became the monitor and
+   the blit stayed 768x576 in the top-left corner, and the rest of the client
+   area was never written by anything: the class brush is null (wc is
+   zero-initialised), there is no WM_ERASEBKGND handler and there is no
+   WM_PAINT handler, so nothing in the program had ever painted a pixel
+   outside that fixed rectangle. What showed there was the window's backing
+   store as the compositor left it -- the stale scrap of whatever the resize
+   dragged through. That is the glitch, and it is a present-path bug from end
+   to end: the raster never knew the window had a size.
+
+   So the destination is measured every present instead:
+
+     - GetClientRect for the size the window is at this instant,
+     - the largest DS-aspect rectangle that fits inside it, centred,
+     - the four leftover strips painted black (PatBlt BLACKNESS), which is
+       what makes the bars bars and not history,
+     - StretchDIBits into the fitted rectangle.
+
+   The bars are painted every present rather than on a size change. Painting
+   black over black is invisible, it costs four PatBlts on strips that are
+   empty at the default size, and it means no code path can leave a bar
+   showing something else -- including the ones that never reach the frame
+   loop at all (a WM_PAINT during a modal drag, a restore from minimised).
+
+   WM_ERASEBKGND is answered "handled, painted nothing" so the flicker the
+   default erase would add during a drag never starts.
+
+   THE FILTER is nearest by default (COLORONCOLOR: GDI drops and duplicates
+   whole pixels). SM64DS_PRESENT_FILTER=halftone asks for HALFTONE, which is
+   GDI's box filter and needs SetBrushOrgEx after it per the API contract.
+   Nearest keeps the DS's hard pixel edges and the 8x8 overlay font crisp at
+   any scale; halftone smooths both. Both are captured in this lane's
+   evidence set at every size and the call between them is Tango's. */
+static const int PRESENT_FILTER_NEAREST = 0;
+static const int PRESENT_FILTER_HALFTONE = 1;
+enum { PRESENT_STRETCH_COLORONCOLOR = 3, PRESENT_STRETCH_HALFTONE = 4 };
+static int g_present_filter = PRESENT_FILTER_NEAREST;
+
+/* What the frame loop hands the window procedure, so a WM_SIZE or a WM_PAINT
+   arriving inside a modal drag loop -- where the frame loop is not running --
+   can still redraw the picture at the size the drag is at. Nothing here is
+   written before the window exists, and present() no-ops until all three are.
+   The framebuffer pointer is the loop's own static, so this is a handle on
+   the live frame rather than a copy of one. */
+static HWND g_present_hwnd;
+static HDC g_present_hdc;
+static const BITMAPINFO *g_present_bi;
+static const ntr::Framebuffer *g_present_fb;
+
+/* The DS aspect, once, in the two numbers the fit uses. SCREEN_W/SCREEN_H are
+   the framebuffer's, which is the DS panel at whatever tier this binary was
+   built for, so this is 4:3 at every tier. */
+static void present(void)
+{
+    if (!g_present_hwnd || !g_present_hdc || !g_present_bi || !g_present_fb)
+        return;
+    if (!W.GetClientRect_ || !W.StretchDIBits_) return;
+    RECT rc;
+    if (!W.GetClientRect_(g_present_hwnd, &rc)) return;
+    const int cw = rc.right - rc.left, ch = rc.bottom - rc.top;
+    /* MINIMISED is a zero-by-zero client area, and every arithmetic step
+       below divides by one of them. Nothing to present to, so nothing is
+       presented -- and no StretchDIBits with a zero destination, which is
+       what a restore used to come back through. */
+    if (cw <= 0 || ch <= 0) return;
+
+    const int sw = ntr::SCREEN_W, sh = ntr::SCREEN_H;
+    /* the largest sw:sh rectangle inside cw x ch. Compared as a cross
+       product so the choice is exact rather than a rounded ratio: wider than
+       the frame means pillarbox (height wins), taller means letterbox. */
+    int dw, dh;
+    if ((long long)cw * sh <= (long long)ch * sw) {
+        dw = cw;
+        dh = (int)(((long long)cw * sh) / sw);
+    } else {
+        dh = ch;
+        dw = (int)(((long long)ch * sw) / sh);
+    }
+    if (dw < 1) dw = 1;
+    if (dh < 1) dh = 1;
+    const int dx = (cw - dw) / 2, dy = (ch - dh) / 2;
+
+    /* the four strips around it, black. Written before the picture so a
+       stretch that lands a pixel wide of the arithmetic covers the bar
+       rather than the bar covering it. */
+    if (W.PatBlt_) {
+        if (dy > 0) W.PatBlt_(g_present_hdc, 0, 0, cw, dy, BLACKNESS);
+        if (dy + dh < ch)
+            W.PatBlt_(g_present_hdc, 0, dy + dh, cw, ch - (dy + dh), BLACKNESS);
+        if (dx > 0) W.PatBlt_(g_present_hdc, 0, dy, dx, dh, BLACKNESS);
+        if (dx + dw < cw)
+            W.PatBlt_(g_present_hdc, dx + dw, dy, cw - (dx + dw), dh, BLACKNESS);
+    }
+
+    if (W.SetStretchBltMode_) {
+        if (g_present_filter == PRESENT_FILTER_HALFTONE) {
+            W.SetStretchBltMode_(g_present_hdc, PRESENT_STRETCH_HALFTONE);
+            /* the API contract: HALFTONE leaves the brush origin needing a
+               reset or the shrink pattern walks */
+            if (W.SetBrushOrgEx_) W.SetBrushOrgEx_(g_present_hdc, 0, 0, 0);
+        } else {
+            W.SetStretchBltMode_(g_present_hdc, PRESENT_STRETCH_COLORONCOLOR);
+        }
+    }
+    W.StretchDIBits_(g_present_hdc, dx, dy, dw, dh, 0, 0, sw, sh,
+                     g_present_fb->px, g_present_bi, DIB_RGB_COLORS, SRCCOPY);
+    /* the touch bridge's half of the same arithmetic */
+    hal_present_set_rect(dx, dy, dw, dh);
+}
+
+/* ---- FULLSCREEN (port mod) --------------------------------------------
+   F12, borderless, and never a mode change. Exclusive fullscreen would mean
+   asking the display for a resolution, which can fail, can leave the desktop
+   rearranged if the program dies while it holds it, and buys nothing here --
+   the present path already scales to any client size, so a borderless window
+   over the monitor's own bounds is the same picture with none of that.
+
+   The restore is a saved WINDOWPLACEMENT plus the saved style, so a window
+   that was maximised before F12 comes back maximised and one that was at
+   some hand-dragged size comes back at that size. */
+static int g_fullscreen;
+static WINDOWPLACEMENT g_fs_placement;
+static LONG g_fs_style;
+
+static void fullscreen_toggle(HWND h)
+{
+    if (!W.GetWindowLongA_ || !W.SetWindowLongA_ || !W.SetWindowPos_ ||
+        !W.MonitorFromWindow_ || !W.GetMonitorInfoA_ ||
+        !W.GetWindowPlacement_ || !W.SetWindowPlacement_)
+        return;
+    if (!g_fullscreen) {
+        g_fs_placement.length = sizeof g_fs_placement;
+        if (!W.GetWindowPlacement_(h, &g_fs_placement)) return;
+        g_fs_style = W.GetWindowLongA_(h, GWL_STYLE);
+        MONITORINFO mi;
+        mi.cbSize = sizeof mi;
+        HMONITOR mon = W.MonitorFromWindow_(h, MONITOR_DEFAULTTONEAREST);
+        if (!mon || !W.GetMonitorInfoA_(mon, &mi)) return;
+        W.SetWindowLongA_(h, GWL_STYLE,
+                          (g_fs_style & ~(LONG)WS_OVERLAPPEDWINDOW) |
+                              (LONG)WS_POPUP);
+        W.SetWindowPos_(h, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top,
+                        mi.rcMonitor.right - mi.rcMonitor.left,
+                        mi.rcMonitor.bottom - mi.rcMonitor.top,
+                        SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        g_fullscreen = 1;
+    } else {
+        W.SetWindowLongA_(h, GWL_STYLE, g_fs_style);
+        W.SetWindowPlacement_(h, &g_fs_placement);
+        W.SetWindowPos_(h, 0, 0, 0, 0, 0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                            SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        g_fullscreen = 0;
+    }
+    present();
+}
+
 /* ---- MOUSE (port mod) -------------------------------------------------
    DRAG TO LOOK, on the right button, and not an F2 capture toggle. Both were
    on the table; this is the one that fits what the window is. A capture mode
@@ -1592,12 +1806,22 @@ static int mo_wheel;             /* accumulated notches, forward positive */
 
 /* THE TOUCH BRIDGE'S HANDOFF. The DS has a touchscreen and this program has a
    mouse, and the last left click is where the two meet. Position is in
-   FRAMEBUFFER pixels -- client coordinates divided by ZOOM -- so a consumer
-   gets the same numbers at either tier without knowing which one it is on.
-   `g_mouse_click_new` is true for exactly the frame the click landed on and
-   `g_mouse_left_down` is the hold, which is what a drag on a touchscreen is.
-   NOTHING IN THIS FILE READS ANY OF IT: it is published for the touch bridge
-   a sibling stream is building. */
+   FRAMEBUFFER pixels, so a consumer gets the same numbers at either tier
+   without knowing which one it is on.
+
+   IT IS NO LONGER A DIVIDE BY ZOOM. The window resizes, so the frame is
+   scaled to fit the client area and centred inside it, and the inverse of
+   that fit is hal_present_client_to_fb (hal/sub_screen.cpp) -- the same
+   function the bottom-screen stylus goes through, which is the point of it
+   being one function.
+
+   A CLICK IN A LETTERBOX BAR IS NOT A CLICK ON THE PICTURE, and these words
+   say so: the position keeps the last on-picture click and `g_mouse_click_new`
+   stays down for a bar click, the same answer poll_touch gives the stylus.
+   `g_mouse_click_new` is true for exactly the frame an on-picture click landed
+   on and `g_mouse_left_down` is the hold, which is what a drag on a
+   touchscreen is. NOTHING IN THIS FILE READS ANY OF IT: it is published for
+   the touch bridge a sibling stream is building. */
 int g_mouse_click_x, g_mouse_click_y;
 int g_mouse_click_new;
 int g_mouse_left_down;
@@ -1655,7 +1879,30 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         }
         return 0;
     case WM_LBUTTONDOWN: {
-        int cx = (short)LOWORD(l) / ZOOM, cy = (short)HIWORD(l) / ZOOM;
+        /* CLIENT PIXELS BACK TO FRAMEBUFFER PIXELS, and it is no longer a
+           divide by ZOOM. The picture is centred in whatever the client area
+           is now and scaled to fit it, so undoing that is the present rect's
+           own arithmetic run backwards -- which is why it lives next to the
+           forward one rather than being spelled a second time here. A click
+           in a letterbox bar is outside the picture; it is clamped to the
+           edge the way an off-window drag always was, so the published point
+           stays a framebuffer pixel. */
+        int cx = 0, cy = 0;
+        /* THE RETURN IS HONOURED, the way poll_touch honours it. A click in a
+           letterbox bar is off the picture, and publishing the clamped edge
+           pixel for it would hand the touch bridge a stylus press on the rim
+           of the screen that the player never made -- a bug with no reader
+           today and therefore no way to notice it later. Off the picture: the
+           hold still latches (a drag that starts on the picture and wanders
+           into a bar is still a drag) but no new click position is published. */
+        const int on_picture = hal_present_client_to_fb(
+            (short)LOWORD(l), (short)HIWORD(l), &cx, &cy);
+        g_mouse_left_down = 1;
+        if (!on_picture) {
+            fprintf(stderr, "[mouse] click off-picture (letterbox bar), "
+                            "not published\n");
+            return 0;
+        }
         if (cx < 0) cx = 0;
         if (cy < 0) cy = 0;
         if (cx >= ntr::SCREEN_W) cx = ntr::SCREEN_W - 1;
@@ -1663,7 +1910,6 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
         g_mouse_click_x = cx;
         g_mouse_click_y = cy;
         g_mouse_click_new = 1;
-        g_mouse_left_down = 1;
         fprintf(stderr, "[mouse] click %d,%d fb\n", cx, cy);
         return 0;
     }
@@ -1673,6 +1919,51 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
     case WM_MOUSEWHEEL:
         mo_wheel += (short)HIWORD(w) / WHEEL_DELTA;
         return 0;
+    /* ---- the resize seam ------------------------------------------------
+       A drag on the sizing border runs a MODAL loop inside DefWindowProc:
+       this file's frame loop is not running for as long as the button is
+       held, so the only thing that can keep the picture under the edge being
+       dragged is the window procedure itself. WM_SIZE arrives on every step
+       of that drag, and presenting the last frame from here is what makes
+       the picture follow the edge instead of smearing behind it. */
+    case WM_SIZE:
+        present();
+        return 0;
+    /* Same reason, for the repaints the compositor asks for: a restore from
+       minimised, an uncover, a monitor change. Presenting and then
+       validating is the whole of it -- without the validate the region stays
+       dirty and WM_PAINT is re-posted forever. */
+    case WM_PAINT:
+        present();
+        /* The validate is what ends the paint. Without it the region stays
+           dirty and WM_PAINT is re-posted forever, so if ValidateRect is the
+           one name in this file that failed to resolve, this branch must NOT
+           swallow the message -- DefWindowProc's BeginPaint/EndPaint pair
+           validates it instead. Falling through is the safe answer; returning
+           0 here would spin the message loop at 100% of a core. */
+        if (!W.ValidateRect_) break;
+        W.ValidateRect_(h, 0);
+        return 0;
+    /* "Handled, and I painted nothing." The default erase fills the client
+       area with the class brush before the picture lands on top of it, which
+       is a full-window flash on every step of a drag. present() already owns
+       every pixel: the picture, and black in the bars. */
+    case WM_ERASEBKGND:
+        return 1;
+    /* A sane floor on the drag. 256x192 is the DS panel at 1:1 -- below that
+       the frame is being thrown away rather than scaled, and the overlay
+       font stops being readable at all. Sent before the window exists on
+       some paths, so the style is read defensively. */
+    case WM_GETMINMAXINFO: {
+        MINMAXINFO *mmi = (MINMAXINFO *)l;
+        RECT mr = {0, 0, 256, 192};
+        const LONG style = W.GetWindowLongA_ ? W.GetWindowLongA_(h, GWL_STYLE)
+                                             : (LONG)WS_OVERLAPPEDWINDOW;
+        if (W.AdjustWindowRect_) W.AdjustWindowRect_(&mr, (DWORD)style, FALSE);
+        mmi->ptMinTrackSize.x = mr.right - mr.left;
+        mmi->ptMinTrackSize.y = mr.bottom - mr.top;
+        return 0;
+    }
     default:
         break;
     }
@@ -2507,12 +2798,35 @@ int main(void)
     /* window */
     WNDCLASSA wc = {};
     wc.lpfnWndProc = wndproc;
+    /* CS_OWNDC, and it is load-bearing for the resize rather than a habit.
+       The DC below is fetched once and held for the life of the program. A
+       DC out of the common cache has its VISIBLE REGION computed at GetDC
+       time and never again, so after the client area grew, every pixel of
+       the new area was outside that region and clipped away -- the bars
+       could not have been painted through it even by code that tried. A
+       class-owned DC is the one kind the system keeps in step with the
+       window's size. */
+    wc.style = CS_OWNDC;
     wc.hInstance = GetModuleHandleA(0);
     wc.hCursor = W.LoadCursorA_(0, (LPCSTR)IDC_ARROW);
     wc.lpszClassName = "sm64ds_walk";
     W.RegisterClassA_(&wc);
+    /* SM64DS_PRESENT_FILTER=halftone swaps the scaler; see present(). */
+    {
+        const char *pf = getenv("SM64DS_PRESENT_FILTER");
+        if (pf && (pf[0] == 'h' || pf[0] == 'H'))
+            g_present_filter = PRESENT_FILTER_HALFTONE;
+    }
     RECT r = {0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM};
-    W.AdjustWindowRect_(&r, WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME, FALSE);
+    /* WS_THICKFRAME IS BACK, and it has to be back in BOTH places -- this
+       call and the CreateWindowExA below. Changing it here alone is a silent
+       no-op that looks like the fix: AdjustWindowRect only decides how big to
+       ask for, and on Windows 11 it returns the SAME frame metrics with and
+       without the sizing border (measured: identical rect for both styles), so
+       the window opens at exactly the size it always did and every screenshot
+       looks right while the sizing border is still not there. The style the
+       window actually gets is the CreateWindowExA argument. */
+    W.AdjustWindowRect_(&r, WS_OVERLAPPEDWINDOW, FALSE);
     /* THE TITLE BAR IS THE CONTROLS CARD. There is nowhere else to put them
        that does not cost a keypress to read: the F3 overlay is timings, the
        F5 menu is state, and both of those you have to already know how to
@@ -2522,9 +2836,10 @@ int main(void)
                               "SM64DS   |   WASD move   Shift dash   Space jump"
                               "   X punch   Ctrl crouch   |   Q/E turn   R/F"
                               " tilt   |   F1 camera   F3 stats   F5 menu"
-                              "   Tab panel   Esc quit",
-                              (WS_OVERLAPPEDWINDOW & ~WS_THICKFRAME) |
-                                  WS_VISIBLE,
+                              "   F12 fullscreen   Tab panel   Esc quit",
+                              /* the sizing border is here, not in the
+                                 AdjustWindowRect above; see that note */
+                              WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                               CW_USEDEFAULT, CW_USEDEFAULT,
                               r.right - r.left, r.bottom - r.top, 0, 0,
                               wc.hInstance, 0);
@@ -2694,6 +3009,18 @@ int main(void)
     }
 
     static ntr::Framebuffer fb;
+    /* THE PRESENT PATH IS ARMED HERE and not a line earlier: present() draws
+       whatever these point at, and until the frame loop has rasterised once
+       the framebuffer is a blank static. Arming it after the boot printing
+       means the first thing the window ever shows is a real frame rather than
+       a grey rectangle. From this point on a WM_SIZE or a WM_PAINT can
+       redraw without the frame loop's help, which is what a drag on the
+       sizing border needs -- that drag runs a modal loop inside
+       DefWindowProc and the frame loop does not get a turn until it ends. */
+    g_present_hwnd = hwnd;
+    g_present_hdc = hdc;
+    g_present_bi = &bi;
+    g_present_fb = &fb;
     MSG msg;
     for (;;) {
         double t_frame, t_phase;
@@ -2719,6 +3046,32 @@ int main(void)
             const int now = key_live(VK_F3);
             if (now && !overlay_edge) g_overlay_on = !g_overlay_on;
             overlay_edge = now;
+        }
+        /* F12 (and F11, the same thing) toggles borderless fullscreen. Its own
+           edge latch, up here with the other window-level keys, and read
+           through key_live rather than off a WM_KEYDOWN for three reasons a
+           WM_KEYDOWN branch would each have had to re-solve: key_live is what
+           carries the focus gate, the rebind-capture gate, and the selftest
+           gate -- and that last one is why a headless run cannot toggle
+           anything, whatever is being typed on the machine at the time.
+
+           F11 IS AN ALIAS, not a second feature. The F-row this program had
+           spoken for ended at F9 (F1 camera, F3 stats, F4 character, F5 menu,
+           F8/F9 save state), so F11 and F12 were both free and both are the
+           key a person reaches for; binding one and not the other is a
+           coin-flip a player would have to lose once to learn.
+
+           ALT+ENTER IS DELIBERATELY NOT A THIRD ALIAS. Enter is the debug
+           menu's act button (the pad-A mirror further down), so alt+enter
+           would fire the menu selection under the cursor on the way into
+           fullscreen. Making it not do that means special-casing the alt
+           state inside the menu's own key read, which is game input, and this
+           lane does not touch game input. */
+        {
+            static int fs_edge;
+            const int now = key_live(VK_F12) || key_live(VK_F11);
+            if (now && !fs_edge) fullscreen_toggle(hwnd);
+            fs_edge = now;
         }
         /* F4 cycles the character with the menu CLOSED, mid-walk. Its own edge
            latch, deliberately outside the menu's held-mask below, so it is not
@@ -5707,9 +6060,7 @@ int main(void)
         }
 
         ph_begin(&t_phase);
-        W.StretchDIBits_(hdc, 0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM,
-                      0, 0, ntr::SCREEN_W, ntr::SCREEN_H, fb.px, &bi,
-                      DIB_RGB_COLORS, SRCCOPY);
+        present();
         ph_end(PH_BLIT, t_phase);
         ph_end(PH_FRAME, t_frame);
         /* present-to-present rate, and the GAME TICK rate beside it -- the two

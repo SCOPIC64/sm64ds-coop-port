@@ -17,6 +17,42 @@ Everything the merge gate runs, in order, stopping at the first failure:
 
 Exit 0 all green, 1 first red, with a one-line verdict per step so a log tail
 reads as a checklist.
+
+THE SELFTEST BMP IS ONLY BYTE-IDENTICAL AT AN EQUAL .dsstate SECTION BASE.
+
+Read this before treating a walk_window_selftest.bmp diff as a rendering
+regression. The rendered frame carries a dependence on the ABSOLUTE ADDRESSES
+of the hosted DS globals, so it moves when the .dsstate section base moves --
+and that base moves whenever a change pushes the preceding sections across a
+4 KB page boundary, however unrelated the change is to rendering.
+
+Controlled experiment (2026-08-14, walk_window.exe, SM64DS_WINDOW_SELFTEST=300,
+the .dsstate span as printed by tools/dsstate_guard.py at link time). Every one
+of these runs produced the IDENTICAL player position
+pos=(-4915200, 2805556, 9342995):
+
+    base source                     .dsstate 0x9ee000   md5 eb32dcab4915...
+    base + 16 bytes of inert .bss   .dsstate 0x9ee000   md5 eb32dcab4915...
+    base + 4 KB of inert .data      .dsstate 0x9ef000   md5 518ba22ae260...
+    the drag-resize change          .dsstate 0x9ef000   md5 518ba22ae260...
+    base + 8 KB of inert .data      .dsstate 0x9f0000   md5 15fde8a893d0...
+
+Base logic and a real change produce the SAME BMP at the same section base, and
+base logic alone produces THREE DIFFERENT BMPs at three different bases. The
+delta is 3 pixels of water blue in the 512x384 frame, max channel delta 12.
+
+So: a PR whose selftest positions match to the digit but whose BMP differs, and
+whose dsstate_guard line reports a different section base than the baseline
+build, is NOT a render regression. Rebuild the baseline with inert padding that
+lands .dsstate at the same base and compare there; that is the comparison with
+meaning. Reproduce the padding with, at file scope in any hal TU:
+
+    extern "C" const char pad[0x1000];
+    const char pad[0x1000] = {1};
+
+The address dependence itself is real and unexplained -- something in the
+render path decides on a pointer value or reads an uninitialised field. It is
+tracked separately; this note exists so the gate is not read as the bug.
 """
 
 import os
