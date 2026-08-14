@@ -349,7 +349,7 @@ static void ov45_sinit_02112280(void)
                   data_ov045_021131ec);
 }
 
-static void ov45_bringup(void)
+extern "C" void port_ov45_bringup(void)
 {
     static int done;
     if (done)
@@ -406,7 +406,7 @@ static int __fastcall fse_d0(void *s, void *)
 { return (int)(size_t)func_ov045_021111e4((int *)s); }
 extern "C" void hal_fill_fire_sea_elevator_vtable(void)
 {
-    ov45_bringup();
+    port_ov45_bringup();
     void *volatile *vt = (void *volatile *)data_ov045_02112cf4;
     ov45_fill_shared(vt);
     vt[0]  = (void *)fse_init;
@@ -456,7 +456,7 @@ static int __fastcall pl_d0(void *s, void *)
 { return (int)(size_t)_ZN15FireSeaElevatorD0Ev((int *)s); }
 extern "C" void hal_fill_pole_lift_vtable(void)
 {
-    ov45_bringup();
+    port_ov45_bringup();
     void *volatile *vt = (void *volatile *)_ZTV15FireSeaElevator;
     ov45_fill_shared(vt);
     vt[0]  = (void *)pl_init;
@@ -549,7 +549,7 @@ static int __fastcall ep_d0(void *s, void *)
 { return (int)(size_t)_ZN8PoleLiftD0Ev((int *)s); }
 extern "C" void hal_fill_extending_platform_vtable(void)
 {
-    ov45_bringup();
+    port_ov45_bringup();
     void *volatile *vt = (void *volatile *)_ZTV8PoleLift;
     ov45_fill_shared(vt);
     vt[0]  = (void *)ep_init;
@@ -614,7 +614,7 @@ static int __fastcall ff_d0(void *s, void *)
 { return (int)(size_t)func_ov045_02111b64((int *)s); }
 extern "C" void hal_fill_floating_floor_bfs_vtable(void)
 {
-    ov45_bringup();
+    port_ov45_bringup();
     void *volatile *vt = (void *volatile *)data_ov045_02112f50;
     ov45_fill_shared(vt);
     vt[0]  = (void *)ff_init;
@@ -702,7 +702,7 @@ static int __fastcall tp_d0(void *s, void *)
 { return (int)(size_t)_ZN16FloatingFloorBfsD0Ev((int *)s); }
 extern "C" void hal_fill_tilting_platform_bfs_vtable(void)
 {
-    ov45_bringup();
+    port_ov45_bringup();
     void *volatile *vt = (void *volatile *)_ZTV16FloatingFloorBfs;
     ov45_fill_shared(vt);
     vt[0]  = (void *)tp_init;
@@ -771,7 +771,7 @@ static int __fastcall fb_slot31(void *s, void *)
 { func_ov098_0213a17c((char *)s); return 0; }
 extern "C" void hal_fill_fall_block_bfs_vtable(void)
 {
-    ov45_bringup();
+    port_ov45_bringup();
     void *volatile *vt = (void *volatile *)_ZTV12FallBlockBfs;
     ov45_fill_shared(vt);
     vt[0]  = (void *)fb_init;

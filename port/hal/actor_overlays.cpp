@@ -931,6 +931,16 @@ void port_ov013_pack_check(void);
 void port_ov013_syms_patch(void);
 void __sinit_ov013_021116b8(void);
 void __sinit_ov013_021116f8(void);
+
+/* The six wave-3/4/5 bring-ups, each defined beside the cast it serves and
+   each holding its own done-guard. See the consolidation note at the bottom
+   of port_actor_overlays_sinits(). */
+void port_ov45_bringup(void);   /* hal/actor_classes_ov045.cpp */
+void port_ov60_bringup(void);   /* hal/actor_classes_ov060.cpp */
+void port_ov63_bringup(void);   /* hal/actor_classes_ov063.cpp */
+void port_bk_bringup(void);     /* hal/actor_classes_ov063.cpp, the ov020 half */
+void port_ov65_bringup(void);   /* hal/actor_classes_ov065.cpp */
+void port_ov70_bringup(void);   /* hal/actor_classes_ov070.cpp */
 }
 
 extern "C" void port_actor_overlays_sinits(void)
@@ -1205,4 +1215,39 @@ extern "C" void port_actor_overlays_sinits(void)
     port_ov013_syms_patch();
     __sinit_ov013_021116b8();   /* CLOCK_PENDULUM's SharedFilePtr */
     __sinit_ov013_021116f8();   /* the two CLOCK_HAND SharedFilePtrs */
+
+    /* ---- the six bring-ups that used to ride the first registry fill ------
+     *
+     * Waves 3-5 mounted six more overlays while no lane owned this file, so
+     * each parked its pack_check / syms_patch / sinit sequence in a local
+     * ovNN_bringup() behind a done-guard and had every registry fill call it.
+     * Four of those files say in their own headers that this is the right home
+     * and asked the next owner of actor_overlays.cpp to bring them here.
+     *
+     * They arrive as CALLS, not as copied bodies. Each sequence stays next to
+     * the cast it serves, where its ordering notes are -- ov063 seats eight
+     * PMF source pairs before its sinits copy them, ov065's states_seat has to
+     * land between the patch passes and the sinits, ov070 seats its state PMFs
+     * first -- and moving those bodies away from the tables they name would
+     * cost more than the consolidation buys. What changes is WHEN the first
+     * call happens: here, in an order that is written down, instead of at
+     * whichever class the registry loop happened to reach first.
+     *
+     * The done-guards stay, and so do the calls in the fills. That is not
+     * belt-and-braces: a fill is reachable from the registry install, this
+     * function is not the only way in, and the guard is what makes the second
+     * call inert instead of an assumption about who runs first.
+     *
+     * SAFE EARLIER, by the ordering ov045's header already measured: this
+     * function runs to completion before port_actor_registry_install(), and a
+     * generated port_ovNNN_syms_patch() writes SpawnInfo+32 and never the +0
+     * factory word. Running a patch BEFORE the registry writes that word is
+     * the order every overlay above this comment already uses; it was running
+     * AFTER it that needed the argument. */
+    port_ov45_bringup();
+    port_ov60_bringup();
+    port_ov63_bringup();
+    port_bk_bringup();
+    port_ov65_bringup();
+    port_ov70_bringup();
 }

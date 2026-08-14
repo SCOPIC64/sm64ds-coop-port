@@ -475,7 +475,7 @@ static void ov70_seat_state_pmfs(void)
 }
 
 // ---- the mount bring-up ----------------------------------------------------
-static void ov70_bringup(void)
+extern "C" void port_ov70_bringup(void)
 {
     static int done;
     if (done)
@@ -529,7 +529,7 @@ static int __fastcall amp_d0(void *s, void *)
 { return (int)(size_t)_ZN3AmpD0Ev((int *)s); }
 extern "C" void hal_fill_amp_vtable(void)
 {
-    ov70_bringup();
+    port_ov70_bringup();
     void *volatile *vt = (void *volatile *)_ZTV3Amp;
     ov70_fill_shared(vt);
     vt[0]  = (void *)amp_init;
@@ -578,7 +578,7 @@ static int __fastcall fc_d0(void *s, void *)
 { return (int)(size_t)_ZN10FlameChompD0Ev((int *)s); }
 extern "C" void hal_fill_flame_chomp_vtable(void)
 {
-    ov70_bringup();
+    port_ov70_bringup();
     void *volatile *vt = (void *volatile *)_ZTV10FlameChomp;
     ov70_fill_shared(vt);
     vt[0]  = (void *)fc_init;
@@ -625,7 +625,7 @@ static int __fastcall fcf_d0(void *s, void *)
 { return (int)(size_t)_ZN14FlameChompFireD0Ev((int *)s); }
 extern "C" void hal_fill_flame_chomp_fire_vtable(void)
 {
-    ov70_bringup();
+    port_ov70_bringup();
     void *volatile *vt = (void *volatile *)_ZTV14FlameChompFire;
     ov70_fill_shared(vt);
     vt[0]  = (void *)fcf_init;

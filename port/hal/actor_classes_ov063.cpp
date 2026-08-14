@@ -244,7 +244,7 @@ static void ov63_fill_shared(void *volatile *vt)
 }
 
 // ---- the mount bring-up ----------------------------------------------------
-static void ov63_bringup(void)
+extern "C" void port_ov63_bringup(void)
 {
     static int done;
     if (done)
@@ -320,7 +320,7 @@ static int __fastcall boo_egg(void *s, void *)
 { return func_ov063_021160c4(s); }
 extern "C" void hal_fill_boo_vtable(void)
 {
-    ov63_bringup();
+    port_ov63_bringup();
     void *volatile *vt = (void *volatile *)_ZTV3Boo;
     ov63_fill_shared(vt);
     vt[0]  = (void *)boo_init;
@@ -376,7 +376,7 @@ static int __fastcall bbi_d0(void *s, void *)
 { return (int)(size_t)_ZN10BigBooIconD0Ev(s); }
 extern "C" void hal_fill_big_boo_icon_vtable(void)
 {
-    ov63_bringup();
+    port_ov63_bringup();
     void *volatile *vt = (void *volatile *)_ZTV10BigBooIcon;
     ov63_fill_shared(vt);
     vt[0]  = (void *)bbi_init;
@@ -424,7 +424,7 @@ static int __fastcall bc_d0(void *s, void *)
 { return (int)(size_t)_ZN7BooCageD0Ev(s); }
 extern "C" void hal_fill_boo_cage_vtable(void)
 {
-    ov63_bringup();
+    port_ov63_bringup();
     void *volatile *vt = (void *volatile *)_ZTV7BooCage;
     ov63_fill_shared(vt);
     vt[0]  = (void *)bc_init;
@@ -489,7 +489,7 @@ static int __fastcall ms_d0(void *s, void *)
 { return (int)(size_t)_ZN12MansionStepsD0Ev(s); }
 extern "C" void hal_fill_mansion_steps_vtable(void)
 {
-    ov63_bringup();
+    port_ov63_bringup();
     void *volatile *vt = (void *volatile *)_ZTV12MansionSteps;
     ov63_fill_shared(vt);
     vt[0]  = (void *)ms_init;
@@ -557,7 +557,7 @@ static int __fastcall fbb_slot31(void *s, void *)
 { func_ov098_0213a17c((char *)s); return 0; }
 extern "C" void hal_fill_fall_block_bbh_vtable(void)
 {
-    ov63_bringup();
+    port_ov63_bringup();
     void *volatile *vt = (void *volatile *)_ZTV12FallBlockBbh;
     ov63_fill_shared(vt);
     vt[0]  = (void *)fbb_init;
@@ -627,7 +627,7 @@ static int __fastcall mp_d0(void *s, void *)
 { return (int)(size_t)_ZN8MadPianoD0Ev(s); }
 extern "C" void hal_fill_mad_piano_vtable(void)
 {
-    ov63_bringup();
+    port_ov63_bringup();
     void *volatile *vt = (void *volatile *)_ZTV8MadPiano;
     ov63_fill_shared(vt);
     vt[0]  = (void *)mp_init;
@@ -772,7 +772,7 @@ DSSTATE_END
 struct BookShot { int InitResources(); int CleanupResources(); int Behavior(); };
 struct BookShotSpawner { int InitResources(); int CleanupResources(); };
 
-static void bk_bringup(void)
+extern "C" void port_bk_bringup(void)
 {
     static int done;
     if (done)
@@ -800,7 +800,7 @@ static int __fastcall bk_egg(void *s, void *)
 { return func_ov020_021127a4((char *)s); }
 extern "C" void hal_fill_book_shot_vtable(void)
 {
-    bk_bringup();
+    port_bk_bringup();
     void *volatile *vt = (void *volatile *)_ZTV8BookShot;
     ov63_fill_shared(vt);
     vt[0]  = (void *)bk_init;
@@ -831,7 +831,7 @@ static int __fastcall bks_d0(void *s, void *)
 { return (int)(size_t)_ZN15BookShotSpawnerD0Ev(s); }
 extern "C" void hal_fill_book_shot_spawner_vtable(void)
 {
-    bk_bringup();
+    port_bk_bringup();
     void *volatile *vt = (void *volatile *)_ZTV15BookShotSpawner;
     ov63_fill_shared(vt);
     vt[0]  = (void *)bks_init;

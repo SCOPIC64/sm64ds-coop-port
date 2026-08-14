@@ -300,7 +300,7 @@ static void ov60_fill_shared(void *volatile *vt)
 // owns actor_overlays.cpp should move this body beside the ov013/ov045
 // blocks and cut the guard to a call. The ov046 one-symbol mount rides the
 // same guard: its only consumer is this cast.
-static void ov60_bringup(void)
+extern "C" void port_ov60_bringup(void)
 {
     static int done;
     if (done)
@@ -353,7 +353,7 @@ static int __fastcall arena_d0(void *s, void *)
 { return (int)(size_t)_ZN18BowserFireSeaArenaD0Ev((int *)s); }
 extern "C" void hal_fill_bowser_fire_sea_arena_vtable(void)
 {
-    ov60_bringup();
+    port_ov60_bringup();
     void *volatile *vt = (void *volatile *)_ZTV18BowserFireSeaArena;
     ov60_fill_shared(vt);
     vt[0]  = (void *)arena_init;
