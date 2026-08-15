@@ -165,3 +165,115 @@ data_ov043_02112698 data_ov043_021126a0 data_ov043_021126a8
 data_ov043_021126b4 data_ov043_021126c0 data_ov043_021126cc
 data_ov043_021126d8 data_ov043_021126e4 data_ov043_021126f0
 data_ov043_021126fc data_ov043_02112708 data_ov043_02112714
+
+# ============================================================================
+# RUN LINKW WAVE C, lane cat-actors: THE DERIVATION RE-VERIFIED, AND STILL NOT
+# WIRED. Two more traps than the note above records.
+# ============================================================================
+#
+# This lane picked the file up to wire the mount and stopped before doing it.
+# The reason is in "THE THIRD AND FOURTH TRAPS" below: the seat needs three
+# per-source rename sets and two vtable names resolved, not the one rename set
+# the note above lists, and a half-seat here installs a wrong vtable -- the
+# exact disease this wave spent its other two jobs removing. Everything below
+# is measured on this tree. Nothing in port/CMakeLists.txt references this file
+# yet and the binary is still unchanged.
+#
+# ==== THE FOUR WIDTHS: vtspan.py NOW AGREES, INDEPENDENTLY ==================
+# tools/vtspan.py automates the semantic-tail route the note above ran by hand.
+# `python port/tools/vtspan.py . <table>` on all four:
+#
+#   data_ov043_021122b8      32   tail 32  typeinfo 32  terminator 32  run 32
+#   data_ov043_0211238c      32   tail 32  typeinfo 32  terminator 32  run 32
+#   _ZTV11RickshawBdw        32   tail 32  typeinfo 32  terminator 32  run 32
+#   _ZTV19RickshawPlatformBdw 32  tail 32  typeinfo --  terminator 32  run 32
+#
+# "slot 31 is Platform::Kill and slot 32 is not a code pointer" on all four,
+# and only the next-dsd-symbol route disagrees (26/22/2/5), which is the
+# documented failure. Route C is silent on 134 exactly as the note predicted,
+# the clean case. So the widths above are confirmed by a second tool.
+#
+# ==== THE NAMING SHIFT IS SETTLED, BY EACH TABLE'S OWN RTTI RECORD ==========
+# The route the note above wanted and w20 did not finish on ov026: a table's
+# vtable[-1] points at its own __si_class_type_info record, whose word[1] is
+# the name string. Read out of extracted/overlays/overlay_0043.bin:
+#
+#   table       vtable[-1]  NAME (the ROM's own)        id   dsd calls it
+#   0x021122b8  0x02112270  19daObjKm1_Ukishima_c       135  data_ov043_021122b8
+#   0x0211238c  0x02112338  21daObjKm1_Kurumajiku_c     137  data_ov043_0211238c
+#   0x0211245c  0x0211240c  17daObjKm1_Kuruma_c         136  _ZTV11RickshawBdw
+#   0x0211255c  0x021124dc  17daObjKm1_Dorifu_c         134  _ZTV19RickshawPlatformBdw
+#
+# and the id column is re-pinned independently by each id's own Spawn: the
+# vtable-store literal in DiamondLift_Spawn 0x021113cc is 0x021122b8,
+# RickshawBdw_Spawn 0x021114dc is 0x0211238c, RickshawPlatformBdw_Spawn
+# 0x021115f4 is 0x0211245c and StairsBdw_Spawn 0x0211176c is 0x0211255c. A
+# bijection, and it reproduces the note's cast map exactly.
+#
+# So the shift is real and it is worse than "one class over": the ENGLISH
+# recovered names and the SPAWN names disagree with each other. dsd's
+# _ZTV11RickshawBdw and the _ZN11RickshawBdw* bodies both belong to id 136,
+# while RickshawBdw_Spawn belongs to id 137. Whoever seats this must take the
+# ids from the Spawn-store column above and never from a name.
+#
+# ==== THE THIRD AND FOURTH TRAPS, NEITHER ON THE NOTE ABOVE =================
+#
+# (3) src/RickshawBdw_Spawn.c (id 137's factory) has BOTH halves of the
+#     disease in one four-line body:
+#
+#         p[0] = (int)_ZTV21daObjKm1_Kurumajiku_c;
+#         p[0] = (int)VT1;
+#
+#     The ROM at 0x021114f4..0x02111500 is
+#         LDR r1, =0x02109320   LDR r0, =0x0211238c
+#         STR r1, [r4, #0]      STR r0, [r4, #0]
+#     so the spelled name _ZTV21daObjKm1_Kurumajiku_c MEANS 0x02109320, which
+#     is data_ov002_02109320, a BASE table in another overlay -- the name is
+#     attached to the wrong address by a whole class. The class's real table,
+#     0x0211238c, is the one hidden behind the placeholder VT1. Seating 137
+#     without fixing both installs a base vtable and never fails at link.
+#     _ZTV21daObjKm1_Kurumajiku_c appears NOWHERE in config/arm9; it is a name
+#     the recovery pass invented, so there is nothing to check it against
+#     except the ROM.
+#
+# (4) id 135's own D1 and D0 spell the same two-step by name and by
+#     placeholder respectively, and both mean the same pair:
+#       src/func_ov043_021111a0.c writes _ZTV19daObjKm1_Ukishima_c then
+#         _ZTV10dBgActor_c -- ROM 0x021122b8 then 0x0210ae38.
+#       src/func_ov043_021111e4.c writes VT0 then VT1 -- the same two.
+#     0x0210ae38 is the Platform base table. THAT ONE IS ALREADY SOLVED in
+#     this tree: hal/actor_classes.cpp:583 defines `void *_ZTV10dBgActor_c[32]`
+#     and hal_fill_platform_vtable fills it and _ZTV8Platform identically, with
+#     a trap in every slot nothing is supposed to dispatch. So D1 needs no
+#     rename at all and D0 needs VT0/VT1 only. Its G0 is 0x020a0eac, the game
+#     heap, which cxx_aliases.cpp already binds correctly -- the note above is
+#     right that func_ov043_021111e4 must be left alone on G0.
+#
+#     G0/G1 on src/func_ov043_0211123c.c re-verified by disassembly, and the
+#     note above is exact: 0x0211125c LDR -> 0x021125e8 then Release, 0x02111264
+#     LDR -> 0x021125e0 then Release. src/func_ov043_02111320.c loads the same
+#     two, which is why its ov047-spelled names are the same two cells.
+#
+# ==== WHAT A SEAT ACTUALLY COSTS, SO THE NEXT LANE CAN SIZE IT =============
+# Cheapest useful slice is id 135 ALONE: six of level 35's eight skipped
+# instances, and the only one of the three whose factory is clean
+# (DiamondLift_Spawn.c names data_ov043_021122b8 outright, no placeholder).
+# It needs: the mount line, one host array for 0x021122b8, an alias for
+# _ZTV19daObjKm1_Ukishima_c onto it, per-source -D on func_ov043_02111320
+# (the two ov047 names) and func_ov043_0211123c (G0/G1) and func_ov043_021111e4
+# (VT0/VT1), the four sinits behind a bring-up, one registry row and one 32-slot
+# fill. Its slots 6 and 9 are ov043's own bodies, so it needs no ov002 base
+# body -- ids 134 and 137 do (0x020b4bfc/0x020b4bc4 and 0x020b6b38/0x020b6b10),
+# which is four more unlinked TUs and two more classes' worth of faces.
+#
+# ONE ADJUDICATION ALREADY DONE FOR THAT SEAT: id 135's slot 9,
+# src/func_ov043_02111280.cpp, is the ModelAnim slot-5 shape wave 19 swept for
+# -- a local six-virtual shadow over the member at +0xd4 dispatching the sixth.
+# It is SAFE, and not because the header says so (wave 19's first method
+# finding is that header names cannot adjudicate this). It is safe because of
+# how the member is CONSTRUCTED: func_ov043_02111320 fills +0xd4 with
+# Model::LoadFile into ModelBase::SetFile and +0x124 with MeshCollider::LoadFile
+# into MovingMeshCollider::SetFile, which is the Platform base layout ov022
+# records for its own cast, so +0xd4 is a plain Model. _ZTV5Model IS
+# dual-filled at [4] and [5], so the ROM's slot 5 lands on Model::Render. This
+# is the SlideDecoration ruling, not the Snufit/Swoop/Dorrie/MontyMole one.

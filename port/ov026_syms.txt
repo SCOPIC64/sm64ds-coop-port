@@ -185,3 +185,45 @@ data_ov026_02113ef8 data_ov026_02113f04 data_ov026_02113f0c
 data_ov026_02113f14 data_ov026_02113f20 data_ov026_02113f2c
 data_ov026_02113f3c data_ov026_02113f4c data_ov026_02113f58
 data_ov026_02113f78
+
+# ============================================================================
+# RUN LINKW WAVE C, lane cat-actors: THE OPEN IDENTITY QUESTION IS SETTLED.
+# ============================================================================
+#
+# The note above leaves ids 246 and 247 unseatable pending "each table's OWN
+# vtable[-1] record read through to its name string". That read is done. Words
+# out of extracted/overlays/overlay_0026.bin, never the dsd export; the layout
+# is vtable[-1] -> __si_class_type_info record -> word[1] name pointer -> the
+# NUL-terminated string.
+#
+#   table       vtable[-1]  kind                    NAME (the ROM's own)
+#   0x02113ae0  0x02113a90  __si_class_type_info    17daObjWlPolelift_c
+#   0x02113ba4  0x02113b5c  __si_class_type_info    21daObjWlKoopaShutter_c
+#   0x02113c6c  0x02113c24  __si_class_type_info    18daObjWlSubmarine_c
+#   0x02113d54  0x02113d0c  __si_class_type_info    18daWater_Tatumaki_c
+#   0x02113e24  0x02113de0  __si_class_type_info    17daWater_Suikomi_c
+#
+# THE ANSWER: 0x02113d54 IS THE WHIRLPOOL, and dsd's second label on it,
+# _ZTV9Submarine, is the wrong one. The Submarine's table is 0x02113c6c, which
+# config leaves unnamed apart from data_ov026_02113c6c. 0x02113e24 carries two
+# labels that are the SAME class under two spellings -- _ZTV12WaterSuction and
+# _ZTV17daWater_Suikomi_c both name 17daWater_Suikomi_c -- so only one config
+# row in the pair is actually wrong, and it is
+#   config/arm9/overlays/ov026/symbols.txt:201  _ZTV9Submarine  addr:0x02113d54
+#
+# This confirms the reviewer's ROM read from the other direction: the reviewer
+# said "that table is 31 slots and 0x02113c6c is 32", and the widths above are
+# 31 for the whirlpool and 32 for the Submarine, which is what a Platform
+# subclass (Kill at slot 31) versus a plain Actor gives. Two independent routes,
+# same answer.
+#
+# The note above's caution was also exactly right and worth keeping: the name
+# string FOLLOWING table 0x02113d54 reads 17daWater_Suikomi_c, which is the
+# suction class, and reading that as 0x02113d54's identity would have got it
+# wrong. It belongs to the class whose table comes next. Only the table's own
+# vtable[-1] answers.
+#
+# So the block on ids 246 and 247 is lifted on identity grounds. Nothing else
+# about them is measured here -- this lane did not seat ov026 and did not wire
+# its mount, so the widths, the PMF-pair finding and the 154-symbol list above
+# are still w20's derivation, untested by any link.
