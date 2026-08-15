@@ -1151,6 +1151,17 @@ void hal_fill_ccc_arena_vtable(void);
 extern unsigned char ChiefChilly_SpawnInfo[];        /* ov073 0x0212306c, +4 = 218 */
 void *port_factory_chief_chilly(void);               /* ov073 0x02121ec8, 200 B */
 void hal_fill_chief_chilly_vtable(void);
+/* ---- run linkw wave 12 (lane w12): ov052's two platform classes, level 44 ----
+   Both Spawns name their receiver and store a real table name, so both
+   register directly. Derivations in port/ov052_syms.txt and
+   hal/actor_classes_ov052.cpp; id 174's dsd block is unnamed, so its record
+   and factory carry address names. */
+extern unsigned char data_ov052_021124fc[];          /* ov052 0x021124fc, +4 = 174 */
+void *func_ov052_02111410(void);                     /* ov052 0x02111410, 48 B */
+void hal_fill_bobbing_log_emm_vtable(void);
+extern unsigned char SquarePathLift_SpawnInfo[];     /* ov052 0x021125cc, +4 = 175 */
+void *SquarePathLift_Spawn(void);                    /* ov052 0x02111830, 56 B */
+void hal_fill_square_path_lift_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1768,4 +1779,9 @@ void hal_fill_chief_chilly_vtable(void);
     {171, "CCC_BIG_ICE", CccBigIce_SpawnInfo, CccBigIce_Spawn, 0}, \
     {172, "CCC_SMALL_ICE", CccSmallIce_SpawnInfo, CccSmallIce_Spawn, 0}, \
     {218, "CHIEF_CHILLY", ChiefChilly_SpawnInfo, port_factory_chief_chilly, \
-     hal_fill_chief_chilly_vtable},
+     hal_fill_chief_chilly_vtable}, \
+    /* ---- run linkw wave 12 (lane w12): ov052, level 44's platform pair ---- */ \
+    {174, "BOBBING_LOG_EMM", data_ov052_021124fc, func_ov052_02111410, \
+     hal_fill_bobbing_log_emm_vtable}, \
+    {175, "SQUARE_PATH_LIFT", SquarePathLift_SpawnInfo, SquarePathLift_Spawn, \
+     hal_fill_square_path_lift_vtable},

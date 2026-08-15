@@ -1,0 +1,116 @@
+# run linkw wave 12 (lane w12): ov052's TWO PLATFORM CLASSES, per symbol.
+#
+# ov052 is LEVEL 44's own overlay ("Mario's key course", ex_m_map) and is
+# already mounted WHOLE in PORT_LEVEL_OVERLAYS. This is the SECOND mount of the
+# same overlay, per symbol, and the two do not conflict -- tools/ovdata.py
+# --whole emits port_ov052_image/_patch/_at and nothing by name, while
+# --from-list --pack emits the named arrays plus port_ov052_syms_patch. Same
+# dual-mount shape as ov010/ov012/ov013/ov014/ov015/ov016/ov018/ov019/ov020/
+# ov045.
+#
+# base 0x021111a0; .text ..0x02111868, .rodata ..0x02111b64, .init ..0x02111c3c,
+# .ctor ..0x02111c44, .data 0x02111c60..0x02112680, .bss ..0x021126e0.
+# ov052 is compressed:true, so every raw byte quoted below was read out of
+# extracted/overlays/overlay_0052.bin, never the dsd export.
+#
+# ==== THE TWO CLASSES, both attribution routes =============================
+#
+#   id   site        SpawnInfo   word[0]     name                  +4   +6
+#   174  0x02090b1c  0x021124fc  0x02111410  func_ov052_02111410   174  16
+#   175  0x02090b20  0x021125cc  0x02111830  SquarePathLift_Spawn  175  17
+#
+# Both records' word[0] lands inside ov052 and both read their own id back at
+# +4. Eight instances each on level 44, sixteen in all. Identity from the RTTI
+# typeinfo at vtable[-1], never the dsd label:
+#   0x0211251c -> 0x021124e0 -> "13daObjEmmLog_c"   (id 174)
+#   0x021125ec -> 0x021125ac -> "14daObjEmmYuka_c"  (id 175, yuka = floor)
+# Both agree with the Spawn names, so there is no ov045/ov060-style shift.
+#
+# ==== THE WIDTHS: BOTH ARE 32, AND ONE RELOC RUN READS 38 ==================
+#
+# _ZTV14SquarePathLift  0x021125f0, THIRTY-TWO slots, ends 0x02112670.
+#   reloc run       32
+#   next dsd symbol 0x02112610 -- INTERIOR (slot 8, a dsd split)
+#   Both agree on 32 once the split is seen through: 0x02112670..0x02112680 is
+#   16 bytes of ROM zeros, .data align-32 padding to the section end.
+#   dsd names this address TWICE, _ZTV14SquarePathLift and _ZTV14daObjEmmYuka_c;
+#   both are excluded and the RTTI spelling is aliased onto the host array.
+#
+# data_ov052_02112520 (id 174)  THIRTY-TWO slots, ends 0x021125a0.
+#   reloc run       THIRTY-EIGHT. IT OVERRUNS BY SIX WORDS.
+#   next dsd symbol 0x02112530 -- INTERIOR (slot 4); 0x02112570 (slot 20) and
+#                   0x02112590 (slot 28) are interior splits too.
+#   So NEITHER naive read is usable here, and the pin is the ROM's own layout:
+#     (1) slot 31 is 0x020ee55c, _ZN8Platform4KillEv -- the Platform tail every
+#         32-slot platform table in the port ends on (ov045's 140/141/142/145,
+#         ov060's 166/167). Slot 29 is Actor::OnAimedAtWithEgg and slot 30
+#         Actor::OnAimedAtWithEggReturnVec, the same close as every other one.
+#     (2) the six words the run reads past the end are TWO OTHER OBJECTS, and
+#         both have an independent reader:
+#           0x021125a0  {model SFP, clsn SFP, CLPS} -- SquarePathLift's OWN
+#                       file table. _ZN14SquarePathLift13InitResourcesEv reads
+#                       it as `struct SFP { void *a, *b, *c; }
+#                       data_ov052_021125a0` and hands .a to Model::LoadFile,
+#                       .b to MeshCollider::LoadFile and .c to
+#                       MovingMeshCollider::SetFile as the CLPS_Block.
+#           0x021125ac  {0x0209a764, 0x021125b8, ov002 0x021089ec} -- id 175's
+#                       Itanium typeinfo and its name string.
+#   An oversized host array here is the undersizing failure class running the
+#   other way: a 38-slot span would have SWALLOWED SquarePathLift's file table
+#   and its typeinfo out of this mount, and id 175's InitResources would have
+#   read three zeroed words and handed Model::LoadFile a null SharedFilePtr.
+#   The same trap sits on ov052's OTHER table in mirror image, which is why the
+#   0x021124d4 file table below (id 174's) is a separate entry and not part of
+#   any vtable span.
+#
+# ==== SEVEN SYMBOLS LEFT OUT ===============================================
+# The two vtables are HOST ARRAYS hal/actor_classes_ov052.cpp fills (the
+# ov015/ov016/ov045/ov060 rule: a mounted vtable hands a factory DS code
+# addresses), and the five dsd symbols interior to them go with them:
+#   0x02112520..0x021125a0  id 174, 32 slots   data_ov052_02112520
+#                           + data_ov052_02112530 / 02112570 / 02112590
+#   0x021125f0..0x02112670  id 175, 32 slots   _ZTV14SquarePathLift
+#                                            == _ZTV14daObjEmmYuka_c
+#                           + data_ov052_02112610
+# dsd's ".p__sinit_*" .ctor entries are left out (not C identifiers) and so are
+# both .init bodies: __sinit_ov052_02111b64 and __sinit_ov052_02111bd0 are
+# FUNCTIONS, they are matched src, they are in port/slice_w12b.txt as code, and
+# neither name is contested at a shared window, so both LINK and both run from
+# the registry fill.
+#
+# ==== WHY THIS LIST IS SEVENTEEN LINES AND NOT THE WHOLE SECTION ===========
+# The per-symbol mount exists so the actor code and the registry agree on
+# storage the ROM reaches BY NAME, and the reloc closure of both classes'
+# vtable slots, both Spawns and both sinits reaches exactly TWELVE ov052 data
+# symbols. Those twelve are here, plus the two SpawnInfo records the registry
+# rewrites, plus the two typeinfo objects and their name strings, which are
+# adjacent to the file tables and cost nothing. Everything else in ov052's
+# 2.6 KB of .data belongs to the LEVEL and is served by the whole-image mount
+# that has been there since level 44 landed.
+#
+# TWO POINTERS CROSS INTO OV064. Both file tables' third word is a CLPS_Block
+# in ov064 (0x0211ba2c for id 174, 0x0211ba0c for id 175 -- the words the
+# overrunning reloc run printed as slots 34 and 32/33). ov064 is mounted, so
+# ovdata's --cross pass is what rebases them; nothing here hand-resolves them.
+
+# ---- .data ----------------------------------------------------------------
+# id 174's file table {model SFP 0x02112680, clsn SFP 0x02112688,
+# CLPS ov064 0x0211ba2c}, then its typeinfo and name string, then its
+# SpawnInfo (0x1c of record + the 8 RTTI header words of the table that
+# follows, which is why its next-symbol size is 0x24).
+data_ov052_021124d4 data_ov052_021124e0 data_ov052_021124ec
+data_ov052_021124f8 data_ov052_021124fc
+# id 175's file table {model SFP 0x021126a8, clsn SFP 0x021126b0,
+# CLPS ov064 0x0211ba0c}, its typeinfo, its name string, its SpawnInfo.
+data_ov052_021125a0 data_ov052_021125ac data_ov052_021125b8
+SquarePathLift_SpawnInfo
+
+# ---- .bss 0x02112680..0x021126e0 ------------------------------------------
+# Two SharedFilePtr pairs and their destructor-chain nodes, one pair per sinit:
+#   02111b64 -> model 02112680 (file 1507) + clsn 02112688 (1508)  id 174
+#   02111bd0 -> model 021126a8 (file 1509) + clsn 021126b0 (1510)  id 175
+# The last symbol has no next; ovdata clamps it to the section end (0x021126e0),
+# which gives the chain node the 12 bytes func_020731dc writes through it.
+data_ov052_02112680 data_ov052_02112688 data_ov052_02112690
+data_ov052_0211269c data_ov052_021126a8 data_ov052_021126b0
+data_ov052_021126b8 data_ov052_021126c4

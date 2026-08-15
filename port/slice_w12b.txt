@@ -1,0 +1,56 @@
+# Run linkw wave 12, lane w12: ov052's two platform classes (level 44).
+#
+# Level 44, "Mario's key course" (ex_m_map), placed 95 actors and skipped 17;
+# SIXTEEN of the seventeen are these two ids, eight instances each. ov052 is the
+# level's own overlay and has been whole-mounted since level 44 landed -- this
+# lane adds the second, per-symbol mount and the two registry rows.
+#
+#   id   class              x on L44  table                          width
+#   174  BOBBING_LOG_EMM    8         0x02112520 (unnamed by dsd)      32
+#   175  SQUARE_PATH_LIFT   8         0x021125f0 _ZTV14SquarePathLift  32
+#
+# Both attribution routes, the RTTI identities and the 38-reads-as-32 width
+# derivation are in port/ov052_syms.txt; the fills and the bring-up are in
+# hal/actor_classes_ov052.cpp.
+#
+# ---- HOW THIS LIST WAS DERIVED ---------------------------------------------
+#
+# Reloc closure from every ov052 slot of both tables, both Spawns and both
+# sinits. It closes at SIXTEEN functions -- the whole of ov052's actor code --
+# and EVERY target it leaves ov052 for was already in walk_window.map on the
+# base tip. Nothing outside ov052 is pulled in by this slice: no arm9 veneer, no
+# ov002 body, no chain of any kind. That is why it is sixteen lines.
+#
+# Neither class has a pointer-to-member dispatcher, so there is no state table
+# to seat. Both Renders shadow-dispatch a PLAIN MODEL at +0xd4 through a local
+# six-virtual class, and _ZTV5Model IS dual-filled (slot 4 and slot 5 both
+# mv_render, hal/cxxname_bridge.cpp), so neither is the ModelAnim/BlendModelAnim
+# slot-5 collision and both stay sliced as matched src. Both Spawns name their
+# receiver (`_ZN8PlatformC2Ev(p)`) and store a REAL table name, so both register
+# directly with no factory wrapper and neither is an ARM r0 ride-through.
+#
+# ---- ONE SHARED-WINDOW MISSPELLING -----------------------------------------
+#
+# src/func_ov052_0211123c.c spells ov052's own file table `data_ov056_021124d4`
+# (ov052 and ov056 link at overlapping bases and dsd raced the name); its
+# sibling src/func_ov052_02111348.c spells the SAME address
+# `data_ov052_021124d4`, and the load site's relocs at 0x02111260/0x02111268
+# say module:overlay(52). The rename is a PER-SOURCE -D in port/CMakeLists.txt,
+# not an /alternatename, because ov056 is a live target on this board and an
+# alias with an ov056 LHS would be defeated the day ov056 is mounted.
+src/func_ov052_02111410.c
+src/SquarePathLift_Spawn.c
+src/func_ov052_02111348.cpp
+src/func_ov052_0211123c.c
+src/func_ov052_021112ac.c
+src/func_ov052_02111284.cpp
+src/func_ov052_021111a0.c
+src/func_ov052_021111e4.c
+src/_ZN14SquarePathLift13InitResourcesEv.cpp
+src/_ZN14SquarePathLift16CleanupResourcesEv.cpp
+src/_ZN14SquarePathLift8BehaviorEv.cpp
+src/_ZN14SquarePathLift6RenderEv.cpp
+src/_ZN14SquarePathLiftD1Ev.c
+src/_ZN14SquarePathLiftD0Ev.c
+src/__sinit_ov052_02111b64.c
+src/__sinit_ov052_02111bd0.c
