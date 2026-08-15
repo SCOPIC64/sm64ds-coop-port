@@ -47,6 +47,11 @@ recorded baseline. And it stamps a manifest (git SHA, dirty flag, exe SHA256,
 map size, the numbers, the verdict, a UTC timestamp) so a number pasted into a
 status file can be traced back to a specific binary.
 
+A GREEN VERDICT DOES NOT MEAN EVERY CLASS RAN. battery.py may run a level with
+an actor class switched off, and it says so on stdout. Those lines are printed
+here and recorded in the manifest's `skips` whatever the battery's exit code
+was, so the debt travels with the green rather than only with a red.
+
     python port/tools/gate.py [--record] [--skip-battery] [repo-root]
 
   --record         write the current numbers as this lane's baseline and exit
@@ -206,8 +211,24 @@ def run_build(root):
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
+# The battery's lines that have to survive a GREEN run.
+#
+# Everything else the battery prints is discarded unless it failed, which is
+# right for per-level oks and wrong for these two. battery.py runs some levels
+# with a class switched off (LEVEL_SKIPS) and prints a "skips:" line naming
+# each one, plus "SKIP RETIRED" when the owning lane's fix has landed and the
+# entry is now dead weight. Both only ever appear on a run that PASSES, so the
+# old rule of printing the tail only when battery_rc is nonzero hid exactly the
+# lines that carry the debt: a lane read ALL GREEN and never learned that a
+# level had been tested with an actor missing.
+BATTERY_CARRY = re.compile(r"^skips:|SKIP RETIRED")
+
+
 def run_battery(root):
-    """(verdict, returncode, tail) for the battery over an already-built tree.
+    """(verdict, returncode, tail, carry) for the battery over a built tree.
+
+    `carry` is the standing-skip and retired-skip lines, kept whatever the
+    return code was.
 
     --skip-build is deliberate: the gate has just built, and letting the
     battery build again would both double the wall clock and, worse, mean the
@@ -231,7 +252,8 @@ def run_battery(root):
         if not os.path.isfile(os.path.join(root, "build", "assets", "files.tsv")):
             verdict += ("  (build/assets/files.tsv is missing; run "
                         "python tools/asset_catalog.py generate <rom> first)")
-    return verdict, r.returncode, "\n".join(lines[-12:])
+    carry = [ln.strip() for ln in lines if BATTERY_CARRY.search(ln)]
+    return verdict, r.returncode, "\n".join(lines[-12:]), carry
 
 
 HEADLINE = re.compile(
@@ -357,12 +379,17 @@ def main():
     # measure
     if skip_battery:
         battery_verdict, battery_rc, battery_tail = "skipped", None, ""
+        battery_carry = []
         print("battery   : SKIPPED by --skip-battery")
     else:
         print("battery   : running (build, smokes, every mounted level, "
               "linkage, ptr_audit)...")
-        battery_verdict, battery_rc, battery_tail = run_battery(root)
+        battery_verdict, battery_rc, battery_tail, battery_carry = \
+            run_battery(root)
         print("battery   : %s" % battery_verdict)
+        # Before the tail, and regardless of rc: see BATTERY_CARRY.
+        for ln in battery_carry:
+            print("battery   : %s" % ln)
         if battery_rc:
             print(battery_tail)
 
@@ -418,6 +445,10 @@ def main():
         "unlinked": total - linked,
         "pct": pct,
         "battery": battery_verdict,
+        # The classes a GREEN run was NOT tested with. A manifest that records
+        # only "ALL GREEN" reads as "everything ran", and for a level under a
+        # LEVEL_SKIPS entry that is not what happened.
+        "skips": battery_carry,
         "build_relinked": bool(relinked),
     }
     # GREEN is reserved for a run that proved everything. A skipped battery is

@@ -9,7 +9,10 @@ Everything the merge gate runs, in order, stopping at the first failure:
                       SM64DS_FAULTS_FATAL=1, on every mounted level -- the ids
                       are read out of port_level_table[] in hal/level_boot.cpp
                       at run time, so a new mount is covered the moment it
-                      lands and no list here can go stale
+                      lands and no list here can go stale. A level whose
+                      blocker belongs to another lane runs with that lane's
+                      class skipped, named in LEVEL_SKIPS below and re-probed
+                      bare on every run so the skip cannot outlive the bug
   4. linkage          port/tools/linkage.py -- the linked count is printed and
                       compared against --linked-floor if given (a merge must
                       never lower it)
@@ -71,15 +74,30 @@ tracked separately; this note exists so the gate is not read as the bug.
 A SELFTEST DOES NOT ALWAYS END ON THE LEVEL IT STARTED.
 
 Every selftest log carries TWO [census] blocks -- one after boot and one at the
-end of the run -- and the census reports the live actor set at print time, so
-on a level that stays put the two are identical. Level 1 prints
-"82 spawned (22 classes), 0 skipped" twice.
+end of the run -- and the census reports the live actor set at print time.
+Often the two match: level 1 prints "82 spawned (22 classes), 0 skipped" twice,
+and so do levels 0, 32 and 46.
 
-Levels 19, 20, 26, 35, 39 and 49 warp within the 300 frames. Their logs carry a
+TWO MATCHING BLOCKS ARE NOT A PROOF THAT THE LEVEL STAYED PUT, and the
+converse is not a proof that it warped. The census counts what is ALIVE, and a
+level can spawn more of something over 300 frames without going anywhere:
+level 30 stays on suisou the whole run, carries no "[lvl] change:" line, and
+still goes from 71 spawned to 106 in nine classes. Reading two matching blocks
+as "did not warp" happens to be right on most levels, which is what makes it
+dangerous.
+
+Levels 19, 20, 26, 34, 35, 39 and 49 warp within the 300 frames. Their logs carry a
 "[lvl] change: level N -> M" line, and the second census is then M's, not N's:
 level 26 warps to 1 and its second block is level 1's 82/22 exactly, level 39
 warps to 5 and drops from 96 spawned to 64. (26 and 39 confirmed on this tree
 2026-08-15; the rest are as reported by the mount lanes.)
+
+Level 34 joined that list the day it was mounted, and it is the clearest case
+of why the rule is the rule rather than a curiosity: rainbow_mario is Wing
+Mario Over the Rainbow, a stage made of platforms over nothing, so the
+selftest's idle player walks off and the game sends him to the castle grounds
+-- "[lvl] change: level 34 -> 1, entrance 10, reason 0" -- exactly as it
+should. Its second census is level 1's.
 
 The battery only reads exit codes and does not care. Anything that reads a
 census OFF one of these logs must take the FIRST [census] block, before the
@@ -97,6 +115,42 @@ SELFTEST_FRAMES = "300"
 STEP_TIMEOUT = 600
 
 TABLE_OPEN = "static const PortLevelDesc port_level_table[] = {"
+
+# A MOUNTED LEVEL WHOSE BLOCKER IS NOT THE MOUNT, AND THE CLASS THAT BLOCKS IT.
+#
+# level id -> (SM64DS_SKIP_CLASS value, who owns the fix, what it looks like)
+#
+# The alternative to this table is worse in both directions. Leave the level
+# out of the table in level_boot.cpp and a proven mount goes unshipped because
+# somebody else's actor is broken; leave it in and run it bare and the battery
+# is red on every lane until that actor is fixed. So the mount lands, the
+# battery covers it, and the one class that is not the mount's responsibility
+# is named here in the open.
+#
+# A SKIP HERE IS A DEBT, AND THE BATTERY COLLECTS IT. Every entry is re-probed
+# BARE on every run (retire_probe below). The moment the owning lane's fix
+# lands, the bare run goes green and the battery says so in capitals, so the
+# skip cannot quietly become permanent -- which is the only way a mechanism
+# like this stays honest. Deleting a retired entry is the whole maintenance
+# burden.
+LEVEL_SKIPS = {
+    33: ("SNUFIT",
+         "the actors lane",
+         "SNUFIT (actor id 236) faults in RENDER. Bare, the level exits "
+         "c0000005 (3221225477, what subprocess reports here; a shell that "
+         "translates it prints 139) and faultmap.py resolves the fault to "
+         "Model::Virtual10+0xc with walker actor id 0xec = 236 = SNUFIT. "
+         "NO RAW OFFSET IS RECORDED HERE ON PURPOSE: the same one bug has "
+         "produced three different +0x000... offsets on three builds of the "
+         "same source, because an offset belongs to a binary and not to a "
+         "defect. Run faultmap.py against the build in hand. Level 33's mount "
+         "itself is proven: with the class skipped it runs 300 frames clean, "
+         "census 72 spawned over 17 classes with 4 SNUFIT declined."),
+}
+# The bare re-probe is expected to FAULT while the debt stands, and a fault
+# under FAULTS_FATAL exits fast. A probe that instead hangs is not evidence of
+# anything, so it gets a short leash and is read as "still needed".
+RETIRE_PROBE_TIMEOUT = 120
 
 
 def mounted_levels(root):
@@ -150,6 +204,39 @@ def run(cmd, cwd, env=None, timeout=STEP_TIMEOUT):
                           capture_output=True, text=True)
 
 
+def selftest_env(lvl, skip=None):
+    env = dict(os.environ,
+               SM64DS_LEVEL=str(lvl),
+               SM64DS_FAULTS_FATAL="1",
+               SM64DS_WINDOW_SELFTEST=SELFTEST_FRAMES)
+    if skip:
+        env["SM64DS_SKIP_CLASS"] = skip
+    else:
+        # The battery's own environment must not decide what a level runs. An
+        # SM64DS_SKIP_CLASS inherited from whoever invoked it would let a lane
+        # skip its way to a green over levels this table says need nothing.
+        env.pop("SM64DS_SKIP_CLASS", None)
+    return env
+
+
+def retire_probe(build, lvl):
+    """Does level `lvl` still need its skip? (True still needed, False retired).
+
+    Runs the level BARE. While the debt stands this faults under FAULTS_FATAL
+    and returns quickly; when the owning lane's fix lands it returns 0 and the
+    entry in LEVEL_SKIPS is dead weight.
+    """
+    try:
+        r = run([os.path.join(build, "walk_window.exe")], build,
+                env=selftest_env(lvl), timeout=RETIRE_PROBE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return True, "the bare run did not finish inside %ds" % \
+            RETIRE_PROBE_TIMEOUT
+    if r.returncode:
+        return True, "bare rc=%d" % r.returncode
+    return False, "bare rc=0"
+
+
 def main():
     args = [a for a in sys.argv[1:]]
     floor = 0
@@ -190,17 +277,40 @@ def main():
     # class of unearned green as the hand-maintained level list it used to run.
     levels = mounted_levels(root)
     print(f"levels: {len(levels)} mounted, from hal/level_boot.cpp")
+
+    # A skip for a level that is not mounted is the staleness bug that killed
+    # the hand-maintained level list, in miniature: the entry reads as covered
+    # and tests nothing. Refuse it rather than skip past it.
+    orphans = sorted(set(LEVEL_SKIPS) - set(levels))
+    if orphans:
+        print(f"levels: FAIL, LEVEL_SKIPS names unmounted level(s) {orphans}")
+        return 1
+
+    retired = []
     for lvl in levels:
-        env = dict(os.environ,
-                   SM64DS_LEVEL=str(lvl),
-                   SM64DS_FAULTS_FATAL="1",
-                   SM64DS_WINDOW_SELFTEST=SELFTEST_FRAMES)
+        skip = LEVEL_SKIPS.get(lvl)
+        env = selftest_env(lvl, skip[0] if skip else None)
         r = run([os.path.join(build, "walk_window.exe")], build, env=env)
         if r.returncode:
-            print(f"selftest level {lvl}: FAIL rc={r.returncode}")
+            print(f"selftest level {lvl}: FAIL rc={r.returncode}"
+                  + (f" (SM64DS_SKIP_CLASS={skip[0]})" if skip else ""))
             print(r.stdout[-1500:])
             return 1
-        print(f"selftest level {lvl}: ok")
+        if not skip:
+            print(f"selftest level {lvl}: ok")
+            continue
+        still, how = retire_probe(build, lvl)
+        print(f"selftest level {lvl}: ok with SM64DS_SKIP_CLASS={skip[0]}"
+              f", owned by {skip[1]} ({how})")
+        if not still:
+            retired.append(lvl)
+
+    for lvl in retired:
+        skip = LEVEL_SKIPS[lvl]
+        print(f"SKIP RETIRED: level {lvl} now runs 300 frames clean BARE. "
+              f"{skip[0]} is fixed, so delete level {lvl} from LEVEL_SKIPS in "
+              f"port/tools/battery.py -- the level is being tested with a "
+              f"class switched off for no reason.")
 
     r = run([sys.executable, os.path.join(root, "port", "tools", "linkage.py"),
              root], root)
@@ -226,6 +336,16 @@ def main():
         print(f"ptr_audit: FAIL, {m.group(1)} unhosted code pointers")
         return 1
     print("ptr_audit: 0 unhosted code pointers")
+
+    # gate.py tails this output, so the debt is restated where a tail will see
+    # it rather than only next to the level it belongs to.
+    if LEVEL_SKIPS:
+        print("skips: " + ", ".join(
+            f"level {lvl} without {LEVEL_SKIPS[lvl][0]} ({LEVEL_SKIPS[lvl][1]})"
+            for lvl in sorted(LEVEL_SKIPS)))
+    if retired:
+        print("skips: RETIRED and removable -- " +
+              ", ".join(f"level {lvl}" for lvl in retired))
 
     print("battery: ALL GREEN")
     return 0
