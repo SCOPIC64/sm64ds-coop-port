@@ -70,6 +70,65 @@ def overlay_yaml(root, ovid, field):
     return int(m.group(1))
 
 
+# OVERLAYS.YAML'S base_address IS WRONG FOR THESE EIGHT, BY 0x20.
+#
+# The yaml is a dsd export, not the ROM. For these eight it reads 0x021111c0
+# where the ROM's own arm9 overlay table says 0x021111a0, which is the base
+# every other level overlay loads at. Ground truth is that table: the NDS
+# header's word at +0x50 is its file offset, entries are 32 bytes, and the
+# second word of each entry is ram_address. Read there, all eight say
+# 0x021111a0.
+#
+# The relocations prove it independently, and that is the check that matters
+# here because it is the one this file already performs. Every internal reloc
+# site in config/arm9/overlays/<ov>/relocs.txt must hold its own target in the
+# raw image. Measured per overlay, matches at the yaml base then at the ROM
+# base: ov008 0/25 then 25/25, ov037 0/15 then 15/15, ov038 0/14 then 14/14,
+# ov040 0/16 then 16/16, ov042 0/14 then 14/14, ov049 0/10 then 10/10,
+# ov050 0/16 then 16/16, ov054 0/32 then 32/32. Nothing agrees at the yaml
+# base and everything agrees at the ROM's.
+#
+# WHAT IT COST BEFORE ANYONE NOTICED. Reading a level overlay 32 bytes off
+# does not fail, it lies: the LVL_Overlay record at data_02092208[level] comes
+# out as the wrong words, so its four file handles resolve to unrelated art or
+# to nothing. Run linkw wave 8 read these eight that way and declined the
+# levels behind them as "not stages" -- levels 0, 30, 32, 34 and 46, which are
+# test_map, the Secret Aquarium, Vanish Cap Under the Moat, Wing Mario Over
+# the Rainbow and Luigi's key course. All five are mounted now.
+#
+# This is an override of ONE field for eight overlays that had no mount at all
+# until this wave, so it changes no existing mount's bytes. It is not a fix:
+# whatever generates the yaml is still wrong, and ov061 and a dozen 32-byte
+# stubs disagree with the ROM table the same way.
+YAML_BASE_WRONG = {
+    8: 0x021111A0, 37: 0x021111A0, 38: 0x021111A0, 40: 0x021111A0,
+    42: 0x021111A0, 49: 0x021111A0, 50: 0x021111A0, 54: 0x021111A0,
+}
+
+
+def overlay_base(root, ovid):
+    """base_address, with the eight known-wrong yaml records corrected.
+
+    The correction is required to be NEEDED. If the yaml is ever regenerated
+    correctly the entry becomes a no-op, and a no-op override that nobody
+    deletes is how a table like this turns into folklore, so it says so.
+    """
+    base = overlay_yaml(root, ovid, "base_address")
+    fixed = YAML_BASE_WRONG.get(ovid)
+    if fixed is None:
+        return base
+    if base == fixed:
+        print(f"ov{ovid:03d}: overlays.yaml now agrees with the ROM overlay "
+              f"table at {base:#010x} -- delete overlay {ovid} from "
+              f"YAML_BASE_WRONG in port/tools/ovdata.py")
+        return base
+    print(f"ov{ovid:03d}: overlays.yaml says base {base:#010x}, the ROM "
+          f"overlay table says {fixed:#010x}; using the ROM's. Every reloc "
+          f"site below is checked against the image at that base, so a wrong "
+          f"answer here cannot pass quietly.")
+    return fixed
+
+
 def load_relocs(root, ov):
     """{site address: target address} for every kind:load reloc."""
     relocs = {}
@@ -457,7 +516,7 @@ def main():
         wanted = [a for a in argv[3:] if a != "--pack"]
 
     ovid = int(ov[2:])
-    base = overlay_yaml(root, ovid, "base_address")
+    base = overlay_base(root, ovid)
 
     # Read the RAW ndspy overlay (tools/unpack.py output), not the dsd
     # export: the dsd image goes stale against config re-addressings
