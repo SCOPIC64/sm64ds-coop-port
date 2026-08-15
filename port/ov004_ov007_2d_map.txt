@@ -319,3 +319,98 @@ is missing is the MODE, not the pixels.
   8, and ov003 is ALREADY MOUNTED for the debug level select's row list
   (gate 31, port/ov003_syms.txt). If someone wants the cheapest proof that a
   non-ov002 scene can be brought up in the port, ov003 is it, not ov007.
+
+
+9. WHAT AN ov004 OR ov007 MOUNT WOULD DO TO ovdata.py --cross
+--------------------------------------------------------------
+
+Asked for by the coordinator on the back of the ov006 lane's scout report,
+which measured that a hypothetical ov006 mount would drop 985 of 1302
+currently-resolving cross-mount pointers, because ovdata's contest test is
+purely address-based and does not model residency. ov004 and ov007 sit in the
+same shared window, so the same artefact applies to them. This is the
+measurement for THIS category. It is a static simulation of cross_mode against
+the 81 sidecars the current build writes, not a mount; this lane did not mount
+either overlay.
+
+The test being simulated is cross_mode's, exactly: a want is dropped when
+window_count(target) > 1, where the windows are every mounted overlay's whole
+DS footprint, image plus bss. A per-symbol mount and a whole-image mount
+present the SAME window to that test (write_map's docstring says so), so the
+mount style does not change any number here.
+
+BASELINE, as built at c1a6da46d, verified against the tool's own summary line:
+
+    215 pointers rebased across 81 mounts, 6101 left raw
+    (1009 of the 6101 into a contested window, the rest arm9 or unmounted)
+
+The windows that already contest the shared slot are ov002 (0x020ad660 ..
+0x021111a0) and ov003 (0x020ad660 .. 0x020b18a0).
+
+ADDING ov004's WINDOW (0x020ad660 .. 0x020c3220):
+
+    contested            1009 -> 1182   (+173)
+    resolving pointers LOST                0
+    resolving pointers                   215 -> 215
+
+ADDING ov007's WINDOW (0x020ad660 .. 0x02104720):
+
+    contested            1009 -> 1699   (+690)
+    resolving pointers LOST                3
+    resolving pointers                   215 -> 212
+
+BOTH: identical to ov007 alone. ov004's window is a strict subset of ov007's.
+
+READ THE +173 AND +690 CORRECTLY. They are pointers moving between two flavours
+of RAW, not pointers being lost. A word that had no host provider and was left
+raw as "arm9 or an unmounted overlay" is still left raw, now counted as
+"contested" instead. The number that matters is the third line, and for these
+two overlays it is 0 and 3.
+
+THE THREE, in full, so the residency lane can weigh them:
+
+    ov025  port_ov025_image+7372      -> 0x02100000  provider data_ov002_020ff480
+    ov045  port_ov045_image+5500      -> 0x02100000  provider data_ov002_020ff480
+    ov045  data_ov045_021126d0+76     -> 0x02100000  provider data_ov002_020ff480
+
+All three name one ov002 address, and ov025/ov045 are level actor overlays
+that are co-resident with ov002 and never with ov007, so all three are exactly
+the residency false positive the scout described. A residency model recovers
+them; nothing else does.
+
+WHY THIS IS SO MUCH MILDER THAN ov006's 985. Not because ov004/ov007 are
+special, but because the port resolves very few cross pointers into that slot
+today: 215 across all 61 mounted overlays, and almost everything aimed into
+ov002's window is already contested by ov003 or has no provider at all. The
+scout's ratio does not generalise. If the residency fix is being costed on
+"how much is broken today", ov004 costs nothing and ov007 costs three words.
+If it is being costed on "how much would a future mount unlock", the +690
+newly-contested words for ov007 are the number to look at, and 560 of them are
+ov002's own.
+
+Per-source-overlay breakdown of the +690, worst first: ov002 560, ov047 20,
+ov043 16, ov022 15, ov045 14, ov015 10, ov016 8, ov014 7, ov021 5, ov025 5,
+ov012 4, ov009 3, ov010 2, ov026 2, ov027 2, remainder 1 each.
+
+THE OTHER DIRECTION, the wants a mount of these two would ITSELF emit, is
+cheaper still:
+
+  ov007 has four cross wants into ov002, at 0x02110210 and 0x02110101 (three
+  times). Both addresses are ABOVE ov007's own window end of 0x02104720, so an
+  ov007 mount does not contest them, and neither has a provider today anyway
+  (ov002 is a per-symbol mount and does not cover those addresses). Cost: zero
+  either way.
+
+  ov004 has seventeen cross wants into ov001, at 0x020ab3f0, 0x020ab41c,
+  0x020ab450 and 0x020ab5b0. All four are inside ov001's window
+  (0x020aa420 .. 0x020ad660) and outside ov004's, so an ov004 mount does not
+  contest them either, and none has a provider in ov001's per-symbol mount
+  today. Cost: zero. Its other twenty-four cross wants go to ov006, which is
+  not mounted, so they stay raw regardless.
+
+NOTHING WAS HACKED AROUND. No change to ovdata.py, no hand-zeroed pointers, and
+the slice this lane landed (one TU, one hosted BSS word) does not touch the
+cross pass at all: it emits no mount and no sidecar, so the 215/6101/1009
+figures are identical before and after it. Any future ov004/ov007 slice should
+be held to the same bar until the residency question is settled in its own
+lane.
