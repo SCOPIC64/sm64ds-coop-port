@@ -149,9 +149,16 @@ def gate_active_files(port_dir, repo_dir, ordered, seen):
     lines and lines starting with '#', treat the rest as a repo relative path,
     keep the ones under src/ that exist.
     """
+    # EVERY slice file, not just the gate ones. The reader matched
+    # "slice_gate*.txt" only, so it was blind to every lane slice the linkage
+    # campaign has written (slice_w*.txt) -- and by run linkw wave 12 that was
+    # the large majority of the sliced tree. The guard reported its 2/2
+    # baseline the whole time while seated bodies it exists to catch sat in
+    # files it never opened. A guard that cannot see most of the build is not
+    # a ratchet, it is a decoration.
     gate_names = sorted(
         n for n in os.listdir(port_dir)
-        if n.startswith("slice_gate") and n.endswith(".txt")
+        if n.startswith("slice_") and n.endswith(".txt")
     )
     for name in gate_names:
         gate_path = os.path.join(port_dir, name)
@@ -266,6 +273,31 @@ def live_seated_set(port_dir, repo_dir):
     return sorted(seated)
 
 
+def debt_path():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "inferred_stub_debt.txt")
+
+
+def read_debt():
+    """The discovered-debt queue: seated guesses that were ALREADY shipping and
+    became visible only when this guard's slice reader was widened from
+    slice_gate*.txt to slice_*.txt. Read exactly like the baseline, but it is
+    NOT an allowlist -- see that file's own header. It may only shrink, and a
+    symbol never enters it: anything seated after it was written is a genuine
+    new guess and fails."""
+    path = debt_path()
+    if not os.path.isfile(path):
+        return []
+    syms = []
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            syms.append(line)
+    return sorted(set(syms))
+
+
 def read_baseline():
     """The committed allowlist as a sorted list of symbols. Blank lines and
     lines starting with '#' are ignored."""
@@ -334,8 +366,13 @@ def main(argv):
 
     live_set = set(live)
     base_set = set(baseline)
-    new_seated = sorted(live_set - base_set)
+    debt_set = set(read_debt())
+    # Debt is carried separately from the baseline and is never an approval:
+    # these were already seated and already shipping when the reader was
+    # widened to see them. They are reported every run and must reach zero.
+    new_seated = sorted(live_set - base_set - debt_set)
     retired = sorted(base_set - live_set)
+    debt_paid = sorted(debt_set - live_set)
 
     if update:
         # Explicit tightening only. A new seat is still an error even here: the
@@ -356,8 +393,21 @@ def main(argv):
                 print("  {}".format(sym))
         return 0
 
-    print("inferred_stub_guard: {} seated inferred stubs live, {} on baseline."
-          .format(len(live_set), len(base_set)))
+    print("inferred_stub_guard: {} seated inferred stubs live, {} on baseline, "
+          "{} unadjudicated DEBT."
+          .format(len(live_set), len(base_set), len(debt_set & live_set)))
+    if debt_set & live_set:
+        print("  DEBT: {} seated guess-marked bodies discovered when this "
+              "guard's slice reader was widened (see inferred_stub_debt.txt). "
+              "Each needs a per-body ruling: real decomp gets its marker "
+              "corrected, a genuine guess gets de-seated. This is not an "
+              "approval and the list may only shrink."
+              .format(len(debt_set & live_set)))
+    if debt_paid:
+        print("  DEBT PAID: {} symbol(s) left the seated set; tighten "
+              "inferred_stub_debt.txt by deleting them:".format(len(debt_paid)))
+        for sym in debt_paid:
+            print("    {}".format(sym))
 
     if new_seated:
         print("")

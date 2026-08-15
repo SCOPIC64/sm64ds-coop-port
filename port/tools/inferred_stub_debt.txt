@@ -1,0 +1,73 @@
+# inferred_stub_debt.txt
+#
+# THIS IS NOT AN EXEMPTION LIST. It is a discovered-debt queue, and every
+# symbol on it is a question nobody has answered yet.
+#
+# Until run linkw wave 12, inferred_stub_guard.py read only port/slice_gate*.txt
+# and was therefore blind to every lane slice the linkage campaign wrote
+# (port/slice_w*.txt) -- by that wave, the large majority of the sliced tree.
+# It reported its 2-symbol baseline the whole time. Widening the reader to
+# slice_*.txt made these seated guess-marked bodies visible all at once.
+#
+# They were ALREADY SEATED AND ALREADY SHIPPING. Widening the guard did not
+# introduce them; it stopped hiding them. Failing the build on all of them
+# would have stopped every lane over a debt none of them created, and moving
+# them into inferred_stub_baseline.txt would have been exactly the "never add a
+# symbol here by hand to unblock a build" that file forbids -- so they are
+# parked here instead, visible and separate.
+#
+# THE MARKER IS OVERLOADED, which is why each needs its own reading rather than
+# a bulk verdict. "recovered from vtable slot identity" sits both on bodies
+# that are genuine guesses AND on bodies whose NAME alone was recovered that
+# way while the body is real decomp -- one of these carries "Matched
+# byte-for-byte with mwccarm 1.2/sp2p3" in the same file. Adjudication is per
+# body: real decomp gets its marker corrected, a genuine guess gets de-seated.
+#
+# RATCHET: this list may only SHRINK, and it must reach zero. Nothing is ever
+# added to it. A guess seated after this file was written fails the build,
+# which is the property the guard existed for in the first place.
+#
+# Discovered 2026-08-15, run linkw wave 12.
+func_ov020_021127a4
+func_ov020_021127cc
+func_ov021_0211228c
+func_ov045_021111e4
+func_ov045_0211123c
+func_ov045_02111274
+func_ov045_0211129c
+func_ov045_021113ec
+func_ov045_02111b64
+func_ov045_02111bc8
+func_ov045_02111bdc
+func_ov052_021111e4
+func_ov052_0211123c
+func_ov052_02111284
+func_ov052_021112ac
+func_ov052_02111348
+func_ov060_02117d60
+func_ov060_021181e8
+func_ov060_0211822c
+func_ov060_021182b0
+func_ov063_021160c4
+func_ov063_0211c480
+func_ov063_0211c7b0
+func_ov065_02116f0c
+func_ov065_02116f14
+func_ov065_02116f40
+func_ov065_02117eac
+func_ov065_02117eb4
+func_ov065_02117ee0
+func_ov065_021195e4
+func_ov071_02121b00
+func_ov073_02121ec0
+func_ov073_021223f4
+func_ov080_02124ac4
+func_ov080_02124eb0
+func_ov080_02125318
+func_ov089_02131f04
+func_ov089_02131f4c
+func_ov100_02146dec
+func_ov100_02147054
+func_ov100_021470a4
+func_ov100_021470f4
+func_ov100_021471e0
