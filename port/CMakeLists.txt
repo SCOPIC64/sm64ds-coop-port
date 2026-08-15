@@ -1659,7 +1659,7 @@ list(APPEND PORT_ACTOR_OVERLAYS ov025)
 # storage has to exist before anything can be wired to read it.
 #
 # THIS ADDS NO LINKAGE and is not meant to. Mounted bytes are not matched TUs,
-# none of ov007's 528 matched TUs is compiled in, and nothing calls
+# none of ov007's 527 source TUs is compiled in, and nothing calls
 # port_ov007_syms_patch(). What lands is 716 symbols, the overlay's whole
 # .rodata + .data + .bss contiguous from 0x020ccb54 to 0x02104c40, including the
 # TITLE_SCREEN spawninfo record at 0x02103264 that the S1 spine lane's registry
@@ -1673,9 +1673,11 @@ list(APPEND PORT_ACTOR_OVERLAYS ov025)
 # contested unmoved at 105. The measurement is port/ov007_binding_diff.txt,
 # including the three findings it turned up and which of them are fixed.
 #
-# It also grows .dsstate by 229604 bytes, which MOVES THE SELFTEST BMP BASE.
-# The three water pixels track that base, so the BMP is comparable only at an
-# equal base and must not be byte-compared across this commit.
+# It also grows .dsstate by 229612 bytes, which MOVES THE SELFTEST BMP BASE.
+# That is the landed span: 229604 is the sum of the 716 symbol sizes and the
+# other 8 are the pack gap at 0x020d7db8. The three water pixels track the
+# section base, so the BMP is comparable only at an equal base and must not be
+# byte-compared across this commit.
 list(APPEND PORT_ACTOR_OVERLAYS ov007)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
