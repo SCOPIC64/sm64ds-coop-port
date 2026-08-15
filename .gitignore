@@ -106,3 +106,6 @@ _glmwork/
 /frames/
 /playlog/
 *.bmp
+
+# session run records live outside the repo (the orchestration dir), never in it
+runs/
