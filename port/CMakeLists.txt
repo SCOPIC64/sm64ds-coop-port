@@ -2806,6 +2806,68 @@ foreach(line IN LISTS SLICE178_LINES)
     list(APPEND SLICE178_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# ---- run linkw wave 9, lane w9-reg: TILTING_PLATFORM_LLL (id 72, ov064) ----
+# The largest single class in the wave-8 skip census: fourteen instances, x10 on
+# level 44 and x4 on level 48. ov064 is already mounted twice (gates 177/178), so
+# this adds no overlay mount -- only the class's own five matched TUs, its four
+# extra mount symbols in port/ov064_syms.txt, and the fill in
+# hal/actor_classes_ov064_w9.cpp. Its ov002 dependencies (the shared TILTING
+# Behavior/Render pair and the base Init/Cleanup pair the two veneers tail-call)
+# were all confirmed present in walk_window.map BEFORE the slice was written.
+# See port/slice_w9a.txt.
+# ---- run linkw wave 9, lane w9-reg, slice B: three ov084 shared-table siblings
+# GOOMBA_LARGE (202) x9, FIRE_PIRANHA_PLANT_BIG (251) x5 and
+# FIRE_PIRANHA_PLANT_SMALL (252) x2 -- sixteen instances for three TUs. Both ROM
+# tables they use are already host arrays filled by an already-registered id, and
+# all three SpawnInfo records are already in port/ov084_syms.txt, so this adds no
+# mount and no fill. See port/slice_w9b.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w9b.txt" SLICEW9B_LINES)
+set(SLICEW9B_SOURCES "")
+foreach(line IN LISTS SLICEW9B_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICEW9B_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# ---- run linkw wave 9, lane w9-reg, slice C: three ov091 sliding-platform
+# siblings sharing the table the registered id 55 already fills. Four instances
+# for three TUs; no mount and no fill added. See port/slice_w9c.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w9c.txt" SLICEW9C_LINES)
+set(SLICEW9C_SOURCES "")
+foreach(line IN LISTS SLICEW9C_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICEW9C_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# ---- run linkw wave 9, lane w9-reg, slice D: three ov095 seesaw siblings
+# sharing the table the registered id 39 already fills. Four instances for three
+# TUs; three records join port/ov095_syms.txt at the 0x1c stride that file
+# already measured, and no fill or vtable is added. See port/slice_w9d.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w9d.txt" SLICEW9D_LINES)
+set(SLICEW9D_SOURCES "")
+foreach(line IN LISTS SLICEW9D_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICEW9D_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w9a.txt" SLICEW9A_LINES)
+set(SLICEW9A_SOURCES "")
+foreach(line IN LISTS SLICEW9A_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICEW9A_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate179.txt" SLICE179_LINES)
 set(SLICE179_SOURCES "")
 foreach(line IN LISTS SLICE179_LINES)
@@ -3202,6 +3264,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp unmatched/MrI_StateMains.cpp unmatched/MrI_Render.cpp
     hal/actor_classes_ov064.cpp ${SLICE177_SOURCES} unmatched/Bully_AfterClsn.cpp
     hal/actor_classes_ov064_gate178.cpp ${SLICE178_SOURCES} unmatched/Ov064Gate178_States.cpp
+    hal/actor_classes_ov064_w9.cpp ${SLICEW9A_SOURCES} ${SLICEW9B_SOURCES} ${SLICEW9C_SOURCES} ${SLICEW9D_SOURCES}
     hal/actor_classes_jrb.cpp ${SLICE188_SOURCES} unmatched/Jrb_Renders.cpp
     unmatched/Unagi_StateDispatch.cpp unmatched/Unagi_BodyChain.cpp unmatched/Jrb_Aliases.cpp
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
@@ -3302,6 +3365,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp unmatched/MrI_StateMains.cpp unmatched/MrI_Render.cpp
     hal/actor_classes_ov064.cpp ${SLICE177_SOURCES} unmatched/Bully_AfterClsn.cpp
     hal/actor_classes_ov064_gate178.cpp ${SLICE178_SOURCES} unmatched/Ov064Gate178_States.cpp
+    hal/actor_classes_ov064_w9.cpp ${SLICEW9A_SOURCES} ${SLICEW9B_SOURCES} ${SLICEW9C_SOURCES} ${SLICEW9D_SOURCES}
     hal/actor_classes_jrb.cpp ${SLICE188_SOURCES} unmatched/Jrb_Renders.cpp
     unmatched/Unagi_StateDispatch.cpp unmatched/Unagi_BodyChain.cpp unmatched/Jrb_Aliases.cpp
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
@@ -3412,6 +3476,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp unmatched/MrI_StateMains.cpp unmatched/MrI_Render.cpp
     hal/actor_classes_ov064.cpp ${SLICE177_SOURCES} unmatched/Bully_AfterClsn.cpp
     hal/actor_classes_ov064_gate178.cpp ${SLICE178_SOURCES} unmatched/Ov064Gate178_States.cpp
+    hal/actor_classes_ov064_w9.cpp ${SLICEW9A_SOURCES} ${SLICEW9B_SOURCES} ${SLICEW9C_SOURCES} ${SLICEW9D_SOURCES}
     hal/actor_classes_jrb.cpp ${SLICE188_SOURCES} unmatched/Jrb_Renders.cpp
     unmatched/Unagi_StateDispatch.cpp unmatched/Unagi_BodyChain.cpp unmatched/Jrb_Aliases.cpp
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
