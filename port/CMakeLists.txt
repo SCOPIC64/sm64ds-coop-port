@@ -1400,6 +1400,16 @@ list(APPEND PORT_ACTOR_OVERLAYS ov063)
 # ten ov022 sinits run from the registry fill (the ov045 lane-ownership
 # pattern). See port/ov022_syms.txt and port/slice_w8packs.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov022)
+# run linkw wave 10 (lane w10-shared): ov031 (level 23, Tall Tall Mountain's
+# slide, already whole-mounted per the w8-mounts sweep) joins the per-symbol
+# mounts, so the SLIDE DECORATION QUAD reaches its four SpawnInfo records, its
+# four-entry SharedFilePtr table and that table's bss by name. Same dual-mount
+# shape as ov010/ov012/ov013/ov015/ov016/ov018/ov019/ov020/ov044/ov045/ov046.
+# ONE vtable is excluded from the mount and hosted as an array
+# hal/actor_classes_ov031_w10.cpp fills; that file also runs the mount bring-up
+# and the overlay's single sinit from the registry fill (the ov045 lane-
+# ownership pattern). See port/ov031_syms.txt and port/slice_w10a.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov031)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1813,6 +1823,61 @@ foreach(line IN LISTS SLICE_W8PACKS_LINES)
         continue()
     endif()
     list(APPEND SLICE_W8PACKS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 10, lane w10-shared: ov031's SLIDE DECORATION QUAD -- FOUR
+# spawn-table ids (302/303/304/305) onto ONE ROM class and ONE table
+# (0x02111984), x3 each on level 23, whose entire baseline skip set was those
+# twelve instances. The class reads its variant out of its own actor id, so one
+# fill and one closure of bodies serve all four rows. One TU is held out (the
+# shadow-class MSVC destructor, slot 16, spelled inline in the fill instead);
+# the header of port/slice_w10a.txt carries the reason, both attribution routes
+# for each id, the width derivation and the Render slot-5 ruling. Same one-owner
+# contract as the lane slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w10a.txt" SLICE_W10A_LINES)
+set(SLICE_W10A_SOURCES "")
+foreach(line IN LISTS SLICE_W10A_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W10A_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 10, lane w10-shared, slice B: MEGA_MUSHROOM (277, ov002) x1 on
+# level 22 -- ONE TU. Its factory stores _ZTV13OneUpMushroom, the same ROM table
+# the already-registered ONE_UP_MUSHROOM (276) installs, so it needs no fill, no
+# vtable and no new mount: one record in port/ov002_syms.txt and this one line.
+# The header of port/slice_w10b.txt carries both attribution routes, the width
+# agreement and the record pin. Same one-owner contract as the lane slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w10b.txt" SLICE_W10B_LINES)
+set(SLICE_W10B_SOURCES "")
+foreach(line IN LISTS SLICE_W10B_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W10B_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 11, lane w11: NINETEEN ids whose vtable is already a FILLED
+# host array and whose overlay is already mounted -- the tier the census-built
+# worklist could not see, found by widening the shared-table sweep from ~70
+# classes to all 512 spawn-table ids. One factory TU each and nothing else: no
+# mount, no vtable, no fill, no wrapper. Six records were added to
+# port/ov095_syms.txt and port/ov002_syms.txt; the other thirteen were mounted
+# already. The header of port/slice_w11.txt carries both attribution routes for
+# all nineteen, the ten shared tables with the registered sibling that fills
+# each, and the done-guard evidence for every fill reused. Same one-owner
+# contract as the lane slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w11.txt" SLICE_W11_LINES)
+set(SLICE_W11_SOURCES "")
+foreach(line IN LISTS SLICE_W11_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W11_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate21.txt" SLICE21_LINES)
@@ -3345,6 +3410,9 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W7C_SOURCES}
     hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
+    hal/actor_classes_ov031_w10.cpp ${SLICE_W10A_SOURCES}
+    ${SLICE_W10B_SOURCES}
+    ${SLICE_W11_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -3456,6 +3524,9 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W7C_SOURCES}
     hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
+    hal/actor_classes_ov031_w10.cpp ${SLICE_W10A_SOURCES}
+    ${SLICE_W10B_SOURCES}
+    ${SLICE_W11_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -3579,6 +3650,9 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W7C_SOURCES}
     hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
+    hal/actor_classes_ov031_w10.cpp ${SLICE_W10A_SOURCES}
+    ${SLICE_W10B_SOURCES}
+    ${SLICE_W11_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}

@@ -1051,6 +1051,89 @@ extern unsigned char SeesawBsPlank_SpawnInfo[];    /* ov095 0x02137430, +4 = 149
 void *SeesawBsPlank_Spawn(void);                   /* ov095 0x02135f04 */
 extern unsigned char SeesawBsZigZag_SpawnInfo[];   /* ov095 0x0213744c, +4 = 150 */
 void *SeesawBsZigZag_Spawn(void);                  /* ov095 0x02135ed4 */
+/* ---- run linkw wave 10 (lane w10-shared): ov031's SLIDE DECORATION QUAD.
+   FOUR ids on ONE ROM table (0x02111984, _ZTV18daObjHsBillboard_c ==
+   _ZTV25SlideDecorationSilverStar), x3 each on level 23. The class reads its
+   variant out of its own actor id -- InitResources switches on the +0xc id
+   halfword over 0x12e..0x131 and indexes one four-entry SharedFilePtr table --
+   so ONE fill serves all four rows, and it is idempotent, so the order the
+   registry installs them in does not matter. See hal/actor_classes_ov031_w10.cpp
+   and port/slice_w10a.txt. ---- */
+extern unsigned char SlideDecorationSilverStar_SpawnInfo[];   /* ov031 0x0211190c, +4 = 302 */
+void *SlideDecorationSilverStar_Spawn(void);                  /* ov031 0x021113ec */
+extern unsigned char SlideDecorationYellowStar_SpawnInfo[];   /* ov031 0x02111928, +4 = 303 */
+void *SlideDecorationYellowStar_Spawn(void);                  /* ov031 0x021113b4 */
+extern unsigned char SlideDecorationOrangeSmiley_SpawnInfo[]; /* ov031 0x02111944, +4 = 304 */
+void *SlideDecorationOrangeSmiley_Spawn(void);                /* ov031 0x0211137c */
+extern unsigned char SlideDecorationBlueSmiley_SpawnInfo[];   /* ov031 0x02111960, +4 = 305 */
+void *SlideDecorationBlueSmiley_Spawn(void);                  /* ov031 0x02111344 */
+void hal_fill_slide_decoration_vtable(void);     /* _ZTV18daObjHsBillboard_c, 31 */
+/* ---- run linkw wave 10 (lane w10-shared): MEGA_MUSHROOM (277, ov002) x1 on
+   level 22. Its factory stores _ZTV13OneUpMushroom -- the SAME ROM table
+   0x021083c8 the already-registered ONE_UP_MUSHROOM (276) installs -- so it
+   needs no fill of its own and the row below names 276's deliberately. One
+   record in port/ov002_syms.txt, one TU in port/slice_w10b.txt, no vtable and
+   no new mount. ---- */
+extern unsigned char MegaMushroom_SpawnInfo[];   /* ov002 0x021083a4, +4 = 277 */
+void *MegaMushroom_Spawn(void);                  /* ov002 0x020b0530 */
+/* ---- run linkw wave 11 (lane w11): NINETEEN ids on ten tables that a
+   REGISTERED sibling already fills. The widened sweep -- all 512 spawn-table
+   ids resolved to (owner overlay, the table their own Spawn stores), not the
+   ~70 that appear in a level census -- is what makes these visible: each one's
+   overlay is already mounted and its table is already a host array in
+   walk_window.map, so the whole registration is a record, a factory and a row.
+   Thirteen of the nineteen already had their record mounted; the other six
+   gained one line each in port/ov095_syms.txt / port/ov002_syms.txt. Every
+   reused fill was read for a done-guard first -- see port/slice_w11.txt, which
+   carries both attribution routes for all nineteen, the ten tables with the
+   sibling that fills each, and the guard evidence per fill. ---- */
+/* ov102, table 0x0214e1d8 _ZTV13FortressTower, filled by id 298 */
+extern unsigned char RockTriangle_SpawnInfo[];       /* ov102 0x0214e0fc, +4 = 59 */
+void *RockTriangle_Spawn(void);                      /* ov102 0x02148f5c, 48 B */
+extern unsigned char CgStairs_SpawnInfo[];           /* ov102 0x0214e150, +4 = 340 */
+void *CgStairs_Spawn(void);                          /* ov102 0x02148ecc, 48 B */
+extern unsigned char RopeBarrier_SpawnInfo[];        /* ov102 0x0214e16c, +4 = 341 */
+void *RopeBarrier_Spawn(void);                       /* ov102 0x02148e9c, 48 B */
+/* ov102, table 0x0214e47c _ZTV13QuestionBlock, filled by id 20 */
+extern unsigned char ExclamationBlockVs_SpawnInfo[]; /* ov102 0x0214e3cc, +4 = 22 */
+void *ExclamationBlockVs_Spawn(void);                /* ov102 0x0214a92c, 64 B */
+extern unsigned char CapBlockMario_SpawnInfo[];      /* ov102 0x0214e420, +4 = 23 */
+void *CapBlockMario_Spawn(void);                     /* ov102 0x0214a86c, 64 B */
+extern unsigned char CapBlockWario_SpawnInfo[];      /* ov102 0x0214e458, +4 = 24 */
+void *CapBlockWario_Spawn(void);                     /* ov102 0x0214a7ec, 64 B */
+extern unsigned char CapBlockLuigi_SpawnInfo[];      /* ov102 0x0214e43c, +4 = 25 */
+void *CapBlockLuigi_Spawn(void);                     /* ov102 0x0214a82c, 64 B */
+/* ov091, table 0x02135080 _ZTV17SlidingPlatformWf, filled by 55/138/154/155 */
+extern unsigned char SlidingPlatformBfsSquare_SpawnInfo[];    /* ov091 0x02134fd0, +4 = 147 */
+void *SlidingPlatformBfsSquare_Spawn(void);                   /* ov091 0x02132848 */
+extern unsigned char SlidingPlatformBfsRectangle_SpawnInfo[]; /* ov091 0x02134fec, +4 = 146 */
+void *SlidingPlatformBfsRectangle_Spawn(void);                /* ov091 0x02132818 */
+extern unsigned char SlidingPlatformRr_SpawnInfo[];           /* ov091 0x02134fb4, +4 = 124 */
+void *SlidingPlatformRr_Spawn(void);                          /* ov091 0x02132878 */
+/* ov091, table 0x02134c5c _ZTV23daObjRotateUpdownLift_c, filled by id 29
+   (the host array is spelled _ZTV25RotatingUpDownPlatformUtm and aliased) */
+extern unsigned char RotatingUpDownPlatformUtm_SpawnInfo[];   /* ov091 0x02134c14, +4 = 30 */
+void *RotatingUpDownPlatformUtm_Spawn(void);                  /* ov091 0x02131ba4, 56 B */
+/* ov084 0x02130948 _ZTV6Goomba (200/202) and ov062 0x0211dab4 _ZTV5Koopa (203) */
+extern unsigned char GoombaSmall_SpawnInfo[];        /* ov084 0x02130908, +4 = 201 */
+void *GoombaSmall_Spawn(void);                       /* ov084 0x0212c054, 92 B */
+extern unsigned char KoopaSmall_SpawnInfo[];         /* ov062 0x0211da90, +4 = 204 */
+void *KoopaSmall_Spawn(void);                        /* ov062 0x021196bc, 80 B */
+/* ov095, table 0x021374fc _ZTV9SeesawBob, filled by 39/133/149/150 */
+extern unsigned char SeesawBfs_SpawnInfo[];          /* ov095 0x02137414, +4 = 143 */
+void *SeesawBfs_Spawn(void);                         /* ov095 0x02135f34, 48 B */
+extern unsigned char SeesawUtm_SpawnInfo[];          /* ov095 0x021373dc, +4 = 28 */
+void *SeesawUtm_Spawn(void);                         /* ov095 0x02135fc4, 48 B */
+extern unsigned char SeesawRr_SpawnInfo[];           /* ov095 0x02137468, +4 = 128 */
+void *SeesawRr_Spawn(void);                          /* ov095 0x02135ea4, 48 B */
+/* ov095, table 0x02137628 _ZTV13UpDownLiftBbh, filled by 32/33 */
+extern unsigned char UpDownLiftRr_SpawnInfo[];       /* ov095 0x02137604, +4 = 131 */
+void *UpDownLiftRr_Spawn(void);                      /* ov095 0x0213679c, 48 B */
+/* ov002, 0x0210ab3c _ZTV8daStar_c (178) and 0x02108c18 _ZTV10BrickBlock (322) */
+extern unsigned char SilverStar_SpawnInfo[];         /* ov002 0x0210aa5c, +4 = 179 */
+void *SilverStar_Spawn(void);                        /* ov002 0x020ebed4, 92 B */
+extern unsigned char SilverStarBlockTag_SpawnInfo[]; /* ov002 0x02108bd8, +4 = 324 */
+void *SilverStarBlockTag_Spawn(void);                /* ov002 0x020b45e0, 48 B */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1570,4 +1653,95 @@ void *SeesawBsZigZag_Spawn(void);                  /* ov095 0x02135ed4 */
     {149, "SEESAW_BS_PLANK", SeesawBsPlank_SpawnInfo, SeesawBsPlank_Spawn, \
      hal_fill_seesaw_bob_vtable}, \
     {150, "SEESAW_BS_ZIGZAG", SeesawBsZigZag_SpawnInfo, SeesawBsZigZag_Spawn, \
-     hal_fill_seesaw_bob_vtable},
+     hal_fill_seesaw_bob_vtable}, \
+    /* ---- run linkw wave 10 (lane w10-shared): ov031's SLIDE DECORATION \
+       QUAD. The lane's tool resolves all 512 spawn-table entries to the table \
+       each factory stores; for ov031 it returns ONE table for FOUR ids, and \
+       the class picks its model out of its own actor id (InitResources \
+       switches on the +0xc halfword over 0x12e/0x12f/0x130/0x131 and indexes \
+       data_ov031_02111424). So all four rows name the SAME fill deliberately. \
+       x3 each on level 23, whose entire baseline skip set was these twelve \
+       instances of these four classes. ---- */ \
+    {302, "SLIDE_DECORATION_SILVER_STAR", SlideDecorationSilverStar_SpawnInfo, \
+     SlideDecorationSilverStar_Spawn, hal_fill_slide_decoration_vtable},      \
+    {303, "SLIDE_DECORATION_YELLOW_STAR", SlideDecorationYellowStar_SpawnInfo, \
+     SlideDecorationYellowStar_Spawn, hal_fill_slide_decoration_vtable},      \
+    {304, "SLIDE_DECORATION_ORANGE_SMILEY",                                   \
+     SlideDecorationOrangeSmiley_SpawnInfo,                                   \
+     SlideDecorationOrangeSmiley_Spawn, hal_fill_slide_decoration_vtable},    \
+    {305, "SLIDE_DECORATION_BLUE_SMILEY", SlideDecorationBlueSmiley_SpawnInfo, \
+     SlideDecorationBlueSmiley_Spawn, hal_fill_slide_decoration_vtable}, \
+    /* ---- run linkw wave 10 (lane w10-shared): MEGA_MUSHROOM (277, \
+       ov002) x1 on level 22. The lane's tool puts ids 276 and 277 on ONE \
+       table, 0x021083c8, and 276 is already registered -- so the array is \
+       already filled before this class spawns and the whole registration is \
+       one record and one factory TU. \
+ \
+       THE FILL COLUMN IS 0, THE LIGHT_BEAM CONVENTION, AND IT IS NOT \
+       COSMETIC. hal_fill_one_up_mushroom_vtable opens with \
+       port_one_up_mushroom_types_seat(), a VERIFY-THEN-REWRITE seat over \
+       __sinit_ov002_02100adc's fourteen mushroom-type PMFs: it aborts unless \
+       each word still holds the ROM address it was compiled from, then \
+       replaces it with the host body. Naming that fill on a second row calls \
+       it a second time, and the second call finds the host address the first \
+       one wrote -- `FATAL: mushroom type 0: the sinit left 004807a0, the \
+       ROM's own table says 020aff10 -- WRONG BYTES`, measured on this tree \
+       before the column was changed. A sibling's fill may only be reused \
+       from another row when it is IDEMPOTENT; one carrying a seat is not. \
+       ---- */ \
+    {277, "MEGA_MUSHROOM", MegaMushroom_SpawnInfo, MegaMushroom_Spawn, 0}, \
+    /* ---- run linkw wave 11 (lane w11): the widened sweep's harvest. Nineteen \
+       ids whose table is ALREADY filled by a registered sibling and whose overlay \
+       is ALREADY mounted, so each row costs one factory TU and nothing else. \
+       Eleven placed instances across levels 8 and 37 come off the skip lists with \
+       them; the thirteen ids that no mounted level places today are taken for the \
+       linkage and so the lane that mounts their level gets them for free. \
+ \
+       EVERY FILL NAMED BELOW IS A SIBLING'S, AND EVERY ONE WAS CHECKED FOR A \
+       DONE-GUARD BEFORE IT WAS NAMED. Four are idempotent by measurement -- the \
+       registry already calls them 2 or 4 times on every one of the 35 mounted \
+       levels. The other six were read to the bottom of their call graph: they are \
+       stores plus a shared helper that is also stores, and the seats they reach \
+       (hal_fill_platform_vtable, port_enemy_death_states_seat, \
+       port_goomba_states_seat, port_power_star_states_seat) all open with \
+       `static int done; if (done) return;`. port_power_star_states_seat is the \
+       sharp one: it carries the same verify-then-abort that made wave 10 give \
+       MEGA_MUSHROOM a 0 column, and it is safe ONLY because of that guard. ---- */ \
+    {59, "ROCK_TRIANGLE", RockTriangle_SpawnInfo, RockTriangle_Spawn, \
+     hal_fill_warp_pipe_vtable}, \
+    {340, "CG_STAIRS", CgStairs_SpawnInfo, CgStairs_Spawn, \
+     hal_fill_warp_pipe_vtable}, \
+    {341, "ROPE_BARRIER", RopeBarrier_SpawnInfo, RopeBarrier_Spawn, \
+     hal_fill_warp_pipe_vtable}, \
+    {22, "EXCLAMATION_BLOCK_VS", ExclamationBlockVs_SpawnInfo, \
+     ExclamationBlockVs_Spawn, hal_fill_question_block_vtable}, \
+    {23, "CAP_BLOCK_MARIO", CapBlockMario_SpawnInfo, CapBlockMario_Spawn, \
+     hal_fill_question_block_vtable}, \
+    {24, "CAP_BLOCK_WARIO", CapBlockWario_SpawnInfo, CapBlockWario_Spawn, \
+     hal_fill_question_block_vtable}, \
+    {25, "CAP_BLOCK_LUIGI", CapBlockLuigi_SpawnInfo, CapBlockLuigi_Spawn, \
+     hal_fill_question_block_vtable}, \
+    {147, "SLIDING_PLATFORM_BFS_SQUARE", SlidingPlatformBfsSquare_SpawnInfo, \
+     SlidingPlatformBfsSquare_Spawn, hal_fill_sliding_platform_wf_vtable}, \
+    {146, "SLIDING_PLATFORM_BFS_RECTANGLE", SlidingPlatformBfsRectangle_SpawnInfo, \
+     SlidingPlatformBfsRectangle_Spawn, hal_fill_sliding_platform_wf_vtable}, \
+    {124, "SLIDING_PLATFORM_RR", SlidingPlatformRr_SpawnInfo, \
+     SlidingPlatformRr_Spawn, hal_fill_sliding_platform_wf_vtable}, \
+    {30, "ROTATING_UP_DOWN_PLATFORM_UTM", RotatingUpDownPlatformUtm_SpawnInfo, \
+     RotatingUpDownPlatformUtm_Spawn, hal_fill_rotating_up_down_platform_vtable}, \
+    {201, "GOOMBA_SMALL", GoombaSmall_SpawnInfo, GoombaSmall_Spawn, \
+     hal_fill_goomba_vtable}, \
+    {204, "KOOPA_SMALL", KoopaSmall_SpawnInfo, KoopaSmall_Spawn, \
+     hal_fill_koopa_vtable}, \
+    {143, "SEESAW_BFS", SeesawBfs_SpawnInfo, SeesawBfs_Spawn, \
+     hal_fill_seesaw_bob_vtable}, \
+    {28, "SEESAW_UTM", SeesawUtm_SpawnInfo, SeesawUtm_Spawn, \
+     hal_fill_seesaw_bob_vtable}, \
+    {128, "SEESAW_RR", SeesawRr_SpawnInfo, SeesawRr_Spawn, \
+     hal_fill_seesaw_bob_vtable}, \
+    {131, "UP_DOWN_LIFT_RR", UpDownLiftRr_SpawnInfo, UpDownLiftRr_Spawn, \
+     hal_fill_up_down_lift_hmc_vtable}, \
+    {179, "SILVER_STAR", SilverStar_SpawnInfo, SilverStar_Spawn, \
+     hal_fill_power_star_vtable}, \
+    {324, "SILVER_STAR_BLOCK_TAG", SilverStarBlockTag_SpawnInfo, \
+     SilverStarBlockTag_Spawn, hal_fill_mega_mushroom_block_tag_vtable},

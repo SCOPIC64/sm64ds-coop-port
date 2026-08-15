@@ -1,0 +1,118 @@
+# run linkw wave 10 (lane w10-shared): ov031's SLIDE DECORATION QUAD, per symbol.
+#
+# ov031 (level 23, Tall Tall Mountain's slide, data/stage/high_slider, course 11)
+# is already mounted WHOLE in PORT_LEVEL_OVERLAYS -- the w8-mounts sweep landed
+# that, and the loaders walk the LVL_Overlay's object tables across whatever
+# symbol boundaries dsd named, which is why a level overlay needs the whole-image
+# mount. This file is the SECOND mount of the same overlay, per symbol, the same
+# dual mount ov010/ov012/ov013/ov014/ov015/ov016/ov018/ov019/ov020/ov044/ov045/
+# ov046 already carry. tools/ovdata.py --whole emits port_ov031_image / _patch /
+# _at and NOTHING by name; --from-list --pack emits the named arrays plus
+# port_ov031_syms_patch, and ovdata's own comment keeps the two tags distinct for
+# exactly this case.
+#
+# WHY the cast needs the named mount rather than the image: the registry rewrites
+# each SpawnInfo's +0 word to the host factory and ActorBase's constructor reads
+# the two list priorities back out of the SAME record, and InitResources /
+# CleanupResources reach the four SharedFilePtrs through a named pointer table.
+# Those have to be storage the actor code and the registry agree on, which the
+# whole image is not.
+#
+# ==== ONE CLASS, FOUR IDS -- THE WHOLE POINT OF THIS MOUNT ==================
+# ids 302/303/304/305 (SLIDE_DECORATION_SILVER_STAR / _YELLOW_STAR /
+# _ORANGE_SMILEY / _BLUE_SMILEY) are FOUR spawn-table entries onto ONE ROM class.
+# All four factories store the SAME table 0x02111984 (_ZTV18daObjHsBillboard_c ==
+# _ZTV25SlideDecorationSilverStar, two dsd names at one address), and the class
+# picks its model from its OWN actor id:
+# src/_ZN25SlideDecorationSilverStar13InitResourcesEv.cpp switches on unk_00c
+# (the id field at +0xc) over 0x12e/0x12f/0x130/0x131 = 302/303/304/305 and
+# indexes data_ov031_02111424 with the result. One fill, one closure of bodies,
+# four registry rows, twelve instances on level 23.
+#
+# ==== MANDATORY WINDOW-ALIAS CHECK (the gate-199/202 rule) ==================
+# All four SpawnInfo addresses are flagged `ambiguous` in config/arm9/overlays/
+# ov031/symbols.txt, and the arm9 SPAWN TABLE entries (0x02090864 + id*4) cite
+# fifteen or sixteen overlays sharing this window:
+#   id 302 site 0x02090d1c -> 0x0211190c  module:overlays(8,12,13,17,23,24,31,...)
+#   id 303 site 0x02090d20 -> 0x02111928  module:overlays(8,12,13,17,23,24,25,31,...)
+#   id 304 site 0x02090d24 -> 0x02111944  module:overlays(8,12,13,17,23,24,31,...)
+#   id 305 site 0x02090d28 -> 0x02111960  module:overlays(8,12,13,15,17,23,24,31,...)
+# RESOLVED by reading the raw bytes out of extracted/overlays/overlay_0031.bin
+# (base 0x021111a0 -- ov031 is compressed:true in overlays.yaml, so the dsd
+# export extracted/dsd/arm9_overlays/ov031.bin is the COMPRESSED image and
+# reading halfwords out of it is reading noise):
+#   0x0211190c word[0]=0x021113ec SlideDecorationSilverStar_Spawn    +4 = 302
+#   0x02111928 word[0]=0x021113b4 SlideDecorationYellowStar_Spawn    +4 = 303
+#   0x02111944 word[0]=0x0211137c SlideDecorationOrangeSmiley_Spawn  +4 = 304
+#   0x02111960 word[0]=0x02111344 SlideDecorationBlueSmiley_Spawn    +4 = 305
+# Every record's spawn word lands inside ov031 itself and every id matches the
+# spawn-table slot it was reached from. Sweeping ALL 110 overlays with both
+# routes returns exactly one owner for each of the four (owners: [31]); the
+# ambiguity is a shared-window artefact, not co-residency.
+#
+# ==== THE FOUR RECORDS ARE 0x1c, AND THE PIN IS MEASURED ===================
+# The four are consecutive and exactly 0x1c apart -- 0x0211190c, 0x02111928,
+# 0x02111944, 0x02111960 -- which is the same record stride port/ov095_syms.txt
+# measured for its own overlay. Read out of the raw image, each record is seven
+# words: { spawnFunc, id | prio<<16, 0, 0, 0x10000, 0, 0 }.
+#   0x0211190c  0x021113ec 0x00bf012e 0 0 0x10000 0 0     id 302 prio 191
+#   0x02111928  0x021113b4 0x00c0012f 0 0 0x10000 0 0     id 303 prio 192
+#   0x02111944  0x0211137c 0x00c10130 0 0 0x10000 0 0     id 304 prio 193
+#   0x02111960  0x02111344 0x00c20131 0 0 0x10000 0 0     id 305 prio 194
+# The natural next-symbol deltas would be 0x1c, 0x1c, 0x1c and 0x24: the first
+# three are right by accident and the fourth would run 8 bytes PAST the record,
+# into the vtable's own Itanium prologue (offset-to-top 0x0211197c = 0,
+# typeinfo 0x02111980 = 0x021118e8). Pinned to 0x1c so the last record cannot
+# swallow the table's header words. dsd also split the id-303 record with an
+# interior label, data_ov031_0211192c, whose delta would truncate the record at
+# 0x4 -- before the +4 id halfword the registry cross-checks -- so that label is
+# left OUT and the record's own pin covers the span.
+#
+# ==== THE VTABLE IS NOT HERE ===============================================
+# 0x02111984.._end (31 slots, 0x02111984..0x02111a00 -- the reloc run and the
+# end of .text agree, and 32 slots would not fit inside code_size 0x860) is a
+# HOST ARRAY hal/actor_classes_ov031_w10.cpp fills, the ov015/ov016/ov045/ov080
+# rule: a mounted vtable hands a factory DS code addresses. Its interior split
+# data_ov031_02111994 is left out for the same reason. Both dsd names for that
+# one address (_ZTV18daObjHsBillboard_c, spelled by the D0, and
+# _ZTV25SlideDecorationSilverStar, spelled by all four factories) are resolved
+# in the fill file, one array and one /alternatename.
+#
+# ==== THE SINIT IS A FUNCTION AND STAYS OUT; ITS BSS DOES NOT ==============
+# __sinit_ov031_02111434 is a FUNCTION -- mounting it would emit its ARM code
+# bytes under its own name. It is LINKED instead, from src/, and run out of the
+# fill's bring-up beside the ov013/ov045 blocks; it builds the four
+# SharedFilePtrs the InitResources switch reads:
+#   data_ov031_02111a08 <- file 1565      data_ov031_02111a00 <- file 1566
+#   data_ov031_02111a10 <- file 1569      data_ov031_02111a18 <- file 1564
+# and registers each on the destructor chain through a 12-byte node. dsd's
+# ".p__sinit_ov031_02111434" .ctor entry is left out as well (not a C
+# identifier).
+#
+# ==== ONE SIZE PIN IN BSS, AND ONE INTERIOR LABEL DROPPED ==================
+# func_020731dc writes THREE words through each destructor-chain node
+# (src/func_020731dc.c: node[0]=head, node[1]=dtor, node[2]=object), so a node
+# is 12 bytes -- the same reading port/ov045_syms.txt made of its own six.
+# ov031's four nodes are 0x02111a20, 0x02111a2c, 0x02111a38 and 0x02111a44.
+# The first three are 0xc apart and size correctly by the delta rule; the
+# FOURTH would come back 0x8, because dsd split it with an interior bss label
+# at 0x02111a4c, and the third word of the write would land past the end of
+# its array. data_ov031_02111a4c is therefore dropped and 0x02111a44 is pinned
+# to 0xc. Nothing this lane links reaches 0x02111a4c or 0x02111a58 by name.
+
+# ---- .data: the four SpawnInfo records and the model pointer table --------
+# data_ov031_02111424 is the four-entry SharedFilePtr* table InitResources
+# indexes by variant and CleanupResources releases through; its four words
+# relocate to the four bss SharedFilePtrs below (0x02111424 -> 0x02111a08,
+# +4 -> 0x02111a00, +8 -> 0x02111a10, +0xc -> 0x02111a18). Its next symbol is
+# the sinit at 0x02111434, so the delta rule already sizes it 0x10.
+data_ov031_02111424
+SlideDecorationSilverStar_SpawnInfo:0x1c SlideDecorationYellowStar_SpawnInfo:0x1c
+SlideDecorationOrangeSmiley_SpawnInfo:0x1c SlideDecorationBlueSmiley_SpawnInfo:0x1c
+
+# ---- .bss 0x02111a00..0x02111a60 ------------------------------------------
+# Four SharedFilePtrs (8 bytes each, sized by the delta rule) and their four
+# destructor-chain nodes (12 bytes each; the last one pinned, see above).
+data_ov031_02111a00 data_ov031_02111a08 data_ov031_02111a10
+data_ov031_02111a18 data_ov031_02111a20 data_ov031_02111a2c
+data_ov031_02111a38 data_ov031_02111a44:0xc
