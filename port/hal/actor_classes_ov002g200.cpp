@@ -71,6 +71,7 @@ int _ZN8MugenBgm8BehaviorEv(void *self);           /* slot 6, faced */
 int _ZN8MugenBgm6RenderEv(void);                   /* slot 9, .c stub, ignores this */
 void _ZN8MugenBgm16OnPendingDestroyEv(void);       /* slot 12, .c stub (no arg) */
 extern int _ZTV8MugenBgm[];                        /* ov002 mount, 31 slots */
+int *_ZN8MugenBgmD0Ev(int *self);                  /* slot 17, matched, gate 207 */
 
 /* D1/D0 teardown members, all hosted seams. PushBlock's chain is read out
    of its OWN matched D0 body (src/_ZN9PushBlockD0Ev.c): WithMeshClsn
@@ -271,14 +272,18 @@ static int __fastcall mb_d1(void *s, void *)
     _ZN5ActorD2Ev(t);
     return (int)(size_t)s;
 }
+/* GATE 207 replaced the hand-spelled slot-17 chain with the body it was
+   transcribed from -- the PUSH_BLOCK move gate 204 made one class over. The
+   ROM word at _ZTV8MugenBgm+0x44 is 0x020f1be8, read as raw bytes out of
+   extracted/overlays/overlay_0002.bin, and 0x020f1be8 IS _ZN8MugenBgmD0Ev.
+   The matched body stores the same table pointer this thunk stored, calls the
+   same Actor::D2 and deallocates against the same 0x020a0eac. What changes is
+   that the port stops carrying its own copy of a chain it already has.
+   Gate 204's three conditions were re-measured on this build; the raw-byte
+   table, the single-factory count and the [reg+44h] sweep are in
+   port/slice_gate207.txt. */
 static int __fastcall mb_d0(void *s, void *)
-{
-    char *t = (char *)s;
-    *(void **)t = (void *)_ZTV8MugenBgm;
-    _ZN5ActorD2Ev(t);
-    _ZN6Memory10DeallocateEPvP4Heap(t, data_020a0eac);
-    return (int)(size_t)s;
-}
+{ return (int)(size_t)_ZN8MugenBgmD0Ev((int *)s); }
 
 extern "C" void hal_fill_mugen_bgm_vtable(void)
 {

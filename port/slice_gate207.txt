@@ -1,0 +1,108 @@
+# Gate 207 (run link60, lane A2): FOUR MORE SLOT-17 SEATS, ov002. VirtualDoor,
+# PoppingLavaBubbles, AmbientSoundEffects and MugenBgm -- every one a class the
+# port already hosts and registers, whose ROM word at table+0x44 is its own
+# matched D0 sitting in src/ with nothing referencing it.
+#
+# This is gate 204's going-forward convention applied, not extended. That gate
+# seated three (PushBlock, Seaweed, WaterfallMist) plus Coin's reference edge
+# and wrote down the three conditions for the next lane. All three are re-run
+# here against THIS build rather than cited.
+#
+# ==== CONDITION (a): THE ROM'S OWN WORD AT table+0x44 =====================
+# Read as RAW BYTES out of extracted/overlays/overlay_0002.bin at the OVT base
+# (ov002 .text start 0x020ad660, config/arm9/overlays/ov002/delinks.txt), not
+# from a recovered name and not from vtspan's resolution:
+#
+#   table                      +0x40 raw   is D1       +0x44 raw   is D0
+#   _ZTV11VirtualDoor          0x020b09b0  0x020b09b0  0x020b09d4  0x020b09d4
+#   _ZTV18PoppingLavaBubbles   0x020b6e08  0x020b6e08  0x020b6e2c  0x020b6e2c
+#   _ZTV19AmbientSoundEffects  0x020f198c  0x020f198c  0x020f19b0  0x020f19b0
+#   _ZTV8MugenBgm              0x020f1bc4  0x020f1bc4  0x020f1be8  0x020f1be8
+#
+# Four MATCHes. vtspan agrees independently on all four and pins every table at
+# 31 slots by the semantic tail.
+#
+# ==== THE SINGLE-FACTORY CONDITION, WHICH IS WHY THESE FOUR AND NOT MORE ===
+# Each table has EXACTLY THREE load sites in ov002's relocs -- its own D1, its
+# own D0, and one factory -- so no second class installs it and the class
+# identity behind the ROM's slot-17 word is not shared:
+#
+#   0x021086b4  0x020b09d0 D1   0x020b0a04 D0   0x020b0f50 Exit_Spawn
+#   0x021094a0  0x020b6e28 D1   0x020b6e5c D0   0x020b6f14 WaterfallMist_Spawn
+#   0x0210b4c8  0x020f19ac D1   0x020f19e0 D0   0x020f1bc0 AmbientSoundEffects_Spawn
+#   0x0210b584  0x020f1be4 D1   0x020f1c18 D0   0x020f1f6c MugenBgm_Spawn
+#
+# The enclosing function of each third site is read from ov002's symbol table
+# by address range, not by name proximity. Note that two of the four factories
+# are named for a DIFFERENT class than the table they install -- Exit_Spawn
+# installs VirtualDoor's, WaterfallMist_Spawn installs PoppingLavaBubbles's --
+# which is the ov002 name shift hal/actor_classes.cpp:1591 already derives, and
+# it does not affect the count.
+#
+# ==== CONDITION (b): FLAT C, NO STUB MARKER, CLOSED CALLEES ===============
+# All four bodies are byte-identical in shape, and the ROM says so as loudly as
+# the C does -- the four disassemble to the same fourteen instructions:
+#
+#     push {r4,lr} / ldr r1,[pc] / mov r4,r0 / str r1,[r4]   the vtable store
+#     bl 0x20112c8                                           Actor::D2
+#     ldr r1,[pc] / mov r0,r4 / ldr r1,[r1] / bl 0x203c1e8    Memory::Deallocate
+#     mov r0,r4 / pop {r4,lr} / bx lr
+#
+# The C is `t[0] = (int)VT; _ZN5ActorD2Ev(t); Deallocate(t, HEAP); return t;`
+# with two callees, both already in walk_window.map. None of the four carries
+# the "recovered from vtable slot identity" inferred-stub marker and none is
+# named in inferred_stub_baseline.txt or inferred_stub_debt.txt. No class here
+# shares its body across two object layouts, so the _ZN4TrapD0Ev exclusion the
+# w1l1 ruling raises does not reach any of them.
+#
+# THE VT PLACEHOLDER IS THE ONE THING EACH NEEDS. All four spell their table
+# with the shared role name VT, which hal/cxx_aliases.cpp binds globally to
+# _data_ov002_021081e4 -- a fifth class's table. That is the CannonHatch/
+# MetalNet shape and it would not fail at link, so each gets a per-source -D to
+# its own table name in port/CMakeLists.txt. The targets are the addresses in
+# each body's OWN literal pool (0x020b0a04, 0x020b6e5c, 0x020f19e0, 0x020f1c18
+# -> the four tables above), and include/decl_common.h already declares all
+# four as `extern int _ZTV*[]`, the same shape as its `extern int VT[]`, so the
+# rename introduces no redeclaration.
+#
+# HEAP IS LEFT ALONE, DELIBERATELY. The second literal in every one of the four
+# is 0x020a0eac -- the game heap -- which is exactly what cxx_aliases.cpp binds
+# _HEAP to. Renaming it would break a binding that is right today. This is the
+# same split the ov043 gate makes between the two G0s.
+#
+# ==== CONDITION (c): THE DISPATCH COUNT, RE-MEASURED ON THIS BUILD ========
+# A slot-17 dispatch through a hosted 31-slot table is an indirect call at byte
+# offset 0x44. `dumpbin /disasm:nobytes build/port/walk_window.exe` over the
+# whole 472,775-line listing of the build these seats change:
+#
+#     call/jmp dword ptr [reg+44h]   0 sites   <- slot 17
+#     call/jmp dword ptr [reg+40h]   1 site    <- slot 16, positive control
+#
+# and the one slot-16 site, 0x004DFB9F, resolves through walk_window.map into
+# ?AfterCleanupResources@ActorBase@@UAEXI@Z (0x004DFB50..0x004DFBC0) -- the
+# function the w1l1 ruling names as the one that dispatches 16 and deallocates
+# itself. So the sweep can see the shape and the zero is a real zero.
+#
+# ==== WHAT CHANGES, PER CLASS =============================================
+# Three of the four are unseating a SOFT trap (ac_trap17: one line and a
+# port_actor_slot_decline, caught by the quarantine net). None is a HARD trap;
+# the Player's std::abort is untouched, exactly as the gate-204 convention
+# requires.
+#
+#   VirtualDoor          hal/actor_classes.cpp  vt[17] ac_trap17 -> the body
+#   PoppingLavaBubbles   hal/actor_classes.cpp  vt[17] ac_trap17 -> the body
+#   AmbientSoundEffects  hal/actor_classes.cpp  vt[17] ac_trap17 -> the body
+#   MugenBgm             hal/actor_classes_ov002g200.cpp  vt[17] mb_d0 -> the
+#       body. This one is the PUSH_BLOCK case rather than the trap case: slot
+#       17 already held a host thunk with the chain typed out by hand, and the
+#       hand copy is replaced by the body it was transcribed from. Its table is
+#       the ov002 MOUNT rather than a host array, which changes nothing here --
+#       the matched D0 stores the same pointer the hand thunk stored.
+#
+# Slot 16 is untouched on all four. Every D1 in this group is a .cpp real C++
+# destructor that MSVC would emit under ??1Class@@UAE@XZ against a layout that
+# is not the ROM's, which is what hal/actor_classes.cpp:1639 already records.
+src/_ZN11VirtualDoorD0Ev.c
+src/_ZN18PoppingLavaBubblesD0Ev.c
+src/_ZN19AmbientSoundEffectsD0Ev.c
+src/_ZN8MugenBgmD0Ev.c
