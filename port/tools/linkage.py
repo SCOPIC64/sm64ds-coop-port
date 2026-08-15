@@ -238,6 +238,19 @@ def undecorate(sym):
 
 def map_symbols(mapfile):
     """[(symbol, objfile)] out of an MSVC /MAP."""
+    # REFUSE A TRUNCATED MAP RATHER THAN MEASURING IT. A failed link leaves
+    # walk_window.map at zero bytes (or a stub with no symbol rows), and this
+    # tool used to answer that with a serene "linked into walk_window: 0
+    # (0.0%)". A lane hit exactly that: its wrapper script returned success on
+    # a link failure, the exe was absent, and the only thing that caught it was
+    # a by-name check further down. A measurement tool that reports a number
+    # for a build that does not exist is worse than one that errors.
+    if not os.path.isfile(mapfile):
+        sys.exit("linkage: no map at {} -- the link did not run".format(mapfile))
+    if os.path.getsize(mapfile) < 4096:
+        sys.exit("linkage: map at {} is {} bytes, which is a failed or "
+                 "truncated link, not a build to measure"
+                 .format(mapfile, os.path.getsize(mapfile)))
     out = []
     with open(mapfile, errors="replace") as f:
         for line in f:
