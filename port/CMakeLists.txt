@@ -1615,6 +1615,22 @@ foreach(line IN LISTS SLICE_W6F_LINES)
     list(APPEND SLICE_W6F_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# run linkw wave 8, lane w8-faces: THE FACE QUEUE. This lane audits the two
+# forwarder-face files against the emitted bytes; the slice carries the one
+# matched TU that audit turned from a host stand-in into real decomp code
+# (TextureTransformer::Prepare -- the header of port/slice_w8faces.txt has the
+# reading, including the parked note it refutes). Same one-owner contract as
+# the lane slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w8faces.txt" SLICE_W8FACES_LINES)
+set(SLICE_W8FACES_SOURCES "")
+foreach(line IN LISTS SLICE_W8FACES_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W8FACES_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # run linkw wave 6, lane w6-D: PATH_LIFT (31) and the PathLift base branch --
 # ov100's daObjPathLift_c over ov002's PathLiftActor_c over Platform, the
 # first three-level hierarchy this port hosts that is split across overlays.
@@ -3045,6 +3061,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_montymole.cpp ${SLICE174_SOURCES} unmatched/MontyMole_StateDispatch.cpp unmatched/MontyMole_1Up.cpp
     hal/actor_classes_flame.cpp ${SLICE175_SOURCES}
     hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES} unmatched/Flamethrower_Behavior.c
+    ${SLICE_W8FACES_SOURCES}
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
     hal/actor_classes_ov064.cpp ${SLICE177_SOURCES} unmatched/Bully_AfterClsn.cpp
     hal/actor_classes_ov064_gate178.cpp ${SLICE178_SOURCES} unmatched/Ov064Gate178_States.cpp
@@ -3122,6 +3139,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_montymole.cpp ${SLICE174_SOURCES} unmatched/MontyMole_StateDispatch.cpp unmatched/MontyMole_1Up.cpp
     hal/actor_classes_flame.cpp ${SLICE175_SOURCES}
     hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES} unmatched/Flamethrower_Behavior.c
+    ${SLICE_W8FACES_SOURCES}
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
     hal/actor_classes_ov064.cpp ${SLICE177_SOURCES} unmatched/Bully_AfterClsn.cpp
     hal/actor_classes_ov064_gate178.cpp ${SLICE178_SOURCES} unmatched/Ov064Gate178_States.cpp
@@ -3228,6 +3246,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_montymole.cpp ${SLICE174_SOURCES} unmatched/MontyMole_StateDispatch.cpp unmatched/MontyMole_1Up.cpp
     hal/actor_classes_flame.cpp ${SLICE175_SOURCES}
     hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES} unmatched/Flamethrower_Behavior.c
+    ${SLICE_W8FACES_SOURCES}
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
     hal/actor_classes_ov064.cpp ${SLICE177_SOURCES} unmatched/Bully_AfterClsn.cpp
     hal/actor_classes_ov064_gate178.cpp ${SLICE178_SOURCES} unmatched/Ov064Gate178_States.cpp
