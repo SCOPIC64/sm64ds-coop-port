@@ -2178,14 +2178,23 @@ set_source_files_properties(
 # on slice_w5c.txt and are now dead. Full reading in
 # port/unmatched/Ov070_PmfDispatch.cpp, including the twenty-one OTHER TUs in
 # src/ that carry the identical shape and are a lane of their own.
+# The remedy is a COMPILE OPTION on the two dispatchers themselves, not a
+# rename of their callers: MSVC's /vmg /vmm pair says "for a pointer-to-member
+# declared before its class, use the MULTIPLE-INHERITANCE representation",
+# which is {void *fn; int delta;} -- eight bytes, the ROM's own record, with a
+# call that adds delta to `this` and calls fn. So `c->pp + 1` strides eight and
+# the dispatch is the ROM's even-adj branch exactly. The ROM stores adj and
+# shifts it right by one where MSVC stores delta directly; every record in
+# ov070 carries adj 0, so the two agree word for word here.
+# Nothing is renamed, nothing goes dead, and the two matched TUs keep doing
+# their own job. THE SAME OPTION IS THE FIX FOR THE OTHER TWENTY-ONE TUs with
+# this shape (port/unmatched/Ov070_PmfDispatch.cpp lists them); only these two
+# are turned on here, because only these two are on level 27's critical path
+# and each one wants its own measured before/after.
 set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN3Amp8BehaviorEv.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "func_ov070_02120d34=port_ov070_amp_state_tick")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN10FlameChomp8BehaviorEv.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "func_ov070_0212180c=port_ov070_flamechomp_state_tick")
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov070_02120d34.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov070_0212180c.cpp"
+    PROPERTIES COMPILE_OPTIONS "/vmg;/vmm")
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w15c.txt" SLICE_W15C_LINES)
 set(SLICE_W15C_SOURCES "")

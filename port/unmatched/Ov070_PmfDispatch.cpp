@@ -1,24 +1,30 @@
-/* RUN LINKW WAVE 17 (lane w17): the two ov070 STATE-TICK dispatchers, hosted.
+/* RUN LINKW WAVE 17 (lane w17): the two ov070 RENDER bodies, hosted -- and the
+ * written record of the mwcc POINTER-TO-MEMBER bug that sits in front of them,
+ * whose fix is a compile option in port/CMakeLists.txt (R8) rather than code.
  *
- * WHY THIS FILE EXISTS. Mounting level 27 (Tick Tock Clock) put the first
- * AMP (266) and FLAME_CHOMP (270) instances in front of a mounted level's
- * tick loop, and both took an access violation on frame 0 -- the fault run
- * linkw wave 8 recorded against levels 16/21/25/27/28 and filed as
- * "DATA-dependent, not a dead vtable slot". It is neither: it is the mwcc
- * POINTER-TO-MEMBER width bug, the Painting/Bbh/Fish class, and it fires on
- * every instance of both classes on every level.
+ * WHY THIS FILE EXISTS. Mounting level 27 (Tick Tock Clock) put the first AMP
+ * (266) and FLAME_CHOMP (270) instances in front of a mounted level's tick
+ * loop. Both took an access violation on frame 0 -- the fault run linkw wave 8
+ * recorded against levels 16/21/25/27/28 and filed as "DATA-dependent, not a
+ * dead vtable slot". It is neither. It is TWO independent, entirely general
+ * bugs, one behind the other, and both fire on every instance of both classes
+ * on every level.
  *
- * MEASURED, not reasoned. With SM64DS_LEVEL=27 SM64DS_FAULTS_FATAL=1:
+ * ============================================================================
+ * BUG ONE: the mwcc pointer-to-member width. FIXED BY /vmg /vmm, NOT HERE.
+ * ============================================================================
+ *
+ * MEASURED. SM64DS_LEVEL=27 SM64DS_FAULTS_FATAL=1:
  *
  *   FAULT c0000005 at +0xffc00000 (EIP = 0) accessing 00000000
  *     actor id 0x10a (AMP), eax=00000000 ecx=<this> ebx=_ZTV3Amp
  *     stack[00] = Amp::Behavior +0xa
  *
- * and the same shape one class over with actor id 0x10e (FLAME_CHOMP),
- * stack[00] = FlameChomp::Behavior +0x9. Both call sites are the FIRST call
- * in their Behavior, and both callees tail-jump through a null.
+ * and the same shape one class over with id 0x10e (FLAME_CHOMP), stack[00] =
+ * FlameChomp::Behavior +0x9. Both call sites are the FIRST call in their
+ * Behavior and both callees tail-jump through a null.
  *
- * THE BUG. src/func_ov070_02120d34.cpp is
+ * src/func_ov070_02120d34.cpp is
  *
  *     struct C; typedef void (C::*PMF)();
  *     struct C { char pad[0x41c]; PMF *pp; };
@@ -36,104 +42,88 @@
  *     blx  r1
  *
  * mwcc's pointer-to-member over an incomplete class is the Itanium 8-byte
- * {fn, adj} record. MSVC compiles the same declaration to its 4-byte
- * single-inheritance form, so `c->pp + 1` strides FOUR and lands on the adj
- * word of record 0 -- which every one of these records holds as ZERO. The
- * call is therefore literally `call 0`, which is exactly the EIP the fault
- * reports.
+ * {fn, adj} record. MSVC's DEFAULT for the same declaration is the 4-byte
+ * single-inheritance form, so `c->pp + 1` strides four and lands on the adj
+ * word of record 0 -- which every one of these records holds as zero. The call
+ * is literally `call 0`, which is exactly the EIP the fault reports.
  *
  * THE STRIDE IS PINNED BY THE SETTER, not inferred. func_ov070_02120da8 (Amp)
  * and func_ov070_02121880 (FlameChomp) both compute the State pointer as
- * `table + (state << 4)` -- sixteen bytes per state, i.e. TWO 8-byte PMFs per
- * State: pp[0] is the enter handler and pp[1] is the per-frame tick. That is
- * also why the record counts line up: Amp seats SIX source records (three
- * states), FlameChomp EIGHT (four states), in ov70_seat_state_pmfs.
+ * `table + (state << 4)` -- sixteen bytes per state, two 8-byte PMFs per
+ * State, pp[0] the enter handler and pp[1] the per-frame tick. The record
+ * counts agree: ov70_seat_state_pmfs seats SIX source records for Amp (three
+ * states) and EIGHT for FlameChomp (four).
  *
- * WHY ONLY THESE TWO OF THE FOUR. ov070 has four of these dispatchers, and
- * the other two -- func_ov070_02120d70 and func_ov070_02121848 -- read pp[0]
- * rather than pp[1]. At index 0 the wrong stride cannot bite: MSVC's 4-byte
- * PMF at offset 0 IS the fn word, and every seated record carries adj 0, so
- * the compiled `call [p]` with the unadjusted `this` is the ROM's own
- * even-adj branch. They are correct BY LUCK, not by design; they are left
- * alone here because they work and because touching them is not this lane's
- * to do, but the luck is worth writing down.
+ * THE FIX IS A COMPILE OPTION, and it is in port/CMakeLists.txt under R8:
+ * /vmg /vmm on those two TUs makes MSVC use the multiple-inheritance
+ * representation, {void *fn; int delta;} -- eight bytes, the ROM's own record,
+ * with a call that adds delta to `this` and calls fn. `c->pp + 1` then strides
+ * eight and the dispatch IS the ROM's even-adj branch. Both matched TUs keep
+ * their own job, nothing is renamed and nothing goes dead. (The ROM stores adj
+ * and shifts right by one where MSVC stores delta directly; every ov070 record
+ * carries adj 0, so the two agree word for word here. A record with an odd adj
+ * would need the virtual branch, and none exists.)
  *
- * THE ROUTE. The two matched sources stay in src/ and stay on
- * port/slice_w5c.txt, untouched -- this lane owns neither. Their two CALLERS
- * get a per-source -D in port/CMakeLists.txt pointing the name at the copy
- * below (the R1..R7 remedy). The consequence is honest and should be read as
- * such: src/func_ov070_02120d34.cpp and src/func_ov070_0212180c.cpp still
- * link and still count as linked TUs, and they are now dead code. Retiring
- * them belongs with the wider fix.
+ * WHY ONLY TWO OF ov070's FOUR dispatchers get the option. func_ov070_02120d70
+ * and func_ov070_02121848 read pp[0] rather than pp[1], and at index 0 the
+ * wrong stride cannot bite: MSVC's 4-byte PMF at offset 0 IS the fn word and
+ * every seated record carries adj 0, so the compiled `call [p]` with an
+ * unadjusted `this` is already the ROM's even-adj branch. They are correct BY
+ * LUCK, not by design, and the luck is worth writing down.
  *
  * THE WIDER FIX, which is NOT this lane's. `grep -rl "c->pp + 1" src/` finds
- * TWENTY-THREE TUs with this exact shape across ov018 ov019 ov027 ov030 ov070
- * ov071 ov072 ov077 ov080 ov081 ov085 ov096 plus KingBobOmb, MrBlizzard and
- * ChiefChilly. Every one of them is the same `call 0` the moment its class is
- * both registered and ticked. Two of the twenty-three are fixed here because
- * they are what stands between level 27 and a green battery; the other
- * twenty-one are a lane of their own and are named in the wave-17 status doc.
+ * TWENTY-THREE TUs with this exact shape:
  *
- * AND A SECOND, INDEPENDENT BUG BEHIND IT. With the PMF dispatch fixed, both
- * classes then faulted in RENDER instead:
+ *   _ZN10KingBobOmb8BehaviorEv  _ZN10MrBlizzard8BehaviorEv
+ *   _ZN11ChiefChilly8BehaviorEv func_ov018_0211235c func_ov019_02112268
+ *   func_ov027_02111cfc func_ov030_02114134 func_ov070_02120d34
+ *   func_ov070_0212180c func_ov070_02121fd0 func_ov071_02120278
+ *   func_ov071_021215c0 func_ov072_0211fc3c func_ov072_02120560
+ *   func_ov072_02121cdc func_ov077_02124718 func_ov077_02125e20
+ *   func_ov080_021250c8 func_ov081_02127708 func_ov085_0212a430
+ *   func_ov085_0212dbdc func_ov085_0212de5c func_ov096_021368b4
+ *
+ * Every one of them is the same `call 0` the moment its class is both
+ * registered and ticked, and /vmg /vmm is the same one-line remedy for each.
+ * Two are turned on here because they are what stands between level 27 and a
+ * green battery; the other twenty-one are a lane of their own, and each wants
+ * its own measured before/after rather than a blanket flag.
+ *
+ * ============================================================================
+ * BUG TWO: the ModelAnim slot-5 collision. FIXED HERE.
+ * ============================================================================
+ *
+ * With the PMF dispatch fixed both classes faulted one step later, in RENDER:
  *
  *   FAULT c0000005 accessing 00000000
  *     Model::Virtual10 +0xc  <- ModelAnim::Virtual10 +0x25
  *                            <- ModelAnim::Virtual18 +0xe
  *                            <- Amp::Render +0x14
  *
- * which is the ModelAnim SLOT-5 collision, signature for signature the one
- * port/unmatched/ModelAnim_Renders.cpp measured on Butterfly. Both Renders
- * dispatch through a LOCAL SIX-VIRTUAL SHADOW over the ModelAnim at +0xd4, so
- * their slot 5 is the ROM's ModelAnim::Render while the host _ZTV9ModelAnim's
- * slot 5 is ModelAnim::Virtual18 -- a two-argument method reading its scale
- * off the stack. Both Renders are hosted below too, from the ROM listings.
- * (This is also why wave 8's SNUFIT note reads Model::Virtual10 +0xc: it is
- * the same collision on a third class, still open.)
+ * signature for signature the one port/unmatched/ModelAnim_Renders.cpp
+ * measured on Butterfly. Both Renders dispatch through a LOCAL SIX-VIRTUAL
+ * SHADOW over the ModelAnim at +0xd4, so their slot 5 is the ROM's
+ * ModelAnim::Render while the host _ZTV9ModelAnim's slot 5 is
+ * ModelAnim::Virtual18 -- a two-argument method that reads its scale off the
+ * stack. _ZTV5Model can be dual-filled and is; _ZTV9ModelAnim cannot, because
+ * Virtual18 really is there. (This is also why wave 8's SNUFIT note reads
+ * Model::Virtual10 +0xc: the same collision on a third class, still open.)
+ *
+ * The two bodies are transcribed below from the ROM listings and dispatched
+ * from ov070's two vtable fills by their port_ names. THE COST IS TWO LINKED
+ * TUs and it should be read plainly: src/_ZN3Amp6RenderEv.cpp and
+ * src/_ZN10FlameChomp6RenderEv.cpp are C++ METHODS whose only reference was
+ * the C face in hal/actor_classes_ov070.cpp, so routing the fills past those
+ * faces leaves both methods unreferenced and /OPT:REF strips them. That is the
+ * same trade the Butterfly/Whomp/Seaweed copies made when their sources came
+ * off slice_gate33/slice_gate64; there is no way to keep a body linked and
+ * also not call it.
  */
 
 #include "Model.h"
 #include "ModelAnim.h"
 
 extern "C" {
-
-/* One mwcc {fn, adj} pointer-to-member call, layout spelled out. adj is 0 on
-   every record ov70_seat_state_pmfs writes and on every ROM source record it
-   copies, so the virtual branch is unreachable in practice; it is spelled
-   anyway so a record that ever carries an odd adj declines loudly instead of
-   dispatching through a host vtable with ROM byte offsets. */
-void port_actor_slot_decline(const char *what);
-
-static void ov070_pmf_call(unsigned char *rec, char *self)
-{
-    int adj = *(int *)(rec + 4);
-    char *adjusted = self + (adj >> 1);
-    if (adj & 1) {
-        port_actor_slot_decline("ov070 state PMF carries a VIRTUAL adj; the "
-                                "host vtables do not use ROM byte offsets");
-        return;
-    }
-    ((void (*)(char *)) * (void **)rec)(adjusted);
-}
-
-/* PORT_HOST_ABI: mwcc pointer-to-member dispatch (8-byte {fn,adj} vs MSVC's
-   4-byte single-inheritance form); src/func_ov070_02120d34.cpp strides
-   c->pp + 1 by four under MSVC and calls the zero adj word. */
-void port_ov070_amp_state_tick(void *selfv)
-{
-    char *c = (char *)selfv;
-    unsigned char *pp = *(unsigned char **)(c + 0x41c);
-    ov070_pmf_call(pp + 8, c);
-}
-
-/* PORT_HOST_ABI: mwcc pointer-to-member dispatch, the same ruling one class
-   over -- src/func_ov070_0212180c.cpp over the State at this+0x39c. */
-void port_ov070_flamechomp_state_tick(void *selfv)
-{
-    char *c = (char *)selfv;
-    unsigned char *pp = *(unsigned char **)(c + 0x39c);
-    ov070_pmf_call(pp + 8, c);
-}
 
 int _ZN15TextureSequence6UpdateER15ModelComponents(void *seq, void *comp);
 int _ZN18TextureTransformer6UpdateER15ModelComponents(void *tr, void *comp);
