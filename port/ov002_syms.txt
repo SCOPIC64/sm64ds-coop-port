@@ -314,3 +314,27 @@ MegaMushroomTag_SpawnInfo:0x1c MegaMushroomCreateTag_SpawnInfo:0x1c
 # free to carry. Nothing dereferences them today; they are here so the mounted
 # block is honest end to end, the data_ov002_0210af00 precedent.
 data_ov002_02108c94 data_ov002_02108ca0
+
+# ---- run linkw wave 17, lane w17: SEAWEED's record ------------------------
+# SEAWEED (296), RTTI 13daObjWakame_c -- x8 on level 18, x4 on level 8, the
+# largest single-id population left on the cast board. Both routes, out of the
+# shipped overlay image and not a dsd export:
+#   0x02090864 + 296*4 = 0x02090c24 -> 0x02109b94
+#                        word[0] = 0x020bc5a8 Seaweed_Spawn, inside ov002
+#                        word[1] & 0xffff = 296, the id the route came from
+# The vtable that follows the record, 0x02109bb8, is NOT mounted: it is a host
+# array hal/actor_classes_ov002_w17.cpp fills, the ov095/ov080 rule. Its
+# identity is the RTTI record at vtable[-1] (0x02109b78 -> "13daObjWakame_c"),
+# not a dsd label -- dsd's _ZTV7Seaweed is one class further on at 0x02109c74
+# and its own RTTI reads "12daObjHeart_c", HealingHeart, which the port already
+# seats under that spelling.
+# 0x1c, PINNED, and the dsd next-symbol delta of 0x24 is wrong in the exact way
+# the MEGA_MUSHROOM block above describes: the two words past the record are
+# the table's own Itanium prologue (offset-to-top 0x02109bb0 = 0, typeinfo
+# 0x02109bb4 -> 0x02109b78), not record fields. Mounting 0x24 would hand the
+# ovdata pointer pass two words of a table this file deliberately leaves out.
+Seaweed_SpawnInfo:0x1c
+# The class's Itanium typeinfo and its name string, adjacent to the record and
+# free to carry -- the data_ov002_02108c94 precedent from the wave-15 block.
+# Nothing dereferences them today.
+data_ov002_02109b78 data_ov002_02109b84
