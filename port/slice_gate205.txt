@@ -1,0 +1,109 @@
+# Gate 205 (run link60, lane A2): MONTY_MOLE_ROCK (311), the rock the mole
+# throws. daChoro_Rock_c, ov080, the second class out of that overlay's enemy
+# cast after gate 174 seated the mole itself.
+#
+# WHY IT IS HERE. MontyMole's rock-throw state spawns actor id 0x137 = 311.
+# The port declined the spawn ("[spawn] actor 0x137 not registered") and the
+# ROM-faithful thrower stores through the returned NULL, so
+# SM64DS_LEVEL=13 SM64DS_SPAWN_ACTOR=310 took a c0000005 at +0x98 on the first
+# throw. Registering 311 is what removes the fault; nothing is hand-patched.
+#
+# THE WHOLE CAST IS MATCHED AND ALL SEVEN TUs ARE HERE. No host copy, no state
+# seat, no thunk standing in for a body -- the first ov080 class that needs
+# none of that. gate 174's mole needed three (Behavior's pointer-to-member
+# dispatch, D1's auto-emitted-member-dtor form, the 1-Up helper's C2733);
+# the rock has a flat Behavior, a real C-linkage D1 and no helper of that
+# shape.
+#
+# THE WIDTH: 31 SLOTS, and this lane re-derived it rather than taking it.
+# `python port/tools/vtspan.py . _ZTV13MontyMoleRock` (ov080 0x0212802c):
+#     tail 31   typeinfo 79   terminator 31   raw run 31   next dsd symbol 17
+# Four of the five routes say 31 and the typeinfo route says 79, which is the
+# documented over-read: it walks past the end into the next class's record.
+# The semantic tail is the resolved number and it is the plain-Actor shape --
+# slot 30 is Actor::OnAimedAtWithEggReturnVec, slot 31 is not a code pointer.
+# Every one of the 31 words resolves to a real symbol. The class owns six:
+# 0 InitResources, 3 CleanupResources, 6 Behavior, 9 Render, 16 D1, 17 D0.
+# It does NOT override slot 29 (the mole does).
+#
+# ==== THE SLOT-5 SHADOW IN Render, ADJUDICATED FROM CONSTRUCTION ===========
+#
+# src/_ZN13MontyMoleRock6RenderEv.cpp is the wave-19 shape:
+#
+#     Base*b=(Base*)((char*)&mModel);
+#     b->m((char*)&unk_080);          /* slot 5 of a six-virtual shadow */
+#
+# and this is the ruling that decides whether the matched TU can be linked or
+# has to be host-copied. Wave 19's first finding is that a header name cannot
+# adjudicate it, so the member's TYPE is taken from how the class CONSTRUCTS
+# it. Three independent witnesses, all in matched src, all agreeing:
+#
+#   src/MontyMoleRock_Spawn.c            _ZN5ModelC1Ev(p + 0x110)
+#   src/..._13InitResourcesEv.cpp        Model::LoadFile -> ModelBase::SetFile
+#                                        on this + 0x110
+#   src/_ZN13MontyMoleRockD1Ev.c         _ZN5ModelD1Ev(t + 0x110)
+#   src/_ZN13MontyMoleRockD0Ev.c         _ZN5ModelD1Ev(t + 0x110)
+#
+# The member at +0x110 is constructed by Model's own ctor, filled through
+# ModelBase::SetFile and destroyed by Model's own dtor. It is a plain Model.
+# hal/cxxname_bridge.cpp DUAL-FILLS _ZTV5Model at BOTH [4] and [5] with
+# mv_render for exactly this case, so the shadow's slot 5 lands on
+# Model::Render. SAFE, and the matched TU is linked.
+#
+# THIS IS THE OPPOSITE RULING FROM THE MOLE'S OWN Render, ONE CLASS OVER, and
+# the difference is the member type and nothing else. _ZN9MontyMole6RenderEv
+# shadows a MODELANIM at +0xd4, and the host _ZTV9ModelAnim numbers slot 5 as
+# Virtual18, not Render -- a live c0000005 the moment a MONTY_MOLE is drawn,
+# which is why hal/actor_classes_montymole.cpp routes slot 9 to
+# port_w19_montymole_render. Same overlay, same wave-19 shape, same file
+# family, opposite answer. The construction is what separates them.
+#
+# ==== THE FRIENDLY-NAME RENAMES Behavior NEEDS ============================
+# src/_ZN13MontyMoleRock8BehaviorEv.cpp is the ONLY TU in the whole tree that
+# spells seven arm9/ov002 functions by recovered friendly names that exist
+# nowhere in the binary. Each target is pinned by the reloc out of that
+# body's own range (ov080 relocs, Behavior = 0x0212459c..0x0212478c) and then
+# named from config/arm9/symbols.txt, never from the friendly name:
+#
+#   0x021245ac -> 0x0200f7a8  Actor_MakeVanishLuigiWork
+#                             _ZN5Actor19MakeVanishLuigiWorkER12CylinderClsn
+#   0x021245bc -> 0x02010f3c  Actor_FindWithID      _ZN5Actor10FindWithIDEj
+#   0x02124614 -> 0x020d8e70  Player_Hurt
+#   0x0212465c -> 0x020d8e70  (the second call)
+#                             _ZN6Player4HurtERK7Vector3j5Fix12IiEjjj
+#   0x02124748 -> 0x02010c30  Actor_UpdatePos
+#                             _ZN5Actor9UpdatePosEP12CylinderClsn
+#   0x02124758 -> 0x020aebf8  Enemy_UpdateWMClsn
+#                             _ZN5Enemy12UpdateWMClsnER12WithMeshClsnj
+#   0x02124768 -> 0x02015024  CylinderClsn_Clear   _ZN12CylinderClsn5ClearEv
+#   0x02124770 -> 0x02014ff0  CylinderClsn_Update  _ZN12CylinderClsn6UpdateEv
+#
+# All seven real names are already in walk_window.map. Routed as a per-source
+# -D and not as /alternatename directives on purpose: these are SINGLE GLOBAL
+# NAMES of the G0/G1 kind, and an alias LHS that another overlay's recovery
+# pass reuses for a different address would misroute silently the day that
+# overlay lands. A -D cannot be defeated and cannot collide. The remaining
+# three names Behavior uses -- WithMeshClsn_IsOnGround, RandomIntInternal,
+# ActorBase_MarkForDestruction -- are already defined in the map under those
+# exact spellings and are left alone.
+#
+# ==== THE VTABLE IS A HOST ARRAY, THE ov080 RULE ==========================
+# _ZTV13MontyMoleRock is excluded from the ov080 mount (port/ov080_syms.txt
+# names it in the excluded list), so the 31 words are a host array
+# hal/actor_classes_montymolerock.cpp declares and fills. D0 spells the same
+# address _ZTV14daChoro_Rock_c, the RTTI spelling dsd dual-names it with --
+# vtspan prints both at 0x0212802c -- and that gets the daChoropu_c
+# treatment, a C-name /alternatename onto the one host array.
+#
+# The id is cross-checked the gate-174 way: MontyMoleRock_SpawnInfo
+# (ov080 0x02128008, mounted at the real 0x1c stride) +0 word =
+# MontyMoleRock_Spawn 0x02124998, +4 halfword = 0x0137 = 311, and
+# MontyMoleRock_Spawn's own vtable-store reloc names 0x0212802c.
+src/MontyMoleRock_Spawn.c
+src/_ZN13MontyMoleRock13InitResourcesEv.cpp
+src/_ZN13MontyMoleRock16CleanupResourcesEv.c
+src/_ZN13MontyMoleRock6RenderEv.cpp
+src/_ZN13MontyMoleRock8BehaviorEv.cpp
+src/_ZN13MontyMoleRockD1Ev.c
+src/_ZN13MontyMoleRockD0Ev.c
+src/func_ov080_02124418.c
