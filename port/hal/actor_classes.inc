@@ -1011,6 +1011,20 @@ extern unsigned char SlidingPlatformBsWide_SpawnInfo[]; /* ov091 0x02134f7c, +4 
 void *SlidingPlatformBsWide_Spawn(void);                /* ov091 0x021328d8 */
 extern unsigned char SlidingPlatformBsLong_SpawnInfo[]; /* ov091 0x02134f98, +4 = 155 */
 void *SlidingPlatformBsLong_Spawn(void);                /* ov091 0x021328a8 */
+/* ---- run linkw wave 9 (lane w9-reg): three ov095 SEESAW siblings -- SEVEN ids
+   store the table 0x021374fc (28, 39, 128, 133, 143, 149, 150) and id 39
+   (SEESAW_BOB) is already registered, so _ZTV9SeesawBob[32] in
+   hal/actor_classes_bob_world.cpp is already filled before these spawn. The
+   three records join the mount at 0x1c, the stride port/ov095_syms.txt already
+   measured for every record in the overlay. All three Spawns are the same
+   808-byte Platform shape as SeesawBob_Spawn with a single real-name vptr
+   store -- no wrapper. ---- */
+extern unsigned char SeesawBdw_SpawnInfo[];        /* ov095 0x021373f8, +4 = 133 */
+void *SeesawBdw_Spawn(void);                       /* ov095 0x02135f64 */
+extern unsigned char SeesawBsPlank_SpawnInfo[];    /* ov095 0x02137430, +4 = 149 */
+void *SeesawBsPlank_Spawn(void);                   /* ov095 0x02135f04 */
+extern unsigned char SeesawBsZigZag_SpawnInfo[];   /* ov095 0x0213744c, +4 = 150 */
+void *SeesawBsZigZag_Spawn(void);                  /* ov095 0x02135ed4 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1489,4 +1503,6 @@ void *SlidingPlatformBsLong_Spawn(void);                /* ov091 0x021328a8 */
        its already-registered sibling installs on the SAME ROM table, so the
        fill column is deliberately the sibling's. ---- */     {202, "GOOMBA_LARGE", GoombaLarge_SpawnInfo, GoombaLarge_Spawn,      hal_fill_goomba_vtable},     {251, "FIRE_PIRANHA_PLANT_BIG", FirePiranhaPlantBig_SpawnInfo,      FirePiranhaPlantBig_Spawn, hal_fill_fire_piranha_plant_vtable},     {252, "FIRE_PIRANHA_PLANT_SMALL", FirePiranhaPlantSmall_SpawnInfo,      FirePiranhaPlantSmall_Spawn, hal_fill_fire_piranha_plant_vtable},     /* ---- run linkw wave 9 (lane w9-reg): the three ov091 sliding-platform
        siblings. x1 on level 35, x1 and x2 on level 39. Each reuses the fill
-       the registered id 55 installs on the SAME ROM table. ---- */     {138, "SLIDING_PLATFORM_BDW", SlidingPlatformBdw_SpawnInfo,      SlidingPlatformBdw_Spawn, hal_fill_sliding_platform_wf_vtable},     {154, "SLIDING_PLATFORM_BS_WIDE", SlidingPlatformBsWide_SpawnInfo,      SlidingPlatformBsWide_Spawn, hal_fill_sliding_platform_wf_vtable},     {155, "SLIDING_PLATFORM_BS_LONG", SlidingPlatformBsLong_SpawnInfo,      SlidingPlatformBsLong_Spawn, hal_fill_sliding_platform_wf_vtable},
+       the registered id 55 installs on the SAME ROM table. ---- */     {138, "SLIDING_PLATFORM_BDW", SlidingPlatformBdw_SpawnInfo,      SlidingPlatformBdw_Spawn, hal_fill_sliding_platform_wf_vtable},     {154, "SLIDING_PLATFORM_BS_WIDE", SlidingPlatformBsWide_SpawnInfo,      SlidingPlatformBsWide_Spawn, hal_fill_sliding_platform_wf_vtable},     {155, "SLIDING_PLATFORM_BS_LONG", SlidingPlatformBsLong_SpawnInfo,      SlidingPlatformBsLong_Spawn, hal_fill_sliding_platform_wf_vtable},     /* ---- run linkw wave 9 (lane w9-reg): the three ov095 seesaw siblings.
+       x2 on level 35, x1 and x1 on level 39. Each reuses the fill the
+       registered id 39 installs on the SAME ROM table. ---- */     {133, "SEESAW_BDW", SeesawBdw_SpawnInfo, SeesawBdw_Spawn,      hal_fill_seesaw_bob_vtable},     {149, "SEESAW_BS_PLANK", SeesawBsPlank_SpawnInfo, SeesawBsPlank_Spawn,      hal_fill_seesaw_bob_vtable},     {150, "SEESAW_BS_ZIGZAG", SeesawBsZigZag_SpawnInfo, SeesawBsZigZag_Spawn,      hal_fill_seesaw_bob_vtable},
