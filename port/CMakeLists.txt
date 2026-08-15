@@ -15,12 +15,12 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MAP")
 add_compile_options(/Oy-)
 
 # Test-only fault injection: SM64DS_TEST_QUARANTINE, the hook in
-# port/unmatched/func_02043fdc.cpp that force-freezes an actor by raising the
-# access violation a real per-actor decline raises. A proof run needs it to
-# reproduce a quarantine on demand; a player must never carry a way to force a
-# fault on an arbitrary actor id read out of the environment, so it is OFF
-# unless a build asks for it by name. build-port.cmd forwards its arguments to
-# cmake:
+# port/unmatched/func_02043fdc_hostcopy.cpp that force-freezes an actor by
+# raising the access violation a real per-actor decline raises. A proof run
+# needs it to reproduce a quarantine on demand; a player must never carry a
+# way to force a fault on an arbitrary actor id read out of the environment,
+# so it is OFF unless a build asks for it by name. build-port.cmd forwards its
+# arguments to cmake:
 #
 #     build-port.cmd -DPORT_TEST_HOOKS=ON
 #
@@ -422,7 +422,7 @@ add_executable(smoke_modelanim tests/smoke_modelanim.cpp
     # BlendModelAnim::D0 calls func_0203cbc0, whose src form is an ARM r0
     # ride-through. The host copy that replaces it defines func_02073244
     # beside it and otherwise only reaches targets through gate 31.
-    "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/func_02073244.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/func_02073244_hostcopy.c"
     "${ROMDATA_C}")
 target_include_directories(smoke_modelanim PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -2610,8 +2610,8 @@ foreach(line IN LISTS SLICE31_LINES)
 endforeach()
 list(APPEND SLICE31_SOURCES
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Player_CleanupResources.cpp"
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/func_02073244.c"
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/SetNumPlayers.c"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/func_02073244_hostcopy.c"
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/SetNumPlayers_hostcopy.c"
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Door_CleanupResources.cpp")
 
 # Gate 35: the course loop -- damage, death, respawn, coins, the star and the
@@ -2660,7 +2660,7 @@ set(GATE32_HOST_SOURCES
     # ...and for the tenth: the chain chomp's six
     unmatched/ChainChomp_States.cpp
     # the ARM r0 ride-through, in a spawn factory for the first time
-    unmatched/ChainChomp_Spawn.cpp
+    unmatched/ChainChomp_Spawn_hostcopy.cpp
     # ...and for the eleventh, the widest one yet: KING_BOB_OMB keeps the
     # ADDRESS of a two-PMF record rather than an index, so both his setter and
     # his Behavior do pointer arithmetic on a type MSVC doubles
@@ -2739,10 +2739,10 @@ endforeach()
 # host function pointers in hal/ptr_tables.cpp, which needs their callees to
 # exist as host code -- that is slice_ptrsweep.txt, 65 files of matched src
 # that were in no slice at all, because the only thing naming them was a table
-# of bytes. unmatched/func_02008550.cpp is the second table's consumer,
-# host-copied for the same mwcc-PMF reason func_0200cae4 is.
+# of bytes. unmatched/func_02008550_hostcopy.cpp is the second table's
+# consumer, host-copied for the same mwcc-PMF reason func_0200cae4 is.
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_ptrsweep.txt" SLICE_PTR_LINES)
-set(SLICE_PTR_SOURCES hal/ptr_tables.cpp unmatched/func_02008550.cpp)
+set(SLICE_PTR_SOURCES hal/ptr_tables.cpp unmatched/func_02008550_hostcopy.cpp)
 foreach(line IN LISTS SLICE_PTR_LINES)
     string(STRIP "${line}" line)
     if(line MATCHES "^#" OR line STREQUAL "")
@@ -2824,8 +2824,9 @@ foreach(src IN LISTS SLICE10_SOURCES)
     # 14): its 0x027ffc40 console-type read is in no region ntr maps, and the
     # course sound boot is its first caller.
     # ...and CollectStar, the WRITE half of the s8/int argument-width
-    # disagreement port/unmatched/NumStars.cpp already carries the read half
-    # of. port/unmatched/CollectStar.cpp takes the course id as s8.
+    # disagreement port/unmatched/NumStars_hostcopy.cpp already carries the
+    # read half of. port/unmatched/CollectStar_hostcopy.cpp takes the course
+    # id as s8.
     if(src MATCHES "/HitDeathPlane\\.c$"
        OR src MATCHES "/func_0203d974\\.c$"
        OR src MATCHES "/CollectStar\\.c$"
@@ -2862,10 +2863,10 @@ set(SOUND_HOST_SOURCES
 set(LEVELBOOT_HOST_SOURCES
     unmatched/ActorDerived_Spawn.cpp
     unmatched/PathPtr_FromID.cpp
-    unmatched/func_0204335c.cpp
-    unmatched/func_02043288.cpp
-    unmatched/func_0204322c.cpp
-    unmatched/func_02043fdc.cpp
+    unmatched/func_0204335c_hostcopy.cpp
+    unmatched/func_02043288_hostcopy.cpp
+    unmatched/func_0204322c_hostcopy.cpp
+    unmatched/func_02043fdc_hostcopy.cpp
     # ...and a fourth, dormant one: LoadEntranceObjects ends in
     # StartEntranceFaderWipe() spelled (void), with the wipe type riding in r0
     # from the `< 0` test right above it. Every entrance the port mounts takes
@@ -2873,7 +2874,7 @@ set(LEVELBOOT_HOST_SOURCES
     # what it did and did not fix. Commented out of slice_gate14.txt in
     # exchange.
     unmatched/LoadEntranceObjects.cpp
-    unmatched/func_02016ff4.cpp
+    unmatched/func_02016ff4_hostcopy.cpp
     # unmatched/ActorBase_AfterCleanupResources.cpp RETIRED -- the matched
     # source hosts itself now, through hostgen's ROLE_DATA map. See
     # HOSTABI_RETIRE_SYMS.
@@ -2883,9 +2884,9 @@ set(LEVELBOOT_HOST_SOURCES
     # as the four-word general representation, which doubles the stride of the
     # table it indexes; see each file's header.
     unmatched/OneUpMushroom_Behavior.cpp
-    unmatched/NumStars.cpp
+    unmatched/NumStars_hostcopy.cpp
     # gate 35: the WRITE half of the same s8/int argument-width disagreement
-    unmatched/CollectStar.cpp
+    unmatched/CollectStar_hostcopy.cpp
     unmatched/SignPost_StateDispatch.cpp
     # gate 18: the third, LakituBro's eleven-state machine
     unmatched/LakituBro_Behavior.cpp
@@ -2910,9 +2911,9 @@ set(LEVELBOOT_HOST_SOURCES
     unmatched/ModelAnim_Renders.cpp)
 
 set(CAMERA_HOST_SOURCES
-    unmatched/ChangeArea.c
-    unmatched/func_0200cae4.cpp
-    unmatched/func_0200ca50.cpp
+    unmatched/ChangeArea_hostcopy.c
+    unmatched/func_0200cae4_hostcopy.cpp
+    unmatched/func_0200ca50_hostcopy.cpp
     unmatched/G3i_PerspectiveW.cpp
     unmatched/G3i_LookAt.cpp
     hal/camera_states.cpp
@@ -3215,7 +3216,7 @@ endforeach()
 # order the shared-header recovery lost (see the file header).
 list(APPEND SLICE82_SOURCES
      "${CMAKE_CURRENT_SOURCE_DIR}/hal/shutter_bob_face.cpp"
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/ShutterBob_Spawn.cpp")
+     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/ShutterBob_Spawn_hostcopy.cpp")
 
 # Gate 83: SEESAW_BOB (39), Bob-omb Battlefield's seesaw bridge, a Platform
 # subclass in a FRESH per-symbol ov095 mount (PORT_ACTOR_OVERLAYS). This slice
