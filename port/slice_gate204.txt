@@ -39,7 +39,7 @@
 #       body spells it by the RTTI name and the alias for that spelling is new
 #       with this gate.
 #
-#   _ZN13WaterfallMistD0Ev ov002 0x020b8548, slot 17 of _ZTV13WaterfallMist
+#   _ZN13WaterfallMistD0Ev ov002 0x020b6f68, slot 17 of _ZTV13WaterfallMist
 #       func_ov001_020ab3a0 +0x3d0, ShadowModel +0x364, ModelAnim +0x300,
 #       WithMeshClsn +0x144, MovingCylinderClsn +0x110, func_ov002_020aed18,
 #       Deallocate. _ZTV13WaterfallMist is THE CAP's table (RTTI
@@ -50,6 +50,65 @@
 # COIN'S D0 NEEDS NO LINE HERE. src/_ZN4CoinD0Ev.c has been on slice_gate33.txt
 # since that gate and was /OPT:REF-stripped for want of a reference; the seat
 # in hal/actor_classes_bob_world.cpp is the whole of its change.
+#
+# ===========================================================================
+# THIS GATE SUPERSEDES A STANDING RULING. READ THIS BEFORE THE NEXT SLOT 17.
+# ===========================================================================
+#
+# port/slice_w1l1.txt section (2) declines four slot-17 seats and states the
+# convention in the port's own words: AfterCleanupResources dispatches slot 16
+# and performs the Deallocate itself, so a landing on the deleting form means
+# something reached the actor through operator delete, the trap is the bug
+# report, and "seating them replaces a diagnostic with a double free". It names
+# _ZN4CoinD0Ev as one of the four, and records that lane l5 made the same call
+# for _ZN6PlayerD0Ev and lane l3 for _ZN11ShadowModelD0Ev.
+#
+# This gate seats Coin's. That is a reversal, not an oversight, and the reason
+# the ruling was too wide is a distinction it does not draw: THERE ARE TWO
+# KINDS OF SLOT-17 TRAP IN THIS PORT AND THEY COST DIFFERENT THINGS.
+#
+#   SOFT. bw_trap17 / ac_trap17 / wf_trap17 print one line and call
+#         port_actor_slot_decline. The quarantine net catches it, the actor
+#         freezes for the rest of the level, the game continues. The diagnostic
+#         value is real but bounded, and it is bounded by something else too:
+#         it only ever fires if a dispatch exists.
+#   HARD. ps_trap, the Player's, calls std::abort(). That is a live misuse
+#         detector: it stops the process at the first `delete` that should
+#         never have happened, which is worth strictly more than a leak.
+#
+# THE DISPATCH COUNT IS ZERO, AND THAT IS MEASURED, NOT REASONED. A slot-17
+# dispatch through a hosted 31-slot table is an indirect call at byte offset
+# 0x44. Sweeping the whole linked binary:
+#
+#     dumpbin /disasm:nobytes build/port/walk_window.exe
+#       call/jmp dword ptr [reg+44h]   0 sites   <- slot 17, nothing dispatches
+#       call/jmp dword ptr [reg+40h]   1 site    <- slot 16, positive control
+#
+# and the single slot-16 site resolves through walk_window.map to 0x004df5d0,
+# ?AfterCleanupResources@ActorBase@@UAEXI@Z -- which is exactly the function
+# the w1l1 ruling names as the one that dispatches 16 and deallocates itself.
+# So the control proves the sweep can see this shape, and the zero is a real
+# zero rather than a pattern that does not match.
+#
+# THE GOING-FORWARD CONVENTION, so the next lane cites one rule and not
+# whichever of two it finds first:
+#
+#   Unseating a SOFT slot-17 trap is allowed when all three hold:
+#     (a) the ROM's own word at table+0x44 is that class's D0, read from the
+#         overlay image rather than from a recovered name;
+#     (b) the matched body carries no inferred-stub marker and its whole
+#         callee closure is already in the map;
+#     (c) the binary-wide [reg+44h] dispatch count is still zero, re-measured
+#         against the build being changed.
+#   A HARD trap (std::abort) is never unseated on these grounds. Player's slot
+#   17 stays exactly as level_boot.cpp has it; the abort is the feature.
+#
+# SCOPE, because the ruling had a second reason this does not touch.
+# _ZN4TrapD0Ev is declined in w1l1 for a different and stronger cause: the ROM
+# shares that body across two object layouts and it fits LIGHT_BEAM's only, so
+# on a 944-byte TRAP its 0xd4/0x124 chain smashes Platform's fields. That is a
+# correctness fault in the body, not a diagnostic trade, and nothing here
+# unblocks it. Same for any slot-17 body whose layout is shared.
 src/_ZN9PushBlockD0Ev.c
 src/_ZN7SeaweedD0Ev.c
 src/_ZN13WaterfallMistD0Ev.c

@@ -17,6 +17,14 @@ The bodies were matched, flat C, unmarked and fully closed; what they lacked was
 a reference edge, and the ROM's own vtable word is the honest place for one.
 See slice_gate204.txt for the derivation.
 
+That gate supersedes port/slice_w1l1.txt section (2), which declines slot-17
+seats -- Coin's by name -- on the grounds that the trap is a diagnostic and
+seating it buys a double free. The distinction w1l1 does not draw is that
+bw_trap17 declines SOFT into the quarantine net while the Player's ps_trap
+aborts HARD, and that the binary-wide slot-17 dispatch count is measurably
+zero. The going-forward rule, with the measurement and its positive control,
+is written out at the bottom of slice_gate204.txt. Cite that one, not both.
+
 HOW THE REMAINING 401 SPLIT
 ---------------------------
 Method: a TU's ROM address comes from config/arm9/overlays/ov002/symbols.txt;
@@ -24,7 +32,25 @@ every ov002 relocation whose `to:` is that address and whose `from:` lands
 inside a data object is a table word; a table is HOSTED when a port/hal or
 port/unmatched file declares it as an array or names it as data_ov002_*; a
 pointer-to-member object is one whose cxx_aliases spelling carries the `@@3P8`
-member-function mangling. The buckets are ordered, so each TU is counted once.
+member-function mangling.
+
+THE BUCKETS ARE ORDERED AND EACH TU IS COUNTED ONCE, so the counts are only
+reproducible next to the order. It is, first match wins:
+
+     1  host copy defining the Itanium name
+     2  host copy defining the MSVC-mangled name
+     3  inferred-stub marker
+     4  MSVC-method form (the source defines Class::Method, not a C body)
+     5  word in a hosted vtable
+     6  word in a pointer-to-member record
+     7  word in a vtable the port does not host
+     8  nothing above -- a plain callee
+
+A TU can qualify for several. _ZN4CoinD1Ev is both an MSVC-method form and a
+hosted vtable word, and lands in 4 because 4 is the binding constraint: no
+slice line reaches a body MSVC will not compile against the host seams. Read a
+bucket as "the first thing that has to change", not as "the only thing true of
+it".
 
   167  vtable slot on an UNSEATED class
    97  plain callee -- no vtable word names it; it links when its caller does
@@ -87,12 +113,31 @@ THE THREE FINDINGS WORTH CARRYING FORWARD
    Each host file's header documents a real host-ABI reason (the mwcc
    pointer-to-member dispatch over DS code words, the TextureSequence::Prepare
    argsweep seam, the GetHealth receiver seam), so these are exceptions rather
-   than work. But only Player_SwimMain.cpp carries a PORT_HOST_ABI tag, and it
-   is the only one of the ten that shows up in the queue's EXCEPTIONS column --
-   because it also defines the Itanium name. The other nine are absent from all
-   three columns. Tagging them would not change the queue while the queue is
-   name-matched; making the queue demangle, or having each host copy also carry
-   the Itanium spelling, would.
+   than work.
+
+   THREE OF THE TEN ARE ALREADY IN THE QUEUE, and the queue is not as blind as
+   a first read of this list suggests. ChangeState, St_Swim_Main and
+   CleanupResources each have a companion host object that ALSO defines the
+   Itanium spelling -- Player_ChangeState.cpp, Player_SwimMain.cpp and
+   method_faces.cpp respectively, all three visible in walk_window.map -- so
+   the queue sees them by name and, each being PORT_HOST_ABI tagged, files them
+   under EXCEPTIONS. That is the queue working.
+
+   SEVEN are absent from all three columns, and seven is the actionable number
+   for a demangling fix. It is the same seven this file's own bucket table
+   counts under "HOST-COPY, MSVC name".
+
+   PORT_HOST_ABI TAGS ARE NOT THE MISSING PIECE, and an earlier draft of this
+   file said they were. The tag is not rare in these files: method_faces.cpp
+   carries seven, PathLift_StateDispatch.cpp carries two, and one of those two
+   sits directly above BaseBehavior. It is inert there only because MSVC
+   inlined the forwarder and /OPT:REF dropped the external, which is the
+   folded-away-face case method_faces.cpp's own header warns about at length.
+   So the gap is the queue's name matching, not missing documentation: tagging
+   the other seven changes nothing while a tag is only consulted for a symbol
+   the queue already asked about. The fix is to make the queue demangle, or to
+   have each host copy also carry the Itanium spelling the way the three above
+   do.
 
 3. func_ov002_020bd664's POINTER-TO-MEMBER TABLE IS LIVE AND UNSEATED.
    UNPROVEN AT RUNTIME -- stated as a shape read off the source and the map,
@@ -144,9 +189,15 @@ and it stays unlinked on purpose. hal/level_boot.cpp seats slot 17 of
 data_ov002_0210a83c on ps_trap and says why: the ROM's teardown never dispatches
 the deleting form, so a call arriving there means something reached the Player
 through `delete`, "which is a bug worth an abort rather than a double free".
-Seating the real body trades that detector for a silent double-free path. Worth
-+1 on the headline and not worth the trade; whoever wants it should decide that
-deliberately.
+
+This is the same reasoning gate 204 supersedes for the three soft traps, and it
+survives here for the reason the new rule turns on: ps_trap calls std::abort(),
+so it is a live misuse detector rather than a bounded decline into the
+quarantine net. Losing it costs the first-failure stop; losing a bw_trap17
+costs a diagnostic for a call site the sweep proves does not exist. Lane l5
+made this call before and it stands. +1 on the headline is not worth the trade;
+anyone who wants it should reverse the rule deliberately rather than notice the
+inconsistency and close it the easy way.
 
 THE PLAYER STATE MACHINE, ANSWERED FOR THE COORDINATOR
 ------------------------------------------------------
