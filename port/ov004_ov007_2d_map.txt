@@ -2,7 +2,10 @@ ov004 AND ov007: WHAT THEY ARE, HOW THE GAME ENTERS THEM, AND WHAT THE PORT
 WOULD NEED. Run linkw wave C, lane cat-2d.
 
 Baseline this was measured against: 459f21a07, walk_window 4888/11243 linked
-(43.5%), battery ALL GREEN, exe sha256 e3d59696bbb9.
+(43.5%), battery ALL GREEN. No exe hash is quoted here on purpose: the link
+embeds build-location state, so a sha256 from one worktree is not something
+another worktree can reproduce and is not an attestation. The attestation is
+the gate manifest's git_sha plus git_dirty.
 
 The lane was briefed as "the 2D HUD/OAM layer". That is not what these two
 overlays are, and the correction matters for how they get reached, so it is
@@ -64,21 +67,47 @@ much attention:
 2. THE SLOT: WHY NOTHING IN A LEVEL WALK CAN REACH THEM
 -------------------------------------------------------
 
-Load addresses, from extracted/dsd/arm9_overlays/overlays.yaml:
+Load addresses, from the ROM's OWN overlay table. This file first quoted
+extracted/dsd/arm9_overlays/overlays.yaml and every END below was wrong; the
+eight BASES were right and the slot conclusion never depended on the ends.
+The yaml's code_size is not the overlay's RAM size for a compressed overlay,
+which is where the error came from.
 
-    ov000  0x020aa420 .. 0x020bd300
-    ov001  0x020aa420 .. 0x020ac3c0
-    ov002  0x020ad660 .. 0x0210ff40      in-level engine
-    ov003  0x020ad660 .. 0x020b15a0      star select / debug level select
-    ov004  0x020ad660 .. 0x020c3220      minigame framework
-    ov005  0x020bfec0 .. 0x020c2f40
-    ov006  0x020bfec0 .. 0x02141800      the minigames
-    ov007  0x020ad660 .. 0x02104720      title / file select
+DERIVATION. The NDS header word at 0x50 is the arm9 overlay table's file
+offset and 0x54 its size; the table is 32-byte entries of
+(id, ram_address, ram_size, bss_size, static_init_start, static_init_end,
+file_id, flags). The image occupies base .. base + ram_size and the loader
+zeroes bss beyond that, so the full footprint ends at
+base + ram_size + bss_size. Both columns are given because the two answer
+different questions: the image end is where file-backed bytes stop, the
+footprint end is what an address-containment test has to use.
+
+    overlay   base         image end    footprint end
+    ov000     0x020aa420   0x020bf4e0   0x020bf4e0
+    ov001     0x020aa420   0x020ad620   0x020ad660
+    ov002     0x020ad660   0x0210d9a0   0x021111a0   in-level engine
+    ov003     0x020ad660   0x020b18a0   0x020b18a0   star select, level select
+    ov004     0x020ad660   0x020beb60   0x020bfec0   minigame framework
+    ov005     0x020bfec0   0x020c3020   0x020c3020
+    ov006     0x020bfec0   0x021402e0   0x021430a0   the minigames
+    ov007     0x020ad660   0x02103340   0x02104c40   title / file select
 
 ov002, ov003, ov004 and ov007 are four occupants of ONE slot at 0x020ad660.
 They are mutually exclusive by construction. walk_window runs the ov002
 occupant. ov004 and ov007 are not "not linked yet", they are a different mode
 of the game, and the only honest way to reach them is to enter that mode.
+
+The corrected ends also remove a contradiction the yaml numbers created.
+ov004's footprint ends at 0x020bfec0, which is EXACTLY ov005's and ov006's
+base, and ov001's ends at 0x020ad660, which is exactly ov002's base. There is
+no overlap anywhere, so ov004 and ov006 are cleanly co-resident, which is what
+section 3 needs them to be and what the yaml-derived ends appeared to forbid.
+
+WHICH IMAGE TO READ. extracted/overlays/overlay_NNNN.bin is the correct source
+and its byte length equals the OVT's ram_size for all eight of these
+(ov000 86208, ov001 12800, ov002 394048, ov003 16960, ov004 70912, ov005
+12640, ov006 525344, ov007 351456). extracted/dsd/arm9_overlays/ovNNN.bin
+matches ram_size for none of them.
 
 
 3. THE ENTRY CHAIN, END TO END
@@ -183,8 +212,8 @@ ACTOR_SPAWN_TABLE[1], which on the host is an actor-registry row, not a
 reference the linker can follow today.
 
 
-6. A FLAGGED ATTRIBUTION PROBLEM (NOT FIXED HERE)
--------------------------------------------------
+6. A MISROUTED EDGE: SPINDRIFT'S KILL-BY-INVINCIBLE PATH IS A SILENT NO-OP
+---------------------------------------------------------------------------
 
 Three ov004 TUs are counted as linked in walk_window today:
 
@@ -193,11 +222,15 @@ Three ov004 TUs are counted as linked in walk_window today:
     src/_ZN5Enemy20KillByInvincibleCharERK10Vector3_16R6Player.c
 
 They are reached from ov081's Spindrift, per the note at the top of
-hal/actor_classes_ov081.cpp. But ov002 ALSO defines a function at each of
-those addresses (func_ov002_020ada40 at KillByInvincibleChar's address,
-func_ov002_020aea30 at Enemy::KillByAttack's), and dsd tagged every one of
-those level-overlay relocations ambiguous, "overlays(2,4)", precisely because
-it could not tell them apart:
+hal/actor_classes_ov081.cpp.
+
+ov002 defines a function at ONE of those three addresses and not the other
+two: func_ov002_020ada40 sits at KillByInvincibleChar's 0x020ada40, and ov002
+has no function boundary at all at 0x020adc1c or 0x020adc00. (It also has
+func_ov002_020aea30 at Enemy::KillByAttack's 0x020aea30, which is a fourth
+address, not one of the three seated here.) dsd tagged every level-overlay
+relocation into those addresses ambiguous, "overlays(2,4)", because it could
+not tell the occupants apart:
 
     12x ov065 -> 0x020aea30   ov004: Enemy::KillByAttack   ov002: func_ov002_020aea30
      8x ov090 -> 0x020aea30
@@ -212,20 +245,58 @@ in-level engine, and they can never be co-resident with ov004, which loads
 only alongside ov006 for a minigame scene. On co-residency grounds alone the
 destination of every one of those calls is the ov002 body, not the ov004 one.
 
-If that reading is right, the port's three "linked ov004" TUs are three ov002
-bodies wearing ov004 names, and the ov004 category's 3/276 is fictitious. It
-also means hal/actor_classes_ov081.cpp's zeroed data_ov004_020beb68 is
-standing in for what should be an ov002 BSS symbol. Behaviourally the two are
-the same (zero either way, and every reader null-guards first), so nothing is
-broken; the attribution is what is wrong.
+THE BODIES ARE NOT THE PROBLEM. This file first guessed that the three linked
+ov004 TUs were ov002 bodies wearing ov004 names, and that the ov004 category's
+3/276 was fictitious. THAT IS REFUTED. Both images were disassembled from
+extracted/overlays, size-matched against the ROM's OVT (see section 2): the
+ov004 literal pools match the matched sources exactly, and ov002 has no
+function boundary at all at two of the three addresses. The three seated ov004
+bodies are genuinely ov004's, and ov004's 3/276 was never fictitious at the
+body level. The first version of this section was wrong and the byte evidence
+is what settles it. That evidence was reachable all along; it was missed here
+because this lane read extracted/dsd/arm9_overlays/ov004.bin, which is not the
+overlay's RAM image (section 2), and then wrote off the resulting garbage as an
+untrustworthy image instead of as the wrong file.
 
-UNPROVEN: this was NOT confirmed at the byte level. The cheap check would be
-to compare ov002's and ov004's bytes at 0x020ada40 and 0x020aea30, and
-extracted/dsd/arm9_overlays/ov004.bin does not survive a relocation-agreement
-sanity check (its instruction at a reloc's `from` address disagrees with the
-relocation kind far more often than ov002's or ov007's do), so the image could
-not be trusted for that comparison in this lane. Someone with a verified ov004
-image should settle it. Until then this is a flag, not a finding.
+THE EDGE IS THE PROBLEM, AND IT IS A LIVE DEFECT, NOT AN ATTRIBUTION NIT. The
+co-residency reasoning above was right; what it actually catches is a
+misrouted call, and the port already contradicts itself about the address:
+
+  - walk_window.map holds BOTH `_func_020ada40` out of
+    func_ov002_020ada40.cpp.obj AND the ov004
+    _ZN5Enemy20KillByInvincibleCharERK10Vector3_16R6Player out of its .c.obj.
+    Two different bodies for one ROM address, both live in one binary.
+  - hal/bob_enemy_bridges.cpp ALREADY RULED ov002 for that address, in as many
+    words: "ov102 0x0214c328 targets 0x020ada40 in module overlays(2,4), and
+    ov002 is the overlay this port mounts", with
+    `#pragma comment(linker, "/alternatename:_func_020ada40=_func_ov002_020ada40")`
+    and a four-parameter declaration,
+    `int func_ov002_020ada40(void *self, void *v, void *other, unsigned r);`
+  - include/decl_Enemy.h:24 agrees on the shape:
+    `extern void _ZN5Enemy20KillByInvincibleCharERK10Vector3_16R6Player(void*, Vector3_16*, void*, int);`
+    four parameters.
+  - the SEATED ov004 TU defines three:
+    `void _ZN5Enemy20KillByInvincibleCharERK10Vector3_16R6Player(int thiz, int a1, int a2)`.
+  - src/func_ov081_02123910.cpp:53 routes Spindrift into that three-parameter
+    ov004 body with four arguments, `(c, &kv, other, tmp)`.
+
+THE CONSEQUENCE. The ov004 body's first statement is
+`if ((char *)data_ov004_020beb68 == 0) return;`, and data_ov004_020beb68 is the
+permanently-zero host global at the top of hal/actor_classes_ov081.cpp that
+nothing in this build ever writes. So the body returns immediately, every time.
+ov002's body at the same address is 0x100 bytes and does real work. SPINDRIFT'S
+KILL-BY-INVINCIBLE-CHARACTER PATH IS A SILENT NO-OP IN THE SHIPPED PORT. This
+replaces the earlier claim in this file that the two were behaviourally the
+same and nothing was broken. Something is broken.
+
+Nothing about it is visible to the byte gate or to the linkage count: both
+definitions link, the count goes up, and the no-op reads as a quiet frame.
+
+ROUTED TO THE COORDINATOR, not taken here. The fix is in the actors-lane
+family (hal/bob_enemy_bridges.cpp, hal/actor_classes_ov081.cpp,
+src/func_ov081_02123910.cpp and whatever else routes the same address), not in
+this lane's files, and the parameter-count disagreement between the caller,
+the two declarations and the seated body has to be settled as part of it.
 
 
 7. WHAT THE ntr LAYER ALREADY MODELS, AND THE GAP LIST
@@ -339,6 +410,15 @@ DS footprint, image plus bss. A per-symbol mount and a whole-image mount
 present the SAME window to that test (write_map's docstring says so), so the
 mount style does not change any number here.
 
+WHICH WINDOW, AND WHY IT DOES NOT MATTER. The two hypothetical windows were
+first derived from the yaml, whose ends are wrong (section 2). All three
+routes to a window have since been run: the yaml-derived one, ovdata's own
+formula, and the ROM OVT truth. All three give IDENTICAL results, down to the
+same three lost pointers. The conclusion below is route-independent, and the
+reason is that the ends only differ well inside ov002's span, which is
+contested either way. The OVT windows are ov004 0x020ad660 .. 0x020bfec0 and
+ov007 0x020ad660 .. 0x02104c40; the yaml ones were 0x020c3220 and 0x02104720.
+
 BASELINE, as built at c1a6da46d, verified against the tool's own summary line:
 
     215 pointers rebased across 81 mounts, 6101 left raw
@@ -347,13 +427,15 @@ BASELINE, as built at c1a6da46d, verified against the tool's own summary line:
 The windows that already contest the shared slot are ov002 (0x020ad660 ..
 0x021111a0) and ov003 (0x020ad660 .. 0x020b18a0).
 
-ADDING ov004's WINDOW (0x020ad660 .. 0x020c3220):
+ADDING ov004's WINDOW (OVT 0x020ad660 .. 0x020bfec0; the yaml's
+0x020c3220 gives the same three lines):
 
     contested            1009 -> 1182   (+173)
     resolving pointers LOST                0
     resolving pointers                   215 -> 215
 
-ADDING ov007's WINDOW (0x020ad660 .. 0x02104720):
+ADDING ov007's WINDOW (OVT 0x020ad660 .. 0x02104c40; the yaml's
+0x02104720 gives the same three lines):
 
     contested            1009 -> 1699   (+690)
     resolving pointers LOST                3
@@ -388,15 +470,24 @@ If it is being costed on "how much would a future mount unlock", the +690
 newly-contested words for ov007 are the number to look at, and 560 of them are
 ov002's own.
 
-Per-source-overlay breakdown of the +690, worst first: ov002 560, ov047 20,
-ov043 16, ov022 15, ov045 14, ov015 10, ov016 8, ov014 7, ov021 5, ov025 5,
-ov012 4, ov009 3, ov010 2, ov026 2, ov027 2, remainder 1 each.
+Per-source-overlay breakdown of the +690, worst first, in full. The first
+version of this line ended "remainder 1 each" after ov027 and undercounted
+five overlays that carry 2:
+
+    ov002 560, ov047 20, ov043 16, ov022 15, ov045 14, ov015 10, ov016 8,
+    ov014 7, ov021 5, ov025 5, ov012 4, ov009 3, ov010 2, ov026 2, ov027 2,
+    ov030 2, ov032 2, ov035 2, ov052 2, ov065 2, ov017 1, ov018 1, ov023 1,
+    ov056 1, ov080 1, ov091 1, ov102 1.
+
+That sums to 690. The +173 for ov004 splits ov002 116, ov047 16, ov043 12,
+ov045 8, ov022 7, ov015 4, ov016 4, ov014 3, ov021 3, which sums to 173.
 
 THE OTHER DIRECTION, the wants a mount of these two would ITSELF emit, is
 cheaper still:
 
   ov007 has four cross wants into ov002, at 0x02110210 and 0x02110101 (three
-  times). Both addresses are ABOVE ov007's own window end of 0x02104720, so an
+  times). Both addresses are ABOVE ov007's own footprint end of 0x02104c40
+  (and above the yaml's 0x02104720 too, so this holds on either route), so an
   ov007 mount does not contest them, and neither has a provider today anyway
   (ov002 is a per-symbol mount and does not cover those addresses). Cost: zero
   either way.
