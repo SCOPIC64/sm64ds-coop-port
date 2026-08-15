@@ -990,6 +990,38 @@ void port_ov058_patch(void);
 void *port_ov058_at(unsigned ds);
 extern unsigned char port_ov058_image[];
 extern const unsigned port_ov058_ds_base, port_ov058_ds_end;
+
+/* run linkw wave 21 (lane w21): the last six stage ids -- 16, 21, 25, 28, 31
+   and 33. See the table block below. */
+void port_ov024_patch(void);
+void *port_ov024_at(unsigned ds);
+extern unsigned char port_ov024_image[];
+extern const unsigned port_ov024_ds_base, port_ov024_ds_end;
+
+void port_ov029_patch(void);
+void *port_ov029_at(unsigned ds);
+extern unsigned char port_ov029_image[];
+extern const unsigned port_ov029_ds_base, port_ov029_ds_end;
+
+void port_ov033_patch(void);
+void *port_ov033_at(unsigned ds);
+extern unsigned char port_ov033_image[];
+extern const unsigned port_ov033_ds_base, port_ov033_ds_end;
+
+void port_ov036_patch(void);
+void *port_ov036_at(unsigned ds);
+extern unsigned char port_ov036_image[];
+extern const unsigned port_ov036_ds_base, port_ov036_ds_end;
+
+void port_ov039_patch(void);
+void *port_ov039_at(unsigned ds);
+extern unsigned char port_ov039_image[];
+extern const unsigned port_ov039_ds_base, port_ov039_ds_end;
+
+void port_ov041_patch(void);
+void *port_ov041_at(unsigned ds);
+extern unsigned char port_ov041_image[];
+extern const unsigned port_ov041_ds_base, port_ov041_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -1182,6 +1214,80 @@ static const PortLevelDesc port_level_table[] = {
     {27, "Tick Tock Clock (clock_tower, course 13)", "ov035", 0x021120bc,
      port_ov035_patch, port_ov035_at,
      &port_ov035_ds_base, &port_ov035_ds_end, 0},
+    /* run linkw wave 21 (lane w21): FIVE of the six ids the wave-8 block
+       marked NOT LANDED and level 27 did not take. With them, forty-one of the
+       ROM's forty-two stage ids are mounted; level 31 is the only one left and
+       it is not mount work (below).
+
+       Appended at the END, indices 36..40, for the reason the merge note above
+       spells out: a row inserted mid-table renumbers every thunk below it and
+       NOTHING in the build says so. Level 27 keeps index 35 and its thunk keeps
+       lane w19's ov035/Ttc seat call, untouched by this lane. That trap now has
+       a guard rather than a convention -- port/tools/mount_pairing_guard.py
+       parses this file and asserts mount_fns[i] mounts row i for every i, and
+       was proved on a deliberately mis-inserted copy before it was trusted.
+
+       Derived by this lane from the ROM, not copied off the wave-8 block, and
+       the reader proved against all thirty-six then-mounted rows before a new
+       one was written (see the CMake block). Per row, the five reads:
+         data_020758c8[id] -> ov, data_02092208[id] -> the LVL_Overlay,
+         SUBLEVEL_LEVEL_TABLE[id] -> course, +0x08..0x0e -> the four handles,
+         +0x14/+0x15 -> subCount/flags.
+
+         16 ov024 0x021129b4 crs  7 sub 1 flg 0x00 desert_land    0713/0711/0714/0715
+         21 ov029 0x02112fd0 crs 10 sub 2 flg 0x00 water_city     07f0/07ed/07f1/07f2
+         25 ov033 0x02111be0 crs 12 sub 1 flg 0x00 tibi_deka_t    07ea/07e8/07eb/07ec
+         28 ov036 0x02112a6c crs 14 sub 1 flg 0x01 rainbow_cruise 07ab/07a9/07ac/07ad
+         33 ov041 0x0211192c crs 25 sub 1 flg 0x00 metal_switch   07a1/079f/07a2/07a3
+
+       WHAT FREED THE FOUR, since no mount field changed: FLAME_CHOMP (270) and
+       AMP (266) were the wave-8 blockers on 16, 21, 25 and 28, and both are
+       fixed on this tip. All four now boot bare -- SM64DS_LEVEL=<id>
+       SM64DS_FAULTS_FATAL=1 SM64DS_WINDOW_SELFTEST=300, rc 0, no skip list.
+
+       LEVEL 33 IS THE ONE THAT STILL NEEDS A SKIP, and it is landed anyway
+       because the mount is proven and the blocker is not this lane's. Bare it
+       faults rc 139 at +0x0003c75c accessing 0, walker node actor id 0xec =
+       236 = SNUFIT, in RENDER; with SM64DS_SKIP_CLASS=SNUFIT it runs 300
+       frames clean, rc 0, census 76 spawned / 18 classes. That is the wave-8
+       measurement reproduced exactly on this tip, so SNUFIT is unfixed here.
+       port/tools/battery.py runs level 33 WITH that skip and says why, so the
+       mount is covered rather than silently untested; delete the skip there
+       when SNUFIT lands and the level goes green bare.
+
+       LEVEL 31 (habatake, ov039 0x02111438, crs 23, sub 1, flg 0x00, handles
+       074d/074b/074e/074f) IS DERIVED AND DELIBERATELY NOT HERE. Its mount is
+       sound and measured so: the boot prints its own LVL_Overlay with bmd 1869
+       / kcl 1867 -- 0x074d / 0x074b, the ROM's own words -- parses a 5-kind
+       objTable and a 1-entry sublevel table, and loads the stage. What kills
+       it is downstream of every actor: rc 139 at +0x000d9bda accessing 0x134
+       on FRAME ZERO with NO actor in the walker, and it still faults with all
+       seven of its non-player classes skipped
+       (STAR_MARKER,BOB_OMB_BUDDY,COIN,RED_COIN,CAMERA,HUD,MINIMAP), which is
+       what says it is the player's own render and not a cast problem. The
+       player enters habatake mid-animation -- anim(len=245760 fl=1 cur=21.0),
+       i.e. frame 21 of a 60-frame entry, against len=40960 fl=0 cur=1.0 on
+       levels 13, 22 and 27 -- which fits the level (habatake is the Wing Cap
+       tower, entered flying) and is where a player-model lane should start.
+       A row for it is one line here, one thunk and one CMake token; nothing
+       needs re-deriving.
+
+       own_sinits stays 0 for all five; none gets a per-symbol mount here. */
+    {16, "Shifting Sand Land (desert_land, course 7)", "ov024", 0x021129b4,
+     port_ov024_patch, port_ov024_at,
+     &port_ov024_ds_base, &port_ov024_ds_end, 0},
+    {21, "Dire Dire Docks city (water_city, course 10)", "ov029", 0x02112fd0,
+     port_ov029_patch, port_ov029_at,
+     &port_ov029_ds_base, &port_ov029_ds_end, 0},
+    {25, "Tiny-Huge Island, tiny (tibi_deka_t, course 12)", "ov033", 0x02111be0,
+     port_ov033_patch, port_ov033_at,
+     &port_ov033_ds_base, &port_ov033_ds_end, 0},
+    {28, "Rainbow Cruise (rainbow_cruise, course 14)", "ov036", 0x02112a6c,
+     port_ov036_patch, port_ov036_at,
+     &port_ov036_ds_base, &port_ov036_ds_end, 0},
+    {33, "Metal Cap switch course (metal_switch, course 25)", "ov041",
+     0x0211192c, port_ov041_patch, port_ov041_at,
+     &port_ov041_ds_base, &port_ov041_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -1433,6 +1539,18 @@ static void *port_mount_row_lvl27(void)
     port_ttc_level_data_seat();
     return p;
 }
+/* run linkw wave 21 (lane w21): five more stage ids, table indices 36..40 in
+   the order the table lists them. Named by level like every thunk since wave 8,
+   so a merge that renumbers the table cannot silently point one of these at
+   another level's row -- and port/tools/mount_pairing_guard.py now checks that
+   by parsing this file rather than leaving it to the eye. Index 35 and
+   port_mount_row_lvl27 above are untouched: lane w19's ov035/Ttc seat call
+   hangs off that thunk. */
+static void *port_mount_row_lvl16(void) { return port_level_mount_at(36); }
+static void *port_mount_row_lvl21(void) { return port_level_mount_at(37); }
+static void *port_mount_row_lvl25(void) { return port_level_mount_at(38); }
+static void *port_mount_row_lvl28(void) { return port_level_mount_at(39); }
+static void *port_mount_row_lvl33(void) { return port_level_mount_at(40); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
@@ -1467,6 +1585,11 @@ static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_lvl49,
     port_mount_row_lvl50,
     port_mount_row_lvl27,
+    port_mount_row_lvl16,
+    port_mount_row_lvl21,
+    port_mount_row_lvl25,
+    port_mount_row_lvl28,
+    port_mount_row_lvl33,
 };
 
 // ---- the loader dispatch table ---------------------------------------------
