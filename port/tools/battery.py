@@ -78,11 +78,18 @@ end of the run -- and the census reports the live actor set at print time, so
 on a level that stays put the two are identical. Level 1 prints
 "82 spawned (22 classes), 0 skipped" twice.
 
-Levels 19, 20, 26, 35, 39 and 49 warp within the 300 frames. Their logs carry a
+Levels 19, 20, 26, 34, 35, 39 and 49 warp within the 300 frames. Their logs carry a
 "[lvl] change: level N -> M" line, and the second census is then M's, not N's:
 level 26 warps to 1 and its second block is level 1's 82/22 exactly, level 39
 warps to 5 and drops from 96 spawned to 64. (26 and 39 confirmed on this tree
 2026-08-15; the rest are as reported by the mount lanes.)
+
+Level 34 joined that list the day it was mounted, and it is the clearest case
+of why the rule is the rule rather than a curiosity: rainbow_mario is Wing
+Mario Over the Rainbow, a stage made of platforms over nothing, so the
+selftest's idle player walks off and the game sends him to the castle grounds
+-- "[lvl] change: level 34 -> 1, entrance 10, reason 0" -- exactly as it
+should. Its second census is level 1's.
 
 The battery only reads exit codes and does not care. Anything that reads a
 census OFF one of these logs must take the FIRST [census] block, before the
