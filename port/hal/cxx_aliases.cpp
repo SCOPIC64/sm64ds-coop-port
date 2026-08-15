@@ -1097,6 +1097,81 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    reader, its store would land on the Enemy's objects. */
 #pragma comment(linker, "/alternatename:_VT=_data_ov002_021081e4")
 #pragma comment(linker, "/alternatename:_HEAP=_data_020a0eac")
+/* ---- run linkw wave C: THREE LINKED TUs THAT COLLIDE ON THOSE THREE NAMES.
+   port/tools/alias_audit.py found them and each one is ROM-verified below by
+   disassembling the body out of extracted/overlays/ and reading its literal
+   pool. All three are LIVE in the shipping binary today, and none of them
+   fails at link: they are the CannonHatch/MetalNet/PATH_LIFT disease, the
+   fourth, fifth and sixth cases.
+
+   The remedy is the PATH_LIFT one -- a per-source -D in port/CMakeLists.txt
+   onto a private name bound here -- and it has to be, because the rename
+   cannot go straight to the mount name: include/decl_common.h:396 declares
+   `extern int G1[];` while the mounted cells are declared as scalars, and
+   MSVC rejects the redeclaration (C2040, the ov100 measurement).
+
+   (1) src/_ZN6Coffin16CleanupResourcesEv.cpp, ov071 0x02122460, LINKED.
+       Releases two SharedFilePtrs as G0/G1. Its own literal pool, in the
+       order the two Release calls consume it:
+         0x02122480  LDR pc-rel -> 0x021230d0  then BL SharedFilePtr::Release
+         0x02122488  LDR pc-rel -> 0x021230d8  then BL SharedFilePtr::Release
+       Bare G0 resolves to 0x020a0eac (the GAME HEAP pointer) and bare G1 to
+       0x0210e05c (SignPost's KCL), so the shipping binary Releases those two
+       objects whenever a Coffin is cleaned up.
+
+       THE TARGET NAME IS ov071's, NOT ov070's, and the config disagrees.
+       ov070 and ov071 share the load window (both base 0x0211f000), so both
+       overlays own bytes at 0x021230d0. config/arm9 names those two words
+       data_ov070_021230d0/d8 under ov070's .data, and ov071's own .bss runs
+       0x02122f80..0x02123100 -- the addresses are inside it, and
+       config/arm9/overlays/ov071/symbols.txt names them too. The port mounts
+       BOTH overlays and they are separate host objects (0x00a8145c for
+       ov070's, 0x00a824c8 for ov071's), so picking the config's first answer
+       would be the ov043/ov047 mistake w20 recorded. Coffin is ov071's class
+       and port/unmatched/Coffin_InitResources.cpp already loads these two
+       cells by their ov071 names -- Init and Cleanup now agree.
+
+   (2) src/_ZN15BookShotSpawner13InitResourcesEv.cpp, ov020 0x02112768,
+       LINKED. Passes G0/G1 to Model::LoadFile. Literal pool in call order:
+         0x02112774  LDR pc-rel -> 0x02114aa0  then BL Model::LoadFile
+         0x02112780  LDR pc-rel -> 0x02114ab8  then BL Model::LoadFile
+       Both are ov020 .bss (0x02114aa0..0x02114b20) and both are already
+       mounted; hal/actor_classes_ov063.cpp calls them "the four book
+       SharedFilePtrs ... models 0x2c8/0x2cb". Bare G0/G1 send the two
+       LoadFile calls at the game heap pointer and SignPost's KCL instead.
+
+   (3) src/_ZN15BookShotSpawnerD0Ev.c, ov020 0x02111278, LINKED. Its
+       `t[0] = (int)VT` vptr store means 0x021148d8, its own table, which in
+       this port is the HOST array hal/actor_classes_ov063.cpp declares as
+       _ZTV15BookShotSpawner[31]. Bare VT is bound above to the ENEMY base
+       table, and the comment above says in as many words that VT has ONE
+       linked reader and that "a second VT-spelling TU cannot join a target
+       that links this reader". A later lane linked one anyway. ov063's own
+       block noticed and ruled it harmless as a dying-object store between
+       two direct calls; that reading may well be right, but it is an
+       argument about whether a wrong pointer gets dereferenced rather than
+       about whether it is wrong, the store costs nothing to make correct,
+       and the class's hand-written D1 face two hundred lines below already
+       writes _ZTV15BookShotSpawner for the same reason. Bound, not argued.
+
+   Each LHS below is undefined everywhere else in the build, so none of these
+   aliases can be defeated the way alternatename_guard.py watches for.
+
+   BOTH DECORATIONS, for the same reason ?G0@@3PAHA and _G0 both appear above.
+   The two .cpp bodies declare their own `extern int G0[];` OUTSIDE the file's
+   extern "C" reach, so MSVC mangles the renamed name to ?...@@3PAHA and the
+   cdecl row alone does not satisfy it (measured: LNK2019 on exactly those two
+   and on neither of the G1 rows, because G1 arrives from decl_common.h inside
+   extern "C"). The .c body's VT takes the cdecl form only. */
+#pragma comment(linker, "/alternatename:?port_coffin_file0@@3PAHA=_data_ov071_021230d0")
+#pragma comment(linker, "/alternatename:?port_coffin_file1@@3PAHA=_data_ov071_021230d8")
+#pragma comment(linker, "/alternatename:?port_bookshotspawner_file0@@3PAHA=_data_ov020_02114aa0")
+#pragma comment(linker, "/alternatename:?port_bookshotspawner_file1@@3PAHA=_data_ov020_02114ab8")
+#pragma comment(linker, "/alternatename:_port_coffin_file0=_data_ov071_021230d0")
+#pragma comment(linker, "/alternatename:_port_coffin_file1=_data_ov071_021230d8")
+#pragma comment(linker, "/alternatename:_port_bookshotspawner_file0=_data_ov020_02114aa0")
+#pragma comment(linker, "/alternatename:_port_bookshotspawner_file1=_data_ov020_02114ab8")
+#pragma comment(linker, "/alternatename:_port_bookshotspawner_vt=__ZTV15BookShotSpawner")
 /* SignPost::CleanupResources carried from main names its two SharedFilePtrs
    by role instead of G0/G1: SignPost_ModelFile = 0x0210e064 (released first,
    ROM order) and SignPost_ClsnFile = 0x0210e05c (main's ov002 symbols.txt
