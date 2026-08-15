@@ -716,6 +716,11 @@ set_source_files_properties(
     # gate 194: a //cpp-marked .c (a top-level `extern "C" {` block, invalid C),
     # HootTheOwl's own state-transition helper.
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov094_02136024.c"
+    # run linkw wave 7, lane w7b: MrI's InitResources, the one body of the Mr. I
+    # closure that is NONMATCHING-but-decompiled. //cpp-marked .c with extern "C"
+    # blocks and SharedFilePtr& reference params -- invalid C, same treatment as
+    # the gate-176 entry above.
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN3MrI13InitResourcesEv.c"
     PROPERTIES LANGUAGE CXX)
 
 # Wave-5 close surgery (w5b_review.md R1/R2): two /alternatename routes died
@@ -2695,6 +2700,49 @@ foreach(line IN LISTS SLICE176_LINES)
     list(APPEND SLICE176_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# run linkw wave 7, lane w7b: THE MR. I FAMILY -- MR_I (262) and BIG_MR_I (263),
+# which share one class and one vtable, plus MR_I_PROJECTILE (264), the shot
+# MrI's state 1 fires through Actor::Spawn(0x108). ov071 was already mounted
+# per-symbol by gate 176, so this lane adds no overlay: rows, two fills, the
+# state seat, and four host copies (the two unmatched per-frame state MAINs,
+# the two PMF dispatchers, plus the slot-5 Render and two D1 thunks).
+# See slice_w7b.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w7b.txt" SLICE_W7B_LINES)
+set(SLICE_W7B_SOURCES "")
+foreach(line IN LISTS SLICE_W7B_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W7B_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# Two MR_I_PROJECTILE TUs need hostgen, both mwcc-vs-MSVC syntax quirks the
+# byte-verified tree must not be edited for (the gate-32 / gate-64 treatment).
+# func_ov071_02121b08 is C++ inside a .c -- `struct Callback {}`, an empty
+# struct, which MSVC will not compile as C (C2016); hostgen emits it as .cpp
+# with the symbols wrapped back to C linkage.
+# func_ov071_02121ba4 is the decl_common.h HEADER_SHADOW case: that header
+# declares it `(void*)` inside its extern "C" block while the TU defines it
+# `(char*)` -- one register on the ROM, C2733 to MSVC. This lane adds the
+# HEADER_SHADOW table entry in tools/hostgen.py.
+set(GATE_W7B_SYMS func_ov071_02121b08 func_ov071_02121ba4)
+set(GATE_W7B_GEN "")
+foreach(sym IN LISTS GATE_W7B_SYMS)
+    if(EXISTS "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.c")
+    else()
+        set(sym_src "${PORT_REPO_ROOT_ABS}/src/${sym}.cpp")
+    endif()
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+        DEPENDS "${sym_src}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND GATE_W7B_GEN "${sym_out}")
+endforeach()
+
 # Gate 177: BULLY (215) + BIG_BULLY (216) + ROTATING_FIREBAR (81), ov064's
 # first mount. No PMF tables; the bullies' D1/D0 and all three Renders are
 # host thunks/copies (the fill and unmatched/ModelAnim_Renders.cpp); the
@@ -3112,6 +3160,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_flame.cpp ${SLICE175_SOURCES}
     hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES} unmatched/Flamethrower_Behavior.c
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
+    hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp unmatched/MrI_StateMains.cpp unmatched/MrI_Render.cpp
     hal/actor_classes_ov064.cpp ${SLICE177_SOURCES} unmatched/Bully_AfterClsn.cpp
     hal/actor_classes_ov064_gate178.cpp ${SLICE178_SOURCES} unmatched/Ov064Gate178_States.cpp
     hal/actor_classes_jrb.cpp ${SLICE188_SOURCES} unmatched/Jrb_Renders.cpp
@@ -3190,6 +3239,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_flame.cpp ${SLICE175_SOURCES}
     hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES} unmatched/Flamethrower_Behavior.c
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
+    hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp unmatched/MrI_StateMains.cpp unmatched/MrI_Render.cpp
     hal/actor_classes_ov064.cpp ${SLICE177_SOURCES} unmatched/Bully_AfterClsn.cpp
     hal/actor_classes_ov064_gate178.cpp ${SLICE178_SOURCES} unmatched/Ov064Gate178_States.cpp
     hal/actor_classes_jrb.cpp ${SLICE188_SOURCES} unmatched/Jrb_Renders.cpp
@@ -3297,6 +3347,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_flame.cpp ${SLICE175_SOURCES}
     hal/actor_classes_flamethrower.cpp ${SLICE_W6F_SOURCES} unmatched/Flamethrower_Behavior.c
     hal/actor_classes_scuttlebug.cpp ${SLICE176_SOURCES} unmatched/Scuttlebug_StateDispatch.cpp
+    hal/actor_classes_ov071.cpp ${SLICE_W7B_SOURCES} ${GATE_W7B_GEN} unmatched/MrI_StateDispatch.cpp unmatched/MrI_StateMains.cpp unmatched/MrI_Render.cpp
     hal/actor_classes_ov064.cpp ${SLICE177_SOURCES} unmatched/Bully_AfterClsn.cpp
     hal/actor_classes_ov064_gate178.cpp ${SLICE178_SOURCES} unmatched/Ov064Gate178_States.cpp
     hal/actor_classes_jrb.cpp ${SLICE188_SOURCES} unmatched/Jrb_Renders.cpp
