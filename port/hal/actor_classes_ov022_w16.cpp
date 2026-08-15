@@ -86,7 +86,7 @@ void __sinit_ov022_02112fe4(void);
 
 void port_ov22_bringup(void);                     /* hal/actor_classes_ov022 */
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry      */
-void port_actor_slot_decline(const char *what);   /* func_02043fdc.cpp       */
+void port_actor_slot_decline(const char *what);   /* func_02043fdc_hostcopy.cpp */
 void port_actor_render_probe(const char *what, char *model);
 
 DSSTATE_BEGIN

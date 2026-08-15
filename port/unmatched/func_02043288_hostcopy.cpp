@@ -1,6 +1,6 @@
 /* HOST COPY of src/func_02043288.c -- the actor BEHAVIOR Process with its
  * three member-function pointers resolved to the vtable slots they name.
- * Same treatment, same reason, as port/unmatched/func_0204335c.cpp (the INIT
+ * Same treatment, same reason, as port/unmatched/func_0204335c_hostcopy.cpp (the INIT
  * Process): MSVC has no representation for an mwcc pointer-to-member, and
  * the port's copies of the three PMF globals are zeroed host storage.
  *

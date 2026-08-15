@@ -10,7 +10,7 @@
  * is the plain nonvirtual { function, 0 } form, so the host reads the first
  * word back as a function taking `this` and ignores the second -- the same
  * treatment the four processing-list walks already have
- * (port/unmatched/func_02043fdc.cpp).
+ * (port/unmatched/func_02043fdc_hostcopy.cpp).
  *
  * TWO THINGS THE HOST NEEDS THAT THE ROM DOES NOT.
  *

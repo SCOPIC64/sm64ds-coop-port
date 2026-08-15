@@ -206,7 +206,7 @@ static int __fastcall ac_kill(void *s, void *)
 
    The cost of the trap was not a diagnostic: a trapped slot RAISES, the
    quarantine net catches it, and the actor is frozen for the rest of the level
-   (unmatched/func_02043fdc.cpp). Actor::OnTurnIntoEgg is a tail-call veneer to
+   (unmatched/func_02043fdc_hostcopy.cpp). Actor::OnTurnIntoEgg is a tail-call veneer to
    KillAndTrackInDeathTable, so what the ROM does when Yoshi swallows one of
    these is kill it AND track it so it comes back. Trapping the slot turned a
    respawnable death into a permanent freeze -- the rabbit that never returns. */
@@ -215,7 +215,7 @@ extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
 /* per-actor decline: quarantine this one actor (freeze) instead of aborting the
-   whole process, unless SM64DS_FAULTS_FATAL. port/unmatched/func_02043fdc.cpp
+   whole process, unless SM64DS_FAULTS_FATAL. port/unmatched/func_02043fdc_hostcopy.cpp
    The _for form NAMES the actor, which is what makes the freeze land on the
    receiver rather than on whoever was being walked when the slot dispatched. */
 void port_actor_slot_decline(const char *what);

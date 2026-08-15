@@ -309,7 +309,7 @@ DSSTATE_END
    It is the same address as _ZN5EnemyC2Ev, but the source calls it with no
    argument and relies on the r0 ride-through, so an alias would hand the
    constructor stack garbage for `this`. That factory is a host copy instead --
-   port/unmatched/ChainChomp_Spawn.cpp says what the measurement was. */
+   port/unmatched/ChainChomp_Spawn_hostcopy.cpp says what the measurement was. */
 #pragma comment(linker, "/alternatename:_data_ov034_021147ec=__ZTV10ChainChomp")
 #pragma comment(linker, "/alternatename:?data_ov021_021149b8@@3PAHA=_data_ov014_021149b8")
 #pragma comment(linker, "/alternatename:_data_ov021_021149c0=_data_ov014_021149c0")

@@ -134,7 +134,7 @@ static LONG WINAPI port_fault_probe(EXCEPTION_POINTERS *ep)
    handled -- which is the precise definition of the crash worth reporting.
    A quarantined fault is not a crash and must not be filed as one; it already
    files its own rolling dump, tagged "quarantine", from the quarantine filter
-   itself (port/unmatched/func_02043fdc.cpp).
+   itself (port/unmatched/func_02043fdc_hostcopy.cpp).
 
    STATUS_STACK_BUFFER_OVERRUN (0xC0000409 via __fastfail/int 29h) never raises
    a catchable exception on modern CPUs; if crash.txt stays absent across a
@@ -222,7 +222,7 @@ extern int port_last_frame;
 #endif
 
 /* Non-zero only while a test harness is deliberately raising a fault it means
-   to catch: port/unmatched/func_02043fdc.cpp's SM64DS_TEST_QUARANTINE hook,
+   to catch: port/unmatched/func_02043fdc_hostcopy.cpp's SM64DS_TEST_QUARANTINE hook,
    which exists only in a PORT_TEST_HOOKS build. port_crash_write_file below
    writes nothing while it is set -- see the note there for why suppressing
    beats tagging. The definition is deliberately a duplicate of the one in that
@@ -547,7 +547,7 @@ static void port_crash_write_file(EXCEPTION_POINTERS *ep)
     static char buf[2048];
     static volatile LONG once;
     /* A SYNTHETIC FAULT IS NOT A CRASH REPORT. port_fault_synthetic is set only
-       while the SM64DS_TEST_QUARANTINE hook (port/unmatched/func_02043fdc.cpp,
+       while the SM64DS_TEST_QUARANTINE hook (port/unmatched/func_02043fdc_hostcopy.cpp,
        and only in a PORT_TEST_HOOKS build) is deliberately raising an access
        violation it intends to catch. Writing for it would cost real evidence
        twice over: it would spend the one-shot `once` latch below, so the crash
@@ -937,7 +937,7 @@ static void port_install_watchdog(void)
 }
 
 /* ---- external seams for the quarantine walker -----------------------------
-   port/unmatched/func_02043fdc.cpp catches per-actor faults but must not
+   port/unmatched/func_02043fdc_hostcopy.cpp catches per-actor faults but must not
    include this header (it would pull the VEH/detour installers into a plain-C
    actor TU). The one TU that installs the probe (walk_window) defines
    PORT_FAULT_PROBE_DEFINE_EXPORTS before including, which emits these two

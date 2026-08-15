@@ -98,7 +98,7 @@
 /* IsBadReadPtr, for the two places here that have to read an actor whose
    pointer may already be torn (port_level_name_survivors on the decline path
    and the scene-tree drop). It is the same guard port_q_is_frozen and
-   port_q_actor_id in port/unmatched/func_02043fdc.cpp have carried since
+   port_q_actor_id in port/unmatched/func_02043fdc_hostcopy.cpp have carried since
    playlog 041729, and this file needs it for the same reason. */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -124,7 +124,7 @@ extern unsigned char data_020758c8[];   /* level -> overlay id */
 /* the engine pieces the change drives */
 void _ZN9ActorBase18MarkForDestructionEv(void *self);
 void port_actor_tick(void);
-void port_quarantine_reset(void);   /* port/unmatched/func_02043fdc.cpp: clear
+void port_quarantine_reset(void);   /* port/unmatched/func_02043fdc_hostcopy.cpp: clear
                                        the per-actor fault freeze set */
 int  port_quarantine_frozen_count(void);  /* same TU: how many actors
                                        the instance freeze set holds, so the

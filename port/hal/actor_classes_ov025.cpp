@@ -110,7 +110,7 @@ extern int data_ov025_02113ab8[];   /* model file 1503 */
 extern int data_ov025_02113ab0[];   /* collision file 1504 */
 
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
-void port_actor_slot_decline(const char *what);   /* func_02043fdc.cpp */
+void port_actor_slot_decline(const char *what);   /* func_02043fdc_hostcopy.cpp */
 void port_actor_render_probe(const char *cls, void *model); /* hal/actor_classes */
 void hal_fill_platform_vtable(void);              /* hal/actor_classes.cpp */
 

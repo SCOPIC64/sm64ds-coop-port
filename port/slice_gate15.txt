@@ -15,7 +15,7 @@
 # a thin deck: the "swept" segment never swept.
 #
 # Everything here is MATCHED in src except the Process wrapper itself, which
-# stages three mwcc pointer-to-member-functions (port/unmatched/func_02043288.cpp,
+# stages three mwcc pointer-to-member-functions (port/unmatched/func_02043288_hostcopy.cpp,
 # the func_0204335c treatment).
 
 # ---- the spine

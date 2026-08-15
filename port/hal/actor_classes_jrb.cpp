@@ -125,7 +125,7 @@ int _ZN5Actor16OnAimedAtWithEggEv(void *self);               /* slot 29 (Actor's
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
-void port_actor_slot_decline(const char *what);   /* func_02043fdc.cpp */
+void port_actor_slot_decline(const char *what);   /* func_02043fdc_hostcopy.cpp */
 void port_actor_render_probe(const char *cls, void *model); /* actor_classes */
 
 /* ---- UNAGI (242) own bodies. Render + D1/D0 stay in the slice. -------------

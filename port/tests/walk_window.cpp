@@ -282,7 +282,7 @@ static bool winapi_load(void)
 
 /* walk_window is the one TU that installs the crash probe, so it also emits the
    external seams (port_rich_dump_ex, port_crash_dir_get) the quarantine walker
-   in port/unmatched/func_02043fdc.cpp weak-links against. */
+   in port/unmatched/func_02043fdc_hostcopy.cpp weak-links against. */
 #define PORT_FAULT_PROBE_DEFINE_EXPORTS
 #include "fault_probe.h"
 #include "overlay_font.h"

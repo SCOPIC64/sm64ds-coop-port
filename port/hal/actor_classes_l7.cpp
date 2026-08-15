@@ -49,7 +49,7 @@ void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p);       /* 19 */
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
-  void port_actor_slot_decline(const char *what);  /* func_02043fdc.cpp: per-actor decline */
+  void port_actor_slot_decline(const char *what);  /* func_02043fdc_hostcopy.cpp */
 void port_actor_render_probe(const char *cls, void *model); /* actor_classes */
 void hal_fill_platform_vtable(void);              /* the dBgActor_c base table */
 void port_enemy_death_states_seat(void);          /* the Enemy death table */

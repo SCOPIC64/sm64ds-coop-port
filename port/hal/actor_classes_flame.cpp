@@ -59,7 +59,7 @@ int _ZN5Actor16OnAimedAtWithEggEv(void *self);               /* slot 29 */
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
-  void port_actor_slot_decline(const char *what);  /* func_02043fdc.cpp: per-actor decline */
+  void port_actor_slot_decline(const char *what);  /* func_02043fdc_hostcopy.cpp */
 
 /* BlueFlame's own C-linkage bodies (matched src, slice_gate175.txt) */
 int _ZN9BlueFlame13InitResourcesEv(char *t);      /* slot 0  */

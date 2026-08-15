@@ -637,7 +637,7 @@ void *_Znwj(unsigned size) { return func_0203cc0c(size); }
    port has been ruling on this exact veneer shape since gate 24: the same
    finding is written out in slice_gate24.txt and slice_gate31.txt for
    func_0203cbc0, the OTHER ROM veneer onto _ZdlPv, which is hosted in
-   unmatched/func_02073244.c for the same reason.
+   unmatched/func_02073244_hostcopy.c for the same reason.
 
    THE ROUTE ENDS IN THE ROM'S HEAP, checked rather than assumed, and it is
    NOT the ROM's hop sequence. The ROM goes _ZdlPv -> defaultHeapPtr

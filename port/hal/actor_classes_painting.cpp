@@ -64,7 +64,7 @@ void _ZN5Actor16OnAimedAtWithEggEv(void *self);            /* slot 29 */
 extern int data_02099f24[];               /* the frame phase */
 extern unsigned char data_020a4b4c;       /* the spawn spine's own step */
 const char *port_actor_class_name(unsigned id);
-  void port_actor_slot_decline(const char *what);  /* func_02043fdc.cpp: per-actor decline */
+  void port_actor_slot_decline(const char *what);  /* func_02043fdc_hostcopy.cpp */
 void port_actor_render_probe(const char *cls, void *model);
 
 /* the painting's seven own methods, C faces in their own TUs */

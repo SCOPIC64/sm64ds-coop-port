@@ -461,10 +461,13 @@ def main():
     #     and unmatched/ moves those twelve into CANDIDATE, reading as "a
     #     linked caller references it, compile it in" -- and compiling any of
     #     them in is a duplicate symbol against the ntr layer.
-    #   * port/unmatched/func_0204322c.cpp is a HOST file whose stem is also a
-    #     matched TU, so a name-based rule reads it as the decompiled TU. That
+    #   * port/unmatched/func_0204322c.cpp was a HOST file whose stem was also
+    #     a matched TU, so a name-based rule read it as the decompiled TU. That
     #     is the over-claim objsrc_check.py exists for, and here it would hide
-    #     a real shadow instead of inventing a fake candidate.
+    #     a real shadow instead of inventing a fake candidate. The eighteen
+    #     files of that shape now carry a `_hostcopy` suffix, so no host stem
+    #     collides with a matched TU today. The build.ninja route below is what
+    #     keeps that true without depending on the naming convention holding.
     #
     # build.ninja carries each object's real source path and is generated from
     # the same CMakeLists the link uses, so it settles both.

@@ -373,7 +373,7 @@ src/func_ov074_0212087c.c
 # r0 and the constructor wants `this` there. MSVC passes nothing, so the
 # constructor read the frame and ActorBase faulted on 0x000000db -- the actor
 # id in the spawn spine's stack slot. Host copy in
-# port/unmatched/ChainChomp_Spawn.cpp.
+# port/unmatched/ChainChomp_Spawn_hostcopy.cpp.
 src/_ZN10ChainChomp13InitResourcesEv.cpp
 src/_ZN10ChainChomp8BehaviorEv.cpp
 # _ZN10ChainChomp6RenderEv IS NOT HERE: the ModelAnim slot-5 case, and the
@@ -702,7 +702,7 @@ src/func_0200fa04.c
 src/_ZN5Sound13Func_02048eb4Ev.cpp
 src/func_02048f14.c
 src/_ZN9ModelAnimD2Ev.c
-# src/func_0203cbc0.c is HOSTED in port/unmatched/func_02073244.c, which
+# src/func_0203cbc0.c is HOSTED in port/unmatched/func_02073244_hostcopy.c, which
 # defines it beside func_02073244. Its ROM form is `void func_0203cbc0(void)`
 # calling _ZdlPv() with no argument -- right on ARM, where the pointer is
 # already in r0, and wrong under cdecl, where the callee reads the stack for

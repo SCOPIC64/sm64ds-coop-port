@@ -116,7 +116,7 @@ void *MegaMushroomCreateTag_Spawn(void);
 void *MegaMushroomTag_Spawn(void);
 
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
-void port_actor_slot_decline(const char *what);   /* func_02043fdc.cpp */
+void port_actor_slot_decline(const char *what);   /* func_02043fdc_hostcopy.cpp */
 
 DSSTATE_BEGIN
 void *_ZTV21MegaMushroomCreateTag[31];

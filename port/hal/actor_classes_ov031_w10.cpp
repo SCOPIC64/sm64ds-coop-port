@@ -132,7 +132,7 @@ void _ZN5ModelD1Ev(void *self);
 void *_ZN5ActorD2Ev(void *self);
 
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
-void port_actor_slot_decline(const char *what);   /* func_02043fdc.cpp */
+void port_actor_slot_decline(const char *what);   /* func_02043fdc_hostcopy.cpp */
 
 /* the generated ov031 per-symbol mount (build/port/host-src/ov031_syms.c) */
 void port_ov031_pack_check(void);

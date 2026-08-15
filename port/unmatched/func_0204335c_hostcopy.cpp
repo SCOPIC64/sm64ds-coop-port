@@ -11,7 +11,7 @@
  * three slots of every actor vtable, in the group order the vtable itself
  * uses. MSVC has no representation for an mwcc PMF and the addresses inside
  * them are ARM code anyway, so the port takes the same route the camera's
- * state dispatch took (port/unmatched/func_0200ca50.cpp): read the slots
+ * state dispatch took (port/unmatched/func_0200ca50_hostcopy.cpp): read the slots
  * directly.
  *
  * The control flow is Process's, unchanged:

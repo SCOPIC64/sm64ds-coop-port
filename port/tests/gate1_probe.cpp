@@ -3,7 +3,7 @@
 
    latch_probe.cpp proves the latch mechanism with a bare __try/__except stand-
    in. This one removes the stand-in. It links the REAL quarantine translation
-   unit (port/unmatched/func_02043fdc.cpp) and drives the REAL list walker
+   unit (port/unmatched/func_02043fdc_hostcopy.cpp) and drives the REAL list walker
    func_02043fdc, whose port_dispatch_guarded wraps each actor tick in the
    __try/__except that actually ships, and it raises the fault through the REAL
    entry point port_actor_slot_decline_for -- the same call an unhosted vtable
@@ -38,7 +38,7 @@
 
    Build (32-bit, matching the shipped exe):
      cl /nologo /EHa /O2 /Fe:gate1_probe.exe port/tests/gate1_probe.cpp \
-        port/unmatched/func_02043fdc.cpp /I port/tests /link /SUBSYSTEM:CONSOLE
+        port/unmatched/func_02043fdc_hostcopy.cpp /I port/tests /link /SUBSYSTEM:CONSOLE
 */
 
 #include <stdio.h>
@@ -57,7 +57,7 @@ int port_quarantine_is_frozen(void *actor);
    symbol `int []` (it stores the node pointer into element 0). The two agree
    in memory and disagree in C++ type, so they cannot both be visible in one
    TU. The shipped build never hits this because walk_window.cpp includes the
-   header and func_02043fdc.cpp does not. A separate plain-C TU keeps the rig
+   header and func_02043fdc_hostcopy.cpp does not. A separate plain-C TU keeps the rig
    in the same position. */
 
 /* One "actor". The walker only ever hands this pointer back to the callback

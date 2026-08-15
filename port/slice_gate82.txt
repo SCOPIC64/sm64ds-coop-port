@@ -28,7 +28,7 @@
 # link from the Platform-subclass gates. The HAL seam is
 # hal/actor_classes_bob_world.cpp (the ShutterBob section) and its vtable fill.
 #
-# ShutterBob_Spawn is a HOST COPY (port/unmatched/ShutterBob_Spawn.cpp), added
+# ShutterBob_Spawn is a HOST COPY (port/unmatched/ShutterBob_Spawn_hostcopy.cpp), added
 # in CMakeLists rather than here: the shared-header recovery emitted the
 # factory's two vtable stores in pool order, so the base table won and the
 # object came up with no ShutterBob::InitResources in slot 0 -- a null call in

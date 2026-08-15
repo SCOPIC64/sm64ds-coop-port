@@ -149,14 +149,17 @@ THE WORKABLE SET, READ ONE BY ONE
 SHADOW (0). There were three, and all three turned out to be untagged
 documented exceptions rather than work:
 
-    func_0203cbc0   port/unmatched/func_02073244.c    ARM ride-through: src
-                    spells it `void func_0203cbc0(void)` calling `_ZdlPv()`
-                    with no argument, correct on ARM where the pointer is
+    func_0203cbc0   port/unmatched/func_02073244_hostcopy.c
+                    ARM ride-through: src spells it `void
+                    func_0203cbc0(void)` calling `_ZdlPv()` with no
+                    argument, correct on ARM where the pointer is
                     already in r0.
-    func_020432e4   port/unmatched/func_0204322c.cpp  mwcc pointer-to-member:
-                    ActorBase::Process called with three PMFs.
-    func_020441cc   port/unmatched/func_02043fdc.cpp  mwcc pointer-to-member:
-                    the list head carries its callback as a PMF pair.
+    func_020432e4   port/unmatched/func_0204322c_hostcopy.cpp
+                    mwcc pointer-to-member: ActorBase::Process called
+                    with three PMFs.
+    func_020441cc   port/unmatched/func_02043fdc_hostcopy.cpp
+                    mwcc pointer-to-member: the list head carries its
+                    callback as a PMF pair.
 
 Each host file already explained itself in its header comment; none carried a
 PORT_HOST_ABI tag on the definition, which is the only place linkage.py's tag
@@ -242,9 +245,9 @@ promising eight in the bucket and they belong in an actors-lane pass, not here.
 A HEADLINE OVER-CLAIM, FOUND ON THE WAY
 ---------------------------------------
 
-An MSVC /MAP names an object by BASENAME only. CMake keeps src/func_02043fdc.cpp
-and port/unmatched/func_02043fdc.cpp in different object directories; the map
-keeps no trace of that. linkage.py counts a matched TU as linked when an object
+An MSVC /MAP names an object by BASENAME only. CMake kept
+src/func_02043fdc.cpp and port/unmatched/func_02043fdc.cpp in different
+object directories; the map keeps no trace of that. linkage.py counts a matched TU as linked when an object
 of its stem appears in the map, so for those files it counts the HOST STAND-IN
 as decompiled code reaching the game while src/ is not in the binary at all.
 The same collision hides them from the replacement queue, which decides "is

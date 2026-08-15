@@ -2,7 +2,7 @@
    by hand (see the report) to answer one question:
 
    Does an exception that is CAUGHT AND HANDLED -- exactly what the per-actor
-   quarantine in port/unmatched/func_02043fdc.cpp does on every frozen actor --
+   quarantine in port/unmatched/func_02043fdc_hostcopy.cpp does on every frozen actor --
    burn port_crash_write_file's one-shot `once` latch, so that a LATER genuinely
    fatal crash writes no crash.txt and no rolling dump?
 

@@ -60,7 +60,7 @@ int *func_ov002_020bc444(int *self);   /* slot 17 D0 */
 void *Seaweed_Spawn(void);
 
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
-void port_actor_slot_decline(const char *what);   /* func_02043fdc.cpp  */
+void port_actor_slot_decline(const char *what);   /* func_02043fdc_hostcopy.cpp  */
 void port_actor_render_probe(const char *what, char *model);
 
 DSSTATE_BEGIN

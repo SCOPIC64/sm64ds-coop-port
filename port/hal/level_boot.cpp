@@ -2560,7 +2560,7 @@ static int __fastcall ps_aimed(void *s, void *)
 
 /* SLOT 28 ONLY, and the distinction matters to a player. ps_trap below
    abort()s, which takes the process down. The actor tables instead RAISE,
-   through port_actor_slot_decline (port/unmatched/func_02043fdc.cpp), and
+   through port_actor_slot_decline (port/unmatched/func_02043fdc_hostcopy.cpp), and
    port_dispatch_guarded's __except catches that: the actor freezes, a dump is
    filed, the level keeps running. Slot 28 wants the second behaviour, because
    an abort here would be a REGRESSION against what players already survive.

@@ -1,7 +1,7 @@
 /* HOST COPY of src/CollectStar.c -- the same two writes, with the course id
  * taken at the width its only caller declares.
  *
- * THE SAME ABI RIDE-THROUGH port/unmatched/NumStars.cpp documents, and the
+ * THE SAME ABI RIDE-THROUGH port/unmatched/NumStars_hostcopy.cpp documents, and the
  * WRITE half of it. Two TUs, two opinions:
  *
  *   src/CollectStarInLevel.c   extern void CollectStar(s8 courseID, s32);

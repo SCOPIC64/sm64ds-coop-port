@@ -106,7 +106,7 @@ int _ZN5Actor16OnAimedAtWithEggEv(void *self);                     /* 29  */
 void _ZN8Platform4KillEv(void *self);                              /* 31  */
 
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
-void port_actor_slot_decline(const char *what);   /* func_02043fdc.cpp */
+void port_actor_slot_decline(const char *what);   /* func_02043fdc_hostcopy.cpp */
 void port_actor_render_probe(const char *cls, void *model); /* actor_classes */
 
 /* the generated ov063 per-symbol mount (build/host-src/ov063_syms.c) */

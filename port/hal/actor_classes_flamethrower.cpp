@@ -126,7 +126,7 @@ int _ZN5Actor16OnAimedAtWithEggEv(void *self);               /* slot 29 */
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
-void port_actor_slot_decline(const char *what);   /* func_02043fdc.cpp */
+void port_actor_slot_decline(const char *what);   /* func_02043fdc_hostcopy.cpp */
 
 /* Flamethrower's own bodies. InitResources is a real C++ method against
    include/Flamethrower.h (matched src, slice_w6f.txt) and is called qualified

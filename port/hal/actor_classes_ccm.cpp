@@ -62,7 +62,7 @@ void *_ZN5ActorD2Ev(void *self);                             /* slot 16 tail */
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
-  void port_actor_slot_decline(const char *what);  /* func_02043fdc.cpp: per-actor decline */
+  void port_actor_slot_decline(const char *what);  /* func_02043fdc_hostcopy.cpp */
 
 /* The class's own two matched methods (ov019). */
 int _ZN15IceSlideManager13InitResourcesEv(void *self);       /* 0x0211271c */

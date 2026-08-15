@@ -95,7 +95,7 @@ void _ZN8Particle14SimpleCallback14SpawnParticlesERNS_6SystemE(void *self,
    pointer has to survive the hop. This one never crashed because nothing has
    torn a level down yet -- it would have freed whatever was in r0.
 
-   THE DEFINITION LIVES IN unmatched/func_02073244.c: gate 31 hosted the
+   THE DEFINITION LIVES IN unmatched/func_02073244_hostcopy.c: gate 31 hosted the
    same veneer for the Player's array-delete pair, identically, and the
    particles merge made the pair the fifteenth collision. The linker layer
    caught it, per the table. */
