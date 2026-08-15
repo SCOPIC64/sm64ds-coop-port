@@ -48,11 +48,15 @@ static int port_actor_process(void *self, int main_, int before, int after)
     return r;
 }
 
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch: src calls ActorBase::Process
+ * with three PMFs MSVC has no representation for. See the header. */
 int func_0204322c(void *self)
 {
     return port_actor_process(self, 9, 10, 11);
 }
 
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch: src calls ActorBase::Process
+ * with three PMFs MSVC has no representation for. See the header. */
 int func_020432e4(void *self)
 {
     unsigned short id = *(unsigned short *)((char *)self + 0xc);

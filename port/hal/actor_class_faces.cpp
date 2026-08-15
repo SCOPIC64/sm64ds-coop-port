@@ -66,6 +66,16 @@ struct Actor {
     void UpdatePosWithHorzSpeedAndAng();
     short ReflectAngle(int a, int b, short c);
     int DistToCPlayer();          /* gate 42: PeachPainting::Behavior */
+    /* DECLARED AND NOT DEFINED, unlike the four above, and the difference is
+       the whole point. Those four forward the other way, MSVC method onto a C
+       name. This one is resolved BY THE MATCHED TU:
+       src/_ZN5Actor17TrackInDeathTableEv.cpp compiles
+       ?TrackInDeathTable@Actor@@QAEXXZ, so a definition here would be a
+       duplicate symbol rather than a bridge. The empty-bodied members differ
+       in layout from that TU's Actor and it does not matter -- MSVC mangles a
+       method by name and signature, and a non-virtual call on a single class
+       passes `this` unadjusted. */
+    void TrackInDeathTable();
 };
 void Actor::UpdatePos(CylinderClsn *clsn)
 { _ZN5Actor9UpdatePosEP12CylinderClsn(this, clsn); }
@@ -144,10 +154,21 @@ extern "C" void *MeshColliderLoadFile(void *ptr)
 
 /* ?TrackInDeathTable@Actor@@QAEXXZ -- the 1-up's collect path. Its own TU
    defines it as a method over a locally-declared Actor; the C-name reference
-   comes from a sibling .c. */
-extern "C" void DeathTable_SetBit(int id);
+   comes from a sibling .c.
+
+   THIS USED TO RESTATE THE BODY rather than call it:
+
+       { DeathTable_SetBit(*(short *)((char *)self + 0xce)); }
+
+   which is exactly what src/_ZN5Actor17TrackInDeathTableEv.cpp does, that TU
+   spelling the same 0xce as a named `deathTableId` field. Both were linked, so
+   the linkage count read this symbol as decompiled code reaching the game
+   while the code that actually ran was the line above. It was the only one of
+   the 210 faces the wave-C adjudication found doing that
+   (port/faces_adjudicated.txt); the rest were already real bridges. Now it is
+   one too, and the matched body is what runs. */
 extern "C" void _ZN5Actor17TrackInDeathTableEv(void *self)
-{ DeathTable_SetBit(*(short *)((char *)self + 0xce)); }
+{ ((Actor *)self)->Actor::TrackInDeathTable(); }
 
 /* ?InitCuboid@ShadowModel@@QAEXXZ IS GONE FROM THIS FILE (run linkw wave 3,
    lane w3-a). It used to be a local `struct ShadowModel { void InitCuboid(); }`

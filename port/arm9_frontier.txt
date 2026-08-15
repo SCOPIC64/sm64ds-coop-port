@@ -1,0 +1,308 @@
+ARM9 LINKAGE FRONTIER -- what stands between the port and the other 1450
+========================================================================
+
+Run linkw wave C, lane cat-arm9. Measured on the tree this file ships in,
+at the lane baseline commit 459f21a07, against the gate manifest at
+build/port/gate_manifest.json:
+
+    linkage headline   4888 / 11243 linked (43.5%)
+    arm9               3098 matched TUs, 1648 linked, 1450 unlinked (53.2%)
+    battery            ALL GREEN
+    gate verdict       GREEN
+
+Reproduce any number below with
+
+    python port/tools/cat_arm9_survey.py [--roots] [--list BUCKET]
+    python port/tools/objsrc_check.py
+
+Both root at the checkout they live in, not at the current directory.
+
+
+THE SHORT VERSION
+-----------------
+
+arm9's 1450 unlinked TUs are not 1450 problems. 58% of them sit downstream of
+SIX functions, and five of those six are SCENE-CLASS VTABLE SLOTS: the ROM's
+scene manager constructs a Scene subclass and dispatches InitResources and
+Behavior through its table, and the port never constructs one. The sixth is
+Entry, the CRT0, which walk_window's own entry replaces. The workable set --
+TUs a lane could seat this week without changing what the port boots -- is
+FIFTY-SIX, and reading them one by one, almost all are blocked on something
+other than effort.
+
+There is no batch of easy arm9 links available at this baseline. Saying so with
+the evidence attached is this lane's result. Manufacturing the links would have
+meant writing callers the ROM does not have, which is the exact failure this
+campaign exists to prevent.
+
+
+THE BUCKETS
+-----------
+
+Every unlinked arm9 TU falls in exactly one, tested in this order. The columns
+reconcile with the headline above on purpose.
+
+    SHADOW          0    a host file defines the symbol, the matched TU is not
+                         in the binary, and no PORT_HOST_ABI tag rules it an
+                         exception. This is the replacement work list, and for
+                         arm9 it is now empty -- see THE THREE SHADOWS below.
+    DROPPED        52    offered to the linker (named in a slice_*.txt or a
+                         CMakeLists symbol set) and dropped by /OPT:REF for
+                         want of a reference edge.
+    CANDIDATE       4    never offered, but a LINKED TU references its ROM
+                         function. The edge exists; the object does not.
+    TABLE-ONLY    124    never offered, no call reloc reaches it, and a data
+                         word does. A vtable or dispatch-table slot.
+    UNREACHED     999    never offered, has ROM callers, none of them linked.
+    OV-ONLY       136    never offered, and every ROM caller lives in a module
+                         the port does not mount.
+    ORPHAN         26    never offered, no call reloc and no arm9 table word
+                         reaches it.
+    EXCEPTION     109    a documented host-ABI exception: an ARM asm primitive,
+                         a register ride-through, an mwcc pointer-to-member
+                         dispatch, or a poke of DS hardware the ntr layer does
+                         not model. Not work.
+
+    TOTAL        1450
+
+
+HOW REACHABILITY IS DERIVED, AND ITS ONE LIMIT
+----------------------------------------------
+
+Callers come from config/*/relocs.txt. delinks.txt cuts arm9 one function per
+file, so every call between two functions crosses a file boundary and the
+delinker recorded it. That is the ROM's real call graph.
+
+It holds only CODE relocations, though: all 13891 arm9 rows are an arm_call or
+a PC-relative load, and not one is a data word, because arm9 is not relocated
+at runtime and a vtable's slots are plain absolute addresses in .data. Read
+alone it answers "nothing references it" for every method reached only through
+a vtable. So the survey also scans arm9's own .data/.rodata for words landing
+on a function's first byte -- 425 arm9 functions are reached that way and no
+other. .exception and .exceptix are excluded: a function is listed there
+because it has a cleanup range, not because anything reaches it, and left in
+they hand 53 functions a caller that does not exist.
+
+THE LIMIT. "A linked TU references it in the ROM" is proof the ROM makes the
+call. It is NOT proof the port's copy of that caller still makes it -- the host
+build may reach the same point through a host body. Every CANDIDATE row is a
+hypothesis until it is compiled and the map is read.
+
+
+THE FRONTIER: 394 ROOTS, AND SIX THAT MATTER
+--------------------------------------------
+
+A root is an unlinked arm9 TU with no unlinked caller of its own. Pushing
+anywhere else is wasted -- the linker drops a TU whose caller it also dropped.
+There are 394. Sorted by how many unlinked arm9 TUs become transitively
+reachable if the root links:
+
+     737  Entry                    0x02004800  the CRT0 entry point, hand-asm
+     531  func_0203506c            0x0203506c  dScMB_c_InitResources, in the
+                                               scene vtable data_020943c4
+     528  func_02005a58            0x02005a58  dScBoot_c_InitResources, in the
+                                               scene vtable data_02091528
+     483  func_02030b58            0x02030b58  in the callback table
+                                               data_020927ec
+     479  func_02030c38            0x02030c38  same table
+     182  _ZN5Stage8BehaviorEv                 _ZTV5Stage
+     162  func_02034da4            0x02034da4  dScMB_c_Behavior, data_020943c4
+     146  _ZN5Stage13InitResourcesEv           _ZTV5Stage
+      89  func_02005418            0x02005418  dScBoot_c_Behavior,
+                                               data_02091528
+      88  _ZN5Stage16CleanupResourcesEv        _ZTV5Stage
+      80  func_0202deac            0x0202deac
+      71  _ZN5Stage6RenderEv                   _ZTV5Stage
+      68  func_02017e94            0x02017e94
+      54  LoadFont3D
+      50  func_0201817c
+      47  _ZN13SharedFilePtr4LoadEv
+
+The union of the top six covers 835 of the 1450 -- 58%.
+
+Read the mechanism column and the answer to "why is arm9 only 53% linked" stops
+being a matching question. Eleven of the top sixteen are a VTABLE SLOT ON AN
+OBJECT THE PORT NEVER CONSTRUCTS. data_02091528 and data_020943c4 are two
+Scene-derived class tables, eighteen-plus slots each sharing the Scene base
+virtuals; the ROM's scene manager builds the scene and dispatches
+InitResources, Behavior, Render and the eight Before/After hooks through them.
+The port builds no Scene at all. _ZTV5Stage is the same story one level down:
+walk_window.cpp drives a host frame loop that calls into the pieces, and
+hal/w8a_stage_faces.cpp plus hal/level_boot.cpp stand in for the Stage the ROM
+would have built.
+
+So the arm9 mass is not blocked on missing call edges. It is blocked on two
+objects nobody constructs, and no amount of per-TU seating reaches it. The
+Stage slots are the nearest edge: all four are already COMPILED (they sit in
+DROPPED, offered and dropped for want of a reference) and their ROM home is a
+table the port already hosts. Seating them is a linkage change of ~490 TUs and
+a behaviour change to everything the port boots, in that order of importance.
+
+Entry is the one root in the top six that is genuinely closed rather than
+deferred: src/Entry.c is a banner-tagged hand-asm primitive, the CRT0 that
+disables IME and switches CPSR mode, and a host process enters at WinMain.
+
+
+THE WORKABLE SET, READ ONE BY ONE
+---------------------------------
+
+SHADOW (0). There were three, and all three turned out to be untagged
+documented exceptions rather than work:
+
+    func_0203cbc0   port/unmatched/func_02073244.c    ARM ride-through: src
+                    spells it `void func_0203cbc0(void)` calling `_ZdlPv()`
+                    with no argument, correct on ARM where the pointer is
+                    already in r0.
+    func_020432e4   port/unmatched/func_0204322c.cpp  mwcc pointer-to-member:
+                    ActorBase::Process called with three PMFs.
+    func_020441cc   port/unmatched/func_02043fdc.cpp  mwcc pointer-to-member:
+                    the list head carries its callback as a PMF pair.
+
+Each host file already explained itself in its header comment; none carried a
+PORT_HOST_ABI tag on the definition, which is the only place linkage.py's tag
+reader looks. This lane added the four tags (the three above plus func_02042ffc
+in port/unmatched/ActorDerived_Spawn.cpp). Comments only, no behaviour change,
+no link change. The tag is a ruling about the SOURCE, so the survey reads tags
+from host sources directly rather than from the map -- func_02042ffc is the
+case that forced that: MSVC folds its body into the one-line wrapper above it,
+so no symbol of that name reaches the map at all.
+
+CANDIDATE (4). All four have a linked ROM caller and none is work:
+
+    _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3
+        port/unmatched/ModelComponents_Render.cpp is a documented host
+        reimplementation. src calls the material bind as `func_02044b30(this)`
+        and lets the material index ride to the callee in r1.
+    func_02073300
+        an asm hatch -- a reverse destructor loop with an MSL exception frame.
+        There is no C to compile.
+    _ZN13SharedFilePtr19ReallocateModelFileEv
+        hal/gx_upload_bridge.cpp hosts it as an empty body on the true
+        observation that the reallocation is a DS heap shrink. See the note in
+        hal/cxxname_bridge.cpp.
+    _ZN5Sound21UnsetPlayerVoiceGroupEv
+        hal/auto_bss.cpp hosts an empty stub; the caller EndKuppaScript is
+        linked but reaches the MSVC-namespace mangling, not the ROM C name.
+
+DROPPED (52). Compiled and dropped for want of a reference edge. By what
+would have to change for the edge to exist:
+
+    38   every ROM caller is itself unlinked -- downstream of the spine above.
+     8   a vtable slot with no call reloc: four are _ZTV5Stage (InitResources,
+         BeforeInitResources, D0, D2), plus Stage::OnPendingDestroy,
+         Stage::GraphCallback1, CommonModel::D0 and CapEnemy::D2.
+     5   the ROM caller's port body is a host stand-in that open-codes the
+         call, and in each case the stand-in exists BECAUSE of an ABI break:
+         func_02017e48 (SharedFilePtr::Construct's r1 ride-through, excluded on
+         purpose in slice_gate3b.txt), func_0201a03c (reached from the ROM's
+         Crash and main, both replaced by the host), func_0203ad6c (the whole
+         body of PathPtr::FromID's two-word struct return -- the ride-through
+         itself), _ZN4cstd10fdiv_asyncE5Fix12IiE5Fix12IiE (a thin wrapper over
+         the DS hardware divider) and
+         _ZN9ActorBase7ProcessEMS_FivEMS_FbvEMS_FvjE (the PMF dispatch).
+     1   _ZN4Heap11_DeallocateEPv has a linked caller, _ZdlPv, and is itself an
+         ARM tail-call veneer -- `void _Deallocate(void)` branching to
+         Deallocate with the arguments riding in registers. The MSVC-method
+         face in hal/cxx_aliases.cpp is the correct stand-in. Retiring the face
+         in favour of the matched body is not possible: the matched body cannot
+         take its arguments.
+
+CommonModel::D0 is the one row here that is a real seating decision rather
+than an ABI wall, and it is already answered in the negative in
+hal/actor_classes_bob_world.cpp: the ROM table is {D1, D0, DoSetFile} and the
+host fill puts DoSetFile in slot 1 so MSVC-numbered callers (which see a folded
+destructor slot) land on it. Seating the real D0 there breaks those callers.
+The file says so; this lane agrees and did not touch it.
+
+
+TABLE-ONLY (124), PROBED
+------------------------
+
+A TABLE-ONLY TU can only be reached by seating it in a table the port hosts, so
+the first question is how many of the tables are hosted at all. Thirty of the
+124 are; the other 94 name a ROM table with no counterpart in the binary and
+have nowhere to be seated until somebody mounts one.
+
+Of the thirty, twenty-two are DESTRUCTOR PAIRS -- D0 and D1 of ShadowModel,
+ActorDerived, View, ActorBase, ModelBase, and the three Animation thunk tables.
+That is the MSVC dtor fold head-on: mwcc emits two destructor slots and MSVC
+folds them into one, so a host table that keeps ROM byte order has a slot the
+matched D0 cannot occupy without moving every slot behind it, and a host table
+that keeps MSVC order has no slot for it at all. hal/actor_classes_bob_world.cpp
+works the same case through for CommonModel and lands on "no"; nothing found
+here changes that reasoning for the other eleven pairs.
+
+The remaining eight are four Actor After-hooks in data_0208e3a4 and four
+func_0203* pairs in data_02099274 / data_02099348 / data_02099358. All eight
+live in hal/actor_vtables.cpp or hal/cxx_aliases.cpp, which the actors lane
+owns this wave, so this lane looked and did not touch. They are the most
+promising eight in the bucket and they belong in an actors-lane pass, not here.
+
+
+A HEADLINE OVER-CLAIM, FOUND ON THE WAY
+---------------------------------------
+
+An MSVC /MAP names an object by BASENAME only. CMake keeps src/func_02043fdc.cpp
+and port/unmatched/func_02043fdc.cpp in different object directories; the map
+keeps no trace of that. linkage.py counts a matched TU as linked when an object
+of its stem appears in the map, so for those files it counts the HOST STAND-IN
+as decompiled code reaching the game while src/ is not in the binary at all.
+The same collision hides them from the replacement queue, which decides "is
+this a host object" by asking whether the object's stem collides with a src/
+TU -- for these files exactly backwards. That is why linkage.py --queue reports
+two shadows repo-wide and this survey found three more in arm9 alone.
+
+build.ninja records each object's real source. Measured through it:
+
+    HOSTGEN   151 objects are hostgen's rewrite of the matched TU. Counting
+              those as linked is correct -- they ARE the matched code.
+    HOST       18 objects are host stand-ins counted as linked matched TUs.
+
+So the current headline reads 4888 and the honest figure is 4870. The error is
+0.16% and it is not the point; the point is that those 18 are also 18 rows the
+replacement queue never prints.
+
+FOURTEEN OF THE EIGHTEEN ARE ARM9, which is most of this lane's own bucket
+table walking around uncounted. Ten are func_02xxxxxx and place by address;
+ChangeArea, CollectStar, NumStars and SetNumPlayers place by name out of
+config/arm9/symbols.txt. The remaining four are ChainChomp_Spawn and
+ShutterBob_Spawn in ov014, and func_ov002_020e444c and func_ov002_020e4768 in
+ov002. An earlier draft of this file said six, which was eyeballed off a
+partial listing rather than derived; the module of every one of the eighteen is
+now taken the same way the bucket table takes it, stem by stem.
+
+Fixing linkage.py's host detection would change every lane's numbers mid-wave,
+so this lane left it alone and shipped the measurement as
+port/tools/objsrc_check.py instead.
+
+
+WHAT WOULD ACTUALLY MOVE ARM9
+-----------------------------
+
+In the order the evidence supports, not the order of effort:
+
+1.  The Stage lifecycle. Four slots already compiled, ~490 TUs downstream, one
+    hosted vtable (_ZTV5Stage) to seat them into. This is the single largest
+    honest arm9 move available and it is a behaviour campaign: every seated
+    slot replaces host boot code that exists because the real one needed
+    subsystems that were not there yet. Needs a lane that owns level_boot.cpp
+    and the Stage faces together.
+
+2.  The Scene classes behind data_02091528 and data_020943c4, which the port
+    does not construct at all. Bigger than the Stage move and further out: it
+    needs a hosted Scene object and a scene manager to build one before any of
+    the eighteen slots per table has anywhere to be seated. Worth naming now
+    because it is where the 500-TU clusters live, not because it is next.
+
+3.  The 124 TABLE-ONLY entries. Each is a vtable or dispatch slot with a
+    matched body and no caller edge. They cannot be reached by adding calls --
+    only by seating them in a hosted table -- and the tables are spread across
+    the actor-class files that other lanes own. This is the largest set that is
+    mechanical rather than behavioural, and it wants ONE lane holding all the
+    vtable fills at once, not six lanes each seating into a file they share.
+
+4.  The 136 OV-ONLY entries. Reachable only by mounting more overlays; that is
+    the overlay lanes' axis, not arm9's.
+
+5.  Fixing linkage.py's object-to-source rule, between waves rather than during
+    one, so the queue and the headline stop disagreeing with the build.

@@ -751,7 +751,9 @@ extern "C" int port_quarantine_is_frozen(void *actor)
     return port_q_is_frozen(actor);
 }
 
-/* {head, tail, callback, 0}; node is {prev, next, owner, ...} */
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch: each list head carries its
+ * callback as an eight-byte PMF pair MSVC cannot represent. See the header.
+ * {head, tail, callback, 0}; node is {prev, next, owner, ...} */
 void *func_02043fdc(void *listv)
 {
     int *list = (int *)listv;
@@ -776,7 +778,9 @@ void *func_02043fdc(void *listv)
     return (void *)1;
 }
 
-/* {head, callback, 0}; scene node is 0x14 bytes with the owner at +0x10 */
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch: each list head carries its
+ * callback as an eight-byte PMF pair MSVC cannot represent. See the header.
+ * {head, callback, 0}; scene node is 0x14 bytes with the owner at +0x10 */
 void *func_020441cc(void *listv)
 {
     int *list = (int *)listv;
