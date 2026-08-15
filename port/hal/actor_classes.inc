@@ -1162,6 +1162,14 @@ void hal_fill_bobbing_log_emm_vtable(void);
 extern unsigned char SquarePathLift_SpawnInfo[];     /* ov052 0x021125cc, +4 = 175 */
 void *SquarePathLift_Spawn(void);                    /* ov052 0x02111830, 56 B */
 void hal_fill_square_path_lift_vtable(void);
+/* ---- run linkw wave 12 (lane w12): CLAM (315), ov064 ----
+   Nine instances, five on level 8 and four on level 18. Its Spawn names its
+   receiver and stores _ZTV4Clam by a real name, so it registers directly.
+   TREASURE_CHEST (13), the sibling this wave's ranking put beside it, is
+   BLOCKED on an unmatched state body -- see hal/actor_classes_ov064_w12.cpp. */
+extern unsigned char Clam_SpawnInfo[];               /* ov064 0x0211c5a4, +4 = 315 */
+void *Clam_Spawn(void);                              /* ov064 0x0211ad70, 64 B */
+void hal_fill_clam_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1784,4 +1792,6 @@ void hal_fill_square_path_lift_vtable(void);
     {174, "BOBBING_LOG_EMM", data_ov052_021124fc, func_ov052_02111410, \
      hal_fill_bobbing_log_emm_vtable}, \
     {175, "SQUARE_PATH_LIFT", SquarePathLift_SpawnInfo, SquarePathLift_Spawn, \
-     hal_fill_square_path_lift_vtable},
+     hal_fill_square_path_lift_vtable}, \
+    /* ---- run linkw wave 12 (lane w12): CLAM (315), ov064 ---- */ \
+    {315, "CLAM", Clam_SpawnInfo, Clam_Spawn, hal_fill_clam_vtable},

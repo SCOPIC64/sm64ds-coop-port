@@ -139,3 +139,39 @@ data_ov064_0211bb8c
 # abuts rather than overlaps. The ov045 data_ov045_02113264 treatment.
 data_ov064_0211c768 data_ov064_0211c770 data_ov064_0211c778
 data_ov064_0211c784:0xc
+
+# ==== RUN LINKW WAVE 12 (lane w12): CLAM (315) ==============================
+# Nine symbols appended for one class: id 315, nine instances (level 8 x5,
+# level 18 x4). Both attribution routes agree -- spawn-table site 0x02090d50 ->
+# SpawnInfo 0x0211c5a4, whose word[0] is 0x0211ad70 (Clam_Spawn, inside ov064)
+# and whose +4 halfword reads 315 back. Identity from the RTTI typeinfo at
+# vtable[-1]: 0x0211c5c4 -> 0x0211c588 -> "12daObjShell_c".
+#
+# ITS VTABLE STAYS OUT, the ov080/ov095 rule this file's header states, and so
+# does the one dsd symbol interior to it:
+#   0x0211c5c8..0x0211c644  THIRTY-ONE slots. dsd names the address twice,
+#                           _ZTV4Clam and _ZTV12daObjShell_c, and splits it at
+#                           0x0211c610 (slot 17). All three names are out;
+#                           hal/actor_classes_ov064_w12.cpp hosts the array.
+#   THE WIDTH: the reloc run reads 31 and stops -- slot 30 is
+#   Actor::OnAimedAtWithEggReturnVec and there is no slot 31, the Enemy/Actor
+#   shape (Clam is an Actor, not a Platform, so no Platform::Kill tail). The
+#   next dsd symbol under-reads at 18 because of the split; the true end,
+#   0x0211c644, is followed by 0x1c of ROM zeros to the .data end at
+#   0x0211c660. Cross-checked against its NEIGHBOUR: the run of
+#   _ZTV11daObjTbox_c at 0x0211c50c reads THIRTY-FOUR and its table is
+#   thirty-one too -- its last three "slots" are the next Itanium typeinfo
+#   object ({0x0209a764, name 0x0211c594, base arm9 0x0208e390}) at 0x0211c588,
+#   which is a reloc run overrunning a table end exactly the way ov052's id
+#   174 does. Neither table is 34 and neither is 18.
+#
+# 0x0211c588/0x0211c594 are Clam's typeinfo and its name string; Clam_SpawnInfo
+# is 0x24 by next-symbol delta because the eight RTTI header bytes of the table
+# that follows it fall inside the span.
+data_ov064_0211c588 data_ov064_0211c594 Clam_SpawnInfo
+# Clam's three SharedFilePtrs (files 1164 model, 1165 anim, 1166 anim) and
+# their three destructor-chain nodes, all built by __sinit_ov064_0211b698 --
+# the one ov064 initialiser this lane adds, run from the registry fill in
+# hal/actor_classes_ov064_w12.cpp.
+data_ov064_0211c9bc data_ov064_0211c9c4 data_ov064_0211c9cc
+data_ov064_0211c9d4 data_ov064_0211c9e0 data_ov064_0211c9ec
