@@ -2,27 +2,38 @@
 """Which SOURCE produced each object in the map, and where that makes the
 linkage headline wrong.
 
-THE BUG THIS WAS WRITTEN TO MEASURE. An MSVC /MAP names an object by its
-BASENAME only: `func_02043fdc.cpp.obj`. CMake keeps the two files apart on disk
-(`CMakeFiles/walk_window.dir/C_/tmp/cl1/src/...` versus
-`CMakeFiles/walk_window.dir/unmatched/...`) but the map keeps no trace of that,
-so when src/ and port/unmatched/ both carry a file of the same name the map
-cannot tell you which one is in the binary.
+THE BUG THIS WAS WRITTEN TO MEASURE, AND WHY IT STILL RUNS AT ZERO. An MSVC
+/MAP names an object by its BASENAME only: `func_02043fdc.cpp.obj`. CMake keeps
+the two files apart on disk (`CMakeFiles/walk_window.dir/C_/tmp/cl1/src/...`
+versus `CMakeFiles/walk_window.dir/unmatched/...`) but the map keeps no trace of
+that, so when src/ and port/unmatched/ both carry a file of the same name the
+map cannot tell you which one is in the binary.
 
 linkage.py counts a matched TU as LINKED when an object of its stem appears in
-the map. For `func_02043fdc` the object in the map is port/unmatched's HOST
+the map. For `func_02043fdc` the object in the map was port/unmatched's HOST
 COPY -- a hand-written stand-in that resolves the mwcc pointer-to-member
-dispatch MSVC cannot express -- and src/func_02043fdc.cpp is not in the binary
-at all. The headline counts it as decompiled code that reaches the game. It is
-the opposite: it is scaffolding, and it is scaffolding the replacement queue
-also cannot see, because that queue decides "is this a host object" by asking
+dispatch MSVC cannot express -- and src/func_02043fdc.cpp was not in the binary
+at all. The headline counted it as decompiled code that reaches the game. It is
+the opposite: it is scaffolding, and it was scaffolding the replacement queue
+also could not see, because that queue decides "is this a host object" by asking
 whether the object's stem collides with a src/ TU, which for these files is
 exactly backwards.
 
-So the number is inflated and the work list is short by the same items. Both
-halves come from the same missing fact, and the fact is recoverable: build.ninja
-records the real source path of every object, and it is generated from the same
-CMakeLists the link uses.
+So the number was inflated and the work list was short by the same items. Both
+halves came from the same missing fact, and the fact is recoverable:
+build.ninja records the real source path of every object, and it is generated
+from the same CMakeLists the link uses.
+
+THE EIGHTEEN THIS FOUND ARE FIXED, AND HOST 0 IS THE EXPECTED READING. At the
+wave C close every one of them was renamed to `<stem>_hostcopy`, so no host
+object's stem collides with a matched TU and the headline dropped by exactly
+eighteen to match. A HOST count of zero is therefore the normal result now, and
+it is not a reason to retire this check: the renames make the collision absent
+today, and this is what says so tomorrow. It asks the BUILD which source
+produced each object rather than trusting the naming convention, so the next
+host copy someone names after its matched TU is caught the same way these were.
+A nonzero HOST count means that has happened again; read the rows, rename, and
+expect the headline to fall by that many.
 
     python port/tools/objsrc_check.py [repo-root] [--all]
 
@@ -145,9 +156,20 @@ def main():
         print("  %-8s %5d  in the map, no rule in build.ninja (a library "
               "object)" % ("NORULE", len(missing)))
     print()
-    print("HOST (%d): each row is one over-count of the linkage headline and"
-          % len(host))
-    print("one row the replacement queue does not print.")
+    if not host:
+        print("HOST (0): no host object's stem collides with a matched TU, so")
+        print("the linkage headline is not over-counting on this axis. This is")
+        print("the expected reading since the wave C close renamed the eighteen")
+        print("that did to <stem>_hostcopy. It is a check that passed, not a")
+        print("check with nothing left to do -- a new host copy named after its")
+        print("matched TU would show up here as a row and as a headline that")
+        print("rose without a seat behind it.")
+    else:
+        print("HOST (%d): each row is one over-count of the linkage headline and"
+              % len(host))
+        print("one row the replacement queue does not print. Rename each to")
+        print("<stem>_hostcopy and expect the headline to fall by %d."
+              % len(host))
     for obj, src, tu in host:
         print("  %-30s %s" % (obj, src.split("/port/", 1)[-1]))
         print("  %-30s   stands in for %s" % ("", tu))

@@ -1,14 +1,26 @@
-ARM9 LINKAGE FRONTIER -- what stands between the port and the other 1450
+ARM9 LINKAGE FRONTIER -- what stands between the port and the other 1464
 ========================================================================
 
-Run linkw wave C, lane cat-arm9. Measured on the tree this file ships in,
-at the lane baseline commit 459f21a07, against the gate manifest at
+Run linkw wave C, lane cat-arm9, refreshed at the wave close. Measured on
+the tree this file ships in, against the gate manifest at
 build/port/gate_manifest.json:
 
-    linkage headline   4888 / 11243 linked (43.5%)
-    arm9               3098 matched TUs, 1648 linked, 1450 unlinked (53.2%)
+    linkage headline   4871 / 11243 linked (43.3%)
+    arm9               3098 matched TUs, 1634 linked, 1464 unlinked (52.7%)
     battery            ALL GREEN
     gate verdict       GREEN
+
+THE NUMBERS MOVED WITHOUT THE PORT MOVING. The lane's original reading was
+4888 / 1648 linked / 1450 unlinked at commit 459f21a07, and the arm9 halves
+still read 1648 / 1450 at the wave tip immediately before the close. Eighteen
+host stand-ins were being credited as linked matched TUs because the map names
+an object by basename only; they now carry a `_hostcopy` suffix, so the
+collision is gone and the count is honest. Fourteen of the eighteen are arm9,
+which is the whole of the -14 here. No TU was unlinked and nothing was removed
+from the build: the same sources compile, the exe is the same 2715648 bytes,
+and the battery stayed ALL GREEN across the change. Its sha256 does move, which
+is what renaming eighteen source files does to a PE that carries build paths;
+that is not evidence either way and is not offered as any.
 
 Reproduce any number below with
 
@@ -21,14 +33,16 @@ Both root at the checkout they live in, not at the current directory.
 THE SHORT VERSION
 -----------------
 
-arm9's 1450 unlinked TUs are not 1450 problems. 58% of them sit downstream of
+arm9's 1464 unlinked TUs are not 1464 problems. 57% of them sit downstream of
 SIX functions, and five of those six are SCENE-CLASS VTABLE SLOTS: the ROM's
 scene manager constructs a Scene subclass and dispatches InitResources and
 Behavior through its table, and the port never constructs one. The sixth is
 Entry, the CRT0, which walk_window's own entry replaces. The workable set --
 TUs a lane could seat this week without changing what the port boots -- is
-FIFTY-SIX, and reading them one by one, almost all are blocked on something
-other than effort.
+SIXTY-SIX, and reading them one by one, almost all are blocked on something
+other than effort. Eleven of the sixty-six are the renamed host copies, which
+were always host bodies standing in for unlinked matched TUs and are now
+counted as such.
 
 There is no batch of easy arm9 links available at this baseline. Saying so with
 the evidence attached is this lane's result. Manufacturing the links would have
@@ -42,28 +56,28 @@ THE BUCKETS
 Every unlinked arm9 TU falls in exactly one, tested in this order. The columns
 reconcile with the headline above on purpose.
 
-    SHADOW          0    a host file defines the symbol, the matched TU is not
+    SHADOW         11    a host file defines the symbol, the matched TU is not
                          in the binary, and no PORT_HOST_ABI tag rules it an
-                         exception. This is the replacement work list, and for
-                         arm9 it is now empty -- see THE THREE SHADOWS below.
+                         exception. This is the replacement work list -- see
+                         THE ELEVEN SHADOWS below.
     DROPPED        52    offered to the linker (named in a slice_*.txt or a
                          CMakeLists symbol set) and dropped by /OPT:REF for
                          want of a reference edge.
-    CANDIDATE       4    never offered, but a LINKED TU references its ROM
+    CANDIDATE       3    never offered, but a LINKED TU references its ROM
                          function. The edge exists; the object does not.
     TABLE-ONLY    124    never offered, no call reloc reaches it, and a data
                          word does. A vtable or dispatch-table slot.
-    UNREACHED     999    never offered, has ROM callers, none of them linked.
+    UNREACHED    1000    never offered, has ROM callers, none of them linked.
     OV-ONLY       136    never offered, and every ROM caller lives in a module
                          the port does not mount.
     ORPHAN         26    never offered, no call reloc and no arm9 table word
                          reaches it.
-    EXCEPTION     109    a documented host-ABI exception: an ARM asm primitive,
+    EXCEPTION     112    a documented host-ABI exception: an ARM asm primitive,
                          a register ride-through, an mwcc pointer-to-member
                          dispatch, or a poke of DS hardware the ntr layer does
                          not model. Not work.
 
-    TOTAL        1450
+    TOTAL        1464
 
 
 HOW REACHABILITY IS DERIVED, AND ITS ONE LIMIT
@@ -89,15 +103,15 @@ build may reach the same point through a host body. Every CANDIDATE row is a
 hypothesis until it is compiled and the map is read.
 
 
-THE FRONTIER: 394 ROOTS, AND SIX THAT MATTER
+THE FRONTIER: 403 ROOTS, AND SIX THAT MATTER
 --------------------------------------------
 
 A root is an unlinked arm9 TU with no unlinked caller of its own. Pushing
 anywhere else is wasted -- the linker drops a TU whose caller it also dropped.
-There are 394. Sorted by how many unlinked arm9 TUs become transitively
-reachable if the root links:
+There are 403. Sorted by how many unlinked arm9 TUs become transitively
+reachable if the root links, counting the root itself:
 
-     737  Entry                    0x02004800  the CRT0 entry point, hand-asm
+     738  Entry                    0x02004800  the CRT0 entry point, hand-asm
      531  func_0203506c            0x0203506c  dScMB_c_InitResources, in the
                                                scene vtable data_020943c4
      528  func_02005a58            0x02005a58  dScBoot_c_InitResources, in the
@@ -108,9 +122,9 @@ reachable if the root links:
      182  _ZN5Stage8BehaviorEv                 _ZTV5Stage
      162  func_02034da4            0x02034da4  dScMB_c_Behavior, data_020943c4
      146  _ZN5Stage13InitResourcesEv           _ZTV5Stage
+      91  _ZN5Stage16CleanupResourcesEv        _ZTV5Stage
       89  func_02005418            0x02005418  dScBoot_c_Behavior,
                                                data_02091528
-      88  _ZN5Stage16CleanupResourcesEv        _ZTV5Stage
       80  func_0202deac            0x0202deac
       71  _ZN5Stage6RenderEv                   _ZTV5Stage
       68  func_02017e94            0x02017e94
@@ -118,7 +132,14 @@ reachable if the root links:
       50  func_0201817c
       47  _ZN13SharedFilePtr4LoadEv
 
-The union of the top six covers 835 of the 1450 -- 58%.
+The union of the top six covers 836 of the 1464 -- 57%.
+
+This table is not printed by cat_arm9_survey.py; --roots prints the UNREACHED
+cluster roots, not the whole-bucket ranking. It is recomputed from the survey's
+own callers() graph and its own bucket membership. The recomputation was
+checked before it was trusted: run against the pre-rename linked set it returns
+737 / 531 / 528 / 483 / 479 / 182 / 162 / 146 / 89 / 88 and a union of 835 of
+1450, which is the previous table digit for digit, ordering included.
 
 Read the mechanism column and the answer to "why is arm9 only 53% linked" stops
 being a matching question. Eleven of the top sixteen are a VTABLE SLOT ON AN
@@ -146,39 +167,53 @@ disables IME and switches CPSR mode, and a host process enters at WinMain.
 THE WORKABLE SET, READ ONE BY ONE
 ---------------------------------
 
-SHADOW (0). There were three, and all three turned out to be untagged
-documented exceptions rather than work:
+SHADOW (11). All eleven arrived at the wave close, when the eighteen colliding
+host copies were renamed and stopped being credited as their own matched TUs.
+They are not new host bodies and they are not a regression; they are the same
+scaffolding, now visible:
 
-    func_0203cbc0   port/unmatched/func_02073244_hostcopy.c
-                    ARM ride-through: src spells it `void
-                    func_0203cbc0(void)` calling `_ZdlPv()` with no
-                    argument, correct on ARM where the pointer is
-                    already in r0.
-    func_020432e4   port/unmatched/func_0204322c_hostcopy.cpp
-                    mwcc pointer-to-member: ActorBase::Process called
-                    with three PMFs.
-    func_020441cc   port/unmatched/func_02043fdc_hostcopy.cpp
-                    mwcc pointer-to-member: the list head carries its
-                    callback as a PMF pair.
+    ChangeArea           ChangeArea_hostcopy
+    CollectStar          CollectStar_hostcopy
+    NumStars             NumStars_hostcopy
+    SetNumPlayers        SetNumPlayers_hostcopy
+    func_02008550        func_02008550_hostcopy
+    func_0200ca50        func_0200ca50_hostcopy
+    func_0200cae4        func_0200cae4_hostcopy
+    func_02016ff4        func_02016ff4_hostcopy
+    func_02038324        func_02038324_hostcopy
+    func_02043288        func_02043288_hostcopy
+    func_0204335c        func_0204335c_hostcopy
 
-Each host file already explained itself in its header comment; none carried a
-PORT_HOST_ABI tag on the definition, which is the only place linkage.py's tag
-reader looks. This lane added the four tags (the three above plus func_02042ffc
-in port/unmatched/ActorDerived_Spawn.cpp). Comments only, no behaviour change,
-no link change. The tag is a ruling about the SOURCE, so the survey reads tags
-from host sources directly rather than from the map -- func_02042ffc is the
-case that forced that: MSVC folds its body into the one-line wrapper above it,
-so no symbol of that name reaches the map at all.
+The other three arm9 renames carry PORT_HOST_ABI tags and land in EXCEPTION
+instead: func_0204322c, func_02043fdc and func_02073244, six tagged symbols
+between them (each host copy also defines the neighbouring matched TU). Nobody
+has read the eleven one by one yet. Each is a host copy written for a reason
+its own header comment states, and whether that reason is an ABI wall or an
+expedient nobody went back to is the next lane's question, not a claim this
+file makes.
 
-CANDIDATE (4). All four have a linked ROM caller and none is work:
+THE THREE THAT WERE HERE BEFORE. An earlier reading of this bucket found
+func_0203cbc0, func_020432e4 and func_020441cc, and all three turned out to be
+untagged documented exceptions rather than work: an ARM ride-through in
+func_02073244_hostcopy.c (src spells it `void func_0203cbc0(void)` calling
+`_ZdlPv()` with no argument, correct on ARM where the pointer is already in
+r0), and two mwcc pointer-to-member dispatches in func_0204322c_hostcopy.cpp
+and func_02043fdc_hostcopy.cpp. Each host file already explained itself in its
+header comment; none carried a PORT_HOST_ABI tag on the definition, which is
+the only place linkage.py's tag reader looks. The lane added four tags (those
+three plus func_02042ffc in port/unmatched/ActorDerived_Spawn.cpp), comments
+only, no behaviour change, no link change, and all three now sit in EXCEPTION.
+The tag is a ruling about the SOURCE, so the survey reads tags from host
+sources directly rather than from the map -- func_02042ffc is the case that
+forced that: MSVC folds its body into the one-line wrapper above it, so no
+symbol of that name reaches the map at all.
+
+CANDIDATE (3). All three have a linked ROM caller and none is work:
 
     _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3
         port/unmatched/ModelComponents_Render.cpp is a documented host
         reimplementation. src calls the material bind as `func_02044b30(this)`
         and lets the material index ride to the callee in r1.
-    func_02073300
-        an asm hatch -- a reverse destructor loop with an MSL exception frame.
-        There is no C to compile.
     _ZN13SharedFilePtr19ReallocateModelFileEv
         hal/gx_upload_bridge.cpp hosts it as an empty body on the true
         observation that the reallocation is a DS heap shrink. See the note in
@@ -186,6 +221,18 @@ CANDIDATE (4). All four have a linked ROM caller and none is work:
     _ZN5Sound21UnsetPlayerVoiceGroupEv
         hal/auto_bss.cpp hosts an empty stub; the caller EndKuppaScript is
         linked but reaches the MSVC-namespace mangling, not the ROM C name.
+
+All three are now also rows in linkage.py's MSVC-NAME SHADOWS, which is the
+same fact this bucket was already carrying by hand: the host object provides
+the MSVC mangling of the method and the Itanium-named matched TU is not in the
+binary. The Sound row is the one that named the shape first.
+
+func_02073300 was the fourth CANDIDATE and is now UNREACHED, which is the other
+place the rename showed through. Its only linked caller was func_02073244, and
+func_02073244 was never linked -- the host copy of that name was. It is still
+an asm hatch, a reverse destructor loop with an MSL exception frame and no C to
+compile; what changed is that the survey no longer believes anything in the
+binary calls it.
 
 DROPPED (52). Compiled and dropped for want of a reference edge. By what
 would have to change for the edge to exist:
@@ -242,41 +289,45 @@ owns this wave, so this lane looked and did not touch. They are the most
 promising eight in the bucket and they belong in an actors-lane pass, not here.
 
 
-A HEADLINE OVER-CLAIM, FOUND ON THE WAY
----------------------------------------
+A HEADLINE OVER-CLAIM, FOUND ON THE WAY, CLOSED AT THE WAVE CLOSE
+-----------------------------------------------------------------
 
 An MSVC /MAP names an object by BASENAME only. CMake kept
-src/func_02043fdc.cpp and port/unmatched/func_02043fdc.cpp in different
-object directories; the map keeps no trace of that. linkage.py counts a matched TU as linked when an object
-of its stem appears in the map, so for those files it counts the HOST STAND-IN
-as decompiled code reaching the game while src/ is not in the binary at all.
-The same collision hides them from the replacement queue, which decides "is
-this a host object" by asking whether the object's stem collides with a src/
-TU -- for these files exactly backwards. That is why linkage.py --queue reports
-two shadows repo-wide and this survey found three more in arm9 alone.
+src/func_02043fdc.cpp and port/unmatched/func_02043fdc.cpp in different object
+directories and the map kept no trace of that. linkage.py counts a matched TU
+as linked when an object of its stem appears in the map, so for those files it
+counted the HOST STAND-IN as decompiled code reaching the game while src/ was
+not in the binary at all. The same collision hid them from the replacement
+queue, which decides "is this a host object" by asking whether the object's
+stem collides with a src/ TU -- for these files exactly backwards. That is why
+linkage.py --queue reported two shadows repo-wide while this survey found three
+more in arm9 alone.
 
-build.ninja records each object's real source. Measured through it:
-
-    HOSTGEN   151 objects are hostgen's rewrite of the matched TU. Counting
-              those as linked is correct -- they ARE the matched code.
-    HOST       18 objects are host stand-ins counted as linked matched TUs.
-
-So the current headline reads 4888 and the honest figure is 4870. The error is
-0.16% and it is not the point; the point is that those 18 are also 18 rows the
-replacement queue never prints.
-
-FOURTEEN OF THE EIGHTEEN ARE ARM9, which is most of this lane's own bucket
-table walking around uncounted. Ten are func_02xxxxxx and place by address;
-ChangeArea, CollectStar, NumStars and SetNumPlayers place by name out of
+build.ninja records each object's real source, and measured through it there
+were 151 HOSTGEN objects (hostgen's rewrite of the matched TU, correct to count
+as linked) and 18 HOST stand-ins counted as linked matched TUs. Fourteen of the
+eighteen were arm9, which is most of this lane's own bucket table walking
+around uncounted. Ten are func_02xxxxxx and place by address; ChangeArea,
+CollectStar, NumStars and SetNumPlayers place by name out of
 config/arm9/symbols.txt. The remaining four are ChainChomp_Spawn and
 ShutterBob_Spawn in ov014, and func_ov002_020e444c and func_ov002_020e4768 in
 ov002. An earlier draft of this file said six, which was eyeballed off a
 partial listing rather than derived; the module of every one of the eighteen is
 now taken the same way the bucket table takes it, stem by stem.
 
-Fixing linkage.py's host detection would change every lane's numbers mid-wave,
-so this lane left it alone and shipped the measurement as
-port/tools/objsrc_check.py instead.
+The lane left the fix alone because it would change every lane's numbers
+mid-wave, and shipped port/tools/objsrc_check.py as the measurement instead.
+The wave close applied it: all eighteen are renamed to <stem>_hostcopy, so no
+host object's stem collides with a matched TU. objsrc_check.py now reports
+HOST 0, the headline went 4889 to 4871 at the wave tip (the tip read 4889, not
+this file's 4888, because the wave landed a seat after the lane measured), and
+the eighteen appear in the queue where they belong -- fifteen as SHADOWS and
+three as EXCEPTIONS carrying six tagged symbols.
+
+objsrc_check.py did not become redundant. The renames make the collision absent
+today; the check is what says so tomorrow, and it reads the build rather than
+the naming convention, so a future host copy named after its matched TU is
+caught the same way these were.
 
 
 WHAT WOULD ACTUALLY MOVE ARM9
@@ -307,5 +358,7 @@ In the order the evidence supports, not the order of effort:
 4.  The 136 OV-ONLY entries. Reachable only by mounting more overlays; that is
     the overlay lanes' axis, not arm9's.
 
-5.  Fixing linkage.py's object-to-source rule, between waves rather than during
-    one, so the queue and the headline stop disagreeing with the build.
+5.  DONE at the wave close: linkage.py's object-to-source rule. The eighteen
+    colliding host copies are renamed, objsrc_check.py reports HOST 0, and the
+    queue and the headline no longer disagree with the build. The eleven arm9
+    SHADOWS that fell out are the follow-on work, one host copy at a time.
