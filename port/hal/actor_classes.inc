@@ -1223,6 +1223,24 @@ void hal_fill_fall_block_lll_vtable(void);
 extern unsigned char Seaweed_SpawnInfo[];            /* ov002 0x02109b94, +4 = 296 */
 void *Seaweed_Spawn(void);                           /* ov002 0x020bc5a8, 56 B */
 void hal_fill_seaweed_vtable(void);
+/* run link60 lane A1: ov085's last two screened classes, WALL_SIGN (183,
+   13daObjKanban_c) x9 and TOAD (185, 11daKinopio_c) x10 across levels 2, 4, 5
+   and 50 -- all four already mounted, all four already booting. Both records
+   are already in port/ov085_syms.txt at the pinned 0x1c (gate 18 mounted the
+   overlay's whole data span per symbol), and all six of its sinits are already
+   called, so these two rows cost code and nothing else. The fills, the two
+   widths (32 and 31, and why the typeinfo route's 54 for Toad is the ov026
+   pair-table trap), the two-names-one-table aliases and Toad's hosted slot 16
+   are in hal/actor_classes_ov085.cpp; the slice is port/slice_gate205.txt.
+   Neither class's slot 6 is decompiled: both Behaviors are HOST
+   REIMPLEMENTATIONS in port/unmatched/Ov085_Behaviors.cpp, written from the
+   ROM and queued as crack targets. */
+extern unsigned char WallSign_SpawnInfo[];           /* ov085 0x021303dc, +4 = 183 */
+void *WallSign_Spawn(void);                          /* ov085 0x0212f244, 56 B */
+void hal_fill_wall_sign_vtable(void);                /* _ZTV8WallSign, 32 */
+extern unsigned char Toad_SpawnInfo[];               /* ov085 0x0212fe6c, +4 = 185 */
+void *Toad_Spawn(void);                              /* ov085 0x02129cd0, 72 B */
+void hal_fill_toad_vtable(void);                     /* _ZTV4Toad, 31 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1868,4 +1886,9 @@ void hal_fill_seaweed_vtable(void);
     /* ---- run linkw wave 17 (lane w17): ov002's SEAWEED, x8 on level 18 and \
        x4 on level 24 ---- */ \
     {296, "SEAWEED", Seaweed_SpawnInfo, Seaweed_Spawn, \
-     hal_fill_seaweed_vtable},
+     hal_fill_seaweed_vtable}, \
+    /* ---- run link60 (lane A1): ov085's WALL_SIGN and TOAD, nineteen placed \
+       instances across levels 2, 4, 5 and 50 ---- */ \
+    {183, "WALL_SIGN", WallSign_SpawnInfo, WallSign_Spawn, \
+     hal_fill_wall_sign_vtable}, \
+    {185, "TOAD", Toad_SpawnInfo, Toad_Spawn, hal_fill_toad_vtable},
