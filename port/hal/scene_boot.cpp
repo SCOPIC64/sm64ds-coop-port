@@ -12,8 +12,7 @@
 // So hosting a scene is the ORDINARY REGISTRY SHAPE this port already uses for
 // a hundred actor classes: the ROM's own SpawnInfo record with its factory word
 // repointed at the host factory, seated in data_020a4bb8 at the class's id,
-// plus
-// a vtable fill. Nothing in this file is a new mechanism. What is new is only
+// plus a vtable fill. Nothing in this file is a new mechanism. What is new is only
 // that the ids are scene ids and that something drives the ROM's own chain.
 //
 // ---- the chain, end to end, every step a matched arm9 TU -------------------
@@ -392,6 +391,15 @@ static int  __fastcall sc_v38(void *s, void *, unsigned a, unsigned b)
 static int  __fastcall sc_heap(void *s, void *)
 { return port_scene_on_heap_created(s); }
 
+/* THE 18-SLOT SHAPE IS HARDCODED HERE, AND IT IS AN ov003 FINDING RATHER THAN
+   A LAW ABOUT SCENES. All three ov003 classes were read out of the overlay
+   image and all three are exactly _ZTV5Scene's eighteen slots with seven
+   overridden, so this writes eleven fixed indices. Nothing has checked that
+   ov006's minigame classes are the same shape: they derive from dScMgBase_c,
+   which derives from Scene, and a class that adds virtuals of its own has a
+   LONGER table whose tail this function would leave unwritten while its
+   indices 1..15 still land correctly. Whoever seats the first ov006 scene
+   reads that class's table out of the image first and does not assume this. */
 static void scene_fill_shared(void **vt)
 {
     vt[1]  = (void *)sc_binit;
@@ -645,7 +653,16 @@ extern "C" int port_scene_run(void)
     sdat_host_tick();
 
     /* THE SUBLEVEL THE SCENE IS ABOUT, before it spawns. See the header block:
-       this is an input, not a default, and 0 is not a legal value for it. */
+       this is an input, not a default, and 0 is not a legal value for it.
+       IT IS ALSO A STAR-SELECT-SPECIFIC INPUT SITTING IN THE GENERIC PATH, and
+       the next scene to be seated has to decide what it means. data_02092110
+       is the CURRENT SUBLEVEL: every scene run writes it, but only
+       dScStarSel_c is a scene ABOUT a course and gates its own branches on it.
+       The title screen does not, the game-over screen does not, and a minigame
+       scene reads its own id instead -- so for those the write is at best
+       inert and at worst a state a real entry into them would never have set.
+       Whoever seats ov007 or an ov006 scene audits this line rather than
+       inheriting it. */
     data_02092110 = (signed char)sublevel;
     std::printf("[scene] sublevel %d -> course %d\n", sublevel,
                 (int)SUBLEVEL_LEVEL_TABLE[sublevel & 0x3f]);

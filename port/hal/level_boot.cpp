@@ -3089,19 +3089,23 @@ static void port_a2_seat_body(int make_stage)
        family only (hal/lk4_solidheap_seat.cpp). */
     hal_seat_solidheap();
 
-    /* THE THREE ov003 SCENE CLASSES, seated the same way and in the same place
-       as the level cast: dScTitle_c (id 2), dScStarSel_c (id 4) and
-       dScGameOver_c (id 8), each the ROM's own ACTOR_SPAWN_TABLE record with
-       its factory word repointed and its vtable filled (hal/scene_boot.cpp).
+    /* THE ov003 SCENE CLASS, seated the same way and in the same place as the
+       level cast: dScStarSel_c (id 4, the star select), the ROM's own
+       ACTOR_SPAWN_TABLE record with its factory word repointed and its vtable
+       filled (hal/scene_boot.cpp). ONE class. ov003 carries three -- dScTitle_c
+       (id 2) and dScGameOver_c (id 8) are the others -- and those two are
+       derived to the same depth and NOT seated; port/slice_scene1.txt names
+       what blocks them.
        ON EVERY BOOT, LEVEL RUNS INCLUDED, and that is deliberate rather than
-       incidental: the arm9 spawn table really does carry those three entries
-       whichever occupant of the shared slot is loaded, and the port's registry
-       is the host form of that table. It is also what makes the edge REAL for
+       incidental: the arm9 spawn table really does carry that entry whichever
+       occupant of the shared slot is loaded, and the port's registry is the
+       host form of that table. It is also what makes the edge REAL for
        /OPT:REF -- the ov003 bodies link because the ROM's own table and the
-       ROM's own vtables name them, not because anything /include:'s them.
-       A level run never dispatches through them: nothing spawns actor id 2, 4
-       or 8 inside a level, and the whole 35-level battery is the measurement
-       that says so. */
+       ROM's own vtable name them, not because anything /include:'s them.
+       A level run never dispatches through it: nothing spawns actor id 4
+       inside a level, and the whole 46-level battery is the measurement that
+       says so. That measurement covers id 4 and nothing else, so whoever
+       seats 2 or 8 owes it again. */
     port_scene_registry_install();
 
     if (make_stage)
@@ -3110,9 +3114,10 @@ static void port_a2_seat_body(int make_stage)
 
 extern "C" void port_stage_a2_seat(void) { port_a2_seat_body(1); }
 
-/* The scene harness's entry (port/tests/scene_window.cpp): the same seat with
-   no Stage. Kept here rather than in scene_boot.cpp so there is exactly one
-   copy of the sequence and no chance of the two drifting. */
+/* The scene boot's entry (hal/scene_boot.cpp's port_scene_run, reached from
+   tests/walk_window.cpp when SM64DS_SCENE is set): the same seat with no
+   Stage. Kept here rather than in scene_boot.cpp so there is exactly one copy
+   of the sequence and no chance of the two drifting. */
 extern "C" void port_scene_a2_seat(void) { port_a2_seat_body(0); }
 
 /* ---- the path-binding bounds assert --------------------------------------

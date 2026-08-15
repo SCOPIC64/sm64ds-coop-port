@@ -192,12 +192,30 @@ WHAT RULES OUT THE OTHER CANDIDATES, so the next lane does not re-derive them:
     stack proves the dispatch arrived: mv_render is that thunk, and it called
     the real Model::Render.
   - It is not a missed OAM template rebase (the unbounded OamAttr walk
-    hal/oam_lists.cpp exists for). The generated mount patches every pointer
-    word in the tables this scene indexes -- checked in
-    build/port/host-src/ov001_syms.c, e.g. _ZN3OAM10LIFE_ICONSE's four words
-    and data_ov001_020abb18's seven -- and the boot's own guard prints
-    "[oam] sprite templates: 0 bad entries".
+    hal/oam_lists.cpp exists for). Two things say so, and the second is the
+    strong one: the generated mount patches every pointer word in the tables
+    this scene indexes, read out of build/port/host-src/ov001_syms.c
+    (_ZN3OAM10LIFE_ICONSE's four words, data_ov001_020abb18's seven, and the
+    rest of the twelve); and the watchdog stack never enters OAM::Render at
+    all, which is where an unbounded attr walk would be sitting.
+    THE BOOT'S "[oam] sprite templates: 0 bad entries" LINE IS NOT EVIDENCE
+    FOR THIS, and an earlier version of this file wrongly cited it as if it
+    were. hal/oam_lists.cpp checks a FIXED LIST of ten tables -- the minimap's,
+    the HUD's and OAM::NUMBERS -- and not one of the twelve templates the star
+    select indexes is on it. The line is true and says nothing about this
+    scene. Someone adding those twelve to kTables would turn it into evidence;
+    until then it is not.
   - It is not the sublevel. See section 6; that WAS a real bug and it is fixed.
+
+NOT A STAR-STATE ARTIFACT. Review asked whether the hang depends on which
+stars the save says are collected, since that is what picks the Model the
+Render draws. It does not: SM64DS_SCENE_SUBLEVEL=7 (course 1 rather than
+course 0) hangs with the SAME STACK, frame for frame and at the same offsets --
+func_0204488c +0x24a, func_02044b30 +0x25c, ModelComponents::Render +0xd1,
+Model::Render +0x39, mv_render +0x1db. Only the sampled eip differs (memcpy
+inside ntr::io_read on one run, func_0205a358 +0x32 on the other), which is the
+watchdog catching the same loop at two arbitrary instants and not a difference
+in the hang.
 
 THE A/B THAT PINS IT is SM64DS_SCENE_SLOT9=0, which leaves the Render slot on a
 no-op and is counted separately so a run can never read the no-op as the real
@@ -297,22 +315,79 @@ from the run, not as a survey of the hardware.
     baseline 4bba244fd   4871 / 11243   43.3%
     this lane            4914 / 11243   43.7%   +43
 
-  ov003   15 of 36 (was 0). The seventeen ov003 TUs in port/slice_scene1.txt
-          minus two: func_ov003_020adc74 and func_ov003_020adcbc are reached
-          only from func_ov003_020ad6ec, which is dScTitle_c's, so /OPT:REF
-          drops them and they will link when that class is seated. THE OTHER
-          21 ARE
-          dScTitle_c's AND dScGameOver_c's and are deliberately unlinked; see
-          section 9.
-  ov001   6 of 23. Ten more of its sprite-template symbols joined the mount
-          this lane, but a mounted DATA symbol is not a linked TU; the six are
-          unchanged and the mount growth does not move this number.
-  arm9    the rest of the +43: Scene::SpawnIfNecessary, func_02013edc,
-          func_02042fe4, the VRAM bank-map family (fourteen matched TUs under
-          Vram__Map that no port target had ever reached, because a level never
-          reassigns a bank), the five GX/GXS bank setters, the two
-          Message::*ForStarSelect entry points that exist for this scene and
-          nothing else, and the small save-data and BG helpers.
+THE SLICE ACCOUNTING FIRST, because the headline hides it. port/slice_scene1.txt
+lists SIXTY src TUs. FORTY-TWO of them link and EIGHTEEN are /OPT:REF-dropped,
+and the +43 is those 42 plus one TU that is not in the slice at all
+(OAM::RenderSub, below). Split of the 42: fifteen ov003, twenty-seven arm9.
+
+  THE EIGHTEEN DROPPED, all of them, because a slice that lists a TU and does
+  not say it was dropped is a count nobody can check:
+
+    func_ov003_020adc74  func_ov003_020adcbc      reached only from
+      func_ov003_020ad6ec, which is dScTitle_c's, so both link when that class
+      is seated and not before.
+    func_0205cb68  func_0205cbe4  func_0205cc80  func_0205cd34  func_0205d23c
+    func_0205d2b0  func_0205d2dc  func_0205d304  func_0205d4a0  func_0205d518
+    func_0205d568  func_0205d644  func_0205d714                 the Vram__Map
+      family, thirteen TUs. See the correction below.
+    func_0204ee40  func_0204ef9c                 two more of the same family's
+      closure.
+    _ZN2G212GetBG0ScrPtrEv                       reached only from
+      func_ov003_020adc74, which is itself dropped.
+
+  A CORRECTION THIS FILE OWES: THE Vram__Map FAMILY CONTRIBUTES ZERO. An
+  earlier version of this section credited the +43 with "the VRAM bank-map
+  family (fourteen matched TUs under Vram__Map that no port target had ever
+  reached)". That is wrong twice over. Thirteen of those TUs are compiled into
+  the slice and then /OPT:REF-dropped, so they are in the build and not in the
+  binary. The only two family symbols in the map at all are func_02059fa8 (a
+  tools/hostgen.py GATE*_SYMS entry, never a slice line here) and Vram__Map
+  itself, and both were linked at base -- measured as a map diff on review, and
+  corroborated by the arithmetic above, since the enumerated 28 already
+  exhausts the arm9 half of the +43 and a newly linked Vram__Map would make it
+  29. The GX::SetBankFor* setters DO link, and they do end in Vram__Map on the
+  ROM, but the implementation under them does not come with them. Nothing about
+  the bank map is new in this binary.
+
+  THE TWENTY-EIGHT arm9 TUs THAT ARE NEW, enumerated rather than described:
+
+    3   the chain            Scene::SpawnIfNecessary, func_02013edc,
+                             func_02042fe4
+    9   the bank setters     GX::SetBankForTex, SetBankForOBJ,
+                             SetBankForTexPltt, SetBankForSubBG,
+                             SetBankForSubOBJ,
+                             SetBankForSubOBJExtPltt, and GXS::
+                             BeginLoadOBJExtPltt, LoadOBJExtPltt,
+                             EndLoadOBJExtPltt
+    1   G3X::SetFog
+    1   func_020540f0        GXS::BeginLoadOBJExtPltt's own callee
+    7   3D engines and the   Enable3dEngines, func_020190b8, func_02019018,
+        VRAM globals         InitialiseVramGlobals, func_02053e1c,
+                             func_02053e34, func_02053e4c
+    1   LoadTextNarcs
+    1   SetBg2Offset
+    1   CountStarsCollectedInLevelToDisplay
+    2   the two Message      Message::DisplayCourseNameForStarSelect,
+        ForStarSelect bodies Message::DisplayStarNameForStarSelect, which exist
+                             for this scene and nothing else
+    1   Sound::UnsetPlayerVoiceGroup
+    1   OAM::RenderSub       NOT IN THE SLICE. It is a matched arm9 TU the port
+                             already compiled, and the scene's Render is the
+                             first caller to reach it, so /OPT:REF stopped
+                             dropping it. The one TU in the +43 that no slice
+                             line asks for.
+    --
+    28
+
+  15 ov003 + 28 arm9 = 43, and the 27 arm9 above that ARE slice lines, plus
+  the 15 ov003, make the 42.
+
+  ov003 15 of 36, from 0. The other 21 are dScTitle_c's and dScGameOver_c's and
+  are deliberately unlinked; see section 9.
+
+  ov001 6 of 23, UNCHANGED. Ten more of its sprite-template symbols joined the
+  mount this lane, but a mounted DATA symbol is not a linked TU and the mount
+  growth moves no count here.
 
   FOUR OF THE FIFTEEN ov003 TUs ARE NONMATCHING (020ae358, 020ae6f4 the Render,
   020af038 the Behavior, 020af8a0 the InitResources). They carry the decomp's
@@ -325,6 +400,8 @@ from the run, not as a survey of the hardware.
   already exist (section 10). The ov003 bodies link because the ROM's own
   ACTOR_SPAWN_TABLE record names the factory and the ROM's own vtable names the
   seven methods -- the same edges every other actor class in the port links on.
+  The eighteen drops are that referee working: eighteen TUs this lane put in
+  front of the linker that the star select does not reach.
 
 
 9. THE OTHER TWO ov003 SCENES, AND WHAT ACTUALLY BLOCKS THEM

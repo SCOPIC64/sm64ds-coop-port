@@ -2614,13 +2614,18 @@ list(APPEND SLICE31_SOURCES
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/SetNumPlayers_hostcopy.c"
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Door_CleanupResources.cpp")
 
-# THE SCENE BOOT: all of ov003, the three non-level scenes the port can enter.
-# dScTitle_c (id 2), dScStarSel_c (id 4) and dScGameOver_c (id 8), reached
-# through the ROM's own Scene::SetSceneToSpawn -> Scene::SpawnIfNecessary ->
-# func_02043098 spawn spine. hal/scene_boot.cpp seats the three ACTOR_SPAWN_TABLE
-# records and fills the three vtables; port_scene_run drives the frame.
-# SM64DS_SCENE=<id> in walk_window takes the run. See slice_scene1.txt for why
-# every TU here links off the ROM's own edges rather than a link root.
+# THE SCENE BOOT: the star select, the one non-level scene the port can enter.
+# ov003 carries three scene classes -- dScTitle_c (id 2), dScStarSel_c (id 4)
+# and dScGameOver_c (id 8) -- and ONLY id 4 is seated; the other two are
+# derived to the same depth and blocked, which slice_scene1.txt spells out. It
+# is reached through the ROM's own Scene::SetSceneToSpawn ->
+# Scene::SpawnIfNecessary -> func_02043098 spawn spine. hal/scene_boot.cpp
+# seats that one ACTOR_SPAWN_TABLE record and fills its vtable; port_scene_run
+# drives the frame. SM64DS_SCENE=<id> in walk_window takes the run, and an
+# unhosted id is refused by name. Eighteen of the sixty src TUs this slice
+# lists are /OPT:REF-dropped on purpose; see slice_scene1.txt for why every TU
+# here links off the ROM's own edges rather than a link root, and
+# scene_boot_map.txt section 8 for which eighteen do not link at all.
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_scene1.txt" SLICE_SCENE1_LINES)
 set(SLICE_SCENE1_SOURCES "")
 foreach(line IN LISTS SLICE_SCENE1_LINES)

@@ -81,6 +81,11 @@ src/func_ov003_020ade54.c
 # rather than 17. They stay in the slice because they are part of the overlay's
 # closure and will link the moment dScTitle_c is seated; adding a reference to
 # make the count move would be the exact fabrication this file's header refuses.
+#
+# THEY ARE 2 OF 18. This file lists SIXTY src TUs and eighteen of them are
+# /OPT:REF-dropped -- these two, the thirteen Vram__Map bodies and their two
+# closure TUs below, and _ZN2G212GetBG0ScrPtrEv, which only func_ov003_020adc74
+# calls. scene_boot_map.txt section 8 names all eighteen in one place.
 src/func_ov003_020adc74.cpp
 src/func_ov003_020adcbc.cpp
 src/func_ov003_020adec0.c
@@ -121,8 +126,15 @@ src/func_020540f0.c
 src/_ZN3G3X6SetFogEbiii.cpp
 # THE VRAM BANK MAP ITSELF. Every GX::SetBankFor* above ends in Vram__Map, and
 # this is the family that implements it -- the LCDC/BG/OBJ/texture bank
-# assignment the DS does in hardware, fourteen matched TUs that no level path
-# in this port had ever reached because a level never reassigns a bank.
+# assignment the DS does in hardware.
+#
+# EVERY ONE OF THE THIRTEEN IS /OPT:REF-DROPPED, and this block is listed
+# anyway so the drop is on the record rather than discovered later. They are
+# compiled into the build and they are not in the binary: the setters above
+# reach Vram__Map on the ROM, but nothing in the star select's path reaches
+# these bodies on the host. An earlier version of scene_boot_map.txt credited
+# this family with fourteen newly linked TUs; the family contributes ZERO, and
+# section 8 there now carries the corrected enumeration.
 src/func_0205cb68.c
 src/func_0205cbe4.c
 src/func_0205cc80.c

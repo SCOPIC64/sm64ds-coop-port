@@ -131,19 +131,23 @@ SCENE_TABLE_OPEN = "static const PortSceneClass port_scene_classes[] = {"
 # outlive its bug. Empty is the goal.
 SCENE_SKIPS = {
     4: ("SM64DS_SCENE_SLOT9=0", "the model-loader lane",
-        "dScStarSel_c::Render hangs in the MODEL DISPLAY-LIST WALK, not in "
-        "anything the scene boot owns. Measured, not inferred: with the render "
-        "slot on its real body the run never finishes frame 0, and "
-        "PORT_WATCHDOG=25 catches the main thread inside "
+        "dScStarSel_c::Render does not finish frame 0. WHAT IS MEASURED is the "
+        "LOCATION, not the cause: with the render slot on its real body the "
+        "run hangs, and PORT_WATCHDOG=25 catches the main thread inside "
         "mv_render -> Model::Render -> ModelComponents::Render -> "
         "func_02044b30+0x25c -> func_0204488c+0x24a -> func_0205a358 -> "
         "ntr::io_read -> memcpy. func_0204488c is the ordinary part walk (see "
-        "port/tools/hostgen.py's own note on it), so the walk is reading a "
-        "runaway command count out of a Model that loaded but did not build. "
-        "Same shape as ROCK_PILLAR on level 8, which hal/level_boot.cpp "
-        "already routes to the model-loader lane. With slot 9 no-op'd the "
-        "scene runs 300 frames clean and its Behavior is entered on 299 of "
-        "them, so everything except the draw is exercised. Full write-up: "
+        "port/tools/hostgen.py's own note on it), so it hangs in the part walk "
+        "under Model::Render, in the model-loader family that hal/level_boot"
+        ".cpp already routes there for ROCK_PILLAR on level 8. WHAT IS NOT "
+        "MEASURED: neither the runaway command count nor which of the scene's "
+        "two Models is the one being drawn was isolated, so do not read either "
+        "off this entry. The A/B review asked for was run: "
+        "SM64DS_SCENE_SUBLEVEL=7 (course 1) gives the same stack frame for "
+        "frame, same offsets, so the hang is not an artifact of one "
+        "star-collected state. With slot 9 no-op'd the scene runs 300 "
+        "frames clean and its Behavior is entered on 299 of them, so "
+        "everything except the draw is exercised. Full write-up: "
         "port/scene_boot_map.txt."),
 }
 
