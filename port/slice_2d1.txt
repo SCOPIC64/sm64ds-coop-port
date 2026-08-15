@@ -1,0 +1,14 @@
+# run linkw wave C, lane cat-2d, slice 2d1: the one ov004 body a linked arm9
+# caller already reaches.
+#
+# src/LoadFont.cpp's data_0209d698 == 2 arm calls func_ov004_020adc4c twice
+# (config/arm9/relocs.txt from:0x0201fd00 and from:0x0201fd10, both
+# kind:arm_call to:0x020adc4c module:overlay(4)). LoadFont is linked, so this
+# TU is reachable the moment its own callee exists: the one BSS word it reads,
+# hosted in hal/oam2d_ov004_bss.cpp. No /include: root, no synthetic caller.
+#
+# It is one TU because it is the ONLY one. Every other edge into ov004 comes
+# from ov006, which is not mounted, or is an ambiguous overlays(2,4) tag whose
+# real destination is the ov002 body at the same address. The full accounting
+# is port/ov004_ov007_2d_map.txt sections 4 and 6.
+src/func_ov004_020adc4c.c

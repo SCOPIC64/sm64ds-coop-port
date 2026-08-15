@@ -727,14 +727,15 @@ void LoadControllerModeText(int a)
                     "not hosted\n", a);
 }
 
-/* LoadFont's data_0209d698 == 2 branch only, which is the ov004 (VS-mode)
-   font destination. The port loads font 0.
-   PORT_HOST_ABI: src reads data_ov004_020beb60, and ov004 is not mounted. */
-int func_ov004_020adc4c(void)
-{
-    std::printf("  [sub] func_ov004_020adc4c: ov004 is not mounted\n");
-    return 0;
-}
+/* The third leaf, func_ov004_020adc4c, is NOT stubbed here any more (run linkw
+   wave C, lane cat-2d). It was tagged `src reads data_ov004_020beb60, and
+   ov004 is not mounted`, and that one BSS word is now hosted in
+   hal/oam2d_ov004_bss.cpp, so the matched src/func_ov004_020adc4c.c is the
+   body LoadFont reaches. Leaving the stub here would be a duplicate
+   definition. The branch that calls it is still not taken: it is LoadFont's
+   data_0209d698 == 2 arm, the minigame framework's font, and the window loads
+   font 0. ov004 is the minigame scene framework, not the VS mode this comment
+   used to say; see port/ov004_ov007_2d_map.txt. */
 
 /* Debug: the bottom screen on its own, at its own size. */
 void hal_sub_screen_dump(const char *path)
