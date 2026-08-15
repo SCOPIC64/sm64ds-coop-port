@@ -998,6 +998,19 @@ extern unsigned char FirePiranhaPlantBig_SpawnInfo[];   /* ov084 0x02130ae8, +4 
 void *FirePiranhaPlantBig_Spawn(void);                  /* 556 B, Enemy */
 extern unsigned char FirePiranhaPlantSmall_SpawnInfo[]; /* ov084 0x02130b04, +4 = 252 */
 void *FirePiranhaPlantSmall_Spawn(void);                /* 556 B, Enemy */
+/* ---- run linkw wave 9 (lane w9-reg): three ov091 SLIDING PLATFORM siblings --
+   SEVEN ids store the table 0x02135080 (55, 124, 138, 146, 147, 154, 155) and
+   id 55 is already registered, so _ZTV17SlidingPlatformWf[32] in
+   hal/actor_classes_l7.cpp is already filled before any of these spawn. All
+   three SpawnInfo records are already mounted in port/ov091_syms.txt at 0x1c,
+   and all three Spawns are the same 816-byte Platform shape as the registered
+   SlidingPlatformWf_Spawn with a single real-name vptr store -- no wrapper. ---- */
+extern unsigned char SlidingPlatformBdw_SpawnInfo[];    /* ov091 0x02134f60, +4 = 138 */
+void *SlidingPlatformBdw_Spawn(void);                   /* ov091 0x02132908 */
+extern unsigned char SlidingPlatformBsWide_SpawnInfo[]; /* ov091 0x02134f7c, +4 = 154 */
+void *SlidingPlatformBsWide_Spawn(void);                /* ov091 0x021328d8 */
+extern unsigned char SlidingPlatformBsLong_SpawnInfo[]; /* ov091 0x02134f98, +4 = 155 */
+void *SlidingPlatformBsLong_Spawn(void);                /* ov091 0x021328a8 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1474,4 +1487,6 @@ void *FirePiranhaPlantSmall_Spawn(void);                /* 556 B, Enemy */
        siblings. GOOMBA_LARGE x9 on level 24; FIRE_PIRANHA_PLANT_BIG x5 on
        level 24; FIRE_PIRANHA_PLANT_SMALL x2 on level 39. Each reuses the fill
        its already-registered sibling installs on the SAME ROM table, so the
-       fill column is deliberately the sibling's. ---- */     {202, "GOOMBA_LARGE", GoombaLarge_SpawnInfo, GoombaLarge_Spawn,      hal_fill_goomba_vtable},     {251, "FIRE_PIRANHA_PLANT_BIG", FirePiranhaPlantBig_SpawnInfo,      FirePiranhaPlantBig_Spawn, hal_fill_fire_piranha_plant_vtable},     {252, "FIRE_PIRANHA_PLANT_SMALL", FirePiranhaPlantSmall_SpawnInfo,      FirePiranhaPlantSmall_Spawn, hal_fill_fire_piranha_plant_vtable},
+       fill column is deliberately the sibling's. ---- */     {202, "GOOMBA_LARGE", GoombaLarge_SpawnInfo, GoombaLarge_Spawn,      hal_fill_goomba_vtable},     {251, "FIRE_PIRANHA_PLANT_BIG", FirePiranhaPlantBig_SpawnInfo,      FirePiranhaPlantBig_Spawn, hal_fill_fire_piranha_plant_vtable},     {252, "FIRE_PIRANHA_PLANT_SMALL", FirePiranhaPlantSmall_SpawnInfo,      FirePiranhaPlantSmall_Spawn, hal_fill_fire_piranha_plant_vtable},     /* ---- run linkw wave 9 (lane w9-reg): the three ov091 sliding-platform
+       siblings. x1 on level 35, x1 and x2 on level 39. Each reuses the fill
+       the registered id 55 installs on the SAME ROM table. ---- */     {138, "SLIDING_PLATFORM_BDW", SlidingPlatformBdw_SpawnInfo,      SlidingPlatformBdw_Spawn, hal_fill_sliding_platform_wf_vtable},     {154, "SLIDING_PLATFORM_BS_WIDE", SlidingPlatformBsWide_SpawnInfo,      SlidingPlatformBsWide_Spawn, hal_fill_sliding_platform_wf_vtable},     {155, "SLIDING_PLATFORM_BS_LONG", SlidingPlatformBsLong_SpawnInfo,      SlidingPlatformBsLong_Spawn, hal_fill_sliding_platform_wf_vtable},
