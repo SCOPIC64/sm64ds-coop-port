@@ -995,6 +995,62 @@ void hal_fill_float_on_lava_platform_vtable(void); /* _ZTV19RotatingPlatformLll,
 void hal_fill_floating_floor_lll_vtable(void);   /* _ZTV21FloatingFloorLllSmall, 32
                                                     (75 + 76) */
 void hal_fill_lava_plank_vtable(void);           /* _ZTV19FloatingFloorLllBig, 32 */
+/* ---- run linkw wave 9 (lane w9-reg): TILTING_PLATFORM_LLL (72, ov064) ----
+   ACTOR_SPAWN_TABLE 0x02090984 -> 0x0211bd08; the raw record there (out of
+   extracted/overlays/overlay_0064.bin, NOT the compressed dsd export) has
+   word[0] = TiltingPlatformLll_Spawn inside ov064 and its +4 halfword reads 72,
+   so both attribution routes agree. Table 0x0211bd2c, 32 slots pinned twice
+   (reloc run and next-symbol landing both end at 0x0211bdac); RTTI at
+   vtable[-1] names it daObjFl_Gura_c, gura = the tilting one, the same root as
+   ov045's TiltingPlatformBfs. x14, the biggest class in the wave-8 census.
+   The factory column is a WRAPPER because the Spawn's final vptr store is the
+   zeroed VT1 placeholder -- see hal/actor_classes_ov064_w9.cpp. ---- */
+extern unsigned char TiltingPlatformLll_SpawnInfo[];  /* ov064 0x0211bd08, +4 reads 72 */
+void *port_factory_tilting_platform_lll(void);        /* wraps ov064 0x021180fc */
+void hal_fill_tilting_platform_lll_vtable(void);      /* _ZTV12MetalNetLift, 32 */
+/* ---- run linkw wave 9 (lane w9-reg): three ov084 SHARED-TABLE siblings ----
+   Sweeping every spawn-table entry against ov084's raw image shows ids 200/201/
+   202 all storing 0x02130948 and ids 251/252/253 all storing 0x02130b28. Both
+   tables are ALREADY host arrays that an already-registered id fills
+   (_ZTV6Goomba[31] in hal/actor_classes_bob_enemy.cpp, _ZTV19FirePiranhaPlantBig
+   [31] in hal/actor_classes_l7.cpp), and all three SpawnInfo records are already
+   mounted in port/ov084_syms.txt at the record's real 0x1c. So these three rows
+   reuse the existing fills and add nothing but their own factories.
+   Each Spawn stores its table by a REAL name -- no wrapper -- and each is
+   shape-identical to the sibling already registered beside it. ---- */
+extern unsigned char GoombaLarge_SpawnInfo[];   /* ov084 0x02130924, +4 reads 202 */
+void *GoombaLarge_Spawn(void);                  /* ov084 0x0212bff8, 1144 B, CapEnemy */
+extern unsigned char FirePiranhaPlantBig_SpawnInfo[];   /* ov084 0x02130ae8, +4 = 251 */
+void *FirePiranhaPlantBig_Spawn(void);                  /* 556 B, Enemy */
+extern unsigned char FirePiranhaPlantSmall_SpawnInfo[]; /* ov084 0x02130b04, +4 = 252 */
+void *FirePiranhaPlantSmall_Spawn(void);                /* 556 B, Enemy */
+/* ---- run linkw wave 9 (lane w9-reg): three ov091 SLIDING PLATFORM siblings --
+   SEVEN ids store the table 0x02135080 (55, 124, 138, 146, 147, 154, 155) and
+   id 55 is already registered, so _ZTV17SlidingPlatformWf[32] in
+   hal/actor_classes_l7.cpp is already filled before any of these spawn. All
+   three SpawnInfo records are already mounted in port/ov091_syms.txt at 0x1c,
+   and all three Spawns are the same 816-byte Platform shape as the registered
+   SlidingPlatformWf_Spawn with a single real-name vptr store -- no wrapper. ---- */
+extern unsigned char SlidingPlatformBdw_SpawnInfo[];    /* ov091 0x02134f60, +4 = 138 */
+void *SlidingPlatformBdw_Spawn(void);                   /* ov091 0x02132908 */
+extern unsigned char SlidingPlatformBsWide_SpawnInfo[]; /* ov091 0x02134f7c, +4 = 154 */
+void *SlidingPlatformBsWide_Spawn(void);                /* ov091 0x021328d8 */
+extern unsigned char SlidingPlatformBsLong_SpawnInfo[]; /* ov091 0x02134f98, +4 = 155 */
+void *SlidingPlatformBsLong_Spawn(void);                /* ov091 0x021328a8 */
+/* ---- run linkw wave 9 (lane w9-reg): three ov095 SEESAW siblings -- SEVEN ids
+   store the table 0x021374fc (28, 39, 128, 133, 143, 149, 150) and id 39
+   (SEESAW_BOB) is already registered, so _ZTV9SeesawBob[32] in
+   hal/actor_classes_bob_world.cpp is already filled before these spawn. The
+   three records join the mount at 0x1c, the stride port/ov095_syms.txt already
+   measured for every record in the overlay. All three Spawns are the same
+   808-byte Platform shape as SeesawBob_Spawn with a single real-name vptr
+   store -- no wrapper. ---- */
+extern unsigned char SeesawBdw_SpawnInfo[];        /* ov095 0x021373f8, +4 = 133 */
+void *SeesawBdw_Spawn(void);                       /* ov095 0x02135f64 */
+extern unsigned char SeesawBsPlank_SpawnInfo[];    /* ov095 0x02137430, +4 = 149 */
+void *SeesawBsPlank_Spawn(void);                   /* ov095 0x02135f04 */
+extern unsigned char SeesawBsZigZag_SpawnInfo[];   /* ov095 0x0213744c, +4 = 150 */
+void *SeesawBsZigZag_Spawn(void);                  /* ov095 0x02135ed4 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1473,4 +1529,45 @@ void hal_fill_lava_plank_vtable(void);           /* _ZTV19FloatingFloorLllBig, 3
     {75, "FLOATING_FLOOR_LLL_BIG", FloatingFloorLllBig_SpawnInfo, \
      port_factory_floating_floor_lll_big, hal_fill_floating_floor_lll_vtable}, \
     {82, "LAVA_PLANK", LavaPlank_SpawnInfo, LavaPlank_Spawn, \
-     hal_fill_lava_plank_vtable},
+     hal_fill_lava_plank_vtable}, \
+    /* ---- run linkw wave 9 (lane w9-reg): TILTING_PLATFORM_LLL, the largest \
+       single class in the wave-8 skip census -- FOURTEEN instances, x10 on \
+       level 44 (ex_m_map) and x4 on level 48 (ex_w_map). ov064 is already \
+       mounted (gates 177/178), so this is registration with no new mount. \
+       The dsd block shift spells its bodies _ZN12MetalNetLift* and its table \
+       _ZTV12MetalNetLift; the class is id 72, not the gate-178 id 69, and \
+       hal/actor_classes_ov064_gate178.cpp's header says so itself. Its Spawn \
+       stores base-then-own and the own store is the zeroed VT1 placeholder, so \
+       it needs a FACTORY WRAPPER; the disassembly that settles the store order \
+       is in hal/actor_classes_ov064_w9.cpp. ---- */ \
+    {72, "TILTING_PLATFORM_LLL", TiltingPlatformLll_SpawnInfo, \
+     port_factory_tilting_platform_lll, hal_fill_tilting_platform_lll_vtable}, \
+    /* ---- run linkw wave 9 (lane w9-reg): the three ov084 shared-table \
+       siblings. GOOMBA_LARGE x9 on level 24; FIRE_PIRANHA_PLANT_BIG x5 on \
+       level 24; FIRE_PIRANHA_PLANT_SMALL x2 on level 39. Each reuses the fill \
+       its already-registered sibling installs on the SAME ROM table, so the \
+       fill column is deliberately the sibling's. ---- */ \
+    {202, "GOOMBA_LARGE", GoombaLarge_SpawnInfo, GoombaLarge_Spawn, \
+     hal_fill_goomba_vtable}, \
+    {251, "FIRE_PIRANHA_PLANT_BIG", FirePiranhaPlantBig_SpawnInfo, \
+     FirePiranhaPlantBig_Spawn, hal_fill_fire_piranha_plant_vtable}, \
+    {252, "FIRE_PIRANHA_PLANT_SMALL", FirePiranhaPlantSmall_SpawnInfo, \
+     FirePiranhaPlantSmall_Spawn, hal_fill_fire_piranha_plant_vtable}, \
+    /* ---- run linkw wave 9 (lane w9-reg): the three ov091 sliding-platform \
+       siblings. x1 on level 35, x1 and x2 on level 39. Each reuses the fill \
+       the registered id 55 installs on the SAME ROM table. ---- */ \
+    {138, "SLIDING_PLATFORM_BDW", SlidingPlatformBdw_SpawnInfo, \
+     SlidingPlatformBdw_Spawn, hal_fill_sliding_platform_wf_vtable}, \
+    {154, "SLIDING_PLATFORM_BS_WIDE", SlidingPlatformBsWide_SpawnInfo, \
+     SlidingPlatformBsWide_Spawn, hal_fill_sliding_platform_wf_vtable}, \
+    {155, "SLIDING_PLATFORM_BS_LONG", SlidingPlatformBsLong_SpawnInfo, \
+     SlidingPlatformBsLong_Spawn, hal_fill_sliding_platform_wf_vtable}, \
+    /* ---- run linkw wave 9 (lane w9-reg): the three ov095 seesaw siblings. \
+       x2 on level 35, x1 and x1 on level 39. Each reuses the fill the \
+       registered id 39 installs on the SAME ROM table. ---- */ \
+    {133, "SEESAW_BDW", SeesawBdw_SpawnInfo, SeesawBdw_Spawn, \
+     hal_fill_seesaw_bob_vtable}, \
+    {149, "SEESAW_BS_PLANK", SeesawBsPlank_SpawnInfo, SeesawBsPlank_Spawn, \
+     hal_fill_seesaw_bob_vtable}, \
+    {150, "SEESAW_BS_ZIGZAG", SeesawBsZigZag_SpawnInfo, SeesawBsZigZag_Spawn, \
+     hal_fill_seesaw_bob_vtable},

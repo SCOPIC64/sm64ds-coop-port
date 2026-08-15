@@ -1,0 +1,37 @@
+# Run linkw wave 9, lane w9-reg, slice D: the three ov095 SEESAW siblings --
+# SEESAW_BDW (133, x2 on level 35), SEESAW_BS_PLANK (149, x1 on level 39) and
+# SEESAW_BS_ZIGZAG (150, x1 on level 39). Four instances for three TUs.
+#
+# THE SHARED TABLE. Resolving every ov095 spawn-table entry to the table its
+# Spawn stores puts SEVEN ids on 0x021374fc -- 28, 39, 128, 133, 143, 149, 150 --
+# and id 39 (SEESAW_BOB, gate 83) is already registered, so the host array
+# _ZTV9SeesawBob[32] in hal/actor_classes_bob_world.cpp is already filled before
+# any of these three spawn. The vtable stays OUT of the mount, which is the rule
+# port/ov095_syms.txt's own header already states.
+#
+# Both attribution routes for each, out of extracted/overlays/overlay_0095.bin at
+# base 0x02135700 (ov095 is compressed:true, so the dsd export is the wrong image
+# for a halfword read):
+#
+#     id 133  0x02090a78 -> 0x021373f8  word[0]=0x02135f64 SeesawBdw_Spawn
+#                                       +4 halfword = 133, +6 priority 174
+#     id 149  0x02090ab8 -> 0x02137430  word[0]=0x02135f04 SeesawBsPlank_Spawn
+#                                       +4 = 149, +6 priority 220
+#     id 150  0x02090abc -> 0x0213744c  word[0]=0x02135ed4 SeesawBsZigZag_Spawn
+#                                       +4 = 150, +6 priority 221
+#
+# NO FACTORY WRAPPER: all three Spawns are the same shape as the already-
+# registered SeesawBob_Spawn -- 808 bytes over Platform's constructor, then a
+# single `p[0] = _ZTV9SeesawBob` by a REAL name rather than the zeroed VT1
+# placeholder.
+#
+# THE MOUNT ADDS THREE RECORDS, each pinned to 0x1c, and the pin is not a guess:
+# port/ov095_syms.txt's SeesawBob block already measured 0x1c as the stride of
+# EVERY record in this overlay ("the seven Seesaws run 0x021373dc/f8/0x02137414/
+# 30/4c/68/84 ... all deltas exactly 0x1c"). All three of these records are in
+# that run. Their natural next-symbol deltas would be 0x4, 0x1c and 0x8 -- two of
+# the three wrong, and 0x4 would truncate the record before the +4 id halfword
+# the registry cross-checks.
+src/SeesawBdw_Spawn.c
+src/SeesawBsPlank_Spawn.c
+src/SeesawBsZigZag_Spawn.c

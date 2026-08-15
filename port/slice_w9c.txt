@@ -1,0 +1,42 @@
+# Run linkw wave 9, lane w9-reg, slice C: the three ov091 SLIDING PLATFORM
+# siblings -- SLIDING_PLATFORM_BDW (138, x1 on level 35),
+# SLIDING_PLATFORM_BS_WIDE (154, x1 on level 39) and
+# SLIDING_PLATFORM_BS_LONG (155, x2 on level 39). Four instances for three TUs,
+# the slice-B shape again.
+#
+# THE SHARED TABLE. Resolving every ov091 spawn-table entry to the table its
+# Spawn stores puts SEVEN ids on 0x02135080:
+#
+#     55  SlidingPlatformWf     REGISTERED (gate 72, SLIDING_PLATFORM_WF)
+#     124 SlidingPlatformRr
+#     138 SlidingPlatformBdw    this slice
+#     146 SlidingPlatformBfsRectangle
+#     147 (sibling)
+#     154 SlidingPlatformBsWide this slice
+#     155 SlidingPlatformBsLong this slice
+#
+# 0x02135080 is already the host array _ZTV17SlidingPlatformWf[32] that
+# hal/actor_classes_l7.cpp fills, and that fill is reached from the registered
+# id 55, so the table is filled before any of these three spawns.
+#
+# All three SpawnInfo records are ALREADY MOUNTED in port/ov091_syms.txt, each
+# pinned to the record's real 0x1c, so nothing is added to the mount. Both
+# attribution routes were run for each, out of extracted/overlays/
+# overlay_0091.bin at base 0x02130f00 (ov091 is compressed:true, so the dsd
+# export is the wrong image for a halfword read):
+#
+#     id 138  0x02090a8c -> 0x02134f60  word[0]=0x02132908 SlidingPlatformBdw_Spawn
+#                                       +4 halfword = 138, +6 priority 179
+#     id 154  0x02090acc -> 0x02134f7c  word[0]=0x021328d8 ..BsWide_Spawn
+#                                       +4 = 154, +6 priority 225
+#     id 155  0x02090ad0 -> 0x02134f98  word[0]=0x021328a8 ..BsLong_Spawn
+#                                       +4 = 155, +6 priority 226
+#
+# NO FACTORY WRAPPER: all three Spawns are byte-for-byte the same shape as the
+# already-registered SlidingPlatformWf_Spawn -- 816 bytes over Platform's
+# constructor, then a single `p[0] = _ZTV17SlidingPlatformWf` by a REAL name
+# rather than the zeroed VT1 placeholder -- so the registry calls each matched
+# Spawn directly.
+src/SlidingPlatformBdw_Spawn.c
+src/SlidingPlatformBsWide_Spawn.c
+src/SlidingPlatformBsLong_Spawn.c

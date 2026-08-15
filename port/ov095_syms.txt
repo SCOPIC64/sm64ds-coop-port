@@ -115,3 +115,22 @@ Flamethrower_SpawnInfo:0x1c
 # these need no pin. None of the three carries a relocation, so they add
 # nothing to the pointer-rebase pass.
 data_ov095_02136f80 data_ov095_02136f98 data_ov095_02136fb0
+
+# ---- run linkw wave 9, lane w9-reg: three more SEESAW records ---------------
+# SEESAW_BDW (133, x2 on level 35), SEESAW_BS_PLANK (149, x1 on level 39) and
+# SEESAW_BS_ZIGZAG (150, x1 on level 39). All three share the table 0x021374fc
+# with the already-registered SEESAW_BOB (39), so the host array
+# _ZTV9SeesawBob[32] that hal/actor_classes_bob_world.cpp fills is already
+# filled before any of them spawns; these three lines add only the records the
+# registry rewrites and the ActorBase constructor reads its two priorities back
+# out of. Both attribution routes for each, out of the RAW ndspy image:
+#   0x02090a78 -> 0x021373f8  word[0]=0x02135f64 SeesawBdw_Spawn      +4 = 133
+#   0x02090ab8 -> 0x02137430  word[0]=0x02135f04 SeesawBsPlank_Spawn  +4 = 149
+#   0x02090abc -> 0x0213744c  word[0]=0x02135ed4 SeesawBsZigZag_Spawn +4 = 150
+# 0x1c each, the stride this file's SeesawBob block already measured for every
+# record in the overlay -- the seven Seesaws at 0x021373dc/f8/0x02137414/30/4c/
+# 68/84 are all exactly 0x1c apart. The natural next-symbol deltas here are 0x4,
+# 0x1c and 0x8, so two of the three would be wrong and the 0x4 would truncate
+# the record before the +4 id halfword the registry cross-checks.
+SeesawBdw_SpawnInfo:0x1c SeesawBsPlank_SpawnInfo:0x1c
+SeesawBsZigZag_SpawnInfo:0x1c
