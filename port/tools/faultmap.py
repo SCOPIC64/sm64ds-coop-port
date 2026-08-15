@@ -154,6 +154,32 @@ def actor_names(root):
     return out
 
 
+def image_size(mapfile):
+    """SizeOfImage from the PE next to the map, or None.
+
+    NEEDED TO REFUSE, NOT TO RESOLVE. A crash dump carries frames from system
+    DLLs alongside the module's own -- the forced-quarantine proof run faults
+    inside ntdll's RaiseException and prints `at +0x7598a2b4`, with three more
+    frames in the same range. Those offsets are relative to walk_window's base
+    but land nowhere near it, and a nearest-preceding lookup answers them with
+    the LAST symbol in the map and a distance of two gigabytes. That answer is
+    confident, specific and wrong, which is the worst thing this tool can be.
+    """
+    exe = os.path.splitext(mapfile)[0] + ".exe"
+    try:
+        with open(exe, "rb") as f:
+            head = f.read(0x400)
+        if head[:2] != b"MZ":
+            return None
+        pe = int.from_bytes(head[0x3C:0x40], "little")
+        if head[pe:pe + 4] != b"PE\0\0":
+            return None
+        opt = pe + 24
+        return int.from_bytes(head[opt + 56:opt + 60], "little")
+    except (OSError, ValueError, IndexError):
+        return None
+
+
 def lookup(entries, off):
     """(preceding_entry, distance, next_entry) for an image offset."""
     keys = [e[0] for e in entries]
@@ -167,10 +193,17 @@ def lookup(entries, off):
 FOLD_SHOWN = 6
 
 
-def describe(entries, off, indent="", show_all=False):
+def describe(entries, off, indent="", show_all=False, size=None):
     """Print one offset's resolution."""
-    prev, dist, nxt = lookup(entries, off)
     print("%s+0x%08x" % (indent, off))
+    if size is not None and off >= size:
+        print("%s  OUTSIDE the module: walk_window.exe is 0x%x bytes of image "
+              "and this offset is past its end." % (indent, size))
+        print("%s  A system DLL frame (the fault probe prints every return "
+              "address relative to walk_window's base, including the ones that "
+              "are not in it). Not resolvable from this map." % indent)
+        return
+    prev, dist, nxt = lookup(entries, off)
     if prev is None:
         print("%s  before the first symbol in the map" % indent)
         return
@@ -242,11 +275,16 @@ def main():
         return 0
 
     entries, base = load_map(mapfile)
+    size = image_size(mapfile)
     print("map        : %s" % os.path.abspath(mapfile))
     print("image base : 0x%08x (preferred), %d distinct addresses, %d symbols"
           % (base, len(entries), sum(len(e[1]) for e in entries)))
     print("registry   : %d actor ids from hal/actor_classes.inc + "
           "hal/actor_registry.cpp" % len(names))
+    print("image size : %s"
+          % ("0x%x from the PE next to the map" % size if size
+             else "unknown, no readable exe next to the map -- offsets past "
+                  "the module cannot be refused"))
     print()
 
     for aid in ids:
@@ -278,7 +316,7 @@ def main():
                 print(line.rstrip())
                 for o in offs:
                     describe(entries, int(o, 16), indent="  ",
-                             show_all=show_all)
+                             show_all=show_all, size=size)
                 print()
                 hits += 1
             if not hits:
@@ -290,7 +328,7 @@ def main():
                     else int(a.lstrip("+"), 16)
             except ValueError:
                 sys.exit("faultmap: %r is neither a hex offset nor a file" % a)
-            describe(entries, off, show_all=show_all)
+            describe(entries, off, show_all=show_all, size=size)
             print()
     return 0
 
