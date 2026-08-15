@@ -298,6 +298,45 @@ def read_debt():
     return sorted(set(syms))
 
 
+def adjudicated_path():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "inferred_stub_adjudicated.txt")
+
+
+def read_adjudicated():
+    """Bodies a lane disassembled out of the ROM, compared instruction for
+    instruction with their src/ body, ruled REAL DECOMP, and only THEN seated.
+
+    Unlike the baseline and the debt queue, this list is allowed to grow -- but
+    only on evidence, and the parser is the thing that enforces it. A line must
+    read `SYMBOL REAL_DECOMP EVIDENCE...`; a bare symbol, a symbol with any
+    other ruling, and a symbol with no evidence reference are all IGNORED. So a
+    failing build cannot be unblocked by adding a name, which is the property
+    inferred_stub_debt.txt's header protects by forbidding additions outright.
+
+    The marker this guard keys on records how a function's NAME was recovered,
+    not where its BODY came from -- lane w13 ruled all 43 then-queued bodies
+    REAL DECOMP, 0 guesses. A per-body ROM comparison answers the question the
+    marker only proxies for, so a symbol excused here cleared a strictly higher
+    bar than one sitting on the baseline."""
+    path = adjudicated_path()
+    if not os.path.isfile(path):
+        return []
+    syms = []
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) < 3:
+                continue
+            if parts[1] != "REAL_DECOMP":
+                continue
+            syms.append(parts[0])
+    return sorted(set(syms))
+
+
 def read_baseline():
     """The committed allowlist as a sorted list of symbols. Blank lines and
     lines starting with '#' are ignored."""
@@ -367,10 +406,14 @@ def main(argv):
     live_set = set(live)
     base_set = set(baseline)
     debt_set = set(read_debt())
+    adj_set = set(read_adjudicated())
     # Debt is carried separately from the baseline and is never an approval:
     # these were already seated and already shipping when the reader was
     # widened to see them. They are reported every run and must reach zero.
-    new_seated = sorted(live_set - base_set - debt_set)
+    # Adjudicated symbols are the opposite case: ruled against the ROM FIRST,
+    # seated second, and admitted only on a recorded ruling (read_adjudicated
+    # drops any line that does not carry one).
+    new_seated = sorted(live_set - base_set - debt_set - adj_set)
     retired = sorted(base_set - live_set)
     debt_paid = sorted(debt_set - live_set)
 
@@ -394,8 +437,16 @@ def main(argv):
         return 0
 
     print("inferred_stub_guard: {} seated inferred stubs live, {} on baseline, "
-          "{} unadjudicated DEBT."
-          .format(len(live_set), len(base_set), len(debt_set & live_set)))
+          "{} unadjudicated DEBT, {} ROM-ADJUDICATED."
+          .format(len(live_set), len(base_set), len(debt_set & live_set),
+                  len(adj_set & live_set)))
+    if adj_set & live_set:
+        print("  ADJUDICATED: {} seated body/bodies carry the marker but were "
+              "disassembled from the ROM and ruled REAL DECOMP before being "
+              "seated (see inferred_stub_adjudicated.txt). Each still owes a "
+              "decomp-side marker correction; the entry retires when the "
+              "marker line goes."
+              .format(len(adj_set & live_set)))
     if debt_set & live_set:
         print("  DEBT: {} seated guess-marked bodies discovered when this "
               "guard's slice reader was widened (see inferred_stub_debt.txt). "

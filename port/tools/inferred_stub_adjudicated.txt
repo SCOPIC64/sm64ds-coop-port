@@ -1,0 +1,77 @@
+# inferred_stub_adjudicated.txt
+#
+# PRE-SEAT ROM RULINGS. Every line here names a marker-carrying body that was
+# disassembled out of the ROM and compared instruction for instruction with its
+# src/ body BEFORE it was seated, and records the verdict.
+#
+# THIS IS NOT AN APPROVAL LIST AND IT IS NOT inferred_stub_debt.txt.
+#
+#   inferred_stub_baseline.txt  the frozen historical seated set. May only
+#                               shrink. Nothing is ever added.
+#   inferred_stub_debt.txt      bodies that were ALREADY seated and shipping
+#                               when the guard's slice reader was widened and
+#                               made them visible. May only shrink, must reach
+#                               zero. Nothing is ever added.
+#   THIS FILE                   bodies a lane ruled against the ROM and THEN
+#                               seated. Entry requires the ruling, and the
+#                               guard REFUSES a line that does not carry one.
+#
+# WHY THIS IS A TIGHTENING AND NOT A LOOPHOLE. The guard's stated fear is that
+# "a body that looks right can still be wrong in a way no byte gate on the ROM
+# catches, because the ROM never built from this source". The marker is a PROXY
+# for that fear -- and a bad one, because it records how the FUNCTION'S NAME
+# was recovered, not where the BODY came from. Lane w13 disassembled all 43
+# bodies then in the debt queue and ruled 43 REAL DECOMP, 0 guesses. A per-body
+# ROM comparison answers the actual question the marker only gestures at, so a
+# symbol excused here is held to a STRICTER standard than one on the baseline,
+# which was excused by nothing but having already been there.
+#
+# THE RATCHET IS INTACT. A bare symbol on a line does nothing: the guard parses
+# `SYMBOL RULING EVIDENCE` and ignores any line whose ruling is not REAL_DECOMP
+# or that carries no evidence reference, so a build cannot be unblocked by
+# adding a name. A body that rules GENUINE GUESS or UNVERIFIABLE is not listed
+# here at all -- it stays unseated, which is the whole point.
+#
+# FORMAT:  <symbol>  REAL_DECOMP  <evidence-ref>
+#
+# ---------------------------------------------------------------------------
+# run linkw wave 16 (lane w16-unblock), 2026-08-15.
+#
+# The four highest-yield targets on the cast ranking (ids 296, 83, 89, 135) were
+# refused only because their vtable bodies carry the marker. All 18 were
+# disassembled from extracted/overlays/overlay_NNNN.bin at the overlays.yaml
+# base -- the shipped image, deliberately not a dsd export, whose relocated
+# words would make literals read as live pointers -- and compared instruction
+# for instruction against src/. RESULT: 18 REAL DECOMP, 0 genuine guesses, 0
+# unverifiable. Register allocation and scheduling differ in places; no
+# constant, offset, branch target or instruction count does.
+#
+# Full per-body evidence: runs/linkw/status/w16.md.
+#
+# id 83, ov022, 20daObjFl_Fall_Block_c -- SEATED by this lane.
+func_ov022_02112448  REAL_DECOMP  w16.md#83  tail-call veneer onto ov098 0x0213a794 with r1=file table 0x0211427c; both constants match src
+func_ov022_02112434  REAL_DECOMP  w16.md#83  tail-call veneer onto ov098 0x0213a2cc with r1=file table 0x0211427c; both constants match src
+func_ov022_021123d0  REAL_DECOMP  w16.md#83  deleting dtor 0x64; three vtable restores then MovingMeshCollider::D1 +0x124, Model::D1 +0xd4, Actor::D2, Memory::Deallocate(this,G0); NAME says OnYoshiTryEat and is wrong, body is the D0
+#
+# id 296, ov002, 13daObjWakame_c -- ruled, seating deferred (see w16.md).
+func_ov002_020bc540  REAL_DECOMP  w16.md#296  Model::LoadFile/SetFile(1,-1) + Animation::LoadFile + ModelAnim::SetAnim(0,0x1000,0); all seven constants match
+func_ov002_020bc4c8  REAL_DECOMP  w16.md#296  two SharedFilePtr::Release on 0x0210e0dc/0x0210e0d4, return 1; exact
+func_ov002_020bc520  REAL_DECOMP  w16.md#296  Animation::Advance(this+0x124), return 1; exact
+func_ov002_020bc4f8  REAL_DECOMP  w16.md#296  Render: ldr r2,[r0,#0xd4]! / ldr r2,[r2,#0x14] / blx r2 -- the ModelAnim slot-5 dispatch, encoded not guessed
+func_ov002_020bc444  REAL_DECOMP  w16.md#296  dtor; VT0 restore = own table 0x02109bb8, ModelAnim::D1 +0xd4, Actor::D2, Deallocate(this,*0x020a0eac)
+#
+# id 89, ov026, 17daObjWlPolelift_c -- ruled, seating deferred (needs an ov026
+# per-symbol mount, which this lane did not build).
+func_ov026_02111598  REAL_DECOMP  w16.md#89  InitResources; MovingCylinderClsnWithPos::Init 7 args all exact (0x50000,0x12c000,0x80000c,0). TWO WRONG-OVERLAY SPELLINGS, see w16.md
+func_ov026_021112e4  REAL_DECOMP  w16.md#89  one SharedFilePtr::Release on 0x02113ea0, return 1; exact
+func_ov026_02111330  REAL_DECOMP  w16.md#89  Behavior 0x268; every offset, branch and constant matches, incl. RaycastGround hitY at struct +0x44
+func_ov026_02111308  REAL_DECOMP  w16.md#89  Render; same slot-5 dispatch shape as 296
+func_ov026_021111e0  REAL_DECOMP  w16.md#89  dtor; VT0 = own table 0x02113ae0, four sub-object dtors in ROM order
+#
+# id 135, ov043, 19daObjKm1_Ukishima_c -- ruled, seating deferred (needs an
+# ov043 per-symbol mount, which this lane did not build).
+func_ov043_02111320  REAL_DECOMP  w16.md#135  InitResources; MovingMeshCollider::SetFile 6 args exact (0x199, ldrsh +0x8e, 0x02111c00). TWO WRONG-OVERLAY SPELLINGS, see w16.md
+func_ov043_0211123c  REAL_DECOMP  w16.md#135  IsEnabled/Disable at +0x124 then two Releases on 0x021125e8/0x021125e0 as G0/G1; exact
+func_ov043_021112a8  REAL_DECOMP  w16.md#135  Behavior; DecIfAbove0_Byte +0x31e, +0x94 += 0x4000, Actor::UpdatePos(0), Platform trio; exact
+func_ov043_02111280  REAL_DECOMP  w16.md#135  Render; same slot-5 dispatch shape as 296
+func_ov043_021111e4  REAL_DECOMP  w16.md#135  dtor; VT0 = own table 0x021122b8, VT1 = 0x0210ae38, three sub-object dtors in ROM order

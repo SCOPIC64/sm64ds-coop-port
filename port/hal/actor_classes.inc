@@ -1200,6 +1200,16 @@ void hal_fill_pyramid_step_vtable(void);
 extern unsigned char PyramidLift_SpawnInfo[];        /* ov025 0x021139b0, +4 = 88 */
 void *PyramidLift_Spawn(void);                       /* ov025 0x021125f0, 100 B */
 void hal_fill_pyramid_lift_vtable(void);
+/* run linkw wave 16 (lane w16-unblock): FALL_BLOCK_LLL (83, ov022). The record
+   and the file table were already mounted by lane w8-packs; what held the id
+   back was the inferred-stub guard, and all three marker-carrying bodies ruled
+   REAL DECOMP against the ROM. The factory is the port_factory_fall_block_bfs
+   shape -- FallBlockLll_Spawn.c spells its own table VT1 and the intermediate
+   base by the class name, so the wrapper forces the vptr afterward and neither
+   spelling has to be right. See port/slice_w16a.txt. */
+extern unsigned char FallBlockLll_SpawnInfo[];       /* ov022 0x021142a0, +4 = 83 */
+void *port_factory_fall_block_lll(void);             /* VT1 wrapper over ov022 0x0211245c */
+void hal_fill_fall_block_lll_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1837,4 +1847,8 @@ void hal_fill_pyramid_lift_vtable(void);
     {87, "PYRAMID_STEP", PyramidStep_SpawnInfo, PyramidStep_Spawn, \
      hal_fill_pyramid_step_vtable}, \
     {88, "PYRAMID_LIFT", PyramidLift_SpawnInfo, PyramidLift_Spawn, \
-     hal_fill_pyramid_lift_vtable},
+     hal_fill_pyramid_lift_vtable}, \
+    /* ---- run linkw wave 16 (lane w16-unblock): ov022's fall block, the id \
+       the inferred-stub guard held back; x9 on level 14 ---- */ \
+    {83, "FALL_BLOCK_LLL", FallBlockLll_SpawnInfo, port_factory_fall_block_lll, \
+     hal_fill_fall_block_lll_vtable},
