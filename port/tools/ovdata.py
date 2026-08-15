@@ -1255,15 +1255,39 @@ def main():
             emitted.append((name, s, e - s, blob))
 
     # Pointer relocation: emitted data holds DS addresses of OTHER emitted
-    # symbols (fileptr tables, dtor-chain nodes). Rewrite any aligned word
-    # that lands inside another emitted symbol to the host address, so the
-    # game's pointer walks stay on hosted storage. Code pointers and words
-    # pointing at un-hosted data are left as-is (they trap loudly).
+    # symbols (fileptr tables, dtor-chain nodes). Rewrite any word the delink
+    # table calls an address to the host address, so the game's pointer walks
+    # stay on hosted storage. Code pointers and words pointing at un-hosted
+    # data are left as-is (they trap loudly).
+    #
+    # THE EVIDENCE IS relocs.txt, NOT A VALUE-RANGE SCAN, and it has to be.
+    # This pass used to rebase any 4-byte window whose VALUE landed inside the
+    # emission, on the reasoning that inside one mount the coverage is near
+    # enough to proof. It is not, once a mount carries a large block that dsd
+    # named at an address which is not word-aligned: the scan then steps along
+    # a grid the ROM never used, so four consecutive bytes of an ordinary byte
+    # table can read as an in-mount address by coincidence, and the patch
+    # writes a host pointer over four table entries.
+    #
+    # ov007 is the mount that found it. It has sixteen non-4-aligned symbols
+    # including blocks of 3830, 3570 and 1828 bytes, and it produced exactly
+    # one such coincidence: data_ov007_020ef022 + 1488 is DS 0x020ef5f2, two
+    # bytes off the word grid, where the byte run 08 0e 0f 02 reads as
+    # 0x020f0e08 and lands inside data_ov007_020f020e.
+    #
+    # The gate costs nothing that was ever real: across the 2753 patches the
+    # 45 per-symbol mounts in the current build emit, every single site is both
+    # 4-aligned and listed in relocs.txt, so none of them changes. It is the
+    # same standard of evidence the cross pass below already holds itself to,
+    # and the reason given there -- a constant can fall in the window -- turns
+    # out to apply within one mount too.
     covering = make_covering((a, a + sz, n) for n, a, sz, _ in emitted)
 
     patches = []
     for name, a, size, blob in emitted:
         for off in range(0, size - 3, 4):
+            if relocs.get(a + off) is None:
+                continue
             v = int.from_bytes(blob[off:off + 4], "little")
             hit = covering(v)
             if hit is not None:
