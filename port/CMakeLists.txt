@@ -3627,6 +3627,26 @@ foreach(line IN LISTS SLICE204_LINES)
     list(APPEND SLICE204_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Gate 205 (run link60, lane A1): ov085's WALL_SIGN (183) and TOAD (185), the
+# overlay's last two screened classes, nineteen placed instances across levels
+# 2, 4, 5 and 50. ov085 has been mounted per symbol since gate 18 and all six
+# of its sinits are already called, so the slice is code only. THREE host
+# bodies ride beside it: both classes' slot 6 is not decompiled at all
+# (unmatched/Ov085_Behaviors.cpp, HOST REIMPLEMENTATIONS written from the ROM),
+# and Toad's two PMF dispatchers are the gate-16 case
+# (unmatched/Ov085_Toad_StateSeat.cpp). Toad's D1 is held out and spelled in
+# the fill, the SlideDecorationSilverStar shape. See slice_gate205.txt and
+# hal/actor_classes_ov085.cpp.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate205.txt" SLICE205_LINES)
+set(SLICE205_SOURCES "")
+foreach(line IN LISTS SLICE205_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE205_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Lane w8-shadows (run linkw): the SHADOWS bucket. One matched TU by name --
 # TextureTransformer::Prepare, whose header declares it STATIC, which is what
 # makes the matched body callable through the C-name face that used to
@@ -4046,6 +4066,8 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp unmatched/Koopa_Render.cpp
     ${SLICE180_SOURCES} ${SLICE203_SOURCES} ${SLICE204_SOURCES}
+    hal/actor_classes_ov085.cpp ${SLICE205_SOURCES}
+    unmatched/Ov085_Behaviors.cpp unmatched/Ov085_Toad_StateSeat.cpp
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -4176,6 +4198,8 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp unmatched/Koopa_Render.cpp
     ${SLICE180_SOURCES} ${SLICE203_SOURCES} ${SLICE204_SOURCES}
+    hal/actor_classes_ov085.cpp ${SLICE205_SOURCES}
+    unmatched/Ov085_Behaviors.cpp unmatched/Ov085_Toad_StateSeat.cpp
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -4316,6 +4340,8 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp unmatched/Koopa_Render.cpp
     ${SLICE180_SOURCES} ${SLICE203_SOURCES} ${SLICE204_SOURCES}
+    hal/actor_classes_ov085.cpp ${SLICE205_SOURCES}
+    unmatched/Ov085_Behaviors.cpp unmatched/Ov085_Toad_StateSeat.cpp
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
