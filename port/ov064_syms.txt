@@ -88,3 +88,18 @@ data_ov064_0211c1d8
 data_ov064_0211bf68 data_ov064_0211bf70 data_ov064_0211bf78 data_ov064_0211bf80 data_ov064_0211bf88 data_ov064_0211bf90
 data_ov064_0211c2dc data_ov064_0211c2e4
 data_ov064_0211c7d8 data_ov064_0211c7e0 data_ov064_0211c7e8 data_ov064_0211c7f0 data_ov064_0211c7f8 data_ov064_0211c800 data_ov064_0211c808 data_ov064_0211c810 data_ov064_0211c818 data_ov064_0211c820 data_ov064_0211c828 data_ov064_0211c830 data_ov064_0211c838 data_ov064_0211c840 data_ov064_0211c848 data_ov064_0211c850 data_ov064_0211c85c data_ov064_0211c868 data_ov064_0211c874 data_ov064_0211c880 data_ov064_0211c88c data_ov064_0211c898 data_ov064_0211c8a4 data_ov064_0211c8b0 data_ov064_0211c8bc data_ov064_0211c8c8 data_ov064_0211c8d4 data_ov064_0211c8e0 data_ov064_0211c8ec data_ov064_0211c8f8 data_ov064_0211c904 data_ov064_0211c934
+# run linkw wave 8 (lane w8-packs): the five ov064 CLPS BLOCKS ov022's Lethal
+# Lava Land cast passes to MovingMeshCollider::SetFile. Additive only -- no
+# existing line is touched. Each is reached from an ov022 InitResources (or,
+# for 71, through the three-word table data_ov022_02113cc8):
+#   0x0211bbac  VOLCANO_RING 71            0x0211bb0c  FLOAT_ON_LAVA 74
+#   0x0211baec + 0x0211bacc  FLOATING_FLOOR_LLL 75/76
+#   0x0211ba6c  LAVA_PLANK 82
+# Four of the five relocs read `module:overlay(64)` outright. 0x0211bbac is
+# `module:overlays(64,65)` -- ov064 and ov065 share base 0x02115ee0 -- and is
+# settled twice: ov065 has a FUNCTION at that address (TtcMovingCubeA_Spawn)
+# while ov064 has data, and the use site is a CLPS_Block argument; level 14's
+# object overlays are ov064/ov071/ov080/ov084/ov095, and ov065 is not among
+# them. See port/ov022_syms.txt and hal/actor_classes_ov022.cpp.
+data_ov064_0211ba6c data_ov064_0211bacc data_ov064_0211baec
+data_ov064_0211bb0c data_ov064_0211bbac

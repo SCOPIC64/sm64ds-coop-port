@@ -1,0 +1,187 @@
+# run linkw wave 8 (lane w8-packs): ov022's LETHAL LAVA LAND cast, per symbol.
+#
+# ov022 (level 14, Lethal Lava Land, data/stage/fire_land, course 6) is already
+# mounted WHOLE in PORT_LEVEL_OVERLAYS -- gate 163 landed that, and the loaders
+# walk the LVL_Overlay's object tables across whatever symbol boundaries dsd
+# named, which is why a level overlay needs the whole-image mount. This file is
+# the SECOND mount of the same overlay, per symbol, and the two do not conflict:
+# tools/ovdata.py --whole emits port_ov022_image / _patch / _at and NOTHING by
+# name, while --from-list --pack emits the named arrays plus
+# port_ov022_syms_patch. ov009/ov010/ov012/ov013/ov014/ov015/ov016/ov018/ov019/
+# ov020/ov021/ov045 are all dual-mounted the same way today; this is the
+# thirteenth, and the fifth level overlay to get the gate-17 treatment.
+#
+# WHY the cast needs the named mount rather than the image: the registry
+# rewrites each SpawnInfo's +0 word to the host factory and ActorBase's
+# constructor reads the two list priorities back out of the SAME record, and the
+# class code reaches its SharedFilePtrs, CLPS blocks and file tables BY NAME.
+# Those have to be storage the actor code and the registry agree on, which the
+# whole image is not.
+#
+# ==== THE CAST MAP, RE-DERIVED (three independent routes, all agreeing) =====
+#
+# ROUTE 1, the arm9 SPAWN TABLE. The words at 0x02090864 + id*4 are RELOCATIONS,
+# not literals, so they are read from config/arm9/relocs.txt, and dsd's
+# `module:overlays(...)` candidate list is deliberately over-broad because
+# ov014/ov015/ov016/ov020/ov021/ov022/ov029/ov034/ov036 all share the level
+# overlay load window at base 0x021111a0. BOTH disambiguation routes were
+# required of every id: the SpawnInfo's word[0] spawnFunc must land inside
+# ov022's own image AND the record's word[1] low halfword must equal the id the
+# table slot was reached from. Raw bytes out of extracted/overlays/
+# overlay_0022.bin (13152 bytes == overlays.yaml code_size, the DECOMPRESSED
+# image -- the dsd export is the wrong image to read halfwords from).
+#
+#   id   SpawnInfo   word[0] spawnFunc            idhalf   x on L14
+#   70   0x02114380  0x021125a4 RollingLogLll_Spawn          70   x1
+#   71   0x02113cf4  0x02111578 VolcanoRing_Spawn            71   x1
+#   73   0x02113f4c  0x02111c7c LavaBridge_Spawn             73   x2
+#   74   0x02113e88  0x02111950 FloatOnLavaPlatform_Spawn    74   x1
+#   75   0x021140ec  0x021120f4 FloatingFloorLllBig_Spawn    75   x1
+#   76   0x02114108  0x021120b8 FloatingFloorLllSmall_Spawn  76   x3
+#   77   0x02114010  0x02111f3c LavaSeesaw_Spawn             77   x1
+#   80   0x02113dc4  0x02111688 RotatingPlatformLll_Spawn    80   x1
+#   82   0x021141cc  0x02112350 LavaPlank_Spawn              82   x3
+#   83   0x021142a0  0x0211245c FallBlockLll_Spawn           83   x9
+#  243   0x02114458  0x02112918 VolcanoFire_Spawn           243   (not placed)
+#
+# ROUTE 2, each Spawn's OWN final vtable-store relocation (the last kind:load
+# in the body's literal pool):
+#   70  -> 0x021143a4      71  -> 0x02113d18      73  -> 0x02113f70
+#   74  -> 0x02113eac      75  -> 0x0211412c      76  -> 0x0211412c
+#   77  -> 0x02114034      80  -> 0x02113de8      82  -> 0x021141f0
+#   83  -> 0x021142c4     243  -> 0x0211447c
+# 75 and 76 SHARE one table: FloatingFloorLllBig has no own methods, both
+# factories store 0x0211412c after the ov002 base 0x0210912c. That is the
+# BOO/BIG_BOO shape the registry already has (both ids, one fill).
+#
+# ROUTE 3, the RTTI typeinfo at vtable[-1] -- class identity from the ROM's own
+# Itanium record, never from a dsd label:
+#   0x02113d18  14daObjFl_Ring_c            ring        = VolcanoRing      71
+#   0x02113de8  16daObjFl_Koma_D_c          koma, top   = RotatingPlatform 80
+#   0x02113eac  15daObjFl_Block_c           block       = FloatOnLava      74
+#   0x02113f70  16daObjFl_London_c          London br.  = LavaBridge       73
+#   0x02114034  16daObjFl_Seesaw_c          seesaw      = LavaSeesaw       77
+#   0x0211412c  17daObjFl_Ukiyuka_c         uki-yuka    = FloatingFloor  75/76
+#   0x021141f0  15daObjFl_UkiKi_c           uki-ki      = LavaPlank        82
+#   0x021142c4  20daObjFl_Fall_Block_c      fall block  = FallBlockLll     83
+#   0x021143a4  15daObjFlMaruta_c           maruta, log = RollingLogLll    70
+#   0x0211447c  21daObj_volcanoCannon_c     cannon      = VolcanoFire     243
+# Every RTTI name sides with the SPAWN name and against the dsd _ZTV and method
+# names, exactly as ov045's cast did.
+#
+# ==== THE NAMING SHIFT, and where it does and does not bite =================
+#
+# dsd lays each mwcc class block out as [bodies..., Spawn] and names the block
+# from the PRECEDING Spawn label, so a class whose block follows a body-less
+# class inherits the wrong name. Four blocks are shifted here and six are not:
+#
+#   TRUE class            its bodies are spelled          its table is named
+#   74 FloatOnLavaPlatform _ZN19RotatingPlatformLll*      _ZTV19RotatingPlatformLll
+#   82 LavaPlank           _ZN19FloatingFloorLllBig*      _ZTV19FloatingFloorLllBig
+#   70 RollingLogLll       _ZN12FallBlockLll*             _ZTV12FallBlockLll
+#  243 VolcanoFire         _ZN13RollingLogLll*            _ZTV13RollingLogLll
+#
+# The other six (71/73/77/80 unnamed func_ov022_*, 75/76 FloatingFloorLllSmall,
+# 83 unnamed func_ov022_*) sit in their own blocks and are named correctly.
+# Every row above is pinned by the vtable's own slot-0/3/6/9/16/17 relocations
+# landing inside the block that ENDS at that class's Spawn.
+#
+# ==== TEN SYMBOLS LEFT OUT: the vtables are HOST STORAGE ====================
+#
+# All ten tables are excluded from this mount and declared as host arrays in
+# hal/actor_classes_ov022.cpp (the ov015/ov016/ov045/ov080 rule -- a mounted
+# vtable hands a factory DS code addresses). Their spans, and every dsd symbol
+# inside each (interior splits are excluded with them):
+#   0x02113d18..0x02113d98  71  32 slots  data_ov022_02113d18 +02113d30 +02113d90
+#   0x02113de8..0x02113e68  80  32 slots  data_ov022_02113de8 +02113e00 +02113e50
+#   0x02113eac..0x02113f2c  74  32 slots  _ZTV19RotatingPlatformLll +02113f20
+#   0x02113f70..0x02113ff0  73  32 slots  data_ov022_02113f70 +02113f78
+#   0x02114034..0x021140b4  77  32 slots  data_ov022_02114034
+#   0x0211412c..0x021141ac 75/76 32 slots _ZTV21FloatingFloorLllSmall +0211417c
+#   0x021141f0..0x02114270  82  32 slots  _ZTV19FloatingFloorLllBig
+#   0x021142c4..0x02114344  83  32 slots  data_ov022_021142c4 +0211433c
+#   0x021143a4..0x02114424  70  32 slots  _ZTV12FallBlockLll +021143fc
+#   0x0211447c..0x021144f8 243  31 slots  _ZTV13RollingLogLll
+#                                          == _ZTV21daObj_volcanoCannon_c
+#
+# EVERY WIDTH IS PINNED TWICE, the way the wf slot-31 bug demands. (1) the
+# reloc run: nine of the ten carry a slot-31 word (Platform::Kill 0x020ee55c on
+# eight of them, ov098's func_ov098_0213a17c on FallBlockLll 83 -- the SAME
+# tail ov045's FallBlockBfs takes) and VolcanoFire's run stops after slot 30
+# (an Actor, not a Platform: raw words at 0x021144f8/fc are zero). (2) the next
+# dsd symbol lands EXACTLY on each computed end: 0x02113d98, 0x02113e68,
+# 0x02113f2c, 0x02113ff0, 0x021140b4, 0x021141ac, 0x02114270, 0x02114344,
+# 0x02114424 are all real symbols. Note 0x02114424 is NOT slot 32 of table
+# 0x021143a4: it is the two-record PMF STATE SOURCE {func_ov022_021126ac, 0},
+# {func_ov022_02112710, 0} that __sinit_ov022_021130bc copies into bss
+# 0x02114690 -- which is why RollingLogLll's table is 32 and not 33.
+#
+# ==== WHAT IS MOUNTED ======================================================
+# 188 symbols: every ov022 .data / .rodata / .bss symbol that is not inside one
+# of the ten vtable spans, sized by next-symbol delta (ovdata.py's own rule --
+# the eleven SpawnInfo records come out 0x24 each, which is the nine-word
+# record the raw image shows). The 10 .p__sinit words are not listed: the
+# bring-up calls the sinits directly rather than walking the ctor table.
+data_ov022_02112950 data_ov022_02112954 data_ov022_02112958
+data_ov022_02112968 data_ov022_02112974 data_ov022_021129b4
+data_ov022_02112a6c data_ov022_02112aa4 data_ov022_02112aa8
+data_ov022_02112ac0 data_ov022_02112adc data_ov022_02112b08
+data_ov022_02112b84 data_ov022_02112ba8 data_ov022_02112bdc
+data_ov022_02112bec data_ov022_02112c08 data_ov022_02112c18
+data_ov022_02112c44 data_ov022_02112c4c data_ov022_02112c58
+data_ov022_02112c68 data_ov022_02112c88 data_ov022_02112c98
+data_ov022_02112c9c data_ov022_02113140 data_ov022_02113144
+data_ov022_02113148 data_ov022_02113150 data_ov022_02113158
+data_ov022_02113160 data_ov022_02113168 data_ov022_02113170
+data_ov022_0211317c data_ov022_02113188 data_ov022_02113198
+data_ov022_021131a8 data_ov022_021131b8 data_ov022_021131c8
+data_ov022_021131d8 data_ov022_021131e8 data_ov022_021131f8
+data_ov022_02113210 data_ov022_02113228 data_ov022_02113244
+data_ov022_02113260 data_ov022_02113298 data_ov022_021132d8
+data_ov022_021132ec data_ov022_02113318 data_ov022_02113344
+data_ov022_02113360 data_ov022_021133a8 data_ov022_02113434
+data_ov022_02113518 data_ov022_02113534 data_ov022_02113554
+data_ov022_021135d4 data_ov022_021135f4 data_ov022_021136d4
+data_ov022_021136f4 data_ov022_021136f8 data_ov022_0211373c
+data_ov022_021137e4 data_ov022_021137f8 data_ov022_02113800
+data_ov022_02113804 data_ov022_02113820 data_ov022_0211382c
+data_ov022_021138a8 data_ov022_021138bc data_ov022_021138c4
+data_ov022_021138d8 data_ov022_021138f0 data_ov022_021138fc
+data_ov022_02113934 data_ov022_02113980 data_ov022_02113998
+data_ov022_021139b0 data_ov022_021139f4 data_ov022_02113a00
+data_ov022_02113a50 data_ov022_02113a74 data_ov022_02113aa0
+data_ov022_02113abc data_ov022_02113b10 data_ov022_02113b2c
+data_ov022_02113b50 data_ov022_02113b7c data_ov022_02113b80
+data_ov022_02113b90 data_ov022_02113c08 data_ov022_02113c14
+data_ov022_02113c20 data_ov022_02113c28 data_ov022_02113c48
+data_ov022_02113cc8 data_ov022_02113ccc data_ov022_02113cd4
+data_ov022_02113ce0 data_ov022_02113cec VolcanoRing_SpawnInfo
+data_ov022_02113d98 data_ov022_02113da4 data_ov022_02113da8
+data_ov022_02113db0 RotatingPlatformLll_SpawnInfo data_ov022_02113e68
+data_ov022_02113e6c data_ov022_02113e74 FloatOnLavaPlatform_SpawnInfo
+data_ov022_02113f2c data_ov022_02113f38 LavaBridge_SpawnInfo
+data_ov022_02113ff0 data_ov022_02113ff4 data_ov022_02113ffc
+LavaSeesaw_SpawnInfo data_ov022_021140b4 data_ov022_021140b8
+data_ov022_021140c0 data_ov022_021140d4 FloatingFloorLllBig_SpawnInfo
+data_ov022_021140f8 FloatingFloorLllSmall_SpawnInfo data_ov022_021141ac
+data_ov022_021141b8 LavaPlank_SpawnInfo data_ov022_02114270
+data_ov022_0211427c data_ov022_02114288 FallBlockLll_SpawnInfo
+data_ov022_02114344 data_ov022_02114350 data_ov022_0211435c
+data_ov022_0211436c RollingLogLll_SpawnInfo data_ov022_02114424
+data_ov022_0211442c data_ov022_02114434 data_ov022_02114440
+VolcanoFire_SpawnInfo data_ov022_02114500 data_ov022_02114508
+data_ov022_02114510 data_ov022_0211451c data_ov022_02114528
+data_ov022_02114530 data_ov022_02114538 data_ov022_02114544
+data_ov022_0211454c data_ov022_02114550 data_ov022_02114558
+data_ov022_02114560 data_ov022_02114568 data_ov022_0211456c
+data_ov022_02114578 data_ov022_02114580 data_ov022_02114588
+data_ov022_02114594 data_ov022_02114598 data_ov022_021145a0
+data_ov022_021145a8 data_ov022_021145b0 data_ov022_021145bc
+data_ov022_021145c8 data_ov022_021145d0 data_ov022_021145d8
+data_ov022_021145e0 data_ov022_021145e4 data_ov022_021145e8
+data_ov022_021145f4 data_ov022_02114600 data_ov022_0211460c
+data_ov022_02114618 data_ov022_02114620 data_ov022_02114628
+data_ov022_0211462c data_ov022_02114634 data_ov022_02114640
+data_ov022_02114648 data_ov022_02114650 data_ov022_0211465c
+data_ov022_02114668 data_ov022_02114670 data_ov022_02114678
+data_ov022_02114684 data_ov022_02114690
