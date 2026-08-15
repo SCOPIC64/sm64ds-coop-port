@@ -37,6 +37,18 @@
 # [5], so the shadow's slot 5 lands on Model::Render. The SlideDecoration
 # ruling, not the Snufit/Swoop/Dorrie/MontyMole one. The matched TU is linked.
 #
+# ==== THE AUTHORIZATION THIS SEAT RIDES ON =================================
+# FIVE of the eight TUs below carry the inferred-stub marker "recovered from
+# vtable slot identity" -- func_ov043_02111320, func_ov043_0211123c,
+# func_ov043_021112a8, func_ov043_02111280 and func_ov043_021111e4. They are
+# seated here on wave 16's pre-existing per-body ruling in
+# port/tools/inferred_stub_adjudicated.txt:71-77, which grades all five
+# REAL_DECOMP against w16.md#135 and whose own header note says the seating was
+# "deferred (needs an ov043 per-symbol mount, which this lane did not build)".
+# This lane builds that mount, so the deferral is what is being discharged; no
+# new adjudication is made here and none of the five is re-graded. The other
+# three TUs (the factory, the D1 and the sinit) carry no marker.
+#
 # ==== THE FOUR TRAPS, EACH RE-VERIFIED BY DISASSEMBLY ON THIS TREE =========
 #
 # (1) THE G0/G1 TRAP, the live one. src/func_ov043_0211123c.c releases two
@@ -104,10 +116,18 @@
 #       the exact two cells G0/G1 above release. RUNS.
 #   __sinit_ov043_02111868  builds 0x02112610/0x02112608, another class's pair.
 #   __sinit_ov043_021118d4  builds 0x02112638/0x02112630, a third class's pair.
-#   __sinit_ov043_02111940  builds twenty-odd cells and spells EVERY ONE of
-#       them with an ov047 or ov052 name. None of those resolve in port/, so
-#       it is a hard link error as well as unnecessary. It stays OFF and is
-#       not on the slice.
+#   __sinit_ov043_02111940  builds twenty cells and spells every one of them
+#       with a sibling overlay's name -- SIXTEEN data_ov047_* and FOUR
+#       data_ov052_*. The two halves do NOT behave the same and the earlier
+#       reading here that "none of those resolve" was wrong: all four
+#       data_ov052_* (0x02112680, 0x02112688, 0x02112690, 0x021126a8) DO
+#       resolve in this link, and only the sixteen data_ov047_* are
+#       unresolvable. So switching it on would be a hard link error on sixteen
+#       names AND four silent bindings into another overlay's objects, which is
+#       worse than the single failure mode first written down. The conclusion
+#       is unchanged and now rests on the ov081 rule rather than on the link
+#       error: the cells it builds belong to classes this slice does not host.
+#       It stays OFF and is not on the slice.
 # Running only 021117fc is what the hosted class needs and nothing more.
 src/DiamondLift_Spawn.c
 src/func_ov043_02111320.c

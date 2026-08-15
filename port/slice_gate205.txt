@@ -8,9 +8,16 @@
 # SM64DS_LEVEL=13 SM64DS_SPAWN_ACTOR=310 took a c0000005 at +0x98 on the first
 # throw. Registering 311 is what removes the fault; nothing is hand-patched.
 #
-# THE WHOLE CAST IS MATCHED AND ALL SEVEN TUs ARE HERE. No host copy, no state
-# seat, no thunk standing in for a body -- the first ov080 class that needs
-# none of that. gate 174's mole needed three (Behavior's pointer-to-member
+# THE WHOLE CAST IS MATCHED AND ALL SEVEN OF ITS TUs ARE HERE, plus one
+# helper, so the slice is EIGHT lines. The seven are the factory and the six
+# slots the class owns (0, 3, 6, 9, 16, 17). The eighth is
+# src/func_ov080_02124418.c, ov080 0x02124418 (0x40 bytes), which is not a
+# vtable slot at all: Behavior calls it once a frame at 0x02124760 to rebuild
+# the rock's rotation matrix at +0x12c from its yaw at +0x8e and to write the
+# three pos>>3 words at +0x150. It is matched, its one callee
+# (Matrix4x3_FromRotationY) is already in the map, and it links with the rest.
+# No host copy, no state seat, no thunk standing in for a body -- the first
+# ov080 class that needs none of that. gate 174's mole needed three (Behavior's pointer-to-member
 # dispatch, D1's auto-emitted-member-dtor form, the 1-Up helper's C2733);
 # the rock has a flat Behavior, a real C-linkage D1 and no helper of that
 # shape.

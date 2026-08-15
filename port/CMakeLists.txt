@@ -864,11 +864,15 @@ set_source_files_properties(
 # out of the ov004 TU. dsd tagged every level-overlay call into that address
 # module:overlays(2,4) because it cannot tell the occupants apart, and ov004
 # loads only alongside ov006 for a minigame scene while ov081 is a level actor
-# overlay co-resident with ov002. Every other level-overlay caller in the tree
-# -- ov062 x2, ov063, ov064, ov065 x2, ov081's own func_ov081_021243cc, ov084,
-# ov090, ov100, ov102 and BobOmb::Behavior -- spells the target `func_020ada40`
-# and lands on hal/bob_enemy_bridges.cpp's
-# /alternatename:_func_020ada40=_func_ov002_020ada40. src/func_ov081_02123910.cpp
+# overlay co-resident with ov002. TWELVE other TUs in src/ spell the target
+# `func_020ada40` -- ov062 x2, ov063, ov064, ov065 x2, ov081's own
+# func_ov081_021243cc, ov084, ov090, ov100, ov102 and BobOmb::Behavior -- and
+# land on hal/bob_enemy_bridges.cpp's
+# /alternatename:_func_020ada40=_func_ov002_020ada40. NINE of those twelve are
+# in this link; func_ov081_021243cc, func_ov090_021310b4 and
+# func_ov102_0214cbec are not. Nine is the number that matters, because it is
+# the count of live callers the routing this rename joins already carries.
+# src/func_ov081_02123910.cpp
 # is the single outlier: it takes the name from include/decl_Enemy.h:24 and so
 # binds to the ov004 body, whose first statement is a null guard on
 # data_ov004_020beb68 -- the permanently-zero host global in
@@ -876,8 +880,8 @@ set_source_files_properties(
 # path returned doing nothing, every frame, and neither the byte gate nor the
 # linkage count could see it.
 #
-# The rename spells this one TU's reference the way its eleven siblings already
-# spell it, so the existing alias does the routing and no new symbol is added.
+# The rename spells this one TU's reference the way those twelve already spell
+# it, so the existing alias does the routing and no new symbol is added.
 # A -D and not an alias of its own: the mangled Enemy name is DEFINED in this
 # binary by the ov004 TU, so an /alternatename with it on the left would be
 # defeated silently -- the R3 ov071/ov073 failure, already realised here.
