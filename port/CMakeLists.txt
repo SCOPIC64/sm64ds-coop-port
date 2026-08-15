@@ -3739,8 +3739,6 @@ foreach(line IN LISTS SLICE208_LINES)
     list(APPEND SLICE208_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
-<<<<<<< HEAD
-=======
 # The rock's Behavior is the only TU in the tree that spells seven arm9/ov002
 # functions by recovered friendly names that exist nowhere in the binary. Each
 # target is pinned by the reloc out of that body's own range (ov080 relocs,
@@ -3753,7 +3751,7 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13MontyMoleRock8BehaviorEv.cpp"
     PROPERTIES COMPILE_DEFINITIONS
     "Actor_MakeVanishLuigiWork=_ZN5Actor19MakeVanishLuigiWorkER12CylinderClsn;Actor_FindWithID=_ZN5Actor10FindWithIDEj;Player_Hurt=_ZN6Player4HurtERK7Vector3j5Fix12IiEjjj;Actor_UpdatePos=_ZN5Actor9UpdatePosEP12CylinderClsn;Enemy_UpdateWMClsn=_ZN5Enemy12UpdateWMClsnER12WithMeshClsnj;CylinderClsn_Clear=_ZN12CylinderClsn5ClearEv;CylinderClsn_Update=_ZN12CylinderClsn6UpdateEv")
-# Gate 205's arrival cost, and it is the R3 ov071/ov073 shape from the OTHER
+# Gate 208's arrival cost, and it is the R3 ov071/ov073 shape from the OTHER
 # side: seating the rock DEFINES _ZN13MontyMoleRockD0Ev, which silently defeats
 # hal/bob_enemy_bridges.cpp's /alternatename with that LHS. King Bob-omb's two
 # throw states call ov078 0x02123804 -- his own throw body, relocs 0x02123ac0
@@ -3872,7 +3870,6 @@ set_source_files_properties(
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN8MugenBgmD0Ev.c"
     PROPERTIES COMPILE_DEFINITIONS "VT=_ZTV8MugenBgm")
->>>>>>> d-actors-backlog
 
 # Lane w8-shadows (run linkw): the SHADOWS bucket. One matched TU by name --
 # TextureTransformer::Prepare, whose header declares it STATIC, which is what
@@ -4293,13 +4290,10 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp unmatched/Koopa_Render.cpp
     ${SLICE180_SOURCES} ${SLICE203_SOURCES} ${SLICE204_SOURCES}
-<<<<<<< HEAD
     hal/actor_classes_ov085.cpp ${SLICE205_SOURCES}
     unmatched/Ov085_Behaviors.cpp unmatched/Ov085_Toad_StateSeat.cpp
-=======
     hal/actor_classes_montymolerock.cpp ${SLICE208_SOURCES}
     hal/actor_classes_ov043.cpp ${SLICE206_SOURCES} ${SLICE207_SOURCES}
->>>>>>> d-actors-backlog
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -4430,13 +4424,10 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp unmatched/Koopa_Render.cpp
     ${SLICE180_SOURCES} ${SLICE203_SOURCES} ${SLICE204_SOURCES}
-<<<<<<< HEAD
     hal/actor_classes_ov085.cpp ${SLICE205_SOURCES}
     unmatched/Ov085_Behaviors.cpp unmatched/Ov085_Toad_StateSeat.cpp
-=======
     hal/actor_classes_montymolerock.cpp ${SLICE208_SOURCES}
     hal/actor_classes_ov043.cpp ${SLICE206_SOURCES} ${SLICE207_SOURCES}
->>>>>>> d-actors-backlog
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -4577,13 +4568,10 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp unmatched/Koopa_Render.cpp
     ${SLICE180_SOURCES} ${SLICE203_SOURCES} ${SLICE204_SOURCES}
-<<<<<<< HEAD
     hal/actor_classes_ov085.cpp ${SLICE205_SOURCES}
     unmatched/Ov085_Behaviors.cpp unmatched/Ov085_Toad_StateSeat.cpp
-=======
     hal/actor_classes_montymolerock.cpp ${SLICE208_SOURCES}
     hal/actor_classes_ov043.cpp ${SLICE206_SOURCES} ${SLICE207_SOURCES}
->>>>>>> d-actors-backlog
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
