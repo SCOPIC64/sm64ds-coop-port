@@ -195,6 +195,29 @@ void _ZN9ActorBase18MarkForDestructionEv(void *self)
    3, where the ROM's teardown dispatches them. Faces rather than
    /alternatename aliases for the usual reason: a slot thunk entered with the
    object in ecx would hand a cdecl body a `this` it never reads. */
+
+/* PORT_HOST_ABI: matched TU deletes models through ROM vtable INDEX 1; MSVC folds D1/D0 so host _ZTV5Model numbers DoSetFile there.
+   CleanupResources is the one of the pair whose body is a host copy
+   (port/unmatched/Player_CleanupResources.cpp) and not the matched TU, which
+   is why it is on the shadow list. That file's banner carries the full
+   measurement; the two blockers, both structural:
+     1. The matched TU deletes the body models, the head models and two more
+        model-family objects through a two-virtual SHADOW CLASS, so `p->v1()`
+        is ROM slot 1, mwcc's deleting destructor. MSVC folds D1 and D0 into
+        one slot, so hal/cxxname_bridge.cpp's _ZTV5Model carries DoSetFile at
+        index 1; every one of those five calls landed on Model::DoSetFile and
+        faulted inside Model::AddToCommonModelDataArr on the first level
+        teardown. Same class as the Bird/Flag ModelAnim tags below, and not
+        fixable by renumbering one array: the MSVC-compiled callers of the
+        same object need the MSVC order.
+     2. The TU re-declares five functions include/decl_common.h already
+        declares, `char *` against the header's `void *`. mwcc reads one
+        declaration seen twice; MSVC reads an extern "C" overload and refuses
+        the TU (C2733 x5, plus a C2664 on func_02073244's fourth parameter).
+        Neither spelling is wrong about the ROM -- they disagree -- and src/
+        and include/ are the byte-matched tree the port does not edit.
+   Blocker 2 on its own would be a src/include hygiene question rather than an
+   ABI one. Blocker 1 is the ABI floor and stands without it. */
 int _ZN6Player16CleanupResourcesEv(void *self)
 { return ((Player *)self)->Player::CleanupResources(); }
 void _ZN6Player16OnPendingDestroyEv(void *self)
@@ -415,27 +438,41 @@ extern "C" void _ZN5Model17UpdateFileOffsetsER8BMD_File(BMD_File *f)
 extern "C" void _ZN9ActorBase21AfterCleanupResourcesEj(void *self, unsigned a)
 { ((ActorBase *)self)->ActorBase::AfterCleanupResources(a); }
 
-/* w8-faces: src/_ZN4Heap7_SizeofEPv.cpp exists and stays unlinked, and this is
-   the reason, written down so the row stops reading as replacement work. The
-   matched TU is the ROM veneer transcribed literally:
+/* src/_ZN4Heap7_SizeofEPv.cpp exists and stays unlinked, and this is the
+   reason, written down so the row stops reading as replacement work. Two lanes
+   (w8-faces and w8-shadows) ruled this symbol independently and reached the
+   same verdict from different evidence; both halves are kept because each
+   closes a hole the other leaves open.
+
+   WHAT THE MATCHED TU IS. The ROM's 0xc long-call veneer at arm9 0x0203c274 --
+   `ldr ip, [pc]; bx ip; .word 0x0203c454` -- transcribed the only way a veneer
+   can be written in C:
 
        extern "C" void _ZN4Heap6SizeofEPv(void);
        void _ZN4Heap7_SizeofEPv(void) { _ZN4Heap6SizeofEPv(); }
 
-   -- a void() calling a void(). On ARM that is exactly right: `ldr ip,[pc];
-   bx ip` leaves r0 (`this`) and r1 (the pointer) untouched and Sizeof reads
-   them where the caller left them. Under MSVC there is no such ride-through:
-   both are __cdecl, the veneer pushes nothing, and Sizeof would read its
-   receiver and its argument off stack slots that were never written. Both
-   arguments dropped, which is failure mode 2 with the argument dropped too.
-   Nor is the callee reachable as spelled: __ZN4Heap6SizeofEPv is not in the
-   link at all (src/_ZN4Heap6SizeofEPv.cpp is METHOD-shaped and lands as
-   ?Sizeof@Heap@@QAEHPAX@Z), so slicing the veneer would not even link without
-   a second face under it -- one that would then be entered with nothing on
-   the stack. */
+   -- a void() calling a void(). On ARM that is exact: r0 (`this`) and r1 (the
+   pointer) ride through the branch untouched and Sizeof reads them where the
+   caller left them.
+
+   WHY IT CANNOT BE LINKED, two independent reasons:
+     1. No ride-through under MSVC. Both are __cdecl, the veneer pushes
+        nothing, and the callee reads its receiver and argument off stack slots
+        that were never written -- concretely, it reads its own return address
+        as `this`. Both arguments dropped.
+     2. The callee is not reachable as spelled anyway. __ZN4Heap6SizeofEPv is
+        not in the link at all: src/_ZN4Heap6SizeofEPv.cpp is METHOD-shaped and
+        lands as ?Sizeof@Heap@@QAEHPAX@Z. Slicing the veneer would not even
+        link without a second face under it -- one that would then be entered
+        with nothing on the stack.
+
+   The host face below delivers both arguments explicitly, which is what the
+   ROM's register state means. Flagged as missing a tag at the wave-1 close and
+   ruled here. */
 /* PORT_HOST_ABI: ARM register ride-through -- the matched TU is the ROM's
    `ldr ip,[pc]; bx ip` veneer, whose void() form carries r0/r1 through in
-   registers; the same shape under __cdecl drops both. */
+   registers; the same shape under __cdecl drops both, and the callee is
+   method-decorated so the veneer could not link regardless. */
 extern "C" int _ZN4Heap7_SizeofEPv(void *self, void *p)
 { return ((Heap *)self)->Heap::Sizeof(p); }
 extern "C" void _ZN4Heap10ReallocateEPvj(void *self, void *p, unsigned n)
@@ -513,30 +550,49 @@ void _ZN9PowerStar13AddStarMarkerEv(void *self)
 extern "C" {
 int _ZN4Bird13InitResourcesEv(void *self)
 { return ((Bird *)self)->Bird::InitResources(); }
-/* Bird::Render and FLAG's are each one line in src -- dispatch slot 5 of the
-   ModelAnim at +0xd4 -- and ROM slot 5 is Render while MSVC slot 5 is
-   Virtual18. Call the method the ROM means.
+/* Bird::Render and FLAG's are each one line in src, and that line is an
+   INDEXED virtual call, not a named one: each declares a local six-virtual
+   shadow struct over the ModelAnim member at +0xd4 and calls its sixth slot
+   (src/_ZN4Bird6RenderEv.cpp, `Base *b = &((Derived *)this)->base; b->m(0)`).
+   ROM slot 5 is Render; MSVC slot 5 is Virtual18. Call the method the ROM
+   means.
 
-   w8-faces re-derived that and it holds, so both are TAGGED rather than left
-   to linkage.py's shadow heuristic, which counts them as replaceable work.
-   The numbers, from the host fills rather than from the prose:
+   Two lanes (w8-faces and w8-shadows) re-derived this independently and agree,
+   so both are TAGGED rather than left to linkage.py's shadow heuristic, which
+   counts them as replaceable work. The two derivations come at the same fact
+   from opposite ends and are both kept:
+
+   THE TWO NUMBERINGS. include/ModelAnim.h annotates the ROM table as D1 0,
+   D0 1, UpdateVerts 3, Virtual10 4, Render 5, Virtual18 6. The host array is
+   filled in MSVC order instead, because real MSVC-compiled C++ TUs dispatch
+   ModelAnim through MSVC indices and one array cannot carry both numberings.
+   From the host fills rather than from the prose (hal/cxxname_bridge.cpp,
+   :549-554 for the ModelAnim rows):
 
      hal/cxxname_bridge.cpp   _ZTV5Model[4] = mv_render
                               _ZTV5Model[5] = mv_render      <- dual-filled
                               _ZTV9ModelAnim[4] = ma2_render
                               _ZTV9ModelAnim[5] = ma2_virtual18
 
-   src/_ZN4Bird6RenderEv.cpp declares a local six-virtual shadow and calls its
-   sixth entry (`b->m(0)`), i.e. slot 5 of whatever really sits at +0xd4.
-   include/Bird.h:25 and include/Flag.h:17 both put a ModelAnim there, and
-   ModelAnim's host table is NOT dual-filled -- so the matched body would
-   dispatch Virtual18, not Render. That is failure mode 1 arriving through the
-   src body instead of through the face. It is measured, not predicted:
-   port/slice_gate17.txt records FLAG's first Render walking
+   MSVC folds D1 and D0 into one slot, which is what shifts everything: [0]
+   dtor, [1] DoSetFile, [2] UpdateVerts, [3] Virtual10, [4] Render, [5]
+   Virtual18. So the matched TU's index 5 lands on Virtual18.
+
+   IT IS MEASURED, NOT PREDICTED. include/Bird.h:25 and include/Flag.h:17 both
+   put a ModelAnim at +0xd4, and ModelAnim's host table is NOT dual-filled the
+   way _ZTV5Model is -- so the matched body dispatches Virtual18. That is
+   failure mode 1 arriving through the src body instead of through the face,
+   and port/slice_gate17.txt records FLAG's first Render actually walking
    ModelAnim::Virtual18 -> Virtual10 -> Model::Virtual10 into a null-matrix
-   fault. Dual-filling _ZTV9ModelAnim slot 5 the way _ZTV5Model is would fix
+   fault.
+
+   NOT RETIRABLE by seating the matched TU: it would compile and link and then
+   render through the wrong slot, a silent wrong result rather than a link
+   error. Dual-filling _ZTV9ModelAnim slot 5 the way _ZTV5Model is would fix
    these two by breaking every genuine Virtual18 dispatch, so there is no
-   wiring that makes the matched TU behave here. */
+   wiring that makes the matched TU behave here. Retiring it needs a
+   ROM-ordered ModelAnim table, which is the opposite of what every MSVC caller
+   of the same object needs. */
 /* PORT_HOST_ABI: the matched TU dispatches slot 5 of a local six-virtual
    shadow over the ModelAnim at +0xd4, and the host _ZTV9ModelAnim numbers
    slot 5 as Virtual18 (measured fault, port/slice_gate17.txt); this hand-
@@ -557,7 +613,10 @@ int _ZN4Flag8BehaviorEv(void *self)
 { return ((Flag *)self)->Flag::Behavior(); }
 /* PORT_HOST_ABI: same as Bird::Render above -- the matched TU dispatches slot
    5 of a local six-virtual shadow over the ModelAnim at +0xd4 (include/
-   Flag.h:17), which the host _ZTV9ModelAnim numbers as Virtual18. */
+   Flag.h:17), which the host _ZTV9ModelAnim numbers as Virtual18.
+   src/_ZN4Flag6RenderEv.cpp is byte-for-byte the same shape as Bird's -- the
+   same local six-virtual shadow, the same `b->m(0)` at index 5. Same reason,
+   same measurement; see the Bird block above. */
 int _ZN4Flag6RenderEv(void *self)
 { ((ModelAnim *)((char *)self + 0xd4))->ModelAnim::Render(0); return 1; }
 }
@@ -583,25 +642,44 @@ int _ZN15IceSlideManager8BehaviorEv(void *self)
 #include "TextureTransformer.h"
 extern "C" {
 void *_ZTV18TextureTransformer[4];
-/* Two arguments, not three: func_02046b64 resolves the BTA's own material
-   NAMES against the BMD's table, and the water's call site passes exactly
-   those two with no `this`.
+/* Two arguments, not three, and the reason is in the header rather than in
+   this file: include/TextureTransformer.h:42 declares Prepare STATIC.
+   func_02046b64 resolves the BTA's own material NAMES against the BMD's table,
+   and the water's call site passes exactly those two with no `this`.
 
-   w8-faces: this face used to spell that call itself
-   (`func_02046b64(bmd, bta);`), which made the HAL the implementation of a ROM
-   function that src/ already carries. It forwards to the matched TU now --
-   port/slice_w8faces.txt seats
-   src/_ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File.cpp, whose body is
-   the ROM's 0xc long-call veneer written as the static member it is.
+   THE ROM AGREES: arm9_dec.bin 0x0201587c is e59fc000 / e12fff1c / .word
+   0x02046b64, a 0xc long-call veneer that passes its registers straight into
+   func_02046b64, whose own matched TU (src/func_02046b64.c) takes exactly two.
+   No receiver anywhere in the chain.
+
+   THIS USED TO BE A HOST COPY of that one line -- it called func_02046b64
+   itself, which made the HAL the implementation of a ROM function src/ already
+   carries, and left the matched TU unlinked beside it on the shadow list. A
+   static member is __cdecl under MSVC, so the matched TU's symbol
+   (?Prepare@TextureTransformer@@SAXAAUBMD_File@@AAUBTA_File@@@Z) has the same
+   two-argument, no-`this` call surface this face already had: the body it
+   stood in for could simply be called. It forwards to the matched TU now.
 
    NOT a dropped receiver, and worth spelling out because a two-argument call
    into a `Class::Method` shape is what failure mode 2 looks like from the
-   outside: include/TextureTransformer.h:42 declares Prepare STATIC, so it has
-   no `this` to drop. MSVC emits it SA (plain __cdecl, two stack arguments) and
-   the face's emitted bytes are two pushes, no ecx write, one call -- checked
-   in the object, which is this file's rule. port/slice_w1l3.txt had parked the
-   TU on the opposite reading ("the matched METHOD cannot be called"); the
-   `static` on that declaration is what refutes it. */
+   outside. There is no `this` to drop. MSVC emits it SA (plain __cdecl, two
+   stack arguments) and the face's emitted bytes are two pushes, no ecx write,
+   one call -- checked in the object, which is this file's rule.
+   port/slice_w1l3.txt:238 had parked the TU on the opposite reading ("the ROM
+   veneer takes (bmd, bta) with no `this`, so the matched METHOD cannot be
+   called"); the `static` on that declaration is what refutes it.
+
+   Contrast TextureSequence::Prepare, the sibling veneer 0x100 away, which
+   include/TextureSequence.h:49 declares NON-static: that one is a real
+   __thiscall method and its callers still need the receiver seam.
+
+   WHICH SLICE SEATS IT. src/_ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_
+   File.cpp is seated by slice_w8faces.txt:43, and by that file alone. Lanes
+   w8-faces and w8-shadows both mined this symbol, reached the same verdict
+   from different evidence (the paragraphs above are both of them), and each
+   wrote the same seat line into its own slice. Both slices feed the same three
+   targets, so the integration merge kept the w8-faces line and dropped the
+   w8-shadows one; slice_w8shadows.txt records the removal and the reason. */
 void _ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File(void *bmd, void *bta)
 { TextureTransformer::Prepare(*(BMD_File *)bmd, *(BTA_File *)bta); }
 void _ZN18TextureTransformer6UpdateER15ModelComponents(void *self, void *mc)

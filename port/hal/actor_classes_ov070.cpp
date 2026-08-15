@@ -267,8 +267,13 @@ int func_ov070_02121eb0(void *);
    ov074 FUNCTION spelling -- the shared-load-window naming race (ov070/ov074
    both cover 0x021222e0; dsd's ov074 export won inside that one TU). The use
    is address-only (indexed reads, never called), so the alias is storage
-   identity, not a code seam. */
-#pragma comment(linker, "/alternatename:_func_ov074_021222e0=_data_ov070_021222e0")
+   identity, not a code seam.
+   THE PRAGMA MOVED to hal/cxx_aliases.cpp (lane w8-shadows): src/ carries a
+   matched TU named func_ov074_021222e0, so this name appears in linkage.py's
+   replacement queue, and for a generated ovNNN_syms.c.obj that tool reads the
+   PORT_HOST_ABI ruling out of cxx_aliases.cpp -- the alias registry -- and
+   nowhere else. The pragma had to travel with its tag. Same three targets
+   compile both files, so the alias reaches exactly the links it did before. */
 /* FlameChomp/FlameChompFire InitResources declare the collider initialiser's
    Itanium name without extern "C", so MSVC decorates it as a C++ free
    function (@@YA, cdecl) -- alias-legal onto the matched TU's C symbol, the
