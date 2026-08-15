@@ -1233,6 +1233,34 @@ list(APPEND PORT_LEVEL_OVERLAYS ov035)
 # none of these six extends the window that ovdata.py --cross contests over.
 # Mounted --whole like the rest; own_sinits stays 0 for all six.
 list(APPEND PORT_LEVEL_OVERLAYS ov024 ov029 ov033 ov036 ov039 ov041)
+# run linkw wave C, lane cat-levels: FIVE MORE, out of the ten ids the wave-8
+# block declined as "not stages". They are stages. See the block in
+# hal/level_boot.cpp for the measurement that says so and for what the wave-8
+# reading actually caught; the short form is that only handle 0 reads as MG/
+# minigame art, and only one declined id has a handle equal to 0.
+#
+#   lvl  ov     LVL_Overlay   crs sub flg  stage           bmd /kcl /icg /icl
+#     0  ov008  0x02111210  255  1  0x01  test_map         07d7/07d5/07d8/07d9
+#    30  ov038  0x02111218   22  1  0x00  suisou           07c9/07c7/07ca/07cb
+#    32  ov040  0x02111228   24  1  0x01  horisoko         075c/075a/075d/075e
+#    34  ov042  0x02111218   26  1  0x00  rainbow_mario    07b0/07ae/07b1/07b2
+#    46  ov054  0x021112b0   19  5  0x00  ex_l_map         0729/0723/072a/072b
+#
+# Every handle resolves through build/assets/handles.tsv at DELTA 0 to one
+# data/stage directory holding the full four-file set -- <name>_all.bmd,
+# <name>.kcl, <name>_icg.bin, <name>_icl.bin -- with real sizes, which is the
+# same test the mounted rows pass and the test the five genuinely declined ids
+# (29, 41, 42, 43, 51) fail.
+#
+# THE SHARED WINDOW COSTS NOTHING HERE, by the footprint argument the ov044 and
+# ov048 notes use rather than by a re-run of the cross pass. All five load at
+# the shared 0x021111a0 level-overlay base and the largest is ov054 at 3008
+# bytes, so every one of them is strictly inside the window ov030 (19168 bytes,
+# level 22, already mounted) already contests. An overlay that adds no new
+# ground cannot take a resolved target away from another mount.
+#
+# Mounted --whole like the rest; own_sinits stays 0 for all five.
+list(APPEND PORT_LEVEL_OVERLAYS ov008 ov038 ov040 ov042 ov054)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
