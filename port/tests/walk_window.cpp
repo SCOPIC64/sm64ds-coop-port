@@ -345,7 +345,11 @@ extern int data_0209f4a2[];    /* split: stick nx */
 extern int data_0209f4a4[];    /* split: stick ny */
 extern unsigned char data_0209f4ac[]; /* split: touching */
 extern int data_020a0e58[];    /* PadData[4]: u16 held, u16 pressed */
-extern int data_020a0de8[];    /* TouchData[4], zero = no touch */
+/* TouchData[4], zero = no touch. DECLARED AS BYTES, not ints: the definition
+   in hal/auto_bss.cpp is unsigned char[1] with de9/dea/deb packed at +1/+2/+3,
+   the DS layout. An `int[]` here would be a lie about the element type; it is
+   inert only because nothing in this file dereferences it. */
+extern unsigned char data_020a0de8[];
 extern unsigned char data_0209f21c;   /* controller count */
 extern int data_0209f350[];    /* per-pad status */
 extern int data_020a1164[];    /* camera per-player block; +0 = angle

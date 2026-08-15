@@ -50,6 +50,17 @@ meaning. Reproduce the padding with, at file scope in any hal TU:
     extern "C" const char pad[0x1000];
     const char pad[0x1000] = {1};
 
+EQUAL .dsstate BASE IS NECESSARY, NOT SUFFICIENT. A later review measured the
+sharper form with controls: an inert shift INTERIOR to .dsstate (the section
+base unmoved, only its contents and size changing) leaves the BMP byte-
+identical, while host-global layout OUTSIDE .dsstate perturbs the frame even
+at an equal base. In that case a touch-hosting PR's BMP delta -- 318 pixels,
+max channel delta 13 -- was reproduced exactly by keeping the PR's probe code
+and REMOVING the change under test, which is what proved the delta belonged to
+the probe's own footprint and not to the fix. The general method: hold
+everything but the change under test constant and see whether the BMP follows
+the change or follows the footprint.
+
 The address dependence itself is real and unexplained -- something in the
 render path decides on a pointer value or reads an uninitialised field. It is
 tracked separately; this note exists so the gate is not read as the bug.
