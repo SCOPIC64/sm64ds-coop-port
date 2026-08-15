@@ -53,6 +53,12 @@ extern PortPmf data_ov085_0213003c[], data_ov085_02130044[],
    (Behavior's per-frame dispatch). */
 extern PortPmf data_ov085_02130174[], data_ov085_0213017c[],
     data_ov085_02130184[], data_ov085_0213018c[];
+/* TOAD's four (run link60, lane A1): __sinit_ov085_0212f2a8 copies them into
+   the two records of data_ov085_0212fe88, stride 0x14 -- entry 0 "WAIT",
+   entry 1 "TALK", each {enter pair at +0, Main pair at +8, name at +0x10}.
+   The names are ASCII in the overlay at 0x0212fe28 and 0x0212fe20. */
+extern PortPmf data_ov085_0212fe30[], data_ov085_0212fe38[],
+    data_ov085_0212fe40[], data_ov085_0212fe48[];
 
 void func_ov085_0212a904(void *); void func_ov085_0212aaa4(void *);
 void func_ov085_0212aaec(void *); void func_ov085_0212ac3c(void *);
@@ -65,6 +71,9 @@ void func_ov085_0212b8dc(void *); void func_ov085_0212bc14(void *);
 /* the RABBIT_KEY's four state bodies (gate 18, the key-grant wave) */
 void func_ov085_0212cd80(void *); void func_ov085_0212d038(void *);
 void func_ov085_0212d108(void *); void func_ov085_0212d24c(void *);
+/* TOAD's four (run link60, lane A1) */
+void func_ov085_021294f0(void *); void func_ov085_02129470(void *);
+void func_ov085_0212943c(void *); void func_ov085_021291ac(void *);
 
 /* LakituBro's twenty-two {function, delta} statics carry DS code addresses,
    and __sinit_ov085_0212fa40 copies them into his eleven State objects. Seat
@@ -760,6 +769,35 @@ static void port_rabbit_key_states_seat(void)
     }
 }
 
+/* TOAD's four pairs (run link60, lane A1), the same seat and the same reason:
+   __sinit_ov085_0212f2a8 copies these into the two records of
+   data_ov085_0212fe88, and what the mount holds is four DS code addresses.
+   The dispatchers that read them back are host copies for the gate-16 reason
+   (port/unmatched/Ov085_Toad_StateSeat.cpp); this is what makes what they read
+   a host address. */
+static const struct { PortPmf *slot; unsigned rom; void (*host)(void *); }
+g_toad_states[] = {
+    {data_ov085_0212fe40, 0x021294f0, func_ov085_021294f0},  /* WAIT enter */
+    {data_ov085_0212fe48, 0x02129470, func_ov085_02129470},  /* WAIT main  */
+    {data_ov085_0212fe30, 0x0212943c, func_ov085_0212943c},  /* TALK enter */
+    {data_ov085_0212fe38, 0x021291ac, func_ov085_021291ac},  /* TALK main  */
+};
+
+static void port_toad_states_seat(void)
+{
+    for (unsigned i = 0; i < sizeof g_toad_states / sizeof g_toad_states[0];
+         ++i) {
+        PortPmf *p = g_toad_states[i].slot;
+        if (p->fn != g_toad_states[i].rom || p->delta != 0) {
+            std::fprintf(stderr, "FATAL: Toad state %u: the mount holds "
+                         "%08x/%d, the ROM's own table says %08x/0 -- WRONG "
+                         "BYTES\n", i, p->fn, p->delta, g_toad_states[i].rom);
+            std::abort();
+        }
+        p->fn = (unsigned)(size_t)g_toad_states[i].host;
+    }
+}
+
 /* ov080 0x021261f4 IS NOT HOSTED, and it is the one hole in the painting. It
    is state record index 5's function -- the Render half a painting at spawn
    flag mi=3 would reach (Render reads +0x10 off the object's +0x1a4 dispatch
@@ -957,6 +995,7 @@ extern "C" void port_actor_overlays_sinits(void)
     port_lakitu_bro_states_seat();
     port_rabbit_states_seat();
     port_rabbit_key_states_seat();
+    port_toad_states_seat();
     __sinit_ov085_0212f2a8();
     __sinit_ov085_0212f3a0();
     __sinit_ov085_0212f5ec();
