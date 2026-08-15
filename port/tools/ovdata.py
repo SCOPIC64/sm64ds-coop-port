@@ -60,6 +60,7 @@ import romblob_common  # noqa: E402
 _YAML_TEXT = {}
 _OVT = {}
 _BASE_WARNED = set()
+_BSS_WARNED = set()
 
 
 def overlay_yaml(root, ovid, field):
@@ -191,6 +192,54 @@ def overlay_base(root, ovid):
     return base
 
 
+def overlay_bss(root, ovid, image_len):
+    """How much zeroed space the loader leaves past the overlay's image.
+
+    THE BSS SIZE COMES FROM THE DELINK CONFIG, NOT FROM overlays.yaml, for the
+    same reason and with the same evidence as overlay_base() above. The yaml's
+    bss_size is short for four overlays -- ov004 by 256, ov007 by 64, ov075 by
+    256 and ov099 by 1024 -- while delinks.txt's HIGHEST section end equals the
+    ROM overlay table's ram_address + ram_size + bss_size for 103 of 103. That
+    is measured on a checkout that has the .nds, not inherited from a note.
+
+    WHAT READING IT SHORT COSTS, since none of the four was mounted until now
+    and the defect was therefore invisible. The number feeds the overlay's
+    FOOTPRINT, and the footprint is the window cross_mode() contests over and
+    the span Residency reasons about. A short window silently disowns the
+    overlay's own top-of-bss storage: an ov007 per-symbol mount taking the yaml
+    at its word declares six of its own bss symbols to be somebody else's
+    memory, and cross_mode's out-of-footprint filter then refuses to offer them
+    to anyone. No mount wants those six addresses today, so nothing misbinds;
+    this is so that the first one to want them gets an answer.
+
+    The two checks mirror overlay_base()'s and are asymmetric for the same
+    reason: the yaml is expected to disagree and only prints, the ROM overlay
+    table is ground truth and refuses. A checkout with no .nds skips the ROM
+    check -- absent, not passed.
+    """
+    ov = f"ov{ovid:03d}"
+    base = overlay_base(root, ovid)
+    bss = max(e for _, e in delinks_sections(root, ov)) - base - image_len
+    if bss < 0:
+        sys.exit(f"{ov}: delinks.txt's last section ends before the image "
+                 f"does ({image_len} bytes from {base:#010x}); the config and "
+                 f"the extracted overlay disagree about the image length.")
+
+    ovt = rom_overlay_table(root)
+    if ovid in ovt and ovt[ovid][2] != bss:
+        sys.exit(f"{ov}: delinks.txt implies bss {bss}, the ROM overlay table "
+                 f"says {ovt[ovid][2]}. The ROM is ground truth and the config "
+                 f"disagrees with it; refusing to emit.")
+
+    yaml_bss = overlay_yaml(root, ovid, "bss_size")
+    if yaml_bss != bss and ovid not in _BSS_WARNED:
+        _BSS_WARNED.add(ovid)
+        print(f"ov{ovid:03d}: overlays.yaml says bss {yaml_bss}, delinks.txt "
+              f"says {bss}; using delinks. The yaml is a dsd export and is "
+              f"short on four -- see overlay_bss().")
+    return bss
+
+
 def load_relocs(root, ov):
     """{site address: target address} for every kind:load reloc."""
     relocs = {}
@@ -282,8 +331,8 @@ def overlay_footprint(root, ovid):
     if not img.exists():
         img = root / f"extracted/dsd/arm9_overlays/{ov}.bin"
     base = overlay_base(root, ovid)
-    return (base, base + img.stat().st_size
-            + overlay_yaml(root, ovid, "bss_size"))
+    image_len = img.stat().st_size
+    return (base, base + image_len + overlay_bss(root, ovid, image_len))
 
 
 def _src_defining(root, func):
@@ -574,7 +623,7 @@ def whole_mode(root, ov, ovid, base, data, out_path):
     bss lives past the file image (the loader zeroes it), so the host array is
     code_size + bss_size and pointers into bss land inside it too.
     """
-    bss = overlay_yaml(root, ovid, "bss_size")
+    bss = overlay_bss(root, ovid, len(data))
     total = len(data) + bss
     win = (base, base + total)
     relocs = load_relocs(root, ov)
@@ -1272,7 +1321,7 @@ def main():
             if t is not None and covering(t) is None:
                 wants.append((name, off, t))
     write_map(out_path, ov, "pack" if pack else "syms",
-              (base, base + len(data) + overlay_yaml(root, ovid, "bss_size")),
+              (base, base + len(data) + overlay_bss(root, ovid, len(data))),
               [(n, a, sz) for n, a, sz, _ in emitted], wants)
     print(f"{len(wanted)} symbols, {len(patches)} pointer patches, "
           f"{len(wants)} cross-mount candidates -> {out_path}")
