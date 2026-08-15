@@ -1229,7 +1229,7 @@ list(APPEND PORT_LEVEL_OVERLAYS ov035)
 #    33 ov065 ov084 ov098 ov102                          [all mounted]
 #
 # ov030 (19168 bytes) is still the largest level overlay and still sets the
-# shared window's end; the largest here is ov036 at 11904, well inside it, so
+# shared window's end; the largest here is ov029 at 12416, well inside it, so
 # none of these six extends the window that ovdata.py --cross contests over.
 # Mounted --whole like the rest; own_sinits stays 0 for all six.
 list(APPEND PORT_LEVEL_OVERLAYS ov024 ov029 ov033 ov036 ov039 ov041)

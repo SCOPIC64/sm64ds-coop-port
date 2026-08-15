@@ -74,9 +74,17 @@ tracked separately; this note exists so the gate is not read as the bug.
 A SELFTEST DOES NOT ALWAYS END ON THE LEVEL IT STARTED.
 
 Every selftest log carries TWO [census] blocks -- one after boot and one at the
-end of the run -- and the census reports the live actor set at print time, so
-on a level that stays put the two are identical. Level 1 prints
-"82 spawned (22 classes), 0 skipped" twice.
+end of the run -- and the census reports the live actor set at print time.
+Often the two match: level 1 prints "82 spawned (22 classes), 0 skipped" twice,
+and so do levels 0, 32 and 46.
+
+TWO MATCHING BLOCKS ARE NOT A PROOF THAT THE LEVEL STAYED PUT, and the
+converse is not a proof that it warped. The census counts what is ALIVE, and a
+level can spawn more of something over 300 frames without going anywhere:
+level 30 stays on suisou the whole run, carries no "[lvl] change:" line, and
+still goes from 71 spawned to 106 in nine classes. Reading two matching blocks
+as "did not warp" happens to be right on most levels, which is what makes it
+dangerous.
 
 Levels 19, 20, 26, 34, 35, 39 and 49 warp within the 300 frames. Their logs carry a
 "[lvl] change: level N -> M" line, and the second census is then M's, not N's:
@@ -128,14 +136,16 @@ TABLE_OPEN = "static const PortLevelDesc port_level_table[] = {"
 LEVEL_SKIPS = {
     33: ("SNUFIT",
          "the actors lane",
-         "SNUFIT (actor id 236) faults in RENDER. Measured on THIS tree, not "
-         "quoted: rc 139, FAULT c0000005 at +0x0003c6ec accessing 0, which "
-         "faultmap.py resolves to Model::Virtual10+0xc, walker actor id 0xec = "
-         "236 = SNUFIT. Wave 8 and lane w21 read the same fault at a different "
-         "offset because the binary moved, so the class is long unfixed rather "
-         "than newly broken. Level 33's mount itself is proven: with the class "
-         "skipped it runs 300 frames clean, census 72 spawned over 17 classes "
-         "with 4 SNUFIT declined."),
+         "SNUFIT (actor id 236) faults in RENDER. Bare, the level exits "
+         "c0000005 (3221225477, what subprocess reports here; a shell that "
+         "translates it prints 139) and faultmap.py resolves the fault to "
+         "Model::Virtual10+0xc with walker actor id 0xec = 236 = SNUFIT. "
+         "NO RAW OFFSET IS RECORDED HERE ON PURPOSE: the same one bug has "
+         "produced three different +0x000... offsets on three builds of the "
+         "same source, because an offset belongs to a binary and not to a "
+         "defect. Run faultmap.py against the build in hand. Level 33's mount "
+         "itself is proven: with the class skipped it runs 300 frames clean, "
+         "census 72 spawned over 17 classes with 4 SNUFIT declined."),
 }
 # The bare re-probe is expected to FAULT while the debt stands, and a fault
 # under FAULTS_FATAL exits fast. A probe that instead hangs is not evidence of
