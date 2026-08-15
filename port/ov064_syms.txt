@@ -88,3 +88,39 @@ data_ov064_0211c1d8
 data_ov064_0211bf68 data_ov064_0211bf70 data_ov064_0211bf78 data_ov064_0211bf80 data_ov064_0211bf88 data_ov064_0211bf90
 data_ov064_0211c2dc data_ov064_0211c2e4
 data_ov064_0211c7d8 data_ov064_0211c7e0 data_ov064_0211c7e8 data_ov064_0211c7f0 data_ov064_0211c7f8 data_ov064_0211c800 data_ov064_0211c808 data_ov064_0211c810 data_ov064_0211c818 data_ov064_0211c820 data_ov064_0211c828 data_ov064_0211c830 data_ov064_0211c838 data_ov064_0211c840 data_ov064_0211c848 data_ov064_0211c850 data_ov064_0211c85c data_ov064_0211c868 data_ov064_0211c874 data_ov064_0211c880 data_ov064_0211c88c data_ov064_0211c898 data_ov064_0211c8a4 data_ov064_0211c8b0 data_ov064_0211c8bc data_ov064_0211c8c8 data_ov064_0211c8d4 data_ov064_0211c8e0 data_ov064_0211c8ec data_ov064_0211c8f8 data_ov064_0211c904 data_ov064_0211c934
+
+# ---- run linkw wave 9, lane w9-reg: TILTING_PLATFORM_LLL (id 72) ----------
+# The class whose bodies dsd spells _ZN12MetalNetLift* -- id 72, NOT the gate-178
+# id 69 whose record is MetalNetLift_SpawnInfo above. ACTOR_SPAWN_TABLE
+# 0x02090984 -> 0x0211bd08, and the raw record there (out of
+# extracted/overlays/overlay_0064.bin at base 0x02115ee0 -- ov064 is
+# compressed:true, so the dsd export is the wrong image for a halfword read)
+# has word[0] = 0x021180fc TiltingPlatformLll_Spawn, inside ov064, and its +4
+# halfword is 72. Both attribution routes, which is the rule here.
+# Pinned to the record's real 0x1c so the +4 id halfword the registry
+# cross-checks reads out of the right bytes.
+TiltingPlatformLll_SpawnInfo:0x1c
+# Its three-word file table, read by both Init and Cleanup (they tail-call
+# ov002's base pair with this as the second argument). Words relocate to the two
+# SharedFilePtrs below and to the CLPS record; all three ends are in this mount,
+# so the cross pass rebases them. Natural next-symbol delta is 0xc, the exact
+# three words.
+data_ov064_0211adb0
+# The CLPS record the file table's third word points at (0x20 by next-symbol
+# delta, data_ov064_0211bbac follows).
+data_ov064_0211bb8c
+# The two SharedFilePtrs __sinit_ov064_0211b078 constructs, and their two
+# destructor-chain nodes. That sinit is one of the eight this file's earlier
+# block records as NOT RUN with a clean reach audit ("a follow-up gate can run
+# its own subset without a hazard"); hal/actor_classes_ov064_w9.cpp runs exactly
+# this one and nothing else, and these four cells are disjoint from every sinit
+# hal/actor_overlays.cpp already runs.
+#   0x0211c768 model SFP, dtor func_02017ab4, node 0x0211c778
+#   0x0211c770 clsn  SFP, dtor 0x02017b34,    node 0x0211c784
+# 0x0211c784 is SIZE-OVERRIDDEN: its next-symbol delta is 4, but func_020731dc
+# writes THREE words through a destructor-chain node, exactly as its sibling
+# 0x0211c778 (natural delta 0xc) shows. 0xc runs to 0x0211c790, which is where
+# the next mounted symbol (ROTATING_FIREBAR's model SFP) starts, so the pin
+# abuts rather than overlaps. The ov045 data_ov045_02113264 treatment.
+data_ov064_0211c768 data_ov064_0211c770 data_ov064_0211c778
+data_ov064_0211c784:0xc

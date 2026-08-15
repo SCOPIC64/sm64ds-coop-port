@@ -969,6 +969,19 @@ void hal_fill_path_lift_vtable(void);            /* fills data_ov100_0214857c, 3
 extern unsigned char OrangeBallBillboard_SpawnInfo[]; /* ov044 0x021115e0, +4 reads 301 */
 void *OrangeBallBillboard_Spawn(void);                /* ov044 0x021112dc */
 void hal_fill_orange_ball_billboard_vtable(void);     /* _ZTV19OrangeBallBillboard, 31 */
+/* ---- run linkw wave 9 (lane w9-reg): TILTING_PLATFORM_LLL (72, ov064) ----
+   ACTOR_SPAWN_TABLE 0x02090984 -> 0x0211bd08; the raw record there (out of
+   extracted/overlays/overlay_0064.bin, NOT the compressed dsd export) has
+   word[0] = TiltingPlatformLll_Spawn inside ov064 and its +4 halfword reads 72,
+   so both attribution routes agree. Table 0x0211bd2c, 32 slots pinned twice
+   (reloc run and next-symbol landing both end at 0x0211bdac); RTTI at
+   vtable[-1] names it daObjFl_Gura_c, gura = the tilting one, the same root as
+   ov045's TiltingPlatformBfs. x14, the biggest class in the wave-8 census.
+   The factory column is a WRAPPER because the Spawn's final vptr store is the
+   zeroed VT1 placeholder -- see hal/actor_classes_ov064_w9.cpp. ---- */
+extern unsigned char TiltingPlatformLll_SpawnInfo[];  /* ov064 0x0211bd08, +4 reads 72 */
+void *port_factory_tilting_platform_lll(void);        /* wraps ov064 0x021180fc */
+void hal_fill_tilting_platform_lll_vtable(void);      /* _ZTV12MetalNetLift, 32 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1429,4 +1442,16 @@ void hal_fill_orange_ball_billboard_vtable(void);     /* _ZTV19OrangeBallBillboa
     /* ---- run linkw wave 7 (lane w7-c): the Dark World arena's own class.
        Spawn stores its table by a real name, so no factory wrapper. ---- */ \
     {301, "ORANGE_BALL_BILLBOARD", OrangeBallBillboard_SpawnInfo, \
-     OrangeBallBillboard_Spawn, hal_fill_orange_ball_billboard_vtable},
+     OrangeBallBillboard_Spawn, hal_fill_orange_ball_billboard_vtable}, \
+    /* ---- run linkw wave 9 (lane w9-reg): TILTING_PLATFORM_LLL, the largest
+       single class in the wave-8 skip census -- FOURTEEN instances, x10 on
+       level 44 (ex_m_map) and x4 on level 48 (ex_w_map). ov064 is already
+       mounted (gates 177/178), so this is registration with no new mount.
+       The dsd block shift spells its bodies _ZN12MetalNetLift* and its table
+       _ZTV12MetalNetLift; the class is id 72, not the gate-178 id 69, and
+       hal/actor_classes_ov064_gate178.cpp's header says so itself. Its Spawn
+       stores base-then-own and the own store is the zeroed VT1 placeholder, so
+       it needs a FACTORY WRAPPER; the disassembly that settles the store order
+       is in hal/actor_classes_ov064_w9.cpp. ---- */ \
+    {72, "TILTING_PLATFORM_LLL", TiltingPlatformLll_SpawnInfo, \
+     port_factory_tilting_platform_lll, hal_fill_tilting_platform_lll_vtable},
