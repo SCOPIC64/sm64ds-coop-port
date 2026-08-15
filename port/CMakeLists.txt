@@ -3186,6 +3186,27 @@ if(MSVC)
     target_compile_options(smoke_player PRIVATE /wd4311 /wd4312 /wd4068 /wd4576)
 endif()
 
+# run linkw wave 8 (lane w8-a): THE STAGE CLASS CLOSURE, first landed piece.
+#
+# Eight matched Stage bodies plus the one callee they drag (nine TUs), the
+# class's own arm9 BSS (hal/w8a_stage_storage.cpp) and the C-name faces that
+# reach them (hal/w8a_stage_faces.cpp). There are no /include: link roots here
+# and NOTHING REACHES THESE YET: every one of the nine is /OPT:REF-stripped and
+# every alias LHS is unused, which is why this lands at the linkage floor. The
+# slice head records, per held-out TU, the measured blocker that keeps the other
+# twenty-one out; the faces file records that the reach does not exist, because
+# the ROM reaches all of these through _ZTV5Stage, which hal/stage_bridges.cpp
+# still trap-fills. Seating that table is what turns this groundwork live.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w8a.txt" SLICE_W8A_LINES)
+set(SLICE_W8A_SOURCES "")
+foreach(line IN LISTS SLICE_W8A_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W8A_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gate 12: the interactive window (same stack, windowed loop).
 #
 # tests/io_pressure.cpp is the negative control for ntr/io.cpp's fixed-address
@@ -3251,6 +3272,8 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
     unmatched/StarMarker_D1.cpp
+    # run linkw wave 8 (lane w8-a): the Stage class closure, first piece.
+    hal/w8a_stage_storage.cpp hal/w8a_stage_faces.cpp ${SLICE_W8A_SOURCES}
     "${PORT_GITTIP_C}"
     "${ROMDATA_C}" "${OV009SYMS_C}" ${ACTOR_OV_SYMS} "${OVCROSS_C}")
 target_include_directories(walk_window PRIVATE
