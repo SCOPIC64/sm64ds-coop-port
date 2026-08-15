@@ -47,6 +47,8 @@ PATCH = re.compile(r"\*\(unsigned(?: int)? \*\)\((\w+) \+ (\d+)\)")
 # whole-image mounts patch through a table instead: { 4348u, 3204u },
 REBASE_ROW = re.compile(r"\{\s*(\d+)u,\s*\d+u\s*\}")
 REBASE_HEAD = re.compile(r"static const unsigned (\w+)_rebase\[\]\[2\]")
+# pkNNN_gap_020d7db8 / port_ov022_gap_02114874 -- the DS address is the name.
+GAP_NAME = re.compile(r"_gap_([0-9a-f]{8})$")
 
 
 def main():
@@ -108,6 +110,32 @@ def main():
     ov_of_file = {m.parent / m.name[:-len(".map")]: doc["overlay"]
                   for m, doc in docs}
 
+    # WHERE EACH ARRAY LIVES IN DS MEMORY, so a word can be tested against the
+    # delink table below. Three sources, because not every emitted array is a
+    # named symbol in a sidecar: the named symbols and the synthetic gap blocks
+    # are, a whole-image mount is one array at its overlay's base, and --pack's
+    # padding blocks carry their own address in their name (pkNNN_gap_ADDR).
+    # Anything else is refused rather than skipped -- an array with no address
+    # cannot be checked, and quietly not checking it is how this goes blind.
+    _relocs = {}
+
+    def relocs_for(ov):
+        """The overlay's kind:load sites, or an empty map for an unowned array.
+
+        Shared with ovdata rather than re-parsed, for the reason the docstring
+        gives about two copies of a rule drifting apart.
+        """
+        if ov not in _relocs:
+            _relocs[ov] = ovdata.load_relocs(root, ov) if ov else {}
+        return _relocs[ov]
+
+    ds_addr = {}
+    for _, doc in docs:
+        for a, _sz, n in doc["provides"]:
+            ds_addr[n] = a
+        if doc["mode"] == "whole":
+            ds_addr[f"port_{doc['overlay']}_image"] = doc["window"][0]
+
     arrays = {}          # name -> bytes
     array_ov = {}        # name -> owning overlay, or None
     patched = collections.defaultdict(set)   # name -> {byte offset}
@@ -129,13 +157,60 @@ def main():
             for row in REBASE_ROW.finditer(tail):
                 patched[tag].add(int(row.group(1)))
 
+    # A WORD IS A POINTER BECAUSE THE DELINK TABLE SAYS SO, not because its
+    # value looks like an address. This check reads the same standard of
+    # evidence the emitter it checks now uses (see the in-mount pass in
+    # ovdata.py), and it has to, or the two disagree by construction: ovdata
+    # declines to patch a word relocs.txt does not list, and a value-range
+    # sweep then reports that same word as an unpatched pointer.
+    #
+    # ov007 is where the two came apart. data_ov007_020ef022 is 3830 bytes at a
+    # DS address ending in 2, so a 4-byte stride from the array start walks a
+    # grid the ROM never used, and at offset 1488 the byte run 08 0e 0f 02
+    # reads as 0x020f0e08, which lands inside data_ov007_020f020e. It is four
+    # entries of a byte table, not a pointer, and no relocation is recorded
+    # there.
+    #
+    # WHAT THIS GIVES UP, stated rather than argued away. reloc_blob() starts
+    # from the ROM image bytes and OVERWRITES only the recorded sites, so a
+    # pointer baked into the image with no relocation recorded against it would
+    # survive into the emitted array and is now invisible to the emitter and to
+    # this check both, where the old value scan would have caught it. The claim
+    # here is empirical, not structural: that set is empty today. Of the 2753
+    # patches the per-symbol mounts emit, every site is 4-aligned and listed in
+    # relocs.txt, and all 92 mounts regenerate byte-identical under the gate, so
+    # nothing the emitter used to rebase is lost. Injected-defect coverage is
+    # unchanged at 30 of 30 across 30 mounts. If a delink table ever under-reports
+    # a real pointer, this goes quiet about it, and the place that would catch it
+    # is a delink-table check rather than a value scan here.
+    unaddressed = set()
+    for name in arrays:
+        if name in ds_addr:
+            continue
+        mg = GAP_NAME.search(name)
+        if mg:
+            ds_addr[name] = int(mg.group(1), 16)
+        else:
+            unaddressed.add(name)
+    if unaddressed:
+        sys.exit(f"ovsweep: {len(unaddressed)} emitted arrays have no DS "
+                 f"address (not in a sidecar's provides, not a whole-image "
+                 f"mount, no address in the name): "
+                 f"{', '.join(sorted(unaddressed)[:5])}. Refusing to run: an "
+                 f"array that cannot be located cannot be checked, and "
+                 f"skipping it silently is how this check goes blind.")
+
     findings = []
     raw_elsewhere = 0
     unattributed = set()
     for name in sorted(arrays):
         blob = arrays[name]
         src_ov = array_ov.get(name)
+        base = ds_addr[name]
+        ov_relocs = relocs_for(src_ov)
         for off in range(0, len(blob) - 3, 4):
+            if (base + off) not in ov_relocs:
+                continue
             v = int.from_bytes(blob[off:off + 4], "little")
             if not (0x02000000 <= v < 0x02400000):
                 continue

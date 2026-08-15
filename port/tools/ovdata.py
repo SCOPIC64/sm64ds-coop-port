@@ -60,6 +60,7 @@ import romblob_common  # noqa: E402
 _YAML_TEXT = {}
 _OVT = {}
 _BASE_WARNED = set()
+_BSS_WARNED = set()
 
 
 def overlay_yaml(root, ovid, field):
@@ -191,6 +192,54 @@ def overlay_base(root, ovid):
     return base
 
 
+def overlay_bss(root, ovid, image_len):
+    """How much zeroed space the loader leaves past the overlay's image.
+
+    THE BSS SIZE COMES FROM THE DELINK CONFIG, NOT FROM overlays.yaml, for the
+    same reason and with the same evidence as overlay_base() above. The yaml's
+    bss_size is short for four overlays -- ov004 by 256, ov007 by 64, ov075 by
+    256 and ov099 by 1024 -- while delinks.txt's HIGHEST section end equals the
+    ROM overlay table's ram_address + ram_size + bss_size for 103 of 103. That
+    is measured on a checkout that has the .nds, not inherited from a note.
+
+    WHAT READING IT SHORT COSTS, since none of the four was mounted until now
+    and the defect was therefore invisible. The number feeds the overlay's
+    FOOTPRINT, and the footprint is the window cross_mode() contests over and
+    the span Residency reasons about. A short window silently disowns the
+    overlay's own top-of-bss storage: an ov007 per-symbol mount taking the yaml
+    at its word declares six of its own bss symbols to be somebody else's
+    memory, and cross_mode's out-of-footprint filter then refuses to offer them
+    to anyone. No mount wants those six addresses today, so nothing misbinds;
+    this is so that the first one to want them gets an answer.
+
+    The two checks mirror overlay_base()'s and are asymmetric for the same
+    reason: the yaml is expected to disagree and only prints, the ROM overlay
+    table is ground truth and refuses. A checkout with no .nds skips the ROM
+    check -- absent, not passed.
+    """
+    ov = f"ov{ovid:03d}"
+    base = overlay_base(root, ovid)
+    bss = max(e for _, e in delinks_sections(root, ov)) - base - image_len
+    if bss < 0:
+        sys.exit(f"{ov}: delinks.txt's last section ends before the image "
+                 f"does ({image_len} bytes from {base:#010x}); the config and "
+                 f"the extracted overlay disagree about the image length.")
+
+    ovt = rom_overlay_table(root)
+    if ovid in ovt and ovt[ovid][2] != bss:
+        sys.exit(f"{ov}: delinks.txt implies bss {bss}, the ROM overlay table "
+                 f"says {ovt[ovid][2]}. The ROM is ground truth and the config "
+                 f"disagrees with it; refusing to emit.")
+
+    yaml_bss = overlay_yaml(root, ovid, "bss_size")
+    if yaml_bss != bss and ovid not in _BSS_WARNED:
+        _BSS_WARNED.add(ovid)
+        print(f"ov{ovid:03d}: overlays.yaml says bss {yaml_bss}, delinks.txt "
+              f"says {bss}; using delinks. The yaml is a dsd export and is "
+              f"short on four -- see overlay_bss().")
+    return bss
+
+
 def load_relocs(root, ov):
     """{site address: target address} for every kind:load reloc."""
     relocs = {}
@@ -282,8 +331,8 @@ def overlay_footprint(root, ovid):
     if not img.exists():
         img = root / f"extracted/dsd/arm9_overlays/{ov}.bin"
     base = overlay_base(root, ovid)
-    return (base, base + img.stat().st_size
-            + overlay_yaml(root, ovid, "bss_size"))
+    image_len = img.stat().st_size
+    return (base, base + image_len + overlay_bss(root, ovid, image_len))
 
 
 def _src_defining(root, func):
@@ -463,6 +512,32 @@ class Residency:
             if ovid not in self.foot:
                 self.foot[ovid] = overlay_footprint(root, ovid)
 
+        # RULE 1 AND RULE 2 CAN CONTRADICT EACH OTHER, AND RULE 1 WINS SILENTLY.
+        #
+        # coresident() tests overlap before it tests the passenger relation, so
+        # if a passenger pair's footprints ever intersect the answer flips to
+        # False for two overlays the loader's own code always loads together --
+        # in the direction that drops bindings, with nothing printed.
+        #
+        # This is not hypothetical margin. ov004's footprint ends at 0x020bfec0
+        # and ov006's base IS 0x020bfec0, so the pair passes only because
+        # _overlaps() uses a strict `<`. There is exactly zero slack, and it was
+        # 256 bytes until overlay_bss() started reading the ROM's bss instead of
+        # the yaml's short one. One more byte of ov004 from any future
+        # re-derivation and the model would quietly contradict itself.
+        for host, rider in self.passenger.items():
+            if self._overlaps(host, rider):
+                (s1, e1), (s2, e2) = self.foot[host], self.foot[rider]
+                sys.exit(f"residency: ov{rider:03d} rides ov{host:03d} per "
+                         f"func_0201a798, but their footprints overlap "
+                         f"({s2:#010x}..{e2:#010x} against "
+                         f"{s1:#010x}..{e1:#010x}). Rule 1 is tested first and "
+                         f"would report the pair NOT co-resident, which is the "
+                         f"direction that drops bindings. One of the two "
+                         f"footprints is wrong, or the passenger rule no longer "
+                         f"holds; either way this must not be decided by "
+                         f"whichever rule runs first.")
+
         # The level and object overlays stack on top of the in-level scene.
         # Derive WHICH scene that is rather than naming ov002: it is the slot
         # occupant whose footprint ends where they start. Unique, or refuse.
@@ -574,7 +649,7 @@ def whole_mode(root, ov, ovid, base, data, out_path):
     bss lives past the file image (the loader zeroes it), so the host array is
     code_size + bss_size and pointers into bss land inside it too.
     """
-    bss = overlay_yaml(root, ovid, "bss_size")
+    bss = overlay_bss(root, ovid, len(data))
     total = len(data) + bss
     win = (base, base + total)
     relocs = load_relocs(root, ov)
@@ -1206,15 +1281,39 @@ def main():
             emitted.append((name, s, e - s, blob))
 
     # Pointer relocation: emitted data holds DS addresses of OTHER emitted
-    # symbols (fileptr tables, dtor-chain nodes). Rewrite any aligned word
-    # that lands inside another emitted symbol to the host address, so the
-    # game's pointer walks stay on hosted storage. Code pointers and words
-    # pointing at un-hosted data are left as-is (they trap loudly).
+    # symbols (fileptr tables, dtor-chain nodes). Rewrite any word the delink
+    # table calls an address to the host address, so the game's pointer walks
+    # stay on hosted storage. Code pointers and words pointing at un-hosted
+    # data are left as-is (they trap loudly).
+    #
+    # THE EVIDENCE IS relocs.txt, NOT A VALUE-RANGE SCAN, and it has to be.
+    # This pass used to rebase any 4-byte window whose VALUE landed inside the
+    # emission, on the reasoning that inside one mount the coverage is near
+    # enough to proof. It is not, once a mount carries a large block that dsd
+    # named at an address which is not word-aligned: the scan then steps along
+    # a grid the ROM never used, so four consecutive bytes of an ordinary byte
+    # table can read as an in-mount address by coincidence, and the patch
+    # writes a host pointer over four table entries.
+    #
+    # ov007 is the mount that found it. It has sixteen non-4-aligned symbols
+    # including blocks of 3830, 3570 and 1828 bytes, and it produced exactly
+    # one such coincidence: data_ov007_020ef022 + 1488 is DS 0x020ef5f2, two
+    # bytes off the word grid, where the byte run 08 0e 0f 02 reads as
+    # 0x020f0e08 and lands inside data_ov007_020f020e.
+    #
+    # The gate costs nothing that was ever real: across the 2753 patches the
+    # 45 per-symbol mounts in the current build emit, every single site is both
+    # 4-aligned and listed in relocs.txt, so none of them changes. It is the
+    # same standard of evidence the cross pass below already holds itself to,
+    # and the reason given there -- a constant can fall in the window -- turns
+    # out to apply within one mount too.
     covering = make_covering((a, a + sz, n) for n, a, sz, _ in emitted)
 
     patches = []
     for name, a, size, blob in emitted:
         for off in range(0, size - 3, 4):
+            if relocs.get(a + off) is None:
+                continue
             v = int.from_bytes(blob[off:off + 4], "little")
             hit = covering(v)
             if hit is not None:
@@ -1272,7 +1371,7 @@ def main():
             if t is not None and covering(t) is None:
                 wants.append((name, off, t))
     write_map(out_path, ov, "pack" if pack else "syms",
-              (base, base + len(data) + overlay_yaml(root, ovid, "bss_size")),
+              (base, base + len(data) + overlay_bss(root, ovid, len(data))),
               [(n, a, sz) for n, a, sz, _ in emitted], wants)
     print(f"{len(wanted)} symbols, {len(patches)} pointer patches, "
           f"{len(wants)} cross-mount candidates -> {out_path}")
