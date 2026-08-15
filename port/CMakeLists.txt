@@ -1284,6 +1284,18 @@ list(APPEND PORT_ACTOR_OVERLAYS ov021)
 # sinits run from the registry fill (the ov045 lane-ownership pattern). See
 # port/ov063_syms.txt and port/slice_w5a.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov063)
+# run linkw wave 8 (lane w8-packs): ov022 is level 14's own overlay (Lethal
+# Lava Land, data/stage/fire_land), already mounted whole in
+# PORT_LEVEL_OVERLAYS since gate 163; it joins the per-symbol mounts here so
+# its platform cast reaches its SpawnInfo records, its SharedFilePtr statics
+# and the three-word file/CLPS tables its InitResources bodies index -- the
+# gate-17 shape of ov009/ov010/ov015/ov016/ov018/ov019/ov020/ov021/ov045
+# applied to a thirteenth overlay and a fifth level overlay. Its ten vtables
+# are excluded from the mount; the four this wave seats are host arrays
+# hal/actor_classes_ov022.cpp fills, and the mount bring-up plus four of the
+# ten ov022 sinits run from the registry fill (the ov045 lane-ownership
+# pattern). See port/ov022_syms.txt and port/slice_w8packs.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov022)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1630,6 +1642,23 @@ foreach(line IN LISTS SLICE_W6D_LINES)
         continue()
     endif()
     list(APPEND SLICE_W6D_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 8, lane w8-packs: ov022's Lethal Lava Land platform cast --
+# VOLCANO_RING (71), FLOAT_ON_LAVA_PLATFORM (74), FLOATING_FLOOR_LLL_BIG (75)
+# and _SMALL (76), LAVA_PLANK (82), plus the four ov022 static initialisers
+# those four tables need. Same reader shape, one owner. The cast map (three
+# independent routes), the two shifted name blocks, both width routes and the
+# four classes held back on the inferred-stub ratchet are in
+# hal/actor_classes_ov022.cpp; the mount is port/ov022_syms.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w8packs.txt" SLICE_W8PACKS_LINES)
+set(SLICE_W8PACKS_SOURCES "")
+foreach(line IN LISTS SLICE_W8PACKS_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W8PACKS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate21.txt" SLICE21_LINES)
@@ -3028,6 +3057,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE_W6A_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
+    hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -3103,6 +3133,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE_W6A_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
+    hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -3209,6 +3240,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE_W6A_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
+    hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
