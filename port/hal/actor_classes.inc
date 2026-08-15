@@ -933,6 +933,32 @@ void hal_fill_flamethrower_vtable(void);         /* fills _ZTV12Flamethrower, 31
 extern unsigned char PathLift_SpawnInfo[];       /* ov100 0x02148558, +4 reads 31 */
 void *PathLift_Spawn(void);                      /* ov100 0x02147328 */
 void hal_fill_path_lift_vtable(void);            /* fills data_ov100_0214857c, 33 */
+/* ---- run linkw wave 8 (lane w8-packs): ov022's LETHAL LAVA LAND cast, five
+   of the eleven ids level 14's own level overlay owns. Every id resolved by
+   BOTH routes -- the SpawnInfo's word[0] spawnFunc lands inside ov022 and its
+   word[1] low half is the id the arm9 table slot came from -- and the class
+   identity taken from the RTTI typeinfo at vtable[-1], not from dsd's labels
+   (two of the four blocks carry the ov045-style one-class name shift). The
+   derivation, the widths and the four blocked classes are in
+   hal/actor_classes_ov022.cpp and port/ov022_syms.txt.
+   FLOATING_FLOOR_LLL_BIG shares SMALL's table and fill (the BOO/BIG_BOO
+   shape) and both take a VT1 factory wrapper; the other three store their own
+   table by a real name as the final write. ---- */
+extern unsigned char VolcanoRing_SpawnInfo[];    /* ov022 0x02113cf4, +4 reads 71 */
+void *VolcanoRing_Spawn(void);                   /* ov022 0x02111578 */
+extern unsigned char FloatOnLavaPlatform_SpawnInfo[]; /* ov022 0x02113e88, +4 = 74 */
+void *FloatOnLavaPlatform_Spawn(void);           /* ov022 0x02111950 */
+extern unsigned char FloatingFloorLllBig_SpawnInfo[];   /* ov022 0x021140ec, +4 = 75 */
+void *port_factory_floating_floor_lll_big(void);   /* VT1 wrapper, ov022 0x021120f4 */
+extern unsigned char FloatingFloorLllSmall_SpawnInfo[]; /* ov022 0x02114108, +4 = 76 */
+void *port_factory_floating_floor_lll_small(void); /* VT1 wrapper, ov022 0x021120b8 */
+extern unsigned char LavaPlank_SpawnInfo[];      /* ov022 0x021141cc, +4 reads 82 */
+void *LavaPlank_Spawn(void);                     /* ov022 0x02112350 */
+void hal_fill_volcano_ring_vtable(void);         /* fills data_ov022_02113d18, 32 */
+void hal_fill_float_on_lava_platform_vtable(void); /* _ZTV19RotatingPlatformLll, 32 */
+void hal_fill_floating_floor_lll_vtable(void);   /* _ZTV21FloatingFloorLllSmall, 32
+                                                    (75 + 76) */
+void hal_fill_lava_plank_vtable(void);           /* _ZTV19FloatingFloorLllBig, 32 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1382,4 +1408,22 @@ void hal_fill_path_lift_vtable(void);            /* fills data_ov100_0214857c, 3
        its own table by a real name, so no factory wrapper. Placed on
        levels 13 (x1) and 15 (x2). ---- */ \
     {31, "PATH_LIFT", PathLift_SpawnInfo, PathLift_Spawn, \
-     hal_fill_path_lift_vtable},
+     hal_fill_path_lift_vtable}, \
+    /* ---- run linkw wave 8 (lane w8-packs): ov022, Lethal Lava Land's own
+       level overlay. Five ids, four tables; 75 rides 76's fill. Level 14's
+       baseline census had 70/71/72/73/74/75/76/77/80/82/83/262 skipped, and
+       these five are the ov022 classes whose slot bodies are all real
+       decompilations -- 73/77/80/83 are held out because sixteen of their
+       slot bodies are `recovered from vtable slot identity` guesses and
+       port/tools/inferred_stub_guard.py freezes the seated-guess set at a
+       ratchet that may only shrink. ---- */ \
+    {71, "VOLCANO_RING", VolcanoRing_SpawnInfo, VolcanoRing_Spawn, \
+     hal_fill_volcano_ring_vtable}, \
+    {74, "FLOAT_ON_LAVA_PLATFORM", FloatOnLavaPlatform_SpawnInfo, \
+     FloatOnLavaPlatform_Spawn, hal_fill_float_on_lava_platform_vtable}, \
+    {76, "FLOATING_FLOOR_LLL_SMALL", FloatingFloorLllSmall_SpawnInfo, \
+     port_factory_floating_floor_lll_small, hal_fill_floating_floor_lll_vtable}, \
+    {75, "FLOATING_FLOOR_LLL_BIG", FloatingFloorLllBig_SpawnInfo, \
+     port_factory_floating_floor_lll_big, hal_fill_floating_floor_lll_vtable}, \
+    {82, "LAVA_PLANK", LavaPlank_SpawnInfo, LavaPlank_Spawn, \
+     hal_fill_lava_plank_vtable},
