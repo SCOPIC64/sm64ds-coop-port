@@ -200,8 +200,10 @@ static int port_host_abi_blocked(unsigned id)
            struct Entry* sbase = data_0209f320->entries;
 
        -- a load through data_0209f320 + 4. data_0209f320 is the Stage's
-       ModelComponents pointer, and its ONLY writer is Stage::LoadModel
-       (src/_ZN5Stage9LoadModelEv.cpp, last line). The fault caught under
+       ModelComponents pointer, and the only src/ writer that SEATS it is
+       Stage::LoadModel (src/_ZN5Stage9LoadModelEv.cpp, last line);
+       Stage::CleanupResources clears it back to 0
+       (src/_ZN5Stage16CleanupResourcesEv.cpp:92). The fault caught under
        SM64DS_FAULTS_FATAL is exactly that load:
 
            FAULT code c0000005 at +0x0008e07f accessing 00000004, eax=00000000
@@ -216,11 +218,14 @@ static int port_host_abi_blocked(unsigned id)
            :363  Stage::LoadClsnAndObjects(...);
        so on the DS data_0209f320 is seated before any actor initialises. The
        host harness inverts them: port/tests/walk_window.cpp calls
-       port_stage_a_boot (which runs LoadClsnAndObjects) at :2099 and
-       Stage::LoadModel only at :2265 -- confirmed on this tree by print order,
-       not by reading (level 36's log has [census] on line 31 and "level model
-       loaded by Stage::LoadModel ... components 3003AF24" on line 59). The
-       level-change path has the same inversion (:4362 boot, :4382 LoadModel).
+       port_stage_a_boot (which runs LoadClsnAndObjects) before it calls
+       Stage::LoadModel -- confirmed on this tree by print order, not by
+       reading (level 36's log has [census] ahead of "level model loaded by
+       Stage::LoadModel ... components 3003AF24"). The level-change path has
+       the same inversion. Line numbers are deliberately not cited here: they
+       were :2099/:2265/:4382 when this was written and :2390/:2556/:4735 by
+       the time it merged. Search for port_stage_a_boot and Stage::LoadModel
+       in port/tests/walk_window.cpp; the ORDER is the durable fact.
 
        AND IT CANNOT BE FIXED FROM port_stage_a_boot. Calling Stage::LoadModel
        early there would leave the harness's own call as a SECOND one, and a
@@ -238,7 +243,14 @@ static int port_host_abi_blocked(unsigned id)
        under FAULTS_FATAL, and the census names the ten skipped platforms rather
        than the port faking them. Nothing else changes: no other level places
        167, and the class's registry row, vtable fill and ov060 mount are
-       untouched. */
+       untouched.
+
+       The scope of that "no other level" is worth stating exactly, because a
+       review re-derived it: of the 52 rows, 8 (levels 0, 29, 30, 32, 34, 41,
+       42, 46) point into data-only overlays whose data_02092208 word does not
+       decode as a LVL_Overlay at all, so the sweep covers the 44 that do
+       decode. Across those 44, id 167 appears only on level 40 (x10) and id
+       301 only on level 36 (x16). */
     if (id == 167 && port_level_id() == 40)
         return 1;
 
