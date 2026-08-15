@@ -179,9 +179,15 @@ static int __fastcall mm_under(void *s, void *, void *o)
    __thiscall so the ecx that never held `this` is not handed to the body. */
 static int __fastcall mm_init(void *s, void *)
 { return ((MontyMole *)s)->MontyMole::InitResources(); }
+/* RUN LINKW WAVE 19: was `((MontyMole *)s)->MontyMole::Render()`. That body
+   dispatches slot 5 of a local six-virtual shadow over the ModelAnim at 0xd4,
+   which the host _ZTV9ModelAnim numbers as Virtual18 -- a live c0000005 the
+   moment a MONTY_MOLE is drawn (SM64DS_SPAWN_ACTOR=310 on level 13). See
+   port/unmatched/W19_Slot5_Renders.cpp for the fault and the cost. */
+extern "C" int port_w19_montymole_render(void *self);
 static int __fastcall mm_render(void *s, void *)
 { port_actor_render_probe("MONTY_MOLE", (char *)s + 0xd4);
-  return ((MontyMole *)s)->MontyMole::Render(); }
+  return port_w19_montymole_render(s); }
 /* Behavior is the HOST copy (C linkage), Cleanup and D0 are plain C. */
 static int __fastcall mm_behavior(void *s, void *)
 { return _ZN9MontyMole8BehaviorEv(s); }
