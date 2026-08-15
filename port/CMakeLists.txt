@@ -1860,6 +1860,26 @@ foreach(line IN LISTS SLICE_W10B_LINES)
     list(APPEND SLICE_W10B_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# run linkw wave 11, lane w11: NINETEEN ids whose vtable is already a FILLED
+# host array and whose overlay is already mounted -- the tier the census-built
+# worklist could not see, found by widening the shared-table sweep from ~70
+# classes to all 512 spawn-table ids. One factory TU each and nothing else: no
+# mount, no vtable, no fill, no wrapper. Six records were added to
+# port/ov095_syms.txt and port/ov002_syms.txt; the other thirteen were mounted
+# already. The header of port/slice_w11.txt carries both attribution routes for
+# all nineteen, the ten shared tables with the registered sibling that fills
+# each, and the done-guard evidence for every fill reused. Same one-owner
+# contract as the lane slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w11.txt" SLICE_W11_LINES)
+set(SLICE_W11_SOURCES "")
+foreach(line IN LISTS SLICE_W11_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W11_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate21.txt" SLICE21_LINES)
 set(SLICE21_SOURCES "")
 foreach(line IN LISTS SLICE21_LINES)
@@ -3392,6 +3412,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
     hal/actor_classes_ov031_w10.cpp ${SLICE_W10A_SOURCES}
     ${SLICE_W10B_SOURCES}
+    ${SLICE_W11_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -3505,6 +3526,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
     hal/actor_classes_ov031_w10.cpp ${SLICE_W10A_SOURCES}
     ${SLICE_W10B_SOURCES}
+    ${SLICE_W11_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -3630,6 +3652,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
     hal/actor_classes_ov031_w10.cpp ${SLICE_W10A_SOURCES}
     ${SLICE_W10B_SOURCES}
+    ${SLICE_W11_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
