@@ -75,3 +75,22 @@ func_ov043_0211123c  REAL_DECOMP  w16.md#135  IsEnabled/Disable at +0x124 then t
 func_ov043_021112a8  REAL_DECOMP  w16.md#135  Behavior; DecIfAbove0_Byte +0x31e, +0x94 += 0x4000, Actor::UpdatePos(0), Platform trio; exact
 func_ov043_02111280  REAL_DECOMP  w16.md#135  Render; same slot-5 dispatch shape as 296
 func_ov043_021111e4  REAL_DECOMP  w16.md#135  dtor; VT0 = own table 0x021122b8, VT1 = 0x0210ae38, three sub-object dtors in ROM order
+#
+# ---------------------------------------------------------------------------
+# run link60 (lane S1, the scene boot spine), 2026-08-15.
+#
+# dScStarSel_c (scene id 4, ov003) is the first NON-LEVEL scene the port seats,
+# and three of its seven vtable bodies carry the marker. All three were
+# disassembled from extracted/overlays/overlay_0003.bin at (addr - 0x020ad660)
+# -- the shipped RAM image, whose length 0x4240 equals the OVT's ram_size for
+# ov003, deliberately not the dsd export -- and compared instruction for
+# instruction against src/. RESULT: 3 REAL DECOMP, 0 genuine guesses, 0
+# unverifiable. The other four (020af8a0 InitResources, 020af038 Behavior,
+# 020ae6f4 Render, 020addfc D2) carry no marker and are not this file's
+# business; three of those four are NONMATCHING and say so in their own header.
+#
+# Evidence is inline below rather than in a run note, because all three bodies
+# are small enough to state completely.
+func_ov003_020ae6f0  REAL_DECOMP  slice_scene1.txt  OnPendingDestroy, 4 bytes: the whole function is `bx lr` (e12fff1e). src is an empty void body. Nothing to guess wrong
+func_ov003_020af86c  REAL_DECOMP  slice_scene1.txt  CleanupResources, 0x34: bl CleanCommonModelDataArr (0x02016df8), bl Sound::UnsetPlayerVoiceGroup (0x02011fe8), then ldr r2=0x04000304 / ldrh / orr #0x8000 / strh, mov r0,#1. src has the same two calls in the same order, the same register constant and the same return
+func_ov003_020ade54  REAL_DECOMP  slice_scene1.txt  D0, 0x6c: str 0x020b1704 [this]; __destroy_arr(0x0207328c) with r0=this+0x64, r1=2, r2=0x50, r3=_ZN5ModelD1Ev (0x02016d20); str 0x02092680 (_ZTV5Scene); str 0x0208e4b8; ActorBase::D2 (0x02043d48); Memory::Deallocate(this, *0x020a0eac) (0x0203c1e8); return this. Every one of those seven constants matches src, in order

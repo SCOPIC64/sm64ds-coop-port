@@ -202,6 +202,14 @@ NAMED = [
     # death states: SetNextLevel's sublevel -> (next level, entrance) table
     "data_02075638",
     "data_02092664",   # Scene::SetSceneToSpawn's pending-scene ID
+    # run link60 (lane S1, the scene boot): the three arm9 .data words the
+    # STAR SELECT reads that no level path ever did. All three are ROM bytes
+    # and none is safe as zeroed storage: data_0208ee00 is the "3D engines are
+    # on" latch Enable3dEngines sets, and the two 16-byte records are the
+    # OAM/G2 tables func_0205cb68's VRAM map walks.
+    "data_0208ee00",
+    "data_0208eb8c",
+    "data_0208eb9c",
     # gate 31, the level handoff. Two 0xd0-byte tables, 52 entries each --
     # the ROM's whole level count. data_02092208 is the LVL_Overlay address
     # per level (Stage::InitResources indexes it); data_020758c8 the overlay

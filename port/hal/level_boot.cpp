@@ -2938,8 +2938,18 @@ extern "C" void port_stage_preload_shared_models(void)
 }
 
 extern "C" void port_level_mounts_install(void);
+extern "C" void port_scene_registry_install(void);   /* hal/scene_boot.cpp */
 
-extern "C" void port_stage_a2_seat(void)
+/* THE SEAT, WITH ONE PARAMETER: does this run get a Stage?
+   A LEVEL run does. A SCENE run does not, and that is the only difference
+   between the two boots at this level of the stack. On the DS the Stage IS the
+   level scene -- ACTOR_SPAWN_TABLE[3] is its record and GetSceneOverlayID sends
+   ids 3/6/7 to ov002 -- so a run that is entering the star select (id 4) or the
+   level select (id 2) must not construct one: the scene the spine is about to
+   spawn is what becomes the tree root, exactly the way the Stage does on a
+   level, through the same no-parent branch in func_0203b438.
+   Everything else here is bring-up both modes need, so both take it. */
+static void port_a2_seat_body(int make_stage)
 {
     port_message_archive_seat();
     port_stage_preload_shared_models();
@@ -2954,7 +2964,7 @@ extern "C" void port_stage_a2_seat(void)
        still null, so func_0203b438 takes its no-parent branch and writes the
        Stage's own SceneNode into the tree head, which is how the ROM's tree
        gets its root. port_stage_create asserts that it did. */
-    {
+    if (make_stage) {
         void *stage = port_stage_create();
         data_0209f5c0[0] = (int)(size_t)stage;
     }
@@ -3079,8 +3089,31 @@ extern "C" void port_stage_a2_seat(void)
        family only (hal/lk4_solidheap_seat.cpp). */
     hal_seat_solidheap();
 
-    std::printf("[a2] scene root %p\n", port_stage_object());
+    /* THE THREE ov003 SCENE CLASSES, seated the same way and in the same place
+       as the level cast: dScTitle_c (id 2), dScStarSel_c (id 4) and
+       dScGameOver_c (id 8), each the ROM's own ACTOR_SPAWN_TABLE record with
+       its factory word repointed and its vtable filled (hal/scene_boot.cpp).
+       ON EVERY BOOT, LEVEL RUNS INCLUDED, and that is deliberate rather than
+       incidental: the arm9 spawn table really does carry those three entries
+       whichever occupant of the shared slot is loaded, and the port's registry
+       is the host form of that table. It is also what makes the edge REAL for
+       /OPT:REF -- the ov003 bodies link because the ROM's own table and the
+       ROM's own vtables name them, not because anything /include:'s them.
+       A level run never dispatches through them: nothing spawns actor id 2, 4
+       or 8 inside a level, and the whole 35-level battery is the measurement
+       that says so. */
+    port_scene_registry_install();
+
+    if (make_stage)
+        std::printf("[a2] scene root %p\n", port_stage_object());
 }
+
+extern "C" void port_stage_a2_seat(void) { port_a2_seat_body(1); }
+
+/* The scene harness's entry (port/tests/scene_window.cpp): the same seat with
+   no Stage. Kept here rather than in scene_boot.cpp so there is exactly one
+   copy of the sequence and no chance of the two drifting. */
+extern "C" void port_scene_a2_seat(void) { port_a2_seat_body(0); }
 
 /* ---- the path-binding bounds assert --------------------------------------
    RETIRED AS A WORKAROUND, KEPT AS AN ASSERT. It was written because the

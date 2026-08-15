@@ -1,0 +1,197 @@
+# Scene boot, slice 1: dScStarSel_c, the STAR SELECT (scene id 4).
+#
+# ov003 is the smallest of the four occupants of the shared scene slot at DS
+# 0x020ad660 (the others are ov002, the in-level engine the port has always
+# run; ov004, the minigame framework; and ov007, the title and file select).
+# It is 36 functions in 0x4240 bytes and carries three scene classes:
+#
+#     dScTitle_c     scene id 2   the debug level select
+#     dScStarSel_c   scene id 4   the star select      <- this slice
+#     dScGameOver_c  scene id 8   the game-over screen
+#
+# ONLY THE STAR SELECT IS HERE. The other two are derived, mapped and blocked;
+# the block is named at the bottom of this file and it is not the mount.
+#
+# WHY THESE TUs LINK. The reference chain is the ROM's own and nothing here is
+# a link root. The arm9 ACTOR_SPAWN_TABLE (0x02090864) relocates slot 4 to
+# StarSelect_SpawnInfo (0x020b16b4); hal/scene_boot.cpp seats that record in
+# data_020a4bb8[4] with its factory word repointed at the host factory, the
+# same three statements hal/actor_registry.cpp makes for every other class. The
+# class vtable is a host array the same file fills with the ROM's own slot
+# contents, which is what names the seven bodies. Everything else here is
+# reached from one of those eight entry points. Nothing in this slice is
+# /include:'d and no alias points at it.
+#
+# WHAT DISPATCHES INTO IT AT RUN TIME. Scene::SetSceneToSpawn(id, param) parks
+# the id in data_02092664; Scene::SpawnIfNecessary calls func_02013edc, which
+# tail-calls func_02042fe4 -> func_02043098(id, 0, param, 1), and that is the
+# spawn spine: it calls (*data_020a4bb8[id])(). Every function on that chain is
+# a matched arm9 TU and all but Scene::SpawnIfNecessary were already linked.
+# hal/scene_boot.cpp's port_scene_run drives the frame, reached from
+# walk_window with SM64DS_SCENE=4.
+
+# ---- the scene framework's own missing arm9 TUs ----------------------------
+# Most of the chain (SetSceneToSpawn, func_02042fe4, func_02043098 and six of
+# the eight Scene:: lifecycle halves) was already in the walk_window link set.
+# These four were not: the spawn entry, its tail-call veneer, and the two
+# halves the vtable holds at slots 2 and 5.
+src/_ZN5Scene16SpawnIfNecessaryEv.c
+src/func_02013edc.c
+src/func_02042fe4.c
+# _ZN5Scene21AfterCleanupResourcesEj is a HOST COPY
+# (port/unmatched/Scene_AfterCleanupResources.cpp): the matched TU DEFINES
+# data_02092660, and a hosted DS global has to sit inside .dsstate to be
+# captured by a save state. Same body, the definition moved to
+# hal/scene_boot.cpp inside the bracket. That file has the full reasoning.
+# NOT HERE, and hal/scene_actor_faces.cpp says why in full: the three Scene::
+# halves that are 0xc-byte TAIL-CALL VENEERS on the ROM
+# (_ZN5Scene18AfterInitResourcesEj, _ZN5Scene13AfterBehaviorEj,
+# _ZN5Scene11AfterRenderEj) transcribe as (void) -> (void), which drops both
+# arguments under MSVC's __cdecl. The fill dispatches straight to each
+# veneer's target with the arguments instead, which is what the three ROM
+# instructions mean. AfterCleanupResources above is NOT a veneer -- it has a
+# real body with declared arguments -- so it stays and is dispatched directly.
+
+# ---- dScStarSel_c, scene id 4 (StarSelect_SpawnInfo, vtable 0x020b1704) ----
+# the factory: ActorBase::operator new(0x13c), the ActorBase ctor, the three
+# vptr writes the ROM makes in order, the +0x13 flag bits and two Models at
+# +0x64 through func_020733a8.
+src/StarSelect_Spawn.cpp
+# slot 0  InitResources  (NONMATCHING)
+src/func_ov003_020af8a0.c
+# slot 3  CleanupResources
+src/func_ov003_020af86c.cpp
+# slot 6  Behavior  (NONMATCHING)
+src/func_ov003_020af038.cpp
+# slot 9  Render  (NONMATCHING)
+src/func_ov003_020ae6f4.cpp
+# slot 12 OnPendingDestroy
+src/func_ov003_020ae6f0.c
+# slot 16 D2
+src/func_ov003_020addfc.cpp
+# slot 17 D0
+src/func_ov003_020ade54.c
+# its own closure: the star grid, the cursor, the OAM emitters and the
+# character-select row the Behavior and the Render drive.
+#
+# TWO OF THESE DO NOT LINK, AND THAT IS THE RIGHT ANSWER. func_ov003_020adc74
+# (the BG0 text writer) and func_ov003_020adcbc are reached only from
+# func_ov003_020ad6ec, which is dScTitle_c's, not dScStarSel_c's. /OPT:REF
+# drops both, so ov003 reads 15 linked out of the 18 TUs listed here rather
+# than 18. They stay in the slice because they are part of the overlay's
+# closure and will link the moment dScTitle_c is seated; adding a reference to
+# make the count move would be the exact fabrication this file's header refuses.
+src/func_ov003_020adc74.cpp
+src/func_ov003_020adcbc.cpp
+src/func_ov003_020adec0.c
+src/func_ov003_020adf50.c
+src/func_ov003_020adfc8.cpp
+src/func_ov003_020ae0b0.c
+src/func_ov003_020ae1a4.c
+src/func_ov003_020ae238.c
+# (NONMATCHING)
+src/func_ov003_020ae358.c
+
+# ---- the arm9 closure the star select opens up -----------------------------
+# Everything dScStarSel_c reaches that no level ever did. All matched, all
+# named by the ov003 bodies above and by nothing else in this build, so each
+# one is a real linkage gain rather than a re-count.
+# InitResources' front half: the text archives, the archive slot, the 3D
+# engines and the VRAM globals.
+src/LoadTextNarcs.c
+src/Enable3dEngines.c
+src/func_020190b8.c
+src/func_02019018.c
+src/InitialiseVramGlobals.c
+src/func_02053e1c.c
+src/func_02053e34.c
+src/func_02053e4c.c
+# the VRAM BANK assignment InitResources makes before it loads anything: five
+# GX banks plus the sub-engine's OBJ extended palette.
+src/_ZN2GX13SetBankForTexEt.cpp
+src/_ZN2GX17SetBankForTexPlttEt.c
+src/_ZN2GX13SetBankForOBJEt.cpp
+src/_ZN2GX15SetBankForSubBGEt.c
+src/_ZN2GX16SetBankForSubOBJEt.c
+src/_ZN2GX23SetBankForSubOBJExtPlttEt.c
+src/_ZN3GXS19BeginLoadOBJExtPlttEv.cpp
+src/_ZN3GXS14LoadOBJExtPlttEPKvjj.c
+src/_ZN3GXS17EndLoadOBJExtPlttEv.c
+src/func_020540f0.c
+src/_ZN3G3X6SetFogEbiii.cpp
+# THE VRAM BANK MAP ITSELF. Every GX::SetBankFor* above ends in Vram__Map, and
+# this is the family that implements it -- the LCDC/BG/OBJ/texture bank
+# assignment the DS does in hardware, fourteen matched TUs that no level path
+# in this port had ever reached because a level never reassigns a bank.
+src/func_0205cb68.c
+src/func_0205cbe4.c
+src/func_0205cc80.c
+src/func_0205cd34.c
+src/func_0205d23c.c
+src/func_0205d2b0.c
+src/func_0205d2dc.c
+src/func_0205d304.c
+src/func_0205d4a0.c
+src/func_0205d518.c
+src/func_0205d568.c
+src/func_0205d644.c
+src/func_0205d714.c
+# func_02059fa8 is NOT here: it already rides tools/hostgen.py (a GATE*_SYMS
+# entry), so a slice line would be a second definition.
+src/func_0204ee40.c
+src/func_0204ef9c.c
+# the background layer the course-name text sits on
+src/_ZN2G212GetBG0ScrPtrEv.c
+src/SetBg2Offset.c
+# the save-data reads that decide how many stars the grid draws
+src/CountStarsCollectedInLevelToDisplay.c
+# the two Message entry points that exist ONLY for this scene -- their names
+# say so, and no level path reaches either
+src/_ZN7Message30DisplayCourseNameForStarSelectEj.cpp
+src/_ZN7Message28DisplayStarNameForStarSelectEj.cpp
+# Matrix4x3_ApplyInPlaceToScale (the star grid's own matrix helper) is NOT
+# here: it carries a GCC __attribute__((long_call, target("thumb"))) MSVC
+# cannot parse, so it rides tools/hostgen.py, which strips attributes. See
+# GATE13_SYMS in CMakeLists.txt.
+# CleanupResources' second call
+src/_ZN5Sound21UnsetPlayerVoiceGroupEv.c
+
+# ---- THE FOUR NONMATCHING TUs, named ---------------------------------------
+# func_ov003_020ae358  near-miss from the DB (div=153)
+# func_ov003_020ae6f4  dScStarSel_c::Render (div=51)
+# func_ov003_020af038  dScStarSel_c::Behavior (div=112)
+# func_ov003_020af8a0  dScStarSel_c::InitResources
+# All four carry the decomp's own NONMATCHING header. They count as
+# decompiled, not matched. port/tools/linkage.py counts them the way it counts
+# any other TU in a slice -- a config function whose src TU is in the link set
+# -- so a reader comparing this lane's linkage delta against the CONVERTED
+# tier should subtract these four.
+#
+# ---- WHY dScTitle_c (id 2) AND dScGameOver_c (id 8) ARE NOT HERE -----------
+# Both are fully derived: SpawnInfo 0x020b1380 / 0x020b1750, vtables
+# data_ov003_020b1650 / data_ov003_020b179c, all eighteen slots read and
+# recorded in port/ov003_syms.txt, factories func_ov003_020adc10 /
+# func_ov003_020b1118, and every body has a src TU. Two things block seating
+# them and neither is the mount or the chain:
+#
+#   1. ELEVEN of their fourteen slot bodies carry the marker
+#      "recovered from vtable slot identity", so port/tools/inferred_stub_guard
+#      refuses them until each is disassembled from the ROM and ruled, the way
+#      the three star-select ones in port/tools/inferred_stub_adjudicated.txt
+#      were. Mechanical, and eleven times the work this lane did for three.
+#      (dScTitle_c: 020ada9c 020ada80 020ad814 020ad7a4 020ad7a0 020ad69c.
+#       dScGameOver_c: 020b0b3c 020b0b34 020b0814 020b0810 020b05bc.)
+#
+#   2. THREE of the dtor TUs spell their vptr writes as PER-TU PLACEHOLDERS,
+#      not as symbols: src/func_ov003_020ad660.c writes _ZTV10dScTitle_c /
+#      _ZTV8dScene_c / _ZTV7dBase_c, src/func_ov003_020b0580.c writes
+#      _ZTV13dScGameOver_c / the same two, and src/func_ov003_020b05bc.c writes
+#      VT0 / VT1 / VT2 and deallocates against G0. None of those six names
+#      exists in config; they are the decomp's own local stand-ins, and the ROM
+#      words at those three sites are 0x020b1650 / 0x02092680 / 0x0208e4b8 (and
+#      0x020a0eac for G0) -- read out of the image, the same values the
+#      star-select pair spells correctly. Seating them needs the port's per-TU
+#      placeholder treatment, which is its own gate.
+#
+# The scene id and the chain are identical for all three, so whoever takes them
+# adds rows to port_scene_classes and to this slice, and changes nothing else.

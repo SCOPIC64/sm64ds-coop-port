@@ -1,28 +1,147 @@
-# ov003: the DEBUG LEVEL SELECT's own row table, and nothing else.
+# ov003: the three SCENE classes' whole data span.
 #
-# ov003 carries three scene classes -- dScTitle_c (scene 2, the debug level
-# select), dScStarSel_c (scene 4) and dScGameOver_c (scene 8). None of them is
-# mounted: a scene is an actor, and hosting one means its overlay's code, its
-# 2D graphics and the Scene actor framework around it. What gate 31 wants out
-# of ov003 is one table.
+# ov003 carries three scene classes and the port now hosts all three:
+# dScTitle_c (scene id 2, the debug level select), dScStarSel_c (scene id 4,
+# the star select) and dScGameOver_c (scene id 8). A scene is an actor, so
+# hosting one is the ordinary registry shape -- the ROM's own SpawnInfo with
+# its factory word repointed at the host, plus a vtable fill -- and the mount
+# is what puts those SpawnInfos and the tables the three classes read by name
+# into host memory. See port/slice_scene1.txt and hal/scene_boot.cpp.
 #
-# data_ov003_020b1180 is dScTitle_c::Behavior's selection table: 0x36 rows of
-# eight bytes, byte 0 the level id and byte 1 the entrance id. It is pure
-# data -- no relocation in config/arm9/overlays/ov003/relocs.txt points INTO
-# it, the only two that mention it are the two `load`s in the Behavior itself
-# -- so a per-symbol mount is exact.
+# This file used to mount ONE table (the level-select row list, gate 31). It
+# is now the WHOLE data span, the ov079/ov080/ov081 convention: every data
+# symbol MINUS the three classes' own vtables, which are host arrays
+# hal/scene_boot.cpp fills. ovdata.py's --pack mode pads the resulting
+# address gaps automatically, reproducing the ROM's own relative offsets.
 #
-# BOTH NAMES ARE HERE AND THEY ARE ONE TABLE. dsd named 0x020b1180 and
-# 0x020b1181 separately because the Behavior addresses the same array at byte
-# 0 and byte 1 (the level column and the entrance column), so the first symbol
-# is ONE byte long by the next-symbol rule. --pack is what puts them back
-# adjacent; without it the level column is a lone byte and every row past the
-# first reads whatever the linker put next.
+# THE THREE VTABLES LEFT OUT, every slot read off ov003's relocs with the
+# words taken from extracted/overlays/overlay_0003.bin (image length 0x4240 =
+# the OVT's ram_size, so the read is at addr - 0x020ad660). All three are the
+# 18-slot Scene shape and agree slot for slot with _ZTV5Scene (arm9
+# 0x02092680) everywhere they do not override:
+#
+#   dScTitle_c    data_ov003_020b1650: 0 Init func_ov003_020ada9c, 3 Cleanup
+#     020ada80, 6 Behavior 020ad814, 9 Render 020ad7a4, 12 OnPendingDestroy
+#     020ad7a0, 16 D2 020ad660, 17 D0 020ad69c. Slots 1/2/4/5/7/8/10/11 are
+#     Scene's own halves and 13/14/15 ActorBase's, all arm9 and all linked.
+#
+#   dScStarSel_c  data_ov003_020b1704: 0 Init func_ov003_020af8a0, 3 Cleanup
+#     020af86c, 6 Behavior 020af038, 9 Render 020ae6f4, 12 OnPendingDestroy
+#     020ae6f0, 16 D2 020addfc, 17 D0 020ade54.
+#
+#   dScGameOver_c data_ov003_020b179c: 0 Init func_ov003_020b0b3c, 3 Cleanup
+#     020b0b34, 6 Behavior 020b0894, 9 Render 020b0814, 12 OnPendingDestroy
+#     020b0810, 16 D2 020b0580, 17 D0 020b05bc.
+#
+# THE THREE SpawnInfo RECORDS ARE IN THE MOUNT and they are the ROM's own.
+# ACTOR_SPAWN_TABLE (arm9 0x02090864) relocates slot 2 to 0x020b1380, slot 4
+# to StarSelect_SpawnInfo (0x020b16b4) and slot 8 to 0x020b1750, and each
+# record's +4 halfword carries its own id back (2, 4, 8) -- the registry's
+# free cross-check. dsd tags all three "overlays(0,3)" because ov000's window
+# covers ov003's; GetSceneOverlayID sends ids 2/4/8 to ov003 and all three
+# factories are ov003 code, so ov003 is the occupant.
+#
+# BOTH NAMES OF THE ROW TABLE ARE HERE AND THEY ARE ONE TABLE (gate 31's
+# finding, unchanged). dsd named 0x020b1180 and 0x020b1181 separately because
+# dScTitle_c::Behavior addresses the same array at byte 0 (the level column)
+# and byte 1 (the entrance column), so the first symbol is ONE byte long by
+# the next-symbol rule. --pack is what puts them back adjacent; without it the
+# level column is a lone byte and every row past the first reads whatever the
+# linker put next.
 #
 # The first is PINNED TO ONE BYTE. ovdata's default size is
 # max(4, next-symbol delta), and the four-byte floor is exactly wrong here:
 # it makes the level column overlap the entrance column and --pack refuses
 # the layout. One byte is what the ROM gives it, and --pack then lays the
 # 0x1ab-byte second symbol immediately after, which reconstitutes the table.
+
+data_ov003_020b117c
 data_ov003_020b1180:0x1
 data_ov003_020b1181
+data_ov003_020b132c
+data_ov003_020b1338
+data_ov003_020b1344
+data_ov003_020b1360
+data_ov003_020b1368
+data_ov003_020b1370
+data_ov003_020b1378
+data_ov003_020b1380
+data_ov003_020b1388
+data_ov003_020b1390
+data_ov003_020b139c
+data_ov003_020b13a8
+data_ov003_020b13b4
+data_ov003_020b13c0
+data_ov003_020b13cc
+data_ov003_020b13d8
+data_ov003_020b13e4
+data_ov003_020b13f0
+data_ov003_020b13fc
+data_ov003_020b1408
+data_ov003_020b1414
+data_ov003_020b1420
+data_ov003_020b142c
+data_ov003_020b1438
+data_ov003_020b1444
+data_ov003_020b1450
+data_ov003_020b145c
+data_ov003_020b1468
+data_ov003_020b1474
+data_ov003_020b1480
+data_ov003_020b148c
+data_ov003_020b1498
+data_ov003_020b14a4
+data_ov003_020b14b0
+data_ov003_020b14bc
+data_ov003_020b14c8
+data_ov003_020b14d4
+data_ov003_020b14e0
+data_ov003_020b14ec
+data_ov003_020b14f8
+data_ov003_020b1504
+data_ov003_020b1510
+data_ov003_020b1520
+data_ov003_020b1530
+data_ov003_020b1540
+data_ov003_020b1550
+data_ov003_020b1560
+data_ov003_020b1570
+data_ov003_020b1580
+data_ov003_020b1590
+data_ov003_020b15a0
+data_ov003_020b15b0
+data_ov003_020b15c0
+data_ov003_020b15d0
+data_ov003_020b15e0
+data_ov003_020b15f0
+data_ov003_020b1600
+data_ov003_020b1610
+data_ov003_020b1620
+data_ov003_020b1634
+data_ov003_020b1698
+data_ov003_020b169c
+data_ov003_020b16a0
+data_ov003_020b16a4
+data_ov003_020b16a8
+data_ov003_020b16ac
+StarSelect_SpawnInfo
+data_ov003_020b16bc
+data_ov003_020b16c8
+data_ov003_020b16d4
+data_ov003_020b16e4
+data_ov003_020b174c
+data_ov003_020b1750
+data_ov003_020b1758
+data_ov003_020b1764
+data_ov003_020b1774
+data_ov003_020b1784
+data_ov003_020b17e4
+data_ov003_020b17ec
+data_ov003_020b17f4
+data_ov003_020b17fc
+data_ov003_020b1804
+data_ov003_020b180c
+data_ov003_020b1814
+data_ov003_020b181c
+data_ov003_020b1824
+data_ov003_020b1848
