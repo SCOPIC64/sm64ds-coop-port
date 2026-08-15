@@ -195,6 +195,29 @@ void _ZN9ActorBase18MarkForDestructionEv(void *self)
    3, where the ROM's teardown dispatches them. Faces rather than
    /alternatename aliases for the usual reason: a slot thunk entered with the
    object in ecx would hand a cdecl body a `this` it never reads. */
+
+/* PORT_HOST_ABI: matched TU deletes models through ROM vtable INDEX 1; MSVC folds D1/D0 so host _ZTV5Model numbers DoSetFile there.
+   CleanupResources is the one of the pair whose body is a host copy
+   (port/unmatched/Player_CleanupResources.cpp) and not the matched TU, which
+   is why it is on the shadow list. That file's banner carries the full
+   measurement; the two blockers, both structural:
+     1. The matched TU deletes the body models, the head models and two more
+        model-family objects through a two-virtual SHADOW CLASS, so `p->v1()`
+        is ROM slot 1, mwcc's deleting destructor. MSVC folds D1 and D0 into
+        one slot, so hal/cxxname_bridge.cpp's _ZTV5Model carries DoSetFile at
+        index 1; every one of those five calls landed on Model::DoSetFile and
+        faulted inside Model::AddToCommonModelDataArr on the first level
+        teardown. Same class as the Bird/Flag ModelAnim tags below, and not
+        fixable by renumbering one array: the MSVC-compiled callers of the
+        same object need the MSVC order.
+     2. The TU re-declares five functions include/decl_common.h already
+        declares, `char *` against the header's `void *`. mwcc reads one
+        declaration seen twice; MSVC reads an extern "C" overload and refuses
+        the TU (C2733 x5, plus a C2664 on func_02073244's fourth parameter).
+        Neither spelling is wrong about the ROM -- they disagree -- and src/
+        and include/ are the byte-matched tree the port does not edit.
+   Blocker 2 on its own would be a src/include hygiene question rather than an
+   ABI one. Blocker 1 is the ABI floor and stands without it. */
 int _ZN6Player16CleanupResourcesEv(void *self)
 { return ((Player *)self)->Player::CleanupResources(); }
 void _ZN6Player16OnPendingDestroyEv(void *self)
@@ -415,6 +438,17 @@ extern "C" void _ZN5Model17UpdateFileOffsetsER8BMD_File(BMD_File *f)
 extern "C" void _ZN9ActorBase21AfterCleanupResourcesEj(void *self, unsigned a)
 { ((ActorBase *)self)->ActorBase::AfterCleanupResources(a); }
 
+/* PORT_HOST_ABI: ARM register ride-through -- the matched TU is a zero-argument veneer that forwards r0/r1 untouched.
+   src/_ZN4Heap7_SizeofEPv.cpp is the ROM's 0xc long-call veneer at arm9
+   0x0203c274 (ldr ip, [pc]; bx ip; .word 0x0203c454), written the only way a
+   veneer can be written in C: `void _ZN4Heap7_SizeofEPv(void) {
+   _ZN4Heap6SizeofEPv(); }`, both spelled void(void). On ARM that is exact --
+   r0 (this) and r1 (p) ride through the branch untouched. On a 32-bit MSVC
+   cdecl host the arguments are on the stack, a void(void) caller pushes
+   nothing, and the callee reads its own return address as `this`. The host
+   face below delivers both arguments explicitly, which is what the ROM's
+   register state means. This is the register-ride-through class the tag
+   exists for; flagged as missing a tag at the wave-1 close and ruled here. */
 extern "C" int _ZN4Heap7_SizeofEPv(void *self, void *p)
 { return ((Heap *)self)->Heap::Sizeof(p); }
 extern "C" void _ZN4Heap10ReallocateEPvj(void *self, void *p, unsigned n)
@@ -492,9 +526,23 @@ void _ZN9PowerStar13AddStarMarkerEv(void *self)
 extern "C" {
 int _ZN4Bird13InitResourcesEv(void *self)
 { return ((Bird *)self)->Bird::InitResources(); }
-/* Bird::Render and FLAG's are each one line in src -- dispatch slot 5 of the
-   ModelAnim at +0xd4 -- and ROM slot 5 is Render while MSVC slot 5 is
-   Virtual18. Call the method the ROM means. */
+/* PORT_HOST_ABI: matched TU dispatches ModelAnim vtable INDEX 5; the host _ZTV9ModelAnim numbers Virtual18 there, not Render.
+   Bird::Render and FLAG's are each one line in src, and that line is an
+   INDEXED virtual call, not a named one: each declares a local six-virtual
+   shadow struct over the ModelAnim member at +0xd4 and calls its sixth slot
+   (src/_ZN4Bird6RenderEv.cpp, `Base *b = &((Derived *)this)->base; b->m(0)`).
+   Index 5 is ROM numbering -- include/ModelAnim.h annotates the ROM table as
+   D1 0, D0 1, UpdateVerts 3, Virtual10 4, Render 5, Virtual18 6. The host
+   array is filled in MSVC order instead, because real MSVC-compiled C++ TUs
+   dispatch ModelAnim through MSVC indices and one array cannot carry both
+   numberings: hal/cxxname_bridge.cpp:549-554 writes [0] dtor (MSVC folds D1
+   and D0 into one slot), [1] DoSetFile, [2] UpdateVerts, [3] Virtual10,
+   [4] Render, [5] Virtual18. So the matched TU's index 5 lands on Virtual18.
+   The host body calls the method the ROM means, by name, non-virtually.
+   NOT retirable by seating the matched TU: it would compile and link and then
+   render through the wrong slot, which is a silent wrong result rather than a
+   link error. Retiring it needs a ROM-ordered ModelAnim table, which is the
+   opposite of what every MSVC caller of the same object needs. */
 int _ZN4Bird6RenderEv(void *self)
 { ((ModelAnim *)((char *)self + 0xd4))->ModelAnim::Render(0); return 1; }
 int _ZN8MetalNet13InitResourcesEv(void *self)
@@ -509,6 +557,10 @@ int _ZN4Flag13InitResourcesEv(void *self)
 { return ((Flag *)self)->Flag::InitResources(); }
 int _ZN4Flag8BehaviorEv(void *self)
 { return ((Flag *)self)->Flag::Behavior(); }
+/* PORT_HOST_ABI: matched TU dispatches ModelAnim vtable INDEX 5; the host _ZTV9ModelAnim numbers Virtual18 there, not Render.
+   src/_ZN4Flag6RenderEv.cpp is byte-for-byte the same shape as Bird's -- the
+   same local six-virtual shadow over the ModelAnim at +0xd4, the same `b->m(0)`
+   at index 5. Same reason, same measurement; see the Bird tag above. */
 int _ZN4Flag6RenderEv(void *self)
 { ((ModelAnim *)((char *)self + 0xd4))->ModelAnim::Render(0); return 1; }
 }

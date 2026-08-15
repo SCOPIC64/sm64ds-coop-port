@@ -738,9 +738,50 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?func_ov002_020e28d4@@YAXPAXHH@Z=_func_ov002_020e28d4")
 #pragma comment(linker, "/alternatename:?func_ov100_02144fcc@@YAHXZ=_func_ov100_02144fcc")
 
-/* Player::ST_WAIT is an ov006 FUNCTION name; at that address ov002 holds
-   the Wait State object, which is what St_WaitQuicksand_Main wants. */
+/* PORT_HOST_ABI: shared-load-window NAME COLLISION -- this symbol is ov002 DATA here and an ov006 FUNCTION in src/; they are different objects at one address.
+   Player::ST_WAIT is an ov006 FUNCTION name; at that address ov002 holds
+   the Wait State object, which is what St_WaitQuicksand_Main wants.
+
+   THE RULING, and why this is not replacement work. ov002 and ov006 share a
+   DS overlay load window, so both cover 0x02110154 and only one of them is
+   resident at a time on hardware. config/arm9/overlays/ov006/symbols.txt says
+   `_ZN6Player7ST_WAITE kind:function(arm,size=0x68) addr:0x02110154` -- that
+   is ov006's code -- while the byte the port needs at that address is ov002's
+   Wait State object, emitted by ovdata.py as _data_ov002_02110154. The alias
+   below binds the name its ov002 CALLER spells to the ov002 bytes it means.
+   src/_ZN6Player7ST_WAITE.cpp is a real matched TU of ov006's FUNCTION, and it
+   is a different object that happens to carry the same dsd-exported name. The
+   queue pairs them by name, which is all a name can do. Linking that TU here
+   would not replace this definition; it would collide with it, because in the
+   port every overlay is resident at once and the window no longer separates
+   them. Nothing about this is a stub standing in for a linkable body. */
 #pragma comment(linker, "/alternatename:__ZN6Player7ST_WAITE=_data_ov002_02110154")
+
+/* PORT_HOST_ABI: shared-load-window NAME COLLISION -- this symbol is ov013 BSS here and an ov045 FUNCTION in src/; they are different objects at one address.
+   Moved here from hal/actor_classes_ov013.cpp with its ruling. ov013 and ov045
+   share a load window and both cover 0x02112280. The Pendulum's Init (ov013)
+   reaches its own SharedFilePtr at that bss address, and dsd's ov045 export
+   won the naming race inside that TU, so the recovered source spells it
+   `__sinit_ov045_02112280`; port/ov013_syms.txt's header records the same for
+   its two window-alias siblings. src/__sinit_ov045_02112280.c is ov045's real
+   static-initialiser FUNCTION -- four calls building two SharedFilePtrs out of
+   data_ov045_021131d8/d0 -- a different object that happens to share the name.
+   Linking it would not replace this definition; on hardware the two overlays
+   are never resident together, but in the port they are, so the name has one
+   holder and ov013's storage is the one its own caller means. */
+#pragma comment(linker, "/alternatename:___sinit_ov045_02112280=_data_ov013_02112280")
+
+/* PORT_HOST_ABI: shared-load-window NAME COLLISION -- this symbol is ov070 RODATA here and an ov074 FUNCTION in src/; they are different objects at one address.
+   Moved here from hal/actor_classes_ov070.cpp with its ruling. ov070 and ov074
+   share a load window and both cover 0x021222e0, where ov070 holds FlameChomp
+   Behavior's fix table (port/ov070_syms.txt names it data_ov070_021222e0) and
+   dsd's ov074 export won the naming race inside Amp::CleanupResources, which
+   walks the two-pointer SharedFilePtr table under the ov074 FUNCTION spelling.
+   The use is address-only -- indexed reads, never a call -- so the alias is
+   storage identity, not a code seam. src/func_ov074_021222e0.cpp is ov074's
+   real function at the same window address, a different object under a shared
+   name; linking it would collide with this storage rather than replace it. */
+#pragma comment(linker, "/alternatename:_func_ov074_021222e0=_data_ov070_021222e0")
 
 /* Return-type-only variants of methods the port already faces. __thiscall,
    same argument list, result in EAX -- the existing face is ABI-identical
