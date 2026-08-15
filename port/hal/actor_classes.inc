@@ -618,12 +618,12 @@ void hal_fill_up_down_lift_hmc_vtable(void);
 extern unsigned char MontyMole_SpawnInfo[];         /* ov080 0x02127fec, +4 reads 310 */
 void *MontyMole_Spawn(void);                        /* ov080 0x021249e0 (matched src) */
 void hal_fill_monty_mole_vtable(void);
-/* ---- gate 205: MONTY_MOLE_ROCK (311), the rock the mole throws ----
+/* ---- gate 208: MONTY_MOLE_ROCK (311), the rock the mole throws ----
    daChoro_Rock_c, ov080's second enemy class. The mole's throw state spawns
    0x137 and the port declined it, so the ROM-faithful thrower stored through
    the NULL. The whole cast is matched: no host copy, no state seat, no thunk.
    The fill is hal/actor_classes_montymolerock.cpp, the closure
-   slice_gate205.txt, which also carries the 31-slot vtspan derivation and the
+   slice_gate208.txt, which also carries the 31-slot vtspan derivation and the
    slot-9 adjudication. */
 extern unsigned char MontyMoleRock_SpawnInfo[];     /* ov080 0x02128008, +4 reads 311 */
 void *MontyMoleRock_Spawn(void);                    /* ov080 0x02124998 (matched src) */
@@ -1578,7 +1578,7 @@ void hal_fill_toad_vtable(void);                     /* _ZTV4Toad, 31 */
     /* ---- gate 174: MONTY_MOLE (310), ov080's enemy cast ---- */ \
     {310, "MONTY_MOLE", MontyMole_SpawnInfo, MontyMole_Spawn, \
      hal_fill_monty_mole_vtable}, \
-    /* ---- gate 205: MONTY_MOLE_ROCK (311), the rock the mole throws ---- */ \
+    /* ---- gate 208: MONTY_MOLE_ROCK (311), the rock the mole throws ---- */ \
     {311, "MONTY_MOLE_ROCK", MontyMoleRock_SpawnInfo, MontyMoleRock_Spawn, \
      hal_fill_monty_mole_rock_vtable}, \
     /* ---- gate 206: DIAMOND_LIFT (135), ov043, level 35's six lifts ---- */ \
