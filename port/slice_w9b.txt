@@ -1,0 +1,50 @@
+# Run linkw wave 9, lane w9-reg, slice B: the three ov084 SHARED-TABLE siblings
+# -- GOOMBA_LARGE (202, x9 on level 24), FIRE_PIRANHA_PLANT_BIG (251, x5 on
+# level 24) and FIRE_PIRANHA_PLANT_SMALL (252, x2 on level 39). Sixteen
+# instances for three TUs, because everything else these classes need is
+# already in the binary.
+#
+# THE FINDING THAT MAKES THIS CHEAP. Sweeping all 512 spawn-table entries
+# against ov084's raw image (extracted/overlays/overlay_0084.bin at base
+# 0x02129020) and resolving each record's factory to the table its Spawn
+# stores, THREE ids share one vtable and THREE more share another:
+#
+#     id 200 Goomba_SpawnInfo               -> 0x02130948   REGISTERED
+#     id 201 GoombaSmall_SpawnInfo          -> 0x02130948
+#     id 202 GoombaLarge_SpawnInfo          -> 0x02130948   this slice
+#     id 250 PiranhaPlant_SpawnInfo         -> 0x02130c28   REGISTERED
+#     id 251 FirePiranhaPlantBig_SpawnInfo  -> 0x02130b28   this slice
+#     id 252 FirePiranhaPlantSmall_SpawnInfo-> 0x02130b28   this slice
+#     id 253 FirePiranhaPlant_SpawnInfo     -> 0x02130b28   REGISTERED
+#
+# 0x02130948 is already the host array _ZTV6Goomba[31] that
+# hal/actor_classes_bob_enemy.cpp fills (with the RTTI alias _ZTV7daKrb_c;
+# the typeinfo at 0x02130944 resolves to the name 7daKrb_c, kuribo), and
+# 0x02130b28 is already _ZTV19FirePiranhaPlantBig[31] that
+# hal/actor_classes_l7.cpp fills. Both fills are reached by an id that is
+# ALREADY registered, so the tables are filled before any of these three
+# spawns -- these ids reuse them rather than needing a new one.
+#
+# All three SpawnInfo records are ALREADY MOUNTED in port/ov084_syms.txt,
+# each pinned to the record's real 0x1c, so the +4 id halfword the registry
+# cross-checks already reads out of the right bytes. Nothing is added to the
+# mount by this slice.
+#
+# BOTH ATTRIBUTION ROUTES were run for all three, out of the raw ndspy image
+# and not the dsd export:
+#     id 202  0x02090b8c -> 0x02130924  word[0]=0x0212bff8 GoombaLarge_Spawn
+#                                       +4 halfword = 202
+#     id 251  0x02090c4c -> 0x02130ae8  word[0] inside ov084, +4 = 251
+#     id 252  0x02090c50 -> 0x02130b04  word[0] inside ov084, +4 = 252
+#
+# NO FACTORY WRAPPER for any of the three: each Spawn's final vptr store is
+# its table by a REAL name, not the zeroed VT1 placeholder, so the registry
+# calls the matched Spawn directly. Each is also shape-identical to the
+# sibling that is already registered and already works --
+# GoombaLarge_Spawn is 1144 bytes over CapEnemy with the same five
+# sub-object constructors as Goomba_Spawn, and both FirePiranhaPlant{Big,
+# Small}_Spawn are 556 bytes over Enemy with the same three as
+# FirePiranhaPlant_Spawn.
+src/GoombaLarge_Spawn.c
+src/FirePiranhaPlantBig_Spawn.c
+src/FirePiranhaPlantSmall_Spawn.c
