@@ -6,7 +6,7 @@
 # port/ov004_ov007_2d_map.txt for the entry chain and the slot arithmetic.
 #
 # NOTHING BOOTS THIS SCENE YET and this mount does not change that. walk_window
-# runs the ov002 occupant, none of ov007's 528 matched TUs is compiled in, and
+# runs the ov002 occupant, none of ov007's 527 source TUs is compiled in, and
 # no host caller reaches any symbol below. What the mount does is put every
 # byte of ov007's read-only, initialised and zero data on the host under its
 # ROM name and at its ROM spacing, so that the TU wiring and the boot path --

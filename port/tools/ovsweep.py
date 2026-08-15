@@ -171,11 +171,18 @@ def main():
     # entries of a byte table, not a pointer, and no relocation is recorded
     # there.
     #
-    # This does not narrow what the sweep can catch. Every real pointer in an
-    # emitted array got its value FROM the delink table -- reloc_blob() writes
-    # the target into the bytes at exactly the recorded sites -- so a word that
-    # holds a genuine DS target address is a recorded site by construction, and
-    # one that is not is pre-relocation junk or ordinary data.
+    # WHAT THIS GIVES UP, stated rather than argued away. reloc_blob() starts
+    # from the ROM image bytes and OVERWRITES only the recorded sites, so a
+    # pointer baked into the image with no relocation recorded against it would
+    # survive into the emitted array and is now invisible to the emitter and to
+    # this check both, where the old value scan would have caught it. The claim
+    # here is empirical, not structural: that set is empty today. Of the 2753
+    # patches the per-symbol mounts emit, every site is 4-aligned and listed in
+    # relocs.txt, and all 92 mounts regenerate byte-identical under the gate, so
+    # nothing the emitter used to rebase is lost. Injected-defect coverage is
+    # unchanged at 30 of 30 across 30 mounts. If a delink table ever under-reports
+    # a real pointer, this goes quiet about it, and the place that would catch it
+    # is a delink-table check rather than a value scan here.
     unaddressed = set()
     for name in arrays:
         if name in ds_addr:

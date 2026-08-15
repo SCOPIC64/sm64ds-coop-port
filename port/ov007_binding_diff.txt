@@ -57,6 +57,32 @@ So window_count() still sees one candidate and the rows stand. This is the
 first time that reasoning has been exercised against real providers and real
 wants rather than a simulated window, and it comes out where the model said.
 
+WHICH HALF OF THE MODEL THIS ACTUALLY VALIDATED, because a reviewer should not
+read more into it than it proves. Every residency answer this mount produced
+was coresident FALSE: ov007 against ov002 by rule 2, against every level and
+object overlay by rule 3, and the one TRUE it produced (ov001) contests nothing
+because ov007 emits no want into ov001's window. So this is a test of the
+EXCLUSIVE direction only, which is the direction that recovers pointers. The
+PERMISSIVE direction -- coresident TRUE between two mounted overlays that
+genuinely contest an address, where the model has to drop a binding it would
+otherwise have made -- is not exercised anywhere here. The first mount that
+exercises it is ov004 plus ov006, since the passenger rule makes those two the
+only co-resident pair in the slot, and proving it is that lane's entry gate the
+way proving this one was ours.
+
+THAT PAIR NOW PASSES RULE 1 WITH ZERO SLACK, and this lane is what removed the
+slack, so it is recorded here rather than left for that lane to trip over.
+Finding F1 corrected ov004's bss from the yaml's 4704 to the ROM's 4960, which
+moves ov004's footprint end from 0x020bfdc0 to 0x020bfec0. ov006's base IS
+0x020bfec0. _overlaps() tests `s1 < e2 and s2 < e1`, strict, so 0x020bfec0 <
+0x020bfec0 is false and the two do not overlap, rule 1 stands aside, and rule 2
+correctly reports the passenger pair as co-resident. Before the correction there
+were 256 bytes of margin on that comparison; there are now none. One more byte
+of ov004 footprint, from any future re-derivation, and rule 1 would return
+NOT co-resident for a pair the loader's own code says is always loaded together,
+silently and in the direction that drops bindings. Made loud in ovdata rather
+than left as a comment: see the passenger-overlap refusal in Residency.__init__.
+
 The counts either side, from the tool's own summary line:
 
     before   228 rebased across 92 mounts, 6801 raw
@@ -120,11 +146,23 @@ The other 10 are finding F3.
 THE 18 CODE POINTERS are the scene's vtable and state slots, and they stay DS
 addresses because ov007's .text is not mounted -- mounting code bytes and
 rebasing a call onto them would be a worse answer than leaving the word to trap.
-Nothing dereferences them: none of ov007's 528 matched TUs is compiled into
+Nothing dereferences them: none of ov007's source TUs is compiled into
 walk_window and port_ov007_syms_patch() has no caller. The is-it-dereferenced
 question has answer NO for all 49 today, and the honest way to keep it that way
 is that step 3 of the ov004_ov007 scope estimate wires the TUs and has to
 revisit every one of them.
+
+HOW MANY TUs THAT IS, counted here rather than inherited. This file first said
+528, which came from port/ov004_ov007_2d_map.txt section 1 counting FUNCTIONS
+with a matched src TU, not TUs. Counted as TUs:
+config/arm9/overlays/ov007/delinks.txt names 527 source blocks, every one of
+them with a .text range and every one present on disk, and 492 of the 527 are
+marked complete. Three of the 527 are not ov007-named -- src/RequestScreenFade.c,
+src/Sprite_SetAnimation.c, and src/_ZN6Player17St_EndingFly_MainEv.cpp, which is
+the naming trap section 1 of the 2d map warns about and not an ending sequence
+in the title scene. 525 files on disk carry ov007 in the name, one more than the
+524 ov007-named blocks in delinks, so the disk set and the delink set are not
+the same set and neither is 528.
 
 One of the 18 is worth naming because the spine lane needs it:
 
@@ -265,8 +303,13 @@ resolves an undefined symbol, so the linked count does not move for it, and the
 something references them, which is step 3's job. Expected zero, and the gate
 manifests either side of the wiring commit say zero.
 
-THE SELFTEST BMP BASE MOVES, and that is the mount landing 229604 bytes of DS
-storage in .dsstate. Per the standing rule the three water pixels track the
+THE SELFTEST BMP BASE MOVES, and that is the mount landing 229612 bytes of DS
+storage in .dsstate: 229604 is the sum of the 716 symbol sizes and the other 8
+are the pack gap at 0x020d7db8, so the landed span is the number that moves the
+section and the symbol sum is not. Measured, not derived -- dsstate_guard
+reports 576320 bytes captured before and 805932 after, a difference of 229612,
+and the section base moves 0xa13000 to 0xa18000. Per the standing rule the
+three water pixels track the
 .dsstate base, so the BMP is only comparable at an equal base and must not be
 byte-compared across this change. dsstate_guard is the check that matters here
 and it stays OK: every hosted DS symbol inside the section, none stranded
