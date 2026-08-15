@@ -1070,6 +1070,45 @@ list(APPEND PORT_LEVEL_OVERLAYS ov044)
 # report; the raw total grows because two more images add addresses, which is
 # not a regression.
 list(APPEND PORT_LEVEL_OVERLAYS ov048)
+# run linkw wave 8, lane w8-mounts: every remaining data/stage level the ROM
+# has a row for was derived; the sixteen that BOOT are mounted --whole here.
+# The full
+# derivation -- which read produced which field, the nine already-mounted rows
+# the reader reproduced first, the ten level ids that are NOT stages, and each
+# level's object-overlay roster out of LoadOrUnloadObjectOverlays -- lives in
+# one block beside these overlays' extern declarations in hal/level_boot.cpp.
+# Only the two things a CMake reader needs are repeated here.
+#
+# THE SHARED-WINDOW QUESTION, measured before the mount the way the ov045 and
+# ov046 notes above ask for. All sixteen load at 0x021111a0, the same base as
+# the seventeen already mounted, and ovdata.py --cross drops a target landing
+# in more than one mounted window -- so a new mount CAN flip an already-resolved
+# pointer to raw and regress a level that already works. Ran the cross pass
+# over the old maps and then over old + new: 156 rebased / 4620 raw / 888
+# contested across 54 mounts becomes 202 / 5875 / 917 across 70. Every one of
+# the 46 new patches belongs to a new overlay, and the set difference the other
+# way is EMPTY -- no baseline patch was lost. The raw and contested totals grow
+# because the new images add addresses; per the ov045 note, that is not a
+# regression to calibrate against.
+#
+# ov030 is the one that needed asking: at 19168 bytes it is the LARGEST level
+# overlay the port mounts and it extends the shared window to 0x02115ce0, past
+# every prior mount's end. That extension is what the measurement above covers,
+# and it cost nothing.
+#
+# Seven more level ids were derived the same way and are NOT here: 16, 21, 25,
+# 27, 28, 31 and 33. Each mounts correctly and prints a census; each is blocked
+# past the mount by a class this build already registers (FLAME_CHOMP, AMP,
+# SNUFIT) or, for 31, by the player's own render path. The level_boot.cpp block
+# names each blocker and the SM64DS_SKIP_CLASS run that isolates it, so adding
+# their overlays back here is the only CMake work they need.
+#
+# Levels 36 and 40 (ov044, ov048 -- the other two koopaN_boss arenas) are held
+# by another lane and are deliberately absent; this list is meant to union-merge
+# with theirs.
+list(APPEND PORT_LEVEL_OVERLAYS
+     ov025 ov026 ov027 ov028 ov030 ov031 ov032 ov034 ov043 ov047 ov052 ov053
+     ov055 ov056 ov057 ov058)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")

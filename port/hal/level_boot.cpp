@@ -684,6 +684,253 @@ void port_ov048_patch(void);
 void *port_ov048_at(unsigned ds);
 extern unsigned char port_ov048_image[];
 extern const unsigned port_ov048_ds_base, port_ov048_ds_end;
+/* ---- run linkw wave 8, lane w8-mounts: SIXTEEN LEVELS AT ONCE -------------
+   Every remaining data/stage level the ROM has a row for was derived and
+   attempted; sixteen of them boot and are here. The seven that do not are
+   named with their measured cause at the end of this block, and every one of
+   the seven is blocked BEHIND the mount, not by it.
+   The recipe below port_level_table[] is unchanged and this is nothing but it,
+   applied sixteen times; what is new is only that the derivation was
+   mechanised (one read per field, no numbering assumed) and that the whole
+   sweep of level ids 0..51 was measured rather than the interesting-looking
+   ones picked.
+
+   HOW EVERY FIELD WAS READ, and how the reader was proved before it was
+   trusted. Each row is four reads out of extracted/arm9_dec.bin (base
+   0x02004000) and the level's own overlay image, plus one lookup:
+
+     data_020758c8[level]   the level's own overlay id.  A WORD table; the 52
+                            words read 8..59, so ov = level + 8 holds for every
+                            id, but it is read, never assumed.
+     data_02092208[level]   the LVL_Overlay DS address. It points INSIDE the
+                            level overlay, not into arm9, so the record is read
+                            out of extracted/overlays/overlay_NNNN.bin at
+                            overlays.yaml's base_address (0x021111a0 for every
+                            level overlay) -- the raw unpack image, never the
+                            dsd export.
+     LVL_Overlay+0x08..0x0e bmd/kcl/icg/icl handles. They are the 'handle'
+                            column of build/assets/handles.tsv DIRECTLY, delta
+                            0 (the "+232" in some older mount notes is the
+                            handle-to-file_id gap, a different number; the tsv
+                            carries both columns and the handle one is the key).
+     0x02075298[level]      SUBLEVEL_LEVEL_TABLE, the course number.
+
+   VALIDATED BEFORE IT WAS BELIEVED: the reader reproduced NINE already-mounted
+   rows field for field first -- levels 1, 4, 5, 6, 9, 10, 12, 13, 37 -- each
+   one's overlay id, LVL_Overlay address, four handles and course matching the
+   row already in the table below and the evidence already in its CMake note
+   (level 9's bmd 1894 / kcl 1892 / icg 1895 / icl 1896 among them). Only then
+   were new ids derived. It also names the ten ids that are NOT stages: 0, 29,
+   30, 32, 34, 41, 42, 43, 46 and 51 have LVL_Overlay records whose four
+   handles do not resolve to one data/stage directory (they read MG/ minigame
+   art or nothing), and courses 21..28 and 255. They are measured and declined,
+   not forced. Levels 36 and 40 are held by another lane and are not here.
+
+   THE SHARED-WINDOW QUESTION, measured the way the ov045/ov046 notes ask for.
+   All sixteen overlays load at the same DS base as the seventeen already
+   mounted, and ovdata.py --cross DROPS a target that lands in more than one
+   mounted window -- so a new mount can in principle flip an already-resolved
+   pointer to raw, which is a regression in an ALREADY-MOUNTED level. Measured
+   before the mount by running the cross pass over the old maps and then over
+   old + new: 156 rebased / 4620 raw / 888 contested across 54 mounts becomes
+   202 / 5875 / 917 across 70. The 46 new patches are all the new overlays'
+   own, and the set difference the other way is EMPTY -- not one baseline patch
+   was lost. The contested count rises by 29 because the new images add
+   addresses, which is the same "do not read the raw total as a regression" the
+   ov045 note calls out. (The same measurement over all 23 derived overlays,
+   before the seven were dropped, was 217 / 6647 / 917 across 77 and also lost
+   nothing -- so none of the seven is blocked by the shared window either.)
+
+   EACH ROW'S EVIDENCE, one line per level: the ROM reads, then the object
+   overlays LoadOrUnloadObjectOverlays actually loads for that id.
+
+     lvl  ov     LVL_Overlay   crs sub flg  stage            bmd /kcl /icg /icl
+     16  ov024  0x021129b4   7  1  0x00  desert_land      0713/0711/0714/0715  NOT LANDED
+     17  ov025  0x02112bec   7  2  0x00  desert_py        071b/0716/071c/071d
+     18  ov026  0x02112f58   8  2  0x00  water_land       07f5/07f3/07f6/07f7
+     19  ov027  0x021130cc   9  1  0x00  snow_land        07ba/07b8/07bb/07bc
+     20  ov028  0x021113d0   9  1  0x00  snow_kama        07b5/07b3/07b6/07b7
+     21  ov029  0x02112fd0  10  2  0x00  water_city       07f0/07ed/07f1/07f2  NOT LANDED
+     22  ov030  0x02114ea8  11  1  0x00  high_mt          0752/0750/0753/0754
+     23  ov031  0x0211155c  11  1  0x00  high_slider      0757/0755/0758/0759
+     24  ov032  0x02112f7c  12  1  0x00  tibi_deka_d      07de/07dc/07df/07e0
+     25  ov033  0x02111be0  12  1  0x00  tibi_deka_t      07ea/07e8/07eb/07ec  NOT LANDED
+     26  ov034  0x021140f8  12  1  0x01  tibi_deka_in     07e5/07e1/07e6/07e7
+     27  ov035  0x021120bc  13  1  0x00  clock_tower      070e/070c/070f/0710  NOT LANDED
+     28  ov036  0x02112a6c  14  1  0x01  rainbow_cruise   07ab/07a9/07ac/07ad  NOT LANDED
+     31  ov039  0x02111438  23  1  0x00  habatake         074d/074b/074e/074f  NOT LANDED
+     33  ov041  0x0211192c  25  1  0x00  metal_switch     07a1/079f/07a2/07a3  NOT LANDED
+     35  ov043  0x02111b44  15  1  0x00  koopa1_map       0772/076f/0773/0774
+     39  ov047  0x02111a58  17  1  0x00  koopa3_map       0792/078a/0793/0794
+     44  ov052  0x02111cc8  18  1  0x00  ex_m_map         0733/0731/0734/0735
+     45  ov053  0x021124f8  18  1  0x01  ex_mario         072e/072c/072f/0730
+     47  ov055  0x02111994  19  1  0x00  ex_luigi         0720/071e/0721/0722
+     48  ov056  0x02112c4c  20  1  0x00  ex_w_map         073d/073b/073e/073f
+     49  ov057  0x02111520  20  1  0x00  ex_wario         0738/0736/0739/073a
+     50  ov058  0x02111768  29  3  0x00  playroom         07a6/07a4/07a7/07a8
+
+   THE OBJECT OVERLAYS, read from LoadOrUnloadObjectOverlays rather than
+   guessed. The arm9 walks seven selector columns -- data_02075998[level][i]
+   picks data_02075804[i][v] -- and only THEN takes either the 0x24/0x26/0x28
+   short-circuit (ov060, early return, no ov098/ov102) or the ordinary
+   ov098 + ov102 tail. Both halves run for the short-circuit ids: that is the
+   trap a prior lane fell into by naming ov060 alone for level 38 when its
+   selector row also loads ov089. The reader reproduces level 3's already
+   documented roster (ov063 ov085 ov089 ov098 ov100 ov102) exactly. For the
+   23 ids derived, with the packs this build does NOT mount called out --
+   those unmounted packs are exactly why these levels' skip lists are long, and
+   they are the worklist the cast lanes take from here. The seven marked NOT
+   LANDED are derived and proven-mountable but held back; see the block after
+   this list:
+
+     16 ov062 ov070 ov080 ov084 ov092 ov096 ov098 ov102   NOT LANDED  [unmounted ov092 ov096]
+     17 ov066 ov070 ov084 ov091 ov098 ov102              [unmounted ov066]
+     18 ov064 ov070 ov079 ov084 ov090 ov094 ov098 ov100 ov102  [unmounted ov090]
+     19 ov064 ov070 ov081 ov084 ov094 ov098 ov102        [all mounted]
+     20 ov081 ov084 ov098 ov102                          [all mounted]
+     21 ov062 ov070 ov077 ov084 ov090 ov098 ov102   NOT LANDED  [unmounted ov077 ov090]
+     22 ov062 ov070 ov080 ov084 ov091 ov094 ov098 ov100 ov102  [all mounted]
+     23 ov098 ov102                                      [all mounted]
+     24 ov062 ov070 ov077 ov084 ov091 ov094 ov098 ov100 ov102  [unmounted ov077]
+     25 ov062 ov070 ov084 ov094 ov098 ov100 ov102   NOT LANDED  [all mounted]
+     26 ov070 ov084 ov098 ov102                          [all mounted]
+     27 ov065 ov070 ov077 ov084 ov091 ov098 ov102   NOT LANDED  [unmounted ov077]
+     28 ov062 ov070 ov077 ov084 ov091 ov095 ov098 ov102   NOT LANDED  [unmounted ov077]
+     31 ov084 ov098 ov102   NOT LANDED  [all mounted]
+     33 ov065 ov084 ov098 ov102   NOT LANDED  [all mounted]
+     35 ov070 ov084 ov091 ov095 ov098 ov102              [all mounted]
+     39 ov062 ov070 ov079 ov084 ov091 ov095 ov098 ov102  [all mounted]
+     44 ov064 ov077 ov084 ov091 ov098 ov102              [unmounted ov077]
+     45 ov067 ov074 ov084 ov089 ov098 ov102              [unmounted ov067 ov074]
+     47 ov063 ov085 ov089 ov098 ov102                    [all mounted]
+     48 ov064 ov081 ov084 ov091 ov098 ov102              [all mounted]
+     49 ov064 ov073 ov089 ov098 ov102                    [unmounted ov073]
+     50 ov080 ov085 ov089 ov098 ov100 ov102              [all mounted]
+
+   THE SEVEN MARKED "NOT LANDED", and what actually blocks each. Every one of
+   the seven mounts CORRECTLY -- each loads its stage, spawns its cast and
+   prints a census. What kills them is downstream of the mount, in a class this
+   build already registers, so none of them is mount work and none is in this
+   lane. Isolated with SM64DS_SKIP_CLASS, which is the measurement rather than
+   the fix:
+
+     FLAME_CHOMP (id 270) faults in its Behavior -- port_actor_tick ->
+     func_02043fdc+0x32 -> a call through a null slot (fault at +0xffc00000
+     accessing 0). It blocks levels 16, 21, 25, 27 and 28. Each of the five
+     boots and runs 300 frames clean with SM64DS_SKIP_CLASS=FLAME_CHOMP, which
+     is what says the mount is right and the class is not.
+
+     AMP (id 266) faults the same way, but only on levels 27 and 28. Level 21
+     spawns four of them and ticks them fine, so it is DATA-dependent, not a
+     dead vtable slot -- the two levels that fault differ from the one that
+     does not in the actors' own object-table parameters. Worth knowing before
+     someone "fixes" the class by filling a slot that is already filled.
+
+     SNUFIT (id 236) faults in RENDER rather than tick -- port_actor_render ->
+     Model::Virtual10+0xc, accessing 0. It blocks level 33 alone, which runs
+     300 frames clean with SM64DS_SKIP_CLASS=SNUFIT.
+
+     Level 31 (habatake) is the one with no class to name. It faults on FRAME
+     ZERO inside the PLAYER's own render -- hal_render_player_world ->
+     ModelAnim::Virtual18 -> ModelRenderFace::Render -> ModelComponents::Render
+     -> func_02045074 -> func_02044b30+0x25c -> func_0204488c+0x10a, accessing
+     0x134, with no actor in the walker at all. Its whole cast is furniture
+     (QUESTION_BLOCK, STAR_MARKER, BOB_OMB_BUDDY, COIN, RED_COIN, CAMERA, HUD,
+     MINIMAP) and the level's own geometry loads. The player enters that level
+     with anim len 245760, an order of magnitude above the other levels' entry
+     anims, which is where to start. A player-model gate, not a mount one.
+
+   An unmounted pack costs the level its classes, not its boot: the pre-spawn
+   gate turns them away BY NAME and the census prints them, which is what
+   makes each new level's skip list a usable worklist. All sixteen are mounted
+   --whole and own_sinits stays 0; none of them gets a per-symbol mount here,
+   because filling their casts is a different lane. */
+
+void port_ov025_patch(void);
+void *port_ov025_at(unsigned ds);
+extern unsigned char port_ov025_image[];
+extern const unsigned port_ov025_ds_base, port_ov025_ds_end;
+
+void port_ov026_patch(void);
+void *port_ov026_at(unsigned ds);
+extern unsigned char port_ov026_image[];
+extern const unsigned port_ov026_ds_base, port_ov026_ds_end;
+
+void port_ov027_patch(void);
+void *port_ov027_at(unsigned ds);
+extern unsigned char port_ov027_image[];
+extern const unsigned port_ov027_ds_base, port_ov027_ds_end;
+
+void port_ov028_patch(void);
+void *port_ov028_at(unsigned ds);
+extern unsigned char port_ov028_image[];
+extern const unsigned port_ov028_ds_base, port_ov028_ds_end;
+
+
+void port_ov030_patch(void);
+void *port_ov030_at(unsigned ds);
+extern unsigned char port_ov030_image[];
+extern const unsigned port_ov030_ds_base, port_ov030_ds_end;
+
+void port_ov031_patch(void);
+void *port_ov031_at(unsigned ds);
+extern unsigned char port_ov031_image[];
+extern const unsigned port_ov031_ds_base, port_ov031_ds_end;
+
+void port_ov032_patch(void);
+void *port_ov032_at(unsigned ds);
+extern unsigned char port_ov032_image[];
+extern const unsigned port_ov032_ds_base, port_ov032_ds_end;
+
+
+void port_ov034_patch(void);
+void *port_ov034_at(unsigned ds);
+extern unsigned char port_ov034_image[];
+extern const unsigned port_ov034_ds_base, port_ov034_ds_end;
+
+
+
+
+
+void port_ov043_patch(void);
+void *port_ov043_at(unsigned ds);
+extern unsigned char port_ov043_image[];
+extern const unsigned port_ov043_ds_base, port_ov043_ds_end;
+
+void port_ov047_patch(void);
+void *port_ov047_at(unsigned ds);
+extern unsigned char port_ov047_image[];
+extern const unsigned port_ov047_ds_base, port_ov047_ds_end;
+
+void port_ov052_patch(void);
+void *port_ov052_at(unsigned ds);
+extern unsigned char port_ov052_image[];
+extern const unsigned port_ov052_ds_base, port_ov052_ds_end;
+
+void port_ov053_patch(void);
+void *port_ov053_at(unsigned ds);
+extern unsigned char port_ov053_image[];
+extern const unsigned port_ov053_ds_base, port_ov053_ds_end;
+
+void port_ov055_patch(void);
+void *port_ov055_at(unsigned ds);
+extern unsigned char port_ov055_image[];
+extern const unsigned port_ov055_ds_base, port_ov055_ds_end;
+
+void port_ov056_patch(void);
+void *port_ov056_at(unsigned ds);
+extern unsigned char port_ov056_image[];
+extern const unsigned port_ov056_ds_base, port_ov056_ds_end;
+
+void port_ov057_patch(void);
+void *port_ov057_at(unsigned ds);
+extern unsigned char port_ov057_image[];
+extern const unsigned port_ov057_ds_base, port_ov057_ds_end;
+
+void port_ov058_patch(void);
+void *port_ov058_at(unsigned ds);
+extern unsigned char port_ov058_image[];
+extern const unsigned port_ov058_ds_base, port_ov058_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -805,6 +1052,57 @@ static const PortLevelDesc port_level_table[] = {
     {40, "Bowser in the Sky arena (koopa3_boss, course 17)", "ov048",
      0x02111624, port_ov048_patch, port_ov048_at,
      &port_ov048_ds_base, &port_ov048_ds_end, 0},
+    /* run linkw wave 8, lane w8-mounts -- the sixteen rows the block above
+       derives AND boots. Order is level id ascending; the table is searched,
+       not indexed by level, so the order is only for reading. */
+    {17, "Shifting Sand pyramid (desert_py, course 7)", "ov025", 0x02112bec,
+     port_ov025_patch, port_ov025_at,
+     &port_ov025_ds_base, &port_ov025_ds_end, 0},
+    {18, "Dire Dire Docks (water_land, course 8)", "ov026", 0x02112f58,
+     port_ov026_patch, port_ov026_at,
+     &port_ov026_ds_base, &port_ov026_ds_end, 0},
+    {19, "Snowman's Land (snow_land, course 9)", "ov027", 0x021130cc,
+     port_ov027_patch, port_ov027_at,
+     &port_ov027_ds_base, &port_ov027_ds_end, 0},
+    {20, "Snowman's Land igloo (snow_kama, course 9)", "ov028", 0x021113d0,
+     port_ov028_patch, port_ov028_at,
+     &port_ov028_ds_base, &port_ov028_ds_end, 0},
+    {22, "Tall Tall Mountain (high_mt, course 11)", "ov030", 0x02114ea8,
+     port_ov030_patch, port_ov030_at,
+     &port_ov030_ds_base, &port_ov030_ds_end, 0},
+    {23, "Tall Tall Mountain slide (high_slider, course 11)", "ov031", 0x0211155c,
+     port_ov031_patch, port_ov031_at,
+     &port_ov031_ds_base, &port_ov031_ds_end, 0},
+    {24, "Tiny-Huge Island, huge (tibi_deka_d, course 12)", "ov032", 0x02112f7c,
+     port_ov032_patch, port_ov032_at,
+     &port_ov032_ds_base, &port_ov032_ds_end, 0},
+    {26, "Tiny-Huge Island cave (tibi_deka_in, course 12)", "ov034", 0x021140f8,
+     port_ov034_patch, port_ov034_at,
+     &port_ov034_ds_base, &port_ov034_ds_end, 0},
+    {35, "Bowser in the Dark World (koopa1_map, course 15)", "ov043", 0x02111b44,
+     port_ov043_patch, port_ov043_at,
+     &port_ov043_ds_base, &port_ov043_ds_end, 0},
+    {39, "Bowser in the Sky (koopa3_map, course 17)", "ov047", 0x02111a58,
+     port_ov047_patch, port_ov047_at,
+     &port_ov047_ds_base, &port_ov047_ds_end, 0},
+    {44, "Mario's key course (ex_m_map, course 18)", "ov052", 0x02111cc8,
+     port_ov052_patch, port_ov052_at,
+     &port_ov052_ds_base, &port_ov052_ds_end, 0},
+    {45, "Mario's key arena (ex_mario, course 18)", "ov053", 0x021124f8,
+     port_ov053_patch, port_ov053_at,
+     &port_ov053_ds_base, &port_ov053_ds_end, 0},
+    {47, "Luigi's key arena (ex_luigi, course 19)", "ov055", 0x02111994,
+     port_ov055_patch, port_ov055_at,
+     &port_ov055_ds_base, &port_ov055_ds_end, 0},
+    {48, "Wario's key course (ex_w_map, course 20)", "ov056", 0x02112c4c,
+     port_ov056_patch, port_ov056_at,
+     &port_ov056_ds_base, &port_ov056_ds_end, 0},
+    {49, "Wario's key arena (ex_wario, course 20)", "ov057", 0x02111520,
+     port_ov057_patch, port_ov057_at,
+     &port_ov057_ds_base, &port_ov057_ds_end, 0},
+    {50, "Rec Room (playroom, course 29)", "ov058", 0x02111768,
+     port_ov058_patch, port_ov058_at,
+     &port_ov058_ds_base, &port_ov058_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -1008,6 +1306,27 @@ static void *port_mount_row_lvl38(void) { return port_level_mount_at(16); }
    appending its own level against this base does not collide. */
 static void *port_mount_row_lvl36(void) { return port_level_mount_at(17); }
 static void *port_mount_row_lvl40(void) { return port_level_mount_at(18); }
+/* run linkw wave 8, lane w8-mounts: the sixteen new rows, table indices
+   17..32 in the same order the table lists them. Named by LEVEL like the three
+   above rather than by index, so a merge that renumbers the table does not
+   silently point a thunk at a different level -- the index is in exactly one
+   place per row and the name says which row it is meant to be. */
+static void *port_mount_row_lvl17(void) { return port_level_mount_at(19); }
+static void *port_mount_row_lvl18(void) { return port_level_mount_at(20); }
+static void *port_mount_row_lvl19(void) { return port_level_mount_at(21); }
+static void *port_mount_row_lvl20(void) { return port_level_mount_at(22); }
+static void *port_mount_row_lvl22(void) { return port_level_mount_at(23); }
+static void *port_mount_row_lvl23(void) { return port_level_mount_at(24); }
+static void *port_mount_row_lvl24(void) { return port_level_mount_at(25); }
+static void *port_mount_row_lvl26(void) { return port_level_mount_at(26); }
+static void *port_mount_row_lvl35(void) { return port_level_mount_at(27); }
+static void *port_mount_row_lvl39(void) { return port_level_mount_at(28); }
+static void *port_mount_row_lvl44(void) { return port_level_mount_at(29); }
+static void *port_mount_row_lvl45(void) { return port_level_mount_at(30); }
+static void *port_mount_row_lvl47(void) { return port_level_mount_at(31); }
+static void *port_mount_row_lvl48(void) { return port_level_mount_at(32); }
+static void *port_mount_row_lvl49(void) { return port_level_mount_at(33); }
+static void *port_mount_row_lvl50(void) { return port_level_mount_at(34); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
@@ -1025,6 +1344,22 @@ static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_lvl38,
     port_mount_row_lvl36,
     port_mount_row_lvl40,
+    port_mount_row_lvl17,
+    port_mount_row_lvl18,
+    port_mount_row_lvl19,
+    port_mount_row_lvl20,
+    port_mount_row_lvl22,
+    port_mount_row_lvl23,
+    port_mount_row_lvl24,
+    port_mount_row_lvl26,
+    port_mount_row_lvl35,
+    port_mount_row_lvl39,
+    port_mount_row_lvl44,
+    port_mount_row_lvl45,
+    port_mount_row_lvl47,
+    port_mount_row_lvl48,
+    port_mount_row_lvl49,
+    port_mount_row_lvl50,
 };
 
 // ---- the loader dispatch table ---------------------------------------------
