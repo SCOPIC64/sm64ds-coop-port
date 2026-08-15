@@ -1051,6 +1051,31 @@ extern unsigned char SeesawBsPlank_SpawnInfo[];    /* ov095 0x02137430, +4 = 149
 void *SeesawBsPlank_Spawn(void);                   /* ov095 0x02135f04 */
 extern unsigned char SeesawBsZigZag_SpawnInfo[];   /* ov095 0x0213744c, +4 = 150 */
 void *SeesawBsZigZag_Spawn(void);                  /* ov095 0x02135ed4 */
+/* ---- run linkw wave 10 (lane w10-shared): ov031's SLIDE DECORATION QUAD.
+   FOUR ids on ONE ROM table (0x02111984, _ZTV18daObjHsBillboard_c ==
+   _ZTV25SlideDecorationSilverStar), x3 each on level 23. The class reads its
+   variant out of its own actor id -- InitResources switches on the +0xc id
+   halfword over 0x12e..0x131 and indexes one four-entry SharedFilePtr table --
+   so ONE fill serves all four rows, and it is idempotent, so the order the
+   registry installs them in does not matter. See hal/actor_classes_ov031_w10.cpp
+   and port/slice_w10a.txt. ---- */
+extern unsigned char SlideDecorationSilverStar_SpawnInfo[];   /* ov031 0x0211190c, +4 = 302 */
+void *SlideDecorationSilverStar_Spawn(void);                  /* ov031 0x021113ec */
+extern unsigned char SlideDecorationYellowStar_SpawnInfo[];   /* ov031 0x02111928, +4 = 303 */
+void *SlideDecorationYellowStar_Spawn(void);                  /* ov031 0x021113b4 */
+extern unsigned char SlideDecorationOrangeSmiley_SpawnInfo[]; /* ov031 0x02111944, +4 = 304 */
+void *SlideDecorationOrangeSmiley_Spawn(void);                /* ov031 0x0211137c */
+extern unsigned char SlideDecorationBlueSmiley_SpawnInfo[];   /* ov031 0x02111960, +4 = 305 */
+void *SlideDecorationBlueSmiley_Spawn(void);                  /* ov031 0x02111344 */
+void hal_fill_slide_decoration_vtable(void);     /* _ZTV18daObjHsBillboard_c, 31 */
+/* ---- run linkw wave 10 (lane w10-shared): MEGA_MUSHROOM (277, ov002) x1 on
+   level 22. Its factory stores _ZTV13OneUpMushroom -- the SAME ROM table
+   0x021083c8 the already-registered ONE_UP_MUSHROOM (276) installs -- so it
+   needs no fill of its own and the row below names 276's deliberately. One
+   record in port/ov002_syms.txt, one TU in port/slice_w10b.txt, no vtable and
+   no new mount. ---- */
+extern unsigned char MegaMushroom_SpawnInfo[];   /* ov002 0x021083a4, +4 = 277 */
+void *MegaMushroom_Spawn(void);                  /* ov002 0x020b0530 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1570,4 +1595,40 @@ void *SeesawBsZigZag_Spawn(void);                  /* ov095 0x02135ed4 */
     {149, "SEESAW_BS_PLANK", SeesawBsPlank_SpawnInfo, SeesawBsPlank_Spawn, \
      hal_fill_seesaw_bob_vtable}, \
     {150, "SEESAW_BS_ZIGZAG", SeesawBsZigZag_SpawnInfo, SeesawBsZigZag_Spawn, \
-     hal_fill_seesaw_bob_vtable},
+     hal_fill_seesaw_bob_vtable}, \
+    /* ---- run linkw wave 10 (lane w10-shared): ov031's SLIDE DECORATION \
+       QUAD. The lane's tool resolves all 512 spawn-table entries to the table \
+       each factory stores; for ov031 it returns ONE table for FOUR ids, and \
+       the class picks its model out of its own actor id (InitResources \
+       switches on the +0xc halfword over 0x12e/0x12f/0x130/0x131 and indexes \
+       data_ov031_02111424). So all four rows name the SAME fill deliberately. \
+       x3 each on level 23, whose entire baseline skip set was these twelve \
+       instances of these four classes. ---- */ \
+    {302, "SLIDE_DECORATION_SILVER_STAR", SlideDecorationSilverStar_SpawnInfo, \
+     SlideDecorationSilverStar_Spawn, hal_fill_slide_decoration_vtable},      \
+    {303, "SLIDE_DECORATION_YELLOW_STAR", SlideDecorationYellowStar_SpawnInfo, \
+     SlideDecorationYellowStar_Spawn, hal_fill_slide_decoration_vtable},      \
+    {304, "SLIDE_DECORATION_ORANGE_SMILEY",                                   \
+     SlideDecorationOrangeSmiley_SpawnInfo,                                   \
+     SlideDecorationOrangeSmiley_Spawn, hal_fill_slide_decoration_vtable},    \
+    {305, "SLIDE_DECORATION_BLUE_SMILEY", SlideDecorationBlueSmiley_SpawnInfo, \
+     SlideDecorationBlueSmiley_Spawn, hal_fill_slide_decoration_vtable}, \
+    /* ---- run linkw wave 10 (lane w10-shared): MEGA_MUSHROOM (277, \
+       ov002) x1 on level 22. The lane's tool puts ids 276 and 277 on ONE \
+       table, 0x021083c8, and 276 is already registered -- so the array is \
+       already filled before this class spawns and the whole registration is \
+       one record and one factory TU. \
+ \
+       THE FILL COLUMN IS 0, THE LIGHT_BEAM CONVENTION, AND IT IS NOT \
+       COSMETIC. hal_fill_one_up_mushroom_vtable opens with \
+       port_one_up_mushroom_types_seat(), a VERIFY-THEN-REWRITE seat over \
+       __sinit_ov002_02100adc's fourteen mushroom-type PMFs: it aborts unless \
+       each word still holds the ROM address it was compiled from, then \
+       replaces it with the host body. Naming that fill on a second row calls \
+       it a second time, and the second call finds the host address the first \
+       one wrote -- `FATAL: mushroom type 0: the sinit left 004807a0, the \
+       ROM's own table says 020aff10 -- WRONG BYTES`, measured on this tree \
+       before the column was changed. A sibling's fill may only be reused \
+       from another row when it is IDEMPOTENT; one carrying a seat is not. \
+       ---- */ \
+    {277, "MEGA_MUSHROOM", MegaMushroom_SpawnInfo, MegaMushroom_Spawn, 0},
