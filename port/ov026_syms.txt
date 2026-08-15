@@ -213,9 +213,15 @@ data_ov026_02113f78
 #
 # This confirms the reviewer's ROM read from the other direction: the reviewer
 # said "that table is 31 slots and 0x02113c6c is 32", and the widths above are
-# 31 for the whirlpool and 32 for the Submarine, which is what a Platform
-# subclass (Kill at slot 31) versus a plain Actor gives. Two independent routes,
-# same answer.
+# 31 for the whirlpool and 32 for the Submarine.
+#
+# THE TWO ARE NOT THE SAME KIND OF CLASS, and neither is a plain Actor. Each
+# record's word[2] is its base type_info, and reading those through to their own
+# name strings gives 12dEnemyBase_c for the whirlpool 0x02113d54 and
+# 10dBgActor_c for the Submarine 0x02113c6c. So the Submarine is Platform-
+# derived and carries Platform::Kill at slot 31 for a 32nd slot, while the
+# whirlpool is an Enemy subclass whose virtual list ends at Actor's slot 30.
+# The 31-versus-32 argument is unaffected; only the reason for the 31 is.
 #
 # The note above's caution was also exactly right and worth keeping: the name
 # string FOLLOWING table 0x02113d54 reads 17daWater_Suikomi_c, which is the

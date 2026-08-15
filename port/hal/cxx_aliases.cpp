@@ -1115,9 +1115,13 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
        order the two Release calls consume it:
          0x02122480  LDR pc-rel -> 0x021230d0  then BL SharedFilePtr::Release
          0x02122488  LDR pc-rel -> 0x021230d8  then BL SharedFilePtr::Release
-       Bare G0 resolves to 0x020a0eac (the GAME HEAP pointer) and bare G1 to
-       0x0210e05c (SignPost's KCL), so the shipping binary Releases those two
-       objects whenever a Coffin is cleaned up.
+       Unrenamed, this body binds through the MANGLED rows above, not the
+       cdecl ones -- see BOTH DECORATIONS below -- so bare G0 resolves to
+       0x0210e064 (SignPost's ModelFile) and bare G1 to 0x0210e05c (SignPost's
+       KCL), and the shipping binary Releases SignPost's two files whenever a
+       Coffin is cleaned up. NOT the game heap: _G0 -> _data_020a0eac is the
+       cdecl row, and a .cpp body whose `extern int G0[];` sits outside
+       extern "C" never reaches it.
 
        THE TARGET NAME IS ov071's, NOT ov070's, and the config disagrees.
        ov070 and ov071 share the load window (both base 0x0211f000), so both
@@ -1137,8 +1141,10 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
          0x02112780  LDR pc-rel -> 0x02114ab8  then BL Model::LoadFile
        Both are ov020 .bss (0x02114aa0..0x02114b20) and both are already
        mounted; hal/actor_classes_ov063.cpp calls them "the four book
-       SharedFilePtrs ... models 0x2c8/0x2cb". Bare G0/G1 send the two
-       LoadFile calls at the game heap pointer and SignPost's KCL instead.
+       SharedFilePtrs ... models 0x2c8/0x2cb". This body is a .cpp with the
+       same outside-extern-"C" declaration, so unrenamed it binds through the
+       mangled rows too: bare G0/G1 send the two LoadFile calls at SignPost's
+       ModelFile and SignPost's KCL, not at the game heap.
 
    (3) src/_ZN15BookShotSpawnerD0Ev.c, ov020 0x02111278, LINKED. Its
        `t[0] = (int)VT` vptr store means 0x021148d8, its own table, which in
