@@ -215,6 +215,30 @@ destructor slot) land on it. Seating the real D0 there breaks those callers.
 The file says so; this lane agrees and did not touch it.
 
 
+TABLE-ONLY (124), PROBED
+------------------------
+
+A TABLE-ONLY TU can only be reached by seating it in a table the port hosts, so
+the first question is how many of the tables are hosted at all. Thirty of the
+124 are; the other 94 name a ROM table with no counterpart in the binary and
+have nowhere to be seated until somebody mounts one.
+
+Of the thirty, twenty-two are DESTRUCTOR PAIRS -- D0 and D1 of ShadowModel,
+ActorDerived, View, ActorBase, ModelBase, and the three Animation thunk tables.
+That is the MSVC dtor fold head-on: mwcc emits two destructor slots and MSVC
+folds them into one, so a host table that keeps ROM byte order has a slot the
+matched D0 cannot occupy without moving every slot behind it, and a host table
+that keeps MSVC order has no slot for it at all. hal/actor_classes_bob_world.cpp
+works the same case through for CommonModel and lands on "no"; nothing found
+here changes that reasoning for the other eleven pairs.
+
+The remaining eight are four Actor After-hooks in data_0208e3a4 and four
+func_0203* pairs in data_02099274 / data_02099348 / data_02099358. All eight
+live in hal/actor_vtables.cpp or hal/cxx_aliases.cpp, which the actors lane
+owns this wave, so this lane looked and did not touch. They are the most
+promising eight in the bucket and they belong in an actors-lane pass, not here.
+
+
 A HEADLINE OVER-CLAIM, FOUND ON THE WAY
 ---------------------------------------
 
