@@ -1651,6 +1651,32 @@ list(APPEND PORT_ACTOR_OVERLAYS ov056)
 # half so an unpinned mount would have sized it FOUR bytes. See also
 # port/slice_w15c.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov025)
+# run link60 lane s2-m7: ov007, the TITLE SCREEN and FILE SELECT scene
+# (dScDSMT_c). Not an actor overlay and not reachable today -- it is the fourth
+# occupant of the scene slot at 0x020ad660, walk_window runs the ov002 occupant,
+# and nothing in a level walk spawns actor id 1. It joins the per-symbol mounts
+# for the same reason ov001 and ov003 did: the treatment is right for it and the
+# storage has to exist before anything can be wired to read it.
+#
+# THIS ADDS NO LINKAGE and is not meant to. Mounted bytes are not matched TUs,
+# none of ov007's 528 matched TUs is compiled in, and nothing calls
+# port_ov007_syms_patch(). What lands is 716 symbols, the overlay's whole
+# .rodata + .data + .bss contiguous from 0x020ccb54 to 0x02104c40, including the
+# TITLE_SCREEN spawninfo record at 0x02103264 that the S1 spine lane's registry
+# row will read. ov007 has no sinits to run: its static-init table is one NULL
+# word. See port/ov007_syms.txt for the list and the eight ROM width pins.
+#
+# It is the first mount of a scene-slot occupant, so it is the first real test
+# of the residency model merged at 11242964f -- an address-only contest test
+# would have taken three of the build's resolved cross pointers back to raw DS
+# addresses. It takes none: 228 rebased rows before, the identical 228 after,
+# contested unmoved at 105. The measurement is port/ov007_binding_diff.txt,
+# including the three findings it turned up and which of them are fixed.
+#
+# It also grows .dsstate by 229604 bytes, which MOVES THE SELFTEST BMP BASE.
+# The three water pixels track that base, so the BMP is comparable only at an
+# equal base and must not be byte-compared across this commit.
+list(APPEND PORT_ACTOR_OVERLAYS ov007)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
