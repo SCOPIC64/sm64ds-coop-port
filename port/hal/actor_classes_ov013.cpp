@@ -103,8 +103,15 @@ extern void *data_020a0eac;   /* the game heap (== the matched D0s' G0) */
    exports won the naming race at these window addresses; all three are
    ov013's own symbols -- see ov013_syms.txt's header) */
 #pragma comment(linker, "/alternatename:_data_ov051_021116b0=_data_ov013_021116b0")
-#pragma comment(linker, "/alternatename:___sinit_ov045_02112280=_data_ov013_02112280")
 #pragma comment(linker, "/alternatename:_data_ov054_02111238=_func_ov013_02111238")
+/* The third of the three, ___sinit_ov045_02112280, MOVED to
+   hal/cxx_aliases.cpp (lane w8-shadows). It is the only one of them whose name
+   is also a matched TU in src/, so it shows up in linkage.py's replacement
+   queue, and that tool reads the ruling for a generated ovNNN_syms.c.obj out
+   of cxx_aliases.cpp -- the alias registry -- and nowhere else. The pragma had
+   to travel with its PORT_HOST_ABI tag for the ruling to be visible. Same
+   three targets compile both files (smoke_player, walk_window,
+   walk_window_hires), so the alias reaches exactly the links it did before. */
 /* HandShort's Behavior TU declares these two hosted globals OUTSIDE its
    extern "C" block, so they mangle as C++ arrays -- the same globals
    cxx_aliases.cpp already carries under other TUs' spellings */

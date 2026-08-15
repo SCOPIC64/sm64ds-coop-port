@@ -20,6 +20,7 @@
 // Everything forwarded to is already linked from an existing slice or the ov079
 // mount; this file adds only the names and the ecx->stack shuffle MSVC needs.
 #include <cstdio>
+#include <cstdlib>
 
 extern "C" {
 // the C-named __cdecl bodies the shadow methods forward to
@@ -47,14 +48,85 @@ struct Actor_s {
 Actor *Actor_s::ClosestPlayer()
 { return (Actor *)_ZN5Actor13ClosestPlayerEv(this); }
 
+/* The matched Platform::UpdateKillByMegaChar spells its fourth parameter
+   Fix12<int> against a template it declares itself; the ov079 callers above
+   spell the same method with a plain int. Two different decorated symbols, so
+   both can be declared on one shadow class. This is the matched TU's spelling,
+   reproduced so the call below decorates as
+   ?UpdateKillByMegaChar@Platform@@QAEHFFFU?$Fix12@H@@@Z -- mangling depends on
+   the template's NAME and argument, not on its members. */
+template<class T> struct Fix12 { T v; };
+
 struct Platform {
     int IsClsnInRange(int a, int b);
     int UpdateKillByMegaChar(short a, short b, short c, int d);
+    int UpdateKillByMegaChar(short a, short b, short c, Fix12<int> d);
 };
 int Platform::IsClsnInRange(int a, int b)
 { return _ZN8Platform13IsClsnInRangeE5Fix12IiES1_(this, a, b); }
 int Platform::UpdateKillByMegaChar(short a, short b, short c, int d)
 { return _ZN8Platform20UpdateKillByMegaCharEsss5Fix12IiE(this, a, b, c, d); }
+
+/* THE GATE-16 FLIP for UpdateKillByMegaChar (lane w8-shadows). hal/megachar_stub.cpp
+   owned the ROM's C name with a `return 0` stub and is now compiled only into
+   the three narrow gate-9 harnesses (smoke_actor / smoke_savestate /
+   smoke_persist), which have no Player gates and no RaycastLine. In the three
+   real targets the C name is this face and the body is the matched TU, which
+   was already sitting in slice_gate16.txt line 178, compiled, and dropped by
+   /OPT:REF for want of a single reference edge -- the wave-1 finding, again.
+   The two manglings never collided, which is why nothing ever failed loudly.
+
+   WHAT IT COSTS, measured against walk_window.map at the lane base rather than
+   estimated. The matched TU names nine externals and EIGHT are already linked:
+   Matrix4x3_FromRotationY, MulVec3Mat4x3, Vec3_Add, DecIfAbove0_Byte,
+   data_020a0e68, ?UpdatePos@Actor@@ (actor_class_faces.cpp), and the RaycastLine
+   trio ??0/??1/?SetObjAndLine@ (reverse_bridges.cpp) plus
+   ?DetectClsn@RaycastLine@@QAEHXZ (its own matched TU). The ninth,
+   func_ov002_020ee5d0, is in slice_gate16.txt line 302 and was dropped for the
+   same reason; the matched body's call to it is the edge that seats it. So the
+   flip seats TWO TUs and adds no slice line.
+
+   THE COST NOTE IN megachar_stub.cpp WAS WRONG, and it is worth saying how. It
+   listed three missing externals, two of them spelled
+   _ZN11RaycastLine14SetObjAndLine... and _ZN11RaycastLine11DetectClsnEv. Those
+   Itanium length prefixes do not match the identifiers they precede --
+   SetObjAndLine is 13 characters and DetectClsn is 10 -- so neither name is any
+   symbol. The real ones (13/10) were in the binary the whole time. A mistyped
+   length prefix reads as a plausible symbol and greps to nothing, which is
+   exactly how a seat stays parked: the ruling that it was work was right, the
+   arithmetic under it was not.
+
+   Vtable numbering is safe here, unlike the Bird/Flag renders: the matched TU
+   dispatches ((PlatformVT*)this)->v31() through a THIRTY-TWO virtual local
+   struct, and hal/actor_classes.cpp's hal_fill_platform_vtable writes
+   _ZTV8Platform in ROM order with vt[31] = ac_kill. Index 31 is Platform::Kill
+   in both numberings. */
+/* SM64DS_MEGACHAR_PROBE=1 counts the calls and how many of them get past the
+   matched body's first line. That first line is `if (this->f_31c == 0) return
+   0;`, which is also exactly what the retired stub did, so a matrix that goes
+   green proves nothing on its own -- the seat would look identical to the old
+   stub if every platform early-outs. The probe is what separates "linked" from
+   "running", and it reports both halves: reached, and past-the-early-out. */
+extern "C" int _ZN8Platform20UpdateKillByMegaCharEsss5Fix12IiE(
+    void *self, short a, short b, short c, int d)
+{
+    Fix12<int> fd;
+    fd.v = d;
+    static int probe = -1;
+    if (probe < 0) probe = std::getenv("SM64DS_MEGACHAR_PROBE") ? 1 : 0;
+    if (!probe)
+        return ((Platform *)self)->UpdateKillByMegaChar(a, b, c, fd);
+    static long calls, live;
+    ++calls;
+    /* f_31c is the matched TU's own offset for the enable byte it early-outs
+       on; read it here only to classify the call, never to change it. */
+    if (*((unsigned char *)self + 0x31c)) ++live;
+    int r = ((Platform *)self)->UpdateKillByMegaChar(a, b, c, fd);
+    if ((calls % 600) == 0 || (live && live % 60 == 0))
+        std::fprintf(stderr, "[megachar] %ld calls, %ld past the early-out\n",
+                     calls, live);
+    return r;
+}
 
 extern "C" {
 

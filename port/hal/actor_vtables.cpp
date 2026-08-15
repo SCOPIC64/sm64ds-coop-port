@@ -133,6 +133,20 @@ int data_020a4b6c[8];           /* the scene tree root the ctor links into */
 void *data_020a4bb8_storage[512];
 void **data_020a4bb8 = data_020a4bb8_storage;  /* actorID -> SpawnInfo* */
 
+/* PORT_HOST_ABI: the matched TU is an mwccarm `asm` block (ARM hand-asm); MSVC has no inline ARM assembler.
+   src/_ZN9ActorBaseC1Ev.cpp is `extern "C" asm void* _ZN9ActorBaseC1Ev(void* self)`
+   followed by 70-odd ARM instructions -- an asm-hatch TU, not C. It is a match
+   under the asm-primitive policy and it is unbuildable by any host compiler:
+   MSVC's __asm accepts x86 only, and the block is register-allocated ARM
+   (ldr r1,=data_02099edc / strh r2,[r0,#0xc] / bl chains). Re-derived from the
+   ROM for this ruling: arm9 0x02043dec (size 0x160) reads e92d4030 / e24dd004
+   / e1a04000 / e59f112c / e2845014 / e1a00005 -- stmdb sp!,{r4,r5,lr}; sub
+   sp,sp,#4; mov r4,r0; ldr r1,[pc,#0x12c]; add r5,r4,#0x14; mov r0,r5 --
+   instruction for instruction the head of that asm block. Same class as
+   func_020733a8 below, which carries the same tag. The C transcription above
+   is the faithful stand-in, written field for field against that block.
+   NOT a stub: it is a full transcription, and the reason it cannot be retired
+   is the source language, not a missing closure. */
 void *_ZN9ActorBaseC1Ev(char *self)
 {
     *(void **)self = data_02099edc;
@@ -282,9 +296,14 @@ void func_020733a8(void *base, int n, int stride,
         ctor(p);
 }
 
-/* ...and its sibling, the array DESTROY. src/__destroy_arr.c is hand-asm for
-   the same reason -- an exception frame no C under the ROM's flags emits --
-   so there is no source to compile, only a block to read:
+/* PORT_HOST_ABI: the matched TU is an mwccarm `asm` block (ARM hand-asm) with an EH landing pad; MSVC has no inline ARM assembler.
+   ...and its sibling, the array DESTROY. src/__destroy_arr.c is hand-asm for
+   the same reason as func_020733a8 above -- an exception frame no C under the
+   ROM's flags emits -- so there is no source to compile, only a block to read.
+   Re-derived from the ROM for this ruling: arm9 0x0207328c (size 0x5c) reads
+   e92d48f0 / e24dd018 / e1a0b00d / e1b05003 -- stmdb sp!,{r4,r5,r6,r7,r11,lr};
+   sub sp,sp,#0x18; mov r11,sp; movs r5,r3 -- which is the head of that asm
+   block instruction for instruction, fp anchor and all. The block reads:
    r0 base, r1 count, r2 size, r3 dtor; `mla r4, r7, r6, r0` puts the cursor
    one past the end and the loop steps DOWN by size before each call, so the
    elements are destroyed back to front. Both zero-count guards fall out of

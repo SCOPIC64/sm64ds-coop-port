@@ -743,9 +743,77 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?func_ov002_020e28d4@@YAXPAXHH@Z=_func_ov002_020e28d4")
 #pragma comment(linker, "/alternatename:?func_ov100_02144fcc@@YAHXZ=_func_ov100_02144fcc")
 
-/* Player::ST_WAIT is an ov006 FUNCTION name; at that address ov002 holds
-   the Wait State object, which is what St_WaitQuicksand_Main wants. */
+/* PORT_HOST_ABI: shared-load-window NAME COLLISION -- this symbol is ov002 DATA here and an ov006 FUNCTION in src/; they are different objects at one address.
+   Player::ST_WAIT is an ov006 FUNCTION name; at that address ov002 holds
+   the Wait State object, which is what St_WaitQuicksand_Main wants.
+
+   THE RULING, and why this is not replacement work. ov002 and ov006 share a
+   DS overlay load window, so both cover 0x02110154 and only one of them is
+   resident at a time on hardware. config/arm9/overlays/ov006/symbols.txt says
+   `_ZN6Player7ST_WAITE kind:function(arm,size=0x68) addr:0x02110154` -- that
+   is ov006's code -- while the byte the port needs at that address is ov002's
+   Wait State object, emitted by ovdata.py as _data_ov002_02110154. The alias
+   below binds the name its ov002 CALLER spells to the ov002 bytes it means.
+   src/_ZN6Player7ST_WAITE.cpp is a real matched TU of ov006's FUNCTION, and it
+   is a different object that happens to carry the same dsd-exported name. The
+   queue pairs them by name, which is all a name can do. Linking that TU here
+   would not replace this definition; it would collide with it, because in the
+   port every overlay is resident at once and the window no longer separates
+   them. Nothing about this is a stub standing in for a linkable body. */
 #pragma comment(linker, "/alternatename:__ZN6Player7ST_WAITE=_data_ov002_02110154")
+
+/* THE ROOT-HEAP BOOT SPINE (lane w8-shadows). Seating
+   src/_ZN4Heap18InitializeRootHeapEv.cpp -- the ROM's own entry into root-heap
+   setup, which tests/walk_window.cpp used to skip by calling the inner
+   SetupRootHeap directly -- needs three names bound, and all three are
+   alias-legal because every function involved is __cdecl: the matched TU
+   spells Heap's two entries as STATIC members, and a static member takes no
+   `this`. None of the thiscall hazards this file warns about apply.
+
+   Manglings read off the linker's own error text, not guessed. */
+/* the matched TU calls Heap::SetupRootHeap as a static member; the port's
+   SetupRootHeap is the C name from a .c matched TU. Return types differ (void
+   against HeapS*) and that is harmless for cdecl -- the pointer comes back in
+   EAX and this caller discards it. The boot guard that used to read that
+   return now reads data_020a0ea0, which SetupRootHeap writes on the success
+   path and leaves alone on failure; see the call site. */
+#pragma comment(linker, "/alternatename:?SetupRootHeap@Heap@@SAXXZ=__ZN4Heap13SetupRootHeapEv")
+/* Memory::rootParamOffset is the matched TU's name for 0x020a0ea4. The name is
+   wrong and the address is right: src/_ZN4Heap13SetupRootHeapEv.c passes that
+   word as the FIRST argument to every arena accessor (func_02058ea0,
+   func_02058eb4, func_02059040, func_02058d58, func_02058cd0), so it is the OS
+   globals POINTER and InitializeRootHeap NULLs it to mean "use the default".
+   hal/os_arena.cpp had it right. Bound to the storage that file already owns. */
+#pragma comment(linker, "/alternatename:?rootParamOffset@Memory@@3IA=_data_020a0ea4")
+/* and the ROM's C name onto the matched static member, so the boot site can
+   spell it the way every other seated entry in walk_window.cpp is spelled */
+#pragma comment(linker, "/alternatename:__ZN4Heap18InitializeRootHeapEv=?InitializeRootHeap@Heap@@SAXXZ")
+
+/* PORT_HOST_ABI: shared-load-window NAME COLLISION -- this symbol is ov013 BSS here and an ov045 FUNCTION in src/; they are different objects at one address.
+   Moved here from hal/actor_classes_ov013.cpp with its ruling. ov013 and ov045
+   share a load window and both cover 0x02112280. The Pendulum's Init (ov013)
+   reaches its own SharedFilePtr at that bss address, and dsd's ov045 export
+   won the naming race inside that TU, so the recovered source spells it
+   `__sinit_ov045_02112280`; port/ov013_syms.txt's header records the same for
+   its two window-alias siblings. src/__sinit_ov045_02112280.c is ov045's real
+   static-initialiser FUNCTION -- four calls building two SharedFilePtrs out of
+   data_ov045_021131d8/d0 -- a different object that happens to share the name.
+   Linking it would not replace this definition; on hardware the two overlays
+   are never resident together, but in the port they are, so the name has one
+   holder and ov013's storage is the one its own caller means. */
+#pragma comment(linker, "/alternatename:___sinit_ov045_02112280=_data_ov013_02112280")
+
+/* PORT_HOST_ABI: shared-load-window NAME COLLISION -- this symbol is ov070 RODATA here and an ov074 FUNCTION in src/; they are different objects at one address.
+   Moved here from hal/actor_classes_ov070.cpp with its ruling. ov070 and ov074
+   share a load window and both cover 0x021222e0, where ov070 holds FlameChomp
+   Behavior's fix table (port/ov070_syms.txt names it data_ov070_021222e0) and
+   dsd's ov074 export won the naming race inside Amp::CleanupResources, which
+   walks the two-pointer SharedFilePtr table under the ov074 FUNCTION spelling.
+   The use is address-only -- indexed reads, never a call -- so the alias is
+   storage identity, not a code seam. src/func_ov074_021222e0.cpp is ov074's
+   real function at the same window address, a different object under a shared
+   name; linking it would collide with this storage rather than replace it. */
+#pragma comment(linker, "/alternatename:_func_ov074_021222e0=_data_ov070_021222e0")
 
 /* Return-type-only variants of methods the port already faces. __thiscall,
    same argument list, result in EAX -- the existing face is ABI-identical

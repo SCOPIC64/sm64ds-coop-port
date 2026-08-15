@@ -1070,6 +1070,56 @@ list(APPEND PORT_LEVEL_OVERLAYS ov044)
 # report; the raw total grows because two more images add addresses, which is
 # not a regression.
 list(APPEND PORT_LEVEL_OVERLAYS ov048)
+# run linkw wave 8, lane w8-mounts: every remaining data/stage level the ROM
+# has a row for was derived; the sixteen that BOOT are mounted --whole here.
+# The full
+# derivation -- which read produced which field, the nine already-mounted rows
+# the reader reproduced first, the ten level ids that are NOT stages, and each
+# level's object-overlay roster out of LoadOrUnloadObjectOverlays -- lives in
+# one block beside these overlays' extern declarations in hal/level_boot.cpp.
+# Only the two things a CMake reader needs are repeated here.
+#
+# THE SHARED-WINDOW QUESTION, measured before the mount the way the ov045 and
+# ov046 notes above ask for. All sixteen load at 0x021111a0, the same base as
+# every level overlay already mounted, and ovdata.py --cross drops a target
+# landing
+# in more than one mounted window -- so a new mount CAN flip an already-resolved
+# pointer to raw and regress a level that already works. Ran the cross pass
+# over the old maps and then over old + new: 156 rebased / 4620 raw / 888
+# contested across 54 mounts becomes 202 / 5875 / 917 across 70. Every one of
+# the 46 new patches belongs to a new overlay, and the set difference the other
+# way is EMPTY -- no baseline patch was lost. The raw and contested totals grow
+# because the new images add addresses; per the ov045 note, that is not a
+# regression to calibrate against.
+#
+# THAT BASELINE IS THE PRE-ov044 TREE, not this one. The counts above were
+# measured against the seventeen-row tree this lane branched from, before the
+# ov044/ov048 block directly above landed; the ov044/ov048 lane bounded its own
+# two by footprint rather than by these counts. Neither lane measured the
+# merged tree, so it was measured on the integration lane instead: 208 rebased
+# / 5944 raw / 940 contested across 74 mounts, the +6 over this lane's 202
+# being ov022's, with the two koopaN_boss arenas adding no rebased pointer of
+# their own. What both lanes established, and what the question is actually
+# asking, is that no mount on either side dropped a baseline patch.
+#
+# ov030 is the one that needed asking: at 19168 bytes it is the LARGEST level
+# overlay the port mounts and it extends the shared window to 0x02115ce0, past
+# every prior mount's end. That extension is what the measurement above covers,
+# and it cost nothing.
+#
+# Seven more level ids were derived the same way and are NOT here: 16, 21, 25,
+# 27, 28, 31 and 33. Each mounts correctly and prints a census; each is blocked
+# past the mount by a class this build already registers (FLAME_CHOMP, AMP,
+# SNUFIT) or, for 31, by the player's own render path. The level_boot.cpp block
+# names each blocker and the SM64DS_SKIP_CLASS run that isolates it, so adding
+# their overlays back here is the only CMake work they need.
+#
+# Levels 36 and 40 (ov044, ov048) are the two koopaN_boss arenas appended just
+# above by lane w7-c. This lane derived them independently, agreed, and held
+# them for that lane; the two lists union-merged here as intended.
+list(APPEND PORT_LEVEL_OVERLAYS
+     ov025 ov026 ov027 ov028 ov030 ov031 ov032 ov034 ov043 ov047 ov052 ov053
+     ov055 ov056 ov057 ov058)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
@@ -1338,6 +1388,18 @@ list(APPEND PORT_ACTOR_OVERLAYS ov021)
 # sinits run from the registry fill (the ov045 lane-ownership pattern). See
 # port/ov063_syms.txt and port/slice_w5a.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov063)
+# run linkw wave 8 (lane w8-packs): ov022 is level 14's own overlay (Lethal
+# Lava Land, data/stage/fire_land), already mounted whole in
+# PORT_LEVEL_OVERLAYS since gate 163; it joins the per-symbol mounts here so
+# its platform cast reaches its SpawnInfo records, its SharedFilePtr statics
+# and the three-word file/CLPS tables its InitResources bodies index -- the
+# gate-17 shape of ov009/ov010/ov015/ov016/ov018/ov019/ov020/ov021/ov045
+# applied to a thirteenth overlay and a fifth level overlay. Its ten vtables
+# are excluded from the mount; the four this wave seats are host arrays
+# hal/actor_classes_ov022.cpp fills, and the mount bring-up plus four of the
+# ten ov022 sinits run from the registry fill (the ov045 lane-ownership
+# pattern). See port/ov022_syms.txt and port/slice_w8packs.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov022)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1716,6 +1778,23 @@ foreach(line IN LISTS SLICE_W6D_LINES)
         continue()
     endif()
     list(APPEND SLICE_W6D_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 8, lane w8-packs: ov022's Lethal Lava Land platform cast --
+# VOLCANO_RING (71), FLOAT_ON_LAVA_PLATFORM (74), FLOATING_FLOOR_LLL_BIG (75)
+# and _SMALL (76), LAVA_PLANK (82), plus the four ov022 static initialisers
+# those four tables need. Same reader shape, one owner. The cast map (three
+# independent routes), the two shifted name blocks, both width routes and the
+# four classes held back on the inferred-stub ratchet are in
+# hal/actor_classes_ov022.cpp; the mount is port/ov022_syms.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w8packs.txt" SLICE_W8PACKS_LINES)
+set(SLICE_W8PACKS_SOURCES "")
+foreach(line IN LISTS SLICE_W8PACKS_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W8PACKS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate21.txt" SLICE21_LINES)
@@ -2830,6 +2909,23 @@ foreach(line IN LISTS SLICE203_LINES)
     list(APPEND SLICE203_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Lane w8-shadows (run linkw): the SHADOWS bucket. One matched TU by name --
+# TextureTransformer::Prepare, whose header declares it STATIC, which is what
+# makes the matched body callable through the C-name face that used to
+# duplicate it. The lane's other two seats need no line here: they were already
+# in slice_gate16.txt and only wanted a reference edge. See slice_w8shadows.txt
+# for the full triage of all twelve shadows and the derivation of the one that
+# is deliberately still open.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w8shadows.txt" SLICE_W8SHADOWS_LINES)
+set(SLICE_W8SHADOWS_SOURCES "")
+foreach(line IN LISTS SLICE_W8SHADOWS_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W8SHADOWS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gate 188: Jolly Roger Bay's six MOVER classes' matched lifecycle closure. The
 # host copies (the three slot-5 renders + Unagi's PMF dispatch/Behavior + the
 # body-segment near-miss) are unmatched/{Jrb_Renders,Unagi_StateDispatch,
@@ -3144,7 +3240,16 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/meshcolliderbase_vtable.cpp hal/meshcollider_dtor_seat.cpp hal/lk1_eh_vmax_seat.cpp hal/lk2_platform_dtor_seat.cpp hal/model_dtor_seat.cpp hal/lk4_eh_dtor_seat.cpp hal/lk4_solidheap_seat.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/message_gen_text.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/sub_actors.cpp hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
+    ${SLICE_W8SHADOWS_SOURCES}
+    # hal/megachar_stub.cpp is NOT here any more (lane w8-shadows). Its
+    # `return 0` stand-in for Platform::UpdateKillByMegaChar is now compiled
+    # only into the three narrow gate-9 harnesses above, which cannot build the
+    # real closure. In this target the ROM's C name is the face at the bottom
+    # of hal/wf_enemy_bridges.cpp and the body is the matched TU that has been
+    # sitting in slice_gate16.txt line 178 all along, dropped by /OPT:REF for
+    # want of a reference edge. Removing the stub from here is what makes the
+    # matched body reachable; leaving it would be a duplicate definition.
+    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/message_gen_text.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp hal/sub_actors.cpp hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE_PTR_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
@@ -3158,6 +3263,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W7C_SOURCES}
+    hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -3243,7 +3349,16 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/meshcolliderbase_vtable.cpp hal/meshcollider_dtor_seat.cpp hal/lk1_eh_vmax_seat.cpp hal/lk2_platform_dtor_seat.cpp hal/model_dtor_seat.cpp hal/lk4_eh_dtor_seat.cpp hal/lk4_solidheap_seat.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
+    ${SLICE_W8SHADOWS_SOURCES}
+    # hal/megachar_stub.cpp is NOT here any more (lane w8-shadows). Its
+    # `return 0` stand-in for Platform::UpdateKillByMegaChar is now compiled
+    # only into the three narrow gate-9 harnesses above, which cannot build the
+    # real closure. In this target the ROM's C name is the face at the bottom
+    # of hal/wf_enemy_bridges.cpp and the body is the matched TU that has been
+    # sitting in slice_gate16.txt line 178 all along, dropped by /OPT:REF for
+    # want of a reference edge. Removing the stub from here is what makes the
+    # matched body reachable; leaving it would be a duplicate definition.
+    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE_PTR_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
@@ -3257,6 +3372,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W7C_SOURCES}
+    hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -3354,7 +3470,16 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/meshcolliderbase_vtable.cpp hal/meshcollider_dtor_seat.cpp hal/lk1_eh_vmax_seat.cpp hal/lk2_platform_dtor_seat.cpp hal/model_dtor_seat.cpp hal/lk4_eh_dtor_seat.cpp hal/lk4_solidheap_seat.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
-    hal/cxxname_bridge.cpp hal/megachar_stub.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
+    ${SLICE_W8SHADOWS_SOURCES}
+    # hal/megachar_stub.cpp is NOT here any more (lane w8-shadows). Its
+    # `return 0` stand-in for Platform::UpdateKillByMegaChar is now compiled
+    # only into the three narrow gate-9 harnesses above, which cannot build the
+    # real closure. In this target the ROM's C name is the face at the bottom
+    # of hal/wf_enemy_bridges.cpp and the body is the matched TU that has been
+    # sitting in slice_gate16.txt line 178 all along, dropped by /OPT:REF for
+    # want of a reference edge. Removing the stub from here is what makes the
+    # matched body reachable; leaving it would be a duplicate definition.
+    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE_PTR_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
@@ -3368,6 +3493,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W7C_SOURCES}
+    hal/actor_classes_ov022.cpp ${SLICE_W8PACKS_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
