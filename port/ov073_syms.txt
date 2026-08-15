@@ -1,0 +1,168 @@
+# run linkw wave 12 (lane w12): ov073, WARIO'S KEY ARENA CAST, per symbol.
+#
+# ov073 is an OBJECT overlay -- level 49 (ex_wario, "Wario's key arena") loads
+# it alongside ov064/ov089/ov098/ov102, and hal/level_boot.cpp's own row for 49
+# carries the note "[unmounted ov073]". This is that mount, and it is a FIRST
+# mount: nothing of ov073 is in walk_window.map on the base tip (one
+# data_ov073 spelling, from another overlay's alias, and no code at all).
+#
+# base 0x0211f000; .text ..0x02122874, .init ..0x02122f34, .ctor ..0x02122f3c,
+# .data 0x02122f40..0x02123280, .bss ..0x021234e0 (compressed:true and
+# signed:true, so EVERY raw byte quoted below was read out of
+# extracted/overlays/overlay_0073.bin -- the ndspy unpack -- and never
+# extracted/dsd/arm9_overlays/ov073.bin, which is the COMPRESSED image and
+# whose halfwords are noise).
+#
+# ==== THE CAST MAP, both attribution routes, raw image =====================
+# arm9 ACTOR_SPAWN_TABLE 0x02090864 + id*4 -> SpawnInfo; the record's word[0]
+# is a Spawn INSIDE ov073's span; the record's +4 halfword reads the id back.
+# Both routes agree on all four rows, which matters here because ov073's window
+# is shared (its base 0x0211f000 sits inside a dozen other overlays' spans):
+#
+#   id   site        SpawnInfo   word[0]     name                  +4   +6
+#   170  0x02090b0c  0x02123168  0x02122844  CccArena_Spawn        170  12
+#   171  0x02090b10  0x02123184  0x02122814  CccBigIce_Spawn       171  13
+#   172  0x02090b14  0x021231a0  0x021227e4  CccSmallIce_Spawn     172  14
+#   218  0x02090b98  0x0212306c  0x02121ec8  ChiefChilly_Spawn     218  20
+#
+# ONE TABLE FOR THREE IDS. All three Ccc Spawns are the same 0x30-byte body
+# (`ActorBase::operator new(828)`, `Platform::C2`, `p[0] = _ZTV8CccArena`) and
+# all three store the SAME table, 0x021231e8 -- read from each Spawn's own
+# vtable-store reloc (0x02122870, 0x02122840, 0x02122810). It is one C++ class
+# registered under three ids, and CccArena::InitResources switches on the
+# actor id it reads back out of the object (+0xc): 0xaa/0xab/0xac pick row
+# 0/1/2 of the three-column file table at 0x021231bc. So the seventeen level-49
+# instances (170 x1, 171 x8, 172 x8) cost ONE fill and three registry rows.
+#
+# IDENTITY comes from the RTTI typeinfo at vtable[-1], never from the dsd
+# label: 0x021231e4 -> 0x0212314c -> "13daObjEwbIce_c" (ewb = the ice block),
+# 0x0212308c -> 0x0212304c -> "16daKing_Donketu_c" (Chief Chilly). Both agree
+# with the Spawn names, so there is no ov045/ov060-style label shift here.
+#
+# ==== THE TWO WIDTHS, AND WHY THEY ARE NOT BOTH THE RELOC RUN ==============
+#
+# _ZTV8CccArena  0x021231e8, THIRTY-TWO slots, ends 0x02123268.
+#   reloc run       32
+#   next dsd symbol 0x02123254 -- INTERIOR (that is slot 27; dsd split the
+#                   table, the data_ov045_02112d48 shape), so the next KEPT
+#                   bound is the .data end at 0x02123280, which is 38 slots.
+#   The run wins: 0x02123268..0x02123280 is 0x18 bytes of ROM ZEROS, .data
+#   align-32 padding (the FallBlockBfs/BowserShockwaves shape), and slot 31 is
+#   a real load reloc onto func_ov073_021223f4, a body inside CccArena's OWN
+#   code block. data_ov073_02123254 is EXCLUDED with the table.
+#
+# _ZTV11ChiefChilly  0x02123090, THIRTY-ONE slots, ends 0x0212310c.
+#   reloc run       32 -- and it OVERRUNS by exactly one word.
+#   next dsd symbol 0x0212310c -> 31.
+#   THE NEXT-SYMBOL LANDING WINS, and three independent reads say so:
+#     (1) 0x0212310c is the first of EIGHT consecutive 8-byte {code, 0} pairs
+#         (0x0212310c/14/1c/24/2c/34/3c/44), every one a dsd symbol of its own
+#         and every second word a ROM zero -- a pointer-to-member state table,
+#         not vtable slots;
+#     (2) __sinit_ov073_02122d48 COPIES those eight records, 0x0212310c
+#         included, into the four bss state tables CccArena dispatches
+#         (0x021234a0/b0/c0/d0) -- so 0x0212310c is CccArena's, not
+#         ChiefChilly's;
+#     (3) the word at 0x0212310c is func_ov073_02122200, which sits inside
+#         CccArena's code block (0x02121f90..0x021227e4), not inside
+#         ChiefChilly's (0x0211f000..0x02121ec8). A class's own slot 31 does
+#         not live in another class's block.
+#   Thirty-one is also the shape every Enemy-derived table in the port has
+#   (ov060's Bowser/BowserTail/BowserFire/SpikeBomb are all 31): slot 30 is
+#   Actor::OnAimedAtWithEggReturnVec and the table ends there.
+#   This is the ov052-id-174 failure class -- a reloc run reading past a
+#   table's end into the data that follows it -- caught before the mount, not
+#   after. An oversized host array here would have swallowed the first record
+#   of CccArena's own state table.
+#
+# ==== TWO SYMBOLS LEFT OUT, PLUS ONE INTERIOR SPLIT ========================
+# Both vtables are HOST ARRAYS hal/actor_classes_ov073.cpp fills -- the
+# ov015/ov016/ov045/ov060 rule: a mounted vtable hands a factory DS code
+# addresses. Their spans, and every dsd symbol inside each:
+#   0x02123090..0x0212310c  id 218 ChiefChilly, 31 slots   _ZTV11ChiefChilly
+#   0x021231e8..0x02123268  ids 170/171/172 CccArena, 32   _ZTV8CccArena
+#                           + data_ov073_02123254 (interior, slot 27)
+# dsd's ".p__sinit_*" .ctor entries are left out as well (not C identifiers),
+# and so are both .init bodies: __sinit_ov073_02122874 and
+# __sinit_ov073_02122d48 are FUNCTIONS, they are matched src, and they are in
+# port/slice_w12.txt as code. Neither is a shared-window name, so unlike
+# ov045's 0x02112280 both LINK and both run from the registry fill.
+#
+# ==== NO SIZE OVERRIDE IS NEEDED, AND ONE SPLIT IS LOAD-BEARING ============
+# The last symbol of .bss, data_ov073_021234d0, has no next symbol; ovdata
+# clamps it to the SECTION end (0x021234e0), which gives it the 0x10 it needs
+# for its two 8-byte state records. Nothing else in this list is short of its
+# ROM span except by a split that --pack repairs:
+#   data_ov073_02123340 has a 12-byte next-symbol delta because dsd named
+#   0x0212334c inside it, and __sinit_ov073_02122874 writes SIXTEEN bytes
+#   through it (.x then .y, 8 each). Both symbols are in this list and --pack
+#   keeps their ROM spacing, so the write lands exactly where the ROM's does
+#   and port_ov073_pack_check asserts the adjacency at run time. That is why
+#   0x0212334c must not be dropped from this list, and why the fix is NOT a
+#   size override (an override to 0x10 would overlap 0x0212334c and ovdata
+#   refuses that layout outright).
+# The three-column file table CccArena::InitResources indexes lives at
+# 0x021231bc..0x021231e0 as three dsd symbols (4 + 4 + 0x24 bytes); the code
+# reads `data_ov073_021231bc + i*0xc` for i in 0..2, i.e. across all three, and
+# --pack is what makes that walk legal on the host.
+
+# ---- .data 0x02122f40..0x02123280 -----------------------------------------
+# 0x02122f40..0x02123040: ChiefChilly's THIRTY-TWO {handler, 0} state records,
+# which __sinit_ov073_02122874 pairs into the sixteen bss tables at
+# 0x02123320..0x02123420. Every one of the 32 adj words is a ROM zero.
+data_ov073_02122f40 data_ov073_02122f48 data_ov073_02122f50
+data_ov073_02122f58 data_ov073_02122f60 data_ov073_02122f68
+data_ov073_02122f70 data_ov073_02122f78 data_ov073_02122f80
+data_ov073_02122f88 data_ov073_02122f90 data_ov073_02122f98
+data_ov073_02122fa0 data_ov073_02122fa8 data_ov073_02122fb0
+data_ov073_02122fb8 data_ov073_02122fc0 data_ov073_02122fc8
+data_ov073_02122fd0 data_ov073_02122fd8 data_ov073_02122fe0
+data_ov073_02122fe8 data_ov073_02122ff0 data_ov073_02122ff8
+data_ov073_02123000 data_ov073_02123008 data_ov073_02123010
+data_ov073_02123018 data_ov073_02123020 data_ov073_02123028
+data_ov073_02123030 data_ov073_02123038
+# 0x02123040 is the Vector3 ChiefChilly::Behavior hands
+# MovingCylinderClsnWithPos::SetPosRelativeToActor; 0x0212304c/0x02123058 are
+# his typeinfo and its name string.
+data_ov073_02123040 data_ov073_0212304c data_ov073_02123058
+ChiefChilly_SpawnInfo
+# 0x0212310c..0x0212314c: CccArena's EIGHT state records (see the width block
+# above -- the first of them is what ChiefChilly's reloc run overran into);
+# then CccArena's typeinfo and its name string.
+data_ov073_0212310c data_ov073_02123114 data_ov073_0212311c
+data_ov073_02123124 data_ov073_0212312c data_ov073_02123134
+data_ov073_0212313c data_ov073_02123144 data_ov073_0212314c
+data_ov073_02123158
+CccArena_SpawnInfo CccBigIce_SpawnInfo CccSmallIce_SpawnInfo
+# the three-column {model SFP, clsn SFP, CLPS block} file table, one row per
+# Ccc id. The CLPS pointers (0x0211153c/0x0211155c/0x0211159c) land in the
+# LEVEL overlay ov057, which level 49 whole-mounts, so ovdata's --cross pass
+# is what rebases them.
+data_ov073_021231bc data_ov073_021231c0 data_ov073_021231c4
+
+# ---- .bss 0x02123280..0x021234e0 ------------------------------------------
+# ChiefChilly's eight SharedFilePtrs (0x02123280..0x021232b8, files
+# 0x354..0x35b) and their eight destructor-chain nodes (0x021232c0..0x02123314),
+# then his sixteen two-record state tables (0x02123320..0x02123420) -- the
+# pointers ChiefChilly::Behavior compares its current state against by name.
+data_ov073_02123280 data_ov073_02123288 data_ov073_02123290
+data_ov073_02123298 data_ov073_021232a0 data_ov073_021232a8
+data_ov073_021232b0 data_ov073_021232b8 data_ov073_021232c0
+data_ov073_021232cc data_ov073_021232d8 data_ov073_021232e4
+data_ov073_021232f0 data_ov073_021232fc data_ov073_02123308
+data_ov073_02123314 data_ov073_02123320 data_ov073_02123330
+data_ov073_02123340 data_ov073_0212334c data_ov073_02123350
+data_ov073_02123360 data_ov073_02123370 data_ov073_02123380
+data_ov073_02123390 data_ov073_021233a0 data_ov073_021233b0
+data_ov073_021233c0 data_ov073_021233d0 data_ov073_021233e0
+data_ov073_021233f0 data_ov073_02123400 data_ov073_02123410
+# 0x02123420/0x02123424 are the two per-id instance counters
+# CccArena::InitResources post-increments for ids 172 and 171; then CccArena's
+# six SharedFilePtrs (files 0x5e7..0x5ec), their six chain nodes, and the four
+# two-record state tables __sinit_ov073_02122d48 fills.
+data_ov073_02123420 data_ov073_02123424 data_ov073_02123428
+data_ov073_02123430 data_ov073_02123438 data_ov073_02123440
+data_ov073_02123448 data_ov073_02123450 data_ov073_02123458
+data_ov073_02123464 data_ov073_02123470 data_ov073_0212347c
+data_ov073_02123488 data_ov073_02123494 data_ov073_021234a0
+data_ov073_021234b0 data_ov073_021234c0 data_ov073_021234d0

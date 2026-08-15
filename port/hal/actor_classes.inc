@@ -1134,6 +1134,42 @@ extern unsigned char SilverStar_SpawnInfo[];         /* ov002 0x0210aa5c, +4 = 1
 void *SilverStar_Spawn(void);                        /* ov002 0x020ebed4, 92 B */
 extern unsigned char SilverStarBlockTag_SpawnInfo[]; /* ov002 0x02108bd8, +4 = 324 */
 void *SilverStarBlockTag_Spawn(void);                /* ov002 0x020b45e0, 48 B */
+/* ---- run linkw wave 12 (lane w12): ov073, the whole cast of level 49 ----
+   170/171/172 are ONE C++ class under three ids -- the three Spawns are the
+   same 0x30-byte body and all three store the same table, 0x021231e8, so 171
+   and 172 take the `0` fill column and row 170 carries the one fill (the
+   RED_FLAME / BIG_MR_I idiom). CHIEF_CHILLY's factory is a host one: his
+   matched Spawn is an ARM r0 ride-through onto Enemy::C2. Derivations in
+   port/ov073_syms.txt and hal/actor_classes_ov073.cpp. */
+extern unsigned char CccArena_SpawnInfo[];           /* ov073 0x02123168, +4 = 170 */
+void *CccArena_Spawn(void);                          /* ov073 0x02122844, 48 B */
+extern unsigned char CccBigIce_SpawnInfo[];          /* ov073 0x02123184, +4 = 171 */
+void *CccBigIce_Spawn(void);                         /* ov073 0x02122814, 48 B */
+extern unsigned char CccSmallIce_SpawnInfo[];        /* ov073 0x021231a0, +4 = 172 */
+void *CccSmallIce_Spawn(void);                       /* ov073 0x021227e4, 48 B */
+void hal_fill_ccc_arena_vtable(void);
+extern unsigned char ChiefChilly_SpawnInfo[];        /* ov073 0x0212306c, +4 = 218 */
+void *port_factory_chief_chilly(void);               /* ov073 0x02121ec8, 200 B */
+void hal_fill_chief_chilly_vtable(void);
+/* ---- run linkw wave 12 (lane w12): ov052's two platform classes, level 44 ----
+   Both Spawns name their receiver and store a real table name, so both
+   register directly. Derivations in port/ov052_syms.txt and
+   hal/actor_classes_ov052.cpp; id 174's dsd block is unnamed, so its record
+   and factory carry address names. */
+extern unsigned char data_ov052_021124fc[];          /* ov052 0x021124fc, +4 = 174 */
+void *func_ov052_02111410(void);                     /* ov052 0x02111410, 48 B */
+void hal_fill_bobbing_log_emm_vtable(void);
+extern unsigned char SquarePathLift_SpawnInfo[];     /* ov052 0x021125cc, +4 = 175 */
+void *SquarePathLift_Spawn(void);                    /* ov052 0x02111830, 56 B */
+void hal_fill_square_path_lift_vtable(void);
+/* ---- run linkw wave 12 (lane w12): CLAM (315), ov064 ----
+   Nine instances, five on level 8 and four on level 18. Its Spawn names its
+   receiver and stores _ZTV4Clam by a real name, so it registers directly.
+   TREASURE_CHEST (13), the sibling this wave's ranking put beside it, is
+   BLOCKED on an unmatched state body -- see hal/actor_classes_ov064_w12.cpp. */
+extern unsigned char Clam_SpawnInfo[];               /* ov064 0x0211c5a4, +4 = 315 */
+void *Clam_Spawn(void);                              /* ov064 0x0211ad70, 64 B */
+void hal_fill_clam_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1744,4 +1780,18 @@ void *SilverStarBlockTag_Spawn(void);                /* ov002 0x020b45e0, 48 B *
     {179, "SILVER_STAR", SilverStar_SpawnInfo, SilverStar_Spawn, \
      hal_fill_power_star_vtable}, \
     {324, "SILVER_STAR_BLOCK_TAG", SilverStarBlockTag_SpawnInfo, \
-     SilverStarBlockTag_Spawn, hal_fill_mega_mushroom_block_tag_vtable},
+     SilverStarBlockTag_Spawn, hal_fill_mega_mushroom_block_tag_vtable}, \
+    /* ---- run linkw wave 12 (lane w12): ov073, level 49's whole cast ---- */ \
+    {170, "CCC_ARENA", CccArena_SpawnInfo, CccArena_Spawn, \
+     hal_fill_ccc_arena_vtable}, \
+    {171, "CCC_BIG_ICE", CccBigIce_SpawnInfo, CccBigIce_Spawn, 0}, \
+    {172, "CCC_SMALL_ICE", CccSmallIce_SpawnInfo, CccSmallIce_Spawn, 0}, \
+    {218, "CHIEF_CHILLY", ChiefChilly_SpawnInfo, port_factory_chief_chilly, \
+     hal_fill_chief_chilly_vtable}, \
+    /* ---- run linkw wave 12 (lane w12): ov052, level 44's platform pair ---- */ \
+    {174, "BOBBING_LOG_EMM", data_ov052_021124fc, func_ov052_02111410, \
+     hal_fill_bobbing_log_emm_vtable}, \
+    {175, "SQUARE_PATH_LIFT", SquarePathLift_SpawnInfo, SquarePathLift_Spawn, \
+     hal_fill_square_path_lift_vtable}, \
+    /* ---- run linkw wave 12 (lane w12): CLAM (315), ov064 ---- */ \
+    {315, "CLAM", Clam_SpawnInfo, Clam_Spawn, hal_fill_clam_vtable},

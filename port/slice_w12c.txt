@@ -1,0 +1,55 @@
+# Run linkw wave 12, lane w12: CLAM (315), ov064.
+#
+# Nine instances -- five on level 8 (Jolly Roger Bay) and four on level 18 -- on
+# a table nothing in the port had filled. ov064 is mounted already, whole and
+# per symbol, so this lane is nine symbols appended to port/ov064_syms.txt, this
+# slice, one host vtable and one registry row.
+#
+#   id   class   x           table                            width
+#   315  CLAM    L8 x5       0x0211c5c8 _ZTV4Clam                31
+#                L18 x4                 == _ZTV12daObjShell_c
+#
+# Both attribution routes, the RTTI identity and the width derivation (with its
+# cross-check against the 34-reads-as-31 neighbour) are in port/ov064_syms.txt
+# and hal/actor_classes_ov064_w12.cpp.
+#
+# ---- HOW THIS LIST WAS DERIVED ---------------------------------------------
+#
+# Reloc closure from every ov064 slot of Clam's table plus Clam_Spawn: EIGHT
+# functions, and every target the closure leaves ov064 for was already in
+# walk_window.map on the base tip. __sinit_ov064_0211b698 is the ninth line --
+# it builds Clam's three SharedFilePtrs (files 1164/1165/1166) and their three
+# chain nodes, its own closure is five already-linked arm9 calls and six ov064
+# bss cells, and nothing else in the port called it.
+#
+# ---- TWO TUs HELD OUT ------------------------------------------------------
+#
+# src/_ZN4Clam6RenderEv.cpp   the MODELANIM SLOT-5 COLLISION. It dispatches
+#   through a local six-virtual shadow (ROM numbering, slot 5 = Render) while
+#   the host _ZTV9ModelAnim is MSVC-numbered (slot 5 = Virtual18, two arguments
+#   against one). Host copy in port/unmatched/Ov064_Clam.cpp, the
+#   Butterfly/Fish/Whomp/BabyPenguin treatment. Clam owns a ModelAnim at +0xd4,
+#   not a plain Model, so the dual-filled _ZTV5Model escape does not apply.
+#
+# src/_ZN4ClamD1Ev.cpp        a REAL MSVC DESTRUCTOR over structs declared
+#   inside its own .cpp, so it emits ??1Clam@@UAE@XZ and never the C name
+#   _ZN4ClamD1Ev -- there is no face to write. Slot 16 is a host chain
+#   transcribed from 0x0211a930 and cross-checked against its D0 sibling, which
+#   IS a C name in matched src and spells the identical chain plus the
+#   Memory::Deallocate.
+#
+# ---- WHAT THIS LANE DID NOT TAKE -------------------------------------------
+#
+# TREASURE_CHEST (id 13, eight instances, same overlay, ranked beside Clam) is
+# BLOCKED, measured: its Behavior dispatches a six-record pointer-to-member
+# state table at 0x0211c98c, and one of the six -- func_ov064_0211a4c4, state
+# 0's tick, 540 bytes at 0x0211a4c4 -- has NO matched TU in src/ and no host
+# copy in the port. State 0 is where its InitResources leaves the chest, so
+# that body runs on the first frame one exists.
+src/Clam_Spawn.c
+src/_ZN4Clam13InitResourcesEv.cpp
+src/_ZN4Clam16CleanupResourcesEv.c
+src/_ZN4Clam8BehaviorEv.c
+src/_ZN4ClamD0Ev.c
+src/func_ov064_0211a9b4.c
+src/__sinit_ov064_0211b698.c

@@ -109,9 +109,26 @@ int _ZTV10Scuttlebug[31];
 /* dsd mislabeled the anim SharedFilePtr in func_ov071_0211fbf4: the src spells
    data_ov073_02122f88 but the load site's reloc (0x0211fc5c) targets 0x02122f88
    module:overlay(71) -- ov071's own anim pointer, mounted in ov071_syms.txt.
-   Alias the misspelling by address; the config rename goes upstream as its own
-   by-address PR. */
-#pragma comment(linker, "/alternatename:_data_ov073_02122f88=_data_ov071_02122f88")
+   The config rename goes upstream as its own by-address PR.
+
+   THE ALIAS THAT USED TO SIT HERE IS GONE (run linkw wave 12, lane w12). It
+   was
+       /alternatename:_data_ov073_02122f88=_data_ov071_02122f88
+   and it DIED the moment ov073 was mounted: 0x02122f88 is a real ov073 address
+   too -- ChiefChilly's tenth {handler, adj} state record -- so port/ov073_syms.
+   txt defines the LHS and a defined LHS defeats /alternatename silently. That
+   is the wave-5 R1/R2 arrival shape and tools/alternatename_guard.py caught it
+   at the first link. The routing moved to the R1/R2 remedy, a per-source
+   rename on the one TU that needs it, in port/CMakeLists.txt:
+
+       set_source_files_properties(src/func_ov071_0211fbf4.c PROPERTIES
+           COMPILE_DEFINITIONS "data_ov073_02122f88=data_ov071_02122f88")
+
+   Scuttlebug's behaviour is unchanged: that TU still reads
+   data_ov071_02122f88, by name now instead of through the alias. Leaving the
+   pragma in place would have been the silent failure -- the reference would
+   have bound to ChiefChilly's state record and handed Animation::LoadFile a
+   code address. */
 /* __sinit_ov071_02122a64 names a second view of data_ov071_02122ecc with a
    dsd _d suffix (a struct overlay on the same address); one storage, two
    spellings. */
