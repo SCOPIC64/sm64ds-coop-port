@@ -1,0 +1,457 @@
+THE SCENE BOOT SPINE: how the port enters a mode of the game that is not a
+level, what it costs, and where the star select stops. Run link60, lane S1.
+
+Baseline this was measured against: 4bba244fd, walk_window 4871/11243 linked
+(43.3%), battery ALL GREEN, gate skips []. No exe hash is quoted on purpose --
+the link embeds build-location state, so a sha256 from one worktree is not
+something another worktree reproduces. The attestation is the gate manifest's
+git_sha plus git_dirty.
+
+
+1. WHAT WAS TRUE BEFORE THIS LANE
+---------------------------------
+
+The port had entered exactly one mode of the game. walk_window mounts ov002,
+constructs a Stage, runs a level's entrance record and spawns a Player. Every
+other mode of SM64DS lives in one of the other three occupants of the shared
+overlay slot at DS 0x020ad660 -- ov003 (the three menu scenes), ov004 (the
+minigame framework) and ov007 (the title and file select) -- and none of them
+had ever come up. port/ov004_ov007_2d_map.txt section 8 says so and names the
+cheapest proof that one can: "ov003 (star select, 36 TUs, 0 linked) is the same
+shape as ov007 but twenty times smaller, reached by actor ids 2, 4 and 8, and
+ov003 is ALREADY MOUNTED for the debug level select's row list. If someone
+wants the cheapest proof that a non-ov002 scene can be brought up in the port,
+ov003 is it, not ov007."
+
+This is that.
+
+
+2. THE CHAIN, AND WHAT THE PORT CONTRIBUTES TO IT
+-------------------------------------------------
+
+A scene is an ACTOR. There is no separate scene machinery: the title screen,
+the star select, the game-over screen, every minigame and the level itself are
+all actors spawned through one spine, and what makes one a "scene" is that its
+class derives from Scene and that its actor id is one the arm9 loads an overlay
+for. So hosting a scene is the ORDINARY REGISTRY SHAPE the port already uses
+for a hundred actor classes.
+
+    Scene::SetSceneToSpawn(4, 0)          0x0202e36c  matched
+      data_02092664 = 4, data_0209f5b8 = 0
+    Scene::SpawnIfNecessary()             0x0202e26c  matched
+      -> func_02013edc(4, 0, 1)           0x02013edc  matched, a veneer
+      -> func_02042fe4(4, 0, 1)           0x02042fe4  matched
+      -> func_02043098(4, 0, 0, 1)        0x02043098  matched, the spine
+           data_020a4b50 = 4
+           func_02043060(4)               the pre-spawn hook
+           func_02043180(4, 0, 0, 1)      the spawn context
+           (*data_020a4bb8[4])()          StarSelect_Spawn, ov003 0x020b04f0
+           func_020433b8(obj)             thread it onto the init list
+
+Every step is a matched arm9 TU. THE PORT ADDS NOTHING TO THE CHAIN:
+port_scene_boot (hal/scene_boot.cpp) calls the first two functions and prints.
+It does not spawn anything itself, does not write data_02092664 by hand and
+does not call any ov003 function directly.
+
+What the port supplies is what it supplies for every other class:
+
+  - the ROM's own SpawnInfo record, mounted (port/ov003_syms.txt), with ONLY
+    its +0 factory word repointed at the host compilation of the same factory.
+    The arm9 ACTOR_SPAWN_TABLE at 0x02090864 really does relocate slot 4 to
+    0x020b16b4, and that record's +4 halfword reads back 4, which is the
+    registry's own cross-check and is asserted at seat time.
+  - the class vtable as a host array, filled with the ROM's own eighteen slot
+    contents, read out of extracted/overlays/overlay_0003.bin.
+
+THE OVERLAY LOAD IS NOT SKIPPED, IT DOES NOT EXIST ON THE HOST. On the DS the
+spine's pre-spawn hook is func_0201a694, which calls GetSceneOverlayID(id) and
+then func_0201a754/func_0201a798 -- the unload-before-load discipline. The
+port's occupant of that hook slot is port_prespawn_hook (the registry gate),
+which returns the same 2/3 the ROM's hook returns. That is not a stand-in for
+the overlay load: the port has no overlay loader because every overlay it hosts
+is a static host array mounted at build time, and ov003 is mounted the way
+ov009 or ov016 is.
+
+
+3. THE VTABLE, EVERY SLOT
+-------------------------
+
+data_ov003_020b1704, eighteen words, read at (addr - 0x020ad660) out of
+extracted/overlays/overlay_0003.bin -- whose length 0x4240 equals the OVT's
+ram_size for ov003, so the read is exact; the dsd export is a different file
+and is not the RAM image. Cross-checked against ov003's relocs.
+
+     0  InitResources           func_ov003_020af8a0   ov003  (NONMATCHING)
+     1  BeforeInitResources     Scene::               0x0202e638
+     2  AfterInitResources      Scene::               0x0202e62c   VENEER
+     3  CleanupResources        func_ov003_020af86c   ov003
+     4  BeforeCleanupResources  Scene::               0x0202e5f0
+     5  AfterCleanupResources   Scene::               0x0202e5d0
+     6  Behavior                func_ov003_020af038   ov003  (NONMATCHING)
+     7  BeforeBehavior          Scene::               0x0202e3d4
+     8  AfterBehavior           Scene::               0x0202e3c8   VENEER
+     9  Render                  func_ov003_020ae6f4   ov003  (NONMATCHING)
+    10  BeforeRender            Scene::               0x0202e3a4
+    11  AfterRender             Scene::               0x0202e398   VENEER
+    12  OnPendingDestroy        func_ov003_020ae6f0   ov003
+    13  Virtual34               ActorBase::           0x0204357c
+    14  Virtual38               ActorBase::           0x0204349c
+    15  OnHeapCreated           ActorBase::           0x02043494
+    16  D2                      func_ov003_020addfc   ov003
+    17  D0                      func_ov003_020ade54   ov003
+
+THE THREE SLOTS MARKED VENEER ARE THE ONE REAL ABI PROBLEM IN THE FILL, and
+they are worth reading before anyone seats a second scene class. Each is a
+0xc-byte tail-call veneer in the ROM (`ldr ip, [pc]; bx ip; .word <target>`),
+so the arguments ride through in r0/r1 and the decomp writes all three as
+`void f(void)` calling `void g(void)` -- a faithful transcription of three
+instructions. Under MSVC's __cdecl a (void) caller pushes nothing and the
+(void) callee reads whatever was on the stack, so the scene object and the
+vfSuccess code both arrive as garbage, and AfterInitResources' garbage decides
+whether the actor is marked for destruction on its first frame. The fill
+dispatches STRAIGHT TO EACH VENEER'S TARGET with both arguments, which is what
+the three ROM instructions mean; hal/scene_actor_faces.cpp carries the four
+faces and the derivation, and the three src veneer TUs are deliberately not in
+the slice.
+
+
+4. THE RESULT, MEASURED
+-----------------------
+
+    walk_window.exe, SM64DS_SCENE=4 SM64DS_SCENE_FRAMES=300
+    SM64DS_FAULTS_FATAL=1 SM64DS_SCENE_SLOT9=0, exit 0:
+
+      [scene] 1 scene classes registered (ov003)
+      [scene] sublevel 6 -> course 0
+      [scene] 4 = SCENE_STAR_SELECT
+      [scene] spawned 307FFEC4, vptr 00B38A20
+      [scene] tree root 307FFED8, scene node 307FFED8 (the scene IS the root),
+              pending id 0x187, latch 1
+      [scene] ov003 slot hits: init 1, behavior 299, render 0, cleanup 0,
+              pending-destroy 0  [RENDER SLOT NO-OP'd: SM64DS_SCENE_SLOT9=0]
+      [scene] 300 frames of scene 4 (SCENE_STAR_SELECT), clean
+
+READ THE THIRD AND SIXTH LINES, NOT THE FIFTH. "spawned" only says an object
+exists, which would be true of an object nothing ever ticked. What says the
+chain is LIVE is (a) the tree root coming back as the scene's own SceneNode --
+func_0203b438's no-parent branch writes the first node it is handed into
+data_020a4b6c[0], and on a level run that slot holds the Stage, because on the
+DS the Stage IS scene 3 -- and (b) the slot-hit counters: the ROM's init
+Process entered dScStarSel_c::InitResources once and the ROM's behaviour
+Process entered dScStarSel_c::Behavior on 299 of the 300 frames.
+
+The pending id reading 0x187 and the latch reading 1 is Scene::SpawnIfNecessary
+having done its own bookkeeping, so a second call would decline: the scene
+spawns exactly once, the way the ROM arranges.
+
+
+5. WHERE IT STOPS: THE RENDER SLOT, AND IT IS NOT THE SCENE'S
+--------------------------------------------------------------
+
+With slot 9 on its real body the run NEVER FINISHES FRAME 0. Not a fault -- a
+hang, which leaves nothing behind, so it was caught with the harness's own
+watchdog (PORT_WATCHDOG=25, tests/fault_probe.h) and symbolized with
+port/tools/faultmap.py. The main thread, innermost first:
+
+    +0x0014b7ca  memcpy
+    +0x00146b36  ntr::io_read                        ntr_2x:io.cpp.obj
+    +0x000dc8ec  func_0205a358 +0x3c
+    +0x0001d2b5  func_01ffde98 +0x15                 model_host.cpp.obj
+    +0x000dd4aa  func_0204488c +0x24a
+    +0x000dcd7c  func_02044b30 +0x25c
+    +0x0003e8f1  ModelComponents::Render +0xd1
+    +0x0003e809  Model::Render(Vector3 const *) +0x39
+    +0x0001ea3b  mv_render +0x1db                    cxxname_bridge.cpp.obj
+
+func_0204488c is the ordinary part walk -- port/tools/hostgen.py's header names
+it as such ("the ordinary part walk, and the one place a model's scale is
+spent") -- and func_0205a358 under it is emitting through ntr::io_read, so the
+walk is reading a runaway command count out of a Model that LOADED but did not
+BUILD. dScStarSel_c::InitResources loads two of them,
+Model::LoadAndSetFile(this + 0x64, 0x8015, 1, -1) and (this + 0xB4, 0x8017, 1,
+-1), and the Render draws the first through the object's own slot-5 dispatch.
+
+THIS IS A MODEL-LOADER BLOCKER, NOT A SCENE ONE, and it has a precedent in this
+tree with the same shape: hal/level_boot.cpp's level-8 block records
+ROCK_PILLAR faulting in ModelComponents::Render the first on-screen frame it
+draws, with the same conclusion -- "its bmd loads but its Model at +0xd4
+reaches Model::Render with a bad/unbuilt ModelComponents. A model-BUILD issue
+for RockPillar's bmd, not a mount or seating one -- deferred to the
+model-loader lane." ROUTED THERE, not taken here.
+
+WHAT RULES OUT THE OTHER CANDIDATES, so the next lane does not re-derive them:
+
+  - It is not the slot-5 shadow-class collision (the Whomp / RotatingFirebar /
+    JRB family, port/unmatched/Jrb_Renders.cpp). The Render dispatches its
+    Model through a local six-virtual shadow whose slot 5 would land on the
+    wrong host method if _ZTV5Model were singly filled -- but it is DUAL-filled
+    (Render sits in both slot 4 and slot 5, hal/cxxname_bridge.cpp), and the
+    stack proves the dispatch arrived: mv_render is that thunk, and it called
+    the real Model::Render.
+  - It is not a missed OAM template rebase (the unbounded OamAttr walk
+    hal/oam_lists.cpp exists for). The generated mount patches every pointer
+    word in the tables this scene indexes -- checked in
+    build/port/host-src/ov001_syms.c, e.g. _ZN3OAM10LIFE_ICONSE's four words
+    and data_ov001_020abb18's seven -- and the boot's own guard prints
+    "[oam] sprite templates: 0 bad entries".
+  - It is not the sublevel. See section 6; that WAS a real bug and it is fixed.
+
+THE A/B THAT PINS IT is SM64DS_SCENE_SLOT9=0, which leaves the Render slot on a
+no-op and is counted separately so a run can never read the no-op as the real
+body having run. It is a diagnostic, not a fallback; port/tools/battery.py
+carries it as scene 4's SCENE_SKIPS entry with the self-retiring bare probe, so
+the moment the model-loader lane's fix lands the battery says the skip is
+removable.
+
+
+6. A BUG THIS LANE FOUND AND FIXED: THE SCENE HAS AN INPUT
+-----------------------------------------------------------
+
+dScStarSel_c is a scene ABOUT a course. Every branch in its InitResources, its
+Behavior and its Render is gated on SublevelToLevel(data_02092110) -- the arm9
+SUBLEVEL_LEVEL_TABLE (0x02075298) lookup that turns the current sublevel into a
+course number -- and the ROM never reaches the scene without one: you pick a
+course, the game latches the sublevel, and the star select comes up for it. So
+the sublevel is an INPUT the way SM64DS_LEVEL is an input to a level boot.
+
+A run that does not supply one is not neutral, it is INVALID, and the shape of
+the failure is worth recording because it is a general trap. data_02092110
+starts at 0 and SUBLEVEL_LEVEL_TABLE[0] is 0xff, which through its own
+declaration (include/decl_common.h: `extern signed char SUBLEVEL_LEVEL_TABLE[]`)
+is -1, the "not a level" sentinel. InitResources' star block is guarded by an
+UNSIGNED compare, `(u32)level <= 0xE`, which 0xff fails -- so the star count at
++0x114 is never written. Render's loops are guarded by the SIGNED compare,
+`SublevelToLevel(...) <= 0xE`, which -1 PASSES -- so they walk that
+uninitialised count. One sentinel, two readings, and the scene reads its own
+uninitialised field.
+
+SM64DS_SCENE_SUBLEVEL=<n> supplies it, default 6 (SUBLEVEL_LEVEL_TABLE[6] = 0,
+Bob-omb Battlefield -- the smallest real answer: course 0 with a zeroed save
+gives a one-entry star grid). Fixing it did NOT fix the render hang, which is
+how section 5's blocker was isolated from this one.
+
+
+7. THE 2D QUESTION, MEASURED
+-----------------------------
+
+port/ov004_ov007_2d_map.txt section 7 lists six gaps in what port/ntr models of
+the DS 2D hardware and asks the next lane to measure which of them a real scene
+needs. dScStarSel_c is a 2D-heavy scene, so here is that measurement, in the
+same clusters. Read it as "what the star select POKES", from its own source and
+from the run, not as a survey of the hardware.
+
+  a. OBJ WINDOW (OAM mode 3, WIN0/WIN1/WINOUT). NOT NEEDED by this scene.
+     dScStarSel_c::InitResources writes DISPCNT (0x04000000) twice, clearing
+     0x00300010 and then setting bits 0x08000000 / 0x00001f00 through
+     data_0209d45c -- BG and OBJ enables only. It never touches 0x04000040..
+     0x0400004a, and none of its eleven OAM::Render / OAM::RenderSub calls
+     passes objMode 3. So the port's missing OBJ window does not block the star
+     select, and this cluster stays unmeasured for ov004/ov007.
+
+  b. SEMI-TRANSPARENT SPRITES AND COLOUR SPECIAL EFFECTS (BLDCNT/BLDALPHA).
+     NOT NEEDED. The scene's only fade is Scene::StartSceneFade(3, 0, 0) at the
+     end of its Behavior, which the port already drives through the brightness
+     registers (hal/fader_wipes.cpp, G2x::SetBlendBrightness). No BLDCNT write
+     anywhere in ov003.
+
+  c. AFFINE AND ROTATION/SCALING BACKGROUNDS. NOT NEEDED for the BGs. The
+     scene sets BG2 and BG3 through BG2CNT/BG3CNT (0x0400000c / 0x0400000e) to
+     0x1610 / 0x1700 with the low two bits forced to 1 and 2 -- text and
+     extended-text priorities, both of which ppu.cpp scans out. It DOES use
+     AFFINE SPRITES (OAM::Render's Matrix2x2 overload, and
+     Matrix4x3_ApplyInPlaceToRotationY / ApplyInPlaceToScale on the selected
+     star), and ppu.cpp already models the four OAM matrix halfwords.
+
+  d. THE 3D FONT. NOT REACHED. The scene calls LoadFont(0), not LoadFont3D, so
+     hal/sub_screen.cpp's documented 3D-font exception does not gate it.
+
+  e. TOP-SCREEN BG2 TEXT. PARTIALLY REACHED and NOT MEASURED. The scene loads
+     its own BG2 character/palette/screen data by file id (0x23F/0x240/0x241 on
+     the >= 0xF path, 0x24A..0x24C plus the four language variants otherwise)
+     straight into G2::GetBG2CharPtr() / GetBG2ScrPtr() with DecompressLZ16,
+     which is a different path from LoadControllerModeText's. Whether it
+     composites is unknown, because the frame never completes with the real
+     Render (section 5). Deferred with the render blocker.
+
+  f. TOUCH. NOT NEEDED for the boot. dScStarSel_c::Behavior reads
+     IsButtonInputValid and the pad words (data_020a0e58 / data_020a0e5a), not
+     the touch panel; the touch-driven half is dScTitle_c's and ov004's.
+
+  THE ONE GAP THIS SCENE ACTUALLY HITS is none of the six. It is the MODEL
+  DISPLAY-LIST WALK in section 5, which is 3D, not 2D. That is the finding: the
+  2d map's cluster list is accurate about the hardware and it is not what stops
+  the first non-level scene. The mode was the wall, and past the mode the wall
+  is the model loader.
+
+
+8. WHAT LINKS NOW
+-----------------
+
+    baseline 4bba244fd   4871 / 11243   43.3%
+    this lane            4914 / 11243   43.7%   +43
+
+  ov003   15 of 36 (was 0). The eighteen TUs in port/slice_scene1.txt minus
+          three: func_ov003_020adc74 and func_ov003_020adcbc are reached only
+          from func_ov003_020ad6ec, which is dScTitle_c's, so /OPT:REF drops
+          them and they will link when that class is seated. THE OTHER 21 ARE
+          dScTitle_c's AND dScGameOver_c's and are deliberately unlinked; see
+          section 9.
+  ov001   6 of 23. Ten more of its sprite-template symbols joined the mount
+          this lane, but a mounted DATA symbol is not a linked TU; the six are
+          unchanged and the mount growth does not move this number.
+  arm9    the rest of the +43: Scene::SpawnIfNecessary, func_02013edc,
+          func_02042fe4, the VRAM bank-map family (fourteen matched TUs under
+          Vram__Map that no port target had ever reached, because a level never
+          reassigns a bank), the five GX/GXS bank setters, the two
+          Message::*ForStarSelect entry points that exist for this scene and
+          nothing else, and the small save-data and BG helpers.
+
+  FOUR OF THE FIFTEEN ov003 TUs ARE NONMATCHING (020ae358, 020ae6f4 the Render,
+  020af038 the Behavior, 020af8a0 the InitResources). They carry the decomp's
+  own NONMATCHING header, they count as decompiled rather than matched, and
+  linkage.py counts them the way it counts any slice TU. A reader comparing
+  this delta against the CONVERTED tier should subtract those four.
+
+  /OPT:REF IS THE REFEREE AND NOTHING HERE IS A LINK ROOT. No /include:, and
+  the only aliases this lane adds are name-spelling faces onto symbols that
+  already exist (section 10). The ov003 bodies link because the ROM's own
+  ACTOR_SPAWN_TABLE record names the factory and the ROM's own vtable names the
+  seven methods -- the same edges every other actor class in the port links on.
+
+
+9. THE OTHER TWO ov003 SCENES, AND WHAT ACTUALLY BLOCKS THEM
+-------------------------------------------------------------
+
+dScTitle_c (id 2, the debug level select) and dScGameOver_c (id 8) are derived
+to exactly the same depth as the star select: SpawnInfo 0x020b1380 / 0x020b1750
+(each record's +4 halfword reads back its own id), factories
+func_ov003_020adc10 / func_ov003_020b1118, vtables data_ov003_020b1650 /
+data_ov003_020b179c with all eighteen slots read and recorded in
+port/ov003_syms.txt, and every body has a src TU. Neither is seated, and
+neither blocker is the mount or the chain:
+
+  1. ELEVEN of their fourteen slot bodies carry the marker "recovered from
+     vtable slot identity", so port/tools/inferred_stub_guard refuses them. The
+     remedy is the documented one: disassemble each out of
+     extracted/overlays/overlay_0003.bin, compare instruction for instruction
+     against src/, and record the ruling in
+     port/tools/inferred_stub_adjudicated.txt. This lane did that for the star
+     select's three (020ae6f0, 020af86c, 020ade54 -- all three REAL DECOMP,
+     evidence inline in that file). Eleven more is mechanical, not hard.
+       dScTitle_c:    020ada9c 020ada80 020ad814 020ad7a4 020ad7a0 020ad69c
+       dScGameOver_c: 020b0b3c 020b0b34 020b0814 020b0810 020b05bc
+
+  2. THREE of the dtor TUs spell their vptr writes as PER-TU PLACEHOLDERS
+     rather than symbols: src/func_ov003_020ad660.c writes _ZTV10dScTitle_c /
+     _ZTV8dScene_c / _ZTV7dBase_c, src/func_ov003_020b0580.c writes
+     _ZTV13dScGameOver_c and the same two, and src/func_ov003_020b05bc.c writes
+     VT0 / VT1 / VT2 and deallocates against G0. None of those six names exists
+     in any config. The ROM words at the three sites are 0x020b1650 /
+     0x02092680 / 0x0208e4b8 (and 0x020a0eac for G0), read out of the image --
+     the same values the star-select pair spells correctly. Seating them needs
+     the port's per-TU placeholder treatment, which is its own gate.
+
+Adding either class after that is a row in port_scene_classes and a block in
+the slice, and nothing else. The chain, the mount and the harness are shared.
+
+ov007 (the title and file select, 528 TUs) and ov004+ov006 (the minigames) are
+the same shape at twenty and sixty times the size, and their own map file
+(port/ov004_ov007_2d_map.txt sections 4 and 8) already costs them. What this
+lane changes about that estimate is step 4 of its ov007 list, "the boot path...
+Making it RUN needs a scene-switch entry point in the harness plus the gaps in
+section 7." The scene-switch entry point now exists and is generic: seat the
+record, fill the vtable, add the row. Steps 1 through 3 -- the actor-registry
+row, the whole-overlay data mount and the 123-symbol external closure -- are
+unchanged.
+
+
+10. THE SEAMS THIS LANE ADDED, ALL OF THEM
+-------------------------------------------
+
+Two host bodies, and no others:
+
+  LoadArchive              PORT_HOST_ABI, hal/scene_boot.cpp. The ROM walks
+                           data_0208ecf4, the 13-entry archive-mount table, and
+                           pulls a whole NARC into the game heap. The port
+                           resolves archive-interior file IDs (>= 0x8000)
+                           LAZILY instead -- hal/fs.cpp's port_fs_archive_fill
+                           over port_archive_map, the host-shaped copy
+                           romdata.py generates from that same ROM table -- so
+                           on the host an archive is never mounted and never
+                           not mounted. The mount call's only observable is its
+                           return value, "is archive N available", and the
+                           answer is yes. Linking the matched TU instead would
+                           need the ROM table hosted with its DS string
+                           pointers plus the four-TU card-loader chain under
+                           it, to produce a mount the fs seam then ignores.
+
+  Scene::AfterCleanup      A STORAGE-PLACEMENT host copy,
+  Resources                port/unmatched/Scene_AfterCleanupResources.cpp. Not
+                           an ABI workaround and not tagged as one. The matched
+                           TU DEFINES data_02092660 (a namespace-scope
+                           `unsigned char` inside extern "C", which in C++ is a
+                           definition), that byte is mutable DS state, and
+                           port/tools/dsstate_guard refuses a hosted DS global
+                           outside .dsstate because a save state would not
+                           capture it. The definition cannot be bracketed
+                           inside src/, so it moved to hal/scene_boot.cpp
+                           inside the bracket and the body is copied verbatim
+                           with the global declared extern.
+
+Twenty-three /alternatename faces, every one a NAME-SPELLING fix onto a symbol
+that already exists, none a stand-in for a body:
+
+  - nine C-named globals that src/func_ov003_020af038.cpp declares outside an
+    extern "C" block, so MSVC mangles the references;
+  - two functions two ov003 TUs reach through a locally-declared namespace
+    (G2::GetBG0ScrPtr, Sound::UnsetPlayerVoiceGroup) rather than the mangled C
+    name the matched TU defines;
+  - seven OAM sprite-template tables that src/func_ov003_020ae6f4.cpp declares
+    as `extern void *func_020abXXXX[]`. No func_020ab* symbol exists in any
+    config: the addresses are ov001 DATA and the "func_" prefix is a
+    decomp-side guess. Six MORE of the same spellings were already aliased in
+    hal/sub_actors.cpp's ov001 block, because the HUD's render TUs carry the
+    same defect; those six are not repeated.
+
+  WHY THOSE ADDRESSES ARE ov001'S AND NOT ov000'S, since dsd tags every
+  relocation into that window "overlays(0,1)": co-residency settles it. ov000
+  spans 0x020aa420..0x020bf4e0, which COVERS ov003's whole window
+  (0x020ad660..0x020b18a0), so ov000 and ov003 can never be loaded together.
+  ov001 spans 0x020aa420..0x020ad660, ending exactly at ov003's base. The
+  overlay a star-select render can reach is ov001.
+
+Three C-name forwarding definitions (the cxxname_bridge pattern) for
+GX::SetBankForTex, GX::SetBankForOBJ and G3X::SetFog, whose matched TUs define
+the function inside a C++ namespace while ov003 calls the C name. Their four
+siblings are .c TUs that already export the C name, which is why only three are
+there.
+
+Three arm9 .data words joined romdata.py (data_0208ee00 and the two 16-byte
+records data_0208eb8c / data_0208eb9c) and seven arm9 BSS words are hosted in
+hal/scene_boot.cpp, each SIZED BY ROM SPAN rather than by the width the one
+caller touches.
+
+
+11. WHAT IS NOT PROVEN
+-----------------------
+
+  - THE SCENE HAS NEVER RENDERED A FRAME. Everything in section 4 is the tick.
+    No BMP of this scene exists, nothing has been looked at, and no claim is
+    made about what it would look like. Section 7's 2D reading is from the
+    SOURCE and from register writes, not from pixels.
+  - The four NONMATCHING bodies are decompiled, not matched. Their control flow
+    is the decomp's reading of the ROM, and this lane did not re-verify it.
+  - dScStarSel_c::CleanupResources (slot 3) and OnPendingDestroy (slot 12) are
+    seated and adjudicated but NEVER ENTERED in any run here: the hit counters
+    read 0 for both. The scene is never torn down, because nothing in the
+    harness asks it to. A scene-to-scene handoff would be the first exercise of
+    those two slots and of the D2/D0 pair under them.
+  - The Behavior ran 299 times and its observable effects were not inspected.
+    It ends in Scene::StartSceneFade(3, 0, 0) on confirm -- the star select's
+    own handoff back into the level -- and no run pressed confirm.
+  - Registering the three scene records in EVERY walk_window boot (the
+    port_scene_registry_install call at the tail of port_stage_a2_seat) was
+    chosen so the ROM's own spawn-table edge is real for /OPT:REF on every
+    target. The claim that it cannot change a level is measured, not argued:
+    the whole 46-level battery is green with the row seated. But only one row
+    is seated today, so that measurement covers id 4 alone.
