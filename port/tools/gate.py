@@ -65,6 +65,19 @@ tree from anywhere else.
 The manifest lands at build/port/gate_manifest.json and the baseline at
 build/port/gate_baseline.json, both inside the gated tree, so they travel with
 the build they describe and cannot be confused for another lane's.
+
+THE EXE SHA256 CHANGES ON EVERY RUN, EVEN WITH IDENTICAL SOURCES, and that is
+the build's doing rather than a defect here. build-port.cmd re-runs cmake
+configure every time, configure regenerates host-src/port_gittip.c, and that
+one object forces walk_window.exe (and walk_window_hires.exe, smoke_persist)
+to relink. So two manifests taken minutes apart off an unchanged tree carry
+different exe hashes. The hash identifies WHICH binary a number came from; it
+is not a source-identity fingerprint, and comparing two of them proves nothing
+about whether the code changed. Compare git_sha and git_dirty for that.
+
+A useful consequence: because the link always re-runs, the mtime rule in step 4
+is always armed on this build script, and a walk_window.exe left behind by an
+earlier run cannot survive into a measurement.
 """
 
 import datetime
@@ -294,7 +307,12 @@ def main():
     for p in (exe, mapfile):
         if not os.path.isfile(p):
             return refuse("no %s after a successful build" % p)
-    relinked = "walk_window.exe" in out and "Linking" in out
+    # Must be ONE line naming both the action and the target. A loose
+    # `"Linking" in out and "walk_window.exe" in out` is satisfied by any
+    # unrelated link plus a guard line that happens to mention the exe, which
+    # would arm the mtime rule on a build that never relinked (or, worse,
+    # disarm it on one that did).
+    relinked = re.search(r"^.*Linking .*walk_window\.exe.*$", out, re.M) is not None
     exe_mtime = os.path.getmtime(exe)
     map_mtime = os.path.getmtime(mapfile)
     if relinked:
