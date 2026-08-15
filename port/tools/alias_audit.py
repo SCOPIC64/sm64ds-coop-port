@@ -47,7 +47,7 @@ reported UNRESOLVED with the reason and is never guessed at. A tool that
 invents addresses here is worse than no tool: this is the one check standing
 between a wrong binding and a silent wrong pointer at run time.
 
-FOUR THINGS THAT LOOK LIKE FINDINGS AND ARE NOT, each of which this got wrong
+FIVE THINGS THAT LOOK LIKE FINDINGS AND ARE NOT, each of which this got wrong
 once before it was right, and each of which costs the tool its credibility if
 it comes back:
 
@@ -65,8 +65,19 @@ it comes back:
       lands in the literal pool, so branches are decoded too. Skipping them
       turned about thirty ordinary callers of AngleDiff, Vec3_Add and friends
       into collisions.
+  a LOCAL TYPE OF THE SAME NAME. src/func_02021bec.c writes
+      `typedef struct { Method m[1]; } VT;` and uses that type to walk a
+      vtable. Its `VT` is its own; it has nothing to do with the shared
+      placeholder, and the object it compiles to has exactly one undefined
+      external, _func_02021a04. This reported it as the one LINKED MISMATCH in
+      the tree -- the loudest row the tool can print, on a file with nothing
+      wrong with it. A typedef name and an object name share C's ordinary
+      identifier namespace, so a TU that typedefs the placeholder name CANNOT
+      also be referencing the placeholder object: the shadow is total, and
+      those TUs are dropped from the name's user list with a count printed so
+      the drop is visible rather than silent.
 
-On the 4888-linked baseline what survives all four is G0, G1 and VT, which are
+On the 4888-linked baseline what survives all five is G0, G1 and VT, which are
 precisely the three shared-header placeholders cxx_aliases.cpp binds and warns
 about in its own comments.
 
@@ -428,6 +439,59 @@ def code_only(text):
     return _STRIP.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
 
 
+_TYPEDEF = re.compile(r"\btypedef\b")
+# The two declarator shapes a typedef name can end in: a plain identifier
+# (with optional array suffix), or a function/array-pointer's `(*name)`.
+_TD_PLAIN = re.compile(r"(\w+)\s*(?:\[[^\]]*\])*\s*$")
+_TD_PTR = re.compile(r"\(\s*\**\s*(\w+)\s*\)\s*(?:\([^)]*\)|\[[^\]]*\])\s*$")
+
+
+def typedef_names(code):
+    """Every identifier this TU introduces with a `typedef`.
+
+    Walks each `typedef` forward to the semicolon that ends it, tracking brace
+    and paren depth so the `;` inside `typedef struct { int a; } NAME;` does
+    not end the scan early -- a naive `[^;]*` stops at the struct's first
+    member and never sees the name at all, which is exactly the case this was
+    written for. The span is then split on top-level commas and each declarator
+    reduced to the identifier it names.
+
+    Approximate on purpose, in the safe direction: a declarator this cannot
+    reduce contributes nothing, so the worst case is the old behaviour.
+    """
+    out = set()
+    for m in _TYPEDEF.finditer(code):
+        i = m.end()
+        depth = 0
+        while i < len(code):
+            ch = code[i]
+            if ch in "{([":
+                depth += 1
+            elif ch in "})]":
+                depth -= 1
+            elif ch == ";" and depth <= 0:
+                break
+            i += 1
+        span = code[m.end():i]
+        # split on commas at depth 0: `typedef int A, B;`
+        parts, depth, start = [], 0, 0
+        for k, ch in enumerate(span):
+            if ch in "{([":
+                depth += 1
+            elif ch in "})]":
+                depth -= 1
+            elif ch == "," and depth == 0:
+                parts.append(span[start:k])
+                start = k + 1
+        parts.append(span[start:])
+        for p in parts:
+            p = p.strip()
+            hit = _TD_PTR.search(p) or _TD_PLAIN.search(p)
+            if hit:
+                out.add(hit.group(1))
+    return out
+
+
 def src_files(root):
     """[(stem, path)] for every TU under src/."""
     out = []
@@ -505,14 +569,24 @@ def main():
     for name in sorted(bindings):
         word = re.compile(r"\b%s\b" % re.escape(name))
         users = []
+        shadowed = []
         for stem, path in tus:
             try:
                 with open(path, errors="replace") as f:
                     body = f.read()
             except OSError:
                 continue
-            if word.search(code_only(body)):
-                users.append((stem, path, body))
+            code = code_only(body)
+            if not word.search(code):
+                continue
+            # A TU that typedefs this name means its own type by it. The
+            # placeholder is an object or a function, and a typedef name and an
+            # object name share C's ordinary identifier namespace, so the two
+            # cannot both be live in one TU. Recorded, not silently dropped.
+            if name in typedef_names(code):
+                shadowed.append(stem)
+                continue
+            users.append((stem, path, body))
         if not users:
             continue
         audited += 1
@@ -587,6 +661,11 @@ def main():
               "the target, %d already renamed per-source, %d unresolved"
               % (len(rows), len(mismatched), len(consistent), len(defining),
                  len(renamed_ok), len(unresolved)))
+        if shadowed:
+            print("    %d TU(s) typedef this name and mean their own type, so "
+                  "they are" % len(shadowed))
+            print("    not users of the placeholder: %s"
+                  % ", ".join(sorted(shadowed)))
 
         def show(rs, label):
             for stem, mod, addr, loads, _v, extra in rs:
