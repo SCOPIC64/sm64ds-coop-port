@@ -20,7 +20,7 @@
  * and func_02043288 is Process(self, 0x02099ea4, 0x02099eac, 0x02099eb4).
  * So this one is the per-frame behaviour tick; 0x0204335c is init (slots
  * 0/1/2), 0x020432e4 cleanup (3/4/5), 0x0204322c render (9/10/11). The same
- * three literals also confirm func_0204335c.cpp's reading of vt[0..2].
+ * three literals also confirm func_0204335c_hostcopy.cpp's reading of vt[0..2].
  *
  * The control flow is Process's, unchanged (src/_ZN9ActorBase7Process...):
  *

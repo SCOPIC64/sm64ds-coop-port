@@ -448,6 +448,11 @@ SeqEntry *Sound::InfoSequenceEntry::GetWithID(unsigned id)
    dealloc keeps the mangling the reference expects. */
 struct Heap { void _Deallocate(void *ptr); };
 extern "C" void _ZN4Heap10DeallocateEPv(void *self, void *ptr);
+/* PORT_HOST_ABI: ARM register ride-through. The matched
+   src/_ZN4Heap11_DeallocateEPv.cpp is a zero-argument veneer whose this and
+   ptr ride in on r0/r1; linked under this MSVC name it would deallocate a
+   garbage pointer from a garbage heap on the first free. This forwarding
+   definition IS the faithful stand-in. */
 void Heap::_Deallocate(void *ptr) { _ZN4Heap10DeallocateEPv(this, ptr); }
 
 /* RaycastGround::DetectClsn is defined against a local shadow in its own

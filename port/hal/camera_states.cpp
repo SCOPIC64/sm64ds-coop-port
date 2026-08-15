@@ -9,7 +9,7 @@
 // read out of the arm9 image once and baked in below.
 //
 // The addresses stay DS addresses on purpose. Nothing calls through them:
-// port/unmatched/func_0200cae4_hostcopy.cpp (onEnter) and func_0200ca50.cpp (main)
+// port/unmatched/func_0200cae4_hostcopy.cpp (onEnter) and func_0200ca50_hostcopy.cpp (main)
 // read the word and hand it to hal_call_camera_state_fn, which translates it
 // to a host call through the table in camera_states.inc. That is the same
 // shape the player state machine uses (hal_call_state_fn / player_states.inc)

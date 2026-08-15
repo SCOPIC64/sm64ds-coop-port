@@ -2,7 +2,7 @@
  * main dispatch (Camera::Behavior calls it), with the pointer-to-member call
  * replaced by hal_call_camera_state_fn.
  *
- * Same translation as func_0200cae4.cpp: the State object's SECOND pair
+ * Same translation as func_0200cae4_hostcopy.cpp: the State object's SECOND pair
  * (+0x8) is the main function, and the address baked there is DS code.
  * The fov approach and the two flag branches are the matched source.
  */

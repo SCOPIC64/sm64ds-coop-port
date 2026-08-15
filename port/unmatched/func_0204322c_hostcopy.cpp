@@ -2,7 +2,7 @@
  * src/func_020432e4.c (the CLEANUP Process), with the mwcc
  * pointer-to-member-functions resolved to the vtable slots they name --
  * exactly the treatment port/unmatched/func_0204335c_hostcopy.cpp and
- * func_02043288.cpp already carry for the init and behaviour wrappers.
+ * func_02043288_hostcopy.cpp already carry for the init and behaviour wrappers.
  *
  * The twelve PMFs at arm9 0x02099e74..0x02099ecc are STATIC data, each the
  * mwcc virtual form { vtable byte offset, 1 }:

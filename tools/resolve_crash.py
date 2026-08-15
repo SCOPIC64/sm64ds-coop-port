@@ -11,7 +11,7 @@ Feed it a dump file (crash.txt, exit.txt, or one of the rolling
 offset in place with the nearest preceding symbol from the linker /MAP file,
 e.g.
 
-    offset    +0x00024f10   ->   func_02043fdc +0x90   (func_02043fdc.cpp.obj)
+    offset    +0x00024f10   ->   func_02043fdc +0x90   (func_02043fdc_hostcopy.cpp.obj)
 
 The map is build/port/walk_window.map by default (the build writes it via /MAP).
 
