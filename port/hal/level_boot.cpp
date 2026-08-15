@@ -1420,7 +1420,19 @@ static void *port_mount_row_lvl50(void) { return port_level_mount_at(34); }
 /* run linkw wave 17 (lane w17): level 27, appended at the END of the table
    on purpose -- a new row inserted mid-table renumbers every thunk below it
    and nothing in the build would say so (the merge note above). */
-static void *port_mount_row_lvl27(void) { return port_level_mount_at(35); }
+/* run linkw wave 18 (lane w18): level 27 is the only level the ov065 Ttc
+   classes can run on, which is the disambiguation ovdata.py's cross pass is
+   missing -- it drops these targets because each lands inside EIGHTEEN
+   mounted overlay windows. Seating from here closes ov065's eight
+   level-window reads onto ov035's own copy and verifies the storage each
+   one now names. See hal/ttc_level_data_seat.cpp and port/ov035_syms.txt. */
+extern "C" void port_ttc_level_data_seat(void);
+static void *port_mount_row_lvl27(void)
+{
+    void *p = port_level_mount_at(35);
+    port_ttc_level_data_seat();
+    return p;
+}
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,

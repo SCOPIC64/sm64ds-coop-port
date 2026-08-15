@@ -103,13 +103,23 @@ void func_ov080_02125104(char *c)
     bbh_pmf_call(pp, c);
 }
 
-/* PORT_HOST_ABI: same ruling -- the matched func_ov080_021250c8.cpp calls
-   the SECOND pair (state tick) at record +8. */
-void func_ov080_021250c8(char *c)
-{
-    unsigned char *pp = *(unsigned char **)(c + 0x36c);
-    bbh_pmf_call(pp + 8, c);
-}
+/* func_ov080_021250c8 -- the SECOND pair (state tick) at record +8 -- WAS
+   host-copied here, and is now back on the slice: run linkw wave 18 compiles
+   src/func_ov080_021250c8.cpp with /vmg /vmm, which gives MSVC the 8-byte
+   {fn, delta} representation the ROM's record already is, so `c->pp + 1`
+   strides eight onto the tick pair's own function word. All twelve of ov080's
+   source statics at 0x02128214 carry a ROM-zero delta, so the matched dispatch
+   (which adds delta to `this`) and the host body it replaces (which did not)
+   agree word for word. See port/slice_w18a.txt and the R9 block in
+   port/CMakeLists.txt.
+
+   NOTE for whoever reads this file's header next: it says MSVC "widens it to
+   the 16-byte general form". That is wrong, and the objs say so -- MSVC's
+   representation for a pointer-to-member of an INCOMPLETE class is FOUR bytes
+   here, which is why the symptom was a call to zero (the adj word of record 0)
+   rather than a call to a wrong-but-nonzero address. The R9 block carries the
+   before/after disassembly. The three dispatchers still hosted below are
+   unaffected either way. */
 
 /* ---- run linkw wave 5 addendum 2: the COFFIN's two dispatchers (ov071) ----
  *

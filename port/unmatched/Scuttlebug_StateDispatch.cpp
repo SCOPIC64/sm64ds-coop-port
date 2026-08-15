@@ -104,13 +104,17 @@ extern "C" void func_ov071_021202b4(void *c)
     ((void (*)(void *))(size_t)rec[0].fn)(c);
 }
 
-/* PORT_HOST_ABI: the matched TU forms `c->pp + 1` -- an mwcc 8-byte PMF stride
-   that MSVC would make 4. Read the MAIN PMF at the record's +8 half directly. */
-extern "C" void func_ov071_02120278(void *c)
-{
-    PortPmf *rec = *(PortPmf **)((char *)c + 0x380);
-    ((void (*)(void *))(size_t)rec[1].fn)(c);
-}
+/* func_ov071_02120278 -- the MAIN half, `c->pp + 1` -- WAS host-copied here
+   for the width reason this file's header states, and is now back on the
+   slice: run linkw wave 18 compiles src/func_ov071_02120278.cpp with
+   /vmg /vmm, which gives MSVC the 8-byte {fn, delta} representation the ROM's
+   record already is, so the matched TU strides eight and reads the record's
+   own function word. All eighteen of this table's source deltas are ROM zeros,
+   so the matched dispatch (which adds delta to `this`) and the host body it
+   replaces (which did not) agree word for word. See port/slice_w18a.txt and
+   the R9 block in port/CMakeLists.txt. The ENTER half above stays a host copy:
+   it reads record 0, where the wrong stride never bit, so nothing forced it
+   off the slice and nothing about this change puts it back on. */
 
 /* Each SOURCE PMF, in the mount's address order, with the ROM fn it holds and
    the host body that replaces it. Read out of ov071's relocs (the word at each

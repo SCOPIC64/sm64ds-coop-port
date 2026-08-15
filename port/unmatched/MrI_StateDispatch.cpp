@@ -96,14 +96,16 @@ void port_mri_states_seat(void);
 
 }  /* extern "C" */
 
-/* PORT_HOST_ABI: the matched TU forms `c->pp + 1` -- an mwcc 8-byte PMF stride
-   MSVC makes 4. Read the MAIN PMF at the record's +8 half directly.
-   ROM 0x021215c0, 0x3c bytes. */
-extern "C" void func_ov071_021215c0(void *c)
-{
-    PortPmf *rec = *(PortPmf **)((char *)c + 0x1e4);
-    ((void (*)(void *))(size_t)rec[1].fn)(c);
-}
+/* func_ov071_021215c0 -- the MAIN half, `c->pp + 1`, ROM 0x021215c0, 0x3c
+   bytes -- WAS host-copied here for the width reason this file's header
+   states, and is now back on the slice: run linkw wave 18 compiles
+   src/func_ov071_021215c0.cpp with /vmg /vmm, which gives MSVC the 8-byte
+   {fn, delta} representation the ROM's record already is. All six of this
+   table's source deltas are ROM zeros, so the matched dispatch (which adds
+   delta to `this`) and the host body it replaces (which did not) agree word
+   for word. See port/slice_w18a.txt and the R9 block in port/CMakeLists.txt.
+   The ENTER half below stays a host copy -- it reads record 0, where the
+   wrong stride never bit. */
 
 /* PORT_HOST_ABI: the matched TU forms `(c->**c->pp)()` over the ENTER PMF at
    the record's +0; here the record is read as a plain { fn, 0 } and the fn
