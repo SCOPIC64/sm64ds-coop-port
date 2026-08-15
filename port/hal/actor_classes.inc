@@ -982,6 +982,22 @@ void hal_fill_orange_ball_billboard_vtable(void);     /* _ZTV19OrangeBallBillboa
 extern unsigned char TiltingPlatformLll_SpawnInfo[];  /* ov064 0x0211bd08, +4 reads 72 */
 void *port_factory_tilting_platform_lll(void);        /* wraps ov064 0x021180fc */
 void hal_fill_tilting_platform_lll_vtable(void);      /* _ZTV12MetalNetLift, 32 */
+/* ---- run linkw wave 9 (lane w9-reg): three ov084 SHARED-TABLE siblings ----
+   Sweeping every spawn-table entry against ov084's raw image shows ids 200/201/
+   202 all storing 0x02130948 and ids 251/252/253 all storing 0x02130b28. Both
+   tables are ALREADY host arrays that an already-registered id fills
+   (_ZTV6Goomba[31] in hal/actor_classes_bob_enemy.cpp, _ZTV19FirePiranhaPlantBig
+   [31] in hal/actor_classes_l7.cpp), and all three SpawnInfo records are already
+   mounted in port/ov084_syms.txt at the record's real 0x1c. So these three rows
+   reuse the existing fills and add nothing but their own factories.
+   Each Spawn stores its table by a REAL name -- no wrapper -- and each is
+   shape-identical to the sibling already registered beside it. ---- */
+extern unsigned char GoombaLarge_SpawnInfo[];   /* ov084 0x02130924, +4 reads 202 */
+void *GoombaLarge_Spawn(void);                  /* ov084 0x0212bff8, 1144 B, CapEnemy */
+extern unsigned char FirePiranhaPlantBig_SpawnInfo[];   /* ov084 0x02130ae8, +4 = 251 */
+void *FirePiranhaPlantBig_Spawn(void);                  /* 556 B, Enemy */
+extern unsigned char FirePiranhaPlantSmall_SpawnInfo[]; /* ov084 0x02130b04, +4 = 252 */
+void *FirePiranhaPlantSmall_Spawn(void);                /* 556 B, Enemy */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1454,4 +1470,8 @@ void hal_fill_tilting_platform_lll_vtable(void);      /* _ZTV12MetalNetLift, 32 
        it needs a FACTORY WRAPPER; the disassembly that settles the store order
        is in hal/actor_classes_ov064_w9.cpp. ---- */ \
     {72, "TILTING_PLATFORM_LLL", TiltingPlatformLll_SpawnInfo, \
-     port_factory_tilting_platform_lll, hal_fill_tilting_platform_lll_vtable},
+     port_factory_tilting_platform_lll, hal_fill_tilting_platform_lll_vtable},     /* ---- run linkw wave 9 (lane w9-reg): the three ov084 shared-table
+       siblings. GOOMBA_LARGE x9 on level 24; FIRE_PIRANHA_PLANT_BIG x5 on
+       level 24; FIRE_PIRANHA_PLANT_SMALL x2 on level 39. Each reuses the fill
+       its already-registered sibling installs on the SAME ROM table, so the
+       fill column is deliberately the sibling's. ---- */     {202, "GOOMBA_LARGE", GoombaLarge_SpawnInfo, GoombaLarge_Spawn,      hal_fill_goomba_vtable},     {251, "FIRE_PIRANHA_PLANT_BIG", FirePiranhaPlantBig_SpawnInfo,      FirePiranhaPlantBig_Spawn, hal_fill_fire_piranha_plant_vtable},     {252, "FIRE_PIRANHA_PLANT_SMALL", FirePiranhaPlantSmall_SpawnInfo,      FirePiranhaPlantSmall_Spawn, hal_fill_fire_piranha_plant_vtable},
