@@ -721,6 +721,11 @@ set_source_files_properties(
     # blocks and SharedFilePtr& reference params -- invalid C, same treatment as
     # the gate-176 entry above.
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN3MrI13InitResourcesEv.c"
+    # run linkw wave 12, lane w12: the one .c in ov073's closure that is really
+    # C++ -- a top-level `extern "C" {` block, invalid C. ChiefChilly's
+    # jumped-on / hurt-the-player state helper. Same treatment as the entries
+    # above; it is the only one of slice_w12.txt's 67 TUs that needs it.
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov073_0211f61c.c"
     PROPERTIES LANGUAGE CXX)
 
 # Wave-5 close surgery (w5b_review.md R1/R2): two /alternatename routes died
@@ -743,6 +748,33 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov062_021180d4.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov062_02118a00.cpp"
     PROPERTIES COMPILE_DEFINITIONS "func_ov065_02117994=func_ov062_02117994")
+# R3, run linkw wave 12 (lane w12): THE SAME DISEASE, a fourth time, and this
+# one arrived from the OTHER side -- not a newly sliced body under an alias's
+# LHS but a newly MOUNTED datum under it. src/func_ov071_0211fbf4.c (Scuttlebug's
+# anim load) spells ov071's SharedFilePtr `data_ov073_02122f88` -- a dsd
+# shared-window misname; the load site's reloc at 0x0211fc5c targets 0x02122f88
+# module:overlay(71). hal/actor_classes_scuttlebug.cpp routed that misspelling
+# with /alternatename:_data_ov073_02122f88=_data_ov071_02122f88, and mounting
+# ov073 DEFINES the LHS (0x02122f88 is ChiefChilly's tenth state record), which
+# defeats the alias silently: the reference would have bound to the state record
+# and handed Animation::LoadFile a code address. tools/alternatename_guard.py
+# caught it at the first link with ov073 mounted. The dead pragma is deleted
+# from that file and the routing lands here, the R1/R2 remedy exactly.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov071_0211fbf4.c"
+    PROPERTIES COMPILE_DEFINITIONS "data_ov073_02122f88=data_ov071_02122f88")
+# R4, run linkw wave 12 (lane w12): src/func_ov052_0211123c.c (id 174's
+# CleanupResources) spells ov052's OWN file table `data_ov056_021124d4` -- ov052
+# and ov056 link at overlapping bases and dsd raced the name. Its sibling
+# src/func_ov052_02111348.c spells the same address `data_ov052_021124d4`, which
+# is what port/ov052_syms.txt mounts, and the load site's relocs at
+# 0x02111260/0x02111268 say module:overlay(52). A per-source rename rather than
+# an /alternatename ON PURPOSE: ov056 is a live target (id 173, nine instances
+# on level 48) and an alias with an ov056 LHS would be defeated the day ov056 is
+# mounted, which is the R3 failure this same lane already hit on ov071/ov073.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov052_0211123c.c"
+    PROPERTIES COMPILE_DEFINITIONS "data_ov056_021124d4=data_ov052_021124d4")
 
 # run linkw wave 6, lane w6-D: THE SAME DISEASE A THIRD TIME, and this one
 # would have linked SILENTLY on two of its three references.
@@ -1410,6 +1442,34 @@ list(APPEND PORT_ACTOR_OVERLAYS ov022)
 # and the overlay's single sinit from the registry fill (the ov045 lane-
 # ownership pattern). See port/ov031_syms.txt and port/slice_w10a.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov031)
+# run linkw wave 12 (lane w12): ov073, level 49's OBJECT overlay -- the first
+# mount of this overlay, per symbol. Level 49 (ex_wario, "Wario's key arena")
+# was mounted and booting with four actors placed and eighteen skipped: every
+# actor the level places is ov073's, and hal/level_boot.cpp's row for 49 carried
+# the note "[unmounted ov073]". CCC_ARENA (170), CCC_BIG_ICE (171) and
+# CCC_SMALL_ICE (172) are ONE class under three ids sharing table 0x021231e8;
+# CHIEF_CHILLY (218) is the boss on 0x02123090. Both vtables are excluded from
+# the mount and hosted as arrays hal/actor_classes_ov073.cpp fills; that file
+# also runs the mount bring-up, the forty state records' seat and BOTH sinits
+# from the registry fill (the ov045 lane-ownership pattern), in that order,
+# because the sinits COPY the records the seat rewrites. The ov052-shaped width
+# trap this overlay carries -- ChiefChilly's reloc run reading one word past a
+# 31-slot table into CccArena's own state table -- is derived in
+# port/ov073_syms.txt. See also port/slice_w12.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov073)
+# run linkw wave 12 (lane w12): ov052, LEVEL 44's own overlay ("Mario's key
+# course", ex_m_map) -- already whole-mounted since level 44 landed, joining the
+# per-symbol mounts too so its two platform classes reach their SpawnInfo
+# records, their file tables and their sinit-built SharedFilePtrs by name. Same
+# dual-mount shape as ov012/ov013/ov045. BOBBING_LOG_EMM (174) and
+# SQUARE_PATH_LIFT (175) are sixteen of level 44's seventeen skipped instances.
+# Both vtables are excluded from the mount and hosted as arrays
+# hal/actor_classes_ov052.cpp fills; that file also runs the mount bring-up and
+# both sinits from the registry fill (the ov045 lane-ownership pattern). The
+# width trap this overlay carries -- id 174's reloc run reading SIX words past a
+# 32-slot table, straight through id 175's own file table and typeinfo -- is
+# derived in port/ov052_syms.txt. See also port/slice_w12b.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov052)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1878,6 +1938,59 @@ foreach(line IN LISTS SLICE_W11_LINES)
         continue()
     endif()
     list(APPEND SLICE_W11_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 12, lane w12: ov073, the WHOLE CAST OF LEVEL 49 (ex_wario,
+# "Wario's key arena"). The level was mounted and booting with four actors
+# placed and EIGHTEEN skipped, because every actor it places is ov073's and
+# ov073 had no mount -- hal/level_boot.cpp's own row said "[unmounted ov073]".
+# Sixty-seven TUs, the reloc closure of both vtables' ov073 slots, both
+# ChangeState veneers, the four Spawns, both sinits and the forty {code, adj}
+# state records the sinits copy (those forty are reachable only through the
+# state tables, so a reloc-only closure misses all of them). Five TUs are held
+# out and host-copied -- one ARM r0 ride-through factory, two MSVC
+# pointer-to-member dispatchers, one inline copy of the same, and one
+# BlendModelAnim slot-5 collision -- with the derivation for each in the header
+# of port/slice_w12.txt. Same one-owner contract as the lane slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w12.txt" SLICE_W12_LINES)
+set(SLICE_W12_SOURCES "")
+foreach(line IN LISTS SLICE_W12_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W12_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 12, lane w12: ov052's two platform classes (level 44). Sixteen
+# TUs, the whole of that overlay's actor code, and the reloc closure leaves
+# ov052 for nothing that was not already linked. The header of
+# port/slice_w12b.txt carries both attribution routes, the 38-reads-as-32 width
+# derivation and the shared-window misspelling this lane renames per source.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w12b.txt" SLICE_W12B_LINES)
+set(SLICE_W12B_SOURCES "")
+foreach(line IN LISTS SLICE_W12B_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W12B_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 12, lane w12: CLAM (315), ov064 -- nine instances on a table
+# nothing had filled, in an overlay already mounted whole and per symbol. Seven
+# TUs; two more bodies of its closure are held out and host-copied (a ModelAnim
+# slot-5 Render and a real MSVC destructor with no C name). The header of
+# port/slice_w12c.txt carries both, and the measured reason its sibling
+# TREASURE_CHEST (13) is not here.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w12c.txt" SLICE_W12C_LINES)
+set(SLICE_W12C_SOURCES "")
+foreach(line IN LISTS SLICE_W12C_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W12C_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate21.txt" SLICE21_LINES)
@@ -3413,6 +3526,12 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_ov031_w10.cpp ${SLICE_W10A_SOURCES}
     ${SLICE_W10B_SOURCES}
     ${SLICE_W11_SOURCES}
+    hal/actor_classes_ov073.cpp unmatched/Ov073_State.cpp
+    unmatched/Ov073_Render.cpp
+    ${SLICE_W12_SOURCES}
+    hal/actor_classes_ov052.cpp ${SLICE_W12B_SOURCES}
+    hal/actor_classes_ov064_w12.cpp unmatched/Ov064_Clam.cpp
+    ${SLICE_W12C_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -3527,6 +3646,12 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_ov031_w10.cpp ${SLICE_W10A_SOURCES}
     ${SLICE_W10B_SOURCES}
     ${SLICE_W11_SOURCES}
+    hal/actor_classes_ov073.cpp unmatched/Ov073_State.cpp
+    unmatched/Ov073_Render.cpp
+    ${SLICE_W12_SOURCES}
+    hal/actor_classes_ov052.cpp ${SLICE_W12B_SOURCES}
+    hal/actor_classes_ov064_w12.cpp unmatched/Ov064_Clam.cpp
+    ${SLICE_W12C_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -3653,6 +3778,12 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_ov031_w10.cpp ${SLICE_W10A_SOURCES}
     ${SLICE_W10B_SOURCES}
     ${SLICE_W11_SOURCES}
+    hal/actor_classes_ov073.cpp unmatched/Ov073_State.cpp
+    unmatched/Ov073_Render.cpp
+    ${SLICE_W12_SOURCES}
+    hal/actor_classes_ov052.cpp ${SLICE_W12B_SOURCES}
+    hal/actor_classes_ov064_w12.cpp unmatched/Ov064_Clam.cpp
+    ${SLICE_W12C_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
