@@ -1210,6 +1210,19 @@ void hal_fill_pyramid_lift_vtable(void);
 extern unsigned char FallBlockLll_SpawnInfo[];       /* ov022 0x021142a0, +4 = 83 */
 void *port_factory_fall_block_lll(void);             /* VT1 wrapper over ov022 0x0211245c */
 void hal_fill_fall_block_lll_vtable(void);
+/* run linkw wave 17 (lane w17): SEAWEED (296, ov002), RTTI 13daObjWakame_c --
+   x8 on level 18 and x4 on level 8, the largest single-id population left on
+   the cast board. Its record needed one mount line (0x1c, NOT the 0x24 the dsd
+   next-symbol delta reads -- the two extra words are the table's own Itanium
+   prologue), its slot 17 needed a per-source -DVT0 because the shared VT0
+   placeholder is a live 20-word dummy, and its slot 9 is the ModelAnim slot-5
+   collision hosted in hal/actor_classes_ov002_w17.cpp. Seaweed_Spawn's last
+   vptr write is the host array itself, so there is no factory wrapper. See
+   port/slice_w17a.txt. Note dsd's _ZTV7Seaweed is a DIFFERENT class
+   (12daObjHeart_c, HEALING_HEART) and is untouched by this row. */
+extern unsigned char Seaweed_SpawnInfo[];            /* ov002 0x02109b94, +4 = 296 */
+void *Seaweed_Spawn(void);                           /* ov002 0x020bc5a8, 56 B */
+void hal_fill_seaweed_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1851,4 +1864,8 @@ void hal_fill_fall_block_lll_vtable(void);
     /* ---- run linkw wave 16 (lane w16-unblock): ov022's fall block, the id \
        the inferred-stub guard held back; x9 on level 14 ---- */ \
     {83, "FALL_BLOCK_LLL", FallBlockLll_SpawnInfo, port_factory_fall_block_lll, \
-     hal_fill_fall_block_lll_vtable},
+     hal_fill_fall_block_lll_vtable}, \
+    /* ---- run linkw wave 17 (lane w17): ov002's SEAWEED, x8 on level 18 and \
+       x4 on level 24 ---- */ \
+    {296, "SEAWEED", Seaweed_SpawnInfo, Seaweed_Spawn, \
+     hal_fill_seaweed_vtable},

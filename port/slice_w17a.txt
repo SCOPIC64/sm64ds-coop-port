@@ -1,0 +1,154 @@
+# run linkw wave 17 (lane w17): SEAWEED (id 296, ov002), RTTI 13daObjWakame_c.
+#
+# TWELVE INSTANCES, the largest single-id population left on the cast board:
+# x8 on level 18 (Dire Dire Docks, water_land) and x4 on level 8 (Jolly
+# Roger Bay, kaizoku_irie). Both levels are mounted today, so this seat is
+# placed actors from the first frame, not reach-zero code. Both counts are
+# MEASURED against the same binary with SM64DS_SKIP_CLASS=SEAWEED, not read
+# off an object table: L18 156/33 -> 164/25 and L8 205/10 -> 209/6.
+#
+# Lane w16 cleared the guess marker on all five marker-carrying bodies and left
+# the id blocked on ONE mount line. That line is in port/ov002_syms.txt and it
+# is NOT the width w16 quoted -- see the width note below, which is the fourth
+# distinct shape the SpawnInfo width trap has taken in this run.
+#
+# ---- IDENTITY, DERIVED TWICE, AND A dsd NAME THAT IS SHIFTED --------------
+#
+#   route 1  ACTOR_SPAWN_TABLE 0x02090864 + 296*4 = 0x02090c24 -> 0x02109b94
+#            (read out of extracted/arm9_dec.bin at base 0x02004000)
+#   route 2  the record at 0x02109b94, read out of the SHIPPED image
+#            extracted/overlays/overlay_0002.bin at the overlays.yaml base
+#            0x020ad660: word[0] = 0x020bc5a8 = Seaweed_Spawn, which lands
+#            inside ov002, and word[1] & 0xffff = 0x0128 = 296, the id the
+#            route arrived from. Both routes agree.
+#
+# The vtable is the table that FOLLOWS the record, 0x02109bb8, and its identity
+# comes from RTTI and not from a dsd label: vtable[-1] = 0x02109bb4 ->
+# 0x02109b78, an Itanium __si_class_type_info record {0x0209a764, 0x02109b84,
+# 0x0208e390} whose name string at 0x02109b84 reads "13daObjWakame_c". Wakame
+# is seaweed, so the SpawnInfo's dsd name is right.
+#
+# THE dsd VTABLE NAME IS NOT. dsd puts _ZTV7Seaweed at 0x02109c74, one class
+# further on, and 0x02109c74's own vtable[-1] = 0x02109c34 -> the typeinfo
+# whose name string reads "12daObjHeart_c" -- HealingHeart (id 297), whose
+# record sits immediately before it at 0x02109c50. So every _ZN7Seaweed*
+# spelling in this overlay (InitResources 0x020bc81c, CleanupResources
+# 0x020bc6a4, Render 0x020bc6d4, Behavior 0x020bc6fc, D1 0x020bc5e0, D0
+# 0x020bc618) is HealingHeart's body under Seaweed's name, and the port has
+# been seating them under that name since gate 33
+# (hal/actor_classes_bob_world.cpp:845 records the same RTTI reading). Nothing
+# has to move: id 296's own bodies are the func_ov002_020bc4xx/5xx run below
+# and they are spelled by address. Seaweed_Spawn IS id 296's, because the
+# record points at it.
+#
+# ---- WIDTH: 31 SLOTS, AND THE RECORD IS 0x1c NOT 0x24 ---------------------
+#
+# Table 0x02109bb8..0x02109c34. Slot 30 (0x02109c30) is
+# Actor::OnAimedAtWithEggReturnVec, the last Actor slot; slot 31 (0x02109c34)
+# is 0x0209a764, the __si_class_type_info vtable word that opens the NEXT
+# class's typeinfo record -- the terminator check, which fires exactly here.
+# There is no slot 31 virtual, so this is a plain Actor at 31 and not a
+# Platform (no Platform::Kill tail). The reloc run reads 34 and over-reads
+# three words into that typeinfo record.
+#
+# THE RECORD. Lane w16 measured "natural delta 0x24, the standard nine-word
+# SpawnInfo" and that is wrong twice over: 0x24 is not standard and 0x24 is not
+# this record. A SpawnInfo is SEVEN words, 0x1c -- the size every other record
+# in port/ov002_syms.txt is pinned to. The dsd next-symbol delta reads 0x24
+# because the two words past the record are the vtable's own Itanium prologue:
+#   0x02109bac +0x18  0x00000000   the record's last real field
+#   0x02109bb0 +0x1c  0x00000000   offset-to-top of the table at 0x02109bb8
+#   0x02109bb4 +0x20  0x02109b78   typeinfo pointer of that same table
+# This is the EXACT shape lane w15 pinned on MEGA_MUSHROOM_CREATE_TAG
+# (0x02108cec/0x02108cf0 ahead of 0x02108cf4), and the reason that block's
+# comment says a record this file mounts is pinned to its measured width. So
+# the mount line is `Seaweed_SpawnInfo:0x1c`, and 0x24 would have quietly
+# handed the ovdata pointer pass two words of a table that is deliberately NOT
+# mounted.
+#
+# ---- THE VTABLE IS HOST STORAGE -------------------------------------------
+#
+# 0x02109bb8 is excluded from the mount and declared as a host array
+# _ZTV13daObjWakame_c[31] in hal/actor_classes_ov002_w17.cpp -- the
+# ov015/ov016/ov080/ov095 rule. Both TUs that spell the table by name
+# (Seaweed_Spawn.c and func_ov002_020bc414.c) spell it _ZTV13daObjWakame_c, the
+# RTTI spelling, so they bind straight to the host array with no alias.
+#
+# ---- ONE PER-SOURCE -D, AND IT IS NOT COSMETIC ----------------------------
+#
+# src/func_ov002_020bc444.c (slot 17, the deleting destructor) restores the
+# table through the shared-header placeholder `VT0`, and VT0 IS A LIVE OBJECT
+# IN THIS LINK: hal/actor_vtables.cpp:336 defines `int VT0[20]` for an
+# unrelated ov002 TU and its own comment warns that "two classes can spell
+# DIFFERENT vtables VT0 and both resolve here. A slot that is actually
+# dispatched must never come through one of them." Slot 17 IS dispatched --
+# it is the delete path -- so this would have linked silently and installed a
+# 20-word dummy as the vptr before ModelAnim::D1 and Actor::D2 ran on it. The
+# fix is a per-source -DVT0=_ZTV13daObjWakame_c in port/CMakeLists.txt, not an
+# /alternatename: VT0 is DEFINED, so an alias LHS would be defeated on the
+# spot (the alternatename guard's whole class of bug).
+#
+# The recovered NAME on that body is also wrong -- the marker reads
+# `daObjWakame_c::OnYoshiTryEat` and slot 17 is the D0, not slot 18 -- which is
+# the same defect w16 found on ov022's D0. It routes nothing here (the fill
+# seats by address) and goes on the decomp-side correction list.
+#
+# ---- SLOT 9 IS A HOST COPY: THE ModelAnim SLOT-5 COLLISION, LIVE ----------
+#
+# src/func_ov002_020bc4f8.cpp is the trap that hal/cxxname_bridge.cpp:513
+# predicted in writing -- "trap-by-Virtual18 will name it if such a TU ever
+# appears". It dispatches through a LOCAL SIX-VIRTUAL SHADOW at +0xd4, so its
+# `b->m(0)` is slot 5 in the ROM's Itanium numbering (D1, D0, DoSetFile,
+# UpdateVerts, Virtual10, Render) = ModelAnim::Render. The host _ZTV9ModelAnim
+# is MSVC-numbered (one dtor slot), so ITS slot 5 is ModelAnim::Virtual18,
+# which takes (unsigned, const Vector3 *) where the shadow passes one argument
+# -- it would read a scale off the stack and hand Model::Virtual10 garbage,
+# which is the c0000005 the Butterfly/Whomp/Fish cases all measured.
+# _ZTV5Model is dual-filled and can serve both numberings; _ZTV9ModelAnim
+# cannot, because Virtual18 really is there.
+#
+# The member at +0xd4 is a ModelAnim and not a Model: Seaweed_Spawn constructs
+# it with _ZN9ModelAnimC1Ev and both destructors run _ZN9ModelAnimD1Ev on it,
+# and InitResources calls ModelAnim::SetAnim on it. So this is the collision
+# and not the benign variant.
+#
+# The TU is therefore DROPPED from this slice and func_ov002_020bc4f8 is a host
+# copy in hal/actor_classes_ov002_w17.cpp, the Whomp/Butterfly recipe:
+# `((ModelAnim *)(c + 0xd4))->ModelAnim::Render(0); return 1;` -- the ROM body
+# line for line (ldr r2,[r0,#0xd4]! / mov r1,#0 / ldr r2,[r2,#0x14] / blx r2),
+# with the dispatch spelled as the qualified method the ROM means.
+#
+# ---- NO NEW SINIT ----------------------------------------------------------
+#
+# InitResources loads through data_ov002_0210e0dc / _0210e0d4 and
+# CleanupResources releases the same pair. Both are already mounted by name in
+# port/ov002_syms.txt and __sinit_ov002_02101894 -- the sinit that constructs
+# them -- is already called from port/tests/walk_window.cpp:2315. Nothing to
+# add.
+#
+# ---- THE SIX TUs -----------------------------------------------------------
+#
+#   src file                       slot  what
+#   func_ov002_020bc540.cpp         0    InitResources (LoadFile/SetFile/SetAnim)
+#   func_ov002_020bc488.c           -    the helper InitResources tail-calls
+#   func_ov002_020bc4c8.c           3    CleanupResources, two Releases
+#   func_ov002_020bc520.c           6    Behavior, Animation::Advance(+0x124)
+#   func_ov002_020bc414.c          16    D1
+#   func_ov002_020bc444.c          17    D0  (-DVT0)
+#   Seaweed_Spawn.c                 -    the factory, stores the table itself
+#
+# Seaweed_Spawn's LAST vptr write is `p[0] = (int)_ZTV13daObjWakame_c`, so it
+# registers directly with no factory wrapper -- the MegaMushroom shape, not the
+# FallBlock one.
+#
+# Five of the seven carry the guess marker and all five were adjudicated
+# against the ROM by lane w16; the rulings are in
+# port/tools/inferred_stub_adjudicated.txt with their evidence.
+
+src/func_ov002_020bc540.cpp
+src/func_ov002_020bc488.c
+src/func_ov002_020bc4c8.c
+src/func_ov002_020bc520.c
+src/func_ov002_020bc414.c
+src/func_ov002_020bc444.c
+src/Seaweed_Spawn.c

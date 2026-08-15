@@ -2116,6 +2116,42 @@ foreach(line IN LISTS SLICE_W16A_LINES)
     list(APPEND SLICE_W16A_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# run linkw wave 17, lane w17: SEAWEED (id 296, ov002), RTTI 13daObjWakame_c --
+# x8 on level 18 and x4 on level 8. Lane w16 ruled its five marker-carrying
+# bodies REAL DECOMP and left it blocked on one mount line; that line is
+# Seaweed_SpawnInfo:0x1c in port/ov002_syms.txt, NOT the 0x24 the dsd
+# next-symbol delta reads (the two extra words are the vtable's own Itanium
+# prologue, the wave-15 MEGA_MUSHROOM shape). The vtable 0x02109bb8 is excluded
+# from the mount and hosted as an array; its identity is the RTTI record at
+# vtable[-1], since dsd's _ZTV7Seaweed is one class further on and is really
+# HealingHeart's (RTTI 12daObjHeart_c). Slot 9 is the ModelAnim slot-5
+# collision and is a host copy in hal/actor_classes_ov002_w17.cpp, so
+# src/func_ov002_020bc4f8.cpp is deliberately NOT in this slice. Same one-owner
+# contract as the lane slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w17a.txt" SLICE_W17A_LINES)
+set(SLICE_W17A_SOURCES "")
+foreach(line IN LISTS SLICE_W17A_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W17A_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+# R7, run linkw wave 17 (lane w17): src/func_ov002_020bc444.c (SEAWEED's
+# deleting destructor) restores its vtable through the shared-header
+# placeholder `VT0` -- and VT0 is DEFINED in this link, as `int VT0[20]` in
+# hal/actor_vtables.cpp, whose own comment warns that "two classes can spell
+# DIFFERENT vtables VT0 and both resolve here. A slot that is actually
+# dispatched must never come through one of them." Slot 17 IS dispatched, so
+# this would have linked silently and installed a 20-word dummy as the vptr
+# ahead of ModelAnim::D1 and Actor::D2. A -D and not an /alternatename for the
+# R4/R5 reason squared: the LHS is already defined, so an alias would be
+# defeated on the spot. The target is the HOST ARRAY, since 0x02109bb8 is
+# excluded from the mount.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov002_020bc444.c"
+    PROPERTIES COMPILE_DEFINITIONS "VT0=_ZTV13daObjWakame_c")
+
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w15c.txt" SLICE_W15C_LINES)
 set(SLICE_W15C_SOURCES "")
 foreach(line IN LISTS SLICE_W15C_LINES)
@@ -3669,6 +3705,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_ov002_w15.cpp ${SLICE_W15B_SOURCES}
     hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
     hal/actor_classes_ov022_w16.cpp ${SLICE_W16A_SOURCES}
+    hal/actor_classes_ov002_w17.cpp ${SLICE_W17A_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -3793,6 +3830,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_ov002_w15.cpp ${SLICE_W15B_SOURCES}
     hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
     hal/actor_classes_ov022_w16.cpp ${SLICE_W16A_SOURCES}
+    hal/actor_classes_ov002_w17.cpp ${SLICE_W17A_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -3929,6 +3967,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_ov002_w15.cpp ${SLICE_W15B_SOURCES}
     hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
     hal/actor_classes_ov022_w16.cpp ${SLICE_W16A_SOURCES}
+    hal/actor_classes_ov002_w17.cpp ${SLICE_W17A_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
