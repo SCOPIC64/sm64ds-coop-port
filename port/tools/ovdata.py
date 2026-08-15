@@ -512,6 +512,32 @@ class Residency:
             if ovid not in self.foot:
                 self.foot[ovid] = overlay_footprint(root, ovid)
 
+        # RULE 1 AND RULE 2 CAN CONTRADICT EACH OTHER, AND RULE 1 WINS SILENTLY.
+        #
+        # coresident() tests overlap before it tests the passenger relation, so
+        # if a passenger pair's footprints ever intersect the answer flips to
+        # False for two overlays the loader's own code always loads together --
+        # in the direction that drops bindings, with nothing printed.
+        #
+        # This is not hypothetical margin. ov004's footprint ends at 0x020bfec0
+        # and ov006's base IS 0x020bfec0, so the pair passes only because
+        # _overlaps() uses a strict `<`. There is exactly zero slack, and it was
+        # 256 bytes until overlay_bss() started reading the ROM's bss instead of
+        # the yaml's short one. One more byte of ov004 from any future
+        # re-derivation and the model would quietly contradict itself.
+        for host, rider in self.passenger.items():
+            if self._overlaps(host, rider):
+                (s1, e1), (s2, e2) = self.foot[host], self.foot[rider]
+                sys.exit(f"residency: ov{rider:03d} rides ov{host:03d} per "
+                         f"func_0201a798, but their footprints overlap "
+                         f"({s2:#010x}..{e2:#010x} against "
+                         f"{s1:#010x}..{e1:#010x}). Rule 1 is tested first and "
+                         f"would report the pair NOT co-resident, which is the "
+                         f"direction that drops bindings. One of the two "
+                         f"footprints is wrong, or the passenger rule no longer "
+                         f"holds; either way this must not be decided by "
+                         f"whichever rule runs first.")
+
         # The level and object overlays stack on top of the in-level scene.
         # Derive WHICH scene that is rather than naming ov002: it is the slot
         # occupant whose footprint ends where they start. Unique, or refuse.
