@@ -1,0 +1,146 @@
+# Run linkw wave 12, lane w12: ov073, the WHOLE CAST OF LEVEL 49.
+#
+# Level 49 (ex_wario, "Wario's key arena", course 20) is mounted and boots, and
+# on the base tip it placed FOUR actors (player, camera, HUD, minimap) and
+# skipped EIGHTEEN. All eighteen are ov073's, and ov073 had no mount at all --
+# hal/level_boot.cpp's row for 49 carries the note "[unmounted ov073]". This
+# slice is that overlay's reachable code.
+#
+#   id   class          x on L49   table                        width
+#   170  CccArena       1          0x021231e8 _ZTV8CccArena       32
+#   171  CccBigIce      8          0x021231e8 (the same table)    32
+#   172  CccSmallIce    8          0x021231e8 (the same table)    32
+#   218  ChiefChilly    1          0x02123090 _ZTV11ChiefChilly   31
+#
+# Both attribution routes, the RTTI identities, the shared-table finding and
+# both width derivations are in port/ov073_syms.txt; the vtable fills, the
+# factory and the bring-up order are in hal/actor_classes_ov073.cpp; the forty
+# state records' seat and the four host copies are in
+# port/unmatched/Ov073_State.cpp.
+#
+# ---- HOW THIS LIST WAS DERIVED ---------------------------------------------
+#
+# Reloc closure, not a directory listing. Entry points: every ov073 slot of both
+# vtables, both ChangeState veneers, the four Spawns, both sinits, and the FORTY
+# {code, adj} state records the sinits copy (0x02122f40..0x02123040 and
+# 0x0212310c..0x0212314c -- those forty are reachable only through the state
+# tables, so a closure that walked relocs alone would have missed all of them).
+# That closes at SEVENTY ov073 functions out of the overlay's ninety-odd; every
+# one has a matched src TU.
+#
+# Every target the closure leaves ov073 for was checked against
+# walk_window.map on the base tip. All but THREE were already linked:
+#   func_02011d08                 arm9 veneer, no TU in any slice   -> here
+#     -> _ZN5Sound13Func_02048ec4Ev  a C++ class static             -> here,
+#        with the C-name alias in hal/actor_classes_ov073.cpp (the
+#        Sound::LoadInitialGroup precedent in hal/cxx_aliases.cpp)
+#        -> func_02048fd4, already linked (slice_gate10)
+#   _ZN6Player12GetHurtStateEv    ALREADY in slice_w1l5.txt and compiled; it
+#     was absent from the map only because /OPT:REF had nothing referencing it.
+#     It is NOT repeated here -- a second slice line would double-define it.
+#
+# ---- FIVE TUs HELD OUT, AND WHY --------------------------------------------
+#
+# src/ChiefChilly_Spawn.cpp             ARM r0 RIDE-THROUGH. It calls
+#   `func_020aed98();` with NO ARGUMENT because in the ROM the object the
+#   allocator just returned is still in r0 when Enemy::C2 is entered
+#   (0x02121ed4 bl operator new / 0x02121ed8 movs r4, r0 / 0x02121ee0 bl
+#   0x020aed98). mwcc reproduced that, so the TU is byte-faithful and unusable
+#   under cdecl. port_factory_chief_chilly in hal/actor_classes_ov073.cpp is the
+#   ROM's own sequence with the receiver spelled, every offset and literal read
+#   from the disassembly. The three Ccc Spawns do NOT have this problem
+#   (`_ZN8PlatformC2Ev(p)` names its receiver) and are in this slice.
+#
+# src/ChiefChilly_ChangeState.cpp       MSVC POINTER-TO-MEMBER, both of them.
+# src/func_ov073_021223a4.cpp           `struct C; typedef int (C::*PMF)();
+#   struct C { char pad[N]; PMF *pp; };` is the ov060 lane's measured
+#   "forward-declared, defined later in the same TU" shape: SIXTEEN bytes
+#   against the ROM's eight, and dispatched __thiscall against cdecl bodies.
+#   Host copies in port/unmatched/Ov073_State.cpp transcribe the ROM's own
+#   decode from 0x021223a4 / 0x0212157c.
+#   _ZN8CccArena8BehaviorEv does the same decode BY HAND and is right as
+#   written, so it stays in this slice.
+#
+# src/_ZN11ChiefChilly8BehaviorEv.cpp   holds ONE inline copy of that same
+#   dispatch (`PMF *p = c->pp + 1; (c->**p)();`). The host copy is this TU line
+#   for line with those three lines corrected.
+#
+# src/_ZN11ChiefChilly6RenderEv.cpp     BLENDMODELANIM SLOT-5 COLLISION, the one
+#   hal/blend_vtable.cpp's header predicted in so many words. It dispatches
+#   through a local six-virtual shadow (ROM numbering, slot 5 = Render) and the
+#   host _ZTV14BlendModelAnim is MSVC-numbered (slot 5 = Virtual18, two
+#   arguments against one). Host copy, the Butterfly/Fish/Whomp treatment.
+#   _ZN8CccArena6RenderEv is NOT held out: it shadow-dispatches a plain Model
+#   at +0xd4 and _ZTV5Model IS dual-filled (slots 4 and 5 both mv_render).
+#
+# ---- WHAT THIS SLICE DOES NOT CHANGE ---------------------------------------
+# No level mount is added: level 49 is already in port_level_table and already
+# loads ov057 whole. Only PORT_ACTOR_OVERLAYS gains ov073, which is the first
+# mount of that overlay.
+src/CccArena_Spawn.c
+src/CccBigIce_Spawn.c
+src/CccSmallIce_Spawn.c
+src/_ZN8CccArena13InitResourcesEv.cpp
+src/_ZN8CccArena16CleanupResourcesEv.cpp
+src/_ZN8CccArena8BehaviorEv.cpp
+src/_ZN8CccArena6RenderEv.cpp
+src/_ZN8CccArenaD1Ev.c
+src/_ZN8CccArenaD0Ev.c
+src/_ZN11ChiefChilly13InitResourcesEv.cpp
+src/_ZN11ChiefChilly16CleanupResourcesEv.cpp
+src/_ZN11ChiefChilly16OnPendingDestroyEv.c
+src/_ZN11ChiefChillyD1Ev.c
+src/_ZN11ChiefChillyD0Ev.c
+src/__sinit_ov073_02122874.c
+src/__sinit_ov073_02122d48.c
+src/func_02011d08.c
+src/_ZN5Sound13Func_02048ec4Ev.cpp
+src/func_ov073_0211f144.c
+src/func_ov073_0211f2c0.c
+src/func_ov073_0211f494.c
+src/func_ov073_0211f61c.c
+src/func_ov073_0211fa74.c
+src/func_ov073_0211fbec.c
+src/func_ov073_0211fbf4.cpp
+src/func_ov073_0211fc70.c
+src/func_ov073_0211fc78.c
+src/func_ov073_0211fe84.c
+src/func_ov073_0211fe8c.c
+src/func_ov073_0212000c.cpp
+src/func_ov073_0212005c.cpp
+src/func_ov073_02120098.cpp
+src/func_ov073_021200e0.c
+src/func_ov073_02120390.c
+src/func_ov073_021203ac.c
+src/func_ov073_021205f0.c
+src/func_ov073_02120610.c
+src/func_ov073_0212081c.c
+src/func_ov073_02120844.c
+src/func_ov073_021208e4.c
+src/func_ov073_02120910.c
+src/func_ov073_02120ad8.c
+src/func_ov073_02120b78.c
+src/func_ov073_02120c08.c
+src/func_ov073_02120c7c.cpp
+src/func_ov073_02120d80.cpp
+src/func_ov073_02120dec.c
+src/func_ov073_02120e60.cpp
+src/func_ov073_02120ed0.c
+src/func_ov073_0212122c.c
+src/func_ov073_0212128c.c
+src/func_ov073_02121378.c
+src/func_ov073_02121388.c
+src/func_ov073_02121538.cpp
+src/func_ov073_021215cc.c
+src/func_ov073_02121ec0.c
+src/func_ov073_0212202c.c
+src/func_ov073_02122034.cpp
+src/func_ov073_021220c0.c
+src/func_ov073_021221e0.c
+src/func_ov073_02122200.cpp
+src/func_ov073_021222c8.c
+src/func_ov073_021222ec.c
+src/func_ov073_0212239c.c
+src/func_ov073_021223f4.cpp
+src/func_ov073_02122730.c
+src/func_ov073_021227d0.c
