@@ -1119,6 +1119,23 @@ def main():
             override = int(ov_sz, 0)
         if name not in addr_of:
             sys.exit(f"{name} not in {ov} symbols")
+        # A ROM NAME IS NOT ALWAYS A C NAME. dsd names each .ctor word after
+        # the sinit it points at with a `.p` prefix -- `.p__sinit_ov004_
+        # 020b948c` -- and there are 308 of those across the config, one per
+        # .ctor word in every overlay that has constructors. Emitted verbatim
+        # the array declaration is not C and the compile fails several minutes
+        # later with a parse error nobody will trace back to a symbol list.
+        # This is not a silent failure, but it is a confusing one, and the
+        # rule "mount every data-kind symbol dsd names" reaches it the first
+        # time an overlay with a non-empty .ctor is mounted whole (ov004 and
+        # ov006 are the first two). Refuse here, where the list is.
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
+            sys.exit(f"{ov}: {name!r} is not a valid C identifier, so it "
+                     f"cannot be emitted as an array name. dsd gives every "
+                     f".ctor word a `.p` prefix; those entries hold DS "
+                     f"addresses of .init code no data mount hosts, so leave "
+                     f"them out of the list and let --pack's padding stand in "
+                     f"for the table.")
         a = addr_of[name]
         end = section_end(a)
         # No next symbol means the end of the section owns the rest (see the
