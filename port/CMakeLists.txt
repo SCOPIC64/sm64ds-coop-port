@@ -1187,6 +1187,52 @@ list(APPEND PORT_LEVEL_OVERLAYS
 # roster is ov065 ov070 ov077 ov084 ov091 ov098 ov102 and only ov077 is
 # unmounted, so ov077's classes alone are skipped by name at the gate.
 list(APPEND PORT_LEVEL_OVERLAYS ov035)
+# run linkw wave 21, lane w21: the SIX ids the wave-8 block derived, proved
+# mountable and then held back as "NOT LANDED" -- everything that was left of
+# the fifty-two after the ten non-stages. Level 27 (ov035, just above) was the
+# first of the seven to land; these are the other six.
+#
+# Every field re-derived from the ROM by this lane rather than copied off that
+# block, and the reader proved before it was trusted: it reproduces the
+# lvl_overlay of ALL THIRTY-SIX already-mounted rows exactly, and rows 8, 9,
+# 17, 22, 26 and 27 field for field -- overlay id, LVL_Overlay address, course,
+# subCount, flags and all four handles. The object-overlay reader reproduces
+# level 3's documented roster (ov063 ov085 ov089 ov098 ov100 ov102) and the
+# ov060+ov089 pair for levels 36/38/40, which is the short-circuit trap.
+#
+#   lvl  ov     LVL_Overlay   crs sub flg  stage           bmd /kcl /icg /icl
+#    16  ov024  0x021129b4   7  1  0x00  desert_land      0713/0711/0714/0715
+#    21  ov029  0x02112fd0  10  2  0x00  water_city       07f0/07ed/07f1/07f2
+#    25  ov033  0x02111be0  12  1  0x00  tibi_deka_t      07ea/07e8/07eb/07ec
+#    28  ov036  0x02112a6c  14  1  0x01  rainbow_cruise   07ab/07a9/07ac/07ad
+#    31  ov039  0x02111438  23  1  0x00  habatake         074d/074b/074e/074f
+#    33  ov041  0x0211192c  25  1  0x00  metal_switch     07a1/079f/07a2/07a3
+#
+# All four handles of all six resolve through build/assets/handles.tsv at
+# DELTA 0 to one data/stage directory each -- all.bmd, .kcl, _icg.bin, _icl.bin
+# -- which is the test the ten non-stage ids fail.
+#
+# What was blocking them was never the mount. The wave-8 block measured each
+# one faulting past a correct mount inside a class this build ALREADY
+# registers: FLAME_CHOMP (270) on 16/21/25/28, AMP (266) on 28, SNUFIT (236) on
+# 33. Those classes were fixed on the tip between that wave and this one (the
+# pointer-to-member width sweep and the ModelAnim slot-5 collision), which is
+# what freed these six -- no mount field changed.
+#
+# Object rosters, with the packs this build does not mount called out; those
+# are the worklist the cast lanes take from here:
+#    16 ov062 ov070 ov080 ov084 ov092 ov096 ov098 ov102  [unmounted ov092 ov096]
+#    21 ov062 ov070 ov077 ov084 ov090 ov098 ov102        [unmounted ov077 ov090]
+#    25 ov062 ov070 ov084 ov094 ov098 ov100 ov102        [all mounted]
+#    28 ov062 ov070 ov077 ov084 ov091 ov095 ov098 ov102  [unmounted ov077]
+#    31 ov084 ov098 ov102                                [all mounted]
+#    33 ov065 ov084 ov098 ov102                          [all mounted]
+#
+# ov030 (19168 bytes) is still the largest level overlay and still sets the
+# shared window's end; the largest here is ov036 at 11904, well inside it, so
+# none of these six extends the window that ovdata.py --cross contests over.
+# Mounted --whole like the rest; own_sinits stays 0 for all six.
+list(APPEND PORT_LEVEL_OVERLAYS ov024 ov029 ov033 ov036 ov039 ov041)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
