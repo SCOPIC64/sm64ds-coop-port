@@ -33,6 +33,50 @@ HOW THE LENGTH IS DERIVED, AND WHY THE OBVIOUS WAY IS WRONG
     Both halves are needed.  Run alone overruns into the PMF table; symbol
     bound alone truncates.  The intersection is the ROM's answer.
 
+FOUR ROUTES NOW, AND THE ONE THAT LEADS IS THE SEMANTIC TAIL
+    Lane w20 measured every route against ov026 and none of the older three
+    was right on all five of that overlay's tables, so the width is no longer
+    one number from one route.  routes() computes all four and says which
+    produced the answer and which disagreed:
+
+      semantic tail   LEADS.  Reads the table's own contents rather than
+                      guessing where something else begins.  Slot 30 is
+                      Actor::OnAimedAtWithEggReturnVec on every Actor-derived
+                      table, so the table is at least 31; slot 31 is
+                      Platform::Kill on a Platform subclass, so at least 32.
+                      IT ONLY CLOSES when the next slot is provably not a
+                      virtual -- not a code pointer, or the head of a pair
+                      table.  Kill at 31 is a LOWER bound and reading it as
+                      exact sized data_ov002_0210af70 and data_ov100_0214857c
+                      at 32 against a true 33, one slot short each, which is
+                      the wild call this file exists to prevent.  Inconclusive
+                      hands over to the terminator.
+      terminator      the run-plus-dsd-symbol-plus-BeforeInitResources route
+                      span() has always implemented.  Still correct on every
+                      table in the tree; now a fallback and a cross-check
+                      rather than the whole answer.
+      typeinfo        wave 16's "first word equal to an Itanium type_info
+                      vtable+8 is the next class's record" rule.  DEMOTED to a
+                      cross-check.  It walks straight through a
+                      pointer-to-member source table and reads ov026's
+                      Submarine as 40 against a true 32 and Whirlpool as 35
+                      against a true 31, quietly, with a real terminator at a
+                      real record.  Across the whole tree it disagrees with
+                      the resolved width on 72 tables and is high every time.
+      raw reloc run   / next dsd symbol: the two documented failure routes,
+                      printed for context.  They over- and under-read on
+                      essentially everything, so they are not counted as
+                      disagreement -- that would be 127 rows of expected
+                      behaviour nobody reads past.
+
+THE FOURTH WIDTH-TRAP SHAPE (w20, ov026)
+    A class's pointer-to-member SOURCE TABLE packed behind its vtable: 8-byte
+    {function, 0} pairs whose closure looks exactly like more vtable.  Not a
+    file table, not a state record, not a typeinfo.  pmf_pairs_at() checks
+    w20's two structural tells -- every other word is a literal zero, and dsd
+    names one symbol per pair at 8-byte stride -- and the semantic tail is the
+    third, answering where the virtuals stopped independently of what follows.
+
 THE SHAPES THIS PRINTS
     31 slots  a plain Actor subclass.  Slot 30 is
               Actor::OnAimedAtWithEggReturnVec (0x020100dc) and the table ends.
@@ -90,6 +134,11 @@ ACTOR_TAIL = {
 }
 PLATFORM_KILL = 0x020EE55C          # ov002, slot 31 of every Platform table
 ACTOR_BINIT = 0x02011268            # Actor::BeforeInitResources, every [1]
+# Itanium type_info vtable + 8, the first word of a class's typeinfo record.
+# A record starting here means the NEXT class begins, which is the wave-16
+# terminator route -- now a cross-check rather than the invariant.
+TYPEINFO_VTABLES = (0x0209A764,     # __si_class_type_info
+                    0x0209A754)     # __class_type_info
 
 
 def load_sections(path):
@@ -224,8 +273,163 @@ class Rom:
             return None
         return int.from_bytes(data[off:off + 4], "little")
 
+    def pmf_pairs_at(self, module, addr, i, need=2):
+        """Do `need` Itanium {function, 0} pointer-to-member pairs start at
+        slot i?  The FOURTH width-trap shape, found by lane w20 on ov026.
+
+        A class's pointer-to-member SOURCE TABLE is packed immediately behind
+        its vtable, and its closure looks exactly like more vtable: relocated
+        code pointers, in the same section, with a real typeinfo record behind
+        THEM.  The typeinfo-terminator route walks straight through it and
+        reads Submarine (ov026 0x02113c6c) as 40 against a true 32, and
+        Whirlpool (0x02113d54) as 35 against a true 31 -- quietly, with a real
+        terminator at a real record.
+
+        Two of w20's three tells are structural and are what this checks:
+
+          (1) EVERY OTHER WORD IS ZERO.  A pair is {function, adjustment} and
+              the adjustment is 0 on every one of these.  A vtable slot is
+              never a zero pair-partner.
+          (2) dsd NAMES ONE SYMBOL PER PAIR, at 8-byte stride
+              (data_ov026_02113cec, _02113cf4, _02113cfc, _02113d04 behind
+              Submarine).  dsd does not name a vtable's interior at 8-byte
+              stride.
+
+        The third tell, the semantic tail, is a different question -- where the
+        virtuals STOP -- and is answered by tail_width below, independently of
+        what follows.  Both are required: the tells say "this is not vtable"
+        and the tail says "and here is where the vtable ended".
+        """
+        m = self.mod[module]
+        rel = m["relocs"]
+        named = 0
+        for k in range(need):
+            a = addr + 4 * (i + 2 * k)
+            e = rel.get(a)
+            if not e or e[0] != "load" or not self.is_code(e[1], e[2]):
+                return False
+            if self.word(module, a + 4) != 0 or rel.get(a + 4):
+                return False          # the partner must be a literal zero
+            if a in m["by_addr"]:
+                named += 1
+        return named >= 1             # tell (2): at least one 8-byte-stride name
+
+    def tail_width(self, module, addr):
+        """(width, why) from the SEMANTIC TAIL, or (None, why) if inconclusive.
+
+        THE LEADING ROUTE, because it reads the table's own contents rather
+        than guessing where something else begins. Actor's virtual list ends at
+        slot 30 with OnAimedAtWithEggReturnVec, so any Actor-derived table is
+        at least 31; a Platform subclass carries Platform::Kill at slot 31 and
+        is 32. What sits at 32 and beyond is somebody else's business, and the
+        tail does not have to know what it is to know the table stopped.
+
+        Inconclusive on purpose for a deeper hierarchy of its own (Bully and
+        BigBully are 37) and for anything whose slot 30 is not Actor's. Those
+        fall through to the terminator route, which is what it is good at.
+        """
+        rel = self.mod[module]["relocs"]
+        e30 = rel.get(addr + 4 * 30)
+        if not e30 or e30[0] != "load" or not self.is_code(e30[1], e30[2]):
+            return None, "slot 30 is not a code pointer, not an Actor table"
+        if e30[1] != ACTOR_TAIL[30][0]:
+            return None, ("slot 30 is 0x%08x, an override of %s, so the tail "
+                          "cannot say where the list ends"
+                          % (e30[1], ACTOR_TAIL[30][1]))
+        # From here the tail gives a LOWER BOUND and closes it only when the
+        # NEXT slot is provably not a virtual. Kill at 31 says "at least 32",
+        # never "exactly 32": a class derived from a Platform subclass carries
+        # Kill at 31 and its own virtuals after it. Read as exact, this route
+        # sized data_ov002_0210af70 and data_ov100_0214857c at 32 against a
+        # true 33 -- two host arrays one slot short, which is the wild call
+        # this whole file exists to prevent. A route that can only bound has to
+        # say so and hand over.
+        e31 = rel.get(addr + 4 * 31)
+        if not e31 or e31[0] != "load" or not self.is_code(e31[1], e31[2]):
+            return 31, "slot 31 is not a code pointer, a plain Actor subclass"
+        if self.pmf_pairs_at(module, addr, 31):
+            return 31, ("slot 31 begins a pointer-to-member pair table, not "
+                        "more vtable, so the list ended at 30")
+        kill = e31[1] == PLATFORM_KILL
+        e32 = rel.get(addr + 4 * 32)
+        base = "slot 31 is Platform::Kill" if kill else \
+               "slot 31 is this class's own override of Platform::Kill"
+        if not e32 or e32[0] != "load" or not self.is_code(e32[1], e32[2]):
+            return 32, base + " and slot 32 is not a code pointer"
+        if self.pmf_pairs_at(module, addr, 32):
+            return 32, base + " and slot 32 begins a pointer-to-member pair table"
+        if not kill:
+            return None, ("slot 31 is a code pointer that is not Platform::Kill "
+                          "and slot 32 is another one, so this class has "
+                          "virtuals of its own past 31")
+        return None, (base + " but slot 32 is a code pointer too, so this class "
+                      "extends a Platform subclass and the tail cannot close it")
+
+    def typeinfo_width(self, module, addr, limit=80):
+        """(width, why) from the wave-16 typeinfo terminator, a CROSS-CHECK.
+
+        The first word at or after the table that equals an Itanium type_info
+        vtable+8 belongs to the NEXT class's record, and the slot it occupies
+        was taken as the width. Demoted from the invariant it was called to one
+        route among four, because on ov026 it walks through a pair table and
+        over-reads by 8 slots on Submarine and 4 on Whirlpool.
+        """
+        rel = self.mod[module]["relocs"]
+        for i in range(1, limit):
+            e = rel.get(addr + 4 * i)
+            if e and e[0] == "load" and e[1] in TYPEINFO_VTABLES:
+                return i, "typeinfo record at slot %d" % i
+        return None, "no typeinfo record within %d slots" % limit
+
+    def routes(self, module, addr):
+        """Every width route for one table, plus the resolved answer.
+
+        REPORTS DISAGREEMENT RATHER THAN PICKING QUIETLY. Four routes read this
+        table, no two of them agree everywhere, and on ov026 none of the older
+        three is right on all five tables. A sweep that prints one number and
+        keeps which route produced it to itself is how a wrong width ships: the
+        number looks the same whether every route agreed or three of four were
+        overruled.
+        """
+        run, bound = self.span(module, addr)
+        tail, tail_why = self.tail_width(module, addr)
+        ti, ti_why = self.typeinfo_width(module, addr)
+        term = run                     # span() already applies the terminators
+        raw = self.raw_run(module, addr)
+        resolved = tail if tail is not None else term
+        source = "semantic tail" if tail is not None else "terminator"
+        # Only the routes that make a CLAIM count as disagreement. The raw
+        # reloc run over-reads and the next-dsd-symbol bound under-reads on
+        # essentially every table -- this file's own header says so -- and
+        # counting them turns the report into 127 rows of expected behaviour
+        # that nobody will read past. Terminator and typeinfo are the two that
+        # have been quoted as answers, so those two are the news.
+        disagree = [n for n, v in (("terminator", term), ("typeinfo", ti))
+                    if v is not None and v != resolved]
+        return {"resolved": resolved, "source": source,
+                "tail": tail, "tail_why": tail_why,
+                "typeinfo": ti, "typeinfo_why": ti_why,
+                "terminator": term, "raw_run": raw, "symbol_bound": bound,
+                "disagree": disagree}
+
+    def raw_run(self, module, addr, limit=80):
+        """The reloc run with NO terminator applied. Over-reads by design."""
+        rel = self.mod[module]["relocs"]
+        n = 0
+        while n < limit:
+            e = rel.get(addr + 4 * n)
+            if not e or e[0] != "load" or not self.is_code(e[1], e[2]):
+                break
+            n += 1
+        return n
+
     def span(self, module, addr):
-        """(ROM length in words, symbol-bound length in words)."""
+        """(ROM length in words, symbol-bound length in words).
+
+        The TERMINATOR route. Kept exactly as it was, and no longer the whole
+        answer: routes() leads with the semantic tail and uses this when the
+        tail is inconclusive. See tail_width and pmf_pairs_at.
+        """
         m = self.mod[module]
         rel = m["relocs"]
         n = 0
@@ -270,10 +474,22 @@ class Rom:
 
     def dump(self, module, addr, sym=""):
         m = self.mod[module]
-        run, bound = self.span(module, addr)
+        r = self.routes(module, addr)
+        run = r["resolved"]
+        bound = r["symbol_bound"]
         shape = {31: "plain Actor", 32: "Platform subclass"}.get(run, "own")
-        print("=== %s  %s 0x%08x   ROM %d slots (%s), symbol bound %s"
-              % (sym, module, addr, run, shape, bound))
+        print("=== %s  %s 0x%08x   ROM %d slots (%s), by the %s"
+              % (sym, module, addr, run, shape, r["source"]))
+        print("    routes: tail %-6s typeinfo %-6s terminator %-6s "
+              "raw run %-6s next dsd symbol %s"
+              % (r["tail"], r["typeinfo"], r["terminator"], r["raw_run"],
+                 bound))
+        print("    tail  : %s" % r["tail_why"])
+        if r["disagree"]:
+            print("    DISAGREE: %s read it differently. The resolved number "
+                  "is the %s's." % (", ".join(r["disagree"]), r["source"]))
+        else:
+            print("    every route agrees on %d." % run)
         for i in range(run + 2):
             a = addr + 4 * i
             e = m["relocs"].get(a)
@@ -359,22 +575,38 @@ def sweep(rom, root):
                     found.setdefault(m.group("name"),
                                      (str(p.relative_to(root)), i, n))
     short = []
-    print("%-34s %-5s %-5s %-6s %s"
-          % ("array", "host", "ROM", "bound", "defined at"))
+    split = []
+    print("%-34s %-5s %-5s %-6s %-4s %s"
+          % ("array", "host", "ROM", "bound", "by", "defined at"))
     for name, (where, line, host) in sorted(found.items()):
         for module, addr in rom.find(name):
-            run, bound = rom.span(module, addr)
+            r = rom.routes(module, addr)
+            run, bound = r["resolved"], r["symbol_bound"]
             if run < 4:
                 continue                      # not a function-pointer table
             flag = ""
             if host < run:
                 flag = "  <== SHORT BY %d" % (run - host)
                 short.append((name, host, run, where))
-            print("%-34s %-5d %-5d %-6s %s:%d%s"
-                  % (name, host, run, bound, where, line, flag))
+            if r["disagree"]:
+                split.append((name, run, r))
+            print("%-34s %-5d %-5d %-6s %-4s %s:%d%s"
+                  % (name, host, run, bound,
+                     "tail" if r["source"] == "semantic tail" else "term",
+                     where, line, flag))
     print("\n%d table(s) shorter than the ROM span" % len(short))
     for name, host, run, where in short:
         print("  %-34s host %2d  ROM %2d   %s" % (name, host, run, where))
+    # A split decision is not a failure and does not gate anything. It is
+    # printed because "the routes disagreed and this is the one I took" is a
+    # different claim from "every route agreed", and a sweep that prints the
+    # same number for both hides the difference that matters.
+    print("\n%d table(s) where the routes disagreed" % len(split))
+    for name, run, r in split:
+        print("  %-34s %2d by %-13s (raw run %s, dsd bound %s, terminator %s,"
+              " typeinfo %s)"
+              % (name, run, r["source"], r["raw_run"], r["symbol_bound"],
+                 r["terminator"], r["typeinfo"]))
     return 1 if short else 0
 
 
