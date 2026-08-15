@@ -121,12 +121,14 @@ TABLE_OPEN = "static const PortLevelDesc port_level_table[] = {"
 LEVEL_SKIPS = {
     33: ("SNUFIT",
          "the actors lane",
-         "SNUFIT (actor id 236) faults in RENDER, port_actor_render -> "
-         "Model::Virtual10+0xc accessing 0, at +0x0003c75c. Measured on level "
-         "33's mount by run linkw lane w21 and identical to wave 8's reading, "
-         "so the class is unfixed rather than newly broken. Level 33's mount "
-         "itself is proven: with the class skipped it runs 300 frames clean, "
-         "census 76 spawned / 18 classes."),
+         "SNUFIT (actor id 236) faults in RENDER. Measured on THIS tree, not "
+         "quoted: rc 139, FAULT c0000005 at +0x0003c6ec accessing 0, which "
+         "faultmap.py resolves to Model::Virtual10+0xc, walker actor id 0xec = "
+         "236 = SNUFIT. Wave 8 and lane w21 read the same fault at a different "
+         "offset because the binary moved, so the class is long unfixed rather "
+         "than newly broken. Level 33's mount itself is proven: with the class "
+         "skipped it runs 300 frames clean, census 72 spawned over 17 classes "
+         "with 4 SNUFIT declined."),
 }
 # The bare re-probe is expected to FAULT while the debt stands, and a fault
 # under FAULTS_FATAL exits fast. A probe that instead hangs is not evidence of
