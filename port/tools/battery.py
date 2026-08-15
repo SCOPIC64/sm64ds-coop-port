@@ -13,10 +13,17 @@ Everything the merge gate runs, in order, stopping at the first failure:
                       blocker belongs to another lane runs with that lane's
                       class skipped, named in LEVEL_SKIPS below and re-probed
                       bare on every run so the skip cannot outlive the bug
-  4. linkage          port/tools/linkage.py -- the linked count is printed and
+  4. scene selftests  walk_window.exe, SM64DS_SCENE=<id> and
+                      SM64DS_FAULTS_FATAL=1, on every hosted NON-LEVEL scene --
+                      the ids are read out of port_scene_classes[] in
+                      hal/scene_boot.cpp at run time, the same rule the level
+                      list follows and for the same reason. A scene whose
+                      blocker belongs to another lane runs with SCENE_SKIPS
+                      naming it and is re-probed bare on every run
+  5. linkage          port/tools/linkage.py -- the linked count is printed and
                       compared against --linked-floor if given (a merge must
                       never lower it)
-  5. ptr_audit        port/tools/ptr_audit.py -- unhosted code pointers must
+  6. ptr_audit        port/tools/ptr_audit.py -- unhosted code pointers must
                       stay at zero
 
     python port/tools/battery.py [repo-root] [--linked-floor N] [--skip-build]
@@ -115,6 +122,34 @@ SELFTEST_FRAMES = "300"
 STEP_TIMEOUT = 600
 
 TABLE_OPEN = "static const PortLevelDesc port_level_table[] = {"
+SCENE_TABLE_OPEN = "static const PortSceneClass port_scene_classes[] = {"
+
+# A HOSTED SCENE WHOSE BLOCKER IS NOT THE SCENE BOOT, AND WHAT BLOCKS IT.
+# Same contract as LEVEL_SKIPS above, one row down: scene id -> (env to set,
+# who owns the fix, what it looks like). The env is applied on top of the scene
+# selftest's own, and the bare run is re-probed on every pass so a skip cannot
+# outlive its bug. Empty is the goal.
+SCENE_SKIPS = {
+    4: ("SM64DS_SCENE_SLOT9=0", "the model-loader lane",
+        "dScStarSel_c::Render does not finish frame 0. WHAT IS MEASURED is the "
+        "LOCATION, not the cause: with the render slot on its real body the "
+        "run hangs, and PORT_WATCHDOG=25 catches the main thread inside "
+        "mv_render -> Model::Render -> ModelComponents::Render -> "
+        "func_02044b30+0x25c -> func_0204488c+0x24a -> func_0205a358 -> "
+        "ntr::io_read -> memcpy. func_0204488c is the ordinary part walk (see "
+        "port/tools/hostgen.py's own note on it), so it hangs in the part walk "
+        "under Model::Render, in the model-loader family that hal/level_boot"
+        ".cpp already routes there for ROCK_PILLAR on level 8. WHAT IS NOT "
+        "MEASURED: neither the runaway command count nor which of the scene's "
+        "two Models is the one being drawn was isolated, so do not read either "
+        "off this entry. The A/B review asked for was run: "
+        "SM64DS_SCENE_SUBLEVEL=7 (course 1) gives the same stack frame for "
+        "frame, same offsets, so the hang is not an artifact of one "
+        "star-collected state. With slot 9 no-op'd the scene runs 300 "
+        "frames clean and its Behavior is entered on 299 of them, so "
+        "everything except the draw is exercised. Full write-up: "
+        "port/scene_boot_map.txt."),
+}
 
 # A MOUNTED LEVEL WHOSE BLOCKER IS NOT THE MOUNT, AND THE CLASS THAT BLOCKS IT.
 #
@@ -193,6 +228,45 @@ def mounted_levels(root):
     return tuple(sorted(ids))
 
 
+def hosted_scenes(root):
+    """Every hosted NON-LEVEL scene id, read out of port_scene_classes[].
+
+    Derived rather than listed, for the reason mounted_levels() is derived: a
+    literal here goes stale the first time a lane seats a scene, and a battery
+    that keeps printing green over a set nobody has looked at is the exact bug
+    that list replaced. A parse failure is fatal for the same reason; an ABSENT
+    table is not, because a tree with no scene boot at all is a legitimate
+    state and there is nothing to under-test in it.
+    """
+    path = os.path.join(root, "port", "hal", "scene_boot.cpp")
+    if not os.path.exists(path):
+        return ()
+    with open(path, encoding="utf-8", errors="replace") as f:
+        text = f.read()
+
+    i = text.find(SCENE_TABLE_OPEN)
+    if i < 0:
+        raise SystemExit(f"battery: no port_scene_classes[] in {path}")
+    i += len(SCENE_TABLE_OPEN)
+    j = text.find("\n};", i)
+    if j < 0:
+        raise SystemExit(f"battery: unterminated port_scene_classes[] in {path}")
+
+    body = re.sub(r"/\*.*?\*/", " ", text[i:j], flags=re.S)
+    body = re.sub(r"//[^\n]*", " ", body)
+    # a row is {<id>, "<NAME>", <info>, <factory>, <fill>}; the terminator
+    # {0, 0, 0, 0, 0} has no string and does not match
+    ids = [int(n) for n in re.findall(r"\{\s*(\d+)\s*,\s*\"", body)]
+    if not ids:
+        raise SystemExit(f"battery: port_scene_classes[] parsed empty in {path}")
+
+    dupes = sorted({n for n in ids if ids.count(n) > 1})
+    if dupes:
+        raise SystemExit(f"battery: duplicate scene ids in port_scene_classes[]:"
+                         f" {dupes}")
+    return tuple(sorted(ids))
+
+
 def run(cmd, cwd, env=None, timeout=STEP_TIMEOUT):
     return subprocess.run(cmd, cwd=cwd, env=env, timeout=timeout,
                           capture_output=True, text=True)
@@ -223,6 +297,51 @@ def retire_probe(build, lvl):
     try:
         r = run([os.path.join(build, "walk_window.exe")], build,
                 env=selftest_env(lvl), timeout=RETIRE_PROBE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return True, "the bare run did not finish inside %ds" % \
+            RETIRE_PROBE_TIMEOUT
+    if r.returncode:
+        return True, "bare rc=%d" % r.returncode
+    return False, "bare rc=0"
+
+
+def scene_env(scene, extra=None):
+    """The scene selftest's environment. SM64DS_SCENE takes the whole run
+    (walk_window hands over to hal/scene_boot.cpp's port_scene_run before the
+    first level-shaped statement), so SM64DS_LEVEL and the level knobs are not
+    just unnecessary here, they are inapplicable -- and SM64DS_LEVEL is dropped
+    so an inherited one cannot make a scene run read as a level run.
+    Same frame count as the level selftests, for the same reason: a number that
+    two steps disagree on is a number a reader has to look up."""
+    env = dict(os.environ,
+               SM64DS_SCENE=str(scene),
+               SM64DS_SCENE_FRAMES=SELFTEST_FRAMES,
+               SM64DS_FAULTS_FATAL="1")
+    # EVERY scene knob is dropped before the table's own is applied, not just
+    # the level ones. The battery's own environment must not decide what a
+    # scene runs: an inherited SM64DS_SCENE_SLOT9=0 would let a lane skip its
+    # way to a green over a scene this table says needs nothing, which is the
+    # identical hole SM64DS_SKIP_CLASS is popped for one line up.
+    for k in ("SM64DS_LEVEL", "SM64DS_SKIP_CLASS", "SM64DS_SCENE_NO_RENDER",
+              "SM64DS_SCENE_BMP", "SM64DS_SCENE_TRACE", "SM64DS_SCENE_SLOT9",
+              "SM64DS_SCENE_SUBLEVEL", "PORT_WATCHDOG"):
+        env.pop(k, None)
+    if extra:
+        for kv in extra.split(","):
+            k, _, v = kv.partition("=")
+            env[k] = v or "1"
+    return env
+
+
+def scene_retire_probe(build, scene):
+    """Does scene `scene` still need its skip? Same contract as retire_probe,
+    with one difference that matters: scene 4's debt is a HANG, not a fault, so
+    the bare probe does not exit fast the way a FAULTS_FATAL crash does. It
+    runs out the leash instead, and the timeout IS the evidence. Read
+    "did not finish inside Ns" as "still needed", the same as a nonzero rc."""
+    try:
+        r = run([os.path.join(build, "walk_window.exe")], build,
+                env=scene_env(scene), timeout=RETIRE_PROBE_TIMEOUT)
     except subprocess.TimeoutExpired:
         return True, "the bare run did not finish inside %ds" % \
             RETIRE_PROBE_TIMEOUT
@@ -306,6 +425,49 @@ def main():
               f"port/tools/battery.py -- the level is being tested with a "
               f"class switched off for no reason.")
 
+    # THE SCENE SELFTESTS. Same shape as the level ones a few lines up, over a
+    # different mode of the game: SM64DS_SCENE=<id> hands walk_window's whole
+    # run to hal/scene_boot.cpp's port_scene_run, which boots the scene through
+    # the ROM's own Scene::SetSceneToSpawn -> Scene::SpawnIfNecessary chain and
+    # runs the same five actor phases for the same 300 frames. FAULTS_FATAL for
+    # the same reason: without it a quarantined fault reads as a pass.
+    scenes = hosted_scenes(root)
+    print(f"scenes: {len(scenes)} hosted, from hal/scene_boot.cpp")
+    # A skip for a scene that is not hosted reads as covered and tests nothing,
+    # the same staleness bug the level orphan check refuses. It also makes the
+    # final "skips:" line load-bearing: a non-empty SCENE_SKIPS can only reach
+    # that print if every one of its ids was hosted AND its selftest passed, so
+    # an ALL GREEN carrying a scene skip is proof the scene step really ran.
+    scene_orphans = sorted(set(SCENE_SKIPS) - set(scenes))
+    if scene_orphans:
+        print(f"scenes: FAIL, SCENE_SKIPS names unhosted scene(s) "
+              f"{scene_orphans}")
+        return 1
+    scene_retired = []
+    for sc in scenes:
+        skip = SCENE_SKIPS.get(sc)
+        r = run([os.path.join(build, "walk_window.exe")], build,
+                env=scene_env(sc, skip[0] if skip else None))
+        if r.returncode:
+            print(f"selftest scene {sc}: FAIL rc={r.returncode}"
+                  + (f" ({skip[0]})" if skip else ""))
+            print(r.stdout[-1500:])
+            return 1
+        if not skip:
+            print(f"selftest scene {sc}: ok")
+            continue
+        still, how = scene_retire_probe(build, sc)
+        print(f"selftest scene {sc}: ok with {skip[0]}, owned by {skip[1]}"
+              f" ({how})")
+        if not still:
+            scene_retired.append(sc)
+
+    for sc in scene_retired:
+        skip = SCENE_SKIPS[sc]
+        print(f"SKIP RETIRED: scene {sc} now runs {SELFTEST_FRAMES} frames "
+              f"clean BARE. {skip[0]} is no longer needed, so delete scene "
+              f"{sc} from SCENE_SKIPS in port/tools/battery.py.")
+
     r = run([sys.executable, os.path.join(root, "port", "tools", "linkage.py"),
              root], root)
     m = re.search(r"linked into walk_window\s*:\s*(\d+)\s*\(([\d.]+)%\)",
@@ -337,9 +499,16 @@ def main():
         print("skips: " + ", ".join(
             f"level {lvl} without {LEVEL_SKIPS[lvl][0]} ({LEVEL_SKIPS[lvl][1]})"
             for lvl in sorted(LEVEL_SKIPS)))
+    if SCENE_SKIPS:
+        print("skips: " + ", ".join(
+            f"scene {sc} with {SCENE_SKIPS[sc][0]} ({SCENE_SKIPS[sc][1]})"
+            for sc in sorted(SCENE_SKIPS)))
     if retired:
         print("skips: RETIRED and removable -- " +
               ", ".join(f"level {lvl}" for lvl in retired))
+    if scene_retired:
+        print("skips: RETIRED and removable -- " +
+              ", ".join(f"scene {sc}" for sc in scene_retired))
 
     print("battery: ALL GREEN")
     return 0

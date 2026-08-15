@@ -504,6 +504,11 @@ int port_entrance_count(void);
 int port_entrance_record(int i, int *x, int *y, int *z, int *yaw);
 /* the real level boot (hal/level_boot.cpp) */
 void port_level_probe(void);
+/* the SCENE boot (hal/scene_boot.cpp): SM64DS_SCENE=<id> takes the whole run,
+   the way SM64DS_LEVEL picks which level this one is. -1 means "not a scene
+   run", which is every run that does not set it. */
+int port_scene_env_want(void);
+int port_scene_run(void);
 /* the level selector: SM64DS_LEVEL picks it, the debug menu's LEVEL row
    walks the same table. port_level_nth enumerates it. */
 int port_level_id(void);
@@ -2319,6 +2324,22 @@ int main(void)
     __sinit_ov002_02107298(); __sinit_ov002_02107304();
     __sinit_ov002_02107370(); __sinit_ov002_02107f88();
     __sinit_ov002_0210804c(); __sinit_ov002_02108094();
+
+    /* SM64DS_SCENE=<id> BOOTS A NON-LEVEL SCENE INSTEAD, and takes the run
+       with it. Mirrors SM64DS_LEVEL: it names what to boot and nothing else.
+       4 is the star select (ov003's dScStarSel_c), the only scene seated
+       today; it comes up through the ROM's own Scene::SetSceneToSpawn ->
+       Scene::SpawnIfNecessary -> spawn spine, and an unhosted id is refused
+       by name the way an unmounted level is.
+       The hand-over is HERE, at the end of the host bring-up and before the
+       first level-shaped statement, because everything above this line (the
+       fixed ranges, the root heap, the ov002 pointer pass and its static
+       initialisers, the model vtable fills) is bring-up both modes need and
+       everything below it reads the Player the entrance spawned -- which a
+       scene run has not got. port_scene_run owns the rest of the process;
+       see hal/scene_boot.cpp. */
+    if (port_scene_env_want() >= 0)
+        return port_scene_run();
 
     /* THE GAME'S OWN LEVEL BOOT, now the default: ov009 mounted,
        Stage::LoadClsnAndObjects run against it, and the level's own entrance

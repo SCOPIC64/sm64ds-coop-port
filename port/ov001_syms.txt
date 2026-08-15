@@ -166,3 +166,24 @@ data_ov001_020ad5dc data_ov001_020ad640
 # added beside it, both in hal/sub_actors.cpp, which is not this lane's file.
 # The measurement and the handoff are in port/slice_w1l5.txt under LANE w4-e.
 _ZN3OAM14BOUNCING_ARROWE
+
+# run link60 (lane S1, the scene boot spine): TEN MORE OAM SPRITE TEMPLATES,
+# the ones dScStarSel_c::Render (src/func_ov003_020ae6f4.cpp) emits the star
+# grid, the course thumbnails and the character row through. Same overlay, same
+# treatment, and the same reason the sixteen above are here.
+#
+# WHY THEY ARE ov001'S AND NOT ov000'S. dsd tags every relocation into this
+# window "overlays(0,1)" because ov000 (0x020aa420 .. 0x020bf4e0) and ov001
+# (0x020aa420 .. 0x020ad660) share a base. Co-residency settles it: ov000's
+# span COVERS ov003's whole window (0x020ad660 .. 0x020b18a0), so ov000 and
+# ov003 can never be loaded together, while ov001's footprint ends exactly at
+# ov003's base. The overlay a star-select render can reach is ov001.
+#
+# THE ov003 SOURCE SPELLS THEM AS FUNCTIONS -- `extern void *func_020abb18[]`
+# and so on -- which is a decomp-side naming defect, not a second symbol: no
+# func_020ab* exists in any config. hal/scene_boot.cpp aliases each spelling
+# onto the address's real name, the "propagate renames BY ADDRESS" rule.
+data_ov001_020abb18 data_ov001_020abb34 data_ov001_020abb54
+data_ov001_020abb74 data_ov001_020abb94 data_ov001_020abbb4
+data_ov001_020abbf4 data_ov001_020abcb4 data_ov001_020abd78
+data_ov001_020abd80
