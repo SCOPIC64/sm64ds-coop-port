@@ -776,6 +776,29 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov052_0211123c.c"
     PROPERTIES COMPILE_DEFINITIONS "data_ov056_021124d4=data_ov052_021124d4")
 
+# R5, run linkw wave 15 (lane w15): THREE ov025 TUs spell ov025's OWN vtable
+# 0x021139d4 (_ZTV11PyramidLift) as `data_ov027_021139d4` -- ov025, ov027,
+# ov032 and ov036 all link at 0x021111a0 and dsd raced the name. The three load
+# sites (0x0211213c in the D1, 0x021121b0 in the D0, 0x02112648 in the Spawn)
+# all say module:overlay(25). Routed with a PER-SOURCE RENAME rather than an
+# /alternatename on purpose: ov027 HAS a real data_ov027_021139d4 of its own in
+# its config, and an alias with that LHS would be defeated the day ov027 is
+# mounted per symbol -- the ov071/ov073 R3 failure. A -D cannot be defeated.
+# The target is the HOST ARRAY, since 0x021139d4 is excluded from the mount.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN11PyramidLiftD0Ev.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN11PyramidLiftD1Ev.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/PyramidLift_Spawn.cpp"
+    PROPERTIES COMPILE_DEFINITIONS "data_ov027_021139d4=_ZTV11PyramidLift")
+# R6, the same shape one address over: src/__sinit_ov025_02112a44.c spells
+# ov025's own destructor-chain node 0x02113acc as `data_ov032_02113acc`. The
+# load site 0x02112a9c says module:overlay(25), and ov032 has a real
+# data_ov032_02113acc with four readers already in src, so the same argument
+# applies and this is a -D too.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/__sinit_ov025_02112a44.c"
+    PROPERTIES COMPILE_DEFINITIONS "data_ov032_02113acc=data_ov025_02113acc")
+
 # run linkw wave 6, lane w6-D: THE SAME DISEASE A THIRD TIME, and this one
 # would have linked SILENTLY on two of its three references.
 # src/func_ov100_02147054.c (PATH_LIFT's CleanupResources) releases its three
@@ -1470,6 +1493,32 @@ list(APPEND PORT_ACTOR_OVERLAYS ov073)
 # 32-slot table, straight through id 175's own file table and typeinfo -- is
 # derived in port/ov052_syms.txt. See also port/slice_w12b.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov052)
+# run linkw wave 15 (lane w15): ov056, LEVEL 48's own overlay ("Wario's key
+# course", ex_w_map, course 20) -- already whole-mounted since lane w8-mounts,
+# joining the per-symbol mounts too so BIG_MOVING_ICE_BLOCK (173) reaches its
+# SpawnInfo record, its file table and its sinit-built SharedFilePtrs by name.
+# Same dual-mount shape as ov012/ov013/ov045/ov052. Nine of level 48's fourteen
+# skipped instances are this class; the other five are MR_BLIZZARD, refused on
+# purpose. Its vtable is excluded from the mount and hosted as an array
+# hal/actor_classes_ov056.cpp fills; that file also runs the mount bring-up,
+# hal_fill_platform_vtable and the overlay's single sinit from the registry
+# fill (the ov045 lane-ownership pattern). The width trap this overlay carries
+# -- a dsd split at slot 16 making the next-symbol landing read a 32-slot table
+# as SIXTEEN -- is derived in port/ov056_syms.txt. See also port/slice_w15.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov056)
+# run linkw wave 15 (lane w15): ov025, LEVEL 17's own overlay -- already
+# whole-mounted since lane w8-mounts, joining the per-symbol mounts too so
+# PYRAMID_STEP (87) and PYRAMID_LIFT (88) reach their SpawnInfo records, their
+# CLPS blocks and their sinit-built SharedFilePtrs by name. Five of level 17's
+# eleven skipped instances. Both vtables are excluded from the mount and hosted
+# as arrays hal/actor_classes_ov025.cpp fills; that file also runs the mount
+# bring-up, hal_fill_platform_vtable and the TWO of the overlay's four sinits
+# these classes own (the other two belong to classes with no reach and stay
+# unrun, the ov019 rule). TWO width traps are derived in port/ov025_syms.txt:
+# dsd split BOTH 32-slot tables at slot 8, and it also split a SharedFilePtr in
+# half so an unpinned mount would have sized it FOUR bytes. See also
+# port/slice_w15c.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov025)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -1991,6 +2040,64 @@ foreach(line IN LISTS SLICE_W12C_LINES)
         continue()
     endif()
     list(APPEND SLICE_W12C_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 15, lane w15: BIG_MOVING_ICE_BLOCK (173), ov056 -- nine
+# instances on level 48, on a table nothing had filled, in an overlay mounted
+# whole but not yet per symbol. EIGHT TUs, the whole of ov056's actor code
+# (six vtable slots, the factory and the overlay's single sinit), and the reloc
+# closure leaves ov056 for nothing that was not already linked. None of the
+# eight carries the inferred-stub guess marker. The header of
+# port/slice_w15.txt carries both attribution routes, the Render slot-5 ruling
+# and the two destructors' placeholder-store reading; the width derivation is
+# in port/ov056_syms.txt. Same one-owner contract as the lane slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w15.txt" SLICE_W15_LINES)
+set(SLICE_W15_SOURCES "")
+foreach(line IN LISTS SLICE_W15_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W15_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 15, lane w15: the MEGA MUSHROOM TAG pair (319 + 320, ov002) --
+# ONE ROM class under two spawn-table ids on one table (0x02108cf4), one
+# instance of each on levels 22 and 24. ov002 has been mounted since gate 14,
+# so this is two records in port/ov002_syms.txt, one host array with one fill,
+# two registry rows and EIGHT TUs, with no new mount and no new sinit. The
+# class branches on its own actor id, so one closure serves both rows. Slot 16
+# is held out and transcribed in the fill (the SlideDecorationSilverStar
+# shadow-class MSVC destructor shape); the ROM disassembly it was transcribed
+# from is in hal/actor_classes_ov002_w15.cpp. None of the eight carries the
+# inferred-stub guess marker. Same one-owner contract as the lane slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w15b.txt" SLICE_W15B_LINES)
+set(SLICE_W15B_SOURCES "")
+foreach(line IN LISTS SLICE_W15B_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W15B_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+# run linkw wave 15, lane w15: ov025's PYRAMID_STEP (87) and PYRAMID_LIFT (88)
+# -- five of level 17's eleven skipped instances. NINETEEN TUs: twelve vtable
+# bodies, two factories, four helpers and the two sinits these classes own. One
+# more body is held out and host-thunked (PyramidStep::CleanupResources, whose
+# src spells its two SharedFilePtrs G0/G1 in C++ and would Release SignPost's
+# live ones -- the ov022 FloatingFloorLllBig failure); the ROM disassembly it
+# was transcribed from is in hal/actor_classes_ov025.cpp. None of the nineteen
+# carries the inferred-stub guess marker. Same one-owner contract as the lane
+# slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w15c.txt" SLICE_W15C_LINES)
+set(SLICE_W15C_SOURCES "")
+foreach(line IN LISTS SLICE_W15C_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W15C_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate21.txt" SLICE21_LINES)
@@ -3532,6 +3639,9 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_ov052.cpp ${SLICE_W12B_SOURCES}
     hal/actor_classes_ov064_w12.cpp unmatched/Ov064_Clam.cpp
     ${SLICE_W12C_SOURCES}
+    hal/actor_classes_ov056.cpp ${SLICE_W15_SOURCES}
+    hal/actor_classes_ov002_w15.cpp ${SLICE_W15B_SOURCES}
+    hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -3652,6 +3762,9 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_ov052.cpp ${SLICE_W12B_SOURCES}
     hal/actor_classes_ov064_w12.cpp unmatched/Ov064_Clam.cpp
     ${SLICE_W12C_SOURCES}
+    hal/actor_classes_ov056.cpp ${SLICE_W15_SOURCES}
+    hal/actor_classes_ov002_w15.cpp ${SLICE_W15B_SOURCES}
+    hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -3784,6 +3897,9 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_ov052.cpp ${SLICE_W12B_SOURCES}
     hal/actor_classes_ov064_w12.cpp unmatched/Ov064_Clam.cpp
     ${SLICE_W12C_SOURCES}
+    hal/actor_classes_ov056.cpp ${SLICE_W15_SOURCES}
+    hal/actor_classes_ov002_w15.cpp ${SLICE_W15B_SOURCES}
+    hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
