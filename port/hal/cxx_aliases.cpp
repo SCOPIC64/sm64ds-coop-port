@@ -757,6 +757,33 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
    them. Nothing about this is a stub standing in for a linkable body. */
 #pragma comment(linker, "/alternatename:__ZN6Player7ST_WAITE=_data_ov002_02110154")
 
+/* THE ROOT-HEAP BOOT SPINE (lane w8-shadows). Seating
+   src/_ZN4Heap18InitializeRootHeapEv.cpp -- the ROM's own entry into root-heap
+   setup, which tests/walk_window.cpp used to skip by calling the inner
+   SetupRootHeap directly -- needs three names bound, and all three are
+   alias-legal because every function involved is __cdecl: the matched TU
+   spells Heap's two entries as STATIC members, and a static member takes no
+   `this`. None of the thiscall hazards this file warns about apply.
+
+   Manglings read off the linker's own error text, not guessed. */
+/* the matched TU calls Heap::SetupRootHeap as a static member; the port's
+   SetupRootHeap is the C name from a .c matched TU. Return types differ (void
+   against HeapS*) and that is harmless for cdecl -- the pointer comes back in
+   EAX and this caller discards it. The boot guard that used to read that
+   return now reads data_020a0ea0, which SetupRootHeap writes on the success
+   path and leaves alone on failure; see the call site. */
+#pragma comment(linker, "/alternatename:?SetupRootHeap@Heap@@SAXXZ=__ZN4Heap13SetupRootHeapEv")
+/* Memory::rootParamOffset is the matched TU's name for 0x020a0ea4. The name is
+   wrong and the address is right: src/_ZN4Heap13SetupRootHeapEv.c passes that
+   word as the FIRST argument to every arena accessor (func_02058ea0,
+   func_02058eb4, func_02059040, func_02058d58, func_02058cd0), so it is the OS
+   globals POINTER and InitializeRootHeap NULLs it to mean "use the default".
+   hal/os_arena.cpp had it right. Bound to the storage that file already owns. */
+#pragma comment(linker, "/alternatename:?rootParamOffset@Memory@@3IA=_data_020a0ea4")
+/* and the ROM's C name onto the matched static member, so the boot site can
+   spell it the way every other seated entry in walk_window.cpp is spelled */
+#pragma comment(linker, "/alternatename:__ZN4Heap18InitializeRootHeapEv=?InitializeRootHeap@Heap@@SAXXZ")
+
 /* PORT_HOST_ABI: shared-load-window NAME COLLISION -- this symbol is ov013 BSS here and an ov045 FUNCTION in src/; they are different objects at one address.
    Moved here from hal/actor_classes_ov013.cpp with its ruling. ov013 and ov045
    share a load window and both cover 0x02112280. The Pendulum's Init (ov013)

@@ -306,6 +306,13 @@ void *_ZN6PlayerC1Ev(void *self);
    into the swap pair at +0x6dc/+0x6dd (src/func_ov002_020beabc.cpp) */
 void func_ov002_020beabc(void *p);
 void *_ZN4Heap13SetupRootHeapEv(void);
+/* the ROM's entry into the above: clears the OS globals word, tail-calls it.
+   Seated from src/_ZN4Heap18InitializeRootHeapEv.cpp; the C name reaches the
+   matched TU's static member through an /alternatename in hal/cxx_aliases.cpp,
+   which is ABI-legal here because a static member is __cdecl like this
+   declaration. See the call site for why the boot guard moved to
+   data_020a0ea0. */
+void _ZN4Heap18InitializeRootHeapEv(void);
 /* the ROM's own game-heap factory, off the main.c boot spine -- see the call
    site below for the two arguments and where they come from */
 void _ZN4Heap18InitializeGameHeapEjPS_(unsigned size, void *root);
@@ -2258,7 +2265,34 @@ int main(void)
        bytes exactly as they would over baked-in ones. */
     port_romdata_load();
 #endif
-    if (!_ZN4Heap13SetupRootHeapEv()) return 2;
+    /* THE ROM'S OWN ENTRY, not one level in. This was
+       `if (!_ZN4Heap13SetupRootHeapEv()) return 2;` -- correct, and calling the
+       inner half. func_0201a054's chain reaches the root heap through
+       Heap::InitializeRootHeap (arm9 0x0203cae8, 0x1c), which clears the OS
+       globals word at 0x020a0ea4 and then TAIL-CALLS SetupRootHeap:
+
+           0203cae8  e59f000c   LDR r0, [pc, #0xc]   -> 0x020a0ea4
+           0203caec  e3a01000   MOV r1, #0
+           0203caf0  e59fc008   LDR ip, [pc, #8]     -> 0x0203cb04
+           0203caf4  e5801000   STR r1, [r0]
+           0203caf8  e12fff1c   BX  ip
+
+       THE GUARD MOVES RATHER THAN GOES. Because that last instruction is a
+       tail call, the ROM hands SetupRootHeap's HeapS* straight back to this
+       caller -- but src/_ZN4Heap18InitializeRootHeapEv.cpp declares the
+       function `void`, so the return value cannot come through the seated TU.
+       Testing data_020a0ea0 instead is the same test, not a weaker one:
+       src/_ZN4Heap13SetupRootHeapEv.c writes the new heap into data_020a0e9c
+       and data_020a0ea0 only on the success path and returns 0 without
+       touching either on failure. Weakening the boot guard to seat a TU would
+       be exactly the kind of non-ROM-faithful fix the port exists to refuse.
+
+       Zeroing 0x020a0ea4 is inert here, which is why the heap numbers do not
+       move: hal/os_arena.cpp's accessors take that word as their `g` argument
+       and ignore it outright. It matters on the DS, where NULL means "use the
+       default OS globals", and it costs nothing to be faithful about. */
+    _ZN4Heap18InitializeRootHeapEv();
+    if (!data_020a0ea0) return 2;
     memset(data_0209b3ec, 0, 48);
     data_0209b3ec[0] = data_0209b3ec[4] = data_0209b3ec[8] = 0x1000;
     hal_fill_model_vtable();

@@ -93,3 +93,54 @@ src/_ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File.cpp
 # UpdateKillByMegaChar. Two boot-path behaviour changes in one gate run cannot
 # be attributed to each other if a census or a position moves. It wants its own
 # run of the matrix, not a share of this one.
+
+# ---- PART 2: the root-heap boot spine -------------------------------------
+#
+# Heap::InitializeRootHeap is the ROM's own entry into the root-heap setup and
+# the port has been calling one level in, at Heap::SetupRootHeap, since gate 3a.
+# Derived from arm9_dec.bin rather than from the matched TU's prose. 0x0203cae8,
+# size 0x1c, is seven words:
+#
+#     0203cae8  e59f000c   LDR r0, [pc, #0xc]     -> literal 0x020a0ea4
+#     0203caec  e3a01000   MOV r1, #0
+#     0203caf0  e59fc008   LDR ip, [pc, #8]       -> literal 0x0203cb04
+#     0203caf4  e5801000   STR r1, [r0]           -> *(u32*)0x020a0ea4 = 0
+#     0203caf8  e12fff1c   BX  ip                 -> tail-call SetupRootHeap
+#     0203cafc  020a0ea4
+#     0203cb00  0203cb04
+#
+# which is exactly src/_ZN4Heap18InitializeRootHeapEv.cpp: clear the word, then
+# call Heap::SetupRootHeap (0x0203cb04, already linked from its own matched TU).
+#
+# TWO CORRECTIONS THE DERIVATION FORCED, both worth carrying:
+#
+# 1. THE MATCHED TU MISNAMES 0x020a0ea4. It calls it Memory::rootParamOffset,
+#    which reads as a numeric offset. It is not: in
+#    src/_ZN4Heap13SetupRootHeapEv.c that address is passed as the FIRST
+#    argument to every arena accessor -- func_02058ea0(g), func_02058eb4(g),
+#    func_02059040(g,...), func_02058d58(g,...), func_02058cd0(g,...) -- so it
+#    is the OS globals POINTER, and InitializeRootHeap NULLs it so the
+#    accessors fall back to the system default. port/hal/os_arena.cpp:3 had it
+#    right all along ("the OS globals object"). The byte behaviour in the
+#    matched TU is correct either way; only the name is wrong, and the name is
+#    what a reader would act on.
+#
+# 2. THE ROM'S RETURN VALUE SURVIVES THE TAIL CALL AND THE MATCHED TU DROPS IT.
+#    `BX ip` means SetupRootHeap returns straight to InitializeRootHeap's
+#    caller, so on the ROM InitializeRootHeap effectively yields SetupRootHeap's
+#    HeapS*. The matched TU declares it `void`, which is fine for the bytes and
+#    lossy for the port: tests/walk_window.cpp guards boot with
+#    `if (!SetupRootHeap()) return 2;`, and that guard cannot survive a void
+#    call. The seat keeps it by testing data_020a0ea0 instead -- SetupRootHeap
+#    stores the new heap into data_020a0e9c and data_020a0ea0 on success and
+#    returns 0 without touching them on failure, so the two tests are the same
+#    test. Dropping the guard to seat a TU would have been a non-ROM-faithful
+#    fix in the direction the port exists to avoid.
+#
+# BEHAVIOURALLY INERT IN THE PORT, and that is measured, not assumed: the host
+# arena accessors in hal/os_arena.cpp ignore their `g` argument entirely
+# (`int func_02058ea0(void *) { arena_init(); return (int)(size_t)g_lo; }`), so
+# zeroing the OS-globals word changes nothing here. The heap numbers are the
+# proof and they are in the report: 241592 free after boot on all 17 levels,
+# unchanged, and every per-level after-300-frames figure identical to canon.
+src/_ZN4Heap18InitializeRootHeapEv.cpp
