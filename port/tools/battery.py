@@ -5,8 +5,11 @@ Everything the merge gate runs, in order, stopping at the first failure:
 
   1. build            port/build-port.cmd (32-bit MSVC, ninja)
   2. smoke suite      every smoke_*.exe in build/port, exit 0 each
-  3. level selftests  walk_window.exe, SM64DS_WINDOW_SELFTEST=300, on every
-                      mounted level (the PORT_LEVEL_OVERLAYS list's levels)
+  3. level selftests  walk_window.exe, SM64DS_WINDOW_SELFTEST=300 and
+                      SM64DS_FAULTS_FATAL=1, on every mounted level -- the ids
+                      are read out of port_level_table[] in hal/level_boot.cpp
+                      at run time, so a new mount is covered the moment it
+                      lands and no list here can go stale
   4. linkage          port/tools/linkage.py -- the linked count is printed and
                       compared against --linked-floor if given (a merge must
                       never lower it)
@@ -64,6 +67,25 @@ the change or follows the footprint.
 The address dependence itself is real and unexplained -- something in the
 render path decides on a pointer value or reads an uninitialised field. It is
 tracked separately; this note exists so the gate is not read as the bug.
+
+A SELFTEST DOES NOT ALWAYS END ON THE LEVEL IT STARTED.
+
+Every selftest log carries TWO [census] blocks -- one after boot and one at the
+end of the run -- and the census reports the live actor set at print time, so
+on a level that stays put the two are identical. Level 1 prints
+"82 spawned (22 classes), 0 skipped" twice.
+
+Levels 19, 20, 26, 35, 39 and 49 warp within the 300 frames. Their logs carry a
+"[lvl] change: level N -> M" line, and the second census is then M's, not N's:
+level 26 warps to 1 and its second block is level 1's 82/22 exactly, level 39
+warps to 5 and drops from 96 spawned to 64. (26 and 39 confirmed on this tree
+2026-08-15; the rest are as reported by the mount lanes.)
+
+The battery only reads exit codes and does not care. Anything that reads a
+census OFF one of these logs must take the FIRST [census] block, before the
+first "[lvl] change:" line -- taking the last one silently files the
+destination level's actors under the level that was asked for. Two blocks by
+itself is not the warp signal; a "[lvl] change:" line is.
 """
 
 import os
@@ -71,17 +93,56 @@ import re
 import subprocess
 import sys
 
-# Every mounted level, port_level_table[] in hal/level_boot.cpp -- a new
-# level mount adds its id here or the battery silently under-tests. That is
-# not hypothetical: run linkw wave 8 mounted sixteen levels and this tuple sat
-# at nineteen ids for the rest of the wave, so the shipped battery covered 19
-# of 35 mounts and every lane that ran it read a green it had not earned.
-# Derive the list rather than trusting it: the ids are the first field of each
-# port_level_table row.
-LEVELS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20,
-          22, 23, 24, 26, 27, 35, 36, 37, 38, 39, 40, 44, 45, 47, 48, 49, 50)
 SELFTEST_FRAMES = "300"
 STEP_TIMEOUT = 600
+
+TABLE_OPEN = "static const PortLevelDesc port_level_table[] = {"
+
+
+def mounted_levels(root):
+    """Every mounted level id, read out of port_level_table[] at run time.
+
+    This list used to be a literal here, and a literal is how the battery
+    silently under-tests: run linkw wave 8 mounted sixteen levels and the tuple
+    sat at nineteen ids for the rest of the wave, so the shipped battery
+    covered 19 of 35 mounts and every lane that ran it read a green it had not
+    earned. Deriving it is the only form that cannot go stale.
+
+    A parse failure is fatal on purpose. Falling back to a built-in list would
+    reintroduce exactly the bug this replaced -- a battery that keeps printing
+    greens while testing a set nobody has checked in months.
+    """
+    path = os.path.join(root, "port", "hal", "level_boot.cpp")
+    with open(path, encoding="utf-8", errors="replace") as f:
+        text = f.read()
+
+    i = text.find(TABLE_OPEN)
+    if i < 0:
+        raise SystemExit(f"battery: no port_level_table[] in {path}")
+    i += len(TABLE_OPEN)
+    j = text.find("\n};", i)
+    if j < 0:
+        raise SystemExit(f"battery: unterminated port_level_table[] in {path}")
+
+    # The table carries per-wave comment blocks that quote ROM tables and row
+    # fields, so strip comments before matching or a quoted id becomes a level.
+    body = re.sub(r"/\*.*?\*/", " ", text[i:j], flags=re.S)
+    body = re.sub(r"//[^\n]*", " ", body)
+
+    # A row is {<id>, "<name>", "ov0NN", 0x0......., ...}; the name string is
+    # what keeps the pattern off any other brace in the span.
+    ids = [int(n) for n in re.findall(r"\{\s*(\d+)\s*,\s*\"", body)]
+    if not ids:
+        raise SystemExit(f"battery: port_level_table[] parsed empty in {path}")
+
+    dupes = sorted({n for n in ids if ids.count(n) > 1})
+    if dupes:
+        # port_level_desc_for() returns the first match, so a duplicate id is a
+        # dead row, not a harmless one.
+        raise SystemExit(f"battery: duplicate level ids in port_level_table[]:"
+                         f" {dupes}")
+
+    return tuple(sorted(ids))
 
 
 def run(cmd, cwd, env=None, timeout=STEP_TIMEOUT):
@@ -125,9 +186,11 @@ def main():
     # FAULTS_FATAL is not optional here. Without it a level can take an access
     # violation inside a quarantined actor, freeze that actor, keep ticking and
     # exit 0 -- so the battery passes a level that is visibly broken. Every
-    # lane's own census runs set it; the battery did not, which is the same
-    # class of unearned green as the stale LEVELS tuple above.
-    for lvl in LEVELS:
+    # lane's own census runs set it; the battery did not, which was the same
+    # class of unearned green as the hand-maintained level list it used to run.
+    levels = mounted_levels(root)
+    print(f"levels: {len(levels)} mounted, from hal/level_boot.cpp")
+    for lvl in levels:
         env = dict(os.environ,
                    SM64DS_LEVEL=str(lvl),
                    SM64DS_FAULTS_FATAL="1",
