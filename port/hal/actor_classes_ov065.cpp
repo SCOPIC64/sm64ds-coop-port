@@ -340,9 +340,17 @@ static int __fastcall sn_clean(void *s, void *)
 { (void)s; return _ZN6Snufit16CleanupResourcesEv(); }
 static int __fastcall sn_behavior(void *s, void *)
 { return _ZN6Snufit8BehaviorEv(s); }
+/* RUN LINKW WAVE 19: was `((Snufit *)s)->Snufit::Render()`, the matched TU.
+   That body dispatches slot 5 of a local six-virtual shadow over the ModelAnim
+   at 0x300, and the host _ZTV9ModelAnim numbers slot 5 as Virtual18 -- a live
+   c0000005 the moment a SNUFIT is drawn (measured with SM64DS_SPAWN_ACTOR=236
+   on level 13; the banner in port/unmatched/W19_Slot5_Renders.cpp carries the
+   fault). The host copy costs the matched TU and is the same trade
+   Butterfly/Whomp/Amp already made. */
+int port_w19_snufit_render(void *self);
 static int __fastcall sn_render(void *s, void *)
 { port_actor_render_probe("SNUFIT", (char *)s + 0x300);
-  return ((Snufit *)s)->Snufit::Render(); }
+  return port_w19_snufit_render(s); }
 static int __fastcall sn_pdes(void *s, void *)
 { (void)s; _ZN6Snufit16OnPendingDestroyEv(); return 0; }
 static int __fastcall sn_d1(void *s, void *)
@@ -403,9 +411,13 @@ static int __fastcall sw_clean(void *s, void *)
 { (void)s; return _ZN5Swoop16CleanupResourcesEv(); }
 static int __fastcall sw_behavior(void *s, void *)
 { return _ZN5Swoop8BehaviorEv(s); }
+/* RUN LINKW WAVE 19: the same ModelAnim slot-5 collision, over BOTH of
+   SWOOP's ModelAnims (0x300 and 0x364). Measured with SM64DS_SPAWN_ACTOR=237
+   on level 13. See port/unmatched/W19_Slot5_Renders.cpp. */
+int port_w19_swoop_render(void *self);
 static int __fastcall sw_render(void *s, void *)
 { port_actor_render_probe("SWOOP", (char *)s + 0x300);
-  return ((Swoop *)s)->Swoop::Render(); }
+  return port_w19_swoop_render(s); }
 static int __fastcall sw_pdes(void *s, void *)
 { (void)s; _ZN5Swoop16OnPendingDestroyEv(); return 0; }
 static int __fastcall sw_d1(void *s, void *)
@@ -460,9 +472,13 @@ static int __fastcall do_clean(void *s, void *)
 { return ((Dorrie *)s)->Dorrie::CleanupResources(); }
 static int __fastcall do_behavior(void *s, void *)
 { return _ZN6Dorrie8BehaviorEv(s); }
+/* RUN LINKW WAVE 19: the same ModelAnim slot-5 collision, over the ModelAnim
+   at 0xec. Measured with SM64DS_SPAWN_ACTOR=168 on level 13. See
+   port/unmatched/W19_Slot5_Renders.cpp. */
+int port_w19_dorrie_render(void *self);
 static int __fastcall do_render(void *s, void *)
 { port_actor_render_probe("DORRIE", (char *)s + 0xec);
-  return ((Dorrie *)s)->Dorrie::Render(); }
+  return port_w19_dorrie_render(s); }
 static int __fastcall do_d1(void *s, void *)
 { return (int)(size_t)_ZN6DorrieD1Ev(s); }
 static int __fastcall do_d0(void *s, void *)
