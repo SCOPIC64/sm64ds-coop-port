@@ -1,0 +1,175 @@
+# Run linkw wave 11, lane w11: NINETEEN ids whose vtable is ALREADY a filled
+# host array and whose overlay is ALREADY mounted. One TU each, and nothing
+# else: no new mount, no new vtable, no new fill, no wrapper.
+#
+# ---- WHY NINETEEN AND NOT SIX -----------------------------------------------
+#
+# Wave 9 and wave 10 found this class of registration with a tool whose WORK set
+# was the ~70 classes that appear in the mounted levels' skip censuses. That set
+# is structurally blind to exactly the cheapest case: an id whose table is
+# already filled and whose overlay is already mounted, but which no censused
+# level happens to place. Wave 10 caught six of those by eye and said so.
+#
+# This lane widened the sweep from those 70 rows to ALL 512 spawn-table ids:
+# resolve every id to (owner overlay, the table its own Spawn stores), group the
+# 512 by that pair, and ask three questions per group. 374 of the 512 resolve to
+# an (overlay, table) pair; they fall on 295 distinct tables, 43 of which carry
+# two or more ids. Nineteen unregistered ids sit on a table a REGISTERED sibling
+# already fills:
+#
+#   MNT     the owner overlay is mounted                    19/19
+#   FILLED  the table is a host array in walk_window.map    19/19  (by name)
+#   REC     the id's own SpawnInfo is already mounted       13/19
+#
+# The thirteen with REC cost one registry row and one factory TU. The six
+# without cost one extra line in their overlay's syms file. Six of the nineteen
+# carry instances on a mounted level today (11 instances in total); the other
+# thirteen carry none, and are taken for the linkage and because the next lane
+# that mounts a level placing them gets them for free.
+#
+# ---- THE TWELVE ATTRIBUTIONS, BOTH ROUTES, RAW IMAGES -----------------------
+#
+# Every id below was read out of extracted/overlays/overlay_NNNN.bin (the ndspy
+# unpack) and NEVER the dsd export -- every overlay here is compressed:true, so
+# a halfword read out of the dsd image is noise. Route 1: ACTOR_SPAWN_TABLE
+# (arm9 0x02090864) + id*4 relocates to a record inside the overlay's span and
+# that record's word[0] is a Spawn inside the same span. Route 2: the record's
+# +4 halfword reads the id back. Both agree for all nineteen.
+#
+#   id  ov  spawn-table site  SpawnInfo    word[0]                     +4   +6
+#   ------------------------------------------------------------------------
+#    59 102 0x02090950 -> 0x0214e0fc  0x02148f5c RockTriangle_Spawn      59  183
+#   340 102 0x02090db4 -> 0x0214e150  0x02148ecc CgStairs_Spawn        340  340
+#   341 102 0x02090db8 -> 0x0214e16c  0x02148e9c RopeBarrier_Spawn     341  341
+#    22 102 0x020908bc -> 0x0214e3cc  0x0214a92c ExclamationBlockVs_Sp  22   40
+#    23 102 0x020908c0 -> 0x0214e420  0x0214a86c CapBlockMario_Spawn    23   41
+#    24 102 0x020908c4 -> 0x0214e458  0x0214a7ec CapBlockWario_Spawn    24   42
+#    25 102 0x020908c8 -> 0x0214e43c  0x0214a82c CapBlockLuigi_Spawn    25   43
+#   147  91 0x02090ab0 -> 0x02134fd0  0x02132848 SlidingPlatformBfsSq  147  218
+#   146  91 0x02090aac -> 0x02134fec  0x02132818 SlidingPlatformBfsRe  146  217
+#   124  91 0x02090a54 -> 0x02134fb4  0x02132878 SlidingPlatformRr_Sp  124  254
+#    30  91 0x020908dc -> 0x02134c14  0x02131ba4 RotatingUpDownPlatfo   30  298
+#   201  84 0x02090b88 -> 0x02130908  0x0212c054 GoombaSmall_Spawn     201   25
+#   204  62 0x02090b94 -> 0x0211da90  0x021196bc KoopaSmall_Spawn      204   28
+#   143  95 0x02090aa0 -> 0x02137414  0x02135f34 SeesawBfs_Spawn       143  214
+#    28  95 0x020908d4 -> 0x021373dc  0x02135fc4 SeesawUtm_Spawn        28  296
+#   128  95 0x02090a64 -> 0x02137468  0x02135ea4 SeesawRr_Spawn        128  258
+#   131  95 0x02090a70 -> 0x02137604  0x0213679c UpDownLiftRr_Spawn    131  261
+#   179   2 0x02090b30 -> 0x0210aa5c  0x020ebed4 SilverStar_Spawn      179   65
+#   324   2 0x02090d74 -> 0x02108bd8  0x020b45e0 SilverStarBlockTag_S  324  322
+#
+# ---- THE SEVEN SHARED TABLES ------------------------------------------------
+#
+# Each table below is ALREADY a host array in walk_window.map, filled at
+# registry-install time by the registered sibling named beside it. The dsd name
+# and the host array's name differ on two of the seven; both are the same array
+# through an existing /alternatename, which is checked by
+# port/tools/alternatename_guard.py after every link.
+#
+#   0x0214e1d8 _ZTV13FortressTower           <- 298 (hal_fill_warp_pipe_vtable)
+#                                                59, 340, 341
+#   0x0214e47c _ZTV13QuestionBlock           <- 20 (hal_fill_question_block_vtable)
+#                                                22, 23, 24, 25
+#   0x02135080 _ZTV17SlidingPlatformWf       <- 55/138/154/155
+#                                                (hal_fill_sliding_platform_wf_vtable)
+#                                                146, 147, 124
+#   0x02134c5c _ZTV23daObjRotateUpdownLift_c <- 29
+#                                                (hal_fill_rotating_up_down_platform_vtable;
+#                                                 the host array is spelled
+#                                                 _ZTV25RotatingUpDownPlatformUtm and
+#                                                 aliased in hal/actor_classes_l7.cpp)
+#                                                30
+#   0x02130948 _ZTV6Goomba                   <- 200/202 (hal_fill_goomba_vtable)
+#                                                201
+#   0x0211dab4 _ZTV5Koopa                    <- 203 (hal_fill_koopa_vtable)
+#                                                204
+#   0x021374fc _ZTV9SeesawBob                <- 39/133/149/150
+#                                                (hal_fill_seesaw_bob_vtable)
+#                                                143, 28, 128
+#   0x02137628 _ZTV13UpDownLiftBbh           <- 32/33 (hal_fill_up_down_lift_hmc_vtable)
+#                                                131
+#   0x0210ab3c _ZTV8daStar_c                 <- 178 (hal_fill_power_star_vtable;
+#                                                the host array is spelled
+#                                                _ZTV9PowerStar and aliased in
+#                                                hal/actor_classes_star.cpp)
+#                                                179
+#   0x02108c18 _ZTV10BrickBlock              <- 322
+#                                                (hal_fill_mega_mushroom_block_tag_vtable)
+#                                                324
+#
+# ---- EVERY REUSED FILL WAS CHECKED FOR A DONE-GUARD -------------------------
+#
+# Wave 10 hit this and paid for it: naming a sibling's fill on a second row
+# CALLS IT TWICE, because port_actor_registry_install runs `if (k->fill)
+# k->fill();` once per row. hal_fill_one_up_mushroom_vtable opens with
+# port_one_up_mushroom_types_seat(), an UNGUARDED verify-then-rewrite over
+# fourteen PMFs -- the second call finds the host bytes the first wrote and
+# std::abort()s. So every fill named above was read to the bottom of its call
+# graph before it was reused. Two kinds of evidence, and neither is an argument
+# from naming:
+#
+#   ALREADY CALLED N TIMES IN THE SHIPPING BINARY -- idempotent by measurement,
+#   because the tree on which this was measured boots 35 levels with the fill
+#   running that many times:
+#       hal_fill_sliding_platform_wf_vtable   4 rows (55, 138, 154, 155)
+#       hal_fill_seesaw_bob_vtable            4 rows (39, 133, 149, 150)
+#       hal_fill_goomba_vtable                2 rows (200, 202)
+#       hal_fill_up_down_lift_hmc_vtable      2 rows (32, 33)
+#
+#   READ, for the six with a single existing caller. Each is a run of plain
+#   `vt[n] = ...` stores plus a shared helper (bw_fill_shared / ac_fill_shared /
+#   l7_fill_shared / kc182_fill_shared_0_30 / star31_fill_shared), which are
+#   themselves nothing but stores. The four that reach a SEAT reach one that
+#   carries `static int done; if (done) return;` at its top:
+#       hal_fill_platform_vtable          done-guard (actor_classes.cpp)
+#       port_enemy_death_states_seat      done-guard (unmatched/Enemy_UpdateDeath.cpp)
+#       port_goomba_states_seat           done-guard (unmatched/BobOmbBuddy_States.cpp)
+#       port_power_star_states_seat       done-guard (unmatched/PowerStar_States.cpp)
+#   port_power_star_states_seat is the one that matters most: it carries the
+#   SAME verify-then-abort as the mushroom seat, over the fourteen PowerStar
+#   state PMFs, and it is safe only because of the guard three lines above it.
+#
+# No row here needs a 0 fill column. The one convention borrowed from wave 10 is
+# the reason to check, not the workaround.
+#
+# ---- NO FACTORY WRAPPER, ANYWHERE -------------------------------------------
+#
+# The wrapper the wave-9 TILTING_PLATFORM_LLL row needed exists because that
+# Spawn's final vptr store is the zeroed VT1 placeholder. None of these
+# nineteen has that shape: each Spawn's own store is a load reloc onto a REAL
+# dsd-named table (the ten listed above), so the registry can take the Spawn
+# itself as the factory. Sizes 48..92 bytes, the plain Actor/Platform/Enemy
+# constructor-then-store shape.
+#
+# ---- CLOSURE ----------------------------------------------------------------
+#
+# Every reloc inside every one of these nineteen Spawn bodies resolves to a
+# symbol already in walk_window.map or already in the overlay's mount, except
+# the table itself (a host array) and the Spawn's own name. That is why this
+# slice is nineteen lines and no more: there is no closure to pull in.
+#
+# ---- WHAT IS NOT HERE -------------------------------------------------------
+#
+# id 223 (MR_BLIZZARD, ov081, twelve instances -- the biggest single number the
+# widened sweep prints) is hosted and DELIBERATELY unregistered for a measured
+# frame-0 register-skew blocker. It is not in this slice and must not be added
+# to it.
+src/RockTriangle_Spawn.c
+src/CgStairs_Spawn.c
+src/RopeBarrier_Spawn.c
+src/ExclamationBlockVs_Spawn.c
+src/CapBlockMario_Spawn.c
+src/CapBlockWario_Spawn.c
+src/CapBlockLuigi_Spawn.c
+src/SlidingPlatformBfsSquare_Spawn.c
+src/SlidingPlatformBfsRectangle_Spawn.c
+src/SlidingPlatformRr_Spawn.c
+src/RotatingUpDownPlatformUtm_Spawn.c
+src/GoombaSmall_Spawn.c
+src/KoopaSmall_Spawn.c
+src/SeesawBfs_Spawn.c
+src/SeesawUtm_Spawn.c
+src/SeesawRr_Spawn.c
+src/UpDownLiftRr_Spawn.c
+src/SilverStar_Spawn.c
+src/SilverStarBlockTag_Spawn.c

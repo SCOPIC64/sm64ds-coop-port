@@ -134,3 +134,35 @@ data_ov095_02136f80 data_ov095_02136f98 data_ov095_02136fb0
 # the record before the +4 id halfword the registry cross-checks.
 SeesawBdw_SpawnInfo:0x1c SeesawBsPlank_SpawnInfo:0x1c
 SeesawBsZigZag_SpawnInfo:0x1c
+
+# ---- run linkw wave 11, lane w11: the last four ov095 records ---------------
+# The widened sweep (all 512 spawn-table ids, not the census worklist) shows the
+# SEVEN-id table 0x021374fc still carries three unregistered ids after wave 9 --
+# SEESAW_UTM (28), SEESAW_RR (128) and SEESAW_BFS (143, x2 on level 37) -- and
+# that the three-id table 0x02137628 still carries UP_DOWN_LIFT_RR (131). Both
+# arrays are already filled by registered siblings (_ZTV9SeesawBob by id 39 and
+# its wave-9 companions, _ZTV13UpDownLiftBbh by ids 32/33), so these four lines
+# add only the records the registry rewrites and ActorBase reads its two
+# priorities back out of. Both attribution routes for each, out of the RAW
+# ndspy image (ov095 is compressed:true):
+#   0x020908d4 -> 0x021373dc  word[0]=0x02135fc4 SeesawUtm_Spawn    +4 = 28,  +6 = 296
+#   0x02090a64 -> 0x02137468  word[0]=0x02135ea4 SeesawRr_Spawn     +4 = 128, +6 = 258
+#   0x02090aa0 -> 0x02137414  word[0]=0x02135f34 SeesawBfs_Spawn    +4 = 143, +6 = 214
+#   0x02090a70 -> 0x02137604  word[0]=0x0213679c UpDownLiftRr_Spawn +4 = 131, +6 = 261
+# 0x1c each. For the three Seesaws the pin agrees with the natural next-symbol
+# delta and is there for the reason the SeesawBob block above states: 0x1c is
+# the measured stride of every record in this overlay, and the three sit inside
+# the run 0x021373dc/f8/0x02137414/30/4c/68/84 that block already measured.
+#
+# UpDownLiftRr is the one where the default would be WRONG rather than loose,
+# and this file's Flamethrower block already predicted it in those words: its
+# next symbol is _ZTV13UpDownLiftBbh at 0x02137628, so a next-symbol delta would
+# pin 0x24 and swallow the vtable's mwcc RTTI header word at 0x02137624 into an
+# actor record. 0x1c lands at 0x02137620, clear of it, and 0x02137604 is exactly
+# 0x1c past UpDownLiftBbh_SpawnInfo at 0x021375e8 -- the third of the three
+# UpDownLift records this file's header already walked (0x021375cc/e8/0x02137604).
+#
+# The two vtables stay OUT, the rule this file's header states: both are host
+# arrays the registry fills.
+SeesawUtm_SpawnInfo:0x1c SeesawRr_SpawnInfo:0x1c
+SeesawBfs_SpawnInfo:0x1c UpDownLiftRr_SpawnInfo:0x1c

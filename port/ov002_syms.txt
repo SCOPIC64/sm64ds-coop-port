@@ -271,3 +271,21 @@ data_ov002_0210aeb8 data_ov002_0210aec0 data_ov002_0210aec8
 # neighbour: OneUpMushroom_SpawnInfo is at 0x02108388 and this one at
 # 0x021083a4, exactly 0x1c apart.
 MegaMushroom_SpawnInfo:0x1c
+
+# ---- run linkw wave 11, lane w11: two more ov002 records --------------------
+# The widened sweep puts SILVER_STAR (179) on 0x0210ab3c with the already-
+# registered POWER_STAR (178), and SILVER_STAR_BLOCK_TAG (324) on 0x02108c18
+# with the already-registered MEGA_MUSHROOM_BLOCK_TAG (322) and its two
+# siblings. Both arrays are filled at registry-install time before either class
+# can spawn -- _ZTV9PowerStar (aliased from the dsd name _ZTV8daStar_c in
+# hal/actor_classes_star.cpp) and _ZTV10BrickBlock -- so these are records and
+# factories only. Both routes, out of the RAW ndspy image:
+#   0x02090b30 -> 0x0210aa5c  word[0]=0x020ebed4 SilverStar_Spawn         +4 = 179, +6 = 65
+#   0x02090d74 -> 0x02108bd8  word[0]=0x020b45e0 SilverStarBlockTag_Spawn +4 = 324, +6 = 322
+# 0x1c each, agreeing with the natural next-symbol delta both times
+# (SilverStar_SpawnInfo + 0x1c = StarMarker_SpawnInfo at 0x0210aa78;
+# SilverStarBlockTag_SpawnInfo + 0x1c = OneUpMushroomBlockTag_SpawnInfo at
+# 0x02108bf4). Pinned anyway, the convention of the MegaMushroom block above:
+# a record this file mounts is pinned to its measured width so a later dsd
+# relabel cannot silently move the +4 id halfword the registry cross-checks.
+SilverStar_SpawnInfo:0x1c SilverStarBlockTag_SpawnInfo:0x1c
