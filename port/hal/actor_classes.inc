@@ -995,6 +995,23 @@ void hal_fill_float_on_lava_platform_vtable(void); /* _ZTV19RotatingPlatformLll,
 void hal_fill_floating_floor_lll_vtable(void);   /* _ZTV21FloatingFloorLllSmall, 32
                                                     (75 + 76) */
 void hal_fill_lava_plank_vtable(void);           /* _ZTV19FloatingFloorLllBig, 32 */
+/* ---- run linkw wave 10 (lane w10-shared): ov031's SLIDE DECORATION QUAD.
+   FOUR ids on ONE ROM table (0x02111984, _ZTV18daObjHsBillboard_c ==
+   _ZTV25SlideDecorationSilverStar), x3 each on level 23. The class reads its
+   variant out of its own actor id -- InitResources switches on the +0xc id
+   halfword over 0x12e..0x131 and indexes one four-entry SharedFilePtr table --
+   so ONE fill serves all four rows, and it is idempotent, so the order the
+   registry installs them in does not matter. See hal/actor_classes_ov031_w10.cpp
+   and port/slice_w10a.txt. ---- */
+extern unsigned char SlideDecorationSilverStar_SpawnInfo[];   /* ov031 0x0211190c, +4 = 302 */
+void *SlideDecorationSilverStar_Spawn(void);                  /* ov031 0x021113ec */
+extern unsigned char SlideDecorationYellowStar_SpawnInfo[];   /* ov031 0x02111928, +4 = 303 */
+void *SlideDecorationYellowStar_Spawn(void);                  /* ov031 0x021113b4 */
+extern unsigned char SlideDecorationOrangeSmiley_SpawnInfo[]; /* ov031 0x02111944, +4 = 304 */
+void *SlideDecorationOrangeSmiley_Spawn(void);                /* ov031 0x0211137c */
+extern unsigned char SlideDecorationBlueSmiley_SpawnInfo[];   /* ov031 0x02111960, +4 = 305 */
+void *SlideDecorationBlueSmiley_Spawn(void);                  /* ov031 0x02111344 */
+void hal_fill_slide_decoration_vtable(void);     /* _ZTV18daObjHsBillboard_c, 31 */
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1473,4 +1490,21 @@ void hal_fill_lava_plank_vtable(void);           /* _ZTV19FloatingFloorLllBig, 3
     {75, "FLOATING_FLOOR_LLL_BIG", FloatingFloorLllBig_SpawnInfo, \
      port_factory_floating_floor_lll_big, hal_fill_floating_floor_lll_vtable}, \
     {82, "LAVA_PLANK", LavaPlank_SpawnInfo, LavaPlank_Spawn, \
-     hal_fill_lava_plank_vtable},
+     hal_fill_lava_plank_vtable}, \
+    /* ---- run linkw wave 10 (lane w10-shared): ov031's SLIDE DECORATION
+       QUAD. The lane's tool resolves all 512 spawn-table entries to the table
+       each factory stores; for ov031 it returns ONE table for FOUR ids, and
+       the class picks its model out of its own actor id (InitResources
+       switches on the +0xc halfword over 0x12e/0x12f/0x130/0x131 and indexes
+       data_ov031_02111424). So all four rows name the SAME fill deliberately.
+       x3 each on level 23, whose entire baseline skip set was these twelve
+       instances of these four classes. ---- */ \
+    {302, "SLIDE_DECORATION_SILVER_STAR", SlideDecorationSilverStar_SpawnInfo, \
+     SlideDecorationSilverStar_Spawn, hal_fill_slide_decoration_vtable},      \
+    {303, "SLIDE_DECORATION_YELLOW_STAR", SlideDecorationYellowStar_SpawnInfo, \
+     SlideDecorationYellowStar_Spawn, hal_fill_slide_decoration_vtable},      \
+    {304, "SLIDE_DECORATION_ORANGE_SMILEY",                                   \
+     SlideDecorationOrangeSmiley_SpawnInfo,                                   \
+     SlideDecorationOrangeSmiley_Spawn, hal_fill_slide_decoration_vtable},    \
+    {305, "SLIDE_DECORATION_BLUE_SMILEY", SlideDecorationBlueSmiley_SpawnInfo, \
+     SlideDecorationBlueSmiley_Spawn, hal_fill_slide_decoration_vtable},
