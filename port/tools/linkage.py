@@ -64,13 +64,47 @@ turned that into `ZN4Heap8AllocateEji` -- a name no matched TU is called, so
 every single `_ZN*`-named host definition fell out of the queue unseen. The
 queue read 132 when the honest number was ~447. Strip exactly one.
 
+THE SECOND WAY A SHADOW HIDES: THE MSVC-MANGLED NAME. Everything above joins
+host definitions to matched TUs by NAME, and the name it joins on is the ROM's
+Itanium spelling, because that is what a matched TU's stem is called
+(`_ZN6Player8BehaviorEv.cpp`). A host copy does not have to spell it that way.
+`port/unmatched/Player_Behavior.cpp` defines `Player::Behavior` as a real C++
+method, so the only symbol it puts in the map is MSVC's own mangling,
+`?Behavior@Player@@UAEHXZ` -- a string with no `_ZN` in it anywhere. The join
+above never fires, the host copy never enters the queue, and
+src/_ZN6Player8BehaviorEv.cpp sits unlinked with nothing saying why. Ten TUs
+were hiding in exactly that shape when this was written.
+
+So there is a second join, on the pair the two manglings agree about: the class
+and the method. `?Behavior@Player@@UAEHXZ` and `_ZN6Player8BehaviorEv` both say
+`Player::Behavior`, and if a host object provides the MSVC spelling while the
+matched TU of that qualified name is not in the binary, the host body is what
+runs -- the same fact a SHADOW states, reached the other way round. Those rows
+are labelled MSVC-NAME so the bucket says which join found it, and so the
+number the queue grew by explains itself instead of just being larger.
+
+The PORT_HOST_ABI rule carries over: a host copy that puts the MSVC face on top
+of a tagged C-name definition in the same file (PathLift_StateDispatch.cpp is
+the shape) is an MSVC-NAME EXCEPTION, not work. The tag is looked up under the
+matched STEM, because the tagged definition is the C name and no tag will ever
+bind to a `?...@...@@` string.
+
+Two limits are printed rather than papered over. The join is on the qualified
+name only, NOT the argument list, so when src/ carries several overloads of one
+method (Heap::Allocate, OAM::Render) the pair cannot say which one the host
+stands in for; those are listed as AMBIGUOUS and counted as neither. And a
+matched TU already surfaced through its Itanium name somewhere else in the
+queue is reported as already-surfaced rather than counted twice.
+
     python port/tools/linkage.py [repo-root] [--queue] [--exceptions] [--faces]
-                                             [--by-module]
+                                             [--by-module] [--msvc-names]
 
   --queue        list every SHADOW symbol with its matched source
   --exceptions   also print the documented host-ABI exceptions and their reasons
   --faces        also print the face bucket, host object by host object
   --by-module    split the headline per ROM module, worst first
+  --msvc-names   list the MSVC-name rows in full, including the already-
+                 surfaced and AMBIGUOUS ones the summary only counts
 
 WHY --by-module. "6355 unlinked" is a number nobody can act on. Split by the
 module a TU belongs to it becomes a worklist: on the 4888-linked baseline ov006
@@ -250,6 +284,145 @@ def undecorate(sym):
     return sym[1:] if sym.startswith("_") else sym
 
 
+# Both manglings agree about one thing, the qualified name, and these two turn
+# each into it. Deliberately partial: only the shape the join needs, and None
+# for everything else, so an unparsed name drops out of the second join rather
+# than joining on a wrong key. In particular NEITHER handles constructors,
+# destructors or operators -- `_ZN6PlayerC1Ev` and `??0Player@@QAE@XZ` are the
+# same method to a human but the two encodings do not spell the name the same
+# way at all, and a wrong pair here would invent a shadow.
+def itanium_qual(stem):
+    """`_ZN6Player8BehaviorEv` -> `Player::Behavior`, or None.
+
+    Reads the length-prefixed components between `_ZN` and its `E`, after any
+    cv-qualifier letters (`_ZNK...` is a const member). Needs at least two
+    components: a one-component `_ZN...E` is a namespace-scope free function
+    with no class to pair against an MSVC `?name@Scope@@` row on equal terms.
+    """
+    if not stem.startswith("_ZN"):
+        return None
+    i = 3
+    while i < len(stem) and stem[i] in "KVr":
+        i += 1
+    parts = []
+    while i < len(stem) and stem[i].isdigit():
+        j = i
+        while j < len(stem) and stem[j].isdigit():
+            j += 1
+        n = int(stem[i:j])
+        if j + n > len(stem):
+            return None
+        parts.append(stem[j:j + n])
+        i = j + n
+    if i >= len(stem) or stem[i] != "E" or len(parts) < 2:
+        return None
+    return "::".join(parts)
+
+
+def msvc_qual(sym):
+    """`?Behavior@Player@@UAEHXZ` -> `Player::Behavior`, or None.
+
+    MSVC writes the name first and the enclosing scopes after it, innermost
+    first, terminated by `@@`; everything past that is the calling convention
+    and the signature, which this join deliberately ignores. `??`-prefixed
+    names are the special ones (constructors, destructors, operators, vftables)
+    and are refused -- see the note above the pair.
+    """
+    if not sym.startswith("?") or sym.startswith("??"):
+        return None
+    k = sym.find("@@", 1)
+    if k < 0:
+        return None
+    parts = sym[1:k].split("@")
+    if len(parts) < 2 or not all(parts):
+        return None
+    return "::".join(list(reversed(parts[1:])) + [parts[0]])
+
+
+def qual_index(matched):
+    """{qualified name: [matched stem, ...]} for every Itanium-named TU.
+
+    A list, not a single stem: src/ carries several overloads of eleven
+    methods, and the qualified name cannot tell them apart. The caller decides
+    what to do with a list longer than one rather than this silently keeping
+    whichever it saw first.
+    """
+    out = {}
+    for stem in matched:
+        q = itanium_qual(stem)
+        if q:
+            out.setdefault(q, []).append(stem)
+    return out
+
+
+def msvc_name_rows(syms, matched, linked_stems, itanium_hits):
+    """The second join: host objects providing an MSVC-mangled matched method.
+
+    Returns (shadows, already, ambiguous), each a list of rows sorted for
+    printing. A row is (object, map symbol, matched stem(s)).
+
+      shadows    the matched TU of that qualified name is not in the binary and
+                 nothing else in the queue mentions it. New work, new rows.
+      already    the matched TU is already in the queue under its Itanium name
+                 from some host object, so it is reported, not recounted.
+      ambiguous  the qualified name covers several matched overloads whose
+                 linked state is not uniform, so which TU the host stands in
+                 for cannot be read off the pair.
+
+    `itanium_hits` is the set of matched-TU names the first join already found
+    a host definition for -- the same `sym in matched` test that builds the
+    queue above, passed in rather than recomputed so the two cannot disagree.
+    """
+    quals = qual_index(matched)
+    shadows, already, ambiguous = {}, {}, {}
+    for sym, obj in syms:
+        stem = os.path.splitext(os.path.splitext(obj)[0])[0]
+        if stem in matched:
+            continue                      # an object named for a matched TU
+        q = msvc_qual(sym)
+        if not q:
+            continue
+        cands = quals.get(q)
+        if not cands:
+            continue
+        unlinked = [c for c in cands if c not in linked_stems]
+        if not unlinked:
+            continue                      # the matched TU is in the binary
+        if len(cands) > 1 and len(unlinked) != len(cands):
+            ambiguous.setdefault((obj, q), (sym, sorted(cands)))
+            continue
+        bucket = already if any(c in itanium_hits for c in unlinked) else shadows
+        bucket.setdefault((obj, q), (sym, sorted(unlinked)))
+    def rows(d):
+        return [(obj, q, v[0], v[1]) for (obj, q), v in sorted(d.items())]
+    return rows(shadows), rows(already), rows(ambiguous)
+
+
+def split_msvc_by_tag(root, rows):
+    """(tagged, untagged) for MSVC-name rows, by the PORT_HOST_ABI ruling.
+
+    The tag is a human ruling and wins here for the same reason it wins in the
+    stem queue. It is looked up under the MATCHED STEM, not the MSVC symbol,
+    because that is the name a tag can actually bind to: the tagged definition
+    in these files is the ROM's C name (`void _ZN8PathLift12BaseBehaviorEv(void
+    *c)`), and the MSVC spelling next to it is the thin C++ face over it. A
+    `?...@...@@` string is not an identifier and no tag will ever name one.
+    """
+    tagged, untagged = [], []
+    for row in rows:
+        obj, _q, _sym, stems = row
+        source = host_source_for(root, obj)
+        if source is None:
+            source = os.path.join(root, "port", "hal", "cxx_aliases.cpp")
+        reason = None
+        for st in stems:
+            reason = abi_reason(source, st)
+            if reason:
+                break
+        (tagged if reason else untagged).append(row + (reason,))
+    return tagged, untagged
+
+
 def map_symbols(mapfile):
     """[(symbol, objfile)] out of an MSVC /MAP."""
     # REFUSE A TRUNCATED MAP RATHER THAN MEASURING IT. A failed link leaves
@@ -414,6 +587,7 @@ def main():
     show_exceptions = "--exceptions" in sys.argv
     show_faces = "--faces" in sys.argv
     show_modules = "--by-module" in sys.argv
+    show_msvc = "--msvc-names" in sys.argv
 
     mapfile = os.path.join(root, "build", "port", "walk_window.map")
     if not os.path.exists(mapfile):
@@ -449,7 +623,16 @@ def main():
     if show_modules:
         by_module(root, matched, linked_stems)
 
-    if not host_hits:
+    # The second join, on (class, method) instead of the stem. `itanium_hits`
+    # is exactly the set the first join found, handed over rather than derived
+    # again, so "already surfaced above" means the same thing in both places.
+    itanium_hits = set()
+    for _s in host_hits.values():
+        itanium_hits |= _s
+    msvc_shadows, msvc_already, msvc_amb = msvc_name_rows(
+        syms, matched, linked_stems, itanium_hits)
+
+    if not host_hits and not msvc_shadows:
         print("no host object defines a symbol that src/ also has. Nothing to replace.")
         return 0
 
@@ -501,6 +684,43 @@ def main():
     print("     so the host body is what runs. This is the replacement work")
     print()
 
+    # The MSVC-name half of the queue. Its own paragraph, because the count
+    # above is "symbols the stem join found" and adding a differently-found row
+    # into that sum would make the three buckets stop summing to it.
+    n_msvc = len(msvc_shadows)
+    msvc_doc, msvc_undoc = split_msvc_by_tag(root, msvc_shadows)
+    print("AND %d rows the stem join above cannot see. A host copy that defines"
+          % n_msvc)
+    print("the method as real C++ puts only MSVC's mangling in the map")
+    print("(?Behavior@Player@@UAEHXZ), which carries no _ZN for the stem join to")
+    print("match. Joining on the pair those two manglings agree about -- the")
+    print("class and the method -- finds them. An MSVC-NAME SHADOW is a SHADOW;")
+    print("the label says which join found it, not that it is a lesser fact.")
+    print("  %-4d MSVC-NAME SHADOWS  new rows, new replacement work"
+          % len(msvc_undoc))
+    print("  %-4d MSVC-NAME EXCEPT.  the host definition next to the MSVC face"
+          % len(msvc_doc))
+    print("  %-4s                    carries a PORT_HOST_ABI tag, and the tag"
+          % "")
+    print("  %-4s                    is a ruling: not work" % "")
+    print("  %-4d already surfaced   the matched TU is in the queue above under"
+          % len(msvc_already))
+    print("  %-4s                    its Itanium name, so it is named here, not"
+          % "")
+    print("  %-4s                    counted twice" % "")
+    print("  %-4d AMBIGUOUS          several matched overloads share the"
+          % len(msvc_amb))
+    print("  %-4s                    qualified name and disagree on linked"
+          % "")
+    print("  %-4s                    state, so the pair cannot say which" % "")
+    print()
+    print("QUEUE TOTAL: %d rows = %d found by the stem join + %d by the"
+          % (n_all + n_msvc, n_all, n_msvc))
+    print("(class, method) join. The %d already-surfaced and %d ambiguous rows"
+          % (len(msvc_already), len(msvc_amb)))
+    print("are deliberately outside that total.")
+    print()
+
     # The shadow queue is the work list.
     if undocumented:
         print("UNDOCUMENTED QUEUE / SHADOWS (%d):" % n_undoc)
@@ -514,6 +734,41 @@ def main():
         print("documented host-ABI exception or a face over a linked matched")
         print("TU. The only way to shrink it further is a toolchain that can")
         print("run the ROM's ARM asm and hardware pokes.")
+
+    print()
+    print("MSVC-NAME SHADOWS (%d): the host object provides the MSVC mangling"
+          % len(msvc_undoc))
+    print("of a matched method whose Itanium-named TU is not in the binary.")
+    for obj, q, sym, stems, _r in msvc_undoc:
+        print("  %-40s %s" % (obj, q))
+        print("        %-46s %s" % (sym, matched[stems[0]]))
+    if msvc_doc:
+        print()
+        print("MSVC-NAME EXCEPTIONS (%d): same join, but the host definition"
+              % len(msvc_doc))
+        print("the MSVC face sits on carries a PORT_HOST_ABI tag.")
+        for obj, q, sym, stems, reason in msvc_doc:
+            print("  %-40s %s" % (obj, q))
+            print("        %-46s %s" % (sym, matched[stems[0]]))
+            print("        %s" % reason)
+    if show_msvc:
+        print()
+        print("MSVC-NAME, ALREADY SURFACED (%d): counted once, above, under the"
+              % len(msvc_already))
+        print("Itanium name. Listed so the pair is on the record.")
+        for obj, q, sym, stems in msvc_already:
+            print("  %-40s %s" % (obj, q))
+            print("        %-46s %s" % (sym, matched[stems[0]]))
+        print()
+        print("MSVC-NAME, AMBIGUOUS (%d): src/ carries several overloads of this"
+              % len(msvc_amb))
+        print("qualified name and they do not agree on linked state. The pair")
+        print("cannot say which one the host stands in for, so neither can this.")
+        for obj, q, sym, stems in msvc_amb:
+            print("  %-40s %s" % (obj, q))
+            print("        %s" % sym)
+            for st in stems:
+                print("        candidate %-36s %s" % (st, matched[st]))
 
     print()
     print("FACES (%d): host definition and matched TU BOTH linked. The matched"
@@ -535,11 +790,13 @@ def main():
             for sym in sorted(d):
                 print("        %-30s %s" % (sym, d[sym]))
 
-    if not show_queue or not show_exceptions or not show_faces or not show_modules:
+    if (not show_queue or not show_exceptions or not show_faces
+            or not show_modules or not show_msvc):
         print()
         print("re-run with --queue for shadow sources, --faces for the face")
         print("list, --exceptions for the documented reasons, --by-module for")
-        print("the per-module split of the headline")
+        print("the per-module split of the headline, --msvc-names for the")
+        print("already-surfaced and ambiguous halves of the second join")
     return 0
 
 
