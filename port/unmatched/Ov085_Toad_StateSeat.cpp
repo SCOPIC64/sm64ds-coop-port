@@ -16,9 +16,15 @@
  *
  *     struct Entry { char pad[8]; PMF pmf; char tail[0x14 - 8 - sizeof(PMF)]; };
  *
- * and 0x14 - 8 - 16 is negative. A negative array bound is a hard error, which
- * is the one honest thing about this shape: the file announces the mismatch
- * instead of shipping it.
+ * and 0x14 - 8 - 16 is -4 in an expression whose type is size_t, so it wraps.
+ * Reproduce it with `cl /c src/func_ov085_02129570.cpp`:
+ *
+ *     func_ov085_02129570.cpp(3): error C2148: total size of array must not
+ *     exceed 0x7fffffff bytes
+ *
+ * which is the one honest thing about this shape: the file announces the
+ * mismatch instead of shipping it. (Under mwcc sizeof(PMF) is 8 and tail is
+ * the four bytes the ROM's 0x14 record really has left over.)
  *
  * The bodies below are the ROM's own call sequence
  * (extracted/overlays/overlay_0085.bin at base 0x02129020, 0x4c bytes each):

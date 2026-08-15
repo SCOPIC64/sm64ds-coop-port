@@ -21,17 +21,25 @@
  * extracted/dsd/arm9_overlays/ov085.bin: that export is STALE against the
  * config's re-addressing, exactly as port/tools/vtspan.py's header warns, and
  * it is stale in the one way that would quietly produce a wrong body here.
- * The two files differ in 2897 bytes and every difference is the low halfword
- * of an inter-module branch immediate. Three worked examples, dsd export
- * first, raw ROM second, relocs.txt third:
+ *
+ * THE STALENESS IS NOT CONFINED TO BRANCHES, and reading it that way is the
+ * dangerous half-truth. Measured word by word over the two images: 1314 words
+ * differ, of which only 636 are B/BL encodings. The other 678 are relocated
+ * DATA literals, and 291 of the 1314 differ by more than their low halfword.
+ * 0x0212905c is one of them, and it is Toad's own vtable pointer. So the
+ * export is unsafe for a data read exactly as much as for a code read.
+ *
+ * relocs.txt covers 1255 of the 1314 differing words (636 arm_call, 619 load).
+ * THE RAW OVERLAY AGREES WITH IT ON 1255 OF 1255. THE EXPORT AGREES ON 0.
+ * Three worked examples, dsd export first, raw ROM second, relocs.txt third:
  *
  *   0x0212ef94   -> 0x020c6490    -> 0x020c524c    to:0x020c524c  (GetTalkState)
  *   0x0212efd4   -> 0x02044c10    -> 0x0203cf40    to:0x0203cf40  (Vec3_HorzDist)
  *   0x0212f008   -> 0x02042ac0    -> 0x0203adec    to:0x0203adec  (ApproachLinear)
  *
- * The raw image agrees with relocs.txt on all sixteen of WallSign::Behavior's
- * calls and all fifteen of Toad::Behavior's. The export agrees on none of the
- * cross-module ones. A body written from the export would have called
+ * WallSign::Behavior carries 15 arm_calls (16 relocs with its literal load)
+ * and Toad::Behavior 16 (17 with its own), and the raw image agrees with
+ * relocs.txt on every one. A body written from the export would have called
  * SaveData::ReadDataFromCart where the ROM calls ApproachLinear.
  *
  * The two literal pools resolve to one datum each and both are hosted:
@@ -64,6 +72,36 @@
  *
  * Both bodies end the same way the ROM does: CylinderClsn::Clear then
  * CylinderClsn::Update on the collider, then return 1.
+ *
+ * ============================================================================
+ * WHAT THE AUTOMATED PROOF DOES NOT REACH, and why that is not reassurance
+ * ============================================================================
+ *
+ * A 300-frame FAULTS_FATAL boot on levels 2, 4, 5 and 50 runs both of these
+ * bodies once per frame per instance, and every one of those frames takes the
+ * SAME branch: nobody talks to a sign or a Toad, because the selftest does not
+ * walk into one. So the covered half is the idle half --
+ *
+ *   WallSign  this+0x360 is null every frame, so only the toucher test runs
+ *             (the +0x340 bit, Actor::FindWithID, the id-0xbf check and the
+ *             facing test), and it never reaches Player::StartTalk.
+ *   Toad      the seated state stays 0, so func_ov085_02129570 dispatches the
+ *             WAIT main every frame and the head tracking runs.
+ *
+ * -- and the TALK half is LINKED AND SEATED AND NEVER EXECUTED. Nothing
+ * automated has ever run func_ov085_0212943c (TALK enter) or
+ * func_ov085_021291ac (TALK main), which means the message id picker
+ * (func_ov085_021290b4), the star spawn, the cap hand-back through
+ * Actor::Spawn(0x10d) and Message::EndTalk are all unproven; and on the sign,
+ * the three-step approach at this+0x364 and the Player::ShowMessage2 call are
+ * unproven for the same reason. Both classes' talk paths end in the dialogue
+ * box the port stops at for SIGN_POST anyway (hal/actor_vtables.cpp), so
+ * reaching them needs a real player rather than a longer selftest.
+ *
+ * This is exactly the shape of the w19 bug: four Renders that were linked,
+ * latent and faulting, hidden behind a green battery that never brought the
+ * camera near one. Treat the numbers above as "these two classes boot and
+ * tick", not as "these two classes work".
  */
 #include "ModelAnim.h"
 

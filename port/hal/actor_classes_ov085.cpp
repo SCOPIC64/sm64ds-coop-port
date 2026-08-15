@@ -29,10 +29,12 @@
 //
 // ---- THE WIDTHS: 32 AND 31, AND THE SECOND ONE IS THE INTERESTING ONE -----
 //
-// WALL_SIGN's _ZTV13daObjKanban_c at 0x02130400 is 32 slots and EVERY route
-// agrees: semantic tail, terminator, raw reloc run and next dsd symbol. Slot
-// 31 is Platform::Kill (ov002 0x020ee55c) inherited, which is the Platform
-// signature, and slot 32 is not a code pointer.
+// WALL_SIGN's _ZTV13daObjKanban_c at 0x02130400 is 32 slots, which is what
+// vtspan reports as "every route agrees on 32" -- read that as four routes
+// producing 32 (semantic tail, terminator, raw reloc run, next dsd symbol) and
+// the fifth SILENT: the typeinfo route returns None on this table rather than
+// agreeing with them. Slot 31 is Platform::Kill (ov002 0x020ee55c) inherited,
+// which is the Platform signature, and slot 32 is not a code pointer.
 //
 // TOAD's table at 0x0212feb8 is 31, and the routes DISAGREE: the typeinfo
 // route reads 54. It is wrong, and it is wrong in the documented way -- the
