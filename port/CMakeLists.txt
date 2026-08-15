@@ -855,6 +855,50 @@ set_source_files_properties(
     PROPERTIES COMPILE_DEFINITIONS
     "VT=port_bookshotspawner_vt")
 
+# RUN LINK60 lane A2: SPINDRIFT'S KILL-BY-INVINCIBLE EDGE, misrouted since the
+# ov081 seat. One ROM address, 0x020ada40, resolved two ways in one binary.
+#
+# The port defines both occupants: _func_ov002_020ada40 out of
+# src/func_ov002_020ada40.cpp (the real 0x100-byte body, 0x020ada40..0x020adb40
+# in ov002's delinks) and __ZN5Enemy20KillByInvincibleCharERK10Vector3_16R6Player
+# out of the ov004 TU. dsd tagged every level-overlay call into that address
+# module:overlays(2,4) because it cannot tell the occupants apart, and ov004
+# loads only alongside ov006 for a minigame scene while ov081 is a level actor
+# overlay co-resident with ov002. TWELVE other TUs in src/ spell the target
+# `func_020ada40` -- ov062 x2, ov063, ov064, ov065 x2, ov081's own
+# func_ov081_021243cc, ov084, ov090, ov100, ov102 and BobOmb::Behavior -- and
+# land on hal/bob_enemy_bridges.cpp's
+# /alternatename:_func_020ada40=_func_ov002_020ada40. NINE of those twelve are
+# in this link; func_ov081_021243cc, func_ov090_021310b4 and
+# func_ov102_0214cbec are not. Nine is the number that matters, because it is
+# the count of live callers the routing this rename joins already carries.
+# src/func_ov081_02123910.cpp
+# is the single outlier: it takes the name from include/decl_Enemy.h:24 and so
+# binds to the ov004 body, whose first statement is a null guard on
+# data_ov004_020beb68 -- the permanently-zero host global in
+# hal/actor_classes_ov081.cpp that nothing in this build ever writes. The kill
+# path returned doing nothing, every frame, and neither the byte gate nor the
+# linkage count could see it.
+#
+# The rename spells this one TU's reference the way those twelve already spell
+# it, so the existing alias does the routing and no new symbol is added.
+# A -D and not an alias of its own: the mangled Enemy name is DEFINED in this
+# binary by the ov004 TU, so an /alternatename with it on the left would be
+# defeated silently -- the R3 ov071/ov073 failure, already realised here.
+#
+# Arity, measured rather than assumed. The ROM body reads r0/r1/r2 and never
+# reads r3 on entry (it recomputes the slot-0x74 result itself at 0x020adaf0),
+# so 0x020ada40 takes THREE parameters, which is what src/func_ov081_021243cc.cpp
+# declares and what src/func_ov002_020ada40.cpp defines. The ROM's own call at
+# 0x02123988 still loads r3 from the vcall it just made, and the recovered
+# .cpp mirrors that, so the caller passes a fourth argument the callee ignores.
+# Both sides are cdecl, so the caller cleans it up and the extra argument is
+# inert. hal/bob_enemy_bridges.cpp:34 declares four and is a declaration only.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov081_02123910.cpp"
+    PROPERTIES COMPILE_DEFINITIONS
+    "_ZN5Enemy20KillByInvincibleCharERK10Vector3_16R6Player=func_020ada40")
+
 # func_ov002_020d708c is C++ inside a .c (a `virtual` vtable shadow), which
 # MSVC will not compile as C. hostgen.py already emits .cpp with the symbols
 # wrapped back to C linkage, so route it through hostgen rather than editing
@@ -1651,6 +1695,19 @@ list(APPEND PORT_ACTOR_OVERLAYS ov056)
 # half so an unpinned mount would have sized it FOUR bytes. See also
 # port/slice_w15c.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov025)
+# run link60 lane A2, gate 206: ov043 (level 35's own overlay, Bowser in the
+# Dark World, already whole-mounted in PORT_LEVEL_OVERLAYS) joins the
+# per-symbol mounts so DIAMOND_LIFT (135, daObjKm1_Ukishima_c, six instances)
+# reaches its SpawnInfo, its two bss SharedFilePtrs and its CLPS block by name.
+# Same dual-mount shape as ov012/ov013/ov021/ov044/ov045/ov046. 105 symbols;
+# all four vtable spans are excluded and id 135's is the host array
+# hal/actor_classes_ov043.cpp fills. Ids 134 and 137 stay skipped on purpose --
+# 137's factory hides its real table behind a placeholder AND spells an
+# invented class name that means another overlay's base table, and both need
+# ov002 base bodies this slice does not pull in. The cast map, the four widths
+# and the naming shift are derived in port/ov043_syms.txt; this gate's reading
+# and the four re-verified traps are in port/slice_gate206.txt.
+list(APPEND PORT_ACTOR_OVERLAYS ov043)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -3658,6 +3715,164 @@ foreach(line IN LISTS SLICE205_LINES)
     endif()
     list(APPEND SLICE205_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+# Gate 208 (run link60, lane A2): MONTY_MOLE_ROCK (311), ov080's second enemy
+# class after gate 174's mole. The mole's throw state spawns 0x137, the port
+# declined it and the ROM-faithful thrower stored through the NULL, so
+# SM64DS_LEVEL=13 SM64DS_SPAWN_ACTOR=310 faulted at +0x98 on the first throw.
+# The whole cast is matched and every TU is on the slice -- no host copy, no
+# state seat, no thunk standing in for a body, the first ov080 class needing
+# none of those. The 31-slot width is re-derived with vtspan on this tree and
+# slot 9's wave-19 slot-5 shadow is adjudicated SAFE from how the class
+# constructs its +0x110 member (a plain Model, and _ZTV5Model[5] is
+# dual-filled) -- the opposite ruling from the mole's own ModelAnim Render one
+# class over. The fill is hal/actor_classes_montymolerock.cpp; the derivation,
+# the vtspan routes and the seven friendly-name renames are in
+# slice_gate208.txt.
+
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate208.txt" SLICE208_LINES)
+set(SLICE208_SOURCES "")
+foreach(line IN LISTS SLICE208_LINES)
+    string(STRIP "${line}" line)
+    if(line STREQUAL "" OR line MATCHES "^#")
+        continue()
+    endif()
+    list(APPEND SLICE208_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
+<<<<<<< HEAD
+=======
+# The rock's Behavior is the only TU in the tree that spells seven arm9/ov002
+# functions by recovered friendly names that exist nowhere in the binary. Each
+# target is pinned by the reloc out of that body's own range (ov080 relocs,
+# Behavior = 0x0212459c..0x0212478c) and named from config/arm9/symbols.txt,
+# never from the friendly name. A -D and not /alternatename directives on
+# purpose: these are single global names of the G0/G1 kind, and an alias LHS
+# another overlay's recovery pass reuses for a different address would
+# misroute silently the day that overlay lands. A -D cannot be defeated.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN13MontyMoleRock8BehaviorEv.cpp"
+    PROPERTIES COMPILE_DEFINITIONS
+    "Actor_MakeVanishLuigiWork=_ZN5Actor19MakeVanishLuigiWorkER12CylinderClsn;Actor_FindWithID=_ZN5Actor10FindWithIDEj;Player_Hurt=_ZN6Player4HurtERK7Vector3j5Fix12IiEjjj;Actor_UpdatePos=_ZN5Actor9UpdatePosEP12CylinderClsn;Enemy_UpdateWMClsn=_ZN5Enemy12UpdateWMClsnER12WithMeshClsnj;CylinderClsn_Clear=_ZN12CylinderClsn5ClearEv;CylinderClsn_Update=_ZN12CylinderClsn6UpdateEv")
+# Gate 205's arrival cost, and it is the R3 ov071/ov073 shape from the OTHER
+# side: seating the rock DEFINES _ZN13MontyMoleRockD0Ev, which silently defeats
+# hal/bob_enemy_bridges.cpp's /alternatename with that LHS. King Bob-omb's two
+# throw states call ov078 0x02123804 -- his own throw body, relocs 0x02123ac0
+# and 0x02123c28 both module:overlay(78), unambiguous -- and dsd named that
+# same address for ov080 too, so their C spells it with the rock's destructor
+# name. Without this they would have called the rock's destructor.
+# tools/alternatename_guard.py failed the build the first time the seat linked;
+# the dead directive is deleted there and the routing lands here, where a -D
+# cannot be defeated.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov078_02123aa0.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov078_02123c20.cpp"
+    PROPERTIES COMPILE_DEFINITIONS
+    "_ZN13MontyMoleRockD0Ev=func_ov078_02123804")
+
+# Gate 206 (run link60, lane A2): DIAMOND_LIFT (135), ov043's first seated
+# class. Six of level 35's eight skipped instances, and the only one of the
+# overlay's three placed classes with a clean factory. The 32-slot width is
+# vtspan-confirmed on every route, slot 9's slot-5 shadow is adjudicated SAFE
+# from construction (a plain Model at +0xd4, and _ZTV5Model[5] is dual-filled),
+# and one sinit runs rather than four. The fill and the mount bring-up are
+# hal/actor_classes_ov043.cpp; the derivation and the four re-verified traps
+# are in slice_gate206.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate206.txt" SLICE206_LINES)
+set(SLICE206_SOURCES "")
+foreach(line IN LISTS SLICE206_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE206_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+# TRAP 1, and it is the live one. src/func_ov043_0211123c.c (id 135's
+# CleanupResources) releases ov043's own two bss SharedFilePtrs through the
+# shared role-name placeholders G0 and G1, and hal/cxx_aliases.cpp has already
+# bound _G0 to _data_020a0eac (the GAME HEAP pointer) and _G1 to
+# _data_ov002_0210e05c (SignPost's KCL). Neither would fail at link and the
+# body would have released the game heap pointer -- the CannonHatch/MetalNet
+# shape, the PATH_LIFT case exactly. The two targets are read off this body's
+# own literal pool: 0x02111278 -> 0x021125e8 and 0x0211127c -> 0x021125e0,
+# both module:overlay(43), each feeding a SharedFilePtr::Release at 0x02111260
+# and 0x02111268. The rename goes to private names this lane owns, not
+# straight to the mount names, because include/decl_common.h:396 declares
+# `extern int G1[];` and MSVC rejects the redeclaration; the two private names
+# bind onto the mounted cells in hal/actor_classes_ov043.cpp.
+# src/func_ov043_021111e4.c IS DELIBERATELY NOT HERE. Its G0 is a DIFFERENT
+# object -- the game heap it hands Memory::Deallocate, literal at 0x02111238
+# relocating to 0x020a0eac module:main -- which is what cxx_aliases.cpp already
+# binds. Renaming it would break a binding that is right today.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov043_0211123c.c"
+    PROPERTIES COMPILE_DEFINITIONS
+    "G0=port_ov043_ukishima_file0;G1=port_ov043_ukishima_file1")
+# TRAP 3: src/func_ov043_02111320.c (InitResources) spells ov043's own two bss
+# cells with ov047 names. ov043 and ov047 are distinct objects sharing the load
+# window and dsd raced the name; the load sites are the same two addresses the
+# sinit initialises, both module:overlay(43). Neither ov047 name resolves in
+# port/ today, so this is a hard link error rather than a silent miscall. Safe
+# as a straight -D to the mount names: decl_common.h declares
+# data_ov047_021125e0/e8 as `extern int [];` and declares no data_ov043_
+# 021125e0/e8 at all, so there is nothing to conflict with.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov043_02111320.c"
+    PROPERTIES COMPILE_DEFINITIONS
+    "data_ov047_021125e8=data_ov043_021125e8;data_ov047_021125e0=data_ov043_021125e0")
+# TRAP 4: src/func_ov043_021111e4.c (the deleting destructor) writes VT0 then
+# VT1 and both are placeholders. Its own literal pool names them:
+# 0x02111230 -> 0x021122b8 module:overlay(43), the class's own table, which is
+# the host array; 0x02111234 -> 0x0210ae38 module:overlay(2), the Platform base
+# table, which hal/actor_classes.cpp:583 already defines and fills. Renamed to
+# the two real hosted names, never to a placeholder. Its sibling
+# src/func_ov043_021111a0.c (the D1) writes the SAME pair BY NAME and needs no
+# rename at all.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov043_021111e4.c"
+    PROPERTIES COMPILE_DEFINITIONS
+    "VT0=_ZTV19daObjKm1_Ukishima_c;VT1=_ZTV10dBgActor_c")
+
+# Gate 207 (run link60, lane A2): four more ov002 slot-17 seats -- VirtualDoor,
+# PoppingLavaBubbles, AmbientSoundEffects and MugenBgm. Gate 204's convention
+# applied rather than extended, with all three of its conditions re-run against
+# this build: the ROM word at table+0x44 is each class's own D0 read as raw
+# bytes out of the overlay image, each body is flat C with no inferred-stub
+# marker and a closed callee set, and the binary-wide [reg+44h] dispatch count
+# is still zero with the slot-16 positive control still landing in
+# ActorBase::AfterCleanupResources. Each table is installed by exactly one
+# factory plus its own D1/D0, which is the condition BrickBlock fails. The
+# derivation, the raw-byte table and the sweep output are in slice_gate207.txt.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_gate207.txt" SLICE207_LINES)
+set(SLICE207_SOURCES "")
+foreach(line IN LISTS SLICE207_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE207_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+# All four spell their own table with the shared role name VT, which
+# hal/cxx_aliases.cpp binds globally to _data_ov002_021081e4 -- a fifth class's
+# table. That is the CannonHatch/MetalNet shape and it would not fail at link,
+# so each file is renamed to its own table. The targets come from each body's
+# OWN literal pool, read out of extracted/overlays/overlay_0002.bin:
+#   0x020b0a04 -> 0x021086b4   0x020b6e5c -> 0x021094a0
+#   0x020f19e0 -> 0x0210b4c8   0x020f1c18 -> 0x0210b584
+# HEAP is deliberately NOT renamed: the second literal in all four is
+# 0x020a0eac, the game heap, which is what cxx_aliases.cpp already binds it to.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN11VirtualDoorD0Ev.c"
+    PROPERTIES COMPILE_DEFINITIONS "VT=_ZTV11VirtualDoor")
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN18PoppingLavaBubblesD0Ev.c"
+    PROPERTIES COMPILE_DEFINITIONS "VT=_ZTV18PoppingLavaBubbles")
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN19AmbientSoundEffectsD0Ev.c"
+    PROPERTIES COMPILE_DEFINITIONS "VT=_ZTV19AmbientSoundEffects")
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN8MugenBgmD0Ev.c"
+    PROPERTIES COMPILE_DEFINITIONS "VT=_ZTV8MugenBgm")
+>>>>>>> d-actors-backlog
 
 # Lane w8-shadows (run linkw): the SHADOWS bucket. One matched TU by name --
 # TextureTransformer::Prepare, whose header declares it STATIC, which is what
@@ -4078,8 +4293,13 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp unmatched/Koopa_Render.cpp
     ${SLICE180_SOURCES} ${SLICE203_SOURCES} ${SLICE204_SOURCES}
+<<<<<<< HEAD
     hal/actor_classes_ov085.cpp ${SLICE205_SOURCES}
     unmatched/Ov085_Behaviors.cpp unmatched/Ov085_Toad_StateSeat.cpp
+=======
+    hal/actor_classes_montymolerock.cpp ${SLICE208_SOURCES}
+    hal/actor_classes_ov043.cpp ${SLICE206_SOURCES} ${SLICE207_SOURCES}
+>>>>>>> d-actors-backlog
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -4210,8 +4430,13 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp unmatched/Koopa_Render.cpp
     ${SLICE180_SOURCES} ${SLICE203_SOURCES} ${SLICE204_SOURCES}
+<<<<<<< HEAD
     hal/actor_classes_ov085.cpp ${SLICE205_SOURCES}
     unmatched/Ov085_Behaviors.cpp unmatched/Ov085_Toad_StateSeat.cpp
+=======
+    hal/actor_classes_montymolerock.cpp ${SLICE208_SOURCES}
+    hal/actor_classes_ov043.cpp ${SLICE206_SOURCES} ${SLICE207_SOURCES}
+>>>>>>> d-actors-backlog
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp
@@ -4352,8 +4577,13 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_bowserpuzzle.cpp ${SLICE179_SOURCES} unmatched/BowserPuzzle_StateDispatch.cpp unmatched/BowserPuzzle_Render.cpp
     hal/actor_classes_koopa_chuckya.cpp hal/koopa_chuckya_faces.cpp ${SLICE182_SOURCES} unmatched/KoopaChuckya_StateDispatch.cpp unmatched/Koopa_Render.cpp
     ${SLICE180_SOURCES} ${SLICE203_SOURCES} ${SLICE204_SOURCES}
+<<<<<<< HEAD
     hal/actor_classes_ov085.cpp ${SLICE205_SOURCES}
     unmatched/Ov085_Behaviors.cpp unmatched/Ov085_Toad_StateSeat.cpp
+=======
+    hal/actor_classes_montymolerock.cpp ${SLICE208_SOURCES}
+    hal/actor_classes_ov043.cpp ${SLICE206_SOURCES} ${SLICE207_SOURCES}
+>>>>>>> d-actors-backlog
     hal/actor_classes_l7.cpp ${SLICE_L7_SOURCES} ${GATE_L7_GEN} unmatched/PiranhaPlant_States.cpp
     unmatched/WaterBomb_StateDispatch.cpp unmatched/WaterBomb_State0.cpp
     unmatched/KnockDownPlank_Behavior.cpp unmatched/FallBlockWf_InitVeneer.cpp

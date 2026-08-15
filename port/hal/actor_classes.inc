@@ -618,6 +618,28 @@ void hal_fill_up_down_lift_hmc_vtable(void);
 extern unsigned char MontyMole_SpawnInfo[];         /* ov080 0x02127fec, +4 reads 310 */
 void *MontyMole_Spawn(void);                        /* ov080 0x021249e0 (matched src) */
 void hal_fill_monty_mole_vtable(void);
+/* ---- gate 205: MONTY_MOLE_ROCK (311), the rock the mole throws ----
+   daChoro_Rock_c, ov080's second enemy class. The mole's throw state spawns
+   0x137 and the port declined it, so the ROM-faithful thrower stored through
+   the NULL. The whole cast is matched: no host copy, no state seat, no thunk.
+   The fill is hal/actor_classes_montymolerock.cpp, the closure
+   slice_gate205.txt, which also carries the 31-slot vtspan derivation and the
+   slot-9 adjudication. */
+extern unsigned char MontyMoleRock_SpawnInfo[];     /* ov080 0x02128008, +4 reads 311 */
+void *MontyMoleRock_Spawn(void);                    /* ov080 0x02124998 (matched src) */
+void hal_fill_monty_mole_rock_vtable(void);
+/* ---- gate 206: DIAMOND_LIFT (135), ov043's first seated class ----
+   daObjKm1_Ukishima_c, six instances on level 35 (Bowser in the Dark World).
+   ov043 is whole-mounted already and joins the per-symbol mounts here, the
+   ov012/ov013/ov045 dual-mount shape. 32-slot Platform table, every vtspan
+   route agreeing; the fill and the mount bring-up are
+   hal/actor_classes_ov043.cpp, the closure slice_gate206.txt, and the four
+   re-verified traps (G0/G1, the destructor's different G0, the two
+   ov047-spelled cells, the VT0/VT1 placeholders) are derived there. Ids 134
+   and 137 stay skipped with the reasons written up. */
+extern unsigned char DiamondLift_SpawnInfo[];       /* ov043 0x02112294, +4 reads 135 */
+void *DiamondLift_Spawn(void);                      /* ov043 0x021113cc (matched src) */
+void hal_fill_diamond_lift_vtable(void);
 /* ---- gate 175: BLUE_FLAME (317) + RED_FLAME (316), the cave's flames ----
    One class (daObjFire_c, ov002), two matched factories installing
    _ZTV9BlueFlame; RED_FLAME's row is fill=0 (the GreenShellBlockTag shape).
@@ -1556,6 +1578,12 @@ void hal_fill_toad_vtable(void);                     /* _ZTV4Toad, 31 */
     /* ---- gate 174: MONTY_MOLE (310), ov080's enemy cast ---- */ \
     {310, "MONTY_MOLE", MontyMole_SpawnInfo, MontyMole_Spawn, \
      hal_fill_monty_mole_vtable}, \
+    /* ---- gate 205: MONTY_MOLE_ROCK (311), the rock the mole throws ---- */ \
+    {311, "MONTY_MOLE_ROCK", MontyMoleRock_SpawnInfo, MontyMoleRock_Spawn, \
+     hal_fill_monty_mole_rock_vtable}, \
+    /* ---- gate 206: DIAMOND_LIFT (135), ov043, level 35's six lifts ---- */ \
+    {135, "DIAMOND_LIFT", DiamondLift_SpawnInfo, DiamondLift_Spawn, \
+     hal_fill_diamond_lift_vtable}, \
     /* ---- gate 175: the flames (ov002) -- BLUE_FLAME carries the fill, \
        RED_FLAME reuses it, the GreenShellBlockTag shape ---- */ \
     {317, "BLUE_FLAME", BlueFlame_SpawnInfo, BlueFlame_Spawn, \

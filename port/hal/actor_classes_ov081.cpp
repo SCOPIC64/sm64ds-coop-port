@@ -26,23 +26,42 @@
 // the SoundObject/Cap treatment.
 //
 // SPINDRIFT'S PLAYER-BUMP HELPER (func_ov081_02123910, called every
-// Behavior tick) reaches _ZN5Enemy20KillByInvincibleCharERK10Vector3_16R6Player
-// on one path, which in turn reads data_ov004_020beb68 -- Bob-omb
-// Battlefield's OWN level tracker pointer (ov004), never mounted for
-// level 10. Every reader of that pointer (func_ov004_020adc1c/020adc00,
-// the KillByInvincibleChar body itself) null-guards it FIRST and returns
-// doing nothing when it reads zero -- exactly what happens on the real ROM
-// whenever BoB's own tracker isn't active, which is always true outside
-// BoB. Declared here as a zero-initialized host global (never written by
-// anything in this build) so those guards see the same zero the ROM's own
-// unmounted-overlay BSS would read.
+// Behavior tick) reaches ROM address 0x020ada40 on one path.
+//
+// RUN LINK60 lane A2 CORRECTED WHERE THAT CALL LANDS. It used to land on the
+// ov004 occupant of that address, because src/func_ov081_02123910.cpp takes
+// the name from include/decl_Enemy.h:24 and that spelling is the ov004 body's.
+// The ROM's reloc at 0x02123988 reads module:overlays(2,4) -- dsd cannot tell
+// the two occupants apart -- and co-residency settles it: ov004 loads only
+// with ov006 for a minigame scene, while ov081 is a level actor overlay that
+// runs alongside ov002. The right occupant is ov002's 0x100-byte body, which
+// is what every other level-overlay caller of that address already reaches
+// through hal/bob_enemy_bridges.cpp's
+// /alternatename:_func_020ada40=_func_ov002_020ada40. The routing is a
+// per-source -D in port/CMakeLists.txt; the derivation is in the R-block there.
+//
+// The consequence of the old routing, for the record: the ov004 body's first
+// statement is a null guard on data_ov004_020beb68, Bob-omb Battlefield's own
+// level tracker pointer, which is the zero-initialized host global below and
+// is never written by anything in this build. Spindrift's kill-by-invincible
+// path returned doing nothing, every frame, and neither the byte gate nor the
+// linkage count could see it.
+//
+// THE TWO GLOBALS BELOW ARE NOW UNREAD, AND THEY STAY. Their only reader was
+// the ov004 KillByInvincibleChar TU, which had no other referrer in this build
+// and left the link with the misroute (with func_ov004_020adc1c and
+// func_ov004_020adc00, which only it called -- an honest linkage cost of 3,
+// recorded rather than papered over). They are kept because they are hosted DS
+// symbols inside a DSSTATE block: deleting them moves every symbol after them
+// and shifts the .dsstate base, which the selftest BMP is measured against.
+// They cost 20 bytes and they are what ov004's own callers will need the day
+// ov004 is mounted.
 #include "dsstate_seg.h"
 DSSTATE_BEGIN
 extern "C" int data_ov004_020beb68;
 int data_ov004_020beb68 = 0;
-/* data_0209b308[2] is read INSIDE the same function, but only after the
-   guard above already returned -- dead code with data_ov004_020beb68 zero,
-   still needs to link. Zero-initialized, never read at runtime. */
+/* data_0209b308[2] was read INSIDE the same ov004 function, but only after the
+   guard above already returned. Zero-initialized, never read at runtime. */
 extern "C" int data_0209b308[4];
 int data_0209b308[4] = {0, 0, 0, 0};
 DSSTATE_END

@@ -526,6 +526,7 @@ extern "C" {
 int _ZN19AmbientSoundEffects6RenderEv(void);
 int _ZN19AmbientSoundEffects16CleanupResourcesEv(void);
 void _ZN19AmbientSoundEffects16OnPendingDestroyEv(void);
+int *_ZN19AmbientSoundEffectsD0Ev(int *self);   /* slot 17, gate 207 */
 void *_ZTV19AmbientSoundEffects[31];
 }
 
@@ -539,6 +540,8 @@ static int __fastcall amb_render(void *, void *)
 { return _ZN19AmbientSoundEffects6RenderEv(); }
 static int __fastcall amb_pdes(void *, void *)
 { _ZN19AmbientSoundEffects16OnPendingDestroyEv(); return 0; }
+static int __fastcall amb_d0(void *s, void *)
+{ return (int)(size_t)_ZN19AmbientSoundEffectsD0Ev((int *)s); }
 
 extern "C" void hal_fill_ambient_sound_vtable(void)
 {
@@ -549,11 +552,16 @@ extern "C" void hal_fill_ambient_sound_vtable(void)
     vt[6] = (void *)amb_behavior;
     vt[9] = (void *)amb_render;
     vt[12] = (void *)amb_pdes;
-    /* 16/17 keep the trap: nothing on the castle grounds destroys one of
-       these, and their two TUs need a shape the port has no reason to build
-       (a real ~Actor and the VT/HEAP placeholders). */
+    /* SLOT 17 IS THE ROM'S OWN D0, gate 207. It used to keep the trap on the
+       reading that these two TUs need a shape the port has no reason to build;
+       that is half right. The D1 does -- it is a .cpp real C++ destructor MSVC
+       would emit under ??1AmbientSoundEffects@@UAE@XZ against a layout that is
+       not the ROM's -- but the D0 is flat C whose only placeholders are VT and
+       HEAP, and HEAP is already bound correctly. Gate 204's three conditions
+       all hold and were re-measured on this build; see slice_gate207.txt.
+       Slot 16 is unchanged. */
     vt[16] = (void *)ac_d1_actor_only;
-    vt[17] = (void *)ac_trap17;
+    vt[17] = (void *)amb_d0;
 }
 
 /* Silence the unused-static warning for the two shared helpers a class with
@@ -1611,6 +1619,7 @@ int _ZN11VirtualDoor8BehaviorEv(char *self);
 int _ZN11VirtualDoor6RenderEv(void);
 int _ZN11VirtualDoor16CleanupResourcesEv(void);
 void _ZN11VirtualDoor16OnPendingDestroyEv(void);
+int *_ZN11VirtualDoorD0Ev(int *self);            /* slot 17, gate 207 */
 void *_ZTV11VirtualDoor[31];
 }
 
@@ -1624,6 +1633,8 @@ static int __fastcall ex_render(void *, void *)
 { return _ZN11VirtualDoor6RenderEv(); }
 static int __fastcall ex_pdes(void *, void *)
 { _ZN11VirtualDoor16OnPendingDestroyEv(); return 0; }
+static int __fastcall ex_d0(void *s, void *)
+{ return (int)(size_t)_ZN11VirtualDoorD0Ev((int *)s); }
 
 extern "C" void hal_fill_exit_vtable(void)
 {
@@ -1634,13 +1645,15 @@ extern "C" void hal_fill_exit_vtable(void)
     vt[6] = (void *)ex_behavior;
     vt[9] = (void *)ex_render;
     vt[12] = (void *)ex_pdes;
-    /* SLOTS 16/17 TRAP, the gate-17 reading: nothing on the castle grounds
-       destroys an exit -- the four live from the level boot to the level
-       teardown -- and src/_ZN11VirtualDoorD1Ev.cpp is a real C++ destructor
-       over its own shadow hierarchy, which MSVC would emit under
-       ??1VirtualDoor@@UAE@XZ against a layout that is not the ROM's. */
+    /* SLOT 16 STILL STANDS IN, SLOT 17 IS NOW THE ROM'S OWN D0 (gate 207).
+       The gate-17 reading above holds for the D1 and only for the D1:
+       src/_ZN11VirtualDoorD1Ev.cpp is a real C++ destructor over its own
+       shadow hierarchy, which MSVC would emit under ??1VirtualDoor@@UAE@XZ
+       against a layout that is not the ROM's. The D0 is a flat .c whose only
+       placeholders are VT and HEAP. Gate 204's three conditions all hold and
+       were re-measured on this build; see port/slice_gate207.txt. */
     vt[16] = (void *)ac_d1_actor_only;
-    vt[17] = (void *)ac_trap17;
+    vt[17] = (void *)ex_d0;
 }
 
 // ---- WATERFALL_MIST (actor 197, ov002) x7 ----------------------------------
@@ -1664,6 +1677,7 @@ extern "C" void hal_fill_exit_vtable(void)
 extern "C" {
 int _ZN18PoppingLavaBubbles13InitResourcesEv(void *self);   /* face */
 int _ZN18PoppingLavaBubbles8BehaviorEv(char *self);
+int *_ZN18PoppingLavaBubblesD0Ev(int *self);     /* slot 17, gate 207 */
 void *_ZTV18PoppingLavaBubbles[31];
 }
 
@@ -1675,6 +1689,8 @@ static int __fastcall wm_behavior(void *s, void *)
 { return _ZN18PoppingLavaBubbles8BehaviorEv((char *)s); }
 static int __fastcall wm_render(void *s, void *)
 { return ((ActorBase *)s)->ActorBase::Render(); }
+static int __fastcall wm_d0(void *s, void *)
+{ return (int)(size_t)_ZN18PoppingLavaBubblesD0Ev((int *)s); }
 
 extern "C" void hal_fill_waterfall_mist_vtable(void)
 {
@@ -1688,9 +1704,13 @@ extern "C" void hal_fill_waterfall_mist_vtable(void)
     /* The class here is PoppingLavaBubbles, not WaterfallMist: the vtable
        WaterfallMist_Spawn installs is _ZTV18PoppingLavaBubbles, and that
        class's D1 is an empty body over an Actor base -- which is what this
-       section already says about slots 3, 9 and 12. */
+       section already says about slots 3, 9 and 12. Slot 17 is that class's
+       own matched D0 as of gate 207, on gate 204's three conditions
+       re-measured against this build; see port/slice_gate207.txt. The name
+       shift holds there too: the ROM word at 0x021094a0+0x44 is
+       _ZN18PoppingLavaBubblesD0Ev, not WaterfallMist's. */
     vt[16] = (void *)ac_d1_actor_only;
-    vt[17] = (void *)ac_trap17;
+    vt[17] = (void *)wm_d0;
 }
 
 // ============================================================================

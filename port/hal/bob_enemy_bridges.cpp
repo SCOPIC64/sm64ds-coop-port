@@ -363,13 +363,21 @@ DSSTATE_END
    _ZN13MontyMoleRockD0Ev. The reloc names overlay(78) and the body is his own
    throw, not a destructor.
 
+   THE ALIAS THAT USED TO ROUTE THAT IS GONE, run link60 lane A2. Gate 205
+   seats MONTY_MOLE_ROCK and its slice DEFINES the real _ZN13MontyMoleRockD0Ev,
+   which defeats an /alternatename with that LHS silently -- King Bob-omb's two
+   states would have called the ROCK'S DESTRUCTOR instead of his throw.
+   tools/alternatename_guard.py caught it at the first link with the seat in.
+   This is the R3 ov071/ov073 arrival shape exactly, and it takes the R3
+   remedy: the dead directive is deleted and the two referencing TUs get a
+   per-source -D in port/CMakeLists.txt, which cannot be defeated.
+
    WithMeshClsn_IsOnGround is the same object under a different spelling: the
    ROM's method is _ZNK12WithMeshClsn10IsOnGroundEv and one of his TUs declares
    it as a plain C function under a hand-written name.
 
    The rest is his thirteen SharedFilePtrs and two state records, each spelled
    with whatever type its TU happened to declare. */
-#pragma comment(linker, "/alternatename:__ZN13MontyMoleRockD0Ev=_func_ov078_02123804")
 #pragma comment(linker, "/alternatename:_WithMeshClsn_IsOnGround=__ZNK12WithMeshClsn10IsOnGroundEv")
 #pragma comment(linker, "/alternatename:?data_ov078_0212710c@@3UPMF@@A=_data_ov078_0212710c")
 #pragma comment(linker, "/alternatename:?data_ov078_0212709c@@3PADA=_data_ov078_0212709c")
