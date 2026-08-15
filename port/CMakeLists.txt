@@ -827,6 +827,34 @@ set_source_files_properties(
     PROPERTIES COMPILE_DEFINITIONS
     "G0=port_pathlift_file0;G1=port_pathlift_file1;G2=port_pathlift_file2")
 
+# RUN LINKW WAVE C: the same remedy for the three OTHER linked TUs that
+# collide on G0/G1/VT. port/tools/alias_audit.py found them; each target below
+# is the address that TU's own ROM body loads, read out of
+# extracted/overlays/overlay_NNNN.bin, and the derivation with the disassembly
+# is in hal/cxx_aliases.cpp beside the five /alternatename rows these point at.
+# All three are LIVE wrong-object bugs in the shipping binary, none of which
+# fails at link -- the CannonHatch/MetalNet shape.
+#
+# Coffin's two targets are ov071's bss cells and NOT the identically-addressed
+# ov070 ones the config names first: the two overlays share base 0x0211f000
+# and the port mounts both as separate host objects, so the wrong pick here is
+# the ov043/ov047 mistake rather than a harmless synonym.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN6Coffin16CleanupResourcesEv.cpp"
+    PROPERTIES COMPILE_DEFINITIONS
+    "G0=port_coffin_file0;G1=port_coffin_file1")
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN15BookShotSpawner13InitResourcesEv.cpp"
+    PROPERTIES COMPILE_DEFINITIONS
+    "G0=port_bookshotspawner_file0;G1=port_bookshotspawner_file1")
+# The spawner's deleting destructor stores its OWN table, which in this port is
+# the host array hal/actor_classes_ov063.cpp declares. HEAP is left alone: its
+# binding to the game heap pointer 0x020a0eac is what this body means.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN15BookShotSpawnerD0Ev.c"
+    PROPERTIES COMPILE_DEFINITIONS
+    "VT=port_bookshotspawner_vt")
+
 # func_ov002_020d708c is C++ inside a .c (a `virtual` vtable shadow), which
 # MSVC will not compile as C. hostgen.py already emits .cpp with the symbols
 # wrapped back to C linkage, so route it through hostgen rather than editing
@@ -3878,6 +3906,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_ov002_w17.cpp ${SLICE_W17A_SOURCES}
     ${SLICE_W18A_SOURCES} hal/ttc_level_data_seat.cpp
     unmatched/Ov070_PmfDispatch.cpp
+    unmatched/W19_Slot5_Renders.cpp
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -4005,6 +4034,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_ov002_w17.cpp ${SLICE_W17A_SOURCES}
     ${SLICE_W18A_SOURCES} hal/ttc_level_data_seat.cpp
     unmatched/Ov070_PmfDispatch.cpp
+    unmatched/W19_Slot5_Renders.cpp
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -4144,6 +4174,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_ov002_w17.cpp ${SLICE_W17A_SOURCES}
     ${SLICE_W18A_SOURCES} hal/ttc_level_data_seat.cpp
     unmatched/Ov070_PmfDispatch.cpp
+    unmatched/W19_Slot5_Renders.cpp
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
