@@ -1697,10 +1697,22 @@ endforeach()
 # hal/actor_overlays.cpp (the ov089 key models). tools/ovsweep.py checks that
 # nothing crossing was left raw with no patch.
 set(OVCROSS_C "${CMAKE_BINARY_DIR}/host-src/ov_cross.c")
+# The residency model reads its rules OUT OF the matched loader sources, so
+# those five TUs are real inputs of the cross step: without these edges a
+# semantic change to a loader body leaves ov_cross.c carrying bindings from
+# the superseded model, silently (the stale-artifact shape). A rename still
+# fails the next configure loudly, which is the intended trade.
+set(OVCROSS_LOADER_SRC
+    "${PORT_REPO_ROOT_ABS}/src/GetSceneOverlayID.c"
+    "${PORT_REPO_ROOT_ABS}/src/func_0201a694.c"
+    "${PORT_REPO_ROOT_ABS}/src/func_0201a798.c"
+    "${PORT_REPO_ROOT_ABS}/src/func_0201a754.c"
+    "${PORT_REPO_ROOT_ABS}/src/func_0201a614.c")
 add_custom_command(OUTPUT "${OVCROSS_C}"
     COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" --cross
             "${OVCROSS_C}" ${OV_DATA_MAPS}
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/ovdata.py" ${OV_DATA_MAPS}
+            ${OVCROSS_LOADER_SRC}
     COMMENT "ovdata --cross (pointers between mounted overlays)")
 
 # ROM-CLEAN consolidation, last because it needs every emitter's part. It
