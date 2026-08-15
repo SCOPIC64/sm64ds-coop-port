@@ -259,3 +259,15 @@ PoppingLavaBubbles_SpawnInfo
 # mounting it would hand the factory a table of DS code addresses.
 data_ov002_0210af00 data_ov002_0210d7d4
 data_ov002_0210aeb8 data_ov002_0210aec0 data_ov002_0210aec8
+
+# run linkw wave 10 (lane w10-shared): MEGA_MUSHROOM (277). Its factory stores
+# _ZTV13OneUpMushroom, the SAME ROM table 0x021083c8 the already-registered
+# ONE_UP_MUSHROOM (276) installs, so the host array is already filled before
+# this class spawns and the registration is one record plus one factory. Pinned
+# to the record's real 0x1c, the same convention as the block above and the same
+# reason: the natural next-symbol delta here is 0x24, which would run 8 bytes
+# past the record into the vtable's own Itanium prologue (offset-to-top
+# 0x021083c0 = 0, typeinfo 0x021083c4 -> 0x0210837c). Measured against its
+# neighbour: OneUpMushroom_SpawnInfo is at 0x02108388 and this one at
+# 0x021083a4, exactly 0x1c apart.
+MegaMushroom_SpawnInfo:0x1c
