@@ -586,12 +586,24 @@ int _ZN15IceSlideManager8BehaviorEv(void *self)
 #include "TextureTransformer.h"
 extern "C" {
 void *_ZTV18TextureTransformer[4];
-void func_02046b64(void *bmdTable, void *btaObj);
-/* Two arguments, not three: func_02046b64 resolves the BTA's own material
-   NAMES against the BMD's table, and the water's call site passes exactly
-   those two with no `this`. */
+/* Two arguments, not three, and the reason is in the header rather than in
+   this file: include/TextureTransformer.h:42 declares Prepare STATIC. The ROM
+   agrees -- arm9_dec.bin 0x0201587c is e59fc000 / e12fff1c / .word 0x02046b64,
+   a 0xc long-call veneer that passes its registers straight into
+   func_02046b64, whose own matched TU (src/func_02046b64.c) takes exactly two.
+   No receiver anywhere in the chain.
+   THIS USED TO BE A HOST COPY of that one line -- it called func_02046b64
+   itself and the matched TU sat unlinked next to it, which is what put it on
+   the shadow list. A static member is __cdecl under MSVC, so the matched TU's
+   symbol (?Prepare@TextureTransformer@@SAXAAUBMD_File@@AAUBTA_File@@@Z) has
+   the same two-argument, no-`this` call surface this face already had: the
+   body it stood in for could simply be called. It is now a real face over the
+   matched TU, and src/_ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File.cpp
+   is in slice_w8shadows.txt. Contrast TextureSequence::Prepare, the sibling
+   veneer 0x100 away, which the header declares NON-static: that one is a real
+   __thiscall method and its callers still need the receiver seam. */
 void _ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File(void *bmd, void *bta)
-{ func_02046b64(bmd, bta); }
+{ TextureTransformer::Prepare(*(BMD_File *)bmd, *(BTA_File *)bta); }
 void _ZN18TextureTransformer6UpdateER15ModelComponents(void *self, void *mc)
 { ((TextureTransformer *)self)->TextureTransformer::Update(
       *(ModelComponents *)mc); }

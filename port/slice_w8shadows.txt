@@ -1,0 +1,95 @@
+# slice_w8shadows.txt -- lane w8-shadows (run linkw), the SHADOWS bucket.
+#
+# The shadow queue is the honest remainder of the replacement work: a host file
+# defines a symbol and the matched TU of that name is NOT in the binary, so the
+# host body is what runs. It read 12 at this lane's base (cons 2e557a615,
+# linkage 4623/11240). Twelve triaged: nine are floors and now carry
+# PORT_HOST_ABI rulings, three were real work.
+#
+# ---- what this slice carries ----------------------------------------------
+#
+# TextureTransformer::Prepare. The only matched TU this lane needs to name; the
+# other two seats came from reference edges onto TUs that were already sliced
+# and dropped by /OPT:REF.
+#
+# It was mined and REJECTED in wave 1 -- slice_w1l3.txt:238 still says so, and
+# the reason it gives is "the ROM veneer takes (bmd, bta) with no `this`, so
+# the matched METHOD cannot be called". The ROM half of that is exactly right
+# and re-derived here: arm9_dec.bin 0x0201587c is e59fc000 / e12fff1c / .word
+# 0x02046b64, a 0xc long-call veneer whose registers ride straight into
+# func_02046b64, and src/func_02046b64.c takes two arguments. No receiver
+# anywhere in the chain.
+#
+# What that note missed is one word in include/TextureTransformer.h:42:
+#
+#     static void Prepare(BMD_File &model, BTA_File &animFile);
+#
+# Prepare is a STATIC member. Under MSVC a static member is __cdecl and takes
+# no `this`, so the matched TU's symbol -- ?Prepare@TextureTransformer@@SAXAAU
+# BMD_File@@AAUBTA_File@@@Z -- has precisely the two-argument, no-receiver call
+# surface the host face in hal/method_faces.cpp already had. There was never an
+# ABI gap; the face was a one-line host copy of a body it could have called.
+# It calls it now. (Contrast include/TextureSequence.h:49, the sibling veneer
+# 0x100 away, which declares Prepare NON-static. That one really is __thiscall
+# and is the open item below.)
+src/_ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File.cpp
+
+# ---- seated WITHOUT a slice line ------------------------------------------
+#
+# Platform::UpdateKillByMegaChar and func_ov002_020ee5d0 were both already in
+# slice_gate16.txt (lines 178 and 302), compiled into all three real targets
+# and dropped by /OPT:REF because nothing referenced them -- the wave-1
+# finding, still the most common way a seat parks itself. The gate-16 flip at
+# the bottom of hal/wf_enemy_bridges.cpp supplies the one reference edge and
+# both link. hal/megachar_stub.cpp keeps the `return 0` stub for the three
+# narrow gate-9 harnesses only, which cannot build the closure.
+#
+# ---- STILL WORK, deliberately left in the queue ----------------------------
+#
+# LakituBro::InitResources is the twelfth shadow and it is NOT a host-ABI
+# exception, so it is not tagged. Its blocker is a host FACE SHAPE that can be
+# fixed, and tagging it would delete real work from the list. The whole
+# derivation, so the next lane does not have to repeat it:
+#
+#   1. include/TextureSequence.h:49 declares `void Prepare(BMD_File&,
+#      BTP_File&)` -- non-static, so __thiscall under MSVC: this + 2.
+#   2. The ROM body at arm9_dec.bin 0x0201597c is e59fc000 / e12fff1c / .word
+#      0x02046d50 -- a 0xc long-call veneer, registers untouched.
+#   3. func_02046d50's ROM body at 0x02046d50 opens e92d40f0 / e24dd004 /
+#      e1a06001 (mov r6,r1) / e1d610b2 / e1a07000 (mov r7,r0). It reads r0 and
+#      r1 and NEVER reads r2. src/func_02046d50.c agrees: two parameters.
+#   4. The ROM's own call site, re-derived rather than carried: ov085's
+#      relocs.txt line 773 is `from:0x0212ec44 kind:arm_call to:0x0201597c
+#      module:main`, inside LakituBro::InitResources (0x0212ebec, size 0x168).
+#      The four instructions before it are e59f00fc / e59f1100 / e5900004 /
+#      e5911004 -- two LDRs into r0 and r1 -- and the instruction AFTER it is
+#      e3a02000, MOV r2,#0. r2 is written after the call, which is proof it was
+#      not a live argument to it. (The raw overlay image's branch offset is an
+#      unrelocated placeholder and decodes to 0x0201e810, a non-symbol; the
+#      reloc table is the truth. Do not read cross-module BLs out of the .bin.)
+#
+# So the ROM's Prepare takes exactly TWO register arguments and the matched
+# callers pass two, while hal/player_bridges.cpp's C-name face takes three and
+# dereferences the third. That is why both callers are hand-transcribed host
+# copies (port/unmatched/TexSeq_Caller_LakituBro.cpp and
+# TexSeq_Caller_ov002_020e5948.cpp) with a per-call-site argfix.
+#
+# THE FIX, applied once at the seam instead of once per caller: make the face
+# two-parameter and pass the model twice --
+#
+#     void _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File(void *self,
+#                                                            void *model)
+#     { ((TextureSequence *)self)->TextureSequence::Prepare(
+#           *(BMD_File *)model, *(BTP_File *)model); }
+#
+# -- the second argument being a placeholder func_02046d50 provably never
+# reads. Then both host copies retire and their matched TUs
+# (src/_ZN9LakituBro13InitResourcesEv.cpp, src/func_ov002_020e5948.c) come off
+# the bench: +2, and one seam instead of two transcriptions.
+#
+# NOT DONE HERE for one reason and it is not doubt about the evidence:
+# func_ov002_020e5948 is Mario's InitResources, so the change lands in the boot
+# path, and this lane already carries a behaviour change in
+# UpdateKillByMegaChar. Two boot-path behaviour changes in one gate run cannot
+# be attributed to each other if a census or a position moves. It wants its own
+# run of the matrix, not a share of this one.
