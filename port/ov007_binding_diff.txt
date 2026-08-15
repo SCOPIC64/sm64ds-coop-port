@@ -122,7 +122,8 @@ reviewer will ask what they are, so they are itemised rather than counted.
 -----------------------
 
     716 symbols          555 in .rodata, 102 in .data, 59 in .bss
-    229604 bytes         contiguous 0x020ccb54 .. 0x02104c40
+    229612 bytes         contiguous 0x020ccb54 .. 0x02104c40, of which 229604
+                         is the symbol sizes and 8 the pack gap below
     666 pointer patches  all reloc-backed, all 4-aligned
     49 cross-mount wants
     1 pack gap           8 bytes at 0x020d7db8, zero in the ROM image too
