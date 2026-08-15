@@ -50,15 +50,23 @@ def default_root():
     return os.path.dirname(os.path.dirname(here))
 
 
-# `build CMakeFiles\walk_window.dir\<path>.obj: <rule> C$:\...\file.cpp || ...`
+# `build CMakeFiles\<target>.dir\<path>.obj: <rule> C$:\...\file.cpp || ...`
 # ninja escapes a colon in a path as `$:`, and CMake writes Windows separators.
 BUILD_RULE = re.compile(
-    r"^build (CMakeFiles\\walk_window\.dir\\[^:]+?\.obj): \S+ (\S+)",
+    r"^build CMakeFiles\\(\w+)\.dir\\([^:]+?\.obj): \S+ (\S+)",
     re.MULTILINE)
 
+# The targets that make up the walk_window link: its own objects, plus the ntr
+# static library it links against. Scoping to these two matters -- the tree
+# builds twenty-odd smoke harnesses out of overlapping source sets, and a
+# basename read across all of them collides constantly for reasons that say
+# nothing about the binary under test. ntr_2x is the one the walk_window target
+# links (ntr and ntr_hires are the 1x and 1024x768 tiers).
+LINK_TARGETS = ("walk_window", "ntr_2x")
 
-def object_sources(root):
-    """{object basename: set(source path)} for the walk_window target."""
+
+def object_sources(root, targets=LINK_TARGETS):
+    """{object basename: set(source path)} for the targets in this link."""
     ninja = os.path.join(root, "build", "port", "build.ninja")
     if not os.path.isfile(ninja):
         sys.exit("objsrc: no build.ninja at %s -- configure the port first"
@@ -66,7 +74,9 @@ def object_sources(root):
     with open(ninja, errors="replace") as f:
         text = f.read()
     out = {}
-    for obj, src in BUILD_RULE.findall(text):
+    for target, obj, src in BUILD_RULE.findall(text):
+        if target not in targets:
+            continue
         base = obj.split("\\")[-1]
         src = src.replace("$:", ":").replace("\\", "/")
         out.setdefault(base, set()).add(src)

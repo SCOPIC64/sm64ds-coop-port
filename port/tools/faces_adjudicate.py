@@ -299,12 +299,15 @@ HAND = {
         "shadow-class idiom, alias pragma at actor_faces_bob.cpp:172"),
     "_ZN6Player14InitMetalWarioEv": ("FORWARDS",
         "shadow-class idiom, alias pragma at Cap_StateDispatch.cpp:67"),
-    "_ZN5Actor17TrackInDeathTableEv": ("DUPLICATES",
-        "restates the matched body instead of calling it: the face is "
-        "DeathTable_SetBit(*(short *)(self + 0xce)) and "
-        "src/_ZN5Actor17TrackInDeathTableEv.c is "
-        "DeathTable_SetBit(deathTableId) with deathTableId at 0xce. Same "
-        "work, but the matched code is not what runs on the C-name path"),
+    # WAS DUPLICATES, FIXED IN THE SAME WAVE. It restated the matched body --
+    # DeathTable_SetBit(*(short *)(self + 0xce)) against the matched TU's
+    # DeathTable_SetBit(deathTableId) with deathTableId declared at 0xce -- and
+    # is now the ordinary bridge. The ledger keeps the original row and records
+    # the fix in a dated section, because it is append-only; this entry tracks
+    # the code, which is what a re-run has to agree with.
+    "_ZN5Actor17TrackInDeathTableEv": ("FORWARDS",
+        "qualified Actor::TrackInDeathTable; was the bucket's one DUPLICATES "
+        "and was replaced in run linkw wave C"),
 }
 
 

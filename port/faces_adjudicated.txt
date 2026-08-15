@@ -155,7 +155,7 @@ _ZN5Actor10FindWithIDEj                                        FORWARDS    hal/m
 _ZN5Actor11UpdateCarryER6PlayerRK7Vector3                      FORWARDS    hal/reverse_bridges.cpp:156 -- one statement calling Actor::UpdateCarry
 _ZN5Actor13SpawnSoundObjEj                                     FORWARDS    hal/method_faces.cpp:105 -- one statement calling Actor::SpawnSoundObj
 _ZN5Actor14GetSubtractionEss                                   FORWARDS    hal/bob_enemy_header_faces.cpp:33 -- one statement calling Actor::GetSubtraction
-_ZN5Actor17TrackInDeathTableEv                                 DUPLICATES  hal/actor_class_faces.cpp:149 -- restates the matched body instead of calling it: the face is DeathTable_SetBit(*(short *)(self + 0xce)) and src/_ZN5Actor17TrackInDeathTableEv.c is DeathTable_SetBit(deathTableId) with deathTableId at 0xce. Same work, but the matched code is not what runs on the C-name path
+_ZN5Actor17TrackInDeathTableEv                                 DUPLICATES  hal/actor_class_faces.cpp:149 -- restates the matched body instead of calling it: the face is DeathTable_SetBit(*(short *)(self + 0xce)) and src/_ZN5Actor17TrackInDeathTableEv.cpp is DeathTable_SetBit(deathTableId) with deathTableId at 0xce. Same work, but the matched code is not what runs on the C-name path
 _ZN5Actor18AfterInitResourcesEj                                FORWARDS    hal/method_faces.cpp:338 -- one statement calling Actor::AfterInitResources
 _ZN5Actor18GetBitInDeathTableEv                                FORWARDS    hal/method_faces.cpp:336 -- one statement calling Actor::GetBitInDeathTable
 _ZN5Actor19UntrackInDeathTableEv                               FORWARDS    hal/bob_enemy_shadow_faces.cpp:52 -- one statement calling Actor::UntrackInDeathTable
@@ -278,3 +278,58 @@ _ZNK7PathPtr5LoopsEv                                           FORWARDS    hal/c
 _ZNK7PathPtr8NumNodesEv                                        FORWARDS    hal/method_faces.cpp:231 -- qualified PathPtr::NumNodes
 _ZNK9Animation12WillHitFrameEi                                 FORWARDS    hal/cxx_aliases.cpp:210 -- two hops: hal_anim_willhit at player_bridges.cpp:763 calls Animation::WillHitFrame
 _ZNK9Animation13GetFrameCountEv                                FORWARDS    hal/method_faces.cpp:857 -- Animation::GetFrameCount through a const cast
+
+# ---------------------------------------------------------------------------
+# THE TWO REPO-WIDE SHADOWS, adjudicated in the same pass.
+#
+# linkage.py --queue reports two symbols where a host body runs and no matched
+# TU of that name is in the binary. Neither is arm9 and both were read here
+# because the bucket is the same question one step further along: a shadow is a
+# face whose matched half never made it in.
+#
+# _ZN9LakituBro13InitResourcesEv   DUPLICATES (deferred, fix already designed)
+#     method_faces.cpp:713 is a real forward, but the MSVC method it forwards
+#     to comes from port/unmatched/TexSeq_Caller_LakituBro.cpp, not from
+#     src/_ZN9LakituBro13InitResourcesEv.cpp. The host copy exists because the
+#     TextureSequence::Prepare face reshapes a two-argument call into a
+#     three-parameter thiscall and derefs an unwritten third stack slot.
+#     NOT LANDED HERE, and the reason is recorded rather than rediscovered:
+#     slice_w8shadows.txt lines 100-121 already work out the fix at the seam
+#     (make the face two-parameter and pass the model twice), notes that it
+#     retires this host copy AND func_ov002_020e5948's together, and defers it
+#     because func_ov002_020e5948 is Mario's InitResources and the change lands
+#     in the boot path. That reasoning has not changed. It wants its own run of
+#     the level matrix, not a corner of this lane.
+#
+# _ZN11ChiefChilly8BehaviorEv      EXCEPTION (mwcc pointer-to-member), tagged
+#     port/unmatched/Ov073_State.cpp is the matched TU verbatim except three
+#     lines: an inline `PMF *p = c->pp + 1; (c->**p)();` that steps 8 bytes on
+#     ARM and 16 under MSVC. That is the documented pointer-to-member wall and
+#     not replaceable work. The file explained itself in its header and carried
+#     no PORT_HOST_ABI tag, so the tag was added at the definition; it now
+#     reads as the exception it is instead of as a shadow.
+#
+# ---------------------------------------------------------------------------
+# SAME WAVE, AFTER THE RULINGS ABOVE: the one DUPLICATES is closed.
+#
+# _ZN5Actor17TrackInDeathTableEv is now
+#
+#     { ((Actor *)self)->Actor::TrackInDeathTable(); }
+#
+# at hal/actor_class_faces.cpp, with the method DECLARED and not defined in
+# that file's local `struct Actor` so the matched TU keeps ownership of
+# ?TrackInDeathTable@Actor@@QAEXXZ. Defining it there would have been a
+# duplicate symbol, not a bridge, which is the difference between this face and
+# the four above it in the same struct that forward the other way.
+#
+# The map confirms the direction: ?TrackInDeathTable@Actor@@QAEXXZ resolves to
+# _ZN5Actor17TrackInDeathTableEv.cpp.obj and the C name to
+# actor_class_faces.cpp.obj. gate.py GREEN, battery ALL GREEN, linkage 4888 ->
+# 4888 (0), which is the right delta: both halves were already linked and what
+# changed is which one runs.
+#
+# The row above still reads DUPLICATES on purpose. This file is append-only so
+# that a claim can be traced to when it was made and on what evidence; the
+# ruling was true when it was written and this section is what makes it false.
+#
+# BUCKET NOW: 210 FORWARDS, 0 DUPLICATES, 0 UNCLEAR.

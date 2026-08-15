@@ -175,6 +175,10 @@ extern void func_ov073_021215cc(void *self);
 extern void _ZN14BlendModelAnim7AdvanceEv(void *self);
 }
 
+/* PORT_HOST_ABI: mwcc pointer-to-member dispatch: the matched TU holds an
+ * inline `PMF *p = c->pp + 1; (c->**p)();` that steps 8 bytes on ARM and 16
+ * under MSVC. Three lines changed, the rest is the matched body verbatim. See
+ * note (2) in this file's header. */
 extern "C" int _ZN11ChiefChilly8BehaviorEv(C *c)
 {
     char *self = (char *)c;
