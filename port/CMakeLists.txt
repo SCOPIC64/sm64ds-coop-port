@@ -1439,6 +1439,24 @@ list(APPEND PORT_ACTOR_OVERLAYS ov070)
 # pattern -- no lane owns hal/actor_overlays.cpp this wave. See
 # port/ov065_syms.txt.
 list(APPEND PORT_ACTOR_OVERLAYS ov065)
+# run linkw wave 18 (lane w18): ov035 is level 27's own overlay (Tick Tock
+# Clock, data/stage/clock_tower), already whole-mounted in PORT_LEVEL_OVERLAYS
+# since wave 17 landed the level-27 row. It joins the per-symbol mounts here so
+# the ov065 Ttc cluster's TWELVE cross-overlay reads -- ten CLPS collision
+# blocks and two animation descriptors -- resolve onto host storage instead of
+# staying DS addresses. Without this, ovdata.py's cross pass has nothing to
+# rebase into (a whole-image mount deliberately provides the cross pass
+# nothing), and wave 17 MEASURED what that costs: ids 108 and 114 ticked 300
+# frames without faulting on a garbage CLPS, silently, and id 112 divided by
+# zero on an animation descriptor that read zero frames. The quiet pair is why
+# that seat came back out. The gate-17 dual-mount shape of ov009/ov010/ov012/
+# ov013/ov014/ov015/ov016/ov018/ov019/ov020/ov021/ov022/ov031/ov045 applied to a
+# fifteenth overlay and a sixth level overlay; ov022 is the worked example.
+# Nothing here is excluded -- ov035 contributes no vtables to this mount, all 21
+# blocks are plain data. See port/ov035_syms.txt for the twelve seeds (wave 17's
+# note names five of them), the closure, and the three width routes of which two
+# lie.
+list(APPEND PORT_ACTOR_OVERLAYS ov035)
 # ...and ov021 (level 13's own overlay, already whole-mounted per gate 156)
 # joins the per-symbol mounts too, so WORK_ELEVATOR (68), ROLLING_ROCK (221)
 # and SHUTTER_HMC (67) reach their SpawnInfo records, CLPS blocks, tuning
@@ -3858,7 +3876,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
     hal/actor_classes_ov022_w16.cpp ${SLICE_W16A_SOURCES}
     hal/actor_classes_ov002_w17.cpp ${SLICE_W17A_SOURCES}
-    ${SLICE_W18A_SOURCES}
+    ${SLICE_W18A_SOURCES} hal/ttc_level_data_seat.cpp
     unmatched/Ov070_PmfDispatch.cpp
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
@@ -3985,7 +4003,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
     hal/actor_classes_ov022_w16.cpp ${SLICE_W16A_SOURCES}
     hal/actor_classes_ov002_w17.cpp ${SLICE_W17A_SOURCES}
-    ${SLICE_W18A_SOURCES}
+    ${SLICE_W18A_SOURCES} hal/ttc_level_data_seat.cpp
     unmatched/Ov070_PmfDispatch.cpp
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
@@ -4124,7 +4142,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
     hal/actor_classes_ov022_w16.cpp ${SLICE_W16A_SOURCES}
     hal/actor_classes_ov002_w17.cpp ${SLICE_W17A_SOURCES}
-    ${SLICE_W18A_SOURCES}
+    ${SLICE_W18A_SOURCES} hal/ttc_level_data_seat.cpp
     unmatched/Ov070_PmfDispatch.cpp
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}

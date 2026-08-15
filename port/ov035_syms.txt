@@ -1,0 +1,130 @@
+# run linkw wave 18 (lane w18): ov035's LEVEL DATA, per symbol -- the mount the
+# ov065 Tick Tock Clock cluster is blocked on.
+#
+# ov035 (level 27, Tick Tock Clock, data/stage/clock_tower, course 13) is
+# already mounted WHOLE in PORT_LEVEL_OVERLAYS -- wave 17 landed that with the
+# level-27 row. This is the SECOND mount of the same overlay, per symbol, and
+# the two do not conflict: tools/ovdata.py --whole emits port_ov035_image /
+# _patch / _at and NOTHING by name, while --from-list --pack emits the named
+# arrays plus port_ov035_syms_patch. ov009/ov010/ov012/ov013/ov014/ov015/ov016/
+# ov018/ov019/ov020/ov021/ov022/ov031/ov045 are dual-mounted the same way today;
+# this is the fifteenth, and ov022 is the worked example.
+#
+# ==== WHY, AND WHAT WAVE 17 MEASURED ========================================
+#
+# Every Ttc class in ov065 reaches a CLPS collision block and an animation
+# descriptor that live in whichever LEVEL overlay is loaded -- ov035 on level
+# 27. Those are cross-overlay relocations, and ovdata.py's cross pass
+# DELIBERATELY refuses to rebase into a whole-image mount ("a whole-image mount
+# PROVIDES NOTHING to the cross pass ... which is what keeps the level overlays
+# honest"), so with only the whole mount the words stay DS addresses and a
+# seated Ttc class hands MovingMeshCollider::SetFile a DS pointer as its
+# CLPS_Block. Wave 17 seated the whole cluster and measured the consequence:
+# ids 108 (x8) and 114 (x5) ticked 300 frames WITHOUT faulting, silently, on a
+# garbage CLPS, and id 112 divided by zero in Animation::Advance because its
+# animation descriptor read zero frames. The quiet two are the worse half, and
+# they are why that seat came back out. This file is the remedy.
+#
+# ==== THE SEEDS: EVERY ov065 -> LEVEL-WINDOW RELOCATION, NOT A SAMPLE =======
+#
+# Wave 17's note lists FIVE such relocations. There are TWELVE. The five it
+# names are the ones its seated classes happened to trip over; the list below is
+# every `to:` in config/arm9/overlays/ov065/relocs.txt that lands in
+# [0x021111a0, 0x02112ce0) with an `overlays(...)` candidate list -- the
+# candidate lists are over-broad because every level overlay shares the load
+# window at base 0x021111a0, and ov035 is in all twelve.
+#
+#   from 0x0211d16c -> 0x0211208c   animation descriptor   (w17 had this)
+#   from 0x0211d170 -> 0x021120a4   animation descriptor
+#   from 0x0211d19c -> 0x021120d8   CLPS
+#   from 0x0211d364 -> 0x021120f8   CLPS                   (w17 had this)
+#   from 0x0211c03c -> 0x02112118   CLPS
+#   from 0x0211cfd8 -> 0x02112138   CLPS                   (w17 had this)
+#   from 0x0211d370 -> 0x02112158   CLPS
+#   from 0x0211cfe4 -> 0x02112178   CLPS                   (w17 had this)
+#   from 0x0211a454 -> 0x02112198   CLPS
+#   from 0x0211bb68 -> 0x021121b8   CLPS                   (w17 had this)
+#   from 0x0211d1a8 -> 0x021121f8   CLPS
+#   from 0x0211b314 -> 0x02112258   CLPS
+#
+# So it is TEN CLPS blocks and TWO animation descriptors, not "four CLPS and two
+# BTA". Mounting only w17's five would have left five more classes reading DS
+# addresses just as silently as ids 108 and 114 did.
+#
+# ==== THE WIDTHS, PINNED THREE WAYS, AND TWO ROUTES LIE =====================
+#
+# A CLPS block is self-describing:
+#
+#     u32 'CLPS' (0x53504c43) / u16 entrySize / u16 count
+#     count * entrySize of entries / a run of 0xffffffff filling the block out
+#
+# Every block here reads entrySize 8 and count 1 or 2, and every one is 0x20
+# bytes. Three routes were run against all ten:
+#
+#   ROUTE A, the next-symbol landing from config/arm9/overlays/ov035/symbols.txt
+#     -- agrees on eight, UNDER-READS on two, because dsd split the block and
+#     named a symbol inside it:
+#         0x021120f8  next symbol 0x02112104  ->  0xc  against a real 0x20
+#         0x021121b8  next symbol 0x021121c0  ->  0x8  against a real 0x20
+#     Both of those dsd names carry `ambiguous`, and so do eight others in this
+#     window, so the flag does not separate the split ones from the good ones.
+#
+#   ROUTE B, scanning forward to the next 'CLPS' magic -- agrees on eight and
+#     OVER-READS on two, because what follows is a FILE TABLE rather than
+#     another block:
+#         0x021121f8  next magic at 0x02112238  ->  0x40  against a real 0x20
+#         0x02112258  next magic far away       -> 0x114  against a real 0x20
+#     0x02112218 and 0x02112278 are {count, pointer} file tables belonging to
+#     the level overlay's own whole mount. Route B would have mounted them a
+#     second time and let this mount's pointer pass rewrite words the whole
+#     mount owns -- two mounts fighting over the same storage, which is the
+#     failure this file exists to avoid.
+#
+#   ROUTE C, the block's OWN header: 8 + count*entrySize, then extended over the
+#     trailing 0xffffffff run. Self-contained, depends on nothing that follows,
+#     and gives 0x20 on all ten. THIS IS THE INVARIANT. The 0xffffffff run is
+#     the terminator and it lives INSIDE the block, which is what makes it
+#     immune to both a split symbol and a following table.
+#
+# The two animation descriptors are 0x18 each and all three routes agree
+# (0x0211208c -> 0x021120a4 -> 0x021120bc, and 0x021120bc is the LVL_Overlay
+# record wave 17 read the level-27 row out of, so the run terminates there for a
+# reason that is independent of dsd).
+#
+# ==== CLOSURE: THE POINTERS INSIDE THE MOUNTED BLOCKS =======================
+#
+# The ten CLPS blocks carry ZERO relocations -- plain data, nothing to rebase.
+# The two animation descriptors carry FOUR each, all into ov035's own .rodata
+# (data, not code, so the mount's pointer pass can rebase them; the ov073 case
+# where the words pointed into .text and needed a seat does not arise here).
+# Those eight targets are pulled in, and one of them (0x02111bfc) points at a
+# ninth (0x02112064). The closure is fixed at 21 blocks / 824 bytes; running it
+# again adds nothing.
+#
+# Note what closure does to a wrong width: under ROUTE B's 0x40 for 0x021121f8
+# and 0x114 for 0x02112258 the closure pulled in FIVE MORE blocks
+# (0x021122a8, 0x021122d8, 0x02112318, 0x021123ec, 0x021124e4) that nothing
+# actually reads -- the over-read manufactures its own false evidence, because
+# the swallowed file table's pointers look exactly like real closure. A width
+# error here is not inert.
+#
+# ---- the two animation descriptors, and the .rodata they point at ----------
+data_ov035_0211208c data_ov035_021120a4
+data_ov035_02111bd0 data_ov035_02111bd4 data_ov035_02111bd8 data_ov035_02111bdc
+data_ov035_02111be0 data_ov035_02111bfc data_ov035_02111c18 data_ov035_02111d84
+data_ov035_02112064
+#
+# ---- the ten CLPS collision blocks, 0x20 each by their own headers ---------
+# The two pinned explicitly are the two ROUTE A under-reads; the other eight
+# would take the same 0x20 from the next-symbol delta, and are left bare so the
+# diff shows exactly which widths dsd got wrong.
+data_ov035_021120d8
+data_ov035_021120f8:0x20
+data_ov035_02112118
+data_ov035_02112138
+data_ov035_02112158
+data_ov035_02112178
+data_ov035_02112198
+data_ov035_021121b8:0x20
+data_ov035_021121f8
+data_ov035_02112258
