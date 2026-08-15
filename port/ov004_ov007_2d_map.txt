@@ -1,0 +1,321 @@
+ov004 AND ov007: WHAT THEY ARE, HOW THE GAME ENTERS THEM, AND WHAT THE PORT
+WOULD NEED. Run linkw wave C, lane cat-2d.
+
+Baseline this was measured against: 459f21a07, walk_window 4888/11243 linked
+(43.5%), battery ALL GREEN, exe sha256 e3d59696bbb9.
+
+The lane was briefed as "the 2D HUD/OAM layer". That is not what these two
+overlays are, and the correction matters for how they get reached, so it is
+the first thing here.
+
+
+1. WHAT THEY ACTUALLY ARE
+-------------------------
+
+ov004 is the MINIGAME SCENE FRAMEWORK. Its RTTI names, read out of the
+decompressed overlay image, are the whole story:
+
+    11dScMgBase_c                     d_Scene_MiniGame_Base
+    N11dScMgBase_c15graphCallback_cE
+    N10dMgPsOpt_c11TouchIcon_cE       minigame option screen, touch icon
+
+ov006 is the twenty-three Rec Room minigames (dScMgAmida_c, dScMgCard_c,
+dScMgCurling_c, dScMgHanachan_c, ...). ov004 is the base class those derive
+from, and ov006 calls into it 993 times, more than any other edge in the game
+that crosses into ov004.
+
+ov007 is the TITLE SCREEN AND FILE SELECT scene:
+
+    9dScDSMT_c                        d_Scene_DS_Mario_Title
+    N9dScDSMT_c15graphCallback_cE
+    ..\Character\title_demo.ncg       ..\Character\title_demo_U.ncg
+    ..\Character\title_demo_main.ncg  ..\Character\file_menu.ncg
+    ..\Character\file_menu_U.ncg      ..\Character\castle00.ncg
+    ..\Character\btm_icon.ncg         ..\Character\touch_select_4bit.ncg
+    ..\ColorPalette\title_demo_file_menu.ncl
+    ..\ColorPalette\title_demo_main_U.ncl
+    ..\ColorPalette\castle00.ncl
+    "global data"  "message data"  "sound request"  "2DEffect"  "touch_panel"
+
+So the four ov004 symbols the brief named (RenderOamMainScreen, DrawOamSprite,
+Hud_RenderSprite, GetGameLanguage, plus RenderOamBothScreens and
+FreeGfxSlotsById) are the MINIGAME framework's own 2D layer, and ov007's
+RequestScreenFade and Sprite_SetAnimation are the TITLE screen's own fade and
+cell-animation layer. Neither is the in-level HUD. walk_window's HUD already
+runs on real decompiled code: OAM::Render, HUD::RenderHealthMeter,
+HUD::RenderCoinCount and Minimap::Render are arm9/ov002 and are linked, with
+hal/oam_lists.cpp acting as a static guard over their sprite-template tables
+rather than as a stand-in for any of them.
+
+One naming trap to carry forward: src/_ZN6Player17St_EndingFly_MainEv.cpp is
+counted as ov007 by stem lookup, but notes/actor-vtables.md already records
+that eight _ZN6Player* names belong to other overlays (seven ov006, one
+ov007) as community labels applied to another class's bytes at a shared RAM
+address. ov007 is the title scene; it has no Player. Do not read that file
+name as evidence of an ending sequence in ov007.
+
+Matched coverage is near total for both, which is why they are worth this
+much attention:
+
+    ov004   282 functions, 276 with a matched src TU   (97.9%)
+    ov007   548 functions, 528 with a matched src TU   (96.4%)
+
+
+2. THE SLOT: WHY NOTHING IN A LEVEL WALK CAN REACH THEM
+-------------------------------------------------------
+
+Load addresses, from extracted/dsd/arm9_overlays/overlays.yaml:
+
+    ov000  0x020aa420 .. 0x020bd300
+    ov001  0x020aa420 .. 0x020ac3c0
+    ov002  0x020ad660 .. 0x0210ff40      in-level engine
+    ov003  0x020ad660 .. 0x020b15a0      star select / debug level select
+    ov004  0x020ad660 .. 0x020c3220      minigame framework
+    ov005  0x020bfec0 .. 0x020c2f40
+    ov006  0x020bfec0 .. 0x02141800      the minigames
+    ov007  0x020ad660 .. 0x02104720      title / file select
+
+ov002, ov003, ov004 and ov007 are four occupants of ONE slot at 0x020ad660.
+They are mutually exclusive by construction. walk_window runs the ov002
+occupant. ov004 and ov007 are not "not linked yet", they are a different mode
+of the game, and the only honest way to reach them is to enter that mode.
+
+
+3. THE ENTRY CHAIN, END TO END
+------------------------------
+
+Scenes are actors. The scene machinery is in arm9 and every piece of it is a
+matched TU:
+
+    Scene::SetSceneToSpawn(id, param)   0x0202e36c
+        writes data_02092664 = id, data_0209f5b8 = param
+
+    Scene::SpawnIfNecessary()           0x0202e26c
+        if data_02092660 == 0 and data_02092664 != 0x187:
+            func_02013edc(id, param, 1)
+              -> func_02042fe4  -> func_02043098(id, 0, param, 1)
+                 which calls (*data_020a4bb8[id])(), the ACTOR SPAWN TABLE
+                 factory. data_020a4bb8 is set to data_02090864 in
+                 func_0201a054, so this is ACTOR_SPAWN_TABLE[id].
+
+    Scene::PrepareToSpawnBoot()         0x0202e300   sets id = 0 or 0x168
+
+    GetSceneOverlayID(id)               0x0201a7dc
+        IsMinigameActorID(id)  (0x169 <= id <= 0x186)  -> ov006
+        id 3, 6, 7                                     -> ov002
+        id 1                                           -> ov007
+        id 2, 4, 8                                     -> ov003
+        id 5                                           -> ov005
+        id 0x168                                       -> none (boot)
+
+    func_0201a798(ovId)   LoadOverlay, AND LoadOverlay(ov004) first when the
+                          scene's overlay is ov006. This is the only place
+                          ov004 is ever loaded.
+    func_0201a754(ovId)   the matching unload pair.
+
+So:
+
+    ov007  is entered by spawning ACTOR ID 1. symbols/actor_renames_report.txt
+           already names it: "UNRESOLVED actor 1 TITLE_SCREEN: spawninfo
+           0x2103264", and 0x02103264 is inside ov007. The arm9 relocation
+           that proves it is in config/arm9/relocs.txt:
+               from:0x02090868 kind:load to:0x02103264 module:overlay(7)
+           0x02090868 is ACTOR_SPAWN_TABLE + 4, the slot for actor 1.
+
+    ov004  is entered ONLY as a passenger of ov006. There is no scene id that
+           loads ov004 by itself. Any real bring-up of the ov004 category is
+           therefore gated on ov006 (1839 matched TUs, 0 linked), which is not
+           this lane's category.
+
+
+4. THE INBOUND SURFACE, MEASURED
+--------------------------------
+
+Every relocation in the game that lands inside ov004 or ov007, by source
+module (config/arm9/**/relocs.txt, module tag as dsd wrote it):
+
+    into ov004    ov004 itself      1562
+                  ov006              993   + 626 overlays(0,4) + 43 overlays(3,4)
+                  level overlays      ~55  ALL of them ambiguous overlays(2,4)
+                  arm9                 2   LoadFont, twice
+    into ov007    ov007 itself      2674
+                  level overlays      ~110 ALL of them ambiguous overlays(2,7)
+                  arm9                 6   all data loads, no calls
+
+The ~55 and ~110 ambiguous edges are not real ov004/ov007 edges. See section 6.
+
+Outbound is the good news. Both overlays are nearly closed:
+
+    ov004   1562 internal, 506 into arm9, 34 into ov006, 17 into ov001,
+            2 into itcm.   167 distinct external destinations.
+    ov007   2674 internal, 619 into arm9, 4 into ov002, 2 into ov006,
+            2 into itcm.   261 distinct external destinations.
+
+Measured against the current walk_window map, ov007's 261 external
+destinations break down as 138 already defined in the port and 123 not:
+98 arm9 functions, 13 arm9 data, 6 arm9 bss, 1 itcm function, 2 ov002 bss,
+2 ov006 bss, 1 unresolvable overlays(84,85) tag. ov004's 167 break down as
+92 defined and 75 not: 34 arm9 functions, 5 arm9 data, 2 arm9 bss, 24 ov006
+data, 4 ov001 functions, 6 unresolvable ambiguous tags.
+
+
+5. THE ONE HONEST WEDGE THAT EXISTS TODAY
+-----------------------------------------
+
+Exactly one linked arm9 caller reaches ov004 code, and it is the two
+LoadFont relocations above:
+
+    src/LoadFont.cpp, the data_0209d698 == 2 branch:
+        LoadFileAt(0x980e, func_ov004_020adc4c());
+        data_0209d6f8 = func_ov004_020adc4c();
+
+LoadFont is linked. func_ov004_020adc4c was NOT: hal/sub_screen.cpp carried a
+printf stand-in for it, tagged
+    PORT_HOST_ABI: src reads data_ov004_020beb60, and ov004 is not mounted.
+That blocker is removable. data_ov004_020beb60 is BSS, four bytes by ROM span
+(next symbol is data_ov004_020beb64), so hosting it is a zero-initialised host
+global and reads exactly the zero the ROM's own unloaded-overlay BSS reads.
+This lane did that; see hal/oam2d_ov004_bss.cpp and port/slice_2d1.txt.
+
+There is NO equivalent wedge for ov007. All six arm9 edges into ov007 are data
+loads into arm9 pointer tables, and the only one that is a code entry is
+ACTOR_SPAWN_TABLE[1], which on the host is an actor-registry row, not a
+reference the linker can follow today.
+
+
+6. A FLAGGED ATTRIBUTION PROBLEM (NOT FIXED HERE)
+-------------------------------------------------
+
+Three ov004 TUs are counted as linked in walk_window today:
+
+    src/func_ov004_020adc1c.c
+    src/func_ov004_020adc00.c
+    src/_ZN5Enemy20KillByInvincibleCharERK10Vector3_16R6Player.c
+
+They are reached from ov081's Spindrift, per the note at the top of
+hal/actor_classes_ov081.cpp. But ov002 ALSO defines a function at each of
+those addresses (func_ov002_020ada40 at KillByInvincibleChar's address,
+func_ov002_020aea30 at Enemy::KillByAttack's), and dsd tagged every one of
+those level-overlay relocations ambiguous, "overlays(2,4)", precisely because
+it could not tell them apart:
+
+    12x ov065 -> 0x020aea30   ov004: Enemy::KillByAttack   ov002: func_ov002_020aea30
+     8x ov090 -> 0x020aea30
+     5x ov062 -> 0x020aea30
+     3x ov081, 3x ov084, 2x ov070, 1x ov091 -> 0x020aea30
+     3x ov084, 2x ov062, 2x ov065, 2x ov081, 2x ov102, 1x each ov063 ov064
+        ov090 ov100 -> 0x020ada40
+
+ov065, ov062, ov081, ov084, ov090, ov102, ov063, ov064, ov070, ov091 and
+ov100 are LEVEL ACTOR overlays. They are co-resident with ov002, which is the
+in-level engine, and they can never be co-resident with ov004, which loads
+only alongside ov006 for a minigame scene. On co-residency grounds alone the
+destination of every one of those calls is the ov002 body, not the ov004 one.
+
+If that reading is right, the port's three "linked ov004" TUs are three ov002
+bodies wearing ov004 names, and the ov004 category's 3/276 is fictitious. It
+also means hal/actor_classes_ov081.cpp's zeroed data_ov004_020beb68 is
+standing in for what should be an ov002 BSS symbol. Behaviourally the two are
+the same (zero either way, and every reader null-guards first), so nothing is
+broken; the attribution is what is wrong.
+
+UNPROVEN: this was NOT confirmed at the byte level. The cheap check would be
+to compare ov002's and ov004's bytes at 0x020ada40 and 0x020aea30, and
+extracted/dsd/arm9_overlays/ov004.bin does not survive a relocation-agreement
+sanity check (its instruction at a reloc's `from` address disagrees with the
+relocation kind far more often than ov002's or ov007's do), so the image could
+not be trusted for that comparison in this lane. Someone with a verified ov004
+image should settle it. Until then this is a flag, not a finding.
+
+
+7. WHAT THE ntr LAYER ALREADY MODELS, AND THE GAP LIST
+------------------------------------------------------
+
+The 2D hardware these two overlays drive is in better shape than the brief
+assumed. port/ntr already has:
+
+    ppu.cpp       engine A text-mode backgrounds, and a full OBJ layer:
+                  128 OAM entries, 1D and 2D tile mapping, the DISPCNT tile
+                  boundary shift, 16- and 256-colour, affine sprites with the
+                  four OAM matrix halfwords. Plus the BMP writer.
+    ppu_sub.cpp   engine B, and it is the better one: sprites and backgrounds
+                  resolved together per pixel by priority, sprite-vs-sprite by
+                  OAM index, which is what the HUD needs.
+    io.cpp        real memory mapped at the DS addresses, including palettes,
+                  VRAM and OAM, with write-triggered side effects.
+    gx.cpp        the geometry engine and software raster.
+    texture.cpp   all seven texture formats.
+
+Gaps, per cluster, from what the two overlays actually poke:
+
+  a. OBJ WINDOW. Both ppu.cpp and ppu_sub.cpp skip OAM mode 3 (OBJ window)
+     outright, and neither models the window registers (WIN0/WIN1/WINOUT).
+     The title screen's touch_select and the minigame option screen are
+     candidates for it. Unmeasured which of them needs it.
+  b. SEMI-TRANSPARENT SPRITES draw opaque in ppu_sub.cpp, and the colour
+     special effects (BLDCNT/BLDALPHA) are only partially there. ov007's
+     RequestScreenFade drives a fade; whether it goes through the brightness
+     registers (which are modelled, hal/fader_wipes.cpp uses
+     G2x::SetBlendBrightness) or through alpha blend (which is not) is
+     unmeasured.
+  c. AFFINE AND ROTATION/SCALING BACKGROUNDS. ppu.cpp and ppu_sub.cpp are
+     text-mode background scan-out. Extended-affine and bitmap BG modes are
+     not modelled. The title's castle00 layer is a candidate.
+  d. THE 3D FONT. hal/sub_screen.cpp's LoadFont3D is a documented exception
+     because the src drives the card loader and asm copies into an unhosted
+     3D-font VRAM path. Both overlays render text.
+  e. TOP-SCREEN BG2 TEXT. hal/sub_screen.cpp's LoadControllerModeText is a
+     documented exception for the same reason: the main engine's text path is
+     not hosted.
+  f. TOUCH. ov004's dMgPsOpt_c::TouchIcon_c and ov007's "touch_panel" both
+     read the touch panel. walk_window has a touch bridge (the last left
+     click is published in framebuffer pixels) but no touch-panel register
+     model.
+
+None of a..f blocks LINKING either overlay. They block the overlay doing
+anything visible once linked. That distinction is the whole shape of this
+category: the code is 97% matched and the hardware is 70% modelled, and what
+is missing is the MODE, not the pixels.
+
+
+8. HONEST SCOPE FOR THE REST
+----------------------------
+
+  ov004, minigame framework (276 TUs). Gated on ov006. There is no scene id
+  that loads ov004 alone, so the only real caller chain runs
+  minigame actor id -> ov006 scene -> ov004 base class. Landing ov004 means
+  landing ov006 with it: 1839 + 276 TUs, an ov006 data mount, 24 ov006 data
+  symbols ov004 reads directly, and the minigame scene boot. Large. Not
+  separable, and not this lane's category on the ov006 half.
+
+  ov007, title and file select (528 TUs). Separable and self-contained: 4
+  edges into ov002 and 2 into ov006 are the whole cross-overlay surface, the
+  rest is ov007 plus arm9. What it needs, in order:
+    1. an actor-registry row for actor 1 (TITLE_SCREEN, spawninfo
+       0x02103264) so the spawn table holds a host pointer to ov007's
+       factory. This is the reference edge /OPT:REF follows, and it is
+       ROM-faithful: ACTOR_SPAWN_TABLE really does carry that entry. The row
+       lives in hal/actor_classes.inc, which this lane does not own. ROUTED
+       TO THE COORDINATOR as a request, not taken.
+    2. an ov007 data mount (port/ov007_syms.txt + tools/ovdata.py, the ov002
+       per-symbol shape), roughly 700 data symbols. The DS-address collision
+       with ov002's mounted window is a naming question on the host, not a
+       memory one, since mounts are ordinary host globals.
+    3. the 123-symbol external closure listed in section 4. 98 of those are
+       arm9 functions that almost certainly already have matched TUs and are
+       only /OPT:REF-stripped; they come back for free once ov007 references
+       them, which would convert arm9 TUs as a side effect.
+    4. the boot path. Linking is not running: walk_window boots a level, and
+       the title scene never spawns in a level walk. Making it RUN needs a
+       scene-switch entry point in the harness plus the gaps in section 7.
+  Estimate: step 1 is one row. Steps 2 and 3 together are a multi-day
+  whole-overlay mount of the ov009/ov006 class, not a slice. Step 4 is its
+  own project.
+
+  In-level HUD. Already real. Nothing in this category is standing in for it.
+
+  Menus other than the title. ov003 (star select, 36 TUs, 0 linked) is the
+  same shape as ov007 but twenty times smaller, reached by actor ids 2, 4 and
+  8, and ov003 is ALREADY MOUNTED for the debug level select's row list
+  (gate 31, port/ov003_syms.txt). If someone wants the cheapest proof that a
+  non-ov002 scene can be brought up in the port, ov003 is it, not ov007.
