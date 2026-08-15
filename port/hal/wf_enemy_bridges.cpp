@@ -20,6 +20,7 @@
 // Everything forwarded to is already linked from an existing slice or the ov079
 // mount; this file adds only the names and the ecx->stack shuffle MSVC needs.
 #include <cstdio>
+#include <cstdlib>
 
 extern "C" {
 // the C-named __cdecl bodies the shadow methods forward to
@@ -100,12 +101,31 @@ int Platform::UpdateKillByMegaChar(short a, short b, short c, int d)
    struct, and hal/actor_classes.cpp's hal_fill_platform_vtable writes
    _ZTV8Platform in ROM order with vt[31] = ac_kill. Index 31 is Platform::Kill
    in both numberings. */
+/* SM64DS_MEGACHAR_PROBE=1 counts the calls and how many of them get past the
+   matched body's first line. That first line is `if (this->f_31c == 0) return
+   0;`, which is also exactly what the retired stub did, so a matrix that goes
+   green proves nothing on its own -- the seat would look identical to the old
+   stub if every platform early-outs. The probe is what separates "linked" from
+   "running", and it reports both halves: reached, and past-the-early-out. */
 extern "C" int _ZN8Platform20UpdateKillByMegaCharEsss5Fix12IiE(
     void *self, short a, short b, short c, int d)
 {
     Fix12<int> fd;
     fd.v = d;
-    return ((Platform *)self)->UpdateKillByMegaChar(a, b, c, fd);
+    static int probe = -1;
+    if (probe < 0) probe = std::getenv("SM64DS_MEGACHAR_PROBE") ? 1 : 0;
+    if (!probe)
+        return ((Platform *)self)->UpdateKillByMegaChar(a, b, c, fd);
+    static long calls, live;
+    ++calls;
+    /* f_31c is the matched TU's own offset for the enable byte it early-outs
+       on; read it here only to classify the call, never to change it. */
+    if (*((unsigned char *)self + 0x31c)) ++live;
+    int r = ((Platform *)self)->UpdateKillByMegaChar(a, b, c, fd);
+    if ((calls % 600) == 0 || (live && live % 60 == 0))
+        std::fprintf(stderr, "[megachar] %ld calls, %ld past the early-out\n",
+                     calls, live);
+    return r;
 }
 
 extern "C" {
