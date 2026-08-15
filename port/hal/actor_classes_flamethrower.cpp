@@ -132,8 +132,13 @@ void port_actor_slot_decline(const char *what);   /* func_02043fdc.cpp */
    include/Flamethrower.h (matched src, slice_w6f.txt) and is called qualified
    by its thunk; both destructors are the explicit-chain extern-"C" .cpp forms,
    so they are C names here. Behavior is the C-linkage HOST COPY
-   (port/unmatched/Flamethrower_Behavior.c) -- the one method of the class with
-   no matched TU. */
+   (port/unmatched/Flamethrower_Behavior.c). It is NOT the one method of the
+   class with no matched TU -- main matched it in PR #1474 and this branch is
+   626 commits behind. It is the one method whose matched TU cannot be linked
+   HERE: it needs main's include/Flamethrower.h + decl_common.h to compile
+   (measured, cl.exe C2039) and a face to carry the C name into an MSVC-mangled
+   C++ method. Run linkw wave 9, lane w9-harvest; the reading is in the host
+   file's banner. */
 int _ZN12Flamethrower8BehaviorEv(void *self);    /* slot 6, host copy */
 int _ZN12FlamethrowerD1Ev(char *self);           /* slot 16, matched .cpp */
 void *_ZN12FlamethrowerD0Ev(char *self);         /* slot 17, matched .cpp */

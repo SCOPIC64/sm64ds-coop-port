@@ -434,7 +434,12 @@ void *func_02073470(int count, int size, int cookie,
 }
 
 extern "C" {
-/* __aeabi_idiv: the EABI signed-divide helper; host has native idiv */
+/* __aeabi_idiv: the EABI signed-divide helper; host has native idiv.
+   PORT_HOST_ABI: ARM asm primitive (ITCM 0x01ffabe4, quotient in r0 and
+   remainder in r1), MSVC cannot assemble. main files the matched TU as
+   src/_s32_div_f.c, a bannered HAND-ASM PRIMITIVE -- run linkw wave 9
+   (lane w9-harvest) checked: it is an ARM asm block, so it cannot replace
+   this host body no matter how the port catches up to main. */
 int __aeabi_idiv(int n, int d) { return d ? n / d : 0; }
 void *_ZTV18MovingCylinderClsn[12];
 
