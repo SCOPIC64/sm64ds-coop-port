@@ -34,6 +34,70 @@
 # table's slot 0 landing in that class's own code block and (5) each Spawn's
 # own vtable-store relocation naming that table.
 #
+# ==== CORRECTION, run linkw wave 17 (lane w17) =============================
+# THAT PARAGRAPH IS TRUE OF THE HMC FOUR AND FALSE OF THE Ttc SUBSET, and it
+# was only ever verified against the HMC four. The Ttc *_SpawnInfo and
+# *_Spawn names are fine -- every record still reads its own id back at +4
+# and every word[0] lands inside ov065 -- but the dsd _ZTV names ARE shifted
+# from 0x0211d3b4 on, each carrying the PREVIOUS class's name. Identity taken
+# from the RTTI record at vtable[-1], out of the shipped image:
+#
+#   table       dsd Ttc spelling            RTTI at vtable[-1]      verdict
+#   0x0211d028  _ZTV15TtcRotatingCube       20daObjCtRotateBlock_c  ok
+#   0x0211d1ec  _ZTV20TtcConveyorBeltLarge  16daObjCtMecha04_c      ok
+#   0x0211d3b4  _ZTV13TTC_MovingBar         18daObjCtKaitendai_c    SHIFTED
+#   0x0211d494  _ZTV15TtcRotatingGear       16daObjCtMecha08_c      SHIFTED
+#   0x0211d568  _ZTV14TtcMovingCubeA        16daObjCtMecha09_c      SHIFTED
+#
+# TTC_MovingBar is id 113 (record 0x0211d290), TtcRotatingGear is id 114
+# (0x0211d374) and TtcMovingCubeA is id 116 (0x0211d454) -- each one class
+# earlier than the table dsd hangs its name on. The dsd RTTI spellings are
+# right on all five. The practical trap: TtcRotatingGear_Spawn is id 114's
+# FACTORY while _ZN15TtcRotatingGear* are ids 116/117's BODIES, so the same
+# prefix names two different classes in this overlay. Anyone hosting these
+# tables should name the arrays for the RTTI and alias the Ttc spellings on.
+#
+# ALSO CORRECTED: the five Ttc tables are 32-slot PLATFORM tables. Slot 31 of
+# every one of them is 0x020ee55c = _ZN8Platform4KillEv (ov002, already in
+# the build), slot 30 is Actor::OnAimedAtWithEggReturnVec, and the typeinfo
+# terminator 0x0209a764 opens at slot 32. Every Ttc Spawn constructs with
+# _ZN8PlatformC2Ev, which says the same thing from the other side. A wave-16
+# note recording "32 slots ... no Platform::Kill tail, plain Actor shape" is
+# wrong on its second half.
+#
+# AND THE BLOCKER THAT ACTUALLY HOLDS THIS SUBSET, which is neither the
+# registry nor the sinits nor the vtables: EVERY Ttc CLASS READS DATA OUT OF
+# THE LEVEL OVERLAY. The three-column tables their InitResources index put a
+# level-window address in their third column, and the relocs say so:
+#
+#   from 0x0211cfd8 -> 0x02112138   CLPS, 108/109   module:overlays(12,13,
+#   from 0x0211cfe4 -> 0x02112178   CLPS, 108/109     24,33,35,43,45,47,
+#   from 0x0211d16c -> 0x0211208c   BTA anim, 111/112 52,53,56)
+#   from 0x0211d364 -> 0x021120f8   CLPS, 114/115
+#   from 0x0211bb68 -> 0x021121b8   CLPS, 116/117 (spelled func_021121b8)
+#
+# Those are CLPS blocks and a texture-animation BTA belonging to whichever
+# LEVEL overlay is loaded -- ov035 on level 27. The port mounts level
+# overlays --whole, and tools/ovdata.py's cross pass deliberately refuses to
+# rebase into a whole-image mount ("a whole-image mount PROVIDES NOTHING to
+# the cross pass ... which is what keeps the level overlays honest"). So the
+# words stay DS addresses, and a seated class hands
+# MovingMeshCollider::SetFile a DS pointer as its CLPS_Block.
+#
+# MEASURED, with the cluster seated and level 27 mounted: ids 108 (x8) and
+# 114 (x5) spawn and tick 300 frames without faulting -- SILENTLY, on a
+# garbage CLPS -- and id 112 faults c0000094, an integer divide by zero in
+# Animation::Advance +0x1e reached from TtcConveyorBeltLarge::Behavior
+# +0x10e, because its BTA read zero frames. The quiet two are the worse half
+# of that result, and they are why the seat was taken back out.
+#
+# So the subset is NOT "records done, only the fill side missing". It is
+# blocked on a PER-SYMBOL MOUNT OF THE LEVEL OVERLAY (ov035 for TTC) for the
+# four CLPS blocks and the two BTA files above, plus a cross-pass rebase onto
+# them. Everything else it needs is now measured: 43 TUs, zero guess markers,
+# zero cross-overlay spellings, four 32-slot Platform tables with their RTTI
+# names, four sinits with their owners (below), and the record widths pinned.
+#
 # TWO SHARED-WINDOW NAME RACES, resolved against ov065's OWN config (the
 # probe's p10 list carried them under the ov075 spelling): the Snufit state
 # TUs spell two of their SharedFilePtrs data_ov075_0211d608 / _0211d650.
@@ -60,9 +124,10 @@
 #                           span -- the slot-31-undersizing lesson)
 #   0x0211ce48..0x0211cec4  _ZTV6Dorrie                             31 slots
 # The five Ttc vtables (0x0211d028, 0x0211d1ec, 0x0211d3b4, 0x0211d494,
-# 0x0211d568) are ALSO left out and are NOT hosted anywhere -- the ov045
+# 0x0211d568) are ALSO left out and are still hosted NOWHERE -- the ov045
 # id-141 precedent: their classes are parked, nothing references the names,
-# and mounting a vtable is the one thing the rule forbids.
+# and mounting a vtable is the one thing the rule forbids. They are 32
+# slots each, not 31; see the wave-17 correction above.
 #
 # ==== STATE-RECORD SOURCE STATICS: DS CODE ADDRESSES =======================
 # data_ov065_0211cb20..cb58 (Snufit, 8 records), _0211cc20..cc58 (Swoop, 8)
@@ -82,6 +147,14 @@
 #   __sinit_ov065_0211c440  Dorrie + DorrieCap (d720..d7fc)   RUNS
 #   0211c660 0211c76c 0211c7d8 0211c890 0211c8fc 0211c9b8 0211ca74
 #            Ttc subset (d814..d9e8)                          PARKED, not run
+# OWNERSHIP OF THE PARKED SEVEN, measured by lane w17 (each sinit's bss span
+# against the addresses its class's InitResources and CleanupResources
+# read), so whoever takes the subset does not derive it again:
+#   0211c660 -> daObjCtRotateBlock_c (108/109), writes 0x0211d814..d880
+#   0211c7d8 -> daObjCtMecha04_c     (111/112), writes 0x0211d8b4..d8f8
+#   0211c8fc -> daObjCtKaitendai_c   (114/115), writes 0x0211d92c..d970
+#   0211c9b8 -> daObjCtMecha08_c     (116/117), writes 0x0211d97c..d9c0
+#   0211c76c, 0211c890, 0211ca74 -> ids 110, 113, 118
 # The bring-up rides the first registry fill in hal/actor_classes_ov065.cpp
 # (the w4-b ov045 pattern; no lane owns hal/actor_overlays.cpp this wave).
 #
@@ -92,6 +165,21 @@
 # last-symbol rule, the 4-byte floor would undersize it.
 # dsd's ".p__sinit_*" .ctor words (0x0211cae0..cb04) are left out (not C
 # identifiers), and every __sinit body is a FUNCTION, mounted never.
+
+# ==== RECORD WIDTHS, PINNED (run linkw wave 17, lane w17) ==================
+# The eight Ttc SpawnInfo records are SEVEN WORDS, 0x1c, and four of them were
+# mounted at 0x24. The second record of each pair is followed by its class's
+# vtable, so the dsd next-symbol delta swallows the table's own Itanium
+# prologue (offset-to-top + typeinfo pointer) -- the trap lane w15 pinned on
+# MEGA_MUSHROOM_CREATE_TAG and lane w17 pinned again on SEAWEED. Measured
+# deltas before pinning:
+#   TtcRotatingCube 0x1c   TtcRotatingPrism 0x24
+#   TtcConveyorBeltSmall 0x1c   TtcConveyorBeltLarge 0x24
+#   TtcRotatingGear 0x1c   TtcRotatingTriangle 0x24
+#   TtcMovingCubeA 0x1c   TtcMovingCubeB 0x24
+# The eight extra bytes were inert -- nothing reads a table this file does not
+# mount -- but they were wrong, and a record whose width is pinned cannot have
+# its +4 id halfword moved by a later dsd relabel.
 
 data_ov065_0211c078 data_ov065_0211c080 data_ov065_0211c08c
 data_ov065_0211c0a8 data_ov065_0211c0b0 data_ov065_0211c0b8
@@ -111,17 +199,17 @@ data_ov065_0211cee4 data_ov065_0211cf04 data_ov065_0211cf24
 data_ov065_0211cf44 data_ov065_0211cf64 data_ov065_0211cf84
 data_ov065_0211cfa4 data_ov065_0211cfa8 data_ov065_0211cfac
 data_ov065_0211cfb8 data_ov065_0211cfd0 data_ov065_0211cfd4
-data_ov065_0211cfd8 TtcRotatingCube_SpawnInfo TtcRotatingPrism_SpawnInfo
+data_ov065_0211cfd8 TtcRotatingCube_SpawnInfo:0x1c TtcRotatingPrism_SpawnInfo:0x1c
 data_ov065_0211d0a8 data_ov065_0211d0b4 data_ov065_0211d0c8
 data_ov065_0211d0ec data_ov065_0211d16c data_ov065_0211d174
 data_ov065_0211d180 data_ov065_0211d194 data_ov065_0211d198
-data_ov065_0211d19c TtcConveyorBeltSmall_SpawnInfo TtcConveyorBeltLarge_SpawnInfo
+data_ov065_0211d19c TtcConveyorBeltSmall_SpawnInfo:0x1c TtcConveyorBeltLarge_SpawnInfo:0x1c
 data_ov065_0211d26c data_ov065_0211d270 data_ov065_0211d27c
 TTC_MovingBar_SpawnInfo data_ov065_0211d2b4 data_ov065_0211d334
 data_ov065_0211d338 data_ov065_0211d344 data_ov065_0211d35c
-data_ov065_0211d360 data_ov065_0211d364 TtcRotatingGear_SpawnInfo
-TtcRotatingTriangle_SpawnInfo data_ov065_0211d434 data_ov065_0211d440
-TtcMovingCubeA_SpawnInfo TtcMovingCubeB_SpawnInfo data_ov065_0211d514
+data_ov065_0211d360 data_ov065_0211d364 TtcRotatingGear_SpawnInfo:0x1c
+TtcRotatingTriangle_SpawnInfo:0x1c data_ov065_0211d434 data_ov065_0211d440
+TtcMovingCubeA_SpawnInfo:0x1c TtcMovingCubeB_SpawnInfo:0x1c data_ov065_0211d514
 data_ov065_0211d520 data_ov065_0211d530 TTC_MovingBeam_SpawnInfo
 data_ov065_0211d600 data_ov065_0211d608 data_ov065_0211d610
 data_ov065_0211d618 data_ov065_0211d620 data_ov065_0211d62c
