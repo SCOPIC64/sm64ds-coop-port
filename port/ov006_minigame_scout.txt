@@ -221,7 +221,35 @@ And the item that actually decides it:
   because /OPT:REF strips what nothing references.
 
 
-7. Recommendation
+7. Read ov006's config names with suspicion
+-------------------------------------------
+
+ov006 has 1897 function symbols and only 41 carry a name rather than an
+address. None of the 41 collides with a name in arm9 or in any other
+overlay, so the mislabelling is not a duplicate-import: it is community
+labels landing on ov006 bodies. Two shapes are mixed in there and they
+have to be told apart before anyone trusts a name:
+
+  real ov006 copies of shared engine code. Camera_UpdateMatrices at
+    0x020c0134 (ov006 + 0x274, the very front of the overlay) really is
+    camera matrix work, and its matched TU says "Matched byte-for-byte
+    with mwccarm 1.2/sp2p3 (ov006)". Each mode overlay is its own link,
+    so shared source genuinely appears in several of them.
+
+  mislabelled minigame bodies. _ZN3OAM7SECONDSE at 0x0210c6c0 calls
+    Hud_RenderSprite, two ov004 sprite routines and GetGameLanguage --
+    it is a minigame's timer display, not anything to do with OAM. The
+    six _ZN6Player names are the same class (see
+    port/ov006_player_map.txt), and _ZN8PathLift17BaseInitResourcesEv
+    at 0x020efaf0 sits inside minigame id 0x175's closure.
+
+Renaming any of these is a config change and nobody has adjudicated the
+full 41. Recorded here so the next reader does not take an ov006 name
+at face value; three of the src TUs already carry their own headers
+saying the name is wrong.
+
+
+8. Recommendation
 -----------------
 
 Do not cut an ov006 seating lane next wave. Cut the ovdata --cross
