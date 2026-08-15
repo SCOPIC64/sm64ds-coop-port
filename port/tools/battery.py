@@ -429,6 +429,11 @@ def main():
     # the same reason: without it a quarantined fault reads as a pass.
     scenes = hosted_scenes(root)
     print(f"scenes: {len(scenes)} hosted, from hal/scene_boot.cpp")
+    # A skip for a scene that is not hosted reads as covered and tests nothing,
+    # the same staleness bug the level orphan check refuses. It also makes the
+    # final "skips:" line load-bearing: a non-empty SCENE_SKIPS can only reach
+    # that print if every one of its ids was hosted AND its selftest passed, so
+    # an ALL GREEN carrying a scene skip is proof the scene step really ran.
     scene_orphans = sorted(set(SCENE_SKIPS) - set(scenes))
     if scene_orphans:
         print(f"scenes: FAIL, SCENE_SKIPS names unhosted scene(s) "

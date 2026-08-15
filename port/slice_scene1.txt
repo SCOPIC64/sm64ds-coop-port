@@ -77,8 +77,8 @@ src/func_ov003_020ade54.c
 # TWO OF THESE DO NOT LINK, AND THAT IS THE RIGHT ANSWER. func_ov003_020adc74
 # (the BG0 text writer) and func_ov003_020adcbc are reached only from
 # func_ov003_020ad6ec, which is dScTitle_c's, not dScStarSel_c's. /OPT:REF
-# drops both, so ov003 reads 15 linked out of the 18 TUs listed here rather
-# than 18. They stay in the slice because they are part of the overlay's
+# drops both, so ov003 reads 15 linked out of the 17 TUs this block lists
+# rather than 17. They stay in the slice because they are part of the overlay's
 # closure and will link the moment dScTitle_c is seated; adding a reference to
 # make the count move would be the exact fabrication this file's header refuses.
 src/func_ov003_020adc74.cpp

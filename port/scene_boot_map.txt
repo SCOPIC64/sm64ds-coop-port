@@ -131,14 +131,14 @@ the slice.
               pending-destroy 0  [RENDER SLOT NO-OP'd: SM64DS_SCENE_SLOT9=0]
       [scene] 300 frames of scene 4 (SCENE_STAR_SELECT), clean
 
-READ THE THIRD AND SIXTH LINES, NOT THE FIFTH. "spawned" only says an object
-exists, which would be true of an object nothing ever ticked. What says the
-chain is LIVE is (a) the tree root coming back as the scene's own SceneNode --
-func_0203b438's no-parent branch writes the first node it is handed into
-data_020a4b6c[0], and on a level run that slot holds the Stage, because on the
-DS the Stage IS scene 3 -- and (b) the slot-hit counters: the ROM's init
-Process entered dScStarSel_c::InitResources once and the ROM's behaviour
-Process entered dScStarSel_c::Behavior on 299 of the 300 frames.
+READ THE "tree root" AND "slot hits" LINES, NOT THE "spawned" ONE. "spawned"
+only says an object exists, which would be true of an object nothing ever
+ticked. What says the chain is LIVE is (a) the tree root coming back as the
+scene's own SceneNode -- func_0203b438's no-parent branch writes the first node
+it is handed into data_020a4b6c[0], and on a level run that slot holds the
+Stage, because on the DS the Stage IS scene 3 -- and (b) the slot-hit counters:
+the ROM's init Process entered dScStarSel_c::InitResources once and the ROM's
+behaviour Process entered dScStarSel_c::Behavior on 299 of the 300 frames.
 
 The pending id reading 0x187 and the latch reading 1 is Scene::SpawnIfNecessary
 having done its own bookkeeping, so a second call would decline: the scene
@@ -169,7 +169,10 @@ spent") -- and func_0205a358 under it is emitting through ntr::io_read, so the
 walk is reading a runaway command count out of a Model that LOADED but did not
 BUILD. dScStarSel_c::InitResources loads two of them,
 Model::LoadAndSetFile(this + 0x64, 0x8015, 1, -1) and (this + 0xB4, 0x8017, 1,
--1), and the Render draws the first through the object's own slot-5 dispatch.
+-1) -- the filled star and the empty one -- and the Render draws whichever of
+the two IsStarCollectedInLevel picks, through the object's own slot-5 dispatch.
+Which of the two hangs was not isolated; with a zeroed save the grid has one
+entry and it is the empty star.
 
 THIS IS A MODEL-LOADER BLOCKER, NOT A SCENE ONE, and it has a precedent in this
 tree with the same shape: hal/level_boot.cpp's level-8 block records
@@ -243,10 +246,11 @@ from the run, not as a survey of the hardware.
   a. OBJ WINDOW (OAM mode 3, WIN0/WIN1/WINOUT). NOT NEEDED by this scene.
      dScStarSel_c::InitResources writes DISPCNT (0x04000000) twice, clearing
      0x00300010 and then setting bits 0x08000000 / 0x00001f00 through
-     data_0209d45c -- BG and OBJ enables only. It never touches 0x04000040..
-     0x0400004a, and none of its eleven OAM::Render / OAM::RenderSub calls
-     passes objMode 3. So the port's missing OBJ window does not block the star
-     select, and this cluster stays unmeasured for ov004/ov007.
+     data_0209d45c -- BG and OBJ enables only. Nothing in the closure touches
+     0x04000040..0x0400004a, and none of its THIRTY OAM::Render /
+     OAM::RenderSub call sites (21 in the Render, 3 each in the three emitters
+     under it) passes objMode 3. So the port's missing OBJ window does not
+     block the star select, and this cluster stays unmeasured for ov004/ov007.
 
   b. SEMI-TRANSPARENT SPRITES AND COLOUR SPECIAL EFFECTS (BLDCNT/BLDALPHA).
      NOT NEEDED. The scene's only fade is Scene::StartSceneFade(3, 0, 0) at the
@@ -265,13 +269,16 @@ from the run, not as a survey of the hardware.
   d. THE 3D FONT. NOT REACHED. The scene calls LoadFont(0), not LoadFont3D, so
      hal/sub_screen.cpp's documented 3D-font exception does not gate it.
 
-  e. TOP-SCREEN BG2 TEXT. PARTIALLY REACHED and NOT MEASURED. The scene loads
+  e. TOP-SCREEN BG2 TEXT. REACHED, AND SOMETHING COMES OUT. The scene loads
      its own BG2 character/palette/screen data by file id (0x23F/0x240/0x241 on
      the >= 0xF path, 0x24A..0x24C plus the four language variants otherwise)
      straight into G2::GetBG2CharPtr() / GetBG2ScrPtr() with DecompressLZ16,
-     which is a different path from LoadControllerModeText's. Whether it
-     composites is unknown, because the frame never completes with the real
-     Render (section 5). Deferred with the render blocker.
+     which is a different path from LoadControllerModeText's, and it runs:
+     InitResources completes. The frame the run writes is NOT the bare clear
+     (section 11 has the pixel counts), so either this BG path or the engine-B
+     sub-screen present is drawing. WHICH ONE, AND WHETHER IT IS RIGHT, IS
+     UNMEASURED -- nobody has looked at the frame, and separating the two is
+     one A/B somebody should run rather than a sentence anybody should write.
 
   f. TOUCH. NOT NEEDED for the boot. dScStarSel_c::Behavior reads
      IsButtonInputValid and the pad words (data_020a0e58 / data_020a0e5a), not
@@ -290,10 +297,11 @@ from the run, not as a survey of the hardware.
     baseline 4bba244fd   4871 / 11243   43.3%
     this lane            4914 / 11243   43.7%   +43
 
-  ov003   15 of 36 (was 0). The eighteen TUs in port/slice_scene1.txt minus
-          three: func_ov003_020adc74 and func_ov003_020adcbc are reached only
-          from func_ov003_020ad6ec, which is dScTitle_c's, so /OPT:REF drops
-          them and they will link when that class is seated. THE OTHER 21 ARE
+  ov003   15 of 36 (was 0). The seventeen ov003 TUs in port/slice_scene1.txt
+          minus two: func_ov003_020adc74 and func_ov003_020adcbc are reached
+          only from func_ov003_020ad6ec, which is dScTitle_c's, so /OPT:REF
+          drops them and they will link when that class is seated. THE OTHER
+          21 ARE
           dScTitle_c's AND dScGameOver_c's and are deliberately unlinked; see
           section 9.
   ov001   6 of 23. Ten more of its sprite-template symbols joined the mount
@@ -406,12 +414,13 @@ that already exists, none a stand-in for a body:
   - two functions two ov003 TUs reach through a locally-declared namespace
     (G2::GetBG0ScrPtr, Sound::UnsetPlayerVoiceGroup) rather than the mangled C
     name the matched TU defines;
-  - seven OAM sprite-template tables that src/func_ov003_020ae6f4.cpp declares
-    as `extern void *func_020abXXXX[]`. No func_020ab* symbol exists in any
+  - twelve OAM sprite-template tables the closure declares as
+    `extern void *func_020abXXXX[]`. No func_020ab* symbol exists in any
     config: the addresses are ov001 DATA and the "func_" prefix is a
-    decomp-side guess. Six MORE of the same spellings were already aliased in
-    hal/sub_actors.cpp's ov001 block, because the HUD's render TUs carry the
-    same defect; those six are not repeated.
+    decomp-side guess. Four TUs name seventeen such spellings between them
+    (thirteen in the Render alone); FIVE of the seventeen were already aliased
+    in hal/sub_actors.cpp's ov001 block, because the HUD's render TUs carry the
+    same defect, so twelve is what is left.
 
   WHY THOSE ADDRESSES ARE ov001'S AND NOT ov000'S, since dsd tags every
   relocation into that window "overlays(0,1)": co-residency settles it. ov000
@@ -435,10 +444,21 @@ caller touches.
 11. WHAT IS NOT PROVEN
 -----------------------
 
-  - THE SCENE HAS NEVER RENDERED A FRAME. Everything in section 4 is the tick.
-    No BMP of this scene exists, nothing has been looked at, and no claim is
-    made about what it would look like. Section 7's 2D reading is from the
-    SOURCE and from register writes, not from pixels.
+  - THE SCENE'S OWN RENDER HAS NEVER RUN. Everything in section 4 is the tick,
+    and section 7's 2D reading is from the SOURCE and from register writes, not
+    from pixels.
+    A FRAME DOES COME OUT, THOUGH, and it is not blank, which is worth stating
+    because it is the opposite of what a no-op'd render slot sounds like. The
+    SM64DS_SCENE_SLOT9=0 run with SM64DS_SCENE_BMP set writes a 512x384 frame
+    whose last frame has 63058 of 196608 pixels DIFFERENT from the harness's
+    clear colour, in 25 distinct colours, spanning x 0..511 and y 8..383. So
+    something is drawing with dScStarSel_c::Render switched off, and the two
+    candidates are the engine-A 2D compositor over the BG character, palette
+    and screen data InitResources loaded by file id, and the engine-B
+    sub-screen present. Which of the two, and whether what it draws is RIGHT,
+    is a visual question. NOBODY HAS LOOKED AT THE FRAME. This lane measured
+    it and did not judge it, and the honest next step is a human looking at
+    build/port/scene4_selftest.bmp, not a sentence here describing it.
   - The four NONMATCHING bodies are decompiled, not matched. Their control flow
     is the decomp's reading of the ROM, and this lane did not re-verify it.
   - dScStarSel_c::CleanupResources (slot 3) and OnPendingDestroy (slot 12) are
@@ -449,9 +469,10 @@ caller touches.
   - The Behavior ran 299 times and its observable effects were not inspected.
     It ends in Scene::StartSceneFade(3, 0, 0) on confirm -- the star select's
     own handoff back into the level -- and no run pressed confirm.
-  - Registering the three scene records in EVERY walk_window boot (the
+  - Seating the scene record in EVERY walk_window boot (the
     port_scene_registry_install call at the tail of port_stage_a2_seat) was
     chosen so the ROM's own spawn-table edge is real for /OPT:REF on every
-    target. The claim that it cannot change a level is measured, not argued:
-    the whole 46-level battery is green with the row seated. But only one row
-    is seated today, so that measurement covers id 4 alone.
+    target, level runs included. The claim that it cannot change a level is
+    measured, not argued: the whole 46-level battery is green with the row
+    seated. But it is ONE row, id 4, so the measurement covers that id and
+    says nothing about ids 2 and 8 when someone seats them.

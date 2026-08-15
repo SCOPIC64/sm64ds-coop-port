@@ -1,18 +1,28 @@
 # ov003: the three SCENE classes' whole data span.
 #
-# ov003 carries three scene classes and the port now hosts all three:
-# dScTitle_c (scene id 2, the debug level select), dScStarSel_c (scene id 4,
-# the star select) and dScGameOver_c (scene id 8). A scene is an actor, so
-# hosting one is the ordinary registry shape -- the ROM's own SpawnInfo with
-# its factory word repointed at the host, plus a vtable fill -- and the mount
-# is what puts those SpawnInfos and the tables the three classes read by name
-# into host memory. See port/slice_scene1.txt and hal/scene_boot.cpp.
+# ov003 carries three scene classes -- dScTitle_c (scene id 2, the debug level
+# select), dScStarSel_c (scene id 4, the star select) and dScGameOver_c (scene
+# id 8). THE PORT HOSTS ONE OF THEM, the star select; the other two are
+# derived to the same depth and blocked on the two things named at the bottom
+# of port/slice_scene1.txt. A scene is an actor, so hosting one is the ordinary
+# registry shape -- the ROM's own SpawnInfo with its factory word repointed at
+# the host, plus a vtable fill -- and the mount is what puts those SpawnInfos
+# and the tables the classes read by name into host memory. See
+# port/slice_scene1.txt and hal/scene_boot.cpp.
+#
+# THE MOUNT COVERS ALL THREE ANYWAY, and that is deliberate rather than sloppy:
+# the span is contiguous ROM data, the two unseated classes' SpawnInfo records
+# are inert bytes while their spawn-table slots stay null, and mounting the
+# whole span is what the ov079/ov080/ov081 convention asks for. Whoever seats
+# the other two changes nothing here.
 #
 # This file used to mount ONE table (the level-select row list, gate 31). It
-# is now the WHOLE data span, the ov079/ov080/ov081 convention: every data
-# symbol MINUS the three classes' own vtables, which are host arrays
-# hal/scene_boot.cpp fills. ovdata.py's --pack mode pads the resulting
-# address gaps automatically, reproducing the ROM's own relative offsets.
+# is now the WHOLE data span: every data symbol MINUS the three classes' own
+# vtables, which are code-pointer tables nothing rebases. Only the star
+# select's is a host array today (hal/scene_boot.cpp fills it); the other two
+# are simply absent, because nothing in the link set names them. ovdata.py's
+# --pack mode pads the resulting address gaps automatically, reproducing the
+# ROM's own relative offsets.
 #
 # THE THREE VTABLES LEFT OUT, every slot read off ov003's relocs with the
 # words taken from extracted/overlays/overlay_0003.bin (image length 0x4240 =

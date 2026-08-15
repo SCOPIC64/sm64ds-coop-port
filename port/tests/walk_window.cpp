@@ -2327,9 +2327,10 @@ int main(void)
 
     /* SM64DS_SCENE=<id> BOOTS A NON-LEVEL SCENE INSTEAD, and takes the run
        with it. Mirrors SM64DS_LEVEL: it names what to boot and nothing else.
-       2 = the debug level select, 4 = the star select, 8 = game over, all
-       three ov003 classes reached through the ROM's own
-       Scene::SetSceneToSpawn -> Scene::SpawnIfNecessary -> spawn spine.
+       4 is the star select (ov003's dScStarSel_c), the only scene seated
+       today; it comes up through the ROM's own Scene::SetSceneToSpawn ->
+       Scene::SpawnIfNecessary -> spawn spine, and an unhosted id is refused
+       by name the way an unmounted level is.
        The hand-over is HERE, at the end of the host bring-up and before the
        first level-shaped statement, because everything above this line (the
        fixed ranges, the root heap, the ov002 pointer pass and its static

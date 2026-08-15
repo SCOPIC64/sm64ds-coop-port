@@ -11,7 +11,8 @@
 //
 // So hosting a scene is the ORDINARY REGISTRY SHAPE this port already uses for
 // a hundred actor classes: the ROM's own SpawnInfo record with its factory word
-// repointed at the host factory, seated in data_020a4bb8 at the class's id, plus
+// repointed at the host factory, seated in data_020a4bb8 at the class's id,
+// plus
 // a vtable fill. Nothing in this file is a new mechanism. What is new is only
 // that the ids are scene ids and that something drives the ROM's own chain.
 //
@@ -168,20 +169,23 @@
 #pragma comment(linker, "/alternatename:?GetBG0ScrPtr@G2@@YAPAFXZ=__ZN2G212GetBG0ScrPtrEv")
 #pragma comment(linker, "/alternatename:?UnsetPlayerVoiceGroup@Sound@@SAXXZ=__ZN5Sound21UnsetPlayerVoiceGroupEv")
 //
-// 3. THE OAM SPRITE TEMPLATES, SPELLED AS FUNCTIONS. dScStarSel_c::Render
-//    (src/func_ov003_020ae6f4.cpp) declares thirteen ov001 sprite-template
-//    tables as `extern void *func_020abXXXX[]`. No func_020ab* symbol exists
-//    in any config: the addresses are ov001 DATA, and the "func_" prefix is a
-//    decomp-side guess at what lives there. Each alias below binds the guess
-//    to the address's real name, read out of
-//    config/arm9/overlays/ov001/symbols.txt. The ten that were not already in
-//    the port's ov001 mount joined it this lane (port/ov001_syms.txt, which
-//    also records why the address is ov001's and not ov000's).
-//    SIX OF THE THIRTEEN WERE ALREADY ALIASED, in hal/sub_actors.cpp's own
+// 3. THE OAM SPRITE TEMPLATES, SPELLED AS FUNCTIONS. Four TUs of the star
+//    select's closure name SEVENTEEN distinct ov001 sprite-template tables as
+//    `extern void *func_020abXXXX[]` -- thirteen of them in
+//    dScStarSel_c::Render (src/func_ov003_020ae6f4.cpp) alone. No func_020ab*
+//    symbol exists in any config: the addresses are ov001 DATA, and the
+//    "func_" prefix is a decomp-side guess at what lives there. Each alias
+//    below binds the guess to the address's real name, read out of
+//    config/arm9/overlays/ov001/symbols.txt.
+//    FIVE OF THE SEVENTEEN WERE ALREADY ALIASED, in hal/sub_actors.cpp's own
 //    ov001 block, because the HUD's render TUs spell them the same way -- the
-//    same defect in a different overlay's source. Those six (020ab948,
-//    020ab9c8, 020aba70, 020abad0, 020abad8, 020abd88) are NOT repeated here;
-//    only the seven this lane is the first caller of are.
+//    same defect in a different overlay's source (020ab948, 020ab9c8,
+//    020aba70, 020abad0, 020abad8; that block's sixth entry, 020abd88, this
+//    closure does not use). Those five are not repeated here, so the twelve
+//    below are exactly the spellings this lane is the first caller of. Ten of
+//    the twelve addresses were not in the port's ov001 mount either and joined
+//    it this lane (port/ov001_syms.txt, which also records why the address is
+//    ov001's and not ov000's).
 #pragma comment(linker, "/alternatename:_func_020ab938=_data_ov001_020ab938")
 #pragma comment(linker, "/alternatename:_func_020ab940=_data_ov001_020ab940")
 #pragma comment(linker, "/alternatename:_func_020abb18=_data_ov001_020abb18")
@@ -558,8 +562,10 @@ extern "C" void *port_scene_boot(int id)
 
 // ---- the run ---------------------------------------------------------------
 //
-//   SM64DS_SCENE=<id>            which scene (2, 4 or 8). Nothing else here
-//                                runs unless this is set.
+//   SM64DS_SCENE=<id>            which scene. 4 (the star select) is the only
+//                                one seated; ov003's other two ids, 2 and 8,
+//                                are refused by name. Nothing else here runs
+//                                unless this is set.
 //   SM64DS_SCENE_FRAMES=<n>      how many frames (default 300, the battery's).
 //   SM64DS_SCENE_BMP=<path>      write the last frame.
 //   SM64DS_SCENE_NO_RENDER=1     tick only, no render bucket. The A/B that
