@@ -347,7 +347,7 @@ static int __fastcall sn_behavior(void *s, void *)
    on level 13; the banner in port/unmatched/W19_Slot5_Renders.cpp carries the
    fault). The host copy costs the matched TU and is the same trade
    Butterfly/Whomp/Amp already made. */
-int port_w19_snufit_render(void *self);
+extern "C" int port_w19_snufit_render(void *self);
 static int __fastcall sn_render(void *s, void *)
 { port_actor_render_probe("SNUFIT", (char *)s + 0x300);
   return port_w19_snufit_render(s); }
@@ -414,7 +414,7 @@ static int __fastcall sw_behavior(void *s, void *)
 /* RUN LINKW WAVE 19: the same ModelAnim slot-5 collision, over BOTH of
    SWOOP's ModelAnims (0x300 and 0x364). Measured with SM64DS_SPAWN_ACTOR=237
    on level 13. See port/unmatched/W19_Slot5_Renders.cpp. */
-int port_w19_swoop_render(void *self);
+extern "C" int port_w19_swoop_render(void *self);
 static int __fastcall sw_render(void *s, void *)
 { port_actor_render_probe("SWOOP", (char *)s + 0x300);
   return port_w19_swoop_render(s); }
@@ -475,7 +475,7 @@ static int __fastcall do_behavior(void *s, void *)
 /* RUN LINKW WAVE 19: the same ModelAnim slot-5 collision, over the ModelAnim
    at 0xec. Measured with SM64DS_SPAWN_ACTOR=168 on level 13. See
    port/unmatched/W19_Slot5_Renders.cpp. */
-int port_w19_dorrie_render(void *self);
+extern "C" int port_w19_dorrie_render(void *self);
 static int __fastcall do_render(void *s, void *)
 { port_actor_render_probe("DORRIE", (char *)s + 0xec);
   return port_w19_dorrie_render(s); }

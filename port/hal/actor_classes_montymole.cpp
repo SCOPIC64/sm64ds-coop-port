@@ -184,7 +184,7 @@ static int __fastcall mm_init(void *s, void *)
    which the host _ZTV9ModelAnim numbers as Virtual18 -- a live c0000005 the
    moment a MONTY_MOLE is drawn (SM64DS_SPAWN_ACTOR=310 on level 13). See
    port/unmatched/W19_Slot5_Renders.cpp for the fault and the cost. */
-int port_w19_montymole_render(void *self);
+extern "C" int port_w19_montymole_render(void *self);
 static int __fastcall mm_render(void *s, void *)
 { port_actor_render_probe("MONTY_MOLE", (char *)s + 0xd4);
   return port_w19_montymole_render(s); }
