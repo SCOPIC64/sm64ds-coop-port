@@ -12,12 +12,40 @@ ov006. This file is the evidence for that, plus the map of where the
 player's dispatch really runs, so the next lane does not re-derive it.
 
 
-1. ov006 holds six _ZN6Player names, and three of them are already
-   adjudicated in-repo as misnamed
--------------------------------------------------------------------
+0. THIS IS A REDISCOVERY. Main already fixed it
+-----------------------------------------------
 
-config/arm9/overlays/ov006/symbols.txt, complete list of _ZN6Player
-symbols (grep -c gives 6):
+Commit 93a666154 (#1336, 2026-08-09, Andrew) moved St_Null_Init and
+St_WallJump_Init off ov006's bytes onto the ov002 functions at the same
+shared addresses, and St_InYoshiMouth_Cleanup went with them. Same
+three addresses, same reasoning, six days before this lane ran.
+
+This lane's base (459f21a07) predates that merge, so the config in this
+worktree still shows the old names and everything in section 1 below
+describes the PRE-#1336 state. On current main:
+
+    ov006 carries exactly ONE _ZN6Player symbol,
+      _ZN6Player29TryExitCharacterDoorWithIntroEv at 0x020ca78c
+    ov002 carries 175 _ZN6Player*St_* symbols, including all three
+      disputed addresses:
+        _ZN6Player12St_Null_InitEv            0x020cac30  size 0x8
+        _ZN6Player23St_InYoshiMouth_CleanupEv 0x020d6084  size 0x34
+        _ZN6Player16St_WallJump_InitEv        0x020e17f8  size 0xb0
+    the ov006 bodies at those addresses are now
+      src/func_ov006_020cac30.cpp, src/func_ov006_020d6084.cpp and
+      src/func_ov006_020e17f8.cpp
+
+MAIN GOT IT RIGHT AND THE PORT'S COMMENT HAS IT BACKWARDS. See section
+1's closing note: the byte evidence gathered here sides with #1336, not
+with the port's own annotation. The value left in this file is the seam
+description in section 3 and the rebase hazard in section 6.
+
+
+1. Pre-#1336: ov006 held six _ZN6Player names, three of them misnamed
+---------------------------------------------------------------------
+
+config/arm9/overlays/ov006/symbols.txt AT THIS LANE'S BASE, complete
+list of _ZN6Player symbols (grep -c gives 6):
 
     _ZN6Player29TryExitCharacterDoorWithIntroEv  0x020ca78c  0x2c
     _ZN6Player12St_Null_InitEv                   0x020cac30  0x6c
@@ -42,15 +70,28 @@ A fourth, src/_ZN6Player12St_Null_InitEv.cpp, reads data_ov006_021405bc
 and walks an array of 0xdc-byte records at data_ov006_02140554. That is
 ov006's own storage, not Player's.
 
-port/hal/player_bridges.cpp already states the conclusion in its own
-words at line 467: "Three state slots the ROM fills with plain ov002
-functions rather than Player methods: Null's Init, WallJump's Init,
-InYoshiMouth's Cleanup. The community St_ names at those addresses
-belong to ov006, not ov002."
+port/hal/player_bridges.cpp:467 makes the opposite call for the same
+three slots, saying the ov002 functions there are plain functions and
+the St_ names belong to ov006. AN EARLIER DRAFT OF THIS FILE QUOTED
+THAT APPROVINGLY. That was wrong, and the byte evidence collected here
+is what refutes it.
 
-So the Player-name overlap between ov002 and ov006 is a naming
-artifact of a shared load window, and the port has already routed
-around it.
+ov002 lays the Null triple out as three eight-byte stubs:
+
+    0x020cac20  _ZN6Player15St_Null_CleanupEv  size 0x8
+    0x020cac28  _ZN6Player12St_Null_MainEv     size 0x8
+    0x020cac30  (8 bytes)  0100a0e3 1eff2fe1 = MOV r0,#1 / BX lr
+
+A trivial state's Init is exactly an eight-byte `return 1` sitting
+third in that run. The ov002 body IS St_Null_Init. The ov006 body at
+the same address is 0x6c bytes that walk an array of 0xdc-byte records
+out of data_ov006_02140554, which is minigame work and nothing a
+Player state does. #1336 assigned each name to the right side; the
+port's annotation has not caught up.
+
+So the Player-name overlap between ov002 and ov006 is a naming artifact
+of a shared load window, main has resolved it, and the port still needs
+to follow (section 6).
 
 
 2. Why the names collide: ov002 and ov006 share DS address space
@@ -145,18 +186,30 @@ Measured from this worktree's map with port/tools/linkage.py
     ov004      276       3       273   1.1%
     ov007      528       0       528   0.0%
 
-ov006's 1897 function symbols in config are 1768 func_ov006_* +
-sinits + 41 named. The named 41 are 22 Mg*_Spawn entry points, the
-nine _ZN17MgBounceAndPounce* methods (the one minigame class with
-real C++ names), the six mislabelled Player names above, and a
-handful of others (Camera_UpdateMatrices, Sound_PlayBank1Panned,
+ov006's 1897 function symbols in config split 1825 func_ov006_* +
+31 __sinit_ov006_* + 41 named. The named 41 are 22 Mg*_Spawn entry
+points, the eight _ZN17MgBounceAndPounce* methods (the one minigame
+class with real C++ names, plus its _Spawn already counted in the 22),
+the six mislabelled Player names above, and a handful of others
+(Camera_UpdateMatrices, Sound_PlayBank1Panned,
 _ZN8PathLift17BaseInitResourcesEv, _ZN3OAM7SECONDSE,
 START_INTRO_MINIMAP_ZOOM).
 
-Reach today is zero and the whole entry chain is unlinked. Checked by
-name against build/port/walk_window.map: GetSceneOverlayID,
-IsMinigameActorID, func_0201a614, func_0201a694, func_0201a798,
-func_0201a754, LoadOverlay and UnloadOverlay are all absent.
+Reach today is zero, with one asterisk, and the whole entry chain is
+unlinked. Checked by name against build/port/walk_window.map:
+GetSceneOverlayID, IsMinigameActorID, func_0201a614, func_0201a694,
+func_0201a798, func_0201a754, LoadOverlay and UnloadOverlay are all
+absent.
+
+THE ASTERISK: grepping that map for func_ov006_ returns exactly one
+hit, _func_ov006_020e3078, and it is attributed to
+func_ov002_020e3078.c.obj. It is not an ov006 TU. It is an
+/alternatename alias, port/hal/cxx_aliases.cpp:864 and :908, pointing
+the ov006 name at the ov002 body at the same shared address. The ov006
+TU of that name, src/func_ov006_020e3078.cpp, is not linked, so
+linkage.py's ov006 linked=0 is correct. Anyone auditing reach by
+grepping the map needs to know that one name is an alias, and that the
+alias is the shared-window artifact again in a third form.
 
 
 5. Conclusion for the lane
@@ -171,7 +224,57 @@ that is never resident at the same time.
 The one honest ov006 statement about the player: seating an ov006
 body at any of the three shared addresses would be WRONG under the
 current boot, because walk_window runs the main-game overlay set and
-0x020cac30 there means ov002's 8-byte stub.
+0x020cac30 there means ov002's 8-byte stub, which is St_Null_Init.
+Main's #1336 says the same thing by giving that body the name.
 
 The minigame boot cost is scouted separately in
 port/ov006_minigame_scout.txt.
+
+
+6. HAZARD: rebasing the port onto main breaks this seam
+-------------------------------------------------------
+
+Read this before merging main into any port branch. It is the known
+C-linkage flip, with three concrete addresses attached.
+
+The seam in section 3 is held together by a name agreement that #1336
+has already broken on main:
+
+  port/hal/player_states.inc is GENERATED from
+    config/arm9/overlays/ov002/symbols.txt. Regenerate it against
+    main's config and 0x020cac30, 0x020d6084 and 0x020e17f8 stop
+    emitting func_ov002_* calls and start emitting Player:: method
+    calls, because on main ov002 owns those three names.
+
+  port/hal/player_bridges.cpp still declares them at C linkage:
+    line 470  extern "C" int func_ov002_020cac30(void);
+    line 471  extern "C" int func_ov002_020d6084(char *c);
+    line 472  extern "C" int func_ov002_020e17f8(void *c);
+  and calls them at
+    player_states.inc:125  case 0x020d6084
+    player_states.inc:155  case 0x020cac30
+    player_states.inc:213  case 0x020e17f8
+
+  the matched sources moved too. On main the func_ov002_* stems for
+  these three no longer exist; the bodies are
+  src/_ZN6Player12St_Null_InitEv.cpp,
+  src/_ZN6Player23St_InYoshiMouth_CleanupEv.cpp and
+  src/_ZN6Player16St_WallJump_InitEv.cpp, and the func_ov006_* stems
+  now hold the ov006 bodies.
+
+So a rebase that regenerates the .inc leaves three cases calling
+three C-linkage declarations that nothing defines, and a rebase that
+does NOT regenerate it leaves three cases naming stems that no longer
+exist in src/. Either way the three states break, and the byte gate
+never touches port/, so nothing in CI says so.
+
+Propagate the renames BY ADDRESS, not by name: for each of
+0x020cac30, 0x020d6084 and 0x020e17f8, look up what main's ov002
+symbols.txt calls that address, and make the .inc case, the extern
+declaration in player_bridges.cpp and the slice line agree on that one
+answer. The three cases become ordinary Player method calls like every
+other case in the .inc, which is what they should have been.
+
+The ov006 side needs the mirror treatment whenever ov006 is sliced:
+its three bodies are func_ov006_020cac30, func_ov006_020d6084 and
+func_ov006_020e17f8 on main, not Player names.

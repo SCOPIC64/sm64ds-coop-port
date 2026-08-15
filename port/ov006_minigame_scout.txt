@@ -8,6 +8,14 @@ private build C:\tmp\cl6\build\port, CMAKE_HOME_DIRECTORY verified.
 Gate before and after the probe: 4888/11243 linked (43.5%), battery ALL
 GREEN, git clean, src/ diff empty.
 
+This lane's base predates commit 93a666154 (#1336, 2026-08-09), which
+already moved St_Null_Init, St_WallJump_Init and
+St_InYoshiMouth_Cleanup off ov006's bytes onto ov002. Any ov006 symbol
+NAME quoted below is this tree's, not main's; see
+port/ov006_player_map.txt section 0 for what changed and section 6 for
+the rebase hazard. The measurements are unaffected: they key on
+addresses and on linkage.py's module rules, not on those names.
+
 Headline: ov006 is the biggest prize on the board and the one with the
 least reach. 1839 matched TUs, 0 linked, 28.9% of the 6355 unlinked.
 Every mechanical blocker is cheap and measured. The two things that are
@@ -108,6 +116,17 @@ the reach question decides it.
 4. The blocker that has to be fixed first: the cross pass
 ---------------------------------------------------------
 
+CORRECTION. An earlier version of this section put the damage at 985.
+That was the wrong test and overstates it by more than 5x. cross_mode
+rebases a pointer only when THREE conditions hold: it is not in
+HAND_SEATED, window_count(target) is at most 1, AND make_covering()
+finds a provider claim that actually covers the target. The 985 counted
+only the window test. Most of those words fail the provider test today
+and are ALREADY emitted raw, so an ov006 window just moves them from
+the no-provider bucket to the contested bucket and changes nothing on
+the host. The number that matters is how many pointers are rebased
+today and stop being rebased.
+
 ovdata.py --cross drops any pointer whose target lands inside MORE THAN
 ONE mounted overlay's window ("AN AMBIGUOUS DS RANGE IS DROPPED, NOT
 GUESSED AT"). ov006's window is
@@ -115,17 +134,27 @@ GUESSED AT"). ov006's window is
     0x020bfec0 .. 0x021430a0   (image 0x80420 + bss 0x2dc0)
 
 which swallows ov002's upper half AND the entire level-overlay window at
-0x021111a0. Measured against this build's 61 mount sidecars:
+0x021111a0. Re-run of the real cross-pass decision over this build's 81
+mount sidecars (61 distinct windows, 6322 want words):
 
-    cross-pass pointers that resolve today : 1302
-    ... that an ov006 mount would DROP     :  985
+                      rebased  contested  no provider  hand-seated
+    today                 215       1009         5092            6
+    with an ov006 mount    34       1990         4292            6
 
-Those 985 would revert to raw DS addresses pointing into the port's
-zeroed reserved main RAM. That is the failure mode ovdata.py's own
-docstring describes: an OAM list with no terminator, a walk that runs
-2.9 MB, and a fault megabytes from the cause. Landing an ov006 mount
-before fixing this would be a large silent regression, not a link
-error.
+    REAL LOSS: 181 pointers stop being rebased.
+
+Those 181 revert to raw DS addresses pointing into the port's zeroed
+reserved main RAM. That is the failure mode ovdata.py's own docstring
+describes: an OAM list with no terminator, a walk that runs 2.9 MB, and
+a fault megabytes from the cause. 181 of those is still a large silent
+regression rather than a link error, and it is spread across the level
+overlays that walk_window actually boots (ov022 15, ov015 13, ov025 10,
+ov027 9, ov045 9, ov065 9, ov055 8, ov030 7, ov016 6, ov062 6).
+
+ACCEPTANCE TEST for the residency lane: the 215 pointers rebased today
+stay rebased after an ov006 window exists. 181 of them are the ones at
+risk. Not 985, and not the contested count, which moves for reasons
+that have no host consequence.
 
 The fix is not in ov006. The ambiguity is an artifact of the test being
 purely address-based: ov002 and ov006 are NEVER co-resident (section 1
@@ -165,12 +194,15 @@ id's SpawnInfo record from the ROM spawn table).
 MgShuffleShell (id 0x176, actor 374) is the pick: 19 TUs and only 22
 ov006 data symbols, the smallest data footprint by a wide margin.
 
-Side confirmation of the seam map: MgShuffleShell's own closure contains
-_ZN6Player16St_WallJump_InitEv at 0x020e17f8. The body carrying that
-Player name is reachable from a minigame's spawn function, which is
-independent evidence for what src/_ZN6Player16St_WallJump_InitEv.cpp
-already says in its header -- it is a minigame body, not a Player
-method.
+Side confirmation, restated against main's layout: MgShuffleShell's own
+closure contains the 0x5c-byte ov006 body at 0x020e17f8. At this lane's
+base that body wore the name _ZN6Player16St_WallJump_InitEv. On main it
+does not: commit 93a666154 (#1336) gave that name to the 0xb0-byte
+ov002 function at the same shared address, and the ov006 body is
+src/func_ov006_020e17f8.cpp. So the sentence is that a minigame's own
+spawn closure reaches the OV006 body at 0x020e17f8, which is
+independent evidence that #1336 assigned the two names the right way
+round -- and this lane rediscovered it six days late.
 
 
 6. Cost estimate
@@ -179,7 +211,8 @@ method.
 Prerequisites, neither of them ov006 work:
 
   P1  ovdata --cross residency model.  1 tooling lane.  BLOCKING.
-      Without it any ov006 mount silently breaks 985 pointers.
+      Without it an ov006 mount silently un-rebases 181 of the 215
+      pointers the cross pass rebases today.
   P2  ov004 scoping (the 2D/OAM layer: Hud_RenderSprite,
       RenderOamMainScreen, DrawOamSprite, RenderOamBothScreens,
       FreeGfxSlotsById). 276 TUs, 3 linked. cat-2d already owns this.
@@ -239,24 +272,28 @@ have to be told apart before anyone trusts a name:
   mislabelled minigame bodies. _ZN3OAM7SECONDSE at 0x0210c6c0 calls
     Hud_RenderSprite, two ov004 sprite routines and GetGameLanguage --
     it is a minigame's timer display, not anything to do with OAM. The
-    six _ZN6Player names are the same class (see
-    port/ov006_player_map.txt), and _ZN8PathLift17BaseInitResourcesEv
-    at 0x020efaf0 sits inside minigame id 0x175's closure.
+    _ZN6Player names were the same class, and
+    _ZN8PathLift17BaseInitResourcesEv at 0x020efaf0 sits inside
+    minigame id 0x175's closure.
 
-Renaming any of these is a config change and nobody has adjudicated the
-full 41. Recorded here so the next reader does not take an ov006 name
-at face value; three of the src TUs already carry their own headers
-saying the name is wrong.
+The Player half of that set is already fixed on main: #1336 took three
+of the six, so main's ov006 carries exactly ONE _ZN6Player symbol
+(TryExitCharacterDoorWithIntro at 0x020ca78c) while ov002 carries 175
+St_ symbols. The rest of the 41 are unadjudicated, and renaming any of
+them is a config change. Recorded so the next reader does not take an
+ov006 name at face value, and so the count of remaining suspects is
+honest: roughly five, not eleven.
 
 
 8. Recommendation
 -----------------
 
 Do not cut an ov006 seating lane next wave. Cut the ovdata --cross
-residency lane (P1) instead: it is small, it is measurable (the 985
-number is the test), it unblocks ov006, ov004 and ov007 at once, and it
-removes a live foot-gun that any future lane mounting a big overlay
-would walk into.
+residency lane (P1) instead: it is small, its acceptance test is
+concrete (all 215 pointers rebased today stay rebased, 181 being the
+ones an ov006 window puts at risk), it unblocks ov006, ov004 and ov007
+at once, and it removes a live foot-gun that any future lane mounting a
+big overlay would walk into.
 
 Rank ov006 as the largest deferred prize: 1839 TUs, 16.4 points of the
 headline, cheapest blocker density measured so far, gated on one
