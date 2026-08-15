@@ -1,0 +1,187 @@
+# run linkw wave 20, lane w20: ov026's DIRE DIRE DOCKS cast, per symbol.
+#
+# ============================ STATE: DERIVED, NOT WIRED =====================
+# This file is a COMPLETE, MEASURED derivation that is NOT referenced by
+# port/CMakeLists.txt and has NEVER been built. The lane was parked mid-job
+# after the width pass and before the mount was added to CMake. Nothing in the
+# shipping binary reads it. Treat every width below as evidence and every
+# "would" below as a prediction, because no link has tested it yet.
+# See runs/linkw/status/w20.md for what was and was not measured.
+# ===========================================================================
+#
+# ov026 (level 18, Dire Dire Docks, data/stage/water_land, course 8) is already
+# mounted WHOLE in PORT_LEVEL_OVERLAYS. This would be the SECOND mount of the
+# same overlay, per symbol -- the ov009/ov010/ov012/ov013/ov014/ov015/ov016/
+# ov018/ov019/ov020/ov021/ov022/ov045 dual-mount shape, which does not conflict:
+# --whole emits port_ov026_image/_patch/_at and NOTHING by name, while
+# --from-list --pack emits the named arrays plus port_ov026_syms_patch.
+#
+# WHY the cast needs the named mount rather than the image: the registry
+# rewrites each SpawnInfo's +0 word to the host factory and ActorBase's
+# constructor reads the two list priorities back out of the SAME record, and the
+# class code reaches its SharedFilePtrs and its Vector3 offsets BY NAME. Those
+# have to be storage the actor code and the registry agree on, which the whole
+# image is not.
+#
+# ==== THE CAST MAP, BOTH ATTRIBUTION ROUTES ================================
+# Raw bytes out of extracted/overlays/overlay_0026.bin, never the dsd export:
+# extracted/dsd/arm9_overlays/ disagrees with extracted/overlays/ on 89 of 103
+# overlays and never scores better (w18.md 1c). Both routes required of every
+# id, because ov014/ov015/ov016/ov020/ov021/ov022/ov026/ov029/ov034/ov036 share
+# the level overlay load window at base 0x021111a0: the SpawnInfo's word[0]
+# spawnFunc must land inside ov026's own image AND the record's word[1] low
+# halfword must equal the id the table slot at 0x02090864 + id*4 was reached
+# from.
+#
+#   id   SpawnInfo   word[0] spawnFunc              idhalf   census
+#   89   0x02113abc  0x02111678 func_ov026_02111678      89   L18 x7
+#   90   0x02113c48  0x02111a70 Submarine_Spawn          90   L18 x1
+#   91   0x02113b80  0x02111888 BowserShutter_Spawn      91   L18 x1
+#  246   0x02113d30  0x021121bc Whirlpool_Spawn         246   L18 x1
+#  247   0x02113e00  0x02112450 WaterSuction_Spawn      247   (not placed)
+#
+# Ten placed instances on level 18 across four ids, out of the twenty-five that
+# level still skips. Measured from this tree's own baseline census, not quoted.
+#
+# ==== FIVE VTABLE SPANS, AND WHY THE "INVARIANT" ROUTE IS NOT ONE ==========
+#
+# Wave 16 settled four tables with the TYPEINFO TERMINATOR and called it the
+# invariant: the class blocks are laid out [typeinfo record][name string]
+# [SpawnInfo][...][vtable], so the first word after a table that equals an
+# Itanium type_info vtable+8 (0x0209a764 __si_class_type_info, 0x0209a754
+# __class_type_info) belongs to the NEXT class's record, and the slot it
+# occupies IS the width. That is confirmed here twice over: the terminator this
+# route finds after table 0x02113ae0 is 0x02113b5c, and 0x02113b5c is exactly
+# what table 0x02113ba4's own vtable[-1] points at.
+#
+# IT OVER-READS ON TWO OF THE FIVE TABLES IN THIS OVERLAY, and it over-reads
+# quietly, with a real terminator at a real record. A POINTER-TO-MEMBER STATE
+# TABLE sits between the vtable and the next class's record:
+#
+#   0x02113c6c (Submarine, 90): terminator at slot 40, TRUE WIDTH 32.
+#     Slots 32..39 are FOUR {function, 0} pairs -- 0x02111d4c, 0x02111cb4,
+#     0x02111b24, 0x02111ed8, each followed by a zero adj word. This is the
+#     8-byte Itanium PMF record wave 18 pinned across twenty-one TUs.
+#   0x02113d54 (Whirlpool, 246): terminator at slot 35, TRUE WIDTH 31.
+#     Slots 31..34 are TWO such pairs -- 0x021122b0, 0x021122cc.
+#
+# So this is a FOURTH shape of the width trap and it is not on the standing
+# list: not a file table, not a state record, not a typeinfo -- a PMF source
+# table, whose closure looks exactly like more vtable. Three tells separate it
+# from real slots, and all three fire on both tables:
+#   (1) every other word is ZERO. A vtable slot is never a zero pair-partner.
+#   (2) dsd names ONE symbol per PAIR, at 8-byte stride (data_ov026_02113cec,
+#       _02113cf4, _02113cfc, _02113d04 on Submarine; _02113dd0, _02113dd8 on
+#       Whirlpool). dsd does not name a vtable's interior at 8-byte stride.
+#   (3) the SEMANTIC TAIL says where the virtuals stop, independently of what
+#       follows: slot 30 == 0x020100dc Actor::OnAimedAtWithEggReturnVec is the
+#       last Actor slot, and slot 31 == 0x020ee55c Platform::Kill is the 32nd
+#       for a Platform-derived class. Submarine has Platform::Kill at 31 and
+#       is 32; Whirlpool has a pair member there and is 31.
+#
+# THE FIVE WIDTHS, each pinned by the semantic tail plus at least one more
+# route, with both failing routes recorded:
+#
+#  id  table       A run  B next-sym  C typeinfo   TRUTH  the second route
+#  89  0x02113ae0    34      12          31          31   tail: Actor last @30
+#  91  0x02113ba4    35      25          32          32   tail: Plat::Kill @31
+#  90  0x02113c6c    33      24          40 LIES      32   tail + PMF pairs
+# 246  0x02113d54    32      15          35 LIES      31   tail + PMF pairs
+# 247  0x02113e24    31      11          none         31   0x02113e24 + 31*4
+#                                                          == 0x02113ea0, the
+#                                                          EXACT .data end
+#
+# A is the reloc run and OVER-reads on four of five: it swallows the following
+# typeinfo record whole (3 words each), so 31+3 = 34 and 32+3 = 35 exactly, and
+# 89's 34 decomposes precisely as 31 + {0x0209a764, name ptr, base ptr}.
+# B is the next dsd symbol and UNDER-reads on all five, by as much as 19 slots.
+# NEITHER ROUTE IS RIGHT ANYWHERE IN THIS OVERLAY.
+#
+# ==== THE ELEVEN SYMBOLS LEFT OUT: the vtables are HOST STORAGE ============
+# All five spans are excluded from this mount and would be declared as host
+# arrays (the ov015/ov016/ov022/ov045/ov080 rule -- a mounted vtable hands a
+# factory DS code addresses). Every dsd symbol inside each span is excluded
+# with it, which is how the interior splits that made route B under-read stay
+# out of the list:
+#   0x02113ae0..0x02113b5c  89  31 slots  data_ov026_02113ae0 +02113b10
+#                                          +02113b2c +02113b50
+#   0x02113ba4..0x02113c24  91  32 slots  data_ov026_02113ba4 +02113c08
+#                                          +02113c14 +02113c20
+#   0x02113c6c..0x02113cec  90  32 slots  data_ov026_02113c6c +02113ccc
+#                                          +02113cd4
+#   0x02113d54..0x02113dd0 246  31 slots  _ZTV18daWater_Tatumaki_c
+#                                          +02113d90 +02113da8 +02113dc4
+#   0x02113e24..0x02113ea0 247  31 slots  _ZTV12WaterSuction +02113e50
+#                                          +02113e6c +02113e88
+#
+# NOTE, UNSETTLED, DO NOT SEAT ON IT: dsd puts TWO _ZTV names on each of the
+# last two addresses -- 0x02113d54 carries both _ZTV18daWater_Tatumaki_c and
+# _ZTV9Submarine, 0x02113e24 carries both _ZTV12WaterSuction and
+# _ZTV17daWater_Suikomi_c. The name string in the record FOLLOWING table
+# 0x02113d54 reads "17daWater_Suikomi_c", which is the SUCTION class, not the
+# whirlpool -- but that record belongs to the class whose table comes NEXT, so
+# it does not by itself rule on 0x02113d54's own identity. Reading each table's
+# OWN vtable[-1] record through to its name string is the route that settles
+# it, and this lane did not finish that read. Ids 246 and 247 must not be
+# seated until it is done; ids 89, 90 and 91 do not depend on it.
+#
+# ==== WHAT WOULD BE MOUNTED ================================================
+# 154 symbols: every ov026 .rodata / .data / .bss symbol that is not inside one
+# of the five vtable spans, sized by next-symbol delta (ovdata.py's own rule,
+# clamped to the containing delinks section). Sections, from delinks.txt:
+#   .rodata 0x02112490..0x02112b7c   .data 0x02112dc0..0x02113ea0
+#   .bss    0x02113ea0..0x02113f80
+# The .p__sinit words are not listed: a bring-up calls the sinits directly
+# rather than walking the ctor table.
+data_ov026_02112490 data_ov026_02112494 data_ov026_02112498
+data_ov026_0211249c data_ov026_021124a0 data_ov026_021124a4
+data_ov026_021124ac data_ov026_021124c4 data_ov026_021124d4
+data_ov026_021124e4 data_ov026_021124ec data_ov026_021124f8
+data_ov026_021124fc data_ov026_0211251c data_ov026_02112530
+data_ov026_02112554 data_ov026_02112570 data_ov026_02112590
+data_ov026_021125cc data_ov026_02112610 data_ov026_02112738
+data_ov026_02112968 data_ov026_021129b4 data_ov026_02112a6c
+data_ov026_02112aa4 data_ov026_02112aa8 data_ov026_02112ac0
+data_ov026_02112adc data_ov026_02112b08 data_ov026_02112dc0
+data_ov026_02112dc4 data_ov026_02112dc8 data_ov026_02112dd0
+data_ov026_02112dd8 data_ov026_02112de0 data_ov026_02112de8
+data_ov026_02112df4 data_ov026_02112e00 data_ov026_02112e10
+data_ov026_02112e20 data_ov026_02112e30 data_ov026_02112e40
+data_ov026_02112e50 data_ov026_02112e5c data_ov026_02112e60
+data_ov026_02112e70 data_ov026_02112e80 data_ov026_02112e90
+data_ov026_02112ea0 data_ov026_02112eb0 data_ov026_02112ec0
+data_ov026_02112ed0 data_ov026_02112ee0 data_ov026_02112ef8
+data_ov026_02112f10 data_ov026_02112f28 data_ov026_02112f2c
+data_ov026_02112f40 data_ov026_02112f58 data_ov026_02112f74
+data_ov026_02112f7c data_ov026_02112f94 data_ov026_02112fd0
+data_ov026_02112fd4 data_ov026_02112ffc data_ov026_02113014
+data_ov026_0211305c data_ov026_021130ac data_ov026_021130cc
+data_ov026_021130d0 data_ov026_02113100 data_ov026_021131a0
+data_ov026_02113228 data_ov026_021132b0 data_ov026_021132ec
+data_ov026_02113344 data_ov026_021133a8 data_ov026_02113434
+data_ov026_02113450 data_ov026_02113518 data_ov026_02113534
+data_ov026_02113554 data_ov026_021135d4 data_ov026_021135f4
+data_ov026_02113600 data_ov026_021136d4 data_ov026_021136f4
+data_ov026_0211373c data_ov026_021137c0 data_ov026_021137e4
+data_ov026_021137f8 data_ov026_02113800 data_ov026_02113804
+data_ov026_02113820 data_ov026_0211382c data_ov026_021138a8
+data_ov026_021138bc data_ov026_021138c4 data_ov026_021138d8
+data_ov026_021138f0 data_ov026_021138fc data_ov026_02113934
+data_ov026_02113980 data_ov026_02113998 data_ov026_021139b0
+data_ov026_021139f4 data_ov026_02113a00 data_ov026_02113a50
+data_ov026_02113a74 data_ov026_02113a90 data_ov026_02113a9c
+data_ov026_02113aa0 data_ov026_02113aa8 data_ov026_02113abc
+data_ov026_02113b5c data_ov026_02113b68 data_ov026_02113b7c
+BowserShutter_SpawnInfo data_ov026_02113b90 data_ov026_02113c24
+data_ov026_02113c28 data_ov026_02113c30 Submarine_SpawnInfo
+data_ov026_02113cec data_ov026_02113cf4 data_ov026_02113cfc
+data_ov026_02113d04 data_ov026_02113d0c data_ov026_02113d18
+Whirlpool_SpawnInfo data_ov026_02113dd0 data_ov026_02113dd8
+data_ov026_02113de0 data_ov026_02113dec WaterSuction_SpawnInfo
+data_ov026_02113ea0 data_ov026_02113ea8 data_ov026_02113eb4
+data_ov026_02113ebc data_ov026_02113ec4 data_ov026_02113ed0
+data_ov026_02113edc data_ov026_02113ee4 data_ov026_02113eec
+data_ov026_02113ef8 data_ov026_02113f04 data_ov026_02113f0c
+data_ov026_02113f14 data_ov026_02113f20 data_ov026_02113f2c
+data_ov026_02113f3c data_ov026_02113f4c data_ov026_02113f58
+data_ov026_02113f78

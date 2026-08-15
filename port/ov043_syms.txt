@@ -1,0 +1,167 @@
+# run linkw wave 20, lane w20: ov043's BOWSER IN THE DARK WORLD cast, per symbol.
+#
+# ============================ STATE: DERIVED, NOT WIRED =====================
+# This file is a COMPLETE, MEASURED derivation that is NOT referenced by
+# port/CMakeLists.txt and has NEVER been built. The lane was parked mid-job
+# after the width pass and before the mount was added to CMake. Nothing in the
+# shipping binary reads it. Treat every width below as evidence and every
+# "would" below as a prediction, because no link has tested it yet.
+# See runs/linkw/status/w20.md for what was and was not measured.
+# ===========================================================================
+#
+# ov043 (level 35, Bowser in the Dark World, data/stage/koopa1_map, course 15)
+# is already mounted WHOLE in PORT_LEVEL_OVERLAYS. This would be the SECOND
+# mount of the same overlay, per symbol -- the same dual-mount shape as
+# ov009/ov010/ov012/ov013/ov014/ov015/ov016/ov018/ov019/ov020/ov021/ov022/ov045.
+#
+# ==== THE CAST MAP, BOTH ATTRIBUTION ROUTES ================================
+# Raw bytes out of extracted/overlays/overlay_0043.bin, never the dsd export.
+# Both routes required of every id (the shared level window at 0x021111a0):
+# word[0] spawnFunc inside ov043's own image AND word[1] low halfword == the id.
+#
+#   id   SpawnInfo                       word[0] spawnFunc            idhalf  census
+#   134  0x021124fc StairsBdw_SpawnInfo   0x0211176c StairsBdw_Spawn     134  L35 x1
+#   135  0x02112294 DiamondLift_SpawnInfo 0x021113cc DiamondLift_Spawn   135  L35 x6
+#   136  0x02112438 RickshawPlatformBdw_  0x021115f4 RickshawPlatform    136  (not placed)
+#   137  0x02112368 RickshawBdw_SpawnInfo 0x021114dc RickshawBdw_Spawn   137  L35 x1
+#
+# EIGHT placed instances on level 35 across three ids -- and level 35's whole
+# remaining skip list is "8 skipped (3 classes)" in this tree's own baseline
+# census. So this one mount is the entire remainder of that level, not a slice
+# of it. That is the strongest argument on the board for taking ov043 first.
+#
+# ==== THE NAMING SHIFT ====================================================
+# dsd lays each mwcc class block out as [typeinfo][name][SpawnInfo][...][vtable]
+# and names a table from the wrong class when a block boundary moves, so the
+# _ZTV names here are one class over: 0x0211245c is spelled _ZTV11RickshawBdw
+# but is id 136's table, and 0x0211255c is spelled _ZTV19RickshawPlatformBdw
+# but is id 134's. Every row above is pinned by the id's OWN Spawn's final
+# vtable-store relocation, never by a dsd label.
+#
+# ==== FOUR VTABLE SPANS, ALL 32, EACH PINNED TWICE ========================
+# The class blocks are laid out [typeinfo record][name string][SpawnInfo][...]
+# [vtable], so the first word after a table equal to an Itanium type_info
+# vtable+8 (0x0209a764 __si_class_type_info) belongs to the NEXT class's record
+# and the slot it occupies IS the width. Confirmed structurally: the terminator
+# found after table 0x021122b8 is 0x02112338, and 0x02112338 is exactly what
+# table 0x0211238c's own vtable[-1] points at.
+#
+#  id  table       A run  B next-sym  C typeinfo  TRUTH  the second route
+# 135  0x021122b8    38      26          32         32   Plat::Kill @31
+# 137  0x0211238c    38      22          32         32   Plat::Kill @31
+# 136  0x0211245c    35       2          32         32   Plat::Kill @31
+# 134  0x0211255c    32       5          none       32   Plat::Kill @31 and
+#                                                        0x0211255c + 32*4 ==
+#                                                        0x021125dc, one zero
+#                                                        pad word short of the
+#                                                        EXACT .data end
+#                                                        0x021125e0
+#
+# All four carry 0x020100dc Actor::OnAimedAtWithEggReturnVec at slot 30 (the
+# last Actor slot) and 0x020ee55c Platform::Kill at slot 31 (the 32nd, and all
+# four ARE Platform-derived: these are the level's moving platforms). So the
+# semantic tail fires on every one of them.
+#
+# A is the reloc run and OVER-reads on three of four, and it over-reads by
+# EXACTLY whole typeinfo records: 135 and 137 read 38 == 32 + 3 + 3 (two
+# records follow), 136 reads 35 == 32 + 3 (one record). 134's run stops at 32
+# only because .data ends there.
+# B is the next dsd symbol and UNDER-reads on ALL FOUR, worst on 136 where dsd
+# named a symbol at slot 2 of a 32-slot table.
+# Route C is genuinely silent on 134 (no record follows -- the section ends),
+# which is the failure mode to watch: a route that returns NOTHING is safer
+# than one that returns a wrong number, and this overlay is the clean case.
+# ov026's Submarine and Whirlpool are the dirty case, where route C returns a
+# real terminator at a real record and is still wrong by 8 and 4 slots because
+# a pointer-to-member state table sits in between. See port/ov026_syms.txt.
+#
+# ==== THE SIXTEEN SYMBOLS LEFT OUT: the vtables are HOST STORAGE ===========
+# All four spans are excluded and would be host arrays (the ov015/ov016/ov022/
+# ov045/ov080 rule). Every dsd symbol inside each span goes out with it:
+#   0x021122b8..0x02112338 135  32 slots  data_ov043_021122b8 +02112320
+#   0x0211238c..0x0211240c 137  32 slots  data_ov043_0211238c +021123e4
+#                                          +021123f4 +02112404
+#   0x0211245c..0x021124dc 136  32 slots  _ZTV11RickshawBdw +02112464
+#                                          +02112494 +021124ac +021124c4
+#                                          +021124d4
+#   0x0211255c..0x021125dc 134  32 slots  _ZTV19RickshawPlatformBdw +02112570
+#                                          +02112590 +021125cc
+#
+# ==== THE TWO PER-SOURCE -D RENAMES THIS MOUNT STILL NEEDS ================
+# Not applied -- the lane parked before the CMake commit. Recorded here so the
+# next lane does not have to re-find them.
+#
+# (1) src/func_ov043_02111320.c (id 135 InitResources) spells two ov043 bss
+#     cells with ov047 names: data_ov047_021125e8 and data_ov047_021125e0. The
+#     ROM instruction encodes the right ADDRESS; the src names a symbol
+#     belonging to a different overlay at that address, and ov043/ov047 are
+#     distinct objects sharing the load window. Both are harmless only by luck
+#     (0x021125e0 is exactly .data end for both overlays, so both read as
+#     zero-init bss) -- the referent is still wrong, and neither ov047 name
+#     resolves in port/ today, so this is a hard link error, not a silent
+#     miscall. Fix per source: data_ov047_021125e8=data_ov043_021125e8 and
+#     data_ov047_021125e0=data_ov043_021125e0.
+#
+# (2) THE G0 TRAP, AND IT IS THE LIVE ONE. Two ov043 bodies spell a global G0
+#     and they mean DIFFERENT OBJECTS:
+#       src/func_ov043_0211123c.c (CleanupResources) releases two
+#         SharedFilePtrs as G0 and G1 -- the ROM's 0x021125e8 and 0x021125e0,
+#         this class's own bss cells.
+#       src/func_ov043_021111e4.c (the deleting destructor) passes G0 to
+#         Memory::Deallocate as the HEAP -- the ROM's 0x020a0eac, the game heap
+#         pointer.
+#     hal/cxx_aliases.cpp has already bound the single global name _G0 to
+#     _data_020a0eac, so the destructor is correct today by accident and the
+#     Cleanup body would silently Release the GAME HEAP POINTER as if it were a
+#     SharedFilePtr. G1 is likewise already bound to _data_ov002_0210e05c
+#     (SignPost's KCL). NEITHER would fail at link. This is the CannonHatch/
+#     MetalNet failure shape and the ov100 PATH_LIFT case (CMakeLists R-block
+#     near "G0=port_pathlift_file0"), and it takes the same remedy: a per-source
+#     -D on func_ov043_0211123c.c ONLY, to private names this lane owns, bound
+#     onto the mounted objects with a C-name /alternatename. It must NOT go
+#     straight to the mount names: include/decl_common.h:396-397 declares
+#     `extern int G1[];` while the same header declares the data_ov043_* cells
+#     as scalars, and MSVC rejects the redeclaration (C2040).
+#     func_ov043_021111e4.c must be left ALONE -- its G0 is already right.
+#
+# ==== WHAT WOULD BE MOUNTED ================================================
+# 105 symbols: every ov043 .data / .bss symbol that is not inside one of the
+# four vtable spans, sized by next-symbol delta clamped to the containing
+# delinks section. ov043 has NO .rodata. Sections, from delinks.txt:
+#   .data 0x02111b00..0x021125e0   .bss 0x021125e0..0x02112720
+# The .p__sinit words are not listed: a bring-up calls the sinits directly.
+data_ov043_02111b00 data_ov043_02111b04 data_ov043_02111b08
+data_ov043_02111b10 data_ov043_02111b14 data_ov043_02111b18
+data_ov043_02111b24 data_ov043_02111b34 data_ov043_02111b44
+data_ov043_02111b60 data_ov043_02111b64 data_ov043_02111b68
+data_ov043_02111b6c data_ov043_02111b74 data_ov043_02111b80
+data_ov043_02111b88 data_ov043_02111ba0 data_ov043_02111bc0
+data_ov043_02111bd4 data_ov043_02111be0 data_ov043_02111c00
+data_ov043_02111c20 data_ov043_02111c40 data_ov043_02111c54
+data_ov043_02111c60 data_ov043_02111c80 data_ov043_02111ca0
+data_ov043_02111cc8 data_ov043_02111d10 data_ov043_02111d60
+data_ov043_02111dc0 data_ov043_02111fc0 data_ov043_02111fd0
+data_ov043_0211208c data_ov043_021120a4 data_ov043_021120bc
+data_ov043_021120d8 data_ov043_021120f8 data_ov043_02112104
+data_ov043_02112118 data_ov043_02112138 data_ov043_02112158
+data_ov043_02112178 data_ov043_02112198 data_ov043_021121b8
+data_ov043_021121c0 data_ov043_021121dc data_ov043_021121f8
+data_ov043_02112258 data_ov043_02112270 data_ov043_0211227c
+DiamondLift_SpawnInfo data_ov043_0211229c data_ov043_02112338
+data_ov043_02112344 data_ov043_02112350 data_ov043_02112358
+RickshawBdw_SpawnInfo data_ov043_0211240c data_ov043_02112418
+data_ov043_0211241c data_ov043_02112424 data_ov043_02112428
+data_ov043_02112434 RickshawPlatformBdw_SpawnInfo data_ov043_0211244c
+data_ov043_021124dc data_ov043_021124e8 data_ov043_021124ec
+data_ov043_021124f8 StairsBdw_SpawnInfo data_ov043_02112518
+data_ov043_02112530 data_ov043_021125e0 data_ov043_021125e8
+data_ov043_021125f0 data_ov043_021125fc data_ov043_02112608
+data_ov043_02112610 data_ov043_02112618 data_ov043_02112624
+data_ov043_02112630 data_ov043_02112638 data_ov043_02112640
+data_ov043_0211264c data_ov043_02112658 data_ov043_02112660
+data_ov043_02112668 data_ov043_02112670 data_ov043_02112678
+data_ov043_02112680 data_ov043_02112688 data_ov043_02112690
+data_ov043_02112698 data_ov043_021126a0 data_ov043_021126a8
+data_ov043_021126b4 data_ov043_021126c0 data_ov043_021126cc
+data_ov043_021126d8 data_ov043_021126e4 data_ov043_021126f0
+data_ov043_021126fc data_ov043_02112708 data_ov043_02112714
