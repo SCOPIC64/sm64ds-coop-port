@@ -39,16 +39,27 @@ reads all of them and emits one patch function for the pointers that cross.
 Two phases rather than one all-mounts invocation: the mounts differ in mode
 (--whole, --pack, plain), and one invocation per mount keeps a list edit from
 rebuilding all nine.
+
+The cross pass drops a pointer whose target could name more than one mount's
+copy, and "could" is a RESIDENCY question, not an address question: overlays
+that the DS never has loaded at the same time are not two answers. See the
+Residency class.
 """
 
 import bisect
 import json
+import os
 import pathlib
 import re
+import struct
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import romblob_common  # noqa: E402
+
+_YAML_TEXT = {}
+_OVT = {}
+_BASE_WARNED = set()
 
 
 def overlay_yaml(root, ovid, field):
@@ -59,7 +70,11 @@ def overlay_yaml(root, ovid, field):
     DIFFERENT overlay -- ov085's base came back as ov043's that way, and the
     only symptom was the BL guard below firing on a byte that was never code.
     """
-    ytxt = (root / "extracted/dsd/arm9_overlays/overlays.yaml").read_text()
+    key = str(root)
+    if key not in _YAML_TEXT:
+        _YAML_TEXT[key] = (
+            root / "extracted/dsd/arm9_overlays/overlays.yaml").read_text()
+    ytxt = _YAML_TEXT[key]
     blk = re.search(rf"^  - id: {ovid}$\n(.*?)(?=^  - id: |\Z)", ytxt,
                     re.S | re.M)
     if not blk:
@@ -70,63 +85,110 @@ def overlay_yaml(root, ovid, field):
     return int(m.group(1))
 
 
-# OVERLAYS.YAML'S base_address IS WRONG FOR THESE EIGHT, BY 0x20.
-#
-# The yaml is a dsd export, not the ROM. For these eight it reads 0x021111c0
-# where the ROM's own arm9 overlay table says 0x021111a0, which is the base
-# every other level overlay loads at. Ground truth is that table: the NDS
-# header's word at +0x50 is its file offset, entries are 32 bytes, and the
-# second word of each entry is ram_address. Read there, all eight say
-# 0x021111a0.
-#
-# The relocations prove it independently, and that is the check that matters
-# here because it is the one this file already performs. Every internal reloc
-# site in config/arm9/overlays/<ov>/relocs.txt must hold its own target in the
-# raw image. Measured per overlay, matches at the yaml base then at the ROM
-# base: ov008 0/25 then 25/25, ov037 0/15 then 15/15, ov038 0/14 then 14/14,
-# ov040 0/16 then 16/16, ov042 0/14 then 14/14, ov049 0/10 then 10/10,
-# ov050 0/16 then 16/16, ov054 0/32 then 32/32. Nothing agrees at the yaml
-# base and everything agrees at the ROM's.
-#
-# WHAT IT COST BEFORE ANYONE NOTICED. Reading a level overlay 32 bytes off
-# does not fail, it lies: the LVL_Overlay record at data_02092208[level] comes
-# out as the wrong words, so its four file handles resolve to unrelated art or
-# to nothing. Run linkw wave 8 read these eight that way and declined the
-# levels behind them as "not stages" -- levels 0, 30, 32, 34 and 46, which are
-# test_map, the Secret Aquarium, Vanish Cap Under the Moat, Wing Mario Over
-# the Rainbow and Luigi's key course. All five are mounted now.
-#
-# This is an override of ONE field for eight overlays that had no mount at all
-# until this wave, so it changes no existing mount's bytes. It is not a fix:
-# whatever generates the yaml is still wrong, and ov061 and a dozen 32-byte
-# stubs disagree with the ROM table the same way.
-YAML_BASE_WRONG = {
-    8: 0x021111A0, 37: 0x021111A0, 38: 0x021111A0, 40: 0x021111A0,
-    42: 0x021111A0, 49: 0x021111A0, 50: 0x021111A0, 54: 0x021111A0,
-}
+def delinks_sections(root, ov):
+    """[(start, end)] for the section table at the head of delinks.txt.
+
+    delinks.txt opens with one indented line per section (.text, .rodata,
+    .init, .ctor, .data, .bss) and then switches to the per-file listing,
+    whose entries start at column 0. Stop there: the per-file lines carry
+    start:/end: too and they are ranges INSIDE a section, not sections.
+    """
+    out = []
+    path = root / f"config/arm9/overlays/{ov}/delinks.txt"
+    for line in path.read_text().splitlines():
+        ms = re.search(
+            r"^\s+\.(\w+)\s+start:0x([0-9a-fA-F]+)\s+end:0x([0-9a-fA-F]+)",
+            line)
+        if ms:
+            out.append((int(ms.group(2), 16), int(ms.group(3), 16)))
+        elif out and not line.startswith(" "):
+            break
+    if not out:
+        sys.exit(f"{path}: no section table")
+    return out
+
+
+def rom_path(root):
+    """The user's .nds, if this checkout has one. None is normal."""
+    env = os.environ.get("SM64DS_ROM")
+    if env and pathlib.Path(env).is_file():
+        return pathlib.Path(env)
+    for p in sorted(root.glob("*.nds")):
+        return p
+    return None
+
+
+def rom_overlay_table(root):
+    """{id: (ram_address, ram_size, bss_size)} from the ROM, or {} with no ROM.
+
+    The NDS header's word at +0x50 is the arm9 overlay table's file offset and
+    +0x54 its byte size; entries are 32 bytes of (id, ram_address, ram_size,
+    bss_size, static_init_start, static_init_end, file_id, flags).
+    """
+    key = str(root)
+    if key in _OVT:
+        return _OVT[key]
+    path = rom_path(root)
+    if path is None:
+        _OVT[key] = {}
+        return _OVT[key]
+    rom = path.read_bytes()
+    off, size = struct.unpack_from("<II", rom, 0x50)
+    table = {}
+    for i in range(size // 32):
+        ovid, ram, ramsz, bsssz = struct.unpack_from("<IIII", rom,
+                                                     off + i * 32)
+        table[ovid] = (ram, ramsz, bsssz)
+    _OVT[key] = table
+    return table
 
 
 def overlay_base(root, ovid):
-    """base_address, with the eight known-wrong yaml records corrected.
+    """Where the overlay loads: the LOWEST section start in its delinks.txt.
 
-    The correction is required to be NEEDED. If the yaml is ever regenerated
-    correctly the entry becomes a no-op, and a no-op override that nobody
-    deletes is how a table like this turns into folklore, so it says so.
+    THE BASE COMES FROM THE DELINK CONFIG, NOT FROM overlays.yaml. The yaml is
+    a dsd export and its base_address is wrong for 22 of the 103 overlays --
+    the eight level overlays that read 0x021111c0 instead of 0x021111a0, and
+    fourteen more (ov061, ov067, ov068, ov069, ov076, ov082, ov083, ov086,
+    ov087, ov088, ov093, ov097, ov099, ov101) that are wrong by as much as
+    0x9000. config/arm9/overlays/<ov>/delinks.txt is the config the rest of
+    this file already trusts for section ends and symbol sizes, and its lowest
+    section start equals the ROM's own overlay-table ram_address for 103 of
+    103. That is the number this build measured, not a claim inherited from a
+    note.
+
+    WHAT READING A BASE WRONG COSTS. It does not fail, it lies: a level
+    overlay read 32 bytes off returns the wrong LVL_Overlay record, so its
+    four file handles resolve to unrelated art or to nothing. Run linkw wave 8
+    declined five real levels that way -- 0, 30, 32, 34 and 46 (test_map, the
+    Secret Aquarium, Vanish Cap Under the Moat, Wing Mario Over the Rainbow,
+    Luigi's key course), all mounted now.
+
+    Two checks, and they are deliberately asymmetric:
+
+      the yaml is EXPECTED to disagree, so a disagreement prints once per
+      overlay per run and carries on. Silence would let the yaml quietly come
+      back as the source of truth for someone reading this later.
+
+      the ROM overlay table is ground truth, so a disagreement REFUSES. If
+      this checkout has no .nds (the normal case on a build box) the check is
+      skipped -- absent, not passed.
     """
-    base = overlay_yaml(root, ovid, "base_address")
-    fixed = YAML_BASE_WRONG.get(ovid)
-    if fixed is None:
-        return base
-    if base == fixed:
-        print(f"ov{ovid:03d}: overlays.yaml now agrees with the ROM overlay "
-              f"table at {base:#010x} -- delete overlay {ovid} from "
-              f"YAML_BASE_WRONG in port/tools/ovdata.py")
-        return base
-    print(f"ov{ovid:03d}: overlays.yaml says base {base:#010x}, the ROM "
-          f"overlay table says {fixed:#010x}; using the ROM's. Every reloc "
-          f"site below is checked against the image at that base, so a wrong "
-          f"answer here cannot pass quietly.")
-    return fixed
+    base = min(s for s, _ in delinks_sections(root, f"ov{ovid:03d}"))
+
+    ovt = rom_overlay_table(root)
+    if ovid in ovt and ovt[ovid][0] != base:
+        sys.exit(f"ov{ovid:03d}: delinks.txt says base {base:#010x}, the ROM "
+                 f"overlay table says {ovt[ovid][0]:#010x}. The ROM is ground "
+                 f"truth and the config disagrees with it; refusing to emit.")
+
+    yaml_base = overlay_yaml(root, ovid, "base_address")
+    if yaml_base != base and ovid not in _BASE_WARNED:
+        _BASE_WARNED.add(ovid)
+        print(f"ov{ovid:03d}: overlays.yaml says base {yaml_base:#010x}, "
+              f"delinks.txt says {base:#010x}; using delinks. The yaml is a "
+              f"dsd export and is wrong on 22 bases -- see overlay_base().")
+    return base
 
 
 def load_relocs(root, ov):
@@ -204,6 +266,189 @@ def make_covering(ivals):
         return best
 
     return covering
+
+
+def overlay_footprint(root, ovid):
+    """(base, base + image + bss): every DS address the loaded overlay owns.
+
+    The same arithmetic write_map() uses for a mount's window, so the two are
+    comparable and cross_mode() checks that they agree. Image length comes off
+    the raw ndspy dump (its byte length is the ROM overlay table's ram_size);
+    bss is past the image and the loader zeroes it, so an address-containment
+    test has to include it.
+    """
+    ov = f"ov{ovid:03d}"
+    img = root / f"extracted/overlays/overlay_{ovid:04d}.bin"
+    if not img.exists():
+        img = root / f"extracted/dsd/arm9_overlays/{ov}.bin"
+    base = overlay_base(root, ovid)
+    return (base, base + img.stat().st_size
+            + overlay_yaml(root, ovid, "bss_size"))
+
+
+def _src_defining(root, func):
+    """The matched TU that defines `func`. Named after it by convention."""
+    for ext in (".c", ".cpp"):
+        p = root / "src" / (func + ext)
+        if p.exists():
+            return p
+    hits = [p for p in sorted((root / "src").glob(f"*{func}*"))
+            if p.suffix in (".c", ".cpp")]
+    if len(hits) == 1:
+        return hits[0]
+    sys.exit(f"residency: cannot find the src TU defining {func}(). The model "
+             f"is read out of the loader's own code and will not be guessed "
+             f"at; if the function was renamed, update _src_defining()'s "
+             f"caller in port/tools/ovdata.py.")
+
+
+class Residency:
+    """Which mounted overlays can be LIVE AT THE SAME TIME.
+
+    The cross pass has to decide whether two overlays whose windows both
+    contain a DS address are really two candidate answers. Purely by address
+    they always are, and that is wrong often enough to matter: ov002 and ov006
+    both cover 0x0210da20 and the DS never has both loaded, so a pointer out
+    of a level overlay into that address has exactly one meaning.
+
+    CO-RESIDENCY IS NOT AN EQUIVALENCE RELATION, so this is a relation and not
+    a partition into groups. ov009 and ov014 both co-reside with ov002 and
+    never with each other; ov004 co-resides with ov006 and with nothing else.
+    Any code that tries to bucket overlays into disjoint groups gets one of
+    those two wrong.
+
+    Three rules. Two are derived, one is asserted, and this docstring says
+    which is which because a residency claim nobody can re-derive is exactly
+    the folklore this replaces.
+
+    RULE 1, OVERLAP (derived, arithmetic). Two overlays whose footprints
+    intersect can never both be loaded: the second would write over the first.
+    No loader knowledge needed. This alone covers every overlay that shares a
+    base -- the fifty-odd level overlays at 0x021111a0, the alternate actor
+    pairs ov084/ov085 and ov089/ov091 -- and it covers ov002 against ov005 and
+    ov006, which start at 0x020bfec0, inside ov002's span.
+
+    RULE 2, THE SCENE SLOT (derived, read out of the loader's own matched TUs).
+    src/GetSceneOverlayID.c maps every scene actor id to its overlay, and the
+    set of overlays it can return IS the set of scene occupants. func_0201a694
+    installs one: it calls func_0201a754(old) before func_0201a798(new), so at
+    most one is loaded and they are pairwise exclusive. func_0201a798 also
+    loads a PASSENGER -- `if (id == &overlay_6) LoadOverlay(&overlay_4)` -- and
+    func_0201a754 unloads the same pair, so ov004 is live exactly when ov006
+    is. All three facts are parsed from those files rather than restated here;
+    if the files stop parsing the tool refuses instead of guessing.
+
+    Rule 2 is what rule 1 cannot see. ov007 (0x020ad660..0x02104c40) does not
+    reach a level overlay's base, so rule 1 alone would call the two
+    co-resident and let an ov007 window contest ov002's providers.
+
+    RULE 3, LEVEL TERRITORY (ASSERTED, not derived). Every overlay based at or
+    above the scene slot's top -- the address where the level and object
+    overlays stack, 0x021111a0 -- is loaded by the in-level machinery
+    (LoadLevelOverlays and LoadOrUnloadObjectOverlays,
+    src/_Z17LoadLevelOverlaysi.cpp) and so is live only while the in-level
+    scene is. Which scene that is IS derived: the scene overlay whose
+    footprint ENDS exactly at that base, which resolves uniquely to ov002 and
+    is checked below. What is asserted is the premise that a level or object
+    overlay never loads under any other scene, and the evidence for it is the
+    load code (a level runs out of ov002, and func_0201a694 unloads the scene
+    overlay it is running on before switching) plus the fact that no other
+    scene occupant's footprint reaches this base, so the level overlays would
+    sit above a hole under any of them. It is not proved here, and a reader
+    who wants it proved should read the callers of LoadLevelOverlays.
+
+    Overlays BELOW the slot get no rule 3. ov000 and ov001 load before any
+    scene and are not scene occupants: ov001 stays resident across scene
+    switches, so it is co-resident with all of them, and rule 1 already keeps
+    it exclusive of ov000.
+    """
+
+    def __init__(self, root, footprints):
+        self.foot = dict(footprints)
+
+        scene_src = _src_defining(root, "GetSceneOverlayID").read_text()
+        self.scene = {int(n) for n in
+                      re.findall(r"return \(int\)&overlay_(\d+);", scene_src)}
+        if not self.scene:
+            sys.exit("residency: GetSceneOverlayID's source names no "
+                     "overlay_N -- refusing to guess the scene set.")
+
+        load_src = _src_defining(root, "func_0201a798").read_text()
+        self.passenger = {
+            int(a): int(b) for a, b in re.findall(
+                r"if \(id == \(int\)&overlay_(\d+)\)\s*"
+                r"LoadOverlay\(\(int\)&overlay_(\d+)\);", load_src)}
+        unload_src = _src_defining(root, "func_0201a754").read_text()
+        for host, rider in self.passenger.items():
+            if (f"overlay_{host}" not in unload_src
+                    or f"overlay_{rider}" not in unload_src):
+                sys.exit(f"residency: func_0201a798 loads ov{rider:03d} with "
+                         f"ov{host:03d} but func_0201a754 does not unload the "
+                         f"pair -- the load and unload halves disagree.")
+
+        # The exclusivity premise, checked rather than assumed: the switch
+        # unloads whatever is in the slot before it loads the replacement.
+        # Ignore the calls that name an overlay LITERALLY -- func_0201a694
+        # also loads the sticky ov075 up front, and it is not the slot.
+        switch_src = _src_defining(root, "func_0201a694").read_text()
+        body = switch_src[switch_src.index("int func_0201a694("):]
+        seq = [m.group(1) for m in re.finditer(
+            r"(func_0201a754|func_0201a798)\((?!\(int\)&overlay_)", body)]
+        if seq[:2] != ["func_0201a754", "func_0201a798"]:
+            sys.exit("residency: func_0201a694 does not unload the previous "
+                     "scene overlay before loading the next -- the scene slot "
+                     "is not exclusive and this model is wrong.")
+
+        self.slot = set(self.scene) | set(self.passenger.values())
+        for ovid in self.slot:
+            if ovid not in self.foot:
+                self.foot[ovid] = overlay_footprint(root, ovid)
+
+        # The level and object overlays stack on top of the in-level scene.
+        # Derive WHICH scene that is rather than naming ov002: it is the slot
+        # occupant whose footprint ends where they start. Unique, or refuse.
+        top_of_slot = max(self.foot[i][0] for i in self.slot)
+        self.territory = min((s for i, (s, _) in self.foot.items()
+                              if i not in self.slot and s >= top_of_slot),
+                             default=None)
+        hosts = [i for i in self.slot if self.foot[i][1] == self.territory]
+        if self.territory is None or len(hosts) != 1:
+            sys.exit(f"residency: the level-overlay base {self.territory} is "
+                     f"the top of {len(hosts)} scene overlays, not exactly "
+                     f"one -- cannot say which scene a level rides. Add a "
+                     f"level overlay to the mount set or work out why the "
+                     f"slot's top moved.")
+        self.level_scene = hosts[0]
+
+    def describe(self):
+        return ("residency: scene slot %s, passengers %s, level territory "
+                "from %#010x on the ov%03d scene"
+                % (", ".join("ov%03d" % i for i in sorted(self.slot)),
+                   ", ".join("ov%03d rides ov%03d" % (r, h)
+                             for h, r in sorted(self.passenger.items()))
+                   or "none",
+                   self.territory, self.level_scene))
+
+    def _overlaps(self, a, b):
+        (s1, e1), (s2, e2) = self.foot[a], self.foot[b]
+        return s1 < e2 and s2 < e1
+
+    def coresident(self, a, b):
+        """Can overlays a and b be loaded at the same instant?"""
+        if a == b:
+            return True
+        if a not in self.foot or b not in self.foot:
+            sys.exit(f"residency: no footprint for ov{a:03d}/ov{b:03d}")
+        if self._overlaps(a, b):
+            return False                                   # rule 1
+        a_slot, b_slot = a in self.slot, b in self.slot
+        if a_slot and b_slot:                              # rule 2
+            return self.passenger.get(a) == b or self.passenger.get(b) == a
+        if a_slot and self.foot[b][0] >= self.territory:   # rule 3
+            return a == self.level_scene
+        if b_slot and self.foot[a][0] >= self.territory:   # rule 3
+            return b == self.level_scene
+        return True
 
 
 def write_map(out_path, ov, mode, window, provides, wants):
@@ -369,7 +614,7 @@ def whole_mode(root, ov, ovid, base, data, out_path):
           f"cross-mount candidates, {desync} skipped desync) -> {out_path}")
 
 
-def cross_mode(out_path, map_paths):
+def cross_mode(root, out_path, map_paths):
     """Rebase the pointers that leave their own mount.
 
     Reads every mount's sidecar and emits ONE patch function for the words no
@@ -399,14 +644,20 @@ def cross_mode(out_path, map_paths):
     #
     # THE TEST IS PER-TARGET, not per-overlay. Two overlays that share a base
     # overlap only over the SHORTER one's span; addresses past that overlap are
-    # unambiguous. ov002 (the always-resident shared overlay, 0x020ad660..
-    # 0x021111a0) shares its base with ov003 (0x020ad660..0x020b18a0), so a
-    # per-overlay drop would strand every ov002 provider -- including the Koopa
-    # fileptr at data_ov002_0210da18 that ov062 points at, 0x5c000 past ov003's
-    # end. So a target is ambiguous only when it lands inside MORE THAN ONE
-    # mount's window; a target covered by exactly one window has one host answer
-    # and is resolved against that overlay's provider even where the two windows
-    # touch at the base.
+    # unambiguous. ov002 (the in-level engine, 0x020ad660..0x021111a0) shares
+    # its base with ov003 (0x020ad660..0x020b18a0), so a per-overlay drop would
+    # strand every ov002 provider -- including the Koopa fileptr at
+    # data_ov002_0210da18 that ov062 points at, 0x5c000 past ov003's end.
+    #
+    # AND THE TEST IS PER-RESIDENCY, not per-address. Two windows covering one
+    # address are two candidate answers only if both overlays can be LOADED
+    # while the pointer's owner is. They usually cannot: ov002 and ov006 both
+    # cover 0x0210da20 and the DS never has both, so a level overlay's pointer
+    # there means ov002's copy and nothing else. Without this the tool is a
+    # trap for the next mount rather than a check -- an ov006 window would have
+    # taken 194 of this build's resolved pointers back to raw DS addresses, and
+    # an ov007 window three, none of them ambiguous in the machine. See
+    # Residency above for the model and for which of its rules are derived.
     #
     # Overlays that are NOT mounted are not part of the test. ov000 shares
     # ov001's base and dsd cannot separate them (`module:overlays(0,1)` on
@@ -415,8 +666,26 @@ def cross_mode(out_path, map_paths):
     # symbols in ov001 and both names are DATA at the same address.
     windows = {m["overlay"]: tuple(m["window"]) for m in mounts}
 
-    def window_count(v):
-        return sum(1 for (s, e) in windows.values() if s <= v < e)
+    # A sidecar's window and the config's footprint are the same arithmetic
+    # from the same files, so they have to agree. If they do not, one of the
+    # two is stale and the residency model below would be reasoning about a
+    # different overlay than the mount emitted.
+    foot = {}
+    for ov, win in sorted(windows.items()):
+        ovid = int(ov[2:])
+        got = overlay_footprint(root, ovid)
+        if got != win:
+            sys.exit(f"{ov}: sidecar window {win[0]:#010x}..{win[1]:#010x} but "
+                     f"the config says {got[0]:#010x}..{got[1]:#010x} -- one "
+                     f"of them is stale, rebuild the mount.")
+        foot[ovid] = got
+    res = Residency(root, foot)
+    print(res.describe())
+
+    def window_count(src, v):
+        """Mounted windows holding v that could be live alongside src."""
+        return sum(1 for ov, (s, e) in windows.items()
+                   if s <= v < e and res.coresident(src, int(ov[2:])))
 
     # SITES A HAND SEAT ALREADY OWNS.
     #
@@ -436,11 +705,39 @@ def cross_mode(out_path, map_paths):
         ("data_ov089_021328b4", 12), ("data_ov089_021328b4", 16),
     }
 
-    claims = []
+    # A CLAIM OUTSIDE ITS OWN MOUNT'S WINDOW IS NOT THAT OVERLAY'S STORAGE.
+    #
+    # The per-symbol pass hunts un-symbolized statics out to base + image +
+    # 0x1000, which can run past the overlay's real footprint: ov022 ends at
+    # 0x021146a0 and carries a port_ov022_gap_02114874 whose bytes are read
+    # past the end of the image and come out ZERO. That block is not ov022's
+    # memory -- 0x02114874 belongs to whatever object overlay stacks above it
+    # -- and binding anyone's pointer to it swaps an honest raw DS address for
+    # 24 bytes of host zeros with live host data behind them. Address-only
+    # contest hid this (several level windows covered the target, so it was
+    # dropped as ambiguous); once residency clears the contest it has to be
+    # excluded on its own merits. The gap generator over-reaching is a
+    # separate defect and is not fixed here.
+    claims_by_ov = {}
+    outside = 0
     for m in mounts:
+        s, e = windows[m["overlay"]]
         for a, sz, n in m["provides"]:
-            claims.append((a, a + sz, n))
-    covering = make_covering(claims)
+            if not (s <= a < e):
+                outside += 1
+                continue
+            claims_by_ov.setdefault(m["overlay"], []).append((a, a + sz, n))
+
+    _covering_cache = {}
+
+    def covering_for(src):
+        """Providers a mount of `src` could legitimately be pointing at."""
+        key = tuple(sorted(ov for ov in claims_by_ov
+                           if res.coresident(src, int(ov[2:]))))
+        if key not in _covering_cache:
+            _covering_cache[key] = make_covering(
+                [c for ov in key for c in claims_by_ov[ov]])
+        return _covering_cache[key]
 
     lines = ["/* GENERATED by port/tools/ovdata.py --cross -- local only. */",
              "typedef unsigned char u8;", ""]
@@ -449,19 +746,32 @@ def cross_mode(out_path, map_paths):
     seen = set()
     unresolved = 0
     contested_hits = 0
+    unowned = 0
     for m in mounts:
         hit_here = 0
+        src = int(m["overlay"][2:])
+        covering = covering_for(src)
         for name, off, target in m["wants"]:
             # A word a hand seat re-patches with the same host address after
             # this pass runs; writing it here would trip that seat's check.
             if (name, off) in HAND_SEATED:
                 continue
-            # A target inside two or more mounted windows is the shared-level-
-            # base case: which host copy it names depends on the loaded level,
-            # so leave it raw and count it. One window (or none) is unambiguous.
-            if window_count(target) > 1:
+            n_windows = window_count(src, target)
+            # Two or more co-resident windows is the shared-level-base case:
+            # which host copy it names depends on the loaded level, so leave
+            # it raw and count it.
+            if n_windows > 1:
                 unresolved += 1
                 contested_hits += 1
+                continue
+            # ZERO co-resident windows means no mount that could be live
+            # alongside this one owns the address -- arm9, an unmounted
+            # overlay, or an overlay this one can never see. There is no host
+            # answer, and a provider claim reaching there anyway is the
+            # out-of-window case above.
+            if n_windows == 0:
+                unresolved += 1
+                unowned += 1
                 continue
             hit = covering(target)
             if hit is None:
@@ -486,9 +796,13 @@ def cross_mode(out_path, map_paths):
     lines.append("}")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(lines) + "\n", encoding="ascii")
+    if outside:
+        print(f"cross: {outside} provider claims sit outside their own "
+              f"overlay's footprint and were not offered to anyone")
     print(f"cross: {len(body)} pointers rebased across {len(mounts)} mounts, "
-          f"{unresolved} left raw ({contested_hits} into a contested window, "
-          f"the rest arm9 or an unmounted overlay) -> {out_path}")
+          f"{unresolved} left raw ({contested_hits} into a window contested by "
+          f"a co-resident mount, {unowned} into a range no co-resident mount "
+          f"owns, the rest arm9 or an unmounted overlay) -> {out_path}")
 
 
 def main():
@@ -498,7 +812,7 @@ def main():
     romblob_common.set_rom_clean(sys.argv)
     argv = [a for a in sys.argv if a != "--rom-clean"]
     if argv[1] == "--cross":
-        cross_mode(pathlib.Path(argv[2]),
+        cross_mode(root, pathlib.Path(argv[2]),
                    [pathlib.Path(p) for p in argv[3:]])
         return
     ov = argv[1]
@@ -575,14 +889,7 @@ def main():
     # So the fallback is the containing section's end, from delinks.txt, and
     # every size is clamped to it: a symbol may run to the end of its own
     # section and never past it.
-    sections = []
-    for line in (root / f"config/arm9/overlays/{ov}/delinks.txt").read_text().splitlines():
-        ms = re.search(r"^\s*\.(\w+)\s+start:0x([0-9a-fA-F]+)\s+end:0x([0-9a-fA-F]+)",
-                       line)
-        if ms:
-            sections.append((int(ms.group(2), 16), int(ms.group(3), 16)))
-        elif sections and not line.startswith(" "):
-            break        # past the section table, into the per-file listing
+    sections = delinks_sections(root, ov)
 
     def section_end(a):
         """End of the delinks section containing `a`, or None if unlisted."""
