@@ -353,6 +353,10 @@ void *_ZN5ActorD2Ev(void *);
 }
 /* Coin's own D0 spells its table by the RTTI name. */
 #pragma comment(linker, "/alternatename:__ZTV8daCoin_c=__ZTV4Coin")
+/* Gate 204: slot 17, the coin's own deleting destructor. src/_ZN4CoinD0Ev.c
+   has been on slice_gate33.txt since that gate with nothing referencing it,
+   so /OPT:REF dropped it before the map was written. */
+extern "C" int *_ZN4CoinD0Ev(int *self);
 
 #include "Coin.h"
 
@@ -400,6 +404,8 @@ static int __fastcall coin_d1(void *s, void *)
     _ZN5ActorD2Ev(s);
     return (int)(size_t)s;
 }
+static int __fastcall coin_d0(void *s, void *)
+{ return (int)(size_t)_ZN4CoinD0Ev((int *)s); }
 static int __fastcall coin_yoshi(void *, void *)
 { return func_ov002_020b2a90(); }
 static int __fastcall coin_egg(void *s, void *, int a)
@@ -478,10 +484,12 @@ extern "C" void hal_fill_coin_vtable(void)
     vt[9] = (void *)coin_render;
     vt[12] = (void *)bw_pdes_base;
     vt[16] = (void *)coin_d1;
-    /* 17 keeps the trap: the ROM's destroy path is the D1 dispatch plus an
-       explicit Deallocate by AfterCleanupResources, and nothing calls the
-       deleting form. */
-    vt[17] = (void *)bw_trap17;
+    /* 17 IS THE ROM'S OWN WORD NOW (gate 204). Nothing dispatches the deleting
+       form -- the destroy path is the D1 dispatch plus an explicit Deallocate
+       by AfterCleanupResources -- so this is not a behaviour change; it is the
+       port's copy of the table carrying what the ROM parks there, and it is
+       the reference edge that pulls the matched D0 into the link. */
+    vt[17] = (void *)coin_d0;
     vt[18] = (void *)coin_yoshi;
     vt[19] = (void *)coin_egg;
 }
@@ -794,10 +802,13 @@ extern "C" void hal_fill_seesaw_bob_vtable(void)
 extern "C" {
 void _ZN13WaterfallMist16OnPendingDestroyEv(char *c);
 int *_ZN13WaterfallMistD1Ev(int *self);
+int *_ZN13WaterfallMistD0Ev(int *self);        /* slot 17, gate 204 */
 int func_ov002_020b8270(void);
 void func_ov002_020b81e0(char *self, int arg);
 void *_ZTV13WaterfallMist[31];
 }
+/* Gate 204: the cap's own D0 spells its table by the RTTI name. */
+#pragma comment(linker, "/alternatename:__ZTV15daObjMarioCap_c=__ZTV13WaterfallMist")
 static int __fastcall cap_init(void *s, void *)
 { return ((WaterfallMist *)s)->WaterfallMist::InitResources(); }
 static int __fastcall cap_clean(void *s, void *)
@@ -816,6 +827,8 @@ static int __fastcall cap_pdes(void *s, void *)
 { _ZN13WaterfallMist16OnPendingDestroyEv((char *)s); return 0; }
 static int __fastcall cap_d1(void *s, void *)
 { return (int)(size_t)_ZN13WaterfallMistD1Ev((int *)s); }
+static int __fastcall cap_d0(void *s, void *)
+{ return (int)(size_t)_ZN13WaterfallMistD0Ev((int *)s); }
 static int __fastcall cap_yoshi(void *, void *)
 { return func_ov002_020b8270(); }
 static int __fastcall cap_egg(void *s, void *, int a)
@@ -835,7 +848,9 @@ extern "C" void hal_fill_cap_vtable(void)
     vt[9] = (void *)cap_render;
     vt[12] = (void *)cap_pdes;
     vt[16] = (void *)cap_d1;
-    vt[17] = (void *)bw_trap17;
+    /* 17: the ROM's own word, gate 204. Ends in func_ov002_020aed18 rather
+       than Actor::D2 -- the cap is an Enemy subclass and that is Enemy's D2. */
+    vt[17] = (void *)cap_d0;
     vt[18] = (void *)cap_yoshi;
     vt[19] = (void *)cap_egg;
 }
@@ -863,6 +878,12 @@ static int __fastcall hh_behavior(void *s, void *)
    copy by its extern-"C" name. HEALING_HEART shares _ZTV7Seaweed, so this is the
    dispatch that actually faulted on the king-defeat path (frame 354). */
 extern "C" int _ZN7Seaweed6RenderEv(void *self);   /* ModelAnim slot-5 host copy */
+/* Gate 204: slot 17. The heart's own D0 spells its table by the RTTI name, so
+   both spellings have to resolve to one object -- the CannonHatch/StarSwitch
+   treatment three sections down, and the head of this file derives the shift
+   that makes 12daObjHeart_c and _ZTV7Seaweed the same table. */
+#pragma comment(linker, "/alternatename:__ZTV12daObjHeart_c=__ZTV7Seaweed")
+extern "C" int *_ZN7SeaweedD0Ev(int *self);
 static int __fastcall hh_render(void *s, void *)
 {
     port_actor_render_probe("HEALING_HEART", (char *)s + 0xd4);
@@ -876,6 +897,8 @@ static int __fastcall hh_d1(void *s, void *)
     _ZN5ActorD2Ev(s);
     return (int)(size_t)s;
 }
+static int __fastcall hh_d0(void *s, void *)
+{ return (int)(size_t)_ZN7SeaweedD0Ev((int *)s); }
 extern "C" void hal_fill_healing_heart_vtable(void)
 {
     void **vt = _ZTV7Seaweed;
@@ -886,7 +909,9 @@ extern "C" void hal_fill_healing_heart_vtable(void)
     vt[9] = (void *)hh_render;
     vt[12] = (void *)bw_pdes_base;
     vt[16] = (void *)hh_d1;
-    vt[17] = (void *)bw_trap17;
+    /* 17: the ROM's own word, gate 204. hh_d1 above is this same body minus
+       the closing Deallocate, which is the D1/D0 split every class here has. */
+    vt[17] = (void *)hh_d0;
 }
 
 // ---- EXCLAMATION_SWITCH (11, ov002) ----------------------------------------

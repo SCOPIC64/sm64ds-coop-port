@@ -222,19 +222,17 @@ static int __fastcall pb_d1(void *s, void *)
     _ZN5ActorD2Ev(t);
     return (int)(size_t)s;
 }
+/* GATE 204: slot 17 runs the ROM's own body now, not the chain above typed out
+   a second time. src/_ZN9PushBlockD0Ev.c is flat C, carries no inferred-stub
+   marker, and is the block this thunk was transcribed from -- same six member
+   D1s in the same order, same Deallocate, and it spells the table by the RTTI
+   name the pragma above already aliases onto _ZTV9PushBlock. It is on
+   slice_gate204.txt; this line is the reference edge that keeps /OPT:REF from
+   dropping it. The D1 half stays hand-spelled: its matched TU is a real MSVC
+   destructor over local struct decls, which the header above records. */
+extern "C" int *_ZN9PushBlockD0Ev(int *self);
 static int __fastcall pb_d0(void *s, void *)
-{
-    char *t = (char *)s;
-    *(void **)t = (void *)_ZTV9PushBlock;
-    _ZN12WithMeshClsnD1Ev(t + 0x200);
-    _ZN18MovingCylinderClsnD1Ev(t + 0x1cc);
-    _ZN11ShadowModelD1Ev(t + 0x174);
-    _ZN5ModelD1Ev(t + 0x124);
-    _ZN5ModelD1Ev(t + 0xd4);
-    _ZN5ActorD2Ev(t);
-    _ZN6Memory10DeallocateEPvP4Heap(t, data_020a0eac);
-    return (int)(size_t)s;
-}
+{ return (int)(size_t)_ZN9PushBlockD0Ev((int *)s); }
 
 extern "C" void hal_fill_pushblock_vtable(void)
 {
