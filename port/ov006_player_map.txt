@@ -1,0 +1,177 @@
+ov006 and the Player state machine: where the seam actually is
+==============================================================
+
+Written for run linkw wave C, lane cat-ov006, at 459f21a07. Everything
+below was read out of this worktree's own config, this worktree's own
+extracted/ images, and this worktree's own walk_window.map (baseline
+4888/11243 linked, battery ALL GREEN, exe sha256 27a7069b...).
+
+The lane was briefed to seat "a large slab of Player state-machine
+bodies (_ZN6Player St_* methods)" out of ov006. That slab is not in
+ov006. This file is the evidence for that, plus the map of where the
+player's dispatch really runs, so the next lane does not re-derive it.
+
+
+1. ov006 holds six _ZN6Player names, and three of them are already
+   adjudicated in-repo as misnamed
+-------------------------------------------------------------------
+
+config/arm9/overlays/ov006/symbols.txt, complete list of _ZN6Player
+symbols (grep -c gives 6):
+
+    _ZN6Player29TryExitCharacterDoorWithIntroEv  0x020ca78c  0x2c
+    _ZN6Player12St_Null_InitEv                   0x020cac30  0x6c
+    _ZN6Player23St_InYoshiMouth_CleanupEv        0x020d6084  0x14
+    _ZN6Player16St_WallJump_InitEv               0x020e17f8  0x5c
+    _ZN6Player7ST_WAITE                          0x02110154  0x68
+    _ZN6Player6ST_OWLE                           0x02110244  0x27c
+
+Three of those six carry a header in their own matched source saying
+they are not Player methods at all:
+
+  src/_ZN6Player23St_InYoshiMouth_CleanupEv.cpp -- writes this+0x62ad
+    and this+0x62af. sizeof(Player) is 0x768. "the Player name is a
+    community label applied to the wrong overlay's bytes."
+  src/_ZN6Player16St_WallJump_InitEv.cpp -- reads this+0x4eb0/0x4eb4/
+    0x4ee5, ~0x4700 past the end of a Player.
+  src/_ZN6Player29TryExitCharacterDoorWithIntroEv.cpp -- constructor
+    shape (base call, vptr store, member ctor at this+0x78), not a
+    state handler.
+
+A fourth, src/_ZN6Player12St_Null_InitEv.cpp, reads data_ov006_021405bc
+and walks an array of 0xdc-byte records at data_ov006_02140554. That is
+ov006's own storage, not Player's.
+
+port/hal/player_bridges.cpp already states the conclusion in its own
+words at line 467: "Three state slots the ROM fills with plain ov002
+functions rather than Player methods: Null's Init, WallJump's Init,
+InYoshiMouth's Cleanup. The community St_ names at those addresses
+belong to ov006, not ov002."
+
+So the Player-name overlap between ov002 and ov006 is a naming
+artifact of a shared load window, and the port has already routed
+around it.
+
+
+2. Why the names collide: ov002 and ov006 share DS address space
+----------------------------------------------------------------
+
+From extracted/dsd/arm9_overlays/overlays.yaml (base_address and
+code_size in decimal there, hex here) plus the raw image lengths in
+extracted/overlays/:
+
+    ov002  base 0x020ad660  image 0x60340  ->  0x020ad660..0x0210d9a0
+    ov003  base 0x020ad660  image  small
+    ov004  base 0x020ad660  image 0x11500  ->  0x020ad660..0x020beb60
+    ov006  base 0x020bfec0  image 0x80420  ->  0x020bfec0..0x021402e0
+    ov007  base 0x020ad660  image 0x55ce0  ->  0x020ad660..0x02103340
+
+These are alternate scene overlays for one DS window, never resident
+together. ov002 is the main-game set. ov004+ov006 are the minigame
+set, loaded as a pair (see section 4). ov007 is a third set.
+
+Consequence for names: 0x020cac30 is a real address in BOTH ov002 and
+ov006, holding different code in each. ov002 has an 8-byte stub there:
+
+    ov002 @0x020cac30  0100a0e3 1eff2fe1     MOV r0,#1 / BX lr
+    ov006 @0x020cac30  f0402de9 04d04de2 ... PUSH {r4-r7,lr} / SUB sp,#4
+
+verified by reading both raw images at (addr - base). ov002's config
+names it func_ov002_020cac30 size 8; ov006's config names it
+_ZN6Player12St_Null_InitEv size 0x6c. Different sizes, different
+prologues, different code. The 0x6c body is ov006's.
+
+
+3. The real seam: how the player dispatches today
+-------------------------------------------------
+
+The player's state machine runs entirely out of ov002, and the ROM's
+own dispatch does reach the matched bodies. The chain, in order:
+
+  a. The State objects are ov002 DATA, mounted as host arrays.
+     port/ov002_syms.txt lists data_ov002_0211013c, ...0211022c,
+     ...0211067c, ...021106ac, ...02110364 and the rest; ovdata.py
+     emits their ROM bytes. Each State object holds mwcc PMF words:
+     the main fn at +0 and the exit fn at +0x10, both DS code
+     addresses baked in the overlay image.
+
+  b. port/unmatched/Player_ChangeState.cpp is a HOST COPY of the
+     matched src/_ZN6Player11ChangeStateERNS_5StateE.cpp with exactly
+     the two PMF dispatch sites replaced by hal_call_state_fn(self,
+     ds_addr). Everything else in it is the matched source verbatim.
+     It is tagged PORT_HOST_ABI (mwcc pointer-to-member).
+
+  c. hal_call_state_fn lives in port/hal/player_bridges.cpp:499. It is
+     a switch on the DS code address that #includes
+     port/hal/player_states.inc, plus four hand-written cases at the
+     bottom. 197 cases today.
+
+  d. player_states.inc is GENERATED from
+     config/arm9/overlays/ov002/symbols.txt -- its own header line says
+     so. Each case turns a DS address into a real __thiscall call on
+     the matched Player method, e.g.
+
+         case 0x020d38c0: return ((Player*)self)->Player::St_Walk_Main();
+
+  e. A state address with no case falls off the end, increments
+     g_port_unhosted_hits, prints "unhosted state fn 0x%08x (no-op)"
+     to stderr and returns 1. That counter is what the F3 overlay
+     shows live.
+
+So there is no "state table pointing at stand-ins". The table is the
+ROM's own State objects; the only host artifact is the address ->
+method translation, which exists because MSVC cannot call an mwcc PMF.
+
+The three ov006-named addresses appear in that switch as ov002 bodies,
+which is the correct ROM-faithful answer:
+
+    player_states.inc:125  case 0x020d6084: func_ov002_020d6084(...)
+    player_states.inc:155  case 0x020cac30: func_ov002_020cac30()
+    player_states.inc:213  case 0x020e17f8: func_ov002_020e17f8(...)
+
+Those three cases dispatch the OV002 body at the address, not the
+ov006 body that carries the St_ name. That is right: the running
+overlay is ov002, so ov002's bytes are what the PMF word means.
+
+
+4. What ov006 actually is, and what reaches it today
+----------------------------------------------------
+
+Measured from this worktree's map with port/tools/linkage.py
+--by-module:
+
+    module   total  linked  unlinked
+    ov006     1839       0      1839   0.0%
+    ov004      276       3       273   1.1%
+    ov007      528       0       528   0.0%
+
+ov006's 1897 function symbols in config are 1768 func_ov006_* +
+sinits + 41 named. The named 41 are 22 Mg*_Spawn entry points, the
+nine _ZN17MgBounceAndPounce* methods (the one minigame class with
+real C++ names), the six mislabelled Player names above, and a
+handful of others (Camera_UpdateMatrices, Sound_PlayBank1Panned,
+_ZN8PathLift17BaseInitResourcesEv, _ZN3OAM7SECONDSE,
+START_INTRO_MINIMAP_ZOOM).
+
+Reach today is zero and the whole entry chain is unlinked. Checked by
+name against build/port/walk_window.map: GetSceneOverlayID,
+IsMinigameActorID, func_0201a614, func_0201a694, func_0201a798,
+func_0201a754, LoadOverlay and UnloadOverlay are all absent.
+
+
+5. Conclusion for the lane
+--------------------------
+
+There is no Player slab in ov006 to seat. Player state seating is
+ov002 work and belongs to the ov002 category lane. Nothing in ov006
+can be reached by the player's dispatch, because the player's
+dispatch runs ov002 addresses and ov006 is a different overlay set
+that is never resident at the same time.
+
+The one honest ov006 statement about the player: seating an ov006
+body at any of the three shared addresses would be WRONG under the
+current boot, because walk_window runs the main-game overlay set and
+0x020cac30 there means ov002's 8-byte stub.
+
+The minigame boot cost is scouted separately in
+port/ov006_minigame_scout.txt.
