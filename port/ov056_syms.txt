@@ -1,0 +1,118 @@
+# run linkw wave 15 (lane w15): ov056's BIG_MOVING_ICE_BLOCK, per symbol.
+#
+# ov056 is a LEVEL overlay and is already mounted WHOLE in PORT_LEVEL_OVERLAYS
+# (lane w8-mounts). This is the SECOND mount of the same overlay, per symbol,
+# and the two do not conflict -- tools/ovdata.py --whole emits
+# port_ov056_image/_patch/_at and nothing by name, while --from-list --pack
+# emits the named arrays plus port_ov056_syms_patch. Same dual-mount shape as
+# ov010/ov012/ov013/ov014/ov015/ov016/ov018/ov019/ov020/ov045/ov052.
+#
+# delinks.txt sections, base 0x021111a0:
+#   .text   0x021111a0..0x021115cc   .rodata 0x021115cc..0x02112b48
+#   .init   0x02112b48..0x02112bb4   .ctor   0x02112bb4..0x02112bb8
+#   .data   0x02112bc0..0x02113400   .bss    0x02113400..0x02113440
+# ov056 is compressed:true, so every raw byte quoted below was read out of
+# extracted/overlays/overlay_0056.bin, never the dsd export.
+#
+# ==== THE CLASS, both attribution routes ===================================
+#
+#   id   site        SpawnInfo   word[0]     name                     +4   +6
+#   173  0x02090b18  0x02113344  0x02111594  BigMovingIceBlock_Spawn  173  15
+#
+# The record's word[0] lands inside ov056 [0x021111a0,0x02113400) and the
+# record reads its own id back at +4. Level 48 ("Wario's key course", ex_w_map,
+# course 20) is ov056's own level and the only mounted level that places this
+# class: it spawns 93 actors and skips 14, and NINE of the fourteen are these.
+# The other five are MR_BLIZZARD (223), hosted and deliberately unregistered
+# for a measured frame-0 register skew -- so this registration empties level
+# 48's skip list of everything that is not already refused on purpose.
+#
+# Identity from the RTTI typeinfo at vtable[-1], never the dsd label:
+#   0x02113364 -> 0x02113320 -> 0x0211332c -> "18daObjEwmIceBlock_c"
+# EWM is the level prefix and the name reads ice-block, which agrees with the
+# dsd spelling BigMovingIceBlock. No ov045/ov060-style class-identity shift.
+#
+# ==== THE WIDTH: 32, AND THE NEXT-SYMBOL LANDING READS 16 ==================
+#
+# _ZTV17BigMovingIceBlock 0x02113368, THIRTY-TWO slots, ends 0x021133e8.
+#   reloc run       32, and the run stops on its own: 0x021133e8..0x02113400
+#   next dsd symbol 0x021133a8 -- INTERIOR (slot 16, a dsd split), so the
+#                   next-symbol landing UNDER-reads to 16 and is not usable
+#                   here. The ov052 shape, mirrored: there the run over-read
+#                   and here the landing under-reads.
+#   The pin is the ROM's own layout, and it is the slot-31 Platform check:
+#     slot 29  0x02010124  _ZN5Actor16OnAimedAtWithEggEv
+#     slot 30  0x020100dc  _ZN5Actor25OnAimedAtWithEggReturnVecEv
+#     slot 31  0x020ee55c  _ZN8Platform4KillEv
+#   the same close every 32-slot platform table in the port ends on (ov045's
+#   140/141/142/145, ov060's 166/167, ov052's 174/175). The six words after
+#   0x021133e8 are ROM ZEROS to the .data end at 0x02113400 -- align-32
+#   padding, not another object -- so there is nothing an oversized span could
+#   have swallowed and nothing an undersized one drops.
+#
+# The interior split at 0x021133a8 is slot 16 exactly, the class's D1: dsd
+# named the destructor pair's slots as if they opened a new object. Both it and
+# the two names of 0x02113368 are excluded below with the table.
+#
+# ==== THREE SYMBOLS LEFT OUT ===============================================
+# The vtable is HOST STORAGE hal/actor_classes_ov056.cpp fills (the
+# ov015/ov016/ov045/ov052/ov060 rule: a mounted vtable hands the factory a
+# table of DS code addresses), and the dsd symbol interior to it goes with it:
+#   0x02113368..0x021133e8  32 slots   _ZTV17BigMovingIceBlock
+#                                   == _ZTV18daObjEwmIceBlock_c  (dsd names the
+#                                      SAME address twice; the RTTI spelling is
+#                                      aliased onto the host array in the fill)
+#                           + data_ov056_021133a8   (slot 16, a dsd split)
+# dsd's ".p__sinit_*" .ctor entry is left out (not a C identifier) and so is
+# the .init body: __sinit_ov056_02112b48 is a FUNCTION, it is matched src, it
+# is in port/slice_w15.txt as code, its name is not contested at the ov052
+# shared window, so it LINKS and it runs from the registry fill.
+#
+# ==== WHY THIS LIST IS SEVEN LINES AND NOT THE WHOLE SECTION ===============
+# The per-symbol mount exists so the actor code and the registry agree on
+# storage the ROM reaches BY NAME. The reloc closure of the class's six vtable
+# slots, its Spawn and its sinit is EIGHT ov056 functions and exactly FIVE
+# ov056 data symbols; those five are here, plus the SpawnInfo record the
+# registry rewrites, plus the typeinfo object and its name string, which are
+# adjacent to the file table and cost nothing. Everything else in ov056's
+# 2.1 KB of .data belongs to the LEVEL and is served by the whole-image mount
+# that has been there since lane w8-mounts.
+#
+# ONE POINTER CROSSES INTO OV064. The file table's third word is a CLPS_Block
+# at ov064 0x0211bbec -- the ov052 shape again (both of ITS file tables cross
+# into ov064 too). ov064 is mounted, so ovdata's --cross pass is what rebases
+# it; nothing here hand-resolves it.
+
+# ---- .data ----------------------------------------------------------------
+# The file table {model SFP 0x02113400, clsn SFP 0x02113408, CLPS ov064
+# 0x0211bbec}. _ZN17BigMovingIceBlock13InitResourcesEv reads it as
+# `struct SFP { void *a, *b, *c; } data_ov056_02113314` and hands .a to
+# Model::LoadFile, .b to MeshCollider::LoadFile and .c to
+# MovingMeshCollider::SetFile as the CLPS_Block;
+# _ZN17BigMovingIceBlock16CleanupResourcesEv reaches the same twelve bytes as
+# `int *data_ov056_02113314[]` and Releases [0] and [1].
+data_ov056_02113314
+# The Itanium typeinfo {0x0209a764 __si_class_type_info, name 0x0211332c,
+# base ov002 0x021089ec} and its NUL-terminated name string.
+data_ov056_02113320 data_ov056_0211332c
+# The SpawnInfo, PINNED to the record's real 0x1c. The natural next-symbol
+# delta is 0x24, which would run 8 bytes past the record into the vtable's own
+# Itanium prologue (offset-to-top 0x02113360 = 0, typeinfo 0x02113364 ->
+# 0x02113320) -- the same MegaMushroom_SpawnInfo reasoning as ov002_syms.txt,
+# and pinning also means a later dsd relabel cannot silently move the +4 id
+# halfword the registry cross-checks.
+BigMovingIceBlock_SpawnInfo:0x1c
+
+# ---- .bss 0x02113400..0x02113440 ------------------------------------------
+# The SharedFilePtr pair and their destructor-chain nodes, all four written by
+# __sinit_ov056_02112b48:
+#   func_02017acc(0x02113400, 1517)  model file, then func_020731dc registers
+#                                    it with func_02017ab4 through 0x02113410
+#   func_02017b4c(0x02113408, 1518)  collision file, registered with
+#                                    SharedFilePtr_Destruct_Clsn through
+#                                    0x0211341c
+# Sizes are next-symbol deltas and they are the right ones: 8, 8, 0xc and 0x18.
+# func_020731dc writes twelve bytes through a chain node, which is exactly what
+# 0x02113410 gets, and 0x0211341c runs to data_ov056_02113434 with room over.
+data_ov056_02113400 data_ov056_02113408
+data_ov056_02113410 data_ov056_0211341c

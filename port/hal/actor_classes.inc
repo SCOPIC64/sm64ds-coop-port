@@ -1170,6 +1170,15 @@ void hal_fill_square_path_lift_vtable(void);
 extern unsigned char Clam_SpawnInfo[];               /* ov064 0x0211c5a4, +4 = 315 */
 void *Clam_Spawn(void);                              /* ov064 0x0211ad70, 64 B */
 void hal_fill_clam_vtable(void);
+/* ---- run linkw wave 15 (lane w15): BIG_MOVING_ICE_BLOCK (173), ov056 ----
+   Nine instances on level 48 ("Wario's key course"), which is nine of that
+   level's fourteen skipped instances; the other five are MR_BLIZZARD, refused
+   on purpose. Its Spawn names its receiver and stores _ZTV17BigMovingIceBlock
+   by a real name as its final write, so it registers directly with no factory
+   wrapper. See hal/actor_classes_ov056.cpp and port/ov056_syms.txt. */
+extern unsigned char BigMovingIceBlock_SpawnInfo[];  /* ov056 0x02113344, +4 = 173 */
+void *BigMovingIceBlock_Spawn(void);                 /* ov056 0x02111594, 56 B */
+void hal_fill_big_moving_ice_block_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1794,4 +1803,7 @@ void hal_fill_clam_vtable(void);
     {175, "SQUARE_PATH_LIFT", SquarePathLift_SpawnInfo, SquarePathLift_Spawn, \
      hal_fill_square_path_lift_vtable}, \
     /* ---- run linkw wave 12 (lane w12): CLAM (315), ov064 ---- */ \
-    {315, "CLAM", Clam_SpawnInfo, Clam_Spawn, hal_fill_clam_vtable},
+    {315, "CLAM", Clam_SpawnInfo, Clam_Spawn, hal_fill_clam_vtable}, \
+    /* ---- run linkw wave 15 (lane w15): ov056, level 48's ice block ---- */ \
+    {173, "BIG_MOVING_ICE_BLOCK", BigMovingIceBlock_SpawnInfo, \
+     BigMovingIceBlock_Spawn, hal_fill_big_moving_ice_block_vtable},

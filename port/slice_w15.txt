@@ -1,0 +1,56 @@
+# run linkw wave 15 (lane w15): BIG_MOVING_ICE_BLOCK (173, ov056).
+#
+# Eight TUs, the whole of ov056's actor code: six vtable slots, the factory and
+# the overlay's single sinit. Every one is a real decomp -- NONE carries the
+# `recovered from vtable slot identity` marker, so this slice adds nothing to
+# the inferred-stub guard's live set.
+#
+# THE CLOSURE ARGUMENT. Walking arm_call/load relocs from the six slots, the
+# Spawn and the sinit reaches EIGHT ov056 functions -- exactly the eight below,
+# so the slice is closed inside the overlay -- and 41 outside targets:
+#   36 in main   Actor/ActorBase/Model/ModelBase/MeshCollider/MovingMeshCollider
+#                /PathPtr/SharedFilePtr/Memory/Vec3 and the four SharedFilePtr
+#                constructor-chain helpers the sinit uses
+#   4 in ov002   Platform::UpdateModelPosAndRotY / UpdateClsnPosAndRot /
+#                IsClsnInRange / Platform::C2, plus _ZTV8Platform
+#   5 in ov056   the file table, the typeinfo, the name string and the two
+#                .bss SharedFilePtrs -- all mounted by port/ov056_syms.txt
+# Every one of the 40 code targets was already in walk_window.map before this
+# lane, so the slice pulls in no chain of its own: +8 TUs is +8 linked symbols.
+#
+# THE RENDER IS SAFE TO SLICE. _ZN17BigMovingIceBlock6RenderEv is the local
+# six-virtual shadow-class dispatch that lands on slot 5 of the member at
+# +0xd4. That member is a PLAIN Model -- InitResources builds it with
+# Model::LoadFile + ModelBase::SetFile and never calls SetAnim, and the D1
+# tears it down with _ZN5ModelD1Ev -- and hal/cxxname_bridge.cpp DUAL-FILLS
+# _ZTV5Model at both slot 4 and slot 5 with mv_render. So this is the
+# ov052/ov072 reading, not the BabyPenguin ModelAnim slot-5 collision, and the
+# TU serves from src unchanged.
+#
+# THE TWO DESTRUCTORS ARE SAFE TO SLICE. Both write the class's own table under
+# the RTTI spelling _ZTV18daObjEwmIceBlock_c (aliased onto the host array in
+# hal/actor_classes_ov056.cpp) and then _ZTV10dBgActor_c, which is ov002
+# 0x0210ae38, Platform's base table -- hal/actor_classes.cpp already defines
+# that array port-wide and hal_fill_platform_vtable fills it, so the second
+# store is a live host table and not the zeroed placeholder it reads as. It is
+# a dying-object write either way: nothing dispatches between the store and
+# ActorD2. D0's `extern void *G0` is the GAME HEAP, and hal/cxx_aliases.cpp has
+# already bound _G0 to data_020a0eac, which is exactly the Heap* the ROM body
+# passes to Memory::Deallocate -- one more consumer of an alias that already
+# means the same thing, not a new binding.
+#
+# NEITHER SPELLING IS CONTESTED AT THE SHARED WINDOW. ov052 and ov056 both link
+# at 0x021111a0 and five of these six bodies sit at addresses ov052 also uses
+# (0x021111a0, 0x021111e4, 0x0211123c, 0x02111284, 0x021112ac). They are
+# DIFFERENT overlays' bytes and dsd gave them different names -- ov052's are
+# func_ov052_* (already sliced by lane w12) and ov056's are _ZN17BigMoving* --
+# so both sets compile side by side with no alias and no per-source rename.
+
+src/_ZN17BigMovingIceBlockD1Ev.c
+src/_ZN17BigMovingIceBlockD0Ev.c
+src/_ZN17BigMovingIceBlock16CleanupResourcesEv.c
+src/_ZN17BigMovingIceBlock6RenderEv.cpp
+src/_ZN17BigMovingIceBlock8BehaviorEv.cpp
+src/_ZN17BigMovingIceBlock13InitResourcesEv.cpp
+src/BigMovingIceBlock_Spawn.c
+src/__sinit_ov056_02112b48.c
