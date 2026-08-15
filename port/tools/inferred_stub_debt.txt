@@ -28,6 +28,27 @@
 # which is the property the guard existed for in the first place.
 #
 # Discovered 2026-08-15, run linkw wave 12.
+#
+# ADJUDICATED 2026-08-15, run linkw w13 (branch w13-adjudicate). All 43 were
+# ruled on individually against the ROM: each body disassembled out of
+# extracted/overlays/overlay_NNNN.bin at its overlays.yaml base and compared
+# instruction for instruction with its src/ body. Full table, per-body
+# evidence and the reproduction command are in runs/linkw/status/w13.md.
+#
+# RESULT: 43 REAL DECOMP, 0 genuine guesses, 0 unverifiable. Nothing was
+# de-seated because nothing needed de-seating -- including the seven that run
+# every frame on a mounted level (func_ov045_0211129c, func_ov045_02111274,
+# func_ov052_021112ac, func_ov052_02111284, func_ov063_0211c7b0,
+# func_ov100_021470f4, func_ov100_021470a4). The marker is a MISLABEL on all
+# 43: the NAME was recovered from vtable slot identity, the BODY is decompiled.
+#
+# The list is therefore still 43 long and that is correct. A symbol leaves the
+# live seated set only when its marker line is gone, the marker lines are in
+# src/, and src/ is read-only for port lanes. runs/linkw/status/w13.md carries
+# the exact per-file line numbers as a ready-to-file decomp-side correction;
+# this queue clears itself when that lands. Deleting a line here on the
+# strength of the ruling alone would turn a discovered-debt queue back into
+# the approval list its header forbids.
 func_ov020_021127a4
 func_ov020_021127cc
 func_ov021_0211228c
