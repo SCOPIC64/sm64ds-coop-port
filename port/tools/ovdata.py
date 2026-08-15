@@ -361,6 +361,12 @@ class Residency:
     scene and are not scene occupants: ov001 stays resident across scene
     switches, so it is co-resident with all of them, and rule 1 already keeps
     it exclusive of ov000.
+
+    Neither do STICKY overlays, which sit in territory but outlive the scene
+    switch. ov075 is loaded by func_0201a694 at scene id 6 and released by
+    func_0201a614 at scene id 1, so it is live across everything in between.
+    Rule 3 would call it exclusive of ov003 and be wrong the permissive way.
+    The set is derived the same way the rest is -- see __init__.
     """
 
     def __init__(self, root, footprints):
@@ -373,23 +379,49 @@ class Residency:
             sys.exit("residency: GetSceneOverlayID's source names no "
                      "overlay_N -- refusing to guess the scene set.")
 
+        # THE PASSENGER PARSE FAILING OPEN IS THE DANGEROUS DIRECTION, so it
+        # refuses like the scene parse does. An empty map does not merely lose
+        # the ov004/ov006 pairing: it drops ov004 out of self.slot, and a
+        # non-slot ov004 stops being covered by rule 3, so coresident(ov004,
+        # every level overlay) flips from False to True. That is the
+        # over-permissive direction with every cross want behind it, and three
+        # ordinary edits to this one file reach it -- renaming the consts,
+        # changing the cast style, adding braces round the if.
         load_src = _src_defining(root, "func_0201a798").read_text()
         self.passenger = {
             int(a): int(b) for a, b in re.findall(
                 r"if \(id == \(int\)&overlay_(\d+)\)\s*"
                 r"LoadOverlay\(\(int\)&overlay_(\d+)\);", load_src)}
-        unload_src = _src_defining(root, "func_0201a754").read_text()
+        if not self.passenger:
+            sys.exit(f"residency: {_src_defining(root, 'func_0201a798')} names "
+                     f"no `if (id == (int)&overlay_A) "
+                     f"LoadOverlay((int)&overlay_B);` pair. The scene slot's "
+                     f"passenger rule is read out of that line and will not be "
+                     f"guessed at -- an empty map silently makes the rider "
+                     f"co-resident with every level overlay. If the function "
+                     f"was rewritten, re-derive the rule here.")
+
+        # Match the UNLOAD CALL, not the identifier: `extern int overlay_4;`
+        # sits at the top of the file, so a substring test passes on the
+        # declaration alone and a gutted UnloadOverlay() goes unnoticed.
+        unload_path = _src_defining(root, "func_0201a754")
+        unload_body = "\n".join(
+            ln for ln in unload_path.read_text().splitlines()
+            if not ln.lstrip().startswith("extern"))
         for host, rider in self.passenger.items():
-            if (f"overlay_{host}" not in unload_src
-                    or f"overlay_{rider}" not in unload_src):
+            if not (re.search(r"UnloadOverlay\([^;]*\boverlay_%d\b" % rider,
+                              unload_body)
+                    and re.search(r"\boverlay_%d\b" % host, unload_body)):
                 sys.exit(f"residency: func_0201a798 loads ov{rider:03d} with "
-                         f"ov{host:03d} but func_0201a754 does not unload the "
-                         f"pair -- the load and unload halves disagree.")
+                         f"ov{host:03d} but {unload_path} has no "
+                         f"UnloadOverlay() call on ov{rider:03d} keyed off "
+                         f"ov{host:03d} -- the load and unload halves "
+                         f"disagree, so the pair is not a passenger pair.")
 
         # The exclusivity premise, checked rather than assumed: the switch
         # unloads whatever is in the slot before it loads the replacement.
-        # Ignore the calls that name an overlay LITERALLY -- func_0201a694
-        # also loads the sticky ov075 up front, and it is not the slot.
+        # Ignore the calls that name an overlay LITERALLY -- those are the
+        # STICKY overlays below, which are not the slot.
         switch_src = _src_defining(root, "func_0201a694").read_text()
         body = switch_src[switch_src.index("int func_0201a694("):]
         seq = [m.group(1) for m in re.finditer(
@@ -399,8 +431,35 @@ class Residency:
                      "scene overlay before loading the next -- the scene slot "
                      "is not exclusive and this model is wrong.")
 
+        # STICKY OVERLAYS: loaded THROUGH the slot helpers but not the slot.
+        # func_0201a694 calls func_0201a798((int)&overlay_75) when the scene id
+        # is 6, and func_0201a614 calls func_0201a754((int)&overlay_75) when it
+        # is 1, both behind the data_0209d4e0 latch. Loaded at one scene id and
+        # released at a different one, so its lifetime spans scene switches by
+        # construction and it is not exclusive with anything the slot does. Any
+        # overlay named literally in those two functions and not returned by
+        # GetSceneOverlayID is one of these; ov075 is the only one today.
+        #
+        # It has to be exempt from rule 3 or the model is wrong in the
+        # over-permissive direction: ov075's footprint (0x02113ee0..0x0211d8c0)
+        # lands in level territory, so rule 3 would call it exclusive of ov003,
+        # and it is not -- a level-to-star-select switch keeps ov075 loaded.
+        # Nothing misbinds today because ov075 is not mounted; this is so that
+        # the first mount of it does not bind wrong and uncontested.
+        self.sticky = set()
+        for func in ("func_0201a694", "func_0201a614"):
+            src = _src_defining(root, func).read_text()
+            for n in re.findall(
+                    r"func_0201a(?:754|798)\(\(int\)&overlay_(\d+)\)", src):
+                if int(n) not in self.scene:
+                    self.sticky.add(int(n))
+
         self.slot = set(self.scene) | set(self.passenger.values())
-        for ovid in self.slot:
+        if self.slot & self.sticky:
+            sys.exit(f"residency: ov{min(self.slot & self.sticky):03d} is both "
+                     f"a scene occupant and loaded literally by the switch -- "
+                     f"the two readings contradict each other.")
+        for ovid in self.slot | self.sticky:
             if ovid not in self.foot:
                 self.foot[ovid] = overlay_footprint(root, ovid)
 
@@ -409,7 +468,8 @@ class Residency:
         # occupant whose footprint ends where they start. Unique, or refuse.
         top_of_slot = max(self.foot[i][0] for i in self.slot)
         self.territory = min((s for i, (s, _) in self.foot.items()
-                              if i not in self.slot and s >= top_of_slot),
+                              if i not in self.slot and i not in self.sticky
+                              and s >= top_of_slot),
                              default=None)
         hosts = [i for i in self.slot if self.foot[i][1] == self.territory]
         if self.territory is None or len(hosts) != 1:
@@ -421,17 +481,24 @@ class Residency:
         self.level_scene = hosts[0]
 
     def describe(self):
-        return ("residency: scene slot %s, passengers %s, level territory "
-                "from %#010x on the ov%03d scene"
+        return ("residency: scene slot %s, passengers %s, sticky %s, level "
+                "territory from %#010x on the ov%03d scene"
                 % (", ".join("ov%03d" % i for i in sorted(self.slot)),
                    ", ".join("ov%03d rides ov%03d" % (r, h)
                              for h, r in sorted(self.passenger.items()))
+                   or "none",
+                   ", ".join("ov%03d" % i for i in sorted(self.sticky))
                    or "none",
                    self.territory, self.level_scene))
 
     def _overlaps(self, a, b):
         (s1, e1), (s2, e2) = self.foot[a], self.foot[b]
         return s1 < e2 and s2 < e1
+
+    def _territory(self, ovid):
+        """A level or object overlay: stacked above the slot, and not sticky."""
+        return (ovid not in self.slot and ovid not in self.sticky
+                and self.foot[ovid][0] >= self.territory)
 
     def coresident(self, a, b):
         """Can overlays a and b be loaded at the same instant?"""
@@ -444,11 +511,36 @@ class Residency:
         a_slot, b_slot = a in self.slot, b in self.slot
         if a_slot and b_slot:                              # rule 2
             return self.passenger.get(a) == b or self.passenger.get(b) == a
-        if a_slot and self.foot[b][0] >= self.territory:   # rule 3
+        if a_slot and self._territory(b):                  # rule 3
             return a == self.level_scene
-        if b_slot and self.foot[a][0] >= self.territory:   # rule 3
+        if b_slot and self._territory(a):                  # rule 3
             return b == self.level_scene
-        return True
+        return True                    # includes every sticky pair: a sticky
+                                       # overlay outlives the scene switch, so
+                                       # only rule 1 constrains it
+
+
+# SITES A HAND SEAT ALREADY OWNS.
+#
+# port_ov089_keymodels_fixup() in hal/actor_overlays.cpp closes ov089's six
+# LoadKeyModels cross pointers by hand, checking each word still holds its ROM
+# address before rewriting it. Four of the six point into ov002, which went
+# from contested (whole overlay dropped) to resolvable under the per-target
+# test in cross_mode -- so the cross pass would now write the host address
+# first and the hand seat's ROM-address check would then abort on its own
+# success. Two of the six point into ov085 and stay contested (ov084 and ov085
+# both cover the target and both can be live alongside ov089), so the seat
+# still owns those. Leave all of ov089's key-model words to that seat: it runs
+# after this patch and lands the identical host address. Keyed by (site symbol,
+# byte offset).
+#
+# Module scope, not cross_mode's, because tools/ovsweep.py checks the RESULT of
+# this pass and has to know which words were left raw on purpose.
+HAND_SEATED = {
+    ("data_ov089_02132894", 20), ("data_ov089_02132894", 24),
+    ("data_ov089_02132894", 28), ("data_ov089_021328b4", 8),
+    ("data_ov089_021328b4", 12), ("data_ov089_021328b4", 16),
+}
 
 
 def write_map(out_path, ov, mode, window, provides, wants):
@@ -687,24 +779,6 @@ def cross_mode(root, out_path, map_paths):
         return sum(1 for ov, (s, e) in windows.items()
                    if s <= v < e and res.coresident(src, int(ov[2:])))
 
-    # SITES A HAND SEAT ALREADY OWNS.
-    #
-    # port_ov089_keymodels_fixup() in hal/actor_overlays.cpp closes ov089's six
-    # LoadKeyModels cross pointers by hand, checking each word still holds its
-    # ROM address before rewriting it. Four of the six point into ov002, which
-    # went from contested (whole overlay dropped) to resolvable under the
-    # per-target test above -- so the cross pass would now write the host
-    # address first and the hand seat's ROM-address check would then abort on
-    # its own success. Two of the six point into ov085 and stay contested
-    # (ov084/ov085 share a base), so the seat still owns those. Leave all of
-    # ov089's key-model words to that seat: it runs after this patch and lands
-    # the identical host address. Keyed by (site symbol, byte offset).
-    HAND_SEATED = {
-        ("data_ov089_02132894", 20), ("data_ov089_02132894", 24),
-        ("data_ov089_02132894", 28), ("data_ov089_021328b4", 8),
-        ("data_ov089_021328b4", 12), ("data_ov089_021328b4", 16),
-    }
-
     # A CLAIM OUTSIDE ITS OWN MOUNT'S WINDOW IS NOT THAT OVERLAY'S STORAGE.
     #
     # The per-symbol pass hunts un-symbolized statics out to base + image +
@@ -713,11 +787,19 @@ def cross_mode(root, out_path, map_paths):
     # past the end of the image and come out ZERO. That block is not ov022's
     # memory -- 0x02114874 belongs to whatever object overlay stacks above it
     # -- and binding anyone's pointer to it swaps an honest raw DS address for
-    # 24 bytes of host zeros with live host data behind them. Address-only
-    # contest hid this (several level windows covered the target, so it was
-    # dropped as ambiguous); once residency clears the contest it has to be
-    # excluded on its own merits. The gap generator over-reaching is a
-    # separate defect and is not fixed here.
+    # 24 bytes of host zeros with live host data behind them. The gap generator
+    # over-reaching is a separate defect and is not fixed here.
+    #
+    # HOW THIS RELATES TO THE ZERO-WINDOW TEST BELOW, precisely, because the
+    # first version of this comment implied the wrong thing. They are two
+    # INDEPENDENT guards and either one alone stops the ov022 case: 0x02114874
+    # is in no window ov022 can be co-resident with, so the zero-window test
+    # drops it, and the claim is outside ov022's footprint, so this filter
+    # never offers it. Removing BOTH is what puts the junk row back -- measured
+    # as +1 against the pre-change baseline. This filter is still not
+    # redundant: a stray claim landing INSIDE a co-resident window passes the
+    # zero-window test, and only its own overlay's footprint says it is not
+    # real storage.
     claims_by_ov = {}
     outside = 0
     for m in mounts:
