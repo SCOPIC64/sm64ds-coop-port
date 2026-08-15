@@ -1,18 +1,27 @@
-/* HOST COPIES of the two MR. I bodies src/ has NO TU for: the per-frame MAIN
- * halves of MrI's states 1 and 2.
+/* HOST COPY of the ONE MR. I body no tree has a TU for: the per-frame MAIN
+ * half of MrI's state 1.
  *
  *   func_ov071_021211e0  ov071 0x021211e0, 0x314 bytes  -- state 1 MAIN, the
- *                        chase/aim/fire core
+ *                        chase/aim/fire core                 HOSTED HERE
  *   func_ov071_02120d30  ov071 0x02120d30, 0x3dc bytes  -- state 2 MAIN, the
- *                        spin-down / pop / reward core
+ *                        spin-down / pop / reward core       src/, wave 9
  *
- * WHY HOST COPIES AND NOT SLICE LINES: there is nothing to slice. Every other
- * body in MrI's block (ROM 0x02120668..0x02121a6c) has a src/ TU; these two
- * alone do not. Measured, not carried: config/arm9/overlays/ov071/delinks.txt
- * has no entry whose `.text start:` is either address, and the set difference
- * between the func_ov071_* names in config/arm9/overlays/ov071/symbols.txt and
- * the func_ov071_* files in src/ is exactly {func_ov071_02120d30,
- * func_ov071_021211e0} -- two names, no others.
+ * WHY A HOST COPY AND NOT A SLICE LINE: for 0x021211e0 there is still nothing
+ * to slice. Every other body in MrI's block (ROM 0x02120668..0x02121a6c) has a
+ * src/ TU; that one alone does not. Measured, not carried:
+ * config/arm9/overlays/ov071/delinks.txt has no entry whose `.text start:` is
+ * that address, and the set difference between the func_ov071_* names in
+ * config/arm9/overlays/ov071/symbols.txt and the func_ov071_* files in src/ is
+ * exactly {func_ov071_021211e0} -- one name, no others.
+ *
+ * IT USED TO BE TWO NAMES, AND THAT IS THE POINT. This file shipped host
+ * copies of BOTH mains on a set difference taken against THIS BRANCH's src/.
+ * The branch forked from main at 7b2f913fe (2026-08-04) and is 626 commits
+ * behind it, so "src/ has no TU" meant "no TU this branch can see".
+ * src/func_ov071_02120d30.c landed on main in PR #1474 (8ec808874,
+ * 2026-08-13); run linkw wave 9, lane w9-harvest checked it out, put it in
+ * port/slice_w9harvest.txt and deleted the host copy. The re-measurement above
+ * is against origin/main at bc93fa767, not against this branch.
  *
  * ---- HOW THE SPANS WERE RE-DERIVED ----------------------------------------
  * NOT carried from the brief. config/arm9/overlays/ov071/symbols.txt:
@@ -307,141 +316,21 @@ int func_ov071_021211e0(char *self)
 }
 
 /* =========================================================================
- * func_ov071_02120d30 -- ov071 0x02120d30, 0x3dc bytes, MrI state 2 MAIN.
+ * func_ov071_02120d30 -- ov071 0x02120d30, 0x3dc bytes, MrI state 2 MAIN --
+ * IS NOT HOSTED ANY MORE (run linkw wave 9, lane w9-harvest).
  *
- * The defeat sequence, run every frame once state 2 is entered: the eye spins
- * up (the yaw integrator at +0x1f8 with its /0x1fffe sound tick), two particle
- * systems are kept alive on the body, and a four-step machine on +0x214 winds
- * the spin down, plays out the animation, shrinks the actor, and finally pops
- * it -- MR_I (262) leaving actor 0x122 behind, BIG_MR_I (263) paying out the
- * tracked star and three burst effects. Both ends run the same tail.
+ * The host copy that stood here was written on this file's opening claim that
+ * "every other body in MrI's block has a src/ TU; these two alone do not".
+ * That set difference was measured against THIS BRANCH's src/, and this branch
+ * forked from main at 7b2f913fe on 2026-08-04. src/func_ov071_02120d30.c
+ * landed on main in PR #1474 (8ec808874, 2026-08-13) and is a verified
+ * byte-match; port/slice_w9harvest.txt carries it now.
  *
- * Stack frame is 0x1c: sp+0x0c is the V3 handed to Actor::Spawn in the 262
- * branch; sp+0x00..0x08 are outgoing stack args.
+ * func_ov071_021211e0 (state 1 MAIN) is still genuinely unhosted decomp-side:
+ * main has no TU of that name either, checked against origin/main at
+ * bc93fa767. Its host copy above stands.
+ *
+ * The literal-pool and span accounting for 0x02120d30 in this file's header is
+ * left in place: it is the record the retired host copy was checked against
+ * and it still pins the 0x3dc the matched TU has to fill.
  * ========================================================================= */
-int func_ov071_02120d30(char *self)
-{
-    V3 spawnPos;   /* sp+0x0c */
-
-    /* 02120d3c..02120d4c: ease the spin rate toward the stored target */
-    _Z14ApproachLinearRiii((int *)(self + 0x98), *(short *)(self + 0x20e),
-                           0x12c);
-
-    /* 02120d50..02120d74: advance the yaw and the accumulator by that rate */
-    *(short *)(self + 0x8e) =
-        (short)(*(short *)(self + 0x8e) + *(int *)(self + 0x98));
-    *(int *)(self + 0x1f8) += *(int *)(self + 0x98);
-
-    /* 02120d78..02120d9c: one spin sound per whole turn.
-       02120da0..02120dcc: keep the accumulator inside one turn. */
-    if (*(int *)(self + 0x1f8) / 0x1fffe != 0)
-        func_0201267c(0x119, self + 0x74);
-    *(int *)(self + 0x1f8) %= 0x1fffe;
-
-    /* 02120dd0..02120e60: while both handles are live, refresh both systems
-       on the body and stamp each with the 0x7fff lifetime */
-    if (*(unsigned *)(self + 0x204) != 0 && *(unsigned *)(self + 0x208) != 0) {
-        void *a, *b;
-
-        *(unsigned *)(self + 0x204) =
-            _ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(
-                *(unsigned *)(self + 0x204), 0x13a, *(int *)(self + 0x5c),
-                *(int *)(self + 0x60), *(int *)(self + 0x64), 0, 0);
-        *(unsigned *)(self + 0x208) = (unsigned)(size_t)
-            _ZN8Particle6System17NewUnkCallback818Ejj5Fix12IiES2_S2_PK11Vector3_16f(
-                *(unsigned *)(self + 0x208), 0x13b, *(int *)(self + 0x5c),
-                *(int *)(self + 0x60), *(int *)(self + 0x64), 0);
-
-        a = _ZN8Particle6System12FromUniqueIDEj(*(unsigned *)(self + 0x204));
-        b = _ZN8Particle6System12FromUniqueIDEj(*(unsigned *)(self + 0x208));
-        if (a)
-            *(int *)((char *)a + 0x50) = 0x7fff;
-        if (b)
-            *(int *)((char *)b + 0x50) = 0x7fff;
-    }
-
-    /* 02120e64..02120e80: the ROM's `cmp #3 / addls pc, pc, r0, lsl #2` table.
-       Anything above 3 falls straight through to the common return. */
-    switch (*(unsigned char *)(self + 0x214)) {
-
-    /* ---- 02120e84..02120ef8: step 0, wobble the pitch and bleed the spin -- */
-    case 0: {
-        int phase = *(unsigned short *)(self + 0x210);
-        *(short *)(self + 0x8c) =
-            (short)fx12(*(int *)(self + 0x1fc),
-                        data_02082214[(phase >> 4) * 2]);
-        *(short *)(self + 0x210) =
-            (short)(*(short *)(self + 0x210) + 0xe000);
-        _Z14ApproachLinearRiii((int *)(self + 0x1fc), 0, 0x1b);
-        if (DecIfAbove0_Byte((unsigned char *)(self + 0x215)) == 0)
-            ++*(unsigned char *)(self + 0x214);
-        break;
-    }
-
-    /* ---- 02120efc..02120f20: step 1, let the animation play out ----------- */
-    case 1:
-        _ZN9Animation7AdvanceEv(self + 0x124);
-        if (_ZN9Animation8FinishedEv(self + 0x124))
-            ++*(unsigned char *)(self + 0x214);
-        break;
-
-    /* ---- 02120f24..02120fa8: step 2, shrink to nothing -------------------- */
-    case 2: {
-        int s;
-        if (_Z14ApproachLinearRiii((int *)(self + 0x1f0), 0xa4, 0xa4))
-            ++*(unsigned char *)(self + 0x214);
-        s = *(int *)(self + 0x1f0);
-        *(int *)(self + 0x80) = s;
-        *(int *)(self + 0x84) = s;
-        *(int *)(self + 0x88) = s;
-        /* Both id arms store the same product in the ROM (0x55 either way);
-           transcribed as the two arms the listing actually spells. */
-        if (*(unsigned short *)(self + 0xc) == 0x106)
-            *(int *)(self + 0x178) = *(int *)(self + 0x1f0) * 0x55;
-        else if (*(unsigned short *)(self + 0xc) == 0x107)
-            *(int *)(self + 0x178) = *(int *)(self + 0x1f0) * 0x55;
-        break;
-    }
-
-    /* ---- 02120fac..021210bc: step 3, pay out and die ---------------------- */
-    case 3:
-        if (*(unsigned short *)(self + 0xc) == 0x106) {
-            /* 02120fc8..0212100c: MR_I drops actor 0x122 and a dust puff */
-            spawnPos.x = *(int *)(self + 0x5c);
-            spawnPos.y = *(int *)(self + 0x60) + 0x78000;
-            spawnPos.z = *(int *)(self + 0x64);
-            _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(
-                0x122, 2, &spawnPos, 0,
-                *(signed char *)(self + 0xcc), -1);
-            _ZN5Actor8PoofDustEv(self);
-        } else if (*(unsigned short *)(self + 0xc) == 0x107) {
-            /* 0212102c..0212108c: BIG_MR_I pays the star and three bursts */
-            _ZN5Actor19UntrackAndSpawnStarERajRK7Vector3j(
-                self, (signed char *)(self + 0x217),
-                (unsigned)((*(int *)(self + 8) & 0xf) & 0xff),
-                self + 0x5c, 4);
-            _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(
-                0x124, *(int *)(self + 0x5c), *(int *)(self + 0x60),
-                *(int *)(self + 0x64));
-            _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(
-                0x125, *(int *)(self + 0x5c), *(int *)(self + 0x60),
-                *(int *)(self + 0x64));
-            _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(
-                0x126, *(int *)(self + 0x5c), *(int *)(self + 0x60),
-                *(int *)(self + 0x64));
-        }
-        /* 02121090..021210bc: the tail runs for every id, including neither */
-        func_0201267c(0xc4, self + 0x74);
-        if (data_0209f2f8 == 0x2e)
-            _ZN5Actor24KillAndTrackInDeathTableEv(self);
-        else
-            _ZN9ActorBase18MarkForDestructionEv(self);
-        break;
-
-    default:
-        break;
-    }
-
-    /* 021210c0..021210cc */
-    return 1;
-}

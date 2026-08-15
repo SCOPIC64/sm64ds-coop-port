@@ -114,10 +114,26 @@ void func_02059824(void) { func_02059834(); }
 /* ITCM soft-float library, explicit call sites only (implicit double ops
    compile to native FP on host). Semantics fixed by the callers:
    the double formatter zero-tests with 9d40, negates via 8e10(0.0, v),
-   and extracts digits through 859c. */
+   and extracts digits through 859c.
+
+   PORT_HOST_ABI: ARM asm primitives (the ITCM soft-float runtime block,
+   0x01ff8000..0x01ffb078), MSVC cannot assemble. Run linkw wave 9 (lane
+   w9-harvest) checked each of these against origin/main rather than
+   against this 626-commit-stale branch: main HAS matched five of them --
+   func_01ff859c, func_01ffa344, func_01ffa4bc, func_01ff8708 (filed as
+   src/_dmul.c) and 0x01ffabe4 (src/_s32_div_f.c, hosted in
+   hal/actor_vtables.cpp) -- and every one is a bannered HAND-ASM
+   PRIMITIVE, an `asm` block of ARM instructions. They are matched decomp
+   and they are still unusable here, so these host bodies stay. The tag is
+   on them now so that when the port does catch up to main, linkage.py
+   files them as documented exceptions instead of as replacement work. */
 int func_01ff9d40(double x, double y) { return x == y; }
+/* PORT_HOST_ABI: ARM asm primitive (ITCM soft-float block), MSVC cannot
+   assemble -- see the block comment above. */
 double func_01ff8708(double x, double y) { return x * y; }  /* dmul (frexp) */
 /* single-precision ITCM pair cstd::atan2 leans on: i2f then float-compare */
+/* PORT_HOST_ABI: ARM asm primitive (ITCM soft-float block), MSVC cannot
+   assemble -- see the block comment above. */
 int func_01ffa4bc(int a) { float f = (float)a; int b; memcpy(&b, &f, 4); return b; }
 int func_01ff98f4(int a, int b)
 { float x, y; memcpy(&x, &a, 4); memcpy(&y, &b, 4); return x < y; }
@@ -125,9 +141,13 @@ int func_01ff98f4(int a, int b)
 int func_01ff99a4(int a, int b)
 { float x, y; memcpy(&x, &a, 4); memcpy(&y, &b, 4); return x > y; }
 /* f2i truncation; one caller's two-arg decl is an r1 ride-through */
+/* PORT_HOST_ABI: ARM asm primitive (ITCM soft-float block), MSVC cannot
+   assemble -- see the block comment above. */
 int func_01ffa344(int a, int b)
 { float x; memcpy(&x, &a, 4); (void)b; return (int)x; }
 /* ITCM signed divide (walk-speed scaling) */
+/* PORT_HOST_ABI: ARM asm primitive (ITCM soft-float block), MSVC cannot
+   assemble -- see the block comment above. */
 int func_01ffabe4(int a, int b) { return b ? a / b : 0; }
 /* data_020994e0, cstd::atan2's own table, IS NOT HERE ANY MORE. It was
    storage with a guess for a comment ("the boot builds it at runtime") and
@@ -139,6 +159,8 @@ int func_01ffabe4(int a, int b) { return b ? a / b : 0; }
    below bss_start 0x0209b000, so it comes out of the ROM image with the
    rest: port/tools/romdata.py NAMED. */
 double func_01ff8e10(double x, double y) { return x - y; }
+/* PORT_HOST_ABI: ARM asm primitive (ITCM soft-float block), MSVC cannot
+   assemble -- see the block comment above. */
 unsigned long long func_01ff859c(double x) { return (unsigned long long)x; }
 
 /* ITCM soft-float compare: double(a:b) < double(c:d), EABI r0=low word */
@@ -1464,6 +1486,34 @@ void Platform::KillByMegaChar(Player &player)
    spelling -- the Enemy::SpawnCoin/PowerStarCreate precedent applied to a
    second parameter-type spelling instead of a second declaring TU. */
 #pragma comment(linker, "/alternatename:__ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16as=__ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii")
+/* run linkw wave 9, lane w9-harvest: the same shape, arrived by a different
+   road, and the road is the point. src/func_ov071_02120d30.c (harvested from
+   main, port/slice_w9harvest.txt) calls Actor::UntrackAndSpawnStar spelled
+   _ZN5Actor19UntrackAndSpawnStarERajRK7Vector3h -- `h`, unsigned char, for the
+   fifth parameter. The port hosts _..._Vector3j (`j`, unsigned int), from
+   src/_ZN5Actor19UntrackAndSpawnStarERajRK7Vector3j.c in slice_gate32.
+
+   SAME FUNCTION, and this is checked by ADDRESS, not by eye:
+     config/arm9/symbols.txt (this branch)
+       _ZN5Actor19UntrackAndSpawnStarERajRK7Vector3j ... addr:0x0200ff14
+     config/arm9/symbols.txt (origin/main, bc93fa767)
+       _ZN5Actor19UntrackAndSpawnStarERajRK7Vector3h ... addr:0x0200ff14
+   -- one 0x4c-byte body at 0x0200ff14 that main RENAMED after this branch
+   forked. Both spellings are the same flat C-linkage symbol taking `self` as
+   argument 0, and both declaring TUs give the fifth parameter a full 32-bit
+   slot (main's TU declares it `unsigned int how` under the `h` name), so the
+   cdecl surface is identical and the alias moves no register and no stack
+   word.
+
+   THE GENERAL HAZARD, written down here because it will recur: harvesting a
+   TU from a 626-commit-stale fork imports main's CURRENT symbol spellings for
+   everything that TU calls. 496 of the 543 TUs main has that this branch does
+   not are pure renames of bodies this branch already carries (the measurement
+   is in port/slice_w9harvest.txt's header), and any one of them can surface as
+   an unresolved extern in an otherwise clean harvest. It is a one-line alias
+   every time, but only after the address check above says the two names are
+   one body. */
+#pragma comment(linker, "/alternatename:__ZN5Actor19UntrackAndSpawnStarERajRK7Vector3h=__ZN5Actor19UntrackAndSpawnStarERajRK7Vector3j")
 /* gate 192: several ov081 files declare data_ov081_* externs at file scope
    OUTSIDE any extern "C" block (MrBlizzard's InitResources/Behavior, and
    three helper functions), so MSVC C++-mangles the references -- the

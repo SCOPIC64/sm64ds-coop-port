@@ -81,7 +81,7 @@ int func_ov071_0212152c(void *c);   /* state 0 main , matched src */
 int func_ov071_021214f4(void *c);   /* state 1 enter, matched src */
 int func_ov071_021211e0(char *c);   /* state 1 main , HOST COPY */
 int func_ov071_0212110c(char *c);   /* state 2 enter, matched src */
-int func_ov071_02120d30(char *c);   /* state 2 main , HOST COPY */
+int func_ov071_02120d30(char *c);   /* state 2 main , matched src (wave 9) */
 
 struct PortPmf { unsigned fn; int delta; };
 

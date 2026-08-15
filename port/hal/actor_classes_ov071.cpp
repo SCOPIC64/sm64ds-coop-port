@@ -96,9 +96,13 @@
 // fill's thunk shape models. The Scuttlebug binding set exactly.
 //
 // ---- WHAT IS A HOST COPY AND WHY -------------------------------------------
-//   the two per-frame state MAINs -- func_ov071_021211e0 (0x314) and
-//     func_ov071_02120d30 (0x3dc) -- are the ONLY two ov071 names with no src/
-//     TU at all. port/unmatched/MrI_StateMains.cpp, with the derivation.
+//   ONE per-frame state MAIN -- func_ov071_021211e0 (0x314) -- is the only
+//     ov071 name with no src/ TU at all, on either this branch or main.
+//     port/unmatched/MrI_StateMains.cpp, with the derivation. It used to be
+//     two: func_ov071_02120d30 (0x3dc) was hosted alongside it until run
+//     linkw wave 9 (lane w9-harvest) found src/func_ov071_02120d30.c on
+//     main (PR #1474, 8ec808874) -- a TU this branch, 626 commits behind,
+//     could not see. It is a slice line now (port/slice_w9harvest.txt).
 //   the two state dispatchers -- func_ov071_021215c0 (MAIN, record+8) and
 //     func_ov071_021215fc (ENTER, record+0) -- are the Scuttlebug PMF-stride
 //     case: the matched TUs form `c->pp + 1` over an mwcc 8-byte PMF that MSVC
