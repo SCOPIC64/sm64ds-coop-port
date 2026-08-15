@@ -2090,6 +2090,32 @@ endforeach()
 # was transcribed from is in hal/actor_classes_ov025.cpp. None of the nineteen
 # carries the inferred-stub guess marker. Same one-owner contract as the lane
 # slices above.
+# run linkw wave 16, lane w16-unblock: FALL_BLOCK_LLL (id 83, ov022) -- nine
+# instances on level 14, the sixth of Lethal Lava Land's eleven ids. NO NEW
+# MOUNT: lane w8-packs already mounted FallBlockLll_SpawnInfo and the file
+# table data_ov022_0211427c by name and already excluded the vtable 0x021142c4
+# so it can be host storage. What held this id back was inferred_stub_guard.py
+# -- three of its five bodies carry the "recovered from vtable slot identity"
+# marker. All three were disassembled out of the shipped overlay image and
+# ruled REAL DECOMP (port/slice_w16a.txt for the derivation, the rulings are
+# recorded against their symbols in port/tools/inferred_stub_debt.txt). The
+# class is FallBlockBfs' twin: slots 6/9/27/31 are the same four ov098 bodies
+# ov045 and ov015 already seat, so the new code is a host array, two
+# destructors and one sinit. Width is 32, pinned three ways -- the reloc run
+# over-reads to 38 through two typeinfo records, the next-symbol landing
+# under-reads to 30 because dsd split the table at slot 30, and slot 31 is a
+# real 32nd virtual (func_ov098_0213a17c, NOT Platform::Kill). Same one-owner
+# contract as the lane slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w16a.txt" SLICE_W16A_LINES)
+set(SLICE_W16A_SOURCES "")
+foreach(line IN LISTS SLICE_W16A_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W16A_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w15c.txt" SLICE_W15C_LINES)
 set(SLICE_W15C_SOURCES "")
 foreach(line IN LISTS SLICE_W15C_LINES)
@@ -3642,6 +3668,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_ov056.cpp ${SLICE_W15_SOURCES}
     hal/actor_classes_ov002_w15.cpp ${SLICE_W15B_SOURCES}
     hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
+    hal/actor_classes_ov022_w16.cpp ${SLICE_W16A_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -3765,6 +3792,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_ov056.cpp ${SLICE_W15_SOURCES}
     hal/actor_classes_ov002_w15.cpp ${SLICE_W15B_SOURCES}
     hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
+    hal/actor_classes_ov022_w16.cpp ${SLICE_W16A_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -3900,6 +3928,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_ov056.cpp ${SLICE_W15_SOURCES}
     hal/actor_classes_ov002_w15.cpp ${SLICE_W15B_SOURCES}
     hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
+    hal/actor_classes_ov022_w16.cpp ${SLICE_W16A_SOURCES}
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
