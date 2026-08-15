@@ -1022,6 +1022,33 @@ void port_ov041_patch(void);
 void *port_ov041_at(unsigned ds);
 extern unsigned char port_ov041_image[];
 extern const unsigned port_ov041_ds_base, port_ov041_ds_end;
+
+/* run linkw wave C (lane cat-levels): five of the ten ids wave 8 declined as
+   "not stages" -- 0, 30, 32, 34 and 46. See the table block below. */
+void port_ov008_patch(void);
+void *port_ov008_at(unsigned ds);
+extern unsigned char port_ov008_image[];
+extern const unsigned port_ov008_ds_base, port_ov008_ds_end;
+
+void port_ov038_patch(void);
+void *port_ov038_at(unsigned ds);
+extern unsigned char port_ov038_image[];
+extern const unsigned port_ov038_ds_base, port_ov038_ds_end;
+
+void port_ov040_patch(void);
+void *port_ov040_at(unsigned ds);
+extern unsigned char port_ov040_image[];
+extern const unsigned port_ov040_ds_base, port_ov040_ds_end;
+
+void port_ov042_patch(void);
+void *port_ov042_at(unsigned ds);
+extern unsigned char port_ov042_image[];
+extern const unsigned port_ov042_ds_base, port_ov042_ds_end;
+
+void port_ov054_patch(void);
+void *port_ov054_at(unsigned ds);
+extern unsigned char port_ov054_image[];
+extern const unsigned port_ov054_ds_base, port_ov054_ds_end;
 }
 
 /* LVL_Overlay, the fields the boot uses. */
@@ -1288,6 +1315,92 @@ static const PortLevelDesc port_level_table[] = {
     {33, "Metal Cap switch course (metal_switch, course 25)", "ov041",
      0x0211192c, port_ov041_patch, port_ov041_at,
      &port_ov041_ds_base, &port_ov041_ds_end, 0},
+    /* run linkw wave C (lane cat-levels): FIVE OF THE TEN IDS THE WAVE-8 BLOCK
+       ABOVE DECLINED AS "NOT STAGES". They are stages, and the block's own test
+       says so when it is re-run.
+
+       Appended at the END, indices 41..45, for the reason w21's block gives:
+       a row inserted mid-table renumbers every thunk below it. That is now
+       checked rather than remembered -- port/tools/mount_pairing_guard.py
+       parses this file and asserts mount_fns[i] mounts row i.
+
+       WHAT THE WAVE-8 READING ACTUALLY CAUGHT. Its words are "LVL_Overlay
+       records whose four handles do not resolve to one data/stage directory
+       (they read MG/ minigame art or nothing), and courses 21..28 and 255".
+       Re-run on this tree against build/assets/handles.tsv at delta 0, id by
+       id, that splits in two and the smaller half is the one it describes:
+
+         GENUINELY NOT STAGES, five:
+           29, 42, 43, 51  name handles 0x9002/0x9402/0x8c02/0x8802, past the
+                           end of the ROM's handle space -- they resolve to
+                           nothing at all.
+           41 test_map_b   bmd 0x07db is 356 bytes and kcl 0x07da is 145, and
+                           its icg/icl handles are BOTH 0. Handle 0 is
+                           MG/casino_back.bmd, so this one id is the whole of
+                           "reads MG/ minigame art" -- and it reads that way
+                           because its handles are NULL, not because the record
+                           points at a minigame.
+
+         STAGES, five, every one a full four-file set at delta 0:
+            0 ov008 test_map       18916/16386/7784/512 bytes
+           30 ov038 suisou         6262/5231/13320/512
+           32 ov040 horisoko       14622/16782/11304/512
+           34 ov042 rainbow_mario  34011/51896/10048/512
+           46 ov054 ex_l_map       27922/18362/10344/512
+
+       THE COURSE-BAND HALF OF THE ARGUMENT WAS ALREADY DEAD when this lane
+       found it: courses 21..28 are the secret stages, and w21 mounted level 33
+       metal_switch at COURSE 25 out of that same band, four rows above here.
+       30 suisou is the Secret Aquarium, 32 horisoko is Vanish Cap Under the
+       Moat, 34 rainbow_mario is Wing Mario Over the Rainbow -- 22, 24 and 26
+       of that band, siblings of 33 and of 31 habatake at 23. Course 255 is one
+       id, test_map, and it is a stage with a stage's files.
+
+       46 IS NOT EVEN IN THE BAND. It is course 19, and course 19's other half,
+       47 ex_luigi, has been mounted since wave 8. The key courses run
+       {course map, arena} per character -- 44 ex_m_map + 45 ex_mario at 18, 48
+       ex_w_map + 49 ex_wario at 20 -- and 46 ex_l_map is Luigi's course map,
+       the one missing corner of that grid.
+
+       Fields read exactly as the recipe above says, with the reader proved
+       first against ALL FORTY-ONE rows already in this table, every field:
+       overlay id, LVL_Overlay address, course, subCount, flags and all four
+       handles, 41/41 with no disagreement. Only then were these five written.
+
+         lvl  ov     LVL_Overlay  crs sub flg  stage
+           0  ov008  0x02111210  255  1  0x01  test_map
+          30  ov038  0x02111218   22  1  0x00  suisou
+          32  ov040  0x02111228   24  1  0x01  horisoko
+          34  ov042  0x02111218   26  1  0x00  rainbow_mario
+          46  ov054  0x021112b0   19  5  0x00  ex_l_map
+
+       LEVEL 0 IS CUT CONTENT, and it is mounted for the same reason as the
+       rest: it is in the ROM's own level table with a complete stage behind it.
+       Course 255 is the ROM's own "no course", which is what a test map would
+       carry.
+
+       Levels 30 and 34 share an LVL_Overlay ADDRESS, 0x02111218. That is not a
+       collision: every level overlay loads at the same DS base 0x021111a0, so
+       two different overlays can put their records at the same offset. The rows
+       differ in the overlay they name, and port_level_mounts_install asserts
+       each row's address against data_02092208[id] on the level's own image.
+
+       own_sinits stays 0 for all five; none gets a per-symbol mount here. */
+    {0, "developer test map (test_map, no course)", "ov008", 0x02111210,
+     port_ov008_patch, port_ov008_at,
+     &port_ov008_ds_base, &port_ov008_ds_end, 0},
+    {30, "The Secret Aquarium (suisou, course 22)", "ov038", 0x02111218,
+     port_ov038_patch, port_ov038_at,
+     &port_ov038_ds_base, &port_ov038_ds_end, 0},
+    {32, "Vanish Cap Under the Moat (horisoko, course 24)", "ov040",
+     0x02111228, port_ov040_patch, port_ov040_at,
+     &port_ov040_ds_base, &port_ov040_ds_end, 0},
+    {34, "Wing Mario Over the Rainbow (rainbow_mario, course 26)", "ov042",
+     0x02111218, port_ov042_patch, port_ov042_at,
+     &port_ov042_ds_base, &port_ov042_ds_end, 0},
+    {46, "Luigi's key course (ex_l_map, course 19)", "ov054", 0x021112b0,
+     port_ov054_patch, port_ov054_at,
+     &port_ov054_ds_base, &port_ov054_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -1551,6 +1664,14 @@ static void *port_mount_row_lvl21(void) { return port_level_mount_at(37); }
 static void *port_mount_row_lvl25(void) { return port_level_mount_at(38); }
 static void *port_mount_row_lvl28(void) { return port_level_mount_at(39); }
 static void *port_mount_row_lvl33(void) { return port_level_mount_at(40); }
+/* run linkw wave C (lane cat-levels): the five recovered stages, table indices
+   41..45 in the order the table lists them. Named by level like every thunk
+   since wave 8, and port/tools/mount_pairing_guard.py checks the pairing. */
+static void *port_mount_row_lvl0(void) { return port_level_mount_at(41); }
+static void *port_mount_row_lvl30(void) { return port_level_mount_at(42); }
+static void *port_mount_row_lvl32(void) { return port_level_mount_at(43); }
+static void *port_mount_row_lvl34(void) { return port_level_mount_at(44); }
+static void *port_mount_row_lvl46(void) { return port_level_mount_at(45); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
@@ -1590,6 +1711,11 @@ static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_lvl25,
     port_mount_row_lvl28,
     port_mount_row_lvl33,
+    port_mount_row_lvl0,
+    port_mount_row_lvl30,
+    port_mount_row_lvl32,
+    port_mount_row_lvl34,
+    port_mount_row_lvl46,
 };
 
 // ---- the loader dispatch table ---------------------------------------------
