@@ -134,18 +134,12 @@ TABLE_OPEN = "static const PortLevelDesc port_level_table[] = {"
 # like this stays honest. Deleting a retired entry is the whole maintenance
 # burden.
 LEVEL_SKIPS = {
-    33: ("SNUFIT",
-         "the actors lane",
-         "SNUFIT (actor id 236) faults in RENDER. Bare, the level exits "
-         "c0000005 (3221225477, what subprocess reports here; a shell that "
-         "translates it prints 139) and faultmap.py resolves the fault to "
-         "Model::Virtual10+0xc with walker actor id 0xec = 236 = SNUFIT. "
-         "NO RAW OFFSET IS RECORDED HERE ON PURPOSE: the same one bug has "
-         "produced three different +0x000... offsets on three builds of the "
-         "same source, because an offset belongs to a binary and not to a "
-         "defect. Run faultmap.py against the build in hand. Level 33's mount "
-         "itself is proven: with the class skipped it runs 300 frames clean, "
-         "census 72 spawned over 17 classes with 4 SNUFIT declined."),
+    # Empty since wave C closed. Level 33's SNUFIT entry retired 2026-08-15:
+    # the w19 slot-5 fix and the level-33 mount met at the wave's final
+    # merge, the bare run went 300 frames clean, and the battery printed
+    # SKIP RETIRED on its first run over the combined tree. The entry shape
+    # is documented in this file's skip section; new debts go here with the
+    # class, the owning lane, and the evidence, never a raw fault offset.
 }
 # The bare re-probe is expected to FAULT while the debt stands, and a fault
 # under FAULTS_FATAL exits fast. A probe that instead hangs is not evidence of
