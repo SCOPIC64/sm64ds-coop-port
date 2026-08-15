@@ -415,6 +415,27 @@ extern "C" void _ZN5Model17UpdateFileOffsetsER8BMD_File(BMD_File *f)
 extern "C" void _ZN9ActorBase21AfterCleanupResourcesEj(void *self, unsigned a)
 { ((ActorBase *)self)->ActorBase::AfterCleanupResources(a); }
 
+/* w8-faces: src/_ZN4Heap7_SizeofEPv.cpp exists and stays unlinked, and this is
+   the reason, written down so the row stops reading as replacement work. The
+   matched TU is the ROM veneer transcribed literally:
+
+       extern "C" void _ZN4Heap6SizeofEPv(void);
+       void _ZN4Heap7_SizeofEPv(void) { _ZN4Heap6SizeofEPv(); }
+
+   -- a void() calling a void(). On ARM that is exactly right: `ldr ip,[pc];
+   bx ip` leaves r0 (`this`) and r1 (the pointer) untouched and Sizeof reads
+   them where the caller left them. Under MSVC there is no such ride-through:
+   both are __cdecl, the veneer pushes nothing, and Sizeof would read its
+   receiver and its argument off stack slots that were never written. Both
+   arguments dropped, which is failure mode 2 with the argument dropped too.
+   Nor is the callee reachable as spelled: __ZN4Heap6SizeofEPv is not in the
+   link at all (src/_ZN4Heap6SizeofEPv.cpp is METHOD-shaped and lands as
+   ?Sizeof@Heap@@QAEHPAX@Z), so slicing the veneer would not even link without
+   a second face under it -- one that would then be entered with nothing on
+   the stack. */
+/* PORT_HOST_ABI: ARM register ride-through -- the matched TU is the ROM's
+   `ldr ip,[pc]; bx ip` veneer, whose void() form carries r0/r1 through in
+   registers; the same shape under __cdecl drops both. */
 extern "C" int _ZN4Heap7_SizeofEPv(void *self, void *p)
 { return ((Heap *)self)->Heap::Sizeof(p); }
 extern "C" void _ZN4Heap10ReallocateEPvj(void *self, void *p, unsigned n)
@@ -494,7 +515,32 @@ int _ZN4Bird13InitResourcesEv(void *self)
 { return ((Bird *)self)->Bird::InitResources(); }
 /* Bird::Render and FLAG's are each one line in src -- dispatch slot 5 of the
    ModelAnim at +0xd4 -- and ROM slot 5 is Render while MSVC slot 5 is
-   Virtual18. Call the method the ROM means. */
+   Virtual18. Call the method the ROM means.
+
+   w8-faces re-derived that and it holds, so both are TAGGED rather than left
+   to linkage.py's shadow heuristic, which counts them as replaceable work.
+   The numbers, from the host fills rather than from the prose:
+
+     hal/cxxname_bridge.cpp   _ZTV5Model[4] = mv_render
+                              _ZTV5Model[5] = mv_render      <- dual-filled
+                              _ZTV9ModelAnim[4] = ma2_render
+                              _ZTV9ModelAnim[5] = ma2_virtual18
+
+   src/_ZN4Bird6RenderEv.cpp declares a local six-virtual shadow and calls its
+   sixth entry (`b->m(0)`), i.e. slot 5 of whatever really sits at +0xd4.
+   include/Bird.h:25 and include/Flag.h:17 both put a ModelAnim there, and
+   ModelAnim's host table is NOT dual-filled -- so the matched body would
+   dispatch Virtual18, not Render. That is failure mode 1 arriving through the
+   src body instead of through the face. It is measured, not predicted:
+   port/slice_gate17.txt records FLAG's first Render walking
+   ModelAnim::Virtual18 -> Virtual10 -> Model::Virtual10 into a null-matrix
+   fault. Dual-filling _ZTV9ModelAnim slot 5 the way _ZTV5Model is would fix
+   these two by breaking every genuine Virtual18 dispatch, so there is no
+   wiring that makes the matched TU behave here. */
+/* PORT_HOST_ABI: the matched TU dispatches slot 5 of a local six-virtual
+   shadow over the ModelAnim at +0xd4, and the host _ZTV9ModelAnim numbers
+   slot 5 as Virtual18 (measured fault, port/slice_gate17.txt); this hand-
+   written ModelAnim::Render call is the ROM's behaviour. */
 int _ZN4Bird6RenderEv(void *self)
 { ((ModelAnim *)((char *)self + 0xd4))->ModelAnim::Render(0); return 1; }
 int _ZN8MetalNet13InitResourcesEv(void *self)
@@ -509,6 +555,9 @@ int _ZN4Flag13InitResourcesEv(void *self)
 { return ((Flag *)self)->Flag::InitResources(); }
 int _ZN4Flag8BehaviorEv(void *self)
 { return ((Flag *)self)->Flag::Behavior(); }
+/* PORT_HOST_ABI: same as Bird::Render above -- the matched TU dispatches slot
+   5 of a local six-virtual shadow over the ModelAnim at +0xd4 (include/
+   Flag.h:17), which the host _ZTV9ModelAnim numbers as Virtual18. */
 int _ZN4Flag6RenderEv(void *self)
 { ((ModelAnim *)((char *)self + 0xd4))->ModelAnim::Render(0); return 1; }
 }
@@ -534,12 +583,27 @@ int _ZN15IceSlideManager8BehaviorEv(void *self)
 #include "TextureTransformer.h"
 extern "C" {
 void *_ZTV18TextureTransformer[4];
-void func_02046b64(void *bmdTable, void *btaObj);
 /* Two arguments, not three: func_02046b64 resolves the BTA's own material
    NAMES against the BMD's table, and the water's call site passes exactly
-   those two with no `this`. */
+   those two with no `this`.
+
+   w8-faces: this face used to spell that call itself
+   (`func_02046b64(bmd, bta);`), which made the HAL the implementation of a ROM
+   function that src/ already carries. It forwards to the matched TU now --
+   port/slice_w8faces.txt seats
+   src/_ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File.cpp, whose body is
+   the ROM's 0xc long-call veneer written as the static member it is.
+
+   NOT a dropped receiver, and worth spelling out because a two-argument call
+   into a `Class::Method` shape is what failure mode 2 looks like from the
+   outside: include/TextureTransformer.h:42 declares Prepare STATIC, so it has
+   no `this` to drop. MSVC emits it SA (plain __cdecl, two stack arguments) and
+   the face's emitted bytes are two pushes, no ecx write, one call -- checked
+   in the object, which is this file's rule. port/slice_w1l3.txt had parked the
+   TU on the opposite reading ("the matched METHOD cannot be called"); the
+   `static` on that declaration is what refutes it. */
 void _ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File(void *bmd, void *bta)
-{ func_02046b64(bmd, bta); }
+{ TextureTransformer::Prepare(*(BMD_File *)bmd, *(BTA_File *)bta); }
 void _ZN18TextureTransformer6UpdateER15ModelComponents(void *self, void *mc)
 { ((TextureTransformer *)self)->TextureTransformer::Update(
       *(ModelComponents *)mc); }
