@@ -1189,6 +1189,17 @@ void *MegaMushroomCreateTag_Spawn(void);                /* ov002 0x020b4a00, 56 
 extern unsigned char MegaMushroomTag_SpawnInfo[];       /* ov002 0x02108cb4, +4 = 320 */
 void *MegaMushroomTag_Spawn(void);                      /* ov002 0x020b4a38, 56 B */
 void hal_fill_mega_mushroom_tag_vtable(void);
+/* ---- run linkw wave 15 (lane w15): ov025's two pyramid classes ----
+   Five of level 17's eleven skipped instances. Both Spawns name their receiver
+   and store their table by a real name as the final write, so both register
+   directly with no factory wrapper. See hal/actor_classes_ov025.cpp and
+   port/ov025_syms.txt. */
+extern unsigned char PyramidStep_SpawnInfo[];        /* ov025 0x021138f0, +4 = 87 */
+void *PyramidStep_Spawn(void);                       /* ov025 0x021120ac, 56 B */
+void hal_fill_pyramid_step_vtable(void);
+extern unsigned char PyramidLift_SpawnInfo[];        /* ov025 0x021139b0, +4 = 88 */
+void *PyramidLift_Spawn(void);                       /* ov025 0x021125f0, 100 B */
+void hal_fill_pyramid_lift_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1821,4 +1832,9 @@ void hal_fill_mega_mushroom_tag_vtable(void);
     {319, "MEGA_MUSHROOM_CREATE_TAG", MegaMushroomCreateTag_SpawnInfo, \
      MegaMushroomCreateTag_Spawn, hal_fill_mega_mushroom_tag_vtable}, \
     {320, "MEGA_MUSHROOM_TAG", MegaMushroomTag_SpawnInfo, \
-     MegaMushroomTag_Spawn, hal_fill_mega_mushroom_tag_vtable},
+     MegaMushroomTag_Spawn, hal_fill_mega_mushroom_tag_vtable}, \
+    /* ---- run linkw wave 15 (lane w15): ov025, level 17's pyramid pair ---- */ \
+    {87, "PYRAMID_STEP", PyramidStep_SpawnInfo, PyramidStep_Spawn, \
+     hal_fill_pyramid_step_vtable}, \
+    {88, "PYRAMID_LIFT", PyramidLift_SpawnInfo, PyramidLift_Spawn, \
+     hal_fill_pyramid_lift_vtable},
