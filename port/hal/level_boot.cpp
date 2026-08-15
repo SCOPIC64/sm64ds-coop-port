@@ -944,8 +944,11 @@ void *port_ov034_at(unsigned ds);
 extern unsigned char port_ov034_image[];
 extern const unsigned port_ov034_ds_base, port_ov034_ds_end;
 
-
-
+/* run linkw wave 17 (lane w17): level 27, Tick Tock Clock. */
+void port_ov035_patch(void);
+void *port_ov035_at(unsigned ds);
+extern unsigned char port_ov035_image[];
+extern const unsigned port_ov035_ds_base, port_ov035_ds_end;
 
 
 void port_ov043_patch(void);
@@ -1163,6 +1166,22 @@ static const PortLevelDesc port_level_table[] = {
     {50, "Rec Room (playroom, course 29)", "ov058", 0x02111768,
      port_ov058_patch, port_ov058_at,
      &port_ov058_ds_base, &port_ov058_ds_end, 0},
+    /* run linkw wave 17 (lane w17): the thirty-sixth mount, and the first of
+       the seven "NOT LANDED" ids above to land. Every field is read from the
+       ROM, and the derivation was validated against rows 17, 22 and 26 first
+       (all three reproduce their existing lvl_overlay, course, subCount, flags
+       and all four handle ids exactly):
+         data_020758c8[27]      = 35            -> ov035
+         data_02092208[27]      = 0x021120bc    -> the LVL_Overlay
+         SUBLEVEL_LEVEL_TABLE[27] (0x02075298)  = 0x0d = course 13
+         LVL_Overlay+0x08..0x0e = 070e/070c/070f/0710  bmd/kcl/icg/icl
+         LVL_Overlay+0x14/0x15  = subCount 1, flags 0x00
+       Object overlays: ov065 ov070 ov077 ov084 ov091 ov098 ov102, of which
+       only ov077 is unmounted -- its classes are skipped by name at the
+       pre-spawn gate and the census names them. own_sinits 0. */
+    {27, "Tick Tock Clock (clock_tower, course 13)", "ov035", 0x021120bc,
+     port_ov035_patch, port_ov035_at,
+     &port_ov035_ds_base, &port_ov035_ds_end, 0},
 };
 
 enum { PORT_LEVEL_COUNT = sizeof port_level_table / sizeof port_level_table[0] };
@@ -1398,6 +1417,10 @@ static void *port_mount_row_lvl47(void) { return port_level_mount_at(31); }
 static void *port_mount_row_lvl48(void) { return port_level_mount_at(32); }
 static void *port_mount_row_lvl49(void) { return port_level_mount_at(33); }
 static void *port_mount_row_lvl50(void) { return port_level_mount_at(34); }
+/* run linkw wave 17 (lane w17): level 27, appended at the END of the table
+   on purpose -- a new row inserted mid-table renumbers every thunk below it
+   and nothing in the build would say so (the merge note above). */
+static void *port_mount_row_lvl27(void) { return port_level_mount_at(35); }
 static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_0, port_mount_row_1, port_mount_row_2, port_mount_row_3,
     port_mount_row_4,
@@ -1431,6 +1454,7 @@ static void *(*const port_level_mount_fns[PORT_LEVEL_COUNT])(void) = {
     port_mount_row_lvl48,
     port_mount_row_lvl49,
     port_mount_row_lvl50,
+    port_mount_row_lvl27,
 };
 
 // ---- the loader dispatch table ---------------------------------------------

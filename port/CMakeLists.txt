@@ -1175,6 +1175,18 @@ list(APPEND PORT_LEVEL_OVERLAYS ov048)
 list(APPEND PORT_LEVEL_OVERLAYS
      ov025 ov026 ov027 ov028 ov030 ov031 ov032 ov034 ov043 ov047 ov052 ov053
      ov055 ov056 ov057 ov058)
+# run linkw wave 17, lane w17: ov035 is level 27's own overlay
+# (data/stage/clock_tower, Tick Tock Clock, course 13) -- the thirty-sixth level
+# mount and the first of the seven the wave-8 block marked NOT LANDED to land.
+# Read from the ROM like the rest and cross-checked against three EXISTING rows
+# (17, 22, 26) before it was written: data_020758c8[27] = 35,
+# data_02092208[27] = 0x021120bc, SUBLEVEL_LEVEL_TABLE[27] (0x02075298) = 0x0d
+# = course 13, the four handles at LVL_Overlay+8 are bmd 0x070e / kcl 0x070c /
+# icg 0x070f / icl 0x0710, subCount 1 and flags 0x00. A small overlay: 0x1ac0
+# of code and 0x80 of bss. Mounted --whole; own_sinits stays 0. Its object
+# roster is ov065 ov070 ov077 ov084 ov091 ov098 ov102 and only ov077 is
+# unmounted, so ov077's classes alone are skipped by name at the gate.
+list(APPEND PORT_LEVEL_OVERLAYS ov035)
 set(LEVEL_OV_DATA "")
 foreach(ovn IN LISTS PORT_LEVEL_OVERLAYS)
     set(ovn_out "${CMAKE_BINARY_DIR}/host-src/${ovn}_data.c")
@@ -2151,6 +2163,29 @@ endforeach()
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov002_020bc444.c"
     PROPERTIES COMPILE_DEFINITIONS "VT0=_ZTV13daObjWakame_c")
+
+# R8, run linkw wave 17 (lane w17): the mwcc POINTER-TO-MEMBER width bug, and
+# the reason level 27 could be mounted green. src/func_ov070_02120d34.cpp and
+# src/func_ov070_0212180c.cpp are `PMF *p = c->pp + 1; (c->**p)();` over an
+# INCOMPLETE class -- mwcc's PMF there is the Itanium 8-byte {fn, adj} record,
+# MSVC's is the 4-byte single-inheritance form, so `+ 1` strides four and lands
+# on the adj word, which every seated record holds as 0. Measured as `call 0`
+# on frame 0 of level 27 for AMP (0x10a) and FLAME_CHOMP (0x10e) -- the fault
+# wave 8 filed as "DATA-dependent". The stride is pinned by the setters
+# func_ov070_02120da8 / func_ov070_02121880, which both index the state table
+# by `state << 4`, i.e. two 8-byte PMFs per State. Routed at the two CALLERS
+# rather than by editing another lane's slice: the matched TUs stay in src/ and
+# on slice_w5c.txt and are now dead. Full reading in
+# port/unmatched/Ov070_PmfDispatch.cpp, including the twenty-one OTHER TUs in
+# src/ that carry the identical shape and are a lane of their own.
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN3Amp8BehaviorEv.cpp"
+    PROPERTIES COMPILE_DEFINITIONS
+    "func_ov070_02120d34=port_ov070_amp_state_tick")
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN10FlameChomp8BehaviorEv.cpp"
+    PROPERTIES COMPILE_DEFINITIONS
+    "func_ov070_0212180c=port_ov070_flamechomp_state_tick")
 
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w15c.txt" SLICE_W15C_LINES)
 set(SLICE_W15C_SOURCES "")
@@ -3706,6 +3741,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
     hal/actor_classes_ov022_w16.cpp ${SLICE_W16A_SOURCES}
     hal/actor_classes_ov002_w17.cpp ${SLICE_W17A_SOURCES}
+    unmatched/Ov070_PmfDispatch.cpp
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES} ${SLICE25_SOURCES} ${SLICE26_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE33_SOURCES} ${GATE6_GEN} ${SLICE31_SOURCES} ${SLICE35_SOURCES}
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
@@ -3831,6 +3867,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
     hal/actor_classes_ov022_w16.cpp ${SLICE_W16A_SOURCES}
     hal/actor_classes_ov002_w17.cpp ${SLICE_W17A_SOURCES}
+    unmatched/Ov070_PmfDispatch.cpp
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}
@@ -3968,6 +4005,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/actor_classes_ov025.cpp ${SLICE_W15C_SOURCES}
     hal/actor_classes_ov022_w16.cpp ${SLICE_W16A_SOURCES}
     hal/actor_classes_ov002_w17.cpp ${SLICE_W17A_SOURCES}
+    unmatched/Ov070_PmfDispatch.cpp
     ${SLICE21_SOURCES} ${SLICE22_SOURCES} ${SLICE23_SOURCES}
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES}
     ${SLICE33_SOURCES} ${GATE6_GEN}

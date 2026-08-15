@@ -79,7 +79,7 @@ import sys
 # Derive the list rather than trusting it: the ids are the first field of each
 # port_level_table row.
 LEVELS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20,
-          22, 23, 24, 26, 35, 36, 37, 38, 39, 40, 44, 45, 47, 48, 49, 50)
+          22, 23, 24, 26, 27, 35, 36, 37, 38, 39, 40, 44, 45, 47, 48, 49, 50)
 SELFTEST_FRAMES = "300"
 STEP_TIMEOUT = 600
 
