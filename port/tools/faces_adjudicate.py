@@ -190,6 +190,35 @@ def find_definition(text, sym):
     return None, None
 
 
+# A macro invocation at line start that carries the symbol as an argument:
+# `HUD_FACE(_ZN3HUD15RenderCoinCountEv, RenderCoinCount)`.
+MACRO_USE = re.compile(r"^([A-Z][A-Z0-9_]{2,})\s*\(([^)]*)\)", re.MULTILINE)
+
+
+def find_macro_use(text, sym):
+    """(line, macro name, macro definition line) when a macro defines sym.
+
+    find_definition looks for `sym(` and a brace, which is every face in the
+    tree except the five the HUD_FACE macro generates. For those the symbol is
+    an ARGUMENT, never a declarator, so the search finds nothing and the row
+    lands in the ledger citing `file:None` -- a location that cannot be checked
+    and breaks the format the file promises. The macro invocation is the honest
+    site: it is where the definition is written, even though the braces live in
+    the #define.
+    """
+    for m in MACRO_USE.finditer(text):
+        args = [a.strip() for a in m.group(2).split(",")]
+        if sym not in args:
+            continue
+        name = m.group(1)
+        line = text[:m.start()].count("\n") + 1
+        d = re.search(r"^#define\s+" + re.escape(name) + r"\b", text,
+                      re.MULTILINE)
+        dline = text[:d.start()].count("\n") + 1 if d else None
+        return line, name, dline
+    return None, None, None
+
+
 def suggest(sym, body):
     """A reading aid. Never a verdict -- see the module docstring."""
     if body is None:
@@ -268,11 +297,18 @@ HAND = {
         "tracing around Model::LoadFile"),
     "_ZN9ModelBase7SetFileEP8BMD_Fileii": ("FORWARDS", "PORT_TRACE_SETFILE "
         "tracing around ModelBase::SetFile"),
-    "_ZN3HUD15RenderCoinCountEv": ("FORWARDS", "HUD_FACE macro, expands to "
-        "((HUD *)s)->HUD::RenderCoinCount()"),
-    "_ZN3HUD15RenderLifeCountEv": ("FORWARDS", "HUD_FACE macro"),
-    "_ZN3HUD15RenderTimeTimerEv": ("FORWARDS", "HUD_FACE macro"),
-    "_ZN3HUD17RenderHealthMeterEv": ("FORWARDS", "HUD_FACE macro"),
+    # The four HUD_FACE rows cite the INVOCATION line, which is where the
+    # definition is written; the braces are in the #define at line 283. They
+    # used to cite `sub_actors.cpp:None`, a location nobody can check.
+    "_ZN3HUD15RenderCoinCountEv": ("FORWARDS", "HUD_FACE macro (defined at "
+        "sub_actors.cpp:283), expands to ((HUD *)s)->HUD::RenderCoinCount()"),
+    "_ZN3HUD15RenderLifeCountEv": ("FORWARDS", "HUD_FACE macro (defined at "
+        "sub_actors.cpp:283), expands to ((HUD *)s)->HUD::RenderLifeCount()"),
+    "_ZN3HUD15RenderTimeTimerEv": ("FORWARDS", "HUD_FACE macro (defined at "
+        "sub_actors.cpp:283), expands to ((HUD *)s)->HUD::RenderTimeTimer()"),
+    "_ZN3HUD17RenderHealthMeterEv": ("FORWARDS", "HUD_FACE macro (defined at "
+        "sub_actors.cpp:283), expands to "
+        "((HUD *)s)->HUD::RenderHealthMeter()"),
     "_ZNK9Animation12WillHitFrameEi": ("FORWARDS", "two hops: hal_anim_willhit "
         "at player_bridges.cpp:763 calls Animation::WillHitFrame"),
     "_ZN8Particle17CheckLavaCallback14SpawnParticlesERNS_6SystemE":
@@ -340,7 +376,14 @@ def main():
                 with open(src, errors="replace") as f:
                     cache[src] = strip_comments(f.read())
             line, body = find_definition(cache[src], sym)
+            macro = None
+            if line is None:
+                line, macro, dline = find_macro_use(cache[src], sym)
+                if macro:
+                    macro = "%s macro, defined at line %s" % (macro, dline)
             tag, why = suggest(sym, body)
+            if macro and sym not in HAND:
+                why = macro
             if sym in HAND:
                 tag, why = HAND[sym]
             elif ledger and tag == "looks-forward":

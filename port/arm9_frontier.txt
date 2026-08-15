@@ -260,9 +260,20 @@ build.ninja records each object's real source. Measured through it:
 
 So the current headline reads 4888 and the honest figure is 4870. The error is
 0.16% and it is not the point; the point is that those 18 are also 18 rows the
-replacement queue never prints. Six of them are arm9. Fixing linkage.py's host
-detection would change every lane's numbers mid-wave, so this lane left it
-alone and shipped the measurement as port/tools/objsrc_check.py instead.
+replacement queue never prints.
+
+FOURTEEN OF THE EIGHTEEN ARE ARM9, which is most of this lane's own bucket
+table walking around uncounted. Ten are func_02xxxxxx and place by address;
+ChangeArea, CollectStar, NumStars and SetNumPlayers place by name out of
+config/arm9/symbols.txt. The remaining four are ChainChomp_Spawn and
+ShutterBob_Spawn in ov014, and func_ov002_020e444c and func_ov002_020e4768 in
+ov002. An earlier draft of this file said six, which was eyeballed off a
+partial listing rather than derived; the module of every one of the eighteen is
+now taken the same way the bucket table takes it, stem by stem.
+
+Fixing linkage.py's host detection would change every lane's numbers mid-wave,
+so this lane left it alone and shipped the measurement as
+port/tools/objsrc_check.py instead.
 
 
 WHAT WOULD ACTUALLY MOVE ARM9
