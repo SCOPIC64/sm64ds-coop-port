@@ -47,21 +47,21 @@
 // path returned doing nothing, every frame, and neither the byte gate nor the
 // linkage count could see it.
 //
-// THE TWO GLOBALS BELOW ARE NOW UNREAD, AND THEY STAY. Their only reader was
-// the ov004 KillByInvincibleChar TU, which had no other referrer in this build
-// and left the link with the misroute (with func_ov004_020adc1c and
-// func_ov004_020adc00, which only it called -- an honest linkage cost of 3,
-// recorded rather than papered over). They are kept because they are hosted DS
-// symbols inside a DSSTATE block: deleting them moves every symbol after them
-// and shifts the .dsstate base, which the selftest BMP is measured against.
-// They cost 20 bytes and they are what ov004's own callers will need the day
-// ov004 is mounted.
+// THE GLOBAL BELOW IS UNREAD AND IT STAYS; ITS ov004 SIBLING HAS GONE HOME.
+// Their only reader was the ov004 KillByInvincibleChar TU, which had no other
+// referrer in this build and left the link with the misroute (with
+// func_ov004_020adc1c and func_ov004_020adc00, which only it called -- an
+// honest linkage cost of 3, recorded rather than papered over). The comment
+// here used to say both were kept for the day ov004 was mounted; run link60
+// lane s2-m46 mounted it, so data_ov004_020beb68 now comes out of ov004's own
+// .bss with the same four zero bytes over the same ROM span, and hosting it
+// twice is a duplicate definition. data_0209b308 is an arm9 symbol, not
+// ov004's, so no mount reaches it and it stays here.
 #include "dsstate_seg.h"
 DSSTATE_BEGIN
-extern "C" int data_ov004_020beb68;
-int data_ov004_020beb68 = 0;
-/* data_0209b308[2] was read INSIDE the same ov004 function, but only after the
-   guard above already returned. Zero-initialized, never read at runtime. */
+/* data_0209b308[2] was read INSIDE the ov004 function above, but only after
+   its null guard on data_ov004_020beb68 had already returned.
+   Zero-initialized, never read at runtime. */
 extern "C" int data_0209b308[4];
 int data_0209b308[4] = {0, 0, 0, 0};
 DSSTATE_END
