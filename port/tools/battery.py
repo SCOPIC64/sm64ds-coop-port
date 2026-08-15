@@ -72,8 +72,14 @@ import subprocess
 import sys
 
 # Every mounted level, port_level_table[] in hal/level_boot.cpp -- a new
-# level mount adds its id here or the battery silently under-tests.
-LEVELS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 36, 37, 38, 40)
+# level mount adds its id here or the battery silently under-tests. That is
+# not hypothetical: run linkw wave 8 mounted sixteen levels and this tuple sat
+# at nineteen ids for the rest of the wave, so the shipped battery covered 19
+# of 35 mounts and every lane that ran it read a green it had not earned.
+# Derive the list rather than trusting it: the ids are the first field of each
+# port_level_table row.
+LEVELS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20,
+          22, 23, 24, 26, 35, 36, 37, 38, 39, 40, 44, 45, 47, 48, 49, 50)
 SELFTEST_FRAMES = "300"
 STEP_TIMEOUT = 600
 
@@ -116,9 +122,15 @@ def main():
             return 1
         print(f"{exe}: ok  {tail}")
 
+    # FAULTS_FATAL is not optional here. Without it a level can take an access
+    # violation inside a quarantined actor, freeze that actor, keep ticking and
+    # exit 0 -- so the battery passes a level that is visibly broken. Every
+    # lane's own census runs set it; the battery did not, which is the same
+    # class of unearned green as the stale LEVELS tuple above.
     for lvl in LEVELS:
         env = dict(os.environ,
                    SM64DS_LEVEL=str(lvl),
+                   SM64DS_FAULTS_FATAL="1",
                    SM64DS_WINDOW_SELFTEST=SELFTEST_FRAMES)
         r = run([os.path.join(build, "walk_window.exe")], build, env=env)
         if r.returncode:
