@@ -94,6 +94,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import linkage  # noqa: E402
+import objsrc_check  # noqa: E402
 
 
 def repo_root():
@@ -423,6 +424,12 @@ def main():
 
     matched = linkage.matched_index(root)
     syms = linkage.map_symbols(mapfile)
+    # DELIBERATELY THE SAME RULE linkage.py uses, over-count and all, so the
+    # bucket table reconciles with the headline a lane quotes beside it. The
+    # over-count is real (objsrc_check.py names the 18 host stand-ins counted
+    # here as linked matched TUs) and it is reported separately rather than
+    # silently corrected: two tools answering the same question with two
+    # different numbers is how a status file ends up carrying both.
     linked_stems = set()
     for _sym, obj in syms:
         stem = os.path.splitext(os.path.splitext(obj.split(":")[-1])[0])[0]
@@ -442,15 +449,63 @@ def main():
     arm9 = sorted(s for s in matched if module_of(s) == "arm9")
     arm9_unlinked = [s for s in arm9 if s not in linked_stems]
 
-    # host definitions, so a shadow can be named
+    # HOST DEFINITIONS, so a shadow can be named. WHICH OBJECTS ARE HOST
+    # OBJECTS IS ASKED OF THE BUILD, not of the object's name.
+    #
+    # Two ways the name lies, in opposite directions. Guessing from the name
+    # alone gets both wrong, and each wrong answer names a fix that would not
+    # work:
+    #
+    #   * port/ntr/runtime.cpp defines Copy36Bytes, the six IRQ entry points
+    #     and the three CP15 cache ops. Restricting host directories to hal/
+    #     and unmatched/ moves those twelve into CANDIDATE, reading as "a
+    #     linked caller references it, compile it in" -- and compiling any of
+    #     them in is a duplicate symbol against the ntr layer.
+    #   * port/unmatched/func_0204322c.cpp is a HOST file whose stem is also a
+    #     matched TU, so a name-based rule reads it as the decompiled TU. That
+    #     is the over-claim objsrc_check.py exists for, and here it would hide
+    #     a real shadow instead of inventing a fake candidate.
+    #
+    # build.ninja carries each object's real source path and is generated from
+    # the same CMakeLists the link uses, so it settles both.
+    # AMBIGUITY IS FINE AS LONG AS EVERY CANDIDATE IS A HOST FILE. fs.cpp
+    # exists under both port/hal and port/ntr and both compile to fs.cpp.obj,
+    # so the basename has two sources and neither the map nor this tool can
+    # say which one a symbol came from. It does not matter: the question here
+    # is "is a host file answering this name", and both answers are yes.
+    # Requiring exactly one source instead dropped fs.cpp entirely, and with
+    # it SharedFilePtr::Load, DecompressLZ16 and the three card-loader
+    # entry points -- five host bodies reported as work nobody had started.
+    objsrc = objsrc_check.object_sources(root)
+    hostdirs = tuple((root + "/port/" + d + "/").replace("\\", "/").lower()
+                     for d in ("hal", "unmatched", "ntr", "tests"))
     host_defs = {}
     for sym, obj in syms:
         base = obj.split(":", 1)[-1]
+        srcs = objsrc.get(base, ())
+        if not srcs or not all(s.replace("\\", "/").lower().startswith(hostdirs)
+                               for s in srcs):
+            continue
+        src = sorted(srcs)[0].replace("\\", "/")
         stem = os.path.splitext(os.path.splitext(base)[0])[0]
-        src = linkage.host_source_for(root, obj)
-        if src and any(("/" + d + "/") in src.replace("\\", "/")
-                       for d in ("hal", "unmatched")):
-            host_defs.setdefault(sym, (stem, src))
+        host_defs.setdefault(sym, (stem, src))
+
+    # A PORT_HOST_ABI TAG IS A RULING ABOUT THE SOURCE, so it is read from the
+    # source and does not depend on the symbol surviving the link. func_02042ffc
+    # is the case that forced this: port/unmatched/ActorDerived_Spawn.cpp defines
+    # it and tags it, MSVC folds it into the one-line wrapper that calls it, and
+    # no symbol of that name reaches the map. Keyed off the map alone the TU then
+    # reads as DROPPED -- work, with no host body in sight -- when a human has
+    # already ruled it an ARM register ride-through and written down why.
+    tagged = {}
+    for d in ("hal", "hal/sdat", "unmatched", "ntr"):
+        hdir = os.path.join(root, "port", *d.split("/"))
+        for fn in sorted(os.listdir(hdir)) if os.path.isdir(hdir) else []:
+            if not fn.endswith((".c", ".cpp")):
+                continue
+            p = os.path.join(hdir, fn)
+            for sym, reason in linkage._reasons_in(p).items():
+                tagged.setdefault(sym, (fn, reason))
 
     allsyms = all_symbols(root)
     spans = owner_index(allsyms)
@@ -476,6 +531,10 @@ def main():
         if host and linkage.abi_reason(host[1], stem):
             buckets["EXCEPTION"].append(stem)
             evidence[stem] = host[0]
+            continue
+        if stem in tagged:
+            buckets["EXCEPTION"].append(stem)
+            evidence[stem] = "%s (tagged, host body folded)" % tagged[stem][0]
             continue
         if host:
             buckets["SHADOW"].append(stem)

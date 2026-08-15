@@ -24,6 +24,9 @@ extern "C" {
 
 int func_02043098(unsigned id, void *node, unsigned param1, int flags);
 
+/* PORT_HOST_ABI: ARM register ride-through: src names only the first two of
+ * the four arguments, leaving param1 and flags in r2/r3 across the call into
+ * func_02043098. See the header. */
 int func_02042ffc(unsigned id, void *parent, unsigned param1, int flags)
 {
     if (parent == 0)

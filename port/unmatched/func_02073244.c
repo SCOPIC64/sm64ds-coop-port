@@ -28,11 +28,17 @@
  */
 extern void _ZdlPv(void *p);
 
+/* PORT_HOST_ABI: ARM register ride-through: src spells this
+ * `void func_0203cbc0(void)` calling `_ZdlPv()` with no argument, because the
+ * pointer is already in r0 and the branch keeps it there. See the header. */
 void func_0203cbc0(void *p)
 {
     _ZdlPv(p);
 }
 
+/* PORT_HOST_ABI: ARM register ride-through: src hands func_02073300 three
+ * arguments and lets the element destructor ride in r3, and func_02073300 is
+ * itself an asm hatch with no C to compile. See the header. */
 void func_02073244(void *base, int stride, int cookie, void (*dtor)(void *))
 {
     char *b = (char *)base;
