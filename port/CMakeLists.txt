@@ -1096,10 +1096,11 @@ list(APPEND PORT_LEVEL_OVERLAYS ov048)
 # measured against the seventeen-row tree this lane branched from, before the
 # ov044/ov048 block directly above landed; the ov044/ov048 lane bounded its own
 # two by footprint rather than by these counts. Neither lane measured the
-# merged tree, so its counts are re-measured in the integration lane's report
-# instead of being restated here. What both lanes did establish, and what the
-# question is actually asking, is that no mount on either side dropped a
-# baseline patch.
+# merged tree, so it was measured on the integration lane instead: 208 rebased
+# / 5944 raw / 940 contested across 74 mounts, the +6 over this lane's 202
+# being ov022's, with the two koopaN_boss arenas adding no rebased pointer of
+# their own. What both lanes established, and what the question is actually
+# asking, is that no mount on either side dropped a baseline patch.
 #
 # ov030 is the one that needed asking: at 19168 bytes it is the LARGEST level
 # overlay the port mounts and it extends the shared window to 0x02115ce0, past

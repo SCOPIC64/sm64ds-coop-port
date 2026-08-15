@@ -768,9 +768,16 @@ extern const unsigned port_ov048_ds_base, port_ov048_ds_end;
        inside windows ov009 (to 0x02113ee0) and ov016 (to 0x02114ea0) already
        contest, so neither can flip a resolved target raw.
    What carries across both is the SHAPE of the result, which is the part that
-   answers the question: no mount on either side removed a baseline patch. The
-   merged tree's own cross-pass counts are re-measured in the integration
-   lane's report rather than asserted here, because no lane measured them.
+   answers the question: no mount on either side removed a baseline patch.
+
+   THE MERGED TREE, measured on the integration lane rather than inferred from
+   either lane's numbers: 208 rebased / 5944 raw / 940 contested across 74
+   mounts. It is not 202 + anything, because the merge also brought in ov044
+   and ov048 as whole mounts, ov044 again per symbol, and ov022 per symbol.
+   The +6 over this lane's 202 is ov022's, which the build log attributes to
+   ov022 by name; the two koopaN_boss arenas add no rebased pointer of their
+   own, exactly as the ov044/ov048 footprint argument above predicts. Every
+   count moved UP and none moved down, which is the shape both lanes measured.
 
    ov030 is the one that needed asking: at 19168 bytes it is the LARGEST level
    overlay the port mounts and it extends the shared window to 0x02115ce0, past
