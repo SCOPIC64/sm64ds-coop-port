@@ -1,0 +1,58 @@
+# run linkw wave 15 (lane w15): the MEGA MUSHROOM TAG pair (319 + 320, ov002).
+#
+# ONE ROM class under two spawn-table ids on ONE table (0x02108cf4), one
+# instance of each on levels 22 and 24. ov002 is the engine overlay and has
+# been mounted since gate 14, so this costs two records in port/ov002_syms.txt,
+# one host array with one fill, two registry rows and these eight TUs. None
+# carries the `recovered from vtable slot identity` marker, so the slice adds
+# nothing to the inferred-stub guard's live set.
+#
+# BOTH ATTRIBUTION ROUTES, out of the raw ndspy image:
+#   0x02090d60 -> 0x02108cd0  word[0]=0x020b4a00  +4 = 319, +6 = 317
+#   0x02090d64 -> 0x02108cb4  word[0]=0x020b4a38  +4 = 320, +6 = 318
+# Identity from the RTTI typeinfo at vtable[-1]: 0x02108cf0 -> 0x02108c94 ->
+# "16daObjKinokoTag_c". Kinoko is mushroom, which agrees with both dsd record
+# names, so there is no ov045/ov060-style class-identity shift here -- only the
+# usual double naming OF THE TABLE (_ZTV21MegaMushroomCreateTag and
+# _ZTV16daObjKinokoTag_c at the same address), aliased in the fill.
+#
+# THE WIDTH IS 31 AND BOTH READS AGREE ONCE THE OVERRUN IS SEEN. The reloc run
+# is 34; the next-symbol landing is 0x02108d70, which is 31 slots. The three
+# extra words are the NEXT class's Itanium typeinfo record ({0x0209a764,
+# 0x02108d7c, ov002 0x021089ec}), an object with its own reader, and slot 30 is
+# Actor::OnAimedAtWithEggReturnVec -- the plain-Actor tail every 31-slot table
+# in the port ends on. So 31, by the landing and by the tail.
+#
+# THE CLOSURE ARGUMENT. Walking arm_call/load relocs from the five own slots,
+# both Spawns and the two Behavior helpers reaches NINE ov002 functions -- the
+# eight below plus the D1 held out just under -- and 20 outside targets, every
+# one of which was already in walk_window.map before this lane. So the slice
+# pulls in no chain: +8 TUs is +8 linked symbols. The one data symbol the class
+# reaches, data_ov002_0210da30 (its model SharedFilePtr), was already mounted.
+#
+# SLOT 16 IS HELD OUT AND SPELLED IN THE FILL. src's D1 is the shadow-class
+# MSVC destructor shape (the SlideDecorationSilverStar case): the TU declares
+# its own `struct Actor` / `struct MovingCylinderClsn` / `struct
+# MegaMushroomCreateTag : Actor` and defines ~MegaMushroomCreateTag, so MSVC
+# emits ??1MegaMushroomCreateTag@@UAE@XZ whose body calls
+# ??1MovingCylinderClsn@@QAE@XZ and ??1Actor@@UAE@XZ -- two decorated names
+# that exist nowhere in this link, because the port carries those bodies under
+# the ROM's C names. Slot 16 is transcribed from the ROM D1's own three relocs
+# instead; the derivation is in hal/actor_classes_ov002_w15.cpp. The D0 is NOT
+# held out: it is a .c TU carrying the ROM's Itanium name in extern "C" and it
+# is in the list below.
+#
+# THE TWO HELPERS ARE PART OF THE CLASS. func_ov002_020b47ec is the guarded
+# entry the Behavior calls on the non-paired branch and func_ov002_020b4714 is
+# the pairing body itself; it Spawns actor 0x115 (277, MEGA_MUSHROOM), which
+# lane w10-shared already registered, so the spawn resolves to a hosted class
+# rather than the gate's skip path.
+
+src/_ZN21MegaMushroomCreateTag13InitResourcesEv.c
+src/_ZN21MegaMushroomCreateTag16CleanupResourcesEv.c
+src/_ZN21MegaMushroomCreateTag8BehaviorEv.cpp
+src/_ZN21MegaMushroomCreateTagD0Ev.c
+src/func_ov002_020b4714.c
+src/func_ov002_020b47ec.c
+src/MegaMushroomCreateTag_Spawn.c
+src/MegaMushroomTag_Spawn.c

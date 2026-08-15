@@ -1,0 +1,134 @@
+# run linkw wave 15 (lane w15): ov025's TWO PYRAMID CLASSES, per symbol.
+#
+# ov025 is a LEVEL overlay and is already mounted WHOLE in PORT_LEVEL_OVERLAYS
+# (lane w8-mounts). This is the SECOND mount of the same overlay, per symbol,
+# and the two do not conflict -- tools/ovdata.py --whole emits
+# port_ov025_image/_patch/_at and nothing by name, while --from-list --pack
+# emits the named arrays plus port_ov025_syms_patch. Same dual-mount shape as
+# ov010/ov012/ov013/ov014/ov015/ov016/ov018/ov019/ov020/ov045/ov052/ov056.
+#
+# delinks.txt sections, base 0x021111a0:
+#   .text   0x021111a0..0x02112654   .rodata 0x02112654..0x02112970
+#   .init   0x02112970..0x02112b18   .ctor   0x02112b18..0x02112b28
+#   .data   0x02112b40..0x02113a60   .bss    0x02113a60..0x02113b00
+# ov025 is compressed:true, so every raw byte quoted below was read out of
+# extracted/overlays/overlay_0025.bin, never the dsd export.
+#
+# ==== THE TWO CLASSES, both attribution routes =============================
+#
+#   id  site        SpawnInfo   word[0]     name               +4  +6  x on L17
+#   87  0x020909c0  0x021138f0  0x021120ac  PyramidStep_Spawn  87  246   4
+#   88  0x020909c4  0x021139b0  0x021125f0  PyramidLift_Spawn  88  247   1
+#
+# Both records' word[0] lands inside ov025 [0x021111a0,0x02113a60) and both
+# read their own id back at +4. Level 17 spawns 83 actors and skips 11; these
+# two are five of the eleven.
+#
+# Identity from the RTTI typeinfo at vtable[-1], never the dsd label:
+#   0x02113910 -> 0x021138d0 -> 0x021138dc  "14daObjDpBrock_c"  (id 87)
+#   0x021139d0 -> 0x02113994 -> 0x021139a0  "10daDpLift_c"      (id 88)
+# DP is the level prefix (Dry Pyramid), brock is block and lift is lift, so
+# both agree with the dsd spellings and there is no ov045/ov060-style
+# class-identity shift.
+#
+# ==== THE WIDTHS: BOTH ARE 32, AND NEITHER NAIVE READ GETS THERE ===========
+#
+# _ZTV11PyramidStep  0x02113914, THIRTY-TWO slots, ends 0x02113994.
+#   reloc run       THIRTY-FIVE. It overruns by three words, straight into id
+#                   88's Itanium typeinfo record at 0x02113994
+#                   ({0x0209a764, name 0x021139a0, base ov002 0x021089ec}) --
+#                   an object with its own reader, the ov052 overrun exactly.
+#   next dsd symbol 0x02113934 -- INTERIOR (slot 8); 0x02113980 (slot 27) is an
+#                   interior split too, so the landing UNDER-reads to EIGHT.
+#
+# _ZTV11PyramidLift  0x021139d4, THIRTY-TWO slots, ends 0x02113a54.
+#   reloc run       32, and it stops on its own.
+#   next dsd symbol 0x021139f4 -- INTERIOR (slot 8); 0x02113a00 (slot 11) and
+#                   0x02113a50 (slot 31) are interior splits too, so the
+#                   landing UNDER-reads to EIGHT here as well.
+#
+# So on BOTH tables the pin is the ROM's own layout, and it is the slot-31
+# Platform check:
+#     slot 29  0x02010124  _ZN5Actor16OnAimedAtWithEggEv
+#     slot 30  0x020100dc  _ZN5Actor25OnAimedAtWithEggReturnVecEv
+#     slot 31  0x020ee55c  _ZN8Platform4KillEv
+# the close every 32-slot platform table in the port ends on (ov045's four,
+# ov060's two, ov052's two, ov056's one). For id 88 the twelve bytes after the
+# table (0x02113a54..0x02113a60) are ROM ZEROS to the .data end -- align-32
+# padding, not an object. An EIGHT-slot host array would have left slots 8..31
+# off the end of storage on both classes: Behavior, Render, the D1/D0 pair, the
+# whole Actor interaction list and Platform::Kill, every one of them dispatched.
+#
+# ==== NINE SYMBOLS LEFT OUT ================================================
+# Both vtables are HOST ARRAYS hal/actor_classes_ov025.cpp fills (the
+# ov015/ov016/ov045/ov052/ov056 rule: a mounted vtable hands the factory a
+# table of DS code addresses), and the five dsd symbols interior to them go
+# with them:
+#   0x02113914..0x02113994  id 87, 32 slots  _ZTV11PyramidStep
+#                                         == _ZTV14daObjDpBrock_c  (dsd names
+#                                            the SAME address twice; the RTTI
+#                                            spelling is aliased onto the host
+#                                            array in the fill)
+#                           + data_ov025_02113934 / 02113980
+#   0x021139d4..0x02113a54  id 88, 32 slots  _ZTV11PyramidLift
+#                           + data_ov025_021139f4 / 02113a00 / 02113a50
+# data_ov025_021138fc is left out too: it is INTERIOR to PyramidStep's own
+# SpawnInfo record, which is pinned below. dsd's ".p__sinit_*" .ctor entries
+# are left out (not C identifiers) and so are the .init bodies: the two sinits
+# this lane needs are FUNCTIONS, they are matched src, they are in
+# port/slice_w15c.txt as code, and both LINK.
+#
+# Two more typeinfo objects (0x021138d0 and 0x02113994, each with its name
+# string) are deliberately NOT here. Unlike ov052's they are split by dsd, and
+# unlike ov052's they have no reader at all in this closure -- the host vtables
+# are arrays whose [-1] does not exist. Mounting them would be storage nothing
+# can reach.
+#
+# ==== WHY THIS LIST IS TWELVE SYMBOLS ======================================
+# The reloc closure of both classes' vtable slots, both Spawns, the four
+# helpers they call and the two sinits reaches EIGHTEEN ov025 functions and
+# exactly TEN ov025 data symbols. Those ten are here plus the two SpawnInfo
+# records the registry rewrites. Everything else in ov025's 3.8 KB of .data
+# belongs to the LEVEL, or to the four classes this lane does not take
+# (PyramidTag, PyramidTop, Grindel 162 and 163, the last two blocked on the
+# inferred-stub ratchet), and is served by the whole-image mount.
+
+# ---- .data ----------------------------------------------------------------
+# The two CLPS_Blocks, one per class, both carrying the "CLPS" magic at +0 and
+# both handed to MovingMeshCollider::SetFile by their InitResources.
+data_ov025_02112ce8 data_ov025_02112d08
+# The two SpawnInfo records, both PINNED to the record's real 0x1c.
+#
+#   PyramidStep_SpawnInfo 0x021138f0 -- the pin that MATTERS. Its natural
+#   next-symbol delta is 0xc, because dsd split the record itself at
+#   0x021138fc; the four words 0x021138fc..0x0211390c are the record's own
+#   tail, and the two words after that (0x0211390c = 0 offset-to-top,
+#   0x02113910 -> 0x021138d0 typeinfo) are the vtable's Itanium prologue.
+#   Unpinned this mount would have been TWELVE bytes of a twenty-eight byte
+#   record.
+#
+#   PyramidLift_SpawnInfo 0x021139b0 -- natural delta 0x24, the usual 8 bytes
+#   of vtable prologue past the end; pinned to 0x1c the same way.
+PyramidStep_SpawnInfo:0x1c PyramidLift_SpawnInfo:0x1c
+
+# ---- .bss 0x02113a60..0x02113b00 ------------------------------------------
+# Two SharedFilePtr pairs and their destructor-chain nodes, one pair per class,
+# built by the two sinits this lane links:
+#   02112a44 -> model 02113ab8 (file 1503) + clsn 02113ab0 (1504)   id 87
+#   02112aac -> model 02113ae0 (file 1505) + clsn 02113ad8 (1506)   id 88
+# and the four chain nodes func_020731dc writes twelve bytes through
+# (02113ac0, 02113acc for id 87; 02113ae8, 02113af4 for id 88; the last one has
+# no next symbol and ovdata clamps it to the section end at 0x02113b00, which
+# gives it exactly its twelve).
+#
+# data_ov025_02113ab8 IS PINNED TO 8, and this is the undersizing trap in its
+# own right: a SharedFilePtr is eight bytes -- every other one in this overlay
+# sits eight from its neighbour (02113a60/68, 02113a88/90, 02113ad8/e0, and
+# 02113ab0/b8 itself) -- but dsd named 0x02113abc as well, so the natural
+# next-symbol delta for 0x02113ab8 is FOUR. Unpinned, the model file pointer's
+# second word would have landed outside its own host array while the sinit
+# wrote it.
+data_ov025_02113ab0 data_ov025_02113ab8:0x8
+data_ov025_02113ac0 data_ov025_02113acc
+data_ov025_02113ad8 data_ov025_02113ae0
+data_ov025_02113ae8 data_ov025_02113af4

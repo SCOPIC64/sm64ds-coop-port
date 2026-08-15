@@ -289,3 +289,28 @@ MegaMushroom_SpawnInfo:0x1c
 # a record this file mounts is pinned to its measured width so a later dsd
 # relabel cannot silently move the +4 id halfword the registry cross-checks.
 SilverStar_SpawnInfo:0x1c SilverStarBlockTag_SpawnInfo:0x1c
+
+# ---- run linkw wave 15, lane w15: the two MEGA MUSHROOM TAG records --------
+# MEGA_MUSHROOM_CREATE_TAG (319) and MEGA_MUSHROOM_TAG (320) are ONE ROM class
+# under two spawn-table ids sharing ONE table, 0x02108cf4 -- dsd names that
+# address twice, _ZTV21MegaMushroomCreateTag (what both Spawns store) and
+# _ZTV16daObjKinokoTag_c (what the D0 restores, and the RTTI spelling; kinoko =
+# mushroom). The table is NOT mounted: it is a host array
+# hal/actor_classes_ov002_w15.cpp fills, the ov095/ov080/data_ov002_021081e4
+# rule. Both routes, out of the RAW ndspy image:
+#   0x02090d60 -> 0x02108cd0  word[0]=0x020b4a00 MegaMushroomCreateTag_Spawn
+#                             +4 = 319, +6 = 317
+#   0x02090d64 -> 0x02108cb4  word[0]=0x020b4a38 MegaMushroomTag_Spawn
+#                             +4 = 320, +6 = 318
+# The class reads its variant out of its own actor id -- its Behavior branches
+# on actorID == 0x140 -- so one closure of bodies and one fill serve both rows.
+# One instance of each on levels 22 and 24.
+# 0x1c each. The natural next-symbol delta is 0x1c for id 320 and 0x24 for id
+# 319, whose record is followed by the table's own Itanium prologue
+# (offset-to-top 0x02108cec = 0, typeinfo 0x02108cf0 -> 0x02108c94); both are
+# pinned, the MegaMushroom_SpawnInfo convention of the block above.
+MegaMushroomTag_SpawnInfo:0x1c MegaMushroomCreateTag_SpawnInfo:0x1c
+# The class's Itanium typeinfo and its name string, adjacent to the records and
+# free to carry. Nothing dereferences them today; they are here so the mounted
+# block is honest end to end, the data_ov002_0210af00 precedent.
+data_ov002_02108c94 data_ov002_02108ca0

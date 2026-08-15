@@ -1,0 +1,81 @@
+# run linkw wave 15 (lane w15): ov025's PYRAMID_STEP (87) + PYRAMID_LIFT (88).
+#
+# Nineteen TUs: twelve vtable bodies, two factories, four helpers the class
+# code calls and the two sinits that build their SharedFilePtrs. Level 17
+# spawns 83 actors and skips 11; these two classes are five of the eleven
+# (87 x4, 88 x1). None of the nineteen carries the `recovered from vtable slot
+# identity` marker, so this slice adds nothing to the inferred-stub guard's
+# live set.
+#
+# THE CLOSURE ARGUMENT. Walking arm_call/load relocs from both classes' six own
+# slots, both Spawns and the four helpers reaches EIGHTEEN ov025 functions --
+# the seventeen below plus PyramidStep's CleanupResources, held out just under
+# -- and 38 outside targets: 26 in main, 5 in ov002 (Platform's four methods
+# and _ZTV8Platform), 1 in ov002 data (data_ov002_0210d9f0, PyramidLift's
+# second model file, already mounted) and 6 in ov025 data, all mounted by
+# port/ov025_syms.txt. Every outside code target was already in
+# walk_window.map before this lane, so the slice pulls in no chain of its own.
+#
+# ONE TU IS HELD OUT AND HOST-THUNKED: PyramidStep::CleanupResources.
+# src/_ZN11PyramidStep16CleanupResourcesEv.cpp spells its two SharedFilePtrs G0
+# and G1, at FILE SCOPE in a C++ TU, so they mangle to ?G0@@3PAHA and
+# ?G1@@3PAHA -- and hal/cxx_aliases.cpp has already bound those two names to
+# SIGNPOST's ov002 model and collision files. Linking this TU would Release
+# SignPost's LIVE SharedFilePtrs on every level-17 teardown. That is the ov022
+# FloatingFloorLllBig failure exactly, and it is not a dying-object write and
+# not survivable. The thunk is instruction-verified against the ROM body in
+# hal/actor_classes_ov025.cpp.
+#
+# BOTH RENDERS ARE SAFE TO SLICE. Each is the local six-virtual shadow-class
+# dispatch onto slot 5 of a member Model -- PyramidStep's at +0x320,
+# PyramidLift's at +0xd4 and +0x320 -- and every one of those three members is
+# a PLAIN Model: both Spawns construct them with _ZN5ModelC1Ev, both
+# InitResources build them with Model::LoadFile + ModelBase::SetFile and never
+# SetAnim, and all three destructors tear them down with _ZN5ModelD1Ev.
+# hal/cxxname_bridge.cpp dual-fills _ZTV5Model at both slot 4 and slot 5, so
+# these are the ov052/ov056/ov072 reading and not the BabyPenguin ModelAnim
+# slot-5 collision.
+#
+# THE DESTRUCTORS ARE SAFE TO SLICE. PyramidStep's pair install the class table
+# then _ZTV10dBgActor_c; PyramidLift's install the class table then
+# _ZTV8Platform. Those two names are the SAME ROM table, ov002 0x0210ae38, and
+# hal/actor_classes.cpp defines both arrays and hal_fill_platform_vtable fills
+# both with the same contents, so either store lands on a live host table. Both
+# are dying-object writes: nothing dispatches between the store and ActorD2.
+# The `extern void *G0` in PyramidStep's D0 is the GAME HEAP -- a .c TU, so it
+# is _G0, which hal/cxx_aliases.cpp binds to data_020a0eac, exactly the Heap*
+# the ROM body hands Memory::Deallocate. Not the ?G0@@3PAHA above; the two
+# spellings are different symbols and only the C one is the heap.
+#
+# TWO SHARED-WINDOW MISNAMES, both routed with a PER-SOURCE -D and not an
+# alias, the w12 rule (ov025, ov027, ov032 and ov036 all link at 0x021111a0):
+#   data_ov027_021139d4  in PyramidLift's D0, D1 and Spawn -- ov025's OWN
+#       vtable 0x021139d4 under ov027's spelling. The three load sites
+#       (0x0211213c, 0x021121b0, 0x02112648) all say module:overlay(25). ov027
+#       HAS a real data_ov027_021139d4 of its own in its config, so an alias
+#       with that LHS would be defeated the day ov027 is mounted per symbol.
+#       The -D points it at the host array _ZTV11PyramidLift.
+#   data_ov032_02113acc  in __sinit_ov025_02112a44 -- ov025's OWN chain node
+#       0x02113acc under ov032's spelling; the load site 0x02112a9c says
+#       module:overlay(25). ov032 has a real data_ov032_02113acc with four
+#       readers already in src, so the same argument applies.
+
+src/_ZN11PyramidStep13InitResourcesEv.cpp
+src/_ZN11PyramidStep8BehaviorEv.cpp
+src/_ZN11PyramidStep6RenderEv.cpp
+src/_ZN11PyramidStepD1Ev.c
+src/_ZN11PyramidStepD0Ev.c
+src/PyramidStep_Spawn.c
+src/func_ov025_02111dec.cpp
+src/func_ov025_02111e30.c
+src/_ZN11PyramidLift13InitResourcesEv.cpp
+src/_ZN11PyramidLift16CleanupResourcesEv.c
+src/_ZN11PyramidLift8BehaviorEv.cpp
+src/_ZN11PyramidLift6RenderEv.cpp
+src/_ZN11PyramidLiftD1Ev.cpp
+src/_ZN11PyramidLiftD0Ev.c
+src/PyramidLift_Spawn.cpp
+src/func_ov025_021125bc.cpp
+src/func_ov025_021125dc.c
+src/__sinit_ov025_02112a44.c
+src/__sinit_ov025_02112aac.c

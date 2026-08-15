@@ -1170,6 +1170,36 @@ void hal_fill_square_path_lift_vtable(void);
 extern unsigned char Clam_SpawnInfo[];               /* ov064 0x0211c5a4, +4 = 315 */
 void *Clam_Spawn(void);                              /* ov064 0x0211ad70, 64 B */
 void hal_fill_clam_vtable(void);
+/* ---- run linkw wave 15 (lane w15): BIG_MOVING_ICE_BLOCK (173), ov056 ----
+   Nine instances on level 48 ("Wario's key course"), which is nine of that
+   level's fourteen skipped instances; the other five are MR_BLIZZARD, refused
+   on purpose. Its Spawn names its receiver and stores _ZTV17BigMovingIceBlock
+   by a real name as its final write, so it registers directly with no factory
+   wrapper. See hal/actor_classes_ov056.cpp and port/ov056_syms.txt. */
+extern unsigned char BigMovingIceBlock_SpawnInfo[];  /* ov056 0x02113344, +4 = 173 */
+void *BigMovingIceBlock_Spawn(void);                 /* ov056 0x02111594, 56 B */
+void hal_fill_big_moving_ice_block_vtable(void);
+/* ---- run linkw wave 15 (lane w15): the MEGA MUSHROOM TAG pair, ov002 ----
+   ONE ROM class under TWO ids on ONE table (0x02108cf4), one instance of each
+   on levels 22 and 24. The class branches on its own actor id, so both rows
+   share the closure AND the fill; the fill is stores only and safe to call
+   twice. See hal/actor_classes_ov002_w15.cpp and port/slice_w15b.txt. */
+extern unsigned char MegaMushroomCreateTag_SpawnInfo[]; /* ov002 0x02108cd0, +4 = 319 */
+void *MegaMushroomCreateTag_Spawn(void);                /* ov002 0x020b4a00, 56 B */
+extern unsigned char MegaMushroomTag_SpawnInfo[];       /* ov002 0x02108cb4, +4 = 320 */
+void *MegaMushroomTag_Spawn(void);                      /* ov002 0x020b4a38, 56 B */
+void hal_fill_mega_mushroom_tag_vtable(void);
+/* ---- run linkw wave 15 (lane w15): ov025's two pyramid classes ----
+   Five of level 17's eleven skipped instances. Both Spawns name their receiver
+   and store their table by a real name as the final write, so both register
+   directly with no factory wrapper. See hal/actor_classes_ov025.cpp and
+   port/ov025_syms.txt. */
+extern unsigned char PyramidStep_SpawnInfo[];        /* ov025 0x021138f0, +4 = 87 */
+void *PyramidStep_Spawn(void);                       /* ov025 0x021120ac, 56 B */
+void hal_fill_pyramid_step_vtable(void);
+extern unsigned char PyramidLift_SpawnInfo[];        /* ov025 0x021139b0, +4 = 88 */
+void *PyramidLift_Spawn(void);                       /* ov025 0x021125f0, 100 B */
+void hal_fill_pyramid_lift_vtable(void);
 }
 
 #define PORT_ACTOR_CLASS_ROWS                                                 \
@@ -1794,4 +1824,17 @@ void hal_fill_clam_vtable(void);
     {175, "SQUARE_PATH_LIFT", SquarePathLift_SpawnInfo, SquarePathLift_Spawn, \
      hal_fill_square_path_lift_vtable}, \
     /* ---- run linkw wave 12 (lane w12): CLAM (315), ov064 ---- */ \
-    {315, "CLAM", Clam_SpawnInfo, Clam_Spawn, hal_fill_clam_vtable},
+    {315, "CLAM", Clam_SpawnInfo, Clam_Spawn, hal_fill_clam_vtable}, \
+    /* ---- run linkw wave 15 (lane w15): ov056, level 48's ice block ---- */ \
+    {173, "BIG_MOVING_ICE_BLOCK", BigMovingIceBlock_SpawnInfo, \
+     BigMovingIceBlock_Spawn, hal_fill_big_moving_ice_block_vtable}, \
+    /* ---- run linkw wave 15 (lane w15): ov002's mega mushroom tag pair ---- */ \
+    {319, "MEGA_MUSHROOM_CREATE_TAG", MegaMushroomCreateTag_SpawnInfo, \
+     MegaMushroomCreateTag_Spawn, hal_fill_mega_mushroom_tag_vtable}, \
+    {320, "MEGA_MUSHROOM_TAG", MegaMushroomTag_SpawnInfo, \
+     MegaMushroomTag_Spawn, hal_fill_mega_mushroom_tag_vtable}, \
+    /* ---- run linkw wave 15 (lane w15): ov025, level 17's pyramid pair ---- */ \
+    {87, "PYRAMID_STEP", PyramidStep_SpawnInfo, PyramidStep_Spawn, \
+     hal_fill_pyramid_step_vtable}, \
+    {88, "PYRAMID_LIFT", PyramidLift_SpawnInfo, PyramidLift_Spawn, \
+     hal_fill_pyramid_lift_vtable},
