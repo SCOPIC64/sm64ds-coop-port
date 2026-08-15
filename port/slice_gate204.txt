@@ -1,0 +1,55 @@
+# Gate 204 (run linkw wave C, lane cat-ov002): the ov002 DELETING DESTRUCTORS
+# the port hand-spelled or declined -- slot 17 on three seated ov002 classes.
+#
+# WHAT SLOT 17 IS AND WHY IT WAS EMPTY. Slot 16 is the complete-object
+# destructor (D1) and slot 17 the deleting one (D0): the same member chain plus
+# a Memory::Deallocate of the object. The ROM's destroy path runs D1 through
+# slot 16 and lets ActorBase::AfterCleanupResources do the deallocation, so
+# nothing in the game dispatches slot 17 -- which is exactly why every ov002
+# seat in this port left it on a trap (bw_trap17) or hand-spelled it. Neither
+# is the ROM's word. The ROM's word is the class's own D0 body, and each of the
+# three below is a matched TU sitting in src/ with nothing referencing it.
+#
+# THIS IS THE w2_dtor_heads ARGUMENT, applied per class instead of per table:
+# Release links with /OPT:REF, so a matched TU on a slice line with no
+# reference is dropped before the map is written. A ROM vtable slot the port
+# never filled is the honest place to put the reference, because the ROM says
+# what belongs there.
+#
+# BEHAVIOUR. Coin, HealingHeart and Cap all sat on bw_trap17, which declines by
+# name; PushBlock had a host thunk spelling the chain by hand. Nothing
+# dispatches slot 17 on any of them, so what changes is that the port's copy of
+# each table now carries the word the ROM puts there, and the hand-spelled copy
+# of PushBlock's chain is replaced by the body it was transcribed from.
+#
+# EACH BODY, AND WHY IT COMPILES AS-IS (all three are flat C, none carries the
+# inferred-stub marker, and every callee is already in walk_window.map):
+#
+#   _ZN9PushBlockD0Ev      ov002 0x020b9198, slot 17 of _ZTV9PushBlock
+#       WithMeshClsn +0x200, MovingCylinderClsn +0x1cc, ShadowModel +0x174,
+#       Model +0x124, Model +0xd4, Actor::D2, Deallocate. Spells its table by
+#       the RTTI name _ZTV18daObjPowerUpItem_c, which
+#       hal/actor_classes_ov002g200.cpp already aliases onto _ZTV9PushBlock.
+#       hal's pb_d0 was this chain typed out by hand; it now calls this body.
+#
+#   _ZN7SeaweedD0Ev        ov002 0x020bc618, slot 17 of _ZTV7Seaweed
+#       MovingCylinderClsn +0x138, ModelAnim +0xd4, Actor::D2, Deallocate.
+#       _ZTV7Seaweed is HEALING_HEART's table (RTTI 12daObjHeart_c, the ov002
+#       name shift hal/actor_classes_bob_world.cpp derives at its head); the
+#       body spells it by the RTTI name and the alias for that spelling is new
+#       with this gate.
+#
+#   _ZN13WaterfallMistD0Ev ov002 0x020b8548, slot 17 of _ZTV13WaterfallMist
+#       func_ov001_020ab3a0 +0x3d0, ShadowModel +0x364, ModelAnim +0x300,
+#       WithMeshClsn +0x144, MovingCylinderClsn +0x110, func_ov002_020aed18,
+#       Deallocate. _ZTV13WaterfallMist is THE CAP's table (RTTI
+#       15daObjMarioCap_c), not the class gate 20 fills; same new-alias note.
+#       This one ends in func_ov002_020aed18 rather than Actor::D2 directly,
+#       which is Enemy's D2 -- the cap is an Enemy subclass.
+#
+# COIN'S D0 NEEDS NO LINE HERE. src/_ZN4CoinD0Ev.c has been on slice_gate33.txt
+# since that gate and was /OPT:REF-stripped for want of a reference; the seat
+# in hal/actor_classes_bob_world.cpp is the whole of its change.
+src/_ZN9PushBlockD0Ev.c
+src/_ZN7SeaweedD0Ev.c
+src/_ZN13WaterfallMistD0Ev.c
