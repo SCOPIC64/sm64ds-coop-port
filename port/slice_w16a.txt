@@ -1,0 +1,84 @@
+# run linkw wave 16 (lane w16-unblock): FALL_BLOCK_LLL (id 83, ov022).
+#
+# THIS SLICE EXISTS BECAUSE THE GUESS MARKER WAS WRONG, NOT BECAUSE THE MOUNT
+# MOVED. Every mount question ov022 raises was already answered by lane
+# w8-packs: FallBlockLll_SpawnInfo is mounted by name in port/ov022_syms.txt,
+# the file table data_ov022_0211427c is mounted with it, and the vtable
+# 0x021142c4 is deliberately EXCLUDED from the mount and hosted as an array
+# (the ov015/ov016/ov045/ov080 rule -- a mounted vtable hands a factory DS code
+# addresses). What blocked the id was port/tools/inferred_stub_guard.py: three
+# of its five bodies carry the "recovered from vtable slot identity" marker,
+# and the guard treats a marker-carrying body as an unseatable guess.
+#
+# ALL THREE WERE ADJUDICATED AGAINST THE ROM AND RULE REAL DECOMP. Each was
+# disassembled out of extracted/overlays/overlay_0022.bin at the overlays.yaml
+# base 0x21111a0 -- the shipped image, never a dsd export, whose relocated
+# words would make literals read as live pointers -- and compared instruction
+# for instruction with its src/ body. The evidence per body is in
+# runs/linkw/status/w16.md. This is the same verdict lane w13 reached on all 43
+# bodies then in the debt queue, and for the same reason: the marker records
+# how the FUNCTION'S NAME was recovered, not where the BODY came from.
+#
+#   sym                   slot  ROM shape                            ruling
+#   func_ov022_02112448    0    tail-call veneer, 5 instr            REAL
+#   func_ov022_02112434    3    tail-call veneer, 5 instr            REAL
+#   func_ov022_021123d0   17    deleting dtor, 0x64                  REAL
+#
+# The two veneers are `ldr ip,[pc]; ldr r1,[pc]; bx ip` onto the ov098 pair
+# 0x0213a794 / 0x0213a2cc with r1 = the file table 0x0211427c, and the src
+# spells exactly that pair and exactly that table. hal/actor_classes_wf.cpp
+# already aliases the unprefixed spellings func_0213a794 / func_0213a2cc onto
+# the real ov098 symbols for FALL_BLOCK_WF's identical pair, so these two need
+# no new binding.
+#
+# ---- ONE NAMING DEFECT, AND WHY IT IS INERT HERE ---------------------------
+#
+# func_ov022_021123d0's recovered NAME is daObjFl_Fall_Block_c_OnYoshiTryEat
+# and its body is unmistakably the deleting destructor: it restores three
+# vtables, runs MovingMeshCollider::D1 at +0x124, Model::D1 at +0xd4 and
+# Actor::D2, then Memory::Deallocate(this, G0) and returns this. Slot 17 is the
+# D0 slot, not the OnYoshiTryEat slot (18). The BODY is right and the NAME is
+# wrong -- which is precisely the defect class the marker names. It is seated
+# by address through slot 17 of the fill, so the wrong name never routes
+# anything; it goes on the decomp-side correction list instead.
+#
+# FallBlockLll_Spawn.c and func_ov022_02112380.c disagree about what the
+# spelling _ZTV20daObjFl_Fall_Block_c means -- the D1 uses it for the class's
+# own table 0x021142c4 (correct) while the Spawn uses it for the intermediate
+# base 0x0213c5bc and spells the own table VT1. Neither binding survives to
+# runtime: port_factory_fall_block_lll overwrites the vptr with the host array
+# after Spawn returns, exactly as port_factory_fall_block_bfs does for the
+# identical FallBlockBfs_Spawn.c body already in the build. Both spellings only
+# have to LINK, and both already resolve (VT1 and _ZTV10dBgActor_c are in
+# walk_window.map today).
+#
+# ---- THE SINIT --------------------------------------------------------------
+#
+# The file table at 0x0211427c holds {data_ov022_02114648, data_ov022_02114640}
+# and __sinit_ov022_02112fe4 is the one of ov022's ten sinits that constructs
+# that pair. It is not among the four port_ov22_bringup already runs, so this
+# lane runs it from its own done-guarded bring-up rather than editing the
+# shared one.
+#
+# ---- WIDTH: 32, PINNED THREE WAYS ------------------------------------------
+#
+# The reloc run reads 38 and OVER-reads: the six words past the end are two
+# Itanium typeinfo records (0x0209a764 __si_class_type_info at 0x02114344 and
+# again at 0x02114350, with the "20daObjFl_Fall_Block_c" name string at
+# 0x0211435c). The next-symbol landing reads 30 and UNDER-reads: dsd named the
+# interior word 0x0211433c, which is slot 30 -- the table split shape. The
+# truth is 32, and three checks agree on it: (1) slot 30 holds 0x020100dc,
+# Actor::OnAimedAtWithEggReturnVec, which is the LAST Actor slot on every
+# 31-slot table in this cast; (2) slot 31 holds a real 32nd virtual,
+# func_ov098_0213a17c -- the same tail ov045's FallBlockBfs takes, and NOT
+# Platform::Kill, because this class's base is the ov098 one and not Platform;
+# (3) the typeinfo record starts at slot 32, which terminates the table
+# unambiguously. port/ov022_syms.txt derived the same 32 independently in wave
+# 8 and its span 0x021142c4..0x02114344 is exactly 32 slots.
+
+src/func_ov022_02112448.c
+src/func_ov022_02112434.c
+src/func_ov022_02112380.c
+src/func_ov022_021123d0.c
+src/FallBlockLll_Spawn.c
+src/__sinit_ov022_02112fe4.c
