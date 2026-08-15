@@ -1,0 +1,108 @@
+# run linkw wave 18 (lane w18): THE POINTER-TO-MEMBER WIDTH SWEEP.
+#
+# Four matched TUs that were HOST-COPIED for exactly one reason -- MSVC's
+# pointer-to-member representation for an INCOMPLETE class is four bytes where
+# mwcc's is the Itanium eight-byte {fn, adj} record -- come back onto the slice,
+# because wave 17's `/vmg /vmm` remedy makes them compile to the ROM's own
+# dispatch. The four host bodies they replace are removed in the same commit.
+#
+# ---- THE SHAPE, AND THE PREDICATE THAT FINDS IT ---------------------------
+#
+# Every one of these TUs is the same four lines:
+#
+#     struct C; typedef void (C::*PMF)();
+#     struct C { char pad[N]; PMF *pp; };
+#     extern "C" void f(C *c) { PMF *p = c->pp + 1; (c->**p)(); }
+#
+# `C` is INCOMPLETE where the typedef is formed. The bug is NOT "a PMF appears
+# in the TU" -- 302 TUs in src/ declare one. It is the conjunction of an
+# incomplete class AND a NONZERO offset applied to a pointer-to-member: at
+# index 0 the wrong stride cannot bite, because MSVC's 4-byte PMF at offset 0
+# IS the fn word and every seated record here carries adj 0. Scanning src/ for
+# that conjunction returns TWENTY-ONE TUs and no others; the loose `pp + 1`
+# grep wave 17 quoted returns twenty-three, two of which
+# (func_ov085_0212dbdc.c, func_ov085_0212de5c.cpp) are `*pp = *pp + 1` on a
+# plain int* and carry no pointer-to-member at all.
+#
+# ---- THE STRIDE IS PINNED FROM THE ROM, ALL TWENTY-ONE --------------------
+#
+# For each TU, the ROM body was disassembled and the instruction that forms
+# `pp + 1` read off directly. All twenty-one are the same:
+#
+#     ldr r1, [r0, #N]     <- pp, at the pad offset the src declares
+#     add r3, r1, #8       <- pp + 1.  THE STRIDE IS EIGHT.
+#     ldr r1, [r3, #4]     <- adj half of record 1
+#     add r0, r0, r1, asr #1
+#     ands r1, r1, #1
+#     ldrne/ldreq r1, [r3] <- fn half of record 1
+#     blx r1
+#
+# Three of the twenty-one -- KingBobOmb, MrBlizzard and ChiefChilly -- also
+# prove the stride from INSIDE their own matched source, with no ROM needed:
+# each guards the dispatch with `*(void **)((char *)pp + 8) != 0`, a BYTE
+# offset of 8 on the very word that `pp + 1` then dereferences. Element 1 and
+# byte 8 are the same word, so sizeof(PMF) is 8 by the source's own arithmetic.
+#
+# ---- A ROUTE TRAP, PAID FOR ONCE -------------------------------------------
+#
+# The first pass of that scan read `extracted/dsd/arm9_overlays/ovNNN.bin` and
+# came back 20/21 with ov030 "anomalous". It was not anomalous; the FILE was
+# wrong. dsd's overlay images are not byte-identical to
+# `extracted/overlays/overlay_NNNN.bin` for 89 of 103 overlays, and the config
+# addresses describe the latter. Scored against config's own function-start
+# addresses (does the first instruction disassemble as a prologue rather than a
+# return?), `extracted/overlays/` wins on 18 overlays and loses on none; ov030
+# is shifted 0x6c between the two, ov084 reads 27% valid under dsd and 92%
+# under overlays. Re-run on the right route the scan is 21/21. This is the
+# "stale artifact looks fresh" shape in the code domain: a real disassembly,
+# of the wrong image, that produced a plausible-looking single outlier.
+# port/tools/ovdata.py already prefers `extracted/overlays/` and only falls
+# back to dsd, so the port itself is not affected -- but the fallback exists.
+#
+# ---- WHY THESE FOUR, AND ONLY THESE FOUR -----------------------------------
+#
+# Of the twenty-one, three are already on slice_w5c.txt (the ov070 set) and the
+# other eighteen split:
+#
+#   6 HOSTCOPY  a hand-written port body supplies the symbol instead, and every
+#               one of those six files names THIS BUG in its own header as the
+#               reason it exists. Four are reclaimed here. The other two
+#               (KingBobOmb::Behavior, ChiefChilly::Behavior) sit inside larger
+#               host files that also carry setters and table seats; they are
+#               real linkage but they are surgery, and they are ranked, not
+#               taken.
+#  12 ABSENT    not linked at all and nothing in the port references them --
+#               /OPT:REF would strip them the moment they were sliced, so there
+#               is no gain to bank and no proof to show. They are `call 0`
+#               waiting for their class to be registered and ticked, exactly as
+#               wave 17 filed them. Their compile option is set anyway, so the
+#               bug is already fixed whenever a future lane mounts the class.
+#
+# ---- THE FOUR, WITH THE HOST BODY EACH ONE REPLACES ------------------------
+#
+# The host bodies read the record as a plain { fn, delta } struct and call fn
+# with `this` UNADJUSTED. The matched TU under /vmg /vmm adds delta to `this`
+# first, so the two agree only where delta is zero. That is checked, not
+# assumed, for every table below:
+#
+#   ov071 (Scuttlebug, 18 source PMFs at 0x02122b60): all 18 deltas ROM zero
+#   ov071 (MrI, 6 source PMFs at 0x02122ca8):         all  6 deltas ROM zero
+#   ov080 (Bbh, 12 statics at 0x02128214):            all 12 deltas ROM zero
+#   ov072 (BabyPenguin, 6 cells):                     the seat in
+#       hal/actor_classes_ov072.cpp ABORTS if any delta is nonzero, so this one
+#       is verified at runtime on every boot, not just statically.
+#
+# The dispatch also stays ABI-compatible with the cdecl bodies the seats
+# install. MSVC compiles the fixed TU to a TAIL jump:
+#
+#     mov edx,[eax+N] / mov ecx,[edx+0Ch] / add ecx,eax / mov eax,[edx+8]
+#     pop ebp / jmp eax
+#
+# `pop ebp` leaves the original argument at [esp+4], so a cdecl callee reads
+# it from the stack exactly as before, while ecx carries this+delta for a
+# thiscall callee. Both conventions are satisfied by the same instruction.
+
+src/func_ov072_02121cdc.cpp
+src/func_ov071_02120278.cpp
+src/func_ov071_021215c0.cpp
+src/func_ov080_021250c8.cpp
