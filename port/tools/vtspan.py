@@ -59,9 +59,9 @@ FOUR ROUTES NOW, AND THE ONE THAT LEADS IS THE SEMANTIC TAIL
                       vtable+8 is the next class's record" rule.  DEMOTED to a
                       cross-check.  It walks straight through a
                       pointer-to-member source table and reads ov026's
-                      Submarine as 40 against a true 32 and Whirlpool as 35
-                      against a true 31, quietly, with a real terminator at a
-                      real record.  Across the whole tree it disagrees with
+                      0x02113c6c table as 40 against a true 32 and its
+                      0x02113d54 table as 35 against a true 31, quietly, with
+                      a real terminator at a real record.  Across the whole tree it disagrees with
                       the resolved width on 72 tables and is high every time.
       raw reloc run   / next dsd symbol: the two documented failure routes,
                       printed for context.  They over- and under-read on
@@ -281,9 +281,12 @@ class Rom:
         its vtable, and its closure looks exactly like more vtable: relocated
         code pointers, in the same section, with a real typeinfo record behind
         THEM.  The typeinfo-terminator route walks straight through it and
-        reads Submarine (ov026 0x02113c6c) as 40 against a true 32, and
-        Whirlpool (0x02113d54) as 35 against a true 31 -- quietly, with a real
-        terminator at a real record.
+        reads ov026's 0x02113c6c table as 40 against a true 32, and its
+        0x02113d54 table as 35 against a true 31, quietly, with a real
+        terminator at a real record.  The tables are named here by ADDRESS on
+        purpose: config puts both _ZTV9Submarine and _ZTV18daWater_Tatumaki_c
+        at 0x02113d54, so which class owns which table is w20's still-open
+        identity question, and nothing in this file settles it.
 
         Two of w20's three tells are structural and are what this checks:
 
@@ -292,8 +295,8 @@ class Rom:
               never a zero pair-partner.
           (2) dsd NAMES ONE SYMBOL PER PAIR, at 8-byte stride
               (data_ov026_02113cec, _02113cf4, _02113cfc, _02113d04 behind
-              Submarine).  dsd does not name a vtable's interior at 8-byte
-              stride.
+              the 0x02113c6c table).  dsd does not name a vtable's interior
+              at 8-byte stride.
 
         The third tell, the semantic tail, is a different question -- where the
         virtuals STOP -- and is answered by tail_width below, independently of
@@ -372,7 +375,7 @@ class Rom:
         vtable+8 belongs to the NEXT class's record, and the slot it occupies
         was taken as the width. Demoted from the invariant it was called to one
         route among four, because on ov026 it walks through a pair table and
-        over-reads by 8 slots on Submarine and 4 on Whirlpool.
+        over-reads by 8 slots on the 0x02113c6c table and 4 on 0x02113d54.
         """
         rel = self.mod[module]["relocs"]
         for i in range(1, limit):

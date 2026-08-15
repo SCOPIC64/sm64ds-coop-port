@@ -78,6 +78,12 @@ about whether the code changed. Compare git_sha and git_dirty for that.
 A useful consequence: because the link always re-runs, the mtime rule in step 4
 is always armed on this build script, and a walk_window.exe left behind by an
 earlier run cannot survive into a measurement.
+
+The same regeneration means step 5's truncated-map refusal is unreachable end
+to end on THIS build script: a hand-truncated map never survives to step 5,
+because the relink rewrites it first (and a genuinely failed link is refused
+one step earlier, at build exit). The rule still guards direct calls and any
+future build script that stops relinking unconditionally.
 """
 
 import datetime
@@ -219,6 +225,12 @@ def run_battery(root):
     else:
         fails = [ln for ln in lines if "FAIL" in ln]
         verdict = "FAIL: " + (fails[0] if fails else "rc=%d" % r.returncode)
+        # A fresh worktree fails here for a reason that is setup, not code:
+        # the fs catalog was never generated. Name the fix instead of letting
+        # it read as a battery failure.
+        if not os.path.isfile(os.path.join(root, "build", "assets", "files.tsv")):
+            verdict += ("  (build/assets/files.tsv is missing; run "
+                        "python tools/asset_catalog.py generate <rom> first)")
     return verdict, r.returncode, "\n".join(lines[-12:])
 
 
