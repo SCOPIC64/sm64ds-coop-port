@@ -93,15 +93,28 @@
  * pointer, so they are RIGHT as matched src and stay in the slice.  They still
  * need the seat: the words they call are DS code addresses.
  *
- * ==== THE TWO NAMED HOLES ARE NOW VERIFIED HOST COPIES (run linkw, w7a) =====
+ * ==== ONE NAMED HOLE IS A VERIFIED HOST COPY; THE OTHER IS REAL DECOMP ======
  *
- * func_ov060_021140c0 (BOWSER state 9) and func_ov060_02116d78 (BOWSER FIRE
- * behaviour state 5) are still UNMATCHED -- no TU of either name exists in
- * src/ on this tree -- but they are no longer abort stubs.  Both spans were
- * re-derived from the overlay image and transcribed instruction for
- * instruction; the verification record is in each body's own banner below.
+ * w7a wrote host copies of BOTH named holes on the reading that neither had a
+ * matched TU.  That reading was true for func_ov060_021140c0 and FALSE for
+ * func_ov060_02116d78, and the reason it read true here is that this branch
+ * forked from main at 7b2f913fe (2026-08-04) and cannot see what main has
+ * matched since: src/func_ov060_02116d78.c landed on main in PR #1150
+ * (817be2263, 2026-08-07), three days after the fork and four days before
+ * w7a's host copy of it shipped.  Run linkw wave 9, lane w9-harvest, checked
+ * out that TU and retired the host copy.
+ *
+ *   func_ov060_021140c0 (BOWSER state 9)        VERIFIED HOST COPY 7, below.
+ *     Still genuinely unmatched: main has no TU of this name either (checked
+ *     against origin/main at bc93fa767).  Not an abort stub -- the span was
+ *     re-derived from the overlay image and transcribed instruction for
+ *     instruction; the verification record is in its own banner below.
+ *   func_ov060_02116d78 (BOWSER FIRE state 5)   src/func_ov060_02116d78.c.
+ *     Byte-matched decomp, carried by port/slice_w9harvest.txt.  The host
+ *     copy that used to sit below HOST COPY 7 is gone.
+ *
  * The old abort-and-name stubs (the Koopa-0x02117724 / Rabbit-0x0212b8dc
- * precedent) are gone: the two states now RUN.
+ * precedent) are gone from both states either way: both RUN.
  */
 #include <cstdio>
 #include <cstdlib>
@@ -184,6 +197,11 @@ void func_ov060_02116f90(char *c);
 void func_ov060_021167c8(char *c);
 void func_ov060_02116b18(char *c);
 void func_ov060_02116c68(char *c);
+/* run linkw wave 9, lane w9-harvest: 0x02116d78 joined this list. It used to
+   be HOST COPY 8 in this same file; src/func_ov060_02116d78.c has been a
+   byte-match on main since PR #1150 (817be2263, 2026-08-07) and the host copy
+   outlived it only because this branch cannot see main's src/. */
+void func_ov060_02116d78(char *c);
 void func_ov060_021169b0(char *c);
 void func_ov060_02116f74(char *c);
 void func_ov060_0211722c(char *c);
@@ -225,9 +243,14 @@ void func_ov060_02117624(char *c);
 }  /* extern "C" */
 
 /* ============ THE TWO FORMERLY-NAMED HOLES ===============================
- * Both bodies below are HOST COPIES transcribed instruction for instruction
- * from the overlay image, NOT matched src and NOT guesses.  When the decomp
- * banks the real TUs they retire for the slice line.
+ * ONE body follows (HOST COPY 7, func_ov060_021140c0): a host copy
+ * transcribed instruction for instruction from the overlay image, NOT matched
+ * src and NOT a guess.  When the decomp banks the real TU it retires for the
+ * slice line, which is exactly what happened to the other hole --
+ * func_ov060_02116d78's host copy stood here until wave 9 replaced it with
+ * main's src/func_ov060_02116d78.c.  Its span derivation is kept below
+ * because it is what the retired host copy was checked against and it still
+ * pins the 0x1fc the slice TU has to fill.
  *
  * ---- SPANS, RE-DERIVED (the old header's 0x1f4 / 0x1fc were CARRIED) ------
  * Bytes read from extracted/overlays/overlay_0060.bin at base 0x02111900
@@ -297,7 +320,11 @@ void func_ov060_02117624(char *c);
  */
 
 extern "C" {
-/* what the two host copies below call, beyond the block above */
+/* what HOST COPY 7 below calls, beyond the block above. Several of these were
+   HOST COPY 8's callees too and are now referenced only by
+   src/func_ov060_02116d78.c, which declares them for itself -- the
+   declarations stay because they document the ov060/arm9 call surface this
+   file's seat depends on. */
 int _ZN6Player9GetHealthEv(void *self);        /* ov002 0x020bf548, thiscall
                                                   receiver in r0 -- a REAL
                                                   receiver, not the zero-arg
@@ -484,87 +511,6 @@ extern "C" void func_ov060_021140c0(char *r4)
 
     /* 0x0211427c..0x0211428c */
     *(int *)(r4 + 0x12c) = 0;
-}
-
-/* ============ VERIFIED HOST COPY 8: func_ov060_02116d78 ===================
- * BOWSER FIRE behaviour state 5 -- record data_ov060_0211a774 (overlay words
- * 02116d78 / 00000000), which __sinit_ov060_02119df0 copies to
- * data_ov060_0211afb4.p5, i.e. record 5 of the eight-record behaviour table
- * _ZN10BowserFire8BehaviorEv indexes with *(int *)(c + 0x35c).
- *
- * ROM 0x02116d78, 0x1fc bytes, 121 instructions + 6 literals.
- *
- * CALLS (all 6 confirmed in relocs.txt, in order):
- *   0x02116ec8 -> 0x02116518 overlay(60) func_ov060_02116518
- *   0x02116ed0 -> 0x020356e8 main       _ZNK12WithMeshClsn10IsOnGroundEv
- *   0x02116ee0 -> 0x0203b990 main       RandomIntInternal
- *   0x02116f24 -> 0x02010e2c main       Actor::Spawn
- *   0x02116f2c -> 0x02043824 main       ActorBase::MarkForDestruction
- *   0x02116f4c -> 0x02043824 main       ActorBase::MarkForDestruction
- *     -- TWO rows for 0x02043824 in the reloc table, so the double call on the
- *        ground path (destroy, then fall through to the age check and destroy
- *        again) is the ROM's own behaviour, not a transcription slip.
- * RELOCATED LOADS (both): 0x02082214, 0x0209e650.
- * PLAIN LITERALS (4): 00000255, 92492493, f0f0f0f1, 00000011.
- * OFFSETS: 0x360 0x92 0x94 0x98 0xa4 0xa8 0xac 0x5c 0x60 0x64 0x110 0xcc
- *   0x374(=0x300+0x74).
- * IMMEDIATES: 0x5000, 0x255, 0x800, 0x200, 4(shift), 896, 0x9a, 1, 12,
- *   0x118, 6, -1, 0x3c, 16(shift), 17.
- * BRANCHES: the four conditional-execution blocks (addlt/strlt at
- *   0x02116d90, addgt/strhgt at 0x02116db0, the lo-conditional epilogue at
- *   0x02116f3c), beq 0x2116f30, beq 0x2116f28.  All reproduced structurally.
- * PORT_HOST_ABI: none -- plain cdecl; host copy only because no matched TU of
- * this name exists. */
-extern "C" void func_ov060_02116d78(char *r4)
-{
-    int a, b;
-
-    ov60_ran("BOWSERFIRE state 5 (02116d78)", r4);
-
-    /* 0x02116d84..0x02116da4 -- grow the flame up to its cap */
-    if (*(int *)(r4 + 0x360) < 0x5000)
-        *(int *)(r4 + 0x360) += 0x255;
-
-    /* 0x02116da8..0x02116dbc -- pitch back toward level */
-    if (*(short *)(r4 + 0x92) > 0x800)
-        *(short *)(r4 + 0x92) = (short)(*(short *)(r4 + 0x92) - 0x200);
-
-    /* 0x02116dc0..0x02116e7c -- speed from (pitch 0x92, yaw 0x94, speed 0x98)
-       through the arm9 sin/cos table.  The three components are computed with
-       exactly the table entries and the exactly one divisor the ROM uses:
-       x and z divide by 896, y does not divide at all. */
-    a = *(unsigned short *)(r4 + 0x92) >> 4;
-    b = *(unsigned short *)(r4 + 0x94) >> 4;
-    *(int *)(r4 + 0xa4) = *(int *)(r4 + 0x98) * data_02082214[a * 2]
-                          * data_02082214[b * 2 + 1] / 896;
-    a = *(unsigned short *)(r4 + 0x92) >> 4;
-    *(int *)(r4 + 0xa8) = -*(int *)(r4 + 0x98) * data_02082214[a * 2];
-    a = *(unsigned short *)(r4 + 0x92) >> 4;
-    b = *(unsigned short *)(r4 + 0x94) >> 4;
-    *(int *)(r4 + 0xac) = -*(int *)(r4 + 0x98) * data_02082214[a * 2]
-                          * data_02082214[b * 2] / 896;
-
-    /* 0x02116e80..0x02116ec8 -- integrate, then drive the flame particle at
-       twelve times the current size */
-    *(int *)(r4 + 0x5c) += *(int *)(r4 + 0xa4);
-    *(int *)(r4 + 0x60) += *(int *)(r4 + 0xa8);
-    *(int *)(r4 + 0x64) += *(int *)(r4 + 0xac);
-    func_ov060_02116518(r4, 0x9a, 1, *(int *)(r4 + 0x360) * 12);
-
-    /* 0x02116ecc..0x02116f2c -- on touching the floor, sixteen times out of
-       seventeen leave a 0x118 behind, then die */
-    if (_ZNK12WithMeshClsn10IsOnGroundEv(r4 + 0x110) != 0) {
-        ov60_ran("BOWSERFIRE state 5 GROUND (Spawn+destroy branch)", r4);
-        if (((unsigned)RandomIntInternal(&data_0209e650) >> 0x10) % 17 != 0)
-            _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(
-                0x118, 6, r4 + 0x5c, 0, *(signed char *)(r4 + 0xcc), -1);
-        _ZN9ActorBase18MarkForDestructionEv(r4);
-    }
-
-    /* 0x02116f30..0x02116f58 -- and die of old age at 60 frames */
-    if (*(unsigned short *)((r4 + 0x300) + 0x74) < 0x3c)
-        return;
-    _ZN9ActorBase18MarkForDestructionEv(r4);
 }
 
 /* ============ HOST COPY 1: func_ov060_02112434 ============================
@@ -859,7 +805,9 @@ const Seat g_ov060_states[] = {
     {data_ov060_0211a76c, 0x02116b68, func_ov060_02116b68, "afb4[2]"},
     {data_ov060_0211a77c, 0x021167ec, func_ov060_021167ec, "afb4[3]"},
     {data_ov060_0211a764, 0x021168c4, func_ov060_021168c4, "afb4[4]"},
-    {data_ov060_0211a774, 0x02116d78, func_ov060_02116d78, "afb4[5] HOLE"},
+    /* not a HOLE any more -- w9-harvest seated main's byte-matched
+       src/func_ov060_02116d78.c here in place of w7a's host copy. */
+    {data_ov060_0211a774, 0x02116d78, func_ov060_02116d78, "afb4[5]"},
     {data_ov060_0211a744, 0x02116f90, func_ov060_02116f90, "afb4[6]"},
     {data_ov060_0211a784, 0x02116f90, func_ov060_02116f90, "afb4[7]"},
     /* 0x0211af74 -- BOWSER FIRE init, eight */

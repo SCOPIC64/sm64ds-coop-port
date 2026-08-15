@@ -1,15 +1,37 @@
 /* HOST COPY of _ZN12Flamethrower8BehaviorEv (ov095 0x021368f0, 0x470 bytes),
- * the flamethrower's per-frame spine -- slot 6 of _ZTV12Flamethrower, the one
- * method of the class that has NO matched TU in src/.
+ * the flamethrower's per-frame spine -- slot 6 of _ZTV12Flamethrower.
  *
- * WHY A HOST COPY AND NOT A SLICE LINE: there is nothing to slice. The other
- * four methods of the class ARE matched and go in slice_w6f.txt
- * (Flamethrower_Spawn, InitResources, D1, D0); 0x021368f0 alone is
- * undecompiled -- config/arm9/overlays/ov095/delinks.txt names four
- * Flamethrower TUs and this address is not among them, and the near-miss DB's
- * best attempt for ov095:0x021368f0 still stands at 154 divergences
- * (config/match_attempts.jsonl). Registering the class without this body would
- * be a stub, not ROM behaviour, which is exactly why lane w5-C refused the row.
+ * THIS FILE USED TO SAY 0x021368f0 IS UNDECOMPILED. IT IS NOT, ANY MORE.
+ * src/_ZN12Flamethrower8BehaviorEv.cpp is a verified byte-match on main,
+ * landed in PR #1474 (8ec808874, 2026-08-13). The 154-divergence near-miss
+ * this banner cited was cracked; the reading was true of this branch, which
+ * forked from main at 7b2f913fe (2026-08-04) and is 626 commits behind.
+ *
+ * WHY THE HOST COPY STAYS ANYWAY (run linkw wave 9, lane w9-harvest, both
+ * reasons MEASURED, not argued):
+ *
+ *   1. main's TU DOES NOT COMPILE against this branch's headers. It is the
+ *      recovered form -- `int Flamethrower::Behavior()` over
+ *      include/decl_common.h + include/Flamethrower.h -- and main's
+ *      Flamethrower.h has grown the 0x05c..0x08c Actor span and the Behavior
+ *      declaration that this branch's generated header does not have. cl.exe
+ *      with this build's exact flags says so:
+ *        error C2039: 'Behavior': is not a member of 'Flamethrower'
+ *        error C2355: 'this': can only be referenced inside non-static ...
+ *      Taking main's header is not a one-file harvest. decl_common.h has
+ *      diverged over the same commit range by 27 hunks -- 80 extern
+ *      declarations removed, 69 added, most of them the SAME symbol under
+ *      a recovered name -- and 1782 of this branch's src/ TUs include it.
+ *      That is the C-linkage inversion that breaks this port silently.
+ *
+ *   2. Even compiled, it would not retire this body. main's TU defines a
+ *      real C++ method, which 32-bit MSVC mangles ?Behavior@Flamethrower@@...
+ *      -- a different symbol from the Itanium C name _ZN12Flamethrower8Behavior
+ *      Ev that _ZTV12Flamethrower slot 6 calls. It would need a FACE into the
+ *      matched body, not a deletion of this one.
+ *
+ * So this stays a host copy, and the honest label is "matched on main,
+ * blocked here on headers and mangling" rather than "undecompiled".
  *
  * PROVENANCE, so the next reader can re-derive the trust rather than take it:
  * this text is a per-instruction transcription written from the ROM listing,

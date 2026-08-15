@@ -44,17 +44,15 @@
  * Behavior is a plain switch machine, no pointer-to-member anywhere. Its
  * Render is the ModelAnim slot-5 collision -- port/unmatched/Koopa_Render.cpp.
  *
- * THE STUB
- * --------
+ * THE STUB THAT IS NO LONGER A STUB
+ * ---------------------------------
  * func_ov062_02117724 (0x270 bytes) is the shell-dust Particle helper three
  * matched Koopa Behavior helpers (func_ov062_02118718/02118b4c/02118cdc) bl
- * into when the actor's state byte at +0x398 reads 3. It is UNMATCHED -- no C
- * in src/ -- and a direct bl edge cannot be trapped in data, so the stub below
- * satisfies the link and names the hole if it is ever reached (the
- * Rabbit-0x0212b8dc / Painting-0x021261f4 precedent). The closest draft is in
- * nearmiss/db.jsonl (divergences=5, source fanout-glm-5.2): a
- * Particle::System::New(0xf9) burst over the shell, scaled by actor id
- * (0xcb = KOOPA). CHUCKYA never calls it.
+ * into when the actor's state byte at +0x398 reads 3. This file described it
+ * as UNMATCHED, first as an abort stub and then as a host copy over a "TRUE
+ * FLOOR at 5 divergences". Both readings are dead: src/func_ov062_02117724.c
+ * is a verified byte-match on main (PR #1474, 8ec808874, 2026-08-13) and run
+ * linkw wave 9 (lane w9-harvest) linked it here. CHUCKYA never calls it.
  */
 #include <cstdio>
 #include <cstdlib>
@@ -287,93 +285,22 @@ extern "C" void port_chuckya_states_seat(void)
     }
 }
 
-/* ---- HOST COPY (PORT_HOST_ABI) ---------------------------------------------
+/* ---- THE HOST COPY THAT USED TO BE HERE IS GONE (run linkw wave 9, lane
+   w9-harvest) ----------------------------------------------------------------
    ov062 0x02117724 is KOOPA's state-3 shell-dust Particle helper, bl'd from
    three matched Koopa helpers (func_ov062_02118718/02118b4c gate on
-   `if (state==3)`, func_ov062_02118cdc on `if (state==1)`). It was the one hole in KOOPA: an abort stub
-   that killed BoB star groups 4-7 at ~frame 9 the instant KOOPA reached state 3.
+   `if (state==3)`, func_ov062_02118cdc on `if (state==1)`).  This file used to
+   define it, under a banner that read "It is UNMATCHED -- no C in src/" and a
+   nearmiss note calling the byte-match "a TRUE FLOOR at 5 divergences".
 
-   The byte-match is a TRUE FLOOR at 5 divergences (nearmiss/db.jsonl,
-   fanout-glm-5.2). The residue is two pure instruction-scheduler reorders in the
-   two coordinate-update branches -- an identical-multiset shuffle where the ROM
-   fills the pos.x store's delay slot with the second coordinate's multiply/load
-   (the one-slot load-delay-slot fill of notes/mwccarm-codegen.md 6o, the
-   func_ov060_02113740 family). Every source spelling that touches the two
-   branches (~12 tried) perturbs the upstream idx*2 array-index allocation and
-   regresses; 4500 whole-function + 1300 PERM_RANDOMIZE-scoped decomp-permuter
-   iterations found no size-correct improvement below 5 (all its "better" scores
-   are size-inflated dead-store candidates). So no bannered hand-asm (game logic)
-   -- this host copy reproduces the ROM's SEMANTICS line for line instead.
+   Both statements were true of every tree this branch can see and FALSE of
+   main.  src/func_ov062_02117724.c is a verified byte-match, landed on main in
+   PR #1474 (8ec808874, 2026-08-13); the floor was cracked and the near-miss
+   note was never re-read from here because this branch forked at 7b2f913fe on
+   2026-08-04.  The matched TU is now carried by port/slice_w9harvest.txt and
+   the host copy is deleted -- the three callers reach the real decomp.
 
-   ROM 0x02117724 (disassembled): if the actor's shell-facing angle bucket at
-   +0x358 (h = (u16)((s32<<4)>>16)) falls in [a1,a2] or [a3,a4], and the
-   once-only latch +0x3cd is clear, latch it, run func_0201267c(0xe4, self+0x74)
-   (the shell-scrape sound), and -- unless the held/thrown flag +0x398 == 1 --
-   spawn one Particle::System::New(id 0xf9) dust burst at the actor's world
-   position (+0x5c/+0x60/+0x64), nudged k=(id==0xcb?0xf:0xa) units up in Y and k
-   units along the shell-facing normal read from the sin/cos table
-   data_02082214[ (ang+0x4000) bucket ]. On the low-side arm (h<=a2) the normal
-   is subtracted, on the high-side arm added. The spawned particle's field +0x50
-   (its own scale) is then rescaled by 0x800/4096 for KOOPA (id 0xcb) or
-   0x500/4096 otherwise, both with round-to-nearest (+0x800 >> 12) and a s16
-   clamp. Out of both bands: clear the +0x3cd latch. CHUCKYA (id != 0xcb) never
-   reaches it. */
-extern "C" void func_ov062_02117724(void *c, int a, int b, int d, int e)
-{
-    char *t = (char *)c;
-    unsigned int a1 = (unsigned int)a;
-    unsigned int a2 = (unsigned int)b;
-    unsigned int a3 = (unsigned int)d;
-    unsigned short a4 = (unsigned short)e;
-
-    unsigned int h = (unsigned int)(*(int *)(t + 0x358) << 4) >> 16;
-    if ((h >= a1 && h <= a2) || (h >= a3 && h <= a4)) {
-        int k, idx, uid;
-        short ang;
-        int px, py, pz;
-        char *ps;
-
-        if (*(unsigned char *)(t + 0x3cd) != 0) return;
-        *(unsigned char *)(t + 0x3cd) = 1;
-        func_0201267c(0xe4, t + 0x74);
-        if (*(unsigned char *)(t + 0x398) == 1) return;
-
-        ang = (short)(*(short *)(t + 0x8e) + 0x4000);
-        px = *(int *)(t + 0x5c);
-        py = *(int *)(t + 0x60);
-        pz = *(int *)(t + 0x64);
-        k = (*(unsigned short *)(t + 0xc) == 0xcb) ? 0xf : 0xa;
-        py += k << 12;
-
-        idx = (unsigned short)ang >> 4;
-        {
-            int i2 = idx * 2;
-            int i1 = i2 + 1;
-            int sv = data_02082214[i2];
-            int cv = data_02082214[i1];
-            if (h <= a2) {
-                px = px - k * sv;
-                pz = pz - k * cv;
-            } else {
-                px = k * sv + px;
-                pz = k * cv + pz;
-            }
-        }
-
-        uid = _ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE(
-                  0, 0xf9, px, py, pz, 0, 0);
-        _ZN8Particle19SetSelfDestructFlagEj(0xf9);
-        if (uid == 0) return;
-        ps = _ZN8Particle6System12FromUniqueIDEj(uid);
-        if (ps == 0) return;
-
-        if (*(unsigned short *)(t + 0xc) == 0xcb)
-            *(int *)(ps + 0x50) =
-                (short)(((long long)*(int *)(ps + 0x50) * 0x800 + 0x800) >> 12);
-        else
-            *(int *)(ps + 0x50) =
-                (short)(((long long)*(int *)(ps + 0x50) * 0x500 + 0x800) >> 12);
-    } else {
-        *(unsigned char *)(t + 0x3cd) = 0;
-    }
-}
+   Nothing else in this file referenced it; its callee declarations above
+   (func_0201267c, Particle::System::New / SetSelfDestructFlag / FromUniqueID,
+   data_02082214) are kept because the matched TU declares the same call
+   surface and this file's own narrative reads against it. */

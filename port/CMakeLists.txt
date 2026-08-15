@@ -1763,6 +1763,24 @@ foreach(line IN LISTS SLICE_W8FACES_LINES)
     list(APPEND SLICE_W8FACES_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# run linkw wave 9, lane w9-harvest: THE STALE-FORK HARVEST. This branch forked
+# from main at 7b2f913fe (2026-08-04) and is 626 commits behind it, so every TU
+# the decomp has matched since is invisible from here -- including ones the port
+# hand-hosts under a banner saying no matched TU exists. The slice carries the
+# matched TUs that audit recovered; port/slice_w9harvest.txt's header has the
+# measured pool (543 main-only TUs: 496 rename-duplicates, 7 host retirements,
+# 40 unreferenced) and the per-file evidence. Same one-owner contract as the
+# lane slices above.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_w9harvest.txt" SLICE_W9HARVEST_LINES)
+set(SLICE_W9HARVEST_SOURCES "")
+foreach(line IN LISTS SLICE_W9HARVEST_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_W9HARVEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # run linkw wave 6, lane w6-D: PATH_LIFT (31) and the PathLift base branch --
 # ov100's daObjPathLift_c over ov002's PathLiftActor_c over Platform, the
 # first three-level hierarchy this port hosts that is split across overlays.
@@ -3260,6 +3278,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W6A_SOURCES}
+    ${SLICE_W9HARVEST_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W7C_SOURCES}
@@ -3369,6 +3388,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W6A_SOURCES}
+    ${SLICE_W9HARVEST_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W7C_SOURCES}
@@ -3490,6 +3510,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE_W1L1_SOURCES} ${SLICE_W1L2_SOURCES} ${SLICE_W1L3_SOURCES}
     ${SLICE_W1L4_SOURCES} ${SLICE_W1L5_SOURCES} ${SLICE_W5D_SOURCES} ${SLICE_W5E_SOURCES}
     ${SLICE_W6A_SOURCES}
+    ${SLICE_W9HARVEST_SOURCES}
     ${SLICE_W5C_SOURCES} ${SQRTUNIT_GEN} ${OV70GEN}
     ${SLICE_W5B_SOURCES} ${SLICE_W5A_SOURCES} ${SLICE_W6D_SOURCES}
     ${SLICE_W7C_SOURCES}
