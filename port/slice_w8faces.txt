@@ -1,0 +1,43 @@
+# slice_w8faces.txt -- lane-owned slice for the linkage campaign (run linkw,
+# wave 8, lane w8-faces: THE FACE QUEUE). One matched src TU per line, path
+# relative to the repo root, comments with #. ONE OWNER (lane w8-faces).
+#
+# This lane audits port/hal/method_faces.cpp and port/hal/cxx_aliases.cpp
+# against the emitted bytes and converts the host definitions that turn out to
+# be stand-ins rather than bridges. Almost nothing lands here, and the reason
+# is the lane's main finding: of the 208 rows linkage.py calls FACES, the
+# matched TU is ALREADY in the binary in every one of them, so converting a
+# face moves no linkage. What moves linkage is the smaller set where the host
+# definition is the whole implementation and the matched TU sits unlinked --
+# and for this lane's two files that set has exactly one member.
+#
+# TextureTransformer::Prepare (the water's texture-animation bind).
+#
+#   The ROM body at 0x02046b50 is a 0xc long-call veneer -- ldr ip,[pc];
+#   bx ip; .word func_02046b64 -- so the caller's registers ride through
+#   untouched and the veneer's call surface IS func_02046b64's: two
+#   arguments, the BMD table and the BTA object whose material names get
+#   resolved against it. The water's call site passes exactly those two.
+#
+#   port/slice_w1l3.txt mined this TU and parked it, with the reason "the ROM
+#   veneer takes (bmd, bta) with no `this`, so the matched METHOD cannot be
+#   called". That reason is REFUTED by the class header: include/
+#   TextureTransformer.h:42 declares
+#
+#       static void Prepare(BMD_File &model, BTA_File &animFile);
+#
+#   A static member has no `this`. MSVC emits it
+#   ?Prepare@TextureTransformer@@SAXAAUBMD_File@@AAUBTA_File@@@Z -- SA, plain
+#   __cdecl, two stack arguments and no receiver -- which is precisely the
+#   call surface the veneer needs. The parked note read METHOD-shaped as
+#   "takes a receiver", and for a static member that does not follow. This is
+#   the CNAME/METHOD boundary this lane exists to read carefully, so it is
+#   written down rather than just fixed.
+#
+#   With the TU sliced, the face in hal/method_faces.cpp stops calling
+#   func_02046b64 itself and forwards to the ROM's own veneer body, which then
+#   calls func_02046b64. Both are matched TUs; the difference is that the
+#   ROM's Prepare is now IN the binary instead of being spelled out by hand in
+#   the HAL. Verified from the emitted bytes after the change, not from the
+#   signature -- two pushes, no ecx, one call to the SA symbol.
+src/_ZN18TextureTransformer7PrepareER8BMD_FileR8BTA_File.cpp
