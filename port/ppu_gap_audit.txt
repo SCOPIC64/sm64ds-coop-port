@@ -1075,8 +1075,12 @@ fault from a sprite fault: both layers land in the same pixels.
                     (OBJ on), bit 10 set (BG2 on)
     BG2CNT_A        1222 x300: priority 2, chars 06020000, screen 06009000,
                     4bpp, 32x32, one full screen
-    engine-A OAM    52 placed entries, EVERY ONE colour mode 16, all mode 0,
-                    none affine:
+    engine-A OAM    52 placed entries IN THE FIRST SAMPLE, every one colour
+                    mode 16, all mode 0, none affine. The sub probe's own line
+                    at the end of the same run reads 53 placed and 75 parked
+                    against this table's 52 and 76, and the two do not
+                    disagree: they are frame 0 and frame 299, and one sprite
+                    sits at y=192 in the first and not in the last:
                       2 x 32x16  tiles 727, 731   palette 14
                       2 x 8x16   tiles 735, 640   palette 14, 13
                       48 x 8x8   tiles 72..76     palette 2
@@ -1183,11 +1187,11 @@ MEASURED EFFECT, same scene, equal .dsstate base 0xbae000, OBJ layer alone:
     after    OBJ owns 2,369 px, x 7..255 y 0..185
     2,276 host pixels differ between the two OBJ-only captures
 
-Only four of the 52 placed sprites can move: the 8x8 sprites are one cell and
-their slot is 0 under either mapping, so the two 32x16 and the two 8x16 sprites
-are the whole footprint. This fix does not make the top screen right, and
-nothing in this section claims it does. It closes a gap that is wrong on every
-scene engine A composites for.
+Only four of the 52 sprites placed in the first sample can move: the 8x8
+sprites are one cell and their slot is 0 under either mapping, so the two
+32x16 and the two 8x16 sprites are the whole footprint. This fix does not
+make the top screen right, and nothing in this section claims it does. It
+closes a gap that is wrong on every scene engine A composites for.
 
 13e. THE OTHER TWO SUSPECTS, CLOSED ON MEASUREMENTS
 
@@ -1246,6 +1250,10 @@ covered by the battery's exit codes, as section 12d already says.
     that picks one would show a CORRECT background and hide the defect. Anyone
     reproducing it should read the trace rather than the frame.
   * FOUR LEVELS HAVE BMP IDENTITY, not forty-six, exactly as in 12d.
+  * THE COLOUR-MODE COUNT IS THE FIRST SAMPLE'S. All 52 entries placed on
+    frame 0 are 16-colour; the whole-run evidence that none of the others is
+    256-colour is the ROM's own 0x100-byte standard palette load and bit 31
+    clear on all 300 samples, not a per-frame census.
   * THE 2D SLOT ARITHMETIC IS UNEXERCISED FOR 256-COLOUR SPRITES on this
     screen. Every placed sprite is 4bpp, so the c256 half of the new 2D branch
     is carried over from ntr/ppu_sub.cpp's already-shipped form and is not
