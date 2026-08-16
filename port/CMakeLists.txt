@@ -1737,6 +1737,60 @@ list(APPEND PORT_ACTOR_OVERLAYS ov043)
 # section base, so the BMP is comparable only at an equal base and must not be
 # byte-compared across this commit.
 list(APPEND PORT_ACTOR_OVERLAYS ov007)
+# run link60 lane s2-m46: ov004 AND ov006, the MINIGAME SCENE PAIR, mounted
+# together because the loader loads them together. func_0201a798 loads ov004
+# first and then ov006, func_0201a754 unloads both, so ov004 is live exactly
+# when ov006 is -- the PASSENGER RULE, and the only pair anywhere in the game
+# for which the residency model answers coresident() = True between two scene
+# slot occupants. ov006 is the twenty-three Rec Room minigames (1839 matched
+# TUs, the largest family left); ov004 is dScMgBase_c, the framework class they
+# derive from, and it is never loaded on its own.
+#
+# THIS ADDS NO LINKAGE and is not meant to. Mounted bytes are not matched TUs,
+# none of the 1839 + 276 matched source TUs is compiled in, and nothing calls
+# either patch function. No level can reach a minigame either: func_0201a694
+# unloads the scene overlay the level is running out of before it loads ov006,
+# which is a proof from the load code, so reach needs the scene-switch spine and
+# that is not wired here. What lands is storage.
+#
+# 3524 symbols. ov004 is 597, contiguous 0x020b944c..0x020bfec0; ov006 is 2927,
+# contiguous 0x0212b890..0x021430a0. Each carries ONE pack gap, over its own
+# .init and .ctor, and unlike ov007's eight zero bytes those gaps cover ROM code
+# that is not zero -- the same class as 220 of the 245 pack gaps already here,
+# and the largest members of it. Twenty sizes are pinned to their ROM widths.
+# The 35 .ctor words are left out (dsd's `.p` names are not C identifiers) and
+# the 35 sinits behind them are inventoried in the two list headers, not run.
+#
+# THE PAIR IS THE PERMISSIVE DIRECTION'S FIRST EXERCISE and it comes out the
+# way the model says. 229 rebased rows before, 284 after: nothing lost, nothing
+# changed, and 55 rows APPEARED, every one of them a pointer between the two
+# overlays that only resolves because they are co-resident. Contested does not
+# move at all, 105 either side, because the two footprints abut at 0x020bfec0
+# and never overlap. Under the address-only test the residency model replaced,
+# these two windows would have taken 195 of the 229 back to raw DS addresses.
+# The measurement, with every appeared row adjudicated, is
+# port/ov004_ov006_binding_diff.txt.
+#
+# FOUR HAND-HOSTED STAND-INS RETIRE WITH IT, and they have to go in this same
+# commit or the link has two definitions of each: data_ov004_020beb60 out of
+# hal/oam2d_ov004_bss.cpp (the file existed for that one word and is deleted),
+# data_ov004_020beb68 out of hal/actor_classes_ov081.cpp, and
+# data_ov006_02140330 / data_ov006_02140338 out of hal/cxx_aliases.cpp. All four
+# are .bss, all four are the ROM span the mount gives them (4, 4, 8 and 8
+# bytes), and all four are zero on both sides, so the swap is byte-identical and
+# St_LevelEnter_Main's Release still reads numRefs 0. The ov006 scout predicted
+# "ZERO duplicates, no host stand-ins to retire" for this territory; there were
+# four, and the correction is recorded in port/ov004_ov006_binding_diff.txt.
+#
+# It grows .dsstate by 123492 bytes, MEASURED, which MOVES THE SELFTEST BMP
+# BASE: dsstate_guard reports 810684 bytes captured before and 934176 after, and
+# the base moves 0xae2000 to 0xafa000. It reconciles as the landed span of the
+# two mounts less what the retired stand-ins give back less what section
+# alignment reclaims: 27252 + 96272 - 24 - 8 = 123492. The symbol sums, 24832
+# and 79572, are not the number that moves the section. The three water pixels track the section
+# base, so the BMP is comparable only at an equal base and must not be
+# byte-compared across this commit.
+list(APPEND PORT_ACTOR_OVERLAYS ov004 ov006)
 # ov084 joins for gate 32: the first ENEMY overlay, GOOMBA and BOB_OMB_BUDDY.
 # ...and ov014, ov062 and ov091 with them. ov014 is a LEVEL overlay (Bob-omb
 # Battlefield's own) and is mounted a second time here, per symbol, because
@@ -4246,14 +4300,16 @@ list(APPEND SLICE16_SOURCES
 
 # run linkw wave C, lane cat-2d, slice 2d1. One TU: src/func_ov004_020adc4c.c,
 # the only ov004 body a LINKED arm9 caller reaches (src/LoadFont.cpp's
-# data_0209d698 == 2 arm calls it twice). hal/oam2d_ov004_bss.cpp hosts the one
-# BSS word it reads, which is what retires the PORT_HOST_ABI tag that used to
-# keep a printf stand-in for it in hal/sub_screen.cpp. That stand-in is gone in
-# the same change, so these two files ship on exactly the three targets that
-# link hal/sub_screen.cpp or the stub becomes a duplicate definition. Why the
-# slice is one line and not 276: port/ov004_ov007_2d_map.txt.
+# data_0209d698 == 2 arm calls it twice). It reads one ov004 BSS word,
+# data_ov004_020beb60, and hal/oam2d_ov004_bss.cpp used to host that word by
+# hand -- which is what retired the PORT_HOST_ABI printf stand-in for it in
+# hal/sub_screen.cpp. The ov004 mount now hosts the word itself, from the same
+# ROM span and with the same four zero bytes, so the hand-hosted file is gone
+# (run link60 lane s2-m46). The slice still ships on exactly the three targets
+# that link hal/sub_screen.cpp, and all three carry the mount. Why the slice is
+# one line and not 276: port/ov004_ov007_2d_map.txt.
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_2d1.txt" SLICE_2D1_LINES)
-set(SLICE_2D1_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/hal/oam2d_ov004_bss.cpp")
+set(SLICE_2D1_SOURCES "")
 foreach(line IN LISTS SLICE_2D1_LINES)
     string(STRIP "${line}" line)
     if(line MATCHES "^#" OR line STREQUAL "")

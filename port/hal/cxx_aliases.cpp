@@ -312,9 +312,12 @@ unsigned char data_020a0e98;
    Sound::Player::SetPlayableSeqCount to write through THIS object and keep
    the two views aliased the way DS memory does. */
 unsigned char data_020a4d6c[32 * 0x1c];
-/* ov006 (cutscene overlay) fileptrs St_LevelEnter_Main releases; zeroed
-   stand-ins -- Release guards on numRefs 0 */
-unsigned char data_ov006_02140330[8], data_ov006_02140338[8];
+/* data_ov006_02140330 and data_ov006_02140338, the two ov006 fileptrs
+   St_LevelEnter_Main releases, used to be zeroed stand-ins here. The ov006
+   mount hosts them now (run link60 lane s2-m46): both are ov006 .bss, both
+   are eight bytes by ROM span, and both are zero, so Release still reads
+   numRefs 0 and guards exactly as before. Removed rather than kept, because
+   two definitions of one DS symbol is a link error. */
 /* data_ov089_02132894 / _021328b4 used to be sixteen zero bytes each
    here. They are ov089's own mount now (gate 22): the DOOR indexes
    element 5 of both and walked off the end of the fiction. */
