@@ -197,6 +197,12 @@ struct TouchReg { uint32_t addr; uint8_t width; const char *name; };
 const TouchReg kTouch[] = {
     {0x04000130, 2, "KEYINPUT"},
     {0x04000136, 2, "EXTKEYIN"},
+    // The pad is TWO latches. func_02013f4c reads
+    //     (KEYINPUT | *(u16 *)0x27fffa8) ^ 0x2fff
+    // because X, Y and the hinge are ARM7-side and not visible at 0x04000130.
+    // Sampling only the first would report half a surface, and the keypad is
+    // active low, so a zero on either half reads as "held", not as "absent".
+    {0x027FFFA8, 2, "SHARED_PAD"},
     {0x040001C0, 2, "SPICNT"},
     {0x040001C2, 2, "SPIDATA"},
     {0x027FFFAA, 2, "SHARED_TP_LO"},   // func_0205f300's two reads

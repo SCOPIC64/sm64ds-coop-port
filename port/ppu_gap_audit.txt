@@ -118,8 +118,9 @@ Value columns are the distinct values the register held across every sample.
   OAM mode 1 / 2 / 3   0 / 0 / 0                 0 / 0 / 0
   mosaic bit           0                         0
 
-  TOUCH SURFACE (both runs, both engines)
-  KEYINPUT, EXTKEYIN, SPICNT, SPIDATA, 0x027FFFAA, 0x027FFFAC   all 0, always
+  TOUCH AND PAD SURFACE (both runs)
+  KEYINPUT, EXTKEYIN, 0x027FFFA8, SPICNT, SPIDATA, 0x027FFFAA, 0x027FFFAC
+                       all 0 on every one of the 300 and 900 samples
 
 READING OF THE TWO DISPCNTs.
 
@@ -186,12 +187,14 @@ hit alone means nothing: most of the tree is not linked.
   BLDCNT_B            32       9  Minimap::Behavior, Message::UpdateWindow, ...
   BLDALPHA_B           1       1  func_ov007_020c8bc8
   KEYINPUT             2       1  func_02013f4c
+  SHARED_PAD (a8)      2       1  func_02013f4c, the same reader ORing both
   0x027FFFAA/AC        1       0  func_0205f300 is NOT linked
 
 The window unit's linked writers are all modelled: ppu_sub.cpp and
 message_compositor.cpp both implement WIN0/WIN1/WININ/WINOUT, which the gap list
-did not know -- section 7a says "neither models the window registers" and that
-has not been true for either engine for some time.
+did not know -- section 7a said "neither models the window registers", which had
+not been true for either engine for some time. That paragraph is corrected in
+place now, rather than only contradicted from here.
 
 BLDCNT has sixteen linked writers on engine A and every sampled frame reads 0.
 That is consistent rather than contradictory: hal/fader_wipes.cpp READS
@@ -256,11 +259,29 @@ second is in ov007 and unreachable. No action taken.
 A CAVEAT ON THE OAM CENSUS NUMBERS. The census counts an entry as enabled when
 attribute 0 bit 9 is clear, which is the hardware's own disable bit, and that
 comes to all 128 entries on every frame (300 x 128 = 38400 in the mode-0 row).
-It should not be read as "38400 sprites drew". The game parks unused sprites
-OFF SCREEN rather than setting bit 9 -- OAM::Reset writes attribute 0 low byte
-0xc0, which is y = 192 -- so most of those entries are hidden by position. The
-mode-1/2/3 result is unaffected either way, because a parked entry still carries
-its object-mode bits and every one of them reads 0.
+It must not be read as "38400 sprites drew". What those 128 entries actually
+are differs BY ENGINE AND BY RUN, measured directly rather than assumed:
+
+                     all-zero   y == 192   other y (real sprites)
+  scene 4 engine A       0         101              27
+  scene 4 engine B     128           0               0
+  level 1 engine A       0         128               0
+  level 1 engine B       0         101              27
+
+So there are two separate reasons the count is 128 and neither is "128 sprites".
+Where the game has run OAM::Reset it parks unused entries OFF SCREEN rather than
+setting bit 9 (attribute 0 low byte 0xc0, y = 192), and bit 9 stays clear on a
+parked entry. Where it has not, the entries are boot zeros, and a zeroed
+attribute 0 also has bit 9 clear.
+
+AN EARLIER REVISION OF THIS PARAGRAPH GAVE ONLY THE FIRST REASON, for both
+engines. That is engine A's story. Engine B in a scene run is the second case:
+128 all-zero entries, no OAM::Reset having touched them, which is a real defect
+in the scene bring-up rather than anything about 2D hardware, and is routed as
+its own lane. The table above is the correction.
+
+The mode-1/2/3 result does not move under either reason, because a parked entry
+and a zeroed entry both still carry object-mode bits and every one reads 0.
 
 
 7. THE DEFECT: OBJ WINDOW IS MODE 2, AND THE PORT WAS SKIPPING MODE 3
@@ -281,12 +302,15 @@ a sprite that on hardware is INVISIBLE and contributes only a mask -- was drawn
 as an ordinary opaque sprite, painting the mask's silhouette onto the screen in
 its own palette colours.
 
-The same mislabel is in port/ov004_ov007_2d_map.txt section 7a ("skip OAM mode 3
-(OBJ window)") and in port/scene_boot_map.txt section 7a, whose conclusion rests
-on it: "none of its THIRTY OAM::Render call sites passes objMode 3". That test
-does not rule out the OBJ window, because the OBJ window is not mode 3. The
-audit re-answers the question the right way and reaches the same conclusion for
-the star select by a sounder route: zero mode-2 objects in 300 frames.
+THE SAME MISLABEL WAS IN TWO OTHER FILES, and both are corrected in place rather
+than only contradicted from here, because a reader who never opens this document
+would otherwise still hit the trap. port/ov004_ov007_2d_map.txt section 7a said
+"skip OAM mode 3 (OBJ window)", and port/scene_boot_map.txt section 7a rested
+its star-select conclusion on "none of its THIRTY OAM::Render call sites passes
+objMode 3" -- a test that cannot rule out the OBJ window, because the OBJ window
+is not mode 3. That conclusion happens to be right and is re-derived in place
+from the run instead: zero mode-2 objects in 300 frames, and DISPCNT bits 13-15
+clear on every one of them, so no window of any kind is armed.
 
 NOT LIVE, STILL FIXED. Zero mode-1, mode-2 and mode-3 objects appear on either
 engine in any of the 1200 sampled frames, so nothing on screen changes today.
@@ -366,14 +390,34 @@ directly into the record the game actually reads. NOTHING WAS CHANGED HERE. The
 seam a later lane would want is not a register model at all; it is that
 poll_touch publishes only slot 0 and only from the mouse.
 
-ONE HONEST LOOSE END IN THE SAME FAMILY. KEYINPUT (0x04000130) reads 0 on every
-frame, and the DS keypad is ACTIVE LOW, so 0 means every button held. Its one
-linked reader is func_02013f4c, the dev crash screen handler, reachable only via
-func_02013f28's `for(;;)`, which nothing on a normal path calls. The port drives
-input through the Ctrl block at data_0209f498 instead. Not a live defect,
-recorded because the polarity makes the dead-zero latch read as the WORST
-possible answer rather than a neutral one, and that is worth knowing before
-anything else links a KEYINPUT reader.
+ONE HONEST LOOSE END IN THE SAME FAMILY, QUEUED AND NOT RIDDEN.
+
+The pad is TWO dead latches, not one, and the reader combines them. Its single
+linked reader, func_02013f4c, opens with
+
+    raw = ((*(u16 *)0x4000130 | *(u16 *)0x27fffa8) ^ 0x2fff) & 0x2fff;
+
+so KEYINPUT (0x04000130, the ten ARM9-visible keys) is ORed with the ARM7-posted
+word at 0x027fffa8 (X, Y and the hinge, which the ARM9 cannot read directly)
+before the whole thing is inverted. Both are zero in the port, on every frame of
+both runs. The DS keypad is ACTIVE LOW, so zero is not a neutral reading: it
+means EVERY button held, on both halves. A dead latch here reads as the worst
+possible answer rather than an absent one.
+
+It is recorded rather than fixed, for two reasons.
+
+  UNTESTABLE ON ANY NORMAL PATH. func_02013f4c is reached only through
+  func_02013f28's `for(;;)`, which is the dev crash screen -- cut content that
+  nothing in a level or scene run calls. A model written here could not be
+  exercised by any run this lane or the battery can make, so it would ship
+  unverified, which is the failure mode this whole audit exists to avoid.
+
+  IT IS NOT ONE LINE. Two registers with different layouts have to be driven
+  from a host input source with the polarity inverted, and the port already
+  delivers input a different way entirely: through the Ctrl block at
+  data_0209f498, which is what Stage::CheckInput reads. Wiring the latches
+  without deciding which of the two is the source of truth would give the game
+  two disagreeing input paths.
 
 
 9. GXSTAT BITS 8-14, THE RIDE-ALONG
@@ -405,8 +449,29 @@ risk in the fix's favour. With busy pinned to 0 the loops still fall through
 immediately, exactly as they did against the dead latch, so there is no new
 hang. What changes is the half after the spin: func_02055624 pops the stacks by
 a and b, which against a dead-zero latch popped NOTHING and left the stack
-unwound. func_02055624 is still unlinked, so this is fixed ahead of the day it
-links rather than in response to a symptom.
+unwound.
+
+func_02055624 IS LINKED, AND THE LINE ABOVE USED TO SAY IT WAS NOT. That was
+L1's "0 references in walk_window.map", measured against a 4950-symbol build and
+carried into a 5533-symbol one without re-deriving it. My own build's map has it
+at 0001:0003d520, with func_020557b4 and their caller func_ov007_020bcf90.
+
+The true statement is narrower and more useful: the chain is UNREACHABLE, not
+unlinked. func_02055624's linked callers are func_020557b4 and
+func_ov007_020bcf90; func_020557b4's only linked caller is the same
+func_ov007_020bcf90; and that one sits on scene 1's Render path, behind the
+InitResources fault in section 4. The other caller of func_020557b4,
+func_0200f4b4, is genuinely absent from the map. So the day this matters is THE
+DAY SCENE 1 RUNS, not the day something links: the two pops stop being no-ops
+against zeros and become real pops against gx.cpp's live sp counters, which is
+the whole reason for the change.
+
+AND ONE BOUND ON WHAT THE FIX IS. gxstat_normalize runs only on accesses that
+come through io.cpp's proxy, and almost nothing on this surface does. Bits 8-14
+are therefore a SNAPSHOT taken at the last hostgen'd touch of GXSTAT, not a live
+mirror of the stacks. That is strictly better than a latch that never tracked
+anything and strictly less than modelling the register. Making it live means
+writing through from gx.cpp at push and pop time, which is that file's lane.
 
 Bits 0-7 (the box-test result) stay a latch. The host runs no box test, so there
 is nothing truthful to report, and no linked reader asks.

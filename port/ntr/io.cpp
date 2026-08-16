@@ -123,9 +123,30 @@ constexpr uint32_t SQRTCNT = 0x40002B0, SQRT_RESULT = 0x40002B4, SQRT_PARAM = 0x
 // against the dead latch, so there is no new hang. What changes is the second
 // half: func_02055624 then pops the stacks by `a` and `b`
 // (0x4000440 MTX_MODE, 0x4000448 MTX_POP), which against a dead-zero latch
-// popped NOTHING and left the stack unwound. func_02055624 is still unlinked
-// today (0 references in walk_window.map), so this fixes it ahead of the day it
-// links rather than in response to a symptom.
+// popped NOTHING and left the stack unwound.
+//
+// func_02055624 IS LINKED, and an earlier revision of this note said it was not.
+// The "0 references in walk_window.map" was measured against a 4950-symbol
+// build and carried forward unchecked into a 5533-symbol one, where the map has
+// it at 0001:0003d520 along with func_020557b4 and their caller
+// func_ov007_020bcf90. What is true is narrower: the chain is UNREACHABLE, not
+// unlinked. Its only linked caller is func_ov007_020bcf90, which is on scene
+// 1's Render path, and scene 1 faults inside InitResources before frame 0
+// (port/ov007_seat.txt section 5). The other caller of func_020557b4,
+// func_0200f4b4, is genuinely absent from the map.
+//
+// So this lands the day scene 1 runs, not "the day it links" -- it is already
+// linked. On that day the two pops become real against gx.cpp's live sp
+// counters instead of no-ops against zeros, which is the point of the fix.
+//
+// WHAT THIS IS NOT. gxstat_normalize runs only on accesses that come THROUGH
+// this proxy, and almost nothing on the 2D or 3D surface does. So bits 8..14
+// are not live: they are a snapshot taken at the last hostgen'd touch of
+// GXSTAT, and a reader reaching mapped memory directly sees whatever that
+// snapshot left. That is strictly better than the dead latch, which never
+// tracked anything at all, and it is not the same as modelling the register.
+// Making it live needs the stack write-through to happen in gx.cpp at push and
+// pop time, which is that file's lane, not this one's.
 //
 // Bits 0..7, the box-test result, stay a latch. The host runs no box test, so
 // there is nothing truthful to report and no linked reader asks (the sweep in

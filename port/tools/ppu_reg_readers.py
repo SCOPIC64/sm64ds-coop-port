@@ -51,6 +51,10 @@ REGS = [
     (0x0400106C, "MASTER_BRIGHT_B"),
     (0x04000130, "KEYINPUT"),
     (0x04000136, "EXTKEYIN"),
+    # The pad is two latches, not one. func_02013f4c ORs KEYINPUT with the
+    # ARM7-posted word before inverting, because X, Y and the hinge are not
+    # ARM9-visible. A sweep that watched only 0x04000130 would report half.
+    (0x027FFFA8, "SHARED_PAD"),
     (0x040001C0, "SPICNT"),
     (0x040001C2, "SPIDATA"),
     (0x027FFFAA, "SHARED_TP_LO"),

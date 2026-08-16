@@ -318,14 +318,33 @@ needs. dScStarSel_c is a 2D-heavy scene, so here is that measurement, in the
 same clusters. Read it as "what the star select POKES", from its own source and
 from the run, not as a survey of the hardware.
 
-  a. OBJ WINDOW (OAM mode 3, WIN0/WIN1/WINOUT). NOT NEEDED by this scene.
+  a. OBJ WINDOW (WIN0/WIN1/WINOUT). NOT NEEDED by this scene -- conclusion
+     unchanged, but ONE STEP OF THE ARGUMENT BELOW WAS WRONG and is corrected
+     here rather than left for the next reader. See port/ppu_gap_audit.txt.
+
      dScStarSel_c::InitResources writes DISPCNT (0x04000000) twice, clearing
      0x00300010 and then setting bits 0x08000000 / 0x00001f00 through
      data_0209d45c -- BG and OBJ enables only. Nothing in the closure touches
-     0x04000040..0x0400004a, and none of its THIRTY OAM::Render /
-     OAM::RenderSub call sites (21 in the Render, 3 each in the three emitters
-     under it) passes objMode 3. So the port's missing OBJ window does not
-     block the star select, and this cluster stays unmeasured for ov004/ov007.
+     0x04000040..0x0400004a.
+
+     THE OAM STEP DID NOT SAY WHAT IT MEANT TO. It read: none of the THIRTY
+     OAM::Render / OAM::RenderSub call sites (21 in the Render, 3 each in the
+     three emitters under it) passes objMode 3. The OBJ window is mode 2, not
+     mode 3 -- mode 3 is the prohibited/bitmap encoding -- so that test rules
+     out the wrong value and cannot support the conclusion it was under.
+
+     THE CONCLUSION SURVIVES, re-derived from a run instead of from call sites:
+     over 300 frames of SM64DS_SCENE=4 the OAM census finds zero objects in
+     mode 1, mode 2 or mode 3 on either engine, and DISPCNT bits 13, 14 and 15
+     are all clear on every frame, so no window of any kind is armed. The star
+     select does not need the OBJ window. ov004 and ov007 stay unmeasured.
+
+     ONE FURTHER MEASUREMENT WORTH HAVING HERE, since this file is about the
+     scene path: in a scene-4 run engine B's OAM is 128 ALL-ZERO entries, while
+     engine A's holds 101 parked at y=192 plus 27 live sprites. In a level run
+     it is the other way round. Engine B's OAM never gets OAM::Reset on the
+     scene path, which is a real defect in the scene bring-up and is routed as
+     its own lane, not a 2D-hardware gap.
 
   b. SEMI-TRANSPARENT SPRITES AND COLOUR SPECIAL EFFECTS (BLDCNT/BLDALPHA).
      NOT NEEDED. The scene's only fade is Scene::StartSceneFade(3, 0, 0) at the

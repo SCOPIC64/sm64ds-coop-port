@@ -73,6 +73,12 @@ static void wr8(u32 a, u8 v) { *reinterpret_cast<volatile u8 *>(a) = v; }
 // where rather than only how many.
 static int count_color(const ntr::SubFramebuffer &fb, u32 c, int *fx, int *fy) {
     int n = 0;
+    // Cleared up front: on a zero count there is no first position, and leaving
+    // the caller's previous values in place would print a stale coordinate next
+    // to a count of 0. The adjacent count assertions happen to cover every case
+    // here today, so this is legibility rather than a live fault.
+    if (fx) *fx = -1;
+    if (fy) *fy = -1;
     for (int y = 0; y < ntr::SUB_H; ++y)
         for (int x = 0; x < ntr::SUB_W; ++x)
             if (fb.px[y][x] == c) {
