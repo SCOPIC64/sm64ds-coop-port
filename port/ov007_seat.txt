@@ -1087,10 +1087,419 @@ that call site. Screening the twelve should therefore run three filters and not
 one: the arity direction (done here), whether the reloc table has an arm_call
 at all (one grep per row), and only then the ROM read. The queued screening
 lane owns all three, and can do the first two for the whole list at zero cost.
+(SECTION 5d IS THAT LANE. It ran all three and found that filter (b) is not
+sound, that the 14 is 16, and that the filter which actually decides is none
+of the three. Read 5d before quoting any count from this paragraph.)
 
 NO BMP, AND THE TITLE SCREEN HAS STILL NEVER RENDERED. The fault is inside
 InitResources, so no frame is reached and there is nothing to capture. Nothing
 about the title screen's pixels is claimed by this lane either.
+
+
+5d. THE CANDIDATES ARE SCREENED (run link60 lane SC1N), AND THE FILTER WAS WRONG
+---------------------------------------------------------------------------------
+
+5C QUEUED A SCREENING LANE AND RULED ITS METHOD: three filters in cost order,
+arity direction, then arm_call presence, then the ROM read. This is that lane.
+It ran all three and it also has to report that the second one is not sound and
+that the first one, on its own, points at the wrong rows. NOTHING IS SEATED
+HERE. The deliverable is the classification below and the gate is unmoved:
+5833/11250, ALL GREEN, the one ae558 skip, delta 0 structural.
+
+THE CENSUS RE-DERIVED, over the slice AS COMPILED rather than as listed. Those
+are different sets and the difference matters: port/CMakeLists.txt cuts
+src/func_ov007_020be980.c out of SLICE_OV007_SOURCES and appends
+unmatched/Ov007_RideThrough_020be980.cpp, so what ships is 623 of the 624
+listed TUs plus two host copies. Read off the generated build.ninja, not off
+the CMake source, because the build is the authority on what is compiled.
+
+    faulting direction   16      5c, over the listed slice, said 14
+    unspecified arity    22      5c said 8, its review said 18
+    harmless direction   60      5c said 30, its review said 49
+
+THE 14 IS NOT THE ROBUST NUMBER, and the reconciliation is exact rather than a
+disagreement about method:
+
+  * bc3dc RETIRES. 5c's own displacement took the one-parameter declaration out
+    of the build and the host copy declares all three. 14 becomes 13.
+  * THREE ROWS BOTH EARLIER SWEEPS MISSED, verified by hand in the sources:
+
+        _ZN6Player17St_EndingFly_MainEv  defined 1, declared (void) by
+                                         src/func_ov007_020c05f8.c
+        func_ov007_020c43bc              defined 2, declared 1 by
+                                         src/func_ov007_020b4b5c.c
+        func_ov007_020c99d8              defined 1, declared 0 by
+                                         src/func_ov007_020bcdb8.cpp
+
+    Two are `extern "C"` in .cpp TUs and one is a mangled C++ name. A regex
+    anchored on a type at the start of a line, or on the `func_` stem, misses
+    exactly these three and misses them in both directions at once, which is
+    why two independent sweeps agreed. 13 plus 3 is 16.
+
+AGREEING SWEEPS ARE NOT INDEPENDENT EVIDENCE WHEN THEY SHARE A BLIND SPOT. 5c
+promoted 14 to "the only figure here worth quoting" because two regexes landed
+on it. Both regexes were written to find rows shaped like the two known seams,
+and the rows they missed are the ones shaped differently.
+
+FILTER (b) IS NOT SOUND, and one row refutes it. 5c's rule was that a symbol
+with no arm_call cannot fault by direct call, with func_ov007_020be7a8 as the
+example. func_ov007_020b3d30 also has no arm_call. Its only relocation is
+
+    from:0x020b3d2c kind:load to:0x020b3d30
+
+and 0x020b3d2c is the last word of func_ov007_020b3c54's literal pool. b3c54
+ends
+
+    020B3D08  ldr  r0, [pc, #0x14]
+    020B3D0C  ldr  ip, [pc, #0x18]      <- loads 0x020b3d30 out of the pool
+    020B3D10  ldr  r2, [r0]
+    020B3D14  str  r1, [r2, #8]
+    020B3D18  ldr  r0, [r0]
+    020B3D1C  ldr  r0, [r0, #4]
+    020B3D20  bx   ip                   <- and TAIL BRANCHES to it, r0 and r1 live
+
+A tail branch through a pooled address transfers control with the argument
+registers set, and it books as `load` because the pool word is what carries the
+relocation. ADDRESS-TAKEN AND TAIL-BRANCHED ARE THE SAME RELOC KIND AND
+OPPOSITE FACTS. The filter has to separate them, and the way to separate them
+is to read the instruction at the `from` address: a pool word feeding a `bx` is
+a call, a pool word feeding a store into a table is not.
+
+THE FILTER THAT ACTUALLY DECIDES, and it is none of the three. Every row here
+is an ARM ride-through, and whether a ride-through survives on the host does
+not depend on arity at all. It depends on whether MSVC gave the frame that
+drops the argument a REAL PROLOGUE or a TAIL JUMP:
+
+    a `jmp` reuses the caller's own cdecl argument frame, which reproduces
+    `bx ip` and `bl`-with-live-registers exactly, and the value arrives
+    a `push ebp / mov ebp, esp` builds a new frame, and the callee reads
+    [ebp+8] out of storage nobody filled
+
+That is a statement about the shipped binary, so it was read off the shipped
+binary: this tree's build/port/walk_window.exe, attested the way this file's
+header says to attest one, by the gate manifest's git_sha plus git_dirty.
+
+AN EARLIER DRAFT OF THIS SECTION QUOTED AN exe SHA256 HERE, which contradicted
+the header three pages above it, and the review caught it. The header rules
+hashes out because the link embeds build-location state, so one worktree's
+sha256 is not another's. THE REVIEW'S REASON IS STRONGER THAN THE HEADER'S AND
+IT IS THE ONE TO CARRY: the hash is not stable within ONE location either.
+Three links in this lane produced three different hashes, two of them at the
+SAME path and the SAME commit with a clean tree:
+
+    e2fbffe5...   8cfd47f09   the baseline link
+    99eefc16...   74616970e   the docs-only tip link
+    c6ec89d1...   74616970e   a relink at that same commit and path
+
+and across all three, exe_size (3938304), map_size (4039299) and map_symbols
+(37280) were identical, AND EVERY ADDRESS QUOTED IN THIS SECTION WAS THE SAME
+IN ALL THREE. A hash that moves when nothing moved pins nothing. THE MAP
+ADDRESS IS THE RIGHT CURRENCY and a lane quoting a host listing should quote
+addresses and the git_sha, never a hash.
+
+READ THE BYTES AT THE MAP ADDRESS, NOT dumpbin's LISTING. dumpbin /disasm is a
+linear walk and it desynchronises on the data islands MSVC leaves between
+functions. At this tip func_ov007_020add3c's `push ebp` (0x55 at 0042A250) is
+swallowed into a bogus six-byte instruction starting at 0042A24B and the
+function appears not to exist in the listing at all. Disassembling from the map
+address cannot desynchronise, because the map address is an instruction
+boundary by construction.
+
+  CLASS A, REAL SEAM. Seven rows. The frame that drops the argument has a real
+  prologue and emits a real call, and the callee reads a parameter that call
+  did not push.
+
+    ae558 <- add3c        THE LIVE FAULT. Re-derived here, same shape 5c gives:
+        0042A250  push ebp / mov ebp,esp / push esi   <- esi is a SAVE
+        0042A254  call 0042A810                       <- ZERO arguments
+        0042A259  mov esi,[ebp+8]                     <- reads its own arg AFTER
+      One call site in the whole config, from:0x020add44. On the scene-1 path
+      and it is the thing standing on it.
+
+    b3c54 <- b3360        TWO defects in one frame, both in the binary.
+        0042E6CA  mov ecx,[ebp+0xc]   <- b3c54 reads its SECOND parameter
+        0042DF50  call 0042E670       <- b3360 pushes NOTHING
+      b3c54's ROM is a 24-way jump table and 0x020B3C6C is the default arm,
+      which branches straight to the store with r1 never written, so `mode`
+      rides in from the caller on that arm alone. The other arms assign it
+      first. A path-conditional seam, and its damage is a STORE of garbage
+      rather than a dereference, so it corrupts rather than faults.
+
+    b3d30 <- b3c54        The tail-branch row above.
+        0042E6D5  push [eax+4]        <- ONE argument
+        0042E6D8  call 0042E720
+        0042E729  mov esi,[ebp+0xc]   <- and b3d30 reads a SECOND parameter
+        0042E72D  mov edi,[ebp+8]
+      `idx` is garbage and b3d30 uses it as an array subscript in seven places,
+      the first of which is a double dereference. This one faults.
+
+    c43bc <- b4b5c        The sweep's push count gets this row WRONG and the
+      listing is why it is quoted in full:
+        0042EE20  push ebp
+        0042EE23  push esi            <- SAVE, esi = [ebp+8] one instruction later
+        0042EE27  push edi            <- SAVE, edi = [esi+4] one instruction later
+        0042EE2B  push edi            <- THE ARGUMENT, and the only one
+        0042EE3A  call 0043A600
+        0043A604  mov ebx,[ebp+8]     <- c43bc reads two
+        0043A609  mov edi,[ebp+0xc]
+      Three pushes before the call and one of them is an argument. This is 5c's
+      own "a save is not an argument" trap, and an automated counter walks into
+      it, so the count below is stated as read rather than as counted.
+
+    c99d8 <- bcdb8        A RETURN VALUE RIDING, which is a third shape and
+      neither of 5c's two. The ROM:
+        020BCE24  mov r0, r5
+        020BCE28  bl  #0x20b3f20      <- b3f20(r5), declared void
+        020BCE2C  bl  #0x20c99d8      <- c99d8 gets b3f20's RETURN in r0
+      The matched source is `func_ov007_020b3f20(obj); m = func_ov007_020c99d8();`
+      and it reproduces those bytes. On the host the value is in EAX and c99d8
+      reads the stack. 00434E60 calls with zero pushes.
+
+    cc0e4 <- cc600        The same return-value shape.
+        020CC964  mov r0, #0xcc
+        020CC968  bl  #0x203cbd8      <- returns in r0
+        020CC96C  mov sb, r0          <- saved, r0 NOT clobbered
+        020CC970  bl  #0x20cc0e4      <- reads r0
+      0043FC16 calls with zero pushes.
+
+    bd648 <- b6eb4        ONE OF TWO CALLERS IS CORRECT, which is the reason to
+      name the frame and not the callee. src/func_ov007_020b7138.c declares
+      `extern void func_ov007_020bd648(int mode)` and pushes one (00430E4F).
+      src/func_ov007_020b6eb4.c declares it `(void)` and pushes none
+      (00430C11). Displacing bd648 would be displacing the blameless end.
+
+  CLASS B, ADDRESS-TAKEN ONLY. Four rows, and 5c's rule holds for all four.
+  The address goes into a table or a callback registration and no ROM
+  instruction branches to it from the declaring TU, so the declaration's arity
+  never reaches a stack frame.
+
+    be7a8 <- be684    5c's own example, confirmed: from:0x020be7a0 kind:load,
+                      and 0x020be7a0 is in be684's literal pool
+    b0da0 <- b0a20    stored, not called:
+                      `data_ov007_0210342c->unk100->unk18 = (void *)func_ov007_020b0da0;`
+    b7914 <- b77ac    `func_0204a028(data_ov007_0210344c, func_ov007_020b7914);`
+    b7948 <- b77ac    `func_0204a0dc(data_ov007_0210344c, func_ov007_020b7948);`
+
+  WHAT CLASS B DOES NOT SETTLE: whether the code that later invokes those
+  pointers has the right arity in its own function-pointer typedef. That is a
+  different row in a different TU and this lane did not look for it.
+
+  CLASS C, THE RIDE IS PRESERVED BY A TAIL JUMP. Five rows. Not seams today,
+  and every one of them is correct for a reason nobody wrote down.
+
+    be098    <- bdeb0    00435C80  jmp 00435DE0
+    c3d1c    <- c05f8    00437BB0  jmp 00429CB0
+    ac5c     <- f76c     00440514  jmp 004412F0
+    ac84     <- f79c     00440534  jmp 00441310
+    ad54     <- f73c     004404F4  jmp 00441330
+
+  THE arm9 TRIO IS THE INSTRUCTIVE ONE. src/func_ov007_020bda8c.c declares
+  `extern void func_0204f76c(void* obj, int a, int b)` and the ROM sets all
+  three (020BDBAC mov r0,r5 / 020BDBB4 mov r1,#0xf / 020BDBB0 mov r2,r6).
+  src/func_0204f76c.c DEFINES only `(char **c)` and calls `func_0205ac5c(p[0x3c])`
+  with one argument, while func_0205ac5c is defined with three and its host body
+  reads [ebp+8], [ebp+0xc] and [ebp+0x10]. By declaration counting this is two
+  dropped arguments across two frames. What MSVC emitted:
+
+        00440503  mov  eax,[ebp+8]
+        0044050C  movzx eax,byte ptr [eax+0x3c]
+        00440510  mov  [ebp+8],eax      <- OVERWRITES its own argument slot
+        00440513  pop  ebp
+        00440514  jmp  004412F0         <- and tail-jumps
+
+  so ac5c's [ebp+8] is p[0x3c], and [ebp+0xc] and [ebp+0x10] are still bda8c's
+  second and third arguments, exactly as r1 and r2 still hold them on ARM. The
+  host reproduces the ride-through instruction for instruction.
+
+THE VENEER CLASS, WHICH THE ARITY SWEEP STRUCTURALLY CANNOT SEE. Found by ROM
+shape rather than by a comment or a regex: the three words
+
+    E59FC000   ldr ip, [pc]
+    E12FFF1C   bx  ip
+    <target>
+
+occur 22 times in overlay 7. Every one of the 22 is written in C as a one-line
+forwarder whose own signature and whose `extern` of the target BOTH say (void),
+so the two agree and there is no arity disagreement to count. What disagrees is
+the veneer's arity and its CALLERS'. Seventeen of the 22 target 0x020c3d1c, the
+symbol carrying the name _ZN6Player17St_EndingFly_MainEv, which takes `void *self`
+and hands it to a function pointer; 19 of the 22 have at least one C caller that
+passes an argument the target reads, across 86 call sites.
+
+ALL 22 ARE TAIL JUMPS IN THIS BUILD and therefore all 22 are correct. MSVC even
+folded seventeen of them onto one address (00437BB0), and 00429CB0 itself is
+`jmp dword ptr ds:[00C6FBD0h]`, the host's rendering of the ROM's indirect call
+through data_ov007_02103254. THE WHOLE CHAIN IS TAIL JUMPS AND THE ARGUMENT
+NEVER MOVES.
+
+MOST OF THE HARMLESS-DIRECTION BUCKET IS THIS CLASS, and the count is
+method-dependent exactly the way 5c already quarantines that bucket for being.
+This lane's parse says 49 of 60. The review's independent tokenizer says 46 of
+its own harmless total. QUOTE NEITHER AS FIRM. The two agree on the shape and
+on nothing narrower, which is all the shape needs. 5c calls that bucket
+"Harmless on a cdecl host: the caller pushes extra and cleans them, the callee
+ignores them. Not candidates." That reasoning is right about the veneer frame
+and wrong about the row, because the veneer's whole job is to forward and the
+argument it "ignores" is one its target reads. The bucket is harmless today for
+a different reason than the one given, and the difference is load-bearing:
+
+  THE FLOOR UNDER ABOUT FIFTY ROWS IS AN OPTIMISER DECISION, NOT A SOURCE
+  PROPERTY. Five Class C rows plus the veneer rows in the harmless bucket:
+  54 by this lane's parse (49 veneer), 51 by the review's tokenizer (46
+  veneer). READ IT AS ROUGHLY FIFTY. The exact integer is method-dependent and
+  nothing here turns on it. All of them are correct because MSVC tail-jumps a
+  function whose body is a single call. Nothing in the tree asks for that.
+  Build at /Od, or add one statement to any of those forwarders, and MSVC emits
+  a real prologue and every affected row breaks in the same build. This is the
+  largest unguarded assumption the ov007 slice rests on and it is not written
+  down anywhere else.
+
+THE UNSPECIFIED-ARITY BUCKET IS SETTLED AND IT IS EMPTY. 22 rows over 13
+callees. `extern T f();` is UNPROTOTYPED in C and not zero-arity, so the
+declaration decides nothing and the call site decides everything, which is the
+call-site counting 5c said the answer needed. Counted over every site in every
+declaring TU:
+
+    rows                                          22
+    sites passing FEWER than the definition takes  0
+
+Nine callees have a parameterised definition and every site passes at least as
+many as the definition takes; four have a zero-parameter definition and their
+ROM bodies read no incoming register, so the sites that pass more are the
+harmless direction. LOOSE DECLARATION, ALL 22, with no seam among them. Two
+rows deserve their spelling recorded because they look alarming and are not:
+`func_ov007_020c184c(a,b)` into a `(void)` definition, and
+`func_ov007_020c937c(*(int*)c)` into a `(void)` definition, the second being a
+veneer and therefore Class C rather than harmless.
+
+WHERE EACH ROW SITS ON THE SCENE-1 PATH TODAY. The live fault is
+func_ov007_020ae558 and the chain to it is confirmed edge by edge in
+config/arm9/overlays/ov007/relocs.txt, every hop a real arm_call:
+
+    cc4c0 InitResources -> b7090 -> aed98 -> add3c -> ae558
+
+The position inside that chain comes from the matched sources and not from a
+guess. func_ov007_020cc4c0's last three calls are b7138, then b7090, then
+Sound::LoadInitialGroup(2). func_ov007_020b7090 calls c20b8, b2e64, c1db0,
+then func_ov007_020bdebc at 0x020b70f4, and then aed98 at 0x020b70f8 with
+bdebc's return riding in r0 as aed98's argument. bdebc was missing from an
+earlier draft of this list and the review restored it. func_ov007_020aed98 ends in three loops: `i < 0x18` over b44ec,
+which is the twenty-four census hits and ran; `i < 9` over add3c, which faults
+on iteration zero; `i < 8` over ad660, which has never been reached.
+
+    row                     gates on ae558?   evidence
+    ae558  <- add3c         IT IS THE GATE    the live fault
+    b3c54  <- b3360         NO                reached at 3 hops from Behavior
+    b3d30  <- b3c54         NO                and at 4, both via b7090 -> b2e64
+    c43bc  <- b4b5c         NO                2 hops from b7138, which runs
+                                              BEFORE the faulting call
+    c99d8  <- bcdb8         NO                5 hops from Behavior via aed98
+    bd648  <- b6eb4         NO                1 hop from graphCallback slot 2
+    cc0e4  <- cc600         NO                cc600 is reached from no lifecycle
+                                              slot at all; its only reference is
+                                              from:0x021032a4 kind:load, a data
+                                              slot, so it is dispatched through
+                                              a pointer this lane did not trace
+    Class B, four rows      NO                never called from the declaring TU
+    Class C, five rows      NO                and not seams while the tail jumps
+                                              survive
+
+NOTHING IN CLASS A IS REACHABLE FROM WHAT RUNS AFTER THE FAULT. Reachability
+from add3c's tail (ae834, ae2d0, ae070, ae454), from loop 3 (ad660) and from
+InitResources' remaining call finds none of the seven. SO SEATING ae558 LETS
+InitResources FINISH. That is the prediction this lane is willing to be wrong
+about in writing.
+
+THE NEXT SEAM, AND THE EVIDENCE FOR PICKING IT. After InitResources returns,
+the scene runs Behavior, and src/func_ov007_020cc2cc.c's first substantive call
+is func_ov007_020b7090 again. b7090 calls func_ov007_020b2e64 BEFORE it calls
+aed98, and b2e64 reaches b3360 in one hop. So the shortest live path out of
+Behavior is
+
+    cc2cc -> b7090 -> b2e64 -> b3360 -> b3c54 -> b3d30
+
+and b3d30 is the frame that faults, on a garbage `idx` used as an array
+subscript feeding `*( *(int**)(thiz+0x5c) ) = *(int*)(base + 0x78 + tbl[idx]*4)`.
+
+IT HAS NOT RUN YET, AND THE ARGUMENT PROVES LESS THAN AN EARLIER DRAFT OF THIS
+PARAGRAPH CLAIMED. THE CHAIN HAS TWO GUARDS AND NOT ONE, which the review
+caught:
+
+    func_ov007_020b2e64   `if (*(short*)(data_ov007_02103360[0]) != 0xff)`
+                          and only then calls b3360. The 0xff arm calls
+                          func_ov007_020b3190 instead and never reaches it.
+    func_ov007_020b3360   `if (*(int*)(p0 + 0xc) == 0)` and only then calls
+                          b3c54.
+
+b2e64 itself runs unconditionally inside b7090, so it has executed on every run
+that reached ae558. b3c54 calls b3d30 unconditionally at its tail, and b3d30
+would dereference a garbage subscript, so had the whole chain run the recorded
+fault would be there and not at ae558.
+
+WHAT THAT ESTABLISHES IS THAT THE CONJUNCTION DID NOT HOLD, and nothing
+narrower. It does NOT establish that b3360's own guard was false, because
+b3360 may never have been ENTERED at all. Either conjunct alone accounts for
+the observation. The row is waiting on state either way, and either way it is
+not gated behind ae558, which is the only load-bearing part.
+
+THE DISPLACEMENT SHAPE, if a review rules on the next seat, per the PC2
+methodology of naming the frame where information is destroyed:
+
+  ae558 <- add3c. THE CALLER, func_ov007_020add3c, exactly as 5c derived. It
+  owns the value as its own declared parameter (`void func_ov007_020add3c(char* c)`)
+  and does not pass it. One frame, no cascade, and the host copy is a
+  transcription of add3c's own matched source. 5830 to 5829 on the same terms.
+
+  b3d30 <- b3c54. THE CALLER, func_ov007_020b3c54, and it is a WORSE seat than
+  it looks because b3c54 is itself a Class A callee: its own `mode` parameter
+  arrives garbage from b3360 on the default arm. Displacing b3c54 fixes the
+  argument it passes to b3d30 and does NOT fix the one it receives. TWO frames,
+  and this file has not had a two-frame seat yet.
+
+  THE REASON THE PAIR HAS TO RULE TOGETHER IS THE REVIEW'S AND IT IS STRONGER
+  THAN THIS LANE'S FIRST ONE, which was about the cost of a second host copy.
+  THE TWO DEFECTS HAVE DIFFERENT FAILURE MODES. b3d30's is a FAULT: a garbage
+  subscript feeding a double dereference. b3c54's own is a STORE, and the
+  binary is explicit about it:
+
+      0042E6CA  mov ecx,[ebp+0xc]    <- the default arm loads the garbage
+      0042E6CD  mov [esi+8],ecx      <- and WRITES it into the object
+
+  so a ONE-FRAME seat that only fixes what b3c54 hands to b3d30 SILENCES THE
+  CRASH AND LEAVES THE CORRUPT WRITE LIVE. It converts a fault into corruption,
+  which is strictly worse than the fault, because the fault is the only thing
+  that would have told anyone. That is the reason, not the cost.
+
+  c99d8 <- bcdb8 and cc0e4 <- cc600. THE CALLER in both, and both are the
+  return-value shape, so the host copy has to capture the previous call's
+  return into a local and pass it. That is a change the matched source cannot
+  express without retyping the previous callee's return, which is DECOMP work
+  and not port work. Worth saying out loud before someone reaches for it.
+
+WHAT THIS LANE DID NOT DO
+  * No seat, no slice edit, no CMake change. Gate at the tip is the gate at the
+    start commit: 5833/11250 (51.8%), ALL GREEN, one skip, delta 0 structural.
+  * Did not run scene 1. It cannot run; the ae558 skip is the reason. Every
+    runtime statement above is read off the binary or off the ROM, and the one
+    statement about what HAS executed is an argument from the absence of a
+    crash, not from a trace.
+  * Did not screen the other overlays. The veneer shape is a mwccarm idiom and
+    there is no reason it stops at ov007.
+
+A TOOLING CORRECTION, MEASURED RATHER THAN ASSUMED. arm9 disassembly in this
+repo should come from extracted/arm9_dec.bin at base 0x02004000. Scored against
+the 7500 arm_call rows in config/arm9/relocs.txt, which are a checkable
+statement about the bytes:
+
+    extracted/arm9_dec.bin      @ 0x02004000   7500 / 7500
+    extracted/arm9.bin          @ 0x02004000    243 / 7500   (compressed)
+    extracted/dsd/arm9/arm9.bin @ 0x02004000     97 / 7500
+
+The dsd export is NOT the image to disassemble arm9 at these addresses, and it
+disassembles into plausible-looking nonsense rather than failing, which is the
+dangerous kind of wrong. ov007 at 0x020ad660 scores 1983/1983 and needs no
+correction. A lane reading arm9 instructions should score its image first; it
+is one pass over a file the tree already has.
 
 
 6. WHAT LINKS, AND WHAT WAS DELIBERATELY NOT TAKEN
@@ -1360,14 +1769,49 @@ cost". Until it lands, this paragraph is the explanation.
     their seam, so either marker would still print for a DIFFERENT fault inside
     InitResources. Section 5c says it and this repeats it because a reader who
     only reads section 8 should still learn it.
-  - THE TWELVE OTHER ARITY CANDIDATES IN SECTION 5C'S SWEEP ARE UNSCREENED.
-    The sweep is textual: it compares definitions against declarations in the
-    slice's own sources and it validates only by rediscovering the two seams
-    already known. It does NOT establish that any of the twelve is reached on
-    the scene-1 path, and it has not read the ROM at any of those addresses to
-    confirm a value really rides a register rather than the declaration being
-    loose about a parameter the callee ignores. Eight further pairs declared
-    `extern T f();` are unscreened in a second way: unspecified arity needs
-    call-site counting, which the sweep did not do.
+  - THE TWELVE OTHER ARITY CANDIDATES IN SECTION 5C'S SWEEP ARE SCREENED NOW,
+    and section 5d supersedes this bullet's earlier text. What 5d leaves open
+    is listed below rather than here.
+  - CLASS C RESTS ON AN OPTIMISER DECISION AND NOTHING GUARDS IT. 54 rows (the
+    five Class C rows and the 49 veneer rows in the harmless bucket) are
+    correct only because MSVC tail-jumps a function whose body is a single
+    call. No source property and no guard asks for that. A /Od build, or one
+    added statement in any of those forwarders, breaks every affected row at
+    once. This lane measured the tail jumps at one commit in one configuration
+    and did not test the negative case.
+  - NO CLASS A ROW HAS BEEN OBSERVED FAULTING EXCEPT ae558. The other six are
+    read off the binary and the ROM, and the argument that they have not yet
+    executed is an argument from the ABSENCE of a crash elsewhere, not from a
+    trace. Scene 1 cannot run, so no lane can do better than that today.
+  - AND THE ABSENCE ARGUMENT DOES NOT COVER ALL SIX, which the review caught as
+    an inconsistency inside this file. 5d places c43bc's breaking frame,
+    func_ov007_020b4b5c, two hops under func_ov007_020b7138, and InitResources
+    calls b7138 BEFORE the faulting call, so that subtree ran to completion.
+    For c43bc NEITHER claim is demonstrated: not that it executed, because the
+    guards inside that subtree were never traced, and not that it did not. The
+    two statements were in tension and this bullet is the correction rather
+    than a resolution.
+  - THE NEXT-SEAM PREDICTION IS A PREDICTION. 5d names b3d30, reached through
+    b3360 and b3c54, as the next fault after ae558 is seated, on a
+    shortest-path argument out of Behavior plus the guard reasoning above. It
+    has not been executed and the first lane to seat ae558 should record
+    whether it was right.
+  - CLASS B SAYS NOTHING ABOUT THE INDIRECT CALLERS. Four rows are
+    address-taken only, which settles that the DECLARING TU cannot fault by
+    direct call. Whether the function-pointer typedef at the site that later
+    invokes them carries the right arity is a different row in a different TU
+    and was not screened.
+  - cc600 IS DISPATCHED THROUGH A DATA SLOT AND WAS NOT TRACED. Its only
+    reference is from:0x021032a4 kind:load. 5d classifies its row as a real
+    seam on the ROM and host evidence but cannot say which phase reaches it.
+  - THE VENEER SWEEP IS ov007 ONLY. The pooled-load-then-branch shape is a
+    mwccarm idiom and there is no reason it stops at this overlay. No other
+    overlay was scanned.
+  - THE CALLEE-SIDE REGISTER READ IS A LINEAR SCAN. 5d's incoming-argument
+    verdicts walk each delink span in address order and do not model control
+    flow, so a register written only on a branch not taken reads as written.
+    Every verdict quoted in 5d is backed by the listing next to it for exactly
+    that reason, and b3c54's default-arm read was found BY the listing after
+    the linear scan reported no incoming reads at all.
   - THE TITLE SCREEN HAS STILL NEVER RENDERED. No frame is reached, no BMP was
     captured, and nothing about its pixels is claimed by any lane so far.
