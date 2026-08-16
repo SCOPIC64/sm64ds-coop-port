@@ -30,10 +30,34 @@ available definitions (a map, a targets file, or both):
 WHAT IT REFUSES, because a generator that guesses saves nothing (the law:
 every generator carries its verifier, and judgment rows go to a human):
 
-  * anything pointer-to-member typed (P8/Q8 in the mangle) -- the gate-16
-    wall; a host copy, never a face;
-  * struct-typed globals (@@3U) -- the PMF pair tables travel in that
-    spelling; rule the contents first;
+  * anything pointer-to-member typed (P8/Q8 in the TYPE TEXT, under any
+    wrapping: P8 direct, PAP8 as an array) -- the gate-16 wall; a host
+    copy, never a face. The boundary is the consumer-spelling law
+    (port/mg_fanout_costs.txt section 4): a pair whose consumer spells it
+    as two ints is safe as an alias, and a consumer naming a member-pointer
+    type needs a host copy WHETHER IT IS CALLED OR ONLY COPIED, because the
+    four-byte MSVC member pointer shifts every field after it;
+  * struct-typed globals in ANY spelling -- @@3U by value AND @@3PAU as a
+    pointer or array. The mangle cannot show the struct's members, and a
+    struct wrapper hides a member-pointer table: @@3PAUEntry@@A slipped the
+    first version's two guards and was the twenty-five-entry dScMgCurling_c
+    state table (mg_fanout_costs.txt s10 finding 1). Where the tool cannot
+    see the consumer it refuses with the reason rather than aliasing;
+  * data spellings outside the scalar subset -- ALIAS is now a whitelist
+    (scalars and pointer/array-of-scalar chains), not "anything that is not
+    a struct". A spelling this tool has not proven safe is a refusal, not
+    an alias;
+  * namespace-scope free functions, both directions (the @@Y-after-a-
+    qualifier spelling). Memory is a NAMESPACE, and the first version read
+    ?Allocate@Memory@@YAPAXIH@Z as a method of class Memory and refused
+    the Itanium side as "reverse face with 2 args" -- right refusal, wrong
+    reason (s10 finding 4). Detected now and refused with the true one:
+    when both sides are __cdecl with the same arguments a plain hand
+    /alternatename is the whole fix (hal/scene_mg_faces.cpp section 2d is
+    the ruling). Auto-emitting that alias was considered and DECLINED: it
+    would need a cross-mangling parameter-type comparison, and the failure
+    mode of getting one row wrong is an alias that links and misreads the
+    stack. One row has ever needed it;
   * arity disagreements between the two mangles -- ModelBase::ApplyOpacity
     takes 2 on the caller's side and 1 in the ROM body, and the hand face
     that drops the argument was a RULING, not plumbing;
@@ -75,10 +99,38 @@ SCALARS = {"int", "unsigned int", "short", "unsigned short", "char",
            "unsigned char", "signed char", "long", "unsigned long", "bool"}
 REFUSED_SCALARS = {"float", "double", "__int64", "unsigned __int64"}
 
-MSVC_METHOD = re.compile(r"^\?(\w+)@(\w+)@@[A-Z]")
+# (?!Y) is finding 4's fix: after a single qualifier, Y is "function", not a
+# member access specifier, so ?Allocate@Memory@@YA... is a free function in
+# NAMESPACE Memory and never was a method of a class Memory. MSVC_NSFREE
+# catches exactly what MSVC_METHOD now excludes. Deeper nestings
+# (?f@Inner@Outer@@...) match neither and fall to UNKNOWN, a safe refusal.
+MSVC_METHOD = re.compile(r"^\?(\w+)@(\w+)@@(?!Y)[A-Z]")
+MSVC_NSFREE = re.compile(r"^\?(\w+)@(\w+)@@Y([A-Z])")
 MSVC_DATA = re.compile(r"^\?(\w+)@(?:(\w+)@)?@3(.+)$")
 MSVC_FREE = re.compile(r"^\?(\w+)@@Y([A-Z])")
 ITANIUM = re.compile(r"^_?(_ZNK?\d.*)$")
+
+# The ALIAS whitelist for data spellings: scalars, and pointer/array-of-
+# scalar chains ([PQ][AB] prefixes), with a trailing cv/storage letter.
+# These are the spellings that CANNOT hide a member pointer -- the two-ints
+# law's mechanical form. Everything else refuses: U/T structs in any
+# wrapping (the members are invisible in the mangle), W4 enums (safe in
+# principle, never seen on a wall, so not claimed), and anything this
+# expression has no opinion on.
+SAFE_DATA_TYPE = re.compile(r"^(?:[PQ][AB])*(?:[CDEFGHIJKMNX]|_[JKN])[A-D]$")
+
+
+def member_ptr_typed(sym):
+    """True when an MSVC mangle names a pointer-to-member TYPE anywhere in
+    its type text -- P8/Q8 direct, or under any wrapping such as PAP8 (an
+    array of member pointers). Only the text after the first '@@' is
+    scanned, so an identifier that happens to contain 'P8' cannot
+    false-positive; the first version scanned the whole symbol.
+    R8/S8 (the cv-qualified member-pointer spellings) are NOT tested for
+    because none has ever appeared on a wall; if one arrives it falls to
+    the struct or whitelist refusals below, which is still a refusal."""
+    parts = sym.split("@@", 1)
+    return len(parts) == 2 and ("P8" in parts[1] or "Q8" in parts[1])
 
 
 # ---------------------------------------------------------------------------
@@ -258,14 +310,24 @@ def build_universe(targets):
     JOIN KEY ONLY; raw spellings are kept for reporting. Nothing here strips
     more than one underscore (linkage.py's old lstrip("_") bug is the
     counterexample this comment exists for).
+
+    Namespace-scope free functions (the @@Y-after-a-qualifier spelling) get
+    their own table so the Itanium side of such a pair can be refused with
+    the TRUE reason instead of "no MSVC method in the universe" -- the
+    definition is there, it just is not a method (finding 4).
     """
-    cnames, itanium_by_cm, msvc_by_cm = {}, {}, {}
+    cnames, itanium_by_cm, msvc_by_cm, nsfree_by_cm = {}, {}, {}, {}
     for raw in targets:
         if raw.startswith("?"):
             m = MSVC_METHOD.match(raw)
             if m:
                 msvc_by_cm.setdefault((m.group(2), m.group(1)),
                                       []).append(raw)
+            else:
+                m = MSVC_NSFREE.match(raw)
+                if m:
+                    nsfree_by_cm.setdefault((m.group(2), m.group(1)),
+                                            []).append(raw)
             continue
         ident = raw[1:] if raw.startswith("_") else raw
         cnames[ident] = raw
@@ -275,27 +337,43 @@ def build_universe(targets):
                 cls, meth, is_const, arity = parsed
                 itanium_by_cm.setdefault((cls, meth), []).append(
                     (ident, is_const, arity))
-    return cnames, itanium_by_cm, msvc_by_cm
+    return cnames, itanium_by_cm, msvc_by_cm, nsfree_by_cm
 
 
 def classify(unresolved, universe):
-    cnames, itanium_by_cm, msvc_by_cm = universe
+    cnames, itanium_by_cm, msvc_by_cm, nsfree_by_cm = universe
     rows = {"ALIAS": [], "ALIAS_FN": [], "FACE": [], "RFACE": [],
             "WALL": [], "REFUSED": [], "MISSING": [], "UNKNOWN": []}
     need_undname = []
     for raw in unresolved:
         sym = raw
         if sym.startswith("?"):
-            if "P8" in sym or "Q8" in sym:
-                rows["WALL"].append((raw, "pointer-to-member typed: the "
-                                     "gate-16 wall, host copy territory"))
+            if member_ptr_typed(sym):
+                rows["WALL"].append((raw, "pointer-to-member typed (P8/Q8 "
+                                     "in the type text): the consumer names "
+                                     "a member-pointer type, so it needs a "
+                                     "host copy whether the pair is called "
+                                     "or only copied -- the consumer-"
+                                     "spelling law, mg_fanout_costs.txt s4; "
+                                     "the gate-16 wall"))
                 continue
             m = MSVC_DATA.match(sym)
             if m and m.group(2) is None:
-                if m.group(3).startswith(("U", "T")):
-                    rows["REFUSED"].append((raw, "struct-typed global: PMF "
-                                            "pair tables travel in this "
-                                            "spelling, rule it by hand"))
+                t = m.group(3)
+                if re.match(r"^(?:[PQ][AB])*[UT]", t):
+                    rows["REFUSED"].append((raw, "struct-typed global (%s): "
+                                            "the mangle cannot show the "
+                                            "struct's members, and a struct "
+                                            "wrapper hides a member-pointer "
+                                            "table -- @@3PAUEntry@@A was the "
+                                            "dScMgCurling_c state table "
+                                            "(s10 finding 1); rule the "
+                                            "consumer's source by hand" % t))
+                elif not SAFE_DATA_TYPE.match(t):
+                    rows["REFUSED"].append((raw, "data spelling %r outside "
+                                            "the scalar subset this tool "
+                                            "has proven safe (the two-ints "
+                                            "law); rule it by hand" % t))
                 elif m.group(1) in cnames:
                     rows["ALIAS"].append((raw, m.group(1)))
                 else:
@@ -314,6 +392,18 @@ def classify(unresolved, universe):
                     rows["MISSING"].append((raw, "no C definition named %s"
                                             % m.group(1)))
                 continue
+            m = MSVC_NSFREE.match(sym)
+            if m:
+                rows["REFUSED"].append((raw, "free function at NAMESPACE "
+                                        "scope (%s::%s, the @@Y spelling): "
+                                        "not a method and not face "
+                                        "material, and ALIAS_FN joins "
+                                        "global-scope names only -- a "
+                                        "namespace member joined onto a "
+                                        "bare C name could land on a "
+                                        "different function; rule it by "
+                                        "hand" % (m.group(2), m.group(1))))
+                continue
             if MSVC_METHOD.match(sym):
                 need_undname.append(raw)
                 continue
@@ -329,8 +419,28 @@ def classify(unresolved, universe):
             cls, meth, is_const, arity = parsed
             cands = msvc_by_cm.get((cls, meth), [])
             if not cands:
-                rows["MISSING"].append((raw, "no MSVC method %s::%s in the "
-                                        "universe" % (cls, meth)))
+                nsf = nsfree_by_cm.get((cls, meth), [])
+                if nsf:
+                    # Finding 4's original shape: the first version read
+                    # this as a class method and refused the row as
+                    # "reverse face with N args" -- right refusal, wrong
+                    # reason, and a wrong reason in a refusal sends a lane
+                    # to hand-write the wrong thing.
+                    rows["REFUSED"].append((raw, "the MSVC definition %s "
+                                            "is a namespace-scope __cdecl "
+                                            "free function, not a method: "
+                                            "no face and no argument "
+                                            "re-landing is needed; when "
+                                            "both sides are __cdecl with "
+                                            "the same arguments a plain "
+                                            "hand /alternatename is the "
+                                            "whole fix -- the "
+                                            "Memory::Allocate ruling, "
+                                            "hal/scene_mg_faces.cpp 2d"
+                                            % nsf[0]))
+                else:
+                    rows["MISSING"].append((raw, "no MSVC method %s::%s in "
+                                            "the universe" % (cls, meth)))
             elif len(cands) > 1:
                 rows["REFUSED"].append((raw, "ambiguous: %d MSVC candidates"
                                         % len(cands)))
@@ -475,9 +585,20 @@ def emit(rows, out):
 
 
 def verify(rows, genfile, scratch):
-    """Compile the emitted file; its symbol surface must equal the request."""
-    results = closure.compile_batch(pathlib.Path(genfile).parent,
-                                    [str(genfile)], scratch)
+    """Compile the emitted file; its symbol surface must equal the request.
+
+    genfile is resolved to an ABSOLUTE path first, and that one line is
+    finding 2's fix: compile_batch resolves a relative source against its
+    root argument, which this function sets to the output's own parent, so
+    a relative --out carrying a directory component (build/faces.cpp)
+    used to become <parent>/<parent>/<file>, a path that does not exist.
+    cl was handed a missing file and the tool reported a FALSE 'DID NOT
+    COMPILE' on a correct one -- and under the standing rule that no
+    generated file is wired without a PASS, a false fail costs a lane the
+    whole hand-written alternative.
+    """
+    genfile = pathlib.Path(genfile).resolve()
+    results = closure.compile_batch(genfile.parent, [str(genfile)], scratch)
     syms = results[str(genfile)]
     if syms is None:
         return False, "generated file DID NOT COMPILE (see %s)" % scratch
@@ -553,6 +674,26 @@ def selftest():
     ARITY MISMATCH refusal, and a compiled symbol surface that equals the
     request exactly. A second case feeds read_list a real mixed closure.py
     report and expects ONLY the UNRESOLVED rows back.
+
+    THE HARDENING ARMS, one per defect real use found (mg_fanout_costs.txt
+    s10), each fed the exact symbol that slipped or misfired:
+
+      1. ?data_ov006_02141950@@3PAUEntry@@A -- the dScMgCurling_c state
+         table, a PMF table behind a struct wrapper, WITH its C name in
+         the universe so the old alias temptation is live. Must be
+         REFUSED, never ALIAS. Its by-value sibling @@3UPair@@A must
+         refuse too (that one always did; the arm keeps it that way).
+      2. verify() run twice more, on a relative --out WITH a directory
+         component and on the bare-relative shape, both from a changed
+         CWD. Both must PASS; the first used to be a false DID NOT
+         COMPILE.
+      3. a zero-byte map through closure.map_defined, the exact call
+         --map makes: must refuse loudly, not return an empty universe.
+      4. Memory::Allocate both ways -- the Itanium spelling against the
+         @@Y definition must refuse WITH THE NAMESPACE REASON (the old
+         reason was "reverse face with 2 args", a method misread), and
+         the @@Y spelling as an unresolved row must refuse as a
+         namespace-scope free function rather than dying in undname.
     """
     unresolved = [
         "?UpdatePos@Actor@@QAEXPAUCylinderClsn@@@Z",
@@ -569,6 +710,12 @@ def selftest():
         "?data_ov004_020beb98@@3PAP8C@@AEXXZA",
         "?data_ov004_020beb68@@3PAHA",
         "__ZN5Actor17TrackInDeathTableEv",
+        "?data_ov006_02141950@@3PAUEntry@@A",
+        "?data_ov004_020bc904@@3UPair@@A",
+        "__ZN6Memory8AllocateEji",
+        "?Allocate@Memory@@YAPAXIH@Z",
+        "?dataP8pad@@3PAHA",
+        "?data_ov004_020bff00@@3PAP6AXXZA",
     ]
     targets = [
         "__ZN5Actor9UpdatePosEP12CylinderClsn",
@@ -584,6 +731,11 @@ def selftest():
         "__ZN9ModelBase12ApplyOpacityEj",
         "_data_ov004_020beb68",
         "?TrackInDeathTable@Actor@@QAEXXZ",
+        "_data_ov006_02141950",
+        "_data_ov004_020bc904",
+        "?Allocate@Memory@@YAPAXIH@Z",
+        "_dataP8pad",
+        "_data_ov004_020bff00",
     ]
     rows = classify(unresolved, build_universe(targets))
     ok = True
@@ -598,14 +750,46 @@ def selftest():
     expect(len(rows["RFACE"]) == 1 and
            rows["RFACE"][0][1] == "_ZN5Actor17TrackInDeathTableEv",
            "TrackInDeathTable reverse face")
-    expect(len(rows["ALIAS"]) == 1 and
-           rows["ALIAS"][0][1] == "data_ov004_020beb68", "the PAHA alias")
+    # dataP8pad is the WALL scan's name-exclusion arm: 'P8' in the NAME
+    # portion of a scalar-spelled global must still alias -- the scan
+    # covers the type text only.
+    expect(set(r[1] for r in rows["ALIAS"]) ==
+           {"data_ov004_020beb68", "dataP8pad"},
+           "the two PAHA aliases (incl. P8-in-the-name): %s" % rows["ALIAS"])
     expect(len(rows["WALL"]) == 1 and "beb98" in rows["WALL"][0][0],
-           "the P8 wall row")
+           "the P8 wall row and only it")
     expect(any("ARITY MISMATCH" in r[1] and "ApplyOpacity" in r[0]
                for r in rows["REFUSED"]), "ApplyOpacity arity refusal")
     expect(not rows["MISSING"] and not rows["UNKNOWN"],
            "no MISSING/UNKNOWN: %s %s" % (rows["MISSING"], rows["UNKNOWN"]))
+
+    # arm 1: the struct-wrapped PMF table. Its C name IS in the universe,
+    # so an ALIAS classification is one regex away; the len==1 assert on
+    # ALIAS above catches that too, but this arm names the row.
+    refused = {r[0]: r[1] for r in rows["REFUSED"]}
+    expect("?data_ov006_02141950@@3PAUEntry@@A" in refused and
+           "struct" in refused.get("?data_ov006_02141950@@3PAUEntry@@A", ""),
+           "PAUEntry struct-wrapper refusal: %s" % rows["REFUSED"])
+    expect("?data_ov004_020bc904@@3UPair@@A" in refused,
+           "UPair by-value refusal held")
+    # The whitelist's own arm: a function-pointer array (PAP6) is neither
+    # struct-spelled nor scalar, its C name is in the universe, and its
+    # words are DS code addresses -- it must refuse via the whitelist, not
+    # fall through to ALIAS the way the old anything-not-a-struct rule did.
+    expect("scalar subset" in
+           refused.get("?data_ov004_020bff00@@3PAP6AXXZA", ""),
+           "PAP6 function-pointer array refused by the whitelist: %s"
+           % refused.get("?data_ov004_020bff00@@3PAP6AXXZA"))
+
+    # arm 4: the namespace pair, both directions, and the REASON is the
+    # assertion -- the old classifier refused the first row too, with a
+    # method-shaped reason that sent the reader to the wrong precedent.
+    r_it = refused.get("__ZN6Memory8AllocateEji", "")
+    expect("namespace-scope" in r_it and "reverse face" not in r_it,
+           "Memory::Allocate Itanium-side reason: %r" % r_it)
+    r_ms = refused.get("?Allocate@Memory@@YAPAXIH@Z", "")
+    expect("NAMESPACE" in r_ms,
+           "Memory::Allocate MSVC-side reason: %r" % r_ms)
 
     with tempfile.TemporaryDirectory() as td:
         gen = pathlib.Path(td) / "faces_gen.cpp"
@@ -614,6 +798,36 @@ def selftest():
         expect(good, "verify: " + msg)
         if good:
             print("verify:", msg)
+
+        # arm 2: the same request through a RELATIVE --out with a
+        # directory component, from a changed CWD -- the shape finding 2
+        # false-failed -- plus the bare-relative shape that always worked.
+        oldcwd = os.getcwd()
+        try:
+            os.chdir(td)
+            os.makedirs("sub", exist_ok=True)
+            relout = os.path.join("sub", "faces_rel.cpp")
+            emit(rows, relout)
+            good, msg = verify(rows, relout, "probe_rel")
+            expect(good, "verify on relative --out with a dir component: "
+                   + msg)
+            emit(rows, "faces_bare.cpp")
+            good, msg = verify(rows, "faces_bare.cpp", "probe_bare")
+            expect(good, "verify on bare relative --out: " + msg)
+        finally:
+            os.chdir(oldcwd)
+
+        # arm 3: facegen's --map path is closure.map_defined, this exact
+        # call; a zero-byte map (what a failed link leaves) must refuse
+        # loudly rather than come back as an empty universe.
+        zmap = pathlib.Path(td) / "zero.map"
+        zmap.write_text("")
+        try:
+            closure.map_defined(zmap)
+            expect(False, "zero-byte map ACCEPTED by the --map path")
+        except SystemExit as e:
+            expect("ZERO BYTES" in str(e),
+                   "zero-map refusal message: %s" % e)
 
         # read_list against a real mixed closure.py report: only the
         # UNRESOLVED rows may come back. The first shipped version ingested
