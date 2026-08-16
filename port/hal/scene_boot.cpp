@@ -138,6 +138,7 @@
 
 #include "ntr/gx.h"
 #include "ntr/ppu.h"
+#include "ntr/rt.h"
 
 #include "dsstate_seg.h"
 
@@ -1526,6 +1527,13 @@ static int scene_reads_sublevel(int id)
     return 0;
 }
 
+/* hal/model_host.cpp's window-register census, read by the irq2 witness at the
+   end of port_scene_run. */
+extern "C" void port_window_copy_count(unsigned long long *copies,
+                                       unsigned long long *bytes,
+                                       unsigned *last_word,
+                                       unsigned long long *distinct);
+
 // ---- the boot ---------------------------------------------------------------
 //
 // SM64DS_SCENE=<id> mirrors SM64DS_LEVEL: it names what to boot and nothing
@@ -1648,6 +1656,14 @@ extern "C" int port_scene_run(void)
        does. The one thing a scene must not get is a Stage actor: on the DS the
        Stage IS the level scene (ACTOR_SPAWN_TABLE[3], ids 3/6/7 -> ov002), and
        two scene roots is not a state the game can be in. */
+    /* THE DS'S POWER-ON INTERRUPT STATE, before anything can arm an interrupt.
+       The ROM's own arming code brackets SetIRQHandler in
+       `saved = IME; IME = 0; ... ; if (saved) IME = 1`, so a host that boots
+       with IME at zero comes out of the bracket with IME STILL ZERO and the
+       interrupt it just armed can never be delivered. Only rt_run used to
+       seat it, and no walk_window path runs on that fiber. */
+    ntr::rt_irq_boot_state();
+
     port_scene_a2_seat();
 
     /* THE BOTTOM SCREEN, and the same argument the Stage seat above makes.
@@ -1819,6 +1835,17 @@ extern "C" int port_scene_run(void)
         hal_sub_screen_frame_begin();
         port_actor_tick();
         port_fader_advance();
+        /* THE DISPLAY SCAN-OUT, which is where IRQ 2 lives. The DS raises the
+           HBlank edge once per scanline while the picture is being drawn, and
+           the dWipe_c motion path is built on it: its handler programs the
+           next line's window bounds out of a 192-line table. This loop is the
+           host's timing authority and it does not run on the ntr fiber, so it
+           raises the edge itself, HERE -- after the game's behaviour work and
+           before the rasteriser below, which is the same place rt_run puts it
+           relative to the frame hook. Runs with NO_RENDER too: the interrupt
+           is display TIMING and the host's decision not to rasterise does not
+           stop the DS's beam. See port/irq2_map.txt. */
+        ntr::rt_scanout_frame();
 
         if (!no_render) {
             /* SM64DS_SCENE_TRACE=1 names the render sub-step a run is inside,
@@ -1883,6 +1910,35 @@ extern "C" int port_scene_run(void)
         else
             std::printf("[scene] unmatched-body traps entered: 0 (none of "
                         "the 24 trapping sites was reached)\n");
+    }
+    /* THE IRQ-2 WITNESS, next to the slot census and for the same reason. A
+       fade that is armed and a fade that MOVES look identical from outside:
+       the table at data_0209f648 is built either way. What separates them is
+       whether anything read it, so the count printed here is deliveries of
+       the HBlank edge and, of those, the ones after which WIN0H/WIN1H held a
+       different value -- a scanline actually programmed out of the table.
+       Zero window writes with a nonzero delivery count means the handler ran
+       and took an early return, which is a different bug from a shut gate. */
+    {
+        unsigned long long hb = 0, win = 0, cp = 0, cpb = 0, distinct = 0;
+        unsigned last = 0;
+        ntr::rt_hblank_counters(&hb, &win);
+        port_window_copy_count(&cp, &cpb, &last, &distinct);
+        const unsigned gates = ntr::rt_hblank_gates();
+        std::printf("[scene] irq2: %llu HBlank deliver(s), %llu table read(s) "
+                    "into WIN0H (%llu bytes), %llu of them CHANGING the "
+                    "latched window\n", hb, cp, cpb, win);
+        if (cp)
+            std::printf("[scene] irq2 rows: %llu run(s) of equal rows across "
+                        "%llu read(s), last row %08X (WIN1H:WIN0H)\n",
+                        distinct, cp, last);
+        std::printf("[scene] irq2 gates at exit: handler=%d ie=%d cpsr=%d "
+                    "ime=%d dispstat=%d\n",
+                    (gates & ntr::HBLANK_GATE_HANDLER) != 0,
+                    (gates & ntr::HBLANK_GATE_IE) != 0,
+                    (gates & ntr::HBLANK_GATE_CPSR) != 0,
+                    (gates & ntr::HBLANK_GATE_IME) != 0,
+                    (gates & ntr::HBLANK_GATE_DISPSTAT) != 0);
     }
     std::printf("[scene] %d frames of scene %d (%s), clean\n", frames, scene,
                 port_scene_class_name((unsigned)scene));

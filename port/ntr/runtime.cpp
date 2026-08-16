@@ -160,18 +160,62 @@ DSSTATE_END
 namespace {
 unsigned g_ie;                      // IE word stand-in
 void (*g_gxfifo_handler)(void);     // handler for mask 0x200000
+void (*g_hblank_handler)(void);     // handler for mask 0x2, the HBlank edge
+
+// The two DS registers the HBlank gate reads. Both are ordinary latches in the
+// mapped I/O window (ntr/mmio.h mechanism 1), written by the ROM's own arming
+// code: IME by func_0202f708's save/restore bracket, DISPSTAT bit 4 by
+// func_02053c10.
+constexpr uintptr_t REG_IME = 0x04000208u;
+constexpr uintptr_t REG_DISPSTAT = 0x04000004u;
+constexpr unsigned DISPSTAT_HBLANK_IRQ_ENABLE = 0x10u;
 }  // namespace
 
 // PORT_HOST_ABI: src walks the DS IRQ vector tables (data_02099fe4,
-//   data_020a60c4); the host models the one handler it dispatches.
+//   data_020a60c4); the host models the handlers it dispatches.
 extern "C" void *_ZN3IRQ13GetIRQHandlerEj(unsigned mask) {
-    return mask == 0x200000u ? reinterpret_cast<void *>(g_gxfifo_handler) : nullptr;
+    if (mask == 0x200000u) return reinterpret_cast<void *>(g_gxfifo_handler);
+    if (mask == ntr::IRQ_HBLANK) return reinterpret_cast<void *>(g_hblank_handler);
+    return nullptr;
 }
 // PORT_HOST_ABI: src walks the DS IRQ vector tables (data_02099fe4,
-//   data_020a60c4); the host models the one handler it dispatches.
+//   data_020a60c4); the host models the handlers it dispatches.
+//
+// TWO MASKS ARE MODELLED, and the second one is why the fade can move. Mask
+// 0x200000 is the geometry FIFO, delivered synthetically from DMAStartTransfer
+// below. Mask 2 is HBlank: the dWipe_c setters install func_0202f2c4 on it and
+// the scanline sweep in rt.cpp delivers it. Every other mask is still dropped
+// on the floor, deliberately -- a handler this layer never raises is better
+// stored nowhere than stored and silently never run.
 extern "C" void _ZN3IRQ13SetIRQHandlerEjPFvvE(unsigned mask, void (*h)(void)) {
     if (mask == 0x200000u) g_gxfifo_handler = h;
+    else if (mask == ntr::IRQ_HBLANK) g_hblank_handler = h;
 }
+
+namespace ntr {
+
+// The five gates the DS applies before an HBlank IRQ reaches the handler,
+// reported one bit each so a closed gate can be NAMED rather than guessed at.
+// All five have a ROM writer on this path, which is what makes the disarm
+// work: func_0202fb30 clears IE bit 1, clears DISPSTAT bit 4 and nulls the
+// handler, and any one of the three closes this.
+unsigned rt_hblank_gates() {
+    unsigned g = 0;
+    if (g_hblank_handler) g |= HBLANK_GATE_HANDLER;
+    if (g_ie & IRQ_HBLANK) g |= HBLANK_GATE_IE;
+    if (!rt_irq_masked()) g |= HBLANK_GATE_CPSR;
+    if (*reinterpret_cast<volatile uint16_t *>(REG_IME) & 1u) g |= HBLANK_GATE_IME;
+    if (*reinterpret_cast<volatile uint16_t *>(REG_DISPSTAT) &
+        DISPSTAT_HBLANK_IRQ_ENABLE)
+        g |= HBLANK_GATE_DISPSTAT;
+    return g;
+}
+
+bool rt_hblank_armed() { return rt_hblank_gates() == HBLANK_GATE_ALL; }
+
+void rt_hblank_dispatch() { g_hblank_handler(); }
+
+}  // namespace ntr
 // PORT_HOST_ABI: src pokes the DS interrupt registers (IME 0x4000208, IE
 //   0x4000210); the host keeps the IE word stand-in above.
 extern "C" unsigned _ZN3IRQ10EnableIRQsEj(unsigned mask) {
