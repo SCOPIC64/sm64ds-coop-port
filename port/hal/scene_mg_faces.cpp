@@ -53,6 +53,13 @@
 // caller is a definition the linker drops. The omission cannot go quiet: a
 // future slice that reaches it fails the link with an unresolved external,
 // which is the same reasoning the ov007 lane applied to func_ov007_020c49bc.)
+// AMENDED, run link60 lane MG2. THE ADDRESS IS REFERENCED NOW, by the address
+// switch in unmatched/MgCurling_StateDispatch.cpp, which is what a dispatch
+// fix does to every state word. It still gets no symbol here: inventing a
+// definition for a body with no source is exactly the guess
+// port/tools/inferred_stub_guard refuses. The case is handled at the dispatch
+// site instead, where the report can say which state was wanted rather than
+// only that something was missing.
 //
 // ---- 4. THE mwcc POINTER-TO-MEMBER TU, WHICH IS THE WALL -------------------
 //

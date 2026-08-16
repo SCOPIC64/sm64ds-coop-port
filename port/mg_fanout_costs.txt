@@ -11,6 +11,14 @@ gate manifest's git_sha plus git_dirty.
 Measured in worktree C:/tmp/g1, private build C:/tmp/g1/build/port,
 CMAKE_HOME_DIRECTORY verified C:/tmp/g1/port.
 
+AMENDED BY run link60 lane MG2, WHICH CLOSED THE LINK AND BOOTED THE CLASS.
+Section 4's MEASUREMENT IN PROGRESS badge is gone and its numbers are now
+measured rather than inherited; section 8's "no minigame has booted" is gone;
+SECTION 10 IS NEW and is the one to read first if you are costing a fan-out
+lane, because it corrects two numbers in section 2 that a link cannot produce.
+Sections 1, 3, 5, 6, 7 and 9 are MG1's and are unchanged except where section
+10 names them.
+
 
 1. THE HEADLINE, AND THE CORRECTION IT RESTS ON
 ------------------------------------------------
@@ -101,6 +109,11 @@ A FAN-OUT LANE SHOULD BUDGET TWO TO THREE WAVES, not one. Most of what waves 2
 to 4 pulled in is FRAMEWORK closure that the next twenty-nine inherit already
 linked, so their tails should be shorter -- but "the closure walk got it right
 first time" is not what happened here and should not be planned for.
+  AMENDED, run link60 lane MG2: IT IS EIGHT WAVES, not two to three. Waves 6,
+  7 and 8 are each the previous wave's own closure, and a ninth set of four
+  arrived that no wave could name at all -- the state bodies, which are reached
+  only through mounted DATA words and become referenced only when the dispatch
+  names them. Section 10 has the table.
 
 THE SPLIT BETWEEN ONCE AND PER-CLASS IS THE WHOLE COST MODEL:
 
@@ -267,14 +280,30 @@ ov085 / ov100 shape, port_*_states_seat, which writes HOST addresses over the
 .data source pairs before the constructor copies them -- but that one still
 needs a host copy of the dispatcher, because the stride is wrong either way.
 
-THE WALL'S FULL EXTENT. MEASUREMENT IN PROGRESS: the numbers below are the
-REVIEWER'S, taken on an independently wired tree whose link had CONVERGED, and
-they supersede this lane's first enumeration, which was read off a wave that had
-not. That earlier block said thirty-seven unresolved in twenty-one objects and
-called itself enumerated; it was counting a link still in motion. MG2 sizes from
-what follows, and MG2 re-measures it rather than inheriting it.
+THE WALL'S FULL EXTENT. MEASURED, run link60 lane MG2, on a wired tree whose
+link CLOSED. The badge that used to stand here said MEASUREMENT IN PROGRESS and
+carried review's converged numbers; MG2 re-measured rather than inheriting, and
+the paragraphs below are amended in place with what the link said. Review's
+total is CONFIRMED EXACTLY and two of its sub-counts are one low.
 
-    36 unresolved externals across 13 objects
+    36 unresolved externals across 14 objects
+
+    walk_window, walk_window_hires and smoke_player all report the same 36.
+    Review said 13 objects; it is 14. THE RESIDUAL REVIEW LEFT UNATTRIBUTED IS
+    THE TWENTY-SECOND ALIAS ROW: the pointer-to-member group is 7, the
+    argument-landing face 1, the slice lines 5 and the hosted word 1, all
+    exactly as review read them, and the ordinary /alternatename group is
+    TWENTY-TWO where review counted twenty-one. 7+1+5+1+22 = 36 and the
+    arithmetic closes with nothing left over.
+
+    WHICH row review dropped cannot be recovered from this side, and it is not
+    guessed here. The two candidates are the objects contributing exactly one
+    symbol each, func_ov004_020b77b4.cpp (?data_ov004_020beb68@@3PAUBase@@A)
+    and func_ov004_020b7fec.cpp (?data_ov004_020beb68@@3PAXA), because
+    data_ov004_020beb68 is ONE ADDRESS UNDER FOUR DIFFERENT TYPE SPELLINGS from
+    four different TUs -- PAHA, PAUObj, PAUBase and PAXA -- and it is the one
+    row in the set an address-wise count would collapse. That is an inference
+    about how the miscount happened, not a measurement.
 
   SEVEN ARE THE POINTER-TO-MEMBER WALL, verbatim from the first enumeration and
   the one part of it that was already right, except that they are spread across
@@ -315,16 +344,46 @@ what follows, and MG2 re-measures it rather than inheriting it.
     1 hosted word, data_0208ec74, which has no source and needs the ROM-span
       treatment the nine in hal/scene_mg_faces.cpp already get
 
-  THE GROUP COUNTS SUM TO 35 AGAINST A TOTAL OF 36 and this file does not
-  reconcile the difference, because it did not take the measurement. The
-  residual one symbol is unattributed here on purpose rather than folded into
-  whichever group would make the arithmetic close. MG2 resolves it in the first
-  link it runs.
+  THE GROUP COUNTS NOW SUM TO 36. The alias group is 22, not 21; everything
+  else above is confirmed as written.
 
-SO THE REMAINING WORK TO A LINKED SEAT IS 21 aliases, 1 argument-landing face,
-5 slice lines, 1 hosted word, and 6 TUs either host-copied against an address
-switch or excluded and trapped. Everything before that is done and is described
-in this file.
+THE SEAT LINKS. What it took, measured, is 19 generated aliases plus 3 hand-
+ruled ones plus the Memory::Allocate row, 1 argument-landing face, 12 host
+copies, 8 further slice lines across two more waves, 3 hosted words and one
+faced archive call. Section 10 is the full account.
+
+AND THE WALL IS TWELVE TUs, NOT SIX. THIS IS THE MOST IMPORTANT CORRECTION IN
+THIS FILE AND IT CHANGES EVERY FAN-OUT ESTIMATE ABOVE. The seven symbols the
+link names come from six TUs; a sweep of the slice for a pointer-to-member
+dispatch finds twelve. The other six declare their PMF tables INSIDE
+extern "C", so the globals mangle as the plain C names the mount already
+defines, and they link clean while striding an eight-byte ROM table by four:
+
+    func_ov006_020e1214  _020e3078
+    func_ov004_020b31b4  _020b321c  _020b8714  _020b8778
+
+The four ov004 ones are worse than a stride bug. They dispatch the OBJECT'S OWN
+pmf field rather than a table, so MSVC's four-byte member pointer moves every
+field after it -- src/func_ov004_020b31b4.cpp reads `state` at 0x1c where the
+ROM reads [r0,#0x20]. All four layouts were re-derived from the ROM
+disassembly.
+
+SO A LINK IS NOT A COMPLETE DETECTOR FOR THIS WALL. A lane that works to a
+clean link has six wild dispatches left and no error to tell it so. The fan-out
+sweeps for `::*` in its own slice before it believes an LNK1120.
+
+WHAT MADE THE FIX SMALL, and it was not known when this file was written: the
+overlay constructors are the only writers of these tables, EVERY ONE OF THEM IS
+A PLAIN .c FILE THAT SPELLS THE PAIR AS TWO INTS, and eight bytes on MSVC is
+eight bytes in the ROM. src/__sinit_ov004_020b948c.c and
+src/__sinit_ov006_021304ac.c both do it. So the mount's tables have been
+correct at the right stride all along and only the CONSUMERS were wrong, which
+turns "reproduce the mwcc member-pointer ABI" into "re-type the table and route
+the code word". The corollary the fan-out should carry: A PAIR THAT IS COPIED
+AS DATA STAYS CORRECT AND ONLY A PAIR THAT IS CALLED NEEDS A HOST COPY.
+data_ov004_020bc904 and _020bc914 are genuine {code, 0} member pointers and are
+still ordinary aliases, because their two consumers copy them into the object's
+state field and never dispatch them.
 
 WHAT IT COSTS PER MINIGAME, measured on this one:
 
@@ -466,38 +525,16 @@ second group is section 4's problem in its source form.
 8. WHERE THE LANE STOPPED, AND WHAT IS AND IS NOT IN THE TREE
 --------------------------------------------------------------
 
-NO MINIGAME HAS BOOTED. Nobody has run SM64DS_SCENE=374 or any other minigame
-id, because the seat DOES NOT LINK -- section 4 is a link-time wall, not a
-run-time one, so there is no fault to symbolize, no SCENE_BLOCKED entry to
-write and no slot-hit line to read. Any sentence anywhere claiming a minigame
-ticked would be fabricated. The gate on this branch is the BASELINE gate:
-5533/11243, battery ALL GREEN, skips [scene 1 BLOCKED], and the linkage delta
-of this lane is ZERO.
+THE SEAT IS WIRED AND THE MINIGAME HAS BOOTED. MG1 wrote here that nothing was
+in any target, that wiring it would break the build, and that "the day that
+link closes this paragraph is deleted rather than amended". Run link60 lane MG2
+closed it; the paragraph is deleted and this is what replaced it. Section 10
+carries the boot, the blocker and the numbers. What MG1 left in the tree --
+hal/scene_mg.cpp, hal/scene_mg_faces.cpp, the three MgBase_*.cpp host copies
+and slice_mg1.txt -- is all live, and keeping it rather than deleting it is
+what made the closure a wiring job instead of a re-derivation.
 
-THE SEAT IS IN THE TREE AND IS NOT WIRED INTO port/CMakeLists.txt. That is a
-deliberate choice between two bad options and it is stated here so nobody has
-to guess which one was taken:
-
-    port/hal/scene_mg.cpp                     the 36-slot address-keyed fill,
-                                              the 33 overlay constructors, the
-                                              tick witness, the registry shape
-    port/hal/scene_mg_faces.cpp               9 hosted storage symbols, 2
-                                              name faces, 7 named traps
-    port/unmatched/MgBase_DeclConflict.cpp    slots 29 and 30
-    port/unmatched/MgBase_Slot1.cpp           slot 1
-    port/unmatched/MgBase_Slot7.cpp           slot 7, and the one semantic
-                                              repair in the set
-    port/slice_mg1.txt                        276 TUs across four link waves
-
-Wiring them breaks the build, and deleting them throws away the derivation the
-next lane needs: the vtable, the four waves, the declaration conflicts and the
-constructor ruling are all encoded in those files and only summarised here.
-They are unreferenced by any target, so they cost the build nothing and the
-binary nothing. THE NEXT LANE'S FIRST ACT IS TO WIRE THEM AND WORK THE
-THIRTY-SEVEN, and the day that link closes this paragraph is deleted rather
-than amended.
-
-WHAT DID LAND, in commits on this branch:
+WHAT DID LAND IN MG1's commits, all of it still standing:
   - the 25 ROM rulings in port/tools/inferred_stub_adjudicated.txt, which are
     real, banked, and inherited by all thirty fan-out lanes
   - the amended 18-slot caveat and port_scene_fill_rom in hal/scene_boot.cpp,
@@ -537,3 +574,240 @@ WHAT DID LAND, in commits on this branch:
     idles without touch input is still a boot; a minigame that needs touch to
     leave its first state cannot be driven past it. Which of the thirty are
     which is unmeasured.
+
+
+10. THE CLOSURE AND THE BOOT, run link60 lane MG2
+--------------------------------------------------
+
+Worktree C:/tmp/h4, branch s4-mg-closure, base a1b295135, private build
+C:/tmp/h4/build/port with CMAKE_HOME_DIRECTORY verified C:/tmp/h4/port.
+Baseline gate re-recorded on that tree and it matched the brief exactly:
+5533/11243 (49.2%), battery ALL GREEN, skips [scene 1 BLOCKED], git_dirty
+false, git_sha a1b295135.
+
+WHAT THE WALL ACTUALLY COST, against section 4's prediction:
+
+  item                              predicted   measured   note
+  -------------------------------   ---------   --------   ------------------
+  ordinary /alternatename faces            21         22   the residual
+  argument-landing thiscall face            1          1
+  pointer-to-member SYMBOLS                 7          7
+  pointer-to-member TUs                     6         12   six link silently
+  sixth-wave slice lines                    5          5
+  sixth-wave hosted word                    1          1
+  further waves                             0          3   waves 7 and 8
+  further hosted words                      0          2
+  faced rather than linked                  0          1   UnloadArchive
+  state bodies added to the slice           0          4   they arrive with
+                                                           the dispatch, not
+                                                           with the closure
+
+THE PREDICTION WAS GOOD ON EVERYTHING THE LINK CAN SEE AND BLIND WHERE THE LINK
+IS. Every group review derived from a converged link came back right or one
+low. The two rows that are badly wrong -- twelve dispatching TUs against six,
+and four state bodies against none -- are both cases where the linker had
+nothing to say: the six silent dispatchers resolve to C names the mount already
+defines, and the four state bodies are reached only through mounted DATA words.
+A cost model built out of link waves cannot see either, and the fan-out should
+read that column rather than the total.
+
+WAVES, and the shape is the correction to section 2's "budget two to three":
+
+  wave  added  what asked for it
+  1-4     276  MG1's four waves, the ordinary closure
+  5         0  MG1's wall enumeration
+  6         6  5 TUs + data_0208ec74, exactly as review predicted
+  7         6  3 TUs + 2 hosted words + 1 alias, the sixth wave's own closure
+  8         4  3 TUs + 1 faced call, the seventh wave's closure
+  --       12  host copies REMOVED from the slice
+  +         4  state bodies, named by the address switch and by nothing else
+
+A FAN-OUT LANE SHOULD BUDGET EIGHT WAVES, not two to three. Waves 6, 7 and 8
+are each the previous wave's closure and each was smaller than the last, which
+is what converging looks like; the number that matters is that it took three
+more rounds after the point MG1 called the wall enumerated.
+
+LINKAGE, measured on the tip:
+
+    5533 / 11243 (49.2%)  ->  5750 / 11243 (51.1%)     +217
+
+  by module, AFTER, from port/tools/linkage.py --by-module:
+
+    module   total  linked  unlinked   linked
+    ov006     1839      75      1764     4.1%
+    ov004      276      97       179    35.1%
+    ov001       23      10        13    43.5%
+    arm9      3098    1799      1299    58.1%
+    itcm         9       6         3    66.7%
+
+  THE BEFORE COLUMN IS CITED, NOT RE-MEASURED, and that is a gap in this
+  report rather than a rounding. The link that produced the wall TRUNCATED
+  walk_window.map to zero bytes and destroyed the baseline per-module split;
+  only the headline 5533 survived, in the gate manifest. The tree's own
+  documents give the two that matter: port/ov006_player_map.txt section 4
+  states ov006 linked=0 and explains that the single ov006 name in the map was
+  an /alternatename onto an ov002 body, and port/slice_mg1.txt records
+  src/func_ov004_020adc4c.c as "the one ov004 body the port could already
+  reach". So ov006 0 -> 75 and ov004 1 -> 97 are believed but not measured on
+  both ends. The +217 headline IS measured on both ends.
+
+  READ THE ov006 NUMBER CORRECTLY. 75 of 1839 is 4.1%, and section 5 predicted
+  this shape: the seat buys the vtable bodies, the constructors and now the
+  state bodies the address switch names, and the rest of ov006 stays gated
+  behind the other twenty-nine classes. What section 5 got wrong is the claim
+  that the state bodies stay unreachable. The dispatch reaches them now, and
+  routing them is most of what the ov004 column's 97 is made of.
+
+THE BOOT. SM64DS_SCENE=374, SM64DS_SCENE_FRAMES=300, SM64DS_SCENE_NO_RENDER=1,
+on the tip build. OUTCOME: HONEST (b), a named and symbolized blocker with a
+SCENE_BLOCKED entry in port/tools/battery.py, and the blocker is an arm9 global
+rather than anything about minigames.
+
+  WHAT RAN, every line of it from the run's own output:
+    ov004 and ov006 mounted, the first caller either mount has ever had
+    33 of the ROM's 35 overlay constructors ran (ov004 3/4, ov006 30/31)
+    both 36-slot vtables filled, ZERO raw DS words left in either
+    the class registered and the SpawnInfo +4 cross-check passed
+    Scene::SetSceneToSpawn -> SpawnIfNecessary -> func_02043098 spawned it
+    SLOT 1 DISPATCHED through the fill's host thunk
+
+  WHERE IT STOPPED:
+    FAULT c0000005 accessing 0x00000024, at
+    _ZN5Scene9SetFadersEP15FaderBrightness+0x24, reached through
+    mb_binit -> func_ov004_020b0930 (slot 1) -> Scene::SetFaders.
+
+  WHY. data_0209f61c is an arm9 FaderBrightness in bss and its vptr is zero.
+  src/__sinit_02074f80.c is its static initialiser -- func_0202fc40 then a
+  func_020731dc destructor registration -- and the port never runs it;
+  func_0202fc40 is not in the link at all. The host SetFaders compiles
+  thiz->v24() to `call dword ptr [eax+24h]`, which off a null vptr reads
+  address 0x24, and that is the number in the fault.
+
+  NOT PREVENTED ON PURPOSE. Installing a plausible vptr is the guess
+  port/tools/inferred_stub_guard exists to refuse. Instead the fill prints the
+  cause by name when the condition holds, because a link offset changes on
+  every build and cannot be a battery marker.
+
+  RETIRING IT is a fader and boot job, not a minigame one: func_0202fc40 and
+  its closure into a slice, a host fill for data_020926f0 (the vtable
+  func_0202fc40 actually installs, which is NOT _ZTV9FaderWipe), and a decision
+  about which arm9 static initialisers the port runs at all. Three things, none
+  of them in ov004 or ov006.
+
+  ONE TRAP FIRED and it is not the blocker: func_0202e78c, the arm9 address
+  with no config symbol at all, returns 0 as it is written to. Nothing in the
+  run attributes the fault to it.
+
+TWO PORT DEFECTS ON THE PATH WERE FIXED RATHER THAN SKIPPED, and both were
+found by running rather than by reading:
+
+  a. A FABRICATED INITIALIZER, INVISIBLE TO THE BYTE GATE.
+     src/func_ov004_020b2cb8.c opens with Entry entries[29] = {{1,100},
+     {2,101}, ... {29,128}}, a ramp; it then overwrites twenty-eight of the
+     twenty-nine and never touches entry 1, so the loop at the bottom
+     dereferenced 101 and the first boot faulted accessing 0x00000065. THE ROM
+     HAS NO RAMP. It copies a fixed template with an ldm/stm run at
+     0x020b2cc0..0x020b2ce0 (14 x 16 + 8 = 232 bytes = 29 x 8), the template is
+     its own config symbol at 0x020bc6e8, and it reads {320, 0x020b9f54} at
+     index 1 and {0, 0} everywhere else. The function's own instructions are a
+     pc-relative load and a copy loop, identical whatever the template holds,
+     which is how an invented template survived as a matched body. The port
+     already hosted the real one -- tools/ovdata.py emits every config data
+     symbol from the image and rebases its interior pointer, which is why
+     entry 0 worked and entry 1 did not -- so
+     port/unmatched/MgBase_LangTable.cpp performs the copy the ROM performs.
+     THE DECOMP-SIDE FIX IS ROUTED, NOT TAKEN: the src TU should read
+     data_ov004_020bc6e8 rather than spell a template, and whether that still
+     builds byte-identically under mwccarm is a byte-gated-tree question.
+
+  b. A HOST POOL SIZED FOR A LEVEL. hal/level_boot.cpp's LoadFile seam had
+     sixteen slots, which is what a level's KCL and object files need. That one
+     ROM function holds TWENTY-NINE files live at once in data_ov004_020bf560,
+     so it is a working set and not a leak the per-level release can absorb.
+     Sixty-four now, release path unchanged.
+
+AND ONE SEAT GAP MG1's OWN DIAGNOSTIC CAUGHT. The first wired boot printed
+"dScMgBase_c leaves 5 of 36 raw DS words". MG1's face list is the twenty-three
+slots a DERIVED class inherits unchanged, and the BASE table also holds its own
+bodies in the five slots a derived class overrides -- 6, 9, 16, 17 and 18; slot
+0's base body is arm9 and port_scene_fill_rom already had it. Four of the five
+carry the guess marker and were disassembled and ruled REAL_DECOMP in
+port/tools/inferred_stub_adjudicated.txt before seating. Both tables now leave
+zero. THE FAN-OUT INHERITS THIS: the five are keyed by address in the shared
+array, so a class that leaves one un-overridden gets a thunk rather than a raw
+DS word.
+
+FOUR TOOL FINDINGS, recorded because this was the first lane to run with the
+automation and because three of them would each cost a later lane real time:
+
+  1. facegen MISSES A PMF TABLE BEHIND A STRUCT WRAPPER. Its WALL test is
+     "P8" in sym, and a struct that wraps a member pointer hides the P8:
+         PMF table[]                     ->  ?..@@3PAP8C@@AEXXZA   caught
+         struct Entry { PMF pmf[1]; } []  ->  ?..@@3PAUEntry@@A     MISSED
+     The struct-typed refusal does not catch it either: it tests for the
+     by-value spelling @@3U and an array of that struct is spelled @@3PAU. The
+     symbol it let through, ?data_ov006_02141950@@3PAUEntry@@A, is the
+     twenty-five-entry dScMgCurling_c state table, the exact table section 4
+     opens with. A lane taking the output at face value would have shipped an
+     alias that links and then strides an eight-byte table by four. Refused by
+     hand and host-copied instead; hal/scene_mg_faces.cpp section 2b has the
+     ruling. Note also that section 4 previously quoted that symbol as
+     ?data_ov006_02141950@@3UEntry@@A, which is the spelling the guard WOULD
+     have caught. The link says PAU.
+
+  2. facegen --verify FALSE-FAILS ON A RELATIVE --out. verify() calls
+     compile_batch with root set to the output file's parent and the output
+     path as the source; compile_batch resolves a non-absolute source against
+     root, so a relative --out becomes <parent>/<relative-out>, which does not
+     exist. cl is handed a missing file and the tool reports "generated file
+     DID NOT COMPILE". The same content with an absolute --out reports "PASS
+     surface exact". The failure mode is a FALSE FAIL on a correct file, and
+     under the standing rule that no generated file is wired without a PASS it
+     would have sent a lane off to hand-write nineteen correct rows.
+
+  3. A FAILED LINK ZEROES walk_window.map, WHICH IS BOTH TOOLS' UNIVERSE. The
+     link that produces the wall destroys the map that facegen and closure.py
+     need in order to classify it, so the natural order -- link, read the wall,
+     run facegen -- cannot work twice running. facegen stops with "empty
+     universe", which is safe. closure.py only checks that the file EXISTS, so
+     against a zeroed map it reports every symbol unresolved under a quiet
+     "map defines 0 symbols" line. Worked around here by rebuilding the
+     universe from 246 object symbol tables (21744 defined externals); a lane
+     that hits this should copy the map aside before the probe link.
+
+  4. facegen READS A NAMESPACE QUALIFIER AS A CLASS.
+     ?Allocate@Memory@@YAPAXIH@Z is a __cdecl free function in namespace Memory
+     -- the Y and the A say so -- and the tool classified the Itanium spelling
+     of it as a reverse face and refused with "reverse face with 2 args:
+     hand-write it against the cxxname_bridge precedent". The refusal is the
+     right OUTCOME and the reason is wrong: no face is needed, both sides are
+     __cdecl with the same two arguments, and a plain alias is correct. Its
+     MSVC_METHOD pattern cannot tell a namespace qualifier from a class one and
+     its ALIAS_FN path only matches free functions at global scope.
+
+  BOTH SELFTESTS PASS and the build guard runs them before configure. On the
+  full 36-symbol wall facegen classified 20 ALIAS / 6 WALL / 4 REFUSED /
+  1 MISSING / 5 UNKNOWN = 36, and its MISSING and UNKNOWN rows are correct
+  refusals rather than gaps: the thiscall face has no Itanium body in the
+  universe, and the five plain C names are slice lines, not faces.
+
+WHAT SECTION 3's TABLE STILL DOES NOT KNOW, now with a measured example. The
+per-class ranking is on ovr and mark, and dScMgCurling_c's row says 6 and 5.
+That was accurate and it still did not predict this lane's cost, because none
+of the work above is in either column: the wall is the FRAMEWORK's, the state
+bodies arrive with the dispatch, and the blocker is an arm9 global. The ranking
+is the right order to cut the fan-out in. It is not a size estimate.
+
+WHAT THIS SECTION DOES NOT KNOW.
+  - NO FRAME HAS BEEN RENDERED. Every run here was SM64DS_SCENE_NO_RENDER=1,
+    because the blocker is upstream of frame 0 and a render pass could not have
+    been reached. Section 9's note that the 2D gap list is unmeasured for
+    minigames is unchanged, and so is its note that nobody has looked at a
+    frame.
+  - TOUCH IS STILL UNMEASURED, for the same reason: nothing got far enough to
+    want input. Section 9 stands.
+  - THE STATE MACHINE HAS NOT RUN. The address switch is wired and reports its
+    own call count, and on every run so far that count is zero, because slot 1
+    faults before slot 6 is ever dispatched. So the dispatch fix is proven to
+    COMPILE and to LINK and is NOT yet proven to route a single state. That is
+    the largest unproven thing this lane leaves.
