@@ -726,6 +726,11 @@ set_source_files_properties(
     # jumped-on / hurt-the-player state helper. Same treatment as the entries
     # above; it is the only one of slice_w12.txt's 67 TUs that needs it.
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov073_0211f61c.c"
+    # run link60 lane L2: the ONE .c in ov007's 602-TU closure that is really
+    # C++ -- a top-level `extern "C" {` block, invalid C. The whole slice was
+    # swept for the //cpp marker rather than this one being found by a compile
+    # error and the rest left to luck.
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov007_020bfd70.c"
     PROPERTIES LANGUAGE CXX)
 
 # Wave-5 close surgery (w5b_review.md R1/R2): two /alternatename routes died
@@ -2734,6 +2739,28 @@ foreach(line IN LISTS SLICE_SCENE1_LINES)
     list(APPEND SLICE_SCENE1_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# run link60 lane L2: THE SECOND SCENE, and the biggest single linkage move the
+# port has made. dScDSMT_c is ov007's one scene class -- the TITLE SCREEN and
+# FILE SELECT, actor id 1 -- and it rides the identical spine: the ROM's
+# ACTOR_SPAWN_TABLE record at 0x02103264 (hosted by the ov007 mount), the
+# eighteen-slot _ZTV5Scene shape at 0x021032e8 filled in place, and
+# Scene::SetSceneToSpawn -> Scene::SpawnIfNecessary. SM64DS_SCENE=1 takes it.
+#
+# 526 src TUs, which is not a slice of ov007 but very nearly the whole overlay:
+# a relocation BFS from the class's eight entry points reaches all 548 of its
+# functions, so the title screen is what ov007 is for. See slice_ov007.txt for
+# the derivation and the one exclusion, and port/ov007_seat.txt for the vtable
+# table, the two spine-caveat audits and what actually links.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_ov007.txt" SLICE_OV007_LINES)
+set(SLICE_OV007_SOURCES "")
+foreach(line IN LISTS SLICE_OV007_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_OV007_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gate 35: the course loop -- damage, death, respawn, coins, the star and the
 # course's own sound. Small, because almost all of it was already linked; see
 # the head of slice_gate35.txt for what was actually missing.
@@ -4280,7 +4307,13 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     # sitting in slice_gate16.txt line 178 all along, dropped by /OPT:REF for
     # want of a reference edge. Removing the stub from here is what makes the
     # matched body reachable; leaving it would be a duplicate definition.
-    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/scene_boot.cpp hal/scene_actor_faces.cpp unmatched/Scene_AfterCleanupResources.cpp ${SLICE_SCENE1_SOURCES} hal/cannon_probe.cpp hal/message_boot.cpp hal/message_gen_text.cpp hal/message_compositor.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp ${SLICE_2D1_SOURCES} hal/sub_actors.cpp hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
+    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/scene_boot.cpp hal/scene_actor_faces.cpp unmatched/Scene_AfterCleanupResources.cpp ${SLICE_SCENE1_SOURCES} ${SLICE_OV007_SOURCES}
+    # run link60 lane L2: hal/w8a_stage_storage.cpp is pure zero arm9 BSS and it
+    # owns data_0209d4a8, which dScDSMT_c's InitResources and CleanupResources
+    # both touch. walk_window already had it; smoke_player and walk_window_hires
+    # did not, so it joins all three rather than the symbol being defined a
+    # second time next to the one that already exists.
+    hal/w8a_stage_storage.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/message_gen_text.cpp hal/message_compositor.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp ${SLICE_2D1_SOURCES} hal/sub_actors.cpp hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE_PTR_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
@@ -4412,7 +4445,13 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     # sitting in slice_gate16.txt line 178 all along, dropped by /OPT:REF for
     # want of a reference edge. Removing the stub from here is what makes the
     # matched body reachable; leaving it would be a duplicate definition.
-    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/scene_boot.cpp hal/scene_actor_faces.cpp unmatched/Scene_AfterCleanupResources.cpp ${SLICE_SCENE1_SOURCES} hal/cannon_probe.cpp hal/message_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp ${SLICE_2D1_SOURCES} hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
+    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/scene_boot.cpp hal/scene_actor_faces.cpp unmatched/Scene_AfterCleanupResources.cpp ${SLICE_SCENE1_SOURCES} ${SLICE_OV007_SOURCES}
+    # run link60 lane L2: hal/w8a_stage_storage.cpp is pure zero arm9 BSS and it
+    # owns data_0209d4a8, which dScDSMT_c's InitResources and CleanupResources
+    # both touch. walk_window already had it; smoke_player and walk_window_hires
+    # did not, so it joins all three rather than the symbol being defined a
+    # second time next to the one that already exists.
+    hal/w8a_stage_storage.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp ${SLICE_2D1_SOURCES} hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE_PTR_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
@@ -4556,7 +4595,13 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     # sitting in slice_gate16.txt line 178 all along, dropped by /OPT:REF for
     # want of a reference edge. Removing the stub from here is what makes the
     # matched body reachable; leaving it would be a duplicate definition.
-    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/scene_boot.cpp hal/scene_actor_faces.cpp unmatched/Scene_AfterCleanupResources.cpp ${SLICE_SCENE1_SOURCES} hal/cannon_probe.cpp hal/message_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp ${SLICE_2D1_SOURCES} hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
+    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp hal/level_boot.cpp hal/scene_boot.cpp hal/scene_actor_faces.cpp unmatched/Scene_AfterCleanupResources.cpp ${SLICE_SCENE1_SOURCES} ${SLICE_OV007_SOURCES}
+    # run link60 lane L2: hal/w8a_stage_storage.cpp is pure zero arm9 BSS and it
+    # owns data_0209d4a8, which dScDSMT_c's InitResources and CleanupResources
+    # both touch. walk_window already had it; smoke_player and walk_window_hires
+    # did not, so it joins all three rather than the symbol being defined a
+    # second time next to the one that already exists.
+    hal/w8a_stage_storage.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp ${SLICE_2D1_SOURCES} hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE_PTR_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
