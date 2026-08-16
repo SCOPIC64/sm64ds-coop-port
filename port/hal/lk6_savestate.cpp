@@ -315,6 +315,34 @@ int lk6_savestate_load(void)
 // 1 if the slot currently holds a state (drives the menu label).
 int lk6_savestate_has(void) { return g_slot.valid; }
 
+// Where a byte lives with respect to the snapshot: bit 0 set if it is inside
+// the .dsstate section, bit 1 set if it is inside the hosted arena, and 0 for
+// neither -- which means it does NOT roll back on a load.
+//
+// This exists so a test can ask the question directly instead of deriving it
+// from the linked map. Reading it off the map is a two-step inference (find
+// the symbol, compare against the sentinels) that only answers for a symbol
+// somebody already suspected. A pointer the game built at run time can be
+// handed to this and answered without knowing its name, which is what the
+// packed-gap reproducer needs: it follows the game's own pointer to whichever
+// host array the generator put a DS address in, then asks whether that array
+// is captured. Cheap enough to call in a probe, and it reads the same two
+// sentinels the save path does, so it cannot drift from what is captured.
+int lk6_savestate_covers(const void *p)
+{
+    int r = 0;
+    const char *c = (const char *)p;
+    const char *lo = dsstate_base();
+    size_t gsz = dsstate_size();
+    if (gsz && c >= lo && c < lo + gsz)
+        r |= 1;
+    const char *ab = (const char *)port_arena_base();
+    const char *ae = (const char *)port_arena_end();
+    if (ab && ae > ab && c >= ab && c < ae)
+        r |= 2;
+    return r;
+}
+
 }
 
 // ---- COVERAGE NOTE ---------------------------------------------------------

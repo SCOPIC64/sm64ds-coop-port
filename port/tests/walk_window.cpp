@@ -541,6 +541,24 @@ void port_stage_a2_seat(void);
 int lk6_savestate_save(void);
 int lk6_savestate_load(void);
 int lk6_savestate_has(void);
+/* bit 0 the .dsstate section, bit 1 the arena, 0 = not captured at all */
+int lk6_savestate_covers(const void *p);
+/* The packed-gap reproducer's one anchor (SM64DS_SS_WATCH_FLAG below).
+   ov009's FLAG keeps its SharedFilePtr at DS 0x02112238 and reaches it only
+   through the pointer the generated mount patches into data_ov009_02112bc4+20,
+   so following that pointer lands on whichever host array currently hosts the
+   DS address -- a synthetic gap block, a named mount symbol, whatever the
+   generator decided. That indirection is the point: the probe watches the DS
+   storage the GAME uses rather than a host symbol whose identity the fix under
+   test is allowed to change. */
+extern unsigned char data_ov009_02112bc4[];
+/* The gap block itself, watched by name alongside the pointer above. The two
+   answer different questions and the reproducer needs both: the pointer says
+   whether the storage the GAME writes is captured, and this says whether the
+   gap copy is the copy that moved. They can disagree -- a named mount symbol
+   covering the same DS address would take the pointer and leave this one
+   untouched -- and that disagreement is a result, not noise. */
+extern unsigned char port_ov009_gap_0211222c[];
 /* disk-backed save state (hal/lk7_persist.cpp): makes the slot survive a
    restart. write() mirrors a successful save to <exedir>\savestate.bin,
    read() loads it at startup; available() is 1 only when the arena is at its
@@ -609,6 +627,42 @@ static unsigned long long ss_hw_hash(void)
         h *= 1099511628211ull;
     }
     return h;
+}
+/* SM64DS_SS_WATCH_FLAG's reader. Follows ov009's own pointer to the DS
+   halfword at 0x02112238 -- the fileID of FLAG's SharedFilePtr -- and reports
+   the value together with where the host storage behind it lives. 0xdead is
+   returned for a null pointer, which cannot be a real fileID here and means
+   the mount's patch pass did not run.
+
+   THE INDIRECTION IS THE MEASUREMENT. Reading a host symbol by name would
+   answer for that symbol; reading through the game's own pointer answers for
+   the bytes the game writes, which is the only thing a save state has to roll
+   back. It also survives the fix under test moving the DS address from one
+   host array to another. */
+static unsigned ss_flag_word(int *covers)
+{
+    const unsigned char *p =
+        *(const unsigned char *const *)(data_ov009_02112bc4 + 20);
+    if (covers) *covers = p ? lk6_savestate_covers(p) : 0;
+    return p ? *(const unsigned short *)p : 0xdeadu;
+}
+/* The record around the watched halfword, so a reader can tell a targeted
+   game write apart from something having zeroed the whole block. The ROM's
+   bytes here are ff ff 00 00 then a relocated pointer, twice over: two
+   SharedFilePtr records with their own fields behind them. */
+static void ss_flag_dump(const char *when)
+{
+    const unsigned char *p =
+        *(const unsigned char *const *)(data_ov009_02112bc4 + 20);
+    if (!p) {
+        fprintf(stderr, "[ss-flag] %s: pointer is NULL (the mount's patch "
+                        "pass did not run)\n", when);
+        return;
+    }
+    fprintf(stderr, "[ss-flag] %s: record at %p =", when, (const void *)p);
+    for (int i = 0; i < 32; ++i)
+        fprintf(stderr, " %02x", p[i]);
+    fprintf(stderr, "\n");
 }
 /* the actor registry and the ROM's own processing lists (hal/actor_registry) */
 void port_actor_tick(void);          /* phases 4/2/3: cleanup, init, behaviour */
@@ -3210,7 +3264,8 @@ int main(void)
         if (selftest) {
             static int ss_env, ss_save_fr = -1, ss_load_fr = -1,
                        ss_lock = 0, ss_assert = 0, ss_expect_mount = 0,
-                       ss_disk = 0;
+                       ss_disk = 0, ss_watch = 0;
+            static unsigned ss_flag_at_save;
             static unsigned long long ss_expect_hw;
             static unsigned char ss_lock_at_save;
             static int ss_saw_save = 0;
@@ -3236,6 +3291,52 @@ int main(void)
                    actually CHANGED before the load makes a mistimed run fail
                    loudly instead of passing without testing anything. */
                 ss_expect_mount = getenv("SM64DS_SS_EXPECT_MOUNT") != 0;
+                /* SM64DS_SS_WATCH_FLAG=1: the PACKED-GAP reproducer. Watch
+                   ov009's FLAG SharedFilePtr fileID across the save/load and
+                   report whether its storage is captured at all. =2 also
+                   FAILS the run if the halfword did not roll back, which is
+                   the assertion form for the battery. Separate from
+                   SM64DS_SS_ASSERT because that one is the message-lock and
+                   hardware-store acceptance test and this must be able to run
+                   red while that runs green. */
+                if (const char *w = getenv("SM64DS_SS_WATCH_FLAG"))
+                    ss_watch = atoi(w);
+            }
+            /* Every change of the watched halfword, as it happens. A save
+               state can only miss a rollback for a byte that actually moves,
+               so a run where this prints nothing has not tested anything and
+               must not be read as a pass. */
+            if (ss_watch) {
+                static int gap_seeded;
+                static unsigned gap_last;
+                const unsigned gap_now =
+                    *(const unsigned short *)(port_ov009_gap_0211222c + 12);
+                if (!gap_seeded || gap_now != gap_last) {
+                    fprintf(stderr, "[ss-gap] f%d port_ov009_gap_0211222c+12 "
+                            "%04x -> %04x, block %s\n", frame,
+                            gap_seeded ? gap_last : gap_now, gap_now,
+                            lk6_savestate_covers(port_ov009_gap_0211222c)
+                                ? "captured" : "NOT CAPTURED");
+                    gap_seeded = 1;
+                    gap_last = gap_now;
+                }
+            }
+            if (ss_watch) {
+                static int seeded;
+                static unsigned last;
+                int cov = 0;
+                const unsigned now = ss_flag_word(&cov);
+                if (!seeded || now != last) {
+                    fprintf(stderr, "[ss-flag] f%d ov009 FLAG fileID "
+                            "%04x -> %04x, storage %s\n", frame,
+                            seeded ? last : now, now,
+                            cov & 1 ? "in .dsstate (captured)"
+                                    : (cov & 2 ? "in the arena (captured)"
+                                               : "NOT CAPTURED"));
+                    ss_flag_dump(seeded ? "after the change" : "first look");
+                    seeded = 1;
+                    last = now;
+                }
             }
             if (ss_save_fr >= 0 && frame == ss_save_fr) {
                 lk6_savestate_save();
@@ -3248,6 +3349,22 @@ int main(void)
                 ss_lock_at_save = data_0209d660;
                 ss_hash_at_save = ss_hw_hash();
                 ss_saw_save = 1;
+                if (ss_watch) {
+                    int cov = 0;
+                    const unsigned live = ss_flag_word(&cov);
+                    ss_flag_at_save = *(const unsigned short *)
+                        (port_ov009_gap_0211222c + 12);
+                    fprintf(stderr, "[ss-flag] f%d save: gap+12=%04x, live "
+                            "fileID=%04x in %s; gap block %s\n", frame,
+                            ss_flag_at_save, live,
+                            cov & 1 ? ".dsstate" : (cov & 2 ? "the arena"
+                                                            : "NOTHING "
+                                                              "CAPTURED"),
+                            lk6_savestate_covers(port_ov009_gap_0211222c)
+                                ? "captured -- a load rolls it back"
+                                : "NOT CAPTURED -- a load cannot roll it "
+                                  "back");
+                }
                 fprintf(stderr, "[ss-repro] f%d save: msglock(d660)=%u "
                         "hw=%016llx\n", frame, (unsigned)data_0209d660,
                         ss_hash_at_save);
@@ -3272,6 +3389,19 @@ int main(void)
                             "and give the mount more frames.\n");
                     ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
                     return 5;
+                }
+                /* A rollback test over a byte that never moved proves
+                   nothing, and it fails silently in the direction of looking
+                   green. Say so before the load rather than after. */
+                if (ss_watch && ss_saw_save) {
+                    const unsigned pre_gap = *(const unsigned short *)
+                        (port_ov009_gap_0211222c + 12);
+                    fprintf(stderr, "[ss-flag] f%d pre-load: gap+12=%04x "
+                            "(saved %04x)%s\n", frame, pre_gap,
+                            ss_flag_at_save,
+                            pre_gap == ss_flag_at_save
+                                ? " -- VACUOUS: unchanged since the save, so "
+                                  "the load cannot test a rollback" : "");
                 }
                 if (lk6_savestate_load()) an_pivot_live = 0;
                 const unsigned long long post = ss_hw_hash();
@@ -3300,6 +3430,26 @@ int main(void)
                             "another area's textures\n", post, want);
                     ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
                     return 4;
+                }
+                if (ss_watch && ss_saw_save) {
+                    const unsigned post_gap = *(const unsigned short *)
+                        (port_ov009_gap_0211222c + 12);
+                    const int rolled = post_gap == ss_flag_at_save;
+                    fprintf(stderr, "[ss-flag] f%d post-load: gap+12=%04x "
+                            "(saved %04x) -- %s\n", frame, post_gap,
+                            ss_flag_at_save,
+                            rolled ? "ROLLED BACK" : "did NOT roll back");
+                    if (ss_watch >= 2 && !rolled) {
+                        fprintf(stderr, "[ss-flag] FAIL: a packed mount's DS "
+                                "storage did NOT roll back on restore. The "
+                                "bytes behind ov009's FLAG SharedFilePtr are "
+                                "outside the captured span -- the 0.2.0 "
+                                "ANIM_PTRS class again, this time in a "
+                                "synthetic gap block (port/tools/ovdata.py, "
+                                "audited by port/tools/gapaudit.py)\n");
+                        ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
+                        return 6;
+                    }
                 }
                 if (ss_assert)
                     fprintf(stderr, "[ss-repro] PASS: message-lock global and "
