@@ -92,6 +92,19 @@ static void catalog_load(void)
     fclose(f);
 }
 
+/* Read-only: the catalog's path for a FAT file id, or 0.
+   Run link60 lane NFS. hal/fs_names.cpp owns the open-by-name seam and shares
+   THIS table rather than reading files.tsv a second time, so the two seams
+   cannot drift about what a file id is. Nothing about the routing changes:
+   this file still references no symbol on the open-by-name trace. */
+extern "C" const char *port_fs_catalog_path(unsigned file_id)
+{
+    catalog_load();
+    if (file_id >= MAX_FILES || g_paths[file_id][0] == 0)
+        return 0;
+    return g_paths[file_id];
+}
+
 // ---- the game-facing surface ---------------------------------------------
 // The Memory:: layer is real C++ on host (gate-3a slice), so the HAL calls
 // the namespace; the C-linkage name below serves the C TUs (func_02017c24).

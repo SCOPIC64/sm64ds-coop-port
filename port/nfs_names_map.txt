@@ -1,0 +1,420 @@
+THE NITROSDK OPEN-BY-NAME FILE SYSTEM
+Run link60 Stage 4, lane NFS. Worktree C:/tmp/n1, branch s4-nitrofs-names, off
+63e6104ab (lane FDR's merge).
+
+Companion to port/fader_boot_map.txt, which is the seat immediately before this
+one and whose section 6 named this blocker. Read that first if the question is
+"how did scene 374 get here".
+
+
+1. WHAT WAS BROKEN, RE-DERIVED RATHER THAN RESTATED
+
+The handover said: dScMgCurling_c::InitResources opens a file by name;
+data_020a804c is zeroed host storage; func_0205cc80 never runs; func_0205d714
+copies the zero in; func_0205cdf4 faults on list+0x10. That is correct, and
+re-deriving it from the src produced three things the handover did not have.
+
+FIRST, THE NAMES. There are two of them and they are readable.
+func_ov006_020e3578 opens func_020adc74(&data_ov006_0213c394) and
+func_020adc74(&data_ov006_0213c3b4). Out of build/port/host-src/ov006_syms.c
+those bytes are
+
+    data_ov006_0213c394[4]  = "/MG/"                            (ROM +68356)
+    data_ov006_0213c398[28] = "d_2d_mg_bg_curling1_ncg.bin\0"   (ROM +68384)
+    data_ov006_0213c3b4[32] = "/MG/d_2d_mg_bg_curling2_ncg.bin\0" (ROM +68388)
+
+The FIRST NAME IS SPLIT ACROSS TWO PACKED SYMBOLS and reads as one string only
+because tools/ovdata.py pins both at their ROM offsets and ov006_syms.c asserts
+them at boot. That adjacency is load-bearing for this seat and it is checked by
+code that already exists; nothing here re-checks it, and a PACK BROKEN line
+would say so before anything else went wrong.
+
+SECOND, THE CONTRACT. The chain is not "open a file", it is convert-then-load,
+and the two halves are separate ROM entry points:
+
+    func_ov004_020adc74(path)
+      func_020182bc(path)
+        func_02018e3c(&fid, path)          convert path -> FSFileID or die
+          func_0205d644(&fid, path)        FS_InitFile + open, command 4
+        func_020182ec(fid.arc, fid.id, 1)  load the bytes
+          func_02018dc4  -> func_0205d568  open-fast by id,  command 6
+          func_0201834c  -> func_02018d48  read,             command 0
+                                           FS_CloseFile,     command 8
+
+FSFileID is two words {FSArchive *arc, u32 file_id}, which is what
+func_020182bc's `ldm r0, {r0, r1}` loads and what its `struct P { int a, b; }`
+decompiles to. So the name resolution produces a FILE ID -- the same currency
+hal/fs.cpp's id-based seam already deals in -- and that is why the two seams
+can be cross-checked at all.
+
+THIRD, data_020a8048 AND data_020a804c ARE NOT VRAM. hal/scene_boot.cpp read
+them as "the Vram__Map family's LCDC cursor and its three-word bank record" and
+lane FDR left the contradiction open because its fault did not depend on the
+answer. This one's fix did. Counted over the whole arm9 image, EVERY
+literal-pool reference to either address is inside the FS module:
+
+    0x020a8048   0x0205cc7c   0x0205cd2c   0x0205d288
+    0x020a804c   0x0205cc78   0x0205cd30   0x0205d870
+
+and nothing in the Vram__Map family touches either. data_020a8048 is NitroSDK's
+archive-list head; data_020a804c is the 12-byte FSDirPos current directory
+{FSArchive *arc, u16 own_id, u16 index, u32 pos}. THE SIZES WERE ALREADY RIGHT
+and the storage does not move -- moving a .dsstate member moves the section
+base, and hal/scene_boot.cpp's comment is corrected in place.
+
+
+2. WHY THE FDR SHAPE WAS TAKEN AND NOT THE HOSTED TABLE
+
+The brief preferred running the ROM's own registration if the closure was
+tractable. It is more than tractable: nearly the whole of NitroSDK's FS was
+already compiled into walk_window and had been for waves. What was missing was
+one call.
+
+  ALREADY LINKED, nothing to do
+    func_0205cdf4 send a command       func_0205c5e4 execute one
+    func_0205cf5c  func_0205c788       func_0205d8d8  func_0205d044
+    func_0205d920  func_0205c528       func_0205d568 open-fast
+    func_0205d688 read                 FS_CloseFile
+    func_02018d48  func_0201834c       func_0205a588
+    data_02086758[9], the default command table, hosted in hal/ptr_tables.cpp,
+      and all nine handlers from slice_ptrsweep.txt -- including func_0205c048,
+      which IS the ROM's path-to-file-id walker, and func_0205c448, the reader
+
+  IN A SLICE AND /OPT:REF-DROPPED for want of a caller. Referencing them from
+  the seat is the whole of the linked delta; no slice line was needed.
+    func_0205cd34 FS_InitArchive       func_0205cc80 FS_RegisterArchiveName
+    func_0205cb68 FS_LoadArchive       func_0205d23c  func_0205d304
+    func_0205d2dc  func_0205d2b0       (all slice_scene1.txt)
+
+  NEW SLICE LINES, three, in port/slice_nfs.txt
+    src/func_0205c7c4.c   FS_SetArchiveProc
+    src/func_0205d89c.c   the ROM's once-guard around FS_Init
+    src/func_0205db24.c   the archive write function, whose body is `return 1`
+
+  HOST FACES, four, in port/hal/fs_names.cpp
+    func_0205d96c   FS_Init          reads the DS cartridge-header mirror at
+                                     0x027FFE40/0x027FFE48 and calls
+                                     func_02057020, which reads 0x027FFFB0.
+                                     Both pages are unmapped in the port.
+    (the read fn)   func_0205db2c    one call to func_02060918, the card DMA
+    (the proc)      func_0205da94    func_0205ffb0 / func_0205ff90, the card
+                                     lock and unlock
+    func_02018e3c   an ABI face, not a hardware one. See section 4.
+
+Three slice lines against a limit of twelve. The hosted registration table was
+never needed and is not what shipped.
+
+
+3. WHERE EVERY HOSTED WORD COMES FROM
+
+Nothing in hal/fs_names.cpp is invented, and this is the list a reviewer should
+check rather than take on trust.
+
+  the archive NAME          the ROM's own four rodata bytes at 0x0209a048,
+                            emitted by port/tools/romdata.py like every other
+                            ROM constant. Never spelled as a C literal.
+  the FNT and FAT offsets   the DS cartridge header's words at 0x40/0x44/0x48/
+  and sizes                 0x4c, read out of the .nds by
+                            tools/asset_catalog.py into
+                            build/assets/nitrofs.tsv. The port never
+                            dereferences 0x027FFE40.
+  the FNT and FAT bytes     copied verbatim out of the same .nds into
+                            build/assets/nitrofs_{fnt,fat}.bin. NOT
+                            reconstructed from files.tsv: a name table built
+                            back out of the catalog would be a forgery, and
+                            the entire value of running Nintendo's walker is
+                            that nothing between the name and the file id is
+                            this port's invention.
+  file BYTES                extracted/dsd/files/<path>, through hal/fs.cpp's
+                            existing catalog.
+  the archive RECORD        zeroed by the ROM's own func_0205cd34 and filled
+                            by the ROM's own func_0205cc80 / func_0205c7c4 /
+                            func_0205cb68. The port writes none of its fields
+                            by hand. 0x50 bytes because func_0205cd34 memsets
+                            exactly 0x50 and the highest field written is the
+                            command bitmask at +0x4c.
+
+THE ONE PIECE OF REAL HOST LOGIC IS THE OFFSET-TO-FILE MAP, and it is worth
+naming because it is the only place this seat could have cheated. Every read
+the ROM's code asks for is an offset into a cartridge the port does not ship.
+The read face answers three ranges: inside the FNT span, from the FNT blob;
+inside the FAT span, from the FAT blob; otherwise it finds the FAT entry whose
+[start, end) contains the offset, which yields a FILE ID, and serves the bytes
+from that id's catalog path. The FAT it indexes is the same FAT the ROM's own
+walker just indexed, so the forward direction (name -> id) and the backward one
+(offset -> id) cannot disagree about what a file is.
+
+
+4. func_02018e3c, THE RIDE-THROUGH, AND HOW IT WAS CONVICTED
+
+With the archive registered the ROM's walker ran and still did not find the
+file. The cause was not in this seam.
+
+src/func_02018e3c.c is a RIDE-THROUGH. The ROM body is
+
+    02018e3c  push {r4, lr}
+    02018e40  bl   func_0205d644          <- r0 and r1 carried through
+    02018e44  movs r4, r0
+    02018e48  bne  0x02018e58
+    02018e4c  ldr  r0, [pc, #0x10]        <- data_0208ecd8
+    02018e50  bl   func_02018e68
+    02018e54  bl   func_02019740          <- Crash
+
+and the decompilation is faithful to it: `int func_02018e3c(void) { int r =
+func_0205d644(); ... }`, naming no parameters because the ARM needs none. Its
+caller func_020182bc pushes two; this callee forwards neither; on a cdecl host
+func_0205d644 reads two stack words that are not the FSFileID out pointer and
+the path.
+
+CONVICTED BY MEASUREMENT, NOT BY READING THE PAGE. On one binary, in one boot:
+
+  SM64DS_NFS_TRACE=1 shows the ROM's walker read the FNT root directory entry
+  at 0x1d9324, walk all four root names -- 0x09 "BUILDTIME" (a file, 9),
+  0x87 "ARCHIVE" (a directory, 7), 0x84 "data", 0x82 "MG" -- and fall off the
+  0x00 terminator having matched nothing.
+
+  SM64DS_NFS_PROBE=1, which calls func_0205d644 from C++ with both arguments
+  spelled out, resolves the same two names on the same tables through the same
+  archive:
+      /MG/d_2d_mg_bg_curling1_ncg.bin -> file id 1672
+      /MG/d_2d_mg_bg_curling2_ncg.bin -> file id 1676
+
+Same seam, same archive, same walker. The only difference is who supplied the
+arguments.
+
+The face is in hal/fs_names.cpp and src/func_02018e3c.c is commented out of
+slice_mg1.txt with the reason. It is the identical trade hal/fs.cpp already
+made for SharedFilePtr::Construct ("passes ov0FileID by LEAVING IT IN r1 across
+a call that only names one argument -- a ride-through C cannot express") and
+that hal/ptr_tables.cpp names for func_0205c410 and func_0205c448.
+
+THREE MORE RIDE-THROUGHS ARE ON THE SAME CHAIN AND ARE NOT FIXED HERE, because
+they are on the RETURN path and they currently work. func_020182bc,
+func_ov004_020adc74 and func_020182ec's callers all let a result ride out of a
+tail call in a function the decomp types `void`. MSVC does not clobber EAX in
+those epilogues, so the pointer arrives; it is undefined behaviour that happens
+to hold, exactly like the two command-table slots hal/ptr_tables.cpp types
+through. Written down here so the next person who sees InitResources get a
+garbage pointer knows where to look first.
+
+
+5. THE COMMANDS, ENUMERATED
+
+Whether the archive needs a proc at all turns on this, so it was counted rather
+than assumed. The linked callers send:
+
+    0  read              func_0205d688
+    4  find by name      func_0205d714
+    5                    func_0205d4a0
+    6  open fast         func_0205d568
+    8  close             FS_CloseFile
+
+Command 7's only sender is func_0205d5e8, WHICH IS NOT LINKED in either build
+(no func_0205d5e8.c.obj row in walk_window.map), so it is off this list. An
+earlier version of this file carried it, read off the src call sites without
+checking the map. The conclusion is unaffected either way: 7 is a default-table
+index like the rest.
+
+Every command above is inside the nine-entry default table. Commands 1, 9 and 10 are the
+three the ROM's own bitmask 0x602 claims for the archive proc, and NOTHING IN
+THE LINK SENDS THEM -- with one exception that matters: func_0205cdf4 and
+func_0205d044 call the proc DIRECTLY with 9 and 10 as the archive's activate
+and idle hooks, which a trace run confirms (16 proc calls over a 300-frame
+scene 374). So the proc is registered, it keeps the ROM's exact return values,
+and it also stops a command 9 or 10 from ever indexing the hosted nine-entry
+data_02086758 off the end.
+
+
+6. THE RESULT, AND A GREEN THIS LANE CLAIMED AND HAD TO WITHDRAW
+
+    before   SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=300
+             exit 139, crash.txt c0000005 at +0x0006f5c2 accessing 0x00000010,
+             eax 0, and the pre-flight line
+             "MINIGAME BLOCKED: the NitroSDK open-by-name archive at
+              data_020a804c is null"
+
+    after    THE FILE SYSTEM WORKS AND THE SCENE STILL DOES NOT RUN.
+             InitResources completes for the first time. 226 archive reads
+             over the run, of which the two that matter are 0x312310 +0x4d70
+             (19,824 bytes, file id 1672) and 0x318220 +0x4f04 (20,228, file
+             id 1676) -- the scene's own two backgrounds, at the ROM offsets
+             the cartridge's own FAT gives for them, served out of
+             extracted/dsd/files. The scene then reaches its FIRST BEHAVIOUR
+             TICK, which it never had, and dies there. See section 7.
+
+THE WITHDRAWN GREEN IS WORTH MORE THAN THE RESULT, so it goes above it rather
+than in a footnote. Run by hand, the after case exits 0 and prints
+
+    [scene] 300 frames of scene 374 (SCENE_MG_CURLING), clean
+
+and this lane believed it and wrote it into a status file. It is not true. The
+fault is QUARANTINED: hal/actor_classes.cpp catches it, FREEZES the actor and
+lets the frame continue, so 299 further frames tick a dead object into a zero
+exit code. The one line that says so is in the playlog and not on stdout:
+
+    [quarantine] actor 307FB114 id 374 (?) faulted (code c0000005 +303fb114)
+                 -- FROZEN, frame continues
+
+port/tools/battery.py sets SM64DS_FAULTS_FATAL=1 for exactly this and its
+header says exactly this ("without it a quarantined fault reads as a pass").
+The gate came back RED and was right. TWO RULES FALL OUT and neither is new,
+which is the point: run the gate, not the binary; and on this port a zero exit
+code from a scene run is not evidence of anything unless FAULTS_FATAL was set.
+
+WHAT THE SEAT DOES PROVE, measured: the archive registers through the ROM's own
+func_0205cc80 (name word 0x6d6f72, "rom" packed by func_0205d304), the
+cartridge's own walker resolves both names, both agree with the asset catalog,
+both files load at the FAT's own offsets, and InitResources returns. IT SAYS
+NOTHING ABOUT PIXELS. No frame was looked at, no BMP was taken, and nothing in
+this file should be read as a claim about what is on screen.
+
+
+7. THE NEXT BLOCKER, AND IT IS THE FADER AGAIN
+
+The SCENE_BLOCKED row for 0x176 is CONVERTED, not deleted, and this is what it
+now names. Reached only because InitResources finishes:
+
+    func_02043288  the actor-tree walker
+      mb_bbeh                              hal/scene_mg.cpp
+        func_ov004_020b0620                dScMgBase_c slot 7, BeforeBehavior
+          _ZN5Scene14BeforeBehaviorEv      where it dies
+
+THE MECHANISM BELOW IS THE REVIEWER'S INSTRUCTION-LEVEL SYMBOLIZATION AND IT
+REPLACES THIS LANE'S FIRST READING, which was wrong in three separate ways and
+had been written into this file, into battery.py's row and into
+hal/scene_mg.cpp before the correction landed. The first reading named
+data_0209f5bc->vt->f14 as the dying dispatch, put the leak at four bytes, and
+said port/fader_boot_map.txt section 7a predicted it. None of that is true.
+It is spelled out here rather than quietly replaced because THIS SECTION IS
+THE HANDOVER the next fader lane works from, and a handover that is confidently
+wrong about which call site dies costs more than one that says nothing.
+
+WHAT ACTUALLY HAPPENS, by address:
+
+    004B45EA   je      ...          the f14 site is JUMPED PAST entirely
+    ...        call    [eax+18h]    dispatched, seated, silent
+    004B46C5   push    0
+    004B46CA   push    1Eh
+    004B46D1   call    [eax+0Ch]    fdr_s0c, and NO CALLER CLEANUP FOLLOWS
+
+The call site pushes two arguments and expects the CALLEE to clean them. The
+slot holds `int __fastcall fdr_s0c(void *, void *)`, which takes its two
+parameters in registers and cleans NOTHING. Eight bytes leak, not four, and
+the register file in the crash dump is the arithmetic:
+
+    pop esi   takes 0x1E          -> esi = 1e
+    pop ebp   takes 0             -> ebp = 0
+    ret       pops the saved esi  -> eip = 307fb114, the Scene pointer
+
+    crash dump: eax 1, esi 1e, ebp 0, eip 307fb114
+
+which is every register accounted for and not a reading that merely fits.
+
+SECTION 7a DID NOT PREDICT THIS. IT ARGUED THE OPPOSITE, and this fault
+falsifies the argument. 7a reasoned that a fastcall stub with two register
+parameters and no stack parameters is balanced for both caller shapes, because
+"a cdecl caller cleans its own push, and a thiscall no-argument caller pushes
+nothing". The shape that actually reaches slot 0x0c is neither: it is a caller
+that PUSHES TWO ARGUMENTS AND CLEANS NEITHER. Against that, a callee that
+cleans nothing is short by exactly eight. The three-line argument in 7a should
+be read as refuted rather than as unproven.
+
+SLOT 0x10 CARRIES THE IDENTICAL DEFECT, at 004B460B on the other branch of the
+same function. Its trap has never printed, and the only reason is that the run
+dies on 0x0c first. Fixing 0x0c alone moves the fault, it does not retire it.
+
+THE FIX, AND IT IS THE FADER SEAT'S: the fill's stubs are the wrong ABI for a
+table MSVC calls with pushed arguments and callee-cleans expectations. Slots
+0x0c and 0x10 need ABI-correct stubs or the ROM's real bodies
+(func_0202f928 and func_0202f708), AND THE REST OF THE FILL'S STUB SIGNATURES
+NEED THE SAME AUDIT -- every one of the twelve is `__fastcall(void *, void *)`
+today, chosen on 7a's refuted reasoning, so any other slot this table reaches
+with pushed arguments has the same leak waiting. That audit is the work, not a
+one-slot patch, and it belongs with port/fader_boot_map.txt sections 7a and 9.
+
+The playlog's last line before the fault is the fader seat's own, and it is
+what makes the slot identification direct rather than inferred:
+
+    [fdr] dWipe_c vtable slot 0x0c SetBackwardTime FIRED -- the ROM body is
+          func_0202f928 and this tranche did not seat it.
+
+so FDR's first unproven item -- "the three trap slots have never been
+dispatched" -- is spent.
+
+The pre-flight that prints the row's marker is the third in one block in
+hal/scene_mg.cpp, beside the two retired ones, and it asks a PREDICATE rather
+than matching a string: port_fdr_motion_slots_unseated() compares the three
+slots against the traps the fader seat installed, so it stops printing on its
+own when they are seated.
+
+
+8. UNPROVEN ITEMS
+
+  * THE FAULT ATTRIBUTION IS NOW INSTRUCTION-LEVEL AND NOT THIS LANE'S WORK.
+    Section 7's mechanism is the reviewer's symbolization: the call site at
+    004B46D1, the two pushes with no cleanup, the eight-byte leak and the
+    three pops that produce the crash dump's exact register file. This lane's
+    own reading, at function granularity, named the wrong call site and the
+    wrong byte count and credited section 7a with predicting a fault it had
+    argued against. What remains genuinely open is only the audit: whether any
+    slot in the fill other than 0x0c and 0x10 is reached by a pushed-argument
+    caller, which nothing here has enumerated.
+  * ONE UNMATCHED BODY NOW RUNS. The run reports "unmatched ov004/ov006 traps
+    entered: 1" -- func_0202e78c, trapped by hal/scene_mg_faces.cpp and
+    returning 0. It could not fire before this seat because the run died
+    upstream of it. It is MG2's trap and MG2's hole; this lane only made it
+    reachable, and whether the 0 it returns is the right answer is unknown.
+  * THE STATE MACHINE NEVER TICKED: "state dispatch: 0 call(s) through the
+    address switch". With the behaviour tick dying on frame one that is
+    expected rather than informative, and it should be re-read after the fader
+    slots are seated, not before.
+  * NO FRAME WAS LOOKED AT. See section 6. AND ANY BMP BASELINE FROM BEFORE
+    THIS TRANCHE IS INVALID, for a reason with nothing to do with rendering.
+    The seat adds six symbols to .dsstate as one contiguous block, +112
+    CAPTURED BYTES (108 is the source sum of the six spans; the other 4 is
+    alignment), and the section base moved a page. port/tools/battery.py's
+    header is explicit that the selftest BMP is only byte-identical at an
+    EQUAL .dsstate base, so a diff against a pre-tranche image is a layout
+    artifact and reads as a rendering regression to anyone who skips that
+    rule. Compare at equal base or do not compare.
+  * THE THIRTEEN NARC ARCHIVES ARE UNTOUCHED. This registers exactly one, the
+    cartridge's own "rom", and that one is not among them: data_0208ecf4 holds
+    thirteen NARC mounts and the catalog counts thirteen archive files, so the
+    count of others is thirteen and not twelve. They are still served lazily by
+    hal/fs.cpp's port_archive_map and go nowhere near this seam. A path with an
+    "arch:" prefix would reach func_0205d23c and find nothing.
+  * WRITES ARE REFUSED, WHICH IS THE ROM'S ANSWER AND NOT A TESTED ONE.
+    src/func_0205db24.c returns 1 for every write. Nothing in the port writes
+    to the cartridge, so the path has never been exercised.
+  * THE READ FACE IS SYNCHRONOUS AND THE CARD IS NOT. func_0205db2c returns 6
+    and completes on an interrupt; this returns 0 and is done. Every caller in
+    the link handles 0 (func_0205c528 treats 0 and 1 as complete, func_0205c5e4
+    only sleeps on 6) and OS_SleepThread would fault in this port anyway, so
+    synchronous is the only workable answer -- but "no linked caller needs the
+    async path" is a statement about today's link.
+  * THE FAT SCAN IS LINEAR. 2,175 entries per file open. Measured against a
+    300-frame scene it does not show, and it has not been measured against
+    anything longer.
+  * ONE TARGET WAS EXERCISED. The seat is on the same three targets the fader
+    seat rides: smoke_player, walk_window and walk_window_hires. (NOT
+    smoke_persist -- an earlier draft of this file said so, copying the fader
+    seat's prose instead of reading the CMakeLists, and the three variables
+    are appended at add_executable lines 4480, 4618 and 4797.) Only
+    walk_window has been RUN through the open-by-name path; the other two are
+    link, battery and abort-path evidence.
+  * THE CATALOG NEEDS REGENERATING, AND THAT PART IS TESTED. Every target
+    carrying this seat calls the ROM's FS_Init from a static initialiser, so a
+    tree whose build/assets predates this change dies before main with
+
+        FATAL: NitroFS table index missing: <path>/build/assets/nitrofs.tsv
+               run tools/asset_catalog.py generate <rom>
+
+    Verified by moving the file aside: walk_window and smoke_player both die
+    with that message; smoke_fs and smoke_persist do not carry the seat and
+    are unaffected. THE EXIT CODE IS 0xC0000409, not the 127 an earlier draft
+    of this file reported off a shell's own rendering of it. That is
+    STATUS_STACK_BUFFER_OVERRUN, which is what MSVC's abort() raises, and it
+    is a confusing thing for a missing file to produce. Refusing rather than
+    limping is hal/fs.cpp's precedent and the failure shape stands, but a
+    successor may want exit(2) after the FATAL line instead: same loudness,
+    legible code. Not taken here, and handed forward rather than left implied.

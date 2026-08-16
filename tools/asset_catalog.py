@@ -17,6 +17,7 @@ import collections
 import csv
 import pathlib
 import re
+import struct
 import sys
 from dataclasses import dataclass
 
@@ -24,6 +25,7 @@ from dataclasses import dataclass
 REPO = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT_MANIFEST = REPO / "build" / "assets" / "files.tsv"
 DEFAULT_HANDLES = REPO / "build" / "assets" / "handles.tsv"
+DEFAULT_NITROFS_DIR = REPO / "build" / "assets"
 DEFAULT_FILE_HEADER = REPO / "build" / "generated" / "NitroFileId.h"
 DEFAULT_HANDLE_HEADER = REPO / "build" / "generated" / "AssetHandle.h"
 DEFAULT_REFERENCES = REPO / "build" / "assets" / "references.tsv"
@@ -187,6 +189,59 @@ def catalogs_from_rom(path: pathlib.Path) -> tuple[list[Asset], list[AssetHandle
     except KeyError as exc:
         raise ValueError("ROM has no ARM9 overlay 0") from exc
     return assets, handles_from_overlay(overlay, assets)
+
+
+# The DS cartridge header's four NitroFS words, at their fixed header offsets.
+# See GBATEK "DS Cartridge Header": 0x40 fnt_offset, 0x44 fnt_size,
+# 0x48 fat_offset, 0x4c fat_size.  The ROM mirrors the header into main RAM at
+# 0x027FFE00 and the game's FS_Init (0x0205d96c) reads the same four words as
+# *(int*)0x027FFE40 / *(int*)0x027FFE48.
+ROM_HEADER_FNT = 0x40
+ROM_HEADER_FAT = 0x48
+
+
+def write_nitrofs_tables(directory: pathlib.Path, rom: pathlib.Path) -> dict:
+    """Copy the ROM's own FNT and FAT out verbatim, with their ROM offsets.
+
+    WHY THIS IS HERE AND NOT RECONSTRUCTED. port/hal/fs_names.cpp runs the
+    ROM's own NitroSDK archive registration, and the ROM's own FNT walker then
+    resolves a path by reading these two tables through the archive's read
+    function.  The tables have to be the CARTRIDGE'S BYTES: a name table built
+    back out of files.tsv would be a plausible-looking forgery, and the whole
+    point of running the ROM's walker is that nothing between the name and the
+    file id is this port's invention.
+
+    The FAT is also what makes an absolute ROM offset resolvable at all.  Every
+    read the walker asks for is an offset into the cartridge image, and the
+    port does not ship the cartridge; the HAL turns an offset back into a file
+    id by looking it up in this FAT, then serves the bytes from
+    extracted/dsd/files via files.tsv.  Same table the ROM indexes, so the two
+    directions cannot disagree.
+
+    Output is gitignored build/ like every other catalog product, and like
+    them it needs a regenerate when the ROM changes.
+    """
+    blob = rom.read_bytes()
+    fnt_off, fnt_size, fat_off, fat_size = struct.unpack_from(
+        "<IIII", blob, ROM_HEADER_FNT)
+    for name, off, size in (("fnt", fnt_off, fnt_size),
+                            ("fat", fat_off, fat_size)):
+        if size == 0 or off == 0 or off + size > len(blob):
+            raise ValueError(
+                f"ROM header's {name} span ({off:#x}+{size:#x}) is outside the "
+                f"{len(blob):#x}-byte image; this is not a NitroFS cartridge")
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "nitrofs_fnt.bin").write_bytes(blob[fnt_off:fnt_off + fnt_size])
+    (directory / "nitrofs_fat.bin").write_bytes(blob[fat_off:fat_off + fat_size])
+    meta = {"fnt_offset": fnt_off, "fnt_size": fnt_size,
+            "fat_offset": fat_off, "fat_size": fat_size}
+    with (directory / "nitrofs.tsv").open("w", encoding="utf-8",
+                                          newline="") as f:
+        writer = csv.writer(f, delimiter="\t", lineterminator="\n")
+        writer.writerow(("key", "value"))
+        for key, value in meta.items():
+            writer.writerow((key, value))
+    return meta
 
 
 def write_manifest(path: pathlib.Path, assets: list[Asset]) -> None:
@@ -625,6 +680,10 @@ def cmd_generate(args) -> None:
         sys.exit(f"error: {exc}")
     write_manifest(args.manifest, assets)
     write_handles(args.handles, handles)
+    try:
+        nitrofs = write_nitrofs_tables(args.nitrofs, rom)
+    except ValueError as exc:
+        sys.exit(f"error: {exc}")
     write_header(args.file_header, assets, value_attr="file_id",
                  prefix="NITRO_FILE_ID", enum_name="NitroFileId",
                  description="Raw NitroFS IDs; these are not game-code asset handles.")
@@ -639,6 +698,9 @@ def cmd_generate(args) -> None:
     print(f"  manifest: {args.manifest}")
     print(f"  handles : {args.handles}")
     print(f"  headers : {args.file_header}, {args.handle_header}")
+    print(f"  nitrofs : {args.nitrofs} "
+          f"(fnt {nitrofs['fnt_size']:,} bytes at {nitrofs['fnt_offset']:#x}, "
+          f"fat {nitrofs['fat_size']:,} bytes at {nitrofs['fat_offset']:#x})")
 
 
 def cmd_references(args) -> None:
@@ -673,6 +735,8 @@ def main(argv=None) -> None:
     generate.add_argument("--handles", type=pathlib.Path, default=DEFAULT_HANDLES)
     generate.add_argument("--file-header", type=pathlib.Path, default=DEFAULT_FILE_HEADER)
     generate.add_argument("--handle-header", type=pathlib.Path, default=DEFAULT_HANDLE_HEADER)
+    generate.add_argument("--nitrofs", type=pathlib.Path, default=DEFAULT_NITROFS_DIR,
+                          help="directory for the ROM's own FNT/FAT copies")
     generate.set_defaults(func=cmd_generate)
 
     references = commands.add_parser("references", help="resolve literal asset IDs in src/")

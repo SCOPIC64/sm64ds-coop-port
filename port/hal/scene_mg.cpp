@@ -321,9 +321,15 @@ void __sinit_ov006_021333e0(void);
    pre-flight check in the fill. */
 extern int data_0209f61c[];
 
-/* the NitroSDK default-archive record the successor pre-flight below reads;
-   hosted as zeroed storage by hal/scene_boot.cpp */
+/* NitroSDK's FSDirPos current directory, which hal/fs_names.cpp fills through
+   the ROM's own archive registration; storage in hal/scene_boot.cpp. The
+   second pre-flight below reads it as a regression assertion. */
 extern int data_020a804c[];
+
+/* hal/fdr_arm9_fader_seat.cpp: are the three dWipe_c motion slots still this
+   port's named traps rather than the ROM's bodies? The third pre-flight below
+   is keyed on it. */
+int port_fdr_motion_slots_unseated(void);
 
 /* the mount storage the fill writes into */
 extern unsigned char data_ov006_0213c304[];   /* dScMgCurling_c, 36 slots */
@@ -765,20 +771,96 @@ extern "C" void port_scene_fill_curling(void)
        bank record). Its only ROM writer is func_0205cc80's archive
        registration, which nothing in the port runs, so field_0 is null.
 
-       KEPT IN THE SAME BLOCK AS THE ONE ABOVE, deliberately. A reader who
-       comes here from battery.py's SCENE_BLOCKED row wants "why does scene
-       374 not boot" answered in one place, and the retired check stays beside
-       its successor because it is now a live regression assertion: if
-       anything ever de-seats the fader, it starts printing again. */
+       RETIRED IN TURN, run link60 lane NFS, and it is now the SECOND live
+       regression assertion in this block rather than a blocker.
+       port/hal/fs_names.cpp runs the ROM's own func_0205cc80 at the ROM's own
+       boot point, so data_020a804c holds a real archive and
+       dScMgCurling_c::InitResources loads both of its files through the
+       cartridge's own name table and RETURNS. The scene does not run yet: the
+       check below this one is what stops it now.
+
+       WHAT WAS ALSO WRONG ABOVE, corrected rather than deleted because the
+       wrong reading is in three files and a successor will meet it: the
+       parenthetical calling data_020a804c "a VRAM bank record" was
+       hal/scene_boot.cpp's gloss and it is not what the symbol is. Every
+       literal-pool reference to data_020a804c or data_020a8048 in the whole
+       arm9 image is inside the FS module. data_020a804c is NitroSDK's
+       12-byte FSDirPos current directory and data_020a8048 is the archive
+       list head. The sizes hal/scene_boot.cpp gives them are right; only the
+       names were wrong. See port/nfs_names_map.txt.
+
+       BOTH CHECKS ARE KEPT IN ONE BLOCK, deliberately. A reader who comes
+       here asking "why does scene 374 not boot" wants the whole history in
+       one place, and each retired check is a live assertion about the seat
+       that retired it: if anything ever de-seats the fader or the archive,
+       the matching line starts printing again. */
     if (IsMinigameActorID((unsigned)port_scene_env_want()) &&
         data_020a804c[0] == 0) {
         std::printf("[scene] MINIGAME BLOCKED: the NitroSDK open-by-name "
                     "archive at data_020a804c is null, so "
                     "dScMgCurling_c::InitResources faults in func_0205cdf4. "
-                    "The fader seat is DONE and this is the next one: nothing "
-                    "in the port runs the ROM's archive registration "
-                    "(func_0205cc80), and hal/fs.cpp hosts the id-based seam "
-                    "rather than this one.\n");
+                    "hal/fs_names.cpp is supposed to have registered it "
+                    "through the ROM's own func_0205cc80 before this runs, so "
+                    "seeing this line means that seat came apart.\n");
+        std::fflush(stdout);
+    }
+
+    /* ---- AND THE ONE BEHIND THAT ----------------------------------------
+       Run link60 lane NFS, and it is the THIRD in this chain: the fader seat
+       let the scene reach InitResources, the file-system seat let
+       InitResources finish, and what the scene reached next is the fader
+       again -- this time a defect in that seat's stub ABI.
+
+           func_02043288 -> mb_bbeh -> func_ov004_020b0620 (slot 7)
+                         -> Scene::BeforeBehavior
+
+       which JUMPS PAST the data_0209f5bc->vt->f14 site at 004B45EA,
+       dispatches [eax+18h] (seated, silent), and then at 004B46C5..46D1
+       pushes 0 and 1Eh and calls [eax+0Ch] WITH NO CALLER CLEANUP. That slot
+       holds hal/fdr_arm9_fader_seat.cpp's fdr_s0c, an
+       `int __fastcall(void *, void *)` stub that takes both parameters in
+       registers and cleans nothing, so eight bytes leak: pop esi takes 0x1E,
+       pop ebp takes 0, and ret pops the saved esi, which is the Scene
+       pointer. The crash dump is that arithmetic exactly (eax 1, esi 1e,
+       ebp 0, eip 307FB114). Slot 0x10 at 004B460B has the identical defect
+       on the other branch; its trap has never printed only because the run
+       dies on 0x0c first.
+
+       READ 7a AS REFUTED, NOT AS PREDICTIVE. port/fader_boot_map.txt section
+       7a argued a fastcall stub with no stack parameters is balanced for both
+       caller shapes. The caller here pushes two arguments and cleans neither,
+       which is a third shape, and all twelve stubs in the fill were written
+       on that argument. An earlier version of this comment credited 7a with
+       predicting the fault and named f14 as the dying call; both were wrong
+       and the correction is the reviewer's instruction-level symbolization.
+
+       WHY THIS LINE EXISTS AT ALL, and it is not decoration. The fault is
+       QUARANTINED: hal/actor_classes.cpp freezes the actor and the frame
+       continues, so a bare 300-frame run exits 0 and reads like a pass unless
+       SM64DS_FAULTS_FATAL is set. battery.py sets it and is red without this
+       row; a reader running the scene by hand is not and would be told the
+       scene works. That is exactly the mistake this line stops.
+
+       IT ASKS A PREDICATE, NOT A STRING. port_fdr_motion_slots_unseated()
+       compares data_020926f0's three motion slots against the traps
+       hal/fdr_arm9_fader_seat.cpp installed, so the day somebody seats
+       func_0202f428 / func_0202f928 / func_0202f708 this stops printing on
+       its own and battery.py reports BLOCK RETIRED. Seating 0x0c alone only
+       moves the fault to 0x10; the whole fill's stub signatures need the
+       audit. */
+    if (IsMinigameActorID((unsigned)port_scene_env_want()) &&
+        port_fdr_motion_slots_unseated()) {
+        std::printf("[scene] MINIGAME BLOCKED: the dWipe_c motion slots are "
+                    "still named traps, so the first behaviour tick dies in "
+                    "Scene::BeforeBehavior. It pushes two arguments at "
+                    "004B46D1 and calls slot 0x0c (SetBackwardTime, ROM body "
+                    "func_0202f928) without cleaning them; the fastcall trap "
+                    "stub cleans nothing either, eight bytes leak, and the "
+                    "ret lands on the Scene pointer. Slot 0x10 has the same "
+                    "defect. The file system seat is DONE and this is the "
+                    "next one: it belongs with port/fader_boot_map.txt "
+                    "sections 7a and 9, not with the minigame or the file "
+                    "system.\n");
         std::fflush(stdout);
     }
 
