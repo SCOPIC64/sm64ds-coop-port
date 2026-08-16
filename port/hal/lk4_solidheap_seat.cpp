@@ -82,12 +82,12 @@
 //                func_0201a428 caller and BREAK this veneer, which reaches the
 //                same name with the receiver only in ECX. The veneer TU has to
 //                change in the same commit as any Destroy fix.
-//   ResizeToFit  src/_ZN9ActorBase9Virtual34Ejj.cpp pushes the heap at :57,
-//                :116 and :123, and Virtual34 is slot 13 of _ZTV5Actor, which
-//                THIS FILE seats. Nothing dispatches it on the castle grounds
-//                today (see the header), so it is latent the same way
-//                SetDefault was: linked, wrong, and off every path the battery
-//                covers.
+// ResizeToFit IS NO LONGER IN THIS BLOCK EITHER: lane LK5 took it second. It
+// was latent exactly the way SetDefault was, linked and wrong and off every
+// path the battery covers, reached from src/_ZN9ActorBase9Virtual34Ejj.cpp
+// at :57, :116 and :123 through slot 13 of _ZTV5Actor, which THIS FILE seats.
+// A receiver-bridging face near the bottom of this file replaces it and the
+// measured before and after are there.
 // THE SolidHeapAllocator PAIR IS NO LONGER IN THIS BLOCK: lane LK5 took it
 // first, for the reason the ruling below gives. It ran the other way (thiscall
 // LHS, flat C RHS whose first stack argument is the receiver) so both stack
@@ -119,7 +119,9 @@
 //     func_ov007_020cc4c0 on a path, and a lane that does it first inherits
 //     the fault with none of this evidence.
 #pragma comment(linker, "/alternatename:__ZN4Heap7DestroyEv=?Destroy@Heap@@QAEXXZ")
-#pragma comment(linker, "/alternatename:__ZN4Heap11ResizeToFitEv=?ResizeToFit@Heap@@QAEIXZ")
+// ResizeToFit USED TO BE THE NEXT LINE AND IT WAS WRONG THE SAME WAY
+// SetDefault was. A receiver-bridging face near the bottom of this file
+// replaces it and the evidence is in the header there.
 // G is the ROM's shorthand for the default-heap pointer (decl_common.h
 // `extern int G`), the same 0x020a0ea0 word heap_vtable.cpp hosts as
 // data_020a0ea0 / Memory::defaultHeapPtr. One storage, one more name.
@@ -175,6 +177,11 @@ struct ActorBase
 struct Heap
 {
     int SetDefault();
+    /* I = unsigned int, matching ?ResizeToFit@Heap@@QAEIXZ and the
+       `unsigned int Heap::ResizeToFit()` src/_ZN4Heap11ResizeToFitEv.c
+       defines. Virtual34 spells the flat C name with a void return; same
+       __thiscall, r0/EAX ignored, the ROM's own shape. */
+    unsigned int ResizeToFit();
 };
 
 extern "C" {
@@ -403,6 +410,58 @@ void *SolidHeapAllocator::Allocate(u32 size, int align)
    widening the Rescue alias above documents */
 void *SolidHeapAllocator::Reallocate(void *ptr, u32 size)
 { return (void *)_ZN18SolidHeapAllocator10ReallocateEPvj(this, ptr, size); }
+
+/* THE RECEIVER-BRIDGING FACE FOR Heap::ResizeToFit, replacing the third of
+   the four directives this file used to carry. Same direction and same
+   failure as SetDefault: flat C LHS, __thiscall RHS, so the caller pushes the
+   heap and the method reads ECX.
+
+   THE BODY, DISASSEMBLED OUT OF THIS LANE'S OWN BASELINE BUILD. At 00500E20:
+
+     push esi / push edi
+     mov  edi,ecx                <- the receiver, from ECX and nowhere else
+     mov  eax,dword ptr [edi]    <- its vptr
+     call dword ptr [eax+38h]    <- VResizeToFit, slot 14
+     test dword ptr [edi+10h],4000h
+     ...
+     ret                         <- no stack argument popped, because it has
+                                    none to pop
+
+   and the two live call sites in ActorBase::Virtual34 read
+
+     004A9838: call 004A9A40          RestoreFromTemporary
+     004A983F: mov  esi,[ebp+0Ch]
+     004A9842: push esi               the heap, PUSHED
+     004A9849: call 00500E20          ECX is never set for this call
+     004A984E: add  esp,4
+
+   ECX at that call is whatever survived the RestoreFromTemporary call before
+   it. So the heap the caller pushed is discarded and the vtable dispatch runs
+   on a leftover register.
+
+   UNLIKE THE SolidHeapAllocator PAIR THERE IS NO STACK IMBALANCE HERE, and it
+   is worth being exact rather than tarring the whole family with one brush:
+   the caller is flat C, pushes one word and cleans it with `add esp,4`, and
+   the __thiscall callee takes no stack arguments and rets 0. The books
+   balance. Only the receiver is wrong.
+
+   MEASURED. A throwaway probe built two Heap shaped objects with their own
+   vtables, pushed heapA and seeded ECX with heapB, and had the VResizeToFit
+   slot record which one it was dispatched on:
+
+     through the directive   dispatched on 0090fdac, heapB, whatever ECX held
+     through this face       dispatched on 0090fd98, heapA, the PUSHED argument
+
+   and the face itself compiles to the LoadFog shape, `mov ecx,dword ptr
+   [ebp+8] / jmp` into Heap::ResizeToFit, so the pushed word becomes the
+   receiver and nothing else about the call changes.
+
+   NOTHING ON ANY BATTERY PATH DISPATCHES SLOT 13 TODAY, so there is no drive
+   for this family and none is claimed. Virtual34 is slot 13 of _ZTV5Actor,
+   which this very file seats, and the header records that nothing on the
+   castle grounds dispatches it. Probe and disassembly only. */
+extern "C" unsigned int _ZN4Heap11ResizeToFitEv(void *thiz)
+{ return ((Heap *)thiz)->Heap::ResizeToFit(); }
 
 extern "C" void hal_seat_solidheap(void)
 {
