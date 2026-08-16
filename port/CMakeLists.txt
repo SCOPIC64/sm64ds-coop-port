@@ -726,7 +726,7 @@ set_source_files_properties(
     # jumped-on / hurt-the-player state helper. Same treatment as the entries
     # above; it is the only one of slice_w12.txt's 67 TUs that needs it.
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/func_ov073_0211f61c.c"
-    # run link60 lane L2: the ONE .c in ov007's 602-TU closure that is really
+    # run link60 lane L2: the ONE .c in ov007's 619-TU closure that is really
     # C++ -- a top-level `extern "C" {` block, invalid C. The whole slice was
     # swept for the //cpp marker rather than this one being found by a compile
     # error and the rest left to luck.
@@ -2746,7 +2746,7 @@ endforeach()
 # eighteen-slot _ZTV5Scene shape at 0x021032e8 filled in place, and
 # Scene::SetSceneToSpawn -> Scene::SpawnIfNecessary. SM64DS_SCENE=1 takes it.
 #
-# 526 src TUs, which is not a slice of ov007 but very nearly the whole overlay:
+# 619 src TUs, which is not a slice of ov007 but very nearly the whole overlay:
 # a relocation BFS from the class's eight entry points reaches all 548 of its
 # functions, so the title screen is what ov007 is for. See slice_ov007.txt for
 # the derivation and the one exclusion, and port/ov007_seat.txt for the vtable

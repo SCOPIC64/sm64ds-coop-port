@@ -738,7 +738,17 @@ static void l2_fill_0208ea6c(void)
     ((void **)data_0208eafc)[1] = (void *)l2_vt_trap;
 }
 
-// ---- 3. NINETEEN UNMATCHED ov007 BODIES, AS LOUD TRAPS ---------------------
+// ---- 3. TWENTY-FOUR TRAPPING SITES, AND HOW THEY COUNT ---------------------
+//
+// COUNT THEM AS 23 L2_UNMATCHED BODIES PLUS ONE TRAP-FILLED VTABLE, because
+// they are not the same kind of thing and one number hides that. The 23 are
+// functions with no C anywhere in the tree, each standing where a body would
+// be. The 24th is the twelve slots of data_0208ea6c (section 2b), which all
+// point at one shared trap: a hosted arm9 vtable this lane chose to fill
+// loudly rather than leave carrying raw DS words. One counter covers all 24
+// and the run prints it, so "none of them fired" is a measurement.
+//
+// ---- 3a. NINETEEN UNMATCHED ov007 BODIES -----------------------------------
 //
 // ov007 is 548 functions and 528 have a matched src TU. The nineteen that do
 // not are inside delink blocks marked incomplete, they are called from bodies
@@ -794,7 +804,16 @@ L2_UNMATCHED(func_ov007_020cbbb0)
 L2_UNMATCHED(func_ov007_020b8fd4)
 #undef L2_UNMATCHED
 
-/* FOUR MORE UNMATCHED BODIES, NOT ov007's, that the arm9 closure pulled in.
+/* A TWENTIETH ov007 FUNCTION IS UNMATCHED AND GETS NO TRAP.
+   func_ov007_020c49bc (0x020c49bc, 0x440 bytes) has no C either, so ov007's
+   unmatched count is twenty and not nineteen. It is absent from this list on
+   purpose and the absence is the evidence: NOTHING in the 619-TU slice
+   references it, so the linker never asks for the symbol and a trap here would
+   be a definition with no caller. If a future slice does reach it the link
+   fails with an unresolved external, which is the loud direction, so the
+   omission cannot go quiet.
+
+   FOUR MORE UNMATCHED BODIES, NOT ov007's, that the arm9 closure pulled in.
    Same treatment and the same counter, listed apart because they are a
    different debt: three are arm9/itcm functions with no C anywhere in the
    tree, and two are cross-overlay calls out of src/func_0201a458.c into
@@ -1326,9 +1345,11 @@ extern "C" void *port_scene_boot(int id)
 
 // ---- the run ---------------------------------------------------------------
 //
-//   SM64DS_SCENE=<id>            which scene. 4 (the star select) is the only
-//                                one seated; ov003's other two ids, 2 and 8,
-//                                are refused by name. Nothing else here runs
+//   SM64DS_SCENE=<id>            which scene. TWO are seated: 4 (dScStarSel_c,
+//                                the star select, ov003) and 1 (dScDSMT_c, the
+//                                title screen and file select, ov007). ov003's
+//                                other two ids, 2 and 8, are refused by name,
+//                                and so is anything else. Nothing here runs
 //                                unless this is set.
 //   SM64DS_SCENE_FRAMES=<n>      how many frames (default 300, the battery's).
 //   SM64DS_SCENE_BMP=<path>      write the last frame.
@@ -1341,6 +1362,13 @@ extern "C" void *port_scene_boot(int id)
 //                                this.
 //   SM64DS_SCENE_SUBLEVEL=<n>    which sublevel the scene is ABOUT. Default 6.
 //   SM64DS_SCENE_SLOT9=0         leave the scene's Render slot on a no-op.
+//   SM64DS_SCENE_SLOT0=0         scene 1 only: leave InitResources on a no-op.
+//                                A DIAGNOSTIC AND NOT A SKIP -- it separates
+//                                "InitResources faults" from "the object is
+//                                unusable without it", and it proves the
+//                                second, so port/tools/battery.py refuses it
+//                                as a SCENE_SKIPS env. port/ov007_seat.txt
+//                                section 5 has the measurement.
 //
 // ---- SM64DS_SCENE_SUBLEVEL, and why a default of 0 is not an option --------
 //
@@ -1353,8 +1381,12 @@ extern "C" void *port_scene_boot(int id)
 // SM64DS_LEVEL is an input to a level boot, and the harness has to supply it.
 //
 // A run that does not is not neutral, it is invalid, and this cost the lane a
-// hang before the reason was found. data_02092110 starts at 0, and
-// SUBLEVEL_LEVEL_TABLE[0] is 0xff -- read back through its own declaration
+// hang before the reason was found. data_02092110 STARTS AT -1 (corrected by
+// lane L2; the sentence here read "starts at 0" and the derivation for the
+// real value is in port_scene_run below, next to the gate). Feeding -1 to
+// SublevelToLevel indexes SUBLEVEL_LEVEL_TABLE one byte BELOW the table.
+// SUBLEVEL_LEVEL_TABLE[0] is separately 0xff -- read back through its own
+// declaration
 // (include/decl_common.h: `extern signed char SUBLEVEL_LEVEL_TABLE[]`) that is
 // -1, the "not a level" sentinel. Every `< 0xF` and `<= 0xE` gate in the scene
 // then passes, so InitResources' star block (guarded by an UNSIGNED
@@ -1575,8 +1607,8 @@ extern "C" int port_scene_run(void)
             std::printf("[scene] unmatched-body traps entered: %u\n",
                         port_l2_trap_hits());
         else
-            std::printf("[scene] unmatched-body traps entered: 0 (none of the "
-                        "23 named bodies was reached)\n");
+            std::printf("[scene] unmatched-body traps entered: 0 (none of "
+                        "the 24 trapping sites was reached)\n");
     }
     std::printf("[scene] %d frames of scene %d (%s), clean\n", frames, scene,
                 port_scene_class_name((unsigned)scene));
