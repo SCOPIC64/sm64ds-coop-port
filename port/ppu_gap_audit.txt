@@ -829,7 +829,13 @@ or a renderer defect. It is neither of the two things the question offered.
 
 12a. THE CORNER CLUSTER IS THE PORT'S OWN BOTTOM SCREEN
 
-Measured on the published frames, geometry only:
+Measured on the published frames, GEOMETRY ONLY, and that restriction is
+not fastidiousness. The .dsstate section base MOVED this tranche, 0xbac000
+when fdr2 captured those frames to 0xbad000 here, and under this file's own
+equal-base rule a byte comparison across a moved base measures the layout and
+not the picture. Bounding boxes, colour counts and a predicted-versus-measured
+rectangle survive a base move; md5s do not. So the comparison below is the one
+that still means something across the two builds:
 
     fdr2_scene374.bmp / the mid-fade frame   512x384
     183,868 px of (16,24,32); every other pixel inside one rectangle
@@ -888,7 +894,7 @@ src/func_02019144.c is what writes DISPCNT. Line 46:
 It is the ROM's once-per-frame display sync and the port does not run it.
 hal/sub_screen.cpp already reproduces its other beats -- the engine-B mask
 publish on the next line, the scene graphics block's callback, OAM::Load -- and
-the engine-A line was the remainder. The port's only stand-in for it was
+the engine-A copy was the remainder. The port's only stand-in for it was
 hal/message_pump.cpp's port_message_flush_engine_a_regs, which sits behind
 "if (data_0209d660 == 0) return;". A minigame has no dialogue box.
 
@@ -939,6 +945,13 @@ inside hal_sub_screen_present above its own ppu_scanout_sub call: the
 rasteriser reads the mask it just published. SM64DS_ENGINE_A_NO_PUBLISH=1
 restores the old behaviour on the same binary, so a before/after is one build
 and one .dsstate base.
+
+THE SHAPE, stated properly because "one line" is how this was first described
+and it is not what shipped: one substantive statement, the register
+read-modify-write, inside a guarded block that also carries a static env latch
+and the extern declaration the copy needs. Small, but a block with control flow
+in it rather than a line, and the escape hatch is part of the change rather
+than a debug afterthought.
 
 SAME-BINARY A/B, scene 374, 300 frames, both exit 0, .dsstate base 0xbad000:
 
@@ -1030,3 +1043,54 @@ The ROM's own full-screen viewport (Initialise3dGraphics writes 0xbfff0000 to
 0x4000580, which decodes to x1 0, y1 0, x2 255, y2 191) is still the ROM's
 intent for the 3D layer generally. It is just not evidence taken from this run,
 and 12b no longer presents it as such.
+
+12f. THE 12e CLASS RECURRED INSIDE 12e's OWN COMMIT, in the probe this time
+
+Review finding (a), and it is worth its own entry because it is the SECOND
+instrument in this lane to report a value it could not attribute, after 12e
+fixed the first one in the same set of commits.
+
+The mask-versus-register probe chose its verdict word on "mask == live". Zero
+equals zero, so on any run where the game had not set a layer enable the probe
+printed "published" -- including on every level run of the NO_PUBLISH arm,
+where the copy it was reporting is switched OFF. It asserted a publish that had
+demonstrably not happened, in the exact arm built to prove it had not.
+
+Fixed by taking the claim off the comparison and putting it on the mechanism.
+The publish path reports itself through the same static latch the write reads,
+and the comparison is only allowed to speak where it has content:
+
+    publish disabled        say so, and say the register's contents came from
+                            somewhere else
+    mask 0 and live 0       nothing to publish; the equality proves nothing
+    mask == live, nonzero   published
+    mask != live            NOT PUBLISHED
+
+NO CONCLUSION IN 12d MOVES. The level result rests on BMP identity across the
+two arms, which is a measurement of frames and never consulted this line; the
+scene-374 result is the mask != live arm, which was always the honest branch.
+What was at risk was the next reader, who would have taken "published" off a
+level run as evidence about the publish.
+
+THE GENERAL SHAPE, since this is now twice in one lane. Both defects are an
+instrument whose output has fewer states than the world it reports on: a
+viewport rectangle that could not distinguish programmed from defaulted, and an
+equality that could not distinguish agreed from both-empty. Neither was wrong
+about a number. Both were wrong about what the number licensed. The check that
+catches this class is to ask, of every field an instrument prints, which
+different worlds produce this same output.
+
+12g. A COUNT IN ANOTHER LANE'S FILE, FLAGGED AND NOT FIXED
+
+hal/sub_screen.cpp, above the engine-B mask publish, reads "Publish the layer
+mask, the way nine ROM functions do with this exact line." That is the same
+nine this file's section 12 unproven items deliberately refuse: a sweep for the
+literal spelling answers nine and a statement-level sweep answers a different
+eight, so the number is an artifact of the pattern rather than a fact about the
+image. The sentence around it is sound and the count is decoration on it.
+
+Left alone on purpose. sub_screen.cpp belongs to the SUB lane, the count is not
+load-bearing for anything either file does, and editing another lane's prose to
+match this lane's epistemics is how two lanes end up fighting over one comment.
+Recorded here so that whoever next owns that file has the finding rather than
+having to re-derive it.

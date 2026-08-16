@@ -336,11 +336,12 @@ extern "C" void port_message_composite_engine_a(void *fbp)
      * it is another lane's file, the write is idempotent, and its BG3-offset
      * half is still the only thing flushing that register. Recorded rather than
      * cleaned up. */
+    static int publish_off = -1;
+    if (publish_off < 0)
+        publish_off = std::getenv("SM64DS_ENGINE_A_NO_PUBLISH") ? 1 : 0;
     {
         extern unsigned char data_0209d45c;
-        static int off = -1;
-        if (off < 0) off = std::getenv("SM64DS_ENGINE_A_NO_PUBLISH") ? 1 : 0;
-        if (!off)
+        if (!publish_off)
             *reinterpret_cast<volatile uint32_t *>(kRegBase) =
                 (rd32(kRegBase) & ~0x1F00u) | ((uint32_t)data_0209d45c << 8);
     }
@@ -378,11 +379,41 @@ extern "C" void port_message_composite_engine_a(void *fbp)
                          rd16(kRegBase + 0x08), rd16(kRegBase + 0x0a),
                          rd16(kRegBase + 0x0c), rd16(kRegBase + 0x0e),
                          mask, (unsigned)data_0209d660);
+            /* THE VERDICT WORD IS NOT `mask == live`, and the first cut of
+               this probe made exactly that mistake. Equal-and-zero is the
+               common case on a level, where the mask is 0x00 and the register
+               bits are 0x00 -- and a probe that answers "published" there
+               asserts a copy that may never have executed. It said so on
+               every level run of the NO_PUBLISH arm, which is the arm where
+               the copy is switched OFF. The comparison cannot carry the claim
+               because zero equals zero whoever wrote it, or nobody.
+               So the publish path reports ITSELF (publish_off, the same latch
+               the write above reads), and the comparison is only allowed to
+               speak where it has content: equal AND nonzero.
+
+               THE `NOT PUBLISHED` ARM IS NOW UNREACHABLE BY CONSTRUCTION, and
+               it is kept anyway. With the publish live it runs immediately
+               above the DISPCNT read below, so the two cannot disagree; with
+               it disabled the first arm answers. It is a standing assertion
+               rather than a live report: the day an edit puts anything between
+               the publish and the read, or moves the publish out of this
+               function, that arm starts printing and names what broke. The
+               four arms were each exercised on a real run before this was
+               written -- disabled and enabled, on scene 374 with a nonzero
+               mask and on level 1 with a zero one. */
+            const char *verdict =
+                publish_off
+                    ? "publish DISABLED by SM64DS_ENGINE_A_NO_PUBLISH; whatever "
+                      "is in the register was put there by something else"
+                    : (mask == 0 && live == 0)
+                          ? "nothing to publish, mask is zero -- the equality "
+                            "here proves nothing either way"
+                          : (mask == live)
+                                ? "published"
+                                : "NOT PUBLISHED (func_02019144 line 46 is the "
+                                  "ROM's per-frame copy)";
             std::fprintf(stderr, "[msgcomp] layer mask d45c=%02x vs DISPCNT "
-                         "bits 8-12=%02x -- %s\n", mask, live,
-                         mask == live ? "published"
-                                      : "NOT PUBLISHED (func_02019144 line 46 "
-                                        "is the ROM's per-frame copy)");
+                         "bits 8-12=%02x -- %s\n", mask, live, verdict);
         }
     }
 
