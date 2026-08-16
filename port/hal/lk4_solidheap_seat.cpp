@@ -51,49 +51,27 @@
 // receiver-bridging face further down this file replaces it, and the evidence
 // is in the header there.
 //
-// AND THE TWO SURVIVORS BELOW ARE THE SAME SHAPE, so do not read this block as
-// cleaned. They are left standing because this lane had a reproduction for
-// SetDefault and has none for them, not because they were checked and cleared:
-//   Destroy      src/func_0201a428.c:9 pushes data_0209d524, and both names
-//                are in the map, so the alias is live. Heap::Destroy
-//                dereferences the receiver (a virtual call, then three stores),
-//                so this one faults rather than publishing a wrong word. Its
-//                only caller is func_ov007_020cc4c0, and scene 1 is the
-//                battery's one BLOCKED skip, which is why nothing has hit it.
-//                THE _Destroy VENEER IS WORSE THAN LUCK, and an earlier draft
-//                of this note got it wrong by saying the receiver survives.
-//                Read from the disassembly instead: _ZN4Heap8_DestroyEv is a
-//                bare five-byte jmp (0049FDC0: E9 .. jmp 0049FDD0) that sets
-//                no ECX and reads no stack slot, and Heap::Destroy opens
-//                `mov esi,ecx` then `call [eax+8]` through it, so the receiver
-//                comes from ECX and is dereferenced at once. Its callers are
-//                ActorBase::Virtual34 at :50, :78, :100, :106 and :111, a
-//                thiscall member: at the jump ECX still holds the ActorBase
-//                pointer from the virtual call before it (`mov ecx,ebx`), and
-//                the heap the caller pushed is DISCARDED. So on the host the
-//                receiver does not survive at all. It survives on ARM only
-//                because bx ip preserves r0, which is a register convention
-//                and not a property of the C, and a C rewrite of the veneer
-//                destroys it. Broken on the host, undriven today (slot 13
-//                never dispatches on any battery path), ARM-correct by
-//                register convention.
-//                AND THE FIX CONSEQUENCE, because it constrains whoever takes
-//                this: a plain receiver-taking face for Destroy would fix the
-//                func_0201a428 caller and BREAK this veneer, which reaches the
-//                same name with the receiver only in ECX. The veneer TU has to
-//                change in the same commit as any Destroy fix.
-// ResizeToFit IS NO LONGER IN THIS BLOCK EITHER: lane LK5 took it second. It
-// was latent exactly the way SetDefault was, linked and wrong and off every
-// path the battery covers, reached from src/_ZN9ActorBase9Virtual34Ejj.cpp
-// at :57, :116 and :123 through slot 13 of _ZTV5Actor, which THIS FILE seats.
-// A receiver-bridging face near the bottom of this file replaces it and the
-// measured before and after are there.
-// THE SolidHeapAllocator PAIR IS NO LONGER IN THIS BLOCK: lane LK5 took it
-// first, for the reason the ruling below gives. It ran the other way (thiscall
-// LHS, flat C RHS whose first stack argument is the receiver) so both stack
-// arguments shifted by one, and it reached through slots 3 and 8 of the table
-// seated below. Two receiver-bridging faces near the bottom of this file
-// replace the two directives, and the measured before and after are there.
+// THE BLOCK IS NOW EMPTY OF THE RECEIVER-DROPPING SHAPE, and that is a claim
+// worth making precisely rather than loosely. Lane LK4 fixed SetDefault and
+// named four survivors of the same family. Lane LK5 took all four:
+//
+//   SolidHeapAllocator::Allocate     first, the only silent corrupter of the
+//   SolidHeapAllocator::Reallocate   set: both stack arguments shifted one
+//                                    slot along and it returned a plausible
+//                                    pointer out of the wrong arena. Reached
+//                                    through slots 3 and 8 of the table
+//                                    seated below.
+//   Heap::ResizeToFit                second, latent exactly the way
+//                                    SetDefault was, reached from Virtual34
+//                                    at :57, :116 and :123 through slot 13 of
+//                                    _ZTV5Actor, which THIS FILE seats.
+//   Heap::Destroy and Heap::_Destroy third, and it was three edits in two
+//                                    files rather than the two LK4 predicted.
+//
+// Each has a receiver-bridging face near the bottom of this file with its own
+// measured before and after. What remains in the directive list below is the
+// shapes that are NOT this failure: name-only bridges between two spellings
+// of the same ABI, and the one deliberate return-type widening (Rescue).
 //
 // THE SIBLING-LANE RULING, from the review of this lane, so the file carries
 // it rather than a status note nobody reads:
@@ -118,7 +96,12 @@
 //     the unlinked SetDefault carriers: unblocking scene 1 is what puts
 //     func_ov007_020cc4c0 on a path, and a lane that does it first inherits
 //     the fault with none of this evidence.
-#pragma comment(linker, "/alternatename:__ZN4Heap7DestroyEv=?Destroy@Heap@@QAEXXZ")
+//     DONE, lane LK5, SO THE GATE IS DISCHARGED: the scene 1 unblock lane is
+//     free to run. The pairing was one participant wider than this ruling
+//     knew, and the Destroy face block below records what the probe found.
+// Destroy USED TO BE THE NEXT LINE AND IT WAS WRONG THE SAME WAY. Its face,
+// its sibling _Destroy face and the veneer TU all live at the bottom of this
+// file, and they had to move together.
 // ResizeToFit USED TO BE THE NEXT LINE AND IT WAS WRONG THE SAME WAY
 // SetDefault was. A receiver-bridging face near the bottom of this file
 // replaces it and the evidence is in the header there.
@@ -134,7 +117,9 @@
 #pragma comment(linker, "/alternatename:?InitializeSolidHeapAsDefault@Heap@@SAPAU1@IPAU1@H@Z=__ZN4Heap28InitializeSolidHeapAsDefaultEjPS_i")
 #pragma comment(linker, "/alternatename:?Allocate@Memory@@SAPAXIHPAUHeap@@@Z=__ZN6Memory8AllocateEjiP4Heap")
 #pragma comment(linker, "/alternatename:?RestoreFromTemporary@Heap@@SAXXZ=__ZN4Heap20RestoreFromTemporaryEv")
-#pragma comment(linker, "/alternatename:?_Destroy@Heap@@QAEXXZ=__ZN4Heap8_DestroyEv")
+// ?_Destroy@Heap@@QAEXXZ=__ZN4Heap8_DestroyEv WAS HERE AND IT HAD TO GO WITH
+// THE Destroy FIX, which is the part of that pairing nobody had spotted. See
+// the _Destroy face at the bottom of this file.
 #pragma comment(linker, "/alternatename:?Rescue@Heap@@QAEXXZ=?Rescue@Heap@@QAEHXZ")
 // The SolidHeapAllocator pair USED TO BE THE NEXT TWO LINES AND BOTH WERE
 // WRONG, the same failure class as SetDefault above and running the other
@@ -182,6 +167,10 @@ struct Heap
        defines. Virtual34 spells the flat C name with a void return; same
        __thiscall, r0/EAX ignored, the ROM's own shape. */
     unsigned int ResizeToFit();
+    void Destroy();
+    /* Heap::_Destroy is the ROM's tail-call veneer onto Heap::Destroy. It is
+       a real method name here because ActorBase::Virtual38 calls it as one. */
+    void _Destroy();
 };
 
 extern "C" {
@@ -462,6 +451,84 @@ void *SolidHeapAllocator::Reallocate(void *ptr, u32 size)
    castle grounds dispatches it. Probe and disassembly only. */
 extern "C" unsigned int _ZN4Heap11ResizeToFitEv(void *thiz)
 { return ((Heap *)thiz)->Heap::ResizeToFit(); }
+
+/* THE Destroy FAMILY, LAST OF THE FOUR, AND IT IS THREE EDITS IN TWO FILES
+   RATHER THAN ONE. The pairing lane LK4 recorded (a Destroy face and the
+   veneer TU must move together) is real, and it is one participant short.
+
+   THE VENEER HAS TWO KINDS OF CALLER, and only one of them was broken:
+
+     src/_ZN9ActorBase9Virtual34Ejj.cpp  spells the flat C name and PUSHES the
+         heap, at :50, :78, :100, :106 and :111. Broken.
+     src/_ZN9ActorBase9Virtual38Ejj.cpp  spells `h->_Destroy()`, a __thiscall
+         METHOD call on ?_Destroy@Heap@@QAEXXZ, receiver in ECX and nothing
+         pushed, at :44. CORRECT TODAY, purely because the veneer is a bare
+         jmp that leaves ECX alone.
+
+   So giving the veneer a receiver parameter fixes Virtual34 and BREAKS
+   Virtual38, which is why the ?_Destroy@Heap@@QAEXXZ alias had to be deleted
+   in the same commit and replaced by the Heap::_Destroy face below. That
+   third participant is not in LK4's note; the probe found it.
+
+   BEFORE, DISASSEMBLED OUT OF THIS LANE'S OWN BASELINE BUILD. The veneer at
+   004A9A60 is one instruction, `jmp 004A9A70`: it sets no ECX and reads no
+   stack slot. Heap::Destroy at 004A9A70 opens
+
+     push esi / mov esi,ecx / mov eax,dword ptr [esi] / call dword ptr [eax+8]
+
+   so the receiver comes from ECX and is dereferenced immediately for the
+   VDestroy dispatch. The flat C caller func_0201a428 at 0043E690 reads
+
+     push dword ptr ds:[00C08B2Ch]     data_0209d524, the heap, PUSHED
+     call 004A9A70                     ECX never set
+     add  esp,4
+
+   and of the five veneer call sites inside Virtual34, four sit immediately
+   after a `call` to RestoreFromTemporary, so ECX there is not a stale object
+   pointer but whatever that call happened to leave. Worth stating plainly
+   because an earlier note read the register story off one site and
+   generalised it: the load-bearing fact is that the veneer sets no ECX and
+   Destroy reads only ECX, not which garbage arrives.
+
+   NO STACK IMBALANCE IN THIS FAMILY EITHER, for the same reason ResizeToFit
+   has none: the flat C callers push one word and clean it themselves, and
+   the __thiscall callee has no stack arguments and rets 0.
+
+   MEASURED. Two fake Heap objects with their own vtables, slot 2 recording
+   the receiver it was dispatched on:
+
+                                        directives        faces
+     P1 flat Destroy, heapA pushed,     heapB             heapA
+        ECX seeded heapB
+     P2 veneer, heapA pushed,           heapB             heapA
+        ECX seeded heapB
+     P3 h->_Destroy(), ECX heapA,       heapA             heapA
+        nothing pushed
+
+   P3 is the line that matters most. It was already right and it is still
+   right, which is the whole point of moving the third directive with the
+   other two.
+
+   NO DRIVE EXISTS FOR THIS FAMILY AND NONE IS CLAIMED. func_0201a428's own
+   caller is func_ov007_020cc4c0 and scene 1 is a BLOCKED battery skip, and
+   nothing dispatches slot 13 or slot 14 on any battery path, so every reading
+   above is probe and disassembly. That is what the sibling-lane ruling in
+   this file's header calls decisive, and it is the honest limit of it.
+
+   AND THIS COMMIT UNBLOCKS THE FUTURE SCENE 1 LANE, by the rule
+   port/stage_lifecycle_map.txt section 11g states: unblocking scene 1 is what
+   puts func_ov007_020cc4c0 on a path, and a lane that unblocked it before
+   this landed would have inherited the fault with none of this evidence. The
+   sequencing gate the header records is now discharged. */
+extern "C" void _ZN4Heap8_DestroyEv(void *thiz);
+
+extern "C" void _ZN4Heap7DestroyEv(void *thiz)
+{ ((Heap *)thiz)->Heap::Destroy(); }
+
+/* the other direction: Virtual38's method call arrives with the receiver in
+   ECX, and the veneer now wants it pushed */
+void Heap::_Destroy()
+{ _ZN4Heap8_DestroyEv(this); }
 
 extern "C" void hal_seat_solidheap(void)
 {
