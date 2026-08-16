@@ -627,6 +627,23 @@ r0 setup and nothing else, which is exactly the ROM's four instructions. Change
 it in src/ and the byte gate answers. The disagreement is correct on ARM and
 only wrong on a stack ABI, so the fix belongs on the port side of the seam.
 
+EVERY CALLER AGREES, AND THAT IS WHAT MAKES THE SEAM SEATABLE. Swept rather
+than assumed: config/arm9/overlays/ov007/relocs.txt has exactly four arm_call
+rows landing on 0x020be980 and no other module has any, and the four come from
+two matched TUs that BOTH declare the function with three parameters.
+
+    0x020b0a90, 0x020b0b74   src/func_ov007_020b0a20.c
+                             func_ov007_020be980(scene->unk100, 1, 0)
+    0x020b26d0, 0x020b26e8   src/func_ov007_020b2614.c
+                             func_ov007_020be980(p_100, 0, b)
+                             func_ov007_020be980(p_104, 0, b)
+
+The ROM sets r1 and r2 immediately before each of the four (mov r1,#1 / mov
+r2,r6 at the first pair; mov r1,#0 / mov r2,r4 at the second), so the
+ride-through is the shape at every site and not a quirk of the one that faults.
+A host copy's signature is therefore fully specified by the call sites:
+(void *, int, int), forwarding all three.
+
 THE FIX IS THE PORT'S OWN ESTABLISHED SHAPE AND THIS LANE DID NOT TAKE IT.
 port/CMakeLists.txt answers other ARM ride-throughs by cutting the middle TU
 out of the slice and host-copying it with a PORT_HOST_ABI tag (search that tag:
@@ -634,7 +651,11 @@ one r0 ride-through in a spawn factory, three more at gate 14, five in Sound).
 Doing it here costs one linked TU and picks which of two matched bodies stops
 being the decomp, which is a seat decision somebody should make on purpose and
 not as a side effect of a propagation lane. PC2's brief was the TU and the
-battery row; the seam is named here and handed on.
+battery row; the seam is named here, specified, and handed on.
+
+ONE THING THE SWEEP DOES NOT SETTLE: the other three call sites are not known
+to be reached on the scene-1 path. Only 0x020b0a90 is on the fault's stack. The
+other three are the same defect waiting, not evidence of three more faults.
 
 THE BATTERY ROW IS CONVERTED, NOT DELETED, AND THE MARKER IS ARMED BY A
 PREDICATE. port/tools/battery.py's scene-1 row now keys on
