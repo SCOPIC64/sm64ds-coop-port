@@ -389,8 +389,18 @@ THE RUNS. Same binary as the gate baseline, no source change, all headless.
         [scene] dScMgCurling_c STATE 0x020e1854 HAS NO DECOMPILED BODY
         (slot 1 of data_ov006_021418b0, index -1) ...
 
-    The same line appears in the poke runs at "30-299" and at "60-1999" over
-    2000 frames, and in neither control run. Four poked runs, two controls.
+    The same line appears in the poke runs at "30-299", at "60-1999" over 2000
+    frames, and at "60-64,150-154" over 300, and in neither control run.
+
+    ONE POKED RUN DID NOT TRIP IT, and it is not a counterexample, it is the
+    warm up. SM64DS_SCENE_FRAMES=20 with SM64DS_TOUCH_PROBE="0-19:120:150"
+    produced no line. func_ov006_020e3078 opens by decrementing a timer at
+    self+0x4ee2 and returning while it is nonzero, so the sub state is not
+    dispatched at all for the first stretch of the scene. The counters below
+    measure that stretch exactly: 020e3078 entered 299 and 020e1b54 entered
+    235, so 64 frames went to the timer. A tap that is released before roughly
+    frame 65 is never seen, and the acceptance line in section 6d holds the
+    press across the whole run for that reason.
 
 THE STYLUS RECORD DURING THOSE RUNS, from poll_touch's own log:
 
@@ -410,6 +420,9 @@ anything depends on the probe still existing.
     control   020e1b54 entered 235,  020e1854 entered   0
     tap       020e1b54 entered   1,  020e1854 entered 234
     both      020e3078 entered 299,  data_020a0e40 = 0
+
+The two right hand columns sum to 235 in both runs, which is the check that the
+tap moved the machine rather than adding dispatches to it.
 
 Read that pair carefully, because it is the whole finding. In the control the
 touch state is dispatched 235 times and reads zeros 235 times. Under the tap it
@@ -535,6 +548,10 @@ does not need a probe build:
     data_020a0de8 and written self+0x4ee4. So the line IS the assertion "the
     minigame consumed a tap", with no instrumentation to trust.
 
+    HOLD THE PRESS FOR THE WHOLE RUN. The sub state is not dispatched for the
+    first 64 frames of the scene (section 5), so a short poke window near the
+    start reads as a pass when it is a miss.
+
     THE TRAP: read the PLAYLOG, not stdout. walk_window freopens stderr to
     build/port/playlog/play_<stamp>.log and the [scene] stdout block is
     identical either way (section 5).
@@ -587,7 +604,12 @@ does not need a probe build:
     established, and a lane that hosts it must derive the size rather than take
     0x38 from here.
 
-  - THE 2000 FRAME RUNS PROVE NO MORE THAN THE 300 FRAME ONES. The state
-    machine reaches its touch state on frame 1 and leaves the sub state on the
-    first consumed tap, so a longer run explores no new state. It is recorded
+  - THE 2000 FRAME RUNS PROVE NO MORE THAN THE 300 FRAME ONES. The touch state
+    starts being dispatched at frame 65 and the machine leaves the sub state on
+    the first consumed tap, so a longer run explores no new state. Recorded
     because it was run, not because it adds coverage.
+
+  - THE 64 FRAME WARM UP WAS COUNTED, NOT DERIVED. It is the difference
+    between two probe counters on one scene at one frame count. What sets
+    self+0x4ee2 to that value, and whether it is the same on every entry to
+    the class, was not established.
