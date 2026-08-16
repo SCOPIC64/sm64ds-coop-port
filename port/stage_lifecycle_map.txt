@@ -1081,7 +1081,7 @@ off) and every resolved address. The short form:
      5, under SharedFilePtr::Load -> fs_hand_out -> Memory::Allocate. The cause
      is a pre-existing mis-bridged receiver of hal/method_faces.cpp's class 3,
      in hal/lk4_solidheap_seat.cpp:45:
-         /alternatename:__ZN4Heap10SetDefaultEv=?SetDefault@Heap@@QAEHXZ
+         (DELETED by lane LK4) /alternatename:__ZN4Heap10SetDefaultEv=?SetDefault@Heap@@QAEHXZ
      The RHS is __thiscall and takes its receiver in ECX; every C caller of the
      LHS passes it on the stack (RestoreFromTemporary:11,
      SetupSolidHeapAsDefault:18, func_ov007_020cc2cc:49 and :53,
