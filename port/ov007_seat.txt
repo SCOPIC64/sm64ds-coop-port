@@ -2904,6 +2904,28 @@ refused here for the same reason it was refused there.
 
     gate: RED (linkage 5831 below the baseline's 5832)
 
+Decomposed with port/tools/mapdiff.py against a base map built in THIS tree,
+by checking port/ back to the parent commit, building, copying the map aside
+and checking port/ forward again:
+
+    symbols   36972 -> 36980      objects   6525 -> 6525
+    MOVED  1   _func_ov007_020b6eb4
+               func_ov007_020b6eb4.c.obj -> Ov007_BdPending_020b6eb4.cpp.obj
+    objects   +1 Ov007_BdPending_020b6eb4.cpp.obj
+              -1 func_ov007_020b6eb4.c.obj
+    ADDED  11  port_graph_block_beat, port_graph_block_verdict, their three
+               file statics and the beat's env latch (scene_boot); the
+               SM64DS_GRAPH_BLOCK_OFF and skipped-publish string literals; and
+               THREE RENAMES of hal_sub_screen_present's own function-local
+               statics, which MSVC tags with a scope ordinal that shifted when
+               the publish moved inside a block
+    REMOVED 3  those same three statics under their old ordinals
+
+THE MOVED ROW IS THE WHOLE OF THE -1 and every other row is this lane's own new
+code or MSVC renumbering three unchanged statics. Nothing else moved, no other
+object was added or dropped, and the reachability graph is otherwise the same
+graph: the host copy has the same four callees as the body it displaces.
+
 THE BATTERY IS ALL GREEN AND THE SKIP LIST IS EMPTY, which is the number that
 matters for a change with this blast radius. Three of the four files this lane
 edits are on EVERY level's frame path, so the 46 level net plus the scene rows
