@@ -2815,6 +2815,30 @@ foreach(line IN LISTS SLICE_OV007_LINES)
     list(APPEND SLICE_OV007_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# run link60 lane MG1: THE FIRST MINIGAME, DERIVED AND NOT YET WIRED.
+#
+# dScMgCurling_c is ov006's curling minigame, actor id 0x176 (its spawn symbol
+# is MgShuffleShell_Spawn; Shuffle Shell is the localised name of the same
+# game). The seat for it exists in the tree -- hal/scene_mg.cpp,
+# hal/scene_mg_faces.cpp, unmatched/MgBase_*.cpp and slice_mg1.txt -- and NONE
+# of it is added to any target here, on purpose.
+#
+# IT DOES NOT LINK. The minigame framework dispatches mwcc POINTER-TO-MEMBER
+# tables, and MSVC's member pointer is four bytes where mwcc's is eight, so the
+# TUs that dispatch them cannot be compiled correctly and the globals they name
+# mangle with the member-pointer type baked into the symbol
+# (?data_ov006_02141950@@3UEntry@@A against the mount's _data_ov006_02141950).
+# Four link waves closed the ordinary 276 TUs of the slice; the fifth named 37
+# unresolved externals in 21 objects, and port/mg_fanout_costs.txt section 4
+# enumerates every one of them plus the work each needs.
+#
+# WIRING THIS BREAKS THE BUILD. Deleting it throws away the vtable derivation,
+# the four-wave slice, the declaration-conflict host copies and the overlay
+# constructor ruling that the next lane needs. Unreferenced source costs the
+# build and the binary nothing, so it stays until the dispatch lane wires it.
+# port/mg_fanout_costs.txt section 8 is the full statement of what is and is
+# not in the tree.
+
 # Gate 35: the course loop -- damage, death, respawn, coins, the star and the
 # course's own sound. Small, because almost all of it was already linked; see
 # the head of slice_gate35.txt for what was actually missing.
