@@ -95,8 +95,9 @@
  *
  * Each 0x14-byte source record produces six output bytes: a 32-bit word stored
  * as two halfwords, then one more halfword. The 32-bit word is assembled at
- * 0x020C9748 through 0x020C9854 out of twelve fields, and every one of them
- * lands where the DS object attribute of that number lives:
+ * 0x020C9748 through 0x020C9854 out of ELEVEN fields, and every one of them
+ * lands where the DS object attribute of that number lives (the 0x973C block
+ * loads fourteen values in all: these eleven, plus the three attr2 takes):
  *
  *   bits  0..7   rec+2 low byte (ldrsh then AND 0xff)      attr0 Y
  *   bits  8..9   rec[8]                                    attr0 rot/scale,
@@ -141,8 +142,13 @@
  *   0x020C96BC  func_ov007_020c12ac builds the bank
  *   0x020C96C4  cell loop setup, the unsigned `bls` early-out on count 0
  *   0x020C96F0  cell loop head: 4-byte group header, n * 6 buffer, count store
- *   0x020C973C  record loads (twelve fields out of 0x14 bytes)
- *   0x020C979C  the four packing branches (0x97A8, 0x97D8, 0x9808, 0x9834)
+ *   0x020C973C  record loads (fourteen values out of 0x14 bytes: eleven for
+ *               the word, three for attr2)
+ *   0x020C979C  the branch dispatch. TWO cmp sites and FOUR packing bodies,
+ *               and the two are easy to conflate because a dispatch and the
+ *               body it falls through to are eight bytes apart:
+ *                 dispatch 0x97A8 (cmp r2,#3)   bodies 0x97B0 and 0x97D8
+ *                 dispatch 0x9808 (cmp r2,#3)   bodies 0x9810 and 0x9834
  *   0x020C9858  attr2 and the three halfword stores, cursor + 6
  *   0x020C98AC  cell loop tail, entry cursor + 8
  *   0x020C98D0  group loop setup
@@ -172,16 +178,27 @@
  * WHAT IS NOT PROVEN.
  *   1. THE BITS. No frame has been rendered from this data, so the packing is
  *      verified against the ROM's instructions and against nothing else.
- *   2. THE BRANCHES. The two predicates are exercised only by whatever the six
- *      title-screen container files actually contain; a path none of them takes
- *      is transcribed but unrun.
- *   3. THE FOURTH BLOCK. The ROM reads o[0x14] unconditionally, and
- *      func_ov007_020c9a2c only writes o[0x11 + i] for i below the container's
- *      own block count. A file with fewer than four blocks makes the ROM read
- *      an uninitialised stack word, and this reads one too, on purpose: the
- *      alternative is a validity check the ROM does not have. Nothing here
- *      validates the container at all, and a malformed block count walks off
- *      the same way the ROM walks off.
+ *   2. THE BRANCHES, AND THE COVERAGE IS NOW A NUMBER RATHER THAN A WORRY.
+ *      Walking all six title-screen containers out of overlay_0007.bin and
+ *      classifying every record by the two predicates gives 188 records
+ *      (33 + 48 + 75 + 29 + 1 + 2) and ALL 188 OF THEM TAKE ONE BODY, the
+ *      tag-other / mode-not-3 path at 0x9834. Three of the four packing
+ *      bodies (0x97B0, 0x97D8, 0x9810) are entirely unrun on real title-screen
+ *      data. They are transcribed from the ROM and validated by the reviewer's
+ *      randomized differential test rather than by anything the game does, and
+ *      that is the honest standing of them: correct against the instructions,
+ *      unexercised by the content.
+ *   3. THE FOURTH BLOCK, LATENT AND NOT LIVE. The ROM reads o[0x14]
+ *      unconditionally, and func_ov007_020c9a2c only writes o[0x11 + i] for i
+ *      below the container's own block count, so a file with fewer than four
+ *      blocks makes the ROM read an uninitialised stack word and this reads one
+ *      too, on purpose: the alternative is a validity check the ROM does not
+ *      have. It cannot fire on the title path. All six containers declare
+ *      ELEVEN blocks at +0xe, so o[0x14] is always written before it is read
+ *      here. The disclosure stays because the hazard is real for any other
+ *      caller; the quantification is what says it is not this one's.
+ *      Nothing here validates the container at all, and a malformed block
+ *      count walks off the same way the ROM walks off.
  */
 
 extern "C" {
@@ -305,8 +322,20 @@ int func_ov007_020c9688(int fileAddr)
 
                 /* 0x9874 onward. Three halfword stores, and the 32-bit word
                    goes out as two of them because the cursor steps by 6 and
-                   every other entry is therefore 2-mod-4. The pointer is
-                   re-read from the cell on each store, as the ROM does. */
+                   every other entry is therefore 2-mod-4.
+
+                   NOTE D4, ONE EXTRA INDIRECTION, AND IT IS NOT DRIFT. The ROM
+                   re-reads the OAM pointer before each of the three stores
+                   (`ldr r0, [r4]` at 0x9874, 0x9888 and 0x9894) but it holds
+                   the CELL in r4 across the whole inner loop. This re-reads
+                   the cell too, so each store costs a load of bank->cells and
+                   an add of cellOff that the ARM does not pay. Observable
+                   behaviour is identical: bank->cells and cellOff are both
+                   loop-invariant here, nothing between the stores can write
+                   either, so the address computed is the same address every
+                   time. Said out loud because a byte-minded successor
+                   comparing this against the disassembly will see three loads
+                   where the ROM has one and should know it was noticed. */
                 {
                     char *out = ((Ov007Cell *)(bank->cells + cellOff))->oam;
                     *(unsigned short *)(out + cursor + 0) =
