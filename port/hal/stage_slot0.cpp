@@ -137,3 +137,97 @@ DSSTATE_END
    its strong symbol wins and nothing collides. port/tools/alternatename_guard.py
    is the check that the LHS has not become a defined symbol behind this. */
 #pragma comment(linker, "/alternatename:_data_02075720=_VS_STAR_SPAWN_ORDERS")
+
+// ===========================================================================
+// PART 3 -- THE FOUR C-NAME FACES
+// ===========================================================================
+//
+// READ THE HEAD OF hal/method_faces.cpp BEFORE REVIEWING THESE. Its three
+// failure modes -- wrong target, dropped receiver, mis-bridged receiver -- are
+// the whole risk surface of this part, and two of the four faces below are the
+// receiver-carrying kind. The per-face checklist is (a) TARGET, (b) ARITY,
+// (c) RECEIVER, verified from the DEFINITION rather than from a signature that
+// happens to compile.
+//
+// WHY THE CLASSES ARE DECLARED LOCALLY AND Stage.h IS NOT INCLUDED. MSVC's
+// mangling of a member function depends on the class NAME and the signature,
+// never on the class BODY, so a local declaration produces the identical
+// symbol -- and if the signature is wrong the link fails loudly with LNK2019
+// rather than calling something plausible. That failure mode is the reason to
+// prefer it here. It is also the only way to reach two of these four:
+// include/Stage.h is byte gate input and declares neither InitResources nor
+// LoadGraphics2D, and this lane does not edit include/. The same local
+// non-virtual declaration trick is already in hal/stage_bridges.cpp (its
+// ActorBase) and hal/scene_boot.cpp, for the same reason.
+//
+// THE PLAUSIBLE-SIBLING CHECK, run on all four against walk_window.map before
+// a line of this was written. Each row is the mangled symbol the face calls,
+// the object that defines it, and the definition that fixes the signature:
+//
+//   ?LoadGraphics2D@Stage@@SAX_NH@Z          _ZN5Stage14LoadGraphics2DEbi.cpp.obj
+//       src/_ZN5Stage14LoadGraphics2DEbi.cpp:32 declares it STATIC in its own
+//       local class and :41 defines `void Stage::LoadGraphics2D(bool b, int i)`.
+//       SA = public static __cdecl, so there is NO receiver to deliver and the
+//       ROM caller is right to pass two arguments and no `this`
+//       (src/_ZN5Stage13InitResourcesEv.cpp:332). No sibling: this is the only
+//       LoadGraphics2D in src/.
+//   ?LoadFog@Stage@@QAEXXZ                   _ZN5Stage7LoadFogEv.cpp
+//       QAE = public __thiscall. The ROM caller declares
+//       `void _ZN5Stage7LoadFogEv(void *thiz)` and passes the Stage as its
+//       first STACK argument, so this face is the receiver-bridging kind: the
+//       qualified call moves thiz into ECX. Sibling check: RenderFog is the
+//       near neighbour and is a different name and a different slot; nothing
+//       else in src/ is spelled LoadFog.
+//   ?LoadTextureTransformers@Stage@@QAEXXZ   _ZN5Stage23LoadTextureTransformersEv.cpp
+//       Same shape as LoadFog, same bridge. ALREADY IN THE IMAGE and already
+//       called -- hal/stage_bridges.cpp:588 reaches it as a method today. The
+//       face adds the C spelling, not the body.
+//   ?CleanAll@ShadowModel@@SAXXZ             _ZN11ShadowModel8CleanAllEv.cpp.obj
+//       SA = public static __cdecl, no arguments. include/ShadowModel.h:66
+//       declares it under an explicit `/* --- static --- */` and the body
+//       touches only data_0209cef4 and data_0209ceec, never a receiver. The
+//       plausible sibling here is RenderAll, declared one line above it at :65
+//       and static too; the face calls CleanAll and the two do opposite things
+//       (RenderAll walks the list, CleanAll empties it), so getting this one
+//       wrong would be silent. It is spelled out for that reason.
+//
+// Three of the four bodies are ALREADY LINKED under the MSVC mangling (all but
+// LoadFog, which arrives with port/slice_s4_slot0.txt), so three of these
+// faces add a spelling and not a body. That is why they are inert until
+// something calls the C name, which is the seat -- see the T4 note in
+// port/stage_lifecycle_map.txt section 7 on why landing faces alone moves no
+// number.
+
+struct Stage {
+    /* Signatures fixed by the definitions named above. A mismatch here is an
+       LNK2019 on a name that does not exist, never a call to a sibling. */
+    static void LoadGraphics2D(bool b, int i);
+    void LoadFog();
+    void LoadTextureTransformers();
+};
+
+struct ShadowModel {
+    static void CleanAll();
+};
+
+extern "C" {
+
+/* No receiver: static, and the ROM caller passes two arguments. `bool` is the
+   low byte of the 4-byte stack slot the caller's `int` fills, and the caller's
+   value is the 0/1 of a `== 1` comparison. */
+void _ZN5Stage14LoadGraphics2DEbi(int b, int level)
+{ Stage::LoadGraphics2D(b != 0, level); }
+
+/* Receiver delivered: the ROM caller pushes the Stage, the qualified call puts
+   it in ECX. Qualified so nothing re-dispatches through a vtable. */
+void _ZN5Stage7LoadFogEv(void *thiz)
+{ ((Stage *)thiz)->Stage::LoadFog(); }
+
+void _ZN5Stage23LoadTextureTransformersEv(void *thiz)
+{ ((Stage *)thiz)->Stage::LoadTextureTransformers(); }
+
+/* No receiver: static, no arguments. CleanAll, not RenderAll. */
+void _ZN11ShadowModel8CleanAllEv(void)
+{ ShadowModel::CleanAll(); }
+
+}  /* extern "C" */
