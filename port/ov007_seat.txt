@@ -1210,7 +1210,8 @@ boundary by construction.
     b3d30 <- b3c54        The tail-branch row above.
         0042E6D5  push [eax+4]        <- ONE argument
         0042E6D8  call 0042E720
-        0043A600-side: b3d30 reads [ebp+8] AND [ebp+0xc]
+        0042E729  mov esi,[ebp+0xc]   <- and b3d30 reads a SECOND parameter
+        0042E72D  mov edi,[ebp+8]
       `idx` is garbage and b3d30 uses it as an array subscript in seven places,
       the first of which is a double dereference. This one faults.
 
