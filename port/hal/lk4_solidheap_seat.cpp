@@ -489,6 +489,12 @@ extern "C" unsigned int _ZN4Heap11ResizeToFitEv(void *thiz)
    because an earlier note read the register story off one site and
    generalised it: the load-bearing fact is that the veneer sets no ECX and
    Destroy reads only ECX, not which garbage arrives.
+     The review's whole-image sweep closed the register story for good: ZERO
+   of Virtual34's veneer call instructions load ECX at all (the binary folds
+   the five source sites into four calls), and the one `mov ecx,<reg>` that
+   earlier note had seen sits inside Virtual38, where it is the CORRECT
+   __thiscall receiver for h->_Destroy(). The mis-read site never belonged to
+   Virtual34 in the first place.
 
    NO STACK IMBALANCE IN THIS FAMILY EITHER, for the same reason ResizeToFit
    has none: the flat C callers push one word and clean it themselves, and
