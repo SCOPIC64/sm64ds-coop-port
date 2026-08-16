@@ -1410,6 +1410,10 @@ InitResources' remaining call finds none of the seven. SO SEATING ae558 LETS
 InitResources FINISH. That is the prediction this lane is willing to be wrong
 about in writing.
 
+(SECTION 5e SEATED IT AND RAN IT. THIS PREDICTION IS CONFIRMED: InitResources
+finishes and Behavior runs 299 clean ticks. The next-seam prediction below is
+NOT confirmed, and 5e scores both halves.)
+
 THE NEXT SEAM, AND THE EVIDENCE FOR PICKING IT. After InitResources returns,
 the scene runs Behavior, and src/func_ov007_020cc2cc.c's first substantive call
 is func_ov007_020b7090 again. b7090 calls func_ov007_020b2e64 BEFORE it calls
@@ -1435,6 +1439,15 @@ b2e64 itself runs unconditionally inside b7090, so it has executed on every run
 that reached ae558. b3c54 calls b3d30 unconditionally at its tail, and b3d30
 would dereference a garbage subscript, so had the whole chain run the recorded
 fault would be there and not at ae558.
+
+(SECTION 5e RAN IT AND THIS DID NOT FIRE. Over 299 Behavior ticks with ae558
+seated, neither b3c54's store nor b3d30's fault happened. AND THE AE1 REVIEW
+SETTLED WHICH CONJUNCT: entry probes say b2e64 is entered and b3360 is NEVER
+entered, so guard ONE fired on all 299 ticks and b3360's own guard was never
+evaluated. This paragraph's "either conjunct alone accounts for the
+observation" is answered, and the answer is the first one. The actual next
+blocker is in the RENDER slot and is a calling convention, a class no arity
+sweep could see.)
 
 WHAT THAT ESTABLISHES IS THAT THE CONJUNCTION DID NOT HOLD, and nothing
 narrower. It does NOT establish that b3360's own guard was false, because
@@ -1500,6 +1513,357 @@ disassembles into plausible-looking nonsense rather than failing, which is the
 dangerous kind of wrong. ov007 at 0x020ad660 scores 1983/1983 and needs no
 correction. A lane reading arm9 instructions should score its image first; it
 is one pass over a file the tree already has.
+
+
+5e. THE SEAM IS SEATED AND THE SCENE TICKS (run link60 lane AE1)
+-----------------------------------------------------------------
+
+5C DERIVED THIS SEAT, 5D CLASSIFIED IT, AND BOTH THEIR REVIEWS RULED IT. This
+lane executed it, exactly as ruled and with nothing added:
+
+    src/func_ov007_020add3c.c is CUT from SLICE_OV007_SOURCES in
+    port/CMakeLists.txt, and port/unmatched/Ov007_ImplicitR0_020add3c.cpp
+    stands in its place: the matched body's own behaviour, with the call to
+    func_ov007_020ae558 forwarding the caller's own argument.
+
+THE PRICE WAS PAID AS PREDICTED: 5833 linked TUs to 5832, one down, for the
+accounting reason 5c's entry gives. Section 7's AE1 entry decomposes it.
+
+AND THE HEADLINE IS NOT THE SEAT, IT IS WHAT THE SEAT UNCOVERED. Section 8 has
+said since lane L2 that "THE SCENE HAS NEVER TICKED", with every lifecycle hit
+counter reading 0. That line is now false. Over a 300-frame run:
+
+    ov007 slot hits: init 1, behavior 299, render 0, cleanup 0, pending-destroy 0
+
+InitResources runs ONCE AND RETURNS, and Behavior runs 299 clean ticks.
+
+RE-DERIVED HERE RATHER THAN TAKEN ON 5C AND 5D'S WORD, because both of their
+rulings are reviews' and this lane had to be able to check them:
+
+  * The ROM body, disassembled off extracted/overlays/overlay_0007.bin with
+    capstone at the config base 0x020ad660. Fifty-four instructions, and the
+    delink block (start:0x020add3c end:0x020ade14) and symbols.txt (size=0xd8)
+    agree that is all of it. Every one was checked against the matched source:
+    the strh of the return value through P0+4, the ae834 call on P0, the
+    `cmp r0, #7 / addls pc, pc, r0, lsl #2` eight-arm table whose only two
+    non-default arms are case 0 (ae2d0) and case 3 (ae070), the ae454 call, the
+    three word copies out of P0 at +8, +0xc and +0x20 into P1, and the trailing
+    `mov r0, #0x64000 / rsb r0, r0, #0` compare that zeroes P1+8. The three
+    instructions the ruling turns on are the first three:
+
+        020ADD3C  push {r4, lr}
+        020ADD40  mov  r4, r0          <- saves its own argument, does not move it
+        020ADD44  bl   #0x20ae558      <- r0 still holds add3c's incoming argument
+        020AE564  ldr  ip, [r0]        <- the callee reads it
+
+  * The caller sweep, BOTH DIRECTIONS. func_ov007_020ae558 has exactly ONE
+    reference of any kind in the whole config and it is a call
+    (from:0x020add44 kind:arm_call), so there is no second site at which a
+    different shape could be right. func_ov007_020add3c has exactly one
+    arm_call to it, from:0x020aef34, inside func_ov007_020aed98's delink span.
+
+  * THE LOOKALIKE ROWS, which 5c names for the other seam and which are real
+    here too. ov002's and ov003's tables each carry a row written FROM
+    0x020add3c. Those are those overlays' own calls at an address that overlaps
+    in memory because the overlays share the slot. A grep for the bare address
+    finds them and they are not callers.
+
+  * THE NINE VALUES, in the ROM and in the host binary. The ROM loop at the
+    tail of func_ov007_020aed98 is `mov r5,#0 / ldr r0,[r4] / add r0,r0,r5,lsl #2 /
+    ldr r0,[r0,#0xa4] / bl #0x20add3c / add r5,r5,#1 / cmp r5,#9 / blt`, and
+    MSVC's is `mov esi,0xa4 / push [esi+eax] / call / add esi,4 / cmp esi,0xc8 /
+    jl`. Nine iterations either way, and the host loop PUSHES the argument
+    correctly, which is what makes the host copy a forward rather than a
+    reconstruction.
+
+  * THE HOST LISTINGS, off this lane's own walk_window.exe, disassembled FROM
+    THE MAP ADDRESS per 5d's tooling correction. AND THE CONTROL CASE IS INSIDE
+    THE SAME FRAME THIS TIME, which is a tighter version of the argument 5c had
+    to make with a second function:
+
+        0042A310  push ebp
+        0042A311  mov  ebp, esp
+        0042A313  push esi           <- a SAVE. Never cleaned.
+        0042A314  call 0x42a8d0         func_ov007_020ae558, ZERO arguments
+        0042A319  mov  esi, [ebp+8]  <- reads its OWN argument, AFTER the callee
+        0042A325  push [esi]         <- an ARGUMENT
+        0042A327  call 0x425d20         func_ov007_020ae834
+        0042A32E  add  esp, 4        <- and it IS cleaned
+
+    and the callee's half at 0042A8D0: `mov ebx,[ebp+8]` then `mov ecx,[ebx]`
+    at +0x16. Two `push` instructions, one call apiece, and the epilogue tells
+    them apart without leaving the function.
+
+  * THE FAULT, REPRODUCED AT THIS LANE'S OWN PRE-SEAT BASELINE rather than
+    quoted: `FAULT code c0000005 at +0x0002a8e6 accessing 000000a4`, with
+    `ebx=000000a4 esi=000000a4` and the return address into the caller at
+    +0x0002a319 on the stack. Same number in the loaded register and the live
+    one, which is what proves the slot IS the saved esi.
+
+THE MARKER RETIRED MECHANICALLY, AND THE INSTRUCTION IT SHIPPED WITH WAS ONE
+FLAG SHORT. 5c amended PC2's predicate to read two facts and left a comment in
+the slice loop telling the seating lane that it "adds a `continue()` here and
+the marker retires in the same configure". IT DOES NOT. The add3c branch set
+RT1_ADD3C_IN_SLICE TRUE and a bare `continue()` leaves it TRUE, so the
+predicate would have gone on arming a marker for a blocker that no longer
+shipped: the exact failure 5c caught in PC2's predicate, arriving a second time
+from inside its own fix. The cut therefore sets its own AE1_ADD3C_DISPLACED
+flag and the predicate reads `DECL AND IN_SLICE AND NOT DISPLACED`, which is
+the shape the be980 branch already had. Measured in this lane's own configures:
+PORT_OV007_AE558_UNSEATED appears 3 times in build.ninja at the start commit
+and 0 times after the cut.
+
+AND THE CLASS OF THAT TRAP IS CLOSED RATHER THAN PATCHED. The membership flag
+for the NEXT blocker's caller is set on the same statement run that appends the
+source, below every `continue()` in the loop, so a flag set there cannot say
+"compiled" about a TU that was cut. A future lane can cut that line however it
+likes and the flag follows without being told. Membership flags for that loop
+belong there from now on and the comment says so.
+
+THE TRUTH RUN, AND IT IS THE FURTHEST SCENE 1 HAS EVER GOT
+-----------------------------------------------------------
+
+SM64DS_SCENE=1, 300 frames, SM64DS_FAULTS_FATAL=1, on the seated tree.
+
+THE TRAP CENSUS, against 5c's, because the census is what shows a seam was
+crossed rather than relocated. WHICH RUN THESE NUMBERS BELONG TO, said before
+the table because the heading above it invites the wrong reading: they are the
+BARE run's totals, the one that faults in the Render slot on the first frame,
+and its whole trap total is 88. That is the quantity comparable to 5c's, which
+is also a single-fault run. The 300-frame runs further down are about 300 times
+larger (18599 traps, both of them) and none of the counts below come from
+those.
+
+    5c's run     b46b0 x24, c20b8 x1, func_02054c80 x1, data_0208ea6c slot x1,
+                 ae834 x24
+    this run     b46b0 x24, c20b8 x1, func_02054c80 x1, data_0208ea6c slot x2,
+                 ae834 x33, AND func_ov007_020c4684 x27
+
+A SIXTH NAME, twenty-seven times, and ae834 goes from 24 to 33. The nine extra
+ae834 entries are exactly the nine loop iterations that add3c now completes:
+add3c calls ae834 at 0x020add58, AFTER the call that used to fault, so before
+this seat it never reached it once. Nine calls, nine iterations, and the
+arithmetic closes with nothing left over.
+
+THE A/B PAIR IS WHAT MAKES THE REST OF THIS A MEASUREMENT. Two independent
+diagnostics both give 300 CLEAN frames:
+
+    SM64DS_SCENE_NO_RENDER=1   the whole render bucket off
+    SM64DS_SCENE_SLOT9=0       only the scene's own Render slot no-op'd
+
+and both print `init 1, behavior 299`. So InitResources FINISHED, Behavior is
+clean over 299 ticks, and EVERYTHING THAT REMAINS IS INSIDE THE SCENE'S OWN
+RENDER SLOT. The second run is the sharper of the two: the rest of the render
+bucket ran (sub OAM comes back 128/1024 bytes nonzero against 0 with the bucket
+off) and nothing in it faulted.
+
+5D'S PREDICTION, SCORED HONESTLY, BOTH HALVES.
+
+  CONFIRMED, and it was the load-bearing half: "SO SEATING ae558 LETS
+  InitResources FINISH. That is the prediction this lane is willing to be wrong
+  about in writing." It finishes. The reachability argument behind it -- that
+  nothing in Class A is reachable from what runs after the fault -- held.
+
+  MISSED, and 5d's own hedge is the branch that happened. 5d named b3d30,
+  reached through b2e64 -> b3360 -> b3c54, as the next fault, on a
+  shortest-path argument out of Behavior, and qualified it with two guards it
+  could not evaluate. NEITHER FAULT FIRED IN 299 TICKS. The conjunction did not
+  hold, and it did not hold repeatedly rather than once. 5d was right that the
+  argument proved less than an earlier draft claimed, and it was right to say
+  so; the row it named is still unexecuted and still not gated behind ae558.
+
+  AND THE HEDGE IS NOW RESOLVED, BY A MEASUREMENT THIS LANE DID NOT MAKE. The
+  credit is the AE1 REVIEW's: it patched the first five bytes of three targets
+  in a copy of the binary and re-ran the scene to ask which of them are ENTERED
+  at all, which is the question no amount of reading the guards could settle.
+
+      b2e64   ENTERED
+      b3360   NEVER ENTERED   (300 clean, identical counters, identical trap
+                               total)
+      b3c54   NEVER ENTERED
+
+  SO GUARD ONE FIRED AND GUARD TWO WAS NEVER EVALUATED. b2e64's
+  `*(short*)(data_ov007_02103360[0]) != 0xff` test took the 0xff branch on all
+  299 ticks, so control went to func_ov007_020b3190 every time and b3360 was
+  never called. 5d wrote that "either conjunct alone accounts for the
+  observation" and that it could not say which; the answer is the first, and it
+  is the first every tick rather than sometimes. THE UNFIRED-NOT-REFUTED
+  FRAMING THIS SECTION USED WAS HONEST AND IS NOW OBSOLETE: the chain is not
+  waiting on a coin flip inside b3360, it is behind a branch that has never
+  gone the other way.
+
+  WHAT THE MISS IS WORTH: the arity sweep is a census of a defect CLASS, not an
+  ordering of the scene's path. It found sixteen rows of one shape and the next
+  thing to actually stop the scene is a seventeenth row of a DIFFERENT shape
+  that no arity sweep could ever have seen. A screening lane bounds what it
+  screened for, and this is what that costs.
+
+THE NEW BLOCKER IS A CALLING CONVENTION, AND IT IS A THIRD DEFECT CLASS
+------------------------------------------------------------------------
+
+Symbolized against this tree's own walk_window.map:
+
+    FAULT code c0000005 at +0x00065766 accessing 00005544
+
+    ModelComponents::Render  +0xa6    <- the fault
+    func_ov007_020bbff0      +0x1e
+    func_ov007_020b2370      +0xb4
+    func_ov007_020bcf90      +0x18f
+    func_ov007_020b7040      +0x5
+    func_ov007_020cc2b0      +0xb     <- the scene's Render slot
+    ti_render                +0xc
+    port_actor_process / func_0204322c / port_dispatch_guarded / func_02043fdc
+    port_actor_render / port_scene_run / main
+
+Tip-binary offsets, one run, this binary's alone.
+
+IT IS NOT AN ARITY DISAGREEMENT AND NO ARITY SWEEP WOULD FIND IT. The two
+frames agree on the count. They disagree on where the arguments live:
+
+    src/func_ov007_020bbff0.c   declares the FLAT Itanium name
+                                _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3
+                                as (void *, void *, void *) and calls it with
+                                three cdecl pushes
+    the definition              port/unmatched/ModelComponents_Render.cpp's
+                                `void ModelComponents::Render(Matrix4x3 *,
+                                Vector3 *)`, a real C++ member, which MSVC
+                                emits __thiscall: `this` arrives in ECX
+
+and the flat name reaches the mangled one through an /alternatename in
+hal/scene_boot.cpp. AN ALIAS CANNOT CHANGE A CALLING CONVENTION. That sentence
+is not this lane's: it is already in scene_boot.cpp's own alias banner, written
+next to the Scene::SetFaders FACE that exists for exactly this reason. The
+directive was filed under "FOUR IN THE OPPOSITE DIRECTION" and the banner notes
+ModelComponents::Render as "a fifth of the same shape", which is true about the
+name direction and hides the convention.
+
+BOTH HALVES OFF THE BINARY, disassembled from the map address:
+
+    00434220  push ebp                  func_ov007_020bbff0
+    00434223  mov  ecx, [ebp+8]
+    00434226  cmp  dword ptr [ecx+0x94], 0
+    0043422F  lea  eax, [ecx+0x40]
+    00434232  push eax                  <- vec
+    00434233  lea  eax, [ecx+0x54]
+    00434236  push eax                  <- mat
+    00434237  push [ecx]                <- `this`, ON THE STACK
+    00434239  call 0x4656c0
+    0043423E  add  esp, 0xc             <- three cdecl arguments, cleaned
+
+    004656C0  push ebp                  ModelComponents::Render
+    004656C5  mov  ebx, ecx             <- `this` from ECX, which nobody set
+    004656CF  mov  eax, [ebx]
+    004656DE  mov  ecx, [ebp+8]         <- reads `mat` from the FIRST stack slot
+
+ECX AT THE CALL IS NOT GARBAGE, WHICH IS WHY THIS FAULTS LATE INSTEAD OF
+IMMEDIATELY. The caller loaded ECX with its own argument at 00434223 and never
+reloaded it, so the callee runs with `this` = the caller's object, one
+dereference short of the `*(void**)c` the source intends. Every argument is one
+slot off and `this` is plausible rather than null, so the body walks a node
+array built out of the wrong object and dies at +0xa6 on
+`movzx edx, byte ptr [eax+edi]` with eax = 0x5544. The fault report agrees:
+`ebx=300952a8` is the shifted `this` and `accessing 00005544` is the word it
+read out of it.
+
+TWO MORE ALIASES IN THAT BLOCK SHARE THE SHAPE, and this was checked by
+disassembly rather than by reading the mangling, because a decoration argument
+is exactly the kind that is right until it is not:
+
+    ?Render@ModelComponents@@QAE...       `mov ebx, ecx`   __thiscall   FIRED
+    ?SetDefaultValues@SaveData@@QAE...    `mov esi, ecx`   __thiscall   latent
+    ?SetDefaultValuesMg@SaveData@@QAE...  `mov esi, ecx`   __thiscall   latent
+    ?SaveFile@SaveData@@SAH...            reads [ebp+8]    __cdecl      fine
+    ?UpdateFileOffsets@Animation@@SAX...  reads [ebp+8]    __cdecl      fine
+    ?UpdateFileOffsets@TextureSequence... static member    __cdecl      fine
+    ?LoadTexAndPal@Model@@SAX...          reads [ebp+8]    __cdecl      fine
+
+The four that have always worked target STATIC members, which MSVC emits
+__cdecl, so the flat spelling is correct for them and the alias is doing
+exactly what an alias can do. The three non-static ones are the whole class,
+and only one of them has been reached by a run.
+
+WHAT THIS LANE DID NOT DO ABOUT IT, and would not have been the lane to do:
+nothing. No face, no second displacement. The seam is derived here and left for
+a review to rule, which is this file's precedent and the reason the two seams
+before it were seated cleanly.
+
+THE SHAPE A FIX WOULD TAKE, since it is cheap to name and the tree already has
+the pattern. A FACE, the Scene::SetFaders shape a few lines above the directive
+in hal/scene_boot.cpp: a real cdecl definition of the flat name that re-lands
+the three arguments onto the member call, and the /alternatename retired. That
+touches no matched source and costs no linked TU, which makes it a different
+and cheaper kind of answer than the two seats this file has recorded. It is
+also the reason the new marker's predicate does NOT read a declaration.
+
+THE MARKER FOR THE NEW ROW, AND WHY ITS PREDICATE IS DIFFERENT
+----------------------------------------------------------------
+
+IT IS ARMED AT ti_render, NOT ti_init, AND THAT IS A REAL IMPROVEMENT. Both
+earlier notices had to admit they were armed on ENTERING InitResources, a whole
+lifecycle away from their seam, because every frame in between was a matched TU
+the port owned nothing in. With InitResources returning and Behavior clean, the
+port-owned frame that dispatches into this fault is the Render slot itself. The
+window the marker covers is now a slot rather than a scene. It is still not
+armed AT the seam and a different fault inside the Render slot would print it,
+which is said here because it is the same caveat the last two carried and a
+reader should not have to infer that it shrank rather than vanished.
+
+AND THE PREDICATE READS DIFFERENT FACTS, WHICH IS THE PART TO CARRY FORWARD.
+The two-fact pattern 5c established is declaration-plus-slice-membership, and
+it is right when the fix is a DISPLACEMENT, because a displacement changes
+membership. THIS SEAM'S EXPECTED FIX IS A FACE, WHICH CHANGES NEITHER FACT. The
+caller's TU stays in the slice and its declaration stays exactly as it is, so
+that predicate would survive its own fix and go on asserting a retired blocker:
+the same failure PC2's predicate had and 5c's instruction reintroduced,
+arriving a third time from a third direction. THE RULE THE THREE CASES TOGETHER
+GIVE is not "read two facts", it is READ THE FACTS THE AVAILABLE FIXES CHANGE.
+Here those are:
+
+    the ALIAS, still pointing the flat name at a QAE (__thiscall) target,
+      read out of hal/scene_boot.cpp. A face retires the directive.
+    the CALLER, still compiled into the ov007 slice.
+      A displacement cuts it, exactly like the two above.
+
+AND IT COVERS A THIRD FIX SHAPE THIS LANE DID NOT NOTICE IT HAD BOUGHT, which
+the review pointed out and which is worth recording because it is free. The
+regex is anchored on `=?Render@ModelComponents@@QAE`, and QAE IS THE
+CONVENTION, not just part of the name. So if a lane leaves the alias in place
+and instead re-points it at a __cdecl target -- a static member, or a real flat
+definition compiled alongside -- the anchor stops matching and the marker
+retires on its own. Three fix shapes, one predicate, and none of them can be
+taken while leaving the marker armed.
+
+THE REVIEW RULED THE PATTERN OUT OF THIS, and the ruling is the reusable part
+rather than anything about ov007. READ-THE-FACTS-THE-FIXES-CHANGE IS NOW THE
+RULED PATTERN FOR FACE-FIXED SEAMS, superseding "read two facts" wherever the
+expected fix is not a displacement. It carries two provisos, both of which the
+review established rather than asserted:
+
+  FACTS COME FROM BUILD ARTIFACTS OR ANCHORED DIRECTIVE LINES, NEVER FROM AN
+  UNANCHORED SOURCE-TEXT MATCH. The review demonstrated the failure on this
+  very predicate: file(STRINGS) is a line scanner, so a COMMENT quoting the
+  retired directive keeps the marker armed after a correct fix. That is the
+  same "asserting a blocker that no longer ships" failure a third time, now
+  reachable through prose instead of through logic. The tree already knows this
+  shape -- alternatename_guard.py reports fifteen directives "quoted in prose,
+  NOT linker inputs" on every build -- so the fix is to anchor the match on the
+  pragma line rather than on the text. THE ANCHOR FIX IS ASSIGNED TO THE FACE
+  LANE, whose fix is the first one that makes it bite, and it is one of that
+  lane's four ruled conditions.
+
+  N FACTS REQUIRE N+1 PROOF CONFIGURES. Two facts have three arming states and
+  a fourth configure where BOTH arms pass, and only the fourth proves the AND
+  is an AND rather than one fact carrying the predicate. This lane ran three of
+  the four (0 before the block, 3 with it, 0 with the alias faced) and stopped
+  one short. THE REVIEW RAN THE FOURTH, with both arms passing, and the marker
+  arms: the conjunction is real. Recorded as a rule because "measured both
+  ways" is what 5c and this lane both said, and both times it meant fewer
+  configures than the predicate had states.
+
+NO BMP, AND THE TITLE SCREEN HAS STILL NEVER RENDERED. The scene ticks, and its
+Render slot is the one thing that does not run. Nothing about the title
+screen's pixels is claimed by this lane. The 300 clean frames above were
+obtained with rendering off and are not a frame.
 
 
 6. WHAT LINKS, AND WHAT WAS DELIBERATELY NOT TAKEN
@@ -1706,6 +2070,65 @@ and that reads as its own verdict rather than as GREEN. Filed out of this lane
 as background task task_0eef87af, "Let port gate.py express a ruled linkage
 cost". Until it lands, this paragraph is the explanation.
 
+RUN LINK60 LANE AE1'S DELTA, and it is the SECOND negative one, on the same
+terms as the first:
+
+    baseline ee1f61030   5833 / 11250   51.8%   battery ALL GREEN
+    this lane            5832 / 11250   51.8%   battery ALL GREEN   -1
+
+Both recorded in this lane's own worktree, the baseline at the start commit
+with git_dirty false before a single edit, so the two numbers are the same
+tree measured twice and not two trees compared.
+
+THE MINUS ONE IS THE SEAT'S PRICE AND WAS PREDICTED BEFORE IT WAS PAID (section
+5c's ruling block says 5830 to 5829 against ITS baseline; the absolute numbers
+moved with the tree between then and now, the -1 did not). Decomposed with
+port/tools/mapdiff.py against a base map built in THIS tree:
+
+    symbols   36877 -> 36877      objects   6525 -> 6525
+    MOVED  1   _func_ov007_020add3c
+               func_ov007_020add3c.c.obj -> Ov007_ImplicitR0_020add3c.cpp.obj
+    objects   +1 Ov007_ImplicitR0_020add3c.cpp.obj
+              -1 func_ov007_020add3c.c.obj
+    ADDED  2 / REMOVED 2, all four in scene_boot.cpp.obj and all four the
+             marker swap: one string literal and one function-static `said`
+             each for ti_ae558_notice leaving and ti_mcrender_notice arriving.
+
+NOTHING ELSE MOVED, and the check matters more here than it did for the RT1
+seat because this host copy is bigger. The displaced body has five callees and
+an eight-arm switch where be980's had one call, so a transcription that dropped
+or added an edge would have shown up as /OPT:REF pulling objects in or letting
+them fall out. The object count is unchanged in both directions and no other
+symbol moved, so the reachability graph is the same graph.
+
+THE MATCHED TU DID NOT STOP BEING MATCHED. Same accounting fact as the RT1
+entry above: it is out of the port's ov007 slice and nothing else.
+
+port/tools/gate.py PRINTS RED ON THIS TREE, AND THAT IS EXPECTED. Everything
+the RT1 paragraph above says applies here unchanged, with this lane's numbers:
+
+    gate: RED (linkage 5832 below the baseline's 5833)
+
+with `battery: ALL GREEN` and one skip on the line above it. `--record` WAS
+DELIBERATELY REFUSED and should stay refused, for the reason that paragraph
+gives: it is the only lever that clears this RED and it clears it by rewriting
+the baseline, which erases the drop instead of explaining it.
+
+ONE THING THIS LANE HIT THAT THE RT1 ENTRY DID NOT RECORD, because a reader
+will hit it in the same order. The FIRST gate run after the seat came back RED
+for a different and better reason:
+
+    battery: FAIL: selftest scene 1: FAIL rc=3221225477 -- it failed, but NOT
+    with its recorded blocker.
+
+That is battery.py's SCENE_BLOCKED guard doing exactly its job. The row still
+named the ae558 marker, the seated binary no longer prints it, and the battery
+refused to read a new fault as the known one. It goes green again only after
+the row is CONVERTED to name the new blocker, which is the conversion
+discipline working as a gate rather than as a convention. A lane that seats a
+seam should expect two RED gate runs, not one, and should not touch the row
+before it has a run to describe.
+
 
 8. WHAT IS NOT PROVEN
 ----------------------
@@ -1713,6 +2136,10 @@ cost". Until it lands, this paragraph is the explanation.
   - THE SCENE HAS NEVER TICKED. Section 4 stops at spawn plus one dispatched
     slot. Behavior, Render, CleanupResources, OnPendingDestroy, D2 and D0 have
     hit counters and every one of them reads 0.
+    SUPERSEDED BY 5E, and left in place because three other bullets below lean
+    on it. Run link60 lane AE1 measures `init 1, behavior 299, render 0,
+    cleanup 0, pending-destroy 0`. Behavior and InitResources are no longer 0.
+    The other four still are.
   - The four Scene:: veneer slots and the eleven shared thunks are seated for
     this class but only the ones InitResources reaches were exercised, and
     InitResources did not finish.
@@ -1815,3 +2242,64 @@ cost". Until it lands, this paragraph is the explanation.
     the linear scan reported no incoming reads at all.
   - THE TITLE SCREEN HAS STILL NEVER RENDERED. No frame is reached, no BMP was
     captured, and nothing about its pixels is claimed by any lane so far.
+
+  RUN LINK60 LANE AE1 ADDS THESE, and the first two are the ones a reader
+  should weigh hardest:
+
+  - THE HOST COPY AT port/unmatched/Ov007_ImplicitR0_020add3c.cpp HAS NEVER
+    BEEN OBSERVED DOING ITS JOB, in exactly the sense the RT1 bullet above
+    means it. What is proven is that the run gets PAST it: the fault it caused
+    is gone, add3c completes all nine loop iterations (the nine extra
+    func_ov007_020ae834 entries in the census are the arithmetic), and
+    InitResources returns. What is NOT proven is that func_ov007_020ae558
+    returned the RIGHT value on any of those nine, or that the short it writes
+    through P0+4, the eight-way switch it then takes, and the four stores at
+    the tail did anything correct. The body was checked instruction by
+    instruction against both the ROM and the matched source it displaces, and
+    that is a reading, not an execution.
+  - 299 CLEAN BEHAVIOR TICKS ARE NOT 299 CORRECT ONES. The counters and the
+    clean exit say nothing faulted. They say nothing at all about whether the
+    scene's state is what the ROM's would be, and with the Render slot never
+    running there is no output to compare against anything. Every "clean" in
+    5e is the absence of a fault under FAULTS_FATAL and nothing more.
+  - THE 300 CLEAN FRAMES WERE OBTAINED WITH RENDERING OFF. Both diagnostics
+    that produce them (SM64DS_SCENE_NO_RENDER=1 and SM64DS_SCENE_SLOT9=0)
+    remove the thing that is broken. Neither is a skip the battery accepts for
+    scene 1 and neither should become one: the row stays BLOCKED.
+  - 5D'S NEXT-SEAM PREDICTION IS NOT REFUTED, ONLY UNFIRED, AND THE REVIEW
+    NARROWED WHY. b3d30 did not fault in 299 Behavior ticks. The AE1 review's
+    entry probes then showed b3360 and b3c54 are NEVER ENTERED and b2e64 is, so
+    the chain is closed at b2e64's 0xff branch and b3360's own guard has never
+    been evaluated. WHAT IS STILL NOT PROVEN is that b2e64's test ever goes the
+    other way: 299 ticks of one scene state is not a proof about the branch,
+    only about this run. A run that drives the title screen further, or that
+    reaches the file-select branches, may still open the chain, and the row
+    stays on the books.
+  - THE THREE __thiscall ALIASES ARE MEASURED, THEIR REACH IS NOT. All three
+    were confirmed by disassembling the target's first instructions, so the
+    convention claim is solid. Only ModelComponents::Render has been observed
+    faulting. Whether SaveData::SetDefaultValues and SetDefaultValuesMg have C
+    callers on any live path, and whether anything already calls them
+    correctly from C++, was not traced. Neither was the rest of the tree: this
+    lane looked at the seven aliases in one block of hal/scene_boot.cpp and at
+    nothing else.
+  - THE NEW ROW'S PREDICATE IS PROVEN AS A SWITCH, NOT AS A DIAGNOSIS. Four
+    configures now cover its four states, three run by this lane (0 before the
+    block, 3 with it, 0 with the alias faced) and the fourth by the AE1 review
+    (both arms passing, and it arms), so it switches on the facts it reads and
+    the conjunction is a real AND. It is still armed on ENTERING the Render
+    slot rather than at the seam, so a different fault inside that slot would
+    carry it, and the row says so.
+  - AND ITS ALIAS FACT IS AN UNANCHORED SOURCE-TEXT MATCH, WHICH IS A KNOWN
+    HOLE SHIPPING ON PURPOSE. file(STRINGS) is a line scanner, so a comment in
+    hal/scene_boot.cpp quoting the retired directive would keep the marker
+    armed after a correct face. The review demonstrated it. It cannot fire
+    today, because the fix that would create such a comment has not been taken,
+    and the anchor fix is assigned to the face lane as one of its four ruled
+    conditions. It is recorded here rather than fixed here so that a lane
+    reading only section 8 does not inherit the predicate as sound.
+  - func_ov007_020c4684 IS A NEW TRAP NAME AND WAS NOT LOOKED AT. It is entered
+    twenty-seven times on the seated run and no lane has read what the ROM does
+    there. It is an unmatched body returning 0, which is a hole in the decomp
+    of the same kind section 5 records, and it runs on the path this lane just
+    opened.

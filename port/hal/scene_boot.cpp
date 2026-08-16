@@ -1404,8 +1404,56 @@ static int  __fastcall ti_clean(void *, void *)
 { ++g_ti_hits[3];  return func_ov007_020cc45c(); }
 static int  __fastcall ti_beh(void *s, void *)
 { ++g_ti_hits[6];  return func_ov007_020cc2cc((char *)s); }
+#if PORT_OV007_MCRENDER_UNSEATED
+/* SCENE 1'S BLOCKER AFTER THE IMPLICIT-r0 SEAM WAS SEATED, run link60 lane
+ * AE1, AND THE FIRST ONE THIS FILE CAN ANNOUNCE FROM THE RIGHT FRAME.
+ *
+ * The two notices above sit in ti_init and both had to admit they were armed
+ * on ENTERING InitResources rather than on reaching their seam, because every
+ * frame in between was a matched TU. THIS ONE IS TIGHTER, measurably: with the
+ * ae558 seat in, InitResources runs once and returns, Behavior runs 299 clean
+ * ticks, and the fault is inside the Render slot. ti_render IS the port-owned
+ * frame that dispatches into the faulting path, so this marker is armed one
+ * slot away from the defect instead of a whole lifecycle away. It is still not
+ * armed AT the seam -- a different fault inside the Render slot would print it
+ * -- but the window it covers is a slot, not a scene.
+ *
+ * THE BLOCKER IS A CALLING CONVENTION AND NOT AN ARITY, which makes it a new
+ * class for this scene. src/func_ov007_020bbff0.c declares the flat Itanium
+ * name _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3 as three void* and
+ * calls it with three cdecl pushes; the definition it reaches through this
+ * file's own /alternatename is a real C++ member that MSVC emits __thiscall,
+ * so `this` is expected in ECX and the three pushes land one slot off. The
+ * banner over that alias block already says an alias cannot change a calling
+ * convention, and Scene::SetFaders a few lines above it is the FACE that
+ * exists for exactly this reason.
+ *
+ * Armed by the AE1 block in port/CMakeLists.txt, which reads the alias and the
+ * caller's slice membership rather than the caller's declaration, because the
+ * expected fix here is a face and a face does not touch the declaration.
+ * Derivation, both host listings and the two other aliases in this file that
+ * share the shape: port/ov007_seat.txt section 5e. */
+static void ti_mcrender_notice(void)
+{
+    static int said;
+    if (said) return;
+    said = 1;
+    std::printf("  [scene] SCENE 1 BLOCKED: func_ov007_020bbff0 calls "
+                "ModelComponents::Render cdecl through a __thiscall alias\n");
+    std::fflush(stdout);
+    std::fprintf(stderr, "  [scene] SCENE 1 BLOCKED: func_ov007_020bbff0 calls "
+                 "ModelComponents::Render cdecl through a __thiscall alias\n");
+    std::fflush(stderr);
+}
+#endif
 static int  __fastcall ti_render(void *s, void *)
-{ ++g_ti_hits[9];  return func_ov007_020cc2b0(s); }
+{
+    ++g_ti_hits[9];
+#if PORT_OV007_MCRENDER_UNSEATED
+    ti_mcrender_notice();
+#endif
+    return func_ov007_020cc2b0(s);
+}
 static int  __fastcall ti_pdes(void *, void *)
 { ++g_ti_hits[12]; func_ov007_020cc2ac(); return 0; }
 /* the SM64DS_SCENE_SLOT9=0 stand-in, counted separately for the same reason

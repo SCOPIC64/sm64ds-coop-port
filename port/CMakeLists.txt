@@ -2854,6 +2854,11 @@ set(SLICE_OV007_SOURCES "")
 set(RT1_BE980_IN_SLICE FALSE)      # the slice file lists the line
 set(RT1_BE980_DISPLACED FALSE)     # and this block cut it, so a host copy runs
 set(RT1_ADD3C_IN_SLICE FALSE)
+set(AE1_ADD3C_DISPLACED FALSE)     # run link60 lane AE1, the same pair one
+                                   # frame deeper: listed, and cut
+set(AE1_BBFF0_COMPILED FALSE)      # and the NEXT blocker's caller: compiled,
+                                   # set where the append happens, not where
+                                   # the line is read
 foreach(line IN LISTS SLICE_OV007_LINES)
     string(STRIP "${line}" line)
     if(line MATCHES "^#" OR line STREQUAL "")
@@ -2881,16 +2886,66 @@ foreach(line IN LISTS SLICE_OV007_LINES)
         set(RT1_BE980_DISPLACED TRUE)
         continue()
     endif()
-    # NOT a cut. The next blocker's frame is noted here because the marker
-    # block below has to know whether the one-argument-short caller is in this
-    # binary, and reading it off the same loop that would do the cutting is
-    # what keeps the two from drifting. A lane that seats this seam adds a
-    # `continue()` here and the marker retires in the same configure.
+    # run link60 lane AE1: THE SECOND DISPLACEMENT IN THIS SLICE, and the
+    # OPPOSITE FRAME from the one above.
+    #
+    # func_ov007_020add3c is MATCHED and stays matched. It is cut from the port
+    # only, because it is the frame where scene 1's implicit r0 argument is
+    # destroyed: the value is add3c's OWN incoming argument, its callee
+    # func_ov007_020ae558 reads r0 directly, and on ARM the caller's
+    # `mov r4, r0` leaves r0 holding it at the branch so there is nothing to
+    # emit. On MSVC the caller pushes zero arguments and the callee reads its
+    # saved esi. The seat's shape was ruled by the RT1 and SC1N reviews before
+    # it was taken; the derivation, the one-call-site sweep and why the callee
+    # is the wrong frame to displace are in
+    # port/unmatched/Ov007_ImplicitR0_020add3c.cpp's header and
+    # port/ov007_seat.txt sections 5c, 5d and 5e.
+    #
+    # THE FLAG IS NOT BOOKKEEPING, same as the be980 block above: the RT1
+    # marker block below reads it, so the cut and the marker's retirement are
+    # the same fact and cannot drift.
+    #
+    # WHAT THE COMMENT THAT STOOD HERE ASKED FOR WAS ONE FLAG SHORT, and it is
+    # worth recording rather than quietly fixing. It said a lane seating this
+    # seam "adds a `continue()` here and the marker retires in the same
+    # configure". A bare `continue()` leaves RT1_ADD3C_IN_SLICE set TRUE, so
+    # the predicate below would have gone on arming a marker for a blocker that
+    # no longer shipped -- the exact failure RT1 caught in PC2's predicate,
+    # arriving a third time. The cut therefore sets its own DISPLACED flag and
+    # the predicate reads both, which is the shape the be980 block already had.
     if(line MATCHES "^src/func_ov007_020add3c\\.c$")
         set(RT1_ADD3C_IN_SLICE TRUE)
+        set(AE1_ADD3C_DISPLACED TRUE)
+        continue()
+    endif()
+    # run link60 lane AE1: THE NEXT BLOCKER'S CALLER, and this flag is placed
+    # where it is on purpose.
+    #
+    # Every cut in this loop is a `continue()` ABOVE this line, so a flag set
+    # HERE, on the same statement run that appends the source, cannot say
+    # "compiled" about a TU that was cut. That is the property the add3c note
+    # above did not have: it recorded "listed", the cut recorded nothing, and a
+    # lane following its instructions to the letter would have left the marker
+    # armed. Membership flags for this loop belong here from now on.
+    if(line MATCHES "^src/func_ov007_020bbff0\\.c$")
+        set(AE1_BBFF0_COMPILED TRUE)
     endif()
     list(APPEND SLICE_OV007_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+if(AE1_ADD3C_DISPLACED)
+    list(APPEND SLICE_OV007_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov007_ImplicitR0_020add3c.cpp")
+elseif(NOT RT1_ADD3C_IN_SLICE)
+    # Same two opposite states the be980 branch below distinguishes, and for
+    # the same reason: the slice line is the only thing that puts the matched
+    # TU in the build, so if the line is gone the host copy must not be added
+    # blind. Two bodies for one address is an LNK2005 and none is a silent
+    # undefined symbol.
+    message(STATUS "AE1: slice_ov007.txt no longer lists "
+                   "src/func_ov007_020add3c.c, so the implicit-r0 host copy is "
+                   "NOT added and the link will fail on it. Restore the line: "
+                   "this block does the cutting, not the slice file")
+endif()
 if(RT1_BE980_DISPLACED)
     list(APPEND SLICE_OV007_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov007_RideThrough_020be980.cpp")
@@ -3054,12 +3109,27 @@ set(RT1_AE558_DEFS "")
 file(STRINGS "${PORT_REPO_ROOT_ABS}/src/func_ov007_020add3c.c"
      RT1_AE558_DECL
      REGEX "^[ \t]*extern[ \t]+int[ \t]+func_ov007_020ae558[ \t]*\\([ \t]*void[ \t]*\\)[ \t]*;")
-if(RT1_AE558_DECL AND RT1_ADD3C_IN_SLICE)
+if(RT1_AE558_DECL AND RT1_ADD3C_IN_SLICE AND NOT AE1_ADD3C_DISPLACED)
     message(STATUS "RT1: func_ov007_020add3c still calls func_ov007_020ae558 "
                    "with no arguments and its TU is still in the slice, so "
                    "scene 1's implicit-r0 blocker STANDS and the battery "
                    "marker is armed")
     list(APPEND RT1_AE558_DEFS "PORT_OV007_AE558_UNSEATED=1")
+elseif(AE1_ADD3C_DISPLACED)
+    message(STATUS "AE1: func_ov007_020add3c is DISPLACED to "
+                   "unmatched/Ov007_ImplicitR0_020add3c.cpp, which forwards "
+                   "its own argument, so the no-argument call is not in this "
+                   "binary and scene 1's implicit-r0 marker is RETIRED")
+elseif(NOT RT1_ADD3C_IN_SLICE)
+    # Retired for the wrong reason, and the AE1 slice warning above has
+    # already said so. Kept as its own branch for the reason the be980 block
+    # gives: "the marker is off because the seam is fixed" and "the marker is
+    # off because the TU vanished and the link is about to fail" are opposite
+    # states, and one message covering both is how a broken tree reads healthy.
+    message(STATUS "AE1: func_ov007_020add3c is not in the slice at all, so "
+                   "the implicit-r0 marker is RETIRED but NOT because the seam "
+                   "was seated -- see the AE1 slice warning above, the link "
+                   "fails before scene 1 can be judged")
 else()
     message(STATUS "RT1: func_ov007_020add3c's no-argument call to "
                    "func_ov007_020ae558 is GONE from this binary, scene 1's "
@@ -3067,10 +3137,70 @@ else()
                    "delete its SCENE_BLOCKED row")
 endif()
 
+# run link60 lane AE1: SCENE 1'S NEXT BLOCKER, AND IT IS A NEW DEFECT CLASS.
+#
+# The implicit-r0 seam above is seated, InitResources FINISHES, and Behavior
+# runs 299 clean ticks. What is left is entirely inside the scene's own Render
+# slot, and it is not an arity disagreement at all. It is a CALLING CONVENTION:
+#
+#   src/func_ov007_020bbff0.c   declares the FLAT Itanium name
+#                               _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3
+#                               as (void *, void *, void *) and calls it with
+#                               three cdecl pushes
+#   the definition             port/unmatched/ModelComponents_Render.cpp's
+#                               `void ModelComponents::Render(Matrix4x3*,
+#                               Vector3*)`, a real C++ member, which MSVC emits
+#                               as __thiscall: `this` arrives in ECX
+#
+# and the flat name reaches the mangled one through an /alternatename in
+# hal/scene_boot.cpp. AN ALIAS CANNOT CHANGE A CALLING CONVENTION -- that
+# sentence is already in that file's own banner, next to the Scene::SetFaders
+# FACE that exists for exactly this reason -- so the caller's three pushes land
+# one slot off and `this` is whatever ECX happened to hold.
+#
+# WHY THE PREDICATE IS NOT THE ONE ABOVE, and this is the part worth reading.
+# The two seams before this were fixed by DISPLACING a caller, so "is the
+# caller's TU in the build" was a fact the fix changed. This seam's expected
+# fix is a FACE, which leaves the caller's TU and its declaration exactly where
+# they are. A declaration-plus-membership predicate would therefore survive its
+# own fix and go on asserting a retired blocker -- the identical trap RT1
+# caught in PC2's predicate and this lane caught in RT1's, arriving a third
+# time from a third direction. So this reads the two facts that the two
+# available fixes actually change:
+#
+#   the ALIAS, still pointing the flat name at a QAE (__thiscall) target.
+#     A face stands a real cdecl definition and retires the directive.
+#   the CALLER, still compiled into the ov007 slice.
+#     A displacement cuts it, exactly like the two above.
+#
+# Either fix clears this in the configure that notices, and neither can be
+# taken without clearing it.
+set(AE1_MCRENDER_DEFS "")
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/hal/scene_boot.cpp"
+     AE1_MCRENDER_ALIAS
+     REGEX "alternatename:__ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3=\\?Render@ModelComponents@@QAE")
+if(AE1_MCRENDER_ALIAS AND AE1_BBFF0_COMPILED)
+    message(STATUS "AE1: the flat _ZN15ModelComponents6RenderE... name is still "
+                   "aliased onto a __thiscall member and src/func_ov007_020bbff0.c "
+                   "still calls it cdecl, so scene 1's Render-slot blocker "
+                   "STANDS and the battery marker is armed")
+    list(APPEND AE1_MCRENDER_DEFS "PORT_OV007_MCRENDER_UNSEATED=1")
+elseif(NOT AE1_MCRENDER_ALIAS)
+    message(STATUS "AE1: the flat _ZN15ModelComponents6RenderE... alias onto a "
+                   "__thiscall member is GONE, so scene 1's Render-slot marker "
+                   "is RETIRED -- if the scene now runs, delete its "
+                   "SCENE_BLOCKED row")
+else()
+    message(STATUS "AE1: src/func_ov007_020bbff0.c is not compiled into the "
+                   "ov007 slice, so its cdecl call is not in this binary and "
+                   "scene 1's Render-slot marker is RETIRED")
+endif()
+
 # Appended, not string-joined: an empty PC2 list concatenated with a non-empty
 # RT1 one produces a leading semicolon, and CMake reads that as an empty define
-# to pass to the compiler. Both lists go empty the day both seams are seated.
-set(SCENE_BOOT_MARKER_DEFS ${PC2_RIDETHROUGH_DEFS} ${RT1_AE558_DEFS})
+# to pass to the compiler. Every list goes empty the day every seam is seated.
+set(SCENE_BOOT_MARKER_DEFS ${PC2_RIDETHROUGH_DEFS} ${RT1_AE558_DEFS}
+    ${AE1_MCRENDER_DEFS})
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/hal/scene_boot.cpp"
     PROPERTIES COMPILE_DEFINITIONS "${SCENE_BOOT_MARKER_DEFS}")
