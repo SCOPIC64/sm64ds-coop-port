@@ -1,0 +1,568 @@
+SEATING dScDSMT_c: the ov007 TITLE SCREEN and FILE SELECT, scene id 1. What the
+ROM says its vtable is, what the spine's two caveats turned out to be, how far
+the boot gets and exactly what stops it. Run link60, lane L2.
+
+Baseline this was measured against: 0d81b845c, walk_window 4950/11243 linked
+(44.0%), battery ALL GREEN, gate skips [scene 4 with SM64DS_SCENE_SLOT9=0]. No
+exe hash is quoted on purpose -- the link embeds build-location state, so a
+sha256 from one worktree is not something another worktree reproduces. The
+attestation is the gate manifest's git_sha plus git_dirty.
+
+
+1. WHAT THIS IS, AND WHAT IT IS NOT
+-----------------------------------
+
+The S1 spine lane brought up ov003's star select and wrote down two caveats for
+whoever seated the next scene. The e-ov007-mount lane hosted ov007's 716 data
+symbols. This lane seats the class those two were built for.
+
+IT IS NOT A SLICE OF ov007, IT IS VERY NEARLY THE OVERLAY. A relocation BFS
+from dScDSMT_c's eight entry points -- the factory plus the seven overridden
+vtable slots, expanding any ov007 data symbol a load reaches whose words are
+relocated into ov007 .text -- reaches ALL 548 of ov007's functions through 165
+such code tables. There is no smaller honest unit: the title screen is what
+ov007 is for.
+
+IT DOES NOT RUN. Section 5 is the blocker and it is a hole in the decomp, not
+in the port. Read section 4 for what IS proven before deciding how much that
+costs.
+
+
+2. THE VTABLE, DERIVED, AND THE WIDTH QUESTION ANSWERED
+--------------------------------------------------------
+
+THE TABLE ADDRESS comes from the ROM twice over and neither route is a guess.
+config/arm9/relocs.txt has `from:0x02090868 kind:load to:0x02103264
+module:overlay(7)`, and 0x02090868 is ACTOR_SPAWN_TABLE + 4, the slot for actor
+id 1. The record at 0x02103264 reads, out of extracted/overlays/overlay_0007.bin
+at (addr - 0x020ad660):
+
+    +0  d0 ca 0c 02    0x020ccad0   the factory, func_ov007_020ccad0
+    +4  01 00          1            the actor id, which the registry cross-checks
+    +6  03 00          3
+    +8  "9dScDSMT_c\0\0"            the Itanium type name, inline
+
+and one word into that factory's literal pool is 0x021032e8. The other route is
+the Itanium layout: 0x021032e4 relocates to 0x02103278, which is a
+__si_class_type_info record (vtable+8 at 0x0209a764, name 0x0210326c reading
+"9dScDSMT_c", base 0x020914d4), and a typeinfo pointer sits one word below slot
+0. Both say the table starts at 0x021032e8.
+
+THE WIDTH IS 18, and vtspan's three routes agree with no disagreement to report:
+
+  1. RELOC RUN. Eighteen CONSECUTIVE relocated words, 0x021032e8 through
+     0x0210332c, and then it stops: 0x02103330, 0x02103334, 0x02103338 and
+     0x0210333c carry no relocation in config/arm9/overlays/ov007/relocs.txt.
+  2. SYMBOL BOUND plus the ROM bytes. dsd's next symbol is 0x02103340, which is
+     the .bss base, so the symbol is 88 bytes -- 22 words -- and words 18..21
+     read 0x00000000 in the image. Trailing zeros, not slots. This is the route
+     vtspan.py warns can truncate; here it over-counts instead, and the bytes
+     settle it.
+  3. SEMANTIC TAIL. Every one of the eleven non-overridden slots holds the same
+     arm9 address ov003's three classes hold, byte for byte. dScDSMT_c is
+     _ZTV5Scene with seven slots overridden and adds no virtual of its own.
+
+So scene_fill_shared's hardcoded eighteen-slot shape HOLDS and was left alone.
+The caveat is discharged by measurement, not by widening: a width parameter with
+one caller and one value would be ceremony, and the next scene that disagrees is
+the one that should add it. THAT SCENE IS STILL COMING -- ov006's minigame
+classes derive from dScMgBase_c, which derives from Scene, and nothing here says
+anything about their shape.
+
+EVERY SLOT, WITH ITS BODY ADJUDICATED. "phantom" is the check the phantom-seat
+rule asks for: each ov007 body was disassembled out of the shipped RAM image
+(351456 bytes, which equals the OVT's ram_size for ov007) and read for a real
+ARM prologue, not inferred from the slot.
+
+  slot  addr        target      module  body / ruling
+   0   0x021032e8  0x020cc4c0  ov007   InitResources     REAL_DECOMP (marker)
+   1   0x021032ec  0x0202e638  arm9    Scene::BeforeInitResources
+   2   0x021032f0  0x0202e62c  arm9    Scene::AfterInitResources    VENEER
+   3   0x021032f4  0x020cc45c  ov007   CleanupResources  REAL_DECOMP (marker)
+   4   0x021032f8  0x0202e5f0  arm9    Scene::BeforeCleanupResources
+   5   0x021032fc  0x0202e5d0  arm9    Scene::AfterCleanupResources
+   6   0x02103300  0x020cc2cc  ov007   Behavior          REAL_DECOMP (marker)
+   7   0x02103304  0x0202e3d4  arm9    Scene::BeforeBehavior
+   8   0x02103308  0x0202e3c8  arm9    Scene::AfterBehavior         VENEER
+   9   0x0210330c  0x020cc2b0  ov007   Render            REAL_DECOMP (marker)
+  10   0x02103310  0x0202e3a4  arm9    Scene::BeforeRender
+  11   0x02103314  0x0202e398  arm9    Scene::AfterRender           VENEER
+  12   0x02103318  0x020cc2ac  ov007   OnPendingDestroy  REAL_DECOMP (marker)
+  13   0x0210331c  0x0204357c  arm9    ActorBase::Virtual34
+  14   0x02103320  0x0204349c  arm9    ActorBase::Virtual38
+  15   0x02103324  0x02043494  arm9    ActorBase::OnHeapCreated
+  16   0x02103328  0x020cc028  ov007   D2                (no marker)
+  17   0x0210332c  0x020cc070  ov007   D0                REAL_DECOMP (marker)
+  --   0x02103330..0x0210333c   zero in the ROM, NOT WRITTEN by the fill
+
+THE THREE VENEER SLOTS ride through unchanged. They are the identical arm9
+addresses ov003's classes hold, hal/scene_actor_faces.cpp already carries the
+four faces and the derivation, and this lane's fill calls the same eleven shared
+thunks. Nothing new was needed for them, which is the ov003 precedent working.
+
+A SECOND TABLE, which the ov003 seat had no equivalent of. The factory writes a
+sub-object vptr at +0x50 as well (`str r2, [r4, #0x50]` then `str r1, [r4,
+#0x50]`, the second being 0x021032b0), and 0x021032b0 is
+dScDSMT_c::graphCallback_c's own FOUR-slot table -- RTTI name
+N9dScDSMT_c15graphCallback_cE at 0x021032c0, typeinfo record at 0x02103284,
+typeinfo pointer at 0x021032ac one word below slot 0. Four slots exactly, the
+name string starts immediately after, and the eleven-slot shared fill does not
+apply to it:
+
+    gc 0  0x021032b0  0x020cc110  ov007  REAL_DECOMP (marker); mov r0,#0 / bx lr
+    gc 1  0x021032b4  0x02018eb0  arm9   Scene::GraphCallback1
+    gc 2  0x021032b8  0x020cc0f4  ov007  REAL_DECOMP (marker)
+    gc 3  0x021032bc  0x02018ea0  arm9   Scene::GraphCallback3
+
+ALL SIX MARKER-CARRYING BODIES RULED REAL DECOMP, evidence per body in
+port/tools/inferred_stub_adjudicated.txt. No constant, offset, branch target or
+instruction count differs from src anywhere in the eight (the two dtors were
+disassembled too, though D2 carries no marker, because their literal pools are
+what resolve the placeholder spellings). This is the eleven-bodies-of-work the
+ov003 write-up called "mechanical, not hard", done for a different overlay, and
+it reached the same verdict lanes w13 and w16 reached: the marker records how
+the NAME was recovered and says nothing about where the BODY came from.
+
+THE PLACEHOLDER BLOCKER, the other thing that stopped dScTitle_c, also cleared.
+The dtor pair spells its vptr restores with per-TU stand-ins, and the ROM words
+are in each body's literal pool: _ZTV9dScDSMT_c and VT0 are 0x021032e8,
+_ZTV8dScene_c and VT1 are 0x02092680 (_ZTV5Scene), _ZTV7dBase_c and VT2 are
+0x0208e4b8 (_ZTV12ActorDerived), G0 is 0x020a0eac. Two of the six needed a face
+and four resolve to storage that already exists; hal/scene_boot.cpp has the
+full reasoning, including the one that is a KNOWN DIVERGENCE rather than a fix.
+
+WHERE THE TABLES LIVE, and it is the one real difference from the ov003 seat.
+ov003's class table is a fresh host array because port/ov003_syms.txt leaves it
+out of the mount. ov007's mount hosts BOTH tables (data_ov007_021032e8,
+data_ov007_021032b0) as ordinary byte arrays carrying the ROM's raw DS code
+addresses, so a second host array of the same name would be a duplicate symbol
+and leaving the mounted one alone would leave live wild pointers in a table the
+factory installs. The fill therefore writes host thunks INTO the mount's own
+storage. That is the right treatment when the table is inside a mounted span,
+and it is what the next whole-overlay scene mount should do.
+
+
+3. THE TWO SPINE CAVEATS, AUDITED
+----------------------------------
+
+CAVEAT 1, the 18-slot hardcode: answered in section 2. Width 18, three routes
+agreeing, scene_fill_shared unchanged.
+
+CAVEAT 2, the sublevel write. port_scene_run wrote data_02092110 on EVERY run
+and its own comment asked the ov007 lane to audit that rather than inherit it.
+THE ANSWER IS THAT dScDSMT_c DOES NOT READ IT, and the evidence is counted both
+ways so the negative is a measurement and not a failure to find something:
+
+    relocations into 0x02092110 from anywhere in ov007      0
+    relocations into 0x02092110 from anywhere in ov003      6
+      0x020ae0a0, 0x020ae194, 0x020ae344   dScStarSel_c's Render closure
+      0x020aefcc                            its Behavior
+      0x020af824                            its InitResources
+      0x020b041c                            dScGameOver_c's
+
+and no ov007 source TU among the 527 names data_02092110, SublevelToLevel or
+SUBLEVEL_LEVEL_TABLE.
+
+SO THE WRITE IS GATED, on a per-class reads_sublevel column in
+port_scene_classes. It is worse than inert for id 1, which is why this is a gate
+and not a tidy-up: hal/level_change.cpp reads the SAME BYTE as "the next level,
+-1 = nothing pending", and port_level_change_pending() is literally
+`data_02092110 >= 0`. The title screen is what comes up at boot before any level
+is pending, and writing 6 there parked a level change the ROM would never have
+parked. Nothing consumes it in a scene run today -- port_scene_run does not
+return to walk_window's level loop, which is the only caller of
+port_level_change_pending -- so this is latent cross-talk closed before it
+fired, not a bug that was firing. The run prints what it did instead:
+
+    [scene] sublevel NOT written (SCENE_TITLE does not read data_02092110;
+            0 relocations from ov007). It holds -1.
+
+A CORRECTION THAT COMES OUT OF THE SAME AUDIT. port/scene_boot_map.txt section
+6 and the header block in hal/scene_boot.cpp both say "data_02092110 starts at
+0". IT STARTS AT -1. build/port/host-src/romdata.c emits
+`data_02092110[4] = { 255,0,0,0 }`, and the ROM agrees: extracted/arm9_dec.bin at
+(0x02092110 - 0x02004000), the base port/tools/romdata.py documents, reads
+ff 00 00 00. The star-select lane's CONCLUSION is untouched -- an unsupplied
+sublevel is still invalid and the scene still walks an uninitialised star count
+-- but the sentinel it lands on is SUBLEVEL_LEVEL_TABLE[-1], one byte before the
+table, not the table's index 0. (Index 0 IS 0xff, which is where the confusion
+came from; the same read gives [6] = 0, Bob-omb Battlefield, which is what the
+star-select run prints.) The comment in hal/scene_boot.cpp is corrected in
+place; port/scene_boot_map.txt is not this lane's file and is flagged instead.
+
+A THIRD CAVEAT NOBODY HAD WRITTEN DOWN, found by running it. Scene::SetFaders
+is called by dScDSMT_c::InitResources and by NOTHING dScStarSel_c does, so this
+lane is the first caller in the port's history, and it opens
+`if (data_0209f5bc) { data_0209f5bc->vt->f14(...); }`. hal/fader_wipes.cpp
+PRE-SEATS that word to &hal_wipes[0] because two level-path functions deref it
+with no null check. config/arm9/symbols.txt has data_0209f5bc as kind:BSS, so
+the DS clears it at boot and the ROM's own guard is FALSE at title time; the
+pre-seat is a level-path invention that makes a ROM `if` take a branch the real
+machine does not. port_scene_run restores the zero before spawning, prints that
+it did, and routes the real fix (ROM-shaped vtables on the wipe objects) to the
+fader lane.
+
+
+4. THE BOOT, AND WHAT IS PROVEN
+--------------------------------
+
+TWO RUNS, AND THEY ARE KEPT APART ON PURPOSE. An earlier version of this
+section printed ONE transcript carrying both the fault and the "spawned" and
+"tree root" lines. THAT BLOCK WAS NOT REPRODUCIBLE and it is the kind of error
+this whole file is supposed to be proof against: on the bare run the fault
+happens INSIDE Scene::SpawnIfNecessary, and port_scene_boot prints "spawned"
+only after that call RETURNS, so those two lines cannot exist in a bare run's
+output. They were the SLOT0=0 run's. Every fact the old block asserted survives
+-- review re-derived from the ROM that func_020433b8's tree insert really does
+precede the slot-0 dispatch in func_02043098's spine, so the scene IS the root
+by the time InitResources runs -- but the two runs print different things and
+are now shown printing them.
+
+RUN A, THE BARE ONE. This is what the battery runs and what SCENE_BLOCKED
+checks. walk_window.exe, SM64DS_SCENE=1 SM64DS_SCENE_FRAMES=300
+SM64DS_FAULTS_FATAL=1, stdout, verbatim, exit 0xC0000005:
+
+      [scene] 2 scene classes registered (ov003, ov007)
+      [scene] sublevel NOT written (SCENE_TITLE does not read data_02092110;
+              0 relocations from ov007). It holds -1.
+      [scene] 1 = SCENE_TITLE
+        [scene] UNMATCHED ov007 body entered: data_0208ea6c vtable slot
+        [scene] UNMATCHED ov007 body entered: func_02054c80
+        [scene] UNMATCHED ov007 body entered: func_ov007_020c9688   x6
+      (then the fault in section 5; the trailing "(returns 0;
+       port/ov007_seat.txt section 5)" is trimmed off each trap line here and
+       the six identical ones are folded, and nothing else is)
+
+THERE IS NO "spawned" LINE AND NO "tree root" LINE IN RUN A, and that absence
+is itself the evidence for where the fault is: both prints are downstream of a
+Scene::SpawnIfNecessary that never returns.
+
+ONE LINE IS MISSING FROM THAT CAPTURE AND IT IS NOT ON STDOUT. The fader reset
+prints to stderr, which walk_window redirects into playlog/*.log, so it is in
+the flight recorder and not in the pipe:
+
+      [scene] data_0209f5bc reset to 0 (arm9 bss; the ROM's own value before
+              any scene installs a fader), was 00000000
+
+RUN B, SM64DS_SCENE_SLOT0=0 ADDED. Same command otherwise, stdout, verbatim,
+also exit 0xC0000005 but for the different reason in section 5:
+
+      [scene] 2 scene classes registered (ov003, ov007)
+      [scene] sublevel NOT written (SCENE_TITLE does not read data_02092110;
+              0 relocations from ov007). It holds -1.
+      [scene] 1 = SCENE_TITLE
+      [scene] spawned 307FFF9C, vptr 00BAEB08
+      [scene] tree root 307FFFB0, scene node 307FFFB0 (the scene IS the root),
+              pending id 0x187, latch 1
+
+READ THE "tree root" LINE, NOT THE "spawned" ONE, for the same reason the
+star-select write-up gives: "spawned" only says an object exists. What says the
+chain is LIVE is func_0203b438's no-parent branch having written the scene's own
+SceneNode into data_020a4b6c[0], and on a level run that slot holds the Stage.
+The pending id 0x187 and latch 1 are Scene::SpawnIfNecessary's own bookkeeping,
+so a second call would decline: the scene spawns exactly once.
+
+WHY RUN B IS EVIDENCE ABOUT RUN A, since it is a different run with a slot
+switched off. The two differ ONLY in slot 0's contents. Everything run B prints
+happens BEFORE slot 0 is dispatched -- the registry seat, the factory, the tree
+insert -- so run B is a direct readout of run A's state at the moment slot 0 is
+entered. What run B cannot speak for is anything after that point, and it does
+not: its own fault is in the Render, on an object InitResources never touched.
+
+WHAT IS PROVEN, precisely, and it is most of the seat:
+
+  - the registry cross-check passes: the mounted SpawnInfo's +4 halfword reads
+    back 1, the id the arm9 spawn table indexes it by;
+  - Scene::SetSceneToSpawn -> Scene::SpawnIfNecessary -> func_02013edc ->
+    func_02042fe4 -> func_02043098 ran, all matched arm9, the port adding
+    nothing to the chain;
+  - the ROM's own factory ran and returned an object whose vptr is the filled
+    mount array;
+  - the object became the scene tree root;
+  - SLOT 0 WAS DISPATCHED. The fault is INSIDE func_ov007_020cc4c0, three calls
+    down, not before it. The eighteen-slot fill and the +0x50 sub-object vptr
+    are exercised, not merely written.
+
+WHAT IS NOT PROVEN: everything after InitResources. No frame completed, the
+Behavior never ran, the Render never ran, nothing was drawn, and the 2D
+questions port/ov004_ov007_2d_map.txt section 7 asks about ov007 are exactly as
+unmeasured as they were before this lane. NOBODY HAS SEEN A TITLE-SCREEN PIXEL.
+
+
+5. WHERE IT STOPS: AN UNMATCHED ROM FUNCTION
+---------------------------------------------
+
+    FAULT code c0000005 at +0x000296f0 accessing 0000000c
+
+symbolized with port/tools/faultmap.py, innermost first:
+
+    func_ov007_020ade58        <- the fault, dereferencing 0
+    func_ov007_020b6d40
+    func_ov007_020b68e8
+    func_ov007_020b7138
+    ... the graph-callback chain (020cca74/68/80/98, 020ccab4)
+    func_ov007_020cc4c0        <- InitResources
+    ti_init                    <- the slot 0 thunk
+    func_0204335c / func_020433b8 / func_02043098   the ROM's spawn spine
+
+and one line above it in the same run, printed by this lane's own trap:
+
+    [scene] UNMATCHED ov007 body entered: func_ov007_020c9688 (returns 0)
+
+THAT IS THE WHOLE STORY. ov007 has 548 functions and 528 have a matched src TU.
+func_ov007_020c9688 (0x020c9688, 768 bytes) is one of the twenty that do not:
+there is no C for it anywhere in the tree, config/arm9/overlays/ov007/delinks.txt
+has no block covering its address, and no src file mentions it except its caller
+src/func_ov007_020b6d40.c. hal/scene_boot.cpp stands a NAMED TRAP there rather
+than a plausible body, because a plausible body is exactly the guess
+port/tools/inferred_stub_guard exists to refuse. func_ov007_020b6d40 hands the
+trap's 0 upward and func_ov007_020ade58 dereferences it at +0xc.
+
+THE FIX IS A DECOMP, NOT A PORT CHANGE. Nothing in hal/ can make this run.
+
+TWENTY-FOUR TRAPPING SITES ARE STANDING, all named in hal/scene_boot.cpp
+section 3, and they count as 23 L2_UNMATCHED bodies (19 ov007, 4 arm9/itcm/
+cross-overlay) plus the twelve slots of data_0208ea6c, which all point at one
+shared trap and are the 24th site rather than twelve more. The run reports how
+many were entered so "none of them fired" is a measurement.
+
+ONE UNMATCHED ov007 FUNCTION HAS NO TRAP AND THAT IS CORRECT.
+func_ov007_020c49bc (0x020c49bc, 0x440 bytes) has no C either, so ov007's
+unmatched count is TWENTY and the trap list covers nineteen of them. Nothing in
+the 619-TU slice references it, so the linker never asks for the symbol and a
+trap would be a definition with no caller. The omission cannot go quiet: a
+future slice that reaches it fails the link with an unresolved external.
+
+In run A above, three sites fired:
+
+    func_ov007_020c9688       6   the blocker
+    func_02054c80             1   an arm9 address with no symbol and no C
+    data_0208ea6c slot        1   a dispatch through a hosted arm9 vtable this
+                                  lane trap-filled rather than leaving raw
+
+The other twenty were not reached. THE data_0208ea6c HIT IS ITS OWN FINDING and
+is the reason trap-filling was chosen over ROM bytes: something really does
+dispatch through the +0x54 member's vtable, and had it been left carrying raw
+DS addresses the run would have jumped to 0x02017254 interpreted as a host
+address instead of saying so. Three of that member's four tables are now
+trap-filled here (data_0208ea6c, data_0208eacc, data_0208eb2c) and the fourth,
+data_0208eafc, still ships raw ROM bytes because nothing asked for it. FILLING
+THEM FOR REAL IS TWELVE MORE BODIES PER TABLE AND IS NOT THIS LANE'S.
+
+WHAT WAS TRIED AND REFUSED. SM64DS_SCENE_SLOT0=0 exists as the direct analogue
+of the star select's SLOT9=0 and it does NOT make a battery entry: with
+InitResources no-op'd the Render faults instead (func_ov007_020cc2b0 ->
+func_ov007_020b7040 -> func_ov007_020bcf90, accessing 0x00000004), which is what
+an uninitialised object should do. A skip that green-lit that would have been a
+green over nothing. The knob stays for diagnosis and the scene goes in
+port/tools/battery.py's new SCENE_BLOCKED table instead -- which is STRICTER
+than a skip, not weaker: it asserts the blocker is still there, fails the
+battery if the scene fails for any OTHER reason, and prints BLOCK RETIRED the
+day the bare run completes.
+
+TWO EARLIER FAULTS WERE FIXED RATHER THAN RECORDED, and both are worth reading
+because both are traps the next lane will meet:
+
+  a. A CALLING-CONVENTION MISMATCH DRESSED AS A VTABLE BUG.
+     `?SetFaders@Scene@@QAEXPAUFaderBrightness@@@Z` is __thiscall and the
+     matched TU defines a __cdecl function with one stack parameter. An
+     /alternatename between them LINKS, and then the callee reads the stack
+     argument as `this`: InitResources calls it with this = self+0x54 and
+     fb = self+0x50, so the body ran against self+0x50, whose vptr is the
+     FOUR-slot graphCallback_c table, and dispatched slot 9 of it -- eight
+     words past the end, into the RTTI name string at 0x021032c0. The fault
+     read eip 0x61226c6c accessing 0x61626c6c, which is the bytes "llba" out of
+     "graphCallback_c", and it looked exactly like a mis-sized vtable. AN ALIAS
+     CANNOT CHANGE A CALLING CONVENTION. Where the conventions differ the answer
+     is a face that re-lands the arguments, which is hal/scene_actor_faces.cpp's
+     veneer lesson in a new dress.
+  b. SIX MORE MOUNT WORDS THAT ARE DISPATCHED. port/ov007_binding_diff.txt
+     section 3 counts eighteen pointer words the mount leaves holding DS
+     addresses and asks "is it dereferenced" of each. THE ANSWER FOR ALL
+     EIGHTEEN IS NOW YES: 7 are the class vtable's own slots, 2 the
+     graphCallback table's, 1 the SpawnInfo factory word, 6 are
+     data_ov007_02103290 (a graph-callback table InitResources passes to
+     func_ov007_020b7138 as an ARGUMENT, which is why no vtable sweep would
+     find it) and 2 are data_ov007_02103254 / _02103258. All eight of the last
+     group are filled by scene_fill_title now. The one that caught it was a
+     fault at eip 0x01cccab4 accessing 0x020ccab4 -- func_ov007_020ccab4's DS
+     address dispatched as a host one.
+
+
+6. WHAT LINKS, AND WHAT WAS DELIBERATELY NOT TAKEN
+---------------------------------------------------
+
+See section 7 for the measured delta. The accounting a reader has to be able to
+check is here.
+
+port/slice_ov007.txt lists 619 src TUs in three blocks: 526 ov007 TUs (the whole
+overlay's closure minus one exclusion), 70 arm9 TUs the first link named as
+unresolved, and 23 more the second link named. The first block is 526 lines and
+524 of them are ov007-named; the other two are src/RequestScreenFade.c and
+src/Sprite_SetAnimation.c, which delink to ov007 .text without carrying the
+overlay in the filename. (An earlier draft said 78 and 15. Those were the raw
+resolver outputs BEFORE seven of the first wave were cut with the overlay
+loader they served and eight more joined the second; 70 and 23 are what the
+file holds.) /OPT:REF is the referee and
+nothing in the slice is a link root -- no /include:, and every alias this lane
+adds is a name-spelling face onto a symbol that already exists.
+
+THIRTEEN MATCHED TUs WERE OFFERED AND REFUSED, on purpose, and they are two
+families:
+
+  THE DS CARD OVERLAY/ARCHIVE LOADER, eleven TUs. LoadOverlay, func_02017e94,
+  UnloadArchives and LoadOrUnloadObjectOverlays were all in the slice for one
+  build. Taking them meant taking FS_LoadOverlay, func_02018c00, func_0203d7b8,
+  func_0205e088, func_02017fd0, func_02018908 and func_0205dc0c with them, plus
+  hosting data_0208ecf4 (the 13-entry archive-mount table, whose entries are DS
+  STRING POINTERS) and data_02075998 / data_02075804, to drive a load that
+  resolves to nothing: the host has no overlay loader because every overlay it
+  hosts is a static host array mounted at build time, and hal/fs.cpp resolves
+  archive-interior file ids lazily so an archive is never mounted and never not
+  mounted. Four PORT_HOST_ABI faces instead. This is the same trade the
+  LoadArchive face in the same file already makes.
+
+  THE DS BACKUP-MEDIA DRIVER, two TUs. SaveData::ReadDataFromCart and
+  SaveData::SaveDataToCart bottom out in the CARD_ chain. Their four callers
+  (ReadFileData, ReadMinigameData, EraseSaveFile, SaveFile) ARE in the slice and
+  do link, so what is faced is the two leaves and not the save logic above them.
+  Both return 0, which is the ROM's answer on a failed transfer, and the
+  callers' failure path is SetDefaultValues. THE CONSEQUENCE IS REAL AND NOT
+  COSMETIC: a file select that ever renders will show empty files rather than
+  whatever the last session had.
+
+FOUR MORE ARE NOT IN THE SLICE because MSVC cannot compile them:
+src/Matrix3x3_LoadIdentity.c, src/MultiStore32Bytes.c, src/func_02052ec8.c and
+src/_ZN4CP1510EnableDTCMEv.c are `asm` blocks. The first three carry the tree's
+HAND-ASM PRIMITIVE banner and are transcribed in hal/scene_boot.cpp with the asm
+quoted beside each; the fourth is a CP15 control-register write the host has no
+hardware for. None counts as linked. The whole slice was swept for the pattern,
+so these are all of them and not the ones that happened to surface.
+
+ONE EXCLUSION IS A MISROUTE THIS LANE COULD NOT FIX FROM ITS OWN FILES.
+src/func_ov007_020c5dec.cpp stays out because hal/cxx_aliases.cpp carries
+/alternatename:_func_ov007_020c5dec=_func_ov002_020c5dec for two PLAYER TUs
+already in the build that name the ov007 spelling for what is really ov002's
+body at that address. Compiling the ov007 TU makes the alias LHS a DEFINED
+symbol -- which alternatename_guard refuses -- AND hands those two level-path
+callers ov007's body, a regression. So it stays out, and
+src/func_ov007_020ba2e0.c's call to func_ov007_020c5dec resolves through the
+alias to the ov002 body: WRONG OVERLAY, IN THE ov007 DIRECTION. One alias cannot
+express per-context routing. This is the same shape as the Spindrift misroute
+port/ov004_ov007_2d_map.txt section 6 routed to the coordinator, and it is
+routed the same way.
+
+NINETEEN ov007 BODIES AND FOUR OTHERS ARE UNMATCHED and stand as named traps
+rather than guesses; hal/scene_boot.cpp section 3 lists all twenty-three with
+the reason each is there, and counts them alongside the trap-filled
+data_0208ea6c as twenty-four trapping sites. A twentieth unmatched ov007
+function, func_ov007_020c49bc, has no trap because nothing in the slice
+references it; section 5 says why that is the right answer.
+
+
+7. THE MEASURED DELTA
+----------------------
+
+    baseline 0d81b845c   4950 / 11243   44.0%
+    this lane            5532 / 11243   49.2%   +582
+
+measured at 5bab24830 with git_dirty false, battery ALL GREEN, skips
+[scene 4 with SM64DS_SCENE_SLOT9=0, scene 1 BLOCKED].
+
+THE BY-MODULE LINE THAT MATTERS:
+
+    ov007    528 total, 490 linked, 38 unlinked   92.8%   (was 0 of 528)
+
+THE 38, DECOMPOSED, and the first version of this was wrong in a way worth
+naming so nobody repeats it. It read the 38 as the unmatched bodies plus the
+refused TUs, which double-counts across two different denominators: the twenty
+UNMATCHED ov007 functions are OUTSIDE the 528 (linkage.py's denominator is
+functions that HAVE a matched src TU, and by definition those twenty do not),
+and the thirteen refused TUs and four asm primitives are arm9, not ov007, so
+they cannot appear in an ov007 row at all. The true arithmetic is:
+
+    528 = 490 linked
+        +  37 compiled and /OPT:REF-stripped
+        +   1 excluded, src/func_ov007_020c5dec.cpp, the misroute below
+
+The 37 are the referee working, not debt: they are TUs the closure walk put in
+front of the linker that the title screen's own path does not reach on the
+host. They stay in the slice for the reason the star-select slice keeps its
+eighteen -- a slice that lists a TU and does not say it was dropped is a count
+nobody can check.
+
+and it was 0 before this commit for a reason worth restating: the ov007 mount
+landed 716 data symbols and moved the count by nothing, because a mounted DATA
+symbol is not a linked TU. port/ov007_binding_diff.txt section 5 predicted
+exactly that and the manifests either side of it agree. Every one of the 490 is
+a src TU in port/slice_ov007.txt that survived /OPT:REF.
+
+THE SPLIT OF THE +582: 490 ov007 and 92 arm9/itcm. The 92 are the closure the
+2d map's section 4 estimated at "98 arm9 functions that almost certainly
+already have matched TUs and are only /OPT:REF-stripped; they come back for
+free once ov007 references them". THE ESTIMATE WAS CLOSE AND SLIGHTLY HIGH, and
+the reason it is 92 and not 98 is enumerated rather than waved at: thirteen
+matched TUs were refused on purpose (the card overlay/archive loader's eleven
+and the backup-media driver's two, section 6) and four more are `asm` blocks
+MSVC cannot compile. Take those seventeen out of the estimate and add the
+second-wave arm9 TUs the first estimate did not see, and 92 is what is left.
+
+ONE FLAKE, RECORDED RATHER THAN RE-RUN AWAY. The gate was run three times on
+this tree. Two came back ALL GREEN; the middle one failed with
+"selftest level 7: FAIL rc=4294967295" (rc -1, a killed child, not a fault --
+no fault report and no playlog entry), on a machine that was building in
+another window at the time. Level 7 was then re-run standalone and completed
+300 frames with exit 0, and the next full gate was ALL GREEN. It is written
+down because a reviewer comparing run logs would otherwise find it and wonder,
+and because "I re-ran it and it passed" is the sentence that hides a real
+intermittent. Nothing this lane changed is on level 7's path: the id-1 registry
+row is the only thing a level run sees, and it is the same three statements the
+id-4 row has made since the spine landed.
+
+ov003 IS UNCHANGED AT 15 of 36, which is the check that this lane did not
+disturb the seat it was built on. The whole 46-level battery is green with the
+id-1 row seated on every boot, the same measurement the ov003 row got and with
+the same limit: it covers id 1 and says nothing about ids 2 and 8.
+
+DO NOT READ 490 AS 490 FUNCTIONS THAT WORK. Section 4 is what running has been
+proven and it is one dispatched slot; section 8 is the list of what has not. What 490 measures is that the ROM's
+own reference edges reach those TUs and the linker kept them, which is the only
+thing linkage.py has ever measured.
+
+
+8. WHAT IS NOT PROVEN
+----------------------
+
+  - THE SCENE HAS NEVER TICKED. Section 4 stops at spawn plus one dispatched
+    slot. Behavior, Render, CleanupResources, OnPendingDestroy, D2 and D0 have
+    hit counters and every one of them reads 0.
+  - The four Scene:: veneer slots and the eleven shared thunks are seated for
+    this class but only the ones InitResources reaches were exercised, and
+    InitResources did not finish.
+  - The twelve slots of data_0208ea6c, ten of data_0208eb2c and twelve of
+    data_0208eacc are TRAPS, not bodies. One of them was entered. What the ROM
+    does there is unknown to this lane.
+  - data_0208eafc still ships raw ROM bytes, as it did before this lane.
+  - A SAVE STATE TAKEN BEFORE THE FILL AND RESTORED AFTER IT WOULD PUT THE RAW
+    DS WORDS BACK. The two vtables, the graph-callback table and the two words
+    at 0x02103254 / 0x02103258 all live inside the ov007 mount, which is inside
+    .dsstate, so they are captured; scene_fill_title overwrites them with host
+    thunks at seat time and a restore of a capture made with the ROM's raw
+    words in place would undo that, leaving DS addresses live in tables the
+    factory installs. IT CANNOT HAPPEN TODAY, on two independent grounds
+    measured rather than assumed: hal/scene_boot.cpp installs no save-state
+    hooks and port_scene_run never returns to walk_window's level loop, so no
+    scene run can reach a load; and lk7 refuses a cross-build state by header
+    while /DYNAMICBASE:NO pins a same-build one to identical addresses, so a
+    same-build restore rewrites the same thunk values it captured. The line is
+    here because the day either of those changes -- a save-state hook in a
+    scene run, or a state format that survives a rebuild -- it becomes real,
+    and the fix is to re-run the fill after any restore.
+  - The 526 ov007 TUs COMPILE and LINK. Almost none of them has RUN. Compiling
+    is not evidence about behaviour and this file does not claim it is.
+  - The three hand-asm transcriptions in hal/scene_boot.cpp were checked against
+    the asm by reading, not by execution. Two of the three (the identity matrix
+    loaders) are simple enough that reading is a proof; MultiStore32Bytes'
+    partial-tail behaviour for a non-multiple-of-4 length is a difference from
+    the ROM's word-at-a-time loop that no caller in this slice can reach,
+    because all five call sites pass multiples of 0x100.
