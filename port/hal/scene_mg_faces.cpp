@@ -296,7 +296,14 @@ DSSTATE_END
  */
 #pragma comment(linker, "/alternatename:__ZN6Memory8AllocateEji=?Allocate@Memory@@YAPAXIH@Z")
 
-/* ---- 2e. UnloadArchive, THE ONE PORT_HOST_ABI FACE THIS LANE ADDS -------
+/* ---- 2e. UnloadArchive, A FACE THIS LANE DERIVED AND ANOTHER LANE LANDED -
+ *
+ * THE DEFINITION LIVES IN hal/stage_slot0.cpp (lane SD0, same stage), which
+ * landed first and carries the identical empty body as one of a three-body
+ * family. Both lanes derived the same design independently; at the merge the
+ * two definitions collided (LNK2005) and this one yielded. The derivation
+ * below stands as this lane's evidence, and the caller-arity paragraph at the
+ * bottom is recorded nowhere else, so the block stays.
  *
  * PORT_HOST_ABI. The eighth wave's src/func_02018770.c calls UnloadArchive,
  * and taking the matched body would have meant taking the thing
@@ -324,11 +331,9 @@ DSSTATE_END
  * INERT rather than fixed, and the difference is worth stating: this face
  * ignores its argument, so a garbage index cannot select a wrong archive. The
  * face keeps the ROM's arity so that a future caller which does pass one is
- * still calling the same function.
+ * still calling the same function. (The arity note applies to the surviving
+ * definition in hal/stage_slot0.cpp, which also takes and ignores the int.)
  */
-extern "C" void UnloadArchive(int /*idx*/)
-{
-}
 
 /* ---- 2c. THE ONE ARGUMENT-LANDING FACE ----------------------------------
  *
