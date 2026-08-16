@@ -124,7 +124,13 @@ void gx_debug_matrices(int *mode, float pos[16], float proj[16]);
 // Read-only, and the answer to "did the game ask for a corner or did the port
 // draw one": a wrong rectangle here and a wrong rectangle on screen are the
 // same fact, and a right one rules the projection out by name.
-void gx_debug_viewport(int &x, int &y, int &w, int &h);
+//
+// `sets` is how many VIEWPORT commands executed since the last gx_reset, and
+// it is not optional decoration. gx_reset restores the rectangle to a
+// FULL-SCREEN default, so the rectangle alone cannot tell a game-issued
+// full-screen viewport from a frame that issued none. Zero sets means the
+// rectangle read back is the default and says nothing about the game.
+void gx_debug_viewport(int &x, int &y, int &w, int &h, int &sets);
 
 }  // namespace ntr
 

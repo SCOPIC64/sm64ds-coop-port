@@ -866,7 +866,10 @@ SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=300 SM64DS_FAULTS_FATAL=1, exit 0:
     BLDALPHA_A    1002 x300   } SetBlendAlpha(0x4000050, 0, 0xd, 2, 0x10)
     WIN0H/1H/0V/1V/WININ  live (the dWipe_c IRQ-2 scanline fade)
     engine-A OAM  53 PLACED sprites every frame, all mode 0
-    VIEWPORT      x 0, y 0, w 512, h 384 on all 300 samples
+    VIEWPORT      x 0, y 0, w 512, h 384 on all 300 samples, and
+    VIEWPORT_SETS 0 on all 300 -- the game issues NO viewport command on
+                  this path, so that rectangle is gx_reset's own full-screen
+                  default and not something curling asked for
     POLYGONS      0 on all 300 samples
     the pair      layer mask d45c=14 vs DISPCNT bits 8-12=00 -- NOT PUBLISHED
 
@@ -895,7 +898,9 @@ every frame and the top-screen framebuffer keeps nothing but the clear colour.
 RULED OUT BY NAME, each on its own measurement, because the brief named four
 candidate transforms and three of them are innocent:
 
-    the viewport model   latched full-screen 0,0 512x384 on all 300 samples
+    the viewport model   never exercised: zero VIEWPORT commands over 300
+                         frames. It cannot be the defective transform on a
+                         path that does not use it
     the 3D projection    zero polygons, and BG0/3D is not in the intended mask
                          (d45c bit 0 clear), so an absent 3D layer is correct
                          for a 2D minigame rather than a fault
@@ -992,3 +997,36 @@ UNPROVEN, AND THE BOUNDARIES
     as a top offset. The two agree exactly for a full-screen viewport, which is
     the only one this run ever latched, so nothing here distinguishes them.
     Found while ruling the viewport out and left as found.
+
+12e. A CORRECTION TO 12b AND 12d, CAUGHT BY SHARPENING MY OWN INSTRUMENT
+
+The viewport row this lane added originally reported the rectangle alone, and
+12b's first form read "VIEWPORT x 0, y 0, w 512, h 384 on all 300 samples" as
+though the game had programmed it. It had not. gx_reset runs once a frame and
+"g = State{}" restores the viewport to a FULL-SCREEN default, so a sample that
+reads full-screen is consistent with two different worlds: the game issued a
+full-screen viewport, or the game issued none and the default stood. The row
+could not tell them apart, and the sentence it produced picked the flattering
+one.
+
+VIEWPORT_SETS is the fix -- a count of VIEWPORT commands executed since the
+last reset, incremented in the command 0x60 handler and reset with the rest of
+the state. On scene 374 it reads 0 on all 300 samples. The game issues no
+viewport command on this path at all.
+
+The ruling is unchanged and is in fact stronger: a transform that is never
+exercised cannot be the one that broke the frame. What changed is that the
+evidence now says "not used" instead of "used and correct", which are different
+findings that happened to point the same way.
+
+WHY THIS IS RECORDED RATHER THAN QUIETLY EDITED. The wrong form is in commit
+05e5fa0ea's message, where it cannot be edited, and an instrument that returns a
+value nobody can attribute is the exact failure this file's section 1 warns
+about under "what the method cannot see". The next reader of the viewport row
+needs to know the row grew a companion and why, so the header the dump prints
+now says READ VIEWPORT_SETS FIRST.
+
+The ROM's own full-screen viewport (Initialise3dGraphics writes 0xbfff0000 to
+0x4000580, which decodes to x1 0, y1 0, x2 255, y2 191) is still the ROM's
+intent for the 3D layer generally. It is just not evidence taken from this run,
+and 12b no longer presents it as such.

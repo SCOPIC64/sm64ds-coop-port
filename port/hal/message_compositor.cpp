@@ -306,9 +306,13 @@ extern "C" void port_message_composite_engine_a(void *fbp)
      * engine A's OAM held 53 placed sprites. The exit below is
      * `!any_bg && !obj_on`, so the compositor returned on frame 0 and on every
      * frame after it, and the top screen kept nothing but the host's clear
-     * colour. Not a viewport fault: the geometry engine's latched viewport
-     * measured full-screen on all 300 samples and it submitted zero polygons,
-     * which for a 2D minigame is the ROM's intent.
+     * colour. Not a viewport fault, and the sharper form of that: the game
+     * issues NO viewport command at all on this path (VIEWPORT_SETS 0 on all
+     * 300 samples) and submits zero polygons, which for a 2D minigame is the
+     * ROM's intent. An earlier draft of this comment said the engine "latched
+     * a full-screen viewport on all 300 samples"; it latched gx_reset's
+     * full-screen DEFAULT, because nothing overwrote it, and the two are not
+     * the same claim.
      *
      * HERE rather than in a frame hook, for the same reason engine B's publish
      * sits where it does. hal_sub_screen_present (hal/sub_screen.cpp)

@@ -355,7 +355,7 @@ bool g_registered;
 // rectangle the port can latch is exactly the instrument that reports the
 // wrong answer on the one frame it matters.
 const char *const k3dNames[] = {"VIEWPORT_X", "VIEWPORT_Y", "VIEWPORT_W",
-                                "VIEWPORT_H", "POLYGONS"};
+                                "VIEWPORT_H", "VIEWPORT_SETS", "POLYGONS"};
 const unsigned k3dN = sizeof k3dNames / sizeof k3dNames[0];
 Slot g_3d[k3dN];
 
@@ -422,12 +422,13 @@ void ppu_audit_sample(const char *tag) {
         note(g_touch[i], rd(kTouch[i].addr, kTouch[i].width), g_frames);
 
     {
-        int vx = 0, vy = 0, vw = 0, vh = 0;
-        gx_debug_viewport(vx, vy, vw, vh);
+        int vx = 0, vy = 0, vw = 0, vh = 0, vsets = 0;
+        gx_debug_viewport(vx, vy, vw, vh, vsets);
         size_t npoly = 0;
         gx_polygons(npoly);
         const uint32_t v[k3dN] = {(uint32_t)vx, (uint32_t)vy, (uint32_t)vw,
-                                  (uint32_t)vh, (uint32_t)npoly};
+                                  (uint32_t)vh, (uint32_t)vsets,
+                                  (uint32_t)npoly};
         for (unsigned i = 0; i < k3dN; ++i) note(g_3d[i], v[i], g_frames);
     }
 
@@ -528,6 +529,9 @@ void ppu_audit_dump() {
     std::fprintf(f, "Viewport is in HOST framebuffer pixels; the 2D table above\n");
     std::fprintf(f, "is in DS panel pixels. DISPCNT bit 8 (BG0 enable) plus bit 3\n");
     std::fprintf(f, "(BG0 in 3D mode) is what puts this layer in the picture at all.\n");
+    std::fprintf(f, "READ VIEWPORT_SETS FIRST: gx_reset restores a FULL-SCREEN\n");
+    std::fprintf(f, "default every frame, so at 0 sets the rectangle below is that\n");
+    std::fprintf(f, "default and says nothing about what the game asked for.\n");
     for (unsigned i = 0; i < k3dN; ++i) {
         const Slot &s = g_3d[i];
         std::fprintf(f, "%-16s      %-2s %-8u ", k3dNames[i], ".", s.nonzero);
