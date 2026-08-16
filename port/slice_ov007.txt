@@ -22,14 +22,43 @@
 # ov007 DATA symbol a load reaches whose words are relocated into ov007 .text
 # (165 such code tables). It reaches ALL 548 of ov007's functions, which is the
 # measured version of the 2d map's "nearly self-contained": the title screen is
-# not a slice of the overlay, it IS the overlay. 527 delink source blocks cover
-# those 548 functions; 526 are listed below and the one exclusion is at the
-# bottom with its reason.
+# not a slice of the overlay, it IS the overlay. 531 delink source blocks cover
+# those 548 functions; 530 are listed below and the one exclusion is at the
+# bottom with its reason. (527 and 526 when this was written -- the next
+# section says where the other four came from.)
 #
 # /OPT:REF IS THE REFEREE. No /include:, and this lane's aliases are
-# name-spelling faces onto symbols that already exist. Whatever of the 526 does
+# name-spelling faces onto symbols that already exist. Whatever of the 530 does
 # not link is a TU the title screen does not reach on the host, and
 # port/ov007_seat.txt enumerates the drops rather than describing them.
+#
+# ---- FOUR TUs ADDED AFTER THE FACT, and what they cost ---------------------
+#
+# 530 delink blocks listed now, not 526. func_ov007_020beeb0, _020c49bc,
+# _020c7d60 and _020cbbb0 were unmatched when this list was written and
+# hal/scene_boot.cpp trapped three of the four. They landed on the decomp's main between
+# 2026-08-05 and 2026-08-06, after this branch forked, and run link60's
+# port-catchup lane brought them across by address. Each was re-verified here
+# with tools/match.py against extracted/overlays/overlay_0007.bin at base
+# 0x020ad660 rather than taken on main's word.
+#
+# THE LINKED COUNT MOVED BY EIGHTEEN, NOT BY THREE, and the difference is the
+# interesting part. Measured by diffing the linked-stem set out of
+# walk_window.map before and after, with the same build directory:
+#
+#   3 are the new bodies themselves (020beeb0, 020c7d60, 020cbbb0).
+#   15 are ov007 TUs that were ALREADY in this list and were being discarded
+#      by /OPT:REF because nothing in the binary called them. The three new
+#      bodies are their callers, so they link now:
+#        020bed60 020bf630 020c71c0 020c7240 020c72d0 020c7348 020c73f0
+#        020c7504 020c80c8 020c9a84 020c9c24 020ca1d4 020ca308 020ca578
+#        020cba78
+#   0 TUs were dropped.
+#
+# 020c49bc is the fourth and it does NOT link: nothing references it, exactly
+# as scene_boot.cpp's note said when it was the one unmatched body with no
+# trap. It is listed anyway so a future caller resolves to the ROM's own code
+# instead of an unresolved external.
 
 # ---- the class's own eight entry points ------------------------------------
 # the factory. ActorBase::operator new(0x64), the base ctor, the three vptr writes in construction order, the +0x13 flag bits, and the +0x50 graphCallback_c sub-object vptr.
@@ -309,6 +338,7 @@ src/func_ov007_020beaa0.c
 src/func_ov007_020beb80.c
 src/func_ov007_020bed60.c
 src/func_ov007_020bee14.c
+src/func_ov007_020beeb0.c
 src/func_ov007_020bf304.c
 src/func_ov007_020bf428.c
 src/func_ov007_020bf57c.c
@@ -441,6 +471,7 @@ src/func_ov007_020c4388.cpp
 src/func_ov007_020c43bc.cpp
 src/func_ov007_020c44c4.cpp
 src/func_ov007_020c44e4.c
+src/func_ov007_020c49bc.c
 src/func_ov007_020c4dfc.c
 src/func_ov007_020c4e98.c
 src/func_ov007_020c4f50.c
@@ -492,6 +523,7 @@ src/func_ov007_020c798c.c
 src/func_ov007_020c7a84.c
 src/func_ov007_020c7b2c.c
 src/func_ov007_020c7c60.c
+src/func_ov007_020c7d60.c
 src/func_ov007_020c8010.cpp
 src/func_ov007_020c806c.c
 src/func_ov007_020c8098.c
@@ -559,6 +591,7 @@ src/func_ov007_020ca86c.c
 src/func_ov007_020cb3dc.c
 src/func_ov007_020cba78.c
 src/func_ov007_020cbb04.cpp
+src/func_ov007_020cbbb0.c
 src/func_ov007_020cbf8c.c
 src/func_ov007_020cc0cc.c
 src/func_ov007_020cc0e4.c
@@ -589,8 +622,10 @@ src/func_ov007_020ccab4.c
 # Everything dScDSMT_c reaches that no level and no ov003 scene ever did, plus
 # one ov007 TU the delink table's .text ranges did not attribute to any block
 # (func_ov007_020bfd70). Derived the honest way rather than predicted: the
-# first link of the 526 above named these as unresolved externals, each was
-# resolved to the src TU that defines it, and none is a link root. All matched.
+# first link of the 526 the list held THEN named these as unresolved externals,
+# each was resolved to the src TU that defines it, and none is a link root. All
+# matched. (Historical and left at 526 on purpose: it records what that link
+# actually swept, not today's 530.)
 src/ARMMathLoadState.c
 src/ARMMathSaveState.c
 src/TurnBacklightOff.c

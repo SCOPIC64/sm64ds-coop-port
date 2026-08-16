@@ -743,27 +743,47 @@ static void l2_fill_0208ea6c(void)
     ((void **)data_0208eafc)[1] = (void *)l2_vt_trap;
 }
 
-// ---- 3. TWENTY-FOUR TRAPPING SITES, AND HOW THEY COUNT ---------------------
+// ---- 3. TWENTY-ONE TRAPPING SITES, AND HOW THEY COUNT ----------------------
 //
-// COUNT THEM AS 23 L2_UNMATCHED BODIES PLUS ONE TRAP-FILLED VTABLE, because
-// they are not the same kind of thing and one number hides that. The 23 are
+// WAS TWENTY-FOUR. Three ov007 traps came out when their matched TUs arrived
+// (section 3a).
+//
+// COUNT THEM AS 20 L2_UNMATCHED BODIES PLUS ONE TRAP-FILLED VTABLE, because
+// they are not the same kind of thing and one number hides that. The 20 are
 // functions with no C anywhere in the tree, each standing where a body would
-// be. The 24th is the twelve slots of data_0208ea6c (section 2b), which all
+// be. The 21st is the twelve slots of data_0208ea6c (section 2b), which all
 // point at one shared trap: a hosted arm9 vtable this lane chose to fill
-// loudly rather than leave carrying raw DS words. One counter covers all 24
+// loudly rather than leave carrying raw DS words. One counter covers all 21
 // and the run prints it, so "none of them fired" is a measurement.
 //
-// ---- 3a. NINETEEN UNMATCHED ov007 BODIES -----------------------------------
+// ---- 3a. SIXTEEN UNMATCHED ov007 BODIES ------------------------------------
 //
-// ov007 is 548 functions and 528 have a matched src TU. The nineteen that do
+// WAS NINETEEN. Three of them are decompiled now and the traps are gone:
+// func_ov007_020beeb0, func_ov007_020c7d60 and func_ov007_020cbbb0 landed on
+// the decomp's main between 2026-08-05 and 2026-08-06, after this branch
+// forked, and run link60's port-catchup lane brought the matched TUs across
+// by address. Each was re-verified here against
+// extracted/overlays/overlay_0007.bin rather than taken on main's word; the
+// dsd export is stale for this overlay and a control run on
+// src/func_ov007_020ba2e0.c, matched on both refs, proves it. See
+// port/port_catchup_inventory.txt rows 1-3.
+//
+// A FOURTH ov007 BODY CAME ACROSS IN THE SAME PASS AND IS NOT IN THIS LIST:
+// func_ov007_020c49bc, which never had a trap because nothing references it
+// (the note after the list explains why). It is in slice_ov007.txt now, so
+// /OPT:REF still drops it, but the day a slice reaches it the matched body is
+// what answers instead of an unresolved external.
+//
+// ov007 is 548 functions and 532 have a matched src TU. The sixteen that do
 // not are inside delink blocks marked incomplete, they are called from bodies
 // that ARE matched, and there is no C for them anywhere in the tree. A
 // plausible hand-written body would be exactly the guess the inferred-stub
 // guard exists to refuse, so each is a TRAP that names itself once and returns
 // zero. A run that enters one says so on stderr and keeps going, which is what
 // makes "none of them was entered" a measurement instead of an assumption.
-// NONE OF THE NINETEEN FIRED IN ANY RUN THIS LANE MADE; port/ov007_seat.txt
-// carries the counter readback.
+// NONE OF THE NINETEEN FIRED IN ANY RUN THE SEATING LANE MADE, and none of
+// the sixteen has fired since; port/ov007_seat.txt carries the counter
+// readback for the nineteen and the gate manifest carries it for the sixteen.
 static unsigned g_l2_trap_hits;
 static void l2_trap(const char *name)
 {
@@ -791,32 +811,51 @@ L2_UNMATCHED(func_ov007_020b2998)
 L2_UNMATCHED(func_ov007_020b46b0)
 L2_UNMATCHED(func_ov007_020b8188)
 L2_UNMATCHED(func_ov007_020ba05c)
-L2_UNMATCHED(func_ov007_020beeb0)
 L2_UNMATCHED(func_ov007_020c19cc)
 L2_UNMATCHED(func_ov007_020c20b8)
 L2_UNMATCHED(func_ov007_020c368c)
 L2_UNMATCHED(func_ov007_020c4684)
 L2_UNMATCHED(func_ov007_020c6e68)
-L2_UNMATCHED(func_ov007_020c7d60)
 L2_UNMATCHED(func_ov007_020c9688)
 L2_UNMATCHED(func_ov007_020caeac)
 L2_UNMATCHED(func_ov007_020cb4b0)
 L2_UNMATCHED(func_ov007_020cb7c0)
-L2_UNMATCHED(func_ov007_020cbbb0)
 /* 020b8fd4 surfaced only in the SECOND link, because its one caller spells it
    untagged as func_020b8fd4 (face (a) below) and the untagged name resolved
-   before the tagged one was ever asked for. Nineteen, not eighteen. */
+   before the tagged one was ever asked for. It was the nineteenth of the
+   original nineteen and it is the sixteenth of the sixteen. */
 L2_UNMATCHED(func_ov007_020b8fd4)
 #undef L2_UNMATCHED
 
-/* A TWENTIETH ov007 FUNCTION IS UNMATCHED AND GETS NO TRAP.
-   func_ov007_020c49bc (0x020c49bc, 0x440 bytes) has no C either, so ov007's
-   unmatched count is twenty and not nineteen. It is absent from this list on
-   purpose and the absence is the evidence: NOTHING in the 619-TU slice
-   references it, so the linker never asks for the symbol and a trap here would
-   be a definition with no caller. If a future slice does reach it the link
-   fails with an unresolved external, which is the loud direction, so the
-   omission cannot go quiet.
+/* THE SEVENTEENTH ov007 FUNCTION WITHOUT A BODY HERE GETS NO TRAP, AND THE
+   REASON CHANGED. func_ov007_020c49bc (0x020c49bc, 0x440 bytes) IS matched now
+   -- it landed on the decomp's main as 02e53421e on 2026-08-06 and the
+   port-catchup lane brought it across -- so src/func_ov007_020c49bc.c is in
+   slice_ov007.txt and the tree has real C for it. It still gets no trap and
+   still contributes nothing to the link, because NOTHING in the slice
+   references it: the linker never asks for the symbol and /OPT:REF drops the
+   object. The old reason (a trap would be a definition with no caller) has
+   simply been replaced by a better one (a matched body is what a future
+   caller should get). If a future slice does reach it, it resolves to the
+   ROM's own code instead of failing, which is the direction that improves.
+
+   That leaves func_ov007_020ba05c as the one ov007 address where main has a
+   src file this branch cannot take, and the reason is that main does not have
+   it either in the sense that matters. src/func_ov007_020ba05c.c IS on main,
+   but its delink block carries no `complete`, so it is not enrolled: dsd
+   supplies that range from ROM bytes, main's ROM build never compiles the
+   file and no byte gate has ever run on it (tools/delaunder.py: "a
+   non-enrolled file has no byte gate behind it"). Compiled anyway, in a
+   detached worktree of origin/main with main's own tools/match.py and main's
+   own compiler set, mwccarm 2004/b56 at -lang c99 rejects three member
+   accesses the file's own structs do not declare -- 'array28' and 'array24'
+   on StructObj20, 'f2C' on StructAInner -- and cl.exe rejects the same three.
+   It is a configured draft, not a match, and the trap stays.
+   port/port_catchup_inventory.txt row 7 carries the full readout, including
+   the one thing in it that IS a decomp-side finding: chaos-db records the
+   address as matched:true anyway, because its matched test is "a src file
+   exists and carries no NONMATCHING banner" and never consults the enrolled
+   set.
 
    FOUR MORE UNMATCHED BODIES, NOT ov007's, that the arm9 closure pulled in.
    Same treatment and the same counter, listed apart because they are a
