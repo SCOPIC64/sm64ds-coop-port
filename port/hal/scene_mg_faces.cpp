@@ -132,10 +132,16 @@ unsigned int data_0209d460;      /* next symbol +4  */
 unsigned int data_0209d4b8;      /* next symbol +4  */
 unsigned int data_0209d474;      /* next symbol +4  */
 unsigned int data_0209d488;      /* next symbol +4  */
-/* SEVEN HUNDRED AND TWENTY-EIGHT BYTES, not four. config/arm9/symbols.txt's
-   next symbol is data_0209cdcc, and the undersized-global rule says size by
-   the ROM's span rather than by the width the one caller touches. */
-unsigned char data_0209caf4[728];
+/* data_0209caf4 USED TO BE DEFINED HERE, at the right 728 bytes: this file
+   applied the undersized-global rule to it (config/arm9/symbols.txt's next
+   symbol is data_0209cdcc) and that sizing was correct. What it could not do
+   from here was put the storage NEXT TO its four siblings, and the symbol is
+   the fifth piece of one save object the delink split five ways. Run link60
+   Stage 5 lane SV1 moved it to hal/level_boot.cpp's SAVEBLK group as
+   .dsstate$savblk0004, because SaveData::SetDefaultValuesMg writes 0x2e4 bytes
+   from data_0209cae4 and that span only exists if the five are contiguous. The
+   sizing argument travelled with it and is quoted there. Both files are in the
+   same three targets, so no build lost the symbol. */
 
 /* ---- 1b. two NON-bss words, carrying the ROM's own bytes ---------------- */
 /* arm9 .data, four bytes by span, read at (0x0208e424 - 0x02004000) out of
