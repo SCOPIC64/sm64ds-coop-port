@@ -3002,8 +3002,17 @@ int main(void)
        exists -- so a minigame's own default is decided in the scene runner and
        an interactive stacked run is asked for by the env. */
     const int stacked = hal_sub_screen_stacked();
-    RECT r = {0, 0, ntr::SCREEN_W * ZOOM,
-              (stacked ? ntr::STACK_H : ntr::SCREEN_H) * ZOOM};
+    /* AND IT DOES NOT TAKE THE ZOOM WITH IT, which is measured rather than
+       tidy. ZOOM is 2 at the 2x tier, so SCREEN_W x STACK_H x ZOOM is
+       1024x1536 and a window that tall does not fit on any ordinary desktop:
+       the first stacked run opened one and the fit letterboxed the picture
+       into the top two thirds of a window whose bottom third was off the
+       screen. The stacked window opens at the stacked image's own size,
+       512x768 at this tier, which is Tango's number and the largest that
+       fits. Nothing is lost by it -- the present path scales to whatever the
+       client area becomes, so the sizing border and F12 both still work. */
+    RECT r = stacked ? RECT{0, 0, ntr::STACK_W, ntr::STACK_H}
+                     : RECT{0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM};
     /* WS_THICKFRAME IS BACK, and it has to be back in BOTH places -- this
        call and the CreateWindowExA below. Changing it here alone is a silent
        no-op that looks like the fix: AdjustWindowRect only decides how big to

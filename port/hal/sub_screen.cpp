@@ -1139,13 +1139,22 @@ void hal_touch_client_probe(void)
     static int done, waited;
     const char *s = std::getenv("SM64DS_TOUCH_CLIENT_PROBE");
     if (done || !s) return;
-    /* WAIT FOR A REAL PRESENT RECTANGLE. Frame 0's poll runs before the frame
-       it belongs to has been presented, so firing on the first call would
-       measure the never-presented fallback and label it as the transform. Give
-       the present path thirty frames; past that the run genuinely has no
-       window (the scene runner is the case) and the fallback is the answer,
-       said in those words rather than passed off as the real one. */
-    if (g_pr_w <= 0 && ++waited < 30) return;
+    /* WAIT FOR A PRESENT RECTANGLE THE FRAME LOOP PUBLISHED, and this cost the
+       lane one wrong reading before it was written down. This poll runs at the
+       TOP of a frame, and by the time the first one runs the window procedure
+       has already answered a WM_PAINT from CreateWindow -- so a rectangle
+       exists, and it is one the framebuffer filled, before the frame loop has
+       ever built a stacked image. The probe fired on it and printed
+       "layout stacked" beside "src 512x384", which is two true halves reading
+       as one false whole.
+
+       So: skip the first two polls, which puts this past the frame loop's own
+       first present, and then require a rectangle. Past thirty polls with no
+       rectangle at all the run genuinely has no window (the scene runner is
+       that case) and the fixed-zoom fallback is the honest answer, said in
+       those words rather than passed off as the windowed one. */
+    if (++waited <= 2) return;
+    if (g_pr_w <= 0 && waited < 30) return;
     done = 1;
     if (g_pr_w <= 0)
         std::fprintf(stderr, "[touchmap] NO PRESENT RECTANGLE was ever "
