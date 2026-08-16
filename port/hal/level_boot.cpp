@@ -1920,9 +1920,12 @@ DSSTATE_END
 // The callers say the same thing. FIFTY-FIVE TUs under src/ call the free
 // function -- a further six only DECLARE a member LoadFile inside a shadow
 // class and are not callers at all -- and FORTY-SIX of the fifty-five also
-// call Deallocate. src/func_ov006_020e3250.c is the shortest of them and
-// frees on the line after the copy. The nine that do not are each a
-// documented keep rather than a counterexample:
+// call Deallocate. src/func_ov006_020e3250.c frees on the line after the
+// copy: it hands the block to func_020563d4, which uploads 0x800 bytes of it
+// to the BG2 screen base, and Deallocates on the very next line. That is
+// exactly why a re-request of its handle finds a block the ROM has already
+// returned. The nine that do not are each a documented keep rather than a
+// counterexample:
 //
 //   six ov075 TUs (_021173a8, _02117918, _02117d80, _02118378, _02118f38,
 //     _0211944c) hand the pointer to func_ov075_02116030, which stores it
@@ -1947,6 +1950,23 @@ DSSTATE_END
 // outgoing level's KCL block to hand back late. Reusing a handle's row rather
 // than appending one keeps it bounded by the number of DISTINCT handles a boot
 // asks for, which is what its size is argued against below.
+//
+// THE SINGLE-CONSUMER RULE, and it is a RULE rather than an observation. This
+// comes from the review of the lane that made the change, which went looking
+// for the failure the shape invites and found it: a row can be STALE, because
+// the caller owns its block and is free to Deallocate it, and the review
+// measured three handles landing on ONE address inside a single boot. That is
+// harmless today for a reason that is structural and not lucky --
+// port_level_capture_kcl is the ONLY consumer that DEREFERENCES a row's
+// filePtr to make a lifetime decision; its handle is held live by a verified
+// keeper (Stage::LoadClsnAndObjects, which never frees the KCL); and any
+// competing loader of that same handle drives the row's load count to two,
+// at which point the capture declines rather than guessing.
+//
+// NOTHING IN THE BUILD ENFORCES THAT. So, for whoever adds the next consumer:
+// ANY NEW READER THAT DEREFERENCES A ROW'S filePtr MUST RE-ARGUE THE
+// STALENESS CASE HERE BEFORE IT IS ADDED. Reading fileID or the persistent
+// mark is free, because neither can dangle. Reading filePtr is not.
 //
 // AND THE CACHE WAS SERVING NOTHING. Measured on the build that still had it,
 // with SM64DS_LOADFILE_AUDIT=1 over all 46 mounted levels at 300 frames each:
@@ -2211,7 +2231,15 @@ void *LoadFile(int handle)
     PortSharedFilePtr *s = &slot[row];
     /* The persistent mark is the row's, not the block's: it says this handle's
        image survives a level teardown, and re-loading the handle does not
-       change that. Construct is about to zero the whole struct. */
+       change that.
+
+       Construct does NOT actually clear it, and the earlier claim here that it
+       zeroes the whole struct was wrong: src/func_02017e0c.c writes bytes 0..2
+       and 4..7 and never touches byte 3, which is where pad lives. So this
+       save and restore is defensive and carries nothing today. It is kept
+       because the row's persistence should not rest on which bytes a matched
+       ROM function happens to cover: a Construct that grew to clear byte 3
+       would otherwise unpin the message bank with no other symptom. */
     const unsigned char persistent = s->pad;
     /* Construct clears filePtr and numRefs (src/func_02017e0c.c), which is
        what makes a reused row LOAD again: SharedFilePtr::LoadFile only calls
@@ -3964,11 +3992,17 @@ static void port_level_capture_kcl(void)
            the branch is a net that nothing currently takes, and not a
            workaround for something that happens. */
         if (g_loadfile_loads[i] > 1) {
-            if (trace)
-                std::printf("  [lvl] KCL handle %u was loaded %u times this "
-                            "level; the row cannot name the collider's block, "
-                            "so it is left to leak rather than freed\n",
-                            kcl, (unsigned)g_loadfile_loads[i]);
+            /* UNCONDITIONAL, and on stderr, unlike every other line in this
+               function. The others narrate a path that is working; this one
+               says a level image was just left to leak. A leak that only
+               announces itself when someone has already set SM64DS_TRACE_LEVEL
+               is a leak nobody finds, and the whole point of the branch is to
+               be the tripwire for a case no measured level reaches. stderr
+               because the flight recorder captures it in real play. */
+            std::fprintf(stderr, "[lvl] KCL handle %u was loaded %u times this "
+                         "level; the row cannot name the collider's block, so "
+                         "the image is LEFT TO LEAK rather than freed\n",
+                         kcl, (unsigned)g_loadfile_loads[i]);
             return;
         }
         g_pending_kcl = g_loadfile_slot[i];   /* copy fileID/numRefs/filePtr */
