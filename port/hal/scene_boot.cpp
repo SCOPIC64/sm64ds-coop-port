@@ -1047,20 +1047,22 @@ void Scene::SetFaders(FaderBrightness *)
     /* the ROM body ignores its second argument; only `this` is used */
     _ZN5Scene9SetFadersEP15FaderBrightness(this);
 }
-//     ...and FOUR IN THE OPPOSITE DIRECTION. Here the ov007 caller spells the
+//     ...and THREE IN THE OPPOSITE DIRECTION. Here the ov007 caller spells the
 //     FLAT Itanium name and the matched TU defines a real C++ static member,
 //     so the alias runs flat -> mangled. The decorations are read out of the
 //     compiled .obj with dumpbin rather than hand-derived, because a wrong
-//     decoration here is a silent no-op alias. THE THREE THAT REMAIN ARE ALL
-//     SA (static, __cdecl) ON BOTH SIDES, which is what makes them name-only
-//     bridges and safe.
+//     decoration here is a silent no-op alias. THIS WAS FOUR UNTIL run link60
+//     Stage 5 lane MR1, and the three that remain all target an SA (static,
+//     __cdecl) member, so both sides are __cdecl and each is a name-only
+//     bridge. The fourth was not, and it is the face below.
 #pragma comment(linker, "/alternatename:__ZN9Animation17UpdateFileOffsetsER8BCA_File=?UpdateFileOffsets@Animation@@SAXAAUBCA_File@@@Z")
 #pragma comment(linker, "/alternatename:__ZN15TextureSequence17UpdateFileOffsetsER8BTP_File=?UpdateFileOffsets@TextureSequence@@SAXAAUBTP_File@@@Z")
 #pragma comment(linker, "/alternatename:__ZN5Model13LoadTexAndPalER8BMD_File=?LoadTexAndPal@Model@@SAXAAUBMD_File@@@Z")
 //
 //     ModelComponents::Render USED TO BE THE FOURTH LINE OF THIS BLOCK AND IT
-//     WAS WRONG, in the way the (c) banner twenty lines up already says an
-//     alias is always wrong when the conventions differ. The directive was
+//     WAS WRONG, in the way the Scene::SetFaders paragraph at the head of (d)
+//     already says an alias is always wrong when the conventions differ. The
+//     directive was
 //
 //         /alternatename:__ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3=?Render@ModelComponents@@QAEXPAUMatrix4x3@@PAUVector3@@@Z
 //
@@ -1074,7 +1076,8 @@ void Scene::SetFaders(FaderBrightness *)
 //     (one dereference short of *(void**)c), and then read mat out of the
 //     stack slot holding the real this and vec out of the slot holding mat.
 //     Every one of the three was wrong at once. Scene 1's Render slot is where
-//     that fault landed and port/ov007_seat.txt sections 5e and 7 record it.
+//     that fault landed; port/ov007_seat.txt section 5e records the fault, 5f
+//     records this fix and the run that followed it, and 7 records the delta.
 //
 //     THE FACE BELOW IS THE FIX, in the shape Scene::SetFaders above uses and
 //     hal/lk4_solidheap_seat.cpp's Heap::SetDefault uses running the other
@@ -1101,10 +1104,10 @@ void Scene::SetFaders(FaderBrightness *)
 //     src/engine/fader/_ZN9FaderWipe11AdvanceFadeEv.cpp:12 and :34, and it is
 //     in no slice today. The day a lane slices it into a target that does not
 //     compile this file, the link fails with LNK2019 on this symbol and the
-//     fix is to move these five lines to port/unmatched/ModelComponents_Render.cpp,
-//     which is in fourteen targets. That is LK5's rule (a face belongs in a TU
-//     whose target set covers its consumers) stated in advance instead of
-//     after the break.
+//     fix is to move the eight lines below to
+//     port/unmatched/ModelComponents_Render.cpp, which is in fourteen targets.
+//     That is LK5's rule (a face belongs in a TU whose target set covers its
+//     consumers) stated in advance instead of after the break.
 struct Matrix4x3;
 struct Vector3;
 struct ModelComponents { void Render(Matrix4x3 *mat, Vector3 *vec); };
