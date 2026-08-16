@@ -1354,6 +1354,13 @@ a different reason than the one given, and the difference is load-bearing:
   largest unguarded assumption the ov007 slice rests on and it is not written
   down anywhere else.
 
+  TWO CORRECTIONS TO THAT PARAGRAPH, both measured by run link60 Stage 5 lane
+  TJG on real builds of this tree. It is guarded now, by
+  port/tools/tailjump_guard.py. And "add one statement to any of those
+  forwarders" is TOO STRONG as written: a statement added BEFORE the call
+  leaves the tail jump in place. Section 8a has the listings and the exact
+  form that does break it.
+
 THE UNSPECIFIED-ARITY BUCKET IS SETTLED AND IT IS EMPTY. 22 rows over 13
 callees. `extern T f();` is UNPROTOTYPED in C and not zero-arity, so the
 declaration decides nothing and the call site decides everything, which is the
@@ -1772,13 +1779,13 @@ cost". Until it lands, this paragraph is the explanation.
   - THE TWELVE OTHER ARITY CANDIDATES IN SECTION 5C'S SWEEP ARE SCREENED NOW,
     and section 5d supersedes this bullet's earlier text. What 5d leaves open
     is listed below rather than here.
-  - CLASS C RESTS ON AN OPTIMISER DECISION AND NOTHING GUARDS IT. 54 rows (the
-    five Class C rows and the 49 veneer rows in the harmless bucket) are
-    correct only because MSVC tail-jumps a function whose body is a single
-    call. No source property and no guard asks for that. A /Od build, or one
-    added statement in any of those forwarders, breaks every affected row at
-    once. This lane measured the tail jumps at one commit in one configuration
-    and did not test the negative case.
+  - CLASS C RESTED ON AN OPTIMISER DECISION AND A GUARD NOW ASKS FOR IT. The
+    line that stood here said NOTHING GUARDS IT, and it is struck by run
+    link60 Stage 5 lane TJG: port/tools/tailjump_guard.py, wired into
+    port/build-port.cmd's post-link slot beside gxband_guard, with its fixture
+    battery in the pre-configure block. What it asserts and what it still does
+    not is section 8a below, which also carries the correction that lane's
+    break-proof forced on the sentence this bullet used to end with.
   - NO CLASS A ROW HAS BEEN OBSERVED FAULTING EXCEPT ae558. The other six are
     read off the binary and the ROM, and the argument that they have not yet
     executed is an argument from the ABSENCE of a crash elsewhere, not from a
@@ -1815,3 +1822,171 @@ cost". Until it lands, this paragraph is the explanation.
     the linear scan reported no incoming reads at all.
   - THE TITLE SCREEN HAS STILL NEVER RENDERED. No frame is reached, no BMP was
     captured, and nothing about its pixels is claimed by any lane so far.
+
+
+8a. THE TAIL-JUMP FLOOR IS GUARDED (run link60 Stage 5 lane TJG)
+-----------------------------------------------------------------
+
+SECTION 8'S "NOTHING GUARDS IT" IS STRUCK AND THIS IS THE CITATION. The tool
+is port/tools/tailjump_guard.py. It runs twice in port/build-port.cmd: its
+fixture battery before configure, its map check after link, over EVERY map in
+the build directory rather than walk_window's alone, for gxband_guard's
+reason -- /MAP is on CMAKE_EXE_LINKER_FLAGS and three targets host this slice.
+
+WHAT IT ASSERTS. For each classified frame it reads that frame's own byte span
+out of the linked image, at the address the map published, and looks for two
+five-byte forms whose four displacement bytes resolve EXACTLY to the callee's
+address: E8 rel32, a near call, and E9 rel32, a near jump. No disassembler, so
+nothing can desynchronise on the data islands 5d already got bitten by.
+
+    CLASS A      7 frames   must contain an E8 to the callee and NO E9
+    CLASS C      5 frames   must contain an E9 to the callee and NO E8
+    VENEER      22 frames   the same, and DERIVED rather than listed
+
+    32 distinct frames (two are in both the hand Class C list and the derived
+    veneer set, and the guard cross-checks that the two name the same callee).
+    96 assertions on this tree, over smoke_player, walk_window and
+    walk_window_hires.
+
+THE UNIT IS THE FRAME AND NOT THE ARITY ROW, which is why the guard can be
+exact where this file has to say "roughly fifty". A row is a (declaring TU,
+callee) pair and counting those means tokenizing C declarations, which is what
+produced 5d's 49-versus-46. A frame is a linker symbol. The 22 veneer frames
+cover every one of those rows whichever tokenizer is right, because the
+property belongs to the frame: if the veneer tail-jumps, all of its callers
+ride through, and if it does not, none of them do.
+
+THE VENEER SET IS DERIVED ON EVERY RUN, not written down. The guard scans
+extracted/overlays/overlay_0007.bin at base 0x020ad660 for the three-word shape
+
+    E59FC000   ldr ip, [pc]
+    E12FFF1C   bx  ip
+    <target>
+
+and resolves both ends against config/arm9/overlays/ov007/symbols.txt and
+config/arm9/symbols.txt. It finds 22, which is 5d's number, and 17 of them
+target _ZN6Player17St_EndingFly_MainEv, which is also 5d's. The 22 is DECLARED
+as a tripwire: a different count REFUSES rather than asserting a different set
+than the one written down. Two of the 22 leave the overlay, to Deallocate and
+LoadFile.
+
+THE MEASURED SEPARATION IS PERFECT AND THAT IS THE EVIDENCE THE METHOD WORKS.
+Every one of the 32 frames on this tree returns exactly one hit of the form its
+class requires and ZERO of the form it forbids. Not one frame is ambiguous, and
+that reproduces the review's twelve-row proof of concept and extends it to 32.
+
+THE BREAK-PROOF, ON REAL BUILDS RATHER THAN FIXTURES. Three mutations, each
+built, each observed, each restored byte-identical (sha256 checked, git clean):
+
+  1. A STATEMENT ADDED BEFORE THE CALL DOES NOT BREAK IT, and this is the
+     correction to 5d. src/func_ov007_020aef78.c is a one-line forwarder to
+     func_ov007_020b9640. A `static volatile int` store inserted BEFORE the
+     call left the frame 16 bytes and left the transfer an E9. The guard
+     stayed green and it was RIGHT to: MSVC can still tail-jump, because the
+     store needs no stack frame and ESP is unchanged at the transfer. So
+     "add one statement to any of those forwarders" overstates it.
+  2. THE SAME STATEMENT AFTER THE CALL BREAKS IT. The body is no longer a call
+     in tail position, MSVC emits the call and then the store, and the guard
+     failed the build in all three hosting targets:
+
+         TAIL JUMP LOST: func_ov007_020aef78 -> func_ov007_020b9640
+              frame  0042ad00..0042ad10 (16 bytes)
+              wanted an E9 rel32 to the callee and NO E8 rel32 to it
+              found  1 E8 call (0042ad00)
+
+     build-port.cmd exited 1. 3 frame/map pairs broken.
+  3. THE /Od SHAPE IS NOT FIXTURE-ONLY. A throwaway
+     set_source_files_properties COMPILE_OPTIONS "/Od" over all 32 declared
+     frame TUs reproduced the whole-class flip on a real build: all 25
+     tail-jump frames became real calls in all three targets, 75 frame/map
+     pairs, and the guard led with its one-line class verdict rather than 75
+     unrelated blocks:
+
+         THE WHOLE TAIL-JUMP CLASS FLIPPED in walk_window.map -- all 25
+         hosted forwarders became real calls. That is not 25 separate
+         regressions. One change does this: the optimisation level.
+
+     ON THE SINGLE-TU /Od the E8 sits at frame+3, after `push ebp / mov
+     ebp,esp`, which is the real-prologue signature 5d predicted, and the
+     tail-jump build's E8-free frame is what it replaced.
+     AND THE BOTH-SIDES DISCIPLINE HELD UNDER IT: /Od never turns a call into
+     a jump, so all seven Class A rows stayed green through the flip. 75 is
+     25 x 3 exactly, with zero SEAM IS NO LONGER A CALL.
+
+THE add3c ROW SURVIVES ITS OWN SEAT, MECHANICALLY. Class A row 1 is
+func_ov007_020add3c, which is being displaced by another Stage 5 lane while
+this guard was written. Every row declares the SOURCE that must have produced
+its frame's object, and the guard reads back whether it did: the map's
+Lib:Object column says which object defines the frame, and the build
+directory's build.ninja says which source produced that object. If the source
+is not the declared one the row RETIRES -- named and counted on the guard's own
+output line, never silently -- and putting the matched TU back re-arms it in
+the same build. No hand edit either way.
+
+IT IS TWO FACTS AND NOT ONE FOR THE REASON port/tools/objsrc_check.py RECORDS:
+an MSVC map names an object by its BASENAME ALONE, and this tree has had
+eighteen cases where a host copy and a matched TU carried the same basename.
+The map alone cannot tell them apart; build.ninja can. That is also 5d's own
+ruling about which artifact is the authority on what is compiled, applied to a
+different question.
+
+AND IT IS A STRONGER FORM THAN THE PREDICATE IT COPIES. The RT1 and PC2 markers
+in port/CMakeLists.txt read a regex over a src/ file plus a CMake variable set
+by the cut. Both are build INPUTS: they describe what the build was asked to
+do. This reads the linked map and the generated build.ninja, which are what the
+build DID, so a configure that silently failed to apply a cut satisfies the
+CMake predicate and fails this one.
+
+WHAT LANE TJG DID NOT DO, AND WHAT THE GUARD DOES NOT PROVE
+
+  - NO SEAT, NO SLICE EDIT, NO CMAKE CHANGE THAT SHIPS. The gate at this tip is
+    the gate at the start commit: 5833/11250 (51.8%), ALL GREEN, the one ae558
+    skip, delta 0. The two throwaway edits above were restored and verified by
+    sha256, not by eye.
+  - IT PROVES THE SHAPE SURVIVED, NOT THAT THE SHAPE IS CORRECT. Whether the
+    argument riding through a given tail jump is the right argument is 5d's
+    reading of the ROM and this guard takes it as given. It is a regression
+    guard on a measured property, not a re-derivation of the classification.
+  - THE 32 IS NOT THE ~50. The mapping from frames to arity rows is 5d's and
+    stays method-dependent. What is exact is the frame count.
+  - rel8 IS NOT SCANNED. x86 COFF has no 8-bit relocation, so a transfer to a
+    separately linked symbol is always rel32 and an EB inside a frame is an
+    intra-function branch. Scanning for it would also cost more than it bought:
+    one displacement byte matches by accident about once per 65,536 positions,
+    which over a 700-byte Class A frame is a false failure roughly one run in a
+    hundred.
+  - A FIVE-BYTE FORM IS NOT PROVED TO BE AN INSTRUCTION. It is matched only
+    when its four displacement bytes resolve exactly to the callee, so a false
+    hit needs five specific bytes at one position. That has never fired and the
+    hit counts print under --report, but the probability is not zero.
+  - ICF MAKES "RESOLVES TO THE CALLEE" MEAN "RESOLVES TO THE ADDRESS THE
+    CALLEE SHARES". /OPT:ICF is on and this build folds all seventeen c3d1c
+    veneers onto one address. A transfer to a different function folded onto
+    the same bytes would read as a transfer to the callee. The guard prints the
+    fold count for any callee address carrying more than one name so the
+    ambiguity is visible; it cannot remove it.
+  - FRAME SPANS COME FROM THE NEXT MAP SYMBOL. A frame is measured from its own
+    map address to the next STRICTLY GREATER one, which is what makes the
+    folded veneers measurable at all. Where the linker leaves a gap the span
+    includes padding, which is 0xCC and cannot produce a hit, but it is a bound
+    and not a measurement of the function's real length.
+  - CLASS A ROWS 2 THROUGH 7 ARE ASSERTED, NOT VALIDATED. The guard says those
+    six frames still emit a real call. It says nothing about whether 5d's
+    reading of what they push and what their callees read is right, and no
+    Class A row except ae558 has been observed faulting.
+  - IT IS ov007 ONLY, exactly as 5d's sweep was. The pooled-load-then-branch
+    idiom is a mwccarm idiom and no other overlay was scanned by that lane or
+    by this one. The veneer derivation would extend to another overlay by
+    adding a spec; nobody has measured what it would find.
+  - A DERIVED FRAME WITH NO src/ TU WOULD NOT GET THE RETIREMENT CHECK. All 22
+    veneers have a matched TU on this tree, so the count is zero, and where it
+    is not zero the guard names those frames on its own green line. What it
+    costs when it happens is a loud failure instead of a clean retirement, not
+    a false green, because a displaced frame whose form is wrong still fails.
+  - THE COVERAGE FLOOR IS THREE MAPS, measured, not reasoned. If the ov007
+    slice legitimately leaves a target the floor has to be narrowed by hand
+    with the measurement written down, which is gxband_guard's rule and its
+    weakness too.
+  - NOTHING WAS RUN. Scene 1 still cannot run; this lane added no runtime
+    evidence of any kind and every statement above is read off a linked binary,
+    a map, a build file or the ROM image.
