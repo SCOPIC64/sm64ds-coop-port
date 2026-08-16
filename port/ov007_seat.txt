@@ -3367,6 +3367,35 @@ nothing can desynchronise on the data islands 5d already got bitten by.
     seventeen c3d1c veneers onto one address; the unproven-items list below
     carries what that does and does not cost.
 
+    THOSE ARE TJG'S NUMBERS AND THEY ARE STALE IN BOTH DIRECTIONS BY NOW. Every
+    number in this section that says 96 or "all 32 frames" was true when TJG
+    wrote it and has been moved twice since, in the same way and by the same
+    mechanism: a DISPLACEMENT RETIRES A ROW. The guard refuses to assert
+    anything about a frame whose matched TU is not the thing the binary
+    compiled, and it says so by name rather than falling silent. The
+    arithmetic is 3 maps per frame, so each retirement takes 3 off the total:
+
+        TJG      32 frames asserted   96 assertions   RETIRED 0
+        AE1      31                   93              RETIRED 1  add3c
+        TS1      30                   90              RETIRED 2  add3c, b6eb4
+
+    Both figures are read off the guard's own line in this lane's two builds,
+    the base one at 7f994ccdb and the tip one, not carried from a review.
+    AE1's move was already unrecorded here when this lane arrived; recording
+    both is cheaper than recording one and leaving the other for the next
+    reader to rediscover.
+
+    THE b6eb4 ROW IS LEGITIMATELY OBSOLETE AND NOT SUPPRESSED, which is the
+    distinction that matters for a guard. The row asserted that the frame's
+    call to func_ov007_020bd648 compiles to an E8 and never an E9, because on
+    a tail jump the ROM's r0 would ride into the callee and the port's would
+    not. Section 5h displaces the frame: port/unmatched/Ov007_BdPending_-
+    020b6eb4.cpp SPELLS the argument, so the value arrives in a push and no
+    longer depends on the call's form at all. There is nothing left for the
+    assertion to protect. The guard reaches that conclusion by itself, from
+    the map, and re-listing src/func_ov007_020b6eb4.c would re-arm it in the
+    configure that noticed.
+
 THE UNIT IS THE FRAME AND NOT THE ARITY ROW, which is why the guard can be
 exact where this file has to say "roughly fifty". A row is a (declaring TU,
 callee) pair and counting those means tokenizing C declarations, which is what
@@ -3393,6 +3422,11 @@ THE MEASURED SEPARATION IS PERFECT AND THAT IS THE EVIDENCE THE METHOD WORKS.
 Every one of the 32 frames on this tree returns exactly one hit of the form its
 class requires and ZERO of the form it forbids. Not one frame is ambiguous, and
 that reproduces the review's twelve-row proof of concept and extends it to 32.
+(32 WAS THE COUNT WHEN TJG MEASURED IT. Two of those frames are displaced now
+and the guard retires them rather than asserting; 30 are asserted on today's
+tree. The separation claim is unaffected, because a retired row is one the
+guard declines to read, not one that came back ambiguous. See the correction
+block above.)
 
 THE BREAK-PROOF, ON REAL BUILDS RATHER THAN FIXTURES. Three mutations, each
 built, each observed, each restored byte-identical (sha256 checked, git clean):
@@ -3506,7 +3540,10 @@ WHAT LANE TJG DID NOT DO, AND WHAT THE GUARD DOES NOT PROVE
     seventeen c3d1c veneers fold onto ONE address in every hosting map, so
     each map reads 16 distinct spans and the 96 assertions are 32 row-checks
     per map over 16 spans rather than 96 independent readings. Measured on all
-    three hosting maps, 32 hosted and 16 spans in each.
+    three hosting maps, 32 hosted and 16 spans in each. (96 and 32 are TJG's
+    numbers; two frames are displaced and retired now and the tree reads 90
+    and 30. The span arithmetic is unchanged: neither retired frame is one of
+    the folded c3d1c veneers.)
     THIS COSTS THE GUARD NOTHING, and the reason is the folding rule: ICF
     folds only IDENTICAL bodies, so a veneer that grows one statement stops
     being identical to its twins and unfolds into a span of its own. Folding

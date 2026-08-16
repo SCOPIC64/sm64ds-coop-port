@@ -2859,6 +2859,8 @@ set(AE1_ADD3C_DISPLACED FALSE)     # run link60 lane AE1, the same pair one
 set(AE1_BBFF0_COMPILED FALSE)      # and the NEXT blocker's caller: compiled,
                                    # set where the append happens, not where
                                    # the line is read
+set(TS1_B6EB4_IN_SLICE FALSE)      # run link60 Stage 5 lane TS1, the third
+set(TS1_B6EB4_DISPLACED FALSE)     # displacement: listed, and cut
 foreach(line IN LISTS SLICE_OV007_LINES)
     string(STRIP "${line}" line)
     if(line MATCHES "^#" OR line STREQUAL "")
