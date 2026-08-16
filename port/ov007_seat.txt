@@ -934,10 +934,57 @@ and derived the next one. What a review would be ruling on:
   copy of add3c is a transcription of its own matched source (0xd8 bytes, one
   call, an eight-way switch and four stores), not of raw instructions.
 
-  IT IS NOT KNOWN TO BE THE LAST ONE. Two of these have now been found in the
-  same subtree, one behind the other, and nothing here bounds how many more the
-  title path holds. A lane taking the next seat should expect to convert the
-  row again rather than retire it, and should say so in advance.
+  IT IS NOT THE LAST ONE, AND THAT IS NOW MEASURED RATHER THAN FEARED. See the
+  sweep below. A lane taking the next seat should expect to convert the row
+  again rather than retire it, and should say so in advance.
+
+THE SLICE WAS SWEPT FOR MORE OF THESE, because two turning up back to back is a
+reason to stop finding them by running into them. Both seams are an ARITY
+DISAGREEMENT between two matched TUs, and that is a textual fact about the
+slice's own sources, so it can be counted. Over the 624 TUs in
+port/slice_ov007.txt, comparing each function's DEFINITION against every
+`extern` DECLARATION of it elsewhere in the slice:
+
+    52 disagreements in total
+    30 where the CALLER declares MORE than the callee defines. Harmless on a
+       cdecl host: the caller pushes extra and cleans them, the callee ignores
+       them. Not candidates.
+    14 where the callee's definition takes MORE than an EXPLICIT caller
+       declaration passes. THIS IS THE DIRECTION THAT FAULTS, and it is the
+       shape of both seams this file has now recorded.
+     8 more where the caller writes `extern T f();` -- unspecified arity in C,
+       NOT zero -- against a callee that takes parameters. These are UNSCREENED,
+       not clear: the call sites supply the arguments, so answering them needs
+       call-site counting rather than declaration counting, and this sweep did
+       not do it.
+
+THE SWEEP'S ONLY VALIDATION IS THAT IT FINDS BOTH KNOWN SEAMS, and it does:
+func_ov007_020bc3dc (defined 3, declared 1 by src/func_ov007_020be980.c, the
+one this lane seated) and func_ov007_020ae558 (defined 1, declared 0 by
+src/func_ov007_020add3c.c, the one it converted the row to). The other twelve:
+
+    func_0205ac5c        defined 3, declared 1 by src/func_0204f76c.c
+    func_0205ac84        defined 3, declared 1 by src/func_0204f79c.c
+    func_0205ad54        defined 2, declared 1 by src/func_0204f73c.c
+    func_ov007_020b0da0  defined 1, declared 0 by src/func_ov007_020b0a20.c
+    func_ov007_020b3c54  defined 2, declared 0 by src/func_ov007_020b3360.c
+    func_ov007_020b3d30  defined 2, declared 1 by src/func_ov007_020b3c54.c
+    func_ov007_020b7914  defined 2, declared 0 by src/func_ov007_020b77ac.c
+    func_ov007_020b7948  defined 2, declared 0 by src/func_ov007_020b77ac.c
+    func_ov007_020bd648  defined 1, declared 0 by src/func_ov007_020b6eb4.c
+    func_ov007_020be098  defined 1, declared 0 by src/func_ov007_020bdeb0.c
+    func_ov007_020be7a8  defined 4, declared 0 by src/func_ov007_020be684.c
+    func_ov007_020cc0e4  defined 1, declared 0 by src/func_ov007_020cc600.c
+
+A ROW IS A CANDIDATE AND NOT A DEFECT, and reading it as one would be the
+sloppy half of this. Nothing here establishes that any of the twelve is on the
+scene-1 path, and nothing here has read the ROM at those addresses to confirm
+the values actually ride a register rather than the declaration simply being
+loose about a parameter the callee never uses. Both confirmed seams needed the
+ROM disassembled and the host binary dumped before they meant anything, and so
+will these. What the list is good for is that the next lane can look BEFORE it
+runs into one, and that "how many more are there" now has a bounded answer
+instead of a shrug.
 
 NO BMP, AND THE TITLE SCREEN HAS STILL NEVER RENDERED. The fault is inside
 InitResources, so no frame is reached and there is nothing to capture. Nothing
@@ -1181,10 +1228,14 @@ whole of the -1.
     their seam, so either marker would still print for a DIFFERENT fault inside
     InitResources. Section 5c says it and this repeats it because a reader who
     only reads section 8 should still learn it.
-  - HOW MANY MORE OF THESE THERE ARE IS UNKNOWN. Two ARM-argument seams have
-    now been found in this one subtree, one directly behind the other, and
-    nothing in this file bounds the count. The title path has not been swept
-    for arity disagreements between matched TUs; both were found by running
-    into them.
+  - THE TWELVE OTHER ARITY CANDIDATES IN SECTION 5C'S SWEEP ARE UNSCREENED.
+    The sweep is textual: it compares definitions against declarations in the
+    slice's own sources and it validates only by rediscovering the two seams
+    already known. It does NOT establish that any of the twelve is reached on
+    the scene-1 path, and it has not read the ROM at any of those addresses to
+    confirm a value really rides a register rather than the declaration being
+    loose about a parameter the callee ignores. Eight further pairs declared
+    `extern T f();` are unscreened in a second way: unspecified arity needs
+    call-site counting, which the sweep did not do.
   - THE TITLE SCREEN HAS STILL NEVER RENDERED. No frame is reached, no BMP was
     captured, and nothing about its pixels is claimed by any lane so far.
