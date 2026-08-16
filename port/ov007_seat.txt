@@ -400,8 +400,15 @@ because both are traps the next lane will meet:
 5a. WHERE IT STOPS NOW (run link60 lane SC1)
 ---------------------------------------------
 
+READ SECTION 5b AFTER THIS ONE. Everything below still holds as the record of
+where the scene stopped when SC1 closed, and it is no longer where the scene
+stops: run link60 lane PC2 landed the decomp for func_ov007_020b2998 and the
+stop moved again. Section 5b is the live one.
+
 THE OLD STOP IS RETIRED AND NOT BY A DECOMP. func_ov007_020c9688 is still
-unmatched on main, so ov007's sixteen is still sixteen. What changed is that
+unmatched on main, so it is still one of ov007's unmatched bodies (that count
+was sixteen when this was written and it is fifteen now, for the reason section
+5b gives). What changed is that
 the port no longer stands a trap at that address: it stands
 port/unmatched/Ov007_OamCellBank_020c9688.cpp, a HOST TRANSCRIPTION of the
 ROM's 192 instructions there, derived at the config-aligned base 0x020ad660 out
@@ -442,8 +449,9 @@ The scene state's +0xF4 field is null because src/func_ov007_020b69c4.c ZEROES
 it during setup and no matched TU in the tree ever writes it back: a grep of
 every src/ reference to data_ov007_0210342c finds exactly one assignment to
 +0xF4 and it is that zero. The ROM body that fills it is
-func_ov007_020b2998 (0x020b2998, 0x23c bytes), which is UNMATCHED and trapped,
-and its own instruction says so:
+func_ov007_020b2998 (0x020b2998, 0x23c bytes), which was UNMATCHED and trapped
+when this section was written and is MATCHED AND LINKED now (section 5b), and
+its own instruction says so:
 
     020B29A4  ldr  r0, [pc, #0x218]      -> data_ov007_0210342c
     020B29B8  bl   #0x20b2bd4             func_ov007_020b2bd4
@@ -451,18 +459,20 @@ and its own instruction says so:
     020B29C0  ldr  r2, [r1]
     020B29C4  str  r0, [r2, #0xf4]       <- the field, from that call
 
-read off extracted/overlays/overlay_0007.bin. The trap for it fires exactly
-once in a scene-1 run, immediately before the fault, which is the run's own
-corroboration of the static reading.
+read off extracted/overlays/overlay_0007.bin. The trap for it fired exactly
+once in a scene-1 run of the day, immediately before the fault, which was the
+run's own corroboration of the static reading. There is no trap there now and
+the fault is gone.
 
-THE FIX IS A DECOMP AGAIN, and this time the port has a second option it did
-not have before: the same interim treatment could be applied to
-func_ov007_020b2998. THIS LANE DID NOT DO THAT, deliberately. One interim is a
-bridge over a hole the crack side is already working; a habit of them is the
-port quietly forking from the decomp, which is the thing
-port/tools/linkage.py's north star exists to prevent. Whoever picks this up
-should want a real match first and reach for a transcription only if the
-address is genuinely stuck.
+THE FIX WAS A DECOMP AGAIN, and this section argued for waiting for one rather
+than reaching for a second host transcription. THAT CALL PAID, and quickly:
+lane CK1 matched the address on cycle 2 of a ten-cycle budget the same run, so
+the port never had to fork from the decomp here at all. The paragraph is kept
+because the reasoning is the reusable part. One interim is a bridge over a hole
+the crack side is already working; a habit of them is the port quietly forking
+from the decomp, which is the thing port/tools/linkage.py's north star exists
+to prevent. Whoever picks up the NEXT one should want a real match first and
+reach for a transcription only if the address is genuinely stuck.
 
 ALSO STANDING IN THE SAME RUN, and none of them is the stop: func_ov007_020b46b0
 enters 24 times (the loop in src/func_ov007_020aed98.c runs it 0x18 times),
@@ -507,6 +517,156 @@ rig, because scene 1 was blocked) and it is still NOT a drive: the heap is
 fabricated. The honest statement is that the delivery is correct and the real
 caller is still gated behind a null global. Both probes were stripped; neither
 is in the tree.
+
+
+5b. WHERE IT STOPS NOW (run link60 lane PC2), AND WHY THIS ONE IS DIFFERENT
+----------------------------------------------------------------------------
+
+SECTION 5a's STOP IS RETIRED, AND THIS TIME BY A REAL DECOMP. Run link60 lane
+CK1 matched func_ov007_020b2998 byte-identical at mwccarm 2004/b56 (decomp main
+db0c4960635e, PR #1536) and this lane brought the TU across by address:
+src/func_ov007_020b2998.c, its four-line complete block in
+config/arm9/overlays/ov007/delinks.txt, one line in slice_ov007.txt, and
+hal/scene_boot.cpp's trap for the address removed.
+
+RE-VERIFIED IN THIS WORKTREE, NOT TAKEN ON MAIN'S WORD:
+
+    tools/match.py --version 2004/b56 --strict-relocs --module ov007
+      --bin extracted/overlays/overlay_0007.bin --base 0x020ad660
+      --addr 0x020b2998 --size 0x23c      MATCHING VERSIONS: 2004/b56
+    tools/linkcheck.py (same tree, same source)   VERIFIED, blind 0, no diffs
+
+Strict relocs is not decoration on that line. match.py drops the match if any
+reloc destination disagrees with config/arm9/overlays/ov007/relocs.txt, and it
+drops it if the check cannot run at all, so a clean strict run means every call
+and global lands where the config says. linkcheck goes further and rebuilds the
+LINKED bytes: blind 0 means no slot went unresolved.
+
+The dsd export is stale for this overlay and PC2 re-ran the control rather than
+quoting section 5a's word for it: src/func_ov007_020ba2e0.c, matched on both
+refs, reads NOMATCH against extracted/dsd/arm9_overlays/ov007.bin and MATCH
+against extracted/overlays/overlay_0007.bin, in this tree, on the same day.
+
+THE +0xF4 WRITE HAPPENS NOW. The body's own instruction at +0x2c is
+`str r0, [r2, #0xf4]` with r0 the return of func_ov007_020b2bd4, and line 69 of
+the source is that assignment. The fault section 5a recorded
+(func_ov007_020b066c +0x124, accessing 0x00000094 with eax 0) is gone from the
+run.
+
+THE NEW STOP IS NOT A MISSING BODY, and that is the whole of this section.
+Symbolized against this tree's own walk_window.map:
+
+    FAULT code c0000005 at +0x0003437d accessing c0ec1020
+
+    func_ov007_020bc3dc   +0xd     <- the fault
+    func_ov007_020be980   +0xf
+    func_ov007_020b0a20   +0x6b
+    func_ov007_020aed98   +0xc2
+    func_ov007_020b7090   +0x70
+    func_ov007_020cc4c0   +0xcf    <- InitResources, two calls further on
+    ti_init               +0xc
+    func_0204335c / func_020433b8 / func_02043098 / func_02042fe4
+    Scene::SpawnIfNecessary / port_scene_run / main
+
+ALL THREE BODIES IN THAT SEAM ARE MATCHED AND ALL THREE BYTE-VERIFY HERE:
+
+    func_ov007_020bc3dc  0x020bc3dc  0x58   MATCH at 2004/b56
+    func_ov007_020be980  0x020be980  0x2c   MATCH at 1.2/base, 1.2/sp2, 1.2/sp2p3
+    func_ov007_020b0a20  is the caller and is in the binary
+
+(020be980 does NOT match at 2004/b56; it is four bytes longer there. Its own
+header names 1.2/sp2p3 and the 1.2 trio agrees, which is the ordinary
+per-function spread, not a defect.)
+
+IT IS AN ARM REGISTER RIDE-THROUGH ACROSS TWO FRAMES. The three sources
+disagree about the function's arity, on purpose, because that disagreement is
+what makes each of them reproduce the ROM:
+
+    src/func_ov007_020b0a20.c   extern void func_ov007_020be980(Sub100 *, int, int);
+                                func_ov007_020be980(scene->unk100, 1, 0);
+    src/func_ov007_020be980.c   void func_ov007_020be980(int r0)
+                                extern int func_ov007_020bc3dc(int);
+    src/func_ov007_020bc3dc.c   void func_ov007_020bc3dc(void *c, int i, int a2)
+
+THE ROM, read off overlay_0007.bin at the config base:
+
+    020B0A78  mov r1, #1                 <- i
+    020B0A80  mov r2, r6                 <- a2, r6 zeroed at 020B0A28
+    020B0A90  bl  #0x20be980
+    020BE980  push {r4, lr} / mov r4, r0 / ldr r0, [r4, #4] / bl #0x20bc3dc
+              (r1 and r2 untouched across the whole body)
+    020BC3E4  ldr r3, [r0, #0x14]
+    020BC3E8  ldr ip, [r3, r1, lsl #2]   <- reads the r1 that rode through
+    020BC400  str r2, [sp]               <- reads the r2 that rode through
+
+THE HOST, read off this lane's own walk_window.exe with dumpbin, which is why
+none of this is an argument about what MSVC ought to emit:
+
+    0042C15B  push ebx                   <- a2 = 0
+    0042C15C  push 1                     <- i  = 1
+    0042C170  push [eax+100h]            <- c
+    0042C176  call 00436230              func_ov007_020be980
+    00436234  mov esi,[ebp+8]            reads ONE argument
+    00436237  push [esi+4]               pushes ONE
+    0043623A  call 00434310              func_ov007_020bc3dc
+    00436242  add esp,4                  cleans ONE
+    00434313  mov edx,[ebp+8]            c
+    00434317  mov esi,[ebp+0Ch]          i, NEVER PUSHED BY THIS CALLER
+    0043431A  mov eax,[edx+14h]
+    0043431D  mov ecx,[eax+esi*4]        <- +0xd, the fault
+
+THE ARITHMETIC CLOSES, so the reading is measured and not plausible. The fault
+line reports eax 00c6c580 and esi 300952a8, and 0x00c6c580 + 0x300952a8 * 4
+is 0xC0EC1020, which is the address the probe says was accessed. The three
+arguments the grandparent pushed are still sitting on ITS frame; the callee is
+reading the MIDDLE frame's, two slots nobody wrote.
+
+WHY THE PORT CANNOT JUST WIDEN THE MIDDLE DECLARATION. Because the middle TU's
+one-parameter declaration is what makes it reproduce the ROM: mwccarm emits the
+r0 setup and nothing else, which is exactly the ROM's four instructions. Change
+it in src/ and the byte gate answers. The disagreement is correct on ARM and
+only wrong on a stack ABI, so the fix belongs on the port side of the seam.
+
+THE FIX IS THE PORT'S OWN ESTABLISHED SHAPE AND THIS LANE DID NOT TAKE IT.
+port/CMakeLists.txt answers other ARM ride-throughs by cutting the middle TU
+out of the slice and host-copying it with a PORT_HOST_ABI tag (search that tag:
+one r0 ride-through in a spawn factory, three more at gate 14, five in Sound).
+Doing it here costs one linked TU and picks which of two matched bodies stops
+being the decomp, which is a seat decision somebody should make on purpose and
+not as a side effect of a propagation lane. PC2's brief was the TU and the
+battery row; the seam is named here and handed on.
+
+THE BATTERY ROW IS CONVERTED, NOT DELETED, AND THE MARKER IS ARMED BY A
+PREDICATE. port/tools/battery.py's scene-1 row now keys on
+
+    SCENE 1 BLOCKED: the ov007 ride-through at func_ov007_020be980 drops i and a2
+
+printed by hal/scene_boot.cpp's ti_init under PORT_OV007_RIDETHROUGH_UNSEATED,
+which the PC2 block in port/CMakeLists.txt defines by reading the middle TU's
+own one-parameter declaration out of the source. Proven both ways in throwaway
+configure dirs: with the declaration widened the STATUS line says RETIRED and
+the define appears 0 times in build.ninja; with it back, 3 times.
+
+WHAT THE MARKER DOES NOT PROVE, stated here rather than left to be found: it is
+armed on entering InitResources, not on reaching the seam, because every frame
+between ti_init and the fault is a matched TU and the port owns no code in
+between to hang a tighter probe on. A different fault inside InitResources
+would still carry it. The trap print it replaces was tighter because the trap
+WAS the blocker. Tightening this one means seating the seam.
+
+WHAT THE SCENE PROVES NOW, and it is two call levels more than section 5a: the
+class registers, the ROM's own spine spawns it, slot 0 dispatches, and
+InitResources clears its archive teardown, its graphics bring-up,
+Scene::SetFaders, the whole func_ov007_020b7138 subtree AND the widget setup at
+func_ov007_020b2998 before dying. The trap census in the same run is four names
+and none of them is the blocker: func_ov007_020b46b0 twenty-four times (the
+0x18 loop in src/func_ov007_020aed98.c), then func_ov007_020c20b8,
+func_02054c80 and one data_0208ea6c slot once each. func_ov007_020b2998 is off
+that list for the first time since lane L2 wrote it.
+
+NO BMP. The scene still faults inside InitResources, so no frame is reached and
+there is nothing to capture. Nothing about the title screen's pixels is claimed
+by this lane.
 
 
 6. WHAT LINKS, AND WHAT WAS DELIBERATELY NOT TAKEN

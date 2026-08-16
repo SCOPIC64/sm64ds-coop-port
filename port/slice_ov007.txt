@@ -22,13 +22,13 @@
 # ov007 DATA symbol a load reaches whose words are relocated into ov007 .text
 # (165 such code tables). It reaches ALL 548 of ov007's functions, which is the
 # measured version of the 2d map's "nearly self-contained": the title screen is
-# not a slice of the overlay, it IS the overlay. 531 delink source blocks cover
-# those 548 functions; 530 are listed below and the one exclusion is at the
-# bottom with its reason. (527 and 526 when this was written -- the next
-# section says where the other four came from.)
+# not a slice of the overlay, it IS the overlay. 532 delink source blocks cover
+# those 548 functions; 531 are listed below and the one exclusion is at the
+# bottom with its reason. (527 and 526 when this was written -- the next two
+# sections say where the other five came from.)
 #
 # /OPT:REF IS THE REFEREE. No /include:, and this lane's aliases are
-# name-spelling faces onto symbols that already exist. Whatever of the 530 does
+# name-spelling faces onto symbols that already exist. Whatever of the 531 does
 # not link is a TU the title screen does not reach on the host, and
 # port/ov007_seat.txt enumerates the drops rather than describing them.
 #
@@ -59,6 +59,47 @@
 # as scene_boot.cpp's note said when it was the one unmatched body with no
 # trap. It is listed anyway so a future caller resolves to the ROM's own code
 # instead of an unresolved external.
+#
+# ---- A FIFTH TU, AND THE SAME LESSON WITH A LONGER TAIL --------------------
+#
+# 531 delink blocks listed now, not 530. src/func_ov007_020b2998.c is the
+# title screen's widget setup and the writer of the scene state's +0xF4 field,
+# and it was the ONE unmatched body in this overlay that scene 1 could not get
+# past: hal/scene_boot.cpp trapped it, the trap returned 0, and the field stayed
+# null. Run link60 lane CK1 matched it byte-identical (decomp main
+# db0c4960635e, PR #1536) and lane PC2 brought it across by address the same
+# day. Re-verified here rather than taken on main's word, against
+# extracted/overlays/overlay_0007.bin at base 0x020ad660: match.py MATCH at
+# 2004/b56 with strict relocs, linkcheck VERIFIED with 0 blind slots. The
+# stale-dsd control was re-run here too, not quoted.
+#
+# THE LINKED COUNT MOVED BY TWELVE FOR ONE NEW BODY, and the tail is longer
+# than the four-TU pass above because this body sits at the head of a chain
+# nothing else in the image called. Decomposed with port/tools/mapdiff.py
+# against a base map copied aside before the tip was built, 12 objects added
+# and 0 removed:
+#
+#   1 is the new body itself (020b2998).
+#   3 are its direct callees, already in this list, that /OPT:REF was
+#     discarding for want of a caller: 020b2bd4, 020b7708, 020beaa0.
+#   4 are one level deeper, all reached through 020b2bd4 (and 020bc6b4 also
+#     through 020beaa0): 020bbf98, 020bc5fc, 020bc658, 020bc6b4.
+#   4 are ARM9 TUs, not ov007 at all, and they are why a prediction made from
+#     ov007's own reloc graph came in low: 020b2bd4 calls func_02044efc and
+#     func_02045ef8, and each of those calls one more (func_02044f74,
+#     func_02045f4c). A closure computed inside one module cannot see them.
+#   0 TUs were dropped.
+#
+# One symbol MOVED rather than being added: _func_ov007_020b2998 was defined by
+# scene_boot.cpp.obj (the trap) and is defined by func_ov007_020b2998.c.obj
+# now. That is the trap removal and the body arriving, seen from the linker's
+# side, and it is the shape a propagation should have.
+#
+# THE TWELVE ARE STILL LINK-ONLY, the same caveat the four above carry. ov007
+# IS the title screen, the title screen is scene 1, and scene 1 is still the
+# battery's one standing block: it now dies two call levels further on, at an
+# ARM register ride-through the host ABI cannot carry. port/ov007_seat.txt
+# section 5b is the derivation.
 
 # ---- the class's own eight entry points ------------------------------------
 # the factory. ActorBase::operator new(0x64), the base ctor, the three vptr writes in construction order, the +0x13 flag bits, and the +0x50 graphCallback_c sub-object vptr.
@@ -161,6 +202,7 @@ src/func_ov007_020b2614.c
 src/func_ov007_020b2728.c
 src/func_ov007_020b2764.c
 src/func_ov007_020b283c.c
+src/func_ov007_020b2998.c
 src/func_ov007_020b2bd4.c
 src/func_ov007_020b2cdc.c
 src/func_ov007_020b2cf0.c
