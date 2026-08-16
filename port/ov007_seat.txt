@@ -1871,6 +1871,181 @@ NO BMP, AND THE TITLE SCREEN HAS STILL NEVER RENDERED. The scene ticks, and its
 Render slot is the one thing that does not run. Nothing about the title
 screen's pixels is claimed by this lane. The 300 clean frames above were
 obtained with rendering off and are not a frame.
+  SUPERSEDED BY 5F. Run link60 Stage 5 lane MR1 stood the face 5e's last
+  paragraph names, and the Render slot runs 300 times in a bare run. The rest
+  of this section stands.
+
+
+5f. THE RENDER SLOT RUNS (run link60 Stage 5 lane MR1)
+------------------------------------------------------
+
+SECTION 5e'S BLOCKER IS RETIRED BY A FACE, and this is the first entry in this
+file whose gate is GREEN with no ruled cost and no skip. The three seats before
+it each bought their progress with a linked TU; this one buys it with nine
+lines of C++ and changes no count at all.
+
+THE DEFECT, re-derived off the two files rather than quoted. src/func_ov007_-
+020bbff0.c is four lines:
+
+    extern void _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3(void*, void*, void*);
+    void func_ov007_020bbff0(void* c){
+      if(*(int*)((char*)c+0x94)==0) return;
+      _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3(*(void**)c, (char*)c+0x54, (char*)c+0x40);
+    }
+
+Three __cdecl pushes. What the flat name reached, through hal/scene_boot.cpp's
+own /alternatename, was ?Render@ModelComponents@@QAEXPAUMatrix4x3@@PAUVector3@@@Z,
+which QAE makes __thiscall. So the receiver was never delivered at all: the
+callee took `this` out of ECX, where the caller had left its own object (one
+dereference short of *(void**)c), and then read mat out of the stack slot
+holding the real this and vec out of the slot holding mat. All three wrong at
+once, from one directive.
+
+THE FIX IS A RECEIVER-BRIDGING FACE, in the shape Scene::SetFaders twelve lines
+above the directive uses and hal/lk4_solidheap_seat.cpp's Heap::SetDefault uses
+running the other way. The directive is DELETED, not shadowed. The declaration
+is local to the TU on purpose: it has to reproduce PAUMatrix4x3 and PAUVector3
+exactly, and neither type is visible in scene_boot.cpp (it includes no game
+headers), so two forward declarations give the right mangling with nothing that
+can later change it.
+
+MEASURED OFF THE OBJECT, NOT DERIVED. dumpbin /SYMBOLS on
+walk_window.dir/hal/scene_boot.cpp.obj:
+
+    SECT64 External  __ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3
+    UNDEF  External  ?Render@ModelComponents@@QAEXPAUMatrix4x3@@PAUVector3@@@Z
+                     (public: void __thiscall ModelComponents::Render(
+                      struct Matrix4x3 *, struct Vector3 *))
+
+which is the exact name the deleted directive pointed at, undecorated by
+dumpbin itself. And the bridge is byte-visible, /DISASM of the same object:
+
+    push ebp
+    mov  ebp,esp
+    push dword ptr [ebp+10h]      ; vec, the caller's third cdecl push
+    mov  ecx, dword ptr [ebp+8]   ; thiz, the receiver, INTO ECX
+    push dword ptr [ebp+0Ch]      ; mat, the caller's second push
+    call ?Render@ModelComponents@@QAEXPAUMatrix4x3@@PAUVector3@@@Z
+    pop  ebp
+    ret
+
+Two same-convention bridges sit in the same object a few bytes later as bare
+`jmp ?SetBankForOBJ@GX@@YAXG@Z`, which is what a name-only alias compiles to
+and what this one could never have been. THAT CONTRAST IS THE WHOLE ARGUMENT
+the (c) banner has been making in prose since the SetFaders fault.
+
+THE TRUTH RUN, off the tip binary, SM64DS_SCENE=1, SM64DS_SCENE_FRAMES=300,
+SM64DS_FAULTS_FATAL=1, and NOTHING switched off:
+
+    [scene] ov007 slot hits: init 1, behavior 299, render 300, cleanup 0,
+            pending-destroy 0
+    [scene] unmatched-body traps entered: 26699
+    [scene] 300 frames of scene 1 (SCENE_TITLE), clean       exit 0
+
+RENDER 300. Every earlier clean scene-1 run this file records was taken with
+the Render slot no-op'd; this one is not, and that is the difference. A frame
+was captured. Nothing about its pixels is claimed here.
+
+5D'S OPEN BULLET ON func_ov007_020c4684 IS SCORED AND IT WAS RIGHT. The trap
+census over the rendered run, by name:
+
+    func_ov007_020ae834   9900    (33/frame)
+    func_ov007_020c4684   8100    (27/frame)
+    func_ov007_020b46b0   7200    (24/frame)
+    data_0208ea6c         1198
+    func_ov007_020c20b8    300    (1/frame)
+    func_02054c80            1
+                         ------
+                         26699
+
+c4684 is entered ONLY from the Render slot, 27 times a frame: the entire 8100
+is the difference between this census and a render-off one. It is an unmatched
+body returning 0 on the path this seat just opened, and no lane has read what
+the ROM does there. Section 8 keeps it.
+
+THE PREDICATE ANCHOR SHIPPED IN THE SAME COMMIT, and section 8's "known hole
+shipping on purpose" is struck. The AE1 predicate was an unanchored
+file(STRINGS) regex; it is now anchored to the pragma itself, with leading
+whitespace allowed because the preprocessor allows it. THE HOLE WAS NOT
+HYPOTHETICAL IN THIS COMMIT: the face's evidence header records the directive
+it replaces verbatim, the way every retired directive in that file is recorded.
+Both spellings run over the SHIPPED file with the same CMake primitive:
+
+    OLD unanchored : 1 line matched, and the line is that comment
+    NEW anchored   : 0 lines matched
+
+so without the anchor this commit would have shipped a marker asserting a
+blocker it had just retired. FIVE PROOF CONFIGURES cover two facts (the rule is
+N+1 = 3), each a real configure into a throwaway dir so build/port only ever
+held the shipped state: face and no alias RETIRED; a real pragma at column 0
+ARMED; the same pragma indented four spaces ARMED; no alias with the caller cut
+RETIRED; alias present with the caller cut RETIRED through the caller arm.
+
+THE SCENE 1 SCENE_BLOCKED ROW IS DELETED, not converted, and port/tools/
+battery.py's SCENE_BLOCKED is now EMPTY. Scene 1 runs as an ordinary scene
+selftest row. The marker and its predicate stay in the tree: restoring the
+receiver-dropping alias arms the marker AND turns the scene's own row red, two
+independent signals where there was one.
+
+THE TWO SaveData SIBLINGS WERE TRACED AND ARE NOT FACED. 5e listed them as
+measured but unreached; this lane measured the reach and the answer is more
+specific than either guess. Nothing in the tree calls either as a C++ member,
+so the aliases exist only for the flat-name callers. Three such TUs are in
+walk_window, and reverse reachability over its own 5817 src objects says all
+three are reached from exactly one function, func_ov007_020cc600, whose only
+reference in the build is cb[5] of the graph-callback table and which section 8
+records as never traced. A counting wrapper on cb[5], armed where it is
+INSTALLED rather than where it is first called so a run with no dispatch still
+reports zero:
+
+    scene 1    2 dispatches, arg 21 then arg 20
+    scene 4    0        scene 374  0        level 1  0        level 7  0
+
+SO cc600 IS ON THE TITLE SCREEN'S LIVE PATH, which settles section 8's question
+about it, and both dispatched args are among the six that reach SaveData. AND
+THEN THE CALL DOES NOT HAPPEN. arg 21 runs ReadMinigameData and arg 20 runs
+ReadFileData three times; both bodies are
+`result = ReadDataFromCart(...); if (result) { SetDefaultValues*(...); ... }`,
+and the port's own cart face returns 0 on all four calls (sizes 0x2e4/3 and
+0x44 for file 0, 1 and 2), so the branch is not taken and neither sibling is
+entered. MEASURED BUT UNFIRED, and not faced: a face for a call nobody makes is
+dead code that deletes a future signal.
+
+ONE THING THAT TRACE TURNED UP THAT IS NOT THIS LANE'S TO FIX. The prose over
+those cart faces in hal/scene_boot.cpp says the callers' failure path is
+SetDefaultValues, "which is exactly right for a host with no cart: the file
+select comes up on default save data", and that this is why the file select
+shows empty files. Returning 0 does the opposite: the readers take the SUCCESS
+arm and return 1, so the port treats the destination buffer as a good read, and
+for arg 20 that buffer is fresh Memory::operator_new2(0xcc) storage nothing
+initialises. Whether the right answer is 1 or 2 needs ROM evidence about
+ReadDataFromCart that this lane does not have, so it is recorded and left.
+
+THE SHAPE IS NOT CONFINED TO ONE BLOCK, which is the other thing 5e could not
+say. A sweep of every /alternatename that reaches link.exe, read through
+port/tools/alternatename_guard.py's own collect_directives so the census cannot
+disagree with the guard about what a linker input is, finds the cdecl-LHS onto
+__thiscall-RHS shape THIRTEEN times in THREE files, not seven times in one:
+
+    LIVE, a compiled flat-name caller in walk_window
+      __ZN15ModelComponents6RenderE...      hal/scene_boot.cpp       FIXED HERE
+      __ZN6Player12GetHurtStateEv           hal/actor_classes_ov073.cpp:190
+      __ZN13HeapAllocator6RemoveEv          hal/lk4_eh_dtor_seat.cpp:49
+      __ZN8SaveData16SetDefaultValuesE...   hal/scene_boot.cpp:1066  unfired
+      __ZN8SaveData18SetDefaultValuesMgE... hal/scene_boot.cpp:1067  unfired
+    NO FLAT-NAME CALLER ANYWHERE IN src/, so nothing routes through them
+      __ZN6Player13OnYoshiTryEatEv          hal/level_boot.cpp:2690
+      seven MeshColliderBase rows           hal/meshcolliderbase_vtable.cpp:44-51
+
+and the INVERSE shape (a __thiscall LHS bound to a cdecl RHS) five more times,
+in hal/lk4_eh_dtor_seat.cpp:43 and :45, hal/scene_boot.cpp:1015 and :1016, and
+hal/w8a_stage_faces.cpp:136. For the inverse rows the liveness question is the
+mirror image and this lane's column does NOT answer it: the flat side is the
+definition, so what matters is whether any C++ code references the mangled LHS,
+and that was not measured. Section 8 carries it.
+
+NONE OF THE TWELVE SURVIVORS IS FACED HERE. The rule the SaveData pair was
+decided under applies to all of them: no traced firing call, no face.
 
 
 6. WHAT LINKS, AND WHAT WAS DELIBERATELY NOT TAKEN
@@ -2136,6 +2311,57 @@ discipline working as a gate rather than as a convention. A lane that seats a
 seam should expect two RED gate runs, not one, and should not touch the row
 before it has a run to describe.
 
+RUN LINK60 STAGE 5 LANE MR1'S DELTA, AND IT IS ZERO. It is the first entry in
+this section that is neither positive nor negative, and the reason is worth
+stating because the three seats above it all paid:
+
+    baseline dcf789e12   5832 / 11250   51.8%   battery ALL GREEN, one skip
+    this lane            5832 / 11250   51.8%   battery ALL GREEN, NO SKIPS
+    delta    linked 0, total 0, unlinked 0, ALL GREEN -> ALL GREEN
+    verdict  GREEN
+
+Both recorded in this lane's own worktree, the baseline at the start commit
+with git_dirty false before a single edit, so they are one tree measured twice.
+
+A FACE COSTS NOTHING BECAUSE IT DISPLACES NOTHING. RT1 and AE1 each cut a
+matched TU out of the ov007 slice and stood a host copy in its place, and
+linkage.py counts matched stems present in the map, so each cut was worth
+exactly -1. This seat adds a definition and deletes a directive. No TU leaves
+the slice, no stem leaves the map, and the count cannot move. THE PARAGRAPHS
+ABOVE ABOUT gate.py PRINTING RED DO NOT APPLY HERE and `--record` was neither
+needed nor run.
+
+THE SKIP LIST WENT FROM ONE ENTRY TO NONE, which is the part a reader should
+weigh more than the zero. The baseline manifest carries
+`skips: ["scene 1 BLOCKED, cannot run at all (...)"]` and the tip manifest
+carries `"skips": []`. Scene 1 is not passing with something switched off; it
+is passing.
+
+Decomposed with port/tools/mapdiff.py against a base map built in THIS tree by
+stashing the lane's own diff, which is the only comparison the tool's docstring
+calls honest:
+
+    symbols   36912 -> 36910      objects   6525 -> 6525
+    MOVED  1   __ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3
+               ModelComponents_Render.cpp.obj -> scene_boot.cpp.obj
+    ADDED  0
+    REMOVED 2  the marker's string literal and ti_mcrender_notice's `said`
+               static, both scene_boot.cpp.obj, both the retired marker
+    objects   +0 / -0
+
+THE MOVED ROW IS THE SEAT AND IT IS WORTH READING TWICE. Before, the flat name
+was published by the linker at the alias target's address, which lives in
+ModelComponents_Render.cpp.obj. Now it is a real definition in
+scene_boot.cpp.obj. Same name, different object, no address shared with the
+mangled member any more: that is precisely what a face looks like in a map, and
+it is also why alternatename_guard has nothing to say about it (there is no
+directive left to be defeated).
+
+NOTHING ELSE MOVED, and here the check is cheap to reason about rather than
+merely reassuring: the face has one callee and it is the same body the alias
+resolved to, so the reachability graph is the same graph. The object count
+agrees in both directions and no other symbol moved.
+
 
 8. WHAT IS NOT PROVEN
 ----------------------
@@ -2238,6 +2464,11 @@ before it has a run to describe.
   - cc600 IS DISPATCHED THROUGH A DATA SLOT AND WAS NOT TRACED. Its only
     reference is from:0x021032a4 kind:load. 5d classifies its row as a real
     seam on the ROM and host evidence but cannot say which phase reaches it.
+    TRACED BY 5F, and the phase is the title screen's own boot: a counting
+    wrapper on that slot recorded TWO dispatches on scene 1 (arg 21 then arg
+    20) and zero on scenes 4 and 374 and on levels 1 and 7. What 5f does NOT
+    settle is 5d's seam claim about the row itself; it settles only which phase
+    reaches the function.
   - THE VENEER SWEEP IS ov007 ONLY. The pooled-load-then-branch shape is a
     mwccarm idiom and there is no reason it stops at this overlay. No other
     overlay was scanned.
@@ -2249,6 +2480,10 @@ before it has a run to describe.
     the linear scan reported no incoming reads at all.
   - THE TITLE SCREEN HAS STILL NEVER RENDERED. No frame is reached, no BMP was
     captured, and nothing about its pixels is claimed by any lane so far.
+    STRUCK BY 5F. Run link60 Stage 5 lane MR1 measures `render 300` on a bare
+    300-frame run and captured a frame. The second half of the sentence stands
+    unchanged: nothing about its pixels is claimed by any lane, including that
+    one.
 
   RUN LINK60 LANE AE1 ADDS THESE, and the first two are the ones a reader
   should weigh hardest:
@@ -2290,6 +2525,13 @@ before it has a run to describe.
     correctly from C++, was not traced. Neither was the rest of the tree: this
     lane looked at the seven aliases in one block of hal/scene_boot.cpp and at
     nothing else.
+    ANSWERED BY 5F ON ALL THREE COUNTS. Nothing calls either SaveData member as
+    C++ anywhere in src/ or port/. Both DO have compiled flat-name callers, all
+    reached from func_ov007_020cc600 alone, which the title screen dispatches
+    twice; and the calls still do not happen, because the port's cart face
+    returns the value that skips the SetDefaultValues arm. And the tree-wide
+    sweep found the shape THIRTEEN times in THREE files rather than seven in
+    one, plus five of the inverse shape. Census in 5f.
   - THE NEW ROW'S PREDICATE IS PROVEN AS A SWITCH, NOT AS A DIAGNOSIS. Four
     configures now cover its four states, three run by this lane (0 before the
     block, 3 with it, 0 with the alias faced) and the fourth by the AE1 review
@@ -2305,11 +2547,68 @@ before it has a run to describe.
     and the anchor fix is assigned to the face lane as one of its four ruled
     conditions. It is recorded here rather than fixed here so that a lane
     reading only section 8 does not inherit the predicate as sound.
+    STRUCK BY 5F, AND IT FIRED BEFORE IT WAS CLOSED. Run link60 Stage 5 lane
+    MR1 took the fix, wrote exactly that comment, and measured the old spelling
+    matching it and the new anchored spelling not. The predicate now requires
+    the line to BE a #pragma comment(linker, ...), leading whitespace allowed.
+    What survives is the narrower gap alternatename_guard.py already names in
+    its own docstring: a whole pragma inside a /* */ block reads as anchored to
+    both tools. Closing that needs a C tokenizer and neither has one.
   - func_ov007_020c4684 IS A NEW TRAP NAME AND WAS NOT LOOKED AT. It is entered
     twenty-seven times on the seated run and no lane has read what the ROM does
     there. It is an unmatched body returning 0, which is a hole in the decomp
     of the same kind section 5 records, and it runs on the path this lane just
     opened.
+    STILL NOT LOOKED AT, AND NOW QUANTIFIED. 5f's rendered run enters it 8100
+    times, which is 27 PER FRAME and not 27 in total, and every one of those
+    entries is inside the Render slot: the 8100 is exactly the difference
+    between the rendered census and a render-off one. An unmatched body
+    returning 0 that runs 27 times a frame is the largest single unknown left
+    on this path.
+
+  RUN LINK60 STAGE 5 LANE MR1 ADDS THESE, and the first is the one a reader
+  should weigh hardest:
+
+  - THE FACE HAS NOT BEEN OBSERVED PRODUCING A CORRECT FRAME. What is proven is
+    that the receiver ARRIVES (the `mov ecx,[ebp+8]` is in the object), that
+    the Render slot runs 300 times, and that nothing faults. Whether the ROM's
+    title screen looks like the captured BMP is a question about pixels and no
+    lane has answered it. 300 CLEAN RENDERED FRAMES ARE NOT 300 CORRECT ONES,
+    exactly the limit AE1's 299 behavior ticks carry.
+  - THE FACE IS PROVEN FOR ONE CALLER, NOT TWO. A SECOND flat-name caller
+    exists that no earlier lane named: src/engine/fader/_ZN9FaderWipe11-
+    AdvanceFadeEv.cpp declares the same flat name at :12 and calls it at :34
+    with three cdecl pushes. It is in no slice, so it has never run through the
+    face. The face is right for it by shape and by nothing else, and the day a
+    lane slices it into a target that does not compile hal/scene_boot.cpp the
+    link fails on this symbol (the move rule is written into the face's own
+    header).
+  - THE FIVE INVERSE-SHAPE ROWS ARE UNCLASSIFIED. For a __thiscall LHS bound to
+    a cdecl RHS the liveness question is the mirror image of the one 5f
+    answered: the flat side is the definition, so what matters is whether any
+    C++ code references the mangled LHS, and that was not measured for
+    ExpandingHeapAllocator::DeallocateAll, ExpandingHeapAllocator::MemoryLeft,
+    the two Player::St_EndingFly_Main spellings or Stage::CheckInput.
+  - THE THREE SURVIVING LIVE ROWS OF THE PRIMARY SHAPE ARE NOT FACED AND NOT
+    ABSOLVED. Player::GetHurtState and HeapAllocator::Remove both have compiled
+    flat-name callers and both are QAE with no arguments, so only the receiver
+    is dropped; neither has been observed faulting and neither was traced to a
+    firing call. The SaveData pair is measured unfired at today's cart-face
+    return value and would start firing the day that value changes.
+  - THE SaveData VERDICT IS CONDITIONAL ON A ONE-LINE HOST FACE. It is not that
+    the ROM never calls SetDefaultValues; it is that this host build's
+    ReadDataFromCart returns 0. That face is a stand-in for a driver the port
+    does not have, and the prose above it in hal/scene_boot.cpp asserts the
+    opposite behaviour from the one measured. Whichever way that gets resolved,
+    the two aliases have to be re-examined with it.
+  - THE ANCHOR IS A LINE TEST, NOT A PREPROCESSOR. A whole pragma inside a
+    /* */ block comment reads as anchored. Recorded above and shared with
+    alternatename_guard.py.
+  - walk_window's stderr DID NOT REACH A SHELL REDIRECT in this worktree, so
+    every fprintf(stderr) probe read as silence while the same text on stdout
+    arrived. port/tools/battery.py reads both streams through subprocess pipes
+    and is unaffected, but a lane that measures with `2>` from a shell will
+    measure nothing and read it as absence. Not diagnosed further.
 
 
 8a. THE TAIL-JUMP FLOOR IS GUARDED (run link60 Stage 5 lane TJG)

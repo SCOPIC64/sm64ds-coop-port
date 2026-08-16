@@ -1051,14 +1051,70 @@ void Scene::SetFaders(FaderBrightness *)
 //     FLAT Itanium name and the matched TU defines a real C++ static member,
 //     so the alias runs flat -> mangled. The decorations are read out of the
 //     compiled .obj with dumpbin rather than hand-derived, because a wrong
-//     decoration here is a silent no-op alias. ModelComponents::Render is a
-//     fifth of the same shape but its definition is
-//     port/unmatched/ModelComponents_Render.cpp, already in the build, so its
-//     matched TU came OUT of the slice rather than becoming a duplicate.
+//     decoration here is a silent no-op alias. THE THREE THAT REMAIN ARE ALL
+//     SA (static, __cdecl) ON BOTH SIDES, which is what makes them name-only
+//     bridges and safe.
 #pragma comment(linker, "/alternatename:__ZN9Animation17UpdateFileOffsetsER8BCA_File=?UpdateFileOffsets@Animation@@SAXAAUBCA_File@@@Z")
 #pragma comment(linker, "/alternatename:__ZN15TextureSequence17UpdateFileOffsetsER8BTP_File=?UpdateFileOffsets@TextureSequence@@SAXAAUBTP_File@@@Z")
 #pragma comment(linker, "/alternatename:__ZN5Model13LoadTexAndPalER8BMD_File=?LoadTexAndPal@Model@@SAXAAUBMD_File@@@Z")
-#pragma comment(linker, "/alternatename:__ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3=?Render@ModelComponents@@QAEXPAUMatrix4x3@@PAUVector3@@@Z")
+//
+//     ModelComponents::Render USED TO BE THE FOURTH LINE OF THIS BLOCK AND IT
+//     WAS WRONG, in the way the (c) banner twenty lines up already says an
+//     alias is always wrong when the conventions differ. The directive was
+//
+//         /alternatename:__ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3=?Render@ModelComponents@@QAEXPAUMatrix4x3@@PAUVector3@@@Z
+//
+//     and QAE is __thiscall. src/func_ov007_020bbff0.c declares the flat name
+//     as three void * and calls it
+//
+//         _ZN15...RenderE...(*(void**)c, (char*)c+0x54, (char*)c+0x40)
+//
+//     which is three __cdecl pushes, so the receiver was never delivered: the
+//     callee took `this` out of ECX, where the caller had left its OWN object
+//     (one dereference short of *(void**)c), and then read mat out of the
+//     stack slot holding the real this and vec out of the slot holding mat.
+//     Every one of the three was wrong at once. Scene 1's Render slot is where
+//     that fault landed and port/ov007_seat.txt sections 5e and 7 record it.
+//
+//     THE FACE BELOW IS THE FIX, in the shape Scene::SetFaders above uses and
+//     hal/lk4_solidheap_seat.cpp's Heap::SetDefault uses running the other
+//     way: a real __cdecl definition of the flat name that takes the receiver
+//     as its first argument and makes the member call itself, so MSVC emits
+//     the `mov ecx` the ROM's r0 always was.
+//
+//     THE DECLARATION IS LOCAL AND DELIBERATELY SO. It has to reproduce
+//     ?Render@ModelComponents@@QAEXPAUMatrix4x3@@PAUVector3@@@Z exactly, which
+//     needs Matrix4x3 and Vector3 to mangle as PAU (struct, not class) and
+//     Render to be a public non-const non-static member. Neither type is
+//     visible in this TU (it includes no game headers at all, only <cstdio>,
+//     the ntr/ ones and dsstate_seg.h), so two forward declarations give the
+//     right mangling with no risk of a header changing it later. The
+//     decoration was checked against the compiled .obj with dumpbin after the
+//     face landed, not derived by hand, which is the same rule the block above
+//     states.
+//
+//     WHERE IT LIVES, AND WHEN TO MOVE IT. This file and the only compiled
+//     flat-name caller, src/func_ov007_020bbff0.c, are in exactly the same
+//     three targets (smoke_player, walk_window, walk_window_hires), so the
+//     face resolves the name wherever the name is referenced and nowhere else.
+//     There is a SECOND flat-name caller in the tree that no lane had named,
+//     src/engine/fader/_ZN9FaderWipe11AdvanceFadeEv.cpp:12 and :34, and it is
+//     in no slice today. The day a lane slices it into a target that does not
+//     compile this file, the link fails with LNK2019 on this symbol and the
+//     fix is to move these five lines to port/unmatched/ModelComponents_Render.cpp,
+//     which is in fourteen targets. That is LK5's rule (a face belongs in a TU
+//     whose target set covers its consumers) stated in advance instead of
+//     after the break.
+struct Matrix4x3;
+struct Vector3;
+struct ModelComponents { void Render(Matrix4x3 *mat, Vector3 *vec); };
+extern "C" void _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3(void *thiz,
+                                                                 void *mat,
+                                                                 void *vec)
+{
+    ((ModelComponents *)thiz)->ModelComponents::Render((Matrix4x3 *)mat,
+                                                       (Vector3 *)vec);
+}
 //     ...and three more of the same shape in the SaveData family, whose TUs
 //     are in the slice and define real C++ members while their ov007 and arm9
 //     callers spell the flat name. Decorations from dumpbin, again.
