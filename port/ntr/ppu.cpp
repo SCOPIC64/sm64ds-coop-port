@@ -197,6 +197,19 @@ void ppu_scanout_obj(Engine eng, Framebuffer &fb) {
     // DISPCNT bit 4: OBJ 1D mapping; bits 20-21: tile-index boundary shift.
     const uint32_t dispcnt = rd32(kEngines[eng].reg_base);
     const uint32_t boundary = 32u << ((dispcnt >> 20) & 3);
+    // BIT 4, 1 = one-dimensional (a sprite's tiles are consecutive), 0 = two-
+    // dimensional (OBJ VRAM is a 32-tile-wide matrix and the next row of a
+    // sprite is 32 slots on). THIS READER USED TO HARD-CODE 1D, and on the DS
+    // that is the mode the game almost never leaves the engine in:
+    // Scene::ResetHardwareRegisters ANDs 0xffcfffef into both engines' DISPCNT,
+    // which clears bit 4 along with the boundary field, and nothing on the
+    // scene paths sets it back (GX::SetGraphicsMode preserves bit 4 -- its mask
+    // is 0xfff0fff0 -- and its third argument only ever reaches bit 3).
+    // Measured on scene 374: DISPCNT_A 00001400 / 00007400 on all 300 samples,
+    // bit 4 CLEAR. ntr/ppu_sub.cpp has read the bit since the sub screen's
+    // bring-up; this is engine A catching up, and the two now compute the slot
+    // the same way.
+    const bool map1d = (dispcnt >> 4) & 1;
 
     for (int i = 127; i >= 0; --i) {           // low index on top: draw high first
         const uint16_t a0 = rd16(oam_base + i * 8u);
@@ -251,20 +264,22 @@ void ppu_scanout_obj(Engine eng, Framebuffer &fb) {
                 }
                 const int tcol = tx >> 3, trow = ty >> 3;
                 const int fx = tx & 7, fy = ty & 7;
-                // 1D mapping: tiles of one sprite are consecutive.
-                const int tiles_per_row = w / 8;
-                const uint32_t tno = trow * tiles_per_row + tcol;
+                // Where this 8x8 cell lives, in 32-byte tile slots from the
+                // sprite's base. 1D: consecutive, and a 256-colour cell is two
+                // slots. 2D: a 32-slot-wide matrix, and a 256-colour cell is
+                // two slots wide within it.
+                const uint32_t slot =
+                    map1d ? (uint32_t)(trow * (w / 8) + tcol) * (c256 ? 2u : 1u)
+                          : (uint32_t)(trow * 32 + (c256 ? tcol * 2 : tcol));
+                const uint32_t cell = obj_vram + tile * boundary + slot * 32u;
                 uint32_t index;
                 if (c256) {
-                    const uint32_t addr = obj_vram + tile * boundary
-                                          + tno * 64u + fy * 8u + fx;
-                    index = *reinterpret_cast<volatile uint8_t *>(addr);
+                    index = *reinterpret_cast<volatile uint8_t *>(cell + fy * 8u + fx);
                     if (!index) continue;
                     fb.px[py][px] = bgr555(rd16(obj_pltt + index * 2u));
                 } else {
-                    const uint32_t addr = obj_vram + tile * boundary
-                                          + tno * 32u + fy * 4u + fx / 2;
-                    const uint8_t b = *reinterpret_cast<volatile uint8_t *>(addr);
+                    const uint8_t b =
+                        *reinterpret_cast<volatile uint8_t *>(cell + fy * 4u + fx / 2);
                     index = (fx & 1) ? (b >> 4) : (b & 0xF);
                     if (!index) continue;
                     fb.px[py][px] = bgr555(rd16(obj_pltt + (pal * 16u + index) * 2u));
