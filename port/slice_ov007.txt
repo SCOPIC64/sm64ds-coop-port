@@ -1,0 +1,699 @@
+﻿# Scene boot, ov007: dScDSMT_c, the TITLE SCREEN and FILE SELECT (scene id 1).
+#
+# ov007 is the fourth occupant of the shared scene slot at DS 0x020ad660 (the
+# others are ov002, the in-level engine walk_window has always run; ov003, the
+# three menu scenes the S1 spine lane seated; and ov004, the minigame
+# framework). It is 548 functions in 0x57560 bytes and carries ONE scene class,
+# dScDSMT_c (d_Scene_DS_Mario_Title), entered by spawning actor id 1.
+#
+# WHY THESE TUs LINK. The reference chain is the ROM's own and nothing here is
+# a link root. The arm9 ACTOR_SPAWN_TABLE (0x02090864) relocates slot 1 to
+# 0x02103264 (config/arm9/relocs.txt: from:0x02090868 kind:load to:0x02103264
+# module:overlay(7), and 0x02090868 is ACTOR_SPAWN_TABLE + 4). That record is
+# hosted by the ov007 mount and its +0 word is the factory func_ov007_020ccad0;
+# hal/scene_boot.cpp seats it in data_020a4bb8[1] with the factory word
+# repointed at the host compilation, exactly as it does for id 4. The class
+# vtable is the MOUNT'S OWN data_ov007_021032e8, filled in place with host
+# thunks, and it names the seven bodies. Everything else here is reached from
+# one of those eight entry points, or from a code table one of them loads.
+#
+# HOW THE LIST WAS DERIVED. A BFS over config/arm9/overlays/ov007/relocs.txt
+# from the eight entry points, following arm_call/thumb_call and expanding any
+# ov007 DATA symbol a load reaches whose words are relocated into ov007 .text
+# (165 such code tables). It reaches ALL 548 of ov007's functions, which is the
+# measured version of the 2d map's "nearly self-contained": the title screen is
+# not a slice of the overlay, it IS the overlay. 527 delink source blocks cover
+# those 548 functions; 526 are listed below and the one exclusion is at the
+# bottom with its reason.
+#
+# /OPT:REF IS THE REFEREE. No /include:, and this lane's aliases are
+# name-spelling faces onto symbols that already exist. Whatever of the 526 does
+# not link is a TU the title screen does not reach on the host, and
+# port/ov007_seat.txt enumerates the drops rather than describing them.
+
+# ---- the class's own eight entry points ------------------------------------
+# the factory. ActorBase::operator new(0x64), the base ctor, the three vptr writes in construction order, the +0x13 flag bits, and the +0x50 graphCallback_c sub-object vptr.
+src/func_ov007_020ccad0.c
+# slot 0  InitResources
+src/func_ov007_020cc4c0.cpp
+# slot 3  CleanupResources
+src/func_ov007_020cc45c.c
+# slot 6  Behavior
+src/func_ov007_020cc2cc.c
+# slot 9  Render
+src/func_ov007_020cc2b0.c
+# slot 12 OnPendingDestroy (bx lr, a real empty body)
+src/func_ov007_020cc2ac.c
+# slot 16 D2
+src/func_ov007_020cc028.c
+# slot 17 D0
+src/func_ov007_020cc070.c
+# graphCallback_c slot 0 (0x021032b0)
+src/func_ov007_020cc110.c
+# graphCallback_c slot 2 (0x021032b0)
+src/func_ov007_020cc0f4.c
+
+# ---- the rest of ov007's closure -------------------------------------------
+src/RequestScreenFade.c
+src/Sprite_SetAnimation.c
+src/_ZN6Player17St_EndingFly_MainEv.cpp
+src/func_ov007_020ad660.c
+src/func_ov007_020ada70.cpp
+src/func_ov007_020adb84.c
+src/func_ov007_020adbc8.c
+src/func_ov007_020adc08.c
+src/func_ov007_020add3c.c
+src/func_ov007_020ade14.c
+src/func_ov007_020ade58.c
+src/func_ov007_020ae070.c
+src/func_ov007_020ae2d0.c
+src/func_ov007_020ae454.c
+src/func_ov007_020ae558.c
+src/func_ov007_020ae810.c
+src/func_ov007_020aea4c.c
+src/func_ov007_020aea6c.c
+src/func_ov007_020aeaec.c
+src/func_ov007_020aeb34.c
+src/func_ov007_020aebac.c
+src/func_ov007_020aec00.c
+src/func_ov007_020aec94.c
+src/func_ov007_020aed98.cpp
+src/func_ov007_020aef78.c
+src/func_ov007_020aef84.c
+src/func_ov007_020aefb4.c
+src/func_ov007_020af0e4.c
+src/func_ov007_020af12c.c
+src/func_ov007_020af1f4.c
+src/func_ov007_020af260.c
+src/func_ov007_020af34c.c
+src/func_ov007_020af390.c
+src/func_ov007_020af434.c
+src/func_ov007_020af4dc.c
+src/func_ov007_020af580.c
+src/func_ov007_020af59c.c
+src/func_ov007_020af84c.c
+src/func_ov007_020afc44.c
+src/func_ov007_020b01a4.c
+src/func_ov007_020b01f4.c
+src/func_ov007_020b0244.c
+src/func_ov007_020b0324.c
+src/func_ov007_020b0340.c
+src/func_ov007_020b0358.c
+src/func_ov007_020b0520.c
+src/func_ov007_020b0548.c
+src/func_ov007_020b066c.cpp
+src/func_ov007_020b0834.c
+src/func_ov007_020b0a20.c
+src/func_ov007_020b0da0.c
+src/func_ov007_020b10dc.c
+src/func_ov007_020b11bc.c
+src/func_ov007_020b1224.c
+src/func_ov007_020b12e8.c
+src/func_ov007_020b131c.c
+src/func_ov007_020b1390.c
+src/func_ov007_020b155c.c
+src/func_ov007_020b1604.c
+src/func_ov007_020b166c.c
+src/func_ov007_020b16f0.c
+src/func_ov007_020b1b4c.c
+src/func_ov007_020b1b70.c
+src/func_ov007_020b1b74.c
+src/func_ov007_020b1cf0.c
+src/func_ov007_020b1f2c.c
+src/func_ov007_020b1fa4.c
+src/func_ov007_020b20e8.c
+src/func_ov007_020b2160.c
+src/func_ov007_020b22e0.c
+src/func_ov007_020b2308.c
+src/func_ov007_020b2370.cpp
+src/func_ov007_020b2454.c
+src/func_ov007_020b257c.c
+src/func_ov007_020b2614.c
+src/func_ov007_020b2728.c
+src/func_ov007_020b2764.c
+src/func_ov007_020b283c.c
+src/func_ov007_020b2bd4.c
+src/func_ov007_020b2cdc.c
+src/func_ov007_020b2cf0.c
+src/func_ov007_020b2e64.c
+src/func_ov007_020b3050.c
+src/func_ov007_020b30b0.c
+src/func_ov007_020b3190.c
+src/func_ov007_020b3360.c
+src/func_ov007_020b3708.c
+src/func_ov007_020b3c54.c
+src/func_ov007_020b3d30.cpp
+src/func_ov007_020b3e04.c
+src/func_ov007_020b3e84.c
+src/func_ov007_020b3edc.c
+src/func_ov007_020b3f20.c
+src/func_ov007_020b40c0.c
+src/func_ov007_020b4100.c
+src/func_ov007_020b413c.c
+src/func_ov007_020b42d8.c
+src/func_ov007_020b43dc.c
+src/func_ov007_020b4438.c
+src/func_ov007_020b4464.c
+src/func_ov007_020b44ec.c
+src/func_ov007_020b45b0.c
+src/func_ov007_020b4b5c.c
+src/func_ov007_020b4bd4.cpp
+src/func_ov007_020b4c04.c
+src/func_ov007_020b5068.c
+src/func_ov007_020b50e8.c
+src/func_ov007_020b58e4.c
+src/func_ov007_020b5bf0.c
+src/func_ov007_020b5f64.c
+src/func_ov007_020b6134.cpp
+src/func_ov007_020b6208.c
+src/func_ov007_020b63e4.c
+src/func_ov007_020b647c.c
+src/func_ov007_020b64a8.c
+src/func_ov007_020b6544.c
+src/func_ov007_020b65e0.c
+src/func_ov007_020b68e8.c
+src/func_ov007_020b693c.c
+src/func_ov007_020b697c.c
+src/func_ov007_020b69c4.c
+src/func_ov007_020b6a84.c
+src/func_ov007_020b6c54.c
+src/func_ov007_020b6cd0.c
+src/func_ov007_020b6d40.c
+src/func_ov007_020b6eb4.c
+src/func_ov007_020b6f4c.c
+src/func_ov007_020b7040.c
+src/func_ov007_020b7090.c
+src/func_ov007_020b7138.c
+src/func_ov007_020b72a0.c
+src/func_ov007_020b72d8.c
+src/func_ov007_020b72fc.c
+src/func_ov007_020b7320.c
+src/func_ov007_020b7364.c
+src/func_ov007_020b7384.c
+src/func_ov007_020b73b4.c
+src/func_ov007_020b7594.c
+src/func_ov007_020b7658.c
+src/func_ov007_020b7690.c
+src/func_ov007_020b76a0.c
+src/func_ov007_020b76c4.c
+src/func_ov007_020b7708.c
+src/func_ov007_020b7764.cpp
+src/func_ov007_020b77ac.c
+src/func_ov007_020b782c.c
+src/func_ov007_020b78d0.c
+src/func_ov007_020b7914.c
+src/func_ov007_020b7948.c
+src/func_ov007_020b797c.c
+src/func_ov007_020b79c8.c
+src/func_ov007_020b79e4.c
+src/func_ov007_020b7a00.c
+src/func_ov007_020b7a34.c
+src/func_ov007_020b7a44.c
+src/func_ov007_020b7a78.c
+src/func_ov007_020b7d94.c
+src/func_ov007_020b7eec.c
+src/func_ov007_020b8070.c
+src/func_ov007_020b84e8.c
+src/func_ov007_020b84f4.c
+src/func_ov007_020b8500.c
+src/func_ov007_020b850c.c
+src/func_ov007_020b8548.c
+src/func_ov007_020b8690.c
+src/func_ov007_020b8714.c
+src/func_ov007_020b883c.c
+src/func_ov007_020b8860.c
+src/func_ov007_020b88c0.c
+src/func_ov007_020b8a78.c
+src/func_ov007_020b8b00.c
+src/func_ov007_020b8b80.c
+src/func_ov007_020b8cfc.c
+src/func_ov007_020b8d48.c
+src/func_ov007_020b8ec0.c
+src/func_ov007_020b8f50.c
+src/func_ov007_020b8f64.c
+src/func_ov007_020b8f78.c
+src/func_ov007_020b8f8c.c
+src/func_ov007_020b8fa0.c
+src/func_ov007_020b8fb4.c
+src/func_ov007_020b91b4.c
+src/func_ov007_020b9640.c
+src/func_ov007_020b9770.cpp
+src/func_ov007_020b9880.c
+src/func_ov007_020b9ca8.c
+src/func_ov007_020b9f0c.c
+src/func_ov007_020b9fc0.c
+src/func_ov007_020ba2e0.c
+src/func_ov007_020ba368.c
+src/func_ov007_020ba9bc.c
+src/func_ov007_020baa10.c
+src/func_ov007_020bad8c.c
+src/func_ov007_020bb09c.c
+src/func_ov007_020bb4b0.c
+src/func_ov007_020bbc08.c
+src/func_ov007_020bbd24.cpp
+src/func_ov007_020bbe60.c
+src/func_ov007_020bbf98.c
+src/func_ov007_020bbff0.c
+src/func_ov007_020bc02c.c
+src/func_ov007_020bc2e4.c
+src/func_ov007_020bc32c.c
+src/func_ov007_020bc374.c
+src/func_ov007_020bc3dc.c
+src/func_ov007_020bc434.c
+src/func_ov007_020bc47c.cpp
+src/func_ov007_020bc53c.cpp
+src/func_ov007_020bc5fc.c
+src/func_ov007_020bc658.c
+src/func_ov007_020bc6b4.c
+src/func_ov007_020bc6d4.c
+src/func_ov007_020bc7dc.c
+src/func_ov007_020bc894.cpp
+src/func_ov007_020bc968.c
+src/func_ov007_020bc9c8.cpp
+src/func_ov007_020bca40.c
+src/func_ov007_020bcba8.c
+src/func_ov007_020bcdb8.cpp
+src/func_ov007_020bce70.cpp
+src/func_ov007_020bcf90.c
+src/func_ov007_020bd1c0.c
+src/func_ov007_020bd4a0.c
+src/func_ov007_020bd4e8.c
+src/func_ov007_020bd500.cpp
+src/func_ov007_020bd5a8.cpp
+src/func_ov007_020bd648.c
+src/func_ov007_020bd960.c
+src/func_ov007_020bd9e4.c
+src/func_ov007_020bda38.c
+src/func_ov007_020bda8c.c
+src/func_ov007_020bdbcc.c
+src/func_ov007_020bde2c.c
+src/func_ov007_020bde70.c
+src/func_ov007_020bdeb0.c
+src/func_ov007_020bdebc.c
+src/func_ov007_020bdf60.c
+src/func_ov007_020be00c.c
+src/func_ov007_020be098.c
+src/func_ov007_020be0dc.c
+src/func_ov007_020be3bc.cpp
+src/func_ov007_020be47c.c
+src/func_ov007_020be50c.c
+src/func_ov007_020be684.c
+src/func_ov007_020be7a8.c
+src/func_ov007_020be850.c
+src/func_ov007_020be8b8.c
+src/func_ov007_020be964.c
+src/func_ov007_020be980.c
+src/func_ov007_020be9ac.c
+src/func_ov007_020bea44.cpp
+src/func_ov007_020beaa0.c
+src/func_ov007_020beb80.c
+src/func_ov007_020bed60.c
+src/func_ov007_020bee14.c
+src/func_ov007_020bf304.c
+src/func_ov007_020bf428.c
+src/func_ov007_020bf57c.c
+src/func_ov007_020bf630.c
+src/func_ov007_020bf690.c
+src/func_ov007_020bf790.c
+src/func_ov007_020bfaf0.cpp
+src/func_ov007_020bfbdc.c
+src/func_ov007_020bfc54.c
+src/func_ov007_020bfcec.c
+src/func_ov007_020bfe4c.c
+src/func_ov007_020bff38.c
+src/func_ov007_020bffb8.c
+src/func_ov007_020c0078.c
+src/func_ov007_020c0128.cpp
+src/func_ov007_020c020c.c
+src/func_ov007_020c023c.c
+src/func_ov007_020c0288.c
+src/func_ov007_020c02d8.c
+src/func_ov007_020c0308.c
+src/func_ov007_020c0354.c
+src/func_ov007_020c0384.c
+src/func_ov007_020c03b0.c
+src/func_ov007_020c05e4.c
+src/func_ov007_020c05f8.c
+src/func_ov007_020c0604.c
+src/func_ov007_020c0638.c
+src/func_ov007_020c076c.c
+src/func_ov007_020c0a44.c
+src/func_ov007_020c0a9c.c
+src/func_ov007_020c0aa8.c
+src/func_ov007_020c0af4.c
+src/func_ov007_020c0b20.c
+src/func_ov007_020c0b78.c
+src/func_ov007_020c0d70.c
+src/func_ov007_020c0eb0.c
+src/func_ov007_020c1048.c
+src/func_ov007_020c105c.c
+src/func_ov007_020c1068.c
+src/func_ov007_020c10b0.c
+src/func_ov007_020c10ec.c
+src/func_ov007_020c1180.cpp
+src/func_ov007_020c11ac.c
+src/func_ov007_020c121c.c
+src/func_ov007_020c12ac.c
+src/func_ov007_020c1384.cpp
+src/func_ov007_020c13a4.c
+src/func_ov007_020c13f4.c
+src/func_ov007_020c1404.c
+src/func_ov007_020c1448.c
+src/func_ov007_020c14b8.c
+src/func_ov007_020c14d4.c
+src/func_ov007_020c1560.c
+src/func_ov007_020c15ec.c
+src/func_ov007_020c1620.c
+src/func_ov007_020c162c.c
+src/func_ov007_020c16dc.c
+src/func_ov007_020c17f4.c
+src/func_ov007_020c1804.c
+src/func_ov007_020c1814.c
+src/func_ov007_020c184c.c
+src/func_ov007_020c1d78.c
+src/func_ov007_020c1d8c.c
+src/func_ov007_020c1da0.c
+src/func_ov007_020c1db0.c
+src/func_ov007_020c2018.c
+src/func_ov007_020c2024.c
+src/func_ov007_020c2068.c
+src/func_ov007_020c2090.c
+src/func_ov007_020c22a0.c
+src/func_ov007_020c22f8.c
+src/func_ov007_020c2304.c
+src/func_ov007_020c232c.c
+src/func_ov007_020c2390.c
+src/func_ov007_020c2410.c
+src/func_ov007_020c241c.c
+src/func_ov007_020c249c.c
+src/func_ov007_020c24d0.c
+src/func_ov007_020c25fc.c
+src/func_ov007_020c26fc.c
+src/func_ov007_020c27b4.c
+src/func_ov007_020c281c.c
+src/func_ov007_020c28ac.c
+src/func_ov007_020c29b4.c
+src/func_ov007_020c2a04.c
+src/func_ov007_020c2acc.c
+src/func_ov007_020c2b38.c
+src/func_ov007_020c2b9c.c
+src/func_ov007_020c2bf8.c
+src/func_ov007_020c2c68.c
+src/func_ov007_020c2d44.c
+src/func_ov007_020c2dfc.c
+src/func_ov007_020c2e90.c
+src/func_ov007_020c2f14.c
+src/func_ov007_020c3054.c
+src/func_ov007_020c30ac.c
+src/func_ov007_020c31e0.c
+src/func_ov007_020c32e8.cpp
+src/func_ov007_020c338c.c
+src/func_ov007_020c3398.c
+src/func_ov007_020c33d0.cpp
+src/func_ov007_020c3544.c
+src/func_ov007_020c3550.c
+src/func_ov007_020c3598.c
+src/func_ov007_020c39f8.c
+src/func_ov007_020c3abc.c
+src/func_ov007_020c3ba8.c
+src/func_ov007_020c3bc8.c
+src/func_ov007_020c3be0.c
+src/func_ov007_020c3ce4.cpp
+src/func_ov007_020c3d40.c
+src/func_ov007_020c3df4.cpp
+src/func_ov007_020c3e1c.c
+src/func_ov007_020c3e2c.c
+src/func_ov007_020c3e3c.c
+src/func_ov007_020c3e4c.c
+src/func_ov007_020c3e64.c
+src/func_ov007_020c3e7c.cpp
+src/func_ov007_020c3ee8.c
+src/func_ov007_020c3f00.c
+src/func_ov007_020c3fe4.c
+src/func_ov007_020c4090.c
+src/func_ov007_020c40b4.cpp
+src/func_ov007_020c40d4.cpp
+src/func_ov007_020c4128.c
+src/func_ov007_020c41dc.c
+src/func_ov007_020c421c.c
+src/func_ov007_020c42f8.c
+src/func_ov007_020c4388.cpp
+src/func_ov007_020c43bc.cpp
+src/func_ov007_020c44c4.cpp
+src/func_ov007_020c44e4.c
+src/func_ov007_020c4dfc.c
+src/func_ov007_020c4e98.c
+src/func_ov007_020c4f50.c
+src/func_ov007_020c4fcc.cpp
+src/func_ov007_020c5014.c
+src/func_ov007_020c510c.cpp
+src/func_ov007_020c5188.c
+src/func_ov007_020c5490.c
+src/func_ov007_020c55bc.c
+src/func_ov007_020c56bc.c
+src/func_ov007_020c5854.c
+src/func_ov007_020c5948.c
+src/func_ov007_020c5a6c.cpp
+src/func_ov007_020c5c14.c
+src/func_ov007_020c5d5c.c
+src/func_ov007_020c5db0.c
+src/func_ov007_020c5ef0.c
+src/func_ov007_020c5fc8.c
+src/func_ov007_020c6174.c
+src/func_ov007_020c62cc.c
+src/func_ov007_020c6314.c
+src/func_ov007_020c64c4.c
+src/func_ov007_020c6550.c
+src/func_ov007_020c65bc.c
+src/func_ov007_020c6684.c
+src/func_ov007_020c6724.c
+src/func_ov007_020c6784.c
+src/func_ov007_020c684c.c
+src/func_ov007_020c690c.c
+src/func_ov007_020c6af0.c
+src/func_ov007_020c6b58.c
+src/func_ov007_020c6d20.c
+src/func_ov007_020c6d90.cpp
+src/func_ov007_020c704c.c
+src/func_ov007_020c71c0.c
+src/func_ov007_020c7240.c
+src/func_ov007_020c72d0.c
+src/func_ov007_020c7348.c
+src/func_ov007_020c7368.c
+src/func_ov007_020c73f0.c
+src/func_ov007_020c7504.c
+src/func_ov007_020c7560.c
+src/func_ov007_020c7694.c
+src/func_ov007_020c775c.c
+src/func_ov007_020c7804.c
+src/func_ov007_020c78b0.c
+src/func_ov007_020c78dc.c
+src/func_ov007_020c798c.c
+src/func_ov007_020c7a84.c
+src/func_ov007_020c7b2c.c
+src/func_ov007_020c7c60.c
+src/func_ov007_020c8010.cpp
+src/func_ov007_020c806c.c
+src/func_ov007_020c8098.c
+src/func_ov007_020c80a4.c
+src/func_ov007_020c80c8.c
+src/func_ov007_020c81a0.c
+src/func_ov007_020c831c.c
+src/func_ov007_020c83fc.c
+src/func_ov007_020c8440.c
+src/func_ov007_020c844c.c
+src/func_ov007_020c8498.c
+src/func_ov007_020c8688.c
+src/func_ov007_020c86a8.c
+src/func_ov007_020c86c4.c
+src/func_ov007_020c8970.c
+src/func_ov007_020c897c.c
+src/func_ov007_020c8ac0.c
+src/func_ov007_020c8b04.c
+src/func_ov007_020c8b10.c
+src/func_ov007_020c8b34.c
+src/func_ov007_020c8bc8.cpp
+src/func_ov007_020c8c88.c
+src/func_ov007_020c8de0.c
+src/func_ov007_020c8f58.c
+src/func_ov007_020c8f64.c
+src/func_ov007_020c8f98.c
+src/func_ov007_020c9080.c
+src/func_ov007_020c908c.c
+src/func_ov007_020c90c0.c
+src/func_ov007_020c90f8.c
+src/func_ov007_020c9110.c
+src/func_ov007_020c9214.c
+src/func_ov007_020c9268.c
+src/func_ov007_020c92a0.c
+src/func_ov007_020c92ac.c
+src/func_ov007_020c92d0.c
+src/func_ov007_020c934c.c
+src/func_ov007_020c937c.c
+src/func_ov007_020c9388.c
+src/func_ov007_020c93b4.c
+src/func_ov007_020c93c4.c
+src/func_ov007_020c940c.c
+src/func_ov007_020c9460.c
+src/func_ov007_020c946c.c
+src/func_ov007_020c94a0.c
+src/func_ov007_020c94e4.c
+src/func_ov007_020c951c.c
+src/func_ov007_020c95fc.c
+src/func_ov007_020c9988.c
+src/func_ov007_020c99d8.c
+src/func_ov007_020c9a2c.c
+src/func_ov007_020c9a84.c
+src/func_ov007_020c9c24.c
+src/func_ov007_020c9d90.c
+src/func_ov007_020c9f10.c
+src/func_ov007_020c9fa0.cpp
+src/func_ov007_020ca010.c
+src/func_ov007_020ca1d4.c
+src/func_ov007_020ca26c.c
+src/func_ov007_020ca2a8.c
+src/func_ov007_020ca308.c
+src/func_ov007_020ca578.c
+src/func_ov007_020ca5f0.c
+src/func_ov007_020ca86c.c
+src/func_ov007_020cb3dc.c
+src/func_ov007_020cba78.c
+src/func_ov007_020cbb04.cpp
+src/func_ov007_020cbf8c.c
+src/func_ov007_020cc0cc.c
+src/func_ov007_020cc0e4.c
+src/func_ov007_020cc118.c
+src/func_ov007_020cc168.c
+src/func_ov007_020cc600.c
+src/func_ov007_020cca68.c
+src/func_ov007_020cca74.c
+src/func_ov007_020cca80.c
+src/func_ov007_020cca98.c
+src/func_ov007_020ccab4.c
+
+# ---- THE ONE EXCLUSION -----------------------------------------------------
+# src/func_ov007_020c5dec.cpp
+#   EXCLUDED, and this is a MISROUTE this lane could not fix from its own
+#   files. hal/cxx_aliases.cpp carries
+#   /alternatename:_func_ov007_020c5dec=_func_ov002_020c5dec because two
+#   PLAYER TUs already in the build (St_HurtWater_Main, St_WaitQuicksand_Main)
+#   name the ov007 spelling for what is really ov002's body at 0x020c5dec.
+#   Compiling this TU makes the alias LHS a DEFINED symbol, which
+#   alternatename_guard refuses AND which would hand those two level-path
+#   callers ov007's body. So it stays out, and src/func_ov007_020ba2e0.c's
+#   call to func_ov007_020c5dec resolves through the alias to the ov002 body
+#   -- wrong overlay, in the ov007 direction. One alias cannot express per-
+#   context routing. ROUTED.
+
+# ---- the arm9 closure the title screen opens up ----------------------------
+# Everything dScDSMT_c reaches that no level and no ov003 scene ever did, plus
+# one ov007 TU the delink table's .text ranges did not attribute to any block
+# (func_ov007_020bfd70). Derived the honest way rather than predicted: the
+# first link of the 526 above named these as unresolved externals, each was
+# resolved to the src TU that defines it, and none is a link root. All matched.
+src/ARMMathLoadState.c
+src/ARMMathSaveState.c
+src/TurnBacklightOff.c
+src/TurnBacklightOn.c
+src/_ZN15TextureSequence17UpdateFileOffsetsER8BTP_File.cpp
+src/_ZN2GX11LoadBG0CharEPKvjj.c
+src/_ZN2GX7LoadOBJEPKvjj.c
+src/_ZN3GXS11LoadBG0CharEPKvjj.c
+src/_ZN3GXS11LoadBG1CharEPKvjj.c
+src/_ZN4cstd3modEii.c
+src/_ZN4cstd4ldivEii.c
+src/_ZN5Model13LoadTexAndPalER8BMD_File.cpp
+src/_ZN5Scene14GraphCallback1Ev.c
+src/_ZN5Scene14GraphCallback3Ev.c
+src/_ZN8SaveData12ReadFileDataEjP12FileSaveData.cpp
+src/_ZN8SaveData13EraseSaveFileEjPc.c
+src/_ZN8SaveData13SaveMinigamesEP16MinigameSaveData.c
+src/_ZN8SaveData16ReadMinigameDataEP16MinigameSaveData.c
+src/_ZN9Animation17UpdateFileOffsetsER8BCA_File.cpp
+src/func_02013c84.c
+src/func_02017254.c
+src/func_02017278.c
+src/func_0201a428.c
+src/func_0201a458.c
+src/func_0203dabc.c
+src/func_0203dae4.c
+src/func_02044dc4.c
+src/func_02044efc.c
+src/func_02045d00.c
+src/func_02045d9c.c
+src/func_02045ef8.c
+src/func_0204f73c.c
+src/func_0204f76c.c
+src/func_0204f79c.c
+src/func_020524e4.c
+src/func_02053320.c
+src/func_02053644.c
+src/func_020538b8.c
+src/func_02053ec0.c
+src/func_02053ed0.c
+src/func_02054140.c
+src/func_02054154.c
+src/func_02054168.c
+src/func_0205417c.c
+src/func_02054190.c
+src/func_020541a4.c
+src/func_02054430.c
+src/func_020551f0.c
+src/func_02055624.c
+src/func_020557b4.c
+src/func_02055fb4.c
+src/func_02056014.c
+src/func_02056074.c
+src/func_020560d4.c
+src/func_020562b4.c
+src/func_02056314.c
+src/func_02056374.c
+src/func_020563d4.c
+src/func_02056434.c
+src/func_02056494.c
+src/func_020564f4.c
+src/func_02056554.c
+src/func_020565b4.c
+src/func_020590fc.c
+src/func_02059170.c
+src/func_02059eb0.c
+src/func_0205efc0.c
+src/func_0205f040.c
+src/func_02070348.c
+src/func_ov007_020bfd70.c
+
+# ---- the closure's second wave ---------------------------------------------
+# The first link of the block above named these; same method, same standard.
+# SEVEN MORE WERE OFFERED AND REFUSED, and they are one family: the DS card
+# overlay/archive loader under LoadOverlay, func_02017e94, UnloadArchives and
+# LoadOrUnloadObjectOverlays (FS_LoadOverlay, func_02018c00, func_0203d7b8,
+# func_0205e088, func_02017fd0, func_02018908, func_0205dc0c). Those four
+# entry points are PORT_HOST_ABI faces in hal/scene_boot.cpp instead, for the
+# reason that file's section 2 gives: the port has no overlay loader because
+# every overlay it hosts is a static host array mounted at build time, so
+# linking the chain would host data_0208ecf4's DS string pointers and
+# data_02075998's tables to drive a load the fs seam then ignores. Eleven TUs
+# of linkage deliberately not taken.
+src/_ZN3G2S13GetBG2CharPtrEv.c
+src/_ZN5ColorD1Ev.c
+src/_ZN8SaveData16SetDefaultValuesEP12FileSaveData.cpp
+src/_ZN8SaveData18SetDefaultValuesMgEP16MinigameSaveData.cpp
+src/_ZN8SaveData8SaveFileEjP12FileSaveData.cpp
+src/func_02044e50.c
+src/func_02044f74.c
+src/func_02045f4c.c
+src/func_02054efc.c
+src/func_0205929c.c
+src/func_02059364.c
+src/func_0205938c.c
+src/func_0205ac5c.c
+src/func_0205ac84.c
+src/func_0205ad54.c
+src/func_0205ea10.c
+src/func_0205efe0.c
+src/func_0205f9ac.c
+src/func_020177c4.c
+src/func_02047218.c
+src/func_0205ea28.c
+src/func_0205f9e8.c
+src/func_02017838.c

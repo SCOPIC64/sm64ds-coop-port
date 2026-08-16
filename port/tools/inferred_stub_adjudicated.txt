@@ -94,3 +94,38 @@ func_ov043_021111e4  REAL_DECOMP  w16.md#135  dtor; VT0 = own table 0x021122b8, 
 func_ov003_020ae6f0  REAL_DECOMP  slice_scene1.txt  OnPendingDestroy, 4 bytes: the whole function is `bx lr` (e12fff1e). src is an empty void body. Nothing to guess wrong
 func_ov003_020af86c  REAL_DECOMP  slice_scene1.txt  CleanupResources, 0x34: bl CleanCommonModelDataArr (0x02016df8), bl Sound::UnsetPlayerVoiceGroup (0x02011fe8), then ldr r2=0x04000304 / ldrh / orr #0x8000 / strh, mov r0,#1. src has the same two calls in the same order, the same register constant and the same return
 func_ov003_020ade54  REAL_DECOMP  slice_scene1.txt  D0, 0x6c: str 0x020b1704 [this]; __destroy_arr(0x0207328c) with r0=this+0x64, r1=2, r2=0x50, r3=_ZN5ModelD1Ev (0x02016d20); str 0x02092680 (_ZTV5Scene); str 0x0208e4b8; ActorBase::D2 (0x02043d48); Memory::Deallocate(this, *0x020a0eac) (0x0203c1e8); return this. Every one of those seven constants matches src, in order
+#
+# ---------------------------------------------------------------------------
+# run link60 (lane L2, the ov007 title-screen seat), 2026-08-15.
+#
+# dScDSMT_c (scene id 1, ov007) is the second non-level scene the port seats
+# and the first whose class carries the marker on nearly all of it: SIX of the
+# seven vtable bodies do, plus both graphCallback_c bodies. The ov003 seat left
+# eleven marker-carrying ov003 bodies unruled and called the work "mechanical,
+# not hard"; this is that work done for a different overlay, and the finding is
+# the same one lane w13 and lane w16 reached: the marker records how the NAME
+# was recovered and says nothing about where the BODY came from.
+#
+# All eight were disassembled from extracted/overlays/overlay_0007.bin at
+# (addr - 0x020ad660) -- the shipped RAM image, whose length 351456 equals the
+# OVT's ram_size for ov007, deliberately not the dsd export, whose relocated
+# words would make literals read as live pointers -- and compared instruction
+# for instruction against src/. RESULT: 8 REAL DECOMP, 0 genuine guesses, 0
+# unverifiable. No constant, offset, branch target or instruction count
+# differs anywhere.
+#
+# The seventh vtable body, func_ov007_020cc028 (slot 16, D2), carries no marker
+# and is not this file's business; it was disassembled with the others anyway
+# because its three vptr writes are what resolve the placeholder spellings, and
+# it matches too.
+#
+# Evidence is inline: five of the eight are small enough to state completely,
+# and the two large ones are stated by their full call sequence.
+func_ov007_020cc2ac  REAL_DECOMP  ov007_seat.txt  OnPendingDestroy, 4 bytes: the whole function is `bx lr`. src is an empty void body. Nothing to guess wrong
+func_ov007_020cc110  REAL_DECOMP  ov007_seat.txt  graphCallback_c slot 0, 8 bytes: mov r0,#0 / bx lr. src is `return 0`
+func_ov007_020cc0f4  REAL_DECOMP  ov007_seat.txt  graphCallback_c slot 2, 0x1c: bl func_ov007_020b6eb4 with r0 riding through untouched, mov r0,#0, return. src passes the incoming pointer explicitly and returns 0; same call, same constant
+func_ov007_020cc2b0  REAL_DECOMP  ov007_seat.txt  Render, 0x1c: bl func_ov007_020b7040 with r0 riding through, mov r0,#1, return. src is exactly those two statements
+func_ov007_020cc45c  REAL_DECOMP  ov007_seat.txt  CleanupResources, 0x64: *0x0209d4a8 = 0; Scene::SetAndStopColorFader (0x0202e1b4); r0 = func_ov007_020b6f4c(); *0x0209b340 = r0 and [0x0209b340+4] = 2; Sound::UnsetPlayerVoiceGroup (0x02011fe8); func_0203cbc0(*0x0209b33c) (0x0203cbc0); *0x0209b33c = 0; mov r0,#1. All five globals, both stored constants and all four call targets match src, in order
+func_ov007_020cc070  REAL_DECOMP  ov007_seat.txt  D0, 0x5c: str 0x021032e8 [this]; func_02017254(this+0x54); str 0x02092680 (_ZTV5Scene); str 0x0208e4b8 (_ZTV12ActorDerived); ActorBase::D2 (0x02043d48); Memory::Deallocate(this, *0x020a0eac) (0x0203c1e8); return this. src spells the same seven as VT0/VT1/VT2/G0 -- per-TU PLACEHOLDERS, resolved at the top of hal/scene_boot.cpp -- and the sequence, the +0x54 offset and every constant match
+func_ov007_020cc4c0  REAL_DECOMP  ov007_seat.txt  InitResources, 0x140: the branch on *0x0209f1e0 setting [0x0209b340+4]=1; func_02023544; UnloadArchives; func_02017e94(0x64) and (0x66); the branch on *0x0209d524 calling func_0201a428; [0x0209b340+0x9c] = *0x0209d6fc; POWCNT1 0x04000304 masked 0xfffffdf1 then ored 0x20e; GX::DispOn; *0x04001000 |= 0x10000; Enable3dEngines; Initialise3dGraphics(0); *0x0209d4a8 = this+0x50; Scene::SetFaders(this+0x54, this+0x50); *0x0208ee44 = 1; GX::DisableAllBanks; *0x02103260 = -1; func_ov007_020b7138(0x02103290, 0x0209b340); func_ov007_020b7090(0,0,0,0,0); Sound::LoadInitialGroup(2); return 1. Nineteen statements, every constant and both branch conditions match src
+func_ov007_020cc2cc  REAL_DECOMP  ov007_seat.txt  Behavior, 0x190: the *0x02103260 >= 0 and DecIfAbove0_Short(0x02104c28)==0 guard around Sound::LoadAndSetMusic_Layer1(*0x02103260) then *0x02103260 = -1; func_0203da9c / func_0203dabc / func_0203da9c / func_0203dae4; func_ov007_020b7090 with the four halfwords off the pad record and that fourth value; then the four-way switch on its result -- (result-3) unsigned <= 2 taking func_02013c84(idx, *0x0209b33c + idx*0x44, -1, 0x0209caa0) and StartFile(1,0); result 6 taking the *0x0209d524 == 0 heap dance (func_0201a458, Heap::SetDefault, LoadArchive(1), LoadTextNarcs, Heap::Rescue, Heap::SetDefault, LoadOverlay(0x64), LoadOverlay(0x66)) then Scene::StartSceneFade(6,0,0x7fff); result 7 taking StartMinigameMenu(0); result 2 taking Scene::StartSceneFade(1,0,0x7fff) -- then Scene::SetFaders(this+0x54) and return 1. Every branch, every constant (0x44, -1, 0x7fff, 0x64, 0x66) and every call target matches src, in order. NOTE the two LoadOverlay arguments are spelled overlay_64 / overlay_66 here and overlay_100 / overlay_102 in InitResources for the SAME 0x64 / 0x66; hex and decimal names for one pair of constants, which is a decomp-side spelling inconsistency and not a body difference
