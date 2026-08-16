@@ -326,10 +326,10 @@ extern int data_0209f61c[];
    second pre-flight below reads it as a regression assertion. */
 extern int data_020a804c[];
 
-/* hal/fdr_arm9_fader_seat.cpp: are the three dWipe_c motion slots still this
-   port's named traps rather than the ROM's bodies? The third pre-flight below
-   is keyed on it. */
-int port_fdr_motion_slots_unseated(void);
+/* The third pre-flight below used to be keyed on
+   hal/fdr_arm9_fader_seat.cpp's port_fdr_motion_slots_unseated(). Run link60
+   Stage 5 lane SEAT8 seated slot 0x08 on func_0202f428 and retired both the
+   predicate and the advisory; the reasoning is kept where the pre-flight was. */
 
 /* the mount storage the fill writes into */
 extern unsigned char data_ov006_0213c304[];   /* dScMgCurling_c, 36 slots */
@@ -831,38 +831,22 @@ extern "C" void port_scene_fill_curling(void)
        SCENE_BLOCKED row in port/tools/battery.py is retired rather than
        converted a third time.
 
-       WHAT THIS LINE MEANS NOW, and it is narrower than it was. Not "the
-       scene cannot run" -- it runs. Not "the setters do not fire" -- they run
-       299 times on this scene. It means SLOT 0x08, dWipe_c::AdvanceFade, is
-       still a named trap, so nothing steps a fade that the setters armed.
-       Section 4a of the map is why it is not seated: src/func_0202f428.c
-       calls _ZN10FaderColor11AdvanceFadeEv with no argument, which is
-       receiver-destroying on the host, and the slot has no caller in this
-       image to pay for shipping that.
+       AND THE ADVISORY THAT SAT HERE IS RETIRED, run link60 Stage 5 lane
+       SEAT8. It printed "MINIGAME FADE MOTION MISSING" while slot 0x08 was a
+       named trap, keyed on port_fdr_motion_slots_unseated() so it could not
+       rot into a hardcoded 1. Slot 0x08 is func_0202f428 now, dispatched
+       every frame by the ROM's own src/func_02018efc.c off data_0209d4ac, so
+       the predicate had nothing left to ask and both it and this print are
+       gone rather than left answering over a seated slot. The seat, the
+       driver and the acceptance measurement are in port/fader_boot_map.txt
+       section 4a and port/irq2_map.txt section 6.
 
-       A SECOND REASON THE WIPE DOES NOT MOVE IS NOT THIS LINE'S AND IS WORTH
-       KNOWING ANYWAY: the setters install func_0202f2c4 on IRQ 2 and nothing
-       on the host raises it, so the per-scanline table they build is never
-       pushed at the blend registers. Seating 0x08 alone would not finish this.
-
-       IT ASKS A PREDICATE, NOT A STRING. port_fdr_motion_slots_unseated()
-       compares data_020926f0's slot 0x08 against the trap
-       hal/fdr_arm9_fader_seat.cpp installed, so it cannot rot into a
-       hardcoded 1. */
-    if (IsMinigameActorID((unsigned)port_scene_env_want()) &&
-        port_fdr_motion_slots_unseated()) {
-        std::printf("[scene] MINIGAME FADE MOTION MISSING: dWipe_c vtable slot "
-                    "0x08 (AdvanceFade, ROM body func_0202f428) is still a "
-                    "named trap, so nothing steps a fade the time setters "
-                    "armed. Slots 0x0c and 0x10 ARE the ROM's own bodies now "
-                    "and the scene is not blocked on any of this: 374 "
-                    "completes 300 frames under FAULTS_FATAL. Seating 0x08 "
-                    "would not finish the job on its own either -- the "
-                    "setters drive the wipe from IRQ 2, which nothing on the "
-                    "host raises. See port/fader_boot_map.txt sections 4 and "
-                    "4a.\n");
-        std::fflush(stdout);
-    }
+       THE OTHER HALF OF THE OLD WARNING IS ALSO SPENT. It said the setters
+       drive the wipe from IRQ 2 and nothing on the host raises it, so seating
+       0x08 would not finish the job. Run link60 Stage 5 lane IRQ2 raised the
+       HBlank edge out of ntr/rt.cpp's own VCOUNT sweep, and the table the
+       setters build is read every scanline; port/irq2_map.txt is the
+       derivation. */
 
     /* The witness has to report itself, because the generic one cannot.
        hal/scene_boot.cpp's end-of-run block chooses between ov003's and

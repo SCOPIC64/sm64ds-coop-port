@@ -302,6 +302,23 @@ THE REPRODUCTION IS THE AFTER ROW IN SECTION 5. `1 run(s) of equal rows across
 114816 read(s)` is the assertion: with slot 0x08 seated and driven it becomes
 many runs, and the same line is the check.
 
+[THE CHECK WAS RUN AND IT PASSED, run link60 Stage 5 lane SEAT8. Same command,
+ same scene, this lane's own before-and-after binaries:
+
+   BEFORE  irq2 rows: 1 run(s) of equal rows across 114816 read(s),
+           last row 80807F7F (WIN1H:WIN0H)
+   AFTER   irq2 rows: 2179 run(s) of equal rows across 17280 read(s),
+           last row 00807F00 (WIN1H:WIN0H)
+
+ THE READ COUNT FALLING IS PART OF THE PASS, not a hole in it. The fade now
+ ENDS: case 1 of func_0202f428 clamps +0x1c at 0x200000, calls func_0202fb30
+ and writes state 2, and func_0202fb30 clears IE bit 1 and DISPSTAT bit 4 and
+ nulls the handler, so the edge closes. 17280 / 384 = 45 and 11835 / 263 = 45,
+ and 45 is 0x2d, the frame count func_0202f928 derived for a type-0 backward
+ fade. The gates read handler=0 ie=0 dispstat=0 at exit for the same reason,
+ which is the self-disarm section 4 refused to hoist the per-line gate check
+ over.]
+
 SLOT 0x08 IS NOT THIS LANE'S TO SEAT, and the refusal is already written and
 already mechanical. port/fader_boot_map.txt section 4a rules it REAL_DECOMP and
 declines it for two reasons that hold together: its `type == 1` branch calls
@@ -317,6 +334,17 @@ So the honest statement of where the fade stands after this lane is: THE
 INTERRUPT HALF IS CLOSED AND MEASURED, AND THE CLOCK HALF IS SLOT 0x08. Both
 halves were the same unproven item before; they are separable now, and only one
 of them is still open.
+
+[NEITHER IS OPEN NOW, run link60 Stage 5 lane SEAT8. The paragraph above this
+ one has two claims about the refusal and one of them did not survive. The
+ receiver-dropping call was real and main PR #1539 fixed it in the src. "It
+ also has no call site" was true of the linked image and false of the ROM:
+ hal/fader_wipes.cpp's port_fader_advance is only phase 2's SECOND advance
+ (func_02018ec0, on data_0209d4b0), and phase 2's first is func_02018efc on
+ data_0209d4ac, which Scene::SetFaders arms with this object. That TU was in
+ no slice, which is the whole reason a sweep of walk_window's .text could not
+ see it. It is sliced now. port/fader_boot_map.txt section 4a carries the
+ evidence and the correction to its own section 9a.]
 
 
 7. WHAT A SUCCESSOR CAN DO NEXT, AND WHAT THIS LANE REFUSED TO DECIDE
@@ -338,10 +366,52 @@ of them is still open.
      Building 7a before (b) would therefore REGRESS visuals rather than reveal
      the wipe, and the counters this lane added are the acceptance test for
      the (b) fix that has to land first. Order: (b), then 7a.
+
+     [(b) HAS LANDED, run link60 Stage 5 lane SEAT8, so 7a is unblocked and is
+      the next item in this chain. The precondition the ruling turned on is
+      spent: the table is no longer uniform at 80807F7F. What 7a has to
+      contend with instead is that the wipe RUNS FOR 45 FRAMES AND THEN
+      DISARMS, leaving whatever the last row was latched, so a 7a lane wants
+      a frame count INSIDE the fade rather than the end of a 300-frame run.
+      This lane did not build 7a and made no pixel claim; see section 9.
+
+      AND 7a RE-DERIVES THE EMPTY-WINDOW READING RATHER THAN INHERITING IT
+      FROM EITHER SIDE, a carry the review added. The ruling above calls
+      WIN0H 0x7F7F "an empty window", and the host's own window unit does not
+      treat it as one: ntr/ppu_sub.cpp's read_windows ends with
+      `if (w.x2[i] <= w.x1[i]) w.x2[i] = 256;`, and 0x7F7F is x1 = x2 = 127,
+      so the clamp fires and the window spans 127..255 instead of collapsing.
+      Neither reading is settled here. What a 7a lane needs is the region the
+      hardware and the host each produce for the rows the table actually
+      streams, measured, before it decides what per-scanline latching would
+      change.]
   b. SLOT 0x08, which needs the decomp-side fix routed in
      port/fader_boot_map.txt section 5 (the src TU should take a receiver) or a
      host veneer that supplies one, plus a driver that puts this object in
      data_0209d4b0[0]. Section 6 above is the acceptance test.
+
+     [DONE, run link60 Stage 5 lane SEAT8, AND THE DRIVER CLAUSE WAS WRONG.
+      The decomp-side fix landed on main as PR #1539 and the port propagated
+      it by address, byte-verified at 2004/b56 both ways. THE DRIVER NEEDED NO
+      WRITING AND data_0209d4b0 IS THE WRONG POINTER: the ROM's frame phase 2
+      (func_02019390) advances TWO faders, func_02018ec0 on d4b0 and
+      func_02018efc on data_0209d4ac, and it is d4ac that
+      _ZN5Scene9SetFadersEP15FaderBrightness writes -- with this very object,
+      from dScMgBase_c slot 1, on scene 374. Nothing in the image ever stores
+      data_0209f61c into d4b0, and the proof is the review's rather than the
+      one written here first: THE TWO REFERENCE SETS DO NOT INTERSECT. Eleven
+      functions reference data_0209f61c across the arm9, itcm, dtcm and ninety
+      overlay reloc tables and eleven reference data_0209d4b0, and no function
+      is in both, so nothing in the image holds both addresses. (The count
+      first given here was two, which is the arm9 figure passed off as the
+      image's; port/fader_boot_map.txt section 4a carries the correction and
+      the per-module breakdown.)
+      So the missing piece was src/func_02018efc.c, six lines, now on
+      slice_fdr.txt and called from hal/fader_wipes.cpp's port_fader_advance.
+      This item's mistake is the mirror of section 6's: 6 said correctly that
+      func_0202f428 is the only thing that CHANGES interpVal, and then reached
+      for the fader-in-motion pointer because that is the one the port's own
+      driver already read.]
   c. THE OTHER DROPPED MASKS. Mask 1 (VBlank, _ZN3IRQ13VBlankHandlerEv via
      func_0201a4e4) and mask 8 (timer, func_02059700 via func_02059788) are
      still stored nowhere. Raising VBlank is a much larger blast radius than
@@ -396,6 +466,49 @@ unreachable, and reaching it is what made it matter.
 
 9. UNPROVEN ITEMS
 
+  [Run link60 Stage 5 lane SEAT8 added the first item and amended the second.]
+
+  * NO PIXEL CLAIM FROM THIS LANE EITHER, AND THE ONE-BINARY CONTROL CHANGED
+    ITS ANSWER. Lane SEAT8 seated slot 0x08, so the table streams changing
+    rows, and it re-ran the control the review below built: same executable,
+    same scene, same frame count, delivery on and delivery off.
+
+      SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=23 SM64DS_FAULTS_FATAL=1
+      SM64DS_SCENE_BMP=s8_scene374_midfade.bmp             exit 0
+
+      artifact       build/port/s8_scene374_midfade.bmp (build output, NOT
+                     committed)
+      size           589,878 bytes, 512x384
+      frame          23 of the fade's 45, so mid-transition rather than at a
+                     resting end
+      that run       5,786 deliveries, 8,448 table reads, 936 runs of equal
+                     rows, last row 78807F88 -- between the 80807F7F the
+                     setter writes at arm time and the 00807F00 the 300-frame
+                     run ends on
+      .dsstate       base 0xbac000, span to 0xc962e8, 959,208 bytes captured,
+                     which is byte for byte the span this file records for
+                     iq1_scene374_irq2.bmp: SEAT8 hosted no new DS symbol
+
+      SM64DS_IRQ2_OFF unset   vs   SM64DS_IRQ2_OFF=1        THE TWO DIFFER
+
+    THE DIFFERENCE IS THE POINT AND IT IS STILL NOT A VERDICT. Where this
+    file measured the two byte-identical, they now differ, on one binary at
+    one .dsstate base with no footprint difference between the runs. That
+    says raising IRQ 2 changes pixels once the rows move, which is what
+    section 4's last paragraph implies rather than contradicts: the
+    rasteriser samples WIN0H and WIN1H ONCE per frame, and the single value
+    it samples is now fade-dependent instead of frozen at the arm-time
+    write. What has NOT been built is 7a, so what the frame carries is a
+    moving window rectangle and not a per-scanline wipe. NOBODY HERE HAS SAID
+    WHAT IS IN EITHER IMAGE. The rows measurement is the acceptance; the BMP
+    is for a human.
+
+    ONE REPRODUCIBILITY NOTE, because the exe hash cannot carry it: the same
+    BMP came out byte-identical
+    (sha256 e437446992195b843fc19ebd4dc9b55c8744fb6ecec394c7f02bdcd167f83466)
+    from two separate relinks of the same sources, which differ in exe hash
+    only because build-port.cmd regenerates host-src/port_gittip.c every run.
+
   * NO PIXEL CLAIM. Nothing in this file was read off a frame. One frame was
     captured anyway, for a human to look at, and it is named here so a
     successor can check the precondition before comparing rather than after:
@@ -444,6 +557,15 @@ unreachable, and reaching it is what made it matter.
     A reader who wants one sentence: the interrupt fires, the ROM's handler
     runs its whole path, the table is read every scanline, and every row of it
     is the same row.
+
+    [SPENT, run link60 Stage 5 lane SEAT8. The rows move: 2179 runs of equal
+     rows across 17280 reads, 2178 of them changing the latched window, over
+     the 45 frames the fade lasts. THE SENTENCE THAT REPLACES IT IS STILL NOT
+     A PIXEL CLAIM. What is measured is that the TABLE changes and that the
+     handler pushes changing rows at WIN0H/WIN1H. Section 7a is still unbuilt,
+     so the rasteriser samples those registers once per frame rather than per
+     scanline, and nobody here has said what the frame looks like. One
+     mid-fade image was captured for a human, named in the item below.]
   * THE MEASUREMENT IS OF SCENE 374, AND IT IS THE ONLY THING IN THIS TREE
     THAT ARMS MASK 2. Delivery is global, so that was checked rather than
     assumed: levels 1, 4, 7 and 24 under SM64DS_WINDOW_SELFTEST=120 print no

@@ -347,6 +347,16 @@ than matching a string: port_fdr_motion_slots_unseated() compares the three
 slots against the traps the fader seat installed, so it stops printing on its
 own when they are seated.
 
+[BOTH ARE RETIRED NOW, run link60 Stage 5 lane SEAT8, and not by stopping on
+ their own. Slot 0x08 was the last trap; seating it left the predicate
+ comparing the slot against fdr_s08, which still occupies it as a forwarder
+ onto func_0202f428, so the check would have gone on answering "unseated"
+ over a seated slot. The predicate and the pre-flight are both gone, with the
+ reasoning kept at the sites they were removed from. The design point this
+ paragraph makes -- ask a predicate, not a string -- is unaffected and worth
+ keeping: what it also needs is that the predicate be re-read when the thing
+ it names changes shape, which is the third time this one has needed that.]
+
 
 8. UNPROVEN ITEMS
 

@@ -87,17 +87,44 @@ RULES = [
         # today and the guard passes; this row is here so that the day someone
         # seats slot 0x08 the build refuses instead of shipping the call. See
         # port/fader_boot_map.txt section 4a.
+        #
+        # THE REFUSAL IS SPENT, run link60 Stage 5 lane SEAT8, AND THE ROW IS
+        # NOT. The remedy below offered two ways out and named the first
+        # "give the src TU a receiver and pass it". main PR #1539 did exactly
+        # that: include/decl_FaderColor.h declares the symbol (void*) and
+        # src/func_0202f428.c passes obj. Byte-verified at 2004/b56 with
+        # strict relocs on both trees and re-verified in the port worktree
+        # before the seat, both before and after the edit -- MATCH each time,
+        # so the ARM bytes did not move. src/func_0202f428.c is now on
+        # port/slice_fdr.txt and slot 0x08 of the dWipe_c table dispatches it.
+        #
+        # WHAT THE ROW DOES NOW is the reason to keep it rather than delete
+        # it. The pattern only ever matched the ZERO ARGUMENT spelling, so
+        # with the fix in place it finds nothing and the guard passes on a
+        # TU that IS in a slice. That makes it a regression assertion instead
+        # of a refusal: revert either half of #1539 and the build stops with
+        # the remedy printed, which is a stronger position than the one the
+        # row was written in. Deleting it would have retired the evidence
+        # along with the refusal.
+        #
+        # THAT WAS TESTED BY INJECTION rather than asserted. With the call in
+        # src/func_0202f428.c put back to the zero-argument spelling, this
+        # guard reports "src/func_0202f428.c:16: zero-argument
+        # _ZN10FaderColor11AdvanceFadeEv call" and exits 1, over a TU that is
+        # in a slice -- which is the state the row could never reach before,
+        # because the refusal kept the TU out of every slice.
         "symbol": "_ZN10FaderColor11AdvanceFadeEv",
         "pattern": re.compile(r"_ZN10FaderColor11AdvanceFadeEv\s*\(\s*\)"),
         "remedy": (
             "FaderColor::AdvanceFade is thiscall. The ROM reaches it with the "
-            "receiver riding through in r0 and the src spells the call with no "
-            "argument at all, so on the host it runs on whatever was in the "
-            "receiver register. Give the src TU a receiver and pass it, or "
-            "host copy the caller under port/unmatched the way "
-            "Actor_ClosestPlayer_OverlayReaders.cpp does, and keep the raw src "
-            "out of the slice until then. Slot 0x08 of the dWipe_c table is "
-            "the caller this row was written for."
+            "receiver riding through in r0, and a call spelled with no "
+            "argument runs on whatever was in the receiver register on the "
+            "host. This was fixed upstream (main PR #1539: the declaration in "
+            "include/decl_FaderColor.h takes void* and src/func_0202f428.c "
+            "passes obj), and slot 0x08 of the dWipe_c table ships that TU, "
+            "so an offender here means the fix was reverted. Restore the "
+            "argument rather than unseating the slot; the edit is byte-neutral "
+            "at 2004/b56 with strict relocs, measured both ways."
         ),
     },
 ]

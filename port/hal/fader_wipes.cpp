@@ -451,6 +451,33 @@ extern "C" void _ZN9FaderWipe14LoadAndSetFileEt(void *thiz, unsigned short fileI
 extern "C" {
 extern int data_0209d4b0[8];
 
+/* PHASE 2 ADVANCES TWO FADERS, NOT ONE, and this port only ever ran the
+   second. Run link60 Stage 5 lane SEAT8.
+
+   The ROM's func_02019390 is
+
+       ... func_0202345c(); func_02018efc(); func_02018ec0();
+
+   and the two advances read different globals: func_02018efc dispatches
+   vtable byte 0x08 on data_0209d4ac, the INSTALLED fader, and func_02018ec0
+   does the same on data_0209d4b0, the fader in motion. Both run every frame,
+   and func_02018efc runs on the early-return path too.
+
+   data_0209d4ac is written by _ZN5Scene9SetFadersEP15FaderBrightness, which
+   ends `data_0209f5bc = thiz; data_0209d4ac = thiz;`. That TU is in the link
+   already (slice_gate10), so on a minigame boot dScMgBase_c slot 1 arms the
+   arm9 dWipe_c at data_0209f61c into d4ac with the ROM's own store, and the
+   only thing the port was missing was the six-line reader.
+
+   SO THE ROM BODY IS SEATED RATHER THAN STOOD IN FOR. src/func_02018efc.c is
+   on port/slice_fdr.txt beside the fader table it dispatches through, and it
+   is called here, first, in the ROM's own order. This function stays the
+   stand-in for the OTHER half (func_02018ec0), which cannot be seated as it
+   stands because the port also has to clear data_0209d4b0 when a fade
+   settles -- the ROM does that from the Scene actor machinery this port does
+   not run. */
+void func_02018efc(void);
+
 /* The animating fader, spelled through the same int[8] Stage::Behavior reads.
    Nonzero while a fade is stepping. */
 static HalFaderWipe *port_fader_animating(void)
@@ -460,6 +487,21 @@ static HalFaderWipe *port_fader_animating(void)
 
 void port_fader_advance(void)
 {
+    /* Phase 2's FIRST advance, the ROM's own body, on the INSTALLED fader.
+       INSIDE the stepping bracket, and the bracket is not decoration here.
+       HalFaderWipe::AdvanceFade has two paths: driven, which steps the
+       interpolator, and undriven, which SNAPS currInterp to the target so an
+       invisible fade cannot hold a transition open. func_02018efc IS the
+       frame loop's driven advance -- it is the very function
+       port_fader_advance was written to stand in half of -- so calling it
+       outside the bracket makes every level snap the installed fader to its
+       target once a frame. That was measured, not reasoned: the first cut of
+       this line sat above the bracket and level 1's selftest started printing
+       the host stub's AdvanceFade note. */
+    g_hal_fader_stepping = 1;
+    func_02018efc();
+    g_hal_fader_stepping = 0;
+
     HalFaderWipe *f = port_fader_animating();
     if (!f)
         return;

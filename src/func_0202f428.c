@@ -13,15 +13,15 @@ void func_0202f428(char *obj)
 {
     struct dWipe_c *self = (struct dWipe_c *)(void *)obj;
     if (self->unk_014 == 1) {
-        _ZN10FaderColor11AdvanceFadeEv();
+        _ZN10FaderColor11AdvanceFadeEv(obj);
         return;
     }
     switch (self->unk_010) {
     case 0:
         return;
     case 1:
-        *(int *)(((long long)(int)(obj + 0x1c))) += self->unk_020;
-        *(int *)(((long long)(int)(obj + 0x20))) += self->unk_024;
+        *(int *)(obj + 0x1c) += self->unk_020;
+        *(int *)(obj + 0x20) += self->unk_024;
         if (self->unk_01c >= 0x200000) {
             self->unk_01c = 0x200000;
             self->unk_00f = 0;
@@ -32,8 +32,8 @@ void func_0202f428(char *obj)
     case 2:
         return;
     case 3:
-        *(int *)(((long long)(int)(obj + 0x1c))) += self->unk_020;
-        *(int *)(((long long)(int)(obj + 0x20))) += self->unk_024;
+        *(int *)(obj + 0x1c) += self->unk_020;
+        *(int *)(obj + 0x20) += self->unk_024;
         if (self->unk_01c <= 0) {
             int b;
             self->unk_01c = 0;
