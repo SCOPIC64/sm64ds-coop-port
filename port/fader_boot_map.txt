@@ -664,7 +664,10 @@ counted; nothing calls it now, and that is written into the unproven items.
      anyone arms another interrupt: IME was never seated on any walk_window
      path, and the arming brackets in func_0202f708 and func_0202f928 SAVE
      AND RESTORE IME rather than setting it, so they could not have opened
-     it themselves. ntr::rt_irq_boot_state() seats it now.]
+     it themselves. The ROM body that would have is src/func_0201a054.c, the
+     game's IRQ init, which does EnableIRQs(1) then IME = 1 and is in NO
+     SLICE; ntr::rt_irq_boot_state() stands in for it, and retires the day
+     that TU is sliced and runs.]
   * NO PIXEL CLAIM IS MADE ANYWHERE IN THIS SECTION. Nothing here was read off
     a frame. The .dsstate section grew again with this tranche (seven new bss
     symbols, 0x618 bytes of span before alignment), so any BMP comparison

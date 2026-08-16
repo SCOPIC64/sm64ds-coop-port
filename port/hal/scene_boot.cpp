@@ -1655,8 +1655,9 @@ extern "C" int port_scene_run(void)
        `saved = IME; IME = 0; ... ; if (saved) IME = 1`, so a host that boots
        with IME at zero comes out of the bracket with IME STILL ZERO and the
        interrupt it just armed can never be delivered. Only ntr::rt_run used
-       to seat it, and no walk_window path runs on that fiber.
-       See port/irq2_map.txt section 2. */
+       to seat it, and no walk_window path runs on that fiber. What it stands
+       in for is src/func_0201a054.c, the game's own IRQ init, which is in no
+       slice. See port/irq2_map.txt section 2. */
     ntr::rt_irq_boot_state();
 
     /* The seat, minus the Stage. Everything in it -- the message archive, the

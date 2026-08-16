@@ -915,17 +915,22 @@ int data_020a4b58[4], data_020a4b68[4], data_020a60f4[4];
    undersized-hosted-global shape: a span decided by the first caller found
    rather than by the ROM.
    THE SPAN IS THE ARM9's DATA TCM, 0x023c0000..0x023c4000, and what fixes the
-   size is the BIOS interrupt check flag at the top of it. Three handlers in
-   src write that word by literal offset:
-       _ZN3IRQ13VBlankHandlerEv     *(int *)(data_023c0000 + 0x3ff8) |= 1
-       _ZN3IRQ13DmaTimHandlerEv     *(u32 *)(data_023c0000 + 0x3ff8) |= mask
-       func_0202f2c4                *(int *)(&data_023c0000 + 0x3ff8) |= 2
-   which is DTCM_END - 8, the NitroSDK OSi_IrqCheckFlag slot. At 64 bytes that
-   store lands 16,312 bytes past the object and into whatever .dsstate put
-   next, and it was invisible only because no host path had ever RUN one of
-   the three: the ntr layer stored no handler for masks 1 or 2, so neither
-   was ever dispatched. Raising IRQ 2 dispatches the third one 191 times a
-   frame, so the span has to be real before the edge goes live. */
+   size is the BIOS interrupt check flag at the top of it, DTCM_END - 8, the
+   NitroSDK OSi_IrqCheckFlag slot. FIVE handlers in src write that word by
+   literal offset, and only two of them are in this link:
+       func_0202f2c4            |= 2       slice_fdr, AND REACHED, 191x a frame
+       func_02059834            |= 0x10    slice_gate10, linked and undriven
+       _ZN3IRQ13VBlankHandlerEv |= 1       not compiled
+       _ZN3IRQ13DmaTimHandlerEv |= mask    not compiled
+       func_ov006_020efcf8      |= 2       not compiled
+   At 64 bytes that store landed 16,312 bytes past the object, 56 bytes into
+   _hal_area_table and so INSIDE .dsstate, which means a save state would have
+   captured the corruption and a restore replayed it. It was invisible only
+   because no host path had ever RUN one of the five: the ntr layer stored no
+   handler for mask 1, 2 or 0x10, so none was ever dispatched. Raising IRQ 2
+   drives the first one for real, and the second goes live the day anyone
+   models timer interrupts, so the span has to be real before either.
+   See port/irq2_map.txt section 8. */
 __declspec(align(8)) unsigned char data_023c0000[0x4000];
 int data_02099e94[4], data_02099ebc[4], data_02099ec4[4], data_02099fcc[4];
 /* data_020a6088 is NOT here any more. It is the head of the GX bank-state

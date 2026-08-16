@@ -3156,11 +3156,12 @@ int main(void)
     g_present_bi = &bi;
     g_present_fb = &fb;
     MSG msg;
-    /* THE DS'S POWER-ON INTERRUPT STATE. IME is set by the CRT0 before any
-       game code runs, and the ROM's own arming sequences SAVE AND RESTORE it
-       rather than setting it, so a host that boots with IME at zero arms
-       interrupts that can never be delivered. Only ntr::rt_run used to seat
-       it and this loop is not on that fiber. See port/irq2_map.txt. */
+    /* THE DS'S POWER-ON INTERRUPT STATE, standing in for src/func_0201a054.c,
+       the game's own IRQ init, which is in no slice. The ROM's arming
+       sequences SAVE AND RESTORE IME rather than setting it, so a host that
+       boots with IME at zero arms interrupts that can never be delivered.
+       Only ntr::rt_run used to seat it and this loop is not on that fiber.
+       See port/irq2_map.txt section 2. */
     ntr::rt_irq_boot_state();
     for (;;) {
         double t_frame, t_phase;

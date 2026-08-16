@@ -65,6 +65,17 @@ dWipe_c IS A WINDOW WIPE. It is not a brightness ramp and it is not the blend
 registers, which is worth saying because port/fader_boot_map.txt section 1
 records that the class was called a "FaderBrightness" for two lanes running.
 
+AND THE CLINCHER FOR THAT READING IS THE ARM CODE, not the handler, which
+review added and this file had not cited. src/func_0202f58c.c, the table
+bring-up both setters call, configures the window UNIT before a single row is
+built: WININ (0x4000048) low six and next six bits set to 0x1f | 0x20 for
+windows 0 and 1 on both engines, WINOUT (0x400004a) low six cleared, and
+DISPCNT (0x4000000) bits 0xe000 masked and set to 0x6000, which is the WIN0
+and WIN1 display-enable pair with the OBJ window off. A brightness fader has
+no reason to touch any of those. The handler streaming WIN0H per scanline is
+what the wipe DOES; func_0202f58c turning the window unit on is what the wipe
+IS.
+
 THE HANDLER PROGRAMS THE NEXT LINE, not this one: at HBlank of line L it writes
 the bounds line L+1 will be drawn with. Line 0's bounds come from the other
 branch, func_0202f3a4, which fires once at VCOUNT 191 (line 192 >= 0xc0), swaps
@@ -92,28 +103,49 @@ bit in g_ie, func_02053c10 really set DISPSTAT bit 4, and the handler pointer
 went in the bin.
 
 AND A SECOND GATE WAS SHUT UNDERNEATH THAT ONE, which only showed up once the
-first was open. IME (0x4000208) was never seated on any walk_window path. The
-only writer of a 1 into it in the whole image was ntr::rt_run, and walk_window's
-level loop and hal/scene_boot.cpp's port_scene_run do not run on that fiber --
-rt_run is used by the smoke tests only. Every other IME writer that is in a
-slice is a SAVE-AND-RESTORE BRACKET and cannot introduce a 1:
+first was open. IME (0x4000208) was never seated on any walk_window path.
 
-    src/LenVec3.c  src/func_02049018.c  src/func_02053274.c
-    src/func_02053380.c  src/func_02053644.c  src/func_ov007_020c30ac.c
+THE DISTINCTION THAT CARRIES THIS IS src VERSUS THE IMAGE, and an earlier draft
+of this section blurred the two. TWENTY-SEVEN src TUs touch 0x4000208. ELEVEN
+are in a slice, and every one of the eleven is a save-and-restore bracket or a
+bare clear, so not one of them can introduce a 1:
+
+    LenVec3  func_02049018  func_02053274  func_02053380  func_02053644
+    func_ov007_020c30ac  func_ov007_020c31e0  func_ov007_020c7d60
         saved = IME; IME = 0; ...; IME = saved
-    src/func_02013f28.c
-        IME = 0
-    src/func_0202f708.c  src/func_0202f928.c  src/func_0202fb30.c
+    func_02013f28
+        IME = 0, then the idle spin
+    func_0202f708  func_0202f928  func_0202fb30
         the dWipe_c bracket above, which restores only `if (saved)`
 
-That is the trap in one line: THE ROM'S OWN ARMING CODE CANNOT TURN IME ON. It
-saves it, clears it, and puts back what was there. On a host that booted with
-zero the bracket comes out of the arming with IME still zero, and the interrupt
-it just armed is undeliverable. ntr::rt_run's own two lines are the precedent
-for the fix and they carry the reason in their comment ("The DS comes up with
-interrupts enabled and IME set by the CRT0"); this lane hoisted them into
-ntr::rt_irq_boot_state() so the frame loops that are not on the fiber get the
-same power-on state.
+So "the only writer of a 1 into IME in the whole IMAGE was ntr::rt_run" is
+true, and it is true only because of WHICH src TUs are sliced. It is a
+statement about today's link, not about the game, and it stops being true the
+moment the next paragraph's TU enters a slice.
+
+THE ROM'S OWN SETTER IS src/func_0201a054.c, THE GAME'S IRQ INIT, and it is
+better evidence than the folklore this lane first leaned on. ntr/rt.cpp's
+inherited comment says "The DS comes up with interrupts enabled and IME set by
+the CRT0", which is plausible and unsourced. func_0201a054 is the ROM, and it
+does exactly the pair rt_irq_boot_state() seats, in that order:
+
+    _ZN3IRQ10EnableIRQsEj(1);
+    { volatile u16 *p = (volatile u16 *)0x4000208; u16 old = *p; *p = 1; }
+    _ZN3IRQ6EnableEv();
+
+THAT TU IS IN NO SLICE, which is the argument in one line: the function that
+would have turned IME on is not in the link, so the host has to stand in for
+it, and what it stands in for is a specific ROM body rather than a belief about
+a CRT0 nobody has read. It is also the tell for when the seat can retire --
+the day func_0201a054 is sliced and runs, rt_irq_boot_state becomes redundant
+rather than wrong.
+
+The trap that follows is mechanical: THE ROM'S OWN ARMING CODE CANNOT TURN IME
+ON. It saves it, clears it, and puts back what was there. On a host that booted
+with zero the bracket comes out of the arming with IME still zero, and the
+interrupt it just armed is undeliverable. rt_run's own two lines were folded
+into ntr::rt_irq_boot_state() so there is one statement of the power-on state
+instead of two, and the frame loops that are not on the fiber call it.
 
 
 3. THE FIVE GATES, AND HOW TO SEE WHICH ONE IS SHUT
@@ -297,6 +329,15 @@ of them is still open.
      rasteriser to consume. THIS LANE DID NOT BUILD IT and was told not to on
      its own authority. The frame-clock half needed no scanline engine because
      one already existed; the raster half would be a new one.
+
+     AND IT MUST NOT LAND FIRST. Review's ruling, from the register values
+     rather than from a frame: with the table uniform at 80807F7F and an
+     engine-A window unit in place, WIN0H 0x7F7F is an empty window and
+     WIN1H 0x8080 likewise, so the whole scene renders through WINOUT and the
+     visible result is the left of the main screen blanked for the duration.
+     Building 7a before (b) would therefore REGRESS visuals rather than reveal
+     the wipe, and the counters this lane added are the acceptance test for
+     the (b) fix that has to land first. Order: (b), then 7a.
   b. SLOT 0x08, which needs the decomp-side fix routed in
      port/fader_boot_map.txt section 5 (the src TU should take a receiver) or a
      host veneer that supplies one, plus a driver that puts this object in
@@ -316,20 +357,41 @@ data_023c0000 WAS HOSTED AT 64 BYTES AND IS WRITTEN AT +0x3FF8.
 hal/player_bridges.cpp had `unsigned char data_023c0000[64]` with the comment
 "DTCM scratch the timer list walker anchors at" -- a span sized by the first
 reader anyone found rather than by the ROM. The symbol is the ARM9's data TCM
-base, its real span is 16 KB, and three handlers in src write the BIOS
-interrupt check flag at DTCM_END - 8:
+base, its real span is 16 KB, and FIVE handlers in src write the BIOS interrupt
+check flag at DTCM_END - 8. An earlier draft of this section said three, which
+was the count of what a grep of the sliced set returned rather than the count
+in src; the full set, with what each one's state in this image actually is:
 
-    _ZN3IRQ13VBlankHandlerEv   *(int *)(data_023c0000 + 0x3ff8) |= 1
-    _ZN3IRQ13DmaTimHandlerEv   *(u32 *)(data_023c0000 + 0x3ff8) |= mask
-    func_0202f2c4              *(int *)(&data_023c0000 + 0x3ff8) |= 2
+    src TU                     writes            in the link?
+    func_0202f2c4              |= 2              YES, slice_fdr, AND REACHED
+    func_02059834              |= 0x10           YES, slice_gate10, unreached
+    _ZN3IRQ13VBlankHandlerEv   |= 1              no
+    _ZN3IRQ13DmaTimHandlerEv   |= mask           no
+    func_ov006_020efcf8        |= 2              no
 
-At 64 bytes that store lands 16,312 bytes past the object, inside whatever
-.dsstate laid down next. It had never fired, and the reason is section 2: the
-ntr layer stored no handler for mask 1 or mask 2, so none of the three had ever
-been dispatched. Raising IRQ 2 dispatches the third one 191 times a frame, so
-the array is now 0x4000 bytes. This is the undersized-hosted-global shape in
-its cleanest form -- the size was wrong for as long as it was unreachable, and
-reaching it is what made it matter.
+REACHABLE AND HYPOTHETICAL ARE DIFFERENT THINGS AND THE FIX NEEDS BOTH. Only
+func_0202f2c4 runs today, 191 times a frame, and that alone settles the sizing.
+func_02059834 is the sharper case, because it IS in the link and it IS wired:
+hal/cxx_aliases.cpp:113 hosts the asm veneer func_02059824 that tail-calls it,
+and src/func_02059c18.c registers that veneer BY ADDRESS with
+func_02056e4c(1, (u32)func_02059824, 0), which writes data_020a60f4[1] and
+calls EnableIRQs(1 << 4). Nothing on the host walks data_020a60f4 and the
+layer stores no handler for mask 0x10, so the timer dispatch is dropped and
+the body is never entered -- linked, armed by the game, and undriven, which is
+the state func_0202f2c4 itself was in before this lane. It goes live the day
+anyone models timer interrupts, and it would have written 16,312 bytes past a
+64-byte object on its first tick. The other three are not compiled at all.
+
+WHERE THE STORE LANDED, from the review's read of the base map: +0x3ff8 is 56
+bytes into _hal_area_table, which is itself INSIDE .dsstate. So the corruption
+would have been captured by a save state as well as suffered live, and a
+restore would have replayed it.
+
+It had never fired, and the reason is section 2: the ntr layer stored no
+handler for mask 1, mask 2 or mask 0x10, so not one of the five had ever been
+dispatched. The array is now 0x4000 bytes. This is the undersized-hosted-global
+shape in its cleanest form -- the size was wrong for as long as it was
+unreachable, and reaching it is what made it matter.
 
 
 9. UNPROVEN ITEMS
@@ -350,14 +412,33 @@ reaching it is what made it matter.
       that run       39,187 deliveries, 57,216 table reads, 1 run of equal
                      rows, last row 80807F7F
 
-    THE BASE IS THE SAME 0xbac000 port/fader_boot_map.txt section 10 recorded
-    for fdr2_scene374.bmp, and the span is 16,296 bytes larger because of the
-    data_023c0000 fix in section 8. Equal base is NECESSARY AND NOT SUFFICIENT
-    (port/tools/battery.py's header), and the growth here is INTERIOR to
-    .dsstate, which is the one shape that header measured as leaving a frame
-    byte-identical. So a diff against fdr2_scene374.bmp is admissible under
-    the rule. NOBODY HERE HAS SAID WHAT IS IN EITHER IMAGE, and this lane is
-    not the one to judge a rendered frame.
+    THE ADMISSIBILITY ARGUMENT WAS REWRITTEN ON REVIEW AND THE FIRST ONE WAS
+    WRONG. It said the base matches the 0xbac000 that port/fader_boot_map.txt
+    section 10 recorded for fdr2_scene374.bmp, and that the 16,296-byte growth
+    is INTERIOR to .dsstate, so a cross-commit diff against that image is
+    admissible. Equal base is NECESSARY AND NOT SUFFICIENT, and the second
+    clause of port/tools/battery.py's header is exactly the trap this walked
+    into: host-global layout OUTSIDE .dsstate perturbs the frame even at an
+    equal base. THIS TRANCHE'S COUNTERS ARE OUTSIDE .dsstate -- they are host
+    globals in hal/model_host.cpp and ntr/rt.cpp, correctly ignored by
+    tools/dsstate_guard.py because they are not DS symbols -- so this is the
+    probe-footprint class, and no cross-commit BMP claim survives it.
+
+    THE CONTROL THE REVIEW RAN INSTEAD IS STRICTLY STRONGER and needs no rule
+    at all. Same binary, same 150-frame command, delivery on and delivery off:
+
+      SM64DS_IRQ2_OFF unset   sha256 8a106f29...b659267
+      SM64DS_IRQ2_OFF=1       sha256 8a106f29...b659267   BYTE-IDENTICAL
+
+    One binary, one .dsstate base, zero footprint difference, and the only
+    variable is the change under test. Reproduced on this lane's own build
+    (`cmp` reports no difference) and on the reviewer's independent one.
+
+    WHAT THAT MEASURES IS NOT "THE FADE LOOKS RIGHT". It measures that raising
+    IRQ 2 changes no pixel today, which is what section 4's last paragraph
+    predicts: the rasteriser samples the window registers once and the 192 rows
+    the handler programs are identical anyway. NOBODY HERE HAS SAID WHAT IS IN
+    THE IMAGE, and this lane is not the one to judge a rendered frame.
   * THE FADE DOES NOT ANIMATE AND THIS FILE DOES NOT SAY IT DOES. Section 5's
     114,816 is a count of table reads. Section 6 is why that is not motion yet.
     A reader who wants one sentence: the interrupt fires, the ROM's handler

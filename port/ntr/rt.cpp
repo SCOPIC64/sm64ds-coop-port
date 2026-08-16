@@ -183,13 +183,20 @@ void rt_hblank_counters(unsigned long long *deliveries,
 }
 
 // THE DS COMES UP WITH IME SET, and until this lane nothing said so outside
-// rt_run. That mattered: the ROM's own arming code brackets SetIRQHandler in
+// rt_run. THE SOURCE FOR THAT IS src/func_0201a054.c, the game's own IRQ init,
+// which does EnableIRQs(1) then IME = 1 then IRQ::Enable -- the exact pair
+// below, in that order. It is in NO SLICE, which is precisely why the host has
+// to stand in for it. (rt_run's line used to credit "the CRT0"; that was
+// unsourced and the ROM body is better evidence. See port/irq2_map.txt
+// section 2, which also has the seat's retirement condition.)
+//
+// It mattered because the ROM's arming code brackets SetIRQHandler in
 // `saved = IME; IME = 0; ...; if (saved) IME = 1`, so on a host that booted
 // with IME at zero the bracket LEAVES IT AT ZERO and the interrupt it just
-// armed can never be delivered. rt_run's own two lines are the precedent and
-// this is them, hoisted so the frame loops that do not run on the fiber
-// (walk_window's level loop, port_scene_run) get the same power-on state.
-// Idempotent, and it does not touch IE bit 1: only the game arms HBlank.
+// armed can never be delivered. Hoisted here so the frame loops that do not
+// run on the fiber (walk_window's level loop, port_scene_run) get the same
+// power-on state. Idempotent, and it does not touch IE bit 1: only the game
+// arms HBlank.
 //
 // SM64DS_IRQ2_NO_IME=1 skips the seat, which reproduces the pre-lane state on
 // the shipped binary. It is here so the claim "IME was zero and the ROM could
@@ -237,7 +244,9 @@ uint64_t rt_run(void (*game)(), FrameHook hook, uint64_t max_frames) {
         return 0;
     }
 
-    // The DS comes up with interrupts enabled and IME set by the CRT0.
+    // The DS comes up with interrupts enabled and IME set. This line used to
+    // say "by the CRT0", which was folklore; the sourced version is in
+    // rt_irq_boot_state's own comment.
     rt_irq_boot_state();
 
     while (!g.game_done && !g.stop) {

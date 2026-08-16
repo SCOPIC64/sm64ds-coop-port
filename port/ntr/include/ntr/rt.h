@@ -87,11 +87,11 @@ void rt_hblank_dispatch();
 // frame -- after the game's behaviour work, before the host rasterises.
 void rt_scanout_frame();
 
-// The DS's power-on interrupt state (IME set, IE carrying VBlank), which the
-// CRT0 leaves behind before any game code runs. Idempotent. rt_run calls it;
-// a frame loop that does not run on the fiber must call it before the first
-// tick, because the ROM's arming code SAVES AND RESTORES IME and therefore
-// cannot set it.
+// The DS's power-on interrupt state (IME set, IE carrying VBlank). It stands
+// in for src/func_0201a054.c, the game's own IRQ init, which is in no slice.
+// Idempotent. rt_run calls it; a frame loop that does not run on the fiber
+// must call it before the first tick, because the ROM's arming code SAVES AND
+// RESTORES IME and therefore cannot set it.
 void rt_irq_boot_state();
 
 // What the last scan-out did, cumulative over the process.
