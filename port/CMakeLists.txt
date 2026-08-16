@@ -594,7 +594,35 @@ endforeach()
 set(HEAP_INITGAME_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4Heap18InitializeGameHeapEjPS_.c")
 
+# THE HEAP DESTROY CHAIN for the same three actor smokes, and it is here for
+# the same reason HEAP_INITGAME_SRC is: two src lines that live in a slice these
+# targets do not carry.
+#
+# hal/actor_vtables.cpp hosts Heap_Destroy, the role-named spelling of arm9
+# 0x0203c74c that src/_ZN9ActorBase21AfterCleanupResourcesEj.c calls when a
+# dying actor owns a heap. It used to abort. Run link60 lane LK5 made the ROM's
+# own veneer carry a receiver, so it can now forward instead, and the forward
+# needs the veneer TU and the method behind it:
+#
+#   src/_ZN4Heap8_DestroyEv.cpp   the ROM's tail-call veneer, byte matched
+#   src/_ZN4Heap7DestroyEv.cpp    Heap::Destroy, the method it tail-calls
+#
+# Both are in slice_gate16.txt, which rides smoke_player, walk_window and
+# walk_window_hires only. actor_vtables.cpp rides those three AND smoke_actor,
+# smoke_savestate and smoke_persist, and GATE9_GEN puts the calling teardown TU
+# in all six, so without these two lines the three smokes link-fail on
+# __ZN4Heap8_DestroyEv. Measured, not predicted: all three reported that exact
+# LNK2019 before this was added. The C face _ZN4Heap7DestroyEv sits in
+# hal/heap_vtable.cpp, which all six already compile.
+#
+# No target gets a duplicate: the three big targets take these two TUs from
+# slice_gate16 and are not listed here.
+set(HEAP_DESTROY_CHAIN_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4Heap8_DestroyEv.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4Heap7DestroyEv.cpp")
+
 add_executable(smoke_actor tests/smoke_actor.cpp "${HEAP_INITGAME_SRC}"
+    ${HEAP_DESTROY_CHAIN_SRC}
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -619,6 +647,7 @@ endif()
 # Save-state verification (lane lk6): the same actor world as smoke_actor, plus
 # hal/lk6_savestate.cpp, driving save -> diverge -> load -> byte-exact compare.
 add_executable(smoke_savestate tests/smoke_savestate.cpp "${HEAP_INITGAME_SRC}"
+    ${HEAP_DESTROY_CHAIN_SRC}
     hal/lk6_savestate.cpp hal/dsstate_seg.cpp hal/auto_bss.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
@@ -644,6 +673,7 @@ endif()
 # whole point, so the test crosses a real process boundary. Two header-refusal
 # cases (corrupted magic, stale gittip) run in the parent afterwards.
 add_executable(smoke_persist tests/smoke_persist.cpp "${HEAP_INITGAME_SRC}"
+    ${HEAP_DESTROY_CHAIN_SRC}
     hal/lk6_savestate.cpp hal/lk7_persist.cpp hal/dsstate_seg.cpp
     hal/auto_bss.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
