@@ -192,7 +192,13 @@ SCENE_BLOCKED = {
     # receiver-dropping alias arms the marker again and the scene's own row
     # goes red at the same time. Two independent signals instead of one.
     #
-    # Full write-up, with the disassembled face and the four proof configures:
+    # AND THE FRAME IS NOT A TITLE SCREEN. The Render slot RUNS, which is the
+    # milestone and is what retires this row; what it draws is three colors.
+    # Decomposed in seat section 5f: 93.52% flat clear color, one solid 128x96
+    # magenta rectangle (the sub panel) and its 452-pixel outline, nothing
+    # else. Nobody should read this retirement as the title screen appearing.
+    #
+    # Full write-up, with the disassembled face and the five proof configures:
     # port/ov007_seat.txt sections 5f, 7 and 8.
     # SCENE 374 (0x176) WAS HERE AND IS RETIRED, run link60 lane FDR2. The
     # row had been CONVERTED TWICE and each conversion was a seat that landed:

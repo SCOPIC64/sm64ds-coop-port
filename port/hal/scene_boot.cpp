@@ -668,7 +668,28 @@ extern "C" unsigned _ZN4CP1510EnableDTCMEv(void) { return 0x10000u; }
    1 would claim bytes were moved that were not. THIS IS WHY THE FILE SELECT
    SHOWS EMPTY FILES rather than whatever the last session had, and that is a
    real behaviour gap, not a cosmetic one -- it is named in
-   port/ov007_seat.txt section 5 rather than left for someone to find. */
+   port/ov007_seat.txt section 5 rather than left for someone to find.
+
+   THE RETURN VALUE IS BACKWARDS AND THE PARAGRAPH ABOVE IS WRONG ABOUT IT.
+   Run link60 Stage 5 lane MR1 traced these on a live path and the review found
+   the ROM evidence already in the tree, in a TU nobody here had opened:
+   src/_ZN8SaveData16ReadDataFromCartEPcjj.cpp. That body returns 0 ONLY after
+   the eight magic bytes match data_020a4b40 AND the rotate-xor checksum equals
+   the stored crc; it returns 1 on every failure path, including the no-media
+   one (`if (func_0203da3c() == 2) return 1;` is its first statement), and 2 in
+   the backup-copy case. So 0 means A VALIDATED READ HAPPENED, and the four
+   callers read it that way: `if (result) { SetDefaultValues*(...); ... }`.
+   Returning 0 from a host with no cart therefore claims a good read of an
+   uninitialised buffer and SKIPS the defaults, which is the opposite of what
+   the paragraph above says this face is for. THE CORRECT CARTLESS VALUE IS 1.
+
+   IT IS NOT FIXED HERE BECAUSE IT CANNOT BE FIXED ALONE. Flipping this to 1
+   fires SaveData::SetDefaultValues and SetDefaultValuesMg, and both of those
+   are reached through receiver-dropping /alternatename directives in the block
+   further down this file that MR1 measured, ruled unfired and deliberately
+   left standing. The two have to be faced in the same commit as the flip, and
+   SaveData::SaveDataToCart wants the same treatment for the same reason. That
+   work is lane SV1. port/ov007_seat.txt section 5f carries the trace. */
 extern "C" int _ZN8SaveData16ReadDataFromCartEPcjj(char *, unsigned, unsigned)
 { return 0; }
 extern "C" int _ZN8SaveData14SaveDataToCartEPcjj(char *, unsigned, unsigned)
@@ -1104,7 +1125,8 @@ void Scene::SetFaders(FaderBrightness *)
 //     src/engine/fader/_ZN9FaderWipe11AdvanceFadeEv.cpp:12 and :34, and it is
 //     in no slice today. The day a lane slices it into a target that does not
 //     compile this file, the link fails with LNK2019 on this symbol and the
-//     fix is to move the eight lines below to
+//     fix is to move the TEN lines below (the three declarations and the
+//     seven-line definition) to
 //     port/unmatched/ModelComponents_Render.cpp, which is in fourteen targets.
 //     That is LK5's rule (a face belongs in a TU whose target set covers its
 //     consumers) stated in advance instead of after the break.

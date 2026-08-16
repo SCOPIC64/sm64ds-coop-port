@@ -1881,8 +1881,8 @@ obtained with rendering off and are not a frame.
 
 SECTION 5e'S BLOCKER IS RETIRED BY A FACE, and this is the first entry in this
 file whose gate is GREEN with no ruled cost and no skip. The three seats before
-it each bought their progress with a linked TU; this one buys it with nine
-lines of C++ and changes no count at all.
+it each bought their progress with a linked TU; this one buys it with ten lines
+of C++ and changes no count at all.
 
 THE DEFECT, re-derived off the two files rather than quoted. src/func_ov007_-
 020bbff0.c is four lines:
@@ -1943,8 +1943,35 @@ SM64DS_FAULTS_FATAL=1, and NOTHING switched off:
     [scene] 300 frames of scene 1 (SCENE_TITLE), clean       exit 0
 
 RENDER 300. Every earlier clean scene-1 run this file records was taken with
-the Render slot no-op'd; this one is not, and that is the difference. A frame
-was captured. Nothing about its pixels is claimed here.
+the Render slot no-op'd; this one is not, and that is the difference.
+
+AND THE FRAME IS NOT A TITLE SCREEN. THE SLOT RUNS; IT DRAWS ALMOST NOTHING.
+This lane's own first summary said "the title screen renders" and that was an
+overstatement the review caught. The frame was captured with SM64DS_SCENE_BMP
+and lives OUTSIDE the repo, with the run's other artefacts, at
+
+    <run status dir>/link60/status/mr1-scene1-title-rendered.bmp
+    (today: C:\Users\tango\.claude\orchestration\runs\link60\status\)
+    512x384, 24bpp, 589878 bytes, taken at .dsstate base [0xbae000, 0xc982e8)
+
+and it decomposes, by histogram and bounding box off the file itself, into
+THREE COLORS:
+
+    0x101820   183868 px   93.52%   flat, the clear color
+    0xce21c6    12288 px    6.25%   one SOLID rectangle, exactly 128x96,
+                                    at x 376..503, y 280..375: the sub panel
+    0x000000      452 px    0.23%   that rectangle's one-pixel outline
+                                    (130x98 border: 2*130 + 2*98 - 4 = 452)
+
+There is no title screen imagery in it at all. What is proven is that the
+receiver arrives, the slot dispatches 300 times and nothing faults; what is NOT
+proven, and is now measured as ABSENT, is that anything the ROM draws on this
+screen reached the framebuffer. A lane picking this up should start from what
+the frame IS, not from the milestone.
+
+BYTE-COMPARE IT ONLY AGAINST A CAPTURE AT THE SAME .dsstate BASE. The selftest
+BMP is layout-dependent and a different base moves pixels for reasons that have
+nothing to do with rendering.
 
 5D'S OPEN BULLET ON func_ov007_020c4684 IS SCORED AND IT WAS RIGHT. The trap
 census over the rendered run, by name:
@@ -2011,31 +2038,73 @@ and the port's own cart face returns 0 on all four calls (sizes 0x2e4/3 and
 entered. MEASURED BUT UNFIRED, and not faced: a face for a call nobody makes is
 dead code that deletes a future signal.
 
-ONE THING THAT TRACE TURNED UP THAT IS NOT THIS LANE'S TO FIX. The prose over
-those cart faces in hal/scene_boot.cpp says the callers' failure path is
-SetDefaultValues, "which is exactly right for a host with no cart: the file
-select comes up on default save data", and that this is why the file select
-shows empty files. Returning 0 does the opposite: the readers take the SUCCESS
-arm and return 1, so the port treats the destination buffer as a good read, and
-for arg 20 that buffer is fresh Memory::operator_new2(0xcc) storage nothing
-initialises. Whether the right answer is 1 or 2 needs ROM evidence about
-ReadDataFromCart that this lane does not have, so it is recorded and left.
+ONE THING THAT TRACE TURNED UP THAT IS NOT THIS LANE'S TO FIX, AND THE ROM
+EVIDENCE FOR IT WAS ALREADY IN THE TREE. The prose over those cart faces in
+hal/scene_boot.cpp says the callers' failure path is SetDefaultValues, "which
+is exactly right for a host with no cart: the file select comes up on default
+save data", and that this is why the file select shows empty files. Returning 0
+does the OPPOSITE: the readers take the SUCCESS arm and return 1, so the port
+treats the destination buffer as a good read, and for arg 20 that buffer is
+fresh Memory::operator_new2(0xcc) storage nothing initialises.
+
+THIS LANE SAID THE RIGHT VALUE NEEDED ROM EVIDENCE IT DID NOT HAVE. THAT WAS
+WRONG AND THE REVIEW FOUND IT: src/_ZN8SaveData16ReadDataFromCartEPcjj.cpp is a
+matched TU sitting in src/, and it settles the convention outright.
+
+    return 0   ONLY after the eight magic bytes match data_020a4b40 AND the
+               rotate-xor checksum over the payload equals the stored crc
+    return 1   every failure path, and the FIRST statement in the body is
+               `if (func_0203da3c() == 2) return 1;`, which is the no-media
+               answer this host is permanently in
+    return 2   the backup-copy case, where the primary magic had already failed
+
+So 0 means A VALIDATED READ HAPPENED. THE CORRECT CARTLESS VALUE IS 1, not 2
+and certainly not 0, and the face has the convention exactly backwards.
+
+AND IT CANNOT BE FLIPPED ON ITS OWN, which is why it is recorded here rather
+than fixed here. Flipping it to 1 makes both readers take the branch this lane
+measured them skipping, which FIRES SaveData::SetDefaultValues and
+SetDefaultValuesMg, and those are the two receiver-dropping aliases the census
+below leaves standing. The two faces and the flip have to land in one commit,
+SaveData::SaveDataToCart wants the same audit for the same reason, and the file
+select prose above the faces has to be corrected with them. That work is lane
+SV1.
 
 THE SHAPE IS NOT CONFINED TO ONE BLOCK, which is the other thing 5e could not
 say. A sweep of every /alternatename that reaches link.exe, read through
 port/tools/alternatename_guard.py's own collect_directives so the census cannot
 disagree with the guard about what a linker input is, finds the cdecl-LHS onto
-__thiscall-RHS shape THIRTEEN times in THREE files, not seven times in one:
+__thiscall-RHS shape FOURTEEN times in FIVE files, not seven times in one.
+Thirteen remain after this lane's deletion:
 
-    LIVE, a compiled flat-name caller in walk_window
+    hal/meshcolliderbase_vtable.cpp   8      hal/scene_boot.cpp            2
+    hal/actor_classes_ov073.cpp       1      hal/lk4_eh_dtor_seat.cpp      1
+    hal/level_boot.cpp                1
+
+    FOUR ARE LIVE, a compiled flat-name caller in walk_window
       __ZN15ModelComponents6RenderE...      hal/scene_boot.cpp       FIXED HERE
       __ZN6Player12GetHurtStateEv           hal/actor_classes_ov073.cpp:190
       __ZN13HeapAllocator6RemoveEv          hal/lk4_eh_dtor_seat.cpp:49
       __ZN8SaveData16SetDefaultValuesE...   hal/scene_boot.cpp:1066  unfired
       __ZN8SaveData18SetDefaultValuesMgE... hal/scene_boot.cpp:1067  unfired
-    NO FLAT-NAME CALLER ANYWHERE IN src/, so nothing routes through them
+    NINE HAVE NO FLAT-NAME CALLER ANYWHERE IN src/, so nothing routes through
+    them
       __ZN6Player13OnYoshiTryEatEv          hal/level_boot.cpp:2690
-      seven MeshColliderBase rows           hal/meshcolliderbase_vtable.cpp:44-51
+      EIGHT MeshColliderBase rows           hal/meshcolliderbase_vtable.cpp:44-51
+        Virtual08, DetectClsn x3 (RaycastGround, RaycastLine, SphereClsn),
+        BeforeClsn, TransformPos, GetAngularVelY, GetVelocity. All eight UAE.
+
+  THE FIRST VERSION OF THIS CENSUS SAID THIRTEEN, THREE FILES AND SEVEN
+  MeshColliderBase ROWS, and all three were the same single bug, recorded
+  because the next lane will write the same classifier. The sweep tested for
+  static DATA before it tested for a calling convention, with `@@3`, and `@@3`
+  is the static-data marker only where it follows the qualified NAME. Inside an
+  argument list a bare 3 is a back-reference to the third distinct type, so
+  ?BeforeClsn@MeshColliderBase@@UAEXAAUClsnResult@@PAUActor@@AAUVector3@@PAUVector3_16@@3@Z
+  matched it and one real __thiscall row was filed as data. A function mangling
+  always ends in Z and a data mangling never does, so THAT is the test that
+  goes first. Fixing it also emptied a twelve-row "other-mangled" bucket into
+  data, where it belonged. The three wrong numbers were one wrong ordering.
 
 and the INVERSE shape (a __thiscall LHS bound to a cdecl RHS) five more times,
 in hal/lk4_eh_dtor_seat.cpp:43 and :45, hal/scene_boot.cpp:1015 and :1016, and
@@ -2530,7 +2599,7 @@ agrees in both directions and no other symbol moved.
     reached from func_ov007_020cc600 alone, which the title screen dispatches
     twice; and the calls still do not happen, because the port's cart face
     returns the value that skips the SetDefaultValues arm. And the tree-wide
-    sweep found the shape THIRTEEN times in THREE files rather than seven in
+    sweep found the shape FOURTEEN times in FIVE files rather than seven in
     one, plus five of the inverse shape. Census in 5f.
   - THE NEW ROW'S PREDICATE IS PROVEN AS A SWITCH, NOT AS A DIAGNOSIS. Four
     configures now cover its four states, three run by this lane (0 before the
@@ -2569,12 +2638,16 @@ agrees in both directions and no other symbol moved.
   RUN LINK60 STAGE 5 LANE MR1 ADDS THESE, and the first is the one a reader
   should weigh hardest:
 
-  - THE FACE HAS NOT BEEN OBSERVED PRODUCING A CORRECT FRAME. What is proven is
-    that the receiver ARRIVES (the `mov ecx,[ebp+8]` is in the object), that
-    the Render slot runs 300 times, and that nothing faults. Whether the ROM's
-    title screen looks like the captured BMP is a question about pixels and no
-    lane has answered it. 300 CLEAN RENDERED FRAMES ARE NOT 300 CORRECT ONES,
-    exactly the limit AE1's 299 behavior ticks carry.
+  - THE FACE HAS NOT BEEN OBSERVED PRODUCING A CORRECT FRAME, AND THE FRAME IS
+    NOW MEASURED AS NEARLY EMPTY. What is proven is that the receiver ARRIVES
+    (the `mov ecx,[ebp+8]` is in the object), that the Render slot runs 300
+    times, and that nothing faults. What the frame CONTAINS is three colors:
+    93.52% flat clear color, one solid 128x96 magenta rectangle that is the sub
+    panel, and its 452-pixel outline. No title screen imagery reached the
+    framebuffer. 300 CLEAN RENDERED FRAMES ARE NOT 300 CORRECT ONES, exactly
+    the limit AE1's 299 behavior ticks carry, and here the gap is visible
+    rather than merely arguable. WHY the ROM's drawing does not land is the
+    next question on this path and no lane has opened it.
   - THE FACE IS PROVEN FOR ONE CALLER, NOT TWO. A SECOND flat-name caller
     exists that no earlier lane named: src/engine/fader/_ZN9FaderWipe11-
     AdvanceFadeEv.cpp declares the same flat name at :12 and calls it at :34
@@ -2595,20 +2668,30 @@ agrees in both directions and no other symbol moved.
     is dropped; neither has been observed faulting and neither was traced to a
     firing call. The SaveData pair is measured unfired at today's cart-face
     return value and would start firing the day that value changes.
-  - THE SaveData VERDICT IS CONDITIONAL ON A ONE-LINE HOST FACE. It is not that
-    the ROM never calls SetDefaultValues; it is that this host build's
-    ReadDataFromCart returns 0. That face is a stand-in for a driver the port
-    does not have, and the prose above it in hal/scene_boot.cpp asserts the
-    opposite behaviour from the one measured. Whichever way that gets resolved,
-    the two aliases have to be re-examined with it.
+  - THE SaveData VERDICT IS CONDITIONAL ON A ONE-LINE HOST FACE, AND THAT FACE
+    IS NOW KNOWN TO BE WRONG. It is not that the ROM never calls
+    SetDefaultValues; it is that this build's ReadDataFromCart returns 0, and
+    src/_ZN8SaveData16ReadDataFromCartEPcjj.cpp shows 0 is the validated-read
+    answer while 1 is the no-media one. So the unfired verdict is correct for
+    the binary that exists and WILL STOP BEING CORRECT the moment lane SV1
+    flips it, which is precisely why SV1 has to face both aliases in the same
+    commit. Nothing here should be read as those two aliases being harmless.
   - THE ANCHOR IS A LINE TEST, NOT A PREPROCESSOR. A whole pragma inside a
     /* */ block comment reads as anchored. Recorded above and shared with
     alternatename_guard.py.
-  - walk_window's stderr DID NOT REACH A SHELL REDIRECT in this worktree, so
-    every fprintf(stderr) probe read as silence while the same text on stdout
-    arrived. port/tools/battery.py reads both streams through subprocess pipes
-    and is unaffected, but a lane that measures with `2>` from a shell will
-    measure nothing and read it as absence. Not diagnosed further.
+  - walk_window's stderr DID NOT REACH A SHELL REDIRECT, and the mechanism was
+    already written down in the file this lane was editing, which is the part
+    worth recording. Every fprintf(stderr) probe read as silence while the same
+    text on stdout arrived. hal/scene_boot.cpp's l2_trap comment says it
+    outright: stderr goes to the flight recorder's playlog FILE because
+    walk_window redirects it, so a parent capturing the child's pipes never
+    sees a word of it. That comment also corrects what the first version of
+    this bullet claimed. port/tools/battery.py is NOT unaffected because it
+    reads both streams; it is unaffected because every marker deliberately
+    prints to stdout as well, FOR THIS REASON. A probe that writes only to
+    stderr measures nothing, from a shell or from the battery, and its output
+    is sitting in playlog/*.log rather than lost. Cost this lane two rebuilds,
+    and it was avoidable by reading twelve lines of its own file.
 
 
 8a. THE TAIL-JUMP FLOOR IS GUARDED (run link60 Stage 5 lane TJG)
