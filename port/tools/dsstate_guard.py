@@ -17,12 +17,42 @@ port hosts:
     data_ovNNN_0XXXXXXX      an overlay data symbol
     LCG_STATE_0XXXXXXX       the particle RNG
     port_ovNNN_image         a whole-overlay host image
+    <Class>_SpawnInfo        an actor's spawn record, mounted by name
     _ZNK...E / _ZN...E       a C++-mangled DS data symbol (rare; the heap
                              registry root iterator is one)
 
 Host-only symbols (walk_window's playlog path, ntr_2x window state, the CRT)
 never match these patterns, so they are correctly ignored: they must NOT be in
 .dsstate and the guard does not ask them to be.
+
+...OR ANY READ/WRITE DATA SYMBOL IN A GENERATED MOUNT OBJECT, WHATEVER ITS NAME
+------------------------------------------------------------------------------
+The name list cannot be the whole test, and the way it fails is the way that
+matters: it goes QUIET rather than red.
+
+dsd spells a symbol data_ovNNN_ADDRESS only when it had nothing better to call
+it. Every symbol it did have a name for -- every *_SpawnInfo record and every
+_ZTV vtable a mount list asks for, 344 of them across the lists this build
+mounts -- matched nothing above, and neither did the synthetic
+port_ovNNN_gap_ADDRESS blocks tools/ovdata.py invents for un-symbolized statics.
+All of them are hosted DS storage. The 344 happened to be inside .dsstate and
+were checked by hand; the gap blocks in packed mounts were NOT, and 28 of them
+sat outside the captured span until tools/ovdata.py was fixed to route them.
+This guard was the thing that should have said so and could not.
+
+So the test is also keyed on the OBJECT. tools/ovdata.py emits nothing into
+ovNNN_data.c / ovNNN_syms.c but hosted DS storage, so every READ/WRITE data
+symbol in one of those objects belongs in .dsstate, whatever it is called and
+whether or not anyone has thought of it yet. Read-only data in those objects is
+correctly outside and falls out of the test by its segment, not by a name list:
+the const DS-window pair port_ovNNN_ds_base/_ds_end and the MSVC string
+literals behind the pack check all live in .rdata.
+
+A LEADING UNDERSCORE. 32-bit MSVC decorates C symbols, data included, so a
+mount's `_ZTV9PushBlock` is spelled `__ZTV9PushBlock` in the map. The two
+C++-mangled exceptions below were written without it and so had never matched
+anything; they are spelled with an optional one now. Both are inside .dsstate,
+so nothing was stranded by it, but the guard was not proving what it said.
 
 HOW THE BOUND IS READ
 ---------------------
@@ -68,11 +98,27 @@ HOSTED = re.compile(
     r"|data_ov\d+_0[0-9a-fA-F]{7}"   # overlay data
     r"|LCG_STATE_0[0-9a-fA-F]{7}"    # particle RNG
     r"|port_ov\d+_image"             # whole-overlay host image
+    r"|[A-Za-z_][A-Za-z0-9_]*_SpawnInfo"   # an actor's spawn record
     r")$"
     # plus the handful of C++-mangled DS data symbols the port hosts; matched
-    # loosely by the trailing E on a data name we know lands in rw data.
-    r"|^_ZN6Memory16rootHeapIteratorE$"
-    r"|^_ZN6Memory25isRootHeapIterInitializedE$")
+    # loosely by the trailing E on a data name we know lands in rw data. The
+    # inner underscore is MSVC's C decoration -- see the header.
+    r"|^__?_ZN6Memory16rootHeapIteratorE$"
+    r"|^__?_ZN6Memory25isRootHeapIterInitializedE$")
+
+# A GENERATED OVERLAY-MOUNT OBJECT. tools/ovdata.py writes ovNNN_data.c for a
+# plain or whole mount and ovNNN_syms.c for a packed one, and it puts nothing
+# into either but hosted DS storage, so a read/write data symbol in one of them
+# is save state by construction. This is the half of the test that does not
+# depend on anybody having named the symbol shape first.
+MOUNT_OBJ = re.compile(r"^ov\d+_(?:data|syms)\.c\.obj$")
+
+# Sections that hold read-only data. A segment carrying one of these is not
+# storage the game writes, so the object test above does not reach into it:
+# that is what keeps the const port_ovNNN_ds_base/_ds_end pair and the pack
+# check's string literals out of the result without naming them.
+RO_SECTIONS = (".rdata", ".CRT", ".idata", ".edata", ".gfids", ".00cfg",
+               ".rsrc", ".reloc", ".didat", ".tls")
 
 SENTINELS = {"_dsstate_lo", "dsstate_lo", "_dsstate_hi", "dsstate_hi"}
 
@@ -111,10 +157,14 @@ def main():
     lo = hi = None
     rows = []
     dsstate_segs = {}
+    seg_sections = {}
+    seg_class = {}
     for line in text.splitlines():
         s = SECTION_ROW.match(line)
         if s:
             sseg, soff, slen, sname, sclass = s.groups()
+            seg_sections.setdefault(sseg, set()).add(sname)
+            seg_class[sseg] = sclass
             if sname.startswith(".dsstate"):
                 dsstate_segs.setdefault(sseg, []).append(sname)
             continue
@@ -129,7 +179,16 @@ def main():
             lo = rva
         elif name in ("_dsstate_hi", "dsstate_hi"):
             hi = rva
-        rows.append((name, rva, obj))
+        rows.append((seg, name, rva, obj))
+
+    # The segments the object test is allowed to reach into: DATA-class ones
+    # holding no read-only section. On this build that is .bss/.data, .dsstate
+    # and the handful of custom grouped families, and it excludes the one
+    # carrying .rdata, which is where a mount's const DS-window pair and every
+    # string literal behind its pack check live.
+    rw_segs = {sseg for sseg, names in seg_sections.items()
+               if seg_class.get(sseg) == "DATA"
+               and not any(n.startswith(RO_SECTIONS) for n in names)}
 
     # The split-section trap. MSVC will not merge two same-named sections whose
     # characteristics differ, so a contribution routed in with a bare bss_seg
@@ -168,14 +227,21 @@ def main():
 
     outside = []
     seen = set()
-    for name, rva, obj in rows:
+    by_name = by_obj = 0
+    for seg, name, rva, obj in rows:
         if name in SENTINELS or name in BOOT_CONSTANT:
             continue
-        if not HOSTED.match(name):
+        named = bool(HOSTED.match(name))
+        mounted = bool(MOUNT_OBJ.match(obj)) and seg in rw_segs
+        if not (named or mounted):
             continue
         if name in seen:      # a symbol can appear under several C++ aliases
             continue
         seen.add(name)
+        if named:
+            by_name += 1
+        else:
+            by_obj += 1
         if obj.endswith(CONST_OBJS):   # read-only ROM constants, never diverge
             continue
         if not (lo <= rva < hi):
@@ -198,12 +264,19 @@ def main():
               "Rename its section into the captured family instead, "
               "`.dsstate$<family><NNNN>`, the way tools/ovdata.py names packed "
               "overlay mounts `.dsstate$pkNNN_SSSS`.\n"
-              "  - a generated overlay file: have tools/ovdata.py emit the "
-              "markers.", file=sys.stderr)
+              "  - a generated overlay file (ovNNN_data.c / ovNNN_syms.c): the "
+              "symbol above is not hand-written, so fix the EMITTER. Every "
+              "array tools/ovdata.py writes needs either an explicit "
+              "__declspec(allocate(\".dsstate$...\")) or the .dsstate default "
+              "data_seg open around it; a packed mount opens no default, so an "
+              "ordinary file-scope array there falls out of the capture. "
+              "port/tools/gapaudit.py lists the blocks and which side of the "
+              "span they land on.", file=sys.stderr)
         sys.exit(1)
 
     print(f"dsstate_guard: OK -- {len(seen)} hosted DS symbols all inside "
-          f".dsstate [{lo:#x}, {hi:#x}), {(hi - lo)} bytes captured.")
+          f".dsstate [{lo:#x}, {hi:#x}), {(hi - lo)} bytes captured "
+          f"({by_name} matched by name, {by_obj} by mount object).")
 
 
 if __name__ == "__main__":
