@@ -45,6 +45,42 @@ constexpr uint32_t DIVCNT = 0x4000280, DIV_NUMER = 0x4000290, DIV_DENOM = 0x4000
 constexpr uint32_t DIV_RESULT = 0x40002A0, DIV_REM = 0x40002A8;
 constexpr uint32_t SQRTCNT = 0x40002B0, SQRT_RESULT = 0x40002B4, SQRT_PARAM = 0x40002B8;
 
+// GXSTAT is NOT a plain latch, and modelling it as one deadlocks the renderer.
+//
+// Bits 16..27 -- the command-FIFO entry count (16-24), "FIFO less than half
+// full" (25), "FIFO empty" (26) and "geometry engine busy" (27) -- are driven
+// by the geometry engine and are READ-ONLY. A store to GXSTAT on a DS reaches
+// only the matrix-stack error flag (15) and the FIFO IRQ mode (30-31); the
+// status field keeps reporting the hardware's own state.
+//
+// The game leans on that. func_0205583c (Initialise3dGraphics, and
+// Scene::Initialise3dGraphics under it) opens with
+//
+//     *(volatile unsigned int *)0x4000600 = 0;      // src/func_0205583c.c
+//     ...
+//     *(volatile unsigned int *)0x4000600 |= 0x8000;
+//     *(volatile unsigned int *)0x4000600 = (... & ~0xc0000000) | 0x80000000;
+//
+// On hardware that clears the error flag and selects an IRQ mode, and bits
+// 25/26 stay set because the FIFO really is empty. On a latch the `= 0` wipes
+// them and nothing ever puts them back, so GXSTAT reads 0x80008000 forever --
+// and func_0205a358, the display-list submit, opens with
+//
+//     while (((GXSTAT & 0x7000000) >> 0x18 & 2) == 0) ;
+//
+// which is a wait for bit 25. Measured: with the latch, the star select's
+// first submit (a correctly loaded and correctly rebased 692-byte list) never
+// returns, and PORT_WATCHDOG catches the main thread in that spin, reading
+// GXSTAT through ntr::io_read. See the io_write hook below.
+//
+// The host's FIFO is always empty and never busy: ntr executes a display list
+// synchronously inside the submit, so there is no queue to be backed up.
+// GXSTAT_IDLE is that truth, and io_init already brings the register up
+// holding it.
+constexpr uint32_t GXSTAT = 0x4000600;
+constexpr uint32_t GXSTAT_HW = 0x0FFF0000;    // bits 16..27, geometry-engine owned
+constexpr uint32_t GXSTAT_IDLE = 0x06000000;  // empty + less-than-half-full, not busy
+
 void run_divide() {
     const uint16_t mode = static_cast<uint16_t>(raw_read(DIVCNT, 2)) & 3;
     const int64_t numer = static_cast<int64_t>(raw_read(DIV_NUMER, 8));
@@ -408,8 +444,25 @@ bool io_init() {
     return true;
 }
 
+// Force the geometry-engine-owned half of GXSTAT back to the host's real state.
+// Done in the LATCH rather than only in the returned value on purpose: most of
+// the game's GXSTAT accesses are NOT routed through this proxy (only the nine
+// GATE4A symbols are hostgen'd, and func_0205583c -- the store that wipes the
+// status field -- is not one of them), so those land in mapped memory directly.
+// Normalising the latch on every proxied touch keeps the raw readers honest too.
+static void gxstat_normalize() {
+    const uint32_t v = static_cast<uint32_t>(raw_read(GXSTAT, 4));
+    const uint32_t fixed = (v & ~GXSTAT_HW) | GXSTAT_IDLE;
+    if (fixed != v) raw_write(GXSTAT, fixed, 4);
+}
+
+static bool hits_gxstat(uint32_t addr, unsigned width) {
+    return addr < GXSTAT + 4 && addr + width > GXSTAT;
+}
+
 uint64_t io_read(uint32_t addr, unsigned width) {
     if (!g_io && !io_init()) return 0;
+    if (hits_gxstat(addr, width)) gxstat_normalize();
     return raw_read(addr, width);
 }
 
@@ -425,6 +478,10 @@ void io_write(uint32_t addr, uint64_t value, unsigned width) {
     // the WorkElevator rider-push chain (run linkw wave 5, lane w5-b).
     // Recomputing on both halves is idempotent for low-word-only writers.
     if (addr == DIV_DENOM || addr == DIV_NUMER || addr == DIVCNT) run_divide();
+    // Put the read-only half of GXSTAT back after any store that overlapped it,
+    // whatever its width. See the GXSTAT note above the constants: the writable
+    // bits (15, 30-31) keep whatever the game just stored.
+    if (hits_gxstat(addr, width)) gxstat_normalize();
     // The sqrt trigger covers BOTH halves of the 64-bit parameter. The ROM's
     // own driver (func_02053008, and its sibling func_020531a4) writes
     // SQRT_PARAM as two 32-bit stores, LOW half first and the real operand in
