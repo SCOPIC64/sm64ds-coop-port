@@ -815,3 +815,180 @@ UNPROVEN, AND THE BOUNDARIES
     be in; it cannot know that a NEW target should have hosted one. Widening
     it is a measurement anyone can take, narrowing it needs the reason in the
     commit, and neither is enforced by anything but review.
+
+12. THE ENGINE-A LAYER MASK WAS NEVER PUBLISHED, AND A WHOLE TOP SCREEN WENT
+     MISSING BEHIND IT
+------------------------------------------------------------------------------
+Run link60 Stage 5, lane VP1, base 8cfd47f09, gate GREEN 5833/11250 (51.8%),
+battery ALL GREEN, one skip (scene 1 BLOCKED on the ov007 ae558 HOST ABI seam).
+
+THE QUESTION THIS ANSWERS was put as a viewport question: scene 374's top-screen
+frames carry their bright content as a small cluster in the bottom-right corner
+with a dim backdrop everywhere else, and is that curling's intended composition
+or a renderer defect. It is neither of the two things the question offered.
+
+12a. THE CORNER CLUSTER IS THE PORT'S OWN BOTTOM SCREEN
+
+Measured on the published frames, geometry only:
+
+    fdr2_scene374.bmp / the mid-fade frame   512x384
+    183,868 px of (16,24,32); every other pixel inside one rectangle
+    non-clear bbox   x 375..504 (130 wide), y 279..376 (98 tall)
+    pure black       452 px, exactly that rectangle's perimeter
+    interior         376..503 x 280..375 = 128x96, all written
+    non-clear px outside that rectangle    ZERO
+
+Both numbers are host constants.
+
+  0x101820 is hal/scene_boot.cpp's own frame clear in port_scene_run's render
+  bucket, written before gx_render.
+
+  The rectangle is ntr::ppu_compose_sub's corner panel. hal/sub_screen.cpp:704
+  computes x0 = w - SUB_W/div - kMargin and y0 = h - SUB_H/div - kMargin, with
+  kMargin 8 and div 2 (SM64DS_SUB_SCALE's default), and ppu_compose_sub draws a
+  one-pixel frame around it. At 512x384 that predicts the frame at 375..504 /
+  279..376 and a 128x96 interior. Predicted and measured agree on every edge.
+
+So the cluster is a picture-in-picture overlay the port draws on purpose, and
+"63x47 DS pixels" is its 126x94 host-pixel interior read at the 2x tier. No
+claim is made here about what any of those pixels look like.
+
+12b. THE TOP SCREEN ITSELF: THE ROM ASKS FOR A FULL SCREEN AND GETS NOTHING
+
+SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=300 SM64DS_FAULTS_FATAL=1, exit 0:
+
+    DISPCNT_A     00000000 x255, 00006000 x45
+                  bits 8-12, the BG and OBJ enables, are ZERO on all 300
+    BG2CNT_A      1222 x300  prio 2, chars 06020000, screen 06009000, 4bpp,
+                             32x32 tiles -- a FULL-SCREEN background
+    BG1CNT_A      1000 x300
+    BLDCNT_A      0d40 x300   } dScMgCurling_c's own
+    BLDALPHA_A    1002 x300   } SetBlendAlpha(0x4000050, 0, 0xd, 2, 0x10)
+    WIN0H/1H/0V/1V/WININ  live (the dWipe_c IRQ-2 scanline fade)
+    engine-A OAM  53 PLACED sprites every frame, all mode 0
+    VIEWPORT      x 0, y 0, w 512, h 384 on all 300 samples
+    POLYGONS      0 on all 300 samples
+    the pair      layer mask d45c=14 vs DISPCNT bits 8-12=00 -- NOT PUBLISHED
+
+WHAT THE ROM INTENDS, from its own matched sources. src/func_ov006_020e3578.c
+(dScMgCurling_c::InitResources) sets data_0209d45c |= 4, forces BG2CNT to
+priority 2 and then to (old & 0x43) | 0x1220, decompresses the BG2 tiles to
+G2::GetBG2CharPtr(), loads the BG palette (file 0x2f, 0x60, 0x1a0) and a
+0x800-byte tilemap (file 0x30) -- 0x800 is 32*32*2, a full 32x32 screen -- and
+loads engine A's OBJ tiles and palette (files 0xc7 and 0xc8). It never writes
+DISPCNT, because on the DS nothing of that kind does.
+
+src/func_02019144.c is what writes DISPCNT. Line 46:
+
+    *(vu32 *)0x4000000 = (*(vu32 *)0x4000000 & ~0x1f00) | (data_0209d45c << 8);
+
+It is the ROM's once-per-frame display sync and the port does not run it.
+hal/sub_screen.cpp already reproduces its other beats -- the engine-B mask
+publish on the next line, the scene graphics block's callback, OAM::Load -- and
+the engine-A line was the remainder. The port's only stand-in for it was
+hal/message_pump.cpp's port_message_flush_engine_a_regs, which sits behind
+"if (data_0209d660 == 0) return;". A minigame has no dialogue box.
+
+hal/message_compositor.cpp then exits on "if (!any_bg && !obj_on) return;"
+every frame and the top-screen framebuffer keeps nothing but the clear colour.
+
+RULED OUT BY NAME, each on its own measurement, because the brief named four
+candidate transforms and three of them are innocent:
+
+    the viewport model   latched full-screen 0,0 512x384 on all 300 samples
+    the 3D projection    zero polygons, and BG0/3D is not in the intended mask
+                         (d45c bit 0 clear), so an absent 3D layer is correct
+                         for a 2D minigame rather than a fault
+    the 2x scanout       the panel's measured geometry matched its own
+                         arithmetic on every edge, 12a
+    a BG scroll          BG2's own offsets are 0,0 and its map is 32x32, which
+                         is already the whole screen
+
+12c. WHAT WAS ADDED TO THE INSTRUMENT, AND WHY THE 2D TABLE COULD NOT SEE IT
+
+Sections 1-11 sample 2D registers only, and on the top screen that is half the
+picture. An empty frame reads identically whether the 3D layer submitted
+nothing or the 2D layers were never enabled, so the table alone cannot separate
+a viewport fault from an enable fault -- which is exactly the ambiguity this
+lane was sent to resolve.
+
+  ntr/ppu_audit.cpp grows an ENGINE A 3D LAYER section: the latched VIEWPORT
+  rectangle and the POLYGON count, sampled at the same instant as the 2D
+  registers so the two are comparable. The viewport is read through a new
+  ntr::gx_debug_viewport, beside the existing gx_debug_matrices, and is in HOST
+  framebuffer pixels because that is what the command handler already scaled it
+  to. Four slots rather than one packed sample: a packed rectangle has to drop
+  bits, and a viewport row that cannot represent every rectangle the port can
+  latch is the instrument that lies on the one frame it matters.
+
+  hal/message_compositor.cpp's own debug dump no longer needs a dialogue box to
+  fire. It was gated on data_0209d660, which made it blind to the case it is
+  most useful for, and it now prints the mask-and-register PAIR rather than
+  just the register.
+
+12d. THE FIX, AND WHAT IT IS MEASURED NOT TO DISTURB
+
+func_02019144 line 46, at the head of port_message_composite_engine_a, before
+it reads DISPCNT. Placed there for the same reason engine B's publish sits
+inside hal_sub_screen_present twenty-five lines above ppu_scanout_sub: the
+rasteriser reads the mask it just published. SM64DS_ENGINE_A_NO_PUBLISH=1
+restores the old behaviour on the same binary, so a before/after is one build
+and one .dsstate base.
+
+SAME-BINARY A/B, scene 374, 300 frames, both exit 0, .dsstate base 0xbad000:
+
+    A (publish off)   non-clear 12,740, ALL inside the panel box,
+                      bbox 375..504 / 279..376 -- reproduces the published
+                      frames' geometry exactly
+    B (publish on)    non-clear 164,143, bbox 0..511 / 0..383; the compositor
+                      covers 40,320 of 49,152 DS px on the first frame
+    151,403 px differ, ZERO of them inside the panel box
+
+THE ENGINE-A PATH IS SHARED WITH THE WHOLE GAME, so the level side was measured
+rather than reasoned about. Same binary, SM64DS_WINDOW_SELFTEST=300:
+
+    level  1   md5 a524c2a464aff1a80cd5ca899af665f9   IDENTICAL both ways
+    level  5   md5 001a22b1f1f4a79788b57d442baaf027   IDENTICAL both ways
+    level 24   md5 ea8c6aa57a35e05c9ce79e65de49c18e   IDENTICAL both ways
+    level 35   md5 732c86336c781210bf49c96cddb7d9a5   IDENTICAL both ways
+
+and the reason, from the same runs: on a level the mask reads d45c=00 against
+DISPCNT bits 8-12 = 00, so the publish writes zero over zero.
+
+WHAT "BATTERY ALL GREEN" DOES AND DOES NOT COVER HERE. port/tools/battery.py
+runs each level's selftest and reads its RETURN CODE; it does not compare
+walk_window_selftest.bmp against anything. The docstring at the top of that
+file is guidance for a human reading a BMP diff, not a gate step. So the green
+over 46 levels says every level still boots and runs 300 frames clean, and the
+four md5 rows above are the only evidence that the frames are unchanged.
+
+UNPROVEN, AND THE BOUNDARIES
+
+  * FOUR LEVELS, NOT FORTY-SIX. The BMP-identity measurement covers levels 1,
+    5, 24 and 35. The other 42 are covered by exit code only. A level that
+    leaves data_0209d45c nonzero would newly composite engine-A 2D over its 3D
+    frame, and that is the change this fix is FOR, so on such a level a BMP
+    delta would be the fix working rather than a regression -- but nobody has
+    found one and the distinction has not had to be made.
+  * NO CLAIM ABOUT WHAT THE CURLING FRAME LOOKS LIKE. B covers 82% of the top
+    screen with the ROM's own BG2 and its 53 sprites, decoded through the
+    port's existing engine-A raster. That the right REGISTERS are now read says
+    nothing about whether the tiles, the palette or the sprite placement are
+    right, and this lane did not look. Tango judges the frame.
+  * THE ONE-FRAME QUESTION IS NOT SETTLED BY THE PROBE. The mask-vs-register
+    pair is printed once, on the first composited frame. The 300-frame BMPs are
+    what carry the rest of the run, not that line.
+  * port_message_flush_engine_a_regs IS NOW REDUNDANT IN ITS DISPCNT HALF and
+    was deliberately left alone: it is another lane's file, the write is
+    idempotent, and its BG3-offset half is still the only thing flushing that
+    register. Recorded rather than cleaned up.
+  * NO PUBLISHER COUNT IS QUOTED. A sweep for the literal "data_0209d45c << 8"
+    answers nine files and a statement-level sweep answers a different eight.
+    The number is an artifact of the pattern. The claim that survives both is
+    that func_02019144 is the per-frame one, and on this path the run's own
+    slot census shows ov004's publishing slots 29 and 30 were never entered.
+  * THE DS VIEWPORT'S Y ORIGIN IS UNTESTED. GBATEK measures the viewport's y
+    from the BOTTOM of the screen; ntr/gx.cpp's command 0x60 handler treats y1
+    as a top offset. The two agree exactly for a full-screen viewport, which is
+    the only one this run ever latched, so nothing here distinguishes them.
+    Found while ruling the viewport out and left as found.
