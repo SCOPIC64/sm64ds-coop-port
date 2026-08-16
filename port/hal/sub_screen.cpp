@@ -436,8 +436,16 @@ void hal_sub_screen_init_hw(void *hwnd, int zoom)
        to map pixel (0, 0), so the layer samples one blank tile and the whole
        panel comes out backdrop white. Minimap::InitResources configures BG3CNT
        and turns the layer on and is right to; it never touches the matrix.
-       Both engines' BG2 and BG3 get the same treatment func_02053c40 gives
-       them, so a later affine BG2 does not land on the same puzzle. */
+
+       THIS IS FOUR OF THE EIGHT WORDS func_02053c40 WRITES, and the comment
+       used to claim both engines. It does not: every address below is
+       0x040010xx, the SUB engine. The ROM also seeds the main engine's four
+       at 0x04000020 / 26 / 30 / 36, and the port does not. Sub BG2 is covered
+       here so a later affine BG2 on THIS engine does not land on the same
+       puzzle; main BG2 and BG3 are still unseeded, which is a real gap and
+       deliberately not closed from this line -- writing main-engine display
+       registers during bring-up can move the level frame, and that is a
+       measurement somebody has to make rather than a word somebody changes. */
     *(volatile unsigned short *)0x04001020 = 0x100;   /* BG2PA sub */
     *(volatile unsigned short *)0x04001026 = 0x100;   /* BG2PD sub */
     *(volatile unsigned short *)0x04001030 = 0x100;   /* BG3PA sub */
