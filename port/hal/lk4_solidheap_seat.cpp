@@ -528,8 +528,36 @@ extern "C" unsigned int _ZN4Heap11ResizeToFitEv(void *thiz)
    sequencing gate the header records is now discharged. */
 extern "C" void _ZN4Heap8_DestroyEv(void *thiz);
 
-extern "C" void _ZN4Heap7DestroyEv(void *thiz)
-{ ((Heap *)thiz)->Heap::Destroy(); }
+/* THE FLAT C FACE ONTO Heap::Destroy WAS DEFINED HERE AND IT MOVED, CODE ONLY.
+   The two lines that left are
+
+       extern "C" void _ZN4Heap7DestroyEv(void *thiz)
+       { ((Heap *)thiz)->Heap::Destroy(); }
+
+   and they are now in hal/actor_vtables.cpp, immediately under the Heap_Destroy
+   face, character for character. Signature, qualified call and receiver
+   delivery are identical; nothing about the face changed but its address.
+
+   THE EVIDENCE FOR THEM IS STILL THIS BLOCK, and the verification they carry is
+   still the LK5 review, which passed all six groups with no amendment: it
+   re-extracted the veneer's twelve ROM bytes independently and got MATCH at
+   both ends, reproduced both quantitative probe claims, and confirmed family
+   3's wider shape by a WHOLE-IMAGE SWEEP that found both caller kinds correct
+   at tip. The coordinator touch-up recorded that sweep ruling in the directive
+   block at the head of this file. A reader who wants to know why the moved
+   lines are right reads here, not there.
+
+   WHY IT HAD TO MOVE is a link fact lane LK5 had no way to see: run link60 lane
+   SC1 wired hal/actor_vtables.cpp's role-named Heap_Destroy, the third spelling
+   of the same address, onto the veneer. That file is compiled into three MORE
+   targets than this one (smoke_actor, smoke_savestate, smoke_persist) and
+   GATE9_GEN puts the matched actor teardown, which calls Heap_Destroy, in all
+   of them, so the face sitting only here is an LNK2019 on those three. It went
+   to the CONSUMER's own TU rather than to a shared heap file because
+   actor_vtables.cpp is the only file whose target set is exactly the set that
+   needs the chain; hal/heap_vtable.cpp was tried first and then demanded
+   Heap::Destroy from every anim and soak smoke. Both readings are measured
+   build output, not file-list reasoning. */
 
 /* the other direction: Virtual38's method call arrives with the receiver in
    ECX, and the veneer now wants it pushed */

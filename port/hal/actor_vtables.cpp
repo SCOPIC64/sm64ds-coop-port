@@ -261,8 +261,7 @@ void func_02052820(int *m, int s, int c)
 }
 
 // Cleanup-path heap wrappers: unnamed on the DS side here; the semantics
-// are the gate-3a Memory layer's. Destroy is never reached in the gate
-// (the smoke does not tear its heap-owning actor down), so it traps.
+// are the gate-3a Memory layer's.
 extern "C" {
 /* TWO arguments -- 0x0203c1e8, Memory::Deallocate(void*, Heap*). Nothing in
    this TU calls it, but the declaration has to agree with the definition in
@@ -270,13 +269,85 @@ extern "C" {
    links against a two-argument definition without a word, and that silence is
    exactly how the actor teardown lost its heap argument. */
 void Memory_Deallocate(void *p, void *heap);
+
+/* Heap_Destroy IS ARM9 0x0203c74c, Heap::_Destroy, AND IT IS THE THIRD
+   SPELLING OF THAT ONE ADDRESS IN THIS TREE. The other two are the C symbol
+   _ZN4Heap8_DestroyEv (src/_ZN4Heap8_DestroyEv.cpp, the ROM's own tail-call
+   veneer) and the C++ method Heap::_Destroy (the receiver-bridging face at the
+   bottom of hal/lk4_solidheap_seat.cpp). This one exists because the matched
+   teardown TU spells the callee by role at C linkage rather than by mangled
+   name: src/_ZN9ActorBase21AfterCleanupResourcesEj.c declares
+   "void Heap_Destroy(void*);" with the comment "0x0203c74c = Heap::_Destroy"
+   beside it, and calls it on line 60 as
+   "if (this->unk4C) Heap_Destroy(this->unk4C);".
+
+   IT USED TO ABORT, and the banner above used to say Destroy is never reached
+   so it traps. The trap was correct as a statement about coverage and wrong as
+   a permanent answer: an actor that owns a heap and reaches vfSuccess 2 kills
+   the process instead of freeing the heap, and nothing about that is a port
+   decision the ROM would recognise. It could not be wired before run link60
+   lane LK5. Until that landed, _ZN4Heap8_DestroyEv was reached through an
+   /alternatename off ?_Destroy@Heap@@QAEXXZ and its host body took NO
+   parameter, so the receiver this face holds had nowhere to go. LK5 deleted
+   that directive, named the parameter in the byte-matched veneer TU (zero ARM
+   cost, r0 is already in place for the tail call) and put a Heap::_Destroy
+   face the other way round beside it. The veneer now takes and delivers a
+   receiver, so a pushed-argument face onto it is a straight forward.
+
+   NO ABI SEAM HERE, which is the whole reason this is three lines. Both sides
+   are C linkage, __cdecl, one pointer argument, so the heap rides the first
+   stack slot in and the first stack slot out. This is the same direction as
+   Memory_Deallocate above (a role name onto the real body), not the ECX-versus-
+   stack shape the four sibling families needed. */
+void _ZN4Heap8_DestroyEv(void *thiz);
 void Heap_Destroy(void *h)
 {
-    (void)h;
-    fprintf(stderr, "FATAL: Heap_Destroy reached (unwired)\n");
-    abort();
+    _ZN4Heap8_DestroyEv(h);
 }
 }
+
+/* THE OTHER END OF THAT CHAIN, AND IT MOVED HERE FROM LK5'S FILE FOR A LINK
+   REASON THIS LANE MEASURED RATHER THAN GUESSED.
+
+   src/_ZN4Heap8_DestroyEv.cpp, the ROM's byte-matched veneer, tail-calls the
+   flat C name _ZN4Heap7DestroyEv, and the definition of that name is a face
+   onto the __thiscall method Heap::Destroy. LK5 wrote the face at the bottom of
+   hal/lk4_solidheap_seat.cpp, next to the probe evidence that earned it, and
+   that evidence is still the reference for it.
+
+   THE TARGET SETS DO NOT MATCH, which is what forced the move. Three sets are
+   in play and only one of them is right:
+
+     hal/lk4_solidheap_seat.cpp   3 targets (smoke_player, walk_window,
+                                  walk_window_hires)
+     hal/actor_vtables.cpp        6 targets, those three plus smoke_actor,
+                                  smoke_savestate and smoke_persist
+     hal/heap_vtable.cpp          far more than six, including the anim and
+                                  soak smokes
+
+   Heap_Destroy above is compiled wherever THIS file is, and GATE9_GEN puts its
+   caller, the matched actor teardown, in all six. So wiring it while the face
+   sat in the 3-target file gave three LNK2019s on __ZN4Heap8_DestroyEv, and
+   parking the face in heap_vtable.cpp instead moved the failure rather than
+   fixing it: every anim and soak smoke then demanded ?Destroy@Heap@@QAEXXZ,
+   which none of them has any business linking. Both readings are from this
+   lane's own build output, not from reasoning about the file lists.
+
+   THIS FILE IS THE ONLY ONE WHOSE TARGET SET IS EXACTLY THE SET THAT NEEDS THE
+   CHAIN, because it is the file that creates the demand. The two src TUs behind
+   the face reach the three smokes through HEAP_DESTROY_CHAIN_SRC in
+   port/CMakeLists.txt and the three big targets through slice_gate16.
+
+   The face itself is unchanged from LK5's: flat C in, qualified __thiscall out,
+   no receiver invented anywhere. The shadow has to be a CLASS and not a struct
+   for the same reason hal/heap_vtable.cpp says beside its own pair, the src TUs
+   declare `class Heap` and mangle PAV. */
+class Heap {
+public:
+    void Destroy();
+};
+extern "C" void _ZN4Heap7DestroyEv(void *thiz)
+{ ((Heap *)thiz)->Heap::Destroy(); }
 
 extern "C" {
 int func_0204424c(char *c);

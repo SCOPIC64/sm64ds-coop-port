@@ -594,7 +594,35 @@ endforeach()
 set(HEAP_INITGAME_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4Heap18InitializeGameHeapEjPS_.c")
 
+# THE HEAP DESTROY CHAIN for the same three actor smokes, and it is here for
+# the same reason HEAP_INITGAME_SRC is: two src lines that live in a slice these
+# targets do not carry.
+#
+# hal/actor_vtables.cpp hosts Heap_Destroy, the role-named spelling of arm9
+# 0x0203c74c that src/_ZN9ActorBase21AfterCleanupResourcesEj.c calls when a
+# dying actor owns a heap. It used to abort. Run link60 lane LK5 made the ROM's
+# own veneer carry a receiver, so it can now forward instead, and the forward
+# needs the veneer TU and the method behind it:
+#
+#   src/_ZN4Heap8_DestroyEv.cpp   the ROM's tail-call veneer, byte matched
+#   src/_ZN4Heap7DestroyEv.cpp    Heap::Destroy, the method it tail-calls
+#
+# Both are in slice_gate16.txt, which rides smoke_player, walk_window and
+# walk_window_hires only. actor_vtables.cpp rides those three AND smoke_actor,
+# smoke_savestate and smoke_persist, and GATE9_GEN puts the calling teardown TU
+# in all six, so without these two lines the three smokes link-fail on
+# __ZN4Heap8_DestroyEv. Measured, not predicted: all three reported that exact
+# LNK2019 before this was added. The C face _ZN4Heap7DestroyEv sits in
+# hal/heap_vtable.cpp, which all six already compile.
+#
+# No target gets a duplicate: the three big targets take these two TUs from
+# slice_gate16 and are not listed here.
+set(HEAP_DESTROY_CHAIN_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4Heap8_DestroyEv.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN4Heap7DestroyEv.cpp")
+
 add_executable(smoke_actor tests/smoke_actor.cpp "${HEAP_INITGAME_SRC}"
+    ${HEAP_DESTROY_CHAIN_SRC}
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
     hal/clsn_vtable.cpp hal/actor_vtables.cpp hal/anim_bridge.cpp
@@ -619,6 +647,7 @@ endif()
 # Save-state verification (lane lk6): the same actor world as smoke_actor, plus
 # hal/lk6_savestate.cpp, driving save -> diverge -> load -> byte-exact compare.
 add_executable(smoke_savestate tests/smoke_savestate.cpp "${HEAP_INITGAME_SRC}"
+    ${HEAP_DESTROY_CHAIN_SRC}
     hal/lk6_savestate.cpp hal/dsstate_seg.cpp hal/auto_bss.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
     hal/model_host.cpp hal/gx_upload_bridge.cpp hal/cstd_div.c
@@ -644,6 +673,7 @@ endif()
 # whole point, so the test crosses a real process boundary. Two header-refusal
 # cases (corrupted magic, stale gittip) run in the parent afterwards.
 add_executable(smoke_persist tests/smoke_persist.cpp "${HEAP_INITGAME_SRC}"
+    ${HEAP_DESTROY_CHAIN_SRC}
     hal/lk6_savestate.cpp hal/lk7_persist.cpp hal/dsstate_seg.cpp
     hal/auto_bss.cpp
     hal/heap_globals.cpp hal/os_arena.cpp hal/heap_vtable.cpp hal/fs.cpp
@@ -2823,6 +2853,38 @@ foreach(line IN LISTS SLICE_OV007_LINES)
     list(APPEND SLICE_OV007_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# run link60 lane SC1: THE SCENE 1 INTERIM, AND ITS OWN RETIREMENT SWITCH.
+#
+# func_ov007_020c9688 is scene 1's blocker and it is a hole in the DECOMP:
+# config/arm9/overlays/ov007/delinks.txt runs one block to end:0x020c9688 and
+# starts the next at 0x020c9988, so nothing covers the 768 bytes between them
+# and no src TU exists. hal/scene_boot.cpp stood a trap there, the trap returned
+# 0 six times and func_ov007_020ade58 dereferenced one of them.
+#
+# port/unmatched/Ov007_OamCellBank_020c9688.cpp is a host transcription of the
+# ROM's instructions at that address. Read its banner for the derivation; read
+# this block for why it cannot outstay its welcome.
+#
+# THE GUARD IS THE POINT. An interim that has to be remembered is an interim
+# that gets forgotten, and the failure mode is not a link error, it is a host
+# body quietly winning over a matched one and the port silently ceasing to be
+# the decomp. So the list is EMPTY the moment src/ has the match, whichever
+# extension the decomp lands it under, and the matched TU arrives on its own
+# through slice_ov007.txt. Configure is where that gets noticed, and the STATUS
+# line below says which state this tree is in every time it runs.
+set(SC1_INTERIM_SOURCES "")
+if(EXISTS "${PORT_REPO_ROOT_ABS}/src/func_ov007_020c9688.c"
+   OR EXISTS "${PORT_REPO_ROOT_ABS}/src/func_ov007_020c9688.cpp")
+    message(STATUS "SC1: src/func_ov007_020c9688 EXISTS, the scene 1 interim is "
+                   "RETIRED and port/unmatched/Ov007_OamCellBank_020c9688.cpp "
+                   "is deletable")
+else()
+    message(STATUS "SC1: func_ov007_020c9688 still unmatched, scene 1 running "
+                   "on the host transcription interim")
+    list(APPEND SC1_INTERIM_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov007_OamCellBank_020c9688.cpp")
+endif()
+
 # run link60 lane MG2: THE FIRST MINIGAME, WIRED.
 #
 # dScMgCurling_c is ov006's curling minigame, actor id 0x176 (its spawn symbol
@@ -4467,7 +4529,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     # sitting in slice_gate16.txt line 178 all along, dropped by /OPT:REF for
     # want of a reference edge. Removing the stub from here is what makes the
     # matched body reachable; leaving it would be a duplicate definition.
-    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp "${CMAKE_CURRENT_SOURCE_DIR}/../src/engine/fader/_ZN9FaderWipe14LoadAndSetFileEt.cpp" hal/level_boot.cpp hal/scene_boot.cpp hal/scene_actor_faces.cpp unmatched/Scene_AfterCleanupResources.cpp ${SLICE_SCENE1_SOURCES} ${SLICE_OV007_SOURCES} ${SLICE_MG1_SOURCES} ${SCENE_MG_SOURCES} ${FDR_FADER_SOURCES}
+    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp "${CMAKE_CURRENT_SOURCE_DIR}/../src/engine/fader/_ZN9FaderWipe14LoadAndSetFileEt.cpp" hal/level_boot.cpp hal/scene_boot.cpp hal/scene_actor_faces.cpp unmatched/Scene_AfterCleanupResources.cpp ${SLICE_SCENE1_SOURCES} ${SLICE_OV007_SOURCES} ${SC1_INTERIM_SOURCES} ${SLICE_MG1_SOURCES} ${SCENE_MG_SOURCES} ${FDR_FADER_SOURCES}
     # run link60 lane L2: hal/w8a_stage_storage.cpp is pure zero arm9 BSS and it
     # owns data_0209d4a8, which dScDSMT_c's InitResources and CleanupResources
     # both touch. walk_window already had it; smoke_player and walk_window_hires
@@ -4613,7 +4675,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     # sitting in slice_gate16.txt line 178 all along, dropped by /OPT:REF for
     # want of a reference edge. Removing the stub from here is what makes the
     # matched body reachable; leaving it would be a duplicate definition.
-    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp "${CMAKE_CURRENT_SOURCE_DIR}/../src/engine/fader/_ZN9FaderWipe14LoadAndSetFileEt.cpp" hal/level_boot.cpp hal/scene_boot.cpp hal/scene_actor_faces.cpp unmatched/Scene_AfterCleanupResources.cpp ${SLICE_SCENE1_SOURCES} ${SLICE_OV007_SOURCES} ${SLICE_MG1_SOURCES} ${SCENE_MG_SOURCES} ${FDR_FADER_SOURCES}
+    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp "${CMAKE_CURRENT_SOURCE_DIR}/../src/engine/fader/_ZN9FaderWipe14LoadAndSetFileEt.cpp" hal/level_boot.cpp hal/scene_boot.cpp hal/scene_actor_faces.cpp unmatched/Scene_AfterCleanupResources.cpp ${SLICE_SCENE1_SOURCES} ${SLICE_OV007_SOURCES} ${SC1_INTERIM_SOURCES} ${SLICE_MG1_SOURCES} ${SCENE_MG_SOURCES} ${FDR_FADER_SOURCES}
     # run link60 lane L2: hal/w8a_stage_storage.cpp is pure zero arm9 BSS and it
     # owns data_0209d4a8, which dScDSMT_c's InitResources and CleanupResources
     # both touch. walk_window already had it; smoke_player and walk_window_hires
@@ -4791,7 +4853,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     # sitting in slice_gate16.txt line 178 all along, dropped by /OPT:REF for
     # want of a reference edge. Removing the stub from here is what makes the
     # matched body reachable; leaving it would be a duplicate definition.
-    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp "${CMAKE_CURRENT_SOURCE_DIR}/../src/engine/fader/_ZN9FaderWipe14LoadAndSetFileEt.cpp" hal/level_boot.cpp hal/scene_boot.cpp hal/scene_actor_faces.cpp unmatched/Scene_AfterCleanupResources.cpp ${SLICE_SCENE1_SOURCES} ${SLICE_OV007_SOURCES} ${SLICE_MG1_SOURCES} ${SCENE_MG_SOURCES} ${FDR_FADER_SOURCES}
+    hal/cxxname_bridge.cpp hal/player_bridges.cpp hal/cxx_aliases.cpp hal/auto_bss.cpp hal/reverse_bridges.cpp hal/method_faces.cpp hal/door_ring_faces.cpp hal/fader_wipes.cpp "${CMAKE_CURRENT_SOURCE_DIR}/../src/engine/fader/_ZN9FaderWipe14LoadAndSetFileEt.cpp" hal/level_boot.cpp hal/scene_boot.cpp hal/scene_actor_faces.cpp unmatched/Scene_AfterCleanupResources.cpp ${SLICE_SCENE1_SOURCES} ${SLICE_OV007_SOURCES} ${SC1_INTERIM_SOURCES} ${SLICE_MG1_SOURCES} ${SCENE_MG_SOURCES} ${FDR_FADER_SOURCES}
     # run link60 lane L2: hal/w8a_stage_storage.cpp is pure zero arm9 BSS and it
     # owns data_0209d4a8, which dScDSMT_c's InitResources and CleanupResources
     # both touch. walk_window already had it; smoke_player and walk_window_hires
