@@ -1359,11 +1359,44 @@ static void ti_ridethrough_notice(void)
     std::fflush(stderr);
 }
 #endif
+#if PORT_OV007_AE558_UNSEATED
+/* SCENE 1'S BLOCKER AFTER THE RIDE-THROUGH SEAM WAS SEATED, run link60 lane
+ * RT1. Same placement and the same caveat as the notice above, for the same
+ * reason: ti_init is still the last port-owned frame on the path.
+ *
+ * The blocker moved one frame deeper and stayed in its family. It is an
+ * IMPLICIT r0 ARGUMENT: src/func_ov007_020add3c.c declares its callee
+ * `extern int func_ov007_020ae558(void)` and calls it with nothing, while
+ * src/func_ov007_020ae558.c defines it as `(char *self)`. The ROM's caller
+ * never writes r0 between its prologue and the branch, so its own incoming
+ * argument is still there to be read. Both TUs are matched. On the host the
+ * callee reads the caller's saved esi instead.
+ *
+ * Armed by the RT1 block in port/CMakeLists.txt, which reads that
+ * no-argument declaration AND whether the TU carrying it is still in the ov007
+ * slice, so seating the seam disarms this in the configure that notices.
+ * Derivation, measurements and the unruled seat: port/ov007_seat.txt 5c. */
+static void ti_ae558_notice(void)
+{
+    static int said;
+    if (said) return;
+    said = 1;
+    std::printf("  [scene] SCENE 1 BLOCKED: func_ov007_020add3c calls "
+                "func_ov007_020ae558 without its implicit r0 argument\n");
+    std::fflush(stdout);
+    std::fprintf(stderr, "  [scene] SCENE 1 BLOCKED: func_ov007_020add3c calls "
+                 "func_ov007_020ae558 without its implicit r0 argument\n");
+    std::fflush(stderr);
+}
+#endif
 static int  __fastcall ti_init(void *s, void *)
 {
     ++g_ti_hits[0];
 #if PORT_OV007_RIDETHROUGH_UNSEATED
     ti_ridethrough_notice();
+#endif
+#if PORT_OV007_AE558_UNSEATED
+    ti_ae558_notice();
 #endif
     return func_ov007_020cc4c0((char *)s);
 }

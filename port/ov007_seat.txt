@@ -759,6 +759,191 @@ there is nothing to capture. Nothing about the title screen's pixels is claimed
 by this lane.
 
 
+5c. THE SEAM IS SEATED (run link60 lane RT1), AND WHAT IT UNCOVERED
+--------------------------------------------------------------------
+
+SECTION 5b'S STOP IS RETIRED BY A SEAT, not by a match. This lane executed the
+ruling written into 5b by the PC2 review, exactly as ruled and with nothing
+added to it:
+
+    src/func_ov007_020be980.c is CUT from SLICE_OV007_SOURCES in
+    port/CMakeLists.txt, and port/unmatched/Ov007_RideThrough_020be980.cpp
+    stands in its place: PORT_HOST_ABI, (void *, int, int), forwarding all
+    three, the ROM's own body otherwise unchanged.
+
+The TU is still matched and is still in the decomp. It is out of the PORT, and
+only the port. THE PRICE WAS PAID AS PREDICTED: 5831 linked TUs to 5830, one
+down, because linkage.py counts matched stems in the map and the host copy's
+stem is deliberately not one. That is the whole delta; section 7's RT1 entry
+decomposes it.
+
+RE-DERIVED HERE RATHER THAN TAKEN ON 5B'S WORD, because everything in 5b's
+ruling block is the review's and this lane had to be able to check it:
+
+  * The ROM body, disassembled off extracted/overlays/overlay_0007.bin at the
+    config base 0x020ad660. Eleven instructions, and the delink block
+    (start:0x020be980 end:0x020be9ac) and symbols.txt (size=0x2c) agree that is
+    all of it:
+
+        push {r4, lr} / mov r4, r0 / ldr r0, [r4, #4] / bl func_ov007_020bc3dc
+        ldr r0, [r4, #4] / mov r1, #1 / str r1, [r0, #0x94]
+        ldr r0, [r4, #4] / str r1, [r0, #0x98] / pop {r4, lr} / bx lr
+
+  * The caller sweep. config/arm9/overlays/ov007/relocs.txt has exactly four
+    arm_call rows to 0x020be980, at 0x020b0a90, 0x020b0b74, 0x020b26d0 and
+    0x020b26e8, from two matched TUs that both declare three parameters. No
+    other module has one. (A grep across config/ turns up a single
+    `from:0x020be980` row in ov000's table. That is overlay 0's own unrelated
+    load at an address that overlaps in memory because the overlays share the
+    slot, not a call to this function. Worth naming because it is the kind of
+    hit that looks like a fifth caller.)
+
+ONE CORRECTION TO 5B, since it is quoted in three places and a later reader
+should not have to re-check it. 5b says r1 and r2 are "untouched across the
+whole body". r2 is. R1 IS NOT: `mov r1, #1` at 0x020be994 writes it. That write
+lands AFTER the branch, so the ride-through is real and no conclusion in 5b
+changes. The true and sufficient claim is UNTOUCHED ACROSS THE CALL, and the
+stronger sentence is not what the eleven instructions say.
+
+THE MARKER RETIRED MECHANICALLY, WHICH TOOK AN AMENDMENT 5B DID NOT ANTICIPATE.
+PC2's predicate read the middle TU's one-parameter declaration out of src/. A
+DISPLACEMENT DOES NOT TOUCH THAT FILE -- the byte gate owns it -- so the
+predicate as written would have gone on asserting a blocker that no longer
+shipped, which is precisely the "asserting nothing" failure 5b warned the
+seating lane about, arriving from the other direction. Both markers now read
+TWO facts: the declaration in src/, AND whether the TU carrying it is in the
+port's ov007 slice, the second read off the same loop that does the cutting.
+The cut and the flag are the same `if` body, so a lane that puts the TU back
+cannot leave the flag behind. Measured both ways in this lane's own configures:
+PORT_OV007_RIDETHROUGH_UNSEATED appears 3 times in build.ninja at the start
+commit and 0 times after the cut.
+
+THE SCENE STILL DOES NOT FINISH, so this row CONVERTS rather than retires, and
+the battery says so. It was worth checking whether the seam had really been
+crossed rather than merely relocated, and the trap census answers it directly:
+
+    PC2's run    b46b0 x24, c20b8 x1, func_02054c80 x1, data_0208ea6c slot x1
+    this run     b46b0 x24, c20b8 x1, func_02054c80 x1, data_0208ea6c slot x1,
+                 AND func_ov007_020ae834 x24
+
+A FIFTH NAME, twenty-four times, that no scene-1 run had ever reached. The
+enclosing frame is the same and the offset inside it moved forward
+(func_ov007_020aed98 +0xc2 in PC2's host binary, +0x13d in this one). The seam
+is behind the run, not beside it.
+
+THE NEW BLOCKER IS THE SAME DEFECT CLASS ONE FRAME DEEPER, and that is the most
+useful thing this section records: the ov007 title path has more than one of
+these. Symbolized against this tree's own walk_window.map:
+
+    FAULT code c0000005 at +0x0002a7a6 accessing 000000a4
+
+    func_ov007_020ae558   +0x16    <- the fault
+    func_ov007_020add3c   +0x9
+    func_ov007_020aed98   +0x13d
+    func_ov007_020b7090   +0x70
+    func_ov007_020cc4c0   +0xcf    <- InitResources
+    ti_init               +0xc     <- 5b's run read +0x61 here
+    func_0204335c / func_020433b8 / func_02043098 / func_02042fe4
+    Scene::SpawnIfNecessary / port_scene_run / main
+
+Those are TIP-BINARY offsets and the whole block is one run, re-derived at the
+amendment SHA. A raw offset is never a marker; 5b's own paragraph on that trap
+is the reason this sentence is here, and it applies to the ti_init line above:
+that frame's offset moved because this lane swapped one marker body for
+another inside ti_init, which is a change to the port's own code and says
+nothing about the ROM path. THE ONE OFFSET COMPARISON THAT DOES CARRY, and the
+reason it carries: func_ov007_020aed98 is a matched TU that neither lane
+touched and that both compiled with the same flags, so its internal layout is
+the same in both binaries and +0xc2 to +0x13d is a real move along the same
+function. Every other offset here is this binary's alone.
+
+IT IS AN IMPLICIT r0 ARGUMENT, and unlike 5b's seam it is only TWO frames:
+
+    src/func_ov007_020add3c.c   extern int func_ov007_020ae558(void);
+                                func_ov007_020ae558();        <- passes nothing
+    src/func_ov007_020ae558.c   int func_ov007_020ae558(char *self)
+
+THE ROM, disassembled at the config base:
+
+    020ADD3C  push {r4, lr}
+    020ADD40  mov  r4, r0          <- saves its OWN argument, does not move it
+    020ADD44  bl   #0x20ae558      <- r0 still holds add3c's incoming argument
+    020AE564  ldr  ip, [r0]        <- the callee reads it
+
+Both TUs are matched and both are right. The caller does not need to set up r0
+because r0 already holds what the callee wants, so mwccarm emits no setup and
+the matched source must declare no argument to reproduce that.
+
+THE HOST, read off this lane's own walk_window.exe with dumpbin, which is why
+none of this is an argument about what MSVC ought to emit:
+
+    0042A1D0  push ebp
+    0042A1D1  mov  ebp,esp
+    0042A1D3  push esi                 <- a SAVE, not an argument (see below)
+    0042A1D4  call 0042A790            func_ov007_020ae558
+    0042A1D9  mov  esi,[ebp+8]         add3c reads its OWN argument, AFTER
+    0042A79C  mov  ebx,[ebp+8]         the callee reads `self`
+    0042A7A6  mov  ecx,[ebx]           <- +0x16, the fault
+
+THE `push esi` IS A REGISTER SAVE AND NOT AN ARGUMENT, which matters because
+one push before a call looks like one argument. Two things settle it: nothing
+cleans it after the call (no `add esp,4` at 0042A1D9), and the caller reads its
+own argument at [ebp+8] one instruction later, which it could not do if [ebp+8]
+were an outgoing slot. So the caller pushes ZERO arguments and the callee reads
+one.
+
+AND THE SLOT HAS A NAME. Walking the pushes with the caller's frame pointer at
+X, the same way 5b walks its seam:
+
+    push ebp      [X]      add3c's saved ebp
+    mov  ebp,esp  ebp = X
+    push esi      [X-4]    add3c's SAVED ESI
+    call          [X-8]    return address
+    push ebp      [X-12]   ae558's saved ebp, and ae558's ebp = X-12
+
+so inside ae558, [ebp+8] is X-4 and is add3c's saved esi. THE IDENTICAL FAILURE
+SHAPE AS THE SEAM THIS LANE JUST RETIRED: a saved register read as an argument,
+not a data seam and not a relocation.
+
+THE ARITHMETIC CLOSES TRIVIALLY, and trivially is the point. The faulting
+instruction is a bare `mov ecx,[ebx]` with no displacement and no index, and
+the fault reports accessing 000000a4, so the accessed address IS the garbage
+slot's contents. There is nothing to reconstruct. Deterministic across four
+runs: same offset, same accessed address, every time.
+
+func_ov007_020ae558 HAS EXACTLY ONE CALL SITE in the whole config
+(from:0x020add44), so unlike 5b's four-site sweep there is no question of a
+constant being right at one site and wrong at another.
+
+THE SEAT IS DERIVED AND DELIBERATELY NOT TAKEN, and the reason is 5b's own.
+Displacing a matched TU picks which of two matched bodies stops being the
+decomp, and this file's precedent is that a review rules that and a lane
+executes it; PC2 derived and did not take, this lane executed what was ruled
+and derived the next one. What a review would be ruling on:
+
+  THE FRAME WHERE INFORMATION IS DESTROYED IS THE CALLER, func_ov007_020add3c.
+  It owns the value -- it is add3c's own incoming argument -- and it does not
+  pass it. THAT IS THE OPPOSITE FRAME FROM 5B, where the middle body was handed
+  the values and dropped them, and it is why this is a fresh derivation rather
+  than the same fix again.
+
+  func_ov007_020ae558 IS NOT THE ONE TO DISPLACE. It declares the parameter it
+  needs and is blameless; a host copy of it could not invent the value.
+
+  THE COST WOULD BE ONE MORE LINKED TU, 5830 to 5829, on the same terms. A host
+  copy of add3c is a transcription of its own matched source (0xd8 bytes, one
+  call, an eight-way switch and four stores), not of raw instructions.
+
+  IT IS NOT KNOWN TO BE THE LAST ONE. Two of these have now been found in the
+  same subtree, one behind the other, and nothing here bounds how many more the
+  title path holds. A lane taking the next seat should expect to convert the
+  row again rather than retire it, and should say so in advance.
+
+NO BMP, AND THE TITLE SCREEN HAS STILL NEVER RENDERED. The fault is inside
+InitResources, so no frame is reached and there is nothing to capture. Nothing
+about the title screen's pixels is claimed by this lane either.
+
+
 6. WHAT LINKS, AND WHAT WAS DELIBERATELY NOT TAKEN
 ---------------------------------------------------
 
@@ -899,6 +1084,40 @@ proven and it is one dispatched slot; section 8 is the list of what has not. Wha
 own reference edges reach those TUs and the linker kept them, which is the only
 thing linkage.py has ever measured.
 
+RUN LINK60 LANE RT1'S DELTA, and it is the only NEGATIVE one this file records:
+
+    baseline 6f7bc744d   5831 / 11250   51.8%   battery ALL GREEN
+    this lane            5830 / 11250   51.8%   battery ALL GREEN   -1
+
+THE MINUS ONE IS THE SEAT'S PRICE AND WAS PREDICTED BEFORE IT WAS PAID (section
+5b's ruling says 5831 to 5830). Decomposed with port/tools/mapdiff.py against a
+base map built in THIS tree, which is the only comparison the tool's own
+docstring calls honest:
+
+    symbols   36849 -> 36849      objects   6522 -> 6522
+    MOVED  1   _func_ov007_020be980
+               func_ov007_020be980.c.obj -> Ov007_RideThrough_020be980.cpp.obj
+    objects   +1 Ov007_RideThrough_020be980.cpp.obj
+              -1 func_ov007_020be980.c.obj
+    ADDED  2 / REMOVED 2, all four in scene_boot.cpp.obj and all four the
+             marker swap: one string literal and one function-static `said`
+             each for ti_ridethrough_notice leaving and ti_ae558_notice
+             arriving.
+
+NOTHING ELSE MOVED, WHICH IS THE PART WORTH CHECKING rather than assuming. A
+displacement can cascade in either direction -- the host copy could have called
+something the matched body did not and dragged /OPT:REF-stripped TUs back in,
+or dropped a call and let some fall out -- and the five-TU pass above this
+entry is a record of exactly that kind of tail being twelve when a prediction
+said one. Here the host copy calls the same single callee the ROM's body calls,
+so the reachability graph is unchanged and the linker agrees: no added or
+removed objects other than the swapped pair, and no other moved symbol.
+
+THE MATCHED TU DID NOT STOP BEING MATCHED. It is out of the port's ov007 slice
+and nothing else. linkage.py counts matched stems present in the map, the host
+copy's stem is deliberately not one, and that single accounting fact is the
+whole of the -1.
+
 
 8. WHAT IS NOT PROVEN
 ----------------------
@@ -936,3 +1155,36 @@ thing linkage.py has ever measured.
     partial-tail behaviour for a non-multiple-of-4 length is a difference from
     the ROM's word-at-a-time loop that no caller in this slice can reach,
     because all five call sites pass multiples of 0x100.
+
+  RUN LINK60 LANE RT1 ADDS THESE, and the first is the one a reader should
+  weigh hardest:
+
+  - THE HOST COPY AT port/unmatched/Ov007_RideThrough_020be980.cpp HAS NEVER
+    BEEN OBSERVED DOING ITS JOB. What is proven is that the run gets PAST it:
+    the fault it caused is gone, and twenty-four calls into
+    func_ov007_020ae834 that no earlier scene-1 run reached now happen. What is
+    NOT proven is that the two flag words at +0x94 and +0x98 are written with
+    the right values on the right object, or that func_ov007_020bc3dc did
+    anything correct with the i and a2 it finally received. The next frame
+    faults before anything downstream could show it. The body was transcribed
+    from eleven ROM instructions and reads the same as the matched source it
+    displaces, and that is a reading, not an execution.
+  - THE OTHER THREE CALL SITES OF func_ov007_020be980 ARE UNEXERCISED. Only
+    0x020b0a90 is on the scene-1 path. The host copy's three-argument shape is
+    right at all four by the caller sweep in section 5c, but three of them have
+    never run through it.
+  - THE MARKER PREDICATES ARE PROVEN BOTH WAYS AND STILL PROVE LESS THAN THEY
+    LOOK. Each was measured in this lane's own configures (the ride-through
+    define went 3 occurrences to 0 in build.ninja at the cut; the new one went
+    0 to 3 in a throwaway configure with the caller's TU out of the slice and
+    3 to 0 back). But both are armed on ENTERING InitResources, not on reaching
+    their seam, so either marker would still print for a DIFFERENT fault inside
+    InitResources. Section 5c says it and this repeats it because a reader who
+    only reads section 8 should still learn it.
+  - HOW MANY MORE OF THESE THERE ARE IS UNKNOWN. Two ARM-argument seams have
+    now been found in this one subtree, one directly behind the other, and
+    nothing in this file bounds the count. The title path has not been swept
+    for arity disagreements between matched TUs; both were found by running
+    into them.
+  - THE TITLE SCREEN HAS STILL NEVER RENDERED. No frame is reached, no BMP was
+    captured, and nothing about its pixels is claimed by any lane so far.
