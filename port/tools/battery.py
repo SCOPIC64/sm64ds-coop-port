@@ -183,6 +183,38 @@ SCENE_BLOCKED = {
         "accessing 0x00000004), which is what an uninitialised object should "
         "do and which would have made a green out of nothing. Full write-up: "
         "port/ov007_seat.txt."),
+    0x176: ("the arm9 fader seat (__sinit_02074f80 does not run in the port)",
+        "MINIGAME BLOCKED: the arm9 FaderBrightness at data_0209f61c has a "
+        "NULL vptr",
+        "dScMgCurling_c, the first minigame, seated by run link60 lane MG2. "
+        "The blocker is NOT the minigame and not ov006: it is an arm9 global "
+        "whose constructor the port has never run. dScMgBase_c's slot 1, "
+        "BeforeInitResources (src/func_ov004_020b0930.cpp, host-copied as "
+        "unmatched/MgBase_Slot1.cpp), calls "
+        "Scene::SetFaders(data_0209f61c) -- a FaderBrightness in arm9 bss. "
+        "src/__sinit_02074f80.c is that object's static initialiser and it "
+        "calls func_0202fc40, which is not in the link at all, so the object "
+        "is all zeroes and SetFaders dispatches slot 0x24 off a null vptr: "
+        "FAULT c0000005 accessing 0x00000024, at "
+        "_ZN5Scene9SetFadersEP15FaderBrightness+0x24, which disassembles to "
+        "`call dword ptr [eax+24h]`. WHAT IS PROVEN ANYWAY, and it is the "
+        "whole seat: ov004 and ov006 mount, 33 of the ROM's 35 overlay "
+        "constructors run, both 36-slot vtables fill with ZERO raw DS words "
+        "left, the class registers, Scene::SetSceneToSpawn -> "
+        "Scene::SpawnIfNecessary -> func_02043098 spawns it through the "
+        "ROM's own spine, and SLOT 1 IS DISPATCHED through the fill's host "
+        "thunk -- the fault is inside dScMgBase_c's own body, well past the "
+        "spawn. Two earlier faults on this same path were port defects and "
+        "are FIXED rather than skipped: a fabricated 29-entry initializer in "
+        "src/func_ov004_020b2cb8.c (unmatched/MgBase_LangTable.cpp) and a "
+        "16-slot host LoadFile pool against a 29-file ROM working set. "
+        "SM64DS_SCENE_SLOT0=0 is not a skip for this one and was not tried "
+        "as one: the blocker is in slot 1, which no env switches off. "
+        "Retiring it needs the arm9 fader seated -- func_0202fc40 and its "
+        "closure linked, data_020926f0's vtable host-filled, and a decision "
+        "about which arm9 static initialisers the port runs -- which is "
+        "fader and boot territory, not this lane's. Full write-up: "
+        "port/mg_fanout_costs.txt section 10."),
 }
 
 # A MOUNTED LEVEL WHOSE BLOCKER IS NOT THE MOUNT, AND THE CLASS THAT BLOCKS IT.

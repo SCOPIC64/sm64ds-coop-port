@@ -1934,7 +1934,18 @@ void _ZN13SharedFilePtr8LoadFileEv(struct PortSharedFilePtr *);
    level's boot loads through it are that level's. Gate 31 releases them on a
    level change (port_level_reset_host below), which is why the storage is
    file-scope now rather than function-static. */
-enum { PORT_LOADFILE_SLOTS = 16 };
+/* SIXTEEN UNTIL run link60 lane MG2, WHICH IS A LEVEL'S NUMBER AND NOT A
+   SCENE'S. Sixteen covers what a level boot asks for -- its KCL and its object
+   files -- and the note further down this file sizes it against that. A
+   MINIGAME asks for more in one function: func_ov004_020b2cb8, dScMgBase_c's
+   per-language file table, calls LoadFile TWENTY-NINE times and keeps all
+   twenty-nine pointers live in data_ov004_020bf560, so it is not a leak the
+   release path can absorb, it is the ROM's own working set. At sixteen the
+   first minigame boot aborted on "out of host file slots" partway through that
+   loop. Sixty-four is twenty-nine plus room for the rest of a scene's boot; the
+   per-level release below is unchanged and still runs, and the cost is one
+   PortSharedFilePtr per unused slot. */
+enum { PORT_LOADFILE_SLOTS = 64 };
 static PortSharedFilePtr g_loadfile_slot[PORT_LOADFILE_SLOTS];
 static int g_loadfile_used;
 

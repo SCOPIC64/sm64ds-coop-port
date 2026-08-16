@@ -1349,24 +1349,41 @@ struct PortSceneClass {
    second seat of id 1 would have two writers for data_020a4bb8[1], and the
    three statements the row would make are exactly the three
    port_scene_registry_install makes below. */
-/* THE MINIGAME ROW IS DERIVED AND NOT SEATED, run link60 lane MG1.
-   dScMgCurling_c (actor id 0x176, spawn symbol MgShuffleShell_Spawn) has its
-   SpawnInfo, its factory and all thirty-six vtable slots read out of the ROM,
-   its twenty-five marker-carrying bodies ruled REAL_DECOMP, and a complete
-   fill and slice in hal/scene_mg.cpp and port/slice_mg1.txt. The row that
-   would go here is one line and it is absent for one reason: THE SEAT DOES
-   NOT LINK. ov004's framework and ov006's classes dispatch mwcc
-   pointer-to-member tables that MSVC cannot compile, and
-   port/mg_fanout_costs.txt section 4 enumerates the thirty-seven unresolved
-   externals and the work each needs. Its reads_sublevel would be 0, measured:
-   no relocation anywhere in ov006 lands on data_02092110 and no ov006 source
-   TU names it, SublevelToLevel or SUBLEVEL_LEVEL_TABLE. A minigame is not
-   about a course. */
+/* THE MINIGAME ROW IS SEATED, run link60 lane MG2, and it is the third scene
+   class and the first from ov006. dScMgCurling_c, actor id 0x176 (374), spawn
+   symbol MgShuffleShell_Spawn; the ROM's own RTTI string at 0x0213c2d0 reads
+   "14dScMgCurling_c" and Shuffle Shell is the same minigame's localised name.
+   MG1 derived the whole seat -- SpawnInfo, factory, all thirty-six vtable
+   slots, twenty-five bodies ruled REAL_DECOMP -- and left this row out for one
+   reason, that the seat did not link. It links now: the wall was the mwcc
+   pointer-to-member ABI and it is answered by two host copies against an
+   address switch, port/unmatched/MgBase_StateDispatch.cpp and
+   MgCurling_StateDispatch.cpp. port/mg_fanout_costs.txt section 4 carries the
+   measured accounting.
+
+   THE ROW IS THE ONLY THING THIS LANE CHANGES IN THIS FILE. Its fill, its
+   factory forwarder and its overlay constructors are all in hal/scene_mg.cpp,
+   and the thirty-three constructors are gated there on the requested id rather
+   than run from this file's registry install, which is MG1's ruling and is
+   load-bearing: __sinit_ov004_020b948c threads a node onto an arm9-global
+   destructor list the LEVEL path walks, and this function runs on every boot.
+
+   reads_sublevel is 0 and it is measured, not assumed: no relocation anywhere
+   in ov006 lands on data_02092110 and no ov006 source TU names it,
+   SublevelToLevel or SUBLEVEL_LEVEL_TABLE. A minigame is not about a course. */
+extern "C" {
+extern unsigned char MgShuffleShell_SpawnInfo[];
+void *port_mg_curling_spawn(void);
+void port_scene_fill_curling(void);
+}
+
 static const PortSceneClass port_scene_classes[] = {
     {4, "SCENE_STAR_SELECT", StarSelect_SpawnInfo, StarSelect_Spawn,
      scene_fill_starsel, 1},
     {1, "SCENE_TITLE", data_ov007_02103264, title_spawn,
      scene_fill_title, 0},
+    {0x176, "SCENE_MG_CURLING", MgShuffleShell_SpawnInfo, port_mg_curling_spawn,
+     port_scene_fill_curling, 0},
     {0, 0, 0, 0, 0, 0},
 };
 

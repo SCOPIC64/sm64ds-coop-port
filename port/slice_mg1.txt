@@ -274,7 +274,8 @@ src/func_ov004_020b2a18.cpp
 src/func_ov004_020b2a84.cpp
 src/func_ov004_020b2adc.c
 src/func_ov004_020b2c84.c
-src/func_ov004_020b2cb8.c
+# HOST-COPIED (MG2): src/func_ov004_020b2cb8.c -- fabricated 29-entry
+#   initializer, see port/unmatched/MgBase_LangTable.cpp
 src/func_ov004_020b3194.c
 # HOST-COPIED (MG2): src/func_ov004_020b31b4.cpp
 # HOST-COPIED (MG2): src/func_ov004_020b321c.cpp
