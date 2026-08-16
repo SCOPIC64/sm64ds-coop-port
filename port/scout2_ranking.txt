@@ -1,0 +1,126 @@
+THE AUTOMATION BACKLOG, RE-RANKED AGAINST STAGE 4's EVIDENCE
+Run link60 Stage 4, scout round 2 (worktree C:/tmp/auto2, s4-scout2 off
+34d3a3130). Round 1's ranking was fillgen, canonical census, bindiff,
+mountgen, rowgen, hostscaffold, sinitmap, overlaydiff, ranked from the
+runs' paper trail BEFORE this stage ran. This file re-ranks the same
+eight against what Stage 4 measured, for the NEXT ten lanes -- which are,
+by the board's own queue: the FDR2/EA2/SUB2 tail, then the minigame
+fan-out (twenty-nine classes behind dScMgCurling_c at ~208 TUs each with
+the shared base paid), plus every one of their reviews. The top two were
+BUILT this round; the rest carry their evidence forward.
+
+RANKING LAW APPLIED THROUGHOUT: leverage is counted in hand-performed
+repetitions the ledger actually records, not in projected convenience;
+a tool whose method is still being derived by a live lane is ranked
+BEHIND that lane's landing; and everything a tool emits must be
+verifiable against ground truth the tool did not produce.
+
+
+1. mapdiff  (round 1: #3 as "bindiff")  -- BUILT, port/tools/mapdiff.py
+
+   Every review in Stage 4 built base AND tip and closed the linked
+   delta by hand off the two maps: SD0's reviewer (+19 exact, 20 objects
+   added 0 removed, arm9 1757->1775), MG2's (+217 both ends, by-module
+   sums, 225 objects added 0 removed), PC1's (+18 decomposed 3 new + 15
+   /OPT:REF), NFS's (+7 decomposed 8-in-1-out), LK4/LK5/SUB (delta 0
+   proven per commit, three commits for LK5 alone). That is ten-plus
+   hand decompositions in one stage, each hour-class, and the class of
+   error it invites is on the record: MG2's own "14 objects" was a
+   parse artifact catching one of seven LNK2001 rows, and MG2's before
+   column went UNMEASURED because the failed link destroyed the
+   baseline map. A map-level differ (added/removed symbols by object,
+   added/removed objects, MOVED symbols -- the UnloadArchive collision
+   shape -- with an --expect gate for claimed deltas) replaces the
+   whole hand step with a read of the linker's own two statements.
+   Ground truth: the maps themselves; the tool only reads them, and it
+   inherits closure.py's hardened refuse-a-truncated-map guard, so the
+   zeroed-map trap that cost MG2 its baseline cannot silently feed it.
+
+2. vtablerows  (round 1: #5 as "rowgen")  -- BUILT, port/tools/vtablerows.py
+
+   The fan-out is twenty-nine more classes and mg_fanout_costs.txt
+   section 3 prices each one in exactly the columns a tool can read
+   mechanically: override slots vs the dScMgBase_c base table (median
+   12), marker-carrying overrides needing a ROM adjudication (median
+   11), and no-source overrides needing a trap. MG1 derived that table
+   BY HAND for thirty classes, and its first nosrc column was WRONG
+   because a name-shaped lookup missed src files not named after their
+   symbol -- review re-derived it through the delink records. The tool
+   does the delink-keyed join from the start (address -> delinks block
+   -> owning src file -> marker string), reads the vtables out of the
+   RAW overlay images at the delinks-derived base (the T1 rule; yaml
+   base_address is the counterexample), and finds candidate tables by
+   the ActorBase signature (slots 13/14/15) the hand survey used. Its
+   acceptance was a RECONSTRUCTION of section 3's reviewed table from
+   the ROM: signature census, then per-class ovr/mark/nosrc. What it
+   does NOT do is adjudicate: a marker row still goes to a human with
+   the ROM open; the tool counts and names, never rules. Each fan-out
+   lane runs it once instead of transcribing 36 slots by hand, and the
+   reviewer reruns it instead of re-transcribing.
+
+3. stategen  (round 1: #7 as "sinitmap")
+
+   Per class the wall work is now measured: 25 state entries routed for
+   curling, read off the .init constructor "one assignment at a time,
+   NOT by sweeping" (three non-pairs live inside the swept range), and
+   every constructor is a plain .c that spells the pair as two ints --
+   a mechanical source read. Twenty-nine classes of that are coming.
+   Not top-two because the extraction is the small half of the state
+   work (the 5 host-copied dispatching TUs per class stay judgment),
+   and only two constructor families have been read closely enough to
+   state the shape a parser must cover. Build it when the second
+   minigame lane confirms the shape generalizes.
+
+4. fillgen  (round 1: #1)  -- DEMOTED ON PURPOSE
+
+   Round 1 ranked it first; this stage found the reason it cannot be
+   built yet: the fill ABI defect class (nfs_names_map.txt s7). The
+   fader fill's twelve stubs are all __fastcall(void*,void*) on 7a's
+   now-REFUTED balance argument, the measured failure is an eight-byte
+   caller/callee cleanup mismatch, and slot 0x10 carries the identical
+   latent defect. FDR2 is deriving the disasm-based caller-ABI audit
+   RIGHT NOW. A generator built before that audit lands would encode
+   exactly the convention rule 7a got wrong, at generator scale --
+   twenty-nine classes of it. Rank it first again the round after
+   FDR2's method is banked and reviewed.
+
+5. canonical census  (round 1: #2)
+
+   The census-decoder contradiction (peer vs A2) remains real, but no
+   NEW census miscount surfaced in Stage 4's ledger, and the fan-out's
+   near-term lanes lean on the two tools above instead. Unchanged
+   evidence, so it holds mid-table rather than rising.
+
+6. overlaydiff  (round 1: #8)
+
+   Promoted two places on two convictions: dsd's ov085 export stale by
+   2897 bytes (A1), its ov007 export short by exactly 1248 bytes
+   (PC1's reviewer upgraded it to a hard size defect). A byte-compare
+   of extracted/overlays vs dsd exports with a size manifest is an
+   afternoon tool that converts "which image is config-aligned" from a
+   method note into a check. Small, real, twice-bitten; below the
+   fan-out multipliers on sheer repetition count.
+
+7. hostscaffold  (round 1: #6)
+
+   SC1's OAM cell bank proved the interim-transcription shape works
+   (359 lines, retirement guard exercised both ways), but the reviewer
+   proof burden was a 225,600-case differential test -- the value was
+   in the verification, not the boilerplate. The do-not-automate fence
+   (adjudications, prologue verification) grazes this one; a scaffold
+   that makes transcriptions cheaper to START without making them
+   cheaper to PROVE moves cost the wrong way. Hold.
+
+8. mountgen  (round 1: #4)
+
+   Leverage collapsed by success: ov004+ov006+ov007 landed 4,240
+   hosted symbols this run and the remaining overlays are small. The
+   residency model (T1) and the F3 alignment fix carry the remaining
+   risk, and both live in ovdata.py, another lane's territory. Drop.
+
+
+NOT ON THE LIST AND STAYING OFF: everything in the do-not-automate
+fence from round 1 -- ROM adjudications, prologue verification ahead of
+seating, merge-gate rulings, and anything whose output would be
+committed unverified. The two tools built this round emit to build/ or
+stdout only; lanes commit what they verify.

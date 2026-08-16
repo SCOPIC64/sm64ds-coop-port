@@ -132,13 +132,49 @@ def map_defined(mappath):
     The object column is the LAST token of the row; it is what separates an
     already-in-the-image row from a genuine LNK2005 candidate, so it rides
     along with the name everywhere the set used to travel alone.
+
+    REFUSES a zero-byte or truncated map LOUDLY instead of returning an
+    empty universe. A FAILED LINK TRUNCATES walk_window.map -- the exact
+    file this tool and facegen measure against -- and the first version
+    checked only existence, so against a zeroed map it reported every
+    symbol unresolved under a quiet "map defines 0 symbols" line
+    (mg_fanout_costs.txt s10 finding 3). The truncation test is the map's
+    own trailer: an MSVC map that finished writing carries an
+    "entry point at" line AFTER its publics (walk_window.map: line 40508
+    of 40510+), so a cut anywhere in the symbol bulk loses it. A cut
+    inside the short static-symbol tail after the trailer is invisible to
+    this test; the observed failure mode (zeroing) and any mid-publics cut
+    are what it catches. No minimum-size rule here: linkage.map_symbols
+    keeps its 4096-byte floor for the walk_window path, but this function
+    also reads fabricated selftest maps, and the trailer is the honest
+    shape test at any size. This guard sits in the PARSER, not in main(),
+    so facegen's --map path inherits it through the same call it already
+    makes.
     """
-    defined = {}
+    p = pathlib.Path(mappath)
+    if not p.is_file():
+        sys.exit("closure: no map at %s -- the link did not run" % mappath)
+    size = p.stat().st_size
+    if size == 0:
+        sys.exit("closure: %s is ZERO BYTES -- a failed link truncates the "
+                 "map, and measuring against it calls every symbol "
+                 "unresolved. Relink, or point --map at a copy saved before "
+                 "the probe link." % mappath)
+    defined, saw_trailer = {}, False
     with open(mappath, encoding="utf-8", errors="replace") as f:
         for line in f:
             m = MAP_ROW.match(line)
             if m and m.group(1) not in defined:
                 defined[m.group(1)] = line.split()[-1]
+            elif "entry point at" in line:
+                saw_trailer = True
+    if not defined:
+        sys.exit("closure: %s is %d bytes with NO symbol rows -- a stub "
+                 "from a failed link, not a map to measure" % (mappath, size))
+    if not saw_trailer:
+        sys.exit("closure: %s has symbol rows but no 'entry point at' "
+                 "trailer, so it stopped mid-write -- a TRUNCATED map, not "
+                 "a linked build. Relink, or use a saved copy." % mappath)
     return defined
 
 
@@ -312,13 +348,18 @@ def selftest():
             'extern "C" { struct D { void m() {} };\n'
             'void d_def() { D d; d.m(); } }\n')
         fakemap = tdp / "fake.map"
+        # The trailer line is part of the fabrication ON PURPOSE: map_defined
+        # refuses a map without it (finding 3), so a fake map that omitted it
+        # would fail the guard the way a truncated real one does.
         fakemap.write_text(
             " 0001:00000000       _present_sym               10000000 f"
             "   x.obj\n"
             " 0001:00000010       _dup_sym                   10000010 f"
             "   x.obj\n"
             " 0001:00000020       _a_def                     10000020 f"
-            "   a.cpp.obj\n")
+            "   a.cpp.obj\n"
+            "\n"
+            " entry point at        0001:00000000\n")
         have, failed, unresolved, dup = measure(
             tdp, fakemap,
             [str(tdp / "a.cpp"), str(tdp / "b.cpp"), str(tdp / "c.cpp"),
@@ -345,6 +386,38 @@ def selftest():
                is_any_comdat("??_C@_0BA@abcd@") and
                not is_any_comdat("_LoadArchive"),
                "any-COMDAT predicate", "pattern set")
+
+        # Finding 3: a failed link zeroes walk_window.map, both tools'
+        # universe, and this tool used to answer with "map defines 0
+        # symbols" and every symbol unresolved. Three refusal shapes, each
+        # asserted on its own message so a regression cannot hide behind a
+        # neighbouring one.
+        def expect_refusal(path, needle, what):
+            try:
+                map_defined(path)
+            except SystemExit as e:
+                expect(needle in str(e),
+                       what + " refusal message", str(e))
+            else:
+                expect(False, what + " was ACCEPTED", "no SystemExit")
+
+        zmap = tdp / "zero.map"
+        zmap.write_text("")
+        expect_refusal(zmap, "ZERO BYTES", "zero-byte map")
+
+        stub = tdp / "stub.map"
+        stub.write_text(" walk_window\n\n Timestamp is 68a01c2e\n"
+                        " Preferred load address is 00400000\n")
+        expect_refusal(stub, "NO symbol rows", "row-less stub map")
+
+        cut = tdp / "cut.map"
+        cut.write_text(
+            " 0001:00000000       _present_sym               10000000 f"
+            "   x.obj\n"
+            " 0001:00000010       _dup_sym                   10000010 f"
+            "   x.obj\n")
+        expect_refusal(cut, "TRUNCATED", "trailer-less (truncated) map")
+
         print("selftest %s" % ("PASS" if ok else "FAIL"))
         return 0 if ok else 1
 

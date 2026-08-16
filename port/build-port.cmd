@@ -23,6 +23,28 @@ rem wired by slices, and a generator that stops refusing the judgment rows
 rem is a silent hazard, not a convenience.
 python "%~dp0tools\facegen.py" --selftest
 if errorlevel 1 exit /b 1
+rem Fail before configure if mapdiff's selftest breaks: reviews and delta-0
+rem claims read their decomposition off it, and a differ that miscounts or
+rem stops refusing a truncated map turns a review into an eyeball again.
+python "%~dp0tools\mapdiff.py" --selftest
+if errorlevel 1 exit /b 1
+rem Fail before configure if vtablerows' selftest breaks: the minigame
+rem fan-out lanes read their override/marker/nosrc census off it, and a
+rem reader that miscounts a marker row skips a ROM adjudication silently.
+python "%~dp0tools\vtablerows.py" --selftest
+if errorlevel 1 exit /b 1
+rem And its reconstruction against mg_fanout_costs section 3: the selftest
+rem runs on fixtures and cannot see the real-tree wiring (paths, the base
+rem table constant, the symbol tables); the 29/29 reconstruction is the net
+rem for exactly that half. Needs extracted/overlays, which every port tree
+rem needs anyway (the binaries abort without the NitroFS emissions).
+rem Quiet on the green path (35 lines per build otherwise); on failure the
+rem rerun prints the DIVERGE lines, so the refusal stays loud.
+python "%~dp0tools\vtablerows.py" --reconstruct >nul
+if errorlevel 1 (
+    python "%~dp0tools\vtablerows.py" --reconstruct
+    exit /b 1
+)
 rem Fail before configure if the alternatename guard's scoping fixture breaks.
 rem The guard decides what counts as a linker input, and it used to read lane
 rem prose as one: a quoted directive in a .txt was a build input, so deleting a

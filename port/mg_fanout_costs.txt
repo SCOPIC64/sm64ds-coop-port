@@ -126,11 +126,17 @@ THE SPLIT BETWEEN ONCE AND PER-CLASS IS THE WHOLE COST MODEL:
     the ov004 and ov006 mount patch calls, which had no caller before this
 
   PAID PER CLASS, BY EACH FAN-OUT LANE
-    its own vtable's override slots (section 3, median 12)
-    the marker adjudications among those overrides (section 3, median 11)
+    its own vtable's override slots (section 3, median 13)
+    the marker adjudications among those overrides (section 3, median 10)
     its own ov006 closure TUs
     its own .init constructor's state table, IF the dispatch exists (section 4)
     a registry row and a six-to-twenty-six entry face array
+
+    The two medians above were first written 12 and 11 and neither is what
+    section 3's own twenty-nine rows compute to; the numbers now match the
+    table. port/tools/vtablerows.py --reconstruct reprints the columns they
+    come from on every build, so the figure has a regression check instead
+    of a transcription.
 
 
 3. THE PER-CLASS TABLE, ALL THIRTY, RANKED
