@@ -129,8 +129,11 @@ MR_TRAP(13) MR_TRAP(14) MR_TRAP(30)
 // Resources, Actor::AfterBehavior and Actor::AfterRender in the ROM. Of those
 // four the port has only Actor::BeforeCleanupResources; the other three exist
 // in this build as ActorBase's, which is what every Actor-shaped fill in the
-// port binds and what this one binds too. See the note in the lane report --
-// it is a port-wide standing substitution, not a choice made here.
+// port binds and what this one binds too. It is a port-wide standing
+// substitution, not a choice made here, and it is RULED CORRECT: the ROM's
+// three Actor bodies are `ldr ip,[pc]; bx ip` veneers onto exactly those
+// ActorBase bodies. Evidence, scope sweep and the two caveats are in
+// port/actorbase_slots_ruling.txt.
 static int __fastcall mr_binit(void *s, void *)
 { return _ZN5Actor19BeforeInitResourcesEv(s); }
 static void __fastcall mr_ainit(void *s, void *, unsigned a)
