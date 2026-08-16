@@ -693,7 +693,16 @@ SIZE where the map states one. Twelve of the GX band's thirteen deltas are
 measured between symbol pairs. The thirteenth is data_020a60a0's four-byte
 tail, which no member follows: exclusion and containment assert it
 structurally, and on this tree's layout the size arm measures it outright
-(.dsstate$gxbank12's row says four bytes). 28 selftest arms, all green.
+(.dsstate$gxbank12's row says four bytes). 36 selftest arms, all green.
+
+A SIXTH THING IT ASSERTS, ADDED ON REVIEW: the coverage floor. Each band
+declares the set of maps that hosted it when it was measured, and a band that
+quietly leaves one of them fails the build. Every other arm reads that
+regression as green, because a map with no definition of the head is correctly
+skipped, so without the floor a shrink from three hosting targets to two is a
+smaller green rather than a failure. Proved both ways on real maps: the three
+declared targets satisfy it today, and a sweep of a directory holding only
+walk_window's two maps fails naming smoke_player.
 
 REACH, MEASURED OFF THIS BUILD'S OWN MAPS. /MAP is on
 CMAKE_EXE_LINKER_FLAGS, so all 21 executables write one.
@@ -740,6 +749,37 @@ The runtime check reads GREEN over a band whose last member is half its size
 and whose last two bytes belong to another symbol. That is the proof it cannot
 give and the reason the link-time pass exists.
 
+M3 AND THE POSITIVE CONTROL ARE THE REVIEW'S MEASUREMENTS, NOT THIS LANE'S, and
+they went past the case this lane made.
+
+M3 put align(8) on data_020a6098 instead, which sits at +16. walk_window's band
+head is at 0xb8, so +16 lands on 0xc8 and is already 8-aligned: nothing moves
+there. smoke_player's head is at 0xb4, so +16 lands on 0xc4 and the member
+slides. The guard named smoke_player and only smoke_player, and smoke_player is
+exactly the target of the three that carries neither port_gxbank_layout_check
+nor its caller. So a post-link pass reading walk_window.map alone, which is
+where the existing guards read, would have reported layout OK over a REAL
+broken band in the one binary that could never speak up about it. The
+every-map design is load-bearing rather than thorough, and this lane's M1 did
+not prove that: M1 broke walk_window and left smoke_player sound, which is the
+same point from the weaker side. The offsets are re-derivable from this tree's
+own maps without rebuilding, and were: walk_window .dsstate$gxbank08 at 0xc8,
+smoke_player at 0xc4.
+
+THE POSITIVE CONTROL closed the question M2 could not close by itself. M2's
+evidence is a silence, and a silence is only evidence if the thing that should
+have spoken can speak on that path at all. The review ran the M1 binary the
+same way and it PRINTS the [gx] diagnostic and aborts, so the branch is
+reached, the run does exercise it, and M2's clean exit is the check being blind
+rather than the check being unreached.
+
+THE SIZING RULE THIS GUARD DOES NOT IMPLEMENT, measured by the review while
+ruling on the scope boundary: of 374 hosted DS globals declared in port/hal, 26
+are declared shorter than their config next-symbol gap, all of them small
+scalars. That is the size of the general undersized-globals sweep as a future
+build gate, and it is a number rather than a guess about whether the boundary
+drawn here was the right one.
+
 UNPROVEN, AND THE BOUNDARIES
 
   * The guard does not size a member that shares a contribution row. Only a
@@ -766,3 +806,12 @@ UNPROVEN, AND THE BOUNDARIES
     selftest fixture here and was not reproduced in a real build. Doing that
     means reverting the band fix, and M1 and M2 already broke a real link two
     different ways.
+  * M3 AND THE POSITIVE CONTROL ARE THE REVIEW'S RUNS. This lane re-derived
+    M3's arithmetic off its own two maps and did not rebuild it, and did not
+    re-run the positive control at all. Both are recorded as the review's
+    measurements and should be read that way.
+  * The coverage floor is a declared set, so it is only as good as the
+    measurement that filled it. It catches a band leaving a target it used to
+    be in; it cannot know that a NEW target should have hosted one. Widening
+    it is a measurement anyone can take, narrowing it needs the reason in the
+    commit, and neither is enforced by anything but review.

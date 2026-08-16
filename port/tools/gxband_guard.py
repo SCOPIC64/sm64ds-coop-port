@@ -43,8 +43,16 @@ data_020a609c is still at +0x14 and data_020a60a0 is still at +0x18, so
 port_gxbank_layout_check returns 1. walk_window ran scene 4 for 30 frames under
 SM64DS_FAULTS_FATAL=1, exit 0, clean, not one diagnostic line, while the band's
 last two bytes belonged to data_0209f310. This guard failed all three hosting
-targets on the same binaries. port/ppu_gap_audit.txt section 11a carries the
-whole experiment.
+targets on the same binaries.
+
+AND THE BAND CAN BREAK IN A TARGET THE CHECK IS NOT IN. The review's third
+mutation put align(8) on data_020a6098, which is at +16: walk_window's head is
+at 0xb8 so +16 lands on 0xc8 and nothing moves, while smoke_player's head is at
+0xb4 so +16 lands on 0xc4 and the member slides. Only smoke_player breaks, and
+smoke_player is the one target of the three that carries neither
+port_gxbank_layout_check nor its caller. A guard reading walk_window.map alone
+would have reported layout OK over it. Reading every map is load-bearing, not
+thoroughness. port/ppu_gap_audit.txt section 11a carries the whole experiment.
 
 WHY A NEW TOOL AND NOT AN EXTENSION (the ruling, so the next lane does not
 re-litigate it):
@@ -148,7 +156,9 @@ WHAT THIS GUARD DOES NOT PROVE
   * Anything about a target that does not host the band. A map with no
     definition of the head symbol is reported as SKIPPED, and if NO map hosts
     a band the guard REFUSES: a guard that checked nothing must never read
-    green.
+    green. Between those two is the coverage floor: `hosts` names the maps
+    that hosted the band when it was measured, so a band leaving one target
+    out of three is loud rather than a smaller green.
   * That a symbol sharing a member's exact address is an alias rather than
     foreign storage. Arm C excuses equal addresses on purpose -- a fired
     /alternatename and MSVC's decorated C++ spelling of the same object both
@@ -184,6 +194,15 @@ import tempfile
 # start/end are DS addresses; everything derived from them is read out of the
 # config at run time. `members` is the count config must yield -- a tripwire on
 # the config moving under the declaration, not a second source of truth.
+#
+# `hosts` is the same idea for coverage: the measured set of maps that host the
+# band today, floored so a SHRINK is loud. Without it the green line reads
+# "3/21 maps" and would go on reading green at 2/21 the day a refactor drops
+# the band from a target, which is a coverage regression wearing a pass. It is
+# the repo's baseline pattern, kept in the declaration rather than in a
+# sidecar file because it is three names per band and not a list of hundreds.
+# Widening it is a measurement anyone can take; narrowing it needs the reason
+# written down.
 # ---------------------------------------------------------------------------
 BANDS = (
     {
@@ -193,6 +212,8 @@ BANDS = (
         'end': 0x020a60a4,
         'end_source': 'config',
         'members': 13,
+        'hosts': ('smoke_player.map', 'walk_window.map',
+                  'walk_window_hires.map'),
         'host': 'port/hal/cxx_aliases.cpp',
         'what': 'the GX bank-state block',
         'remedy':
@@ -219,6 +240,8 @@ BANDS = (
             'row; see port/irq2_map.txt section 8 and the note above '
             'data_023c0000 in port/hal/player_bridges.cpp',
         'members': 1,
+        'hosts': ('smoke_player.map', 'walk_window.map',
+                  'walk_window_hires.map'),
         'host': 'port/hal/player_bridges.cpp',
         'what': 'the ARM9 data TCM',
         'remedy':
@@ -581,8 +604,15 @@ def report_failure(band, mp, fails, out):
                  if band['end_source'] == 'config' else band['end_source']))
 
 
-def run(root, maps, bands=BANDS, verbose=False, out=sys.stdout):
-    """0 when every declared band is intact in every map that hosts it."""
+def run(root, maps, bands=BANDS, verbose=False, out=sys.stdout, sweep=False):
+    """0 when every declared band is intact in every map that hosts it.
+
+    sweep says the caller handed over EVERY map in a build directory, which is
+    what makes an absent floor map meaningful: on a partial run a floor map
+    that was never read says nothing, and on a sweep it says the target is
+    gone. A floor map that WAS read and does not host the band fails either
+    way.
+    """
     try:
         resolved = [(b, band_members(root, b)) for b in bands]
     except Refused as e:
@@ -602,10 +632,13 @@ def run(root, maps, bands=BANDS, verbose=False, out=sys.stdout):
             return 2
 
     broken = 0
+    floors = 0
     summary = []
+    read_names = set(os.path.basename(mp.path) for mp in parsed)
     for band, members in resolved:
         hosts = 0
         deltas = 0
+        hosted_names = set()
         for mp in parsed:
             status, fails, sized = check_band(band, members, mp)
             if status == 'skipped':
@@ -615,6 +648,7 @@ def run(root, maps, bands=BANDS, verbose=False, out=sys.stdout):
                                  members[0][0]))
                 continue
             hosts += 1
+            hosted_names.add(os.path.basename(mp.path))
             deltas += len(members) - 1
             if fails:
                 report_failure(band, mp, fails, out)
@@ -634,15 +668,46 @@ def run(root, maps, bands=BANDS, verbose=False, out=sys.stdout):
                 "guard must not read as green.\n"
                 % (members[0][0], band['key'], len(parsed)))
             return 2
-        summary.append("%s %d/%d maps, %d members, %d deltas"
-                       % (band['key'], hosts, len(parsed), len(members),
-                          deltas))
-        if not broken and verbose:
+        # THE COVERAGE FLOOR. A band silently leaving a target is a coverage
+        # regression that every other arm reads as green, because a map that
+        # does not host a band is correctly skipped. The floor is what makes
+        # the difference between "this target never had it" and "this target
+        # just lost it".
+        floor = tuple(band.get('hosts', ()))
+        lost = [n for n in floor if n in read_names and n not in hosted_names]
+        absent = [n for n in floor if n not in read_names]
+        if lost or (sweep and absent):
+            out.write(
+                "\ngxband_guard: COVERAGE FLOOR BROKEN -- band %s is declared "
+                "hosted by %d map(s) and came back with %d.\n"
+                % (band['key'], len(floor), len(hosted_names & set(floor))))
+            for n in lost:
+                out.write("   * %s was read and no longer defines %s\n"
+                          % (n, members[0][0]))
+            for n in (absent if sweep else []):
+                out.write("   * %s is not in the build at all\n" % n)
+            out.write(
+                "  Either the band left that target on purpose, in which case "
+                "narrow the `hosts` floor in this file and\n"
+                "  say in the commit which measurement says so, or a refactor "
+                "dropped it and the target is now shipping an\n"
+                "  unchecked band. The floor exists because a shrink from 3 "
+                "hosting maps to 2 is otherwise a green.\n")
+            floors += 1
+        summary.append("%s %d/%d maps (floor %d), %d members, %d deltas"
+                       % (band['key'], hosts, len(parsed), len(floor),
+                          len(members), deltas))
+        if not broken and not floors and verbose:
             out.write("  %-14s hosted by %d of %d maps, %d deltas asserted\n"
                       % (band['key'], hosts, len(parsed), deltas))
 
-    if broken:
-        out.write("\ngxband_guard: %d band/map pair(s) BROKEN.\n" % broken)
+    if broken or floors:
+        parts = []
+        if broken:
+            parts.append("%d band/map pair(s) BROKEN" % broken)
+        if floors:
+            parts.append("%d coverage floor(s) BROKEN" % floors)
+        out.write("\ngxband_guard: %s.\n" % ', '.join(parts))
         return 1
     if not verbose:
         out.write("gxband_guard: %s -- layout OK\n" % '; '.join(summary))
@@ -916,6 +981,25 @@ def selftest():
         case('arm C catches an intruder in the tail', 1, rc, out,
              wants=['INTRUDER IN THE BAND', 'data_020a8114', '+26'])
 
+        # 5a. THE hi-1 BOUND, both sides. The reviewer's miss: every intruder
+        #     fixture sat comfortably inside the span, so an off-by-one at the
+        #     top would have survived. +27 is the last byte of the band and
+        #     must fail; +28 is the first byte after it and must pass.
+        m = _fabmap(os.path.join(tmp, 'lastbyte.map'), SECTIONS,
+                    band_rows(healthy) + FILLER +
+                    [('_data_020a8114', 4, HEAD_OFF + 27, VA + HEAD_OFF + 27,
+                      'player_bridges.cpp.obj')])
+        rc, out = go(tmp, [m], bands_gx)
+        case('arm C catches the LAST byte of the span', 1, rc, out,
+             wants=['INTRUDER IN THE BAND', '+27'])
+        m = _fabmap(os.path.join(tmp, 'pastend.map'), SECTIONS,
+                    band_rows(healthy) + FILLER +
+                    [('_data_020a8114', 4, HEAD_OFF + 28, VA + HEAD_OFF + 28,
+                      'player_bridges.cpp.obj')])
+        rc, out = go(tmp, [m], bands_gx)
+        case('the byte AFTER the span is not an intruder', 0, rc, out,
+             wants=['layout OK'], unwanted=['INTRUDER'])
+
         # 5b. a STATIC intruder counts too ----------------------------------
         m = _fabmap(os.path.join(tmp, 'static_intruder.map'), SECTIONS,
                     band_rows(healthy) + FILLER,
@@ -924,6 +1008,22 @@ def selftest():
         rc, out = go(tmp, [m], bands_gx)
         case('arm C sees static symbols', 1, rc, out,
              wants=['INTRUDER IN THE BAND', 'pk001_gap', '(a static)'])
+
+        # 5b2. AN INTRUDER OUT OF THE BAND'S OWN OBJECT. cxx_aliases.cpp is
+        #      where a new hosted global is likeliest to be added, so the
+        #      object column must never become an excuse. Same failure as any
+        #      other intruder, and the report names the object either way.
+        #      The name is invented rather than borrowed: a fixture that spells
+        #      a real symbol next to the wrong object reads as a claim about
+        #      where that symbol lives.
+        m = _fabmap(os.path.join(tmp, 'ownobj.map'), SECTIONS,
+                    band_rows(healthy) + FILLER +
+                    [('_data_02fixture', 4, HEAD_OFF + 26, VA + HEAD_OFF + 26,
+                      'cxx_aliases.cpp.obj')])
+        rc, out = go(tmp, [m], bands_gx)
+        case('an intruder from the band own object still fails', 1, rc, out,
+             wants=['INTRUDER IN THE BAND', 'cxx_aliases.cpp.obj',
+                    'data_02fixture'])
 
         # 5c. an ALIAS at a member address is NOT an intruder ---------------
         #     A fired /alternatename publishes the LHS at the RHS's address,
@@ -971,6 +1071,60 @@ def selftest():
              wants=['MEMBER TOO SMALL', 'data_020a60a0',
                     'which is 2 byte(s); the ROM gives it 4'],
              unwanted=['DELTA WRONG', 'INTRUDER', 'OVERRUNS'])
+
+        # 6d. NON-UNIFORM DELTAS, which no real fixture here pins. Every GX
+        #     delta is 2, so a guard that compared against a constant 2
+        #     instead of against the config delta would pass every arm above.
+        #     This band's config deltas are 2, 4, 2 and 8, and the break is a
+        #     map laid out at a uniform 2: it can only fail if the expected
+        #     numbers really came out of the config file.
+        nu = os.path.join(tmp, 'nonuniform')
+        os.makedirs(nu, exist_ok=True)
+        NU_START, NU_OFFS = 0x02100000, [0, 2, 6, 8, 16]
+        NU_END = NU_START + 20
+        _fabconfig(nu, 'arm9',
+                   [('data_%08x' % (NU_START + o), NU_START + o)
+                    for o in NU_OFFS] + [('data_%08x' % NU_END, NU_END)])
+        nu_band = dict(BANDS[0], key='nonuniform', start=NU_START, end=NU_END,
+                       members=5, hosts=())
+
+        def nu_rows(offsets):
+            return [('_data_%08x' % (NU_START + NU_OFFS[i]), 4, HEAD_OFF + off,
+                     VA + HEAD_OFF + off, 'cxx_aliases.cpp.obj')
+                    for i, off in enumerate(offsets)]
+
+        m = _fabmap(os.path.join(tmp, 'nonuni_ok.map'), SECTIONS,
+                    nu_rows(NU_OFFS) + FILLER)
+        rc, out = go(nu, [m], (nu_band,), verbose=True)
+        case('non-uniform deltas pass when laid out to config', 0, rc, out,
+             wants=['5 members, 4 measured deltas'])
+        m = _fabmap(os.path.join(tmp, 'nonuni_flat.map'), SECTIONS,
+                    nu_rows([0, 2, 4, 6, 8]) + FILLER)
+        rc, out = go(nu, [m], (nu_band,))
+        case('a uniform layout FAILS a non-uniform band', 1, rc, out,
+             wants=['DELTA WRONG', 'data_02100002 -> data_02100006',
+                    '2 bytes in the link, 4 in the ROM'])
+
+        # 6e. THE COVERAGE FLOOR: a band that quietly leaves a target is a
+        #     regression every other arm reads as green, because a map that
+        #     does not host a band is correctly skipped.
+        floored = dict(gx, hosts=('healthy.map', 'gone_target.map'))
+        good = _fabmap(os.path.join(tmp, 'healthy.map'), SECTIONS,
+                       band_rows(healthy) + FILLER)
+        nohost2 = _fabmap(os.path.join(tmp, 'gone_target.map'), SECTIONS,
+                          FILLER)
+        rc, out = go(tmp, [good, nohost2], (floored,))
+        case('a floor map that stopped hosting FAILS', 1, rc, out,
+             wants=['COVERAGE FLOOR BROKEN',
+                    'gone_target.map was read and no longer defines'])
+        o = _Out()
+        rc = run(tmp, [good], bands=(floored,), out=o, sweep=True)
+        case('a floor map missing from a SWEEP fails', 1, rc, o.text(),
+             wants=['COVERAGE FLOOR BROKEN', 'not in the build at all'])
+        o = _Out()
+        rc = run(tmp, [good], bands=(floored,), out=o, sweep=False)
+        case('a partial run does not judge absent floor maps', 0, rc, o.text(),
+             wants=['layout OK'], unwanted=['COVERAGE FLOOR'])
 
         # 7. THE DTCM SHAPE: one member, the whole check is C ---------------
         DT_OFF = 0x2000
@@ -1134,6 +1288,7 @@ def main():
         return selftest()
 
     maps = [os.path.normpath(m) for m in args.map]
+    sweep = False
     if args.build_dir:
         try:
             found, orphans = find_maps(args.build_dir)
@@ -1141,13 +1296,14 @@ def main():
             print("gxband_guard: REFUSED -- %s" % e)
             return 2
         maps += found
+        sweep = True
         if orphans and args.verbose:
             print("  %d orphan map(s) ignored (no executable beside them): %s"
                   % (len(orphans), ', '.join(orphans)))
     if not maps:
         default = os.path.join(args.root, 'build', 'port', 'walk_window.map')
         maps = [default]
-    return run(args.root, maps, verbose=args.verbose)
+    return run(args.root, maps, verbose=args.verbose, sweep=sweep)
 
 
 if __name__ == '__main__':
