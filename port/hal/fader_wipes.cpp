@@ -487,8 +487,20 @@ static HalFaderWipe *port_fader_animating(void)
 
 void port_fader_advance(void)
 {
-    /* phase 2's first advance, the ROM's own body, on the INSTALLED fader */
+    /* Phase 2's FIRST advance, the ROM's own body, on the INSTALLED fader.
+       INSIDE the stepping bracket, and the bracket is not decoration here.
+       HalFaderWipe::AdvanceFade has two paths: driven, which steps the
+       interpolator, and undriven, which SNAPS currInterp to the target so an
+       invisible fade cannot hold a transition open. func_02018efc IS the
+       frame loop's driven advance -- it is the very function
+       port_fader_advance was written to stand in half of -- so calling it
+       outside the bracket makes every level snap the installed fader to its
+       target once a frame. That was measured, not reasoned: the first cut of
+       this line sat above the bracket and level 1's selftest started printing
+       the host stub's AdvanceFade note. */
+    g_hal_fader_stepping = 1;
     func_02018efc();
+    g_hal_fader_stepping = 0;
 
     HalFaderWipe *f = port_fader_animating();
     if (!f)

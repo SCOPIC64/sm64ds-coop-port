@@ -282,8 +282,9 @@ the image ever stores data_0209f61c there. The arm9, itcm and dtcm reloc tables
 and all ninety overlay reloc tables carry exactly two references to the symbol
 -- __sinit_02074f80 and func_0202ed48 -- and the only computed writers of d4b0
 (FUN_02029980, FUN_020299f4, FUN_02029ab0) write `*data_0209f324 + 0x240`, an
-element of the eight-entry heap FaderWipe array Stage::InitResources allocates
-with func_02073470. FaderWipe is dFdWipe_c, a SIBLING of dWipe_c under
+element of the heap FaderWipe array Stage::InitResources allocates with
+func_02073470(7, 0x60, 8, FaderWipe::FaderWipe, FaderWipe::~FaderWipe) -- index
+6 at a 0x60 stride. FaderWipe is dFdWipe_c, a SIBLING of dWipe_c under
 dFdColor_c, not this class. No arming needed inventing, and none was invented.
 
 WHAT THE SEAT COST, measured with port/tools/closure.py before it was written
@@ -309,6 +310,38 @@ on any path measured here. That is in the unproven items too.
 THE STUB'S SHAPE IS THE ONE SLOT IN THIS TABLE THAT IS NOT __fastcall, and it
 is section 9b's shape C, derived from this lane's own binary rather than from
 the audit's table. See 9c and 9d, which are amended.
+
+WHAT THE DRIVER CHANGES FOR EVERY OTHER SCENE, because it is not a minigame
+edit. func_02018efc advances WHATEVER is installed, so it runs on the 46
+levels too, and there it reaches hal/fader_wipes.cpp's host HalFaderWipe:
+_ZN5Scene19ResetFadersAndSoundEv (slice_w1l2, the level path) hands
+&data_0209f5e8 to Scene::SetFaders, which writes it into d4ac. Two things
+follow and both were measured rather than argued.
+
+  * THE STEPPING BRACKET IS LOAD-BEARING AND THE FIRST CUT GOT IT WRONG.
+    HalFaderWipe::AdvanceFade has an UNDRIVEN path that SNAPS currInterp to
+    its target so an invisible fade cannot hold a transition open, gated on
+    hal/fader_wipes.cpp's g_hal_fader_stepping. Called outside the bracket,
+    func_02018efc made every level snap the installed fader once a frame:
+    level 1's SM64DS_WINDOW_SELFTEST=120 run printed seven of the host stub's
+    AdvanceFade notes. THE 46-LEVEL BATTERY WAS GREEN OVER THAT, which is the
+    honest limit of what a green means here. func_02018efc IS the frame
+    loop's driven advance -- it is the function port_fader_advance was written
+    to stand in half of -- so the bracket wraps it now, the same level run
+    prints zero notes, and the driven path with speed 0 writes nothing
+    (Fader::AdvanceInterp leaves currInterp equal and returns before the
+    blend registers).
+  * THE GARBAGE-RECEIVER HAZARD HAS A LIVE CONSUMER NOW. HalFaderWipe::
+    AdvanceFade is a real MSVC __thiscall virtual and reads its receiver from
+    ECX; func_02018efc pushes the receiver as a cdecl argument. The stack is
+    balanced either way, and the object is in ECX at that call as well, so it
+    works -- for the same reason section 10's last unproven item gives for the
+    three Scene::SetFaders and Minimap::Behavior sites, and with the same
+    absence of any guard. The difference is that those three were dormant and
+    this one runs on every frame of every level. Nothing enforces it; a
+    recompile that schedules ECX differently would break level fades silently.
+    Recorded, not fixed: the fix is the one hal/fader_wipes.cpp's own header
+    already routes, ROM-SHAPED vtables for the host wipe objects.
 
 THE ACCEPTANCE TEST, which port/irq2_map.txt section 6 committed for exactly
 this moment, on this lane's own binaries:
