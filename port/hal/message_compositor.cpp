@@ -184,7 +184,22 @@ void raster_obj(uint32_t dispcnt) {
         const uint16_t a2 = rd16(kOamBase + i * 8u + 4);
         const bool affine = a0 & 0x100;
         if (!affine && (a0 & 0x200)) continue;
-        if (((a0 >> 10) & 3) == 3) continue;
+        // OBJ MODE (attribute 0 bits 10-11): 0 normal, 1 semi-transparent,
+        // 2 OBJ window, 3 prohibited/bitmap. This test used to be `== 3` under
+        // the name "OBJ window", which skipped the wrong mode and painted a
+        // window sprite -- invisible on hardware, it contributes only a mask --
+        // as an ordinary opaque sprite. Corrected in step with ntr/ppu.cpp and
+        // ntr/ppu_sub.cpp; the field position is pinned there from the decomp's
+        // own OAM::Render rather than from docs alone.
+        //
+        // THE MASK ITSELF IS NOT MODELLED HERE, and that is a structural limit
+        // rather than an oversight: this compositor runs its BG loop BEFORE
+        // raster_obj, so an OBJ-window region would not exist yet when the BGs
+        // are masked. ppu_sub.cpp composites in one pass and does model it.
+        // Skipping the sprite is still strictly closer to hardware than drawing
+        // it, because on hardware it never appears in the image.
+        const unsigned objmode = (a0 >> 10) & 3;
+        if (objmode == 2 || objmode == 3) continue;
         const int shape = (a0 >> 14) & 3;
         if (shape == 3) continue;
         const int size = (a1 >> 14) & 3;

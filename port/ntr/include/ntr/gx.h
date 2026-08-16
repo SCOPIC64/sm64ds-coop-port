@@ -110,6 +110,11 @@ const GxTriangle *gx_polygons(size_t &count);
 // composites over whatever the 2D engine already drew.
 void gx_render(Framebuffer &fb);
 void gx_debug_proj(float out[16]);
+
+// The matrix stacks' current depth, for GXSTAT bits 8-12 (position/vector) and
+// bit 13 (projection). Read-only; ntr/io.cpp uses it to answer the two linked
+// stack-level readers with the host's real state instead of a dead latch.
+void gx_matrix_stack_levels(unsigned &pos_level, unsigned &proj_level);
 // the live matrix state, for tracking down a mis-placed draw
 void gx_debug_matrices(int *mode, float pos[16], float proj[16]);
 

@@ -351,10 +351,32 @@ assumed. port/ntr already has:
 
 Gaps, per cluster, from what the two overlays actually poke:
 
-  a. OBJ WINDOW. Both ppu.cpp and ppu_sub.cpp skip OAM mode 3 (OBJ window)
-     outright, and neither models the window registers (WIN0/WIN1/WINOUT).
-     The title screen's touch_select and the minigame option screen are
-     candidates for it. Unmeasured which of them needs it.
+  a. OBJ WINDOW. CORRECTED AND LARGELY CLOSED by run link60 lane W2D; see
+     port/ppu_gap_audit.txt. Two things this paragraph said were wrong.
+
+     THE MODE IS 2, NOT 3. OAM attribute 0 bits 10-11 are 0 normal,
+     1 semi-transparent, 2 OBJ WINDOW, 3 prohibited (bitmap on the DS). What
+     ppu.cpp and ppu_sub.cpp skipped was mode 3, under a comment naming it the
+     OBJ window, so they dropped bitmap sprites and DREW window sprites, which
+     on hardware are invisible and contribute only a mask. Anything reasoning
+     from "objMode 3" to a conclusion about the OBJ window is reasoning about
+     the wrong field value.
+
+     THE WINDOW REGISTERS ARE MODELLED, and were already, on BOTH engines:
+     ppu_sub.cpp read_windows/window_mask and the mirror of it in
+     hal/message_compositor.cpp, which is engine A's live 2D path.
+     ntr/ppu.cpp is in no live path at all.
+
+     ppu_sub.cpp now models the OBJ window for real (mask buffer, DISPCNT bit
+     15, WINOUT's upper six bits, precedence WIN0 > WIN1 > OBJwin > WINOUT).
+     ppu.cpp and message_compositor.cpp take the corrected skip only; neither
+     can carry the mask, the second because its BG loop runs before raster_obj.
+     port/tests/smoke_objwin.cpp pins the contract.
+
+     MEASURED NEED: none yet. Zero mode-1, mode-2 and mode-3 objects on either
+     engine across 1200 sampled frames of level 1 and scene 4. The title screen
+     is still unmeasured for a different reason than "nobody looked": it faults
+     inside InitResources before frame 0, so it reaches no scan-out at all.
   b. SEMI-TRANSPARENT SPRITES draw opaque in ppu_sub.cpp, and the colour
      special effects (BLDCNT/BLDALPHA) are only partially there. ov007's
      RequestScreenFade drives a fade; whether it goes through the brightness

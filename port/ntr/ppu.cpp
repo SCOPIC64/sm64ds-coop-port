@@ -162,6 +162,29 @@ void ppu_scanout(Engine eng, Framebuffer &fb) {
 // GBATEK "LCD OBJ": 128 OAM entries per engine; tiles in the engine's OBJ
 // VRAM region, palette at pltt+0x200. Sizes come from the shape/size table.
 // Affine params sit in the filler word of entries group*4+0..3 (pa,pb,pc,pd).
+//
+// OBJ MODE, attribute 0 bits 10-11. GBATEK: 0 Normal, 1 Semi-Transparent,
+// 2 OBJ Window, 3 Prohibited (the DS reuses 3 for bitmap OBJs). The decomp's
+// own OAM::Render pins the field position independently -- it composes the
+// word as `(mode << 10) | (mosaic << 12)` in
+// src/_ZN3OAM6RenderEbP7OamAttriiii5Fix12IiEi.c, and the sibling TU's bitfield
+// `yb:8, objMode:2, mode:2, mosaic:1, ...` puts the same two bits at 10-11
+// (that TU's `objMode` name is bits 8-9, the affine/double-size pair, which is
+// a naming collision between the two TUs and not a disagreement).
+//
+// THIS CODE USED TO SKIP MODE 3 AND CALL IT "the OBJ window". That is the wrong
+// mode: mode 3 is the prohibited/bitmap encoding and mode 2 is the window. The
+// effect of the mix-up is that an OBJ-window sprite -- which on hardware is
+// INVISIBLE and contributes only a mask -- was drawn as an ordinary opaque
+// sprite, painting the mask shape onto the screen. Nothing in the port's
+// measured runs uses either mode (port/ppu_gap_audit.txt: zero mode-1, mode-2
+// and mode-3 objects across 1200 sampled frames of level 1 and scene 4), so
+// this is a latent contract error rather than a visible regression, and it is
+// corrected here rather than left for whatever first uses the mode.
+//
+// This file has no window unit, so a mode-2 sprite cannot contribute its mask
+// here. Not drawing it is still the closer answer of the two: on hardware it
+// does not appear in the image either way.
 void ppu_scanout_obj(Engine eng, Framebuffer &fb) {
     static const int kSizes[3][4][2] = {
         {{8, 8}, {16, 16}, {32, 32}, {64, 64}},    // square
@@ -181,7 +204,9 @@ void ppu_scanout_obj(Engine eng, Framebuffer &fb) {
         const uint16_t a2 = rd16(oam_base + i * 8u + 4);
         const bool affine = a0 & 0x100;
         if (!affine && (a0 & 0x200)) continue;             // disabled
-        if (((a0 >> 10) & 3) == 3) continue;               // OBJ window: skip
+        const unsigned objmode = (a0 >> 10) & 3;
+        if (objmode == 2) continue;   // OBJ window: a mask, never drawn
+        if (objmode == 3) continue;   // bitmap OBJ: not hosted
         const int shape = (a0 >> 14) & 3;
         if (shape == 3) continue;
         const int size = (a1 >> 14) & 3;
