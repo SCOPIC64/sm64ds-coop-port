@@ -31,14 +31,15 @@ The name list cannot be the whole test, and the way it fails is the way that
 matters: it goes QUIET rather than red.
 
 dsd spells a symbol data_ovNNN_ADDRESS only when it had nothing better to call
-it. Every symbol it did have a name for -- every *_SpawnInfo record and every
-_ZTV vtable a mount list asks for, 344 of them across the lists this build
-mounts -- matched nothing above, and neither did the synthetic
-port_ovNNN_gap_ADDRESS blocks tools/ovdata.py invents for un-symbolized statics.
-All of them are hosted DS storage. The 344 happened to be inside .dsstate and
-were checked by hand; the gap blocks in packed mounts were NOT, and 28 of them
-sat outside the captured span until tools/ovdata.py was fixed to route them.
-This guard was the thing that should have said so and could not.
+it. Every symbol it did have a name for matched nothing above, and neither did
+the synthetic port_ovNNN_gap_ADDRESS blocks tools/ovdata.py invents for
+un-symbolized statics. Counted off this build's own map, in the mount objects'
+contributions to .dsstate: 285 *_SpawnInfo records, 13 _ZTV vtables and 51
+_ZN...E data symbols, 349 in all. All of them are hosted DS storage. The 349
+happened to be inside .dsstate and were checked by hand; the gap blocks in
+packed mounts were NOT, and 28 of them sat outside the captured span until
+tools/ovdata.py was fixed to route them. This guard was the thing that should
+have said so and could not.
 
 So the test is also keyed on the OBJECT. tools/ovdata.py emits nothing into
 ovNNN_data.c / ovNNN_syms.c but hosted DS storage, so every READ/WRITE data
