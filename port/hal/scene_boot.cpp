@@ -840,14 +840,22 @@ L2_UNMATCHED(func_ov007_020b8fd4)
    ROM's own code instead of failing, which is the direction that improves.
 
    That leaves func_ov007_020ba05c as the one ov007 address where main has a
-   src file this branch cannot take. It is trapped above and it stays trapped:
-   src/func_ov007_020ba05c.c on main does not compile with the repo's own
-   canonical flags -- mwccarm 2004/b56 at -lang c99 rejects three member
-   accesses the file's own structs do not declare ('array28' and 'array24' on
-   StructObj20, 'f2C' on StructAInner) and cl.exe rejects the same three. That
-   is a matched-tier claim on main that does not reproduce, not a port
-   limitation, and correcting it here would fork the decomp source.
-   port/port_catchup_inventory.txt row 7 carries the full readout.
+   src file this branch cannot take, and the reason is that main does not have
+   it either in the sense that matters. src/func_ov007_020ba05c.c IS on main,
+   but its delink block carries no `complete`, so it is not enrolled: dsd
+   supplies that range from ROM bytes, main's ROM build never compiles the
+   file and no byte gate has ever run on it (tools/delaunder.py: "a
+   non-enrolled file has no byte gate behind it"). Compiled anyway, in a
+   detached worktree of origin/main with main's own tools/match.py and main's
+   own compiler set, mwccarm 2004/b56 at -lang c99 rejects three member
+   accesses the file's own structs do not declare -- 'array28' and 'array24'
+   on StructObj20, 'f2C' on StructAInner -- and cl.exe rejects the same three.
+   It is a configured draft, not a match, and the trap stays.
+   port/port_catchup_inventory.txt row 7 carries the full readout, including
+   the one thing in it that IS a decomp-side finding: chaos-db records the
+   address as matched:true anyway, because its matched test is "a src file
+   exists and carries no NONMATCHING banner" and never consults the enrolled
+   set.
 
    FOUR MORE UNMATCHED BODIES, NOT ov007's, that the arm9 closure pulled in.
    Same treatment and the same counter, listed apart because they are a
