@@ -311,9 +311,13 @@ extern "C" void port_message_composite_engine_a(void *fbp)
      * which for a 2D minigame is the ROM's intent.
      *
      * HERE rather than in a frame hook, for the same reason engine B's publish
-     * sits where it does. hal/sub_screen.cpp:706 publishes data_0209d454 into
-     * DISPCNT_B and calls ppu_scanout_sub twenty-five lines later, in one
-     * function, so engine B rasterises the mask it just published. Putting the
+     * sits where it does. hal_sub_screen_present (hal/sub_screen.cpp)
+     * publishes data_0209d454 into DISPCNT_B and then calls ppu_scanout_sub
+     * further down the SAME function, so engine B rasterises the mask it just
+     * published. Named by function and not by line: the first cut of this
+     * comment cited :706 and "twenty-five lines later" for a publish that is
+     * at 717-718 and a call at 730, and a line number in a file another lane
+     * owns rots on their next edit even when it starts out right. Putting the
      * engine-A publish at the head of the engine-A display path gives engine A
      * the same property; anywhere earlier in the frame and the composite below
      * would read a register one tick stale.

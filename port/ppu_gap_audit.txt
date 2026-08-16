@@ -843,7 +843,7 @@ Both numbers are host constants.
   0x101820 is hal/scene_boot.cpp's own frame clear in port_scene_run's render
   bucket, written before gx_render.
 
-  The rectangle is ntr::ppu_compose_sub's corner panel. hal/sub_screen.cpp:704
+  The rectangle is ntr::ppu_compose_sub's corner panel. hal_sub_screen_present
   computes x0 = w - SUB_W/div - kMargin and y0 = h - SUB_H/div - kMargin, with
   kMargin 8 and div 2 (SM64DS_SUB_SCALE's default), and ppu_compose_sub draws a
   one-pixel frame around it. At 512x384 that predicts the frame at 375..504 /
@@ -930,7 +930,7 @@ lane was sent to resolve.
 
 func_02019144 line 46, at the head of port_message_composite_engine_a, before
 it reads DISPCNT. Placed there for the same reason engine B's publish sits
-inside hal_sub_screen_present twenty-five lines above ppu_scanout_sub: the
+inside hal_sub_screen_present above its own ppu_scanout_sub call: the
 rasteriser reads the mask it just published. SM64DS_ENGINE_A_NO_PUBLISH=1
 restores the old behaviour on the same binary, so a before/after is one build
 and one .dsstate base.
