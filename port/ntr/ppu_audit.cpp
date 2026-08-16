@@ -67,6 +67,21 @@ struct Reg {
 };
 
 const Reg kRegs[] = {
+    // DISPCNT is `modelled` on both engines at REGISTER granularity, and that
+    // granularity is what hid a gap for a whole lane: the word carries fields
+    // whose readers disagree. Recorded per bit, because "M" here has never
+    // meant "every bit of it":
+    //   bit  4  OBJ 1D/2D tile mapping. READ on B (ppu_sub.cpp's map1d).
+    //           NOT read on A -- ppu.cpp's OBJ layer hard-codes 1D.
+    //   bits 8-12  layer enables. Read on both.
+    //   bit  16-17 display mode. Read on both.
+    //   bits 20-21 OBJ 1D tile boundary. Read on both. Applies to 1D mapping
+    //           only on hardware; both readers apply it either way, which is
+    //           inert while the game leaves the field at 0 and is a gap the
+    //           day it does not.
+    //   bits 24-29 char/screen base offsets. Engine A only, read there.
+    //   bit  30 BG extended palettes. READ on B (ppu_sub.cpp's read_bg).
+    //   bit  31 OBJ extended palettes. READ on B, from this lane on.
     {0x00, 4, E_A | E_B, E_A | E_B, "DISPCNT"},
     {0x08, 2, E_A | E_B, E_A | E_B, "BG0CNT"},
     {0x0A, 2, E_A | E_B, E_A | E_B, "BG1CNT"},
@@ -166,6 +181,47 @@ struct ObjCensus {
 
 ObjCensus g_obj[2];
 
+// ---- the OAM ATTRIBUTE census ------------------------------------------------
+//
+// The mode census above says what KIND of object each entry is. It cannot say
+// what an object DECODES FROM, and that distinction is the one this instrument
+// was missing: a sprite drawn from the wrong tiles and a sprite drawn through
+// the wrong palette are both "mode 0 normal" here, so a mode count cannot tell
+// a mapping gap from a palette gap. Scene 4's thirteen sub sprites were read
+// for a whole lane without anyone being able to name their colour mode.
+//
+// So the distinct enabled-entry triples are remembered whole, and the fields
+// the decode path actually branches on are named out of them at dump time:
+//
+//   attr0 bit  8   affine, and with it attr1 bits 9-13 the matrix group
+//   attr0 bit  13  colour mode. 0 = 16 colours through the attr2 palette bank,
+//                  1 = 256 colours -- and 256 is the only mode an EXTENDED
+//                  palette applies to, so this bit is what decides whether
+//                  DISPCNT bit 30/31 can matter to a given sprite at all
+//   attr2 bits 0-9   character name, in tile-boundary units
+//   attr2 bits 10-11 priority
+//   attr2 bits 12-15 palette: a 16-colour bank, or an extended-palette SLOT
+//                  when the colour mode is 256 and extended palettes are armed
+//
+// Triples, not entries: a HUD redraws the same sprite every frame, so the
+// distinct-value form is a few rows where the per-entry form is 38400.
+
+struct ObjAttr { uint16_t a0, a1, a2; uint32_t n; };
+const unsigned kMaxAttr = 20;
+
+ObjAttr g_attr[2][kMaxAttr];
+unsigned g_attr_n[2];
+uint32_t g_attr_dropped[2];
+
+void note_attr(int e, uint16_t a0, uint16_t a1, uint16_t a2) {
+    for (unsigned i = 0; i < g_attr_n[e]; ++i)
+        if (g_attr[e][i].a0 == a0 && g_attr[e][i].a1 == a1
+            && g_attr[e][i].a2 == a2) { ++g_attr[e][i].n; return; }
+    if (g_attr_n[e] >= kMaxAttr) { ++g_attr_dropped[e]; return; }
+    ObjAttr &a = g_attr[e][g_attr_n[e]++];
+    a.a0 = a0; a.a1 = a1; a.a2 = a2; a.n = 1;
+}
+
 void census_oam(int e) {
     const uint32_t base = e == 0 ? 0x07000000u : 0x07000400u;
     unsigned seen[4] = {0, 0, 0, 0};
@@ -177,9 +233,49 @@ void census_oam(int e) {
         ++g_obj[e].mode[m];
         ++seen[m];
         if ((a0 >> 12) & 1) ++g_obj[e].mosaic;
+        note_attr(e, a0, *reinterpret_cast<volatile uint16_t *>(base + i * 8u + 2),
+                  *reinterpret_cast<volatile uint16_t *>(base + i * 8u + 4));
     }
     for (int m = 0; m < 4; ++m)
         if (seen[m]) ++g_obj[e].frames_with[m];
+}
+
+// ---- what the OBJ decode reads FROM ------------------------------------------
+//
+// Three stores feed a sprite, and a run where one of them is empty produces the
+// same "the sprite is wrong" report as a run where the decode path is wrong.
+// hal/sub_screen.cpp's own probe already counts the first two for engine B; the
+// EXTENDED palette store was in neither probe, which is why "bit 31 is clear"
+// could not be told apart from "there is no extended palette to enable".
+//
+// EVERY BASE HERE COMES OUT OF THE ROM'S OWN CODE, not from a doc:
+//   0x068a0000  src/_ZN3GXS14LoadOBJExtPlttEPKvjj.c computes its destination as
+//               destSlotAddr + 0x068a0000, and src/_ZN2GX23SetBankForSubOBJ
+//               ExtPlttEt.c is what maps a bank there (VRAMCNT_I = 0x83) and
+//               sets DISPCNT_B bit 31 in the same breath.
+//   0x06600000  ntr/ppu_sub.cpp's kObjVram, and dScStarSel_c::InitResources'
+//               own DecompressLZ16 destination.
+//   0x05000600  GXS::LoadOBJPltt's destination for the same scene.
+// Engine A has NO extended-palette row: no GX::LoadOBJExtPltt TU exists in this
+// tree, so there is no ROM-derived base to print and a guessed one would be the
+// invented mapping this file exists to avoid.
+
+struct Span { uint32_t base, size; uint8_t eng; const char *name; };
+
+const Span kObjSrc[] = {
+    {0x06400000, 0x40000, E_A, "OBJ VRAM"},
+    {0x05000200, 0x200,   E_A, "OBJ palette"},
+    {0x06600000, 0x20000, E_B, "OBJ VRAM"},
+    {0x05000600, 0x200,   E_B, "OBJ palette"},
+    {0x068A0000, 0x2000,  E_B, "OBJ ext palette"},
+};
+const unsigned kObjSrcN = sizeof kObjSrc / sizeof kObjSrc[0];
+
+uint32_t nonzero_bytes(uint32_t base, uint32_t size) {
+    uint32_t n = 0;
+    for (uint32_t i = 0; i < size; ++i)
+        if (*reinterpret_cast<volatile uint8_t *>(base + i)) ++n;
+    return n;
 }
 
 // ---- the touch surface ------------------------------------------------------
@@ -337,7 +433,49 @@ void ppu_audit_dump() {
         for (int m = 0; m < 4; ++m)
             std::fprintf(f, "  mode %d %-17s %8u  in %u/%d samples\n", m,
                          kModeName[m], c.mode[m], c.frames_with[m], g_frames);
-        std::fprintf(f, "  mosaic bit set             %8u\n\n", c.mosaic);
+        std::fprintf(f, "  mosaic bit set             %8u\n", c.mosaic);
+
+        static const int kSizes[3][4][2] = {
+            {{8, 8}, {16, 16}, {32, 32}, {64, 64}},
+            {{16, 8}, {32, 8}, {32, 16}, {64, 32}},
+            {{8, 16}, {8, 32}, {16, 32}, {32, 64}},
+        };
+        std::fprintf(f, "OAM enabled-entry attributes, distinct triples:\n");
+        std::fprintf(f, "  %-4s %-4s %-4s %-6s %-4s %-4s %-7s %-4s %-3s %-4s "
+                        "%-4s %s\n", "at0", "at1", "at2", "xN", "y", "x",
+                     "size", "col", "pal", "tile", "prio", "aff");
+        for (unsigned k = 0; k < g_attr_n[e]; ++k) {
+            const ObjAttr &a = g_attr[e][k];
+            const int shape = (a.a0 >> 14) & 3, sz = (a.a1 >> 14) & 3;
+            const bool affine = (a.a0 & 0x100) != 0;
+            int y = a.a0 & 0xFF, x = a.a1 & 0x1FF;
+            if (x >= 256) x -= 512;
+            char size[8];
+            if (shape == 3) std::strcpy(size, "invalid");
+            else std::sprintf(size, "%dx%d", kSizes[shape][sz][0],
+                              kSizes[shape][sz][1]);
+            std::fprintf(f, "  %04x %04x %04x x%-5u %-4d %-4d %-7s %-4s %-3u "
+                            "%-4u %-4u %s\n", a.a0, a.a1, a.a2, a.n, y, x, size,
+                         (a.a0 & 0x2000) ? "256" : "16",
+                         (unsigned)((a.a2 >> 12) & 0xF), (unsigned)(a.a2 & 0x3FF),
+                         (unsigned)((a.a2 >> 10) & 3),
+                         affine ? ((a.a0 & 0x200) ? "dbl" : "yes") : "-");
+        }
+        if (g_attr_dropped[e])
+            std::fprintf(f, "  (%u further distinct triples dropped, table "
+                            "full)\n", g_attr_dropped[e]);
+
+        std::fprintf(f, "OBJ decode inputs, nonzero bytes right now:\n");
+        for (unsigned k = 0; k < kObjSrcN; ++k) {
+            if (!(kObjSrc[k].eng & (e == 0 ? E_A : E_B))) continue;
+            std::fprintf(f, "  %-18s %08x +%06x  %u\n", kObjSrc[k].name,
+                         kObjSrc[k].base, kObjSrc[k].size,
+                         nonzero_bytes(kObjSrc[k].base, kObjSrc[k].size));
+        }
+        if (e == 0)
+            std::fprintf(f, "  (no OBJ ext palette row: this tree has no "
+                            "GX::LoadOBJExtPltt TU to derive a base from)\n");
+        std::fprintf(f, "\n");
     }
 
     std::fprintf(f, "-- TOUCH HARDWARE SURFACE --\n");

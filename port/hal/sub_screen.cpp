@@ -69,6 +69,8 @@ int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy);
 void _ZN3OAM4LoadEv(void);
 unsigned int _ZN3OAM12EnableSubOAMEv(void);
 int hal_oam_layout_check(void);
+/* the GX bank-state band guard (hal/cxx_aliases.cpp) */
+int port_gxbank_layout_check(void);
 /* the sprite-template guard (hal/oam_lists.cpp): every OamAttr* the HUD and
    the Minimap hand OAM::Render, checked for a missed pointer rebase */
 int hal_oam_templates_check(void);
@@ -491,6 +493,48 @@ void hal_sub_screen_init_hw(void *hwnd, int zoom)
      * path fills the shadow through data_0209e67c/data_0209e694, and if those
      * are separate host arrays it would leave 127 of 128 entries as garbage
      * and draw the heap onto the bottom screen. */
+    /* The OTHER grouped-section band, checked in the same breath and for the
+       same reason. hal/cxx_aliases.cpp lays the GX bank state out in ROM order
+       so the SetBankFor* family's member writes land on the words
+       func_020540f0 and its siblings read by name; if that stops holding,
+       GXS::EndLoadOBJExtPltt restores bank 0 and takes DISPCNT_B bit 31 with
+       it, and the sub screen's 256-colour sprites quietly lose their extended
+       palette. Checked on BOTH paths because this is the shared half.
+
+       THE RETURN IS LOAD-BEARING, the way the sibling's below is, and it was
+       not on review. A bare call put the failure into one line of a run's
+       stdout and then carried straight on into the silent-zero behaviour the
+       band exists to remove: no fault, no red, and a bottom screen that is
+       merely wrong. Nothing here can repair a layout at run time, so there is
+       no fallback to take -- what the branch owes is to say what is now untrue
+       and to stop a proof run from reporting green over it.
+       SM64DS_FAULTS_FATAL is the battery's own switch (port/tools/battery.py
+       sets it on every level and scene step), so a regression lands as a
+       failed step instead of as scrollback. */
+    if (!port_gxbank_layout_check()) {
+        std::printf("[gx] the SetBankFor* family is writing past its own "
+                    "state: DISPCNT_B bits 30 and 31 will not survive a "
+                    "Begin/EndLoad*ExtPltt pair, so sub extended palettes are "
+                    "off and neighbouring hosted globals are being clobbered\n");
+        if (std::getenv("SM64DS_FAULTS_FATAL")) {
+            /* FLUSH STDOUT BEFORE THE ABORT. std::abort does not flush stdio,
+               and walk_window's stdout is a pipe in every automated run, so
+               the two lines above exist only in a buffer at this point. The
+               first cut of this branch aborted with them still in it: nonzero
+               exit, empty stdout, a quieter failure than the one it replaced.
+               Measured with the band deliberately mis-aligned -- zero bytes of
+               stdout before this flush, both lines after.
+               The stderr line was never at risk and is not why the flush is
+               here: walk_window reopens stderr onto playlog/play_*.log, so it
+               lands there either way, which is also where to look for it. */
+            std::fprintf(stderr, "  (SM64DS_FAULTS_FATAL: GX bank band not "
+                                 "contiguous -> hard abort)\n");
+            std::fflush(stdout);
+            std::fflush(stderr);
+            std::abort();
+        }
+    }
+
     if (hal_oam_layout_check()) {
         _ZN3OAM12EnableSubOAMEv();
         std::printf("[sub] dual OAM armed (data_0209e660 = %u)\n",

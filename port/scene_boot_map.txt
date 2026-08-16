@@ -753,6 +753,22 @@ STILL OPEN OUT OF THIS LANE
     DISPCNT_B is 0x00011000: bit 31 (OBJ extpal) clear, bit 30 (BG extpal)
     clear. Nothing in the port sets bit 31 on either path. First place to look
     if the sprite colours are wrong.
+
+    CLOSED by run link60 lane SUB2, and it WAS where the colours were wrong.
+    This item pointed at the right bit and stopped one step short of why. The
+    bit was not un-set, it was set at line 120 and then cleared again at 248:
+    GX::SetBankForSubOBJExtPltt records its bank at data_020a6088 + 0x18, which
+    on the DS IS the symbol data_020a60a0 that GXS::BeginLoadOBJExtPltt reads,
+    clears and hands to EndLoadOBJExtPltt to restore. The port hosted those two
+    as separate objects, so Begin read zero and End restored bank 0. Measured
+    DISPCNT_B is 0x80011000 with the band laid out in ROM order.
+    The screen's own numbers, 300 frames: four 64x64 sprites in colour mode 256
+    at palette 0 and tiles 512/516/576/580 -- 512 x 32 bytes is the 0x4000 the
+    character portrait is decompressed to -- against nine 16-colour sprites for
+    the star and the text. 473 nonzero bytes of extended palette were sitting
+    at 0x068a0000 unused. ntr/ppu_sub.cpp now decodes them.
+    See port/ppu_gap_audit.txt section 11 for the full derivation, the two new
+    instrument rows that found it, and the A/B on the frame.
   - THE data_0209e660 PIN IS THE ACTUAL ROOT CAUSE and is still in place.
     Hosting the DS's bss zero as 1 is what makes OAM::EnableSubOAM necessary at
     all. Pulling it is hal/model_host.cpp's change, with hal_oam_layout_check's

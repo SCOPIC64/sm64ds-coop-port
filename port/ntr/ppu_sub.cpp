@@ -24,6 +24,11 @@
 //     black rectangle. The base address is the one that function writes to,
 //     0x06898000, and the slot stride is the 0x2000 its own 0x6000 argument
 //     implies for BG3.
+//   - OBJ EXTENDED PALETTES, DISPCNT bit 31, 256-colour sprites only. The star
+//     select's character portrait is loaded through GXS::LoadOBJExtPltt and
+//     nothing else on that screen is, so without this the portrait draws with
+//     the right shape in the wrong colours while the star and the text beside
+//     it are correct. Base 0x068a0000, from that function's own arithmetic.
 //   - the WINDOW unit, all three windows: WIN0/WIN1 by rectangle and the OBJ
 //     window by mask, with WININ/WINOUT deciding what shows in each region.
 //   - MASTER BRIGHTNESS, which is how the sub screen fades.
@@ -68,6 +73,13 @@ constexpr uint32_t kOamBase = 0x07000400u;   // engine B OAM
 // GXS::LoadBGExtPltt's own destination base; slots are 0x2000 apart (its
 // caller passes 0x6000 for BG3).
 constexpr uint32_t kBgExtPltt = 0x06898000u;
+// GXS::LoadOBJExtPltt's own destination base, out of the ROM rather than a
+// doc: src/_ZN3GXS14LoadOBJExtPlttEPKvjj.c computes its destination as
+// `destSlotAddr + 0x068a0000`, and src/_ZN2GX23SetBankForSubOBJExtPlttEt.c is
+// what puts a bank there (VRAMCNT_I = 0x83) and sets DISPCNT_B bit 31 in the
+// same two lines. One OBJ extended palette is sixteen slots of 256 colours,
+// so the slot stride is 0x200 and the whole store is 0x2000.
+constexpr uint32_t kObjExtPltt = 0x068A0000u;
 
 inline uint16_t rd16(uint32_t a) { return *reinterpret_cast<volatile uint16_t *>(a); }
 inline uint32_t rd32(uint32_t a) { return *reinterpret_cast<volatile uint32_t *>(a); }
@@ -274,6 +286,25 @@ void raster_obj(uint32_t dispcnt) {
     // for the sub engine -- `*p1 &= 0xFFCFFFEF` -- so the bottom screen is 2D
     // and a 1D-only reader smears every HUD sprite.
     const bool map1d = (dispcnt >> 4) & 1;
+    // DISPCNT bit 31: OBJ EXTENDED PALETTES. They apply to 256-colour sprites
+    // ONLY -- a 16-colour sprite keeps its 16-entry bank in the standard OBJ
+    // palette whatever this bit says -- and when they are armed the attr2
+    // palette field stops naming a 16-colour bank and names one of sixteen
+    // 256-colour SLOTS instead.
+    //
+    // WHY THIS IS HERE. The star select's character portrait is the sprite
+    // that needs it and nothing else on that screen does. dScStarSel_c::
+    // InitResources loads the shared sub OBJ tiles plus a full 0x200-byte
+    // standard palette through GXS::LoadOBJPltt, and then loads the SELECTED
+    // CHARACTER separately: data/2D_cad/d_2d_player_select_mario_8bit_ncg.bin
+    // decompressed to OBJ VRAM + 0x4000, and its _ncl companion pushed through
+    // GXS::Begin/Load/EndLoadOBJExtPltt. Measured on scene 4: four 64x64
+    // sprites in colour mode 256 at palette 0, tiles 512/516/576/580, and
+    // 512 * 32 bytes IS that 0x4000 -- against nine 16-colour sprites for the
+    // star and the text strip. Reading a 256-colour portrait through the
+    // 16-colour sprites' standard palette gives every one of its pixels the
+    // wrong colour while leaving its shape and its position exactly right.
+    const uint32_t objext = ((dispcnt >> 31) & 1) ? kObjExtPltt : 0;
 
     for (int i = 127; i >= 0; --i) {
         const uint16_t a0 = rd16(kOamBase + i * 8u);
@@ -345,7 +376,12 @@ void raster_obj(uint32_t dispcnt) {
                 if (c256) {
                     const uint32_t idx = rd8(cell + fy * 8u + fx);
                     if (!idx) continue;
-                    color = bgr555(rd16(kObjPltt + idx * 2u));
+                    // Extended: attr2's palette field picks a 256-colour slot
+                    // in the OBJ extended store. Standard: one flat 256-entry
+                    // palette and the field means nothing.
+                    color = objext
+                                ? bgr555(rd16(objext + (pal * 256u + idx) * 2u))
+                                : bgr555(rd16(kObjPltt + idx * 2u));
                 } else {
                     const uint8_t b = rd8(cell + fy * 4u + fx / 2);
                     const uint32_t idx = (fx & 1) ? (b >> 4) : (b & 0xF);
