@@ -197,8 +197,8 @@ def selftest():
     _func_ov006_020e0000 (removed, for the census), old.obj's only symbol.
     tip carries: _stay, _mover (new object), _new_c, ?New@C@@QAEXXZ,
     _func_ov006_020e1111 and _func_02012345 (census rows), new.obj.
-    Expected: 4 added / 2 removed / 1 moved, objects +2/-1, census
-    added = {arm9:1, other:2, ov006:1}, removed = {other:1, ov006:1};
+    Expected: 4 added / 3 removed / 1 moved, objects +3/-2, census
+    added = {arm9:1, other:2, ov006:1}, removed = {other:2, ov006:1};
     expect-zero FAILS here and HOLDS on an identical pair; a zero-byte
     base refuses through closure's guard (finding 3 travels with the
     import, but the arm proves THIS tool's path hits it).

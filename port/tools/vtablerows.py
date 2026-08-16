@@ -67,6 +67,18 @@ code earns:
     future family that spans other overlays extends DELINKS, not the
     trust boundary.
 
+THE TWO TEST MODES COVER DIFFERENT THINGS AND BOTH ARE WIRED into
+build-port.cmd. --selftest exercises the parsing, the slot diff, the
+delinks join and every refusal on fabricated fixtures, and cannot see
+the REAL-TREE WIRING: the extracted/config paths, the BASE_TABLE
+constant, the symbol tables. --reconstruct is the net for exactly that
+half (a broken real_setup passes --selftest and fails the 29/29), which
+is why the build guard runs both rather than reading selftest green as
+coverage of the whole tool. The build therefore requires the extracted
+ROM images pre-configure; a tree without them refuses with the
+decomp-worktree pointer instead of building binaries that abort at
+runtime anyway.
+
     python port/tools/vtablerows.py --census
     python port/tools/vtablerows.py --vtable 0x0213c304 --width 36
     python port/tools/vtablerows.py --reconstruct
@@ -226,6 +238,18 @@ def class_rows(ov, base_slots, vtable, width):
     if not (lo <= vtable and vtable + width * 4 <= hi):
         sys.exit("vtablerows: vtable 0x%08x (+%d slots) is not inside %s "
                  ".data 0x%08x..0x%08x" % (vtable, width, ov.name, lo, hi))
+    got = tuple(ov.word(vtable + (SIG_SLOT + j) * 4) for j in range(3))
+    if got != SIG:
+        # The one place this tool used to guess: any in-range address
+        # printed a confident table, so a 4-bytes-off address produced 36
+        # plausible-looking wrong rows. The signature is the same test the
+        # census runs; an address that fails it is not a Scene-family
+        # vtable start, whatever else it is.
+        sys.exit("vtablerows: 0x%08x does not carry the ActorBase "
+                 "signature at slots 13..15 (read %s) -- not a "
+                 "Scene-family vtable start, or an address a few bytes "
+                 "off one; run --census for the real table starts"
+                 % (vtable, " ".join("0x%08x" % g for g in got)))
     rows = []
     for i in range(width):
         w = ov.word(vtable + 4 * i)
@@ -250,6 +274,15 @@ def measure(rows, sources):
 
 def real_setup(root):
     root = pathlib.Path(root)
+    for need in ("extracted/overlays/overlay_0004.bin",
+                 "extracted/overlays/overlay_0006.bin",
+                 "config/arm9/overlays/ov004/delinks.txt",
+                 "config/arm9/overlays/ov006/delinks.txt"):
+        if not (root / need).is_file():
+            sys.exit("vtablerows: %s is missing under %s -- this tree has "
+                     "no extracted ROM images; copy extracted/ from a live "
+                     "worktree (the decomp-worktree setup step) before "
+                     "measuring" % (need, root))
     ov4 = Overlay("ov004", root / "extracted/overlays/overlay_0004.bin",
                   root / "config/arm9/overlays/ov004/delinks.txt")
     ov6 = Overlay("ov006", root / "extracted/overlays/overlay_0006.bin",
@@ -434,12 +467,21 @@ def selftest():
                "delinks join edges", (sources.owner(0x1300),
                                       sources.owner(0x1250)))
 
-        # refusals: width outside the ruling set, and a truncated image
+        # refusals: width outside the ruling set, a signature-less address
+        # (4 bytes off the real table -- the confident-wrong-table shape),
+        # and a truncated image
         try:
             class_rows(ov, base_slots, 0x2100, 35)
             expect(False, "width 35 was ACCEPTED", "no SystemExit")
         except SystemExit as e:
             expect("ruling set" in str(e), "width refusal message", str(e))
+        try:
+            class_rows(ov, base_slots, 0x2104, 36)
+            expect(False, "an off-by-4 vtable address was ACCEPTED",
+                   "no SystemExit")
+        except SystemExit as e:
+            expect("ActorBase" in str(e) and "census" in str(e),
+                   "signature refusal message", str(e))
         (tdp / "cut.bin").write_bytes(img[:-4])
         try:
             Overlay("cut", tdp / "cut.bin", delinks)

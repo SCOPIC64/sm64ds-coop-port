@@ -46,7 +46,12 @@ every generator carries its verifier, and judgment rows go to a human):
   * data spellings outside the scalar subset -- ALIAS is now a whitelist
     (scalars and pointer/array-of-scalar chains), not "anything that is not
     a struct". A spelling this tool has not proven safe is a refusal, not
-    an alias;
+    an alias. NAMED BEHAVIOR CHANGE: W4 enum-spelled globals, which the
+    pre-hardening tool ALIASED, now refuse through this whitelist. An enum
+    cannot hide a member pointer, so the alias would be safe in principle,
+    but no wall row of that shape has ever appeared and the whitelist does
+    not claim spellings it has never seen; if one arrives, the refusal
+    reason says where to rule it;
   * namespace-scope free functions, both directions (the @@Y-after-a-
     qualifier spelling). Memory is a NAMESPACE, and the first version read
     ?Allocate@Memory@@YAPAXIH@Z as a method of class Memory and refused

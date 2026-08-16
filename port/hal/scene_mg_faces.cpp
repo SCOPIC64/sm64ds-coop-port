@@ -264,6 +264,30 @@ DSSTATE_END
  * src/func_ov006_020e3528.cpp, is host-copied in
  * unmatched/MgCurling_StateDispatch.cpp, so after that host copy the symbol
  * is referenced by nothing and an alias for it would be a dead directive.
+ *
+ * A ROUND-2 ADDENDUM: THE FOUR @@3PAU ROWS, THEIR PROVENANCE AND THE PRICE.
+ * The three rulings above are this section's only hand-ruled alias rows and
+ * all three are @@3U by-value spellings. The GENERATED file beside this one
+ * also carries four @@3PAU rows that the pre-hardening generator
+ * auto-aliased and nobody individually adjudicated at the time:
+ *
+ *     ?data_ov004_020beb68@@3PAUBase@@A   ?data_ov004_020bf428@@3PAUPair@@A
+ *     ?data_ov004_020beb68@@3PAUObj@@A    ?data_ov004_020bf4f8@@3PAUPair@@A
+ *
+ * The hardened facegen refuses EVERY @@3PAU spelling, because @@3PAU is the
+ * state table's spelling class above, so regenerating this wall sends these
+ * four to a human. THE RULING FOR ALL FOUR IS ALIAS, and the adjudication
+ * is written here so the next regenerator does not read the refusal as a
+ * bug: all three addresses sit in ov004's .bss, 0x020beb60..0x020bfec0 by
+ * that overlay's delinks.txt, zero-initialised storage the ROM never
+ * images, so none of them can be a ROM .data pair table and the mount
+ * hosts them as plain zeroed spans. (Scout round 2's reviewer adjudicated
+ * this; the span containment is re-derived from the delinks lines each
+ * time it is quoted.) THE PRICE, measured by reclassifying this wall's
+ * nineteen generated rows under the hardened tool: fifteen re-emit and
+ * these four refuse, so a wall of this shape costs about four rulings like
+ * this paragraph. The trade is deliberate: the spelling class that once
+ * shipped a stride-corrupting alias can never auto-pass again.
  */
 #pragma comment(linker, "/alternatename:?data_ov004_020bc27c@@3US3@@A=_data_ov004_020bc27c")
 #pragma comment(linker, "/alternatename:?data_ov004_020bc904@@3UPair@@A=_data_ov004_020bc904")
