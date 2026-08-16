@@ -41,16 +41,21 @@ every generator carries its verifier, and judgment rows go to a human):
     signatures, struct-by-value returns (SRET is trap territory), templates,
     statics, non-thiscall conventions.
 
-THE VERIFIER (--verify) is the point, not an extra. It compiles the emitted
-file and reads the object back with dumpbin: the defined-external set must
-equal the requested rows EXACTLY and the undefined set must be a subset of
-the target universe. That is the same check A1 ran on WallSign's Render by
-hand. What it cannot check is method_faces.cpp's failure mode 1 (a forward
-to a plausible SIBLING): the generator's exact-name join refuses lookalike
-siblings instead of choosing between them, and every emitted row still gets
-the per-face checklist at review -- target, arity, receiver.
+THE VERIFIER (--verify) IS MANDATORY, not an extra: no generated file is
+wired into a slice without a PASS from it, and the fan-out briefs carry
+that as a rule. It compiles the emitted file and reads the object back
+with dumpbin: the defined-external set must equal the requested rows
+EXACTLY and the undefined set must be a subset of the target universe.
+That is the same check A1 ran on WallSign's Render by hand, and it is
+load-bearing: a class-typed parameter spelled as a struct silently
+produces a wrong-mangling face (MSVC mangles class V where struct is U,
+proven in review), and nothing but the surface check catches it. What no
+verifier checks is method_faces.cpp's failure mode 1 (a forward to a
+plausible SIBLING): the generator's exact-name join refuses lookalike
+siblings instead of choosing between them, and every emitted row still
+gets the per-face checklist at review -- target, arity, receiver.
 
-    python port/tools/facegen.py --unresolved wall.txt --map build/port/walk_window.map --out faces_gen.cpp
+    python port/tools/facegen.py --unresolved wall.txt --map build/port/walk_window.map --out faces_gen.cpp --verify
     python port/tools/facegen.py --unresolved wall.txt --targets have.txt --out faces_gen.cpp --verify
     python port/tools/facegen.py --selftest
 """
@@ -509,32 +514,45 @@ def report(rows):
 # ---------------------------------------------------------------------------
 
 def read_list(path):
-    """A symbol per line; closure.py output is accepted as-is (the
-    UNRESOLVED section's indented rows are recognized)."""
+    """A symbol per line; closure.py output is accepted as-is.
+
+    If the text carries closure.py section headers, ONLY the UNRESOLVED
+    section is ingested; everything else in that report is context, not a
+    request. The first version of this gate was computed and never applied,
+    and fed a real closure report it ingested 44 rows including all the
+    duplicate-definition candidates and a header line -- generating a face
+    for a symbol the image already defines, a manufactured LNK2005 that
+    --verify cannot catch because the request itself was poisoned. A plain
+    list (no headers anywhere) ingests every non-comment line.
+    """
+    lines = pathlib.Path(path).read_text(errors="replace").splitlines()
+    has_headers = any(line.startswith("=== ") for line in lines)
     out, in_section = [], False
-    for line in pathlib.Path(path).read_text(errors="replace").splitlines():
-        if line.startswith("=== UNRESOLVED"):
-            in_section = True
-            continue
+    for line in lines:
         if line.startswith("==="):
-            in_section = False
+            in_section = line.startswith("=== UNRESOLVED")
             continue
         s = line.strip()
         if not s or s.startswith("#"):
             continue
-        if in_section or not line.startswith("==="):
+        if in_section or not has_headers:
             out.append(s)
     return out
 
 
 def selftest():
-    """Reconstruction against hal/actor_class_faces.cpp's own rows.
+    """The classifier and emitter against a curated request set.
 
-    The requests and targets below are that file's, spelled as its comments
-    record them. Expected: the ten mechanical faces GENERATE and compile to
-    an exact symbol surface; ApplyOpacity REFUSES on arity (the hand file's
-    argument-dropping face was a ruling); the P8 global is the WALL; the
-    PAHA global aliases; TrackInDeathTable comes back as the reverse face.
+    Ten forward faces and the TrackInDeathTable reverse face are drawn from
+    hal/actor_class_faces.cpp (TouchesWater, that file's other reverse
+    face, is exercised by the full reconstruction proof, not here); the
+    ApplyOpacity arity refusal is that file's judgment row; the two ov004
+    globals are the MG1 wall's, NOT that file's -- one pointer-to-member
+    spelling that must be refused as the WALL and one PAHA spelling that
+    must alias. Expected: ten FACE, one RFACE, one ALIAS, one WALL, the
+    ARITY MISMATCH refusal, and a compiled symbol surface that equals the
+    request exactly. A second case feeds read_list a real mixed closure.py
+    report and expects ONLY the UNRESOLVED rows back.
     """
     unresolved = [
         "?UpdatePos@Actor@@QAEXPAUCylinderClsn@@@Z",
@@ -596,6 +614,40 @@ def selftest():
         expect(good, "verify: " + msg)
         if good:
             print("verify:", msg)
+
+        # read_list against a real mixed closure.py report: only the
+        # UNRESOLVED rows may come back. The first shipped version ingested
+        # every section of exactly this shape and manufactured an LNK2005.
+        mixed = pathlib.Path(td) / "closure_out.txt"
+        mixed.write_text(
+            "map defines 32535 symbols\n"
+            "\n"
+            "=== COMPILE FAILURES (1) ===\n"
+            "   src/func_ov006_020e3528.cpp\n"
+            "        error C2440: cannot convert\n"
+            "\n"
+            "=== UNRESOLVED after this slice: 2 "
+            "(an estimate; confirm with a link) ===\n"
+            "    ?UpdatePos@Actor@@QAEXPAUCylinderClsn@@@Z\n"
+            "    _data_02075720\n"
+            "\n"
+            "=== DUP-DEF CANDIDATES, NEED A REAL LINK ===\n"
+            "  already in the image from its own TU: 1\n"
+            "    _Enable3dEngines  --  Enable3dEngines.c.obj compiles it "
+            "already\n"
+            "  FOREIGN-object rows, the LNK2005 candidates: 1\n"
+            "    _LoadArchive  --  image copy is from scene_boot.cpp.obj\n")
+        got = read_list(mixed)
+        expect(got == ["?UpdatePos@Actor@@QAEXPAUCylinderClsn@@@Z",
+                       "_data_02075720"],
+               "read_list on mixed closure output: %s" % got)
+
+        # and a plain list, no headers, still ingests every row
+        plain = pathlib.Path(td) / "plain.txt"
+        plain.write_text("# a comment\n?A@B@@QAEXXZ\n_c_name\n")
+        got = read_list(plain)
+        expect(got == ["?A@B@@QAEXXZ", "_c_name"],
+               "read_list on a plain list: %s" % got)
     print("selftest %s" % ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 
