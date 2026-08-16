@@ -78,8 +78,21 @@ Loudness moved to where it belongs. If CMake hands the linker a directive
 file that is NOT in REGISTERED_DIRECTIVE_FILES, the guard FAILS and names
 the file and the registration mechanism; and a registered file CMake no
 longer feeds fails the same way, so the list cannot rot in either direction.
-A future directive file cannot dodge the guard by not being scanned, which
-is what the old sweep was reaching for and got backwards.
+
+WHAT THAT DERIVATION COVERS, EXACTLY. It reads port/CMakeLists.txt itself and
+catches the three DIRECT spellings: a response file, a /DEF: file, and an
+/alternatename written into the link options. It does not follow indirection.
+A directive file reached through a CMake variable, through
+target_link_libraries as a raw item, through INTERFACE_LINK_OPTIONS or
+STATIC_LIBRARY_OPTIONS, through /WHOLEARCHIVE, through an include()d .cmake
+file or an add_subdirectory, or through a generator expression, is a route
+this single-file reader does not see. None of those exist in the tree today,
+which is why the registry is empty and the build is green, but "cannot dodge
+the guard" would be a bigger claim than the code earns. A follow-up lane is
+queued to widen the derivation: walk every CMakeLists.txt and *.cmake under
+port/, add target_link_libraries, and loosen the LINK_OPTIONS match. Until
+that lands, treat this as a checked fact about the direct spellings and a
+promise about nothing else.
 
 ONE KNOWN GAP IN (a), REPORTED AND NOT YET CLOSED. The pragma test runs a
 line at a time, so a pragma split with a backslash,
@@ -233,10 +246,13 @@ def collect_directives(port_dir, registered=None):
 def audit_linker_inputs(port_dir):
     """Re-derive mechanism (b) from port/CMakeLists.txt.
 
-    Returns [(mechanism, token, lineno)] for every construct that hands
-    link.exe something it reads as directives. CMake comments are stripped
-    first: the CMakeLists prose discusses /alternatename in a dozen places
-    and none of that reaches the linker.
+    Returns [(mechanism, token, lineno)] for the DIRECT constructs that hand
+    link.exe something it reads as directives: a response file, a /DEF: file,
+    and an /alternatename in the link options, written literally in this one
+    file. Indirect routes are out of reach and listed in the module
+    docstring. CMake comments are stripped first: the CMakeLists prose
+    discusses /alternatename in a dozen places and none of that reaches the
+    linker.
     """
     found = []
     cml = os.path.join(port_dir, 'CMakeLists.txt')
