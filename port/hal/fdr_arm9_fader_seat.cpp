@@ -88,7 +88,7 @@
 //     off   ROM body        what              tranche
 //     0x00  func_0202fc08   ~dWipe_c   (D1)   FDR  (also the sinit's atexit)
 //     0x04  func_0202fbc8   (D0)              FDR
-//     0x08  func_0202f428   AdvanceFade       TRAP, and a ruling -- see below
+//     0x08  func_0202f428   AdvanceFade       SEAT8
 //     0x0c  func_0202f928   SetBackwardTime   FDR2
 //     0x10  func_0202f708   SetForwardTime    FDR2
 //     0x14  func_0202ee38   IsAtStart         FDR
@@ -114,21 +114,51 @@
 // 0x0c and 0x10 are the ROM's bodies now; the closure and the sizing are in
 // port/fader_boot_map.txt section 4.
 //
-// WHY 0x08 IS STILL A TRAP, AND IT IS A RULING RATHER THAN A BUDGET. Its ROM
-// body was disassembled and ruled REAL_DECOMP with the other two, and it is
-// still refused a seat, because src/func_0202f428.c's `type == 1` branch calls
+// 0x08 IS SEATED NOW, run link60 Stage 5 lane SEAT8, AND THE TWO REASONS IT
+// WAS REFUSED WENT DIFFERENT WAYS. Both are worth keeping, because one was
+// fixed and the other was WRONG.
+//
+// THE CALL DEFECT WAS REAL AND IS FIXED UPSTREAM. src/func_0202f428.c's
+// `type == 1` branch used to call
 //
 //     _ZN10FaderColor11AdvanceFadeEv()
 //
 // with NO ARGUMENT -- the ROM's `bl` at 0x0202f440 leaves r0 holding the
-// receiver, which is the same trick the veneer at 0x20 relies on, and on the
-// host the receiver is gone. Unlike 0x20 the broken call is INSIDE a larger
-// body, so there is no veneer to route around: seating the body means shipping
-// the call. And there is nothing to buy -- slot 0x08 has no call site anywhere
-// in the image, which section 9a of the map measures rather than assumes.
-// port/tools/closestplayer_guard.py now carries a rule for the symbol so the
-// refusal is mechanical. Each trap is its own named function so a run says
-// which slot fired rather than that some slot did.
+// receiver, the same trick the veneer at 0x20 relies on -- and on the host the
+// receiver was gone. main PR #1539 named the receiver in
+// include/decl_FaderColor.h and passed it at the call site. This lane
+// propagated the two files by address and byte-verified the TU in its own tree
+// at 2004/b56 with strict relocs, before the edit and after: MATCH both times.
+// The ARM bytes did not move, which is what makes the propagation free.
+//
+// "SLOT 0x08 HAS NO CALL SITE IN THIS IMAGE" WAS TRUE OF THE BINARY AND FALSE
+// OF THE GAME, and the difference cost the slot two tranches. section 9a of
+// port/fader_boot_map.txt swept walk_window's own .text, which is the right
+// sweep for an ABI audit and the wrong one for a reachability ruling: a ROM
+// caller that is in no slice cannot appear in it. The ROM's frame phase 2,
+// func_02019390, calls TWO fader advances and both dispatch vtable byte 0x08:
+//
+//     func_02018efc   on data_0209d4ac, the INSTALLED fader
+//     func_02018ec0   on data_0209d4b0, the fader IN MOTION
+//
+// and _ZN5Scene9SetFadersEP15FaderBrightness -- already linked, slice_gate10 --
+// ends with `data_0209d4ac = thiz`. dScMgBase_c slot 1 hands it data_0209f61c,
+// so on scene 374 the ROM's own store arms this object into d4ac on the frame
+// the scene spawns. The missing piece was six lines of C: src/func_02018efc.c,
+// which slice_fdr.txt now carries and hal/fader_wipes.cpp's port_fader_advance
+// calls, at the same point in the frame where it already stands in for phase
+// 2's other half.
+//
+// data_0209d4b0 IS THE WRONG POINTER FOR THIS OBJECT and port/irq2_map.txt
+// section 7b named it. Nothing in the image ever stores data_0209f61c there:
+// the arm9, itcm and dtcm reloc tables and all ninety overlay reloc tables
+// carry exactly two references to the symbol, __sinit_02074f80 and
+// func_0202ed48, and the two computed writers of d4b0 (FUN_02029980,
+// FUN_020299f4) write `*data_0209f324 + 0x240`, an element of the heap
+// FaderWipe array Stage::InitResources allocates. No arming needed inventing.
+//
+// Each remaining trap is still its own named function so a run says which slot
+// fired rather than that some slot did.
 //
 // WHY 0x20 IS A VENEER AND NOT src/func_0202ed08.c. THE src TU IS HOST-BROKEN,
 // and it is broken in exactly the way lane LK4 wrote up for Heap::_Destroy.
@@ -202,6 +232,7 @@
 #include <cstdio>
 #include "types.h"
 #include "FaderBrightness.h"
+#include "FaderColor.h"
 #include "dsstate_seg.h"
 
 extern "C" {
@@ -210,6 +241,7 @@ extern "C" {
    struct for the receiver; these are the ABI-compatible views. */
 void *func_0202fc08(void *self);   /* 0x00  D1, and the sinit's atexit dtor */
 void *func_0202fbc8(void *self);   /* 0x04  D0 */
+void  func_0202f428(void *self);   /* 0x08  AdvanceFade, run link60 SEAT8 */
 int   func_0202ee38(void *self);   /* 0x14  IsAtStart */
 int   func_0202eddc(void *self);   /* 0x18  IsAtEnd */
 int   func_0202ed7c(void *self);   /* 0x1c  IsBetweenStartAndEnd */
@@ -240,6 +272,30 @@ extern "C" {
 
 int _ZN15FaderBrightness9IsAtStartEv(void *self)
 { return ((FaderBrightness *)self)->FaderBrightness::IsAtStart(); }
+
+/* THE TWO FACES SLOT 0x08 DRAGGED IN, run link60 Stage 5 lane SEAT8, and
+   port/tools/closure.py named both before a line of this was written: they
+   were the whole of the seat's unresolved set.
+
+   src/func_0202f428.c's `type == 1` branch calls FaderColor::AdvanceFade by
+   its flat ROM name, and that method's matched TU
+   (src/engine/fader/_ZN10FaderColor11AdvanceFadeEv.cpp) is a real C++ member,
+   so MSVC emits ?AdvanceFade@FaderColor@@QAEXXZ. That body in turn calls
+   Fader::AdvanceInterp by ITS flat name, and the matched TU for that one
+   (slice_w1l3) is a C++ member too. Two flat names, two MSVC methods, and the
+   /alternatename that would join them drops the receiver -- method_faces.cpp
+   failure class 3 again -- so both are real bridging faces.
+
+   NEITHER IS EXERCISED ON ANY PATH MEASURED HERE. type is 0 on every scene-374
+   path (func_0202ec9c(data_0209f61c, 0) from dScMgBase_c slot 1, and the
+   constructor leaves it 0), so the branch that reaches them is compiled and
+   not entered. They are here because the link needs them, which is stated
+   rather than dressed up as coverage. */
+void _ZN10FaderColor11AdvanceFadeEv(void *self)
+{ ((FaderColor *)self)->FaderColor::AdvanceFade(); }
+
+void _ZN5Fader13AdvanceInterpEv(void *self)
+{ ((Fader *)self)->Fader::AdvanceInterp(); }
 
 /* THIS ONE DOES NOT DELEGATE, AND THE REASON STOPPED BEING COSMETIC.
    The matched FaderBrightness::IsBetweenStartAndEnd ends in two UNQUALIFIED
@@ -472,15 +528,44 @@ void fdr_trap(const char *slot, const char *rom_body)
    so. The stub cleans what the caller pushed and passes on what the body
    declares; those are two different counts and both are right.
 
-   0x08 IS STILL A TRAP AND THAT IS A RULING, not an omission. See section 4a
-   of port/fader_boot_map.txt: src/func_0202f428.c calls
-   `_ZN10FaderColor11AdvanceFadeEv()` with no argument, because the ROM's
-   `bl` leaves r0 alone and the receiver rides through. That is the same
-   host-broken shape as src/func_0202ed08.c at slot 0x20 and as
-   Heap::_Destroy, the decomp-side fix is routed rather than taken, and the
-   slot has NO CALL SITE in this image to make the trade worth making. */
-int __fastcall fdr_s08(void *, void *)
-{ fdr_trap("slot 0x08 AdvanceFade", "func_0202f428"); return 0; }
+   0x08 IS THE ONE SLOT IN THIS TABLE THAT IS NOT __fastcall, run link60
+   Stage 5 lane SEAT8, and the reason is section 9b's shape C rather than a
+   preference. Its one caller is the ROM's own src/func_02018efc.c:
+
+       void func_02018efc(void){
+         void** o = (void**)data_0209d4ac;
+         if(!o) return;
+         void** vt = (void**)o[0];
+         ((void(*)(void*))vt[2])(o);
+       }
+
+   a CDECL call through a struct of function pointers -- the receiver is an
+   ARGUMENT there, not a `this`, so MSVC pushes it and cleans its own push.
+   That makes the stack-parameter spelling correct BY THE LANGUAGE and not by
+   what a particular codegen happened to leave in ECX, which is the difference
+   between this slot and the three dormant-hazard sites the unproven items in
+   port/fader_boot_map.txt list. A __fastcall stub here would read ECX, and at
+   this call site ECX holds the VTABLE rather than the object.
+
+   THE CLEANUP IS BALANCED FOR BOTH SHAPES EVEN SO, which is why the choice
+   costs nothing: __cdecl cleans nothing, a shape C caller cleans its own four
+   bytes, and a shape A caller (a real C++ virtual with no arguments) pushes
+   nothing. What a shape A caller WOULD get is a receiver read off its own
+   frame, so the stub checks the vptr and says so instead of running on
+   garbage. There is no shape A caller today: hal/fader_wipes.cpp's
+   port_fader_advance dispatches AdvanceFade on data_0209d4b0[0], and nothing
+   in the image ever puts this object there. */
+void __cdecl fdr_s08(void *s)
+{
+    if (s == 0 || *(void **)s != (void *)data_020926f0) {
+        fdr_trap("slot 0x08 AdvanceFade, WRONG RECEIVER",
+                 "func_0202f428 -- the caller did not pass the object on the "
+                 "stack, so it is not the cdecl shape this stub is declared "
+                 "for");
+        return;
+    }
+    func_0202f428(s);
+}
 int __fastcall fdr_s0c(void *s, void *, int frames, int c)
 { return func_0202f928(s, (unsigned)frames, (unsigned)c); }
 int __fastcall fdr_s10(void *s, void *, int frames, int)
@@ -556,11 +641,26 @@ FdrArm9FaderBoot fdr_arm9_fader_boot;
    fdr_s0c and fdr_s10 -- the same symbols, no longer traps -- which is why
    comparing against those names would have kept answering "unseated" forever.
    The battery row this used to key is retired; hal/scene_mg.cpp's remaining
-   use of it is an advisory. */
-extern "C" int port_fdr_motion_slots_unseated(void)
-{
-    return data_020926f0[2] == (void *)fdr_s08;
-}
+   use of it is an advisory.
+
+   AND IT IS RETIRED NOW, run link60 Stage 5 lane SEAT8, on the contract the
+   paragraph above wrote for it. Slot 0x08 is func_0202f428, so every one of
+   the ROM's ten slots is a ROM body and the predicate has nothing left to
+   ask. Retired rather than left returning zero: a predicate that can only
+   answer one way is a line a reader has to disprove.
+
+   THE ROT THE LAST PARAGRAPH PREDICTED IS EXACTLY WHY IT COULD NOT SIMPLY BE
+   LEFT ALONE. fdr_s08 is still the symbol in slot 0x08 -- it forwards to the
+   ROM body now instead of trapping -- so `data_020926f0[2] == fdr_s08` would
+   have gone on answering "unseated" over a seated slot, which is the failure
+   the predicate was built to prevent, arriving a third time from a third
+   direction.
+
+   WHAT REPLACES IT IS NARROWER AND STILL LOUD. fdr_s08's own wrong-receiver
+   refusal counts into fdr_trap_hits and prints, so a caller that reaches slot
+   0x08 with a shape the stub is not declared for says so on stderr and shows
+   up in port_fdr_fader_report's count. That is a check on the thing that can
+   actually still go wrong here, rather than on a seat that is done. */
 
 /* The proof line, callable from a harness that wants it in its own output.
    Nothing in the build depends on it being called: the seat is complete

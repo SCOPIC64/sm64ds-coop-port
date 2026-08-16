@@ -227,12 +227,15 @@ SCENE_BLOCKED = {
     # calls with 0 unhandled addresses. So this is a RETIREMENT and not a
     # fourth conversion: the scene has no blocker left to name.
     #
-    # WHAT IS STILL MISSING IS NOT A BLOCKER. The three dWipe_c motion slots
-    # are still named traps, so the minigame's wipe does not move.
-    # hal/scene_mg.cpp prints that as a FADE MOTION MISSING advisory keyed on
-    # port_fdr_motion_slots_unseated(), which goes quiet by itself when the
-    # ROM bodies are seated. An advisory is not a battery row and must not
-    # become one again: the scene passes.
+    # WHAT WAS STILL MISSING WAS NOT A BLOCKER EITHER, and it is no longer
+    # missing. The paragraph this replaces said the three dWipe_c motion slots
+    # were still named traps and that hal/scene_mg.cpp printed a FADE MOTION
+    # MISSING advisory keyed on port_fdr_motion_slots_unseated(), "which goes
+    # quiet by itself when the ROM bodies are seated". Run link60 Stage 5 lane
+    # SEAT8 seated the last of them (slot 0x08, func_0202f428) and wired the
+    # ROM's own driver for it, so the predicate and the advisory are both
+    # retired. The rule they were written under stands unchanged: an advisory
+    # is not a battery row and must not become one again.
 }
 
 # A MOUNTED LEVEL WHOSE BLOCKER IS NOT THE MOUNT, AND THE CLASS THAT BLOCKS IT.
