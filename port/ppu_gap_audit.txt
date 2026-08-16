@@ -30,10 +30,18 @@ WHY SAMPLING AND NOT INTERCEPTION. ntr/io.cpp maps real memory at the DS
 addresses, so a 2D register store is an ordinary store to an ordinary page. It
 does not pass through io_read/io_write unless the storing function happens to be
 hostgen'd, and for the 2D surface that is the exception, not the rule. The proxy
-table at the bottom of every run's output proves it: level 1 logged exactly
-three proxied 2D accesses in 900 frames, all of them DISP3DCNT, and scene 4
-logged none at all. There is no seam to intercept at. This is the same fact that
-forced L1's GXSTAT fix to normalise the LATCH rather than a returned value.
+table at the bottom of every run's output proves it. Level 1's whole proxied 2D
+traffic over 900 frames is three rows, and all three are the same register:
+
+    rd 04000060 w2 = 00000000  x1
+    wr 04000060 w2 = 00000008  x900
+    rd 04000060 w2 = 00000008  x899
+
+That is 1800 accesses, but to DISP3DCNT and nothing else -- not one BGxCNT, not
+one window or blend register, not one palette or OAM word. Scene 4's table is
+empty outright. So the proxy sees essentially none of the 2D surface, there is
+no seam to intercept at, and this is the same fact that forced L1's GXSTAT fix
+to normalise the LATCH rather than a returned value.
 
 WHAT SAMPLING SEES. The register state at scan-out, which is the state that
 decides the image: the 2D unit reads these registers as it draws, and the port
@@ -228,6 +236,31 @@ TWO ROWS THAT LOOK LIKE THE GXSTAT SHAPE AND ARE NOT, both checked:
   f. TOUCH.                    NOT A REGISTER GAP. See section 8.
 
   NEW, not on the list: GXSTAT bits 8-14. See section 9.
+
+THE ONE UNMODELLED REGISTER THAT IS NOT ZERO. DISPCAPCNT reads 0x80000000 on
+every frame of scene 4, and display capture is not modelled at all, so the
+headline sentence needs this exception stated rather than buried in the table.
+It is still not a live gap, for two reasons, both checked rather than assumed.
+Engine A is in display mode 1 (graphics) throughout, not mode 2 or 3, so nothing
+displays captured VRAM. And bit 31 is the one bit that could have produced the
+GXSTAT failure shape -- hardware CLEARS it when the capture completes, so a game
+polling it against a latch would spin forever -- but both linked touchers are
+pure writes with no read-back:
+
+    Scene::ResetHardwareRegisters   *(u32*)0x4000064 = 0x80000000;
+    func_ov007_020bd4e8             *(u32*)0x4000064 = 0x80370010;
+
+The first is a scene-init reset value, which is why scene 4 carries it, and the
+second is in ov007 and unreachable. No action taken.
+
+A CAVEAT ON THE OAM CENSUS NUMBERS. The census counts an entry as enabled when
+attribute 0 bit 9 is clear, which is the hardware's own disable bit, and that
+comes to all 128 entries on every frame (300 x 128 = 38400 in the mode-0 row).
+It should not be read as "38400 sprites drew". The game parks unused sprites
+OFF SCREEN rather than setting bit 9 -- OAM::Reset writes attribute 0 low byte
+0xc0, which is y = 192 -- so most of those entries are hidden by position. The
+mode-1/2/3 result is unaffected either way, because a parked entry still carries
+its object-mode bits and every one of them reads 0.
 
 
 7. THE DEFECT: OBJ WINDOW IS MODE 2, AND THE PORT WAS SKIPPING MODE 3
