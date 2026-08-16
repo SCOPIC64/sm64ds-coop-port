@@ -45,6 +45,23 @@ if errorlevel 1 (
     python "%~dp0tools\vtablerows.py" --reconstruct
     exit /b 1
 )
+rem Fail before configure if stategen's selftest breaks: it generates the
+rem address switch a pointer-to-member state machine is dispatched through,
+rem and a generator that drops a slot emits a switch that is short by one
+rem state and looks complete. Every parse shape and every refusal is pinned
+rem on fixtures here.
+python "%~dp0tools\stategen.py" --selftest
+if errorlevel 1 exit /b 1
+rem And its reconstruction of the two hand artifacts: the selftest runs on
+rem fixtures and cannot see the real-tree wiring (the extracted/config paths,
+rem the mount lists, the precedent file locations). Reproducing the 25-case
+rem curling switch and all 197 player rows is the net for that half. Quiet on
+rem the green path; on failure the rerun prints the DIVERGE lines.
+python "%~dp0tools\stategen.py" --reconstruct >nul
+if errorlevel 1 (
+    python "%~dp0tools\stategen.py" --reconstruct
+    exit /b 1
+)
 rem Fail before configure if the alternatename guard's scoping fixture breaks.
 rem The guard decides what counts as a linker input, and it used to read lane
 rem prose as one: a quoted directive in a .txt was a build input, so deleting a
