@@ -913,7 +913,12 @@ int data_020a4b58[4], data_020a4b68[4], data_020a60f4[4];
 /* DTCM scratch the timer list walker anchors at */
 __declspec(align(8)) unsigned char data_023c0000[64];
 int data_02099e94[4], data_02099ebc[4], data_02099ec4[4], data_02099fcc[4];
-int data_020a6084[4], data_020a6088[2], data_020a8114[4];
+/* data_020a6088 is NOT here any more. It is the head of the GX bank-state
+   block, whose members the SetBankFor* family reaches by STRUCT OFFSET out to
+   +0x18, and an eight-byte object here was both too small for that and not
+   adjacent to the twelve u16 symbols the ROM has after it. The whole band is
+   laid out in ROM order in hal/cxx_aliases.cpp; read the banner there. */
+int data_020a6084[4], data_020a8114[4];
 DSSTATE_END
 
 }  /* extern "C" */

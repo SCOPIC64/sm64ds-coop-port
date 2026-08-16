@@ -69,6 +69,8 @@ int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy);
 void _ZN3OAM4LoadEv(void);
 unsigned int _ZN3OAM12EnableSubOAMEv(void);
 int hal_oam_layout_check(void);
+/* the GX bank-state band guard (hal/cxx_aliases.cpp) */
+int port_gxbank_layout_check(void);
 /* the sprite-template guard (hal/oam_lists.cpp): every OamAttr* the HUD and
    the Minimap hand OAM::Render, checked for a missed pointer rebase */
 int hal_oam_templates_check(void);
@@ -491,6 +493,15 @@ void hal_sub_screen_init_hw(void *hwnd, int zoom)
      * path fills the shadow through data_0209e67c/data_0209e694, and if those
      * are separate host arrays it would leave 127 of 128 entries as garbage
      * and draw the heap onto the bottom screen. */
+    /* The OTHER grouped-section band, checked in the same breath and for the
+       same reason. hal/cxx_aliases.cpp lays the GX bank state out in ROM order
+       so the SetBankFor* family's member writes land on the words
+       func_020540f0 and its siblings read by name; if that stops holding,
+       GXS::EndLoadOBJExtPltt restores bank 0 and takes DISPCNT_B bit 31 with
+       it, and the sub screen's 256-colour sprites quietly lose their extended
+       palette. Checked on BOTH paths because this is the shared half. */
+    port_gxbank_layout_check();
+
     if (hal_oam_layout_check()) {
         _ZN3OAM12EnableSubOAMEv();
         std::printf("[sub] dual OAM armed (data_0209e660 = %u)\n",

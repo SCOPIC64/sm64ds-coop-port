@@ -4,6 +4,7 @@
 // manglings for what are C-named symbols everywhere else. The linker
 // alias closes the gap without touching src/. Decorated names are
 // lifted verbatim from the link log; each maps to its cdecl C name.
+#include <stdio.h>
 #include <string.h>
 
 #include "dsstate_seg.h"
@@ -288,13 +289,6 @@ DSSTATE_BEGIN
 int data_0209cdcc, data_0209cde4[4], data_0209cde8[4];
 int data_020a4b4c, data_020a4b50;
 int data_020a7fc0[8];
-/* GX bank-state u16 band 0x020a608a..0x020a60a0. On the DS these alias one
-   register-cache block (data_020a6088's GXState overlaps 608a/608c); host
-   keeps them as separate objects -- fine while nothing in the slice mixes
-   the struct view with the field view on the same bit of state. */
-unsigned short data_020a608a, data_020a608c, data_020a608e, data_020a6090;
-unsigned short data_020a6092, data_020a6094, data_020a6096, data_020a6098;
-unsigned short data_020a609a, data_020a609c, data_020a609e, data_020a60a0;
 int data_0209a5e4, data_0209a5e8, data_020a612c[4], data_0209a438[8];
 /* OS scheduler/thread BSS band 0x0209a628..0x0209a6f8 */
 int data_0209a628[12], data_0209a658[10], data_0209a680[6], data_0209a698[4];
@@ -366,6 +360,82 @@ int data_0209a5ec, data_0209a5f4[2], data_0209a5fc, data_0209a600;
 int data_0209a604, data_0209a60c[2], data_0209a614, data_0209a618;
 int data_0209a61c[4], data_020a6128, data_020a6134[4];
 DSSTATE_END
+
+/* ---- THE GX BANK-STATE BLOCK, 0x020a6088..0x020a60a4, IN ROM ORDER ---------
+ *
+ * WHAT THIS REPLACES, AND WHY THE OLD SHAPE'S OWN CAVEAT CAME TRUE. These
+ * thirteen used to be plain separate objects here and in hal/player_bridges
+ * .cpp, under a note that said the split was "fine while nothing in the slice
+ * mixes the struct view with the field view on the same bit of state". Scene 4
+ * mixes exactly that, and it is not a corner: the whole SetBankFor* family
+ * does it by construction. Every one of those TUs declares its own window onto
+ * ONE struct at 0x020a6088 and writes a member at a fixed offset --
+ *
+ *     SetBankForTexPltt        +0x0a      func_02054748            +0x0e
+ *     SetBankForSubBG          +0x12      SetBankForSubOBJ         +0x14
+ *     SetBankForSubBGExtPltt   +0x16      SetBankForSubOBJExtPltt  +0x18
+ *
+ * -- while func_020540f0, func_02053ee0 and func_020541b8 reach the same words
+ * by their own DS names. data_020a6088 was `int[2]` here, so all six of those
+ * stores ran PAST THE END of an eight-byte object into whatever the linker had
+ * put next, and every field read came back as the zero of an unrelated symbol.
+ *
+ * MEASURED COST, ONE SCREEN. GX::SetBankForSubOBJExtPltt(0x100) sets DISPCNT_B
+ * bit 31 and records the bank at +0x18, which on the DS IS data_020a60a0.
+ * GXS::BeginLoadOBJExtPltt then reads data_020a60a0 through func_020540f0,
+ * clears it and hands it to EndLoadOBJExtPltt to restore. Split apart, Begin
+ * read a permanently-zero object, End restored bank 0, and
+ * SetBankForSubOBJExtPltt(0) CLEARED bit 31 again -- so scene 4 reached
+ * scan-out with its extended palette loaded (473 nonzero bytes at 0x068a0000)
+ * and switched off, and the character portrait decoded through the standard
+ * palette. That is the round trip the ROM makes and the port did not.
+ *
+ * HOW IT IS FIXED. Grouped sections, in ROM order, the mechanism hal/
+ * model_host.cpp already uses for the OAM shadow and hal/sub_actors.cpp for
+ * the minimap descriptor. Each size is the symbol's own delta in
+ * config/arm9/symbols.txt: twelve u16 then a four-byte tail at 0x020a60a0,
+ * 0x1c bytes end to end. align(2) on the members and align(4) on the head:
+ * align(4) on every member would pad each one to four and put +0x18 at +0x30.
+ * port_gxbank_layout_check reads the result back the way
+ * hal_oam_layout_check does, because a layout trick that stops working has to
+ * fail loudly rather than go back to reading zeroes.                        */
+#define GXBANK(sec, name, size, algn)                             \
+    __pragma(section(sec, read, write))                           \
+    extern "C" __declspec(allocate(sec)) __declspec(align(algn))  \
+    unsigned char name[size] = {0}
+
+GXBANK(".dsstate$gxbank00", data_020a6088, 2, 4);
+GXBANK(".dsstate$gxbank01", data_020a608a, 2, 2);
+GXBANK(".dsstate$gxbank02", data_020a608c, 2, 2);
+GXBANK(".dsstate$gxbank03", data_020a608e, 2, 2);
+GXBANK(".dsstate$gxbank04", data_020a6090, 2, 2);
+GXBANK(".dsstate$gxbank05", data_020a6092, 2, 2);
+GXBANK(".dsstate$gxbank06", data_020a6094, 2, 2);
+GXBANK(".dsstate$gxbank07", data_020a6096, 2, 2);
+GXBANK(".dsstate$gxbank08", data_020a6098, 2, 2);
+GXBANK(".dsstate$gxbank09", data_020a609a, 2, 2);
+GXBANK(".dsstate$gxbank10", data_020a609c, 2, 2);
+GXBANK(".dsstate$gxbank11", data_020a609e, 2, 2);
+GXBANK(".dsstate$gxbank12", data_020a60a0, 4, 2);
+
+#undef GXBANK
+
+/* Reads the section trick back. Nonzero when the band came out at the ROM's
+   own offsets, which is the precondition for every SetBankFor* member write
+   landing on the word its reader names. */
+extern "C" int port_gxbank_layout_check(void)
+{
+    const unsigned char *base = data_020a6088;
+    const long a = (long)(data_020a609c - base);   /* SetBankForSubOBJ    */
+    const long b = (long)(data_020a60a0 - base);   /* SubOBJExtPltt, and
+                                                      func_020540f0's read */
+    if (a == 0x14 && b == 0x18)
+        return 1;
+    printf("  [gx] BANK BAND NOT CONTIGUOUS: 609c +%ld (want 20), 60a0 +%ld "
+           "(want 24) -- every SetBankFor* member write misses its reader\n",
+           a, b);
+    return 0;
+}
 }
 
 #pragma comment(linker, "/alternatename:__ZN2GX12SetBankForBGEt=?SetBankForBG@GX@@YAXG@Z")

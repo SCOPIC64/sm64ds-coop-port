@@ -1160,6 +1160,20 @@ every multi-row sprite from the wrong tiles. Named as a gap rather than
 asserted away, because it is exactly the shape of the gap that GXSTAT turned
 out to be: a bit the game drives and the host does not read.
 
+  NARROWED BY run link60 lane SUB2, because this paragraph reads as though it
+  covered both engines and it does not. It is true of ppu.cpp and ONLY of
+  ppu.cpp. ntr/ppu_sub.cpp, which is engine B's live path and the only thing
+  that rasterises the bottom screen, has read bit 4 into `map1d` and computed
+  the two-dimensional slot since W2D -- so the :249 half of the pair, the
+  engine-B `*p1 &= 0xFFCFFFEF`, is LIVE in its bit-4 half as well as its
+  bits-20-21 half. The :248 half, engine A's, is the one whose bit-4 clear
+  still has no host effect, and even that is latent rather than visible:
+  ppu_scanout_obj is in no live path (hal/message_compositor.cpp composites
+  engine A) and its one caller is tests/smoke_oam.cpp. Anyone reading this
+  section for the bottom screen's sake should go to port/ppu_gap_audit.txt
+  section 11 instead, which is where the bottom screen's real OBJ gap turned
+  out to be.
+
 11f. SECTION 2d RE-DERIVED, AND ONE ROW HAS MOVED
 
 Mechanically re-derived: every global Stage::InitResources assigns, against

@@ -489,3 +489,89 @@ is nothing truthful to report, and no linked reader asks.
     evidence for a human, not a verdict. Per notes/port-selftest-bmp-gate.md a
     selftest BMP is only byte-comparable between builds at the same .dsstate
     base, and no claim here rests on comparing two.
+
+
+11. THE SEVENTH CLUSTER, WHICH WAS NOT ON THE LIST: OBJ EXTENDED PALETTES
+--------------------------------------------------------------------------
+Run link60 Stage 4, lane SUB2, base 34d3a3130, gate GREEN 5810/11249 (51.6%).
+
+Section 6 could not have found this one, because the instrument could not see
+it. The register file says a scene's DISPCNT bit 31 is clear and the mode census
+says all its objects are mode 0, and both were TRUE of scene 4 while its
+character portrait decoded through the wrong palette every frame. What was
+missing is that neither table said what a sprite decodes FROM.
+
+TWO ROWS ADDED TO ntr/ppu_audit.cpp, and they are what settled it.
+
+  OAM enabled-entry attributes, distinct (attr0, attr1, attr2) triples, with
+  the colour-mode bit, the palette field, the character name and the size
+  decoded out. Distinct triples rather than entries: a HUD redraws the same
+  sprite every frame, so 38400 entry-samples come to about twenty rows.
+
+  OBJ decode inputs, nonzero bytes: OBJ VRAM, the standard OBJ palette and --
+  new -- the OBJ EXTENDED palette store, whose base 0x068a0000 is taken from
+  src/_ZN3GXS14LoadOBJExtPlttEPKvjj.c's own arithmetic rather than a doc.
+  Engine A gets no extended-palette row: this tree has no GX::LoadOBJExtPltt TU
+  to derive a base from, and a guessed base is the invented mapping the audit
+  exists to avoid.
+
+WHAT SCENE 4 ACTUALLY IS, 300 frames, engine B, thirteen placed sprites:
+
+    4 x 64x64  colour 256  palette 0  tiles 512, 516, 576, 580
+    8 x 32x16  colour 16   palette 0  tiles 448..476   (the y=152 text strip)
+    1 x 16x16  colour 16   palette 6  tile  0          (the star, at 120,16)
+
+    DISPCNT_B          00011000 on all 300 samples -- bit 31 CLEAR
+    OBJ VRAM           7433 / 131072 nonzero
+    OBJ palette        158 / 512 nonzero
+    OBJ ext palette    473 / 8192 nonzero -- LOADED, AND SWITCHED OFF
+
+Tile 512 x 32 bytes is 0x4000, and 0x4000 is exactly where dScStarSel_c::
+InitResources decompresses the selected character's portrait. The ROM's own
+file table names both halves of it:
+
+    handle 0x244   data/2D_cad/d_2d_player_select_mario_8bit_ncg.bin
+    handle 0x245   data/2D_cad/d_2d_player_select_mario_8bit_ncl.bin   512 B
+
+so the four 256-colour sprites are the portrait, the 512-byte _ncl is the
+256-colour palette the scene pushes through GXS::Begin/Load/EndLoadOBJExtPltt,
+and the nine 16-colour sprites beside it are on the standard palette and were
+never affected. An extended palette applies to 256-colour sprites only, which is
+why exactly one element of that screen was wrong and the rest were right.
+
+WHY BIT 31 WAS CLEAR WAS NOT A 2D GAP AT ALL. It was a hosted-global aliasing
+break: the SetBankFor* family reaches members of one struct at 0x020a6088 out to
++0x18, and +0x18 IS the DS symbol data_020a60a0 that GXS::BeginLoadOBJExtPltt
+reads back. The port hosted them as separate objects, so Begin read zero, End
+restored bank 0, and SetBankForSubOBJExtPltt(0) cleared the bit the scene had
+just set. hal/cxx_aliases.cpp carries the fix and the derivation.
+
+MEASURED EFFECT ON THE FRAME, A/B IN ONE WORKTREE AT ONE .dsstate BASE
+(0xbab000, both sides; the A side is the same binary with the extended read
+forced off, so nothing but the decode differs):
+
+    A  standard palette   68 distinct colours   5065 non-white pixels
+    B  extended palette  247 distinct colours   5086 non-white pixels
+    3682 pixels differ, ALL of them inside x 95..162, y 57..132
+
+That box is the portrait. The star and the text strip are byte-identical across
+the change. WHETHER THE PORTRAIT IS NOW RIGHT IS NOT A CLAIM THIS FILE MAKES --
+section 10's last bullet still holds, the BMP is evidence for a person.
+
+STILL OPEN, NAMED RATHER THAN CLOSED
+
+  * ppu.cpp's OBJ layer STILL HARD-CODES 1D MAPPING. stage_lifecycle_map.txt
+    section 11e is right about that file and wrong to leave it reading as the
+    bottom screen's problem: ntr/ppu_sub.cpp, which is engine B's live path,
+    has read bit 4 and computed the 2D slot since W2D. Engine A measures
+    DISPCNT 08011d08 on scene 4, bit 4 clear, so ppu_scanout_obj would decode
+    a 2D-mapped sprite as 1D -- but it is in no live path (engine A composites
+    through hal/message_compositor.cpp) and its one caller is
+    tests/smoke_oam.cpp. Not touched here because this screen does not need it
+    and because smoke_oam's expectations were authored against the 1D reader;
+    whoever makes ppu_scanout_obj live owns both halves.
+  * The OBJ tile-boundary field (DISPCNT bits 20-21) is applied by both readers
+    in 2D mapping as well as 1D. On hardware it is a 1D-only field. Inert while
+    the game leaves it at 0, which it does on every run measured so far.
+  * Engine A OBJ extended palettes are unmodelled and unmeasured, for the
+    reason given above: no ROM-derived base exists in this tree.
