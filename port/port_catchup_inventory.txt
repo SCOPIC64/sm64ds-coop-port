@@ -129,6 +129,18 @@
 #                   from the map because nothing referenced them. That is the
 #                   ROM's own reference edge (the constructor takes their
 #                   addresses), not a manufactured one.
+#                   MOVES NOTHING IN THE BINARY, AND THAT IS NOT A FAILURE.
+#                   slice_mg1.txt and hal/scene_mg.cpp are in NO CMake target
+#                   -- port/CMakeLists.txt's MG1 block says so and gives the
+#                   reason (the minigame framework's mwcc pointer-to-member
+#                   dispatch) -- so nothing in the MG1 seat is compiled by any
+#                   build today. Verified here: `scene_mg` appears zero times
+#                   in build/port/build.ninja and zero times in
+#                   walk_window.map. The two sinit TUs therefore raise
+#                   linkage.py's DENOMINATOR by two and its numerator by zero,
+#                   which reads as 49.4% -> 49.3%. Both files were compiled by
+#                   hand with the build's exact hal flags to prove the edits
+#                   are not merely unchecked.
 #    verification   match.py 2004/b56 + the 1.2 trio, strict relocs, against
 #                   extracted/overlays/overlay_0004.bin at base 0x020ad660.
 #                   cl.exe: clean.
@@ -145,6 +157,8 @@
 #                   describes: 24 eight-byte {code, adj} records copied from
 #                   ov006 .data statics into five .bss dispatch tables. Every
 #                   symbol it touches was already in the map.
+#                   Same denominator-only effect as row 5 and the same reason:
+#                   the MG1 seat is in no target.
 #    verification   match.py 2004/b56 + the 1.2 trio, strict relocs, against
 #                   extracted/overlays/overlay_0006.bin at base 0x020bfec0.
 #                   cl.exe: clean.

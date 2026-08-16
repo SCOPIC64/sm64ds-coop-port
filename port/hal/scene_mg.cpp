@@ -8,6 +8,15 @@
 // is unchanged: the port still adds nothing to the ROM's own
 // Scene::SetSceneToSpawn -> Scene::SpawnIfNecessary -> func_02043098 chain.
 //
+// THIS FILE IS IN NO TARGET, and every statement below is written in the
+// future tense whether or not it reads that way. port/CMakeLists.txt's MG1
+// block adds neither this file nor slice_mg1.txt to anything, because the
+// minigame framework dispatches mwcc pointer-to-member tables MSVC cannot
+// represent, so nothing here is compiled, linked or executed by any build
+// today. Read "runs" below as "runs when the dispatch lane wires this", and
+// treat any measurement in this file as a measurement of the ROM or of a
+// scratch link, never of walk_window.exe.
+//
 // ---- 1. WHY THIS IS NOT scene_boot.cpp's SHAPE ----------------------------
 //
 // The star select and the title screen are eighteen-slot _ZTV5Scene tables
@@ -65,35 +74,50 @@
 // it only writes ov004/ov006 mount storage nothing else reads; the
 // constructors are not, and the split is drawn there for that reason.
 //
-// ---- 3. WHAT DOES NOT RUN, AND WHY, ALL OF IT -----------------------------
+// ---- 3. WHAT DOES NOT RUN, AND WHY -- NOTHING, ANY MORE -------------------
 //
-// TWO OF THE THIRTY-FIVE HAVE NO MATCHED SOURCE AND NO DELINK BLOCK. This is
-// a hole in the decomp, not a choice made here:
+// THE HOLE IS CLOSED. All thirty-five of the ROM's constructors run.
 //
-//   __sinit_ov004_020b955c   0x574 bytes.  config/arm9/overlays/ov004/
-//     symbols.txt names it; config/arm9/overlays/ov004/delinks.txt's .init run
-//     goes `start:0x020b948c end:0x020b955c` and then stops, so no block
-//     covers the address. No src file mentions it.
-//   __sinit_ov006_0213014c   0x284 bytes.  Same shape: ov006's .init blocks go
-//     `start:0x021300b0 end:0x0213014c` and the next block starts at
-//     0x021303d0, so 0x0213014c is uncovered.
-//
-// So the runnable sets are THREE of ov004's four and THIRTY of ov006's
-// thirty-one. The two are named rather than stood in for, because a plausible
+// This section used to name two that could not: __sinit_ov004_020b955c
+// (0x574 bytes) and __sinit_ov006_0213014c (0x284). Both had a config symbol,
+// no delink block and no src file when the minigame lane wrote that, and it
+// named them rather than standing in for them, because a plausible
 // constructor is exactly the guess port/tools/inferred_stub_guard exists to
-// refuse, and a constructor's whole job is to leave state behind.
+// refuse and a constructor's whole job is to leave state behind.
 //
-// WHAT THE MISSING TWO WOULD HAVE BUILT IS NOT KNOWN TO THIS LANE. Neither is
-// reachable from dScMgCurling_c's own closure, so the pathfinder does not need
-// them; whether some other minigame does is a question the fan-out answers per
-// class, and port/mg_fanout_costs.txt carries it as an open column rather than
-// as a zero.
+// Both were matched on the decomp's main after this branch forked at
+// 7b2f913fe -- ov004's as f410b0822 (#1116, 2026-08-06), ov006's as 817be2263
+// (#1150, 2026-08-07) -- and run link60's port-catchup lane brought them
+// across by address. Neither is a guess and neither is main's word taken on
+// trust: both were re-verified in that lane's worktree with tools/match.py at
+// mwccarm 2004/b56 with strict relocs, against
+// extracted/overlays/overlay_0004.bin at base 0x020ad660 and
+// extracted/overlays/overlay_0006.bin at base 0x020bfec0.
+//
+// WHAT THE TWO ACTUALLY BUILD, now that they are readable:
+//
+//   __sinit_ov004_020b955c  is the SHARED-FILE-POINTER BUILDER shape of
+//     section 4. It fills data_ov004_020bf5d4 and a run of {a, b} pairs, and
+//     it registers destructors through func_020731dc / func_020733a8 naming
+//     func_ov004_020b4a70, _020b4a7c and _020b4aa0 by address. Those three
+//     TUs entered slice_mg1.txt with it; the ROM's own constructor is what
+//     references them.
+//   __sinit_ov006_0213014c  is the PAIR-TABLE shape: twenty-four eight-byte
+//     {code, adj} records copied out of ov006 .data statics into five .bss
+//     dispatch tables (02141810, 02141840, 021417b0, 021417e8, 021417c8).
+//     Section 4's reading of what those words are -- DS code addresses that
+//     only an mwcc pointer-to-member call would dispatch -- applies to these
+//     twenty-four exactly as it does to __sinit_ov006_021304ac's twenty-five.
+//     Running it is the same act as running the thirty that already ran, and
+//     it does not make a DS address dispatchable that was not before.
 //
 // ---- 4. WHAT THE CONSTRUCTORS ACTUALLY DO ---------------------------------
 //
-// Two shapes, and the split is clean. Read out of all thirty-three sources.
+// Two shapes, and the split is clean. Read out of all thirty-five sources
+// (thirty-three when this was written; the two that arrived later are one of
+// each shape and neither is a third kind).
 //
-//   SHARED-FILE-POINTER BUILDERS (10 of the 33). They call
+//   SHARED-FILE-POINTER BUILDERS (11 of the 35). They call
 //   SharedFilePtr::Construct / func_02017a24 / func_02017acc and register a
 //   destructor with func_020731dc, which is the ov085 / ov100 / ov015 shape
 //   the level path already runs a dozen of. Nothing about them is new.
@@ -246,13 +270,14 @@ void port_ov006_syms_patch(void);
 /* the ROM's own predicate, matched, linked from the slice. Not re-spelled. */
 int IsMinigameActorID(unsigned int id);
 
-/* ov004's four .init constructors, less the one with no source. */
+/* ov004's four .init constructors, all four. */
 void __sinit_ov004_020b948c(void);
+void __sinit_ov004_020b955c(void);
 void __sinit_ov004_020b9ad0(void);
 void __sinit_ov004_020b9b24(void);
 
-/* ov006's thirty-one, less __sinit_ov006_0213014c, which has none. In the
-   ROM's own .ctor order, which is address order. */
+/* ov006's thirty-one, all thirty-one, in the ROM's own .ctor order, which is
+   address order. */
 void __sinit_ov006_0212f4c4(void);
 void __sinit_ov006_0212f52c(void);
 void __sinit_ov006_0212f660(void);
@@ -260,6 +285,7 @@ void __sinit_ov006_0212f6b4(void);
 void __sinit_ov006_0212fc7c(void);
 void __sinit_ov006_0212fd48(void);
 void __sinit_ov006_021300b0(void);
+void __sinit_ov006_0213014c(void);
 void __sinit_ov006_021303d0(void);
 void __sinit_ov006_021304ac(void);
 void __sinit_ov006_02130758(void);
@@ -483,13 +509,15 @@ extern "C" void port_scene_mg_overlay_load(void)
     /* ov004 FIRST, then ov006, because that is the order func_0201a798 loads
        them in and constructors are order-sensitive by definition. */
     __sinit_ov004_020b948c();
+    __sinit_ov004_020b955c();
     __sinit_ov004_020b9ad0();
     __sinit_ov004_020b9b24();
 
     __sinit_ov006_0212f4c4(); __sinit_ov006_0212f52c();
     __sinit_ov006_0212f660(); __sinit_ov006_0212f6b4();
     __sinit_ov006_0212fc7c(); __sinit_ov006_0212fd48();
-    __sinit_ov006_021300b0(); __sinit_ov006_021303d0();
+    __sinit_ov006_021300b0(); __sinit_ov006_0213014c();
+    __sinit_ov006_021303d0();
     __sinit_ov006_021304ac(); __sinit_ov006_02130758();
     __sinit_ov006_02130a04(); __sinit_ov006_02130a08();
     __sinit_ov006_02130df8(); __sinit_ov006_02130e9c();
@@ -502,10 +530,8 @@ extern "C" void port_scene_mg_overlay_load(void)
     __sinit_ov006_02132f68(); __sinit_ov006_0213322c();
     __sinit_ov006_0213326c(); __sinit_ov006_021333e0();
 
-    std::printf("[scene] ov004+ov006 mounted and 33 of 35 overlay "
-                "constructors run (ov004 3/4, ov006 30/31; "
-                "__sinit_ov004_020b955c and __sinit_ov006_0213014c have no "
-                "matched source and no delink block)\n");
+    std::printf("[scene] ov004+ov006 mounted and all 35 overlay "
+                "constructors run (ov004 4/4, ov006 31/31)\n");
     std::fflush(stdout);
 }
 

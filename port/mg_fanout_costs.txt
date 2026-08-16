@@ -430,18 +430,23 @@ recorded here because each bites a specific fan-out lane at a specific moment.
 The full ruling table is in hal/scene_mg.cpp section 3 and is summarised here
 because it is a per-family cost the fan-out inherits rather than repeats.
 
-    ov004   4 in the ROM's .ctor,  3 wired,  1 no source
-    ov006  31 in the ROM's .ctor, 30 wired,  1 no source
+    ov004   4 in the ROM's .ctor,  4 wired,  0 no source
+    ov006  31 in the ROM's .ctor, 31 wired,  0 no source
     ----
-           35 total,              33 wired,  2 no source
+           35 total,              35 wired,  0 no source
 
-The two that cannot run are __sinit_ov004_020b955c (0x574 bytes) and
-__sinit_ov006_0213014c (0x284). Both have a config symbol, NO delink block and
-NO src file: ov004's .init blocks run `start:0x020b948c end:0x020b955c` and
-stop, and ov006's go `start:0x021300b0 end:0x0213014c` then jump to
-`start:0x021303d0`. Neither is reachable from dScMgCurling_c's closure so the
-pathfinder does not need them; whether another minigame does is a per-class
-question and this file does not pretend it is a zero.
+THIS TABLE USED TO READ 33 WIRED AND 2 WITHOUT A SOURCE. The two were
+__sinit_ov004_020b955c (0x574 bytes) and __sinit_ov006_0213014c (0x284): both
+had a config symbol, NO delink block and NO src file, because ov004's .init
+blocks ran `start:0x020b948c end:0x020b955c` and stopped, and ov006's went
+`start:0x021300b0 end:0x0213014c` then jumped to `start:0x021303d0`.
+
+Both were matched on the decomp's main after this branch forked -- f410b0822
+(#1116, 2026-08-06) and 817be2263 (#1150, 2026-08-07) -- and run link60's
+port-catchup lane brought them across by address, re-verifying each with
+tools/match.py against the raw overlay images rather than taking main's word.
+The hole this file used to carry as an open column is closed, and the column
+is now a measured zero rather than an unknown.
 
 They run at MINIGAME SCENE LOAD, not at registry install, and the distinction
 is load-bearing rather than tidy. On the DS the spine's pre-spawn hook
