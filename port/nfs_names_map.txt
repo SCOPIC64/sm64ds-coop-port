@@ -235,7 +235,7 @@ data_02086758 off the end.
              id 1676) -- the scene's own two backgrounds, at the ROM offsets
              the cartridge's own FAT gives for them, served out of
              extracted/dsd/files. The scene then reaches its FIRST BEHAVIOUR
-             TICK, which it never had, and dies there. See section 8.
+             TICK, which it never had, and dies there. See section 7.
 
 THE WITHDRAWN GREEN IS WORTH MORE THAN THE RESULT, so it goes above it rather
 than in a footnote. Run by hand, the after case exits 0 and prints

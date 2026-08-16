@@ -776,8 +776,8 @@ extern "C" void port_scene_fill_curling(void)
        port/hal/fs_names.cpp runs the ROM's own func_0205cc80 at the ROM's own
        boot point, so data_020a804c holds a real archive and
        dScMgCurling_c::InitResources loads both of its files through the
-       cartridge's own name table. Scene 374 runs its 300 frames and
-       port/tools/battery.py's SCENE_BLOCKED row for it is gone.
+       cartridge's own name table and RETURNS. The scene does not run yet: the
+       check below this one is what stops it now.
 
        WHAT WAS ALSO WRONG ABOVE, corrected rather than deleted because the
        wrong reading is in three files and a successor will meet it: the

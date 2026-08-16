@@ -13,6 +13,15 @@
 // (SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=300, exit 139, crash.txt c0000005 at
 // +0x0006f5c2 accessing 0x00000010 with eax = 0).
 //
+// IT RETIRES THAT BLOCKER AND THE SCENE STILL DOES NOT RUN. InitResources
+// completes for the first time and the scene reaches its first behaviour tick,
+// where it dies in the fader dispatch port/fader_boot_map.txt section 7a
+// already named as a hazard. battery.py's row for scene 374 is CONVERTED to
+// that, not deleted. The fault there is quarantined, so a bare run exits 0
+// over a frozen actor and only SM64DS_FAULTS_FATAL tells the truth about it;
+// port/nfs_names_map.txt section 6 is the write-up, and it is a write-up
+// because this lane believed the zero exit code for an hour.
+//
 // ---- WHY THIS IS A NEW FILE AND NOT A CHANGE TO hal/fs.cpp -----------------
 //
 // hal/fs.cpp owns the ID-based seam: SharedFilePtr::Load resolves an ov0 handle
