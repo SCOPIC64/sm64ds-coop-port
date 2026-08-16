@@ -64,6 +64,21 @@
 # level, where no minigame is ever constructed, so nothing about the shipped
 # behaviour changes. The map file is amended in the same commit as this one.
 
+# TWELVE LINES BELOW ARE COMMENTED OUT AND SAY "HOST-COPIED (MG2)". Run link60
+# lane MG2. They are the pointer-to-member DISPATCHERS, and the port cannot
+# compile any of them: mwcc's member pointer is eight bytes where MSVC's is
+# four, so the tables stride wrong, the object layouts that contain one shift,
+# and the call sequence is a different shape. Their bodies live in
+# port/unmatched/MgBase_StateDispatch.cpp (seven, ov004, paid once for all
+# thirty) and port/unmatched/MgCurling_StateDispatch.cpp (five, ov006, this
+# class's), each verbatim but for the table declaration and the call.
+#
+# ONLY SIX OF THE TWELVE WERE NAMED BY A LINK. The other six declare their PMF
+# tables inside extern "C", so the globals mangle as the plain C names the
+# mount already defines and they LINK CLEAN WHILE MISCOMPILING. Whoever seats
+# the next minigame sweeps for `::*` rather than trusting LNK1120; the two
+# dispatch files' headers carry the full statement.
+#
 # /OPT:REF IS THE REFEREE. No /include:, and the only reference edges are the
 # ROM's own: the ACTOR_SPAWN_TABLE record names the factory, the ROM's vtable
 # names the thirty-six slot bodies, and the ROM's .ctor names the thirty-three
@@ -122,14 +137,14 @@ src/func_ov006_020e091c.c
 src/func_ov006_020e0a24.c
 src/func_ov006_020e0b64.c
 src/func_ov006_020e0ca0.c
-src/func_ov006_020e0d84.cpp
+# HOST-COPIED (MG2): src/func_ov006_020e0d84.cpp
 src/func_ov006_020e0e18.c
 src/func_ov006_020e0edc.c
 src/func_ov006_020e0ff0.c
 src/func_ov006_020e1100.c
-src/func_ov006_020e1214.cpp
+# HOST-COPIED (MG2): src/func_ov006_020e1214.cpp
 src/func_ov006_020e1264.c
-src/func_ov006_020e12d0.cpp
+# HOST-COPIED (MG2): src/func_ov006_020e12d0.cpp
 src/func_ov006_020e13a4.c
 src/func_ov006_020e1554.c
 src/func_ov006_020e1608.c
@@ -145,14 +160,14 @@ src/func_ov006_020e2dbc.c
 src/func_ov006_020e2eb8.c
 src/func_ov006_020e2ebc.c
 src/func_ov006_020e2f78.c
-src/func_ov006_020e3078.cpp
+# HOST-COPIED (MG2): src/func_ov006_020e3078.cpp
 src/func_ov006_020e3210.c
 src/func_ov006_020e3250.c
 src/func_ov006_020e3378.c
 src/func_ov006_020e3388.c
 src/func_ov006_020e3470.c
 src/func_ov006_020e34ec.c
-src/func_ov006_020e3528.cpp
+# HOST-COPIED (MG2): src/func_ov006_020e3528.cpp
 src/func_ov006_020e3578.c
 
 # ---- ov004: the dScMgBase_c framework, 152 TUs ----------------------------
@@ -200,8 +215,8 @@ src/func_ov004_020adc3c.c
 src/func_ov004_020adc4c.c
 src/func_ov004_020adc68.c
 src/func_ov004_020adc74.c
-src/func_ov004_020add88.cpp
-src/func_ov004_020adf2c.cpp
+# HOST-COPIED (MG2): src/func_ov004_020add88.cpp
+# HOST-COPIED (MG2): src/func_ov004_020adf2c.cpp
 src/func_ov004_020ae128.c
 src/func_ov004_020ae140.cpp
 src/func_ov004_020ae198.c
@@ -261,9 +276,9 @@ src/func_ov004_020b2adc.c
 src/func_ov004_020b2c84.c
 src/func_ov004_020b2cb8.c
 src/func_ov004_020b3194.c
-src/func_ov004_020b31b4.cpp
-src/func_ov004_020b321c.cpp
-src/func_ov004_020b3278.cpp
+# HOST-COPIED (MG2): src/func_ov004_020b31b4.cpp
+# HOST-COPIED (MG2): src/func_ov004_020b321c.cpp
+# HOST-COPIED (MG2): src/func_ov004_020b3278.cpp
 src/func_ov004_020b40c0.c
 src/func_ov004_020b410c.c
 src/func_ov004_020b4214.c
@@ -312,8 +327,8 @@ src/func_ov004_020b841c.cpp
 src/func_ov004_020b853c.c
 src/func_ov004_020b8560.cpp
 src/func_ov004_020b8688.c
-src/func_ov004_020b8714.cpp
-src/func_ov004_020b8778.cpp
+# HOST-COPIED (MG2): src/func_ov004_020b8714.cpp
+# HOST-COPIED (MG2): src/func_ov004_020b8778.cpp
 src/func_ov004_020b8a70.c
 src/func_ov004_020b8a8c.c
 src/func_ov004_020b8c18.c
@@ -394,3 +409,76 @@ src/func_ov001_020ab5b0.c
 src/func_0201834c.c
 src/func_02018dc4.c
 src/func_02018e68.c
+
+# ---- SIXTH WAVE: 5 more, all arm9, and the wave MG1 never ran -------------
+# Run link60 lane MG2. MG1 stopped after the fifth link, the one that found the
+# wall rather than more slice lines, and review's independently wired link
+# predicted a sixth wave of five matched TUs plus one hosted word. Both halves
+# are confirmed here by this lane's own link, which named exactly these five
+# and data_0208ec74 (hosted in hal/scene_mg_faces.cpp section 1b).
+#
+# All five hang off src/func_0201834c.c, one of the fourth wave's three: it is
+# under the archive/file loader the two SharedFilePtr constructors reach, and
+# it wants the open/close pair and the allocator that pair uses.
+# _ZN6Memory8AllocateEji is the one C++ name in the set. facegen refused it --
+# "reverse face with 2 args: hand-write it against the cxxname_bridge
+# precedent" -- and the refusal is a category error the tool cannot see from a
+# symbol alone: it is not a face at all, it is a matched TU nobody had listed.
+# A slice line, not a bridge.
+src/FS_CloseFile.c
+src/_ZN6Memory8AllocateEji.cpp
+src/func_02018568.c
+src/func_02018770.c
+src/func_02018d48.c
+
+# ---- THE STATE BODIES, which no wave could ever have named ----------------
+# Run link60 lane MG2. These four are dScMgBase_c's own state functions, the
+# targets of the eight-byte pairs __sinit_ov004_020b948c copies into
+# data_ov004_020beb88 and data_ov004_020beb98. Read out of
+# extracted/overlays/overlay_0004.bin at 0x020bbf4c / 0x020bbf54 / 0x020bbf5c /
+# 0x020bbf64, every pair {code, 0}.
+#
+# NO LINK WAVE COULD HAVE FOUND THEM and port/mg_fanout_costs.txt section 5
+# says why in advance: the pair words are mounted DATA holding DS addresses, so
+# no host symbol named these four and /OPT:REF had dropped all of them. They
+# become reachable only once the address switch in
+# port/unmatched/MgBase_StateDispatch.cpp names them, which is the same commit
+# that adds these lines. That is the general shape for the fan-out: A SEAT'S
+# STATE BODIES ARRIVE WITH THE DISPATCH, NOT WITH THE CLOSURE.
+#
+# The ov006 half of the same statement needs no lines here: all twenty-four of
+# dScMgCurling_c's matched state bodies were already in the ov006 block above,
+# because the vtable reaches them by other routes as well.
+src/func_ov004_020adc80.c
+src/func_ov004_020adcc8.cpp
+src/func_ov004_020addcc.c
+src/func_ov004_020adeb0.c
+
+# ---- SEVENTH WAVE: 3 more, the closure of the two blocks above ------------
+# Run link60 lane MG2. The sixth wave and the state bodies brought their own
+# wants, which is the two-wave method doing exactly what it does. The second
+# link named six: these three matched TUs, two hosted words (data_0208eb54 and
+# data_0208edf8, in hal/scene_mg_faces.cpp section 1b) and one alias
+# (_ZN6Memory8AllocateEji onto the MSVC mangle of its own matched body, section
+# 2d).
+#   UnloadArchive        wanted by src/func_02018770.c -- NOT TAKEN, faced
+#                        instead; see below and hal/scene_mg_faces.cpp 2e
+#   func_ov004_020b1b40  wanted by src/func_ov004_020addcc.c, a state body
+#   func_0203d630        wanted by src/func_ov004_020adeb0.c, a state body
+# The last two are the cost of reaching the states at all, and they are the
+# first evidence of what the fan-out pays for a dispatch: the state bodies are
+# not leaves. func_ov004_020b1b40 then wanted func_ov004_020b1ba0, which is the
+# eighth wave's whole remainder and is here too.
+#
+# UnloadArchive IS FACED RATHER THAN LINKED, and the argument is not this
+# lane's -- it is hal/scene_boot.cpp's, already made for LoadArchive and
+# quoted here so the two stay one decision. Its body walks data_0208ecf4, the
+# ROM's 13-entry archive-mount table WHOSE ENTRIES ARE DS STRING POINTERS, and
+# calls func_02018908 into the card loader under it. The scene-1 seat looked at
+# exactly that and declined: hosting a pointer-bearing ROM table to drive a
+# mount the fs seam ignores is "a fake, not a fix". The port never mounts an
+# archive, because hal/fs.cpp resolves archive-interior file ids lazily, so
+# there is nothing for an unmount to undo.
+src/func_0203d630.c
+src/func_ov004_020b1b40.c
+src/func_ov004_020b1ba0.c
