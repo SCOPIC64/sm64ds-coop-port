@@ -871,6 +871,16 @@ void gx_debug_proj(float out[16]) {
     for (int i = 0; i < 16; ++i) out[i] = g.proj.m[i];
 }
 
+// GXSTAT bits 8-12 and 13 want these. Clamped to the widths the register has
+// (5 bits and 1 bit) so a caller can shift them in without re-checking; the
+// MTX_PUSH handlers above already refuse to grow past 31 and 1 respectively.
+void gx_matrix_stack_levels(unsigned &pos_level, unsigned &proj_level) {
+    const int p = g.pos_sp < 0 ? 0 : (g.pos_sp > 31 ? 31 : g.pos_sp);
+    const int q = g.proj_sp < 0 ? 0 : (g.proj_sp > 1 ? 1 : g.proj_sp);
+    pos_level = (unsigned)p;
+    proj_level = (unsigned)q;
+}
+
 const GxTriangle *gx_polygons(size_t &count) {
     count = g.tris.size();
     return g.tris.empty() ? nullptr : g.tris.data();

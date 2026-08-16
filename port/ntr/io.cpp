@@ -86,37 +86,52 @@ constexpr uint32_t SQRTCNT = 0x40002B0, SQRT_RESULT = 0x40002B4, SQRT_PARAM = 0x
 // synchronously inside the submit, so there is no queue to be backed up.
 // GXSTAT_IDLE is that truth, and io_init already brings the register up
 // holding it.
-// WHERE THIS STOPS, AND WHY THAT IS SAFE TODAY BUT NOT FOREVER. GXSTAT_HW
-// covers bits 16..27 only. Bits 0..14 are just as read-only on hardware -- the
-// box-test result (0..7), the position/vector matrix stack level (8..12), the
-// projection stack level (13) and matrix-stack-busy (14) -- and func_0205583c's
-// `= 0` leaves every one of them a dead latch that no longer tracks anything.
-// They are not normalised here because the host has no matrix-stack model to
-// normalise them FROM: inventing a stack level would be a guess, while the FIFO
-// state is known exactly (ntr executes a display list synchronously, so it is
-// always empty).
+// THE MATRIX-STACK HALF, bits 8..14. These are read-only on hardware too -- the
+// position/vector matrix stack level (8..12), the projection stack level (13)
+// and matrix-stack-busy (14) -- and func_0205583c's `= 0` leaves every one of
+// them a dead latch. An earlier revision of this note left them alone on the
+// grounds that "the host has no matrix-stack model to normalise them FROM".
+// That was wrong about the host: ntr/gx.cpp has kept both stacks and both stack
+// pointers all along (g.pos_sp over pos_stack[32], g.proj_sp over
+// proj_stack[2]), so the level is not a guess, it is a value the geometry
+// engine already tracks. gx_matrix_stack_levels reports it and the two fields
+// are normalised from it below.
 //
-// That is bounded rather than fixed, and the boundary is narrow. The only
-// linked readers of those bits are func_02055464 (bit 14, then bit 13) and
-// func_02055490 (bits 8..12); both run at init, where the true stack levels
-// really are 0, so a dead-zero latch happens to be the right answer.
+// BUSY IS ZERO, EXACTLY. ntr executes a display list synchronously inside the
+// submit, so there is no window in which the game can observe a push or pop in
+// flight. That is the same argument GXSTAT_IDLE rests on for the FIFO.
 //
-// Their mid-frame driver is func_02055624, and it is NOT linked (0 references
-// in walk_window.map). That matters more than the readers themselves, because
-// of how it calls them:
+// THE FIELD POSITIONS COME FROM THE GAME, not from docs alone. Its own two
+// readers spell them out:
 //
-//     while (func_02055490(&a)) ;      // spin until the stack level reads 0
+//     func_02055464: if (GXSTAT & 0x4000) return -1;  *out = (GXSTAT & 0x2000) >> 13;
+//     func_02055490: if (GXSTAT & 0x4000) return -1;  *out = (GXSTAT & 0x1f00) >> 8;
+//
+// so 0x4000 is busy, 0x1f00 is the position/vector level and 0x2000 the
+// projection level, which is what GBATEK says as well.
+//
+// AND THIS CORRECTS WHAT THAT EARLIER NOTE SAID THE SPIN WAS. It read
+// func_02055624's
+//
+//     while (func_02055490(&a)) ;
 //     while (func_02055464(&b)) ;
 //
-// Those are spin-waits on the same kind of never-updated latch that produced
-// the GXSTAT hang above. They fall through today only because the `= 0` store
-// left zeros behind and nothing else writes those bits. The day func_02055624
-// or any other mid-frame stack-level reader links, this constant has to grow a
-// modelled matrix-stack level with it -- and if it does not, the symptom will
-// be a hang in the same shape as this one, or a wrong answer that reads as a
-// matrix bug rather than an MMIO one.
+// as "spin until the stack level reads 0". It is not: both helpers return -1
+// only when BUSY and 0 otherwise, so the loops spin until NOT BUSY and then use
+// `a` and `b` as the levels. That changes the risk in this fix's favour. With
+// busy pinned to 0 the loops still fall through immediately, exactly as they did
+// against the dead latch, so there is no new hang. What changes is the second
+// half: func_02055624 then pops the stacks by `a` and `b`
+// (0x4000440 MTX_MODE, 0x4000448 MTX_POP), which against a dead-zero latch
+// popped NOTHING and left the stack unwound. func_02055624 is still unlinked
+// today (0 references in walk_window.map), so this fixes it ahead of the day it
+// links rather than in response to a symptom.
+//
+// Bits 0..7, the box-test result, stay a latch. The host runs no box test, so
+// there is nothing truthful to report and no linked reader asks (the sweep in
+// port/tools/ppu_reg_readers.py covers the register file this belongs to).
 constexpr uint32_t GXSTAT = 0x4000600;
-constexpr uint32_t GXSTAT_HW = 0x0FFF0000;    // bits 16..27, geometry-engine owned
+constexpr uint32_t GXSTAT_HW = 0x0FFF7F00;    // bits 8..14 + 16..27, hardware owned
 constexpr uint32_t GXSTAT_IDLE = 0x06000000;  // empty + less-than-half-full, not busy
 
 void run_divide() {
@@ -492,7 +507,13 @@ bool io_init() {
 // six reading something true.
 static void gxstat_normalize() {
     const uint32_t v = static_cast<uint32_t>(raw_read(GXSTAT, 4));
-    const uint32_t fixed = (v & ~GXSTAT_HW) | GXSTAT_IDLE;
+    // The matrix-stack field, from the geometry engine's own stack pointers.
+    // Busy (bit 14) is left clear: execution is synchronous, so the game can
+    // never observe a push or pop in flight.
+    unsigned pos = 0, proj = 0;
+    gx_matrix_stack_levels(pos, proj);
+    const uint32_t stack = (pos << 8) | (proj << 13);
+    const uint32_t fixed = (v & ~GXSTAT_HW) | GXSTAT_IDLE | stack;
     if (fixed != v) raw_write(GXSTAT, fixed, 4);
 }
 
