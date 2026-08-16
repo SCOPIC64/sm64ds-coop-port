@@ -61,8 +61,9 @@ struct SubFramebuffer {
 };
 
 // Engine B, whole: text/affine/extended-affine backgrounds with extended
-// palettes, sprites, the window unit and master brightness, all resolved
-// together by priority. No OBJ window, no BLDCNT blending, no bitmap BGs.
+// palettes, sprites, all three windows (WIN0, WIN1 and the OBJ window) and
+// master brightness, all resolved together by priority. No BLDCNT blending, no
+// bitmap OBJs, no bitmap BGs, no mosaic.
 void ppu_scanout_sub(SubFramebuffer &fb);
 
 bool ppu_write_bmp_sub(const char *path, const SubFramebuffer &fb);

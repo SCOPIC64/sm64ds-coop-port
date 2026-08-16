@@ -24,15 +24,21 @@
 //     black rectangle. The base address is the one that function writes to,
 //     0x06898000, and the slot stride is the 0x2000 its own 0x6000 argument
 //     implies for BG3.
-//   - the WINDOW unit (WIN0/WIN1/WININ/WINOUT), which is what Message boxes
-//     drive.
+//   - the WINDOW unit, all three windows: WIN0/WIN1 by rectangle and the OBJ
+//     window by mask, with WININ/WINOUT deciding what shows in each region.
 //   - MASTER BRIGHTNESS, which is how the sub screen fades.
 //
-//   - no OBJ window (mode 3 sprites are skipped, as in ppu.cpp)
 //   - no BLDCNT alpha blending: the second-target machinery is a bigger
 //     rewrite than the bottom screen has needed so far, and master brightness
-//     covers the fades. Semi-transparent sprites draw opaque.
-//   - no bitmap BGs, no mosaic.
+//     covers the fades. Semi-transparent sprites (OBJ mode 1) draw opaque.
+//     Measured dead: port/ppu_gap_audit.txt found zero mode-1 objects and
+//     BLDCNT == 0 on every sampled frame of level 1 and scene 4.
+//   - no bitmap OBJs (OBJ mode 3), no bitmap BGs, no mosaic.
+//
+// The OBJ window used to be listed here as missing, and the line said "mode 3
+// sprites are skipped". BOTH halves were wrong: the OBJ window is mode 2, mode
+// 3 is the prohibited/bitmap encoding, and skipping 3 meant window sprites were
+// DRAWN. tests/smoke_objwin.cpp pins the corrected contract.
 //
 // Address arithmetic is taken from the decomp's own byte-verified getters
 // rather than from docs wherever one exists -- G2S::GetBG0CharPtr computes
@@ -245,6 +251,12 @@ struct ObjPixel {
 
 ObjPixel g_obj[192][256];
 
+// The OBJ window's mask. A mode-2 sprite is not drawn: every one of its
+// non-transparent texels instead marks that pixel as "inside the OBJ window",
+// and WINOUT's upper half then says which layers show there. Kept separate
+// from g_obj because a mask pixel contributes no colour and has no priority.
+uint8_t g_objwin[192][256];
+
 void raster_obj(uint32_t dispcnt) {
     static const int kSizes[3][4][2] = {
         {{8, 8}, {16, 16}, {32, 32}, {64, 64}},
@@ -252,6 +264,7 @@ void raster_obj(uint32_t dispcnt) {
         {{8, 16}, {8, 32}, {16, 32}, {32, 64}},
     };
     std::memset(g_obj, 0, sizeof g_obj);
+    std::memset(g_objwin, 0, sizeof g_objwin);
     if (!((dispcnt >> 12) & 1))
         return;
     const uint32_t boundary = 32u << ((dispcnt >> 20) & 3);
@@ -268,7 +281,15 @@ void raster_obj(uint32_t dispcnt) {
         const uint16_t a2 = rd16(kOamBase + i * 8u + 4);
         const bool affine = a0 & 0x100;
         if (!affine && (a0 & 0x200)) continue;          // disabled
-        if (((a0 >> 10) & 3) == 3) continue;            // OBJ window: not hosted
+        // OBJ MODE, attribute 0 bits 10-11: 0 normal, 1 semi-transparent,
+        // 2 OBJ window, 3 prohibited (bitmap on the DS). This test used to be
+        // `== 3` with the comment "OBJ window", which skipped the wrong mode
+        // and drew a window sprite -- an invisible mask on hardware -- as an
+        // ordinary opaque sprite. See the note over ppu.cpp's OBJ layer for
+        // where the field position is pinned from the decomp's own OAM::Render.
+        const unsigned objmode = (a0 >> 10) & 3;
+        if (objmode == 3) continue;                     // bitmap OBJ: not hosted
+        const bool is_win = objmode == 2;
         const int shape = (a0 >> 14) & 3;
         if (shape == 3) continue;
         const int size = (a1 >> 14) & 3;
@@ -331,6 +352,13 @@ void raster_obj(uint32_t dispcnt) {
                     if (!idx) continue;
                     color = bgr555(rd16(kObjPltt + (pal * 16u + idx) * 2u));
                 }
+                // A window sprite contributes its SHAPE and nothing else: the
+                // texel is opaque, so the pixel is inside the window, and the
+                // colour it would have had is discarded.
+                if (is_win) {
+                    g_objwin[py][px] = 1;
+                    continue;
+                }
                 g_obj[py][px].color = color;
                 g_obj[py][px].prio = prio;
                 g_obj[py][px].hit = 1;
@@ -344,20 +372,32 @@ void raster_obj(uint32_t dispcnt) {
 // WIN0H/WIN1H hold X1<<8|X2 and WIN0V/WIN1V Y1<<8|Y2, all edges exclusive on
 // the right/bottom. WININ's low six bits are what shows inside window 0 and
 // its next six what shows inside window 1; WINOUT's low six are what shows
-// outside both. Bits 0..3 are BG0..BG3, bit 4 is OBJ, bit 5 the colour effect.
+// outside every window and its NEXT six what shows inside the OBJ window.
+// Bits 0..3 are BG0..BG3, bit 4 is OBJ, bit 5 the colour effect.
+//
+// THE OBJ WINDOW is the third window and it has no rectangle: its region is the
+// union of the opaque texels of every mode-2 sprite, which raster_obj collects
+// into g_objwin. DISPCNT bit 15 enables it, the same way bits 13 and 14 enable
+// windows 0 and 1. Precedence is fixed in hardware: window 0 wins over window
+// 1, window 1 over the OBJ window, and WINOUT covers what is in none of them.
 
 struct Windows {
     bool any;
     int x1[2], x2[2], y1[2], y2[2];
     bool on[2];
-    unsigned in[2], out;
+    bool obj_on;
+    unsigned in[2], obj_in, out;
 };
 
 void read_windows(uint32_t dispcnt, Windows &w) {
     w.on[0] = (dispcnt >> 13) & 1;
     w.on[1] = (dispcnt >> 14) & 1;
-    w.any = w.on[0] || w.on[1];
+    w.obj_on = (dispcnt >> 15) & 1;
+    // Any window being on changes what the OTHER regions show, so the OBJ
+    // window arms the whole unit exactly as the two rectangles do.
+    w.any = w.on[0] || w.on[1] || w.obj_on;
     if (!w.any) return;
+    w.obj_in = (rd16(kRegBase + 0x4A) >> 8) & 0x3F;
     for (int i = 0; i < 2; ++i) {
         const uint16_t hh = rd16(kRegBase + 0x40 + i * 2);
         const uint16_t vv = rd16(kRegBase + 0x44 + i * 2);
@@ -382,6 +422,7 @@ inline unsigned window_mask(const Windows &w, int x, int y) {
     for (int i = 0; i < 2; ++i)
         if (w.on[i] && x >= w.x1[i] && x < w.x2[i] && y >= w.y1[i] && y < w.y2[i])
             return w.in[i];
+    if (w.obj_on && g_objwin[y][x]) return w.obj_in;
     return w.out;
 }
 
