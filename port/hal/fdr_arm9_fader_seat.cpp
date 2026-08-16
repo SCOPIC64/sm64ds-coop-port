@@ -85,17 +85,17 @@
 // (0x02017610), and slots 0x14/0x18 tail into IsAtStart (0x02017684) and
 // IsAtEnd (0x02017670).
 //
-//     off   ROM body        what              this tranche
-//     0x00  func_0202fc08   ~dWipe_c   (D1)   SEATED (also the sinit's atexit)
-//     0x04  func_0202fbc8   (D0)              SEATED
-//     0x08  func_0202f428   AdvanceFade       TRAP -- next chunk
-//     0x0c  func_0202f928   SetBackwardTime   TRAP -- next chunk
-//     0x10  func_0202f708   SetForwardTime    TRAP -- next chunk
-//     0x14  func_0202ee38   IsAtStart         SEATED
-//     0x18  func_0202eddc   IsAtEnd           SEATED
-//     0x1c  func_0202ed7c   IsBetweenStart..  SEATED
+//     off   ROM body        what              tranche
+//     0x00  func_0202fc08   ~dWipe_c   (D1)   FDR  (also the sinit's atexit)
+//     0x04  func_0202fbc8   (D0)              FDR
+//     0x08  func_0202f428   AdvanceFade       TRAP, and a ruling -- see below
+//     0x0c  func_0202f928   SetBackwardTime   FDR2
+//     0x10  func_0202f708   SetForwardTime    FDR2
+//     0x14  func_0202ee38   IsAtStart         FDR
+//     0x18  func_0202eddc   IsAtEnd           FDR
+//     0x1c  func_0202ed7c   IsBetweenStart..  FDR
 //     0x20  func_0202ed08   SetToEnd          VENEER, see below
-//     0x24  func_0202ecfc   SetToStart        SEATED
+//     0x24  func_0202ecfc   SetToStart        FDR
 //     0x28  --              overhang          TRAP
 //     0x2c  --              overhang          TRAP
 //
@@ -105,15 +105,30 @@
 // instead of on the next class's vtable header. They are the documented
 // overhang, not shared ground with the ROM.
 //
-// WHY THE THREE TRAPS ARE TRAPS AND NOT AN OMISSION. Each of the three bodies
-// drags in its own closure -- func_0202f290, func_0202f2c4, func_0202f58c,
-// FaderColor::AdvanceFade, and two more arm9 data symbols (data_020926c8,
-// data_020926cc, data_0209f600, data_0209f604) that nothing hosts yet. Seating
-// them here would put this tranche over the TU budget it was given, and the
-// three of them are a coherent second chunk: they are the fade MOTION, where
-// the five seated here are the fade STATE. port/fader_boot_map.txt carries the
-// closure. Each trap is its own named function so a run says which slot fired
-// rather than that some slot did.
+// THE FADE MOTION CAME IN THE SECOND TRANCHE. FDR seated the fade STATE and
+// left the three motion slots as named traps sized at "roughly 7 src TUs plus
+// four arm9 data symbols". Run link60 lane FDR2 re-measured that with
+// port/tools/closure.py and it was low both ways: the two setters alone need
+// NINE TUs and NINE data symbols, because func_0202f58c reaches func_0202f290
+// and its two table builders and the HBlank handler reaches its own reset.
+// 0x0c and 0x10 are the ROM's bodies now; the closure and the sizing are in
+// port/fader_boot_map.txt section 4.
+//
+// WHY 0x08 IS STILL A TRAP, AND IT IS A RULING RATHER THAN A BUDGET. Its ROM
+// body was disassembled and ruled REAL_DECOMP with the other two, and it is
+// still refused a seat, because src/func_0202f428.c's `type == 1` branch calls
+//
+//     _ZN10FaderColor11AdvanceFadeEv()
+//
+// with NO ARGUMENT -- the ROM's `bl` at 0x0202f440 leaves r0 holding the
+// receiver, which is the same trick the veneer at 0x20 relies on, and on the
+// host the receiver is gone. Unlike 0x20 the broken call is INSIDE a larger
+// body, so there is no veneer to route around: seating the body means shipping
+// the call. And there is nothing to buy -- slot 0x08 has no call site anywhere
+// in the image, which section 9a of the map measures rather than assumes.
+// port/tools/closestplayer_guard.py now carries a rule for the symbol so the
+// refusal is mechanical. Each trap is its own named function so a run says
+// which slot fired rather than that some slot did.
 //
 // WHY 0x20 IS A VENEER AND NOT src/func_0202ed08.c. THE src TU IS HOST-BROKEN,
 // and it is broken in exactly the way lane LK4 wrote up for Heap::_Destroy.
@@ -171,9 +186,13 @@
 // which no longer produces the second shape.
 //
 // THE GARBAGE-RECEIVER HAZARD IS REAL AND IS NOT THE CRASH. The cdecl shape
-// (Scene::SetFaders' `data_0209f5bc->vt->f14(data_0209f5bc)`, Minimap and HUD's
-// Behavior, func_ov003_020af038) puts the receiver on the stack, where a
-// __fastcall thunk does not look. The stack stays balanced -- both sides agree
+// (Scene::SetFaders' two `data_0209f5bc->vt->fNN(data_0209f5bc)` sites and
+// Minimap::Behavior's `vt->f[5]`, and only those three in this image) puts the
+// receiver on the stack, where a __fastcall thunk does not look. HUD::Behavior
+// and func_ov003_020af038 LOOK like the same shape in a listing and are not:
+// their leading pushes are a callee-save and MSVC's frame-slot idiom, and what
+// separates the two conventions is the `add esp,4` after the call, which
+// neither of them has. The stack stays balanced -- both sides agree
 // the callee cleans nothing -- so the failure mode is a wrong `this`, not a
 // smashed frame. At every one of those sites in THIS image the object is also
 // still in ECX when the call is made, so the thunk reads the right receiver
@@ -195,6 +214,11 @@ int   func_0202ee38(void *self);   /* 0x14  IsAtStart */
 int   func_0202eddc(void *self);   /* 0x18  IsAtEnd */
 int   func_0202ed7c(void *self);   /* 0x1c  IsBetweenStartAndEnd */
 void  func_0202ecfc(void *self);   /* 0x24  SetToStart (veneer, receiver-correct) */
+
+/* The two motion bodies, run link60 lane FDR2. Their arities are the ROM's and
+   differ from each other; see the note above the thunks. */
+int   func_0202f928(void *self, unsigned frames, unsigned c);  /* 0x0c */
+int   func_0202f708(void *self, unsigned frames);              /* 0x10 */
 
 /* The ROM's static initialiser and the storage it constructs. */
 void __sinit_02074f80(void);
@@ -343,6 +367,25 @@ extern "C" {
 void func_02017610(void *self)
 { ((FaderBrightness *)self)->FaderBrightness::SetToStart(); }
 
+/* THE BASE-CLASS BRANCH OF SLOT 0x0c, run link60 lane FDR2.
+   func_0202f928's `type == 1` case tail-calls the ROM's 0x020176d8, which
+   config/arm9/symbols.txt names _ZN15FaderBrightness15SetBackwardTimeEj. Its
+   matched TU is src/engine/fader/, so MSVC emits it as
+   ?SetBackwardTime@FaderBrightness@@UAEHI@Z -- a __thiscall method -- and the
+   caller declares the flat C name. hal/method_faces.cpp owns the SetForwardTime
+   half of this exact pair and rules it a face and not an /alternatename for the
+   reason that applies here unchanged: an alias would run the method with a
+   garbage `this` out of ECX.
+
+   THREE PARAMETERS, and the third is the one the ROM never reads. On ARM r2 is
+   live across the `bl` at 0x0202f940 whether the callee wants it or not, so
+   src/func_0202f928.c forwards it and its own comment explains that keeping it
+   is what makes the register allocation match. Both sides are cdecl here and
+   the caller cleans its own arguments, so the extra word costs nothing and is
+   carried rather than silently dropped. */
+int _ZN15FaderBrightness15SetBackwardTimeEj(void *self, u32 frames, u32)
+{ return ((FaderBrightness *)self)->FaderBrightness::SetBackwardTime(frames); }
+
 }  /* extern "C" */
 
 /* ---- the storage ---------------------------------------------------------
@@ -355,11 +398,41 @@ void func_02017610(void *self)
 
    data_0209f610 is arm9 bss and its ROM span is exactly 0xc -- the next symbol
    in config/arm9/symbols.txt is data_0209f61c. Three words, which is what
-   func_020731dc writes into it: {next, dtor, object}. */
+   func_020731dc writes into it: {next, dtor, object}.
+
+   THE SEVEN BELOW ARRIVED WITH THE MOTION SLOTS, run link60 lane FDR2, and
+   every size is the ROM span from config/arm9/symbols.txt rather than the
+   width of the field the C reads through:
+
+     data_0209f5f8   4     func_0202f58c's sub-engine select
+     data_0209f5fc   4     func_0202f2c4 / func_0202f3a4's "table is live" flag
+     data_0209f600   4     SetForwardTime's type == 2 palette, the bss twin of
+                           data_020926c8
+     data_0209f604   4     SetBackwardTime's, the twin of data_020926cc
+     data_0209f608   4     the scanline table's WORKING index
+     data_0209f60c   4     its SOURCE index
+     data_0209f648   0x600 the table itself: two 0x300-byte double buffers of
+                           192 scanlines x 4 bytes, which is what func_0202ee94
+                           and func_0202efa0 fill and func_0202f2c4 pushes at
+                           the blend registers one line at a time. The span is
+                           the delta to data_0209fc48 and it agrees with the
+                           stride the code indexes by.
+
+   All seven are bss, so zero is the ROM's own starting value and nothing here
+   invents one. They go inside the bracket with the rest: they are live fade
+   state and a save state that rolled back the object without them would
+   restore a fader pointing into a stale table. */
 DSSTATE_BEGIN
 extern "C" {
 void *data_020926f0[12];
 void *data_0209f610[3];
+int data_0209f5f8[1];
+int data_0209f5fc[1];
+int data_0209f600[1];
+int data_0209f604[1];
+int data_0209f608[1];
+int data_0209f60c[1];
+unsigned char data_0209f648[0x600];
 }
 DSSTATE_END
 
@@ -376,8 +449,7 @@ void fdr_trap(const char *slot, const char *rom_body)
     std::fflush(stderr);
 }
 
-/* The three unseated ROM slots.
-   THE ARITY IS THE CALL SITE'S, NOT THE ROM BODY'S, and that distinction is
+/* THE ARITY IS THE CALL SITE'S, NOT THE ROM BODY'S, and that distinction is
    the whole of section 9. A slot's signature here has one job: leave the stack
    exactly as the caller expects to find it. On ARM the ROM's extra arguments
    ride in registers and cost nothing, so the ROM body's own arity says nothing
@@ -388,13 +460,28 @@ void fdr_trap(const char *slot, const char *rom_body)
 
    __fastcall(self, edx, a, b) IS the host spelling of __thiscall(self, a, b):
    ECX carries the receiver, EDX is unread, a and b come off the stack, and the
-   `ret 8` is what balances the frame. */
+   `ret 8` is what balances the frame.
+
+   0x0c AND 0x10 ARE THE ROM'S OWN BODIES. func_0202f928 takes three arguments
+   and func_0202f708 two, and the difference is not a mistake in either: on ARM
+   the third rides in r2 and costs nothing, which is why the ROM body could
+   ignore it and why the ROM's own C for the setter that DOES forward it says
+   so. The stub cleans what the caller pushed and passes on what the body
+   declares; those are two different counts and both are right.
+
+   0x08 IS STILL A TRAP AND THAT IS A RULING, not an omission. See section 4a
+   of port/fader_boot_map.txt: src/func_0202f428.c calls
+   `_ZN10FaderColor11AdvanceFadeEv()` with no argument, because the ROM's
+   `bl` leaves r0 alone and the receiver rides through. That is the same
+   host-broken shape as src/func_0202ed08.c at slot 0x20 and as
+   Heap::_Destroy, the decomp-side fix is routed rather than taken, and the
+   slot has NO CALL SITE in this image to make the trade worth making. */
 int __fastcall fdr_s08(void *, void *)
 { fdr_trap("slot 0x08 AdvanceFade", "func_0202f428"); return 0; }
-int __fastcall fdr_s0c(void *, void *, int, int)
-{ fdr_trap("slot 0x0c SetBackwardTime", "func_0202f928"); return 0; }
-int __fastcall fdr_s10(void *, void *, int, int)
-{ fdr_trap("slot 0x10 SetForwardTime", "func_0202f708"); return 0; }
+int __fastcall fdr_s0c(void *s, void *, int frames, int c)
+{ return func_0202f928(s, (unsigned)frames, (unsigned)c); }
+int __fastcall fdr_s10(void *s, void *, int frames, int)
+{ return func_0202f708(s, (unsigned)frames); }
 int __fastcall fdr_s28(void *, void *)
 { fdr_trap("overhang slot 0x28", "nothing, this slot is not the ROM's"); return 0; }
 int __fastcall fdr_s2c(void *, void *)
@@ -442,25 +529,34 @@ FdrArm9FaderBoot fdr_arm9_fader_boot;
 
 }  /* anonymous namespace */
 
-/* ARE THE THREE MOTION SLOTS STILL TRAPS? Run link60 lane NFS added this and
-   the reason is worth keeping with the traps rather than with the caller.
-   This file's first unproven item said the three slots "have never been
-   dispatched" and that "any other minigame, and the level path's own fader
-   use, may reach them". Scene 374 now does: with the NitroSDK open-by-name
-   seam in, dScMgCurling_c gets past InitResources to its first behaviour
-   tick, slot 0x0c fires its trap, and the frame dies. So the fact stopped
-   being a footnote and became a battery row, and a battery row needs a
-   PREDICATE somebody outside this file can ask before the run rather than a
-   string somebody greps for afterwards.
+/* ARE THE MOTION SLOTS STILL TRAPS? Run link60 lane NFS added this and the
+   reason is worth keeping with the traps rather than with the caller. FDR's
+   first unproven item said the three slots "have never been dispatched" and
+   that "any other minigame, and the level path's own fader use, may reach
+   them". Scene 374 did: with the NitroSDK open-by-name seam in, dScMgCurling_c
+   got past InitResources to its first behaviour tick, slot 0x0c was
+   dispatched, and the frame died on the stub ABI. So the fact stopped being a
+   footnote and became a battery row, and a battery row needs a PREDICATE
+   somebody outside this file can ask before the run rather than a string
+   somebody greps for afterwards.
 
-   It is a real check and it goes false on its own the day the three ROM
-   bodies are seated, which is the property that stops it rotting into a
-   hardcoded 1. */
+   IT NOW ASKS ABOUT ONE SLOT, and the narrowing is the point rather than a
+   weakening. Run link60 lane FDR2 seated 0x0c and 0x10 on the ROM's own
+   bodies, so a check that still tested all three would have gone on printing
+   over two slots that run -- the exact rot the predicate was built against,
+   arriving from the other direction. Only 0x08 is a trap now, so only 0x08 is
+   tested, and the day func_0202f428 is seatable this goes false on its own.
+
+   THE TEST IS STILL ON THE TABLE AND NOT ON A FLAG. It compares the installed
+   word against the trap's own address, so re-pointing the slot is what
+   retires it. Note the two slots dropped from the test are still filled by
+   fdr_s0c and fdr_s10 -- the same symbols, no longer traps -- which is why
+   comparing against those names would have kept answering "unseated" forever.
+   The battery row this used to key is retired; hal/scene_mg.cpp's remaining
+   use of it is an advisory. */
 extern "C" int port_fdr_motion_slots_unseated(void)
 {
-    return data_020926f0[2] == (void *)fdr_s08 &&
-           data_020926f0[3] == (void *)fdr_s0c &&
-           data_020926f0[4] == (void *)fdr_s10;
+    return data_020926f0[2] == (void *)fdr_s08;
 }
 
 /* The proof line, callable from a harness that wants it in its own output.

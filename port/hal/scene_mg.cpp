@@ -825,34 +825,42 @@ extern "C" void port_scene_fill_curling(void)
        RUN LINK60 LANE FDR2 FIXED THAT, and it was a signature defect rather
        than a missing body: the two stubs now declare the two stack parameters
        their call sites push and clean eight, and the audit of all twelve is
-       port/fader_boot_map.txt section 9. Scene 374 runs its 300 frames under
-       SM64DS_FAULTS_FATAL=1 with the three motion slots STILL TRAPS, so the
+       port/fader_boot_map.txt section 9. The same lane then put the ROM's own
+       func_0202f928 and func_0202f708 behind slots 0x0c and 0x10. Scene 374
+       runs its 300 frames under SM64DS_FAULTS_FATAL=1 either way, so the
        SCENE_BLOCKED row in port/tools/battery.py is retired rather than
        converted a third time.
 
-       WHAT THIS LINE MEANS NOW. Not "the scene cannot run" -- it runs. It
-       means the fade MOTION is not there: the three slots return 0 and say so
-       on stderr, once per dispatch, so a reader who sees a minigame with no
-       wipe knows why and where. When func_0202f428 / func_0202f928 /
-       func_0202f708 are seated the predicate goes false and this goes quiet
-       on its own, which is the property it was built for.
+       WHAT THIS LINE MEANS NOW, and it is narrower than it was. Not "the
+       scene cannot run" -- it runs. Not "the setters do not fire" -- they run
+       299 times on this scene. It means SLOT 0x08, dWipe_c::AdvanceFade, is
+       still a named trap, so nothing steps a fade that the setters armed.
+       Section 4a of the map is why it is not seated: src/func_0202f428.c
+       calls _ZN10FaderColor11AdvanceFadeEv with no argument, which is
+       receiver-destroying on the host, and the slot has no caller in this
+       image to pay for shipping that.
+
+       A SECOND REASON THE WIPE DOES NOT MOVE IS NOT THIS LINE'S AND IS WORTH
+       KNOWING ANYWAY: the setters install func_0202f2c4 on IRQ 2 and nothing
+       on the host raises it, so the per-scanline table they build is never
+       pushed at the blend registers. Seating 0x08 alone would not finish this.
 
        IT ASKS A PREDICATE, NOT A STRING. port_fdr_motion_slots_unseated()
-       compares data_020926f0's three motion slots against the traps
+       compares data_020926f0's slot 0x08 against the trap
        hal/fdr_arm9_fader_seat.cpp installed, so it cannot rot into a
        hardcoded 1. */
     if (IsMinigameActorID((unsigned)port_scene_env_want()) &&
         port_fdr_motion_slots_unseated()) {
-        std::printf("[scene] MINIGAME FADE MOTION MISSING: the dWipe_c motion "
-                    "slots (0x08 AdvanceFade, 0x0c SetBackwardTime, 0x10 "
-                    "SetForwardTime) are still named traps, so the ROM bodies "
-                    "func_0202f428 / func_0202f928 / func_0202f708 do not run "
-                    "and a minigame's wipe does not move. The scene itself is "
-                    "NOT blocked on this: the stub-ABI defect that killed the "
-                    "first behaviour tick was fixed by run link60 lane FDR2 "
-                    "and scene 374 completes 300 frames under FAULTS_FATAL. "
-                    "Each trap names its own slot on stderr when it fires. "
-                    "See port/fader_boot_map.txt sections 4 and 9.\n");
+        std::printf("[scene] MINIGAME FADE MOTION MISSING: dWipe_c vtable slot "
+                    "0x08 (AdvanceFade, ROM body func_0202f428) is still a "
+                    "named trap, so nothing steps a fade the time setters "
+                    "armed. Slots 0x0c and 0x10 ARE the ROM's own bodies now "
+                    "and the scene is not blocked on any of this: 374 "
+                    "completes 300 frames under FAULTS_FATAL. Seating 0x08 "
+                    "would not finish the job on its own either -- the "
+                    "setters drive the wipe from IRQ 2, which nothing on the "
+                    "host raises. See port/fader_boot_map.txt sections 4 and "
+                    "4a.\n");
         std::fflush(stdout);
     }
 

@@ -15,16 +15,30 @@
 # is in the header of port/hal/fdr_arm9_fader_seat.cpp and the closure is in
 # port/fader_boot_map.txt.
 #
+# THE FADE MOTION ARRIVED IN THE SECOND CHUNK, run link60 lane FDR2, and it is
+# the block of nine at the foot of this file. Slots 0x0c and 0x10 are the ROM's
+# own bodies now. What that pulled in was measured with port/tools/closure.py
+# rather than estimated: NINE TUs and NINE unhosted data symbols, where the
+# note this replaces said "four arm9 data symbols". Two of the nine are arm9
+# .data and come from port/tools/romdata.py (data_020926c8, data_020926cc); the
+# other seven are bss and are hosted in the seat's own .dsstate block.
+#
 # WHAT IS NOT HERE AND WHY:
 #
 #   src/func_0202f428.c   slot 0x08  AdvanceFade
-#   src/func_0202f928.c   slot 0x0c  SetBackwardTime
-#   src/func_0202f708.c   slot 0x10  SetForwardTime
-#     The fade MOTION. Each pulls its own closure (func_0202f290, func_0202f2c4,
-#     func_0202f58c, FaderColor::AdvanceFade) plus four arm9 data symbols
-#     nothing hosts yet, which is a second chunk rather than a line here. The
-#     three slots stand as named traps in the fill, so a run that needs one
-#     says which one.
+#     STILL A TRAP, and this is a ruling rather than a scheduling call. The
+#     body is a faithful decomp (ruled against the ROM in
+#     port/tools/inferred_stub_adjudicated.txt) but it carries the same
+#     host-broken edge as src/func_0202ed08.c below: its `type == 1` branch
+#     calls `_ZN10FaderColor11AdvanceFadeEv()` with NO ARGUMENT, because the
+#     ROM's `bl` leaves r0 alone and the receiver rides through. Seating it
+#     would put a receiver-dropping call into the build. It buys nothing that
+#     would pay for that: slot 0x08 has no call site anywhere in the image
+#     (port/fader_boot_map.txt section 9a enumerates them), and the closure it
+#     would add beyond the nine below is itself plus FaderColor::AdvanceFade.
+#     port/tools/closestplayer_guard.py now carries a rule for the symbol, so
+#     the day somebody puts this TU in a slice the build refuses instead of
+#     shipping the call.
 #
 #   src/func_0202ed08.c   slot 0x20  SetToEnd
 #     HOST-BROKEN, and this is a decomp-side finding rather than a scheduling
@@ -53,3 +67,29 @@ src/func_0202ecfc.c
 # dtor-fold skew; the face in hal/fdr_arm9_fader_seat.cpp is where that is
 # written down and instrumented.
 src/engine/fader/_ZN15FaderBrightness20IsBetweenStartAndEndEv.cpp
+
+# ---- the fade MOTION, run link60 lane FDR2 ---------------------------------
+# Slots 0x0c and 0x10 of data_020926f0, and everything the two of them reach
+# that the image did not already carry. The two setters arm a fade: they write
+# the eight blend registers, build the per-scanline gradient table, and install
+# the ROM's own HBlank handler for it.
+src/func_0202f928.c
+src/func_0202f708.c
+# func_0202f58c is what both setters call to bring the table up. It writes the
+# window and blend registers, then builds BOTH halves of the double buffer
+# through func_0202f290, which picks the type-2 builder or the ordinary one.
+src/func_0202f58c.c
+src/func_0202f290.c
+src/func_0202ee94.c
+src/func_0202efa0.c
+# The HBlank handler the setters install, and the vblank-edge reset it calls.
+# Nothing on the host raises IRQ 2, so these are LINKED AND UNDRIVEN -- see the
+# unproven items in port/fader_boot_map.txt. They are here because the setters
+# name them, not because anything has run them.
+src/func_0202f2c4.c
+src/func_0202f3a4.c
+# func_0202f928's `type == 1` branch tail-calls this. Its matched TU rides
+# slice_gate1 only, so the walk_window family needs it here; the receiver
+# bridge onto the MSVC method is in hal/fdr_arm9_fader_seat.cpp, the same shape
+# hal/method_faces.cpp uses for the SetForwardTime half of the pair.
+src/engine/fader/_ZN15FaderBrightness15SetBackwardTimeEj.cpp
