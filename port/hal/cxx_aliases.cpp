@@ -367,18 +367,30 @@ DSSTATE_END
  * thirteen used to be plain separate objects here and in hal/player_bridges
  * .cpp, under a note that said the split was "fine while nothing in the slice
  * mixes the struct view with the field view on the same bit of state". Scene 4
- * mixes exactly that, and it is not a corner: the whole SetBankFor* family
- * does it by construction. Every one of those TUs declares its own window onto
- * ONE struct at 0x020a6088 and writes a member at a fixed offset --
+ * mixes exactly that, and it is not a corner: EIGHTEEN src TUs name
+ * data_020a6088, and the whole SetBankFor* family reaches it by struct offset
+ * by construction. Every one of those TUs declares its own window onto ONE
+ * struct at 0x020a6088 and writes a member at a fixed offset --
  *
  *     SetBankForTexPltt        +0x0a      func_02054748            +0x0e
  *     SetBankForSubBG          +0x12      SetBankForSubOBJ         +0x14
  *     SetBankForSubBGExtPltt   +0x16      SetBankForSubOBJExtPltt  +0x18
  *
- * -- while func_020540f0, func_02053ee0 and func_020541b8 reach the same words
- * by their own DS names. data_020a6088 was `int[2]` here, so all six of those
- * stores ran PAST THE END of an eight-byte object into whatever the linker had
- * put next, and every field read came back as the zero of an unrelated symbol.
+ * -- while func_020540f0, func_02054118, func_02053ee0 and func_020541b8 reach
+ * the same words by their own DS names, and func_02053d9c zeroes the block as
+ * data_020a6088[0..12], THIRTEEN u16 stores, 26 BYTES PER CALL.
+ *
+ * HOW SMALL THE OLD OBJECT REALLY WAS. It was `int[2]` in hal/player_bridges
+ * .cpp, eight bytes, and even that overstates it: the symbol's own span in
+ * config/arm9/symbols.txt is TWO bytes, because data_020a608a starts at +2.
+ * Neither figure is the 0x1c the struct view needs. So all six member stores
+ * and all 26 bytes of func_02053d9c's clear ran past the end of the object
+ * into whatever the linker had put next, and every field read came back as the
+ * zero of an unrelated symbol. Review read the base map and named the
+ * casualties there -- all of data_020a8114 plus two bytes of data_0208e6ec,
+ * with the +0x18 store landing on data_0208e6ec -- and those names are a
+ * property of one link, not a constant: what travels is that a 26-byte write
+ * into a two-byte symbol lands on whatever follows.
  *
  * MEASURED COST, ONE SCREEN. GX::SetBankForSubOBJExtPltt(0x100) sets DISPCNT_B
  * bit 31 and records the bank at +0x18, which on the DS IS data_020a60a0.
@@ -389,6 +401,19 @@ DSSTATE_END
  * scan-out with its extended palette loaded (473 nonzero bytes at 0x068a0000)
  * and switched off, and the character portrait decoded through the standard
  * palette. That is the round trip the ROM makes and the port did not.
+ *
+ * THE BG PATH HAD THE IDENTICAL DEFECT AND IS REPAIRED BY THE SAME LAYOUT.
+ * GX::SetBankForSubBGExtPltt records its bank at +0x16, and func_02054118 --
+ * GXS::BeginLoadBGExtPltt's callee, the exact sibling of func_020540f0 --
+ * clears DISPCNT_B bit 30 and reads that word back as data_020a609e. Split
+ * apart it read zero for the same reason, so EndLoadBGExtPltt restored bank 0
+ * and bit 30 went with it. hal/sub_screen.cpp's Stage bring-up sets bit 30 by
+ * hand (`*p1 |= 0x40000000`) with a comment saying the bank allocator under
+ * GXS::EndLoadBGExtPltt is "the port does not host"; the allocator was hosted
+ * all along and the restore was landing on the wrong word. That hand-set is
+ * now very likely redundant. NOT PULLED HERE: proving it needs a minimap run
+ * with the hand-set removed, and hal/sub_screen.cpp's bring-up is the SUB
+ * lane's. Recorded in port/ppu_gap_audit.txt section 11 as a follow-up.
  *
  * HOW IT IS FIXED. Grouped sections, in ROM order, the mechanism hal/
  * model_host.cpp already uses for the OAM shadow and hal/sub_actors.cpp for

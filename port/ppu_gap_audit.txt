@@ -493,7 +493,11 @@ is nothing truthful to report, and no linked reader asks.
 
 11. THE SEVENTH CLUSTER, WHICH WAS NOT ON THE LIST: OBJ EXTENDED PALETTES
 --------------------------------------------------------------------------
-Run link60 Stage 4, lane SUB2, base 34d3a3130, gate GREEN 5810/11249 (51.6%).
+Run link60 Stage 4, lane SUB2, base 34d3a3130, gate GREEN 5810/11249 (51.6%),
+battery ALL GREEN. The battery's two standing exceptions are SCENE_BLOCKED rows
+and not SCENE_SKIPS ones: scene 1 and scene 374 cannot run at all and are
+required to fail with their recorded blocker. A skip is a scene that passes
+with a class switched off, and neither of these is that.
 
 Section 6 could not have found this one, because the instrument could not see
 it. The register file says a scene's DISPCNT bit 31 is clear and the mode census
@@ -539,6 +543,35 @@ and the nine 16-colour sprites beside it are on the standard palette and were
 never affected. An extended palette applies to 256-colour sprites only, which is
 why exactly one element of that screen was wrong and the rest were right.
 
+FOUR SPRITES, ONE IMAGE: WHY THE STRIDES LOOK WRONG AND ARE NOT. The four
+portrait entries are declared 64x64 and sit 16 screen pixels apart, at (88,56),
+(104,56), (88,72) and (104,72), with tile numbers 16 pixels apart too. Read
+quickly that says "16x16 sprites mislabelled", and it is worth writing down why
+it does not.
+
+Work the 2D model through. OBJ VRAM in 2D mapping is a matrix 32 slots wide,
+32 bytes a slot; a 256-colour 8x8 cell is two slots, so a matrix row is 16 cells
+across and 8 source pixels tall.
+
+    tile 516 - 512 = 4 slots  = 2 cells        = 16 source px right
+    tile 576 - 512 = 64 slots = 2 matrix rows  = 16 source px down
+
+SOURCE STRIDE EQUALS SCREEN STRIDE on both axes. So wherever two of these
+sprites overlap, both sample the SAME source pixel, and the four composite into
+one coherent image rather than four fighting copies. The declared size is not
+contradicted by anything: the sprites are 64x64 windows onto one picture, laid
+down at a 16-pixel step, and their union is the 80x80 the portrait occupies.
+
+AND THE COHERENCE IS EVIDENCE FOR THE 2D MODEL, not a loose end. Run the same
+arithmetic under 1D, where a sprite's cells are consecutive: the horizontal pair
+still agrees (4 slots is 2 cells is 16 px along the row of a 64-wide sprite),
+but the vertical pair does not -- 64 slots is 32 cells, which for a 64-wide
+sprite is four rows, 32 source pixels, against a 16-pixel screen step. A 1D
+reader would draw the lower pair half an image out of register with the upper.
+The frame does not do that. So the ROM's cleared bit 4, ppu_sub.cpp's 2D slot
+arithmetic and the OAM data all agree, and the "16x16 stride" reading is
+RESOLVED rather than open.
+
 WHY BIT 31 WAS CLEAR WAS NOT A 2D GAP AT ALL. It was a hosted-global aliasing
 break: the SetBankFor* family reaches members of one struct at 0x020a6088 out to
 +0x18, and +0x18 IS the DS symbol data_020a60a0 that GXS::BeginLoadOBJExtPltt
@@ -546,17 +579,45 @@ reads back. The port hosted them as separate objects, so Begin read zero, End
 restored bank 0, and SetBankForSubOBJExtPltt(0) cleared the bit the scene had
 just set. hal/cxx_aliases.cpp carries the fix and the derivation.
 
+HOW BIG THE HOSTING MISS WAS, in the config's own figures rather than the
+port's. EIGHTEEN src TUs name data_020a6088. The symbol's span in
+config/arm9/symbols.txt is TWO bytes -- data_020a608a starts at +2 -- while the
+struct view reaches +0x18 and func_02053d9c clears the block as
+data_020a6088[0..12], 26 bytes a call. The old host object was `int[2]`, eight
+bytes, which was already the base map's placement gap rather than the symbol's
+span. Review read the base map and named where the overrun landed: all of
+data_020a8114 plus two bytes of data_0208e6ec, with the +0x18 store on
+data_0208e6ec. Those names belong to one link and are not a constant; the
+durable statement is that a 26-byte write into a two-byte symbol lands on
+whatever the linker put next.
+
+THE BG PATH WAS BROKEN THE SAME WAY AND IS FIXED BY THE SAME BAND, which this
+lane did not claim the first time. GX::SetBankForSubBGExtPltt records at +0x16
+and func_02054118 -- GXS::BeginLoadBGExtPltt's callee, func_020540f0's exact
+sibling -- clears DISPCNT_B bit 30 and reads that word back as data_020a609e.
+Same split, same zero, same bank-0 restore.
+
 MEASURED EFFECT ON THE FRAME, A/B IN ONE WORKTREE AT ONE .dsstate BASE
 (0xbab000, both sides; the A side is the same binary with the extended read
 forced off, so nothing but the decode differs):
 
     A  standard palette   68 distinct colours   5065 non-white pixels
     B  extended palette  247 distinct colours   5086 non-white pixels
-    3682 pixels differ, ALL of them inside x 95..162, y 57..132
+    3682 pixels differ, ALL of them inside x 95..162, SCREEN rows 59..134
+
+ROW CONVENTION, because the two orders are three rows apart here and a reader
+comparing this against an OAM box needs to know which is quoted. ppu_write_bmp
+_sub writes rows bottom-up, so file rows 57..132 in the BMP are SCREEN rows
+59..134 counting down from the top. The screen form is the one quoted above and
+it sits inside the OAM box (x 88..167, screen y 56..135) with a transparent
+border, which is the expected relationship.
 
 That box is the portrait. The star and the text strip are byte-identical across
 the change. WHETHER THE PORTRAIT IS NOW RIGHT IS NOT A CLAIM THIS FILE MAKES --
-section 10's last bullet still holds, the BMP is evidence for a person.
+section 10's last bullet still holds, the BMP is evidence for a person. TANGO
+HAS SINCE LOOKED AT frame B and his verdict is "looks perfect with the colors".
+That is his, recorded here because it is the only kind of verdict this question
+has, and it is not re-derivable from anything in this file.
 
 STILL OPEN, NAMED RATHER THAN CLOSED
 
@@ -575,3 +636,21 @@ STILL OPEN, NAMED RATHER THAN CLOSED
     the game leaves it at 0, which it does on every run measured so far.
   * Engine A OBJ extended palettes are unmodelled and unmeasured, for the
     reason given above: no ROM-derived base exists in this tree.
+  * THE BAND WANTS A LINK-TIME GUARD, and port_gxbank_layout_check is not it.
+    The runtime check does work -- negative-tested by mis-aligning one band
+    member on purpose, which moved 609c to +26 and 60a0 to +30, printed both
+    diagnostic lines and took the run down nonzero under SM64DS_FAULTS_FATAL --
+    but it checks two of the thirteen offsets, on one code path, in binaries
+    that link hal/sub_screen.cpp. The band's thirteen deltas
+    are all stated in config/arm9/symbols.txt, and walk_window.map has the
+    addresses the linker actually chose, so the honest form is a post-link pass
+    asserting all thirteen -- the slot build-port.cmd already runs
+    alternatename_guard --map in. Sized as feasible on this tree by review.
+    Not built here: a new guard plus its wiring is its own change, and the
+    runtime check is what stands until it exists.
+  * hal/sub_screen.cpp's Stage bring-up sets DISPCNT_B bit 30 by hand, on the
+    stated grounds that the bank allocator under GXS::EndLoadBGExtPltt is not
+    hosted. It was hosted; the restore was landing on the wrong word, and the
+    band fixes that. So the hand-set is probably redundant now. Proving it
+    needs a minimap run with the line removed, and that bring-up belongs to the
+    SUB lane.
