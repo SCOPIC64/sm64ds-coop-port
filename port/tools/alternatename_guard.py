@@ -40,14 +40,17 @@ and only the first one exists in this tree:
 
   (a) #pragma comment(linker, "/alternatename:...") in a .c/.cpp/.h under
       port/. The compiler copies the string into the object's .drectve
-      section and the linker reads it from there. Backslash continuations are
-      joined before the test, because the compiler joins them too: a directive
-      split over two lines is exactly as real as one written on one. This
-      reader ran a line at a time until run link60 and never saw four of them
-      -- two were firing, two had been defeated since the day they landed and
-      are now carried in the baseline with that history. Only real pragma
-      lines are parsed; prose that merely mentions a directive in a comment is
-      not a linker input, and is counted with the doc prose rather than
+      section and the linker reads it from there. A backslash-continued
+      pragma counts: the reader carries "this line is inside a pragma" across
+      the continuation and matches each directive on the physical line its
+      text sits on. It does NOT splice the lines into one string, so this is
+      not the preprocessor and does not claim to be; the shapes that
+      distinction loses are recorded in THE COMMENT GAP below. Until run
+      link60 the pragma test ran a line at a time and never saw four
+      continued directives at all -- two were firing, two had been defeated
+      since the day they landed and are now carried in the baseline with that
+      history. Only pragma lines are parsed; a mention that is not a pragma
+      is not a linker input, and is counted with the doc prose rather than
       dropped.
   (b) a DIRECTIVE FILE handed to the linker directly: a response file
       (@file), a /DEF: module-definition file, or an /alternatename written
@@ -77,11 +80,15 @@ theoretical:
 
 Docs are not linker inputs. The sweep is gone. A line that quotes a
 directive in a file nothing hands the linker is prose, and the guard prints
-how many it saw and where -- doc files and SOURCE COMMENTS alike. A directive
-written in a /* */ block reaches the linker no more than one written in a lane
-map, and the source side used to be dropped without a count, which is the same
-missing number in a different file. A count nobody prints is how the next lane
-plants the next landmine.
+how many it saw and where -- doc files and SOURCE COMMENTS alike. The source
+side used to be dropped without a count, which is the same missing number in a
+different file. A count nobody prints is how the next lane plants the next
+landmine.
+
+That rule covers a mention with no #pragma on the line. It does NOT cover a
+whole pragma that has been commented out: PRAGMA_RE matches anywhere in the
+line, so a commented-out pragma is still read as a directive. See THE COMMENT
+GAP.
 
 Loudness moved to where it belongs. If CMake hands the linker a directive
 file that is NOT in REGISTERED_DIRECTIVE_FILES, the guard FAILS and names
@@ -116,6 +123,40 @@ dodge the guard" would still be a bigger claim than the code earns. Treat this
 as a checked fact about the literal spellings and a promise about nothing
 else.
 
+THE COMMENT GAP, RECORDED AND NOT CLOSED. This reader is a line scanner, not
+a C tokenizer, so it cannot tell code from a comment. PRAGMA_RE matches
+anywhere in a line, which means a pragma that has been COMMENTED OUT is
+scanned as a live directive. One exists today:
+
+    hal/actor_classes_koopa_chuckya.cpp:203
+    /* #pragma comment(linker,
+       "/alternatename:?data_0209e650@@3PAHA=_data_0209e650") */
+
+and the prose above it says that alias should stay dead. It is inside the
+scanned count right now, and it is inert only by luck: its LHS is absent from
+the map, so evaluate() takes the "unused alias" exit. Its RHS is present.
+
+THE FAILURE DIRECTION IS THE SAFE ONE, which is why this is recorded rather
+than blocking. A phantom directive can inflate the scanned count, and it can
+raise a LOUD false FAIL over an alias no object carries. It can never produce
+silently wrong bytes, because this guard only ever refuses; it emits nothing
+into the link. The latent shape is the LK4 prose class reborn one file over:
+the day ?data_0209e650@@3PAHA becomes a defined symbol, the build fails over a
+directive that is not in the build, and the fix will again be to edit a
+comment.
+
+Two smaller shapes ride along, both measured, both zero-occurrence today.
+A directive whose text straddles a continuation boundary is not recovered:
+"/alternatename:_a= \\ _b" yields the garbage pair _a=\\ rather than _a=_b, so
+the real directive is missed AND a junk one is recorded. A backslash inside
+the directive string lands in the RHS token the same way. Neither is
+hypothetical-safe by argument, just absent: no scanned pair in the tree
+contains a backslash.
+
+All three want the same fix, which is why none of them is patched here. This
+reader has to stop being a line scanner before it can tell code from prose,
+and comment-aware tokenization is queued for that.
+
 The map is required: this guard needs the LINKED symbol table, so it runs
 POST-LINK (build-port.cmd wires it after ninja; the pre-configure guards
 cannot see what the linker resolved). A missing, empty, or truncated map is
@@ -140,6 +181,18 @@ see it, with the evidence in the commit -- measurement catching up, never a
 red build being unblocked. Both directions are edited by hand, one line at a
 time, because --update rewrites the whole block off a single live run and
 would carry in whatever else happened to be defeated that day.
+
+Two things about the counts the baseline is measured against. evaluate()
+returns one row PER DECLARATION, not per pair, so the same alias declared in
+two TUs is two rows: today 23 rows collapse to 22 unique pairs, because
+_port_last_frame=_port_fault_no_frame is declared in both tests/fault_probe.h
+:700 and unmatched/func_02043fdc_hostcopy.cpp:540. The printed
+"baseline-known" figure is the UNIQUE count. And a baseline row naming a pair
+that does not exist anywhere is not fatal: it cannot mask a real defeat, since
+filtering is by exact pair and a fiction matches nothing, so it surfaces only
+as the "no longer defeated" note. That is the right severity and also the way
+dead rows accumulate quietly, so the note is worth reading rather than
+scrolling past.
 
 Exit 0: no defeated alias outside the baseline. Exit 1: at least one new
 defeated alias, an unregistered directive source, or an unreadable map; each
@@ -500,17 +553,26 @@ def selftest():
     annotated spelling, which is what makes that annotation optional.
 
     On top of that: a real pragma in a .cpp is still scanned, and so is one
-    the backslash splits over two lines; a mention in a source COMMENT is
-    prose and gets counted rather than dropped; a directive in a REGISTERED
-    directive file is scanned even though it is neither a pragma nor a source;
-    and a CMake file that feeds the linker a response file nobody registered
-    FAILS, naming the file and the mechanism.
+    the backslash splits over two lines AND one split over three, where the
+    middle line is neither the #pragma nor the directive and the continuation
+    state has to survive it; a mention in a source COMMENT is prose and gets
+    counted rather than dropped; a directive in a REGISTERED directive file is
+    scanned even though it is neither a pragma nor a source; and a CMake file
+    that feeds the linker a response file nobody registered FAILS, naming the
+    file and the mechanism.
 
     The registration arms cover the routes the derivation reaches: any CMake
     file under port/ rather than only the top CMakeLists, target_link_options
-    and target_link_libraries and INTERFACE_LINK_OPTIONS as link contexts, a
-    raw .rsp/.def item, and a parent-directory path that must not normalize
-    onto a registered in-port name.
+    and target_link_libraries and INTERFACE_LINK_OPTIONS and
+    STATIC_LIBRARY_OPTIONS as link contexts, a raw .rsp/.def item, and a
+    parent-directory path that must not normalize onto a registered in-port
+    name.
+
+    Every arm here is one claim. Two arms exist because a reviewer's mutation
+    walked through the gap between a claim and its check: a two-line fixture
+    passed while three-line blocks were dropped, and one context arm stood in
+    for two named contexts. An arm that covers a class by example is an arm
+    that will be true of the wrong thing eventually.
     """
     ok = True
 
@@ -526,7 +588,9 @@ def selftest():
     publics = {lhs: '0001:0001cdb0', rhs: '0001:00060a20',
                '_real_lhs': '0001:00000100', '_real_rhs': '0001:00000100',
                '_rsp_lhs': '0001:00000200', '_rsp_rhs': '0001:00000200',
-               '_cont_lhs': '0001:00000300', '_cont_rhs': '0001:00000300'}
+               '_cont_lhs': '0001:00000300', '_cont_rhs': '0001:00000300',
+               '_cont3a_lhs': '0001:00000400', '_cont3a_rhs': '0001:00000400',
+               '_cont3b_lhs': '0001:00000500', '_cont3b_rhs': '0001:00000500'}
 
     with tempfile.TemporaryDirectory() as td:
         port = os.path.join(td, 'port')
@@ -540,6 +604,12 @@ def selftest():
                     '"/alternatename:_real_lhs=_real_rhs")\n')
             f.write('#pragma comment(linker, \\\n')
             f.write('    "/alternatename:_cont_lhs=_cont_rhs")\n')
+            # A THREE-line block. The continuation state has to survive a
+            # middle line that is not itself a #pragma, which a two-line
+            # fixture cannot show.
+            f.write('#pragma comment(linker, \\\n')
+            f.write('    "/alternatename:_cont3a_lhs=_cont3a_rhs " \\\n')
+            f.write('    "/alternatename:_cont3b_lhs=_cont3b_rhs")\n')
 
         # (b) LK4's shape: the source that carried the directive no longer
         # does, and two lane maps quote it, bare and annotated.
@@ -581,9 +651,11 @@ def selftest():
         # 2. Both real pragmas are scanned -- the one-liner and the one the
         #    backslash splits -- and both fire.
         expect([(d[0], d[1]) for d in directives]
-               == [('_real_lhs', '_real_rhs'), ('_cont_lhs', '_cont_rhs')],
-               'both pragmas are scanned and nothing else is', directives)
-        expect(new_fired == 2, 'both real aliases fire', new_fired)
+               == [('_real_lhs', '_real_rhs'), ('_cont_lhs', '_cont_rhs'),
+                   ('_cont3a_lhs', '_cont3a_rhs'),
+                   ('_cont3b_lhs', '_cont3b_rhs')],
+               'every pragma is scanned and nothing else is', directives)
+        expect(new_fired == 4, 'every real alias fires', new_fired)
 
         # 3. Both quote spellings are inert, and both are still counted.
         #    This is what lets the "(DELETED by lane LK4)" annotation stop
@@ -606,6 +678,15 @@ def selftest():
                directives)
         expect(('hal/aliases.cpp', 5) not in quoted,
                'a real input is never reported as prose', quoted)
+
+        # 3bb. A THREE-line block, where the middle line is neither the
+        #      #pragma nor the directive. The continuation state has to be
+        #      carried by the previous line's backslash and not by PRAGMA_RE,
+        #      so a two-line fixture passes while 3+ line blocks are dropped.
+        expect(('_cont3b_lhs', '_cont3b_rhs', 'hal/aliases.cpp', 8)
+               in directives,
+               'a directive on the third line of a continued pragma is '
+               'scanned', directives)
 
         # 3c. A complete directive in a SOURCE comment is prose, and it is
         #     counted. It used to be dropped without a number while the same
@@ -732,6 +813,18 @@ def selftest():
         expect(any(rsp in l for l in loud),
                'INTERFACE_LINK_OPTIONS is a link context', loud)
 
+        # 14b. So is STATIC_LIBRARY_OPTIONS. The docstring names both and the
+        #      regex lists both, but arm 14 pinned only the first, so dropping
+        #      STATIC_LIBRARY_OPTIONS from the pattern went unnoticed. One
+        #      claim, one arm each.
+        with open(cml, 'w') as f:
+            f.write(clean_cml)
+            f.write('set_property(TARGET ntr PROPERTY '
+                    'STATIC_LIBRARY_OPTIONS @%s)\n' % rsp)
+        loud = check_registration(port, registered=())
+        expect(any(rsp in l for l in loud),
+               'STATIC_LIBRARY_OPTIONS is a link context', loud)
+
         # 15. The @ and /DEF: spellings are reported ONCE, by their own
         #     mechanism, not a second time as raw items.
         with open(cml, 'w') as f:
@@ -816,6 +909,10 @@ def main():
         return 0
 
     baseline = load_baseline()
+    # Per PAIR, not per declaration: defeated carries one row per declaring
+    # TU, and an alias declared in two TUs is two rows for one pair (today 23
+    # rows, 22 pairs, _port_last_frame being the double). The baseline is a
+    # set of pairs, so the reported figure has to be too.
     live = {'%s=%s' % (lhs, rhs) for lhs, rhs, _, _, _, _ in defeated}
     stale = sorted(baseline - live)
     if stale:
@@ -846,9 +943,11 @@ def main():
     print('alternatename_guard: OK -- %d directive(s) scanned, %d fired, '
           '%d baseline-known, 0 new defeats (%d publics)'
           % (len(directives), fired, len(live), len(publics)))
-    print('  sources: %d registered directive file(s) plus every real pragma '
-          'in %s under port/, backslash continuations joined'
+    print('  sources: %d registered directive file(s) plus every pragma in '
+          '%s under port/, continuation lines included'
           % (len(REGISTERED_DIRECTIVE_FILES), '/'.join(SRC_EXTS)))
+    print('  (line scanner, not a tokenizer: a commented-out pragma is '
+          'scanned too. See THE COMMENT GAP.)')
     if quoted:
         print('  %d directive(s) quoted in prose (doc files and source '
               'comments), NOT linker inputs, not measured:' % len(quoted))

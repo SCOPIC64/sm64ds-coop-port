@@ -29,13 +29,18 @@
 # at a time, so it had never scanned them: they were defeated in every
 # walk_window map since the day they landed and nothing measured it. They are
 # two more of the fault_probe fallback-stub family this list already carries
-# four pairs of. The real exports come from tests/fault_probe.h under
-# PORT_FAULT_PROBE_DEFINE_EXPORTS, which only tests/walk_window.cpp defines, so
-# in the full binary the real definition links and the stub dies to /OPT:REF
-# (the map shows the LHS at its own address and the RHS gone entirely), while a
-# reduced binary built without walk_window.cpp gets the stub through the alias.
-# That is the design. Closing the scanner gap changed the measurement, not the
-# link. Added BY HAND, two lines, for the same reason the shrink above was.
+# SEVEN sibling pairs of (the four no-walker/no-level/no-players/no-frame rows
+# the paragraph above names by example, plus no-pidx, no-gittip and
+# no-playlog). The real exports come from tests/fault_probe.h under
+# PORT_FAULT_PROBE_DEFINE_EXPORTS. tests/walk_window.cpp:286 defines that macro
+# and so does tests/gate1_probe.cpp:46, but gate1_probe is not a CMake target
+# and is hand-built per its own header, so it is not an input to the
+# walk_window link and does not change the reading here: in the full binary the
+# real definition links and the stub dies to /OPT:REF (the map shows the LHS at
+# its own address and the RHS gone entirely), while a reduced binary built
+# without walk_window.cpp gets the stub through the alias. That is the design.
+# Closing the scanner gap changed the measurement, not the link. Added BY HAND,
+# two lines, for the same reason the shrink above was.
 #
 # port/tools/alternatename_guard.py fails the build if the linked map shows a
 # defeated alias NOT on this list -- that is the R1/R2 arrival shape (a newly
