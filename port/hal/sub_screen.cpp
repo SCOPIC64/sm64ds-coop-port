@@ -392,7 +392,23 @@ void hal_sub_screen_init_hw(void *hwnd, int zoom)
     g_hwnd = (HWND)hwnd;
     g_zoom = zoom > 0 ? zoom : 1;
     g_on = env_flag("SM64DS_SUB_PANEL", 1) != 0;
-    g_headless = std::getenv("SM64DS_WINDOW_SELFTEST") != 0;
+    /* NO WINDOW, NO INTERACTIVE KEYBOARD -- and this clause is here because
+       splitting the function created the case that needs it.
+
+       Two behaviours that are each correct compose into a wrong one the first
+       time this runs on a windowless path. The focus gate FAILS OPEN on a null
+       hwnd on purpose (hal_window_focused returns 1, so a binary that opens no
+       window is never locked out of its own input), and the TAB latch in
+       hal_sub_screen_frame_begin is dead only while GetAsyncKeyState_ is null.
+       A scene run passes hwnd == nullptr and now loads user32 anyway, so
+       without this the pointer goes live, the gate says yes, and a TAB held
+       anywhere on the machine toggles the panel in the middle of an automated
+       run and changes the BMP it writes.
+
+       That is the exact non-determinism g_headless was added for, so a null
+       hwnd carries it for the same reason SM64DS_WINDOW_SELFTEST does. The
+       level path passes a real hwnd and is unaffected. */
+    g_headless = std::getenv("SM64DS_WINDOW_SELFTEST") != 0 || hwnd == nullptr;
     g_nofocusgate = std::getenv("SM64DS_INPUT_NOFOCUSGATE") != 0;
 
     if (HMODULE u = LoadLibraryA("user32.dll")) {
