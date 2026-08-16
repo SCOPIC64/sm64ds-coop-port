@@ -159,16 +159,107 @@ inline unsigned window_mask(const Windows &w, int x, int y) {
     return w.out;
 }
 
-// The DS 256x192 image the 2D unit produces, per pixel: colour + "did any 2D
-// layer write here" flag. Only flagged pixels overwrite the 3D framebuffer.
-struct Cell { uint32_t color; bool hit; };
+// The DS 256x192 image the 2D unit produces, per pixel: colour, "did any 2D
+// layer write here", and WHICH layer wrote it last.
+//
+// THE OWNER BYTE IS THE MEASUREMENT HALF, and it exists because a top-screen
+// frame can be wrong in two unrelated ways -- the backgrounds decode wrong, or
+// the sprites do -- and one BMP cannot tell them apart. Both layers land in the
+// same pixels and the picture is their sum, so "the frame is scrambled" names
+// no surface at all. Recording the last writer costs one byte per pixel and
+// turns that report into a question about a named layer.
+struct Cell { uint32_t color; bool hit; uint8_t owner; };
 Cell g_a[192][256];
+
+// Owner ids: 0-3 are BG0..BG3 and 4 is the sprite layer. The same numbering is
+// the bit position in the layer switch below, so a mask and an attribution row
+// read against each other without a translation table.
+enum { kOwnerObj = 4, kOwnerN = 5 };
+const char *const kOwnerName[kOwnerN] = {"BG0", "BG1", "BG2", "BG3", "OBJ"};
+
+// SM64DS_ENGINE_A_LAYERS=<hex>: composite only these layers. 0x04 is BG2 alone,
+// 0x10 the sprites alone, and unset is 0x1f -- every layer, which is what every
+// gate step and every ordinary run does. A capture taken with one bit set is
+// that layer's own image off the SAME binary at the SAME .dsstate base as the
+// full frame, which is what notes/port-selftest-bmp-gate.md requires before two
+// BMPs may be compared at all. It is a diagnostic filter and not a state
+// change: the register reads, the early return and the window unit all still
+// see what the game actually programmed.
+unsigned layer_mask_env() {
+    static int m = -1;
+    if (m < 0) {
+        const char *e = std::getenv("SM64DS_ENGINE_A_LAYERS");
+        m = (e && *e) ? (int)(std::strtoul(e, nullptr, 16) & 0x1F) : 0x1F;
+    }
+    return (unsigned)m;
+}
+
+// The LAST composited frame's attribution, kept whole rather than accumulated.
+// The BMP a run writes is the last frame, so the numbers a capture is read
+// against have to be that frame's own and not a 300-frame sum.
+struct Attrib { uint32_t px; int x0, x1, y0, y1; };
+Attrib g_attrib[kOwnerN];
+uint32_t g_attrib_frames;
+bool g_attrib_registered;
+
+void attrib_dump() {
+    if (!g_attrib_frames) return;
+    std::fprintf(stderr, "[msgcomp] LAST COMPOSITED FRAME, per-layer "
+                 "attribution over %u composited frame(s), layer mask %02x\n",
+                 g_attrib_frames, layer_mask_env());
+    for (int o = 0; o < kOwnerN; ++o) {
+        const Attrib &a = g_attrib[o];
+        if (!a.px) {
+            std::fprintf(stderr, "[msgcomp]   %-3s       0 px\n", kOwnerName[o]);
+            continue;
+        }
+        std::fprintf(stderr, "[msgcomp]   %-3s  %6u px  x %d..%d  y %d..%d\n",
+                     kOwnerName[o], a.px, a.x0, a.x1, a.y0, a.y1);
+    }
+}
+
+// Counts what each layer OWNS in the frame just composited. A pixel belongs to
+// the layer that wrote it last, which is the layer the viewer sees, so the
+// rows sum to the composited-pixel count rather than to the coverage of each
+// layer taken alone. Run one layer at a time (the switch above) for that.
+void attrib_take() {
+    if (!g_attrib_registered) {
+        g_attrib_registered = true;
+        std::atexit(attrib_dump);
+    }
+    for (int o = 0; o < kOwnerN; ++o) {
+        g_attrib[o].px = 0;
+        g_attrib[o].x0 = 256; g_attrib[o].x1 = -1;
+        g_attrib[o].y0 = 192; g_attrib[o].y1 = -1;
+    }
+    for (int y = 0; y < 192; ++y) {
+        for (int x = 0; x < 256; ++x) {
+            if (!g_a[y][x].hit) continue;
+            Attrib &a = g_attrib[g_a[y][x].owner];
+            ++a.px;
+            if (x < a.x0) a.x0 = x;
+            if (x > a.x1) a.x1 = x;
+            if (y < a.y0) a.y0 = y;
+            if (y > a.y1) a.y1 = y;
+        }
+    }
+    ++g_attrib_frames;
+}
 
 // ---- OBJ (sprites): the cursor arrows -------------------------------------
 // Engine-A OAM at 0x07000000, OBJ VRAM at 0x06400000, OBJ palette pltt+0x200.
 // Composites into g_a (only non-transparent texels), on top of the BGs, same
-// as the DS at equal-or-lower priority. Plain and affine, 16/256-colour, 1D
-// mapping -- the same subset ppu_scanout_obj implements.
+// as the DS at equal-or-lower priority. Plain and affine, 16/256-colour, and
+// BOTH tile mappings -- the same subset ppu_scanout_obj implements.
+//
+// IT SAID "1D MAPPING" HERE AND MEANT IT: the slot arithmetic was
+// trow * (w/8) + tcol with no reference to DISPCNT bit 4, and this is engine
+// A's LIVE path, so every multi-row sprite on every scene that reaches this
+// compositor read its second row of cells from the wrong place. ppu_audit.cpp's
+// own DISPCNT note recorded the gap against ntr/ppu.cpp, which is the file with
+// the same arithmetic and NO live caller; the note was right about the
+// arithmetic and pointed at the copy that cannot reach a screen. Both are
+// fixed, in ntr/ppu_sub.cpp's shape.
 void raster_obj(uint32_t dispcnt) {
     static const int kSizes[3][4][2] = {
         {{8, 8}, {16, 16}, {32, 32}, {64, 64}},
@@ -177,6 +268,16 @@ void raster_obj(uint32_t dispcnt) {
     };
     const uint32_t obj_pltt = kPlttBase + 0x200u;
     const uint32_t boundary = 32u << ((dispcnt >> 20) & 3);
+    // DISPCNT bit 4: 1 = one-dimensional tile mapping, 0 = two-dimensional.
+    // Scene::ResetHardwareRegisters clears it on both engines (it ANDs
+    // 0xffcfffef, which takes bit 4 and the boundary field together) and
+    // nothing on a scene path sets it again, so 2D is the mode this compositor
+    // meets. Measured on scene 374, DISPCNT_A 00001400 / 00007400 on all 300
+    // samples. Read rather than assumed, because the ONE test that drives this
+    // raster -- tests/smoke_oam.cpp -- writes DISPCNT = 1 << 4 and lays its
+    // tiles out consecutively, so its expectations are 1D expectations and a
+    // flipped default would have broken them instead of honouring the bit.
+    const bool map1d = (dispcnt >> 4) & 1;
 
     for (int i = 127; i >= 0; --i) {
         const uint16_t a0 = rd16(kOamBase + i * 8u);
@@ -242,22 +343,27 @@ void raster_obj(uint32_t dispcnt) {
                 }
                 const int tcol = tx >> 3, trow = ty >> 3;
                 const int fx = tx & 7, fy = ty & 7;
-                const int tiles_per_row = w / 8;
-                const uint32_t tno = trow * tiles_per_row + tcol;
+                // The cell's slot from the sprite's base, in 32-byte units.
+                // 1D: consecutive, a 256-colour cell taking two. 2D: a
+                // 32-slot-wide matrix, a 256-colour cell two slots wide.
+                const uint32_t slot =
+                    map1d ? (uint32_t)(trow * (w / 8) + tcol) * (c256 ? 2u : 1u)
+                          : (uint32_t)(trow * 32 + (c256 ? tcol * 2 : tcol));
+                const uint32_t cell = kObjVram + tile * boundary + slot * 32u;
                 uint32_t index;
                 if (c256) {
-                    const uint32_t addr = kObjVram + tile * boundary + tno * 64u + fy * 8u + fx;
-                    index = *reinterpret_cast<volatile uint8_t *>(addr);
+                    index = *reinterpret_cast<volatile uint8_t *>(cell + fy * 8u + fx);
                     if (!index) continue;
                     g_a[py][px].color = bgr555(rd16(obj_pltt + index * 2u));
                 } else {
-                    const uint32_t addr = kObjVram + tile * boundary + tno * 32u + fy * 4u + fx / 2;
-                    const uint8_t b = *reinterpret_cast<volatile uint8_t *>(addr);
+                    const uint8_t b =
+                        *reinterpret_cast<volatile uint8_t *>(cell + fy * 4u + fx / 2);
                     index = (fx & 1) ? (b >> 4) : (b & 0xF);
                     if (!index) continue;
                     g_a[py][px].color = bgr555(rd16(obj_pltt + (pal * 16u + index) * 2u));
                 }
                 g_a[py][px].hit = true;
+                g_a[py][px].owner = kOwnerObj;
             }
         }
     }
@@ -444,6 +550,8 @@ extern "C" void port_message_composite_engine_a(void *fbp)
     for (int y = 0; y < 192; ++y)
         for (int x = 0; x < 256; ++x) g_a[y][x].hit = false;
 
+    const unsigned lmask = layer_mask_env();
+
     for (int y = 0; y < 192; ++y) {
         for (int x = 0; x < 256; ++x) {
             const unsigned mask = window_mask(win, x, y);
@@ -451,15 +559,23 @@ extern "C" void port_message_composite_engine_a(void *fbp)
                 for (int bg = 3; bg >= 0; --bg) {
                     if (!bgs[bg].enabled || bgs[bg].priority != prio) continue;
                     if (!(mask & (1u << bg))) continue;
+                    if (!(lmask & (1u << bg))) continue;
                     uint32_t s;
-                    if (sample_bg(bgs[bg], x, y, s)) { g_a[y][x].color = s; g_a[y][x].hit = true; }
+                    if (sample_bg(bgs[bg], x, y, s)) {
+                        g_a[y][x].color = s;
+                        g_a[y][x].hit = true;
+                        g_a[y][x].owner = (uint8_t)bg;
+                    }
                 }
             }
         }
     }
 
-    if (obj_on)
+    if (obj_on && (lmask & (1u << kOwnerObj)))
         raster_obj(dispcnt);
+
+    if (std::getenv("SM64DS_MSG_COMPOSITE_DEBUG"))
+        attrib_take();
 
     // One-shot diagnostic (SM64DS_MSG_COMPOSITE_DEBUG): the engine-A 2D state
     // the frame the compositor first finds any 2D enabled, so a headless run

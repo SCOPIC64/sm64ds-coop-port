@@ -1959,8 +1959,12 @@ void *LoadFile(int handle)
     int &used = g_loadfile_used;
     for (int i = 0; i < used; ++i)
         if (slot[i].fileID && slot[i].filePtr &&
-            (int)slot[i].fileID == handle)
+            (int)slot[i].fileID == handle) {
+            if (std::getenv("SM64DS_LOADFILE_TRACE"))
+                std::fprintf(stderr, "[loadfile] %#x -> %p slot %d CACHED\n",
+                             handle, slot[i].filePtr, i);
             return slot[i].filePtr;
+        }
     if (used >= SLOTS) {
         std::fprintf(stderr, "FATAL: LoadFile: out of host file slots\n");
         std::abort();
@@ -1976,6 +1980,9 @@ void *LoadFile(int handle)
        the cache key above matches only when both agree; keep the handle. */
     ++used;
     s->fileID = (unsigned short)handle;
+    if (std::getenv("SM64DS_LOADFILE_TRACE"))
+        std::fprintf(stderr, "[loadfile] %#x -> %p slot %d FRESH\n",
+                     handle, s->filePtr, used - 1);
     return s->filePtr;
 }
 

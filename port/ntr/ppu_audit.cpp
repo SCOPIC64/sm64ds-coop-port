@@ -73,14 +73,28 @@ const Reg kRegs[] = {
     // granularity is what hid a gap for a whole lane: the word carries fields
     // whose readers disagree. Recorded per bit, because "M" here has never
     // meant "every bit of it":
-    //   bit  4  OBJ 1D/2D tile mapping. READ on B (ppu_sub.cpp's map1d).
-    //           NOT read on A -- ppu.cpp's OBJ layer hard-codes 1D.
+    //   bit  4  OBJ 1D/2D tile mapping. READ on BOTH from run link60 lane EAD
+    //           on. It used to be read on B only, and the row said so with the
+    //           gap attributed to "ppu.cpp's OBJ layer". That was accurate
+    //           about ntr/ppu.cpp and it named the wrong file for the
+    //           consequence: engine A's LIVE path is
+    //           hal/message_compositor.cpp (this table's own header says so),
+    //           ppu.cpp's OBJ layer has one caller and it is a test, and the
+    //           compositor had the identical hard-coded 1D. Both read the bit
+    //           now. Measured on scene 374: DISPCNT_A bit 4 CLEAR on all 300
+    //           samples, which is 2D, and 2D is what
+    //           Scene::ResetHardwareRegisters leaves both engines in.
     //   bits 8-12  layer enables. Read on both.
     //   bit  16-17 display mode. Read on both.
     //   bits 20-21 OBJ 1D tile boundary. Read on both. Applies to 1D mapping
-    //           only on hardware; both readers apply it either way, which is
-    //           inert while the game leaves the field at 0 and is a gap the
-    //           day it does not.
+    //           only on hardware; all three readers apply it either way, which
+    //           is inert while the game leaves the field at 0 and is a gap the
+    //           day it does not. STILL INERT AND STILL UNFIXED: scene 374
+    //           measures the field at 0 on all 300 samples (the same
+    //           0xffcfffef in Scene::ResetHardwareRegisters that clears bit 4
+    //           clears this pair), so the lane that read the bit had no
+    //           measurement that would have told a correct fix from a wrong
+    //           one, and left it recorded rather than guessed.
     //   bits 24-29 char/screen base offsets. Engine A only, read there.
     //   bit  30 BG extended palettes. READ on B (ppu_sub.cpp's read_bg).
     //   bit  31 OBJ extended palettes. READ on B, from this lane on.
@@ -215,6 +229,26 @@ ObjAttr g_attr[2][kMaxAttr];
 unsigned g_attr_n[2];
 uint32_t g_attr_dropped[2];
 
+// ---- the FIRST SAMPLE's OAM, entry by entry ----------------------------------
+//
+// The distinct-triples table above is a whole-run summary and it DROPS rows
+// once it is full. That is the right shape for a HUD which redraws the same
+// sprite every frame and the wrong shape for a scene whose sprites move: scene
+// 374's 53 placed engine-A sprites produce 37,135 distinct triples over 300
+// frames, so the table above reports twenty of them and drops the rest, and a
+// question like "is any sprite on this screen 256-colour" cannot be answered
+// off a sample that dropped 37,115 rows.
+//
+// This is the exact other half: ONE frame, every enabled entry, nothing
+// dropped. It cannot say what the run did later and does not try to; the
+// triples table is still what carries the run. Between them a mapping or
+// palette question has one frame with a complete answer and 300 frames with a
+// partial one, which is better than 300 partial.
+struct ObjFirst { uint16_t a0, a1, a2; uint8_t idx; };
+ObjFirst g_first[2][128];
+unsigned g_first_n[2];
+bool g_first_taken[2];
+
 void note_attr(int e, uint16_t a0, uint16_t a1, uint16_t a2) {
     for (unsigned i = 0; i < g_attr_n[e]; ++i)
         if (g_attr[e][i].a0 == a0 && g_attr[e][i].a1 == a1
@@ -235,20 +269,40 @@ void census_oam(int e) {
         ++g_obj[e].mode[m];
         ++seen[m];
         if ((a0 >> 12) & 1) ++g_obj[e].mosaic;
-        note_attr(e, a0, *reinterpret_cast<volatile uint16_t *>(base + i * 8u + 2),
-                  *reinterpret_cast<volatile uint16_t *>(base + i * 8u + 4));
+        const uint16_t a1 = *reinterpret_cast<volatile uint16_t *>(base + i * 8u + 2);
+        const uint16_t a2 = *reinterpret_cast<volatile uint16_t *>(base + i * 8u + 4);
+        note_attr(e, a0, a1, a2);
+        if (!g_first_taken[e] && g_first_n[e] < 128) {
+            ObjFirst &o = g_first[e][g_first_n[e]++];
+            o.a0 = a0; o.a1 = a1; o.a2 = a2; o.idx = (uint8_t)i;
+        }
     }
+    g_first_taken[e] = true;
     for (int m = 0; m < 4; ++m)
         if (seen[m]) ++g_obj[e].frames_with[m];
 }
 
-// ---- what the OBJ decode reads FROM ------------------------------------------
+// ---- what the DECODE reads FROM ----------------------------------------------
 //
 // Three stores feed a sprite, and a run where one of them is empty produces the
 // same "the sprite is wrong" report as a run where the decode path is wrong.
 // hal/sub_screen.cpp's own probe already counts the first two for engine B; the
 // EXTENDED palette store was in neither probe, which is why "bit 31 is clear"
 // could not be told apart from "there is no extended palette to enable".
+//
+// THE BACKGROUND STORES ARE HERE FOR THE SAME REASON, added when a top-screen
+// frame turned out to be 95% background by pixel count and the table could say
+// nothing at all about that 95%. A background reads from three stores too --
+// the tilemap, the character data and the palette -- and the same ambiguity
+// applies: "the background is wrong" is not a decode finding until the bytes
+// the reader saw are known.
+//
+// SM64DS_PPU_AUDIT_DUMP=<prefix> writes each span's BYTES once, on the first
+// sample, to <prefix>_<engine>_<name>.bin. A count says whether a store is
+// populated; only the bytes say whether it holds what the ROM's own file holds,
+// and several of these stores are a straight copy of a NitroFS file (curling's
+// BG2 tilemap is file 0x30 loaded raw at offset 0, its BG palette file 0x2f at
+// byte 0x60), so the comparison is exact and needs no emulator.
 //
 // EVERY BASE HERE COMES OUT OF THE ROM'S OWN CODE, not from a doc:
 //   0x068a0000  src/_ZN3GXS14LoadOBJExtPlttEPKvjj.c computes its destination as
@@ -265,13 +319,37 @@ void census_oam(int e) {
 struct Span { uint32_t base, size; uint8_t eng; const char *name; };
 
 const Span kObjSrc[] = {
+    {0x06000000, 0x80000, E_A, "BG VRAM"},
+    {0x05000000, 0x200,   E_A, "BG palette"},
     {0x06400000, 0x40000, E_A, "OBJ VRAM"},
     {0x05000200, 0x200,   E_A, "OBJ palette"},
+    {0x06200000, 0x20000, E_B, "BG VRAM"},
+    {0x05000400, 0x200,   E_B, "BG palette"},
     {0x06600000, 0x20000, E_B, "OBJ VRAM"},
     {0x05000600, 0x200,   E_B, "OBJ palette"},
     {0x068A0000, 0x2000,  E_B, "OBJ ext palette"},
 };
 const unsigned kObjSrcN = sizeof kObjSrc / sizeof kObjSrc[0];
+
+// One span's bytes on disk, once per run. Named after the span so a directory
+// of them reads without a key, with the spaces squeezed out.
+void dump_span(const char *prefix, int e, const Span &s) {
+    char path[512];
+    char name[32];
+    unsigned n = 0;
+    for (const char *p = s.name; *p && n + 1 < sizeof name; ++p)
+        name[n++] = (*p == ' ') ? '_' : *p;
+    name[n] = 0;
+    std::snprintf(path, sizeof path, "%s_%c_%s.bin", prefix,
+                  e == 0 ? 'A' : 'B', name);
+    std::FILE *g = std::fopen(path, "wb");
+    if (!g) return;
+    for (uint32_t i = 0; i < s.size; ++i) {
+        const uint8_t b = *reinterpret_cast<volatile uint8_t *>(s.base + i);
+        std::fputc(b, g);
+    }
+    std::fclose(g);
+}
 
 uint32_t nonzero_bytes(uint32_t base, uint32_t size) {
     uint32_t n = 0;
@@ -323,6 +401,10 @@ uint32_t g_proxy_dropped;
 int g_on = -1;
 const char *g_path;
 int g_frames;
+// The byte dump is a FIRST-SAMPLE snapshot, not a per-flush one: the audit
+// rewrites its table every 32 frames and a store overwritten mid-run would
+// silently replace the bytes a reader had already begun comparing.
+bool g_dumped;
 char g_tag[32];
 bool g_registered;
 
@@ -512,12 +594,38 @@ void ppu_audit_dump() {
             std::fprintf(f, "  (%u further distinct triples dropped, table "
                             "full)\n", g_attr_dropped[e]);
 
-        std::fprintf(f, "OBJ decode inputs, nonzero bytes right now:\n");
+        std::fprintf(f, "OAM FIRST SAMPLE, every enabled entry, nothing "
+                        "dropped (%u entr%s):\n", g_first_n[e],
+                     g_first_n[e] == 1 ? "y" : "ies");
+        std::fprintf(f, "  %-4s %-4s %-4s %-4s %-4s %-4s %-7s %-4s %-3s %-4s "
+                        "%-4s %s\n", "#", "at0", "at1", "at2", "y", "x",
+                     "size", "col", "pal", "tile", "prio", "aff");
+        for (unsigned k = 0; k < g_first_n[e]; ++k) {
+            const ObjFirst &a = g_first[e][k];
+            const int shape = (a.a0 >> 14) & 3, sz = (a.a1 >> 14) & 3;
+            const bool affine = (a.a0 & 0x100) != 0;
+            int y = a.a0 & 0xFF, x = a.a1 & 0x1FF;
+            if (x >= 256) x -= 512;
+            char size[8];
+            if (shape == 3) std::strcpy(size, "invalid");
+            else std::sprintf(size, "%dx%d", kSizes[shape][sz][0],
+                              kSizes[shape][sz][1]);
+            std::fprintf(f, "  %-4u %04x %04x %04x %-4d %-4d %-7s %-4s %-3u "
+                            "%-4u %-4u %s\n", (unsigned)a.idx, a.a0, a.a1, a.a2,
+                         y, x, size, (a.a0 & 0x2000) ? "256" : "16",
+                         (unsigned)((a.a2 >> 12) & 0xF), (unsigned)(a.a2 & 0x3FF),
+                         (unsigned)((a.a2 >> 10) & 3),
+                         affine ? ((a.a0 & 0x200) ? "dbl" : "yes") : "-");
+        }
+
+        std::fprintf(f, "Decode inputs, nonzero bytes right now:\n");
+        const char *dump = std::getenv("SM64DS_PPU_AUDIT_DUMP");
         for (unsigned k = 0; k < kObjSrcN; ++k) {
             if (!(kObjSrc[k].eng & (e == 0 ? E_A : E_B))) continue;
             std::fprintf(f, "  %-18s %08x +%06x  %u\n", kObjSrc[k].name,
                          kObjSrc[k].base, kObjSrc[k].size,
                          nonzero_bytes(kObjSrc[k].base, kObjSrc[k].size));
+            if (dump && *dump && !g_dumped) dump_span(dump, e, kObjSrc[k]);
         }
         if (e == 0)
             std::fprintf(f, "  (no OBJ ext palette row: this tree has no "
@@ -569,6 +677,7 @@ void ppu_audit_dump() {
     if (g_proxy_dropped)
         std::fprintf(f, "(%u further distinct hits dropped, table full)\n", g_proxy_dropped);
 
+    g_dumped = true;
     std::fclose(f);
 }
 
