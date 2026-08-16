@@ -63,4 +63,32 @@ void port_scene_after_render(void *self, unsigned vfSuccess)
 int port_scene_on_heap_created(void *self)
 { return ((ActorBase *)self)->ActorBase::OnHeapCreated(); }
 
+/* slots 0 and 3, for the MINIGAME classes only, and they are here for the same
+   include reason the other four are rather than because anything about them is
+   special. Neither is a veneer.
+   ov003's and ov007's scene classes override both slots, so no fill before this
+   one ever needed the base bodies; dScMgBase_c does NOT override either --
+   data_ov004_020bc0c0 slot 0 is 0x02043c80 and slot 3 is 0x02043bf0, the arm9
+   ActorBase addresses, read out of extracted/overlays/overlay_0004.bin. A
+   derived minigame may still override slot 0 (MgShuffleShell does, with
+   func_ov006_020e3578), which is why the fill keys on the ROM word rather than
+   on the slot index. */
+/* SLOT 0 IS CALLED AT C LINKAGE AND SLOT 3 AS A METHOD, and the asymmetry is
+   the ROM's rather than a slip. src/_ZN9ActorBase13InitResourcesEv.cpp is
+   "deliberately defined WITHOUT including ActorBase.h" -- its own header block
+   says so at length: InitResources is the first virtual declared in the class,
+   which makes it CW 1.2's KEY FUNCTION, and a real method definition there
+   emits a second vtable for ActorBase on top of the one the module's gap
+   object already supplies as ROM data, so the ROM link fails with
+   "Multiply-defined: virtual table for ActorBase". The TU therefore defines
+   the C name only, and a `((ActorBase *)self)->ActorBase::InitResources()`
+   here does not resolve -- measured, as an unresolved
+   ?InitResources@ActorBase@@UAEHXZ at link. CleanupResources is not the key
+   function and IS a real method, which is why the two lines below differ. */
+extern int _ZN9ActorBase13InitResourcesEv(void *self);
+int port_scene_base_init(void *self)
+{ return _ZN9ActorBase13InitResourcesEv(self); }
+int port_scene_base_cleanup(void *self)
+{ return ((ActorBase *)self)->ActorBase::CleanupResources(); }
+
 }  /* extern "C" */
