@@ -118,7 +118,7 @@ endif()
 # The ntr platform layer: imported host DS hardware (see ntr/README.md).
 # Compiled as its own lib so every gate binary can link the pieces it needs.
 add_library(ntr STATIC
-    ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/ppu_sub.cpp ntr/lz77.cpp
+    ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/ppu_sub.cpp ntr/ppu_audit.cpp ntr/lz77.cpp
     ntr/rt.cpp ntr/runtime.cpp ntr/fs.cpp ntr/bmd.cpp)
 target_include_directories(ntr PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ntr/include")
 # ntr/runtime.cpp hosts two DS DMA globals (data_020a60c4/data_020a6460) that
@@ -132,7 +132,7 @@ endif()
 # 512x384 middle tier: 4x the pixels of native (~12ms software raster),
 # half the chunk of DS-native. The interactive window's default.
 add_library(ntr_2x STATIC
-    ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/ppu_sub.cpp ntr/lz77.cpp
+    ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/ppu_sub.cpp ntr/ppu_audit.cpp ntr/lz77.cpp
     ntr/rt.cpp ntr/runtime.cpp ntr/fs.cpp ntr/bmd.cpp)
 target_include_directories(ntr_2x PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ntr/include")
 # ntr/runtime.cpp hosts two DS DMA globals (data_020a60c4/data_020a6460) that
@@ -147,7 +147,7 @@ endif()
 # The same layer at 1024x768 for the interactive window; the smokes keep
 # the DS-native lib (their reference pixel counts depend on 256x192).
 add_library(ntr_hires STATIC
-    ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/ppu_sub.cpp ntr/lz77.cpp
+    ntr/io.cpp ntr/gx.cpp ntr/texture.cpp ntr/ppu.cpp ntr/ppu_sub.cpp ntr/ppu_audit.cpp ntr/lz77.cpp
     ntr/rt.cpp ntr/runtime.cpp ntr/fs.cpp ntr/bmd.cpp)
 target_include_directories(ntr_hires PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ntr/include")
 # ntr/runtime.cpp hosts two DS DMA globals (data_020a60c4/data_020a6460) that
@@ -480,6 +480,14 @@ target_compile_definitions(smoke_oam PRIVATE SM64DS_PLATFORM_PC
 if(MSVC)
     target_compile_options(smoke_oam PRIVATE /wd4311 /wd4312 /wd4068)
 endif()
+
+# The OBJ window's bit contract. No game code and no ROM data: it programs
+# engine B's registers, VRAM and OAM by hand and reads ppu_scanout_sub back, so
+# it links ntr alone and cannot be perturbed by a slice change.
+add_executable(smoke_objwin tests/smoke_objwin.cpp)
+target_include_directories(smoke_objwin PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(smoke_objwin PRIVATE ntr)
+target_compile_definitions(smoke_objwin PRIVATE SM64DS_PLATFORM_PC)
 
 # Gate 5b: the animation soak -- every compatible model+BCA pair.
 add_executable(smoke_soak_anim tests/smoke_soak_anim.cpp
