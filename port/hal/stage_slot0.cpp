@@ -135,7 +135,17 @@ DSSTATE_END
    An /alternatename rather than a definition, so that the LHS only binds if
    nothing else defines it; if a later lane ever hosts data_02075720 for real,
    its strong symbol wins and nothing collides. port/tools/alternatename_guard.py
-   is the check that the LHS has not become a defined symbol behind this. */
+   is the check that the LHS has not become a defined symbol behind this.
+
+   AND THE ALIAS MADE A SECOND GUARD SPEAK, which is worth recording because it
+   looks like a regression and is not. VS_STAR_SPAWN_ORDERS has always lived
+   outside .dsstate and port/tools/dsstate_guard.py never looked at it: that
+   name matches none of its HOSTED patterns. The alias publishes the same
+   address under a data_ name, so the guard saw the array for the first time
+   and said a DS global is not captured by the save state. True, and harmless:
+   nothing writes it. It is on that tool's BOOT_CONSTANT list now, with the
+   reasoning beside the entry. Measured, not predicted -- the first link with
+   this alias in it failed exactly there. */
 #pragma comment(linker, "/alternatename:_data_02075720=_VS_STAR_SPAWN_ORDERS")
 
 // ===========================================================================

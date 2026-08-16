@@ -3283,6 +3283,40 @@ foreach(line IN LISTS SLICE36_LINES)
     list(APPEND SLICE36_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
 
+# Stage 4, lane SD0: gate 36 WIRED, which is what the block above says nobody
+# had done. port/slice_s4_slot0.txt is SLICE36_SOURCES minus src/LoadArchive.c
+# (the one real LNK2005, against hal/scene_boot.cpp's PORT_HOST_ABI host body),
+# minus src/UnloadArchive.c and src/_Z17LoadLevelOverlaysi.cpp (host bodies in
+# hal/stage_slot0.cpp instead), plus the three matched callees the closure
+# names and no active slice carries.
+#
+# THE 43 THE BLOCK ABOVE MEASURED IS NOW ZERO, and none of the three groups it
+# sorted them into survived as written:
+#   the 22 unhosted globals   six are romdata rows (data_020755e0/5f0/600,
+#       data_02092778 and the two 0x9a sound columns), one is
+#       hal/ptr_tables.cpp table 4 (data_020756f0, twelve ov002 pointers), one
+#       is an /alternatename (data_02075720 onto VS_STAR_SPAWN_ORDERS), two are
+#       4-byte BSS words in hal/stage_slot0.cpp, and the rest closed on their
+#       own as the port grew -- data_0208ecf4 and LoadOrUnloadObjectOverlays
+#       through hal/scene_boot.cpp, _ZTV9FaderWipe and the two ov001 words
+#       through lane SL0.
+#   the 15 unsliced callees   twelve closed as other slices took them; three
+#       are on this slice.
+#   the 6 already-on-the-slice  five are C-name faces (four in
+#       hal/stage_slot0.cpp, FaderWipe::LoadAndSetFile in hal/fader_wipes.cpp),
+#       and _Z17LoadLevelOverlaysi is a host body.
+# The block above is kept as written because the measurement in it is the
+# reason this one could be short.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_s4_slot0.txt" SLICE_S4_SLOT0_LINES)
+set(SLICE_S4_SLOT0_SOURCES "")
+foreach(line IN LISTS SLICE_S4_SLOT0_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_S4_SLOT0_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+
 # Gates 40-44: levels 1 and 2 (castle grounds ov009, castle interior ov010),
 # the actor classes their object tables name that were still printing as
 # skipped. Each gate's evidence is in the head of its slice_gateNN.txt and the
@@ -4407,6 +4441,14 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     hal/w8a_stage_storage.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/message_gen_text.cpp hal/message_compositor.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_screen.cpp ${SLICE_2D1_SOURCES} hal/sub_actors.cpp hal/stage_bridges.cpp "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN5Stage16OnPendingDestroyEv.cpp" hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE_PTR_SOURCES}
+    # Stage 4, lane SD0: slot 0's closure. On all THREE targets rather than
+    # walk_window alone, and not by preference: all three compile
+    # hal/stage_bridges.cpp, which is where the Stage vtable and its slot-0
+    # occupant live, so a face or a body that only one of them carried would
+    # fail the other two at link. hal/stage_slot0.cpp holds the three
+    # PORT_HOST_ABI bodies, the four C-name faces, two 4-byte arm9 BSS words
+    # and the data_02075720 alias; the slice holds the ROM's own TUs.
+    hal/stage_slot0.cpp ${SLICE_S4_SLOT0_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
@@ -4545,6 +4587,14 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     hal/w8a_stage_storage.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp ${SLICE_2D1_SOURCES} hal/stage_bridges.cpp hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE_PTR_SOURCES}
+    # Stage 4, lane SD0: slot 0's closure. On all THREE targets rather than
+    # walk_window alone, and not by preference: all three compile
+    # hal/stage_bridges.cpp, which is where the Stage vtable and its slot-0
+    # occupant live, so a face or a body that only one of them carried would
+    # fail the other two at link. hal/stage_slot0.cpp holds the three
+    # PORT_HOST_ABI bodies, the four C-name faces, two 4-byte arm9 BSS words
+    # and the data_02075720 alias; the slice holds the ROM's own TUs.
+    hal/stage_slot0.cpp ${SLICE_S4_SLOT0_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
@@ -4715,6 +4765,14 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     hal/w8a_stage_storage.cpp hal/cannon_probe.cpp hal/message_boot.cpp hal/actor_registry.cpp hal/actor_classes.cpp hal/actor_classes_bob_world.cpp hal/actor_faces_bob.cpp hal/actor_class_faces.cpp hal/mmc_vtable.cpp hal/ov009_boot.cpp hal/actor_overlays.cpp hal/sub_actors.cpp hal/sub_screen.cpp ${SLICE_2D1_SOURCES} hal/stage_bridges.cpp "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN5Stage16OnPendingDestroyEv.cpp" hal/level_change.cpp hal/star_flow.cpp hal/oam_lists.cpp hal/blend_vtable.cpp hal/particle_vtable.cpp hal/particle_bridges.cpp unmatched/Particle_RideThroughs.cpp
     ${CAMERA_HOST_SOURCES} ${LEVELBOOT_HOST_SOURCES} ${SOUND_HOST_SOURCES}
     ${SLICE_PTR_SOURCES}
+    # Stage 4, lane SD0: slot 0's closure. On all THREE targets rather than
+    # walk_window alone, and not by preference: all three compile
+    # hal/stage_bridges.cpp, which is where the Stage vtable and its slot-0
+    # occupant live, so a face or a body that only one of them carried would
+    # fail the other two at link. hal/stage_slot0.cpp holds the three
+    # PORT_HOST_ABI bodies, the four C-name faces, two 4-byte arm9 BSS words
+    # and the data_02075720 alias; the slice holds the ROM's own TUs.
+    hal/stage_slot0.cpp ${SLICE_S4_SLOT0_SOURCES}
     ${SLICE2_SOURCES} ${SLICE3A_SOURCES} ${SLICE3B_SOURCES} ${SLICE4B_SOURCES}
     ${SLICE7_SOURCES} ${SLICE8_SOURCES} ${SLICE9_CAM_SOURCES}
     ${SLICE10_CAM_SOURCES} ${SLICE13_SOURCES} ${SLICE14_SOURCES}
