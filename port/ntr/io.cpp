@@ -6,6 +6,7 @@
 #include "ntr/mmio.h"
 
 #include "ntr/gx.h"
+#include "ntr/ppu_audit.h"
 
 #include <cstdio>
 #include <cstring>
@@ -502,11 +503,14 @@ static bool hits_gxstat(uint32_t addr, unsigned width) {
 uint64_t io_read(uint32_t addr, unsigned width) {
     if (!g_io && !io_init()) return 0;
     if (hits_gxstat(addr, width)) gxstat_normalize();
-    return raw_read(addr, width);
+    const uint64_t v = raw_read(addr, width);
+    if (ppu_audit_on()) ppu_audit_proxy(addr, v, width, false);
+    return v;
 }
 
 void io_write(uint32_t addr, uint64_t value, unsigned width) {
     if (!g_io && !io_init()) return;
+    if (ppu_audit_on()) ppu_audit_proxy(addr, value, width, true);
     raw_write(addr, value, width);
 
     // Writing the low half of the operand is what starts the unit on hardware.

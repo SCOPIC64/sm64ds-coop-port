@@ -1,0 +1,393 @@
+THE 2D HARDWARE GAPS, MEASURED: WHICH ONES A LIVE SCENE ACTUALLY TOUCHES
+Run link60 Stage 3, lane W2D. Base c7b44af04, gate GREEN 5533/11243 (49.2%).
+
+port/ov004_ov007_2d_map.txt section 7 lists six clusters of DS 2D hardware the
+ntr layer does not model, and says which of them "are candidates" for the title
+screen and the minigame option screen. That list was written from what two
+overlays' SOURCE pokes. This is the same question answered from runs.
+
+The short version: NONE of the six clusters is live in any scene that runs
+today. What the measurement did turn up is a different thing entirely -- a wrong
+bit contract in the code that was supposed to be skipping one of them.
+
+
+1. HOW IT WAS MEASURED, AND WHAT THE METHOD CANNOT SEE
+-------------------------------------------------------
+
+Two instruments, because one question is about values and the other is about
+waiting.
+
+  port/ntr/ppu_audit.cpp     samples both engines' whole 2D register file, the
+                             OAM object-mode census and the touch hardware
+                             surface at every scan-out. Env-gated on
+                             SM64DS_PPU_AUDIT=<path>; inert otherwise.
+  port/tools/ppu_reg_readers.py
+                             sweeps src/ for every reader of those registers and
+                             checks each hit against walk_window.map, so a
+                             reader that is not linked is not counted.
+
+WHY SAMPLING AND NOT INTERCEPTION. ntr/io.cpp maps real memory at the DS
+addresses, so a 2D register store is an ordinary store to an ordinary page. It
+does not pass through io_read/io_write unless the storing function happens to be
+hostgen'd, and for the 2D surface that is the exception, not the rule. The proxy
+table at the bottom of every run's output proves it: level 1 logged exactly
+three proxied 2D accesses in 900 frames, all of them DISP3DCNT, and scene 4
+logged none at all. There is no seam to intercept at. This is the same fact that
+forced L1's GXSTAT fix to normalise the LATCH rather than a returned value.
+
+WHAT SAMPLING SEES. The register state at scan-out, which is the state that
+decides the image: the 2D unit reads these registers as it draws, and the port
+has no scanline timing, so a value written and overwritten before scan-out
+cannot reach the screen in either the port or the hardware.
+
+WHAT IT CANNOT SEE. A mid-frame value that is gone by scan-out. And it cannot
+tell "never written" from "written zero" -- but zero is the OFF state for every
+register in the gap set (BLDCNT mode 0 is no effect, MASTER_BRIGHT factor 0 is
+no change, MOSAIC 0 is 1:1, and the window enables live in DISPCNT bits 13-15,
+which are sampled), so zero reads as "not in use" throughout. That is sound for
+the question asked and is NOT sound for any question about writes.
+
+THE SEAM. ppu_audit_sample is called from ntr::ppu_scanout_sub, which is the one
+scan-out the live harness runs every frame, and it samples BOTH engines from
+there. Engine A's live 2D path is hal/message_compositor.cpp, not ntr/ppu.cpp --
+ppu_scanout is in no live path at all, because it fills the whole framebuffer
+and would erase the 3D frame. Hooking the sub scan-out reaches engine A's
+registers without touching a file this lane does not own.
+
+
+2. THE THREE RUNS
+------------------
+
+  scene 4   SM64DS_SCENE=4 SM64DS_SCENE_FRAMES=300      exit 0, BARE
+            300 frames, init 1 / behavior 299 / RENDER 300, 0 traps entered.
+  scene 1   SM64DS_SCENE=1 SM64DS_SCENE_FRAMES=300      exit c0000005
+            NO FRAMES AT ALL. See section 4.
+  level 1   SM64DS_LEVEL=1 SM64DS_WINDOW_SELFTEST=900   exit 0
+            900 frames.
+
+1200 sampled frames in total across the two runs that produce frames.
+
+
+3. THE TABLE
+-------------
+
+Value columns are the distinct values the register held across every sample.
+"live" is the verdict for that run: does this gap change the image.
+
+                       scene 4 (300 frames)      level 1 (900 frames)
+  ENGINE A
+  DISPCNT              08011d08                  00000000
+  BG0CNT               0002                      0000
+  BG2CNT               1611                      0d11
+  BG3CNT               1700                      1100
+  BG2PA/PD             0100 (identity)           0000
+  BG3PA/PD             0100 (identity)           0000
+  BG2X/Y, BG3X/Y       0                         0
+  WIN0H/1H/0V/1V       0                         0
+  WININ / WINOUT       0                         0
+  MOSAIC               0                         0
+  BLDCNT/BLDALPHA/BLDY 0                         0
+  MASTER_BRIGHT        0                         0
+  DISPCAPCNT           80000000                  0
+  DISP3DCNT            00000019                  00000008
+  OAM mode 1 / 2 / 3   0 / 0 / 0                 0 / 0 / 0
+  mosaic bit           0                         0
+
+  ENGINE B
+  DISPCNT              00011000                  40011803
+  BG0CNT               0000                      1200
+  BG1CNT               0000                      0c00
+  BG2CNT               0000                      1302
+  BG3CNT               0000                      1f12
+  BG3PA/PD             0100                      0100 x2 then 00be
+  BG3PB                0                         0000 x852, ffff x48
+  BG3X                 0                         0, ffffe0b0, ffffe0ec
+  BG3Y                 0                         0, then 6+ distinct values
+  WIN0H/1H/0V/1V       0                         0
+  WININ / WINOUT       0                         0
+  MOSAIC               0                         0
+  BLDCNT/BLDALPHA/BLDY 0                         0
+  OAM mode 1 / 2 / 3   0 / 0 / 0                 0 / 0 / 0
+  mosaic bit           0                         0
+
+  TOUCH SURFACE (both runs, both engines)
+  KEYINPUT, EXTKEYIN, SPICNT, SPIDATA, 0x027FFFAA, 0x027FFFAC   all 0, always
+
+READING OF THE TWO DISPCNTs.
+
+  scene 4 engine A = 0x08011d08. Mode 0 (every BG is text), BG0 in 3D mode
+  (bit 3), BG0 + BG2 + BG3 + OBJ enabled, screen base offset 1, display mode 1.
+  Bits 13, 14 and 15 are CLEAR: no window of any kind is armed. So the identity
+  values sitting in BG2PA/BG3PA are inert -- in mode 0 those backgrounds are
+  text and nothing reads the affine registers. They were initialised, not used.
+
+  scene 4 engine B = 0x00011000. OBJ on, NO BG enabled at all. The bottom screen
+  in the star select is sprites only.
+
+  level 1 engine A = 0x00000000, on all 900 frames. Engine A's 2D is entirely
+  off during a level walk; the top screen is pure 3D. The stale BG2CNT/BG3CNT
+  values are leftovers behind a disabled display.
+
+  level 1 engine B = 0x40011803. BG mode 3 (BG3 extended affine), BG3 + OBJ on,
+  extended palettes armed (bit 30), display mode 1. That is the minimap, and
+  ppu_sub.cpp models all of it -- the moving BG3PA/BG3X/BG3Y values in the table
+  are the minimap being scaled and scrolled, correctly, every frame.
+
+
+4. SCENE 1 PRODUCES NO 2D MEASUREMENT, AND THAT IS THE MEASUREMENT
+-------------------------------------------------------------------
+
+SM64DS_SCENE=1 dies at c0000005 inside dScDSMT_c::InitResources, before the
+frame loop starts. The audit file is never created: ppu_audit flushes on its
+FIRST sample precisely so that "the seam never ran" (no file) is distinguishable
+from "it ran and everything was zero" (a file full of zeros), and there is no
+file.
+
+So the title screen exercises zero 2D scan-out today and cannot demand any gap
+on this list. Its blocker is port/ov007_seat.txt section 5's unmatched ROM body
+func_ov007_020c9688, which is a decomp, not a port change and not a PPU gap.
+
+This matters for prioritisation, because ov007 IS the overlay the gap list was
+worried about, and the static sweep in section 5 finds it writing BLDALPHA and
+MOSAIC. Those writers are real and they are unreachable. Implementing colour
+special effects against them today would be building for a scene that cannot
+run, and could not be tested by running it.
+
+
+5. WHO READS THESE REGISTERS AT ALL (static, linked-only)
+-----------------------------------------------------------
+
+port/tools/ppu_reg_readers.py, src hits filtered against walk_window.map. A src
+hit alone means nothing: most of the tree is not linked.
+
+  register          srcs  linked  notable linked readers
+  DISPSTAT             5       2  func_02053be0, func_02053c10
+  VCOUNT               3       1  func_02013f4c
+  WIN0H_A             14       5  Scene::ResetHardwareRegisters,
+                                  Message::UpdateWindow, Message::DisplaySaving
+  WININ/WINOUT_A       8/9     4  same three plus func_0201f32c
+  MOSAIC_A             2       2  Scene::ResetHardwareRegisters,
+                                  func_ov007_020c8c88
+  BLDCNT_A            53      16  Camera::Render, Player::St_Teleport_Main,
+                                  Message::UpdateWindow, InitCrashScreen, ...
+  BLDALPHA_A           1       1  func_ov007_020c8bc8
+  DISPCAPCNT           4       2  Scene::ResetHardwareRegisters,
+                                  func_ov007_020bd4e8
+  WIN*_B             5-8     1-3  Scene::ResetHardwareRegisters,
+                                  Message::UpdateWindow, func_0201f32c
+  BLDCNT_B            32       9  Minimap::Behavior, Message::UpdateWindow, ...
+  BLDALPHA_B           1       1  func_ov007_020c8bc8
+  KEYINPUT             2       1  func_02013f4c
+  0x027FFFAA/AC        1       0  func_0205f300 is NOT linked
+
+The window unit's linked writers are all modelled: ppu_sub.cpp and
+message_compositor.cpp both implement WIN0/WIN1/WININ/WINOUT, which the gap list
+did not know -- section 7a says "neither models the window registers" and that
+has not been true for either engine for some time.
+
+BLDCNT has sixteen linked writers on engine A and every sampled frame reads 0.
+That is consistent rather than contradictory: hal/fader_wipes.cpp READS
+BLDCNT/BLDY itself and drives the fade through master brightness, so the fade
+path consumes those registers outside the PPU, and the scenes measured here
+simply were not fading at any sampled frame.
+
+TWO ROWS THAT LOOK LIKE THE GXSTAT SHAPE AND ARE NOT, both checked:
+
+  VCOUNT. One linked reader, func_02013f4c, and it ends with a two-loop VBlank
+  wait (`while (VCOUNT >= 0xc0) ; while (VCOUNT < 0xc0) ;`) that a dead-zero
+  latch would hang in forever. It is not a dead latch: ntr/rt.cpp's
+  run_scanlines() sweeps VCOUNT 0..262 every frame, and the function is reached
+  only through func_02013f28's `for(;;)` -- the dev crash screen, cut content,
+  not on any normal path. No action, and rt.cpp is not this lane's file.
+
+  DISPSTAT. Two linked readers, and both touch only bits 3 and 4 (the VBlank and
+  HBlank IRQ enables), which are software-owned and correct as a latch. The
+  hardware-owned bits 0-2 are a dead-zero latch with no linked reader.
+
+
+6. THE VERDICT PER CLUSTER
+---------------------------
+
+  a. OBJ WINDOW.               NOT LIVE by value, DEFECT FOUND. See section 7.
+  b. SEMI-TRANSPARENT SPRITES  NOT LIVE. Zero mode-1 objects in 1200 frames on
+     AND BLDCNT/BLDALPHA.      either engine; BLDCNT, BLDALPHA and BLDY read 0
+                               on every sampled frame of both runs. ov007 has
+                               the only linked BLDALPHA writer and ov007 cannot
+                               reach a frame. NOT IMPLEMENTED, deliberately:
+                               there is nothing to test it against.
+  c. AFFINE AND BITMAP BGs.    ALREADY MODELLED where it is live. Engine B does
+                               text, affine and extended affine, and level 1
+                               proves the minimap runs through it every frame.
+                               Engine A is text-only and needs nothing: it is in
+                               mode 0 in scene 4 and switched off entirely in
+                               level 1. Bitmap BGs: no run selects one.
+  d. THE 3D FONT.              Out of this lane. hal/sub_screen.cpp's LoadFont3D
+                               is a hal exception, not a register gap.
+  e. TOP-SCREEN BG2 TEXT.      Out of this lane, same reason
+                               (LoadControllerModeText).
+  f. TOUCH.                    NOT A REGISTER GAP. See section 8.
+
+  NEW, not on the list: GXSTAT bits 8-14. See section 9.
+
+
+7. THE DEFECT: OBJ WINDOW IS MODE 2, AND THE PORT WAS SKIPPING MODE 3
+-----------------------------------------------------------------------
+
+OAM attribute 0 bits 10-11 are the object mode. GBATEK: 0 Normal,
+1 Semi-Transparent, 2 OBJ WINDOW, 3 Prohibited (the DS reuses 3 for bitmap
+OBJs). The field position is pinned independently by the decomp's own code
+rather than by docs alone: src/_ZN3OAM6RenderEbP7OamAttriiii5Fix12IiEi.c
+composes the word as `(mode << 10) | (mosaic << 12)`.
+
+All three of the port's OAM rasterisers had
+
+    if (((a0 >> 10) & 3) == 3) continue;     // OBJ window: skip
+
+which is the wrong mode in both directions. Mode 3 was thrown away, and mode 2 --
+a sprite that on hardware is INVISIBLE and contributes only a mask -- was drawn
+as an ordinary opaque sprite, painting the mask's silhouette onto the screen in
+its own palette colours.
+
+The same mislabel is in port/ov004_ov007_2d_map.txt section 7a ("skip OAM mode 3
+(OBJ window)") and in port/scene_boot_map.txt section 7a, whose conclusion rests
+on it: "none of its THIRTY OAM::Render call sites passes objMode 3". That test
+does not rule out the OBJ window, because the OBJ window is not mode 3. The
+audit re-answers the question the right way and reaches the same conclusion for
+the star select by a sounder route: zero mode-2 objects in 300 frames.
+
+NOT LIVE, STILL FIXED. Zero mode-1, mode-2 and mode-3 objects appear on either
+engine in any of the 1200 sampled frames, so nothing on screen changes today.
+It is a contract error of exactly the class L1's GXSTAT was -- correct by
+accident, wrong on the day something uses it -- and it costs four lines to state
+correctly.
+
+WHAT CHANGED, per file:
+
+  ntr/ppu_sub.cpp   The OBJ window is now MODELLED. Mode-2 sprites write a mask
+                    (g_objwin) instead of colour; DISPCNT bit 15 arms it;
+                    WINOUT's upper six bits say what shows inside it; precedence
+                    is WIN0, then WIN1, then the OBJ window, then WINOUT. This
+                    file composites in one pass, so the mask exists before the
+                    BGs are sampled.
+  ntr/ppu.cpp       Skips mode 2 and mode 3 with the right names. This file has
+                    no window unit, so it cannot carry the mask; not drawing the
+                    sprite is still the closer of the two answers, because on
+                    hardware it does not appear in the image either.
+  hal/message_compositor.cpp
+                    Same minimal fix. The mask is NOT modelled here and cannot
+                    be without restructuring: this compositor runs its BG loop
+                    BEFORE raster_obj, so an OBJ-window region would not exist
+                    yet when the BGs are masked. Recorded rather than bodged.
+                    OWNERSHIP DEVIATION, self-flagged: this is a hal file and no
+                    sibling lane owns it, but it carried the identical one-line
+                    defect and leaving it half-corrected would be worse.
+
+PROOF: port/tests/smoke_objwin.cpp. It programs engine B's registers, VRAM, OAM
+and palettes by hand -- no game code, no ROM data, links ntr alone -- and checks
+four things:
+
+  A control      a mode-0 sprite draws, whole, at the right place. Without this
+                 the "no sprite colour" check below would pass vacuously.
+  B obj window   a mode-2 sprite paints NOTHING, and its silhouette is instead
+                 the region where WINOUT's upper half lets the BG through.
+  C bitmap obj   a mode-3 sprite neither draws nor masks.
+  D enable bit   with DISPCNT bit 15 clear the mask does not leak through.
+
+Passing output:
+
+    A control      green=256 (first 40,60)  red=48896
+    B obj window   green=0  red=256 (first 40,60)  blue=48896
+    C bitmap obj   green=0  red=0  blue=49152
+    D winobj off   green=0  red=49152
+    smoke_objwin: ok
+
+AND IT WAS CONFIRMED TO CATCH THE OLD BEHAVIOUR, not merely to pass. With the
+`== 3` test and `is_win = false` reinstated in ppu_sub.cpp and nothing else
+changed, the same binary reports 5 failures, including case D showing green=256
+-- the window sprite being painted on screen, which is the bug stated as a
+pixel count.
+
+
+8. TOUCH: THE REGISTER SURFACE HAS NO LINKED READER
+-----------------------------------------------------
+
+Gap (f) says ov004's TouchIcon_c and ov007's touch_panel "both read the touch
+panel", and that walk_window has a touch bridge but "no touch-panel register
+model". The second half is true and turns out not to matter.
+
+The game does not read the panel hardware on any linked path. It reads
+TouchInfo[4] at DS 0x020a0de8 -- {u8 touched, u8 held, u8 x, u8 y} per
+controller -- which hal/auto_bss.cpp hosts as one contiguous 16-byte block and
+hal/sub_screen.cpp's poll_touch() already fills from the mouse every frame, with
+SM64DS_TOUCH_PROBE for a scripted stylus on top. That bridge is the seam, and it
+exists.
+
+The hardware path behind it is ARM7 work: the TSC is read over SPI and posted to
+shared WRAM, and the arm9 side of that is func_0205f300, which reads 0x027fffaa
+and 0x027fffac. IT IS NOT LINKED -- zero hits in walk_window.map -- and the
+audit confirms both words, plus SPICNT and SPIDATA, read 0 on all 1200 frames.
+
+So the honest model is the empty one, and it is already what the port has: no
+ARM7, no SPI transaction, no panel registers, and the stylus state delivered
+directly into the record the game actually reads. NOTHING WAS CHANGED HERE. The
+seam a later lane would want is not a register model at all; it is that
+poll_touch publishes only slot 0 and only from the mouse.
+
+ONE HONEST LOOSE END IN THE SAME FAMILY. KEYINPUT (0x04000130) reads 0 on every
+frame, and the DS keypad is ACTIVE LOW, so 0 means every button held. Its one
+linked reader is func_02013f4c, the dev crash screen handler, reachable only via
+func_02013f28's `for(;;)`, which nothing on a normal path calls. The port drives
+input through the Ctrl block at data_0209f498 instead. Not a live defect,
+recorded because the polarity makes the dead-zero latch read as the WORST
+possible answer rather than a neutral one, and that is worth knowing before
+anything else links a KEYINPUT reader.
+
+
+9. GXSTAT BITS 8-14, THE RIDE-ALONG
+-------------------------------------
+
+L1's review amendment 2 bounded bits 0..14 as read-only-but-unmodelled and asked
+the next lane in the file to close them. Closed for bits 8-14.
+
+L1's stated reason for leaving them was "the host has no matrix-stack model to
+normalise them FROM". That was wrong about the host. ntr/gx.cpp has kept both
+stacks and both stack pointers all along -- g.pos_sp over pos_stack[32] and
+g.proj_sp over proj_stack[2], maintained by the MTX_PUSH and MTX_POP handlers --
+so the stack level is not a guess. A new read-only accessor
+gx_matrix_stack_levels() reports it and io.cpp's gxstat_normalize folds it in.
+Busy (bit 14) is pinned to 0 on the same argument GXSTAT_IDLE already rests on:
+ntr executes a display list synchronously, so the game can never observe a push
+or pop in flight. GXSTAT_HW grows 0x0FFF0000 -> 0x0FFF7F00.
+
+Field positions from the game, not from docs alone:
+
+    func_02055464: if (GXSTAT & 0x4000) return -1; *out = (GXSTAT & 0x2000) >> 13;
+    func_02055490: if (GXSTAT & 0x4000) return -1; *out = (GXSTAT & 0x1f00) >> 8;
+
+AND THIS CORRECTS WHAT L1's NOTE SAID THE SPIN WAS WAITING ON. It read
+func_02055624's `while (func_02055490(&a)) ;` as "spin until the stack level
+reads 0". It is not: both helpers return -1 only when BUSY and 0 otherwise, so
+the loops spin until NOT BUSY and then use a and b as the levels. That moves the
+risk in the fix's favour. With busy pinned to 0 the loops still fall through
+immediately, exactly as they did against the dead latch, so there is no new
+hang. What changes is the half after the spin: func_02055624 pops the stacks by
+a and b, which against a dead-zero latch popped NOTHING and left the stack
+unwound. func_02055624 is still unlinked, so this is fixed ahead of the day it
+links rather than in response to a symptom.
+
+Bits 0-7 (the box-test result) stay a latch. The host runs no box test, so there
+is nothing truthful to report, and no linked reader asks.
+
+
+10. WHAT THIS LANE DID NOT DO
+------------------------------
+
+  * No alpha blending, no semi-transparent sprites, no mosaic, no bitmap BGs,
+    no bitmap OBJs. All measured dead. Building them now would be untestable.
+  * No OBJ-window mask on engine A. Structural, stated in section 7.
+  * No touch-panel register model. Section 8: there is no linked reader.
+  * Nothing about the 3D font or top-screen BG2 text: hal, not registers.
+  * NOBODY HAS LOOKED AT WHAT ANY OF THIS DRAWS. The BMPs this lane produced are
+    evidence for a human, not a verdict. Per notes/port-selftest-bmp-gate.md a
+    selftest BMP is only byte-comparable between builds at the same .dsstate
+    base, and no claim here rests on comparing two.

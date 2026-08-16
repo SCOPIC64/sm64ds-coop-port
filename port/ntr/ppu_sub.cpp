@@ -45,6 +45,8 @@
 
 #include "ntr/ppu.h"
 
+#include "ntr/ppu_audit.h"
+
 #include <cstdio>
 #include <cstring>
 
@@ -406,6 +408,12 @@ inline uint32_t apply_bright(uint32_t c, const Bright &b) {
 
 void ppu_scanout_sub(SubFramebuffer &fb)
 {
+    // The audit's per-frame seam. This is the one scan-out the live harness
+    // calls every frame, so it samples BOTH engines' register files rather than
+    // just this one's -- engine A's live compositor is hal/message_compositor.cpp
+    // and this lane does not own that file. Inert unless SM64DS_PPU_AUDIT is set.
+    ppu_audit_sample("ppu_scanout_sub");
+
     const uint32_t dispcnt = rd32(kRegBase);
     const unsigned disp_mode = (dispcnt >> 16) & 3;
     const bool forced_blank = (dispcnt >> 7) & 1;
