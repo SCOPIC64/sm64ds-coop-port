@@ -371,6 +371,10 @@ void raster_obj(uint32_t dispcnt) {
 
 }  // namespace
 
+/* func_02019144's FIRST beat, hal/scene_boot.cpp. 1 = run that function's
+   tail, 0 = the current graphics block did the display sync itself. */
+extern "C" int port_graph_block_beat(void);
+
 // Rasterise engine A's 2D layers into the DS 256x192 hit buffer, then composite
 // the covered pixels over the host 3D framebuffer (scaled by integer factor).
 // Called from walk_window right after gx_render and before the fade composite.
@@ -445,9 +449,22 @@ extern "C" void port_message_composite_engine_a(void *fbp)
     static int publish_off = -1;
     if (publish_off < 0)
         publish_off = std::getenv("SM64DS_ENGINE_A_NO_PUBLISH") ? 1 : 0;
+    /* func_02019144's FIRST beat, which gates everything after it. The line
+       below is that function's line 46 and this is that function's line 39:
+       the ROM asks the current graphics block whether it has already done the
+       display sync itself, and RETURNS if it says yes. Run link60 Stage 5 lane
+       TS1 measured scene 1 saying yes on every frame while the port published
+       over the top of it. hal/scene_boot.cpp owns the dispatch and the rule
+       about which blocks may be dispatched at all; port/ov007_seat.txt 5h is
+       the derivation and the measurement.
+       HERE, at the head of the engine A display path, for the reason the
+       publish below is here: the rasteriser must read what the beat just
+       wrote, and the beat writes DISPCNT, BGxCNT and OAM. The engine B half
+       of the tail reads the same verdict inside hal_sub_screen_present. */
+    const bool run_tail = port_graph_block_beat() != 0;
     {
         extern unsigned char data_0209d45c;
-        if (!publish_off)
+        if (!publish_off && run_tail)
             *reinterpret_cast<volatile uint32_t *>(kRegBase) =
                 (rd32(kRegBase) & ~0x1F00u) | ((uint32_t)data_0209d45c << 8);
     }
@@ -508,7 +525,12 @@ extern "C" void port_message_composite_engine_a(void *fbp)
                written -- disabled and enabled, on scene 374 with a nonzero
                mask and on level 1 with a zero one. */
             const char *verdict =
-                publish_off
+                !run_tail
+                    ? "publish SKIPPED: the current graphics block's slot 2 "
+                      "answered 0, so func_02019144 would have returned before "
+                      "its line 46 and the enables in the register are the "
+                      "scene's own"
+                : publish_off
                     ? "publish DISABLED by SM64DS_ENGINE_A_NO_PUBLISH; whatever "
                       "is in the register was put there by something else"
                     : (mask == 0 && live == 0)

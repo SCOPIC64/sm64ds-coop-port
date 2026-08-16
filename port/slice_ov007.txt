@@ -663,6 +663,25 @@ src/func_ov007_020ccab4.c
 #   -- wrong overlay, in the ov007 direction. One alias cannot express per-
 #   context routing. ROUTED.
 
+# ---- THE THIRD DISPLACEMENT (run link60 Stage 5 lane TS1) ------------------
+# src/func_ov007_020b6eb4.c IS STILL LISTED ABOVE and is NOT built by the port.
+#
+# Same reason and same treatment as the two below. It is the title screen's own
+# per frame display sync, and its guard `if (*(int *)(g + 0x1c) != 0)` has
+# already loaded the pending graphics mode into r0 when it branches to
+# func_ov007_020bd648, which this TU declares `(void)`. bd648 is the only
+# writer of DISPCNT bits 8 to 12 in the whole overlay, so on MSVC the title
+# screen's layer enables never arrive. Measured at frame 0 of scene 1:
+# `+1c 1->0` with DISPCNT unchanged, which is the guard passing, the call
+# happening and the callee taking neither of its two switches.
+#
+# The cut is in port/CMakeLists.txt beside the other two and
+# port/unmatched/Ov007_BdPending_020b6eb4.cpp links in its place. The TU stays
+# MATCHED and stays in the decomp; it is out of the port and only the port, and
+# the linked count went down by one on purpose. Section 5d of
+# port/ov007_seat.txt screened this row and named THIS frame as the one to
+# displace; section 5h is the measurement and the whole derivation.
+
 # ---- THE ONE DISPLACEMENT (run link60 lane RT1) ----------------------------
 # src/func_ov007_020be980.c IS STILL LISTED ABOVE and is NOT built by the port.
 #

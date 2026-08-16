@@ -116,8 +116,12 @@ int port_gxbank_layout_check(void);
 int hal_oam_templates_check(void);
 int hal_oam_walk_probe(void);
 /* the minimap's per-frame affine callback (port/unmatched/Minimap_Affine.cpp),
-   which is func_02019144's first beat */
+   the STAGE's own func_02019144 first beat, which the port cannot dispatch
+   through the block because the Stage's table is hosted by nobody */
 void port_minimap_affine_update(void);
+/* what hal/scene_boot.cpp's beat answered this frame: 1 = run func_02019144's
+   tail, 0 = the current graphics block already did the display sync itself */
+int port_graph_block_verdict(void);
 extern unsigned char data_0209e660;
 extern unsigned char data_0209caa0[];   /* the save block; byte 8 bit 7 = intro seen */
 extern signed char data_0209f2f8;       /* current level */
@@ -798,7 +802,21 @@ void hal_sub_screen_present(unsigned int *dst, int w, int h)
        what covers the frames where neither of them ran.
        SM64DS_SUB_LAYERS forces the mask, which is how a layer the game has
        switched off gets looked at without pretending it is on. */
-    {
+    /* THE TAIL IS CONDITIONAL NOW, and the condition is the ROM's own.
+       func_02019144 asks the current graphics block's slot 2 first and RETURNS
+       before any of this when it answers 0. hal/message_compositor.cpp runs
+       that beat at the head of the engine A display path; this reads the
+       answer rather than asking again, because the block's slot 2 is a
+       once-per-frame callback and calling it twice would run a scene's whole
+       display sync twice. Both frame loops (hal/scene_boot.cpp's
+       port_scene_run and walk_window's own) call the engine A compositor
+       immediately before this function, so the answer is this frame's.
+       Measured by run link60 Stage 5 lane TS1: with the tail unconditional the
+       port published a zero mask over the title screen's own layer enables
+       every frame and OAM::Load re-parked the sprites the scene had just
+       uploaded. port/ov007_seat.txt 5h. */
+    const int run_tail = port_graph_block_verdict();
+    if (run_tail) {
         static int forced = -2;
         if (forced == -2) forced = env_flag("SM64DS_SUB_LAYERS", -1);
         const unsigned mask =
@@ -806,15 +824,18 @@ void hal_sub_screen_present(unsigned int *dst, int w, int h)
         *(volatile unsigned *)0x04001000 =
             (*(volatile unsigned *)0x04001000 & ~0x1f00u) | (mask << 8);
     }
-    /* func_02019144's FIRST beat, which the port had been skipping: the scene
-       graphics block's own per-frame callback. For the Stage that is the
-       minimap's affine update, and without it BG3-sub keeps whatever matrix
-       boot seeded -- the identity -- so the minimap draws at 1:1 rather than
-       the level's own scale. port/unmatched/Minimap_Affine.cpp carries the
-       callback; the rest of func_02019144 is the layer-mask publish above and
-       the OAM upload below. */
-    port_minimap_affine_update();
-    _ZN3OAM4LoadEv();
+    /* func_02019144's FIRST beat, for the one block the port cannot dispatch:
+       the Stage's. Its table (data_02092188) is hosted by nobody, so
+       hal/scene_boot.cpp's beat refuses it and answers 1, and this hand copy
+       of Stage::GraphCallback2 is what stands in. It runs exactly when the
+       beat did NOT dispatch a real block, which is every level frame and
+       leaves the 46-level net where it was. port/unmatched/Minimap_Affine.cpp
+       carries the callback; the rest of func_02019144 is the layer-mask
+       publish above and the OAM upload below. */
+    if (run_tail) {
+        port_minimap_affine_update();
+        _ZN3OAM4LoadEv();
+    }
     if (!g_on) return;
     ntr::ppu_scanout_sub(g_sub);
     /* THE STACKED LAYOUT WRITES NOTHING INTO dst HERE, and that is the whole

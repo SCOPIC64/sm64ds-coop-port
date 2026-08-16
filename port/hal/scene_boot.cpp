@@ -358,6 +358,61 @@ void _ZN5Scene9SetFadersEP15FaderBrightness(void *thiz);
 
 void port_scene_a2_seat(void);
 
+/* ---- func_02019144's FIRST BEAT, the current scene's graphics block --------
+ *
+ * THE DEFECT THIS CLOSES, derived off the ROM's own sources and then measured.
+ *
+ * src/func_02019144.c is the ROM's once-per-frame display sync, called from
+ * IRQ::VBlankHandler. It OPENS with the current graphics block's vtable slot 2
+ * and RETURNS WITHOUT DOING ANYTHING ELSE when that slot answers 0:
+ *
+ *     UnkObj *p = data_0209d4a8;
+ *     if (p != 0) { if (p->vt->func8(p) == 0) return; }
+ *     OAM::Flush(); OAM::Load();
+ *     DISPCNT_A = (DISPCNT_A & ~0x1f00) | (data_0209d45c << 8);
+ *     DISPCNT_B = (DISPCNT_B & ~0x1f00) | (data_0209d454 << 8);
+ *     ... the eight BG scroll registers ...
+ *
+ * The port has never run that function. It reproduces the TAIL in two places
+ * -- hal/message_compositor.cpp publishes the engine A mask, hal/sub_screen.cpp
+ * publishes the engine B one and calls OAM::Load -- and it reproduces the HEAD
+ * nowhere, standing in for the Stage's slot 2 with hal/sub_actors.cpp's
+ * hard-coded port_minimap_affine_update. hal/sub_actors.cpp says so in as many
+ * words: "the port does not run func_02019144 ... and nothing seats
+ * data_0209d4a8".
+ *
+ * That is exactly backwards for a scene that OVERRIDES the beat, and scene 1
+ * is one. dScDSMT_c::InitResources parks its own graphCallback_c sub-object in
+ * data_0209d4a8 (src/func_ov007_020cc4c0.cpp, `data_0209d4a8 = self + 0x50`),
+ * the ROM's relocations put func_ov007_020cc0f4 in slot 2 of that block's
+ * table (config/arm9/overlays/ov007/relocs.txt: from:0x021032b8 to:0x020cc0f4),
+ * and that body returns 0. So on hardware the title screen SUPPRESSES the
+ * generic tail and does the whole display sync itself, in
+ * func_ov007_020b6eb4: the fade beat, the display capture, the layer setup
+ * (func_ov007_020bd648, which is what writes DISPCNT bits 8-12) and its own
+ * OAM upload straight to 0x07000000 / 0x07000400.
+ *
+ * The port ran the tail it should have skipped and skipped the head it should
+ * have run, so the scene's own display work never happened AND the port's
+ * publish of a zero mask erased the enables. Measured in port/ov007_seat.txt
+ * section 5h.
+ *
+ * WHAT IS DISPATCHED, AND WHAT DELIBERATELY IS NOT. Only a block whose vtable
+ * this file has SEATED with host thunks. Every other graphics block in the
+ * tree still holds the ROM's raw DS code addresses -- the Stage's own table,
+ * data_02092188, is hosted by nobody -- and dispatching one would branch to a
+ * DS address. That is the rule vtspan.py already enforces for scene vtables
+ * and it is the same rule here. With no seated block current the beat answers
+ * 1 and dispatches nothing, which is the port's behaviour before this change,
+ * to the byte.
+ *
+ * SM64DS_GRAPH_BLOCK_OFF=1 puts the old behaviour back on the same binary, so
+ * a before/after is one build and one .dsstate base -- what
+ * notes/port-selftest-bmp-gate.md requires before two BMPs may be compared. */
+void port_graph_block_register(void *vt);
+extern "C" int port_graph_block_beat(void);
+extern "C" int port_graph_block_verdict(void);
+
 
 /* the frame: the same calls, in the same order, that walk_window's own loop
    makes (hal/actor_registry.cpp, hal/fader_wipes.cpp, hal/sub_screen.cpp,
@@ -1658,6 +1713,51 @@ static int __fastcall ti_gc1(void *s, void *) { return _ZN5Scene14GraphCallback1
 static int __fastcall ti_gc2(void *s, void *) { return func_ov007_020cc0f4(s); }
 static int __fastcall ti_gc3(void *s, void *) { return _ZN5Scene14GraphCallback3Ev(s); }
 
+/* The registry named in the block comment above. One entry today; an array
+   because the next seated scene class adds a row rather than a special case,
+   and a linear walk over four pointers is not worth a smarter shape. */
+static void *g_gc_seated[4];
+static unsigned g_gc_seated_n;
+static int g_gc_verdict = 1;
+
+void port_graph_block_register(void *vt)
+{
+    for (unsigned i = 0; i < g_gc_seated_n; ++i)
+        if (g_gc_seated[i] == vt) return;
+    if (g_gc_seated_n < sizeof g_gc_seated / sizeof g_gc_seated[0])
+        g_gc_seated[g_gc_seated_n++] = vt;
+}
+
+/* 1 = run func_02019144's tail, which is what the port's two publish sites
+   and its OAM::Load already do. 0 = the block handled the display sync
+   itself and the tail must NOT also run. */
+extern "C" int port_graph_block_beat(void)
+{
+    static int off = -1;
+    if (off < 0) off = std::getenv("SM64DS_GRAPH_BLOCK_OFF") ? 1 : 0;
+    g_gc_verdict = 1;
+    if (off) return 1;
+    /* hal/w8a_stage_storage.cpp hosts the pointer; four bytes there, and the
+       ROM's own null test is the first thing func_02019144 does. */
+    extern unsigned char data_0209d4a8[4];
+    void *p = *(void **)data_0209d4a8;
+    if (!p) return 1;
+    void **vt = *(void ***)p;
+    for (unsigned i = 0; i < g_gc_seated_n; ++i) {
+        if (g_gc_seated[i] != (void *)vt) continue;
+        typedef int(__fastcall * Slot2)(void *, void *);
+        g_gc_verdict = ((Slot2)vt[2])(p, 0);
+        return g_gc_verdict;
+    }
+    return 1;
+}
+
+/* What the beat answered THIS frame, for the second half of the tail. The
+   engine A display path runs the beat; the engine B one reads the answer,
+   because the block's slot 2 is called once per frame on the DS and calling
+   it twice would run the scene's whole display sync twice. */
+extern "C" int port_graph_block_verdict(void) { return g_gc_verdict; }
+
 static void scene_fill_title(void)
 {
     /* THE MOUNT COMES UP FIRST, and the order matters in one direction only.
@@ -1714,6 +1814,8 @@ static void scene_fill_title(void)
 
     *(void **)data_ov007_02103254 = (void *)func_ov007_020c3e4c;
     *(void **)data_ov007_02103258 = (void *)func_ov007_020c3e64;
+
+    port_graph_block_register(gc);
 }
 
 /* The registry's factory column is void *(*)(void) and the matched factory

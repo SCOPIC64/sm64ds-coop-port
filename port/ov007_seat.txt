@@ -2309,6 +2309,223 @@ build, so a CMake predicate here would be a second copy of it. 5f's anchored
 predicate was left exactly as 5f shipped it.
 
 
+5h. THE TITLE SCREEN DRAWS (run link60 Stage 5 lane TS1)
+---------------------------------------------------------
+
+5F'S OPEN QUESTION IS ANSWERED AND THE FRAME HAS A PICTURE IN IT. 5f measured
+three colours and said "WHY the ROM's drawing does not land is the next
+question on this path and no lane has opened it". The answer is three port
+seams stacked on one path, none of them a decomp hole, and with all three
+closed the same 300 frame run produces 472 distinct colours.
+
+NOTHING HERE WAS GUESSED BEFORE IT WAS MEASURED, and the instruments were
+already in the tree. port/ntr/ppu_audit.cpp (Stage 3 lane W2D, write up in
+port/ppu_gap_audit.txt) samples both engines' whole 2D register file, the OAM
+census, the decode input spans and engine A's 3D layer at every scan out. W2D
+could not point it at scene 1: back then the scene died inside InitResources
+and produced no frames, and section 4 of that file records the absent audit as
+its own finding. Scene 1 renders 300 frames since 5f, so this lane took the
+measurement W2D could not.
+
+THE ATTRIBUTION, off the START COMMIT binary (7f994ccdb), SM64DS_SCENE=1,
+SM64DS_SCENE_FRAMES=300, SM64DS_FAULTS_FATAL=1, nothing switched off:
+
+  ENGINE A   DISPCNT   00010008 x300  display mode 1, BG0 in 3D mode (bit 3),
+                                      and BITS 8 TO 12, every BG and OBJ
+                                      enable, ZERO on all 300
+             BG0CNT 0002  BG1CNT 0007  BG2CNT 0210  BG3CNT 010d, all x300
+             BLDCNT 00ff x300, BLDY 0010 x300
+             BG VRAM 9106 nonzero bytes, OBJ VRAM 7843, BG palette 160,
+             OBJ palette 265
+             OAM 128 entries, every one PARKED at y=192, 0 placed
+             3D layer POLYGONS 72 to 82 EVERY FRAME, VIEWPORT_SETS 0
+  ENGINE B   DISPCNT   00010000 x300  BITS 8 TO 12 ZERO
+             BG0CNT 0284  BG1CNT 0314  BG2CNT 0084  BG3CNT 0184, all x300
+             BG VRAM 21896 nonzero bytes, OBJ VRAM 7996, BG palette 483,
+             OBJ palette 255
+             OAM 128 parked, 0 placed
+
+READ THAT TABLE BEFORE READING ANY EXPLANATION OF IT. The assets ARE loaded,
+the control registers ARE programmed, and every layer is switched off behind a
+brightness fade sitting at its maximum. Three of 5f's three colours are
+explained outright: 0x101820 is port_scene_run's own frame clear, and the
+128x96 magenta rectangle is engine B's BACKDROP, sub BG palette entry 0, which
+the run prints as 0x6099 and which expands to exactly 0xce21c6. The panel was
+never a picture. It was one palette word.
+
+WHAT PROGRAMMED THAT STATE, from the ROM's own matched sources. Every register
+above is written by one function, src/func_ov007_020b7138.c, which
+dScDSMT_c::InitResources calls. It runs func_ov007_020bd648(1), whose SECOND
+switch is
+
+    case 1:
+      DISPCNT     = (DISPCNT     & ~0x1f00) | 0x1b00;
+      DISPCNT_SUB = (DISPCNT_SUB & ~0x1f00) | 0x1c00;
+
+and then, thirteen statements later, undoes it:
+
+    G2x::SetBlendBrightness(0x4000050, 0x3f, -0x10);   BLDCNT 00ff, BLDY 0010
+    G2x::SetBlendBrightness(0x4001050, 0x3f, -0x10);
+    *(u32 *)0x4000000 &= ~0x1f00;
+    *(u32 *)0x4001000 &= ~0x1f00;
+
+That is correct ROM behaviour and not a defect: the title screen comes up black
+with every layer off, behind a fade, and something later turns it on. The BGxCNT
+values in the table are bd648's own case 1, which is how this lane knows bd648
+ran at init at all.
+
+WHAT WAS MEANT TO TURN IT BACK ON. The last call in that chain,
+func_ov007_020b6544, sets data_ov007_0210342c->f1c = 1, a PENDING GRAPHICS MODE.
+Its only reader is src/func_ov007_020b6eb4.c, and that function is reached from
+exactly one place: dScDSMT_c's graphCallback_c slot 2.
+
+    src/func_02019144.c, the ROM's once per frame display sync, called from
+    IRQ::VBlankHandler, OPENS with
+
+        UnkObj *p = data_0209d4a8;
+        if (p != 0) { if (p->vt->func8(p) == 0) return; }
+
+    and dScDSMT_c::InitResources parks its own graphCallback_c sub-object
+    there (`data_0209d4a8 = self + 0x50`). Slot 2 of that block's table is
+    func_ov007_020cc0f4, and that is the ROM's own relocation rather than a
+    reading of the port's seat: config/arm9/overlays/ov007/relocs.txt has
+    from:0x021032b8 kind:load to:0x020cc0f4 module:overlay(7). cc0f4 calls
+    func_ov007_020b6eb4 and RETURNS 0.
+
+SO THE TITLE SCREEN SUPPRESSES THE FRAMEWORK'S DISPLAY SYNC AND DOES ITS OWN,
+which is the fact every seam below turns on. func_02019144's tail (OAM::Flush,
+OAM::Load, both layer mask publishes, the eight BG scroll registers) does not
+run on this scene at all. func_ov007_020b6eb4 replaces it: the fade beat
+(func_ov007_020bf690), the display capture (func_ov007_020bd4e8), the layer
+setup (func_ov007_020bd648 with the pending mode) and its own OAM upload
+(func_ov007_020b72a0 to func_ov007_020b7384, which is func_020566dc and
+func_02056674 writing 0x400 bytes each to 0x07000000 and 0x07000400, both
+engines' OAM) plus its own BG map uploads and scroll writes
+(func_ov007_020c03b0 to func_ov007_020c076c). The Render slot BUILDS the two
+OAM shadow buffers every frame (func_ov007_020bc9c8) and the callback UPLOADS
+them. Render also sets data_ov007_02103430, the flag b6eb4's whole body is
+gated on, so the two halves are one mechanism.
+
+THE THREE SEAMS, each measured on one binary with the other two left alone.
+
+  A. THE PORT NEVER DISPATCHED THE BLOCK. It has never run func_02019144 and
+     hal/sub_actors.cpp says so in as many words: "the port does not run
+     func_02019144 ... and nothing seats data_0209d4a8". It stands in for the
+     STAGE's slot 2 with a hand copy, port_minimap_affine_update, called
+     unconditionally from hal_sub_screen_present. A scene with its own block
+     had nowhere to be dispatched from.
+  B. THE PENDING MODE IS DROPPED BY AN ARM REGISTER RIDE THROUGH.
+     src/func_ov007_020b6eb4.c declares `extern void func_ov007_020bd648(void)`
+     and pushes nothing; src/func_ov007_020bd648.c defines `(int mode)`. On ARM
+     the guard has already loaded the word into r0 to test it. Section 5d
+     screened this exact row as a candidate and named this exact frame as the
+     one to displace, before this lane existed.
+  C. THE PORT RAN THE TAIL IT SHOULD HAVE SKIPPED. Stage 5 lane VP1 correctly
+     added func_02019144's line 46 to the head of the engine A display path,
+     and hal_sub_screen_present already carried line 47 and OAM::Load. All
+     three were unconditional. On a scene whose block answers 0 they are three
+     writes the ROM does not make.
+
+THE FRAME 0 REGISTERS, WHICH IS WHERE THE THREE SEPARATE:
+
+  A alone      the fade UNFREEZES. BLDY goes 0010 x300 to a ramp
+               (000f, 000e, 000d, 000c, 000b, 000a and on) and BLDCNT goes
+               00ff x15, 00bf x271, 0000 x14, so the fade in completes for the
+               first time. The BG maps and priorities publish: sub BG VRAM
+               21896 to 23909 nonzero bytes, BG2CNT_B 0084 to 0087, BG3CNT_B
+               0184 to 0187, BG1CNT_A 0007 to 0005. AND THE FRAME IS BYTE
+               IDENTICAL to 5f's and 5g's, sha256
+               b675ba4528e336812ffeb4dfde4c3d18ec3fd19490bd36ad8b2696560af682,
+               at the same .dsstate base. Everything moved except the picture.
+  A and B      frame 0 reads
+                 +18 0->0  +1c 1->0  DISPCNT 00010008->00011b08
+                                     SUB     00010000->00011c00
+               which is bd648's case 1 arriving. Frame 1 reads
+                 +1c 0->0  DISPCNT 00010008->00010008
+               so the enables were gone again before the next frame started.
+               That is seam C, caught in the act.
+  A, B and C   DISPCNT_A 00011b08 x300 and DISPCNT_B 00011c00 x300.
+
+AND WITH THE PENDING MODE CONSUMED AND NO ARGUMENT DELIVERED, the frame 0
+reading is `+1c 1->0` with DISPCNT unchanged: the guard passed, the call
+happened, and the callee took neither of its two switches. That single line is
+the whole of seam B and it is why the row stopped being a candidate.
+
+THE FIX, four files and one commit, because the three seams are one path and
+any two of them leave the frame where 5f found it.
+
+  hal/scene_boot.cpp            port_graph_block_beat is func_02019144's head:
+                                the ROM's own null test, then the block's slot
+                                2. port_graph_block_verdict carries the answer
+                                to the second half of the tail so the callback
+                                runs ONCE a frame. port_graph_block_register is
+                                the rule below.
+  hal/message_compositor.cpp    runs the beat at the head of the engine A
+                                display path, where VP1 put line 46 and for
+                                VP1's reason, and skips the publish on 0.
+  hal/sub_screen.cpp            skips the engine B publish, OAM::Load and
+                                port_minimap_affine_update on the same answer.
+  unmatched/Ov007_BdPending_020b6eb4.cpp
+                                seam B, in the shape RT1 and AE1 already
+                                established: the matched TU stays matched and
+                                port/CMakeLists.txt cuts it from the ov007
+                                slice in the same loop, with its own DISPLACED
+                                flag so the cut cannot drift from the branch
+                                that adds the host copy.
+  SM64DS_GRAPH_BLOCK_OFF=1      the old behaviour on the same binary, so a
+                                before and after is one build and one .dsstate
+                                base.
+
+ONLY A SEATED VTABLE IS DISPATCHED, and that is the load bearing restriction.
+Every other graphics block in the tree still holds the ROM's raw DS code
+addresses. The Stage's own table, data_02092188, is hosted by nobody, so
+dispatching it would branch to a DS address. hal/scene_boot.cpp keeps a
+registry that scene_fill_title adds ov007's table to, the beat refuses anything
+else and answers 1, and 1 is the port's behaviour before this change to the
+byte. That is the same rule vtspan.py already enforces for scene vtables.
+
+THE CAPTURE, and the base makes the comparison legal. Both builds link
+.dsstate at [0xbb0000, 0xc9a2e0), which is 5g's base, so this is a byte
+comparable before and after rather than the layout comparison
+notes/port-selftest-bmp-gate.md warns about. Off the START commit this lane
+reproduced 5g's frame exactly, sha256 b675ba45..., which is the control. Off the
+tip:
+
+    <run status dir>/link60/status/ts1-scene1-title-drawn.bmp
+    512x384, 24bpp, 589878 bytes, .dsstate base [0xbb0000, 0xc9a2e0)
+    sha256 66ccab45db1e27595fda01b5e16825b8a36d3749dffa4c31382ba6386e2ca3de
+    472 distinct colours, against 3
+
+NO CLAIM IS MADE ABOUT WHAT IS IN IT. This lane did not judge the picture and
+cannot: 5f's warning about layout dependence is about bytes, and the separate
+question of whether the tiles, the palettes and the sprite placement are the
+ROM's is not answered by the registers being right. Tango judges the frame.
+What IS measured is the census behind it, taken after the same run:
+
+    OAM engine A 07000000: 87 all-zero, 0 parked, 41 PLACED
+    OAM engine B 07000400: 81 all-zero, 0 parked, 47 PLACED
+    engine A composited 4598 of 49152 DS pixels
+
+and the per layer attribution of that composite, which is the uncomfortable
+half and belongs here rather than in section 8 alone:
+
+    BG0 0 px   BG1 0 px   BG2 0 px   BG3 0 px   OBJ 4342 px  x 0..219 y 0..143
+
+EVERY COMPOSITED ENGINE A PIXEL IS A SPRITE. The four backgrounds are enabled,
+their character data is present (the probe reports 449 of 1024 BG3 tiles
+carrying data) and their TILEMAPS READ ALL ZERO, so they contribute nothing.
+That is a real gap and this lane did not close it.
+
+AND THE 3D LAYER IS STILL DARK, which is the other thing a reader should weigh.
+The audit reports 72 to 82 polygons submitted on every one of the 300 frames,
+before and after this change, and the framebuffer gets nothing from them. Five
+spread probe points (SM64DS_PROBE_PX at 256,192 / 128,96 / 384,288 / 64,320 /
+448,64) report NO covering triangle at any of them, so the geometry is off
+screen or degenerate rather than culled at the pixel. The material picture is
+two rows, 12 untextured triangles whose UV span is a single point and 60
+textured 32x32 ones. Nothing here explains it and nothing here touched it.
+
+
 6. WHAT LINKS, AND WHAT WAS DELIBERATELY NOT TAKEN
 ---------------------------------------------------
 
@@ -2666,6 +2883,34 @@ save block's fifth symbol changing owner. The added and removed strings are one
 literal, longer by a term.
 
 
+RUN LINK60 STAGE 5 LANE TS1'S DELTA IS THE THIRD NEGATIVE ONE, and it is a
+displacement's price on exactly the terms 5b ruled and 5c and 5e paid:
+
+    baseline 7f994ccdb   5832 / 11250   51.8%   battery ALL GREEN, skips []
+    this lane            5831 / 11250   51.8%   battery ALL GREEN, skips []
+    delta                linked -1, total 0, unlinked +1
+
+Both recorded in this lane's own worktree, the baseline at the start commit
+before a single edit, so the two numbers are the same tree measured twice.
+src/func_ov007_020b6eb4.c leaves the port's slice and
+port/unmatched/Ov007_BdPending_020b6eb4.cpp links in its place; linkage.py
+counts matched stems present in the map and the host copy's stem is
+deliberately not one. That single accounting fact is the whole of the -1.
+
+port/tools/gate.py PRINTS RED ON THIS TREE and the paragraph above the AE1
+delta applies here word for word, including its instruction: quote the RED with
+the explanation beside it and DO NOT re-record the baseline. `--record` was
+refused here for the same reason it was refused there.
+
+    gate: RED (linkage 5831 below the baseline's 5832)
+
+THE BATTERY IS ALL GREEN AND THE SKIP LIST IS EMPTY, which is the number that
+matters for a change with this blast radius. Three of the four files this lane
+edits are on EVERY level's frame path, so the 46 level net plus the scene rows
+is the check, and it is the reason the beat refuses any vtable this tree has
+not seated: on a level the beat answers 1 before dispatching anything and the
+frame path is the one that was there before.
+
 8. WHAT IS NOT PROVEN
 ----------------------
 
@@ -3005,6 +3250,73 @@ literal, longer by a term.
     read off the listing and never reached: the Mg call is dispatched first and
     kills the process before arg 20 runs.
 
+
+  RUN LINK60 STAGE 5 LANE TS1 ADDS THESE, and the first two are the ones a
+  reader should weigh hardest:
+
+  - NOTHING IS CLAIMED ABOUT WHAT THE PICTURE LOOKS LIKE. What is proven is
+    that the registers the ROM programs now reach scan-out, that both engines'
+    OAM carries placed sprites (41 and 47), and that the frame has 472 colours
+    where it had 3. Whether the tiles, the palettes, the sprite placement, the
+    priorities or the fade are the ROM's is a different question and this lane
+    did not look at one pixel of it. 12b's own boundary, restated: Tango judges
+    the frame.
+  - EVERY COMPOSITED ENGINE A PIXEL IS A SPRITE AND ALL FOUR BACKGROUNDS DRAW
+    NOTHING. The compositor's per layer attribution over the last frame reads
+    BG0 0 px, BG1 0 px, BG2 0 px, BG3 0 px, OBJ 4342 px. The backgrounds are
+    ENABLED (DISPCNT_A 0x00011b08) and their character data is present (449 of
+    1024 BG3 tiles carry data), and their TILEMAPS READ ALL ZERO, so nothing
+    selects those tiles. That is a real gap on the top screen, it is the
+    majority of the intended picture by area, and this lane neither closed it
+    nor found its cause.
+  - THE 3D LAYER SUBMITS AND DOES NOT RASTERISE, unchanged by this lane in
+    either direction. 72 to 82 polygons on every one of 300 frames, before and
+    after. SM64DS_PROBE_PX at five spread points reports no covering triangle
+    at any of them, so the geometry is off screen or degenerate rather than
+    rejected per pixel; SM64DS_TRI_LOG reports two materials, 12 untextured
+    triangles whose whole UV span is one point and 60 textured 32x32 ones. The
+    title's Mario head is 3D on hardware and it is not in this frame. THE
+    MEASUREMENT DOES NOT NAME A CAUSE and nothing here should be read as one.
+  - THE BEAT'S PLACEMENT IS ONE FRAME EARLY AGAINST THE HARDWARE. On the DS the
+    block's slot 2 runs in the VBlank handler, so it consumes buffers the
+    PREVIOUS frame's Render slot built. In the port it runs at the head of the
+    engine A display path, inside the same frame that built them, because the
+    engine A compositor rasterises OAM and a beat placed after it would be a
+    frame late for the sprites instead. Both loops call the compositor
+    immediately before hal_sub_screen_present, which is why the verdict handoff
+    is sound, but the one frame lead against hardware is real and unmeasured.
+  - THE VERDICT IS A LATCH AND A CALLER COULD DESYNCHRONISE IT.
+    port_graph_block_verdict returns what the last port_graph_block_beat
+    answered. Both frame loops call the engine A compositor immediately before
+    hal_sub_screen_present, so today it is always this frame's answer. A future
+    caller of hal_sub_screen_present that does not run the compositor first
+    would read the previous frame's, and nothing asserts the pairing.
+  - THE REGISTRY HAS ONE ENTRY AND THAT IS A CEILING, NOT A DESIGN. Only
+    dScDSMT_c's graphCallback_c table is seated with host thunks, so it is the
+    only block the beat will dispatch. Every other scene that installs a
+    graphics block, and the Stage, still gets the port's old unconditional
+    tail. That is correct today (their tables hold raw DS addresses) and it
+    means this fix helps exactly one scene.
+  - port_minimap_affine_update NOW HAS A CONDITION IT NEVER HAD. It runs only
+    when the beat did not dispatch a seated block, which on every level is
+    every frame, and the battery's 46 level rows are green. What is NOT proven
+    is BMP identity on any level: the battery reads exit codes and does not
+    compare frames, the same limit 12d records, and this lane did not take the
+    four level md5s VP1 took.
+  - THE HOST COPY HAS NOT BEEN OBSERVED DOING ITS JOB BEYOND ONE REGISTER, in
+    exactly the sense the RT1 and AE1 bullets above mean it. What is proven is
+    that DISPCNT and DISPCNT_SUB take bd648's case 1 values on frame 0 where
+    before they did not move. The other three calls in func_ov007_020b6eb4 were
+    copied verbatim and read, not audited, and no lane has checked that
+    func_ov007_020bd648 does the right thing for any mode other than 1.
+  - ONE SCENE, ONE FRAME COUNT, ONE MACHINE for the picture claim. Scene 1 at
+    300 frames. The battery covers the other scenes and the levels by exit
+    code, which is what would catch a fault, not a changed image.
+  - THE FADE IS UNBLOCKED AND NOT VALIDATED. BLDCNT and BLDY now animate
+    (00ff for 15 samples, 00bf for 271, 0000 for 14; BLDY ramping down from
+    0x0f) where they were frozen at full brightness decrease. That the fade
+    RUNS is measured. That it runs at the ROM's rate, or that the port's fade
+    composite consumes it the way hardware would, is not.
 
 8a. THE TAIL-JUMP FLOOR IS GUARDED (run link60 Stage 5 lane TJG)
 -----------------------------------------------------------------

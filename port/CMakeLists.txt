@@ -2918,6 +2918,31 @@ foreach(line IN LISTS SLICE_OV007_LINES)
         set(AE1_ADD3C_DISPLACED TRUE)
         continue()
     endif()
+    # run link60 Stage 5 lane TS1: THE THIRD DISPLACEMENT IN THIS SLICE, and
+    # the same frame shape as the two above.
+    #
+    # func_ov007_020b6eb4 is MATCHED and stays matched. It is cut from the port
+    # only, because it is the frame where the title screen's PENDING GRAPHICS
+    # MODE is destroyed: the body's own guard loads *(int *)(g + 0x1c) to test
+    # it, the ROM leaves that word in r0 across the branch, and
+    # func_ov007_020bd648 -- which is the only writer of DISPCNT bits 8-12 in
+    # the whole overlay -- reads it as its `mode`. The declaration in the
+    # matched TU says `(void)` and MSVC pushes nothing.
+    #
+    # port/ov007_seat.txt section 5d screened this row and named THIS frame as
+    # the one to displace ("displacing bd648 would be displacing the blameless
+    # end", because src/func_ov007_020b7138.c's own call passes the argument
+    # correctly). Section 5h is the measurement that turned the candidate into
+    # a defect and the frame-0 register readings either side of the fix.
+    #
+    # THE FLAG IS NOT BOOKKEEPING, same as the two blocks above: the branch
+    # below reads it, so the cut and the host copy's membership are the same
+    # fact and cannot drift.
+    if(line MATCHES "^src/func_ov007_020b6eb4\\.c$")
+        set(TS1_B6EB4_IN_SLICE TRUE)
+        set(TS1_B6EB4_DISPLACED TRUE)
+        continue()
+    endif()
     # run link60 lane AE1: THE NEXT BLOCKER'S CALLER, and this flag is placed
     # where it is on purpose.
     #
@@ -2943,6 +2968,19 @@ elseif(NOT RT1_ADD3C_IN_SLICE)
     # undefined symbol.
     message(STATUS "AE1: slice_ov007.txt no longer lists "
                    "src/func_ov007_020add3c.c, so the implicit-r0 host copy is "
+                   "NOT added and the link will fail on it. Restore the line: "
+                   "this block does the cutting, not the slice file")
+endif()
+if(TS1_B6EB4_DISPLACED)
+    list(APPEND SLICE_OV007_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov007_BdPending_020b6eb4.cpp")
+elseif(NOT TS1_B6EB4_IN_SLICE)
+    # The two states the branches below distinguish, for the same reason: the
+    # slice line is the only thing that puts the matched TU in the build, so if
+    # the line is gone the host copy must not be added blind. Two bodies for
+    # one address is an LNK2005 and none is a silent undefined symbol.
+    message(STATUS "TS1: slice_ov007.txt no longer lists "
+                   "src/func_ov007_020b6eb4.c, so the pending-mode host copy is "
                    "NOT added and the link will fail on it. Restore the line: "
                    "this block does the cutting, not the slice file")
 endif()
