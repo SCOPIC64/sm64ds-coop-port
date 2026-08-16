@@ -11,10 +11,18 @@ git_sha plus git_dirty).
 
 Every "unresolved" list below was PRODUCED BY A LINK, not read off an earlier
 note. The method is the same each time: wire the TU into walk_window in a
-throwaway CMakeLists edit, build, read link.exe's own error text, revert. Three
+throwaway CMakeLists edit, build, read link.exe's own error text, revert, and
+the exact slice is written beside the count so the probe is re-runnable. Three
 of the counts in port/arm9_frontier.txt and port/slice_w8a.txt have moved since
 they were written and one of them was wrong in a way that matters; both are
 corrected below with the measurement attached.
+
+AND AN UNRESOLVED-EXTERNALS COUNT IS A FLOOR, NOT THE ANSWER, which cost this
+file four numbers on review. A matched TU that is compiled-but-dropped, or that
+resolves through an /alternatename face, never appears in link.exe's output and
+still has to link before the slot runs. Every count below now states which
+reading it is. All four corrections ran in the same direction: the first draft
+erred optimistic in slots 3, 6, 9 and 0.
 
 
 0. THE ONE-LINE ANSWER
@@ -33,26 +41,38 @@ The Stage's whole lifecycle is behind ONE gate, and it is not the vtable.
     data_020a4b78 and data_020a4b98 when the actor's +0x10 is set, and +0x10 is
     set by the init pass succeeding. So slots 6/7/8 and 9/10/11 are downstream
     of slots 0/1/2.
-  * Slot 0 is Stage::InitResources, and it does not close: TWENTY-ONE
-    unresolved externals, enumerated in section 4, of which the six that
-    matter are a second writer for a global hal/fader_wipes.cpp owns.
+  * Slot 0 is Stage::InitResources, and it does not close: TWENTY-EIGHT
+    unresolved externals compiled on its own, TWENTY-ONE with the gate-36
+    closure and three host bodies in front of it (both bases and both slices
+    are in section 4), of which the six that matter are a second writer for a
+    global hal/fader_wipes.cpp owns.
 
 So "seat the Stage vtable" and "route the boot through the ROM's lifecycle"
 are not two jobs that can be done in either order. The init phase is the whole
 lane, and everything after it is downstream of one function.
 
-WHAT THE LANE THEN DID ABOUT IT (commit two, 885cd16c2, gate GREEN, battery
-ALL GREEN, linked 4950 unchanged): seated the thirteen slots that close and
-routed port_stage_a_boot through func_020433b8, so the boot is DISPATCHED by
-the ROM's init Process through slot 0 rather than called by name, the Stage
-arrives on the behaviour and render lists at its SpawnInfo's priorities 3 and
-6, and the pause-bit stand-in in hal/stage_bridges.cpp retires in favour of
-Scene::BeforeBehavior. Slot 0's occupant is still the hosted boot body. The
-linkage delta is ZERO, honestly, because every body the seat reaches was
-already in the image through some other caller. What the seat changes is that
-the four blocked bodies now have a live dispatch waiting instead of a table
-nothing reads -- which is the difference between seating them later being an
-honest edge and being a manufactured one.
+WHAT THE LANE THEN DID ABOUT IT. Commit two (885cd16c2) WROTE FOURTEEN SLOTS,
+of which ELEVEN carry a ROM body and three -- 0, 6 and 9 -- took host
+occupants. Review added slot 12, so the seat now writes fifteen and twelve of
+them are the ROM's. Read those two numbers as separate from the "thirteen of
+eighteen close" line above: that one counts which BODIES close, this one counts
+which SLOTS the fill writes, and they were conflated in commit two's own
+message.
+
+The seat also routed port_stage_a_boot through func_020433b8, so the boot is
+DISPATCHED by the ROM's init Process through slot 0 rather than called by name,
+the Stage arrives on the behaviour and render lists at its SpawnInfo's
+priorities 3 and 6, and the pause-bit stand-in in hal/stage_bridges.cpp retires
+in favour of Scene::BeforeBehavior. Slot 0's occupant is still the hosted boot
+body; slot 3 is TRAPPED, not hosted, which commit two's message also got wrong
+while the code comment beside it had it right.
+
+The linkage delta of commit two is ZERO, honestly, because every body the seat
+reaches was already in the image through some other caller. What the seat
+changes is that the four blocked bodies now have a live dispatch waiting
+instead of a table nothing reads -- which is the difference between seating
+them later being an honest edge and being a manufactured one. It also armed a
+live path to a slot it had left trapped, which is section 9.
 
 
 1. THE VTABLE, DERIVED FROM THE ROM RATHER THAN COPIED
@@ -65,20 +85,20 @@ module:main` relocation, so all eighteen are real slots and not incidental
 data:
 
   slot  ROM word    symbol                              closes today?
-   0    0x0202cc0c  Stage::InitResources                NO  (30, section 4)
+   0    0x0202cc0c  Stage::InitResources                NO  (28/21, section 4)
    1    0x0202ddc8  Stage::BeforeInitResources          YES
    2    0x0202e62c  Scene::AfterInitResources           VENEER, use the face
-   3    0x0202c9a8  Stage::CleanupResources             NO  (6, section 5)
+   3    0x0202c9a8  Stage::CleanupResources             NO  (7, section 5)
    4    0x0202e5f0  Scene::BeforeCleanupResources       YES, already linked
    5    0x0202e5d0  Scene::AfterCleanupResources        YES, already linked
-   6    0x0202bbbc  Stage::Behavior                     NO  (19, section 6)
+   6    0x0202bbbc  Stage::Behavior                     NO  (22, section 6)
    7    0x0202e3d4  Scene::BeforeBehavior               YES, already linked
    8    0x0202e3c8  Scene::AfterBehavior                VENEER, use the face
-   9    0x0202b8a4  Stage::Render                       NO  (11, section 6)
+   9    0x0202b8a4  Stage::Render                       NO  (12, section 6)
   10    0x0202e3a4  Scene::BeforeRender                 YES, already linked
   11    0x0202e398  Scene::AfterRender                  VENEER, use the face
-  12    0x0202b8a0  Stage::OnPendingDestroy             YES, needs a face
-  13    0x02043574  ActorBase::Virtual34                YES
+  12    0x0202b8a0  Stage::OnPendingDestroy             YES, SEATED, section 9
+  13    0x0204357c  ActorBase::Virtual34                YES
   14    0x0204349c  ActorBase::Virtual38                YES
   15    0x02043494  ActorBase::OnHeapCreated            YES, face exists
   16    0x02023688  Stage::~Stage (D2)                  YES
@@ -213,8 +233,16 @@ from a mode the port never entered.
   InitResources is the same state it has today is UNMEASURED and is not a
   question this map answers.
 
-2d. THE PORT'S BOOT IS MISSING SEVENTEEN OF InitResources' GLOBAL WRITES,
-     AND SIX OF THEM ARE READ BY LIVE CODE
+2d. THE PORT'S BOOT IS MISSING TWENTY OF InitResources' GLOBAL WRITES,
+     AND FIVE OF THEM ARE READ BY LIVE CODE
+
+     TWENTY-THREE ROM LINES ARE LISTED. Three of them the port DOES write, at
+     the wrong value or the wrong cadence (data_0209f32c, data_0209f21c,
+     data_0209f250); the other twenty it does not write at all. An earlier
+     version of this heading said "seventeen missing, six read by live code",
+     which counted the three wrong-value rows as absent and miscounted the
+     readers. The five live readers are data_0209f2fc, data_02092134,
+     data_0208ee44, data_0209d45c and data_0209f2bc.
 
 This is the half of the seam that reading port_stage_a_boot alone does not
 show, because the writes are absent rather than substituted. Every row was
@@ -250,15 +278,20 @@ name; "none" means no writer exists anywhere in the port.
   data_0209f34c, data_0209f4f8,     none. The per-player star/coin clear
   data_0209f358, data_0209f30c,     loops are not run at all.
   data_0209f310
-  data_0209f2bc, data_0209f304,     none.
-  data_0209f308, data_0209f284,
-  data_0209f290, data_0209f300,
-  data_0209f2d4, data_0209cee8,
-  data_02092778, data_0209f208
+  data_0209f2bc                     none, AND IT HAS A LIVE READER:
+                                    hal/player_bridges.cpp:539 reads
+                                    *(u8 *)data_0209f2bc into the player's
+                                    per-frame state dump. InitResources sets
+                                    it to 3 in VS mode and 0 otherwise.
+  data_0209f304, data_0209f308,     none.
+  data_0209f284, data_0209f290,
+  data_0209f300, data_0209f2d4,
+  data_0209cee8, data_02092778,
+  data_0209f208
 
   NONE OF THESE IS A LINKAGE ITEM and this lane did not write any of them.
   They are here because they are what "the boot is a subset" actually costs,
-  and because a reader who seats slot 0 later needs to know that six live
+  and because a reader who seats slot 0 later needs to know that five live
   readers change their input the moment it lands. Adding the writes by hand
   would be MORE scaffolding, not less, which is why this map names them and
   stops.
@@ -291,10 +324,11 @@ name; "none" means no writer exists anywhere in the port.
 3. A CORRECTION THIS MAP OWES TWO OTHER FILES
 ----------------------------------------------
 
-port/arm9_frontier.txt line 337 says the four Stage vtable slots "are already
-COMPILED (they sit in DROPPED, offered and dropped for want of a reference)".
-FOR Stage::InitResources THAT IS NOT TRUE, and the difference matters because
-the frontier reads it as the cheap half of the move.
+port/arm9_frontier.txt lines 157-158 say the four Stage vtable slots "are
+already COMPILED (they sit in DROPPED, offered and dropped for want of a
+reference)", and line 337 repeats it as "Four slots already compiled". FOR
+Stage::InitResources THAT IS NOT TRUE, and the difference matters because the
+frontier reads it as the cheap half of the move.
 
 src/_ZN5Stage13InitResourcesEv.cpp is named by port/slice_gate36.txt, which is
 what puts it in the survey's DROPPED bucket -- the bucket test is "named in a
@@ -302,12 +336,28 @@ slice_*.txt". But SLICE36_SOURCES is parsed into a variable and added to NO
 target (port/CMakeLists.txt:3160, and the block above it says so at length).
 Checked directly: `_ZN5Stage13InitResourcesEv.cpp.obj` does not appear in
 build/port/build.ninja. It is not compiled, it is not offered to the linker,
-and it is not dropped by /OPT:REF. The same is true of fifteen more gate-36
-lines that the survey counts as DROPPED: ResetInput, UnloadArchive,
-LoadDebugFont, LoadLevelOverlays, ResetKuppaScript, IsLevelInsideCastle,
-IsLevelTinyHugeIslandOutside, Stage::SetVramBanks, Stage::LoadFog,
-func_02039218, func_020308a8, func_0203da3c, func_0203dad4, the three
-FaderWipe TUs.
+and it is not dropped by /OPT:REF.
+
+NINETEEN OF THE THIRTY-THREE gate-36 lines are in that state, not sixteen. An
+earlier version of this paragraph listed fifteen besides InitResources and
+missed src/LoadArchive.c and src/func_ov001_020ab2e4.c; the full set is now
+computed rather than typed, by intersecting the slice with the object names in
+build.ninja:
+
+    _ZN5Stage13InitResourcesEv.cpp   ResetInput.c
+    UnloadArchive.c                  LoadArchive.c
+    func_02039218.c                  ResetKuppaScript.c
+    LoadDebugFont.c                  IsLevelInsideCastle.c
+    IsLevelTinyHugeIslandOutside.c   func_020308a8.c
+    func_0203da3c.c                  func_0203dad4.c
+    func_ov001_020ab2e4.c            _ZN5Stage12SetVramBanksEv.c
+    _Z17LoadLevelOverlaysi.cpp       _ZN5Stage7LoadFogEv.cpp
+    engine/fader/_ZN9FaderWipeC1Ev.c
+    engine/fader/_ZN9FaderWipeD1Ev.c
+    engine/fader/_ZN9FaderWipe14LoadAndSetFileEt.cpp
+
+The remaining fourteen gate-36 lines ARE compiled, from other slices, which is
+why the bucket is wrong by nineteen and not by thirty-three.
 
 BeforeInitResources, D0 and D2 -- the other three the frontier names -- ARE
 compiled, from slice_w8a.txt, and for those the frontier is exactly right.
@@ -329,11 +379,40 @@ dependency is real but it arrives through _ZN9FaderWipeD1Ev, one level down.
 4. SLOT 0 -- Stage::InitResources, THE THIRTY
 ----------------------------------------------
 
-Measured 2026-08-16 against 0d81b845c by wiring ${SLICE36_SOURCES} into
-walk_window and reading link.exe. THIRTY unresolved externals plus ONE
-duplicate definition. The wave-4 measurement recorded in CMakeLists.txt was 43;
-thirteen have closed on their own since, which is what a growing port does to a
-closure and is the reason this was re-run rather than quoted.
+THERE ARE TWO BASES AND A COUNT WITHOUT ITS SLICE IS NOT RE-RUNNABLE, so both
+are stated with the exact slice that produced them. All three probes are the
+same recipe: add the sources to walk_window's add_executable list in a
+throwaway CMakeLists edit, build with port/build-port.cmd, read link.exe's own
+error text, revert. Measured 2026-08-16 against 0d81b845c.
+
+  BASE A, THE DIRECT SINGLE-TU COUNT: 28.
+  Slice: src/_ZN5Stage13InitResourcesEv.cpp, and nothing else.
+  This is what Stage::InitResources wants from the port AS IT STANDS. It is
+  the number to quote when sizing "how far is this function from the tree",
+  because it makes no assumption about what else a lane chooses to enrol.
+
+  BASE B, WITH THE GATE-36 CLOSURE AND THE THREE HOST BODIES: 21.
+  Slice: every uncommented line of port/slice_gate36.txt EXCEPT
+  src/LoadArchive.c, src/UnloadArchive.c and src/_Z17LoadLevelOverlaysi.cpp,
+  plus one throwaway TU defining empty bodies for UnloadArchive(int),
+  _Z17LoadLevelOverlaysi(int) and _Z19UnloadLevelOverlaysi(int).
+  (The probe that produced 21 also carried src/_ZN5Stage16CleanupResourcesEv.cpp
+  and read 23; two of those 23 are CleanupResources-only, which is where 21
+  comes from. Slot 3's own accounting is section 5.)
+  This is the number to quote when sizing the WORK, because it already spends
+  the seven gate-36 callees that close on their own.
+
+  A THIRD READING EXISTS AND IS THE ONE TO DISTRUST: the first probe run here
+  used the gate-36 slice UNMODIFIED and read 30 plus an LNK2005. Three of that
+  30 were slice composition rather than blockers. It is recorded because the
+  correction is the useful part, not because 30 means anything.
+
+The wave-4 measurement recorded in CMakeLists.txt was 43 against the same
+unmodified slice; thirteen closed on their own between then and now, which is
+what a growing port does to a closure and is the reason all of this was re-run
+rather than quoted.
+
+The enumeration below is BASE B's 21.
 
 FACES (6) -- the TU is compiled, publishes the MSVC method mangling, and the
 caller spells the Itanium C name. Mechanical, and hal/method_faces.cpp is the
@@ -469,10 +548,17 @@ change their input the moment it did. Closing the twenty-one buys the right to
 run the experiment, not the result of it.
 
 
-5. SLOT 3 -- Stage::CleanupResources, THE SIX
-----------------------------------------------
+5. SLOT 3 -- Stage::CleanupResources, THE SEVEN
+------------------------------------------------
 
-Measured the same way. SIX unresolved:
+SEVEN, not six, and the seventh is the module-universe trap this repo has
+been caught by before. func_01ffb0c8 is ITCM, not arm9; it is compiled
+(src/func_01ffb0c8.cpp) and sits in the survey's DROPPED bucket, so it never
+appeared as an unresolved external and an unresolved-only count misses it.
+It still has to link for slot 3 to run. Review caught this; the six below is
+what link.exe printed, and the seventh is what the link.exe reading omits.
+
+The six unresolved:
 
     __ZN5Sound21ResetPlayerVoiceGroupEv
     __ZN9FaderWipeD1Ev                    (C name; the TU exists, uncompiled)
@@ -503,7 +589,17 @@ Those four slots are one job, not four.
 
 Both genuinely blocked, both measured, neither is close.
 
-Stage::Behavior, NINETEEN unresolved. Eight of them are the pause / VS-exit /
+READ THE COUNTS AS "PIECES", NOT AS "UNRESOLVED EXTERNALS", because for these
+two the two readings differ and the unresolved-only one errs optimistic. Four
+matched Stage TUs -- CanPause, IsPauseDisabled, CheckInput and
+RenderBouncingArrows -- are compiled by slice_w8a and RESOLVE through the
+/alternatename faces in hal/w8a_stage_faces.cpp, so link.exe never names them.
+They are unlinked today and they have to link for these slots to run, so they
+are counted. Slot 6 is 19 + 3 = 22 and slot 9 is 11 + 1 = 12.
+
+Stage::Behavior, NINETEEN unresolved plus Stage::CanPause,
+Stage::IsPauseDisabled and Stage::CheckInput. Eight of the nineteen are the
+pause / VS-exit /
 level-clear menu state machine -- Stage::PS_Init, PS_Update, PS_Cleanup,
 VE_Init, VE_Update, LC_Update, UpdateMessage, Scene::SetSceneToSpawn -- plus
 six func_020xxxxx callees, IsLevelInsideCastle, IsLevelTinyHugeIslandOutside,
@@ -512,7 +608,8 @@ costed the menu half and its reading holds: PS_Update and LC_Update want
 data_020a0dea, byte +2 of the TouchInfo block hal/auto_bss.cpp owns, and
 reshaping that block is that file's decision.
 
-Stage::Render, ELEVEN unresolved: Particle::SysTracker::Update, OAM::Render's
+Stage::Render, ELEVEN unresolved plus Stage::RenderBouncingArrows:
+Particle::SysTracker::Update, OAM::Render's
 seven-argument overload, Stage::RenderFog, RenderVsModeCountdown,
 RenderVsModeNewStar, PS_Render, LC_Render, RenderNumber, func_020391f0,
 func_0203083c, func_ov001_020aaf40. Four of those want the ov002 pause/VS
@@ -556,6 +653,11 @@ already-closing slots REAL rather than the ones that force slot 0:
       that file already documents as a stand-in for exactly one statement
       inside Scene::BeforeBehavior. Slots 6 and 9 need an occupant (section 6).
 
+  T5  SLOT 12, which review found rather than this plan. See section 9. It is
+      the lane's only nonzero linkage tranche: linked 4950 -> 4951, because
+      src/_ZN5Stage16OnPendingDestroyEv.cpp was compiled and dropped and now
+      has a dispatch. Battery ALL GREEN, gate GREEN.
+
   T2 AND T3 LANDED TOGETHER, 885cd16c2, because they cannot be separated:
   ActorBase::AfterInitResources(2) is what puts the node on data_020a4b78 and
   data_020a4b98, and it runs inside the same init Process T2 routes through.
@@ -577,6 +679,18 @@ already-closing slots REAL rather than the ones that force slot 0:
   twenty-one) and port/ov001_syms.txt (two BSS names on an existing line, two
   more). With those two files and these, slot 0's remaining thirteen are a
   sitting's work -- and then the behaviour experiment in section 8 starts.
+
+  AND IT MUST OWN THE SLOT-12 CONSEQUENCE CHAIN TOO, which is a reviewer
+  ruling on this lane rather than a suggestion from it. The two files above are
+  not an arbitrary pairing with section 9: making data_0209f324 and the
+  installed fader behave the way the ROM's do is EXACTLY what arms
+  Scene::BeforeBehavior's MarkForDestruction edge, because that edge fires on
+  the installed fader reading at-end. A lane that fixes the fader and does not
+  also give the port a Stage teardown converts section 9's one-frame-later
+  abort from a latent path into a reachable one. The two jobs are the same job.
+  Size it from the corrected numbers in sections 4 through 6, which run larger
+  than this file's first draft in every slot: 28 / 21 for slot 0, 7 for slot 3,
+  22 for slot 6, 12 for slot 9.
 
   NOT IN SCOPE FOR THAT LANE EITHER, and named so nobody rediscovers them:
   the ov002 pause and VS sprite templates (slot 9), the TouchInfo reshape for
@@ -609,3 +723,90 @@ already-closing slots REAL rather than the ones that force slot 0:
   - Anything about the levels. Every number here is a link measurement. The
     battery is the only thing that speaks for behaviour, and it speaks per
     commit, not here.
+
+
+9. SLOT 12, AND THE ARGUMENT THIS LANE'S OWN SEAT FALSIFIED
+------------------------------------------------------------
+
+The seat's first draft left slot 12 trapped, on the same reasoning as 16 and
+17: nothing destroys the Stage, so a body there is a reference the game never
+executes. Review rejected that and was right. The seat is what broke it.
+
+THE CHAIN, end to end, every link read out of src/ or port/hal/:
+
+  1. Seated slot 7 runs Scene::BeforeBehavior on the Stage EVERY FRAME. That
+     function carries two ActorBase::MarkForDestruction(self) calls.
+  2. src/_ZN9ActorBase18MarkForDestructionEv.cpp is not deferred bookkeeping.
+     It sets shouldBeKilled and then calls OnPendingDestroy() straight through
+     the vptr -- slot 12. So either edge landed on st_trap and aborted.
+  3. EDGE A IS DEAD. It is gated on data_0209f1e0, and no linked TU writes
+     that byte.
+  4. EDGE B IS LIVE. It is shut only by data_02092664 resting at 0x187, its
+     ROM .data value. hal/star_flow.cpp:127 opens it: HitDeathPlane calls
+     Scene::StartSceneFade(8, 0, 0), which is Scene::SetSceneToSpawn(8, 0),
+     which writes data_02092664 = 8. Nothing in a level run spawns scene 8, so
+     THE BYTE STAYS AT 8, and from that frame on Scene::BeforeBehavior takes
+     its middle branch forever: if the installed fader reads at-end, the Stage
+     is marked for destruction.
+  5. THE BATTERY CANNOT SEE THIS. Selftest frames are idle. No star is
+     collected, no death plane is crossed, so data_02092664 never leaves its
+     sentinel and the whole branch is unvisited.
+
+SEATED. src/_ZN5Stage16OnPendingDestroyEv.cpp is compiled, publishes only
+?OnPendingDestroy@Stage@@QAEXXZ, and its body is an empty override -- which is
+the ROM's. The slot takes a __fastcall thunk over a Stage.h method face, the
+same shape as every other slot in the fill, and the TU had to be added by name
+to smoke_player and walk_window_hires, which compile hal/stage_bridges.cpp and
+do not carry SLICE_W8A_SOURCES.
+
+LINKAGE: 4950 -> 4951, the lane's only nonzero delta. The TU was compiled by
+slice_w8a and dropped by /OPT:REF for want of a reference; the slot is the
+reference. ?OnPendingDestroy@Stage@@QAEXXZ appears in walk_window.map after,
+and did not before. Battery ALL GREEN across all 46 levels, gate GREEN.
+
+EXECUTION IS UNPROVEN AND THE SEAT IS THE GUARANTEE. No run here reaches
+HitDeathPlane or a star collect, so nothing observed the thunk fire. What is
+proven is that the slot no longer aborts if it does, and that the body behind
+it is the ROM's rather than a stand-in. Constructing the star-collect path was
+attempted and abandoned as not cheap: the port has no env knob that drives
+HitDeathPlane or a star collect (hal/star_flow.cpp reads exactly one, and it
+is SM64DS_COURSE_MUSIC), so proving it needs real play input rather than a
+harness flag. A lane that can drive one should; the witness is one printf in
+the face.
+
+AND SLOT 3 IS THE NEXT TRAP IN THE SAME CHAIN. This is new evidence, not a
+residual worry. shouldBeKilled is ActorBase +0x0f, which func_02043880 reads
+as its `dirty` flag, so the frame after MarkForDestruction phase 1 moves the
+Stage onto data_020a4ba8 and the cleanup Process (func_020432e4) dispatches
+slots 4, 3 and 5. Slot 3 is trapped and its ROM body wants seven things.
+
+So seating 12 does not make the chain survivable. It moves the abort one frame
+later, off a slot whose ROM body was sitting compiled and unused and onto a
+slot that has no body to seat. THAT IS THE RIGHT PLACE FOR IT TO STOP: a port
+whose Stage is being torn down has lost the scene root, the level collider and
+the level model, and a named abort naming the slot is the correct answer until
+the port has a real Stage teardown. Section 7's handoff carries it.
+
+
+10. OWNERSHIP
+--------------
+
+Assigned to this lane: hal/level_boot.cpp, the Stage-related faces in
+hal/method_faces.cpp, and the lane's own fill and slice files.
+
+DEVIATION, DECLARED: hal/stage_bridges.cpp was on neither the owned list nor
+the do-not-touch list, and this lane took it. It is the Stage vtable's home --
+_ZTV5Stage, hal_fill_stage_vtable and port_stage_create are all in it -- so a
+lane told to seat the Stage vtable cannot avoid it, and putting the seat there
+kept the whole first two commits free of any CMakeLists edit. No other live
+lane of run link60 touches it. The one CMakeLists edit that did become
+necessary is section 9's, at the lane tip.
+
+hal/method_faces.cpp was NOT touched: no Stage face turned out to be needed
+there. Slot 12's face went beside the other Stage.h method faces in
+hal/stage_bridges.cpp, next to port_stage_render_model, rather than being
+split across two files.
+
+Not touched: hal/scene_boot.cpp and hal/actor_classes.inc (L2), hal/model_host.cpp
+(L1), port/tools/ovdata.py and ovsweep.py (the mount lane), tests/walk_window.cpp,
+port/ov001_syms.txt, port/ov002_syms.txt, hal/auto_bss.cpp, hal/fader_wipes.cpp.

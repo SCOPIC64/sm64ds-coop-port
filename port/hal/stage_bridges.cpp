@@ -133,12 +133,42 @@ extern "C" void hal_fill_stage_vtable(void)
 //                        overlay/archive pair.
 //   6  Behavior          HOSTED. Nineteen unresolved: the pause / VS-exit /
 //                        level-clear menu state machine and data_020a0dea.
-//   9  Render            HOSTED. Eleven unresolved, four of them the ov002
+//   9  Render            HOSTED. Twelve unresolved, four of them the ov002
 //                        pause and VS sprite templates.
-//  12  OnPendingDestroy  left TRAPPED on purpose. Its body is compiled and it
-//                        would close, but nothing destroys the Stage, so
-//                        seating it is a reference the game never executes.
-//                        Same ruling for slots 16 and 17.
+//  16  ~Stage (D2)       TRAPPED. Nothing destroys the Stage, so seating them
+//  17  ~Stage (D0)       is a reference the game never executes.
+//
+// SLOT 12 IS THE ROM BODY, AND THE FIRST DRAFT OF THIS SEAT HAD IT WRONG.
+// It was trapped on the same "nothing destroys the Stage" argument as 16 and
+// 17, and this seat is what falsified that argument -- review caught it, not
+// this file. Slot 7 now runs Scene::BeforeBehavior on the Stage every frame,
+// and that function carries two ActorBase::MarkForDestruction(self) edges.
+// MarkForDestruction is not deferred bookkeeping: src/
+// _ZN9ActorBase18MarkForDestructionEv.cpp sets shouldBeKilled and then calls
+// OnPendingDestroy() straight through the vptr, so either edge landed on
+// st_trap and aborted.
+//
+//   Edge A, the data_0209f1e0 block, is dead: no linked TU writes that byte.
+//   Edge B is shut only by data_02092664 resting at its 0x187 sentinel, and
+//   hal/star_flow.cpp:127 opens it. HitDeathPlane calls
+//   Scene::StartSceneFade(8, 0, 0), which is Scene::SetSceneToSpawn(8, 0),
+//   which writes data_02092664 = 8. Nothing in a level run ever spawns scene
+//   8, so the byte STAYS at 8 and Scene::BeforeBehavior takes its middle
+//   branch on every later frame; from then on the installed fader reading
+//   at-end marks the Stage for destruction. The battery cannot see this --
+//   idle selftest frames never collect a star and never hit a death plane.
+//
+// AND SLOT 3 IS THE NEXT TRAP IN THE SAME CHAIN, which is new evidence rather
+// than a residual worry. shouldBeKilled is +0x0f, which func_02043880 reads as
+// its `dirty` flag, so the frame after MarkForDestruction phase 1 moves the
+// Stage onto data_020a4ba8 and the cleanup Process dispatches slots 4, 3 and 5
+// -- and slot 3 is trapped. Seating 12 does not make the chain survivable; it
+// moves the abort one frame later, from a slot with a compiled ROM body to a
+// slot that has none. That is the right place for it to stop: a port whose
+// Stage is being torn down has lost the scene root, the level collider and the
+// level model, and a named abort is the correct answer until the port has a
+// real Stage teardown. Recorded in port/stage_lifecycle_map.txt as the first
+// thing the slot-0 lane inherits.
 //
 // THREE SLOTS ARE VENEERS AND MUST NOT TAKE THEIR OWN src TU. Slots 2, 8 and
 // 11 are 0xc-byte `ldr ip,[pc]; bx ip` tail calls in the ROM, transcribed as
@@ -171,6 +201,12 @@ void port_scene_after_init(void *self, unsigned vfSuccess);
 void port_scene_after_behavior(void *self, unsigned vfSuccess);
 void port_scene_after_render(void *self, unsigned vfSuccess);
 int  port_scene_on_heap_created(void *self);
+/* slot 12. src/_ZN5Stage16OnPendingDestroyEv.cpp compiles a real C++ method
+   and publishes only ?OnPendingDestroy@Stage@@QAEXXZ, never the Itanium C
+   name, so the slot needs a face rather than a plain pointer. The face is at
+   the bottom of this file with the other Stage.h method faces; the body is an
+   empty override, which is what the ROM's is. */
+void port_stage_on_pending_destroy(void *self);
 /* the ROM's own "thread a freshly built actor onto the init list" entry, the
    last thing func_02043098 does for every other class */
 void func_020433b8(void *self);
@@ -243,6 +279,8 @@ static int  __fastcall st_v38(void *s, void *, unsigned a, unsigned b)
 { return ((ActorBase *)s)->ActorBase::Virtual38(a, b); }
 static int  __fastcall st_heap(void *s, void *)
 { return port_scene_on_heap_created(s); }
+static void __fastcall st_pdes(void *s, void *)
+{ port_stage_on_pending_destroy(s); }
 
 extern "C" void hal_seat_stage_lifecycle(void)
 {
@@ -258,7 +296,8 @@ extern "C" void hal_seat_stage_lifecycle(void)
     _ZTV5Stage[9]  = (void *)st_render;
     _ZTV5Stage[10] = (void *)st_bren;
     _ZTV5Stage[11] = (void *)st_aren;
-    /* 12, 16, 17 stay trapped -- nothing destroys the Stage */
+    _ZTV5Stage[12] = (void *)st_pdes;
+    /* 16 and 17 stay trapped -- nothing destroys the Stage */
     _ZTV5Stage[13] = (void *)st_v34;
     _ZTV5Stage[14] = (void *)st_v38;
     _ZTV5Stage[15] = (void *)st_heap;
@@ -458,6 +497,13 @@ extern "C" void port_stage_tree_probe(void *child, const char *what)
 #include "Animation.h"
 extern "C" void port_stage_render_model(void *self)
 { ((Stage *)self)->Stage::RenderModel(); }
+/* _ZTV5Stage slot 12. The ROM's Stage overrides OnPendingDestroy with an empty
+   body (src/_ZN5Stage16OnPendingDestroyEv.cpp, 0x0202b8a0), so the face costs
+   a call and nothing else; what it buys is that the two
+   ActorBase::MarkForDestruction edges in Scene::BeforeBehavior land on the
+   ROM's body instead of on the slot trap. */
+extern "C" void port_stage_on_pending_destroy(void *self)
+{ ((Stage *)self)->Stage::OnPendingDestroy(); }
 extern "C" void port_stage_render_model_transparent(void *self)
 { ((Stage *)self)->Stage::RenderModelTransparent(); }
 
