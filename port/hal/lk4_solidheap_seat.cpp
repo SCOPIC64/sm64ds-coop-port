@@ -60,9 +60,28 @@
 //                so this one faults rather than publishing a wrong word. Its
 //                only caller is func_ov007_020cc4c0, and scene 1 is the
 //                battery's one BLOCKED skip, which is why nothing has hit it.
-//                The other reference, src/_ZN4Heap8_DestroyEv.cpp:8, calls with
-//                no argument at all (it is an ARM tail-call veneer), so there
-//                the receiver survives in ECX by luck rather than by design.
+//                THE _Destroy VENEER IS WORSE THAN LUCK, and an earlier draft
+//                of this note got it wrong by saying the receiver survives.
+//                Read from the disassembly instead: _ZN4Heap8_DestroyEv is a
+//                bare five-byte jmp (0049FDC0: E9 .. jmp 0049FDD0) that sets
+//                no ECX and reads no stack slot, and Heap::Destroy opens
+//                `mov esi,ecx` then `call [eax+8]` through it, so the receiver
+//                comes from ECX and is dereferenced at once. Its callers are
+//                ActorBase::Virtual34 at :50, :78, :100, :106 and :111, a
+//                thiscall member: at the jump ECX still holds the ActorBase
+//                pointer from the virtual call before it (`mov ecx,ebx`), and
+//                the heap the caller pushed is DISCARDED. So on the host the
+//                receiver does not survive at all. It survives on ARM only
+//                because bx ip preserves r0, which is a register convention
+//                and not a property of the C, and a C rewrite of the veneer
+//                destroys it. Broken on the host, undriven today (slot 13
+//                never dispatches on any battery path), ARM-correct by
+//                register convention.
+//                AND THE FIX CONSEQUENCE, because it constrains whoever takes
+//                this: a plain receiver-taking face for Destroy would fix the
+//                func_0201a428 caller and BREAK this veneer, which reaches the
+//                same name with the receiver only in ECX. The veneer TU has to
+//                change in the same commit as any Destroy fix.
 //   ResizeToFit  src/_ZN9ActorBase9Virtual34Ejj.cpp pushes the heap at :57,
 //                :116 and :123, and Virtual34 is slot 13 of _ZTV5Actor, which
 //                THIS FILE seats. Nothing dispatches it on the castle grounds
@@ -72,7 +91,26 @@
 // The SolidHeapAllocator pair further down runs the other way (thiscall LHS,
 // flat C RHS whose first stack argument is the receiver), so both arguments
 // shift by one; those reach through slots 3 and 8 of the table seated below.
-// None of that is fixed here. Each wants its own lane and its own drive.
+// None of that is fixed here.
+//
+// THE SIBLING-LANE RULING, from the review of this lane, so the file carries
+// it rather than a status note nobody reads:
+//   * A DRIVE IS NOT REQUIRED to settle any of the three families. Probe and
+//     disassembly evidence is decisive on its own, and the precedent is the
+//     seven bytes of this very body: ?SetDefault@Heap@@QAEHXZ compiles to
+//     `mov eax,[data_020a0ea0]; mov [data_020a0ea0],ecx; ret`, which reads ECX
+//     and never touches a stack slot. That settles the ABI question without
+//     reaching the code at run time, and the same reading settles the rest.
+//   * SolidHeapAllocator GOES FIRST. It is the only SILENT corrupter of the
+//     three: size lands in the receiver slot and align lands in size, so the
+//     call returns a plausible pointer out of the wrong arena instead of
+//     faulting, and it is reached through slots 3 and 8 of the table seated
+//     below. A wrong pointer that looks right outranks a crash.
+//   * Destroy IS SEQUENCING-GATED and must land BEFORE the scene 1 unblock
+//     lane, by the same rule stage_lifecycle_map.txt section 11g states for
+//     the unlinked SetDefault carriers: unblocking scene 1 is what puts
+//     func_ov007_020cc4c0 on a path, and a lane that does it first inherits
+//     the fault with none of this evidence.
 #pragma comment(linker, "/alternatename:__ZN4Heap7DestroyEv=?Destroy@Heap@@QAEXXZ")
 #pragma comment(linker, "/alternatename:__ZN4Heap11ResizeToFitEv=?ResizeToFit@Heap@@QAEIXZ")
 // G is the ROM's shorthand for the default-heap pointer (decl_common.h
@@ -234,7 +272,19 @@ static int __fastcall ab_v38(void *s, void *, u32 a, u32 b)
 
    NOT A SHADOWING DEFINITION ON TOP OF THE DIRECTIVE. The directive is gone.
    Leaving both would strongly define the LHS, which is exactly the arrival
-   shape port/tools/alternatename_guard.py fails the build on. */
+   shape port/tools/alternatename_guard.py fails the build on.
+
+   AND DELETING IT EXPOSED A SCOPE BUG IN THAT GUARD, recorded here for the
+   lane that fixes it. The guard reads a bare /alternatename line in ANY
+   port/*.txt as a linker input, so section 11d's PROSE QUOTATION of this
+   directive counted as one, and the build failed by name the moment this face
+   defined the LHS. The quote is annotated "(DELETED by lane LK4)" for that
+   reason, and the annotation is load-bearing: remove it and the build stops.
+   The guard's own docstring says of txt directives "None exist today", which
+   is false both at this lane's base and at its tip. THREE such lines exist:
+   stage_lifecycle_map.txt:995 and :1084 and ov007_seat.txt:444. The other two
+   pass only because their aliases still fire, so each is armed for whoever
+   correctly deletes one. */
 extern "C" int _ZN4Heap10SetDefaultEv(void *thiz)
 { return ((Heap *)thiz)->Heap::SetDefault(); }
 
