@@ -951,6 +951,34 @@ absent, while the data rows are present because they have other references.
 Section 7's T4 note predicted exactly this and it is confirmed here. The ~490
 cluster does not begin to unlock until the seat is real.
 
+AND THEN IT WAS NOT ZERO, WHICH IS THE CORRECTION 11a OWES ITSELF. The zero
+above is the reading at the WIRING commit and it stands for that commit. At the
+lane tip, with the env-gated route in hal/stage_bridges.cpp's slot-0 thunk, the
+gate reads
+
+    linked  5533 -> 5552  (+19),  49.2% -> 49.4%,  battery ALL GREEN
+
+because the thunk now REFERENCES port_slot0_rom_init, which references
+Stage::InitResources, which references the whole slice -- so /OPT:REF stops
+dropping it. The +19 is exact and it accounts for itself: the slice is 32
+matched TUs, 14 of which were already in the image from other slices (the
+closure probe's DUP-DEF list, every one confirmed to come from an object of the
+same file name), leaving 18; the nineteenth is
+src/engine/fader/_ZN9FaderWipe14LoadAndSetFileEt.cpp, which lane SL0 already
+named on all three targets and which /OPT:REF had been dropping because the
+only thing referencing it -- the face in hal/fader_wipes.cpp -- had itself been
+dropped for want of a caller.
+
+READ THAT DELTA WITH ITS QUALIFIER AND DO NOT BANK IT AS A SEAT. Nineteen
+matched bodies are in the binary that were not, which is what linkage.py counts
+and it is a real number. None of them EXECUTES unless SM64DS_SLOT0_ROM is set,
+because mode 0 returns before the call. That is a weaker edge than section 9's
+slot 12, where the body executes whenever the game reaches the path, and this
+file is not going to blur the two. What the +19 buys is that the closure is
+demonstrably whole -- every one of those bodies is in the image and resolves --
+and what it does not buy is the lifecycle.
+
+
 11b. THE data_0209f324 COLLISION: THE HOST ARRAY YIELDS, AND IT ALREADY CAN
 
 THE DESIGN DECISION, with its reasoning, because section 7 asks for one.
