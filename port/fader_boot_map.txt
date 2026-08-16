@@ -280,6 +280,17 @@ a regression assertion on this seat.
 7. TWO HAZARDS THIS SEAT DOES NOT OWN, WRITTEN DOWN SO THEY ARE NOT REDISCOVERED
 
 7a. TWO CALLING CONVENTIONS THROUGH ONE TABLE.
+[REFUTED IN PART, run link60 lane NFS, coordinator note. The paragraph below
+argues the fill's no-stack-parameter __fastcall thunks are balanced for both
+caller shapes. Scene 374's first behaviour tick FALSIFIED that for the pushed-
+argument case: Scene::BeforeBehavior pushes 0 and 0x1E into [vt+0x0c] and
+cleans NOTHING after the call, so the fastcall stub leaks eight bytes and ret
+lands on the caller's saved esi. Slot 0x10 carries the identical defect on its
+branch. The instruction-level mechanism, register file and fix shape are in
+port/nfs_names_map.txt section 7; the fix (ABI-correct stubs or ROM bodies for
+0x0c and 0x10 plus an audit of all twelve stub signatures) belongs to the seat
+this file documents. Read the paragraph below as the design intent that was
+refuted, kept for the record.]
 Scene::SetFaders touches a fader both ways in one function: `thiz->v24()` is a
 local C++ class, __thiscall, receiver in ECX; `data_0209f5bc->vt->f14(
 data_0209f5bc)` is a hand-written struct of function pointers, cdecl, receiver
