@@ -20,17 +20,6 @@
 # exactly what it said for FLAG.
 Bird_SpawnInfo:0x1c CastleWater_SpawnInfo:0x1c MetalNet_SpawnInfo:0x1c Flag_SpawnInfo:0x1c
 
-# ---- FLAG's own SharedFilePtr record -----------------------------------
-# data_ov009_02112238 is a named config symbol this list used to omit, so it
-# fell inside the synthetic gap block port_ov009_gap_0211222c and out of the
-# captured span with it. Listing it makes it hosted storage in its own right:
-# the pointer the mount patches into data_ov009_02112bc4+20 is the DS address
-# exactly, and a named symbol beats a gap block in ovdata's covering rule, so
-# the write follows the name into .dsstate. Size comes from the next config
-# symbol (0x02112254), which is 0x1c, so the whole record is one host object
-# and no pin is needed.
-data_ov009_02112238
-
 # ---- .data: the three CLPS blocks and the water's texture animation ----
 data_ov009_02112bc4 data_ov009_02112bf8 data_ov009_02112c38
 # the four {function, delta} pairs __sinit_ov009_02112458 copies into the
