@@ -251,12 +251,20 @@ it ever built a table. A uniform table is a rectangle, and a rectangle that
 does not change is not a wipe.
 
 WHAT CHANGES IT IS func_0202f428, dWipe_c slot 0x08, AdvanceFade. Read the
-body: it is the only writer of the object's +0x1c (interpVal) and +0x20, it
-steps them by the per-frame deltas the setters computed, and its last statement
-is func_0202f290(obj) -- THE TABLE REBUILD. func_0202f290 is called from
-exactly two places, func_0202f58c (twice, at arm time, once per buffer) and
-this. So slot 0x08 is not merely the fade's clock, it is the only thing that
-ever writes a second table.
+body: it STEPS the object's +0x1c (interpVal) and +0x20 by the per-frame deltas
+the setters computed, and its last statement is func_0202f290(obj) -- THE TABLE
+REBUILD.
+
+BE PRECISE ABOUT "ONLY", because a draft of this paragraph was not and the
+correction is the interesting part. func_0202f428 is NOT the only writer of
+interpVal: func_0202f708 sets it to 0x200000 and func_0202f928 sets it to 0,
+both at arm time, and that is exactly why the table is uniform rather than
+absent. What func_0202f428 is the only thing to do is CHANGE IT AFTER ARM
+TIME -- it is the only `+=` on the field in the image, and the setters' writes
+are single stores that happen once. The same distinction applies to the
+rebuild: func_0202f290 has exactly two callers, func_0202f58c (twice, at arm
+time, once per buffer) and func_0202f428, so slot 0x08 is the only thing that
+ever writes a SECOND table.
 
 THE REPRODUCTION IS THE AFTER ROW IN SECTION 5. `1 run(s) of equal rows across
 114816 read(s)` is the assertion: with slot 0x08 seated and driven it becomes

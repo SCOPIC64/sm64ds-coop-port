@@ -654,10 +654,12 @@ counted; nothing calls it now, and that is written into the unproven items.
      alone would not have moved the fade, and neither does the HBlank edge
      alone: every one of the 384 rows holds the same four bytes, 80807F7F,
      which is what func_0202f928 wrote to WIN0H/WIN1H directly at arm time.
-     func_0202f428 is the only writer of interpVal AND the only caller of the
-     table rebuild func_0202f290 outside arm time, so section 4a's trap is
-     now the whole of the remaining distance. Its acceptance test is the
-     `1 run(s) of equal rows` line the scene run prints.
+     func_0202f428 is the only thing that CHANGES interpVal after arm time
+     (the two setters store it once each, which is why the table is uniform
+     rather than absent) and the only caller of the table rebuild
+     func_0202f290 outside arm time, so section 4a's trap is now the whole of
+     the remaining distance. Its acceptance test is the `1 run(s) of equal
+     rows` line the scene run prints.
      A SECOND GATE WAS FOUND UNDERNEATH THIS ONE and is worth knowing before
      anyone arms another interrupt: IME was never seated on any walk_window
      path, and the arming brackets in func_0202f708 and func_0202f928 SAVE
