@@ -50,8 +50,11 @@
 extern "C" {
 
 /* The port's file loader (hal/level_boot.cpp): LoadFile(handle) -> decompressed
-   bytes, cached one SharedFilePtr per handle. This is the same entry the
-   matched LoadMessageBankForLanguage calls. */
+   bytes on a freshly allocated block, which is the ROM's contract; the table
+   there records the last block per handle, it does not serve one twice. This
+   is the same entry the matched LoadMessageBankForLanguage calls, and the bank
+   is loaded exactly once (port_message_archive_seat gates on
+   data_0209d70c[0]). */
 void *LoadFile(int handle);
 /* hal/level_boot.cpp: keep this handle's image across level teardowns */
 void port_loadfile_pin_persistent(int handle);
