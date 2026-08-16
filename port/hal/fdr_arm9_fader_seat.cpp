@@ -544,8 +544,26 @@ void fdr_trap(const char *slot, const char *rom_body)
    That makes the stack-parameter spelling correct BY THE LANGUAGE and not by
    what a particular codegen happened to leave in ECX, which is the difference
    between this slot and the three dormant-hazard sites the unproven items in
-   port/fader_boot_map.txt list. A __fastcall stub here would read ECX, and at
-   this call site ECX holds the VTABLE rather than the object.
+   port/fader_boot_map.txt list.
+
+   A __fastcall STUB WOULD ALSO HAVE WORKED HERE, and saying so is the point
+   rather than an admission. Read out of this lane's own walk_window.exe:
+
+       +0x00  mov ecx, dword ptr [_data_0209d4ac]
+       +0x06  test ecx, ecx / je
+       +0x0a  mov eax, dword ptr [ecx]
+       +0x0c  push ecx
+       +0x0d  mov eax, dword ptr [eax + 8]
+       +0x10  call eax
+       +0x12  pop ecx
+
+   ECX still holds the object at the call, so a stub that read it would get
+   the right receiver -- by the same coincidence, and with the same absence of
+   any guard, as the three sites the unproven items already name. THIS DRAFT
+   PREDICTED ECX WOULD HOLD THE VTABLE and the disassembly says otherwise; the
+   prediction is recorded because it is the reason the stack spelling was
+   chosen, and the choice survives being wrong about the codegen, which is
+   exactly what "correct by the language" buys.
 
    THE CLEANUP IS BALANCED FOR BOTH SHAPES EVEN SO, which is why the choice
    costs nothing: __cdecl cleans nothing, a shape C caller cleans its own four
