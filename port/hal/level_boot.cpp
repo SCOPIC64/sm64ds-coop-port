@@ -2232,7 +2232,7 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn);
 /* The scene root, and the level model loader the boot below now calls in the
    ROM's order. port_stage_object returns null before port_stage_create has
    run, which is the legacy no-Stage boot; _ZN5Stage9LoadModelEv is matched
-   src, on slice_gate24 and already linked. */
+   src, on slice_gate26.txt:29 and already linked. */
 extern "C" void *port_stage_object(void);
 extern "C" void _ZN5Stage9LoadModelEv(char *self);
 
