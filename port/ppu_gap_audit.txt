@@ -636,21 +636,133 @@ STILL OPEN, NAMED RATHER THAN CLOSED
     the game leaves it at 0, which it does on every run measured so far.
   * Engine A OBJ extended palettes are unmodelled and unmeasured, for the
     reason given above: no ROM-derived base exists in this tree.
-  * THE BAND WANTS A LINK-TIME GUARD, and port_gxbank_layout_check is not it.
-    The runtime check does work -- negative-tested by mis-aligning one band
-    member on purpose, which moved 609c to +26 and 60a0 to +30, printed both
-    diagnostic lines and took the run down nonzero under SM64DS_FAULTS_FATAL --
-    but it checks two of the thirteen offsets, on one code path, in binaries
-    that link hal/sub_screen.cpp. The band's thirteen deltas
-    are all stated in config/arm9/symbols.txt, and walk_window.map has the
-    addresses the linker actually chose, so the honest form is a post-link pass
-    asserting all thirteen -- the slot build-port.cmd already runs
-    alternatename_guard --map in. Sized as feasible on this tree by review.
-    Not built here: a new guard plus its wiring is its own change, and the
-    runtime check is what stands until it exists.
+  * THE BAND WANTED A LINK-TIME GUARD, and it has one: section 11a.
   * hal/sub_screen.cpp's Stage bring-up sets DISPCNT_B bit 30 by hand, on the
     stated grounds that the bank allocator under GXS::EndLoadBGExtPltt is not
     hosted. It was hosted; the restore was landing on the wrong word, and the
     band fixes that. So the hand-set is probably redundant now. Proving it
     needs a minimap run with the line removed, and that bring-up belongs to the
     SUB lane.
+
+11a. THE LINK-TIME BAND GUARD, AND WHAT THE RUNTIME CHECK CANNOT SEE
+---------------------------------------------------------------------
+Run link60 Stage 5, lane GBG, base 6f7bc744d, gate GREEN 5831/11250 (51.8%),
+battery ALL GREEN, one skip.
+
+port/tools/gxband_guard.py is the post-link pass the bullet above asked for.
+It reads the expected offsets out of config/arm9/symbols.txt at run time and
+the produced ones out of every walk_window.map the build writes, and it fails
+the build when they disagree. It runs in build-port.cmd's post-link slot, the
+one alternatename_guard --map already occupied, and its fixture battery runs
+before configure with the other selftests.
+
+WHY A NEW TOOL RATHER THAN AN EXTENSION. alternatename_guard owns that slot but
+its whole domain is the fate of an /alternatename directive -- its baseline
+file, its scoping rules and its selftest are that one question, and two
+unrelated failure classes behind one exit code is how a selftest stops covering
+its subject. dsstate_guard is the closer relative (it reads the map, it
+polices hosted DS globals) but it asks a binary membership question with no
+config input, wired POST_BUILD on walk_window alone, which is the one-target
+coverage this change exists to remove. What is reused rather than re-invented
+is the map-reading discipline already paid for here: faultmap's row shape and
+Rva+Base convention, and closure.map_defined's refusals for a missing,
+zero-byte, row-less or trailer-less map.
+
+TWO BANDS, NOT ONE. The undersized-hosted-global family produced three catches
+this run, and the two that are contiguity questions are declared together:
+
+    gxbank   0x020a6088..0x020a60a4   13 config members, end IS a config row
+    dtcm     0x023c0000..0x023c4000    1 config member, end is the ARM9 TCM
+                                       extent and says so in prose
+
+Only the GX band's numbers come entirely from a symbols.txt. The DTCM's 16 KB
+is a hardware extent -- config/arm9/dtcm/delinks.txt describes 0x20 bytes of
+initialized .data and nothing more -- so the declaration carries a provenance
+string and the guard prints that instead of claiming the config said it. The
+third catch of the run, the fader seat's, is a single hosted global sized by
+its config next-symbol delta and is NOT a band; sweeping every hosted global
+against that rule is a different and much larger tool, and plenty of hosted
+globals are deliberately smaller than their gap.
+
+WHAT IT ASSERTS, five arms, each with a fixture break only it catches:
+presence of every member; every consecutive delta against the config delta;
+no foreign symbol strictly inside the span; the span fitting inside its image
+section; and -- because the map's section table lists one row per contribution,
+so the grouped-section remedy publishes each member's length -- every member's
+SIZE where the map states one. Twelve of the GX band's thirteen deltas are
+measured between symbol pairs. The thirteenth is data_020a60a0's four-byte
+tail, which no member follows: exclusion and containment assert it
+structurally, and on this tree's layout the size arm measures it outright
+(.dsstate$gxbank12's row says four bytes). 28 selftest arms, all green.
+
+REACH, MEASURED OFF THIS BUILD'S OWN MAPS. /MAP is on
+CMAKE_EXE_LINKER_FLAGS, so all 21 executables write one.
+
+    hosts the band (_data_020a6088 defined)      3   smoke_player,
+                                                     walk_window,
+                                                     walk_window_hires
+    carries port_gxbank_layout_check             2   walk_window,
+                                                     walk_window_hires
+    carries its only caller,
+      hal_sub_screen_init_hw                     2   the same two
+
+smoke_player hosts the band and has NEITHER the check nor its caller in the
+image: both are unreferenced there and /OPT:REF took them. So a third of the
+targets that can carry this bug could never have reported it, and the two that
+can only do so if that bring-up runs.
+
+THE BREAK-PROOF, two mutations, both built and both restored.
+
+M1, SUB2's own recipe: align(8) on data_020a609c. walk_window and
+walk_window_hires came out with 609c at head +0x18 -- which on the DS is
+data_020a60a0, so SetBankForSubOBJExtPltt's +0x18 store would have landed on
+609c -- and the guard failed the build naming the pair and both deltas.
+SMOKE_PLAYER CAME OUT INTACT: its band head landed at 0xb4 rather than 0xb8,
+609c was already 8-aligned, and the same source defect produced a correct
+layout there. One source change, a broken band in two targets and a sound one
+in the third, decided by where the head landed. That is the argument for
+checking every map rather than walk_window's, and it is not an argument
+anything running inside one binary can make.
+
+M2, the one the runtime check cannot see: data_020a60a0 hosted at 2 bytes
+instead of 4. The two offsets port_gxbank_layout_check tests are 609c at +0x14
+and 60a0 at +0x18, and BOTH STAY CORRECT -- only the tail member's length is
+wrong. The link-time guard failed all THREE hosting targets, naming the cause
+(the contribution row is 2 bytes, the ROM gives it 4) and, in smoke_player, the
+casualty: data_0209f310 out of actor_classes_star.cpp packed into the two bytes
+at +26, both its spellings. Then the same binary was run:
+
+    walk_window.exe SM64DS_SCENE=4 SM64DS_SCENE_FRAMES=30 SM64DS_FAULTS_FATAL=1
+    -> exit 0, "30 frames of scene 4 (SCENE_STAR_SELECT), clean",
+       not one diagnostic line from the layout check
+
+The runtime check reads GREEN over a band whose last member is half its size
+and whose last two bytes belong to another symbol. That is the proof it cannot
+give and the reason the link-time pass exists.
+
+UNPROVEN, AND THE BOUNDARIES
+
+  * The guard does not size a member that shares a contribution row. Only a
+    member with a row of its own reaches the size arm; data_023c0000 is one
+    that does not, so its 16 KB is proved by what follows it, not read off the
+    map.
+  * A symbol at exactly a member's address is excused as an alias. Every real
+    build has such rows (a fired /alternatename, MSVC's decorated spelling),
+    the linker does not overlap storage, and what that costs is telling an
+    alias from a zero-length decoy.
+  * Nothing here says the port_gxbank_layout_check call should go. It is
+    cheaper than this guard at what it does cover and it is the only thing
+    that speaks during a run; the case for retiring it was not made and was
+    not attempted.
+  * M1 and M2 were both built and both restored, and the tree was returned to
+    HEAD's bytes; no measurement in this section was taken off a mutated
+    tree that is still on disk.
+  * The DTCM band was proved GREEN on three maps and its failure arm was
+    proved on fixtures, not on a real short-hosted build. Re-sizing
+    data_023c0000 for real would have been a second full rebuild for an arm
+    the GX band already exercised end to end.
+  * The ORIGINAL split -- the head hosted alone in another file with the
+    twelve members somewhere else, which is the state SUB2 found -- is a
+    selftest fixture here and was not reproduced in a real build. Doing that
+    means reverting the band fix, and M1 and M2 already broke a real link two
+    different ways.
