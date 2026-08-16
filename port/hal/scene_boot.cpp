@@ -743,20 +743,23 @@ static void l2_fill_0208ea6c(void)
     ((void **)data_0208eafc)[1] = (void *)l2_vt_trap;
 }
 
-// ---- 3. TWENTY-ONE TRAPPING SITES, AND HOW THEY COUNT ----------------------
+// ---- 3. TWENTY TRAPPING SITES, AND HOW THEY COUNT --------------------------
 //
-// WAS TWENTY-FOUR. Three ov007 traps came out when their matched TUs arrived
-// (section 3a).
+// WAS TWENTY-FOUR, then twenty-one. Three ov007 traps came out when their
+// matched TUs arrived, and a fourth came out WITHOUT a match: run link60 lane
+// SC1 gave func_ov007_020c9688 a host transcription instead
+// (port/unmatched/Ov007_OamCellBank_020c9688.cpp), which is a different kind of
+// retirement and section 3a says so.
 //
-// COUNT THEM AS 20 L2_UNMATCHED BODIES PLUS ONE TRAP-FILLED VTABLE, because
-// they are not the same kind of thing and one number hides that. The 20 are
+// COUNT THEM AS 19 L2_UNMATCHED BODIES PLUS ONE TRAP-FILLED VTABLE, because
+// they are not the same kind of thing and one number hides that. The 19 are
 // functions with no C anywhere in the tree, each standing where a body would
-// be. The 21st is the twelve slots of data_0208ea6c (section 2b), which all
+// be. The 20th is the twelve slots of data_0208ea6c (section 2b), which all
 // point at one shared trap: a hosted arm9 vtable this lane chose to fill
-// loudly rather than leave carrying raw DS words. One counter covers all 21
+// loudly rather than leave carrying raw DS words. One counter covers all 20
 // and the run prints it, so "none of them fired" is a measurement.
 //
-// ---- 3a. SIXTEEN UNMATCHED ov007 BODIES ------------------------------------
+// ---- 3a. SIXTEEN UNMATCHED ov007 BODIES, FIFTEEN OF THEM TRAPPED -----------
 //
 // WAS NINETEEN. Three of them are decompiled now and the traps are gone:
 // func_ov007_020beeb0, func_ov007_020c7d60 and func_ov007_020cbbb0 landed on
@@ -784,6 +787,24 @@ static void l2_fill_0208ea6c(void)
 // NONE OF THE NINETEEN FIRED IN ANY RUN THE SEATING LANE MADE, and none of
 // the sixteen has fired since; port/ov007_seat.txt carries the counter
 // readback for the nineteen and the gate manifest carries it for the sixteen.
+//
+// FIFTEEN OF THE SIXTEEN ARE TRAPPED. THE SIXTEENTH IS TRANSCRIBED, and the
+// distinction is the whole of run link60 lane SC1. func_ov007_020c9688 is the
+// one the trap list can no longer carry, because a trap there is not a
+// coverage statement, it is scene 1's block: the trap returned 0 six times,
+// func_ov007_020ade58 dereferenced one of them, and the title screen could not
+// come up at all. port/unmatched/Ov007_OamCellBank_020c9688.cpp is a HOST
+// TRANSCRIPTION of the ROM's 192 instructions at that address, derived at the
+// config-aligned base out of extracted/overlays/overlay_0007.bin with all four
+// of its relocations resolved and its one literal-pool word read.
+//
+// IT IS NOT A DECOMP AND IT DOES NOT PRETEND TO BE ONE. It is not scored by
+// match.py, not counted by linkage.py, and it carries no
+// "recovered from vtable slot identity" marker, so the inferred-stub guard
+// neither counts it nor should. The number above stays at sixteen because the
+// DECOMP is still sixteen short; the crack side owns closing it, and the day
+// src/func_ov007_020c9688 exists the interim leaves the build in the same
+// configure that notices.
 static unsigned g_l2_trap_hits;
 static void l2_trap(const char *name)
 {
@@ -816,7 +837,15 @@ L2_UNMATCHED(func_ov007_020c20b8)
 L2_UNMATCHED(func_ov007_020c368c)
 L2_UNMATCHED(func_ov007_020c4684)
 L2_UNMATCHED(func_ov007_020c6e68)
-L2_UNMATCHED(func_ov007_020c9688)
+/* func_ov007_020c9688 WAS HERE AND IT IS THE ONE THAT CAME OUT WITHOUT A
+   DECOMP. It is still unmatched on main, so section 3a's sixteen is still
+   sixteen; what changed is that this address now has a body in the port and no
+   longer needs a trap. port/unmatched/Ov007_OamCellBank_020c9688.cpp is a HOST
+   TRANSCRIPTION read off extracted/overlays/overlay_0007.bin, and it retires
+   itself the day src/ gains the match (the CMake block that adds it is guarded
+   on the src TU not existing). Defining the trap as well would be an LNK2005,
+   and leaving the trap INSTEAD would be choosing a known-wrong answer over a
+   derived one now that somebody has read the ROM at that address. */
 L2_UNMATCHED(func_ov007_020caeac)
 L2_UNMATCHED(func_ov007_020cb4b0)
 L2_UNMATCHED(func_ov007_020cb7c0)

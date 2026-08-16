@@ -289,7 +289,15 @@ questions port/ov004_ov007_2d_map.txt section 7 asks about ov007 are exactly as
 unmeasured as they were before this lane. NOBODY HAS SEEN A TITLE-SCREEN PIXEL.
 
 
-5. WHERE IT STOPS: AN UNMATCHED ROM FUNCTION
+5. WHERE IT STOPPED IN LANE L2: AN UNMATCHED ROM FUNCTION
+---------------------------------------------
+    SUPERSEDED BY SECTION 5a. Everything below this line is lane L2's reading
+    at the time it seated the class, and it was right. Run link60 lane SC1
+    retired this particular stop with a host transcription of
+    func_ov007_020c9688, the scene got further, and section 5a is where it
+    stops now. Kept because the derivation of the OLD stop is still the
+    template for reading the new one, and because a converted row that hides
+    what it converted is a row nobody can check.
 ---------------------------------------------
 
     FAULT code c0000005 at +0x000296f0 accessing 0000000c
@@ -387,6 +395,110 @@ because both are traps the next lane will meet:
      group are filled by scene_fill_title now. The one that caught it was a
      fault at eip 0x01cccab4 accessing 0x020ccab4 -- func_ov007_020ccab4's DS
      address dispatched as a host one.
+
+
+5a. WHERE IT STOPS NOW (run link60 lane SC1)
+---------------------------------------------
+
+THE OLD STOP IS RETIRED AND NOT BY A DECOMP. func_ov007_020c9688 is still
+unmatched on main, so ov007's sixteen is still sixteen. What changed is that
+the port no longer stands a trap at that address: it stands
+port/unmatched/Ov007_OamCellBank_020c9688.cpp, a HOST TRANSCRIPTION of the
+ROM's 192 instructions there, derived at the config-aligned base 0x020ad660 out
+of extracted/overlays/overlay_0007.bin with all four relocations resolved (all
+arm_call, all to matched bodies), the single literal-pool word read (0x000001ff
+at 0x020c9984, no relocation row, a mask and not an address) and zero relocated
+DATA words to adjudicate. That file's banner is the derivation; this section is
+only the consequence.
+
+THE CONSEQUENCE IS THAT THE SCENE GETS FURTHER, and the trap counter is how we
+know rather than a claim. func_ov007_020c9688 does not appear once in a scene-1
+run now; the whole
+func_ov007_020b7138 -> func_ov007_020b68e8 -> func_ov007_020b6d40 subtree
+completes, including the six container builds the old trap broke and the nine
+func_ov007_020ade58 objects that dereferenced its zero, and InitResources
+returns from it and moves on to its NEXT call.
+
+THE NEW STOP, symbolized against this tree's own walk_window.map:
+
+    FAULT code c0000005 at +0x0002bc84 accessing 00000094   (eax 0)
+
+    func_ov007_020b066c   +0x124   <- the fault
+    func_ov007_020aed98   +0x66
+    func_ov007_020b7090   +0x70
+    func_ov007_020cc4c0   +0xcf    <- InitResources, one call further on
+    ti_init               +0xc
+    func_0204335c / func_020433b8 / func_02043098 / func_02042fe4
+    Scene::SpawnIfNecessary / port_scene_run / main
+
+The host instructions at the fault, out of dumpbin:
+
+    0042BC7E  mov  eax, dword ptr ds:[00C67770h]   data_ov007_0210342c
+    0042BC7E  mov  eax, dword ptr [eax+0F4h]
+    0042BC84  mov  dword ptr [eax+94h], 0          <- eax is 0
+
+IT IS THE SAME CLASS OF BLOCKER, ONE ADDRESS ON, AND THE OWNER IS NAMED.
+The scene state's +0xF4 field is null because src/func_ov007_020b69c4.c ZEROES
+it during setup and no matched TU in the tree ever writes it back: a grep of
+every src/ reference to data_ov007_0210342c finds exactly one assignment to
++0xF4 and it is that zero. The ROM body that fills it is
+func_ov007_020b2998 (0x020b2998, 0x23c bytes), which is UNMATCHED and trapped,
+and its own instruction says so:
+
+    020B29A4  ldr  r0, [pc, #0x218]      -> data_ov007_0210342c
+    020B29B8  bl   #0x20b2bd4             func_ov007_020b2bd4
+    020B29BC  ldr  r1, [pc, #0x200]      -> data_ov007_0210342c
+    020B29C0  ldr  r2, [r1]
+    020B29C4  str  r0, [r2, #0xf4]       <- the field, from that call
+
+read off extracted/overlays/overlay_0007.bin. The trap for it fires exactly
+once in a scene-1 run, immediately before the fault, which is the run's own
+corroboration of the static reading.
+
+THE FIX IS A DECOMP AGAIN, and this time the port has a second option it did
+not have before: the same interim treatment could be applied to
+func_ov007_020b2998. THIS LANE DID NOT DO THAT, deliberately. One interim is a
+bridge over a hole the crack side is already working; a habit of them is the
+port quietly forking from the decomp, which is the thing
+port/tools/linkage.py's north star exists to prevent. Whoever picks this up
+should want a real match first and reach for a transcription only if the
+address is genuinely stuck.
+
+ALSO STANDING IN THE SAME RUN, and none of them is the stop: func_ov007_020b46b0
+enters 24 times (the loop in src/func_ov007_020aed98.c runs it 0x18 times),
+func_ov007_020c20b8 once, func_02054c80 once, and one data_0208ea6c vtable slot
+once. They return 0 and the run keeps going, so they are debt rather than
+blockers today, and the run reports them by name every time.
+
+THE HEAP DESTROY DISPATCH WAS LOOKED FOR AND IS NOT REACHED, which matters
+because run link60 lane LK5 fixed the receiver delivery on that path and the
+scene-1 unblock was supposed to be its first real drive. Measured with a
+throwaway probe in ti_init, not reasoned:
+
+    SC1PROBE ti_init entry data_0209d524=00000000
+
+src/func_ov007_020cc4c0.cpp opens `if (data_0209d524 != 0) func_0201a428();`,
+so with the global null the branch is not taken and Heap::Destroy is never
+dispatched. The global has exactly one non-zero writer in the tree,
+src/func_0201a458.c (Heap::CreateRootHeap over the ov region), and nothing on
+the scene-1 path runs it. A second probe on the face itself stayed silent,
+which is the corroborating negative.
+
+WHAT THE SAME PROBE DID PROVE, with the ROM's own caller rather than a
+synthetic rig, by seeding a decoy heap into data_0209d524 at InitResources
+entry so the branch takes:
+
+    SC1PROBE seeded data_0209d524=009125F8 (decoy heap)
+    SC1PROBE _ZN4Heap7DestroyEv receiver=009125F8
+    SC1PROBE VDestroy slot 2 ran, self=009125F8
+
+The receiver survives func_ov007_020cc4c0 -> func_0201a428 -> the ROM's veneer
+-> the flat C face -> Heap::Destroy -> the slot 2 dispatch, one value, unchanged
+at every hop. That is a stronger exercise than LK5 could run (its evidence was
+a standalone rig, because scene 1 was blocked) and it is still NOT a drive: the
+heap is fabricated. The honest statement is that the delivery is correct and
+the real caller is still gated behind a null global. Both probes were stripped;
+neither is in the tree.
 
 
 6. WHAT LINKS, AND WHAT WAS DELIBERATELY NOT TAKEN
