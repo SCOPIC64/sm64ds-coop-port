@@ -660,7 +660,23 @@ void ppu_compose_stacked(const uint32_t *top, const SubFramebuffer &sub,
             uint32_t p = src[sx < SUB_W ? sx : SUB_W - 1];
             if (evy) {
                 /* the same expression walk_window's fade composite runs over
-                   the framebuffer, so the two halves fade together */
+                   the framebuffer, so the two halves fade together.
+
+                   AND THE QUESTION UNDER IT IS OPEN. evy comes from
+                   port_fader_blend_state, which reads the MAIN engine's
+                   BLDCNT/BLDY at 0x4000050 and 0x4000054. This copy exists
+                   because the corner panel gets that fade today, and it gets
+                   it by accident: the panel is inside the framebuffer when
+                   walk_window's fade loop runs over it. Whether engine A's
+                   fade belongs on the SUB screen AT ALL on hardware is a
+                   question nobody has opened. The sub engine has its own
+                   master brightness at 0x0400106C and ppu_scanout_sub above
+                   already applies it, so this may well be a second fade on
+                   top of the right one. Reproducing today's behaviour is
+                   deliberate, so that switching layout changes the layout and
+                   nothing else; it is not a claim that today's behaviour is
+                   correct. No run has yet exercised a fade in the stacked
+                   layout. */
                 int r = (p >> 16) & 0xff, g = (p >> 8) & 0xff, b = p & 0xff;
                 if (to_white) {
                     r += ((255 - r) * evy) >> 4;

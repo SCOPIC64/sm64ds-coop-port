@@ -2998,9 +2998,12 @@ int main(void)
        layout that could change after this point would leave the picture and
        the frame permanently out of step. On this path the answer can only ever
        come from SM64DS_DUAL_SCREEN, because a scene run never reaches this
-       line -- port_scene_run takes the process at line 2409, before the window
-       exists -- so a minigame's own default is decided in the scene runner and
-       an interactive stacked run is asked for by the env. */
+       line: main's `if (port_scene_env_want() >= 0) return port_scene_run();`
+       takes the whole process well above here, before the window exists. So a
+       minigame's own default is decided in the scene runner and an interactive
+       stacked run is asked for by the env. (That hand-over was cited by line
+       number here and the number was already stale by four commits. Naming the
+       call survives every edit above it; a line number does not.) */
     const int stacked = hal_sub_screen_stacked();
     /* AND IT DOES NOT TAKE THE ZOOM WITH IT, which is measured rather than
        tidy. ZOOM is 2 at the 2x tier, so SCREEN_W x STACK_H x ZOOM is

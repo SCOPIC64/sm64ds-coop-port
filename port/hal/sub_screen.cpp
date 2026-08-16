@@ -1132,6 +1132,14 @@ int hal_present_client_to_sub(int cx, int cy, int *dsx, int *dsy)
  * check. This drives the SAME function poll_touch drives, against the SAME
  * present rectangle, so it is the real arithmetic and not a restatement of it.
  *
+ * IT PRINTS TO STDERR, AND ON A SCENE RUN STDERR IS NOT ON YOUR TERMINAL.
+ * walk_window's flight recorder takes stderr into playlog/play_*.log on every
+ * path that is not a window selftest, which is exactly the headless path this
+ * probe exists for, so a reproducer that greps its own console counts zero
+ * lines and reads that as the probe not firing. Either add
+ * SM64DS_NO_PLAYLOG=1, or read playlog/. A windowed SM64DS_WINDOW_SELFTEST run
+ * is the one case where the recorder is off and stderr arrives directly.
+ *
  * It reads no mouse and writes no stylus. It is a printer.
  */
 void hal_touch_client_probe(void)
