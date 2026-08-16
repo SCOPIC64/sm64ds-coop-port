@@ -1005,3 +1005,46 @@ counted; nothing calls it now, and that is written into the unproven items.
     the object in ECX as well, which was checked instruction by instruction.
     Nothing enforces that; a recompile that schedules ECX differently would
     break those two slots silently, and no guard in the tree would notice.
+
+    [NO LONGER DORMANT, run link60 Stage 5 lane SEAT8. func_02018efc is a
+     FOURTH site of the same shape and it runs every frame of every scene,
+     including all 46 levels, where it reaches hal/fader_wipes.cpp's host
+     HalFaderWipe::AdvanceFade -- a real MSVC __thiscall virtual that reads
+     ECX. It works for the same reason and with the same absence of a guard:
+     `mov ecx, [data_0209d4ac]` puts the object in ECX and nothing clobbers it
+     before the call. Slot 0x08's own stub does not depend on that, because it
+     is declared for the stack receiver, but HalFaderWipe's method has no such
+     option. The routed fix is unchanged and is hal/fader_wipes.cpp's own:
+     ROM-SHAPED vtables for the host wipe objects.]
+
+  * SEAT8's OWN UNPROVEN ITEMS, kept together because they are all "linked
+    and not exercised" rather than four separate doubts.
+
+      HALF OF func_0202f428 HAS NOT RUN. Scene 374 reaches SetBackwardTime,
+      so the body's case 1 (the ascending ramp, clamp at 0x200000) is what
+      the 45 frames exercise. Case 3 -- the descending ramp with the two
+      _ZN3G2x18SetBlendBrightnessEPVtts calls at 0x4000050 and 0x4001050 --
+      belongs to SetForwardTime's branch, and section 10 already records that
+      slot 0x10 is seated and undispatched on this scene. So is case 3.
+
+      THE type == 1 BRANCH AND BOTH NEW FACES ARE UNEXERCISED, for the reason
+      4a gives: func_0202ec9c(data_0209f61c, 0) leaves +0x14 at 0.
+      func_ov004_020aeb24, func_ov004_020b72d4 and func_ov004_020b75e4 pass 1
+      and 2 instead, so the branch is reachable on other minigames and none
+      of them boots today.
+
+      ONLY walk_window HAS BEEN RUN WITH THE DRIVER. slice_fdr.txt compiles
+      it into walk_window, walk_window_hires and smoke_player; the battery
+      exercises the smokes, and the hires target is link evidence only. Same
+      caveat this section already carries for the seat itself.
+
+      THE 45 IS TWO MEASUREMENTS AND ONE READING. 17280/384 and 11835/263
+      both come to 45 and neither depends on the other. That 45 IS 0x2d is
+      read out of src/func_0202f928.c's `type == 0 ? 0x2d : 0x3c`, not off
+      the running object, so the identification is corroboration and not a
+      third measurement.
+
+      NO LEVEL FRAME WAS DIFFED. The driver changes what runs on every level,
+      and what was measured there is the 46-level battery, both smoke suites,
+      and level 1's selftest note count going 7 to 0 across the bracket fix.
+      No level BMP was compared before and after.
