@@ -1382,7 +1382,10 @@ static const PortSceneClass port_scene_classes[] = {
      scene_fill_starsel, 1},
     {1, "SCENE_TITLE", data_ov007_02103264, title_spawn,
      scene_fill_title, 0},
-    {0x176, "SCENE_MG_CURLING", MgShuffleShell_SpawnInfo, port_mg_curling_spawn,
+    /* 374 is 0x176, and it is spelled in decimal because the other two rows
+       are and because port/tools/battery.py reads its hosted-scene set out of
+       this table. */
+    {374, "SCENE_MG_CURLING", MgShuffleShell_SpawnInfo, port_mg_curling_spawn,
      port_scene_fill_curling, 0},
     {0, 0, 0, 0, 0, 0},
 };

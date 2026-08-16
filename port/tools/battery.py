@@ -321,8 +321,17 @@ def hosted_scenes(root):
     body = re.sub(r"/\*.*?\*/", " ", text[i:j], flags=re.S)
     body = re.sub(r"//[^\n]*", " ", body)
     # a row is {<id>, "<NAME>", <info>, <factory>, <fill>}; the terminator
-    # {0, 0, 0, 0, 0} has no string and does not match
-    ids = [int(n) for n in re.findall(r"\{\s*(\d+)\s*,\s*\"", body)]
+    # {0, 0, 0, 0, 0} has no string and does not match.
+    # HEX IS ACCEPTED, run link60 lane MG2. This used to read \d+ only, and a
+    # scene written {0x176, "..."} -- which is the natural spelling, because an
+    # actor id is hex everywhere else in the tree -- simply did not match. The
+    # failure is SILENT UNDER-TESTING, the exact shape this function's own
+    # docstring says it exists to prevent: the scene is hosted, the battery
+    # does not know it exists, and the run stays green over it. It surfaced
+    # here only because SCENE_BLOCKED named an id the parse had dropped and the
+    # orphan check caught the disagreement.
+    ids = [int(n, 0) for n in
+           re.findall(r"\{\s*(0[xX][0-9a-fA-F]+|\d+)\s*,\s*\"", body)]
     if not ids:
         raise SystemExit(f"battery: port_scene_classes[] parsed empty in {path}")
 
