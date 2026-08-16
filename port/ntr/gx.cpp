@@ -808,6 +808,10 @@ void gx_debug_matrices(int *mode, float pos[16], float proj[16]) {
     if (proj) for (int i = 0; i < 16; ++i) proj[i] = g.proj.m[i];
 }
 
+void gx_debug_viewport(int &x, int &y, int &w, int &h) {
+    x = g.vp_x; y = g.vp_y; w = g.vp_w; h = g.vp_h;
+}
+
 void gx_write_port(uint32_t addr, uint32_t value) {
     gx_stream_note(addr ^ value);
     const uint8_t cmd = static_cast<uint8_t>((addr - 0x04000400u) >> 2);

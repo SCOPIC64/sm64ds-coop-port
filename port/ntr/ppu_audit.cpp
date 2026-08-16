@@ -30,6 +30,8 @@
 
 #include "ntr/ppu_audit.h"
 
+#include "ntr/gx.h"
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -324,6 +326,39 @@ int g_frames;
 char g_tag[32];
 bool g_registered;
 
+// ---- the engine-A 3D layer ---------------------------------------------------
+//
+// EVERY ROW ABOVE THIS ONE IS 2D, AND ON THE TOP SCREEN THAT IS HALF THE
+// PICTURE. The DS composites engine A's 2D layers over the 3D engine's output,
+// so a top-screen frame that is missing content has two candidate sources and
+// the 2D table alone cannot separate them: an empty frame reads the same
+// whether the 3D layer submitted nothing or the 2D layers were never enabled.
+//
+// Two numbers settle it, and both are sampled at the same instant as the
+// registers above, which is what makes them comparable with them:
+//
+//   the VIEWPORT rectangle the geometry engine has latched. It is the port's
+//   own g.vp_*, already scaled off the DS panel by the command handler, so at
+//   the 2x tier a full-screen DS viewport reads 0,0 512x384. A frame whose
+//   content sits in one corner and whose viewport IS that corner is a viewport
+//   fault; the same frame with a full-screen viewport is not, and the
+//   difference is one line rather than an argument.
+//
+//   the polygon count still standing in the list. Sampled after gx_render on
+//   every path that renders, so it is this frame's geometry, not last frame's.
+//   Zero means the 3D engine was handed nothing at all -- which for a 2D
+//   minigame is the ROM's intent and not a defect, and the DISPCNT BG0 enable
+//   bit in the table above is what says which of those two it is.
+
+// Four separate slots rather than one packed sample. A packed rectangle would
+// have to drop bits to fit, and a viewport row that cannot represent every
+// rectangle the port can latch is exactly the instrument that reports the
+// wrong answer on the one frame it matters.
+const char *const k3dNames[] = {"VIEWPORT_X", "VIEWPORT_Y", "VIEWPORT_W",
+                                "VIEWPORT_H", "POLYGONS"};
+const unsigned k3dN = sizeof k3dNames / sizeof k3dNames[0];
+Slot g_3d[k3dN];
+
 uint32_t rd(uint32_t a, unsigned w) {
     return w == 4 ? *reinterpret_cast<volatile uint32_t *>(a)
                   : *reinterpret_cast<volatile uint16_t *>(a);
@@ -368,6 +403,7 @@ void ppu_audit_sample(const char *tag) {
         for (unsigned i = 0; i < kRegN; ++i)
             for (int e = 0; e < 2; ++e) g_slot[e][i].first_frame = -1;
         for (unsigned i = 0; i < kTouchN; ++i) g_touch[i].first_frame = -1;
+        for (unsigned i = 0; i < k3dN; ++i) g_3d[i].first_frame = -1;
     }
     if (tag && !g_tag[0]) {
         std::strncpy(g_tag, tag, sizeof g_tag - 1);
@@ -384,6 +420,16 @@ void ppu_audit_sample(const char *tag) {
     }
     for (unsigned i = 0; i < kTouchN; ++i)
         note(g_touch[i], rd(kTouch[i].addr, kTouch[i].width), g_frames);
+
+    {
+        int vx = 0, vy = 0, vw = 0, vh = 0;
+        gx_debug_viewport(vx, vy, vw, vh);
+        size_t npoly = 0;
+        gx_polygons(npoly);
+        const uint32_t v[k3dN] = {(uint32_t)vx, (uint32_t)vy, (uint32_t)vw,
+                                  (uint32_t)vh, (uint32_t)npoly};
+        for (unsigned i = 0; i < k3dN; ++i) note(g_3d[i], v[i], g_frames);
+    }
 
     ++g_frames;
     // Flush on the first sample and then periodically. A run that faults skips
@@ -477,6 +523,23 @@ void ppu_audit_dump() {
                             "GX::LoadOBJExtPltt TU to derive a base from)\n");
         std::fprintf(f, "\n");
     }
+
+    std::fprintf(f, "-- ENGINE A 3D LAYER (the other half of the top screen) --\n");
+    std::fprintf(f, "Viewport is in HOST framebuffer pixels; the 2D table above\n");
+    std::fprintf(f, "is in DS panel pixels. DISPCNT bit 8 (BG0 enable) plus bit 3\n");
+    std::fprintf(f, "(BG0 in 3D mode) is what puts this layer in the picture at all.\n");
+    for (unsigned i = 0; i < k3dN; ++i) {
+        const Slot &s = g_3d[i];
+        std::fprintf(f, "%-16s      %-2s %-8u ", k3dNames[i], ".", s.nonzero);
+        if (s.first_frame < 0) std::fprintf(f, "%-6s ", "-");
+        else std::fprintf(f, "%-6d ", s.first_frame);
+        for (unsigned k = 0; k < s.n; ++k)
+            std::fprintf(f, "%u x%u%s", s.val[k], s.hits[k],
+                         k + 1 < s.n ? ", " : "");
+        if (s.n == kMaxVals) std::fprintf(f, " (+more)");
+        std::fprintf(f, "\n");
+    }
+    std::fprintf(f, "\n");
 
     std::fprintf(f, "-- TOUCH HARDWARE SURFACE --\n");
     std::fprintf(f, "The stylus record TouchInfo[4] is NOT here: it is a hosted\n");
