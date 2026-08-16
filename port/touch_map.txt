@@ -49,9 +49,10 @@ runtime number is a run in this worktree, quoted with its environment.
 Two disassemblies are quoted. Both are dumpbin on this tree's own objects under
 build/port/CMakeFiles/walk_window.dir, not on anything inherited.
 
-No claim in this file is carried from another lane's note. Where a prior note
-said the same thing, this file says so and gives its own measurement, because a
-restated claim is the failure mode the run keeps meeting.
+Where a prior note said the same thing, this file says so and gives its own
+measurement rather than restating it, because a restated claim is the failure
+mode the run keeps meeting. ONE claim here is carried and not re measured, the
+"unmodelled IO reads 0" half of section 6a, and section 7 names it as carried.
 
 
 2. THE ROM SIDE: SIX LINKS FROM THE PANEL TO THE READER
