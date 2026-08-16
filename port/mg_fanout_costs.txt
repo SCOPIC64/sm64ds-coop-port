@@ -1,0 +1,539 @@
+THE MINIGAME FAN-OUT, COSTED FROM THE ROM: what the first one took, what the
+other twenty-nine take, and which of the numbers the peer screening cut its
+ranking from are wrong. Run link60, lane MG1 (the pathfinder).
+
+Baseline this was measured against: c7b44af04, walk_window 5533/11243 linked
+(49.2%), battery ALL GREEN, gate skips [scene 1 BLOCKED]. No exe hash is quoted
+on purpose -- the link embeds build-location state, so a sha256 from one
+worktree is not something another worktree reproduces. The attestation is the
+gate manifest's git_sha plus git_dirty.
+
+Measured in worktree C:/tmp/g1, private build C:/tmp/g1/build/port,
+CMAKE_HOME_DIRECTORY verified C:/tmp/g1/port.
+
+
+1. THE HEADLINE, AND THE CORRECTION IT RESTS ON
+------------------------------------------------
+
+ov006 is the largest single prize left (1839 matched TUs) and
+port/ov006_minigame_scout.txt section 5 ranked the thirty minigame ids by
+closure size so the fan-out could start with the smallest. THAT RANKING IS
+BUILT ON A CLOSURE THAT MISSES EVERY MINIGAME'S STATE MACHINE, and the
+correction is the most useful thing in this file.
+
+The scout rooted each id at its SpawnInfo record. A minigame's states are mwcc
+POINTER-TO-MEMBER PAIRS: eight-byte {code, adjustment} records that live in
+.data and are copied at overlay-load time, by the overlay's own .init
+constructor, into .bss dispatch tables. Neither end of that is reachable from
+the SpawnInfo. The .bss destination carries no relocations at all -- it is
+zero-initialised storage -- and the .data source is reached only from .init.
+So a walk from the SpawnInfo reaches the class's vtable and the vtable's
+bodies, and then stops dead before the thing the class spends its frames in.
+
+Measured on the pathfinder's own class, both ways:
+
+    roots                          ov006 fn   ov004 fn   arm9 fn
+    SpawnInfo only (the scout's)         17         97       547
+    SpawnInfo + its own .init            48        160       560
+
+The scout costed this minigame at "19 TUs". Its real closure is 48 + 160 = 208
+ov006 and ov004 functions, of which 202 have a matched src TU. The scout's
+ov006 column is low by 2.8x and its ov004 column by 1.6x.
+
+THE RANKING SURVIVES ANYWAY, AND THAT IS WORTH SAYING PLAINLY. Section 3's
+per-class table re-ranks on the vtable axis and MgShuffleShell is still among
+the cheapest four, so the peer screening picked a correct target from an
+incorrect number. The number still has to be fixed, because the fan-out is
+about to cut twenty-nine more lanes from it.
+
+
+2. WHAT THE FIRST MINIGAME ACTUALLY COST
+-----------------------------------------
+
+dScMgCurling_c, actor id 0x176. The peer screening named it MgShuffleShell
+after its spawn symbol; Shuffle Shell is the localised name of the curling
+minigame, the ROM's own RTTI string at 0x0213c2d0 reads "14dScMgCurling_c", and
+its InitResources loads /MG/d_2d_mg_bg_curling1_ncg.bin by name. Both names are
+right and the class name is the ROM's.
+
+    item                                          count   paid
+    -------------------------------------------   -----   --------------------
+    src TUs in the slice                            276   see the wave table
+    vtable slots filled                              36   23 framework,
+                                                          6 class, 7 arm9
+    inferred-stub bodies adjudicated                 25   20 framework, 5 class
+    overlay constructors wired                       33   ONCE for the family
+    host copies written                               4   a declaration
+                                                          conflict, section 6
+    arm9/ov000 storage hosted                         9   sized by ROM span
+    named traps stood                                 7   6 unmatched bodies
+                                                          plus the wall, sec 4
+    registry rows                                     1   per class
+    genuinely unmatched bodies in the closure         6   3 ov004, 3 ov006
+
+THE SLICE TOOK FOUR LINK WAVES and the shape of that is itself a cost-model
+number, because the fan-out lanes will each pay some of it. The closure walk
+predicts the first wave and the LINKER finds the rest; this is the two-wave
+method port/slice_ov007.txt describes, needing four here:
+
+    wave   added   what the linker asked for
+    1        229   the closure walk's own answer: 44 ov006, 152 ov004 and the
+                   33 .init constructors
+    2         33   20 arm9, 7 ov004, 6 ov006. The 20 arm9 are the exception to
+                   "the arm9 half comes back for free" -- they had no other
+                   caller in the build, so /OPT:REF had already dropped them
+    3         11   7 arm9 and 4 ov001, the latter being ov004's touch layer
+                   (TouchArea_Update at 0x020ab450 and three siblings)
+    4          3   arm9, under the archive and file loader the two
+                   SharedFilePtr constructors reach
+    ----
+             276
+    5          0   the wave that found the wall rather than more slice lines;
+                   section 4
+    6          5   NOT TAKEN BY THIS LANE. Review's converged link names five
+                   more matched TUs the closure reaches, plus one hosted word.
+                   The slice in the tree stops at 276 and section 4 says so.
+
+    plus 9 storage symbols and 7 traps that no src TU can supply, in
+    hal/scene_mg_faces.cpp
+
+A FAN-OUT LANE SHOULD BUDGET TWO TO THREE WAVES, not one. Most of what waves 2
+to 4 pulled in is FRAMEWORK closure that the next twenty-nine inherit already
+linked, so their tails should be shorter -- but "the closure walk got it right
+first time" is not what happened here and should not be planned for.
+
+THE SPLIT BETWEEN ONCE AND PER-CLASS IS THE WHOLE COST MODEL:
+
+  PAID ONCE, BY THIS LANE, FOR ALL THIRTY
+    the 155 ov004 framework TUs and their arm9 closure
+    the 20 dScMgBase_c vtable-body adjudications
+    the 33 overlay constructors and where they run
+    the address-keyed fill (port_scene_fill_rom + the 23-entry base face table)
+    the two declaration-conflict host copies
+    the ov004 and ov006 mount patch calls, which had no caller before this
+
+  PAID PER CLASS, BY EACH FAN-OUT LANE
+    its own vtable's override slots (section 3, median 12)
+    the marker adjudications among those overrides (section 3, median 11)
+    its own ov006 closure TUs
+    its own .init constructor's state table, IF the dispatch exists (section 4)
+    a registry row and a six-to-twenty-six entry face array
+
+
+3. THE PER-CLASS TABLE, ALL THIRTY, RANKED
+-------------------------------------------
+
+Read out of the ROM, not out of the config's names. The vtable was found by its
+ActorBase SIGNATURE -- slots 13, 14 and 15 holding 0x0204357c, 0x0204349c and
+0x02043494, which every Scene-derived class in the game holds unchanged and
+which no pointer-to-member pair run or file table can imitate at that spacing.
+Thirty-two such tables exist in ov006 and twenty-nine of the thirty ids resolve
+to one through a load relocation inside their own factory.
+
+"ovr" is slots differing from dScMgBase_c's own table at 0x020bc0c0, plus any
+slot past 36 for the width-37 classes. "mark" is how many of those override
+bodies carry the "recovered from vtable slot identity" marker and therefore
+need a ROM adjudication before they can be seated. "nosrc" is how many have no
+matched src TU at all and will need a named trap or a decomp.
+
+  id     spawn symbol                vtable     width  ovr  mark  nosrc
+  0x172  MgSortOrSplode              0213bbb4      36    6     5      0
+  0x176  MgShuffleShell (curling)    0213c304      36    6     5      0   DONE
+  0x177  (data_ov006_0213c434)       0213c510      36    6     5      0
+  0x17a  MgCoincentration            0213bf50      36    6     5      0
+  0x17c  MgPuzzlePanelPuzzlePanic    0213e24c      36    6     5      0
+  0x16e  MgWanted                    0213cf10      36    7     6      0
+  0x182  MgWhichWiggler              0213cab8      36    7     6      0
+  0x170  MgBobOmbSquad               0213d9cc      37    7     3      1
+  0x171  MgLakituLaunch              0213dbbc      37    7     4      0
+  0x183  MgHideAndBooSeek            0213fa0c      36    8     6      0
+  0x178  MgBingoBallSlotsShot        0213eefc      36    9     6      2
+  0x16c  (data_ov006_0213e560)       0213eb40      37    9     5      1
+  0x173  (data_ov006_0213b814)       0213b918      37   11     5      0
+  0x186  (data_ov006_02140114)       02140140      36   12    10      0
+  0x17d  (data_ov006_0213d580)       0213d664      36   13    11      0
+  0x169  (data_ov006_0213c020)       0213c154      37   14     9      0
+  0x16b  MgMemoryMaster              0213d4d4      36   14    12      0
+  0x16f  MgBoomBox                   0213f844      37   14    11      0
+  0x17f  MgMushroomRoulette          0213e39c      36   14    11      0
+  0x185  MgPsycheOut                 0213c8c4      36   14    12      0
+  0x16a  MgMemoryMatch               0213d1b8      37   15    12      0
+  0x16d  (data_ov006_0213e508)       0213eaa8      36   15    13      0
+  0x17e  MgPairAGoneAndOn            0213d7e8      37   15    11      1
+  0x184  MgLuckyStars                0213fec8      37   15    12      0
+  0x17b  MgPicturePoker              0213bdb4      37   16    13      0
+  0x174  MgBounceAndPounce           0213cbe4      37   24    14      1
+  0x175  MgBounceAndTrounce          0213ccfc      37   24    15      1
+  0x180  MgTrampolineTime            0213fb34      36   25    16      0
+  0x181  MgTrampolineTerror          0213fc7c      37   26    15      0
+  0x179  MgSnowballSlalom            NOT FOUND -- see below
+
+    totals   365 override slots, 263 of them marker-carrying, 7 with no src
+
+ONE ID DOES NOT RESOLVE AND IT IS NOT A TOOL FAILURE TO WAVE AWAY.
+MgSnowballSlalom (0x179) has a SpawnInfo at 0x0213ffb8 and a factory, and no
+load relocation inside that factory points at any of the thirty-two signature
+tables. Either its factory reaches its vtable through an indirection the other
+twenty-nine do not use, or its class is one of the three signature tables no id
+claims. Whoever takes 0x179 derives it by hand first; the row is left blank
+rather than guessed, and the totals above exclude it.
+
+FIVE CLASSES ARE JOINT-CHEAPEST at six overrides and five adjudications, and
+three of them (0x172, 0x177, 0x17a) share the pathfinder's exact shape. THOSE
+ARE THE NEXT THREE LANES. Their marginal cost over what this lane landed is
+five ROM adjudications, one face array, one registry row and their own ov006
+closure, and nothing else.
+
+THE FOUR AT THE BOTTOM STAY CUT LAST, AND THE REASON THIS FILE FIRST GAVE FOR
+IT WAS WRONG. 0x174, 0x175, 0x180 and 0x181 override two thirds to three
+quarters of the table, which is a real cost and is why they go last. The
+sentence that used to follow said they "carry six or seven override bodies with
+NO SOURCE AT ALL" and concluded they are "classes that mostly do not use the
+framework". BOTH HALVES DIE WITH THE nosrc COLUMN. The first version of that
+column was produced by a name-shaped lookup that missed src files not named
+after their symbol, and review re-derived it by hand: all twenty-five of
+0x180's override bodies resolve to real src files, 0x181's likewise, and the
+whole family's true nosrc total is SEVEN and not thirty-two. A class that
+overrides twenty-six slots with twenty-six decompiled bodies is a big version
+of a small one, not a different kind of thing. Rank them on ovr and mark, which
+is what the table does.
+
+THE WIDTH-37 CLASSES ARE WHY THE FILL IS ADDRESS-KEYED. THIRTEEN of the
+twenty-nine add one virtual of their own past dScMgBase_c's thirty-six -- count
+the width column above, which was right while the prose under it said eleven. A
+width parameter on the old index-driven fill would have handled the length and
+still corrupted five slots per class; see hal/scene_mg.cpp's header and the
+amended caveat in hal/scene_boot.cpp.
+
+
+4. THE WALL, AND IT IS THE SAME ONE FOR ALL THIRTY
+---------------------------------------------------
+
+A minigame's Behavior does this, and every one of the thirty does some version
+of it (src/func_ov006_020e3528.cpp, dScMgCurling_c slot 6, verbatim):
+
+    int j = c->idx;
+    (c->*data_ov006_02141950[j].pmf[0])();
+
+That is an mwcc POINTER-TO-MEMBER call and the port cannot compile it. Three
+separate reasons, and each alone is fatal:
+
+  1. THE STRIDE IS WRONG. mwcc's member pointer is eight bytes, {code,
+     adjustment}. MSVC's single-inheritance member pointer is four. The src
+     spells the table `struct Entry { PMF pmf[1]; }`, so MSVC strides the array
+     by 4 where the ROM strides by 8, and every index past 0 reads half of one
+     record and half of the next.
+  2. THE WORD IS A DS ADDRESS. The table is filled by the overlay constructor
+     from .data statics holding raw ROM code addresses. Verified word for word
+     for this class: all twenty-five of __sinit_ov006_021304ac's source pairs
+     at 0x0213c1e4..0x0213c2bc read {code, 0} in the image.
+  3. THE DISPATCH IS THE FULL ARM ITANIUM SEQUENCE, virtual bit in the
+     adjustment's LSB and `this` advanced by the adjustment arithmetic-shifted
+     right one. The ROM emits five instructions for it. MSVC emits its own,
+     incompatible, shape.
+
+THE WALL IS NOT ONLY ov006's, AND THAT IS THE FINDING THAT CHANGES THE
+SEQUENCING. It was assumed above that the pointer-to-member problem was each
+minigame's own state machine. It is not: the FRAMEWORK has one too, and the
+framework's is the one a boot hits first.
+
+src/func_ov004_020b87e0.cpp is dScMgBase_c's STATE SETTER -- sixty-three lines
+that build a static table of twenty member pointers out of twenty ov004
+globals, assign one into the object and dispatch it. It produced TWENTY-ONE of
+the first link's ninety-five unresolved externals, all from that single TU, and
+the mangling says exactly why:
+
+    unresolved external symbol "void (__thiscall C::* data_ov004_020bc97c)(void)"
+      (?data_ov004_020bc97c@@3P8C@@AEXXZQ1@)
+
+MSVC encodes the member-pointer TYPE into the symbol name, so a global the ov004
+mount emits as the C symbol _data_ov004_020bc97c can never satisfy it. And that
+is the mildest of the three problems: the TU's own `struct C` puts field_8 at
++8 after a leading member pointer, which is only true at eight bytes, so MSVC
+lays the object out wrong before any dispatch happens.
+
+SO EVERY MINIGAME NEEDS THIS ONE TU SOLVED, and it is paid once. It is excluded
+from port/slice_mg1.txt and stands as a named trap in hal/scene_mg_faces.cpp
+that reports itself and sets no state. Solving it is worth more than any single
+minigame: it is one 63-line host copy plus twenty routed addresses, and it
+unblocks the framework half of all thirty.
+
+THE PORT ALREADY HAS THE ANSWER AND IT IS NOT CHEAP. port/unmatched/
+Player_ChangeState.cpp is the precedent: a host copy of the dispatching TU with
+the member-pointer site replaced by an address switch, plus
+hal/player_bridges.cpp's hal_call_state_fn, a 197-case generated switch from
+DS address to a real __thiscall method call. The alternative precedent is the
+ov085 / ov100 shape, port_*_states_seat, which writes HOST addresses over the
+.data source pairs before the constructor copies them -- but that one still
+needs a host copy of the dispatcher, because the stride is wrong either way.
+
+THE WALL'S FULL EXTENT. MEASUREMENT IN PROGRESS: the numbers below are the
+REVIEWER'S, taken on an independently wired tree whose link had CONVERGED, and
+they supersede this lane's first enumeration, which was read off a wave that had
+not. That earlier block said thirty-seven unresolved in twenty-one objects and
+called itself enumerated; it was counting a link still in motion. MG2 sizes from
+what follows, and MG2 re-measures it rather than inheriting it.
+
+    36 unresolved externals across 13 objects
+
+  SEVEN ARE THE POINTER-TO-MEMBER WALL, verbatim from the first enumeration and
+  the one part of it that was already right, except that they are spread across
+  SIX TUs rather than five. Three of the six are ov004's:
+
+    func_ov004_020add88   ?data_ov004_020beb98@@3PAP8C@@AEXXZA
+    func_ov004_020adf2c   ?data_ov004_020beb88@@3PAP8C@@AEXXZA
+    func_ov004_020b3278   ?data_ov004_020bf490@@3PAP8Base@@AEXXZA
+    func_ov006_020e0d84   ?data_ov006_021418d8@@3PAP8C@@AEXH@ZA
+    func_ov006_020e0d84   ?data_ov006_02141930@@3PAP8C@@AEXH@ZA
+    func_ov006_020e12d0   ?data_ov006_021418c0@@3PAP8C@@AEXH@ZA
+    func_ov006_020e3528   ?data_ov006_02141950@@3UEntry@@A
+
+  THREE OF THEM BEING ov004'S IS THE FINDING, and it survives the correction.
+  The wall was assumed to be each minigame's own state machine; it is the
+  FRAMEWORK's as well, and func_ov004_020b87e0 above is a fourth ov004 TU with
+  the same defect. So the dispatch work is mostly per-family and paid once,
+  which is good news for the fan-out and bad news for the first lane.
+
+  TWENTY-ONE ARE ORDINARY /alternatename FACES, not the thirty this lane first
+  counted. The "C-named symbols declared at C++ linkage" case
+  hal/scene_boot.cpp section 1 already carries twenty-three of for the star
+  select.
+
+  ONE IS THE CALLING-CONVENTION TRAP, not two. Scene::AfterInitResources
+  (?AfterInitResources@Scene@@QAEXI@Z) is a __thiscall METHOD mangle whose
+  matched TU defines a __cdecl C function, and "AN ALIAS CANNOT CHANGE A
+  CALLING CONVENTION" -- it needs a face that re-lands the argument, not a
+  name. ActorBase::InitResources DOES NOT APPEAR on the converged tree. This
+  lane saw it because its own hal/scene_actor_faces.cpp reached for the method
+  form; that is fixed at source there, and the fix is described in the commit
+  rather than counted as a wall symbol.
+
+  A SIXTH WAVE EXISTS AND THIS LANE NEVER REPORTED IT, having stopped at five:
+
+    5 ordinary slice lines, matched src TUs the closure reaches that no wave
+      listed
+    1 hosted word, data_0208ec74, which has no source and needs the ROM-span
+      treatment the nine in hal/scene_mg_faces.cpp already get
+
+  THE GROUP COUNTS SUM TO 35 AGAINST A TOTAL OF 36 and this file does not
+  reconcile the difference, because it did not take the measurement. The
+  residual one symbol is unattributed here on purpose rather than folded into
+  whichever group would make the arithmetic close. MG2 resolves it in the first
+  link it runs.
+
+SO THE REMAINING WORK TO A LINKED SEAT IS 21 aliases, 1 argument-landing face,
+5 slice lines, 1 hosted word, and 6 TUs either host-copied against an address
+switch or excluded and trapped. Everything before that is done and is described
+in this file.
+
+WHAT IT COSTS PER MINIGAME, measured on this one:
+
+    dispatching TUs to host-copy                  5
+      (func_ov006_020e3528, _020e3078, _020e12d0, _020e0d84, _020e1214)
+    state entries to route                       25
+    of those with no matched body                 1   func_ov006_020e1854
+    lines of dispatcher                          ~5 per TU plus 25 cases
+
+THE ONE MISSING STATE IS A HARD FLOOR FOR THIS CLASS. func_ov006_020e1854 is
+the code word of the pair at 0x0213c2bc, it has no delink block in
+config/arm9/overlays/ov006/delinks.txt and no src file defines it, so
+dScMgCurling_c cannot reach every one of its own states even after the
+dispatch exists. That is a decomp gap, not a port one.
+
+THE SIXTY-ONE UNMATCHED BODIES IN THE FAMILY'S UNION are the same class of
+floor at scale, and the fan-out should expect them per class rather than be
+surprised by them: the union closure over all thirty ids and their attributed
+constructors reaches ov006 1847, ov004 227 and arm9 982 functions, and 61 of
+those have no source.
+
+READ THE UNION CORRECTLY. It says the whole family's closure is essentially the
+whole overlay -- ov006 has 1839 matched TUs and the union reaches 1847
+functions -- which is the same shape port/ov007_seat.txt found for the title
+screen: "there is no smaller honest unit: the title screen is what ov007 is
+for". Twenty-three minigames are what ov006 is for.
+
+
+5. WHY THE arm9 COLUMN IS NOT A COST
+-------------------------------------
+
+The pathfinder's closure reaches 560 arm9 functions and 558 of them already
+have matched TUs compiled into the build. They come back through /OPT:REF for
+free the moment ov004 or ov006 references them, exactly the way the ov007
+lane's 92 did, so listing them as slice lines would be 558 lines that change
+nothing. They are not in port/slice_mg1.txt and the file says so.
+
+THE COROLLARY IS THE TRAP THE SCOUT ALREADY NAMED AND IT APPLIES TO THE .init
+CONSTRUCTORS TOO. Wiring a TU that nothing references buys nothing: /OPT:REF
+strips it. The constructors in this lane are referenced -- hal/scene_mg.cpp
+calls all thirty-three by name -- but the state functions their pair tables
+point at are NOT, because the pair words are mounted DATA holding DS addresses
+and no host symbol names them. So the ov006 linkage this lane buys comes from
+the vtable seat and the constructors, and the several hundred state bodies stay
+gated behind section 4's dispatch. That is the honest reading of any ov006
+delta this lane reports, and it is why the dispatch is the next lane and not an
+optimisation.
+
+
+6. THREE DEFECTS FOUND ON THE WAY, ALL LIVE, NONE VISIBLE TO THE BYTE GATE
+---------------------------------------------------------------------------
+
+Found by the twenty-five ROM adjudications rather than by running anything, and
+recorded here because each bites a specific fan-out lane at a specific moment.
+
+  a. A DECLARATION CONFLICT THAT STOPS THE BUILD. include/decl_common.h lines
+     2342 and 2343 declare func_ov004_020aeed8 and func_ov004_020af094 with
+     void*, and both src TUs define them with char* and Obj* respectively while
+     including that header. MSVC refuses each with C2733; mwccarm accepts it,
+     which is why the ROM built and the byte gate has never had an opinion.
+     FIXED HERE, by two host copies in port/unmatched/MgBase_DeclConflict.cpp
+     that are the src bodies verbatim with ONE TOKEN CHANGED EACH, stated line
+     by line in that file's header. The header fix proper is a five-file change
+     inside the byte-gated tree -- two callers carry their own conflicting
+     local declarations -- and is routed, not taken.
+
+  b. A DROPPED `this` ON SLOT 7. include/decl_Scene.h declares
+     `extern int _ZN5Scene14BeforeBehaviorEv();` with EMPTY PARENS inside
+     extern "C", so src/func_ov004_020b0620.cpp's call at line 52 passes no
+     object pointer, while the real definition
+     (src/_ZN5Scene14BeforeBehaviorEv.cpp:47) takes `char* self` and
+     dereferences it immediately. On ARM this is a ride-through and correct --
+     r0 already holds self. On the host the callee reads the stack. The line
+     ABOVE it in the same header spells the sibling correctly,
+     `_ZN5Scene19BeforeInitResourcesEv(void*)`, which is what makes this a
+     defect rather than a convention. NOT FIXED HERE, and it is a blocker for
+     the first lane that dispatches slot 7 of any minigame table -- which is
+     every one of them, since dScMgBase_c owns that slot.
+
+  c. A DELETE WITH NO POINTER ON SLOT 5. src/func_ov004_020b0840.c:12 declares
+     `extern void func_0203cbc0(void);` and calls it with no argument at line
+     28, while the ROM has the pointer being deleted live in r0. The port's own
+     host body is `func_0203cbc0(void *p) { _ZdlPv(p); }` in
+     port/unmatched/func_02073244_hostcopy.c, so the call hands operator delete
+     whatever is on the stack. Seven other src TUs declare the same function
+     WITH a pointer parameter. Same ride-through family as (b). NOT FIXED HERE.
+
+  Both (b) and (c) want the same remedy as (a): a PORT_HOST_ABI host copy in
+  port/unmatched/ that places the argument, leaving src/ and the byte gate
+  alone. Neither was taken because neither can be EXERCISED until section 4's
+  dispatch exists, and a host copy nobody can call is a count rather than a
+  port. They are named here so the next lane meets them as known work.
+
+  A FOURTH, SMALLER: src/func_ov006_020e3578.c spells ov004's
+  func_ov004_020adc74 as bare `func_020adc74`, a name that exists in no config.
+  The reloc says module overlays(3,4) and ov004 is the co-resident answer. A
+  name-spelling face, the ordinary kind.
+
+
+7. THE OVERLAY CONSTRUCTORS, RULED
+-----------------------------------
+
+The full ruling table is in hal/scene_mg.cpp section 3 and is summarised here
+because it is a per-family cost the fan-out inherits rather than repeats.
+
+    ov004   4 in the ROM's .ctor,  3 wired,  1 no source
+    ov006  31 in the ROM's .ctor, 30 wired,  1 no source
+    ----
+           35 total,              33 wired,  2 no source
+
+The two that cannot run are __sinit_ov004_020b955c (0x574 bytes) and
+__sinit_ov006_0213014c (0x284). Both have a config symbol, NO delink block and
+NO src file: ov004's .init blocks run `start:0x020b948c end:0x020b955c` and
+stop, and ov006's go `start:0x021300b0 end:0x0213014c` then jump to
+`start:0x021303d0`. Neither is reachable from dScMgCurling_c's closure so the
+pathfinder does not need them; whether another minigame does is a per-class
+question and this file does not pretend it is a zero.
+
+They run at MINIGAME SCENE LOAD, not at registry install, and the distinction
+is load-bearing rather than tidy. On the DS the spine's pre-spawn hook
+func_0201a694 asks GetSceneOverlayID, gets ov006 for any id IsMinigameActorID
+accepts, and func_0201a798 loads ov004 then ov006 -- and LoadOverlay runs each
+overlay's static-init range as it lands. ov002 and ov006 are never co-resident,
+so NONE of the thirty-five has ever run during a level. Running them from
+port_scene_registry_install, which fires on every boot including level runs,
+would therefore be a divergence with teeth: __sinit_ov004_020b948c calls
+func_020731dc, which threads a node onto an arm9-global destructor list the
+level path walks. (An earlier version of this sentence named func_020733a8
+alongside it as a second list threader. IT IS NOT ONE -- it is an MSL
+array-construction primitive -- so the argument rests on func_020731dc alone,
+which carries it without help.)
+
+WHAT THEY BUILD, from reading all thirty-three: ten are SharedFilePtr builders
+of the ov085 / ov100 / ov015 shape the level path already runs a dozen of, and
+the rest are pointer-to-member pair-table copies with no calls at all. The
+second group is section 4's problem in its source form.
+
+
+8. WHERE THE LANE STOPPED, AND WHAT IS AND IS NOT IN THE TREE
+--------------------------------------------------------------
+
+NO MINIGAME HAS BOOTED. Nobody has run SM64DS_SCENE=374 or any other minigame
+id, because the seat DOES NOT LINK -- section 4 is a link-time wall, not a
+run-time one, so there is no fault to symbolize, no SCENE_BLOCKED entry to
+write and no slot-hit line to read. Any sentence anywhere claiming a minigame
+ticked would be fabricated. The gate on this branch is the BASELINE gate:
+5533/11243, battery ALL GREEN, skips [scene 1 BLOCKED], and the linkage delta
+of this lane is ZERO.
+
+THE SEAT IS IN THE TREE AND IS NOT WIRED INTO port/CMakeLists.txt. That is a
+deliberate choice between two bad options and it is stated here so nobody has
+to guess which one was taken:
+
+    port/hal/scene_mg.cpp                     the 36-slot address-keyed fill,
+                                              the 33 overlay constructors, the
+                                              tick witness, the registry shape
+    port/hal/scene_mg_faces.cpp               9 hosted storage symbols, 2
+                                              name faces, 7 named traps
+    port/unmatched/MgBase_DeclConflict.cpp    slots 29 and 30
+    port/unmatched/MgBase_Slot1.cpp           slot 1
+    port/unmatched/MgBase_Slot7.cpp           slot 7, and the one semantic
+                                              repair in the set
+    port/slice_mg1.txt                        276 TUs across four link waves
+
+Wiring them breaks the build, and deleting them throws away the derivation the
+next lane needs: the vtable, the four waves, the declaration conflicts and the
+constructor ruling are all encoded in those files and only summarised here.
+They are unreferenced by any target, so they cost the build nothing and the
+binary nothing. THE NEXT LANE'S FIRST ACT IS TO WIRE THEM AND WORK THE
+THIRTY-SEVEN, and the day that link closes this paragraph is deleted rather
+than amended.
+
+WHAT DID LAND, in commits on this branch:
+  - the 25 ROM rulings in port/tools/inferred_stub_adjudicated.txt, which are
+    real, banked, and inherited by all thirty fan-out lanes
+  - the amended 18-slot caveat and port_scene_fill_rom in hal/scene_boot.cpp,
+    plus the two ActorBase faces in hal/scene_actor_faces.cpp -- the generic
+    fill the caveat asked for, with the measurement that says a width
+    parameter would not have been enough
+  - this file
+
+
+9. WHAT THIS FILE DOES NOT KNOW
+--------------------------------
+
+  - THE PER-ID CLOSURE SIZES IN SECTION 1 ARE MEASURED FOR ONE CLASS ONLY.
+    Extending the two-root walk to all thirty needs each id's .init constructor
+    attributed to it, and the only attribution this lane implemented is address
+    containment -- does the constructor's copied .data range bracket that id's
+    SpawnInfo. That is right for dScMgCurling_c, where the pairs at
+    0x0213c1e4..0x0213c2bc bracket the record at 0x0213c214, and it
+    OVER-ATTRIBUTES where one constructor serves two classes, which the run
+    showed it doing for at least 0x16a and 0x16b. So no per-id closure column
+    appears in section 3, on purpose. Section 3 ranks on the vtable axis, which
+    is read directly and needs no attribution, and the union in section 4 is
+    the reliable aggregate.
+  - NOTHING IN SECTION 3 SAYS A CLASS RUNS. It says what seating one costs. The
+    only class that has been through a boot is the pathfinder's, and what that
+    boot proved is in port/scene_boot_map.txt's terms, not this file's.
+  - THE 2D GAP LIST IS UNMEASURED FOR MINIGAMES. port/ov004_ov007_2d_map.txt
+    section 7 names six gaps and expects the OBJ window and the BLDCNT alpha
+    path to bite a 2D-heavy minigame. dScMgCurling_c writes DISPCNT, BG2CNT and
+    G2x::SetBlendAlpha on both engines (slots 0 and 18 both set
+    (0x04000050, 0, 0xd, 2, 0x10) and (0x04001050, 0, 4, 2, 0x10)), so the
+    ALPHA path is reached by this class and the question is live. Nobody has
+    looked at a frame.
+  - TOUCH DOES NOT EXIST. The 2d map's cluster f records that walk_window has a
+    touch bridge but no touch-panel register model, and ov004's
+    dMgPsOpt_c::TouchIcon_c is the framework's own touch layer. A minigame that
+    idles without touch input is still a boot; a minigame that needs touch to
+    leave its first state cannot be driven past it. Which of the thirty are
+    which is unmeasured.

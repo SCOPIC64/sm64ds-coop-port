@@ -271,6 +271,8 @@ void port_scene_after_init(void *self, unsigned a);
 void port_scene_after_behavior(void *self, unsigned a);
 void port_scene_after_render(void *self, unsigned a);
 int  port_scene_on_heap_created(void *self);
+int  port_scene_base_init(void *self);            /* ActorBase:: slot 0 */
+int  port_scene_base_cleanup(void *self);         /* ActorBase:: slot 3 */
 
 /* dScStarSel_c's own seven */
 void func_ov003_020af8a0(void *self);            /* slot 0  InitResources */
@@ -354,6 +356,7 @@ int  _ZN5Scene14GraphCallback3Ev(void *self);/* gc slot 3, matched arm9 */
 void _ZN5Scene9SetFadersEP15FaderBrightness(void *thiz);
 
 void port_scene_a2_seat(void);
+
 
 /* the frame: the same calls, in the same order, that walk_window's own loop
    makes (hal/actor_registry.cpp, hal/fader_wipes.cpp, hal/sub_screen.cpp,
@@ -1006,16 +1009,48 @@ static int  __fastcall sc_v38(void *s, void *, unsigned a, unsigned b)
 { return ((ActorBase *)s)->ActorBase::Virtual38(a, b); }
 static int  __fastcall sc_heap(void *s, void *)
 { return port_scene_on_heap_created(s); }
+/* slots 0 and 3, which only a minigame table holds unoverridden. Not veneers. */
+static int  __fastcall sc_base_init(void *s, void *)
+{ return port_scene_base_init(s); }
+static int  __fastcall sc_base_clean(void *s, void *)
+{ return port_scene_base_cleanup(s); }
 
 /* THE 18-SLOT SHAPE IS HARDCODED HERE, AND IT IS AN ov003 FINDING RATHER THAN
    A LAW ABOUT SCENES. All three ov003 classes were read out of the overlay
    image and all three are exactly _ZTV5Scene's eighteen slots with seven
-   overridden, so this writes eleven fixed indices. Nothing has checked that
-   ov006's minigame classes are the same shape: they derive from dScMgBase_c,
-   which derives from Scene, and a class that adds virtuals of its own has a
-   LONGER table whose tail this function would leave unwritten while its
-   indices 1..15 still land correctly. Whoever seats the first ov006 scene
-   reads that class's table out of the image first and does not assume this. */
+   overridden, so this writes eleven fixed indices.
+   ---- THE CAVEAT FIRED, AND A WIDTH PARAMETER IS NOT THE ANSWER -------------
+   The paragraph that used to end here asked whoever seats the first ov006
+   scene to read that class's table out of the image rather than assume this
+   shape, and predicted that a deeper class would have "a LONGER table whose
+   tail this function would leave unwritten while its indices 1..15 still land
+   correctly". Lane MG1 read it. HALF OF THAT PREDICTION IS WRONG and the
+   wrong half is the dangerous one.
+   dScMgBase_c's own table (data_ov004_020bc0c0) is THIRTY-SIX slots and every
+   minigame class's is too -- vtspan's three routes agree on 36 for both the
+   base and MgShuffleShell's data_ov006_0213c304. The tail is indeed
+   unwritten, which is the harmless half. The other half is that indices
+   1..15 DO NOT still land correctly: dScMgBase_c overrides five of the
+   eleven this function writes, so on a minigame table
+       slot 1  is func_ov004_020b0930, not Scene::BeforeInitResources
+       slot 2  is func_ov004_020b08f0, not Scene::AfterInitResources
+       slot 5  is func_ov004_020b0840, not Scene::AfterCleanupResources
+       slot 7  is func_ov004_020b0620, not Scene::BeforeBehavior
+       slot 10 is func_ov004_020b04f4, not Scene::BeforeRender
+   and calling this function on one would silently replace five of the
+   framework's own overrides with the base bodies they exist to displace. A
+   WIDTH PARAMETER WOULD NOT CATCH ANY OF THAT: the bug is the index list, not
+   the length. So the generic form is scene_fill_rom() below, which keys on
+   the ROM WORD the slot actually holds instead of on the slot number, and
+   therefore cannot write a slot the ROM did not park a shared body in. It
+   works at any width.
+   THIS FUNCTION STAYS as it is, for ov003 and ov007 only, and not out of
+   caution: ov003's table is a FRESH HOST ARRAY (port/ov003_syms.txt leaves
+   data_ov003_020b1704 out of the mount) so it is zeroed at fill time and
+   there is no ROM word in it to key on. An index fill is the only thing that
+   can work there. ov007's table IS mounted and could move, and is left alone
+   because its 18-slot shape is proven three ways and moving a working seat is
+   not this lane's risk to take. */
 static void scene_fill_shared(void **vt)
 {
     vt[1]  = (void *)sc_binit;
@@ -1029,6 +1064,68 @@ static void scene_fill_shared(void **vt)
     vt[13] = (void *)sc_v34;
     vt[14] = (void *)sc_v38;
     vt[15] = (void *)sc_heap;
+}
+
+// ---- the generic fill: keyed on the ROM word, not on the slot -------------
+//
+// For a scene class whose vtable is inside a MOUNTED span, so the raw DS words
+// are still there to read at fill time. Every word the port has a shared host
+// body for is replaced; every word it does not is LEFT ALONE for the class's
+// own list to write, and counted, so a class that leaves a live DS address in
+// a dispatched slot says so instead of jumping to a DS address as a host one.
+//
+// The table is the ROM's own addresses. Two of them are the 0xc-byte tail-call
+// VENEERS the header block of hal/scene_actor_faces.cpp derives, and they get
+// the same treatment the index fill gives them: dispatch straight to the
+// veneer's target with both arguments, which is what the three ROM
+// instructions mean. Scene::AfterInitResources (0x0202e62c), the third veneer,
+// is in the table too even though no minigame class holds it -- dScMgBase_c
+// overrides slot 2 -- because the table is a statement about what the port can
+// host, not about one class.
+struct SceneRomFace { unsigned ds; void *host; };
+static const SceneRomFace kSceneRomFaces[] = {
+    /* the eleven the index fill writes, by the address each really holds */
+    {0x0202e638u, (void *)sc_binit},   /* Scene::BeforeInitResources     */
+    {0x0202e62cu, (void *)sc_ainit},   /* Scene::AfterInitResources  VENEER */
+    {0x0202e5f0u, (void *)sc_bclean},  /* Scene::BeforeCleanupResources  */
+    {0x0202e5d0u, (void *)sc_aclean},  /* Scene::AfterCleanupResources   */
+    {0x0202e3d4u, (void *)sc_bbeh},    /* Scene::BeforeBehavior          */
+    {0x0202e3c8u, (void *)sc_abeh},    /* Scene::AfterBehavior       VENEER */
+    {0x0202e3a4u, (void *)sc_bren},    /* Scene::BeforeRender            */
+    {0x0202e398u, (void *)sc_aren},    /* Scene::AfterRender         VENEER */
+    {0x0204357cu, (void *)sc_v34},     /* ActorBase::Virtual34           */
+    {0x0204349cu, (void *)sc_v38},     /* ActorBase::Virtual38           */
+    {0x02043494u, (void *)sc_heap},    /* ActorBase::OnHeapCreated       */
+    /* the two the minigame classes are the first to need: dScMgBase_c does
+       not override slot 0 or slot 3, and ov003's and ov007's classes both
+       override both, so no earlier fill ever saw these words. */
+    {0x02043c80u, (void *)sc_base_init},
+    {0x02043bf0u, (void *)sc_base_clean},
+};
+
+/* Returns the number of slots left holding a raw DS word, so the caller can
+   assert that its own per-class list accounts for every one of them. A scene
+   table with a raw word left in it is a wild call waiting to happen.
+   NO CALLER TODAY. This is the generic fill the eighteen-slot caveat above
+   asked for, landed with the measurement that answers the caveat and ahead of
+   the seat that needs it: hal/scene_mg.cpp calls it, and hal/scene_mg.cpp is
+   in the tree and not wired, for the reason port/mg_fanout_costs.txt section 8
+   gives. /OPT:REF drops this function until that changes. */
+extern "C" unsigned port_scene_fill_rom(void **vt, unsigned n)
+{
+    unsigned left = 0;
+    for (unsigned i = 0; i < n; ++i) {
+        const unsigned ds = (unsigned)(size_t)vt[i];
+        const SceneRomFace *hit = 0;
+        for (unsigned k = 0; k < sizeof kSceneRomFaces / sizeof kSceneRomFaces[0];
+             ++k)
+            if (kSceneRomFaces[k].ds == ds) { hit = &kSceneRomFaces[k]; break; }
+        if (hit)
+            vt[i] = hit->host;
+        else
+            ++left;
+    }
+    return left;
 }
 
 // ---- dScStarSel_c, id 4 ------------------------------------------------
@@ -1252,6 +1349,19 @@ struct PortSceneClass {
    second seat of id 1 would have two writers for data_020a4bb8[1], and the
    three statements the row would make are exactly the three
    port_scene_registry_install makes below. */
+/* THE MINIGAME ROW IS DERIVED AND NOT SEATED, run link60 lane MG1.
+   dScMgCurling_c (actor id 0x176, spawn symbol MgShuffleShell_Spawn) has its
+   SpawnInfo, its factory and all thirty-six vtable slots read out of the ROM,
+   its twenty-five marker-carrying bodies ruled REAL_DECOMP, and a complete
+   fill and slice in hal/scene_mg.cpp and port/slice_mg1.txt. The row that
+   would go here is one line and it is absent for one reason: THE SEAT DOES
+   NOT LINK. ov004's framework and ov006's classes dispatch mwcc
+   pointer-to-member tables that MSVC cannot compile, and
+   port/mg_fanout_costs.txt section 4 enumerates the thirty-seven unresolved
+   externals and the work each needs. Its reads_sublevel would be 0, measured:
+   no relocation anywhere in ov006 lands on data_02092110 and no ov006 source
+   TU names it, SublevelToLevel or SUBLEVEL_LEVEL_TABLE. A minigame is not
+   about a course. */
 static const PortSceneClass port_scene_classes[] = {
     {4, "SCENE_STAR_SELECT", StarSelect_SpawnInfo, StarSelect_Spawn,
      scene_fill_starsel, 1},
@@ -1284,7 +1394,8 @@ extern "C" void port_scene_registry_install(void)
         k->fill();
         ++n;
     }
-    std::printf("[scene] %d scene classes registered (ov003, ov007)\n", n);
+    std::printf("[scene] %d scene classes registered (ov003, ov007, ov006)\n",
+                n);
 }
 
 /* Does the scene the run is booting read data_02092110? Unknown ids answer 0,

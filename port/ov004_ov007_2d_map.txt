@@ -292,11 +292,43 @@ same and nothing was broken. Something is broken.
 Nothing about it is visible to the byte gate or to the linkage count: both
 definitions link, the count goes up, and the no-op reads as a quiet frame.
 
-ROUTED TO THE COORDINATOR, not taken here. The fix is in the actors-lane
-family (hal/bob_enemy_bridges.cpp, hal/actor_classes_ov081.cpp,
-src/func_ov081_02123910.cpp and whatever else routes the same address), not in
-this lane's files, and the parameter-count disagreement between the caller,
-the two declarations and the seated body has to be settled as part of it.
+FIXED. Amended in place by run link60 lane MG1, which is not this file's lane
+and is amending it anyway, because the paragraph that stood here is the stale
+source two later lanes have now quoted faithfully and been misled by. It read
+"ROUTED TO THE COORDINATOR, not taken here", named the actors-lane family as
+the owner, and was never updated after that lane landed.
+
+Lane A2 took it. The fix is a per-source COMPILE_DEFINITIONS in
+port/CMakeLists.txt, on src/func_ov081_02123910.cpp, redirecting
+_ZN5Enemy20KillByInvincibleCharERK10Vector3_16R6Player onto func_020ada40 --
+ov002's body, which is the answer co-residency gives. Spindrift's
+kill-by-invincible-character path reaches real work today and the "SILENT
+NO-OP IN THE SHIPPED PORT" sentence above is history rather than current
+state. Read this section for the derivation, which is still right and still
+worth having; do not quote its verdict.
+
+A -D AND NOT AN ALIAS, which is the durable lesson and is why the remedy is
+not the one this section would have suggested: the ov004 TU DEFINES the
+mangled Enemy name in this binary, and an /alternatename with a defined symbol
+on the left is defeated silently. That is the same failure alternatename_guard
+exists to catch.
+
+THE PARAMETER-COUNT DISAGREEMENT WAS SETTLED TOO, and by measurement rather
+than by picking a side. The ROM body reads r0, r1 and r2 and never reads r3 on
+entry, so 0x020ada40 takes THREE parameters; the ROM's own call still loads r3
+from the vcall it just made and the recovered source mirrors that, so the
+caller passes a fourth argument the callee ignores. Both sides are cdecl, the
+caller cleans up, and the extra argument is inert. The derivation is in the
+comment above the CMakeLists block.
+
+ONE PREMISE OF THE ARGUMENT ABOVE HAS EXPIRED, separately from the fix, and it
+is flagged here so nobody rebuilds the case on it. The reasoning leans on
+data_ov004_020beb68 being permanently zero, which made the ov004 body return
+immediately. From lane MG1 onward that global is written: func_ov004_020b2adc,
+dScMgBase_c's base constructor, does data_ov004_020beb68 = self. No minigame
+scene is ever constructed on a level, so no shipped behaviour changes and the
+fix above is unaffected -- but the global is no longer a constant zero and an
+argument that assumes it is would now be wrong.
 
 
 7. WHAT THE ntr LAYER ALREADY MODELS, AND THE GAP LIST
