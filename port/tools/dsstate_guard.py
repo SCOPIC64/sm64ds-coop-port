@@ -153,6 +153,24 @@ BOOT_CONSTANT = {
     # main.c boot spine; the port seeds it once before the frame loop.
     "_data_020a0eac", "data_020a0eac", "_data_020a0eac_c", "data_020a0eac_c",
     "?data_020a0eac@@3PAUHeap@@A",
+    # THE VS STAR SPAWN ORDERS, and this one is stricter than the bar above:
+    # it is not written once at boot, it is never written at all. Six 12-byte
+    # rows of ROM constant at arm9 0x02075720, hosted by name as
+    # VS_STAR_SPAWN_ORDERS in hal/bob_enemy_bridges.cpp, read as
+    # data_0209f344[data_0209f208] and by the ov002/ov084 star-progress checks.
+    #
+    # It appears here rather than in the file that defines it because of the
+    # SPELLING, which is the case this set's header was written for. The
+    # storage has always been outside .dsstate and the guard never looked at
+    # it: VS_STAR_SPAWN_ORDERS matches none of the HOSTED patterns. Run link60
+    # Stage 4 added `/alternatename:_data_02075720=_VS_STAR_SPAWN_ORDERS` so
+    # Stage::InitResources' address spelling reaches the same array instead of
+    # a second copy of the bytes, and the alias is a public at the same address
+    # under a data_ name -- so the guard saw the array for the first time and
+    # correctly reported that a DS global is not captured. Nothing writes it,
+    # so there is nothing to roll back, and moving a pure constant into the
+    # snapshot would grow the captured span for no recoverable state.
+    "_data_02075720", "data_02075720",
 }
 
 # Object files whose data_* symbols are READ-ONLY ROM constants, not mutable

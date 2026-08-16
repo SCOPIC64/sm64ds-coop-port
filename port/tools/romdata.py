@@ -309,6 +309,46 @@ NAMED = [
     # a zeroed limit culls every 3D sound in the game without a word. The ROM
     # byte is 0x226 (550 units). All three are file-backed arm9 data below
     # bss_start; they were sitting in the HAL as zeroed BSS.
+    # run link60 Stage 4 (lane SD0): Stage::InitResources' own ROM data.
+    #
+    # THE THREE FADER-WIPE FILE-ID TABLES. InitResources picks exactly one of
+    # them and hands its seven entries to FaderWipe::LoadAndSetFile:
+    #   data_02075600  VS mode with a level-specific archive loaded
+    #   data_020755f0  sublevel 5
+    #   data_020755e0  everything else, which is every level the port boots
+    # Each is 0x10 by the delta-to-next-symbol rule and the loop reads seven
+    # u16 out of it, so the extra halfword is padding the ROM also carries.
+    # Zero relocations in any of the three spans (checked over
+    # config/arm9/relocs.txt): these really are numbers.
+    "data_020755e0", "data_020755f0", "data_02075600",
+    # The word InitResources zeroes on its way out (its last statement block)
+    # and Stage::Behavior reads. 0x4, no relocations.
+    "data_02092778",
+    # THE OTHER TWO COLUMNS OF THE PER-SUBLEVEL SOUND ROW, and read the
+    # data_02075768 comment above this one first -- these three entries
+    # deliberately emit THREE OVERLAPPING COPIES of the same ROM run.
+    #
+    # The run is 0x02075768..0x02075804, 0x34 rows of {group, bank, bgm}, and
+    # the config names each COLUMN as its own one-byte symbol. Three different
+    # readers index three different columns at stride 3:
+    #   data_02075768[level*3]   GetSoundGroupID, already emitted at 0x9c
+    #   data_02075769[level*3]   Stage::InitResources, the SEQARC bank
+    #   data_0207576a[level*3]   Stage::InitResources, the layer-1 BGM
+    # Byte-copied from its own start address, each array reads its own column
+    # correctly, so the overlap is not a redundancy to be cleaned up -- it is
+    # what makes three symbols that alias one ROM run work as three host
+    # arrays. Nothing does pointer arithmetic ACROSS the three names (checked:
+    # hal/star_flow.cpp walks all three columns off the single data_02075768
+    # array, row[0]/row[1]/row[2], which is inside one object), so no reader
+    # can observe that the copies are separate objects on the host.
+    #
+    # BOTH SIZES ARE PINNED AND THE PIN IS THE POINT. The next symbol after
+    # data_02075769 is data_0207576a ONE BYTE later, so delta-to-next-symbol
+    # hands it a one-byte array while the ROM code indexes it to level 0x33 --
+    # the undersized-host-global class exactly. 0x9a is 0x02075804 minus
+    # 0x0207576a, which covers the last index either column can form
+    # (0x33 * 3 = 0x99).
+    "data_02075769:0x9a", "data_0207576a:0x9a",
     "data_02099fa4", "data_02099fa8", "data_02099fac",
     # ...and the other half of the same silence: data_02099fb0 is the COUNT
     # func_02048720 walks looking for a free type-9 (positional) voice. The

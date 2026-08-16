@@ -232,12 +232,24 @@ int   port_stage_boot_arg_spawn(void);
 void  port_stage_boot_set_result(void *o);
 }
 
+/* Run link60 Stage 4, lane SD0: the slot-0 swap, env-gated. Returns the ROM
+   Stage::InitResources' own result under SM64DS_SLOT0_ROM, or -2 for "declined,
+   keep the host answer", which is what an unset environment gives. The whole
+   apparatus and both walls it bisects are documented in hal/stage_slot0.cpp
+   part 4; the one thing to know here is that mode 0 leaves this thunk doing
+   exactly what it did before. */
+extern "C" int port_slot0_rom_init(void *self);   /* hal/stage_slot0.cpp */
+
 static int __fastcall st_init(void *self, void *)
 {
-    (void)self;
     port_stage_boot_set_result(
         port_stage_boot_body(port_stage_boot_arg_mc(),
                              port_stage_boot_arg_spawn()));
+    {
+        const int rom = port_slot0_rom_init(self);
+        if (rom != -2)
+            return rom;
+    }
     /* 1 is the ROM's own "initialisation finished" return. The init Process
        turns it into vfSuccess 2, which is the only code
        ActorBase::AfterInitResources promotes on; 0 becomes 1, which is

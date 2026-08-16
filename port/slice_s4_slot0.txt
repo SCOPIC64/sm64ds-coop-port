@@ -1,0 +1,107 @@
+# Stage 4, lane SD0: the slot-0 closure slice.
+#
+# This is port/slice_gate36.txt's inventory MINUS THREE LINES, plus the three
+# matched callees the closure asks for that are on no active slice. It is a
+# separate file rather than an edit to slice_gate36.txt because that file is
+# gate 36's inventory and is quoted by name in port/CMakeLists.txt and in
+# port/stage_lifecycle_map.txt section 3; this one is what actually gets wired.
+#
+# ---- the three that come OUT, and why each -------------------------------
+#
+# src/LoadArchive.c              THE ONE REAL DUPLICATE. hal/scene_boot.cpp
+#     defines _LoadArchive as a tagged PORT_HOST_ABI host body, so compiling
+#     the matched TU too is LNK2005 (measured; it is the single LNK2005 the
+#     unmodified gate-36 slice produces, and the only one the lifecycle map
+#     ever named). Stage::InitResources' three LoadArchive calls resolve
+#     against the host body with nothing added.
+# src/UnloadArchive.c            NO HOST BODY EXISTED, and the matched TU
+#     drags the DS card loader (func_02018908 and the chain under it) plus
+#     data_0208ecf4, the 13-entry archive-mount table whose entries are DS
+#     STRING POINTERS. hal/stage_slot0.cpp supplies the one-line host body
+#     instead, which is the same trade hal/scene_boot.cpp already made for
+#     LoadArchive and LoadOverlay.
+# src/_Z17LoadLevelOverlaysi.cpp SAME SHAPE. "THE OVERLAY LOAD IS NOT SKIPPED,
+#     IT DOES NOT EXIST ON THE HOST" (port/scene_boot_map.txt section 2): the
+#     port's overlays are static host arrays mounted at build time. The
+#     matched TU wants LoadOverlay, LoadOrUnloadObjectOverlays, data_0209f278,
+#     data_02092130 and data_020758c8 to drive a load that resolves to
+#     nothing. hal/stage_slot0.cpp supplies the host body.
+#
+# ---- the three that come IN ------------------------------------------------
+#
+# Matched TUs that exist in src/ and are on no active slice. The closure names
+# them; nothing here is new decomp.
+#   GetControllerMode   under ResetInput
+#   func_02023408       under LoadDebugFont
+#   func_0203d81c       under func_020308a8
+#
+# ---- what is deliberately NOT here -----------------------------------------
+#
+# src/_ZN5Stage16CleanupResourcesEv.cpp. Slot 3 is a separate job with a
+# separate gate that has nothing to do with linking (nothing marks the port's
+# one Stage for destruction, so the cleanup Process never dispatches it) --
+# port/stage_lifecycle_map.txt section 5. Carrying it here would inflate this
+# slice's closure with two symbols that buy no dispatch.
+#
+# ---- fourteen of these ARE already compiled from other slices --------------
+#
+# and that is fine, not a duplicate: CMake compiles one source path once per
+# target, so a line that another slice already contributes is deduplicated by
+# path. Measured with port/tools/closure.py against walk_window.map: fourteen
+# of this list's definitions are already in the image (Enable3dEngines,
+# Initialise3dGraphics, InitialiseVramGlobals, LoadTextNarcs, Heap::SetDefault,
+# GX::DisableAllBanks, GX::SetGraphicsMode, GXS::SetGraphicsMode, GX::DispOn,
+# Scene::Initialise3dGraphics, Sound::SetMusic, Stage::LoadGraphics2D,
+# Stage::LoadTextureTransformers, ShadowModel::CleanAll) and every one of them
+# is defined by an object of the SAME FILE NAME, checked row by row in
+# walk_window.map. That is the trap port/stage_lifecycle_map.txt line 540
+# warns about read from the other side: a symbol-table probe calls these
+# FOURTEEN duplicates, a link calls them none. (The map's own warning is about
+# the gate-36 slice, where a probe read fifteen and a link read one; the one
+# was src/LoadArchive.c, which this slice drops. Fourteen is the count of the
+# list immediately above and the number this slice's own probe printed --
+# writing fifteen here borrowed the map's figure for a different slice.)
+
+# ---- the function itself
+src/_ZN5Stage13InitResourcesEv.cpp
+src/Enable3dEngines.c
+src/ResetInput.c
+src/LoadTextNarcs.c
+src/Initialise3dGraphics.cpp
+src/InitialiseVramGlobals.c
+src/func_02039218.c
+src/ResetKuppaScript.c
+src/LoadDebugFont.c
+src/IsLevelInsideCastle.c
+src/IsLevelTinyHugeIslandOutside.c
+src/func_020308a8.c
+src/func_0203da3c.c
+src/func_0203dad4.c
+src/func_ov001_020ab2e4.c
+src/engine/fader/_ZN9FaderWipeC1Ev.c
+src/engine/fader/_ZN9FaderWipeD1Ev.c
+src/_ZN5Scene20Initialise3dGraphicsEv.c
+src/_ZN4Heap10SetDefaultEv.cpp
+src/_ZN2GX15DisableAllBanksEv.c
+src/_ZN5Stage12SetVramBanksEv.c
+src/_ZN2GX15SetGraphicsModeEiii.c
+src/_ZN3GXS15SetGraphicsModeEi.cpp
+src/_ZN2GX6DispOnEv.c
+src/_ZN5Stage14LoadGraphics2DEbi.cpp
+src/_ZN5Sound8SetMusicEjj.c
+src/_ZN5Stage7LoadFogEv.cpp
+src/_ZN5Stage23LoadTextureTransformersEv.cpp
+src/_ZN11ShadowModel8CleanAllEv.cpp
+
+# ---- the three unsliced matched callees the closure names
+src/GetControllerMode.c
+src/func_02023408.c
+src/func_0203d81c.c
+
+# src/engine/fader/_ZN9FaderWipe14LoadAndSetFileEt.cpp is NOT listed here.
+# Lane SL0 already names it by absolute path on the three targets that compile
+# hal/fader_wipes.cpp (port/CMakeLists.txt, commit 17c0cf11e), because the
+# C-name face in that file is the only reference to the method and face and
+# body have to link together. Listing it again would be the same path twice on
+# the same target, which CMake deduplicates -- harmless but misleading about
+# where the line lives.
