@@ -1035,11 +1035,14 @@ and 12b no longer presents it as such.
 13. THE SCRAMBLED TOP SCREEN IS 95% BACKGROUND, AND THE BACKGROUND IS NOT A
     DECODE FAULT
 
-Run link60 Stage 5, lane EAD, off VP1's tip 363991d0d. Section 12 put the
-engine-A layers on the screen for the first time; Tango's verdict on the frame
-that produced was that the top screen is fullscreen now and "the display data
-is scrambled with just random large chunks of pixels everywhere". This section
-is what that sentence turns out to name.
+Run link60 Stage 5, lane EAD. It branched from 363991d0d, which was lane VP1's
+tip on s5-viewport at the time and is NOT that branch's final commit: VP1
+amended afterwards with 810668929 and cons merged the amended branch, so on
+cons this section's base names a commit one short of the merged VP1. Section 12
+put the engine-A layers on the screen for the first time; Tango's verdict on
+the frame that produced was that the top screen is fullscreen now and "the
+display data is scrambled with just random large chunks of pixels everywhere".
+This section is what that sentence turns out to name.
 
 THE LANE WAS BRIEFED ON FOUR SUSPECTS and the first thing measured was which
 SURFACE the chunks live on, because a whole-frame BMP cannot tell a background
@@ -1064,10 +1067,17 @@ fault from a sprite fault: both layers land in the same pixels.
       says a store is populated; only the bytes say whether it holds what the
       ROM's own file holds.
   hal/level_boot.cpp          SM64DS_LOADFILE_TRACE=1 prints every LoadFile as
-      handle, returned pointer, slot, and whether it was a cache hit. Six
-      lines, and they are what named 13c's root cause.
+      handle, returned pointer, slot, and whether it was a cache hit. Eight
+      lines added and one replaced, by the tree's own diffstat, and they are
+      what named 13c's root cause. THIS IS A CHANGE TO THAT FILE and 13c says
+      so where the refusal is stated, because "the lifetime fix is refused" and
+      "the file was not touched" are different sentences.
 
 13b. THE MEASUREMENT. SM64DS_SCENE=374, 300 frames, FAULTS_FATAL, exit 0
+
+EVERY NUMBER IN THIS TABLE IS THE PRE-FIX STATE, taken before 13d's mapping fix
+so that the fix has something to be measured against. The merged tree reads
+BG2 38,410 and OBJ 2,369 on the same frame; 13d has the pair and the diff.
 
     DISPCNT_A       00001400 x255, 00007400 x45.  BIT 4 CLEAR on all 300
                     (2D OBJ tile mapping), bits 20-21 ZERO (boundary 32),
@@ -1130,11 +1140,19 @@ already invalidated. The trace, one run, in order:
     [loadfile] 0x34 -> 30032180 slot 37 FRESH
     [loadfile] 0x30 -> 30031B60 slot 33 CACHED    <-- the defect
 
-The last line is func_ov006_020e3250, which InitResources calls at its end: it
-picks one of three rink tilemaps at random (0x30, 0x2d, 0x31) and uploads
-0x800 bytes of it to the BG2 screen base. It asks for handle 0x30 a SECOND
-time, the host cache hands back the block the ROM freed four lines earlier, and
-that block now holds file 0xc7. So the port uploads an LZ-compressed sprite
+The last line is func_ov006_020e3250, which InitResources calls at its end. It
+uploads 0x800 bytes of one of three rink tilemaps (0x30, 0x2d, 0x31) to the BG2
+screen base, and WHICH ONE IS NOT A COIN TOSS ON THIS PATH. Review derived it
+and the code agrees: InitResources calls func_ov006_020e3378 immediately
+before, whose whole body is `*(int *)(self + 0x4e9c) = 255`, and 255 is exactly
+the value func_ov006_020e3250's first branch tests for. That branch sets the
+field to 0 and returns without touching the generator, and 0 selects handle
+0x30. The RNG re-roll below it belongs to the OTHER caller,
+func_ov006_020e3470, the in-play reset that runs func_ov006_020e3388 and
+func_ov006_020e3250 without the 255 store. So the first load of the scene picks
+rink 0 on every boot. It asks for handle 0x30 a SECOND time, the host cache
+hands back the block the ROM freed four loads earlier, and that block now holds
+file 0xc7. So the port uploads an LZ-compressed sprite
 sheet into a screen-entry table: 1024 cells of arbitrary tile id and arbitrary
 palette bank, full screen. That is the chunk pattern, and it is the whole of
 the 95%.
@@ -1146,11 +1164,27 @@ NOT FIXED HERE, AND THE REASON IS NOT SHYNESS. This is not a decode defect, the
 compositor renders exactly the bytes VRAM holds, and the fix is not in the ntr
 layer: it is the lifetime contract between an invented host cache and the ROM's
 own allocator, in hal/level_boot.cpp, on the path every level's KCL and object
-files take. The narrow fixes each have a blast radius worth their own lane and
-their own battery: dropping the cache makes the port's per-level release free
-buffers the ROM already freed, and invalidating on free needs a hook on
-Memory::Deallocate that nothing has today. Recorded with a one-command
-reproducer instead:
+files take.
+
+WHAT THIS LANE DID AND DID NOT DO TO THAT FILE, said plainly because the two are
+easy to run together: it DID touch hal/level_boot.cpp, eight lines added and one
+replaced, and 13a lists what they are. They are the env-gated trace above and
+nothing else, inert with SM64DS_LOADFILE_TRACE unset. What is refused is the
+LIFETIME FIX, not the file.
+
+WHY THE CACHE CANNOT SIMPLY DIE, corrected from review's census after this
+lane's first answer was wrong on the facts. The wrong answer said dropping the
+cache would make the per-level release free buffers the ROM already freed;
+port_level_reset_host frees nothing, and its own comment says so, because it
+DROPS the table rather than releasing it and releasing would be the double free.
+The real dependents are two, and both index the table BY HANDLE:
+port_level_capture_kcl resolves the outgoing level's KCL slot out of it and
+copies the SharedFilePtr aside for a late free after ResetMeshColliders, and
+port_loadfile_pin_persistent marks the message bank's slot so the per-level drop
+leaves it loaded. A cache that stops answering by handle takes both of those
+with it. Invalidating on free instead needs a hook on Memory::Deallocate that
+nothing has today. Either way it is a lane with its own battery. Recorded with a
+one-command reproducer instead:
 
     SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=2 SM64DS_LOADFILE_TRACE=1
 
@@ -1219,9 +1253,11 @@ measured. Same binary, SM64DS_WINDOW_SELFTEST=300, SM64DS_MSG_COMPOSITE_DEBUG:
     level  1   a524c2a464aff1a80cd5ca899af665f9   compositor never ran
     level  5   001a22b1f1f4a79788b57d442baaf027   compositor never ran
     level 24   ea8c6aa57a35e05c9ce79e65de49c18e   compositor never ran
-    level 35   732c86336c781210bf49c96cddb7d9a5   94 composited frames, all
-                                                  BG3, obj enable 0 on every
-                                                  one, OBJ layer 0 px
+    level 35   732c86336c781210bf49c96cddb7d9a5   94 composited frames, the
+                                                  six the printer sampled all
+                                                  BG3 with obj enable 0, and
+                                                  the last frame's attribution
+                                                  row OBJ 0 px
 
 All four md5s are the ones section 12d recorded, which is worth one sentence of
 care: those were taken at .dsstate base 0xbad000 and these at 0xbae000, so the
@@ -1231,9 +1267,18 @@ header of port/tools/battery.py says the opposite for the ones that are).
 
 On levels 1, 5 and 24 the layer mask reads d45c=00 against DISPCNT bits 8-12 =
 00, so port_message_composite_engine_a takes its early return and no sprite is
-rastered at all. On level 35 the dialogue box composites and its OBJ enable is
-0 on all 94 frames. Neither is a proof about the other 42 levels; those are
-covered by the battery's exit codes, as section 12d already says.
+rastered at all. That one covers every frame, because the mask is sampled on
+the first and the early return is what the run then does.
+
+LEVEL 35 IS WEAKER EVIDENCE THAN THIS SECTION FIRST CLAIMED, and the difference
+is the instrument rather than the result. It said "obj enable 0 on all 94
+frames"; the compositor's dump only prints on a NEW MAXIMUM of composited
+pixels or at the settled box state, so what the run actually shows is SIX
+samples, every one of them BG3 with obj enable 0, plus the last composited
+frame's attribution row with the OBJ layer at 0 px. The other 88 frames are
+covered by neither, and a maxima printer cannot be read as a per-frame census.
+Neither level is a proof about the other 42; those are covered by the battery's
+exit codes, as section 12d already says.
 
 13g. UNPROVEN
 
@@ -1244,11 +1289,17 @@ covered by the battery's exit codes, as section 12d already says.
   * THE 13c ROOT CAUSE IS NAMED, NOT REPAIRED, and it is the dominant half of
     the verdict this lane was sent to work from. Its blast radius is every
     LoadFile caller in the port.
-  * THE 13c TRACE IS ONE RUN. The random tilemap choice in func_ov006_020e3250
-    means a run can also pick handle 0x2d or 0x31, which have no cache entry
-    yet and would load correctly. Neither of those was observed here, and a run
-    that picks one would show a CORRECT background and hide the defect. Anyone
-    reproducing it should read the trace rather than the frame.
+  * THE 13c REPRODUCER IS STRONGER THAN THIS LIST FIRST SAID. The bullet here
+    read "the trace is one run" and hedged that a run could pick handle 0x2d or
+    0x31 instead and hide the defect. Review derived otherwise and the code
+    agrees: func_ov006_020e3378 stores 255 into +0x4e9c immediately before
+    InitResources calls func_ov006_020e3250, and 255 is the value that
+    function's first branch tests, which zeroes the field and returns without
+    reaching the generator. Zero selects handle 0x30. The RNG re-roll is the
+    other caller's, func_ov006_020e3470. So the boot path is DETERMINISTIC and
+    every boot of this scene reproduces it. The hedge is kept visible rather
+    than deleted because it is the shape of a wrong reading a successor could
+    make again: a generator in the body is not a generator on the path.
   * FOUR LEVELS HAVE BMP IDENTITY, not forty-six, exactly as in 12d.
   * THE COLOUR-MODE COUNT IS THE FIRST SAMPLE'S. All 52 entries placed on
     frame 0 are 16-colour; the whole-run evidence that none of the others is
