@@ -455,11 +455,24 @@ Everything above that is matched ROM code the port would then be running for
 real.
 
 THIS LANE DOES NOT RECOMMEND CUTTING THERE FIRST, and the reason is that the
-boundary is not only memory. Link 1 is driven by an interrupt the host does not
-raise. port/irq2_map.txt already records that the host has no IRQ source for
-the display path and that the fader wipes are stuck behind the same gap. Adding
-a second synthetic interrupt source for touch, before the first one exists,
-buys nothing that the cheaper cut does not already buy.
+boundary is not only memory. An earlier draft of this section said the host
+raises no interrupts, and that is FALSE: the scene runner is the display timing
+authority and delivers IRQ 2, which the curling run's own report counts at
+78637 HBlank deliveries over 300 frames. What is missing is narrower and worse.
+
+    THE IPC FIFO HAS NO MODEL. IPCSend is LINKED (src/IPCSend.c, via
+    slice_gate10). It tests IPCFIFOCNT at 0x04000184 and writes IPCFIFOSEND at
+    0x04000188. Nothing in port/ntr or port/hal implements either register, so
+    the control word reads 0, IPCSend takes its success path and returns 0, and
+    the write lands in unmodelled IO space. Seat func_0203bbc0 as it stands and
+    every one of its setup calls reports success while no sample ever arrives.
+    A silent success is worse than an absence, and it is what link 0 would be
+    built on top of.
+
+    THERE IS NO ARM7 AT ALL. Link 0's writer is the other processor. Cutting
+    there means writing a host stand in for the ARM7's TSC service and a
+    delivery path for its message, which is a larger seam than the two steps
+    below and buys the same tap.
 
 6b. THE CUT THIS LANE PROPOSES, IN TWO STEPS THAT ARE SEPARATELY USEFUL.
 
@@ -608,6 +621,14 @@ does not need a probe build:
     starts being dispatched at frame 65 and the machine leaves the sub state on
     the first consumed tap, so a longer run explores no new state. Recorded
     because it was run, not because it adds coverage.
+
+  - THE IPC FIFO CLAIM IS A GREP, NOT A RUN. Section 6a says 0x04000184 and
+    0x04000188 have no model because nothing in port/ntr or port/hal names
+    them, and that IPCSend therefore returns 0. No run was made that calls
+    IPCSend and reads its return, because nothing on an exercised path calls
+    it. The read of 0 at unmodelled IO addresses is taken from
+    port/ppu_gap_audit.txt's measurement of the neighbouring SPI registers,
+    which is one address family away from the ones asserted here.
 
   - THE 64 FRAME WARM UP WAS COUNTED, NOT DERIVED. It is the difference
     between two probe counters on one scene at one frame count. What sets
