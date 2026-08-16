@@ -1917,15 +1917,23 @@ DSSTATE_END
 // used to claim belongs to SharedFilePtr::LoadFile, a different function with
 // a different contract.
 //
-// The callers say the same thing. Of the forty-seven arm9 and overlay TUs
-// that call LoadFile by handle, forty-three also call Deallocate;
-// src/func_ov006_020e3250.c is the shortest of them and frees on the line
-// after the copy. The four that do not (func_ov075_02117d80, _02118378,
-// _02118f38, _0211944c) hand the pointer to func_ov075_02116030, which stores
-// it only when its slot is empty -- so a repeat there leaks on the DS too.
-// Stage::LoadClsnAndObjects keeps the level KCL and LoadMessageBankForLanguage
-// keeps the message bank, and those two are what the table below outlives a
-// call for.
+// The callers say the same thing. FIFTY-FIVE TUs under src/ call the free
+// function -- a further six only DECLARE a member LoadFile inside a shadow
+// class and are not callers at all -- and FORTY-SIX of the fifty-five also
+// call Deallocate. src/func_ov006_020e3250.c is the shortest of them and
+// frees on the line after the copy. The nine that do not are each a
+// documented keep rather than a counterexample:
+//
+//   six ov075 TUs (_021173a8, _02117918, _02117d80, _02118378, _02118f38,
+//     _0211944c) hand the pointer to func_ov075_02116030, which stores it
+//     only when its slot is empty, so a repeat there leaks on the DS too;
+//   func_ov004_020b2cb8, dScMgBase_c's per-language file table, keeps all
+//     twenty-nine pointers live in data_ov004_020bf560 -- the ROM's own
+//     working set, which is what the slot count below is sized against;
+//   Stage::LoadClsnAndObjects keeps the level KCL;
+//   LoadMessageBankForLanguage keeps the message bank.
+//
+// The last two are what the table below outlives a call for.
 //
 // The port's file seam is one level up, at SharedFilePtr (hal/fs.cpp), so this
 // expresses that contract there: construct the handle's SharedFilePtr, Load it
