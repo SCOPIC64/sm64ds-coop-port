@@ -735,12 +735,22 @@ rather than anything about minigames.
     _ZN5Scene9SetFadersEP15FaderBrightness+0x24, reached through
     mb_binit -> func_ov004_020b0930 (slot 1) -> Scene::SetFaders.
 
-  WHY. data_0209f61c is an arm9 FaderBrightness in bss and its vptr is zero.
+  WHY. data_0209f61c is an arm9 dWipe_c in bss and its vptr is zero.
   src/__sinit_02074f80.c is its static initialiser -- func_0202fc40 then a
   func_020731dc destructor registration -- and the port never runs it;
   func_0202fc40 is not in the link at all. The host SetFaders compiles
   thiz->v24() to `call dword ptr [eax+24h]`, which off a null vptr reads
   address 0x24, and that is the number in the fault.
+
+  THE CLASS NAME IN THAT PARAGRAPH IS CORRECTED, by run link60 lane FDR. This
+  section said "an arm9 FaderBrightness" everywhere; the ROM's own RTTI at
+  0x020926dc reads "7dWipe_c", over the base chain dFdColor_c ->
+  dFdBrightness_c -> dFader_c. FaderBrightness IS dFdBrightness_c, the
+  grandbase two levels up, so it is a legitimate name for the Scene::SetFaders
+  PARAMETER and the wrong one for the object. Nothing else in this section
+  changes: every ADDRESS it gives is right, including the call this paragraph
+  makes below that the table to fill is data_020926f0 and NOT _ZTV9FaderWipe
+  (that one is dFdWipe_c, a sibling under the same dFdColor_c base).
 
   NOT PREVENTED ON PURPOSE. Installing a plausible vptr is the guess
   port/tools/inferred_stub_guard exists to refuse. Instead the fill prints the
@@ -752,6 +762,22 @@ rather than anything about minigames.
   func_0202fc40 actually installs, which is NOT _ZTV9FaderWipe), and a decision
   about which arm9 static initialisers the port runs at all. Three things, none
   of them in ov004 or ov006.
+
+  THIS BLOCKER IS RETIRED, and it went the way this paragraph scoped it, all
+  three parts. Run link60 lane FDR: port/slice_fdr.txt is the slice,
+  port/hal/fdr_arm9_fader_seat.cpp is the host fill, and the third was
+  answered for THIS INITIALISER ONLY -- the port runs __sinit_02074f80 itself,
+  from a C++ static initialiser, rather than reimplementing it. READ THAT
+  NARROWLY. It is not a policy about arm9 static initialisers in general and
+  the port has not adopted one: exactly one of them runs today, and the others
+  the port needs are still REIMPLEMENTED as host seats, __sinit_02075154 as
+  port_actor_lists_seat in hal/actor_registry.cpp and __sinit_02073a24 as the
+  fill in hal/camera_states.cpp. Whether those should convert is open and this
+  lane did not open it. Slot 1 now runs to completion and
+  the boot walks on to a NitroSDK open-by-name file-system wall inside
+  dScMgCurling_c::InitResources, which port/tools/battery.py's SCENE_BLOCKED
+  row for scene 374 now records instead. port/fader_boot_map.txt is the
+  write-up.
 
   ONE TRAP FIRED and it is not the blocker: func_0202e78c, the arm9 address
   with no config symbol at all, returns 0 as it is written to. Nothing in the
