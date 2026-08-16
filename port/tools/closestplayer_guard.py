@@ -106,6 +106,13 @@ RULES = [
         # the remedy printed, which is a stronger position than the one the
         # row was written in. Deleting it would have retired the evidence
         # along with the refusal.
+        #
+        # THAT WAS TESTED BY INJECTION rather than asserted. With the call in
+        # src/func_0202f428.c put back to the zero-argument spelling, this
+        # guard reports "src/func_0202f428.c:16: zero-argument
+        # _ZN10FaderColor11AdvanceFadeEv call" and exits 1, over a TU that is
+        # in a slice -- which is the state the row could never reach before,
+        # because the refusal kept the TU out of every slice.
         "symbol": "_ZN10FaderColor11AdvanceFadeEv",
         "pattern": re.compile(r"_ZN10FaderColor11AdvanceFadeEv\s*\(\s*\)"),
         "remedy": (
