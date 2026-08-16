@@ -868,8 +868,25 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 
 /* Same ADDRESS, different overlay label: 0x020e3078 and 0x020c5dec carry
    an ov002 function too, and ov002 is the overlay the port runs. The src
-   files naming them ov006/ov007 describe a different overlay's bytes. */
-#pragma comment(linker, "/alternatename:_func_ov006_020e3078=_func_ov002_020e3078")
+   files naming them ov006/ov007 describe a different overlay's bytes.
+
+   THE ov006 HALF OF THAT IS NO LONGER TRUE and its alias is deleted. Run
+   link60 lane MG2 seats dScMgCurling_c, so ov006 IS an overlay the port runs
+   now, and the real ov006 body at 0x020e3078 is in the link -- as
+   port/unmatched/MgCurling_StateDispatch.cpp's host copy of
+   src/func_ov006_020e3078.cpp, which the pointer-to-member wall forced. With a
+   real definition present the /alternatename went inert and
+   port/tools/alternatename_guard.py failed the build on it by name, which is
+   exactly the R1/R2 arrival shape that guard exists to catch. Deleting the
+   dead directive is that guard's own recipe; the routing is NOT still needed,
+   because every ov006 caller now wants the ov006 body and every ov002 caller
+   spells the ov002 name. port/ov006_player_map.txt section 4 recorded this
+   alias as "the shared-window artifact again in a third form" and noted that
+   src/func_ov006_020e3078.cpp was not linked -- that note is now history.
+
+   THE ov007 SIBLING STAYS. No ov007 body at 0x020c5dec is in the link, the
+   guard reports that alias as firing normally, and nothing this lane did
+   touches it. */
 #pragma comment(linker, "/alternatename:_func_ov007_020c5dec=_func_ov002_020c5dec")
 
 /* gate 42: the same shared-base illusion for PEACH_PAINTING. ov010, ov052 and
@@ -913,7 +930,13 @@ extern "C" int _ZN13RaycastGround10DetectClsnEv(void *self)
 #pragma comment(linker, "/alternatename:?func_ov002_020c647c@@YAHPADH@Z=_func_ov002_020c647c")
 #pragma comment(linker, "/alternatename:?func_ov002_020c6538@@YAHPAD@Z=_func_ov002_020c6538")
 #pragma comment(linker, "/alternatename:?func_ov002_020c6908@@YAHPAD@Z=_func_ov002_020c6908")
-#pragma comment(linker, "/alternatename:?func_ov006_020e3078@@YAHPAXPAH@Z=_func_ov002_020e3078")
+/* RETARGETED by run link60 lane MG2, for the reason twenty lines up: the real
+   ov006 body at 0x020e3078 is in the link now, so the C++-mangled spelling of
+   the ov006 name must reach the SAME body its C spelling does. Nothing
+   references this LHS today -- the guard reports it absent from the map rather
+   than fired -- so the change is inert in this build and exists so the two
+   spellings cannot drift apart the first time something does. */
+#pragma comment(linker, "/alternatename:?func_ov006_020e3078@@YAHPAXPAH@Z=_func_ov006_020e3078")
 #pragma comment(linker, "/alternatename:?data_ov002_02109db8@@3PAEA=_data_ov002_02109db8")
 #pragma comment(linker, "/alternatename:?data_ov002_0210a07c@@3PAIA=_data_ov002_0210a07c")
 #pragma comment(linker, "/alternatename:?data_ov002_0210a424@@3PAHA=_data_ov002_0210a424")

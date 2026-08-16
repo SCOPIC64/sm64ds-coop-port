@@ -53,6 +53,13 @@
 // caller is a definition the linker drops. The omission cannot go quiet: a
 // future slice that reaches it fails the link with an unresolved external,
 // which is the same reasoning the ov007 lane applied to func_ov007_020c49bc.)
+// AMENDED, run link60 lane MG2. THE ADDRESS IS REFERENCED NOW, by the address
+// switch in unmatched/MgCurling_StateDispatch.cpp, which is what a dispatch
+// fix does to every state word. It still gets no symbol here: inventing a
+// definition for a body with no source is exactly the guess
+// port/tools/inferred_stub_guard refuses. The case is handled at the dispatch
+// site instead, where the report can say which state was wanted rather than
+// only that something was missing.
 //
 // ---- 4. THE mwcc POINTER-TO-MEMBER TU, WHICH IS THE WALL -------------------
 //
@@ -97,6 +104,25 @@
 // the run reports that rather than jumping to a DS address as a host one.
 
 #include <cstdio>
+#include "dsstate_seg.h"
+
+/* EVERY HOSTED DS GLOBAL IN THIS FILE IS INSIDE THE SAVE-STATE SPAN, and it
+   took wiring the file to find that out. MG1 wrote sections 1 and 1b and left
+   them out of every target, so hal/dsstate_seg.h's guard -- which reads the
+   LINKED map -- had never had an opinion on them. The first link that closed
+   named all twelve at once:
+
+     dsstate_guard: 12 hosted DS symbol(s) are OUTSIDE .dsstate and would NOT
+     be captured by a save state
+
+   They are DS storage by definition, so all twelve belong in the captured
+   span and the bracket goes round the whole block rather than round the three
+   this lane added. Nothing here is host bookkeeping: the header's "what must
+   not go in here" list is the playlog path, the frame counter and the window
+   pacing, and this file has none of those. A seat that is derived but not
+   wired cannot be checked by a guard that reads a map, which is the general
+   form of it and is worth the next lane knowing. */
+DSSTATE_BEGIN
 
 extern "C" {
 
@@ -134,6 +160,31 @@ unsigned char data_0208e424[4] = { 0xff, 0x00, 0x00, 0x00 };
 unsigned char data_ov000_020ad494[24] =
     "thum_shinkei_ncg.bin\0\0\0";
 
+/* arm9 .data, EIGHT bytes by span -- the next symbol is data_0208ee00. Read at
+   (0x0208edf8 - 0x02004000): "LZ77" and four NULs, the compression magic the
+   archive loader compares a header against. Named by src/func_02018568.c, one
+   of the sixth wave's five. */
+unsigned char data_0208edf8[8] = "LZ77\0\0\0";
+
+/* arm9 .data, FOUR bytes by span -- the next symbol is data_0208eb58. Read at
+   (0x0208eb54 - 0x02004000): ff 00 00 00, the same -1-in-the-low-byte sentinel
+   as data_0208e424 below and hosted for the same reason, that a zeroed word is
+   a DIFFERENT value to a caller testing it for "not set". Named by
+   src/func_02018770.c. */
+unsigned char data_0208eb54[4] = { 0xff, 0x00, 0x00, 0x00 };
+
+/* arm9 .data, TWENTY bytes by span -- the next symbol in
+   config/arm9/symbols.txt is data_0208ec88. Read at (0x0208ec74 - 0x02004000)
+   out of extracted/arm9_dec.bin: "myFS_OpenFileFast" plus three NULs, a
+   sibling of data_0208ecd8 below and the same kind of thing, a NitroFS
+   entry-point name the card loader hands its own resolver. Reached through
+   src/func_02018dc4.c, one of the archive-loader TUs the two SharedFilePtr
+   constructors pull in. Named by review's converged link as the sixth wave's
+   one hosted word and measured here; nothing in the port's fs seam consumes
+   it, and the ROM's bytes are transcribed rather than zeroed for the reason
+   the next block gives. */
+unsigned char data_0208ec74[20] = "myFS_OpenFileFast\0\0";
+
 /* arm9 .data, twenty-eight bytes by span -- the next symbol is data_0208ecf4,
    which is the 13-entry archive-mount table hal/scene_boot.cpp's LoadArchive
    face describes. Read at (0x0208ecd8 - 0x02004000) out of
@@ -147,9 +198,173 @@ unsigned char data_0208ecd8[28] = "myFS_ConvertPathToFileID\0\0\0";
 
 }  /* extern "C" */
 
+DSSTATE_END
+
 /* ---- 2. the two name-spelling faces ------------------------------------ */
 #pragma comment(linker, "/alternatename:__ZTV14dScMgCurling_c=_data_ov006_0213c304")
 #pragma comment(linker, "/alternatename:_func_020adc74=_func_ov004_020adc74")
+
+/* ---- 2b. THE FOUR ALIAS ROWS A GENERATOR MUST NOT WRITE ------------------
+ *
+ * The other nineteen alias rows of this seat's wall are generated into
+ * hal/scene_mg_faces_gen.cpp by port/tools/facegen.py and verified by it.
+ * These four are here because facegen refused three of them and MISCLASSIFIED
+ * the fourth, and both of those are the tool behaving as its docstring says
+ * it should -- "judgment rows go to a human". The refusal text is quoted
+ * verbatim so a reader can see what was refused and what the ruling was.
+ *
+ *   "struct-typed global: PMF pair tables travel in this spelling, rule it
+ *    by hand"
+ *
+ * RULED AGAINST THE ROM, one at a time, by reading the words out of
+ * extracted/overlays/overlay_0004.bin at (addr - 0x020ad660):
+ *
+ *   data_ov004_020bc27c   00000380 00000300 00000340
+ *     THREE PLAIN INTS. src/func_ov004_020b3278.cpp spells it
+ *     `struct S3 { int v[3]; }` and reads tmp.v[i] as an int argument. Not a
+ *     pair table; twelve bytes that mean the same twelve bytes on both ABIs.
+ *     ALIAS IS CORRECT.
+ *   data_ov004_020bc904   020b7c04 00000000
+ *   data_ov004_020bc914   020b7fec 00000000
+ *     THESE TWO ARE mwcc MEMBER POINTERS -- {code, adjustment} with the code
+ *     word inside ov004's .text (0x020ad660..0x020b944c) and the adjustment
+ *     zero -- and the refusal was right to stop on them. The alias is still
+ *     the correct answer, and THE TEST IS WHAT THE CONSUMER SPELLS, NOT WHAT
+ *     THE CONSUMER DOES. src/func_ov004_020b7cd0.cpp and
+ *     src/func_ov004_020b72d4.cpp each declare `struct Pair { int a; int b; }`
+ *     and store .a and .b into the object's own eight-byte state field at
+ *     +8/+0xc. That struct is eight bytes on MSVC and eight in the ROM, so the
+ *     copy lands exactly the ROM's two words and the alias is sound. The DS
+ *     code address that arrives in that field is then dispatched by
+ *     unmatched/MgBase_StateDispatch.cpp, which keys on the DS address.
+ *
+ *     DO NOT RESTATE THIS AS "A COPY IS SAFE AND A CALL IS NOT". A consumer
+ *     that only copies, but copies through a struct holding a REAL MSVC member
+ *     pointer, moves four bytes where the ROM moves eight and shifts every
+ *     field after it in the same object, with no call anywhere. The rule is:
+ *     TWO INTS ALIAS, A MEMBER-POINTER TYPE NEEDS A HOST COPY, called or not.
+ *     That is why these two rows are aliases and the seven in section 4 are
+ *     not, and it is also why the four ov004 TUs that dispatch an object FIELD
+ *     need host copies even though no global of theirs was ever unresolved.
+ *
+ * AND ONE THE GENERATOR DID NOT REFUSE AND SHOULD HAVE. facegen classified
+ *
+ *     ?data_ov006_02141950@@3PAUEntry@@A          ALIAS
+ *
+ * which is the twenty-five-entry dScMgCurling_c STATE TABLE -- the exact
+ * table port/mg_fanout_costs.txt section 4 opens with. Its WALL test is
+ * `"P8" in sym`, and a struct that WRAPS a member pointer hides the P8:
+ *
+ *     PMF table[]                    ->  ?..@@3PAP8C@@AEXXZA    caught
+ *     struct Entry { PMF pmf[1]; }[] ->  ?..@@3PAUEntry@@A      MISSED
+ *
+ * The struct-typed refusal does not catch it either, because it tests for
+ * the by-value spelling @@3U and an array of that struct is spelled @@3PAU.
+ * NO ALIAS IS WRITTEN FOR IT ANYWHERE. Its one consumer,
+ * src/func_ov006_020e3528.cpp, is host-copied in
+ * unmatched/MgCurling_StateDispatch.cpp, so after that host copy the symbol
+ * is referenced by nothing and an alias for it would be a dead directive.
+ */
+#pragma comment(linker, "/alternatename:?data_ov004_020bc27c@@3US3@@A=_data_ov004_020bc27c")
+#pragma comment(linker, "/alternatename:?data_ov004_020bc904@@3UPair@@A=_data_ov004_020bc904")
+#pragma comment(linker, "/alternatename:?data_ov004_020bc914@@3UPair@@A=_data_ov004_020bc914")
+
+/* ---- 2d. ONE MORE, FROM THE SEVENTH WAVE --------------------------------
+ *
+ * src/func_0201834c.c calls the archive allocator by its ITANIUM name at C
+ * linkage, and the matched body src/_ZN6Memory8AllocateEji.cpp is a real C++
+ * definition that MSVC mangles its own way. Confirmed off the compiled object
+ * rather than derived from the source:
+ *
+ *     ?Allocate@Memory@@YAPAXIH@Z   void * __cdecl Memory::Allocate(unsigned int,int)
+ *
+ * facegen refused the row:
+ *
+ *   "reverse face with 2 args: hand-write it against the cxxname_bridge
+ *    precedent"
+ *
+ * and refusing was right, but the reason it gave is not this symbol's. Memory
+ * is a NAMESPACE, not a class, and Allocate is a __cdecl free function inside
+ * it -- the Y and the A in the mangle say so. So no face is needed and no
+ * argument has to be re-landed: both sides are __cdecl with the same two
+ * arguments, and a plain alias is exactly right. facegen reads
+ * ?Allocate@Memory@@... as a method because its MSVC_METHOD pattern cannot
+ * tell a namespace qualifier from a class one, and its ALIAS_FN path only
+ * recognises free functions at global scope (?name@@YA...). The tool's own
+ * ALIAS rule -- "plus __cdecl free functions onto a same-named C definition"
+ * -- covers this row; the classifier just cannot see that it does.
+ */
+#pragma comment(linker, "/alternatename:__ZN6Memory8AllocateEji=?Allocate@Memory@@YAPAXIH@Z")
+
+/* ---- 2e. UnloadArchive, THE ONE PORT_HOST_ABI FACE THIS LANE ADDS -------
+ *
+ * PORT_HOST_ABI. The eighth wave's src/func_02018770.c calls UnloadArchive,
+ * and taking the matched body would have meant taking the thing
+ * hal/scene_boot.cpp's LoadArchive face already refused once. That file's
+ * reasoning is this file's, and it is repeated rather than re-derived:
+ *
+ *   src/UnloadArchive.c walks data_0208ecf4, the ROM's 13-entry archive-mount
+ *   table of {ptr, heap, idBase, idEnd, shortName, narcPath} WHOSE ENTRIES ARE
+ *   DS STRING POINTERS, and calls func_02018908 into the card loader beneath
+ *   it. The port never mounts an archive: hal/fs.cpp's port_fs_archive_fill
+ *   resolves archive-interior file ids (>= 0x8000) lazily out of
+ *   port_archive_map, so on the host an archive is never "mounted" and never
+ *   "not mounted". There is nothing for an unmount to undo, and hosting a
+ *   pointer-bearing ROM table to drive one would be "a fake, not a fix".
+ *
+ * THE OBSERVABLE IS NOTHING. The ROM's UnloadArchive returns void, has no
+ * out-parameter, and its only effect is to zero two words of a table the host
+ * does not have. So the face is empty, and empty is the whole of it.
+ *
+ * AND ITS ONE CALLER DROPS THE ARGUMENT. src/func_02018770.c:9 declares
+ * `extern void UnloadArchive(void);` and calls it with none, while the real
+ * definition takes `int i` -- the same ARM ride-through family as the two
+ * defects port/mg_fanout_costs.txt section 6 records for slots 5 and 7, where
+ * r0 already holds the value and the host callee reads the stack. Here it is
+ * INERT rather than fixed, and the difference is worth stating: this face
+ * ignores its argument, so a garbage index cannot select a wrong archive. The
+ * face keeps the ROM's arity so that a future caller which does pass one is
+ * still calling the same function.
+ */
+extern "C" void UnloadArchive(int /*idx*/)
+{
+}
+
+/* ---- 2c. THE ONE ARGUMENT-LANDING FACE ----------------------------------
+ *
+ * src/func_ov004_020b08f0.cpp (dScMgBase_c::AfterInitResources, vtable slot 2)
+ * declares a local `struct Scene` with a non-virtual
+ * `void AfterInitResources(unsigned int)` and calls it, which MSVC mangles
+ * __thiscall as ?AfterInitResources@Scene@@QAEXI@Z. facegen refused the row:
+ *
+ *   "no Itanium body for Scene::AfterInitResources"
+ *
+ * and the refusal is right twice over. There is no _ZN5Scene18AfterInit-
+ * ResourcesEj in the image, because hal/scene_actor_faces.cpp's header
+ * explains that the three Scene:: veneer TUs are deliberately NOT in
+ * port/slice_scene1.txt -- and if there were one it would be the wrong
+ * target anyway. AN ALIAS CANNOT CHANGE A CALLING CONVENTION, and this is
+ * that rule's other half: the caller is __thiscall with an argument, and
+ * src/_ZN5Scene18AfterInitResourcesEj.cpp is a `void f(void)` transcription
+ * of a 0xc-byte ARM tail-call veneer (ldr ip,[pc]; bx ip; .word 0x2013ef4)
+ * whose arguments ride through in r0/r1. On the host it would drop both.
+ *
+ * So the face lands them, and it lands them where the veneer points --
+ * ActorDerived::AfterInitResources at 0x02013ef4 -- rather than at the
+ * veneer. That is not a new ruling: hal/scene_actor_faces.cpp already made
+ * it for the scene-1 seat and exports it as port_scene_after_init, and this
+ * face is the __thiscall spelling of the same edge. Getting it wrong is not
+ * cosmetic: vfSuccess == 1 marks the actor for destruction, so a garbage
+ * argument decides on the first frame whether the minigame scene survives.
+ */
+extern "C" void port_scene_after_init(void *self, unsigned vfSuccess);
+
+struct Scene { void AfterInitResources(unsigned int flags); };
+
+void Scene::AfterInitResources(unsigned int flags)
+{
+    port_scene_after_init(this, flags);
+}
 
 /* ---- 3 and 4. the traps ------------------------------------------------ */
 static unsigned g_mg_trap_hits;

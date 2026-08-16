@@ -101,9 +101,15 @@
 //   mwcc POINTER-TO-MEMBER PAIR TABLES (the rest). No calls at all: each is a
 //   run of struct assignments copying eight-byte {code, adj} records out of
 //   .data statics into .bss dispatch tables. dScMgCurling_c's own is
-//   __sinit_ov006_021304ac, which copies TWENTY-FIVE pairs from
-//   0x0213c1e4..0x0213c2bc into seven tables at 0x021418b0..0x02141950. All
-//   twenty-five read {code, 0} in the ROM image, verified word by word.
+//   __sinit_ov006_021304ac, which copies TWENTY-FIVE pairs into seven tables
+//   at 0x021418b0..0x02141950. All twenty-five read {code, 0} in the ROM
+//   image, verified word by word.
+//   TAKE THE TWENTY-FIVE FROM THE CONSTRUCTOR, NOT FROM AN ADDRESS RANGE.
+//   0x0213c1e4 and 0x0213c2bc are the lowest and highest of them, but that
+//   range holds twenty-eight slots and three are not pairs: 0x0213c214 is
+//   MgShuffleShell_SpawnInfo itself, and 0x0213c264 and 0x0213c2ac are
+//   unrelated data. Sweeping the span is how a fan-out lane gets three
+//   phantom states with nonzero adjustments.
 //
 // THE PAIR TABLES ARE THE REASON THE SINITS MATTER AND ALSO THE REASON THIS
 // LANE STOPS WHERE IT DOES. The words they copy are DS CODE ADDRESSES, and
@@ -284,6 +290,11 @@ void __sinit_ov006_0213322c(void);
 void __sinit_ov006_0213326c(void);
 void __sinit_ov006_021333e0(void);
 
+/* THE BLOCKER'S SUBJECT. arm9 bss, hosted by hal/auto_bss.cpp as
+   `int data_0209f61c[0x2c / 4]`. Its first word is the vptr; see the
+   pre-flight check in the fill. */
+extern int data_0209f61c[];
+
 /* the mount storage the fill writes into */
 extern unsigned char data_ov006_0213c304[];   /* dScMgCurling_c, 36 slots */
 extern unsigned char data_ov004_020bc0c0[];   /* dScMgBase_c,    36 slots */
@@ -322,12 +333,26 @@ void  func_ov004_020b265c(void *c);
 void  func_ov004_020ae3b4(void *c);
 void  func_ov004_020ad660(void);
 
+/* dScMgBase_c's OWN versions of the five slots a derived class overrides.
+   Added by run link60 lane MG2; see kMgBaseFaces for why they were missing. */
+int   func_ov004_020b0618(void);
+int   func_ov004_020b04ec(void);
+void *func_ov004_020b2a84(void *c);
+void *func_ov004_020b2a18(void *self);
+void  func_ov004_020b299c(void);
+
 /* the base ctor the factory calls, and the factory itself */
 void *func_ov004_020b2adc(char *self);
 int  *MgShuffleShell_Spawn(void);
 
 /* hal/scene_boot.cpp */
 unsigned port_scene_fill_rom(void **vt, unsigned n);
+int port_scene_env_want(void);
+
+/* the two dispatch host copies, for the run report */
+void port_mg_dispatch_counts(unsigned *calls, unsigned *unknown);
+unsigned port_mg_curling_state_hits(void);
+unsigned port_mg_trap_hits(void);
 
 }  /* extern "C" */
 
@@ -388,6 +413,41 @@ static int  __fastcall mb_v33(void *s, void *)     { MG_SLOT(33); func_ov004_020
 static int  __fastcall mb_v34(void *s, void *)     { MG_SLOT(34); func_ov004_020ae3b4(s); return 0; }
 static int  __fastcall mb_v35(void *, void *)      { MG_SLOT(35); func_ov004_020ad660(); return 0; }
 
+/* dScMgBase_c's OWN five, and they are the five the first wired boot found
+   missing. Run link60 lane MG2.
+
+   MG1's list below is the twenty-three slots a derived class INHERITS
+   UNCHANGED, which is the right set for a derived table and is one short of
+   the right set for the BASE table. dScMgBase_c also holds its own bodies in
+   the five slots dScMgCurling_c overrides -- 6 Behavior, 9 Render, 16 D2,
+   17 D0, 18 state reset -- and nothing keyed them, so the first run that
+   reached the fill printed its own warning:
+
+     [scene] MINIGAME FILL INCOMPLETE: dScMgBase_c leaves 5 of 36 raw DS
+     words, dScMgCurling_c leaves 0
+
+   which is the diagnostic doing exactly what it was written for. Slot 0's
+   base body is arm9 (0x02043c80) and port_scene_fill_rom already had it, so
+   five and not six.
+
+   THEY GO IN THE SAME ADDRESS-KEYED ARRAY, which is safe and is also the
+   point: dScMgCurling_c's table does not hold any of these five words, so
+   they cannot land there, and a FAN-OUT class that leaves one of the five
+   un-overridden now gets the base thunk instead of a raw DS word. The
+   counters are per SLOT rather than per body, so a base body and a derived
+   body both report as that slot being entered, which is what the slot
+   counters mean. */
+static int  __fastcall mb_beh_base(void *, void *)
+{ MG_SLOT(6);  return func_ov004_020b0618(); }
+static int  __fastcall mb_ren_base(void *, void *)
+{ MG_SLOT(9);  return func_ov004_020b04ec(); }
+static void *__fastcall mb_d2_base(void *s, void *)
+{ MG_SLOT(16); return func_ov004_020b2a84(s); }
+static void *__fastcall mb_d0_base(void *s, void *)
+{ MG_SLOT(17); return func_ov004_020b2a18(s); }
+static int  __fastcall mb_reset_base(void *, void *)
+{ MG_SLOT(18); func_ov004_020b299c(); return 1; }
+
 /* The framework's own twenty-three, keyed on the ROM word each slot holds, so
    the same list serves EVERY minigame class: a derived class that overrides
    one of them simply does not hold that word. This is what makes the fan-out
@@ -406,6 +466,10 @@ static const MgFace kMgBaseFaces[] = {
     {0x020b2880u, (void *)mb_v31},    {0x020b27f4u, (void *)mb_v32},
     {0x020b265cu, (void *)mb_v33},    {0x020ae3b4u, (void *)mb_v34},
     {0x020ad660u, (void *)mb_v35},
+    /* the base class's own five, run link60 lane MG2 */
+    {0x020b0618u, (void *)mb_beh_base},   {0x020b04ecu, (void *)mb_ren_base},
+    {0x020b2a84u, (void *)mb_d2_base},    {0x020b2a18u, (void *)mb_d0_base},
+    {0x020b299cu, (void *)mb_reset_base},
 };
 
 /* dScMgCurling_c's own six, the per-class half. The fan-out writes one of
@@ -509,9 +573,30 @@ extern "C" void port_scene_mg_overlay_load(void)
     std::fflush(stdout);
 }
 
-/* Called from port_scene_run for a minigame id, ahead of the spawn. Split from
-   the fill so a reader can see that the CONSTRUCTORS are gated on the id and
-   the FILL is not. */
+/* Gated on the id, ahead of the spawn. Split from the fill so a reader can see
+   that the CONSTRUCTORS are gated and the FILL is not.
+
+   RUN link60 LANE MG2 MOVED THE CALL SITE AND NOT THE RULING. MG1 wrote this
+   to be called from port_scene_run; it is called from the fill below instead,
+   reading the requested id from port_scene_env_want() rather than being handed
+   one. Two reasons, and the first is the smaller:
+
+     OWNERSHIP. port_scene_run is hal/scene_boot.cpp's, and this lane owns
+     exactly one region of that file (the port_scene_classes row). A second
+     edit there is another lane's to make.
+
+     THE RULING SURVIVES INTACT, WHICH IS WHY THE MOVE IS ALLOWED AT ALL. The
+     thing MG1's section 2 forbids is running these constructors on a boot that
+     is not a minigame -- __sinit_ov004_020b948c calls func_020731dc, which
+     threads a node onto an arm9-global destructor list the LEVEL path walks.
+     The gate is what prevents that, not the call site, and the gate is still
+     here: on a level run port_scene_env_want() answers -1, IsMinigameActorID
+     declines, and not one of the thirty-three runs. The ORDER is preserved as
+     well. The fill is reached from port_scene_registry_install at the tail of
+     port_stage_a2_seat, which is before port_scene_run reaches the spawn, and
+     on the DS LoadOverlay runs an overlay's static-init range before the
+     factory is called. Constructors-before-factory is the ROM's order and it
+     is still the port's. */
 extern "C" void port_scene_mg_prepare(int id)
 {
     if (!IsMinigameActorID((unsigned)id))
@@ -520,6 +605,8 @@ extern "C" void port_scene_mg_prepare(int id)
 }
 
 // ---- the fill --------------------------------------------------------------
+extern "C" void port_scene_mg_hits(void);   /* defined at the foot of this file */
+
 extern "C" void port_scene_fill_curling(void)
 {
     /* THE MOUNTS BEFORE THE FILL, and the order is real rather than
@@ -577,6 +664,66 @@ extern "C" void port_scene_fill_curling(void)
             std::fflush(stderr);
         }
     }
+
+    /* THE CONSTRUCTORS, AND ONLY ON A MINIGAME BOOT. The gate is the ROM's own
+       predicate on the requested id; see port_scene_mg_prepare's header for
+       why the call is here rather than in port_scene_run, and why that does
+       not weaken MG1's ruling. The fill runs FIRST so that a constructor which
+       ever dispatched a vtable slot would find a host thunk rather than a DS
+       word; none of the thirty-three does today (ten build SharedFilePtrs and
+       the rest copy pair tables), so the order is a guard rather than a
+       requirement, and it is the cheap direction to guard in. */
+    port_scene_mg_prepare(port_scene_env_want());
+
+    /* ---- THE PRE-FLIGHT CHECK FOR THIS SEAT'S ONE BLOCKER ----------------
+       Run link60 lane MG2. dScMgBase_c's slot 1, BeforeInitResources, calls
+       Scene::SetFaders(data_0209f61c) and then func_0202ec9c on the same
+       object, and data_0209f61c is an arm9 FaderBrightness in bss whose vptr
+       the port never installs. src/__sinit_02074f80.c is the ROM's static
+       initialiser for it -- `func_0202fc40(data_0209f61c)` then a
+       func_020731dc destructor registration -- and NOTHING IN THE PORT RUNS
+       IT. func_0202fc40 is not even in the link.
+
+       So the object's first word is zero, and Scene::SetFaders reaches
+       `thiz->v24()`, which on the host compiles to
+       `call dword ptr [eax+24h]` off a null vptr:
+
+           FAULT c0000005 at _ZN5Scene9SetFadersEP15FaderBrightness+0x24
+           accessing 0x00000024
+
+       THE CHECK EXISTS TO GIVE THAT A STABLE NAME. A link offset changes on
+       every build and cannot be a battery marker; this line can, and it names
+       the CAUSE rather than the address the symptom happened to land on. The
+       fault is deliberately not prevented -- installing a plausible vptr is
+       the guess port/tools/inferred_stub_guard exists to refuse, and a scene
+       that limps past its own blocker is worth less than one that names it.
+       The day the fader constructor runs, this line stops printing and
+       port/tools/battery.py's SCENE_BLOCKED probe reports BLOCK RETIRED. */
+    if (IsMinigameActorID((unsigned)port_scene_env_want()) &&
+        data_0209f61c[0] == 0) {
+        std::printf("[scene] MINIGAME BLOCKED: the arm9 FaderBrightness at "
+                    "data_0209f61c has a NULL vptr, because "
+                    "__sinit_02074f80 (func_0202fc40) does not run in the "
+                    "port. dScMgBase_c slot 1 passes it to Scene::SetFaders, "
+                    "which dispatches vtable slot 0x24 off it.\n");
+        std::fflush(stdout);
+    }
+
+    /* The witness has to report itself, because the generic one cannot.
+       hal/scene_boot.cpp's end-of-run block chooses between ov003's and
+       ov007's counters on `scene == 1` and has no third branch, and that
+       block is not this lane's region to widen. std::atexit puts the ov006
+       line after the run's own last line rather than inside it, which is a
+       worse place for it but an honest one; generalising the block is a
+       follow-up for whoever owns that file. Registered only on a minigame
+       boot, so a level run prints nothing. */
+    if (IsMinigameActorID((unsigned)port_scene_env_want())) {
+        static int armed;
+        if (!armed) {
+            armed = 1;
+            std::atexit(port_scene_mg_hits);
+        }
+    }
 }
 
 /* The registry's factory column is void *(*)(void) and the matched factory
@@ -607,5 +754,26 @@ extern "C" void port_scene_mg_hits(void)
     for (int i = 0; i < 36; ++i)
         if (g_mg_hits[i]) std::printf(" %d(x%u)", i, g_mg_hits[i]);
     std::printf("\n");
+
+    /* THE STATE MACHINE'S OWN WITNESS, which is the number this seat exists to
+       produce. The vtable counters above say the class was ticked; these say
+       whether the pointer-to-member dispatch the wall was about actually ran,
+       and whether it ever met an address the switch does not know. A run with
+       slot hits and zero dispatch calls has booted the object without entering
+       its state machine, and that reads as a success unless it is printed. */
+    {
+        unsigned calls = 0, unknown = 0;
+        port_mg_dispatch_counts(&calls, &unknown);
+        std::printf("[scene] state dispatch: %u call(s) through the address "
+                    "switch, %u routed to a dScMgCurling_c state, %u UNHANDLED "
+                    "address(es)\n", calls, port_mg_curling_state_hits(),
+                    unknown);
+    }
+    if (port_mg_trap_hits())
+        std::printf("[scene] unmatched ov004/ov006 traps entered: %u\n",
+                    port_mg_trap_hits());
+    else
+        std::printf("[scene] unmatched ov004/ov006 traps entered: 0 (none of "
+                    "the 7 trapping sites was reached)\n");
     std::fflush(stdout);
 }
