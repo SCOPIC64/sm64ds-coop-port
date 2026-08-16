@@ -84,6 +84,13 @@ struct State {
     int strip_parity = 0;
 
     int vp_x = 0, vp_y = 0, vp_w = SCREEN_W, vp_h = SCREEN_H;
+    /* How many VIEWPORT commands have executed since the last gx_reset. The
+       default above IS a full-screen rectangle, so a sampled viewport of
+       0,0 SCREEN_W x SCREEN_H cannot on its own tell a game-issued
+       full-screen viewport from a frame that never issued one at all. This
+       counter is the difference, and without it the viewport row reports a
+       rectangle it cannot attribute. */
+    int vp_writes = 0;
 
     // Lighting state. diffuse/ambient/specular/emission are 0..1 per channel.
     float diffuse[3] = {1, 1, 1}, ambient[3] = {0, 0, 0};
@@ -528,6 +535,7 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
             g.vp_y = y1 * SCREEN_H / 192;
             g.vp_w = (x2 - x1 + 1) * SCREEN_W / 256;
             g.vp_h = (y2 - y1 + 1) * SCREEN_H / 192;
+            ++g.vp_writes;
             break;
         }
         default: break;
@@ -806,6 +814,10 @@ void gx_debug_matrices(int *mode, float pos[16], float proj[16]) {
     if (mode) *mode = g.mode;
     if (pos) for (int i = 0; i < 16; ++i) pos[i] = g.pos.m[i];
     if (proj) for (int i = 0; i < 16; ++i) proj[i] = g.proj.m[i];
+}
+
+void gx_debug_viewport(int &x, int &y, int &w, int &h, int &sets) {
+    x = g.vp_x; y = g.vp_y; w = g.vp_w; h = g.vp_h; sets = g.vp_writes;
 }
 
 void gx_write_port(uint32_t addr, uint32_t value) {

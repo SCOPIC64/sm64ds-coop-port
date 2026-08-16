@@ -272,24 +272,148 @@ extern "C" void port_message_composite_engine_a(void *fbp)
 {
     ntr::Framebuffer &fb = *reinterpret_cast<ntr::Framebuffer *>(fbp);
 
+    /* ---- func_02019144 LINE 46, THE ENGINE-A LAYER-MASK PUBLISH -----------
+     *
+     * On the DS the BG and OBJ enables are not written by the code that turns
+     * a layer on. That code sets a SOFTWARE mask, data_0209d45c, and
+     * func_02019144 copies it into DISPCNT bits 8-12 once per frame:
+     *
+     *     *(vu32 *)0x4000000 = (*(vu32 *)0x4000000 & ~0x1f00) | (d45c << 8);
+     *
+     * Other functions write that same expression -- Message's two, ov003's,
+     * ov004's minigame enter/leave pair, ov007's -- but each of those is one
+     * scene's or one subsystem's own moment. NO COUNT IS QUOTED HERE ON
+     * PURPOSE: a first sweep for the literal `data_0209d45c << 8` answered
+     * nine files and a statement-level sweep answered a different eight, so
+     * the number is an artifact of the pattern and not a fact about the image.
+     * What matters is not how many there are but that func_02019144 is the one
+     * that runs EVERY FRAME FOR EVERYBODY, and the port does not run it.
+     *
+     * On this path that is measured rather than argued: the run's own slot
+     * census shows ov004's framework slots 29 and 30, the two that publish on
+     * the way into and out of a minigame, were never entered, and the mask
+     * never reached the register on any of 300 frames.
+     *
+     * What the port had instead was hal/message_pump.cpp's
+     * port_message_flush_engine_a_regs, which is this same line and returns
+     * early unless a dialogue box is up -- so the enables reached the register
+     * only on the one path that has a box.
+     *
+     * MEASURED, scene 374 (dScMgCurling_c), 300 frames: data_0209d45c = 0x14
+     * (BG2 and OBJ) with DISPCNT bits 8-12 = 0x00 on every sample, while
+     * BG2CNT held 0x1222 -- a full-screen 32x32 text background whose tiles,
+     * tilemap and palette dScMgCurling_c::InitResources had loaded -- and
+     * engine A's OAM held 53 placed sprites. The exit below is
+     * `!any_bg && !obj_on`, so the compositor returned on frame 0 and on every
+     * frame after it, and the top screen kept nothing but the host's clear
+     * colour. Not a viewport fault, and the sharper form of that: the game
+     * issues NO viewport command at all on this path (VIEWPORT_SETS 0 on all
+     * 300 samples) and submits zero polygons, which for a 2D minigame is the
+     * ROM's intent. An earlier draft of this comment said the engine "latched
+     * a full-screen viewport on all 300 samples"; it latched gx_reset's
+     * full-screen DEFAULT, because nothing overwrote it, and the two are not
+     * the same claim.
+     *
+     * HERE rather than in a frame hook, for the same reason engine B's publish
+     * sits where it does. hal_sub_screen_present (hal/sub_screen.cpp)
+     * publishes data_0209d454 into DISPCNT_B and then calls ppu_scanout_sub
+     * further down the SAME function, so engine B rasterises the mask it just
+     * published. Named by function and not by line: the first cut of this
+     * comment cited :706 and "twenty-five lines later" for a publish that is
+     * at 717-718 and a call at 730, and a line number in a file another lane
+     * owns rots on their next edit even when it starts out right. Putting the
+     * engine-A publish at the head of the engine-A display path gives engine A
+     * the same property; anywhere earlier in the frame and the composite below
+     * would read a register one tick stale.
+     *
+     * SM64DS_ENGINE_A_NO_PUBLISH=1 puts the old behaviour back on this same
+     * binary, so a before/after is one build and one .dsstate base -- which is
+     * what notes/port-selftest-bmp-gate.md requires before two BMPs may be
+     * compared at all.
+     *
+     * port_message_flush_engine_a_regs still writes the same expression while a
+     * box is up. It is now redundant in its DISPCNT half and NOT removed here:
+     * it is another lane's file, the write is idempotent, and its BG3-offset
+     * half is still the only thing flushing that register. Recorded rather than
+     * cleaned up. */
+    static int publish_off = -1;
+    if (publish_off < 0)
+        publish_off = std::getenv("SM64DS_ENGINE_A_NO_PUBLISH") ? 1 : 0;
+    {
+        extern unsigned char data_0209d45c;
+        if (!publish_off)
+            *reinterpret_cast<volatile uint32_t *>(kRegBase) =
+                (rd32(kRegBase) & ~0x1F00u) | ((uint32_t)data_0209d45c << 8);
+    }
+
     const uint32_t dispcnt = rd32(kRegBase);
     const unsigned disp_mode = (dispcnt >> 16) & 3;
     const bool forced_blank = (dispcnt >> 7) & 1;
 
-    /* raw engine-A register dump on the first frame the box is active, before
-       any early-return, so a headless run sees the real DISPCNT/BGxCNT the box
-       setup produced even if no BG reads as enabled */
+    /* raw engine-A register dump before any early-return, so a headless run
+       sees the real DISPCNT/BGxCNT whatever produced them even if no BG reads
+       as enabled.
+       IT USED TO FIRE ONLY WHILE A BOX WAS UP (`if (data_0209d660 && ...)`),
+       and that gate made it blind to the case it is most needed for. The
+       compositor's own exit below is `!any_bg && !obj_on`, which is DISPCNT
+       bits 8-12 -- and the one thing that would explain a screen with nothing
+       on it is those bits reading zero while data_0209d45c, the software layer
+       mask the game maintains and func_02019144 copies into them once a frame,
+       reads nonzero. A probe that cannot run without a dialogue box can never
+       report that pair, because a minigame has no dialogue box.
+       So it fires on the first frame either way and PRINTS BOTH SIDES: the
+       mask the game computed and the register bits that were supposed to
+       receive it. `boxed` keeps the old reading available rather than
+       dropping it -- a line taken with no box up and a line taken with one are
+       different measurements and the reader has to be able to tell. */
     if (std::getenv("SM64DS_MSG_COMPOSITE_DEBUG")) {
         extern unsigned char data_0209d660, data_0209d45c;
         static int dumped;
-        if (data_0209d660 && !dumped) {
+        if (!dumped) {
             dumped = 1;
+            const unsigned mask = (unsigned)data_0209d45c;
+            const unsigned live = (dispcnt >> 8) & 0x1F;
             std::fprintf(stderr, "[msgcomp] raw engA DISPCNT=%08x mode=%u fblank=%d "
                          "BG0CNT=%04x BG1CNT=%04x BG2CNT=%04x BG3CNT=%04x "
-                         "d45c=%02x\n", dispcnt, disp_mode, forced_blank,
+                         "d45c=%02x boxed=%u\n", dispcnt, disp_mode, forced_blank,
                          rd16(kRegBase + 0x08), rd16(kRegBase + 0x0a),
                          rd16(kRegBase + 0x0c), rd16(kRegBase + 0x0e),
-                         (unsigned)data_0209d45c);
+                         mask, (unsigned)data_0209d660);
+            /* THE VERDICT WORD IS NOT `mask == live`, and the first cut of
+               this probe made exactly that mistake. Equal-and-zero is the
+               common case on a level, where the mask is 0x00 and the register
+               bits are 0x00 -- and a probe that answers "published" there
+               asserts a copy that may never have executed. It said so on
+               every level run of the NO_PUBLISH arm, which is the arm where
+               the copy is switched OFF. The comparison cannot carry the claim
+               because zero equals zero whoever wrote it, or nobody.
+               So the publish path reports ITSELF (publish_off, the same latch
+               the write above reads), and the comparison is only allowed to
+               speak where it has content: equal AND nonzero.
+
+               THE `NOT PUBLISHED` ARM IS NOW UNREACHABLE BY CONSTRUCTION, and
+               it is kept anyway. With the publish live it runs immediately
+               above the DISPCNT read below, so the two cannot disagree; with
+               it disabled the first arm answers. It is a standing assertion
+               rather than a live report: the day an edit puts anything between
+               the publish and the read, or moves the publish out of this
+               function, that arm starts printing and names what broke. The
+               four arms were each exercised on a real run before this was
+               written -- disabled and enabled, on scene 374 with a nonzero
+               mask and on level 1 with a zero one. */
+            const char *verdict =
+                publish_off
+                    ? "publish DISABLED by SM64DS_ENGINE_A_NO_PUBLISH; whatever "
+                      "is in the register was put there by something else"
+                    : (mask == 0 && live == 0)
+                          ? "nothing to publish, mask is zero -- the equality "
+                            "here proves nothing either way"
+                          : (mask == live)
+                                ? "published"
+                                : "NOT PUBLISHED (func_02019144 line 46 is the "
+                                  "ROM's per-frame copy)";
+            std::fprintf(stderr, "[msgcomp] layer mask d45c=%02x vs DISPCNT "
+                         "bits 8-12=%02x -- %s\n", mask, live, verdict);
         }
     }
 
