@@ -346,10 +346,49 @@ int hal_window_focused(void)
     return GetForegroundWindow_() == g_hwnd ? 1 : 0;
 }
 
-/* Armed once, before the first frame. hwnd and zoom are the window's, so the
-   touch bridge can turn a client pixel into a DS pixel. */
-void hal_sub_screen_init(void *hwnd, int zoom)
+/* THE HALF EVERY MODE NEEDS, split out of hal_sub_screen_init so the scene
+   path can have it without the half that belongs to a level.
+ *
+ * THE SEAM IS THE ROM'S, not a convenience. Three things live above it:
+ *
+ *   1. the pure-host wiring (hwnd, zoom, the env knobs, the user32 imports).
+ *      No ROM equivalent; both modes need it.
+ *   2. func_02053c40's display reset -- POWCNT1 bit 15 and the BG affine
+ *      identity words. That function is the FOURTH call in func_0201a054,
+ *      which main() calls exactly once, and nothing else in the ROM calls it.
+ *      It is ONCE-PER-BOOT, before Scene::PrepareToSpawnBoot, so it precedes
+ *      every scene and every level alike.
+ *   3. OAM::EnableSubOAM, for a reason that is the port's and not the DS's --
+ *      see the block below.
+ *
+ * Everything below the seam is Stage::InitResources' -- Stage::LoadGraphics2D,
+ * data_0209d454 = 0x18, GXS::SetGraphicsMode(3) -- and a non-level scene must
+ * not get it. dScStarSel_c::InitResources (src/func_ov003_020af8a0.c) does its
+ * own sub bring-up and reaches a DIFFERENT answer at every point:
+ *
+ *              Stage::InitResources      dScStarSel_c::InitResources
+ *   BG mode    GXS::SetGraphicsMode(3)   GXS::SetGraphicsMode(0)   line 124
+ *   layers     data_0209d454 = 0x18      data_0209d454 = 0x10      line 419
+ *              (BG3 minimap + OBJ)       (OBJ only; no minimap)
+ *   sub assets Stage::LoadGraphics2D     its own LoadFile chain to
+ *                                        0x06600000 + GXS::LoadOBJPltt
+ *                                        + GXS::*LoadOBJExtPltt  lines 230-248
+ *
+ * Running the Stage half on the scene path would force the minimap's extended
+ * affine mode onto a screen with no minimap, switch on a BG3 the scene never
+ * loaded, and drop the level's 2D asset set over the sub OBJ tiles the scene
+ * had just loaded for itself. Measured, before any of this changed: a scene-4
+ * run already reaches DISPCNT_B 00011000 with mask 10 -- BG mode 0, display
+ * mode 1, OBJ only -- which is dScStarSel_c's own line 419 and 421, arrived at
+ * with no help from this file at all. The sub DISPLAY was never the thing that
+ * was missing.
+ *
+ * Idempotent, and it has to be: the level path reaches it through
+ * hal_sub_screen_init and a future caller could reach it twice. */
+void hal_sub_screen_init_hw(void *hwnd, int zoom)
 {
+    static int armed;
+
     g_hwnd = (HWND)hwnd;
     g_zoom = zoom > 0 ? zoom : 1;
     g_on = env_flag("SM64DS_SUB_PANEL", 1) != 0;
@@ -388,10 +427,46 @@ void hal_sub_screen_init(void *hwnd, int zoom)
     *(volatile unsigned short *)0x04001030 = 0x100;   /* BG3PA sub */
     *(volatile unsigned short *)0x04001036 = 0x100;   /* BG3PD sub */
 
-    /* DUAL OAM. Only once the shadow really is one buffer: in mode 0 the
-       Reset path fills it through data_0209e67c/data_0209e694, and if those
-       are separate host arrays it would leave 127 of 128 entries as garbage
-       and draw the heap onto the bottom screen. */
+    /* DUAL OAM, and this is the one line the bottom screen actually turns on.
+     *
+     * WHAT data_0209e660 IS. config/arm9/symbols.txt has it kind:bss, so the
+     * DS boots it to ZERO, and zero is the two-engine value:
+     *
+     *     OAM::Load    e660 != 0 -> func_020566dc(e674) and RETURN.  That is
+     *                               0x07000000, engine A, alone.
+     *                  e660 == 0 -> func_020566dc + func_02056674, which is
+     *                               0x07000000 AND 0x07000400 -- both engines,
+     *                               with POWCNT1 bit 15 choosing which shadow
+     *                               lands on which.
+     *     OAM::Render  `!sub || data_0209e660 == 1` sends every sub==true
+     *                  sprite into the MAIN shadow instead.
+     *
+     * So on the DS the bottom screen is live from boot and only ov006's
+     * minigames ever set the flag (func_ov006_020e6cac, func_ov006_020e7124),
+     * clearing it again on the way out.
+     *
+     * WHY THE PORT NEEDS A CALL AT ALL. hal/model_host.cpp:91 hosts the global
+     * as `unsigned char data_0209e660 = 1;` -- deliberately, and NOT the DS's
+     * boot value. That pin is a port-side default, and while it stands every
+     * sub sprite is redirected into the main shadow and engine B's OAM is
+     * never uploaded. The level path has always covered it by calling
+     * EnableSubOAM here; a scene run reached neither, which is the whole
+     * defect. OAM::EnableSubOAM is the ROM's own name for `e660 = 0`
+     * (src/_ZN3OAM12EnableSubOAMEv.c is that one store and nothing else), so
+     * calling it is how the port spells "restore the DS's boot state" without
+     * inventing a write.
+     *
+     * THE PIN ITSELF IS NOT THIS LANE'S TO PULL. Clearing e660's initialiser
+     * in model_host.cpp would be the ROM-faithful fix and it is that file's
+     * call: port/tests/smoke_oam.cpp:42 asserts `data_0209e660 == 1` as the
+     * HAL's documented direct-fill mode, and the layout guard below exists
+     * because the alternative mode needs the three shadow symbols adjacent.
+     * ROUTED, not fixed here.
+     *
+     * Guarded on the layout check for the original reason: in mode 0 the Reset
+     * path fills the shadow through data_0209e67c/data_0209e694, and if those
+     * are separate host arrays it would leave 127 of 128 entries as garbage
+     * and draw the heap onto the bottom screen. */
     if (hal_oam_layout_check()) {
         _ZN3OAM12EnableSubOAMEv();
         std::printf("[sub] dual OAM armed (data_0209e660 = %u)\n",
@@ -401,6 +476,22 @@ void hal_sub_screen_init(void *hwnd, int zoom)
                     "shadow\n");
     }
     OAM::Reset();
+
+    std::printf("[sub] panel %s (TAB toggles, SM64DS_SUB_PANEL=0 to start "
+                "off)\n", g_on ? "on" : "off");
+    if (armed) {
+        std::printf("[sub] hw bring-up was already armed; re-armed idempotently"
+                    "\n");
+    }
+    armed = 1;
+}
+
+/* The LEVEL path's bring-up: the shared half, then Stage::InitResources' own
+   sub-screen configuration. Call site and call order are unchanged, so the
+   level frame sees the identical sequence of writes it always did. */
+void hal_sub_screen_init(void *hwnd, int zoom)
+{
+    hal_sub_screen_init_hw(hwnd, zoom);
 
     /* THE BOTTOM SCREEN'S OWN VRAM. Stage::LoadGraphics2D is the ROM's 2D
        asset load and it fills both screens: the sub BG character data, the
@@ -485,9 +576,6 @@ void hal_sub_screen_init(void *hwnd, int zoom)
         if (!data_0209d454)
             data_0209d454 = 0x18;   /* Stage::InitResources' own value */
     }
-
-    std::printf("[sub] panel %s (TAB toggles, SM64DS_SUB_PANEL=0 to start "
-                "off)\n", g_on ? "on" : "off");
 }
 
 /* Top of the 2D frame: both shadows back to "every sprite disabled" and both
@@ -783,6 +871,40 @@ void hal_sub_screen_probe(void)
             if (p[i]) ++nz;
         std::printf("[sub] %s %08x: %u/%u bytes nonzero\n", regions[r].n,
                     regions[r].a, nz, regions[r].len);
+    }
+
+    /* THE OAM ENTRY CENSUS, in the same three buckets the Stage-3 audit used,
+       so its numbers and these are the same measurement.
+         all-zero  the engine was never uploaded to -- boot VRAM, untouched
+         y == 192  OAM::Reset's parked value (0xc0), an entry deliberately off
+         other y   a sprite the game actually placed
+       An engine reading 128/0/0 has had nothing written to it AT ALL, which is
+       a different fault from an engine that was uploaded a screen of parked
+       entries, and only this split tells them apart. Both engines, because
+       "the sub screen is empty" and "the sub sprites went to the main screen"
+       produce the same sub picture and opposite main censuses. */
+    for (int e = 0; e < 2; ++e) {
+        const unsigned base = e ? 0x07000400u : 0x07000000u;
+        unsigned zero = 0, parked = 0, real = 0;
+        for (int i = 0; i < 128; ++i) {
+            const volatile unsigned short *a =
+                (const volatile unsigned short *)(base + i * 8);
+            const unsigned short a0 = a[0], a1 = a[1], a2 = a[2];
+            if (!a0 && !a1 && !a2) { ++zero; continue; }
+            if ((a0 & 0xff) == 192) ++parked; else ++real;
+        }
+        std::printf("[sub] OAM %s %08x: %u all-zero, %u parked (y=192), "
+                    "%u placed\n", e ? "engine B" : "engine A", base,
+                    zero, parked, real);
+    }
+    /* The backdrop is engine B's BG palette entry 0 and nothing else -- see
+       ntr/ppu_sub.cpp's `bgr555(rd16(kPlttBase))`. Printed because "the panel
+       is one flat colour" and "the panel is one flat colour AND that is the
+       colour the game asked for" are different findings. */
+    {
+        const unsigned short bd = *(volatile unsigned short *)0x05000400;
+        std::printf("[sub] backdrop = sub BG pltt[0] = %04x (r%u g%u b%u)\n",
+                    bd, bd & 0x1f, (bd >> 5) & 0x1f, (bd >> 10) & 0x1f);
     }
 }
 

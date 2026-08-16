@@ -365,6 +365,8 @@ void port_actor_tick(void);          /* phases 4/2/3 */
 void port_actor_render(void);        /* phase 5 */
 void port_actor_scene_pass(void);    /* phase 1 */
 void port_fader_advance(void);
+void hal_sub_screen_init_hw(void *hwnd, int zoom);
+void hal_sub_screen_probe(void);
 void hal_sub_screen_frame_begin(void);
 void hal_sub_screen_present(unsigned int *dst, int w, int h);
 void port_message_composite_engine_a(void *fb);
@@ -1532,6 +1534,42 @@ extern "C" int port_scene_run(void)
        two scene roots is not a state the game can be in. */
     port_scene_a2_seat();
 
+    /* THE BOTTOM SCREEN, and the same argument the Stage seat above makes.
+     *
+     * The frame loop below already calls hal_sub_screen_frame_begin and
+     * hal_sub_screen_present every frame, but NOTHING had ever armed them on
+     * this path: walk_window's hal_sub_screen_init sits ~700 lines below the
+     * `return port_scene_run()` that got us here, so a scene run reached the
+     * per-frame half of the bottom screen and never the bring-up half. The
+     * visible result was a bottom screen of flat backdrop.
+     *
+     * ONLY THE SHARED HALF, because a scene owns its own sub display and this
+     * one has already configured it -- see the seam note in hal/sub_screen.cpp
+     * for the ROM derivation. What was actually missing is OAM::EnableSubOAM:
+     * the port pins data_0209e660 = 1 in hal/model_host.cpp, which routes every
+     * sub sprite into the main shadow and stops engine B's OAM being uploaded
+     * at all, and clearing it back to the DS's bss zero is what turns the panel
+     * into a screen the game can draw on.
+     *
+     * hwnd is NULL and that is correct, not a stub: walk_window creates its
+     * window ~560 lines after the handover, so a scene run has no window to
+     * pass. Every consumer of g_hwnd is already written to fail open on a null
+     * (hal_window_focused returns 1, poll_touch's ScreenToClient guard fails
+     * and no touch is delivered), which is the same state a headless selftest
+     * runs in.
+     *
+     * SM64DS_SUB_NO_SCENE_INIT=1 puts the old behaviour back on this same
+     * binary. It exists so the before/after is one build and one .dsstate base
+     * -- notes/port-selftest-bmp-gate.md only lets BMPs be compared at equal
+     * base -- and so the defect stays reproducible after the fix. */
+    if (!std::getenv("SM64DS_SUB_NO_SCENE_INIT")) {
+        hal_sub_screen_init_hw(nullptr, 1);
+    } else {
+        std::printf("[sub] SM64DS_SUB_NO_SCENE_INIT=1: scene-path bring-up "
+                    "SKIPPED (the pre-fix behaviour)\n");
+    }
+    std::fflush(stdout);
+
     /* THE SDAT ROOT, before anything can ask the sequencer a question.
        dScStarSel_c::InitResources opens with Sound::LoadInitialGroup(3) and
        Sound::LoadAndSetMusic_Layer1(0x16 or 0x24) -- the scene picks its own
@@ -1697,6 +1735,15 @@ extern "C" int port_scene_run(void)
 
     if (bmp && !no_render)
         ntr::ppu_write_bmp(bmp, fb);
+
+    /* THE SUB-SCREEN CENSUS, deliberately HERE and not beside the bring-up
+       above. Probed before the spawn it reads all zeros in either mode and
+       proves nothing: the scene has not run its InitResources yet, so no bank,
+       no palette and no tile has been written by anybody. Probed after the
+       frame loop it reads what the scene actually built, which is the only
+       state a claim about the bottom screen can rest on. */
+    hal_sub_screen_probe();
+    std::fflush(stdout);
     /* THE WITNESS. Not "the scene booted" -- how many times each of the class's
        own slots was entered by the ROM's own processing lists. A scene that
        spawns and a scene that RUNS look identical from outside: the object
