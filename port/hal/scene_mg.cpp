@@ -295,6 +295,10 @@ void __sinit_ov006_021333e0(void);
    pre-flight check in the fill. */
 extern int data_0209f61c[];
 
+/* the NitroSDK default-archive record the successor pre-flight below reads;
+   hosted as zeroed storage by hal/scene_boot.cpp */
+extern int data_020a804c[];
+
 /* the mount storage the fill writes into */
 extern unsigned char data_ov006_0213c304[];   /* dScMgCurling_c, 36 slots */
 extern unsigned char data_ov004_020bc0c0[];   /* dScMgBase_c,    36 slots */
@@ -706,6 +710,43 @@ extern "C" void port_scene_fill_curling(void)
                     "__sinit_02074f80 (func_0202fc40) does not run in the "
                     "port. dScMgBase_c slot 1 passes it to Scene::SetFaders, "
                     "which dispatches vtable slot 0x24 off it.\n");
+        std::fflush(stdout);
+    }
+
+    /* ---- AND THE ONE BEHIND IT ------------------------------------------
+       Run link60 lane FDR. The check above stopped printing when
+       port/hal/fdr_arm9_fader_seat.cpp made the ROM's own __sinit_02074f80
+       run, and the boot walked on to dScMgCurling_c::InitResources, where it
+       faults on something with nothing to do with faders:
+
+           FAULT c0000005 at func_0205cdf4+0x22 accessing 0x00000010
+           mg_init -> func_ov006_020e3578 -> func_ov004_020adc74
+                   -> func_020182bc -> func_02018e3c -> func_0205d644
+                   -> func_0205d714 -> func_0205cdf4
+
+       That tail is the ROM's NitroSDK file system opened BY NAME, which is a
+       different seam from the id-based one hal/fs.cpp hosts and every other
+       port file load goes through. func_0205d714 copies data_020a804c into
+       the FSFile as its archive (`out->field_8 = t.field_0`), func_0205cdf4
+       reads `list + 0x10` off it, and data_020a804c is zeroed host storage
+       (hal/scene_boot.cpp:408, where it is sized 3 words and read as a VRAM
+       bank record). Its only ROM writer is func_0205cc80's archive
+       registration, which nothing in the port runs, so field_0 is null.
+
+       KEPT IN THE SAME BLOCK AS THE ONE ABOVE, deliberately. A reader who
+       comes here from battery.py's SCENE_BLOCKED row wants "why does scene
+       374 not boot" answered in one place, and the retired check stays beside
+       its successor because it is now a live regression assertion: if
+       anything ever de-seats the fader, it starts printing again. */
+    if (IsMinigameActorID((unsigned)port_scene_env_want()) &&
+        data_020a804c[0] == 0) {
+        std::printf("[scene] MINIGAME BLOCKED: the NitroSDK open-by-name "
+                    "archive at data_020a804c is null, so "
+                    "dScMgCurling_c::InitResources faults in func_0205cdf4. "
+                    "The fader seat is DONE and this is the next one: nothing "
+                    "in the port runs the ROM's archive registration "
+                    "(func_0205cc80), and hal/fs.cpp hosts the id-based seam "
+                    "rather than this one.\n");
         std::fflush(stdout);
     }
 

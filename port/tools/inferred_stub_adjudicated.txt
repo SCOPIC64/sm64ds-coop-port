@@ -204,3 +204,27 @@ func_ov004_020b0618  REAL_DECOMP  mg_fanout_costs.txt  slot 6, dScMgBase_c's own
 func_ov004_020b04ec  REAL_DECOMP  mg_fanout_costs.txt  slot 9, dScMgBase_c's own Render, 8 bytes: mov r0,#1 then bx lr. src is return 1. Sits immediately before slot 10 at 0x020b04f4, which pins its extent independently of symbols.txt
 func_ov004_020b299c  REAL_DECOMP  mg_fanout_costs.txt  slot 18, dScMgBase_c's own state reset, 4 bytes: the whole function is bx lr. src is an empty void body. It closes the run of consecutive stubs 020b298c, 020b2990, 020b2994 and 020b299c that pin each other's sizes at 4, 4, 8 and 4. The recovered NAME says OnYoshiTryEat and is wrong; the slot is the state reset
 func_ov004_020b2a18  REAL_DECOMP  mg_fanout_costs.txt  slot 17, dScMgBase_c's own D0, 0x6c, 22 instructions plus a FIVE-word literal pool every word of which src names, all five resolved by hand: 0x020bc0c0 is data_ov004_020bc0c0 (this class's own vtable), 0x020beb68 is data_ov004_020beb68, 0x02092680 is _ZTV5Scene, 0x0208e4b8 is data_0208e4b8 and 0x020a0eac is data_020a0eac loaded BY VALUE as the Heap*. The three call targets resolve to func_ov004_020b929c, _ZN9ActorBaseD2Ev (0x02043d48) and _ZN6Memory10DeallocateEPvP4Heap (0x0203c1e8), which are the three src names in src's order. The four vptr stores land in the ROM's order -- own table, then Scene's, then data_0208e4b8 -- with the this+0xf4 subobject teardown between the first and the second, and the pool ends at 0x020b2a84 where e92d4010 (push {r4,lr}) starts the next function. The recovered NAME says OnYoshiTryEat and is wrong; the body is the D0
+# ---- run link60 lane FDR: dWipe_c's fade-STATE slots -----------------------
+# The four marker-carrying bodies port/hal/fdr_arm9_fader_seat.cpp seats into
+# data_020926f0, the vtable the ROM's own __sinit_02074f80 installs on
+# data_0209f61c. All four were disassembled out of extracted/arm9_dec.bin at
+# (addr - 0x02004000) with capstone and compared instruction for instruction
+# with their src body before seating. The RECOVERED NAMES are right this time,
+# and they are confirmed twice over: by the slot each body occupies in the ROM
+# table, and by the arm9 fader-engine body each one tail-calls, whose own
+# config symbol names it.
+#
+# THE CLASS THE RECOVERED NAMES CARRY IS RIGHT AND THE HANDOVER'S IS NOT. Each
+# header says dWipe_c; MG2's write-up and battery.py's SCENE_BLOCKED row say
+# FaderBrightness. The ROM's RTTI at 0x020926dc reads "7dWipe_c" and its base
+# chain is dFdColor_c -> dFdBrightness_c -> dFader_c, so the bodies are right.
+#
+# ONE SIBLING IS DELIBERATELY ABSENT. func_0202ed08, slot 0x20 SetToEnd, is the
+# same 0xc-byte veneer shape as func_0202ecfc below and rules REAL_DECOMP as
+# ARM -- but its src drops the receiver on the host (it takes void and calls
+# _ZN15FaderBrightness8SetToEndEv with no argument), so it is not seated and
+# needs no line here. See port/fader_boot_map.txt.
+func_0202ee38  REAL_DECOMP  fader_boot_map.txt  slot 0x14 IsAtStart, 0x5c, 23 instructions, no literal pool. ldr from this+0x14 and compare with 1 selects the base body and tail-calls 0x02017684, which config/arm9/symbols.txt names _ZN15FaderBrightness9IsAtStartEv and which is also the word the ROM parks at FaderBrightness' own vtable slot 0x14 -- two independent confirmations of the slot. Otherwise ldr this+0x10, beq to the return-1 block; ldr this+0x1c, cmp 0x200000, blt to the return-0 block, fall through to return 1. Every offset (0x14, 0x10, 0x1c), the constant 0x200000, the branch polarity and the fall-through sense match src, including src's unusual goto spelling, which is what produces the blt-to-ret0-fall-through-to-ret1 shape rather than the other way round
+func_0202eddc  REAL_DECOMP  fader_boot_map.txt  slot 0x18 IsAtEnd, 0x5c, 23 instructions, the exact twin of 0x14 above and correctly not a copy of it: the tail-call is 0x02017670 (_ZN15FaderBrightness7IsAtEndEv, and FaderBrightness' vtable slot 0x18), and the second test is cmp r0,#0 / bgt rather than cmp 0x200000 / blt. Both operands that could have been copied from the twin diverge correctly, and src spells both divergences
+func_0202ed7c  REAL_DECOMP  fader_boot_map.txt  slot 0x1c IsBetweenStartAndEnd, 0x60, 24 instructions. push {r4,lr} and mov r4,r0 because the receiver has to survive two virtual calls; ldr this+0x14 cmp 1 tail-calls 0x02017628 (_ZN15FaderBrightness20IsBetweenStartAndEndEv, FaderBrightness' vtable slot 0x1c); otherwise ldr [r0] then ldr [r1,#0x14] then blx, which is a virtual call at BYTE OFFSET 0x14, bne to return 0; then r0 restored from r4 and the same sequence at [r1,#0x18], moveq r0,#1. src's local struct gives m14 and m18 exactly those two byte offsets and its early-out polarity matches instruction for instruction. The two dispatches are also the check that the ROM's slot order is the one this seat fills: 0x14 and 0x18 are IsAtStart and IsAtEnd in the same table this body lives in
+func_0202ecfc  REAL_DECOMP  fader_boot_map.txt  slot 0x24 SetToStart, 0xc, three words: e59fc000 ldr ip,[pc] / e12fff1c bx ip / .word 0x02017610. 0x02017610 is _ZN15FaderBrightness10SetToStartEv in config/arm9/symbols.txt and is the word at FaderBrightness' own vtable slot 0x24. src is `void func_0202ecfc(void *t) { func_02017610(t); }`, which is the whole function and which KEEPS the receiver -- the difference from its sibling func_0202ed08, whose src spells the same veneer with no parameter at all. Nothing to guess wrong

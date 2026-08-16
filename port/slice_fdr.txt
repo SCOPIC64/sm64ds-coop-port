@@ -1,0 +1,54 @@
+# Lane FDR: THE arm9 WIPE FADER'S OWN STATIC INITIALISER. Run link60 Stage 4.
+#
+# The blocker this retires is port/tools/battery.py's SCENE_BLOCKED row for
+# scene 374: dScMgBase_c's slot 1 hands data_0209f61c to Scene::SetFaders, and
+# that object's vptr was zero because the port never ran the ROM's initialiser
+# for it. The fix is to RUN it, not to reimplement it, so what is listed here
+# is the initialiser and the bodies its vtable names -- nothing else.
+#
+# THE OBJECT IS A dWipe_c, not a FaderBrightness. The handover, MG2's write-up
+# and the SCENE_BLOCKED row all say FaderBrightness; the ROM's own RTTI at
+# 0x020926dc says "7dWipe_c", deriving dFdColor_c -> dFdBrightness_c ->
+# dFader_c. FaderBrightness is three levels up. The addresses in every one of
+# those documents are right; only the class name is wrong. The full derivation
+# is in the header of port/hal/fdr_arm9_fader_seat.cpp and the closure is in
+# port/fader_boot_map.txt.
+#
+# WHAT IS NOT HERE AND WHY:
+#
+#   src/func_0202f428.c   slot 0x08  AdvanceFade
+#   src/func_0202f928.c   slot 0x0c  SetBackwardTime
+#   src/func_0202f708.c   slot 0x10  SetForwardTime
+#     The fade MOTION. Each pulls its own closure (func_0202f290, func_0202f2c4,
+#     func_0202f58c, FaderColor::AdvanceFade) plus four arm9 data symbols
+#     nothing hosts yet, which is a second chunk rather than a line here. The
+#     three slots stand as named traps in the fill, so a run that needs one
+#     says which one.
+#
+#   src/func_0202ed08.c   slot 0x20  SetToEnd
+#     HOST-BROKEN, and this is a decomp-side finding rather than a scheduling
+#     one. The ROM body is a bare tail-call veneer (ldr ip,[pc]; bx ip; .word
+#     0x0201761c) and the src spells it `func_0202ed08(void)` calling
+#     `_ZN15FaderBrightness8SetToEndEv()` with no argument at all. Under mwccarm
+#     that is byte-correct because r0 falls through a bx; on the host the
+#     receiver is simply gone. Identical in shape to the Heap::_Destroy veneer
+#     lane LK4 wrote up in hal/lk4_solidheap_seat.cpp. The slot forwards to the
+#     veneer's own target instead, with the receiver.
+
+src/__sinit_02074f80.c
+src/func_0202fc40.c
+src/func_0202fc08.c
+src/func_0202fbc8.c
+src/func_0202ee38.c
+src/func_0202eddc.c
+src/func_0202ed7c.cpp
+src/func_0202ecfc.c
+
+# func_0202ed7c's own base-class branch. Already matched and already compiled
+# on the `smoke` target through slice_gate1, but slice_w1l3 deliberately left
+# it off the walk_window family ("SetForwardTime / SetBackwardTime /
+# IsBetweenStartAndEnd are matched too and are NOT seated"), so the link does
+# not close without it here. Its two unqualified predicate calls carry the MSVC
+# dtor-fold skew; the face in hal/fdr_arm9_fader_seat.cpp is where that is
+# written down and instrumented.
+src/engine/fader/_ZN15FaderBrightness20IsBetweenStartAndEndEv.cpp
