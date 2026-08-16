@@ -1229,6 +1229,11 @@ def main():
     # to the giant sinit functions. Any pointer in emitted data landing there
     # gets a synthetic gap block (real overlay bytes) so the walks stay on
     # hosted storage. Iterated: gap blocks can reference further gaps.
+    #
+    # Held back and emitted together below, because where they land depends on
+    # whether this is a packed mount and the two branches route data
+    # differently. See the block after the loop.
+    gap_lines = []
     DATA_WIN = (0x02100000, base + len(data) + 0x1000)
     if pack:
         # A LEVEL overlay's data holds its own CODE addresses -- the Bird's
@@ -1293,9 +1298,49 @@ def main():
             # A synthetic gap block DOES carry real ROM bytes (a pointer walk
             # steps through it), so under --rom-clean it zeroes and the apply
             # below fills it like any named symbol.
-            lines.append(f"u8 {name}[{e - s}] = "
-                         f"{{ {romblob_common.init_body(blob)} }};")
+            gap_lines.append(f"u8 {name}[{e - s}] = "
+                             f"{{ {romblob_common.init_body(blob)} }};")
             emitted.append((name, s, e - s, blob))
+
+    # THE SYNTHETIC GAP BLOCKS ARE SAVE STATE, IN BOTH KINDS OF MOUNT.
+    #
+    # They are not padding. The patch pass below rebases pointers onto them,
+    # the cross pass rebases pointers from other mounts onto them, and the
+    # game's walks read and write through those pointers -- so they are
+    # mutable DS state by the same argument that puts every other mounted byte
+    # into .dsstate, and a restore that skips them leaves them stale. That is
+    # the 0.2.0 ANIM_PTRS bug, which is the bug the section exists for.
+    #
+    # A PLAIN mount got this right by accident: it sets .dsstate as the default
+    # data segment before its per-symbol arrays and only closes it after these
+    # blocks, so they rode along. A PACKED mount never opens that default,
+    # because it places each named symbol and each padding run with an explicit
+    # __declspec(allocate), and these blocks are ordinary file-scope arrays
+    # with no allocate of their own. They landed in the default read/write data
+    # and no save state captured them: 28 blocks and 5368 bytes across eleven
+    # mounts on the build where this was found, every one of them written
+    # through by the game. port/tools/gapaudit.py counts them and checks the
+    # side of the captured span they land on.
+    #
+    # Route them the way the plain branch does rather than into the pack
+    # family: they have no ROM-relative spacing obligation to the named
+    # symbols (nothing reaches them by arithmetic from a name, only through a
+    # patched pointer), so keeping them out of .dsstate$pkNNN_SSSS leaves the
+    # packed run's slot ordering, and the offsets port_ovNNN_pack_check
+    # asserts, exactly as they were. The section declaration comes first for
+    # the same reason it does everywhere else: without it a bss-flavoured
+    # array here gets different characteristics from the sentinels' section
+    # and the linker silently splits .dsstate in two (LNK4078), which would
+    # put these bytes back outside the capture by another route.
+    if gap_lines:
+        if pack:
+            lines.append('#pragma section(".dsstate$mmm", read, write)')
+            lines.append('#pragma data_seg(".dsstate$mmm")')
+            lines.append('#pragma bss_seg(".dsstate$mmm")')
+        lines.extend(gap_lines)
+        if pack:
+            lines.append('#pragma data_seg()')
+            lines.append('#pragma bss_seg()')
 
     # Pointer relocation: emitted data holds DS addresses of OTHER emitted
     # symbols (fileptr tables, dtor-chain nodes). Rewrite any word the delink
@@ -1341,7 +1386,9 @@ def main():
     # apply/patch code and anything after it stays in the ordinary segments.
     # (data_seg does not affect functions, but the synthetic gap arrays above
     # are data and had to land in .dsstate too, which they did while it was
-    # open.) Packed mounts never opened it.
+    # open.) A packed mount never opened this one; it opens and closes its own
+    # around the gap blocks, which is the only data it emits without an
+    # explicit allocate.
     if not pack:
         lines.append('#pragma data_seg()')
         lines.append('#pragma bss_seg()')
