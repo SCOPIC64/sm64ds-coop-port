@@ -669,39 +669,64 @@ extern "C" unsigned _ZN4CP1510EnableDTCMEv(void) { return 0x10000u; }
    hosted arm9 data substitutes for. Their four callers -- ReadFileData,
    ReadMinigameData, EraseSaveFile and SaveFile -- ARE in the slice and do
    link, so what is faced is the two leaves and not the save logic above them.
-   THE OBSERVABLE. Both return an int the caller reads as "did the transfer
-   happen". Returning 0 is the ROM's own answer on a failed read, and the four
-   callers' failure path is SetDefaultValues, which is exactly right for a
-   host with no cart: the file select comes up on default save data. Returning
-   1 would claim bytes were moved that were not. THIS IS WHY THE FILE SELECT
-   SHOWS EMPTY FILES rather than whatever the last session had, and that is a
-   real behaviour gap, not a cosmetic one -- it is named in
-   port/ov007_seat.txt section 5 rather than left for someone to find.
 
-   THE RETURN VALUE IS BACKWARDS AND THE PARAGRAPH ABOVE IS WRONG ABOUT IT.
-   Run link60 Stage 5 lane MR1 traced these on a live path and the review found
-   the ROM evidence already in the tree, in a TU nobody here had opened:
-   src/_ZN8SaveData16ReadDataFromCartEPcjj.cpp. That body returns 0 ONLY after
-   the eight magic bytes match data_020a4b40 AND the rotate-xor checksum equals
-   the stored crc; it returns 1 on every failure path, including the no-media
-   one (`if (func_0203da3c() == 2) return 1;` is its first statement), and 2 in
-   the backup-copy case. So 0 means A VALIDATED READ HAPPENED, and the four
-   callers read it that way: `if (result) { SetDefaultValues*(...); ... }`.
-   Returning 0 from a host with no cart therefore claims a good read of an
-   uninitialised buffer and SKIPS the defaults, which is the opposite of what
-   the paragraph above says this face is for. THE CORRECT CARTLESS VALUE IS 1.
+   THE OBSERVABLE IS AN int AND ITS CONVENTION IS THE OPPOSITE OF WHAT THIS
+   BLOCK USED TO SAY. Both faces returned 0, and the prose here called 0 "the
+   ROM's own answer on a failed read". Run link60 Stage 5 lane MR1 traced the
+   read on a live path, its review found the ROM evidence sitting unopened in
+   src/, and run link60 Stage 5 lane SV1 re-derived it off BOTH matched bodies
+   before changing anything:
 
-   IT IS NOT FIXED HERE BECAUSE IT CANNOT BE FIXED ALONE. Flipping this to 1
-   fires SaveData::SetDefaultValues and SetDefaultValuesMg, and both of those
-   are reached through receiver-dropping /alternatename directives in the block
-   further down this file that MR1 measured, ruled unfired and deliberately
-   left standing. The two have to be faced in the same commit as the flip, and
-   SaveData::SaveDataToCart wants the same treatment for the same reason. That
-   work is lane SV1. port/ov007_seat.txt section 5f carries the trace. */
+     src/_ZN8SaveData16ReadDataFromCartEPcjj.cpp
+       0  ONLY after the eight bytes read out of the record match
+          data_020a4b40 AND the rotate-xor checksum over the payload equals
+          the stored crc. A VALIDATED READ HAPPENED.
+       1  every failure path. The FIRST statement in the body is
+          `if (func_0203da3c() == 2) return 1;`, the no-media answer, and a
+          host with no cart is permanently in that state.
+       2  the backup copy was read but its magic did not match the primary's.
+
+     src/_ZN8SaveData14SaveDataToCartEPcjj.cpp
+       0  ONLY after BOTH copies, primary and backup, were written whole.
+       1  every failure path, and its first statement is the same no-media
+          test. There is no 2 on the write side.
+
+   SO 0 IS THE SUCCESS VALUE ON BOTH, and the callers read them that way. The
+   two readers are `result = ReadDataFromCart(...); if (result) {
+   SetDefaultValues*(...); ... }`, so a face returning 0 told the game an
+   uninitialised buffer was a validated save and SKIPPED the defaults; for
+   ReadFileData that buffer is fresh Memory::operator_new2(0xcc) storage
+   nothing writes. The two writers invert (`if (SaveDataToCart(...) == 0)
+   return 1;`), so a face returning 0 told SaveFile and EraseSaveFile that
+   bytes reached a cart this host does not have. Both directions were a lie
+   and neither was the safe one.
+
+   BOTH RETURN 1 NOW. It is the ROM's own no-media answer to both questions
+   and the only value either face can honestly give.
+
+   AND THE FILE-SELECT SENTENCE THAT USED TO CLOSE THIS BLOCK WAS WRONG IN THE
+   SAME DIRECTION, which is worth spelling out because it read as a measured
+   behaviour and was a derivation from the backwards premise. It said returning
+   0 is "why the file select shows empty files". 0 is the value that SKIPS
+   SetDefaultValues, so it is the value that leaves the file select reading
+   uninitialised storage; 1 is the value that constructs the defaults. Nothing
+   has rendered a file select yet, so what one will show is still unmeasured
+   and this block no longer guesses. What changed is which value gets there.
+
+   THE FLIP COULD NOT LAND ALONE, and that is the whole reason MR1 recorded it
+   instead of taking it. It fires SaveData::SetDefaultValues and
+   SetDefaultValuesMg, which were reached through two receiver-dropping
+   /alternatename directives in section (c) below that MR1 measured, ruled
+   unfired and deliberately left standing. They were unfired BECAUSE of the
+   value being corrected here. Both are faced in the same commit, the write
+   side is audited above rather than left for someone to find, and the
+   0x2e4-byte default the Mg sibling writes needed the save block hosted at
+   its real ROM width first (hal/level_boot.cpp's fifth SAVEBLK row).
+   port/ov007_seat.txt section 5g carries the trace and the run. */
 extern "C" int _ZN8SaveData16ReadDataFromCartEPcjj(char *, unsigned, unsigned)
-{ return 0; }
+{ return 1; }
 extern "C" int _ZN8SaveData14SaveDataToCartEPcjj(char *, unsigned, unsigned)
-{ return 0; }
+{ return 1; }
 
 // ---- 2b. FIVE MORE arm9 GLOBALS, AND ONE THAT IS A VTABLE ------------------
 //
@@ -1148,12 +1173,78 @@ extern "C" void _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3(void *thiz,
     ((ModelComponents *)thiz)->ModelComponents::Render((Matrix4x3 *)mat,
                                                        (Vector3 *)vec);
 }
-//     ...and three more of the same shape in the SaveData family, whose TUs
-//     are in the slice and define real C++ members while their ov007 and arm9
-//     callers spell the flat name. Decorations from dumpbin, again.
+//     ...and TWO MORE OF THE SAME SHAPE in the SaveData family, faced by run
+//     link60 Stage 5 lane SV1 in the commit that made them fire. Their TUs are
+//     in the slice and define real C++ members while their ov007 callers spell
+//     the flat name, which is the same collision the Render row above had.
+//
+//     WHY THEY WERE STILL DIRECTIVES WHEN THIS BLOCK'S OWN ARGUMENT SAID THEY
+//     SHOULD NOT BE. MR1 traced both, found the flat-name calls never happened
+//     and declined to face a call nobody makes. They were unfired for exactly
+//     one reason: the cart-read face further up this file returned the value
+//     that skips the SetDefaultValues arm. Correcting that value starts the
+//     calls, so the directives had to go in the same change.
+//
+//     THE RECEIVER IS THE BUFFER, which is what makes these two different from
+//     the Render row and is the thing to get right. Both matched bodies write
+//     through `this` and never read the parameter the mangled name declares:
+//     src/_ZN8SaveData16SetDefaultValuesEP12FileSaveData.cpp clears 0x44 bytes
+//     at `this` and stamps the file magic there, and the Mg sibling does the
+//     same over 0x2e4. include/SaveData.h's three evidenced fields (0x008,
+//     0x041, 0x042) all sit inside 0x44, so SaveData and FileSaveData are one
+//     0x44 block under two names and the flat call's single pointer is both
+//     the receiver and the argument. The faces pass it as both, and the second
+//     hand-off is inert today because the parameter is dead in both bodies.
+//
+//     MEASURED OFF THE OBJECTS IN THIS TREE, NOT INHERITED. dumpbin /DISASM of
+//     walk_window.dir/.../_ZN8SaveData16SetDefaultValuesEP12FileSaveData.cpp.obj
+//     opens `push esi / push 44h / mov esi,ecx / push 0 / push esi / call
+//     _func_0205a588` and closes `ret 4`; the Mg object is the same with 2E4h.
+//     `mov esi,ecx` is the receiver coming out of ECX and `ret 4` is the
+//     CALLEE popping the one stack argument.
+//
+//     AND THE CALLER SIDE MAKES IT WORSE THAN A DROPPED RECEIVER, which no
+//     lane had noticed. src/_ZN8SaveData12ReadFileDataEjP12FileSaveData.cpp's
+//     object reads `push esi / call __ZN8SaveData16SetDefaultValuesE... /
+//     add esp,4`: a cdecl caller cleaning up an argument the __thiscall callee
+//     has already popped. Both sides take the same four bytes, so ESP returns
+//     four high, and that function's epilogue is `pop edi / pop esi / pop ebp
+//     / ret` off an EBP frame. Each pop reads one slot along, `pop ebp` takes
+//     the return address, and `ret` jumps to the first argument, a file index
+//     of 0, 1 or 2. The directive was not a wrong `this`, it was a wrong
+//     `this` AND a return into a small integer. Neither had ever run.
+//
+//     The declarations are local to this TU for the same reason the Render
+//     row's are: they have to reproduce ?SetDefaultValues@SaveData@@QAEXPAU-
+//     FileSaveData@@@Z and its Mg sibling exactly, both PAU and both public
+//     non-const non-static members, and no game header is visible here.
+//     COVERAGE IS THE RENDER FACE'S, by LK5's rule: this file and
+//     ${SLICE_OV007_SOURCES}, which carries all three compiled flat-name
+//     callers (ReadFileData, ReadMinigameData, EraseSaveFile), are listed in
+//     the same three targets and in no others. Restoring either directive on
+//     top of these faces does not silently win, it defeats the alias, and
+//     port/tools/alternatename_guard.py refuses a defeated pair that is not in
+//     its baseline. That is the signal, and it needs no marker of its own.
+struct FileSaveData;
+struct MinigameSaveData;
+struct SaveData {
+    void SetDefaultValues(FileSaveData *fsd);
+    void SetDefaultValuesMg(MinigameSaveData *mg);
+};
+extern "C" void _ZN8SaveData16SetDefaultValuesEP12FileSaveData(void *blk)
+{
+    ((SaveData *)blk)->SaveData::SetDefaultValues((FileSaveData *)blk);
+}
+extern "C" void _ZN8SaveData18SetDefaultValuesMgEP16MinigameSaveData(void *blk)
+{
+    ((SaveData *)blk)->SaveData::SetDefaultValuesMg((MinigameSaveData *)blk);
+}
+//     THE THIRD OF THE FAMILY STAYS A DIRECTIVE AND THAT IS NOT AN OVERSIGHT.
+//     SaveData::SaveFile decorates SA, not QAE: a STATIC member, which MSVC
+//     emits __cdecl with no receiver at all, so the flat name's two pushes land
+//     on the two parameters and nothing is dropped. The shape this block is
+//     about needs a __thiscall right-hand side and this row has not got one.
 #pragma comment(linker, "/alternatename:__ZN8SaveData8SaveFileEjP12FileSaveData=?SaveFile@SaveData@@SAHIPAUFileSaveData@@@Z")
-#pragma comment(linker, "/alternatename:__ZN8SaveData16SetDefaultValuesEP12FileSaveData=?SetDefaultValues@SaveData@@QAEXPAUFileSaveData@@@Z")
-#pragma comment(linker, "/alternatename:__ZN8SaveData18SetDefaultValuesMgEP16MinigameSaveData=?SetDefaultValuesMg@SaveData@@QAEXPAUMinigameSaveData@@@Z")
 //
 // (e) ELEVEN MANGLED DATA SPELLINGS onto storage that already exists. Three of
 //     them are the SAME symbol, data_ov007_0210342c, mangled three ways

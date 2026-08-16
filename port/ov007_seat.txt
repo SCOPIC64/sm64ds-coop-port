@@ -2117,6 +2117,198 @@ NONE OF THE TWELVE SURVIVORS IS FACED HERE. The rule the SaveData pair was
 decided under applies to all of them: no traced firing call, no face.
 
 
+5g. THE SAVE SIGNAL IS HONEST AND THE FRAME DOES NOT CARE
+----------------------------------------------------------
+
+5F'S PARKED DEFECT IS FIXED AND THE HYPOTHESIS BUILT ON IT IS DEAD. Run link60
+Stage 5 lane SV1 flipped the cart faces, faced the two receiver-dropping
+aliases, audited the write side, hosted the save block at its real ROM width,
+and captured the frame. THE FRAME IS BYTE-IDENTICAL TO 5F'S. Everything else
+this section records is a measurement that came out of proving that.
+
+THE DEFECT, re-derived off both matched bodies rather than carried in. 5f had
+read only the reader; this lane read the writer too and the audit 5f asked for
+comes back POSITIVE, the same convention backwards in the same direction:
+
+    src/_ZN8SaveData16ReadDataFromCartEPcjj.cpp
+      0  only after the eight bytes read out of the record match data_020a4b40
+         AND the rotate-xor checksum over the payload equals the stored crc
+      1  every failure path, first statement `if (func_0203da3c() == 2)
+         return 1;`, which is the state a host with no cart never leaves
+      2  the backup copy read, magic mismatched against the primary
+
+    src/_ZN8SaveData14SaveDataToCartEPcjj.cpp
+      0  only after BOTH copies, primary and backup, were written whole
+      1  every failure path, same no-media first statement. There is no 2.
+
+The readers take the defaults arm on nonzero. THE WRITERS INVERT: SaveFile and
+SaveMinigames both read `if (SaveDataToCart(...) == 0) return 1;`, so a face
+returning 0 told them bytes reached a cart this host has not got. Both faces
+return 1 now, which is the ROM's no-media answer to both questions.
+
+THE TWO ALIASES ARE FACED, AND THE CALLER SIDE IS WORSE THAN 5F'S CENSUS COULD
+SAY. 5f measured the callee convention (`mov esi,ecx`, 0x44 and 0x2e4). This
+lane re-derived that off its own objects and then read the CALLERS, which no
+lane had:
+
+    callee  ?SetDefaultValues@SaveData@@QAEXPAUFileSaveData@@@Z
+            push esi / push 44h / mov esi,ecx / push 0 / push esi /
+            call _func_0205a588 / ... / ret 4
+    caller  src/_ZN8SaveData12ReadFileDataEjP12FileSaveData.cpp.obj
+            push esi / call __ZN8SaveData16SetDefaultValuesE... / add esp,4
+
+`ret 4` is the callee popping the argument and `add esp,4` is the cdecl caller
+popping the same four bytes. ESP comes back four high, so the epilogue's pops
+each read one slot along, `pop ebp` takes the return address and `ret` jumps to
+the first argument. A wrong `this` AND a return into a pointer.
+
+MEASURED, NOT ARGUED, and this is the negative control the coupling ruling
+deserved. A throwaway build with the flip taken and the two directives PUT BACK
+(faces removed, so nothing is shadowed and the guard stays quiet) was run at
+scene 1 with SM64DS_FAULTS_FATAL=1:
+
+    FAULT code c0000005 at +0x00899fe8 accessing 00c99fe8
+
+0x00c99fe8 is data_0209cae4 in this build's layout, which is the pointer
+ReadMinigameData passes as its only argument. The program counter is IN the
+save block: the run returned into its own first argument and tried to execute
+the save data, exactly the arithmetic above and in exactly the frame cc600
+dispatches first (arg 21). THE REVIEW'S ONE-COMMIT RULING WAS NOT A PRECAUTION.
+
+THE RECEIVER IS THE BUFFER, which is what makes these two unlike the Render
+row. Both bodies write through `this` and never read the parameter the mangled
+name declares, include/SaveData.h's evidenced fields (0x008, 0x041, 0x042) all
+sit inside 0x44, so SaveData and FileSaveData are one block under two names and
+the flat call's single pointer is both. The faces pass it as both. Byte-visible
+in walk_window.dir/hal/scene_boot.cpp.obj:
+
+    __ZN8SaveData16SetDefaultValuesEP12FileSaveData:
+      push ebp / mov ebp,esp
+      mov  ecx,dword ptr [ebp+8]     ; the receiver, INTO ECX
+      push ecx                       ; the same pointer as the argument
+      call ?SetDefaultValues@SaveData@@QAEXPAUFileSaveData@@@Z
+      pop  ebp / ret
+
+and the Mg face is the same against its own decoration. NO `add esp,4`: the
+bridge is cdecl in and __thiscall out, the callee's `ret 4` does the cleanup,
+and the imbalance is gone as well as the receiver. Both flat names are SECT in
+that object and both mangled members are UNDEF in it, which is the map shape of
+a face. dumpbin undecorated the two targets itself; nothing here was spelled by
+hand.
+
+A THIRD DEFECT THE FIRING EXPOSED, WHICH NO BRIEF NAMED AND WHICH THE FLIP
+COULD NOT SHIP WITHOUT. SetDefaultValuesMg clears 0x2e4 bytes through its
+receiver and its only caller hands it data_0209cae4. hal/level_boot.cpp hosted
+that as 0x10 bytes, last of a four-row `.dsstate$savblk000N` group. In the map
+before the fix:
+
+    _data_0209caa0 00c9a284   _data_0209cae4 00c9a2c8   (caa0+0x44)
+    _data_020a0de8 00c9a2d8   _dsstate_hi    00c9a2e8
+    _data_0209caf4 00c15d10   <- 0x84574 bytes away, hal/scene_mg_faces.cpp
+
+so the default would have run 0x2d4 bytes past the group, over four touch
+bytes, over the captured span's own high sentinel, and off the end of
+.dsstate. NOTHING WOULD HAVE FAULTED. That memory is mapped, so the corruption
+would have been silent and a lane reading a clean exit would have believed it.
+
+config/arm9/symbols.txt runs caa0, cab4, cad2, cae4, caf4, then data_0209cdcc.
+The ROM's save object is ONE 0x32c run of five symbols, level_boot.cpp's own
+comment has said "split five ways" since it was written, and the macro stopped
+at four. The fifth is hosted here now as `.dsstate$savblk0004`, moved from
+hal/scene_mg_faces.cpp, which had sized it correctly at 728 and could not make
+it contiguous from another translation unit. Both files are in the same three
+targets. The contiguity assertion beside it grew a fourth term. After:
+
+    caa0 00c99fa4  cab4 +0x14  cad2 +0x32  cae4 +0x44  caf4 +0x54
+    next symbol data_020a0de8 at caa0+0x32c, nothing in between
+
+IT WAS ALREADY WRONG AS A READ, before any write reached it, and that is the
+part worth carrying forward. src/func_ov007_020cc600.c ends EVERY call with
+func_ov007_020cc168(data_0209caa0[0x328]), and the title screen dispatches that
+function twice per boot. That byte was 0x2c4 past _dsstate_hi in every run this
+file records. It is inside the block now.
+
+THE DEFAULTS REALLY ARE CONSTRUCTED, measured with a throwaway probe in the two
+faces rather than inferred from the branch:
+
+    SetDefaultValuesMg(00C99FE8) magic=30303035 tail=00000000
+    SetDefaultValues(3005E894)   magic=30303038 caa0[0x328]=00
+    SetDefaultValues(3005E8D8)   magic=30303038 caa0[0x328]=00
+    SetDefaultValues(3005E91C)   magic=30303038 caa0[0x328]=01
+
+Four calls, in cc600's own order (arg 21 then arg 20). The Mg receiver is
+data_0209cae4 at its new address and the last four bytes of its 0x2e4 clear
+read back as real zeroed storage, so the write is in bounds. The three file
+blocks are the 0xcc Memory::operator_new2 allocation at +0, +0x44 and +0x88,
+the three 0x44 slots that allocation is exactly the size of. Each magic landed
+at the pointer that was PASSED, which is the receiver proof restated at
+runtime. And caa0[0x328] changes from 00 to 01 between the second and third
+call, so that byte is live storage something writes, not padding. The probe is
+not in the commit.
+
+THE TRUTH RUN, off the tip binary, SM64DS_SCENE=1, SM64DS_SCENE_FRAMES=300,
+SM64DS_FAULTS_FATAL=1, render on, nothing switched off:
+
+    [scene] ov007 slot hits: init 1, behavior 299, render 300, cleanup 0,
+            pending-destroy 0
+    [scene] unmatched-body traps entered: 26699
+    [scene] 300 frames of scene 1 (SCENE_TITLE), clean       exit 0
+
+Every number is 5f's, to the trap. The frame was captured with SM64DS_SCENE_BMP
+and lives OUTSIDE the repo with the run's other artefacts, at
+
+    <run status dir>/link60/status/sv1-scene1-savefix.bmp
+    (today: C:\Users\tango\.claude\orchestration\runs\link60\status\)
+    512x384, 24bpp, 589878 bytes, taken at .dsstate base [0xbb0000, 0xc9a2e0)
+
+and its histogram is 5f's, exactly:
+
+    0x101820   183868 px   93.52%   flat, the clear color
+    0xce21c6    12288 px    6.25%   one solid 128x96 rectangle, the sub panel
+    0x000000      452 px    0.23%   that rectangle's one-pixel outline
+
+THE TWO FILES ARE BYTE-IDENTICAL, sha256
+b675ba5f4528e336812ffeb4dfde4c3d18ec3fd19490bd36ad8b2696560af682 on both, and
+that is a stronger negative than the histogram is. 5f's capture was taken at
+.dsstate base [0xbae000, 0xc982e8) and this one at [0xbb0000, 0xc9a2e0). 5f's
+own warning is that a capture is layout-dependent and only byte-comparable at
+an equal base. TWO DIFFERENT BASES PRODUCED THE SAME BYTES, so this frame does
+not depend on the save state in either direction, and no pixel in it moved
+because the save signal became honest.
+
+SO THE HYPOTHESIS IS DEAD AND THE RECORD SHOULD SAY SO PLAINLY. The reasoning
+on the books was that a game believing its save is garbage has reason to draw a
+blank title screen, and that an honest signal with real defaults behind it
+might put content in the frame. The signal is honest, the defaults are
+measured, and the frame did not change by one byte. WHAT THE SAVE STATE GATED
+WAS NOTHING VISIBLE: it gated four calls that now happen, a 0xcc buffer that is
+now initialised rather than read raw, and a 0x2e4 default block that now exists
+at all. Nothing on this path between those and the framebuffer. Whatever keeps
+the ROM's drawing off this screen, 5f's open question, is not the save read,
+and that is the one thing this lane can hand the next one for free.
+
+NOTHING IS CONVERTED AND THE SKIP LIST STAYS EMPTY. The run is clean, so there
+is no row to convert in either direction; scene 1 remains an ordinary battery
+selftest row and port/tools/battery.py's SCENE_BLOCKED is still empty.
+
+THE CENSUS SHRINKS BY TWO. 5f found the cdecl-onto-__thiscall shape fourteen
+times in five files and left thirteen standing. ELEVEN REMAIN, in four files:
+hal/meshcolliderbase_vtable.cpp 8, hal/actor_classes_ov073.cpp 1,
+hal/lk4_eh_dtor_seat.cpp 1, hal/level_boot.cpp 1. Of 5f's live rows only
+Player::GetHurtState and HeapAllocator::Remove are left unfaced, and neither
+has been traced to a firing call, which is the rule both the Render row and
+this pair were decided under. The third SaveData row, SaveFile, IS NOT ONE OF
+THE SHAPE and stays a directive: it decorates SA, a static member MSVC emits
+__cdecl with no receiver, so its two pushes land on its two parameters.
+
+NO NEW MARKER, AND THE REASON IS THE GUARD. Restoring either directive on top
+of these faces does not quietly win, it DEFEATS the alias, and
+port/tools/alternatename_guard.py refuses a defeated pair that is not in
+alternatename_baseline.txt. That is a real signal already wired into every
+build, so a CMake predicate here would be a second copy of it. 5f's anchored
+predicate was left exactly as 5f shipped it.
+
+
 6. WHAT LINKS, AND WHAT WAS DELIBERATELY NOT TAKEN
 ---------------------------------------------------
 
@@ -2158,6 +2350,12 @@ families:
   callers' failure path is SetDefaultValues. THE CONSEQUENCE IS REAL AND NOT
   COSMETIC: a file select that ever renders will show empty files rather than
   whatever the last session had.
+  CORRECTED BY 5G, AND EVERY CLAUSE OF THOSE THREE SENTENCES WAS WRONG. 0 is
+  the ROM's answer on a SUCCESSFUL transfer, on both leaves; 1 is the failure
+  answer and the no-media one. The callers' failure path is SetDefaultValues
+  and 0 is the value that does not take it, so the faces were skipping the
+  defaults rather than reaching them. Both return 1 now. What a file select
+  will show is unmeasured and 5g does not replace one guess with another.
 
 FOUR MORE ARE NOT IN THE SLICE because MSVC cannot compile them:
 src/Matrix3x3_LoadIdentity.c, src/MultiStore32Bytes.c, src/func_02052ec8.c and
@@ -2431,6 +2629,42 @@ merely reassuring: the face has one callee and it is the same body the alias
 resolved to, so the reachability graph is the same graph. The object count
 agrees in both directions and no other symbol moved.
 
+RUN LINK60 STAGE 5 LANE SV1'S DELTA IS ZERO AS WELL, on the same argument and
+with one addition to it. Two faces displace nothing, for the reason above. The
+third change MOVES 728 bytes of storage between two translation units without
+creating or destroying a symbol, and linkage.py counts matched stems present in
+the map, so a hosted DS global changing owner cannot move a count either.
+
+    baseline f5a483205   5832 / 11250   51.8%   ALL GREEN, skips []
+    this lane            5832 / 11250   51.8%   ALL GREEN, skips []
+    delta                linked 0, total 0, unlinked 0
+
+Both recorded in this lane's own worktree, the baseline at the start commit
+with git_dirty false before a single edit. IT IS THE FIRST BASELINE IN THIS RUN
+WITH AN EMPTY SKIP LIST, which is 5f's doing rather than this lane's, and it is
+still empty at the tip.
+
+Decomposed with port/tools/mapdiff.py against a base map built in THIS tree by
+stashing the lane's own diff, the same recipe 5f used:
+
+    symbols   36929 -> 36929      objects   6525 -> 6525
+    MOVED  3   __ZN8SaveData16SetDefaultValuesEP12FileSaveData
+               _ZN8SaveData16SetDefaultValues...cpp.obj -> scene_boot.cpp.obj
+               __ZN8SaveData18SetDefaultValuesMgEP16MinigameSaveData
+               _ZN8SaveData18SetDefaultValuesMg...cpp.obj -> scene_boot.cpp.obj
+               _data_0209caf4
+               scene_mg_faces.cpp.obj -> level_boot.cpp.obj
+    ADDED  1   the [a2] SAVE BLOCK NOT CONTIGUOUS format string, level_boot
+    REMOVED 1  the same string, level_boot, one `+%d` shorter
+    objects   +0 / -0
+
+EVERY ROW IS AN INTENDED CHANGE AND THERE IS NOTHING ELSE. The two flat names
+used to be published by the linker at their alias targets' addresses, inside
+the objects that define the mangled members, and they are real definitions in
+scene_boot.cpp.obj now: the map shape of a face, twice. The third row is the
+save block's fifth symbol changing owner. The added and removed strings are one
+literal, longer by a term.
+
 
 8. WHAT IS NOT PROVEN
 ----------------------
@@ -2608,6 +2842,20 @@ agrees in both directions and no other symbol moved.
     the conjunction is a real AND. It is still armed on ENTERING the Render
     slot rather than at the seam, so a different fault inside that slot would
     carry it, and the row says so.
+    SUPERSEDED BY 5F, AND THOSE FOUR CONFIGURES ARE NOT THE SHIPPING ROW'S.
+    They were run against the UNANCHORED predicate, the one the very next
+    bullet calls a known hole and the one 5f DELETED in the same commit that
+    closed it, so this bullet has been describing a row that is not in the
+    tree. The row there today is the anchored one and its evidence is 5f's
+    FIVE configures, each into a throwaway dir: face and no alias RETIRED, a
+    real pragma at column 0 ARMED, the same pragma indented four spaces ARMED,
+    no alias with the caller cut RETIRED, alias present with the caller cut
+    RETIRED through the caller arm. WHAT SURVIVES UNCHANGED is the arming
+    point, which is why this bullet stays rather than going: the predicate is
+    still armed on ENTERING the Render slot and not at the seam, so a
+    different fault inside that slot still carries it. Recorded by run link60
+    Stage 5 lane SV1, which inherited this as MR1's parked residual and did
+    not touch the row itself.
   - AND ITS ALIAS FACT IS AN UNANCHORED SOURCE-TEXT MATCH, WHICH IS A KNOWN
     HOLE SHIPPING ON PURPOSE. file(STRINGS) is a line scanner, so a comment in
     hal/scene_boot.cpp quoting the retired directive would keep the marker
@@ -2692,6 +2940,70 @@ agrees in both directions and no other symbol moved.
     stderr measures nothing, from a shell or from the battery, and its output
     is sitting in playlog/*.log rather than lost. Cost this lane two rebuilds,
     and it was avoidable by reading twelve lines of its own file.
+
+  RUN LINK60 STAGE 5 LANE SV1 ADDS THESE, and the first is the one a reader
+  should weigh hardest:
+
+  - THE SAVE PATH IS HONEST AND NOTHING VISIBLE CAME OF IT. What is proven is
+    that the signal is right, that the four calls happen, that the defaults are
+    written at the pointers that were passed, and that the run stays clean.
+    What is NOT proven is that any of it matters to this scene, and the
+    evidence is that it does not: the captured frame is byte-identical to 5f's
+    across two different .dsstate bases. A lane picking this up should not read
+    5g as progress toward a title screen. It removes one candidate explanation
+    and adds no pixels.
+  - THE DEFAULTS ARE WRITTEN, NOT VALIDATED. The probe read back the two magic
+    words and the tail of the Mg block, which proves the memset and the stamp
+    reached the right storage. It says nothing about whether the rest of what
+    SetDefaultValues leaves behind is what the ROM's file select would want,
+    and nothing downstream has consumed the block in any run. The probe is not
+    in the commit, so re-measuring means writing it again.
+  - THE FACES ARE PROVEN FOR THREE CALLERS, NOT FIVE. src/ has five flat-name
+    callers of the SetDefaultValues pair; only ReadFileData, ReadMinigameData
+    and EraseSaveFile are in a slice. src/_ZN8SaveData16EraseAllSaveDataEv.c
+    and src/PrepareVsMode.c are in none, have never compiled and have never run
+    through these faces. They are right for those two by shape and by nothing
+    else, which is the limit 5f's Render face carries for FaderWipe.
+  - THE SECOND ARGUMENT IS A CHOICE AND THE ROM DOES NOT MAKE IT. The flat call
+    delivers ONE pointer, so the ROM's r1 at these sites is whatever the caller
+    left there, and both matched bodies ignore the parameter entirely. The
+    faces pass the buffer for it because SaveData and FileSaveData are the same
+    0x44 object. THE DAY EITHER BODY IS CORRECTED TO READ ITS PARAMETER, that
+    hand-off becomes a guess and this is where it is written down.
+  - THE WRITE SIDE IS FLIPPED AND UNEXERCISED. SaveDataToCart returns 1 now on
+    the same ROM evidence as the read, and its callers invert it, so SaveFile,
+    SaveMinigames and EraseSaveFile report failure where they used to report
+    success. NO RUN REACHED ANY OF THEM. cc600's save-writing args (8 through
+    16, 22, 23) are not among the two the title screen dispatches, so the
+    correction is right by derivation and untested by execution.
+  - EraseSaveFile IS THE ONE THAT COMBINES BOTH CHANGES AND IT HAS NOT RUN. It
+    calls SetDefaultValues and then SaveDataToCart, so it is the only caller
+    whose behaviour changes twice in this commit. cc600 reaches it on args 8,
+    9, 10 and 22 and the title screen dispatches none of them.
+  - THE SAVE BLOCK IS CONTIGUOUS BY LINKER GROUPING, and the check that says so
+    writes to stderr. `.dsstate$savblk0000..0004` relies on MSVC merging
+    grouped sections in suffix order, which is the same mechanism the four rows
+    already relied on and the same one hal/dsstate_seg.h's sentinels use, so
+    this adds no new assumption; it now spans two objects rather than one.
+    port_a2_seat_body's assertion covers all five offsets, but it is an
+    fprintf(stderr) and not a fail, and 5f's own finding is that walk_window's
+    stderr goes to playlog/*.log rather than to a shell. A broken layout would
+    be recorded, quietly, in a file nobody greps.
+  - THE 728-BYTE MOVE IS UNMEASURED WHERE IT CAME FROM. data_0209caf4's only
+    other readers are src/func_02013568.c and src/func_02013580.c, which treat
+    it as int[][5], and this lane ran neither. What it verified is that the
+    symbol still exists, still measures 728, still sits inside .dsstate and is
+    now adjacent to its four siblings; not that any minigame path that reads it
+    behaves the same.
+  - ONE SCENE, ONE FRAME COUNT, ONE MACHINE. The truth run is scene 1 at 300
+    frames. The gate's battery covers the levels and the smokes, which is what
+    catches a layout break elsewhere, but no other scene was run with the save
+    signal corrected and scene 4 does not touch it.
+  - THE NEGATIVE CONTROL PROVES THE COUPLING, NOT THE WHOLE ARITHMETIC. The
+    c0000005 at data_0209cae4's own address settles that the run returns into
+    its first argument in ReadMinigameData's frame. ReadFileData's frame was
+    read off the listing and never reached: the Mg call is dispatched first and
+    kills the process before arg 20 runs.
 
 
 8a. THE TAIL-JUMP FLOOR IS GUARDED (run link60 Stage 5 lane TJG)

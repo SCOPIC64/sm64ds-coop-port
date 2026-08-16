@@ -2333,6 +2333,31 @@ SAVEBLK(".dsstate$savblk0000", data_0209caa0, 0x14);
 SAVEBLK(".dsstate$savblk0001", data_0209cab4, 0x1e);
 SAVEBLK(".dsstate$savblk0002", data_0209cad2, 0x12);
 SAVEBLK(".dsstate$savblk0003", data_0209cae4, 0x10);
+/* AND THE FIFTH. The paragraph above has said "split five ways" since it was
+   written while the macro ran out at four, and run link60 Stage 5 lane SV1
+   added this row because the change it landed turns the gap from a read into
+   a WRITE. config/arm9/symbols.txt runs caa0, cab4, cad2, cae4, caf4, then
+   data_0209cdcc, so caf4's ROM span is 728 bytes and the whole save object is
+   one 0x32c run of five symbols.
+   WHAT NEEDED IT. SaveData::SetDefaultValuesMg clears 0x2e4 bytes through the
+   pointer its only caller hands it, and that pointer is data_0209cae4, which
+   is caa0+0x44. It therefore needs caa0+0x44 .. caa0+0x328 to be real
+   storage. With the group ending at caa0+0x54 the other 0x2d4 bytes landed on
+   data_020a0de8's four touch bytes, on _dsstate_hi, and then past the end of
+   the captured span; measured in this tree's map before the fix, cae4 sat at
+   00c9a2c8 and _dsstate_hi at 00c9a2e8. Nothing would have faulted, which is
+   the bad news rather than the good: that memory is mapped and the corruption
+   would have been silent.
+   IT WAS ALREADY WRONG AS A READ, before any write reached it.
+   src/func_ov007_020cc600.c ends every call with
+   func_ov007_020cc168(data_0209caa0[0x328]), the byte at caa0+0x328, and the
+   title screen dispatches that function twice per boot. That read was 0x2c4
+   bytes past _dsstate_hi until this line existed.
+   THE STORAGE MOVED HERE from hal/scene_mg_faces.cpp, which had it at the
+   right 728 bytes and could not make it contiguous from another translation
+   unit; it was 0x84574 bytes away in the image. Both files are in the same
+   three targets, so nothing changes about which builds have it. */
+SAVEBLK(".dsstate$savblk0004", data_0209caf4, 728);
 
 #undef SAVEBLK
 
@@ -3427,11 +3452,14 @@ static void port_a2_seat_body(int make_stage)
        compile-time range check and a fast-fail. */
     if (data_0209cab4 - data_0209caa0 != 0x14 ||
         data_0209cad2 - data_0209caa0 != 0x32 ||
-        data_0209cae4 - data_0209caa0 != 0x44)
-        std::fprintf(stderr, "  [a2] SAVE BLOCK NOT CONTIGUOUS: +%d +%d +%d\n",
+        data_0209cae4 - data_0209caa0 != 0x44 ||
+        data_0209caf4 - data_0209caa0 != 0x54)
+        std::fprintf(stderr,
+                     "  [a2] SAVE BLOCK NOT CONTIGUOUS: +%d +%d +%d +%d\n",
                      (int)(data_0209cab4 - data_0209caa0),
                      (int)(data_0209cad2 - data_0209caa0),
-                     (int)(data_0209cae4 - data_0209caa0));
+                     (int)(data_0209cae4 - data_0209caa0),
+                     (int)(data_0209caf4 - data_0209caa0));
     data_0209cad2[0x41 - 0x32] = 0;
 
     /* Engine state the CAMERA's own boot reads, which under the entrance
