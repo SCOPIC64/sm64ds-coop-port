@@ -2,40 +2,67 @@
 """Measure a slice's link closure without paying for a link.
 
 WHY THIS EXISTS. Every seat lane answers the same question over and over:
-"if I add these TUs, what will the linker still want, and what will it
-refuse as already defined?" The lanes have been paying for that answer with
-REAL LINK WAVES -- the MG1 pathfinder ran FOUR of them to close a 276-TU
-slice and a fifth to enumerate its wall, the S1 spine ran link rounds 4
-through 8, and SL0 finally wrote the cheap version as a worktree-local
-script (C:/tmp/g2/build/closure.py). This is that script promoted: compile
-the candidate TUs with walk_window's own flags, read each object's symbol
-table, and diff the union against the current walk_window.map. Same answer
-as a link for "what does this slice still want", at the cost of a compile.
+"if I add these TUs, what will the linker still want, and what is already
+defined?" The lanes have been paying for that answer with REAL LINK WAVES --
+the MG1 pathfinder ran FOUR of them to close a 276-TU slice and a fifth to
+enumerate its wall, the S1 spine ran link rounds 4 through 8, and SL0
+finally wrote the cheap version as a worktree-local script
+(C:/tmp/g2/build/closure.py). This is that script promoted: compile the
+candidate TUs with walk_window's own flags, read each object's symbol
+table, and diff the union against the current walk_window.map.
 
 WHAT IT REPORTS, in three sections:
 
   COMPILE FAILURES   TUs cl.exe refused, with the tail of each log. These
                      are data, not noise -- the gate-16 PMF wall and the
                      C2733 declaration conflicts announce themselves here
-                     before any link would have found them.
+                     before any link would have found them. A .c whose
+                     first line is the //cpp marker is compiled /TP, the
+                     same reading as CMakeLists' LANGUAGE CXX block, so a
+                     C2059 from probing C++ as C is a tool artifact this
+                     probe no longer manufactures.
   UNRESOLVED         externals no object in the set defines and the image
-                     does not carry. The slice's real closure frontier.
-  DUP-DEF            externals the set defines that the image ALSO defines:
-                     the LNK2005 list. SL0 measured the gate-36 slice at
-                     FIFTEEN duplicate definitions where the planning map
-                     said one; this section is why no slice should be wired
-                     from a map's say-so again.
+                     does not carry. AN ESTIMATE OF THE FRONTIER, NOT A
+                     COUNT: measured against real links it has erred in
+                     BOTH directions. On the gate-36 slice it was exact;
+                     on slice_ov007 it read one HIGH, because an
+                     /alternatename in some other object resolves a name
+                     this probe can only see as missing -- aliases live in
+                     pragmas, not in symbol tables. Confirm with a link
+                     before quoting.
+  DUP-DEF CANDIDATES symbols the set defines that the image also defines,
+  NEED A REAL LINK   and the name says the whole discipline: a symbol-table
+                     probe CANNOT tell a real collision from a TU that is
+                     already compiled into the image, because re-listing
+                     such a TU on another slice is deduplicated by CMake,
+                     not collided. Each row is therefore classified by the
+                     map's own object column: a row whose defining object
+                     IS the probed TU is already-in-the-image; a row
+                     defined by a FOREIGN object is an LNK2005 candidate.
+                     Spellings that link any-COMDAT (__xmm@, __real@,
+                     ??_C@ constants) are skipped outright: identical
+                     contributions merge and can never be LNK2005. ONLY A
+                     REAL LINK CONVICTS. The gate-36 probe surfaced
+                     fifteen candidates; fourteen were already-in-the-
+                     image rows, and the planning map's ONE collision
+                     (LoadArchive, whose C name hal/scene_boot.cpp
+                     defines) was the correct count all along. The
+                     fifteen, misread as a count, mis-scoped a successor
+                     lane; this section is named what it is so that
+                     cannot happen twice.
 
-TWO CAVEATS THAT ARE PART OF THE ANSWER, both paid for by lanes:
+TWO MEASUREMENTS THAT READ ALIKE AND ARE NOT THE SAME. On the SL0 tree
+both of these print 28 UNRESOLVED, with only 14 symbols in common:
 
-  * The UNRESOLVED count is a FLOOR, not the bill (lane L4's stage map).
-    A TU that resolves through an /alternatename face, or one /OPT:REF
-    drops for want of a reference edge, never shows up here and still has
-    to be carried. Closure says what the linker will ASK for; it does not
-    say what will finally LINK.
-  * Names are compared RAW, exactly as dumpbin and the map spell them.
-    linkage.py's old map_symbols() lstrip("_") bug made _ZN* host
-    definitions invisible by over-stripping; nothing here strips anything.
+    single TU   src/_ZN5Stage13InitResourcesEv.cpp     that TU's OWN wants
+    slice       port/slice_gate36.txt (33 lines)       the UNION's wants
+
+Label which probe set a report quotes; "the closure is 28" with the set
+left unsaid is how two documents end up arguing over different numbers.
+
+Names are compared RAW, exactly as dumpbin and the map spell them.
+linkage.py's old map_symbols() lstrip("_") bug made _ZN* host definitions
+invisible by over-stripping; nothing here strips anything.
 
     python port/tools/closure.py --root C:/tmp/g2 src/_ZN5Stage13InitResourcesEv.cpp
     python port/tools/closure.py --root C:/tmp/g2 --slice port/slice_gate36.txt
@@ -80,13 +107,38 @@ def find_vcvars():
     return None
 
 
+# Spellings the linker folds under any-COMDAT selection: every TU that uses
+# the constant emits an identical copy and the linker keeps one. They can
+# never be LNK2005, so they are noise in a duplicate-definition list.
+ANY_COMDAT = ("__xmm@", "__ymm@", "__real@", "??_C@")
+
+
+def is_any_comdat(name):
+    return name.startswith(ANY_COMDAT)
+
+
+def stem(path):
+    """scene_boot.cpp.obj and hal/scene_boot.cpp both -> scene_boot."""
+    base = str(path).replace("\\", "/").rsplit("/", 1)[-1]
+    for suffix in (".obj", ".cpp", ".cc", ".c"):
+        if base.endswith(suffix):
+            base = base[:-len(suffix)]
+    return base
+
+
 def map_defined(mappath):
-    defined = set()
+    """{symbol: defining object basename} for every image definition.
+
+    The object column is the LAST token of the row; it is what separates an
+    already-in-the-image row from a genuine LNK2005 candidate, so it rides
+    along with the name everywhere the set used to travel alone.
+    """
+    defined = {}
     with open(mappath, encoding="utf-8", errors="replace") as f:
         for line in f:
             m = MAP_ROW.match(line)
-            if m:
-                defined.add(m.group(1))
+            if m and m.group(1) not in defined:
+                defined[m.group(1)] = line.split()[-1]
     return defined
 
 
@@ -140,13 +192,25 @@ def compile_batch(root, sources, outdir, extra_flags=""):
         srcp = pathlib.Path(src)
         if not srcp.is_absolute():
             srcp = root / srcp
-        stem = "%03d_%s" % (i, srcp.name)
-        obj = outdir / (stem + ".obj")
-        syms = outdir / (stem + ".syms")
-        log = outdir / (stem + ".log")
+        name = "%03d_%s" % (i, srcp.name)
+        obj = outdir / (name + ".obj")
+        syms = outdir / (name + ".syms")
+        log = outdir / (name + ".log")
         plan.append((src, srcp, obj, syms))
-        script.append('cl %s %s %s %s /Fo"%s" "%s" > "%s" 2>&1'
-                      % (CL_FLAGS, extra_flags, rootdef, inc, obj, srcp, log))
+        # A .c whose first line is the //cpp marker is C++ in the port's
+        # build (CMakeLists' LANGUAGE CXX block); probe it the same way or
+        # the C2059 this probe reports is its own artifact and the TU's
+        # symbols poison both output sections.
+        lang = ""
+        try:
+            with open(srcp, encoding="utf-8-sig", errors="replace") as f:
+                if f.readline().strip().startswith("//cpp"):
+                    lang = "/TP "
+        except OSError:
+            pass
+        script.append('cl %s %s%s %s %s /Fo"%s" "%s" > "%s" 2>&1'
+                      % (CL_FLAGS, lang, extra_flags, rootdef, inc, obj,
+                         srcp, log))
         script.append('if exist "%s" dumpbin /nologo /SYMBOLS "%s" > "%s"'
                       % (obj, obj, syms))
     runner = outdir / "closure_run.cmd"
@@ -164,6 +228,7 @@ def measure(root, mappath, sources, outdir, extra_flags=""):
     have = map_defined(mappath)
     results = compile_batch(root, sources, outdir, extra_flags)
     allund, alldef, failed = set(), set(), []
+    def_by = {}
     for src, syms in results.items():
         if syms is None:
             log = pathlib.Path(str(pathlib.Path(outdir)))
@@ -175,13 +240,22 @@ def measure(root, mappath, sources, outdir, extra_flags=""):
         u, d = read_syms(syms)
         allund |= u
         alldef |= d
+        for sym in d:
+            def_by.setdefault(sym, set()).add(stem(src))
     unresolved = sorted(x for x in allund if x not in have
                         and x not in alldef)
-    dupdef = sorted(x for x in alldef if x in have)
-    return have, failed, unresolved, dupdef
+    dup = {"own": [], "foreign": [], "comdat": []}
+    for sym in sorted(x for x in alldef if x in have):
+        if is_any_comdat(sym):
+            dup["comdat"].append(sym)
+        elif stem(have[sym]) in def_by.get(sym, set()):
+            dup["own"].append((sym, have[sym]))
+        else:
+            dup["foreign"].append((sym, have[sym]))
+    return have, failed, unresolved, dup
 
 
-def report(have, failed, unresolved, dupdef):
+def report(have, failed, unresolved, dup):
     print("map defines %d symbols" % len(have))
     if failed:
         print("\n=== COMPILE FAILURES (%d) ===" % len(failed))
@@ -189,23 +263,37 @@ def report(have, failed, unresolved, dupdef):
             print("  ", src)
             for line in tail:
                 print("       ", line)
-    print("\n=== UNRESOLVED after this slice: %d ===" % len(unresolved))
+    print("\n=== UNRESOLVED after this slice: %d "
+          "(an estimate; confirm with a link) ===" % len(unresolved))
     for x in unresolved:
         print("   ", x)
-    print("\n=== DUP-DEF against the image (LNK2005): %d ===" % len(dupdef))
-    for x in dupdef:
-        print("   ", x)
+    print("\n=== DUP-DEF CANDIDATES, NEED A REAL LINK ===")
+    print("  already in the image from its own TU: %d" % len(dup["own"]))
+    for sym, obj in dup["own"]:
+        print("    %s  --  %s compiles it already" % (sym, obj))
+    print("  FOREIGN-object rows, the LNK2005 candidates: %d"
+          % len(dup["foreign"]))
+    for sym, obj in dup["foreign"]:
+        print("    %s  --  image copy is from %s" % (sym, obj))
+    if dup["comdat"]:
+        print("  skipped any-COMDAT spellings (never LNK2005): %d"
+              % len(dup["comdat"]))
 
 
 def selftest():
-    """Three tiny TUs against a fabricated map; every section exercised.
+    """Four tiny TUs against a fabricated map; every section exercised.
 
-    a.cpp defines a_def and wants missing_sym, present_sym and dup_sym.
-    b.cpp defines dup_sym (also in the map: the LNK2005 case) and wants
-    nothing. c.cpp does not compile. The fabricated map carries present_sym
-    and dup_sym. Expected: failures == {c.cpp}, unresolved == {_missing_sym}
-    (satisfied-in-set a_def proves the set-union rule, satisfied-in-map
-    present_sym proves the map rule), dupdef == {_dup_sym}.
+    a.cpp defines a_def (which the fabricated map ALSO defines, from
+    a.cpp.obj: the already-in-the-image case) and wants missing_sym,
+    present_sym and dup_sym. b.cpp defines dup_sym, which the map carries
+    from a FOREIGN object: the real LNK2005 candidate. c.cpp does not
+    compile. d.c is C++ behind the //cpp marker and compiles only because
+    the probe honours it with /TP. Expected: failures == {c.cpp},
+    unresolved == {_missing_sym} (satisfied-in-set d_def proves the
+    set-union rule, satisfied-in-map present_sym proves the map rule),
+    own == {_a_def}, foreign == {_dup_sym}. The any-COMDAT skip is
+    asserted on the predicate directly: fabricating an __xmm@ emission
+    from a toy TU is not worth the flakiness.
     """
     with tempfile.TemporaryDirectory() as td:
         tdp = pathlib.Path(td)
@@ -214,29 +302,49 @@ def selftest():
         (tdp / "port" / "ntr" / "include").mkdir(parents=True)
         (tdp / "a.cpp").write_text(
             'extern "C" void missing_sym(); extern "C" void present_sym();\n'
-            'extern "C" void dup_sym();\n'
+            'extern "C" void dup_sym(); extern "C" void d_def();\n'
             'extern "C" void a_def() { missing_sym(); present_sym(); '
-            'dup_sym(); }\n')
+            'dup_sym(); d_def(); }\n')
         (tdp / "b.cpp").write_text('extern "C" void dup_sym() {}\n')
         (tdp / "c.cpp").write_text("this does not compile\n")
+        (tdp / "d.c").write_text(
+            '//cpp\n'
+            'extern "C" { struct D { void m() {} };\n'
+            'void d_def() { D d; d.m(); } }\n')
         fakemap = tdp / "fake.map"
         fakemap.write_text(
-            " 0001:00000000       _present_sym               10000000 x.obj\n"
-            " 0001:00000010       _dup_sym                   10000010 x.obj\n")
-        have, failed, unresolved, dupdef = measure(
+            " 0001:00000000       _present_sym               10000000 f"
+            "   x.obj\n"
+            " 0001:00000010       _dup_sym                   10000010 f"
+            "   x.obj\n"
+            " 0001:00000020       _a_def                     10000020 f"
+            "   a.cpp.obj\n")
+        have, failed, unresolved, dup = measure(
             tdp, fakemap,
-            [str(tdp / "a.cpp"), str(tdp / "b.cpp"), str(tdp / "c.cpp")],
+            [str(tdp / "a.cpp"), str(tdp / "b.cpp"), str(tdp / "c.cpp"),
+             str(tdp / "d.c")],
             tdp / "probe")
         ok = True
-        if [s for s, _ in failed] != [str(tdp / "c.cpp")]:
-            print("FAIL: compile-failure section wrong:", failed)
-            ok = False
-        if unresolved != ["_missing_sym"]:
-            print("FAIL: unresolved wrong:", unresolved)
-            ok = False
-        if dupdef != ["_dup_sym"]:
-            print("FAIL: dupdef wrong:", dupdef)
-            ok = False
+
+        def expect(cond, what, got):
+            nonlocal ok
+            if not cond:
+                print("FAIL: %s: %s" % (what, got))
+                ok = False
+
+        expect([s for s, _ in failed] == [str(tdp / "c.cpp")],
+               "compile-failure section", failed)
+        expect(unresolved == ["_missing_sym"], "unresolved", unresolved)
+        expect([s for s, _ in dup["own"]] == ["_a_def"],
+               "already-in-the-image rows", dup["own"])
+        expect([s for s, _ in dup["foreign"]] == ["_dup_sym"],
+               "foreign LNK2005 candidates", dup["foreign"])
+        expect(dup["comdat"] == [], "comdat rows", dup["comdat"])
+        expect(is_any_comdat("__xmm@0000ffff") and
+               is_any_comdat("__real@3f800000") and
+               is_any_comdat("??_C@_0BA@abcd@") and
+               not is_any_comdat("_LoadArchive"),
+               "any-COMDAT predicate", "pattern set")
         print("selftest %s" % ("PASS" if ok else "FAIL"))
         return 0 if ok else 1
 

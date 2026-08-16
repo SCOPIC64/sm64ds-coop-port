@@ -13,6 +13,11 @@ if errorlevel 1 exit /b 1
 rem Fail before configure if a NEW guessed vtable body got seated past the baseline.
 python "%~dp0tools\inferred_stub_guard.py"
 if errorlevel 1 exit /b 1
+rem Fail before configure if the closure prober's selftest breaks: the probe
+rem sizes slice walls and predicts collisions, and a broken prober lies
+rem quietly. There is no port CI; this block is where loudness lives.
+python "%~dp0tools\closure.py" --selftest
+if errorlevel 1 exit /b 1
 cmake -S "%~dp0." -B "%~dp0..\build\port" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM="%CMAKEBIN%\Ninja\ninja.exe" %*
 if errorlevel 1 exit /b 1
 ninja -C "%~dp0..\build\port"
