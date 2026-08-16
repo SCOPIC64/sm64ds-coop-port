@@ -433,7 +433,7 @@ THE NEW STOP, symbolized against this tree's own walk_window.map:
 
 The host instructions at the fault, out of dumpbin:
 
-    0042BC7E  mov  eax, dword ptr ds:[00C67770h]   data_ov007_0210342c
+    0042BC76  mov  eax, dword ptr ds:[00C67770h]   data_ov007_0210342c
     0042BC7E  mov  eax, dword ptr [eax+0F4h]
     0042BC84  mov  dword ptr [eax+94h], 0          <- eax is 0
 

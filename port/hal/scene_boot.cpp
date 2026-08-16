@@ -781,11 +781,21 @@ static void l2_fill_0208ea6c(void)
 // not are inside delink blocks marked incomplete, they are called from bodies
 // that ARE matched, and there is no C for them anywhere in the tree. A
 // plausible hand-written body would be exactly the guess the inferred-stub
-// guard exists to refuse, so each is a TRAP that names itself once and returns
-// zero. A run that enters one says so on stderr and keeps going, which is what
-// makes "none of them was entered" a measurement instead of an assumption.
-// NONE OF THE NINETEEN FIRED IN ANY RUN THE SEATING LANE MADE, and none of
-// the sixteen has fired since; port/ov007_seat.txt carries the counter
+// guard exists to refuse, so fifteen of them are a TRAP that names itself once
+// and returns zero. A run that enters one says so on stderr and keeps going,
+// which is what makes "none of them was entered" a measurement instead of an
+// assumption.
+//
+// NONE OF THE NINETEEN FIRED IN ANY RUN THE SEATING LANE MADE. THAT SENTENCE
+// USED TO CONTINUE "and none of the sixteen has fired since" AND RUN LINK60
+// LANE SC1 MADE IT FALSE, which is the good direction: giving 0x020c9688 a
+// body is what lets the scene run far enough to reach the others at all. A
+// 300-frame scene-1 run today enters func_ov007_020b46b0 twenty-four times
+// (the 0x18 loop in src/func_ov007_020aed98.c), then func_ov007_020c20b8,
+// func_ov007_020b2998, func_02054c80 and one data_0208ea6c slot once each.
+// ONLY func_ov007_020b2998 IS A BLOCKER (port/ov007_seat.txt section 5a); the
+// other four return 0 and the run carries on, which is the trap doing its job
+// rather than the trap being harmless. port/ov007_seat.txt carries the counter
 // readback for the nineteen and the gate manifest carries it for the sixteen.
 //
 // FIFTEEN OF THE SIXTEEN ARE TRAPPED. THE SIXTEENTH IS TRANSCRIBED, and the
