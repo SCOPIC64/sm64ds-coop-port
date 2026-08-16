@@ -305,8 +305,15 @@ def main():
         )
         return 0
 
+    # The headline names the SYMBOL THAT MATCHED, not a hardcoded one. It used
+    # to read "zero-argument Actor::ClosestPlayer call" whatever fired, which
+    # was harmless while RULES had one row and became a wrong answer the moment
+    # it had two: run link60 lane FDR2 added _ZN10FaderColor11AdvanceFadeEv and
+    # an offender in src/func_0202f428.c would have been reported under the
+    # other rule's name, sending the reader to the wrong fix. The remedy block
+    # below was already per-symbol and did not have the bug.
     for rel, lineno, symbol, _remedy in offenders:
-        print("{}:{}: zero-argument Actor::ClosestPlayer call".format(rel, lineno))
+        print("{}:{}: zero-argument {} call".format(rel, lineno, symbol))
 
     # Print each distinct remedy once, so a multi row future stays readable.
     print("")

@@ -424,6 +424,24 @@ believed. Three passes, because no one of them is complete:
     (the INSTALLED fader), data_0209f61c (the object), data_020926f0 (the table
     itself), and data_0209d4ac and data_0209d4b0, which Scene::SetFaders and
     the fade driver also point at faders. Fifteen sites.
+
+    AND THE SWEEP HAS A BLIND SPOT, WHICH IT COST ONE SITE TO FIND. It is a
+    LINEAR disassembly carrying per-register state, so it loses a vptr across a
+    conditional branch: a call at a JUMP TARGET, whose vptr was loaded before
+    the jump and whose register the fall-through path overwrote in between, is
+    invisible to it. Scene::BeforeBehavior+0xd4 is exactly that shape -- the
+    vptr is loaded at +0x53, the `je` at +0x55 skips forward, and the
+    fall-through writes EAX twice before the target is reached -- and the sweep
+    did not report it. Review found it. It is in 9c now, and the sweep's output
+    should be read as a floor rather than as an enumeration.
+  * BY ADDRESS, the pass that closes that gap. Every function above was
+    re-disassembled whole and EVERY `call dword ptr [reg + imm]` in it listed,
+    with no state tracking to lose, and each one's receiver read by hand. That
+    is what reconciles: slot 0x14's nine, slot 0x18's four, and the calls that
+    look like this table's and are not -- ProcessKuppaScript's other seven
+    dispatch on the hard literal 0xc0cce8, and FUN_02029980's 0x0c and
+    FUN_020299f4's 0x10 dispatch on `[data_0209f324] + 0x240`. Both of those
+    are other objects and neither is reachable from data_0209f5bc.
   * BY HAND, for the receivers a global sweep cannot see: a dispatch on a
     FUNCTION PARAMETER. Scene::SetFaders' `thiz->v24()` and `thiz->v20()` are
     the two that matter, because func_ov004_020b0930 and func_ov004_020aeb24
@@ -456,7 +474,8 @@ Shape B is the one 7a did not enumerate, and it is the crash. Shapes A and C
 agree on the cleanup and differ only on where the receiver is, which is a wrong
 `this` and not a smashed frame.
 
-9c. THE SITES, by slot. Addresses are image-relative in this lane's build.
+9c. THE SITES, by slot. Every offset is relative to the naming FUNCTION, not
+to the image, so a relink does not rot the section.
 
   0x00  ~dWipe_c (D1)      NO CALL SITE. Registered on data_020aa3f0's chain by
                            func_020731dc; nothing in the port walks that chain.
@@ -477,7 +496,7 @@ agree on the cleanup and differ only on where the receiver is, which is a wrong
                              +0x5e   mov eax,1 / pop esi / pop ebp / ret
                            shape A:
                              ?IsBetweenStartAndEnd@FaderBrightness@@QAEHXZ
-                             +0x04b985  call dword ptr [eax + 0x10]
+                             +0x05  call dword ptr [eax + 0x10]
                            the matched body's first unqualified predicate call,
                            landing one slot early against a ROM-ordered table
                            because MSVC folds the two destructor slots into one.
@@ -488,7 +507,7 @@ agree on the cleanup and differ only on where the receiver is, which is a wrong
                            func_ov004_020b0620+0x1c and +0x110,
                            func_ov003_020af038+0x10, HUD::Behavior+0xb,
                            func_0202ed7c+0x1d, and
-                           ?IsBetweenStartAndEnd@FaderBrightness@@+0x04b990
+                           ?IsBetweenStartAndEnd@FaderBrightness@@+0x10
                            (the second skewed call; removed by 9e).
                            Shape C: Scene::SetFaders+0x14 and
                            Minimap::Behavior+0x36, each
@@ -501,15 +520,26 @@ agree on the cleanup and differ only on where the receiver is, which is a wrong
                            other a callee-save. What separates the shapes is
                            the `add esp,4` AFTER the call, not the pushes
                            before it, and both of these have none.
-  0x18  IsAtEnd            THREE SITES. Shape A at Scene::BeforeBehavior+0x10e
-                           and func_0202ed7c+0x28; shape C at
+  0x18  IsAtEnd            FOUR SITES. Shape A at Scene::BeforeBehavior+0xd4
+                           and +0x10e and at func_0202ed7c+0x28; shape C at
                            Scene::SetFaders+0x42.
+                           +0xd4 IS THE ONE THE MECHANICAL SWEEP MISSED, for
+                           the reason 9a now records. It is the
+                           `else if (data_0209f5bc->v6())` arm that reaches
+                           ActorBase::MarkForDestruction, it is plain
+                           `call dword ptr [eax + 0x18]` with nothing pushed
+                           and no cleanup after, and 0x18 is declared for that
+                           shape already, so the omission cost accuracy in this
+                           section and nothing in the binary.
   0x1c  IsBetweenStart..   FOUR SITES, all shape A: ProcessKuppaScript+0x7c,
                            FUN_02029934+0x8, FUN_02029980+0x8,
                            FUN_020299f4+0x8.
-  0x20  SetToEnd           ONE SITE, shape A: Scene::SetFaders+0x50,
+  0x20  SetToEnd           ONE SITE, shape A: Scene::SetFaders+0x52,
                            `mov ecx,esi / call dword ptr [eax + 0x20]`, reached
                            when the installed fader's IsAtEnd answers true.
+                           (An earlier draft said +0x50, which is the `mov
+                           ecx,esi` and not the call. Caught re-listing every
+                           indirect call by address for 9a's third pass.)
   0x24  SetToStart         ONE SITE, shape A: Scene::SetFaders+0x24, the same
                            shape. This is the slot section 2 proves runs.
   0x28  overhang           NO CALL SITE. Not the ROM's.
@@ -613,6 +643,24 @@ counted; nothing calls it now, and that is written into the unproven items.
     symbols, 0x618 bytes of span before alignment), so any BMP comparison
     against a pre-tranche image is a layout artifact under the equal-base rule
     in port/tools/battery.py's header, not a rendering result.
+
+    ONE FRAME WAS CAPTURED ANYWAY, for a human to look at, and it is named here
+    so that a successor comparing anything to it can check the precondition
+    first rather than after:
+
+      SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=300 SM64DS_FAULTS_FATAL=1
+      SM64DS_SCENE_BMP=fdr2_scene374.bmp        exit 0
+
+      artifact       build/port/fdr2_scene374.bmp (build output, NOT committed)
+      size           589,878 bytes, 512x384
+      sha256         3fb5b42ca5442f21a4516a172fe64114c9bb91c0c3b221f1aa8da7801
+                     cc82a26
+      .dsstate base  0xbac000, span to 0xc92340, 942,912 bytes captured
+
+    The base was 0xbaa000 before this tranche, so the equal-base rule says a
+    diff against any earlier image measures the layout and not the frame.
+    Review reproduced these bytes exactly from its own build at equal base,
+    which is the provenance; nobody here has said what is in the image.
   * OF THE SEVEN SEATED SLOTS, ONLY 0x24 IS PROVEN TO RUN. Section 2's
     disassembly is the proof for that one. 0x1c is NOT reached on this path:
     slot 1's `func_0202ec9c(data_0209f61c, 0)` takes its early return because

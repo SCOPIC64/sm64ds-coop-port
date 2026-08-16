@@ -250,10 +250,13 @@ int _ZN15FaderBrightness9IsAtStartEv(void *self)
    out of this lane's own binary, ?IsBetweenStartAndEnd@FaderBrightness@@QAEHXZ
    is
 
-       +0x04b983  mov  eax, [esi]
-       +0x04b985  call dword ptr [eax + 0x10]      nothing pushed
+       +0x03  mov  eax, [esi]
+       +0x05  call dword ptr [eax + 0x10]      nothing pushed
        ...
-       +0x04b990  call dword ptr [eax + 0x14]      nothing pushed
+       +0x10  call dword ptr [eax + 0x14]      nothing pushed
+
+   (offsets from the function, not from the image, so a relink cannot rot
+   them)
 
    AN EARLIER VERSION OF THIS FACE DELEGATED AND PRINTED A WARNING, on the
    reading that the skew costs a wrong answer and nothing worse. Section 9's
