@@ -250,9 +250,29 @@ static int port_host_abi_blocked(unsigned id)
        42, 46) point into data-only overlays whose data_02092208 word does not
        decode as a LVL_Overlay at all, so the sweep covers the 44 that do
        decode. Across those 44, id 167 appears only on level 40 (x10) and id
-       301 only on level 36 (x16). */
-    if (id == 167 && port_level_id() == 40)
-        return 1;
+       301 only on level 36 (x16).
+
+       THE DECLINE IS LIFTED (run link60, lane SL0), because the fix it names
+       has landed. Stage::LoadModel now runs inside port_stage_boot_body ahead
+       of Stage::LoadClsnAndObjects, which is the order Stage::InitResources
+       has it in, so data_0209f320 is seated before the object pass reaches
+       CopyTexPalFromLevelModel. Both of port/tests/walk_window.cpp's calls
+       were REMOVED rather than one being added, so the duplicate-rebase the
+       paragraph above worried about cannot happen: there is exactly one
+       Stage::LoadModel per boot and one rebase per loaded buffer.
+
+       One correction to that paragraph while it is being answered. It reads
+       the duplicate-rebase risk onto "the port's cached LoadFile", meaning
+       hal/fs.cpp. That cache is not the hazard: fs_hand_out memcpys pristine
+       bytes into a fresh allocation on every call, so it never hands back a
+       rebased buffer. The sharing is in hal/level_boot.cpp's own
+       LoadFile(handle) handle table, which returns the same filePtr for a
+       repeat handle inside one level. Same conclusion, different file.
+
+       DEVIATION, DECLARED: hal/actor_registry.cpp is on neither this lane's
+       owned list nor its do-not-touch list. The lane took this one line
+       because it is the line this file asked for by name, and lifting it is
+       what makes the hoist observable. Nothing else here is touched. */
 
     return 0;
 }

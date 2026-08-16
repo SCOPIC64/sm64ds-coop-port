@@ -2678,7 +2678,15 @@ int main(void)
     int level_shift = 0;
     if (real_boot) {
         level_model = stage + 0x86c;
-        _ZN5Stage9LoadModelEv(stage);
+        /* Stage::LoadModel IS NOT CALLED HERE ANY MORE (run link60, lane SL0).
+           It runs inside port_stage_boot_body, ahead of
+           Stage::LoadClsnAndObjects, which is the order Stage::InitResources
+           has it in (:361 then :363). The harness used to call it after the
+           whole boot, which left data_0209f320 null for the object pass and
+           cost level 40 its ten id-167 platforms. Calling it again here would
+           be the second rebase hal/level_boot.cpp's block warns about, so the
+           call MOVED rather than being added there. The model is already
+           loaded by this point; the reads below just pick up the result. */
         /* ModelBase+0x04 is the loaded BMD (include/ModelBase.h); its header
            word 0 is the scaleShift, which is 1 for the castle. */
         void *bmd = *(void **)(level_model + 0x04);
@@ -4968,7 +4976,12 @@ int main(void)
                 cam = data_0209f318;
                 level_shift = 0;
                 if (real_boot) {
-                    _ZN5Stage9LoadModelEv(stage);
+                    /* the level-change boot loads the model too, same move as
+                       the first boot above: port_stage_boot_body calls
+                       Stage::LoadModel ahead of the object pass. A call here
+                       would be the second rebase of the same buffer, because
+                       this file's LoadFile handle table hands the same
+                       filePtr back inside one level. */
                     void *bmd = *(void **)(level_model + 0x04);
                     level_shift = bmd ? *(int *)bmd : 0;
                     _ZN5Stage10LoadSkyboxEv(stage);

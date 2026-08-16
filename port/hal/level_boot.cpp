@@ -2229,6 +2229,12 @@ extern "C" int   port_stage_boot_arg_spawn(void) { return g_boot_spawn; }
 extern "C" void  port_stage_boot_set_result(void *o) { g_boot_result = o; }
 extern "C" void  port_stage_lifecycle_boot(void);   /* hal/stage_bridges.cpp */
 extern "C" void *port_stage_boot_body(void *mc, int spawn);
+/* The scene root, and the level model loader the boot below now calls in the
+   ROM's order. port_stage_object returns null before port_stage_create has
+   run, which is the legacy no-Stage boot; _ZN5Stage9LoadModelEv is matched
+   src, on slice_gate26.txt:29 and already linked. */
+extern "C" void *port_stage_object(void);
+extern "C" void _ZN5Stage9LoadModelEv(char *self);
 
 void *port_stage_a_boot(void *mc, int spawn)
 {
@@ -2389,6 +2395,50 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
        see the pre-intro cloud backdrop the bottom screen shows without it. */
     unsigned char intro_seen = (unsigned char)(data_0209caa0[8] & 0x80);
     data_0209caa0[8] |= 0x80;   /* word 2 bit 7: the intro has played */
+
+    /* ---- THE LEVEL MODEL, WHERE THE ROM LOADS IT (run link60, lane SL0) ---
+       Stage::InitResources calls Stage::LoadModel at its line 361 and
+       Stage::LoadClsnAndObjects at 363, in that order. The port had them the
+       other way round: the boot ran the whole object pass and
+       port/tests/walk_window.cpp called Stage::LoadModel afterwards. Moving
+       the call here is the ROM's order restored, and it is one line.
+
+       WHAT IT UNBLOCKS. Stage::LoadModel is the only writer of data_0209f320,
+       the Stage's ModelComponents pointer. daKpa3Bg_c::InitResources
+       (src/func_ov060_021182b0.cpp) reaches it through
+       CopyTexPalFromLevelModel on its first line, so with the load happening
+       after the object pass the pointer was still null when the object pass
+       ran and actor id 167 faulted under FAULTS_FATAL. Level 40 is the only
+       level of the fifty-two that places 167, and it places ten of them;
+       hal/actor_registry.cpp:229-241 declined all ten for exactly this
+       reason and named this fix.
+
+       WHY IT HAD TO MOVE RATHER THAN BE ADDED. hal/level_boot.cpp's own
+       LoadFile(handle) above is a per-level handle table, and on a repeat
+       request for a handle it already holds it returns THE SAME filePtr.
+       func_02016ff4 (port/unmatched/func_02016ff4_hostcopy.cpp) then calls
+       Model::UpdateFileOffsets unconditionally, and that rebases the BMD's
+       file-relative offsets IN PLACE. So two Stage::LoadModel calls inside
+       one level would add the base twice and send every pointer in the level
+       model out of the file. That is why this is a MOVE and both of
+       walk_window's calls go: after it there is exactly one rebase per loaded
+       buffer, and the per-level teardown (port_level_reset_host) drops the
+       table between levels so the next boot rebases a fresh one.
+
+       THE GENERAL FIX IS NOT HERE AND IS NOT THIS LANE'S FILE. Keying the
+       rebase so a second pass cannot fire whatever the caller does belongs at
+       func_02016ff4, the single call site of UpdateFileOffsets on this path,
+       in port/unmatched/. This lane closes the hazard by construction for the
+       level model and does not touch that file. Note also that the fs.cpp
+       cache is NOT the hazard: fs_hand_out memcpys pristine bytes into a
+       fresh allocation on every call, so the cache alone never hands back a
+       rebased buffer. It is this file's handle table that shares one. */
+    {
+        void *st = port_stage_object();
+        if (st)
+            _ZN5Stage9LoadModelEv((char *)st);
+    }
+
     _ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR12MeshCollider(o, 0, mc);
     port_scene_canary("after LoadClsnAndObjects");
     if (!intro_seen && std::getenv("SM64DS_INTRO_UNSEEN"))
