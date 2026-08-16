@@ -1650,20 +1650,21 @@ extern "C" int port_scene_run(void)
     const char *sub = std::getenv("SM64DS_SCENE_SUBLEVEL");
     const int sublevel = sub ? std::atoi(sub) : 6;
 
+    /* THE DS'S POWER-ON INTERRUPT STATE, before anything can arm an interrupt.
+       The ROM's own arming code brackets SetIRQHandler in
+       `saved = IME; IME = 0; ... ; if (saved) IME = 1`, so a host that boots
+       with IME at zero comes out of the bracket with IME STILL ZERO and the
+       interrupt it just armed can never be delivered. Only ntr::rt_run used
+       to seat it, and no walk_window path runs on that fiber.
+       See port/irq2_map.txt section 2. */
+    ntr::rt_irq_boot_state();
+
     /* The seat, minus the Stage. Everything in it -- the message archive, the
        registry and its gate, the five processing-list callbacks, the model and
        heap vtable seats -- is bring-up a scene needs exactly as much as a level
        does. The one thing a scene must not get is a Stage actor: on the DS the
        Stage IS the level scene (ACTOR_SPAWN_TABLE[3], ids 3/6/7 -> ov002), and
        two scene roots is not a state the game can be in. */
-    /* THE DS'S POWER-ON INTERRUPT STATE, before anything can arm an interrupt.
-       The ROM's own arming code brackets SetIRQHandler in
-       `saved = IME; IME = 0; ... ; if (saved) IME = 1`, so a host that boots
-       with IME at zero comes out of the bracket with IME STILL ZERO and the
-       interrupt it just armed can never be delivered. Only rt_run used to
-       seat it, and no walk_window path runs on that fiber. */
-    ntr::rt_irq_boot_state();
-
     port_scene_a2_seat();
 
     /* THE BOTTOM SCREEN, and the same argument the Stage seat above makes.

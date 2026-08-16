@@ -39,16 +39,18 @@ void func_020527e8(int *m, int sx, int sy, int sz)
  * pattern across the whole shadow. memcpy may not overlap at all and memmove
  * would copy backwards and produce one entry followed by garbage. The DS
  * primitive walks forward; so does this.
- * PORT_HOST_ABI: ARM asm primitive (word copy/fill), MSVC cannot assemble. */
-/* THE WINDOW-REGISTER CENSUS. The dWipe_c HBlank handler (func_0202f2c4) is
-   the only thing in the image that copies INTO WIN0H, and it does it once per
-   scanline out of the motion table at data_0209f648. Counting the copies here
-   rather than watching the register for a change is the difference between
-   two states that look identical from outside: a handler that took an early
-   return, and a handler that copied a row equal to the one already latched.
-   Two ints on a primitive that is already a loop; the compare is on the
-   destination pointer the caller passed. Read back through
-   port_window_copy_count(). */
+ * PORT_HOST_ABI: ARM asm primitive (word copy/fill), MSVC cannot assemble.
+ *
+ * IT ALSO CARRIES THE WINDOW-REGISTER CENSUS, because the dWipe_c HBlank
+ * handler (func_0202f2c4) is the only thing in the image that copies INTO
+ * WIN0H and it does it once per scanline out of the motion table at
+ * data_0209f648. Counting the copies here rather than watching the register
+ * for a change is the difference between two states that look identical from
+ * outside: a handler that took an early return, and a handler that copied a
+ * row equal to the one already latched. Two increments on a primitive that is
+ * already a loop, and the test is on the destination pointer the caller
+ * passed. Read back through port_window_copy_count(); see
+ * port/irq2_map.txt section 5. */
 static unsigned long long g_window_copies;
 static unsigned long long g_window_copy_bytes;
 static unsigned g_window_copy_word;     /* the last row copied */
