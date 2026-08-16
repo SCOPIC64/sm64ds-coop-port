@@ -344,7 +344,9 @@ from the run, not as a survey of the hardware.
      engine A's holds 101 parked at y=192 plus 27 live sprites. In a level run
      it is the other way round. Engine B's OAM never gets OAM::Reset on the
      scene path, which is a real defect in the scene bring-up and is routed as
-     its own lane, not a 2D-hardware gap.
+     its own lane, not a 2D-hardware gap. THAT LANE HAS SINCE RUN: section 12
+     is its answer, and the 128-all-zero above reproduces there as the A side
+     of a same-binary A/B.
 
   b. SEMI-TRANSPARENT SPRITES AND COLOUR SPECIAL EFFECTS (BLDCNT/BLDALPHA).
      NOT NEEDED. The scene's only fade is Scene::StartSceneFade(3, 0, 0) at the
@@ -631,3 +633,131 @@ caller touches.
     measured, not argued: the whole 46-level battery is green with the row
     seated. But it is ONE row, id 4, so the measurement covers that id and
     says nothing about ids 2 and 8 when someone seats them.
+
+
+12. THE BOTTOM SCREEN ON THE SCENE PATH: WHAT SECTION 7a ROUTED, CLOSED
+------------------------------------------------------------------------
+
+Section 7a ends by routing one defect out of the 2D measurement and into its
+own lane: "engine B's OAM never gets OAM::Reset on the scene path, which is a
+real defect in the scene bring-up." This is that lane's answer. Run link60
+Stage 4, branch s4-subscreen off 1179692bc.
+
+WHERE THE BRING-UP BELONGS, AND WHY IT IS NOT THE SAME INIT MOVED EARLIER.
+Each scene owns its own sub display. src/func_ov003_020af8a0.c is
+dScStarSel_c::InitResources and it configures the bottom screen itself: POWCNT1
+bit 15 at line 110, its own sub BG / OBJ / OBJExtPltt banks at 118-120,
+GXS::SetGraphicsMode(0) at 124, display mode 1 at 128, its own sub OBJ tiles
+and palettes at 230-248, and data_0209d454 = 0x10 at 419.
+Stage::InitResources answers differently at every one of those points: mode 3
+for the minimap's extended affine BG3, mask 0x18, and Stage::LoadGraphics2D for
+the level's 2D asset set. So hal_sub_screen_init is split at the boot/Stage
+seam. The shared half (host wiring, func_02053c40's once-per-boot POWCNT1 and
+affine identity, the dual-OAM plumbing) runs on both paths; the Stage half
+stays on the level path at its existing call site in its existing order.
+
+The measurement that settles it: a scene-4 run reaches DISPCNT_B 00011000 with
+mask 10 with no help from hal/sub_screen.cpp at all. The sub DISPLAY was never
+what was missing.
+
+WHAT WAS MISSING IS ONE FLAG, AND IT IS THE PORT'S, NOT THE DS'S.
+config/arm9/symbols.txt has data_0209e660 kind:bss, so the DS boots it to zero,
+and zero is the two-engine value: OAM::Load's e660 == 0 branch uploads
+0x07000000 and 0x07000400, the e660 != 0 branch uploads engine A and returns,
+and OAM::Render's "!sub || data_0209e660 == 1" sends every sub sprite into the
+main shadow. hal/model_host.cpp:91 pins the global at 1. The level path had
+always covered that by calling OAM::EnableSubOAM; the scene path reached
+neither half.
+
+  MEASURED, ONE BINARY, ONE .dsstate BASE, SM64DS_SUB_NO_SCENE_INIT=1 as the
+  A-side (its output is byte-identical to the pre-change build on both screens,
+  so the switch is faithful rather than assumed):
+
+                        A (pre-fix)          B (fixed)
+    sub OAM 07000400    0/1024 nonzero       189/1024
+    OAM engine A        101 parked, 27       114 parked, 14 placed
+    OAM engine B        128 ALL-ZERO         115 parked, 13 placed
+    sub OBJ VRAM        7433 bytes nonzero   7433, unchanged
+    sub OBJ palette     158 bytes nonzero    158, unchanged
+    sub BMP             6 colours            68 colours
+
+  The 27 that becomes 14 + 13 is the proof and it is exact: those 13 sprites
+  were being drawn onto the top screen. Nothing was created, the routing was
+  corrected. Section 7a's 128-all-zero reproduces on the A side.
+
+THE PRE-FIX BOTTOM SCREEN, ACCOUNTED FOR IN FULL. It was the ROM's own white
+backdrop plus one 8x8 smudge in the corner. All 40 non-white pixels of the
+A-side BMP fall inside x 0..7, y 0..7, because an all-zero OAM entry decodes as
+y=0, x=0, 8x8, tile 0, palette 0 -- an ENABLED sprite at the origin -- so
+engine B's 128 zeroed entries were drawing 128 stacked copies of tile 0.
+
+THE WHITE IS THE GAME'S OWN BACKDROP, AND THE DERIVATION IS BRANCH-CONDITIONAL.
+Measured backdrop is sub BG palette[0] = 0x7fff in both runs. On the branch
+these runs take -- SublevelToLevel(data_02092110) < 0xF, which is the default
+SM64DS_SCENE_SUBLEVEL=6 mapping to course 0 -- line 181 hands GXS::LoadBGPltt
+the two bytes at &data_ov003_020b1698, and those bytes read ff 7f at offset
+0x4038 of extracted/overlays/overlay_0003.bin. THE >= 0xF BRANCH IS A DIFFERENT
+SOURCE: line 148 loads file 0x240 and hands GXS::LoadBGPltt its first two
+bytes, which this lane did not read. So "the backdrop is 0x7fff because of
+0x4038" is true on the < 0xF branch only and must not be quoted flat.
+(Do not derive this from extracted/dsd/arm9_overlays/ov003.bin either: that
+file is 16192 bytes and stops short of offset 0x4038, which reads as though the
+symbol were bss. The full 16960-byte overlay carries it.)
+
+HASHES HERE ARE WORKTREE-LOCAL, the same caveat this file's header already
+makes for exe sha256. The level-1 selftest md5 this lane used to prove no
+regression, dbd49e0c7c120ed58362574da25d2217, is an INTERNAL A/B ANCHOR for the
+worktree it was measured in and nothing else: an independent clean pair in
+another worktree agrees with ITSELF at a different hash on the same .dsstate
+base. Never quote it as a cross-worktree constant. What travels is the shape of
+the claim -- two builds, equal .dsstate base, byte-identical to each other --
+not the digits.
+
+  The .dsstate base for that pair is 0xb36000, virtual size 0xE58F9, on both
+  the pre-change and the fixed build. CORRECTION TO COMMIT 432b33393, whose
+  message says 0x736000: that figure is the RVA out of dumpbin, not the base.
+  The message stands as history; this is the corrected figure.
+
+  Scene 4's BARE top frame MOVES across this change and is re-baselined. The
+  cause is in the table above plus one more term: hal_sub_screen_present
+  composites the bottom screen into the corner of the SAME framebuffer the top
+  BMP is written from, so a panel that gained 62 colours takes the top frame
+  from 62 distinct colours to 485. Anyone byte-comparing scene 4 across this
+  commit is comparing the wrong thing.
+
+THE FAIL-OPEN FOCUS GATE IS NOW LOAD-BEARING IN TWO PLACES. hal_window_focused
+returns 1 on a null g_hwnd on purpose, so a binary that opens no window is
+never locked out of its own input. Two things now depend on that:
+
+  1. hal/sub_screen.cpp's TAB latch. Splitting the init made a scene run load
+     user32 with hwnd == nullptr, so GetAsyncKeyState_ went live, the gate said
+     yes, and a TAB held anywhere on the machine could have toggled the panel
+     mid-run and moved the BMP. Closed by treating a null hwnd as headless.
+  2. port/tests/walk_window.cpp:3030, key_live. It is safe ONLY BY CALL
+     ORDERING: it runs after g_hwnd has been set from the real window, so the
+     gate is a true focus test there rather than a fail-open. NOTHING IS FIXED
+     HERE -- it is recorded so that a future reordering of the window creation,
+     or a windowless caller reaching that lambda, is understood to break it
+     silently rather than loudly.
+
+STILL OPEN OUT OF THIS LANE
+
+  - WHAT THE BOTTOM SCREEN NOW DRAWS HAS NOT BEEN LOOKED AT. 68 colours and
+    10.3% non-white coverage is a measurement, not a verdict. Whether that is
+    the course name, the star grid and the character portraits drawn CORRECTLY
+    is a visual question and this lane did not judge it, for the same reason
+    section 11 gives about the top frame.
+  - SUB OBJ EXTENDED PALETTES ARE OFF, and it newly matters now that sub
+    sprites draw at all. InitResources calls GX::SetBankForSubOBJExtPltt(0x100)
+    at line 120 and GXS::Begin/Load/EndLoadOBJExtPltt at 246-248, but measured
+    DISPCNT_B is 0x00011000: bit 31 (OBJ extpal) clear, bit 30 (BG extpal)
+    clear. Nothing in the port sets bit 31 on either path. First place to look
+    if the sprite colours are wrong.
+  - THE data_0209e660 PIN IS THE ACTUAL ROOT CAUSE and is still in place.
+    Hosting the DS's bss zero as 1 is what makes OAM::EnableSubOAM necessary at
+    all. Pulling it is hal/model_host.cpp's change, with hal_oam_layout_check's
+    adjacency as a hard precondition and port/tests/smoke_oam.cpp:42 (which
+    asserts == 1) to update with it.
+  - ONLY SCENE 4 WENT THROUGH THIS. The bring-up lives in port_scene_run and is
+    scene-agnostic by construction, but scene 1 is BLOCKED on the ov007 decomp,
+    so no second scene has exercised it.
