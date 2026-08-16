@@ -41,7 +41,17 @@ data_ov001_020abaf0 data_ov001_020abaf8
 # gate 33 reads these as the CAP's particle helpers' globals; gate 32 reads
 # them as the cap tier's own storage (CapEnemy, ov001's archive slots). Two
 # streams found the same five symbols independently, so they are listed once.
-data_ov001_020ad470 data_ov001_020ad628 data_ov001_020ad62c data_ov001_020ad630 data_ov001_020ad634
+#
+# run link60 lane SL0 adds the two that come BEFORE the four already here:
+# data_ov001_020ad620 and data_ov001_020ad624. They are the last two names
+# func_ov001_020ab2e4 wants, and func_ov001_020ab2e4 is on Stage::
+# InitResources' own closure -- so these two rows are two of slot 0's
+# twenty-eight. Both are kind:bss 4-byte words
+# (config/arm9/overlays/ov001/symbols.txt:148-149) and they sit immediately
+# below 0x628/0x62c/0x630/0x634, which means the six are one contiguous BSS
+# run of the same object and were only ever split because two gates reached
+# different halves of it.
+data_ov001_020ad470 data_ov001_020ad620 data_ov001_020ad624 data_ov001_020ad628 data_ov001_020ad62c data_ov001_020ad630 data_ov001_020ad634
 
 # ---------------------------------------------------------------------------
 # run linkw wave 3 (lane w3-a): THE SHADOW TEMPLATES.
