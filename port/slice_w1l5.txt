@@ -167,15 +167,24 @@ src/func_ov002_020c3d1c.c
 #     already dispatches correctly into the tree, under a name a future caller
 #     could pick by mistake. That is the WRONG TARGET failure mode from the
 #     header essay in hal/method_faces.cpp, bought for nothing:
-#       _ZN6Player18St_LevelEnter_MainEv   0x020c6f3c is dispatched to
-#         port/unmatched/func_ov002_020c6f3c.cpp, which exists because MSVC's
-#         one-word pointer-to-member would stride the ROM's eight-byte PMF
-#         records by four. The raw src body has that bug.
 #       _ZN6Player23St_InYoshiMouth_CleanupEv  ov006's 0x020d6084; the .inc
 #         dispatches that address to func_ov002_020d6084.
 #       _ZN6Player12St_Null_InitEv         ov006's 0x020cac30; same shape.
 #       _ZN6Player6ST_OWLE                 an ov006 class, not a Player member
 #         at all -- see the note in the src file.
+#
+# (b1) _ZN6Player18St_LevelEnter_MainEv is left out for the PMF STRIDE, not
+#     for a shared address, and it sat under (b) with the polarity inverted.
+#     ov002/symbols.txt names 0x020c6f3c with this exact symbol (size 0xa8)
+#     and src/_ZN6Player18St_LevelEnter_MainEv.cpp defines the ov002 body, so
+#     the name is this overlay's own rather than another's. It stays out
+#     because that body dispatches through data_ov002_0211075c, whose records
+#     are eight bytes and which MSVC's one-word pointer-to-member would stride
+#     by four. 0x020c6f3c is dispatched to
+#     port/unmatched/func_ov002_020c6f3c.cpp instead, a host copy whose name
+#     is the port's own and is in no symbols.txt. The symbol that DOES name
+#     another overlay's bytes here is ov006's func_ov006_020c6f3c (size 0x34),
+#     which is not a Player symbol and was never a seating candidate.
 #
 # (b2) _ZN6PlayerD0Ev is matched and links clean, and it is still left out: it
 #     is vtable slot 17, which hal/level_boot.cpp traps ON PURPOSE. The ROM's

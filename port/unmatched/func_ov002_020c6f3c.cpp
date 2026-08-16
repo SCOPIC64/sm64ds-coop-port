@@ -1,10 +1,17 @@
-/* HOST COPY of src/func_ov002_020c6f3c.cpp -- Player::St_LevelEnter_Main,
- * with its step table read as the eight-byte records it is.
+/* HOST COPY of src/_ZN6Player18St_LevelEnter_MainEv.cpp --
+ * Player::St_LevelEnter_Main, with its step table read as the eight-byte
+ * records it is. That src file is the provenance: its line 22 is the
+ * dispatch site this file replaces, (c->*data_ov002_0211075c[...])().
  *
- * NAMING, because the community symbol misleads: the real
- * Player::St_LevelEnter_Main is ov002 0x020c6f3c, which config names
- * func_ov002_020c6f3c. The symbol _ZN6Player18St_LevelEnter_MainEv points at
- * the same address in ov006's module, a different function.
+ * NAMING, and an earlier version of this header had it BACKWARDS in both
+ * directions. Player::St_LevelEnter_Main is ov002 0x020c6f3c and config
+ * names it _ZN6Player18St_LevelEnter_MainEv (ov002/symbols.txt, size
+ * 0xa8). The name func_ov002_020c6f3c appears in NO symbols.txt and there
+ * is no src/func_ov002_020c6f3c.cpp; it is this port's own C-linkage name
+ * for the host copy below, which the earlier header cited as if it were
+ * the source. The symbol that names another overlay's bytes at this
+ * address is ov006's func_ov006_020c6f3c (size 0x34), a different
+ * function.
  *
  * The body dispatches the entrance step through
  *

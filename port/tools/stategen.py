@@ -81,12 +81,33 @@ no generator, because its output looks checked.
 
 WHAT IT DOES NOT DO:
 
+  * IT DOES NOT COVER THE FRAMEWORK HALF OF THE WALL, and a fan-out lane
+    reading the ONE MECHANISM claim above as full coverage of
+    mg_fanout_costs section 4 will be wrong in the most expensive
+    direction. src/func_ov004_020b87e0.cpp is dScMgBase_c's state setter,
+    the TU section 4 says unblocks the framework half of all thirty
+    minigames, and it is a DIFFERENT MECHANISM: it builds its twenty-entry
+    member-pointer table IN-FUNCTION out of twenty individually named
+    .data PMF globals (`extern PMF data_ov004_020bc974;` and nineteen
+    more). There is no constructor, no .data pair block and no .bss
+    destination, so nothing this tool reads is present and it will not
+    produce a table for it. That TU stays hand work, or wants a second
+    mode reading named PMF globals rather than a constructor. The same
+    holds for the other ov004 dispatchers in section 4's list.
   * it does not adjudicate. A hand file and this tool disagreeing is a
     CONTRADICTION TO INVESTIGATE; --reconstruct prints both sides and
     exits nonzero, and a human rules with the ROM open.
   * it does not write src/ or port/. Output goes to stdout or a path
-    under build/, and --out refuses anything else. Lanes commit what they
-    verify.
+    that RESOLVES inside this tree's build/, and --out refuses anything
+    else. Lanes commit what they verify.
+  * --reconstruct's ROM-name test is only as wide as the symbol tables
+    loaded for the run, which are arm9 plus the ONE overlay the
+    constructor lives in. A hand row calling a ROM symbol that belongs to
+    a THIRD overlay would not be found among those names and would be
+    binned as a host-side ruling rather than examined. No row in either
+    precedent does that, so the narrowness is latent rather than active,
+    but a class whose states span overlays needs the loaded set widened
+    before its reconstruction means anything.
   * it does not derive the CALL SHAPE rulings a hand file may carry: a
     method that defines at C linkage in src, a forwarding bridge standing
     in for a state whose source needs a shadow class, a (void) body in an
@@ -115,6 +136,19 @@ derivation and every refusal on fabricated fixtures, and cannot see the
 REAL-TREE WIRING: the extracted/config paths, the mount lists, the
 precedent file locations. --reconstruct is the net for that half. A
 broken path constant passes --selftest and fails the reconstruction.
+They join a pre-configure block that runs SIX --selftest invocations
+across EIGHT tools in TEN steps; the two here are the fifth and sixth
+--selftest and the eighth and ninth step.
+
+WHAT IS AND IS NOT REPRODUCIBLE FROM THIS ARTIFACT, stated because a
+green selftest invites more confidence than it earns. Reproducible: the
+sixteen refusal arms and the assertions around them, on every run, plus
+the two reconstructions against the real tree. NOT reproducible: the
+mutation battery this file was developed against. No mutation harness is
+committed, so "29/29 mutants caught" is a claim about a run that a reader
+cannot repeat here. Review's own independent mutations of this tool are
+the measurement that stands on its own; treat the battery number as
+development evidence, not as a property of the checked-in code.
 
     python port/tools/stategen.py --sinit src/__sinit_ov006_021304ac.c
     python port/tools/stategen.py --sinit ... --emit-switch
@@ -326,20 +360,38 @@ def parse_structs(text):
                 if nm:
                     fields.append((ftype, nm))
         raw[name] = fields
-    for name, fields in raw.items():
-        if fields and all(f[0] in ("int", "unsigned", "long") for f in fields) \
-                and len(fields) == 2:
-            pair = name
+    # A pair field is a SCALAR. `struct DstA { int x[3]; int y[3]; };` has
+    # two int-typed fields and is not a {code, adjustment} pair, and
+    # counting it as one is how __sinit_ov006_02131fa4 picked the wrong
+    # struct and then reported the misdirecting "no pair assignments".
+    cands = [name for name, fields in raw.items()
+             if len(fields) == 2
+             and all(f[0] in ("int", "unsigned", "long") and "[" not in f[1]
+                     for f in fields)]
+    if len(cands) > 1:
+        die("this constructor declares %d candidate pair structs (%s) and "
+            "the {code, adjustment} pair must be exactly one of them. "
+            "Refusing rather than picking: taking the last declaration is "
+            "how a coordinate pair wins over the real one and the slot "
+            "offsets come out wrong. Rule which is the pair by hand"
+            % (len(cands), ", ".join(sorted(cands))))
+    if cands:
+        pair = cands[0]
     if pair is None:
         # Distinguish the two reasons, because they mean opposite things
-        # to a fan-out lane: one constructor builds no state tables at all
-        # (nine of ov006's thirty-one only load files), and another builds
-        # them in a spelling this parser has not been taught.
+        # to a fan-out lane: one constructor declares no struct at all
+        # (eleven of ov006's thirty-one), and another declares structs but
+        # none this parser can read as the pair.
         if not raw:
-            die("this constructor declares no structs and copies no pairs "
-                "-- it builds no state dispatch table, so there is nothing "
-                "here to generate. Check you passed the right __sinit for "
-                "the class")
+            die("this constructor declares no structs, so there is no pair "
+                "type here to key slot offsets off and nothing to "
+                "generate. WHAT THIS PROVES IS NARROW: that no struct is "
+                "declared, not that the constructor builds no state table. "
+                "A table copied through some other spelling would look the "
+                "same from here. The review scanned all fifteen "
+                "constructors in this bucket and found none hiding a "
+                "table, which is a measurement of today's tree and not a "
+                "property of the test. Check you passed the right __sinit")
         die("no two-scalar pair struct among the %d struct(s) declared "
             "here (%s) -- this parser keys slot offsets off the {code, "
             "adjustment} pair type and will not guess which of these is "
@@ -673,6 +725,18 @@ def build(root, sinit, overlay_num=None, arity_override=None):
                     "refusing to read eight bytes from outside the section "
                     "the constructor copies from" % (ssym, saddr, ovn))
             code, adj = ov.word(saddr), ov.word(saddr + 4)
+            if code == 0:
+                die("pair %s (slot %s of %s) has a ZERO code word. That is "
+                    "a null member pointer, an unfilled slot or a source "
+                    "address read from the wrong place, and none of the "
+                    "three is a state to dispatch. Without this check the "
+                    "slot becomes `case 0x00000000` routed to the no-body "
+                    "reporter, which is safe but tells a lane nothing "
+                    "about which of the three it is. No pair in either "
+                    "precedent reads zero, so this arm is defensive. "
+                    "Remedy: confirm the source address against the "
+                    "constructor's disassembly before generating"
+                    % (ssym, slotname, d["sym"]))
             if adj != 0:
                 die("pair %s (slot %s of %s) has adjustment 0x%08x, not "
                     "zero. A nonzero adjustment is the virtual or "
@@ -1038,6 +1102,12 @@ def cmd_reconstruct(root):
         print("  DIVERGE hand 0x%08x is NOT derivable from the constructor"
               % a)
         bad += 1
+    # NARROWNESS WORTH KNOWING: romnames holds arm9 plus the ONE overlay
+    # this constructor lives in. A hand row calling a ROM symbol owned by
+    # a THIRD overlay falls through to the host-side-ruling bin instead of
+    # being checked. Neither precedent has such a row; a cross-overlay
+    # class needs load_symbols widened first.
+    #
     # A hand target that is NOT a ROM symbol name is a HOST-SIDE RULING --
     # a forwarding bridge, or a host copy of a body whose matched src
     # cannot compile. That is a lane's judgment, not a contradiction. The
@@ -1076,11 +1146,24 @@ def cmd_reconstruct(root):
             print("    0x%08x  ROM %-38s hand %s"
                   % (a, d or "NO DELINK BLOCK", h))
     extra = sorted(set(derived2) - set(hand2))
-    print("derived rows ABSENT from the hand include: %d" % len(extra))
-    for a in extra:
+    cand = [a for a in extra if derived2[a] is not None]
+    holed = [a for a in extra if derived2[a] is None]
+    # Do NOT report these as one number. A row with a body is a CANDIDATE
+    # the hand file is missing; a row with no delink block is this tool's
+    # own refusal and could never have been a row. Counting them together
+    # reads as "the hand file is short by N" and overstates it by the
+    # refusals.
+    print("derived rows ABSENT from the hand include: %d candidate(s) with "
+          "a body, %d refusal(s) with no delink block"
+          % (len(cand), len(holed)))
+    for a in cand:
         r = [x for x in p["rows"] if x.addr == a][0]
-        print("    0x%08x  %-40s %s"
-              % (a, r.sym or "(no symbol)", r.owner or "NO DELINK BLOCK"))
+        print("    CANDIDATE 0x%08x  %-38s %s"
+              % (a, r.sym or "(no symbol)", r.owner))
+    for a in holed:
+        r = [x for x in p["rows"] if x.addr == a][0]
+        print("    REFUSAL   0x%08x  %-38s NO DELINK BLOCK, never a row"
+              % (a, r.sym or "(no symbol)"))
     print("refusals: %d" % len(p["refusals"]))
     for x in p["refusals"]:
         print("  * %s" % x)
@@ -1170,6 +1253,7 @@ def selftest():
         put(0x2010, 0x1300)              # the GAP -> a hole
         put(0x2018, 0x1400)              # a Cls method
         put(0x2020, 0x1100, 0x00000001)  # nonzero adjustment, refusal arm
+        put(0x2028, 0x00000000)          # zero code word, refusal arm
         (tdp / "extracted/overlays/overlay_0009.bin").write_bytes(img)
 
         sinit = tdp / "src/__sinit_ov009_00001000.c"
@@ -1179,6 +1263,12 @@ def selftest():
             # pair is the two-scalar one and nothing else, and a detector
             # that accepts "two or more scalars" takes this one instead.
             "struct Hdr { int x, y, z; };\n"
+            # two ARRAY fields of int. This is the shape that beat the
+            # real pair in __sinit_ov006_02131fa4 when the candidate test
+            # counted fields by type alone; a pair field is a scalar, so
+            # this must not be a candidate and the base build proves it by
+            # not raising the ambiguity refusal.
+            "struct ArrPair { int x[3]; int y[3]; };\n"
             "struct D3 { struct Pair s0, s1, s2; };\n"
             "struct D2 { struct Pair lo, hi; };\n"
             "extern struct D3 data_ov009_00003000;\n"
@@ -1188,6 +1278,7 @@ def selftest():
             "extern struct Pair data_ov009_00002010;\n"
             "extern struct Pair data_ov009_00002018;\n"
             "extern struct Pair data_ov009_00002020;\n"
+            "extern struct Pair data_ov009_00002028;\n"
             "void __sinit_ov009_00001000(void)\n"
             "{\n"
             "    int ta, tb;\n"
@@ -1338,6 +1429,37 @@ def selftest():
         caught(lambda: build(tdp, "src/__sinit_ov009_00001001.c"),
                "adjustment 0x00000001", "nonzero adjustment word")
 
+        # a ZERO code word. Without its own arm this becomes
+        # `case 0x00000000` routed to the no-body reporter: safe, and
+        # silent about which of the three causes it is.
+        zero = tdp / "src/__sinit_ov009_00001012.c"
+        zero.write_text(base_sinit
+                        .replace("__sinit_ov009_00001000",
+                                 "__sinit_ov009_00001012")
+                        .replace("data_ov009_00003020.hi = "
+                                 "data_ov009_00002018;",
+                                 "data_ov009_00003020.hi = "
+                                 "data_ov009_00002028;"))
+        caught(lambda: build(tdp, "src/__sinit_ov009_00001012.c"),
+               "ZERO code word", "zero code word")
+
+        # two competing pair structs, the coordinate-pair-declared-last
+        # shape. Refusing must NAME both candidates rather than picking.
+        two = tdp / "src/__sinit_ov009_00001013.c"
+        two.write_text(base_sinit
+                       .replace("__sinit_ov009_00001000",
+                                "__sinit_ov009_00001013")
+                       .replace("struct Hdr { int x, y, z; };",
+                                "struct Hdr { int x, y, z; };\n"
+                                "struct Coord { int cx, cy; };"))
+        caught(lambda: build(tdp, "src/__sinit_ov009_00001013.c"),
+               "candidate pair structs", "two competing pair structs")
+        try:
+            build(tdp, "src/__sinit_ov009_00001013.c")
+        except SystemExit as e:
+            expect("Coord" in str(e) and "Pair" in str(e),
+                   "the ambiguity refusal names BOTH candidates", str(e))
+
         # a destination that is not in .bss
         notbss = tdp / "src/__sinit_ov009_00001002.c"
         notbss.write_text(base_sinit
@@ -1455,13 +1577,36 @@ def selftest():
         caught(lambda: build(tdp, "src/__sinit_ov009_00001005.c"),
                "has no such field", "assignment to an undeclared field")
 
-        # --out scoping
-        caught(lambda: check_out("src/x.inc"), "writes only to",
-               "--out under src/")
-        caught(lambda: check_out("port/hal/x.inc"), "writes only to",
-               "--out under port/")
-        expect(check_out("build/x.inc") == "build/x.inc",
-               "--out under build/ is allowed", "refused")
+        # ---- --out scoping, the review's probe set --------------------
+        # The two ESCAPES first, because a component test passes both and
+        # they are the reason this guard was rewritten. Each was proven
+        # against the shipped tool: build/../X wrote the worktree root,
+        # and the absolute shape reached outside the tree entirely.
+        (tdp / OUT_ALLOWED).mkdir(exist_ok=True)
+        other = pathlib.Path(td) / "other_checkout" / "build"
+        other.mkdir(parents=True)
+        for probe, why in (
+                ("build/../X.inc", "dotdot back out of build/"),
+                ("build/sub/../../X.inc", "dotdot through a subdirectory"),
+                (str(other / ".." / "src" / "x.inc"),
+                 "absolute path through ANOTHER checkout's build/.."),
+                ("src/x.inc", "under src/"),
+                ("port/hal/x.inc", "under port/"),
+                ("../x.inc", "above the tree"),
+                ("x.inc", "tree root, no build component at all")):
+            caught(lambda p=probe: check_out(p, tdp), "outside",
+                   "--out %s (%s)" % (probe, why))
+        expect(check_out("build/x.inc", tdp)
+               == (tdp / "build" / "x.inc").resolve(),
+               "--out under build/ is allowed and comes back resolved",
+               check_out("build/x.inc", tdp))
+        expect(check_out("build/stategen/deep/x.inc", tdp)
+               == (tdp / "build/stategen/deep/x.inc").resolve(),
+               "--out deeper under build/ is allowed", "refused")
+        expect(check_out(str(tdp / "build" / "abs.inc"), tdp)
+               == (tdp / "build" / "abs.inc").resolve(),
+               "an ABSOLUTE path genuinely inside this tree's build/ is "
+               "allowed", "refused")
 
         # the demangler, both directions
         expect(demangle_method("_ZN6Player12St_Wait_MainEv")
@@ -1520,21 +1665,35 @@ def _write(p, b):
     return p
 
 
-def check_out(path):
-    """--out must land under build/. Lanes commit what they verify."""
-    norm = str(path).replace("\\", "/")
-    parts = [x for x in norm.split("/") if x not in ("", ".")]
-    if os.path.isabs(norm):
-        if OUT_ALLOWED not in parts:
-            die("--out %s writes only to build/ or stdout; this tool never "
-                "writes src/ or port/, because a lane commits what it has "
-                "verified rather than what a generator produced" % path)
-        return path
-    if not parts or parts[0] != OUT_ALLOWED:
-        die("--out %s writes only to build/ or stdout; this tool never "
-            "writes src/ or port/, because a lane commits what it has "
-            "verified rather than what a generator produced" % path)
-    return path
+def check_out(path, root):
+    """--out must RESOLVE to somewhere inside this tree's build/.
+
+    The first version of this guard split on "/" and asked whether the
+    first component was "build", which two shapes walk straight through:
+    `build/../X.inc` passes the component test and lands in the worktree
+    root, and the absolute branch accepted any path with a "build"
+    component ANYWHERE, so an absolute path through another checkout's
+    build/.. reached that checkout's src/. A component test cannot answer
+    this question; only resolving the path and testing containment can,
+    so that is what this does. Symlinks are resolved too, for the same
+    reason dotdot is.
+    """
+    target = pathlib.Path(path)
+    if not target.is_absolute():
+        target = pathlib.Path(root) / target
+    allowed = (pathlib.Path(root) / OUT_ALLOWED).resolve()
+    resolved = target.resolve()
+    try:
+        resolved.relative_to(allowed)
+    except ValueError:
+        die("--out %s resolves to %s, which is outside %s. This tool "
+            "writes stdout or this tree's build/ and nothing else, "
+            "because a lane commits what it has verified rather than what "
+            "a generator produced. Note the check is on the RESOLVED "
+            "path: build/../X and an absolute path through another "
+            "checkout both fail here even though both contain a build "
+            "component" % (path, resolved, allowed))
+    return resolved
 
 
 def default_root():
@@ -1582,10 +1741,7 @@ def main():
     else:
         text = emit_report(m)
     if args.out:
-        p = check_out(args.out)
-        p = pathlib.Path(p)
-        if not p.is_absolute():
-            p = pathlib.Path(args.root) / p
+        p = check_out(args.out, args.root)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(text, encoding="utf-8")
         print("stategen: wrote %s (%d lines)" % (p, text.count("\n")))
