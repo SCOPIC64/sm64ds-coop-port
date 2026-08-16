@@ -370,6 +370,14 @@ void hal_sub_screen_init_hw(void *hwnd, int zoom);
 void hal_sub_screen_probe(void);
 void hal_sub_screen_frame_begin(void);
 void hal_sub_screen_present(unsigned int *dst, int w, int h);
+/* THE STACKED LAYOUT (hal/sub_screen.cpp, run link60 lane DSL1): both DS
+   screens full size, top above bottom, which is what a touchscreen game needs
+   and the corner panel cannot give it. This file is where a run learns whether
+   it is a minigame, so this file is what proposes the mode. */
+void hal_sub_screen_set_stacked(int on);
+int hal_sub_screen_stacked(void);
+const unsigned int *hal_sub_screen_stacked_image(const unsigned int *top);
+int IsMinigameActorID(unsigned int id);
 void port_message_composite_engine_a(void *fb);
 void sdat_host_tick(void);           /* hal/sdat/consumer.cpp */
 
@@ -1864,9 +1872,30 @@ extern "C" int port_scene_run(void)
                            ? std::atoi(std::getenv("SM64DS_SCENE_FRAMES")) : 300;
     const int no_render = std::getenv("SM64DS_SCENE_NO_RENDER") != 0;
     const char *bmp = std::getenv("SM64DS_SCENE_BMP");
+    /* SM64DS_SCENE_BMP_STACKED=<path>: the STACKED image of the last frame,
+       both screens in one file at ntr::STACK_W x STACK_H. A SEPARATE
+       ENVIRONMENT VARIABLE AND A SEPARATE FILE, deliberately: SM64DS_SCENE_BMP
+       is 512x384 in both layouts and port/tools/battery.py's md5 rows are
+       taken over that geometry, so a stacked capture is a new artifact asked
+       for by name rather than the old artifact changing shape underneath the
+       battery. Nothing in CI sets this. */
+    const char *bmp_stacked = std::getenv("SM64DS_SCENE_BMP_STACKED");
     const int trace = std::getenv("SM64DS_SCENE_TRACE") != 0;
     const char *sub = std::getenv("SM64DS_SCENE_SUBLEVEL");
     const int sublevel = sub ? std::atoi(sub) : 6;
+
+    /* THE LAYOUT, PROPOSED FROM THE ROM'S OWN PREDICATE. src/IsMinigameActorID.c
+       is `id >= 0x169 && id <= 0x186` and it is already what gates the ov006
+       overlay constructors (hal/scene_mg.cpp's port_scene_mg_prepare), so the
+       question "is this scene a minigame" has a linked, ROM-side answer and
+       this file does not invent a second one. Curling is 374 = 0x176 and is
+       inside it; the star select (4) and the title screen (1) are not.
+
+       IT IS A PROPOSAL. hal_sub_screen_set_stacked takes it as the default and
+       SM64DS_DUAL_SCREEN overrides in either direction. It is called HERE,
+       before the first hal_sub_screen_frame_begin, because the mode latches on
+       its first reader and the frame loop is one. */
+    hal_sub_screen_set_stacked(scene >= 0 && IsMinigameActorID((unsigned)scene));
 
     /* THE DS'S POWER-ON INTERRUPT STATE, before anything can arm an interrupt.
        The ROM's own arming code brackets SetIRQHandler in
@@ -2098,6 +2127,26 @@ extern "C" int port_scene_run(void)
 
     if (bmp && !no_render)
         ntr::ppu_write_bmp(bmp, fb);
+
+    /* THE STACKED CAPTURE, and read the geometry off the line it prints rather
+       than assuming it. This is a NEW artifact: SM64DS_SCENE_BMP above still
+       writes the same 512x384 framebuffer it always wrote, in either layout,
+       because fb is what it writes and the stacked mode never touches fb. */
+    if (bmp_stacked && !no_render) {
+        const unsigned int *img = hal_sub_screen_stacked_image(&fb.px[0][0]);
+        if (img && ntr::ppu_write_bmp_px(bmp_stacked, img, ntr::STACK_W,
+                                         ntr::STACK_H))
+            std::printf("[scene] wrote %s, %dx%d: the top screen over the "
+                        "bottom screen, each %dx%d\n", bmp_stacked,
+                        ntr::STACK_W, ntr::STACK_H, ntr::SCREEN_W,
+                        ntr::SCREEN_H);
+        else
+            std::fprintf(stderr, "  [scene] SM64DS_SCENE_BMP_STACKED asked for "
+                         "%s but the stacked layout is %s and the bottom "
+                         "screen %s scanned out; nothing written\n",
+                         bmp_stacked, hal_sub_screen_stacked() ? "on" : "OFF",
+                         hal_sub_screen_stacked() ? "was never" : "may not be");
+    }
 
     /* THE SUB-SCREEN CENSUS, deliberately HERE and not beside the bring-up
        above. Probed before the spawn it reads all zeros in either mode and

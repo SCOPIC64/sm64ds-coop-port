@@ -289,13 +289,22 @@ void ppu_scanout_obj(Engine eng, Framebuffer &fb) {
     }
 }
 
-bool ppu_write_bmp(const char *path, const Framebuffer &fb) {
+/* THE BMP WRITER IS PARAMETRIC ON SIZE, and ppu_write_bmp is it at the
+   framebuffer's. It was written inline against SCREEN_W and SCREEN_H, which
+   was right while the framebuffer was the only image the port ever dumped.
+   The stacked presentation (ntr/ppu_sub.cpp) is a second image and it is
+   twice as tall, so the size moved into arguments rather than being spelled a
+   second time somewhere else. At w = SCREEN_W, h = SCREEN_H every byte this
+   writes is the byte the old body wrote: same header fields, same bottom-up
+   row order, same 4-byte row padding, same BGR triple. */
+bool ppu_write_bmp_px(const char *path, const uint32_t *px, int w, int h) {
+    if (!px || w <= 0 || h <= 0) return false;
     std::FILE *f = std::fopen(path, "wb");
     if (!f) return false;
 
-    const uint32_t stride = SCREEN_W * 3;
+    const uint32_t stride = (uint32_t)w * 3;
     const uint32_t pad = (4 - (stride & 3)) & 3;
-    const uint32_t img = (stride + pad) * SCREEN_H;
+    const uint32_t img = (stride + pad) * (uint32_t)h;
     const uint32_t off = 54;
 
     uint8_t hdr[54] = {};
@@ -305,9 +314,9 @@ bool ppu_write_bmp(const char *path, const Framebuffer &fb) {
     std::memcpy(hdr + 10, &off, 4);
     const uint32_t dib = 40;
     std::memcpy(hdr + 14, &dib, 4);
-    const int32_t w = SCREEN_W, h = SCREEN_H;
-    std::memcpy(hdr + 18, &w, 4);
-    std::memcpy(hdr + 22, &h, 4);
+    const int32_t bw = w, bh = h;
+    std::memcpy(hdr + 18, &bw, 4);
+    std::memcpy(hdr + 22, &bh, 4);
     const uint16_t planes = 1, bpp = 24;
     std::memcpy(hdr + 26, &planes, 2);
     std::memcpy(hdr + 28, &bpp, 2);
@@ -315,9 +324,10 @@ bool ppu_write_bmp(const char *path, const Framebuffer &fb) {
     std::fwrite(hdr, 1, sizeof hdr, f);
 
     const uint8_t zero[3] = {0, 0, 0};
-    for (int y = SCREEN_H - 1; y >= 0; --y) {          // BMP rows run bottom-up
-        for (int x = 0; x < SCREEN_W; ++x) {
-            const uint32_t c = fb.px[y][x];
+    for (int y = h - 1; y >= 0; --y) {                 // BMP rows run bottom-up
+        const uint32_t *row = px + (size_t)y * (size_t)w;
+        for (int x = 0; x < w; ++x) {
+            const uint32_t c = row[x];
             const uint8_t bgr[3] = {static_cast<uint8_t>(c), static_cast<uint8_t>(c >> 8),
                                     static_cast<uint8_t>(c >> 16)};
             std::fwrite(bgr, 1, 3, f);
@@ -326,6 +336,10 @@ bool ppu_write_bmp(const char *path, const Framebuffer &fb) {
     }
     std::fclose(f);
     return true;
+}
+
+bool ppu_write_bmp(const char *path, const Framebuffer &fb) {
+    return ppu_write_bmp_px(path, &fb.px[0][0], SCREEN_W, SCREEN_H);
 }
 
 }  // namespace ntr

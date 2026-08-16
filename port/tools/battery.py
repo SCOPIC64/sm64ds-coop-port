@@ -374,6 +374,12 @@ def selftest_env(lvl, skip=None):
         # SM64DS_SKIP_CLASS inherited from whoever invoked it would let a lane
         # skip its way to a green over levels this table says need nothing.
         env.pop("SM64DS_SKIP_CLASS", None)
+    # SM64DS_DUAL_SCREEN forces the stacked layout on or off (hal/sub_screen.cpp).
+    # A level is inset by default and the selftest BMP this step compares is the
+    # 512x384 framebuffer in either layout, but an inherited force-on would still
+    # change what the run presents and what its window is shaped like, and the
+    # comparator must measure the default rather than the caller's preference.
+    env.pop("SM64DS_DUAL_SCREEN", None)
     return env
 
 
@@ -412,9 +418,15 @@ def scene_env(scene, extra=None):
     # scene runs: an inherited SM64DS_SCENE_SLOT9=0 would let a lane skip its
     # way to a green over a scene this table says needs nothing, which is the
     # identical hole SM64DS_SKIP_CLASS is popped for one line up.
+    # SM64DS_DUAL_SCREEN is in the list for the same reason the rest are. A
+    # minigame scene defaults to the stacked layout out of the ROM's own
+    # IsMinigameActorID and a non-minigame scene defaults to the inset panel;
+    # an inherited force would have the caller decide that instead of the code
+    # under test, in both directions.
     for k in ("SM64DS_LEVEL", "SM64DS_SKIP_CLASS", "SM64DS_SCENE_NO_RENDER",
-              "SM64DS_SCENE_BMP", "SM64DS_SCENE_TRACE", "SM64DS_SCENE_SLOT9",
-              "SM64DS_SCENE_SUBLEVEL", "PORT_WATCHDOG"):
+              "SM64DS_SCENE_BMP", "SM64DS_SCENE_BMP_STACKED",
+              "SM64DS_SCENE_TRACE", "SM64DS_SCENE_SLOT9",
+              "SM64DS_SCENE_SUBLEVEL", "SM64DS_DUAL_SCREEN", "PORT_WATCHDOG"):
         env.pop(k, None)
     if extra:
         for kv in extra.split(","):

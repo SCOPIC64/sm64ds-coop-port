@@ -786,8 +786,18 @@ void hal_sub_screen_init(void *hwnd, int zoom);
    pixels the framebuffer was scaled into; the mapper turns a client point
    back into a framebuffer point and returns 0 for a point in the letterbox
    bars, which is outside the picture and therefore not a touch. */
-void hal_present_set_rect(int x, int y, int w, int h);
+void hal_present_set_rect(int x, int y, int w, int h, int src_w, int src_h);
 int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy);
+/* THE STACKED LAYOUT (hal/sub_screen.cpp). Both DS screens full size, top above
+   bottom, for minigames -- a touchscreen game cannot be played against a
+   128x96 corner preview. hal_sub_screen_stacked answers whether this run is in
+   it, and hal_sub_screen_stacked_image builds the ntr::STACK_W x STACK_H
+   image out of the FINISHED framebuffer plus the bottom screen. It is called
+   last, after this file's fade composite and debug overlay, so the framebuffer
+   it reads is the same framebuffer every ppu_write_bmp site here writes, and
+   hal/sub_screen.cpp owns the buffer so an inset build carries none of it. */
+int hal_sub_screen_stacked(void);
+const unsigned int *hal_sub_screen_stacked_image(const unsigned int *top);
 /* the focus gate (hal/sub_screen.cpp): 1 when this window is the foreground
    one, so an interactive key read can be trusted to be meant for this program */
 int hal_window_focused(void);
@@ -1756,10 +1766,18 @@ static HWND g_present_hwnd;
 static HDC g_present_hdc;
 static const BITMAPINFO *g_present_bi;
 static const ntr::Framebuffer *g_present_fb;
+/* THE STACKED SOURCE, when there is one. Set by the frame loop to the tall
+   image hal_sub_screen_stacked_image built, with its own BITMAPINFO because
+   the DIB height is part of the header rather than an argument. Null in the
+   inset layout, and present() then reads the framebuffer exactly as it always
+   did -- the two are never both live. */
+static const uint32_t *g_present_stack;
+static const BITMAPINFO *g_present_stack_bi;
 
 /* The DS aspect, once, in the two numbers the fit uses. SCREEN_W/SCREEN_H are
    the framebuffer's, which is the DS panel at whatever tier this binary was
-   built for, so this is 4:3 at every tier. */
+   built for, so this is 4:3 at every tier -- and STACK_W/STACK_H are the same
+   panel twice, stacked, so the stacked fit is 2:3. */
 static void present(void)
 {
     if (!g_present_hwnd || !g_present_hdc || !g_present_bi || !g_present_fb)
@@ -1774,7 +1792,26 @@ static void present(void)
        what a restore used to come back through. */
     if (cw <= 0 || ch <= 0) return;
 
-    const int sw = ntr::SCREEN_W, sh = ntr::SCREEN_H;
+    /* WHICH IMAGE IS BEING PRESENTED. Everything below is the same fit, the
+       same bars and the same blit whichever it is; only the source pointer,
+       the source size and the DIB header change. Doing it this way rather
+       than with a second present() is deliberate: a resize feature that lives
+       in one of two copies of this function is a resize feature that works in
+       one layout. */
+    const uint32_t *bits;
+    const BITMAPINFO *bi;
+    int sw, sh;
+    if (g_present_stack && g_present_stack_bi) {
+        bits = g_present_stack;
+        bi = g_present_stack_bi;
+        sw = ntr::STACK_W;
+        sh = ntr::STACK_H;
+    } else {
+        bits = &g_present_fb->px[0][0];
+        bi = g_present_bi;
+        sw = ntr::SCREEN_W;
+        sh = ntr::SCREEN_H;
+    }
     /* the largest sw:sh rectangle inside cw x ch. Compared as a cross
        product so the choice is exact rather than a rounded ratio: wider than
        the frame means pillarbox (height wins), taller means letterbox. */
@@ -1813,9 +1850,12 @@ static void present(void)
         }
     }
     W.StretchDIBits_(g_present_hdc, dx, dy, dw, dh, 0, 0, sw, sh,
-                     g_present_fb->px, g_present_bi, DIB_RGB_COLORS, SRCCOPY);
-    /* the touch bridge's half of the same arithmetic */
-    hal_present_set_rect(dx, dy, dw, dh);
+                     bits, bi, DIB_RGB_COLORS, SRCCOPY);
+    /* the touch bridge's half of the same arithmetic. The SOURCE SIZE goes
+       with the rectangle: in the stacked layout the rectangle was filled from
+       an image twice as tall as the framebuffer, and an inverse that assumed
+       otherwise would put every stylus press on the wrong screen. */
+    hal_present_set_rect(dx, dy, dw, dh, sw, sh);
 }
 
 /* ---- FULLSCREEN (port mod) --------------------------------------------
@@ -2951,7 +2991,31 @@ int main(void)
         if (pf && (pf[0] == 'h' || pf[0] == 'H'))
             g_present_filter = PRESENT_FILTER_HALFTONE;
     }
-    RECT r = {0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM};
+    /* THE STACKED LAYOUT ASKS FOR A WINDOW TWICE AS TALL, because the picture
+       it presents is twice as tall and a window opened at the framebuffer's
+       aspect would letterbox the whole thing down to half the width. The mode
+       is read here and it LATCHES here: the window is created once, and a
+       layout that could change after this point would leave the picture and
+       the frame permanently out of step. On this path the answer can only ever
+       come from SM64DS_DUAL_SCREEN, because a scene run never reaches this
+       line: main's `if (port_scene_env_want() >= 0) return port_scene_run();`
+       takes the whole process well above here, before the window exists. So a
+       minigame's own default is decided in the scene runner and an interactive
+       stacked run is asked for by the env. (That hand-over was cited by line
+       number here and the number was already stale by four commits. Naming the
+       call survives every edit above it; a line number does not.) */
+    const int stacked = hal_sub_screen_stacked();
+    /* AND IT DOES NOT TAKE THE ZOOM WITH IT, which is measured rather than
+       tidy. ZOOM is 2 at the 2x tier, so SCREEN_W x STACK_H x ZOOM is
+       1024x1536 and a window that tall does not fit on any ordinary desktop:
+       the first stacked run opened one and the fit letterboxed the picture
+       into the top two thirds of a window whose bottom third was off the
+       screen. The stacked window opens at the stacked image's own size,
+       512x768 at this tier, which is Tango's number and the largest that
+       fits. Nothing is lost by it -- the present path scales to whatever the
+       client area becomes, so the sizing border and F12 both still work. */
+    RECT r = stacked ? RECT{0, 0, ntr::STACK_W, ntr::STACK_H}
+                     : RECT{0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM};
     /* WS_THICKFRAME IS BACK, and it has to be back in BOTH places -- this
        call and the CreateWindowExA below. Changing it here alone is a silent
        no-op that looks like the fix: AdjustWindowRect only decides how big to
@@ -2985,6 +3049,13 @@ int main(void)
     bi.bmiHeader.biPlanes = 1;
     bi.bmiHeader.biBitCount = 32;
     bi.bmiHeader.biCompression = BI_RGB;
+    /* the stacked image's header. Same in every field but the height, and a
+       second BITMAPINFO rather than one mutated per frame because present()
+       can run from the window procedure inside a modal resize drag, with the
+       frame loop stopped -- a header the frame loop was halfway through
+       editing would be read by that path. */
+    BITMAPINFO bi_stack = bi;
+    bi_stack.bmiHeader.biHeight = -ntr::STACK_H;
 
     /* SM64DS_WINDOW_SELFTEST=N: run N frames with W held, dump the last
        framebuffer next to the exe, exit -- CI-checkable without a user */
@@ -6324,6 +6395,23 @@ int main(void)
             ovl_shade(fb, 2, ty - 2, tw + 8 * OVL_SCALE,
                       OVL_LINE + 4 * OVL_SCALE);
             ovl_text(fb, 4 + OVL_SCALE, ty, ss_toast, 0xFFFFFFFFu);
+        }
+
+        /* THE STACKED IMAGE IS BUILT LAST, and last is load-bearing. Every
+           line above this one that writes a pixel writes it into fb -- the
+           raster, the engine-A composite, the fade, the F3 overlay, the menu,
+           the toast -- and the stacked image is a copy of the finished fb with
+           the bottom screen under it. Building it here rather than earlier is
+           what lets the selftest dump below keep writing the same 512x384 fb
+           in both layouts: the mode adds a downstream consumer and moves
+           nothing upstream of it. Nothing happens in the inset layout; the
+           compose returns 0 and present() keeps reading fb. */
+        if (stacked) {
+            const uint32_t *img = hal_sub_screen_stacked_image(&fb.px[0][0]);
+            if (img) {
+                g_present_stack = img;
+                g_present_stack_bi = &bi_stack;
+            }
         }
 
         ph_begin(&t_phase);

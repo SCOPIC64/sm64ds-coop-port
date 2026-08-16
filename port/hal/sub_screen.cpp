@@ -43,6 +43,39 @@
 // rectangle it presented into; poll_touch below runs it backwards. Unset (a
 // binary that opens no window, or one whose present path never ran) falls
 // back to the plain zoom divide, which is what every caller did before.
+//
+// ---- THE STACKED LAYOUT (run link60, lane DSL1) -----------------------------
+//
+// THE PANEL IS THE WRONG SHAPE FOR A MINIGAME AND ALWAYS WAS. It is 128x96 at
+// the default divisor, in a corner, and every minigame in this game is played
+// with the stylus ON the bottom screen. You cannot aim at a preview. The
+// directive is Tango's and it is one sentence: for minigames the two screens
+// go one above the other, the same size, because it is a touchscreen game.
+//
+// So this file grows a MODE. Stacked: both screens full size, top above
+// bottom, SCREEN_W x 2*SCREEN_H of client area (512x768 at the 2x tier). Inset:
+// what is above, unchanged, and still the default for levels, where the panel
+// is doing its job and the player's hands are on the keyboard.
+//
+// THE MODE LIVES HERE BECAUSE THE THREE THINGS IT CHANGES ALREADY DO. The
+// panel, the present rectangle and the touch transform are all in this file,
+// and they are in one file precisely so a change to the geometry cannot move
+// the picture without moving the aim with it. A second presenter somewhere
+// else would have been a second copy of that arithmetic.
+//
+// WHAT IT DOES NOT TOUCH, and this is structural rather than remembered: the
+// framebuffer. ntr::Framebuffer stays SCREEN_W x SCREEN_H in both modes, the
+// stacked image is a SEPARATE buffer composed after everything that writes
+// the framebuffer has finished with it, and every ppu_write_bmp call site in
+// the tree still dumps the same 512x384 frame it dumped before. The selftest
+// battery's md5 rows depend on that geometry and this mode cannot reach them.
+//
+// WHO TURNS IT ON. hal/scene_boot.cpp asks IsMinigameActorID -- the ROM's own
+// predicate, src/IsMinigameActorID.c, 0x169..0x186, already linked and already
+// the gate on the ov006 overlay constructors -- and hands the answer to
+// hal_sub_screen_set_stacked. A level never asks, so a level gets the inset.
+// SM64DS_DUAL_SCREEN=1 forces it on and =0 forces it off, both ways, and the
+// env is read HERE so there is one place that decides.
 #include <cstdio>
 #include <cstdlib>
 
@@ -64,8 +97,15 @@ public:
 
 extern "C" {
 /* the present rectangle, defined at the bottom of this file */
-void hal_present_set_rect(int x, int y, int w, int h);
+void hal_present_set_rect(int x, int y, int w, int h, int src_w, int src_h);
 int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy);
+int hal_present_client_to_sub(int cx, int cy, int *dsx, int *dsy);
+/* the layout mode, defined at the bottom of this file */
+int hal_sub_screen_stacked(void);
+void hal_touch_client_probe(void);
+/* the main engine's master-brightness fade (hal/fader_wipes.cpp), read so the
+   stacked bottom half fades with the top half the way the inset does */
+int port_fader_blend_state(int *evy, int *toWhite);
 void _ZN3OAM4LoadEv(void);
 unsigned int _ZN3OAM12EnableSubOAMEv(void);
 int hal_oam_layout_check(void);
@@ -132,6 +172,30 @@ HWND g_hwnd;
 // The client rectangle the framebuffer was last presented into, in client
 // pixels. Width zero means nobody has presented yet.
 int g_pr_x, g_pr_y, g_pr_w, g_pr_h;
+/* The SOURCE image that rectangle was filled from, in its own pixels. It is
+   the framebuffer in inset mode and the stacked image in stacked mode, and the
+   inverse transform needs it because the two are not the same shape. Zero
+   means "nobody has presented yet", the same as g_pr_w. */
+int g_pr_sw, g_pr_sh;
+
+/* ---- the layout mode -------------------------------------------------------
+   -1 while unresolved. The scene proposes (hal_sub_screen_set_stacked) and
+   SM64DS_DUAL_SCREEN disposes; a run with no scene and no env is inset, which
+   is every level. */
+int g_stacked = -1;
+int g_stacked_default;
+
+int stacked_env(void)
+{
+    /* -1 = unset, 0 = forced off, 1 = forced on. Read once, like every other
+       env in this file, so a run cannot change layout halfway through. */
+    static int v = -2;
+    if (v == -2) {
+        const char *e = std::getenv("SM64DS_DUAL_SCREEN");
+        v = e ? (std::atoi(e) ? 1 : 0) : -1;
+    }
+    return v;
+}
 
 BOOL(WINAPI *GetCursorPos_)(POINT *);
 BOOL(WINAPI *ScreenToClient_)(HWND, POINT *);
@@ -253,16 +317,30 @@ void poll_touch(void)
         GetAsyncKeyState_ && (GetAsyncKeyState_(VK_LBUTTON) & 0x8000)) {
         POINT p;
         if (GetCursorPos_(&p) && ScreenToClient_(g_hwnd, &p)) {
-            /* client pixels to framebuffer pixels (the present rectangle, run
-               backwards), then panel pixels to DS pixels: the panel is drawn
-               at 1/g_div */
-            int bx, by;
-            /* a click in a letterbox bar is not on the panel however close
-               the clamp puts it, so the inside answer gates the press */
-            const int on_picture =
-                hal_present_client_to_fb((int)p.x, (int)p.y, &bx, &by);
-            const int fx = (bx - g_x0) * g_div;
-            const int fy = (by - g_y0) * g_div;
+            /* THE TRANSFORM HAS TWO SHAPES NOW, one per layout, and which one
+               runs is the only thing the mode changes about the touch.
+
+               STACKED: the bottom half of the picture IS the bottom screen, so
+               the mapper hands back DS pixels directly and the whole half is
+               live. A click anywhere in it lands on the corresponding DS pixel,
+               which is the point of the mode.
+
+               INSET: client pixels to framebuffer pixels (the present
+               rectangle, run backwards), then panel pixels to DS pixels,
+               because the panel is drawn at 1/g_div in a corner. Unchanged. */
+            int fx = -1, fy = -1, on_picture = 0;
+            if (hal_sub_screen_stacked()) {
+                on_picture =
+                    hal_present_client_to_sub((int)p.x, (int)p.y, &fx, &fy);
+            } else {
+                int bx, by;
+                /* a click in a letterbox bar is not on the panel however close
+                   the clamp puts it, so the inside answer gates the press */
+                on_picture =
+                    hal_present_client_to_fb((int)p.x, (int)p.y, &bx, &by);
+                fx = (bx - g_x0) * g_div;
+                fy = (by - g_y0) * g_div;
+            }
             if (on_picture && fx >= 0 && fx < ntr::SUB_W && fy >= 0 &&
                 fy < ntr::SUB_H) {
                 down = 1;
@@ -671,9 +749,16 @@ void hal_sub_screen_frame_begin(void)
     /* TAB is interactive keyboard, so it is gated on focus like the rest. The
        latch is ARMED rather than cleared while the window is in the
        background: a TAB pressed elsewhere and still down on the way back
-       reads as already-held, so it cannot toggle the panel on arrival. */
+       reads as already-held, so it cannot toggle the panel on arrival.
+
+       IT IS INERT IN THE STACKED LAYOUT. TAB hides the corner panel because
+       the panel is furniture over the game; the stacked bottom half IS the
+       game, and a key that blanked half the window and took the stylus with
+       it (poll_touch is gated on g_on) would be a way to lose a minigame by
+       leaning on the keyboard. The window size is fixed at creation for the
+       same reason, so there is nothing for a toggle to fall back to. */
     static int tab_was;
-    if (GetAsyncKeyState_ && !g_headless) {
+    if (GetAsyncKeyState_ && !g_headless && !hal_sub_screen_stacked()) {
         if (!hal_window_focused()) {
             tab_was = 1;
         } else {
@@ -684,6 +769,10 @@ void hal_sub_screen_frame_begin(void)
     }
     OAM::Reset();
     poll_touch();
+    /* Inert unless SM64DS_TOUCH_CLIENT_PROBE is set, and here rather than
+       inside poll_touch because it wants a present rectangle the frame loop
+       has actually published. */
+    hal_touch_client_probe();
 }
 
 /* Bottom of the frame: upload the shadows the game filled, rasterise engine B,
@@ -728,7 +817,16 @@ void hal_sub_screen_present(unsigned int *dst, int w, int h)
     _ZN3OAM4LoadEv();
     if (!g_on) return;
     ntr::ppu_scanout_sub(g_sub);
-    ntr::ppu_compose_sub(g_sub, dst, w, h, kMargin, g_div);
+    /* THE STACKED LAYOUT WRITES NOTHING INTO dst HERE, and that is the whole
+       trick. dst is the framebuffer, the scan-out above is everything the
+       bottom screen needs, and the stacked image is built downstream by
+       hal_sub_screen_compose_stacked once the caller has finished with the
+       framebuffer -- after its fade composite and after its debug overlay. So
+       the framebuffer this function is handed comes out of a stacked frame
+       byte-for-byte identical to a panel-off frame, which is what keeps every
+       ppu_write_bmp site in the tree at 512x384 and unmoved. */
+    if (!hal_sub_screen_stacked())
+        ntr::ppu_compose_sub(g_sub, dst, w, h, kMargin, g_div);
     g_ready = true;
 
     /* SM64DS_SUB_DUMP=N: the bottom screen alone, at 256x192, on frame N. */
@@ -744,6 +842,101 @@ void hal_sub_screen_present(unsigned int *dst, int w, int h)
                         *(volatile unsigned short *)0x0400100e);
         }
     }
+}
+
+/* ---- the stacked layout ----------------------------------------------------
+ *
+ * THE MODE IS A PROPOSAL AND AN OVERRIDE. hal/scene_boot.cpp proposes, out of
+ * the ROM's own IsMinigameActorID; SM64DS_DUAL_SCREEN overrides in either
+ * direction. Nothing proposes on a level path, so a level is inset unless the
+ * env says otherwise, which is Tango's directive read literally: the corner
+ * panel is doing its job during a level and the complaint was about minigames.
+ *
+ * IT LATCHES ON FIRST READ. hal_sub_screen_stacked is called from the frame
+ * loop, from the touch poll and from walk_window's window sizing, and a mode
+ * that could change after the window has been created would leave a window
+ * the wrong shape for the picture in it. The setter refuses once the answer
+ * has been handed out, loudly, because a late set means the call order is
+ * wrong somewhere and silently keeping the old answer would hide that.
+ */
+static int g_stacked_latched;
+
+int hal_sub_screen_stacked(void)
+{
+    if (g_stacked < 0) {
+        const int e = stacked_env();
+        g_stacked = e >= 0 ? e : (g_stacked_default ? 1 : 0);
+        /* Say it once, on the run that decided it, and say WHERE the answer
+           came from. "The panel is in the corner" and "the panel is in the
+           corner because nothing proposed otherwise" are different findings
+           when a minigame comes up in the wrong layout. */
+        std::printf("[sub] layout: %s (default %s, %s)\n",
+                    g_stacked ? "STACKED, both DS screens full size"
+                              : "corner inset panel",
+                    g_stacked_default ? "stacked" : "inset",
+                    e < 0 ? "SM64DS_DUAL_SCREEN unset"
+                          : (e ? "SM64DS_DUAL_SCREEN=1 forces it on"
+                               : "SM64DS_DUAL_SCREEN=0 forces it off"));
+        std::fflush(stdout);
+    }
+    g_stacked_latched = 1;
+    return g_stacked;
+}
+
+void hal_sub_screen_set_stacked(int on)
+{
+    if (g_stacked_latched) {
+        std::fprintf(stderr, "  [sub] stacked layout already latched at %d; "
+                     "the request for %d is IGNORED (it arrived after the "
+                     "first reader)\n", g_stacked, on ? 1 : 0);
+        return;
+    }
+    g_stacked_default = on ? 1 : 0;
+}
+
+/* Build the stacked image and hand back a pointer to it. `top` is the FINISHED
+ * framebuffer -- faded, overlaid, everything -- and the return is
+ * ntr::STACK_W x ntr::STACK_H, or null when the mode is off or the bottom
+ * screen has never been scanned out. This reads the framebuffer and does not
+ * write it, which is what lets it run after the frame is final and leave it
+ * final.
+ *
+ * THE BUFFER IS HEAP AND IT IS THIS FILE'S, allocated on the first stacked
+ * frame and never freed, and both of those are deliberate.
+ *
+ * Heap rather than a static array because a static would be 1.5 MB of host
+ * .bss at the 2x tier, in EVERY build, including every inset run and every
+ * selftest. port/tools/battery.py's note on the selftest BMP is explicit that
+ * host-global layout outside .dsstate perturbs the rendered frame even at an
+ * equal section base, so a layout feature that nobody has switched on has no
+ * business moving the host's globals around. Allocated lazily, an inset run
+ * carries one null pointer.
+ *
+ * This file's rather than the caller's because there are two callers (the
+ * window's frame loop and the scene runner) and a buffer each would be the
+ * same 1.5 MB twice.
+ */
+const unsigned int *hal_sub_screen_stacked_image(const unsigned int *top)
+{
+    static unsigned int *px;
+    static int refused;
+    if (!hal_sub_screen_stacked() || !g_ready || !top) return 0;
+    if (!px && !refused) {
+        px = (unsigned int *)std::malloc((size_t)ntr::STACK_W * ntr::STACK_H *
+                                         sizeof *px);
+        if (!px) {
+            refused = 1;
+            std::fprintf(stderr, "  [sub] stacked layout: could not allocate "
+                         "the %dx%d image; presenting the top screen alone\n",
+                         ntr::STACK_W, ntr::STACK_H);
+        }
+    }
+    if (!px) return 0;
+    int evy = 0, to_white = 0;
+    if (!port_fader_blend_state(&evy, &to_white)) evy = 0;
+    ntr::ppu_compose_stacked(top, g_sub, px, ntr::STACK_W, ntr::STACK_H, evy,
+                             to_white);
+    return px;
 }
 
 /* The bottom screen's camera buttons, through the game's own hit test.
@@ -815,33 +1008,70 @@ int hal_sub_screen_on(void) { return g_on ? 1 : 0; }
  * was not. Callers that care about the difference (a click in a letterbox bar
  * is not a stylus press) test the return; callers that only ever want a valid
  * framebuffer coordinate can ignore it and get the old clamped behaviour.
+ *
+ * THE SETTER TAKES THE SOURCE SIZE NOW, and it has to. In the stacked layout
+ * the rectangle was filled from an image twice as tall as the framebuffer, so
+ * "how many source pixels tall is that rectangle" stopped being a constant the
+ * inverse could assume. Passing it is the honest fix; deriving it from the
+ * mode inside here would put a second copy of the mode's geometry in the one
+ * place the note above says must not have a second copy.
+ *
+ * The two mappers are the same arithmetic over different bands of the same
+ * rectangle, which is why they share client_to_src below rather than being
+ * spelled twice.
  */
-void hal_present_set_rect(int x, int y, int w, int h)
+void hal_present_set_rect(int x, int y, int w, int h, int src_w, int src_h)
 {
     g_pr_x = x;
     g_pr_y = y;
     g_pr_w = w;
     g_pr_h = h;
+    g_pr_sw = src_w;
+    g_pr_sh = src_h;
+}
+
+/* Client pixels to SOURCE-IMAGE pixels: the inverse of present()'s fit. Does
+   no clamping and no range test -- both mappers below want the raw answer
+   first, and they disagree about what "inside" means. Returns the source size
+   it worked against in *sw / *sh so the caller can split it into bands. */
+static void client_to_src(int cx, int cy, int *x, int *y, int *sw, int *sh)
+{
+    /* An old caller of the four-argument setter, or a build whose present path
+       has not run, leaves the source size at zero. Reading the framebuffer's
+       size there is what every caller assumed before the stacked layout
+       existed, so that is what the fallback is. */
+    const int s_w = g_pr_sw > 0 ? g_pr_sw : ntr::SCREEN_W;
+    const int s_h = g_pr_sh > 0 ? g_pr_sh : ntr::SCREEN_H;
+    if (sw) *sw = s_w;
+    if (sh) *sh = s_h;
+    if (g_pr_w > 0 && g_pr_h > 0) {
+        /* the inverse of the fit: shift by the letterbox origin, then scale
+           the picture's client size back to the source image's */
+        *x = (int)(((long long)(cx - g_pr_x) * s_w) / g_pr_w);
+        *y = (int)(((long long)(cy - g_pr_y) * s_h) / g_pr_h);
+        /* a negative client offset truncates toward zero, which would fold
+           the first row of bar pixels onto row 0 of the picture. Push those
+           back out so an inside/outside answer is exact at the seam. */
+        if (cx < g_pr_x) *x = -1;
+        if (cy < g_pr_y) *y = -1;
+    } else {
+        /* nothing has presented yet: the fixed-zoom divide this was before */
+        *x = cx / (g_zoom > 0 ? g_zoom : 1);
+        *y = cy / (g_zoom > 0 ? g_zoom : 1);
+    }
 }
 
 int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy)
 {
-    int x, y;
-    if (g_pr_w > 0 && g_pr_h > 0) {
-        /* the inverse of the fit: shift by the letterbox origin, then scale
-           the picture's client size back to the framebuffer's */
-        x = (int)(((long long)(cx - g_pr_x) * ntr::SCREEN_W) / g_pr_w);
-        y = (int)(((long long)(cy - g_pr_y) * ntr::SCREEN_H) / g_pr_h);
-        /* a negative client offset truncates toward zero, which would fold
-           the first row of bar pixels onto row 0 of the picture. Push those
-           back out so an inside/outside answer is exact at the seam. */
-        if (cx < g_pr_x) x = -1;
-        if (cy < g_pr_y) y = -1;
-    } else {
-        /* nothing has presented yet: the fixed-zoom divide this was before */
-        x = cx / (g_zoom > 0 ? g_zoom : 1);
-        y = cy / (g_zoom > 0 ? g_zoom : 1);
-    }
+    int x, y, sw, sh;
+    client_to_src(cx, cy, &x, &y, &sw, &sh);
+    /* THIS FUNCTION STILL MEANS THE TOP SCREEN, in both layouts, and every one
+       of its existing callers still gets exactly what it got before. In the
+       inset layout the source IS the framebuffer and the test below is the
+       test that was here. In the stacked layout the source is twice as tall
+       and the top screen is its upper band, so a click in the lower half
+       answers "not on the picture" -- which is the truth for a caller asking
+       about the top screen. hal_present_client_to_sub is the lower band. */
     const int inside = x >= 0 && y >= 0 && x < ntr::SCREEN_W && y < ntr::SCREEN_H;
     if (x < 0) x = 0;
     if (y < 0) y = 0;
@@ -850,6 +1080,112 @@ int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy)
     if (fx) *fx = x;
     if (fy) *fy = y;
     return inside;
+}
+
+/* THE TOUCH TRANSFORM FOR THE STACKED LAYOUT: a client point to a DS pixel on
+ * the bottom screen. Returns 1 only when the point is genuinely on the bottom
+ * half of the picture -- a letterbox bar is not, and neither is the top screen.
+ *
+ * Three steps and no constants beyond the two screen sizes: undo the fit into
+ * source pixels, subtract one screen height to get into the lower band, then
+ * scale the band down to the DS's own 256x192. The scale is a ratio rather
+ * than a shift because SCREEN_W/SCREEN_H is the tier's, not necessarily two.
+ *
+ * WHY IT IS EXACT AT THE 2x TIER: the lower band is 512x384 and the DS screen
+ * is 256x192, so x maps by (x * 256) / 512 = x / 2 and y the same. Client
+ * point -> band pixel -> DS pixel with two integer divides and no rounding
+ * term that can drift a row at the seam. The clamp below only ever fires for a
+ * caller that ignores the return.
+ */
+int hal_present_client_to_sub(int cx, int cy, int *dsx, int *dsy)
+{
+    int x, y, sw, sh;
+    client_to_src(cx, cy, &x, &y, &sw, &sh);
+    /* the lower band of the source image. In the inset layout there is no
+       lower band -- the source is one screen tall -- and this correctly
+       answers "outside" for every point, because in that layout the panel is
+       the bottom screen and poll_touch takes the other branch. */
+    const int band_h = sh - ntr::SCREEN_H;
+    const int by = y - ntr::SCREEN_H;
+    const int inside = band_h > 0 && x >= 0 && x < sw && by >= 0 && by < band_h;
+    int dx = 0, dy = 0;
+    if (band_h > 0) {
+        dx = (int)(((long long)x * ntr::SUB_W) / (sw > 0 ? sw : 1));
+        dy = (int)(((long long)by * ntr::SUB_H) / band_h);
+    }
+    if (dx < 0) dx = 0;
+    if (dy < 0) dy = 0;
+    if (dx >= ntr::SUB_W) dx = ntr::SUB_W - 1;
+    if (dy >= ntr::SUB_H) dy = ntr::SUB_H - 1;
+    if (dsx) *dsx = dx;
+    if (dsy) *dsy = dy;
+    return inside;
+}
+
+/* SM64DS_TOUCH_CLIENT_PROBE="cx,cy[;cx,cy...]": run the client-to-DS transform
+ * over the listed CLIENT points, once, on the first frame that polls, and print
+ * what each one maps to. It exists because the stacked layout's transform
+ * cannot otherwise be exercised deterministically: the scene runner is
+ * headless by construction (walk_window hands over to port_scene_run before
+ * the window is created), so there is no mouse on the only path a minigame
+ * runs on today, and a transform nobody can run is a transform nobody can
+ * check. This drives the SAME function poll_touch drives, against the SAME
+ * present rectangle, so it is the real arithmetic and not a restatement of it.
+ *
+ * IT PRINTS TO STDERR, AND ON A SCENE RUN STDERR IS NOT ON YOUR TERMINAL.
+ * walk_window's flight recorder takes stderr into playlog/play_*.log on every
+ * path that is not a window selftest, which is exactly the headless path this
+ * probe exists for, so a reproducer that greps its own console counts zero
+ * lines and reads that as the probe not firing. Either add
+ * SM64DS_NO_PLAYLOG=1, or read playlog/. A windowed SM64DS_WINDOW_SELFTEST run
+ * is the one case where the recorder is off and stderr arrives directly.
+ *
+ * It reads no mouse and writes no stylus. It is a printer.
+ */
+void hal_touch_client_probe(void)
+{
+    static int done, waited;
+    const char *s = std::getenv("SM64DS_TOUCH_CLIENT_PROBE");
+    if (done || !s) return;
+    /* WAIT FOR A PRESENT RECTANGLE THE FRAME LOOP PUBLISHED, and this cost the
+       lane one wrong reading before it was written down. This poll runs at the
+       TOP of a frame, and by the time the first one runs the window procedure
+       has already answered a WM_PAINT from CreateWindow -- so a rectangle
+       exists, and it is one the framebuffer filled, before the frame loop has
+       ever built a stacked image. The probe fired on it and printed
+       "layout stacked" beside "src 512x384", which is two true halves reading
+       as one false whole.
+
+       So: skip the first two polls, which puts this past the frame loop's own
+       first present, and then require a rectangle. Past thirty polls with no
+       rectangle at all the run genuinely has no window (the scene runner is
+       that case) and the fixed-zoom fallback is the honest answer, said in
+       those words rather than passed off as the windowed one. */
+    if (++waited <= 2) return;
+    if (g_pr_w <= 0 && waited < 30) return;
+    done = 1;
+    if (g_pr_w <= 0)
+        std::fprintf(stderr, "[touchmap] NO PRESENT RECTANGLE was ever "
+                     "published (headless run, no window). What follows is the "
+                     "fixed-zoom fallback, not the windowed transform.\n");
+    std::fprintf(stderr, "[touchmap] rect x%d y%d w%d h%d src %dx%d, layout %s\n",
+                 g_pr_x, g_pr_y, g_pr_w, g_pr_h, g_pr_sw, g_pr_sh,
+                 hal_sub_screen_stacked() ? "stacked" : "inset");
+    while (*s) {
+        const int cx = std::atoi(s);
+        while (*s && *s != ',' && *s != ';') ++s;
+        if (*s == ',') ++s;
+        const int cy = std::atoi(s);
+        while (*s && *s != ';') ++s;
+        if (*s == ';') ++s;
+        int fx = 0, fy = 0, dx = 0, dy = 0;
+        const int on_top = hal_present_client_to_fb(cx, cy, &fx, &fy);
+        const int on_sub = hal_present_client_to_sub(cx, cy, &dx, &dy);
+        std::fprintf(stderr, "[touchmap] client (%d,%d) -> top %s fb(%d,%d) "
+                     "| sub %s ds(%d,%d)\n", cx, cy, on_top ? "IN " : "out",
+                     fx, fy, on_sub ? "IN " : "out", dx, dy);
+    }
+    std::fflush(stderr);
 }
 
 // ---- the three leaves LoadGraphics2D names but never reaches ---------------
