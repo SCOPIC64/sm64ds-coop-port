@@ -404,6 +404,9 @@ the reason each is there.
     baseline 0d81b845c   4950 / 11243   44.0%
     this lane            5532 / 11243   49.2%   +582
 
+measured at 5bab24830 with git_dirty false, battery ALL GREEN, skips
+[scene 4 with SM64DS_SCENE_SLOT9=0, scene 1 BLOCKED].
+
 THE BY-MODULE LINE THAT MATTERS:
 
     ov007    528 total, 490 linked, 38 unlinked   92.8%   (was 0 of 528)
@@ -423,6 +426,18 @@ matched TUs were refused on purpose (the card overlay/archive loader's eleven
 and the backup-media driver's two, section 6) and four more are `asm` blocks
 MSVC cannot compile. Take those seventeen out of the estimate and add the
 second-wave arm9 TUs the first estimate did not see, and 92 is what is left.
+
+ONE FLAKE, RECORDED RATHER THAN RE-RUN AWAY. The gate was run three times on
+this tree. Two came back ALL GREEN; the middle one failed with
+"selftest level 7: FAIL rc=4294967295" (rc -1, a killed child, not a fault --
+no fault report and no playlog entry), on a machine that was building in
+another window at the time. Level 7 was then re-run standalone and completed
+300 frames with exit 0, and the next full gate was ALL GREEN. It is written
+down because a reviewer comparing run logs would otherwise find it and wonder,
+and because "I re-ran it and it passed" is the sentence that hides a real
+intermittent. Nothing this lane changed is on level 7's path: the id-1 registry
+row is the only thing a level run sees, and it is the same three statements the
+id-4 row has made since the spine landed.
 
 ov003 IS UNCHANGED AT 15 of 36, which is the check that this lane did not
 disturb the seat it was built on. The whole 46-level battery is green with the
