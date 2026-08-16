@@ -3373,7 +3373,9 @@ nothing can desynchronise on the data islands 5d already got bitten by.
     mechanism: a DISPLACEMENT RETIRES A ROW. The guard refuses to assert
     anything about a frame whose matched TU is not the thing the binary
     compiled, and it says so by name rather than falling silent. The
-    arithmetic is 3 maps per frame, so each retirement takes 3 off the total:
+    arithmetic is the three HOSTING maps named above, one assertion each, so a
+    retirement takes 3 off the total. (The guard's own line says "over 21
+    map(s)", which is how many maps it SCANS, not how many host these frames.)
 
         TJG      32 frames asserted   96 assertions   RETIRED 0
         AE1      31                   93              RETIRED 1  add3c
