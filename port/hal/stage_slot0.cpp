@@ -446,17 +446,30 @@ void port_slot0_check_wipes(void *before)
             is
                 Model::LoadAndSetFile(self + 0x86c,
                                       *(u16 *)(*(char **)data_0209f340 + 8), ...)
-            and data_0209f340 had just been assigned data_02092208[level], the
-            ROM's DS address 0x02112bdc. The port maps main RAM (kRegions'
-            MAIN_BASE, non-fatal), so that read does not fault -- it returns
-            garbage, 0x65, and the fault lands at 0x65 + 8 = 0x6d. A mapped
-            window makes this wall QUIETER than an unmapped one would, not
-            safer.
+            and data_0209f340 had just been assigned
+            data_02092208[data_0209f2f8].
+
+            NAME THE INDEX CAREFULLY, because the first draft of this paragraph
+            did not and mode 2 below disproves it. The index is NOT 1 and the
+            word read is NOT the [1] entry 0x02112bdc: InitResources' own line
+            208 does `data_0209f2f8 = data_02092110` unconditionally, 150
+            statements before it indexes the table, so by then the sublevel is
+            the PENDING one, which is -1 on the port. Both mode 1 and mode 2
+            therefore read data_02092208[-1] -- the four bytes BEFORE the host
+            array -- and 0x02112bdc is only what mode 2's seed print shows the
+            [1] entry holding. The wall is unchanged either way: whichever
+            entry it lands on, the port cannot use the value. What changes is
+            which word to look at when re-running.
+
+            The port maps main RAM (kRegions' MAIN_BASE, non-fatal), so the
+            read does not fault -- it returns garbage, 0x65, and the fault
+            lands at 0x65 + 8 = 0x6d. A mapped window makes this wall QUIETER
+            than an unmapped one would, not safer.
 
    MODE 2   THE IDENTICAL FAULT, same address. Seeding data_02092208[1] alone
-            changes nothing, and that null result is the finding: InitResources
-            re-latches data_0209f2f8 = data_02092110 long before it indexes the
-            table, and data_02092110 is -1 on the port. Hence mode 3.
+            changes nothing, and that null result is the finding: the re-latch
+            above means the index is -1, so seeding row 1 seeds a row nothing
+            reads. Hence mode 3.
 
    MODE 3   THE FAULT MOVES, to Heap::Allocate+0xd accessing 0x00000005, under
             SharedFilePtr::Load -> fs_hand_out -> Memory::Allocate with a heap

@@ -994,8 +994,19 @@ SL0's own alias, described one section above where the wall is written down:
   * that ctor's last store is `this->vtable = _ZTV9FaderWipe`, and after SL0's
     /alternatename:__ZTV9FaderWipe=??_7HalFaderWipe@@6B@ that symbol IS the
     host table. A FaderWipe the ROM constructs on the game heap therefore
-    carries the same twelve slots, in the same ROM byte order, as a static
+    carries the same TEN slots, in the same ROM byte order, as a static
     hal_wipes[] entry does.
+    TEN AND NOT TWELVE, and the first draft of this paragraph said twelve by
+    counting the host class's virtuals instead of the ROM's record.
+    config/arm9/relocs.txt settles it: 0x0208ea9c through 0x0208eac0 carry ten
+    `kind:load module:main` rows and nothing else does. 0x0208eac4 has no
+    relocation (it is the next class's offset-to-top, zero) and 0x0208eac8
+    relocates to 0x0208ea24, which is FaderBrightness' typeinfo -- exactly what
+    hal/fader_wipes.cpp's own note derives, and the reason that file spends two
+    slots on HalTail28 and HalTail2c is to keep a raw-offset overrun inside
+    something callable. Those two are the documented overhang, not shared
+    ground with the ROM. The decision below does not rest on the count: what it
+    rests on is that 0x00 through 0x24 agree byte for byte, and they do.
   * data_0209f5bc keeps pointing at hal_wipes[0] across the handover, and that
     object stays constructed and valid, so the frame-zero guarantee
     Scene::BeforeBehavior depends on -- and that commit 885cd16c2's seat
@@ -1049,16 +1060,23 @@ port_level_overlay's result to data_0209f340 directly, bypassing the table.
 hal/stage_slot0.cpp part 4 carries the apparatus (SM64DS_SLOT0_ROM, default
 off) and every resolved address. The short form:
 
-  1  the ROM's own line hands Stage::LoadModel a DS address. Main RAM is
-     MAPPED in the port (kRegions' MAIN_BASE, non-fatal), so it does not fault
-     there: it reads garbage, 0x65, and faults eight bytes later at 0x6d. A
-     mapped window makes this wall quieter, not safer.
+  1  the ROM's own line hands Stage::LoadModel a table entry the port cannot
+     use. Main RAM is MAPPED in the port (kRegions' MAIN_BASE, non-fatal), so
+     it does not fault there: it reads garbage, 0x65, and faults eight bytes
+     later at 0x6d. A mapped window makes this wall quieter, not safer.
+     THE ENTRY IS [-1], NOT [level], and saying otherwise is the mistake wall 2
+     catches: InitResources line 208 does `data_0209f2f8 = data_02092110`
+     unconditionally, 150 statements before it indexes the table, so modes 1
+     AND 2 both read the four bytes BEFORE the host array. 0x02112bdc is what
+     the [1] entry holds and is only what mode 2's seed print reports. The wall
+     stands whichever entry it lands on -- no row of that table holds a value
+     a host can use -- but a re-run should look at the right word.
   2  seeding data_02092208[level] alone changes NOTHING -- the identical fault
-     at the identical address. InitResources re-latches
-     data_0209f2f8 = data_02092110 long before it indexes the table, and the
-     port consumes that word at handoff time (hal/level_change.cpp:1071)
-     precisely so a stuck request cannot re-fire. Section 2a already calls this
-     substitution genuinely host; this is what it costs at the seat.
+     at the identical address, because the re-latch above means the index is -1
+     and row 1 is a row nothing reads. The port consumes data_02092110 at
+     handoff time (hal/level_change.cpp:1071) precisely so a stuck request
+     cannot re-fire. Section 2a already calls this substitution genuinely host;
+     this is what it costs at the seat.
   3  with both seeded the fault MOVES, to Heap::Allocate with a heap pointer of
      5, under SharedFilePtr::Load -> fs_hand_out -> Memory::Allocate. The cause
      is a pre-existing mis-bridged receiver of hal/method_faces.cpp's class 3,
@@ -1092,14 +1110,22 @@ modelled-bit table as they stand after W2D, THAT READING IS WRONG IN THE
 OPTIMISTIC DIRECTION, and the shape of the count is wrong too. It is ELEVEN
 STATEMENTS OVER FIVE REGISTERS:
 
-  0x04000000 DISPCNT A   four RMWs: clear bit 4 and bits 20-21 (OBJ tile
-                         mapping and 1D boundary), screen base to 1 (bits
-                         27-29), then screen-display bits 8-12 to 0x1100.
-                         ALL MODELLED: read_bg reads BG enable at 8+bg, char
-                         base 24-26 and screen base 27-29, and the OBJ path
-                         reads bit 4 and bits 20-21 directly.
-  0x04001000 DISPCNT B   two RMWs: display mode bit 16, and screen-display
-                         bits 8-12 from data_0209d454. MODELLED, both.
+  0x04000000 DISPCNT A   THREE RMWs, at InitResources :248, :253 and :404:
+                         clear bit 4 and bits 20-21 (OBJ tile mapping and 1D
+                         boundary), screen base to 1 (bits 27-29), then
+                         screen-display bits 8-12 to 0x1100. ALL THREE LIVE:
+                         read_bg reads BG enable at 8+bg and screen base at
+                         27-29, and ppu.cpp:199 reads bits 20-21 for the OBJ
+                         tile boundary.
+  0x04001000 DISPCNT B   THREE RMWs, at :249, :256 and :407: the engine-B
+                         mirror of the first clear, display mode bit 16, and
+                         screen-display bits 8-12 from data_0209d454. ALL
+                         THREE LIVE.
+                         (:249 WAS MISFILED UNDER ENGINE A in the first draft
+                         of this section, which read A=4 and B=2. It is the
+                         `*p1 &= 0xFFCFFFEF` beside `*p0 &= 0xFFCFFFEF`, so
+                         the split is three and three. The eleven total and
+                         the nine-live/two-inert headline are unchanged.)
   0x0400000A BG1CNT A    three RMWs: priority, then char base bits 2-5 and
                          screen base bits 8-12, then clear mosaic bit 6. The
                          first two are MODELLED (read_bg reads exactly those
@@ -1120,6 +1146,20 @@ unmeasured and cannot be settled by reading -- the selftest BMP is the only
 witness and it is layout-dependent (battery.py's own header), so it needs a
 person looking at a frame rather than a byte compare.
 
+AND ONE OF THE LIVE ROWS HIDES AN UNMODELLED GAP, which the first draft of this
+section asserted away by saying the OBJ path "reads bit 4 and bits 20-21
+directly". IT READS BITS 20-21 ONLY (ppu.cpp:199, the tile-boundary shift).
+DISPCNT BIT 4 IS NEVER READ ANYWHERE: ppu.cpp:254 hard-codes one-dimensional
+OBJ mapping, and the comment at ppu.cpp:197 names bit 4 without the code ever
+consulting it. That does not change the liveness of :248 and :249 -- they stay
+live through bits 20-21 -- but it means the half of those statements that
+CLEARS bit 4, selecting TWO-dimensional OBJ tile mapping, has no host effect at
+all. Under 2D mapping a sprite's rows are 32 tiles apart in OAM tile space
+rather than consecutive, so a compositor that always assumes 1D would draw
+every multi-row sprite from the wrong tiles. Named as a gap rather than
+asserted away, because it is exactly the shape of the gap that GXSTAT turned
+out to be: a bit the game drives and the host does not read.
+
 11f. SECTION 2d RE-DERIVED, AND ONE ROW HAS MOVED
 
 Mechanically re-derived: every global Stage::InitResources assigns, against
@@ -1134,12 +1174,21 @@ Of the five the map lists as having LIVE READERS, four still stand:
   data_02092134  read by the matched GetStarCameraSetting; the port's only
                  mention is hal/star_flow.cpp:618, a comment describing it.
                  STANDS, and note the reader is src, not a port TU.
-  data_0208ee44  hal/message_pump.cpp:256 decrements it. STANDS.
+  data_0208ee44  hal/message_pump.cpp:256 READS it, as the amount another
+                 counter is decremented BY:
+                 `data_0209d67c -= (unsigned char)data_0208ee44`. STANDS, and
+                 the verb is corrected here: section 2d's own row says
+                 "decrements it every frame", which reads as if this word were
+                 the counter. It is the step, and at zeroed storage the
+                 message window's close timer never counts down at all.
   data_0209f2bc  hal/player_bridges.cpp:539 reads it. STANDS.
   data_0209d45c  MOVED. The map says "none ... hal/auto_bss.cpp:25 leaves it
-                 zero". port/unmatched/MgBase_DeclConflict.cpp now WRITES it
-                 (:121 = 0, :142 = self->unk_21c) and publishes engine A's
-                 layer mask from it at :148. There is a writer now.
+                 zero". port/unmatched/MgBase_DeclConflict.cpp now WRITES it at
+                 FOUR sites -- :121 = 0, :142 = self->unk_21c, :185 = 0 and
+                 :214 = 0x12 -- and publishes engine A's layer mask from it at
+                 :148. There is a writer now, and the enumeration is the whole
+                 set in that file rather than a sample: :121 and :142 alone
+                 were what the first draft named.
 
 And one row runs the other way, which section 2d has no column for: seating
 slot 0 would SEAT data_0209d4a8, which nothing writes today and which two host
@@ -1147,9 +1196,15 @@ files complain about by name (hal/sub_actors.cpp:215 and
 hal/w8a_stage_faces.cpp:55 both say nothing seats it). Not every 2d row is a
 cost.
 
-Three of the 49 have no mention under port/ at all: data_02092124,
-data_02092118 and data_02092778 -- and the last of those is a romdata row as of
-this lane, so it has storage now.
+TWO of the 49 have no mention under port/ at all: data_02092124 and
+data_02092118. The ROM writes both and the port neither writes nor reads
+either, so nothing observes their absence today.
+
+data_02092778 was the third of that group when the sweep was taken and is NOT
+one any more: this lane gave it a romdata row, so it has storage, and
+Stage::Behavior's read of it is the reason. It is listed apart rather than in
+the group because the group's whole meaning is "no host TU names this", and
+that stopped being true inside this lane.
 
 11g. THE RULING, AND WHAT THE NEXT LANE IS OWED
 
@@ -1180,11 +1235,58 @@ WHAT A REAL SEAT NEEDS, named precisely rather than as an area:
   hal/lk4_solidheap_seat.cpp  delete the dead __ZN4Heap10SetDefaultEv
                               alternatename and write the receiver-bridging
                               face. Its own lane and its own battery: three
-                              linked callers change behaviour.
+                              linked callers change behaviour. Sized and
+                              sequenced below, because it is the one item here
+                              that gates other lanes rather than only this one.
   hal/stage_bridges.cpp       drop port_stage_advance_anims' LOAD half in the
                               same commit the seat lands, or the texture
                               transformers double-load. Section 2b already
                               says so and it is still true.
+
+THE lk4 RECEIVER BUG IN FULL, AND ITS SEQUENCING RULE. Review widened the
+caller sweep and found the blast radius is larger than wall 3 reports. SIX TUs
+spell __ZN4Heap10SetDefaultEv as flat C with the receiver on the stack, against
+a __thiscall definition:
+
+  LINKED TODAY, so the bug is live now and not only under a seat
+    src/_ZN4Heap20RestoreFromTemporaryEv.c            1 site  (:11)
+    src/_ZN4Heap23SetupSolidHeapAsDefaultEjPS_i.c     1 site  (:18)
+    src/func_ov007_020cc2cc.c                         2 sites (:49, :53)
+  NOT COMPILED TODAY, so each is a lane-shaped tripwire rather than a bug
+    src/func_02034fbc.c                               4 sites (:22, :27,
+                                                              :31, :33)
+    src/func_ov075_02118bf8.c                         2 sites (:9, :18)
+  AND THE SEAT'S OWN CALLER
+    src/_ZN5Stage13InitResourcesEv.cpp                2 sites (:234, :236)
+
+THE SEQUENCING RULE, which is the part worth carrying: THE FIX PRECEDES ANY
+SLICE THAT LINKS THE LAST TWO. func_02034fbc and func_ov075_02118bf8 are
+unlinked, so today they cost nothing; the moment a slice enrols either, four
+and two more call sites start writing the default-heap pointer out of a
+register nobody set, and the failure will look like whatever that lane just
+touched rather than like this alias. A lane that enrols them without the fix in
+front inherits wall 3 with none of its evidence.
+
+THE FIX SHAPE, sized rather than gestured at:
+
+  1. DELETE line 45's /alternatename. Do not shadow it with a strong
+     definition: port/tools/alternatename_guard.py treats a defined LHS as a
+     NEW DEFEAT and fails the build, which is how this lane confirmed the alias
+     was live rather than dormant. That guard is right and the directive has to
+     go, not be out-voted.
+  2. A C-name receiver face in the same shape as this lane's Stage::LoadFog
+     face: a local `struct Heap { int SetDefault(); };` so the mangling matches
+     without pulling Heap.h, and
+     `extern "C" int _ZN4Heap10SetDefaultEv(void *thiz)
+      { return ((Heap *)thiz)->Heap::SetDefault(); }`.
+     A wrong signature is an LNK2019 on a name that does not exist, never a
+     call to a sibling, which is why the local declaration is the safe form.
+  3. One row in port/tools/alternatename_baseline.txt if the deletion leaves a
+     spelling the guard still expects.
+  4. ITS OWN BATTERY, AND IT MUST INCLUDE A LEVEL LOAD. Three linked callers
+     change behaviour, and the current green does not cover them: the selftest
+     path never reaches SetupSolidHeapAsDefault or RestoreFromTemporary, which
+     is exactly why a bug this old has stayed green.
 
 11h. OWNERSHIP AND DEVIATIONS
 

@@ -56,7 +56,11 @@
 # is defined by an object of the SAME FILE NAME, checked row by row in
 # walk_window.map. That is the trap port/stage_lifecycle_map.txt line 540
 # warns about read from the other side: a symbol-table probe calls these
-# fifteen duplicates, a link calls them one.
+# FOURTEEN duplicates, a link calls them none. (The map's own warning is about
+# the gate-36 slice, where a probe read fifteen and a link read one; the one
+# was src/LoadArchive.c, which this slice drops. Fourteen is the count of the
+# list immediately above and the number this slice's own probe printed --
+# writing fifteen here borrowed the map's figure for a different slice.)
 
 # ---- the function itself
 src/_ZN5Stage13InitResourcesEv.cpp
