@@ -2151,7 +2151,47 @@ extern "C" void port_lvlperf_emit(void)
 /* SM64DS_MM_STALE=1 probe; defined beside port_level_reset_host below. */
 static void port_minimap_stale_probe(const char *when);
 
+/* ---- THE BOOT IS DISPATCHED NOW, NOT CALLED (run link60, lane L4) ---------
+ *
+ * port_stage_a_boot used to BE the body below. It is now the seam that hands
+ * the body to _ZTV5Stage slot 0 and lets the ROM's own init Process dispatch
+ * it: hal/stage_bridges.cpp's port_stage_lifecycle_boot calls func_020433b8 on
+ * the first entry, which is the exact call func_02043098 makes for every other
+ * actor class, and dispatches slot 0 through the table on later ones.
+ *
+ * WHAT THAT CHANGES, and it is worth being exact because nothing here is a
+ * linkage move. The body is the same body; it is the same host subset of
+ * Stage::InitResources it was before, for the reason
+ * port/stage_lifecycle_map.txt section 4 gives. What is new is that slot 1
+ * (Scene::ResetFadersAndSound, through the Stage's own veneer target) and
+ * slot 2 (ActorDerived::AfterInitResources, through the face) now RUN, matched
+ * code doing the ROM's work at the ROM's point in the boot -- and that the
+ * Stage reaches the behaviour and render lists its SpawnInfo has always
+ * described, which is what retires the pause-bit stand-in in
+ * hal/stage_bridges.cpp.
+ *
+ * The two arguments ride in a stash rather than through the dispatch, because
+ * the ROM's init Process dispatches int(void) and has nowhere to put them. */
+static void *g_boot_mc;
+static int   g_boot_spawn;
+static void *g_boot_result;
+
+extern "C" void *port_stage_boot_arg_mc(void)  { return g_boot_mc; }
+extern "C" int   port_stage_boot_arg_spawn(void) { return g_boot_spawn; }
+extern "C" void  port_stage_boot_set_result(void *o) { g_boot_result = o; }
+extern "C" void  port_stage_lifecycle_boot(void);   /* hal/stage_bridges.cpp */
+extern "C" void *port_stage_boot_body(void *mc, int spawn);
+
 void *port_stage_a_boot(void *mc, int spawn)
+{
+    g_boot_mc = mc;
+    g_boot_spawn = spawn;
+    g_boot_result = 0;
+    port_stage_lifecycle_boot();
+    return g_boot_result;
+}
+
+extern "C" void *port_stage_boot_body(void *mc, int spawn)
 {
     const double lvlperf_t0 = port_lvlperf_now();
     g_stage_mc = mc;
@@ -2966,6 +3006,13 @@ static void port_a2_seat_body(int make_stage)
        gets its root. port_stage_create asserts that it did. */
     if (make_stage) {
         void *stage = port_stage_create();
+        /* Scene::ResetFadersAndSound OWNS THIS LINE NOW (_ZTV5Stage slot 1,
+           run link60 lane L4): its first statement is `data_0209f5c0 = self`
+           and it runs on every level entry through the init Process. This seat
+           stays because the port can spawn before the first level boot -- the
+           scene registry is installed here too -- and func_02042ffc refuses to
+           spawn anything under a null parent. It is a bootstrap for the window
+           between process start and the first boot, not a per-entry stand-in. */
         data_0209f5c0[0] = (int)(size_t)stage;
     }
 
