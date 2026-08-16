@@ -104,6 +104,10 @@
    whose `typedef s32 Fix12i` is the same `int` this file used to typedef
    locally, so the local typedef is gone rather than shadowed. */
 #include "FaderBrightness.h"
+/* For the C-name face at the bottom of this file. FaderWipe.h's FaderWipe is
+   the auto-generated NON-polymorphic view -- pad_000[4] where the vptr sits,
+   no virtuals -- so including it cannot collide with HalFaderWipe below. */
+#include "FaderWipe.h"
 
 /* Fader::AdvanceInterp calls the 20.12 approach helper by its ROM spelling,
    func_0203ae58. That name is DEFINED only in hal/shims.cpp, the gate-1 smoke's
@@ -148,9 +152,55 @@ void hal_wipe_note(const char *what, const void *self)
         std::fprintf(stderr, "  [wipe] (further wipe calls stay quiet)\n");
 }
 
-/* Layout mirrors the callers' FaderWipe: vptr, currInterp, speed, color,
-   unk0e, then the 0x50-byte Model -- 0x60 total, the stride &WIPES[i]
-   uses. Virtuals are declared in ROM slot order (see the table above). */
+}  /* anonymous namespace */
+
+/* ---- THE CLASS IS NAMED, AND ITS VTABLE CARRIES THE ROM'S SYMBOL ----------
+   run link60 lane SL0. HalFaderWipe used to sit in the anonymous namespace,
+   which made its vtable a local symbol nothing could refer to by name. It is
+   at file scope now for exactly one reason: MSVC emits its vtable as
+   ??_7HalFaderWipe@@6B@, and the ROM's _ZTV9FaderWipe is aliased onto it at
+   the bottom of this file.
+
+   THAT ALIAS IS ONLY LEGITIMATE BECAUSE THE TWO TABLES AGREE, and the
+   agreement was MEASURED rather than assumed. _ZTV9FaderWipe is arm9
+   0x0208ea9c; read out of extracted/arm9_dec.bin at (addr - 0x02004000) and
+   every word resolved against config/arm9/symbols.txt, the ROM's twelve words
+   are:
+
+     0x00 FaderWipe::~FaderWipe (D1)        0x18 FaderBrightness::IsAtEnd
+     0x04 FaderWipe D0                      0x1c FaderBrightness::
+     0x08 FaderWipe::AdvanceFade                 IsBetweenStartAndEnd
+     0x0c FaderBrightness::SetBackwardTime  0x20 FaderBrightness::SetToEnd
+     0x10 FaderBrightness::SetForwardTime   0x24 FaderBrightness::SetToStart
+     0x14 FaderBrightness::IsAtStart        0x28 0x00000000
+                                            0x2c data_0208ea24
+
+   which is the slot table at the head of this file, byte for byte, 0x00
+   through 0x24. The ROM order this file adopted from the raw-offset callers
+   is now confirmed against the ROM record itself, and the two dtor slots the
+   class spends to keep that order are what make the alias sound: MSVC folds
+   D1/D0 into one slot, so a class with a single virtual destructor would run
+   one slot ahead of the ROM from AdvanceFade onward.
+
+   TWO THINGS THE ROM RECORD CORRECTS, both recorded rather than acted on:
+
+   1. 0x28 AND 0x2c ARE NOT SPARE FUNCTION SLOTS. In the ROM 0x28 is zero and
+      0x2c points at data_0208ea24, and the same pair-shape ends all four
+      fader records. They are the table's trailer, not virtuals. HalTail28 and
+      HalTail2c put real function pointers there. That is still the safe
+      choice for a raw-offset read that runs past 0x24 -- it lands on a
+      callable stub instead of on 0x00000000 -- but it is a DIVERGENCE from
+      the ROM and not, as the old comment had it, a faithful tail.
+
+   2. include/Fader.h AND include/FaderBrightness.h ARE WRONG. Both declare
+      IsBetweenStartAndEnd, SetToEnd and SetToStart as NON-virtual members.
+      The ROM has all three in the vtable, at slots 7, 8 and 9 of all four
+      fader records. That error is the source of the one skew this file
+      documents at its 0x20 row. NOT FIXED HERE ON PURPOSE: include/ is byte
+      gate input, mwccarm already emits two destructor slots, and adding a
+      virtual to Fader shifts every slot and breaks the matched fader TUs.
+      It is a decomp-side correction and it needs the byte gate, not this
+      file. */
 struct HalFaderWipe {
     Fix12i currInterp;
     Fix12i speed;
@@ -239,6 +289,8 @@ struct HalFaderWipe {
     virtual void HalTail2c() { hal_wipe_note("tail slot 0x2c", this); }
 };
 
+namespace {
+
 /* Seven, the count Stage::InitResources passes. */
 HalFaderWipe hal_wipes[7];
 
@@ -297,6 +349,64 @@ void *data_0209f5bc = &hal_wipes[0];
 DSSTATE_END
 }
 #pragma comment(linker, "/alternatename:_WIPES=_data_0209f324")
+
+/* ---- _ZTV9FaderWipe: the ROM's vtable SYMBOL, onto the host's table -------
+   run link60 lane SL0. This is the one symbol the whole fader half of
+   Stage::InitResources' closure was blocked on, and it is the last one:
+   measured by compiling _ZN9FaderWipeC1Ev.c, _ZN9FaderWipeD1Ev.c,
+   _ZN5ColorD1Ev.c and _ZN9FaderWipe14LoadAndSetFileEt.cpp with walk_window's
+   own flags and checking every undefined external of the four against
+   walk_window.map, the set wants exactly ONE name that the image does not
+   already have, and it is this one.
+
+   port/stage_lifecycle_map.txt section 4 sizes the fader wall at six symbols.
+   THREE OF THOSE SIX HAVE SINCE CLOSED and the map is corrected here with the
+   measurement that corrects it:
+
+     _ZN5ColorD1Ev    ALREADY LINKED. The map lists it as "a matched TU that
+                      exists in src/ and is on no active slice". It is on
+                      port/slice_ov007.txt:678 and it is in the image at
+                      walk_window.map:9986 (_ZN5ColorD1Ev.c.obj). Adding it to
+                      a slice here would be an LNK2005, not a gain.
+     data_0208eafc    ALL THREE ALREADY HOSTED, by hal/scene_boot.cpp:683-697,
+     data_0208eacc    which stages them for func_02017278. The FaderWipe ctor
+     data_0208eb2c    writes all three into the vptr on its way to this table,
+                      so the ctor's closure is already paid.
+
+   WHAT THE ALIAS CLAIMS, precisely. ??_7HalFaderWipe@@6B@ is a REAL vtable
+   MSVC emits for a real class, and the class was laid out in the ROM's slot
+   order on purpose -- two destructor slots so that AdvanceFade lands at byte
+   0x08 rather than 0x04. That order is no longer inferred from the callers:
+   the ROM record at 0x0208ea9c was read out of extracted/arm9_dec.bin and
+   resolved word by word (the table is in the block above HalFaderWipe), and
+   it agrees with this class byte for byte from 0x00 through 0x24.
+
+   WHAT IT DOES NOT CLAIM. The two trailing words differ: the ROM has
+   0x00000000 at 0x28 and a pointer to data_0208ea24 at 0x2c, where this table
+   has two callable stubs. Nothing in the port or in src reads past 0x24, so
+   the difference is unobservable today; it is a divergence and it is written
+   down rather than papered over.
+
+   The alias, not a definition, so a target that one day compiles a real
+   FaderWipe vtable keeps its own strong symbol and nothing collides. */
+#pragma comment(linker, "/alternatename:__ZTV9FaderWipe=??_7HalFaderWipe@@6B@")
+
+/* ---- FaderWipe::LoadAndSetFile, the C-name face --------------------------
+   run link60 lane SL0, and the fifth of slot 0's five faces.
+   src/engine/fader/_ZN9FaderWipe14LoadAndSetFileEt.cpp compiles the real C++
+   method and publishes ?LoadAndSetFile@FaderWipe@@QAEXG@Z; Stage::InitResources
+   declares and calls the ROM's C name.
+
+   A FACE AND NOT AN /alternatename, and the difference is an ABI bug rather
+   than a style preference. The MSVC method is __thiscall -- receiver in ECX --
+   while the caller declares it
+       void _ZN9FaderWipe14LoadAndSetFileEt(int thiz, u16 fileID);
+   (src/_ZN5Stage13InitResourcesEv.cpp:127), a plain cdecl function with the
+   receiver as its first STACK argument. Aliasing one onto the other would run
+   the method with a garbage `this` out of ECX. hal/method_faces.cpp's
+   Model::UpdateFileOffsets row is the same call and the same resolution. */
+extern "C" void _ZN9FaderWipe14LoadAndSetFileEt(void *thiz, unsigned short fileID)
+{ ((FaderWipe *)thiz)->FaderWipe::LoadAndSetFile(fileID); }
 
 /* ---- the per-frame fade driver -------------------------------------------
    func_02018ec0 is the ROM's own per-frame fade advance: it reads
