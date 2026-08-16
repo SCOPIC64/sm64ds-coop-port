@@ -2845,13 +2845,75 @@ endforeach()
 # table, the two spine-caveat audits and what actually links.
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_ov007.txt" SLICE_OV007_LINES)
 set(SLICE_OV007_SOURCES "")
+# TWO FLAGS AND NOT ONE, because the review caught them being conflated. A
+# single "displaced" flag answers "did the cut run", and the marker block below
+# needs "is the matched body in this binary", which is NOT the same question:
+# both a cut line and a MISSING line leave the TU out of the build, and only
+# one of those is a healthy tree. Read separately, every message below can be
+# scoped to the state it actually names.
+set(RT1_BE980_IN_SLICE FALSE)      # the slice file lists the line
+set(RT1_BE980_DISPLACED FALSE)     # and this block cut it, so a host copy runs
+set(RT1_ADD3C_IN_SLICE FALSE)
 foreach(line IN LISTS SLICE_OV007_LINES)
     string(STRIP "${line}" line)
     if(line MATCHES "^#" OR line STREQUAL "")
         continue()
     endif()
+    # run link60 lane RT1: THE ONE DISPLACEMENT IN THIS SLICE.
+    #
+    # func_ov007_020be980 is MATCHED and stays matched. It is cut from the port
+    # only, because it is the frame where scene 1's ARM register ride-through
+    # destroys information: its caller sets r1 and r2, its callee reads them,
+    # and this body -- correctly, on ARM -- names neither. On MSVC that is two
+    # stack slots nobody wrote. The seat's shape was ruled by the PC2 review
+    # before it was taken; the derivation, the caller sweep that fixes the
+    # signature, and why the other two frames are the wrong ones to displace
+    # are all in port/unmatched/Ov007_RideThrough_020be980.cpp's header and
+    # port/ov007_seat.txt sections 5b and 5c.
+    #
+    # THE FLAGS ARE NOT BOOKKEEPING. The PC2 marker block below reads them, so
+    # the cut and the marker's retirement are the same fact and cannot drift:
+    # delete this if-block to put the TU back and the marker re-arms in that
+    # configure, unasked, because the same edit that restores the body clears
+    # the flag that retires the marker.
+    if(line MATCHES "^src/func_ov007_020be980\\.c$")
+        set(RT1_BE980_IN_SLICE TRUE)
+        set(RT1_BE980_DISPLACED TRUE)
+        continue()
+    endif()
+    # NOT a cut. The next blocker's frame is noted here because the marker
+    # block below has to know whether the one-argument-short caller is in this
+    # binary, and reading it off the same loop that would do the cutting is
+    # what keeps the two from drifting. A lane that seats this seam adds a
+    # `continue()` here and the marker retires in the same configure.
+    if(line MATCHES "^src/func_ov007_020add3c\\.c$")
+        set(RT1_ADD3C_IN_SLICE TRUE)
+    endif()
     list(APPEND SLICE_OV007_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
+if(RT1_BE980_DISPLACED)
+    list(APPEND SLICE_OV007_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov007_RideThrough_020be980.cpp")
+elseif(NOT RT1_BE980_IN_SLICE)
+    # The slice line is the only thing that puts the matched TU in the build,
+    # so if it is gone the host copy must not be added blind: two bodies for
+    # one address is an LNK2005, and none is a silent undefined symbol. Say
+    # which state the tree is in rather than guessing.
+    #
+    # THE LIKELY WAY TO LAND HERE is following the port's OTHER idiom for this.
+    # unmatched/Actor_ClosestPlayerWrappers.cpp answers the same defect class by
+    # COMMENTING the src line out of slice_gate16.txt and slice_gate89.txt and
+    # appending its host copy unconditionally; gate 10's and gate 14's
+    # displacements instead leave the line and filter it here. Both are in the
+    # tree and neither is wrong. This seam uses the filter because the marker
+    # predicate below has to read whether the TU is in the build, and a flag set
+    # by the cut itself is the only form of that which cannot drift. If you
+    # commented the line out, put it back and let this filter do the cutting.
+    message(STATUS "RT1: slice_ov007.txt no longer lists "
+                   "src/func_ov007_020be980.c, so the ride-through host copy is "
+                   "NOT added and the link will fail on it. Restore the line: "
+                   "this block does the cutting, not the slice file")
+endif()
 
 # run link60 lane SC1: THE SCENE 1 INTERIM, AND ITS OWN RETIREMENT SWITCH.
 #
@@ -2915,23 +2977,103 @@ endif()
 # a matched TU and the port owns none of them. So a DIFFERENT fault inside
 # InitResources would still carry the marker. It is tighter than nothing and
 # looser than the trap print it replaces, and the row says so too.
+#
+# run link60 lane RT1 AMENDS THE PREDICATE, and the amendment is the half the
+# block above promised and did not implement. PC2 wrote "change that line, OR
+# host-copy the seam", but only the first branch was detectable: the regex asks
+# the source file, and the source file is untouched by a displacement. Taken
+# literally after the seat, it would have kept asserting a blocker that no
+# longer ships.
+#
+# So the predicate now asks the question it always meant: IS THE ONE-PARAMETER
+# BODY IN THIS BINARY. That is two facts, and both are read rather than
+# remembered -- the declaration still in src/ (unchanged, because the byte gate
+# owns that file) AND the TU still in the port's ov007 slice
+# (RT1_BE980_DISPLACED, set by the cut itself a few hundred lines up). Either
+# one alone is a half-truth. Together they re-arm the marker by themselves if a
+# later lane puts the TU back without fixing the seam, which is the property
+# that makes this a guard and not a comment.
 set(PC2_RIDETHROUGH_DEFS "")
 file(STRINGS "${PORT_REPO_ROOT_ABS}/src/func_ov007_020be980.c"
      PC2_RIDETHROUGH_DECL
      REGEX "^[ \t]*extern[ \t]+int[ \t]+func_ov007_020bc3dc[ \t]*\\([ \t]*int[ \t]*\\)[ \t]*;")
-if(PC2_RIDETHROUGH_DECL)
+if(PC2_RIDETHROUGH_DECL AND RT1_BE980_IN_SLICE AND NOT RT1_BE980_DISPLACED)
     message(STATUS "PC2: func_ov007_020be980 still declares its callee with one "
-                   "parameter, so scene 1's ride-through blocker STANDS and the "
-                   "battery marker is armed")
+                   "parameter and its TU is still built, so scene 1's "
+                   "ride-through blocker STANDS and the battery marker is armed")
     list(APPEND PC2_RIDETHROUGH_DEFS "PORT_OV007_RIDETHROUGH_UNSEATED=1")
+elseif(RT1_BE980_DISPLACED)
+    message(STATUS "RT1: func_ov007_020be980 is DISPLACED to "
+                   "unmatched/Ov007_RideThrough_020be980.cpp, so the "
+                   "one-parameter body is not in this binary and scene 1's "
+                   "ride-through marker is RETIRED")
+elseif(NOT RT1_BE980_IN_SLICE)
+    # Retired for the wrong reason, and the block above has already said so.
+    # Kept as its own branch rather than folded into the declaration case
+    # because "the marker is off because the seam is fixed" and "the marker is
+    # off because the TU vanished and the link is about to fail" are opposite
+    # states, and one message covering both is how a broken tree reads healthy.
+    message(STATUS "RT1: func_ov007_020be980 is not in the slice at all, so the "
+                   "ride-through marker is RETIRED but NOT because the seam was "
+                   "seated -- see the RT1 slice warning above, the link fails "
+                   "before scene 1 can be judged")
 else()
     message(STATUS "PC2: func_ov007_020be980's one-parameter callee declaration "
                    "is GONE, scene 1's ride-through marker is RETIRED -- if the "
                    "scene now runs, delete its SCENE_BLOCKED row")
 endif()
+
+# run link60 lane RT1: SCENE 1'S NEXT BLOCKER, AND IT IS THE SAME DEFECT CLASS
+# ONE FRAME DEEPER. The seam above is seated and the scene now walks past it,
+# reaching twenty-four calls into func_ov007_020ae834 that no earlier run
+# reached, and dies on another ARM register that no host frame carries:
+#
+#   src/func_ov007_020add3c.c   extern int func_ov007_020ae558(void);
+#                               func_ov007_020ae558();          <- passes none
+#   src/func_ov007_020ae558.c   int func_ov007_020ae558(char *self)
+#
+# On ARM that is exact. The ROM's func_ov007_020add3c does `push {r4, lr} /
+# mov r4, r0 / bl func_ov007_020ae558` and never writes r0 in between, so its
+# OWN incoming argument is still sitting in r0 when the callee reads it. Both
+# TUs are matched and both are right. On MSVC the caller pushes nothing and the
+# callee reads [ebp+8], which is the caller's saved esi.
+#
+# THE DIFFERENCE FROM THE SEAM ABOVE, and it is the reason this gets its own
+# marker rather than a reworded one: that seam lost values a MIDDLE frame was
+# handed, and the frame to displace was the middle one. This one loses a value
+# the CALLER already owns and simply does not pass, so the frame where
+# information is destroyed is func_ov007_020add3c, not the callee. The seat is
+# derived in port/ov007_seat.txt section 5c and deliberately NOT taken here:
+# displacing a matched TU picks which of two matched bodies stops being the
+# decomp, and this file's own precedent is that a review rules that and a lane
+# executes it. This lane's brief was the seam above and this row.
+#
+# SAME PREDICATE SHAPE, for the same reason: the source fact that IS the
+# blocker, plus whether the TU carrying it is actually in this binary.
+set(RT1_AE558_DEFS "")
+file(STRINGS "${PORT_REPO_ROOT_ABS}/src/func_ov007_020add3c.c"
+     RT1_AE558_DECL
+     REGEX "^[ \t]*extern[ \t]+int[ \t]+func_ov007_020ae558[ \t]*\\([ \t]*void[ \t]*\\)[ \t]*;")
+if(RT1_AE558_DECL AND RT1_ADD3C_IN_SLICE)
+    message(STATUS "RT1: func_ov007_020add3c still calls func_ov007_020ae558 "
+                   "with no arguments and its TU is still in the slice, so "
+                   "scene 1's implicit-r0 blocker STANDS and the battery "
+                   "marker is armed")
+    list(APPEND RT1_AE558_DEFS "PORT_OV007_AE558_UNSEATED=1")
+else()
+    message(STATUS "RT1: func_ov007_020add3c's no-argument call to "
+                   "func_ov007_020ae558 is GONE from this binary, scene 1's "
+                   "implicit-r0 marker is RETIRED -- if the scene now runs, "
+                   "delete its SCENE_BLOCKED row")
+endif()
+
+# Appended, not string-joined: an empty PC2 list concatenated with a non-empty
+# RT1 one produces a leading semicolon, and CMake reads that as an empty define
+# to pass to the compiler. Both lists go empty the day both seams are seated.
+set(SCENE_BOOT_MARKER_DEFS ${PC2_RIDETHROUGH_DEFS} ${RT1_AE558_DEFS})
 set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/hal/scene_boot.cpp"
-    PROPERTIES COMPILE_DEFINITIONS "${PC2_RIDETHROUGH_DEFS}")
+    PROPERTIES COMPILE_DEFINITIONS "${SCENE_BOOT_MARKER_DEFS}")
 
 # run link60 lane MG2: THE FIRST MINIGAME, WIRED.
 #

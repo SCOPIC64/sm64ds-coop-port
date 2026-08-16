@@ -25,7 +25,10 @@
 # not a slice of the overlay, it IS the overlay. 532 delink source blocks cover
 # those 548 functions; 531 are listed below and the one exclusion is at the
 # bottom with its reason. (527 and 526 when this was written -- the next two
-# sections say where the other five came from.)
+# sections say where the other five came from.) One of the 531 is LISTED AND
+# NOT BUILT, which is a different thing from the exclusion and has its own note
+# beside it at the bottom: run link60 lane RT1 displaced
+# src/func_ov007_020be980.c to a host copy.
 #
 # /OPT:REF IS THE REFEREE. No /include:, and this lane's aliases are
 # name-spelling faces onto symbols that already exist. Whatever of the 531 does
@@ -659,6 +662,29 @@ src/func_ov007_020ccab4.c
 #   call to func_ov007_020c5dec resolves through the alias to the ov002 body
 #   -- wrong overlay, in the ov007 direction. One alias cannot express per-
 #   context routing. ROUTED.
+
+# ---- THE ONE DISPLACEMENT (run link60 lane RT1) ----------------------------
+# src/func_ov007_020be980.c IS STILL LISTED ABOVE and is NOT built by the port.
+#
+# It is listed because this file records what the closure walk reaches, and the
+# walk reaches it. It is not built because scene 1's title path faults on it:
+# its caller sets r1 and r2, its callee reads them, and this matched body --
+# correctly, on ARM -- names neither, which MSVC's stack ABI cannot carry. The
+# cut is in port/CMakeLists.txt next to the other ARM ride-throughs the port
+# answers the same way, and port/unmatched/Ov007_RideThrough_020be980.cpp links
+# in its place. The TU stays MATCHED and stays in the decomp; it is out of the
+# port and only the port, and the linked count went down by one on purpose.
+#
+# WHY NOT JUST COMMENT THE LINE OUT, the way the exclusion above is handled and
+# the way slice_gate16.txt and slice_gate89.txt handle the ClosestPlayer
+# wrappers. Both idioms are in the tree and neither is wrong: gate 10's and gate
+# 14's displacements leave the line and filter it in CMake, the ClosestPlayer
+# pair comments the line and appends the host copy unconditionally. This seam
+# uses the filter for one reason: scene 1's battery marker has to know whether
+# the matched TU is in the build, and the flag the cut sets is the only form of
+# that fact which cannot drift from the cut itself. Commenting the line here
+# would leave the address with no body at all, and the configure says so.
+# Derivation and the seat's ruling: port/ov007_seat.txt sections 5b and 5c.
 
 # ---- the arm9 closure the title screen opens up ----------------------------
 # Everything dScDSMT_c reaches that no level and no ov003 scene ever did, plus
