@@ -5,7 +5,7 @@ WHY THIS EXISTS. Every seat lane answers the same question over and over:
 "if I add these TUs, what will the linker still want, and what is already
 defined?" The lanes have been paying for that answer with REAL LINK WAVES --
 the MG1 pathfinder ran FOUR of them to close a 276-TU slice and a fifth to
-enumerate its wall, the S1 spine ran link rounds 4 through 8, and SL0
+enumerate its wall, the S1 spine ran link rounds 4 through 8 (reported by that lane, not independently measured), and SL0
 finally wrote the cheap version as a worktree-local script
 (C:/tmp/g2/build/closure.py). This is that script promoted: compile the
 candidate TUs with walk_window's own flags, read each object's symbol
