@@ -102,11 +102,208 @@ static int __fastcall st_trap(void *, void *)
     return 0;
 }
 
+extern "C" void hal_seat_stage_lifecycle(void);
+
 extern "C" void hal_fill_stage_vtable(void)
 {
     for (int i = 0; i < 20; ++i)
         _ZTV5Stage[i] = (void *)st_trap;
+    hal_seat_stage_lifecycle();
 }
+
+// ---- THE LIFECYCLE SEAT (run link60, lane L4) ------------------------------
+//
+// Thirteen of the eighteen slots get the ROM's own body. The derivation is the
+// table above, re-read out of extracted/arm9_dec.bin at (0x020921c0 -
+// 0x02004000) with every word cross-checked against config/arm9/relocs.txt --
+// all eighteen carry a kind:load module:main relocation, and 0x020921c0 + 18*4
+// is the START of data_02092208, so the table really is eighteen words and the
+// two spare host slots stay trapped.
+//
+// The full per-slot accounting, including the five that do NOT get a ROM body
+// and the measured reason for each, is port/stage_lifecycle_map.txt. The short
+// version, because a reader here should not have to go and get it:
+//
+//   0  InitResources     HOSTED. The matched TU calls LoadLevelOverlays and
+//                        LoadArchive -- an overlay loader and an archive
+//                        mounter the port has decided, in two other lanes'
+//                        files, not to have. Its occupant is the boot body
+//                        that was already running, now dispatched here.
+//   3  CleanupResources  HOSTED (trap). Six unresolved, two of them the same
+//                        overlay/archive pair.
+//   6  Behavior          HOSTED. Nineteen unresolved: the pause / VS-exit /
+//                        level-clear menu state machine and data_020a0dea.
+//   9  Render            HOSTED. Twelve unresolved, four of them the ov002
+//                        pause and VS sprite templates.
+//  16  ~Stage (D2)       TRAPPED. Nothing destroys the Stage, so seating them
+//  17  ~Stage (D0)       is a reference the game never executes.
+//
+// SLOT 12 IS THE ROM BODY, AND THE FIRST DRAFT OF THIS SEAT HAD IT WRONG.
+// It was trapped on the same "nothing destroys the Stage" argument as 16 and
+// 17, and this seat is what falsified that argument -- review caught it, not
+// this file. Slot 7 now runs Scene::BeforeBehavior on the Stage every frame,
+// and that function carries two ActorBase::MarkForDestruction(self) edges.
+// MarkForDestruction is not deferred bookkeeping: src/
+// _ZN9ActorBase18MarkForDestructionEv.cpp sets shouldBeKilled and then calls
+// OnPendingDestroy() straight through the vptr, so either edge landed on
+// st_trap and aborted.
+//
+//   Edge A, the data_0209f1e0 block, is dead: no linked TU writes that byte.
+//   Edge B is shut only by data_02092664 resting at its 0x187 sentinel, and
+//   hal/star_flow.cpp:127 opens it. HitDeathPlane calls
+//   Scene::StartSceneFade(8, 0, 0), which is Scene::SetSceneToSpawn(8, 0),
+//   which writes data_02092664 = 8. Nothing in a level run ever spawns scene
+//   8, so the byte STAYS at 8 and Scene::BeforeBehavior takes its middle
+//   branch on every later frame; from then on the installed fader reading
+//   at-end marks the Stage for destruction. The battery cannot see this --
+//   idle selftest frames never collect a star and never hit a death plane.
+//
+// AND SLOT 3 IS THE NEXT TRAP IN THE SAME CHAIN, which is new evidence rather
+// than a residual worry. shouldBeKilled is +0x0f, which func_02043880 reads as
+// its `dirty` flag, so the frame after MarkForDestruction phase 1 moves the
+// Stage onto data_020a4ba8 and the cleanup Process dispatches slots 4, 3 and 5
+// -- and slot 3 is trapped. Seating 12 does not make the chain survivable; it
+// moves the abort one frame later, from a slot with a compiled ROM body to a
+// slot that has none. That is the right place for it to stop: a port whose
+// Stage is being torn down has lost the scene root, the level collider and the
+// level model, and a named abort is the correct answer until the port has a
+// real Stage teardown. Recorded in port/stage_lifecycle_map.txt as the first
+// thing the slot-0 lane inherits.
+//
+// THREE SLOTS ARE VENEERS AND MUST NOT TAKE THEIR OWN src TU. Slots 2, 8 and
+// 11 are 0xc-byte `ldr ip,[pc]; bx ip` tail calls in the ROM, transcribed as
+// `void f(void)` calling `void g(void)`; under __cdecl a (void) caller pushes
+// nothing and the receiver and the vfSuccess code arrive as garbage.
+// hal/scene_actor_faces.cpp already carries the three faces that dispatch
+// straight to each veneer's TARGET with both arguments, and this file reuses
+// them rather than repeating the derivation.
+//
+// SLOT 1 IS A VENEER TOO, and that is this lane's find rather than an inherited
+// one. src/_ZN5Stage19BeforeInitResourcesEv.cpp is
+//     ldr ip, [pc]; bx ip; .word 0x0202e66c
+// to Scene::ResetFadersAndSound, written as `void(void)` calling `void(void)`.
+// Scene::ResetFadersAndSound takes the receiver and RETURNS int, and the init
+// Process reads that return value to decide whether InitResources runs at all
+// -- so the transcription would hand the Process whatever was in eax. The slot
+// dispatches to the veneer's target directly, with the receiver, and
+// port/slice_w8a.txt's line for that TU stays dropped.
+extern "C" {
+/* slot 1's real destination */
+int  _ZN5Scene19ResetFadersAndSoundEv(void *self);
+/* slots 4, 5, 7, 10 -- Scene halves with declared arguments, all four already
+   in the image before this seat existed */
+int  _ZN5Scene22BeforeCleanupResourcesEv(void *self);
+void _ZN5Scene21AfterCleanupResourcesEj(void *self, unsigned a);
+int  _ZN5Scene14BeforeBehaviorEv(void *self);
+int  _ZN5Scene12BeforeRenderEv(void *self);
+/* slots 2, 8, 11, 15 -- hal/scene_actor_faces.cpp */
+void port_scene_after_init(void *self, unsigned vfSuccess);
+void port_scene_after_behavior(void *self, unsigned vfSuccess);
+void port_scene_after_render(void *self, unsigned vfSuccess);
+int  port_scene_on_heap_created(void *self);
+/* slot 12. src/_ZN5Stage16OnPendingDestroyEv.cpp compiles a real C++ method
+   and publishes only ?OnPendingDestroy@Stage@@QAEXXZ, never the Itanium C
+   name, so the slot needs a face rather than a plain pointer. The face is at
+   the bottom of this file with the other Stage.h method faces; the body is an
+   empty override, which is what the ROM's is. */
+void port_stage_on_pending_destroy(void *self);
+/* the ROM's own "thread a freshly built actor onto the init list" entry, the
+   last thing func_02043098 does for every other class */
+void func_020433b8(void *self);
+}
+
+/* Slots 13 and 14. The same local NON-VIRTUAL declaration hal/scene_boot.cpp
+   makes, and for the same reason: src/_ZN9ActorBase9Virtual34Ejj.cpp and its
+   sibling declare the method non-virtual in their own struct, so the
+   definitions are ?Virtual34@ActorBase@@QAEHII@Z. include/Stage.h does not
+   pull in ActorBase.h, so there is nothing here for this to collide with. */
+struct ActorBase {
+    int Virtual34(unsigned a, unsigned b);
+    int Virtual38(unsigned a, unsigned b);
+};
+
+/* THE BOOT BODY, reached through slot 0. port_stage_a_boot (hal/level_boot.cpp)
+   stashes its two arguments and its result here so the slot can carry them:
+   the ROM's init Process dispatches int(void) and has nowhere to put them. */
+extern "C" {
+void *port_stage_boot_body(void *mc, int spawn);   /* hal/level_boot.cpp */
+void *port_stage_boot_arg_mc(void);
+int   port_stage_boot_arg_spawn(void);
+void  port_stage_boot_set_result(void *o);
+}
+
+static int __fastcall st_init(void *self, void *)
+{
+    (void)self;
+    port_stage_boot_set_result(
+        port_stage_boot_body(port_stage_boot_arg_mc(),
+                             port_stage_boot_arg_spawn()));
+    /* 1 is the ROM's own "initialisation finished" return. The init Process
+       turns it into vfSuccess 2, which is the only code
+       ActorBase::AfterInitResources promotes on; 0 becomes 1, which is
+       ActorDerived::AfterInitResources' MarkForDestruction. */
+    return 1;
+}
+
+/* Slots 6 and 9. NEW HOST OCCUPANTS, and this file is not going to pretend
+   otherwise: the seat needs something in them because an actor that survives
+   the init pass is on the behaviour and render lists on the next frame, and
+   both ROM bodies are measured blocked. Each is behaviour-neutral by
+   construction -- the port's Stage did no behaviour at all before this and
+   walk_window still draws the stage model, the skybox and the transparent
+   pass from its own render phase, so neither occupant removes or adds a
+   single drawn pixel. They exist to keep the dispatch from landing on the
+   trap, and they retire when their ROM bodies close. */
+static int __fastcall st_behavior(void *, void *) { return 1; }
+static int __fastcall st_render(void *, void *)   { return 1; }
+
+static int  __fastcall st_binit(void *s, void *)
+{ return _ZN5Scene19ResetFadersAndSoundEv(s); }
+static void __fastcall st_ainit(void *s, void *, unsigned a)
+{ port_scene_after_init(s, a); }
+static int  __fastcall st_bclean(void *s, void *)
+{ return _ZN5Scene22BeforeCleanupResourcesEv(s); }
+static void __fastcall st_aclean(void *s, void *, unsigned a)
+{ _ZN5Scene21AfterCleanupResourcesEj(s, a); }
+static int  __fastcall st_bbeh(void *s, void *)
+{ return _ZN5Scene14BeforeBehaviorEv(s); }
+static void __fastcall st_abeh(void *s, void *, unsigned a)
+{ port_scene_after_behavior(s, a); }
+static int  __fastcall st_bren(void *s, void *)
+{ return _ZN5Scene12BeforeRenderEv(s); }
+static void __fastcall st_aren(void *s, void *, unsigned a)
+{ port_scene_after_render(s, a); }
+static int  __fastcall st_v34(void *s, void *, unsigned a, unsigned b)
+{ return ((ActorBase *)s)->ActorBase::Virtual34(a, b); }
+static int  __fastcall st_v38(void *s, void *, unsigned a, unsigned b)
+{ return ((ActorBase *)s)->ActorBase::Virtual38(a, b); }
+static int  __fastcall st_heap(void *s, void *)
+{ return port_scene_on_heap_created(s); }
+static void __fastcall st_pdes(void *s, void *)
+{ port_stage_on_pending_destroy(s); }
+
+extern "C" void hal_seat_stage_lifecycle(void)
+{
+    _ZTV5Stage[0]  = (void *)st_init;
+    _ZTV5Stage[1]  = (void *)st_binit;
+    _ZTV5Stage[2]  = (void *)st_ainit;
+    /* 3 stays trapped */
+    _ZTV5Stage[4]  = (void *)st_bclean;
+    _ZTV5Stage[5]  = (void *)st_aclean;
+    _ZTV5Stage[6]  = (void *)st_behavior;
+    _ZTV5Stage[7]  = (void *)st_bbeh;
+    _ZTV5Stage[8]  = (void *)st_abeh;
+    _ZTV5Stage[9]  = (void *)st_render;
+    _ZTV5Stage[10] = (void *)st_bren;
+    _ZTV5Stage[11] = (void *)st_aren;
+    _ZTV5Stage[12] = (void *)st_pdes;
+    /* 16 and 17 stay trapped -- nothing destroys the Stage */
+    _ZTV5Stage[13] = (void *)st_v34;
+    _ZTV5Stage[14] = (void *)st_v38;
+    _ZTV5Stage[15] = (void *)st_heap;
+}
+
+typedef int(__fastcall *StageSlot0)(void *self, void *dummy);
 
 // ---- Particle::SysTracker::SysTracker -------------------------------------
 //
@@ -201,23 +398,33 @@ extern "C" void *port_stage_create(void)
        priority 3 and its vtable slot 7 is that function. The port does not run
        the Stage as an actor yet, so nothing calls it.
 
-       THIS LINE IS A STAND-IN FOR THAT ONE STATEMENT and nothing else. It is
-       here rather than in the ctor because the ctor is matched src. Retiring
-       it is a named job: link _ZN5Scene14BeforeBehaviorEv, give the Stage the
-       processing-list seat its SpawnInfo already describes, and let slot 7 do
-       it. That also needs func_020431c4 and a live data_0209f5bc, which is why
-       it is not this commit. (data_0209f5bc is NOT a "scene manager", as this
-       comment used to call it: Scene::SetFaders ends on `data_0209f5bc = thiz`
-       with thiz a FaderBrightness*, and dispatches ROM bytes 0x14 and 0x18 --
-       IsAtStart and IsAtEnd -- through it. It is the INSTALLED FADER, which is
-       how hal/fader_wipes.cpp describes and defines it. Scene::BeforeBehavior
-       dispatches three of its slots before it ever reaches the pause-bit
-       branch this line stands in for.) */
-    *(unsigned char *)((char *)g_stage + 0x13) &= (unsigned char)~(1 | 4);
+       THIS LINE WAS A STAND-IN FOR THAT ONE STATEMENT and nothing else, and
+       IT IS RETIRED (run link60, lane L4). The named job it asked for is done:
+       _ZN5Scene14BeforeBehaviorEv is linked, func_020431c4 is linked,
+       data_0209f5bc is a live FaderWipe from static init
+       (hal/fader_wipes.cpp:296), and the Stage now takes the processing-list
+       seat its SpawnInfo already described, so slot 7 clears the bits where
+       the ROM clears them.
 
-    std::printf("[stage] flags +0x13 = 0x%02x after the stand-in clear "
-                "(ctor leaves 0x05; Scene::BeforeBehavior owns this on the "
-                "ROM)\n", *(unsigned char *)((char *)g_stage + 0x13));
+       WHAT THAT COSTS, measured rather than glossed: the ROM clears the bits
+       only once func_020431c4 says every child of the Stage's SceneNode has
+       finished initialising, so on a level entry the bits survive one pass of
+       phase 1, which propagates them into every child's bit 1, and
+       ActorBase::BeforeBehavior skips a child whose bit 1 is set. Actors are
+       therefore one frame later to their first Behavior than they were under
+       the hand-clear. That is what the ROM does; the battery is what says
+       whether the port can tell.
+
+       (data_0209f5bc is NOT a "scene manager", as this comment used to call
+       it: Scene::SetFaders ends on `data_0209f5bc = thiz` with thiz a
+       FaderBrightness*, and dispatches ROM bytes 0x14 and 0x18 -- IsAtStart
+       and IsAtEnd -- through it. It is the INSTALLED FADER, which is how
+       hal/fader_wipes.cpp describes and defines it. Scene::BeforeBehavior
+       dispatches three of its slots before it ever reaches the pause-bit
+       branch.) */
+    std::printf("[stage] flags +0x13 = 0x%02x out of the ctor "
+                "(Scene::BeforeBehavior clears these now, slot 7)\n",
+                *(unsigned char *)((char *)g_stage + 0x13));
     /* ---- the AREA TABLE, which Stage::InitResources owns ------------------
        Stage+0x8bc is the level's area table (stride 0xc: the area's
        TextureTransformer at +0, the "is this area showing" flag at +4).
@@ -290,6 +497,13 @@ extern "C" void port_stage_tree_probe(void *child, const char *what)
 #include "Animation.h"
 extern "C" void port_stage_render_model(void *self)
 { ((Stage *)self)->Stage::RenderModel(); }
+/* _ZTV5Stage slot 12. The ROM's Stage overrides OnPendingDestroy with an empty
+   body (src/_ZN5Stage16OnPendingDestroyEv.cpp, 0x0202b8a0), so the face costs
+   a call and nothing else; what it buys is that the two
+   ActorBase::MarkForDestruction edges in Scene::BeforeBehavior land on the
+   ROM's body instead of on the slot trap. */
+extern "C" void port_stage_on_pending_destroy(void *self)
+{ ((Stage *)self)->Stage::OnPendingDestroy(); }
 extern "C" void port_stage_render_model_transparent(void *self)
 { ((Stage *)self)->Stage::RenderModelTransparent(); }
 
@@ -411,4 +625,50 @@ extern "C" void port_stage_render_skybox(void *self)
     m[10] = eye[1] >> 3;
     m[11] = eye[2] >> 3;
     sky->Model::Render(0);
+}
+
+/* ---- THE ROUTE IN, and the one place it does not take the ROM's own door ---
+ *
+ * hal/level_boot.cpp's port_stage_a_boot calls this instead of running its
+ * body directly, so the level boot is dispatched through _ZTV5Stage slot 0 by
+ * the ROM's own code rather than called by name.
+ *
+ * FIRST ENTRY: the Stage's aliveState (+0x0e) is 0, so func_020433b8 -- the
+ * exact call func_02043098 makes for every other class -- runs the init
+ * Process over slots 1/0/2 and then does its own list bookkeeping.
+ * ActorBase::AfterInitResources(2) puts node +0x28 on data_020a4b78 and node
+ * +0x38 on data_020a4b98, which is how the Stage reaches the behaviour and
+ * render passes it has never been on.
+ *
+ * EVERY LATER ENTRY DISPATCHES SLOT 0 ALONE, and the reason is a corruption
+ * that was traced rather than feared. On the ROM a level change tears the
+ * Stage down and builds a new one; the port keeps ONE Stage alive across every
+ * warp (hal/level_change.cpp). So on a second entry the Stage is already on
+ * the behaviour and render lists, and ActorBase::AfterInitResources(2) opens
+ * with
+ *     func_0203b27c(data_020a4b88, this + 0x28);
+ * -- unlink node +0x28 from the INIT list. func_0203b27c splices by the node's
+ * own prev/next and touches the list's head/tail only when the node is at an
+ * end, so handed the wrong list it unlinks the node from data_020a4b78 while
+ * leaving data_020a4b78's head or tail still pointing at it. The func_0204405c
+ * re-insert two lines later then walks from that stale head, finds the node's
+ * own priority, and can splice it after itself. One warp, one self-looped
+ * behaviour list, and every actor behind it stops.
+ *
+ * Running slot 0 through the vtable on those entries keeps the boot dispatched
+ * by the ROM's own table on every level and declines only the Process wrapper
+ * around it. Retiring this branch means giving the port a real Stage teardown,
+ * which is slot 3, which is measured blocked (port/stage_lifecycle_map.txt
+ * section 5). */
+extern "C" void port_stage_lifecycle_boot(void)
+{
+    if (!g_stage) {
+        std::fprintf(stderr, "FATAL: the level boot ran before the Stage\n");
+        std::abort();
+    }
+    if (*(unsigned char *)((char *)g_stage + 0x0e) == 0) {
+        func_020433b8(g_stage);
+        return;
+    }
+    ((StageSlot0)_ZTV5Stage[0])(g_stage, 0);
 }

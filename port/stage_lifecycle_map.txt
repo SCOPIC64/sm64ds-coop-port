@@ -1,0 +1,812 @@
+THE STAGE LIFECYCLE: what hal/level_boot.cpp does that the ROM's Stage does,
+which half is scaffolding and which half is genuinely the host's, and what
+each lifecycle phase is actually blocked on. Run link60, lane L4.
+
+Baseline this was measured against: 0d81b845c, walk_window 4950 / 11243 linked
+(44.0%), battery ALL GREEN, gate GREEN, skips [scene 4 SM64DS_SCENE_SLOT9=0].
+arm9 3098 matched TUs, 1664 linked, 1434 unlinked. No exe sha256 is quoted:
+the link embeds build-location state, so a hash from one worktree is not a
+number another worktree reproduces (the attestation is the gate manifest's
+git_sha plus git_dirty).
+
+Every "unresolved" list below was PRODUCED BY A LINK, not read off an earlier
+note. The method is the same each time: wire the TU into walk_window in a
+throwaway CMakeLists edit, build, read link.exe's own error text, revert, and
+the exact slice is written beside the count so the probe is re-runnable. Three
+of the counts in port/arm9_frontier.txt and port/slice_w8a.txt have moved since
+they were written and one of them was wrong in a way that matters; both are
+corrected below with the measurement attached.
+
+AND AN UNRESOLVED-EXTERNALS COUNT IS A FLOOR, NOT THE ANSWER, which cost this
+file four numbers on review. A matched TU that is compiled-but-dropped, or that
+resolves through an /alternatename face, never appears in link.exe's output and
+still has to link before the slot runs. Every count below now states which
+reading it is. All four corrections ran in the same direction: the first draft
+erred optimistic in slots 3, 6, 9 and 0.
+
+
+0. THE ONE-LINE ANSWER
+----------------------
+
+The Stage's whole lifecycle is behind ONE gate, and it is not the vtable.
+
+  * The vtable is not the problem. hal/stage_bridges.cpp already hosts
+    _ZTV5Stage and trap-fills it, and thirteen of its eighteen slots have a
+    body that closes against today's link with nothing added.
+  * The dispatch is not the problem either. The port already runs all five of
+    the ROM's processing passes over the ROM's own list structures
+    (hal/actor_registry.cpp, the four Process host copies in port/unmatched/).
+  * An actor reaches the behaviour and render lists ONLY by surviving the init
+    Process. func_02043880 (phase 1, matched, linked) moves a node onto
+    data_020a4b78 and data_020a4b98 when the actor's +0x10 is set, and +0x10 is
+    set by the init pass succeeding. So slots 6/7/8 and 9/10/11 are downstream
+    of slots 0/1/2.
+  * Slot 0 is Stage::InitResources, and it does not close: TWENTY-EIGHT
+    unresolved externals compiled on its own, TWENTY-ONE with the gate-36
+    closure and three host bodies in front of it (both bases and both slices
+    are in section 4), of which the six that matter are a second writer for a
+    global hal/fader_wipes.cpp owns.
+
+So "seat the Stage vtable" and "route the boot through the ROM's lifecycle"
+are not two jobs that can be done in either order. The init phase is the whole
+lane, and everything after it is downstream of one function.
+
+WHAT THE LANE THEN DID ABOUT IT. Commit two (885cd16c2) WROTE FOURTEEN SLOTS,
+of which ELEVEN carry a ROM body and three -- 0, 6 and 9 -- took host
+occupants. Review added slot 12, so the seat now writes fifteen and twelve of
+them are the ROM's. Read those two numbers as separate from the "thirteen of
+eighteen close" line above: that one counts which BODIES close, this one counts
+which SLOTS the fill writes, and they were conflated in commit two's own
+message.
+
+The seat also routed port_stage_a_boot through func_020433b8, so the boot is
+DISPATCHED by the ROM's init Process through slot 0 rather than called by name,
+the Stage arrives on the behaviour and render lists at its SpawnInfo's
+priorities 3 and 6, and the pause-bit stand-in in hal/stage_bridges.cpp retires
+in favour of Scene::BeforeBehavior. Slot 0's occupant is still the hosted boot
+body; slot 3 is TRAPPED, not hosted, which commit two's message also got wrong
+while the code comment beside it had it right.
+
+The linkage delta of commit two is ZERO, honestly, because every body the seat
+reaches was already in the image through some other caller. What the seat
+changes is that the four blocked bodies now have a live dispatch waiting
+instead of a table nothing reads -- which is the difference between seating
+them later being an honest edge and being a manufactured one. It also armed a
+live path to a slot it had left trapped, which is section 9.
+
+
+1. THE VTABLE, DERIVED FROM THE ROM RATHER THAN COPIED
+-------------------------------------------------------
+
+_ZTV5Stage is arm9 0x020921c0 (config/arm9/symbols.txt:4171). Read out of
+extracted/arm9_dec.bin at (addr - 0x02004000) and every word cross-checked
+against config/arm9/relocs.txt -- all eighteen carry a `kind:load
+module:main` relocation, so all eighteen are real slots and not incidental
+data:
+
+  slot  ROM word    symbol                              closes today?
+   0    0x0202cc0c  Stage::InitResources                NO  (28/21, section 4)
+   1    0x0202ddc8  Stage::BeforeInitResources          YES
+   2    0x0202e62c  Scene::AfterInitResources           VENEER, use the face
+   3    0x0202c9a8  Stage::CleanupResources             NO  (7, section 5)
+   4    0x0202e5f0  Scene::BeforeCleanupResources       YES, already linked
+   5    0x0202e5d0  Scene::AfterCleanupResources        YES, already linked
+   6    0x0202bbbc  Stage::Behavior                     NO  (22, section 6)
+   7    0x0202e3d4  Scene::BeforeBehavior               YES, already linked
+   8    0x0202e3c8  Scene::AfterBehavior                VENEER, use the face
+   9    0x0202b8a4  Stage::Render                       NO  (12, section 6)
+  10    0x0202e3a4  Scene::BeforeRender                 YES, already linked
+  11    0x0202e398  Scene::AfterRender                  VENEER, use the face
+  12    0x0202b8a0  Stage::OnPendingDestroy             YES, SEATED, section 9
+  13    0x0204357c  ActorBase::Virtual34                YES
+  14    0x0204349c  ActorBase::Virtual38                YES
+  15    0x02043494  ActorBase::OnHeapCreated            YES, face exists
+  16    0x02023688  Stage::~Stage (D2)                  YES
+  17    0x020236f0  Stage::~Stage (D0)                  YES
+
+THE TABLE IS EIGHTEEN WORDS AND THE HOST ARRAY IS TWENTY. 0x020921c0 + 18*4 is
+0x02092208, which is a dsd symbol START (data_02092208, the per-level
+LVL_Overlay pointer table, 0xd0 bytes and 52 relocations, every one of them
+into a level overlay). hal/stage_bridges.cpp already says this and it is right;
+the two spare host words are over-allocation, and the trap names them
+"(past the table)". Nothing to fix, recorded because it was checked.
+
+THE THREE VENEERS ARE THE SAME ABI PROBLEM port/scene_boot_map.txt section 3
+records for the scene classes, and the remedy is already written and already
+in the build: hal/scene_actor_faces.cpp exports port_scene_after_init,
+port_scene_after_behavior, port_scene_after_render and
+port_scene_on_heap_created, which dispatch STRAIGHT TO EACH VENEER'S TARGET
+with both arguments. Slots 2, 8 and 11 of the Stage table take those three
+faces. The corresponding src veneer TUs must NOT be seated: measured, the only
+thing src/_ZN5Scene18AfterInitResourcesEj.cpp still wants is the C name
+__ZN12ActorDerived18AfterInitResourcesEj, so it is one line from "linking" --
+and linking it would install a `void f(void)` that reads the receiver and the
+vfSuccess code off a stack nobody pushed. It stays out on purpose.
+
+SLOT 12 NEEDS A FACE FOR A DIFFERENT REASON, and hal/w8a_stage_faces.cpp found
+it first: src/_ZN5Stage16OnPendingDestroyEv.cpp compiles a real C++ method and
+publishes only ?OnPendingDestroy@Stage@@QAEXXZ, never the Itanium C name. A
+plain function-pointer fill cannot spell it; a __fastcall thunk can, which is
+what every other slot in the file already is.
+
+
+2. THE SEAM, FUNCTION BY FUNCTION
+----------------------------------
+
+port_stage_a_boot (hal/level_boot.cpp:2154-2332) against
+Stage::InitResources (src/_ZN5Stage13InitResourcesEv.cpp, 0x0202cc0c, marked
+NONMATCHING TERMINAL-FLOOR: four words diverge, a register-rename-only delta).
+
+Reading the two side by side, the boot is a SUBSET with three substitutions.
+It is not a reimplementation: every line of it either calls the same matched
+body the ROM calls, or stands in for one, or supplies an input the ROM gets
+from a mode the port never entered.
+
+2a. WHAT THE BOOT DOES THAT THE ROM'S InitResources ALSO DOES
+     (the port_stage_a_boot class of scaffolding -- duplicates a matched body)
+
+  boot line                          ROM line in InitResources
+  ---------------------------------  ----------------------------------------
+  data_0209f2f8 = port_level_id()    data_0209f2f8 = data_02092110
+      SUBSTITUTION, not duplication. The ROM latches the level through
+      data_02092110 (the pending sublevel); the port takes it from
+      SM64DS_LEVEL / the warp target. Genuinely host: the port has no title
+      screen to latch it, and port_level_boot_target() is the seam.
+  data_0209f264 = SM64DS_ENTRANCE    data_0209f264 = data_0209f268
+      SAME SHAPE. data_0209f268 is the entrance the previous scene chose.
+  data_0209f220 = SM64DS_STAR_FILTER data_0209f220 = data_0209f1f0
+      SAME SHAPE. data_0209f1f0 is the game-mode byte.
+  data_0209f344 = &VS_STAR_SPAWN_    data_0209f344 = &data_02075720[
+    ORDERS[data_020a1040 % 6][0]       func_0203dad4() % 6]
+      TRUE DUPLICATE of the ROM's tail block, and the comment at
+      hal/level_boot.cpp:2217 says so in as many words ("the port hand-rolls
+      the boot and skips InitResources"). func_0203dad4 is `return
+      data_020a1040` (src/func_0203dad4.c) and data_02075720 is
+      VS_STAR_SPAWN_ORDERS under another name. RETIRABLE the moment slot 0
+      seats; it needs data_02075720 hosted (pure data, zero relocations in its
+      span) and src/func_0203dad4.c compiled.
+  data_0209f340 = (u8 *)o            data_0209f340 = data_02092208[level]
+      SUBSTITUTION. data_02092208 is 52 relocated words pointing at DS level
+      overlays; the port's overlays are static host arrays, so the host table
+      would have to be a ptr_tables.cpp-shaped host pointer table filled at
+      mount time. See section 4's DATA group.
+  port_boot_course_sound(level)      the GetSoundGroupID /
+                                     Sound::LoadGroupAndSetBank block
+      TRUE DUPLICATE, hosted in hal/star_flow.cpp because of a single
+      func_0203d974 == 1 seam. Retirable with slot 0 plus data_02075769
+      (see the SIZE trap in section 4).
+  LoadClsnAndObjects(o, 0, mc)       LoadClsnAndObjects(data_0209f340,
+                                       data_0209f264, thiz + 0x91c)
+      SAME MATCHED BODY, three different arguments. The port passes the host
+      mount, a hardcoded flags word of 0, and the harness's collider; the ROM
+      passes the level table entry, the entrance/mode word, and the Stage's
+      own MeshCollider at +0x91c. The third of those is ALREADY the Stage's:
+      port_stage_create seats the real object and walk_window hands its +0x91c
+      through. The middle one is a live difference -- the ROM's flags word
+      gates the sub-table load.
+  port_particle_boot()               Particle::SysTracker::Initialise(
+                                       thiz + 0x50)
+      TRUE DUPLICATE, hal/particle_bridges.cpp, and the boot comment already
+      names the ROM line it stands in for (level_boot.cpp:2319).
+  port_ov009_sinits()                (nothing -- the DS runs the overlay's
+                                     static initialisers at overlay load)
+      GENUINELY HOST. There is no overlay loader; the mounts are static.
+  data_0209caa0[8] |= 0x80           (nothing)
+      GENUINELY HOST, and the comment at level_boot.cpp:2269 is a careful
+      three-way reading of one bit. Not InitResources' work at all.
+
+2b. WHAT THE ROM'S InitResources DOES THAT THE PORT DOES ELSEWHERE
+
+  Enable3dEngines, Scene::Initialise3dGraphics, Initialise3dGraphics,
+  InitialiseVramGlobals, GX::DisableAllBanks, GX::SetGraphicsMode,
+  GXS::SetGraphicsMode, GX::DispOn, LoadTextNarcs, Heap::SetDefault,
+  Stage::LoadModel, Stage::LoadSkybox, Sound::SetMusic
+      ALL COMPILED AND LINKED TODAY, reached from the harness's own boot and
+      from hal/scene_boot.cpp's spine rather than from InitResources. Seating
+      slot 0 does not add them; it moves who calls them.
+  Stage::LoadGraphics2D, Stage::LoadTextureTransformers,
+  ShadowModel::CleanAll
+      COMPILED AND LINKED, but under the MSVC method mangling only. Each needs
+      a C-name face before InitResources' call site resolves. Three of the six
+      faces in section 4's FACES group.
+  Stage::LoadTextureTransformers is also the one place where seating slot 0
+      WITHOUT a paired edit is a live leak. hal/stage_bridges.cpp's
+      port_stage_advance_anims is the port's only caller of it today, behind a
+      level-id guard; the header of that function spells out the double-load
+      (0x14 bytes per animating area per entry, unreachable, with no
+      CleanupResources to take them back) and names the paired change. This
+      map agrees: slot 0 and that bridge's load half retire together or not at
+      all.
+
+2c. WHAT THE ROM'S InitResources DOES THAT THE PORT DOES NOT DO AT ALL
+
+  ResetInput, ResetKuppaScript, LoadDebugFont, func_02039218, func_020308a8,
+  Stage::SetVramBanks, Stage::LoadFog, LoadLevelOverlays, UnloadArchive /
+  LoadArchive / the archive index selection, the 12 Model::LoadFile over
+  data_020756f0, the seven FaderWipe constructions, the three sublevel clear
+  loops (data_0209f4f8, data_0209f30c, data_0209f310, data_0209f358), and the
+  raw register writes to DISPCNT / 0x04000304 / 0x0400000A / 0x04000008.
+
+  The register writes are the reason this section is not simply "work to do":
+  five of them are read-modify-write against DS I/O the ntr layer models and
+  three are against bits it does not. Whether the port's 2D state after a real
+  InitResources is the same state it has today is UNMEASURED and is not a
+  question this map answers.
+
+2d. THE PORT'S BOOT IS MISSING TWENTY OF InitResources' GLOBAL WRITES,
+     AND FIVE OF THEM ARE READ BY LIVE CODE
+
+     TWENTY-THREE ROM LINES ARE LISTED. Three of them the port DOES write, at
+     the wrong value or the wrong cadence (data_0209f32c, data_0209f21c,
+     data_0209f250); the other twenty it does not write at all. An earlier
+     version of this heading said "seventeen missing, six read by live code",
+     which counted the three wrong-value rows as absent and miscounted the
+     readers. The five live readers are data_0209f2fc, data_02092134,
+     data_0208ee44, data_0209d45c and data_0209f2bc.
+
+This is the half of the seam that reading port_stage_a_boot alone does not
+show, because the writes are absent rather than substituted. Every row was
+found by searching port/hal, port/tests and port/unmatched for a writer of the
+name; "none" means no writer exists anywhere in the port.
+
+  ROM line                          port
+  --------------------------------  --------------------------------------
+  data_0209f32c = 0x80000000        writes 0 (level_boot.cpp:2998,
+                                    walk_window.cpp:2815), and ONCE PER
+                                    PROCESS rather than per entry. Wrong
+                                    value and wrong cadence.
+  data_0209f2fc = data_0209f26c     none. HUD::InitResources reads it
+                                    (port/unmatched/HUD_InitResources.cpp:288,
+                                    :293) to pick its layout, so the HUD
+                                    chooses off a byte nobody sets.
+  data_02092134 = 0x44444444        none. hal/star_flow.cpp:618
+                                    (GetStarCameraSetting) reads nibbles out
+                                    of it, and its storage is romdata.c.obj,
+                                    so every star's camera setting comes from
+                                    the ROM image instead of the boot default.
+  data_0208ee44 = 2                 none. hal/message_pump.cpp:256 decrements
+                                    it every frame; storage is romdata.c.obj.
+  data_0209d45c = 0x11              none. hal/message_pump.cpp:200 publishes
+                                    engine A's layer mask from it and
+                                    hal/auto_bss.cpp:25 leaves it zero.
+  data_0209cef0 = 1                 none.
+  data_0209f21c = data_0208a0e0     hardcoded 1 (level_boot.cpp:2974), once
+                                    per process.
+  data_0209f250 = func_0203da9c()   hardcoded 0 (level_boot.cpp:2975), once
+                                    per process; func_0203da9c is linked and
+                                    never called.
+  data_0209f34c, data_0209f4f8,     none. The per-player star/coin clear
+  data_0209f358, data_0209f30c,     loops are not run at all.
+  data_0209f310
+  data_0209f2bc                     none, AND IT HAS A LIVE READER:
+                                    hal/player_bridges.cpp:539 reads
+                                    *(u8 *)data_0209f2bc into the player's
+                                    per-frame state dump. InitResources sets
+                                    it to 3 in VS mode and 0 otherwise.
+  data_0209f304, data_0209f308,     none.
+  data_0209f284, data_0209f290,
+  data_0209f300, data_0209f2d4,
+  data_0209cee8, data_02092778,
+  data_0209f208
+
+  NONE OF THESE IS A LINKAGE ITEM and this lane did not write any of them.
+  They are here because they are what "the boot is a subset" actually costs,
+  and because a reader who seats slot 0 later needs to know that five live
+  readers change their input the moment it lands. Adding the writes by hand
+  would be MORE scaffolding, not less, which is why this map names them and
+  stops.
+
+  THREE MORE CADENCE MISMATCHES, same shape: port_stage_preload_shared_models
+  (level_boot.cpp:2915) is the ROM's twelve Model::LoadFile over data_020756f0,
+  written out BY NAME and guarded `static int done` so it runs once per
+  process where the ROM runs it per entry. hal/fader_wipes.cpp:288 seats
+  data_0209f324 to a synthetic HalFaderWipe array with NO BMD load, so the
+  seven FaderWipe::LoadAndSetFile calls have no host counterpart and the wipes
+  have no model. Stage::LoadFog is not built, not linked and has no port
+  caller at all, so level fog never loads.
+
+2e. GENUINELY HOST, and staying that way
+
+  the window, the input pump, the frame pacing (tests/walk_window.cpp)
+  port_level_mount / the overlay mounts        no overlay loader exists
+  port_level_boot_target / SM64DS_LEVEL        no title screen latches it
+  port_message_archive_seat                    idempotent bank load, hosted
+  LoadArchive                                  PORT_HOST_ABI, hal/scene_boot.cpp
+      -- and this one is a HARD CONSTRAINT on section 4, not a preference: the
+      host definition of _LoadArchive collides with src/LoadArchive.c at link
+      time (measured: LNK2005, LoadArchive.c.obj vs scene_boot.cpp.obj). Any
+      slice this lane writes must exclude src/LoadArchive.c. scene_boot.cpp is
+      L2's file this stage, so the decision is not this lane's to revisit.
+  the lvl-perf QPC spans, the minimap stale probe, the quarantine reset
+  port_cannons_open_probe                      a named temporary probe
+
+
+3. A CORRECTION THIS MAP OWES TWO OTHER FILES
+----------------------------------------------
+
+port/arm9_frontier.txt lines 157-158 say the four Stage vtable slots "are
+already COMPILED (they sit in DROPPED, offered and dropped for want of a
+reference)", and line 337 repeats it as "Four slots already compiled". FOR
+Stage::InitResources THAT IS NOT TRUE, and the difference matters because the
+frontier reads it as the cheap half of the move.
+
+src/_ZN5Stage13InitResourcesEv.cpp is named by port/slice_gate36.txt, which is
+what puts it in the survey's DROPPED bucket -- the bucket test is "named in a
+slice_*.txt". But SLICE36_SOURCES is parsed into a variable and added to NO
+target (port/CMakeLists.txt:3160, and the block above it says so at length).
+Checked directly: `_ZN5Stage13InitResourcesEv.cpp.obj` does not appear in
+build/port/build.ninja. It is not compiled, it is not offered to the linker,
+and it is not dropped by /OPT:REF.
+
+NINETEEN OF THE THIRTY-THREE gate-36 lines are in that state, not sixteen. An
+earlier version of this paragraph listed fifteen besides InitResources and
+missed src/LoadArchive.c and src/func_ov001_020ab2e4.c; the full set is now
+computed rather than typed, by intersecting the slice with the object names in
+build.ninja:
+
+    _ZN5Stage13InitResourcesEv.cpp   ResetInput.c
+    UnloadArchive.c                  LoadArchive.c
+    func_02039218.c                  ResetKuppaScript.c
+    LoadDebugFont.c                  IsLevelInsideCastle.c
+    IsLevelTinyHugeIslandOutside.c   func_020308a8.c
+    func_0203da3c.c                  func_0203dad4.c
+    func_ov001_020ab2e4.c            _ZN5Stage12SetVramBanksEv.c
+    _Z17LoadLevelOverlaysi.cpp       _ZN5Stage7LoadFogEv.cpp
+    engine/fader/_ZN9FaderWipeC1Ev.c
+    engine/fader/_ZN9FaderWipeD1Ev.c
+    engine/fader/_ZN9FaderWipe14LoadAndSetFileEt.cpp
+
+The remaining fourteen gate-36 lines ARE compiled, from other slices, which is
+why the bucket is wrong by nineteen and not by thirty-three.
+
+BeforeInitResources, D0 and D2 -- the other three the frontier names -- ARE
+compiled, from slice_w8a.txt, and for those the frontier is exactly right.
+
+This is a survey measurement bug (DROPPED is derived from slice TEXT, not from
+the build) and not a claim about the port. port/tools/objsrc_check.py reads
+build.ninja and is the tool that would settle it; nobody has pointed it at the
+DROPPED bucket. Left as a finding rather than fixed, because the fix moves
+every lane's bucket counts mid-stage.
+
+port/slice_w8a.txt's blocked list is also stale in the direction of pessimism.
+It rules Stage::CleanupResources blocked on "the storage the fader closure
+needs -- _ZTV9FaderWipe, the table hal/fader_wipes.cpp stages by hand, and
+_ZN5ColorD1Ev". Measured today, CleanupResources wants SIX symbols and neither
+_ZTV9FaderWipe nor _ZN5ColorD1Ev is among them (section 5). The fader
+dependency is real but it arrives through _ZN9FaderWipeD1Ev, one level down.
+
+
+4. SLOT 0 -- Stage::InitResources, THE THIRTY
+----------------------------------------------
+
+THERE ARE TWO BASES AND A COUNT WITHOUT ITS SLICE IS NOT RE-RUNNABLE, so both
+are stated with the exact slice that produced them. All three probes are the
+same recipe: add the sources to walk_window's add_executable list in a
+throwaway CMakeLists edit, build with port/build-port.cmd, read link.exe's own
+error text, revert. Measured 2026-08-16 against 0d81b845c.
+
+  BASE A, THE DIRECT SINGLE-TU COUNT: 28.
+  Slice: src/_ZN5Stage13InitResourcesEv.cpp, and nothing else.
+  This is what Stage::InitResources wants from the port AS IT STANDS. It is
+  the number to quote when sizing "how far is this function from the tree",
+  because it makes no assumption about what else a lane chooses to enrol.
+
+  BASE B, WITH THE GATE-36 CLOSURE AND THE THREE HOST BODIES: 21.
+  Slice: every uncommented line of port/slice_gate36.txt EXCEPT
+  src/LoadArchive.c, src/UnloadArchive.c and src/_Z17LoadLevelOverlaysi.cpp,
+  plus one throwaway TU defining empty bodies for UnloadArchive(int),
+  _Z17LoadLevelOverlaysi(int) and _Z19UnloadLevelOverlaysi(int).
+  (The probe that produced 21 also carried src/_ZN5Stage16CleanupResourcesEv.cpp
+  and read 23; two of those 23 are CleanupResources-only, which is where 21
+  comes from. Slot 3's own accounting is section 5.)
+  This is the number to quote when sizing the WORK, because it already spends
+  the seven gate-36 callees that close on their own.
+
+  A THIRD READING EXISTS AND IS THE ONE TO DISTRUST: the first probe run here
+  used the gate-36 slice UNMODIFIED and read 30 plus an LNK2005. Three of that
+  30 were slice composition rather than blockers. It is recorded because the
+  correction is the useful part, not because 30 means anything.
+
+The wave-4 measurement recorded in CMakeLists.txt was 43 against the same
+unmodified slice; thirteen closed on their own between then and now, which is
+what a growing port does to a closure and is the reason all of this was re-run
+rather than quoted.
+
+The enumeration below is BASE B's 21.
+
+FACES (6) -- the TU is compiled, publishes the MSVC method mangling, and the
+caller spells the Itanium C name. Mechanical, and hal/method_faces.cpp is the
+pattern. Three of the six are already LINKED bodies:
+
+    __ZN5Stage14LoadGraphics2DEbi          linked (MSVC name)
+    __ZN5Stage23LoadTextureTransformersEv  linked (MSVC name)
+    __ZN11ShadowModel8CleanAllEv           linked (MSVC name)
+    __ZN5Stage7LoadFogEv                   compiled in the probe only
+    __ZN9FaderWipe14LoadAndSetFileEt       compiled in the probe only
+    __Z17LoadLevelOverlaysi                compiled in the probe only, and see
+                                           the DECLINE below
+
+DATA (14) -- arm9 storage the port hosts nowhere. Each classified by reading
+its span out of config/arm9/symbols.txt and counting relocations inside it in
+config/arm9/relocs.txt, which is the only test that separates "ROM bytes" from
+"pointer table that must be hosted with host pointers":
+
+    data_02075769   span 0x1   0 relocs   THE SIZE IS A TRAP. The next symbol
+        is data_0207576a, one byte later, so the delta-to-next-symbol rule
+        romdata.py uses hands it ONE BYTE. The ROM code indexes it as
+        data_02075769[level * 3] up to level 0x33, so the real span is 0x9a
+        and the emitter needs the pinned form (`name:0xSIZE`, the shape
+        data_02075f14:0xc214 already uses). This is the undersized-host-global
+        class exactly.
+    data_0207576a   span 0x9a  0 relocs   ROM bytes
+    data_020755e0   span 0x10  0 relocs   ROM bytes (fader file ids)
+    data_020755f0   span 0x10  0 relocs   ROM bytes
+    data_02075600   span 0x10  0 relocs   ROM bytes
+    data_02092778   span 0x4   0 relocs   ROM bytes
+    data_02092130   span 0x4   0 relocs   ROM bytes
+    data_020758c8   span 0xd0  0 relocs   ROM bytes
+    data_020a0f04   span 0x4   BSS        host storage
+    data_0209f278   span 0x4   BSS        host storage
+    data_02075720   VS_STAR_SPAWN_ORDERS under its arm9 name; the port already
+        hosts the bytes in hal/bob_enemy_bridges.cpp. An alias, not a mount.
+    data_020756f0   span 0x30  12 RELOCS  NOT ROM BYTES. Twelve pointers to
+        SharedFilePtr objects; emitted as ROM bytes they are twelve DS
+        addresses and the Model::LoadFile loop jumps into unmapped memory --
+        the exact shape the romdata.py header records for data_02099fb4 and
+        data_020876e4. Needs the ptr_tables.cpp treatment.
+    data_0208ecf4   span 0x104 26 RELOCS  the archive mount table, DS string
+        pointers. Reached only from UnloadArchive/LoadArchive. See DECLINE.
+    data_ov001_020ad620 / data_ov001_020ad624   two ov001 mount rows, reached
+        from func_ov001_020ab2e4. port/ov001_syms.txt is the file, and it is
+        not this lane's.
+
+CALLEES (9) -- matched TUs that exist in src/ and are on no active slice:
+
+    GetControllerMode        under ResetInput
+    func_02018908            under UnloadArchive
+    func_02018934            under LoadArchive
+    func_02023408            under LoadDebugFont
+    func_0203d81c            under func_020308a8
+    LoadOverlay              under LoadLevelOverlays
+    LoadOrUnloadObjectOverlays  under LoadLevelOverlays
+    _ZTV9FaderWipe           the fader vtable hal/fader_wipes.cpp stages
+    _ZN5ColorD1Ev            under FaderWipe::~FaderWipe
+
+THE OVERLAY AND ARCHIVE ROWS ARE NOT THE WALL, AND AN EARLIER VERSION OF THIS
+SECTION SAID THEY WERE. That draft ruled slot 0 blocked on "an overlay loader
+and an archive mounter the port has decided twice not to have", which sounded
+decisive and was not measured. It is corrected here with the measurement that
+corrects it, because the wrong reason would have sent the next lane at the
+wrong file.
+
+  * _LoadArchive ALREADY RESOLVES. hal/scene_boot.cpp defines it as a tagged
+    PORT_HOST_ABI host body, so Stage::InitResources' three calls to it link
+    with nothing added. The LNK2005 in the first probe came from the slice
+    ALSO compiling src/LoadArchive.c, which is a slice-composition fact and
+    not a blocker: any slice this lane writes simply omits that line.
+  * UnloadArchive and LoadLevelOverlays / UnloadLevelOverlays have no host
+    body, and each is a ONE-LINE PORT_HOST_ABI companion to a decision the
+    port has already made and written down -- "on the host an archive is never
+    mounted and never not mounted" (hal/scene_boot.cpp) and "THE OVERLAY LOAD
+    IS NOT SKIPPED, IT DOES NOT EXIST ON THE HOST"
+    (port/scene_boot_map.txt section 2). Three empty bodies, not a subsystem.
+
+MEASURED AGAIN WITH THOSE THREE IN PLACE (same method, second probe): the
+slice with src/LoadArchive.c, src/UnloadArchive.c and
+src/_Z17LoadLevelOverlaysi.cpp dropped, three host bodies added, and
+Stage::CleanupResources along for the ride, links with TWENTY-THREE unresolved.
+Two of those are CleanupResources-only, so SLOT 0's OWN NUMBER IS TWENTY-ONE:
+
+    5 faces    LoadGraphics2D, LoadTextureTransformers, ShadowModel::CleanAll
+               (all three onto bodies ALREADY IN THE IMAGE -- mechanical),
+               plus Stage::LoadFog and FaderWipe::LoadAndSetFile
+    8 data     data_02075769, data_0207576a, data_020755e0, data_020755f0,
+               data_02075600, data_02092778, data_02075720 (all zero-relocation
+               ROM bytes or an existing host array under another name), and
+               data_020756f0, which is twelve relocated pointers
+    3 small    GetControllerMode (under ResetInput), func_02023408 (under
+               LoadDebugFont), func_0203d81c (under func_020308a8), plus
+               data_020a0f04, a 4-byte BSS word under func_0203da3c
+    2 ov001    data_ov001_020ad620 and data_ov001_020ad624, reached from
+               func_ov001_020ab2e4. Both are `kind:bss` 4-byte words in
+               config/arm9/overlays/ov001/symbols.txt:148-149, and their four
+               NEIGHBOURS (0x628/0x62c/0x630/0x634) are already on line 44 of
+               port/ov001_syms.txt. This is two names on an existing line in a
+               file this lane does not own.
+    2 fader    _ZTV9FaderWipe and _ZN5ColorD1Ev, under FaderWipe::FaderWipe
+               and FaderWipe::~FaderWipe
+
+THE FADER IS THE WALL, and it is a design collision rather than a missing
+symbol. Stage::InitResources allocates SEVEN FaderWipes through
+func_02073470(7, 0x60, 8, &FaderWipeC1, &FaderWipeD1), parks the array at
+data_0209f324, and calls FaderWipe::LoadAndSetFile on each with a file id out
+of one of the three tables above. hal/fader_wipes.cpp instead defines
+`void *data_0209f324 = &hal_wipes[0]` at static-init time over its own
+synthetic HalFaderWipe array laid out in ROM byte order, with NO BMD load at
+all, and hands data_0209f5bc a live wipe from frame zero -- which is what keeps
+Scene::BeforeBehavior safe today (and therefore what the seat in commit two
+depends on). Seating the ROM's construction gives data_0209f324 two writers
+with two different object layouts, and hal/fader_wipes.cpp is not this lane's
+file. Nor is the choice obviously wrong: the port has no BMD for the wipes.
+
+SO THE RULING STANDS AND THE REASON CHANGES. SLOT 0 STAYS HOSTED AT THIS
+BASELINE. Of its twenty-one, thirteen are mechanical work a lane could do in a
+sitting, two are one line in port/ov001_syms.txt, and SIX are the fader array
+and the two faces over it -- a second writer for a global another file owns and
+seats differently on purpose. A lane given hal/fader_wipes.cpp and
+port/ov001_syms.txt together with these files could close slot 0; this lane
+was given neither, and the honest move is to say which two files it wants
+rather than to reach into them.
+
+WHAT IS STILL NOT MEASURED, and it is the bigger half. Everything above is a
+LINK question. Whether the port's 2D and VRAM state survives a real
+Stage::InitResources is a BEHAVIOUR question nobody has asked: section 2c lists
+eight raw DS I/O writes, five read-modify-write against registers the ntr layer
+models and three against bits it does not, and section 2d lists seventeen
+global writes the hosted boot does not make and six live readers that would
+change their input the moment it did. Closing the twenty-one buys the right to
+run the experiment, not the result of it.
+
+
+5. SLOT 3 -- Stage::CleanupResources, THE SEVEN
+------------------------------------------------
+
+SEVEN, not six, and the seventh is the module-universe trap this repo has
+been caught by before. func_01ffb0c8 is ITCM, not arm9; it is compiled
+(src/func_01ffb0c8.cpp) and sits in the survey's DROPPED bucket, so it never
+appeared as an unresolved external and an unresolved-only count misses it.
+It still has to link for slot 3 to run. Review caught this; the six below is
+what link.exe printed, and the seventh is what the link.exe reading omits.
+
+The six unresolved:
+
+    __ZN5Sound21ResetPlayerVoiceGroupEv
+    __ZN9FaderWipeD1Ev                    (C name; the TU exists, uncompiled)
+    __Z19UnloadLevelOverlaysi             a one-line host body, section 4
+    _UnloadArchive                        a one-line host body, section 4
+    __ZN7Message15ResetAllGlobalsEv
+    _data_020756f0                        the 12-pointer table again
+
+With the three host bodies from section 4 in place the second probe leaves
+CleanupResources exactly TWO of its own: Sound::ResetPlayerVoiceGroup and
+Message::ResetAllGlobals, plus data_020756f0 shared with slot 0 and
+FaderWipe::~FaderWipe, which is the fader wall again. port/slice_gate36.txt's
+head sells CleanupResources as the payoff of seating slot 0 ("the ~50.8KB the
+port leaks on every level change"); that leak is real, and closing it is
+blocked on the fader array and on data_020756f0, not on the archive seam.
+
+AND THERE IS A SECOND GATE ON SLOT 3 THAT HAS NOTHING TO DO WITH LINKING.
+Slot 3 is dispatched by the CLEANUP Process, which only walks actors marked for
+destruction, and the port keeps ONE Stage alive across every level change
+(hal/level_change.cpp). Nothing marks it. So even a closing CleanupResources
+would be a body nothing calls until the port also gains a Stage teardown -- and
+a Stage teardown is what would let slots 12, 16 and 17 be seated honestly too.
+Those four slots are one job, not four.
+
+
+6. SLOTS 6 AND 9 -- Stage::Behavior AND Stage::Render
+------------------------------------------------------
+
+Both genuinely blocked, both measured, neither is close.
+
+READ THE COUNTS AS "PIECES", NOT AS "UNRESOLVED EXTERNALS", because for these
+two the two readings differ and the unresolved-only one errs optimistic. Four
+matched Stage TUs -- CanPause, IsPauseDisabled, CheckInput and
+RenderBouncingArrows -- are compiled by slice_w8a and RESOLVE through the
+/alternatename faces in hal/w8a_stage_faces.cpp, so link.exe never names them.
+They are unlinked today and they have to link for these slots to run, so they
+are counted. Slot 6 is 19 + 3 = 22 and slot 9 is 11 + 1 = 12.
+
+Stage::Behavior, NINETEEN unresolved plus Stage::CanPause,
+Stage::IsPauseDisabled and Stage::CheckInput. Eight of the nineteen are the
+pause / VS-exit /
+level-clear menu state machine -- Stage::PS_Init, PS_Update, PS_Cleanup,
+VE_Init, VE_Update, LC_Update, UpdateMessage, Scene::SetSceneToSpawn -- plus
+six func_020xxxxx callees, IsLevelInsideCastle, IsLevelTinyHugeIslandOutside,
+data_02092778, data_0209f5bc and data_0209d4c8. port/slice_w8a.txt already
+costed the menu half and its reading holds: PS_Update and LC_Update want
+data_020a0dea, byte +2 of the TouchInfo block hal/auto_bss.cpp owns, and
+reshaping that block is that file's decision.
+
+Stage::Render, ELEVEN unresolved plus Stage::RenderBouncingArrows:
+Particle::SysTracker::Update, OAM::Render's
+seven-argument overload, Stage::RenderFog, RenderVsModeCountdown,
+RenderVsModeNewStar, PS_Render, LC_Render, RenderNumber, func_020391f0,
+func_0203083c, func_ov001_020aaf40. Four of those want the ov002 pause/VS
+sprite templates at 0x0210caf4..0x0210d420, which is a row in
+port/ov002_syms.txt -- the mount lane's file, not this one's.
+
+THESE TWO STAY HOSTED, and this is a decline with evidence rather than a
+deferral with a hope. Note the shape: the port's Stage does no behaviour at all
+today, so a slot-6 occupant that returns 1 and does nothing is
+behaviour-neutral, and the port's Stage rendering is walk_window's own
+hand-rolled sequence, so a slot-9 occupant that calls the same three bridges
+would move where the call is made without changing what is drawn. Both are
+available and both are NEW scaffolding, which is why neither is in section 7.
+
+
+7. WHAT ACTUALLY MOVES, AND IN WHAT ORDER
+------------------------------------------
+
+Given section 4's ruling, the honest tranches are the ones that make the
+already-closing slots REAL rather than the ones that force slot 0:
+
+  T1  THE MAP. This file. LANDED, 8abe9b84a.
+
+  T2  SEAT THE THIRTEEN SLOTS THAT CLOSE, into the table
+      hal/stage_bridges.cpp already hosts, and make the init dispatch real by
+      routing the boot through func_020433b8 -- the ROM's own "thread it onto
+      the init list" entry point, which is what the spawn spine calls for
+      every other actor. That runs slot 1 (Stage::BeforeInitResources, matched)
+      and slot 2 (Scene::AfterInitResources through the existing face) on every
+      level boot, dispatched by the ROM's init Process. Slot 0's occupant is
+      the boot body the port already has.
+      This is not a fake edge: the init Process is matched code, it is already
+      driven every frame, and the two slots really execute. What it does NOT
+      do is retire scaffolding, and section 8 says so.
+
+  T3  THE LISTS. Surviving the init pass sets +0x10; phase 1 (func_02043880,
+      matched, linked) then threads the Stage onto data_020a4b78 and
+      data_020a4b98. Slots 7/8/10/11 are Scene halves that are ALREADY LINKED,
+      so this costs nothing new and RETIRES the one real piece of scaffolding
+      in reach: hal/stage_bridges.cpp's `*(g_stage + 0x13) &= ~(1|4)`, which
+      that file already documents as a stand-in for exactly one statement
+      inside Scene::BeforeBehavior. Slots 6 and 9 need an occupant (section 6).
+
+  T5  SLOT 12, which review found rather than this plan. See section 9. It is
+      the lane's only nonzero linkage tranche: linked 4950 -> 4951, because
+      src/_ZN5Stage16OnPendingDestroyEv.cpp was compiled and dropped and now
+      has a dispatch. Battery ALL GREEN, gate GREEN.
+
+  T2 AND T3 LANDED TOGETHER, 885cd16c2, because they cannot be separated:
+  ActorBase::AfterInitResources(2) is what puts the node on data_020a4b78 and
+  data_020a4b98, and it runs inside the same init Process T2 routes through.
+  Measured after: linked 4950 (0), battery ALL GREEN, gate GREEN. Slots 6 and 9
+  took behaviour-neutral host occupants, which the seat's own comment declares
+  as new scaffolding rather than dressing up.
+
+  T4 WAS NOT ATTEMPTED, and the reason is worth more than the tranche. The
+  faces onto already-linked bodies and the zero-relocation romdata rows are
+  inert on their own -- an /alternatename whose LHS nothing references is
+  alternatename_guard's "OK (unused)" row, and a romdata row no TU reads is
+  storage. Landing them would have moved no number and produced a commit whose
+  only content is a promise about a later one. hal/w8a_stage_faces.cpp already
+  ran that experiment and said so in its own header; repeating it is not a
+  result.
+
+  WHAT THE NEXT LANE SHOULD BE GIVEN, named precisely rather than as an area:
+  hal/fader_wipes.cpp (the data_0209f324 collision, six of slot 0's
+  twenty-one) and port/ov001_syms.txt (two BSS names on an existing line, two
+  more). With those two files and these, slot 0's remaining thirteen are a
+  sitting's work -- and then the behaviour experiment in section 8 starts.
+
+  AND IT MUST OWN THE SLOT-12 CONSEQUENCE CHAIN TOO, which is a reviewer
+  ruling on this lane rather than a suggestion from it. The two files above are
+  not an arbitrary pairing with section 9: making data_0209f324 and the
+  installed fader behave the way the ROM's do is EXACTLY what arms
+  Scene::BeforeBehavior's MarkForDestruction edge, because that edge fires on
+  the installed fader reading at-end. A lane that fixes the fader and does not
+  also give the port a Stage teardown converts section 9's one-frame-later
+  abort from a latent path into a reachable one. The two jobs are the same job.
+  Size it from the corrected numbers in sections 4 through 6, which run larger
+  than this file's first draft in every slot: 28 / 21 for slot 0, 7 for slot 3,
+  22 for slot 6, 12 for slot 9.
+
+  NOT IN SCOPE FOR THAT LANE EITHER, and named so nobody rediscovers them:
+  the ov002 pause and VS sprite templates (slot 9), the TouchInfo reshape for
+  data_020a0dea (slot 6), a Stage teardown (slots 3, 12, 16, 17 as one job),
+  and data_02092208 as a host pointer table.
+
+
+8. WHAT THIS MAP DOES NOT CLAIM
+--------------------------------
+
+  - That T2 retires anything. It does not. It makes two matched bodies run
+    that did not run, and it puts the Stage where the ROM puts it. The
+    scaffolding in port_stage_a_boot is still there afterwards, because slot 0
+    is still the boot body.
+  - That the port's 2D register state after a real Stage::InitResources would
+    match today's. Section 2c lists eight raw I/O writes and nobody has
+    measured what the ntr layer does with them.
+  - That the ~490 arm9 TUs port/arm9_frontier.txt hangs off the four Stage
+    roots arrive with T2 or T3. They hang off slots 0, 3, 6 and 9, and all
+    four of those are declined above. The transitive estimate is also stale:
+    it was computed against a tree with 1634 arm9 TUs linked and this one has
+    1664, and the survey's own buckets are unmoved by the seat -- SHADOW 12,
+    DROPPED 68, CANDIDATE 2, TABLE-ONLY 124, UNREACHED 998, OV-ONLY 91,
+    ORPHAN 26, EXCEPTION 113, measured before and after.
+  - That the twenty-one is a floor. It is what THIS link says today, and the
+    first probe said thirty for the same function three hours earlier because
+    three of its rows were a slice-composition artefact rather than a blocker.
+    Anyone quoting it should re-run the probe rather than the number; the
+    method is in the header of this file and takes one build.
+  - Anything about the levels. Every number here is a link measurement. The
+    battery is the only thing that speaks for behaviour, and it speaks per
+    commit, not here.
+
+
+9. SLOT 12, AND THE ARGUMENT THIS LANE'S OWN SEAT FALSIFIED
+------------------------------------------------------------
+
+The seat's first draft left slot 12 trapped, on the same reasoning as 16 and
+17: nothing destroys the Stage, so a body there is a reference the game never
+executes. Review rejected that and was right. The seat is what broke it.
+
+THE CHAIN, end to end, every link read out of src/ or port/hal/:
+
+  1. Seated slot 7 runs Scene::BeforeBehavior on the Stage EVERY FRAME. That
+     function carries two ActorBase::MarkForDestruction(self) calls.
+  2. src/_ZN9ActorBase18MarkForDestructionEv.cpp is not deferred bookkeeping.
+     It sets shouldBeKilled and then calls OnPendingDestroy() straight through
+     the vptr -- slot 12. So either edge landed on st_trap and aborted.
+  3. EDGE A IS DEAD. It is gated on data_0209f1e0, and no linked TU writes
+     that byte.
+  4. EDGE B IS LIVE. It is shut only by data_02092664 resting at 0x187, its
+     ROM .data value. hal/star_flow.cpp:127 opens it: HitDeathPlane calls
+     Scene::StartSceneFade(8, 0, 0), which is Scene::SetSceneToSpawn(8, 0),
+     which writes data_02092664 = 8. Nothing in a level run spawns scene 8, so
+     THE BYTE STAYS AT 8, and from that frame on Scene::BeforeBehavior takes
+     its middle branch forever: if the installed fader reads at-end, the Stage
+     is marked for destruction.
+  5. THE BATTERY CANNOT SEE THIS. Selftest frames are idle. No star is
+     collected, no death plane is crossed, so data_02092664 never leaves its
+     sentinel and the whole branch is unvisited.
+
+SEATED. src/_ZN5Stage16OnPendingDestroyEv.cpp is compiled, publishes only
+?OnPendingDestroy@Stage@@QAEXXZ, and its body is an empty override -- which is
+the ROM's. The slot takes a __fastcall thunk over a Stage.h method face, the
+same shape as every other slot in the fill, and the TU had to be added by name
+to smoke_player and walk_window_hires, which compile hal/stage_bridges.cpp and
+do not carry SLICE_W8A_SOURCES.
+
+LINKAGE: 4950 -> 4951, the lane's only nonzero delta. The TU was compiled by
+slice_w8a and dropped by /OPT:REF for want of a reference; the slot is the
+reference. ?OnPendingDestroy@Stage@@QAEXXZ appears in walk_window.map after,
+and did not before. Battery ALL GREEN across all 46 levels, gate GREEN.
+
+EXECUTION IS UNPROVEN AND THE SEAT IS THE GUARANTEE. No run here reaches
+HitDeathPlane or a star collect, so nothing observed the thunk fire. What is
+proven is that the slot no longer aborts if it does, and that the body behind
+it is the ROM's rather than a stand-in. Constructing the star-collect path was
+attempted and abandoned as not cheap: the port has no env knob that drives
+HitDeathPlane or a star collect (hal/star_flow.cpp reads exactly one, and it
+is SM64DS_COURSE_MUSIC), so proving it needs real play input rather than a
+harness flag. A lane that can drive one should; the witness is one printf in
+the face.
+
+AND SLOT 3 IS THE NEXT TRAP IN THE SAME CHAIN. This is new evidence, not a
+residual worry. shouldBeKilled is ActorBase +0x0f, which func_02043880 reads
+as its `dirty` flag, so the frame after MarkForDestruction phase 1 moves the
+Stage onto data_020a4ba8 and the cleanup Process (func_020432e4) dispatches
+slots 4, 3 and 5. Slot 3 is trapped and its ROM body wants seven things.
+
+So seating 12 does not make the chain survivable. It moves the abort one frame
+later, off a slot whose ROM body was sitting compiled and unused and onto a
+slot that has no body to seat. THAT IS THE RIGHT PLACE FOR IT TO STOP: a port
+whose Stage is being torn down has lost the scene root, the level collider and
+the level model, and a named abort naming the slot is the correct answer until
+the port has a real Stage teardown. Section 7's handoff carries it.
+
+
+10. OWNERSHIP
+--------------
+
+Assigned to this lane: hal/level_boot.cpp, the Stage-related faces in
+hal/method_faces.cpp, and the lane's own fill and slice files.
+
+DEVIATION, DECLARED: hal/stage_bridges.cpp was on neither the owned list nor
+the do-not-touch list, and this lane took it. It is the Stage vtable's home --
+_ZTV5Stage, hal_fill_stage_vtable and port_stage_create are all in it -- so a
+lane told to seat the Stage vtable cannot avoid it, and putting the seat there
+kept the whole first two commits free of any CMakeLists edit. No other live
+lane of run link60 touches it. The one CMakeLists edit that did become
+necessary is section 9's, at the lane tip.
+
+hal/method_faces.cpp was NOT touched: no Stage face turned out to be needed
+there. Slot 12's face went beside the other Stage.h method faces in
+hal/stage_bridges.cpp, next to port_stage_render_model, rather than being
+split across two files.
+
+Not touched: hal/scene_boot.cpp and hal/actor_classes.inc (L2), hal/model_host.cpp
+(L1), port/tools/ovdata.py and ovsweep.py (the mount lane), tests/walk_window.cpp,
+port/ov001_syms.txt, port/ov002_syms.txt, hal/auto_bss.cpp, hal/fader_wipes.cpp.
