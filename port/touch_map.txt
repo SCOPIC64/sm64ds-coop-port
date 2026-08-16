@@ -92,6 +92,13 @@ LINK 2. THE RING, data_020a0df8, NINE ENTRIES.
         func_0205eeac(0, 4, &data_020a0df8, 9) start auto sampling into the ring
         func_0205ea10(2) / func_0205e9fc(2)    wait, then check again
 
+    THE ADDRESSES AND THE ARGUMENTS ARE READ OFF func_0203bbc0. THE LABELS ARE
+    NOT. They are this lane's gloss from what each body does and from the shape
+    of the NitroSDK touch library, and func_0205edd8's in particular is a
+    guess at intent: what its body demonstrably does is send two IPC commands
+    and set or clear a status bit. A seam lane should read the body it is about
+    to seat rather than the label here.
+
     The ring is nine entries of eight bytes. That is not read off the call:
     config/arm9/symbols.txt puts data_020a0e40 at exactly 0x48 above
     data_020a0df8, and 0x48 is 9 times 8. The size argument and the symbol
