@@ -1030,3 +1030,227 @@ The ROM's own full-screen viewport (Initialise3dGraphics writes 0xbfff0000 to
 0x4000580, which decodes to x1 0, y1 0, x2 255, y2 191) is still the ROM's
 intent for the 3D layer generally. It is just not evidence taken from this run,
 and 12b no longer presents it as such.
+
+
+13. THE SCRAMBLED TOP SCREEN IS 95% BACKGROUND, AND THE BACKGROUND IS NOT A
+    DECODE FAULT
+
+Run link60 Stage 5, lane EAD, off VP1's tip 363991d0d. Section 12 put the
+engine-A layers on the screen for the first time; Tango's verdict on the frame
+that produced was that the top screen is fullscreen now and "the display data
+is scrambled with just random large chunks of pixels everywhere". This section
+is what that sentence turns out to name.
+
+THE LANE WAS BRIEFED ON FOUR SUSPECTS and the first thing measured was which
+SURFACE the chunks live on, because a whole-frame BMP cannot tell a background
+fault from a sprite fault: both layers land in the same pixels.
+
+13a. THE INSTRUMENT, THREE ADDITIONS
+
+  hal/message_compositor.cpp  every composited pixel now records WHICH layer
+      wrote it last, and the last composited frame's per-layer pixel count and
+      bounding box print at exit. The last frame is the one the BMP holds, so
+      the numbers and the capture are the same frame.
+      SM64DS_ENGINE_A_LAYERS=<hex> composites a subset (bits 0-3 BG0..BG3,
+      bit 4 OBJ; unset is 0x1f). One layer's own capture, same binary, same
+      .dsstate base as the full frame.
+  ntr/ppu_audit.cpp           the OAM table grew a FIRST-SAMPLE half: one
+      frame, every enabled entry, nothing dropped. The distinct-triples table
+      drops rows once full, and scene 374's moving sprites produced 37,135
+      distinct triples over 300 frames, so twenty rows were printed and 37,115
+      dropped, which cannot answer "is any sprite on this screen 256-colour".
+      The decode-input table grew the BACKGROUND stores for both engines, and
+      SM64DS_PPU_AUDIT_DUMP=<prefix> writes every span's BYTES once. A count
+      says a store is populated; only the bytes say whether it holds what the
+      ROM's own file holds.
+  hal/level_boot.cpp          SM64DS_LOADFILE_TRACE=1 prints every LoadFile as
+      handle, returned pointer, slot, and whether it was a cache hit. Six
+      lines, and they are what named 13c's root cause.
+
+13b. THE MEASUREMENT. SM64DS_SCENE=374, 300 frames, FAULTS_FATAL, exit 0
+
+    DISPCNT_A       00001400 x255, 00007400 x45.  BIT 4 CLEAR on all 300
+                    (2D OBJ tile mapping), bits 20-21 ZERO (boundary 32),
+                    bit 30 and bit 31 ZERO (no extended palettes), bit 12 set
+                    (OBJ on), bit 10 set (BG2 on)
+    BG2CNT_A        1222 x300: priority 2, chars 06020000, screen 06009000,
+                    4bpp, 32x32, one full screen
+    engine-A OAM    52 placed entries, EVERY ONE colour mode 16, all mode 0,
+                    none affine:
+                      2 x 32x16  tiles 727, 731   palette 14
+                      2 x 8x16   tiles 735, 640   palette 14, 13
+                      48 x 8x8   tiles 72..76     palette 2
+    per-layer       BG2 38,706 px over x 0..255 y 0..191
+    attribution     OBJ  2,053 px over x 0..255 y 0..185
+    (last frame)    BG0, BG1, BG3  nothing
+    decode inputs   engine A: BG VRAM 29,781 nonzero, BG palette 396,
+                    OBJ VRAM 5,387, OBJ palette 335
+
+So the background owns 95% of what the viewer sees and the sprites own 5%.
+"Large chunks everywhere" is a statement about the background.
+
+13c. THE BACKGROUND: THE READER IS RIGHT AND THE BYTES ARE WRONG
+
+Curling's BG2 is the easiest background in the game to check, because its
+tilemap is the IDENTITY: file 0x30 is 1024 entries, every tile id used exactly
+once, cell n holding tile n with its own palette bank. The tilemap and the
+palette are loaded RAW, no compression and no relocation, so the bytes in VRAM
+can be compared against the cartridge's own files byte for byte.
+
+    engine A BG palette  0x05000060 +0x1a0   == file 0x2f            EXACT
+    engine A char data   0x06020000          768 tiles populated, and 768 is
+                                             exactly the visible screen
+    engine A tilemap     0x06009000 +0x800   != file 0x30
+                                             the 1248 bytes of file 0xc7,
+                                             COMPRESSED AND UNDECODED, followed
+                                             by 800 bytes of heap tail
+    engine B tilemap     0x06204000 +0x800   == file 0x34            EXACT
+    engine B BG palette  0x05000460 +0x1a0   == file 0x33            EXACT
+
+File 0x30's bytes are nowhere in engine A's whole 512K BG VRAM window, and
+every branch of G2::GetBG2ScrPtr except the mode-7 one lands inside that
+window, so this is not a destination the reader and the writer disagree about.
+
+WHY: THE PORT'S LoadFile CACHE OUTLIVES THE ROM'S OWN FREE. The ROM's LoadFile
+(0x0201816c, then func_0201818c) allocates a FRESH buffer per call and the
+caller owns it; dScMgCurling_c::InitResources frees each one with Deallocate
+the moment it has copied it. hal/level_boot.cpp's host LoadFile keeps a
+per-handle table and returns the cached pointer, which the ROM's free has
+already invalidated. The trace, one run, in order:
+
+    [loadfile] 0x2f -> 30031B60 slot 32 FRESH     palette,  copied, freed
+    [loadfile] 0x30 -> 30031B60 slot 33 FRESH     tilemap,  copied, freed
+    [loadfile] 0xc7 -> 30031B60 slot 34 FRESH     OBJ tiles land in that block
+    [loadfile] 0xc8 -> 30032060 slot 35 FRESH
+    [loadfile] 0x33 -> 30032180 slot 36 FRESH
+    [loadfile] 0x34 -> 30032180 slot 37 FRESH
+    [loadfile] 0x30 -> 30031B60 slot 33 CACHED    <-- the defect
+
+The last line is func_ov006_020e3250, which InitResources calls at its end: it
+picks one of three rink tilemaps at random (0x30, 0x2d, 0x31) and uploads
+0x800 bytes of it to the BG2 screen base. It asks for handle 0x30 a SECOND
+time, the host cache hands back the block the ROM freed four lines earlier, and
+that block now holds file 0xc7. So the port uploads an LZ-compressed sprite
+sheet into a screen-entry table: 1024 cells of arbitrary tile id and arbitrary
+palette bank, full screen. That is the chunk pattern, and it is the whole of
+the 95%.
+
+Engine B escapes for one reason only: nothing reuses 30032180 after its
+tilemap copy.
+
+NOT FIXED HERE, AND THE REASON IS NOT SHYNESS. This is not a decode defect, the
+compositor renders exactly the bytes VRAM holds, and the fix is not in the ntr
+layer: it is the lifetime contract between an invented host cache and the ROM's
+own allocator, in hal/level_boot.cpp, on the path every level's KCL and object
+files take. The narrow fixes each have a blast radius worth their own lane and
+their own battery: dropping the cache makes the port's per-level release free
+buffers the ROM already freed, and invalidating on free needs a hook on
+Memory::Deallocate that nothing has today. Recorded with a one-command
+reproducer instead:
+
+    SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=2 SM64DS_LOADFILE_TRACE=1
+
+13d. THE SPRITES: THE 1D/2D GAP IS REAL, LIVE, AND SMALL HERE
+
+DISPCNT_A bit 4 is CLEAR, which is 2D tile mapping, and both engine-A readers
+hard-coded 1D. The bit is clear because Scene::ResetHardwareRegisters ANDs
+0xffcfffef into both engines' DISPCNT, bit 4 and the boundary field in one
+mask, and nothing on a scene path sets it again: GX::SetGraphicsMode's own mask
+is 0xfff0fff0, which preserves bit 4, and its third argument only ever reaches
+bit 3 (every call site passes 0 or 1). ov006 does the same clear for engine B
+by hand at func_ov006_020e73c4.
+
+WHICH FILE. Section 11's DISPCNT note recorded this gap against ntr/ppu.cpp,
+and that was accurate about ntr/ppu.cpp and named the wrong file for the
+consequence: ppu_scanout_obj's only caller in the tree is tests/smoke_oam.cpp.
+Engine A's LIVE path is hal/message_compositor.cpp, which carried the identical
+hard-coded arithmetic. Both are fixed, in ntr/ppu_sub.cpp's shape:
+
+    slot = map1d ? (trow * (w/8) + tcol) * (c256 ? 2 : 1)
+                 : (trow * 32 + (c256 ? tcol*2 : tcol))
+    cell = objvram + tile * boundary + slot * 32
+
+The 1D branch is arithmetically identical to what was there (the old c256 form
+was tno * 64, which is slot = tno * 2 in 32-byte units), so a 1D run is
+byte-unchanged by construction. tests/smoke_oam.cpp writes DISPCNT = 1 << 4 and
+lays its tiles out consecutively; its expectations are 1D expectations, and
+honouring the bit is what keeps them true. Flipping the default would have
+broken them.
+
+MEASURED EFFECT, same scene, equal .dsstate base 0xbae000, OBJ layer alone:
+
+    before   OBJ owns 2,053 px, x 0..255 y 0..185
+    after    OBJ owns 2,369 px, x 7..255 y 0..185
+    2,276 host pixels differ between the two OBJ-only captures
+
+Only four of the 52 placed sprites can move: the 8x8 sprites are one cell and
+their slot is 0 under either mapping, so the two 32x16 and the two 8x16 sprites
+are the whole footprint. This fix does not make the top screen right, and
+nothing in this section claims it does. It closes a gap that is wrong on every
+scene engine A composites for.
+
+13e. THE OTHER TWO SUSPECTS, CLOSED ON MEASUREMENTS
+
+  THE TILE-BOUNDARY FIELD IN 2D. Still applied in both mappings by all three
+  readers, still hardware's 1D-only field, and scene 374 measures bits 20-21 at
+  ZERO on all 300 samples, cleared by the same 0xffcfffef. Boundary 32 is what
+  2D wants, so the gap stays inert and stays UNFIXED: this run contains no
+  measurement that would tell a correct fix from a wrong one, and the audit row
+  says so rather than a commit saying it silently.
+
+  ENGINE-A OBJ EXTENDED PALETTES. Not applicable on this screen, and now that
+  is a count rather than an impression: the first-sample table has all 52
+  placed entries and every one reads colour mode 16. An extended palette
+  applies to 256-colour sprites only. The ROM agrees in its own source, since
+  InitResources loads file 0xc8 through GX::LoadOBJPltt as 0x100 bytes, eight
+  banks of sixteen, the 4bpp shape, and DISPCNT_A bit 31 is clear on all 300
+  samples. There is still no GX::LoadOBJExtPltt TU in this tree to derive a
+  base from, so there is still nothing to model and nothing was invented.
+
+13f. WHAT THE VERIFICATION COVERS
+
+The engine-A OBJ path is shared with the whole game, so the level side was
+measured. Same binary, SM64DS_WINDOW_SELFTEST=300, SM64DS_MSG_COMPOSITE_DEBUG:
+
+    level  1   a524c2a464aff1a80cd5ca899af665f9   compositor never ran
+    level  5   001a22b1f1f4a79788b57d442baaf027   compositor never ran
+    level 24   ea8c6aa57a35e05c9ce79e65de49c18e   compositor never ran
+    level 35   732c86336c781210bf49c96cddb7d9a5   94 composited frames, all
+                                                  BG3, obj enable 0 on every
+                                                  one, OBJ layer 0 px
+
+All four md5s are the ones section 12d recorded, which is worth one sentence of
+care: those were taken at .dsstate base 0xbad000 and these at 0xbae000, so the
+equality says these particular level frames did not move with the base, and it
+is NOT a general claim that a level selftest BMP is base-independent (the
+header of port/tools/battery.py says the opposite for the ones that are).
+
+On levels 1, 5 and 24 the layer mask reads d45c=00 against DISPCNT bits 8-12 =
+00, so port_message_composite_engine_a takes its early return and no sprite is
+rastered at all. On level 35 the dialogue box composites and its OBJ enable is
+0 on all 94 frames. Neither is a proof about the other 42 levels; those are
+covered by the battery's exit codes, as section 12d already says.
+
+13g. UNPROVEN
+
+  * NO CLAIM ABOUT ANY PIXEL. Tango judges the frame. This section says which
+    layer owns which pixels and which bytes those pixels were decoded from; it
+    does not say what the result looks like, and 13c in particular predicts a
+    wrong image without having looked at one.
+  * THE 13c ROOT CAUSE IS NAMED, NOT REPAIRED, and it is the dominant half of
+    the verdict this lane was sent to work from. Its blast radius is every
+    LoadFile caller in the port.
+  * THE 13c TRACE IS ONE RUN. The random tilemap choice in func_ov006_020e3250
+    means a run can also pick handle 0x2d or 0x31, which have no cache entry
+    yet and would load correctly. Neither of those was observed here, and a run
+    that picks one would show a CORRECT background and hide the defect. Anyone
+    reproducing it should read the trace rather than the frame.
+  * FOUR LEVELS HAVE BMP IDENTITY, not forty-six, exactly as in 12d.
+  * THE 2D SLOT ARITHMETIC IS UNEXERCISED FOR 256-COLOUR SPRITES on this
+    screen. Every placed sprite is 4bpp, so the c256 half of the new 2D branch
+    is carried over from ntr/ppu_sub.cpp's already-shipped form and is not
+    measured by this run.
+  * WHAT A CORRECT 2D READ LOOKS LIKE IS NOT PROVEN EITHER. The +316 px is
+    evidence that the four multi-row sprites now read different cells; that
+    those cells are the right ones rests on the mapping rule and on engine B's
+    reader agreeing, not on a frame anybody has judged.
