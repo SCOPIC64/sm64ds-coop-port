@@ -23,6 +23,13 @@ rem wired by slices, and a generator that stops refusing the judgment rows
 rem is a silent hazard, not a convenience.
 python "%~dp0tools\facegen.py" --selftest
 if errorlevel 1 exit /b 1
+rem Fail before configure if the alternatename guard's scoping fixture breaks.
+rem The guard decides what counts as a linker input, and it used to read lane
+rem prose as one: a quoted directive in a .txt was a build input, so deleting a
+rem real alias left the quote of it failing the build. The fixture pins that
+rem scope. The guard's own map check still runs post-link, below.
+python "%~dp0tools\alternatename_guard.py" --selftest
+if errorlevel 1 exit /b 1
 cmake -S "%~dp0." -B "%~dp0..\build\port" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM="%CMAKEBIN%\Ninja\ninja.exe" %*
 if errorlevel 1 exit /b 1
 ninja -C "%~dp0..\build\port"
