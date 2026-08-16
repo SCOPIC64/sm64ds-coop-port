@@ -1,0 +1,502 @@
+#!/usr/bin/env python3
+"""Read a minigame class's vtable rows out of the RAW overlay images and
+price them the way mg_fanout_costs.txt section 3 does: override slots vs
+the dScMgBase_c base table, marker-carrying overrides, and no-source
+overrides -- so a fan-out lane starts from a checked read instead of a
+hand transcription of 36 slots.
+
+WHY THIS EXISTS. The fan-out behind dScMgCurling_c is twenty-nine more
+classes, and section 3's per-class table (the ranking the lanes are cut
+from) was hand-derived once, for all thirty, by MG1. Its first nosrc
+column was WRONG because a name-shaped lookup missed src files not named
+after their symbol, and review re-derived it by hand through the delink
+records. This tool does the delink-keyed join from the start, and its
+acceptance was a RECONSTRUCTION: run over all twenty-nine resolved
+vtables, it reproduces section 3's reviewed ovr/mark/nosrc columns
+row for row and the totals 365/263/7 exactly (the one divergence in the
+first reconstruction run was a transcription typo in the CHECKER's own
+copy of the hand table, which is the point of the exercise).
+
+WHAT IT READS, all of it produced by something that is not this tool:
+
+  extracted/overlays/overlay_000{4,6}.bin   the RAW images. dsd's
+                     arm9_overlays exports are REBUILT and twice proven
+                     stale (ov085 by 2897 bytes, ov007 by 1248); only
+                     extracted/overlays is config-aligned, so that is
+                     the only thing this tool will open.
+  config .../delinks.txt   the section spans (the overlay BASE is the
+                     first section's start -- the T1 rule; yaml
+                     base_address is the counterexample) and the
+                     address->src-file blocks the join runs on.
+  config .../symbols.txt   exact-address symbol names, for the report.
+  src/<file>         only to test for the marker string
+                     "recovered from vtable slot identity".
+  port/mg_fanout_costs.txt   --reconstruct parses section 3's table out
+                     of the evidence doc itself, so there is no second
+                     copy of the table to drift.
+
+WHAT IT REPORTS per class (--vtable ADDR --width N): every slot 0..N-1,
+inherited or OVERRIDE, the override's target address, owning src file
+via the delinks join, marker status, and the exact-address symbol name.
+--census lists every ActorBase-signature table in ov006's .data (slots
+13/14/15 == 0x0204357c/0x0204349c/0x02043494, the spacing no pair run
+or file table imitates) plus the base-table uniqueness check in ov004.
+--reconstruct re-derives all twenty-nine hand rows and exits nonzero on
+any divergence, printed as a CONTRADICTION TO INVESTIGATE -- either
+side could be the wrong one; the first run's divergence was the
+checker's, not the doc's.
+
+WHAT IT DOES NOT DO, stated so nobody reads more into a row than the
+code earns:
+
+  * it does NOT adjudicate. A MARKER row still goes to a human with the
+    ROM open (inferred_stub_adjudicated.txt is where rulings live);
+    this tool counts and names, never rules.
+  * it does NOT derive width. 36-vs-37 is MG1's per-class ruling, taken
+    as --width input (--reconstruct takes it from the doc's rows); the
+    word at slot 36 is printed either way, labeled candidate, because
+    nothing here can tell a 37th slot from the data that follows.
+  * it does NOT resolve id -> vtable. The factory load-reloc derivation
+    stayed by hand, and MgSnowballSlalom (0x179, no resolving reloc) is
+    the standing counterexample. Feed it a vtable address you derived.
+  * the census covers ov006's .data and the ActorBase-signature family
+    ONLY. A vtable outside that family is invisible to the scan.
+  * the join covers .text and .init blocks of arm9, ov004 and ov006. An
+    override pointing anywhere else would read as no-owner and inflate
+    nosrc; among the 365 reconstructed overrides there were none, and a
+    future family that spans other overlays extends DELINKS, not the
+    trust boundary.
+
+    python port/tools/vtablerows.py --census
+    python port/tools/vtablerows.py --vtable 0x0213c304 --width 36
+    python port/tools/vtablerows.py --reconstruct
+    python port/tools/vtablerows.py --selftest
+"""
+
+import argparse
+import bisect
+import os
+import pathlib
+import re
+import struct
+import sys
+import tempfile
+
+SIG = (0x0204357c, 0x0204349c, 0x02043494)
+SIG_SLOT = 13          # SIG occupies slots 13, 14, 15
+BASE_TABLE = 0x020bc0c0  # dScMgBase_c's own table, in ov004 .data
+BASE_WIDTH = 36
+MARKER = "recovered from vtable slot identity"
+
+SECTION = re.compile(
+    r"^\s+\.(\w+)\s+start:0x([0-9a-fA-F]+)\s+end:0x([0-9a-fA-F]+)\s+"
+    r"kind:(\w+)")
+SRC_BLOCK = re.compile(r"^(src/\S+):\s*$")
+SRC_RANGE = re.compile(
+    r"\.(?:text|init)\s+start:0x([0-9a-fA-F]+) end:0x([0-9a-fA-F]+)")
+SYMBOL = re.compile(r"^(\S+)\s+kind:\S+\s+addr:0x([0-9a-fA-F]+)")
+# section 3's row shape. The spawn column can carry a space
+# ("MgShuffleShell (curling)"), so the row is anchored on the 8-hex
+# vtable column, not on a \S+ name -- the selftest's fixture caught the
+# \S+ version dropping exactly the DONE row. The NOT FOUND row (no hex
+# column, no count columns) does not match by construction.
+DOC_ROW = re.compile(
+    r"^\s+0x(1[0-9a-f]{2})\s+.+?([0-9a-f]{8})\s+(\d+)\s+(\d+)\s+(\d+)"
+    r"\s+(\d+)(?:\s+DONE)?\s*$")
+
+
+class Overlay:
+    """A raw overlay image, based and span-checked from its delinks file.
+
+    The base is the FIRST section's start and the file must be exactly
+    last-in-file-section-end minus base bytes long; anything else is a
+    stale or wrong image and the answer is a refusal, not a read.
+    """
+
+    def __init__(self, name, image_path, delinks_path):
+        self.name = name
+        sections = []
+        for line in pathlib.Path(delinks_path).read_text(
+                encoding="utf-8-sig", errors="replace").splitlines():
+            if SRC_BLOCK.match(line):
+                break
+            m = SECTION.match(line)
+            if m:
+                sections.append((m.group(1), int(m.group(2), 16),
+                                 int(m.group(3), 16), m.group(4)))
+        if not sections:
+            sys.exit("vtablerows: no section lines in %s" % delinks_path)
+        infile = [s for s in sections if s[3] != "bss"]
+        self.base = infile[0][1]
+        want = infile[-1][2] - self.base
+        self.data_span = next(((s[1], s[2]) for s in sections
+                               if s[0] == "data"), None)
+        self.image = pathlib.Path(image_path).read_bytes()
+        if len(self.image) != want:
+            sys.exit("vtablerows: %s is %d bytes but %s says %d "
+                     "(0x%08x..0x%08x) -- a stale or wrong image, refusing "
+                     "to read it" % (image_path, len(self.image),
+                                     delinks_path, want, self.base,
+                                     infile[-1][2]))
+
+    def word(self, addr):
+        off = addr - self.base
+        if not 0 <= off <= len(self.image) - 4:
+            sys.exit("vtablerows: address 0x%08x is outside %s "
+                     "(0x%08x..0x%08x)" % (addr, self.name, self.base,
+                                           self.base + len(self.image)))
+        return struct.unpack_from("<I", self.image, off)[0]
+
+
+class Sources:
+    """The delinks-keyed address->src join, and the marker test.
+
+    This join exists BECAUSE the name-shaped lookup failed: section 3's
+    first nosrc column missed src files not named after their symbol.
+    Only .text and .init ranges are indexed; vtable slots point at code.
+    """
+
+    def __init__(self, root, delinks_paths):
+        self.root = pathlib.Path(root)
+        ivs = []
+        for dp in delinks_paths:
+            cur = None
+            for line in pathlib.Path(dp).read_text(
+                    encoding="utf-8-sig", errors="replace").splitlines():
+                m = SRC_BLOCK.match(line)
+                if m:
+                    cur = m.group(1)
+                    continue
+                m = SRC_RANGE.search(line)
+                if m and cur:
+                    ivs.append((int(m.group(1), 16), int(m.group(2), 16),
+                                cur))
+        self.ivs = sorted(ivs)
+        self.starts = [a for a, _, _ in self.ivs]
+        self._marked = {}
+
+    def owner(self, addr):
+        i = bisect.bisect_right(self.starts, addr) - 1
+        if i >= 0 and self.ivs[i][0] <= addr < self.ivs[i][1]:
+            return self.ivs[i][2]
+        return None
+
+    def marked(self, src):
+        if src not in self._marked:
+            p = self.root / src
+            self._marked[src] = p.is_file() and \
+                MARKER in p.read_text(errors="replace")
+        return self._marked[src]
+
+
+def load_symbols(paths):
+    out = {}
+    for sp in paths:
+        p = pathlib.Path(sp)
+        if not p.is_file():
+            continue
+        for line in p.read_text(encoding="utf-8-sig",
+                                errors="replace").splitlines():
+            m = SYMBOL.match(line)
+            if m:
+                out.setdefault(int(m.group(2), 16), m.group(1))
+    return out
+
+
+def find_tables(ov):
+    """Every ActorBase-signature table start in the overlay's .data."""
+    if ov.data_span is None:
+        sys.exit("vtablerows: %s has no .data section to scan" % ov.name)
+    lo, hi = ov.data_span
+    hits = []
+    for a in range(lo, hi - (SIG_SLOT + 3) * 4, 4):
+        if (ov.word(a + SIG_SLOT * 4), ov.word(a + (SIG_SLOT + 1) * 4),
+                ov.word(a + (SIG_SLOT + 2) * 4)) == SIG:
+            hits.append(a)
+    return hits
+
+
+def class_rows(ov, base_slots, vtable, width):
+    """[(slot, word, override?, owner, marked?)] for one class's table."""
+    if width not in (36, 37):
+        sys.exit("vtablerows: width %d is outside MG1's ruling set (36 or "
+                 "37); derive it by hand first, this tool will not guess"
+                 % width)
+    lo, hi = ov.data_span
+    if not (lo <= vtable and vtable + width * 4 <= hi):
+        sys.exit("vtablerows: vtable 0x%08x (+%d slots) is not inside %s "
+                 ".data 0x%08x..0x%08x" % (vtable, width, ov.name, lo, hi))
+    rows = []
+    for i in range(width):
+        w = ov.word(vtable + 4 * i)
+        rows.append((i, w, i >= BASE_WIDTH or w != base_slots[i]))
+    return rows
+
+
+def measure(rows, sources):
+    ovr = [(i, w) for i, w, is_ovr in rows if is_ovr]
+    mark = nosrc = 0
+    detail = []
+    for i, w in ovr:
+        o = sources.owner(w)
+        m = bool(o and sources.marked(o))
+        if o is None:
+            nosrc += 1
+        elif m:
+            mark += 1
+        detail.append((i, w, o, m))
+    return len(ovr), mark, nosrc, detail
+
+
+def real_setup(root):
+    root = pathlib.Path(root)
+    ov4 = Overlay("ov004", root / "extracted/overlays/overlay_0004.bin",
+                  root / "config/arm9/overlays/ov004/delinks.txt")
+    ov6 = Overlay("ov006", root / "extracted/overlays/overlay_0006.bin",
+                  root / "config/arm9/overlays/ov006/delinks.txt")
+    sources = Sources(root, [root / "config/arm9/delinks.txt",
+                             root / "config/arm9/overlays/ov004/delinks.txt",
+                             root / "config/arm9/overlays/ov006/delinks.txt"])
+    syms = load_symbols([root / "config/arm9/symbols.txt",
+                         root / "config/arm9/overlays/ov004/symbols.txt",
+                         root / "config/arm9/overlays/ov006/symbols.txt"])
+    base_slots = [ov4.word(BASE_TABLE + 4 * i) for i in range(BASE_WIDTH)]
+    return ov4, ov6, sources, syms, base_slots
+
+
+def cmd_census(root):
+    ov4, ov6, sources, syms, base_slots = real_setup(root)
+    own = find_tables(ov4)
+    if own != [BASE_TABLE]:
+        print("vtablerows: NOTE -- ov004's signature census is %s, not "
+              "exactly the base table; investigate before trusting rows"
+              % ["0x%08x" % a for a in own])
+    hits = find_tables(ov6)
+    print("ov006 ActorBase-signature tables: %d" % len(hits))
+    for a in hits:
+        print("    0x%08x" % a)
+    print("(the base table 0x%08x is ov004's only signature table: %s)"
+          % (BASE_TABLE, "yes" if own == [BASE_TABLE] else "NO"))
+    return 0
+
+
+def cmd_rows(root, vtable, width):
+    ov4, ov6, sources, syms, base_slots = real_setup(root)
+    rows = class_rows(ov6, base_slots, vtable, width)
+    n_ovr, n_mark, n_nosrc, detail = measure(rows, sources)
+    det = {i: (o, m) for i, w, o, m in detail}
+    print("vtable 0x%08x, width %d (width is MG1's ruling, not this "
+          "tool's)" % (vtable, width))
+    for i, w, is_ovr in rows:
+        if not is_ovr:
+            print("  slot %2d  inherited   0x%08x" % (i, w))
+            continue
+        o, m = det[i]
+        print("  slot %2d  OVERRIDE    0x%08x  %-12s %s%s" % (
+            i, w, syms.get(w, "(no exact-address symbol)"),
+            o or "NO SOURCE (no delinks block owns this address)",
+            "  MARKER: needs a ROM adjudication before seating" if m
+            else ""))
+    if width == 36:
+        cand = ov6.word(vtable + 36 * 4)
+        print("  slot 36 word (CANDIDATE only, width says it is not a "
+              "slot): 0x%08x" % cand)
+    print("ovr %d, mark %d, nosrc %d" % (n_ovr, n_mark, n_nosrc))
+    return 0
+
+
+def parse_doc_table(doc_path):
+    rows = []
+    for line in pathlib.Path(doc_path).read_text(
+            errors="replace").splitlines():
+        m = DOC_ROW.match(line)
+        if m:
+            rows.append((int(m.group(1), 16), int(m.group(2), 16),
+                         int(m.group(3)), int(m.group(4)),
+                         int(m.group(5)), int(m.group(6))))
+    return rows
+
+
+def cmd_reconstruct(root):
+    ov4, ov6, sources, syms, base_slots = real_setup(root)
+    doc = pathlib.Path(root) / "port" / "mg_fanout_costs.txt"
+    rows = parse_doc_table(doc)
+    if len(rows) != 29:
+        sys.exit("vtablerows: parsed %d rows out of %s section 3, expected "
+                 "29 -- the doc's table shape moved, re-pin DOC_ROW before "
+                 "trusting a reconstruction" % (len(rows), doc))
+    hits = set(find_tables(ov6))
+    missing = [vt for _, vt, *_ in rows if vt not in hits]
+    if missing:
+        sys.exit("vtablerows: hand vtables %s are not in the signature "
+                 "census -- wrong image or wrong doc, refusing"
+                 % ["0x%08x" % v for v in missing])
+    print("signature census: %d tables, all 29 hand vtables among them, "
+          "%d unclaimed" % (len(hits), len(hits) - 29))
+    diverged = []
+    tot = [0, 0, 0]
+    for cid, vt, width, h_ovr, h_mark, h_nosrc in rows:
+        n_ovr, n_mark, n_nosrc, _ = measure(
+            class_rows(ov6, base_slots, vt, width), sources)
+        tot[0] += n_ovr
+        tot[1] += n_mark
+        tot[2] += n_nosrc
+        tag = ""
+        if (n_ovr, n_mark, n_nosrc) != (h_ovr, h_mark, h_nosrc):
+            tag = "  DIVERGES from the doc's %d/%d/%d" % (h_ovr, h_mark,
+                                                          h_nosrc)
+            diverged.append(cid)
+        print("  0x%03x  vt 0x%08x  w%d  ovr %2d  mark %2d  nosrc %d%s"
+              % (cid, vt, width, n_ovr, n_mark, n_nosrc, tag))
+    print("totals ovr/mark/nosrc: %d/%d/%d (section 3: 365/263/7)"
+          % tuple(tot))
+    if diverged:
+        print("vtablerows: %d row(s) DIVERGE. A divergence is a "
+              "CONTRADICTION TO INVESTIGATE, not automatically the doc's "
+              "error -- the first reconstruction's divergence was the "
+              "checker's own transcription." % len(diverged))
+        return 1
+    print("reconstruction EXACT, 29/29")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+
+def selftest():
+    """The whole read path against a fabricated overlay and delinks.
+
+    One fake module: .text 0x1000..0x2000 (a marked src at 0x1100, an
+    unmarked one at 0x1200, a gap at 0x1300), .data 0x2000..0x3000
+    holding a 36-slot base table at 0x2000 and one width-37 class table
+    at 0x2100 overriding slots 5 (marked), 6 (unmarked), 7 (the gap)
+    plus its own slot 36. Expected: census finds exactly the two
+    tables; ovr/mark/nosrc = 4/2/1 (slot 36's target is the marked TU
+    again, so mark counts it twice the way section 3's columns do);
+    width 35 refuses; a truncated image refuses on the span check.
+    """
+    ok = True
+
+    def expect(cond, what, got):
+        nonlocal ok
+        if not cond:
+            print("FAIL: %s: %s" % (what, got))
+            ok = False
+
+    with tempfile.TemporaryDirectory() as td:
+        tdp = pathlib.Path(td)
+        (tdp / "src").mkdir()
+        # The marker text is a LITERAL here on purpose: a fixture written
+        # from the MARKER constant would mutate in lockstep with it and
+        # the arm would test nothing (the first mutation battery proved
+        # exactly that).
+        (tdp / "src" / "f_1100.c").write_text(
+            "/* recovered from vtable slot identity */\n")
+        (tdp / "src" / "f_1200.c").write_text("/* plain */\n")
+        delinks = tdp / "delinks.txt"
+        delinks.write_text(
+            "    .text       start:0x1000 end:0x2000 kind:code align:32\n"
+            "    .data       start:0x2000 end:0x3000 kind:data align:32\n"
+            "    .bss        start:0x3000 end:0x3100 kind:bss align:32\n"
+            "src/f_1100.c:\n"
+            "    .text start:0x1100 end:0x1200\n"
+            "src/f_1200.c:\n"
+            "    .text start:0x1200 end:0x1300\n")
+        img = bytearray(0x2000)
+        base_slots = [0x8000 + 4 * i for i in range(36)]
+        # Signature words as LITERALS, same reason as the marker above:
+        # the arm must catch a mutated SIG constant, so the fixture must
+        # not be built from it.
+        base_slots[13], base_slots[14], base_slots[15] = \
+            0x0204357c, 0x0204349c, 0x02043494
+        for i, s in enumerate(base_slots):
+            struct.pack_into("<I", img, 0x2000 - 0x1000 + 4 * i, s)
+        cls = list(base_slots) + [0x1100]   # width 37
+        cls[5], cls[6], cls[7] = 0x1100, 0x1200, 0x1300
+        for i, s in enumerate(cls):
+            struct.pack_into("<I", img, 0x2100 - 0x1000 + 4 * i, s)
+        (tdp / "fake.bin").write_bytes(img)
+
+        ov = Overlay("fake", tdp / "fake.bin", delinks)
+        expect(ov.base == 0x1000 and ov.data_span == (0x2000, 0x3000),
+               "base and data span from delinks", (ov.base, ov.data_span))
+        hits = find_tables(ov)
+        expect(hits == [0x2000, 0x2100], "signature census", hits)
+
+        sources = Sources(tdp, [delinks])
+        rows = class_rows(ov, base_slots, 0x2100, 37)
+        n_ovr, n_mark, n_nosrc, detail = measure(rows, sources)
+        expect((n_ovr, n_mark, n_nosrc) == (4, 2, 1),
+               "ovr/mark/nosrc on the fixture", (n_ovr, n_mark, n_nosrc))
+        expect([i for i, w, o, m in detail] == [5, 6, 7, 36],
+               "override slot list", detail)
+        expect(sources.owner(0x1300) is None and
+               sources.owner(0x1250) == "src/f_1200.c",
+               "delinks join edges", (sources.owner(0x1300),
+                                      sources.owner(0x1250)))
+
+        # refusals: width outside the ruling set, and a truncated image
+        try:
+            class_rows(ov, base_slots, 0x2100, 35)
+            expect(False, "width 35 was ACCEPTED", "no SystemExit")
+        except SystemExit as e:
+            expect("ruling set" in str(e), "width refusal message", str(e))
+        (tdp / "cut.bin").write_bytes(img[:-4])
+        try:
+            Overlay("cut", tdp / "cut.bin", delinks)
+            expect(False, "truncated image was ACCEPTED", "no SystemExit")
+        except SystemExit as e:
+            expect("stale or wrong image" in str(e),
+                   "span refusal message", str(e))
+
+        # the doc-table parser against a fabricated section 3 shape
+        doc = tdp / "doc.txt"
+        doc.write_text(
+            "  id     spawn symbol   vtable     width  ovr  mark  nosrc\n"
+            "  0x172  MgSortOrSplode              0213bbb4      36    6"
+            "     5      0\n"
+            "  0x176  MgShuffleShell (curling)    0213c304      36    6"
+            "     5      0   DONE\n"
+            "  0x179  MgSnowballSlalom            NOT FOUND -- see below\n")
+        got = parse_doc_table(doc)
+        expect(got == [(0x172, 0x0213bbb4, 36, 6, 5, 0),
+                       (0x176, 0x0213c304, 36, 6, 5, 0)],
+               "doc-table rows (DONE tolerated, NOT FOUND skipped)", got)
+
+    print("selftest %s" % ("PASS" if ok else "FAIL"))
+    return 0 if ok else 1
+
+
+def default_root():
+    here = os.path.dirname(os.path.abspath(__file__))
+    return os.path.dirname(os.path.dirname(here))
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="vtable override rows from the raw overlays; see the "
+                    "docstring")
+    ap.add_argument("--root", default=default_root())
+    ap.add_argument("--census", action="store_true")
+    ap.add_argument("--vtable", type=lambda x: int(x, 0))
+    ap.add_argument("--width", type=int)
+    ap.add_argument("--reconstruct", action="store_true")
+    ap.add_argument("--selftest", action="store_true")
+    args = ap.parse_args()
+
+    if args.selftest:
+        sys.exit(selftest())
+    if args.census:
+        sys.exit(cmd_census(args.root))
+    if args.reconstruct:
+        sys.exit(cmd_reconstruct(args.root))
+    if args.vtable is not None:
+        if args.width is None:
+            sys.exit("pass --width 36 or 37 (MG1's ruling for the class; "
+                     "this tool does not derive it)")
+        sys.exit(cmd_rows(args.root, args.vtable, args.width))
+    sys.exit("pass --census, --vtable ADDR --width N, --reconstruct, or "
+             "--selftest")
+
+
+if __name__ == "__main__":
+    main()
