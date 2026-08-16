@@ -103,7 +103,9 @@
 // (FS_RegisterArchiveName), func_0205c7c4 (FS_SetArchiveProc) and func_0205cb68
 // (FS_LoadArchive) are the matched src TUs, called with the ROM's arguments in
 // the ROM's order, and the ROM's once-guard func_0205d89c is what calls the
-// face -- with the ROM's own argument, 2.
+// face. Its argument is -1, the value the DS ends up with; the derivation is
+// beside the boot object at the foot of this file, because the ROM has two
+// call sites that disagree.
 //
 // ---- WHERE THE BYTES COME FROM ---------------------------------------------
 //
@@ -471,6 +473,10 @@ void port_nitrofs_fs_init(void *dma)
 
 /* The face src/func_0205d89c.c calls. Named for the ROM function it replaces
    so the once-guard's own body needs no edit. */
+// PORT_HOST_ABI: src reads the DS cartridge-header mirror at 0x027FFE40 and
+// 0x027FFE48 and calls func_02057020, which reads 0x027FFFB0; both pages are
+// unmapped in the port. Same four words, taken from the cartridge by
+// tools/asset_catalog.py, and then the ROM's own registration calls verbatim.
 void func_0205d96c(void *dma) { port_nitrofs_fs_init(dma); }
 
 /* ---- FACE: func_02018e3c, and it is an ABI face, not a hardware one -------
@@ -503,6 +509,10 @@ void func_02018e68(void *message);
 void Crash(void);
 extern int data_0208ecd8[];
 
+// PORT_HOST_ABI: src is an ARM register ride-through. The ROM carries r0 (the
+// FSFileID out pointer) and r1 (the path) into func_0205d644 untouched and so
+// names no parameters; on cdecl the two arguments never arrive. Same shape
+// hal/fs.cpp faces for SharedFilePtr::Construct.
 int func_02018e3c(void *out_file_id, const char *path)
 {
     int r = func_0205d644(out_file_id, path);

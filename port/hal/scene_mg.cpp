@@ -809,18 +809,30 @@ extern "C" void port_scene_fill_curling(void)
        Run link60 lane NFS, and it is the THIRD in this chain: the fader seat
        let the scene reach InitResources, the file-system seat let
        InitResources finish, and what the scene reached next is the fader
-       again -- the part port/fader_boot_map.txt section 7a wrote down as a
-       hazard it did not own.
+       again -- this time a defect in that seat's stub ABI.
 
            func_02043288 -> mb_bbeh -> func_ov004_020b0620 (slot 7)
                          -> Scene::BeforeBehavior
 
-       whose tail is `ecx = data_0209f5bc; eax = *ecx; call [eax + 0x14]`: a
-       CDECL call through a hand-written struct of function pointers, into a
-       table whose three motion slots hold this port's named traps rather than
-       the ROM's bodies. Slot 0x0c fires ITS trap on the first behaviour tick
-       and the frame does not survive it: control goes to the actor object's
-       own address with no pushed return, which is a `ret` onto a stack word.
+       which JUMPS PAST the data_0209f5bc->vt->f14 site at 004B45EA,
+       dispatches [eax+18h] (seated, silent), and then at 004B46C5..46D1
+       pushes 0 and 1Eh and calls [eax+0Ch] WITH NO CALLER CLEANUP. That slot
+       holds hal/fdr_arm9_fader_seat.cpp's fdr_s0c, an
+       `int __fastcall(void *, void *)` stub that takes both parameters in
+       registers and cleans nothing, so eight bytes leak: pop esi takes 0x1E,
+       pop ebp takes 0, and ret pops the saved esi, which is the Scene
+       pointer. The crash dump is that arithmetic exactly (eax 1, esi 1e,
+       ebp 0, eip 307FB114). Slot 0x10 at 004B460B has the identical defect
+       on the other branch; its trap has never printed only because the run
+       dies on 0x0c first.
+
+       READ 7a AS REFUTED, NOT AS PREDICTIVE. port/fader_boot_map.txt section
+       7a argued a fastcall stub with no stack parameters is balanced for both
+       caller shapes. The caller here pushes two arguments and cleans neither,
+       which is a third shape, and all twelve stubs in the fill were written
+       on that argument. An earlier version of this comment credited 7a with
+       predicting the fault and named f14 as the dying call; both were wrong
+       and the correction is the reviewer's instruction-level symbolization.
 
        WHY THIS LINE EXISTS AT ALL, and it is not decoration. The fault is
        QUARANTINED: hal/actor_classes.cpp freezes the actor and the frame
@@ -833,18 +845,22 @@ extern "C" void port_scene_fill_curling(void)
        compares data_020926f0's three motion slots against the traps
        hal/fdr_arm9_fader_seat.cpp installed, so the day somebody seats
        func_0202f428 / func_0202f928 / func_0202f708 this stops printing on
-       its own and battery.py reports BLOCK RETIRED. */
+       its own and battery.py reports BLOCK RETIRED. Seating 0x0c alone only
+       moves the fault to 0x10; the whole fill's stub signatures need the
+       audit. */
     if (IsMinigameActorID((unsigned)port_scene_env_want()) &&
         port_fdr_motion_slots_unseated()) {
         std::printf("[scene] MINIGAME BLOCKED: the dWipe_c motion slots are "
                     "still named traps, so the first behaviour tick dies in "
-                    "Scene::BeforeBehavior. dScMgBase_c slot 7 reaches the "
-                    "CDECL fader dispatch data_0209f5bc->vt->f14, slot 0x0c "
-                    "(SetBackwardTime, ROM body func_0202f928) fires its trap, "
-                    "and control returns to the actor's own address. The file "
-                    "system seat is DONE and this is the next one: it belongs "
-                    "with port/fader_boot_map.txt sections 7a and 9, not with "
-                    "the minigame or the file system.\n");
+                    "Scene::BeforeBehavior. It pushes two arguments at "
+                    "004B46D1 and calls slot 0x0c (SetBackwardTime, ROM body "
+                    "func_0202f928) without cleaning them; the fastcall trap "
+                    "stub cleans nothing either, eight bytes leak, and the "
+                    "ret lands on the Scene pointer. Slot 0x10 has the same "
+                    "defect. The file system seat is DONE and this is the "
+                    "next one: it belongs with port/fader_boot_map.txt "
+                    "sections 7a and 9, not with the minigame or the file "
+                    "system.\n");
         std::fflush(stdout);
     }
 

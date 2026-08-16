@@ -207,10 +207,15 @@ than assumed. The linked callers send:
     4  find by name      func_0205d714
     5                    func_0205d4a0
     6  open fast         func_0205d568
-    7                    func_0205d5e8
     8  close             FS_CloseFile
 
-Every one is inside the nine-entry default table. Commands 1, 9 and 10 are the
+Command 7's only sender is func_0205d5e8, WHICH IS NOT LINKED in either build
+(no func_0205d5e8.c.obj row in walk_window.map), so it is off this list. An
+earlier version of this file carried it, read off the src call sites without
+checking the map. The conclusion is unaffected either way: 7 is a default-table
+index like the rest.
+
+Every command above is inside the nine-entry default table. Commands 1, 9 and 10 are the
 three the ROM's own bitmask 0x602 claims for the archive proc, and NOTHING IN
 THE LINK SENDS THEM -- with one exception that matters: func_0205cdf4 and
 func_0205d044 call the proc DIRECTLY with 9 and 10 as the archive's activate
@@ -272,37 +277,69 @@ now names. Reached only because InitResources finishes:
     func_02043288  the actor-tree walker
       mb_bbeh                              hal/scene_mg.cpp
         func_ov004_020b0620                dScMgBase_c slot 7, BeforeBehavior
-          _ZN5Scene14BeforeBehaviorEv      whose tail, disassembled off this
-                                           lane's own binary at +0x000b4590:
-             mov  ecx, dword ptr [data_0209f5bc]
-             mov  eax, dword ptr [ecx]
-             call dword ptr [eax + 0x14]
+          _ZN5Scene14BeforeBehaviorEv      where it dies
 
-That call is the CDECL raw-offset fader dispatch port/fader_boot_map.txt
-section 7a wrote down as a hazard it did not own: a hand-written struct of
-function pointers reached through data_0209f5bc, into a table whose three
-motion slots hold hal/fdr_arm9_fader_seat.cpp's NAMED TRAPS rather than the
-ROM's bodies. The playlog's last line before the fault is that file's own:
+THE MECHANISM BELOW IS THE REVIEWER'S INSTRUCTION-LEVEL SYMBOLIZATION AND IT
+REPLACES THIS LANE'S FIRST READING, which was wrong in three separate ways and
+had been written into this file, into battery.py's row and into
+hal/scene_mg.cpp before the correction landed. The first reading named
+data_0209f5bc->vt->f14 as the dying dispatch, put the leak at four bytes, and
+said port/fader_boot_map.txt section 7a predicted it. None of that is true.
+It is spelled out here rather than quietly replaced because THIS SECTION IS
+THE HANDOVER the next fader lane works from, and a handover that is confidently
+wrong about which call site dies costs more than one that says nothing.
+
+WHAT ACTUALLY HAPPENS, by address:
+
+    004B45EA   je      ...          the f14 site is JUMPED PAST entirely
+    ...        call    [eax+18h]    dispatched, seated, silent
+    004B46C5   push    0
+    004B46CA   push    1Eh
+    004B46D1   call    [eax+0Ch]    fdr_s0c, and NO CALLER CLEANUP FOLLOWS
+
+The call site pushes two arguments and expects the CALLEE to clean them. The
+slot holds `int __fastcall fdr_s0c(void *, void *)`, which takes its two
+parameters in registers and cleans NOTHING. Eight bytes leak, not four, and
+the register file in the crash dump is the arithmetic:
+
+    pop esi   takes 0x1E          -> esi = 1e
+    pop ebp   takes 0             -> ebp = 0
+    ret       pops the saved esi  -> eip = 307fb114, the Scene pointer
+
+    crash dump: eax 1, esi 1e, ebp 0, eip 307fb114
+
+which is every register accounted for and not a reading that merely fits.
+
+SECTION 7a DID NOT PREDICT THIS. IT ARGUED THE OPPOSITE, and this fault
+falsifies the argument. 7a reasoned that a fastcall stub with two register
+parameters and no stack parameters is balanced for both caller shapes, because
+"a cdecl caller cleans its own push, and a thiscall no-argument caller pushes
+nothing". The shape that actually reaches slot 0x0c is neither: it is a caller
+that PUSHES TWO ARGUMENTS AND CLEANS NEITHER. Against that, a callee that
+cleans nothing is short by exactly eight. The three-line argument in 7a should
+be read as refuted rather than as unproven.
+
+SLOT 0x10 CARRIES THE IDENTICAL DEFECT, at 004B460B on the other branch of the
+same function. Its trap has never printed, and the only reason is that the run
+dies on 0x0c first. Fixing 0x0c alone moves the fault, it does not retire it.
+
+THE FIX, AND IT IS THE FADER SEAT'S: the fill's stubs are the wrong ABI for a
+table MSVC calls with pushed arguments and callee-cleans expectations. Slots
+0x0c and 0x10 need ABI-correct stubs or the ROM's real bodies
+(func_0202f928 and func_0202f708), AND THE REST OF THE FILL'S STUB SIGNATURES
+NEED THE SAME AUDIT -- every one of the twelve is `__fastcall(void *, void *)`
+today, chosen on 7a's refuted reasoning, so any other slot this table reaches
+with pushed arguments has the same leak waiting. That audit is the work, not a
+one-slot patch, and it belongs with port/fader_boot_map.txt sections 7a and 9.
+
+The playlog's last line before the fault is the fader seat's own, and it is
+what makes the slot identification direct rather than inferred:
 
     [fdr] dWipe_c vtable slot 0x0c SetBackwardTime FIRED -- the ROM body is
           func_0202f928 and this tranche did not seat it.
 
 so FDR's first unproven item -- "the three trap slots have never been
-dispatched" -- is spent. Control then transfers to 0x307FB114, THE ACTOR
-OBJECT'S OWN ADDRESS, and the crash dump shows the correct return
-(+0x0004a3bd, back into func_ov004_020b0620) still sitting one word ABOVE the
-new esp. Nothing pushed a return; a `ret` popped a stack word. That is a stack
-imbalance, which is the failure shape a calling-convention mismatch makes and
-which 7a predicts in as many words.
-
-WHAT IS NOT ESTABLISHED HERE, and this lane will not guess it: which side of
-the call is wrong, and by how many bytes. The four-byte offset between the
-popped word and the correct return says one argument's worth, and the trap
-stubs are __fastcall cleaning nothing, but naming the caller's convention from
-that is exactly the inference port/tools/inferred_stub_guard.py exists to
-refuse. THE FIX BELONGS WITH THE THREE MOTION SLOTS, which is to say with
-port/fader_boot_map.txt sections 7a and 9, and is not a file-system job any
-more than the file system was a fader job.
+dispatched" -- is spent.
 
 The pre-flight that prints the row's marker is the third in one block in
 hal/scene_mg.cpp, beside the two retired ones, and it asks a PREDICATE rather
@@ -313,11 +350,15 @@ own when they are seated.
 
 8. UNPROVEN ITEMS
 
-  * THE FAULT ATTRIBUTION IS AT FUNCTION GRANULARITY, NOT INSTRUCTION. Section
-    7's chain, the disassembly of Scene::BeforeBehavior's tail, the trap line
-    and the one-word stack offset are all measured. "A convention mismatch on
-    the 0x0c dispatch" is the reading that fits them and it is not proven; a
-    smashed buffer inside the trap's caller would look the same from here.
+  * THE FAULT ATTRIBUTION IS NOW INSTRUCTION-LEVEL AND NOT THIS LANE'S WORK.
+    Section 7's mechanism is the reviewer's symbolization: the call site at
+    004B46D1, the two pushes with no cleanup, the eight-byte leak and the
+    three pops that produce the crash dump's exact register file. This lane's
+    own reading, at function granularity, named the wrong call site and the
+    wrong byte count and credited section 7a with predicting a fault it had
+    argued against. What remains genuinely open is only the audit: whether any
+    slot in the fill other than 0x0c and 0x10 is reached by a pushed-argument
+    caller, which nothing here has enumerated.
   * ONE UNMATCHED BODY NOW RUNS. The run reports "unmatched ov004/ov006 traps
     entered: 1" -- func_0202e78c, trapped by hal/scene_mg_faces.cpp and
     returning 0. It could not fire before this seat because the run died
@@ -327,11 +368,21 @@ own when they are seated.
     address switch". With the behaviour tick dying on frame one that is
     expected rather than informative, and it should be re-read after the fader
     slots are seated, not before.
-  * NO FRAME WAS LOOKED AT. See section 6.
-  * THE OTHER TWELVE ARCHIVES ARE UNTOUCHED. This registers exactly one, the
-    cartridge's own "rom". The 13 NARC mounts in data_0208ecf4 are still served
-    lazily by hal/fs.cpp's port_archive_map and go nowhere near this seam. A
-    path with an "arch:" prefix would reach func_0205d23c and find nothing.
+  * NO FRAME WAS LOOKED AT. See section 6. AND ANY BMP BASELINE FROM BEFORE
+    THIS TRANCHE IS INVALID, for a reason with nothing to do with rendering.
+    The seat adds six symbols to .dsstate as one contiguous block, +112
+    CAPTURED BYTES (108 is the source sum of the six spans; the other 4 is
+    alignment), and the section base moved a page. port/tools/battery.py's
+    header is explicit that the selftest BMP is only byte-identical at an
+    EQUAL .dsstate base, so a diff against a pre-tranche image is a layout
+    artifact and reads as a rendering regression to anyone who skips that
+    rule. Compare at equal base or do not compare.
+  * THE THIRTEEN NARC ARCHIVES ARE UNTOUCHED. This registers exactly one, the
+    cartridge's own "rom", and that one is not among them: data_0208ecf4 holds
+    thirteen NARC mounts and the catalog counts thirteen archive files, so the
+    count of others is thirteen and not twelve. They are still served lazily by
+    hal/fs.cpp's port_archive_map and go nowhere near this seam. A path with an
+    "arch:" prefix would reach func_0205d23c and find nothing.
   * WRITES ARE REFUSED, WHICH IS THE ROM'S ANSWER AND NOT A TESTED ONE.
     src/func_0205db24.c returns 1 for every write. Nothing in the port writes
     to the cartridge, so the path has never been exercised.
@@ -358,8 +409,12 @@ own when they are seated.
         FATAL: NitroFS table index missing: <path>/build/assets/nitrofs.tsv
                run tools/asset_catalog.py generate <rom>
 
-    Verified by moving the file aside: walk_window and smoke_player both exit
-    127 with that message; smoke_fs and smoke_persist do not carry the seat
-    and are unaffected. Refusing rather than limping is hal/fs.cpp's
-    precedent, but it IS a new requirement on every worktree, and a lane that
-    pulls this branch without regenerating gets an abort rather than a hint.
+    Verified by moving the file aside: walk_window and smoke_player both die
+    with that message; smoke_fs and smoke_persist do not carry the seat and
+    are unaffected. THE EXIT CODE IS 0xC0000409, not the 127 an earlier draft
+    of this file reported off a shell's own rendering of it. That is
+    STATUS_STACK_BUFFER_OVERRUN, which is what MSVC's abort() raises, and it
+    is a confusing thing for a missing file to produce. Refusing rather than
+    limping is hal/fs.cpp's precedent and the failure shape stands, but a
+    successor may want exit(2) after the FATAL line instead: same loudness,
+    legible code. Not taken here, and handed forward rather than left implied.

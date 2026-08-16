@@ -26,10 +26,14 @@ src/func_0205c7c4.c
 
 # The ROM's once-guard around FS_Init: `if (!data_020a8058) { data_020a8058 = 1;
 # func_0205d96c(x); }`. hal/fs_names.cpp's static initialiser calls THIS rather
-# than the face directly, with the ROM's own argument 2 -- the value
-# func_02018aa4, the file loader's lazy bring-up, passes. func_0205d96c itself
-# is a host face (the DS cartridge-header mirror at 0x027FFE40 is unmapped),
-# so it is deliberately NOT listed here.
+# than the face directly, with the argument -1. The ROM has TWO call sites and
+# they disagree: func_02040c34, the system init, passes -1, and func_02018aa4,
+# the file loader's lazy bring-up, passes 2. The guard means the first wins and
+# the loader cannot run before the init that gives it a heap, so -1 is what the
+# DS ends up with. The full derivation sits beside the boot object in
+# hal/fs_names.cpp. func_0205d96c itself is a host face (the DS
+# cartridge-header mirror at 0x027FFE40 is unmapped), so it is deliberately
+# NOT listed here.
 src/func_0205d89c.c
 
 # The archive WRITE function, and it is the ROM's real body rather than a face:
