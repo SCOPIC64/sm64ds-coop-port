@@ -235,7 +235,7 @@ SCENE_BLOCKED = {
         "fix again. Displacing a matched TU picks which of two matched bodies "
         "stops being the decomp, and this file's precedent is that a review "
         "rules it and a lane executes it. Full write-up, with the ROM and host "
-        "listings: port/ov007_seat.txt sections 5, 5a, 5b and 5c. "
+        "listings: port/ov007_seat.txt sections 5, 5a, 5b, 5c and 5d. "
         "ONE THING THAT WILL LOOK LIKE A FAILURE AND IS NOT, said here because "
         "this row is where a lane investigating scene 1 arrives: gate.py prints "
         "RED on this tree, `linkage 5830 below the baseline's 5831`, while the "

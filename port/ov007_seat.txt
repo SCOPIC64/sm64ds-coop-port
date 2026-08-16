@@ -1176,8 +1176,26 @@ drops the argument a REAL PROLOGUE or a TAIL JUMP:
     [ebp+8] out of storage nobody filled
 
 That is a statement about the shipped binary, so it was read off the shipped
-binary. All addresses below are this tree's walk_window.exe at 8cfd47f09, exe
-sha256 e2fbffe5...05d9b.
+binary: this tree's build/port/walk_window.exe, attested the way this file's
+header says to attest one, by the gate manifest's git_sha plus git_dirty.
+
+AN EARLIER DRAFT OF THIS SECTION QUOTED AN exe SHA256 HERE, which contradicted
+the header three pages above it, and the review caught it. The header rules
+hashes out because the link embeds build-location state, so one worktree's
+sha256 is not another's. THE REVIEW'S REASON IS STRONGER THAN THE HEADER'S AND
+IT IS THE ONE TO CARRY: the hash is not stable within ONE location either.
+Three links in this lane produced three different hashes, two of them at the
+SAME path and the SAME commit with a clean tree:
+
+    e2fbffe5...   8cfd47f09   the baseline link
+    99eefc16...   74616970e   the docs-only tip link
+    c6ec89d1...   74616970e   a relink at that same commit and path
+
+and across all three, exe_size (3938304), map_size (4039299) and map_symbols
+(37280) were identical, AND EVERY ADDRESS QUOTED IN THIS SECTION WAS THE SAME
+IN ALL THREE. A hash that moves when nothing moved pins nothing. THE MAP
+ADDRESS IS THE RIGHT CURRENCY and a lane quoting a host listing should quote
+addresses and the git_sha, never a hash.
 
 READ THE BYTES AT THE MAP ADDRESS, NOT dumpbin's LISTING. dumpbin /disasm is a
 linear walk and it desynchronises on the data islands MSVC leaves between
@@ -1314,16 +1332,23 @@ folded seventeen of them onto one address (00437BB0), and 00429CB0 itself is
 through data_ov007_02103254. THE WHOLE CHAIN IS TAIL JUMPS AND THE ARGUMENT
 NEVER MOVES.
 
-49 OF THE 60 HARMLESS-DIRECTION ROWS ARE THIS CLASS. 5c calls that bucket
+MOST OF THE HARMLESS-DIRECTION BUCKET IS THIS CLASS, and the count is
+method-dependent exactly the way 5c already quarantines that bucket for being.
+This lane's parse says 49 of 60. The review's independent tokenizer says 46 of
+its own harmless total. QUOTE NEITHER AS FIRM. The two agree on the shape and
+on nothing narrower, which is all the shape needs. 5c calls that bucket
 "Harmless on a cdecl host: the caller pushes extra and cleans them, the callee
 ignores them. Not candidates." That reasoning is right about the veneer frame
 and wrong about the row, because the veneer's whole job is to forward and the
 argument it "ignores" is one its target reads. The bucket is harmless today for
 a different reason than the one given, and the difference is load-bearing:
 
-  THE FLOOR UNDER 54 ROWS IS AN OPTIMISER DECISION, NOT A SOURCE PROPERTY.
-  Five Class C rows and the 49 veneer rows are correct because MSVC tail-jumps
-  a function whose body is a single call. Nothing in the tree asks for that.
+  THE FLOOR UNDER ABOUT FIFTY ROWS IS AN OPTIMISER DECISION, NOT A SOURCE
+  PROPERTY. Five Class C rows plus the veneer rows in the harmless bucket:
+  54 by this lane's parse (49 veneer), 51 by the review's tokenizer (46
+  veneer). READ IT AS ROUGHLY FIFTY. The exact integer is method-dependent and
+  nothing here turns on it. All of them are correct because MSVC tail-jumps a
+  function whose body is a single call. Nothing in the tree asks for that.
   Build at /Od, or add one statement to any of those forwarders, and MSVC emits
   a real prologue and every affected row breaks in the same build. This is the
   largest unguarded assumption the ov007 slice rests on and it is not written
@@ -1355,8 +1380,10 @@ config/arm9/overlays/ov007/relocs.txt, every hop a real arm_call:
 
 The position inside that chain comes from the matched sources and not from a
 guess. func_ov007_020cc4c0's last three calls are b7138, then b7090, then
-Sound::LoadInitialGroup(2). func_ov007_020b7090 calls c20b8, b2e64, c1db0 and
-then aed98. func_ov007_020aed98 ends in three loops: `i < 0x18` over b44ec,
+Sound::LoadInitialGroup(2). func_ov007_020b7090 calls c20b8, b2e64, c1db0,
+then func_ov007_020bdebc at 0x020b70f4, and then aed98 at 0x020b70f8 with
+bdebc's return riding in r0 as aed98's argument. bdebc was missing from an
+earlier draft of this list and the review restored it. func_ov007_020aed98 ends in three loops: `i < 0x18` over b44ec,
 which is the twenty-four census hits and ran; `i < 9` over add3c, which faults
 on iteration zero; `i < 8` over ad660, which has never been reached.
 
@@ -1394,13 +1421,26 @@ Behavior is
 and b3d30 is the frame that faults, on a garbage `idx` used as an array
 subscript feeding `*( *(int**)(thiz+0x5c) ) = *(int*)(base + 0x78 + tbl[idx]*4)`.
 
-IT HAS NOT RUN YET, AND THAT IS AN ARGUMENT RATHER THAN AN ASSUMPTION. b2e64
-runs unconditionally inside b7090, so it has already executed on every run that
-reached ae558. b3360 calls b3c54 under a guard, and b3c54 calls b3d30
-unconditionally at its tail. If that guard had been true, b3d30 would have
-dereferenced a garbage subscript and the recorded fault would be there and not
-at ae558. So the guard is false during the first InitResources pass and the row
-is waiting for the state that makes it true.
+IT HAS NOT RUN YET, AND THE ARGUMENT PROVES LESS THAN AN EARLIER DRAFT OF THIS
+PARAGRAPH CLAIMED. THE CHAIN HAS TWO GUARDS AND NOT ONE, which the review
+caught:
+
+    func_ov007_020b2e64   `if (*(short*)(data_ov007_02103360[0]) != 0xff)`
+                          and only then calls b3360. The 0xff arm calls
+                          func_ov007_020b3190 instead and never reaches it.
+    func_ov007_020b3360   `if (*(int*)(p0 + 0xc) == 0)` and only then calls
+                          b3c54.
+
+b2e64 itself runs unconditionally inside b7090, so it has executed on every run
+that reached ae558. b3c54 calls b3d30 unconditionally at its tail, and b3d30
+would dereference a garbage subscript, so had the whole chain run the recorded
+fault would be there and not at ae558.
+
+WHAT THAT ESTABLISHES IS THAT THE CONJUNCTION DID NOT HOLD, and nothing
+narrower. It does NOT establish that b3360's own guard was false, because
+b3360 may never have been ENTERED at all. Either conjunct alone accounts for
+the observation. The row is waiting on state either way, and either way it is
+not gated behind ae558, which is the only load-bearing part.
 
 THE DISPLACEMENT SHAPE, if a review rules on the next seat, per the PC2
 methodology of naming the frame where information is destroyed:
@@ -1413,10 +1453,22 @@ methodology of naming the frame where information is destroyed:
   b3d30 <- b3c54. THE CALLER, func_ov007_020b3c54, and it is a WORSE seat than
   it looks because b3c54 is itself a Class A callee: its own `mode` parameter
   arrives garbage from b3360 on the default arm. Displacing b3c54 fixes the
-  argument it passes to b3d30 and does NOT fix the one it receives. A review
-  should expect to rule on b3360 and b3c54 together, or to rule that b3c54's
-  host copy takes both parameters and b3360 is displaced behind it. TWO frames,
+  argument it passes to b3d30 and does NOT fix the one it receives. TWO frames,
   and this file has not had a two-frame seat yet.
+
+  THE REASON THE PAIR HAS TO RULE TOGETHER IS THE REVIEW'S AND IT IS STRONGER
+  THAN THIS LANE'S FIRST ONE, which was about the cost of a second host copy.
+  THE TWO DEFECTS HAVE DIFFERENT FAILURE MODES. b3d30's is a FAULT: a garbage
+  subscript feeding a double dereference. b3c54's own is a STORE, and the
+  binary is explicit about it:
+
+      0042E6CA  mov ecx,[ebp+0xc]    <- the default arm loads the garbage
+      0042E6CD  mov [esi+8],ecx      <- and WRITES it into the object
+
+  so a ONE-FRAME seat that only fixes what b3c54 hands to b3d30 SILENCES THE
+  CRASH AND LEAVES THE CORRUPT WRITE LIVE. It converts a fault into corruption,
+  which is strictly worse than the fault, because the fault is the only thing
+  that would have told anyone. That is the reason, not the cost.
 
   c99d8 <- bcdb8 and cc0e4 <- cc600. THE CALLER in both, and both are the
   return-value shape, so the host copy has to capture the previous call's
@@ -1731,6 +1783,14 @@ cost". Until it lands, this paragraph is the explanation.
     read off the binary and the ROM, and the argument that they have not yet
     executed is an argument from the ABSENCE of a crash elsewhere, not from a
     trace. Scene 1 cannot run, so no lane can do better than that today.
+  - AND THE ABSENCE ARGUMENT DOES NOT COVER ALL SIX, which the review caught as
+    an inconsistency inside this file. 5d places c43bc's breaking frame,
+    func_ov007_020b4b5c, two hops under func_ov007_020b7138, and InitResources
+    calls b7138 BEFORE the faulting call, so that subtree ran to completion.
+    For c43bc NEITHER claim is demonstrated: not that it executed, because the
+    guards inside that subtree were never traced, and not that it did not. The
+    two statements were in tension and this bullet is the correction rather
+    than a resolution.
   - THE NEXT-SEAM PREDICTION IS A PREDICTION. 5d names b3d30, reached through
     b3360 and b3c54, as the next fault after ae558 is seated, on a
     shortest-path argument out of Behavior plus the guard reasoning above. It
