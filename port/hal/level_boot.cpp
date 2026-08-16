@@ -1949,6 +1949,181 @@ enum { PORT_LOADFILE_SLOTS = 64 };
 static PortSharedFilePtr g_loadfile_slot[PORT_LOADFILE_SLOTS];
 static int g_loadfile_used;
 
+/* ---- the instruments, env-gated and off by default -------------------------
+
+   SM64DS_LOADFILE_TRACE=1  one line per call: the handle, the block handed
+     back, the row it is recorded in, whether the call loaded or was served
+     from the row, and the game heap's free bytes afterwards.
+
+   SM64DS_LOADFILE_AUDIT=1  the question the trace cannot answer, and the one
+     the contract turns on: does the block handed back still hold the handle's
+     OWN bytes? A second, independent copy is loaded through the same seam,
+     compared, and returned to the allocator. DIFFER names the first byte that
+     disagrees and how many of the compared bytes do. The audit allocates and
+     frees around every load, so an audited run's heap layout is not a plain
+     run's -- it is a measurement mode and no frame taken under it is
+     comparable with one taken without it.
+
+   SM64DS_LOADFILE_BG2=<handle>  at exit, compare that handle's bytes against
+     the BG2 screen base. The destination is not guessed: G2::GetBG2ScrPtr is
+     the ROM's own answer, and func_020563d4 -- the tilemap uploader every
+     2D background goes through -- copies to exactly that pointer plus an
+     offset. So this answers "did the file reach the screen base" in bytes,
+     without reading a pixel or duplicating the base arithmetic.
+
+   The allocator's node header carries the block's user size at userPtr-0xc
+   (the same word port_level_free_captured_kcl reads, beside the 0x5544 used
+   marker at -0x10), which is what bounds every comparison below. */
+void _ZN13SharedFilePtr7ReleaseEv(PortSharedFilePtr *self);
+void *_ZN2G212GetBG2ScrPtrEv(void);
+unsigned port_level_heap_free_bytes(void);      /* hal/level_change.cpp */
+
+static int port_loadfile_env_on(const char *name)
+{
+    const char *e = std::getenv(name);
+    return e && *e && *e != '0';
+}
+
+static int port_loadfile_trace_on(void)
+{
+    static int v = -1;
+    if (v < 0) v = port_loadfile_env_on("SM64DS_LOADFILE_TRACE") ||
+                   port_loadfile_env_on("SM64DS_LOADFILE_AUDIT");
+    return v;
+}
+
+static int port_loadfile_audit_on(void)
+{
+    static int v = -1;
+    if (v < 0) v = port_loadfile_env_on("SM64DS_LOADFILE_AUDIT");
+    return v;
+}
+
+static unsigned port_loadfile_node_size(const char *p)
+{
+    if (!p)
+        return 0;
+    return *(const unsigned short *)(p - 0x10) == 0x5544
+               ? *(const unsigned *)(p - 0xc) : 0;
+}
+
+/* Load a second, independent copy of `handle` and compare it with `given`.
+   Frees the copy before returning, so the audit adds no lifetime of its own
+   to the one it is measuring.
+
+   THE SNAPSHOT IS NOT TIDINESS. The block under audit may already be free --
+   that is the whole hypothesis -- and the allocator is entitled to hand the
+   probe's own Allocate the very same address. It would then write the
+   handle's bytes over the evidence and the comparison would come back SAME
+   for the one case it exists to catch. So `given` is copied to a host buffer,
+   outside the game heap, BEFORE anything else is allocated. */
+static void port_loadfile_audit(int handle, const char *given)
+{
+    const unsigned gn = port_loadfile_node_size(given);
+    if (!gn) {
+        std::fprintf(stderr, "[loadfile] %#x AUDIT: %p carries no live node "
+                     "header; nothing compared\n", handle,
+                     (const void *)given);
+        return;
+    }
+    char *const snap = (char *)std::malloc(gn);
+    if (!snap)
+        return;
+    std::memcpy(snap, given, gn);
+
+    PortSharedFilePtr probe;
+    _ZN13SharedFilePtr9ConstructEj(&probe, (unsigned)handle);
+    _ZN13SharedFilePtr8LoadFileEv(&probe);
+    if (!probe.filePtr) {
+        std::fprintf(stderr, "[loadfile] %#x AUDIT: the probe load returned "
+                     "nothing; nothing compared\n", handle);
+        std::free(snap);
+        return;
+    }
+    const unsigned pn = port_loadfile_node_size(probe.filePtr);
+    const unsigned n = pn < gn ? pn : gn;
+    unsigned first = ~0u, differ = 0;
+    for (unsigned i = 0; i < n; ++i)
+        if (snap[i] != probe.filePtr[i]) {
+            if (first == ~0u) first = i;
+            ++differ;
+        }
+    if (!differ && pn == gn)
+        std::fprintf(stderr, "[loadfile] %#x AUDIT SAME over %u bytes\n",
+                     handle, n);
+    else
+        std::fprintf(stderr, "[loadfile] %#x AUDIT DIFFER: %u of %u compared "
+                     "bytes, first at %#x (given %p size %u, probe %p size "
+                     "%u%s)\n", handle, differ, n, first, (const void *)given,
+                     gn, (void *)probe.filePtr, pn,
+                     probe.filePtr == given ? ", SAME ADDRESS: the block was "
+                                              "free" : "");
+    _ZN13SharedFilePtr7ReleaseEv(&probe);
+    std::free(snap);
+}
+
+static void port_loadfile_report(int handle, const char *p, int row,
+                                 const char *how)
+{
+    if (port_loadfile_trace_on())
+        std::fprintf(stderr, "[loadfile] %#x -> %p row %d %s, heap free %u\n",
+                     handle, (const void *)p, row, how,
+                     port_level_heap_free_bytes());
+    if (port_loadfile_audit_on())
+        port_loadfile_audit(handle, p);
+}
+
+/* SM64DS_LOADFILE_BG2=<handle>: at exit, is the BG2 screen base holding that
+   handle's file? Registered on the first LoadFile so the check only runs on a
+   process that loaded something. */
+static int g_bg2_check_handle = -1;
+
+static void port_loadfile_bg2_check(void)
+{
+    const int handle = g_bg2_check_handle;
+    const char *scr = (const char *)_ZN2G212GetBG2ScrPtrEv();
+    if (handle < 0 || !scr) {
+        std::fprintf(stderr, "[loadfile] BG2 CHECK: no screen base\n");
+        return;
+    }
+    PortSharedFilePtr probe;
+    _ZN13SharedFilePtr9ConstructEj(&probe, (unsigned)handle);
+    _ZN13SharedFilePtr8LoadFileEv(&probe);
+    if (!probe.filePtr) {
+        std::fprintf(stderr, "[loadfile] BG2 CHECK %#x: the file did not "
+                     "load\n", handle);
+        return;
+    }
+    const unsigned n = port_loadfile_node_size(probe.filePtr);
+    unsigned first = ~0u, differ = 0;
+    for (unsigned i = 0; i < n; ++i)
+        if (scr[i] != probe.filePtr[i]) {
+            if (first == ~0u) first = i;
+            ++differ;
+        }
+    if (!differ)
+        std::fprintf(stderr, "[loadfile] BG2 CHECK %#x at %p: EXACT over %u "
+                     "bytes\n", handle, (const void *)scr, n);
+    else
+        std::fprintf(stderr, "[loadfile] BG2 CHECK %#x at %p: DIFFER, %u of "
+                     "%u bytes, first at %#x\n", handle, (const void *)scr,
+                     differ, n, first);
+    _ZN13SharedFilePtr7ReleaseEv(&probe);
+}
+
+static void port_loadfile_bg2_arm(void)
+{
+    static int armed;
+    if (armed)
+        return;
+    armed = 1;
+    const char *e = std::getenv("SM64DS_LOADFILE_BG2");
+    if (!e || !*e)
+        return;
+    g_bg2_check_handle = (int)std::strtol(e, 0, 0);
+    std::atexit(port_loadfile_bg2_check);
+}
+
 /* PORT_HOST_ABI: src is func_0201818c(handle,1), the DS card archive loader;
    the port's file seam is one level up at SharedFilePtr, so this expresses the
    same contract there rather than driving card hardware. */
@@ -1957,10 +2132,13 @@ void *LoadFile(int handle)
     enum { SLOTS = PORT_LOADFILE_SLOTS };
     PortSharedFilePtr *const slot = g_loadfile_slot;
     int &used = g_loadfile_used;
+    port_loadfile_bg2_arm();
     for (int i = 0; i < used; ++i)
         if (slot[i].fileID && slot[i].filePtr &&
-            (int)slot[i].fileID == handle)
+            (int)slot[i].fileID == handle) {
+            port_loadfile_report(handle, slot[i].filePtr, i, "CACHED");
             return slot[i].filePtr;
+        }
     if (used >= SLOTS) {
         std::fprintf(stderr, "FATAL: LoadFile: out of host file slots\n");
         std::abort();
@@ -1976,6 +2154,7 @@ void *LoadFile(int handle)
        the cache key above matches only when both agree; keep the handle. */
     ++used;
     s->fileID = (unsigned short)handle;
+    port_loadfile_report(handle, s->filePtr, used - 1, "FRESH");
     return s->filePtr;
 }
 
