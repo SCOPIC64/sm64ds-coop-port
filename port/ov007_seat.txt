@@ -629,7 +629,29 @@ THE ARITHMETIC CLOSES, so the reading is measured and not plausible. The fault
 line reports eax 00c6c580 and esi 300952a8, and 0x00c6c580 + 0x300952a8 * 4
 is 0xC0EC1020, which is the address the probe says was accessed. The three
 arguments the grandparent pushed are still sitting on ITS frame; the callee is
-reading the MIDDLE frame's, two slots nobody wrote.
+reading the MIDDLE frame's.
+
+AND THOSE TWO SLOTS HAVE NAMES. They are not unwritten stack, they are
+func_ov007_020be980's own saved registers, which the prologue quoted above
+says outright. Walking that push sequence with the frame pointer at X:
+
+    push ebp          [X]      be980's saved ebp
+    mov  ebp,esp      ebp = X
+    push esi          [X-4]    be980's SAVED ESI (the incoming one, b0a20's)
+    push [esi+4]      [X-8]    bc3dc's only real argument
+    call 00434370     [X-12]   return address
+    push ebp          [X-16]   bc3dc's saved ebp, and bc3dc's ebp = X-16
+
+so inside bc3dc, [ebp+8] is X-8 and is the argument, [ebp+0Ch] is X-4 and is
+be980's saved esi, and [ebp+10h] is X and is be980's saved ebp. The callee
+reads the first as c, the second as i and the third as a2.
+
+THAT RULES OUT THE TWO ALTERNATIVES a reader would reach for next. The garbage
+is a SAVED REGISTER and not a data seam, so no struct layout or hosted global
+is wrong here; and tools/linkcheck.py reports 0 blind slots on the new body, so
+it is not a relocation pointing somewhere it should not. The esi value the
+fault prints is whatever b0a20 was carrying, which is why it looks like a
+pointer rather than a small index.
 
 WHY THE PORT CANNOT JUST WIDEN THE MIDDLE DECLARATION. Because the middle TU's
 one-parameter declaration is what makes it reproduce the ROM: mwccarm emits the
@@ -659,9 +681,46 @@ port/CMakeLists.txt answers other ARM ride-throughs by cutting the middle TU
 out of the slice and host-copying it with a PORT_HOST_ABI tag (search that tag:
 one r0 ride-through in a spawn factory, three more at gate 14, five in Sound).
 Doing it here costs one linked TU and picks which of two matched bodies stops
-being the decomp, which is a seat decision somebody should make on purpose and
-not as a side effect of a propagation lane. PC2's brief was the TU and the
-battery row; the seam is named here, specified, and handed on.
+being the decomp, which is a seat decision to make on purpose and not as a side
+effect of a propagation lane. PC2's brief was the TU and the battery row.
+
+THE SEAT'S SHAPE IS RULED, AND THE RULING IS NOT THIS LANE'S. It was made by
+the PC2 review and is written down here so the lane that takes it does not have
+to re-litigate it. Everything in this block is the review's, attributed; the
+derivations above it are this lane's own.
+
+  DISPLACE func_ov007_020be980 ONLY. Of the three frames it is the only one
+  where information is DESTROYED: the values exist in the caller and are wanted
+  by the callee, and this frame is where they stop being passed.
+
+  func_ov007_020bc3dc IS NOT THE ONE TO DISPLACE, because it genuinely needs
+  both values and they differ per call site (i is 1 from func_ov007_020b0a20
+  and 0 from func_ov007_020b2614), so no constant a host body could supply
+  would be right at every site.
+
+  func_ov007_020b0a20 IS NOT THE ONE TO DISPLACE either, because it already
+  pushes three arguments and is doing nothing wrong.
+
+  THE HOST COPY IS PORT_HOST_ABI (void *, int, int), forwarding all three, the
+  signature the caller sweep above independently specifies.
+
+  COST 5831 TO 5830. The matched TU leaves the slice, so the linked count goes
+  DOWN by one, and that is the honest price of the seat rather than a
+  regression.
+
+  THE BATTERY ROW RETIRES IN THE SAME LANE, not a later one, and the mechanism
+  forces it: displacing the middle TU is what flips this lane's marker
+  predicate, so the configure that seats the seam is the configure that
+  disarms the marker. A lane that seats and does not deal with the row leaves
+  the row asserting nothing.
+
+  THE ZERO-DISPLACEMENT OPTION WAS CONSIDERED AND REJECTED ON PRINCIPLE. An
+  #ifdef in src/func_ov007_020be980.c widening the declaration for the host
+  build would cost no linked TU and would keep the ARM bytes. It is refused
+  because port concerns do not move into src/: the decomp's sources answer to
+  the byte gate and to nothing else, which is the same north star
+  port/tools/linkage.py states and the same reason this lane took a real match
+  over a second host transcription.
 
 ONE THING THE SWEEP DOES NOT SETTLE: the other three call sites are not known
 to be reached on the scene-1 path. Only 0x020b0a90 is on the fault's stack. The

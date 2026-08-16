@@ -233,9 +233,15 @@ SCENE_BLOCKED = {
         "of nothing. THE FIX IS THE PORT'S OWN ESTABLISHED SHAPE and it is not "
         "this lane's: port/CMakeLists.txt answers other ARM ride-throughs by "
         "taking the middle TU out of the slice and host-copying it with a "
-        "PORT_HOST_ABI tag, which costs one linked TU and is a seat decision "
-        "somebody should make on purpose. Full write-up: port/ov007_seat.txt "
-        "sections 5, 5a and 5b."),
+        "PORT_HOST_ABI tag. THE SEAT'S SHAPE IS RULED (by the PC2 review, not "
+        "by the lane that wrote this row): displace func_ov007_020be980 ONLY, "
+        "PORT_HOST_ABI (void *, int, int) forwarding all three, cost 5831 to "
+        "5830 because the matched TU leaves the slice. WHOEVER TAKES IT "
+        "RETIRES THIS ROW IN THE SAME LANE and does not get a choice about "
+        "it: displacing that TU flips the marker predicate above, so the "
+        "configure that seats the seam is the configure that disarms the "
+        "marker, and a seat that leaves the row behind leaves it asserting "
+        "nothing. Full write-up: port/ov007_seat.txt sections 5, 5a and 5b."),
     # SCENE 374 (0x176) WAS HERE AND IS RETIRED, run link60 lane FDR2. The
     # row had been CONVERTED TWICE and each conversion was a seat that landed:
     # lane MG2 recorded the arm9 fader (data_0209f61c's vptr was zero because
