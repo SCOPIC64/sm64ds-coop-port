@@ -596,6 +596,10 @@ THE ROM, read off overlay_0007.bin at the config base:
     020B0A90  bl  #0x20be980
     020BE980  push {r4, lr} / mov r4, r0 / ldr r0, [r4, #4] / bl #0x20bc3dc
               (r1 and r2 untouched across the whole body)
+              ^ AMENDED IN 5c: r2 is, r1 is NOT -- `mov r1, #1` at 0x020be994
+                writes it. The write lands after the branch, so nothing in this
+                section changes; the sufficient claim is that both are LIVE AT
+                THE BRANCH. Read 5c before quoting this line.
     020BC3E4  ldr r3, [r0, #0x14]
     020BC3E8  ldr ip, [r3, r1, lsl #2]   <- reads the r1 that rode through
     020BC400  str r2, [sp]               <- reads the r2 that rode through
@@ -802,8 +806,14 @@ ONE CORRECTION TO 5B, since it is quoted in three places and a later reader
 should not have to re-check it. 5b says r1 and r2 are "untouched across the
 whole body". r2 is. R1 IS NOT: `mov r1, #1` at 0x020be994 writes it. That write
 lands AFTER the branch, so the ride-through is real and no conclusion in 5b
-changes. The true and sufficient claim is UNTOUCHED ACROSS THE CALL, and the
-stronger sentence is not what the eleven instructions say.
+changes. 5b's line now carries a pointer here.
+
+THE REVIEW SHARPENED THE REPLACEMENT and its version is the one to quote: the
+sufficient condition is that r1 and r2 are LIVE AT THE BRANCH. "Untouched
+across the call" was this lane's first phrasing and it is weaker than it looks,
+because it still describes a span when the only instant that matters is the
+`bl`. What the callee reads is the register file at entry, and nothing the
+middle body does afterwards can reach it.
 
 THE MARKER RETIRED MECHANICALLY, WHICH TOOK AN AMENDMENT 5B DID NOT ANTICIPATE.
 PC2's predicate read the middle TU's one-parameter declaration out of src/. A
@@ -892,6 +902,31 @@ own argument at [ebp+8] one instruction later, which it could not do if [ebp+8]
 were an outgoing slot. So the caller pushes ZERO arguments and the callee reads
 one.
 
+AND THERE IS A CONTROL CASE, pointed at by the review and dumped here, which
+settles it without relying on either of those readings. func_ov007_020b44ec is
+a HEALTHY caller of the same trapped body the loops above reach, and it shows
+BOTH shapes inside one function:
+
+    0042ED20  push ebp
+    0042ED23  push esi              <- a SAVE. Never cleaned.
+    0042ED24  mov  esi,[ebp+8]         and its own argument is read right here
+    0042ED27  push edi              <- also a save
+    0042ED4B  push edi              <- an ARGUMENT
+    0042ED50  call 00425C40            func_ov007_020ae834
+    0042ED58  add  esp,8            <- and it IS cleaned
+
+The same instruction, `push`, twice, and the epilogue tells them apart. A save
+is never cleaned and is followed by the function reading its own frame; an
+argument is cleaned by the caller because this is cdecl. add3c has only the
+first kind before its call, and that is the whole defect.
+
+ONE REFINEMENT ON THE REVIEW'S VERSION OF THIS, re-derived rather than
+restated: the review described the cleanup as `add esp,4`. In this build it is
+`add esp,8` at 0042ED58, because MSVC coalesced the cleanup for TWO argument
+pushes -- 0042ED3F's and 0042ED4B's, feeding two different calls -- into one
+adjustment. Four or eight does not touch the point (arguments get cleaned,
+saves do not), but the listing is what it is.
+
 AND THE SLOT HAS A NAME. Walking the pushes with the caller's frame pointer at
 X, the same way 5b walks its seam:
 
@@ -910,6 +945,45 @@ instruction is a bare `mov ecx,[ebx]` with no displacement and no index, and
 the fault reports accessing 000000a4, so the accessed address IS the garbage
 slot's contents. There is nothing to reconstruct. Deterministic across four
 runs: same offset, same accessed address, every time.
+
+AND THE GARBAGE HAS A MEANING, WHICH THE REVIEW SUPPLIED AND THIS LANE HAD NOT
+LOOKED FOR. 0xA4 is not arbitrary. src/func_ov007_020aed98.cpp ends in three
+loops over data_ov007_0210342c, and the middle one is
+
+    for (i = 0; i < 9; i++)
+        func_ov007_020add3c(*(int*)(gg + i * 4 + 0xa4));
+
+so the caller walks 0xA4, 0xA8 ... 0xC4 and stops where the next loop's 0xC8
+begins. MSVC keeps that running byte offset in esi. add3c's `push esi` is
+therefore saving THE LOOP COUNTER, ae558 reads that slot as `self`, and 0xA4 is
+the value on ITERATION ZERO. THE FAULT IS THE FIRST ITERATION: add3c has never
+completed once.
+
+THE FAULT REPORT CORROBORATES IT IN THE REGISTERS, which is the part that makes
+this a measurement rather than a story. The probe prints
+
+    ebx=000000a4  esi=000000a4
+
+ebx is the value ae558 loaded out of [ebp+8] and esi is the live register it
+inherited. THE SAME NUMBER IN BOTH, from the caller's frame and from the
+register file at once, is what proves the stack slot IS the saved esi rather
+than merely resembling it.
+
+THIS IS WHAT PROVES THE RULING BELOW, and it is a stronger argument than the
+one this lane wrote before the review. Because the forwarded value CHANGES ON
+EVERY ITERATION -- nine different pointers out of nine different slots -- no
+host copy of the callee supplying a constant could be right more than once. The
+value has to come from the caller. That is not a preference between two
+defensible seats; it is the only seat that can work.
+
+ONE CONSEQUENCE WORTH STATING, since the census above invites the wrong
+reading: the twenty-four func_ov007_020ae834 entries are NOT add3c's. add3c
+calls ae834 at 0x020add58, AFTER the call that faults, so it never reaches it.
+They come from func_ov007_020b44ec, whose own call site is 0x020b453c, driven
+by the FIRST of the three loops (`i < 0x18`, which is the twenty-four). The
+census still shows the seam was crossed -- that loop runs before the one that
+faults, and neither ran to completion in PC2's build -- but the name to credit
+is b44ec, not add3c.
 
 func_ov007_020ae558 HAS EXACTLY ONE CALL SITE in the whole config
 (from:0x020add44), so unlike 5b's four-site sweep there is no question of a
@@ -958,6 +1032,19 @@ port/slice_ov007.txt, comparing each function's DEFINITION against every
        call-site counting rather than declaration counting, and this sweep did
        not do it.
 
+THE 14 IS THE ROBUST NUMBER AND THE OTHER TWO ARE NOT, which the review
+established by running its own sweep and getting a different split: 49 and 18
+where this one says 30 and 8, while landing on the same 14. Read the harmless
+and unscreened buckets as METHOD-DEPENDENT -- they move with how a regex treats
+declarations this one never had to classify precisely, because neither bucket
+is a worklist. The 14 is what two independent sweeps agree on and it is the
+only figure here worth quoting.
+
+(The review's first count of the faulting bucket was 13, one short, because its
+regex missed a definition written as a one-line body. Recorded because it is
+the same lesson in the opposite direction: a textual sweep is exactly as good
+as its regex, which is why this section calls its output candidates.)
+
 THE SWEEP'S ONLY VALIDATION IS THAT IT FINDS BOTH KNOWN SEAMS, and it does:
 func_ov007_020bc3dc (defined 3, declared 1 by src/func_ov007_020be980.c, the
 one this lane seated) and func_ov007_020ae558 (defined 1, declared 0 by
@@ -985,6 +1072,21 @@ ROM disassembled and the host binary dumped before they meant anything, and so
 will these. What the list is good for is that the next lane can look BEFORE it
 runs into one, and that "how many more are there" now has a bounded answer
 instead of a shrug.
+
+A THIRD SCREENING AXIS, FROM THE REVIEW, AND IT IS CHEAP. Arity is not the only
+thing that decides whether a row can fault: a function that is never CALLED
+cannot fault this way at all. func_ov007_020be7a8 is the example in this very
+list. Its only relocation is
+
+    from:0x020be7a0 kind:load to:0x020be7a8
+
+a LOAD and not an arm_call, so its address is taken into a table and no ROM
+instruction branches to it directly. A declaration/definition mismatch on an
+address-taken body says nothing about a stack frame that never gets built by
+that call site. Screening the twelve should therefore run three filters and not
+one: the arity direction (done here), whether the reloc table has an arm_call
+at all (one grep per row), and only then the ROM read. The queued screening
+lane owns all three, and can do the first two for the whole list at zero cost.
 
 NO BMP, AND THE TITLE SCREEN HAS STILL NEVER RENDERED. The fault is inside
 InitResources, so no frame is reached and there is nothing to capture. Nothing
@@ -1164,6 +1266,36 @@ THE MATCHED TU DID NOT STOP BEING MATCHED. It is out of the port's ov007 slice
 and nothing else. linkage.py counts matched stems present in the map, the host
 copy's stem is deliberately not one, and that single accounting fact is the
 whole of the -1.
+
+port/tools/gate.py PRINTS RED ON THIS TREE, AND THAT IS EXPECTED. Read this
+paragraph before treating it as a failure, because nothing else in the tree
+explains it and the obvious next move is the wrong one.
+
+    gate: RED (linkage 5830 below the baseline's 5831)
+
+The battery is ALL GREEN. The RED comes from ONE rule: gate.py compares the
+linked count against the lane's recorded baseline and refuses any decrease.
+That rule is right in general and it has no way to know a decrease was ruled in
+advance, so a lane that runs gate.py against a pre-displacement baseline of
+5831 gets RED and exit 1 with no explanation attached. THE -1 IS THE ACCEPTED
+PRICE OF A SEAT THE PC2 REVIEW RULED IN WRITING (section 5b, "COST 5831 TO
+5830"), it is decomposed instruction by instruction above, and it is not a
+regression.
+
+`--record` WAS DELIBERATELY REFUSED AND SHOULD STAY REFUSED HERE. It is the
+only lever that clears this RED, and it clears it by rewriting the baseline, so
+using it would erase the drop from the record instead of explaining it. That is
+precisely the laundering gate.py's own docstring says the tool exists to
+prevent, which means the tool currently points its user at the thing it was
+built to stop. A lane hitting this should quote the RED with this paragraph
+beside it, not re-baseline.
+
+THE REAL FIX IS TOOLING AND IT IS TRACKED SEPARATELY. gate.py needs a way to
+declare an expected, exact, reviewed cost -- something that lands in
+gate_manifest.json the way `skips` already carries battery debt into a green,
+and that reads as its own verdict rather than as GREEN. Filed out of this lane
+as background task task_0eef87af, "Let port gate.py express a ruled linkage
+cost". Until it lands, this paragraph is the explanation.
 
 
 8. WHAT IS NOT PROVEN

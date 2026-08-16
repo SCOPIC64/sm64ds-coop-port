@@ -235,7 +235,20 @@ SCENE_BLOCKED = {
         "fix again. Displacing a matched TU picks which of two matched bodies "
         "stops being the decomp, and this file's precedent is that a review "
         "rules it and a lane executes it. Full write-up, with the ROM and host "
-        "listings: port/ov007_seat.txt sections 5, 5a, 5b and 5c."),
+        "listings: port/ov007_seat.txt sections 5, 5a, 5b and 5c. "
+        "ONE THING THAT WILL LOOK LIKE A FAILURE AND IS NOT, said here because "
+        "this row is where a lane investigating scene 1 arrives: gate.py prints "
+        "RED on this tree, `linkage 5830 below the baseline's 5831`, while the "
+        "battery is ALL GREEN. That single -1 is the seat above, it was ruled "
+        "in writing before it was paid, and it is decomposed in seat section 7. "
+        "DO NOT CLEAR IT WITH `gate.py --record`. Re-recording is the only "
+        "lever that turns it green and it works by rewriting the baseline, "
+        "which erases the drop rather than explaining it -- the exact "
+        "laundering gate.py's own docstring says it exists to refuse. Quote the "
+        "RED with seat section 7's paragraph beside it. The tooling fix, an "
+        "explicit reviewed-cost declaration that lands in the manifest and "
+        "reads as its own verdict rather than as GREEN, is tracked out of lane "
+        "RT1 as background task task_0eef87af."),
     # SCENE 374 (0x176) WAS HERE AND IS RETIRED, run link60 lane FDR2. The
     # row had been CONVERTED TWICE and each conversion was a seat that landed:
     # lane MG2 recorded the arm9 fader (data_0209f61c's vptr was zero because

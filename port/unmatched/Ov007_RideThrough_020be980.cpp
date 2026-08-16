@@ -89,8 +89,10 @@
  * r2 is. r1 is NOT -- `mov r1, #1` at 0x020be994 writes it. That write lands
  * AFTER the branch, which is why the ride-through works and why nothing in the
  * reading changes, but the stronger sentence is not what the instructions say
- * and a later reader should not have to re-check it. Untouched ACROSS THE CALL
- * is the true and sufficient claim.
+ * and a later reader should not have to re-check it. THE SUFFICIENT CONDITION,
+ * in the review's sharper form: r1 and r2 are LIVE AT THE BRANCH. The callee
+ * reads the register file at entry, so the only instant that matters is the
+ * `bl`, not any span around it.
  *
  * The behaviour below is the matched source's, unchanged: the callee runs on
  * the +4 pointer, then the two flag words at +0x94 and +0x98 of that same

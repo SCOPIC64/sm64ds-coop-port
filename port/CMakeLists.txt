@@ -2845,7 +2845,14 @@ endforeach()
 # table, the two spine-caveat audits and what actually links.
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/slice_ov007.txt" SLICE_OV007_LINES)
 set(SLICE_OV007_SOURCES "")
-set(RT1_BE980_DISPLACED FALSE)
+# TWO FLAGS AND NOT ONE, because the review caught them being conflated. A
+# single "displaced" flag answers "did the cut run", and the marker block below
+# needs "is the matched body in this binary", which is NOT the same question:
+# both a cut line and a MISSING line leave the TU out of the build, and only
+# one of those is a healthy tree. Read separately, every message below can be
+# scoped to the state it actually names.
+set(RT1_BE980_IN_SLICE FALSE)      # the slice file lists the line
+set(RT1_BE980_DISPLACED FALSE)     # and this block cut it, so a host copy runs
 set(RT1_ADD3C_IN_SLICE FALSE)
 foreach(line IN LISTS SLICE_OV007_LINES)
     string(STRIP "${line}" line)
@@ -2864,11 +2871,13 @@ foreach(line IN LISTS SLICE_OV007_LINES)
     # are all in port/unmatched/Ov007_RideThrough_020be980.cpp's header and
     # port/ov007_seat.txt sections 5b and 5c.
     #
-    # THE FLAG IS NOT BOOKKEEPING. The PC2 marker block below reads it, so the
-    # cut and the marker's retirement are the same fact and cannot drift: put
-    # the TU back in the slice without fixing the declaration and the marker
-    # re-arms in that configure, unasked.
+    # THE FLAGS ARE NOT BOOKKEEPING. The PC2 marker block below reads them, so
+    # the cut and the marker's retirement are the same fact and cannot drift:
+    # delete this if-block to put the TU back and the marker re-arms in that
+    # configure, unasked, because the same edit that restores the body clears
+    # the flag that retires the marker.
     if(line MATCHES "^src/func_ov007_020be980\\.c$")
+        set(RT1_BE980_IN_SLICE TRUE)
         set(RT1_BE980_DISPLACED TRUE)
         continue()
     endif()
@@ -2885,7 +2894,7 @@ endforeach()
 if(RT1_BE980_DISPLACED)
     list(APPEND SLICE_OV007_SOURCES
         "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov007_RideThrough_020be980.cpp")
-else()
+elseif(NOT RT1_BE980_IN_SLICE)
     # The slice line is the only thing that puts the matched TU in the build,
     # so if it is gone the host copy must not be added blind: two bodies for
     # one address is an LNK2005, and none is a silent undefined symbol. Say
@@ -2988,9 +2997,9 @@ set(PC2_RIDETHROUGH_DEFS "")
 file(STRINGS "${PORT_REPO_ROOT_ABS}/src/func_ov007_020be980.c"
      PC2_RIDETHROUGH_DECL
      REGEX "^[ \t]*extern[ \t]+int[ \t]+func_ov007_020bc3dc[ \t]*\\([ \t]*int[ \t]*\\)[ \t]*;")
-if(PC2_RIDETHROUGH_DECL AND NOT RT1_BE980_DISPLACED)
+if(PC2_RIDETHROUGH_DECL AND RT1_BE980_IN_SLICE AND NOT RT1_BE980_DISPLACED)
     message(STATUS "PC2: func_ov007_020be980 still declares its callee with one "
-                   "parameter and its TU is still in the slice, so scene 1's "
+                   "parameter and its TU is still built, so scene 1's "
                    "ride-through blocker STANDS and the battery marker is armed")
     list(APPEND PC2_RIDETHROUGH_DEFS "PORT_OV007_RIDETHROUGH_UNSEATED=1")
 elseif(RT1_BE980_DISPLACED)
@@ -2998,6 +3007,16 @@ elseif(RT1_BE980_DISPLACED)
                    "unmatched/Ov007_RideThrough_020be980.cpp, so the "
                    "one-parameter body is not in this binary and scene 1's "
                    "ride-through marker is RETIRED")
+elseif(NOT RT1_BE980_IN_SLICE)
+    # Retired for the wrong reason, and the block above has already said so.
+    # Kept as its own branch rather than folded into the declaration case
+    # because "the marker is off because the seam is fixed" and "the marker is
+    # off because the TU vanished and the link is about to fail" are opposite
+    # states, and one message covering both is how a broken tree reads healthy.
+    message(STATUS "RT1: func_ov007_020be980 is not in the slice at all, so the "
+                   "ride-through marker is RETIRED but NOT because the seam was "
+                   "seated -- see the RT1 slice warning above, the link fails "
+                   "before scene 1 can be judged")
 else()
     message(STATUS "PC2: func_ov007_020be980's one-parameter callee declaration "
                    "is GONE, scene 1's ride-through marker is RETIRED -- if the "
