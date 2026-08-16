@@ -618,7 +618,8 @@ counted; nothing calls it now, and that is written into the unproven items.
 
   [Run link60 lane FDR2 amended this section. The items it settled are marked
    SPENT rather than deleted, because what a lane believed and then measured
-   is the part a successor cannot re-derive.]
+   is the part a successor cannot re-derive. Run link60 Stage 5 lane IRQ2
+   amended it again, on the same rule.]
 
   * SPENT: "the three trap slots have never been dispatched". Slot 0x0c was,
     on scene 374's first behaviour tick, and killing the run is how it said
@@ -638,6 +639,35 @@ counted; nothing calls it now, and that is written into the unproven items.
     registers keep whatever the setter wrote. Seating slot 0x08 would not
     change that on its own; a host driver for the HBlank edge would, and this
     lane did not write one.
+
+    [SPENT IN HALF, run link60 Stage 5 lane IRQ2, port/irq2_map.txt. The
+     interrupt half is closed: IRQ 2 is IE/IF bit 1, HBlank, and the ntr
+     layer now raises it once per scanline out of the VCOUNT sweep
+     ntr/rt.cpp has always run. On the same scene-374 command, with
+     SM64DS_IRQ2_OFF=1 as the before on ONE binary, 0 deliveries and 0 table
+     reads become 78,637 and 114,816 -- and the arithmetic reconciles exactly
+     at 299 x 263 and 299 x (191 rows x 2 destinations + the vblank-edge
+     reset's 2), so the handler runs its whole path and the double buffer
+     swaps every frame. func_0202f2c4 and func_0202f3a4 ARE DRIVEN NOW and
+     the table IS read.
+     THE PARAGRAPH'S LAST SENTENCE WAS RIGHT AND IS WHAT IS LEFT. Slot 0x08
+     alone would not have moved the fade, and neither does the HBlank edge
+     alone: every one of the 384 rows holds the same four bytes, 80807F7F,
+     which is what func_0202f928 wrote to WIN0H/WIN1H directly at arm time.
+     func_0202f428 is the only thing that CHANGES interpVal after arm time
+     (the two setters store it once each, which is why the table is uniform
+     rather than absent) and the only caller of the table rebuild
+     func_0202f290 outside arm time, so section 4a's trap is now the whole of
+     the remaining distance. Its acceptance test is the `1 run(s) of equal
+     rows` line the scene run prints.
+     A SECOND GATE WAS FOUND UNDERNEATH THIS ONE and is worth knowing before
+     anyone arms another interrupt: IME was never seated on any walk_window
+     path, and the arming brackets in func_0202f708 and func_0202f928 SAVE
+     AND RESTORE IME rather than setting it, so they could not have opened
+     it themselves. The ROM body that would have is src/func_0201a054.c, the
+     game's IRQ init, which does EnableIRQs(1) then IME = 1 and is in NO
+     SLICE; ntr::rt_irq_boot_state() stands in for it, and retires the day
+     that TU is sliced and runs.]
   * NO PIXEL CLAIM IS MADE ANYWHERE IN THIS SECTION. Nothing here was read off
     a frame. The .dsstate section grew again with this tranche (seven new bss
     symbols, 0x618 bytes of span before alignment), so any BMP comparison

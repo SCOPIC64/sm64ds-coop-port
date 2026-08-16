@@ -279,6 +279,7 @@ static bool winapi_load(void)
 #include "ntr/gx.h"
 #include "ntr/mmio.h"
 #include "ntr/ppu.h"
+#include "ntr/rt.h"
 
 /* walk_window is the one TU that installs the crash probe, so it also emits the
    external seams (port_rich_dump_ex, port_crash_dir_get) the quarantine walker
@@ -3155,6 +3156,13 @@ int main(void)
     g_present_bi = &bi;
     g_present_fb = &fb;
     MSG msg;
+    /* THE DS'S POWER-ON INTERRUPT STATE, standing in for src/func_0201a054.c,
+       the game's own IRQ init, which is in no slice. The ROM's arming
+       sequences SAVE AND RESTORE IME rather than setting it, so a host that
+       boots with IME at zero arms interrupts that can never be delivered.
+       Only ntr::rt_run used to seat it and this loop is not on that fiber.
+       See port/irq2_map.txt section 2. */
+    ntr::rt_irq_boot_state();
     for (;;) {
         double t_frame, t_phase;
         int game_ticked = 1;   /* cleared when a tick is skipped */
@@ -5308,6 +5316,16 @@ int main(void)
            in motion (data_0209d4b0) by one frame, which writes the 2D blend
            register the compositor below reads. */
         port_fader_advance();
+        /* THE DISPLAY SCAN-OUT, and with it IRQ 2. The DS raises the HBlank
+           edge once per scanline while the picture is drawn; the ROM's
+           dWipe_c motion path is built on it and nothing on the host used to
+           raise it. Here, beside the fade step, because both are the ROM's
+           own frame phase 2 and because everything below this point is the
+           host rasteriser rather than game code. Costs nothing on a frame
+           with no mask-2 handler registered: the gate is five loads.
+           SM64DS_IRQ2_OFF=1 puts the old behaviour back on this same binary.
+           See port/irq2_map.txt. */
+        ntr::rt_scanout_frame();
         /* THE MESSAGE-BOX PROBE (temporary), then THE PUMP. SM64DS_PROBE_MESSAGE
            opens a dialogue box a few seconds in so the pipeline is checkable
            without a real in-world caller (the sign's read-state Main is

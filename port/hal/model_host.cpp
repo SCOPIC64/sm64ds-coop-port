@@ -39,9 +39,45 @@ void func_020527e8(int *m, int sx, int sy, int sz)
  * pattern across the whole shadow. memcpy may not overlap at all and memmove
  * would copy backwards and produce one entry followed by garbage. The DS
  * primitive walks forward; so does this.
- * PORT_HOST_ABI: ARM asm primitive (word copy/fill), MSVC cannot assemble. */
+ * PORT_HOST_ABI: ARM asm primitive (word copy/fill), MSVC cannot assemble.
+ *
+ * IT ALSO CARRIES THE WINDOW-REGISTER CENSUS, because the dWipe_c HBlank
+ * handler (func_0202f2c4) is the only thing in the image that copies INTO
+ * WIN0H and it does it once per scanline out of the motion table at
+ * data_0209f648. Counting the copies here rather than watching the register
+ * for a change is the difference between two states that look identical from
+ * outside: a handler that took an early return, and a handler that copied a
+ * row equal to the one already latched. Two increments on a primitive that is
+ * already a loop, and the test is on the destination pointer the caller
+ * passed. Read back through port_window_copy_count(); see
+ * port/irq2_map.txt section 5. */
+static unsigned long long g_window_copies;
+static unsigned long long g_window_copy_bytes;
+static unsigned g_window_copy_word;     /* the last row copied */
+static unsigned long long g_window_copy_distinct;  /* rows unequal to the last */
+
+extern "C" void port_window_copy_count(unsigned long long *copies,
+                                       unsigned long long *bytes,
+                                       unsigned *last_word,
+                                       unsigned long long *distinct)
+{
+    if (copies) *copies = g_window_copies;
+    if (bytes) *bytes = g_window_copy_bytes;
+    if (last_word) *last_word = g_window_copy_word;
+    if (distinct) *distinct = g_window_copy_distinct;
+}
+
 void MultiCopy_Int(int *src, int *dst, int len)
 {
+    const unsigned d32 = (unsigned)(size_t)dst;
+    if (d32 == 0x04000040u || d32 == 0x04001040u) {
+        ++g_window_copies;
+        g_window_copy_bytes += (unsigned)len;
+        const unsigned row = *(const unsigned *)src;
+        if (g_window_copies == 1 || row != g_window_copy_word)
+            ++g_window_copy_distinct;
+        g_window_copy_word = row;
+    }
     if (((unsigned)(size_t)src | (unsigned)(size_t)dst | (unsigned)len) & 3) {
         unsigned char *d = (unsigned char *)dst;
         const unsigned char *s = (const unsigned char *)src;

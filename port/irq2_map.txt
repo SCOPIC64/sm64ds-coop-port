@@ -1,0 +1,478 @@
+IRQ 2: WHAT IT IS, WHY THE HOST NEVER RAISED IT, AND WHAT RAISING IT MOVED
+Run link60 Stage 5, lane IRQ2. Worktree C:/tmp/iq1, branch s5-irq2-fade, off
+2309d8420.
+
+This file is the derivation port/fader_boot_map.txt section 10 asked for. That
+section's second unproven item reads "THE TWO SEATED SETTERS RUN, AND THE FADE
+STILL DOES NOT MOVE ... NOTHING ON THE HOST RAISES IRQ 2. So func_0202f2c4 and
+func_0202f3a4 are LINKED AND UNDRIVEN, the 0x600-byte table at data_0209f648 is
+built and never read". The interrupt half of that is now spent. The other half
+is not, and section 6 below names it with a reproduction.
+
+Three readers: whoever picks up dWipe_c slot 0x08, whoever debugs a fade that
+is armed and still frozen (section 3 is the checklist), and whoever wonders why
+a host interrupt lives in ntr/rt.cpp rather than beside the fader.
+
+
+1. IRQ 2 IS A MASK, NOT AN ORDINAL, AND THE MASK IS HBLANK
+
+Read out of the ROM's own arming code, three agreements that do not depend on
+each other:
+
+  * src/func_0202f708.c (dWipe_c slot 0x10, SetForwardTime) and its sibling
+    src/func_0202f928.c (slot 0x0c, SetBackwardTime) arm with the same three
+    calls inside an IME bracket:
+
+        saved = IME; IME = 0;
+        _ZN3IRQ13SetIRQHandlerEjPFvvE(2, func_0202f2c4);
+        _ZN3IRQ10EnableIRQsEj(2);
+        func_02053c10(1);
+        if (saved) IME = 1;
+
+    2 is the argument to EnableIRQs, whose host body ORs it into the IE word.
+    IE bit 1 is HBlank.
+
+  * src/func_02053c10.c is the whole of the third call:
+
+        old = DISPSTAT(0x4000004) & 0x10;
+        enable ? DISPSTAT |= 0x10 : DISPSTAT &= ~0x10;
+
+    DISPSTAT bit 4 is HBLANK IRQ ENABLE. Nothing else about the arming
+    sequence is display-related, and the disarm src/func_0202fb30.c passes 0
+    to the same function.
+
+  * src/func_0202f2c4.c, the handler being installed, acknowledges into the
+    BIOS interrupt check flag with `|= 2` -- the same word and the same idiom
+    _ZN3IRQ13VBlankHandlerEv acknowledges into with `|= 1` -- and its second
+    test is `DISPSTAT & 2`, the HBLANK STATUS bit.
+
+So IRQ 2 is IE/IF bit 1, HBlank, raised once per scanline. It is not IRQ
+number 2 (VCount match, which would be mask 4).
+
+WHAT THE HANDLER DOES WITH IT, per scanline, from src/func_0202f2c4.c:
+
+    ack the BIOS check flag
+    line = VCOUNT + 1
+    if (line >= 0xc0) { if (flag != 1) func_0202f3a4(); return; }
+    if ((DISPSTAT & 2) == 0) return;
+    MultiCopy_Int(table + working*0x300 + line*4, 0x4000040, 4)
+    MultiCopy_Int(table + working*0x300 + line*4, 0x4001040, 4)
+    flag = 0
+
+0x4000040 is WIN0H and 0x4000042 is WIN1H, so a 4-byte copy is both windows'
+horizontal bounds for one scanline, written to the main engine and to the sub.
+dWipe_c IS A WINDOW WIPE. It is not a brightness ramp and it is not the blend
+registers, which is worth saying because port/fader_boot_map.txt section 1
+records that the class was called a "FaderBrightness" for two lanes running.
+
+AND THE CLINCHER FOR THAT READING IS THE ARM CODE, not the handler, which
+review added and this file had not cited. src/func_0202f58c.c, the table
+bring-up both setters call, configures the window UNIT before a single row is
+built: WININ (0x4000048) low six and next six bits set to 0x1f | 0x20 for
+windows 0 and 1 on both engines, WINOUT (0x400004a) low six cleared, and
+DISPCNT (0x4000000) bits 0xe000 masked and set to 0x6000, which is the WIN0
+and WIN1 display-enable pair with the OBJ window off. A brightness fader has
+no reason to touch any of those. The handler streaming WIN0H per scanline is
+what the wipe DOES; func_0202f58c turning the window unit on is what the wipe
+IS.
+
+THE HANDLER PROGRAMS THE NEXT LINE, not this one: at HBlank of line L it writes
+the bounds line L+1 will be drawn with. Line 0's bounds come from the other
+branch, func_0202f3a4, which fires once at VCOUNT 191 (line 192 >= 0xc0), swaps
+the double buffer (working = source), writes row 0 and sets the flag that stops
+the remaining 71 vblank lines re-running it. That is why the sweep in section 4
+runs all 263 lines and not the 192 visible ones: deliver only the visible lines
+and the buffer never swaps.
+
+
+2. WHY NOTHING RAISED IT
+
+ntr/runtime.cpp modelled exactly one interrupt path. Its two globals were
+
+    unsigned g_ie;                    // IE word stand-in
+    void (*g_gxfifo_handler)(void);   // handler for mask 0x200000
+
+and SetIRQHandler stored a handler only for 0x200000. Every other mask -- 1
+(VBlank), 2 (HBlank), 8, 0x40000, 0x80000, 0x100000, all of which src registers
+for -- was accepted and dropped. The single synthetic delivery in the layer is
+inside DMAStartTransfer, where a DMA whose destination is the geometry FIFO
+calls the stored handler inline right after the copy.
+
+So the ROM's arming ran to completion every fade, EnableIRQs(2) really set the
+bit in g_ie, func_02053c10 really set DISPSTAT bit 4, and the handler pointer
+went in the bin.
+
+AND A SECOND GATE WAS SHUT UNDERNEATH THAT ONE, which only showed up once the
+first was open. IME (0x4000208) was never seated on any walk_window path.
+
+THE DISTINCTION THAT CARRIES THIS IS src VERSUS THE IMAGE, and an earlier draft
+of this section blurred the two. TWENTY-SEVEN src TUs touch 0x4000208. ELEVEN
+are in a slice, and every one of the eleven is a save-and-restore bracket or a
+bare clear, so not one of them can introduce a 1:
+
+    LenVec3  func_02049018  func_02053274  func_02053380  func_02053644
+    func_ov007_020c30ac  func_ov007_020c31e0  func_ov007_020c7d60
+        saved = IME; IME = 0; ...; IME = saved
+    func_02013f28
+        IME = 0, then the idle spin
+    func_0202f708  func_0202f928  func_0202fb30
+        the dWipe_c bracket above, which restores only `if (saved)`
+
+So "the only writer of a 1 into IME in the whole IMAGE was ntr::rt_run" is
+true, and it is true only because of WHICH src TUs are sliced. It is a
+statement about today's link, not about the game, and it stops being true the
+moment the next paragraph's TU enters a slice.
+
+THE ROM'S OWN SETTER IS src/func_0201a054.c, THE GAME'S IRQ INIT, and it is
+better evidence than the folklore this lane first leaned on. ntr/rt.cpp's
+inherited comment says "The DS comes up with interrupts enabled and IME set by
+the CRT0", which is plausible and unsourced. func_0201a054 is the ROM, and it
+does exactly the pair rt_irq_boot_state() seats, in that order:
+
+    _ZN3IRQ10EnableIRQsEj(1);
+    { volatile u16 *p = (volatile u16 *)0x4000208; u16 old = *p; *p = 1; }
+    _ZN3IRQ6EnableEv();
+
+THAT TU IS IN NO SLICE, which is the argument in one line: the function that
+would have turned IME on is not in the link, so the host has to stand in for
+it, and what it stands in for is a specific ROM body rather than a belief about
+a CRT0 nobody has read. It is also the tell for when the seat can retire --
+the day func_0201a054 is sliced and runs, rt_irq_boot_state becomes redundant
+rather than wrong.
+
+The trap that follows is mechanical: THE ROM'S OWN ARMING CODE CANNOT TURN IME
+ON. It saves it, clears it, and puts back what was there. On a host that booted
+with zero the bracket comes out of the arming with IME still zero, and the
+interrupt it just armed is undeliverable. rt_run's own two lines were folded
+into ntr::rt_irq_boot_state() so there is one statement of the power-on state
+instead of two, and the frame loops that are not on the fiber call it.
+
+
+3. THE FIVE GATES, AND HOW TO SEE WHICH ONE IS SHUT
+
+ntr::rt_hblank_gates() returns one bit per gate and ntr::rt_hblank_armed() is
+the conjunction. They exist separately so a successor whose fade is still
+frozen can name the closed gate instead of re-deriving this file.
+
+  HBLANK_GATE_HANDLER   SetIRQHandler(2, ...) stored something
+  HBLANK_GATE_IE        the IE stand-in has bit 1        EnableIRQs(2)
+  HBLANK_GATE_CPSR      the CPSR I-bit equivalent is clear
+  HBLANK_GATE_IME       IME 0x4000208 bit 0
+  HBLANK_GATE_DISPSTAT  DISPSTAT 0x4000004 bit 4         func_02053c10(1)
+
+Every one of the five has a ROM writer on this path, which is what makes the
+DISARM work rather than needing its own host code: src/func_0202fb30.c clears
+IE bit 1, clears DISPSTAT bit 4 and nulls the handler, so any one of three
+independent paths closes the edge, and the curling overlay's own
+func_ov006_020efc68 and func_ov006_020eff20 close it a fourth way with
+SetIRQHandler(2, 0).
+
+SM64DS_IRQ2_TRACE=1 prints the gate breakdown the first time the gates change
+while a handler is registered and the edge is shut. port_scene_run prints the
+gates unconditionally in its witness block at the end of a scene run.
+
+
+4. WHERE THE RAISE LANDS IN THE FRAME, AND WHY THAT IS NOT A NEW ENGINE
+
+THE SCANLINE MODEL WAS ALREADY THERE. ntr/rt.cpp has had run_scanlines() since
+something in the decomp span-waited on VCOUNT (func_02013f4c): it walks VCOUNT
+0..262 once per frame, in the host frame loop, at the point where the game is
+blocked. This lane did not build a scanline model and did not need to. It
+extended that loop to raise the edge on each line, which is constraint 2's
+"extend the model rather than building a parallel one" applied literally:
+
+    for (uint16_t line = 0; line < 263; ++line) {
+        reg16(REG_VCOUNT) = line;
+        if (rt_hblank_armed()) { ...set DISPSTAT bit 1, IF bit 1,
+                                 call the handler, drop both... }
+    }
+
+THE GATE IS RE-ASKED PER LINE and not hoisted, because a handler may disarm
+itself mid-frame and the ROM's own does: func_0202f428's case 1 and case 3 both
+call func_0202fb30 at the end of the fade.
+
+THE STATUS BIT IS RAISED AND DROPPED AROUND THE CALL. The handler reads
+`DISPSTAT & 2` and returns early if it is clear, so the host has to model the
+bit being up for the blanking period and down for the visible one. Same for
+IF bit 1, which is the pending flag the handler acknowledges. Neither is
+fabricated hardware state: both are DS status bits at the instant the DS sets
+them, and both live in the mapped I/O window the layer already owns
+(ntr/mmio.h mechanism 1), latched the same way rt_vblank_wait already latches
+IF bit 0.
+
+THE CALL SITES. rt_run already ran run_scanlines between the game fiber
+yielding and the frame hook, so the smoke targets got this for free. The two
+loops that own their own frame clock call ntr::rt_scanout_frame() explicitly,
+at the same relative point -- after the game's behaviour work and before the
+host rasterises:
+
+    tests/walk_window.cpp    beside port_fader_advance()
+    hal/scene_boot.cpp       beside port_fader_advance(), inside
+                             port_scene_run's loop, OUTSIDE the !no_render
+                             guard (the interrupt is display TIMING; the
+                             host's decision not to rasterise does not stop
+                             the DS's beam, and the NO_RENDER measurement in
+                             section 5 depends on that)
+
+and both call ntr::rt_irq_boot_state() once before their first tick.
+
+WHAT THIS ORDERING DOES NOT BUY, said plainly. The port rasterises a frame in
+one pass and reads the window registers once; the DS interleaves the handler's
+writes with the beam. So the 192 rows the handler programs collapse to whatever
+was latched last when the rasteriser runs. Making the window LATCH PER SCANLINE
+is a renderer change, not a frame-clock change, and this lane did not make it.
+It is section 7's first option and it belongs to the coordinator.
+
+
+5. THE MEASUREMENT, BEFORE AND AFTER, ON ONE BINARY
+
+SM64DS_IRQ2_OFF=1 suppresses delivery on the same executable, the way
+SM64DS_SUB_NO_SCENE_INIT preserves the pre-fix bottom screen. One build, one
+.dsstate base, so the two rows below differ by the change under test and by
+nothing else.
+
+    SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=300 SM64DS_SCENE_NO_RENDER=1
+    SM64DS_FAULTS_FATAL=1
+
+    BEFORE (SM64DS_IRQ2_OFF=1)                          exit 0
+      irq2: 0 HBlank deliver(s), 0 table read(s) into WIN0H (0 bytes)
+      gates at exit: handler=1 ie=1 cpsr=1 ime=1 dispstat=1
+      state dispatch: 32557 call(s), 32557 routed, 0 UNHANDLED
+
+    AFTER                                               exit 0
+      irq2: 78637 HBlank deliver(s), 114816 table read(s) into WIN0H
+            (459264 bytes), 0 of them CHANGING the latched window
+      irq2 rows: 1 run(s) of equal rows across 114816 read(s),
+            last row 80807F7F (WIN1H:WIN0H)
+      state dispatch: 32557 call(s), 32557 routed, 0 UNHANDLED
+
+THE BEFORE ROW IS THE STRONGER HALF OF THE PAIR. All five gates read open at
+exit with zero deliveries, which is the arming completing and the raise being
+the only missing piece -- stated as a measurement rather than as the inference
+port/fader_boot_map.txt section 10 had to make.
+
+THE ARITHMETIC RECONCILES EXACTLY, which is what separates "the handler ran"
+from "the handler ran and took the early return". The setters arm on frame 0's
+behaviour tick, so 299 frames deliver:
+
+    299 x 263 lines                              = 78,637 deliveries
+    299 x (191 rows x 2 destinations + 2)        = 114,816 copies
+
+The 191 is VCOUNT 0..190 mapping to lines 1..191, the copy-eligible range; the
+trailing 2 is func_0202f3a4's own pair at the vblank edge, once per frame,
+which also proves the double buffer swapped 299 times. 114,816 x 4 bytes is the
+459,264 reported. Nothing was inferred from the fill being present.
+
+THE COUNT IS TAKEN AT THE COPY and not by watching the register, and the first
+draft of this lane got that wrong: an earlier probe watched WIN0H for a change
+across each handler entry, reported zero, and could not tell a handler that
+returned early from a handler that copied a row equal to the one already
+latched. hal/model_host.cpp's MultiCopy_Int counts destinations 0x4000040 and
+0x4001040 instead, which is the read of the table itself.
+
+NO PIXEL CLAIM IS MADE ANYWHERE IN THIS SECTION.
+
+
+6. THE NEXT BLOCKER, SYMBOLIZED: dWipe_c SLOT 0x08
+
+THE TABLE IS READ AND THE WIPE STILL DOES NOT ANIMATE, and the two facts do not
+contradict: all 384 rows of both buffers hold the same four bytes. The last row
+copied is 80807F7F, which is WIN0H 0x7F7F and WIN1H 0x8080 -- byte for byte
+what src/func_0202f928.c wrote to those registers directly at arm time, before
+it ever built a table. A uniform table is a rectangle, and a rectangle that
+does not change is not a wipe.
+
+WHAT CHANGES IT IS func_0202f428, dWipe_c slot 0x08, AdvanceFade. Read the
+body: it STEPS the object's +0x1c (interpVal) and +0x20 by the per-frame deltas
+the setters computed, and its last statement is func_0202f290(obj) -- THE TABLE
+REBUILD.
+
+BE PRECISE ABOUT "ONLY", because a draft of this paragraph was not and the
+correction is the interesting part. func_0202f428 is NOT the only writer of
+interpVal: func_0202f708 sets it to 0x200000 and func_0202f928 sets it to 0,
+both at arm time, and that is exactly why the table is uniform rather than
+absent. What func_0202f428 is the only thing to do is CHANGE IT AFTER ARM
+TIME -- it is the only `+=` on the field in the image, and the setters' writes
+are single stores that happen once. The same distinction applies to the
+rebuild: func_0202f290 has exactly two callers, func_0202f58c (twice, at arm
+time, once per buffer) and func_0202f428, so slot 0x08 is the only thing that
+ever writes a SECOND table.
+
+THE REPRODUCTION IS THE AFTER ROW IN SECTION 5. `1 run(s) of equal rows across
+114816 read(s)` is the assertion: with slot 0x08 seated and driven it becomes
+many runs, and the same line is the check.
+
+SLOT 0x08 IS NOT THIS LANE'S TO SEAT, and the refusal is already written and
+already mechanical. port/fader_boot_map.txt section 4a rules it REAL_DECOMP and
+declines it for two reasons that hold together: its `type == 1` branch calls
+_ZN10FaderColor11AdvanceFadeEv with no receiver (the ARM body relies on r0
+riding through, and include/decl_FaderColor.h declares it `(void)`), and the
+call is INSIDE the body rather than being the whole of it, so there is no
+veneer to route around. port/tools/closestplayer_guard.py stops the build if
+the TU enters a slice. It also has no call site: hal/fader_wipes.cpp's
+port_fader_advance dispatches 0x08 on data_0209d4b0[0] and nothing writes this
+object there.
+
+So the honest statement of where the fade stands after this lane is: THE
+INTERRUPT HALF IS CLOSED AND MEASURED, AND THE CLOCK HALF IS SLOT 0x08. Both
+halves were the same unproven item before; they are separable now, and only one
+of them is still open.
+
+
+7. WHAT A SUCCESSOR CAN DO NEXT, AND WHAT THIS LANE REFUSED TO DECIDE
+
+  a. PER-SCANLINE WINDOW LATCHING IN THE RASTERISER. ntr/ppu_sub.cpp has a
+     window unit; ntr/ppu.cpp says in its own comment that it has none. Neither
+     samples WIN0H per line. Honouring the wipe visually means the rasteriser
+     reading the window bounds per scanline, which means either driving the
+     raster from the same sweep or having the sweep record 192 rows for the
+     rasteriser to consume. THIS LANE DID NOT BUILD IT and was told not to on
+     its own authority. The frame-clock half needed no scanline engine because
+     one already existed; the raster half would be a new one.
+
+     AND IT MUST NOT LAND FIRST. Review's ruling, from the register values
+     rather than from a frame: with the table uniform at 80807F7F and an
+     engine-A window unit in place, WIN0H 0x7F7F is an empty window and
+     WIN1H 0x8080 likewise, so the whole scene renders through WINOUT and the
+     visible result is the left of the main screen blanked for the duration.
+     Building 7a before (b) would therefore REGRESS visuals rather than reveal
+     the wipe, and the counters this lane added are the acceptance test for
+     the (b) fix that has to land first. Order: (b), then 7a.
+  b. SLOT 0x08, which needs the decomp-side fix routed in
+     port/fader_boot_map.txt section 5 (the src TU should take a receiver) or a
+     host veneer that supplies one, plus a driver that puts this object in
+     data_0209d4b0[0]. Section 6 above is the acceptance test.
+  c. THE OTHER DROPPED MASKS. Mask 1 (VBlank, _ZN3IRQ13VBlankHandlerEv via
+     func_0201a4e4) and mask 8 (timer, func_02059700 via func_02059788) are
+     still stored nowhere. Raising VBlank is a much larger blast radius than
+     raising HBlank was, because the ROM's VBlank handler is the frame spine,
+     and the host frame loops already do that job by hand. Nobody should raise
+     it because this lane raised HBlank.
+
+
+8. A HAZARD THIS LANE HAD TO FIX BEFORE IT COULD RAISE ANYTHING
+
+data_023c0000 WAS HOSTED AT 64 BYTES AND IS WRITTEN AT +0x3FF8.
+
+hal/player_bridges.cpp had `unsigned char data_023c0000[64]` with the comment
+"DTCM scratch the timer list walker anchors at" -- a span sized by the first
+reader anyone found rather than by the ROM. The symbol is the ARM9's data TCM
+base, its real span is 16 KB, and FIVE handlers in src write the BIOS interrupt
+check flag at DTCM_END - 8. An earlier draft of this section said three, which
+was the count of what a grep of the sliced set returned rather than the count
+in src; the full set, with what each one's state in this image actually is:
+
+    src TU                     writes            in the link?
+    func_0202f2c4              |= 2              YES, slice_fdr, AND REACHED
+    func_02059834              |= 0x10           YES, slice_gate10, unreached
+    _ZN3IRQ13VBlankHandlerEv   |= 1              no
+    _ZN3IRQ13DmaTimHandlerEv   |= mask           no
+    func_ov006_020efcf8        |= 2              no
+
+REACHABLE AND HYPOTHETICAL ARE DIFFERENT THINGS AND THE FIX NEEDS BOTH. Only
+func_0202f2c4 runs today, 191 times a frame, and that alone settles the sizing.
+func_02059834 is the sharper case, because it IS in the link and it IS wired:
+hal/cxx_aliases.cpp:113 hosts the asm veneer func_02059824 that tail-calls it,
+and src/func_02059c18.c registers that veneer BY ADDRESS with
+func_02056e4c(1, (u32)func_02059824, 0), which writes data_020a60f4[1] and
+calls EnableIRQs(1 << 4). Nothing on the host walks data_020a60f4 and the
+layer stores no handler for mask 0x10, so the timer dispatch is dropped and
+the body is never entered -- linked, armed by the game, and undriven, which is
+the state func_0202f2c4 itself was in before this lane. It goes live the day
+anyone models timer interrupts, and it would have written 16,312 bytes past a
+64-byte object on its first tick. The other three are not compiled at all.
+
+WHERE THE STORE LANDED, from the review's read of the base map: +0x3ff8 is 56
+bytes into _hal_area_table, which is itself INSIDE .dsstate. So the corruption
+would have been captured by a save state as well as suffered live, and a
+restore would have replayed it.
+
+It had never fired, and the reason is section 2: the ntr layer stored no
+handler for mask 1, mask 2 or mask 0x10, so not one of the five had ever been
+dispatched. The array is now 0x4000 bytes. This is the undersized-hosted-global
+shape in its cleanest form -- the size was wrong for as long as it was
+unreachable, and reaching it is what made it matter.
+
+
+9. UNPROVEN ITEMS
+
+  * NO PIXEL CLAIM. Nothing in this file was read off a frame. One frame was
+    captured anyway, for a human to look at, and it is named here so a
+    successor can check the precondition before comparing rather than after:
+
+      SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=150 SM64DS_FAULTS_FATAL=1
+      SM64DS_SCENE_BMP=iq1_scene374_irq2.bmp        exit 0
+
+      artifact       build/port/iq1_scene374_irq2.bmp (build output, NOT
+                     committed)
+      size           589,878 bytes, 512x384
+      sha256         8a106f296a65bbf0403cf72837a719a22f1d67cfce581af458edec5
+                     93b659267
+      .dsstate       base 0xbac000, span to 0xc962e8, 959,208 bytes captured
+      that run       39,187 deliveries, 57,216 table reads, 1 run of equal
+                     rows, last row 80807F7F
+
+    THE ADMISSIBILITY ARGUMENT WAS REWRITTEN ON REVIEW AND THE FIRST ONE WAS
+    WRONG. It said the base matches the 0xbac000 that port/fader_boot_map.txt
+    section 10 recorded for fdr2_scene374.bmp, and that the 16,296-byte growth
+    is INTERIOR to .dsstate, so a cross-commit diff against that image is
+    admissible. Equal base is NECESSARY AND NOT SUFFICIENT, and the second
+    clause of port/tools/battery.py's header is exactly the trap this walked
+    into: host-global layout OUTSIDE .dsstate perturbs the frame even at an
+    equal base. THIS TRANCHE'S COUNTERS ARE OUTSIDE .dsstate -- they are host
+    globals in hal/model_host.cpp and ntr/rt.cpp, correctly ignored by
+    tools/dsstate_guard.py because they are not DS symbols -- so this is the
+    probe-footprint class, and no cross-commit BMP claim survives it.
+
+    THE CONTROL THE REVIEW RAN INSTEAD IS STRICTLY STRONGER and needs no rule
+    at all. Same binary, same 150-frame command, delivery on and delivery off:
+
+      SM64DS_IRQ2_OFF unset   sha256 8a106f29...b659267
+      SM64DS_IRQ2_OFF=1       sha256 8a106f29...b659267   BYTE-IDENTICAL
+
+    One binary, one .dsstate base, zero footprint difference, and the only
+    variable is the change under test. Reproduced on this lane's own build
+    (`cmp` reports no difference) and on the reviewer's independent one.
+
+    WHAT THAT MEASURES IS NOT "THE FADE LOOKS RIGHT". It measures that raising
+    IRQ 2 changes no pixel today, which is what section 4's last paragraph
+    predicts: the rasteriser samples the window registers once and the 192 rows
+    the handler programs are identical anyway. NOBODY HERE HAS SAID WHAT IS IN
+    THE IMAGE, and this lane is not the one to judge a rendered frame.
+  * THE FADE DOES NOT ANIMATE AND THIS FILE DOES NOT SAY IT DOES. Section 5's
+    114,816 is a count of table reads. Section 6 is why that is not motion yet.
+    A reader who wants one sentence: the interrupt fires, the ROM's handler
+    runs its whole path, the table is read every scanline, and every row of it
+    is the same row.
+  * THE MEASUREMENT IS OF SCENE 374, AND IT IS THE ONLY THING IN THIS TREE
+    THAT ARMS MASK 2. Delivery is global, so that was checked rather than
+    assumed: levels 1, 4, 7 and 24 under SM64DS_WINDOW_SELFTEST=120 print no
+    `[irq2] HBlank edge live` line at all, and scene 4 finishes with gates
+    handler=0 ie=0 dispstat=0. The 46-level battery and both smoke suites are
+    the net for the rest and came back ALL GREEN. Absence of the line is
+    evidence that no handler was registered on those paths today; it is not
+    evidence that none could be, and the day one is, it goes live with no
+    further change.
+  * THE ORDERING WITHIN THE FRAME IS A CHOICE, argued in section 4 and not
+    measured against hardware. The sweep runs after the game's behaviour work
+    and before the rasteriser, which is where rt_run already put it and which
+    matches the DS's "game works during VBlank, beam runs after". A successor
+    who builds option 7a will have to revisit it, because at that point the
+    sweep and the raster are the same pass.
+  * IME IS NOW SEATED AT 1 FOR THE WHOLE PROCESS and nothing turns it off. On
+    the DS, code that wants a critical section clears it and restores it, and
+    every such bracket in the image is enumerated in section 2. If some path
+    depends on IME being observably zero at a moment this seat makes it one,
+    nothing here would notice; the 46-level battery and both smoke suites are
+    the only net under that.
+  * THE PRE-SEAT IME VALUE IS DERIVED FROM THE WRITER ENUMERATION IN SECTION 2
+    AND FROM A RUN WITH THE SEAT SUPPRESSED. SM64DS_IRQ2_NO_IME=1 reproduces
+    the pre-lane state on the shipped binary; the gate breakdown it prints is
+    quoted in the lane's report.
+  * SLOT 0x0c IS THE ONLY SETTER THIS RUN EXERCISES. Scene 374 reaches
+    SetBackwardTime from Scene::BeforeBehavior and never SetForwardTime, which
+    port/fader_boot_map.txt section 9c already records as the branch this scene
+    does not take. func_0202f708's arming block is the same three calls and is
+    believed to behave identically; that is reasoning and not a measurement.
+  * THE COUNTERS ARE PROCESS-CUMULATIVE, not per-scene. A run that boots two
+    scenes would report their sum. Nothing does that today.
