@@ -76,6 +76,13 @@ rem hosted global sized by its first caller). Its map check runs post-link,
 rem below.
 python "%~dp0tools\gxband_guard.py" --selftest
 if errorlevel 1 exit /b 1
+rem Fail before configure if the tail-jump guard's fixture battery breaks. Both
+rem directions are pinned there -- a forwarder that must jump failing when it
+rem calls, and a classified seam that must call failing when it jumps -- plus
+rem the displacement retirement that lets a seated row leave the set without a
+rem hand edit. Its map check runs post-link, below.
+python "%~dp0tools\tailjump_guard.py" --selftest
+if errorlevel 1 exit /b 1
 cmake -S "%~dp0." -B "%~dp0..\build\port" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM="%CMAKEBIN%\Ninja\ninja.exe" %*
 if errorlevel 1 exit /b 1
 ninja -C "%~dp0..\build\port"
@@ -97,4 +104,18 @@ rem /MAP is on CMAKE_EXE_LINKER_FLAGS so each target writes one, and the
 rem runtime check in hal/cxx_aliases.cpp only ever reached the binaries that
 rem link hal/sub_screen.cpp, on the one bring-up path that calls it.
 python "%~dp0tools\gxband_guard.py" --build-dir "%~dp0..\build\port"
+if errorlevel 1 exit /b 1
+rem Fail after link if a frame that carries an ARM argument through on the host
+rem stopped being a TAIL JUMP. Roughly fifty rows in the ov007 slice are
+rem correct only because MSVC compiles a one-call forwarder as a jmp, which
+rem reuses the caller's own cdecl frame so an argument the forwarder never
+rem names is still where its target reads it. Nothing in the tree asks for
+rem that. /Od, /Ob0 or one added statement in any forwarder turns it into a
+rem real prologue and every affected row breaks in the same build, as a scatter
+rem of unrelated-looking faults with no single change to point at. The scan
+rem needs no disassembler -- an E8 or E9 rel32 in a frame's own map span,
+rem resolved against the callee's address -- and it runs over EVERY map for
+rem gxband_guard's reason: /MAP is on CMAKE_EXE_LINKER_FLAGS, three targets
+rem host the ov007 slice, and nothing else in this build asks the question.
+python "%~dp0tools\tailjump_guard.py" --build-dir "%~dp0..\build\port"
 if errorlevel 1 exit /b 1
