@@ -805,62 +805,54 @@ extern "C" void port_scene_fill_curling(void)
         std::fflush(stdout);
     }
 
-    /* ---- AND THE ONE BEHIND THAT ----------------------------------------
-       Run link60 lane NFS, and it is the THIRD in this chain: the fader seat
-       let the scene reach InitResources, the file-system seat let
-       InitResources finish, and what the scene reached next is the fader
-       again -- this time a defect in that seat's stub ABI.
+    /* ---- AND THE ONE BEHIND THAT, WHICH IS NO LONGER A BLOCKER ----------
+       Run link60 lane NFS added this as the THIRD blocker in the chain: the
+       fader seat let the scene reach InitResources, the file-system seat let
+       InitResources finish, and what the scene reached next was the fader
+       again -- a defect in that seat's stub ABI.
 
            func_02043288 -> mb_bbeh -> func_ov004_020b0620 (slot 7)
                          -> Scene::BeforeBehavior
 
-       which JUMPS PAST the data_0209f5bc->vt->f14 site at 004B45EA,
-       dispatches [eax+18h] (seated, silent), and then at 004B46C5..46D1
-       pushes 0 and 1Eh and calls [eax+0Ch] WITH NO CALLER CLEANUP. That slot
-       holds hal/fdr_arm9_fader_seat.cpp's fdr_s0c, an
-       `int __fastcall(void *, void *)` stub that takes both parameters in
-       registers and cleans nothing, so eight bytes leak: pop esi takes 0x1E,
-       pop ebp takes 0, and ret pops the saved esi, which is the Scene
-       pointer. The crash dump is that arithmetic exactly (eax 1, esi 1e,
-       ebp 0, eip 307FB114). Slot 0x10 at 004B460B has the identical defect
-       on the other branch; its trap has never printed only because the run
-       dies on 0x0c first.
+       Scene::BeforeBehavior pushes two arguments into slot 0x0c and cleans
+       NOTHING after the call, because MSVC's __thiscall is callee-cleans. The
+       trap stub in the slot was `int __fastcall(void *, void *)`, which takes
+       both parameters in registers and cleans nothing either, so eight bytes
+       leaked and the caller's own epilogue read them back: pop esi took the
+       0x1E, pop ebp took the 0, and ret popped the saved esi, which was the
+       Scene pointer. Slot 0x10 carried the same defect on the other branch.
 
-       READ 7a AS REFUTED, NOT AS PREDICTIVE. port/fader_boot_map.txt section
-       7a argued a fastcall stub with no stack parameters is balanced for both
-       caller shapes. The caller here pushes two arguments and cleans neither,
-       which is a third shape, and all twelve stubs in the fill were written
-       on that argument. An earlier version of this comment credited 7a with
-       predicting the fault and named f14 as the dying call; both were wrong
-       and the correction is the reviewer's instruction-level symbolization.
+       RUN LINK60 LANE FDR2 FIXED THAT, and it was a signature defect rather
+       than a missing body: the two stubs now declare the two stack parameters
+       their call sites push and clean eight, and the audit of all twelve is
+       port/fader_boot_map.txt section 9. Scene 374 runs its 300 frames under
+       SM64DS_FAULTS_FATAL=1 with the three motion slots STILL TRAPS, so the
+       SCENE_BLOCKED row in port/tools/battery.py is retired rather than
+       converted a third time.
 
-       WHY THIS LINE EXISTS AT ALL, and it is not decoration. The fault is
-       QUARANTINED: hal/actor_classes.cpp freezes the actor and the frame
-       continues, so a bare 300-frame run exits 0 and reads like a pass unless
-       SM64DS_FAULTS_FATAL is set. battery.py sets it and is red without this
-       row; a reader running the scene by hand is not and would be told the
-       scene works. That is exactly the mistake this line stops.
+       WHAT THIS LINE MEANS NOW. Not "the scene cannot run" -- it runs. It
+       means the fade MOTION is not there: the three slots return 0 and say so
+       on stderr, once per dispatch, so a reader who sees a minigame with no
+       wipe knows why and where. When func_0202f428 / func_0202f928 /
+       func_0202f708 are seated the predicate goes false and this goes quiet
+       on its own, which is the property it was built for.
 
        IT ASKS A PREDICATE, NOT A STRING. port_fdr_motion_slots_unseated()
        compares data_020926f0's three motion slots against the traps
-       hal/fdr_arm9_fader_seat.cpp installed, so the day somebody seats
-       func_0202f428 / func_0202f928 / func_0202f708 this stops printing on
-       its own and battery.py reports BLOCK RETIRED. Seating 0x0c alone only
-       moves the fault to 0x10; the whole fill's stub signatures need the
-       audit. */
+       hal/fdr_arm9_fader_seat.cpp installed, so it cannot rot into a
+       hardcoded 1. */
     if (IsMinigameActorID((unsigned)port_scene_env_want()) &&
         port_fdr_motion_slots_unseated()) {
-        std::printf("[scene] MINIGAME BLOCKED: the dWipe_c motion slots are "
-                    "still named traps, so the first behaviour tick dies in "
-                    "Scene::BeforeBehavior. It pushes two arguments at "
-                    "004B46D1 and calls slot 0x0c (SetBackwardTime, ROM body "
-                    "func_0202f928) without cleaning them; the fastcall trap "
-                    "stub cleans nothing either, eight bytes leak, and the "
-                    "ret lands on the Scene pointer. Slot 0x10 has the same "
-                    "defect. The file system seat is DONE and this is the "
-                    "next one: it belongs with port/fader_boot_map.txt "
-                    "sections 7a and 9, not with the minigame or the file "
-                    "system.\n");
+        std::printf("[scene] MINIGAME FADE MOTION MISSING: the dWipe_c motion "
+                    "slots (0x08 AdvanceFade, 0x0c SetBackwardTime, 0x10 "
+                    "SetForwardTime) are still named traps, so the ROM bodies "
+                    "func_0202f428 / func_0202f928 / func_0202f708 do not run "
+                    "and a minigame's wipe does not move. The scene itself is "
+                    "NOT blocked on this: the stub-ABI defect that killed the "
+                    "first behaviour tick was fixed by run link60 lane FDR2 "
+                    "and scene 374 completes 300 frames under FAULTS_FATAL. "
+                    "Each trap names its own slot on stderr when it fires. "
+                    "See port/fader_boot_map.txt sections 4 and 9.\n");
         std::fflush(stdout);
     }
 

@@ -206,66 +206,33 @@ SCENE_BLOCKED = {
         "func_ov007_020bcf90, accessing 0x00000004), which is what an "
         "uninitialised object should do and which would have made a green out "
         "of nothing. Full write-up: port/ov007_seat.txt sections 5 and 5a."),
-    0x176: ("the unseated dWipe_c motion slots (fader, not the file system)",
-        "MINIGAME BLOCKED: the dWipe_c motion slots are still named traps",
-        "dScMgCurling_c, the first minigame. THIS ROW HAS BEEN CONVERTED "
-        "TWICE and the history is most of what it is worth, because each "
-        "conversion is a seat that landed. "
-        "ONE: lane MG2 seated the class and recorded the blocker as the arm9 "
-        "fader -- dScMgBase_c's slot 1 handed data_0209f61c to "
-        "Scene::SetFaders, its vptr was zero because nothing in the port ran "
-        "its constructor, and the run died at "
-        "_ZN5Scene9SetFadersEP15FaderBrightness+0x24 accessing 0x00000024. "
-        "Lane FDR retired that by running the ROM's own src/__sinit_02074f80.c "
-        "at C++ static-init time; slot 1 completes. A correction travelled "
-        "with it: the object is a dWipe_c, and FaderBrightness "
-        "(dFdBrightness_c) is its GRANDBASE two levels up. "
-        "TWO: FDR converted the row to the ROM's NitroSDK open-by-name file "
-        "system, where func_0205d714 copied the zeroed data_020a804c into the "
-        "FSFile and func_0205cdf4 read `list + 0x10` off the null. Run link60 "
-        "lane NFS retired THAT by running the ROM's own archive registration "
-        "(func_0205cc80) at the ROM's own boot point, with the cartridge's own "
-        "FNT and FAT behind a host read face. dScMgCurling_c::InitResources "
-        "now completes: the ROM's own walker resolves "
-        "/MG/d_2d_mg_bg_curling1_ncg.bin and .../curling2_... to file ids 1672 "
-        "and 1676, both agreeing with the asset catalog, and both files load "
-        "(19,824 and 20,228 bytes at the FAT's own ROM offsets). "
-        "WHAT BLOCKS IT NOW is the fader again, and it is a defect in that "
-        "seat's stub ABI rather than a hazard nobody had named. The scene "
-        "reaches its FIRST BEHAVIOUR TICK, which it had never done: "
-        "func_02043288 -> mb_bbeh -> func_ov004_020b0620 (dScMgBase_c slot 7) "
-        "-> Scene::BeforeBehavior. That function jumps PAST the "
-        "data_0209f5bc->vt->f14 site at 004B45EA, dispatches [eax+18h] "
-        "(seated, silent), and then at 004B46C5..46D1 pushes 0 and 1Eh and "
-        "calls [eax+0Ch] WITH NO CALLER CLEANUP. The slot holds "
-        "hal/fdr_arm9_fader_seat.cpp's fdr_s0c, an `int __fastcall(void *, "
-        "void *)` stub that takes both parameters in registers and cleans "
-        "nothing, so EIGHT bytes leak: pop esi takes 0x1E, pop ebp takes 0, "
-        "and ret pops the saved esi, which is the Scene pointer. The crash "
-        "dump is that arithmetic exactly (eax 1, esi 1e, ebp 0, eip "
-        "307FB114). Slot 0x10 at 004B460B has the identical defect on the "
-        "other branch and its trap has simply never printed, because the run "
-        "dies on 0x0c first. "
-        "port/fader_boot_map.txt section 7a argued that a fastcall stub with "
-        "no stack parameters is balanced for both caller shapes; the caller "
-        "here pushes two arguments and cleans neither, so this fault "
-        "FALSIFIES that argument rather than confirming it, and every one of "
-        "the fill's twelve stubs was written on it. The fix is ABI-correct "
-        "stubs or the ROM's bodies for 0x0c and 0x10 plus an audit of the "
-        "rest, and it belongs to the fader seat. "
-        "READ THE FAULT MODE BEFORE TRUSTING A BARE RUN. This one is "
-        "QUARANTINED -- hal/actor_classes.cpp freezes the actor and the frame "
-        "continues -- so scene 374 without SM64DS_FAULTS_FATAL exits 0 and "
-        "prints '300 frames ... clean' over a frozen actor. The battery sets "
-        "FAULTS_FATAL and is the only thing here that tells the truth about "
-        "it; the playlog's [quarantine] line is the other. The marker string "
-        "above is printed by a pre-flight in hal/scene_mg.cpp, the third in "
-        "one block beside the two retired ones, and it is keyed on the "
-        "PREDICATE port_fdr_motion_slots_unseated() rather than on a guess, so "
-        "it stops printing by itself when the three ROM bodies are seated. "
-        "Full write-ups: port/nfs_names_map.txt for this conversion, "
-        "port/fader_boot_map.txt sections 7a and 9 for the seat that owns the "
-        "fix."),
+    # SCENE 374 (0x176) WAS HERE AND IS RETIRED, run link60 lane FDR2. The
+    # row had been CONVERTED TWICE and each conversion was a seat that landed:
+    # lane MG2 recorded the arm9 fader (data_0209f61c's vptr was zero because
+    # nothing ran its constructor), lane FDR retired that by running the ROM's
+    # own src/__sinit_02074f80.c and converted the row to the NitroSDK
+    # open-by-name file system, and lane NFS retired THAT by running the ROM's
+    # own archive registration behind a host read face. The third blocker was
+    # the fader again and it was not a missing body: Scene::BeforeBehavior
+    # pushes two arguments into vtable slot 0x0c and cleans nothing, because
+    # MSVC's __thiscall is callee-cleans, and the fader seat's trap stub was
+    # declared `int __fastcall(void *, void *)` -- both parameters in
+    # registers, cleaning nothing -- so eight bytes leaked and the caller's
+    # epilogue read them back as esi, ebp and a return address.
+    #
+    # FDR2 re-declared the two stubs for the shape their call sites emit and
+    # audited all twelve (port/fader_boot_map.txt section 9). Scene 374 then
+    # ran 300 frames under SM64DS_FAULTS_FATAL=1 with exit 0, no fault, no
+    # quarantine line in the playlog, and the state machine dispatching 32,557
+    # calls with 0 unhandled addresses. So this is a RETIREMENT and not a
+    # fourth conversion: the scene has no blocker left to name.
+    #
+    # WHAT IS STILL MISSING IS NOT A BLOCKER. The three dWipe_c motion slots
+    # are still named traps, so the minigame's wipe does not move.
+    # hal/scene_mg.cpp prints that as a FADE MOTION MISSING advisory keyed on
+    # port_fdr_motion_slots_unseated(), which goes quiet by itself when the
+    # ROM bodies are seated. An advisory is not a battery row and must not
+    # become one again: the scene passes.
 }
 
 # A MOUNTED LEVEL WHOSE BLOCKER IS NOT THE MOUNT, AND THE CLASS THAT BLOCKS IT.

@@ -133,7 +133,7 @@
 // hand-written body: the ROM's body has no content beyond that one edge.
 // Whoever rewrites the veneer TU to take a receiver owns this line too.
 //
-// ---- THE CALLING CONVENTION, AND ONE HAZARD THIS FILE DOES NOT OWN ---------
+// ---- THE CALLING CONVENTION, AND THE ARGUMENT THAT WAS WRONG ---------------
 //
 // Every slot is a __fastcall thunk that hands the receiver to the flat-C ROM
 // body as its first argument. That is the port's standing vtable-fill shape
@@ -141,28 +141,44 @@
 // is what a __thiscall dispatch needs: MSVC puts `this` in ECX, __fastcall
 // reads its first parameter from ECX.
 //
-// THE HAZARD, recorded because it is real, pre-existing, and now reachable.
-// Scene::SetFaders touches a fader TWO different ways in one function:
+// WHAT THE FIRST VERSION OF THIS FILE GOT WRONG, and it cost a crash rather
+// than a comment. It argued that a thunk with two REGISTER parameters and no
+// stack parameters is balanced for every caller shape, because "a cdecl caller
+// cleans its own push, and a thiscall no-argument caller pushes nothing". The
+// shape it did not enumerate is the one MSVC emits for a virtual with
+// arguments: __thiscall is CALLEE-CLEANS, so the caller pushes and cleans
+// nothing, and a callee that also cleans nothing leaves the arguments on the
+// stack. Scene::BeforeBehavior does exactly that at two sites, and scene 374's
+// first behaviour tick reached one of them.
 //
-//     data_0209f5bc->vt->f14(data_0209f5bc)   a struct of function pointers,
-//                                             CDECL, receiver on the stack
-//     thiz->v24()                             a local class, THISCALL,
-//                                             receiver in ECX
+// THE ARITY OF EVERY SLOT IS NOW THE CALL SITE'S, MEASURED. Section 9 of
+// port/fader_boot_map.txt is the audit: every dispatch site in the image that
+// can reach this table, the push/clean shape MSVC emitted there, and what each
+// of the twelve stubs declares against it. Three shapes reach the table and
+// only three:
 //
-// The second is what reaches this table today and it is correct. The first
-// reaches whatever data_0209f5bc points at -- and after the first
-// SetFaders(data_0209f61c) that IS this object, so a LATER SetFaders call would
-// enter slot 0x14 cdecl-style and the thunk would read ECX instead. The stack
-// stays balanced (a __fastcall with two register parameters cleans nothing, and
-// the cdecl caller cleans its own push), so the failure mode is a garbage
-// receiver rather than a smashed frame. This is NOT new and it is not this
-// file's: hal/fader_wipes.cpp's HalFaderWipe has carried the identical mismatch
-// on hal_wipes[0] since it was written, and the reproduction run above went
-// THROUGH that path (f14 was called on hal_wipes[0] and returned true, which is
-// how v24 was reached at all). It is measured, not assumed: the 300-frame
-// scene-374 run after this seat reaches slot 0x14 only from func_0202ed7c,
-// which is a thiscall virtual call. The fix belongs to whoever owns
-// Scene::SetFaders' host shape, and port/fader_boot_map.txt names it.
+//     THISCALL, no arguments        caller pushes nothing, callee cleans 0
+//     THISCALL, two arguments       caller pushes 8 and cleans NOTHING,
+//                                   so the callee must clean 8
+//     CDECL through a struct of
+//     function pointers             caller pushes the receiver and cleans 4,
+//                                   so the callee must clean 0
+//
+// and the audit's job was to prove no slot is reached by two of them at once.
+// ONE WAS: slot 0x10, by the two-argument shape from Scene::BeforeBehavior and
+// by the no-argument shape from the matched IsBetweenStartAndEnd's dtor-fold
+// skew. That is not a signature problem and it is fixed at the face below,
+// which no longer produces the second shape.
+//
+// THE GARBAGE-RECEIVER HAZARD IS REAL AND IS NOT THE CRASH. The cdecl shape
+// (Scene::SetFaders' `data_0209f5bc->vt->f14(data_0209f5bc)`, Minimap and HUD's
+// Behavior, func_ov003_020af038) puts the receiver on the stack, where a
+// __fastcall thunk does not look. The stack stays balanced -- both sides agree
+// the callee cleans nothing -- so the failure mode is a wrong `this`, not a
+// smashed frame. At every one of those sites in THIS image the object is also
+// still in ECX when the call is made, so the thunk reads the right receiver
+// anyway. That is a property of what MSVC happened to emit here, not a
+// guarantee, and it is in the unproven items.
 
 #include <cstdio>
 #include "types.h"
@@ -201,39 +217,124 @@ extern "C" {
 int _ZN15FaderBrightness9IsAtStartEv(void *self)
 { return ((FaderBrightness *)self)->FaderBrightness::IsAtStart(); }
 
-/* THIS ONE CARRIES A SKEW AND THE FACE IS WHERE IT GETS SAID OUT LOUD.
+/* THIS ONE DOES NOT DELEGATE, AND THE REASON STOPPED BEING COSMETIC.
    The matched FaderBrightness::IsBetweenStartAndEnd ends in two UNQUALIFIED
    IsAtStart()/IsAtEnd() calls, so it re-dispatches through the RECEIVER's
    table. On mwcc those are ROM slots 5 and 6, bytes 0x14 and 0x18. MSVC folds
    the two destructor slots into one, so the same two calls compile to bytes
-   0x10 and 0x14 -- one slot early against a table kept in ROM byte order,
-   which is what hal/fader_wipes.cpp's dtor-fold note describes and why that
-   file declines to delegate this method at all.
+   0x10 and 0x14 -- one slot early against a table kept in ROM byte order. Read
+   out of this lane's own binary, ?IsBetweenStartAndEnd@FaderBrightness@@QAEHXZ
+   is
 
-   IT IS STILL THE RIGHT BODY TO CALL, because the only path that reaches it
-   here is func_0202ed7c's `type == 1` branch, and type is the object's +0x14.
-   func_0202ed14 constructs data_0209f61c with +0x14 = 0. It can be MADE 1:
-   func_ov004_020aeb24 calls func_0202ec9c(data_0209f61c, 1), which writes 1
-   into either +0x14 or +0x18 depending on the 0x1c predicate. So this is
-   reachable in principle and it is NOT reached on the scene-374 path, which
-   is a measurement rather than a guarantee -- the check below is what turns
-   the difference into a line of output instead of a wrong answer nobody sees.
-   With the traps above cleaning no stack, the skewed dispatch lands on the
-   0x10 trap and the 0x14 IsAtStart thunk and comes back wrong-but-alive, and
-   both of them say so. Fixing it belongs with the three unseated motion slots,
-   because it is the same class of work: port/fader_boot_map.txt. */
-int _ZN15FaderBrightness20IsBetweenStartAndEndEv(void *self)
+       +0x04b983  mov  eax, [esi]
+       +0x04b985  call dword ptr [eax + 0x10]      nothing pushed
+       ...
+       +0x04b990  call dword ptr [eax + 0x14]      nothing pushed
+
+   AN EARLIER VERSION OF THIS FACE DELEGATED AND PRINTED A WARNING, on the
+   reading that the skew costs a wrong answer and nothing worse. Section 9's
+   audit refutes that. Slot 0x10 is ALSO reached by Scene::BeforeBehavior,
+   which pushes two arguments and cleans neither, so 0x10 has to clean eight --
+   and the two calls above push nothing at all. One slot, two incompatible
+   caller shapes, and no C signature satisfies both: a 0x10 declared for
+   BeforeBehavior smashes eight bytes off THIS caller's frame. The warning
+   could not have saved it, because the frame is gone before anything reads the
+   answer.
+
+   THE FIRST FIX FOR THIS WAS TO STOP CALLING THE MATCHED BODY and compute the
+   predicate here from the receiver's own 0x14 and 0x18. It worked and the gate
+   REFUSED IT: linkage 5810 -> 5809. With no caller left, /OPT:REF dropped
+   ?IsBetweenStartAndEnd@FaderBrightness@@QAEHXZ out of the image, and a
+   matched ROM body falling out of the link is not a rounding error on this
+   port -- it is the north star running backwards. The number caught a real
+   regression and the fix below is what it forced.
+
+   SO THE MATCHED BODY STILL RUNS, AND IT IS HANDED A RECEIVER IT CAN READ.
+   The mismatch is a table ORDER, so what the method needs is a view of the
+   object in ITS order. FdrMsvcOrderView below is that view: a two-word stack
+   object whose vptr points at an MSVC-ordered table, whose 0x10 and 0x14 are
+   thunks that dispatch the REAL receiver's ROM 0x14 and 0x18. The method's two
+   unqualified calls then reach exactly the pair the ROM reaches, on the real
+   object, and the arithmetic between them is the decomp's own.
+
+   WHY A VIEW IS SAFE HERE, and it is a codegen claim rather than a hope. The
+   matched body reads NOTHING but the vptr -- the disassembly above is the
+   whole function, and the only base register it dereferences is [esi] for the
+   table. Its two calls carry the receiver onward, and the thunks put the real
+   one back. If a future compiler gave that body a data access, this view would
+   hand it two words of stack, so the disassembly is quoted rather than
+   summarised: a successor can re-read it in one glance.
+
+   THE DIVERGENCE, written down rather than implied: on the ROM there is no
+   view and no thunk pair, just one virtual dispatch. This is the host's cost
+   for MSVC folding two destructor slots into one, and hal/fader_wipes.cpp pays
+   the same debt by declining to delegate at all. */
+
+/* The MSVC-ordered stand-in. Two words, stack-allocated per call, never
+   escapes: the matched body is not reentrant into it and does not store it. */
+struct FdrMsvcOrderView {
+    void **vt;   /* 0x00, the MSVC-ordered table below */
+    void *real;  /* 0x04, the ROM-ordered object the thunks dispatch */
+};
+
+/* The fill's own thunk shape. A real MSVC __thiscall virtual is
+   ABI-compatible with it: receiver in ECX, EDX unread, no stack parameters,
+   callee cleans nothing. Slots 0x14 and 0x18 of a ROM-ordered table are both
+   that shape -- see section 9d of port/fader_boot_map.txt. */
+typedef int(__fastcall *FdrPredicate)(void *, void *);
+
+static int fdr_view_dispatch(FdrMsvcOrderView *view, unsigned rom_byte)
 {
-    if (((const int *)self)[0x14 / 4] == 1) {
-        std::fprintf(stderr, "  [fdr] FaderBrightness::IsBetweenStartAndEnd on "
-                     "%p with type 1: its two unqualified predicate calls are "
-                     "ONE SLOT EARLY against a ROM-ordered table (MSVC folds "
-                     "the dtor pair). The answer below is not to be trusted. "
-                     "See port/fader_boot_map.txt.\n", self);
-        std::fflush(stderr);
-    }
-    return ((FaderBrightness *)self)->FaderBrightness::IsBetweenStartAndEnd();
+    void **vt = *(void ***)view->real;
+    return ((FdrPredicate)vt[rom_byte / 4])(view->real, 0);
 }
+
+/* MSVC byte 0x10 is FaderBrightness::IsAtStart; the ROM keeps it at 0x14. */
+static int __fastcall fdr_view_is_at_start(FdrMsvcOrderView *view, void *)
+{ return fdr_view_dispatch(view, 0x14); }
+
+/* MSVC byte 0x14 is FaderBrightness::IsAtEnd; the ROM keeps it at 0x18. */
+static int __fastcall fdr_view_is_at_end(FdrMsvcOrderView *view, void *)
+{ return fdr_view_dispatch(view, 0x18); }
+
+/* Nothing reaches 0x00 through 0x0c: the matched body dispatches two slots and
+   returns. They are filled with a named refusal rather than left null so a
+   codegen change announces itself instead of jumping to zero. It is NOT
+   counted in fdr_trap_hits, which counts unseated slots of the ROM's own
+   table and would read as one if this ever fired. */
+static int __fastcall fdr_view_unreached(void *, void *)
+{
+    std::fprintf(stderr, "  [fdr] the MSVC-ordered view built for "
+                 "FaderBrightness::IsBetweenStartAndEnd was dispatched below "
+                 "byte 0x10. That body is supposed to reach 0x10 and 0x14 and "
+                 "nothing else, so its codegen has changed and the view no "
+                 "longer describes it. See port/fader_boot_map.txt section "
+                 "9e.\n");
+    std::fflush(stderr);
+    return 0;
+}
+
+static void *fdr_msvc_order_vt[6] = {
+    (void *)fdr_view_unreached,       /* 0x00  dtor, folded */
+    (void *)fdr_view_unreached,       /* 0x04  AdvanceFade */
+    (void *)fdr_view_unreached,       /* 0x08  SetBackwardTime */
+    (void *)fdr_view_unreached,       /* 0x0c  SetForwardTime */
+    (void *)fdr_view_is_at_start,     /* 0x10  IsAtStart */
+    (void *)fdr_view_is_at_end,       /* 0x14  IsAtEnd */
+};
+
+}  /* extern "C" -- the view's internals are C++ and not ROM names */
+
+extern "C" int _ZN15FaderBrightness20IsBetweenStartAndEndEv(void *self)
+{
+    FdrMsvcOrderView view;
+    view.vt = fdr_msvc_order_vt;
+    view.real = self;
+    return ((FaderBrightness *)(void *)&view)->
+        FaderBrightness::IsBetweenStartAndEnd();
+}
+
+extern "C" {
 
 /* func_0202ecfc's target, spelled by address in its src because the veneer has
    no symbol name of its own in that TU. 0x02017610 IS
@@ -276,24 +377,23 @@ void fdr_trap(const char *slot, const char *rom_body)
 }
 
 /* The three unseated ROM slots.
-   NO STACK PARAMETERS, AND THAT IS A DELIBERATE DIFFERENCE FROM
-   hal/fader_wipes.cpp, whose 0x0c and 0x10 stubs take the two ints their call
-   sites push. Work the two caller shapes through:
-     a CDECL raw-offset caller pushes its arguments and cleans them itself, so
-       a callee that cleans nothing is balanced whatever the arity;
-     a THISCALL no-argument caller pushes nothing and expects the callee to
-       clean nothing, so the same callee is balanced there too.
-   A stub with two int parameters is balanced for the first shape only, and the
-   second shape is the one that reaches THIS table -- see the header's note on
-   the MSVC dtor fold, which sends a FaderBrightness::IsAtStart() virtual call
-   to byte 0x10 with no arguments at all. Cleaning eight bytes off that caller's
-   frame is a smashed stack; leaking four off a thiscall caller that DID push
-   one is the worst this direction can do. */
+   THE ARITY IS THE CALL SITE'S, NOT THE ROM BODY'S, and that distinction is
+   the whole of section 9. A slot's signature here has one job: leave the stack
+   exactly as the caller expects to find it. On ARM the ROM's extra arguments
+   ride in registers and cost nothing, so the ROM body's own arity says nothing
+   about what a host caller pushed; MSVC's __thiscall is CALLEE-CLEANS, so a
+   caller that pushes two arguments and cleans neither needs a callee that
+   cleans eight. 0x0c and 0x10 are both reached that way and are declared for
+   it. 0x08 is not reached at all in this link and keeps the no-argument shape.
+
+   __fastcall(self, edx, a, b) IS the host spelling of __thiscall(self, a, b):
+   ECX carries the receiver, EDX is unread, a and b come off the stack, and the
+   `ret 8` is what balances the frame. */
 int __fastcall fdr_s08(void *, void *)
 { fdr_trap("slot 0x08 AdvanceFade", "func_0202f428"); return 0; }
-int __fastcall fdr_s0c(void *, void *)
+int __fastcall fdr_s0c(void *, void *, int, int)
 { fdr_trap("slot 0x0c SetBackwardTime", "func_0202f928"); return 0; }
-int __fastcall fdr_s10(void *, void *)
+int __fastcall fdr_s10(void *, void *, int, int)
 { fdr_trap("slot 0x10 SetForwardTime", "func_0202f708"); return 0; }
 int __fastcall fdr_s28(void *, void *)
 { fdr_trap("overhang slot 0x28", "nothing, this slot is not the ROM's"); return 0; }
