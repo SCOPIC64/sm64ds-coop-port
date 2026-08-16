@@ -45,6 +45,79 @@ constexpr uint32_t DIVCNT = 0x4000280, DIV_NUMER = 0x4000290, DIV_DENOM = 0x4000
 constexpr uint32_t DIV_RESULT = 0x40002A0, DIV_REM = 0x40002A8;
 constexpr uint32_t SQRTCNT = 0x40002B0, SQRT_RESULT = 0x40002B4, SQRT_PARAM = 0x40002B8;
 
+// GXSTAT is NOT a plain latch, and modelling it as one deadlocks the renderer.
+//
+// Bits 16..27 -- the command-FIFO entry count (16-24), "FIFO less than half
+// full" (25), "FIFO empty" (26) and "geometry engine busy" (27) -- are driven
+// by the geometry engine and are READ-ONLY. A store to GXSTAT on a DS reaches
+// only the matrix-stack error flag (15) and the FIFO IRQ mode (30-31); the
+// status field keeps reporting the hardware's own state.
+//
+// The game leans on that. func_0205583c (Initialise3dGraphics, and
+// Scene::Initialise3dGraphics under it) touches GXSTAT four times, a busy-wait
+// READ and then three stores:
+//
+//     while (*(volatile unsigned int *)0x4000600 & 0x8000000) ;  // bit 27 busy
+//     ...
+//     *(volatile unsigned int *)0x4000600 = 0;      // src/func_0205583c.c
+//     ...
+//     *(volatile unsigned int *)0x4000600 |= 0x8000;
+//     *(volatile unsigned int *)0x4000600 = (... & ~0xc0000000) | 0x80000000;
+//
+// The opening read matters as much as the stores: bit 27 is in the same
+// hardware-owned field, so a latch that ever came up with it set would hang
+// func_0205583c itself, before the display list is even reached. GXSTAT_IDLE
+// clears it for the same reason it sets 25 and 26.
+//
+// On hardware that clears the error flag and selects an IRQ mode, and bits
+// 25/26 stay set because the FIFO really is empty. On a latch the `= 0` wipes
+// them and nothing ever puts them back, so GXSTAT reads 0x80008000 forever --
+// and func_0205a358, the display-list submit, opens with
+//
+//     while (((GXSTAT & 0x7000000) >> 0x18 & 2) == 0) ;
+//
+// which is a wait for bit 25. Measured: with the latch, the star select's
+// first submit (a correctly loaded and correctly rebased 692-byte list) never
+// returns, and PORT_WATCHDOG catches the main thread in that spin, reading
+// GXSTAT through ntr::io_read. See the io_write hook below.
+//
+// The host's FIFO is always empty and never busy: ntr executes a display list
+// synchronously inside the submit, so there is no queue to be backed up.
+// GXSTAT_IDLE is that truth, and io_init already brings the register up
+// holding it.
+// WHERE THIS STOPS, AND WHY THAT IS SAFE TODAY BUT NOT FOREVER. GXSTAT_HW
+// covers bits 16..27 only. Bits 0..14 are just as read-only on hardware -- the
+// box-test result (0..7), the position/vector matrix stack level (8..12), the
+// projection stack level (13) and matrix-stack-busy (14) -- and func_0205583c's
+// `= 0` leaves every one of them a dead latch that no longer tracks anything.
+// They are not normalised here because the host has no matrix-stack model to
+// normalise them FROM: inventing a stack level would be a guess, while the FIFO
+// state is known exactly (ntr executes a display list synchronously, so it is
+// always empty).
+//
+// That is bounded rather than fixed, and the boundary is narrow. The only
+// linked readers of those bits are func_02055464 (bit 14, then bit 13) and
+// func_02055490 (bits 8..12); both run at init, where the true stack levels
+// really are 0, so a dead-zero latch happens to be the right answer.
+//
+// Their mid-frame driver is func_02055624, and it is NOT linked (0 references
+// in walk_window.map). That matters more than the readers themselves, because
+// of how it calls them:
+//
+//     while (func_02055490(&a)) ;      // spin until the stack level reads 0
+//     while (func_02055464(&b)) ;
+//
+// Those are spin-waits on the same kind of never-updated latch that produced
+// the GXSTAT hang above. They fall through today only because the `= 0` store
+// left zeros behind and nothing else writes those bits. The day func_02055624
+// or any other mid-frame stack-level reader links, this constant has to grow a
+// modelled matrix-stack level with it -- and if it does not, the symptom will
+// be a hang in the same shape as this one, or a wrong answer that reads as a
+// matrix bug rather than an MMIO one.
+constexpr uint32_t GXSTAT = 0x4000600;
+constexpr uint32_t GXSTAT_HW = 0x0FFF0000;    // bits 16..27, geometry-engine owned
+constexpr uint32_t GXSTAT_IDLE = 0x06000000;  // empty + less-than-half-full, not busy
+
 void run_divide() {
     const uint16_t mode = static_cast<uint16_t>(raw_read(DIVCNT, 2)) & 3;
     const int64_t numer = static_cast<int64_t>(raw_read(DIV_NUMER, 8));
@@ -408,8 +481,27 @@ bool io_init() {
     return true;
 }
 
+// Force the geometry-engine-owned half of GXSTAT back to the host's real state.
+// Done in the LATCH rather than only in the returned value on purpose: most of
+// the game's GXSTAT accesses are NOT routed through this proxy. Only three of
+// the nine functions that touch the register are hostgen'd (func_02055780,
+// func_0205a21c and func_0205a358, all GATE4A); the other six, func_0205583c --
+// the store that wipes the status field -- among them, reach mapped memory
+// directly. Normalising the latch on every proxied touch is what keeps those
+// six reading something true.
+static void gxstat_normalize() {
+    const uint32_t v = static_cast<uint32_t>(raw_read(GXSTAT, 4));
+    const uint32_t fixed = (v & ~GXSTAT_HW) | GXSTAT_IDLE;
+    if (fixed != v) raw_write(GXSTAT, fixed, 4);
+}
+
+static bool hits_gxstat(uint32_t addr, unsigned width) {
+    return addr < GXSTAT + 4 && addr + width > GXSTAT;
+}
+
 uint64_t io_read(uint32_t addr, unsigned width) {
     if (!g_io && !io_init()) return 0;
+    if (hits_gxstat(addr, width)) gxstat_normalize();
     return raw_read(addr, width);
 }
 
@@ -449,6 +541,20 @@ void io_write(uint32_t addr, uint64_t value, unsigned width) {
     else if (addr == 0x04000400u) gx_write_fifo(static_cast<uint32_t>(value));
     else if (addr >= 0x04000440u && addr <= 0x040005FFu)
         gx_write_port(addr, static_cast<uint32_t>(value));
+
+    // Put the read-only half of GXSTAT back after any store that overlapped it,
+    // whatever its width. See the GXSTAT note above the constants: the writable
+    // bits (15, 30-31) keep whatever the game just stored.
+    //
+    // DELIBERATELY BELOW THE CHAIN ABOVE, not inside it. This is not one more
+    // register dispatch competing with the others: it is a fixup that has to
+    // run after whatever the store did. Written as a plain `if` in the middle
+    // of the chain it also captured the `else` that belongs to the divide test,
+    // which silently restructured the dispatch. GXSTAT is outside every range
+    // the chain matches (0x4000600 is past gx_write_port's 0x40005FF), so
+    // nothing was mis-dispatched in practice, but the structure said something
+    // the code did not mean.
+    if (hits_gxstat(addr, width)) gxstat_normalize();
 }
 
 // ---------------------------------------------------------------------------

@@ -240,17 +240,65 @@ extern const unsigned port_ov017_ds_base, port_ov017_ds_end;
    (300f/900f, Mario at the entrance) are clean too.
 
    TWO documented residues:
-     - ROCK_PILLAR (58) faults c0000005 in ModelComponents::Render the first
-       on-screen frame it draws (measured f17 when Mario spawns adjacent), NOT the
-       collider and NOT the particle path (SM64DS_NO_FX_RENDER=1 still crashes;
-       SM64DS_RP_NORENDER moves the fault elsewhere in the same sequence). Its
-       render (func_ov016_02112b28) is the identical slot-5 Model dispatch that
-       SHIP_UP renders through cleanly, so the difference is the MODEL FILE: its
-       bmd (fs id 1173) loads but its Model at +0xd4 reaches Model::Render with a
-       bad/unbuilt ModelComponents. A model-BUILD issue for RockPillar's bmd, not
-       a mount or seating one -- deferred to the model-loader lane. Idle-far and
-       the other five movers are clean; the per-actor quarantine catches it, so
-       JRB stays walkable with RockPillar quarantined on approach.
+     - ROCK_PILLAR (58): DOWNGRADED 2026-08-15 (run link60, lane L1) to NOT
+       REPRODUCIBLE ON THIS TREE. What follows is the original entry, then why
+       it no longer stands. Do not route new work off the original text.
+
+       AS WRITTEN AT GATE 188: "faults c0000005 in ModelComponents::Render the
+       first on-screen frame it draws (measured f17 when Mario spawns adjacent),
+       NOT the collider and NOT the particle path (SM64DS_NO_FX_RENDER=1 still
+       crashes; SM64DS_RP_NORENDER moves the fault elsewhere in the same
+       sequence). Its render (func_ov016_02112b28) is the identical slot-5 Model
+       dispatch that SHIP_UP renders through cleanly, so the difference is the
+       MODEL FILE: its bmd (fs id 1173) loads but its Model at +0xd4 reaches
+       Model::Render with a bad/unbuilt ModelComponents. A model-BUILD issue for
+       RockPillar's bmd, not a mount or seating one -- deferred to the
+       model-loader lane."
+
+       THE MODEL-LOADER LANE TOOK IT AND FOUND NO FAULT TO FIX.
+
+       Negative result, A/B'd across two independently built trees (with and
+       without that lane's port/ntr/io.cpp GXSTAT change, which is a no-op here
+       -- a traced level 8 reads GXSTAT=06000000 on all 200 of its display-list
+       submits):
+           SM64DS_LEVEL=8 SM64DS_SPAWN=-1371,-2800,-4586
+           SM64DS_WINDOW_SELFTEST=900 SM64DS_FAULTS_FATAL=1
+       exits 0 both ways, 900 frames, at a bit-identical end position
+       (-5611966,-11866368,-18782398). That spawn puts Mario on the first of the
+       SIX pillars the census reports ("+ 58 x6 ROCK_PILLAR"; the six positions
+       are printed by the [pos] line).
+
+       AND THE MODEL IS FULLY BUILT, which is the specific claim the original
+       entry made and got wrong. SM64DS_ACTOR_PROBE=1 on that run:
+           [actor] ROCK_PILLAR  model 30038644 file 30065208
+                   transforms 300651D8 mat.t (-172,-363,-574) scene
+       Non-null file AND non-null transforms, which by this probe's own contract
+       (port/hal/actor_classes.cpp: "a null file has a load problem", "a null
+       [transforms] is a load that did not finish") is a completed load. The
+       probe fires on a class's FIRST Render, so the line also proves the class
+       reaches its Render rather than being culled ahead of it.
+
+       WHAT ACTUALLY EXPLAINS THE ORIGINAL FAULT: the SIG-RP heap trample, fixed
+       in f5d936503 and d241d27bb. Both DESCEND from a9cb3e5ed, the gate-188
+       commit that wrote this entry, and both are in this tree. RockPillar's
+       teardown was releasing gameHeapPtr and SignPost's slot through the G0/G1
+       linker collision and corrupting the ExpandingHeap free list; d241d27bb's
+       own message unifies three crash signatures under it. A c0000005 surfacing
+       in ModelComponents::Render on a trampled heap needs no model-build defect
+       to explain it, and this entry was written before that fix landed.
+
+       ALSO CORRECTED: SM64DS_RP_NORENDER was never implemented. It appears
+       nowhere in the tree except the sentence above, so the "moves the fault
+       elsewhere" observation has no mechanism behind it and is not evidence.
+       (SM64DS_NO_FX_RENDER is real -- hal/particle_bridges.cpp.)
+
+       RETIREMENT NOT CLAIMED, and the reason is specific: nobody has confirmed
+       the pillar actually RASTERIZES. Reaching Render with a built Model is not
+       the same as pixels on screen, and this lane did not look at a frame. So
+       this stays on the books as "not reproducible", not "fixed". RE-OPEN IT
+       WITH EVIDENCE AND COORDINATES -- a spawn, a frame number and a dump --
+       rather than by citing the original text above. Idle-far and the other
+       five movers were clean at gate 188 and remain so.
      - Each ROCK_PILLAR spawns a RockTriangle child (id 59, ov102, Actor::Spawn
        (0x3b) in its InitResources) -- newly visible now that RockPillar runs its
        Init. RockTriangle (x6) is skipped (unregistered); the ov102 mount for it
