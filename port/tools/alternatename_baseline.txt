@@ -22,13 +22,37 @@
 # tightening -- rather than by a blanket --update, so nothing else in this
 # reviewed set moved with it.
 #
+# GROWTH, run link60 Stage 4: _port_crash_dir_get=_port_crash_dir_get_stub and
+# _port_rich_dump_ex=_port_rich_dump_ex_stub were ADDED. They are not new debt.
+# Both are written as backslash-continued #pragma comment(linker, ...) lines in
+# unmatched/func_02043fdc_hostcopy.cpp, and the guard's pragma test ran a line
+# at a time, so it had never scanned them: they were defeated in every
+# walk_window map since the day they landed and nothing measured it. They are
+# two more of the fault_probe fallback-stub family this list already carries
+# four pairs of. The real exports come from tests/fault_probe.h under
+# PORT_FAULT_PROBE_DEFINE_EXPORTS, which only tests/walk_window.cpp defines, so
+# in the full binary the real definition links and the stub dies to /OPT:REF
+# (the map shows the LHS at its own address and the RHS gone entirely), while a
+# reduced binary built without walk_window.cpp gets the stub through the alias.
+# That is the design. Closing the scanner gap changed the measurement, not the
+# link. Added BY HAND, two lines, for the same reason the shrink above was.
+#
 # port/tools/alternatename_guard.py fails the build if the linked map shows a
 # defeated alias NOT on this list -- that is the R1/R2 arrival shape (a newly
-# sliced TU defining an alias LHS at its own address; w5b_review.md). This
-# list is a RATCHET: it can only SHRINK. When an alias here is deleted or its
-# routing moves to a per-source -D rename, regenerate with:
+# sliced TU defining an alias LHS at its own address; w5b_review.md).
+#
+# THE RULE, in both directions. This list SHRINKS whenever a pair stops being
+# defeated; the guard reports those as no longer defeated and they come out. It
+# may GROW only for a pair the map shows was defeated all along while the
+# scanner could not see it, with the evidence in the commit. A pair that is
+# newly defeated because a TU started defining an alias LHS is the R1/R2 bug
+# and never belongs here. Never add a pair to unblock a build.
+#
+# Every move is made BY HAND, one line at a time, in both directions.
 #     python port/tools/alternatename_guard.py --update
-# Never add a pair here by hand to unblock a build.
+# rewrites the whole block off a single live run, so it would carry in whatever
+# else happened to be defeated that day; the wave 6 shrink and the link60
+# growth were both hand-made for exactly that reason.
 #
 # One LHS=RHS pair per line, sorted.
 ?ChangeState@Player@@QAEHAAUState@1@@Z=?ChangeState@PlayerChangeStateFace@@QAEHAAUState@1@@Z
@@ -49,5 +73,7 @@ _data_0209f394=_port_fault_no_players
 _data_020a4b68=_port_fault_no_walker
 _data_ov021_021149c0=_data_ov014_021149c0
 _port_build_gittip=_port_fault_no_gittip
+_port_crash_dir_get=_port_crash_dir_get_stub
 _port_last_frame=_port_fault_no_frame
 _port_playlog_path=_port_fault_no_playlog
+_port_rich_dump_ex=_port_rich_dump_ex_stub
