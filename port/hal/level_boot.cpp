@@ -1908,10 +1908,85 @@ DSSTATE_END
 
 // ---- LoadFile(handle) ------------------------------------------------------
 //
-// The ROM's LoadFile is func_0201818c(handle, 1), the archive loader's
-// refcounted entry point. The port's file seam is one level up, at
-// SharedFilePtr (hal/fs.cpp), so this is the same contract expressed there:
-// one persistent SharedFilePtr per handle, loaded once, pointer returned.
+// THE ROM CONTRACT IS ALLOCATE-FRESH-PER-CALL, CALLER FREES, and it is read
+// off the ROM's own matched TUs rather than off a description of them.
+// src/LoadFile.c is `func_0201818c(handle, 1)`; every path through
+// src/func_0201818c.c ends in a Memory::Allocate followed by a CpuCopy8 or a
+// DecompressLZ16 into the block it just allocated. There is no table, no
+// dedupe and no refcount at this level. The refcounting the paragraph here
+// used to claim belongs to SharedFilePtr::LoadFile, a different function with
+// a different contract.
+//
+// The callers say the same thing. FIFTY-FIVE TUs under src/ call the free
+// function -- a further six only DECLARE a member LoadFile inside a shadow
+// class and are not callers at all -- and FORTY-SIX of the fifty-five also
+// call Deallocate. src/func_ov006_020e3250.c frees on the line after the
+// copy: it hands the block to func_020563d4, which uploads 0x800 bytes of it
+// to the BG2 screen base, and Deallocates on the very next line. That is
+// exactly why a re-request of its handle finds a block the ROM has already
+// returned. The nine that do not are each a documented keep rather than a
+// counterexample:
+//
+//   six ov075 TUs (_021173a8, _02117918, _02117d80, _02118378, _02118f38,
+//     _0211944c) hand the pointer to func_ov075_02116030, which stores it
+//     only when its slot is empty, so a repeat there leaks on the DS too;
+//   func_ov004_020b2cb8, dScMgBase_c's per-language file table, keeps all
+//     twenty-nine pointers live in data_ov004_020bf560 -- the ROM's own
+//     working set, which is what the slot count below is sized against;
+//   Stage::LoadClsnAndObjects keeps the level KCL;
+//   LoadMessageBankForLanguage keeps the message bank.
+//
+// The last two are what the table below outlives a call for.
+//
+// The port's file seam is one level up, at SharedFilePtr (hal/fs.cpp), so this
+// expresses that contract there: construct the handle's SharedFilePtr, Load it
+// -- an allocation plus a memcpy out of hal/fs.cpp's own master copy, which is
+// where the cost the host actually cares about was already removed -- and hand
+// the block back.
+//
+// WHAT THE TABLE IS, NOW THAT IT IS NOT A CACHE. It records the LAST block
+// handed out per handle. Two things in this file read it: the per-level
+// teardown, which drops the rows, and port_level_capture_kcl, which needs the
+// outgoing level's KCL block to hand back late. Reusing a handle's row rather
+// than appending one keeps it bounded by the number of DISTINCT handles a boot
+// asks for, which is what its size is argued against below.
+//
+// THE SINGLE-CONSUMER RULE, and it is a RULE rather than an observation. This
+// comes from the review of the lane that made the change, which went looking
+// for the failure the shape invites and found it: a row can be STALE, because
+// the caller owns its block and is free to Deallocate it, and the review
+// measured three handles landing on ONE address inside a single boot. That is
+// harmless today for a reason that is structural and not lucky --
+// port_level_capture_kcl is the ONLY consumer that DEREFERENCES a row's
+// filePtr to make a lifetime decision; its handle is held live by a verified
+// keeper (Stage::LoadClsnAndObjects, which never frees the KCL); and any
+// competing loader of that same handle drives the row's load count to two,
+// at which point the capture declines rather than guessing.
+//
+// NOTHING IN THE BUILD ENFORCES THAT. So, for whoever adds the next consumer:
+// ANY NEW READER THAT DEREFERENCES A ROW'S filePtr MUST RE-ARGUE THE
+// STALENESS CASE HERE BEFORE IT IS ADDED. Reading fileID or the persistent
+// mark is free, because neither can dangle. Reading filePtr is not.
+//
+// AND THE CACHE WAS SERVING NOTHING. Measured on the build that still had it,
+// with SM64DS_LOADFILE_AUDIT=1 over all 46 mounted levels at 300 frames each:
+// 510 LoadFile calls, ZERO of them answered out of the table. Every repeat
+// that looked like one in a per-run count turned out to have a level teardown
+// between the two requests, which drops the table, so the second call was a
+// fresh boot's first call. The dedupe's whole realised value on the level
+// battery was nil, and its one firing anywhere was the corrupt one below.
+//
+// IT USED TO BE A CACHE, AND THAT WAS THE BUG. A repeat request returned the
+// block from the first request, which the ROM's caller had freed in between --
+// so the second caller was handed memory that by then belonged to whatever
+// loaded next, and then freed it a second time. Measured on scene 374 with
+// SM64DS_LOADFILE_AUDIT=1, before the repair: of the forty-one calls a curling
+// boot makes, forty handed back the handle's own bytes and one did not. The
+// one is dScMgCurling_c::InitResources' last act, func_ov006_020e3250, asking
+// for handle 0x30 a second time to upload 0x800 bytes of rink tilemap: the
+// block it got was 1248 bytes -- handle 0xc7's size, not 0x30's 2048 -- and
+// 1242 of the 1248 compared bytes disagreed. The BG2 screen base then held a
+// compressed sprite sheet read as 1024 screen entries.
 //
 // It deliberately does NOT run MeshCollider::UpdateFileOffsets, which is what
 // makes it different from MeshCollider::LoadFile. The caller here is
@@ -1948,6 +2023,190 @@ void _ZN13SharedFilePtr8LoadFileEv(struct PortSharedFilePtr *);
 enum { PORT_LOADFILE_SLOTS = 64 };
 static PortSharedFilePtr g_loadfile_slot[PORT_LOADFILE_SLOTS];
 static int g_loadfile_used;
+/* How many times this handle has been LOADED since the last teardown. It is
+   not refcounting and it is not a lifetime: it is the row's honesty flag. A
+   row holds the LAST block handed out for its handle, so once a handle has
+   been loaded twice the row can no longer say which of those blocks a given
+   consumer is holding -- and port_level_capture_kcl, the one place that frees
+   a block off this table, must decline rather than guess. Saturates; a
+   separate array because PortSharedFilePtr has to stay the ROM struct that
+   SharedFilePtr::Construct and ::Release write through. */
+static unsigned char g_loadfile_loads[PORT_LOADFILE_SLOTS];
+
+/* ---- the instruments, env-gated and off by default -------------------------
+
+   SM64DS_LOADFILE_TRACE=1  one line per call: the handle, the block handed
+     back, the row it is recorded in, whether the call loaded or was served
+     from the row, and the game heap's free bytes afterwards.
+
+   SM64DS_LOADFILE_AUDIT=1  the question the trace cannot answer, and the one
+     the contract turns on: does the block handed back still hold the handle's
+     OWN bytes? A second, independent copy is loaded through the same seam,
+     compared, and returned to the allocator. DIFFER names the first byte that
+     disagrees and how many of the compared bytes do. The audit allocates and
+     frees around every load, so an audited run's heap layout is not a plain
+     run's -- it is a measurement mode and no frame taken under it is
+     comparable with one taken without it.
+
+   SM64DS_LOADFILE_BG2=<handle>  at exit, compare that handle's bytes against
+     the BG2 screen base. The destination is not guessed: G2::GetBG2ScrPtr is
+     the ROM's own answer, and func_020563d4 -- the tilemap uploader every
+     2D background goes through -- copies to exactly that pointer plus an
+     offset. So this answers "did the file reach the screen base" in bytes,
+     without reading a pixel or duplicating the base arithmetic.
+
+   The allocator's node header carries the block's user size at userPtr-0xc
+   (the same word port_level_free_captured_kcl reads, beside the 0x5544 used
+   marker at -0x10), which is what bounds every comparison below. */
+void _ZN13SharedFilePtr7ReleaseEv(PortSharedFilePtr *self);
+void *_ZN2G212GetBG2ScrPtrEv(void);
+unsigned port_level_heap_free_bytes(void);      /* hal/level_change.cpp */
+
+static int port_loadfile_env_on(const char *name)
+{
+    const char *e = std::getenv(name);
+    return e && *e && *e != '0';
+}
+
+static int port_loadfile_trace_on(void)
+{
+    static int v = -1;
+    if (v < 0) v = port_loadfile_env_on("SM64DS_LOADFILE_TRACE") ||
+                   port_loadfile_env_on("SM64DS_LOADFILE_AUDIT");
+    return v;
+}
+
+static int port_loadfile_audit_on(void)
+{
+    static int v = -1;
+    if (v < 0) v = port_loadfile_env_on("SM64DS_LOADFILE_AUDIT");
+    return v;
+}
+
+static unsigned port_loadfile_node_size(const char *p)
+{
+    if (!p)
+        return 0;
+    return *(const unsigned short *)(p - 0x10) == 0x5544
+               ? *(const unsigned *)(p - 0xc) : 0;
+}
+
+/* Load a second, independent copy of `handle` and compare it with `given`.
+   Frees the copy before returning, so the audit adds no lifetime of its own
+   to the one it is measuring.
+
+   THE SNAPSHOT IS NOT TIDINESS. The block under audit may already be free --
+   that is the whole hypothesis -- and the allocator is entitled to hand the
+   probe's own Allocate the very same address. It would then write the
+   handle's bytes over the evidence and the comparison would come back SAME
+   for the one case it exists to catch. So `given` is copied to a host buffer,
+   outside the game heap, BEFORE anything else is allocated. */
+static void port_loadfile_audit(int handle, const char *given)
+{
+    const unsigned gn = port_loadfile_node_size(given);
+    if (!gn) {
+        std::fprintf(stderr, "[loadfile] %#x AUDIT: %p carries no live node "
+                     "header; nothing compared\n", handle,
+                     (const void *)given);
+        return;
+    }
+    char *const snap = (char *)std::malloc(gn);
+    if (!snap)
+        return;
+    std::memcpy(snap, given, gn);
+
+    PortSharedFilePtr probe;
+    _ZN13SharedFilePtr9ConstructEj(&probe, (unsigned)handle);
+    _ZN13SharedFilePtr8LoadFileEv(&probe);
+    if (!probe.filePtr) {
+        std::fprintf(stderr, "[loadfile] %#x AUDIT: the probe load returned "
+                     "nothing; nothing compared\n", handle);
+        std::free(snap);
+        return;
+    }
+    const unsigned pn = port_loadfile_node_size(probe.filePtr);
+    const unsigned n = pn < gn ? pn : gn;
+    unsigned first = ~0u, differ = 0;
+    for (unsigned i = 0; i < n; ++i)
+        if (snap[i] != probe.filePtr[i]) {
+            if (first == ~0u) first = i;
+            ++differ;
+        }
+    if (!differ && pn == gn)
+        std::fprintf(stderr, "[loadfile] %#x AUDIT SAME over %u bytes\n",
+                     handle, n);
+    else
+        std::fprintf(stderr, "[loadfile] %#x AUDIT DIFFER: %u of %u compared "
+                     "bytes, first at %#x (given %p size %u, probe %p size "
+                     "%u%s)\n", handle, differ, n, first, (const void *)given,
+                     gn, (void *)probe.filePtr, pn,
+                     probe.filePtr == given ? ", SAME ADDRESS: the block was "
+                                              "free" : "");
+    _ZN13SharedFilePtr7ReleaseEv(&probe);
+    std::free(snap);
+}
+
+static void port_loadfile_report(int handle, const char *p, int row,
+                                 const char *how)
+{
+    if (port_loadfile_trace_on())
+        std::fprintf(stderr, "[loadfile] %#x -> %p row %d %s, heap free %u\n",
+                     handle, (const void *)p, row, how,
+                     port_level_heap_free_bytes());
+    if (port_loadfile_audit_on())
+        port_loadfile_audit(handle, p);
+}
+
+/* SM64DS_LOADFILE_BG2=<handle>: at exit, is the BG2 screen base holding that
+   handle's file? Registered on the first LoadFile so the check only runs on a
+   process that loaded something. */
+static int g_bg2_check_handle = -1;
+
+static void port_loadfile_bg2_check(void)
+{
+    const int handle = g_bg2_check_handle;
+    const char *scr = (const char *)_ZN2G212GetBG2ScrPtrEv();
+    if (handle < 0 || !scr) {
+        std::fprintf(stderr, "[loadfile] BG2 CHECK: no screen base\n");
+        return;
+    }
+    PortSharedFilePtr probe;
+    _ZN13SharedFilePtr9ConstructEj(&probe, (unsigned)handle);
+    _ZN13SharedFilePtr8LoadFileEv(&probe);
+    if (!probe.filePtr) {
+        std::fprintf(stderr, "[loadfile] BG2 CHECK %#x: the file did not "
+                     "load\n", handle);
+        return;
+    }
+    const unsigned n = port_loadfile_node_size(probe.filePtr);
+    unsigned first = ~0u, differ = 0;
+    for (unsigned i = 0; i < n; ++i)
+        if (scr[i] != probe.filePtr[i]) {
+            if (first == ~0u) first = i;
+            ++differ;
+        }
+    if (!differ)
+        std::fprintf(stderr, "[loadfile] BG2 CHECK %#x at %p: EXACT over %u "
+                     "bytes\n", handle, (const void *)scr, n);
+    else
+        std::fprintf(stderr, "[loadfile] BG2 CHECK %#x at %p: DIFFER, %u of "
+                     "%u bytes, first at %#x\n", handle, (const void *)scr,
+                     differ, n, first);
+    _ZN13SharedFilePtr7ReleaseEv(&probe);
+}
+
+static void port_loadfile_bg2_arm(void)
+{
+    static int armed;
+    if (armed)
+        return;
+    armed = 1;
+    const char *e = std::getenv("SM64DS_LOADFILE_BG2");
+    if (!e || !*e)
+        return;
+    g_bg2_check_handle = (int)std::strtol(e, 0, 0);
+    std::atexit(port_loadfile_bg2_check);
+}
 
 /* PORT_HOST_ABI: src is func_0201818c(handle,1), the DS card archive loader;
    the port's file seam is one level up at SharedFilePtr, so this expresses the
@@ -1957,19 +2216,35 @@ void *LoadFile(int handle)
     enum { SLOTS = PORT_LOADFILE_SLOTS };
     PortSharedFilePtr *const slot = g_loadfile_slot;
     int &used = g_loadfile_used;
-    for (int i = 0; i < used; ++i)
-        if (slot[i].fileID && slot[i].filePtr &&
-            (int)slot[i].fileID == handle) {
-            if (std::getenv("SM64DS_LOADFILE_TRACE"))
-                std::fprintf(stderr, "[loadfile] %#x -> %p slot %d CACHED\n",
-                             handle, slot[i].filePtr, i);
-            return slot[i].filePtr;
+    port_loadfile_bg2_arm();
+    int row = 0;
+    while (row < used &&
+           !(slot[row].fileID && (int)slot[row].fileID == handle))
+        ++row;
+    if (row == used) {
+        if (used >= SLOTS) {
+            std::fprintf(stderr, "FATAL: LoadFile: out of host file slots\n");
+            std::abort();
         }
-    if (used >= SLOTS) {
-        std::fprintf(stderr, "FATAL: LoadFile: out of host file slots\n");
-        std::abort();
+        ++used;
     }
-    PortSharedFilePtr *s = &slot[used];
+    PortSharedFilePtr *s = &slot[row];
+    /* The persistent mark is the row's, not the block's: it says this handle's
+       image survives a level teardown, and re-loading the handle does not
+       change that.
+
+       Construct does NOT actually clear it, and the earlier claim here that it
+       zeroes the whole struct was wrong: src/func_02017e0c.c writes bytes 0..2
+       and 4..7 and never touches byte 3, which is where pad lives. So this
+       save and restore is defensive and carries nothing today. It is kept
+       because the row's persistence should not rest on which bytes a matched
+       ROM function happens to cover: a Construct that grew to clear byte 3
+       would otherwise unpin the message bank with no other symptom. */
+    const unsigned char persistent = s->pad;
+    /* Construct clears filePtr and numRefs (src/func_02017e0c.c), which is
+       what makes a reused row LOAD again: SharedFilePtr::LoadFile only calls
+       Load when numRefs is zero, and would otherwise hand back the pointer
+       the row already held -- the cache this shape exists to remove. */
     _ZN13SharedFilePtr9ConstructEj(s, (unsigned)handle);
     _ZN13SharedFilePtr8LoadFileEv(s);
     if (!s->filePtr) {
@@ -1977,12 +2252,12 @@ void *LoadFile(int handle)
         std::abort();
     }
     /* Construct rewrites fileID from the ov0 handle to the FAT file id, so
-       the cache key above matches only when both agree; keep the handle. */
-    ++used;
+       the row key matches only when both agree; keep the handle. */
     s->fileID = (unsigned short)handle;
-    if (std::getenv("SM64DS_LOADFILE_TRACE"))
-        std::fprintf(stderr, "[loadfile] %#x -> %p slot %d FRESH\n",
-                     handle, s->filePtr, used - 1);
+    s->pad = persistent;
+    if (g_loadfile_loads[row] < 0xff)
+        ++g_loadfile_loads[row];
+    port_loadfile_report(handle, s->filePtr, row, "LOADED");
     return s->filePtr;
 }
 
@@ -2432,8 +2707,8 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
        reason and named this fix.
 
        WHY IT HAD TO MOVE RATHER THAN BE ADDED. hal/level_boot.cpp's own
-       LoadFile(handle) above is a per-level handle table, and on a repeat
-       request for a handle it already holds it returns THE SAME filePtr.
+       LoadFile(handle) above WAS a per-level cache, and on a repeat request
+       for a handle it already held it returned THE SAME filePtr.
        func_02016ff4 (port/unmatched/func_02016ff4_hostcopy.cpp) then calls
        Model::UpdateFileOffsets unconditionally, and that rebases the BMD's
        file-relative offsets IN PLACE. So two Stage::LoadModel calls inside
@@ -2442,6 +2717,14 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
        walk_window's calls go: after it there is exactly one rebase per loaded
        buffer, and the per-level teardown (port_level_reset_host) drops the
        table between levels so the next boot rebases a fresh one.
+
+       THAT SHARING IS GONE (run link60 lane LF1). LoadFile now loads a fresh
+       block on every call, which is the ROM's own contract, so a second
+       Stage::LoadModel would rebase a second buffer once rather than one
+       buffer twice. The MOVE still stands on its own reason -- the ROM runs
+       LoadModel before LoadClsnAndObjects and data_0209f320 has to be seated
+       before the object pass -- and the hazard this paragraph named is now
+       closed by the loader as well as by construction.
 
        THE GENERAL FIX IS NOT HERE AND IS NOT THIS LANE'S FILE. Keying the
        rebase so a second pass cannot fire whatever the caller does belongs at
@@ -3698,6 +3981,30 @@ static void port_level_capture_kcl(void)
     for (int i = 0; i < g_loadfile_used; ++i) {
         if (g_loadfile_slot[i].fileID != kcl)
             continue;
+        /* THE ROW MUST BE ABLE TO NAME THE BLOCK. LoadFile allocates a fresh
+           one per call, the ROM's contract, so a handle loaded twice leaves
+           this row holding the SECOND block while Stage::LoadClsnAndObjects'
+           collider still points at the first. Freeing on that guess returns a
+           block the registry does not own and keeps the one it does; leaking
+           the image is the cheaper error, so decline and say so. Measured on
+           this tree over all 46 mounted levels, 510 LoadFile calls: no level
+           loads ANY handle twice inside one boot, let alone its own KCL. So
+           the branch is a net that nothing currently takes, and not a
+           workaround for something that happens. */
+        if (g_loadfile_loads[i] > 1) {
+            /* UNCONDITIONAL, and on stderr, unlike every other line in this
+               function. The others narrate a path that is working; this one
+               says a level image was just left to leak. A leak that only
+               announces itself when someone has already set SM64DS_TRACE_LEVEL
+               is a leak nobody finds, and the whole point of the branch is to
+               be the tripwire for a case no measured level reaches. stderr
+               because the flight recorder captures it in real play. */
+            std::fprintf(stderr, "[lvl] KCL handle %u was loaded %u times this "
+                         "level; the row cannot name the collider's block, so "
+                         "the image is LEFT TO LEAK rather than freed\n",
+                         kcl, (unsigned)g_loadfile_loads[i]);
+            return;
+        }
         g_pending_kcl = g_loadfile_slot[i];   /* copy fileID/numRefs/filePtr */
         g_have_pending_kcl = 1;
         if (trace)
@@ -3752,7 +4059,10 @@ extern "C" void port_level_reset_host(void)
     int keep = 0;
     for (int i = 0; i < g_loadfile_used; ++i) {
         if (g_loadfile_slot[i].pad) {           /* persistent (message bank) */
-            if (keep != i) g_loadfile_slot[keep] = g_loadfile_slot[i];
+            if (keep != i) {
+                g_loadfile_slot[keep] = g_loadfile_slot[i];
+                g_loadfile_loads[keep] = g_loadfile_loads[i];
+            }
             ++keep;
             continue;
         }
@@ -3766,6 +4076,11 @@ extern "C" void port_level_reset_host(void)
         g_loadfile_slot[i].numRefs = 0;
         g_loadfile_slot[i].filePtr = 0;
         g_loadfile_slot[i].pad = 0;
+        /* The count is cleared with the row it belongs to, and carried with a
+           row that is kept. It answers "can this row still name the block a
+           consumer is holding", so a count that outlived its row would decline
+           the next level's KCL free for a reason from the level before it. */
+        g_loadfile_loads[i] = 0;
     }
     g_loadfile_used = keep;
 

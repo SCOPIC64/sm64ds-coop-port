@@ -265,9 +265,13 @@ static int port_host_abi_blocked(unsigned id)
        the duplicate-rebase risk onto "the port's cached LoadFile", meaning
        hal/fs.cpp. That cache is not the hazard: fs_hand_out memcpys pristine
        bytes into a fresh allocation on every call, so it never hands back a
-       rebased buffer. The sharing is in hal/level_boot.cpp's own
-       LoadFile(handle) handle table, which returns the same filePtr for a
+       rebased buffer. The sharing was in hal/level_boot.cpp's own
+       LoadFile(handle) handle table, which returned the same filePtr for a
        repeat handle inside one level. Same conclusion, different file.
+
+       AND THAT SHARING IS GONE, run link60 lane LF1: LoadFile loads a fresh
+       block on every call now, the ROM's own contract, so no repeat request
+       can hand back a buffer another caller has already rebased or freed.
 
        DEVIATION, DECLARED: hal/actor_registry.cpp is on neither this lane's
        owned list nor its do-not-touch list. The lane took this one line
