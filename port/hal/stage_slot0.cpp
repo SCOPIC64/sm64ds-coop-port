@@ -74,3 +74,66 @@ void _Z17LoadLevelOverlaysi(int)    {}
 void _Z19UnloadLevelOverlaysi(int)  {}
 
 }  /* extern "C" */
+
+// ===========================================================================
+// PART 2 -- STORAGE: TWO BSS WORDS AND ONE ALIAS
+// ===========================================================================
+//
+// The rest of slot 0's data is romdata.py's (six ROM-byte rows) and
+// hal/ptr_tables.cpp's (data_020756f0, twelve relocated words). What is left
+// is arm9 BSS, which is runtime-initialised and never belongs in romdata, and
+// one name the port already hosts under its other spelling.
+//
+// data_020a0f04   func_0203da3c is `return data_020a0f04`, and
+//                 Stage::InitResources reads that answer to decide whether to
+//                 release the level-specific archive on the way out
+//                 (`if (func_0203da3c() != 2 && archiveIdx != 0xBF)`). Its
+//                 other readers spell it through the same one-byte accessor.
+//                 config/arm9/symbols.txt:4961, kind:bss, and the next symbol
+//                 is 0x020a0f08, so the object is one 4-byte word.
+//
+// data_020a0f30   NOT ON THE HANDOFF'S LIST OF SIXTEEN, and this is where it
+//                 came from rather than a correction to that list. The
+//                 sixteen were measured with the three unsliced callees still
+//                 OUT; one of them, func_0203d81c, reads and clears this word
+//                 (`if (data_020a0f30[0]) { data_020a0f30[0] = 0; return 1; }`
+//                 -- src/func_0203d81c.c), and enrolling the callee is what
+//                 asks for it. So the sixteen was honest when it was taken and
+//                 closing three of its rows opened a seventeenth. Measured the
+//                 same way, by port/tools/closure.py over
+//                 port/slice_s4_slot0.txt against walk_window.map, and then by
+//                 the real link. config/arm9/symbols.txt:4972, kind:bss, next
+//                 symbol 0x020a0f34, one 4-byte word.
+//
+// Both go in .dsstate like every other hosted DS global: they are mutable game
+// state, and a save-state restore that left them behind would restore a level
+// whose archive-release decision and whose func_0203d81c edge came from the
+// run before it.
+DSSTATE_BEGIN
+extern "C" {
+unsigned char data_020a0f04[4];
+unsigned short data_020a0f30[2];
+}
+DSSTATE_END
+
+/* data_02075720 IS AN ALIAS, NOT A MOUNT, and the direction is worth stating
+   because it runs opposite to every other row in this closure. The port has
+   hosted these bytes since the VS star-order fix -- hal/bob_enemy_bridges.cpp
+   defines `unsigned char VS_STAR_SPAWN_ORDERS[6][0xC]`, which is the name
+   config/arm9/symbols.txt:3142 gives the arm9 symbol at 0x02075720.
+   Stage::InitResources is the one caller that spells it by ADDRESS instead
+   (`extern char data_02075720[][0xC]`), for its last statement:
+
+       data_0209f344 = &data_02075720[func_0203dad4() % 6];
+
+   which is the line hal/level_boot.cpp:2328 hand-rolls today against the same
+   host array. So there is one object and two spellings, and the fix is to tie
+   the spellings together -- adding the address name to romdata.py's NAMED list
+   would emit a SECOND copy of the bytes, and then the ROM's line and the
+   port's stand-in would seat data_0209f344 into two different arrays.
+
+   An /alternatename rather than a definition, so that the LHS only binds if
+   nothing else defines it; if a later lane ever hosts data_02075720 for real,
+   its strong symbol wins and nothing collides. port/tools/alternatename_guard.py
+   is the check that the LHS has not become a defined symbol behind this. */
+#pragma comment(linker, "/alternatename:_data_02075720=_VS_STAR_SPAWN_ORDERS")

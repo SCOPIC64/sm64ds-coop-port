@@ -340,7 +340,59 @@ void *data_020876e4[6] = {
     kuppa_blob_0208776c,
     kuppa_blob_02088b14,
 };
+// ---- table 4: data_020756f0, the twelve shared-model SharedFilePtrs --------
+//
+// src/_ZN5Stage13InitResourcesEv.cpp, between LoadGraphics2D and LoadModel:
+//
+//     for (i = 0; i < 0xC; i++) Model::LoadFile(data_020756f0[i]);
+//
+// Twelve relocated words -- the coin, the mushroom, the shared pickup models --
+// loaded once per level entry so the classes that read SharedFilePtr::filePtr
+// straight out (OneUpMushroom::InitResources for types 11 and 12, Coin for its
+// first two kinds) find a loaded file with no LoadFile of their own in front.
+//
+// SAME BUG CLASS AS TABLES 1 TO 3, WITH ONE DIFFERENCE WORTH SAYING: the
+// twelve targets are not arm9 at all. Every relocation in the span points into
+// OVERLAY 2 BSS, so the ROM bytes are twelve ov002 DS addresses and on the host
+// each of those symbols is a separate array at an unrelated address. Emitted by
+// romdata.py the loop would hand Model::LoadFile twelve DS addresses; that is
+// why the name is not on its NAMED list and must not be put there.
+//
+// hal/level_boot.cpp's port_stage_preload_shared_models ALREADY SPELLS THESE
+// TWELVE BY NAME, in this order, for exactly this reason -- it is the port's
+// hand-rolled stand-in for the ROM's loop, written when the table itself could
+// not be mounted. This row is the same twelve names as the table the ROM's own
+// loop indexes, so seating Stage::InitResources retires that stand-in rather
+// than doubling it. The order is the ROM's, read out of the arm9 relocation
+// table and quoted per slot below; it is not this file's choice.
+//
+// ptr_audit STAYS AT ZERO through this change: the audit's subject is
+// romdata.py's NAMED list, and this name is not on it before or after.
+extern unsigned char data_ov002_0210da48[], data_ov002_0210d9b8[],
+    data_ov002_0210da50[], data_ov002_0210d9f8[], data_ov002_0210da40[],
+    data_ov002_0210d9a0[], data_ov002_0210d9c0[], data_ov002_0210e7d8[],
+    data_ov002_0210e3a0[], data_ov002_0211094c[], data_ov002_0211095c[],
+    data_ov002_0210d9a8[];
+
+/* from:0x020756f0 to:0x0210da48 | 0x020756f4 to:0x0210d9b8
+   from:0x020756f8 to:0x0210da50 | 0x020756fc to:0x0210d9f8
+   from:0x02075700 to:0x0210da40 | 0x02075704 to:0x0210d9a0
+   from:0x02075708 to:0x0210d9c0 | 0x0207570c to:0x0210e7d8
+   from:0x02075710 to:0x0210e3a0 | 0x02075714 to:0x0211094c
+   from:0x02075718 to:0x0211095c | 0x0207571c to:0x0210d9a8
+   all kind:load module:overlay(2) */
+void *data_020756f0[12] = {
+    data_ov002_0210da48, data_ov002_0210d9b8, data_ov002_0210da50,
+    data_ov002_0210d9f8, data_ov002_0210da40, data_ov002_0210d9a0,
+    data_ov002_0210d9c0, data_ov002_0210e7d8, data_ov002_0210e3a0,
+    data_ov002_0211094c, data_ov002_0211095c, data_ov002_0210d9a8,
+};
 DSSTATE_END
+
+static const unsigned g_shared_model_addr[12] = {
+    0x0210da48, 0x0210d9b8, 0x0210da50, 0x0210d9f8, 0x0210da40, 0x0210d9a0,
+    0x0210d9c0, 0x0210e7d8, 0x0210e3a0, 0x0211094c, 0x0211095c, 0x0210d9a8,
+};
 
 static const unsigned g_kuppa_script_addr[6] = {
     0x02088388, 0x020888f0, 0x0208776c, 0x020889b0, 0x0208776c, 0x02088b14,
@@ -381,6 +433,14 @@ void port_ptr_tables_check(void)
                          "%08x) holds %08x, not a host pointer\n", i,
                          g_kuppa_script_addr[i],
                          (unsigned)(size_t)data_020876e4[i]);
+            std::abort();
+        }
+    for (int i = 0; i < 12; ++i)
+        if (port_ptr_slot_bad(data_020756f0[i])) {
+            std::fprintf(stderr, "FATAL: shared-model table slot %d (ov002 "
+                         "%08x) holds %08x, not a host pointer\n", i,
+                         g_shared_model_addr[i],
+                         (unsigned)(size_t)data_020756f0[i]);
             std::abort();
         }
 }
