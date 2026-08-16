@@ -77,7 +77,7 @@ predicts the first wave and the LINKER finds the rest; this is the two-wave
 method port/slice_ov007.txt describes, needing four here:
 
     wave   added   what the linker asked for
-    1        230   the closure walk's own answer: 45 ov006, 152 ov004 and the
+    1        229   the closure walk's own answer: 44 ov006, 152 ov004 and the
                    33 .init constructors
     2         33   20 arm9, 7 ov004, 6 ov006. The 20 arm9 are the exception to
                    "the arm9 half comes back for free" -- they had no other
@@ -88,6 +88,11 @@ method port/slice_ov007.txt describes, needing four here:
                    SharedFilePtr constructors reach
     ----
              276
+    5          0   the wave that found the wall rather than more slice lines;
+                   section 4
+    6          5   NOT TAKEN BY THIS LANE. Review's converged link names five
+                   more matched TUs the closure reaches, plus one hosted word.
+                   The slice in the tree stops at 276 and section 4 says so.
 
     plus 9 storage symbols and 7 traps that no src TU can supply, in
     hal/scene_mg_faces.cpp
@@ -143,7 +148,7 @@ matched src TU at all and will need a named trap or a decomp.
   0x171  MgLakituLaunch              0213dbbc      37    7     4      0
   0x183  MgHideAndBooSeek            0213fa0c      36    8     6      0
   0x178  MgBingoBallSlotsShot        0213eefc      36    9     6      2
-  0x16c  (data_ov006_0213e560)       0213eb40      37    9     5      3
+  0x16c  (data_ov006_0213e560)       0213eb40      37    9     5      1
   0x173  (data_ov006_0213b814)       0213b918      37   11     5      0
   0x186  (data_ov006_02140114)       02140140      36   12    10      0
   0x17d  (data_ov006_0213d580)       0213d664      36   13    11      0
@@ -154,16 +159,16 @@ matched src TU at all and will need a named trap or a decomp.
   0x185  MgPsycheOut                 0213c8c4      36   14    12      0
   0x16a  MgMemoryMatch               0213d1b8      37   15    12      0
   0x16d  (data_ov006_0213e508)       0213eaa8      36   15    13      0
-  0x17e  MgPairAGoneAndOn            0213d7e8      37   15    11      0
+  0x17e  MgPairAGoneAndOn            0213d7e8      37   15    11      1
   0x184  MgLuckyStars                0213fec8      37   15    12      0
   0x17b  MgPicturePoker              0213bdb4      37   16    13      0
-  0x174  MgBounceAndPounce           0213cbe4      37   24    14      7
-  0x175  MgBounceAndTrounce          0213ccfc      37   24    15      7
-  0x180  MgTrampolineTime            0213fb34      36   25    16      6
-  0x181  MgTrampolineTerror          0213fc7c      37   26    15      6
+  0x174  MgBounceAndPounce           0213cbe4      37   24    14      1
+  0x175  MgBounceAndTrounce          0213ccfc      37   24    15      1
+  0x180  MgTrampolineTime            0213fb34      36   25    16      0
+  0x181  MgTrampolineTerror          0213fc7c      37   26    15      0
   0x179  MgSnowballSlalom            NOT FOUND -- see below
 
-    totals   365 override slots, 263 of them marker-carrying, 32 with no src
+    totals   365 override slots, 263 of them marker-carrying, 7 with no src
 
 ONE ID DOES NOT RESOLVE AND IT IS NOT A TOOL FAILURE TO WAVE AWAY.
 MgSnowballSlalom (0x179) has a SpawnInfo at 0x0213ffb8 and a factory, and no
@@ -179,14 +184,23 @@ ARE THE NEXT THREE LANES. Their marginal cost over what this lane landed is
 five ROM adjudications, one face array, one registry row and their own ov006
 closure, and nothing else.
 
-THE FOUR AT THE BOTTOM ARE A DIFFERENT KIND OF WORK. 0x174, 0x175, 0x180 and
-0x181 override two thirds to three quarters of the table and carry six or seven
-override bodies with NO SOURCE AT ALL. They are not big versions of the small
-ones; they are classes that mostly do not use the framework, and they should be
-cut last and costed separately.
+THE FOUR AT THE BOTTOM STAY CUT LAST, AND THE REASON THIS FILE FIRST GAVE FOR
+IT WAS WRONG. 0x174, 0x175, 0x180 and 0x181 override two thirds to three
+quarters of the table, which is a real cost and is why they go last. The
+sentence that used to follow said they "carry six or seven override bodies with
+NO SOURCE AT ALL" and concluded they are "classes that mostly do not use the
+framework". BOTH HALVES DIE WITH THE nosrc COLUMN. The first version of that
+column was produced by a name-shaped lookup that missed src files not named
+after their symbol, and review re-derived it by hand: all twenty-five of
+0x180's override bodies resolve to real src files, 0x181's likewise, and the
+whole family's true nosrc total is SEVEN and not thirty-two. A class that
+overrides twenty-six slots with twenty-six decompiled bodies is a big version
+of a small one, not a different kind of thing. Rank them on ovr and mark, which
+is what the table does.
 
-THE WIDTH-37 CLASSES ARE WHY THE FILL IS ADDRESS-KEYED. Eleven of the
-twenty-nine add one virtual of their own past dScMgBase_c's thirty-six. A
+THE WIDTH-37 CLASSES ARE WHY THE FILL IS ADDRESS-KEYED. THIRTEEN of the
+twenty-nine add one virtual of their own past dScMgBase_c's thirty-six -- count
+the width column above, which was right while the prose under it said eleven. A
 width parameter on the old index-driven fill would have handled the length and
 still corrupted five slots per class; see hal/scene_mg.cpp's header and the
 amended caveat in hal/scene_boot.cpp.
@@ -253,13 +267,18 @@ ov085 / ov100 shape, port_*_states_seat, which writes HOST addresses over the
 .data source pairs before the constructor copies them -- but that one still
 needs a host copy of the dispatcher, because the stride is wrong either way.
 
-THE WALL'S FULL EXTENT, MEASURED AT THE LINK RATHER THAN ESTIMATED. Four link
-waves closed the ordinary part of the slice (276 TUs, section 2) and the fifth
-link is what stopped the lane. It named 37 unresolved externals in 21 objects,
-and they sort into exactly two piles:
+THE WALL'S FULL EXTENT. MEASUREMENT IN PROGRESS: the numbers below are the
+REVIEWER'S, taken on an independently wired tree whose link had CONVERGED, and
+they supersede this lane's first enumeration, which was read off a wave that had
+not. That earlier block said thirty-seven unresolved in twenty-one objects and
+called itself enumerated; it was counting a link still in motion. MG2 sizes from
+what follows, and MG2 re-measures it rather than inheriting it.
 
-  SEVEN ARE THE POINTER-TO-MEMBER WALL, in five TUs, and no alias can fix one
-  of them because MSVC's member pointer is a different SIZE from mwcc's:
+    36 unresolved externals across 13 objects
+
+  SEVEN ARE THE POINTER-TO-MEMBER WALL, verbatim from the first enumeration and
+  the one part of it that was already right, except that they are spread across
+  SIX TUs rather than five. Three of the six are ov004's:
 
     func_ov004_020add88   ?data_ov004_020beb98@@3PAP8C@@AEXXZA
     func_ov004_020adf2c   ?data_ov004_020beb88@@3PAP8C@@AEXXZA
@@ -269,25 +288,41 @@ and they sort into exactly two piles:
     func_ov006_020e12d0   ?data_ov006_021418c0@@3PAP8C@@AEXH@ZA
     func_ov006_020e3528   ?data_ov006_02141950@@3UEntry@@A
 
-  THREE OF THE FIVE ARE ov004'S, WHICH IS THE FINDING. The wall was assumed to
-  be each minigame's own state machine; it is the FRAMEWORK's as well, and
-  func_ov004_020b87e0 above is a fourth ov004 TU with the same defect. So the
-  dispatch work is not per-class, it is mostly per-family and paid once --
+  THREE OF THEM BEING ov004'S IS THE FINDING, and it survives the correction.
+  The wall was assumed to be each minigame's own state machine; it is the
+  FRAMEWORK's as well, and func_ov004_020b87e0 above is a fourth ov004 TU with
+  the same defect. So the dispatch work is mostly per-family and paid once,
   which is good news for the fan-out and bad news for the first lane.
 
-  THIRTY ARE ORDINARY /alternatename FACES, the "C-named symbols declared at
-  C++ linkage" case hal/scene_boot.cpp section 1 already carries twenty-three
-  of for the star select. data_ov004_020beb68 alone accounts for nine of them,
-  spelled five different ways across nine TUs (PAHA, PAUBase, PAUObj, PAXA).
+  TWENTY-ONE ARE ORDINARY /alternatename FACES, not the thirty this lane first
+  counted. The "C-named symbols declared at C++ linkage" case
+  hal/scene_boot.cpp section 1 already carries twenty-three of for the star
+  select.
 
-  THE LAST TWO ARE NEITHER, and they are the ov007 lane's calling-convention
-  trap in a new dress: ?AfterInitResources@Scene@@QAEXI@Z and
-  ?InitResources@ActorBase@@UAEHXZ are __thiscall METHOD mangles whose matched
-  TUs define __cdecl C functions. "AN ALIAS CANNOT CHANGE A CALLING
-  CONVENTION" -- each needs a face that re-lands the arguments, not a name.
+  ONE IS THE CALLING-CONVENTION TRAP, not two. Scene::AfterInitResources
+  (?AfterInitResources@Scene@@QAEXI@Z) is a __thiscall METHOD mangle whose
+  matched TU defines a __cdecl C function, and "AN ALIAS CANNOT CHANGE A
+  CALLING CONVENTION" -- it needs a face that re-lands the argument, not a
+  name. ActorBase::InitResources DOES NOT APPEAR on the converged tree. This
+  lane saw it because its own hal/scene_actor_faces.cpp reached for the method
+  form; that is fixed at source there, and the fix is described in the commit
+  rather than counted as a wall symbol.
 
-SO THE REMAINING WORK TO A LINKED SEAT IS ENUMERATED, NOT ESTIMATED: 30 aliases,
-2 argument-landing faces, and 5 more TUs either host-copied against an address
+  A SIXTH WAVE EXISTS AND THIS LANE NEVER REPORTED IT, having stopped at five:
+
+    5 ordinary slice lines, matched src TUs the closure reaches that no wave
+      listed
+    1 hosted word, data_0208ec74, which has no source and needs the ROM-span
+      treatment the nine in hal/scene_mg_faces.cpp already get
+
+  THE GROUP COUNTS SUM TO 35 AGAINST A TOTAL OF 36 and this file does not
+  reconcile the difference, because it did not take the measurement. The
+  residual one symbol is unattributed here on purpose rather than folded into
+  whichever group would make the arithmetic close. MG2 resolves it in the first
+  link it runs.
+
+SO THE REMAINING WORK TO A LINKED SEAT IS 21 aliases, 1 argument-landing face,
+5 slice lines, 1 hosted word, and 6 TUs either host-copied against an address
 switch or excluded and trapped. Everything before that is done and is described
 in this file.
 
@@ -416,8 +451,11 @@ overlay's static-init range as it lands. ov002 and ov006 are never co-resident,
 so NONE of the thirty-five has ever run during a level. Running them from
 port_scene_registry_install, which fires on every boot including level runs,
 would therefore be a divergence with teeth: __sinit_ov004_020b948c calls
-func_020731dc and func_020733a8, which thread nodes onto arm9-global lists the
-level path walks.
+func_020731dc, which threads a node onto an arm9-global destructor list the
+level path walks. (An earlier version of this sentence named func_020733a8
+alongside it as a second list threader. IT IS NOT ONE -- it is an MSL
+array-construction primitive -- so the argument rests on func_020731dc alone,
+which carries it without help.)
 
 WHAT THEY BUILD, from reading all thirty-three: ten are SharedFilePtr builders
 of the ov085 / ov100 / ov015 shape the level path already runs a dozen of, and

@@ -50,7 +50,7 @@ extern "C" int _ZN5Scene14BeforeBehaviorEv(char *self);
  * argument -- MSVC's __cdecl pushes nothing and the callee reads the stack --
  * and the very first thing every minigame frame does is dispatch this slot.
  *
- * THE LINE ABOVE IT IN THE SAME HEADER SPELLS THE SIBLING CORRECTLY,
+ * TWO LINES BELOW IT THE SAME HEADER SPELLS THE SIBLING CORRECTLY,
  * `_ZN5Scene19BeforeInitResourcesEv(void*)`, which is what makes this a defect
  * rather than a convention -- and slot 1 above, which the same lane copied for
  * the unrelated reason, calls that sibling WITH its argument.

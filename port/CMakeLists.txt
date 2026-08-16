@@ -2828,9 +2828,12 @@ endforeach()
 # TUs that dispatch them cannot be compiled correctly and the globals they name
 # mangle with the member-pointer type baked into the symbol
 # (?data_ov006_02141950@@3UEntry@@A against the mount's _data_ov006_02141950).
-# Four link waves closed the ordinary 276 TUs of the slice; the fifth named 37
-# unresolved externals in 21 objects, and port/mg_fanout_costs.txt section 4
-# enumerates every one of them plus the work each needs.
+# Four link waves closed the ordinary 276 TUs of the slice and the fifth found
+# the wall. Review's independently wired, CONVERGED link puts it at 36
+# unresolved externals in 13 objects, and port/mg_fanout_costs.txt section 4
+# groups them and says what each group needs. Section 4 is marked
+# MEASUREMENT IN PROGRESS: this lane's own first count was taken mid-wave and
+# is superseded there.
 #
 # WIRING THIS BREAKS THE BUILD. Deleting it throws away the vtable derivation,
 # the four-wave slice, the declaration-conflict host copies and the overlay

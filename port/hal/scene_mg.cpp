@@ -56,9 +56,12 @@
 // function runs on EVERY boot, level runs included, because the ROM's own
 // spawn-table edge has to be real for /OPT:REF on every target. Running
 // ov006's constructors there would be a divergence with teeth rather than a
-// harmless early call: __sinit_ov004_020b948c calls func_020731dc and
-// func_020733a8, which THREAD NODES ONTO ARM9-GLOBAL LISTS, and those lists
-// are walked on the level path. The fill is safe to run on every boot because
+// harmless early call: __sinit_ov004_020b948c calls func_020731dc, which
+// THREADS A NODE ONTO AN ARM9-GLOBAL DESTRUCTOR LIST, and that list is walked
+// on the level path. (The same sinit calls func_020733a8, which an earlier
+// version of this block named as a second threader. It is not one -- it is an
+// MSL array-construction primitive -- and the argument stands on
+// func_020731dc alone.) The fill is safe to run on every boot because
 // it only writes ov004/ov006 mount storage nothing else reads; the
 // constructors are not, and the split is drawn there for that reason.
 //
@@ -208,9 +211,9 @@
 //     (src/_ZN5Scene14BeforeBehaviorEv.cpp:47) takes `char* self` and
 //     dereferences it immediately. On ARM this is a ride-through and correct
 //     -- r0 already holds self -- and on the host the callee reads the stack.
-//     The line above it in the same header spells the sibling correctly,
-//     `_ZN5Scene19BeforeInitResourcesEv(void*)`, which is what makes this a
-//     defect rather than a convention.
+//     Two lines BELOW it, the same header spells the sibling correctly,
+//     `_ZN5Scene19BeforeInitResourcesEv(void*)` at line 25, which is what
+//     makes this a defect rather than a convention.
 //   src/func_ov004_020b0840.c declares `extern void func_0203cbc0(void);` and
 //     calls it with no argument at line 28, while the ROM has the pointer
 //     being deleted live in r0. The port's own host body is

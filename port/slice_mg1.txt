@@ -44,17 +44,25 @@
 # once. They are listed here anyway because this file is a statement about
 # what dScMgCurling_c's closure REACHES, and dropping a line because someone
 # else already needed it would make the closure unreadable as a closure.
-# ONE OF THE FOUR IS A KNOWN LIVE DEFECT AND THIS SLICE DOES NOT FIX IT:
-# port/ov004_ov007_2d_map.txt section 6 records that Spindrift is routed into
-# the ov004 KillByInvincibleChar body when the ov002 one at the same shared
-# address is the right answer, and that the ov004 body returns immediately
-# because data_ov004_020beb68 is never written. NOTE FOR THAT LANE: this
-# lane makes the second half of that sentence false. func_ov004_020b2adc,
-# dScMgBase_c's base constructor, writes data_ov004_020beb68 = self, so once
-# a minigame scene has been constructed the guard passes. It cannot fire on a
-# level, where no minigame is ever constructed, so nothing changes for
-# Spindrift today -- but the reasoning in that section rests on a global that
-# is no longer permanently zero, and whoever fixes the misroute should know.
+# ONE OF THE FOUR WAS THE SPINDRIFT MISROUTE AND IT IS ALREADY FIXED. An
+# earlier version of this block called it "a known live defect" in the present
+# tense, on the strength of port/ov004_ov007_2d_map.txt section 6, which still
+# reads as though the fix were pending. IT IS NOT: lane A2 landed it BEFORE
+# this lane started, and the fix is in this lane's own base at
+# port/CMakeLists.txt:902 -- a per-source COMPILE_DEFINITIONS on
+# src/func_ov081_02123910.cpp that redirects the mangled Enemy name onto
+# func_020ada40, the ov002 body, with the arity derived from the ROM in the
+# comment above it. A -D rather than an alias, because the ov004 TU DEFINES the
+# mangled name in this binary and an /alternatename with it on the left would
+# be defeated silently. So Spindrift reaches the ov002 body today and this
+# slice does not change that either way.
+# WHAT DOES SURVIVE IS A NOTE ABOUT THE MAP'S REASONING, not about the bug.
+# Section 6 argues partly from data_ov004_020beb68 being permanently zero, and
+# that premise stops being true here: func_ov004_020b2adc, dScMgBase_c's base
+# constructor, writes data_ov004_020beb68 = self, so once a minigame scene has
+# been constructed the ov004 body's opening guard passes. It cannot fire on a
+# level, where no minigame is ever constructed, so nothing about the shipped
+# behaviour changes. The map file is amended in the same commit as this one.
 
 # /OPT:REF IS THE REFEREE. No /include:, and the only reference edges are the
 # ROM's own: the ACTOR_SPAWN_TABLE record names the factory, the ROM's vtable
@@ -101,7 +109,7 @@ src/__sinit_ov006_0213322c.c
 src/__sinit_ov006_0213326c.c
 src/__sinit_ov006_021333e0.c
 
-# ---- ov006: dScMgCurling_c's closure, 45 TUs ------------------------------
+# ---- ov006: dScMgCurling_c's closure, 44 TUs ------------------------------
 src/MgShuffleShell_Spawn.c
 src/_ZN6Player16St_WallJump_InitEv.cpp
 src/func_ov006_020e0638.c
@@ -147,7 +155,7 @@ src/func_ov006_020e34ec.c
 src/func_ov006_020e3528.cpp
 src/func_ov006_020e3578.c
 
-# ---- ov004: the dScMgBase_c framework, 153 TUs ----------------------------
+# ---- ov004: the dScMgBase_c framework, 152 TUs ----------------------------
 # FOUR ov004 TUs ARE DELIBERATELY ABSENT from the block below -- slots 1, 7,
 # 29 and 30 -- and it is a DECLARATION CONFLICT rather than a missing body.
 # src/func_ov004_020b0930.cpp, _020b0620.cpp and _020aeed8.cpp define their
