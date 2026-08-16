@@ -31,52 +31,130 @@ Everything the merge gate runs, in order, stopping at the first failure:
 Exit 0 all green, 1 first red, with a one-line verdict per step so a log tail
 reads as a checklist.
 
-THE SELFTEST BMP IS ONLY BYTE-IDENTICAL AT AN EQUAL .dsstate SECTION BASE.
+THE SELFTEST BMP TRACKS THE HOSTED-GLOBAL LAYOUT, NOT ONLY THE .dsstate BASE.
 
 Read this before treating a walk_window_selftest.bmp diff as a rendering
-regression. The rendered frame carries a dependence on the ABSOLUTE ADDRESSES
-of the hosted DS globals, so it moves when the .dsstate section base moves --
-and that base moves whenever a change pushes the preceding sections across a
-4 KB page boundary, however unrelated the change is to rendering.
+regression, and before reading a clean diff as proof that nothing moved.
 
-Controlled experiment (2026-08-14, walk_window.exe, SM64DS_WINDOW_SELFTEST=300,
-the .dsstate span as printed by tools/dsstate_guard.py at link time). Every one
-of these runs produced the IDENTICAL player position
-pos=(-4915200, 2805556, 9342995):
+Some hosted DS data reaches the geometry stream as a pointer VALUE, so the
+rendered frame can depend on the ABSOLUTE ADDRESS of a hosted global. Two
+separate things move those addresses and both change the frame:
 
-    base source                     .dsstate 0x9ee000   md5 eb32dcab4915...
-    base + 16 bytes of inert .bss   .dsstate 0x9ee000   md5 eb32dcab4915...
-    base + 4 KB of inert .data      .dsstate 0x9ef000   md5 518ba22ae260...
-    the drag-resize change          .dsstate 0x9ef000   md5 518ba22ae260...
-    base + 8 KB of inert .data      .dsstate 0x9f0000   md5 15fde8a893d0...
+  * the .dsstate section base, which shifts whenever a change grows the
+    preceding sections past a 4 KB page boundary, however unrelated that
+    change is to rendering;
+  * the layout INSIDE .dsstate, which shifts every hosted global past the
+    insertion point while leaving the section base exactly where it was.
 
-Base logic and a real change produce the SAME BMP at the same section base, and
-base logic alone produces THREE DIFFERENT BMPs at three different bases. The
-delta is 3 pixels of water blue in the 512x384 frame, max channel delta 12.
+An equal .dsstate base is therefore necessary for a byte-exact comparison and
+it is NOT sufficient. The comparison with meaning holds the whole hosted
+layout constant, base and span both.
 
-So: a PR whose selftest positions match to the digit but whose BMP differs, and
-whose dsstate_guard line reports a different section base than the baseline
-build, is NOT a render regression. Rebuild the baseline with inert padding that
-lands .dsstate at the same base and compare there; that is the comparison with
-meaning. Reproduce the padding with, at file scope in any hal TU:
+Measured 2026-08-16 at 7f994ccdb with the ov009 sizing line named below
+REVERTED, so the table shows the defect that line fixes. walk_window.exe,
+level 1, the .dsstate span as printed by tools/dsstate_guard.py at link time.
+Every run ended at the same player position as the unpadded build:
 
-    extern "C" const char pad[0x1000];
-    const char pad[0x1000] = {1};
+  perturbation                   .dsstate base   span     296 frames   300
+  none                           0xbb0000        959200   --           --
+  +4 KB inert .data, base moves  0xbb1000        959200   1 px, ch 2   same
+  +64 B interior to .dsstate     0xbb0000        959272   1354 px,     same
+                                                          ch 16
 
-EQUAL .dsstate BASE IS NECESSARY, NOT SUFFICIENT. A later review measured the
-sharper form with controls: an inert shift INTERIOR to .dsstate (the section
-base unmoved, only its contents and size changing) leaves the BMP byte-
-identical, while host-global layout OUTSIDE .dsstate perturbs the frame even
-at an equal base. In that case a touch-hosting PR's BMP delta -- 318 pixels,
-max channel delta 13 -- was reproduced exactly by keeping the PR's probe code
-and REMOVING the change under test, which is what proved the delta belonged to
-the probe's own footprint and not to the fix. The general method: hold
-everything but the change under test constant and see whether the BMP follows
-the change or follows the footprint.
+300 IS A FRAME COUNT ON WHICH BOTH PERTURBATIONS HAPPEN TO AGREE, and 300 is
+the count this battery runs. A clean 300-frame BMP compare across a layout
+change is not evidence that the layout stayed out of the frame. A sweep of the
+same two binaries over counts 290-310, recorded in the same session and not
+re-measured line by line for this note, found six counts where the frames
+differ -- 291, 292, 296, 298, 302, 303 -- and 300 is not one of them; 292 and
+299 were re-measured here and behave as that sweep says. Whether the last
+rendered frame is layout dependent is a property of where the animation sits
+when the run stops.
 
-The address dependence itself is real and unexplained -- something in the
-render path decides on a pointer value or reads an uninitialised field. It is
-tracked separately; this note exists so the gate is not read as the bug.
+The two perturbations also differ by three orders of magnitude, and that gap
+is a fingerprint of the cause below rather than a difference in how hard they
+push: a 4 KB shift is a whole number of periods of the 32x32 water texture and
+very nearly cancels, so it leaves one pixel where 64 bytes leaves 1354.
+
+"ADD A LITTLE INERT .bss" IS NOT A PERTURBATION. Two earlier measurements used
+one -- a "base + 16 bytes of inert .bss, no movement" row in the 2026-08-14
+table this block used to carry, and a 32-byte version a later lane built an
+argument on. Neither moves anything. Measured 2026-08-16: `volatile char
+x[32];` in an anonymous namespace is DROPPED, absent from the recompiled .obj
+and not merely from the map, because volatile constrains accesses and does not
+force emission (`extern "C" volatile char x[32];` is worse: [dcl.link]/7 makes
+it a declaration and it emits nothing at all). A spelling that does survive,
+`__declspec(dllexport) volatile char x[32];`, present in the map, still leaves
+the .dsstate base and span untouched and the frame byte-identical at 296 and
+at 300. A null result from a .bss pad is a null result about nothing. Check
+any pad for PRESENCE in the .obj or the map before believing what it measures.
+
+The two recipes that do move something, both measured above:
+
+  move the base, at file scope in any hal TU outside a DSSTATE bracket --
+
+    extern "C" __declspec(dllexport) unsigned char rev_pad_data[4096] = {1};
+
+  shift the interior without moving the base, in hal/dsstate_seg.cpp --
+
+    #pragma section(".dsstate$aab", read, write)
+    extern "C" __declspec(allocate(".dsstate$aab"))
+        __declspec(dllexport) unsigned char pad64[64] = {1};
+
+Read the resulting base and span off the dsstate_guard line the link prints.
+
+So: a PR whose selftest positions match to the digit but whose BMP differs,
+and whose dsstate_guard line reports a different base or a different span than
+the baseline, is not by itself a render regression. Rebuild the baseline with
+inert padding that lands .dsstate at the same base and the same span, and
+compare there. The general method: hold everything but the change under test
+constant and see whether the BMP follows the change or follows the footprint.
+A worked case -- a touch-hosting PR's 318-pixel, max-channel-13 delta was
+reproduced exactly by keeping the PR's probe code and REMOVING the change
+under test, which proved the delta belonged to the probe's own footprint.
+
+THE CAUSE IS KNOWN AND THE FIX IS IN THIS TREE.
+
+It was never the render path reading an uninitialised field. The castle moat
+water's S/T translation is a 91-frame BTA track at ov009 DS 0x021122ec, one
+contiguous ramp of 0 to 0x1000 ending exactly where __sinit_ov009_02112458
+begins. Nothing named it, so the only thing hosting it was the synthetic gap
+block port_ov009_gap_0211222c, which dsd sized at 0xf4 bytes against the first
+of eleven `ambiguous` boundaries it guessed inside the track's span -- thirteen
+of the ninety-one words. From animation frame 13 the read ran off the block
+into whatever the linker placed next, which is port_ov009_gap_02112b7c, laid
+down immediately after it with no padding between: the ASCII "water_mat" and
+two words the patch pass overwrites with REBASED HOST POINTERS. The overrun
+starts on the string and reaches the first pointer three words later, and
+func_02044b30 folds the track value into the water's texture-matrix
+translation as -(value << 9), so a host address decided pixels.
+
+port/ov009_syms.txt now names the array with its ROM extent
+(`data_ov009_021122ec:0x16c`), which pins all 91 frames on hosted storage. With
+the line in place the interior shift is byte-identical to the unpadded build at
+291, 292, 296, 298, 300, 302 and 303 -- every count on which it moved the frame
+before, plus the one this battery runs -- and the base move is byte-identical at
+296 and 300. The frames themselves change, because the water now animates off
+its own ROM data instead of off a host address: 2962 pixels of the level 1
+moat at 300 frames, same player position to the digit.
+
+The fix is one line and a rebase can drop it silently, so check the generated
+source rather than trusting this paragraph:
+
+    cd build/port/host-src
+    grep -cF "data_ov009_021122ec[364]" ov009_syms.c      -> 1
+    grep -cF "port_ov009_gap_0211222c[244]" ov009_syms.c  -> 0
+
+The gap block does not disappear when the line is present, it shrinks 244 to
+40 bytes, so its mere presence in the map proves nothing either way.
+
+Five more truncations of the same class are known and NOT fixed here: two
+ov009 path tables, ov016 CLPS, an ov021 class-name string, and an ov070 curve
+cut at its apex. port/tools/gapaudit.py is the detector. Until those land a
+layout change can still reach the frame through one of them, so the comparison
+rule above stands whether or not the ov009 line is in the tree. The long form,
+with the gap audit and the leftovers, is notes/port-selftest-bmp-gate.md on
+main.
 
 A SELFTEST DOES NOT ALWAYS END ON THE LEVEL IT STARTED.
 
