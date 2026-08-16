@@ -52,6 +52,13 @@ rem real alias left the quote of it failing the build. The fixture pins that
 rem scope. The guard's own map check still runs post-link, below.
 python "%~dp0tools\alternatename_guard.py" --selftest
 if errorlevel 1 exit /b 1
+rem Fail before configure if the band guard's fixture battery breaks. Each arm
+rem has a break only that arm catches, including the two the tree has actually
+rem shipped (a GX band member split back out of its grouped section, and a
+rem hosted global sized by its first caller). Its map check runs post-link,
+rem below.
+python "%~dp0tools\gxband_guard.py" --selftest
+if errorlevel 1 exit /b 1
 cmake -S "%~dp0." -B "%~dp0..\build\port" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM="%CMAKEBIN%\Ninja\ninja.exe" %*
 if errorlevel 1 exit /b 1
 ninja -C "%~dp0..\build\port"
@@ -61,4 +68,16 @@ rem map -- a defined LHS defeats the alias silently (the wave-5 R1/R2 class;
 rem EyerokD0 and the data_ov075 aliases flip the same way if their overlays
 rem land). Post-link by design: the guard needs walk_window.map.
 python "%~dp0tools\alternatename_guard.py" --map "%~dp0..\build\port\walk_window.map"
+if errorlevel 1 exit /b 1
+rem Fail after link if a hosted DS BAND did not come out of the linker in ROM
+rem order. The DS reaches a band's members as INTERIOR ADDRESSES of its head --
+rem the SetBankFor* family writes the GX bank block out to +0x18, the interrupt
+rem handlers write the DTCM's OSi_IrqCheckFlag at DTCM_END - 8 -- so a split or
+rem short host object puts every one of those writes on whatever the linker put
+rem next. The expected offsets come from config/arm9/symbols.txt at run time.
+rem Post-link by design, and over EVERY map rather than walk_window's alone:
+rem /MAP is on CMAKE_EXE_LINKER_FLAGS so each target writes one, and the
+rem runtime check in hal/cxx_aliases.cpp only ever reached the binaries that
+rem link hal/sub_screen.cpp, on the one bring-up path that calls it.
+python "%~dp0tools\gxband_guard.py" --build-dir "%~dp0..\build\port"
 if errorlevel 1 exit /b 1
