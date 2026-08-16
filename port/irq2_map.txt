@@ -449,6 +449,49 @@ unreachable, and reaching it is what made it matter.
 
 9. UNPROVEN ITEMS
 
+  [Run link60 Stage 5 lane SEAT8 added the first item and amended the second.]
+
+  * NO PIXEL CLAIM FROM THIS LANE EITHER, AND THE ONE-BINARY CONTROL CHANGED
+    ITS ANSWER. Lane SEAT8 seated slot 0x08, so the table streams changing
+    rows, and it re-ran the control the review below built: same executable,
+    same scene, same frame count, delivery on and delivery off.
+
+      SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=23 SM64DS_FAULTS_FATAL=1
+      SM64DS_SCENE_BMP=s8_scene374_midfade.bmp             exit 0
+
+      artifact       build/port/s8_scene374_midfade.bmp (build output, NOT
+                     committed)
+      size           589,878 bytes, 512x384
+      frame          23 of the fade's 45, so mid-transition rather than at a
+                     resting end
+      that run       5,786 deliveries, 8,448 table reads, 936 runs of equal
+                     rows, last row 78807F88 -- between the 80807F7F the
+                     setter writes at arm time and the 00807F00 the 300-frame
+                     run ends on
+      .dsstate       base 0xbac000, span to 0xc962e8, 959,208 bytes captured,
+                     which is byte for byte the span this file records for
+                     iq1_scene374_irq2.bmp: SEAT8 hosted no new DS symbol
+
+      SM64DS_IRQ2_OFF unset   vs   SM64DS_IRQ2_OFF=1        THE TWO DIFFER
+
+    THE DIFFERENCE IS THE POINT AND IT IS STILL NOT A VERDICT. Where this
+    file measured the two byte-identical, they now differ, on one binary at
+    one .dsstate base with no footprint difference between the runs. That
+    says raising IRQ 2 changes pixels once the rows move, which is what
+    section 4's last paragraph implies rather than contradicts: the
+    rasteriser samples WIN0H and WIN1H ONCE per frame, and the single value
+    it samples is now fade-dependent instead of frozen at the arm-time
+    write. What has NOT been built is 7a, so what the frame carries is a
+    moving window rectangle and not a per-scanline wipe. NOBODY HERE HAS SAID
+    WHAT IS IN EITHER IMAGE. The rows measurement is the acceptance; the BMP
+    is for a human.
+
+    ONE REPRODUCIBILITY NOTE, because the exe hash cannot carry it: the same
+    BMP came out byte-identical
+    (sha256 e437446992195b843fc19ebd4dc9b55c8744fb6ecec394c7f02bdcd167f83466)
+    from two separate relinks of the same sources, which differ in exe hash
+    only because build-port.cmd regenerates host-src/port_gittip.c every run.
+
   * NO PIXEL CLAIM. Nothing in this file was read off a frame. One frame was
     captured anyway, for a human to look at, and it is named here so a
     successor can check the precondition before comparing rather than after:
