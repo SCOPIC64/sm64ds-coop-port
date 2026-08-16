@@ -256,8 +256,24 @@ extern "C" void DMAStartTransfer(int ch, int src, int dst, int ctrl) {
 // ---------------------------------------------------------------------------
 // CP15 cache maintenance. The host has coherent memory, so these are no-ops --
 // but they must still exist, because the decomp calls them around every DMA.
+//
+// EVERY ONE OF THESE HAS A MATCHED src TU AND ONLY THE LINKED ONES ARE QUEUE
+// ROWS, which is why the tags below look scattered rather than uniform.
+// port/tools/linkage.py only sees a definition once /OPT:REF keeps it, so an
+// untagged sibling here is dormant and not forgiven: the day a slice reaches
+// it, it surfaces as an UNDOCUMENTED SHADOW and wants the same one-line ruling
+// the tagged ones carry. Run link60 lane PC2 hit exactly that. Its new arm9
+// chain (func_ov007_020b2bd4 -> func_02044efc / func_02045ef8) linked
+// _ZN4CP1514FlushDataCacheEv for the first time, the queue went 557 to 558 and
+// SHADOWS 43 to 44, and the answer was the tag and not a code change: the
+// matched TU is an `asm` block of mcr p15 instructions, which is DS hardware
+// the ntr layer does not model, so the host definition IS the faithful
+// stand-in.
 // ---------------------------------------------------------------------------
 
+// PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15
+//   cache maintenance, a cache-flush primitive the host runtime necessarily
+//   owns. See the CP15 block above -- host memory is coherent.
 extern "C" void _ZN4CP1514FlushDataCacheEv(void) {}
 // PORT_HOST_ABI: hand-asm primitive (src/ carries the banner): mcr p15
 //   cache maintenance. See the CP15 block above -- host memory is coherent.

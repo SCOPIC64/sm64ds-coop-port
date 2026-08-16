@@ -762,33 +762,39 @@ static void l2_fill_0208ea6c(void)
     ((void **)data_0208eafc)[1] = (void *)l2_vt_trap;
 }
 
-// ---- 3. TWENTY TRAPPING SITES, AND HOW THEY COUNT --------------------------
+// ---- 3. NINETEEN TRAPPING SITES, AND HOW THEY COUNT ------------------------
 //
-// WAS TWENTY-FOUR, then twenty-one. Three ov007 traps came out when their
-// matched TUs arrived, and a fourth came out WITHOUT a match: run link60 lane
-// SC1 gave func_ov007_020c9688 a host transcription instead
+// WAS TWENTY-FOUR, then twenty-one, then twenty. Four ov007 traps came out
+// when their matched TUs arrived, and a fifth came out WITHOUT a match: run
+// link60 lane SC1 gave func_ov007_020c9688 a host transcription instead
 // (port/unmatched/Ov007_OamCellBank_020c9688.cpp), which is a different kind of
 // retirement and section 3a says so.
 //
-// COUNT THEM AS 19 L2_UNMATCHED BODIES PLUS ONE TRAP-FILLED VTABLE, because
-// they are not the same kind of thing and one number hides that. The 19 are
+// COUNT THEM AS 18 L2_UNMATCHED BODIES PLUS ONE TRAP-FILLED VTABLE, because
+// they are not the same kind of thing and one number hides that. The 18 are
 // functions with no C anywhere in the tree, each standing where a body would
-// be. The 20th is the twelve slots of data_0208ea6c (section 2b), which all
+// be. The 19th is the twelve slots of data_0208ea6c (section 2b), which all
 // point at one shared trap: a hosted arm9 vtable this lane chose to fill
-// loudly rather than leave carrying raw DS words. One counter covers all 20
+// loudly rather than leave carrying raw DS words. One counter covers all 19
 // and the run prints it, so "none of them fired" is a measurement.
 //
-// ---- 3a. SIXTEEN UNMATCHED ov007 BODIES, FIFTEEN OF THEM TRAPPED -----------
+// ---- 3a. FIFTEEN UNMATCHED ov007 BODIES, FOURTEEN OF THEM TRAPPED ----------
 //
-// WAS NINETEEN. Three of them are decompiled now and the traps are gone:
+// WAS NINETEEN. Four of them are decompiled now and the traps are gone.
 // func_ov007_020beeb0, func_ov007_020c7d60 and func_ov007_020cbbb0 landed on
 // the decomp's main between 2026-08-05 and 2026-08-06, after this branch
 // forked, and run link60's port-catchup lane brought the matched TUs across
-// by address. Each was re-verified here against
-// extracted/overlays/overlay_0007.bin rather than taken on main's word; the
-// dsd export is stale for this overlay and a control run on
-// src/func_ov007_020ba2e0.c, matched on both refs, proves it. See
-// port/port_catchup_inventory.txt rows 1-3.
+// by address; see port/port_catchup_inventory.txt rows 1-3.
+// func_ov007_020b2998 is the fourth and the newest: lane CK1 matched it on
+// 2026-08-16 (main db0c4960635e, PR #1536) and lane PC2 brought it across the
+// same day.
+//
+// Each was re-verified here against extracted/overlays/overlay_0007.bin rather
+// than taken on main's word; the dsd export is stale for this overlay and a
+// control run on src/func_ov007_020ba2e0.c, matched on both refs, proves it.
+// PC2 re-ran that control rather than quoting it: NOMATCH against
+// extracted/dsd/arm9_overlays/ov007.bin and MATCH against the raw image, in
+// this worktree, on the day it wired its own TU.
 //
 // A FOURTH ov007 BODY CAME ACROSS IN THE SAME PASS AND IS NOT IN THIS LIST:
 // func_ov007_020c49bc, which never had a trap because nothing references it
@@ -796,14 +802,17 @@ static void l2_fill_0208ea6c(void)
 // /OPT:REF still drops it, but the day a slice reaches it the matched body is
 // what answers instead of an unresolved external.
 //
-// ov007 is 548 functions and 532 have a matched src TU. The sixteen that do
+// ov007 is 548 functions and 533 have a matched src TU. The fifteen that do
 // not are inside delink blocks marked incomplete, they are called from bodies
 // that ARE matched, and there is no C for them anywhere in the tree. A
 // plausible hand-written body would be exactly the guess the inferred-stub
-// guard exists to refuse, so fifteen of them are a TRAP that names itself once
+// guard exists to refuse, so fourteen of them are a TRAP that names itself once
 // and returns zero. A run that enters one says so on stderr and keeps going,
 // which is what makes "none of them was entered" a measurement instead of an
-// assumption.
+// assumption. (533 and 15 were RECOUNTED for this edit rather than stepped
+// from the old pair: every ov007 function in symbols.txt joined to its delink
+// block and to what is on disk, with func_ov007_020bfd70 counted through its
+// src file because its block is the one exclusion slice_ov007.txt names.)
 //
 // NONE OF THE NINETEEN FIRED IN ANY RUN THE SEATING LANE MADE. THAT SENTENCE
 // USED TO CONTINUE "and none of the sixteen has fired since" AND RUN LINK60
@@ -811,13 +820,16 @@ static void l2_fill_0208ea6c(void)
 // body is what lets the scene run far enough to reach the others at all. A
 // 300-frame scene-1 run today enters func_ov007_020b46b0 twenty-four times
 // (the 0x18 loop in src/func_ov007_020aed98.c), then func_ov007_020c20b8,
-// func_ov007_020b2998, func_02054c80 and one data_0208ea6c slot once each.
-// ONLY func_ov007_020b2998 IS A BLOCKER (port/ov007_seat.txt section 5a); the
-// other four return 0 and the run carries on, which is the trap doing its job
-// rather than the trap being harmless. port/ov007_seat.txt carries the counter
-// readback for the nineteen and the gate manifest carries it for the sixteen.
+// func_02054c80 and one data_0208ea6c slot once each. THE CENSUS LOST A NAME
+// THIS PASS: func_ov007_020b2998 used to be in that list and it was the only
+// blocker in it. Lane CK1 matched it, lane PC2 brought the TU across, and the
+// scene now dies TWO CALL LEVELS DEEPER on something that is not a trap at all
+// (port/ov007_seat.txt section 5b). NONE OF THE FOUR NAMES LEFT IS A BLOCKER:
+// they return 0 and the run carries on, which is the trap doing its job rather
+// than the trap being harmless. port/ov007_seat.txt carries the counter
+// readback for the nineteen and the gate manifest carries it for the fifteen.
 //
-// FIFTEEN OF THE SIXTEEN ARE TRAPPED. THE SIXTEENTH IS TRANSCRIBED, and the
+// FOURTEEN OF THE FIFTEEN ARE TRAPPED. THE FIFTEENTH IS TRANSCRIBED, and the
 // distinction is the whole of run link60 lane SC1. func_ov007_020c9688 is the
 // one the trap list can no longer carry, because a trap there is not a
 // coverage statement, it is scene 1's block: the trap returned 0 six times,
@@ -830,10 +842,11 @@ static void l2_fill_0208ea6c(void)
 // IT IS NOT A DECOMP AND IT DOES NOT PRETEND TO BE ONE. It is not scored by
 // match.py, not counted by linkage.py, and it carries no
 // "recovered from vtable slot identity" marker, so the inferred-stub guard
-// neither counts it nor should. The number above stays at sixteen because the
-// DECOMP is still sixteen short; the crack side owns closing it, and the day
+// neither counts it nor should. The number above stays at fifteen because the
+// DECOMP is still fifteen short; the crack side owns closing it, and the day
 // src/func_ov007_020c9688 exists the interim leaves the build in the same
-// configure that notices.
+// configure that notices. It went sixteen to fifteen this pass for the OTHER
+// reason, the one that costs nothing: func_ov007_020b2998 got a real match.
 static unsigned g_l2_trap_hits;
 static void l2_trap(const char *name)
 {
@@ -857,7 +870,12 @@ extern "C" unsigned port_l2_trap_hits(void) { return g_l2_trap_hits; }
     extern "C" int sym(void) { l2_trap(#sym); return 0; }
 L2_UNMATCHED(func_ov007_020ae834)
 L2_UNMATCHED(func_ov007_020b1718)
-L2_UNMATCHED(func_ov007_020b2998)
+/* func_ov007_020b2998 WAS HERE AND IT CAME OUT ON A REAL DECOMP. The decomp's
+   main matched it as db0c4960635e on 2026-08-16 (PR #1536) and run link60's
+   PC2 lane brought the matched TU across by address, so src/ has the body and
+   a trap here would be an LNK2005 against it. This is the OTHER way an address
+   leaves this list, and it is the one the port wants: 020c9688 below left on a
+   host transcription, this one left on the ROM's own C. */
 L2_UNMATCHED(func_ov007_020b46b0)
 L2_UNMATCHED(func_ov007_020b8188)
 L2_UNMATCHED(func_ov007_020ba05c)
@@ -867,8 +885,8 @@ L2_UNMATCHED(func_ov007_020c368c)
 L2_UNMATCHED(func_ov007_020c4684)
 L2_UNMATCHED(func_ov007_020c6e68)
 /* func_ov007_020c9688 WAS HERE AND IT IS THE ONE THAT CAME OUT WITHOUT A
-   DECOMP. It is still unmatched on main, so section 3a's sixteen is still
-   sixteen; what changed is that this address now has a body in the port and no
+   DECOMP. It is still unmatched on main, so it is still one of section 3a's
+   fifteen; what changed is that this address now has a body in the port and no
    longer needs a trap. port/unmatched/Ov007_OamCellBank_020c9688.cpp is a HOST
    TRANSCRIPTION read off extracted/overlays/overlay_0007.bin, and it retires
    itself the day src/ gains the match (the CMake block that adds it is guarded
@@ -881,7 +899,7 @@ L2_UNMATCHED(func_ov007_020cb7c0)
 /* 020b8fd4 surfaced only in the SECOND link, because its one caller spells it
    untagged as func_020b8fd4 (face (a) below) and the untagged name resolved
    before the tagged one was ever asked for. It was the nineteenth of the
-   original nineteen and it is the sixteenth of the sixteen. */
+   original nineteen and it is the fifteenth of the fifteen. */
 L2_UNMATCHED(func_ov007_020b8fd4)
 #undef L2_UNMATCHED
 
@@ -1309,8 +1327,46 @@ static void scene_fill_starsel(void)
 // in the mount too and it gets the same treatment. Slots 1 and 3 are matched
 // arm9 Scene methods; the eleven-slot shared fill does not apply to it.
 static unsigned g_ti_hits[18];
+#if PORT_OV007_RIDETHROUGH_UNSEATED
+/* SCENE 1'S BLOCKER, ANNOUNCED BY THE FRAME THAT DISPATCHES INTO IT.
+ *
+ * port/tools/battery.py's scene-1 row keys on the string below, so this is
+ * the row's marker and not decoration. It is here, in ti_init, because this
+ * is the LAST port-owned frame on the path: everything from
+ * func_ov007_020cc4c0 down to the fault is a matched TU and the port owns no
+ * code in between to hang a tighter probe on.
+ *
+ * The blocker is an ARM register ride-through, derived in
+ * port/ov007_seat.txt section 5b and guarded at configure time by the PC2
+ * block in port/CMakeLists.txt, which reads the middle TU's own
+ * one-parameter declaration rather than a flag somebody has to remember to
+ * clear. Fix the seam and this compiles out.
+ *
+ * WHAT THIS MARKER DOES NOT PROVE, and battery.py's row repeats it: it is
+ * armed on entering InitResources, not on reaching the seam, so a DIFFERENT
+ * fault inside InitResources would still print it. The trap print it
+ * replaces was tighter because the trap WAS the blocker. */
+static void ti_ridethrough_notice(void)
+{
+    static int said;
+    if (said) return;
+    said = 1;
+    std::printf("  [scene] SCENE 1 BLOCKED: the ov007 ride-through at "
+                "func_ov007_020be980 drops i and a2\n");
+    std::fflush(stdout);
+    std::fprintf(stderr, "  [scene] SCENE 1 BLOCKED: the ov007 ride-through at "
+                 "func_ov007_020be980 drops i and a2\n");
+    std::fflush(stderr);
+}
+#endif
 static int  __fastcall ti_init(void *s, void *)
-{ ++g_ti_hits[0];  return func_ov007_020cc4c0((char *)s); }
+{
+    ++g_ti_hits[0];
+#if PORT_OV007_RIDETHROUGH_UNSEATED
+    ti_ridethrough_notice();
+#endif
+    return func_ov007_020cc4c0((char *)s);
+}
 static int  __fastcall ti_clean(void *, void *)
 { ++g_ti_hits[3];  return func_ov007_020cc45c(); }
 static int  __fastcall ti_beh(void *s, void *)

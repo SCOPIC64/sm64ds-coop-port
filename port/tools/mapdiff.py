@@ -23,7 +23,15 @@ WHAT IT REPORTS:
                     same face independently reads as a move at their
                     merge, and a symbol quietly migrating between objects
                     is a thing a review wants shown, not inferred.
-  OBJECTS           object basenames added and removed.
+  OBJECTS           object basenames added and removed. NOT CROSS-TREE
+                    SAFE: the comparison is by basename, and MSVC's
+                    anonymous-namespace hashes and embedded literal path
+                    strings are derived from the BUILD PATH, so two trees
+                    at the same commit disagree on rows that are the same
+                    object. A reviewer of run link60 lane PC2 got 320
+                    spurious rows this way and had to rebuild the tip
+                    inside the base tree to get an honest diff. Build both
+                    maps in one tree, or read the object columns as noise.
   NAME-SHAPE CENSUS a per-module grouping of the added and removed sets
                     by SYMBOL NAME (func_ovNNN_/data_ovNNN_ -> ovNNN,
                     func_02xxxxxxx -> arm9). ORIENTATION ONLY: name

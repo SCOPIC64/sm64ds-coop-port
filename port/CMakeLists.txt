@@ -2885,6 +2885,54 @@ else()
         "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Ov007_OamCellBank_020c9688.cpp")
 endif()
 
+# run link60 lane PC2: SCENE 1'S NEXT BLOCKER, AND THE PREDICATE THAT NAMES IT.
+#
+# src/func_ov007_020b2998.c landed and the +0xF4 field is written, so the run
+# walks past the old stop and dies one call chain further on, inside a pair of
+# matched TUs. It is NOT a missing body this time. It is an ARM REGISTER
+# RIDE-THROUGH the host ABI cannot carry:
+#
+#   src/func_ov007_020b0a20.c    calls func_ov007_020be980(scene->f_100, 1, 0)
+#   src/func_ov007_020be980.c    DEFINES it as (int r0) and declares its own
+#                                callee `extern int func_ov007_020bc3dc(int)`
+#   src/func_ov007_020bc3dc.c    DEFINES it as (void *c, int i, int a2)
+#
+# On ARM all three are byte-faithful and the middle frame never touches r1 or
+# r2, so the 1 and the 0 ride through it into the callee. On MSVC every
+# argument is a stack slot, the middle frame pushes one, and the callee reads
+# two slots nobody wrote.
+#
+# WHY A PREDICATE AND NOT A STRING SOMEBODY GREPS FOR. port/tools/battery.py's
+# scene-1 row keys on a marker, and a marker that always prints would let ANY
+# InitResources fault read as this one. This asks the source fact that IS the
+# blocker: the middle TU's one-parameter declaration of its own callee. Change
+# that line, or host-copy the seam the way port/CMakeLists.txt answers the
+# other ARM ride-throughs, and the marker leaves the build in the configure
+# that notices -- the same shape as SC1's interim switch above.
+#
+# THE ONE THING THIS PREDICATE DOES NOT DO, said plainly: it is armed at scene
+# entry, not at the seam, because every frame between ti_init and the fault is
+# a matched TU and the port owns none of them. So a DIFFERENT fault inside
+# InitResources would still carry the marker. It is tighter than nothing and
+# looser than the trap print it replaces, and the row says so too.
+set(PC2_RIDETHROUGH_DEFS "")
+file(STRINGS "${PORT_REPO_ROOT_ABS}/src/func_ov007_020be980.c"
+     PC2_RIDETHROUGH_DECL
+     REGEX "^[ \t]*extern[ \t]+int[ \t]+func_ov007_020bc3dc[ \t]*\\([ \t]*int[ \t]*\\)[ \t]*;")
+if(PC2_RIDETHROUGH_DECL)
+    message(STATUS "PC2: func_ov007_020be980 still declares its callee with one "
+                   "parameter, so scene 1's ride-through blocker STANDS and the "
+                   "battery marker is armed")
+    list(APPEND PC2_RIDETHROUGH_DEFS "PORT_OV007_RIDETHROUGH_UNSEATED=1")
+else()
+    message(STATUS "PC2: func_ov007_020be980's one-parameter callee declaration "
+                   "is GONE, scene 1's ride-through marker is RETIRED -- if the "
+                   "scene now runs, delete its SCENE_BLOCKED row")
+endif()
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/hal/scene_boot.cpp"
+    PROPERTIES COMPILE_DEFINITIONS "${PC2_RIDETHROUGH_DEFS}")
+
 # run link60 lane MG2: THE FIRST MINIGAME, WIRED.
 #
 # dScMgCurling_c is ov006's curling minigame, actor id 0x176 (its spawn symbol
