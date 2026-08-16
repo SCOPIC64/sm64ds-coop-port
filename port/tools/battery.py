@@ -151,6 +151,50 @@ SCENE_SKIPS = {
         "port/scene_boot_map.txt."),
 }
 
+# A HOSTED SCENE THAT CANNOT COMPLETE A SELFTEST AT ALL, AND WHY.
+#
+# SCENE_SKIPS above is for a scene that PASSES once one slot is switched off.
+# This is the row below that: a scene whose blocker is upstream of any frame,
+# so there is no env that makes 300 frames happen and a skip would be a lie.
+# The scene is still HOSTED -- its ACTOR_SPAWN_TABLE row is the ROM's own edge
+# and it is what /OPT:REF follows to keep the class's TUs in the binary -- so
+# leaving it out of port_scene_classes to dodge the battery would delete real
+# linkage to make a number look better.
+#
+# scene id -> (who owns the fix, a STRING THAT MUST APPEAR in the run's output,
+#              what it looks like)
+#
+# THIS IS NOT A SKIP AND IT IS NOT WEAKER THAN ONE, in the direction that
+# matters. A skip asserts "it passes with this env". This asserts the OPPOSITE
+# and checks it: the battery still runs the scene bare, and it FAILS the
+# battery unless the run reproduces THE NAMED BLOCKER. A different crash is a
+# regression and reads as one, and a run that unexpectedly SUCCEEDS prints
+# BLOCK RETIRED, exactly like a retired skip. The marker string is what pins
+# it: without one, any new fault would read as the known one.
+SCENE_BLOCKED = {
+    1: ("the ov007 decomp (func_ov007_020c9688 is UNMATCHED)",
+        "UNMATCHED ov007 body entered: func_ov007_020c9688",
+        "dScDSMT_c::InitResources cannot finish, and the blocker is a HOLE IN "
+        "THE DECOMP rather than anything the port does. ov007 is 548 functions "
+        "and 528 have a matched src TU; func_ov007_020c9688 (0x020c9688, 768 "
+        "bytes) is one of the twenty that do not, there is no C for it "
+        "anywhere in the tree, and hal/scene_boot.cpp stands a named trap "
+        "there rather than a guessed body. InitResources reaches it through "
+        "func_ov007_020b7138 -> func_ov007_020b68e8 -> func_ov007_020b6d40, "
+        "the trap returns 0, and func_ov007_020ade58 dereferences the 0: FAULT "
+        "c0000005 accessing 0x0000000c. WHAT IS PROVEN ANYWAY, and it is most "
+        "of the seat: the class registers, Scene::SetSceneToSpawn -> "
+        "Scene::SpawnIfNecessary -> func_02043098 spawns it through the ROM's "
+        "own spine, the factory runs, the object comes back as the scene tree "
+        "ROOT, and slot 0 is DISPATCHED -- the fault is inside InitResources, "
+        "not before it. SM64DS_SCENE_SLOT0=0 was tried as a skip and refused: "
+        "with InitResources no-op'd the Render faults instead "
+        "(func_ov007_020cc2b0 -> func_ov007_020b7040 -> func_ov007_020bcf90, "
+        "accessing 0x00000004), which is what an uninitialised object should "
+        "do and which would have made a green out of nothing. Full write-up: "
+        "port/ov007_seat.txt."),
+}
+
 # A MOUNTED LEVEL WHOSE BLOCKER IS NOT THE MOUNT, AND THE CLASS THAT BLOCKS IT.
 #
 # level id -> (SM64DS_SKIP_CLASS value, who owns the fix, what it looks like)
@@ -443,8 +487,45 @@ def main():
         print(f"scenes: FAIL, SCENE_SKIPS names unhosted scene(s) "
               f"{scene_orphans}")
         return 1
+    scene_block_orphans = sorted(set(SCENE_BLOCKED) - set(scenes))
+    if scene_block_orphans:
+        print(f"scenes: FAIL, SCENE_BLOCKED names unhosted scene(s) "
+              f"{scene_block_orphans}")
+        return 1
+    both = sorted(set(SCENE_BLOCKED) & set(SCENE_SKIPS))
+    if both:
+        print(f"scenes: FAIL, scene(s) {both} are in BOTH SCENE_SKIPS and "
+              f"SCENE_BLOCKED -- a scene cannot both pass with an env and be "
+              f"unable to run.")
+        return 1
+
     scene_retired = []
+    scene_unblocked = []
     for sc in scenes:
+        block = SCENE_BLOCKED.get(sc)
+        if block:
+            r = run([os.path.join(build, "walk_window.exe")], build,
+                    env=scene_env(sc))
+            # BOTH streams: the unmatched-body trap that names the blocker
+            # writes to stderr (unbuffered, so a fault cannot swallow it) and
+            # the scene's own progress lines go to stdout.
+            out = (r.stdout or "") + (r.stderr or "")
+            if not r.returncode:
+                print(f"selftest scene {sc}: BLOCK RETIRED -- the bare run "
+                      f"now completes. Delete scene {sc} from SCENE_BLOCKED "
+                      f"in port/tools/battery.py.")
+                scene_unblocked.append(sc)
+                continue
+            if block[1] not in out:
+                print(f"selftest scene {sc}: FAIL rc={r.returncode} -- it "
+                      f"failed, but NOT with its recorded blocker. "
+                      f"SCENE_BLOCKED expects {block[1]!r} in the output and "
+                      f"it is not there, so this is a different failure.")
+                print(out[-1500:])
+                return 1
+            print(f"selftest scene {sc}: BLOCKED as recorded, owned by "
+                  f"{block[0]} (rc={r.returncode}, blocker reproduced)")
+            continue
         skip = SCENE_SKIPS.get(sc)
         r = run([os.path.join(build, "walk_window.exe")], build,
                 env=scene_env(sc, skip[0] if skip else None))
@@ -509,6 +590,16 @@ def main():
     if scene_retired:
         print("skips: RETIRED and removable -- " +
               ", ".join(f"scene {sc}" for sc in scene_retired))
+    # A blocked scene is debt too, and louder debt than a skip, so it is
+    # restated on the same line gate.py tails rather than only next to the
+    # scene it belongs to.
+    if SCENE_BLOCKED:
+        print("skips: " + ", ".join(
+            f"scene {sc} BLOCKED, cannot run at all ({SCENE_BLOCKED[sc][0]})"
+            for sc in sorted(SCENE_BLOCKED)))
+    if scene_unblocked:
+        print("skips: BLOCK RETIRED and removable -- " +
+              ", ".join(f"scene {sc}" for sc in scene_unblocked))
 
     print("battery: ALL GREEN")
     return 0
