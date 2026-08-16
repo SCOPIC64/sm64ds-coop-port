@@ -150,12 +150,16 @@
 // 2's other half.
 //
 // data_0209d4b0 IS THE WRONG POINTER FOR THIS OBJECT and port/irq2_map.txt
-// section 7b named it. Nothing in the image ever stores data_0209f61c there:
-// the arm9, itcm and dtcm reloc tables and all ninety overlay reloc tables
-// carry exactly two references to the symbol, __sinit_02074f80 and
-// func_0202ed48, and the two computed writers of d4b0 (FUN_02029980,
-// FUN_020299f4) write `*data_0209f324 + 0x240`, an element of the heap
-// FaderWipe array Stage::InitResources allocates. No arming needed inventing.
+// section 7b named it. Nothing in the image ever stores data_0209f61c there,
+// and the sufficient proof is the review's: THE TWO REFERENCE SETS DO NOT
+// INTERSECT. Eleven functions reference data_0209f61c across the arm9, itcm,
+// dtcm and ninety overlay reloc tables (2 arm9, 6 ov004, 2 ov005, 1 ov006)
+// and eleven reference data_0209d4b0, and no function is in both, so nothing
+// in the image holds both addresses. This comment first said the symbol had
+// "exactly two references", which was the arm9 count written as the image's;
+// port/fader_boot_map.txt section 4a carries the correction, the per-module
+// breakdown and the value-by-value reading of every d4b0 writer. No arming
+// needed inventing.
 //
 // Each remaining trap is still its own named function so a run says which slot
 // fired rather than that some slot did.

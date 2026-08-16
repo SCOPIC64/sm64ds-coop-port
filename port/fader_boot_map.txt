@@ -278,14 +278,39 @@ that function already stands in for phase 2's other half.
 
 data_0209d4b0 IS THE WRONG POINTER FOR THIS OBJECT, and port/irq2_map.txt
 section 7b named it as the driver a successor would have to write. Nothing in
-the image ever stores data_0209f61c there. The arm9, itcm and dtcm reloc tables
-and all ninety overlay reloc tables carry exactly two references to the symbol
--- __sinit_02074f80 and func_0202ed48 -- and the only computed writers of d4b0
-(FUN_02029980, FUN_020299f4, FUN_02029ab0) write `*data_0209f324 + 0x240`, an
-element of the heap FaderWipe array Stage::InitResources allocates with
-func_02073470(7, 0x60, 8, FaderWipe::FaderWipe, FaderWipe::~FaderWipe) -- index
-6 at a 0x60 stride. FaderWipe is dFdWipe_c, a SIBLING of dWipe_c under
-dFdColor_c, not this class. No arming needed inventing, and none was invented.
+the image ever stores data_0209f61c there.
+
+THE COUNT THIS PARAGRAPH FIRST GAVE WAS WRONG AND THE PROOF IS THE REVIEW'S.
+It read "exactly two references to the symbol, __sinit_02074f80 and
+func_0202ed48", which is the arm9 figure quoted as if it were the image's, and
+it contradicted this file's own unproven items four lines further down, which
+name four ov004 referencers. THE REAL COUNT IS ELEVEN, across the arm9, itcm,
+dtcm and all ninety overlay reloc tables:
+
+    arm9   2   func_0202ed48, __sinit_02074f80
+    ov004  6   func_ov004_020aeb24, _020b0930, _020b72d4, _020b75e4,
+               _020b7c04, _020b8098
+    ov005  2   func_ov005_020c0378, func_ov005_020c1a20
+    ov006  1   func_ov006_0210c9e0
+
+WHAT CARRIES THE CONCLUSION IS THE REVIEW'S OWN STRONGER FORM, and it does not
+depend on the count at all: THE INTERSECTION OF THE TWO REFERENCE SETS IS
+EMPTY. Eleven functions reference data_0209f61c, eleven reference
+data_0209d4b0, and no function is in both, so no function in the image holds
+both addresses and nothing can store the one into the other. Reproduced here
+over the same tables the count above comes from.
+
+The value-by-value reading still holds and is the same answer from the other
+side, and all eleven d4b0 referencers account for themselves: 2 + 5 + 1 + 3.
+TWO only READ it (func_02018ec0, Minimap::Behavior). FIVE write literal zero
+and nothing else (func_02019440, FUN_02029934, FUN_02029a68, Stage::Behavior,
+Stage::CleanupResources). ONE, ProcessKuppaScript, writes zero or
+&data_0209b294. And the THREE computed writers (FUN_02029980, FUN_020299f4,
+FUN_02029ab0) write `*data_0209f324 + 0x240`, an element of the heap FaderWipe
+array Stage::InitResources allocates with func_02073470(7, 0x60, 8,
+FaderWipe::FaderWipe, FaderWipe::~FaderWipe) -- index 6 at a 0x60 stride.
+FaderWipe is dFdWipe_c, a SIBLING of dWipe_c under dFdColor_c, not this class.
+No arming needed inventing, and none was invented.
 
 WHAT THE SEAT COST, measured with port/tools/closure.py before it was written
 and confirmed by the link: THREE src TUs and TWO faces.
@@ -648,7 +673,8 @@ distinction that matters is not cdecl-versus-thiscall, it is WHO CLEANS:
   B  THISCALL, two arguments     push b / push a / mov ecx,<obj> /
                                  call [vt+off], and NO cleanup follows
                                  8 bytes pushed; callee must clean 8
-  C  CDECL, struct of pointers   push <obj> / call eax / add esp,4
+  C  CDECL, struct of pointers   push <obj> / call eax /
+                                 add esp,4 or pop <scratch>
                                  caller cleans its own push; callee cleans 0
 
 Shape B is the one 7a did not enumerate, and it is the crash. Shapes A and C
@@ -729,7 +755,8 @@ to the image, so a relink does not rot the section.
                            HUD::Behavior opens `push esi`, and neither push is
                            a receiver -- one is MSVC's frame-slot idiom and the
                            other a callee-save. What separates the shapes is
-                           the `add esp,4` AFTER the call, not the pushes
+                           the four bytes coming back off the stack AFTER the
+                           call, `add esp,4` or `pop <scratch>`, not the pushes
                            before it, and both of these have none.
   0x18  IsAtEnd            FOUR SITES. Shape A at Scene::BeforeBehavior+0xd4
                            and +0x10e and at func_0202ed7c+0x28; shape C at

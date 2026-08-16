@@ -372,8 +372,19 @@ of them is still open.
       spent: the table is no longer uniform at 80807F7F. What 7a has to
       contend with instead is that the wipe RUNS FOR 45 FRAMES AND THEN
       DISARMS, leaving whatever the last row was latched, so a 7a lane wants
-      a frame count inside the fade rather than the end of a 300-frame run.
-      This lane did not build 7a and made no pixel claim; see section 9.]
+      a frame count INSIDE the fade rather than the end of a 300-frame run.
+      This lane did not build 7a and made no pixel claim; see section 9.
+
+      AND 7a RE-DERIVES THE EMPTY-WINDOW READING RATHER THAN INHERITING IT
+      FROM EITHER SIDE, a carry the review added. The ruling above calls
+      WIN0H 0x7F7F "an empty window", and the host's own window unit does not
+      treat it as one: ntr/ppu_sub.cpp's read_windows ends with
+      `if (w.x2[i] <= w.x1[i]) w.x2[i] = 256;`, and 0x7F7F is x1 = x2 = 127,
+      so the clamp fires and the window spans 127..255 instead of collapsing.
+      Neither reading is settled here. What a 7a lane needs is the region the
+      hardware and the host each produce for the rows the table actually
+      streams, measured, before it decides what per-scanline latching would
+      change.]
   b. SLOT 0x08, which needs the decomp-side fix routed in
      port/fader_boot_map.txt section 5 (the src TU should take a receiver) or a
      host veneer that supplies one, plus a driver that puts this object in
@@ -387,8 +398,14 @@ of them is still open.
       func_02018efc on data_0209d4ac, and it is d4ac that
       _ZN5Scene9SetFadersEP15FaderBrightness writes -- with this very object,
       from dScMgBase_c slot 1, on scene 374. Nothing in the image ever stores
-      data_0209f61c into d4b0 (arm9, itcm, dtcm and all ninety overlay reloc
-      tables carry two references to the symbol and neither is a d4b0 store).
+      data_0209f61c into d4b0, and the proof is the review's rather than the
+      one written here first: THE TWO REFERENCE SETS DO NOT INTERSECT. Eleven
+      functions reference data_0209f61c across the arm9, itcm, dtcm and ninety
+      overlay reloc tables and eleven reference data_0209d4b0, and no function
+      is in both, so nothing in the image holds both addresses. (The count
+      first given here was two, which is the arm9 figure passed off as the
+      image's; port/fader_boot_map.txt section 4a carries the correction and
+      the per-module breakdown.)
       So the missing piece was src/func_02018efc.c, six lines, now on
       slice_fdr.txt and called from hal/fader_wipes.cpp's port_fader_advance.
       This item's mistake is the mirror of section 6's: 6 said correctly that
