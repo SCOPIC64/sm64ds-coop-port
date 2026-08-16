@@ -43,16 +43,53 @@
 # and this inventory's first draft got that wrong. A delinks.txt block without
 # `complete` means dsd supplies that range from ROM bytes and the source is
 # configured but never compiled; tools/delaunder.py states the consequence in
-# as many words -- "a non-enrolled file has no byte gate behind it". 203 of
-# main's 11173 delink blocks whose src file exists are in that state. Exactly
-# ONE of the 68 rows here is (row 7), and re-checking the other 67 against the
-# stricter rule moved no row's disposition.
+# as many words -- "a non-enrolled file has no byte gate behind it". Exactly
+# ONE of the 68 rows here is in that state (row 7), and re-checking the other
+# 67 against the stricter rule moved no row's disposition.
 #
-# The other 53 of the 68 are addresses this port does not reach at all: no
-# symbol of either ref's name for them appears anywhere in walk_window.map, so
-# there is no host copy to retire and nothing to propagate into. They are
-# linkage work for a lane that mounts those modules, not catch-up work. Most
-# are ov006 minigame bodies (24 rows) and ov004/ov075/ov030 (9 rows).
+# EVERY REF IN THIS FILE IS A SHA, and that is not pedantry. `origin/main` MOVED
+# UNDER THIS LANE MID-SESSION -- the worktrees here share one .git and a sibling
+# lane's fetch fast-forwarded the remote-tracking ref twice while this inventory
+# was being written. The reflog:
+#
+#     fda8f1c14  fetch  2026-08-16 00:51:17 -0400
+#     bff018693  fetch  2026-08-16 02:41:48 -0400
+#     77b55c577  fetch  2026-08-16 03:05:51 -0400
+#
+# The join, the six propagated sources and the compile probes were all taken
+# while origin/main was fda8f1c14, and all six sources were re-checked against
+# that SHA by hash afterwards (they are also byte-identical at 77b55c577). One
+# number was NOT: the first draft's "203 of main's 11173" was measured after
+# the 02:41 fetch, so it was a bff018693 reading sitting in a file that pins
+# everything else to fda8f1c14. Re-derived at named SHAs, two independent ways
+# (a parser, and a raw count of `complete` markers against block headers):
+#
+#     fda8f1c14   11173 blocks with a src file,  320 unenrolled
+#     bff018693   11173 blocks with a src file,  203 unenrolled
+#     77b55c577   11173 blocks with a src file,  203 unenrolled
+#
+# So 117 blocks were enrolled between the ref this inventory uses and the tip.
+# The number that belongs next to the rest of this file is 320.
+#
+# The other 53 of the 68 are not one bucket, and the first draft of this
+# paragraph said they were. Split properly, counted at the same two pinned
+# refs (port config at 8aabc9415, main at fda8f1c14):
+#
+#     42   addresses this port does not reach at all. No symbol of either
+#          ref's name for them appears anywhere in walk_window.map, so there
+#          is no host copy to retire and nothing to propagate into. They are
+#          linkage work for a lane that mounts those modules. Most are ov006
+#          minigame bodies (23 rows) and ov004/ov075/ov030 (8 rows).
+#     11   addresses the port DOES reach, where the defining object in the map
+#          is a src TU the port already links. These are main's renames and
+#          .c/.cpp promotions landing on an address the port already covers --
+#          ov002 (2), ov015 (3), ov060, ov062, ov071, ov080, ov098, ov102 --
+#          not catch-up work, and see the rename section at the bottom.
+#
+# Read against the whole 68 rather than against the 53, ov006 is 24 rows and
+# ov004/ov075/ov030 is 9, because one of each is a row this inventory claims
+# (the two sinits). Both denominators are stated because quoting one number
+# against the other is how the first draft got it wrong.
 #
 # BYTE VERIFICATION. Every row marked VERIFIED below was compiled here with
 # tools/match.py against the raw overlay image and the module's relocs.txt
@@ -73,6 +110,29 @@
 # ============================================================================
 # PROPAGATED (6)
 # ============================================================================
+#
+# THE +18 IS A LINK-ONLY RESULT AND NOTHING HERE HAS BEEN EXECUTED. Read this
+# before the rows, because the headline number invites the opposite reading.
+#
+# The lane moves linked 5533 -> 5551 and total 11243 -> 11249 against its
+# recorded baseline, and the battery is ALL GREEN throughout. That green does
+# not touch one instruction of what was added, for two separate reasons:
+#
+#   THE FOUR ov007 BODIES AND THE FIFTEEN THEY DRAG IN belong to ov007, and
+#   ov007 IS THE TITLE SCREEN, WHICH IS SCENE 1, WHICH IS THE BATTERY'S ONE
+#   STANDING BLOCK. port/tools/battery.py's SCENE_BLOCKED[1] asserts that
+#   scene 1 cannot run at all because func_ov007_020c9688 is unmatched, and
+#   that assertion still holds after this lane (the blocker is not one of the
+#   four; it is still unmatched on main). So every one of the eighteen newly
+#   linked TUs is in the binary and has never been entered by any test. That
+#   is the w19 shape exactly: linked, latent, and behind a green.
+#
+#   THE TWO CONSTRUCTORS are worse than untested, they are uncompiled.
+#   slice_mg1.txt and hal/scene_mg.cpp are in no CMake target, so they raise
+#   linkage.py's denominator and nothing else. Rows 5 and 6 carry the detail.
+#
+# The honest one-line summary of this lane is "six matched TUs are now in the
+# tree and four of them reach the binary", not "eighteen more functions work".
 #
 # ---------------------------------------------------------------------------
 # 1. ov007  0x020beeb0  0x454 bytes
@@ -248,11 +308,35 @@
 #
 #        for a file the byte gate has never seen. tools/chaos_db_ci.py says
 #        why in its own header: `matched   src/<name>.c[pp] exists and is not
-#        marked // NONMATCHING`. That test never consults the enrolled set, so
-#        the atlas's matched count includes an unknown share of main's 203
-#        unenrolled-but-present files. This lane proves it for ONE of them and
-#        makes no claim about the other 202. It needs a decomp-side lane; it
-#        is out of scope here and nothing was changed for it.
+#        marked // NONMATCHING`. That test never consults the enrolled set.
+#
+#        SIZED, AT NAMED REFS, code 77b55c577 against chaos-db.json at
+#        chaos-data 60f0cd336 (identical at code ref bff018693):
+#
+#            11396  chaos-db records
+#            11221  matched:true
+#              203  of those sit inside an UNENROLLED delink block
+#               47  of those have NO delink block covering them AT ALL --
+#                   Div, IntrWait, SoftReset, GetCRC16, Halt, BitUnPack,
+#                   CpuSet, Sqrt and the rest of the thumb SDK intrinsics,
+#                   which are config symbols with no block anywhere
+#              250  total matched:true with no byte gate behind them
+#
+#        Same defect class in both halves: the flag is computed from the
+#        presence of a file, never from what the ROM build compiles.
+#
+#        ONE FIGURE HERE DOES NOT REPRODUCE AND IS FLAGGED RATHER THAN
+#        SMOOTHED. The review that prompted this section reports 48 no-block
+#        records and 251 total. This lane derives 47 and 250 by the rule
+#        "no block contains the record's start address", and 46 by full
+#        containment of [addr, addr+size), so the reviewer's 48 is not a
+#        containment-versus-start disagreement and the extra record was not
+#        located. The class is agreed and the order of magnitude is agreed;
+#        the boundary is one record wide and unsettled.
+#
+#        This lane proves the defect for ONE record (0x020ba05c) and claims
+#        nothing about the others individually. It needs a decomp-side lane;
+#        it is out of scope here and nothing was changed for it.
 #
 #    FOR THE PORT: unchanged either way. THE TRAP STAYS.
 #
@@ -359,9 +443,21 @@
 # THE RENAME CLASS, deliberately excluded
 # ============================================================================
 #
-# The address join also surfaces 47 host-defined symbols whose address carries
-# a DIFFERENT src path on main than on this branch. Those are main's naming
-# work, not new matches: ov015's _ZN14KnockDownPlank8BehaviorEv is main's name
+# The address join also surfaces host-defined symbols whose address carries a
+# DIFFERENT src path on main than on this branch.
+#
+# THE SIZE OF THIS CLASS IS UNREPRODUCED AND SHOULD NOT BE QUOTED AS SETTLED.
+# This lane's join counts 47. An independent review of the same two refs, using
+# full-containment rather than start-address resolution, counts 54 and splits
+# it 31 .c-to-.cpp promotions plus 23 genuine renames. The two disagree because
+# the answer is sensitive to resolution order when several blocks touch one
+# address, and neither run has been reconciled against the other. Nothing in
+# this lane depends on the figure -- the class is out of scope either way --
+# so it is recorded as a range with the disagreement visible rather than
+# averaged away or silently taken from one side.
+#
+# What the class IS, is not in dispute: main's naming work, not new matches.
+# ov015's _ZN14KnockDownPlank8BehaviorEv is main's name
 # for 0x02111720, which this branch calls _ZN13PoleBillboard8BehaviorEv and
 # already links, while this branch's _ZN14KnockDownPlank8BehaviorEv is main's
 # _ZN9MovingBar8BehaviorEv at 0x02112090. Propagating a rename means renaming

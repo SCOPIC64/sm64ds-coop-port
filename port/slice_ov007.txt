@@ -28,7 +28,7 @@
 # section says where the other four came from.)
 #
 # /OPT:REF IS THE REFEREE. No /include:, and this lane's aliases are
-# name-spelling faces onto symbols that already exist. Whatever of the 526 does
+# name-spelling faces onto symbols that already exist. Whatever of the 530 does
 # not link is a TU the title screen does not reach on the host, and
 # port/ov007_seat.txt enumerates the drops rather than describing them.
 #
@@ -622,8 +622,10 @@ src/func_ov007_020ccab4.c
 # Everything dScDSMT_c reaches that no level and no ov003 scene ever did, plus
 # one ov007 TU the delink table's .text ranges did not attribute to any block
 # (func_ov007_020bfd70). Derived the honest way rather than predicted: the
-# first link of the 526 above named these as unresolved externals, each was
-# resolved to the src TU that defines it, and none is a link root. All matched.
+# first link of the 526 the list held THEN named these as unresolved externals,
+# each was resolved to the src TU that defines it, and none is a link root. All
+# matched. (Historical and left at 526 on purpose: it records what that link
+# actually swept, not today's 530.)
 src/ARMMathLoadState.c
 src/ARMMathSaveState.c
 src/TurnBacklightOff.c
