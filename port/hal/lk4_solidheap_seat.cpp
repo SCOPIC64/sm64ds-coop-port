@@ -88,10 +88,12 @@
 //                today (see the header), so it is latent the same way
 //                SetDefault was: linked, wrong, and off every path the battery
 //                covers.
-// The SolidHeapAllocator pair further down runs the other way (thiscall LHS,
-// flat C RHS whose first stack argument is the receiver), so both arguments
-// shift by one; those reach through slots 3 and 8 of the table seated below.
-// None of that is fixed here.
+// THE SolidHeapAllocator PAIR IS NO LONGER IN THIS BLOCK: lane LK5 took it
+// first, for the reason the ruling below gives. It ran the other way (thiscall
+// LHS, flat C RHS whose first stack argument is the receiver) so both stack
+// arguments shifted by one, and it reached through slots 3 and 8 of the table
+// seated below. Two receiver-bridging faces near the bottom of this file
+// replace the two directives, and the measured before and after are there.
 //
 // THE SIBLING-LANE RULING, from the review of this lane, so the file carries
 // it rather than a status note nobody reads:
@@ -106,6 +108,11 @@
 //     call returns a plausible pointer out of the wrong arena instead of
 //     faulting, and it is reached through slots 3 and 8 of the table seated
 //     below. A wrong pointer that looks right outranks a crash.
+//     DONE, lane LK5, and the probe confirmed the ruling's reading exactly:
+//     a call for 0x40 bytes came back with a pointer into an arena the caller
+//     never named. It also found one thing the ruling did not name, a stack
+//     leak of 8 bytes per dispatch from the __thiscall LHS meeting a __cdecl
+//     RHS that pops nothing.
 //   * Destroy IS SEQUENCING-GATED and must land BEFORE the scene 1 unblock
 //     lane, by the same rule stage_lifecycle_map.txt section 11g states for
 //     the unlinked SetDefault carriers: unblocking scene 1 is what puts
@@ -127,8 +134,10 @@
 #pragma comment(linker, "/alternatename:?RestoreFromTemporary@Heap@@SAXXZ=__ZN4Heap20RestoreFromTemporaryEv")
 #pragma comment(linker, "/alternatename:?_Destroy@Heap@@QAEXXZ=__ZN4Heap8_DestroyEv")
 #pragma comment(linker, "/alternatename:?Rescue@Heap@@QAEXXZ=?Rescue@Heap@@QAEHXZ")
-#pragma comment(linker, "/alternatename:?Allocate@SolidHeapAllocator@@QAEPAXIH@Z=__ZN18SolidHeapAllocator8AllocateEji")
-#pragma comment(linker, "/alternatename:?Reallocate@SolidHeapAllocator@@QAEPAXPAXI@Z=__ZN18SolidHeapAllocator10ReallocateEPvj")
+// The SolidHeapAllocator pair USED TO BE THE NEXT TWO LINES AND BOTH WERE
+// WRONG, the same failure class as SetDefault above and running the other
+// way. Receiver-bridging faces near the bottom of this file replace them and
+// the evidence is in the header there.
 
 /* the matched MSVC-method bodies, dispatched qualified through local
    shadows; the signatures are copied from each TU's own declaration */
@@ -287,6 +296,113 @@ static int __fastcall ab_v38(void *s, void *, u32 a, u32 b)
    correctly deletes one. */
 extern "C" int _ZN4Heap10SetDefaultEv(void *thiz)
 { return ((Heap *)thiz)->Heap::SetDefault(); }
+
+/* THE RECEIVER-BRIDGING FACES FOR THE SolidHeapAllocator PAIR, replacing the
+   two /alternatename directives this file used to carry beside the others.
+
+   THIS FAMILY RUNS THE OTHER WAY ROUND FROM SetDefault, and that is what
+   makes it the dangerous one. There the LHS was the flat C name and the RHS
+   the method, so a pushed receiver was ignored. Here the LHS is the METHOD
+   (?Allocate@SolidHeapAllocator@@QAEPAXIH@Z, __thiscall, receiver in ECX,
+   size and align on the stack) and the RHS is the flat C body, which takes
+   the receiver as an explicit FIRST STACK ARGUMENT. So nothing is merely
+   dropped: every stack argument shifts one slot along.
+
+   THE BINDING, DISASSEMBLED OUT OF THIS LANE'S OWN BUILD, not quoted. The
+   whole path is tail jumps, so the frame the flat body reads is the frame
+   the vtable caller built:
+
+     sh_alloc      0041DC40  push ebp / mov ebp,esp / pop ebp / jmp 004A9B60
+     VAllocate     004A9B60  push ebp / mov ebp,esp
+                             mov ecx,dword ptr [ecx+14h]   <- receiver, ECX
+                             pop ebp / jmp 0046A660
+     flat Allocate 0046A660  push ebp / mov ebp,esp
+                             mov edx,dword ptr [ebp+8]     <- reads "c"
+                             add edx,24h                      (c + 0x24)
+                             mov eax,dword ptr [ebp+0Ch]   <- reads "size"
+                             mov eax,dword ptr [ebp+10h]   <- reads "align"
+
+   VAllocate loads the real receiver into ECX and then jumps, and the body
+   never reads ECX. [ebp+8] is the caller's FIRST pushed argument, so:
+
+     size  lands in the receiver slot and is dereferenced at c+0x24
+     align lands in size
+     align is read from the word ABOVE the caller's arguments, which is the
+           caller's own frame and not an argument at all
+
+   Reallocate is the same shape at 004A9BA0 -> 004A9C70 (mov ecx,[ecx+14h],
+   jmp, then mov edi,[ebp+8] / edi+24h), so ptr lands in size and size falls
+   off the end.
+
+   AND A SECOND DEFECT IN THE SAME BINDING that the source reading does not
+   show: the LHS is __thiscall, so the caller expects the callee to pop its
+   two stack arguments, and the flat C RHS is __cdecl and pops nothing. The
+   chain ends in AllocateForwards' plain `ret` at 0046A607. Every dispatch of
+   slot 3 or slot 8 therefore leaks 8 bytes of the caller's stack.
+
+   MEASURED, NOT ARGUED. A throwaway probe dispatched slot 3 and slot 8 of
+   the seated table with a known receiver (a SolidHeap whose allocator is a
+   REAL allocator over its own arena), a DECOY allocator over a second arena,
+   and three known stack words pushed by hand so the third one is known too
+   rather than being whatever the caller's frame held. No argument list is
+   meaningful under both bindings, so each slot got two calls: one whose
+   words are what the broken binding effectively supplies, one whose words
+   are what a real caller supplies. Which line is the meaningful one is the
+   finding. Arenas: real 0090fd10, decoy 00910110.
+
+                                 through the directives    through these faces
+     A slot3 a1=&decoy a2=0x40   ret 00910110              ret 00000000
+                                 DECOY arena +0x40         nothing moved
+     B slot3 a1=0x40   a2=4      FAULT c0000005            ret 0090fd10
+                                                           REAL arena +0x40
+     C slot8 a1=&decoy           ret 00000040              ret 00910110
+                                 DECOY arena +0x40         REAL allocator hit
+     D slot8 a1=&realarena       ret 5a5a5a5c              ret 00000040
+                                 scribbled 5a5a5a9c into   REAL arena +0x40
+                                 the ARENA at +0x24
+     every line                  callee popped 0           callee popped 8
+
+   Line A is the whole bug in one reading: a plausible pointer handed back
+   out of an arena the caller never named, with nothing to notice. Line B is
+   what a real caller asking for 0x40 bytes gets instead. Line D is the same
+   corruption without even a decoy: the value that shifted into the receiver
+   slot was a plain buffer, and the body wrote a free-list word into it.
+   "callee popped 0 -> 8" is the stack leak closed, measured rather than
+   inferred.
+
+   TWO OF THE EIGHT READINGS ARE NONSENSE BY CONSTRUCTION and are recorded
+   rather than hidden: A through the faces refuses because a1 is then a size
+   of about four billion, which is the right answer, and C through the faces
+   feeds the real allocator a nonsense ptr and size and moves its free-list
+   pointer to a nonsense place. Both are what those word lists MEAN under
+   that binding. What they still show is the receiver: after the fix every
+   line reaches the REAL allocator and none reaches the decoy.
+
+   NO DRIVE EXISTS FOR THIS FAMILY. Nothing on any battery path dispatches
+   slot 3 or slot 8 today, so the evidence above is probe and disassembly
+   only, which is what the sibling-lane ruling in the header calls decisive.
+   The directives are DELETED, not shadowed, for the reason the SetDefault
+   block gives. */
+class SolidHeapAllocator
+{
+public:
+    void *Allocate(u32 size, int align);
+    void *Reallocate(void *ptr, u32 size);
+};
+
+extern "C" void *_ZN18SolidHeapAllocator8AllocateEji(void *c, u32 size,
+                                                     int align);
+extern "C" u32 _ZN18SolidHeapAllocator10ReallocateEPvj(void *c, void *ptr,
+                                                       u32 size);
+
+void *SolidHeapAllocator::Allocate(u32 size, int align)
+{ return _ZN18SolidHeapAllocator8AllocateEji(this, size, align); }
+
+/* the flat body returns the granted size where the method's callers spell
+   void*; same __thiscall, r0/EAX ignored, the ROM's own shape and the same
+   widening the Rescue alias above documents */
+void *SolidHeapAllocator::Reallocate(void *ptr, u32 size)
+{ return (void *)_ZN18SolidHeapAllocator10ReallocateEPvj(this, ptr, size); }
 
 extern "C" void hal_seat_solidheap(void)
 {
