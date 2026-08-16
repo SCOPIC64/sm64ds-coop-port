@@ -101,9 +101,15 @@
 //   mwcc POINTER-TO-MEMBER PAIR TABLES (the rest). No calls at all: each is a
 //   run of struct assignments copying eight-byte {code, adj} records out of
 //   .data statics into .bss dispatch tables. dScMgCurling_c's own is
-//   __sinit_ov006_021304ac, which copies TWENTY-FIVE pairs from
-//   0x0213c1e4..0x0213c2bc into seven tables at 0x021418b0..0x02141950. All
-//   twenty-five read {code, 0} in the ROM image, verified word by word.
+//   __sinit_ov006_021304ac, which copies TWENTY-FIVE pairs into seven tables
+//   at 0x021418b0..0x02141950. All twenty-five read {code, 0} in the ROM
+//   image, verified word by word.
+//   TAKE THE TWENTY-FIVE FROM THE CONSTRUCTOR, NOT FROM AN ADDRESS RANGE.
+//   0x0213c1e4 and 0x0213c2bc are the lowest and highest of them, but that
+//   range holds twenty-eight slots and three are not pairs: 0x0213c214 is
+//   MgShuffleShell_SpawnInfo itself, and 0x0213c264 and 0x0213c2ac are
+//   unrelated data. Sweeping the span is how a fan-out lane gets three
+//   phantom states with nonzero adjustments.
 //
 // THE PAIR TABLES ARE THE REASON THE SINITS MATTER AND ALSO THE REASON THIS
 // LANE STOPS WHERE IT DOES. The words they copy are DS CODE ADDRESSES, and

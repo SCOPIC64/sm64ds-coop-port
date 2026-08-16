@@ -238,8 +238,15 @@ separate reasons, and each alone is fatal:
      record and half of the next.
   2. THE WORD IS A DS ADDRESS. The table is filled by the overlay constructor
      from .data statics holding raw ROM code addresses. Verified word for word
-     for this class: all twenty-five of __sinit_ov006_021304ac's source pairs
-     at 0x0213c1e4..0x0213c2bc read {code, 0} in the image.
+     for this class: all twenty-five of the source pairs
+     __sinit_ov006_021304ac NAMES read {code, 0} in the image. Read them off
+     that constructor, one assignment at a time, and NOT by sweeping
+     0x0213c1e4..0x0213c2bc. Those are the lowest and highest pair addresses,
+     but the range spans twenty-eight eight-byte slots and three of them are
+     not pairs at all: 0x0213c214 is MgShuffleShell_SpawnInfo (the factory word
+     and the id twice, {020e3820, 01760176}), and 0x0213c264 and 0x0213c2ac
+     hold unrelated non-zero data. A sweep would find three "pairs" with
+     nonzero adjustments that no constructor ever copies.
   3. THE DISPATCH IS THE FULL ARM ITANIUM SEQUENCE, virtual bit in the
      adjustment's LSB and `this` advanced by the adjustment arithmetic-shifted
      right one. The ROM emits five instructions for it. MSVC emits its own,
@@ -286,24 +293,38 @@ carried review's converged numbers; MG2 re-measured rather than inheriting, and
 the paragraphs below are amended in place with what the link said. Review's
 total is CONFIRMED EXACTLY and two of its sub-counts are one low.
 
-    36 unresolved externals across 14 objects
+    36 unresolved externals
+    20 objects carry an unresolved reference
+    13 of those 20 emit an LNK2019; the other 7 emit only LNK2001
 
-    walk_window, walk_window_hires and smoke_player all report the same 36.
-    Review said 13 objects; it is 14. THE RESIDUAL REVIEW LEFT UNATTRIBUTED IS
-    THE TWENTY-SECOND ALIAS ROW: the pointer-to-member group is 7, the
+    walk_window, walk_window_hires and smoke_player all report the same 36 and
+    the same object sets, line for line.
+
+    ONE FACT EXPLAINS BOTH OF THE EARLIER MISCOUNTS, and it is worth having in
+    front of anyone who reads a link log as a census. link.exe emits LNK2019
+    ONCE PER SYMBOL, at the first object that references it, and LNK2001 for
+    every further object that references the same symbol. So counting LNK2019
+    lines counts SYMBOLS-WITH-A-FIRST-REFERENCE, not symbols, and counts only
+    the objects that happened to be first.
+
+    ?data_ov004_020beb68@@3PAUBase@@A IS THE ONE SYMBOL IN THE SET WITH NO
+    LNK2019 AT ALL. It is referenced from seven objects -- func_ov004_020b7124,
+    _020b746c, _020b77b4, _020b7cd0, _020b7eac, _020b8284 and _020b8560 -- and
+    every one of the seven emits LNK2001. A pass over LNK2019 lines therefore
+    returns 35 symbols in 13 objects, which is exactly the "35 and 13" the
+    earlier read produced. THE RESIDUAL WAS NEVER MISSING FROM THE LINK, IT WAS
+    MISSING FROM THE PATTERN. LNK1120 counted it correctly the whole time.
+
+    An earlier version of this block said "14 objects". That number is not
+    reproducible on any target and was an artifact of a parse that caught one
+    of the seven LNK2001 rows and not the other six. The reproducible pair is
+    13 and 20.
+
+    THE GROUPS, with the residual placed: the pointer-to-member group is 7, the
     argument-landing face 1, the slice lines 5 and the hosted word 1, all
     exactly as review read them, and the ordinary /alternatename group is
-    TWENTY-TWO where review counted twenty-one. 7+1+5+1+22 = 36 and the
-    arithmetic closes with nothing left over.
-
-    WHICH row review dropped cannot be recovered from this side, and it is not
-    guessed here. The two candidates are the objects contributing exactly one
-    symbol each, func_ov004_020b77b4.cpp (?data_ov004_020beb68@@3PAUBase@@A)
-    and func_ov004_020b7fec.cpp (?data_ov004_020beb68@@3PAXA), because
-    data_ov004_020beb68 is ONE ADDRESS UNDER FOUR DIFFERENT TYPE SPELLINGS from
-    four different TUs -- PAHA, PAUObj, PAUBase and PAXA -- and it is the one
-    row in the set an address-wise count would collapse. That is an inference
-    about how the miscount happened, not a measurement.
+    TWENTY-TWO where review counted twenty-one. 7+1+5+1+22 = 36. The
+    twenty-second row is the LNK2001-only one named above.
 
   SEVEN ARE THE POINTER-TO-MEMBER WALL, verbatim from the first enumeration and
   the one part of it that was already right, except that they are spread across
@@ -315,7 +336,14 @@ total is CONFIRMED EXACTLY and two of its sub-counts are one low.
     func_ov006_020e0d84   ?data_ov006_021418d8@@3PAP8C@@AEXH@ZA
     func_ov006_020e0d84   ?data_ov006_02141930@@3PAP8C@@AEXH@ZA
     func_ov006_020e12d0   ?data_ov006_021418c0@@3PAP8C@@AEXH@ZA
-    func_ov006_020e3528   ?data_ov006_02141950@@3UEntry@@A
+    func_ov006_020e3528   ?data_ov006_02141950@@3PAUEntry@@A
+
+  THE LAST ROW'S SPELLING IS PAU AND NOT U, and the difference is the whole of
+  tool finding 1 in section 10. An earlier version of this table wrote
+  @@3UEntry@@A, which is the by-value spelling port/tools/facegen.py DOES
+  refuse; the link emits @@3PAUEntry@@A, an array of that struct, which slips
+  both of facegen's guards and was generated as an ordinary alias. A fan-out
+  lane reading this table must not inherit the safe-looking form.
 
   THREE OF THEM BEING ov004'S IS THE FINDING, and it survives the correction.
   The wall was assumed to be each minigame's own state machine; it is the
@@ -355,22 +383,31 @@ faced archive call. Section 10 is the full account.
 AND THE WALL IS TWELVE TUs, NOT SIX. THIS IS THE MOST IMPORTANT CORRECTION IN
 THIS FILE AND IT CHANGES EVERY FAN-OUT ESTIMATE ABOVE. The seven symbols the
 link names come from six TUs; a sweep of the slice for a pointer-to-member
-dispatch finds twelve. The other six declare their PMF tables INSIDE
-extern "C", so the globals mangle as the plain C names the mount already
-defines, and they link clean while striding an eight-byte ROM table by four:
+dispatch finds twelve. The other six are silent FOR TWO DIFFERENT REASONS, and
+the split matters more than the total:
 
-    func_ov006_020e1214  _020e3078
-    func_ov004_020b31b4  _020b321c  _020b8714  _020b8778
+  TWO declare their PMF table inside extern "C", so the global mangles as the
+  plain C name the mount already defines and the linker is satisfied. They
+  stride an eight-byte ROM table by four.
+      func_ov006_020e1214  _020e3078
 
-The four ov004 ones are worse than a stride bug. They dispatch the OBJECT'S OWN
-pmf field rather than a table, so MSVC's four-byte member pointer moves every
-field after it -- src/func_ov004_020b31b4.cpp reads `state` at 0x1c where the
-ROM reads [r0,#0x20]. All four layouts were re-derived from the ROM
-disassembly.
+  FOUR HAVE NO PMF GLOBAL AT ALL. The member pointer is a FIELD OF THE OBJECT,
+  so nothing external is emitted for it in any linkage.
+      func_ov004_020b31b4  _020b321c  _020b8714  _020b8778
 
-SO A LINK IS NOT A COMPLETE DETECTOR FOR THIS WALL. A lane that works to a
-clean link has six wild dispatches left and no error to tell it so. The fan-out
-sweeps for `::*` in its own slice before it believes an LNK1120.
+SO A LINK IS NOT A COMPLETE DETECTOR FOR THIS WALL, AND THE CONCLUSION IS
+STRONGER FOR THE FOUR THAN FOR THE TWO. The two are hidden by a linkage
+specifier and a lane that re-declared the table at C++ linkage would see them.
+The four cannot be surfaced by any link ever run, because there is no symbol to
+resolve; only reading the source finds them. The fan-out sweeps for `::*` in
+its own slice before it believes an LNK1120.
+
+The four are also the worse defect on their own terms. MSVC's four-byte member
+pointer inside the object moves every field after it, so they read the WRONG
+FIELD before any dispatch happens -- src/func_ov004_020b31b4.cpp reads `state`
+at 0x1c where the ROM reads [r0,#0x20] -- where the two table cases are a wrong
+stride within a correctly laid out object. All four layouts were re-derived
+from the ROM disassembly rather than from the src structs.
 
 WHAT MADE THE FIX SMALL, and it was not known when this file was written: the
 overlay constructors are the only writers of these tables, EVERY ONE OF THEM IS
@@ -379,11 +416,26 @@ eight bytes in the ROM. src/__sinit_ov004_020b948c.c and
 src/__sinit_ov006_021304ac.c both do it. So the mount's tables have been
 correct at the right stride all along and only the CONSUMERS were wrong, which
 turns "reproduce the mwcc member-pointer ABI" into "re-type the table and route
-the code word". The corollary the fan-out should carry: A PAIR THAT IS COPIED
-AS DATA STAYS CORRECT AND ONLY A PAIR THAT IS CALLED NEEDS A HOST COPY.
+the code word".
+
+THE RULEBOOK COROLLARY, AND IT KEYS ON THE SPELLING RATHER THAN ON THE USE:
+
+    A PAIR WHOSE CONSUMER SPELLS IT AS TWO INTS IS SAFE AS AN ALIAS.
+    A PAIR WHOSE CONSUMER NAMES A MEMBER-POINTER TYPE NEEDS A HOST COPY,
+    WHETHER IT IS CALLED OR ONLY COPIED.
+
+An earlier version of this line drew the boundary at copied-versus-called, and
+that boundary is wrong in the dangerous direction: it would authorise an alias
+onto a table a consumer only copies THROUGH A PMF-TYPED STRUCT, and such a copy
+moves four bytes where the ROM moves eight and shifts every field after it in
+the same object, with no call anywhere. Being a copy is not what makes a copy
+safe; `struct Pair { int a; int b; }` being eight bytes on both machines is.
+
 data_ov004_020bc904 and _020bc914 are genuine {code, 0} member pointers and are
-still ordinary aliases, because their two consumers copy them into the object's
-state field and never dispatch them.
+still ordinary aliases, and they pass on the spelling: both consumers declare
+`struct Pair { int a; int b; }`. The four ov004 TUs that dispatch an object
+FIELD fail on the same test and need host copies, even though no global of
+theirs was ever unresolved.
 
 WHAT IT COSTS PER MINIGAME, measured on this one:
 
@@ -592,7 +644,9 @@ WHAT THE WALL ACTUALLY COST, against section 4's prediction:
   ordinary /alternatename faces            21         22   the residual
   argument-landing thiscall face            1          1
   pointer-to-member SYMBOLS                 7          7
-  pointer-to-member TUs                     6         12   six link silently
+  pointer-to-member TUs                     6         12   2 hidden by
+                                                           extern "C", 4 emit
+                                                           no symbol at all
   sixth-wave slice lines                    5          5
   sixth-wave hosted word                    1          1
   further waves                             0          3   waves 7 and 8
@@ -751,9 +805,12 @@ automation and because three of them would each cost a later lane real time:
      opens with. A lane taking the output at face value would have shipped an
      alias that links and then strides an eight-byte table by four. Refused by
      hand and host-copied instead; hal/scene_mg_faces.cpp section 2b has the
-     ruling. Note also that section 4 previously quoted that symbol as
-     ?data_ov006_02141950@@3UEntry@@A, which is the spelling the guard WOULD
-     have caught. The link says PAU.
+     ruling. Section 4's enumeration table used to quote that symbol as
+     ?data_ov006_02141950@@3UEntry@@A, which is the by-value spelling the guard
+     WOULD have caught, and it is corrected there rather than only here: a
+     fan-out lane reading the table on its own must not inherit a form that
+     looks safe. The link says PAU, confirmed twice, in the LNK2019 text and in
+     a standalone compile of the TU.
 
   2. facegen --verify FALSE-FAILS ON A RELATIVE --out. verify() calls
      compile_batch with root set to the output file's parent and the output

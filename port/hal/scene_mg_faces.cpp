@@ -229,18 +229,23 @@ DSSTATE_END
  *     THESE TWO ARE mwcc MEMBER POINTERS -- {code, adjustment} with the code
  *     word inside ov004's .text (0x020ad660..0x020b944c) and the adjustment
  *     zero -- and the refusal was right to stop on them. The alias is still
- *     the correct answer, and the reason is the whole shape of this seat's
- *     dispatch fix: NEITHER CONSUMER DISPATCHES THEM. src/
- *     func_ov004_020b7cd0.cpp and src/func_ov004_020b72d4.cpp each read .a
- *     and .b and store them into the object's own eight-byte state field at
- *     +8/+0xc, which is a byte copy; `struct Pair { int a; int b; }` is eight
- *     bytes on MSVC and eight in the ROM, so the copy lands exactly the ROM's
- *     two words. The DS code address that arrives in that field is then
- *     dispatched by unmatched/MgBase_StateDispatch.cpp, which keys on the DS
- *     address -- so a pair that is COPIED as data stays correct and only a
- *     pair that is CALLED needs a host copy. That distinction is what makes
- *     this seat cheap, and it is why these two rows are aliases and the
- *     seven in section 4 are not.
+ *     the correct answer, and THE TEST IS WHAT THE CONSUMER SPELLS, NOT WHAT
+ *     THE CONSUMER DOES. src/func_ov004_020b7cd0.cpp and
+ *     src/func_ov004_020b72d4.cpp each declare `struct Pair { int a; int b; }`
+ *     and store .a and .b into the object's own eight-byte state field at
+ *     +8/+0xc. That struct is eight bytes on MSVC and eight in the ROM, so the
+ *     copy lands exactly the ROM's two words and the alias is sound. The DS
+ *     code address that arrives in that field is then dispatched by
+ *     unmatched/MgBase_StateDispatch.cpp, which keys on the DS address.
+ *
+ *     DO NOT RESTATE THIS AS "A COPY IS SAFE AND A CALL IS NOT". A consumer
+ *     that only copies, but copies through a struct holding a REAL MSVC member
+ *     pointer, moves four bytes where the ROM moves eight and shifts every
+ *     field after it in the same object, with no call anywhere. The rule is:
+ *     TWO INTS ALIAS, A MEMBER-POINTER TYPE NEEDS A HOST COPY, called or not.
+ *     That is why these two rows are aliases and the seven in section 4 are
+ *     not, and it is also why the four ov004 TUs that dispatch an object FIELD
+ *     need host copies even though no global of theirs was ever unresolved.
  *
  * AND ONE THE GENERATOR DID NOT REFUSE AND SHOULD HAVE. facegen classified
  *

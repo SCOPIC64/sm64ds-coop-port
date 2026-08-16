@@ -73,11 +73,14 @@
 # thirty) and port/unmatched/MgCurling_StateDispatch.cpp (five, ov006, this
 # class's), each verbatim but for the table declaration and the call.
 #
-# ONLY SIX OF THE TWELVE WERE NAMED BY A LINK. The other six declare their PMF
-# tables inside extern "C", so the globals mangle as the plain C names the
-# mount already defines and they LINK CLEAN WHILE MISCOMPILING. Whoever seats
-# the next minigame sweeps for `::*` rather than trusting LNK1120; the two
-# dispatch files' headers carry the full statement.
+# ONLY SIX OF THE TWELVE WERE NAMED BY A LINK, and the other six are silent for
+# two different reasons. TWO (func_ov006_020e1214, _020e3078) declare their PMF
+# table inside extern "C", so the global mangles as the plain C name the mount
+# already defines. FOUR (func_ov004_020b31b4, _020b321c, _020b8714, _020b8778)
+# have NO PMF GLOBAL AT ALL -- the member pointer is a field of the object -- so
+# no link can ever name them and their struct layouts are wrong as well as their
+# dispatch. Whoever seats the next minigame sweeps for `::*` rather than
+# trusting LNK1120; the two dispatch files' headers carry the full statement.
 #
 # /OPT:REF IS THE REFEREE. No /include:, and the only reference edges are the
 # ROM's own: the ACTOR_SPAWN_TABLE record names the factory, the ROM's vtable

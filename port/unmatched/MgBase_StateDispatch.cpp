@@ -29,9 +29,14 @@
 //
 // EVERY ADJUSTMENT WORD IN THIS SEAT'S CLOSURE READS ZERO. Verified word for
 // word out of the two ROM images: dScMgBase_c's four framework pairs at
-// 0x020bbf4c / 0x020bbf54 / 0x020bbf5c / 0x020bbf64, and dScMgCurling_c's
-// twenty-five at 0x0213c1e4..0x0213c2bc. So every dispatch this seat can
-// actually reach is the DIRECT case: no this-adjustment, no vtable indirection.
+// 0x020bbf4c / 0x020bbf54 / 0x020bbf5c / 0x020bbf64, and the twenty-five pairs
+// __sinit_ov006_021304ac names for dScMgCurling_c. Both sets were taken from
+// the constructors that copy them and not from an address range -- the ov006
+// twenty-five run from 0x0213c1e4 to 0x0213c2bc, but that span holds
+// twenty-eight slots and three of them (MgShuffleShell_SpawnInfo at
+// 0x0213c214, plus 0x0213c264 and 0x0213c2ac) are not pairs and DO carry
+// nonzero second words. So every dispatch this seat can actually reach is the
+// DIRECT case: no this-adjustment, no vtable indirection.
 // port_mg_call0 and port_mg_call1 below implement exactly that case and REPORT
 // any other, rather than implementing a shape no measurement supports. A run
 // that prints the report is a measurement; a run that guesses is a wild jump.
@@ -54,13 +59,24 @@
 // strides it by four. That is why these host copies change ONE declaration and
 // ONE call site each and leave everything else verbatim.
 //
-// A COROLLARY WORTH HAVING IN FRONT OF THE FAN-OUT: a pair that is COPIED as
-// data stays correct and only a pair that is CALLED needs a host copy.
-// src/func_ov004_020b7cd0.cpp and src/func_ov004_020b72d4.cpp both read an
-// eight-byte pair out of .data and store it into the object's own state field;
-// they are NOT here, they are two ordinary aliases in hal/scene_mg_faces.cpp
-// section 2b, and an alias is right because a byte copy of eight bytes is a
-// byte copy of eight bytes.
+// THE COROLLARY THE FAN-OUT NEEDS, AND IT KEYS ON THE SPELLING RATHER THAN ON
+// THE USE: A PAIR WHOSE CONSUMER SPELLS IT AS TWO INTS IS SAFE AS AN ALIAS. A
+// PAIR WHOSE CONSUMER NAMES A MEMBER-POINTER TYPE NEEDS A HOST COPY, WHETHER IT
+// IS CALLED OR ONLY COPIED.
+//
+// An earlier version of this note drew the line at copied-versus-called, and
+// that line is wrong in a way that would authorise a bad alias. A consumer that
+// only COPIES, but copies through a struct containing a real MSVC member
+// pointer, moves four bytes where the ROM moves eight and shifts every field
+// after it in the same object -- no call required. What makes a copy safe is
+// not that it is a copy, it is that `struct Pair { int a; int b; }` is eight
+// bytes on both machines.
+//
+// src/func_ov004_020b7cd0.cpp and src/func_ov004_020b72d4.cpp pass the test on
+// the spelling: each declares `struct Pair { int a; int b; }` and stores the
+// two words into the object's own state field. They are NOT here, they are two
+// ordinary aliases in hal/scene_mg_faces.cpp section 2b, and the alias is right
+// because eight bytes of int are eight bytes of int.
 //
 // ---- 3. THE WALL IS TWELVE TUs AND THE LINK ONLY NAMES SIX -----------------
 //
@@ -75,19 +91,31 @@
 //     func_ov004_020add88  _020adf2c  _020b3278
 //     func_ov006_020e0d84  _020e12d0  _020e3528
 //
-//   SILENT, because the PMF global is declared inside extern "C" and therefore
-//   mangles as the plain C name the mount already defines. These LINK CLEAN
-//   AND MISCOMPILE:
-//     func_ov004_020b31b4  _020b321c  _020b8714  _020b8778
-//     func_ov006_020e1214  _020e3078
+//   SILENT, and for TWO DIFFERENT REASONS rather than one. Lumping them
+//   together is the easy mistake here, and it hides which half is worse:
 //
-// So A LINK IS NOT A COMPLETE DETECTOR FOR THIS WALL, and a lane that works to
-// a clean link has six wild dispatches left. The four ov004 silent ones are the
-// worst of the set, because they dispatch the OBJECT'S OWN pmf field rather
-// than a table, so MSVC's four-byte member pointer moves every field after it:
-// src/func_ov004_020b31b4.cpp puts `state` at 0x1c where the ROM reads
-// [r0,#0x20]. Their layouts are re-derived from the disassembly below, one
-// offset at a time, rather than from the src structs.
+//     the PMF global is declared inside extern "C", so it mangles as the plain
+//     C name the mount already defines and the linker is satisfied:
+//       func_ov006_020e1214  _020e3078
+//
+//     THERE IS NO PMF GLOBAL AT ALL. The member pointer is a FIELD OF THE
+//     OBJECT, so these four emit no external symbol for it in any linkage and
+//     there was never anything for a link to name:
+//       func_ov004_020b31b4  _020b321c  _020b8714  _020b8778
+//
+// So A LINK IS NOT A COMPLETE DETECTOR FOR THIS WALL, and the conclusion is
+// STRONGER for the four than for the two. The two could in principle be caught
+// by a lane that re-declared the table at C++ linkage and re-linked; the four
+// cannot be caught by any link, ever, because there is no symbol to resolve.
+// Only reading the source finds them.
+//
+// The four are also the worse defect. They dispatch the OBJECT'S OWN pmf field
+// rather than a table, so MSVC's four-byte member pointer moves every field
+// after it: src/func_ov004_020b31b4.cpp puts `state` at 0x1c where the ROM
+// reads [r0,#0x20]. That is a wrong READ before any dispatch happens, where
+// the two table cases are a wrong stride within a correct object. Their
+// layouts are re-derived from the disassembly below, one offset at a time,
+// rather than from the src structs.
 //
 // ---- 4. WHAT IS NOT HERE ---------------------------------------------------
 //
