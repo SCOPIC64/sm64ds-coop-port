@@ -80,6 +80,14 @@ NAMED = [
     # orientation from data_02092768 and Quaternion_FromVector3 falls
     # back to data_02075b04.
     "data_02075b04", "data_02092768",
+    # Run link60 lane NFS: the NitroSDK archive NAME. func_0205d96c passes
+    # &data_0209a048 and a length of 3 to func_0205cc80, which packs the three
+    # characters into the archive record's first word and compares against it
+    # on every "arch:" prefixed path. It is four bytes of arm9 rodata ("rom\0",
+    # the next symbol is 0x0209a04c), and it comes from here rather than being
+    # spelled as a C literal for the reason every other row here exists: the
+    # port does not write Nintendo's bytes down, it reads them.
+    "data_0209a048",
     "data_02082178", "data_02090e80", "data_020914a0",
     "data_02092584", "data_02092654", "data_02092668", "data_0208e500", "data_02086a58", "data_0208e430", "data_02086b58",
     "data_0208e434", "data_0208e438", "data_0208e43c", "data_0208e440",

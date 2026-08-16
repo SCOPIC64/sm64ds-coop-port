@@ -419,7 +419,18 @@ src/func_02012860.c
 src/func_02017a9c.c
 src/func_02017ae4.c
 src/func_020182ec.c
-src/func_02018e3c.c
+# src/func_02018e3c.c -- OUT, run link60 lane NFS. It is a RIDE-THROUGH and
+# the host cannot express it. The ROM is `push {r4,lr}; bl func_0205d644`
+# with r0 (the FSFileID out pointer) and r1 (the path) carried straight
+# through in registers, so the decompilation names no parameters:
+# `int func_02018e3c(void) { int r = func_0205d644(); ... }`. Its caller
+# func_020182bc pushes both arguments and this callee forwards neither, so on
+# a cdecl host func_0205d644 reads two stack words that are not them.
+# MEASURED, not read off the page: with the archive registered, the ROM's own
+# walker ran the whole root directory and matched nothing, while the same two
+# names resolved correctly through a call that spells both arguments
+# (SM64DS_NFS_PROBE=1). hal/fs_names.cpp carries the face, and it is the same
+# trade hal/fs.cpp already made for SharedFilePtr::Construct.
 src/func_0204f9c4.c
 src/func_ov001_020ab3f0.c
 src/func_ov001_020ab41c.c

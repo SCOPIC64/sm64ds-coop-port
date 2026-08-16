@@ -397,8 +397,26 @@ extern "C" {
      data_0209d478  4   SetBg2Offset's Y
      data_0209d49c  4   SetBg2Offset's X
      data_020a60a8  4   GXS::BeginLoadOBJExtPltt's saved bank bits
-     data_020a8048  4   the Vram__Map family's LCDC cursor
-     data_020a804c 12   and its three-word bank record                       */
+     data_020a8048  4   NitroSDK's FS archive-list head
+     data_020a804c 12   and its FSDirPos current directory
+
+   THE LAST TWO WERE MIS-IDENTIFIED HERE and the correction is run link60 lane
+   NFS's. They were read as "the Vram__Map family's LCDC cursor and its
+   three-word bank record", which is not what they are: every literal-pool
+   reference to either address in the whole arm9 image is inside the FS module
+   (0x020a8048 at 0x0205cc7c / 0x0205cd2c / 0x0205d288, 0x020a804c at
+   0x0205cc78 / 0x0205cd30 / 0x0205d870) and nothing in Vram__Map touches
+   either. data_020a8048 is the head of the registered-archive list
+   func_0205cc80 builds; data_020a804c is the 12-byte FSDirPos
+   {FSArchive *arc, u16 own_id, u16 index, u32 pos} that func_0205d714 copies
+   into every FSFile it opens by name, which is exactly why three words is
+   right for it.
+
+   ONLY THE NAMES CHANGE. Both stay here, at these sizes, in this order: the
+   spans were already correct, hal/fs_names.cpp writes them through the ROM's
+   own registration rather than by hand, and moving a member out of a .dsstate
+   block moves the whole section base for every file in it. See
+   port/nfs_names_map.txt.                                                   */
 int data_0209d3c0;
 int data_0209d464;
 int data_0209d478;

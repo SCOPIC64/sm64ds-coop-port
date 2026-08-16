@@ -342,6 +342,27 @@ FdrArm9FaderBoot fdr_arm9_fader_boot;
 
 }  /* anonymous namespace */
 
+/* ARE THE THREE MOTION SLOTS STILL TRAPS? Run link60 lane NFS added this and
+   the reason is worth keeping with the traps rather than with the caller.
+   This file's first unproven item said the three slots "have never been
+   dispatched" and that "any other minigame, and the level path's own fader
+   use, may reach them". Scene 374 now does: with the NitroSDK open-by-name
+   seam in, dScMgCurling_c gets past InitResources to its first behaviour
+   tick, slot 0x0c fires its trap, and the frame dies. So the fact stopped
+   being a footnote and became a battery row, and a battery row needs a
+   PREDICATE somebody outside this file can ask before the run rather than a
+   string somebody greps for afterwards.
+
+   It is a real check and it goes false on its own the day the three ROM
+   bodies are seated, which is the property that stops it rotting into a
+   hardcoded 1. */
+extern "C" int port_fdr_motion_slots_unseated(void)
+{
+    return data_020926f0[2] == (void *)fdr_s08 &&
+           data_020926f0[3] == (void *)fdr_s0c &&
+           data_020926f0[4] == (void *)fdr_s10;
+}
+
 /* The proof line, callable from a harness that wants it in its own output.
    Nothing in the build depends on it being called: the seat is complete
    without it, and the object above is what makes that true. */
