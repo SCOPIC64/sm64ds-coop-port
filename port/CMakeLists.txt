@@ -1769,7 +1769,7 @@ list(APPEND PORT_ACTOR_OVERLAYS ov007)
 # and never overlap. Under the address-only test the residency model replaced,
 # these two windows would have taken 195 of the 229 back to raw DS addresses.
 # The measurement, with every appeared row adjudicated, is
-# port/ov046_binding_diff.txt.
+# port/ov004_ov006_binding_diff.txt.
 #
 # FOUR HAND-HOSTED STAND-INS RETIRE WITH IT, and they have to go in this same
 # commit or the link has two definitions of each: data_ov004_020beb60 out of
@@ -1780,14 +1780,14 @@ list(APPEND PORT_ACTOR_OVERLAYS ov007)
 # bytes), and all four are zero on both sides, so the swap is byte-identical and
 # St_LevelEnter_Main's Release still reads numRefs 0. The ov006 scout predicted
 # "ZERO duplicates, no host stand-ins to retire" for this territory; there were
-# four, and the correction is recorded in port/ov046_binding_diff.txt.
+# four, and the correction is recorded in port/ov004_ov006_binding_diff.txt.
 #
 # It grows .dsstate by 123492 bytes, MEASURED, which MOVES THE SELFTEST BMP
 # BASE: dsstate_guard reports 810684 bytes captured before and 934176 after, and
-# the base moves 0xae2000 to 0xafa000. The landed span of the two mounts is
-# 27252 + 96272 = 123524 and the four retired stand-ins give back 24, which
-# leaves 8 bytes of section alignment; the symbol sums, 24832 and 79572, are not
-# the number that moves the section. The three water pixels track the section
+# the base moves 0xae2000 to 0xafa000. It reconciles as the landed span of the
+# two mounts less what the retired stand-ins give back less what section
+# alignment reclaims: 27252 + 96272 - 24 - 8 = 123492. The symbol sums, 24832
+# and 79572, are not the number that moves the section. The three water pixels track the section
 # base, so the BMP is comparable only at an equal base and must not be
 # byte-compared across this commit.
 list(APPEND PORT_ACTOR_OVERLAYS ov004 ov006)

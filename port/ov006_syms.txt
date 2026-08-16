@@ -9,7 +9,7 @@
 # the residency model answers coresident(ov004, ov006) = True. That is the only
 # True the model produces between two mounted scene-slot occupants. See
 # port/ov006_minigame_scout.txt for the entry path and the blocker profile, and
-# port/ov046_binding_diff.txt for what this mount did to the cross pass.
+# port/ov004_ov006_binding_diff.txt for what this mount did to the cross pass.
 #
 # NOTHING BOOTS A MINIGAME YET and this mount does not change that. No level can
 # reach one -- func_0201a694 unloads the scene overlay the level is running out

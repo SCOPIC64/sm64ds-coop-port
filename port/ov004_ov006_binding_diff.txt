@@ -48,31 +48,54 @@ The model's answers, printed from Residency over the 96 mounted footprints:
     mounted overlays co-resident with ov004:  ov001, ov006
     mounted overlays co-resident with ov006:  ov001, ov004
 
-WHAT DID NOT GET EXERCISED, AND CANNOT BE, BY THIS PAIR. A binding is DROPPED
-when window_count > 1, which needs two co-resident mounted windows to contain
-one address. The only mounted overlays co-resident with either half of the pair
-are ov001 and each other, and all three windows are DISJOINT:
+WHAT THIS PAIR DOES NOT EXERCISE, STATED CORRECTLY. An earlier version of this
+section argued that the drop direction might be UNREACHABLE on today's rules.
+That is wrong, and the review caught it. It misread window_count:
+
+    def window_count(src, v):
+        return sum(1 for ov, (s, e) in windows.items()
+                   if s <= v < e and res.coresident(src, int(ov[2:])))
+
+Each window has to be co-resident with the SOURCE. It does not have to be
+co-resident with the other windows, and usually is not. Two mutually EXCLUSIVE
+overlays both counted against one source is the ordinary case, not an impossible
+one, and it is exactly what the 105 contested rows in this build already are:
+they come from 17 source overlays, and the largest window_count among them is
+47 -- an ov091 want at 0x02111244, which every level overlay's window covers.
+The level slot performs the drop 105 times a build.
+
+WHAT SURVIVES of that argument is one narrower sentence, and it is true: no two
+mounted overlays are ever both OVERLAPPING and CO-RESIDENT, because rule 1 tests
+overlap first and returns False. That is why ov001, ov004 and ov006 can never
+contest each other -- the three windows are disjoint, abutting twice --
 
     ov001   0x020aa420 .. 0x020ad660
     ov004   0x020ad660 .. 0x020bfec0
     ov006   0x020bfec0 .. 0x021430a0
 
-They abut twice and overlap nowhere, and that is not luck -- it is rule 1's zero
-slack, the thing the ov007 lane's finding F1 removed and its passenger-overlap
-refusal now guards. The pair CANNOT contest an address with each other while
-rule 1 still lets them be co-resident at all; the two properties are the same
-arithmetic seen twice. So window_count never returns more than 1 for either
-mount, contested does not move, and the drop direction is still untested by any
-mount in the build. THE PERMISSIVE DIRECTION THIS PAIR EXERCISES IS THE ONE THAT
-WRITES BINDINGS, NOT THE ONE THAT WITHHOLDS THEM. A reviewer should not read
-this lane as having closed the other half.
+and it is why this pair contributes no contested row of its own and moved no
+pre-existing one. But that is a fact about THIS pair's addresses, not a property
+of the model, and it does not generalise.
 
-Whether any mount can close it: it needs two overlays that are co-resident AND
-whose footprints intersect, which rule 1 forbids by construction, OR a
-co-resident pair one of whose provider claims reaches outside its own footprint
-into the other's, which cross_mode's out-of-footprint filter drops first. On
-today's rules the drop direction may be unreachable. That is worth someone
-proving or refuting; it is not proved here.
+THE DROP DIRECTION IS REACHABLE. It is reached 105 times today, and it is
+reachable by this lane's own rows: mounting ov000 alone would do it. ov000's
+footprint is 0x020aa420..0x020bf4e0, it shares ov001's base, and it is neither a
+scene occupant nor sticky nor level territory, so coresident() falls through to
+True for everything -- ov006 included. Its window then covers most of ov004's.
+Measured, with nothing else changed:
+
+    rebased rows        284 -> 264      20 LOST
+    contested           105 -> 749
+
+All 20 lost rows are ov006 -> ov004 rows and all 20 are among this lane's own
+55. So these bindings are not unconditional: they hold because ov000 is not
+mounted, and the day it is, twenty of them are correctly withdrawn.
+
+The honest summary the next mount lane should inherit: this lane exercised
+coresident TRUE in the direction that WRITES bindings, and did not exercise the
+direction that withholds them -- not because that direction is unreachable, but
+because this pair's windows happen not to overlap any window co-resident with
+them.
 
 THE PASSENGER REFUSAL STAYED QUIET, which is the third thing this gate was to
 check. ov004's footprint ends at 0x020bfec0 and ov006's base IS 0x020bfec0;
@@ -148,8 +171,12 @@ five independent tests per row, and all 55 pass all five:
     the emitted host offset equals the DS offset               55 / 55
 
 and every one of the 55 lands at offset 0 of its provider symbol -- not one is
-an interior landing, so there is no offset arithmetic to get wrong. 25 distinct
-ov006 targets and 32 distinct ov004 targets carry the 55 rows.
+an interior landing, so there is no offset arithmetic to get wrong. The 55 rows
+land on 25 distinct ov006 targets and SIX distinct ov004 targets -- the ov004
+side is concentrated, with data_ov004_020bbf6c alone taking 15 of the 20. (An
+earlier draft said 32 for the ov004 side. That was the count of distinct ov004
+addresses ov006 WANTS, most of which are .text and stay raw, not the count that
+carries a row.)
 
 WHY THEY BIND, IN THE MODEL'S TERMS, and why an address test would refuse them.
 Take ov004's data_ov004_020bbfa8 + 0 -> 0x021373a4. That address is inside
@@ -301,8 +328,11 @@ F1  dsd's .ctor SYMBOL NAMES ARE NOT C IDENTIFIERS, and the rule the ov007 lane
     ov007's is zero length and ov003's the same, and every other mount list is
     hand-picked. ov004 has four .ctor words and ov006 thirty-one, and dsd names
     each one after the sinit it points at with a leading dot --
-    `.p__sinit_ov004_020b948c`. There are 308 of them across the config, one per
-    .ctor word in every overlay that has constructors.
+    `.p__sinit_ov004_020b948c`. The config holds 308 names that are not C
+    identifiers: 305 of them are .ctor words spelled that way, one per .ctor
+    word in every overlay that has constructors, and the other 3 are itcm
+    kind:label(arm) names (.L_01ff8df8, .L_01ffa588, .L_01ffadf8), which are
+    labels rather than storage and no mount list would ask for one.
 
     Emitted verbatim the declaration is `u8 .p__sinit_ov004_020b948c[4]`, which
     is not C. That fails loudly, but it fails minutes later as a parse error in
@@ -370,34 +400,56 @@ F3  THE MISALIGNED-SYMBOL BLINDNESS PROJECTS TO ZERO FOR BOTH MOUNTS, and this
     so the zero is a real zero and not a tool that stopped looking. The build's
     F3 total is 97 before this lane and 97 after it.
 
-F4  dsstate_guard IS BLIND TO 348 MOUNTED SYMBOLS, and my mounts add 24 more.
-    NOT FIXED HERE. ROUTED TO THE COORDINATOR.
+F4  dsstate_guard IS BLIND TO 344 MOUNTED SYMBOLS, 320 of them pre-existing and
+    24 of them this lane's. PARTLY ROUTED: the fix for the larger half is
+    neutral and needs no other work; the smaller half is what turns up F5.
 
     The guard decides what is a hosted DS symbol from a list of NAME SHAPES:
     data_0XXXXXXX, data_ovNNN_0XXXXXXX, LCG_STATE_0XXXXXXX, port_ovNNN_image,
     and two named C++ exceptions. dsd only spells a symbol data_ovNNN_ADDRESS
     when it had nothing better to call it. The ones it did have a name for match
     nothing in that list: every *_SpawnInfo record and every _ZTV vtable a mount
-    list asks for, 348 of them across the 46 lists in this build, and 24 more
-    from ov006 (twenty-three minigame SpawnInfo records plus
-    _ZTV17MgBounceAndPounce).
+    list asks for. Counted over the lists this build actually mounts PER SYMBOL
+    -- 48 of the 49 ovNNN_syms.txt files, ov026's being excluded because ov026
+    is a whole-image mount and its list is not an input -- that is 344 names,
+    320 of them pre-existing and 24 from ov006 (twenty-three minigame SpawnInfo
+    records plus _ZTV17MgBounceAndPounce). All 344 were then looked up in
+    walk_window.map: 344 present, 344 inside .dsstate, 0 outside, 0 absent.
+
+    TWO OTHER DENOMINATORS ARE WRONG AND ARE NAMED SO NOBODY RE-DERIVES THEM.
+    348 counts all 46 list files and includes ov026's four, which are not in
+    this build. 272 excludes ov002's 72 on the reading that ov002 is not a
+    per-symbol mount; it is one -- port/CMakeLists.txt builds ov002_data.c with
+    `--from-list ov002_syms.txt`, and its sidecar reads mode "syms" with 1828
+    provides -- so ov002's 72 belong in the count and 344 is the figure.
 
     The arithmetic is visible in the guard's own output. It reports 6949 hosted
     symbols before this lane and 10445 after, a rise of 3496, while the mounts
     add 3524 named symbols and retire 4 stand-ins, which is 3520. The missing 24
     are ov006's named ones, not counted because not recognised.
 
-    Nothing is stranded today: all 348 were checked by hand against the map and
-    all 348 are inside [dsstate_lo, dsstate_hi), because --pack routes every
+    Nothing is stranded today: all 344 were checked by hand against the map and
+    all 344 are inside [dsstate_lo, dsstate_hi), because --pack routes every
     symbol into .dsstate$pkNNN_SSSS explicitly. The defect is that the guard is
     not what proves it, in the direction where it goes quiet.
 
-    NOT FIXED HERE because the obvious fixes are both wrong. Widening the name
-    patterns to *_SpawnInfo and _ZTV* is not neutral: it newly flags 156 symbols
-    that are host-built vtables in hal/*.cpp and romdata constants, correctly
-    outside .dsstate. Keying on the OBJECT instead -- an ovdata mount's object
-    holds nothing but hosted DS storage -- is the right shape and is what turned
-    up F5, so the two have to land together.
+    THE TWO HALVES SPLIT, and an earlier draft of this note got that wrong by
+    testing them together. Measured separately against this build's map:
+
+      *_SpawnInfo, which is 285 of the 344, IS NEUTRAL TO WIDEN. Adding the
+      pattern flags exactly one symbol outside .dsstate, _Camera_SpawnInfo at
+      0x62f5e0 out of romdata.c.obj, and the guard's existing CONST_OBJS
+      exemption already covers it. So that widening can land on its own and
+      does not have to wait for F5.
+
+      THE MANGLED NAMES, 59 of the 344 -- 9 spelled _ZTV and 50 spelled
+      _ZN...E -- CANNOT be widened by name. A _ZTV* pattern newly flags 155
+      symbols that are host-built vtables in hal/*.cpp (heap_vtable,
+      clsn_vtable, actor_vtables, actor_classes), and every one of them is
+      correctly outside .dsstate. Those 59 need the OBJECT test instead: an
+      ovdata mount's object holds nothing but hosted DS storage. That test is
+      the right shape, and it is what turned up F5, so that half and F5 land
+      together.
 
 F5  28 SYNTHETIC GAP BLOCKS IN PACKED MOUNTS SIT OUTSIDE .dsstate AND A SAVE
     STATE DOES NOT CAPTURE THEM. NOT FIXED HERE. ROUTED, WITH F4.
@@ -413,18 +465,29 @@ F5  28 SYNTHETIC GAP BLOCKS IN PACKED MOUNTS SIT OUTSIDE .dsstate AND A SAVE
     "(the synthetic gap arrays above are data and had to land in .dsstate too,
     which they did while it was open.) Packed mounts never opened it."
 
-    Measured on this build: 28 such blocks, 5368 bytes, across ten packed
-    mounts. They are not padding -- they hold real ROM bytes, the in-mount and
-    cross passes rebase pointers ONTO them, and the game's walks step through
-    them, so they are mutable DS state by the same argument that puts every
-    other mounted byte in .dsstate. A restore leaves them stale. That is the
-    0.2.0 ANIM_PTRS class exactly, which is the bug dsstate_guard was written
-    for, and F4 is why the guard could not see it.
+    Measured on this build: 28 such blocks, 5368 bytes, across ELEVEN packed
+    mounts (ov001, ov009, ov016, ov020, ov021, ov022, ov044, ov064, ov070,
+    ov071 and ov095). They are not padding -- they hold real ROM bytes, the
+    in-mount and cross passes rebase pointers ONTO them, and the game's walks
+    step through them, so they are mutable DS state by the same argument that
+    puts every other mounted byte in .dsstate. A restore leaves them stale. That
+    is the 0.2.0 ANIM_PTRS class exactly, which is the bug dsstate_guard was
+    written for, and F4 is why the guard could not see it.
+
+    THE LIVE CASE IS DEMONSTRATED, not argued. The review found one and the F5
+    lane inherits it as its first test vector: data_ov009_02112238 goes 0xffff
+    to 0x0000 while Bob-omb Battlefield runs, and a save then a load misses the
+    rollback, because the word is not in the captured span. The static half
+    checks out here -- config/arm9/overlays/ov009/symbols.txt names
+    data_ov009_02112238 kind:data(any) at 0x02112238, port/ov009_syms.txt omits
+    it, so it falls inside port_ov009_gap_0211222c (244 bytes from 0x0211222c,
+    the word at +12), and that block sits at RVA 0x62f7e0 against a captured
+    span of [0xafa000, 0xbde120). Outside, and written during play.
 
     NEITHER ov004 NOR ov006 EMITS ONE, so this lane adds nothing to it: 28
     before and 28 after. It is entirely pre-existing.
 
-    NOT FIXED HERE because the fix moves 5368 bytes of ten shipped mounts into
+    NOT FIXED HERE because the fix moves 5368 bytes of eleven shipped mounts into
     .dsstate, changes their emitted C, and changes the save state's captured
     span and layout. That is a behaviour change to working mounts and to the
     save/restore format, and it needs its own lane and its own soak, not a rider
@@ -475,7 +538,8 @@ THE SELFTEST BMP BASE MOVES, and that is 123492 bytes of DS storage landing in
 .dsstate. Measured, not derived: dsstate_guard reports 810684 bytes captured
 before and 934176 after, and the section base moves 0xae2000 to 0xafa000. The
 arithmetic reconciles as 27252 + 96272 landed span, less the 24 bytes of retired
-stand-ins, plus 8 bytes of section alignment. The symbol sums, 24832 and 79572,
+stand-ins, less 8 bytes reclaimed by section alignment:
+27252 + 96272 - 24 - 8 = 123492. The symbol sums, 24832 and 79572,
 are not the number that moves the section. Per the standing rule the three water
 pixels track the .dsstate base, so the BMP is comparable only at an equal base
 and must not be byte-compared across this change. dsstate_guard is the check

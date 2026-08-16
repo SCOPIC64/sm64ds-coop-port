@@ -6,7 +6,7 @@
 # 0x020ad660 to be mounted, after ov003 and ov007, and it is the only one of the
 # six that is never loaded on its own: func_0201a798 loads it as a PASSENGER of
 # ov006 and func_0201a754 unloads the pair together. See
-# port/ov004_ov007_2d_map.txt for the entry chain and port/ov046_binding_diff.txt
+# port/ov004_ov007_2d_map.txt for the entry chain and port/ov004_ov006_binding_diff.txt
 # for what the mount did to the cross pass.
 #
 # NOTHING BOOTS THIS SCENE YET and this mount does not change that. walk_window
@@ -37,10 +37,10 @@
 # THE FOUR .ctor ENTRIES ARE DELIBERATELY ABSENT, and not because they are
 # uninteresting. dsd names them `.p__sinit_ov004_020b948c` and so on, with a
 # leading dot, which is not a valid C identifier; ovdata would emit
-# `u8 .p__sinit_ov004_020b948c[4]` and the compile would fail. There are 308
-# such names across the config and every one of them is a .ctor word. ovdata now
-# refuses a requested name that is not an identifier rather than emitting broken
-# C. Leaving the table out is also the right answer on its own terms: the four
+# `u8 .p__sinit_ov004_020b948c[4]` and the compile would fail. The config holds
+# 308 names that are not C identifiers, 305 of them .ctor words spelled this way
+# and the other three itcm kind:label(arm) names. ovdata now refuses a requested
+# name that is not an identifier rather than emitting broken C. Leaving the table out is also the right answer on its own terms: the four
 # words hold DS addresses of .init code this mount does not host, so hosting
 # them would give a ctor walk four addresses that resolve to nothing, while the
 # zeroed padding reads as an immediately-terminated table.
