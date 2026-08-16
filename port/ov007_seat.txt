@@ -1965,11 +1965,17 @@ WHAT LANE TJG DID NOT DO, AND WHAT THE GUARD DOES NOT PROVE
     the same bytes would read as a transfer to the callee. The guard prints the
     fold count for any callee address carrying more than one name so the
     ambiguity is visible; it cannot remove it.
-  - FRAME SPANS COME FROM THE NEXT MAP SYMBOL. A frame is measured from its own
-    map address to the next STRICTLY GREATER one, which is what makes the
-    folded veneers measurable at all. Where the linker leaves a gap the span
-    includes padding, which is 0xCC and cannot produce a hit, but it is a bound
-    and not a measurement of the function's real length.
+  - FRAME SPANS COME FROM THE NEXT MAP SYMBOL IN THE SAME IMAGE SECTION. A
+    frame is measured from its own map address to the next STRICTLY GREATER
+    one, which is what makes the ICF-folded veneers measurable at all, and the
+    section scoping is measured rather than tidiness: on this tree's
+    walk_window.map the last symbol in each image section is 96 to 4096 bytes
+    short of the first symbol in the next, so a globally sorted span would
+    hand the last function in .text a 2336-byte window running into .rdata.
+    That cannot make a false green -- over-scanning only adds bytes -- but it
+    can make a false failure. Where the linker leaves a gap the span still
+    includes padding, which is 0xCC and cannot produce a hit. It is a bound,
+    not a measurement of the function's real length.
   - CLASS A ROWS 2 THROUGH 7 ARE ASSERTED, NOT VALIDATED. The guard says those
     six frames still emit a real call. It says nothing about whether 5d's
     reading of what they push and what their callees read is right, and no

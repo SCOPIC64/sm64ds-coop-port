@@ -653,7 +653,17 @@ class Image(object):
         self.sections = sections     # [(name, va, vsize, raw_off, raw_size)]
 
     def read(self, va, n):
-        """n bytes at a virtual address, or None if they are not all mapped."""
+        """Up to n bytes at a virtual address, CLAMPED to the section.
+
+        None means the address is in no section at all, which is a map and an
+        image that disagree about the layout and must never be measured. A
+        SHORT read is not that: a frame that runs to the end of its section
+        has fewer bytes after it than its span claims, and scanning what is
+        really there is the right answer rather than a refusal. The span is a
+        bound derived from the next symbol, not a measurement of the
+        function's length, so treating a short read as a fault would fail a
+        build over the last symbol in .text being last.
+        """
         rva = va - self.base
         for _name, sva, vsize, roff, rsize in self.sections:
             if not (sva <= rva < sva + vsize):
@@ -661,9 +671,8 @@ class Image(object):
             off = roff + (rva - sva)
             avail = min(rsize - (rva - sva), n)
             if avail <= 0:
-                return None
-            chunk = self.data[off:off + avail]
-            return chunk if len(chunk) == n else None
+                return b''
+            return self.data[off:off + avail]
         return None
 
     def section_of(self, va):
@@ -757,24 +766,39 @@ class Boundaries(object):
     """
 
     def __init__(self, mp):
-        vas = sorted(set(r[1] for r in mp.rows))
-        self.vas = vas
-        self.index = dict((va, i) for i, va in enumerate(vas))
         self.names = {}
-        for name, va, _s, _o, _obj, _st in mp.rows:
+        per_sect = {}
+        for name, va, sect, _o, _obj, _st in mp.rows:
             self.names.setdefault(va, []).append(name)
+            per_sect.setdefault(sect, set()).add(va)
+        self.vas = dict((s, sorted(v)) for s, v in per_sect.items())
+        self.index = dict(
+            (s, dict((va, i) for i, va in enumerate(lst)))
+            for s, lst in self.vas.items())
 
     def span(self, va, sect):
-        i = self.index.get(va)
-        if i is None:
+        """[start, end) for a frame, bounded by ITS OWN image section.
+
+        Scoping to the section is not tidiness. Measured on this tree's
+        walk_window.map, the last symbol in each image section is 96 to 4096
+        bytes short of the first symbol in the next one, so a span taken from
+        a globally sorted symbol list would hand the last function in .text a
+        2336-byte window running into .rdata. It cannot produce a false green
+        -- over-scanning only adds bytes -- but it can produce a false
+        failure, and a guard that blocks a build over the last symbol being
+        last is a guard people route around.
+        """
+        lst = self.vas.get(sect)
+        i = self.index.get(sect, {}).get(va)
+        if lst is None or i is None:
             return None
-        if i + 1 < len(self.vas):
-            return (va, self.vas[i + 1])
-        # The last symbol in the image has nothing after it to bound it. 256
-        # bytes is a bound, not a measurement, and it is only ever reached by a
-        # frame that is literally last; every declared frame in this tree has a
-        # successor. Stated so a reader knows the number is arbitrary.
-        return (va, va + 256)
+        if i + 1 < len(lst):
+            return (va, lst[i + 1])
+        # Last symbol in its section: nothing after it to bound it, so the
+        # bound is the section's own end, which Image.read clamps to. 4096 is
+        # an upper limit on how much of that tail to look at, not a claim
+        # about the function's length.
+        return (va, va + 4096)
 
     def folded(self, va):
         return len(self.names.get(va, ()))
@@ -1507,6 +1531,78 @@ def selftest():
         rc, out = go([m])
         case('a transfer one byte off the callee does not count', 1, rc, out,
              wants=['TAIL JUMP LOST', 'NEITHER'])
+
+        # 6b. THE LAST SYMBOL IN ITS SECTION. Its span has no successor to
+        #     bound it, so the bound is the section end and the read clamps
+        #     there. Before the span was section-scoped this frame got a
+        #     window running into the next section and read as unmeasurable,
+        #     which is a build blocked over a symbol being last.
+        TAILF = 0x5f0
+        tail_pubs = pubs() + [('_tail_frame', 1, TAILF, VA(TAILF),
+                               'tail_frame.c.obj')]
+        _fabninja(bd, [
+            ('walk_window', 'src/veneer_frame.c.obj',
+             tmp + '/src/veneer_frame.c'),
+            ('walk_window', 'src/veneer_target.c.obj',
+             tmp + '/src/veneer_target.c'),
+            ('walk_window', 'src/seam_frame.c.obj', tmp + '/src/seam_frame.c'),
+            ('walk_window', 'src/seam_callee.c.obj',
+             tmp + '/src/seam_callee.c'),
+            ('walk_window', 'src/after.c.obj', tmp + '/src/after.c'),
+            ('walk_window', 'src/tail_frame.c.obj',
+             tmp + '/src/tail_frame.c'),
+        ])
+        tail_row = {'frame': 'tail_frame', 'callee': 'veneer_target',
+                    'form': 'jump', 'cls': 'V', 'tu': 'src/tail_frame.c',
+                    'cite': 'fixture', 'note': 'fixture tail-of-section'}
+        _fabexe(os.path.join(bd, 'walk_window.exe'),
+                _code(0x600, HEALTHY + [(TAILF, JMP, VA(JC))]))
+        m = _fabmap(os.path.join(bd, 'walk_window.map'), tail_pubs)
+        rc, out = go([m], rows=(tail_row,))
+        case('the last symbol in a section is still measured', 0, rc, out,
+             wants=['forms OK'], unwanted=['NOT READABLE'])
+        #     and it is still judged: same position, wrong form
+        _fabexe(os.path.join(bd, 'walk_window.exe'),
+                _code(0x600, HEALTHY + [(TAILF, CALL, VA(JC))]))
+        rc, out = go([m], rows=(tail_row,))
+        case('the last symbol in a section still fails on form', 1, rc, out,
+             wants=['TAIL JUMP LOST', 'tail_frame'])
+
+        # 6c. A FRAME AT AN ADDRESS IN NO SECTION. The map and the image
+        #     disagree about the layout, which is a stale artifact, and the
+        #     one case where an unreadable frame is the right verdict.
+        ghost_pubs = pubs() + [('_ghost_frame', 1, 0x900000,
+                                IMAGE_BASE + 0x900000, 'ghost.c.obj')]
+        _fabninja(bd, [
+            ('walk_window', 'src/veneer_frame.c.obj',
+             tmp + '/src/veneer_frame.c'),
+            ('walk_window', 'src/veneer_target.c.obj',
+             tmp + '/src/veneer_target.c'),
+            ('walk_window', 'src/seam_frame.c.obj', tmp + '/src/seam_frame.c'),
+            ('walk_window', 'src/seam_callee.c.obj',
+             tmp + '/src/seam_callee.c'),
+            ('walk_window', 'src/after.c.obj', tmp + '/src/after.c'),
+            ('walk_window', 'src/ghost.c.obj', tmp + '/src/ghost.c'),
+        ])
+        _fabexe(os.path.join(bd, 'walk_window.exe'), _code(0x600, HEALTHY))
+        m = _fabmap(os.path.join(bd, 'walk_window.map'), ghost_pubs)
+        rc, out = go([m], rows=({'frame': 'ghost_frame',
+                                 'callee': 'veneer_target', 'form': 'jump',
+                                 'cls': 'V', 'tu': 'src/ghost.c',
+                                 'cite': 'fixture', 'note': 'fixture ghost'},))
+        case('a frame at an unmapped address fails as unreadable', 1, rc, out,
+             wants=['FRAME NOT READABLE', 'ghost_frame'])
+
+        _fabninja(bd, [
+            ('walk_window', 'src/veneer_frame.c.obj',
+             tmp + '/src/veneer_frame.c'),
+            ('walk_window', 'src/veneer_target.c.obj',
+             tmp + '/src/veneer_target.c'),
+            ('walk_window', 'src/seam_frame.c.obj', tmp + '/src/seam_frame.c'),
+            ('walk_window', 'src/seam_callee.c.obj',
+             tmp + '/src/seam_callee.c'),
+            ('walk_window', 'src/after.c.obj', tmp + '/src/after.c'),
+        ])
 
         # 7. REFUSALS -------------------------------------------------------
         #    a declared frame in NO map
