@@ -1441,10 +1441,13 @@ would dereference a garbage subscript, so had the whole chain run the recorded
 fault would be there and not at ae558.
 
 (SECTION 5e RAN IT AND THIS DID NOT FIRE. Over 299 Behavior ticks with ae558
-seated, neither b3c54's store nor b3d30's fault happened, so the conjunction
-failed repeatedly rather than once. The actual next blocker is in the RENDER
-slot and is a calling convention, a class no arity sweep could see. The row is
-unfired, not refuted; 5e says why.)
+seated, neither b3c54's store nor b3d30's fault happened. AND THE AE1 REVIEW
+SETTLED WHICH CONJUNCT: entry probes say b2e64 is entered and b3360 is NEVER
+entered, so guard ONE fired on all 299 ticks and b3360's own guard was never
+evaluated. This paragraph's "either conjunct alone accounts for the
+observation" is answered, and the answer is the first one. The actual next
+blocker is in the RENDER slot and is a calling convention, a class no arity
+sweep could see.)
 
 WHAT THAT ESTABLISHES IS THAT THE CONJUNCTION DID NOT HOLD, and nothing
 narrower. It does NOT establish that b3360's own guard was false, because
@@ -1623,7 +1626,13 @@ THE TRUTH RUN, AND IT IS THE FURTHEST SCENE 1 HAS EVER GOT
 SM64DS_SCENE=1, 300 frames, SM64DS_FAULTS_FATAL=1, on the seated tree.
 
 THE TRAP CENSUS, against 5c's, because the census is what shows a seam was
-crossed rather than relocated:
+crossed rather than relocated. WHICH RUN THESE NUMBERS BELONG TO, said before
+the table because the heading above it invites the wrong reading: they are the
+BARE run's totals, the one that faults in the Render slot on the first frame,
+and its whole trap total is 88. That is the quantity comparable to 5c's, which
+is also a single-fault run. The 300-frame runs further down are about 300 times
+larger (18599 traps, both of them) and none of the counts below come from
+those.
 
     5c's run     b46b0 x24, c20b8 x1, func_02054c80 x1, data_0208ea6c slot x1,
                  ae834 x24
@@ -1662,6 +1671,26 @@ off) and nothing in it faulted.
   hold, and it did not hold repeatedly rather than once. 5d was right that the
   argument proved less than an earlier draft claimed, and it was right to say
   so; the row it named is still unexecuted and still not gated behind ae558.
+
+  AND THE HEDGE IS NOW RESOLVED, BY A MEASUREMENT THIS LANE DID NOT MAKE. The
+  credit is the AE1 REVIEW's: it patched the first five bytes of three targets
+  in a copy of the binary and re-ran the scene to ask which of them are ENTERED
+  at all, which is the question no amount of reading the guards could settle.
+
+      b2e64   ENTERED
+      b3360   NEVER ENTERED   (300 clean, identical counters, identical trap
+                               total)
+      b3c54   NEVER ENTERED
+
+  SO GUARD ONE FIRED AND GUARD TWO WAS NEVER EVALUATED. b2e64's
+  `*(short*)(data_ov007_02103360[0]) != 0xff` test took the 0xff branch on all
+  299 ticks, so control went to func_ov007_020b3190 every time and b3360 was
+  never called. 5d wrote that "either conjunct alone accounts for the
+  observation" and that it could not say which; the answer is the first, and it
+  is the first every tick rather than sometimes. THE UNFIRED-NOT-REFUTED
+  FRAMING THIS SECTION USED WAS HONEST AND IS NOW OBSOLETE: the chain is not
+  waiting on a coin flip inside b3360, it is behind a branch that has never
+  gone the other way.
 
   WHAT THE MISS IS WORTH: the arity sweep is a census of a defect CLASS, not an
   ordering of the scene's path. It found sixteen rows of one shape and the next
@@ -1795,9 +1824,41 @@ Here those are:
     the CALLER, still compiled into the ov007 slice.
       A displacement cuts it, exactly like the two above.
 
-Measured all three ways in this lane's own configures: PORT_OV007_MCRENDER_UNSEATED
-appears 0 times before the block existed, 3 times with it, and 0 times again in
-a throwaway configure with the alias spelled at a faced name.
+AND IT COVERS A THIRD FIX SHAPE THIS LANE DID NOT NOTICE IT HAD BOUGHT, which
+the review pointed out and which is worth recording because it is free. The
+regex is anchored on `=?Render@ModelComponents@@QAE`, and QAE IS THE
+CONVENTION, not just part of the name. So if a lane leaves the alias in place
+and instead re-points it at a __cdecl target -- a static member, or a real flat
+definition compiled alongside -- the anchor stops matching and the marker
+retires on its own. Three fix shapes, one predicate, and none of them can be
+taken while leaving the marker armed.
+
+THE REVIEW RULED THE PATTERN OUT OF THIS, and the ruling is the reusable part
+rather than anything about ov007. READ-THE-FACTS-THE-FIXES-CHANGE IS NOW THE
+RULED PATTERN FOR FACE-FIXED SEAMS, superseding "read two facts" wherever the
+expected fix is not a displacement. It carries two provisos, both of which the
+review established rather than asserted:
+
+  FACTS COME FROM BUILD ARTIFACTS OR ANCHORED DIRECTIVE LINES, NEVER FROM AN
+  UNANCHORED SOURCE-TEXT MATCH. The review demonstrated the failure on this
+  very predicate: file(STRINGS) is a line scanner, so a COMMENT quoting the
+  retired directive keeps the marker armed after a correct fix. That is the
+  same "asserting a blocker that no longer ships" failure a third time, now
+  reachable through prose instead of through logic. The tree already knows this
+  shape -- alternatename_guard.py reports fifteen directives "quoted in prose,
+  NOT linker inputs" on every build -- so the fix is to anchor the match on the
+  pragma line rather than on the text. THE ANCHOR FIX IS ASSIGNED TO THE FACE
+  LANE, whose fix is the first one that makes it bite, and it is one of that
+  lane's four ruled conditions.
+
+  N FACTS REQUIRE N+1 PROOF CONFIGURES. Two facts have three arming states and
+  a fourth configure where BOTH arms pass, and only the fourth proves the AND
+  is an AND rather than one fact carrying the predicate. This lane ran three of
+  the four (0 before the block, 3 with it, 0 with the alias faced) and stopped
+  one short. THE REVIEW RAN THE FOURTH, with both arms passing, and the marker
+  arms: the conjunction is real. Recorded as a rule because "measured both
+  ways" is what 5c and this lane both said, and both times it meant fewer
+  configures than the predicate had states.
 
 NO BMP, AND THE TITLE SCREEN HAS STILL NEVER RENDERED. The scene ticks, and its
 Render slot is the one thing that does not run. Nothing about the title
@@ -2205,12 +2266,15 @@ before it has a run to describe.
     that produce them (SM64DS_SCENE_NO_RENDER=1 and SM64DS_SCENE_SLOT9=0)
     remove the thing that is broken. Neither is a skip the battery accepts for
     scene 1 and neither should become one: the row stays BLOCKED.
-  - 5D'S NEXT-SEAM PREDICTION IS NOT REFUTED, ONLY UNFIRED. b3d30 did not fault
-    in 299 Behavior ticks, which means the two-guard conjunction did not hold
-    on any of them. It does not mean either guard is permanently false, and it
-    does not mean the row is wrong: 5d's own paragraph says the row is waiting
-    on state. A run that drives the title screen further, or that reaches the
-    file-select branches, may still find it.
+  - 5D'S NEXT-SEAM PREDICTION IS NOT REFUTED, ONLY UNFIRED, AND THE REVIEW
+    NARROWED WHY. b3d30 did not fault in 299 Behavior ticks. The AE1 review's
+    entry probes then showed b3360 and b3c54 are NEVER ENTERED and b2e64 is, so
+    the chain is closed at b2e64's 0xff branch and b3360's own guard has never
+    been evaluated. WHAT IS STILL NOT PROVEN is that b2e64's test ever goes the
+    other way: 299 ticks of one scene state is not a proof about the branch,
+    only about this run. A run that drives the title screen further, or that
+    reaches the file-select branches, may still open the chain, and the row
+    stays on the books.
   - THE THREE __thiscall ALIASES ARE MEASURED, THEIR REACH IS NOT. All three
     were confirmed by disassembling the target's first instructions, so the
     convention claim is solid. Only ModelComponents::Render has been observed
@@ -2219,11 +2283,21 @@ before it has a run to describe.
     correctly from C++, was not traced. Neither was the rest of the tree: this
     lane looked at the seven aliases in one block of hal/scene_boot.cpp and at
     nothing else.
-  - THE NEW ROW'S PREDICATE IS PROVEN AS A SWITCH, NOT AS A DIAGNOSIS. It was
-    measured 0 / 3 / 0 across three configures, so it arms and retires on the
-    facts it reads. It is still armed on ENTERING the Render slot rather than
-    at the seam, so a different fault inside that slot would carry it, and the
-    row says so.
+  - THE NEW ROW'S PREDICATE IS PROVEN AS A SWITCH, NOT AS A DIAGNOSIS. Four
+    configures now cover its four states, three run by this lane (0 before the
+    block, 3 with it, 0 with the alias faced) and the fourth by the AE1 review
+    (both arms passing, and it arms), so it switches on the facts it reads and
+    the conjunction is a real AND. It is still armed on ENTERING the Render
+    slot rather than at the seam, so a different fault inside that slot would
+    carry it, and the row says so.
+  - AND ITS ALIAS FACT IS AN UNANCHORED SOURCE-TEXT MATCH, WHICH IS A KNOWN
+    HOLE SHIPPING ON PURPOSE. file(STRINGS) is a line scanner, so a comment in
+    hal/scene_boot.cpp quoting the retired directive would keep the marker
+    armed after a correct face. The review demonstrated it. It cannot fire
+    today, because the fix that would create such a comment has not been taken,
+    and the anchor fix is assigned to the face lane as one of its four ruled
+    conditions. It is recorded here rather than fixed here so that a lane
+    reading only section 8 does not inherit the predicate as sound.
   - func_ov007_020c4684 IS A NEW TRAP NAME AND WAS NOT LOOKED AT. It is entered
     twenty-seven times on the seated run and no lane has read what the ROM does
     there. It is an unmatched body returning 0, which is a hole in the decomp
