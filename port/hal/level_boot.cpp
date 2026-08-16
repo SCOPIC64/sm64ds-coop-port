@@ -1948,6 +1948,14 @@ DSSTATE_END
 // than appending one keeps it bounded by the number of DISTINCT handles a boot
 // asks for, which is what its size is argued against below.
 //
+// AND THE CACHE WAS SERVING NOTHING. Measured on the build that still had it,
+// with SM64DS_LOADFILE_AUDIT=1 over all 46 mounted levels at 300 frames each:
+// 510 LoadFile calls, ZERO of them answered out of the table. Every repeat
+// that looked like one in a per-run count turned out to have a level teardown
+// between the two requests, which drops the table, so the second call was a
+// fresh boot's first call. The dedupe's whole realised value on the level
+// battery was nil, and its one firing anywhere was the corrupt one below.
+//
 // IT USED TO BE A CACHE, AND THAT WAS THE BUG. A repeat request returned the
 // block from the first request, which the ROM's caller had freed in between --
 // so the second caller was handed memory that by then belonged to whatever
@@ -3951,8 +3959,10 @@ static void port_level_capture_kcl(void)
            collider still points at the first. Freeing on that guess returns a
            block the registry does not own and keeps the one it does; leaking
            the image is the cheaper error, so decline and say so. Measured on
-           this tree: no mounted level requests its own KCL handle twice, so
-           the branch is a net and not a workaround. */
+           this tree over all 46 mounted levels, 510 LoadFile calls: no level
+           loads ANY handle twice inside one boot, let alone its own KCL. So
+           the branch is a net that nothing currently takes, and not a
+           workaround for something that happens. */
         if (g_loadfile_loads[i] > 1) {
             if (trace)
                 std::printf("  [lvl] KCL handle %u was loaded %u times this "
