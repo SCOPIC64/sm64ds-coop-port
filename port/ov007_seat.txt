@@ -2435,7 +2435,7 @@ THE FRAME 0 REGISTERS, WHICH IS WHERE THE THREE SEPARATE:
                21896 to 23909 nonzero bytes, BG2CNT_B 0084 to 0087, BG3CNT_B
                0184 to 0187, BG1CNT_A 0007 to 0005. AND THE FRAME IS BYTE
                IDENTICAL to 5f's and 5g's, sha256
-               b675ba4528e336812ffeb4dfde4c3d18ec3fd19490bd36ad8b2696560af682,
+               b675ba5f4528e336812ffeb4dfde4c3d18ec3fd19490bd36ad8b2696560af682,
                at the same .dsstate base. Everything moved except the picture.
   A and B      frame 0 reads
                  +18 0->0  +1c 1->0  DISPCNT 00010008->00011b08
@@ -2488,7 +2488,7 @@ THE CAPTURE, and the base makes the comparison legal. Both builds link
 .dsstate at [0xbb0000, 0xc9a2e0), which is 5g's base, so this is a byte
 comparable before and after rather than the layout comparison
 notes/port-selftest-bmp-gate.md warns about. Off the START commit this lane
-reproduced 5g's frame exactly, sha256 b675ba45..., which is the control. Off the
+reproduced 5g's frame exactly, sha256 b675ba5f..., which is the control. Off the
 tip:
 
     <run status dir>/link60/status/ts1-scene1-title-drawn.bmp
