@@ -564,7 +564,8 @@ Symbolized against this tree's own walk_window.map:
     func_ov007_020aed98   +0xc2
     func_ov007_020b7090   +0x70
     func_ov007_020cc4c0   +0xcf    <- InitResources, two calls further on
-    ti_init               +0xc
+    ti_init               +0x61    <- was +0xc before this lane's own marker
+                                      notice moved the call site down
     func_0204335c / func_020433b8 / func_02043098 / func_02042fe4
     Scene::SpawnIfNecessary / port_scene_run / main
 
@@ -602,18 +603,27 @@ THE ROM, read off overlay_0007.bin at the config base:
 THE HOST, read off this lane's own walk_window.exe with dumpbin, which is why
 none of this is an argument about what MSVC ought to emit:
 
-    0042C15B  push ebx                   <- a2 = 0
-    0042C15C  push 1                     <- i  = 1
-    0042C170  push [eax+100h]            <- c
-    0042C176  call 00436230              func_ov007_020be980
-    00436234  mov esi,[ebp+8]            reads ONE argument
-    00436237  push [esi+4]               pushes ONE
-    0043623A  call 00434310              func_ov007_020bc3dc
-    00436242  add esp,4                  cleans ONE
-    00434313  mov edx,[ebp+8]            c
-    00434317  mov esi,[ebp+0Ch]          i, NEVER PUSHED BY THIS CALLER
-    0043431A  mov eax,[edx+14h]
-    0043431D  mov ecx,[eax+esi*4]        <- +0xd, the fault
+    0042C1BB  push ebx                   <- a2 = 0
+    0042C1BC  push 1                     <- i  = 1
+    0042C1D0  push [eax+100h]            <- c
+    0042C1D6  call 00436290              func_ov007_020be980
+    00436294  mov esi,[ebp+8]            reads ONE argument
+    00436297  push [esi+4]               pushes ONE
+    0043629A  call 00434370              func_ov007_020bc3dc
+    004362A2  add esp,4                  cleans ONE
+    00434373  mov edx,[ebp+8]            c
+    00434377  mov esi,[ebp+0Ch]          i, NEVER PUSHED BY THIS CALLER
+    0043437A  mov eax,[edx+14h]
+    0043437D  mov ecx,[eax+esi*4]        <- +0xd, the fault
+
+Those are TIP-BINARY addresses and the whole section is one run. An earlier
+draft quoted the same twelve instructions from a build made before the marker
+notice existed, a uniform 0x60 low, while the FAULT line beside them was fresh.
+The bytes and the reading did not change and the addresses did, which is
+exactly the trap port/tools/battery.py's own header warns about for BMPs and
+the reason a raw offset is never a marker. Re-derived here from
+build/port/walk_window.exe at the amendment SHA; the three symbol starts are
+0x0042C170, 0x00436290 and 0x00434370 in that binary's own map.
 
 THE ARITHMETIC CLOSES, so the reading is measured and not plausible. The fault
 line reports eax 00c6c580 and esi 300952a8, and 0x00c6c580 + 0x300952a8 * 4
