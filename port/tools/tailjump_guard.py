@@ -94,6 +94,10 @@ fifty", and it is exact by asking a smaller question rather than a vaguer one.
   SAME callee and refuses if they disagree, which is a free consistency check
   between a human classification and a ROM scan.
 
+  AND 32 FRAMES IS NOT 32 BYTE SPANS. ICF folds 17 of them onto one address in
+  every hosting map, so a map reads 16 distinct spans. See the ICF entry under
+  WHAT THIS GUARD DOES NOT PROVE for why that costs the guard nothing.
+
 THE LIST IS LIVE, AND A ROW RETIRES WITHOUT A HAND EDIT
 
 func_ov007_020add3c is Class A row 1 and it is the live scene-1 fault. It is
@@ -179,13 +183,27 @@ WHAT THIS GUARD DOES NOT PROVE
     around 1e-8. It is not zero. It has never fired, and the measured hit
     counts are printed under --report so a reviewer can see the separation
     rather than take it on faith.
-  * Anything about a callee that ICF folded onto another function's address.
-    /OPT:ICF is on -- seventeen of the 22 veneers are folded onto ONE address
-    in this build -- so "resolves to the callee" means "resolves to the address
-    the callee shares". A transfer to a different function folded onto the same
-    bytes reads as a transfer to the callee. The guard prints the fold count
-    for any callee address carrying more than one name so the ambiguity is
-    visible rather than assumed away.
+  * Anything about a function that ICF folded onto another one's address, and
+    THIS CUTS BOTH WAYS -- read the frame side before quoting the assertion
+    count. /OPT:ICF is on. On the CALLEE side it means "resolves to the callee"
+    really means "resolves to the address the callee shares", so a transfer to
+    a different function folded onto the same bytes reads as a transfer to the
+    callee. On the FRAME side it means the 32 declared frames are not 32
+    distinct byte spans: 17 of them fold onto ONE address in every hosting map,
+    so each map reads 16 distinct spans and the headline 96 assertions are 32
+    row-checks per map over 16 spans, not 96 independent readings.
+    WHAT THAT DOES NOT COST is the thing the guard is for, and the reason is
+    the folding rule itself: ICF folds only IDENTICAL bodies. A veneer that
+    grows one statement stops being identical to its seventeen twins and
+    unfolds into a span of its own, which is exactly the case this guard
+    exists to catch. Folding is a property of the healthy state; the regression
+    breaks it before the guard has to see through it.
+    A SECOND NAME AT AN ADDRESS IS NOT ALWAYS A FOLD, and the guard does not
+    tell the two apart: a fired /alternatename and MSVC's decorated C++
+    spelling of the same function both publish another name at one address,
+    the same reason gxband_guard's arm C excuses equal addresses. The fold
+    count printed for a callee is therefore an upper bound on how many
+    distinct functions share those bytes, not a measurement of it.
   * Anything about overlays other than 7. The pooled-load-then-branch idiom is
     a mwccarm idiom and 5d says plainly there is no reason it stops at ov007.
     No other overlay is scanned, by this guard or by anything else.
@@ -406,6 +424,20 @@ REMEDY_CALL = (
     'delete the row.' % SEAT)
 
 
+REMEDY_TU = (
+    'correct the row\'s `tu` in this file to the source build.ninja really '
+    'compiles for that frame, printed above. Two ways to land here:\n'
+    '     1. A TYPO, which is the case this check exists for. The row is not '
+    'asserting anything until the tu is right.\n'
+    '     2. THE MATCHED TU MOVED OR CHANGED EXTENSION, a .c promoted to .cpp '
+    'being the common one in this tree. Same fix,\n'
+    '        and the commit should say which measurement moved it.\n'
+    '     If instead the frame was DISPLACED to a host copy, this is not the '
+    'message you would be reading: a host copy lives\n'
+    '     outside src/ and the row retires on its own. That is the difference '
+    'this check is drawing.')
+
+
 def default_root():
     """The checkout this script lives in: <root>/port/tools/<this>."""
     here = os.path.dirname(os.path.abspath(__file__))
@@ -527,16 +559,21 @@ def derive_veneers(root, spec=VENEER):
     return tuple(rows)
 
 
-def declared_rows(root):
+def declared_rows(root, hand=None, spec=VENEER):
     """Every row: hand-declared plus derived, with the overlap cross-checked.
 
     A frame in both lists must name the same callee. That is a free agreement
     check between a human reading of a host listing and a scan of the ROM, and
     a disagreement means one of the two is wrong -- which is a refusal, not a
     row to pick between.
+
+    `hand` and `spec` are injection points for the selftest and nothing else.
+    They exist because the review found this refusal was hand-proven and
+    fixture-less: deleting the disagreement check passed the whole battery,
+    which makes it a comment rather than a check.
     """
-    veneers = derive_veneers(root)
-    hand = CLASS_A + CLASS_C
+    veneers = derive_veneers(root, spec)
+    hand = (CLASS_A + CLASS_C) if hand is None else tuple(hand)
     by_frame = {}
     for row in hand:
         if row['frame'] in by_frame:
@@ -617,6 +654,42 @@ def source_of(objsrc, target, obj, root):
     if disp.lower().startswith(rootn.lower() + '/'):
         return disp[len(rootn) + 1:], ''
     return disp, ''
+
+
+def is_decomp_source(rel):
+    """Is this path the decomp's own code, rather than a host copy?
+
+    THIS IS WHAT SEPARATES A SEAT LANDING FROM A TYPO, and it exists because
+    the review found the hole: a `tu` mistyped to ANOTHER REAL src/ FILE
+    disarmed its row at exit 0. The row was named on the green line, so it was
+    not invisible, but it read as a retirement -- which is a legitimate,
+    expected state -- rather than as the misdeclaration it is.
+
+    A DISPLACEMENT MOVES A FRAME OUT OF THE DECOMP. That is the whole shape:
+    the RT1/PC2 seat cuts the matched TU from the port slice and stands a host
+    copy under port/unmatched/ in its place. A typo does not move anything --
+    the build is still compiling decomp source for that frame, just not the
+    file the declaration names. So the two are told apart by asking where the
+    source the build REALLY used lives, which is a fact and not a convention.
+
+      src/                     the matched TU
+      build/.../host-src/      hostgen's rewrite of the matched TU. Still the
+                               matched code, transformed for the host by a
+                               reviewable tool, and objsrc_check.py's banner
+                               records that counting it as linked is CORRECT.
+      anything else            a host copy, which is what a seat produces
+
+    WHY NOT THE COUNT PIN THE REVIEW SUGGESTED. Pinning the expected assertion
+    count, or asserting zero retirements on a clean tree, closes the same hole
+    and this lane was briefed against both: either one makes the ae558 seat
+    fail the build on the day it merges, until somebody hand-edits this file to
+    accept a retirement that was the entire point of the mechanism. This asks
+    the question the count was standing in for, and it stays quiet for a real
+    seat while failing a typo.
+    """
+    p = rel.replace('\\', '/').lower()
+    return (p.startswith('src/') or p.startswith('host-src/')
+            or '/host-src/' in p)
 
 
 def _slashed(path):
@@ -859,10 +932,28 @@ def check_map(root, rows, mp, objsrc, out, report=False):
             results.append((row, 'skipped', why))
             continue
         elif src.lower() != row['tu'].replace('\\', '/').lower():
-            results.append((row, 'retired',
-                            '%s is compiled from %s (object %s), not %s'
-                            % (row['frame'], src, fobj.split(':')[-1],
-                               row['tu'])))
+            if is_decomp_source(src):
+                # NOT A SEAT LANDING. The build is still compiling decomp
+                # source for this frame, so nothing was displaced and the
+                # declaration is simply wrong. Retiring here is how a mistyped
+                # tu disarms a row behind a green.
+                fails.append((row, fva, None,
+                              "MISDECLARED ROW: %s is declared as compiled "
+                              "from %s and the build compiled it from %s.\n"
+                              "     Both are the decomp's own source, so "
+                              "nothing was displaced and this is a typo in "
+                              "the declaration, not a seat\n     landing. A "
+                              "row whose tu names the wrong real file retires "
+                              "itself and stops asserting anything, which is "
+                              "a\n     green that was never earned. Fix the "
+                              "tu; do not delete the row."
+                              % (row['frame'], row['tu'], src)))
+                results.append((row, 'broken', 'misdeclared tu'))
+            else:
+                results.append((row, 'retired',
+                                '%s is compiled from %s (object %s), not %s'
+                                % (row['frame'], src, fobj.split(':')[-1],
+                                   row['tu'])))
             continue
 
         span = bounds.span(fva, fsect)
@@ -1028,9 +1119,13 @@ def run(root, maps, build_dir=None, out=sys.stdout, report=False,
             out.write("     class   %s (%s)\n" % (row['cls'], row['cite']))
             out.write("     why     %s\n" % row['note'])
             out.write("     map     %s\n" % mp.path)
-            out.write("  REMEDY: %s\n"
-                      % (REMEDY_JUMP if row['form'] == 'jump'
-                         else REMEDY_CALL))
+            if text.startswith('MISDECLARED ROW'):
+                remedy = REMEDY_TU
+            elif row['form'] == 'jump':
+                remedy = REMEDY_JUMP
+            else:
+                remedy = REMEDY_CALL
+            out.write("  REMEDY: %s\n" % remedy)
 
     # RETIREMENT IS A MECHANISM, NOT AN EXIT. One row retiring is the AE1 seat
     # landing. EVERY row retiring is a guard that asserted nothing and would
@@ -1773,6 +1868,144 @@ def selftest():
         except Refused as e:
             case('an unnamed veneer end -> REFUSED', 2, 2, "REFUSED %s" % e,
                  wants=['do not resolve to config symbols'])
+
+        # 9b. THE DUAL-SET DISAGREEMENT. Two frames are in both the hand list
+        #     and the derived set, and the guard cross-checks that the two
+        #     name the same callee. The review found that check was
+        #     hand-proven and fixture-less: deleting it passed the battery.
+        #     These two arms are the fixture. vroot's fabricated overlay puts
+        #     a veneer at VB+0x40 jumping to VB+0xc4; a hand row claiming that
+        #     frame CALLS something else is the disagreement.
+        with open(os.path.join(vroot, 'config', 'arm9', 'overlays', 'ov007',
+                               'symbols.txt'), 'w', encoding='utf-8') as f:
+            for n, a in rows_cfg:
+                f.write("%s kind:function(arm,size=0xc) addr:0x%08x\n" % (n, a))
+        vfr = 'func_ov007_%08x' % (VB + spots[1])
+        vcal = 'func_ov007_%08x' % (VB + 0xc0 + 4)
+        try:
+            declared_rows(vroot, spec=spec,
+                          hand=({'frame': vfr, 'callee': 'somewhere_else',
+                                 'form': 'jump', 'cls': 'C', 'tu': None,
+                                 'cite': 'fixture',
+                                 'note': 'fixture disagreement'},))
+            case('a dual-set callee disagreement -> REFUSED', 2, 0,
+                 'no refusal')
+        except Refused as e:
+            case('a dual-set callee disagreement -> REFUSED', 2, 2,
+                 "REFUSED %s" % e,
+                 wants=['is hand-declared', 'somewhere_else',
+                        'will not pick'])
+        try:
+            declared_rows(vroot, hand=({'frame': vfr, 'callee': vcal,
+                                        'form': 'call', 'cls': 'A',
+                                        'tu': None, 'cite': 'fixture',
+                                        'note': 'fixture form clash'},),
+                          spec=spec)
+            case('a dual-set FORM disagreement -> REFUSED', 2, 0, 'no refusal')
+        except Refused as e:
+            case('a dual-set FORM disagreement -> REFUSED', 2, 2,
+                 "REFUSED %s" % e,
+                 wants=["hand-declared form 'call'", "derives as 'jump'"])
+        #     ...and the agreeing case must NOT refuse, or the check is just a
+        #     ban on overlap rather than a cross-check.
+        try:
+            got2, nv2, ov2 = declared_rows(
+                vroot, hand=({'frame': vfr, 'callee': vcal, 'form': 'jump',
+                              'cls': 'C', 'tu': None, 'cite': 'fixture',
+                              'note': 'fixture agreement'},), spec=spec)
+            case('an AGREEING dual-set row is accepted as overlap', 0,
+                 0 if (len(got2) == 3 and ov2 == 1) else 1,
+                 'rows %d overlap %d' % (len(got2), ov2),
+                 wants=['rows 3 overlap 1'])
+        except Refused as e:
+            case('an AGREEING dual-set row is accepted as overlap', 0, 2,
+                 "REFUSED %s" % e)
+
+        # 9c. THE ALL-ROWS-RETIRED REFUSAL, also hand-proven and fixture-less
+        #     until the review said so. A whole set retiring at once is not a
+        #     wave of seats landing, it is the tu paths having gone stale, and
+        #     a guard that asserted nothing must never print a green.
+        _fabninja(bd, [
+            ('walk_window', 'unmatched/Host_veneer_frame.cpp.obj',
+             tmp + '/port/unmatched/Host_veneer_frame.cpp'),
+            ('walk_window', 'unmatched/Host_seam_frame.cpp.obj',
+             tmp + '/port/unmatched/Host_seam_frame.cpp'),
+            ('walk_window', 'src/veneer_target.c.obj',
+             tmp + '/src/veneer_target.c'),
+            ('walk_window', 'src/seam_callee.c.obj',
+             tmp + '/src/seam_callee.c'),
+            ('walk_window', 'src/after.c.obj', tmp + '/src/after.c'),
+        ])
+        all_gone = [('_veneer_frame', 1, JF, VA(JF),
+                     'Host_veneer_frame.cpp.obj'),
+                    ('_veneer_target', 1, JC, VA(JC), 'veneer_target.c.obj'),
+                    ('_seam_frame', 1, CF, VA(CF), 'Host_seam_frame.cpp.obj'),
+                    ('_seam_callee', 1, CC_, VA(CC_), 'seam_callee.c.obj'),
+                    ('_after', 1, NEXT, VA(NEXT), 'after.c.obj')]
+        _fabexe(os.path.join(bd, 'walk_window.exe'), _code(0x600, HEALTHY))
+        m = _fabmap(os.path.join(bd, 'walk_window.map'), all_gone)
+        rc, out = go([m])
+        case('every row retiring at once -> REFUSED', 2, rc, out,
+             wants=['REFUSED', 'checked nothing', 'gone stale'],
+             unwanted=['forms OK'])
+
+        # 9d. F1: A tu MISTYPED TO ANOTHER REAL src FILE. The review's find.
+        #     It used to disarm the row at exit 0, named on the green line but
+        #     reading as a legitimate retirement. It is a typo, not a seat,
+        #     and the build is still compiling decomp source for that frame.
+        _fabninja(bd, [
+            ('walk_window', 'src/veneer_frame.c.obj',
+             tmp + '/src/veneer_frame.c'),
+            ('walk_window', 'src/veneer_target.c.obj',
+             tmp + '/src/veneer_target.c'),
+            ('walk_window', 'src/seam_frame.c.obj', tmp + '/src/seam_frame.c'),
+            ('walk_window', 'src/seam_callee.c.obj',
+             tmp + '/src/seam_callee.c'),
+            ('walk_window', 'src/after.c.obj', tmp + '/src/after.c'),
+        ])
+        m = _fabmap(os.path.join(bd, 'walk_window.map'), pubs())
+        typo = dict(JROW, tu='src/veneer_target.c')     # a REAL other src file
+        rc, out = go([m], rows=(typo, CROW))
+        case('a tu mistyped to another real src file FAILS', 1, rc, out,
+             wants=['MISDECLARED ROW', 'src/veneer_target.c',
+                    'src/veneer_frame.c', 'not a seat', 'Fix the tu'],
+             unwanted=['forms OK'])
+        #     ...and the discriminator reads the REAL source, not the declared
+        #     one. A tu that names a host copy while the build is still
+        #     compiling src/ is a misdeclaration too: the frame did not move,
+        #     so there is nothing to retire. Getting this backwards would let
+        #     anyone disarm a row by pointing its tu at port/unmatched/.
+        rc, out = go([m], rows=(dict(JROW, tu='port/unmatched/Nope.cpp'),
+                                CROW))
+        case('a tu naming a host copy that is NOT built also fails', 1, rc,
+             out, wants=['MISDECLARED ROW', 'port/unmatched/Nope.cpp',
+                         'src/veneer_frame.c'],
+             unwanted=['RETIRED'])
+        #     ...and hostgen's rewrite of a matched TU is NOT a displacement.
+        _fabninja(bd, [
+            ('walk_window', 'src/veneer_frame.c.obj',
+             tmp + '/build/port/host-src/src/veneer_frame.cpp'),
+            ('walk_window', 'src/veneer_target.c.obj',
+             tmp + '/src/veneer_target.c'),
+            ('walk_window', 'src/seam_frame.c.obj', tmp + '/src/seam_frame.c'),
+            ('walk_window', 'src/seam_callee.c.obj',
+             tmp + '/src/seam_callee.c'),
+            ('walk_window', 'src/after.c.obj', tmp + '/src/after.c'),
+        ])
+        rc, out = go([m])
+        case('a hostgen rewrite is misdeclared, never retired', 1, rc, out,
+             wants=['MISDECLARED ROW', 'host-src'],
+             unwanted=['RETIRED'])
+        _fabninja(bd, [
+            ('walk_window', 'src/veneer_frame.c.obj',
+             tmp + '/src/veneer_frame.c'),
+            ('walk_window', 'src/veneer_target.c.obj',
+             tmp + '/src/veneer_target.c'),
+            ('walk_window', 'src/seam_frame.c.obj', tmp + '/src/seam_frame.c'),
+            ('walk_window', 'src/seam_callee.c.obj',
+             tmp + '/src/seam_callee.c'),
+            ('walk_window', 'src/after.c.obj', tmp + '/src/after.c'),
+        ])
 
         # 10. THE DECLARATION ITSELF, against this tree ---------------------
         #     Not a fixture: the shipped rows must resolve against this

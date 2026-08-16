@@ -1844,9 +1844,12 @@ nothing can desynchronise on the data islands 5d already got bitten by.
     VENEER      22 frames   the same, and DERIVED rather than listed
 
     32 distinct frames (two are in both the hand Class C list and the derived
-    veneer set, and the guard cross-checks that the two name the same callee).
-    96 assertions on this tree, over smoke_player, walk_window and
-    walk_window_hires.
+    veneer set, and the guard cross-checks that the two name the same callee
+    AND the same form, refusing if either disagrees). 96 assertions on this
+    tree, over smoke_player, walk_window and walk_window_hires. Those 32
+    frames are 16 distinct byte spans per map, not 32, because ICF folds the
+    seventeen c3d1c veneers onto one address; the unproven-items list below
+    carries what that does and does not cost.
 
 THE UNIT IS THE FRAME AND NOT THE ARITY ROW, which is why the guard can be
 exact where this file has to say "roughly fifty". A row is a (declaring TU,
@@ -1923,6 +1926,24 @@ is not the declared one the row RETIRES -- named and counted on the guard's own
 output line, never silently -- and putting the matched TU back re-arms it in
 the same build. No hand edit either way.
 
+AND A MISTYPED tu IS NOT A RETIREMENT, which the review had to point out. A
+`tu` retyped to ANOTHER REAL src/ FILE used to disarm its row at exit 0: it was
+named on the green line, but it read as a legitimate retirement rather than as
+the typo it is. The two are now told apart by where the source the build REALLY
+used lives, which is a fact rather than a convention. A displacement moves a
+frame OUT of the decomp, to a host copy under port/; a typo moves nothing, and
+the build is still compiling src/ or hostgen's rewrite of it for that frame.
+Real source still decomp source and not the declared one is a MISDECLARED ROW
+and fails the build.
+
+THE COUNT PIN THE REVIEW OFFERED WAS THE OTHER WAY TO CLOSE IT AND IT IS THE
+WRONG ONE HERE, said plainly because it was the reviewer's own suggestion.
+Pinning the expected assertion count, or asserting zero retirements on a clean
+tree, would make the ae558 seat fail the build on the day it merges, until
+somebody hand-edited this guard to accept the one retirement the whole
+mechanism exists to produce. The discriminator above asks the question the
+count was standing in for and stays quiet for a real seat.
+
 IT IS TWO FACTS AND NOT ONE FOR THE REASON port/tools/objsrc_check.py RECORDS:
 an MSVC map names an object by its BASENAME ALONE, and this tree has had
 eighteen cases where a host copy and a matched TU carried the same basename.
@@ -1959,12 +1980,27 @@ WHAT LANE TJG DID NOT DO, AND WHAT THE GUARD DOES NOT PROVE
     when its four displacement bytes resolve exactly to the callee, so a false
     hit needs five specific bytes at one position. That has never fired and the
     hit counts print under --report, but the probability is not zero.
-  - ICF MAKES "RESOLVES TO THE CALLEE" MEAN "RESOLVES TO THE ADDRESS THE
-    CALLEE SHARES". /OPT:ICF is on and this build folds all seventeen c3d1c
-    veneers onto one address. A transfer to a different function folded onto
-    the same bytes would read as a transfer to the callee. The guard prints the
-    fold count for any callee address carrying more than one name so the
-    ambiguity is visible; it cannot remove it.
+  - ICF CUTS BOTH WAYS AND THE FRAME SIDE IS WHERE THE HEADLINE LIVES.
+    /OPT:ICF is on. On the CALLEE side, "resolves to the callee" means
+    "resolves to the address the callee shares", so a transfer to a different
+    function folded onto the same bytes would read as a transfer to the
+    callee; the guard prints the fold count for any callee address carrying
+    more than one name so the ambiguity is visible, and cannot remove it. On
+    the FRAME side, the 32 declared frames are NOT 32 distinct byte spans: the
+    seventeen c3d1c veneers fold onto ONE address in every hosting map, so
+    each map reads 16 distinct spans and the 96 assertions are 32 row-checks
+    per map over 16 spans rather than 96 independent readings. Measured on all
+    three hosting maps, 32 hosted and 16 spans in each.
+    THIS COSTS THE GUARD NOTHING, and the reason is the folding rule: ICF
+    folds only IDENTICAL bodies, so a veneer that grows one statement stops
+    being identical to its twins and unfolds into a span of its own. Folding
+    is a property of the healthy state and the regression breaks it before the
+    guard has to see through it.
+    A SECOND NAME AT AN ADDRESS IS ALSO NOT ALWAYS A FOLD. A fired
+    /alternatename and MSVC's decorated C++ spelling both publish another name
+    at one address, which is the same thing gxband_guard's arm C excuses. The
+    guard does not tell an alias from a fold, so a printed fold count is an
+    upper bound on how many distinct functions share those bytes.
   - FRAME SPANS COME FROM THE NEXT MAP SYMBOL IN THE SAME IMAGE SECTION. A
     frame is measured from its own map address to the next STRICTLY GREATER
     one, which is what makes the ICF-folded veneers measurable at all, and the
