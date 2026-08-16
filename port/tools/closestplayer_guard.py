@@ -76,6 +76,30 @@ RULES = [
             "hosted overlay carrying a known raw reader."
         ),
     },
+    {
+        # Run link60 lane FDR2. Found while sizing the dWipe_c motion slots:
+        # src/func_0202f428.c (vtable slot 0x08, AdvanceFade) calls this with
+        # empty parentheses, and include/decl_FaderColor.h declares it (void),
+        # so the call is not even a warning. On ARM it is byte-correct -- the
+        # ROM's `bl` at 0x0202f440 leaves r0 holding the receiver, which is the
+        # same trick src/func_0202ed08.c and Heap::_Destroy rely on -- and on
+        # the host the receiver is simply gone. The TU is NOT in any slice
+        # today and the guard passes; this row is here so that the day someone
+        # seats slot 0x08 the build refuses instead of shipping the call. See
+        # port/fader_boot_map.txt section 4a.
+        "symbol": "_ZN10FaderColor11AdvanceFadeEv",
+        "pattern": re.compile(r"_ZN10FaderColor11AdvanceFadeEv\s*\(\s*\)"),
+        "remedy": (
+            "FaderColor::AdvanceFade is thiscall. The ROM reaches it with the "
+            "receiver riding through in r0 and the src spells the call with no "
+            "argument at all, so on the host it runs on whatever was in the "
+            "receiver register. Give the src TU a receiver and pass it, or "
+            "host copy the caller under port/unmatched the way "
+            "Actor_ClosestPlayer_OverlayReaders.cpp does, and keep the raw src "
+            "out of the slice until then. Slot 0x08 of the dWipe_c table is "
+            "the caller this row was written for."
+        ),
+    },
 ]
 
 # CMake commands that ADD sources to the build. A literal .c / .cpp path
@@ -281,8 +305,15 @@ def main():
         )
         return 0
 
+    # The headline names the SYMBOL THAT MATCHED, not a hardcoded one. It used
+    # to read "zero-argument Actor::ClosestPlayer call" whatever fired, which
+    # was harmless while RULES had one row and became a wrong answer the moment
+    # it had two: run link60 lane FDR2 added _ZN10FaderColor11AdvanceFadeEv and
+    # an offender in src/func_0202f428.c would have been reported under the
+    # other rule's name, sending the reader to the wrong fix. The remedy block
+    # below was already per-symbol and did not have the bug.
     for rel, lineno, symbol, _remedy in offenders:
-        print("{}:{}: zero-argument Actor::ClosestPlayer call".format(rel, lineno))
+        print("{}:{}: zero-argument {} call".format(rel, lineno, symbol))
 
     # Print each distinct remedy once, so a multi row future stays readable.
     print("")

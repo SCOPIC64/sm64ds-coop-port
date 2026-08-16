@@ -805,62 +805,62 @@ extern "C" void port_scene_fill_curling(void)
         std::fflush(stdout);
     }
 
-    /* ---- AND THE ONE BEHIND THAT ----------------------------------------
-       Run link60 lane NFS, and it is the THIRD in this chain: the fader seat
-       let the scene reach InitResources, the file-system seat let
-       InitResources finish, and what the scene reached next is the fader
-       again -- this time a defect in that seat's stub ABI.
+    /* ---- AND THE ONE BEHIND THAT, WHICH IS NO LONGER A BLOCKER ----------
+       Run link60 lane NFS added this as the THIRD blocker in the chain: the
+       fader seat let the scene reach InitResources, the file-system seat let
+       InitResources finish, and what the scene reached next was the fader
+       again -- a defect in that seat's stub ABI.
 
            func_02043288 -> mb_bbeh -> func_ov004_020b0620 (slot 7)
                          -> Scene::BeforeBehavior
 
-       which JUMPS PAST the data_0209f5bc->vt->f14 site at 004B45EA,
-       dispatches [eax+18h] (seated, silent), and then at 004B46C5..46D1
-       pushes 0 and 1Eh and calls [eax+0Ch] WITH NO CALLER CLEANUP. That slot
-       holds hal/fdr_arm9_fader_seat.cpp's fdr_s0c, an
-       `int __fastcall(void *, void *)` stub that takes both parameters in
-       registers and cleans nothing, so eight bytes leak: pop esi takes 0x1E,
-       pop ebp takes 0, and ret pops the saved esi, which is the Scene
-       pointer. The crash dump is that arithmetic exactly (eax 1, esi 1e,
-       ebp 0, eip 307FB114). Slot 0x10 at 004B460B has the identical defect
-       on the other branch; its trap has never printed only because the run
-       dies on 0x0c first.
+       Scene::BeforeBehavior pushes two arguments into slot 0x0c and cleans
+       NOTHING after the call, because MSVC's __thiscall is callee-cleans. The
+       trap stub in the slot was `int __fastcall(void *, void *)`, which takes
+       both parameters in registers and cleans nothing either, so eight bytes
+       leaked and the caller's own epilogue read them back: pop esi took the
+       0x1E, pop ebp took the 0, and ret popped the saved esi, which was the
+       Scene pointer. Slot 0x10 carried the same defect on the other branch.
 
-       READ 7a AS REFUTED, NOT AS PREDICTIVE. port/fader_boot_map.txt section
-       7a argued a fastcall stub with no stack parameters is balanced for both
-       caller shapes. The caller here pushes two arguments and cleans neither,
-       which is a third shape, and all twelve stubs in the fill were written
-       on that argument. An earlier version of this comment credited 7a with
-       predicting the fault and named f14 as the dying call; both were wrong
-       and the correction is the reviewer's instruction-level symbolization.
+       RUN LINK60 LANE FDR2 FIXED THAT, and it was a signature defect rather
+       than a missing body: the two stubs now declare the two stack parameters
+       their call sites push and clean eight, and the audit of all twelve is
+       port/fader_boot_map.txt section 9. The same lane then put the ROM's own
+       func_0202f928 and func_0202f708 behind slots 0x0c and 0x10. Scene 374
+       runs its 300 frames under SM64DS_FAULTS_FATAL=1 either way, so the
+       SCENE_BLOCKED row in port/tools/battery.py is retired rather than
+       converted a third time.
 
-       WHY THIS LINE EXISTS AT ALL, and it is not decoration. The fault is
-       QUARANTINED: hal/actor_classes.cpp freezes the actor and the frame
-       continues, so a bare 300-frame run exits 0 and reads like a pass unless
-       SM64DS_FAULTS_FATAL is set. battery.py sets it and is red without this
-       row; a reader running the scene by hand is not and would be told the
-       scene works. That is exactly the mistake this line stops.
+       WHAT THIS LINE MEANS NOW, and it is narrower than it was. Not "the
+       scene cannot run" -- it runs. Not "the setters do not fire" -- they run
+       299 times on this scene. It means SLOT 0x08, dWipe_c::AdvanceFade, is
+       still a named trap, so nothing steps a fade that the setters armed.
+       Section 4a of the map is why it is not seated: src/func_0202f428.c
+       calls _ZN10FaderColor11AdvanceFadeEv with no argument, which is
+       receiver-destroying on the host, and the slot has no caller in this
+       image to pay for shipping that.
+
+       A SECOND REASON THE WIPE DOES NOT MOVE IS NOT THIS LINE'S AND IS WORTH
+       KNOWING ANYWAY: the setters install func_0202f2c4 on IRQ 2 and nothing
+       on the host raises it, so the per-scanline table they build is never
+       pushed at the blend registers. Seating 0x08 alone would not finish this.
 
        IT ASKS A PREDICATE, NOT A STRING. port_fdr_motion_slots_unseated()
-       compares data_020926f0's three motion slots against the traps
-       hal/fdr_arm9_fader_seat.cpp installed, so the day somebody seats
-       func_0202f428 / func_0202f928 / func_0202f708 this stops printing on
-       its own and battery.py reports BLOCK RETIRED. Seating 0x0c alone only
-       moves the fault to 0x10; the whole fill's stub signatures need the
-       audit. */
+       compares data_020926f0's slot 0x08 against the trap
+       hal/fdr_arm9_fader_seat.cpp installed, so it cannot rot into a
+       hardcoded 1. */
     if (IsMinigameActorID((unsigned)port_scene_env_want()) &&
         port_fdr_motion_slots_unseated()) {
-        std::printf("[scene] MINIGAME BLOCKED: the dWipe_c motion slots are "
-                    "still named traps, so the first behaviour tick dies in "
-                    "Scene::BeforeBehavior. It pushes two arguments at "
-                    "004B46D1 and calls slot 0x0c (SetBackwardTime, ROM body "
-                    "func_0202f928) without cleaning them; the fastcall trap "
-                    "stub cleans nothing either, eight bytes leak, and the "
-                    "ret lands on the Scene pointer. Slot 0x10 has the same "
-                    "defect. The file system seat is DONE and this is the "
-                    "next one: it belongs with port/fader_boot_map.txt "
-                    "sections 7a and 9, not with the minigame or the file "
-                    "system.\n");
+        std::printf("[scene] MINIGAME FADE MOTION MISSING: dWipe_c vtable slot "
+                    "0x08 (AdvanceFade, ROM body func_0202f428) is still a "
+                    "named trap, so nothing steps a fade the time setters "
+                    "armed. Slots 0x0c and 0x10 ARE the ROM's own bodies now "
+                    "and the scene is not blocked on any of this: 374 "
+                    "completes 300 frames under FAULTS_FATAL. Seating 0x08 "
+                    "would not finish the job on its own either -- the "
+                    "setters drive the wipe from IRQ 2, which nothing on the "
+                    "host raises. See port/fader_boot_map.txt sections 4 and "
+                    "4a.\n");
         std::fflush(stdout);
     }
 

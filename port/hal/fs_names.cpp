@@ -202,7 +202,25 @@ namespace {
    Loaded once, lazily, from the catalog products. Refusing loudly rather than
    limping is deliberate and it is hal/fs.cpp's precedent: a port that quietly
    serves nothing for a missing catalog produces a crash three layers away from
-   the cause. */
+   the cause.
+
+   IT REFUSES WITH exit(2) AND NOT WITH abort(), which is run link60 lane FDR2
+   taking the handover port/nfs_names_map.txt section 8 left open. The messages
+   below are unchanged, word for word; only the way the process leaves is
+   different, and the reason is that abort() told the truth badly. Every target
+   carrying this seat calls FS_Init from a static initialiser, so a tree whose
+   build/assets predates the seat dies BEFORE main -- and MSVC's abort() raises
+   STATUS_STACK_BUFFER_OVERRUN, so the shell reports 0xC0000409 and every crash
+   reporter in the chain reads a missing catalog file as a memory-safety crash
+   in the port. It is a configuration error. exit(2) is the same loudness on
+   stderr, one small integer on the way out, and a code a script can branch on.
+
+   WHAT IS GIVEN UP, said plainly: exit() runs atexit handlers and static
+   destructors on the way out and abort() does not, so a failure this early
+   unwinds more of a half-built program than it used to. Nothing here depends
+   on that unwind succeeding -- the message is already on stderr and flushed by
+   the time exit is called -- but a successor debugging a HANG rather than a
+   refusal should look here first. */
 struct NitroTables {
     int loaded;
     u32 fnt_off, fnt_size, fat_off, fat_size;
@@ -231,7 +249,8 @@ u8 *slurp(const char *what, const char *name, u32 want)
         fprintf(stderr, "FATAL: NitroFS %s table missing: %s\n"
                 "       run tools/asset_catalog.py generate <rom>\n",
                 what, path);
-        abort();
+        fflush(stderr);
+        exit(2);
     }
     fseek(f, 0, SEEK_END);
     got = ftell(f);
@@ -239,12 +258,14 @@ u8 *slurp(const char *what, const char *name, u32 want)
     if ((u32)got != want) {
         fprintf(stderr, "FATAL: NitroFS %s table is %ld bytes, nitrofs.tsv "
                 "says %u -- regenerate the catalog\n", what, got, want);
-        abort();
+        fflush(stderr);
+        exit(2);
     }
     buf = (u8 *)malloc(want ? want : 1);
     if (!buf || fread(buf, 1, want, f) != want) {
         fprintf(stderr, "FATAL: NitroFS %s table short read: %s\n", what, path);
-        abort();
+        fflush(stderr);
+        exit(2);
     }
     fclose(f);
     return buf;
@@ -264,7 +285,8 @@ void tables_load(void)
     if (!f) {
         fprintf(stderr, "FATAL: NitroFS table index missing: %s\n"
                 "       run tools/asset_catalog.py generate <rom>\n", path);
-        abort();
+        fflush(stderr);
+        exit(2);
     }
     fgets(line, sizeof line, f); /* header row */
     while (fgets(line, sizeof line, f)) {
@@ -283,7 +305,8 @@ void tables_load(void)
         fprintf(stderr, "FATAL: %s carries no FNT/FAT spans -- regenerate the "
                 "catalog with a tools/asset_catalog.py that writes them\n",
                 path);
-        abort();
+        fflush(stderr);
+        exit(2);
     }
     g_tables.fnt = slurp("FNT", "nitrofs_fnt.bin", g_tables.fnt_size);
     g_tables.fat = slurp("FAT", "nitrofs_fat.bin", g_tables.fat_size);

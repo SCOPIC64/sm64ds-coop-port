@@ -88,6 +88,17 @@ NAMED = [
     # spelled as a C literal for the reason every other row here exists: the
     # port does not write Nintendo's bytes down, it reads them.
     "data_0209a048",
+    # Run link60 lane FDR2: the two BG palette words the dWipe_c time setters
+    # push through GX/GXS::LoadBGPltt. func_0202f708 loads data_020926c8 and
+    # func_0202f928 loads data_020926cc, each with a length of 2, on the
+    # `type != 2` branch; the type == 2 branch uses their bss counterparts
+    # data_0209f600 / data_0209f604, which are runtime storage and are hosted
+    # in port/hal/fdr_arm9_fader_seat.cpp instead. Four bytes each by ROM span
+    # (the next symbols are 0x020926cc and 0x020926d0) and reloc-free: the
+    # nearest `from:` rows in config/arm9/relocs.txt are 0x020926c4 below and
+    # 0x020926dc above, so nothing inside either span relocates. They are the
+    # cartridge's own colours and are read here rather than written down.
+    "data_020926c8", "data_020926cc",
     "data_02082178", "data_02090e80", "data_020914a0",
     "data_02092584", "data_02092654", "data_02092668", "data_0208e500", "data_02086a58", "data_0208e430", "data_02086b58",
     "data_0208e434", "data_0208e438", "data_0208e43c", "data_0208e440",

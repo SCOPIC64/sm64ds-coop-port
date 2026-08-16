@@ -146,67 +146,118 @@ func_0202ed7c and func_0202ecfc, each disassembled with capstone and compared
 instruction for instruction. The guard went from FAIL (four new seats) to OK.
 
 
-4. THE TABLE, AND THE THREE SLOTS THAT ARE STILL TRAPS
+4. THE TABLE, AND THE ONE SLOT THAT IS STILL A TRAP
 
 TEN SLOTS, MEASURED. config/arm9/relocs.txt carries `kind:load module:main`
 rows at 0x020926f0 through 0x02092714 and stops; 0x02092718 is a literal zero
 and 0x0209271c relocates to 0x02086ecc, which is 7dView_c's typeinfo, so a
 different class's vtable begins at 0x02092720.
 
-  off   ROM body        name                  state       cost to seat
-  0x00  func_0202fc08   ~dWipe_c (D1)         SEATED      -
-  0x04  func_0202fbc8   (D0)                  SEATED      -
-  0x08  func_0202f428   AdvanceFade           NAMED TRAP  see below
-  0x0c  func_0202f928   SetBackwardTime       NAMED TRAP  see below
-  0x10  func_0202f708   SetForwardTime        NAMED TRAP  see below
-  0x14  func_0202ee38   IsAtStart             SEATED      -
-  0x18  func_0202eddc   IsAtEnd               SEATED      -
-  0x1c  func_0202ed7c   IsBetweenStartAndEnd  SEATED      -
+  off   ROM body        name                  state       tranche
+  0x00  func_0202fc08   ~dWipe_c (D1)         SEATED      FDR
+  0x04  func_0202fbc8   (D0)                  SEATED      FDR
+  0x08  func_0202f428   AdvanceFade           NAMED TRAP  see 4a
+  0x0c  func_0202f928   SetBackwardTime       SEATED      FDR2
+  0x10  func_0202f708   SetForwardTime        SEATED      FDR2
+  0x14  func_0202ee38   IsAtStart             SEATED      FDR
+  0x18  func_0202eddc   IsAtEnd               SEATED      FDR
+  0x1c  func_0202ed7c   IsBetweenStartAndEnd  SEATED      FDR
   0x20  func_0202ed08   SetToEnd              VENEER      see section 5
-  0x24  func_0202ecfc   SetToStart            SEATED      -
+  0x24  func_0202ecfc   SetToStart            SEATED      FDR
   0x28  --              overhang              NAMED TRAP  not the ROM's
   0x2c  --              overhang              NAMED TRAP  not the ROM's
 
-THE THREE TRAPS ARE THE NEXT CHUNK and they are one coherent piece of work: the
-five seated slots are the fade STATE, the three unseated are the fade MOTION.
-Their closure, measured against walk_window.map at a2a24f7c5:
+THE MOTION CHUNK LANDED, run link60 lane FDR2, and FDR'S SIZING OF IT WAS LOW
+IN BOTH DIRECTIONS. The paragraph this replaces read "roughly 7 src TUs ...
+plus four arm9 data symbols to host and two more faces", measured by reading
+each body's own callees against walk_window.map. Re-measured with
+port/tools/closure.py against the real map at 34d3a3130, the two setters alone
+need NINE TUs and NINE data symbols. The gap is entirely in the second layer:
+func_0202f58c reaches func_0202f290, which reaches func_0202ee94 and
+func_0202efa0, and the HBlank handler func_0202f2c4 reaches func_0202f3a4 --
+five TUs the first-layer reading never saw, and with them the scanline table
+data_0209f648 and the five flag and index words around it.
 
-  src/func_0202f428.c   (0x164, marker) needs
-      func_0202f290                       NOT in the map, new TU
-      _ZN10FaderColor11AdvanceFadeEv      NOT in the map; the TU exists at
-                                          src/engine/fader/, needs a face too
-      func_0202fb30                       already linked
-      _ZN3G2x18SetBlendBrightnessEPVtts   already linked
-  src/func_0202f928.c   (0x208, marker) needs
-      func_0202f2c4, func_0202f58c        NOT in the map, two new TUs
-      _ZN15FaderBrightness15SetBackwardTimeEj  TU rides slice_gate1 only;
-                                          needs a face on this family
-      data_020926cc, data_0209f604        arm9 data, NOT hosted anywhere
-      GX/GXS::LoadBGPltt, IRQ::EnableIRQs, IRQ::SetIRQHandler,
-      CP15::FlushAndInvalidateDataCache, func_02053c10   all already linked
-  src/func_0202f708.c   (0x220, marker) needs
-      func_0202f2c4, func_0202f58c        shared with 0x0c
-      _ZN15FaderBrightness14SetForwardTimeEj   already faced in
-                                          hal/method_faces.cpp
-      data_020926c8, data_0209f600        arm9 data, NOT hosted anywhere
+  SEATED BY THIS TRANCHE, nine TUs:
 
-  So the chunk is roughly: 3 marker bodies + func_0202f290 + func_0202f2c4 +
-  func_0202f58c + FaderColor::AdvanceFade = 7 src TUs, plus whatever those four
-  pull, plus four arm9 data symbols to host and two more faces. Each of the
-  three marker bodies needs its own ROM ruling in
-  port/tools/inferred_stub_adjudicated.txt first; none of the three is a stub,
-  so those rulings are real work rather than "bx lr, nothing to guess wrong".
+    src/func_0202f928.c        slot 0x0c, the ROM's SetBackwardTime
+    src/func_0202f708.c        slot 0x10, the ROM's SetForwardTime
+    src/func_0202f58c.c        the table bring-up both setters call
+    src/func_0202f290.c        picks the type-2 builder or the ordinary one
+    src/func_0202ee94.c        the type-2 builder
+    src/func_0202efa0.c        the ordinary one, a 192-line 4-byte gradient
+    src/func_0202f2c4.c        the HBlank handler the setters install
+    src/func_0202f3a4.c        its vblank-edge reset
+    src/engine/fader/_ZN15FaderBrightness15SetBackwardTimeEj.cpp
 
-  data_020926c8 and data_020926cc sit just below the vtable in arm9 .data and
-  are the two-byte BG palettes the setters push through GX/GXS::LoadBGPltt.
-  data_0209f600 and data_0209f604 are their bss counterparts. All four need
-  host storage before either setter can be seated.
+  ONE NEW FACE, _ZN15FaderBrightness15SetBackwardTimeEj, the SetBackwardTime
+  half of the pair hal/method_faces.cpp already owns the SetForwardTime half
+  of. It takes THREE parameters where the method takes one: the ROM's `bl` at
+  0x0202f940 carries r0, r1 and r2 with no reload, which is why
+  src/func_0202f928.c keeps a third parameter it never reads and says so in
+  its own comment. Both sides are cdecl and the caller cleans, so carrying it
+  costs nothing and dropping it would silently change the src.
 
-WHETHER THE THREE ARE NEEDED AT ALL IS MEASURED, NOT ASSUMED: the 300-frame
-scene-374 run after this seat fires NONE of the three traps before its fault.
-That is a statement about that run, not about the class, and it is exactly why
-the slots print rather than silently returning 0.
+  NINE DATA SYMBOLS, two from the ROM and seven zeroed:
 
+    data_020926c8, data_020926cc   arm9 .data, 4 bytes each by ROM span, the
+        BG palette words the setters push through GX/GXS::LoadBGPltt with a
+        length of 2. Reloc-free over both spans (the nearest `from:` rows are
+        0x020926c4 below and 0x020926dc above), so they are byte-hosted from
+        extracted/ through port/tools/romdata.py rather than written down.
+    data_0209f600, data_0209f604   bss, their type == 2 counterparts.
+    data_0209f5f8, data_0209f5fc   bss, func_0202f58c's sub-engine select and
+        the handler's "table is live" flag.
+    data_0209f608, data_0209f60c   bss, the working and source indices of the
+        double buffer.
+    data_0209f648                  bss, 0x600: the table itself, two
+        0x300-byte halves of 192 scanlines x 4 bytes. The span is the delta to
+        data_0209fc48 and it agrees with the 0x300 stride the code indexes by.
+
+  All seven bss symbols are hosted in hal/fdr_arm9_fader_seat.cpp's .dsstate
+  block, so a save state captures the fade mid-motion rather than restoring an
+  object that points at a stale table.
+
+4a. SLOT 0x08 IS STILL A TRAP, AND THAT IS A RULING.
+
+func_0202f428 was disassembled and ruled REAL_DECOMP with the other two
+(port/tools/inferred_stub_adjudicated.txt). It is not seated, for two reasons
+that hold together and would not hold apart.
+
+THE SRC TU IS HOST-BROKEN in exactly the way section 5 describes for
+src/func_0202ed08.c. Its `type == 1` branch is
+
+    0202f440  bl  0x020174e0        _ZN10FaderColor11AdvanceFadeEv
+
+with no `mov r0, r4` in front of it, because on ARM r0 still holds the
+receiver from entry. src spells that as `_ZN10FaderColor11AdvanceFadeEv()` and
+include/decl_FaderColor.h declares it `(void)`, so the call is not even a
+warning -- and on the host the receiver is gone. Unlike slot 0x20, the broken
+call is INSIDE a larger body rather than being the whole of it, so there is no
+veneer to route around: seating the body means shipping the call.
+
+AND THERE IS NOTHING TO BUY. Slot 0x08 has NO CALL SITE in this image; section
+9a enumerates them and explains why the port's own fade driver
+(hal/fader_wipes.cpp:port_fader_advance, which dispatches 0x08 on
+data_0209d4b0[0]) cannot reach this object: nothing writes it there.
+func_0202f58c does not, and the only writers in the link write a different
+fader. So the slot would be a linked, undriven body carrying a receiver-
+dropping call.
+
+THE REFUSAL IS NOW MECHANICAL RATHER THAN WRITTEN DOWN.
+port/tools/closestplayer_guard.py carries a rule for
+_ZN10FaderColor11AdvanceFadeEv, so the day someone puts src/func_0202f428.c in
+a slice the build stops with the remedy printed. The guard passes today
+because the TU is in no slice, which is the same state it reports for
+func_0202ed08.
+
+WHAT THE MOTION SEATS DO AND DO NOT MAKE HAPPEN. The two setters now run for
+real on scene 374 -- they write the eight blend registers, build both halves of
+the scanline table and install the ROM's HBlank handler. THE FADE STILL DOES
+NOT MOVE, and the reason is not this table: the motion comes from IRQ 2, which
+nothing on the host raises, and from AdvanceFade, which nothing calls. That is
+in the unproven items rather than in this paragraph's conclusion, because it is
+a statement about today's host and not about the class.
 
 5. A DECOMP-SIDE DEFECT FOUND ON THE WAY: src/func_0202ed08.c
 
@@ -280,6 +331,12 @@ a regression assertion on this seat.
 7. TWO HAZARDS THIS SEAT DOES NOT OWN, WRITTEN DOWN SO THEY ARE NOT REDISCOVERED
 
 7a. TWO CALLING CONVENTIONS THROUGH ONE TABLE.
+[REFUTED, AND NOW REPLACED. Run link60 lane FDR2 enumerated every dispatch site
+in the image and found THREE caller shapes rather than two; the fill's twelve
+signatures were re-declared against the measurement and the crash below is
+gone. Section 9 is the audit and supersedes this paragraph and the note under
+it. Kept because a reader who arrives here first should learn the mechanism
+before the conclusion.]
 [REFUTED IN PART, run link60 lane NFS, coordinator note. The paragraph below
 argues the fill's no-stack-parameter __fastcall thunks are balanced for both
 caller shapes. Scene 374's first behaviour tick FALSIFIED that for the pushed-
@@ -350,12 +407,260 @@ both of them say so on stderr. Fixing it goes with the three motion slots.
     linked ROM functions.
 
 
-9. UNPROVEN ITEMS
+9. THE TWELVE STUB SIGNATURES, AUDITED AGAINST EVERY CALLER
 
-  * The three trap slots (0x08, 0x0c, 0x10) have never been dispatched. "They
-    are not needed" is true of one 300-frame run of one scene and of nothing
-    else. Any other minigame, and the level path's own fader use, may reach
-    them.
+Run link60 lane FDR2, worktree C:/tmp/f2, branch s4-fdr2-motion, off 34d3a3130.
+This is the audit port/nfs_names_map.txt section 7 asked for and the answer to
+7a above. It is measured on THIS LANE'S OWN walk_window.exe: every address in
+it was disassembled out of that binary, and none of NFS's addresses is quoted,
+because the two builds do not share a layout.
+
+9a. HOW THE SITES WERE FOUND, so the enumeration can be checked rather than
+believed. Three passes, because no one of them is complete:
+
+  * MECHANICAL. Every function in walk_window.map's .text was disassembled and
+    swept for the pattern "load the object out of a watched global, load its
+    vptr, call through a slot of it". The watched globals were data_0209f5bc
+    (the INSTALLED fader), data_0209f61c (the object), data_020926f0 (the table
+    itself), and data_0209d4ac and data_0209d4b0, which Scene::SetFaders and
+    the fade driver also point at faders. Fifteen sites.
+
+    AND THE SWEEP HAS A BLIND SPOT, WHICH IT COST ONE SITE TO FIND. It is a
+    LINEAR disassembly carrying per-register state, so it loses a vptr across a
+    conditional branch: a call at a JUMP TARGET, whose vptr was loaded before
+    the jump and whose register the fall-through path overwrote in between, is
+    invisible to it. Scene::BeforeBehavior+0xd4 is exactly that shape -- the
+    vptr is loaded at +0x53, the `je` at +0x55 skips forward, and the
+    fall-through writes EAX twice before the target is reached -- and the sweep
+    did not report it. Review found it. It is in 9c now, and the sweep's output
+    should be read as a floor rather than as an enumeration.
+  * BY ADDRESS, the pass that closes that gap. Every function above was
+    re-disassembled whole and EVERY `call dword ptr [reg + imm]` in it listed,
+    with no state tracking to lose, and each one's receiver read by hand. That
+    is what reconciles: slot 0x14's nine, slot 0x18's four, and the calls that
+    look like this table's and are not -- ProcessKuppaScript's other seven
+    dispatch on the hard literal 0xc0cce8, and FUN_02029980's 0x0c and
+    FUN_020299f4's 0x10 dispatch on `[data_0209f324] + 0x240`. Both of those
+    are other objects and neither is reachable from data_0209f5bc.
+  * BY HAND, for the receivers a global sweep cannot see: a dispatch on a
+    FUNCTION PARAMETER. Scene::SetFaders' `thiz->v24()` and `thiz->v20()` are
+    the two that matter, because func_ov004_020b0930 and func_ov004_020aeb24
+    both call SetFaders with &data_0209f61c. func_0202ed7c's `m14()`/`m18()`
+    are the same shape on its own receiver.
+  * BY HAND, for a dispatch the source does not spell at all: the matched
+    ?IsBetweenStartAndEnd@FaderBrightness@@QAEHXZ re-dispatches through the
+    receiver's table, and it is the site that changed this seat's design.
+
+WHAT DOES NOT REACH THE TABLE, recorded so it is not re-derived. The port's
+per-frame fade driver hal/fader_wipes.cpp:port_fader_advance dispatches slot
+0x08 on data_0209d4b0[0], the fader IN MOTION. Nothing writes this object
+there: func_0202f58c, which the two setters call, does not touch it, and the
+only writers in the link (FUN_02029980, FUN_020299f4) write data_0209f324 +
+0x240. So slot 0x08 has no caller in this image, which is why it keeps the
+no-argument shape.
+
+9b. THE THREE SHAPES MSVC EMITS, and the cleanup each one requires. The
+distinction that matters is not cdecl-versus-thiscall, it is WHO CLEANS:
+
+  A  THISCALL, no arguments      mov ecx,<obj> / call [vt+off]
+                                 nothing pushed; callee must clean 0
+  B  THISCALL, two arguments     push b / push a / mov ecx,<obj> /
+                                 call [vt+off], and NO cleanup follows
+                                 8 bytes pushed; callee must clean 8
+  C  CDECL, struct of pointers   push <obj> / call eax / add esp,4
+                                 caller cleans its own push; callee cleans 0
+
+Shape B is the one 7a did not enumerate, and it is the crash. Shapes A and C
+agree on the cleanup and differ only on where the receiver is, which is a wrong
+`this` and not a smashed frame.
+
+9c. THE SITES, by slot. Every offset is relative to the naming FUNCTION, not
+to the image, so a relink does not rot the section.
+
+  0x00  ~dWipe_c (D1)      NO CALL SITE. Registered on data_020aa3f0's chain by
+                           func_020731dc; nothing in the port walks that chain.
+  0x04  (D0)               NO CALL SITE, same reason.
+  0x08  AdvanceFade        NO CALL SITE. See the note in 9a.
+  0x0c  SetBackwardTime    ONE SITE, shape B:
+                             _ZN5Scene14BeforeBehaviorEv+0x11b  push 0
+                             +0x11d  push 0x1e
+                             +0x121  call dword ptr [eax + 0xc]
+                             +0x124  mov eax,1 / pop esi / pop ebp / ret
+                           The source is `data_0209f5bc->v3(0x1e, 0)` on a local
+                           seven-virtual C++ struct, index 3 = byte 0x0c.
+  0x10  SetForwardTime     TWO SITES, AND THEY DISAGREE.
+                           shape B:
+                             _ZN5Scene14BeforeBehaviorEv+0x57   push 0
+                             +0x59   push 0x1e
+                             +0x5b   call dword ptr [eax + 0x10]
+                             +0x5e   mov eax,1 / pop esi / pop ebp / ret
+                           shape A:
+                             ?IsBetweenStartAndEnd@FaderBrightness@@QAEHXZ
+                             +0x05  call dword ptr [eax + 0x10]
+                           the matched body's first unqualified predicate call,
+                           landing one slot early against a ROM-ordered table
+                           because MSVC folds the two destructor slots into one.
+                           SEE 9e: the second site was REMOVED rather than
+                           accommodated, because no signature serves both.
+  0x14  IsAtStart          NINE SITES, SEVEN OF SHAPE A AND TWO OF SHAPE C.
+                           Shape A: Scene::BeforeBehavior+0x48,
+                           func_ov004_020b0620+0x1c and +0x110,
+                           func_ov003_020af038+0x10, HUD::Behavior+0xb,
+                           func_0202ed7c+0x1d, and
+                           ?IsBetweenStartAndEnd@FaderBrightness@@+0x10
+                           (the second skewed call; removed by 9e).
+                           Shape C: Scene::SetFaders+0x14 and
+                           Minimap::Behavior+0x36, each
+                           `push ecx / call eax / add esp,4`.
+                           THE TWO WITH A LEADING PUSH THAT IS NOT AN ARGUMENT
+                           ARE THE TRAP IN THIS TABLE. func_ov003_020af038
+                           opens `push ebp / mov ebp,esp / push ecx` and
+                           HUD::Behavior opens `push esi`, and neither push is
+                           a receiver -- one is MSVC's frame-slot idiom and the
+                           other a callee-save. What separates the shapes is
+                           the `add esp,4` AFTER the call, not the pushes
+                           before it, and both of these have none.
+  0x18  IsAtEnd            FOUR SITES. Shape A at Scene::BeforeBehavior+0xd4
+                           and +0x10e and at func_0202ed7c+0x28; shape C at
+                           Scene::SetFaders+0x42.
+                           +0xd4 IS THE ONE THE MECHANICAL SWEEP MISSED, for
+                           the reason 9a now records. It is the
+                           `else if (data_0209f5bc->v6())` arm that reaches
+                           ActorBase::MarkForDestruction, it is plain
+                           `call dword ptr [eax + 0x18]` with nothing pushed
+                           and no cleanup after, and 0x18 is declared for that
+                           shape already, so the omission cost accuracy in this
+                           section and nothing in the binary.
+  0x1c  IsBetweenStart..   FOUR SITES, all shape A: ProcessKuppaScript+0x7c,
+                           FUN_02029934+0x8, FUN_02029980+0x8,
+                           FUN_020299f4+0x8.
+  0x20  SetToEnd           ONE SITE, shape A: Scene::SetFaders+0x52,
+                           `mov ecx,esi / call dword ptr [eax + 0x20]`, reached
+                           when the installed fader's IsAtEnd answers true.
+                           (An earlier draft said +0x50, which is the `mov
+                           ecx,esi` and not the call. Caught re-listing every
+                           indirect call by address for 9a's third pass.)
+  0x24  SetToStart         ONE SITE, shape A: Scene::SetFaders+0x24, the same
+                           shape. This is the slot section 2 proves runs.
+  0x28  overhang           NO CALL SITE. Not the ROM's.
+  0x2c  overhang           NO CALL SITE. Not the ROM's.
+
+9d. WHAT EACH STUB DECLARES NOW, and why.
+
+  slot  declaration                                        cleans  shapes served
+  0x00  void *__fastcall fdr_s00(void *, void *)              0     A (none yet)
+  0x04  void *__fastcall fdr_s04(void *, void *)              0     A (none yet)
+  0x08  int   __fastcall fdr_s08(void *, void *)              0     A (none yet)
+  0x0c  int   __fastcall fdr_s0c(void *, void *, int, int)    8     B
+  0x10  int   __fastcall fdr_s10(void *, void *, int, int)    8     B
+        (0x0c and 0x10 forward to the ROM's own func_0202f928 and
+         func_0202f708; see section 4. The ROM bodies take three and two
+         arguments respectively and the stubs still clean eight, because the
+         two counts answer different questions.)
+  0x14  int   __fastcall fdr_s14(void *, void *)              0     A and C
+  0x18  int   __fastcall fdr_s18(void *, void *)              0     A and C
+  0x1c  int   __fastcall fdr_s1c(void *, void *)              0     A
+  0x20  void  __fastcall fdr_s20(void *, void *)              0     A
+  0x24  void  __fastcall fdr_s24(void *, void *)              0     A
+  0x28  int   __fastcall fdr_s28(void *, void *)              0     A (none yet)
+  0x2c  int   __fastcall fdr_s2c(void *, void *)              0     A (none yet)
+
+TWO SIGNATURES CHANGED, 0x0c and 0x10, and the other ten were CONFIRMED rather
+than left alone. __fastcall(self, edx, a, b) is the host spelling of
+__thiscall(self, a, b): the receiver arrives in ECX, EDX is unread, a and b come
+off the stack, and MSVC emits `ret 8`. THE ARITY IS THE CALL SITE'S AND NOT THE
+ROM BODY'S -- func_0202f708 takes only (self, frames), because on ARM the third
+argument rides in r2 and costs nothing, but the host caller pushed two words and
+the stub has to clean two words. A stub sized to the ROM body would leak four.
+
+9e. THE ONE SLOT NO SIGNATURE COULD SERVE, and what was done about it.
+Slot 0x10 is reached by shape B from Scene::BeforeBehavior and by shape A from
+the matched IsBetweenStartAndEnd. Declared for B it smashes eight bytes off A's
+frame; declared for A it leaks eight on B, which is the crash this lane was
+sent to fix. There is no third option in C.
+
+The A site was removed. hal/fdr_arm9_fader_seat.cpp's
+_ZN15FaderBrightness20IsBetweenStartAndEndEv no longer delegates to the matched
+method; it dispatches the RECEIVER'S OWN 0x14 and 0x18, which is the pair the
+ROM's two virtual calls reach, and keeps the matched body's arithmetic. That is
+hal/fader_wipes.cpp's existing ruling on this method applied to the one place
+that had not taken it, and it retires 7b's "wrong-but-alive" answer as a side
+effect rather than as a separate fix. The matched TU stays in the link and stays
+counted; nothing calls it now, and that is written into the unproven items.
+
+9f. THE CRASH, BEFORE AND AFTER, on this lane's own binary.
+
+  BEFORE, at 34d3a3130, SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=300
+  SM64DS_FAULTS_FATAL=1: exit 139. crash.txt c0000005 at eip 307fb114 with
+  eax 1, esi 1e, ebp 0 -- the arithmetic of eight bytes left on the stack, read
+  back by the caller's own epilogue: pop esi takes the 0x1e, pop ebp takes the
+  0, and ret pops the saved esi. The playlog's last line before it is the
+  fader seat's own trap for slot 0x0c.
+
+  AFTER, same command on the fixed binary: exit 0. 300 frames, no fault line,
+  and no [quarantine] line in the playlog either -- which is the check that
+  matters here, because port/nfs_names_map.txt section 6 records this exact
+  scene passing a bare run over a FROZEN actor. The state machine ticks for the
+  first time: "state dispatch: 32557 call(s) through the address switch, 32557
+  routed to a dScMgCurling_c state, 0 UNHANDLED address(es)". NFS's "THE STATE
+  MACHINE NEVER TICKED" unproven item is spent with it.
+
+  The eight-byte leak is gone by construction and by measurement: MSVC emits
+  `ret 8` at the end of both stubs, read back out of the binary at
+  ?fdr_s0c@...+0x37 and ?fdr_s10@...+0x35.
+
+  WHAT DID NOT CHANGE, said because it would be easy to claim: no pixel was
+  looked at, and the scene's own behaviour past frame one is not asserted to be
+  right. What is asserted is that it no longer dies and no longer freezes.
+
+
+10. UNPROVEN ITEMS
+
+  [Run link60 lane FDR2 amended this section. The items it settled are marked
+   SPENT rather than deleted, because what a lane believed and then measured
+   is the part a successor cannot re-derive.]
+
+  * SPENT: "the three trap slots have never been dispatched". Slot 0x0c was,
+    on scene 374's first behaviour tick, and killing the run is how it said
+    so. 0x08 still has not been and now has no caller at all in this image
+    (section 9a).
+  * THE TWO SEATED SETTERS RUN, AND THE FADE STILL DOES NOT MOVE. Slot 0x0c is
+    dispatched 299 times on a 300-frame scene-374 run and the ROM body is what
+    answers -- measured rather than inferred: the trap that used to print on
+    that dispatch prints zero times, and the ROM's own IsAtEnd (func_0202eddc)
+    keeps the branch open across the whole run, because with the setter's
+    unk_010 = 1 and interpVal = 0 it still falls through to return 1. What
+    does NOT happen is motion. The setters arm a fade the way the DS arms one,
+    by installing func_0202f2c4 on IRQ 2 and letting the HBlank handler push
+    one table line per scanline, and NOTHING ON THE HOST RAISES IRQ 2. So
+    func_0202f2c4 and func_0202f3a4 are LINKED AND UNDRIVEN, the 0x600-byte
+    table at data_0209f648 is built and never read, and the eight blend
+    registers keep whatever the setter wrote. Seating slot 0x08 would not
+    change that on its own; a host driver for the HBlank edge would, and this
+    lane did not write one.
+  * NO PIXEL CLAIM IS MADE ANYWHERE IN THIS SECTION. Nothing here was read off
+    a frame. The .dsstate section grew again with this tranche (seven new bss
+    symbols, 0x618 bytes of span before alignment), so any BMP comparison
+    against a pre-tranche image is a layout artifact under the equal-base rule
+    in port/tools/battery.py's header, not a rendering result.
+
+    ONE FRAME WAS CAPTURED ANYWAY, for a human to look at, and it is named here
+    so that a successor comparing anything to it can check the precondition
+    first rather than after:
+
+      SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=300 SM64DS_FAULTS_FATAL=1
+      SM64DS_SCENE_BMP=fdr2_scene374.bmp        exit 0
+
+      artifact       build/port/fdr2_scene374.bmp (build output, NOT committed)
+      size           589,878 bytes, 512x384
+      sha256         3fb5b42ca5442f21a4516a172fe64114c9bb91c0c3b221f1aa8da7801
+                     cc82a26
+      .dsstate base  0xbac000, span to 0xc92340, 942,912 bytes captured
+
+    The base was 0xbaa000 before this tranche, so the equal-base rule says a
+    diff against any earlier image measures the layout and not the frame.
+    Review reproduced these bytes exactly from its own build at equal base,
+    which is the provenance; nobody here has said what is in the image.
   * OF THE SEVEN SEATED SLOTS, ONLY 0x24 IS PROVEN TO RUN. Section 2's
     disassembly is the proof for that one. 0x1c is NOT reached on this path:
     slot 1's `func_0202ec9c(data_0209f61c, 0)` takes its early return because
@@ -368,11 +673,23 @@ both of them say so on stderr. Fixing it goes with the three motion slots.
     (0x24), two DESTRUCTORS (0x00, 0x04), and FOUR linked, reachable and
     unexercised (0x14, 0x18, 0x1c, 0x20). Six of the seven are not verified by
     anything here and this file will not call them verified.
-  * The four ROM rulings in inferred_stub_adjudicated.txt are instruction-level
-    comparisons of the ARM body against the src body. They say the src is a
-    faithful decompilation; they do NOT say the compiled-for-host behaviour is
-    identical, and for func_0202ed7c specifically 7b above is a case where it
-    is not.
+  * The SEVEN ROM rulings in inferred_stub_adjudicated.txt (FDR's four, plus
+    func_0202f428, func_0202f928 and func_0202f708 from this tranche) are
+    instruction-level comparisons of the ARM body against the src body. They
+    say the src is a faithful decompilation; they do NOT say the
+    compiled-for-host behaviour is identical, and func_0202f428 is the sharpest
+    case of the difference -- ruled REAL_DECOMP and refused a seat anyway,
+    because the faithful decompilation contains a call the host cannot make
+    (section 4a). func_0202ed7c is the other, and 7b is where it is written up.
+  * THE MSVC-ORDERED VIEW HAS NOT RUN. Section 9e's fix routes the matched
+    IsBetweenStartAndEnd through a two-word stack view of the receiver, and
+    nothing in any measurement here has reached it: the only caller is
+    func_0202ed7c's `type == 1` branch and type is 0 on every path exercised.
+    Its safety rests on a codegen reading -- that the matched body dereferences
+    nothing but the vptr -- which is quoted from the disassembly beside the
+    code and is true of THIS build's codegen. The slots below MSVC byte 0x10
+    are filled with a refusal that names itself, so a codegen change announces
+    itself rather than jumping to zero, but the happy path is unexercised.
   * data_020a804c's identity is read from func_0205d714, func_0205cc80 and
     func_0205cbe4. hal/scene_boot.cpp's own comment reads it as a VRAM bank
     record instead. Both cannot be right and this lane did not settle which;
@@ -382,3 +699,20 @@ both of them say so on stderr. Fixing it goes with the three motion slots.
     chain, so neither destructor has run in any measurement here.
   * The seat runs on three targets. Only walk_window has been RUN with it; the
     other two are link-and-battery evidence only.
+  * SLOT 0x10 IS SEATED AND STILL UNDISPATCHED. Section 9c gives it one live
+    call site, Scene::BeforeBehavior's `data_02092664 != 0x187` branch, and
+    scene 374 takes the other branch on every frame. The stub's `ret 8` is
+    verified by disassembly and its ABI is the same one 0x0c's is measured on;
+    nothing has driven it.
+  * THE AUDIT IS OF THIS IMAGE. Section 9's enumeration is complete for what
+    walk_window links today. Sixteen of the src TUs that dispatch through
+    data_0209f5bc are NOT in this link (the ov004 minigame family, ov005,
+    ov075, Stage::Behavior), and several of them spell the two-argument shape
+    at 0x0c and 0x10. They should reach the same stubs correctly, since the
+    shape is the same, but that is reasoning and not a measurement.
+  * THE GARBAGE-RECEIVER HAZARD IS DORMANT BY LUCK. The three cdecl sites
+    (Scene::SetFaders twice and Minimap::Behavior once) push the receiver where
+    a __fastcall thunk does not look, and at all three MSVC happens to leave
+    the object in ECX as well, which was checked instruction by instruction.
+    Nothing enforces that; a recompile that schedules ECX differently would
+    break those two slots silently, and no guard in the tree would notice.

@@ -411,10 +411,22 @@ own when they are seated.
 
     Verified by moving the file aside: walk_window and smoke_player both die
     with that message; smoke_fs and smoke_persist do not carry the seat and
-    are unaffected. THE EXIT CODE IS 0xC0000409, not the 127 an earlier draft
+    are unaffected. THE EXIT CODE WAS 0xC0000409, not the 127 an earlier draft
     of this file reported off a shell's own rendering of it. That is
     STATUS_STACK_BUFFER_OVERRUN, which is what MSVC's abort() raises, and it
     is a confusing thing for a missing file to produce. Refusing rather than
     limping is hal/fs.cpp's precedent and the failure shape stands, but a
     successor may want exit(2) after the FATAL line instead: same loudness,
-    legible code. Not taken here, and handed forward rather than left implied.
+    legible code.
+
+    THE HANDOVER WAS TAKEN, run link60 lane FDR2. All five FATAL paths in
+    hal/fs_names.cpp now fflush(stderr) and exit(2); every word of every
+    message is unchanged and only the way the process leaves is different.
+    THE EXIT CODE IS NOW 2, re-measured the same way the 0xC0000409 above was
+    measured -- build/assets/nitrofs.tsv moved aside, walk_window run, file
+    put back. What is given up is that exit() runs atexit handlers and static
+    destructors where abort() did not, so a refusal this early in static init
+    unwinds more of a half-built program; nothing in the refusal depends on
+    that unwind, and the explicit flush is what makes the message safe from
+    it. The paragraph above is kept rather than rewritten because the
+    0xC0000409 reading is what a successor will find in older crash reports.
