@@ -162,144 +162,44 @@ SCENE_SKIPS = {
 # BLOCK RETIRED, exactly like a retired skip. The marker string is what pins
 # it: without one, any new fault would read as the known one.
 SCENE_BLOCKED = {
-    1: ("the ov007 cdecl call into a __thiscall ModelComponents::Render "
-        "(a HOST ABI seam)",
-        "SCENE 1 BLOCKED: func_ov007_020bbff0 calls ModelComponents::Render "
-        "cdecl through a __thiscall alias",
-        "dScDSMT_c::InitResources NOW FINISHES and the scene TICKS. Read that "
-        "first, because every earlier version of this row said the opposite "
-        "and the counters are the evidence: run link60 lane AE1 measures "
-        "`init 1, behavior 299, render 0` over a 300-frame run, and 300 CLEAN "
-        "frames with the Render slot no-op'd (SM64DS_SCENE_NO_RENDER=1 and "
-        "SM64DS_SCENE_SLOT9=0 agree). What is left is entirely inside the "
-        "scene's own Render slot. "
-        "THIS ROW HAS NOW BEEN "
-        "CONVERTED FOUR TIMES and the history is most of what it is worth, "
-        "because each conversion retired a real blocker. "
-        "ONE: lane L2 seated the class and recorded func_ov007_020c9688 "
-        "(0x020c9688, 768 bytes) as the blocker, reached through "
-        "func_ov007_020b7138; run link60 lane SC1 retired it WITHOUT a decomp, "
-        "with port/unmatched/Ov007_OamCellBank_020c9688.cpp, a host "
-        "transcription of the ROM's own instructions that is not a match, is "
-        "not counted as one, and retires itself the day src/ has the body. "
-        "TWO: SC1 converted the row to func_ov007_020b2998, the unmatched "
-        "writer of the scene state's +0xF4 field; run link60 lane CK1 MATCHED "
-        "it (decomp main db0c4960635e, PR #1536) and lane PC2 brought the TU "
-        "across by address. "
-        "THREE: PC2 converted the row to an ARM REGISTER RIDE-THROUGH at "
-        "func_ov007_020be980, where a matched middle frame was handed i and a2 "
-        "in r1/r2 and named neither, so MSVC's callee read two stack slots "
-        "nobody wrote. RUN LINK60 LANE RT1 SEATED IT: the PC2 review ruled the "
-        "shape, RT1 cut the matched TU out of the ov007 slice and stood "
-        "port/unmatched/Ov007_RideThrough_020be980.cpp in its place, "
-        "PORT_HOST_ABI (void *, int, int) forwarding all three. That cost one "
-        "linked TU on purpose, 5831 to 5830. "
-        "THE SEAM WAS REALLY CROSSED and the census is the evidence, not the "
-        "absence of the old fault: the run now enters func_ov007_020ae834 "
-        "twenty-four times, a name no earlier scene-1 run reached at all, and "
-        "the trap census is five names where PC2's was four. "
-        "FOUR: RT1 converted the row to an IMPLICIT r0 "
-        "ARGUMENT one frame deeper. src/func_ov007_020add3c.c declares `extern int "
-        "func_ov007_020ae558(void)` and calls it with nothing; "
-        "src/func_ov007_020ae558.c defines it as `(char *self)`. Both are "
-        "matched and both are right on ARM, because the ROM's caller does "
-        "`push {r4, lr} / mov r4, r0 / bl func_ov007_020ae558` and never "
-        "writes r0 in between, so the caller's OWN incoming argument is still "
-        "in r0 when the callee reads it. func_ov007_020ae558 has exactly ONE "
-        "call site in the whole config, so nothing else depends on the shape. "
-        "MEASURED, NOT ARGUED, on this tree's own binary with dumpbin: the "
-        "caller's `push esi` before the call is a register save and not an "
-        "argument (it is never cleaned, and the caller reads its own argument "
-        "at [ebp+8] AFTER the call), so it pushes zero arguments; the callee "
-        "reads `mov ebx,[ebp+8]` and faults on the next dereference, "
-        "`mov ecx,[ebx]`. Walking the pushes, that slot is the caller's saved "
-        "esi -- the identical failure shape as the seam RT1 just retired, a "
-        "saved register read as an argument. The fault reports accessing "
-        "000000a4 and the faulting instruction is a bare `[ebx]` with no "
-        "displacement, so the accessed address IS the garbage slot's contents "
-        "and no arithmetic is needed to close it. Deterministic: four runs, "
-        "same offset, same address. "
-        "RUN LINK60 LANE AE1 SEATED IT, on the shape the RT1 and SC1N reviews "
-        "ruled: the CALLER displaces, because it owns the value and simply "
-        "does not pass it while the callee is blameless and could not invent "
-        "it. src/func_ov007_020add3c.c is cut from the ov007 slice and "
-        "port/unmatched/Ov007_ImplicitR0_020add3c.cpp stands in its place, "
-        "forwarding its own argument. That cost one more linked TU on purpose, "
-        "5833 to 5832. THE VALUE COULD NOT HAVE COME FROM ANYWHERE ELSE: "
-        "func_ov007_020aed98 calls the caller nine times in a loop over "
-        "gg+0xa4 .. gg+0xc4, so nine different pointers ride through it in one "
-        "run and no callee-side constant could be right more than once. "
-        "AND THE SEAT LANDED THE SCENE: init 1, behavior 299, and the counters "
-        "at the top of this row. "
-        "THE BLOCKER NOW IS A CALLING CONVENTION, which is a NEW DEFECT CLASS "
-        "for this scene and the most useful thing this row records. "
-        "src/func_ov007_020bbff0.c declares the flat Itanium name "
-        "_ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3 as three void* and "
-        "calls it with three cdecl pushes. What it reaches, through an "
-        "/alternatename in hal/scene_boot.cpp, is "
-        "port/unmatched/ModelComponents_Render.cpp's `ModelComponents::Render`, "
-        "a real C++ member that MSVC emits __thiscall. AN ALIAS CANNOT CHANGE "
-        "A CALLING CONVENTION -- that sentence is already in scene_boot.cpp's "
-        "own alias banner, beside the Scene::SetFaders FACE that exists for "
-        "exactly this reason. MEASURED ON THIS TREE'S BINARY, disassembled "
-        "from the map address: the caller pushes vec, mat and `this` and cleans "
-        "0xc; the callee opens `mov ebx, ecx` and reads `mat` from [ebp+8]. So "
-        "`this` is whatever ECX held, which is the caller's own object one "
-        "dereference short of the intended one, and every argument lands one "
-        "slot off. It faults on the node array read `movzx edx, byte ptr "
-        "[eax+edi]`, accessing the garbage the shifted `this` produced. "
-        "TWO MORE ALIASES IN THE SAME BLOCK SHARE THE SHAPE and are not known "
-        "to have fired: SaveData::SetDefaultValues and "
-        "SaveData::SetDefaultValuesMg both open `mov esi, ecx`. The other four "
-        "flat-to-mangled aliases target static members and are __cdecl, which "
-        "is why they have always worked. Verified by disassembly, not by "
-        "reading the mangling. "
-        "THE MARKER IS ARMED BY A PREDICATE, and this one is armed at "
-        "ti_render rather than ti_init. That is tighter than the three before "
-        "it by a whole lifecycle: InitResources now returns and Behavior is "
-        "clean, so the port-owned frame that dispatches into the fault is the "
-        "Render slot itself. It still is not armed AT the seam -- a different "
-        "fault inside the Render slot would print it -- but the window is a "
-        "slot, not a scene. "
-        "AND THE PREDICATE READS DIFFERENT FACTS FROM THE TWO BEFORE IT, on "
-        "purpose. Those seams were fixed by displacing a caller, so 'is the "
-        "caller's TU in the build' was a fact the fix changed. THIS seam's "
-        "expected fix is a FACE, which leaves the caller's TU and its "
-        "declaration exactly where they are, so a declaration-plus-membership "
-        "predicate would survive its own fix and go on asserting a retired "
-        "blocker. It therefore reads the ALIAS (still pointing the flat name "
-        "at a __thiscall target) AND the caller's slice membership, which are "
-        "the facts the available fixes actually change. The alias regex is "
-        "anchored on the QAE, so it also covers a THIRD fix shape: re-pointing "
-        "the alias at a __cdecl target retires the marker too. Four configures "
-        "cover its four states, three from AE1 (0 before the block, 3 with it, "
-        "0 with the alias faced) and the fourth from the AE1 review (both arms "
-        "passing, and it arms), so the conjunction is a real AND. "
-        "THE REVIEW RULED THIS THE PATTERN for face-fixed seams, superseding "
-        "'read two facts' wherever the expected fix is not a displacement, "
-        "with two provisos: facts must come from build artifacts or ANCHORED "
-        "directive lines and never from an unanchored source-text match (a "
-        "comment quoting a retired directive keeps the marker armed, which the "
-        "review demonstrated on this very predicate; the anchor fix belongs to "
-        "the face lane, whose fix is the first that makes it bite), and N "
-        "facts require N+1 proof configures. "
-        "ONE THING THAT WILL LOOK LIKE A FAILURE AND IS NOT, said here because "
-        "this row is where a lane investigating scene 1 arrives: gate.py prints "
-        "RED on this tree, `linkage 5832 below the baseline's 5833`, while the "
-        "battery is ALL GREEN. That single -1 is the AE1 seat above, it was "
-        "ruled in writing before it was paid, and it is decomposed in seat "
-        "section 7. (The RT1 seat before it cost its own -1 the same way, "
-        "5831 to 5830, against its own baseline.) "
-        "DO NOT CLEAR IT WITH `gate.py --record`. Re-recording is the only "
-        "lever that turns it green and it works by rewriting the baseline, "
-        "which erases the drop rather than explaining it -- the exact "
-        "laundering gate.py's own docstring says it exists to refuse. Quote the "
-        "RED with seat section 7's paragraph beside it. The tooling fix, an "
-        "explicit reviewed-cost declaration that lands in the manifest and "
-        "reads as its own verdict rather than as GREEN, is tracked out of lane "
-        "RT1 as background task task_0eef87af. "
-        "Full write-up, with the ROM and host listings: port/ov007_seat.txt "
-        "sections 5, 5a, 5b, 5c, 5d and 5e."),
+    # SCENE 1 WAS HERE AND IS RETIRED, run link60 Stage 5 lane MR1. The row
+    # had been CONVERTED FOUR TIMES and every conversion was a real blocker
+    # retired by a real seat: func_ov007_020c9688 (lane L2, host transcription
+    # by lane SC1), func_ov007_020b2998 (SC1, MATCHED by CK1, brought across by
+    # PC2), the ARM register ride-through at func_ov007_020be980 (PC2, seated
+    # by RT1) and the implicit r0 argument at func_ov007_020ae558 (RT1, seated
+    # by AE1). The fifth blocker was the FIRST of the four that was not an
+    # argument at all: src/func_ov007_020bbff0.c reached
+    # ModelComponents::Render through an /alternatename onto a __thiscall
+    # member, so the receiver was never delivered and all three arguments
+    # landed one slot along.
+    #
+    # MR1 STOOD A RECEIVER-BRIDGING FACE in hal/scene_boot.cpp, in the shape
+    # Scene::SetFaders twelve lines above it uses, deleted the directive, and
+    # the scene ran. THE COUNTERS ARE THE EVIDENCE AND THE RENDER SLOT IS THE
+    # ONE THAT MOVED: init 1, behavior 299, RENDER 300, cleanup 0,
+    # pending-destroy 0, over a bare 300-frame run with SM64DS_FAULTS_FATAL=1
+    # and NOTHING switched off. Every earlier clean scene-1 run in this file's
+    # history was taken with the Render slot no-op'd; this one is not, and the
+    # difference is the whole point.
+    #
+    # SO THIS IS A RETIREMENT, NOT A FIFTH CONVERSION: the scene has no blocker
+    # left to name, and it runs as an ordinary scene selftest row above.
+    # The marker and its predicate STAY in the tree on purpose. The predicate
+    # in port/CMakeLists.txt is now anchored to the pragma line (MR1 closed the
+    # unanchored-comment hole the AE1 review demonstrated, in the same commit
+    # that created the comment that would have fooled it), so restoring the
+    # receiver-dropping alias arms the marker again and the scene's own row
+    # goes red at the same time. Two independent signals instead of one.
+    #
+    # AND THE FRAME IS NOT A TITLE SCREEN. The Render slot RUNS, which is the
+    # milestone and is what retires this row; what it draws is three colors.
+    # Decomposed in seat section 5f: 93.52% flat clear color, one solid 128x96
+    # magenta rectangle (the sub panel) and its 452-pixel outline, nothing
+    # else. Nobody should read this retirement as the title screen appearing.
+    #
+    # Full write-up, with the disassembled face and the five proof configures:
+    # port/ov007_seat.txt sections 5f, 7 and 8.
     # SCENE 374 (0x176) WAS HERE AND IS RETIRED, run link60 lane FDR2. The
     # row had been CONVERTED TWICE and each conversion was a seat that landed:
     # lane MG2 recorded the arm9 fader (data_0209f61c's vptr was zero because

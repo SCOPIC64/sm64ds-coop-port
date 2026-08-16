@@ -668,7 +668,28 @@ extern "C" unsigned _ZN4CP1510EnableDTCMEv(void) { return 0x10000u; }
    1 would claim bytes were moved that were not. THIS IS WHY THE FILE SELECT
    SHOWS EMPTY FILES rather than whatever the last session had, and that is a
    real behaviour gap, not a cosmetic one -- it is named in
-   port/ov007_seat.txt section 5 rather than left for someone to find. */
+   port/ov007_seat.txt section 5 rather than left for someone to find.
+
+   THE RETURN VALUE IS BACKWARDS AND THE PARAGRAPH ABOVE IS WRONG ABOUT IT.
+   Run link60 Stage 5 lane MR1 traced these on a live path and the review found
+   the ROM evidence already in the tree, in a TU nobody here had opened:
+   src/_ZN8SaveData16ReadDataFromCartEPcjj.cpp. That body returns 0 ONLY after
+   the eight magic bytes match data_020a4b40 AND the rotate-xor checksum equals
+   the stored crc; it returns 1 on every failure path, including the no-media
+   one (`if (func_0203da3c() == 2) return 1;` is its first statement), and 2 in
+   the backup-copy case. So 0 means A VALIDATED READ HAPPENED, and the four
+   callers read it that way: `if (result) { SetDefaultValues*(...); ... }`.
+   Returning 0 from a host with no cart therefore claims a good read of an
+   uninitialised buffer and SKIPS the defaults, which is the opposite of what
+   the paragraph above says this face is for. THE CORRECT CARTLESS VALUE IS 1.
+
+   IT IS NOT FIXED HERE BECAUSE IT CANNOT BE FIXED ALONE. Flipping this to 1
+   fires SaveData::SetDefaultValues and SetDefaultValuesMg, and both of those
+   are reached through receiver-dropping /alternatename directives in the block
+   further down this file that MR1 measured, ruled unfired and deliberately
+   left standing. The two have to be faced in the same commit as the flip, and
+   SaveData::SaveDataToCart wants the same treatment for the same reason. That
+   work is lane SV1. port/ov007_seat.txt section 5f carries the trace. */
 extern "C" int _ZN8SaveData16ReadDataFromCartEPcjj(char *, unsigned, unsigned)
 { return 0; }
 extern "C" int _ZN8SaveData14SaveDataToCartEPcjj(char *, unsigned, unsigned)
@@ -1047,18 +1068,78 @@ void Scene::SetFaders(FaderBrightness *)
     /* the ROM body ignores its second argument; only `this` is used */
     _ZN5Scene9SetFadersEP15FaderBrightness(this);
 }
-//     ...and FOUR IN THE OPPOSITE DIRECTION. Here the ov007 caller spells the
+//     ...and THREE IN THE OPPOSITE DIRECTION. Here the ov007 caller spells the
 //     FLAT Itanium name and the matched TU defines a real C++ static member,
 //     so the alias runs flat -> mangled. The decorations are read out of the
 //     compiled .obj with dumpbin rather than hand-derived, because a wrong
-//     decoration here is a silent no-op alias. ModelComponents::Render is a
-//     fifth of the same shape but its definition is
-//     port/unmatched/ModelComponents_Render.cpp, already in the build, so its
-//     matched TU came OUT of the slice rather than becoming a duplicate.
+//     decoration here is a silent no-op alias. THIS WAS FOUR UNTIL run link60
+//     Stage 5 lane MR1, and the three that remain all target an SA (static,
+//     __cdecl) member, so both sides are __cdecl and each is a name-only
+//     bridge. The fourth was not, and it is the face below.
 #pragma comment(linker, "/alternatename:__ZN9Animation17UpdateFileOffsetsER8BCA_File=?UpdateFileOffsets@Animation@@SAXAAUBCA_File@@@Z")
 #pragma comment(linker, "/alternatename:__ZN15TextureSequence17UpdateFileOffsetsER8BTP_File=?UpdateFileOffsets@TextureSequence@@SAXAAUBTP_File@@@Z")
 #pragma comment(linker, "/alternatename:__ZN5Model13LoadTexAndPalER8BMD_File=?LoadTexAndPal@Model@@SAXAAUBMD_File@@@Z")
-#pragma comment(linker, "/alternatename:__ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3=?Render@ModelComponents@@QAEXPAUMatrix4x3@@PAUVector3@@@Z")
+//
+//     ModelComponents::Render USED TO BE THE FOURTH LINE OF THIS BLOCK AND IT
+//     WAS WRONG, in the way the Scene::SetFaders paragraph at the head of (d)
+//     already says an alias is always wrong when the conventions differ. The
+//     directive was
+//
+//         /alternatename:__ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3=?Render@ModelComponents@@QAEXPAUMatrix4x3@@PAUVector3@@@Z
+//
+//     and QAE is __thiscall. src/func_ov007_020bbff0.c declares the flat name
+//     as three void * and calls it
+//
+//         _ZN15...RenderE...(*(void**)c, (char*)c+0x54, (char*)c+0x40)
+//
+//     which is three __cdecl pushes, so the receiver was never delivered: the
+//     callee took `this` out of ECX, where the caller had left its OWN object
+//     (one dereference short of *(void**)c), and then read mat out of the
+//     stack slot holding the real this and vec out of the slot holding mat.
+//     Every one of the three was wrong at once. Scene 1's Render slot is where
+//     that fault landed; port/ov007_seat.txt section 5e records the fault, 5f
+//     records this fix and the run that followed it, and 7 records the delta.
+//
+//     THE FACE BELOW IS THE FIX, in the shape Scene::SetFaders above uses and
+//     hal/lk4_solidheap_seat.cpp's Heap::SetDefault uses running the other
+//     way: a real __cdecl definition of the flat name that takes the receiver
+//     as its first argument and makes the member call itself, so MSVC emits
+//     the `mov ecx` the ROM's r0 always was.
+//
+//     THE DECLARATION IS LOCAL AND DELIBERATELY SO. It has to reproduce
+//     ?Render@ModelComponents@@QAEXPAUMatrix4x3@@PAUVector3@@@Z exactly, which
+//     needs Matrix4x3 and Vector3 to mangle as PAU (struct, not class) and
+//     Render to be a public non-const non-static member. Neither type is
+//     visible in this TU (it includes no game headers at all, only <cstdio>,
+//     the ntr/ ones and dsstate_seg.h), so two forward declarations give the
+//     right mangling with no risk of a header changing it later. The
+//     decoration was checked against the compiled .obj with dumpbin after the
+//     face landed, not derived by hand, which is the same rule the block above
+//     states.
+//
+//     WHERE IT LIVES, AND WHEN TO MOVE IT. This file and the only compiled
+//     flat-name caller, src/func_ov007_020bbff0.c, are in exactly the same
+//     three targets (smoke_player, walk_window, walk_window_hires), so the
+//     face resolves the name wherever the name is referenced and nowhere else.
+//     There is a SECOND flat-name caller in the tree that no lane had named,
+//     src/engine/fader/_ZN9FaderWipe11AdvanceFadeEv.cpp:12 and :34, and it is
+//     in no slice today. The day a lane slices it into a target that does not
+//     compile this file, the link fails with LNK2019 on this symbol and the
+//     fix is to move the TEN lines below (the three declarations and the
+//     seven-line definition) to
+//     port/unmatched/ModelComponents_Render.cpp, which is in fourteen targets.
+//     That is LK5's rule (a face belongs in a TU whose target set covers its
+//     consumers) stated in advance instead of after the break.
+struct Matrix4x3;
+struct Vector3;
+struct ModelComponents { void Render(Matrix4x3 *mat, Vector3 *vec); };
+extern "C" void _ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3(void *thiz,
+                                                                 void *mat,
+                                                                 void *vec)
+{
+    ((ModelComponents *)thiz)->ModelComponents::Render((Matrix4x3 *)mat,
+                                                       (Vector3 *)vec);
+}
 //     ...and three more of the same shape in the SaveData family, whose TUs
 //     are in the slice and define real C++ members while their ov007 and arm9
 //     callers spell the flat name. Decorations from dumpbin, again.

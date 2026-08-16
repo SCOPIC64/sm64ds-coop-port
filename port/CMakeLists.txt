@@ -3175,10 +3175,41 @@ endif()
 #
 # Either fix clears this in the configure that notices, and neither can be
 # taken without clearing it.
+#
+# run link60 Stage 5 lane MR1: THE ALIAS FACT IS NOW ANCHORED, and this is the
+# hole the AE1 review demonstrated being closed rather than inherited.
+#
+# file(STRINGS ... REGEX) is a line scanner with no idea what a comment is, so
+# the spelling that shipped here matched the directive's TEXT anywhere on a
+# line. Section 8 recorded that as "a known hole shipping on purpose" because
+# the only fix that would write such a comment had not been taken yet.
+#
+# THIS COMMIT TAKES IT, so the hole stopped being hypothetical in the same
+# change that closes it. The face in hal/scene_boot.cpp records the directive
+# it replaces, verbatim, in its evidence header, the way every other retired
+# directive in that file is recorded. Under the old spelling that comment kept
+# the marker ARMED after a correct fix: a battery row asserting a blocker that
+# no longer exists, which is the exact failure the row's own derivation warns
+# about.
+#
+# The anchor is the pragma itself. A directive reaches link.exe only through
+# #pragma comment(linker, ...) in a compiled TU (port/tools/alternatename_guard.py
+# mechanism (a), and its audit re-derives every run that the port has no
+# mechanism (b)), so requiring the line to BE that pragma is not a heuristic
+# about comments, it is the same test the linker applies. Leading whitespace is
+# allowed because the preprocessor allows it; a `//` or ` * ` in front is not a
+# pragma and no longer counts.
+#
+# WHAT IT STILL DOES NOT COVER, stated rather than left to be discovered: a
+# whole pragma sitting inside a /* */ block comment reads as anchored here and
+# is not a linker input. That is the same COMMENT GAP alternatename_guard.py
+# names in its own docstring and carries one live instance of, so the two tools
+# now have the same blind spot instead of two different ones. Closing it needs
+# a C tokenizer and neither tool has one.
 set(AE1_MCRENDER_DEFS "")
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/hal/scene_boot.cpp"
      AE1_MCRENDER_ALIAS
-     REGEX "alternatename:__ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3=\\?Render@ModelComponents@@QAE")
+     REGEX "^[ \t]*#[ \t]*pragma[ \t]+comment[ \t]*\\([ \t]*linker[ \t]*,[ \t]*\"/alternatename:__ZN15ModelComponents6RenderEP9Matrix4x3P7Vector3=\\?Render@ModelComponents@@QAE")
 if(AE1_MCRENDER_ALIAS AND AE1_BBFF0_COMPILED)
     message(STATUS "AE1: the flat _ZN15ModelComponents6RenderE... name is still "
                    "aliased onto a __thiscall member and src/func_ov007_020bbff0.c "
