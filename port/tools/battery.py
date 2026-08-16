@@ -161,7 +161,6 @@ SCENE_SKIPS = {
 # regression and reads as one, and a run that unexpectedly SUCCEEDS prints
 # BLOCK RETIRED, exactly like a retired skip. The marker string is what pins
 # it: without one, any new fault would read as the known one.
-#
 SCENE_BLOCKED = {
     1: ("the ov007 decomp (func_ov007_020c9688 is UNMATCHED)",
         "UNMATCHED ov007 body entered: func_ov007_020c9688",

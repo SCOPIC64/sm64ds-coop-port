@@ -344,11 +344,22 @@ own when they are seated.
   * THE FAT SCAN IS LINEAR. 2,175 entries per file open. Measured against a
     300-frame scene it does not show, and it has not been measured against
     anything longer.
-  * ONE TARGET WAS RUN. The seat is on walk_window, walk_window_hires and
-    smoke_persist. Only walk_window has been RUN with it; the other two are
-    link-and-battery evidence.
-  * THE CATALOG NEEDS REGENERATING. build/assets/nitrofs_{fnt,fat}.bin and
-    nitrofs.tsv are new products of tools/asset_catalog.py generate. A tree
-    whose catalog predates this change aborts at boot with the regenerate
-    instruction rather than limping, which is hal/fs.cpp's precedent, but it
-    IS a new requirement on every worktree.
+  * ONE TARGET WAS EXERCISED. The seat is on the same three targets the fader
+    seat rides: smoke_player, walk_window and walk_window_hires. (NOT
+    smoke_persist -- an earlier draft of this file said so, copying the fader
+    seat's prose instead of reading the CMakeLists, and the three variables
+    are appended at add_executable lines 4480, 4618 and 4797.) Only
+    walk_window has been RUN through the open-by-name path; the other two are
+    link, battery and abort-path evidence.
+  * THE CATALOG NEEDS REGENERATING, AND THAT PART IS TESTED. Every target
+    carrying this seat calls the ROM's FS_Init from a static initialiser, so a
+    tree whose build/assets predates this change dies before main with
+
+        FATAL: NitroFS table index missing: <path>/build/assets/nitrofs.tsv
+               run tools/asset_catalog.py generate <rom>
+
+    Verified by moving the file aside: walk_window and smoke_player both exit
+    127 with that message; smoke_fs and smoke_persist do not carry the seat
+    and are unaffected. Refusing rather than limping is hal/fs.cpp's
+    precedent, but it IS a new requirement on every worktree, and a lane that
+    pulls this branch without regenerating gets an abort rather than a hint.
