@@ -1318,9 +1318,18 @@ def main():
     # __declspec(allocate), and these blocks are ordinary file-scope arrays
     # with no allocate of their own. They landed in the default read/write data
     # and no save state captured them: 28 blocks and 5368 bytes across eleven
-    # mounts on the build where this was found, every one of them written
-    # through by the game. port/tools/gapaudit.py counts them and checks the
-    # side of the captured span they land on.
+    # mounts on the build where this was found. Eight of the 28 are cross-mount
+    # pointer targets on that build, so other overlays' data points into them
+    # too. port/tools/gapaudit.py counts them and checks the side of the
+    # captured span they land on.
+    #
+    # WHAT WAS ACTUALLY OBSERVED, so nobody reads more into this than was
+    # measured: ONE of the 28 was watched through a real save and load and seen
+    # to change and then fail to roll back (port_ov009_gap_0211222c+12, the
+    # reproducer under SM64DS_SS_WATCH_FLAG in tests/walk_window.cpp). The other
+    # 27 are routed on the same argument, not on 27 more observations. Routing
+    # them costs 5368 captured bytes and does not depend on which of them turns
+    # out to be written; auditing them one at a time would.
     #
     # Route them the way the plain branch does rather than into the pack
     # family: they have no ROM-relative spacing obligation to the named
