@@ -225,11 +225,19 @@ reproduce at all. Level runs never clobber GXSTAT: a traced level 8 reads
 GXSTAT=06000000 on all 200 of its display-list submits, so the fix is a no-op
 there. Standing Mario on a pillar (SM64DS_LEVEL=8
 SM64DS_SPAWN=-1371,-2800,-4586 SM64DS_WINDOW_SELFTEST=900 SM64DS_FAULTS_FATAL=1)
-runs 900 frames clean and exits 0 BOTH WITH AND WITHOUT the GXSTAT fix, at the
-same end position. Either that blocker was fixed by something else since it was
-written or it needs conditions this lane did not find; what is measured is only
-that this spawn and this duration do not fault, not that the pillars were drawn
-on screen. hal/level_boot.cpp's block should be re-probed before it is trusted.
+runs 900 frames clean and exits 0 BOTH WITH AND WITHOUT the GXSTAT fix, at a
+bit-identical end position, with Mario on the first of the six pillars the
+census reports. SM64DS_ACTOR_PROBE=1 on that run prints ROCK_PILLAR with a
+non-null file AND non-null transforms, so the Model is fully built and the
+class reaches its Render -- the opposite of what the original entry claimed.
+The heap trample fixed in f5d936503 / d241d27bb, both descending from the
+gate-188 commit that wrote the entry, explains the original fault without any
+model-build defect.
+
+THE FULL WRITE-UP NOW LIVES WITH THE CODE, in hal/level_boot.cpp's ov016 block,
+amended in place rather than left contradicting this file. It is downgraded to
+"not reproducible on this tree", NOT retired, because nobody has confirmed the
+pillar rasterizes: reaching Render with a built Model is not pixels on screen.
 
 WHAT RULES OUT THE OTHER CANDIDATES, so the next lane does not re-derive them:
 
