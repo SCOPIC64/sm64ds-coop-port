@@ -169,8 +169,23 @@ WORDIDX = re.compile(
 # struct decls in the constructor. Two shapes only: the PAIR (two scalar
 # fields) and a DESTINATION (fields of the pair type).
 STRUCT = re.compile(r"^\s*struct\s+(\w+)\s*\{(.*?)\}\s*;", re.S | re.M)
+# the same declaration spelled as an anonymous typedef. Seven of ov006's
+# thirty-one constructors use this form and nothing else, so a parser that
+# reads only `struct NAME {` refuses seven fan-out lanes for a spelling.
+STRUCT_TD = re.compile(
+    r"^\s*typedef\s+struct\s*(?:\w+\s*)?\{(.*?)\}\s*(\w+)\s*;", re.S | re.M)
 DEST_DECL = re.compile(
     r"^\s*extern\s+struct\s+(\w+)\s+(" + DATASYM + r")\s*;\s*$", re.M)
+# the destination declared as an ARRAY of the pair type, with or without
+# an extent, and written by index rather than by field name. This is the
+# third slot-assignment shape and the commonest one in ov006.
+DEST_ARR = re.compile(
+    r"^\s*extern\s+(?:struct\s+)?(\w+)\s+(" + DATASYM +
+    r")\s*\[\s*(\d*)\s*\]\s*;\s*$", re.M)
+# 3. the array-index slot assignment:  DST[i] = SRC;
+ASSIGN_IDX = re.compile(
+    r"^\s*(" + DATASYM + r")\s*\[\s*(\d+)\s*\]\s*=\s*(" + DATASYM +
+    r")\s*;\s*$")
 
 PMF_TYPEDEF = re.compile(
     r"typedef\s+\w[\w\s*]*\(\s*\w+\s*::\s*\*\s*(\w+)\s*\)\s*\(([^)]*)\)\s*;")
@@ -294,8 +309,9 @@ def parse_structs(text):
     pair = None
     dests = {}
     raw = {}
-    for m in STRUCT.finditer(text):
-        name, body = m.group(1), m.group(2)
+    decls = [(m.group(1), m.group(2)) for m in STRUCT.finditer(text)]
+    decls += [(m.group(2), m.group(1)) for m in STRUCT_TD.finditer(text)]
+    for name, body in decls:
         fields = []
         for decl in body.split(";"):
             decl = decl.strip()
@@ -315,10 +331,20 @@ def parse_structs(text):
                 and len(fields) == 2:
             pair = name
     if pair is None:
-        die("no two-scalar pair struct in the constructor -- this parser "
-            "keys slot offsets off the {code, adjustment} pair type. Add "
-            "one, or the constructor is not the pair-copying shape this "
-            "tool reads")
+        # Distinguish the two reasons, because they mean opposite things
+        # to a fan-out lane: one constructor builds no state tables at all
+        # (nine of ov006's thirty-one only load files), and another builds
+        # them in a spelling this parser has not been taught.
+        if not raw:
+            die("this constructor declares no structs and copies no pairs "
+                "-- it builds no state dispatch table, so there is nothing "
+                "here to generate. Check you passed the right __sinit for "
+                "the class")
+        die("no two-scalar pair struct among the %d struct(s) declared "
+            "here (%s) -- this parser keys slot offsets off the {code, "
+            "adjustment} pair type and will not guess which of these is "
+            "it. Teach it the spelling rather than picking one"
+            % (len(raw), ", ".join(sorted(raw))))
     for name, fields in raw.items():
         if name != pair and fields and all(f[0] == pair for f in fields):
             dests[name] = [f[1] for f in fields]
@@ -336,6 +362,15 @@ def parse_sinit(path):
         sname, sym, ovn, addr = m.group(1), m.group(2), m.group(3), m.group(4)
         if sname in dests:
             dest_type[sym] = (sname, ovn, int(addr, 16))
+    # arrays OF THE PAIR TYPE only. The discriminator matters: these
+    # constructors also copy plain `int[]` permutation tables between two
+    # data symbols with the same statement shape, and reading one of those
+    # as a state table would invent slots out of index values.
+    dest_arr = {}
+    for m in DEST_ARR.finditer(text):
+        ename, sym, ovn, addr = m.group(1), m.group(2), m.group(3), m.group(4)
+        if ename == pair:
+            dest_arr[sym] = (ename, ovn, int(addr, 16))
 
     fn = re.search(r"^void\s+(__sinit_\w+)\s*\(\s*void\s*\)\s*\{", text, re.M)
     if not fn:
@@ -397,6 +432,19 @@ def parse_sinit(path):
                    sov, int(saddr, 16), line, sname)
             continue
 
+        m = ASSIGN_IDX.match(line)
+        if m:
+            pending = None
+            dsym, dov, daddr, idx, ssym, sov, saddr = (
+                m.group(1), m.group(2), m.group(3), int(m.group(4)),
+                m.group(5), m.group(6), m.group(7))
+            if dsym not in dest_arr:
+                continue
+            ename, _, dst_addr = dest_arr[dsym]
+            record(dsym, dov, dst_addr, idx, "[%d]" % idx, ssym, sov,
+                   int(saddr, 16), line, ename)
+            continue
+
         m = WORDIDX.match(line)
         if m:
             dsym, dov, daddr, di, ssym, sov, saddr, si = (
@@ -430,6 +478,12 @@ def parse_sinit(path):
             lhs = line.split("=", 1)[0]
             for dm in re.finditer(DATASYM, lhs):
                 sym = dm.group(0)
+                if sym in dest_arr:
+                    die("%s writes the pair array %s in a shape this "
+                        "parser does not know:\n    %s\nRefusing rather "
+                        "than skipping it: a dropped slot is a switch that "
+                        "is short by one state and looks complete"
+                        % (path, sym, line.strip()))
                 if sym not in dest_type:
                     continue
                 sname = dest_type[sym][0]
@@ -1216,6 +1270,52 @@ def selftest():
 
         rep = emit_report(m)
         expect("REFUSALS (1)" in rep, "report carries the refusal", rep)
+
+        # ---- the third shape: an ANONYMOUS TYPEDEF pair and a
+        # destination declared as an ARRAY of it, written by index. Seven
+        # of ov006's constructors use only this spelling. The int[]
+        # permutation copy alongside it must NOT read as a state table:
+        # those constructors move plain index tables between two data
+        # symbols with a statement of the same shape.
+        (tdp / "port/ov009_syms.txt").write_text(
+            "data_ov009_00003000 data_ov009_00003020 "
+            "data_ov009_00003040\n")
+        arr = tdp / "src/__sinit_ov009_00001010.c"
+        arr.write_text(
+            "typedef struct { int a, b; } Ent;\n"
+            "extern Ent data_ov009_00003040[3];\n"
+            "extern int data_ov009_00003060[];\n"
+            "extern int data_ov009_00002100[];\n"
+            "extern Ent data_ov009_00002000;\n"
+            "extern Ent data_ov009_00002008;\n"
+            "extern Ent data_ov009_00002018;\n"
+            "void __sinit_ov009_00001010(void)\n"
+            "{\n"
+            "    data_ov009_00003040[2] = data_ov009_00002018;\n"
+            "    data_ov009_00003040[0] = data_ov009_00002000;\n"
+            "    data_ov009_00003040[1] = data_ov009_00002008;\n"
+            "    data_ov009_00003060[0] = data_ov009_00002100[0];\n"
+            "    data_ov009_00003060[1] = data_ov009_00002100[3];\n"
+            "}\n")
+        ma = build(tdp, "src/__sinit_ov009_00001010.c", arity_override=0)
+        expect(len(ma["tables"]) == 1,
+               "the int[] permutation copy is not read as a pair table",
+               list(ma["tables"]))
+        rows = ma["by_table"]["data_ov009_00003040"]
+        expect([r.addr for r in rows] == [0x1100, 0x1200, 0x1400],
+               "array-index slots ordered by index, not by file order",
+               ["%x" % r.addr for r in rows])
+
+        arrbad = tdp / "src/__sinit_ov009_00001011.c"
+        arrbad.write_text(
+            arr.read_text()
+            .replace("__sinit_ov009_00001010", "__sinit_ov009_00001011")
+            .replace("    data_ov009_00003040[1] = data_ov009_00002008;\n",
+                     "    data_ov009_00003040[1].a = 0;\n"))
+        caught(lambda: build(tdp, "src/__sinit_ov009_00001011.c",
+                             arity_override=0),
+               "shape this parser does not know",
+               "partial write to a pair array")
 
         # ---- refusals -----------------------------------------------------
         caught(lambda: Overlay("cut", _write(tdp / "cut.bin", img[:-4]), dl),
