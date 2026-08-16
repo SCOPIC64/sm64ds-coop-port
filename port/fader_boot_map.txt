@@ -65,6 +65,7 @@ out of walk_window.exe:
     +0x03  mov  ecx, [0xc0999c]           data_0209f5bc, the INSTALLED fader
     +0x09  test ecx,ecx / je +0x74        the ROM's own null guard
     +0x0d  mov  eax, [ecx]                its vptr
+    +0x0f  push esi                       the callee-save, NOT an argument
     +0x10  push ecx                       CDECL: receiver on the stack
     +0x11  mov  eax, [eax + 0x14]         IsAtStart, by ROM byte offset
     +0x14  call eax
@@ -349,9 +350,13 @@ both of them say so on stderr. Fixing it goes with the three motion slots.
     slot 1's `func_0202ec9c(data_0209f61c, 0)` takes its early return because
     the freshly constructed object's +0x14 is already 0, so the m1c dispatch
     never happens, and 0x14/0x18 are reached only from 0x1c. The two
-    destructors are linked and registered and undriven. So five of the seven
-    are linked, reachable and unexercised, and this file will not call them
-    verified.
+    destructors, 0x00 and 0x04, are a separate case: they are linked and
+    registered on data_020aa3f0's chain, nothing in the port walks that chain,
+    and they are undriven for that reason rather than for want of a caller on
+    this path. So the roster of the seven filled slots reads one PROVEN
+    (0x24), two DESTRUCTORS (0x00, 0x04), and FOUR linked, reachable and
+    unexercised (0x14, 0x18, 0x1c, 0x20). Six of the seven are not verified by
+    anything here and this file will not call them verified.
   * The four ROM rulings in inferred_stub_adjudicated.txt are instruction-level
     comparisons of the ARM body against the src body. They say the src is a
     faithful decompilation; they do NOT say the compiled-for-host behaviour is

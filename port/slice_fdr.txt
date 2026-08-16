@@ -9,7 +9,8 @@
 # THE OBJECT IS A dWipe_c, not a FaderBrightness. The handover, MG2's write-up
 # and the SCENE_BLOCKED row all say FaderBrightness; the ROM's own RTTI at
 # 0x020926dc says "7dWipe_c", deriving dFdColor_c -> dFdBrightness_c ->
-# dFader_c. FaderBrightness is three levels up. The addresses in every one of
+# dFader_c. FaderBrightness IS dFdBrightness_c, two levels up, so it is the
+# grandbase and dFader_c is the third level. The addresses in every one of
 # those documents are right; only the class name is wrong. The full derivation
 # is in the header of port/hal/fdr_arm9_fader_seat.cpp and the closure is in
 # port/fader_boot_map.txt.

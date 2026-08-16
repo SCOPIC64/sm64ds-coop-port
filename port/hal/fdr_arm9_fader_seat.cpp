@@ -15,7 +15,9 @@
 //
 // MG2's report, port/mg_fanout_costs.txt section 10 and the SCENE_BLOCKED row
 // all call data_0209f61c "an arm9 FaderBrightness". IT IS A dWipe_c, and
-// FaderBrightness is its GRAND-grandbase. The ROM says so in its own RTTI:
+// FaderBrightness (dFdBrightness_c) is its GRANDBASE, two levels up: the base
+// in between is dFdColor_c, and dFader_c is the third level. The ROM says so
+// in its own RTTI:
 // reading the typeinfo chain out of the image with config/arm9/relocs.txt
 // applied,
 //

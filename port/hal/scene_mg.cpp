@@ -682,9 +682,15 @@ extern "C" void port_scene_fill_curling(void)
     /* ---- THE PRE-FLIGHT CHECK FOR THIS SEAT'S ONE BLOCKER ----------------
        Run link60 lane MG2. dScMgBase_c's slot 1, BeforeInitResources, calls
        Scene::SetFaders(data_0209f61c) and then func_0202ec9c on the same
-       object, and data_0209f61c is an arm9 FaderBrightness in bss whose vptr
-       the port never installs. src/__sinit_02074f80.c is the ROM's static
-       initialiser for it -- `func_0202fc40(data_0209f61c)` then a
+       object, and data_0209f61c is an arm9 dWipe_c in bss whose vptr the port
+       never installs. (MG2 WROTE FaderBrightness HERE and lane FDR corrected
+       it: the ROM's RTTI at 0x020926dc reads "7dWipe_c" over the base chain
+       dFdColor_c -> dFdBrightness_c -> dFader_c, so FaderBrightness is the
+       grandbase two levels up. It stays the right name for the
+       Scene::SetFaders parameter, which is why the call spelling above is
+       untouched, and the wrong one for the object.)
+       src/__sinit_02074f80.c is the ROM's static initialiser for it --
+       `func_0202fc40(data_0209f61c)` then a
        func_020731dc destructor registration -- and NOTHING IN THE PORT RUNS
        IT. func_0202fc40 is not even in the link.
 
@@ -705,7 +711,7 @@ extern "C" void port_scene_fill_curling(void)
        port/tools/battery.py's SCENE_BLOCKED probe reports BLOCK RETIRED. */
     if (IsMinigameActorID((unsigned)port_scene_env_want()) &&
         data_0209f61c[0] == 0) {
-        std::printf("[scene] MINIGAME BLOCKED: the arm9 FaderBrightness at "
+        std::printf("[scene] MINIGAME BLOCKED: the arm9 dWipe_c at "
                     "data_0209f61c has a NULL vptr, because "
                     "__sinit_02074f80 (func_0202fc40) does not run in the "
                     "port. dScMgBase_c slot 1 passes it to Scene::SetFaders, "
