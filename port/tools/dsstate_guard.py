@@ -55,6 +55,24 @@ C++-mangled exceptions below were written without it and so had never matched
 anything; they are spelled with an optional one now. Both are inside .dsstate,
 so nothing was stranded by it, but the guard was not proving what it said.
 
+WHAT THE OBJECT TEST ACTUALLY ADDS, since the headline count is easy to
+over-read. On the build it landed on it reaches 855 symbols the name test does
+not, and they are not 855 more globals:
+
+    462   MSVC-decorated C++ aliases of mount data, ?data_ov002_020ff480@@3PAHA
+          and its kind, separate publics at addresses the name test already
+          covers under the undecorated spelling
+    247   pack padding slots, pkNNN_gap_ADDRESS, which the map lists even though
+          they are static, and which an explicit allocate already routed
+     64   the mangled mount names, _ZTV and _ZN...E
+     48   the synthetic gap blocks, 28 of them the ones this test was added for
+     34   the rest, mostly dsd-named func_ADDRESS symbols in mount objects that
+          turned out to be referenced as data
+
+So the number that grew is publics checked, not storage discovered. The reason
+to keep all of it is the same either way: none of it costs anything to check,
+and the test does not depend on anyone having named the shape first.
+
 HOW THE BOUND IS READ
 ---------------------
 hal/dsstate_seg.cpp puts dsstate_lo in .dsstate$aaa and dsstate_hi in

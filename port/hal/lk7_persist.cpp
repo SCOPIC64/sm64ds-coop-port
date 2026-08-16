@@ -37,6 +37,18 @@
 //   dsstate_base  section moved         -> hosted globals moved, refuse
 //   dsstate_size  section grew/shrank   -> another layout's blob, refuse
 //   hw_size       regions differ        -> textures would not line up, refuse
+// THE ORDER MATTERS AND IT IS THE ORDER ABOVE. header_matches compares field
+// by field and returns on the first mismatch, so a genuinely old state file --
+// one written by any earlier build -- is refused at GITTIP, which cannot match
+// across builds and therefore fires before anything below it is even looked at.
+// dsstate_base and dsstate_size sit BEHIND gittip as backstops, not as the
+// front line: each one independently trips on a state whose gittip somehow
+// agreed, which is what makes them worth keeping even though gittip is the
+// strictly tighter test. So a change that grows or moves the .dsstate section
+// costs no compatibility that a commit did not already cost, and the release
+// note for such a change should say "refused, not corrupted" and name gittip
+// as the field a player will actually see.
+//
 // A refusal names the field on stderr and leaves the file untouched. A gittip
 // mismatch is the common one: it is how a state written by an older build of
 // the game is turned away instead of loaded into a world it no longer

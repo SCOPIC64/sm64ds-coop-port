@@ -544,13 +544,23 @@ int lk6_savestate_has(void);
 /* bit 0 the .dsstate section, bit 1 the arena, 0 = not captured at all */
 int lk6_savestate_covers(const void *p);
 /* The packed-gap reproducer's one anchor (SM64DS_SS_WATCH_FLAG below).
-   ov009's FLAG keeps its SharedFilePtr at DS 0x02112238 and reaches it only
-   through the pointer the generated mount patches into data_ov009_02112bc4+20,
-   so following that pointer lands on whichever host array currently hosts the
-   DS address -- a synthetic gap block, a named mount symbol, whatever the
-   generator decided. That indirection is the point: the probe watches the DS
-   storage the GAME uses rather than a host symbol whose identity the fix under
-   test is allowed to change. */
+   data_ov009_02112bc4 is the BTA_File CastleWater::InitResources hands
+   TextureTransformer::Prepare and SetFile (see src/_ZN11CastleWater13Init
+   ResourcesEv.cpp), and the generated mount patches its +20 word to DS
+   0x02112238. What sits there is a 0x1c record whose leading halfword is
+   0xffff in the ROM and 0x0000 once ov009's sinits have run, with a pointer at
+   +4 into a block carrying the string "water_mat": the castle water's texture
+   animation, not FLAG's anything. Flag::InitResources loads through
+   data_ov009_02113eb8 and data_ov009_02113eb0, which are different symbols in
+   a different block. THE ENV IS STILL SPELLED _FLAG for continuity with the
+   review that found the case; the storage is not FLAG's and a debugger reading
+   this should not go looking for it there.
+
+   Following the +20 pointer rather than naming a host symbol is the point: it
+   lands on whichever host array currently hosts the DS address, a synthetic
+   gap block or a named mount symbol or whatever the generator decided next, so
+   the probe watches the DS storage the GAME uses and survives the fix under
+   test moving it. */
 extern unsigned char data_ov009_02112bc4[];
 /* The gap block itself, watched by name alongside the pointer above. The two
    answer different questions and the reproducer needs both: the pointer says
@@ -629,10 +639,11 @@ static unsigned long long ss_hw_hash(void)
     return h;
 }
 /* SM64DS_SS_WATCH_FLAG's reader. Follows ov009's own pointer to the DS
-   halfword at 0x02112238 -- the fileID of FLAG's SharedFilePtr -- and reports
-   the value together with where the host storage behind it lives. 0xdead is
-   returned for a null pointer, which cannot be a real fileID here and means
-   the mount's patch pass did not run.
+   halfword at 0x02112238 -- the leading id field of the castle water's texture
+   animation record, ffff in the ROM -- and reports the value together with
+   where the host storage behind it lives. 0xdead is returned for a null
+   pointer, which cannot be a real id here and means the mount's patch pass did
+   not run.
 
    THE INDIRECTION IS THE MEASUREMENT. Reading a host symbol by name would
    answer for that symbol; reading through the game's own pointer answers for
@@ -648,8 +659,9 @@ static unsigned ss_flag_word(int *covers)
 }
 /* The record around the watched halfword, so a reader can tell a targeted
    game write apart from something having zeroed the whole block. The ROM's
-   bytes here are ff ff 00 00 then a relocated pointer, twice over: two
-   SharedFilePtr records with their own fields behind them. */
+   bytes here are ff ff 00 00 then a relocated pointer, twice over: two records
+   of the same 0x1c shape, the second at DS 0x02112254, each with its own
+   inbound pointers and its own fields behind it. */
 static void ss_flag_dump(const char *when)
 {
     const unsigned char *p =
@@ -3291,14 +3303,25 @@ int main(void)
                    actually CHANGED before the load makes a mistimed run fail
                    loudly instead of passing without testing anything. */
                 ss_expect_mount = getenv("SM64DS_SS_EXPECT_MOUNT") != 0;
-                /* SM64DS_SS_WATCH_FLAG=1: the PACKED-GAP reproducer. Watch
-                   ov009's FLAG SharedFilePtr fileID across the save/load and
-                   report whether its storage is captured at all. =2 also
-                   FAILS the run if the halfword did not roll back, which is
-                   the assertion form for the battery. Separate from
+                /* SM64DS_SS_WATCH_FLAG=1: the PACKED-GAP reproducer. Watch the
+                   id halfword of ov009's castle-water texture animation record
+                   (see the declaration of data_ov009_02112bc4 above; the env
+                   name says FLAG for continuity with the review, the storage
+                   is not FLAG's) across the save/load, and report whether it is
+                   captured at all. =2 also FAILS the run if the halfword did
+                   not roll back, which is the assertion form. Separate from
                    SM64DS_SS_ASSERT because that one is the message-lock and
                    hardware-store acceptance test and this must be able to run
-                   red while that runs green. */
+                   red while that runs green.
+
+                   =2 IS NOT SELF-GUARDING BY HAND. It fails a rollback that
+                   did not happen, but a run where the halfword never moved
+                   between the save and the load prints VACUOUS and still exits
+                   0, because a bare walk_window has no way to know whether the
+                   caller meant to drive a level change. port/tools/
+                   savestate_soak.py is the guard: it rejects a vacuous run as a
+                   failure. Read a hand-run's VACUOUS line, do not read its
+                   exit code. */
                 if (const char *w = getenv("SM64DS_SS_WATCH_FLAG"))
                     ss_watch = atoi(w);
             }
@@ -3327,7 +3350,7 @@ int main(void)
                 int cov = 0;
                 const unsigned now = ss_flag_word(&cov);
                 if (!seeded || now != last) {
-                    fprintf(stderr, "[ss-flag] f%d ov009 FLAG fileID "
+                    fprintf(stderr, "[ss-flag] f%d ov009 water-anim id "
                             "%04x -> %04x, storage %s\n", frame,
                             seeded ? last : now, now,
                             cov & 1 ? "in .dsstate (captured)"
@@ -3355,7 +3378,7 @@ int main(void)
                     ss_flag_at_save = *(const unsigned short *)
                         (port_ov009_gap_0211222c + 12);
                     fprintf(stderr, "[ss-flag] f%d save: gap+12=%04x, live "
-                            "fileID=%04x in %s; gap block %s\n", frame,
+                            "id=%04x in %s; gap block %s\n", frame,
                             ss_flag_at_save, live,
                             cov & 1 ? ".dsstate" : (cov & 2 ? "the arena"
                                                             : "NOTHING "
@@ -3442,11 +3465,15 @@ int main(void)
                     if (ss_watch >= 2 && !rolled) {
                         fprintf(stderr, "[ss-flag] FAIL: a packed mount's DS "
                                 "storage did NOT roll back on restore. The "
-                                "bytes behind ov009's FLAG SharedFilePtr are "
-                                "outside the captured span -- the 0.2.0 "
-                                "ANIM_PTRS class again, this time in a "
-                                "synthetic gap block (port/tools/ovdata.py, "
-                                "audited by port/tools/gapaudit.py)\n");
+                                "bytes are ov009 DS 0x02112238, the castle "
+                                "water's texture animation record reached "
+                                "through the BTA_File at "
+                                "data_ov009_02112bc4+20 (NOT FLAG's, whatever "
+                                "this env is called), and they are outside the "
+                                "captured span -- the 0.2.0 ANIM_PTRS class "
+                                "again, this time in a synthetic gap block "
+                                "(port/tools/ovdata.py, audited by "
+                                "port/tools/gapaudit.py)\n");
                         ntr::ppu_write_bmp("walk_window_selftest.bmp", fb);
                         return 6;
                     }

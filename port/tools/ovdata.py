@@ -1331,6 +1331,21 @@ def main():
     # them costs 5368 captured bytes and does not depend on which of them turns
     # out to be written; auditing them one at a time would.
     #
+    # WHAT THIS DOES TO THE SAVE STATE AND TO THE SELFTEST BMP, for whoever
+    # writes the release note. The captured span both GROWS and MOVES: on the
+    # build this landed on, 934896 bytes at 0xb28000 became 940280 at 0xb26000,
+    # so +5384 (the 5368 plus 16 of section alignment) and a base 8192 lower.
+    # The size is what makes an older disk state refuse rather than misread.
+    # The BASE is what invalidates a BMP comparison: per the rule in
+    # port/tools/battery.py, walk_window_selftest.bmp carries a dependence on
+    # the absolute addresses of the hosted globals and is only comparable at an
+    # equal .dsstate base, so a byte-compare of the selftest BMP across this
+    # change is meaningless and a diff must not be read as a render regression.
+    # Neither of that note's exemptions applies here: the base moved, and the
+    # change is not interior to .dsstate either, since 5368 bytes left the
+    # ordinary read/write data to get here. dsstate_guard is the check with
+    # meaning across this commit.
+    #
     # Route them the way the plain branch does rather than into the pack
     # family: they have no ROM-relative spacing obligation to the named
     # symbols (nothing reaches them by arithmetic from a name, only through a
