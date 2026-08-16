@@ -47,6 +47,10 @@ void ppu_scanout_obj(Engine eng, Framebuffer &fb);
 // Debug output, so a frame can be inspected without a window yet.
 bool ppu_write_bmp(const char *path, const Framebuffer &fb);
 
+// The same writer with the size in arguments, for an image that is not a
+// framebuffer. The stacked presentation below is the reason it exists.
+bool ppu_write_bmp_px(const char *path, const uint32_t *px, int w, int h);
+
 // ---- the bottom screen ------------------------------------------------------
 //
 // The sub engine is a tile raster whose every address is a DS pixel, so unlike
@@ -75,6 +79,45 @@ bool ppu_write_bmp_sub(const char *path, const SubFramebuffer &fb);
    minimap's 1px marks survive as shading rather than vanishing. */
 void ppu_compose_sub(const SubFramebuffer &sub, uint32_t *dst, int dst_w,
                      int dst_h, int margin, int div = 1);
+
+// ---- the stacked presentation -----------------------------------------------
+//
+// BOTH DS SCREENS AT THE SAME SIZE, top above bottom, which is the shape a
+// touchscreen game needs and the corner panel above cannot give it. The panel
+// exists to keep the bottom screen out of the way during a level, where the
+// player's hands are on the keyboard; a minigame is played ON the bottom
+// screen and a 128x96 preview of it is not something anyone can aim at.
+//
+// The image is SCREEN_W x 2*SCREEN_H: the framebuffer copied into the top half
+// unchanged, and the 256x192 sub framebuffer scaled into the bottom half by
+// the integer ratio SCREEN_W / SUB_W -- 1 at the plain tier, 2 at NTR_HIRES2,
+// 4 at NTR_HIRES. Nearest neighbour, deliberately: every tier's ratio is a
+// whole number, so there is nothing to interpolate and a filter would only
+// invent pixels the DS never drew.
+//
+// NO SEPARATOR ROW BETWEEN THE HALVES. The DS has a hinge and this does not,
+// and the reason is arithmetic rather than taste: with the halves exactly
+// equal, a client point in the lower half maps to a DS pixel by subtracting
+// one screen height and dividing, with no fudge term for anyone to get wrong
+// later. A hinge would cost a row of real game picture or an odd total height,
+// and either one puts a constant into the touch transform.
+//
+// evy / to_white are the MAIN engine's master-brightness fade as
+// port_fader_blend_state reports it, applied to the BOTTOM half only. The top
+// half arrives already faded, because it is the framebuffer after walk_window's
+// own fade composite has run over it. This reproduces what the corner panel
+// gets today -- the panel is inside the framebuffer when that loop runs, so
+// the main engine's fade lands on it -- so switching layout changes the
+// layout and nothing else. Pass evy 0 for no fade.
+constexpr int STACK_W = SCREEN_W;
+constexpr int STACK_H = SCREEN_H * 2;
+
+// `top` is SCREEN_W x SCREEN_H row-major -- a Framebuffer's px, taken as a
+// plain pointer because the one caller reaches this across an extern "C" seam
+// (hal/sub_screen.cpp) and a reference would only be a cast in disguise there.
+void ppu_compose_stacked(const uint32_t *top, const SubFramebuffer &sub,
+                         uint32_t *dst, int dst_w, int dst_h, int evy,
+                         int to_white);
 
 }  // namespace ntr
 

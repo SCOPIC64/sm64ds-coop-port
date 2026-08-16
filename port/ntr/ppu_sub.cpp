@@ -631,4 +631,52 @@ void ppu_compose_sub(const SubFramebuffer &sub, uint32_t *dst, int dst_w,
         }
 }
 
+// ---- the stacked presentation -----------------------------------------------
+//
+// Two equal halves, no separator, and the header carries the reasoning. This
+// writes every pixel of dst, so the caller does not have to clear it.
+void ppu_compose_stacked(const uint32_t *top, const SubFramebuffer &sub,
+                         uint32_t *dst, int dst_w, int dst_h, int evy,
+                         int to_white)
+{
+    if (!top || !dst || dst_w != STACK_W || dst_h != STACK_H) return;
+    if (evy < 0) evy = 0;
+    if (evy > 16) evy = 16;
+
+    // the top half, verbatim: it is already faded and already carries the F3
+    // overlay, because it is the framebuffer the caller finished with
+    std::memcpy(dst, top, (size_t)SCREEN_W * SCREEN_H * 4);
+
+    /* The bottom half. The ratio is a whole number at every tier the port
+       builds (1, 2 and 4), and a SHIFT rather than a divide would be wrong the
+       day a tier is not a power of two, so it stays a divide. */
+    const int rx = SCREEN_W / SUB_W, ry = SCREEN_H / SUB_H;
+    for (int y = 0; y < SCREEN_H; ++y) {
+        const int sy = ry > 0 ? y / ry : (y * SUB_H) / SCREEN_H;
+        const uint32_t *src = sub.px[sy < SUB_H ? sy : SUB_H - 1];
+        uint32_t *out = dst + (size_t)(SCREEN_H + y) * dst_w;
+        for (int x = 0; x < SCREEN_W; ++x) {
+            const int sx = rx > 0 ? x / rx : (x * SUB_W) / SCREEN_W;
+            uint32_t p = src[sx < SUB_W ? sx : SUB_W - 1];
+            if (evy) {
+                /* the same expression walk_window's fade composite runs over
+                   the framebuffer, so the two halves fade together */
+                int r = (p >> 16) & 0xff, g = (p >> 8) & 0xff, b = p & 0xff;
+                if (to_white) {
+                    r += ((255 - r) * evy) >> 4;
+                    g += ((255 - g) * evy) >> 4;
+                    b += ((255 - b) * evy) >> 4;
+                } else {
+                    r -= (r * evy) >> 4;
+                    g -= (g * evy) >> 4;
+                    b -= (b * evy) >> 4;
+                }
+                p = 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) |
+                    (uint32_t)b;
+            }
+            out[x] = p;
+        }
+    }
+}
+
 }  // namespace ntr
