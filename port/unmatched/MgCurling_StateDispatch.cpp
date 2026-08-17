@@ -36,7 +36,30 @@
 // Twenty-four have a matched src TU in port/slice_mg1.txt. The twenty-fifth is
 // the hole below.
 //
-// ---- func_ov006_020e1854 IS A HARD FLOOR FOR THIS CLASS -------------------
+// ---- func_ov006_020e1854 WAS A HARD FLOOR. AMENDED, run link60 lane CT1 ---
+//
+// IT IS HOSTED NOW. unmatched/MgCurling_State_020e1854.cpp transcribes the
+// state from the ROM (0x300 bytes, 186 instructions, read out of
+// extracted/overlays/overlay_0006.bin at base 0x020bfec0 with the base proved
+// against relocs.txt:11726), and this switch calls it. Three callees, all
+// already matched, so the hole did not cascade. The state is the aim-and-charge
+// half of the shot: stylus down, cursor tracks it inside a fixed box, scrubbing
+// builds power at +0x4ec8 and aim at +0x4ede, and releasing sets +0x4ee4 back
+// to 0 and +0x4ee5 to 1 for the parent to act on.
+//
+// WHAT DID NOT CHANGE, and must not be read as changed: the DECOMP still has no
+// body and no delink block for 0x020e1854. stategen.py still reports it under
+// REFUSALS and that report is still true. The host body is therefore called
+// port_mg_curling_st_020e1854, not the ROM's symbol -- see that file's banner.
+// If the refusal ever disappears without a src TU landing, something lied.
+//
+// The paragraph below is the ORIGINAL finding, kept because it is the evidence
+// that the floor was real and because hal/scene_mg_faces.cpp section 3 and
+// hal/scene_mg.cpp section 6 still quote it. Those two comments are now stale
+// on this one point and are left for their owning lanes rather than edited from
+// here.
+//
+// ---- THE ORIGINAL FINDING -------------------------------------------------
 //
 // It is slot 1 of data_ov006_021418b0, it has no delink block in
 // config/arm9/overlays/ov006/delinks.txt and no src file defines it, so
@@ -60,8 +83,6 @@
 // nothing. They are called as declared and the switch says so at each site.
 // This is NOT the defect class of hal/scene_actor_faces.cpp's veneers, where a
 // (void) callee stood between a caller and a body that DID want arguments.
-
-#include <cstdio>
 
 struct MgPmf { unsigned code; int adj; };
 
@@ -87,6 +108,16 @@ void func_ov006_020e1100(char *c, int idx);
 void func_ov006_020e1214(char *base, int idx);
 void func_ov006_020e1264(char *c, int idx);
 void func_ov006_020e1b54(char *c);
+
+/* THE TWENTY-FIFTH STATE, hosted as of run link60 lane CT1. Deliberately NOT
+   named func_ov006_020e1854: the decomp still has no body and no delink block
+   for that address, and stategen.py's reconstruct check (run by
+   port/build-port.cmd before configure) fails the build if this switch calls a
+   `func_*` or `_Z*` symbol for such an address. `port_` is the repo's existing
+   way to say "host body, not decomp symbol" -- the same ruling stategen already
+   prints for port_player_st_climb_main at 0x020cb5bc. Derivation, provenance
+   and the full ROM listing are in unmatched/MgCurling_State_020e1854.cpp. */
+void port_mg_curling_st_020e1854(char *c);
 void func_ov006_020e26f8(void *w, int i);
 void func_ov006_020e285c(void);              /* one-argument slot, (void) body */
 void func_ov006_020e2868(char *c, int idx);
@@ -122,28 +153,13 @@ void func_ov006_020e12d0(char *o);
 
 static unsigned g_curling_state_hits;
 
-/* The decomp hole, reported at the dispatch site rather than stubbed. */
-static void curling_no_body(int idx)
-{
-    static int said;
-    if (!said) {
-        said = 1;
-        std::fprintf(stderr, "  [scene] dScMgCurling_c STATE 0x020e1854 HAS NO "
-                     "DECOMPILED BODY (slot 1 of data_ov006_021418b0, index "
-                     "%d): no delink block in config/arm9/overlays/ov006/"
-                     "delinks.txt and no src file. The state was not entered. "
-                     "port/unmatched/MgCurling_StateDispatch.cpp\n", idx);
-        std::fflush(stderr);
-    }
-}
-
 extern "C" int port_mg_try_ov006_0(void *self, unsigned code)
 {
     char *c = (char *)self;
     ++g_curling_state_hits;
     switch (code) {
     case 0x020e1b54u: func_ov006_020e1b54(c); return 1;
-    case 0x020e1854u: curling_no_body(-1);    return 1;
+    case 0x020e1854u: port_mg_curling_st_020e1854(c); return 1;
     case 0x020e2eb8u: func_ov006_020e2eb8();  return 1;   /* (void) body */
     case 0x020e2ebcu: func_ov006_020e2ebc(c); return 1;
     case 0x020e2f78u: func_ov006_020e2f78(c); return 1;
@@ -176,7 +192,11 @@ extern "C" int port_mg_try_ov006_1(void *self, unsigned code, int a)
     case 0x020e285cu: func_ov006_020e285c();     return 1;  /* (void) body */
     case 0x020e2868u: func_ov006_020e2868(c, a); return 1;
     case 0x020e2c08u: func_ov006_020e2c08(c, a); return 1;
-    case 0x020e1854u: curling_no_body(a);        return 1;
+    /* arity-0 body reached through a one-argument slot. data_ov006_021418b0 is
+       an arity-0 table so this case should never fire, but the ROM body ignores
+       r1 anyway, so calling it here is the same ride-through this file already
+       documents for func_ov006_020e285c. */
+    case 0x020e1854u: port_mg_curling_st_020e1854(c); return 1;
     default: --g_curling_state_hits;             return 0;
     }
 }

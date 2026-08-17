@@ -3403,7 +3403,12 @@ set(SCENE_MG_SOURCES
     hal/scene_mg.cpp hal/scene_mg_faces.cpp hal/scene_mg_faces_gen.cpp
     unmatched/MgBase_DeclConflict.cpp unmatched/MgBase_Slot1.cpp
     unmatched/MgBase_Slot7.cpp unmatched/MgBase_StateDispatch.cpp
-    unmatched/MgCurling_StateDispatch.cpp unmatched/MgBase_LangTable.cpp)
+    unmatched/MgCurling_StateDispatch.cpp unmatched/MgBase_LangTable.cpp
+    # Lane CT1: dScMgCurling_c's twenty-fifth state, the one with no src TU.
+    # Rides the same three targets as the dispatch that calls it -- it is only
+    # ever reached through that switch, so any target compiling the dispatch
+    # needs this or the link fails on port_mg_curling_st_020e1854.
+    unmatched/MgCurling_State_020e1854.cpp)
 
 # Lane FDR: the arm9 wipe fader's own static initialiser, and the dWipe_c
 # vtable it installs. Rides the SAME three targets as the scene seats above,
