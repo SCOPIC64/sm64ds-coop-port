@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "dsstate_seg.h"
+#include "ntr/ppu_audit.h"
 
 #pragma comment(linker, "/alternatename:?FUN_02029a68@@YAXXZ=_FUN_02029a68")
 #pragma comment(linker, "/alternatename:?_ZN6Player11ChangeStateERNS_5StateE@@YAXPAUPlayer@@PAUState@@@Z=__ZN6Player11ChangeStateERNS_5StateE")
@@ -84,6 +85,12 @@ char *_ZN4cstd6strchrEPKcc(const char *s, char ch)
    MultiCopyHalf: halfword copy loop, (src, dst, byteCount) in r0-r2 */
 void MultiCopyHalf(unsigned short *src, unsigned short *dst, unsigned n)
 {
+    /* run link60 Stage 5 lane T2: every halfword block copy this primitive
+       makes, counted by destination region in the 2D audit. The BG tilemap
+       upload path (func_ov007_020c076c -> func_020565xx -> G2::GetBGxScrPtr)
+       ends here, so "the tilemap is empty" and "nothing ever tried to write
+       it" are separable from one table. Inert unless SM64DS_PPU_AUDIT is set. */
+    ntr::ppu_audit_note_copy((unsigned)(size_t)src, (unsigned)(size_t)dst, n);
     for (unsigned i = 0; i < n; i += 2)
         *(unsigned short *)((char *)dst + i) = *(unsigned short *)((char *)src + i);
 }

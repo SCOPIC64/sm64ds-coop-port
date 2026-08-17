@@ -9,6 +9,7 @@
 #include "ntr/ppu_audit.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #if defined(_WIN32)
@@ -155,7 +156,44 @@ constexpr uint32_t GXSTAT = 0x4000600;
 constexpr uint32_t GXSTAT_HW = 0x0FFF7F00;    // bits 8..14 + 16..27, hardware owned
 constexpr uint32_t GXSTAT_IDLE = 0x06000000;  // empty + less-than-half-full, not busy
 
+// SM64DS_DIV_UNIT_OFF=1: the divider computes nothing and DIV_RESULT stays
+// whatever the memory window holds. THE ESCAPE HATCH FOR run link60 Stage 5
+// lane T2, and read what it is before reading it as a general switch.
+//
+// That lane routed src/_ZN4cstd10fdiv_asyncE... and src/_ZN4cstd4ldivEii
+// through hostgen, so cstd::ldiv reaches this unit for the first time. The
+// change is a BUILD-TIME routing and there is no runtime seam inside a
+// generated copy of byte-verified source to hang a switch on, so the hatch
+// goes at the unit instead: with it set, every proxied caller reads a dead
+// window, which is the state cstd::ldiv's caller was in before the routing.
+//
+// WHAT IT IS NOT, AND THIS IS THE HALF THAT MATTERS. It is not caller-scoped
+// and it is NOT a reconstructed before. G3i::PerspectiveW_'s host copy already
+// reached this unit and it goes dark too, so on scene 1 the hatch is MORE off
+// than the pre-change state was: PerspectiveW_ loses proj[5] and the depth row
+// as well, all 96 triangles collapse to the single point 256,192 instead of to
+// the pre-change vertical line, and the frame carries 230 distinct colours
+// where the start commit's carried 472. Both hashes are in
+// port/ov007_seat.txt 5i. It switches the behaviour off, which is what a hatch
+// owes, and it does not rebuild the old frame; the before is the start
+// commit's binary. On a LEVEL it is a new breakage rather than an old
+// behaviour, so it is a bisect switch there and nothing more.
+//
+// AN EXACT SAME-BINARY BEFORE WOULD NEED A DIFFERENT SEAM. The cheap one is a
+// CMake option on the routing block in port/CMakeLists.txt that keeps the
+// plain slice entries, which is a rebuild rather than one binary; nobody has
+// needed it yet.
+bool div_unit_off() {
+    static int off = -1;
+    if (off < 0) {
+        const char *e = std::getenv("SM64DS_DIV_UNIT_OFF");
+        off = (e && *e && *e != '0') ? 1 : 0;
+    }
+    return off != 0;
+}
+
 void run_divide() {
+    if (div_unit_off()) return;
     const uint16_t mode = static_cast<uint16_t>(raw_read(DIVCNT, 2)) & 3;
     const int64_t numer = static_cast<int64_t>(raw_read(DIV_NUMER, 8));
     const int64_t denom = static_cast<int64_t>(raw_read(DIV_DENOM, 8));

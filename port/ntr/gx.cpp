@@ -20,6 +20,10 @@
 #include <utility>
 #include <vector>
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 namespace ntr {
 namespace {
 
@@ -321,8 +325,65 @@ Mat mat_3x3(const uint32_t *p) {
     return m;
 }
 
+// ---- the geometry command census (run link60 Stage 5 lane T2) ---------------
+//
+// WHAT IT ANSWERS, AND WHY THE VIEWPORT ROW ALONE COULD NOT. The audit's 3D
+// block reports the LATCHED viewport rectangle and the polygon count, which
+// separates "the 3D engine was handed nothing" from "it was handed geometry".
+// It cannot separate the next question down: geometry arrived, so which of the
+// STATE commands around it also arrived? A scene whose projection matrix, its
+// polygon attributes and its lights are all missing submits exactly the same
+// polygon count as one where they landed, and the two frames are a picture and
+// a blank.
+//
+// The counters are file statics rather than State members ON PURPOSE. gx_reset
+// assigns `g = State{}` once a frame, so a census inside State would be zeroed
+// by the very reset this instrument exists to reason about.
+uint32_t g_cmd_n[256];      // executed commands since the last census take
+uint32_t g_port_n;          // gx_write_port calls since the last take
+uint32_t g_fifo_n;          // gx_write_fifo words since the last take
+uint32_t g_swap_param;      // the last SWAP_BUFFERS parameter word seen
+uint32_t g_resets;          // gx_reset calls since the last take
+
+// SM64DS_MTX_LOG=<n>: the first n PROJECTION-mode matrix loads, as fixed-point
+// words, with the host return addresses that issued them. A projection whose
+// first row is zero collapses every vertex onto the framebuffer's vertical
+// centre line, and the only way to attribute that to a caller is to see who
+// pushed the matrix -- the port has several doors into MTX_LOAD (the packed
+// FIFO, the command ports, and host copies of the SDK helpers) and the
+// register file alone cannot say which one was used.
+void mtx_load_log(uint8_t cmd, const uint32_t *p) {
+    static int budget = -1;
+    if (budget < 0) {
+        const char *e = getenv("SM64DS_MTX_LOG");
+        budget = e ? atoi(e) : 0;
+    }
+    static int allmodes = -1;
+    if (allmodes < 0) {
+        const char *e = getenv("SM64DS_MTX_LOG_ALL");
+        allmodes = e ? 1 : 0;
+    }
+    if (budget <= 0 || (g.mode != MTX_PROJ && !allmodes)) return;
+    --budget;
+    const int n = (cmd == 0x16 || cmd == 0x18) ? 16 : (cmd == 0x1A ? 9 : 12);
+    fprintf(stderr, "[mtx] mode%d cmd %02x", g.mode, cmd);
+    for (int i = 0; i < n; ++i)
+        fprintf(stderr, " %d", (int32_t)p[i]);
+    fprintf(stderr, "\n");
+#if defined(_WIN32)
+    void *bt[16];
+    const unsigned short got = RtlCaptureStackBackTrace(0, 16, bt, 0);
+    fprintf(stderr, "[mtx]   from");
+    for (unsigned short i = 0; i < got; ++i) fprintf(stderr, " %p", bt[i]);
+    fprintf(stderr, "\n");
+#endif
+    fflush(stderr);
+}
+
 void exec(uint8_t cmd, const uint32_t *p, int np) {
     (void)np;
+    ++g_cmd_n[cmd];
+    if (cmd == 0x50) g_swap_param = p[0];
     switch (cmd) {
         case 0x00: break;                                        // NOP
         case 0x10: g.mode = p[0] & 3; break;                     // MTX_MODE
@@ -356,6 +417,7 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
             else { g.pos = Mat::identity(); if (g.mode == MTX_POSVEC) g.vec = Mat::identity(); }
             break;
         case 0x16: case 0x17: {                                  // MTX_LOAD_4x4 / 4x3
+            mtx_load_log(cmd, p);
             Mat m; load_mtx(m, p, cmd == 0x16 ? 16 : 12);
             if (g.mode == MTX_PROJ) g.proj = m;
             else if (g.mode == MTX_TEX) g.tex = m;
@@ -363,6 +425,7 @@ void exec(uint8_t cmd, const uint32_t *p, int np) {
             break;
         }
         case 0x18: case 0x19: case 0x1A: {                       // MTX_MULT_4x4 / 4x3 / 3x3
+            mtx_load_log(cmd, p);
             Mat m;
             if (cmd == 0x1A) m = mat_3x3(p);
             else load_mtx(m, p, cmd == 0x18 ? 16 : 12);
@@ -598,7 +661,7 @@ int g_port_have = 0;
 }  // namespace
 
 void gx_stream_note(uint32_t w);
-void gx_write_fifo(uint32_t word) { gx_stream_note(word); feed(word); }
+void gx_write_fifo(uint32_t word) { ++g_fifo_n; gx_stream_note(word); feed(word); }
 
 void gx_set_matrix_slot(int slot, const float m[16]) {
     if (slot < 0 || slot >= 32) return;
@@ -820,7 +883,21 @@ void gx_debug_viewport(int &x, int &y, int &w, int &h, int &sets) {
     x = g.vp_x; y = g.vp_y; w = g.vp_w; h = g.vp_h; sets = g.vp_writes;
 }
 
+void gx_debug_commands(uint32_t counts[256], uint32_t &ports, uint32_t &fifo,
+                       uint32_t &swap_param, uint32_t &resets, bool take) {
+    if (counts) for (int i = 0; i < 256; ++i) counts[i] = g_cmd_n[i];
+    ports = g_port_n;
+    fifo = g_fifo_n;
+    swap_param = g_swap_param;
+    resets = g_resets;
+    if (take) {
+        for (int i = 0; i < 256; ++i) g_cmd_n[i] = 0;
+        g_port_n = g_fifo_n = g_resets = 0;
+    }
+}
+
 void gx_write_port(uint32_t addr, uint32_t value) {
+    ++g_port_n;
     gx_stream_note(addr ^ value);
     const uint8_t cmd = static_cast<uint8_t>((addr - 0x04000400u) >> 2);
     const int need = param_count(cmd);
@@ -848,6 +925,7 @@ void gx_write_port(uint32_t addr, uint32_t value) {
 void gx_invalidate_textures() { g_vram_tex_cache.clear(); }
 
 void gx_reset() {
+    ++g_resets;
     static int nocache = -1;
     if (nocache < 0) nocache = getenv("SM64DS_TEX_NOCACHE") ? 1 : 0;
     if (nocache) g_vram_tex_cache.clear();

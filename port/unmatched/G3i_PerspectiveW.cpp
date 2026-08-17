@@ -23,6 +23,9 @@
  */
 #include "ntr/mmio.h"
 
+#include <cstdio>
+#include <cstdlib>
+
 typedef long long s64;
 typedef unsigned long long u64;
 
@@ -89,6 +92,27 @@ void _ZN3G3i13PerspectiveW_E5Fix12IiES1_S1_S1_S1_S1_bP9Matrix4x3(
     if (mtx) {
         mtx[0] = xx;
         mtx[5] = tmp;
+    }
+    /* SM64DS_PERSP_LOG=<n>: the first n calls' arguments and the two matrix
+       scales they produce. The x scale is a DIVISION BY `aspect`, so a scene
+       whose aspect field never got written reads xx 0 here and collapses every
+       vertex onto the framebuffer's vertical centre line -- a symptom that
+       looks like "the 3D layer does not rasterise" and is not a raster
+       problem at all. Inert unless the variable is set. */
+    {
+        static int budget = -1;
+        if (budget < 0) {
+            const char *e = std::getenv("SM64DS_PERSP_LOG");
+            budget = e ? std::atoi(e) : 0;
+        }
+        if (budget > 0) {
+            --budget;
+            std::fprintf(stderr, "[persp] sin=%d cos=%d aspect=%d n=%d f=%d "
+                         "scaleW=%d flag=%d -> cot=%d(%.4f) xx=%d(%.4f)\n",
+                         sinF, cosF, aspect, n, f, scaleW, flag,
+                         tmp, tmp / 4096.0, xx, xx / 4096.0);
+            std::fflush(stderr);
+        }
     }
     q = _ZN4cstd11ldiv_resultEv();
     if (scaleW != 0x1000)
