@@ -110,9 +110,33 @@ straight into the FATAL. Shipping a fixed extractor would NOT have fixed an
 existing install; the player would have had to delete build\ by hand.
 
 SM64DSLauncher's Extraction.cs carries the same three names in its Markers[]
-array, with a comment saying they were taken from play.bat, and has the same
-behaviour for the same reason. That file is in a different repository and is
-not this lane's to change. IT STILL NEEDS THE SAME FIX and it is three lines.
+array, with a comment saying they were taken from play.bat. That file is in a
+different repository and is not this lane's to change.
+
+ITS EXPOSURE IS NARROWER THAN play.bat'S, AND THE DIFFERENCE MATTERS TO WHOEVER
+FIXES IT. An earlier draft of this section said the launcher "has the same
+behaviour for the same reason", which is wrong. Review caught it and this lane
+re-read Extraction.cs to confirm rather than repeat the correction:
+WhatIsNeeded() returns FirstRun if any of the three markers is absent, and
+OTHERWISE falls through to RomdataMatchesKit(), which compares the on-disk
+romdata.bin against the sha256 and length in the kit's own romdata.manifest.
+
+So a kit update that changes the romdata payload HEALS A STALE INSTALL BY
+ACCIDENT: the manifest moves, the derived blob no longer matches it, the
+launcher reports StaleRomdata and re-extracts, and the missing nitrofs files
+arrive as a side effect of a check aimed at something else entirely.
+
+THE DEADLY CASE IS THE ONE WHERE NOTHING ELSE MOVED: a pre-nitrofs install
+whose romdata.bin still matches the shipping kit's manifest. Three markers
+present, romdata agrees, WhatIsNeeded says None, the extraction never re-runs,
+and the game dies on a file the launcher never thought to look for. That is a
+narrower window than play.bat's -- which had no second check at all -- but it
+is not a closed one, and RomdataMatchesKit() is deliberately conservative
+(an unreadable manifest or an unstattable blob both report "matches"), so it
+fails in the direction of NOT re-extracting.
+
+The fix is still to put the full list in Markers[], and it is still about three
+lines. It rides separately, in that repository, with its owner.
 
 
 3. THE LIVE REPRO AND THE HAND PATCH
@@ -188,8 +212,64 @@ zero-size table would have passed it and produced a file the game then refuses
 by name. It now refuses in the extractor, where the message can say "re-dump
 the cartridge" instead of naming a file the script itself just wrote.
 
+PROVED BY BREAKING IT, to the same standard section 7 holds the drift checks
+to -- this was the one new refusal in the lane that had only ever been reasoned
+about. A copy of the ROM with fnt_size at header 0x44 overwritten with zero
+(0x1d9324/0xbefd/0x1e5224/0x43f8 becoming 0x1d9324/0x0/0x1e5224/0x43f8), run
+through the extractor:
+
+    ##REASON This dump has an empty file name table, so the game could not
+    look up any of its files. Re-dump the cartridge.
+    exit 1
+
+and build/assets holds files.tsv and handles.tsv and NO nitrofs file at all.
+The refusal fires before the nitrofs writes specifically -- the two catalog
+files above it were already on disk and stay there -- and that is the point:
+the alternative was a zero-byte table on disk and the game later refusing, by
+name, a file the extractor itself had just produced. Run independently on this
+lane and by the reviewer, same result both times.
+
+THAT RUN ALSO PRODUCED THE PARTIAL-EXTRACTION CASE FOR FREE, and it is worth
+looking at because it is the section 2c bug wearing different clothes. What the
+failed extraction left behind was:
+
+    PRESENT  build/assets/files.tsv
+    PRESENT  build/assets/handles.tsv
+    PRESENT  extracted/dsd/files/data/sound_data.sdat
+    missing  everything else
+
+-- which is EXACTLY the three files the old play.bat tested. A player whose
+extraction died there would have been told "already unpacked" on every
+subsequent launch, forever. See the end of this section.
+
 play.bat's "already unpacked?" test now names every required file instead of
 three of them, so an install made before this change re-extracts itself.
+
+AND IT HEALS A SECOND CLASS THAT HAS NOTHING TO DO WITH VERSION SKEW, which
+this file undersold on first writing. The three old markers were files.tsv,
+handles.tsv and sound_data.sdat, and the extractor writes all three EARLY --
+files.tsv and handles.tsv go out immediately after the handle table, and the
+sound archive lands during the file dump. Everything expensive happens after
+them: the nitrofs tables, then the decompress-and-hash of romdata.bin, which is
+minutes of work and the likeliest thing to be interrupted by a closed window, a
+full disk, a sleep or an antivirus stall.
+
+So an extraction that FAILED PART WAY THROUGH left exactly the three markers the
+old test looked for, over a half-written build/assets. The old play.bat called
+that "already unpacked" and ran the game into the same fatal refusal. The new
+list names the LAST things written as well as the first, so a partial run is
+recognised as partial and is redone.
+
+NOT A HYPOTHETICAL: the zero-span refusal earlier in this section IS a failed
+extraction, and its leftovers are the three old markers and nothing else -- that
+is the listing printed above. Over that directory the old test says "already
+unpacked" and the new one re-extracts. Two different causes -- a dump the
+extractor rightly rejected, and a kit that grew a requirement -- reaching the
+player as the same dead install, because the check that was supposed to notice
+looked only at files written in the first thirty seconds of a five-minute job.
+
+Version skew was the case that bit us; interrupted extraction is the case that
+would have bitten someone eventually, and it is the same one-line-per-file fix.
 
 
 5. THE FIX, PART TWO: THE KIT BUILD HAS NO FALLBACK
@@ -260,6 +340,10 @@ port/tools/kit_smoke.py takes a built kit directory and a ROM, and:
      package_kit.ps1 makes and spelled the same way on purpose;
   3. checks port/kit_assets.txt against THE SHIPPED EXE'S STRINGS, both
      directions (section 7);
+  3b. checks port/kit_assets.txt against THE SHIPPED play.bat's unpack test,
+     both directions, so the list that decides WHETHER TO EXTRACT cannot drift
+     from the list of what the exe needs. Section 2c is why this is its own
+     step rather than a footnote;
   4. stages a fresh temp directory holding a COPY of the kit and nothing else,
      with the ROM in its drop folder;
   5. runs the kit's own extractor there, exactly as play.bat runs it -- read as
@@ -269,10 +353,27 @@ port/tools/kit_smoke.py takes a built kit directory and a ROM, and:
   7. runs the exe with GameRunner.Launch's environment and nothing else --
      CWD = bundle, SM64DS_ASSET_ROOT = bundle, SM64DS_VOLUME set, every other
      SM64DS_* variable popped so an inherited one cannot decide the outcome --
-     and requires a zero exit and a selftest BMP;
+     and requires a zero exit and a selftest BMP. This is the run that leaves
+     evidence behind;
+  7b. --live N, 8 seconds by default: the same launch with NOTHING added, so
+     the game opens its window and runs. THIS FLASHES A REAL WINDOW, and that
+     is the point. The incident killed the process in about 180 ms, before any
+     window existed, and "still alive after N seconds" is the shape of what the
+     player actually saw. A counted headless run is not. Neither step replaces
+     the other: 7 is reproducible and leaves artifacts, 7b is honest about the
+     entry point;
   8. runs the SAME exe in the SAME folder with SM64DS_ASSET_ROOT removed and
-     requires it to refuse: non-zero exit, the variable and the wanted file
-     named on stderr, startup_error.txt written.
+     requires it to refuse: EXIT CODE EXACTLY 2, the variable and the wanted
+     file named on stderr, startup_error.txt written.
+
+     Exactly 2, not merely non-zero, and the distinction is the whole of
+     section 5's last paragraph. If the refusal were ever changed back to
+     abort(), MSVC would raise STATUS_STACK_BUFFER_OVERRUN, the process would
+     leave with 0xC0000409, and a non-zero assertion would sail straight past
+     it while every crash reporter downstream refiled a configuration error as
+     a memory-safety crash in the port. A check that cannot tell those two
+     apart is not checking the thing the file went to the trouble of
+     documenting.
 
 WHAT "NO REPO ACCESS" HONESTLY MEANS HERE. The repository is not deleted from
 the machine; no test should need that. The claim is proved the way it can
@@ -335,6 +436,24 @@ run against an input known to be wrong:
 That last one is the whole incident, named by the check, in one line. A green
 from a check nobody has seen go red is not evidence.
 
+ONE NARROWNESS WORTH STATING. Two manifest entries -- nitrofs_fnt.bin and
+nitrofs_fat.bin -- appear in the exe as BARE strings rather than inside a
+"build/assets/..." literal, because hal/fs_names.cpp's slurp() is the one seam
+that opens through a "%s/build/assets/%s" format with the name as a separate
+argument. Those two names, and only those two, are matched as bare strings.
+
+An earlier draft accepted a bare occurrence of ANY listed basename, which
+quietly weakened the STALE direction: any byte sequence anywhere in the image
+spelling a listed name would have vouched for an entry the exe no longer wanted.
+Measured after narrowing, with a plausible wrong entry added to the manifest:
+
+    FAIL every kit_assets.txt build/assets entry is wanted by the exe
+         -- STALE: romdata.recipe.tsv
+
+romdata.recipe.tsv is a real file the kit ships and the extractor reads, and the
+exe never opens it. The narrowed rule catches it; the wide rule would not have.
+The NOT-LISTED direction never consulted that set and is unchanged.
+
 THE HONEST LIMIT: a required file reached through a path the compiler never
 materialises as a literal would slip the exe-side checks. No current seam is
 shaped that way -- every one snprintf's a literal -- but that is a property of
@@ -345,8 +464,10 @@ today's code and not a guarantee.
 =====================
 
   * SM64DSLauncher's Extraction.cs Markers[] (section 2c). Different
-    repository, same three-file list, same inability to repair an existing
-    install. Three lines.
+    repository, same three-file list. NOT the same exposure: its romdata check
+    heals any install whose romdata payload also moved, so what is left open is
+    a pre-nitrofs install whose romdata.bin still matches the shipping kit's
+    manifest. Narrower window, still a real one. Three lines, and its owner's.
   * kit_smoke.py is a manual step and an optional package_kit.ps1 switch. There
     is no CI that could run it, because there is no CI that builds port/ at
     all. Until there is, the rule at the top of this file is enforced by a

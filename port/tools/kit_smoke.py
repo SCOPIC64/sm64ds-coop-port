@@ -144,13 +144,21 @@ def check_manifest_against_exe(exe: pathlib.Path, wanted: list[str]) -> None:
     """Both directions, read off the shipped binary."""
     blob = exe.read_bytes()
     in_exe = {m.decode() for m in ASSET_STRING.findall(blob)}
-    # The two table copies are opened through a "%s/build/assets/%s" format with
-    # the name passed separately, so they appear as bare strings rather than as
-    # part of a build/assets path. Pick those up by basename.
     listed_assets = {p.split("/")[-1] for p in wanted
                      if p.startswith("build/assets/")}
-    for name in listed_assets:
-        if name.encode() in blob:
+    # EXACTLY TWO NAMES GET THE BARE-STRING TREATMENT, and the narrowness is the
+    # point. hal/fs_names.cpp's slurp() is the only seam that opens through a
+    # "%s/build/assets/%s" format with the name passed as a separate argument,
+    # and these are the only two names it passes, so they are the only entries
+    # that legitimately appear in the exe without "build/assets/" in front.
+    #
+    # Widening this to every listed basename (an earlier draft did) weakens the
+    # STALE direction and nothing else: a bare "romdata.bin" occurring anywhere
+    # in the image for any reason would vouch for a manifest entry the exe had
+    # stopped wanting. The NOT-LISTED direction never used this set, so it is
+    # unaffected either way.
+    for name in ("nitrofs_fnt.bin", "nitrofs_fat.bin"):
+        if name in listed_assets and name.encode() in blob:
             in_exe.add(name)
 
     unlisted = sorted(n for n in in_exe
@@ -327,8 +335,16 @@ def prove_refusal(exe: pathlib.Path, bundle: pathlib.Path) -> None:
     err = (p.stderr or "") + (p.stdout or "")
     for line in err.splitlines()[:8]:
         print("       > " + line)
-    say(p.returncode != 0,
-        f"a run with no SM64DS_ASSET_ROOT exits non-zero (got {p.returncode})")
+    # EXACTLY 2, not merely non-zero. hal/asset_root_refuse.cpp exits rather
+    # than aborting, on purpose and at length: MSVC's abort() raises
+    # STATUS_STACK_BUFFER_OVERRUN, the shell reports 0xC0000409, and every crash
+    # reporter in the chain then files a configuration error as a memory-safety
+    # crash in the port. A non-zero assertion passes happily on that 0xC0000409,
+    # so it would not notice the design being undone. 2 is the code the other
+    # refusals on this path use and the code a launcher can branch on.
+    say(p.returncode == 2,
+        f"a run with no SM64DS_ASSET_ROOT exits 2, not merely non-zero "
+        f"(got {p.returncode})")
     say("SM64DS_ASSET_ROOT" in err and "FATAL" in err,
         "the refusal names the variable on stderr")
     say("build/assets/" in err or "extracted/" in err,
