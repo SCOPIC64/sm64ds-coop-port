@@ -352,7 +352,7 @@ FIXTURES = [
      "?KillByMegaChar@Platform@@QAEXAAUPlayer@@@Z", "DROPPED"),
     # -- the OTHER direction: thiscall left, flat right (SolidHeapAllocator)
     ("?Allocate@SolidHeapAllocator@@QAEPAXIH@Z",
-     "__ZN19SolidHeapAllocator8AllocateEji", "SHIFTED"),
+     "__ZN18SolidHeapAllocator8AllocateEji", "SHIFTED"),
     ("?MemoryLeft@ExpandingHeapAllocator@@QAEIXZ",
      "__ZN22ExpandingHeapAllocator10MemoryLeftEv", "SHIFTED"),
     # -- and the shapes that must stay QUIET, one per way of being quiet
