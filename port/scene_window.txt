@@ -1,0 +1,561 @@
+run link60 lane SW1 -- A REAL WINDOW FOR THE SCENE PATH
+
+WHAT THIS IS FOR
+================
+
+Curling renders. Nobody has ever played it.
+
+Lane MG2 seated dScMgCurling_c, lane DBG1 put a picker in the debug menu that
+starts it, and both of those end at the same wall: SM64DS_SCENE=<id> runs
+headless. port_scene_run ticks frames, writes a BMP if it was asked for, and
+exits. It builds no window, reads no key, takes no stylus and presents nothing.
+So a minigame in this port has been CAPTURABLE and never PLAYABLE, and every
+claim about how one feels has rested on a bitmap.
+
+This lane gives the scene path the window, the input and the present loop the
+level path has had since gate 4, without giving the battery a second shape to
+run under.
+
+
+1. THE TWO PATHS, DERIVED
+=========================
+
+1a. WHERE THEY SPLIT
+
+tests/walk_window.cpp's main() is one function from the host bring-up to the
+last frame. The scene handover was, before this lane, a single statement inside
+it:
+
+    if (port_scene_env_want() >= 0)
+        return port_scene_run();
+
+(it now chooses between scene_window_run and port_scene_run on the same line;
+see section 3) and the line matters because of WHERE it is. Everything above
+it -- the fixed range reservation, the root heap, the ov002 pointer pass and
+its twenty-six static initialisers, the model/shadow/mmc/modelanim vtable
+fills -- is bring-up both modes need. Everything below it reads the Player an entrance spawned,
+which a scene run has not got.
+
+Three things a scene run therefore ALREADY HAS, because they are above the
+handover and this lane did not have to add any of them:
+
+    the flight recorder   main opens playlog/play_<stamp>.log and freopens
+                          stderr onto it, unbuffered, unless SM64DS_NO_PLAYLOG
+                          or SM64DS_WINDOW_SELFTEST says otherwise. A scene run
+                          has been writing a playlog all along.
+    crash.txt             SetUnhandledExceptionFilter(port_fault_probe_with_file)
+                          plus PORT_INSTALL_FAULT_PROBE.
+    exit.txt              the RtlExitUserProcess detour, for a death that goes
+                          through the orderly door.
+
+The one thing missing from that set was the FRAME NUMBER: port_last_frame is
+walk_window's counter and the scene loop never touched it, so a scene crash
+reported frame -1. The windowed loop feeds it. The headless loop deliberately
+does not (see 4b).
+
+1b. WHAT THE LEVEL PATH BUILDS THAT THE SCENE PATH DID NOT
+
+    RegisterClassA(wndproc)          CS_OWNDC, one class
+    AdjustWindowRect + CreateWindowExA   WS_OVERLAPPEDWINDOW | WS_VISIBLE
+    GetDC                            held for the life of the program
+    two BITMAPINFOs                  512x384 and the stacked 512x768
+    hal_sub_screen_init(hwnd, ZOOM)  the bottom screen, LEVEL half included
+    g_present_hwnd/hdc/bi/fb         arms present() for WM_SIZE and WM_PAINT
+    the frame loop                   PeekMessage/Translate/Dispatch, the focus
+                                     edge, key_live reads, XInput, the debug
+                                     menu, the tick, the render, the stacked
+                                     compose, present(), pace to 30
+
+and the scene path's loop, all of it:
+
+    hal_sub_screen_frame_begin(); port_actor_tick(); port_fader_advance();
+    ntr::rt_scanout_frame(); gx_reset(); port_actor_render(); clear; gx_render();
+    port_message_composite_engine_a(); hal_sub_screen_present();
+    port_actor_scene_pass();
+
+1c. THE TOUCH WAS ALREADY WIRED AND WANTED ONE ARGUMENT
+
+This is the finding that decided the shape of the fix.
+
+hal/sub_screen.cpp's poll_touch is called from hal_sub_screen_frame_begin,
+which the SCENE loop already calls every frame. Its stacked branch --
+
+    on_picture = hal_present_client_to_sub(p.x, p.y, &fx, &fy);
+
+-- is the exact mapping Tango click-tested on levels: the bottom half of the
+picture IS the bottom screen, so a click anywhere in it lands on the
+corresponding DS pixel with no fudge term, which is why ntr/include/ntr/ppu.h
+refuses to put a hinge row between the halves.
+
+What held it shut was one line in hal_sub_screen_init_hw:
+
+    g_headless = getenv("SM64DS_WINDOW_SELFTEST") != 0 || hwnd == nullptr;
+
+and port_scene_run passed nullptr. So the stylus, the focus gate and the TAB
+latch were all off on the scene path for the same reason, and PASSING A REAL
+WINDOW IS THE WHOLE OF TURNING THEM ON. No touch code was written by this lane.
+
+
+2. THE SHARED SHAPE
+===================
+
+The rule this lane worked to: the scene path gets the level path's window, not
+a copy of it. Where that cost more than it bought, the duplication is named in
+section 5 rather than hidden.
+
+2a. THE SCENE'S FRAME BELONGS TO scene_boot.cpp
+
+port_scene_run is split in three:
+
+    port_scene_begin(hwnd, zoom)   the bring-up and the spawn
+    port_scene_tick(frame, tick)   one frame
+    port_scene_finish(frames_run)  the captures, the census, the exit code
+
+and port_scene_run is now literally
+
+    rc = port_scene_begin(nullptr, 1); if (rc) return rc;
+    for (frame = 0; frame < scn_frames; ++frame) port_scene_tick(frame, 1);
+    return port_scene_finish(scn_frames);
+
+-- the same statements in the same order the one function had. A headless scene
+run executes the same code it did before the split. That is the whole reason
+the split is a split and not a rewrite: the battery's scene rows are the proof
+the rest of this lane is measured against, so they must not be measuring
+something new.
+
+Two more entry points fall out of it: port_scene_layout_propose (the stacked
+proposal, asked once by whoever gets there first, because
+hal_sub_screen_set_stacked refuses loudly once the mode has been handed out and
+the windowed path has to size a window before begin() runs) and
+port_scene_framebuffer (the finished frame, const, so the windowed loop can
+present it without becoming a second writer of it).
+
+2b. THE HOST'S FRAME BELONGS TO walk_window.cpp
+
+That is the division the level path already has, and the windowed scene loop
+keeps it: scene_boot owns the scene's frame, walk_window owns the pump, the
+keypad words, the menu, the present, the sdat pump and the pacing. Six things
+were hoisted out of main() so both loops can call them instead of each having
+one:
+
+    key_live(vk)          was a lambda over main's locals. The focus gate, the
+                          rebind-capture gate and the selftest gate are all
+                          inside it, so a second copy would be three gates to
+                          keep in step. key_stale[] and the selftest flag went
+                          to file scope with it.
+    host_window_open()    the class, the styles, the sizing border, the DC and
+                          the two DIB headers. A second copy of this is a
+                          second place to get WS_THICKFRAME or CS_OWNDC wrong,
+                          and both of those have already cost this file a
+                          session.
+    menu_input()          the whole debug menu, 286 lines, moved verbatim out
+                          of main's loop, with menu_b_swallow_spend (the B that
+                          closed it must not also punch) alongside it. The
+                          three things it read off main's stack -- the Player,
+                          the Camera, whether there is a game camera at all --
+                          became a MenuHost the loop fills; a scene fills none
+                          of it. Verbatim as of 6961a2544; DBG1's review
+                          amendment then landed inside it and was carried
+                          across by hand, see section 7.
+    host_ds_buttons()     the four DS keypad bits the two paths must not
+                          disagree about: jump, punch, crouch and the run
+                          button the player bound, off the keyboard and off the
+                          pad.
+    pad_test_apply()      DBG1's SM64DS_PAD_TEST, so a scripted pad reaches the
+                          scene path too. Without it this lane could not have
+                          proved a single pad claim without hands.
+    toast_draw()          the menu's only reply channel, and therefore the only
+                          way a refusal in a scene reaches the player.
+
+2c. THE DEBUG MENU IS REACHABLE FROM A SCENE, AND SAYS WHAT IT CANNOT DO
+
+F5, BACK and B all work in a windowed scene, because it is the same input block
+behind the same key_live. The menu pauses the scene's tick and keeps drawing,
+which is port_scene_tick's tick_game argument and the same switch the level
+loop's game_ticked is.
+
+Four rows need a level and refuse in a scene, in words, with the menu still
+open and the game still running -- the same shape DBG1 gave an unhosted
+minigame id:
+
+    warp to entrance      writes the Player's position
+    level select          stages a change only the level loop polls
+    exit course           ExitLevel()
+    character             port_player_set_character(player, n)
+
+They are marked "(level only)" while the menu is drawn in a scene, so a player
+learns it by looking rather than by pressing. The camera row was already gated
+on real_camera and is inert for free.
+
+THE MINIGAME ROW WORKS FROM A SCENE. Selecting one from inside curling is
+another relaunch -- port_menu_launch_scene starts the exe again with
+SM64DS_SCENE and SM64DS_DUAL_SCREEN and posts WM_QUIT -- and that is correct
+rather than a limitation: ov006_minigame_scout.txt section 2 derives from the
+game's own loader that entering a minigame unloads the overlay the caller is
+running out of, so a scene cannot reach another scene in place any more than a
+level can. The row's own logic was not edited -- it works because the loop
+around it now has a window to close. Its launcher gained one thing, and only
+because the window made it matter: section 5c.
+
+
+3. THE RULE: WHO GETS A WINDOW
+==============================
+
+    A scene run is WINDOWED unless it names a frame budget or is a selftest.
+
+    port_scene_want_window():
+      SM64DS_WINDOW_SELFTEST set   -> never, whatever else says
+      SM64DS_SCENE_WINDOW set      -> whatever it says
+      otherwise                    -> windowed iff SM64DS_SCENE_FRAMES is unset
+
+3a. WHY NOT "SCENE AND NOT A SELFTEST"
+
+Because port/tools/battery.py's scene_env DOES NOT SET SM64DS_WINDOW_SELFTEST.
+It sets SM64DS_SCENE, SM64DS_SCENE_FRAMES and SM64DS_FAULTS_FATAL, and it pops
+every other scene knob so the caller cannot decide what the code under test
+does. Under "scene and not a selftest" every battery scene row would open a
+window, and g_headless would go false under all of them -- which takes the
+live mouse into poll_touch and a machine-global TAB into the panel toggle. That
+is the exact non-determinism g_headless exists for, arriving in the one place
+that must be deterministic.
+
+3b. WHY A FRAME BUDGET IS THE RIGHT SIGNAL
+
+A run that says how many frames to run is a MEASUREMENT. A run that does not is
+a SESSION. Nobody sitting down to play curling says how many frames to play it
+for, and no automated run in this tree omits the number. Counted rather than
+asserted -- every command line in port/ that sets SM64DS_SCENE also sets
+SM64DS_SCENE_FRAMES on the same line:
+
+    fader_boot_map.txt   5     ppu_gap_audit.txt   5
+    irq2_map.txt         3     ov007_seat.txt      3
+    scene_boot_map.txt   2     touch_map.txt       2
+    mg_fanout_costs.txt  1     nfs_names_map.txt   1
+    hal/fs_names.cpp     1     hal/fdr_arm9_fader_seat.cpp   1
+
+    port/tools/battery.py      scene_env(), every scene row
+
+24 quoted command lines and the battery's own builder, and no exceptions. The
+remaining SM64DS_SCENE mentions in the tree are prose ABOUT the variable, not
+commands: "SM64DS_SCENE=<id> takes the run", "SM64DS_SCENE=1 dies at
+c0000005", and this file.
+
+The consequence is the point: THE BATTERY DID NOT CHANGE AND NEITHER DID DBG1'S
+PICKER. The picker's relaunch sets SM64DS_SCENE and SM64DS_DUAL_SCREEN and no
+frame count, so its child gets a window with no edit to that row; the battery
+names a count on every row, so it stays exactly as headless as it was.
+
+3c. WHY SM64DS_SCENE_WINDOW EXISTS ANYWAY
+
+Not as an escape hatch. It is the only way to give a WINDOWED run a frame
+budget, which is the only way this lane could prove the window without hands:
+SM64DS_SCENE_WINDOW=1 with SM64DS_SCENE_FRAMES=N and SM64DS_PAD_TEST is a live
+window, driven by a script, that ends by itself and writes its own picture. It
+also turns a window OFF for a session-shaped run, symmetrically. It can never
+turn one on under a selftest -- that floor is checked first, and it is the same
+floor DBG1 gave the scripted pad.
+
+
+4. WHAT THE HEADLESS PATH IS PROTECTED BY
+=========================================
+
+4a. THE ARGUMENT
+
+Three separate gates have to all fail before an automated run can see anything
+this lane added.
+
+  1. The window is never created. port_scene_want_window returns 0 for every
+     run that names a frame count and for every selftest whatever else it
+     names, so main calls port_scene_run and the windowed function is not
+     entered. Nothing in the battery sets SM64DS_SCENE_WINDOW, which is the
+     only thing that could say otherwise, and it cannot say it under a
+     selftest at all.
+  2. port_scene_run's body is the old body. begin/tick/finish are the old
+     statements in the old order, hwnd is nullptr, zoom is 1, tick_game is 1 on
+     every frame. hal_sub_screen_init_hw therefore computes the same g_headless
+     it always did.
+  3. Every live read is behind key_live, which returns 0 under a selftest and 0
+     with no focus, and behind pad_live, which is gated on the same flag.
+
+4b. WHAT WAS DELIBERATELY NOT ADDED TO THE HEADLESS LOOP
+
+    port_last_frame       fed by the windowed loop only. The headless loop
+                          reports -1 in crash.txt exactly as it did.
+    sdat_host_tick()      the level loop pumps the hosted ARM7 every frame; the
+                          scene path calls it once at bring-up. The windowed
+                          loop pumps it per frame, because a minigame with no
+                          sound progression is not a playable minigame. The
+                          headless loop is left alone: it is the battery's, and
+                          a scene that waits on a sequencer state would be a
+                          behaviour change hiding inside a proof.
+    the 30 Hz pacer       windowed only, for the obvious reason.
+
+Each of those is a real divergence between the two loops and each is here
+rather than in a commit message.
+
+
+5. WHAT IS DUPLICATED, AND WHY
+==============================
+
+5a. THE DS KEYPAD WORD
+
+host_ds_buttons is shared, and it is the four bits both paths agree on. The
+LEVEL loop then adds ~200 lines on top of it: the camera-rotate bits behind
+func_02009e70's own reader, the run-mode AUTO hold, and about fifteen
+SM64DS_SELFTEST_* probes. The SCENE loop adds the d-pad, Start and Select,
+which the level path has never needed because a level walks off the stick.
+
+Those two tails were NOT unified. The level's tail is what every level selftest
+frame in the battery is a function of, and a refactor that touches it to save a
+dozen lines in the scene loop would put the whole 46-level comparator at risk
+to buy tidiness. The shared core is the part that could actually drift -- which
+button jumps -- and that is the part that is shared.
+
+5b. THE FRAME'S HOST DUTIES
+
+The message pump, the focus edge, the F12 latch, the stacked compose and the
+present are eight lines each and appear in both loops. Folding them into one
+"host frame" function would mean threading the level loop's ~40 interleaved
+locals through it. Not worth it, and named here so the next lane does not have
+to rediscover the judgment.
+
+TODO for whoever wants the last of it: main() is still 4,136 lines (3320..7456)
+because its frame prologue, its camera rig and its probe set are all inline in
+it. What this lane hoisted is exactly what two callers needed and no more. The
+rest is a main()-shrinking job, not a scene job, and it should be done as one
+with its own gate rather than as a rider on this.
+
+
+5c. THE CHILD'S ENVIRONMENT, WHICH THE WINDOW MADE LOAD-BEARING
+
+port_menu_launch_scene now clears seven variables in the child it starts, and
+that is a correctness fix this lane found rather than a convenience:
+
+    SM64DS_SCENE_FRAMES  SM64DS_SCENE_WINDOW  SM64DS_SCENE_NO_RENDER
+    SM64DS_SCENE_BMP     SM64DS_SCENE_BMP_STACKED
+    SM64DS_PAD_TEST      SM64DS_LEVEL
+
+The child is a SESSION -- somebody pressed enter on a menu row -- and
+inheritance let the parent's own settings decide what it is instead. That is
+the identical hole port/tools/battery.py's scene_env pops the same class of
+variable for, in its own words: the caller's environment must not decide what
+the code under test does.
+
+It stopped being theoretical the moment the scene path could open a window. An
+inherited SM64DS_SCENE_FRAMES hands the child a frame budget, port_scene_want_-
+window makes it headless, and the menu row looks broken. An inherited
+SM64DS_PAD_TEST is worse: the child replays the PARENT'S script from its own
+frame 0, which walks the same menu to the same row and starts a grandchild --
+forever. That was reasoned out before it was run; the run then confirmed the
+fixed behaviour (section 6d).
+
+
+6. VERIFICATION
+===============
+
+Worktree C:/tmp/sw1, branch s5-scene-window, one commit on DBG1's tip
+1a2ba86ea. Own extracted/ (copied, not junctioned), own asset catalog, own
+build directory with CMAKE_HOME_DIRECTORY = C:/tmp/sw1/port. Everything below
+was measured after the rebase of section 7, against a baseline re-recorded at
+1a2ba86ea.
+
+6a. GATE, BOTH ENDS
+
+    baseline  1a2ba86ea   battery ALL GREEN   5831 / 11250 (51.8%)   skips []
+    tip                   battery ALL GREEN   5831 / 11250 (51.8%)   skips []
+    delta                 linked 0, total 0, unlinked 0, no new skips
+
+6b. .dsstate, AND THEREFORE WHETHER THE BMPs MAY BE COMPARED AT ALL
+
+notes/port-selftest-bmp-gate.md: compare selftest BMPs byte-exact only between
+builds whose .dsstate section lands at the same base, because a change that
+pushes port code past a 4 KB page boundary moves that base and moves three
+water pixels with it, which reads exactly like a rendering regression.
+
+    base 1a2ba86ea   dsstate_lo 0x00bb0000   dsstate_hi 0x00c9ab30   span 0xeab30
+    tip              dsstate_lo 0x00bb0000   dsstate_hi 0x00c9ab30   span 0xeab30
+
+Same base, same span, so the comparison below is admissible with no padding.
+
+6c. THE HEADLESS PATH IS BYTE-IDENTICAL
+
+300 frames each, SM64DS_FAULTS_FATAL=1, all exit 0:
+
+    level 1  walk_window_selftest.bmp  IDENTICAL
+             9129ce6cf3a229d4eb650927c5a68e6f8af3c2cd4af5cfbf8a134c063e4771f4
+    level 6  walk_window_selftest.bmp  IDENTICAL
+             d59e09f133c053b307077363ce2efd0cc91513cf80b30836a1d65763f7cef20f
+    scene 374  SM64DS_SCENE_BMP        IDENTICAL
+             35c3b540a25e6c3859d78f38355437e66ddb29ba2e6ce0847a452685412b434e
+    scene 374  SM64DS_SCENE_BMP_STACKED  IDENTICAL
+             f72717a7c2488f2bdc419b6859d9d08facc583f282dddb15741d5f1d709c4c61
+
+Those four hashes are also what 6961a2544 produced before DBG1's amendment, so
+the amendment moved no pixel either and the two lanes' claims corroborate
+rather than merely coexist.
+
+And the rule itself, checked rather than assumed: a bare
+SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=60 run (the battery's shape) exits 0 and
+its playlog carries NO "[scene] WINDOWED" line. No window was built.
+
+6d. THE LIVE RUNS
+
+A. A WINDOWED SESSION, DRIVEN BY THE SCRIPTED PAD.
+   SM64DS_SCENE=374 SM64DS_DUAL_SCREEN=1 SM64DS_SCENE_WINDOW=1
+   SM64DS_SCENE_FRAMES=600 SM64DS_FAULTS_FATAL=1
+   SM64DS_PAD_TEST=1000@120,8@200,4@260,2000@320,1000@400,1000@500
+   exit 0.
+
+   Enumerated live, seven seconds in, by window class:
+     hwnd=0xcc0c24 class=sm64ds_walk visible=True client=512x768
+     title="SM64DS   |   stylus = left mouse drag   Space jump   X punch ..."
+
+   playlog:
+     [scene] WINDOWED 512x768, STACKED (both DS screens, stylus over the
+             bottom half), frame budget set
+     [scene] window closed after 600 frame(s)
+
+   captures (the presented framebuffer, not a desktop grab):
+     live374.bmp          512x384
+       d3b758f2c27a0acee2f65b348a5b7c5f94543067079df7b76f77a784c8bee2f3
+     live374_stacked.bmp  512x768
+       5bd37a864d3fb01971b10b742b893dc856da38bce09e981e451f8d630e7edcdf
+   Bit-for-bit what the same run produced before the rebase, which is the
+   determinism claim this artifact rests on.
+
+B. THE DEBUG MENU, INSIDE A WINDOWED SCENE, ON THE PAD ALONE.
+   Same env, SM64DS_SCENE_FRAMES=340,
+   SM64DS_PAD_TEST=20@60,2@80,2@100,8@120,4@140,2000@160,20@190,1@230,1@250,1000@270
+   -- BACK opens, DOWN twice reaches the minigame row, RIGHT then LEFT walk the
+   thirty and come back, B closes, BACK reopens, UP twice returns to the warp
+   row, A presses it. exit 0. playlog:
+     [scene] WINDOWED 512x768, STACKED ...
+     [menu] open
+     [menu] closed
+     [menu] open
+     [menu] row 0 needs a level and this run is a scene -- refused, menu
+            stays open
+     [scene] window closed after 340 frame(s)
+   captures: menu374.bmp
+     9da720c17fe8015e1e0a0c2dd3cef654e159fa5139aca1b6abb4dd179b46f1d7
+   menu374_stacked.bmp 512x768
+     3c986d10ee42a35728b90babe47dd0f75ba2f454761cc71af345d09ec27a80bb
+   These two DID move across the rebase, and the reason is DBG1's amendment
+   rather than this lane: the hosted row's suffix is "enter restarts, stacked"
+   now instead of the 73-character one that was drawing truncated, so the menu
+   in the picture is a different menu. The frame under it is the same.
+
+C. THE PICKER FROM INSIDE A SCENE (section 2c's claim).
+   Curling, windowed, pad script 20@60,2@90,2@120,1000@160 -- open, down to the
+   minigame row, enter. The parent exits 0 and one new walk_window appears:
+     hwnd=0x2f005b8 visible=True client=512x768
+   WM_CLOSE on it and it is gone. A scene reaching a scene is a relaunch for
+   the ROM's own reason and it works from a scene exactly as it does from a
+   level.
+
+D. END TO END: A LEVEL, THE MENU, AND CURLING.
+   SM64DS_LEVEL=1 (no selftest, so the ordinary interactive level window),
+   SM64DS_PAD_TEST=20@120,2@140,2@160,1000@190.
+     PARENT exit 0
+     child: hwnd=0x512078c visible=True client=512x768
+     child playlog: [scene] WINDOWED 512x768, STACKED (both DS screens,
+                    stylus over the bottom half), runs until the window closes
+   "runs until the window closes" is section 5c's fix reading back: the child
+   inherited no frame budget, so it is a session and not a 300-frame capture.
+   The child's playlog also carries ZERO "[menu]" lines, which is the other
+   half of that fix: it did not inherit the parent's pad script either, so it
+   never walked the menu and never started a grandchild. WM_CLOSE, and:
+   [scene] window closed after 301 frame(s). No walk_window process is left
+   behind.
+
+E. DBG1'S OWN HELD-B FIXTURE, RUN ON THE SCENE PATH.
+   SM64DS_PAD_TEST=2000@200,20@202 -- B held, BACK tapped two frames later --
+   must leave the menu OPEN. Windowed scene 374, 260 frames, exit 0, playlog:
+     [menu] open
+     [scene] window closed after 260 frame(s)
+   One open and no close. The fix carried across the rebase into menu_input
+   works where it was carried to, and the windowed scene loop gets it by
+   calling the same block rather than by having a copy of it. See section 7.
+
+F. THE LEDGER. After every run above, next to the exe:
+   no exit.txt, no crash.txt, no startup_error.txt. exit.txt is written only
+   for a NONZERO exit code and crash.txt only for a fault, so their absence is
+   the statement that every one of these processes left through the orderly
+   door.
+
+6e. WHAT IS NOT PROVED HERE
+
+The captures are the framebuffer this program presented, not a photograph of
+the screen, and nobody in this lane is qualified to say whether curling LOOKS
+right -- that judgment is Tango's and the artifacts are there for it. What is
+proved is mechanical: a real top-level window of the right class at the right
+client size, visible, taking scripted pad input through the ordinary edge
+detector, presenting the stacked image, and closing to exit 0 with its census
+written.
+
+Real touch was NOT driven by a script -- there is no scripted mouse here, and
+hal/sub_screen.cpp's SM64DS_TOUCH_PROBE pokes the DS record directly rather
+than going through the window, so it would prove the game's half and not the
+mapping. What this lane established about the stylus is the wiring: poll_touch
+runs on this path every frame, its stacked branch is the mapping already in the
+tree, and the only thing that had ever held it shut was the null hwnd, which is
+now a real one. A human clicking the bottom half is the remaining check.
+
+
+7. THE REBASE ONTO DBG1'S REVIEW AMENDMENT
+==========================================
+
+This lane started at 6961a2544 and DBG1's review fixes landed as one commit on
+top of it, 1a2ba86ea, walk_window.cpp only. REBASED rather than merged, so the
+branch is 1a2ba86ea plus this one commit and the history says what it is: their
+picker, then a window round the scene it starts.
+
+Seven changes in that amendment; three of them are inside code this lane had
+already MOVED, so git could not place them and they were carried across by hand
+to where the code now lives. Named individually because "resolved the conflict"
+is not a statement anybody can check:
+
+  auto-merged, untouched by this lane
+    1. the MG_SCENE typeinfo banner: dScMgD3DBase_c / dScMgSingle3DBase_c as
+       the two ov006 bases, NOT dScMgBase_c (that one is ov004), and the
+       retracted "mg_fanout_costs records that guess as wrong" claim.
+    2. menu_draw's minigame row: the suffix cut to "enter restarts, stacked"
+       and the 26-character budget written beside the format string.
+    3. port_menu_launch_scene's bInheritHandles comment, which used to claim
+       the flag is what keeps the two playlogs apart. This lane's own change to
+       that function -- the seven cleared variables, section 5c -- sits above
+       it and the two do not touch.
+
+  carried by hand into their new home
+    4. THE HELD A/B FIX, into menu_input. Both pad bits are recorded whenever
+       the button is physically down and menu_on decides only what is done
+       about them. This is the one with teeth: without it a B held across an
+       open read as a fresh press the instant menu_on flipped, so BACK opened
+       the menu and the held B shut it in the same breath.
+       The windowed scene loop inherits the fix for free and by construction --
+       it calls the same menu_input, which is the whole point of the block
+       being one block. Nothing in scene_window_run keeps its own edge latch
+       for A or B.
+       Re-run on the SCENE path with DBG1's own fixture,
+       SM64DS_PAD_TEST=2000@200,20@202 (B held, BACK tapped two frames later):
+       the playlog shows one "[menu] open" and no close, and the run ends with
+       the menu still up. The carried fix works where it was carried to.
+    5. the A one-frame overlap note, into menu_b_swallow_spend's banner.
+    6. the "an entry with no @frame is silently inert" paragraph, into
+       pad_test_apply's banner.
+
+  not applicable
+    7. nothing: the seventh item in that commit body is the re-verification,
+       not a code change.
+
+The scene loop's own pad handling was checked against the shape the amendment
+establishes and needs nothing. Its keypad block is LEVEL-triggered rather than
+edge-latched -- it writes the DS held word from what is physically down and
+derives the pressed word as `held & ~was` -- which is the DS's own semantics
+and cannot carry the held-across-an-open trap, because there is no latch to
+mis-arm.
+
+Every number in section 6 was re-measured on the rebased tip against a baseline
+re-recorded at 1a2ba86ea. The pre-rebase measurements against 6961a2544 are not
+reported: a delta is only worth anything against the base the change actually
+sits on.
