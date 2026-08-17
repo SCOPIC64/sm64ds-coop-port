@@ -3265,13 +3265,28 @@ linkage.py still counts their stems, exactly as it counts Camera::Render's.
     map_size    4052683 -> 4067102       map_symbols 37411 -> 37551
     exe         3950080 -> 3959296 bytes
 
-THE +140 SYMBOLS ARE NOT DECOMPOSED. A port/tools/mapdiff.py run against a base
-map built in this tree would name every one of them, and this lane did not take
-it; the growth is accounted for by hand as the two objects changing name (a
-src .c.obj becoming a host-src .cpp.obj each) plus the audit's new tables,
-counters and their string literals, and "accounted for by hand" is a weaker
-statement than the three displacement lanes above made. Section 8 carries it as
-an open item rather than as a claim.
+Decomposed with port/tools/mapdiff.py against a base map built in THIS tree, by
+checking port/ back to the start commit, building, copying the map aside and
+checking port/ forward again -- the recipe 5f and 5h used:
+
+    symbols   36983 -> 37123      objects   6525 -> 6525
+    MOVED  2   __ZN4cstd10fdiv_asyncE5Fix12IiE5Fix12IiE
+               _ZN4cstd10fdiv_asyncE...c.obj -> ...cpp.obj
+               __ZN4cstd4ldivEii
+               _ZN4cstd4ldivEii.c.obj -> _ZN4cstd4ldivEii.cpp.obj
+    objects   +2 the two hostgen copies
+              -2 the two plain ones
+    ADDED  143 every one of them in a file this lane edited:
+               122 ppu_audit.cpp, 16 gx.cpp, 3 G3i_PerspectiveW.cpp, 2 io.cpp
+    REMOVED  3 two MSVC internal labels and one lambda name in gx.cpp,
+               renumbered because code moved inside that TU
+
+THE TWO MOVED ROWS ARE THE WHOLE OF THE FIX and every other row is this lane's
+own instrument code, its string literals, or MSVC renumbering three unchanged
+things. No third object was added or dropped, the object count is level, and
+neither moved symbol left the map -- which is the accounting difference from
+the three displacements above, where a matched stem left and a host copy's
+arrived.
 
 THE LEVELS ARE BYTE-IDENTICAL AND THIS LANE MEASURED IT RATHER THAN ARGUING IT.
 Level 1 and level 6, SM64DS_WINDOW_SELFTEST=300, base build against tip build
@@ -3715,10 +3730,6 @@ same limit VP1's 12d and 5h record.
     5 allocate a 0x800 buffer with func_ov007_020c3df4 and the upload finds it
     all zero, which is what leaves engine A's BG2 and BG3 blank in both the
     tip and the proof build. No lane has opened it.
-  - THE +140 MAP SYMBOLS ARE NOT DECOMPOSED, per section 7. mapdiff was not
-    run against a base map built in this tree, so "nothing else moved" rests
-    on the battery, the two level hashes and a hand account rather than on a
-    row-by-row decomposition.
   - THE ESCAPE HATCH IS NOT A RECONSTRUCTED BEFORE. SM64DS_DIV_UNIT_OFF=1
     darkens the whole divider, which is more than this lane's change turned
     on, and 5i records both frames and both colour counts so no reader has to
