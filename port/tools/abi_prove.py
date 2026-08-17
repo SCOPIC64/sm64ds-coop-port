@@ -71,6 +71,7 @@ PY = sys.executable
 DEFAULT_ROOT = os.path.dirname(os.path.dirname(HERE))
 
 FIXTURE_FILE = "abi_prove_reinjected.cpp"
+NS_FIXTURE_FILE = "abi_prove_nsdecl.cpp"
 
 # --------------------------------------------------------------------------
 # alias-form fixtures: (name, directive text, what it cost, where it was fixed)
@@ -118,6 +119,20 @@ ALIAS_FIXTURES = [
      "?KillByMegaChar@Platform@@QAEXAAUPlayer@@@Z",
      "a Mega character kills a platform",
      "the King Bob-omb lane, 2026-08-10"),
+    # RULE P's own fixture, deliberately invisible to RULE R. Both sides are
+    # public __thiscall, so the receiver AGREES and the receiver rule is right
+    # to stay silent; the ARGUMENT COUNT disagrees, so the left side is
+    # compiled for a callee that rets 4 and the right side rets 0. This row is
+    # what proves rule P is running at all -- it was not until 2026-08-17,
+    # because the helper piped the name list into undname's stdin, undname
+    # takes filenames, and the resulting exit 1 was read as "undname is not
+    # installed" on every machine including ones where it is.
+    ("a pop mismatch RULE R cannot see (rule P only)",
+     "?SetAnim@BlendModelAnim@@QAEXAAUSharedFilePtr@@@Z="
+     "?SetAnim@BlendModelAnimFace@@QAEXXZ",
+     "thiscall both sides, so the receiver agrees; the argument count does "
+     "not, and the caller's frame runs 4 bytes high on every call",
+     "never live on cons -- a constructed discriminator, not a past defect"),
 ]
 
 # --------------------------------------------------------------------------
@@ -239,14 +254,26 @@ def prove_alias(root, scratch, results):
         inject_alias(scratch, directive, name)
         rc1, out1 = run([PY, os.path.join(HERE, "aliascheck.py"), scratch])
         clear_alias(scratch)
-        caught = rc1 == 1 and lhs in out1 and "NEW" in out1
+        # WHICH RULE fires is part of the fixture. The first version of this
+        # asked for the substring "NEW", which appears in aliascheck's own
+        # count line ("0 NEW, 5 KNOWN-OPEN, ...") on every run including a
+        # clean one, so it was very nearly no assertion at all. The markers
+        # below are the two rules' report lines and neither appears on a clean
+        # run. Pinning one per fixture is what stops a receiver fixture being
+        # credited to the pop rule or the reverse -- the entire reason for
+        # having two rules is that each sees what the other cannot.
+        marker = "POP MISMATCH" if "rule P" in name else "NEW  <<<<<<"
+        named = lhs in out1
+        caught = rc1 == 1 and named and marker in out1
         ok = absent and caught
         results.append(("aliascheck RED: %s" % name, ok))
         print("\n  %-4s %s" % ("PASS" if ok else "FAIL", name))
         print("       gone from cons: %s   (fixed in %s)"
               % ("yes" if absent else "NO -- still present!", fixed_in))
         print("       re-broken in the scratch copy: aliascheck exit %d, "
-              "names it: %s" % (rc1, "yes" if lhs in out1 else "NO"))
+              "names it: %s, reports '%s': %s"
+              % (rc1, "yes" if named else "NO", marker,
+                 "yes" if marker in out1 else "NO"))
         print("       cost when live: %s" % cost)
 
 
@@ -283,6 +310,62 @@ def prove_arity(root, scratch, results):
               "row(s) reported: %s" % (rc1,
                                        "yes" if caught else "NO"))
         print("       cost when live: %s" % why)
+
+
+def prove_nsdecl(root, scratch, results):
+    """The namespaced C++ declaration spelling, taught to aritycheck
+    2026-08-17.
+
+    aritycheck read flat Itanium declarations only, so
+
+        namespace Player { void St_EndingFly_Main(); }
+
+    was invisible even though it emits exactly the symbol four sibling TUs
+    declare flatly. That blind spot hid the SIXTH live receiver defect on cons
+    (src/func_ov007_020b7764.cpp:2 declares it, :9 calls it with nothing,
+    the definition takes a receiver). aliascheck cannot see that one either,
+    and is right not to: the matching alias at hal/scene_boot.cpp:1126 is
+    ?St_EndingFly_Main@Player@@YAXXZ, a free function on both sides, so the
+    receiver agrees and there is no crossing. Lane ABR1's review found the
+    hole.
+
+    That defect is LIVE, so it cannot be re-broken and the green/red shape the
+    other fixtures use does not fit it. What is proved instead is that the
+    detector fires on the SPELLING: a scratch file carrying nothing but a
+    namespaced declaration of a symbol whose definition takes a receiver must
+    produce a new ratchet row naming that file, and removing the file must
+    take the row away again. The second half matters as much as the first --
+    a detector that never goes quiet is a detector nobody can ratchet.
+    """
+    print("\n" + "=" * 74)
+    print("## aritycheck, the namespaced C++ declaration spelling")
+    print("=" * 74)
+
+    path = os.path.join(scratch, "src", NS_FIXTURE_FILE)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("//cpp\n"
+                "/* abi_prove fixture, scratch copy only. The exact shape of\n"
+                "   src/func_ov007_020b7764.cpp:2, which nothing in this\n"
+                "   suite could see before 2026-08-17. */\n"
+                "namespace Player { void St_EndingFly_Main(); }\n")
+    rc, out = run([PY, os.path.join(HERE, "aritycheck.py"), scratch,
+                   "--gate-receiver"])
+    os.remove(path)
+    caught = (rc == 1 and "NEW RECEIVER-SHAPE" in out
+              and NS_FIXTURE_FILE in out)
+    results.append(("aritycheck RED: namespaced C++ declaration", caught))
+    print("\n  %-4s a namespaced declaration in a scratch file"
+          % ("PASS" if caught else "FAIL"))
+    print("       aritycheck --gate-receiver exit %d, new row naming the "
+          "fixture file: %s" % (rc, "yes" if caught else "NO"))
+
+    rc2, _ = run([PY, os.path.join(HERE, "aritycheck.py"), scratch,
+                  "--gate-receiver"])
+    back = rc2 == 0
+    results.append(("aritycheck GREEN again once the fixture is removed",
+                    back))
+    print("  %-4s and green again with the fixture removed (exit %d)"
+          % ("PASS" if back else "FAIL", rc2))
 
 
 def prove_vtable(root, disasm, results):
@@ -365,8 +448,10 @@ def main(argv):
     args = ap.parse_args(argv[1:])
     root = os.path.abspath(args.root)
 
-    stray = os.path.join(root, "port", "hal", FIXTURE_FILE)
-    if os.path.exists(stray):
+    for stray in (os.path.join(root, "port", "hal", FIXTURE_FILE),
+                  os.path.join(root, "src", NS_FIXTURE_FILE)):
+        if not os.path.exists(stray):
+            continue
         print("abi_prove: REFUSED -- %s exists in the REAL tree. An earlier "
               "run was interrupted while it should have been writing only "
               "into a scratch copy, or somebody committed a fixture. Delete "
@@ -386,6 +471,7 @@ def main(argv):
         make_scratch(root, scratch)
         prove_alias(root, scratch, results)
         prove_arity(root, scratch, results)
+        prove_nsdecl(root, scratch, results)
         prove_vtable(root, args.disasm_dir, results)
     finally:
         if args.keep:

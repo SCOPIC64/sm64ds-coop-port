@@ -76,6 +76,9 @@ import re
 import sys
 from collections import defaultdict, Counter
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import msvc_undname as mu  # noqa: E402  (path set above)
+
 # args past `this` for each Actor/ActorBase vtable slot.
 # ActorBase.h declares 0..17, Actor.h declares 18..30.
 ACTOR_SLOT_ARGS = {
@@ -369,6 +372,8 @@ FIX_NOBYTES = """\
   00000005: ret
 ?fwd_thunk@@YIHPAX0@Z:
   00000000: jmp         ?AfterBehavior@ActorBase@@UAEXI@Z
+?fwd_thunk_wrong@@YIHPAX0@Z:
+  00000000: jmp         ?OnHeapCreated@ActorBase@@UAEXXZ
 _hal_fill_crate:
   00000000: mov         eax,offset __ZTV5Crate
   00000005: mov         dword ptr [eax+54h],offset ?crate_pounded@@YIHPAX0@Z
@@ -376,7 +381,8 @@ _hal_fill_crate:
   00000011: mov         dword ptr [eax+4Ch],offset ?hmc_trap27@@YIHPAX0@Z
   00000017: mov         dword ptr [eax+34h],offset ?sa_trap13@@YIHPAX0@Z
   0000001D: mov         dword ptr [eax+20h],offset ?fwd_thunk@@YIHPAX0@Z
-  00000023: ret
+  00000023: mov         dword ptr [eax+58h],offset ?fwd_thunk_wrong@@YIHPAX0@Z
+  00000029: ret
 """
 
 # The SAME fill, as plain `dumpbin /disasm` emits it: the encoded bytes sit
@@ -396,9 +402,13 @@ def selftest():
     print('abicheck --selftest')
 
     funcs, stores = parse(FIX_NOBYTES, 'fixture')
+    # The extsig map is what the demangler produces at run time. Both entries
+    # are real undname output, verified by msvc_undname's own selftest.
     extsig = {'?AfterBehavior@ActorBase@@UAEXI@Z':
               'public: virtual void __thiscall ActorBase::AfterBehavior('
-              'unsigned int)'}
+              'unsigned int)',
+              '?OnHeapCreated@ActorBase@@UAEXXZ':
+              'public: virtual void __thiscall ActorBase::OnHeapCreated(void)'}
     rows, actor31, slotset = analyse(funcs, stores, extsig)
     by = {(r['thunk'], r['slot']): r for r in rows}
 
@@ -429,6 +439,15 @@ def selftest():
     # TARGET'S DECORATION because the thunk only tail-jumps
     want('?fwd_thunk@@YIHPAX0@Z', 8, 'OK', 4,
          'tail-jump pop resolved from the target decoration')
+    # 0x58/4 == 22, OnAttacked1(Actor&) wants ret 4. This thunk tail-jumps to a
+    # ZERO-argument method, so it hands the caller a bare ret. NOTHING IN THE
+    # THUNK SAYS SO -- the verdict exists only because the target's decoration
+    # was demangled. Until 2026-08-17 abicheck never had a demangler wired
+    # (the recovered version read a precomputed file pair nothing generated),
+    # so 638 of 2391 fills read NORETURN and this whole route was dead. This
+    # is the RED half of that repair.
+    want('?fwd_thunk_wrong@@YIHPAX0@Z', 22, 'UNDERPOP', 0,
+         'wrong-arity tail-jump target, caught ONLY through the decoration')
 
     print('\n  ACTOR31 classification')
     ok = '__ZTV5Crate' in actor31
@@ -498,24 +517,46 @@ def main(argv):
             funcs.setdefault(k, v)
         stores.extend(s)
 
-    # mangled name -> demangled signature, for targets defined outside the hal
-    # objects. Optional: without it, a tail-jump-only thunk reads NORETURN
-    # rather than resolving, which is reported and never counted as OK.
+    # mangled name -> demangled signature, for the bodies a thunk tail-jumps
+    # into that are defined outside the hal objects. Without these a
+    # tail-jump-only thunk reads NORETURN, and NORETURN is UNCHECKED, not
+    # passed -- it was 638 of 2391 fills on the first run of this tool.
+    #
+    # The recovered version read a precomputed _unres.txt / _unres_demangled
+    # .txt pair out of the disasm directory. Nothing generated that pair, so
+    # in practice extsig was always empty. It now demangles the targets itself
+    # through port/tools/msvc_undname.py, and the file pair is kept only as an
+    # override for a machine with no MSVC at all.
+    wanted = set()
+    for f in funcs.values():
+        for j in f['jmps']:
+            if j.startswith('?') and j not in funcs:
+                wanted.add(j)
+    for tab, slot, sym, where, obj in stores:
+        if sym.startswith('?') and sym not in funcs:
+            wanted.add(sym)
+
     extsig = {}
     npath = os.path.join(dis, '_unres.txt')
     dpath = os.path.join(dis, '_unres_demangled.txt')
+    source = None
     try:
         names = open(npath).read().split('\n')
         demang = open(dpath, encoding='utf-8', errors='replace').read(
             ).splitlines()
         if len(demang) != len(names):
-            print('abicheck: REFUSED -- undname gave %d lines for %d names; '
-                  'refusing to guess the alignment' % (len(demang),
-                                                       len(names)))
+            print('abicheck: REFUSED -- the _unres pair in %s has %d demangled '
+                  'lines for %d names; refusing to guess the alignment'
+                  % (dis, len(demang), len(names)))
             return 2
         extsig = dict(zip(names, demang))
+        source = 'the _unres pair in the disasm directory'
     except OSError:
-        pass
+        extsig = mu.demangle(sorted(wanted))
+        if extsig:
+            source = 'undname at %s' % mu.find_undname()
+        else:
+            source = None
 
     rows, actor31, slotset = analyse(funcs, stores, extsig)
     vt = [s for s in stores if is_vtable(s[0])]
@@ -530,12 +571,9 @@ def main(argv):
 
     # COVERAGE, printed because three of those verdicts are NOT passes.
     #
-    #   NORETURN      the thunk's pop could not be resolved at all. Almost
-    #                 always a thunk that only tail-jumps into a body defined
-    #                 outside the hal objects, whose pop lives in the target's
-    #                 MSVC decoration -- readable only with `undname`, via the
-    #                 _unres.txt / _unres_demangled.txt pair in the disasm
-    #                 directory. Without that pair these fills are UNCHECKED.
+    #   NORETURN      the thunk's pop could not be resolved at all: it only
+    #                 tail-jumps, and the target's decoration could not be
+    #                 read. These fills are UNCHECKED, never passed.
     #   NO_AUTHORITY  a table that is not the 31-slot Actor layout, so the
     #                 header authority does not apply. Consensus still covers
     #                 it, but only where the slot has peers to disagree with.
@@ -545,13 +583,17 @@ def main(argv):
     # assume all of them were judged is the vacuous-green shape one level up.
     judged = counts.get('OK', 0) + counts.get('UNDERPOP', 0) + \
         counts.get('OVERPOP', 0) + counts.get('MIXED', 0)
-    print('\ncoverage: %d of %d fills got an AUTHORITY verdict (%.0f%%). '
-          '%d NORETURN are UNCHECKED, not passed%s; %d NO_AUTHORITY rest on '
+    print('\ndemangler: %s'
+          % (source or 'NONE. Every tail-jump-only thunk reads NORETURN, '
+                       'which is UNCHECKED and not a pass.'))
+    if source:
+        print('           %d of %d tail-jump targets resolved'
+              % (len(extsig), len(wanted)))
+    print('coverage: %d of %d fills got an AUTHORITY verdict (%.0f%%). '
+          '%d NORETURN are UNCHECKED, not passed; %d NO_AUTHORITY rest on '
           'consensus alone; %d DECLINE are exempt.'
           % (judged, len(rows), 100.0 * judged / max(1, len(rows)),
              counts.get('NORETURN', 0),
-             ' (no _unres_demangled.txt in the disasm dir: install undname '
-             'or generate the pair to close this)' if not extsig else '',
              counts.get('NO_AUTHORITY', 0), counts.get('DECLINE', 0)))
 
     # A run that parsed nothing has not passed. This is the false green the

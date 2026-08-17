@@ -12,7 +12,13 @@ alone. If a command below does not reproduce, the checker is wrong, the tree
 moved, or this document is stale, and all three are worth knowing.
 
 Written 2026-08-17, run link60 lane AB1, on cons port-mount-noseat-cluster
-3a5733c03.
+3a5733c03. AMENDED the same day after lane ABR1's review, which rebuilt the
+tree, re-derived every number, confirmed all six live defects from its own
+disassembly, and found two things this document had asserted and got wrong:
+that undname was unavailable (it was an invocation bug, section 5 item (j)),
+and that the sixth defect was already on aritycheck's census (it was not,
+item (k)). Both are fixed in the tools rather than only in the prose, and both
+are left written down. Every number below is from a run after those fixes.
 
 
 0. WHY THIS EXISTS, AND WHY IT IS A RECOVERY
@@ -66,9 +72,26 @@ aliascheck.py -- no build required
 
   RULE P, pop size. Both sides' callee-pop from their declared parameter
   lists. Needs `undname` to read an MSVC parameter list. WHEN undname IS
-  ABSENT RULE P DOES NOT RUN AND SAYS SO. It is not on PATH in this
-  environment (this VS Build Tools install ships dumpbin and not undname), so
-  every run below reports RULE P NOT RUN. Rule R is complete without it.
+  ABSENT RULE P DOES NOT RUN AND SAYS SO. Rule R is complete without it.
+
+  THIS RULE SPENT ITS FIRST DAY REPORTING "undname is not on PATH" ON A
+  MACHINE WHERE undname WAS INSTALLED AND WORKING, and the first version of
+  this document repeated that as an environment limit. It was not an
+  environment limit, it was an invocation bug. undname takes FILENAMES:
+
+      Usage: undname [flags] fname [fname...]
+         or: undname [flags] file
+
+  The helper piped the name list into its stdin, undname answered with that
+  usage banner and exit 1, and the helper read the non-zero exit as "the tool
+  is missing". Lane ABR1 caught it in review. Verified here afterwards, both
+  directions, at
+  ...\VC\Tools\MSVC\14.44.35207\bin\Hostx86\x86\undname.exe: the file form
+  returns one bare demangled line per input line and exit 0; the stdin form
+  returns the banner and exit 1. Demangling now lives in
+  port/tools/msvc_undname.py, which finds undname on PATH or under the VS
+  Build Tools layout, uses the file form, and has a selftest that pins both
+  the known-good output and the fact that stdin is refused. Rule P runs.
 
   GATE: a receiver crossing that is not in port/tools/aliascheck_baseline.txt
   fails. Every baseline row carries an OPEN or INERT adjudication and an
@@ -103,16 +126,17 @@ aritycheck.py -- no build required
                slot the caller never wrote.
       INVENTS  the declaration has MORE. Under __cdecl the caller cleans up,
                so the extra push is wasted rather than fatal.
-  THE FULL CENSUS DOES NOT GATE. It reports 2104 disagreements on this tree
+  THE FULL CENSUS DOES NOT GATE. It reports 2105 disagreements on this tree
   and an unknown but large fraction are parser artefacts; a gate at that
   number would be switched off within a day. Section 7 says what would have to
   change.
   ONE SUBSET GATES: the RECEIVER SHAPE, a declaration with no parameters at
   all against a definition of an Itanium-mangled member (_ZN...) that takes at
-  least one. 167 live rows are frozen in
+  least one. 168 live rows are frozen in
   port/tools/aritycheck_receiver_baseline.txt and a NEW one fails
   --gate-receiver. That subset is exactly what PR #1539 and PR #1543 fixed on
-  2026-08-16.
+  2026-08-16, and it is where the sixth live defect of section 6 surfaced once
+  the reader learned the namespaced C++ declaration spelling.
 
 vtspan.py --sweep / --fills -- needs the extracted ROM, ALREADY ON CONS
   Not recovered by this lane; cons' own copy is used unchanged, and nothing in
@@ -144,19 +168,25 @@ abi_prove.py -- the proof harness
 Every command below was run at cons 3a5733c03 in a worktree at C:/tmp/ab1 with
 its own extracted/, its own asset catalog and its own build directory.
 
+  $ python port/tools/msvc_undname.py
+    undname: ...\VC\Tools\MSVC\14.44.35207\bin\Hostx86\x86\undname.exe
+    5 known-good pairs ok, and undname refuses stdin (exit 1)
+    SELFTEST PASSED
+
   $ python port/tools/aliascheck.py
     1573 directives read as LINKER INPUT, 17 quoted in prose (not measured)
     16 receiver crossings: 0 NEW, 5 KNOWN-OPEN (live defects, unfixed),
        11 INERT (adjudicated harmless), 0 UNADJUDICATED
-    RULE P NOT RUN: undname is not on PATH
+    RULE P ran over 1302 demangled names; 0 pop mismatches outside the
+      baseline
     ALIASCHECK PASSED: no NEW receiver crossing, no new pop mismatch.
     exit 0
 
   $ python port/tools/aritycheck.py --gate-receiver
-    11260 definitions, 26409 declarations of _ZN*/func_* symbols
-    2104 disagreements: 1318 DROPS, 786 INVENTS
-    167 of the DROPS are the RECEIVER shape
-    167 baselined, 167 live, 0 NEW, 0 retired
+    11260 definitions, 26423 declarations of _ZN*/func_* symbols
+    2105 disagreements: 1319 DROPS, 786 INVENTS
+    168 of the DROPS are the RECEIVER shape
+    168 baselined, 168 live, 0 NEW, 0 retired
     ARITYCHECK RECEIVER RATCHET PASSED
     exit 0
 
@@ -167,20 +197,29 @@ its own extracted/, its own asset catalog and its own build directory.
   $ python port/tools/abicheck.py --disasm-dir C:/tmp/ab1/build/port/_abicheck_disasm
     71 objects, 4238 functions, 2391 vtable slot fills
     83 Actor-layout tables, 152 other tables
-      DECLINE 256   NORETURN 638   NO_AUTHORITY 658   OK 839
-    coverage: 839 of 2391 fills got an AUTHORITY verdict (35%).
-      638 NORETURN are UNCHECKED, not passed; 658 NO_AUTHORITY rest on
+      DECLINE 256   NORETURN 132   NO_AUTHORITY 876   OK 1127
+    demangler: undname at ...\Hostx86\x86\undname.exe
+               505 of 505 tail-jump targets resolved
+    coverage: 1127 of 2391 fills got an AUTHORITY verdict (47%).
+      132 NORETURN are UNCHECKED, not passed; 876 NO_AUTHORITY rest on
       consensus alone; 256 DECLINE are exempt.
     0 distinct AUTHORITY mismatches, 0 distinct CONSENSUS outliers
     exit 0
 
-  THE 35% IS THE HONEST NUMBER AND IT IS NOT A PASS FOR THE OTHER 65%. The
-  638 NORETURN fills are thunks that only tail-jump into a body defined
-  outside the hal objects; their pop lives in the TARGET'S decoration and is
-  readable only with undname, through an _unres.txt / _unres_demangled.txt
-  pair in the disasm directory. undname is not installed here, so those fills
-  were not judged. Closing that gap is the single highest-value follow-up on
-  this suite.
+  47% IS THE HONEST NUMBER AND IT IS NOT A PASS FOR THE OTHER 53%. It was
+  35% until the undname bug above was fixed: the recovered abicheck read a
+  precomputed _unres.txt / _unres_demangled.txt pair out of the disasm
+  directory, nothing ever generated that pair, so extsig was always empty and
+  638 of 2391 fills read NORETURN. abicheck now demangles the tail-jump
+  targets itself and resolves 505 of 505 of them, which moved 638 NORETURN
+  down to 132 and 839 judged up to 1127.
+
+  The 132 that remain are thunks whose target is not a decorated MSVC name at
+  all -- a flat Itanium body with no parameter list in its spelling -- and no
+  demangler closes those. They need the same treatment abicheck already gives
+  the thunks it can see: read the pop out of the target's own emitted `ret`,
+  which means disassembling more than the hal objects. That is the remaining
+  follow-up and it is a bigger one than this was.
 
   $ python port/tools/run_checks.py . --disasm-dir C:/tmp/ab1/build/port/_abicheck_disasm
     ## selftest: aliascheck.py    SELFTEST PASSED
@@ -196,7 +235,7 @@ its own extracted/, its own asset catalog and its own build directory.
        hal_fill_seaweed_vtable, hal_seat_platform_dtors,
        port_scene_fill_curling); no new regression. They are DEBT, not
        clearance.
-    ## aritycheck --gate-receiver     167 baselined, 167 live, 0 NEW, 0 retired
+    ## aritycheck --gate-receiver     168 baselined, 168 live, 0 NEW, 0 retired
     ## abicheck                       2391 fills, 0 mismatches, 0 outliers
     PORT ABI CHECKS PASSED (every checker ran and checked something)
     exit 0
@@ -231,9 +270,12 @@ halves for every fixture:
     PASS aliascheck RED: Player::TryGrab
     PASS aliascheck RED: BlendModelAnim::SetAnim
     PASS aliascheck RED: Platform::KillByMegaChar
+    PASS aliascheck RED: a pop mismatch RULE R cannot see (rule P only)
     PASS aritycheck GREEN on cons
     PASS aritycheck RED: FaderColor::AdvanceFade
     PASS aritycheck RED: Enemy base ctor
+    PASS aritycheck RED: namespaced C++ declaration
+    PASS aritycheck GREEN again once the fixture is removed
     PASS abicheck GREEN on this build
     PASS abicheck RED: crate_pounded
     PASS abicheck RED: ssb_pounded
@@ -241,14 +283,23 @@ halves for every fixture:
     PASS abicheck RED: bp_egg
     PASS abicheck RED: fb_slot27
     PASS abicheck RED: whomp_s30
-    20 of 20 proofs passed
+    23 of 23 proofs passed
     ABI_PROVE PASSED
     exit 0
 
   Without --disasm-dir the abicheck arm is SKIPPED and the harness FAILS
-  (19 of 20, "abicheck arm ran at all: FAIL"), rather than reporting a pass
+  (16 of 17, "abicheck arm ran at all: FAIL"), rather than reporting a pass
   over a checker it never ran. That is the vacuous-green rule applied to the
-  proof harness itself.
+  proof harness itself. Measured, because the first version of this document
+  guessed at that number and guessed wrong.
+
+  EACH RED ASSERTS WHICH RULE FIRED, not merely that the checker exited 1.
+  The first version asked for the substring "NEW", which appears in
+  aliascheck's own count line on every run including a clean one, so it was
+  very nearly no assertion at all. The rule-P fixture is the one that made
+  that matter: it is a pop mismatch with both sides __thiscall, so the
+  receiver rule is CORRECT to stay quiet and only "POP MISMATCH" in the
+  output proves rule P did the catching.
 
 THE SCRATCH COPY IS A COPY. The real tree is never edited, not even
 transiently, so an interrupted run cannot leave a re-broken directive behind.
@@ -273,9 +324,10 @@ How each arm is re-broken:
 4. FIXTURE INVENTORY
 --------------------
 
-17 fixtures across three checkers, plus the checkers' own selftest batteries.
+20 fixtures across three checkers, plus the checkers' own selftest
+batteries.
 
-ALIAS FORM (9) -- aliascheck must catch each when re-injected
+ALIAS FORM (10) -- aliascheck must catch each when re-injected
   Heap::SetDefault                 cons 8af183ddb  2026-08-16
   Heap::Destroy                    cons 0936784c9  2026-08-16
   Heap::_Destroy                   cons 0936784c9  2026-08-16  (SHIFTED)
@@ -291,11 +343,25 @@ ALIAS FORM (9) -- aliascheck must catch each when re-injected
   are the alias-form instances the original pinned; all three are receiver
   crossings, so RULE R catches them without a demangler.
 
-ARITY FORM (2) -- aritycheck --gate-receiver must catch each when re-broken
+  The tenth is not a past defect but a CONSTRUCTED DISCRIMINATOR:
+    a pop mismatch RULE R cannot see
+      ?SetAnim@BlendModelAnim@@QAEXAAUSharedFilePtr@@@Z
+        = ?SetAnim@BlendModelAnimFace@@QAEXXZ
+  Both sides are public __thiscall, so the receiver AGREES and rule R is
+  correct to stay quiet; only the argument count differs. It exists because
+  rule P silently did not run for a day and every other fixture would have
+  passed anyway. The harness asserts "POP MISMATCH" appears for this one and
+  "NEW  <<<<<<" for the rest, so neither rule can be credited with the other's
+  catch.
+
+ARITY FORM (4) -- aritycheck --gate-receiver must catch each when re-broken
   FaderColor::AdvanceFade  PR #1539, cons ba1b0a670, include/decl_FaderColor.h
   Enemy base ctor          PR #1543, cons b74cf657d
 
-  These two are the reason aritycheck is in the suite at all. Both landed on
+  namespaced C++ declaration   the SPELLING, proved on a scratch file
+  and green again once removed  the ratchet must also go quiet
+
+  The first two are the reason aritycheck is in the suite at all. Both landed on
   2026-08-16, both are the receiver shape, and NEITHER is an /alternatename,
   so aliascheck cannot see them and abicheck passes them (the frames balance).
   The Enemy fixture re-breaks src/RollingRock_Spawn.c, a sibling that carries
@@ -345,10 +411,19 @@ Six days of tree movement. Every resolution is in favour of what is on cons.
 (b) THE SCANNER READ LANE PROSE AS LINKER INPUT. aliascheck walked the tree
     with its own regex and counted every /alternatename it saw. On this tree
     that reports 1590 directives where 1573 are real linker input and 17 are
-    quotations in comments and .txt maps -- and FIVE of those 17 are
+    quotations in comments and .txt maps -- and THREE of those 17 are
     quotations of exactly the receiver-crossing directives the 2026-08-16
     fixes DELETED, sitting in the comment blocks that record the fix. The
     checker would have reported a defect out of the note saying it was fixed.
+
+    THREE, not the five this document first claimed. All 17 prose lines were
+    put through aliascheck.crossing() and the crossings are
+    stage_lifecycle_map.txt:1084 and hal/stage_slot0.cpp:480, both quoting
+    Heap::SetDefault, and hal/scene_boot.cpp:1176 quoting
+    ModelComponents::Render. A fourth, CMakeLists.txt:3252, is a truncated
+    regex over the Render directive and does not classify as a crossing. The
+    remaining thirteen are data and vtable bridges. Lane ABR1 found the
+    miscount; it was re-derived here rather than taken on report.
     Cons already solved this: commit ab554f5fd taught alternatename_guard.py
     the difference, after the same mistake failed a build over a comment.
     RESOLVED: aliascheck no longer walks the tree. It calls
@@ -393,7 +468,9 @@ Six days of tree movement. Every resolution is in favour of what is on cons.
     the more recent of its own two best instances. RESOLVED: include/ is
     scanned and .h files are read. That moved the census from 2005 to 2104 and
     the receiver subset from 162 to 167, which is a cheap way to buy the
-    surface where a real recurrence actually happened.
+    surface where a real recurrence actually happened. A second reader gap of
+    the same kind, the namespaced C++ declaration spelling, was found later by
+    lane ABR1's review and is item (j).
 
 (h) gen_disasm.cmd WAS UNUSABLY SLOW. `for /r` over the whole build directory
     visits every one of the port's fourteen thousand objects and filters each
@@ -410,18 +487,58 @@ Six days of tree movement. Every resolution is in favour of what is on cons.
     it with nothing is CORRECT. The sound version of that rule is arity
     agreement between declaration and definition, which is aritycheck. Landing
     veneercheck would have added 686 false positives to a suite whose whole
-    value is that its reds are real.
+    value is that its reds are real. Lane ABR1 re-checked the exclusion on
+    three of the 686 and agreed.
+
+THE LAST TWO ITEMS ARE NOT DRIFT FROM THE OLD BRANCHES. They are defects this
+lane introduced or carried, found by lane ABR1's review of this very change,
+and they are recorded beside the rest because a recovery that hides its own
+review findings is the same failure the recovery was for.
+
+(j) THE DEMANGLER WAS NEVER CALLED CORRECTLY, so two capabilities read as
+    blocked external dependencies for a day. aliascheck's helper piped its
+    name list into undname's stdin; undname takes FILENAMES and answers a pipe
+    with its usage banner and exit 1; the helper read that exit as "the tool
+    is missing". Consequences, both of which this document asserted as
+    environment limits:
+      * aliascheck RULE P reported NOT RUN in every environment.
+      * abicheck fell back to a precomputed _unres.txt / _unres_demangled.txt
+        pair that nothing has ever generated, so extsig was always empty and
+        638 of 2391 fills read NORETURN -- UNCHECKED, and reported as a
+        coverage limit of the machine rather than of the code.
+    RESOLVED: port/tools/msvc_undname.py, one caller, the FILE form, a locator
+    that also finds undname under the VS Build Tools layout so a plain shell
+    works, and a selftest pinning both known-good output and the fact that
+    stdin is refused. Rule P now runs over 1302 names; abicheck resolves 505
+    of 505 tail-jump targets and judges 47% instead of 35%.
+
+(k) aritycheck COULD NOT SEE THE CALL SITE ITS OWN BEST EXAMPLE USED.
+    src/func_ov007_020b7764.cpp declares Player::St_EndingFly_Main with a
+    namespaced C++ declaration, which the flat-name reader skipped, so the
+    site was invisible while the SYMBOL sat on the census via four other
+    files. This document read that as "it is on the census" and was wrong.
+    RESOLVED: item 6 of section 6, and the narrow scope is stated there and in
+    section 7.
 
 
-6. WHAT THE SUITE FOUND ON CONS -- FIVE LIVE RECEIVER DEFECTS
--------------------------------------------------------------
+6. WHAT THE SUITE FOUND ON CONS -- SIX LIVE RECEIVER DEFECTS
+------------------------------------------------------------
 
-These are TRUE POSITIVES on 3a5733c03, found by aliascheck's new receiver
-rule on its first run. NONE IS FIXED HERE: they are five behavioural changes
-across four owners' files, each wanting its own battery, and this lane was
-landing the checker. They are frozen as OPEN in aliascheck_baseline.txt with
-their evidence and are reported at every run, separately from regressions, so
-a pass can never be read as "the class is closed".
+These are TRUE POSITIVES on 3a5733c03. Five were found by aliascheck's new
+receiver rule on its first run; the sixth needed aritycheck to learn the
+namespaced C++ declaration spelling, which it did only after lane ABR1's
+review pointed out that nothing in the suite could see it.
+
+NONE IS FIXED HERE: they are six behavioural changes across five owners'
+files, each wanting its own battery, and this lane was landing the checker.
+The first five are frozen as OPEN in aliascheck_baseline.txt and the sixth in
+aritycheck_receiver_baseline.txt, each with its evidence, and all are reported
+at every run separately from regressions, so a pass can never be read as "the
+class is closed".
+
+All six were confirmed independently by lane ABR1 from its own disassembly of
+its own build. Two came back WORSE than they were first filed, and both
+corrections are folded in below.
 
 Ranked by blast radius.
 
@@ -432,8 +549,12 @@ Ranked by blast radius.
      thiscall call with two pushed arguments, so the allocator goes into ECX.
      The body src/_ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj.cpp:3
      is flat cdecl (void *thiz, Fn fn, void *ctx) and takes thiz from the
-     first stack slot -- which holds the VISITOR, a code pointer -- then
-     immediately dereferences it at +0x2c and calls fn, which is the pushed 0.
+     first stack slot -- which holds the VISITOR, a code pointer. The
+     dereference at +0x2c is UNCONDITIONAL, so the wrong-object read always
+     happens; the call through fn is guarded by that read returning a non-null
+     node, so whether control transfers to the pushed 0 depends on what
+     happens to be at visitor+0x2c. (The first version of this document had
+     those two the wrong way round.)
      IT ALSO UNBALANCES THE STACK: the call site is compiled for a callee that
      rets 8, the body pops nothing, so ESP leaks 8 bytes per call. Reachable
      through _ZTV13ExpandingHeap slot 5, seated at lk4_eh_dtor_seat.cpp:127;
@@ -444,12 +565,31 @@ Ranked by blast radius.
      src/func_0204ebb8.c:7 and src/_ZN13HeapAllocator7DestroyEv.cpp:8 are ARM
      tail-call veneers transcribed to C and both call the flat name with ZERO
      arguments. The body src/_ZN13HeapAllocator6RemoveEv.cpp:23 is __thiscall
-     and dereferences `this` twice. The veneers are themselves entered by
-     cdecl calls that PUSH the allocator
-     (src/_ZN13ExpandingHeap8VDestroyEv.c:23, src/_ZN9SolidHeap8VDestroyEv.c:23),
-     so nothing in the source ever loads it into ECX. It survives today only
-     if MSVC happens to materialise self->allocator into ECX before the push
-     and nothing clobbers ECX across two frames. Fires on any heap teardown.
+     and PASSES `this` to two callees (FindNested(this), then
+     Remove(iter, this)). The veneers are themselves entered by cdecl calls
+     that PUSH the allocator (src/_ZN13ExpandingHeap8VDestroyEv.c:23,
+     src/_ZN9SolidHeap8VDestroyEv.c:23), so nothing in the source ever loads
+     the allocator into ECX.
+
+     THE HEDGE THIS DOCUMENT FIRST CARRIED WAS TOO WEAK, and the truth is
+     worse. It said Remove "survives today only if MSVC happens to
+     materialise self->allocator into ECX". It does not, and there is nothing
+     accidental about what it gets. Lane ABR1 showed neither VDestroy body
+     writes ECX, and the seated thunk is this, out of this build's own
+     disassembly of hal/lk4_eh_dtor_seat.cpp:
+
+         ?eh_vdestroy@@YIXPAX0@Z (void __fastcall eh_vdestroy(void *,void *)):
+           push        ecx
+           call        __ZN13ExpandingHeap8VDestroyEv
+           pop         ecx
+           ret
+
+     ECX arrives holding the ExpandingHeap, is pushed as the cdecl argument,
+     and is never reloaded before the call. So HeapAllocator::Remove runs with
+     `this` = THE HEAP, deterministically, on every heap teardown -- not
+     random garbage, and not the HeapAllocator it was written for. A stable
+     wrong object is not the better of the two outcomes: it is a valid pointer,
+     so it does not fault, it corrupts the same way every time.
 
   3. Player::GetHurtState                    hal/actor_classes_ov073.cpp:190
      __ZN6Player12GetHurtStateEv = ?GetHurtState@Player@@QAEHXZ
@@ -469,14 +609,41 @@ Ranked by blast radius.
      hands whatever sits in its first stack slot to an indirect call through
      data_ov007_02103254. Both TUs ride port/slice_ov007.txt.
 
-  A SIXTH, ADJACENT, THAT THIS CHECKER CANNOT SEE. hal/scene_boot.cpp:1126
-  carries a third spelling, ?St_EndingFly_Main@Player@@YAXXZ, and
-  src/func_ov007_020b7764.cpp:9 calls it with no arguments at all. YA is a
-  free function, so both sides agree that there is no receiver and rule R is
-  correct to stay quiet -- but the body still reads a garbage first stack
-  slot. That one is aritycheck's shape, and it is on that checker's receiver
-  census. It is the clearest single argument for the suite having more than
-  one detector.
+  6. Player::St_EndingFly_Main, a THIRD spelling, and until this document was
+     amended NO CHECKER IN THE SUITE COULD SEE IT.
+     hal/scene_boot.cpp:1126 carries ?St_EndingFly_Main@Player@@YAXXZ =
+     __ZN6Player17St_EndingFly_MainEv. YA is a free function, so both sides
+     agree there is no receiver and aliascheck's rule R is CORRECT to stay
+     quiet -- it is not a crossing. And src/func_ov007_020b7764.cpp:9 calls
+     Player::St_EndingFly_Main() with nothing, while the definition takes a
+     receiver and hands it to an indirect call through data_ov007_02103254.
+
+     THE FIRST VERSION OF THIS DOCUMENT SAID IT WAS "on that checker's
+     receiver census". IT WAS NOT, and lane ABR1 caught the error. The SYMBOL
+     was on the census, reaching it through four other TUs that use the flat
+     spelling -- but THIS SITE was invisible, because
+     src/func_ov007_020b7764.cpp:2 declares it as
+
+         namespace Player { void St_EndingFly_Main(); }
+
+     and aritycheck's declaration reader only matched flat _ZN.../func_...
+     names. So the one call site that motivated the whole example was the one
+     nobody was checking. That is the same shape as the checker itself: a
+     count that looks like coverage.
+
+     CLOSED HERE. aritycheck now reads a single-level namespaced declaration
+     of a nullary function and mangles it to _ZN<len><NS><len><Name>Ev. That
+     added exactly 14 declarations tree-wide and exactly ONE census row --
+     this one. Deliberately narrow: templates, nested namespaces, arguments
+     and out-of-line class methods are NOT attempted, because a half-written
+     Itanium mangler emits confident wrong symbol names, which is worse than a
+     blind spot somebody wrote down. Proved both ways in abi_prove
+     (a scratch file carrying only that declaration must produce a new ratchet
+     row, and removing it must take the row away). The remaining spellings are
+     stated as a blind spot in section 7.
+
+     It is the clearest single argument for the suite having more than one
+     detector -- and, now, for reviewing the detectors against each other.
 
   ADJUDICATED INERT, for the record (11 rows, all in aliascheck_baseline.txt):
   Player::OnYoshiTryEat (the body is `(void)this; return 1;`); the eight
@@ -493,21 +660,39 @@ Ranked by blast radius.
 7. LIMITS, STATED
 -----------------
 
-  * abicheck judged 35% of the fills it read. The 638 NORETURN are UNCHECKED,
-    not passed. Closing that needs undname, which is not installed here.
-  * aliascheck's RULE P did not run at all, for the same reason.
-  * aritycheck's full census (2104 rows) does not gate and its parser is a
+  * abicheck judges 47% of the fills it reads. The 132 NORETURN are
+    UNCHECKED, not passed. They are thunks whose tail-jump target is a flat
+    Itanium body carrying no parameter list in its spelling, so no demangler
+    closes them; the fix is to read the pop out of the target's own emitted
+    `ret`, which means disassembling beyond the hal objects.
+  * aritycheck's full census (2105 rows) does not gate and its parser is a
     regex over C and C++ text. The honest route to gating it is to read arity
     out of the emitted code -- the callers' push counts, the way abicheck
     reads emitted rets -- not a bigger regex.
-  * The 167 frozen receiver-shape rows and the 11 INERT crossings are DEBT.
-    The ratchets' claim is deliberately narrow and true: the tree does not
-    grow a new one without somebody seeing it.
+  * aritycheck reads ONE C++ declaration spelling beyond the flat names:
+    `namespace X { T f(); }`, single level, no arguments. Templates, nested
+    namespaces, overloads, arguments and out-of-line class methods are not
+    attempted. Each of those is a place a call site can hide the way
+    src/func_ov007_020b7764.cpp did for six days.
+  * The 168 frozen receiver-shape rows, the 11 INERT crossings and the 6
+    frozen vtspan fills are DEBT. The ratchets' claim is deliberately narrow
+    and true: the tree does not grow a new one without somebody seeing it.
   * aliascheck reads the DIRECTIVE, not the call sites. It says a crossing
     exists; whether the crossing bites depends on what the callers do, which
     is why every baseline row carries a hand adjudication rather than a
-    verdict the tool computed.
+    verdict the tool computed. The sixth defect is the standing proof that a
+    checker reading one artefact can be blind to the site that matters.
   * Nothing here runs automatically. Section 8.
+
+  TWO LIMITS THIS DOCUMENT CLAIMED AND THEN LOST, kept here because a limit
+  that turns out to be a bug is the most useful kind to record:
+    - "undname is not installed here, so RULE P cannot run and 638 fills are
+      unchecked." It was installed. The helper piped into its stdin. Both the
+      rule and 506 of the unchecked fills came back for a few lines of work.
+    - "the sixth case is on aritycheck's census." It was not; only the symbol
+      was, via other files. Both were caught by lane ABR1's review, not by
+      this lane, and neither would have been caught by re-running anything
+      here -- the numbers were self-consistent and wrong.
 
 
 8. WHAT IS WIRED, AND WHAT IS ONLY PROPOSED

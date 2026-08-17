@@ -67,7 +67,13 @@ SWEEP_BASELINE = os.path.join(HERE, "vtspan_sweep_baseline.txt")
 FILLS_BASELINE = os.path.join(HERE, "vtspan_fills_baseline.txt")
 
 # Every checker whose fixtures must pass before any of them is believed.
-SELFTESTS = ("aliascheck.py", "abicheck.py", "aritycheck.py")
+# msvc_undname is in the list even though it is not a checker: aliascheck's
+# rule P and abicheck's tail-jump resolution both rest on it, and it spent a
+# day silently returning nothing because it piped into undname's stdin. Its
+# selftest reports SKIPPED where undname is genuinely absent, which is a real
+# state on a Linux runner and is never counted as a pass.
+SELFTESTS = ("msvc_undname.py", "aliascheck.py", "abicheck.py",
+             "aritycheck.py")
 
 
 def load_baseline(path):

@@ -100,7 +100,6 @@ closed" -- only as "the tree did not get worse".  The list may only shrink.
 
 import argparse
 import os
-import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -110,6 +109,7 @@ BASELINE = os.path.join(HERE, "aliascheck_baseline.txt")
 
 sys.path.insert(0, HERE)
 import alternatename_guard as ag  # noqa: E402  (path set above)
+import msvc_undname as mu     # noqa: E402
 
 
 # --------------------------------------------------------------------------
@@ -263,30 +263,16 @@ def pop_of(sig):
     return CONV_POP[conv](len(params)), "%s/%d params" % (conv, len(params))
 
 
+# Demangling lives in msvc_undname.py, and it lives there because THIS file
+# got the invocation wrong. It piped the name list into undname's stdin;
+# undname takes FILENAMES, answered with its usage banner and exit 1, and this
+# helper read that non-zero exit as "the tool is missing". Rule P therefore
+# reported NOT RUN on every machine including ones where undname is installed
+# and works. Lane ABR1 caught it in review. One caller, one shape, one
+# selftest that pins the file form and pins that stdin is refused.
 def undname(names):
-    """{decorated: demangled} via undname, or {} if undname is unavailable.
-
-    undname emits exactly one line per input line, in order. If it does not,
-    the alignment is a guess and a guessed alignment is how a checker reports
-    a defect against the wrong symbol, so this refuses instead.
-    """
-    names = [n for n in names if n.startswith("?")]
-    if not names:
-        return {}
-    try:
-        p = subprocess.run(["undname"], input="\n".join(names) + "\n",
-                           capture_output=True, text=True, timeout=120)
-    except (OSError, subprocess.SubprocessError):
-        return {}
-    if p.returncode != 0:
-        return {}
-    # undname prints a banner and an "Undecoration of :- ..." wrapper per
-    # name depending on how it is invoked; the file form prints one bare line
-    # per name. Accept only the clean one-line-per-name shape.
-    lines = [ln for ln in p.stdout.splitlines() if ln.strip()]
-    if len(lines) != len(names):
-        return {}
-    return dict(zip(names, lines))
+    """{decorated: demangled}, or {} if undname could not be used."""
+    return mu.demangle(names, quiet=True)
 
 
 # --------------------------------------------------------------------------

@@ -38,6 +38,21 @@
 #     python port/tools/aritycheck.py --write-receiver-baseline
 # and reviewed only for shape, not row by row.
 
+# THE ROW BELOW IS A CONFIRMED LIVE DEFECT, NOT SUSPECTED DEBT. It is the
+# SIXTH receiver defect on cons and until 2026-08-17 NO checker in the suite
+# could see it. src/func_ov007_020b7764.cpp:2 declares
+#     namespace Player { void St_EndingFly_Main(); }
+# and line 9 calls Player::St_EndingFly_Main() with nothing, while the
+# definition src/_ZN6Player17St_EndingFly_MainEv.cpp:8 takes a receiver and
+# hands it to an indirect call through data_ov007_02103254. aliascheck is
+# right to stay quiet: hal/scene_boot.cpp:1126 spells that alias
+# ?St_EndingFly_Main@Player@@YAXXZ, a free function on BOTH sides, so the
+# receiver agrees and there is no crossing. It reaches this file only because
+# aritycheck learned the namespaced C++ declaration spelling. It is listed
+# here so the ratchet is green, and it is named in port/abi_checks.txt
+# section 6 as one of the six live defects awaiting an owner.
+_ZN6Player17St_EndingFly_MainEv|src/func_ov007_020b7764.cpp
+
 _ZN10FaderColorD1Ev|src/__sinit_02073e6c.c
 _ZN10FaderColorD1Ev|src/__sinit_02074edc.c
 _ZN10StarMarker27SpawnRedCoinStarIfNecessaryEv|src/func_ov002_020b10a0.c

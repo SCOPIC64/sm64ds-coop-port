@@ -88,6 +88,9 @@ import sys
 from collections import defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import msvc_undname as mu  # noqa: E402  (path set above)
+
 DEFAULT_ROOT = os.path.dirname(os.path.dirname(HERE))
 DIRS = ('src', 'include', os.path.join('port', 'unmatched'),
         os.path.join('port', 'hal'))
@@ -105,6 +108,38 @@ DECL = re.compile(
     r'(?P<name>_ZN\w+|func_\w+)\s*\((?P<p>[^;{)]*)\)\s*;', re.M)
 
 KEYWORDS = {'if', 'for', 'while', 'switch', 'return', 'else', 'sizeof', 'do'}
+
+# A declaration written in C++ rather than as a flat Itanium name:
+#
+#     namespace Player { void St_EndingFly_Main(); }
+#
+# emits the symbol _ZN6Player17St_EndingFly_MainEv, exactly like the flat
+# spelling four sibling TUs use -- but nothing above matches it, so the site
+# is invisible to this checker. That is not hypothetical: it is the SIXTH live
+# receiver defect on cons (src/func_ov007_020b7764.cpp:9 calls
+# Player::St_EndingFly_Main() while the definition takes a receiver), and lane
+# ABR1's review found that neither aliascheck nor aritycheck could see it.
+# aliascheck cannot because scene_boot.cpp:1126 spells that alias
+# ?St_EndingFly_Main@Player@@YAXXZ, a free function on both sides, so the
+# receiver AGREES and rule R is right to stay quiet.
+#
+# THE SCOPE HERE IS DELIBERATELY ONE SHAPE AND NOT A MANGLER. A single-level
+# namespace, a function taking NO arguments, on one physical line. That
+# mangles to _ZN<len><NS><len><Name>Ev and nothing else does. Templates,
+# nested namespaces, overloads, arguments, and out-of-line class methods are
+# NOT attempted -- Itanium argument encoding with its substitution rules is a
+# project, and a half-written mangler produces confident wrong symbol names,
+# which is worse than a blind spot somebody wrote down. The remaining blind
+# spot is stated in port/abi_checks.txt section 7.
+NS_DECL = re.compile(
+    r'^[ \t]*namespace\s+(?P<ns>[A-Za-z_]\w*)\s*\{\s*'
+    r'(?:const\s+)?[A-Za-z_]\w*(?:\s*\*)*[\s*]+'
+    r'(?P<name>[A-Za-z_]\w*)\s*\(\s*(?:void\s*)?\)\s*;\s*\}', re.M)
+
+
+def itanium_nullary(ns, name):
+    """_ZN<len><ns><len><name>Ev -- the ONE shape NS_DECL admits."""
+    return '_ZN%d%s%d%sEv' % (len(ns), ns, len(name), name)
 
 
 def nparams(p):
@@ -156,6 +191,10 @@ def scan(root):
                     if n in KEYWORDS:
                         continue
                     decls[n].append((nparams(m.group('p')), rel,
+                                     src.count('\n', 0, m.start()) + 1))
+                for m in NS_DECL.finditer(src):
+                    n = itanium_nullary(m.group('ns'), m.group('name'))
+                    decls[n].append((0, rel,
                                      src.count('\n', 0, m.start()) + 1))
     rows = []
     for name, (dn, dfile, dline) in sorted(defs.items()):
@@ -230,6 +269,39 @@ def selftest():
     bad += 0 if ok else 1
     print('    %-4s one declaration, one definition, comment ignored '
           '(decls=%s defns=%s)' % ('ok' if ok else 'FAIL', d, f))
+
+    print('\n  NAMESPACED C++ DECLARATION (the sixth-defect blind spot)')
+    ns_cases = [
+        ('namespace Player { void St_EndingFly_Main(); }',
+         ['_ZN6Player17St_EndingFly_MainEv'],
+         'the real shape, src/func_ov007_020b7764.cpp:2'),
+        ('namespace Player { void St_EndingFly_Main(void); }',
+         ['_ZN6Player17St_EndingFly_MainEv'],
+         'explicit void is the same symbol'),
+        ('namespace A { int f(); }', ['_ZN1A1fEv'], 'short names'),
+        # Everything below is OUT OF SCOPE ON PURPOSE. A half-written Itanium
+        # mangler emits confident wrong symbol names, which is worse than a
+        # blind spot somebody wrote down, so these must produce NOTHING.
+        ('namespace Player { void f(int); }', [],
+         'takes an argument: not attempted'),
+        ('namespace A { namespace B { void f(); } }', [],
+         'nested namespace: not attempted'),
+        ('namespace Player { void f() { return; } }', [],
+         'a definition, not a declaration'),
+        ('struct Player { void f(); };', [], 'a class, not a namespace'),
+    ]
+    for text, want, note in ns_cases:
+        got = [itanium_nullary(m.group('ns'), m.group('name'))
+               for m in NS_DECL.finditer(text)]
+        ok = got == want
+        bad += 0 if ok else 1
+        print('    %-4s %-34s %s' % ('ok' if ok else 'FAIL',
+                                     (got or ['(nothing)'])[0], note))
+
+    print('\n  DEMANGLER (shared, port/tools/msvc_undname.py)')
+    rc = mu.selftest()
+    if rc == 1:
+        bad += 1
 
     print('\n%s' % ('SELFTEST PASSED' if not bad
                     else 'SELFTEST FAILED (%d)' % bad))
