@@ -2538,15 +2538,23 @@ background gap is a DS ADDRESS handed out where a hosted global's address
 belongs. One is fixed in the port and the other is a decomp row this lane
 routes rather than writes.
 
-THE BASELINE THIS TREE STARTS FROM IS 5H'S OWN FRAME, byte for byte, which is
-what makes every comparison below legal. Off the START COMMIT (3a5733c03),
-SM64DS_SCENE=1 SM64DS_SCENE_FRAMES=300 SM64DS_FAULTS_FATAL=1, this lane's own
-worktree produced sha256
+THE BASELINE THIS TREE STARTS FROM IS 5H'S OWN FRAME, byte for byte. Off the
+START COMMIT (3a5733c03), SM64DS_SCENE=1 SM64DS_SCENE_FRAMES=300
+SM64DS_FAULTS_FATAL=1, this lane's own worktree produced sha256
 66ccab45db1e27595fda01b5e16825b8a36d3749dffa4c31382ba6386e2ca3de, 472 distinct
-colours, which is 5h's tip capture to the byte. This tree's .dsstate is
-[0xbb0000, 0xc9ab30), not 5h's [0xbb0000, 0xc9a2e0), so the SPAN differs while
-the BASE does not and the frame is unchanged; every before and after in this
-section is taken inside this tree at that one base.
+colours, which is 5h's tip capture to the byte. Its .dsstate is
+[0xbb0000, 0xc9ab30), against 5h's [0xbb0000, 0xc9a2e0): the SPAN differs, the
+BASE does not, and the frame is unchanged.
+
+AND THE BASE MOVES AT THE TIP, WHICH IS SAID HERE RATHER THAN LEFT FOR A READER
+TO FIND. This lane's own additions grow the image, so the tip links .dsstate at
+[0xbb3000, 0xc9db30). notes/port-selftest-bmp-gate.md's rule then applies: a
+START-COMMIT hash and a TIP hash are a LAYOUT comparison and not a byte one,
+and no claim below rests on comparing those two. The load-bearing before and
+after is taken on ONE binary at ONE base with the escape hatch, and every
+mechanism claim is a census number rather than a hash. Levels 1 and 6 are
+byte-identical ACROSS that base move, which is a fact about those two frames
+and not a licence to compare scene 1's.
 
 WHAT WAS BUILT TO SEE IT, all of it additive and all of it inert without
 SM64DS_PPU_AUDIT. port/ntr/ppu_audit.cpp is lane W2D's instrument and 5h took
@@ -2700,11 +2708,21 @@ aspect and the aspect ratio of the two scales is 4/3. The frame goes from 472
 distinct colours to 487.
 
     <run status dir>/link60/status/t2-scene1-3d-rasterising.bmp
-    512x384, 24bpp, 589878 bytes, .dsstate base [0xbb0000, 0xc9ab30)
+    512x384, 24bpp, 589878 bytes, .dsstate base [0xbb3000, 0xc9db30)
     sha256 67edc163afa87121f4e5770775a38930c2d925aed86bd9b8fdc33de611e69e20
-    487 distinct colours, against 472. The control, the same run off the START
-    COMMIT, is <run status dir>/link60/status/t2-scene1-before.bmp,
-    sha256 66ccab45db1e27595fda01b5e16825b8a36d3749dffa4c31382ba6386e2ca3de.
+    487 distinct colours
+
+  and the SAME-BASE pair, one binary, the escape hatch either way:
+
+    <run status dir>/link60/status/t2-scene1-hatch-off.bmp
+    sha256 db33338f48c150c6027bad546fed894eca2ff27acdbad34b55520b2ce0055faa
+    230 distinct colours, SM64DS_DIV_UNIT_OFF=1
+    against 487 with the unit running.
+
+  The START COMMIT frame, <run status dir>/link60/status/t2-scene1-before.bmp,
+  sha256 66ccab45db1e27595fda01b5e16825b8a36d3749dffa4c31382ba6386e2ca3de and
+  472 colours, is at the OTHER base and is quoted as the control for
+  reproducing 5h, not as the other half of a byte comparison.
 
 NO CLAIM IS MADE ABOUT WHAT IS IN IT, on 5h's and 12b's terms. What is proven
 is that the geometry the title submits now has a projection that puts it on the
@@ -2716,13 +2734,13 @@ THE ESCAPE HATCH IS SM64DS_DIV_UNIT_OFF=1 AND IT IS NOT AN EXACT BEFORE, which
 is recorded here rather than glossed. The change is a BUILD-TIME routing and
 there is no runtime seam inside a generated copy of byte-verified source to
 hang a switch on, so the hatch goes at the unit: ntr::run_divide computes
-nothing and every proxied caller reads a dead window. On scene 1 that darkens
-the 3D layer completely (all 96 triangles collapse to the single point 256,192,
-because PerspectiveW_ loses proj[5] and the depth row as well) rather than
-reproducing the pre-change line, and the frame hashes
-db33338f48c150c6027bad546fed894eca2ff27acdbad34b55520b2ce0055faa instead of the
-baseline's 66ccab45. It is a bisect switch, it is honest about being one, and
-the true before is the start commit's binary whose frame is hashed above.
+nothing and every proxied caller reads a dead window. That is MORE off than the
+pre-change state, not equal to it -- G3i::PerspectiveW_ already reached the
+unit and loses proj[5] and the depth row too, so all 96 triangles collapse to
+the single point 256,192 instead of to the pre-change vertical line, and the
+frame carries 230 distinct colours where the start commit's carried 472. It
+switches the behaviour off and it is a bisect switch; it is not a reconstructed
+before, and the before is the start commit's binary.
 
 
 GAP TWO: A DS ADDRESS WHERE A HOSTED GLOBAL'S ADDRESS BELONGS
@@ -3227,6 +3245,49 @@ is the check, and it is the reason the beat refuses any vtable this tree has
 not seated: on a level the beat answers 1 before dispatching anything and the
 frame path is the one that was there before.
 
+RUN LINK60 STAGE 5 LANE T2'S DELTA IS ZERO, and it is the first graphics fix
+in this file that costs nothing:
+
+    baseline 3a5733c03   5831 / 11250   51.8%   battery ALL GREEN, skips []
+    this lane            5831 / 11250   51.8%   battery ALL GREEN, skips []
+    delta                linked 0, total 0, unlinked 0
+    gate: GREEN
+
+Both recorded in this lane's own worktree with gate.py, the baseline at the
+start commit before a single edit and with git_dirty false at both ends. THE
+REASON IT IS ZERO IS THE SHAPE OF THE FIX. The three displacements this file
+already carries each moved a matched body into port/unmatched/ and paid one
+linked row for it; this lane moved nothing. hostgen reads the byte-verified
+source and emits a transformed copy, so _ZN4cstd4ldivEii and
+_ZN4cstd10fdiv_asyncE5Fix12IiE5Fix12IiE are still the decomp's bodies and
+linkage.py still counts their stems, exactly as it counts Camera::Render's.
+
+    map_size    4052683 -> 4067102       map_symbols 37411 -> 37551
+    exe         3950080 -> 3959296 bytes
+
+THE +140 SYMBOLS ARE NOT DECOMPOSED. A port/tools/mapdiff.py run against a base
+map built in this tree would name every one of them, and this lane did not take
+it; the growth is accounted for by hand as the two objects changing name (a
+src .c.obj becoming a host-src .cpp.obj each) plus the audit's new tables,
+counters and their string literals, and "accounted for by hand" is a weaker
+statement than the three displacement lanes above made. Section 8 carries it as
+an open item rather than as a claim.
+
+THE LEVELS ARE BYTE-IDENTICAL AND THIS LANE MEASURED IT RATHER THAN ARGUING IT.
+Level 1 and level 6, SM64DS_WINDOW_SELFTEST=300, base build against tip build
+in this one tree:
+
+    level 1  9129ce6cf3a229d4eb650927c5a68e6f8af3c2cd4af5cfbf8a134c063e4771f4
+    level 6  d59e09f133c053b307077363ce2efd0cc91513cf80b30836a1d65763f7cef20f
+
+the same hash on both sides, and taken ACROSS the .dsstate base move described
+in 5i, so those two frames do not depend on it. The argument that they could
+not have changed is separate and holds independently: cstd::fdiv is a host face
+and cstd::ldiv's only caller in the whole tree is the title screen's camera
+init. The other 44 levels are covered by the battery's exit codes, which is the
+same limit VP1's 12d and 5h record.
+
+
 8. WHAT IS NOT PROVEN
 ----------------------
 
@@ -3633,6 +3694,50 @@ frame path is the one that was there before.
     0x0f) where they were frozen at full brightness decrease. That the fade
     RUNS is measured. That it runs at the ROM's rate, or that the port's fade
     composite consumes it the way hardware would, is not.
+
+  RUN LINK60 STAGE 5 LANE T2 ADDS THESE, and the first two are the ones a
+  reader should weigh hardest:
+
+  - NOTHING IS CLAIMED ABOUT WHAT THE PICTURE LOOKS LIKE, on 5h's and 12b's
+    terms exactly. What is proven is that the title's geometry now has a
+    projection that spreads it across the panel instead of onto one column of
+    it, and that the frame carries 487 distinct colours where it carried 472.
+    Whether the model is the right model, in the right place, with the right
+    materials, is a question this lane did not look at one pixel of. Tango
+    judges the frame.
+  - THE BACKGROUND ROW IS ROUTED AND NOT FIXED, so the top screen's tilemaps
+    are still empty at this tip. The proof build that corrected the three
+    accessors is described in 5i and its source edit was reverted; nothing in
+    this lane's commit touches src/. A reader who wants the backgrounds has to
+    take that decomp row first, and even then engine A's BG2 and BG3 stay
+    empty for a reason nobody has derived.
+  - THE THIRD GAP IS REAL AND UNTOUCHED. func_ov007_020adc08's case 1 and case
+    5 allocate a 0x800 buffer with func_ov007_020c3df4 and the upload finds it
+    all zero, which is what leaves engine A's BG2 and BG3 blank in both the
+    tip and the proof build. No lane has opened it.
+  - THE +140 MAP SYMBOLS ARE NOT DECOMPOSED, per section 7. mapdiff was not
+    run against a base map built in this tree, so "nothing else moved" rests
+    on the battery, the two level hashes and a hand account rather than on a
+    row-by-row decomposition.
+  - THE ESCAPE HATCH IS NOT A RECONSTRUCTED BEFORE. SM64DS_DIV_UNIT_OFF=1
+    darkens the whole divider, which is more than this lane's change turned
+    on, and 5i records both frames and both colour counts so no reader has to
+    take that on trust.
+  - THE DIVIDER'S OTHER RAW CALLERS ARE UNTOUCHED AND UNSWEPT FOR CORRECTNESS.
+    ARMMathSaveState, ARMMathLoadState, cstd::mod and func_ov007_020c7d60 all
+    reach the DIV registers through plain literal-address stores and still do.
+    What was swept is the CALLER GRAPH of the two TUs this lane routed, which
+    is a different question: those four are unchanged by this commit, and
+    whether any of them is silently wrong today was not asked.
+  - ONE SCENE, ONE FRAME COUNT, ONE MACHINE for the picture claim, and two
+    levels for the no-regression claim. Scene 1 at 300 frames; levels 1 and 6
+    at 300 frames; the other 44 by exit code.
+  - THE AUDIT'S NEW ROWS ARE INSTRUMENTS AND HAVE NO FIXTURE. The geometry
+    command census, the screen-space triangle census and the decoded BG bases
+    were each read against a case whose answer was already known from another
+    row (POLYGONS, the VRAM census, BGxCNT), which is a cross-check and not a
+    selftest. port/ntr/ppu_audit.cpp has no fixture battery of its own and
+    this lane did not give it one.
 
 8a. THE TAIL-JUMP FLOOR IS GUARDED (run link60 Stage 5 lane TJG)
 -----------------------------------------------------------------
