@@ -2888,17 +2888,11 @@ commutative op, try the sub-identity before calling it a floor.
 
 Landing note (split-symbol carriers, extends 9a(3)): func_02072168 is banked and
 re-verified at the COMBINED 0x88c extent (0x02072168..0x020729f4) because its compiled
-<<<<<<< Updated upstream
 object also emits func_020729e8, the severed 12-byte epilogue. RESOLVED 2026-08-01: the
 symbol map now merges the pair (config/arm9/symbols.txt lists func_02072168 at size
 0x88c, the func_020729e8 row and its stub src file are gone) -- the first symbol-map
 merge of a severed fragment into its parent. Precedent for the func_02071644/
 func_02071694 pair (9a(3)'s other proven case) when someone lands that one.
-=======
-object also emits func_020729e8, the severed 12-byte epilogue. matched.jsonl carries size
-2188; the symbol map still lists both symbols. src/func_020729e8.c stays as a documented
-stub.
->>>>>>> Stashed changes
 
 ## 6ax. Inverse RMW-launder: demote the PLAIN read to let the RMW chain lead an interleave (2026-08-01, CapEnemy::GetCapState MATCHED)
 
@@ -2919,7 +2913,6 @@ Rule amendment: "launder ONLY the RMW sites" holds for the ADDRESS-MATERIALIZATI
 (that is what the ROM's RMW/single-use anatomy dictates). But for ORDERING residue between
 two chains, the launder is a scheduling-class demotion you can apply to EITHER side: launder
 the chain that must YIELD, not the one that must lead.
-<<<<<<< Updated upstream
 
 ## 6ay. Four new axes tested on the arm9 floors, all closed (2026-08-01, post-#960 theory sweep)
 
@@ -3007,5 +3000,337 @@ Verdict unchanged (still parked at 5, `// NONMATCHING`): the b/t26 rank rides th
 canonical A-tree, and the only rerank construct drags the a-family with it. The open
 angle narrows to: a substitution barrier that does NOT perturb sibling-web coloring,
 or any construct that makes the orr folder commute.
-=======
->>>>>>> Stashed changes
+
+## 6bb. 4a8-pack rank-pin, second full-angle sweep: the phase-order boundaries (2026-08-05, Fable on func_ov080_02125460, +55 compiles, still div 5)
+
+A fresh session re-attacked 6ba's wall with the post-6ba lever families (6y boosters,
+6aq caller-saved inversion, dead-use priority, fold-commute probes). Nothing beat 5;
+what the sweep bought is a precise map of WHICH PHASE eats each construct:
+
+- **Dead-expression elimination runs BEFORE web construction.** Every `(void)`-use
+  spelling of the extract or of `b >> 3`, at every placement, with and without
+  `#pragma opt_dead_code off`, compiles to the exact baseline bytes. A booster
+  statement (`x = x ? x : x;`) whose variable has NO later real read is likewise
+  dead-eliminated whole (tried on the head's dying `r3` web to shape the free list,
+  and on `a` after the pack store). 6y-1 boosters exist only for values with a
+  downstream real use - dead-use priority boosting is impossible in b56.
+- **The div-14 rotation rides the named web's EXISTENCE, not multi-def promotion.**
+  `#pragma opt_propagation off` + a SINGLE-def named `t` rotates identically to the
+  self-select and index-ternary forms; so does every booster placement/cond
+  permutation (cond self/c/q, doubled, before/after b's decl, anonymous-b variant,
+  and an a+t double-boost attempting r4-class occupancy). The 6aq recipe does not
+  transplant: here the boosted scratch web always promotes INTO the r4 class and
+  drags the a-family, regardless of arrangement.
+- **The orr folder DOES commute - but only under multi-use, which always
+  materializes the rejected shift.** A-order + duplicated t26-term: coloring flips
+  to ROM's (b=r2 coalescing dying q, t26=r3) and the folder folds b's lsr instead -
+  but the t26 lsl materializes (7). B-order + `b >>= 3` statement: same commute
+  geometry from the other side, propagation folds the shift back (7). Fold slot and
+  use count are coupled at selection time; there is no free commute.
+- **Adjacent `x|x` parse-folds and RE-CANONICALIZES the whole or-chain.** B-order
+  with the b-term duplicated adjacently compiles to the A-CANONICAL baseline bytes -
+  the idempotence fold normalizes term order before selection. Separated duplicates
+  survive as a real extra orr (+4). Expression-arm equal ternaries (`V ? X : X`)
+  materialize a diamond (+8) in both value and index positions; only const-arm forms
+  on an already-named var fold free (the 6ba finding).
+- **Renormalizing-neutral on this pair** (exact baseline bytes): `register`,
+  int-retype of b + `(u32)` cast at use, volatile b-load, volatile q (extends 6y-4:
+  b IS memory-sourced and still does not flip), `qb = *(u32*)qb` identity reuse (the
+  web splits at the reassignment - 6q does not apply to straight-line reassignment),
+  and all recognized opt pragmas incl. `optimization_level 2/3`. Size-breaking:
+  `optimization_level 1`, bitfield-struct reads of q[4] (extract shape changes),
+  static-helper-call inlining, u64 value-launder of the extract.
+
+Verdict: parked at 5, unchanged. The open angle is now a construct that gives t26's
+web a use which (a) exists at allocation, (b) vanishes before selection, and (c) is
+not a named web - no known b56 construct occupies that phase window. Treat the
+b/t26 pair as a true allocator rank pin absent a genuinely new construct class.
+Full per-family nodes: config/match_attempts.jsonl, parents under 6339f0f5....
+
+### 6bb addendum: gccext statement-exprs open a FOURTH attractor - and close it (same session, +17 compiles)
+
+`-gccext,on` means `({ ... })` statement expressions compile, and they were absent
+from all 385 prior compiles on this function. They are NOT neutral:
+
+- **An inline SE whose body is anchored by a LOAD survives as a web** and does two
+  things at once: it SEALS its shift from copy-propagation (the `b >> 3` def stays
+  materialized - the orr folder then COMMUTES and folds t26's lsl with Rn=b, giving
+  the first-ever exact `and r3,r3,#7` + A-selection fold since 6ba opened), and it
+  DEMOTES the web to the BOTTOM of the scratch hand-out (b lands in ip, below every
+  anonymous temp; position in the chain is irrelevant). Stable new residue at 11.
+- **Register-pure SE bodies always collapse** back to anonymous temps: plain
+  extracts, `s &= 7` two-statement bodies, and internal self-select boosters
+  (the booster additionally leaks the div-14/15 rotation out of the SE scope).
+- **Decl-init SEs dissolve wholly**: `u32 bb = ({ q[0] >> 3; });` propagates SE and
+  all into the single use - it behaves exactly like the plain B-order spelling
+  (right coloring, wrong fold side, 7), not like the inline SE.
+- Scope-depth nesting of the store statement, `%`/division respellings of the
+  extracts, and every splice of {SE-seal, B-order rank, opt_propagation off,
+  nesting} land in the now-five known attractors {5, 7, 11, 14, 15}.
+
+Net: the fold-seal (inline load-anchored SE) and the r2 rank (named local, bare in
+a B-order chain) each work alone and live in PROVABLY disjoint construct classes;
+every bridging construct either dissolves (decl-SE), demotes (inline SE), or
+rotates (pragma / booster / multi-def). The 6bb open-angle spec tightens once
+more: the missing construct must seal a shift-def from propagation while keeping
+named-block-scope rank - nothing in c99+gccext reaches that intersection.
+
+## 6bc. The vcall SPELLING is a callee-saved homing-rank lever (Player::CanEnterDoor, div 13->0, 2026-08-07)
+
+The pret-idiom note (6e area) already records that C++ virtual dispatch loads the
+vptr before homing `this` where a C function-pointer cast homes first - a PROLOGUE
+ORDER effect. It is also an ALLOCATOR RANK effect: on _ZN6Player12CanEnterDoorEh
+(0x020ca5cc, the door-crash NONMATCHING), every source form spelling the +0x48
+vcall as a C fn-ptr cast (`(*(T**)(c+0x360))->vtbl[0x48/4](...)`) homed the args
+this=r4/door=r5, a global 13-word rename against the ROM; respelling ONLY the
+vcall as real C++ virtual dispatch (18 dummy virtuals + `o->GetType()`, no other
+change) restored the natural reverse-arg homing (door=r4, this=r5) and landed
+div=0 with a plain `return 0;`. The old draft's `{int r = door; r -= door;
+return r;}` RMW was a byte-costing pressure hack compensating for the C-cast
+perturbation; with the virtual spelling it is unnecessary.
+
+Ruled out on the way (all div=13 inert on the swap): param type widening,
+local copies of either arg, decl order, DeMorgan/merged/split guard respellings,
+if/else fallthrough restructure (that one goes 12 bytes short - the occupied
+path's mov #0 epilogue is a distinct source-level `return 0`, not tail
+duplication), 12 single pragmas, 4 pragma pairs, bool-return method form, and
+every algebraic-zero return (they fold in IRO and erase the liveness they were
+meant to add). The permuter cannot reach it either (14k iters, best 200): the
+lever is a C-vs-C++ dispatch respelling, outside its mutation space.
+
+Rule: when a pure-permutation residue sits in a function that dispatches through
+a C-cast fn-ptr table, respell the dispatch as a dummy-virtuals C++ call BEFORE
+grinding coloring levers - check it against 6aa's natural-homing probe first.
+## 6bd. Two store-side levers from the div 6/7 pair (cannon lid + question-block bounce, 2026-08-08)
+
+Both landed in PR #1227, cracking a div=6 and a div=7 that had sat as
+"pure residue" near-misses.
+
+**The store-RMW respell.** `*p = (s16)(*p + 0x1000)` and `*p += 0x1000` are
+the same operation on an `s16 *`, but they are NOT the same to the address
+allocator: the explicit-cast form materializes the pointer into the slot the
+ROM did not use, and the compound-assignment form flips it back. On
+func_ov102_021498e0 (question-block bounce, 0x398) this single respell closed
+the address-materialization half of a div=7 (the other half was a real seed
+bug: case 0 loaded data_ov102_0214e870 where the relocs prove the ROM loads
+data_ov102_0214e8c0 -- re-read the relocs before trusting an inherited seed).
+
+**First-consumed-web order.** On func_ov098_0213ade8 (cannon lid, 0x2bc,
+div 6->0): compute x before y AND store x before y, so the x web is the first
+CONSUMED scratch web and takes r0. The 6q first-consumed rule, applied at the
+web level rather than the expression level: the consumer order of whole webs
+decides the scratch coloring, and source statement order is the lever that
+sets it.
+
+## 6be. FLOOR: the conditional-cast shift-pair split vs load-hoist collision (func_ov002_020bb614, div 7, 2026-08-08)
+
+A new ordering-floor SHAPE, distinct from the 6o/6av families. The ROM
+schedules two independent loads (`ldr r1,[r6,#0x60]`, `ldr r5,[r6,#0x598]`)
+BETWEEN the `lslne`/`lsrne` halves of a conditional `(u16)` zero-extend.
+Keeping r0 busy through the gap is what colors the downstream my/mx pair
+r1/r0 and orders the msgPos stores y,z,x. From C, mwccarm will not split the
+shift pair that way: any form that lifts the first load into the gap also
+co-hoists the SECOND load too early AND sinks the flag-init `mov r4,#0` --
+three constraints that are pairwise satisfiable and mutually exclusive as a
+triple.
+
+Axes swept to establish it: msgPos store-order permutations (36), local
+declaration order (7 forms), the msgId cast form (ternary, mask,
+manual-shift split), volatile-on-object (4 forms), load/if reordering (11
+forms), plus the prior permuter run (floor score 80 at 650 iterations). The
+body from +0x44 to +0x3dc is byte-identical throughout; all seven divergences
+are the one prologue permutation. Evidence banked on the near-miss row.
+
+Rule: when the residual is a shift-pair with foreign loads interleaved, check
+whether entering the gap forces a second hoist before spending on ordering
+levers -- this shape reads as crackable (no floor note, "just scheduling")
+and is not.
+
+## 6bf. Pairwise-transposition climbing beats random shuffles on decl-order floors (func_ov007_020c9688, div 33 -> 10, 2026-08-15)
+
+A "FLOOR(regperm)" call on a 12-local declaration list survived 100+ variants,
+two permuter runs and two sessions, and then fell to swapping two declaration
+lines. The mechanism was never exotic; the SEARCH was wrong.
+
+func_ov007_020c9688 (ov007, 0x300) was banked at div=33 with
+`floor {class: regperm, evidence: "... cannot force ip ..."}`. Splitting the
+residual by address region showed two independent clusters: 14 words in the
+first loop (a 3-cycle over {r1, r3, ip} for the webs `hi`/`bA`/`bE`) and 19 in
+the second (a 5-cycle over the callee-saved chain). The first cluster is now
+ZERO from one change: move `hi` from declaration slot 7 to slot 3 and `bA` from
+3 to 7. `hi` lands in ip, exactly the coloring the floor note said could not be
+forced.
+
+Rank rule this pins down, complementing 6ab: among named-local webs competing
+for the SCRATCH file, earlier declaration takes the HIGHER register. Measured
+here as slot 3 -> ip, slot 4 -> r3, slot 7 -> r1. 6ab's "descending from r3 in
+first-definition order" is the same rule seen from the other end, and ip is in
+the sequence rather than an unreachable spill-of-last-resort.
+
+Why two sessions missed it. The prior sweeps, and my own first pass, sampled
+declaration order RANDOMLY -- 400 random shuffles of a 12-element list. A
+specific adjacent transposition has probability ~1/66 of appearing in a random
+shuffle at the needed pair of slots, and nothing in the sample is a small step
+away from the seed, so the search never sees the gradient. Greedy climbing over
+pairwise transpositions found it in one pass. Both moves matter: swap any two
+DECLARATION lines and any two ASSIGNMENT lines, score, keep improvements,
+repeat to a local optimum, restart a few times.
+
+Cost: an oracle call is ~0.19s (`wallcrack.Target.div`), so a full
+transposition neighbourhood of a 12-decl / 13-assignment body is 144 compiles,
+about 4s on 8 threads. There is no reason to sample this space randomly.
+
+Two more things worth carrying:
+
+- **Score by ADDRESS REGION, not just the total.** Splitting 33 into 14/19 made
+  two independent problems out of one, and made each one's local optimum
+  legible. A single global count hides which lever moved what.
+- **The permuter's stock scorer will happily reward semantically WRONG code.**
+  Here it "improved" the second loop by 2 words by moving a read from `*q` to
+  after `q += 0x18` -- reading the NEXT record -- emitting `ldrh r3,[rN,#0x18]!`
+  where the ROM has post-indexed `ldrh r3,[rN],#0x18`. The honest form of the
+  same lever (read the saved cursor `q0` at the use site instead of a named
+  temp) scores identically and is correct. Read permuter diffs for semantics
+  before banking them; a score is not a proof.
+
+Remaining residual is 10 words, all in the second loop: a pure 3-cycle over `q`
+(ROM sb), the argument zero (ROM r8) and the m-reset zero (ROM r7). That one
+survived 720 declaration permutations, 7 hill-climb restarts from random
+starts, named-zero webs at every declaration slot, 6 outer-loop shapes, 10
+inner-loop forms, the verified pragma vocabulary and all 25 installed
+compilers, so it is banked as the live near-miss rather than a floor claim --
+the last two claims on this function were both wrong.
+
+## 6bg. Measure the register IDENTITY, not the divergence count, before claiming a decl-order lever is exhausted (func_ov007_020c9688, still div 10, 2026-08-16)
+
+Follow-up to 6bf on the same function. 6bf closed the first-loop cluster and left
+10 words in the second loop: a 3-cycle where the ROM colors the cursor `q` into
+`sb`, the call's argument zero into `r8` and the m-reset zero into `r7`, while
+every compile of ours colors them `r7` / `sb` / `r8`.
+
+Roughly 900 further hypotheses moved the count by exactly nothing. All of these
+return div=10, not "about 10" -- the identical number, with loop 1 still at zero:
+
+- all 120 block declaration permutations, and 735 more from the 6bf greedy
+  pairwise climb over a 15-element *function-top* declaration list (seed plus 6
+  random restarts, every one a local optimum at 10 with no gradient anywhere)
+- 6y lever 2 (scope depth): `q` at five function-top slots
+- 6y lever 1 (fake self-select use-count boost) in five placements
+- 6y lever 4 (`volatile` on a memory-sourced web), plus `register`
+- the type-rank lever: `q` as `char*`, `u32`, `s16*`, `u16*`, `void*`, `Entry*`
+- nine zero-plumbing shapes, including one shared named zero, two named zeros in
+  both definition orders, and reusing the function-top `heap = 0` (already an
+  argument to the loop-1 allocator) as the loop-2 call arguments
+- the pragma vocabulary, singles and pairs
+
+The useful move was to stop scoring the count and start reading the allocated
+register out of the object. Disassembling word +0x250 (`q`) and +0x264 / +0x268
+(the two zeros) across 520 variants gives four outcomes and only four:
+
+    (q, zero_a, zero_b) = (r7, sb, r8)   137
+                          (r5, sb, r8)   134
+                          (r4, sb, r8)   127
+                          (r6, sb, r8)   122
+
+The zero pair is **invariant**. Declaration order moves `q` freely around the low
+callee-saved band r4-r7 -- which is why the count looks alive at 10/13 -- and
+never once places it above r7. mwccarm ranks the two loop-invariant constant webs
+that live across the call above a cursor pointer web, and hands them the two
+highest free callee-saved registers; the ROM does the opposite.
+
+Two things to carry:
+
+- **A flat divergence count across a large sweep is not evidence the space is
+  searched; it can mean the lever never touched the web you care about.** Reading
+  the register identity turns "900 variants, no progress" into a specific,
+  falsifiable statement about which register a web can and cannot reach. Cheap:
+  the object is already in hand, it is four lines of capstone.
+- **Not marked as a floor**, deliberately. Two prior floor claims on this function
+  were both wrong, and a `floor` entry makes the refine tooling skip the target.
+  What would break this one is a lever that outranks a cross-call constant web
+  against a pointer web, which is a rank rule none of 6k / 6q / 6y / 6ab / 6bf
+  currently spells. The near-miss stays live at div 10.
+
+## 6bh. A hoisted constant block in the prologue is evidence of BARE LITERALS in the loop body (func_ov007_020b2998 MATCHED, 2026-08-16)
+
+func_ov007_020b2998 (ov007, 0x23c, the title screen's widget setup) opens with a
+block that reads like deliberate setup: `mov r8,#0x1000`, `mov r0,#0x32000` plus
+`rsb r0,r0,#0`, seven more `mov rN,#imm` / `str rN,[sp,#..]` pairs, then
+`mov r5,sl`, `mov r7,#1`, `mov r6,#0x80000`, `mov fp,#0x60000`. Twelve constant
+webs materialized before a three-iteration loop, five kept in callee-saved
+registers and seven spilled to the frame.
+
+Nothing in the source expresses any of it. Eleven of the twelve are BARE LITERALS
+written inline in the arms of a `switch (i)` inside the loop (`w->f_4e = 0x14;`,
+`w->f_70 = 0x20;`, `w->f_0 |= 2;` and so on); the twelfth, `0x1000`, is CSE'd with
+the pre-loop `P->f_f8 = 0x1000` store. mwccarm treats each distinct loop-invariant
+literal as a web, hoists the whole set into the preheader, colors what fits and
+spills the rest. The block reproduced for free from the naive transcription on the
+first compile. The matched file has no named constants, no const table and no
+hand-hoisted temps.
+
+**Read the block as evidence, not as structure.** A prologue full of
+`mov rN,#imm` / `str rN,[sp,#..]` for values only consumed inside a loop is a
+statement about the LOOP BODY: it spelled those numbers inline. Drafting them as
+named locals or as a table declared above the loop is the wrong shape, and an
+expensive one, because named locals then join the declaration-order rank game of
+6ab / 6bf and a table changes the addressing as well.
+
+**The hoist/no-hoist split is by materialization cost, which makes the literal pool
+a diagnostic for what the source spelled.** Three negative Q12 constants appear in
+this function and only one is hoisted. `0x32000` is a rotated 8 bit immediate, so
+`-0x32000` costs two instructions (`mov` plus `rsb`), becomes a web, and lands in
+the spilled set at `[sp,#0xc]`. `-0x320ff` and `-0x31f01` are reachable by neither
+`mov` nor `mvn`, so each stays a pc relative load (`ldr r0,[pc,#0xc8]`) inside its
+own switch arm and is never hoisted, despite being exactly as loop-invariant as the
+one that was. `0x7fff`, stored to a halfword field, behaves the same way.
+
+So the pool tells you which constants the source spelled in a form mwccarm could not
+synthesize. A value sitting in the pool that your draft hoisted, or a value hoisted
+into the prologue that your draft left as a pool load, is a shape error in the draft
+and not a coloring problem; no register lever will close it.
+
+**The zero web coalesces with the induction variable's initializer.** The zero used
+for `w->f_46 = w->f_4c = 0;` inside the loop is not a fresh `mov r5,#0`. The ROM
+emits `mov sl,#0` for `i = 0` and then `mov r5,sl`. Constant webs are ranked and
+coalesced against each other, the same machinery 6bf and 6bg measure from the other
+end, and the zero is cheap enough here to reach a register while `0x100` and `0x14`
+are not.
+
+Rule: do not spend a cycle reverse engineering a prologue constant block before
+checking whether it falls out of the naive body. Here it did, and the whole 0x23c
+matched on the second compile once the per index dispatch was written as a `switch`
+(the ROM lays out the full compare chain before the case bodies, which an if/else
+chain cannot produce and which is worth exactly the one word of size difference) and
+`int i` was declared ahead of the object pointer. div=0 at 2004/b56, strict relocs,
+linkcheck VERIFIED.
+
+## 6bi. `(char *)&member` on a `u8` marker in the DERIVED part goes through the literal pool (SignPost::InitResources 0x198 -> 0x188, 2026-08-16)
+
+A half-migrated class carries `u8 mFoo;` markers where a real member belongs, and the
+call sites cast: `SomeClass_Init((char *)&mFoo, ...)`. That is byte-transparent while
+the member sits in the base part of the object — but not once it is far enough out.
+
+`SignPost` derives from `Platform` (0x320) and puts a `MovingCylinderClsn` at 0x320
+and a `ShadowModel` at 0x358. With both spelled as `u8` markers, the offsets
+`this + 0x320` and `this + 0x358` came out as **`ldr` from the literal pool plus
+`add`**, where the ROM has a single `add rN, rM, #0x320`. Four extra words —
+`InitResources` compiled to 0x198 against the ROM's 0x188 — and the *whole* of the
+difference was those two address computations.
+
+Typing the members and calling the methods on them (`mMovingCylinderClsn.Init(...)`,
+`mShadowModel.SetFile(...)`) matched on the first compile.
+
+The threshold is not the offset. `mWithMeshClsn` at **0x3c8** in the same class,
+reached the same way, never had the problem: its call site passes the address to a
+function that takes it as its first argument in r0, and mwcc emits the plain `add`
+there. Do not derive a rule about "offsets above N" from this — the shape that
+breaks is `(char *)&marker` used as a *non-leading* argument, where mwcc has already
+committed a register-allocation decision by the time it needs the address.
+
+The practical form: **if a migrated class's function is a small multiple of 4 bytes
+too long and the surplus is address arithmetic, the remaining `u8` markers are the
+cause.** Type them and the length falls out; no coloring lever is involved.
+
+Same family as 6ar (a hoisted address local colors by its declared type) seen from
+the layout side rather than the register side.
