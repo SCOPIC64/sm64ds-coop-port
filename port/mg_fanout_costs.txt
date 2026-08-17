@@ -244,10 +244,37 @@ genuinely build no table.
   data_ov006_02142408  7    1    func_ov006_020f5c40
   data_ov006_021423a8  3    ?    NOTHING -- see below
 
-ONE STATE TARGET HAS NO DECOMPILED BODY: 0x020f6904, slot 7 of
-data_ov006_02142440. No delink block in ov006's delinks.txt and no src file.
-This class's analogue of curling's func_ov006_020e1854, and it takes the same
-treatment: reported at the dispatch site, never given an invented symbol.
+ONE STATE TARGET IS OUTSIDE THE DELINKS JOIN, AND IT IS NOT A FLOOR.
+0x020f6904, SLOT 5 of data_ov006_02142440. No block in ov006's delinks.txt
+covers it, so stategen cannot emit a call for it -- but src/func_ov006_
+020f6904.c EXISTS, bannered
+
+    NONMATCHING: different op / idiom (div=29). Logic verified correct vs
+    ROM; not byte-matchable from C at mwccarm 1.2/sp2p3. Counts as
+    decompiled, not matched.
+
+NONMATCHING TUs are routinely sliced and built by this port, so the state is
+reachable: slice the TU and hand-write the one case. The cost is a slice line
+and a switch arm, not a decomp.
+
+THE CURLING ANALOGY DOES NOT HOLD AND THIS PARAGRAPH USED TO CLAIM IT DID.
+An earlier version of it read "ONE STATE TARGET HAS NO DECOMPILED BODY:
+0x020f6904, slot 7 ... and no src file. This class's analogue of curling's
+func_ov006_020e1854". Three things wrong, all found in review: the slot is 5
+and not 7 (stategen prints slot 5/p[5]); the src file exists; and
+func_ov006_020e1854 genuinely has NO src at all in either extension, which is
+what makes IT a floor and this not one. The consequence matters for whoever
+cuts the next lane: **0x16b has ONE hard floor, not two** -- the table with
+no dispatcher below -- and the old text over-costed the class.
+
+THE TOOL SAID IT FIRST, AND THAT IS FIXED TOO. stategen's hole message
+reported the delinks-join result as "no delink block and no src file"
+without ever checking for a src file. It now checks, and distinguishes a
+genuine undecompiled hole from a join miss over a decompiled TU. The wrong
+text was live on the PLAYER precedent as well, not only here:
+_ZN6Player13St_Climb_MainEv has no delink block and does have a src TU
+(unbannered, i.e. matched), and --reconstruct had been calling it
+undecompiled since the tool shipped.
 
 AND ONE WHOLE TABLE IS WRITTEN BY THE CONSTRUCTOR AND READ BY NOTHING.
 data_ov006_021423a8 takes three pairs and has exactly ONE relocation pointing

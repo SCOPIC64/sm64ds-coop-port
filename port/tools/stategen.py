@@ -762,6 +762,23 @@ class Row(object):
         return self.owner is None
 
 
+def src_file_for(root, symbol):
+    """`src/<symbol>.c` or `.cpp` if the tree has one, else None.
+
+    A NAME LOOKUP AND NOTHING MORE. It exists so a delinks-join miss is not
+    reported as "undecompiled": the two questions are independent, and
+    conflating them is what made this tool's hole message wrong on
+    func_ov006_020f6904. Nothing is inferred about the body from its
+    existence -- the banner is what says matched vs NONMATCHING, and the
+    message tells the reader to go read it.
+    """
+    for ext in (".c", ".cpp"):
+        rel = "src/%s%s" % (symbol, ext)
+        if (pathlib.Path(root) / rel).is_file():
+            return rel
+    return None
+
+
 def build(root, sinit, overlay_num=None, arity_override=None):
     root = pathlib.Path(root)
     ovn, tables = parse_sinit(root / sinit if not os.path.isabs(str(sinit))
@@ -833,16 +850,44 @@ def build(root, sinit, overlay_num=None, arity_override=None):
 
     for r in rows:
         if r.hole:
-            refusals.append(
-                "0x%08x (slot %d/%s of %s) HAS NO DECOMPILED BODY: no "
-                "delink block in %s/delinks.txt%s. Emitted as a reporting "
-                "case, never as a call, and given no invented symbol. "
-                "Remedy: decompile it, or leave the report in place and "
-                "the state stays unreachable by design"
-                % (r.addr, r.slot, r.slotname, r.table, ovdir,
-                   " (symbols.txt DOES name it %s, which is why a "
-                   "name-shaped check would have emitted a call)" % r.sym
-                   if r.sym else ""))
+            named = (" (symbols.txt DOES name it %s, which is why a "
+                     "name-shaped check would have emitted a call)" % r.sym
+                     if r.sym else "")
+            # WHAT A HOLE ACTUALLY PROVES, corrected by run link60 lane MGB
+            # after review. This test is the DELINKS JOIN and nothing else,
+            # and the message used to report its result as "HAS NO DECOMPILED
+            # BODY ... and no src file". For the first three holes the tool
+            # ever hit that happened to be true, so nothing contradicted it.
+            # It is FALSE for func_ov006_020f6904: no delink block, and a
+            # decompiled src/func_ov006_020f6904.c bannered NONMATCHING.
+            # NONMATCHING TUs are routinely sliced and built, so calling that
+            # address unreachable over-costs the class that owns it -- which
+            # is exactly the error this lane then wrote into
+            # mg_fanout_costs.txt. Say which of the two things is true.
+            src = src_file_for(root, r.sym) if r.sym else None
+            if src:
+                refusals.append(
+                    "0x%08x (slot %d/%s of %s) IS NOT IN THE DELINKS JOIN: "
+                    "no block in %s/delinks.txt covers it, so this tool "
+                    "cannot emit a call for it. IT IS NOT UNDECOMPILED "
+                    "THOUGH -- %s exists%s. Read that file's banner before "
+                    "costing this state: an unbannered TU is matched and a "
+                    "NONMATCHING one is still decompiled, and BOTH are "
+                    "routinely sliced and built, so this is a boundary of "
+                    "THIS TOOL rather than a floor for the port. Remedy: "
+                    "slice the TU and hand-write this case, or delink the "
+                    "block and re-run"
+                    % (r.addr, r.slot, r.slotname, r.table, ovdir, src,
+                       named))
+            else:
+                refusals.append(
+                    "0x%08x (slot %d/%s of %s) HAS NO DECOMPILED BODY: no "
+                    "delink block in %s/delinks.txt and no src file%s. "
+                    "Emitted as a reporting case, never as a call, and "
+                    "given no invented symbol. Remedy: decompile it, or "
+                    "leave the report in place and the state stays "
+                    "unreachable by design"
+                    % (r.addr, r.slot, r.slotname, r.table, ovdir, named))
 
     by_table = {}
     for r in rows:
@@ -1425,6 +1470,33 @@ def selftest():
                in m["refusals"][0] and "f_1300" in m["refusals"][0],
                "hole refusal names the symbol a name-shaped check would "
                "have called", m["refusals"])
+
+        # THE TWO KINDS OF HOLE, run link60 lane MGB after review. The join
+        # test above answers "is there a delink block", and the message used
+        # to report that as "no delink block AND NO SRC FILE". Those are
+        # independent questions and the tool never checked the second one.
+        # The base fixture's f_1300 has no src, so it reads as it always did;
+        # dropping a src file at that name must flip the message and must NOT
+        # stop it being a hole. Both real precedents turned out to be the
+        # second kind -- func_ov006_020f6904 (NONMATCHING) and
+        # _ZN6Player13St_Climb_MainEv (unbannered) -- so the old text was
+        # wrong on live data, not just in principle.
+        expect("HAS NO DECOMPILED BODY" in m["refusals"][0]
+               and "no src file" in m["refusals"][0],
+               "a hole with no src still reports as undecompiled",
+               m["refusals"][0])
+        (tdp / "src" / "f_1300.c").write_text("/* a decompiled body */\n")
+        m2 = build(tdp, "src/__sinit_ov009_00001000.c")
+        expect(len(m2["refusals"]) == 1
+               and "IS NOT IN THE DELINKS JOIN" in m2["refusals"][0]
+               and "src/f_1300.c exists" in m2["refusals"][0]
+               and "HAS NO DECOMPILED BODY" not in m2["refusals"][0],
+               "a hole WITH a src file reports as a tool boundary",
+               m2["refusals"])
+        expect([r.addr for r in m2["rows"] if r.hole] == [0x1300],
+               "it is still a hole -- the src file does not create a delink "
+               "block", [r.addr for r in m2["rows"] if r.hole])
+        (tdp / "src" / "f_1300.c").unlink()
 
         sw = emit_switch(m, cls="Cls")
         expect("case 0x00001100:" in sw and "case 0x00001400:" in sw,
