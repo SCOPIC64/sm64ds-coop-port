@@ -11,6 +11,7 @@
 //   from,
 // - storage for the render context globals the walk stores through.
 #include <stdio.h>
+#include "ntr/ppu_audit.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -91,6 +92,10 @@ void MultiCopy_Int(int *src, int *dst, int len)
    PORT_HOST_ABI: ARM asm primitive (32-byte block copy), MSVC cannot assemble. */
 void MultiCopy32Bytes(int *src, int *dst, int len)
 {
+    /* run link60 Stage 5 lane T2: the move one step before a tilemap upload.
+       Inert unless SM64DS_PPU_AUDIT is set; see ntr/ppu_audit.h. */
+    ntr::ppu_audit_note_copy32((unsigned)(size_t)src, (unsigned)(size_t)dst,
+                               (unsigned)len);
     for (int i = 0; i < len / 4; ++i) dst[i] = src[i];
 }
 

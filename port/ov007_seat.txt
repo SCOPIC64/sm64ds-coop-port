@@ -2526,6 +2526,300 @@ two rows, 12 untextured triangles whose UV span is a single point and 60
 textured 32x32 ones. Nothing here explains it and nothing here touched it.
 
 
+5i. THE 3D LAYER RASTERISES, AND THE BACKGROUNDS ARE ROUTED
+------------------------------------------------------------
+
+5H'S TWO OPEN GAPS ARE BOTH DERIVED AND NEITHER CAUSE IS GRAPHICAL. 5h left
+"72 to 82 polygons on every one of 300 frames and the framebuffer gets nothing
+from them", and "all four backgrounds enabled, character data present, tilemaps
+all zero", and said of the first "THE MEASUREMENT DOES NOT NAME A CAUSE". Both
+are named here. The 3D gap was a hardware DIVIDER that never ran, and the
+background gap is a DS ADDRESS handed out where a hosted global's address
+belongs. One is fixed in the port and the other is a decomp row this lane
+routes rather than writes.
+
+THE BASELINE THIS TREE STARTS FROM IS 5H'S OWN FRAME, byte for byte, which is
+what makes every comparison below legal. Off the START COMMIT (3a5733c03),
+SM64DS_SCENE=1 SM64DS_SCENE_FRAMES=300 SM64DS_FAULTS_FATAL=1, this lane's own
+worktree produced sha256
+66ccab45db1e27595fda01b5e16825b8a36d3749dffa4c31382ba6386e2ca3de, 472 distinct
+colours, which is 5h's tip capture to the byte. This tree's .dsstate is
+[0xbb0000, 0xc9ab30), not 5h's [0xbb0000, 0xc9a2e0), so the SPAN differs while
+the BASE does not and the frame is unchanged; every before and after in this
+section is taken inside this tree at that one base.
+
+WHAT WAS BUILT TO SEE IT, all of it additive and all of it inert without
+SM64DS_PPU_AUDIT. port/ntr/ppu_audit.cpp is lane W2D's instrument and 5h took
+the measurement W2D could not; this lane needed four rows W2D's table does not
+have, because the rows it does have cannot separate the states that mattered:
+
+  THE GEOMETRY COMMAND CENSUS   per frame, per GBATEK command byte, taken and
+                                not read, plus PORT_WRITES and FIFO_WORDS.
+                                POLYGONS says geometry arrived. It cannot say
+                                whether the STATE around it did, and a scene
+                                whose projection, attributes and lights are all
+                                missing submits the same polygon count as one
+                                where they landed.
+  THE TRIANGLES IN SCREEN SPACE the assembled list's bounding box and three
+                                tallies (off-screen, degenerate, non-finite).
+                                "Submitted and nothing rasterises" has three
+                                causes and POLYGONS separates none of them.
+  THE PROJECTION AND POSITION   both 4x4s printed at the last sample.
+  THE DECODED BG BASES          each BGxCNT's screen base and character base,
+                                decoded the way the hardware decodes them, with
+                                their nonzero byte counts SEPARATE. The whole
+                                region row sums character and screen data, so a
+                                layer with tiles and an empty map reads healthy
+                                there.
+
+and two copy censuses, in port/hal/cxx_aliases.cpp (MultiCopyHalf) and
+port/hal/model_host.cpp (MultiCopy32Bytes), each recording the DESTINATION and
+the SOURCE'S NONZERO COUNT TAKEN BEFORE THE MOVE. That last number is the whole
+of section 5i's second half: a tilemap that reads zero after an upload was
+either never written or written with zeros, and nothing else in the tree tells
+those apart.
+
+THE TRAP THAT COST THIS LANE TWO HOURS, recorded because it will catch the next
+one. SCENE RUNS HAVE NO STDERR. tests/walk_window.cpp's flight recorder
+freopens stderr into playlog/ unless SM64DS_NO_PLAYLOG is set or
+SM64DS_WINDOW_SELFTEST is, and only the level path sets the latter. Every
+stderr probe this lane added read as "the function is never called" on scene 1
+and fired correctly on level 1, which is exactly what a real defect would look
+like. SM64DS_NO_PLAYLOG=1 belongs on every scene probe.
+
+
+GAP ONE: THE PROJECTION MATRIX HAS A ZERO X SCALE
+--------------------------------------------------
+
+THE MEASUREMENT FIRST, off the START COMMIT binary, last frame of 300:
+
+    triangles   96
+    drawable    0      (on-screen and not degenerate)
+    offscreen   0
+    degenerate  96
+    bbox        x 256.000 .. 256.000   y 137.880 .. 223.766
+    proj          0.000000     0.000000     0.000000     0.000000
+    proj          0.000000     3.748047     0.000000     0.000000
+    proj          0.000000     0.000000    -1.005127    -1.000000
+    proj          0.000000     0.000000    -2.005127     0.000000
+
+READ THE BOUNDING BOX BEFORE ANY EXPLANATION OF IT. Every vertex of every
+triangle is at x 256.000 on a 512 wide framebuffer, and y is spread normally.
+That is not off-screen geometry and it is not a culled frame: it is clip x = 0
+for every vertex, which is what a projection whose first ROW is zero does and
+nothing else does. The rest of the matrix is a correct G3i::PerspectiveW_
+result -- proj[5] the cotangent, proj[10] and proj[14] the depth row, proj[11]
+the W scale -- with one term missing.
+
+5H'S THREE CANDIDATES ARE ALL WRONG AND THE CENSUS RETIRES THEM BY NAME.
+VIEWPORT_SETS 0 is real and is not the cause: ntr::gx_reset restores a
+full-screen rectangle and the census reads VIEWPORT_W 512 VIEWPORT_H 384 on all
+300 frames, so the geometry has the whole panel to land on and lands on a line
+anyway. SWAP_BUFFERS 0 is real and is not the cause either; the port renders
+from the assembled list rather than from a latched buffer. And gx_reset
+throwing the matrix state away once a frame is not the cause: PROJ_IDENTITY
+reads 0 on all 300 samples and PROJ_FP is the same fingerprint on all 300, so
+the projection is REBUILT every frame and the reset costs nothing.
+
+THE ARGUMENT ARRIVES ZERO. With the flight recorder off, the host copy at
+port/unmatched/G3i_PerspectiveW.cpp reports its own inputs:
+
+    [persp] sin=1056 cos=3958 aspect=0 n=4096 f=1638400 scaleW=4096 flag=1
+            -> cot=15352(3.7480) xx=0(0.0000)
+
+cot 15352 is 3.748047, which is the proj[5] in the table above, so this is the
+call that built the live matrix. `xx` is mtx[0] and it is a division of the
+cotangent by `aspect`. The host stack, resolved against walk_window.map:
+
+    G3i::PerspectiveW_
+      func_ov007_020c0078        the title's own perspective setup
+      func_ov007_020b1fa4
+      func_ov007_020b0a20
+      func_ov007_020aed98
+      func_ov007_020cc4c0        dScDSMT_c::InitResources
+
+and the same binary's OTHER PerspectiveW_ caller, the ROM's generic
+Initialise3dGraphics, passes aspect 5461 on the same boot and gets it right.
+5461 is 0x1555, which is 4/3 in 20.12. So the port can carry an aspect; the
+title's own one is zero.
+
+WHERE THE TITLE'S ASPECT COMES FROM, out of the matched sources.
+src/func_ov007_020c0078.c reads it as
+
+    (int)(*(long long*)(c + 0xbc) >> 0x14)
+
+and src/func_ov007_020c0128.cpp, which func_ov007_020b1fa4 calls immediately
+before, is the only writer of that field:
+
+    long long l = _ZN4cstd4ldivEii(0x4000, 0x3000);
+    *(int *)(c + 0xbc) = (int)l;
+    *(int *)(c + 0xc0) = (int)(l >> 32);
+
+0x4000/0x3000 is 4/3, cstd::ldiv returns (a << 32) / b, and (4/3 << 32) >> 20
+is 0x1555. The ROM's aspect is the same 5461 by construction. The port's was 0
+because cstd::ldiv RETURNED A DEAD WORD.
+
+AND THAT IS THE DEFECT, one raw MMIO caller and not a graphics bug at all.
+src/_ZN4cstd10fdiv_asyncE5Fix12IiE5Fix12IiE.c reaches DIVCNT, DIV_NUMER and
+DIV_DENOM through plain literal-address stores and src/_ZN4cstd4ldivEii.c reads
+DIV_RESULT the same way. ntr maps real memory across the DS I/O window, so
+those stores latch in ordinary memory and ntr::run_divide is never entered --
+the identical shape port/tools/hostgen.py's own header records for MTX_SCALE
+("it latches, the geometry engine never sees it"). Both translation units were
+compiled RAW.
+
+THE FIX IS THE TREATMENT THE PORT ALREADY USES FOR THIS, and it costs nothing
+in the ledger. port/CMakeLists.txt routes both through hostgen.py, which
+rewrites the derefs to NTR_MMIO and so through ntr::io_write; src/ is not
+edited and the two matched TUs stay matched, exactly as
+_ZN4cstd11fdiv_resultEv, _ZN4cstd4sqrtEy and Camera::Render are already
+handled. The plain slice entries are cut in the same block that adds the
+generated ones, with a count guard, so a third slice picking one up cannot go
+unnoticed.
+
+THE BLAST RADIUS IS ONE CALLER AND IT WAS SWEPT RATHER THAN ASSUMED.
+cstd::fdiv, the divider's other client and the one every level uses, is a HOST
+FACE in port/hal/cstd_div.c and src/_ZN4cstd4fdivEii.c is not in the link at
+all (the map has __ZN4cstd4fdivEii from cstd_div.c.obj). cstd::ldiv's only
+caller anywhere in src/ is func_ov007_020c0128, and fdiv_async's only callers
+are cstd::fdiv and cstd::ldiv. The only live path this changes is the title
+screen's camera init.
+
+THE SAME MEASUREMENT AFTER THE ROUTING:
+
+    [persp] sin=1056 cos=3958 aspect=5461 ... (the title's own call)
+    triangles   96
+    drawable    96
+    offscreen   0
+    degenerate  0
+    bbox        x 215.490 .. 296.565   y 137.880 .. 223.766
+    proj          2.811279  ...
+
+2.811279 is 15352/5461 in Fix12, so the x scale is the cotangent over the
+aspect and the aspect ratio of the two scales is 4/3. The frame goes from 472
+distinct colours to 487.
+
+    <run status dir>/link60/status/t2-scene1-3d-rasterising.bmp
+    512x384, 24bpp, 589878 bytes, .dsstate base [0xbb0000, 0xc9ab30)
+    sha256 67edc163afa87121f4e5770775a38930c2d925aed86bd9b8fdc33de611e69e20
+    487 distinct colours, against 472. The control, the same run off the START
+    COMMIT, is <run status dir>/link60/status/t2-scene1-before.bmp,
+    sha256 66ccab45db1e27595fda01b5e16825b8a36d3749dffa4c31382ba6386e2ca3de.
+
+NO CLAIM IS MADE ABOUT WHAT IS IN IT, on 5h's and 12b's terms. What is proven
+is that the geometry the title submits now has a projection that puts it on the
+panel instead of on one line of it. Whether the model, its placement or its
+materials are the ROM's is a different question and this lane did not look at
+one pixel of it.
+
+THE ESCAPE HATCH IS SM64DS_DIV_UNIT_OFF=1 AND IT IS NOT AN EXACT BEFORE, which
+is recorded here rather than glossed. The change is a BUILD-TIME routing and
+there is no runtime seam inside a generated copy of byte-verified source to
+hang a switch on, so the hatch goes at the unit: ntr::run_divide computes
+nothing and every proxied caller reads a dead window. On scene 1 that darkens
+the 3D layer completely (all 96 triangles collapse to the single point 256,192,
+because PerspectiveW_ loses proj[5] and the depth row as well) rather than
+reproducing the pre-change line, and the frame hashes
+db33338f48c150c6027bad546fed894eca2ff27acdbad34b55520b2ce0055faa instead of the
+baseline's 66ccab45. It is a bisect switch, it is honest about being one, and
+the true before is the start commit's binary whose frame is hashed above.
+
+
+GAP TWO: A DS ADDRESS WHERE A HOSTED GLOBAL'S ADDRESS BELONGS
+--------------------------------------------------------------
+
+5H MEASURED THE SYMPTOM AND THIS NAMES THE ROW. The decoded base table off the
+START COMMIT, last frame:
+
+    A BG0  CNT 0002  screen 06000000    0/2048   char 06000000     0/16384
+    A BG1  CNT 0005  screen 06000000    0/2048   char 06004000     0/16384
+    A BG2  CNT 0210  screen 06001000    0/2048   char 06000000     0/16384
+    A BG3  CNT 010d  screen 06000800    0/2048   char 0600c000  9106/16384
+    B BG2  CNT 0087  screen 06200000 1280/2048   char 06204000 10692/16384
+    B BG3  CNT 0187  screen 06200800  733/2048   char 06204000 10692/16384
+
+Engine B's maps ARE written and engine A's are not, so whatever this is, it is
+not a general upload failure. The copy census then says the uploads HAPPEN:
+
+    A BG VRAM dst 06000800  2048 bytes  from 30054b84, 0 nonzero AT COPY TIME
+    A BG VRAM dst 06000000  1536 bytes  from 02104598, 0 nonzero AT COPY TIME
+
+Two copies into engine A's screen bases, both carrying nothing. So the question
+is not "why did nobody write the map" but "why was the buffer empty", and the
+second row answers it on its own: THE SOURCE IS 0x02104598, A DS ADDRESS. The
+port hosts that global in .dsstate, and the MultiCopy32Bytes census shows the
+real buffer being filled at the same moment, at the HOST address:
+
+    00c75fac -> 00c76bac  1536 bytes  srcnz 1533  x1
+    00c75fac -> 00c765ac  1536 bytes  srcnz 1533  x1
+
+0x00c76bac is hosted data_ov007_02104598 (the offsets check: 0x00c76bac minus
+0x00c75fac is 0xC00, and 0x02104598 minus 0x02103998 is 0xC00). So
+src/func_ov007_020b8548.c fills the buffer through func_ov007_020c0308 and
+copies it exactly as the ROM does, and the upload then reads a different
+address entirely.
+
+THE ROW, AND IT IS A DECOMP DEFECT RATHER THAN A PORT ONE. Three one-line
+matched translation units spell a relocated ROM word as a bare decimal:
+
+    src/func_ov007_020b84e8.c   return 34617752;   0x02103998
+    src/func_ov007_020b84f4.c   return 34619288;   0x02103f98
+    src/func_ov007_020b8500.c   return 34620824;   0x02104598
+
+THE ROM SAYS THEY ARE ADDRESSES, not constants, and says it three times.
+config/arm9/overlays/ov007/relocs.txt:
+
+    from:0x020b84f0 kind:load to:0x02103998 module:overlay(7)
+    from:0x020b84fc kind:load to:0x02103f98 module:overlay(7)
+    from:0x020b8508 kind:load to:0x02104598 module:overlay(7)
+
+Each of those three source addresses is the literal-pool word of the
+corresponding accessor, and each carries a RELOCATION to the data symbol. A
+relocated word is an address reference by definition; the decimal spelling is
+byte-identical on ARM and loses the reference. src/func_ov007_020adc08.c then
+stores the result into the BG node's buffer pointer:
+
+    case 6:
+      *(int*)(obj+0x10) = func_ov007_020b8500();
+
+and func_ov007_020c076c uploads obj+0x10 into the screen base.
+
+THE PROPOSED CRACK IS THREE LINES AND SHOULD STILL MATCH:
+
+    return (int)&data_ov007_02103998;      in func_ov007_020b84e8
+    return (int)&data_ov007_02103f98;      in func_ov007_020b84f4
+    return (int)&data_ov007_02104598;      in func_ov007_020b8500
+
+mwccarm emits the same `ldr r0, =X / bx lr` either way and the relocation is
+what the ROM already has, so this is a spelling correction rather than a
+rewrite. THIS LANE DID NOT TAKE IT. Matched TUs are read-only to it and a
+three-way displacement into port/unmatched/ would cost three linked rows and
+needs a ruling; the row is routed with the evidence instead.
+
+IT WAS PROVED IN A THROWAWAY BUILD AND THE SOURCE WAS PUT BACK. With the three
+accessors returning the symbol, in this tree, the same 300 frame run reads:
+
+    A BG VRAM dst 06000000  1536 bytes  from 00c76bac, 1533 nonzero AT COPY TIME
+    A BG0  CNT 0002  screen 06000000 1533/2048 nonzero
+    A BG1  CNT 0005  screen 06000000 1533/2048 nonzero
+    B BG1  CNT 0314  screen 06201800 1533/2048 nonzero
+    492 distinct colours,
+    sha256 4ad0657872b75825cd3695fa69cec5c976cd5646ef3924f3ea256595d847a7b0,
+    captured as <run status dir>/link60/status/t2-scene1-bg-route-proof.bmp
+
+so the crack lands two engine A tilemaps and one engine B tilemap that were
+empty before. That build is NOT in this lane's tip: src/ was restored with git
+checkout and the tip carries no src edit.
+
+WHAT THE CRACK DOES NOT CLOSE, and it is the honest remainder. Engine A's BG2
+and BG3 screen bases stay at 0/2048 even in the proof build. Their upload is
+the other row in the census, `dst 06000800, 2048 bytes, from 30054b84` -- a
+HEAP buffer, allocated by func_ov007_020adc08's case 1 and case 5
+(func_ov007_020c3df4(0, 0x800)) rather than by the three accessors, and empty
+at copy time for a reason no measurement in this lane reaches. That is a third
+gap, it is smaller than the one 5h recorded, and it is still open.
+
+
 6. WHAT LINKS, AND WHAT WAS DELIBERATELY NOT TAKEN
 ---------------------------------------------------
 

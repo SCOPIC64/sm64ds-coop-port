@@ -441,6 +441,132 @@ const char *const k3dNames[] = {"VIEWPORT_X", "VIEWPORT_Y", "VIEWPORT_W",
 const unsigned k3dN = sizeof k3dNames / sizeof k3dNames[0];
 Slot g_3d[k3dN];
 
+// ---- the geometry COMMAND census (run link60 Stage 5 lane T2) ---------------
+//
+// THE ROW ABOVE SAYS GEOMETRY ARRIVED. IT DOES NOT SAY THE STATE DID. A frame
+// can submit eighty polygons through the packed FIFO -- which the shared,
+// hostgen'd model path drives -- while every command that decides WHERE those
+// polygons land (matrix mode, the projection and position loads, the viewport)
+// is issued by a scene's own translation unit through a plain store to the DS
+// address, lands in the memory ntr maps there, and never reaches the geometry
+// engine at all. POLYGONS and VIEWPORT_SETS together hint at that shape; this
+// table names it, per frame, per command.
+//
+// ntr::gx_debug_commands is TAKEN rather than read, so every row below is
+// "this frame", not "since boot". PORT_WRITES and FIFO_WORDS are the two doors
+// into the engine and the split matters: a scene whose state commands are all
+// missing reads FIFO_WORDS high and PORT_WRITES near zero.
+struct CmdRow { uint8_t cmd; const char *name; };
+const CmdRow kCmds[] = {
+    {0x10, "MTX_MODE"},      {0x11, "MTX_PUSH"},      {0x12, "MTX_POP"},
+    {0x13, "MTX_STORE"},     {0x14, "MTX_RESTORE"},   {0x15, "MTX_IDENTITY"},
+    {0x16, "MTX_LOAD_4x4"},  {0x17, "MTX_LOAD_4x3"},  {0x18, "MTX_MULT_4x4"},
+    {0x19, "MTX_MULT_4x3"},  {0x1A, "MTX_MULT_3x3"},  {0x1B, "MTX_SCALE"},
+    {0x1C, "MTX_TRANS"},     {0x20, "COLOR"},         {0x21, "NORMAL"},
+    {0x22, "TEXCOORD"},      {0x23, "VTX_16"},        {0x24, "VTX_10"},
+    {0x25, "VTX_XY"},        {0x26, "VTX_XZ"},        {0x27, "VTX_YZ"},
+    {0x28, "VTX_DIFF"},      {0x29, "POLYGON_ATTR"},  {0x2A, "TEXIMAGE_PARAM"},
+    {0x2B, "PLTT_BASE"},     {0x30, "DIF_AMB"},       {0x31, "SPE_EMI"},
+    {0x32, "LIGHT_VECTOR"},  {0x33, "LIGHT_COLOR"},   {0x40, "BEGIN_VTXS"},
+    {0x41, "END_VTXS"},      {0x50, "SWAP_BUFFERS"},  {0x60, "VIEWPORT"},
+};
+const unsigned kCmdN = sizeof kCmds / sizeof kCmds[0];
+// The command rows, then PORT_WRITES, FIFO_WORDS, GX_RESETS, SWAP_PARAM,
+// PROJ_IDENTITY, POS_IDENTITY, PROJ_FP.
+const unsigned kCmdExtra = 7;
+Slot g_cmd[kCmdN + kCmdExtra];
+
+// A cheap order-sensitive fingerprint of a 4x4. Two frames with the same
+// number here loaded the same matrix; a frame whose projection was thrown away
+// and never re-loaded reads the identity fingerprint, which the row beside it
+// names outright so no reader has to recognise a hash.
+uint32_t mat_fp(const float m[16]) {
+    uint32_t h = 2166136261u;
+    for (int i = 0; i < 16; ++i) {
+        uint32_t bits;
+        std::memcpy(&bits, &m[i], 4);
+        h = (h ^ bits) * 16777619u;
+    }
+    return h;
+}
+
+bool mat_is_identity(const float m[16]) {
+    for (int r = 0; r < 4; ++r)
+        for (int c = 0; c < 4; ++c)
+            if (m[r * 4 + c] != (r == c ? 1.0f : 0.0f)) return false;
+    return true;
+}
+
+// ---- the BG SCREEN BASES, decoded (run link60 Stage 5 lane T2) --------------
+//
+// "BG VRAM has 9106 nonzero bytes" and "the tilemaps are all zero" are not in
+// tension and the whole-region row above cannot tell them apart: character
+// data and screen data share one region and the row sums both. A tilemap that
+// reads zero draws nothing whatever the character data holds, so the screen
+// bases get their own row, decoded the way the hardware decodes them --
+// BGxCNT bits 8-12 times 2KB, plus DISPCNT bits 27-29 times 64KB on engine A
+// only -- and counted separately from the character bases beside them.
+struct BgBaseRow {
+    uint32_t scr_base, chr_base;
+    uint32_t scr_nonzero, chr_nonzero;
+    uint16_t cnt;
+};
+BgBaseRow g_bgbase[2][4];
+
+// ---- the assembled triangles, in SCREEN space (run link60 Stage 5 lane T2) --
+//
+// POLYGONS says how many triangles the engine assembled. It does not say WHERE
+// they are, and "submitted but nothing rasterises" has three completely
+// different causes that the count cannot separate: every triangle off the
+// panel, every triangle collapsed to zero area, or every triangle correctly
+// placed and rejected later. GxVertex carries x and y in framebuffer pixels
+// after the perspective divide, so the answer is a bounding box and three
+// tallies, taken over the list the raster was handed.
+struct TriGeom {
+    unsigned n;             // triangles in the list at this sample
+    unsigned offscreen;     // whole triangle outside the framebuffer rectangle
+    unsigned degenerate;    // |signed area| < 1/256 of a pixel
+    unsigned nonfinite;     // a coordinate that is not a finite number
+    unsigned drawable;      // on-screen and not degenerate
+    float x0, x1, y0, y1;   // bounding box over every vertex
+    float z0, z1;
+};
+TriGeom g_tri;
+
+// ---- block-copy destinations (run link60 Stage 5 lane T2) -------------------
+//
+// The BG tilemap upload path ends in MultiCopyHalf, which hal/cxx_aliases.cpp
+// hosts. Counting its destinations by region separates the two states a zero
+// tilemap can be in -- never written, or written somewhere else -- which the
+// VRAM census alone cannot.
+struct CopyRow { uint32_t base, end; const char *name; unsigned n; uint64_t bytes; };
+CopyRow g_copy[] = {
+    {0x05000000, 0x05000400, "A palette",   0, 0},
+    {0x05000400, 0x05000800, "B palette",   0, 0},
+    {0x06000000, 0x06080000, "A BG VRAM",   0, 0},
+    {0x06200000, 0x06220000, "B BG VRAM",   0, 0},
+    {0x06400000, 0x06440000, "A OBJ VRAM",  0, 0},
+    {0x06600000, 0x06620000, "B OBJ VRAM",  0, 0},
+    {0x06800000, 0x068A4000, "LCDC / extpal", 0, 0},
+    {0x07000000, 0x07000800, "OAM",         0, 0},
+    {0x02000000, 0x02400000, "main RAM",    0, 0},
+};
+const unsigned kCopyN = sizeof g_copy / sizeof g_copy[0];
+unsigned g_copy_other;
+uint64_t g_copy_other_bytes;
+// The distinct destinations inside engine A's BG VRAM, which is the one the
+// title screen's four empty tilemaps live in. A base alone is enough to say
+// which of the eight 2KB screen blocks a write went to.
+uint32_t g_copy_abg[16];
+uint32_t g_copy_abg_len[16];
+uint32_t g_copy_abg_src[16];
+uint32_t g_copy_abg_srcnz[16];
+unsigned g_copy_abg_n;
+
+struct Copy32Row { uint32_t src, dst, len, srcnz; unsigned n; };
+Copy32Row g_copy32[24];
+unsigned g_copy32_n, g_copy32_dropped;
+
 uint32_t rd(uint32_t a, unsigned w) {
     return w == 4 ? *reinterpret_cast<volatile uint32_t *>(a)
                   : *reinterpret_cast<volatile uint16_t *>(a);
@@ -477,6 +603,47 @@ void ppu_audit_proxy(uint32_t addr, uint64_t value, unsigned width, bool is_writ
     h.n = 1;
 }
 
+void ppu_audit_note_copy(uint32_t src, uint32_t dst, uint32_t bytes) {
+    if (!ppu_audit_on()) return;
+    for (unsigned i = 0; i < kCopyN; ++i)
+        if (dst >= g_copy[i].base && dst < g_copy[i].end) {
+            ++g_copy[i].n;
+            g_copy[i].bytes += bytes;
+            if (g_copy[i].base == 0x06000000u) {
+                for (unsigned k = 0; k < g_copy_abg_n; ++k)
+                    if (g_copy_abg[k] == dst) return;
+                if (g_copy_abg_n < 16) {
+                    g_copy_abg[g_copy_abg_n] = dst;
+                    g_copy_abg_len[g_copy_abg_n] = bytes;
+                    // THE SOURCE'S NONZERO COUNT, TAKEN BEFORE THE COPY. A
+                    // tilemap that reads zero after an upload has two
+                    // completely different causes -- the upload carried
+                    // zeros, or something cleared the map afterwards -- and
+                    // this is the one number that separates them.
+                    g_copy_abg_src[g_copy_abg_n] = src;
+                    g_copy_abg_srcnz[g_copy_abg_n] = nonzero_bytes(src, bytes);
+                    ++g_copy_abg_n;
+                }
+            }
+            return;
+        }
+    ++g_copy_other;
+    g_copy_other_bytes += bytes;
+}
+
+void ppu_audit_note_copy32(uint32_t src, uint32_t dst, uint32_t bytes) {
+    if (!ppu_audit_on()) return;
+    for (unsigned i = 0; i < g_copy32_n; ++i)
+        if (g_copy32[i].src == src && g_copy32[i].dst == dst) {
+            ++g_copy32[i].n;
+            return;
+        }
+    if (g_copy32_n >= 24) { ++g_copy32_dropped; return; }
+    Copy32Row &r = g_copy32[g_copy32_n++];
+    r.src = src; r.dst = dst; r.len = bytes; r.n = 1;
+    r.srcnz = nonzero_bytes(src, bytes);
+}
+
 void ppu_audit_sample(const char *tag) {
     if (!ppu_audit_on()) return;
     if (!g_registered) {
@@ -486,6 +653,8 @@ void ppu_audit_sample(const char *tag) {
             for (int e = 0; e < 2; ++e) g_slot[e][i].first_frame = -1;
         for (unsigned i = 0; i < kTouchN; ++i) g_touch[i].first_frame = -1;
         for (unsigned i = 0; i < k3dN; ++i) g_3d[i].first_frame = -1;
+        for (unsigned i = 0; i < kCmdN + kCmdExtra; ++i)
+            g_cmd[i].first_frame = -1;
     }
     if (tag && !g_tag[0]) {
         std::strncpy(g_tag, tag, sizeof g_tag - 1);
@@ -512,6 +681,95 @@ void ppu_audit_sample(const char *tag) {
                                   (uint32_t)vh, (uint32_t)vsets,
                                   (uint32_t)npoly};
         for (unsigned i = 0; i < k3dN; ++i) note(g_3d[i], v[i], g_frames);
+    }
+
+    // The geometry command census, TAKEN so every row is this frame's.
+    {
+        uint32_t counts[256];
+        uint32_t ports = 0, fifo = 0, swap = 0, resets = 0;
+        gx_debug_commands(counts, ports, fifo, swap, resets, true);
+        for (unsigned i = 0; i < kCmdN; ++i)
+            note(g_cmd[i], counts[kCmds[i].cmd], g_frames);
+        int mode = 0;
+        float pos[16], proj[16];
+        gx_debug_matrices(&mode, pos, proj);
+        const uint32_t extra[kCmdExtra] = {
+            ports, fifo, resets, swap,
+            (uint32_t)(mat_is_identity(proj) ? 1 : 0),
+            (uint32_t)(mat_is_identity(pos) ? 1 : 0),
+            mat_fp(proj)};
+        for (unsigned i = 0; i < kCmdExtra; ++i)
+            note(g_cmd[kCmdN + i], extra[i], g_frames);
+    }
+
+    // The assembled triangle list, in screen space. Overwritten each sample;
+    // the dump prints the last one, which is the frame the BMP captures.
+    {
+        size_t npoly = 0;
+        const GxTriangle *t = gx_polygons(npoly);
+        TriGeom g = {};
+        g.n = (unsigned)npoly;
+        g.x0 = g.y0 = g.z0 = 1e30f;
+        g.x1 = g.y1 = g.z1 = -1e30f;
+        for (size_t i = 0; i < npoly; ++i) {
+            const GxVertex *v = t[i].v;
+            bool bad = false;
+            for (int k = 0; k < 3; ++k) {
+                const float xs[3] = {v[k].x, v[k].y, v[k].z};
+                for (int c = 0; c < 3; ++c)
+                    if (!(xs[c] > -1e30f && xs[c] < 1e30f)) bad = true;
+            }
+            if (bad) { ++g.nonfinite; continue; }
+            for (int k = 0; k < 3; ++k) {
+                if (v[k].x < g.x0) g.x0 = v[k].x;
+                if (v[k].x > g.x1) g.x1 = v[k].x;
+                if (v[k].y < g.y0) g.y0 = v[k].y;
+                if (v[k].y > g.y1) g.y1 = v[k].y;
+                if (v[k].z < g.z0) g.z0 = v[k].z;
+                if (v[k].z > g.z1) g.z1 = v[k].z;
+            }
+            const float area = (v[1].x - v[0].x) * (v[2].y - v[0].y)
+                             - (v[2].x - v[0].x) * (v[1].y - v[0].y);
+            const float a = area < 0 ? -area : area;
+            const float lo_x = v[0].x < v[1].x ? (v[0].x < v[2].x ? v[0].x : v[2].x)
+                                               : (v[1].x < v[2].x ? v[1].x : v[2].x);
+            const float hi_x = v[0].x > v[1].x ? (v[0].x > v[2].x ? v[0].x : v[2].x)
+                                               : (v[1].x > v[2].x ? v[1].x : v[2].x);
+            const float lo_y = v[0].y < v[1].y ? (v[0].y < v[2].y ? v[0].y : v[2].y)
+                                               : (v[1].y < v[2].y ? v[1].y : v[2].y);
+            const float hi_y = v[0].y > v[1].y ? (v[0].y > v[2].y ? v[0].y : v[2].y)
+                                               : (v[1].y > v[2].y ? v[1].y : v[2].y);
+            const bool off = hi_x < 0 || lo_x >= (float)SCREEN_W
+                          || hi_y < 0 || lo_y >= (float)SCREEN_H;
+            if (off) ++g.offscreen;
+            if (a < (1.0f / 256.0f)) ++g.degenerate;
+            if (!off && a >= (1.0f / 256.0f)) ++g.drawable;
+        }
+        if (!npoly) { g.x0 = g.x1 = g.y0 = g.y1 = g.z0 = g.z1 = 0; }
+        g_tri = g;
+    }
+
+    // The BG screen and character bases, decoded per engine. Sampled fresh
+    // each time; only the LAST sample's byte counts are printed, because a
+    // per-frame history of a 2KB nonzero count is noise and the question this
+    // answers ("did anything ever write the tilemap") is answered by the
+    // state at the end of the run.
+    for (int e = 0; e < 2; ++e) {
+        const uint32_t rbase = e == 0 ? 0x04000000u : 0x04001000u;
+        const uint32_t vbase = e == 0 ? 0x06000000u : 0x06200000u;
+        const uint32_t dispcnt = rd(rbase, 4);
+        // DISPCNT bits 27-29 (screen) and 24-26 (character) are engine A only.
+        const uint32_t scr_off = e == 0 ? ((dispcnt >> 27) & 7) * 0x10000u : 0;
+        const uint32_t chr_off = e == 0 ? ((dispcnt >> 24) & 7) * 0x10000u : 0;
+        for (int b = 0; b < 4; ++b) {
+            const uint16_t cnt = (uint16_t)rd(rbase + 8 + b * 2, 2);
+            BgBaseRow &r = g_bgbase[e][b];
+            r.cnt = cnt;
+            r.scr_base = vbase + scr_off + ((cnt >> 8) & 0x1F) * 0x800u;
+            r.chr_base = vbase + chr_off + ((cnt >> 2) & 0x03) * 0x4000u;
+            r.scr_nonzero = nonzero_bytes(r.scr_base, 0x800);
+            r.chr_nonzero = nonzero_bytes(r.chr_base, 0x4000);
+        }
     }
 
     ++g_frames;
@@ -653,6 +911,91 @@ void ppu_audit_dump() {
     }
     std::fprintf(f, "\n");
 
+    std::fprintf(f, "-- ENGINE A 3D COMMAND CENSUS (per frame, taken not read) --\n");
+    std::fprintf(f, "Counts are commands EXECUTED in the frame each sample ends.\n");
+    std::fprintf(f, "PORT_WRITES is stores that reached ntr::gx_write_port and\n");
+    std::fprintf(f, "FIFO_WORDS is words through gx_write_fifo. A translation unit\n");
+    std::fprintf(f, "that writes a GX command register with a plain store to the DS\n");
+    std::fprintf(f, "address reaches NEITHER: ntr maps real memory there, the store\n");
+    std::fprintf(f, "latches, and the geometry engine never sees the command. So a\n");
+    std::fprintf(f, "zero row here is not 'the game did not ask' -- it is 'nothing\n");
+    std::fprintf(f, "the game asked for arrived', and the two need separating by\n");
+    std::fprintf(f, "reading the source of the caller, not this table.\n");
+    std::fprintf(f, "PROJ_IDENTITY 1 means the projection matrix at scan-out is the\n");
+    std::fprintf(f, "identity, which for a perspective scene means it was never\n");
+    std::fprintf(f, "loaded or was thrown away; GX_RESETS says how many times the\n");
+    std::fprintf(f, "engine state was cleared in the interval.\n");
+    for (unsigned i = 0; i < kCmdN + kCmdExtra; ++i) {
+        const Slot &s = g_cmd[i];
+        const char *name;
+        char buf[24];
+        if (i < kCmdN) {
+            std::sprintf(buf, "%02x %s", kCmds[i].cmd, kCmds[i].name);
+            name = buf;
+        } else {
+            static const char *const kExtra[kCmdExtra] = {
+                "PORT_WRITES", "FIFO_WORDS", "GX_RESETS", "SWAP_PARAM",
+                "PROJ_IDENTITY", "POS_IDENTITY", "PROJ_FP"};
+            name = kExtra[i - kCmdN];
+        }
+        std::fprintf(f, "%-19s %-2s %-8u ", name, ".", s.nonzero);
+        if (s.first_frame < 0) std::fprintf(f, "%-6s ", "-");
+        else std::fprintf(f, "%-6d ", s.first_frame);
+        for (unsigned k = 0; k < s.n; ++k)
+            std::fprintf(f, "%u x%u%s", s.val[k], s.hits[k],
+                         k + 1 < s.n ? ", " : "");
+        if (s.n == kMaxVals) std::fprintf(f, " (+more)");
+        std::fprintf(f, "\n");
+    }
+    std::fprintf(f, "\n");
+
+    std::fprintf(f, "-- 3D TRIANGLES IN SCREEN SPACE, LAST SAMPLE --\n");
+    std::fprintf(f, "Framebuffer is %dx%d. x and y are post-divide pixels, so a\n",
+                 (int)SCREEN_W, (int)SCREEN_H);
+    std::fprintf(f, "box outside it is geometry the raster cannot reach and a\n");
+    std::fprintf(f, "degenerate count equal to the triangle count is a collapsed\n");
+    std::fprintf(f, "transform. Both look identical from POLYGONS alone.\n");
+    std::fprintf(f, "  triangles   %u\n", g_tri.n);
+    std::fprintf(f, "  drawable    %u   (on-screen and not degenerate)\n",
+                 g_tri.drawable);
+    std::fprintf(f, "  offscreen   %u\n", g_tri.offscreen);
+    std::fprintf(f, "  degenerate  %u\n", g_tri.degenerate);
+    std::fprintf(f, "  nonfinite   %u\n", g_tri.nonfinite);
+    std::fprintf(f, "  bbox        x %.3f .. %.3f   y %.3f .. %.3f   z %.5f .. %.5f\n",
+                 g_tri.x0, g_tri.x1, g_tri.y0, g_tri.y1, g_tri.z0, g_tri.z1);
+    {
+        int mode = 0;
+        float pos[16], proj[16];
+        gx_debug_matrices(&mode, pos, proj);
+        std::fprintf(f, "  matrix mode %d (0 proj, 1 pos, 2 pos+vec, 3 tex)\n", mode);
+        for (int r = 0; r < 4; ++r)
+            std::fprintf(f, "  proj  %12.6f %12.6f %12.6f %12.6f\n",
+                         proj[r * 4 + 0], proj[r * 4 + 1], proj[r * 4 + 2],
+                         proj[r * 4 + 3]);
+        for (int r = 0; r < 4; ++r)
+            std::fprintf(f, "  pos   %12.6f %12.6f %12.6f %12.6f\n",
+                         pos[r * 4 + 0], pos[r * 4 + 1], pos[r * 4 + 2],
+                         pos[r * 4 + 3]);
+    }
+    std::fprintf(f, "\n");
+
+    std::fprintf(f, "-- BG SCREEN AND CHARACTER BASES, LAST SAMPLE --\n");
+    std::fprintf(f, "Decoded the way the hardware decodes them: screen base is\n");
+    std::fprintf(f, "BGxCNT bits 8-12 x 2KB, character base is bits 2-3 x 16KB, plus\n");
+    std::fprintf(f, "DISPCNT bits 27-29 / 24-26 x 64KB on engine A. The whole-region\n");
+    std::fprintf(f, "'BG VRAM' row above sums both, so a layer with character data\n");
+    std::fprintf(f, "and an EMPTY TILEMAP reads healthy there and draws nothing.\n");
+    for (int e = 0; e < 2; ++e) {
+        for (int b = 0; b < 4; ++b) {
+            const BgBaseRow &r = g_bgbase[e][b];
+            std::fprintf(f, "  %c BG%d  CNT %04x  screen %08x %4u/2048 nonzero"
+                            "   char %08x %5u/16384 nonzero\n",
+                         e == 0 ? 'A' : 'B', b, r.cnt, r.scr_base,
+                         r.scr_nonzero, r.chr_base, r.chr_nonzero);
+        }
+    }
+    std::fprintf(f, "\n");
+
     std::fprintf(f, "-- TOUCH HARDWARE SURFACE --\n");
     std::fprintf(f, "The stylus record TouchInfo[4] is NOT here: it is a hosted\n");
     std::fprintf(f, "global, already driven from the mouse by poll_touch.\n");
@@ -665,6 +1008,40 @@ void ppu_audit_dump() {
                          k + 1 < s.n ? ", " : "");
         std::fprintf(f, "\n");
     }
+
+    std::fprintf(f, "-- MultiCopyHalf DESTINATIONS (exact, whole run) --\n");
+    std::fprintf(f, "Where the game's halfword block copies landed. The BG tilemap\n");
+    std::fprintf(f, "upload path (func_ov007_020c076c -> func_020565xx ->\n");
+    std::fprintf(f, "G2::GetBGxScrPtr) ends in this primitive, so a zero row against\n");
+    std::fprintf(f, "engine A's BG VRAM means nothing ever TRIED to write the map.\n");
+    for (unsigned i = 0; i < kCopyN; ++i)
+        if (g_copy[i].n)
+            std::fprintf(f, "  %-16s %u copies, %llu bytes\n", g_copy[i].name,
+                         g_copy[i].n, (unsigned long long)g_copy[i].bytes);
+    if (g_copy_other)
+        std::fprintf(f, "  %-16s %u copies, %llu bytes\n", "elsewhere",
+                     g_copy_other, (unsigned long long)g_copy_other_bytes);
+    if (!g_copy_abg_n)
+        std::fprintf(f, "  engine A BG VRAM: NO destination at all\n");
+    for (unsigned k = 0; k < g_copy_abg_n; ++k)
+        std::fprintf(f, "  A BG VRAM dst %08x  %u bytes  from %08x, %u of them "
+                        "nonzero AT COPY TIME\n", g_copy_abg[k],
+                     g_copy_abg_len[k], g_copy_abg_src[k], g_copy_abg_srcnz[k]);
+    std::fprintf(f, "\n");
+
+    std::fprintf(f, "-- MultiCopy32Bytes MOVES (distinct src/dst, whole run) --\n");
+    std::fprintf(f, "One step before the VRAM upload. `srcnz` is the source's nonzero\n");
+    std::fprintf(f, "bytes AT THE FIRST MOVE, so a chain that reaches VRAM empty can\n");
+    std::fprintf(f, "be walked back to the step that was supposed to fill it.\n");
+    if (!g_copy32_n) std::fprintf(f, "  none\n");
+    for (unsigned i = 0; i < g_copy32_n; ++i)
+        std::fprintf(f, "  %08x -> %08x  %u bytes  srcnz %u  x%u\n",
+                     g_copy32[i].src, g_copy32[i].dst, g_copy32[i].len,
+                     g_copy32[i].srcnz, g_copy32[i].n);
+    if (g_copy32_dropped)
+        std::fprintf(f, "  (%u further distinct pairs dropped, table full)\n",
+                     g_copy32_dropped);
+    std::fprintf(f, "\n");
 
     std::fprintf(f, "\n-- io.cpp PROXY HITS on the 2D surface (exact, a strict subset) --\n");
     if (!g_proxy_n) {

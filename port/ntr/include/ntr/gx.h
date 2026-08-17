@@ -132,6 +132,20 @@ void gx_debug_matrices(int *mode, float pos[16], float proj[16]);
 // rectangle read back is the default and says nothing about the game.
 void gx_debug_viewport(int &x, int &y, int &w, int &h, int &sets);
 
+// THE GEOMETRY COMMAND CENSUS. `counts` is indexed by GBATEK command byte and
+// holds how many of each EXECUTED since the last take; `ports` and `fifo` are
+// how many of them arrived through gx_write_port and gx_write_fifo, which is
+// the difference between a caller that reached the register file and one whose
+// stores landed in mapped memory; `swap_param` is the last SWAP_BUFFERS
+// parameter word; `resets` is gx_reset calls, so a sampler can say how much
+// engine state was thrown away between two samples. `take` zeroes the interval
+// counters, which makes a per-frame sampler a per-frame census.
+//
+// The counters live outside the geometry State, so gx_reset does not clear
+// them. That is the property the instrument is for.
+void gx_debug_commands(uint32_t counts[256], uint32_t &ports, uint32_t &fifo,
+                       uint32_t &swap_param, uint32_t &resets, bool take);
+
 }  // namespace ntr
 
 #endif  // NTR_GX_H

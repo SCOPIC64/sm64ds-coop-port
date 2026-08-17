@@ -3010,6 +3010,94 @@ elseif(NOT RT1_BE980_IN_SLICE)
                    "this block does the cutting, not the slice file")
 endif()
 
+# run link60 Stage 5 lane T2: THE HARDWARE DIVIDER'S LAST RAW CALLER.
+#
+# THE TITLE SCREEN'S 3D LAYER RASTERISED NOTHING BECAUSE ITS PROJECTION MATRIX
+# HAD A ZERO X SCALE, and the zero comes from here rather than from anything
+# graphical. The chain, measured rather than argued (port/ov007_seat.txt 5i):
+#
+#   src/func_ov007_020c0128.cpp   the title camera's init writes its ASPECT
+#                                 field as `_ZN4cstd4ldivEii(0x4000, 0x3000)`,
+#                                 4/3 through the DS hardware divider
+#   src/func_ov007_020c0078.c     reads it back, `>> 0x14`, and hands it to
+#                                 G3i::PerspectiveW_ as the aspect
+#   PerspectiveW_                 divides the cotangent by it for mtx[0]
+#
+# and cstd::ldiv returned a dead word, so the aspect arrived 0, so mtx[0]
+# arrived 0, so every vertex projected to clip x = 0 -- the framebuffer's
+# vertical centre line, which is exactly where the audit found all 96
+# triangles.
+#
+# WHY IT RETURNED A DEAD WORD. src/_ZN4cstd10fdiv_asyncE5Fix12IiE5Fix12IiE.c
+# reaches DIVCNT, DIV_NUMER and DIV_DENOM through plain literal-address stores,
+# and src/_ZN4cstd4ldivEii.c reads DIV_RESULT the same way. ntr maps real
+# memory across the DS I/O window, so those stores latch and ntr::run_divide
+# is never entered -- the identical failure shape hostgen.py's own header
+# records for MTX_SCALE. hostgen rewrites the derefs to NTR_MMIO, which is the
+# door into ntr::io_write, and the unit runs.
+#
+# THE BLAST RADIUS IS ONE CALLER AND IT WAS SWEPT, not assumed. cstd::fdiv --
+# the divider's other client and the one every level uses -- is a HOST FACE in
+# hal/cstd_div.c (pure C, no register), so src/_ZN4cstd4fdivEii.c is not in the
+# link at all; the map has __ZN4cstd4fdivEii coming from cstd_div.c.obj.
+# cstd::ldiv's only caller anywhere in src/ is func_ov007_020c0128, and
+# fdiv_async's only callers are cstd::fdiv and cstd::ldiv. So the only live
+# path this changes is the title screen's camera init.
+#
+# BOTH TUs AND NOT JUST THE WRITE SIDE. run_divide publishes its result with
+# raw_write into the same mapped window, so a raw READ of DIV_RESULT would
+# have worked once the writes were proxied, and hostgen'ing ldiv is not what
+# makes the frame change. It is here so the busy-spin, the result read and the
+# stores all go through one door: the day ntr models DIV_BUSY, or serves
+# DIV_RESULT from anywhere but the window, a half-routed caller would desync
+# silently and this is the caller that already cost one lane a frame.
+# The measurement is in 5i: fdiv_async alone is load-bearing today.
+set(T2_DIV_SYMS _ZN4cstd10fdiv_asyncE5Fix12IiE5Fix12IiE _ZN4cstd4ldivEii)
+set(T2_DIV_GEN "")
+foreach(sym IN LISTS T2_DIV_SYMS)
+    set(sym_out "${CMAKE_BINARY_DIR}/host-src/src/${sym}.cpp")
+    add_custom_command(OUTPUT "${sym_out}"
+        COMMAND python "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+                --out "${CMAKE_BINARY_DIR}/host-src" ${sym}
+        DEPENDS "${PORT_REPO_ROOT_ABS}/src/${sym}.c"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tools/hostgen.py"
+        COMMENT "hostgen ${sym}")
+    list(APPEND T2_DIV_GEN "${sym_out}")
+endforeach()
+
+# The plain entries have to go, or the hostgen copy is a duplicate symbol. Each
+# of the two is listed in exactly ONE slice file (checked at the tip, and the
+# count below is the guard: if a third listing appears the message fires and
+# the link is the thing that tells you, not a silent double body).
+set(T2_DIV_CUT 0)
+set(SLICE_OV007_SRC_T2 "")
+foreach(src IN LISTS SLICE_OV007_SOURCES)
+    if(src MATCHES "/_ZN4cstd4ldivEii\\.c$")
+        math(EXPR T2_DIV_CUT "${T2_DIV_CUT}+1")
+        continue()
+    endif()
+    list(APPEND SLICE_OV007_SRC_T2 "${src}")
+endforeach()
+set(SLICE_OV007_SOURCES ${SLICE_OV007_SRC_T2})
+set(SLICE10_SRC_T2 "")
+foreach(src IN LISTS SLICE10_SOURCES)
+    if(src MATCHES "/_ZN4cstd10fdiv_asyncE5Fix12IiE5Fix12IiE\\.c$")
+        math(EXPR T2_DIV_CUT "${T2_DIV_CUT}+1")
+        continue()
+    endif()
+    list(APPEND SLICE10_SRC_T2 "${src}")
+endforeach()
+set(SLICE10_SOURCES ${SLICE10_SRC_T2})
+if(NOT T2_DIV_CUT EQUAL 2)
+    message(STATUS "T2: expected to cut 2 plain divider entries and cut "
+                   "${T2_DIV_CUT}. If a slice file stopped listing one of "
+                   "src/_ZN4cstd4ldivEii.c or "
+                   "src/_ZN4cstd10fdiv_asyncE5Fix12IiE5Fix12IiE.c the hostgen "
+                   "copy is still added and the link will say so; if a THIRD "
+                   "slice started listing one, this cut missed it and the link "
+                   "will say that too")
+endif()
+
 # run link60 lane SC1: THE SCENE 1 INTERIM, AND ITS OWN RETIREMENT SWITCH.
 #
 # func_ov007_020c9688 is scene 1's blocker and it is a hole in the DECOMP:
@@ -4995,7 +5083,7 @@ add_executable(smoke_player tests/smoke_player.cpp "${OV002DATA_C}" ${LEVEL_OV_D
     ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE32_SOURCES}
     ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
-    ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
+    ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN} ${T2_DIV_GEN}
     ${GATE9_GEN} ${HOSTABI_RETIRE_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
@@ -5143,7 +5231,7 @@ add_executable(walk_window tests/walk_window.cpp tests/io_pressure.cpp "${OV002D
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES} ${SLICE35_SOURCES} ${GATE6_GEN}
     ${SLICE32_SOURCES} ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
-    ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
+    ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN} ${T2_DIV_GEN}
     ${GATE9_GEN} ${HOSTABI_RETIRE_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
@@ -5321,7 +5409,7 @@ add_executable(walk_window_hires tests/walk_window.cpp "${OV002DATA_C}" ${LEVEL_
     ${SLICE25_SOURCES} ${SLICE27_SOURCES} ${SLICE28_SOURCES} ${SLICE26_SOURCES} ${SLICE35_SOURCES} ${GATE6_GEN}
     ${SLICE32_SOURCES} ${GATE32_HOST_SOURCES} ${GATE32_GEN} ${GATE6_GEN}
     ${GATE4A_GEN} ${GATE4B_GEN} ${GATE8_GEN} ${GATE10_GEN}
-    ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN}
+    ${GATE13_GEN} ${GATE14_GEN} ${GATE15_GEN} ${GATE16_GEN} ${GATE35_GEN} ${GATE29_GEN} ${T2_DIV_GEN}
     ${GATE9_GEN} ${HOSTABI_RETIRE_GEN}
     ${SLICE40_SOURCES} ${SLICE41_SOURCES} ${SLICE42_SOURCES}
     hal/actor_classes_painting.cpp ${SLICE50_SOURCES} hal/actor_classes_wf.cpp
