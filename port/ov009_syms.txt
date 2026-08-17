@@ -109,6 +109,33 @@ data_ov009_021122ec:0x16c
 # with the decomp side and the call to edit it is Tango's.
 data_ov009_021133d4:0x528
 data_ov009_02113214:0x1c0
+# And the six-record table itself, which is the index for both of the above and
+# is truncated by the same mechanism. 6 records * 8 = 0x30, ending exactly on
+# data_ov009_02112ccc -- which is not an inference, it is the target of the
+# ninth record of the OTHER table (0x02112e0c, tag 0x2a, n=4). dsd guessed an
+# ambiguous boundary at 0x02112ca8, twelve bytes in, and ovdata's +0x18 floor
+# rounded that up to 24, so three of the six records were hosted and the walk
+# read records 3..5 out of whatever the linker parked next. The generated
+# ov009_syms.c shows it directly: only three pointers get rebased into
+# port_ov009_gap_02112c9c (+4, +12, +20) against all nine into
+# port_ov009_gap_02112dcc.
+#
+# SIDE EFFECT, and it is the good kind. Naming 0x02113214 ends the discovered
+# target run that used to stop at 0x021130cc, so the gap before it is re-laid as
+# port_ov009_gap_0211301c[504] = 0xe8 + 0x110, covering the tag-0x05 array AND
+# the tag-0x40 array at 0x02113104 exactly. Both were short before: the tag-0x05
+# array was hosted 176 bytes of 232 (22 of its 29 records) off the tail of
+# port_ov009_gap_02112b60[1388], and 0x02113104 was not hosted at all. Nothing
+# here names 0x02113104 -- the contested window keeps its status -- it simply
+# stops being the hole it was, because a run that used to end in the middle of
+# it now ends on a real symbol.
+#
+# So all six of this table's record pointers rebase onto hosted storage; check
+# the generated source rather than trusting the paragraph:
+#
+#   cd build/port/host-src
+#   grep -c "data_ov009_02112c9c + " ov009_syms.c      -> 6
+data_ov009_02112c9c:0x30
 # the four {function, delta} pairs __sinit_ov009_02112458 copies into the
 # Bird's own behaviour table
 data_ov009_021138fc data_ov009_02113904 data_ov009_0211390c data_ov009_02113914
