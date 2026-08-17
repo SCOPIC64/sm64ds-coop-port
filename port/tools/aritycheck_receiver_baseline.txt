@@ -1,0 +1,222 @@
+# aritycheck_receiver_baseline.txt
+#
+# The frozen set of RECEIVER-SHAPE arity disagreements: a declaration of an
+# Itanium-mangled MEMBER name (_ZN...) that takes NO parameters at all, against
+# a definition of the same symbol that takes at least one. A member's receiver
+# rides r0 on ARM like any other first argument, so a body transcribed from the
+# ROM takes it as a parameter -- and a caller that spells the declaration
+# `(void)` passes nothing, so the callee reads the caller's own return address
+# as `this`.
+#
+# THIS IS THE SHAPE THAT LANDED TWICE ON 2026-08-16, hours before the checker:
+#
+#   #1539  -extern void _ZN10FaderColor11AdvanceFadeEv(void);
+#          +extern void _ZN10FaderColor11AdvanceFadeEv(void*);
+#   #1543  -void _ZN5EnemyC2Ev(void);   -> _ZN5EnemyC2Ev();
+#          +void _ZN5EnemyC2Ev(void*);  -> _ZN5EnemyC2Ev(c);
+#
+# Both were found by a person reading a fault. Neither is in this file, because
+# both are fixed -- which is what makes the file a usable ratchet rather than a
+# description of the status quo.
+#
+# WHAT A ROW IS. `<symbol>|<declaring file>`, never a line number: a key that
+# carries a line moves every time somebody adds a comment above it, and a
+# baseline that churns is a baseline nobody trusts. Two declarations of one
+# symbol in one file collapse to one key, which is the right resolution --
+# fixing the file fixes both.
+#
+# THESE ROWS ARE DEBT AND NOT CLEARANCE. Nobody has adjudicated them one by
+# one, and some are certainly parser artefacts: aritycheck reads C and C++ as
+# text, and K&R spellings, macro-expanded declarations and in-class definitions
+# all confuse it. The ratchet's claim is deliberately narrow and true: THE TREE
+# DOES NOT GROW A NEW ONE WITHOUT SOMEBODY SEEING IT. Anyone who works through
+# a row and finds it real should fix it and delete the line; anyone who finds
+# it a parser artefact should say so beside the line.
+#
+# The list may only shrink. Generated 2026-08-17 from cons 3a5733c03 (run
+# link60, lane AB1) with:
+#     python port/tools/aritycheck.py --write-receiver-baseline
+# and reviewed only for shape, not row by row.
+
+# THE ROW BELOW IS A CONFIRMED LIVE DEFECT, NOT SUSPECTED DEBT. It is the
+# SIXTH receiver defect on cons and until 2026-08-17 NO checker in the suite
+# could see it. src/func_ov007_020b7764.cpp:2 declares
+#     namespace Player { void St_EndingFly_Main(); }
+# and line 9 calls Player::St_EndingFly_Main() with nothing, while the
+# definition src/_ZN6Player17St_EndingFly_MainEv.cpp:8 takes a receiver and
+# hands it to an indirect call through data_ov007_02103254. aliascheck is
+# right to stay quiet: hal/scene_boot.cpp:1126 spells that alias
+# ?St_EndingFly_Main@Player@@YAXXZ, a free function on BOTH sides, so the
+# receiver agrees and there is no crossing. It reaches this file only because
+# aritycheck learned the namespaced C++ declaration spelling. It is listed
+# here so the ratchet is green, and it is named in port/abi_checks.txt
+# section 6 as one of the six live defects awaiting an owner.
+_ZN6Player17St_EndingFly_MainEv|src/func_ov007_020b7764.cpp
+
+_ZN10FaderColorD1Ev|src/__sinit_02073e6c.c
+_ZN10FaderColorD1Ev|src/__sinit_02074edc.c
+_ZN10StarMarker27SpawnRedCoinStarIfNecessaryEv|src/func_ov002_020b10a0.c
+_ZN11RaycastLineC1Ev|src/__sinit_0207501c.c
+_ZN11ShadowModel12InitCylinderEv|port/unmatched/Boo_InitResources.c
+_ZN11ShadowModel12InitCylinderEv|src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+_ZN11ShadowModel9InitModelEP9Matrix4x35Fix12IiES3_S3_j|src/func_ov006_020c07a0.c
+_ZN12WithMeshClsn13SetLimMovFlagEv|src/func_ov077_02125a0c.c
+_ZN12WithMeshClsn16UpdateContinuousEv|src/WithMeshClsn_UpdateContinuous_Veneer.c
+_ZN12WithMeshClsn20UpdateDiscreteNoLavaEv|src/WithMeshClsn_UpdateDiscreteNoLava_veneer.c
+_ZN12WithMeshClsn20UpdateExtraContinousEv|src/func_020383e4.c
+_ZN12WithMeshClsn22UpdateContinuousNoLavaEv|src/func_020383f0.c
+_ZN12WithMeshClsn22UpdateDiscreteNoLava_2Ev|src/func_02038414.c
+_ZN12WithMeshClsn4InitEP5Actor5Fix12IiES3_P10Vector3_16S5_|port/unmatched/Boo_InitResources.c
+_ZN12WithMeshClsn4InitEP5Actor5Fix12IiES3_P10Vector3_16S5_|src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+_ZN13SharedFilePtr7ReleaseEv|src/UnloadSilverStarAndNumber.c
+_ZN13SharedFilePtr7ReleaseEv|src/_ZN17BigMovingIceBlock16CleanupResourcesEv.c
+_ZN13SharedFilePtr7ReleaseEv|src/func_ov006_020c09f8.c
+_ZN13SharedFilePtr7ReleaseEv|src/func_ov006_020c1c64.c
+_ZN13SharedFilePtr7ReleaseEv|src/func_ov006_020c21e4.c
+_ZN13SharedFilePtr7ReleaseEv|src/func_ov006_020c3288.c
+_ZN13SharedFilePtr7ReleaseEv|src/func_ov006_020c6f3c.c
+_ZN13SharedFilePtr7ReleaseEv|src/func_ov006_020ceedc.c
+_ZN13SharedFilePtr7ReleaseEv|src/func_ov052_0211123c.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov006_020c0304.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov006_020c0e8c.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov006_020c1164.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov066_021164ec.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov073_02120ad8.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov073_02120c08.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov073_0212122c.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov075_021141b8.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov075_02114218.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov075_02114a6c.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov078_02123a3c.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov078_02123eb8.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov078_021244d0.c
+_ZN14BlendModelAnim7SetAnimER8BCA_Fileii5Fix12IiEt|src/func_ov078_021258e4.c
+_ZN15FaderBrightnessD1Ev|src/__sinit_02074edc.c
+_ZN16MeshColliderBase7DisableEv|src/_ZN17BigMovingIceBlock16CleanupResourcesEv.c
+_ZN16MeshColliderBase7DisableEv|src/func_ov052_0211123c.c
+_ZN16MeshColliderBase9IsEnabledEv|src/_ZN17BigMovingIceBlock16CleanupResourcesEv.c
+_ZN16MeshColliderBase9IsEnabledEv|src/func_ov052_0211123c.c
+_ZN18MovingCylinderClsn4InitEP5Actor5Fix12IiES3_jj|src/_ZN21MegaMushroomCreateTag13InitResourcesEv.c
+_ZN18MovingMeshColliderD1Ev|src/func_ov065_021180b8.c
+_ZN25MovingCylinderClsnWithPos4InitEP5ActorRK7Vector35Fix12IiES6_jj|port/unmatched/Boo_InitResources.c
+_ZN25MovingCylinderClsnWithPos4InitEP5ActorRK7Vector35Fix12IiES6_jj|src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+_ZN4Heap10DeallocateEPv|src/_ZN4Heap11_DeallocateEPv.cpp
+_ZN4Heap23SetupSolidHeapAsDefaultEjPS_i|src/_ZN4Heap28InitializeSolidHeapAsDefaultEjPS_i.cpp
+_ZN4Heap8AllocateEji|src/_ZN4Heap9_AllocateEji.cpp
+_ZN5Actor10SpawnCoinsERK7Vector3j5Fix12IiEs|src/func_ov071_0211f498.c
+_ZN5Actor13ClosestPlayerEv|src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+_ZN5Actor13ClosestPlayerEv|src/func_ov018_02111b3c.c
+_ZN5Actor13ClosestPlayerEv|src/func_ov020_02111fc4.cpp
+_ZN5Actor13ClosestPlayerEv|src/func_ov032_02111350.c
+_ZN5Actor13ClosestPlayerEv|src/func_ov060_02111f08.c
+_ZN5Actor13ClosestPlayerEv|src/func_ov066_02119398.cpp
+_ZN5Actor13ClosestPlayerEv|src/func_ov084_02129cf4.c
+_ZN5Actor13ClosestPlayerEv|src/func_ov084_0212f204.c
+_ZN5Actor13ClosestPlayerEv|src/func_ov085_0212b8dc.cpp
+_ZN5Actor13ClosestPlayerEv|src/func_ov085_0212d9b8.c
+_ZN5Actor13ClosestPlayerEv|src/func_ov085_0212dd10.cpp
+_ZN5Actor13ClosestPlayerEv|src/func_ov085_0212e310.cpp
+_ZN5Actor13ClosestPlayerEv|src/func_ov085_0212e4a4.c
+_ZN5Actor13ClosestPlayerEv|src/func_ov094_02136024.c
+_ZN5Actor13ClosestPlayerEv|src/func_ov098_0213b9d8.cpp
+_ZN5Actor13ClosestPlayerEv|src/unnamed/ov063/func_ov063_02117650.c
+_ZN5Actor22ClosestNonVanishPlayerEv|src/func_ov065_021165d8.cpp
+_ZN5Actor22ClosestNonVanishPlayerEv|src/func_ov065_02117888.c
+_ZN5Actor22ClosestNonVanishPlayerEv|src/func_ov070_02121298.cpp
+_ZN5Actor22ClosestNonVanishPlayerEv|src/func_ov077_0212390c.cpp
+_ZN5Actor24KillAndTrackInDeathTableEv|src/_ZN5Actor13OnTurnIntoEggER6Player.cpp
+_ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii|port/unmatched/Boo_InitResources.c
+_ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii|src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+_ZN5Actor8PoofDustEv|src/func_ov070_021208a4.c
+_ZN5Actor8PoofDustEv|src/func_ov070_021213cc.c
+_ZN5Actor8PoofDustEv|src/func_ov071_0211f498.c
+_ZN5Actor9UpdatePosEP12CylinderClsn|src/func_ov070_021208a4.c
+_ZN5Actor9UpdatePosEP12CylinderClsn|src/func_ov070_021213cc.c
+_ZN5Actor9UpdatePosEP12CylinderClsn|src/func_ov077_02123fcc.c
+_ZN5Event6GetBitEj|src/_ZN9TinyCover8BehaviorEv.c
+_ZN5Event6SetBitEj|src/func_ov089_02131dcc.c
+_ZN5Event8ClearBitEj|src/func_ov002_020ba0bc.c
+_ZN5Fader13AdvanceInterpEv|include/decl_Fader.h
+_ZN5Model12HideMaterialEii|src/func_ov006_020c0e8c.c
+_ZN5Model12ShowMaterialEii|src/func_ov006_020c0e8c.c
+_ZN5Model6RenderEPK7Vector3|src/func_ov006_020c07a0.c
+_ZN5Model8LoadFileER13SharedFilePtr|port/unmatched/Boo_InitResources.c
+_ZN5Model8LoadFileER13SharedFilePtr|src/LoadSilverStarAndNumber.c
+_ZN5Model8LoadFileER13SharedFilePtr|src/_ZN19OrangeBallBillboard13InitResourcesEv.c
+_ZN5Model8LoadFileER13SharedFilePtr|src/_ZN21MegaMushroomCreateTag13InitResourcesEv.c
+_ZN5Model8LoadFileER13SharedFilePtr|src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+_ZN5Scene14BeforeBehaviorEv|include/decl_Scene.h
+_ZN5Scene19ResetFadersAndSoundEv|src/_ZN5Stage19BeforeInitResourcesEv.cpp
+_ZN5Scene19ResetFadersAndSoundEv|src/func_ov075_0211a734.c
+_ZN5Scene22ResetHardwareRegistersEv|src/InitCrashScreen.c
+_ZN5Scene22ResetHardwareRegistersEv|src/_ZN5Scene20Initialise3dGraphicsEv.c
+_ZN5Sound15PlaySecretSoundEP5ActorPt|src/_ZN9TinyCover8BehaviorEv.c
+_ZN5Sound8PlayLongEjjjRK7Vector3j|src/_ZN9TinyCover8BehaviorEv.c
+_ZN5Sound8PlayLongEjjjRK7Vector3j|src/func_ov073_02120844.c
+_ZN6Player12GetTalkStateEv|src/func_ov030_02112578.c
+_ZN6Player16IncMegaKillCountEv|port/unmatched/BulletBill_Behavior.cpp
+_ZN6Player16IncMegaKillCountEv|src/_ZN10BulletBill8BehaviorEv.cpp
+_ZN6Player17St_EndingFly_MainEv|src/func_ov007_020adbc8.c
+_ZN6Player17St_EndingFly_MainEv|src/func_ov007_020ade14.c
+_ZN6Player17St_EndingFly_MainEv|src/func_ov007_020c05f8.c
+_ZN6Player17St_EndingFly_MainEv|src/func_ov007_020ca26c.c
+_ZN6Player18St_LevelEnter_MainEv|include/decl_Player.h
+_ZN6Player29TryExitCharacterDoorWithIntroEv|src/MgTrampolineTerror_Spawn.c
+_ZN6Player9GetHealthEv|src/_ZN6Player12St_Swim_MainEv.cpp
+_ZN6Player9GetHealthEv|src/func_ov078_02123f1c.cpp
+_ZN7ClipperD1Ev|src/__sinit_02074e84.cpp
+_ZN7Message6UpdateEv|src/_ZN7Message13DisplaySavingEt.cpp
+_ZN7Message6UpdateEv|src/func_0201f138.cpp
+_ZN7Message6UpdateEv|src/func_0201f32c.c
+_ZN8CapEnemy21DestroyIfCapNotNeededEv|include/decl_CapEnemy.h
+_ZN8CapEnemy21DestroyIfCapNotNeededEv|port/unmatched/Boo_InitResources.c
+_ZN8CapEnemy21DestroyIfCapNotNeededEv|src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+_ZN8CapEnemy6AddCapEj|include/decl_CapEnemy.h
+_ZN8CapEnemy6AddCapEj|port/unmatched/Boo_InitResources.c
+_ZN8CapEnemy6AddCapEj|src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+_ZN8Platform19UpdateClsnPosAndRotEv|src/_ZN9TinyCover8BehaviorEv.c
+_ZN8Platform21UpdateModelPosAndRotYEv|src/_ZN9TinyCover8BehaviorEv.c
+_ZN9ActorBase18MarkForDestructionEv|port/unmatched/Boo_InitResources.c
+_ZN9ActorBase18MarkForDestructionEv|src/_ZN9TinyCover8BehaviorEv.c
+_ZN9ActorBase18MarkForDestructionEv|src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+_ZN9ActorBase18MarkForDestructionEv|src/func_ov030_021145d4.c
+_ZN9ActorBase18MarkForDestructionEv|src/func_ov070_021208a4.c
+_ZN9ActorBase18MarkForDestructionEv|src/func_ov070_021213cc.c
+_ZN9ActorBase18MarkForDestructionEv|src/func_ov071_0211f498.c
+_ZN9ActorBase18MarkForDestructionEv|src/func_ov072_02121fa0.c
+_ZN9ActorBase18MarkForDestructionEv|src/func_ov089_02131dcc.c
+_ZN9ActorBase18MarkForDestructionEv|src/func_ov091_0213448c.c
+_ZN9ActorBase18MarkForDestructionEv|src/unnamed/ov063/func_ov063_02116dbc.c
+_ZN9ActorBase21AfterCleanupResourcesEj|src/_ZN5Actor21AfterCleanupResourcesEj.cpp
+_ZN9Animation7AdvanceEv|src/_ZN9TinyCover8BehaviorEv.c
+_ZN9Animation7AdvanceEv|src/func_ov070_021208a4.c
+_ZN9Animation7AdvanceEv|src/func_ov070_021213cc.c
+_ZN9Animation7AdvanceEv|src/func_ov077_02123fcc.c
+_ZN9Animation8FinishedEv|src/func_ov006_020c0ce8.c
+_ZN9Animation8FinishedEv|src/func_ov006_020c395c.c
+_ZN9Animation8FinishedEv|src/func_ov075_021141b8.c
+_ZN9Animation8FinishedEv|src/func_ov075_02114218.c
+_ZN9Animation8LoadFileER13SharedFilePtr|port/unmatched/Boo_InitResources.c
+_ZN9Animation8LoadFileER13SharedFilePtr|src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj|port/unmatched/Boo_InitResources.c
+_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj|src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj|src/func_ov062_02116238.c
+_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj|src/func_ov062_02116368.c
+_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj|src/func_ov065_021178fc.c
+_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj|src/func_ov070_02120ce4.c
+_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj|src/func_ov071_0211fbf4.c
+_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj|src/func_ov085_0212b478.c
+_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj|src/func_ov085_0212b8a0.c
+_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj|src/func_ov090_02131db0.c
+_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj|src/func_ov091_02133f24.c
+_ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj|src/func_ov094_02135fe0.c
+_ZN9ModelBase7SetFileEP8BMD_Fileii|port/unmatched/Boo_InitResources.c
+_ZN9ModelBase7SetFileEP8BMD_Fileii|src/_ZN19OrangeBallBillboard13InitResourcesEv.c
+_ZN9ModelBase7SetFileEP8BMD_Fileii|src/actors/Boo/_ZN3Boo13InitResourcesEv.c
+_ZN9ModelBase7SetFileEP8BMD_Fileii|src/func_ov006_020c3884.c
+_ZN9PowerStar13AddStarMarkerEv|src/func_ov002_020e8dd8.c
+_ZNK12WithMeshClsn10IsOnGroundEv|src/func_ov073_02120844.c
+_ZNK12WithMeshClsn13JustHitGroundEv|src/func_ov070_021208a4.c
+_ZNK12WithMeshClsn13JustHitGroundEv|src/func_ov070_021213cc.c
+_ZNK12WithMeshClsn13JustHitGroundEv|src/func_ov077_02123fcc.c
+_ZNK9Animation12WillHitFrameEi|src/func_ov064_02117168.c

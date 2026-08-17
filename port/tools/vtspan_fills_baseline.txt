@@ -1,0 +1,42 @@
+# vtspan_fills_baseline.txt
+#
+# Host vtable FILL functions that `python port/tools/vtspan.py <root> --fills`
+# is allowed to leave a ROM slot unwritten in, plus the fills it cannot resolve
+# to a ROM table at all.
+#
+# --fills asks a different question from --sweep. --sweep asks whether the host
+# ARRAY is long enough; --fills asks whether the fill LOOP writes every slot
+# the ROM table has. An array of the right length whose fill skips slot 19
+# leaves a null there, and a dispatch of it is a call to address zero.
+#
+# WHY A BASELINE EXISTS AT ALL. Five fills are short on cons 3a5733c03 and two
+# more cannot be resolved. That is pre-existing debt, not a regression from the
+# checker landing, and a gate that is red the day it arrives is a gate somebody
+# switches off. So the rows below are frozen, a fill NOT in this list fails, and
+# the list may only shrink. run_checks.py reports the frozen count on every run
+# so the debt travels with the green.
+#
+# THE ROWS ARE NOT CLEARED, THEY ARE COUNTED. Nobody adjudicated them here.
+# Two of them (the dBgActor_c / Platform pair, and the curling table) skip
+# EVERY slot, which reads like a fill that seats only destructors while
+# something else fills the rest -- plausible, unverified, and exactly the sort
+# of thing this note exists to stop being forgotten.
+#
+# KEY: the fill function's name. Not the table, because one fill can seat
+# several tables and the fill is what would be edited to fix it.
+#
+# Frozen 2026-08-17, run link60 lane AB1, from:
+#     $ python port/tools/vtspan.py . --fills
+#     179 fills resolved to a ROM table
+#     5 FILLS LEAVE A SLOT UNWRITTEN
+#     2 fill(s) this scan could NOT resolve
+
+# --- leaves a ROM slot unwritten -------------------------------------------
+hal_seat_platform_dtors        # _ZTV10dBgActor_c and _ZTV8Platform, 32 slots each, writes only the dtor pair
+hal_fill_mri_projectile_vtable # _ZTV14MrI_Projectile, 31 slots, 12+ never written
+hal_fill_mri_vtable            # _ZTV3MrI, 31 slots, 12+ never written
+port_scene_fill_curling        # data_ov004_020bc0c0, 36 slots
+
+# --- could not be resolved to a ROM table: a GAP in the check, not a pass ---
+hal_fill_seaweed_vtable        # _ZTV13daObjWakame_c is a host-only name
+hal_fill_fall_block_lll_vtable # _ZTV20daObjFl_Fall_Block_c is a host-only name

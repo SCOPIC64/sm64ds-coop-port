@@ -5482,3 +5482,79 @@ target_compile_definitions(smoke_sdat PRIVATE SM64DS_PLATFORM_PC
 if(MSVC)
     target_compile_options(smoke_sdat PRIVATE /wd4311 /wd4312 /wd4068)
 endif()
+
+# ---------------------------------------------------------------------------
+# THE ABI DEFECT DETECTORS
+#
+# port/tools/run_checks.py fires the receiver / calling-convention / vtable
+# shape detectors and fails on any red, and on any VACUOUS pass (a checker
+# that parsed nothing must not read as green):
+#
+#   aliascheck            an /alternatename that crosses the receiver boundary
+#   vtspan --sweep        a host vtable array shorter than its ROM span
+#   vtspan --fills        a fill loop that leaves a ROM slot unwritten
+#   aritycheck            a declaration and a definition of one extern "C"
+#                         symbol that disagree about how many parameters it
+#                         takes (census, plus a ratchet on the receiver shape)
+#   abicheck              a vtable thunk whose emitted `ret` breaks its slot's
+#                         frame contract (needs this build's hal objects)
+#
+# TWO TARGETS, AND NEITHER IS IN ALL. That is deliberate. The port has no CI,
+# so a target wired into ALL is the only thing that would run these for other
+# people -- and turning a currently-green build red for every contributor is a
+# decision for the port's owner, not for the lane that recovered the tools.
+# Both are one command away:
+#
+#   ninja -C build/port port_checks_nobuild    the four no-build checkers
+#   ninja -C build/port port_checks            + abicheck over THIS build
+#
+# port_checks_nobuild depends on nothing, so it runs even when the port does
+# not fully link. port_checks depends on smoke_actor (which compiles
+# actor_vtables.cpp and the other vtable-fill HAL objects), disassembles the
+# build's hal objects with /disasm:nobytes, and runs the whole gate.
+#
+# THE DISASSEMBLY GOES IN THE BUILD DIRECTORY, never a fixed absolute path.
+# The recovered wiring wrote to a shared C:/tmp/sm64ds-abisweep/_disasm, so
+# two lanes running the suite at once would have written each other's input
+# and each measured the other's build -- green, and meaningless.
+find_program(PORT_PYTHON NAMES python python3 py)
+if(PORT_PYTHON)
+    add_custom_target(port_checks_nobuild
+        COMMAND "${PORT_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/run_checks.py"
+                "${PORT_REPO_ROOT_ABS}"
+        WORKING_DIRECTORY "${PORT_REPO_ROOT_ABS}"
+        COMMENT "port ABI checks (no build): aliascheck + vtspan + aritycheck"
+        USES_TERMINAL VERBATIM)
+
+    add_custom_target(port_abi_prove
+        COMMAND "${PORT_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/abi_prove.py"
+                "${PORT_REPO_ROOT_ABS}"
+                --disasm-dir "${CMAKE_BINARY_DIR}/_abicheck_disasm"
+        WORKING_DIRECTORY "${PORT_REPO_ROOT_ABS}"
+        COMMENT "prove each ABI checker green here and red on a re-broken copy"
+        USES_TERMINAL VERBATIM)
+
+    if(MSVC)
+        # gen_disasm.cmd emits ONLY /disasm:nobytes. Plain /disasm makes
+        # abicheck parse zero stores; abicheck refuses a zero-fill run and
+        # run_checks refuses it again, but generating the wrong format is the
+        # mistake that causes it, so the generator never produces anything
+        # else.
+        add_custom_target(port_checks
+            COMMAND "${CMAKE_COMMAND}" -E echo
+                    "== generating /disasm:nobytes for abicheck =="
+            COMMAND cmd /c "${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_disasm.cmd"
+                    "${CMAKE_BINARY_DIR}" "${CMAKE_BINARY_DIR}/_abicheck_disasm"
+            COMMAND "${PORT_PYTHON}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tools/run_checks.py"
+                    "${PORT_REPO_ROOT_ABS}"
+                    --disasm-dir "${CMAKE_BINARY_DIR}/_abicheck_disasm"
+            DEPENDS smoke_actor
+            WORKING_DIRECTORY "${PORT_REPO_ROOT_ABS}"
+            COMMENT "port ABI checks (full): + abicheck over this build"
+            USES_TERMINAL VERBATIM)
+    endif()
+else()
+    message(WARNING "python not found: the port ABI check targets were not "
+                    "created")
+endif()
