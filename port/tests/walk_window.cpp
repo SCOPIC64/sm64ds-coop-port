@@ -22,11 +22,19 @@
 //   zooms. Both work in analog and in freecam and do nothing in DS-exact.
 //   The last left click is published in framebuffer pixels for the touch
 //   bridge; see g_mouse_click_x.
-//   F5  the debug menu: warp to any of the level's own entrances, the fake-
-//   snap A/B, the overlay, the camera mode, how running works, and the
-//   recorder's filename.
-//   Arrows or the d-pad move, enter or A acts. It PAUSES THE GAME TICK while
-//   it is open and keeps rendering, so the scene freezes and the view does not.
+//   F5  the debug menu: warp to any of the level's own entrances, the level
+//   select, the minigame picker, the fake-snap A/B, the overlay, the camera
+//   mode, how running works, and the recorder's filename.
+//   Arrows or the d-pad move, enter or A acts, F5 or BACK or B closes. It
+//   PAUSES THE GAME TICK while it is open and keeps rendering, so the scene
+//   freezes and the view does not.
+//   THE MINIGAME ROW lists all thirty ids the ROM's own IsMinigameActorID
+//   accepts, named out of their ov006 typeinfo, and marks the ones the port
+//   can host. Selecting a hosted one starts the program again on the scene
+//   path with SM64DS_SCENE and SM64DS_DUAL_SCREEN set and quits this process;
+//   a level cannot enter a minigame in place, because loading ov006 unloads
+//   the ov002 the level is running out of. Selecting an unhosted one says so
+//   and does nothing. See the MG_SCENE table for the derivation of both.
 //   RUN MODE is two of its rows. The DS had no run button -- it ran off how
 //   far the touch-screen stick was pushed -- so every way of running on a host
 //   is the port's own choice, and the menu is where that choice is made:
@@ -513,6 +521,10 @@ void port_level_probe(void);
    run", which is every run that does not set it. */
 int port_scene_env_want(void);
 int port_scene_run(void);
+/* and the registry question that boot refuses on, asked ahead of time: the
+   debug menu's minigame row uses it to decide which of the ROM's thirty
+   minigame ids can be selected (hal/scene_boot.cpp). */
+int port_scene_is_hosted(int id);
 /* the level selector: SM64DS_LEVEL picks it, the debug menu's LEVEL row
    walks the same table. port_level_nth enumerates it. */
 int port_level_id(void);
@@ -1380,7 +1392,8 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
    F5. Deliberately small: the things worth reaching mid-session without
    restarting the program under a different environment, plus one status line.
    Up/down or the d-pad move, left/right change a value, and enter (or A) does
-   what right does, so the whole thing works one-handed on a pad.
+   what right does, so the whole thing works one-handed on a pad. BACK opens
+   and closes it and so does B, so a pad never needs the keyboard to get out.
 
    IT PAUSES THE GAME TICK while it is open -- port_actor_tick is skipped and
    the input the harness writes is zeroed, so nothing moves, nothing spawns and
@@ -1391,6 +1404,7 @@ static void fc_push_view(void *cam, const int *eye, const int *at)
 enum {
     MENU_WARP = 0,
     MENU_LEVEL,
+    MENU_MINIGAME,      /* left/right pick one of the ROM's thirty, enter goes */
     MENU_EXIT,
     MENU_CHARACTER,
     MENU_SNAP,
@@ -1489,8 +1503,9 @@ static int run_key_reserved(int vk)
 static int run_pad_reserved(unsigned mask)
 {
     /* the d-pad (0x000f) and A (0x1000) drive the menu, BACK (0x0020) opens
-       it, and the right stick's click (0x0080) is the freecam toggle */
-    return (mask & 0x10afu) != 0;
+       it and B (0x2000) closes it, and the right stick's click (0x0080) is
+       the freecam toggle */
+    return (mask & 0x30afu) != 0;
 }
 
 /* A printable name for a binding. The letters and digits are their own ASCII
@@ -1587,6 +1602,9 @@ static void character_set_pending(int ch)
    it lives because it wants Player.h. SM64DS_SWITCH=<0..3> drives it headless. */
 extern "C" void port_player_set_character(void *player, unsigned ch);
 static int menu_on;
+/* B closed the menu and is still physically down: swallow it until it comes
+   back up. See the block below the menu's input, where it is spent. */
+static int menu_b_swallow;
 static int menu_sel;
 static int menu_entrance;             /* the entrance the warp row is showing */
 /* THE LEVEL ROW IS THE DEBUG LEVEL SELECT'S OWN LIST. dScTitle_c (ov003,
@@ -1615,6 +1633,142 @@ extern "C" const char *port_playlog_path = g_playlog;
    the toggle is the whole switch. */
 static int g_fake_snap;
 
+/* ---- THE MINIGAME PICKER (port mod) -------------------------------------
+
+   THE SET IS THE ROM'S. src/IsMinigameActorID.c is `id >= 0x169 && id <=
+   0x186`: thirty contiguous actor ids, 361..390, and it is the same predicate
+   hal/scene_boot.cpp gates the stacked layout on and hal/scene_mg.cpp gates
+   the ov006 bring-up on. This table makes no membership decision of its own.
+   It holds NAMES, and nothing else.
+
+   THE NAMES ARE THE ROM'S TOO, read out of the class typeinfo rather than
+   taken from anywhere else. port/mg_fanout_costs.txt section 3 resolves 29 of
+   the 30 ids to a vtable in ov006; the Itanium record one word below slot 0
+   is the typeinfo and its +4 is the mangled name, and the strings that come
+   back out of extracted/overlays/overlay_0006.bin (base 0x020bfec0,
+   port/tools/ovdata.py) are the dScMg*_c set. The short name below is that
+   class name with its dScMg prefix and _c suffix removed, so 374 reads
+   "curling" because that is what the ROM calls it.
+
+   THE Mg* NAMES IN mg_fanout_costs SECTION 3 ARE NOT WRONG, and this file
+   does not claim they are -- section 2 settles 0x176 explicitly: the peer
+   screening named it MgShuffleShell after its spawn symbol, Shuffle Shell is
+   the localised name of the curling minigame, "both names are right and the
+   class name is the ROM's". They are not used here for a duller reason. They
+   are a MIXTURE of spawn-symbol names and retail names with seven ids left
+   blank, and the typeinfo route is one source that covers twenty-nine
+   directly and the thirtieth by elimination. A menu wants the consistent
+   list, and the consistent list is the ROM's.
+
+   377 IS NAMED BY ELIMINATION AND SAYS SO. It is the one id whose factory
+   reaches no signature table (mg_fanout_costs leaves the row blank rather
+   than guessing it). ov006 carries 32 dScMg*_c typeinfo names, two of which
+   are bases rather than scenes -- dScMgD3DBase_c (0x0213c5d4) and
+   dScMgSingle3DBase_c (0x0213bd00). NOT dScMgBase_c: that one is in ov004
+   (its vtable 0x020bc0c0 is below this overlay's base), which is why it is
+   not in the 32. So thirty scene classes, twenty-nine claimed by an id above,
+   and the one left over is dScMgSnowball_c at 0x0213ffdc -- 0x24 from 0x179's
+   own SpawnInfo at 0x0213ffb8, which is the locality the other twenty-nine
+   rows show too. The peer screening independently called 0x179
+   "MgSnowballSlalom". Its row still carries a question mark: twenty-nine of
+   these names were READ and one was INFERRED, and the menu should not present
+   the two as the same claim.
+
+   WHAT IS SELECTABLE IS NOT DECIDED HERE EITHER. port_scene_is_hosted asks
+   the registry that hal/scene_boot.cpp refuses unhosted ids out of, so as
+   minigames get seated their rows light up with no edit to this file. */
+static const struct { short id; const char *name; } MG_SCENE[] = {
+    { 361, "cup"        }, { 362, "memory"     }, { 363, "memory2"    },
+    { 364, "slot1"      }, { 365, "slot3"      }, { 366, "luigi"      },
+    { 367, "sound"      }, { 368, "pachinko"   }, { 369, "pachinko2"  },
+    { 370, "bomroom"    }, { 371, "amida"      }, { 372, "jump"       },
+    { 373, "jump2"      }, { 374, "curling"    }, { 375, "curling2"   },
+    { 376, "smartball"  }, { 377, "snowball?"  }, { 378, "coin"       },
+    { 379, "card"       }, { 380, "panel"      }, { 381, "mcarlo"     },
+    { 382, "mcarlo2"    }, { 383, "roulette"   }, { 384, "trampoline" },
+    { 385, "trampoline2"}, { 386, "hanachan"   }, { 387, "teresa"     },
+    { 388, "bsc"        }, { 389, "3desp"      }, { 390, "flower"     },
+};
+enum { MG_COUNT = (int)(sizeof MG_SCENE / sizeof MG_SCENE[0]) };
+
+/* The row starts on something that will actually boot rather than on 361,
+   which will not: seated LAZILY, on the first read, because the registry is
+   installed during the boot this file's statics are initialised before.
+   Seated once and not on every open, so stepping through the list survives
+   closing the menu. */
+static int menu_mg = -1;
+static int mg_row(void)
+{
+    if (menu_mg < 0) {
+        menu_mg = 0;
+        for (int i = 0; i < MG_COUNT; ++i)
+            if (port_scene_is_hosted(MG_SCENE[i].id)) { menu_mg = i; break; }
+    }
+    return menu_mg;
+}
+
+/* ---- WHAT SELECTING ONE DOES, AND WHY IT IS A RELAUNCH ------------------
+
+   A LEVEL CANNOT REACH A MINIGAME IN PROCESS, and that is the ROM's rule
+   rather than a gap in the port. port/ov006_minigame_scout.txt section 2
+   derives it from the game's own loader: func_0201a694 unloads the current
+   scene overlay before loading the new one and func_0201a754 unloads ov004
+   along with ov006, and a level is executing out of ov002. Spawning a
+   minigame id from inside a level would unload the overlay the caller is
+   running in. The port has the same shape for the same reason: main hands
+   over to hal/scene_boot.cpp's port_scene_run BEFORE the level bring-up (at
+   the SM64DS_SCENE handover) and port_scene_run owns the rest of the process.
+
+   So the picker does the one thing that is correct at both ends. It starts
+   the program again on the scene path -- same exe, same working directory,
+   same environment plus the two variables that path reads -- and this process
+   leaves through its own window-close path, so the recorder and settings.json
+   close the way they do on any other exit.
+
+   THE CHILD IS HEADLESS TODAY, and that is port_scene_run's shape rather than
+   this row's: it builds no window (walk_window's window is created several
+   hundred lines after the handover), runs SM64DS_SCENE_FRAMES frames and
+   exits, writing SM64DS_SCENE_BMP / SM64DS_SCENE_BMP_STACKED if either is
+   set. Whoever gives the scene path a window turns this row into an in-place
+   minigame warp without touching it.
+
+   SM64DS_DUAL_SCREEN=1 is stated explicitly even though port_scene_run
+   already defaults a minigame to stacked off the same IsMinigameActorID: the
+   ruling is that minigames always run stacked, and putting it in the child's
+   environment makes that true whatever an inherited variable would otherwise
+   have said. */
+static int port_menu_launch_scene(int id)
+{
+    char exe[MAX_PATH];
+    char sid[16];
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    if (!GetModuleFileNameA(0, exe, (DWORD)sizeof exe))
+        return 0;
+    snprintf(sid, sizeof sid, "%d", id);
+    /* the child inherits this process's block, so setting them here is how
+       they reach it. This process is about to quit, so the mutation has no
+       second reader. */
+    SetEnvironmentVariableA("SM64DS_SCENE", sid);
+    SetEnvironmentVariableA("SM64DS_DUAL_SCREEN", "1");
+    memset(&si, 0, sizeof si);
+    si.cb = sizeof si;
+    memset(&pi, 0, sizeof pi);
+    /* bInheritHandles FALSE because there is nothing to hand down and a
+       child should not hold duplicates of handles it never asked for. It is
+       NOT what keeps the two playlogs apart, and saying it was would send the
+       next reader looking in the wrong place: the child separates itself, by
+       freopen'ing its own stderr onto its own timestamped playlog file within
+       a few statements of entering main. Measured -- run both under
+       SM64DS_NO_PLAYLOG=1, which is the switch that skips that freopen, and
+       the two do interleave on the shared console whatever this flag says. */
+    if (!CreateProcessA(exe, 0, 0, 0, FALSE, 0, 0, 0, &si, &pi))
+        return 0;
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return 1;
+}
+
 static void menu_draw(ntr::Framebuffer &fb)
 {
     char ln[MENU_COUNT][72];
@@ -1622,7 +1776,8 @@ static void menu_draw(ntr::Framebuffer &fb)
     int ex = 0, ey = 0, ez = 0, eyaw = 0;
     const int n_ent = port_entrance_count();
     const int have = port_entrance_record(menu_entrance, &ex, &ey, &ez, &eyaw);
-    const char *title = "DEBUG MENU   F5 close   arrows move   enter/right act";
+    const char *title = "DEBUG MENU   F5/BACK/B close   arrows or d-pad move   "
+                        "enter/right/A act";
 
     if (have)
         snprintf(ln[MENU_WARP], sizeof ln[0],
@@ -1645,6 +1800,24 @@ static void menu_draw(ntr::Framebuffer &fb)
                      port_level_overlay_id(lv),
                      port_level_is_mounted(lv) ? "MOUNTED"
                                                : "not mounted in this build");
+    }
+    {
+        /* THE SUFFIX HAS 26 CHARACTERS TO LIVE IN and both fit inside them.
+           ln is [72], so 71 plus the terminator, and the fixed part of this
+           row costs 45: 18 label, 3 id, 1, 11 name, 1, 2 index, 4 " of ", 2
+           count, 3. "enter restarts, stacked" is 23 and "not wired yet" is
+           13. The first draft of this row asked for 28 and drew as
+           "...here, stack" -- snprintf truncated it and said nothing, which
+           is the whole failure mode. Anything longer than 26 needs the
+           buffer widened, and widening it changes every other row's panel
+           width, so it is a decision and not a tweak. */
+        const int r = mg_row();
+        snprintf(ln[MENU_MINIGAME], sizeof ln[0],
+                 "minigame          %d %-11s %2d of %d   %s",
+                 MG_SCENE[r].id, MG_SCENE[r].name, r + 1, MG_COUNT,
+                 port_scene_is_hosted(MG_SCENE[r].id)
+                     ? "enter restarts, stacked"
+                     : "not wired yet");
     }
     snprintf(ln[MENU_EXIT], sizeof ln[0],
              "exit course       ExitLevel() -> level 1 entrance 13   "
@@ -3634,6 +3807,51 @@ int main(void)
         static XPad pad;
         int pad_live = !selftest && XInputGetState_ && XInputGetState_(0, &pad) == 0;
         int orbiting = 0;
+        /* SM64DS_PAD_TEST=<hex>@<frame>[,<hex>@<frame>...]: A SCRIPTED PAD,
+           the same shape as SM64DS_MENU_WARP_TEST further down and there for
+           the same reason -- a pad button is the one input this program has
+           no way to drive from a script, so every claim about one used to
+           rest on somebody's hands. Each entry holds its XInput mask for
+           PAD_TEST_HOLD frames from its frame and releases it after, so a
+           list of entries produces a list of EDGES through the ordinary
+           detector below rather than around it: what it proves is the real
+           mapping, not a shortcut past it.
+
+           An entry with no @frame is SILENTLY INERT -- the frame defaults to
+           -1 and nothing matches it -- so "1000" alone presses nothing and
+           only "1000@105" presses A. That is deliberate (a malformed entry
+           must not fire on every frame of the run) but it is quiet, so a
+           fixture that does nothing is worth re-reading for a missing @
+           before it is worth debugging.
+
+           Inert unless the variable is set, and it cannot reach a selftest:
+           pad_live is already gated on !selftest one line up and this only
+           ever raises it, never the gate. */
+        {
+            enum { PAD_TEST_HOLD = 4 };
+            static const char *pt_env = (const char *)1;
+            if (pt_env == (const char *)1)
+                pt_env = selftest ? 0 : getenv("SM64DS_PAD_TEST");
+            if (pt_env) {
+                unsigned mask = 0;
+                const char *p = pt_env;
+                while (*p) {
+                    char *q;
+                    const unsigned m = (unsigned)strtoul(p, &q, 16);
+                    long f = -1;
+                    p = q;
+                    if (*p == 64 /* '@' */) f = strtol(p + 1, &q, 10), p = q;
+                    if (f >= 0 && frame >= f && frame < f + PAD_TEST_HOLD)
+                        mask |= m;
+                    while (*p && *p != 44 /* ',' */) ++p;
+                    if (*p == 44) ++p;
+                }
+                if (mask) {
+                    if (!pad_live) { memset(&pad, 0, sizeof pad); pad_live = 1; }
+                    pad.buttons = (unsigned short)(pad.buttons | mask);
+                }
+            }
+        }
         /* ---- THE REBIND CAPTURE, ahead of every other reader of this frame's
            input. The keyboard half already arrived through the window
            procedure (see g_rebind_capture up there); this is the pad half and
@@ -3719,7 +3937,24 @@ int main(void)
                 if (pad.buttons & 0x0004) held |= 1u << 3;   /* d-pad left  */
                 if (pad.buttons & 0x0008) held |= 1u << 4;   /* d-pad right */
                 if (pad.buttons & 0x0020) held |= 1u << 0;   /* BACK        */
-                if (menu_on && (pad.buttons & 0x1000)) held |= 1u << 5;  /* A */
+                /* A acts and B closes, and BOTH ARE RECORDED WHETHER THE MENU
+                   IS OPEN OR NOT. That is the fix for a real bug and not
+                   tidying: held is only ever a record of what is physically
+                   down, and menu_on decides what is DONE about it, below.
+                   Gating the record on menu_on instead meant a button held
+                   across an open read as a fresh press the instant the menu
+                   appeared -- hold B, tap BACK, and the menu opened and shut
+                   in the same breath, so it could not be opened from the pad
+                   at all with B down. A had the same trap the other way:
+                   opening with A held instantly confirmed whatever row the
+                   cursor was on. Recording the state unconditionally means
+                   menu_prev already carries the bit when the menu opens, so
+                   there is no edge until the button is genuinely released and
+                   pressed again. Neither bit is read anywhere except inside
+                   the `if (menu_on)` below, so recording them always costs
+                   nothing and does nothing on its own. */
+                if (pad.buttons & 0x1000) held |= 1u << 5;   /* A  act      */
+                if (pad.buttons & 0x2000) held |= 1u << 6;   /* B  close    */
             }
             edge = held & ~menu_prev;
             menu_prev = held;
@@ -3749,6 +3984,14 @@ int main(void)
                         }
                     }
                 }
+            }
+            /* B closes it. Read after the toggle above and before the rows
+               below, so a close is a close whatever else the frame carried
+               and no row sees the press that shut the menu. */
+            if (menu_on && (edge & (1u << 6))) {
+                menu_on = 0;
+                menu_b_swallow = 1;
+                fprintf(stderr, "[menu] closed\n");
             }
             if (menu_on) {
                 const int n_ent = port_entrance_count();
@@ -3825,6 +4068,48 @@ int main(void)
                         } else {
                             menu_level_row =
                                 (menu_level_row + 1) % port_title_rows();
+                        }
+                        break;
+                    case MENU_MINIGAME:
+                        /* left/right walk the ROM's thirty; enter starts the
+                           one that is showing, or says why it cannot and
+                           leaves the menu exactly where it was. */
+                        if (edge & (1u << 5)) {
+                            const int r = mg_row();
+                            const int id = MG_SCENE[r].id;
+                            if (!port_scene_is_hosted(id)) {
+                                char msg[64];
+                                snprintf(msg, sizeof msg,
+                                         "%s (%d) is not wired yet",
+                                         MG_SCENE[r].name, id);
+                                ss_note(msg);
+                                fprintf(stderr, "[menu] minigame %d (%s) is "
+                                        "not a hosted scene yet -- refused, "
+                                        "menu stays open\n", id,
+                                        MG_SCENE[r].name);
+                            } else if (port_menu_launch_scene(id)) {
+                                fprintf(stderr, "[menu] minigame %d (%s): "
+                                        "started SM64DS_SCENE=%d "
+                                        "SM64DS_DUAL_SCREEN=1, this process "
+                                        "is quitting\n", id, MG_SCENE[r].name,
+                                        id);
+                                /* the same exit a window close takes: the
+                                   next PeekMessage returns WM_QUIT */
+                                W.PostQuitMessage_(0);
+                            } else {
+                                char msg[64];
+                                snprintf(msg, sizeof msg,
+                                         "could not start scene %d", id);
+                                ss_note(msg);
+                                fprintf(stderr, "[menu] minigame %d: could "
+                                        "not start the scene run (win32 %lu)"
+                                        "\n", id,
+                                        (unsigned long)GetLastError());
+                            }
+                        } else if (dec) {
+                            menu_mg = (mg_row() + MG_COUNT - 1) % MG_COUNT;
+                        } else {
+                            menu_mg = (mg_row() + 1) % MG_COUNT;
                         }
                         break;
                     case MENU_EXIT:
@@ -3932,6 +4217,32 @@ int main(void)
                     }
                 }
             }
+        }
+        /* THE CLOSE MUST NOT ALSO BE A PUNCH. B shuts the menu while it is
+           open and punches while it is not, so the frame the close lands on
+           has the button still down with the menu already shut -- and a thumb
+           holds it for several frames after that. Swallowed from the close
+           until it comes back up, which is the pad's copy of the key_stale
+           latch the focus edge sets, for the same reason: a press already
+           spent on one thing must not be spent again on another.
+           Here rather than inside the block above because this has to run on
+           the frames AFTER the close, when the menu is shut and that block is
+           no longer looking at B.
+
+           A HAS THE SAME OVERLAP ON THE LEVEL-SELECT ROW AND IT IS NOT FIXED
+           HERE. PRE-EXISTING, measured, written down so the next person does
+           not have to find it twice: MENU_LEVEL's enter branch sets
+           menu_on = 0 on a successful select, and A is the jump button with
+           the menu shut, so the A that picks a level also jumps on the
+           handoff frame. It wants the same latch this one gets. It is left
+           alone deliberately -- it sits on the level handoff, which is
+           somebody else's change this run, and widening a menu commit into
+           that path is how two fixes become one bisect. */
+        if (menu_b_swallow) {
+            if (pad_live && (pad.buttons & 0x2000))
+                pad.buttons = (unsigned short)(pad.buttons & ~0x2000u);
+            else
+                menu_b_swallow = 0;
         }
         /* the right stick's X, from the pad or from the selftest ramp:
            SM64DS_SELFTEST_STICK=<pct> holds it at pct% of full deflection

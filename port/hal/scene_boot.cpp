@@ -1968,6 +1968,24 @@ extern "C" int port_scene_env_want(void)
     return want;
 }
 
+/* THE SAME QUESTION port_scene_boot BELOW REFUSES ON, asked before the run is
+   committed instead of after it has been declined.
+
+   The debug menu's minigame picker (port/tests/walk_window.cpp) is the caller.
+   It lists all thirty ids the ROM's own IsMinigameActorID accepts and reads
+   this to decide which of them can be selected, so there is ONE hosted-scene
+   list in the port and the picker cannot drift from it: seating a new scene
+   lights its row up with no edit to the menu.
+
+   data_020a4bb8 is the ROM's spawn table and port_scene_registry_install
+   writes each hosted row into it on EVERY boot, level runs included
+   (hal/level_boot.cpp's port_a2_seat_body), so this answers correctly from
+   inside a level as well as from a scene run. */
+extern "C" int port_scene_is_hosted(int id)
+{
+    return id >= 0 && id < 512 && data_020a4bb8[id] != 0;
+}
+
 /* Boot the scene. Two calls into matched arm9 and a report; the port does not
    spawn anything itself and does not touch data_02092664 by hand. Returns the
    scene object the ROM's spine made, or null. */
