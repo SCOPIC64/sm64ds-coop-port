@@ -399,6 +399,14 @@ void port_mg_dispatch_counts(unsigned *calls, unsigned *unknown);
 unsigned port_mg_curling_state_hits(void);
 unsigned port_mg_trap_hits(void);
 
+/* Lane CUR2's two seated collision bodies. They are counted for the same
+   reason the dispatch above is: "the shells collide now" has to be a
+   measurement, and until this lane both addresses were faces whose only
+   witness was a refusal line. A run that ticks a moving shell and reports
+   zero entries here has a physics tick that is not reaching them. */
+unsigned port_mg_curling_collide_020e1dc8_entries(void);
+unsigned port_mg_curling_collide_020e20bc_entries(void);
+
 }  /* extern "C" */
 
 // ---- the tick witness ------------------------------------------------------
@@ -877,9 +885,51 @@ extern "C" void port_scene_fill_curling(void)
 /* The registry's factory column is void *(*)(void) and the matched factory
    returns int *. One typed forwarder rather than a cast through an
    incompatible function pointer, the same shape title_spawn has. */
+/* The scene object, kept for the shell census below. Nothing else reads it and
+   nothing may: this is an observation hook, not a back door into the class. */
+static char *g_mg_curling_self;
+
 extern "C" void *port_mg_curling_spawn(void)
 {
-    return (void *)MgShuffleShell_Spawn();
+    void *p = (void *)MgShuffleShell_Spawn();
+    g_mg_curling_self = (char *)p;
+    return p;
+}
+
+/* THE FIVE SHELLS, AT THE END OF A RUN. Off unless SM64DS_MG_CURLING_TRACE is
+   set, so an ordinary run and every selftest frame are unaffected.
+
+   It exists because the two collision bodies lane CUR2 seated are pure
+   functions of this array, so "the shells collided" is a statement about these
+   twenty numbers and nothing else. Reading them off a frame capture is
+   guesswork; reading them here is not. The field offsets are the ones the
+   matched physics TUs use (src/func_ov006_020e2868.c, src/func_ov006_020e2c08.c)
+   and the two transcriptions in port/unmatched/ tabulate. */
+static void port_mg_curling_shell_census(void)
+{
+    const char *e = std::getenv("SM64DS_MG_CURLING_TRACE");
+    if (!e || !*e || *e == '0' || !g_mg_curling_self) return;
+    char *c = g_mg_curling_self;
+    /* The class fields the shot handler reads, because a shot that did not
+       fire is a statement about these and not about the shells. +0x4eb0 and
+       +0x4eb4 are the cursor, +0x4ee4 the aim sub-state, +0x4ee6 the next
+       shell to place and +0x4ee7 the place-one-now flag; every one of them is
+       read or written by src/func_ov006_020e2c08.c or src/func_ov006_020e2dbc.c
+       in the matched tree. */
+    std::printf("[scene] curling cursor: A %d B %d  substate %u  nextShell %u "
+                "placePending %u\n",
+                *(int *)(c + 0x4eb0) >> 12, *(int *)(c + 0x4eb4) >> 12,
+                *(unsigned char *)(c + 0x4ee4), *(unsigned char *)(c + 0x4ee6),
+                *(unsigned char *)(c + 0x4ee7));
+    for (int i = 0; i < 5; ++i) {
+        char *s = c + i * 0x2c;
+        std::printf("[scene] shell %d: onBoard %u state %u fast %u  posA %d "
+                    "posB %d  speed %d heading 0x%04x\n", i,
+                    *(unsigned char *)(s + 0x4689), *(unsigned char *)(s + 0x4688),
+                    *(unsigned char *)(s + 0x468b),
+                    *(int *)(s + 0x4660) >> 12, *(int *)(s + 0x4664) >> 12,
+                    *(int *)(s + 0x4668), *(unsigned short *)(s + 0x4686));
+    }
 }
 
 extern "C" void port_scene_mg_hits(void)
@@ -917,6 +967,12 @@ extern "C" void port_scene_mg_hits(void)
                     "address(es)\n", calls, port_mg_curling_state_hits(),
                     unknown);
     }
+    port_mg_curling_shell_census();
+    std::printf("[scene] curling collision: shot separation 0x020e1dc8 "
+                "entered %u time(s), shell-vs-shell 0x020e20bc entered %u "
+                "time(s)\n",
+                port_mg_curling_collide_020e1dc8_entries(),
+                port_mg_curling_collide_020e20bc_entries());
     if (port_mg_trap_hits())
         std::printf("[scene] unmatched ov004/ov006 traps entered: %u\n",
                     port_mg_trap_hits());

@@ -446,12 +446,53 @@ extern "C" unsigned port_mg_trap_hits(void) { return g_mg_trap_hits; }
 
 extern "C" {
 
+/* Lane CUR2's two seated bodies, in port/unmatched/. */
+void port_mg_curling_collide_020e1dc8(char *self, int idx);
+void port_mg_curling_collide_020e20bc(char *self, int idx);
+
 /* no delink block and no src in their own overlay's config */
 int func_ov004_020ae858(void *)             { mg_trap("func_ov004_020ae858"); return 0; }
 int func_ov004_020b1710(void *)             { mg_trap("func_ov004_020b1710"); return 0; }
 int func_ov004_020b2220(void *)             { mg_trap("func_ov004_020b2220"); return 0; }
-int func_ov006_020e1dc8(void *)             { mg_trap("func_ov006_020e1dc8"); return 0; }
-int func_ov006_020e20bc(void *)             { mg_trap("func_ov006_020e20bc"); return 0; }
+
+/* ---- SEATED, run link60 lane CUR2 ---------------------------------------
+ *
+ * TWO OF THE FIVE ARE NOT TRAPS ANY MORE. func_ov006_020e1dc8 and
+ * func_ov006_020e20bc are dScMgCurling_c's two shell-against-shell collision
+ * bodies, and returning 0 from them is exactly the defect the owner reported
+ * on 2026-08-15 as "no collision against each other on the shells": the
+ * shells slid through one another because the only two functions in the class
+ * that move a shell out of another shell's way were both faces.
+ *
+ * They are transcribed from the ROM in port/unmatched/, the same treatment
+ * and the same naming rule CT1 applied to func_ov006_020e1854 -- a port_ name,
+ * so nothing in this tree claims a decompilation that does not exist. The
+ * derivation, the base proof and the callee census are on those two files;
+ * port/curling_round2.txt is the lane's evidence trail.
+ *
+ * THE SIGNATURES CHANGED WITH THE SEAT, and that is not cosmetic. The traps
+ * took (void *) and the ROM takes (self, idx): the matched callers
+ * src/func_ov006_020e2c08.c and src/func_ov006_020e2868.c both declare and
+ * pass two arguments, so the second was already on the stack and the trap
+ * simply never looked at it. A body that ignored it would collide shell 0
+ * every time.
+ *
+ * WHAT STILL GETS NO SYMBOL HERE: nothing changes about the decomp holes.
+ * Neither address has a delink block in config/arm9/overlays/ov006/delinks.txt
+ * and neither has a src TU. port/tools/inferred_stub_guard has no row for
+ * either and cannot have one -- it ratchets guessed bodies in src/, and these
+ * are host copies in port/unmatched/ carrying provenance banners.
+ */
+void func_ov006_020e1dc8(char *self, int idx)
+{
+    port_mg_curling_collide_020e1dc8(self, idx);
+}
+
+void func_ov006_020e20bc(char *self, int idx)
+{
+    port_mg_curling_collide_020e20bc(self, idx);
+}
+
 /* an arm9 address with no config symbol at all, the func_02054c80 shape */
 int func_0202e78c(void *)                   { mg_trap("func_0202e78c"); return 0; }
 

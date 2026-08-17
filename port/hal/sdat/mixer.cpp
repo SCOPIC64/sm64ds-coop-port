@@ -203,6 +203,16 @@ void sd_mix_set_vol(int ch, int volume_db10)
                      : (volume_db10 > 0 ? 0 : volume_db10);
 }
 
+// Retune a voice already sounding. TRACK_PARAM 0x0c arrives every frame for a
+// moving sound, so the pitch of a voice has to be changeable without touching
+// its level or its pan -- sd_mix_set above writes all three, and the two the
+// caller did not mean to change would ride along.
+void sd_mix_set_rate(int ch, double rate)
+{
+    if (ch < 0 || ch >= SD_CHANNELS || !g_ch[ch].active) return;
+    if (rate > 0.0) g_ch[ch].step = rate;
+}
+
 void sd_mix_release(int ch, const char *why)
 {
     if (ch < 0 || ch >= SD_CHANNELS || !g_ch[ch].active) return;

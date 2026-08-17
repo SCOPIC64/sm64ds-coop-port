@@ -83,6 +83,27 @@
 // nothing. They are called as declared and the switch says so at each site.
 // This is NOT the defect class of hal/scene_actor_faces.cpp's veneers, where a
 // (void) callee stood between a caller and a body that DID want arguments.
+//
+// AMENDED, run link60 lane CUR2. THE SECOND HALF OF THAT IS NO LONGER TRUE OF
+// func_ov006_020e285c, and the reason is a change this lane made rather than
+// an error in the paragraph above. 020e285c forwards to func_ov006_020e20bc,
+// which WAS a return-0 face -- a body that ignores its arguments, exactly the
+// case the paragraph describes. This lane transcribed 020e20bc from the ROM
+// (port/unmatched/MgCurling_Collide_020e20bc.cpp) and it wants (self, idx), so
+// the (void) veneer became precisely the scene_actor_faces defect class named
+// in the last sentence.
+//
+// THE FIX IS THE TAIL JUMP AND NOT A HOST COPY. src/func_ov006_020e285c.c
+// stays in port/slice_mg1.txt exactly as it is -- the first attempt took it
+// out, hosted it, and cost the gate a linked TU (5831 -> 5830) for nothing.
+// The case below now declares 020e285c as (char *, int) and passes (c, a);
+// MSVC compiles the one-call forwarder as a jmp, which reuses THIS frame, so
+// both arguments are where the collision body reads them. That is not left to
+// luck: port/tools/tailjump_guard.py carries a CLASS C row for the pair and
+// fails the build if the jmp ever becomes a call.
+//
+// func_ov006_020e2eb8 is UNCHANGED and still called with no arguments. Its
+// target is not affected by anything here.
 
 struct MgPmf { unsigned code; int adj; };
 
@@ -119,7 +140,8 @@ void func_ov006_020e1b54(char *c);
    and the full ROM listing are in unmatched/MgCurling_State_020e1854.cpp. */
 void port_mg_curling_st_020e1854(char *c);
 void func_ov006_020e26f8(void *w, int i);
-void func_ov006_020e285c(void);              /* one-argument slot, (void) body */
+void func_ov006_020e285c(char *c, int idx);  /* one-argument slot; riders named
+                                                by lane CUR2, see the header */
 void func_ov006_020e2868(char *c, int idx);
 void func_ov006_020e2c08(char *self, int idx);
 void func_ov006_020e2eb8(void);              /* zero-argument slot, (void) body */
@@ -189,7 +211,7 @@ extern "C" int port_mg_try_ov006_1(void *self, unsigned code, int a)
     case 0x020e1214u: func_ov006_020e1214(c, a); return 1;
     case 0x020e1264u: func_ov006_020e1264(c, a); return 1;
     case 0x020e26f8u: func_ov006_020e26f8(c, a); return 1;
-    case 0x020e285cu: func_ov006_020e285c();     return 1;  /* (void) body */
+    case 0x020e285cu: func_ov006_020e285c(c, a); return 1;  /* riders named */
     case 0x020e2868u: func_ov006_020e2868(c, a); return 1;
     case 0x020e2c08u: func_ov006_020e2c08(c, a); return 1;
     /* arity-0 body reached through a one-argument slot. data_ov006_021418b0 is

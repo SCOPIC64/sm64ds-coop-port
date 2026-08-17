@@ -128,6 +128,7 @@ int  sd_mix_active(int ch);
 void sd_mix_set(int ch, int volume_db10, int pan, double rate);
 void sd_mix_set_pan(int ch, int pan);   // retune a voice already sounding
 void sd_mix_set_vol(int ch, int volume_db10);   // ditto, volume only
+void sd_mix_set_rate(int ch, double rate);      // ditto, playback rate only
 void sd_mix_frame(void);              // advance every envelope one 192Hz frame
 void sd_mix_render(sd_s16 *dst, int frames);   // stereo interleaved
 void sd_mix_reset(void);
@@ -162,6 +163,15 @@ void sd_seq_set_volume(int player, int vol);      // 0..127
 // this arrives while the sound is already playing and has to reach it.
 void sd_seq_set_volume_db10(int player, int db10);
 void sd_seq_set_pan(int player, int pan);         // 0..127, 64 centre
+// The per-TRACK pair, TRACK_PARAM 0x0a and 0x0c. Same domains as the two
+// player calls above them -- tenths of a dB out of data_02086384 for the
+// first, 1/64 of a semitone for the second -- applied to the tracks named in
+// the mask instead of to the whole player. Both are re-sent every frame by
+// the 3D sound updater, so both reach notes that are already sounding. The
+// derivation from the five matched TRACK_PARAM emitters is on the
+// definitions in sseq.cpp.
+void sd_seq_set_track_volume_db10(int player, unsigned trackMask, int db10);
+void sd_seq_set_track_pitch(int player, unsigned trackMask, int pitch);
 void sd_seq_frame(void);                          // one 192Hz sequencer frame
 void sd_seq_reset(void);
 int  sd_seq_active(int player);

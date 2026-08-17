@@ -37,6 +37,22 @@ struct Track {
     int volume, expression, pan, panSet;
     int transpose, bend, bendRange;
     int priority;
+    // TRACK_PARAM 0x0a and 0x0c: the two halves of the ARM7's per-track
+    // trim, and the per-track twins of the two player fields above them.
+    // Both arrive WHILE the sound plays and both reach notes already
+    // sounding, for sd_seq_set_volume_db10's reason.
+    //
+    //   volDb10  a SIGNED attenuation in tenths of a decibel, out of the
+    //            ROM's own 128-entry table data_02086384 (-723..0). Same
+    //            units, same table and same clamp as PLAYER_PARAM 6:
+    //            func_0204f82c indexes data_02086384 to build it and
+    //            func_0204fafc indexes the same table to build the player's.
+    //   pitch    a SIGNED offset in 1/64 of a semitone, the DS pitch domain
+    //            this file already works in (768 units to the octave; see
+    //            the bend arithmetic in start_note). func_ov007_020bdbcc
+    //            sweeps it over -0x300..0, exactly one octave down.
+    int volDb10;
+    int pitch;
     int noteWait;           // C7: notes block the track for their duration
     // A note played with duration 0 under noteWait blocks the track until the
     // CHANNELS it owns have ended, rather than for a tick count. That is what
@@ -88,6 +104,11 @@ struct NoteSlot {
     int ticks;
     int basePan;            // pan before the player's own bias
     int baseDb10;           // volume before the player's own attenuation
+    // Playback rate before the TRACK's own pitch offset. The track pitch is
+    // re-sent every frame while a positional sound plays, so retuning a
+    // sounding voice has to start from the rate the note was born with
+    // rather than compound the last offset into the next one.
+    double baseRate;
 };
 NoteSlot g_note[SD_CHANNELS];
 
@@ -241,7 +262,7 @@ void start_note(Player &pl, int pi, int ti, Track &tk, int note, int vel,
     int baseDb10 = sd_cnv_vol(vel) + sd_cnv_vol(tk.volume)
                  + sd_cnv_vol(tk.expression) + sd_cnv_vol(pl.volume);
     if (baseDb10 < -723) baseDb10 = -723;
-    int db10 = baseDb10 + pl.volDb10;
+    int db10 = baseDb10 + pl.volDb10 + tk.volDb10;
     if (db10 < -723) db10 = -723;
 
     int basePan = tk.panSet ? tk.pan : n.pan;
@@ -263,7 +284,14 @@ void start_note(Player &pl, int pi, int ti, Track &tk, int note, int vel,
        walking warbled +-1.5 semitones instead of +-0.75. */
     double semis = (double)(key - n.baseNote)
                  + (double)tk.bend * tk.bendRange / 128.0;
-    double rate = (double)w.sampleRate * pow(2.0, semis / 12.0) / SD_MIX_RATE;
+    double baseRate = (double)w.sampleRate * pow(2.0, semis / 12.0)
+                    / SD_MIX_RATE;
+    /* TRACK_PARAM 0x0c rides on top, in the same domain the comment above
+       spells out: 64 units to the semitone. It is kept OUT of baseRate on
+       purpose -- the game re-sends it every frame for a moving sound, and
+       sd_seq_set_track_pitch retunes from baseRate so a hundred updates in a
+       row cannot accumulate. */
+    double rate = baseRate * pow(2.0, (double)tk.pitch / 64.0 / 12.0);
     // Everything that can refuse the note is settled BEFORE a channel is
     // taken. Allocating first and then bailing on the rate left a stolen
     // channel dead with the previous note's owner still recorded against it,
@@ -299,6 +327,7 @@ void start_note(Player &pl, int pi, int ti, Track &tk, int note, int vel,
     g_note[ch].track = ti;
     g_note[ch].basePan = basePan;
     g_note[ch].baseDb10 = baseDb10;
+    g_note[ch].baseRate = baseRate;
     // Duration 0 means "no scheduled note-off" -- the note runs until its
     // envelope or its sample ends. Every sound effect in the SEQARCs is
     // written that way (a lone "program change, note, end of track"), so
@@ -677,6 +706,20 @@ void sd_seq_set_volume(int p, int v)
     g_pl[p].volume = v < 0 ? 0 : (v > 127 ? 127 : v);
 }
 
+// ONE PLACE THAT KNOWS HOW A SOUNDING VOICE'S LEVEL IS MADE UP. There are now
+// two attenuations riding on a note's own volume, the player's and its
+// track's, and three callers that have to retune a voice already sounding.
+// Spelling the sum at each of them is how the track term would come to be
+// dropped from one of them later.
+static void retune_note_vol(int i)
+{
+    int db10 = g_note[i].baseDb10 + g_pl[g_note[i].player].volDb10
+             + g_pl[g_note[i].player].tr[g_note[i].track].volDb10;
+    if (db10 < -723) db10 = -723;
+    if (db10 > 0) db10 = 0;
+    sd_mix_set_vol(i, db10);
+}
+
 // PLAYER_PARAM 6, the attenuation func_0204fafc recomputes every frame from
 // the voice's distance and its fade ramp. It arrives WHILE the sound plays --
 // that is the whole point of it -- so it reaches the notes already sounding,
@@ -689,7 +732,80 @@ void sd_seq_set_volume_db10(int p, int db10)
     g_pl[p].volDb10 = db10;
     for (int i = 0; i < SD_CHANNELS; i++) {
         if (!g_note[i].active || g_note[i].player != p) continue;
-        sd_mix_set_vol(i, g_note[i].baseDb10 + db10);
+        retune_note_vol(i);
+    }
+}
+
+/* ---- TRACK_PARAM 0x0a and 0x0c ------------------------------------------
+ *
+ * WHAT THEY ARE, DERIVED FROM THE DECOMP RATHER THAN FROM A DRIVER HEADER.
+ * Command 0x04 has exactly ONE emitter in src/, func_0205a8f0, and it is a
+ * one-liner: Snd_SendCommand(4, voice | (size << 24), trackMask, param,
+ * value). Five matched TUs call it and each pins one param to one constant:
+ *
+ *   func_0205ac5c  param 0x19  size 1
+ *   func_0205ac84  param 0x1a  size 1
+ *   func_0205acac  param 0x09  size 1   pan          (already hosted)
+ *   func_0205acfc  param 0x0a  size 2   THIS FILE
+ *   func_0205acd4  param 0x0c  size 2   THIS FILE
+ *
+ * 0x0a IS AN ATTENUATION IN TENTHS OF A DECIBEL. Its only ARM9 feeder,
+ * src/func_0204f82c.c, does not pass a number through -- it passes
+ * data_02086384[idx]. That array is 0x100 bytes of arm9 rodata
+ * (config/arm9/symbols.txt: data_02086384 at 0x02086384, next symbol
+ * data_02086484), 128 s16 running -723, -421, -361 ... -1, 0: monotone, ends
+ * at 0, bottoms at -723. It is the NITRO volume-to-decibel table, and the
+ * proof it is being used AS one is that src/func_0204fafc.c builds
+ * PLAYER_PARAM 6 by summing three lookups into THE SAME array and clamping
+ * the sum to -0x2d3 (-723). So 0x0a is player param 6's per-track twin: same
+ * table, same units, same clamp, applied to one track instead of all of them.
+ *
+ * 0x0c IS A PITCH OFFSET IN 1/64 OF A SEMITONE. Two matched callers fix the
+ * scale between them. src/func_ov007_020bdbcc.c sweeps
+ *   -(((0x1000 - t) * 0x300) >> 12),  t in 0..0x1000
+ * so full deflection is -0x300 = -768, and 768 units is what this file's own
+ * bend arithmetic already calls an octave. src/func_02048af4.c sends
+ * (height - 0x28) * 2 from the 3D updater, a few semitones either side of a
+ * reference height. Both are signed and both are re-sent every frame, which
+ * is why the retune below starts from baseRate.
+ *
+ * THE TRACK MASK IS A MASK. b is 0xffff from func_02012860, 0xf from the
+ * ov007 pair and 3 from func_02048af4; a sound effect is one track but the
+ * game does not assume that, and neither does this.
+ */
+void sd_seq_set_track_volume_db10(int p, unsigned trackMask, int db10)
+{
+    if (p < 0 || p >= SD_PLAYERS || !g_pl[p].active) return;
+    if (db10 > 0) db10 = 0;
+    if (db10 < -723) db10 = -723;
+    for (int t = 0; t < SD_TRACKS; t++)
+        if (trackMask & (1u << t)) g_pl[p].tr[t].volDb10 = db10;
+    for (int i = 0; i < SD_CHANNELS; i++) {
+        if (!g_note[i].active || g_note[i].player != p) continue;
+        if (!(trackMask & (1u << g_note[i].track))) continue;
+        retune_note_vol(i);
+    }
+}
+
+void sd_seq_set_track_pitch(int p, unsigned trackMask, int pitch)
+{
+    if (p < 0 || p >= SD_PLAYERS || !g_pl[p].active) return;
+    /* The ARM7 field is 16 bits and the value arrived as one (size 2 in the
+       command), so a caller that sends 0x10000 means 0. Truncating here
+       rather than trusting the queue keeps the host in the ROM's domain. */
+    pitch = (int)(short)(unsigned short)pitch;
+    for (int t = 0; t < SD_TRACKS; t++)
+        if (trackMask & (1u << t)) g_pl[p].tr[t].pitch = pitch;
+    for (int i = 0; i < SD_CHANNELS; i++) {
+        if (!g_note[i].active || g_note[i].player != p) continue;
+        if (!(trackMask & (1u << g_note[i].track))) continue;
+        double rate = g_note[i].baseRate
+                    * pow(2.0, (double)pitch / 64.0 / 12.0);
+        /* Same refusal start_note applies. A voice already sounding is left
+           at the rate it has rather than stopped: the ROM's own driver
+           clamps the timer reload, and dropping a live note here would turn
+           an out-of-range trim into a silence the DS does not have. */
+        if (rate > 0.0 && rate <= 64.0) sd_mix_set_rate(i, rate);
     }
 }
 

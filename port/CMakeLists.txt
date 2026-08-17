@@ -3408,7 +3408,15 @@ set(SCENE_MG_SOURCES
     # Rides the same three targets as the dispatch that calls it -- it is only
     # ever reached through that switch, so any target compiling the dispatch
     # needs this or the link fails on port_mg_curling_st_020e1854.
-    unmatched/MgCurling_State_020e1854.cpp)
+    unmatched/MgCurling_State_020e1854.cpp
+    # Lane CUR2: dScMgCurling_c's two shell-against-shell collision bodies,
+    # the other two ov006 addresses with no src TU. Same three targets and the
+    # same reason as the state above: hal/scene_mg_faces.cpp now calls
+    # port_mg_curling_collide_020e1dc8 and _020e20bc by name from the faces
+    # the matched physics TUs link against, so a target that compiles the
+    # faces and not these fails the link on both symbols.
+    unmatched/MgCurling_Collide_020e1dc8.cpp
+    unmatched/MgCurling_Collide_020e20bc.cpp)
 
 # Lane FDR: the arm9 wipe fader's own static initialiser, and the dWipe_c
 # vtable it installs. Rides the SAME three targets as the scene seats above,
