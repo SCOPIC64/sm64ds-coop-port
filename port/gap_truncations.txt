@@ -37,7 +37,7 @@ re-counted every number in its banner before taking it. "CORRECTED" means the
 carried extent was wrong and this lane changed it. "DERIVED NEW" means the
 carried commits did not have it.
 
-AND THE ELEVEN MORE THE INTERVAL DIFF FORCED. Naming a symbol re-lays the gap
+AND THE FIFTEEN MORE THE INTERVAL DIFF FORCED. Naming a symbol re-lays the gap
 runs around it, so each of the six above pushed a gap's end back onto the next
 ambiguous guess upstream and dropped a span that HAD been hosted. Section 1
 says why a byte total cannot see that. Closing it means naming the whole run:

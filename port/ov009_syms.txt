@@ -88,7 +88,7 @@ data_ov009_021122ec:0x16c
 #   0x02112dcc  tag 0x02  n=220 -> 0x021133d4  220 * 6  = 0x528
 #
 # 0x02112e14 + 0x68 + 0xc0 + 0xe0 + 0xe8 + 0x110 + 0x1c0 + 0x528 = 0x021138fc,
-# the next real symbol. SEVEN members, seven consecutive exact landings, four
+# the next real symbol. SEVEN members, seven consecutive exact landings, three
 # different strides plus one CLPS. The chain is pinned end to end and no single
 # stride is a guess.
 #
@@ -198,7 +198,7 @@ data_ov009_02112e14:0x68
 #
 # And that exposed the rest of ITS run, so here is the whole thing. The
 # descriptor's arrays form a SECOND contiguous run, [0x02112ccc, 0x02112dcc),
-# four arrays with four different strides landing exactly on table B:
+# four arrays with three different strides landing exactly on table B:
 #
 #   0x02112e0c  tag 0x2a  n=4  -> 0x02112ccc   4 * 14     = 0x38
 #   0x02112c9c  tag 0x00  n=4  -> 0x02112d04   4 * 16     = 0x40
