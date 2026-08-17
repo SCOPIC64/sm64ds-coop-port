@@ -7119,6 +7119,25 @@ int main(void)
            published angle never moves and Mario walks relative to a stale
            heading. */
         ph_begin(&t_phase);
+        /* STAR1 fly-around, the cutscene-camera gate. While a cutscene script
+           is running (data_0209fc48 != 0) the kuppa script feeds camera
+           commands to Camera::Behavior and the actor publishes its own
+           script-driven view (data_0209b3ec) and heading. In real play the
+           default rig is CAM_ANALOG, which re-pushes its OWN view matrix
+           (fc_push_view, below) and heading (*data_020a1050 = fc_yaw, below)
+           every frame -- overwriting exactly what the script just published, so
+           the fly-around runs but never shows. CAM_DS writes neither, which is
+           why the fly-around is already visible there. So while fc48 is latched
+           the rig stands down on both writes and the actor's own view/heading
+           present; when EndKuppaScript clears fc48 back to 0 the rig resumes
+           exactly as before. The gate is a no-op off a cutscene (fc48 == 0), so
+           every script-free frame -- every selftest, all normal walking -- is
+           byte-identical to base. SM64DS_NO_CUTSCENE_CAM=1 forces the old
+           always-rig behaviour for the A/B. */
+        static int no_cutscene_cam = -1;
+        if (no_cutscene_cam < 0)
+            no_cutscene_cam = getenv("SM64DS_NO_CUTSCENE_CAM") ? 1 : 0;
+        const int cutscene_cam = !no_cutscene_cam && data_0209fc48 != 0;
         /* the analog rig's pivot is stepped here, after the tick moved Mario
            and before anything reads it */
         if (cam_mode == CAM_ANALOG) an_step_pivot(c);
@@ -7131,8 +7150,12 @@ int main(void)
                player is actually looking through. The echo below is what
                copies it into the record GetAngleToCamera reads, so this has to
                land between the two -- and it is one halfword either way, the
-               same single write the freecam always did. */
-            if (cam_mode != CAM_DS) *(short *)data_020a1050 = fc_yaw;
+               same single write the freecam always did. During a cutscene
+               (cutscene_cam) the rig stands down so the actor's own heading --
+               the one Camera::Behavior just wrote from the script -- survives
+               into the echo below. */
+            if (cam_mode != CAM_DS && !cutscene_cam)
+                *(short *)data_020a1050 = fc_yaw;
             func_0203e0ac();
             if (trace_cam)
                 fprintf(stderr,
@@ -7569,8 +7592,12 @@ int main(void)
                downstream can tell the difference -- it is the same three ROM
                calls, with different numbers.
                ANALOG orbits Mario (the eased pivot); FREECAM orbits the Camera
-               actor's own look-at, which is what made it free of him. */
-            if (cam_mode != CAM_DS) {
+               actor's own look-at, which is what made it free of him.
+               During a cutscene (cutscene_cam) the rig does NOT reload the
+               view: hal_camera_render has just parked the script-driven view in
+               data_0209b3ec, and leaving it there is what makes the star-get
+               fly-around visible instead of overwritten. */
+            if (cam_mode != CAM_DS && !cutscene_cam) {
                 int fceye[3];
                 const int *pivot = cam_mode == CAM_ANALOG
                                        ? an_pivot
