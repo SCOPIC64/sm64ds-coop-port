@@ -25,9 +25,11 @@
 //   F5  the debug menu: warp to any of the level's own entrances, the level
 //   select, the minigame picker, the fake-snap A/B, the overlay, the camera
 //   mode, how running works, and the recorder's filename.
-//   Arrows or the d-pad move, enter or A acts, F5 or BACK or B closes. It
-//   PAUSES THE GAME TICK while it is open and keeps rendering, so the scene
-//   freezes and the view does not.
+//   WASD, the arrows or the d-pad move, enter or A acts, F5 or BACK or B
+//   closes. It PAUSES THE GAME TICK while it is open and keeps rendering, so
+//   the scene freezes and the view does not. The walk keys are aliases of the
+//   arrows here and are taken off the game for as long as it is open, so
+//   nothing that reads the menu also walks.
 //   THE MINIGAME ROW lists all thirty ids the ROM's own IsMinigameActorID
 //   accepts, named out of their ov006 typeinfo, and marks the ones the port
 //   can host. Selecting a hosted one starts the program again on the scene
@@ -175,6 +177,9 @@ struct WinApi {
     LONG(WINAPI *SetWindowLongA_)(HWND, int, LONG);
     BOOL(WINAPI *SetWindowPos_)(HWND, HWND, int, int, int, int, UINT);
     HMONITOR(WINAPI *MonitorFromWindow_)(HWND, DWORD);
+    /* and the monitor the POINTER is on, which is the one a new window
+       belongs on when there is more than one (host_window_open's centring) */
+    HMONITOR(WINAPI *MonitorFromPoint_)(POINT, DWORD);
     BOOL(WINAPI *GetMonitorInfoA_)(HMONITOR, MONITORINFO *);
     BOOL(WINAPI *GetWindowPlacement_)(HWND, WINDOWPLACEMENT *);
     BOOL(WINAPI *SetWindowPlacement_)(HWND, const WINDOWPLACEMENT *);
@@ -254,6 +259,8 @@ static bool winapi_load(void)
     W.SetWindowPos_ = (decltype(W.SetWindowPos_))GetProcAddress(u, "SetWindowPos");
     W.MonitorFromWindow_ =
         (decltype(W.MonitorFromWindow_))GetProcAddress(u, "MonitorFromWindow");
+    W.MonitorFromPoint_ =
+        (decltype(W.MonitorFromPoint_))GetProcAddress(u, "MonitorFromPoint");
     W.GetMonitorInfoA_ =
         (decltype(W.GetMonitorInfoA_))GetProcAddress(u, "GetMonitorInfoA");
     W.GetWindowPlacement_ =
@@ -1589,6 +1596,14 @@ static int run_key_reserved(int vk)
        menu on every step; F11 and F12 are the fullscreen toggle. */
     if (vk >= VK_F1 && vk <= VK_F12) return 1;
     if (vk >= VK_LEFT && vk <= VK_DOWN) return 1;       /* menu navigation */
+    /* and the WASD aliases of those four, since the same change that made
+       them menu navigation. CONSISTENCY RATHER THAN A BUG FIX, and labelled
+       as such: run is zeroed with everything else while the menu is open
+       (`if (menu_on) btn = 0`), so a run bound to D would not actually fight
+       the cursor. But this list is meant to read as "the keys this program
+       has spoken for", and leaving the walk keys out of it after handing them
+       a second job is how the list stops being true. */
+    if (vk == 'W' || vk == 'A' || vk == 'S' || vk == 'D') return 1;
     /* the bottom-screen panel, and it is read in hal/sub_screen.cpp rather
        than through this file's key_live -- so a binding on it would fire the
        panel from outside every gate here */
@@ -1820,12 +1835,15 @@ static int mg_row(void)
    leaves through its own window-close path, so the recorder and settings.json
    close the way they do on any other exit.
 
-   THE CHILD IS HEADLESS TODAY, and that is port_scene_run's shape rather than
-   this row's: it builds no window (walk_window's window is created several
-   hundred lines after the handover), runs SM64DS_SCENE_FRAMES frames and
-   exits, writing SM64DS_SCENE_BMP / SM64DS_SCENE_BMP_STACKED if either is
-   set. Whoever gives the scene path a window turns this row into an in-place
-   minigame warp without touching it.
+   THE CHILD IS NOT HEADLESS ANY MORE. What stood here said it was, and that
+   it would stop being so when somebody gave the scene path a window: that
+   happened (scene_window_run below, "port: a real window for the scene path,
+   so a minigame can be played"), so the child now opens a real window and is
+   played rather than captured, and this row is the warp it was written to
+   become. The prediction is left visible rather than deleted because the
+   shape it describes is still the shape: this row asks for a scene and the
+   scene path decides what a scene run looks like, so it needed no edit when
+   that answer changed and needs none when it changes again.
 
    SM64DS_DUAL_SCREEN=1 is stated explicitly even though port_scene_run
    already defaults a minigame to stacked off the same IsMinigameActorID: the
@@ -1954,8 +1972,8 @@ static void menu_draw(ntr::Framebuffer &fb)
     int ex = 0, ey = 0, ez = 0, eyaw = 0;
     const int n_ent = port_entrance_count();
     const int have = port_entrance_record(menu_entrance, &ex, &ey, &ez, &eyaw);
-    const char *title = "DEBUG MENU   F5/BACK/B close   arrows or d-pad move   "
-                        "enter/right/A act";
+    const char *title = "DEBUG MENU   F5/BACK/B close   "
+                        "WASD or arrows or d-pad move   enter/right/A act";
 
     if (have)
         snprintf(ln[MENU_WARP], sizeof ln[0],
@@ -2121,10 +2139,27 @@ static void menu_input(int pad_live, const XPad *pad)
        selftest this block never runs at all, so routing it here changes
        nothing an automated run sees. */
     if (key_live(VK_F5))     held |= 1u << 0;
-    if (key_live(VK_UP))     held |= 1u << 1;
-    if (key_live(VK_DOWN))   held |= 1u << 2;
-    if (key_live(VK_LEFT))   held |= 1u << 3;
-    if (key_live(VK_RIGHT))  held |= 1u << 4;
+    /* WASD NAVIGATES TOO, as plain aliases of the arrows (Tango's ask). Same
+       key_live call, so they arrive behind the focus gate, the stale-key latch
+       and the rebind-capture gate with everything else; same held-mask bit, so
+       they inherit the one-step-per-press edge and the held-across-an-open
+       discipline the pad buttons were fixed to follow. A player already
+       steering Mario with the left hand should not have to move it to read
+       this menu.
+
+       AND THEY NEED NO SWALLOW, which is worth stating because the B close did
+       need one. These four keys feed exactly one thing in the game -- dx/dz,
+       built out of `key_live('W') || key_live(VK_UP)` and its three siblings
+       -- and that pair is already emptied while the menu is open: the level
+       loop does it outright (`if (menu_on) { dx = 0; dz = 0; }`) and the
+       windowed scene loop wraps its whole button build in `if (!menu_on)`.
+       The zeroing is on the VARIABLE, not on the key, so it has always
+       covered both halves of each of these four lines. The arrows were never
+       leaking and WASD does not start. */
+    if (key_live(VK_UP)    || key_live('W')) held |= 1u << 1;
+    if (key_live(VK_DOWN)  || key_live('S')) held |= 1u << 2;
+    if (key_live(VK_LEFT)  || key_live('A')) held |= 1u << 3;
+    if (key_live(VK_RIGHT) || key_live('D')) held |= 1u << 4;
     if (key_live(VK_RETURN)) held |= 1u << 5;
     if (pad_live) {
         if (pad->buttons & 0x0001) held |= 1u << 1;   /* d-pad up    */
@@ -3397,11 +3432,76 @@ static HWND host_window_open(int stacked, HDC *out_hdc, const char *title)
     RECT r = stacked ? RECT{0, 0, ntr::STACK_W, ntr::STACK_H}
                      : RECT{0, 0, ntr::SCREEN_W * ZOOM, ntr::SCREEN_H * ZOOM};
     W.AdjustWindowRect_(&r, WS_OVERLAPPEDWINDOW, FALSE);
+    /* ---- WHERE IT OPENS (port mod, Tango's ask: "can it open center screen")
+       CW_USEDEFAULT IS NOT A POSITION. It asks Windows for the next slot in
+       its cascade, which starts near the top-left of the primary monitor and
+       steps down and right for each window an application opens -- so where
+       the frame lands depended on how many windows this process had opened
+       before it and on nothing a player can see or change. On the owner's
+       desk that came out in the top right.
+
+       Centred on the WORK AREA (rcWork, not rcMonitor) so the taskbar never
+       covers the bottom of the picture, and on the monitor UNDER THE CURSOR
+       rather than the primary one, because somebody with two screens is
+       looking at the one their hand is on.
+
+       SIZE IS NOT TOUCHED: r is whatever the block above decided, and BOTH
+       SHAPES come through here -- the inset level window and the 512x768
+       stacked scene -- so both are placed by this one block and neither is
+       resized by it. The F12 fullscreen path is not involved: it saves and
+       restores its own WINDOWPLACEMENT and picks its monitor with
+       MonitorFromWindow, so it now springs back to the middle instead of to
+       the cascade slot, which is the whole change it sees.
+
+       Degrades in two steps rather than one, because a window at 0,0 would be
+       a worse answer than the old one: no cursor or no MonitorFromPoint falls
+       back to the primary monitor, and no monitor info at all falls back to
+       CW_USEDEFAULT and the behaviour that shipped before this. */
+    int wx = CW_USEDEFAULT, wy = CW_USEDEFAULT;
+    {
+        const int ww = r.right - r.left, wh = r.bottom - r.top;
+        HMONITOR mon = 0;
+        POINT cur;
+        MONITORINFO mi;
+        mi.cbSize = sizeof mi;
+        if (W.MonitorFromPoint_ && W.GetCursorPos_ && W.GetCursorPos_(&cur))
+            mon = W.MonitorFromPoint_(cur, MONITOR_DEFAULTTONEAREST);
+        if (!mon && W.MonitorFromWindow_)
+            mon = W.MonitorFromWindow_(0, MONITOR_DEFAULTTOPRIMARY);
+        if (mon && W.GetMonitorInfoA_ && W.GetMonitorInfoA_(mon, &mi)) {
+            wx = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - ww) / 2;
+            wy = mi.rcWork.top + (mi.rcWork.bottom - mi.rcWork.top - wh) / 2;
+            /* A window TALLER than the work area centres to a negative origin
+               and loses its title bar off the top of the screen, which is the
+               one placement a person cannot drag their way out of. The
+               stacked shape is 512x768 plus frame, so this is reachable on a
+               short screen rather than theoretical. Clamped to the work
+               area's own corner; the bottom is allowed to overhang, because
+               that is draggable and a lost title bar is not. */
+            if (wx < mi.rcWork.left) wx = mi.rcWork.left;
+            if (wy < mi.rcWork.top)  wy = mi.rcWork.top;
+            /* SAYS WHERE IT PUT THE WINDOW AND WHAT IT MEASURED, because a
+               placement is the one thing in this program a player can see and
+               nobody can reproduce from a log without it. "The window opened
+               off screen" is otherwise an unanswerable report: this line has
+               the work area, the frame size and the origin, so the arithmetic
+               can be checked after the fact from the recorder file alone.
+               It is also this change's own evidence -- centring is a claim
+               about numbers the process has and the outside does not. */
+            fprintf(stderr, "[win] work area %ld,%ld %ldx%ld -> %dx%d frame "
+                    "centred at %d,%d\n", mi.rcWork.left, mi.rcWork.top,
+                    mi.rcWork.right - mi.rcWork.left,
+                    mi.rcWork.bottom - mi.rcWork.top, ww, wh, wx, wy);
+        } else {
+            fprintf(stderr, "[win] no monitor info; leaving the placement to "
+                            "Windows (the pre-centring behaviour)\n");
+        }
+    }
     HWND hwnd = W.CreateWindowExA_(0, "sm64ds_walk", title,
                                    /* the sizing border is here, not in the
                                       AdjustWindowRect above; see that note */
                                    WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                                   CW_USEDEFAULT, CW_USEDEFAULT,
+                                   wx, wy,
                                    r.right - r.left, r.bottom - r.top, 0, 0,
                                    GetModuleHandleA(0), 0);
     if (!hwnd)
