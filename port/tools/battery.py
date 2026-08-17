@@ -462,6 +462,12 @@ def selftest_env(lvl, skip=None):
     # driver already refuses to arm under a selftest, so this is the second of
     # two locks rather than the only one -- and it is the cheap one to keep.
     env.pop("SM64DS_CLICK_TEST", None)
+    # SM64DS_TOUCH_PROBE is the third member of the injected-input class and
+    # the one with NO selftest gate of its own: it injects synthetic stylus
+    # presses outside the g_headless guard. Review TCR1 measured an inherited
+    # one changing the level-1 selftest BMP (524 probe lines, d2cec869 instead
+    # of the baseline). It is dropped in both env builders for that reason.
+    env.pop("SM64DS_TOUCH_PROBE", None)
     return env
 
 
@@ -525,7 +531,8 @@ def scene_env(scene, extra=None):
               "SM64DS_SCENE_BMP", "SM64DS_SCENE_BMP_STACKED",
               "SM64DS_SCENE_TRACE", "SM64DS_SCENE_SLOT9",
               "SM64DS_SCENE_SUBLEVEL", "SM64DS_DUAL_SCREEN", "PORT_WATCHDOG",
-              "SM64DS_SCENE_WINDOW", "SM64DS_CLICK_TEST", "SM64DS_PAD_TEST"):
+              "SM64DS_SCENE_WINDOW", "SM64DS_CLICK_TEST", "SM64DS_PAD_TEST",
+              "SM64DS_TOUCH_PROBE"):
         env.pop(k, None)
     if extra:
         for kv in extra.split(","):

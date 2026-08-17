@@ -1873,6 +1873,10 @@ static const char *const PORT_RELAUNCH_CLEAR[] = {
     "SM64DS_SCENE_BMP",    "SM64DS_SCENE_BMP_STACKED", "SM64DS_PAD_TEST",
     "SM64DS_CLICK_TEST",   "SM64DS_WINDOW_SELFTEST", "SM64DS_SCENE_TRACE",
     "SM64DS_SCENE_SLOT9",  "SM64DS_SCENE_SUBLEVEL",
+    /* the third injected-input knob; unlike the two above it has no selftest
+       gate of its own, so an inherited one drives synthetic stylus presses
+       into the child (review TCR1 measured it moving a selftest BMP). */
+    "SM64DS_TOUCH_PROBE",
 };
 
 /* ONE RELAUNCH, TWO DESTINATIONS. `scene_id >= 0` starts the child on the
@@ -2733,6 +2737,13 @@ static void click_test_apply(HWND h, int frame)
                still see it (GetAsyncKeyState is machine-global) which is
                exactly the kind of half-green this driver exists to refuse. */
             W.SetForegroundWindow_(h);
+            /* and it has to be top of the z-order too: WindowFromPoint reads
+               z-order, so on a busy desktop the pid gate refuses every press
+               and a grid reads as all-refusals (review TCR1 lost three runs
+               to this). HWND_TOPMOST, no move, no resize; only when the
+               click driver is armed. */
+            if (W.SetWindowPos_)
+                W.SetWindowPos_(h, (HWND)-1, 0, 0, 0, 0, 0x0001u | 0x0002u);
         }
     }
     if (g_ct_n <= 0 || !W.SetCursorPos_ || !W.ClientToScreen_)
