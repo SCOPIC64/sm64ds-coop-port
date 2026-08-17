@@ -384,12 +384,29 @@ const char *const kSlotName[18] = {
     "OnPendingDestroy", "Virtual34", "Virtual38", "OnHeapCreated",
     "~D1", "~D0"};
 
+/* THE SLOT NUMBER AND THE SLOT NAME WERE BOTH WRONG, and this file had the
+   right idea in only two of eighteen places. sa_fill_shared installed a bare
+   sa_trap in every slot and then overwrote 13 and 14 with thunks that record
+   their index, so the other sixteen reported whatever g_trap_slot last held --
+   its .bss zero, i.e. "slot 0 (InitResources)". On the Stage's copy of this
+   same bug that misdirection cost the 2026-08-16 exit-course report a whole
+   session (hal/stage_bridges.cpp carries the full account).
+
+   `kSlotName[g_trap_slot & 17]` is the second half of it: 17 is 0b10001, a
+   bitmask standing in for a bounds clamp, so it keeps bits 0 and 4 only. It
+   mis-named even the two slots that DID record themselves -- 13 came out as
+   kSlotName[1] "BeforeInitResources" and 14 as kSlotName[0] "InitResources".
+
+   Both fixed: a thunk per slot below, and a real range test here. */
 int __fastcall sa_trap(void *s, void *)
 {
+    const char *name = "the trap did not record its slot -- fix the thunk";
+    if (g_trap_slot >= 0 && g_trap_slot < 18)
+        name = kSlotName[g_trap_slot];
     std::fprintf(stderr, "FATAL: %s vtable slot %d (%s) is not hosted\n",
                  port_actor_class_name(
                      s ? *(unsigned short *)((char *)s + 0xc) : 0u),
-                 g_trap_slot, kSlotName[g_trap_slot & 17]);
+                 g_trap_slot, name);
     std::abort();
     return 0;
 }
@@ -415,12 +432,23 @@ void __fastcall sa_aren(void *s, void *, unsigned a)
 { ((ActorBase *)s)->ActorBase::AfterRender(a); }
 int __fastcall sa_heap(void *s, void *)
 { return ((ActorBase *)s)->ActorBase::OnHeapCreated(); }
-int __fastcall sa_trap13(void *s, void *) { g_trap_slot = 13; return sa_trap(s, 0); }
-int __fastcall sa_trap14(void *s, void *) { g_trap_slot = 14; return sa_trap(s, 0); }
+#define SA_TRAP(n)                                                           \
+    int __fastcall sa_trap##n(void *s, void *) { g_trap_slot = (n); return sa_trap(s, 0); }
+SA_TRAP(0)  SA_TRAP(1)  SA_TRAP(2)  SA_TRAP(3)  SA_TRAP(4)  SA_TRAP(5)
+SA_TRAP(6)  SA_TRAP(7)  SA_TRAP(8)  SA_TRAP(9)  SA_TRAP(10) SA_TRAP(11)
+SA_TRAP(12) SA_TRAP(13) SA_TRAP(14) SA_TRAP(15) SA_TRAP(16) SA_TRAP(17)
+#undef SA_TRAP
+
+void *const sa_trap_thunk[18] = {
+    (void *)sa_trap0,  (void *)sa_trap1,  (void *)sa_trap2,  (void *)sa_trap3,
+    (void *)sa_trap4,  (void *)sa_trap5,  (void *)sa_trap6,  (void *)sa_trap7,
+    (void *)sa_trap8,  (void *)sa_trap9,  (void *)sa_trap10, (void *)sa_trap11,
+    (void *)sa_trap12, (void *)sa_trap13, (void *)sa_trap14, (void *)sa_trap15,
+    (void *)sa_trap16, (void *)sa_trap17};
 
 void sa_fill_shared(void **vt)
 {
-    for (int i = 0; i < 18; ++i) vt[i] = (void *)sa_trap;
+    for (int i = 0; i < 18; ++i) vt[i] = sa_trap_thunk[i];
     vt[1] = (void *)sa_binit;
     vt[2] = (void *)sa_ainit;
     vt[4] = (void *)sa_bclean;
@@ -429,8 +457,10 @@ void sa_fill_shared(void **vt)
     vt[8] = (void *)sa_abeh;
     vt[10] = (void *)sa_bren;
     vt[11] = (void *)sa_aren;
-    vt[13] = (void *)sa_trap13;
-    vt[14] = (void *)sa_trap14;
+    /* 13 and 14 used to be re-written here with the only two self-recording
+       thunks this file had. The fill loop above now installs a self-recording
+       thunk in every slot, so those two lines said nothing the loop had not
+       already said and are gone. */
     vt[15] = (void *)sa_heap;
 }
 
@@ -511,7 +541,7 @@ extern "C" void hal_fill_hud_vtable(void)
     vt[17] = (void *)hud_d0;
     /* the base table is never dispatched through, but a null slot in it would
        be indistinguishable from a bug if one ever were */
-    for (int i = 0; i < 18; ++i) _ZTV7dBase_c[i] = (void *)sa_trap;
+    for (int i = 0; i < 18; ++i) _ZTV7dBase_c[i] = sa_trap_thunk[i];
 
     /* the sprite templates the render leaves index, and the pointer pass that
        puts OAM::NUMBERS' ten digit pointers on host addresses */

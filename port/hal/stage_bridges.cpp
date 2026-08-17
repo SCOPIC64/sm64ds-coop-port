@@ -92,22 +92,73 @@ static const char *const hal_stage_slot_name[20] = {
     "OnPendingDestroy", "Virtual34", "Virtual38", "OnHeapCreated",
     "~Stage (D1)", "~Stage (D0)", "(past the table)", "(past the table)"};
 
-static int hal_stage_trap_slot;
+/* ---- THE TRAP, AND THE TWO DEFECTS THE 2026-08-16 EXIT-LEVEL REPORT FOUND --
+ *
+ * The comment above promises "a named abort with the slot number". It named
+ * slot 0 every time, for two independent reasons, and the bill came due on a
+ * real session: seventeen minutes of play in level 4, pause, exit course, and
+ *
+ *     FATAL: Stage vtable slot 0 (InitResources) is not hosted
+ *
+ * Slot 0 is SEATED -- hal_seat_stage_lifecycle writes st_init into it below --
+ * so slot 0 could not have been the caller and never was.
+ *
+ *   1. hal_stage_trap_slot WAS DECLARED, READ, AND NEVER WRITTEN. Not once,
+ *      anywhere in the tree. One st_trap went into every slot, and a single
+ *      function cannot know which table entry dispatched it, so the variable
+ *      sat at its .bss zero and every trap in the table reported slot 0.
+ *      The fix is the shape hal/sub_actors.cpp already uses for its slots 13
+ *      and 14: one thunk per slot, each recording its own index. That file
+ *      installs a bare sa_trap in the other sixteen and has the same bug in
+ *      them; this lane fixes it there too.
+ *
+ *   2. THE NAME LOOKUP WAS A BITMASK WHERE A BOUNDS CLAMP WAS MEANT.
+ *      `hal_stage_slot_name[hal_stage_trap_slot & 19]`. 19 is 0b10011, so it
+ *      keeps bits 0, 1 and 4 and throws the rest away: slot 12 reads as 0
+ *      ("InitResources"), 13 as 1, 14 as 2, 9 as 1. Twelve of the eighteen
+ *      slots name the wrong function even once the number is right. Slot 3 is
+ *      one of the six the mask happens to pass through unchanged, which is why
+ *      the corrected message for this crash reads correctly.
+ *
+ * WHICH SLOTS TRAP IS UNCHANGED BY ANY OF THIS. This is the report only. */
+static int hal_stage_trap_slot = -1;
+
 static int __fastcall st_trap(void *, void *)
 {
+    const char *name = "the trap did not record its slot -- fix the thunk";
+    if (hal_stage_trap_slot >= 0 && hal_stage_trap_slot < 20)
+        name = hal_stage_slot_name[hal_stage_trap_slot];
     std::fprintf(stderr, "FATAL: Stage vtable slot %d (%s) is not hosted\n",
-                 hal_stage_trap_slot,
-                 hal_stage_slot_name[hal_stage_trap_slot & 19]);
+                 hal_stage_trap_slot, name);
     std::abort();
     return 0;
 }
+
+/* One thunk per slot, generated rather than typed out twenty times. Same body
+   as sa_trap13/sa_trap14 in hal/sub_actors.cpp. */
+#define HAL_STAGE_TRAP(n)                                                    \
+    static int __fastcall st_trap##n(void *s, void *d)                       \
+    { hal_stage_trap_slot = (n); return st_trap(s, d); }
+HAL_STAGE_TRAP(0)  HAL_STAGE_TRAP(1)  HAL_STAGE_TRAP(2)  HAL_STAGE_TRAP(3)
+HAL_STAGE_TRAP(4)  HAL_STAGE_TRAP(5)  HAL_STAGE_TRAP(6)  HAL_STAGE_TRAP(7)
+HAL_STAGE_TRAP(8)  HAL_STAGE_TRAP(9)  HAL_STAGE_TRAP(10) HAL_STAGE_TRAP(11)
+HAL_STAGE_TRAP(12) HAL_STAGE_TRAP(13) HAL_STAGE_TRAP(14) HAL_STAGE_TRAP(15)
+HAL_STAGE_TRAP(16) HAL_STAGE_TRAP(17) HAL_STAGE_TRAP(18) HAL_STAGE_TRAP(19)
+#undef HAL_STAGE_TRAP
+
+static void *const hal_stage_trap_thunk[20] = {
+    (void *)st_trap0,  (void *)st_trap1,  (void *)st_trap2,  (void *)st_trap3,
+    (void *)st_trap4,  (void *)st_trap5,  (void *)st_trap6,  (void *)st_trap7,
+    (void *)st_trap8,  (void *)st_trap9,  (void *)st_trap10, (void *)st_trap11,
+    (void *)st_trap12, (void *)st_trap13, (void *)st_trap14, (void *)st_trap15,
+    (void *)st_trap16, (void *)st_trap17, (void *)st_trap18, (void *)st_trap19};
 
 extern "C" void hal_seat_stage_lifecycle(void);
 
 extern "C" void hal_fill_stage_vtable(void)
 {
     for (int i = 0; i < 20; ++i)
-        _ZTV5Stage[i] = (void *)st_trap;
+        _ZTV5Stage[i] = hal_stage_trap_thunk[i];
     hal_seat_stage_lifecycle();
 }
 

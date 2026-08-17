@@ -3053,23 +3053,54 @@ static const char *const hal_player_slot_name[HAL_PLAYER_SLOTS] = {
     "Virtual50", "OnGroundPounded", "OnAttacked1", "OnAttacked2",
     "OnKicked", "OnPushed", "OnHitByCannonBlastedChar", "OnHitByMegaChar",
     "OnHitFromUnderneath", "OnAimedAtWithEgg", "OnAimedAtWithEggReturnVec"};
-static int hal_player_trap_slot;
+/* hal_player_trap_slot HAD THE SAME DEFECT hal/stage_bridges.cpp's did, and it
+   is fixed here for the same reason: it was declared, read, and written
+   nowhere in the tree, so one ps_trap in every slot meant every unhosted
+   Player dispatch aborted as "slot 0 (InitResources)" whatever really fired.
+   On the Stage that cost the 2026-08-16 exit-course report a session spent on
+   a slot that was seated all along. The bounds check below is already correct
+   -- unlike the Stage's `& 19` -- so only the recording half needs fixing.
+   One thunk per slot, the hal/sub_actors.cpp sa_trap13 shape. */
+static int hal_player_trap_slot = -1;
 static int __fastcall ps_trap(void *, void *)
 {
     std::fprintf(stderr, "FATAL: Player vtable slot %d (%s) is not hosted\n",
                  hal_player_trap_slot,
                  (unsigned)hal_player_trap_slot < HAL_PLAYER_SLOTS
                      ? hal_player_slot_name[hal_player_trap_slot]
-                     : "out of range");
+                     : "the trap did not record its slot -- fix the thunk");
     std::abort();
     return 0;
 }
+
+#define HAL_PLAYER_TRAP(n)                                                   \
+    static int __fastcall ps_trap##n(void *s, void *d)                       \
+    { hal_player_trap_slot = (n); return ps_trap(s, d); }
+HAL_PLAYER_TRAP(0)  HAL_PLAYER_TRAP(1)  HAL_PLAYER_TRAP(2)  HAL_PLAYER_TRAP(3)
+HAL_PLAYER_TRAP(4)  HAL_PLAYER_TRAP(5)  HAL_PLAYER_TRAP(6)  HAL_PLAYER_TRAP(7)
+HAL_PLAYER_TRAP(8)  HAL_PLAYER_TRAP(9)  HAL_PLAYER_TRAP(10) HAL_PLAYER_TRAP(11)
+HAL_PLAYER_TRAP(12) HAL_PLAYER_TRAP(13) HAL_PLAYER_TRAP(14) HAL_PLAYER_TRAP(15)
+HAL_PLAYER_TRAP(16) HAL_PLAYER_TRAP(17) HAL_PLAYER_TRAP(18) HAL_PLAYER_TRAP(19)
+HAL_PLAYER_TRAP(20) HAL_PLAYER_TRAP(21) HAL_PLAYER_TRAP(22) HAL_PLAYER_TRAP(23)
+HAL_PLAYER_TRAP(24) HAL_PLAYER_TRAP(25) HAL_PLAYER_TRAP(26) HAL_PLAYER_TRAP(27)
+HAL_PLAYER_TRAP(28) HAL_PLAYER_TRAP(29) HAL_PLAYER_TRAP(30)
+#undef HAL_PLAYER_TRAP
+
+static void *const hal_player_trap_thunk[HAL_PLAYER_SLOTS] = {
+    (void *)ps_trap0,  (void *)ps_trap1,  (void *)ps_trap2,  (void *)ps_trap3,
+    (void *)ps_trap4,  (void *)ps_trap5,  (void *)ps_trap6,  (void *)ps_trap7,
+    (void *)ps_trap8,  (void *)ps_trap9,  (void *)ps_trap10, (void *)ps_trap11,
+    (void *)ps_trap12, (void *)ps_trap13, (void *)ps_trap14, (void *)ps_trap15,
+    (void *)ps_trap16, (void *)ps_trap17, (void *)ps_trap18, (void *)ps_trap19,
+    (void *)ps_trap20, (void *)ps_trap21, (void *)ps_trap22, (void *)ps_trap23,
+    (void *)ps_trap24, (void *)ps_trap25, (void *)ps_trap26, (void *)ps_trap27,
+    (void *)ps_trap28, (void *)ps_trap29, (void *)ps_trap30};
 
 extern "C" void hal_fill_player_vtable(void)
 {
     void **vt = (void **)data_ov002_0210a83c;
     for (int i = 0; i < HAL_PLAYER_SLOTS; ++i)
-        vt[i] = (void *)ps_trap;
+        vt[i] = hal_player_trap_thunk[i];
     vt[0] = (void *)ps_init;
     vt[1] = (void *)ps_binit;
     vt[2] = (void *)ps_ainit;
