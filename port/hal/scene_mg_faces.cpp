@@ -73,8 +73,14 @@
 // here, and the reasoning in the paragraph above is exactly why. The decomp has
 // no body for 0x020e1854. The host body carries a port_ name
 // (port_mg_curling_st_020e1854, the same shape as port_player_st_climb_main),
-// so nothing in this tree claims a decompilation that does not exist, and
-// inferred_stub_guard and stategen both keep refusing on this address.
+// so nothing in this tree claims a decompilation that does not exist.
+//
+// The refusal that keeps saying so is stategen.py's, and ONLY stategen's.
+// inferred_stub_guard has no row for this address and cannot have one: it
+// ratchets bodies in src/ that were guessed from a vtable slot and carry the
+// "recovered from vtable slot identity" marker, and it only counts them once a
+// port vtable fill SEATS them. There is no src file here at all, so there is
+// nothing for it to ratchet. Naming it as a second net overstated the cover.
 //
 // ---- 4. THE mwcc POINTER-TO-MEMBER TU, WHICH IS THE WALL -------------------
 //

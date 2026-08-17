@@ -64,9 +64,14 @@
 // Three distinct callees, four call sites, all in the main module, ALL of them
 // already have decompiled bodies. Nothing had to be invented to host this.
 //
-//   0x0203d744  _ZN4cstd4sqrtEy              x2   integer sqrt of a u64;
-//                                                 signature pinned by
-//                                                 src/func_0203d5dc.c
+//   0x0203d744  _ZN4cstd4sqrtEy              x2   integer sqrt of a u64. BODY is
+//                                                 src/_ZN4cstd4sqrtEy.c (it is
+//                                                 the hardware divider: writes
+//                                                 0x40002b8, spins on 0x40002b0).
+//                                                 src/func_0203d5dc.c only
+//                                                 DECLARES it and is where the
+//                                                 (u64)(s64) call idiom is taken
+//                                                 from.
 //   0x0203b4dc  _ZN4cstd5atan2E5Fix12IiES1_  x1   src/_ZN4cstd5atan2E5Fix12IiES1_.c
 //                                                 declares (s32 y, s32 x)
 //   0x02012718  func_02012718                x1   src/func_02012718.c, (void *id, int pos)
@@ -83,12 +88,21 @@
 //    `_ZN6Player24St_SlideKickRecover_InitEv`. It calls neither. All four are
 //    plain internal branches; the names are ov002 symbols aliasing ov006 code.
 //
-// 2. The immediate neighbour symbol, `_ZN6Player16St_WallJump_InitEv` at
-//    0x020e17f8, is a MISNOMER in config. Its own decompiled body
-//    (src/_ZN6Player16St_WallJump_InitEv.cpp) reads this+0x4eb0, +0x4eb4 and
-//    +0x4ee5 -- dScMgCurling_c fields, far past sizeof(Player) = 0x768, as that
-//    file's own banner notes. It is curling code wearing a Player name, so its
-//    adjacency says nothing about who owns 0x020e1854.
+// 2. The immediate neighbour, `_ZN6Player16St_WallJump_InitEv` at 0x020e17f8,
+//    is not the counter-evidence it looks like -- but the problem is NOT that
+//    the config name is wrong. 0x020e17f8 in ov002 really is
+//    Player::St_WallJump_Init, and ov002's symbol table is right about its own
+//    overlay. The defect is downstream of that: because ov002 and ov006 overlap
+//    in address space (trap 1), the src BODY carrying that name was decompiled
+//    from the bytes at 0x020e17f8 in ov006, which are curling's. It shows:
+//    src/_ZN6Player16St_WallJump_InitEv.cpp reads this+0x4eb0, +0x4eb4 and
+//    +0x4ee5, dScMgCurling_c fields far past sizeof(Player) = 0x768, as that
+//    file's own banner notes.
+//
+//    So a Player-named TU holds curling behaviour, and its adjacency says
+//    nothing about who owns 0x020e1854. Flagged rather than fixed here: which
+//    overlay that body should have been read from is a decomp question, not a
+//    port one, and it is not this lane's to answer.
 //
 // What the attribution actually rests on is four already-decompiled siblings
 // that interlock with this body at every seam:
@@ -203,10 +217,14 @@ unsigned port_mg_curling_st_020e1854_entries(void);
    following >> 4 is then the ROM's ASR. Unreachable in practice -- len2 cannot
    exceed about 102 inside a 192x36 box -- but a transcription should not carry
    UB it can spell away. */
+static inline int rom_lsl12(int v)
+{
+    return (int)((unsigned)v << 12);
+}
+
 static inline int rom_lsl12_asr4(int v)
 {
-    int t = (int)((unsigned)v << 12);
-    return t >> 4;
+    return rom_lsl12(v) >> 4;
 }
 
 /* The transcription proper. Kept static and kept PURE: the entry counter and
@@ -342,8 +360,13 @@ static void st_020e1854_body(char *c)
     idx = data_020a0e40;
     sx  = data_020a0dea[idx * 4];
     sy  = data_020a0deb[idx * 4];
-    *(int *)(c + 0x4ec0) = (((*(int *)(c + 0x4eb0)) >> 12) - sx) << 12;
-    *(int *)(c + 0x4ec4) = (((*(int *)(c + 0x4eb4)) >> 12) - sy) << 12;
+    /* Through the helper, not a bare `<< 12`. The subtraction can go negative
+       (the cursor sits left of or above the stylus whenever the grab offset is
+       negative), and a bare left shift of a negative int is UB even though MSVC
+       emits the LSL the ROM wants. Same reason rom_lsl12_asr4 exists; this file
+       should not use the helper in one place and the raw shift in another. */
+    *(int *)(c + 0x4ec0) = rom_lsl12(((*(int *)(c + 0x4eb0)) >> 12) - sx);
+    *(int *)(c + 0x4ec4) = rom_lsl12(((*(int *)(c + 0x4eb4)) >> 12) - sy);
 }
 
 /* ---- entry point, plus the proof that it runs -----------------------------
@@ -362,11 +385,14 @@ extern "C" unsigned port_mg_curling_st_020e1854_entries(void)
 
 extern "C" void port_mg_curling_st_020e1854(char *c)
 {
+    /* Read once, not once per entry. This runs every frame the stylus is down
+       and a getenv per state tick is a syscall inside the game loop for a value
+       that cannot change; -1 means "not read yet". */
+    static int on = -1;
     static int traced;
-    int on = 0;
-    {
+    if (on < 0) {
         const char *e = std::getenv("SM64DS_MG_CURLING_TRACE");
-        on = (e && *e && *e != '0');
+        on = (e && *e && *e != '0') ? 1 : 0;
     }
 
     ++g_st_020e1854_entries;

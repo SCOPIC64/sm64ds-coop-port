@@ -2836,10 +2836,29 @@ static void click_test_finish(void)
     if (g_ct_n <= 0 || done)
         return;
     done = 1;
-    if (g_ct_down) {
-        click_test_button(0);
-        fprintf(stderr, "[click] release at exit\n");
-    }
+    /* THE RELEASE IS UNCONDITIONAL, and the `if (g_ct_down)` this replaces was
+       a real defect rather than a tidy-up.
+
+       g_ct_down is this driver's own bookkeeping and it is NOT the physical
+       button state. click_test_button leaves it untouched whenever SendInput
+       refuses an edge, and the pid gate can return between a press and its
+       release, so the two can disagree. When they disagree the wrong way the
+       button stays down after the process is gone -- and the next run on this
+       desktop starts with the stylus already pressed, because poll_touch reads
+       GetAsyncKeyState(VK_LBUTTON), which is machine-global and outlives us.
+
+       Review CTR1 lost a CONTROL run to exactly that: 96 dScMgCurling_c state
+       entries in a run with no script at all, from a button still held down by
+       the previous SM64DS_CLICK_TEST run, GetAsyncKeyState reading 1 until it
+       was cleared by hand. A control that is silently driving input is worse
+       than a failed one, because it reads as evidence.
+
+       A spurious LEFTUP when nothing is held costs nothing. A missed one
+       contaminates every run that follows. So: always send it. */
+    const int was_down = g_ct_down;
+    click_test_button(0);
+    fprintf(stderr, "[click] release at exit%s\n",
+            was_down ? "" : " (button was not marked down; released anyway)");
     if (g_ct_restore_ok && W.SetCursorPos_)
         W.SetCursorPos_(g_ct_restore.x, g_ct_restore.y);
     fflush(stderr);

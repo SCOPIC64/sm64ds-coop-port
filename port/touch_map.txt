@@ -970,3 +970,63 @@ upstream of it is green.
   - THE SECOND TOUCH READER IS STILL NEVER DISPATCHED. Section 6c's finding
     about func_ov006_020e26f8 and the self+0x4688 selector is untouched by this
     lane; nothing here looked at it.
+
+================================================================================
+9. THE STUCK BUTTON, AND WHY A CONTROL RUN CAN DRIVE INPUT (run link60, CT1)
+================================================================================
+
+READ THIS BEFORE TRUSTING ANY CONTROL RUN TAKEN AFTER A SM64DS_CLICK_TEST RUN
+ON THE SAME DESKTOP.
+
+Review CTR1 measured a CONTROL run of scene 374 -- no SM64DS_CLICK_TEST, no
+SM64DS_TOUCH_PROBE, nothing scripted -- entering dScMgCurling_c's aim state 96
+times. A control that enters a touch-only state 96 times is not a control. The
+cause was not the scene and not the state: the physical left mouse button was
+still held down from the PREVIOUS click-driver run, and
+GetAsyncKeyState(VK_LBUTTON) read 1 until it was cleared by hand.
+
+WHY IT COULD HAPPEN. click_test_finish released the button only
+`if (g_ct_down)`. That flag is the driver's own bookkeeping, not the button:
+
+  * click_test_button leaves g_ct_down untouched when SendInput refuses an edge,
+    so a refused release records as "still down" while a refused press records
+    as "not down" -- the flag can disagree with the hardware in both directions;
+  * the pid gate returns before pressing, so a run can end with the flag and the
+    button out of step;
+  * poll_touch reads GetAsyncKeyState, which is machine-global and outlives the
+    process, so the next run inherits the state.
+
+THE FIX (this lane): the release in click_test_finish is now UNCONDITIONAL. A
+spurious LEFTUP when nothing is held costs nothing; a missed one contaminates
+every run that follows, and it contaminates them SILENTLY, which is the part
+that matters. The exit line says which case it was:
+
+    [click] release at exit
+    [click] release at exit (button was not marked down; released anyway)
+
+WHAT THIS DOES NOT COVER, stated rather than assumed away: click_test_finish is
+armed with atexit and only when the driver is armed. A click-driver run that is
+KILLED rather than exited still leaves the button down, and a run that never set
+SM64DS_CLICK_TEST has nothing registered to clear it. So the rule for anyone
+reading a control:
+
+    a control run taken right after a click-driver run is only a control if the
+    click run's playlog carries a "[click] release at exit" line.
+
+If it does not, the control is suspect. Check the state-entry count against a
+run taken from a cold desktop before believing it.
+
+THE FIX NOT TAKEN, so the next lane does not have to rediscover the choice: the
+complete cure is a LEFTUP at STARTUP as well, which would clear an inherited
+press whatever left it behind, including a killed run. It is not done here
+because poll_touch is machine-global in both directions -- a startup release
+would also cancel a press the PERSON at the keyboard is making, on a path the
+owner click-tests by hand -- and that is a behaviour change on the level path to
+fix a hazard only the scripted driver creates. If a lane ever wants it, gate it
+on the driver being armed rather than doing it unconditionally.
+
+VERIFIED, run link60 lane CT1: a scene-374 click-driver run now ends with
+
+    [click] release at exit (button was not marked down; released anyway)
+
+which is the branch the old `if (g_ct_down)` skipped entirely.
