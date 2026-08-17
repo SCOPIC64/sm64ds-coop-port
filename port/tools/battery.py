@@ -458,6 +458,10 @@ def selftest_env(lvl, skip=None):
     # change what the run presents and what its window is shaped like, and the
     # comparator must measure the default rather than the caller's preference.
     env.pop("SM64DS_DUAL_SCREEN", None)
+    # SM64DS_CLICK_TEST (lane TCH2) is dropped here as well as in scene_env. The
+    # driver already refuses to arm under a selftest, so this is the second of
+    # two locks rather than the only one -- and it is the cheap one to keep.
+    env.pop("SM64DS_CLICK_TEST", None)
     return env
 
 
@@ -501,10 +505,27 @@ def scene_env(scene, extra=None):
     # IsMinigameActorID and a non-minigame scene defaults to the inset panel;
     # an inherited force would have the caller decide that instead of the code
     # under test, in both directions.
+    # SM64DS_SCENE_WINDOW AND SM64DS_CLICK_TEST ARE IN THE LIST BECAUSE A
+    # HEADLESS ROW MUST STAY HEADLESS. Measured by run link60 lane SWR1: with
+    # SM64DS_SCENE_WINDOW inherited from the shell a battery scene row opens a
+    # REAL window, which puts a live mouse into poll_touch and a machine-global
+    # TAB into the panel latch, and both of those move the frame this step is
+    # comparing. The lane that added the variable wrote "nothing in the battery
+    # sets it", which was true and is not the same claim as "the battery cannot
+    # receive it". SM64DS_CLICK_TEST (lane TCH2's scripted stylus) is dropped
+    # in the same breath and for the identical reason: a click script inherited
+    # from a shell would drive synthetic presses into a comparison run.
+    # SM64DS_PAD_TEST joins them, and its absence was a real hole rather than a
+    # deliberate omission: a scene row does NOT set SM64DS_WINDOW_SELFTEST, so
+    # g_selftest is false on this path and the scripted pad is live. An
+    # inherited one would press buttons into a scene the battery is measuring,
+    # and the click and the pad are the same class of input with the same
+    # exposure.
     for k in ("SM64DS_LEVEL", "SM64DS_SKIP_CLASS", "SM64DS_SCENE_NO_RENDER",
               "SM64DS_SCENE_BMP", "SM64DS_SCENE_BMP_STACKED",
               "SM64DS_SCENE_TRACE", "SM64DS_SCENE_SLOT9",
-              "SM64DS_SCENE_SUBLEVEL", "SM64DS_DUAL_SCREEN", "PORT_WATCHDOG"):
+              "SM64DS_SCENE_SUBLEVEL", "SM64DS_DUAL_SCREEN", "PORT_WATCHDOG",
+              "SM64DS_SCENE_WINDOW", "SM64DS_CLICK_TEST", "SM64DS_PAD_TEST"):
         env.pop(k, None)
     if extra:
         for kv in extra.split(","):

@@ -319,9 +319,14 @@ present are eight lines each and appear in both loops. Folding them into one
 locals through it. Not worth it, and named here so the next lane does not have
 to rediscover the judgment.
 
-TODO for whoever wants the last of it: main() is still 4,136 lines (3320..7456)
-because its frame prologue, its camera rig and its probe set are all inline in
-it. What this lane hoisted is exactly what two callers needed and no more. The
+TODO for whoever wants the last of it: main() is still around four thousand
+lines because its frame prologue, its camera rig and its probe set are all
+inline in it. THE LINE NUMBERS THAT USED TO BE HERE ARE GONE ON PURPOSE (run
+link60 lane TCH2, from lane SWR1's review): they read 3320..7456, they were
+already 55 low at both ends when SWR1 checked them against this same tip, and
+any lane touching this file moves them again. This document's own convention is
+to cite functions by name, and main() is findable by name. What this lane
+hoisted is exactly what two callers needed and no more. The
 rest is a main()-shrinking job, not a scene job, and it should be done as one
 with its own gate rather than as a rider on this.
 
@@ -334,6 +339,21 @@ that is a correctness fix this lane found rather than a convenience:
     SM64DS_SCENE_FRAMES  SM64DS_SCENE_WINDOW  SM64DS_SCENE_NO_RENDER
     SM64DS_SCENE_BMP     SM64DS_SCENE_BMP_STACKED
     SM64DS_PAD_TEST      SM64DS_LEVEL
+
+SUPERSEDED, AND THE WAY IT WAS SUPERSEDED IS THE POINT (run link60 lane TCH2).
+The seven above were the right idea and an incomplete list: lane SWR1 measured
+a parent's SM64DS_SCENE_TRACE=1 putting 875 trace lines into the CHILD's
+playlog, and SM64DS_WINDOW_SELFTEST, SM64DS_SCENE_SLOT9 and
+SM64DS_SCENE_SUBLEVEL are inheritable the same way. The launcher is also no
+longer alone -- the level-select row relaunches too -- so two hand-maintained
+copies of a list like this would diverge on the first variable added to one of
+them, which is exactly how the four names above went missing.
+
+So there is now ONE table, PORT_RELAUNCH_CLEAR in tests/walk_window.cpp, read
+by both launch paths through port_menu_relaunch, carrying eleven names with a
+line each saying what it costs if it is inherited. SM64DS_SCENE, SM64DS_LEVEL
+and SM64DS_DUAL_SCREEN are deliberately NOT in it: they are the destination,
+cleared and then set by the launcher according to which way it is going.
 
 The child is a SESSION -- somebody pressed enter on a menu row -- and
 inheritance let the parent's own settings decide what it is instead. That is
@@ -444,6 +464,17 @@ B. THE DEBUG MENU, INSIDE A WINDOWED SCENE, ON THE PAD ALONE.
    rather than this lane: the hosted row's suffix is "enter restarts, stacked"
    now instead of the 73-character one that was drawing truncated, so the menu
    in the picture is a different menu. The frame under it is the same.
+
+   THOSE TWO HASHES ARE SINGLE-RUN ARTIFACTS AND MUST NOT BE DIFFED AGAINST
+   (amended by run link60 lane TCH2, from lane SWR1's review). Unlike every
+   other capture in this section they are NOT reproducible: menu_draw renders
+   the recorder row, and the recorder row is the playlog's WALL-CLOCK FILENAME
+   (play_<stamp>.log), so the picture carries the time the run started and two
+   runs of the identical command hash differently by construction. They record
+   that a menu was drawn over a stacked scene on that occasion and nothing
+   more. To get a hash a later lane can compare, re-record under
+   SM64DS_NO_PLAYLOG=1, which is where SWR1 measured them stable -- the row
+   then draws a fixed string instead of a timestamp.
 
 C. THE PICKER FROM INSIDE A SCENE (section 2c's claim).
    Curling, windowed, pad script 20@60,2@90,2@120,1000@160 -- open, down to the
