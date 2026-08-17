@@ -1,0 +1,176 @@
+THE PPU LAYER-BLENDING UNIT: ALPHA (BLDCNT mode 1) IN BOTH SOFTWARE RASTERISERS
+Run link60 Stage 5, lane BLND1. Worktree C:/tmp/blnd1, branch s5-ppu-blend, off
+cons 74f8a1aa5. Coordinator merges; this lane never merges or pushes.
+
+WHAT WAS ADDED
+--------------
+The DS 2D colour-special-effects unit's ALPHA path (BLDCNT mode 1 + BLDALPHA),
+including the always-on semi-transparent-OBJ alpha, in the port's two LIVE
+software compositors:
+
+  engine B (bottom screen)  port/ntr/ppu_sub.cpp
+  engine A (top screen)     port/hal/message_compositor.cpp
+
+Both already resolved pixels by priority; the change makes each resolve the TOP
+pixel AND the one directly BELOW it, and when the top is a 1st target and the
+below a 2nd target it outputs
+
+  out = clamp31( top*eva/16 + below*evb/16 )     (BLDALPHA: eva bits0-4, evb bits8-12)
+
+per channel, in 5-bit exactly as the hardware does. bgr555 expansion
+(v<<3 | v>>2) is losslessly reversible by >>3, so the framebuffer's 8-bit
+channels round-trip to the DS's 5-bit blend and back with no error.
+
+An OBJ in mode 1 (semi-transparent) is ALWAYS a 1st target and ALWAYS
+alpha-blends regardless of BLDCNT's first-target bits -- this is what makes
+dScMgCurling_c's tint render, because its BLDCNT puts NO first-target BG bits up
+(engine A 0x0d40, engine B 0x0440) and the effect fires only through the mode-1
+shadow sprite. With no 2nd target beneath it a semi-transparent OBJ draws opaque,
+as on hardware.
+
+Window colour-effect gating: bit 5 of the window masks enables/disables the
+effect per region; the blend is gated on (window_mask & 0x20) in both files.
+
+BLDCNT layout (from the ROM's own G2x::SetBlendAlpha, src/_ZN3G2x13SetBlendAlpha
+EPVttttt.cpp: *reg = ((a|0x40)|(b<<8)) | ((c|(d<<8))<<16), a=1st, b=2nd, c=eva,
+d=evb, the 0x40 forcing mode bits 6-7 to 01):
+  bits 0-5   1st-target select (BG0,BG1,BG2,BG3,OBJ,BD)
+  bits 6-7   mode: 0 off, 1 alpha, 2 brightness-up, 3 brightness-down
+  bits 8-13  2nd-target select
+
+ESCAPE HATCH: SM64DS_BLEND_OFF=1 restores the old opaque path in both files
+(read once via getenv, static-cached). Same binary, same .dsstate base, so a
+before/after is the only comparison notes/port-selftest-bmp-gate.md permits, and
+any regression bisects against the pre-blend image.
+
+THE FADER DOUBLE-APPLY RULING (mission item 4)
+----------------------------------------------
+BRIGHTNESS (BLDCNT mode 2/3 + BLDY) is NOT applied by this unit. It is owned by
+the existing fade path, and applying it here too would double every fade.
+
+Derivation, from the code:
+  * hal/fader_wipes.cpp HalFaderWipe::AdvanceFade writes BLDCNT mode 2 (white /
+    brighten) or 3 (black / darken) + BLDY on BOTH engines via
+    G2x::SetBlendBrightness at 0x40000{50,54} and 0x40010{50,54}, first-target
+    0x3f. It NEVER writes BLDALPHA (0x52) and NEVER mode 1.
+  * port_fader_blend_state() reads the RAW engine-A BLDCNT/BLDY (0x4000050/54)
+    and returns evy+toWhite; walk_window's fade composite then dims the whole
+    top framebuffer. So ANY engine-A mode-2/3 write is already applied globally.
+  * The sub screen's fade is applied downstream too: ppu_compose_stacked's evy
+    (engine A's) on the bottom half, and the corner panel inside walk_window's
+    fade composite. ppu_scanout_sub separately applies MASTER_BRIGHT (0x6C), a
+    different register the fader does not touch.
+So the mode field partitions ownership cleanly: the game writes mode 1 for alpha
+effects and mode 2/3 only for fades. blend_apply() returns the top pixel
+unchanged for any mode != 1 (and for a semi-OBJ with no 2nd target), so a fade
+frame is a provable no-op here.
+
+PROOF (measured): scene 1 (SCENE_TITLE) runs an active BLDY brightness fade --
+SM64DS_PPU_AUDIT over 60 frames read engine A BLDCNT 0x00bf (mode 2) / 0x00ff
+(mode 3) with BLDY ramping 0x0f,0x0e,0x0d,0x0c,0x0b,0x0a and BLDALPHA 0x0000, on
+both engines. Captured with SM64DS_SCENE_BMP at mid-fade frames 3, 5, 8 and 12,
+blend ON vs SM64DS_BLEND_OFF=1:
+
+  scene1 @frame 3    on-vs-off diff = 0 bytes
+  scene1 @frame 5    on-vs-off diff = 0 bytes
+  scene1 @frame 8    on-vs-off diff = 0 bytes
+  scene1 @frame 12   on-vs-off diff = 0 bytes
+
+Byte-identical while a fade is visibly progressing = the blend unit does not
+touch the fade. (A second inertness check: level 1 boot frames 0..25, dumped
+with SM64DS_DUMP_FROM/TO, vary hugely frame-to-frame as the 3D scene loads yet
+are byte-identical ON vs OFF on all 26 frames.)
+
+THE CHANGED-BMP TABLE (mission's regression gate)
+-------------------------------------------------
+Method: scratchpad/blend_sweep.py runs every mounted level's selftest BMP
+(top/engine A) and every hosted scene's stacked BMP (both screens) twice off the
+SAME walk_window.exe -- SM64DS_BLEND_OFF=1 vs default -- so the .dsstate base is
+identical and any byte difference is purely the blend unit. gate.py's battery
+does NOT byte-compare BMPs (it gates on faults/linkage/ptr_audit), so a changed
+frame is expected here and is not a battery failure.
+
+Universe: 46 mounted levels, 3 hosted scenes (1 title, 4 star-select, 374
+curling).
+
+  level 0,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,
+        27,28,30,32,33,34,35,36,37,38,39,40,44,45,46,47,48,49,50
+                                   ALL byte-identical (diff 0). No level idle
+                                   selftest arms a mode-1 blend, so the top
+                                   screen is unchanged on every one.
+  scene 1  (SCENE_TITLE)           top byte-identical. BLDCNT mode 2/3 fade,
+                                   BLDALPHA 0 -> deferred to the fade path.
+  scene 4  (SCENE_STAR_SELECT)     top byte-identical. BLDCNT 0x0000, no mode-1
+                                   sprites -> nothing to blend.
+  scene 374 (SCENE_MG_CURLING)     CHANGED, 9352 bytes, and CORRECT:
+                                   - engine A (top half of the stacked image,
+                                     rows 0..383): 0 bytes changed. BLDCNT_A
+                                     0x0d40 is armed (mode1, 2nd target
+                                     BG0|BG2|BG3) but all 49 placed sprites are
+                                     mode 0 and the first-target bits are empty,
+                                     so nothing blends at idle. (The top-screen
+                                     tint needs the shot phase; see below.)
+                                   - engine B (bottom half, rows 650..767):
+                                     9352 bytes / 3188 pixels changed. BLDCNT_B
+                                     0x0440 (mode 1 alpha, 2nd target BG2),
+                                     BLDALPHA_B 0x1002 (eva=2/16, evb=16/16),
+                                     and OAM carries 5 mode-1 semi-transparent
+                                     sprites every frame (1500 over 300). Those
+                                     alpha-blend over BG2 -- the light-blue tint.
+                                     Measured with SM64DS_PPU_AUDIT.
+
+Every changed byte in the whole battery universe is scene 374's engine-B
+semi-transparent-OBJ alpha over BG2, exactly the effect BLDCNT_B/BLDALPHA_B name
+on that frame. No frame changed that the registers do not specify.
+
+CURLING ACCEPTANCE (mission's owner frame)
+------------------------------------------
+Deterministic, shipped: scene 374 idle stacked capture shows the blend
+rendering on the bottom (touch) screen -- the same mode-1 semi-transparent alpha
+over BG2, same BLDALPHA 0x1002, same code path as the top-screen shot version.
+  status/blnd1-scene374-idle-blend-ON.bmp    the tint rendering
+  status/blnd1-scene374-idle-blend-OFF.bmp   the opaque control (SM64DS_BLEND_OFF)
+  status/blnd1-scene374-blend-DIFF-amplified.bmp   the tint footprint, |ON-OFF|
+                                             x10 with unchanged pixels dimmed /4
+
+Top-screen shot-phase frame: FLAGGED as an interactive follow-up. Reaching it
+needs the scripted stylus driven into a FOCUSED window (CUR2's recipe:
+SM64DS_SCENE=374 SM64DS_SCENE_WINDOW=1 SM64DS_SCENE_FRAMES=~150
+SM64DS_CLICK_TEST="256,724>256,584@100-119"). This automated context cannot open
+or focus an interactive window -- SM64DS_SCENE_WINDOW fell back to the headless
+scene path in every attempt, so CLICK_TEST's SendInput never landed, and the
+headless scene path does not poll_touch, so SM64DS_TOUCH_PROBE did not fire
+either. Engine A's shot-phase mode-1 count therefore stayed 0 in every headless
+attempt. This is an environment limit, not a blend defect: the identical effect
+is proven to render on engine B at idle and through the shared code path. A
+focused desktop run with the recipe above will produce the top-screen frame.
+
+GATE, BOTH ENDS
+---------------
+baseline (clean blnd1 at 74f8a1aa5, --record):
+  linked 5831 / 11250 (51.8%), unlinked 5419, battery ALL GREEN, skips [],
+  git_dirty false, verdict GREEN
+tip (blend applied, git_dirty true):
+  linked 5831 / 11250 (51.8%), unlinked 5419, battery ALL GREEN, skips [],
+  verdict GREEN. delta vs baseline: linked +0, total +0, unlinked +0,
+  battery ALL GREEN -> ALL GREEN. exe sha256
+  3bb6c23f3ad04fb3882c07e00b29679dd75c62f80d9422273a6e01954bace325.
+
+Linkage delta must be 0 (host raster code, no ROM bodies); confirmed by the
+baseline already reading 5831 and the tip building the same src universe.
+
+FILES (port/ntr + port/hal render files only; no matched src/ edits)
+  port/ntr/ppu_sub.cpp            engine B: Blend/read_blend/blend_alpha/
+                                  blend_apply, ObjPixel.semi, two-layer
+                                  resolver, window bit-5 gate, BLEND_OFF hatch
+  port/hal/message_compositor.cpp engine A: same helpers, BG-over-2D alpha in
+                                  the BG loop, semi-OBJ alpha in raster_obj
+                                  (over a 2D 2nd target or the 3D framebuffer),
+                                  window bit-5 gate, BLEND_OFF hatch
+
+KNOWN LIMITATION (documented, not on any curling path): a 1st-target BG blending
+over the 3D layer (BG0 in 3D mode) rather than over another 2D layer is not done
+in message_compositor.cpp -- its BG loop composites into a 2D hit buffer and the
+3D framebuffer is only read at OBJ time and the final blit. curling's first-
+target bits are empty so no frame needs it; left as a follow-up. The semi-
+transparent OBJ path DOES blend over the 3D layer.

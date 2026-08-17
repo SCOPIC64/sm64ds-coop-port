@@ -33,11 +33,23 @@
 //     window by mask, with WININ/WINOUT deciding what shows in each region.
 //   - MASTER BRIGHTNESS, which is how the sub screen fades.
 //
-//   - no BLDCNT alpha blending: the second-target machinery is a bigger
-//     rewrite than the bottom screen has needed so far, and master brightness
-//     covers the fades. Semi-transparent sprites (OBJ mode 1) draw opaque.
-//     Measured dead: port/ppu_gap_audit.txt found zero mode-1 objects and
-//     BLDCNT == 0 on every sampled frame of level 1 and scene 4.
+//   - BLDCNT ALPHA BLENDING (mode 1) and the always-on semi-transparent-OBJ
+//     alpha. The second-target machinery is here now: the per-pixel resolver
+//     below already walks the layers by priority, so it resolves the TOP pixel
+//     and the one directly BELOW it, and when the top is a 1st target and the
+//     below a 2nd target it outputs top*eva/16 + below*evb/16 (BLDALPHA),
+//     clamped, in 5-bit like the hardware. A mode-1 OBJ (semi-transparent) is
+//     always a 1st target and always alpha-blends regardless of BLDCNT, which
+//     is what makes dScMgCurling_c's 0x0440 light-blue shadow render. The
+//     window colour-effect bit (bit 5 of the window masks) gates it per region.
+//     SM64DS_BLEND_OFF=1 restores the old opaque path for A/B and bisection.
+//   - NOT the BLDY brightness modes (BLDCNT mode 2/3). Those are owned by the
+//     fade path: hal/fader_wipes.cpp writes BLDCNT mode 2/3 + BLDY and the
+//     sub-screen fade is applied downstream (ppu_compose_stacked's evy, and the
+//     corner panel inside walk_window's fade composite), on top of the master
+//     brightness this file applies. Applying mode 2/3 here too would double the
+//     fade, so this unit recognises them and defers. The game only ever writes
+//     mode 2/3 for fades and mode 1 (alpha) for effects, so the split is clean.
 //   - no bitmap OBJs (OBJ mode 3), no bitmap BGs, no mosaic.
 //
 // The OBJ window used to be listed here as missing, and the line said "mode 3
@@ -59,6 +71,7 @@
 #include "ntr/ppu_audit.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 namespace ntr {
@@ -259,6 +272,7 @@ struct ObjPixel {
     uint32_t color;
     uint8_t prio;
     uint8_t hit;
+    uint8_t semi;   // OBJ mode 1: always a 1st target, always alpha-blended
 };
 
 ObjPixel g_obj[192][256];
@@ -398,6 +412,9 @@ void raster_obj(uint32_t dispcnt) {
                 g_obj[py][px].color = color;
                 g_obj[py][px].prio = prio;
                 g_obj[py][px].hit = 1;
+                // OBJ mode 1 is semi-transparent: it alpha-blends with the
+                // layer below it regardless of BLDCNT's first-target bits.
+                g_obj[py][px].semi = (objmode == 1);
             }
         }
     }
@@ -481,6 +498,86 @@ inline uint32_t apply_bright(uint32_t c, const Bright &b) {
     return 0xFF000000u | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)bl;
 }
 
+// ---- the colour special-effects unit (BLDCNT) -------------------------------
+//
+// Only ALPHA (mode 1) and the always-on semi-transparent-OBJ alpha are applied
+// here; the BLDY brightness modes 2/3 are the fade path's, see the header note.
+// Register offsets are engine-relative: BLDCNT 0x50, BLDALPHA 0x52 on this
+// engine's kRegBase. Layer ids match the window-mask bits: 0..3 BG0..BG3, 4
+// OBJ, 5 the backdrop (BD).
+
+// SM64DS_BLEND_OFF=1 keeps the old opaque path, so a before/after is one binary
+// at one .dsstate base -- the only comparison notes/port-selftest-bmp-gate.md
+// permits -- and a regression can be bisected against the pre-blend image.
+inline bool blend_off_env() {
+    static int v = -1;
+    if (v < 0) {
+        const char *e = std::getenv("SM64DS_BLEND_OFF");
+        v = (e && *e && *e != '0') ? 1 : 0;
+    }
+    return v != 0;
+}
+
+struct Blend {
+    bool off;
+    int mode;          // BLDCNT bits 6-7: 0 off, 1 alpha, 2 bright-up, 3 down
+    unsigned first;    // bits 0-5: 1st-target layers
+    unsigned second;   // bits 8-13: 2nd-target layers
+    int eva, evb;      // BLDALPHA: 1st/2nd coefficients, 0..16 in 1/16 steps
+};
+
+inline Blend read_blend() {
+    Blend b;
+    b.off = blend_off_env();
+    const uint16_t cnt = rd16(kRegBase + 0x50);
+    const uint16_t alpha = rd16(kRegBase + 0x52);
+    b.mode = (cnt >> 6) & 3;
+    b.first = cnt & 0x3F;
+    b.second = (cnt >> 8) & 0x3F;
+    b.eva = alpha & 0x1F; if (b.eva > 16) b.eva = 16;
+    b.evb = (alpha >> 8) & 0x1F; if (b.evb > 16) b.evb = 16;
+    return b;
+}
+
+// top*eva/16 + below*evb/16, per channel, in 5-bit and clamped to 31 -- the
+// DS's own arithmetic. The framebuffer holds bgr555-expanded 8-bit channels and
+// (v<<3|v>>2)>>3 recovers the original 5-bit value exactly, so the round trip
+// is lossless and the blend is what the hardware produces.
+inline uint32_t blend_alpha(uint32_t top, uint32_t below, int eva, int evb) {
+    const int r1 = ((top >> 16) & 0xFF) >> 3, g1 = ((top >> 8) & 0xFF) >> 3,
+              b1 = (top & 0xFF) >> 3;
+    const int r2 = ((below >> 16) & 0xFF) >> 3, g2 = ((below >> 8) & 0xFF) >> 3,
+              b2 = (below & 0xFF) >> 3;
+    int r = (r1 * eva + r2 * evb) >> 4; if (r > 31) r = 31;
+    int g = (g1 * eva + g2 * evb) >> 4; if (g > 31) g = 31;
+    int b = (b1 * eva + b2 * evb) >> 4; if (b > 31) b = 31;
+    return 0xFF000000u | ((uint32_t)(r << 3 | r >> 2) << 16)
+                       | ((uint32_t)(g << 3 | g >> 2) << 8)
+                       | (uint32_t)(b << 3 | b >> 2);
+}
+
+// The effect for one pixel, given the top layer and the one directly below it.
+// `below` (col[1]/id[1]) is always valid: a pixel with nothing under the top is
+// resolved against the backdrop, id 5, which BLDCNT can name as a 2nd target.
+inline uint32_t blend_apply(const Blend &bl, unsigned mask, uint32_t top,
+                            int top_id, bool top_semi, uint32_t below,
+                            int below_id) {
+    if (bl.off) return top;
+    // Window bit 5 disables colour special effects inside this region.
+    if (!(mask & 0x20)) return top;
+    const bool below_second = (bl.second & (1u << below_id)) != 0;
+    if (top_semi) {
+        // Always 1st target, always alpha, whatever the mode says. With no 2nd
+        // target beneath it a semi-transparent OBJ draws opaque (hardware).
+        if (below_second) return blend_alpha(top, below, bl.eva, bl.evb);
+        return top;
+    }
+    if (bl.mode == 1 && (bl.first & (1u << top_id)) && below_second)
+        return blend_alpha(top, below, bl.eva, bl.evb);
+    // modes 2/3 (brightness) belong to the fade path; recognised and deferred.
+    return top;
+}
+
 }  // namespace
 
 void ppu_scanout_sub(SubFramebuffer &fb)
@@ -519,30 +616,39 @@ void ppu_scanout_sub(SubFramebuffer &fb)
     raster_obj(dispcnt);
 
     const uint32_t backdrop = bgr555(rd16(kPlttBase));
+    const Blend bld = read_blend();
 
     for (int y = 0; y < SUB_H; ++y) {
         for (int x = 0; x < SUB_W; ++x) {
             const unsigned mask = window_mask(win, x, y);
-            uint32_t c = backdrop;
-            // Priority 0 is nearest. At equal priority a sprite is above a
-            // background, and among backgrounds the lower number wins.
-            for (int prio = 0; prio < 4; ++prio) {
+            // Resolve the TOP visible layer and the one directly BELOW it, which
+            // is all the colour-effect unit needs. Priority 0 is nearest; at
+            // equal priority a sprite is above a background and among
+            // backgrounds the lower number wins. Layer ids: 0..3 BG, 4 OBJ.
+            uint32_t col[2] = {backdrop, backdrop};
+            int id[2] = {5, 5};        // 5 = backdrop (BD), the implicit bottom
+            bool semi = false;
+            int found = 0;
+            for (int prio = 0; prio < 4 && found < 2; ++prio) {
                 const ObjPixel &o = g_obj[y][x];
                 if (o.hit && o.prio == prio && (mask & 0x10)) {
-                    c = o.color;
-                    goto done;
+                    if (!found) semi = o.semi;
+                    col[found] = o.color; id[found] = 4; ++found;
+                    if (found >= 2) break;
                 }
-                for (int bg = 0; bg < 4; ++bg) {
+                for (int bg = 0; bg < 4 && found < 2; ++bg) {
                     if (bgs[bg].kind == BG_OFF || bgs[bg].prio != prio) continue;
                     if (!(mask & (1u << bg))) continue;
                     uint32_t s;
                     if (sample_bg(bgs[bg], x, y, s)) {
-                        c = s;
-                        goto done;
+                        col[found] = s; id[found] = bg; ++found;
                     }
                 }
             }
-        done:
+            // Nothing drawn: the pixel is pure backdrop, no top layer to blend.
+            const uint32_t c = found ? blend_apply(bld, mask, col[0], id[0], semi,
+                                                   col[1], id[1])
+                                     : backdrop;
             fb.px[y][x] = apply_bright(c, br);
         }
     }
