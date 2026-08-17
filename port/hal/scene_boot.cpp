@@ -1130,18 +1130,30 @@ L2_UNMATCHED(func_02140d80)
 //
 //     AND THE BY-ADDRESS SPELLING HAS A DEFECT OF ITS OWN THAT IS NOT FIXED
 //     HERE, stated so the deletion of the other three cannot be read as the
-//     class being closed. Five matched ov007 TUs -- func_ov007_020c338c,
-//     _020c3544, _020c8098, _020c8440 and _020c9460 -- are `ldr ip,[pc]; bx
-//     ip; .word 0x020c3d1c` long-branch veneers that declare
-//     `extern int func_020c3d1c(void);` and call it with nothing. On ARM r0
-//     rides through the `bx`; on the host the ride survives only because MSVC
-//     compiles each one as a jmp, and NOTHING IN THE SUITE CAN SEE THAT: both
-//     sides of this directive are flat cdecl so aliascheck's rule R is right
-//     to stay quiet, and nothing defines func_020c3d1c so aritycheck has no
-//     census row to hang the declaration on. It is a seventh instance of the
-//     section 6 class, found by lane RF1 while fixing the other six, and it
-//     is written up in section 6 item 7 rather than fixed, because five more
-//     frames want their own tail-jump rows and their own drive.
+//     class being closed. SIXTEEN matched ov007 TUs are `ldr ip,[pc]; bx ip;
+//     .word 0x020c3d1c` long-branch veneers that declare
+//     `extern int func_020c3d1c(void);` and call it with nothing:
+//       func_ov007_020c0a9c _020c105c _020c1620 _020c2018 _020c22f8 _020c2410
+//       _020c338c _020c3544 _020c8098 _020c8440 _020c8b04 _020c8f58
+//       _020c9080 _020c92a0 _020c937c _020c9460
+//     (RF1 filed this as five, which was the subset it had grepped; RFR1's
+//     review took the census and it is sixteen. A seventeenth,
+//     func_ov007_020c05f8, is the same shape spelling the flat name instead.)
+//     On ARM r0 rides through the `bx`; on the host the ride survives only
+//     because MSVC compiles each one as a jmp, and SIX of the sixteen are
+//     entered with a real pushed argument, not a bare call --
+//     src/func_ov007_020cbb04.cpp:18 into _020c8098, and
+//     src/func_ov007_020b9770.cpp into _020c937c four times and _020c9080
+//     twice. NOTHING IN THE SUITE CAN SEE ANY OF IT: both sides of this
+//     directive are flat cdecl so aliascheck's rule R is right to stay quiet,
+//     and nothing defines func_020c3d1c so aritycheck has no census row to
+//     hang the declarations on. It is a seventh instance of the section 6
+//     class, found by lane RF1 while fixing the other six, and it is written
+//     up in section 6 item 7 rather than fixed, because sixteen frames want
+//     their own tail-jump rows and their own drive. The ride itself is
+//     already asserted: tailjump_guard DERIVES all 22 ov007 veneers from the
+//     overlay image, so the safety of the status quo does not rest on this
+//     comment being complete.
 #pragma comment(linker, "/alternatename:_func_020c3d1c=__ZN6Player17St_EndingFly_MainEv")
 //     The int-returning spelling now rides the void one. Both sides are
 //     public __thiscall taking no arguments, so the receiver AGREES and the
@@ -1397,14 +1409,27 @@ struct ActorBase {
 
      from:0x02103254 kind:load to:0x020c3e4c module:overlay(7)
 
-   0x020c3e4c is `mov r2,r0 / mov r0,#0 / mvn r1,#0 / bx 0x020590fc`, and
-   func_020590fc unlinks the object at (r2 - 0x20) from two lists under an
-   interrupt lock. So the body is a TEARDOWN TRAMPOLINE whose one argument is
-   the object being torn down, and the Player name on it is a mislabel -- the
-   2d map's section 1 says so and this is the disassembly behind that warning.
-   The callers agree: src/func_ov007_020cbb04.cpp calls it on five sub-objects
-   and then on the parent, and src/func_ov007_020b9770.cpp calls it on two
-   globals and nulls each one immediately after.
+   0x020c3e4c is six instructions and four of them are the argument setup, so
+   all six are worth carrying:
+
+     020c3e4c  ldr ip,[pc,#0xc]     ip = 0x020590fc
+     020c3e50  mov r2,r0            arg 3 = the object
+     020c3e54  mov r0,#0            arg 1 = 0, the table index
+     020c3e58  mvn r1,#0            arg 2 = -1, "the current handle"
+     020c3e5c  bx  ip
+     020c3e60  .word 0x020590fc
+
+   func_020590fc is free(). Under an interrupt lock it indexes a 12-byte
+   record by the current handle and calls two list functions on the node at
+   (obj - 0x20): func_02059364 UNLINKS it from the allocated list at rec+8,
+   and func_0205929c INSERTS it into the address-sorted FREE list at rec+4,
+   reading node[+8] as a size to coalesce with the neighbour above. So the
+   body is a TEARDOWN TRAMPOLINE whose one argument is the object being freed,
+   and the Player name on it is a mislabel -- the 2d map's section 1 says so
+   and this is the disassembly behind that warning. The callers agree:
+   src/func_ov007_020cbb04.cpp calls it on five sub-objects and then on the
+   parent, and src/func_ov007_020b9770.cpp calls it on two globals and nulls
+   each one immediately after.
 
    THE TRUE BODY IS SEATED AND MATCHED, so these are BRIDGES and not traps.
    src/_ZN6Player17St_EndingFly_MainEv.cpp is in this slice and defines the
@@ -1413,11 +1438,14 @@ struct ActorBase {
 
    WHAT THE DIRECTIVES DID. QAE is __thiscall: the nine call sites put the
    object in ECX and push NOTHING, and the flat cdecl body then read its first
-   stack slot -- the RETURN ADDRESS -- and handed that to the unlink. YA is a
+   stack slot -- the RETURN ADDRESS -- and handed that to free(). YA is a
    free function: src/func_ov007_020b7764.cpp:9 spells
    `Player::St_EndingFly_Main()` with no arguments at all, so that site read
-   the same return address. Two lists get a code address spliced out of them
-   either way. It has never fired because ov007's ending path is not drivable,
+   the same return address. Either way the caller's own return address is
+   INSERTED INTO THE FREE LIST as a block header at (return address - 0x20),
+   with its size field read out of whatever instruction sits eight bytes into
+   that header, and the coalescing test then compares that against the next
+   free block. It has never fired because ov007's ending path is not drivable,
    which is why these two faces are proved by the checker and the disassembly
    and claim no drive.
 

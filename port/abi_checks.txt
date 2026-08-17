@@ -250,17 +250,35 @@ faces and nothing else; the fill count is 2310 at both ends.
 
   $ python port/tools/aritycheck.py --gate-receiver
     11260 definitions, 26423 declarations of _ZN*/func_* symbols
-       AB1 -> RF1: 11264 definitions, 26413 declarations. The four extra
-       definitions are this lane's faces; the ten fewer declarations are the
-       namespaced spellings the NS BINDING rule stopped counting.
+       AB1 -> RF1: 11264 definitions, 26413 declarations.
+       AND THOSE TWO DELTAS ARE NOT THIS LANE'S TO CLAIM, which is the same
+       cross-commit trap the abicheck paragraph above isolates. Measured with
+       ONE tool (the tip's) against BOTH trees, so only the tree differs:
+         af0c86ab5, this lane's own base:  11261 definitions, 26413 decls
+         the tip:                          11264 definitions, 26413 decls
+       So this lane adds THREE definitions, not four, and moves the
+       declaration count by ZERO. The three are the faces that match the
+       reader's DEFN regex (_ZN13HeapAllocator6RemoveEv,
+       _ZN6Player12GetHurtStateEv, port_ov007_b7764_endingfly); the two C++
+       METHOD definitions do not match it, because the regex has no `::` in
+       its name group. Against AB1's 11260 the difference is one more
+       definition and ten fewer declarations that arrived with six days of
+       other lanes' merges and with the NS BINDING rule, and untangling those
+       is not something a number in this column can do. The first version of
+       this line said "four extra definitions are this lane's faces" and was
+       comparing across commits to say it; lane RFR1 caught it.
     2105 disagreements: 1319 DROPS, 786 INVENTS
-       AB1 -> RF1: 2106, 1320 DROPS, 786 INVENTS. The census delta is exactly
-       three rows and every one was accounted for by diffing the two trees
-       with the same tool: -1 for src/func_ov007_020b7764.cpp (now unbound),
-       +2 for the two arm9 veneers' declarations of the Remove face.
+       AB1 -> RF1: 2106, 1320 DROPS, 786 INVENTS. This one IS isolated,
+       against af0c86ab5 rather than against AB1: the base reads 2105 / 1319 /
+       786 with the tip's tool, so the census delta is exactly three rows and
+       each was read off a row-by-row diff of the two trees -- -1 for
+       src/func_ov007_020b7764.cpp (now unbound), +2 for the two arm9 veneers'
+       declarations of the Remove face.
     168 of the DROPS are the RECEIVER shape
-       AB1 -> RF1: 166. The two added rows are held OUT by the RIDE rule and
-       the b7764 row is gone, so the subset loses two.
+       AB1 -> RF1: 166, and against af0c86ab5 with the tip's tool the base
+       reads 167 -- the RIDE rule alone takes func_ov007_020c05f8 out before
+       any of this lane's edits, and the fix takes b7764 out after. The two
+       added Remove rows never enter the subset, also by RIDE.
     168 baselined, 168 live, 0 NEW, 0 retired
        AB1 -> RF1: 166 baselined, 166 live, 0 NEW, 0 retired -- after
        deleting the two rows the run before this one reported as retired.
@@ -889,20 +907,48 @@ Ranked by blast radius.
          config/arm9/overlays/ov007/relocs.txt:3264
            from:0x02103254 kind:load to:0x020c3e4c module:overlay(7)
 
-     and 0x020c3e4c is six instructions:
+     and 0x020c3e4c is six instructions, all six of which matter because four
+     of them are the argument setup:
 
-         ldr ip,[pc,#0xc] / mov r2,r0 / mov r0,#0 / mvn r1,#0 / bx ip
-         .word 0x020590fc
+         020c3e4c  ldr ip,[pc,#0xc]      ip = 0x020590fc
+         020c3e50  mov r2,r0             arg 3 = the object
+         020c3e54  mov r0,#0             arg 1 = 0, the table index
+         020c3e58  mvn r1,#0             arg 2 = -1, "the current handle"
+         020c3e5c  bx  ip
+         020c3e60  .word 0x020590fc
 
-     func_020590fc takes (0, -1, obj), disables interrupts, indexes a table of
-     12-byte records, and unlinks the node at (obj - 0x20) from the two lists
-     at +4 and +8 before re-enabling. It is a TEARDOWN, and both callers agree:
-     func_ov007_020cbb04 calls this on five sub-objects and then on the parent,
-     and func_ov007_020b9770 calls it on two globals and NULLS EACH ONE on the
-     next line. The "Player state" label on 0x020c3d1c is a mislabel -- section
-     1 of the 2d map warns about it and this is the disassembly behind the
-     warning -- and what was being spliced out of those two lists was the
-     caller's own return address.
+     func_020590fc disables interrupts, takes table[0] and -- because arg 2 is
+     negative -- reads the current handle out of its first word, indexes a run
+     of 12-byte records by it, and then calls TWO list functions on the node at
+     (obj - 0x20) before re-enabling. IT IS free().
+
+     WHICH TWO LISTS, AND WHAT EACH CALL DOES. The first version of this
+     paragraph said "unlinks the node from the two lists at +4 and +8" and that
+     is half right and half backwards; lane RFR1's review disassembled both and
+     only one of them is an unlink:
+
+       rec+8   func_02059364(head, node)   a doubly-linked UNLINK. Patches
+               node->next into node->prev->next and back, returns the new head.
+               This is the node leaving the ALLOCATED list.
+       rec+4   func_0205929c(head, node)   an INSERT, not an unlink. It walks
+               the list while `node > cursor`, so the list is ADDRESS-SORTED,
+               links the node in at that position, and then reads node[+8] as a
+               SIZE and tests `node + size == next` to COALESCE with its
+               neighbour. This is the node joining the FREE list.
+
+     Together they are exactly free(): out of the allocated list, into the
+     sorted free list, coalesced with the block above it. So the blast radius
+     is worse than "spliced out of two lists". THE CALLER'S OWN RETURN ADDRESS
+     WOULD HAVE BEEN INSERTED INTO THE FREE LIST AS A BLOCK HEADER, at
+     (return address - 0x20), with its SIZE FIELD READ OUT OF CODE BYTES --
+     whatever instruction happens to sit eight bytes into that header. The next
+     allocation walks that list.
+
+     It is a TEARDOWN, and both callers agree: func_ov007_020cbb04 calls this
+     on five sub-objects and then on the parent, and func_ov007_020b9770 calls
+     it on two globals and NULLS EACH ONE on the next line. The "Player state"
+     label on 0x020c3d1c is a mislabel -- section 1 of the 2d map warns about
+     it and this is the disassembly behind the warning.
 
      SO THE FIX IS A BRIDGE AND NOT A TRAP. The mission this lane ran under
      allowed for a loud trap if the true body turned out to be unseated. It is
@@ -1021,35 +1067,63 @@ Ranked by blast radius.
 
          /alternatename:_func_020c3d1c=__ZN6Player17St_EndingFly_MainEv
 
-     the fourth spelling of item 4/5's body: by ADDRESS. Five matched ov007
-     TUs reach it -- func_ov007_020c338c, _020c3544, _020c8098, _020c8440 and
-     _020c9460 -- and every one of them is a long-branch veneer that declares
+     the fourth spelling of item 4/5's body: by ADDRESS. SIXTEEN matched ov007
+     TUs reach it, every one a long-branch veneer that declares
 
          extern int func_020c3d1c(void);
 
-     and calls it with nothing, while the body takes the object. It is the
-     same defect as item 4/5 with a different spelling, and its callers are
-     real: src/func_ov007_020cbb04.cpp:18 passes a pointer into
-     func_ov007_020c8098 in a loop over a grid, while :3 declares that veneer
-     as taking one and the veneer's own TU defines it as taking none.
+     and calls it with nothing, while the body takes the object:
+
+         func_ov007_020c0a9c   _020c105c   _020c1620   _020c2018
+         func_ov007_020c22f8   _020c2410   _020c338c   _020c3544
+         func_ov007_020c8098   _020c8440   _020c8b04   _020c8f58
+         func_ov007_020c9080   _020c92a0   _020c937c   _020c9460
+
+     THIS FILE SAID FIVE WHEN LANE RF1 FILED IT AND FIVE WAS WRONG. It named
+     the ones it happened to have grepped while fixing item 4/5, which is the
+     count-that-looks-like-coverage failure this document keeps recording
+     about other people's numbers. Lane RFR1's review took the honest census
+     (`grep -rl "extern int func_020c3d1c(void);" src/` returns 16) and the
+     deferred lane is roughly THREE TIMES the size that was filed. The
+     safety conclusion does not move -- see WHY IT IS NOT FIXED below -- but
+     the cost estimate does, and a deferred item is only useful if its size is
+     right.
+
+     A SEVENTEENTH TU, src/func_ov007_020c05f8.c, is the same veneer shape but
+     spells the FLAT Itanium name rather than the address, so it is not on
+     this list: it is the row the RIDE exclusion retires out of
+     aritycheck_receiver_baseline.txt in this very change.
+
+     AND THE CALLERS ARE REAL, INCLUDING TWO THAT PASS HONEST ARGUMENTS. Not
+     every one of the sixteen is called bare by its own caller, which is what
+     makes the ride load-bearing rather than merely latent:
+       src/func_ov007_020cbb04.cpp:18  passes a pointer into _020c8098 in a
+                                       loop over a grid (and :3 declares that
+                                       veneer as taking one)
+       src/func_ov007_020b9770.cpp     passes an int to _020c937c FOUR times
+                                       and to _020c9080 TWICE
+     In each of those six the caller pushes, the veneer names no parameter,
+     and the target reads the pushed word only because the veneer jmps.
 
      NEITHER CHECKER CAN SEE IT, and that is the part worth carrying. Both
      sides of the directive are flat __cdecl names, so there is no receiver
      crossing and aliascheck's rule R is right to stay quiet. Nothing in the
      tree DEFINES func_020c3d1c, so aritycheck has no definition to compare
-     the five `(void)` declarations against and no census row exists. A third
-     detector would have to reason about what an alias makes the callee, which
-     is the direction the NS BINDING rule added for item 6 points in.
+     the sixteen `(void)` declarations against and no census row exists. A
+     third detector would have to reason about what an alias makes the callee,
+     which is the direction the NS BINDING rule added for item 6 points in.
 
-     WHY IT IS NOT FIXED HERE. On the ROM all five are `ldr ip,[pc]; bx ip`
-     and r0 rides through, and on the host all five are inside the derived
-     VENEER set that tailjump_guard already asserts -- so the ride is intact
-     today and the guard would fail the build if it stopped being. Fixing it
-     properly means five more Class C rows keyed on the real callee and a
-     drive nobody has, on a scene (the ending) that is not reachable. It is
-     filed here rather than taken, which is the same call lane AB1 made about
-     the six, and it is filed with its mechanism so the next lane does not
-     have to re-derive it.
+     WHY IT IS NOT FIXED HERE, and this is the half the miscount did not
+     change. On the ROM all sixteen are `ldr ip,[pc]; bx ip` and r0 rides
+     through, and on the host all sixteen are inside the DERIVED veneer set
+     that tailjump_guard already scans overlay 7 for and asserts -- the
+     derivation covers all 22 ov007 veneers whatever this prose says, so the
+     ride is intact today and the guard fails the build if it stops being.
+     Fixing it properly means sixteen Class C rows keyed on the real callee
+     and a drive nobody has, on a scene (the ending) that is not reachable. It
+     is filed here rather than taken, which is the same call lane AB1 made
+     about the six, and it is filed with its mechanism and now with its real
+     size so the next lane does not have to re-derive either.
 
   ADJUDICATED INERT, for the record (11 rows, all in aliascheck_baseline.txt):
   Player::OnYoshiTryEat (the body is `(void)this; return 1;`); the eight
@@ -1081,6 +1155,17 @@ Ranked by blast radius.
     nested namespaces, overloads, arguments and out-of-line class methods are
     not attempted. Each of those is a place a call site can hide the way
     src/func_ov007_020b7764.cpp did for six days.
+  * THE NS BINDING TEST IS COARSER THAN THE DECORATION IT READS. It asks only
+    that a directive have `?` and `@@YA` on one side and `__ZN` on the other;
+    it does NOT check that the return-type letter after YA matches the
+    declaration's. So a directive binding an INT-returning free-function
+    spelling would be accepted as binding a VOID-returning declaration of the
+    same name, and the row would count. That is not exploitable on this tree
+    -- there is exactly one namespaced declaration with a binding at all, and
+    the one it had was the matching void spelling -- and the failure mode is
+    a row that appears rather than one that vanishes, which is the safe
+    direction for a ratchet. Tightening it means decoding the return type,
+    which is a demangler's job and rule P already owns one.
   * THE RIDE EXCLUSION IS ONLY AS GOOD AS tailjump_guard's HAND-DECLARED
     TABLE, and that is a narrower claim than it sounds. It covers 12 frames
     (7 Class A, which are 'call' and therefore never excluded, and 5+2 Class

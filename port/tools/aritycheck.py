@@ -134,6 +134,17 @@ import tailjump_guard as tj  # noqa: E402
 #              byte-locked declaration stays, the alias is gone, and the site
 #              now reaches a face in hal/scene_boot.cpp that supplies the
 #              receiver from the global the ROM reads it from.
+#              IT IS COARSER THAN THE DECORATION IT READS, said out loud
+#              because the test looks more precise than it is: it asks for `?`
+#              and `@@YA` on one side and `__ZN` on the other, and does NOT
+#              compare the return-type letter that follows YA. An
+#              int-returning binding would be accepted as binding a
+#              void-returning declaration of the same name. Not exploitable
+#              here -- one namespaced declaration has a binding at all and it
+#              matched -- and the failure direction is a row that APPEARS
+#              rather than one that vanishes, which is the safe way round for
+#              a ratchet. Tightening it means decoding the return type, which
+#              is a demangler's job and rule P already owns one.
 
 RIDES = frozenset((r['tu'], r['callee'])
                   for r in (tj.CLASS_A + tj.CLASS_C) if r['form'] == 'jump')

@@ -65,11 +65,14 @@
 #
 # NOT EVERY INSTANCE OF THE CLASS IS CLOSED, and this file cannot see the one
 # that is left. hal/scene_boot.cpp still carries
-# `_func_020c3d1c=__ZN6Player17St_EndingFly_MainEv`, reached through five
+# `_func_020c3d1c=__ZN6Player17St_EndingFly_MainEv`, reached through SIXTEEN
 # matched ov007 long-branch veneers that declare `func_020c3d1c(void)` and
-# pass nothing. Both sides of that directive are flat __cdecl, so RULE R is
-# right to stay quiet and there is nothing for this file to hold. It is
-# section 6 item 7.
+# pass nothing, six of which are themselves entered with a real pushed
+# argument. Both sides of that directive are flat __cdecl, so RULE R is right
+# to stay quiet and there is nothing for this file to hold. It is section 6
+# item 7, and the count there was filed as five and corrected to sixteen by
+# review; the ride is asserted either way, because tailjump_guard derives all
+# 22 ov007 veneers from the overlay image rather than from a list.
 
 # ---------------------------------------------------------------------------
 # INERT -- real crossings with a checked reason they cannot misbehave
