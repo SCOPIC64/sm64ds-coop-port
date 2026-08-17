@@ -23,11 +23,26 @@
 //   - the engine-A OBJ layer (the message cursor arrows), composited last;
 //   - the DS 256x192 space mapped to the host framebuffer by integer scale.
 //
+// WHAT IT IMPLEMENTS (blend), added run link60 lane BLND1:
+//   - BLDCNT ALPHA (mode 1) and the always-on semi-transparent-OBJ alpha, which
+//     is what dScMgCurling_c needs: its 0x0d40 puts no first-target BG bits up,
+//     so the effect fires ONLY through the mode-1 blue shadow sprite (always a
+//     1st target) alpha-blending over BG2 (a 2nd target) with BLDALPHA 0x1002.
+//     A top BG that is a 1st target over a 2D layer that is a 2nd target blends
+//     too. The window colour-effect bit (bit 5 of the window masks) gates it.
+//     SM64DS_BLEND_OFF=1 restores the old opaque path for A/B and bisection.
+//
 // WHAT IT SKIPS (documented, none of it on the dialogue-box path):
-//   - BLDCNT alpha blending and per-pixel colour effects (bit 5 of the window
-//     masks): the box does not alpha-blend its tiles; its dimming is the
-//     master-brightness / BLDY path, which walk_window's own fade composite
-//     already applies after this;
+//   - BLDY BRIGHTNESS (BLDCNT mode 2/3): owned by the fade path. This
+//     compositor runs BEFORE walk_window's fade composite, which reads engine
+//     A's BLDCNT/BLDY (port_fader_blend_state) and dims the whole framebuffer;
+//     applying mode 2/3 here too would double the fade. Recognised and deferred.
+//   - a 1st-target BG blending over the 3D layer (BG0 in 3D mode) rather than
+//     over another 2D layer: the BG loop composites into a 2D hit buffer and
+//     the 3D framebuffer is only read at OBJ time and at the final blit, so a
+//     BG-over-3D alpha would need the framebuffer inside the BG loop. The
+//     semi-transparent OBJ path DOES blend over the 3D layer. No curling frame
+//     needs BG-over-3D (its first-target bits are empty); left as a follow-up.
 //   - affine and bitmap BGs (engine A's box is text-mode);
 //   - mosaic.
 //
@@ -159,6 +174,61 @@ inline unsigned window_mask(const Windows &w, int x, int y) {
     return w.out;
 }
 
+// ---- the colour special-effects unit (BLDCNT, engine A) --------------------
+// Alpha only (mode 1) plus the always-on semi-transparent-OBJ alpha; brightness
+// modes 2/3 are the fade path's (see the header note). Mirror of ppu_sub.cpp's
+// unit for engine A's 0x04000050 blend registers. Layer ids match the window
+// bits: 0..3 BG, 4 OBJ (kOwnerObj below).
+
+// SM64DS_BLEND_OFF=1 keeps the old opaque path, so a before/after is one binary
+// at one .dsstate base (notes/port-selftest-bmp-gate.md) and a regression can
+// be bisected against the pre-blend image.
+inline bool blend_off_env() {
+    static int v = -1;
+    if (v < 0) {
+        const char *e = std::getenv("SM64DS_BLEND_OFF");
+        v = (e && *e && *e != '0') ? 1 : 0;
+    }
+    return v != 0;
+}
+
+struct Blend {
+    bool off;
+    int mode;          // BLDCNT bits 6-7: 0 off, 1 alpha, 2 bright-up, 3 down
+    unsigned first;    // bits 0-5: 1st-target layers
+    unsigned second;   // bits 8-13: 2nd-target layers
+    int eva, evb;      // BLDALPHA: 1st/2nd coefficients, 0..16 in 1/16 steps
+};
+
+inline Blend read_blend() {
+    Blend b;
+    b.off = blend_off_env();
+    const uint16_t cnt = rd16(kRegBase + 0x50);
+    const uint16_t alpha = rd16(kRegBase + 0x52);
+    b.mode = (cnt >> 6) & 3;
+    b.first = cnt & 0x3F;
+    b.second = (cnt >> 8) & 0x3F;
+    b.eva = alpha & 0x1F; if (b.eva > 16) b.eva = 16;
+    b.evb = (alpha >> 8) & 0x1F; if (b.evb > 16) b.evb = 16;
+    return b;
+}
+
+// top*eva/16 + below*evb/16 per channel, in 5-bit clamped to 31 -- the DS's own
+// arithmetic. bgr555 expansion (v<<3|v>>2) is losslessly reversible by >>3, so
+// the round trip reproduces the hardware blend exactly.
+inline uint32_t blend_alpha(uint32_t top, uint32_t below, int eva, int evb) {
+    const int r1 = ((top >> 16) & 0xFF) >> 3, g1 = ((top >> 8) & 0xFF) >> 3,
+              b1 = (top & 0xFF) >> 3;
+    const int r2 = ((below >> 16) & 0xFF) >> 3, g2 = ((below >> 8) & 0xFF) >> 3,
+              b2 = (below & 0xFF) >> 3;
+    int r = (r1 * eva + r2 * evb) >> 4; if (r > 31) r = 31;
+    int g = (g1 * eva + g2 * evb) >> 4; if (g > 31) g = 31;
+    int b = (b1 * eva + b2 * evb) >> 4; if (b > 31) b = 31;
+    return 0xFF000000u | ((uint32_t)(r << 3 | r >> 2) << 16)
+                       | ((uint32_t)(g << 3 | g >> 2) << 8)
+                       | (uint32_t)(b << 3 | b >> 2);
+}
+
 // The DS 256x192 image the 2D unit produces, per pixel: colour, "did any 2D
 // layer write here", and WHICH layer wrote it last.
 //
@@ -260,7 +330,8 @@ void attrib_take() {
 // the same arithmetic and NO live caller; the note was right about the
 // arithmetic and pointed at the copy that cannot reach a screen. Both are
 // fixed, in ntr/ppu_sub.cpp's shape.
-void raster_obj(uint32_t dispcnt) {
+void raster_obj(uint32_t dispcnt, const Blend &bl, const Windows &win,
+                ntr::Framebuffer &fb) {
     static const int kSizes[3][4][2] = {
         {{8, 8}, {16, 16}, {32, 32}, {64, 64}},
         {{16, 8}, {32, 8}, {32, 16}, {64, 32}},
@@ -268,6 +339,11 @@ void raster_obj(uint32_t dispcnt) {
     };
     const uint32_t obj_pltt = kPlttBase + 0x200u;
     const uint32_t boundary = 32u << ((dispcnt >> 20) & 3);
+    // Integer scale DS 256x192 -> host, for reading the 3D pixel under a
+    // semi-transparent sprite where no 2D layer covers it. Named distinctly
+    // from the sx/sy sprite-walk counters below, which would otherwise shadow.
+    const int xscale = ntr::SCREEN_W / 256;
+    const int yscale = ntr::SCREEN_H / 192;
     // DISPCNT bit 4: 1 = one-dimensional tile mapping, 0 = two-dimensional.
     // Scene::ResetHardwareRegisters clears it on both engines (it ANDs
     // 0xffcfffef, which takes bit 4 and the boundary field together) and
@@ -350,18 +426,35 @@ void raster_obj(uint32_t dispcnt) {
                     map1d ? (uint32_t)(trow * (w / 8) + tcol) * (c256 ? 2u : 1u)
                           : (uint32_t)(trow * 32 + (c256 ? tcol * 2 : tcol));
                 const uint32_t cell = kObjVram + tile * boundary + slot * 32u;
-                uint32_t index;
+                uint32_t index, color;
                 if (c256) {
                     index = *reinterpret_cast<volatile uint8_t *>(cell + fy * 8u + fx);
                     if (!index) continue;
-                    g_a[py][px].color = bgr555(rd16(obj_pltt + index * 2u));
+                    color = bgr555(rd16(obj_pltt + index * 2u));
                 } else {
                     const uint8_t b =
                         *reinterpret_cast<volatile uint8_t *>(cell + fy * 4u + fx / 2);
                     index = (fx & 1) ? (b >> 4) : (b & 0xF);
                     if (!index) continue;
-                    g_a[py][px].color = bgr555(rd16(obj_pltt + (pal * 16u + index) * 2u));
+                    color = bgr555(rd16(obj_pltt + (pal * 16u + index) * 2u));
                 }
+                // OBJ mode 1 (semi-transparent) alpha-blends with the layer
+                // directly below it -- the BG already composited into g_a here,
+                // or the 3D framebuffer (BG0 in 3D mode) where no 2D covers the
+                // pixel -- whatever BLDCNT's first-target bits say. Window bit 5
+                // gates the effect. No 2nd target below: drawn opaque (hardware).
+                if (!bl.off && objmode == 1
+                    && (window_mask(win, px, py) & 0x20)) {
+                    if (g_a[py][px].hit) {
+                        if (bl.second & (1u << g_a[py][px].owner))
+                            color = blend_alpha(color, g_a[py][px].color,
+                                                bl.eva, bl.evb);
+                    } else if (bl.second & 1u) {   // BG0 (3D) is a 2nd target
+                        color = blend_alpha(color, fb.px[py * yscale][px * xscale],
+                                            bl.eva, bl.evb);
+                    }
+                }
+                g_a[py][px].color = color;
                 g_a[py][px].hit = true;
                 g_a[py][px].owner = kOwnerObj;
             }
@@ -573,6 +666,7 @@ extern "C" void port_message_composite_engine_a(void *fbp)
         for (int x = 0; x < 256; ++x) g_a[y][x].hit = false;
 
     const unsigned lmask = layer_mask_env();
+    const Blend bl = read_blend();
 
     for (int y = 0; y < 192; ++y) {
         for (int x = 0; x < 256; ++x) {
@@ -584,6 +678,14 @@ extern "C" void port_message_composite_engine_a(void *fbp)
                     if (!(lmask & (1u << bg))) continue;
                     uint32_t s;
                     if (sample_bg(bgs[bg], x, y, s)) {
+                        // BGs draw far->near (prio 3..0, then bg 3..0), so when
+                        // a 1st-target BG writes, g_a already holds the layer
+                        // directly below it. Mode-1 alpha over a 2nd-target 2D
+                        // layer, gated by window bit 5.
+                        if (!bl.off && bl.mode == 1 && (mask & 0x20)
+                            && (bl.first & (1u << bg)) && g_a[y][x].hit
+                            && (bl.second & (1u << g_a[y][x].owner)))
+                            s = blend_alpha(s, g_a[y][x].color, bl.eva, bl.evb);
                         g_a[y][x].color = s;
                         g_a[y][x].hit = true;
                         g_a[y][x].owner = (uint8_t)bg;
@@ -594,7 +696,7 @@ extern "C" void port_message_composite_engine_a(void *fbp)
     }
 
     if (obj_on && (lmask & (1u << kOwnerObj)))
-        raster_obj(dispcnt);
+        raster_obj(dispcnt, bl, win, fb);
 
     if (std::getenv("SM64DS_MSG_COMPOSITE_DEBUG"))
         attrib_take();
