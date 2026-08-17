@@ -1,0 +1,132 @@
+# aliascheck_baseline.txt
+#
+# The frozen set of /alternatename directives whose two sides DISAGREE ABOUT
+# WHERE THE RECEIVER LIVES. MSVC __thiscall takes it in ECX; every other
+# spelling in this tree takes it as an ordinary first stack argument, or has no
+# receiver at all. A directive that crosses that line delivers the object
+# somewhere the body does not read.
+#
+# THIS FILE IS A RATCHET AND IT MAY ONLY SHRINK. A crossing that is not listed
+# here fails port/tools/aliascheck.py. Landing a NEW one is the thing this
+# exists to prevent; retiring an old one is the thing it exists to make
+# visible.
+#
+# EVERY ROW CARRIES AN ADJUDICATION, AND AN UNADJUDICATED ROW IS NOT ALLOWED.
+# The tag after the # is one of:
+#
+#   OPEN    a LIVE DEFECT. A caller demonstrably passes the receiver the way
+#           the other side does not read it. These are not cleared, they are
+#           COUNTED, and aliascheck reports them separately from regressions
+#           so the count cannot be mistaken for a green.
+#   INERT   the crossing is real but cannot misbehave, for a stated and
+#           checked reason -- the body never reads the receiver, the
+#           dispatcher puts it in ECX anyway, or the directive is defeated by
+#           a defined LHS so it never fires at all.
+#
+# HOW THE 2026-08-17 ADJUDICATION WAS DONE (run link60, lane AB1). For each
+# crossing: find every reference to the crossing name in src/, port/hal/ and
+# port/unmatched/; decide per site whether it CALLS the name (and with what)
+# or only TAKES ITS ADDRESS; read the body it resolves to and see whether that
+# body reads the receiver at all. A crossing is INERT only where that walk
+# reaches a reason, never where it merely fails to reach a caller.
+#
+# THE FIVE OPEN ROWS ARE NOT THIS FILE'S TO FIX. They are five separate
+# behavioural changes across four owners' files, each wanting its own battery,
+# and the lane that found them was landing the checker. They are recorded here
+# and reported at every run until somebody takes them.
+
+# ---------------------------------------------------------------------------
+# OPEN -- live receiver defects on cons, found by this checker 2026-08-17
+# ---------------------------------------------------------------------------
+
+# ExpandingHeapAllocator::DeallocateAll. The worst of the five: it loses the
+# receiver AND unbalances the stack. src/_ZN13ExpandingHeap14VDeallocateAllEv
+# .cpp:30 makes a qualified thiscall call with two pushed arguments, so the
+# allocator goes into ECX; the body
+# src/_ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj.cpp:3 is flat
+# cdecl (void *thiz, Fn fn, void *ctx) and takes thiz from the first stack
+# slot, which holds the VISITOR -- a code pointer -- and immediately
+# dereferences it at +0x2c. The pop disagrees too: the call site is compiled
+# for a callee that rets 8, the body pops nothing, so ESP leaks 8 bytes per
+# call. Reachable through _ZTV13ExpandingHeap slot 5, seated at
+# hal/lk4_eh_dtor_seat.cpp:127.
+?DeallocateAll@ExpandingHeapAllocator@@QAEXPAP6AXPAXPAV1@I@ZI@Z=__ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj  # OPEN: receiver lost and ESP leaks 8 per call
+
+# HeapAllocator::Remove. src/func_0204ebb8.c:7 and
+# src/_ZN13HeapAllocator7DestroyEv.cpp:8 are ARM tail-call veneers transcribed
+# to C, and both call the flat name with ZERO arguments. The body
+# src/_ZN13HeapAllocator6RemoveEv.cpp:23 is __thiscall HeapAllocator::Remove()
+# and dereferences `this` twice (FindNested(this), then Remove(iter, this)).
+# The veneers are themselves entered by cdecl calls that PUSH the allocator
+# (src/_ZN13ExpandingHeap8VDestroyEv.c:23, src/_ZN9SolidHeap8VDestroyEv.c:23),
+# so ECX is never loaded with it by anything in the source. It survives today
+# only if MSVC happens to materialise self->allocator into ECX before the push
+# and nothing clobbers ECX across two frames. Fires on any heap teardown.
+__ZN13HeapAllocator6RemoveEv=?Remove@HeapAllocator@@QAEXXZ  # OPEN: veneers call with no arguments, body reads ECX
+
+# Player::GetHurtState. src/func_ov073_02120ed0.c:112 and :113 and
+# src/func_ov077_02126640.cpp:37 all PUSH the player and call the flat name.
+# The body src/_ZN6Player12GetHurtStateEv.cpp:10 is __thiscall
+# Player::GetHurtState() and reads `this` twice.
+__ZN6Player12GetHurtStateEv=?GetHurtState@Player@@QAEHXZ  # OPEN: three compiled callers push the receiver, body reads ECX
+
+# Player::St_EndingFly_Main, two spellings of one bug. src/func_ov007_020cbb04
+# .cpp declares `struct Player { int St_EndingFly_Main(); }` (QAEH) and calls
+# it seven times; src/func_ov007_020b9770.cpp declares the void form (QAEX) and
+# calls it twice. Both put the player in ECX and push nothing. The body
+# src/_ZN6Player17St_EndingFly_MainEv.cpp:13 is flat cdecl (void *self) and
+# hands whatever sits in its first stack slot to an indirect call through
+# data_ov007_02103254.
+#
+# A THIRD SPELLING AT hal/scene_boot.cpp:1126 IS BROKEN THE SAME WAY AND IS
+# NOT IN THIS FILE, because it is not a crossing and this checker cannot see
+# it: ?St_EndingFly_Main@Player@@YAXXZ is a free function both sides, so the
+# receiver is absent rather than misplaced. src/func_ov007_020b7764.cpp:9
+# calls it with no arguments at all. That one is aritycheck's shape, and it is
+# the reason this suite ships more than one detector.
+?St_EndingFly_Main@Player@@QAEHXZ=__ZN6Player17St_EndingFly_MainEv  # OPEN: nine thiscall call sites push nothing, body reads the stack
+?St_EndingFly_Main@Player@@QAEXXZ=__ZN6Player17St_EndingFly_MainEv  # OPEN: same body, the void-returning declaration
+
+# ---------------------------------------------------------------------------
+# INERT -- real crossings with a checked reason they cannot misbehave
+# ---------------------------------------------------------------------------
+
+# Player::OnYoshiTryEat. The body src/_ZN6Player13OnYoshiTryEatEv.cpp:16 is
+# literally `(void)this; return 1;`, so nothing reads the receiver. The
+# dispatch would deliver it correctly anyway: the only reference is the
+# __fastcall thunk ps_yoshi18 at hal/level_boot.cpp:3002, address-taken into
+# Player's vtable slot 18 at :3094.
+__ZN6Player13OnYoshiTryEatEv=?OnYoshiTryEat@Player@@UAEHXZ  # INERT: body discards this
+
+# The eight MeshColliderBase base-table bridges. Every one of the eight flat
+# names is ONLY ADDRESS-TAKEN, into _ZTV16MeshColliderBase at
+# hal/meshcolliderbase_vtable.cpp:76 and :80-86 (storage hal/model_host.cpp
+# :309, filled at boot from hal/level_boot.cpp:3486); a tree-wide search finds
+# no call. The live dispatchers are MSVC virtual calls that put the receiver
+# in ECX -- src/_ZN11RaycastLine10DetectClsnEv.cpp:56 and
+# src/_ZN10SphereClsn10DetectClsnEv.cpp:55 walk the collider registry and
+# dispatch v7/v8 on it -- so the __thiscall bodies read it correctly.
+__ZN16MeshColliderBase9Virtual08Ev=?Virtual08@MeshColliderBase@@UAEXXZ  # INERT: address-taken only, ECX dispatch
+__ZN16MeshColliderBase10DetectClsnER13RaycastGround=?DetectClsn@MeshColliderBase@@UAEHAAURaycastGround@@@Z  # INERT: address-taken only, ECX dispatch
+__ZN16MeshColliderBase10DetectClsnER11RaycastLine=?DetectClsn@MeshColliderBase@@UAEHAAURaycastLine@@@Z  # INERT: address-taken only, ECX dispatch
+__ZN16MeshColliderBase10DetectClsnER10SphereClsn=?DetectClsn@MeshColliderBase@@UAEHAAUSphereClsn@@@Z  # INERT: address-taken only, ECX dispatch
+__ZN16MeshColliderBase10BeforeClsnER10ClsnResultP5ActorR7Vector3P10Vector3_16S7_=?BeforeClsn@MeshColliderBase@@UAEXAAUClsnResult@@PAUActor@@AAUVector3@@PAUVector3_16@@3@Z  # INERT: address-taken only, ECX dispatch
+__ZN16MeshColliderBase12TransformPosERK7Vector3RS0_=?TransformPos@MeshColliderBase@@UAEHABUVector3@@AAU2@@Z  # INERT: address-taken only, ECX dispatch
+__ZN16MeshColliderBase14GetAngularVelYEv=?GetAngularVelY@MeshColliderBase@@UAEFXZ  # INERT: address-taken only, ECX dispatch
+__ZN16MeshColliderBase11GetVelocityER7Vector3=?GetVelocity@MeshColliderBase@@UAEXAAUVector3@@@Z  # INERT: address-taken only, ECX dispatch
+
+# ExpandingHeapAllocator::MemoryLeft. The directive never fires: the LHS is
+# DEFINED, by the face at hal/heap_vtable.cpp:96 which re-lands the receiver
+# (`u32 ExpandingHeapAllocator::MemoryLeft() { return
+# _ZN22...MemoryLeftEv(this); }`). An /alternatename whose LHS is defined is
+# ignored, so src/_ZN13ExpandingHeap11VMemoryLeftEv.cpp:26 binds to the face.
+# The tree already knows this from the other side: the same pair is row 68 of
+# alternatename_baseline.txt, in the defeated-alias allowlist.
+?MemoryLeft@ExpandingHeapAllocator@@QAEIXZ=__ZN22ExpandingHeapAllocator10MemoryLeftEv  # INERT: alias defeated by the face at heap_vtable.cpp:96
+
+# Stage::CheckInput. The body src/_ZN5Stage10CheckInputEv.cpp:46 takes ZERO
+# parameters and touches only file-scope externs, so there is no receiver to
+# misplace, and both sides return with a bare ret. Its one caller
+# src/_ZN5Stage8BehaviorEv.cpp:107 is in no port/slice_*.txt and no CMake
+# source list, so the LHS is referenced by nothing that compiles today.
+?CheckInput@Stage@@QAEXXZ=__ZN5Stage10CheckInputEv  # INERT: body has no receiver parameter, and the caller is unlinked
