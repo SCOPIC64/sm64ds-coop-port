@@ -49,9 +49,19 @@ static inline sd_u16 rd16(const sd_u8 *p) { return (sd_u16)(p[0] | (p[1] << 8));
 static inline sd_u32 rd32(const sd_u8 *p)
 { return (sd_u32)p[0] | ((sd_u32)p[1] << 8) | ((sd_u32)p[2] << 16) | ((sd_u32)p[3] << 24); }
 
+#ifdef PORT_ROM_CLEAN
+/* A shipping build has no PORT_REPO_ROOT fallback. hal/asset_root_refuse.cpp
+   is the write-up. */
+extern "C" void port_asset_root_refuse(const char *wanted);
+#endif
+
 static const char *asset_root(void)
 {
     const char *env = getenv("SM64DS_ASSET_ROOT");
+#ifdef PORT_ROM_CLEAN
+    if (!env)
+        port_asset_root_refuse("extracted/dsd/files/data/sound_data.sdat");
+#endif
     return env ? env : PORT_REPO_ROOT;
 }
 

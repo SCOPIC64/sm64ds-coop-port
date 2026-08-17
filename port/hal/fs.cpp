@@ -47,9 +47,20 @@ static char g_paths[MAX_FILES][PATH_MAX_]; /* by FAT file id */
 static u16 g_handle_to_id[MAX_HANDLES];    /* ov0 handle -> FAT file id */
 static int g_catalog_loaded;
 
+#ifdef PORT_ROM_CLEAN
+/* A shipping build has no PORT_REPO_ROOT fallback. hal/asset_root_refuse.cpp
+   says why at length; the short version is that the fallback is invisible on
+   every machine that can test it and fatal on every machine that cannot. */
+extern "C" void port_asset_root_refuse(const char *wanted);
+#endif
+
 static const char *asset_root(void)
 {
     const char *env = getenv("SM64DS_ASSET_ROOT");
+#ifdef PORT_ROM_CLEAN
+    if (!env)
+        port_asset_root_refuse("build/assets/files.tsv");
+#endif
     return env ? env : PORT_REPO_ROOT;
 }
 

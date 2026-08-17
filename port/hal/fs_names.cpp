@@ -196,6 +196,20 @@ DSSTATE_END
 
 }  /* extern "C" */
 
+#ifdef PORT_ROM_CLEAN
+/* A shipping build has no PORT_REPO_ROOT fallback for assets.
+   hal/asset_root_refuse.cpp is the write-up and port/kit_pipeline.txt is the
+   failure story. THIS SEAM IS THE ONE THE MASK COST US: the three files
+   asset_root() below resolves are the ones the kit's extractor never wrote,
+   and the fallback found them in the developer's checkout every single time
+   anyone tested a kit.
+
+   Declared out here rather than beside asset_root(), which is inside the
+   unnamed namespace below: a C-linkage name has no business being introduced
+   from inside one. */
+extern "C" void port_asset_root_refuse(const char *wanted);
+#endif
+
 namespace {
 
 /* ---- the cartridge's own FNT and FAT --------------------------------------
@@ -233,6 +247,10 @@ NitroTables g_tables;
 const char *asset_root(void)
 {
     const char *env = getenv("SM64DS_ASSET_ROOT");
+#ifdef PORT_ROM_CLEAN
+    if (!env)
+        port_asset_root_refuse("build/assets/nitrofs.tsv");
+#endif
     return env ? env : PORT_REPO_ROOT;
 }
 

@@ -1,0 +1,356 @@
+run link60 lane KIT1 -- THE KIT PIPELINE, AND THE HOLE IT SHIPPED WITH
+
+THE RULE THIS FILE EXISTS TO WRITE DOWN
+=======================================
+
+    THE KIT IS ONLY TESTED WHEN THE SHIPPED ARTIFACT RUNS WITHOUT THE REPO.
+
+Everything else that has ever been called "testing the kit" was a developer
+running the packaged exe on a machine with a checkout on it. That is a test of
+the developer's machine. It passed for as long as the kit has existed, and on
+2026-08-16 it was passing while every fresh player extraction produced a game
+that could not start.
+
+The kit has never had an evidence document. It earned one.
+
+
+1. WHAT BROKE, IN ONE PARAGRAPH
+===============================
+
+The open-by-name file system landed (lane NFS, hal/fs_names.cpp). It made the
+game require three new files at startup -- build/assets/nitrofs.tsv and the two
+raw table copies nitrofs_fnt.bin and nitrofs_fat.bin -- and it made that
+requirement fatal, from a static initialiser, before main. tools/asset_catalog
+.py was taught to write them. tools/portable_kit/extract_assets.ps1, which is
+the ONLY thing that produces a player's build/assets, was not. So the shipped
+kit's first-run extraction left a hole the shipped kit's exe refuses to start
+without, and the refusal is:
+
+    FATAL: NitroFS table index missing: <bundle>\build\assets\nitrofs.tsv
+           run tools/asset_catalog.py generate <rom>
+
+which is a correct message aimed at the wrong reader. It names a repository
+tool by its repository path, to a player who has no repository. The process was
+gone in roughly a fifth of a second, before any window opened.
+
+
+2. WHY NOTHING CAUGHT IT, WHICH IS THE PART WORTH READING
+=========================================================
+
+2a. THE MASK
+
+Every seam that opens a data file resolved its root the same way. Four copies
+of it: hal/fs.cpp, hal/fs_names.cpp, hal/romdata_loader.cpp, hal/sdat/sdat.cpp.
+
+    static const char *asset_root(void)
+    {
+        const char *env = getenv("SM64DS_ASSET_ROOT");
+        return env ? env : PORT_REPO_ROOT;
+    }
+
+PORT_REPO_ROOT is an absolute path cmake bakes in at configure time -- the
+directory the exe was built from. Read that fallback twice, because it behaves
+in exactly opposite ways on the two kinds of machine that matter:
+
+  * ON A DEVELOPER MACHINE it names a checkout with a complete, current
+    build/assets in it. Every file the exe could possibly want is there,
+    because the repo's own tooling regenerates them. So the fallback SUCCEEDS,
+    silently, and the run looks like a run of a working kit.
+
+  * ON A PLAYER MACHINE it names a directory that does not exist. The fallback
+    fails, and the failure is the FATAL above.
+
+That is the whole defect. THE FALLBACK IS INVISIBLE ON EVERY MACHINE THAT CAN
+TEST IT AND FATAL ON EVERY MACHINE THAT CANNOT. It is not that the kit was
+under-tested; it is that the kit could not be tested by the people testing it,
+and nothing in the build said so.
+
+Worse than harmless: the fallback did not merely hide a missing file. If a kit
+exe were ever run from inside a checkout with SM64DS_ASSET_ROOT unset, it would
+READ THE DEVELOPER'S REPOSITORY TREE and play correctly off it. A shipping
+binary silently reading a directory that only exists on one machine in the
+world is the exact shape of an artifact that cannot be trusted to have been
+tested at all.
+
+2b. WHY NO GATE COULD SEE IT
+
+port/tools/gate.py and port/tools/battery.py are thorough and neither of them
+was ever going to catch this, for a reason that is structural rather than an
+oversight:
+
+  * the battery runs walk_window out of build/port, in the checkout, with the
+    catalog right there. It is measuring the DEVELOPER build, which is the
+    build that is supposed to have the fallback.
+  * the byte gate never touches port/ at all.
+  * there is no CI that builds port/, and none at all that builds the KIT (see
+    the standing note on port CI and Linux drift).
+  * package_kit.ps1 does check things -- static CRT, no VC++ redistributable
+    imports, the ROM-CLEAN marker string -- but every one of those checks
+    INSPECTS THE EXE. None of them runs it. A kit could fail to start on every
+    machine on earth and package_kit.ps1 would assemble it and say "Kit ready".
+
+So the gap was not between a check and a bug. It was that no check anywhere in
+the pipeline ran the shipped artifact under the conditions the artifact ships
+into. Adding a fourth inspection of the exe would not have found this. Running
+it once, in a folder with no repository behind it, would have found it
+instantly.
+
+2c. AND THE INSTALL COULD NOT REPAIR ITSELF
+
+play.bat decides whether to extract by testing for three files:
+
+    build\assets\files.tsv
+    build\assets\handles.tsv
+    extracted\dsd\files\data\sound_data.sdat
+
+None of those three ever changes between kit versions. An install made before
+the nitrofs requirement has all three, so play.bat says "already unpacked",
+skips the extraction that would have written the missing files, and runs
+straight into the FATAL. Shipping a fixed extractor would NOT have fixed an
+existing install; the player would have had to delete build\ by hand.
+
+SM64DSLauncher's Extraction.cs carries the same three names in its Markers[]
+array, with a comment saying they were taken from play.bat, and has the same
+behaviour for the same reason. That file is in a different repository and is
+not this lane's to change. IT STILL NEEDS THE SAME FIX and it is three lines.
+
+
+3. THE LIVE REPRO AND THE HAND PATCH
+====================================
+
+Reported, not measured here, and recorded because it is the only run of this
+software on a machine that was telling the truth: the project owner installed
+the shipped kit, pressed play, and the game exited in about 180 ms with the
+FATAL above and no window. That is the first and so far only observation of the
+kit's actual behaviour on a machine without a checkout.
+
+It was hand-patched the same night by copying nitrofs.tsv, nitrofs_fnt.bin and
+nitrofs_fat.bin out of the cons worktree's build/assets into the install. That
+is legitimate for that install and only that install: same EU cartridge dump,
+so the same tables, and the tool's own report of the spans agreed --
+
+    fnt  48,893 bytes at 0x1d9324
+    fat  17,400 bytes at 0x1e5224
+
+-- which this lane re-derived independently from the ROM header and confirms
+(section 4). It is not a fix. It is one machine.
+
+ONE TRAP IN THAT PATCH, WRITTEN DOWN BECAUSE IT COST TIME ON THE NIGHT:
+asset_catalog.py's --nitrofs flag takes a DIRECTORY, not a file. Pointing it at
+build/assets/nitrofs.tsv creates a directory of that name and writes three
+files inside it. The three outputs are also easy to misread by size: the .tsv
+is 78 bytes of index and the two .bin files are the raw tables, so a glance at
+a directory listing that shows a 78-byte "table" invites the conclusion that
+something truncated.
+
+
+4. THE FIX, PART ONE: THE EXTRACTOR LEARNS THE TABLES
+=====================================================
+
+tools/portable_kit/extract_assets.ps1 now writes all three, immediately after
+files.tsv and handles.tsv.
+
+The kit's premise is that it ships zero game bytes and has no dependencies:
+Windows PowerShell 5.1, no python, no ndspy. So these cannot be shipped and
+cannot be produced by calling asset_catalog.py. They are cut out of the
+player's own dump, client-side, by the same script that was already reading the
+ROM header words at 0x40..0x4c to walk the filesystem. The four words were
+already in hand; nothing new is parsed.
+
+WHAT THE FORMAT IS, since it has to match asset_catalog.py exactly:
+
+  nitrofs_fnt.bin   rom[fnt_offset .. fnt_offset + fnt_size], verbatim
+  nitrofs_fat.bin   rom[fat_offset .. fat_offset + fat_size], verbatim
+  nitrofs.tsv       78 bytes. A two-column tab-separated table, header row
+                    "key<TAB>value", then the four words in ROM-header order:
+                    fnt_offset, fnt_size, fat_offset, fat_size, in DECIMAL.
+                    LF line endings. UTF-8, no byte-order mark.
+
+They have to be the CARTRIDGE'S bytes rather than anything rebuilt from
+files.tsv. hal/fs_names.cpp runs the ROM's own name walker over them, and the
+entire value of doing that is that nothing between a path string and a file id
+is this port's invention. A regenerated name table would be a forgery that
+happened to work.
+
+PARITY, MEASURED. Same ROM through both writers, sha256:
+
+  nitrofs.tsv       bd8c65250492794fd81973a6b306ff18f9ae4b77564562939e6d35125626288a       78
+  nitrofs_fnt.bin   5a1780b74a6cddf0650288a5051a0afeb97df89e141187004e2de5505a935f0c   48,893
+  nitrofs_fat.bin   b91c3805fdc155309806da0de27e2f5285d4089216f477ac23aed0e9ac72108b   17,400
+
+Identical in all three, python side against powershell side. The spans the
+extractor derived are fnt 48,893 at 0x1d9324 and fat 17,400 at 0x1e5224, which
+is what the hand patch was working from.
+
+One check was added rather than copied: asset_catalog.py refuses a zero-length
+span and the extractor's existing span validation only tested the OFFSET, so a
+zero-size table would have passed it and produced a file the game then refuses
+by name. It now refuses in the extractor, where the message can say "re-dump
+the cartridge" instead of naming a file the script itself just wrote.
+
+play.bat's "already unpacked?" test now names every required file instead of
+three of them, so an install made before this change re-extracts itself.
+
+
+5. THE FIX, PART TWO: THE KIT BUILD HAS NO FALLBACK
+===================================================
+
+In a PORT_ROM_CLEAN build -- which is what the kit is, and what package_kit.ps1
+already refuses to ship without -- an unset SM64DS_ASSET_ROOT is now a refusal.
+It names the file it was about to open, writes startup_error.txt for the
+launcher to show, puts a message box up for someone who double-clicked the exe,
+and exits 2.
+
+The mechanism is hal/asset_root_refuse.cpp, which is added to walk_window and
+walk_window_hires INSIDE the existing if(PORT_ROM_CLEAN) blocks and nowhere
+else. Each of the four asset_root() copies gained:
+
+    #ifdef PORT_ROM_CLEAN
+        if (!env)
+            port_asset_root_refuse("<the file this seam wants>");
+    #endif
+
+THE DEVELOPER BUILD IS DELIBERATELY UNTOUCHED. Every lane in this tree runs
+walk_window straight out of a build directory with no environment set, and
+relies on PORT_REPO_ROOT to find the catalog. That convenience is correct for a
+checkout and wrong for a zip, and PORT_ROM_CLEAN is already exactly the line
+between the two. Because the guard is preprocessed out of the developer build,
+its translation units come out of the preprocessor unchanged and its binary is
+unchanged -- which is what the delta-0 gate at the end of this lane is for.
+
+MEASURED, and it came out stronger than "delta 0". The developer walk_window
+was linked before this lane's edits and again after, in the SAME build
+directory so the object-name comparison is honest, and port/tools/mapdiff.py
+--expect-zero holds:
+
+    base: 37387 symbols in 6526 objects
+    tip : 37387 symbols in 6526 objects
+    ADDED 0   REMOVED 0   MOVED 0   objects added 0 / removed 0
+
+and a plain diff of the two map files is FOUR LINES, all of them one line:
+
+    <  Timestamp is 6a82c77a (Mon Aug 17 04:34:02 2026)
+    >  Timestamp is 6a82cbf7 (Mon Aug 17 04:53:11 2026)
+
+Nothing moved. Every symbol is at the same address in the same object. The
+four selftest BMPs the battery writes are byte-identical across the pair, which
+is what that map identity predicts and not an independent fact -- but it is the
+fact the battery's own header says to check, so it is recorded rather than
+inferred.
+
+WHY exit(2) AND NOT abort(). Same reason hal/fs_names.cpp records at length for
+its own refusals: MSVC's abort() raises STATUS_STACK_BUFFER_OVERRUN, the shell
+reports 0xC0000409, and every crash reporter in the chain then files a
+configuration error as a memory-safety crash in the port.
+
+WHY THE startup_error.txt WRITE IS DUPLICATED. tests/walk_window.cpp already
+has that function and it is static and lives inside main(). The seam that
+matters most here is reached from a STATIC INITIALISER, before main, so a
+refusal that can fire that early cannot borrow a helper that runs later. It
+carries its own twenty lines of raw Win32.
+
+
+6. THE FIX, PART THREE: A TEST THAT RUNS THE SHIPPED THING
+==========================================================
+
+port/tools/kit_smoke.py takes a built kit directory and a ROM, and:
+
+  1. checks the kit is complete (exe, play.bat, extractor, recipe, manifest);
+  2. checks the exe is a PORT_ROM_CLEAN build, the same marker-string test
+     package_kit.ps1 makes and spelled the same way on purpose;
+  3. checks port/kit_assets.txt against THE SHIPPED EXE'S STRINGS, both
+     directions (section 7);
+  4. stages a fresh temp directory holding a COPY of the kit and nothing else,
+     with the ROM in its drop folder;
+  5. runs the kit's own extractor there, exactly as play.bat runs it -- read as
+     text and executed as a script block, so an execution-policy difference
+     behaves the same here as it does for a player;
+  6. requires every path in port/kit_assets.txt to now exist;
+  7. runs the exe with GameRunner.Launch's environment and nothing else --
+     CWD = bundle, SM64DS_ASSET_ROOT = bundle, SM64DS_VOLUME set, every other
+     SM64DS_* variable popped so an inherited one cannot decide the outcome --
+     and requires a zero exit and a selftest BMP;
+  8. runs the SAME exe in the SAME folder with SM64DS_ASSET_ROOT removed and
+     requires it to refuse: non-zero exit, the variable and the wanted file
+     named on stderr, startup_error.txt written.
+
+WHAT "NO REPO ACCESS" HONESTLY MEANS HERE. The repository is not deleted from
+the machine; no test should need that. The claim is proved the way it can
+actually be proved: the staged directory is a copy rather than a link, and step
+8 demonstrates on the same binary that the only path back to a checkout --
+PORT_REPO_ROOT -- is refused rather than followed. That is a stronger statement
+than an absence, because it holds on machines that DO have a checkout.
+
+THE BMP IS A LIVENESS CHECK, NOT A RASTER COMPARISON. Selftest pixels track the
+hosted-global layout and the .dsstate base (port/tools/battery.py's header is
+the derivation), and a kit exe is a different link from the gated one, so its
+BMP will not match the battery's and is compared against nothing. The question
+being asked is only "did this reach the renderer and write a frame".
+
+package_kit.ps1 now says, in its output, that nothing it did ran the game, and
+prints the exact kit_smoke command. -SmokeRom <your.nds> runs it in place and
+turns a failure into a refusal to call the kit ready.
+
+
+7. THE ANTI-DRIFT LOOP
+======================
+
+The bug was a new required file that the writer never learned about. Fixing
+this instance is not the same as fixing the class, so there is now one list --
+port/kit_assets.txt -- and three checks that keep the writer, the reader and
+the list from separating:
+
+  * every "build/assets/<name>" string IN THE PACKAGED EXE must be on the list,
+    so a newly required file cannot be added without landing there;
+  * every list entry must appear as a string in the packaged exe, so an entry
+    cannot go stale after the exe stops wanting it;
+  * running the extractor must produce every path on the list.
+
+It reads the SHIPPED BINARY rather than the source on purpose. Source scanning
+would have to know the shapes seams are written in; the exe's string table is
+what the exe actually asks for, and it is the artifact under test.
+
+A fourth check covers the OTHER list, the one section 2c is about: play.bat's
+"already unpacked?" test is parsed out of the shipped play.bat and must be the
+manifest, both directions. A fixed extractor is no use to a player whose
+play.bat never calls it.
+
+THE CHECKS WERE PROVED BY BREAKING THEM, not by watching them pass. Each was
+run against an input known to be wrong:
+
+  * the manifest with build/assets/nitrofs.tsv removed -- i.e. a manifest that
+    has not learned about a newly required file, which is this bug exactly:
+        FAIL every build/assets string in the exe is in kit_assets.txt
+             -- NOT LISTED: nitrofs.tsv
+  * the manifest with a made-up build/assets/ghost.tsv added:
+        FAIL every kit_assets.txt build/assets entry is wanted by the exe
+             -- STALE: ghost.tsv
+  * THE play.bat THAT ACTUALLY SHIPPED, taken straight out of git at the base
+    commit:
+        FAIL play.bat's unpack test names every required file -- NOT TESTED:
+             build/assets/nitrofs.tsv, build/assets/nitrofs_fat.bin,
+             build/assets/nitrofs_fnt.bin, build/assets/romdata.bin,
+             build/assets/romdata.manifest
+
+That last one is the whole incident, named by the check, in one line. A green
+from a check nobody has seen go red is not evidence.
+
+THE HONEST LIMIT: a required file reached through a path the compiler never
+materialises as a literal would slip the exe-side checks. No current seam is
+shaped that way -- every one snprintf's a literal -- but that is a property of
+today's code and not a guarantee.
+
+
+8. WHAT IS STILL OPEN
+=====================
+
+  * SM64DSLauncher's Extraction.cs Markers[] (section 2c). Different
+    repository, same three-file list, same inability to repair an existing
+    install. Three lines.
+  * kit_smoke.py is a manual step and an optional package_kit.ps1 switch. There
+    is no CI that could run it, because there is no CI that builds port/ at
+    all. Until there is, the rule at the top of this file is enforced by a
+    person choosing to run one command.
+  * The exe's own FATAL text still tells a player to "run tools/asset_catalog
+    .py generate <rom>". With the extractor fixed, no player should reach that
+    message -- but if one does, it is still advice they cannot act on.

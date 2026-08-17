@@ -9,10 +9,17 @@
         extracted\dsd\files\<path>     every file, byte for byte as the card has it
         build\assets\files.tsv         file id -> path index, rebuilt from the dump
         build\assets\handles.tsv       game handle -> file id, read out of overlay 0
+        build\assets\nitrofs.tsv       where the card's own FNT and FAT live in it
+        build\assets\nitrofs_fnt.bin   the card's file name table, copied verbatim
+        build\assets\nitrofs_fat.bin   the card's file allocation table, verbatim
         build\assets\romdata.bin       code-side data tables, rebuilt from the dump
                                        (the kit's romdata.recipe.tsv says where each
                                        piece lives; the file is hash-checked before
                                        it is written)
+
+    Every one of those is required. port\kit_assets.txt is the list the game
+    itself is checked against, and port\tools\kit_smoke.py fails if this script
+    and that list ever stop agreeing.
 
     Nothing is downloaded and nothing is installed. Windows PowerShell 5.1 is
     enough; there is no Python, no ndspy and no other dependency.
@@ -605,6 +612,60 @@ $utf8 = New-Object Text.UTF8Encoding $false
 [IO.File]::WriteAllText((Join-Path $assetsDir 'files.tsv'), $fileRows.ToString(), $utf8)
 [IO.File]::WriteAllText((Join-Path $assetsDir 'handles.tsv'), $handleRows.ToString(), $utf8)
 Write-Step "    $($paths.Count) files and $handleCount handles catalogued"
+
+# ------------------------------------------------------------ the NitroFS tables
+# WHY THE GAME NEEDS THESE AND WHY THEY WERE MISSING FOR A WHILE.
+#
+# The three files above answer "what file id is this, and where are its bytes".
+# They do not answer "what file id is 'data/normal_obj/.../x.bmd'", and the game
+# asks that question too: port\hal\fs_names.cpp runs the CARTRIDGE'S OWN name
+# walker, and that walker reads the cartridge's own FNT and FAT. So those two
+# tables have to be the card's actual bytes -- a name table rebuilt out of
+# files.tsv would be a plausible-looking forgery, and the whole point of running
+# the ROM's walker is that nothing between a name and a file id is invented.
+#
+# This block was NOT here when the open-by-name seam landed, and the result was
+# that every fresh extraction on a player's machine produced a game that died
+# in about a fifth of a second with
+#
+#     FATAL: NitroFS table index missing: ...\build\assets\nitrofs.tsv
+#
+# before its window ever opened. It never showed up in testing because a
+# developer's machine has a full build\assets from the repo's own tooling and
+# the exe fell back to it. port\kit_pipeline.txt is the write-up.
+#
+# The bytes have to match what tools\asset_catalog.py generate writes, because
+# that is what every check in the repo is run against. nitrofs.tsv is a plain
+# two-column table with the four header words in ROM-header order, LF line
+# endings, UTF-8 with no byte-order mark. The two .bin files are straight cuts
+# out of the dump.
+$script:Doing = 'writing the NitroFS name and allocation tables'
+$script:DoingPath = $assetsDir
+foreach ($span in @(@('file name table', $fntOffset, $fntSize),
+                    @('file allocation table', $fatOffset, $fatSize))) {
+    # The span checks above proved these stay inside the file. A ZERO-LENGTH
+    # table passes that and is still unusable: the game refuses to start on one,
+    # and it would refuse naming a file this script wrote, which reads as a bad
+    # kit rather than a bad dump.
+    if ($span[2] -eq 0) {
+        Stop-Politely ("This dump has an empty $($span[0]), so the game could not look up " +
+                       "any of its files. Re-dump the cartridge.")
+    }
+}
+$fntBytes = New-Object 'byte[]' ([int]$fntSize)
+[Array]::Copy($romBytes, [int]$fntOffset, $fntBytes, 0, [int]$fntSize)
+[IO.File]::WriteAllBytes((Join-Path $assetsDir 'nitrofs_fnt.bin'), $fntBytes)
+$fatBytes = New-Object 'byte[]' ([int]$fatSize)
+[Array]::Copy($romBytes, [int]$fatOffset, $fatBytes, 0, [int]$fatSize)
+[IO.File]::WriteAllBytes((Join-Path $assetsDir 'nitrofs_fat.bin'), $fatBytes)
+$nitroRows = New-Object Text.StringBuilder
+[void]$nitroRows.Append("key`tvalue`n")
+[void]$nitroRows.Append("fnt_offset`t$fntOffset`n")
+[void]$nitroRows.Append("fnt_size`t$fntSize`n")
+[void]$nitroRows.Append("fat_offset`t$fatOffset`n")
+[void]$nitroRows.Append("fat_size`t$fatSize`n")
+[IO.File]::WriteAllText((Join-Path $assetsDir 'nitrofs.tsv'), $nitroRows.ToString(), $utf8)
+Write-Step "    name table $fntSize bytes, allocation table $fatSize bytes"
 Write-Prog 80 "Rebuilding romdata.bin"
 
 # ------------------------------------------------------------ romdata.bin

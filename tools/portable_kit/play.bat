@@ -21,10 +21,26 @@ if not exist "%KIT%\demo-1.7.exe" (
     exit /b 1
 )
 
-rem Both halves of the asset root have to be there: the catalogs the loader
-rem reads first, and the files they point at.
+rem EVERY file the game refuses to start without, not a sample of them.
+rem
+rem This list is port\kit_assets.txt, and port\tools\kit_smoke.py checks that
+rem the two still agree. It used to test three files, and the three it tested
+rem happened to be the three an OLD extraction already had. So when the game
+rem started needing the nitrofs tables, an install that predated them sailed
+rem past this check, skipped the unpack that would have written them, and died
+rem on a missing file about a fifth of a second later. A partial check is worse
+rem than none: it is a check that says "unpacked" about an install it never
+rem looked at properly.
+rem
+rem A missing file here costs one re-extraction. Getting it wrong costs a
+rem player a game that will not start and has no way to repair itself.
 if not exist "%KIT%\build\assets\files.tsv" goto unpack
 if not exist "%KIT%\build\assets\handles.tsv" goto unpack
+if not exist "%KIT%\build\assets\nitrofs.tsv" goto unpack
+if not exist "%KIT%\build\assets\nitrofs_fnt.bin" goto unpack
+if not exist "%KIT%\build\assets\nitrofs_fat.bin" goto unpack
+if not exist "%KIT%\build\assets\romdata.bin" goto unpack
+if not exist "%KIT%\build\assets\romdata.manifest" goto unpack
 if not exist "%KIT%\extracted\dsd\files\data\sound_data.sdat" goto unpack
 goto play
 

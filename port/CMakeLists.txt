@@ -5308,8 +5308,12 @@ target_compile_definitions(walk_window PRIVATE SM64DS_PLATFORM_PC
 # turns on the port_romdata_load() call in walk_window.cpp, and a custom target
 # makes the blob + self-check a build prerequisite.
 if(PORT_ROM_CLEAN)
+    # hal/asset_root_refuse.cpp: the shipping build has NO PORT_REPO_ROOT
+    # fallback for assets. It is in this block and only this block, so the
+    # developer build keeps the fallback every lane in this tree relies on.
+    # Run link60 lane KIT1; port/kit_pipeline.txt is the write-up.
     target_sources(walk_window PRIVATE "${ROMDATA_DISPATCH_C}"
-                   hal/romdata_loader.cpp)
+                   hal/romdata_loader.cpp hal/asset_root_refuse.cpp)
     target_compile_definitions(walk_window PRIVATE PORT_ROM_CLEAN)
     add_custom_target(romblob_ready_ww DEPENDS "${ROMDATA_BIN}"
         "${CMAKE_BINARY_DIR}/assets/romblob_verified.stamp"
@@ -5458,7 +5462,7 @@ target_compile_definitions(walk_window_hires PRIVATE SM64DS_PLATFORM_PC
     PORT_CXX_ALIASES_LINKED)
 if(PORT_ROM_CLEAN)
     target_sources(walk_window_hires PRIVATE "${ROMDATA_DISPATCH_C}"
-                   hal/romdata_loader.cpp)
+                   hal/romdata_loader.cpp hal/asset_root_refuse.cpp)
     target_compile_definitions(walk_window_hires PRIVATE PORT_ROM_CLEAN)
     add_dependencies(walk_window_hires romblob_ready_ww)
 endif()

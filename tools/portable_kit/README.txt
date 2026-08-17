@@ -147,7 +147,8 @@ WHAT IS IN THIS FOLDER
 Once you have run it, two more folders appear, both made from your own dump:
 
     extracted\           the game's files, exactly as your cartridge holds them
-    build\assets\        two small index files that name them
+    build\assets\        the small index and table files that name them, plus
+                         the game's own data tables rebuilt from your dump
 
 Nothing here connects to the internet, installs anything, or changes any
 setting on your PC. It reads your dump, writes those two folders next to

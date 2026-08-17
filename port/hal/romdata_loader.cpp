@@ -34,6 +34,12 @@ typedef unsigned long long u64;
 // The generated dispatch (build/port/host-src/romdata_dispatch.c).
 extern "C" void port_romdata_load_all(const u8 *blob);
 
+#ifdef PORT_ROM_CLEAN
+// hal/asset_root_refuse.cpp: a shipping build refuses an unset asset root
+// instead of falling back to the path cmake baked in.
+extern "C" void port_asset_root_refuse(const char *wanted);
+#endif
+
 // ---- a self-contained SHA-256 (no external crypto dependency) --------------
 // Standard FIPS-180-4. Kept local so the exe carries no DLL/crypto import.
 namespace {
@@ -127,6 +133,14 @@ void sha256_hex(const u8 *p, size_t n, char out[65]) {
 
 const char *asset_root() {
     const char *env = getenv("SM64DS_ASSET_ROOT");
+#ifdef PORT_ROM_CLEAN
+    /* No PORT_REPO_ROOT fallback in a shipping build; hal/asset_root_refuse.cpp
+       is the write-up. This file is only ever compiled into a PORT_ROM_CLEAN
+       target, so the guard is belt and braces -- it keeps the shape identical
+       to the other three seams rather than making this one the exception. */
+    if (!env)
+        port_asset_root_refuse("build/assets/romdata.bin");
+#endif
     return env ? env : PORT_REPO_ROOT;
 }
 

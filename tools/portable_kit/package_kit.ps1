@@ -21,13 +21,22 @@
 .PARAMETER SkipBuild
     Reuse whatever is already in build\port-kit instead of running cmake.
 
+.PARAMETER SmokeRom
+    A .nds dump to run the shipped-artifact test against once the kit is
+    assembled (port\tools\kit_smoke.py). Optional, and the only thing that
+    actually proves the kit works: everything else here inspects the exe,
+    while that stages a clean folder with no repo in it, runs the kit's own
+    extractor and then the kit's own exe. Skipping it means shipping untested.
+
 .EXAMPLE
     .\package_kit.ps1
+    .\package_kit.ps1 -Output C:\tmp\kit -SmokeRom D:\dumps\sm64ds.nds
 #>
 [CmdletBinding()]
 param(
     [string] $Output,
-    [switch] $SkipBuild
+    [switch] $SkipBuild,
+    [string] $SmokeRom
 )
 
 $ErrorActionPreference = 'Stop'
@@ -136,8 +145,43 @@ Get-ChildItem $Output | ForEach-Object {
     "    {0,-20} {1,10:N0} bytes" -f $_.Name, $_.Length
 }
 Write-Host ""
-Write-Host "Kit ready:" -ForegroundColor Green
+Write-Host "Kit assembled:" -ForegroundColor Green
 Write-Host "    $Output"
+Write-Host ""
+
+# THE KIT IS ONLY TESTED WHEN THE SHIPPED ARTIFACT RUNS WITHOUT THE REPO.
+#
+# Everything above this line inspects the exe: is it static, is it ROM-clean,
+# are the right files in the folder. None of it runs the thing. For a long
+# while nothing did -- the way anyone "tested a kit" was to run the packaged
+# exe from a machine that had a checkout on it, where the game found a complete
+# build\assets whether or not the kit could produce one. That is how a build
+# that needed three files the extractor never wrote got shipped, and it died on
+# the first machine that had no repo behind it. port\kit_pipeline.txt is the
+# write-up.
+$smoke = Join-Path $repo 'port\tools\kit_smoke.py'
+if ($SmokeRom) {
+    if (-not (Test-Path -LiteralPath $SmokeRom)) { throw "no ROM at $SmokeRom" }
+    Write-Host "Running the shipped-artifact test" -ForegroundColor Cyan
+    Write-Host ""
+    & python $smoke $Output $SmokeRom
+    if ($LASTEXITCODE -ne 0) {
+        throw ("kit_smoke failed (exit $LASTEXITCODE). This kit does not work on a " +
+               "machine without the repository. Do not ship it.")
+    }
+    Write-Host ""
+    Write-Host "Kit ready and tested." -ForegroundColor Green
+} else {
+    Write-Host "NOT TESTED YET. Nothing above ran the game." -ForegroundColor Yellow
+    Write-Host "Before sending this to anyone, run the shipped-artifact test:" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "    python `"$smoke`" `"$Output`" <your.nds>"
+    Write-Host ""
+    Write-Host "It stages a clean folder with no repository in it, runs the kit's own"
+    Write-Host "extractor, then the kit's own exe with the launcher's environment, and"
+    Write-Host "checks that the exe refuses to start when it is not told where its data"
+    Write-Host "is. Passing -SmokeRom <your.nds> to this script does the same thing here."
+}
 Write-Host ""
 Write-Host "Zip that folder and send it. The person on the other end drops their"
 Write-Host "own .nds dump into PLACE EU ROM HERE and double-clicks play.bat."
