@@ -55,16 +55,16 @@
 // here used to say both were kept for the day ov004 was mounted; run link60
 // lane s2-m46 mounted it, so data_ov004_020beb68 now comes out of ov004's own
 // .bss with the same four zero bytes over the same ROM span, and hosting it
-// twice is a duplicate definition. data_0209b308 is an arm9 symbol, not
-// ov004's, so no mount reaches it and it stays here.
-#include "dsstate_seg.h"
-DSSTATE_BEGIN
-/* data_0209b308[2] was read INSIDE the ov004 function above, but only after
-   its null guard on data_ov004_020beb68 had already returned.
-   Zero-initialized, never read at runtime. */
-extern "C" int data_0209b308[4];
-int data_0209b308[4] = {0, 0, 0, 0};
-DSSTATE_END
+// twice is a duplicate definition.
+//
+// data_0209b308 USED TO BE HOSTED HERE TOO, at 16 bytes, with the note "never
+// read at runtime". That note was wrong: the record is the minigame sound row
+// the dScMgBase_c framework reads at +0x28 (music id), +0x2c (enable) and
+// +0x30, and the 16-byte host truncated every one of those reads -- one of the
+// two causes of the curling "no music" report. Run link60 lane MUS1 re-hosted
+// it at its true 0x34 span (data_0209b308 + data_0209b31c) next to the ov005
+// table that seeds it, in hal/scene_mg_sound.cpp. Nothing here defines it now,
+// so this file no longer needs the dsstate_seg bracket.
 
 #include <cstdio>
 #include <cstdlib>

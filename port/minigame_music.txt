@@ -1,0 +1,330 @@
+MINIGAME MUSIC: why curling booted silent, and the two defects behind it
+Run link60, lane MUS1. Base cons 74f8a1aa5, branch s5-minigame-music.
+
+The owner reported "no music" on the curling minigame. A read-only scout found
+the cause and proved the fix needs ZERO ROM function-body transcriptions; this
+lane verified every step of that diagnosis independently, found ONE MORE defect
+the scout's static read could not see, and fixed both.
+
+Nothing here transcribes a ROM body. The change is one re-hosted arm9 record at
+its true size, one verbatim ROM DATA row copied into it, and one missing call to
+a host function the level loop already made.
+
+
+1. THE MUSIC PATH, AND WHERE IT STOPPED
+---------------------------------------
+
+Minigame music is already dispatched on every boot, by linked code:
+
+  dScMgBase_c::AfterInitResources           vtable slot 2
+    = src/func_ov004_020b08f0.cpp           (in slice_mg1.txt, linked)
+    -> func_ov004_020ae330                  (slice_mg1.txt:249, linked)
+
+func_ov004_020ae330 (src/func_ov004_020ae330.c) is the whole decision:
+
+    if (data_ov004_020beb68 == 0) return;              scene tracker
+    if (func_ov004_020ae1cc() == 0) {                  enable at +0x2c
+        Sound::StopLoadedMusic_Layer1(1);              <-- SILENCE
+        if (data_0209b308 != 0x16f) return;            id at +0x00
+        Sound::LoadAndSetMusic_Layer1(func_ov004_020ae1f0());
+        return;
+    }
+    Sound::LoadAndSetMusic_Layer1(func_ov004_020ae1f0());
+
+func_ov004_020ae1f0 returns self->unk_0c8; slot 1
+(src/func_ov004_020b0930.cpp:41, host copy in unmatched/MgBase_Slot1.cpp) fills
+unk_0c8 = *(int *)(data_0209b308 + 0x28). The base ctor
+src/func_ov004_020b2adc.c:38 sets data_ov004_020beb68 = self, so the tracker
+gate passes on a direct scene boot; it also reads data_0209b308 + 0x30.
+
+Every input is one 0x34-byte arm9 record. Both things wrong with it were wrong
+for a direct SM64DS_SCENE boot only, which is why no earlier lane saw it.
+
+
+2. DEFECT ONE: THE RECORD WAS HOSTED AT 16 BYTES
+------------------------------------------------
+
+config/arm9/symbols.txt:4523-4525:
+
+    data_0209b308 kind:bss addr:0x0209b308      span 0x14
+    data_0209b31c kind:bss addr:0x0209b31c      span 0x20
+    data_0209b33c kind:bss addr:0x0209b33c      (next symbol, ends the record)
+
+0x14 + 0x20 = 0x34, and the reads index ONE base across both symbols: +0x28
+(music id), +0x2c (enable), +0x30 (base-ctor field). The port hosted it as
+
+    int data_0209b308[4] = {0,0,0,0};      hal/actor_classes_ov081.cpp:66
+
+sixteen bytes, with the comment "Zero-initialized, never read at runtime". That
+comment was wrong: the record is read on every minigame boot, and every read
+past +0x0f was out of bounds. It landed in that file only as the sibling of
+data_ov004_020beb68, which has since gone home to ov004's own .bss.
+
+The src declarations agree the object is much larger than four ints --
+src/func_ov004_020ad79c.c reads data_0209b308[5] and [6], func_ov004_020ad8b8.c
+reads [0x14/4] -- so the 16-byte host was contradicted by the tree's own
+sources, not only by symbols.txt.
+
+RE-HOSTED in hal/scene_mg_sound.cpp at the ROM's own spacing, using the
+packed-section idiom hal/scene_boot.cpp:559-609 already uses for the l2 run
+that begins at data_0209b33c (the symbol immediately after this record):
+
+    #pragma section(".dsstate$mg0", read, write)   data_0209b308[0x14]
+    #pragma section(".dsstate$mg1", read, write)   data_0209b31c[0x20]
+
+$mg0/$mg1 sort between the .dsstate$aaa/$zzz sentinels, so both stay inside
+[dsstate_lo, dsstate_hi) and a save state captures them. port_mg_pack_check()
+proves the 0x14 spacing at run time rather than trusting the linker; it printed
+nothing on every run below. Both stay BSS-zero, which is their DS boot value.
+
+
+3. DEFECT TWO: NOTHING EVER SEEDED THE RECORD
+---------------------------------------------
+
+The only writer is the Rec Room overlay ov005, src/func_ov005_020c0378.c:96-107:
+it copies a 0x34-byte row out of data_ov005_020c24d8 for the minigame the player
+picked, and THEN launches the scene. ov005 is in no slice and no mount, so
+SM64DS_SCENE=374 bypasses it entirely: music id and enable both read zero,
+enable 0 takes the StopLoadedMusic branch, id 0 fails the != 0x16f test, and
+nothing is queued.
+
+THE SEEDING RULING. Two options were considered:
+
+  (a) transcribe the ov005 row for the scene's id, with provenance
+  (b) an env override in the SM64DS_SND_MUSIC / SM64DS_COURSE_MUSIC shape
+
+(a) WAS TAKEN. The table read is clean, so the ROM's own answer is available
+and there is no reason to invent a second one. It is north-star faithful (real
+ROM data, the same bytes ov005 would have copied), and it generalises: all
+thirty minigames get their music from the same table with no further edit, the
+way hal/scene_boot.cpp's port_scene_classes table lights up the debug-menu
+picker. (b) would have been test-only, one scene at a time, and would have put
+a host invention on the path the ROM already answers. The env-override shape is
+still available in the tree for what it is good at -- SM64DS_SND_MUSIC is what
+proved the chain plays at all, see section 5.
+
+THE TABLE. data_ov005_020c24d8, from extracted/overlays/overlay_0005.bin
+(overlay base 0x020bfec0, file offset 0x2618). Bounds are the ROM's:
+config/arm9/overlays/ov005/symbols.txt has data_ov005_020c24d8 at :38 and the
+next symbol data_ov005_020c2c28 at :40, so the table is 0x750 bytes = exactly
+36 rows of 0x34. Row layout is func_ov005_020c0378.c's own Entry struct: u16 id
+at +0x00, music at +0x28, enable at +0x2c.
+
+    sha256 of the 0x750 bytes as shipped in hal/scene_mg_sound.cpp:
+    070f437d56f9a0398fe1172083d4939a9224024920a71be7b9c113cac647827c
+
+36 rows carry 30 unique ids -- the ROM's own IsMinigameActorID range is
+0x169..0x186, which is 30 -- so six ids appear twice. Five of those pairs agree
+on music and enable. ONE DOES NOT: id 0x017c is row 15 (music 8, enable 1) and
+row 35 (music 7, enable 2). The ROM's ov005 selects by menu POSITION, not by id,
+so the port cannot reproduce that split without ov005's touch logic; the lookup
+takes the first matching row and the divergence is named in the source comment
+rather than hidden. Curling is unambiguous: id 0x176 appears once, at row 16,
+music 12, enable 2.
+
+    entry 16: 76 01 00 00 00 10 10 00 03 00 00 00 0f 27 00 00
+              00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+              00 00 00 00 00 00 00 00 0c 00 00 00 02 00 00 00
+              00 00 00 00
+                          id 0x0176 at +0x00, music 12 at +0x28, enable 2 at +0x2c
+
+port_scene_mg_seat_sound(scene_id) copies the row in two memcpys (0x14 into
+data_0209b308, 0x20 into data_0209b31c) and is a no-op for any non-minigame
+scene, gated on the ROM's own IsMinigameActorID. It is called from
+port_scene_begin AFTER the sdat_host_tick that seats the SDAT root and BEFORE
+port_scene_boot spawns the scene, which is before the base ctor and slot 1 read
+the record.
+
+
+4. DEFECT THREE, WHICH ONLY A RUN COULD FIND
+--------------------------------------------
+
+With sections 2 and 3 in, scene 374 STILL emitted no sound command. A probe on
+the live record (temporary, removed before hand-off) measured the framework's
+own gate answering correctly:
+
+    [mg-snd]  scene 0x176 ov005 row 16: music=12 enable=2 (start)
+    [mg-probe] after spawn: tracker=307FB114 enable(+2c)=2 music(+28)=12
+               id(+0)=374 ae1cc=2 ae1f0=12
+
+func_ov004_020ae1cc answered 2 (not zero, so the StopLoadedMusic branch is NOT
+taken) and func_ov004_020ae1f0 answered 12. The record was right and the ROM's
+decision was right. The command still never reached the sequencer.
+
+THE CAUSE IS NOT THE RECORD. hal/scene_boot.cpp's port_scene_tick never ticked
+the hosted ARM7. The level loop drains the sound queue every frame
+(tests/walk_window.cpp:7905, "drain the sound queue, feed the mixer"); a scene
+run called sdat_host_tick exactly once, in port_scene_begin, to seat the SDAT
+root -- and a command QUEUED after that point had nothing to consume it. Slot 2
+runs during the spawn, which is after that single tick, so the minigame's START
+sat in the ring for the whole run.
+
+This is why SM64DS_SND_MUSIC=12 appeared to work on the same scene while the
+real path did not: that override calls LoadAndSetMusic_Layer1 from INSIDE
+sdat_host_tick, so its command is drained by the very tick that queued it.
+
+FIXED by one call in port_scene_tick, gated on tick_game so the debug menu's
+pause does not keep advancing the sequencer:
+
+    if (tick_game)
+        sdat_host_tick();
+
+Both halves are required. Neither alone produces a sound command.
+
+
+5. THE PROOF
+------------
+
+BEFORE (baseline exe, gate GREEN, recorded 2026-08-17T10:58:37Z):
+
+    $ SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=60 SM64DS_SND_TRACE=1 walk_window.exe
+    ... [scene] 60 frames of scene 374 (SCENE_MG_CURLING), clean
+    ... framework slots entered: 0(x1) 1(x1) 2(x1) 6(x59) 7(x60) ...
+    [snd] lines: 0        <-- ZERO sound commands, and slot 2 DID run
+
+AFTER:
+
+    [mg-snd] scene 0x176 ov005 row 16: music=12 enable=2 (start)
+    [snd] op 00 START_SEQ        a=00000000 b=03b318fc c=00000000 d=03b76ba0
+    [snd] op 03 PLAYER_PARAM     a=00000000 b=00000004 c=00000040 d=00000001
+    [snd] op 03 PLAYER_PARAM     a=00000000 b=00000006 c=ffffffed d=00000002
+
+WHICH SEQUENCE. The START's pointer operands are heap addresses and differ run
+to run, so the identity is read off the SDAT-relative offset instead
+(SM64DS_VOICE_TRACE=1):
+
+    this lane, scene 374, no override:      [vt] cmd START player 0 seq sdat+0x138dc
+    control, SM64DS_SND_MUSIC=12, scene 4:  [vt] cmd START player 0 seq sdat+0x138dc
+
+Byte-identical. SSEQ 12 is NCS_BGM_MINISNOW2, curling's theme, and it is now
+started by the game's own framework with no override set.
+
+There is no automated audio gate, so this trace is the evidence. What it rests
+on is that SM64DS_SND_MUSIC=12 and smoke_sdat --seq 12 already play that
+sequence on this host today: the chain from LoadAndSetMusic_Layer1 to the mixer
+was never in doubt, only whether anything asked it for the minigame's track.
+
+
+6. GATES
+--------
+
+BASELINE (74f8a1aa5, clean tree, recorded):
+    battery   ALL GREEN            skips []
+    linkage   5831 / 11250 linked (51.8%), 5419 unlinked
+    map       4093034 bytes, 37813 symbol rows
+
+AFTER (this lane):
+    battery   ALL GREEN            skips []
+    linkage   5831 / 11250 linked (51.8%), 5419 unlinked
+    delta     linked 5831 -> 5831 (0), total 0, unlinked 0, battery GREEN -> GREEN
+
+THE MAP GREW AND THE LINKED COUNT DID NOT, which is the shape a re-hosted global
+is supposed to have. Decomposed with port/tools/mapdiff.py rather than by eye:
+
+    ADDED symbols: 7    -- all scene_mg_sound.cpp.obj: 3 string literals,
+                           port_mg_sound_rows (the table), data_0209b31c,
+                           port_scene_mg_seat_sound
+    REMOVED symbols: 0
+    MOVED: 2            -- data_0209b308  actor_classes_ov081.cpp.obj ->
+                                          scene_mg_sound.cpp.obj  (the re-host)
+                           one shared string literal, star_flow.cpp.obj ->
+                                          scene_mg_sound.cpp.obj
+    objects added: 1 / removed: 0
+
+No ROM function body was added or removed, which is why linked delta is 0.
+
+THE SELFTEST BMPs. This change hosts new data, so it moves the .dsstate layout,
+and notes/port-selftest-bmp-gate.md only permits a byte comparison at an equal
+base. The base DID move, one page:
+
+    before   [layout] dsstate=00BB5000..00C9F3A0
+    after    [layout] dsstate=00BB6000..00CA03C8
+
+and the level-1 selftest BMP is BYTE-IDENTICAL ACROSS THAT MOVE anyway:
+
+    before   5b783a29d753ce4dfbd35c79a7b2850f
+    after    5b783a29d753ce4dfbd35c79a7b2850f
+
+No padding was needed to get a legal comparison, which is a stronger result
+than the rule asks for rather than a way around it. (The rule stands: a
+DIFFERENCE across unequal bases would have proved nothing and would have needed
+the 4 KB pad. An IDENTITY across unequal bases cannot be a false pass.)
+
+The other four BMPs the battery writes -- smoke_anim, smoke_gx, smoke_model,
+smoke_oam -- cannot be affected, and that is structural rather than measured:
+none of those four targets links ANY file this lane touched (checked by parsing
+each add_executable block for scene_mg_sound.cpp, SCENE_MG_SOURCES,
+scene_boot.cpp and actor_classes_ov081.cpp -- all four absent from all four
+targets). Their md5s after this change:
+
+    smoke_anim  0c0288f29c9f7dae6d83d9363c00ad93
+    smoke_gx    1b11ed016e4f89b0624016a8330730eb
+    smoke_model 93f30803e8dc160f065d66049111a923
+    smoke_oam   d2834647b3eb328ff1924dda77a0d132
+
+This change touches no draw path at all: it moves one global, copies data into
+it, and adds a sound-queue drain.
+
+LEVEL MUSIC IS UNCHANGED, MEASURED. The seeder is gated on the ROM's own
+IsMinigameActorID so no level boot reaches it; the level path's own
+seat_course_sound (hal/star_flow.cpp) is not edited; and the per-frame tick is
+on the SCENE loop, which no level run executes. Verified by capturing the
+level-1 course-boot command trace on both binaries -- the lane's tree, then the
+same tree with the lane's five files stashed and rebuilt (map back to 4093034
+bytes / 37813 rows, i.e. the recorded baseline exactly):
+
+    [course] sublevel 1 sound row: group=3 bank=0x20 bgm=-1 (no layer-1 track)
+    [course] player globals: hp=8/8 lives=4 queued-swap=-1
+    op 00 START_SEQ / op 03 PLAYER_PARAM / op 04 TRACK_PARAM x2 /
+    op 03 PLAYER_PARAM / op 01 STOP_SEQ / then the same six for player 1
+
+13 lines either side, identical once the two heap-pointer operands (b and d)
+are masked. Those two vary RUN TO RUN ON THE SAME BINARY -- two runs of the
+baseline exe differ in exactly the same way -- so they are allocation
+addresses, not a change. No [mg-snd] line appears on a level boot, which is the
+gate doing its job.
+
+
+7. FILES
+--------
+
+  port/hal/scene_mg_sound.cpp     NEW. The record, the verbatim table, the seeder.
+  port/hal/scene_boot.cpp         seed call before the spawn; per-frame sdat tick.
+  port/hal/actor_classes_ov081.cpp   the 16-byte definition removed.
+  port/CMakeLists.txt             file added to SCENE_MG_SOURCES, which rides
+                                  exactly smoke_player, walk_window and
+                                  walk_window_hires -- the same three targets
+                                  that already compile scene_boot.cpp and
+                                  actor_classes_ov081.cpp.
+
+NOT TOUCHED: port/hal/scene_mg_faces.cpp is lane CUR2's and was not edited. The
+func_0202e78c advisory that shows up in a curling playlog belongs to that file;
+it is GX::DisableAllBanks (config/arm9/symbols.txt:1116), a VRAM function with
+nothing to do with audio, and it is deferred to the post-CUR2 pass.
+
+
+8. IS THE ROUND-FLOW / PAUSE MUSIC REFRESH A NEEDED FOLLOW-UP?
+--------------------------------------------------------------
+
+NO, not for music. The question is whether func_ov004_020b87e0 -- the
+dScMgBase_c state setter, which is the mwcc pointer-to-member WALL stubbed at
+hal/scene_mg_faces.cpp:462 -- has to be seated before curling's BGM is really
+delivered. Two checks, both against the ROM rather than inference:
+
+  * WHO RE-ASSERTS THE MUSIC. There is exactly ONE relocation into the music
+    dispatcher in the whole image:
+        config/arm9/overlays/ov004/relocs.txt:319
+        from:0x020b0914 kind:arm_call to:0x020ae330 module:overlay(4)
+    0x020b0914 is inside slot 2 (func_ov004_020b08f0, which starts at
+    0x020b08f0). So func_ov004_020ae330 is called from ONE site, the boot slot
+    this lane fixed. The ROM does not re-run the music decision on a round
+    change or a pause; layer 1 is started once and left playing.
+
+  * WHETHER THE STATE SETTER TOUCHES SOUND. src/func_ov004_020b87e0.cpp has no
+    sound, music, sseq or bgm reference anywhere in it. Its whole body assigns
+    self->index and self->onUpdate from a twenty-entry member-pointer table,
+    sets self->onSomething, and dispatches. It is a STATE setter.
+
+So the wall is a real gap for STATE FLOW -- round transitions and pause
+behaviour go through it and it is still a stub -- and whoever seats it owns
+that. It is not a music follow-up and it does not gate what this lane fixed.

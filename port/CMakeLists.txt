@@ -3401,6 +3401,11 @@ endforeach()
 # port_scene_fill_curling by name.
 set(SCENE_MG_SOURCES
     hal/scene_mg.cpp hal/scene_mg_faces.cpp hal/scene_mg_faces_gen.cpp
+    # Lane MUS1: the minigame sound record (re-hosted 0x34) and the verbatim
+    # ov005 row seeder that gives a direct SM64DS_SCENE minigame boot its music.
+    # Rides these same three targets because scene_boot.cpp calls
+    # port_scene_mg_seat_sound by name and it defines data_0209b308.
+    hal/scene_mg_sound.cpp
     unmatched/MgBase_DeclConflict.cpp unmatched/MgBase_Slot1.cpp
     unmatched/MgBase_Slot7.cpp unmatched/MgBase_StateDispatch.cpp
     unmatched/MgCurling_StateDispatch.cpp unmatched/MgBase_LangTable.cpp
