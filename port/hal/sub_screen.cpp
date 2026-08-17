@@ -317,6 +317,12 @@ unsigned char tp_rd(const unsigned char *p, int i)
 void poll_touch(void)
 {
     unsigned char down = 0, sx = 0, sy = 0;
+    /* what the LIVE mouse read this poll, kept for the recorder below. `seen`
+       means the button was physically down and the cursor resolved to a client
+       point; `on` means that point was on the stylus surface. The pair is what
+       tells "no press" apart from "a press the transform refused", and only
+       the second of those is a bug worth chasing. */
+    int live_cx = 0, live_cy = 0, live_seen = 0, live_on = 0;
     if (!g_headless && g_on && GetCursorPos_ && ScreenToClient_ &&
         GetAsyncKeyState_ && (GetAsyncKeyState_(VK_LBUTTON) & 0x8000)) {
         POINT p;
@@ -345,9 +351,13 @@ void poll_touch(void)
                 fx = (bx - g_x0) * g_div;
                 fy = (by - g_y0) * g_div;
             }
+            live_cx = (int)p.x;
+            live_cy = (int)p.y;
+            live_seen = 1;
             if (on_picture && fx >= 0 && fx < ntr::SUB_W && fy >= 0 &&
                 fy < ntr::SUB_H) {
                 down = 1;
+                live_on = 1;
                 sx = (unsigned char)fx;
                 sy = (unsigned char)fy;
             }
@@ -378,6 +388,90 @@ void poll_touch(void)
     if (down) {
         data_020a0de8[2] = sx;
         data_020a0de8[3] = sy;
+    }
+
+    /* ---- THE STYLUS IN THE FLIGHT RECORDER (run link60, lane TCH2) ---------
+     *
+     * WHAT WAS MISSING WAS THE LINE, NOT THE TOUCH. Until now poll_touch wrote
+     * the record and said nothing unless SM64DS_TOUCH_PROBE was set, and no
+     * play session sets it. So a playlog from a real session carried no
+     * evidence about the stylus AT ALL, and the only touch-shaped lines in it
+     * came from walk_window's WM_LBUTTONDOWN handler -- a different path, with
+     * a different question, that publishes into g_mouse_click_* which nothing
+     * reads. A session where the stylus worked perfectly and a session where
+     * it was never polled produced the SAME playlog, and the wrong one of the
+     * two was the reading everybody took. That is what these lines close.
+     *
+     * THREE EDGES, not a line per frame: a press, a release, and a refusal.
+     * The refusal is the one that earns its place -- the button is physically
+     * down and the cursor IS inside the client area, and the transform still
+     * declined it. In the stacked layout that is the ordinary, correct answer
+     * for a click on the TOP half, so the line says which surface it landed on
+     * rather than implying a fault. Said once per press, because a held button
+     * over the top screen is one decision and not thirty a second.
+     *
+     * A drag logs its two ends. The path between them is the record itself and
+     * SM64DS_TOUCH_PROBE prints that per frame when a lane wants it.
+     *
+     * QUIET WHERE IT HAS TO BE. g_headless kills the live branch above, so a
+     * SM64DS_WINDOW_SELFTEST run or any windowless binary reaches this with
+     * down == 0 and live_seen == 0 on every poll and prints nothing, ever. The
+     * BMP battery cannot see these lines and neither can stdout: this is
+     * stderr, which walk_window has already pointed at playlog/. */
+    {
+        static int down_was, held_from, refused_said;
+        static unsigned char last_x, last_y;
+        if (down && !down_was) {
+            /* THE CLIENT POINT IS ONLY PRINTED WHEN THERE WAS ONE. A
+               SM64DS_TOUCH_PROBE poke sets `down` with no mouse behind it, and
+               printing client(0,0) for it would put a coordinate nobody
+               measured into the flight recorder -- and would then be read back
+               by anything checking the published DS pixel against the client
+               point on its own line. Say which kind of press it was instead. */
+            if (live_seen)
+                std::fprintf(stderr, "[touch] f%d PRESS client(%d,%d) -> DS "
+                             "(%u,%u) on the %s screen\n", f, live_cx, live_cy,
+                             sx, sy,
+                             hal_sub_screen_stacked() ? "bottom (stacked)"
+                                                      : "bottom (inset panel)");
+            else
+                std::fprintf(stderr, "[touch] f%d PRESS (scripted probe, no "
+                             "mouse) -> DS (%u,%u)\n", f, sx, sy);
+            std::fflush(stderr);
+            held_from = f;
+            refused_said = 0;
+        } else if (!down && down_was) {
+            std::fprintf(stderr, "[touch] f%d release after %d frame(s), last "
+                         "DS (%u,%u)\n", f, f - held_from, last_x, last_y);
+            std::fflush(stderr);
+            refused_said = 0;
+        }
+        /* THE LATCH CLEARS ON THE BUTTON, NOT ON THE TOUCH. `refused_said`
+           stops a held press over the top screen printing thirty lines a
+           second, and the release branch above only runs when a press was
+           PUBLISHED -- so keying the reset off that alone made the first
+           refused press the only one a run ever reported, and a two-point
+           top-half fixture read as a one-point one. The physical button coming
+           up is the edge that ends a refusal. */
+        if (!live_seen)
+            refused_said = 0;
+        if (down) {
+            last_x = sx;
+            last_y = sy;
+        } else if (live_seen && !live_on && !refused_said) {
+            /* NOT "off-picture", and not a fault. Say where it landed. */
+            int fx = 0, fy = 0;
+            const int on_top = hal_present_client_to_fb(live_cx, live_cy,
+                                                        &fx, &fy);
+            refused_said = 1;
+            std::fprintf(stderr, "[touch] f%d press client(%d,%d) is NOT on "
+                         "the stylus surface: %s -- no touch published\n",
+                         f, live_cx, live_cy,
+                         on_top ? "it is on the TOP screen"
+                                : "it is in a letterbox bar");
+            std::fflush(stderr);
+        }
+        down_was = down;
     }
 
     if (tp) {

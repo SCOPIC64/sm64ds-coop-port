@@ -183,6 +183,17 @@ struct WinApi {
     BOOL(WINAPI *GetCursorPos_)(POINT *);
     BOOL(WINAPI *SetCursorPos_)(int, int);
     int(WINAPI *ShowCursor_)(BOOL);
+    /* SM64DS_CLICK_TEST's three (click_test_apply below): a client point to a
+       screen point, the pointer put there, and a REAL button edge through the
+       OS input queue rather than a message posted past it. */
+    BOOL(WINAPI *ClientToScreen_)(HWND, POINT *);
+    UINT(WINAPI *SendInput_)(UINT, void *, int);
+    BOOL(WINAPI *SetForegroundWindow_)(HWND);
+    /* and the two that make the synthetic click SAFE on a shared desktop:
+       whose window is actually under that screen point, and which process owns
+       it. A real button edge goes wherever the pointer is. */
+    HWND(WINAPI *WindowFromPoint_)(POINT);
+    DWORD(WINAPI *GetWindowThreadProcessId_)(HWND, DWORD *);
     /* winmm: the frame pacer's Sleep granularity (see pacer_begin below) */
     unsigned(WINAPI *timeBeginPeriod_)(unsigned);
     unsigned(WINAPI *timeEndPeriod_)(unsigned);
@@ -254,6 +265,13 @@ static bool winapi_load(void)
     W.GetCursorPos_ = (decltype(W.GetCursorPos_))GetProcAddress(u, "GetCursorPos");
     W.SetCursorPos_ = (decltype(W.SetCursorPos_))GetProcAddress(u, "SetCursorPos");
     W.ShowCursor_ = (decltype(W.ShowCursor_))GetProcAddress(u, "ShowCursor");
+    W.ClientToScreen_ = (decltype(W.ClientToScreen_))GetProcAddress(u, "ClientToScreen");
+    W.SendInput_ = (decltype(W.SendInput_))GetProcAddress(u, "SendInput");
+    W.SetForegroundWindow_ =
+        (decltype(W.SetForegroundWindow_))GetProcAddress(u, "SetForegroundWindow");
+    W.WindowFromPoint_ = (decltype(W.WindowFromPoint_))GetProcAddress(u, "WindowFromPoint");
+    W.GetWindowThreadProcessId_ = (decltype(W.GetWindowThreadProcessId_))
+        GetProcAddress(u, "GetWindowThreadProcessId");
     if (HMODULE mm = LoadLibraryA("winmm.dll")) {
         W.timeBeginPeriod_ =
             (decltype(W.timeBeginPeriod_))GetProcAddress(mm, "timeBeginPeriod");
@@ -817,6 +835,11 @@ void hal_sub_screen_init(void *hwnd, int zoom);
    bars, which is outside the picture and therefore not a touch. */
 void hal_present_set_rect(int x, int y, int w, int h, int src_w, int src_h);
 int hal_present_client_to_fb(int cx, int cy, int *fx, int *fy);
+/* THE OTHER BAND OF THE SAME RECTANGLE. client_to_fb means the TOP screen in
+   both layouts, so in the stacked layout it answers "outside" for every point
+   on the bottom half -- correctly, and unhelpfully if the caller then reports
+   that as a letterbox bar. This is the lower band, in DS pixels. */
+int hal_present_client_to_sub(int cx, int cy, int *dsx, int *dsy);
 /* THE STACKED LAYOUT (hal/sub_screen.cpp). Both DS screens full size, top above
    bottom, for minigames -- a touchscreen game cannot be played against a
    128x96 corner preview. hal_sub_screen_stacked answers whether this run is in
@@ -1809,7 +1832,56 @@ static int mg_row(void)
    ruling is that minigames always run stacked, and putting it in the child's
    environment makes that true whatever an inherited variable would otherwise
    have said. */
-static int port_menu_launch_scene(int id)
+/* ---- THE ONE CLEAR LIST, FOR EVERY RELAUNCH (run link60, lane TCH2) --------
+ *
+ * The child of a menu row is a SESSION -- somebody pressed enter -- and
+ * inheritance would let this process's own settings decide what it is instead.
+ * That is the identical hole port/tools/battery.py's scene_env pops the same
+ * list for, in its words: the caller's environment must not decide what the
+ * code under test does.
+ *
+ * IT IS A TABLE BECAUSE THERE ARE TWO LAUNCH PATHS NOW. The minigame row
+ * relaunches into a scene and the level row relaunches into a level, and two
+ * hand-maintained copies of a list like this diverge on the first variable
+ * somebody adds to one of them -- which is precisely how the four names at the
+ * bottom of this table came to be missing from the copy that existed.
+ *
+ * WHAT EACH ONE COSTS IF IT IS INHERITED, because a list with no reasons is a
+ * list nobody dares to prune:
+ *   SCENE_FRAMES     hands the child a frame budget, and port_scene_want_window
+ *                    then makes it headless, so the row looks broken
+ *   SCENE_WINDOW     forces the opposite of whatever the child should be
+ *   SCENE_NO_RENDER  a session that draws nothing
+ *   SCENE_BMP/_STACKED  two processes writing one file is not a capture
+ *   PAD_TEST         the WORST of them: the child replays the parent's script
+ *                    from ITS frame 0, walks the same menu to the same row and
+ *                    starts a grandchild, forever
+ *   CLICK_TEST       the same trap with a mouse (lane TCH2's scripted stylus):
+ *                    a click script that opens the menu and picks a row would
+ *                    fork endlessly too
+ *   WINDOW_SELFTEST  turns the child into a headless BMP run with no window,
+ *                    which is not what pressing enter asked for
+ *   SCENE_TRACE      measured by lane SWR1: a parent's SCENE_TRACE=1 put 875
+ *                    trace lines in the child's playlog
+ *   SCENE_SLOT9      lets an inherited skip decide what the child boots
+ *   SCENE_SUBLEVEL   an input for the scenes that read it; inheriting one is
+ *                    the harness fabricating an input
+ * SM64DS_SCENE, SM64DS_LEVEL and SM64DS_DUAL_SCREEN are NOT in the table: they
+ * are the destination, cleared and then set by the launcher below. */
+static const char *const PORT_RELAUNCH_CLEAR[] = {
+    "SM64DS_SCENE_FRAMES", "SM64DS_SCENE_WINDOW",  "SM64DS_SCENE_NO_RENDER",
+    "SM64DS_SCENE_BMP",    "SM64DS_SCENE_BMP_STACKED", "SM64DS_PAD_TEST",
+    "SM64DS_CLICK_TEST",   "SM64DS_WINDOW_SELFTEST", "SM64DS_SCENE_TRACE",
+    "SM64DS_SCENE_SLOT9",  "SM64DS_SCENE_SUBLEVEL",
+};
+
+/* ONE RELAUNCH, TWO DESTINATIONS. `scene_id >= 0` starts the child on the
+ * scene path (stacked, because the ruling is that minigames always run
+ * stacked); otherwise `level_id` starts it on the level path, where the layout
+ * is left to its own default -- a level is inset unless somebody says
+ * otherwise, and a forced SM64DS_DUAL_SCREEN carried over from the minigame
+ * that launched this process would be exactly that somebody. */
+static int port_menu_relaunch(int scene_id, int level_id)
 {
     char exe[MAX_PATH];
     char sid[16];
@@ -1817,33 +1889,23 @@ static int port_menu_launch_scene(int id)
     PROCESS_INFORMATION pi;
     if (!GetModuleFileNameA(0, exe, (DWORD)sizeof exe))
         return 0;
-    snprintf(sid, sizeof sid, "%d", id);
     /* the child inherits this process's block, so setting them here is how
        they reach it. This process is about to quit, so the mutation has no
        second reader. */
-    SetEnvironmentVariableA("SM64DS_SCENE", sid);
-    SetEnvironmentVariableA("SM64DS_DUAL_SCREEN", "1");
-    /* ---- AND THE CHILD GETS A CLEAN SCENE ENVIRONMENT (run link60 SW1) ----
-       The child is a SESSION -- somebody pressed enter on a menu row -- and
-       inheritance would let this process's own settings decide what it is
-       instead. That is the identical hole port/tools/battery.py's scene_env
-       pops the same list for, in its words: the caller's environment must not
-       decide what the code under test does.
-       It stopped being theoretical when the scene path got a window. A
-       SM64DS_SCENE_FRAMES in the shell would hand the child a frame budget and
-       port_scene_want_window would make it headless, so the row would look
-       broken; and an inherited SM64DS_PAD_TEST is worse than that, because the
-       child replays the parent's script from ITS frame 0 -- which walks the
-       same menu to the same row and starts a grandchild, forever. A capture
-       path is dropped for the plainer reason that two processes writing one
-       BMP is not a capture. */
-    SetEnvironmentVariableA("SM64DS_SCENE_FRAMES", 0);
-    SetEnvironmentVariableA("SM64DS_SCENE_WINDOW", 0);
-    SetEnvironmentVariableA("SM64DS_SCENE_NO_RENDER", 0);
-    SetEnvironmentVariableA("SM64DS_SCENE_BMP", 0);
-    SetEnvironmentVariableA("SM64DS_SCENE_BMP_STACKED", 0);
-    SetEnvironmentVariableA("SM64DS_PAD_TEST", 0);
+    for (unsigned i = 0; i < sizeof PORT_RELAUNCH_CLEAR /
+                             sizeof *PORT_RELAUNCH_CLEAR; ++i)
+        SetEnvironmentVariableA(PORT_RELAUNCH_CLEAR[i], 0);
+    SetEnvironmentVariableA("SM64DS_SCENE", 0);
     SetEnvironmentVariableA("SM64DS_LEVEL", 0);
+    SetEnvironmentVariableA("SM64DS_DUAL_SCREEN", 0);
+    if (scene_id >= 0) {
+        snprintf(sid, sizeof sid, "%d", scene_id);
+        SetEnvironmentVariableA("SM64DS_SCENE", sid);
+        SetEnvironmentVariableA("SM64DS_DUAL_SCREEN", "1");
+    } else {
+        snprintf(sid, sizeof sid, "%d", level_id);
+        SetEnvironmentVariableA("SM64DS_LEVEL", sid);
+    }
     memset(&si, 0, sizeof si);
     si.cb = sizeof si;
     memset(&pi, 0, sizeof pi);
@@ -1980,12 +2042,32 @@ static void menu_draw(ntr::Framebuffer &fb)
     if (!g_menu_host.player) {
         snprintf(ln[MENU_WARP], sizeof ln[0],
                  "warp to entrance  (level only)");
-        snprintf(ln[MENU_LEVEL], sizeof ln[0],
-                 "level select      (level only)");
         snprintf(ln[MENU_EXIT], sizeof ln[0],
                  "exit course       (level only)");
         snprintf(ln[MENU_CHARACTER], sizeof ln[0],
                  "character         (level only)");
+        /* THE LEVEL ROW IS NOT "(level only)" ANY MORE (lane TCH2): from a
+           scene it relaunches, which is the way out of a minigame. It still
+           cannot show the level-path detail the version above shows, so it
+           says the three things that matter here and no more.
+           THE BUDGET, counted the way the minigame row's note counts it: ln is
+           [72], so 71 usable. Fixed cost is 18 label + 4 "row " + 2 + 4 " of "
+           + 2 + 9 "   level " + 2 = 41. The suffix is "   enter restarts" (17)
+           or "   NOT MOUNTED" (14), so the row lands at 58 or 55 and nothing
+           truncates. The mounted-level row ABOVE is the one that overflows at
+           86 into 71 on an unmounted level; that is a known queued defect and
+           this lane deliberately does not widen the buffer to chase it. */
+        int lv = 0, en = 0;
+        if (!port_title_row(menu_level_row, &lv, &en))
+            snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                     "level select      row %2d of %d   (%d = a scene)",
+                     menu_level_row, port_title_rows(), lv);
+        else
+            snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                     "level select      row %2d of %d   level %2d   %s",
+                     menu_level_row, port_title_rows(), lv,
+                     port_level_is_mounted(lv) ? "enter restarts"
+                                               : "NOT MOUNTED");
     }
 
     for (i = 0; i < MENU_COUNT; ++i) {
@@ -2112,17 +2194,30 @@ static void menu_input(int pad_live, const XPad *pad)
             /* enter is a synonym for right, so a pad can do it all */
             const int dec = (edge & (1u << 3)) != 0;
             const int inc = (edge & ((1u << 4) | (1u << 5))) != 0;
-            /* THE FOUR ROWS THAT NEED A LEVEL, refused in one place rather
-               than four. Warp writes the Player's position, exit calls
-               ExitLevel, character swaps the Player's model, and level select
-               stages a change only main's loop polls -- so from a scene each
-               of them is either a write through a null or a request nobody
-               will ever read. The menu stays open and the scene keeps running,
-               which is the shape DBG1 gave an unhosted minigame id. The
-               MINIGAME row is deliberately not in the set: it relaunches, and
-               a relaunch works from a scene exactly as well as from a level. */
+            /* THE THREE ROWS THAT NEED A LEVEL, refused in one place rather
+               than three. Warp writes the Player's position, exit calls
+               ExitLevel, and character swaps the Player's model -- so from a
+               scene each of them is a write through a null. The menu stays
+               open and the scene keeps running, which is the shape DBG1 gave
+               an unhosted minigame id. The MINIGAME row is deliberately not in
+               the set: it relaunches, and a relaunch works from a scene
+               exactly as well as from a level. */
+            /* MENU_LEVEL LEFT THIS SET (run link60, lane TCH2). It was in it
+               for a reason that stopped being true when the minigame row got a
+               relaunch: "level select stages a change only main's loop polls",
+               so from a scene it was a request nobody would read. But there is
+               nothing about CHOOSING A LEVEL that needs a Player in this
+               process -- the other three genuinely do, they write through
+               g_menu_host.player or call ExitLevel -- and a relaunch works from
+               a scene exactly as well as it works from a level. Leaving it here
+               meant that once you were inside a minigame the ONLY way back to
+               the game was closing the window, which is what the owner hit.
+               The refusal below still covers the three that need a live
+               Player, and the enter branch for this row splits on the same
+               g_menu_host.player: stage the handoff in a level, relaunch from
+               a scene. */
             if ((dec || inc) && !g_menu_host.player &&
-                (menu_sel == MENU_WARP || menu_sel == MENU_LEVEL ||
+                (menu_sel == MENU_WARP ||
                  menu_sel == MENU_EXIT || menu_sel == MENU_CHARACTER)) {
                 ss_note("that row needs a level (this is a scene)");
                 fprintf(stderr, "[menu] row %d needs a level and this run is a "
@@ -2167,7 +2262,58 @@ static void menu_input(int pad_live, const XPad *pad)
                 /* left/right move the cursor exactly as
                    func_ov003_020ad814 does (+/-1, modulo the row
                    count); enter runs its else-branch. */
-                if (edge & (1u << 5)) {
+                if ((edge & (1u << 5)) && !g_menu_host.player) {
+                    /* FROM A SCENE: RELAUNCH (run link60, lane TCH2). There is
+                       no level loop in this process to hand a staged change
+                       to, and port_title_select's ROM branch writes level
+                       globals a scene has no use for, so the honest move is
+                       the one the minigame row already makes -- start the
+                       program again on the level path and leave through this
+                       process's ordinary close. Same exe, same directory, the
+                       shared clear table, no forced layout.
+                       The row's own sentinel check comes first: rows -1 and -2
+                       are scenes, not levels, and relaunching into one would
+                       boot the castle grounds instead of saying why. */
+                    int lv = 0, en = 0;
+                    if (!port_title_row(menu_level_row, &lv, &en)) {
+                        ss_note("that row is a scene, not a level");
+                        fprintf(stderr, "[menu] level row %d is a scene "
+                                "sentinel (%d), not a level -- refused, menu "
+                                "stays open\n", menu_level_row, lv);
+                    } else if (!port_level_is_mounted(lv)) {
+                        /* REFUSED BEFORE THE PARENT COMMITS, and this is the
+                           one refusal that has to happen HERE rather than in
+                           the child. The relaunch is a one-way door: this
+                           process quits the moment the child is started, so an
+                           unmounted level would abort in the child and leave
+                           the player with no game at all -- worse than the
+                           dead end this row exists to open. The level path's
+                           own select refuses an unmounted row too
+                           (port_title_select, after the ROM branch); it can
+                           afford to do it late because nothing has quit. */
+                        char msg[64];
+                        snprintf(msg, sizeof msg,
+                                 "level %d is not mounted in this build", lv);
+                        ss_note(msg);
+                        fprintf(stderr, "[menu] level %d (row %d) is NOT "
+                                "mounted -- refused, menu stays open (a "
+                                "relaunch would quit this run and the child "
+                                "would abort)\n", lv, menu_level_row);
+                    } else if (port_menu_relaunch(-1, lv)) {
+                        fprintf(stderr, "[menu] level %d (row %d): started "
+                                "SM64DS_LEVEL=%d, this process is quitting\n",
+                                lv, menu_level_row, lv);
+                        W.PostQuitMessage_(0);
+                    } else {
+                        char msg[64];
+                        snprintf(msg, sizeof msg,
+                                 "could not start level %d", lv);
+                        ss_note(msg);
+                        fprintf(stderr, "[menu] level %d: could not start the "
+                                "level run (win32 %lu)\n", lv,
+                                (unsigned long)GetLastError());
+                    }
+                } else if (edge & (1u << 5)) {
                     /* a successful select CLOSES THE MENU: the level
                        handoff poll below is gated on !menu_on (every
                        pointer the menu holds goes stale across it),
@@ -2211,7 +2357,7 @@ static void menu_input(int pad_live, const XPad *pad)
                                 "not a hosted scene yet -- refused, "
                                 "menu stays open\n", id,
                                 MG_SCENE[r].name);
-                    } else if (port_menu_launch_scene(id)) {
+                    } else if (port_menu_relaunch(id, -1)) {
                         fprintf(stderr, "[menu] minigame %d (%s): "
                                 "started SM64DS_SCENE=%d "
                                 "SM64DS_DUAL_SCREEN=1, this process "
@@ -2418,6 +2564,274 @@ static void pad_test_apply(int frame, int *pad_live, XPad *pad)
         if (!*pad_live) { memset(pad, 0, sizeof *pad); *pad_live = 1; }
         pad->buttons = (unsigned short)(pad->buttons | mask);
     }
+}
+
+/* ---- SM64DS_CLICK_TEST: A SCRIPTED STYLUS (port mod, run link60 lane TCH2) -
+ *
+ * The pad has SM64DS_PAD_TEST and the touch record has SM64DS_TOUCH_PROBE, and
+ * between them sits the thing neither one covers: THE MOUSE. SM64DS_TOUCH_PROBE
+ * writes DS pixels straight into data_020a0de8 and therefore proves nothing
+ * about the window, the present rectangle or the transform -- it starts
+ * downstream of all three. So every claim about where a click lands rested on
+ * somebody's hand on a mouse, which is why a correct transform went five
+ * sessions being blamed for a minigame that would not respond.
+ *
+ *     SM64DS_CLICK_TEST="cx,cy@f0[-f1][,cx,cy>dx,dy@f0-f1,...]"
+ *
+ *   cx,cy@f0        press at CLIENT pixel (cx,cy) on frame f0, held
+ *                   CLICK_TEST_HOLD frames -- long enough for the DS's own
+ *                   edge rule, which needs the button down on two consecutive
+ *                   polls before `held` comes up
+ *   cx,cy@f0-f1     the same press, held from f0 to f1 inclusive
+ *   cx,cy>dx,dy@f0-f1
+ *                   a DRAG: held across f0..f1, the point walking linearly
+ *                   from (cx,cy) to (dx,dy). Curling wants one of these.
+ *
+ * IT DRIVES THE OS, NOT THE WINDOW QUEUE, and that is the whole design of it.
+ * The obvious build is PostMessage(WM_LBUTTONDOWN) and it would have proved
+ * nothing here: the stylus is poll_touch (hal/sub_screen.cpp), which reads
+ * GetCursorPos and GetAsyncKeyState(VK_LBUTTON) and never looks at a window
+ * message, so a posted message exercises walk_window's WM_LBUTTONDOWN handler
+ * -- whose output nothing consumes -- and leaves the touch record untouched. A
+ * driver that proves the dead path green while the live path is dark is worse
+ * than no driver. SetCursorPos plus SendInput puts the press in the same place
+ * the player's hand puts it, upstream of BOTH paths, so the WndProc gets its
+ * genuine WM_LBUTTONDOWN and poll_touch gets its genuine GetAsyncKeyState in
+ * one motion, through every layer of arithmetic either of them uses.
+ *
+ * WHAT IT COSTS: it moves the real pointer, because the real pointer is what
+ * is being tested. The cursor's position is saved on the first press and put
+ * back when the script ends. Run it on a machine nobody is typing on.
+ *
+ * INERT UNLESS SET, LOUD WHEN IT IS. Unset, the env is read once and this
+ * function returns on a null for the rest of the run. Set, it prints the
+ * script it parsed and one line per edge, so a fixture that silently matched
+ * no frame cannot read as a pass. It can never reach a selftest: g_selftest is
+ * checked at the same read SM64DS_PAD_TEST checks it at, so the BMP battery
+ * cannot be perturbed by a stray click.
+ */
+enum { CLICK_TEST_HOLD = 6, CLICK_TEST_MAX = 16 };
+struct ClickTestEnt {
+    int x0, y0, x1, y1;      /* client pixels; x1/y1 == x0/y0 for a plain press */
+    int f0, f1;
+};
+static ClickTestEnt g_ct[CLICK_TEST_MAX];
+static int g_ct_n = -1;          /* -1 = env not read yet, 0 = driver off */
+static int g_ct_down;            /* is the synthetic button currently down */
+static POINT g_ct_restore;       /* where the pointer was before the first press */
+static int g_ct_restore_ok;
+
+static void click_test_parse(void)
+{
+    g_ct_n = 0;
+    const char *s = g_selftest ? 0 : getenv("SM64DS_CLICK_TEST");
+    if (!s)
+        return;
+    while (*s && g_ct_n < CLICK_TEST_MAX) {
+        ClickTestEnt e;
+        char *q;
+        memset(&e, 0, sizeof e);
+        e.x0 = (int)strtol(s, &q, 10);
+        s = q;
+        if (*s == ',') ++s;
+        e.y0 = (int)strtol(s, &q, 10);
+        s = q;
+        e.x1 = e.x0;
+        e.y1 = e.y0;
+        if (*s == '>') {
+            ++s;
+            e.x1 = (int)strtol(s, &q, 10);
+            s = q;
+            if (*s == ',') ++s;
+            e.y1 = (int)strtol(s, &q, 10);
+            s = q;
+        }
+        /* NO @frame IS NOT "every frame". An entry that names no frame is
+           inert, the same refusal SM64DS_PAD_TEST makes for the same reason:
+           a malformed fixture must not fire continuously and read as a pass. */
+        e.f0 = -1;
+        e.f1 = -1;
+        if (*s == '@') {
+            ++s;
+            e.f0 = (int)strtol(s, &q, 10);
+            s = q;
+            if (*s == '-') {
+                ++s;
+                e.f1 = (int)strtol(s, &q, 10);
+                s = q;
+            } else {
+                e.f1 = e.f0 + CLICK_TEST_HOLD - 1;
+            }
+        }
+        if (e.f0 >= 0) {
+            g_ct[g_ct_n++] = e;
+            fprintf(stderr, "[click] script %d: client (%d,%d)", g_ct_n - 1,
+                    e.x0, e.y0);
+            if (e.x1 != e.x0 || e.y1 != e.y0)
+                fprintf(stderr, " -> (%d,%d)", e.x1, e.y1);
+            fprintf(stderr, " frames %d..%d\n", e.f0, e.f1);
+        } else {
+            fprintf(stderr, "[click] an entry named no @frame and is INERT "
+                            "(client %d,%d)\n", e.x0, e.y0);
+        }
+        while (*s && *s != ',') ++s;
+        if (*s == ',') ++s;
+    }
+    if (g_ct_n)
+        fflush(stderr);
+}
+
+/* One synthetic left-button edge through the OS input queue.
+ *
+ * THE STRUCT IS windows.h's OWN INPUT AND THE SIZE IS ITS sizeof, and this is
+ * not tidiness -- it is the bug this function shipped with for one run. The
+ * first cut hand-rolled the layout and got 36 bytes where the 32-bit INPUT is
+ * 28. SendInput VALIDATES cbSize against its own idea of the structure and
+ * returns 0 without injecting anything when they disagree, so every press in
+ * the grid was announced by the [click] line above and none of them happened.
+ * A run that logs eleven presses and zero touches looks exactly like a broken
+ * touch bridge, which is the wrong bug to spend an evening on.
+ *
+ * THE RETURN IS CHECKED FOR THE SAME REASON. It is the only thing that can
+ * tell an injected press from a refused one, and UIPI refuses silently too: a
+ * process at a lower integrity level than the foreground window's cannot send
+ * it input, and the failure mode there is also "the log says press, the game
+ * sees nothing". Said once, loudly. */
+static void click_test_button(int down)
+{
+    INPUT in;
+    if (!W.SendInput_)
+        return;
+    memset(&in, 0, sizeof in);
+    in.type = INPUT_MOUSE;
+    in.mi.dwFlags = down ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP;
+    if (W.SendInput_(1, &in, (int)sizeof(INPUT)) != 1) {
+        static int said;
+        if (!said++) {
+            fprintf(stderr, "[click] SendInput REFUSED the button edge "
+                    "(win32 %lu). Nothing was pressed; every [click] line in "
+                    "this run is a request, not an event.\n",
+                    (unsigned long)GetLastError());
+            fflush(stderr);
+        }
+        return;
+    }
+    g_ct_down = down;
+}
+
+static void click_test_finish(void);   /* defined below; armed with atexit */
+
+static void click_test_apply(HWND h, int frame)
+{
+    if (g_ct_n < 0) {
+        click_test_parse();
+        if (g_ct_n > 0)
+            atexit(click_test_finish);
+        if (g_ct_n > 0 && W.SetForegroundWindow_) {
+            /* the window has to be the foreground one or the WndProc half of
+               the press is delivered somewhere else entirely. poll_touch would
+               still see it (GetAsyncKeyState is machine-global) which is
+               exactly the kind of half-green this driver exists to refuse. */
+            W.SetForegroundWindow_(h);
+        }
+    }
+    if (g_ct_n <= 0 || !W.SetCursorPos_ || !W.ClientToScreen_)
+        return;
+
+    const ClickTestEnt *e = 0;
+    for (int i = 0; i < g_ct_n; ++i)
+        if (frame >= g_ct[i].f0 && frame <= g_ct[i].f1) { e = &g_ct[i]; break; }
+
+    if (!e) {
+        if (g_ct_down) {
+            click_test_button(0);
+            fprintf(stderr, "[click] f%d release\n", frame);
+            fflush(stderr);
+        }
+        return;
+    }
+
+    /* the point this frame: the start for a press, walked for a drag */
+    int cx = e->x0, cy = e->y0;
+    if ((e->x1 != e->x0 || e->y1 != e->y0) && e->f1 > e->f0) {
+        const int span = e->f1 - e->f0;
+        cx = e->x0 + (e->x1 - e->x0) * (frame - e->f0) / span;
+        cy = e->y0 + (e->y1 - e->y0) * (frame - e->f0) / span;
+    }
+    POINT p;
+    p.x = cx;
+    p.y = cy;
+    if (!W.ClientToScreen_(h, &p))
+        return;
+    if (!g_ct_down && W.GetCursorPos_ && !g_ct_restore_ok)
+        g_ct_restore_ok = W.GetCursorPos_(&g_ct_restore) ? 1 : 0;
+    /* EVERY frame, not only on the press edge: the pointer is a shared device
+       and a hand that brushes the desk mid-drag would otherwise move the
+       stylus somewhere the script never asked for and the log would show a
+       drag the fixture did not describe. */
+    W.SetCursorPos_((int)p.x, (int)p.y);
+    /* ---- THE PID GATE, AND IT IS NOT PARANOIA -------------------------------
+       A SendInput button edge is a real one: it goes to whatever window is
+       under the pointer, and this desktop runs several lanes' proof windows at
+       once. A press that lands on somebody else's window is at best a lost
+       proof and at worst a click on a control in their run. So the press is
+       gated on the window under that exact screen point belonging to THIS
+       process -- not on the window being ours by name, and not on focus, both
+       of which can be true while the pointer sits over a different one.
+       Refused loudly, once, because a driver that silently stops pressing is a
+       driver that reports a clean grid it never clicked. */
+    if (!g_ct_down) {
+        int mine = 1;
+        if (W.WindowFromPoint_ && W.GetWindowThreadProcessId_) {
+            DWORD owner = 0;
+            const HWND under = W.WindowFromPoint_(p);
+            if (!under) {
+                mine = 0;
+            } else {
+                W.GetWindowThreadProcessId_(under, &owner);
+                mine = owner == GetCurrentProcessId();
+            }
+        }
+        if (!mine) {
+            static int said;
+            if (!said++) {
+                fprintf(stderr, "[click] f%d REFUSED: screen point (%ld,%ld) "
+                        "is over a window this process does not own. Nothing "
+                        "is pressed; another lane's window is in the way or "
+                        "this one never came to the foreground.\n",
+                        frame, p.x, p.y);
+                fflush(stderr);
+            }
+            return;
+        }
+        click_test_button(1);
+        fprintf(stderr, "[click] f%d press client(%d,%d)\n", frame, cx, cy);
+        fflush(stderr);
+    }
+}
+
+/* Put the button and the pointer back.
+ *
+ * REGISTERED WITH atexit AND ALSO CALLED BY HAND, because a synthetic button
+ * left down does not die with the process -- it belongs to the desktop, and
+ * the next thing the owner clicks would be a drag. The level loop has several
+ * exits and the scene loop has one, so rather than find every one of them the
+ * cleanup is idempotent and armed at the same moment the script is. The
+ * by-hand call in the scene loop is kept for ordering: it releases before
+ * port_scene_finish writes its captures, not after. */
+static void click_test_finish(void)
+{
+    static int done;
+    if (g_ct_n <= 0 || done)
+        return;
+    done = 1;
+    if (g_ct_down) {
+        click_test_button(0);
+        fprintf(stderr, "[click] release at exit\n");
+    }
+    if (g_ct_restore_ok && W.SetCursorPos_)
+        W.SetCursorPos_(g_ct_restore.x, g_ct_restore.y);
+    fflush(stderr);
 }
 
 /* ---- THE DS KEYPAD BITS BOTH PATHS AGREE ON (port mod, run link60 SW1) ----
@@ -2785,13 +3199,33 @@ static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM w, LPARAM l)
            of the screen that the player never made -- a bug with no reader
            today and therefore no way to notice it later. Off the picture: the
            hold still latches (a drag that starts on the picture and wanders
-           into a bar is still a drag) but no new click position is published. */
-        const int on_picture = hal_present_client_to_fb(
-            (short)LOWORD(l), (short)HIWORD(l), &cx, &cy);
+           into a bar is still a drag) but no new click position is published.
+
+           AND THE MESSAGE WAS A LIE IN THE STACKED LAYOUT (run link60, lane
+           TCH2). hal_present_client_to_fb means the TOP screen in both
+           layouts, so in a stacked run EVERY click on the bottom half -- which
+           is every click a minigame player makes, the whole point of the
+           layout -- came back "outside" and this line called it a letterbox
+           bar. There is no letterbox in a 512x768 client showing a 512x768
+           image; the click was on the picture, on the other screen, and the
+           stylus took it. These were the only touch-shaped lines in a play
+           session's log (poll_touch printed nothing at all until this lane
+           gave it a voice), so a working stylus read as fifteen rejected
+           clicks, and this lane was opened to fix a transform that was
+           already correct. Ask the other band before saying which it is. */
+        const int mx = (short)LOWORD(l), my = (short)HIWORD(l);
+        int dsx = 0, dsy = 0;
+        const int on_picture = hal_present_client_to_fb(mx, my, &cx, &cy);
+        const int on_sub = hal_present_client_to_sub(mx, my, &dsx, &dsy);
         g_mouse_left_down = 1;
         if (!on_picture) {
-            fprintf(stderr, "[mouse] click off-picture (letterbox bar), "
-                            "not published\n");
+            if (on_sub)
+                fprintf(stderr, "[mouse] click %d,%d client is on the BOTTOM "
+                        "screen, DS (%d,%d) -- the stylus takes it; no "
+                        "top-screen point published\n", mx, my, dsx, dsy);
+            else
+                fprintf(stderr, "[mouse] click %d,%d client off-picture "
+                        "(letterbox bar), not published\n", mx, my);
             return 0;
         }
         if (cx < 0) cx = 0;
@@ -3263,6 +3697,10 @@ static int scene_window_run(void)
 
         int pad_live = XInputGetState_ && XInputGetState_(0, &pad) == 0;
         pad_test_apply(frame, &pad_live, &pad);
+        /* SM64DS_CLICK_TEST: the scripted stylus, driven BEFORE the tick that
+           polls it, so a press is in the OS's button state by the time
+           hal_sub_screen_frame_begin reads it on this same frame. */
+        click_test_apply(hwnd, frame);
 
         /* THE DEBUG MENU, the same block main runs. g_menu_host is left zeroed
            on this path, which is what makes the four rows that need a Player
@@ -3365,6 +3803,7 @@ static int scene_window_run(void)
        PostQuitMessage all arrive here the same way, and the census below is
        what the run leaves behind -- the same lines a headless run ends with,
        over however many frames were actually played. */
+    click_test_finish();
     fprintf(stderr, "[scene] window closed after %d frame(s)\n", frame);
     return port_scene_finish(frame);
 }
@@ -4675,6 +5114,11 @@ int main(void)
            windowed scene loop gets the same one. Inert unless the variable is
            set and unreachable from a selftest; see its banner. */
         pad_test_apply(frame, &pad_live, &pad);
+        /* SM64DS_CLICK_TEST: the scripted stylus, the same call the windowed
+           scene loop makes and for the same reason -- the level path is where
+           the inset panel's transform lives, so it is the half of the click
+           grid that guards against a stacked fix moving a level. */
+        click_test_apply(hwnd, frame);
         /* ---- THE REBIND CAPTURE, ahead of every other reader of this frame's
            input. The keyboard half already arrived through the window
            procedure (see g_rebind_capture up there); this is the pad half and

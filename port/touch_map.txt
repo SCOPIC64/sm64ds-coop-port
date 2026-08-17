@@ -760,3 +760,213 @@ writing it.
     between two probe counters on one scene at one frame count. What sets
     self+0x4ee2 to that value, and whether it is the same on every entry to
     the class, was not established.
+
+
+8. THE WINDOWED MOUSE, MEASURED (2026-08-17, run link60 lane TCH2)
+--------------------------------------------------------------------
+
+Sections 1 to 7 proved the touch chain with SM64DS_TOUCH_PROBE, which writes DS
+pixels straight into data_020a0de8. That starts DOWNSTREAM of the window, the
+present rectangle and the transform, so it could not answer the question a
+player asks: does clicking the bottom half of a minigame window work. Lane SW1
+gave the scene path a window; this section answers it for the mouse.
+
+THE REPORTED FAULT. The owner played curling in the new 512x768 stacked window
+and touch did nothing. The playlog carried, about fifteen times,
+
+    [mouse] click off-picture (letterbox bar), not published
+
+and exactly one "[mouse] click 230,193 fb". The obvious reading -- the present
+rectangle is wrong or unpublished, so the transform rejects every click -- is
+WRONG, and this section exists because it cost a lane to find that out.
+
+
+8a. THE RECTANGLE WAS ALWAYS RIGHT.
+-------------------------------------
+
+Measured on the UNCHANGED SW1 binary (6482ce682), scene 374, windowed, with
+SM64DS_TOUCH_CLIENT_PROBE, which drives the same two mappers poll_touch drives:
+
+    [touchmap] rect x0 y0 w512 h768 src 512x768, layout stacked
+    [touchmap] client (256,100) -> top IN  fb(256,100) | sub out ds(128,0)
+    [touchmap] client (256,383) -> top IN  fb(256,383) | sub out ds(128,0)
+    [touchmap] client (256,384) -> top out fb(256,383) | sub IN  ds(128,0)
+    [touchmap] client (256,500) -> top out fb(256,383) | sub IN  ds(128,58)
+    [touchmap] client (10,700)  -> top out fb(10,383)  | sub IN  ds(5,158)
+    [touchmap] client (500,760) -> top out fb(500,383) | sub IN  ds(250,188)
+
+Client 512x768, image 512x768, so dx=dy=0 and no bar exists on either axis. The
+seam is exact: 383 is the top screen, 384 is row 0 of the bottom screen.
+scene_window_run calls the SAME present() the level loop calls -- there is one
+copy of the fit arithmetic and one call to hal_present_set_rect -- so there was
+never a second rectangle to get wrong.
+
+
+8b. THE TWO MOUSE PATHS, AND WHY THE LOG SAID THE OPPOSITE OF THE TRUTH.
+--------------------------------------------------------------------------
+
+THE WINDOWED BUILD HAS TWO INDEPENDENT MOUSE READERS and only one of them is
+the stylus. This is the whole misdiagnosis and it is worth stating flatly:
+
+  walk_window.cpp wndproc, WM_LBUTTONDOWN
+      asks hal_present_client_to_fb, publishes g_mouse_click_x/y/new.
+      Its own comment says NOTHING IN THIS FILE READS ANY OF IT. It is a
+      publisher with no consumer, kept for a touch bridge that was built
+      somewhere else instead.
+  hal/sub_screen.cpp poll_touch, from hal_sub_screen_frame_begin
+      polls GetCursorPos + GetAsyncKeyState(VK_LBUTTON), asks
+      hal_present_client_to_sub in the stacked layout, and writes
+      data_020a0de8. THIS is the stylus. It never looks at a window message.
+
+hal_present_client_to_fb MEANS THE TOP SCREEN IN BOTH LAYOUTS -- correctly; its
+own banner says so. So in a stacked run every click on the bottom half returns
+"outside" from it, and the wndproc handler reported that as a letterbox bar.
+Those were the only touch-shaped lines in the log, because poll_touch printed
+nothing at all unless SM64DS_TOUCH_PROBE was set and no play session sets it.
+
+    A SESSION WHERE THE STYLUS WORKED PERFECTLY AND A SESSION WHERE IT WAS
+    NEVER POLLED PRODUCED THE SAME PLAYLOG, and the wrong one of the two was
+    the reading everybody took.
+
+The single published "[mouse] click 230,193 fb" is a click at client (230,193),
+in the TOP half, which is the one kind of click that path still reports.
+
+Both halves are fixed. The wndproc handler asks the sub band before it names
+the surface, and poll_touch now records press, release and refusal with DS
+coordinates.
+
+
+8c. THE SCRIPTED STYLUS: SM64DS_CLICK_TEST.
+---------------------------------------------
+
+There was no way to drive a mouse from a script, so every claim about where a
+click lands rested on somebody's hand. tests/walk_window.cpp now carries
+
+    SM64DS_CLICK_TEST="cx,cy@f0[-f1][,cx,cy>dx,dy@f0-f1,...]"
+
+client pixels, held across the named frames, ">" for a linear drag. Inert
+unless set and unreachable from a selftest, the same two locks SM64DS_PAD_TEST
+has, and it is popped by battery.py's scene_env and selftest_env.
+
+IT DRIVES THE OS, NOT THE WINDOW QUEUE. SetCursorPos plus SendInput, because
+poll_touch reads GetCursorPos and GetAsyncKeyState and a PostMessage'd
+WM_LBUTTONDOWN would exercise only the dead path in 8b -- proving the half that
+has no consumer green while the live half stayed dark. A real button edge
+reaches both, through every layer of arithmetic either of them uses.
+
+TWO THINGS IT COST, both recorded because both looked like port bugs:
+  * The first cut hand-rolled the INPUT struct at 36 bytes where the 32-bit one
+    is 28. SendInput validates cbSize and returns 0 without injecting, so the
+    run logged eleven presses and zero touches -- which is EXACTLY what a
+    broken touch bridge looks like. The return is checked now, and the struct
+    is windows.h's own.
+  * The pointer is shared with the desktop. A press can land a few pixels off
+    if anything else moves the mouse. poll_touch logs the client point it
+    ACTUALLY read, not the one the fixture asked for, so contention is visible
+    in the log instead of silently shifting the answer.
+It is pid-gated: it refuses to press when the window under the pointer is not
+this process's, so it cannot click another lane's proof window on a shared
+desktop.
+
+
+8d. THE GRID. Both layouts, every point exact.
+------------------------------------------------
+
+Verified by recomputing each published DS pixel from the client point on the
+same log line and the rectangle the same run printed; 22 lines, 0 disagreements.
+
+STACKED, scene 374, client 512x768. DS = (cx/2, (cy-384)/2):
+
+    [touch] f10 PRESS client(64,416)  -> DS (32,16)   on the bottom (stacked)
+    [touch] f30 PRESS client(448,416) -> DS (224,16)
+    [touch] f50 PRESS client(256,576) -> DS (128,96)
+    [touch] f90 PRESS client(448,736) -> DS (224,176)
+    [touch] f100 press client(256,64)  is NOT on the stylus surface:
+            it is on the TOP screen -- no touch published
+    [touch] f110 press client(256,320) is NOT on the stylus surface:
+            it is on the TOP screen -- no touch published
+
+  nine of nine bottom-half points published at the exact DS pixel; two of two
+  top-half points refused and NAMED as the top screen rather than as a bar.
+
+INSET, level 1, client 1024x768, panel at fb (376,280)..(503,375):
+
+    [touch] f11 PRESS client(752,560)  -> DS (0,0)     on the bottom (inset)
+    [touch] f31 PRESS client(1000,744) -> DS (248,184)
+    [touch] f45 PRESS client(780,600)  -> DS (28,40)
+    [touch] f61 press client(222,128) is NOT on the stylus surface:
+            it is on the TOP screen -- no touch published
+
+  THE LEVEL PATH IS THE REGRESSION SURFACE and it does not move. poll_touch's
+  inset arithmetic is untouched by this lane -- the diff adds a capture of the
+  client point and the log lines, and changes no term of the transform.
+
+
+8e. THE MINIGAME CONSUMES IT. And then it stops.
+--------------------------------------------------
+
+Section 6d's acceptance test, re-run through the WINDOW and a real mouse
+instead of through SM64DS_TOUCH_PROBE. Scene 374, windowed, 200 frames,
+FAULTS_FATAL=1, the two runs identical but for the click script:
+
+    control (no SM64DS_CLICK_TEST)          0 "0x020e1854" lines, exit 0
+    drag    SM64DS_CLICK_TEST="256,620>256,470@80-150"
+                                            1 "0x020e1854" line,  exit 0
+
+    [touch] f80  PRESS client(256,620) -> DS (128,118) on the bottom (stacked)
+    [touch] f151 release after 71 frame(s), last DS (128,43)
+
+Per 6d that line IS the assertion "the minigame consumed a tap": the only way
+to reach that address is for func_ov006_020e1b54 to have read touched AND held
+out of data_020a0de8 and written self+0x4ee4. So the mouse, the window, the
+present rectangle, the transform, the record and the ROM's own reader are
+proven end to end on the path a player actually uses.
+
+AND NOTHING MOVES ON SCREEN, which is the second defect and not a doubt about
+the first. SM64DS_SCENE_BMP_STACKED captures at four frame counts are BYTE
+IDENTICAL between the control and the drag:
+
+    frames= 90  control 2D6CD7047C40  drag 2D6CD7047C40  IDENTICAL
+    frames=100  control AB737A31B0D5  drag AB737A31B0D5  IDENTICAL
+    frames=120  control 4807C74B20E0  drag 4807C74B20E0  IDENTICAL
+    frames=200  both md5 1aa356598f72c6cd861afddb717a8406  IDENTICAL
+
+The consumed tap advances self+0x4ee4 from 0 to 1, and slot 1 is
+func_ov006_020e1854 -- 0x300 bytes with a symbol in ov006/symbols.txt, no
+delink block, and no src file. The class cannot take the shot, so the FIRST
+drag a player makes moves the machine into a state with no body and every later
+drag is ignored. That is what "touch does not work in curling" is, and it is
+consistent with the owner's own playlog, which carries exactly one
+"0x020e1854" line (curling_no_body prints once) followed by eleven more
+unanswered clicks.
+
+IT CANNOT BE FIXED FROM THE PORT SIDE. The port recompiles C to x86 and cannot
+execute the overlay's ARM, so delinking the bytes is not an option the way it
+is for a ROM build; the address has to become C. Section 6c already called
+seating 0x020e1854 a MATCHING job and this section is the measurement that it
+is now the ONLY thing between this class and a playable shot. Everything
+upstream of it is green.
+
+
+8f. WHAT THIS SECTION DID NOT SETTLE.
+---------------------------------------
+
+  - POLL_TOUCH HAS NO FOCUS GATE, and this lane did not close it.
+    GetAsyncKeyState is machine-global, so a left click in ANOTHER window while
+    the game runs is still read as a stylus press attempt. Observed in the
+    level grid run: two presses at client (2102,-864) and (1594,-258), points
+    outside the window, refused as letterbox bars only because they fell
+    outside the picture. A click that happened to land on the panel's client
+    rectangle while another window had focus WOULD publish. hal_window_focused
+    already exists and everything else interactive routes through it; the
+    stylus does not. Left alone deliberately -- it changes behaviour on the
+    level path the owner click-tested, and it is not what was reported.
+  - WHY THE OWNER SAW EXACTLY ONE CONSUMED TAP is inferred from the single
+    "0x020e1854" line in their playlog plus the once-only static in
+    curling_no_body, not from a re-run of their session.
+  - THE DRAG PATH BETWEEN THE TWO ENDS is not logged. Press and release carry
+    DS coordinates; the frames between them do not, and SM64DS_TOUCH_PROBE is
+    still the tool for a per-frame record.
+  - THE SECOND TOUCH READER IS STILL NEVER DISPATCHED. Section 6c's finding
+    about func_ov006_020e26f8 and the self+0x4688 selector is untouched by this
+    lane; nothing here looked at it.
