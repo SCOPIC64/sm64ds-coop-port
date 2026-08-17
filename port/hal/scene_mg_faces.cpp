@@ -61,6 +61,21 @@
 // site instead, where the report can say which state was wanted rather than
 // only that something was missing.
 //
+// AMENDED AGAIN, run link60 lane CT1. "This class cannot reach every one of its
+// own states" is NO LONGER TRUE and this is the correction. The state is
+// transcribed from the ROM -- 0x300 bytes read out of
+// extracted/overlays/overlay_0006.bin at base 0x020bfec0, the base proved
+// against the very reloc named above, the pair word at 0x0213c2bc -- and it
+// lives in unmatched/MgCurling_State_020e1854.cpp. The dispatch case calls it
+// instead of reporting, so all twenty-five states run.
+//
+// WHAT STILL STANDS, unchanged and deliberately so: it STILL gets no symbol
+// here, and the reasoning in the paragraph above is exactly why. The decomp has
+// no body for 0x020e1854. The host body carries a port_ name
+// (port_mg_curling_st_020e1854, the same shape as port_player_st_climb_main),
+// so nothing in this tree claims a decompilation that does not exist, and
+// inferred_stub_guard and stategen both keep refusing on this address.
+//
 // ---- 4. THE mwcc POINTER-TO-MEMBER TU, WHICH IS THE WALL -------------------
 //
 // src/func_ov004_020b87e0.cpp is EXCLUDED from the slice and trapped here

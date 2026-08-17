@@ -231,6 +231,15 @@
 // func_ov006_020e1854, and the dispatch that would reach them cannot be
 // compiled by MSVC from the ROM's own source shape.
 //
+// AMENDED, run link60 lane CT1. The sentence above is still true about the
+// DECOMP -- func_ov006_020e1854 still has no src TU and no delink block, and
+// stategen.py still reports it under REFUSALS -- but it now reads as though the
+// class cannot run that state, and THAT part is out of date. The state is
+// transcribed from the ROM in unmatched/MgCurling_State_020e1854.cpp and the
+// address switch calls it, so dScMgCurling_c reaches all twenty-five. The host
+// body is named port_mg_curling_st_020e1854 precisely so the decomp's own
+// accounting keeps saying twenty-four.
+//
 // TWO HOST-ABI DEFECTS IN THE FRAMEWORK'S OWN SOURCE were found by the
 // adjudication and are recorded here because they bite the moment slots 5 and
 // 7 are dispatched, and neither is visible to the byte gate:
