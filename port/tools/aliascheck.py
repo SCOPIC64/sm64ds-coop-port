@@ -100,7 +100,6 @@ closed" -- only as "the tree did not get worse".  The list may only shrink.
 
 import argparse
 import os
-import re
 import subprocess
 import sys
 
