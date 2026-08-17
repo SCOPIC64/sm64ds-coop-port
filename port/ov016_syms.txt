@@ -67,6 +67,22 @@ data_ov016_021136dc data_ov016_021136e4
 # block (0x20 bytes) each.
 data_ov016_02113bac data_ov016_02113cac
 data_ov016_021149d4 data_ov016_02113c4c data_ov016_02113c6c
+# One more CLPS block, sized rather than left to the next-symbol delta.
+#
+# A CLPS block is "CLPS", u16 entrySize, u16 count, the entries, then a run of
+# 0xffffffff filling out to a 32-byte multiple. Counted over every extracted
+# image: 245 CLPS blocks in the ROM and all 245 carry entrySize 8, and every one
+# of the 131 count-1 blocks, the 64 count-2 blocks and the 4 count-3 blocks
+# measures exactly 32 bytes. This block's count is 1, so 0x20.
+#
+# Corroborated locally twice over: the block at 0x02113bac is byte-identical to
+# this one and dsd already sizes it 0x20 from its next-symbol delta, and ov009
+# carries FOUR consecutive count-1 blocks (0x02112bf8, 0x02112c18, 0x02112c38,
+# 0x02112c58) at exactly 0x20 spacing.
+#
+# An ambiguous cut at 0x02113c08 clipped the last of the four trailing ffffffff
+# words; 0x20 runs to data_ov016_02113c0c, the next non-ambiguous symbol.
+data_ov016_02113bec:0x20
 #
 # ---- the RUNNABLE sinits' construction destinations (bss) -------------------
 # All five sinits build SharedFilePtrs (and Unagi's five PMF dispatch cells) in
