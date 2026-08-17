@@ -264,9 +264,23 @@ bool sample_bg(const BgLayer &c, int x, int y, uint32_t &out) {
 //
 // Rasterised into a whole-screen buffer first, because priority has to be
 // resolved against the backgrounds pixel by pixel and a sprite's priority is
-// its own, not its layer's. Sprite-vs-sprite order is by OAM index (low wins)
-// regardless of priority, which is why the walk runs 127 down to 0 and lets
-// later writes overwrite.
+// its own, not its layer's.
+//
+// SPRITE-VS-SPRITE ORDER IS BY PRIORITY, NOT BY OAM INDEX. When two OBJ pixels
+// overlap the DS keeps the one with the lowest priority NUMBER (attr2 bits
+// 10-11, 0 = nearest); OAM index only breaks a tie, low index winning. This is
+// melonDS's DrawSpritePixel exactly: it walks OAM 0->127 and overwrites iff the
+// new pixel is opaque AND (the slot is empty OR new prio < old prio). This walk
+// runs 127->0 so a lower-index sprite is processed LATER, so the equivalent
+// overwrite test is `new prio <= old prio`: `<=` keeps the last (lowest-index)
+// writer on a tie, and a strictly-better priority wins outright whatever the
+// index. The header note used to say order was "by OAM index regardless of
+// priority" and the write below was unconditional, which was pure lowest-index.
+// That put a low-index low-priority sprite in front of a high-index
+// high-priority one -- in curling, a prio-1 shell body and its prio-2 semi
+// shadow (OAM 0,1) covered the prio-0 cursor bar and the prio-0 snow (OAM 10+),
+// so the blue shadow tint drew over the bumper and the snow took the shell's
+// texture where it crossed one. Both are the same defect, fixed at the write.
 
 struct ObjPixel {
     uint32_t color;
@@ -409,6 +423,13 @@ void raster_obj(uint32_t dispcnt) {
                     g_objwin[py][px] = 1;
                     continue;
                 }
+                // Priority resolves OBJ-vs-OBJ (see the header note): overwrite
+                // only if this pixel is empty or this sprite's priority is at
+                // least as good (lower or equal number). With the 127->0 walk
+                // that keeps the lowest-index sprite on a tie and lets a
+                // higher-priority sprite win regardless of its index.
+                if (g_obj[py][px].hit && prio > g_obj[py][px].prio)
+                    continue;
                 g_obj[py][px].color = color;
                 g_obj[py][px].prio = prio;
                 g_obj[py][px].hit = 1;

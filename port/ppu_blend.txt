@@ -174,3 +174,95 @@ in message_compositor.cpp -- its BG loop composites into a 2D hit buffer and the
 3D framebuffer is only read at OBJ time and the final blit. curling's first-
 target bits are empty so no frame needs it; left as a follow-up. The semi-
 transparent OBJ path DOES blend over the 3D layer.
+
+
+================================================================================
+OBJ-VS-OBJ PRIORITY: THE TWO CURLING LAYERING BUGS (run link60, lane BLND2)
+================================================================================
+
+The owner playtested the shipped blend (0.2.8) in curling (scene 374,
+dScMgCurling_c) and found two layering faults, both on the BOTTOM screen:
+  1. the light-blue shadow tint drew OVER the bumper (the cursor/aim bar), which
+     should render in front of the tint, untinted;
+  2. the snow changed texture where it crossed a shell.
+
+BOTH ARE ONE DEFECT, AND IT IS ON ENGINE B (ntr/ppu_sub.cpp). Measured on the
+shot frame with SM64DS_PPU_AUDIT (scene 374, the shot driven by the in-exe
+SM64DS_CLICK_TEST scripted stylus "256,724>256,584@100-119" in a focused
+SM64DS_SCENE_WINDOW=1 run):
+
+  engine A (top screen): mode-1 OBJ count 0 on all 160 samples. NOTHING blends
+    on engine A in curling, so hal/message_compositor.cpp is not involved and
+    was not touched.
+  engine B (bottom screen): BLDCNT_B 0x0440 (mode 1 alpha, first-target NONE,
+    2nd target BG2), BLDALPHA_B 0x1002 (eva 2/16, evb 16/16), and 5 mode-1
+    semi-transparent sprites/frame. Only BG2 (priority 2) is enabled; every
+    other playfield element is an OBJ. The blue tint is the semi shadow sprite
+    alpha-blending over BG2.
+
+  OAM (engine B, measured):
+    shells   normal (mode 0) priority 1   OAM index 0,2,4,6,8
+    shadows  SEMI   (mode 1) priority 2   OAM index 1,3,5,7,9   (the blue tint)
+    cursor/  normal (mode 0) priority 0   OAM index 10,11        (the "bumper")
+      bumper bar
+    snow     normal (mode 0) priority 0   OAM index 13..60
+
+THE RULE THE PORT HAD WRONG. raster_obj wrote g_obj[py][px] UNCONDITIONALLY as
+it walked OAM 127->0, so the lowest OAM index always won -- pure index order,
+"regardless of priority" as the old header note here even said. The DS does NOT
+do that. OBJ-vs-OBJ is resolved by PRIORITY first, the lowest priority NUMBER
+winning, and OAM index only breaks a tie. This is melonDS's DrawSpritePixel
+verbatim (GPU2D_Soft.cpp): walking OAM 0->127 it overwrites iff the new pixel is
+opaque AND (the slot is empty OR new prio < old prio). GBATEK's OBJ notes say the
+same: a sprite's priority field orders it, index is the tiebreak.
+
+  Bug 1: the shadow (prio 2, OAM 1) and the shell body (prio 1, OAM 0) both have
+         a LOWER OAM index than the cursor bar (prio 0, OAM 10-11), so the old
+         index-order write drew them over the bumper -- the semi shadow then
+         alpha-blended over BG2 there, punching a blue notch through the bumper's
+         gold outline. Priority order makes the prio-0 bumper win: it draws
+         opaque, in front, and the tint only appears where the semi shadow is
+         genuinely the top-relevant OBJ (which is what the DS does).
+  Bug 2: the shell (prio 1, OAM 0) has a lower OAM index than the snow
+         (prio 0, OAM 13+), so the old write drew the shell over the snow;
+         the snow took the shell's texture wherever it crossed one. Priority
+         order makes the prio-0 snow win -- it stays snow over a shell.
+
+THE FIX (ntr/ppu_sub.cpp, raster_obj, ~6 lines). Before writing g_obj, skip if a
+better-priority sprite already owns the pixel:
+
+    if (g_obj[py][px].hit && prio > g_obj[py][px].prio) continue;
+
+For the 127->0 walk this is exactly melonDS's "empty || new <= old": `<=` keeps
+the lowest index on a tie (a lower-index sprite is processed later and overwrites
+an equal-priority one), and a strictly-better priority wins whatever the index.
+The resolver and blend_apply already read g_obj.prio/.semi, so the sprite that
+wins by priority now drives the blend. NOT gated by SM64DS_BLEND_OFF: this is OBJ
+resolution, not the alpha effect, so it applies to the OFF and ON paths alike and
+the OFF-vs-on comparison stays contained to the curling blend region.
+
+VERIFICATION
+  * OFF-vs-on (BR2, blend_sweep.py, fixed binary): 46/46 mounted levels
+    byte-identical; ONLY scene 374 changed (9164 bytes), the intended curling
+    blend. (Correction, per review BR3: scenes 1 and 4 emit no stacked BMP in
+    this build at all -- the stacked dump is gated on the curling stacked
+    layout, so those two rows were MISSING in that OFF-vs-on run, not measured
+    byte-identical. Their containment is instead proven by the base-vs-fixed
+    collateral capture below and by every level being byte-identical.)
+  * Before/after shot-phase frames (baseline binary vs fixed binary, same
+    scripted shot, same .dsstate base), engine A (top half) byte-identical on
+    every frame; engine B (bottom half) changed only in the bug regions:
+      f110  bottom 412 px  -- the bumper's gold top edge (bug 1) + snow on the
+            centre shell (bug 2)
+      f160  bottom 424 px  -- shadow/bumper edge + snow on the travelling shell
+      status/blnd2-bug1-bartop-{BEFORE,AFTER}.png shows the blue notch in the
+      bumper outline closing.
+  * Collateral (baseline vs fixed, non-curling engine-B scenes, forced-stacked):
+    scene 4 byte-identical; scene 1 changed 156 px, ALL inside the title
+    screen's pre-existing garbled top-left corner (a separate port artifact,
+    garbage before and after, not a working element) -- the same priority
+    correctness applied where index and priority also disagree there. Level
+    selftests are engine A (top) and are byte-identical.
+  * Shell collision (CUR2's fix) untouched: only ntr/ppu_sub.cpp changed.
+  * gate.py GREEN, delta 0 (linked 5831/11250, battery ALL GREEN, skips []),
+    host raster only.
