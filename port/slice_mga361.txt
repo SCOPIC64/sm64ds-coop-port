@@ -1,0 +1,217 @@
+# Gate MGA: dScMgCup_c, scene 361 = actor id 0x169. Run link60, lane MGA.
+#
+# THIS FILE IS IN NO TARGET, and that is deliberate rather than unfinished.
+# port/CMakeLists.txt does not read it and nothing here is compiled, linked or
+# executed by any build today. It is MG1's precedent exactly: derive the
+# closure, measure the frontier, publish both, and leave the seat out of every
+# target until the five items in section 3 exist -- because wiring a slice
+# whose faces are not written yet does not half-seat a class, it breaks the
+# link for every lane sharing the branch.
+#
+# Read port/mg_fanout_costs.txt sections 11 and 12 first. Section 11 is the
+# vtable WIDTH correction this lane found before writing any seat code, and it
+# is load-bearing for this class: a 37-slot fill of dScMgCup_c writes over a
+# word CURLING's own constructor copies. Section 12 is the class map and the
+# ten ROM adjudications.
+#
+# ---- 1. THE CLASS ---------------------------------------------------------
+#
+# RTTI "10dScMgCup_c" at 0x0213c054. The hierarchy, read off the two deleting
+# destructors rather than guessed -- 0x020dea1c and 0x0210a4e8 both write
+# data_ov006_0213e448 into the object's first word, and 0x0213e448 carries the
+# ActorBase signature at slots 13/14/15:
+#
+#     Scene -> dScMgBase_c        0x020bc0c0  36  (mounted, curling's fill)
+#           -> dScMgSingle3DBase_c 0x0213e448  36  ovr 8,  mark 6,  nosrc 0
+#           -> dScMgCup_c          0x0213c154  36  ovr 13, mark 9,  nosrc 0
+#
+# THREE tables, all width 36. The seat fills all three; sixteen distinct
+# override bodies, ten marker-carrying and all ten already ruled REAL_DECOMP in
+# port/tools/inferred_stub_adjudicated.txt.
+#
+# SpawnInfo data_ov006_0213c020, factory func_ov006_020e0574 (0xc0 bytes).
+#
+# ---- 2. HOW THE LIST WAS DERIVED ------------------------------------------
+#
+# A relocation closure over config/arm9/overlays/ov00{4,6}/relocs.txt, blocks
+# joined through delinks.txt, from TWENTY-FIVE roots rather than one: the
+# factory, the class's own overlay constructor __sinit_ov006_021303d0, the
+# eight state code words, and the sixteen override bodies of both new tables.
+# The SpawnInfo alone is not a root that works -- slice_mg1.txt's own note --
+# because the state pairs are .data reached only from .init and the .bss tables
+# they fill carry no relocations at all.
+#
+# 125 ov004+ov006 TUs in the raw closure, 69 of them not already in
+# port/slice_mg1.txt. EIGHT of those 69 are removed because
+# port/unmatched/MgBase_StateDispatch.cpp already HOST-COPIES them (the mwcc
+# pointer-to-member wall): 020add88, 020adf2c, 020b31b4, 020b321c, 020b3278,
+# 020b8714, 020b8778, and 020b87e0 which stays trapped. A ninth,
+# src/func_ov006_020e0204.cpp, is removed for the same reason and is THIS
+# CLASS'S half of the wall -- see section 4.
+#
+# The arm9 half is not listed for slice_mg1.txt's reason: the closure reaches
+# 148 arm9 addresses and the matched ones come back through /OPT:REF for free
+# once ov004/ov006 reference them. The seven arm9 TUs that are listed are the
+# ones a closure probe proved the image does NOT already carry.
+#
+# ---- 3. THE MEASURED FRONTIER, AND IT IS SMALL ----------------------------
+#
+# Measured with port/tools/closure.py against this tree's own walk_window.map
+# at 5831/11250 -- a symbol-table probe, no link paid for. Three probe waves,
+# 12 -> 7 -> 6 unresolved, against MG2's EIGHT real link waves for curling.
+#
+# WHAT IS LEFT AFTER THIS SLICE IS FIVE ITEMS AND ONE COMPILE FIX. None is
+# written; that is what "in no target" means.
+#
+#   2 NAME-SPELLING FACES, the C-linkage flip.
+#       ?data_ov006_0213c154@@3PAXA   ?data_ov006_0213e448@@3PAXA
+#     src/func_ov006_020e0574.cpp declares both vtables OUTSIDE its extern "C"
+#     block, so it wants them at C++ linkage while the mount defines them at C
+#     linkage. Both are already in port/ov006_syms.txt, so this is an alias and
+#     not a body -- the _ZTV14dScMgCurling_c shape from
+#     hal/scene_mg_faces.cpp section 2, which is a name the ROM settles twice.
+#
+#   2 HOSTED WORDS, sized by ROM span and not by the caller's width.
+#       data_ov004_020beb6c   data_ov004_020beb74
+#     Both kind:bss in config/arm9/overlays/ov004/symbols.txt. The DS clears
+#     bss at boot so zero-initialised host storage reads what the machine
+#     reads. (The probe prints them as data_ov000_* / func_020beb6c; that is
+#     the probe naming an address it has no mount for, not a second module.)
+#
+#   1 NAMED TRAP, and deliberately not a plausible body.
+#       func_ov004_020b0e84  (0x66c bytes)
+#     It has a config symbol and NO delink block -- the block before it ends at
+#     0x020b0e84 -- and no src file. port/tools/inferred_stub_guard.py exists to
+#     refuse exactly the plausible body that would go here, so it gets a trap
+#     that reports itself, the hal/scene_mg_faces.cpp section 3 shape.
+#
+#   1 COMPILE FIX.
+#       src/func_ov004_020b0620.cpp(47): C2733, cannot overload a function with
+#       extern "C" linkage, against include/decl_common.h(1475). The
+#       decl_common redecl trap. src/ is read-only, so the answer is on the
+#       decl side or a per-TU shim, not in the TU.
+#
+#   1 PROBE FALSE POSITIVE, resolved and recorded so the next reader does not
+#     chase it. func_ov004_020b3278 reads unresolved because it is absent from
+#     walk_window.map, and it is absent because MgBase_StateDispatch.cpp
+#     DEFINES it (line 395) and /OPT:REF stripped it for want of a caller. This
+#     slice is that caller, so it returns for free. This is the error direction
+#     closure.py's own docstring warns about; only a real link convicts.
+#
+#   0 DUP-DEF / LNK2005 candidates, in all three waves.
+#
+# ---- 4. THIS CLASS'S HALF OF THE WALL IS THE CHEAP HALF -------------------
+#
+# One table, eight slots, arity 0, every slot with a matched src TU, and
+# stategen reports REFUSALS: none. Curling has seven tables, twenty-five slots
+# and one state with no decompiled body at all.
+#
+#     python port/tools/stategen.py --sinit src/__sinit_ov006_021303d0.c \
+#            --overlay 6 --arity 1 --emit-switch
+#
+#     data_ov006_02141870  8 slots:
+#       020dfd48 020dfcd8 020df5b8 020df540 020df3bc 020df28c 020df1c0 020df1bc
+#
+# And exactly ONE TU dispatches it: src/func_ov006_020e0204.cpp, the class's
+# Behavior at vtable slot 6, whose single pointer-to-member site is
+# (c->*data_ov006_02141870[*(int *)(c + 0x5418)])(). Curling needs five host
+# copies; this needs one. The per-class cost is therefore NOT one number:
+# 0x169 is roughly twice curling on the vtable axis and a third of it on the
+# wall axis, and a fan-out ranking built on either axis alone will mis-rank.
+#
+# THE PER-CLASS DISPATCH HOOK IS A SINGLETON TODAY and the next lane meets it
+# before this one does. port_mg_try_ov006_0 and port_mg_try_ov006_1 are
+# DEFINED in unmatched/MgCurling_StateDispatch.cpp and DECLARED in
+# MgBase_StateDispatch.cpp, so a second class cannot define them. A class whose
+# states are reached only through its own Behavior copy does not need them; a
+# class reached through the framework's four object-field dispatchers does.
+# Before the fan-out widens, that pair wants to become a registry the class
+# files add themselves to, rather than a hook one class owns.
+#
+# ---- 5. TWO RIDE-THROUGHS THE SEAT OWES -----------------------------------
+#
+# Both found by reading, neither repairable in src/, both needing a written
+# ruling if the answer costs a linked function.
+#
+#   func_ov006_0210a6e4, vtable slot 2. The ROM never writes r1 before its bl
+#   to 0x20b08f0, so the framework's second argument rides through. src
+#   declares the callee with ONE parameter; hal/scene_mg.cpp declares the same
+#   extern "C" symbol with two. Nothing diagnoses that. The face must pass both.
+#
+#   src/func_ov006_020e0574, the factory. It calls func_ov004_020b2adc() with
+#   NO argument where curling's factory passes p, and the callee is the base
+#   constructor, which uses it. On ARM r0 already holds p; on the host the base
+#   ctor reads garbage for `this`. This is the caller-displacement shape and it
+#   is in a matched, read-only TU, so the port-side answer is a host copy of
+#   the factory -- which costs one linked function and therefore needs the
+#   coordinator's ruling in writing before it is taken.
+#
+# ---- the list ---------------------------------------------------------------
+src/Camera_UpdateMatrices.c
+src/_ZN8Particle10SysTrackerD1Ev.cpp
+src/func_02012174.c
+src/func_02016a04.c
+src/func_02021b98.c
+src/func_0203ccd4.c
+src/func_0203cd80.c
+src/func_0203d738.c
+src/func_ov004_020af770.cpp
+src/func_ov004_020b0620.cpp
+src/func_ov004_020b0cac.c
+src/func_ov004_020b1b78.c
+src/func_ov004_020b1e34.c
+src/func_ov004_020b2574.c
+src/func_ov004_020b6808.c
+src/func_ov006_020c225c.c
+src/func_ov006_020c2290.c
+src/func_ov006_020c2440.cpp
+src/func_ov006_020c2594.c
+src/func_ov006_020c2664.c
+src/func_ov006_020c2848.cpp
+src/func_ov006_020c2924.cpp
+src/func_ov006_020c2994.c
+src/func_ov006_020c29dc.cpp
+src/func_ov006_020c2b8c.cpp
+src/func_ov006_020c2be8.c
+src/func_ov006_020c3050.c
+src/func_ov006_020c3288.c
+src/func_ov006_020c33dc.c
+src/func_ov006_020de988.cpp
+src/func_ov006_020dea1c.cpp
+src/func_ov006_020deac4.c
+src/func_ov006_020deac8.c
+src/func_ov006_020deaf0.c
+src/func_ov006_020deb48.c
+src/func_ov006_020debb4.c
+src/func_ov006_020debfc.c
+src/func_ov006_020dec3c.c
+src/func_ov006_020dec5c.c
+src/func_ov006_020dec88.cpp
+src/func_ov006_020ded00.c
+src/func_ov006_020ded84.c
+src/func_ov006_020dedfc.c
+src/func_ov006_020deed8.c
+src/func_ov006_020def80.c
+src/func_ov006_020df024.c
+src/func_ov006_020df1bc.c
+src/func_ov006_020df1c0.cpp
+src/func_ov006_020df28c.c
+src/func_ov006_020df3bc.c
+src/func_ov006_020df540.c
+src/func_ov006_020df5b8.c
+src/func_ov006_020dfcd8.c
+src/func_ov006_020dfd48.c
+src/func_ov006_020dfed4.c
+src/func_ov006_020dfeec.c
+src/func_ov006_020e0068.c
+src/func_ov006_020e0308.cpp
+src/func_ov006_020e0574.cpp
+src/func_ov006_020e0634.c
+src/func_ov006_0210a4b0.cpp
+src/func_ov006_0210a4e8.cpp
+src/func_ov006_0210a600.c
+src/func_ov006_0210a608.c
+src/func_ov006_0210a664.c
+src/func_ov006_0210a698.cpp
+src/func_ov006_0210a6e4.cpp
+src/func_ov006_0210a708.c
