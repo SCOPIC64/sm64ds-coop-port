@@ -1,0 +1,457 @@
+THE REMAINING HOSTED-DATA TRUNCATIONS, DERIVED AND FIXED
+Run link60, lane GAP5. Base cons port-mount-noseat-cluster 3a5733c03, gate
+GREEN 5831/11250 (51.8%), battery ALL GREEN, skips [].
+
+The castle moat water bug (notes/port-selftest-bmp-gate.md on main, fix landed
+at cons 3a5733c03) was one instance of a class, not a one-off. A real array
+whose only host is a synthetic gap block gets its extent from the next entry in
+dsd's symbols.txt, `ambiguous` guesses included. When a guess lands inside the
+array's span the hosted copy is short, and the read past the end lands on
+whatever the linker parked next -- which in the water's case was a row of
+rebased HOST POINTERS, so an image base decided pixels.
+
+port/tools/battery.py names five more of these. This document derives all five
+from ROM bytes, corrects one of them, and adds a sixth the sweep turned up.
+
+Every extent here is read from extracted/overlays/overlay_XXXX.bin at the base
+in config/arm9/overlays/ovNNN/delinks.txt. Not from dsd exports (proven stale,
+and ov021's is the compressed image), not from raw vtable words.
+
+
+0. SUMMARY
+------------
+
+  block                    was    now    class                    verified how
+  ov009 0x021133d4          96   1320    220 Vector3<s16> points  carried
+  ov009 0x02113214          24    448    28 x 16-byte records      CORRECTED
+  ov009 0x02112c9c          24     48    6 x 8-byte records        DERIVED NEW
+  ov016 0x02113bec          28     32    CLPS block, count 1       carried
+  ov021 0x021148dc           4     20    class-name string         carried
+  ov070 0x02122968        1240*   404    symmetric Fix12 curve     carried
+
+  * ov070's 1240 is the enclosing gap block port_ov070_gap_02122594, which cut
+    the curve at its apex; see section 6.
+
+"carried" means the fix came from branch bmp-hunt (0b5e5a766 and e4f25f862,
+review-PASSED 2026-08-14, never merged) and this lane re-derived its extent and
+re-counted every number in its banner before taking it. "CORRECTED" means the
+carried extent was wrong and this lane changed it. "DERIVED NEW" means the
+carried commits did not have it.
+
+Two banner errors were found and fixed, both of the count-you-did-not-recount
+kind that the water fix's own banner shipped with (it said six ambiguous
+boundaries where the truth was eleven):
+
+  * ov009 0x02113214 was sized 0xa8 from 28 * 6, on the assumption that its
+    record names a Vector3<s16> path like its neighbour. Its stride is 16, not
+    6. The correct extent is 0x1c0. Section 2.
+  * ov016's banner said ov009 has "three consecutive count-1 CLPS blocks at
+    exactly that spacing". It has four. Section 5.
+
+
+1. HOW A CANDIDATE IS FOUND, AND WHY THE LIST IS SHORT
+--------------------------------------------------------
+
+port/tools/gapaudit.py enumerates the synthetic gap blocks (48 of them at this
+base, 9420 bytes over 12 mounts, all inside the captured .dsstate span). It
+does not itself decide which are short. The screen that does is:
+
+    for each gap block, compare its emitted size against the distance to the
+    next NON-AMBIGUOUS dsd symbol after its start.
+
+A block shorter than that distance was cut by an ambiguous guess or by ovdata's
++0x18 discovered-target floor. Six of the 48 came back:
+
+  mount  gap block      hosted   to next real sym   ambiguous cuts between
+  ov009  0x021133d4         96               1320   20
+  ov009  0x02113214         24                448    4
+  ov016  0x021148d4         24                 52    2
+  ov009  0x02112c9c         24                 48    2
+  ov021  0x02114818         24                 48    1
+  ov016  0x02113bec         28                 32    1
+
+THIS SCREEN PRODUCES CANDIDATES, NOT EXTENTS. The distance to the next
+non-ambiguous symbol is an upper bound: an array is allowed to end before it.
+Two of the six are false positives and the derivation is what caught them --
+
+  ov016 0x021148d4 and ov021 0x02114818 are both the Itanium
+  __si_class_type_info record {typeinfo vtable + 8, name, base}, 12 bytes. The
+  +0x18 floor already OVER-covers them at 24. They read as candidates only
+  because the SpawnInfo symbol that follows each one is itself marked
+  ambiguous, so the screen's upper bound skips past it to the next real symbol.
+
+The two carried fixes the screen cannot see are the ones that are not gap
+blocks: ov021 0x021148dc is an already-mounted named symbol sized by its
+next-symbol delta, and ov070 0x02122968 sits INSIDE a gap block rather than at
+its start.
+
+
+2. ov009 0x02113214 -- 28 records of SIXTEEN bytes, not six
+-------------------------------------------------------------
+
+THE STRUCTURE. The level descriptor at ov009 0x02112b60 carries two tables of
+8-byte records, {u8 tag; u8 count; u16 zero; void *data}:
+
+  0x02112b6c = 6            0x02112b74 = 9
+  0x02112b70 -> 0x02112c9c  0x02112b78 -> 0x02112dcc
+
+Four records of those two tables point into one contiguous run, and each
+array's stride is different:
+
+  record      tag   count   points at     stride   size
+  0x02112ca4  0x05     29   0x0211301c         8   0x0e8
+  0x02112cbc  0x40     17   0x02113104        16   0x110
+  0x02112cac  0x20     28   0x02113214        16   0x1c0
+  0x02112dcc  0x02    220   0x021133d4         6   0x528
+
+  0x0211301c + 0x0e8 + 0x110 + 0x1c0 + 0x528 = 0x021138fc
+
+0x021138fc is data_ov009_021138fc, non-ambiguous, and its contents are the
+{function, 0} pairs __sinit_ov009_02112458 copies into Bird's behaviour table:
+
+  0x021138fc  0211145c 00000000 02111234 00000000
+
+Four consecutive exact landings with three different strides. No single stride
+in that chain is a free parameter.
+
+WHY 6 IS WRONG FOR TAG 0x20. 28 * 6 = 0xa8 ends at 0x021132bc, which is not a
+symbol, not a record boundary and 0x118 short of the array that follows. The
+16-byte stride is directly visible instead:
+
+  0x02113394  fed400ed 08980315 00000000 310d0000
+  0x021133a4  012c00ed 08980315 00000000 320e0000
+  0x021133b4  177000ed 06a4018d c0000000 330f0000
+  0x021133c4  e82c00ed 0c80061f 80000000 34100000
+
+A repeated type id in the first halfword (0x00ed), a coordinate triple, an
+orientation halfword that only ever takes 0x0000/0x4000/0x8000/0xc000, and two
+counters that step once per record (0x0d31, 0x0e32, 0x0f33, 0x1034). The last
+record starts at 0x021133c4 and ends at 0x021133d4. The tag-0x40 array at
+0x02113104 has the identical record shape and in places identical records:
+0x02113124 and 0x02113224 are the same sixteen bytes.
+
+Only the tag-0x02 array is Vector3<s16>. Its points read as world coordinates
+from the first to the last, [-200, 783, 3100] through [-5200, 254, 4000].
+
+WHAT WAS HOSTED. 24 bytes, the +0x18 floor, with FOUR ambiguous boundaries
+inside the span (counted, not estimated). The first is 0x02113228, twenty bytes
+in, so even the floor was doing the covering.
+
+CONSUMER, AND ITS REACH. Both arrays are reached by a rebased HOST pointer, so
+the walk really does start on hosted storage and run off the end -- the exact
+water-track shape. From the generated ov009_syms.c at the base commit:
+
+    *(unsigned int *)(port_ov009_gap_02112c9c + 20) = (unsigned int)(port_ov009_gap_02113214 + 0);
+    *(unsigned int *)(port_ov009_gap_02112dcc +  4) = (unsigned int)(port_ov009_gap_021133d4 + 0);
+    *(unsigned int *)(port_ov009_gap_02112b60 + 336) = (unsigned int)(port_ov009_gap_02113214 + 0);
+    *(unsigned int *)(port_ov009_gap_02112b60 + 624) = (unsigned int)(port_ov009_gap_021133d4 + 0);
+
+Each array is reached from two places. The count that drives the walk is the
+record's own count byte, which is 28 and 220 against 1 and 16 hosted records.
+
+
+3. ov009 0x021133d4 -- the 220-point path
+-------------------------------------------
+
+Carried extent 0x528, verified. Header record 0x02112dcc, count byte 0xdc =
+220, stride 6, 220 * 6 = 1320 = 0x528, landing exactly on
+data_ov009_021138fc. TWENTY ambiguous boundaries inside the span, none
+non-ambiguous; the first, 0x02113434, ended the hosted copy at 96 bytes, which
+is 16 of the 220 points.
+
+The reloc trap e4f25f862 records is real and its numbers check out. Four
+spurious kind:load relocs sit INSIDE this array in
+config/arm9/overlays/ov009/relocs.txt:
+
+  from:0x021135cc to:0x0212ec78 module:overlay(6)
+  from:0x021136d4 to:0x021310cc module:overlay(89)
+  from:0x021136e0 to:0x020f11f8 module:overlay(7)
+  from:0x02113758 to:0x0212ec14 module:overlay(6)
+
+0x021135cc is point 84 ((0x021135cc - 0x021133d4) / 6 = 84), whose coordinates
+are x=-5000 y=530 z=-1700; -5000 is 0xec78 and 530 is 0x0212, so the two s16s
+together spell 0x0212ec78. They are path coordinates, not pointers. They stay
+in relocs.txt deliberately -- that file is dsd config shared with the decomp
+side and the edit is Tango's call.
+
+
+4. ov009 0x02112c9c -- the six-record table, DERIVED NEW
+----------------------------------------------------------
+
+Not in the carried commits. Same class, and it is the index for both arrays
+above.
+
+EXTENT. 6 records * 8 = 0x30, ending on data_ov009_02112ccc. That end is not an
+inference: 0x02112ccc is the target of the ninth record of the OTHER table, at
+0x02112e0c, {tag 0x2a, count 4}. The count 6 is the word at 0x02112b6c, the
+slot immediately before the table pointer at 0x02112b70, and the pairing is
+confirmed by the second table, whose count word 0x02112b74 = 9 matches nine
+records ending exactly on data_ov009_02112e14.
+
+WHAT WAS HOSTED. dsd guessed an ambiguous boundary at 0x02112ca8, twelve bytes
+in; the +0x18 floor rounded that to 24. Three of six records.
+
+CONSUMER. Visible without any disassembly, by comparing the two tables in the
+generated source at the base commit: three pointers rebased into
+port_ov009_gap_02112c9c (+4, +12, +20) against all nine into
+port_ov009_gap_02112dcc, which is the same structure sized correctly by its
+next-symbol delta. Records 3..5 were being read out of the next block.
+
+SIDE EFFECT, MEASURED, AND IT IS THE GOOD KIND. Naming 0x02113214 (section 2)
+ends the discovered-target run that used to stop at 0x021130cc, so the gap
+before it is re-laid as port_ov009_gap_0211301c[504] = 0xe8 + 0x110, covering
+the tag-0x05 array AND the tag-0x40 array at 0x02113104 exactly. Both were
+short: tag-0x05 was hosted 176 bytes of 232 off the tail of
+port_ov009_gap_02112b60[1388], and 0x02113104 was not hosted at all.
+
+Nothing in this change names 0x02113104. The contested window keeps its status
+as an open question; it simply stops being a hole, because a run that used to
+end in the middle of it now ends on a real symbol. After the change all six
+record pointers rebase onto hosted storage:
+
+    *(unsigned int *)(data_ov009_02112c9c + 36) = (unsigned int)(port_ov009_gap_0211301c + 232);
+
+232 is 0xe8, so that is 0x02113104.
+
+
+5. ov016 0x02113bec -- the CLPS block
+---------------------------------------
+
+Carried extent 0x20, verified, but its banner's supporting anecdote was wrong.
+
+WHAT A CLPS BLOCK IS, MEASURED RATHER THAN ASSUMED. "CLPS", u16 entrySize, u16
+count, the entries, then a run of 0xffffffff padding out to a 32-byte multiple.
+Counted over every extracted image: 245 CLPS blocks, all 245 with entrySize 8,
+and every count-1 (131 of them), count-2 (64) and count-3 (4) block measures
+exactly 32 bytes.
+
+The padding-to-32 rule matters. An earlier pass of this lane assumed a fixed
+"+16 trailing ffffffff" and that formula flags 65 blocks as truncated; it is
+wrong, because a count-2 block carries only two trailing words, not four. Only
+163 of the 245 blocks are followed by 16 bytes of 0xff. The 32-byte multiple is
+the rule that holds.
+
+THE BLOCK. 0x02113bec is byte-identical to 0x02113bac:
+
+  0x02113bec  53504c43 00010008 01000fc5 000000ff
+  0x02113bfc  ffffffff ffffffff ffffffff ffffffff
+
+count 1, so 0x20, running to data_ov016_02113c0c. dsd guessed an ambiguous
+boundary at 0x02113c08, 0x1c in, clipping the last of the four trailing
+ffffffff words. Its twin at 0x02113bac is already sized 0x20 by dsd's own
+next-symbol delta, which is the local corroboration.
+
+THE BANNER CORRECTION. It said ov009 has three consecutive count-1 blocks at
+0x20 spacing. ov009 has FOUR: 0x02112bf8, 0x02112c18, 0x02112c38, 0x02112c58,
+each 32 bytes with 16 of trailing ffffffff and differing only in its single
+entry word, running 0x02112bf8 to 0x02112c78.
+
+
+6. ov070 0x02122968 -- the curve cut on its apex
+--------------------------------------------------
+
+Carried extent 0x194, verified, and this is the prettiest of the six.
+
+The array is 101 Fix12 words, 0x02122968 to 0x02122afc. 0x02122afc is the end
+of ov070's .rodata by the delinks section table and the start of
+__sinit_ov070_02122afc, a real function, so the end needs no arithmetic at all.
+
+The curve is symmetric about its maximum 0x2800 (2.5 in Fix12) at 0x02122a6c,
+and dsd guessed an ambiguous boundary at exactly 0x02122a6c -- the one word
+where the byte pattern reverses direction:
+
+  0x02122a64  0x000027d0     0x02122a74  0x000027d0
+  0x02122a68  0x000027f4     0x02122a70  0x000027f4
+  0x02122a6c  0x00002800  <- apex, and the cut
+
+Word index 65 of 101. Words 66..100 (35 of them) mirror words 30..64 (35 of
+them) value for value, which is what the carried banner claims and it is
+correct. The hosted copy was the rising half only.
+
+COVERAGE TRADE, as e4f25f862 records and as measured here: naming
+data_ov070_02122968 takes it out of the discovered-target set, so
+port_ov070_gap_02122594 shrinks 0x4d8 -> 0x304 (1240 -> 772 bytes in the
+generated source) and ROM [0x02122898, 0x02122968), 208 bytes, stops being
+hosted. Nothing reaches those bytes; the old extent was that run stretching to
+the same guess at the apex that truncated the curve.
+
+
+7. ov021 0x021148dc -- the class-name string
+----------------------------------------------
+
+Carried extent 0x14, verified. This one is a named symbol that was already
+mounted and only unsized, so it is the one case where the fix adds no new name.
+
+  0x021148d4  61643631 436a624f 75685376 72657474
+  0x021148e4  0000635f
+
+"16daObjCvShutter_c", 18 characters with the NUL at +18 and a second NUL at
++19. 0x14 = 20 runs to ShutterHmc_SpawnInfo at 0x021148f0.
+
+Read out of extracted/overlays/overlay_0021.bin. ov021's dsd export is the
+compressed image and shows garbage here; the raw extract does not, which is why
+this whole document works from the extracts.
+
+dsd guessed a boundary at 0x021148e0, four bytes in, and the hosted array was
+literally
+
+    u8 data_ov021_021148dc[4] = { 49,54,100,97 };
+
+"16da". Every read of the class name got four characters and a pack pad.
+
+The record that points at it is the three-word __si_class_type_info at
+0x021148c4, {0x0209a764, 0x021148dc, 0x021099c0}; the middle word is the name.
+Consumer reach is RTTI name comparison, not rendering, so this one is a paper
+fix on the frame and a real one on any name-keyed lookup.
+
+
+8. CONSUMER REACH, RANKED
+---------------------------
+
+Not every one of these can reach a frame, and saying which can is the
+difference between a fix that needed a rendering A/B and one that did not.
+
+  ov009 0x021133d4, 0x02113214, 0x02112c9c   HIGH, render-reachable.
+      These are level 1's own descriptor, the level the selftest boots. Each
+      array is reached by TWO rebased host pointers (section 2), and the walk
+      length is a count byte that exceeds the hosted length by 204 records,
+      27 records and 3 records respectively. This is the group the
+      perturbation A/B exists for.
+
+  ov070 0x02122968                            MEDIUM, render-reachable.
+      Reached as the third of four .rodata pointers in a 24-byte record at
+      0x021234c4, {0x021227d8, 0x02122594, 0x02122968, 0x0212259c}. ov070
+      carries Amp (266), FlameChomp (270) and FlameChompFire (271); level 37
+      places Amp x2 and FlameChomp x1, so the overlay is live on a mounted
+      level. The hosted copy stopped at the curve's apex, so every read of the
+      falling half -- 36 of the 101 words -- left the block.
+
+  ov016 0x02113bec                            LOW, and honestly a paper fix.
+      Reached as the third word of the resource triple at 0x02114b8c,
+      {SharedFilePtr 0x02114e44, SharedFilePtr 0x02114e4c, CLPS 0x02113bec},
+      which belongs to "13daObjKi_Ita_c" (FloatOnWaterPlatformJrb's neighbour
+      in the same .data run, name string at 0x02114b98). The block's count is
+      1, so a reader that takes entrySize and count from the header reads
+      eight bytes at +8 and never reaches the trailing padding the cut clipped.
+      The truncation is real and the fix costs one line; the claim that
+      anything reads past it is NOT made here.
+
+  ov021 0x021148dc                            LOW, not rendered.
+      RTTI name lookup only. It matters because every read returned "16da"
+      instead of "16daObjCvShutter_c", which breaks name comparison rather
+      than pixels.
+
+
+9. THE PERTURBATION A/B, AND WHY IT SHOWS NOTHING
+---------------------------------------------------
+
+THE RESULT FIRST, BECAUSE IT IS A NULL AND NULLS GET DRESSED UP. Four builds,
+seven frame counts each, level 1, all in a separate tree (C:/tmp/gap5ab) so the
+gated tree never held a padded binary. All 28 runs produced the SAME md5 per
+count and the same final position per count.
+
+  probe                  .dsstate span            291..303
+  P1 pre-fix,  unpadded  0xbb0000..0xc9ab30       reference
+  P2 pre-fix,  +64B pad  0xbb0000..0xc9ab78       identical to P1
+  P3 post-fix, unpadded  0xbb0000..0xc9a9a8       identical to P1
+  P4 post-fix, +64B pad  0xbb0000..0xc9a9f0       identical to P1
+
+  count  md5
+  291    a76abb6b537d47d340043f9c326b42eb
+  292    6181b18f0a86b4659ae3151649aa72af
+  296    a45bb566591cb8ac702c70f77ad73aa0
+  298    48cdb19742af3ff6a335828a701ee218
+  300    5b783a29d753ce4dfbd35c79a7b2850f
+  302    01ad50bdfa5463f30869a23e1ab78cec
+  303    77423118d3283ae552ff4660900d9258
+
+Counts chosen because battery.py names 291, 292, 296, 298, 302 and 303 as the
+ones on which the WATER truncation moved the frame, plus 300 which the battery
+runs. The pad is battery.py's own interior recipe, and it moved the span by 72
+bytes each time, so the perturbation was applied and had an effect on the
+layout. It simply did not have one on the frame.
+
+WHAT THIS DOES AND DOES NOT LICENCE.
+
+  * P1 == P2 means the PRE-FIX build already had no layout sensitivity at these
+    counts. So this lane CANNOT claim to have removed an observed sensitivity.
+    The fixes rest on the extent derivations and the consumer evidence above,
+    not on a frame delta.
+  * P1 == P3 means the package changes no pixels. No BMP baseline needs
+    updating for this merge.
+  * P3 == P4 means the package introduces no new sensitivity.
+
+THE STRUCTURAL REASON THE PRE-FIX PROBE IS QUIET, as far as it can be
+established. ov009 is hosted TWICE. hal/level_boot.cpp's row for level 1
+resolves LVL_Overlay 0x02112bdc through port_ov009_at into port_ov009_image[],
+the WHOLE-image mount, and the descriptor at 0x02112b60 with its two record
+tables and its path arrays lives inside that image at full length -- it was
+never truncated there. The per-symbol mount these lines size is the other half,
+the one actor code reaches BY NAME, and no source in src/ or port/hal names
+0x02112b60, 0x02112c9c, 0x02113214 or 0x021133d4. The water track was in the
+same per-symbol mount and DID reach the frame, because CastleWater's actor code
+names data_ov009_02112bc4 and follows its +12 pointer into the track; these
+three have no equivalent named root.
+
+That is an explanation, not a proof that the per-symbol copies are dead. It is
+not claimed here that nothing reads them.
+
+ov070 has no whole-image mount at all (it is not in PORT_LEVEL_OVERLAYS and
+there is no port_ov070_image), so its per-symbol copy of the curve is the only
+copy in the build, and that fix is unambiguously live.
+
+The bound the pre-fix state DID have, and which these fixes remove, is the one
+battery.py's rule names: while a truncated block's overrun can land on rebased
+host pointers, a layout change can reach the frame through it. It can here --
+port_ov009_gap_021133d4's 96-byte block is followed in the map by
+port_ov001_gap_020ab620, which takes four rebased host pointers, and reading
+204 points past the end crosses into it. The probe says that path is not
+exercised on level 1 in 300 frames. It does not say it is unreachable.
+
+
+10. THE .dsstate SPAN, DECOMPOSED
+-----------------------------------
+
+For the player-loop lane, because old save states stop loading when the span
+changes and that is desired behaviour rather than a bug.
+
+  base 3a5733c03  .dsstate [0xbb0000, 0xc9ab30)  961328 bytes  11666 symbols
+  tip             .dsstate [0xbb0000, 0xc9a9a8)  960936 bytes  11672 symbols
+
+THE BASE DOES NOT MOVE. The span SHRINKS by 392 bytes, which reads backwards
+for a change whose whole point is hosting more ROM, so here is where it goes.
+Both columns measured by summing the array declarations in the two trees'
+generated build/port/host-src/ovNNN_syms.c, splitting pk*_gap_* pack padding
+(zero filler) from everything else (real ROM bytes):
+
+  mount     real ROM bytes hosted        pack padding
+  ov009     2944 -> 4860   (+1916)       5952 -> 4136   (-1816)
+  ov016      764 ->  768      (+4)       5232 -> 5200      (-32)
+  ov021      428 ->  444     (+16)       3748 -> 3732      (-16)
+  ov070     3032 -> 2968     (-64)       3444 -> 3040     (-404)
+  TOTAL     7168 -> 9040   (+1872)      18376 -> 16108   (-2268)
+
++1872 real, -2268 padding, net -396 against the -392 the linker reports; the
+4-byte remainder is inter-block alignment.
+
+So the span shrinks because naming a symbol lets --pack lay it against its
+neighbour instead of padding around a hole, and the padding recovered is larger
+than the ROM bytes gained. ov070 is the only mount that loses real coverage,
+and section 6 says which 208 bytes and why nothing reaches them.
+
+
+11. WHAT WAS DELIBERATELY NOT TOUCHED
+---------------------------------------
+
+Named here so a reader does not read their absence as an oversight:
+
+  * ov009 0x02113104, the contested window. No symbol line added. It is now
+    covered incidentally by port_ov009_gap_0211301c (section 4), which is a
+    consequence of sizing its neighbour, not a decision about it.
+  * ov002's plain-mount named sizing, 383 targets, unaudited and with no
+    --pack protection.
+  * The four spurious kind:load relocs inside data_ov009_021133d4. Suppressing
+    entries in shared dsd config is the repo owner's call, not a lane's.
+  * The 65-row CLPS census this lane's first pass produced. It rests on a
+    trailing-ffffffff formula that section 5 shows is wrong. Re-run against the
+    pad-to-32 rule before anyone treats it as a worklist.
