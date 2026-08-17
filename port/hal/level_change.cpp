@@ -1052,6 +1052,9 @@ static void port_level_change_declined(void)
                      "SetNoControlState)\n");
 }
 
+/* defined further down, with the whole derivation beside it */
+extern "C" int port_scene_request_release(const char *why);
+
 extern "C" int port_level_change_apply(void)
 {
     if (data_02092110 < 0)
@@ -1075,6 +1078,14 @@ extern "C" int port_level_change_apply(void)
 
     std::fprintf(stderr, "[lvl] change: level %d -> %d, entrance %u, reason %u\n",
                 from, want, (unsigned)data_0209f268, (unsigned)data_0209f26c);
+
+    /* BEFORE THE TEARDOWN, not after, and that ordering is the whole fix for
+       the writers that never arm a host fade request. HitDeathPlane leaves
+       scene 8 pending and then the change fires the same frame; releasing on
+       the far side would let this very teardown dispatch the Stage's trapped
+       slot 3, which is the abort being fixed. The port is committing to a level
+       change here, so any scene it has not spawned by now it never will. */
+    port_scene_request_release("a level change is being applied");
 
     const double lvlperf_t0 = port_lvlperf_now();
     if (!port_level_teardown()) {
@@ -1269,7 +1280,96 @@ extern "C" int port_scene_fade_pending(int *sceneId)
     return 1;
 }
 
-extern "C" void port_scene_fade_clear(void) { g_scene_fade_scene = -1; }
+/* ---- THE PENDING-SCENE SENTINEL, AND THE ABORT IT WAS CAUSING -------------
+ *
+ * REPORTED FROM REAL PLAY, playlog play_20260816_210444.log: pick a level from
+ * the debug menu, play it for seventeen minutes, pause, choose "exit course",
+ * and the level change aborts inside port_level_teardown with a Stage vtable
+ * trap. Reproduced in 300 frames and isolated to one global; the whole
+ * derivation is port/exitlevel_seat.txt.
+ *
+ * data_02092664 is Scene::SetSceneToSpawn's PENDING SCENE ID. 0x187 is the
+ * "nothing pending" sentinel it carries in the ROM's .data. On the ROM exactly
+ * one function takes it out of that state and exactly one puts it back, and
+ * both are matched src in this tree:
+ *
+ *     Scene::SetSceneToSpawn(id, param)   data_02092664 = id
+ *         src/_ZN5Scene15SetSceneToSpawnEjj.c
+ *     Scene::SpawnIfNecessary()           spawn the scene, THEN
+ *                                         data_02092664 = 0x187
+ *         src/_ZN5Scene16SpawnIfNecessaryEv.c
+ *
+ * THE PORT RUNS THE FIRST HALF AND NOT THE SECOND. It has no spawner for the
+ * ov003 scenes -- the long block above this one says why, at length: ov003's
+ * .text is not mounted and the star grid's 2D resources are not staged -- so
+ * SpawnIfNecessary never runs and the id stays exactly where the writer left
+ * it, for the rest of the session. Three writers reach it in normal play:
+ *
+ *     port_title_select      StartSceneFade(4, 0, 0)   the debug level select
+ *     HitDeathPlane          StartSceneFade(8, 0, 0)   hal/star_flow.cpp:127
+ *     Scene::BeforeBehavior  StartSceneFade(1, 0, 0)   its own edge A
+ *
+ * WHAT A LATCHED ID COSTS IS NOT THE MISSING SCENE. Scene::BeforeBehavior --
+ * the ROM's own body, correctly seated in _ZTV5Stage slot 7 and dispatched on
+ * the Stage every frame -- reads it:
+ *
+ *     if (data_02092664 != 0x187) {
+ *         if (fader->IsAtStart())    fader->SetForwardTime(0x1e, 0);
+ *         else if (fader->IsAtEnd()) ActorBase::MarkForDestruction(self);
+ *         return 1;
+ *     }
+ *
+ * `self` is the Stage. So a latched id turns "the installed fader is at the end
+ * of its travel" -- which every level change produces, because the change fades
+ * out first -- into MarkForDestruction on the ONE actor this file keeps alive
+ * across level changes. Phase 1 then moves the Stage onto the cleanup list and
+ * the cleanup Process dispatches slot 3, which is trapped and measured blocked
+ * on seven pieces (port/stage_lifecycle_map.txt section 5).
+ *
+ * THE ABORT IS CORRECT AND IS NOT WHAT THIS FIXES. A port whose Stage is being
+ * torn down has lost the scene root, the level collider and the level model;
+ * stage_lifecycle_map.txt section 9 argues at length that stopping there is
+ * right, and this lane agrees. The defect is upstream: the port was asking for
+ * a Stage teardown the ROM never asks for.
+ *
+ * THE FIX IS THE HALF OF THE ROM'S OWN TRANSITION THE PORT WAS MISSING. Once
+ * the port has done everything it is going to do about a pending scene request,
+ * it completes SpawnIfNecessary's state change -- the sentinel goes back --
+ * without the spawn it has already declined. It does NOT invent a scene, and it
+ * deliberately does NOT touch data_02092660, SpawnIfNecessary's "already
+ * spawned" latch, because writing that would claim a spawn that did not happen.
+ * On a session that never arms a scene fade this function never fires.
+ *
+ * SM64DS_SCENE_LATCH=1 declines the release and restores the old behaviour
+ * exactly, which is how the abort is reproduced from a fixed binary. */
+extern "C" int port_scene_request_release(const char *why)
+{
+    static int keep = -1;
+    if (keep < 0) keep = std::getenv("SM64DS_SCENE_LATCH") != 0;
+    if (data_02092664 == 0x187)
+        return 0;                       /* nothing pending; the common case */
+    if (keep) {
+        std::fprintf(stderr, "  [scene] pending scene %u KEPT (%s): "
+                     "SM64DS_SCENE_LATCH=1 is holding the pre-fix behaviour\n",
+                     (unsigned)data_02092664, why);
+        return 0;
+    }
+    std::fprintf(stderr, "  [scene] pending scene %u released to the 0x187 "
+                 "sentinel (%s): the port declined the spawn, so it completes "
+                 "Scene::SpawnIfNecessary's other half\n",
+                 (unsigned)data_02092664, why);
+    data_02092664 = 0x187;
+    return 1;
+}
+
+extern "C" void port_scene_fade_clear(void)
+{
+    g_scene_fade_scene = -1;
+    /* the title-select path's own consume point: the fade has covered, the
+       level behind it is up, and the request has had every effect the port can
+       give it. */
+    port_scene_request_release("the scene fade is done and the level is up");
+}
 
 enum { PORT_TITLE_ROWS = 0x36 };
 
