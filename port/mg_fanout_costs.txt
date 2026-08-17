@@ -156,6 +156,8 @@ need a ROM adjudication before they can be seated. "nosrc" is how many have no
 matched src TU at all and will need a named trap or a decomp.
 
   id     spawn symbol                vtable     width  ovr  mark  nosrc
+  0x170  MgBobOmbSquad               0213d9cc      36    6     3      1
+  0x171  MgLakituLaunch              0213dbbc      36    6     4      0
   0x172  MgSortOrSplode              0213bbb4      36    6     5      0
   0x176  MgShuffleShell (curling)    0213c304      36    6     5      0   DONE
   0x177  (data_ov006_0213c434)       0213c510      36    6     5      0
@@ -163,31 +165,29 @@ matched src TU at all and will need a named trap or a decomp.
   0x17c  MgPuzzlePanelPuzzlePanic    0213e24c      36    6     5      0
   0x16e  MgWanted                    0213cf10      36    7     6      0
   0x182  MgWhichWiggler              0213cab8      36    7     6      0
-  0x170  MgBobOmbSquad               0213d9cc      37    7     3      1
-  0x171  MgLakituLaunch              0213dbbc      37    7     4      0
+  0x16c  (data_ov006_0213e560)       0213eb40      36    8     5      1
   0x183  MgHideAndBooSeek            0213fa0c      36    8     6      0
   0x178  MgBingoBallSlotsShot        0213eefc      36    9     6      2
-  0x16c  (data_ov006_0213e560)       0213eb40      37    9     5      1
   0x173  (data_ov006_0213b814)       0213b918      37   11     5      0
   0x186  (data_ov006_02140114)       02140140      36   12    10      0
+  0x169  (data_ov006_0213c020)       0213c154      36   13     9      0
+  0x16f  MgBoomBox                   0213f844      36   13    11      0
   0x17d  (data_ov006_0213d580)       0213d664      36   13    11      0
-  0x169  (data_ov006_0213c020)       0213c154      37   14     9      0
-  0x16b  MgMemoryMaster              0213d4d4      36   14    12      0
-  0x16f  MgBoomBox                   0213f844      37   14    11      0
+  0x17e  MgPairAGoneAndOn            0213d7e8      36   14    11      1
   0x17f  MgMushroomRoulette          0213e39c      36   14    11      0
+  0x16a  MgMemoryMatch               0213d1b8      36   14    12      0
+  0x16b  MgMemoryMaster              0213d4d4      36   14    12      0
+  0x184  MgLuckyStars                0213fec8      36   14    12      0
   0x185  MgPsycheOut                 0213c8c4      36   14    12      0
-  0x16a  MgMemoryMatch               0213d1b8      37   15    12      0
   0x16d  (data_ov006_0213e508)       0213eaa8      36   15    13      0
-  0x17e  MgPairAGoneAndOn            0213d7e8      37   15    11      1
-  0x184  MgLuckyStars                0213fec8      37   15    12      0
-  0x17b  MgPicturePoker              0213bdb4      37   16    13      0
-  0x174  MgBounceAndPounce           0213cbe4      37   24    14      1
-  0x175  MgBounceAndTrounce          0213ccfc      37   24    15      1
+  0x17b  MgPicturePoker              0213bdb4      36   15    13      0
+  0x174  MgBounceAndPounce           0213cbe4      36   23    14      1
+  0x175  MgBounceAndTrounce          0213ccfc      36   23    15      0
+  0x181  MgTrampolineTerror          0213fc7c      36   25    15      0
   0x180  MgTrampolineTime            0213fb34      36   25    16      0
-  0x181  MgTrampolineTerror          0213fc7c      37   26    15      0
   0x179  MgSnowballSlalom            NOT FOUND -- see below
 
-    totals   365 override slots, 263 of them marker-carrying, 7 with no src
+    totals   353 override slots, 263 of them marker-carrying, 6 with no src
 
 ONE ID DOES NOT RESOLVE AND IT IS NOT A TOOL FAILURE TO WAVE AWAY.
 MgSnowballSlalom (0x179) has a SpawnInfo at 0x0213ffb8 and a factory, and no
@@ -197,11 +197,18 @@ twenty-nine do not use, or its class is one of the three signature tables no id
 claims. Whoever takes 0x179 derives it by hand first; the row is left blank
 rather than guessed, and the totals above exclude it.
 
-FIVE CLASSES ARE JOINT-CHEAPEST at six overrides and five adjudications, and
-three of them (0x172, 0x177, 0x17a) share the pathfinder's exact shape. THOSE
-ARE THE NEXT THREE LANES. Their marginal cost over what this lane landed is
-five ROM adjudications, one face array, one registry row and their own ov006
-closure, and nothing else.
+SEVEN CLASSES ARE AT SIX OVERRIDES, and after lane MGA's width correction
+(section 11) TWO OF THEM ARE CHEAPER THAN THE PATHFINDER WAS. 0x170 needs three
+ROM adjudications and 0x171 four, against curling's five; 0x172, 0x177, 0x17a
+and 0x17c sit level with curling at five and share its exact shape. Their
+marginal cost over what MG2 landed is their adjudications, one face array, one
+registry row and their own ov006 closure, and nothing else. 0x170 carries one
+nosrc body and 0x171 none, so 0x171 IS THE CHEAPEST WHOLE CLASS ON THE BOARD.
+
+This paragraph used to read "FIVE CLASSES ARE JOINT-CHEAPEST at six overrides
+and five adjudications" and name 0x172, 0x177 and 0x17a as the next three
+lanes. The five was an artifact of the width column: 0x170 and 0x171 were
+listed at seven overrides because their tables were read one slot too long.
 
 THE FOUR AT THE BOTTOM STAY CUT LAST, AND THE REASON THIS FILE FIRST GAVE FOR
 IT WAS WRONG. 0x174, 0x175, 0x180 and 0x181 override two thirds to three
@@ -217,12 +224,24 @@ overrides twenty-six slots with twenty-six decompiled bodies is a big version
 of a small one, not a different kind of thing. Rank them on ovr and mark, which
 is what the table does.
 
-THE WIDTH-37 CLASSES ARE WHY THE FILL IS ADDRESS-KEYED. THIRTEEN of the
-twenty-nine add one virtual of their own past dScMgBase_c's thirty-six -- count
-the width column above, which was right while the prose under it said eleven. A
-width parameter on the old index-driven fill would have handled the length and
-still corrupted five slots per class; see hal/scene_mg.cpp's header and the
-amended caveat in hal/scene_boot.cpp.
+THERE IS ONE WIDTH-37 CLASS, NOT THIRTEEN, AND THE CORRECTION IS SECTION 11.
+This paragraph used to open "THE WIDTH-37 CLASSES ARE WHY THE FILL IS
+ADDRESS-KEYED. THIRTEEN of the twenty-nine add one virtual of their own past
+dScMgBase_c's thirty-six -- count the width column above, which was right while
+the prose under it said eleven." Twelve of those thirteen were the width column
+being wrong, not the prose; only 0x173 survives the check. The prose's original
+"eleven" was not right either, and neither number was ever measured against
+anything but the column itself.
+
+THE CONCLUSION THE PARAGRAPH DREW IS UNCHANGED AND IS NOW BETTER SUPPORTED. The
+fill must stay ADDRESS-KEYED. A width parameter on an index-driven fill would
+have handled the length and still corrupted five slots per class; and on top of
+that, twelve of the widths it would have been handed were too long, so it would
+also have written a slot past the end of the table into whatever the ROM put
+next. port_scene_fill_rom keys on the ROM WORD a slot holds and therefore
+cannot write a slot the ROM did not park a shared body in -- but it is still
+called with a COUNT, and the count is what section 11 fixes. See
+hal/scene_mg.cpp's header and the amended caveat in hal/scene_boot.cpp.
 
 
 4. THE WALL, AND IT IS THE SAME ONE FOR ALL THIRTY
@@ -905,3 +924,139 @@ WHAT THIS SECTION DOES NOT KNOW.
     faults before slot 6 is ever dispatched. So the dispatch fix is proven to
     COMPILE and to LINK and is NOT yet proven to route a single state. That is
     the largest unproven thing this lane leaves.
+
+
+11. THE WIDTH COLUMN WAS WRONG FOR TWELVE OF TWENTY-NINE, run link60 lane MGA
+-----------------------------------------------------------------------------
+
+Worktree C:/tmp/mga, branch s5-mg-wave1-a, base 3a5733c03, private build
+C:/tmp/mga/build/port with CMAKE_HOME_DIRECTORY verified C:/tmp/mga/port.
+Baseline gate on that tree: 5831/11250 (51.8%), battery ALL GREEN, skips [],
+git_dirty false, git_sha 3a5733c03.
+
+Found while seating 0x169, before a line of seat code was written. Section 3's
+table and its prose are corrected in place above; this section is the evidence
+and the method, so the correction can be checked rather than believed.
+
+WHAT WAS WRONG. Section 3 listed thirteen classes at width 37. Twelve of those
+thirteen have a vtable symbol whose span to the NEXT config symbol is 36 words,
+so a 37th slot cannot exist inside the table: it is the first word of the next
+object. Only 0x173 survives.
+
+    0x169 0x16a 0x16c 0x16f 0x170 0x171 0x174 0x175 0x17b 0x17e 0x181 0x184
+
+WHY IT IS NOT A ROUNDING ERROR. The extra word is live data belonging to
+something else, and for 0x169 the chain is complete:
+
+    dScMgCup_c's vtable is data_ov006_0213c154. 36 words later is
+    data_ov006_0213c1e4. That symbol is an mwcc pair {code 0x020e0a24, adj 0},
+    read out of extracted/overlays/overlay_0006.bin at base 0x020bfec0. And
+    src/__sinit_ov006_021304ac.c -- CURLING'S OWN overlay constructor -- line
+    75 copies it:
+
+        data_ov006_02141930.p2 = data_ov006_0213c1e4;
+
+    which is curling state table 02141930 slot 2, whose address
+    port/unmatched/MgCurling_StateDispatch.cpp's header independently lists as
+    020e0a24.
+
+So a 37-slot fill of dScMgCup_c writes a host thunk pointer over the code word
+of a state belonging to the one minigame that already ships. The ORDER makes it
+live rather than theoretical: the fill runs from port_scene_registry_install at
+the tail of port_stage_a2_seat, and the overlay constructors run after it, out
+of the fill itself. So the corrupted word is what curling's constructor copies
+on the next curling boot.
+
+NOTHING IN THE BYTE GATE CAN SEE THIS. The write lands in port host storage for
+a mounted DS data symbol; src/ is untouched and every ROM byte still matches.
+The only check that would have caught it is the fan-out rule that a lane
+re-hash scene 374's frame at its own tip, and that catches it only after the
+fact and only for curling.
+
+0x16c IS THE SAME SHAPE FOR A DIFFERENT VICTIM. Index 36 of its table lands
+exactly on MgBingoBallSlotsShot_SpawnInfo (0x0213ebd0), so a 37-slot fill there
+overwrites word 0 of id 0x178's SpawnInfo, which is 0x178's factory pointer.
+
+THE THREE CHECKS, so the next lane can redo them in a minute:
+
+  1. SPAN. config/arm9/overlays/ov006/symbols.txt, vtable symbol to next
+     symbol. An UPPER bound only -- unsymbolised padding inflates it, which is
+     why 0x16d's span of 38 does NOT contradict its documented 36 -- so it can
+     refuse a width but never grant one.
+  2. TERMINAL SLOT. Every dScMgBase_c-derived table holds 0x020ad660 at slot
+     35. Checked on 0x169, 0x16a, 0x16b, 0x16c and 0x176: all five. 0x173 does
+     NOT (slot 35 = 0x020d1170), which is the same fact its span of 37 states.
+  3. WHAT THE WORD IS. Curling is the control: documented 36, agreed, and its
+     word at index 36 is 0x2f474d2f, ASCII "/MG/" -- a file path. 0x16b's is
+     0x00000001. Where the word happens to look like a code address is exactly
+     where the eye fails, which is why checks 1 and 2 are the ones that decide.
+
+THE GATE IS NO LONGER CIRCULAR. port/tools/vtablerows.py did not derive width;
+--reconstruct took it from section 3's own rows, so build-port.cmd's
+`vtablerows.py --reconstruct` compared the doc against the ROM using the doc's
+number and could never contradict it, and it passed 29/29 the whole time. It
+now rejects a width that reaches past the next config symbol. Re-run after the
+table correction: selftest PASS, reconstruction EXACT 29/29, totals
+353/263/6.
+
+WHAT MOVED IN THE NUMBERS. Every one of the twelve loses exactly one override
+and no adjudications, which is the signature of a phantom slot: a word outside
+any delink block has no src file, so it can never have carried the marker. One
+loses a nosrc (0x175), because its phantom was being counted as a body with no
+source.
+
+    totals   365 / 263 / 7   ->   353 / 263 / 6
+
+AND THE RANKING MOVED, which is the part a lane-cutting reader wants. 0x170 and
+0x171 drop to six overrides with three and four adjudications, so they are now
+CHEAPER THAN THE PATHFINDER WAS (six and five). 0x171 has no nosrc body and is
+the cheapest whole class on the board. Section 3's re-sorted table is the
+ranking; the old "next three lanes" call is superseded there.
+
+
+12. THE TEN ROM ADJUDICATIONS FOR 0x169, run link60 lane MGA
+-------------------------------------------------------------
+
+dScMgCup_c is scene 361 = id 0x169. The ROM's own RTTI at 0x0213c054 reads
+"10dScMgCup_c"; its D0 at 0x020dea1c and the intermediate base's D0 at
+0x0210a4e8 both write data_ov006_0213e448 into the object's first word, and
+0x0213e448 carries the ActorBase signature, so the chain is
+
+    Scene -> dScMgBase_c (0x020bc0c0) -> dScMgSingle3DBase_c (0x0213e448)
+          -> dScMgCup_c (0x0213c154)
+
+and the middle name is the ROM's: src/func_ov006_0210a4e8.cpp's recovered name
+is dScMgSingle3DBase_c and "19dScMgSingle3DBase_c" is at 0x0213bd00. A seat for
+this class therefore fills THREE tables, all width 36.
+
+Sixteen distinct override bodies across the two new tables, ten carrying the
+"recovered from vtable slot identity" marker. All ten were disassembled out of
+extracted/overlays/overlay_0006.bin at base 0x020bfec0 (the shipped image, not
+a dsd export) and compared instruction for instruction with src before any
+seating. RESULT: 10 REAL DECOMP, 0 guesses, consistent with lane w13's 43/43
+and wave 16's 18/18. The per-body evidence is in
+port/tools/inferred_stub_adjudicated.txt.
+
+TWO OF THE TEN CARRY A RIDE-THROUGH AND THE SEAT MUST HANDLE IT, which is a
+finding about the seat rather than about the ruling:
+
+  func_ov006_0210a6e4  vtable slot 2, AfterInitResources. The ROM does
+      `mov r4,r0; bl 0x20b08f0` without touching r1, so the framework's second
+      argument rides through in r1. src declares func_ov004_020b08f0(c) with
+      one argument while hal/scene_mg.cpp declares the same extern "C" symbol
+      with two. Nothing diagnoses that. The face must pass both.
+  src/func_ov006_020e0574  the FACTORY, not a vtable body, so not in the ten.
+      It calls `func_ov004_020b2adc();` with NO argument where curling's
+      factory passes p, and the callee is the base constructor, which uses it.
+      On ARM r0 already holds p; on the host the base ctor reads garbage for
+      `this`. The src TU is matched and read-only, so this needs a port-side
+      answer and a written ruling if the answer costs a linked function.
+
+THE STATE MACHINE IS THE CHEAP HALF FOR THIS CLASS AND THAT IS WORTH RECORDING
+against section 4's shape. port/tools/stategen.py --sinit
+src/__sinit_ov006_021303d0.c --overlay 6 reads ONE table, data_ov006_02141870,
+8 slots, arity 0, every slot with a matched src TU, REFUSALS none. Curling has
+seven tables, twenty-five slots and one hard floor. And exactly one TU
+dispatches it, src/func_ov006_020e0204.cpp (Behavior, slot 6), against
+curling's five host copies. So the per-class cost is not one number: 0x169 is
+roughly twice curling on the vtable axis and a third of it on the wall axis.

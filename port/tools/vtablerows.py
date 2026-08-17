@@ -13,7 +13,7 @@ after their symbol, and review re-derived it by hand through the delink
 records. This tool does the delink-keyed join from the start, and its
 acceptance was a RECONSTRUCTION: run over all twenty-nine resolved
 vtables, it reproduces section 3's reviewed ovr/mark/nosrc columns
-row for row and the totals 365/263/7 exactly (the one divergence in the
+row for row and the totals 353/263/6 exactly (the one divergence in the
 first reconstruction run was a transcription typo in the CHECKER's own
 copy of the hand table, which is the point of the exercise).
 
@@ -52,10 +52,19 @@ code earns:
   * it does NOT adjudicate. A MARKER row still goes to a human with the
     ROM open (inferred_stub_adjudicated.txt is where rulings live);
     this tool counts and names, never rules.
-  * it does NOT derive width. 36-vs-37 is MG1's per-class ruling, taken
-    as --width input (--reconstruct takes it from the doc's rows); the
+  * it does NOT derive width, but since run link60 lane MGA it REFUSES
+    one that cannot fit. 36-vs-37 is still a per-class ruling taken as
+    --width input (--reconstruct takes it from the doc's rows), and the
     word at slot 36 is printed either way, labeled candidate, because
-    nothing here can tell a 37th slot from the data that follows.
+    nothing here can tell a 37th slot from the data that follows. What
+    is new is a floor: if the vtable address is itself a config symbol,
+    a width reaching past the NEXT config symbol is rejected, because
+    that slot would be the first word of another object. The span is an
+    upper bound (padding inflates it) so the check only ever refuses,
+    never promotes 36 to 37. It was added because the doc's width column
+    and this tool's --reconstruct were reading each other: twelve of the
+    twenty-nine rows said 37 over a 36-word span, and for 0x169 the
+    phantom slot lands on a pair word CURLING's constructor copies.
   * it does NOT resolve id -> vtable. The factory load-reloc derivation
     stayed by hand, and MgSnowballSlalom (0x179, no resolving reloc) is
     the standing counterexample. Feed it a vtable address you derived.
@@ -63,7 +72,7 @@ code earns:
     ONLY. A vtable outside that family is invisible to the scan.
   * the join covers .text and .init blocks of arm9, ov004 and ov006. An
     override pointing anywhere else would read as no-owner and inflate
-    nosrc; among the 365 reconstructed overrides there were none, and a
+    nosrc; among the 353 reconstructed overrides there were none, and a
     future family that spans other overlays extends DELINKS, not the
     trust boundary.
 
@@ -228,12 +237,49 @@ def find_tables(ov):
     return hits
 
 
-def class_rows(ov, base_slots, vtable, width):
+def symbol_span_words(syms, vtable):
+    """Words from `vtable` to the next config symbol, or None if `vtable` is
+    not itself a symbol. An UPPER BOUND on the table's width, never an exact
+    width: unsymbolised padding after a table inflates it. Used only to REFUSE
+    a width that cannot fit, which is the direction that is always sound."""
+    if not syms or vtable not in syms:
+        return None
+    later = [a for a in syms if a > vtable]
+    if not later:
+        return None
+    return (min(later) - vtable) // 4
+
+
+def class_rows(ov, base_slots, vtable, width, syms=None):
     """[(slot, word, override?, owner, marked?)] for one class's table."""
     if width not in (36, 37):
         sys.exit("vtablerows: width %d is outside MG1's ruling set (36 or "
                  "37); derive it by hand first, this tool will not guess"
                  % width)
+    # THE WIDTH CHECK THAT IS NOT CIRCULAR. Run link60 lane MGA.
+    #
+    # This tool used to take width purely as input and --reconstruct took it
+    # from the doc's own rows, so the gate compared the doc against the ROM
+    # USING THE DOC'S NUMBER and could never contradict it. Twelve of the
+    # twenty-nine documented widths were 37 where the config's own symbol span
+    # is 36 words, and the extra slot is not spare space -- for 0x169 it lands
+    # on data_ov006_0213c1e4, the mwcc pair whose code word CURLING's own
+    # constructor copies into data_ov006_02141930 slot 2. A 37-slot fill there
+    # writes a host thunk over another shipped class's state table, which no
+    # byte gate can see because it is port host storage.
+    #
+    # The span is an UPPER bound (padding inflates it), so it can only ever
+    # refuse a width that does not fit -- it never promotes 36 to 37. That is
+    # enough: every observed error was in the too-wide direction.
+    span = symbol_span_words(syms, vtable)
+    if span is not None and width > span:
+        sys.exit("vtablerows: width %d does not fit 0x%08x -- the next config "
+                 "symbol is %d words on, so slot %d would be the first word "
+                 "of the NEXT object, not a slot. Either the width is wrong "
+                 "or the config is missing a symbol; derive it from the span "
+                 "and from slot 35 (a dScMgBase_c-derived table ends "
+                 "0x020ad660 there) before overriding this."
+                 % (width, vtable, span, span))
     lo, hi = ov.data_span
     if not (lo <= vtable and vtable + width * 4 <= hi):
         sys.exit("vtablerows: vtable 0x%08x (+%d slots) is not inside %s "
@@ -315,7 +361,7 @@ def cmd_census(root):
 
 def cmd_rows(root, vtable, width):
     ov4, ov6, sources, syms, base_slots = real_setup(root)
-    rows = class_rows(ov6, base_slots, vtable, width)
+    rows = class_rows(ov6, base_slots, vtable, width, syms)
     n_ovr, n_mark, n_nosrc, detail = measure(rows, sources)
     det = {i: (o, m) for i, w, o, m in detail}
     print("vtable 0x%08x, width %d (width is MG1's ruling, not this "
@@ -370,7 +416,7 @@ def cmd_reconstruct(root):
     tot = [0, 0, 0]
     for cid, vt, width, h_ovr, h_mark, h_nosrc in rows:
         n_ovr, n_mark, n_nosrc, _ = measure(
-            class_rows(ov6, base_slots, vt, width), sources)
+            class_rows(ov6, base_slots, vt, width, syms), sources)
         tot[0] += n_ovr
         tot[1] += n_mark
         tot[2] += n_nosrc
@@ -381,7 +427,7 @@ def cmd_reconstruct(root):
             diverged.append(cid)
         print("  0x%03x  vt 0x%08x  w%d  ovr %2d  mark %2d  nosrc %d%s"
               % (cid, vt, width, n_ovr, n_mark, n_nosrc, tag))
-    print("totals ovr/mark/nosrc: %d/%d/%d (section 3: 365/263/7)"
+    print("totals ovr/mark/nosrc: %d/%d/%d (section 3: 353/263/6)"
           % tuple(tot))
     if diverged:
         print("vtablerows: %d row(s) DIVERGE. A divergence is a "
