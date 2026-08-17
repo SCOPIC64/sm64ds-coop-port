@@ -153,21 +153,19 @@ unaffected. It prints the cursor, the class sub-state, and all five shells.
 MEASUREMENT, CONTROL FIRST. One shot, one shell on the board, nothing to hit:
 
     [scene] curling cursor: A 128 B 176  substate 0  nextShell 2 placePending 0
-    [scene] shell 0: onBoard 1 state 2  posA 128 posB -75  speed 0 heading 0xc000
-    [scene] shell 1: onBoard 1 state 0  posA 128 posB 128  speed 0
-    [scene] curling collision: 0x020e1dc8 entered 1 time(s),
-                               0x020e20bc entered 297 time(s)
+    [scene] shell 0: onBoard 1 state 2 fast 0  posA 128 posB -75  speed 0 heading 0xc000
+    [scene] shell 1: onBoard 1 state 0 fast 0  posA 128 posB 128  speed 0 heading 0x0000
+    [scene] curling collision: shot separation 0x020e1dc8 entered 1 time(s), shell-vs-shell 0x020e20bc entered 297 time(s)
 
   The shell leaves (128,128), runs down axis B and stops at -75. That is the
   free-travel distance for this exact shot.
 
 TWO SHOTS, THE SECOND FIRED IDENTICALLY INTO THE FIRST:
 
-    [scene] shell 0: onBoard 1 state 2  posA 128 posB -93  speed 0 heading 0xc000
-    [scene] shell 1: onBoard 1 state 2  posA 128 posB -51  speed 0
-    [scene] shell 2: onBoard 1 state 0  posA 128 posB 128  speed 0
-    [scene] curling collision: 0x020e1dc8 entered 2 time(s),
-                               0x020e20bc entered 681 time(s)
+    [scene] shell 0: onBoard 1 state 2 fast 0  posA 128 posB -93  speed 0 heading 0xc000
+    [scene] shell 1: onBoard 1 state 2 fast 0  posA 128 posB -51  speed 0 heading 0x0000
+    [scene] shell 2: onBoard 1 state 0 fast 0  posA 128 posB 128  speed 0 heading 0x0000
+    [scene] curling collision: shot separation 0x020e1dc8 entered 2 time(s), shell-vs-shell 0x020e20bc entered 681 time(s)
 
   Shell 1 was fired with the same drag from the same place along the same
   heading as shell 0, and STOPPED AT -51 instead of -75: twenty-four units
@@ -333,6 +331,46 @@ done here.
 ================================================================================
 4. THE MUSIC.  ROUTED, WITH A NAMED MECHANISM.
 ================================================================================
+
+**SUPERSEDED 2026-08-17, run link60 review CR2. THE DIAGNOSIS BELOW IS WRONG IN
+TWO PLACES AND THE REAL BLOCKER IS ELSEWHERE. Left in full per the append-only
+house style; read this note first, then the original text as the record of a
+wrong turn.**
+
+  The corrected picture, on which the scout and reviewer CR2 agree:
+
+  * THE MUSIC START IS ALREADY DISPATCHED, through a LINKED route, and the wall
+    is not in the way of it. The chain is the fourth route below --
+    func_ov004_020b08f0 (framework slot 2, hosted and entered)
+      -> func_ov004_020ae330
+        -> _ZN5Sound22LoadAndSetMusic_Layer1Ei
+    and it runs. "Reachable only through func_ov004_020b87e0" is FALSE: that is
+    a claim about the first three TUs (020ae20c / 020ae2c8, called from the
+    unrouted 020b7124 / _020b746c / _020b77b4), and it does not generalise to
+    the music start, which reaches it by the linked slot-2 path instead.
+
+  * data_ov004_020beb68 IS NOT THE DESCRIPTOR AND ITS NULLNESS IS NOT THE GATE.
+    It is an OAM/HUD sprite pointer. The real gate in func_ov004_020ae330 is
+        if (data_0209b308 != 0x16f) return;
+    -- the early return the original text below misread as the beb68 null
+    check. So "the descriptor is null and the starter refuses itself" is the
+    wrong mechanism for the right observation (no sound commands emitted).
+
+  * THE ACTUAL BLOCKER is data_0209b308 itself: the session record is HOSTED
+    UNDERSIZED (16 bytes) against a ROM span of 0x34, and it is unseeded, so
+    the 0x16f gate never reads true. That is a hosted-global sizing bug, the
+    undersized-global class, NOT the pointer-to-member wall.
+
+  * ROUTED TO LANE MUS1, which owns the data_0209b308 sizing-and-seeding fix.
+    It is NOT the func_ov004_020b87e0 wall lane, and it is not the same twenty
+    addresses. The last paragraph of this section (the two-track-params-firing
+    observation) still stands and is still worth MUS1's attention.
+
+  Nothing in section 1, 2, 3, 5 or 6 depends on this section; the two seated
+  collision bodies and the two sound params are unaffected.
+
+--------------------------------------------------------------------------------
+ORIGINAL TEXT (SUPERSEDED, see the note above):
 
 NOT FIXED HERE. Section 2 shows the two sound parameters the brief pointed at
 are not it. The real mechanism is the one wall this tree already knows about,
