@@ -378,6 +378,11 @@ extern int data_0209f4a6[];   /* pad stick WORLD angle -- auto_bss split
                                  symbol, NOT data_0209f4a0+6 on host */
 /* the real input processor (Stage::CheckInput) and its environment */
 void _ZN5Stage10CheckInputEv(void);
+/* Stage::Behavior's per-frame cutscene-script advance (Stage::Behavior:112).
+   Matched src (src/ProcessKuppaScript.cpp), self-guarded: returns at once when
+   data_0209fc48 == 0. Transcribed into the game tick below (STAR1). */
+void ProcessKuppaScript(void);
+void EndKuppaScript(void);     /* STAR1 proof: clears data_0209fc48 at cutscene end */
 /* the ROM's own atan2, the one CheckInput builds the stick record's angle
    with. The analog run mode below fills that record from a host stick, so it
    goes through the same function rather than a host atan2f: same table, same
@@ -402,6 +407,12 @@ extern int data_0209caa0[];
 extern unsigned char data_0209d660;
 extern int data_0209fc48;
 extern unsigned char data_0209f2d8;
+/* STAR1 repro/proof: the star-get camera kuppa script and its per-frame cursor.
+   func_0200ee8c launches the script (sets data_0209fc48); data_0209b274 is the
+   time cursor ProcessKuppaScript advances each frame until the script ends. */
+void func_0200ee8c(int arg0);
+extern unsigned short data_0209b274;
+extern signed char data_0209f224;
 extern int data_0209214c[];    /* button remap pointer table (ROM DS
                                   pointers -- repointed at staging) */
 extern char data_0209f49c[];   /* held buttons (bit 1 = A/jump held) */
@@ -6601,6 +6612,68 @@ int main(void)
                         port_star_collect(0);
                         cp_done = 1;
                     }
+                } else if (!strcmp(cp_what, "kuppa")) {
+                    /* STAR1 repro: launch the REAL star-get camera kuppa script
+                       (func_0200ee8c -> RunKuppaScript, sets data_0209fc48) and
+                       watch the input gate. On a build that never advances the
+                       script (ProcessKuppaScript not driven per frame) fc48 and
+                       the b274 cursor stay frozen, Stage::CheckInput zeroes the
+                       Ctrl block every frame, and the stick copy bridge carries
+                       the zero (mag/pos frozen) while direct-written buttons stay
+                       live. The [fNNN] line above shows pos/spd/st/mag; this line
+                       shows why. Never cp_done: log to the frame limit. */
+                    if (frame == cp_frame) {
+                        data_0209f224 = 0;      /* star 0's camera setting */
+                        func_0200ee8c(-1);      /* launch the star camera script */
+                        fprintf(stderr, "[kuppa] launched at frame %d: "
+                                "fc48=%d f2d8=%d b274=%d\n", frame,
+                                data_0209fc48, (int)data_0209f2d8,
+                                (int)data_0209b274);
+                    }
+                    /* End of the cutscene, the restore half of the proof. The
+                       real star-get reaches EndKuppaScript through the completing
+                       script/no-control sequence -- which the ProcessKuppaScript
+                       tick added below is what lets the script advance toward at
+                       all (frozen on base, live on the fix). Calling it here at a
+                       fixed frame stands in for that completion so one run shows
+                       the whole arc: walk -> star cutscene freezes the stick ->
+                       cutscene ends -> stick and walk resume. */
+                    if (frame == cp_frame + 80) {
+                        EndKuppaScript();
+                        fprintf(stderr, "[kuppa] EndKuppaScript() at frame %d: "
+                                "fc48=%d f2d8=%d\n", frame, data_0209fc48,
+                                (int)data_0209f2d8);
+                    }
+                    fprintf(stderr, "[kuppa] f%d fc48=%d b274=%d f2d8=%d "
+                            "caa0bit=%d mag=%d\n", frame, data_0209fc48,
+                            (int)data_0209b274, (int)data_0209f2d8,
+                            (data_0209caa0[2] & 0x80) ? 1 : 0,
+                            (int)*(short *)(data_0209f4a0 + 0));
+                } else if (!strcmp(cp_what, "stardance")) {
+                    /* STAR1 repro: drive the REAL normal-star no-control dance
+                       (kind 1, the value func_ov002_020e73ac returns for star 0;
+                       offset 0x186, as the PowerStar collect handler
+                       func_ov002_020e8ef0 passes). Watch the full lifecycle:
+                       mIsControlDisabled (Player+0x6f6), mNoCtrlKind (+0x70a),
+                       the state pointer (+0x370), the cutscene flag
+                       data_0209fc48, its cursor, and the stick magnitude that
+                       reaches the walk core. On base the camera script latches
+                       fc48; the fix advances it. [fNNN] shows pos/spd. */
+                    extern int _ZN6Player17SetNoControlStateEhih(
+                        void *self, unsigned char a, int b, unsigned char cc);
+                    if (frame == cp_frame) {
+                        int r = _ZN6Player17SetNoControlStateEhih(player, 1,
+                                                                 0x186, 0);
+                        fprintf(stderr, "[dance] SetNoControlState(1,0x186,0) "
+                                "-> %d at frame %d\n", r, frame);
+                    }
+                    fprintf(stderr, "[dance] f%d icd=%d nck=%d st=%08x fc48=%d "
+                            "b274=%d mag=%d\n", frame,
+                            (int)*(unsigned char *)(c + 0x6f6),
+                            (int)*(unsigned char *)(c + 0x70a),
+                            *(void **)(c + 0x370) ? *(unsigned *)*(void **)(c + 0x370) : 0u,
+                            data_0209fc48, (int)data_0209b274,
+                            (int)*(short *)(data_0209f4a0 + 0));
                 } else if (frame == cp_frame) {
                     fprintf(stderr, "[course] unknown probe '%s'\n", cp_what);
                     cp_done = 1;
@@ -6687,6 +6760,27 @@ int main(void)
            what the seat submits per frame (see the call site). */
         if (real_boot && !menu_on)
             ShadowModel::CleanAll();
+        /* STAR1: Stage::Behavior:112 -- advance the running cutscene/kuppa
+           script one frame. The port transcribes Stage::Behavior statement by
+           statement and this one was missing. Without it a script launched by
+           the star-get (func_0200ee8c -> RunKuppaScript, which seats
+           data_0209fc48 and calls ProcessKuppaScript exactly ONCE) never
+           advanced: ProcessKuppaScript's own frame cursor data_0209b274 froze,
+           the script never reached its end so EndKuppaScript never ran, and
+           data_0209fc48 stayed latched. Stage::CheckInput then zeroed the whole
+           Ctrl block every frame, the stick copy-bridge carried the zero
+           (mDesiredAngleY/mag = 0, no walk) while the directly-written button
+           word kept jump/kick alive -- the reported "can't move after a star,
+           can still jump/kick/change levels". ProcessKuppaScript early-returns
+           when data_0209fc48 == 0, so it is free off a cutscene and leaves every
+           script-free selftest byte-identical. Gated to the game tick like the
+           ROM, which does not run Stage::Behavior on a paused frame.
+           SM64DS_NO_KUPPA_TICK=1 restores the old behaviour on this binary. */
+        static int no_kuppa_tick = -1;
+        if (no_kuppa_tick < 0)
+            no_kuppa_tick = getenv("SM64DS_NO_KUPPA_TICK") ? 1 : 0;
+        if (real_boot && !menu_on && !no_kuppa_tick)
+            ProcessKuppaScript();
         if (menu_on) {
             game_ticked = 0;
         } else if (boot_spawns) {
