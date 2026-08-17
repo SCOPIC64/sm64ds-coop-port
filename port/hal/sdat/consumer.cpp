@@ -305,14 +305,34 @@ void exec(const Node *n)
         break;
     }
     case 0x04: {                        // TRACK_PARAM
-        // a = voice id | (mode << 24), b = track mask, c = param, d = value.
+        // a = voice id | (size << 24), b = track mask, c = param, d = value.
+        //
+        // The top byte of a is the WIDTH of the field, not a mode: every one
+        // of the five matched emitters pins it (func_0205acac sends 1 with
+        // the byte-wide pan, func_0205acfc and func_0205acd4 send 2 with the
+        // two halfword params below). It selects the store the ARM7 makes,
+        // and the host does not need it -- each param is handled in its own
+        // domain here -- so it is read out of the slot and otherwise unused.
+        //
         // Param 9 is PAN, and the value is SIGNED: func_02048d80 derives it
         // from the listener-relative X as (dx >> 12) / 2 clamped to
         // -0x40..0x3f and hands it straight to func_0204f7cc, so 0 means
         // centre. Reading it as an absolute 0..127 put every centred sound
         // hard left.
+        //
+        // Params 0x0a and 0x0c are the per-track attenuation (tenths of a dB
+        // out of data_02086384) and the per-track pitch (1/64 semitone). They
+        // are the reason a rolling or moving sound effect changes as it moves
+        // -- func_02048af4 and func_02012860 re-send both every frame beside
+        // the pan -- and both used to reach note_param and be dropped. The
+        // full derivation is on the definitions in sseq.cpp. THEY ARE NOT A
+        // MUSIC PATH: no matched TU sends either one for a BGM layer, and the
+        // sequence a layer plays is started by op 0x00 and nothing else.
         int slot = (n->a & 0xffffff) & 31;
+        unsigned mask = (unsigned)n->b;
         if (n->c == 9) sd_seq_set_pan(slot, 64 + (int)(signed char)n->d);
+        else if (n->c == 0x0a) sd_seq_set_track_volume_db10(slot, mask, n->d);
+        else if (n->c == 0x0c) sd_seq_set_track_pitch(slot, mask, n->d);
         else note_param(4, n->c);
         break;
     }

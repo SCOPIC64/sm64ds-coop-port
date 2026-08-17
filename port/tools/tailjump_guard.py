@@ -385,6 +385,29 @@ CLASS_C = tuple(
          'note':
              'The SolidHeap teardown leg, same shape and same consequence; '
              'its pusher is src/_ZN9SolidHeap8VDestroyEv.c:23.'},
+        # CURLING'S COLLISION VENEER, added by run link60 lane CUR2 when
+        # func_ov006_020e20bc stopped being a return-0 face and became a
+        # transcribed body in port/unmatched/MgCurling_Collide_020e20bc.cpp.
+        # Also not from section 5d: it is ov006, and 5d only screened ov007.
+        # The ROM shape is the same three words the VENEER set scans overlay 7
+        # for --
+        #     020e285c  ldr ip,[pc]; bx ip; .word 0x020e20bc
+        # -- so r0 and r1 ride the frame untouched. The row is REQUIRED and not
+        # decoration: unmatched/MgCurling_StateDispatch.cpp dispatches this
+        # address from a one-argument slot and passes (c, a), the src TU
+        # declares itself (void) and names neither, and the only thing that
+        # puts them where 020e20bc reads them is the jmp reusing the
+        # dispatcher's frame. If it becomes a call, the collision body gets a
+        # garbage `this` and a garbage shell index on every stopped shell,
+        # every frame.
+        {'frame': 'func_ov006_020e285c',
+         'callee': 'func_ov006_020e20bc',
+         'tu': 'src/func_ov006_020e285c.c',
+         'note':
+             'The curling collision veneer. Its callee is the face in '
+             'hal/scene_mg_faces.cpp, which forwards to the transcription; '
+             'the arguments ride the whole chain because each link is one '
+             'call.'},
     ))
 
 # THE VENEER SET, DERIVED. Not a list: the three-word ROM shape below is
