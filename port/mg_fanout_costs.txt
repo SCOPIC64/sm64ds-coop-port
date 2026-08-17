@@ -189,6 +189,79 @@ matched src TU at all and will need a named trap or a decomp.
 
     totals   353 override slots, 263 of them marker-carrying, 6 with no src
 
+0x16b IS DERIVED IN FULL AND NOT SEATED, run link60 lane MGB
+--------------------------------------------------------------
+Everything a seating lane would otherwise re-derive, so it starts at the seat.
+Nothing below is wired: no slice, no registry row, no face array, no host
+copy. The class does not boot and this file does not claim it does.
+
+  class          dScMgMemory2_c, from src/func_ov006_020f730c.c's header
+  SpawnInfo      0x0213d288  MgMemoryMaster_SpawnInfo
+  factory        0x020f75d4  MgMemoryMaster_Spawn, 0x60
+  vtable         0x0213d4d4  36 slots, 14 overrides, 12 markers, 0 nosrc
+  .init ctor     __sinit_ov006_021314e4  (.init 0x021314e4..0x021318a0)
+  state index    +0x53d4 in the object, zeroed by slot 18 and read by slot 6
+  closure        78 ov006 blocks (77 in no slice today) + 97 ov004 (34 in no
+                 slice) + 578 arm9 blocks walked and not listed, which is
+                 curling's precedent for the arm9 half
+  PMF TUs        6 must be EXCLUDED and host-copied, the way MG2 host-copied
+                 curling's five: func_ov006_020c07e8, _020c19d0, _020f5c40,
+                 _020f71c8, _020f7234, _020f7458. func_ov004_020b87e0 is the
+                 framework one and is already trapped
+  adjudications  ALL TWELVE MARKERS ARE RULED REAL_DECOMP, with per-body
+                 evidence in port/tools/inferred_stub_adjudicated.txt. That
+                 is this class's whole marker cost and it is already paid
+
+THE SPAWNINFO DERIVATION IS MECHANICAL AND WORTH REUSING. Scanning
+extracted/overlays/overlay_0006.bin for the doubled-id word and taking the
+word before it gives every id's SpawnInfo and factory in one pass, and it
+reproduces this file's own address-shaped names for the rows with no
+Mg*_Spawn symbol (0x169 -> 0x0213c020, 0x16c -> 0x0213e560).
+
+FIVE STATE TABLES, 29 PAIRS, EVERY ADJUSTMENT WORD ZERO, 29 DISTINCT
+ADDRESSES, all inside the class's own 0x020f57xx..0x020f72xx code block.
+A SECOND ROM TEST SITS BESIDE MGA's SPAN CHECK BECAUSE OF THIS CLASS'S
+NEIGHBOUR. 0x16c's phantom slot 36 is MgBingoBallSlotsShot's SpawnInfo
+factory word (0x02119824, followed by 0x01780178), and vtablerows.spawninfo_
+tail reads that out of the ROM rather than out of the config -- which covers
+the hole the span check's own refusal names, "or the config is missing a
+symbol", and lets the refusal say WHICH class owns the bytes.
+
+port/tools/stategen.py reads this constructor now. Its spelling -- a
+destination declared through an anonymous typedef whose one field is an array
+of the pair type, written `.p[i] = ` -- was one of the five the STG lane
+recorded as unread, and reading it failed SILENTLY rather than refusing:
+every line fell through the unknown-write branch, whose dest_arr and
+dest_type tests both miss a typedef'd struct, so the tool answered "no pair
+assignments" -- which is also what it says about the eleven constructors that
+genuinely build no table.
+
+  table                n  arity  dispatched by
+  -------------------  -  -----  -------------------------------------------
+  data_ov006_021423e0  5    0    func_ov006_020f7458  (vtable slot 6)
+  data_ov006_02142440  10   0    func_ov006_020f7234
+  data_ov006_021423c0  4    0    func_ov006_020f71c8
+  data_ov006_02142408  7    1    func_ov006_020f5c40
+  data_ov006_021423a8  3    ?    NOTHING -- see below
+
+ONE STATE TARGET HAS NO DECOMPILED BODY: 0x020f6904, slot 7 of
+data_ov006_02142440. No delink block in ov006's delinks.txt and no src file.
+This class's analogue of curling's func_ov006_020e1854, and it takes the same
+treatment: reported at the dispatch site, never given an invented symbol.
+
+AND ONE WHOLE TABLE IS WRITTEN BY THE CONSTRUCTOR AND READ BY NOTHING.
+data_ov006_021423a8 takes three pairs and has exactly ONE relocation pointing
+at it in the entire overlay -- from:0x02131898, which is inside
+__sinit_ov006_021314e4's own .init block. The other four tables have two
+each: the constructor's, and their dispatching TU's literal-pool load. So no
+code in ov006 names this table, its arity is derivable from nothing, and its
+three states are unreachable in the ROM as shipped. That is a measurement of
+the relocation set and not a claim that the states are dead -- a dispatch
+through a computed address would leave no relocation either. A lane seating
+0x16b should carry the three addresses with the arity marked unknown rather
+than pick one, which is why stategen refuses this constructor at the arity
+step rather than emitting a switch.
+
 ONE ID DOES NOT RESOLVE AND IT IS NOT A TOOL FAILURE TO WAVE AWAY.
 MgSnowballSlalom (0x179) has a SpawnInfo at 0x0213ffb8 and a factory, and no
 load relocation inside that factory points at any of the thirty-two signature

@@ -65,6 +65,12 @@ code earns:
     and this tool's --reconstruct were reading each other: twelve of the
     twenty-nine rows said 37 over a 36-word span, and for 0x169 the
     phantom slot lands on a pair word CURLING's constructor copies.
+    A SECOND floor sits beside it (spawninfo_tail, run link60 lane MGB)
+    for the case the first one names and cannot answer -- "or the config
+    is missing a symbol". It reads the ROM instead of the config: if the
+    word after slot 36 is a doubled minigame id, slot 36 is the next
+    class's SpawnInfo FACTORY word, so the table is 36 and the tool can
+    say WHICH class owns the bytes. Fires on 0x16c.
   * it does NOT resolve id -> vtable. The factory load-reloc derivation
     stayed by hand, and MgSnowballSlalom (0x179, no resolving reloc) is
     the standing counterexample. Feed it a vtable address you derived.
@@ -250,12 +256,53 @@ def symbol_span_words(syms, vtable):
     return (min(later) - vtable) // 4
 
 
+def spawninfo_tail(ov, vtable):
+    """The minigame id whose SpawnInfo record starts at vtable+36*4, or None.
+
+    THE CASE symbol_span_words ABOVE CANNOT ANSWER, and its own refusal names
+    the hole: "either the width is wrong OR THE CONFIG IS MISSING A SYMBOL".
+    The span check needs `vtable` to be a symbol and needs a symbol after it;
+    where either is absent it returns None and declines. This reads the ROM
+    bytes instead and is independent of config coverage entirely.
+
+    A minigame SpawnInfo is eight bytes -- a factory address, then the actor
+    id in BOTH halves of the next word -- and hal/scene_boot.cpp's registry
+    cross-checks exactly that doubled id at +4 before installing a row.
+    Nothing else in ov006 .data has the shape by accident: the halves must
+    agree AND land inside src/IsMinigameActorID.c's 0x169..0x186.
+
+    Run link60 lane MGB. It fires on 0x16c, where the eight bytes a width-37
+    reading would call slot 36 are MgBingoBallSlotsShot's spawn record. That
+    is the same defect MGA's span check catches on twelve rows, arrived at
+    from the other side, and it is kept as its own check for two reasons: it
+    survives a config with no symbol there, and it can say WHICH class owns
+    the bytes, which a span can never do.
+    """
+    w1 = ov.word(vtable + 37 * 4)
+    lo, hi = w1 & 0xFFFF, (w1 >> 16) & 0xFFFF
+    if lo == hi and 0x169 <= lo <= 0x186:
+        return lo
+    return None
+
+
 def class_rows(ov, base_slots, vtable, width, syms=None):
     """[(slot, word, override?, owner, marked?)] for one class's table."""
     if width not in (36, 37):
         sys.exit("vtablerows: width %d is outside MG1's ruling set (36 or "
                  "37); derive it by hand first, this tool will not guess"
                  % width)
+    if width == 37:
+        sid = spawninfo_tail(ov, vtable)
+        if sid is not None:
+            sys.exit("vtablerows: width 37 does not fit 0x%08x -- slot 36 "
+                     "(0x%08x) and the word after it (0x%08x, the doubled "
+                     "minigame id 0x%03x) are that id's SPAWNINFO RECORD, so "
+                     "the bytes past this table belong to another class and "
+                     "a fill would overwrite its factory. This table is 36 "
+                     "slots. Read from the ROM rather than the config, so it "
+                     "stands even where the symbol span declines."
+                     % (vtable, ov.word(vtable + 36 * 4),
+                        ov.word(vtable + 37 * 4), sid))
     # THE WIDTH CHECK THAT IS NOT CIRCULAR. Run link60 lane MGA.
     #
     # This tool used to take width purely as input and --reconstruct took it
@@ -441,6 +488,12 @@ def cmd_reconstruct(root):
 
 # ---------------------------------------------------------------------------
 
+def _wr(p, b):
+    """Write the fixture image and hand back the path, for one-line arms."""
+    p.write_bytes(bytes(b))
+    return p
+
+
 def selftest():
     """The whole read path against a fabricated overlay and delinks.
 
@@ -528,6 +581,82 @@ def selftest():
         except SystemExit as e:
             expect("ActorBase" in str(e) and "census" in str(e),
                    "signature refusal message", str(e))
+        # THE SYMBOL SPAN. Arms added by run link60 lane MGB; the check
+        # itself is MGA's. It shipped with no fixture arm and --reconstruct
+        # cannot cover it either, because once the doc is corrected no row
+        # trips the refusal -- so both `if False:` and `>=` mutants of it
+        # survived a full selftest run. An unexercised guard is exactly the
+        # failure this whole correction was about, one level up.
+        far = {0x2100: "cls", 0x219c: "next_far"}      # span 39
+        exact = {0x2100: "cls", 0x2194: "next_exact"}  # span 37
+        near = {0x2100: "cls", 0x2190: "next_near"}    # span 36
+        expect(symbol_span_words(far, 0x2100) == 39,
+               "span from the next symbol", symbol_span_words(far, 0x2100))
+        expect(symbol_span_words(far, 0x2104) is None,
+               "an address that is not itself a symbol declines",
+               symbol_span_words(far, 0x2104))
+        # UPPER BOUND, NOT EQUALITY: 39 words of room, 37 declared, allowed.
+        # This is 0x16d's real shape (152-byte span, genuinely 36 slots).
+        expect(measure(class_rows(ov, base_slots, 0x2100, 37, far),
+                       sources)[0] == 4,
+               "a width BELOW the span is allowed", "refused")
+        # EXACTLY at the span must be allowed too, and this arm is the one
+        # that matters: 0x173 is the single genuine width-37 class and its
+        # span is exactly 37, so a `>=` here would refuse the only row the
+        # correction leaves alone.
+        expect(measure(class_rows(ov, base_slots, 0x2100, 37, exact),
+                       sources)[0] == 4,
+               "a width EQUAL to the span is allowed", "refused")
+        try:
+            class_rows(ov, base_slots, 0x2100, 37, near)
+            expect(False, "a width ABOVE the span was ACCEPTED",
+                   "no SystemExit")
+        except SystemExit as e:
+            expect("does not fit" in str(e) and "36 words on" in str(e),
+                   "span refusal message", str(e))
+
+        # THE SPAWNINFO TAIL, run link60 lane MGB. A third signature table at
+        # 0x2200 whose 36 slots are followed by an eight-byte SpawnInfo
+        # record -- 0x16c's real shape. It is deliberately given NO symbols
+        # at all, so symbol_span_words declines and only this check can
+        # answer: that is the config-coverage hole MGA's own refusal message
+        # names ("or the config is missing a symbol").
+        tail = list(base_slots)
+        tail[5] = 0x1100
+        for i, s in enumerate(tail):
+            struct.pack_into("<I", img, 0x2200 - 0x1000 + 4 * i, s)
+        struct.pack_into("<I", img, 0x2200 - 0x1000 + 36 * 4, 0x1200)
+        struct.pack_into("<I", img, 0x2200 - 0x1000 + 37 * 4, 0x01780178)
+        (tdp / "tail.bin").write_bytes(img)
+        ovt = Overlay("tail", tdp / "tail.bin", delinks)
+        expect(symbol_span_words(None, 0x2200) is None,
+               "the span check declines with no symbol table",
+               symbol_span_words(None, 0x2200))
+        expect(spawninfo_tail(ovt, 0x2200) == 0x178,
+               "spawninfo tail detected", spawninfo_tail(ovt, 0x2200))
+        try:
+            class_rows(ovt, base_slots, 0x2200, 37)
+            expect(False, "a SpawnInfo tail was ACCEPTED as slot 36",
+                   "no SystemExit")
+        except SystemExit as e:
+            expect("SPAWNINFO" in str(e) and "0x178" in str(e),
+                   "spawninfo-tail refusal message", str(e))
+        n = measure(class_rows(ovt, base_slots, 0x2200, 36), sources)[0]
+        expect(n == 1, "the same table reads as 1 override at width 36", n)
+        # doubled halves OUTSIDE the minigame range are not a SpawnInfo, and
+        # halves that disagree are not either. Without both tests this would
+        # be a doubled-halves heuristic rather than a positive ROM read.
+        struct.pack_into("<I", img, 0x2200 - 0x1000 + 37 * 4, 0x01000100)
+        (tdp / "tail2.bin").write_bytes(img)
+        expect(spawninfo_tail(Overlay("t2", _wr(tdp / "tail2.bin", img),
+                                      delinks), 0x2200) is None,
+               "a doubled id outside 0x169..0x186 is not a SpawnInfo", None)
+        struct.pack_into("<I", img, 0x2200 - 0x1000 + 37 * 4, 0x01780179)
+        expect(spawninfo_tail(Overlay("t3", _wr(tdp / "tail3.bin", img),
+                                      delinks), 0x2200) is None,
+               "mismatched halves are not a SpawnInfo", None)
+        struct.pack_into("<I", img, 0x2200 - 0x1000 + 37 * 4, 0)
+
         (tdp / "cut.bin").write_bytes(img[:-4])
         try:
             Overlay("cut", tdp / "cut.bin", delinks)
