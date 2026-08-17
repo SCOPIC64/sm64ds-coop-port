@@ -95,7 +95,7 @@ static const char *const hal_stage_slot_name[20] = {
 /* ---- THE TRAP, AND THE TWO DEFECTS THE 2026-08-16 EXIT-LEVEL REPORT FOUND --
  *
  * The comment above promises "a named abort with the slot number". It named
- * slot 0 every time, for two independent reasons, and the bill came due on a
+ * slot 0 every time, for three independent reasons, and the bill came due on a
  * real session: seventeen minutes of play in level 4, pause, exit course, and
  *
  *     FATAL: Stage vtable slot 0 (InitResources) is not hosted
@@ -119,6 +119,12 @@ static const char *const hal_stage_slot_name[20] = {
  *      slots name the wrong function even once the number is right. Slot 3 is
  *      one of the six the mask happens to pass through unchanged, which is why
  *      the corrected message for this crash reads correctly.
+ *
+ *   3. THE DEFAULT WAS ITSELF A VALID SLOT INDEX, which is why 1 produced a
+ *      confident wrong answer rather than an obviously broken one: 0 is a real
+ *      slot, so an unrecorded trap and a genuine InitResources trap printed
+ *      the same line and there was nothing to distrust. All three reporters
+ *      now start at -1 and say so if they are ever read unwritten.
  *
  * WHICH SLOTS TRAP IS UNCHANGED BY ANY OF THIS. This is the report only. */
 static int hal_stage_trap_slot = -1;

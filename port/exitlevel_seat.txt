@@ -5,9 +5,9 @@ run link60, lane LC1, base cons 3a5733c03
 0. THE ONE-LINE ANSWER
 ----------------------
 
-The crash was never slot 0. The abort message was lying, in two independent
-ways, and slot 0 -- the slot it named -- has been seated since lane L4 and
-could not have been the caller.
+The crash was never slot 0. The abort message was lying, in three independent
+ways, and slot 0 -- the slot it named -- has been seated since lane L4
+(885cd16c2) and could not have been the caller.
 
 The real trap was _ZTV5Stage SLOT 3, Stage::CleanupResources, and the reason it
 was reached is a ROM global the port takes out of its sentinel state and never
@@ -76,6 +76,26 @@ Slot 3 is one of the six the mask passes through unchanged, which is the only
 reason the corrected message for this crash reads correctly.
 
 
+3b. DEFECT THREE: THE DEFAULT VALUE WAS ITSELF A VALID SLOT INDEX
+------------------------------------------------------------------
+
+The reason defect one produced a CONFIDENT wrong answer rather than an obviously
+broken one is that all three slot variables defaulted to 0, and 0 is a real
+slot. An unrecorded trap and a genuine InitResources trap printed the same
+line, so there was nothing in the message to distrust and no reason to suspect
+the reporter rather than the port.
+
+This is separable from defect one and outlives it. The thunks make the variable
+always-written today, but a default of 0 means any future path that reaches a
+reporter without passing through a thunk silently names an innocent slot again.
+All three now initialise to -1, which the range tests turn into "the trap did
+not record its slot -- fix the thunk".
+
+Two of the three were given -1 in this lane's first pass and
+hal/sub_actors.cpp's g_trap_slot was left at its bare declaration. Review
+caught it, which is a fair demonstration of the point being made here.
+
+
 4. THE SWEEP: THE SAME BUG CLASS, THREE SITES
 ----------------------------------------------
 
@@ -99,10 +119,27 @@ the recording defect; two had a bitmask where a bounds check belonged.
       (17 = 0b10001) mis-named even the two that DID record: slot 13 printed
       "BeforeInitResources" and slot 14 printed "InitResources".
       A second bare fill sat at :542 over _ZTV7dBase_c.
-      FIXED: sa_trap0..sa_trap17 + sa_trap_thunk[18], both fills use the table,
-      real range test, and the now-redundant vt[13]/vt[14] lines removed.
+      FIXED: sa_trap0..sa_trap17 + sa_trap_thunk[18], real range test, both
+      fills use the table, the now-redundant vt[13]/vt[14] lines removed, and
+      g_trap_slot initialised to -1 -- it was the one of the three left at its
+      bare declaration, i.e. at 0, i.e. still able to name InitResources.
 
-No other vtable trap reporter exists in port/hal.
+"NO OTHER TRAP REPORTER EXISTS" WOULD BE OVERBROAD, so here is the measured
+truth instead. 53 files in port/hal print "is not hosted". They fall in three
+groups:
+
+  3   the vtable trap reporters above: a name table indexed by a SHARED
+      FILE-SCOPE slot variable. All three were defective, all three are fixed.
+  49  actor_classes*.cpp. IMMUNE BY CONSTRUCTION, not by luck: each takes the
+      slot as a FUNCTION PARAMETER handed in by per-slot thunks, and carries
+      no name table to mis-index. There is nothing in them to get wrong.
+  1   sub_screen.cpp:1227, which is not a vtable trap at all -- a one-shot
+      notice that LoadFont3D was reached.
+
+Swept port/hal for the two failure shapes specifically: a bitmask standing in
+for a bounds clamp on a name table, and a shared slot variable that is read but
+never written. ZERO LIVE INSTANCES REMAIN. The only surviving `& N]` text in
+the tree is inside this lane's own comments describing the bug.
 
 THE CLASS SWEEP IS COMPLETE AT ONE TABLE, which is worth stating because the
 brief asked for "every stage vtable reachable by ExitLevel from every mounted
@@ -219,14 +256,37 @@ evidence that this is the trigger is in the same log: the reason-1 change at
 line 885 (level 6 -> 2, entrance 8) SUCCEEDED, and it happened BEFORE that
 line. The reason-1 change at line 1648 aborted, and it happened after.
 
+WHY THE ARMING CHANGE ITSELF DOES NOT ABORT, which the log invites as an
+objection: line 1554 is a level change (1 -> 4) that runs three lines AFTER the
+latch is set and completes normally. The branch needs the INSTALLED FADER to
+read at-end at the moment Scene::BeforeBehavior runs on the Stage, and at the
+arming change it cannot. port_title_select starts a fresh 16-frame colour fade
+in the same breath as the StartSceneFade, and walk_window HOLDS the change until
+that fade has covered (scene_fade != 1, walk_window.cpp:5031); the change then
+applies on the very frame the cover completes. Across that whole window the
+fader is in motion, not parked, so no frame between the write and the teardown
+offers an at-end reading. The exit change has no such gate -- ExitLevel is one
+of the paths that "applies the frame it is pending" -- and by then the fade-in
+has finished and left the fader parked at an end, so the first
+Scene::BeforeBehavior of the teardown marks the Stage. Reproduced in this lane's
+own runs: the first change is clean on the base binary and the second aborts.
+
+AND THE MARK LANDS INSIDE THE TEARDOWN, not before it. port_level_teardown runs
+port_actor_tick within its own rounds loop (hal/level_change.cpp:581-595), so
+round 0's behaviour pass is what marks the Stage, phase 1 moves it onto the
+cleanup list, and the next round's cleanup pass dispatches slot 3. That is why
+the FATAL prints with no teardown output ahead of it and why the whole failure
+fits between the "[lvl] change:" line and the next line that would have been
+logged.
+
 
 7. THE ACTUAL DEFECT: A SENTINEL THE PORT NEVER PUTS BACK
 ----------------------------------------------------------
 
 data_02092664 is the pending-scene id and 0x187 is its "nothing pending"
-sentinel, its value in the ROM's .data. On the ROM exactly one function takes
-it out of that state and exactly one puts it back, and both are matched src in
-this tree:
+sentinel, its value in the ROM's .data. Two functions take it out of that state
+and one puts it back. The pair that matter here are both matched src in this
+tree:
 
     Scene::SetSceneToSpawn(id, param)   data_02092664 = id
         src/_ZN5Scene15SetSceneToSpawnEjj.c
@@ -234,13 +294,35 @@ this tree:
                                         data_02092664 = 0x187
         src/_ZN5Scene16SpawnIfNecessaryEv.c
 
-THE PORT RUNS THE FIRST HALF AND NOT THE SECOND. It has no spawner for the
-ov003 scenes -- hal/level_change.cpp's StartSceneFade block documents why at
-length (ov003's .text is not mounted, the star grid's 2D resources are not
-staged) -- so SpawnIfNecessary never runs and the id stays where the writer
-left it for the rest of the session. The port records the request in a HOST
-variable, g_scene_fade_scene, and port_scene_fade_clear clears only that host
-variable. The ROM global was never touched again.
+THE THIRD WRITER, named because it is a live tripwire for whoever slices in the
+boot spine. Scene::PrepareToSpawnBoot (0x0202e300,
+src/_ZN5Scene18PrepareToSpawnBootEv.c) also writes data_02092664 -- to 0 or to
+0x168, never to the sentinel -- and clears data_02092660 with it. It is
+UNREACHABLE TODAY: its only caller is func_0201a054 (src/func_0201a054.c:75),
+which is on the unsliced boot spine, and neither symbol appears in
+walk_window.map. Checked, not assumed.
+
+THE WARNING THAT GOES WITH IT: the day that spine is sliced in, the sentinel is
+poisoned FROM BOOT rather than from a menu action, and port_scene_request_release
+would then quietly release a request the ROM genuinely intends SpawnIfNecessary
+to consume. The release is correct only while the port declines every scene
+spawn. A lane that gives the port a real scene spawner must revisit this
+function, not inherit it.
+
+THE PORT RUNS THE FIRST HALF AND NOT THE SECOND, ON THE LEVEL PATH. It has no
+spawner for the ov003 scenes -- hal/level_change.cpp's StartSceneFade block
+documents why at length (ov003's .text is not mounted, the star grid's 2D
+resources are not staged) -- so nothing in a level run consumes the id and it
+stays where the writer left it for the rest of the session. The port records
+the request in a HOST variable, g_scene_fade_scene, and port_scene_fade_clear
+clears only that host variable. The ROM global was never touched again.
+
+"NEVER RUNS" WOULD BE TOO STRONG, and the exception is worth knowing:
+port_scene_boot (hal/scene_boot.cpp:1990, the SM64DS_SCENE harness) calls
+Scene::SpawnIfNecessary for real, right after its own SetSceneToSpawn, and the
+battery's scene selftests go through it. That path consumes the id the way the
+ROM does and needs nothing from this lane. It is the LEVEL path -- the one a
+player is on -- that has no consumer.
 
 So: use the debug level select once, then exit any course, and the Stage is
 marked for destruction on the way out. One menu action poisons every later
@@ -326,8 +408,21 @@ GATES.
            linked 5831 / 11250 (51.8%), unlinked 5419   delta 0
            battery ALL GREEN, skips []
            verdict GREEN
-           exe sha256 3e31029615f1b987fe36da629c479ff7d4c96fe9633c76b378f68792646c4949
+           exe sha256 f61f33e9f8b5367c270add344eb59213c727d9250051d13aba06370a416f1a7b
            map 4059327 bytes, 37488 symbol rows (base: 4052685, 37411)
+
+THE GATE WAS RUN TWICE, and the second run is the one quoted. Review's
+amendments added one code line (g_trap_slot = -1, section 3b) and it landed
+after the first closing gate, so that gate was measuring a tree that had moved
+under it and its numbers are not quoted here. The re-gate above is a clean run
+on the settled tree.
+
+THE AMENDMENT DID NOT MOVE THE MAP BEYOND ITS OWN LITERAL, which is the thing
+worth checking about it: `int g_trap_slot;` to `int g_trap_slot = -1;` moves the
+symbol from .bss into .data and changes nothing else. Map size 4059327 bytes and
+37488 symbol rows BOTH IDENTICAL across the two links, .dsstate base and span
+unchanged, and the level 1 / level 6 BMPs and the landing BMP all still hash
+exactly as they did before it.
 
 Delta zero is expected and is not a null result: this lane seats no new body
 and references no previously-dropped TU. It changes which pointer goes into a
@@ -335,10 +430,10 @@ trap slot, adds one host function, and fixes two report strings. Nothing was
 recorded with --record: the baseline stands at the opening measurement and the
 closing run is a plain read against it.
 
-EVERY MEASUREMENT BELOW WAS TAKEN OFF THE GATED BINARY, sha256 3e310296...,
-re-run after the closing gate relinked rather than carried over from the
-pre-gate build. The landing BMP hash is identical across both, which is the
-determinism check.
+EVERY MEASUREMENT BELOW WAS TAKEN OFF THE GATED BINARY, sha256 f61f33e9...,
+re-run after the gate relinked rather than carried over from an earlier build.
+The landing BMP hash is identical across all three links this lane produced,
+which is the determinism check.
 
 THE THUNKS ARE NOT FOLDED, and this is the check that matters most for the
 mechanism: /OPT:ICF merges identical COMDATs, and 69 trap thunks that differ
@@ -350,8 +445,28 @@ the original bug, restored invisibly. Counted in walk_window.map:
     ps_trap0..30    31 symbols, 31 distinct addresses   level_boot.cpp.obj
     sa_trap0..17    18 symbols, 18 distinct addresses   sub_actors.cpp.obj
 
-69 for 69. The +77 symbol rows the map grew accounts for them plus the three
-thunk tables and port_scene_request_release.
+69 for 69, on two separate links.
+
+THE +77 SYMBOL ROWS, ITEMISED PROPERLY. An earlier draft of this file waved at
+the number with a list that only came to 73; the map diff gives 80 added and 3
+removed, and the itemisation matters because it is the real delta-0 argument --
+every added row is this lane's own scaffolding and none of it is a game body:
+
+    added, 80
+      67  new thunks: 20 st_trap + 31 ps_trap + 16 sa_trap. SIXTEEN, not
+          eighteen, because sa_trap13 and sa_trap14 already existed -- they
+          were the two slots sub_actors.cpp had already got right.
+       3  the thunk tables
+       1  port_scene_request_release
+       1  its `keep` static
+       6  string literals
+       2  filler
+    removed, 3
+       1  the old "out of range" literal
+       2  filler
+
+80 - 3 = 77, which is 37488 - 37411. Nothing here resolves a previously dropped
+TU, which is why linked stays at 5831.
 
 .dsstate LAYOUT, base AND span, read off both maps -- the precondition for any
 BMP comparison to mean anything:
@@ -456,11 +571,11 @@ hardest. Left for the lane that takes the full set.
 11. FILES
 ----------
 
-  port/hal/stage_bridges.cpp   per-slot trap thunks, real bounds test, the
-                               account of both defects
-  port/hal/level_boot.cpp      per-slot Player trap thunks
-  port/hal/sub_actors.cpp      per-slot trap thunks for both fills, real
-                               bounds test, redundant vt[13]/vt[14] removed
+  port/hal/stage_bridges.cpp   per-slot trap thunks, -1 default, real bounds
+                               test, the account of all three defects
+  port/hal/level_boot.cpp      per-slot Player trap thunks, -1 default
+  port/hal/sub_actors.cpp      per-slot trap thunks for both fills, -1 default,
+                               real bounds test, redundant vt[13]/vt[14] removed
   port/hal/level_change.cpp    port_scene_request_release + its two call sites
   port/exitlevel_seat.txt      this file
 

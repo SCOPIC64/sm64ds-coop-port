@@ -375,7 +375,13 @@ void HUD::CalculateDigits(unsigned short n)
 
 namespace {
 
-int g_trap_slot;
+/* -1, not 0, and for the reason this whole lane exists: 0 is a VALID slot
+   index, so an unwritten slot variable reads as "slot 0 (InitResources)" --
+   exactly the false report that sent the 2026-08-16 exit-course crash to the
+   wrong slot for a session. Every trap below records its own index before
+   reporting, so this value should be unreachable; -1 makes it say so out loud
+   instead of naming an innocent slot if it ever is not. */
+int g_trap_slot = -1;
 const char *const kSlotName[18] = {
     "InitResources", "BeforeInitResources", "AfterInitResources",
     "CleanupResources", "BeforeCleanupResources", "AfterCleanupResources",
