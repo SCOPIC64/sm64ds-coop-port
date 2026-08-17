@@ -435,6 +435,7 @@ const unsigned int *hal_sub_screen_stacked_image(const unsigned int *top);
 int IsMinigameActorID(unsigned int id);
 void port_message_composite_engine_a(void *fb);
 void sdat_host_tick(void);           /* hal/sdat/consumer.cpp */
+void port_scene_mg_seat_sound(int scene_id); /* hal/scene_mg_sound.cpp */
 
 extern int data_020a4b6c[8];         /* the scene tree: head, callback, 0 */
 extern void *data_0209f5bc;          /* the installed fader; hal/fader_wipes.cpp */
@@ -2491,6 +2492,18 @@ extern "C" int port_scene_begin(void *hwnd, int zoom)
                  "%p\n", data_0209f5bc);
     std::fflush(stderr);
 
+    /* SEED THE MINIGAME SOUND RECORD, before the scene spawns and its base
+       ctor reads it. On the DS the Rec Room overlay ov005 writes
+       data_0209b308's 0x34-byte sound row for the picked minigame and THEN
+       launches the scene; a direct SM64DS_SCENE boot never runs ov005, so the
+       record reads zero and dScMgBase_c::AfterInitResources takes its
+       StopLoadedMusic branch -- the curling "no music" report. This copies the
+       same verbatim ov005 row, keyed by scene id; a no-op for non-minigame
+       scenes. The SDAT root the framework's own LoadAndSetMusic_Layer1 walks
+       was seated by the sdat_host_tick above, so the queued START reaches a
+       live sequencer. See hal/scene_mg_sound.cpp and port/minigame_music.txt. */
+    port_scene_mg_seat_sound(scene);
+
     void *obj = port_scene_boot(scene);
     if (!obj) {
         std::fprintf(stderr, "scene %d did not spawn\n", scene);
@@ -2579,6 +2592,20 @@ extern "C" void port_scene_tick(int frame, int tick_game)
         }
         if (tick_game)
             port_actor_scene_pass();
+
+        /* THE HOSTED ARM7, ONE TICK PER FRAME -- drain the sound queue and
+           feed the mixer, exactly as the level loop does in
+           tests/walk_window.cpp. A SCENE RUN NEVER DID THIS, and that was the
+           second half of the curling "no music" report: the SDAT root is
+           seated once in port_scene_begin, but a command QUEUED after that
+           point had nothing to consume it. dScMgBase_c::AfterInitResources
+           (slot 2) runs during the spawn and queues the minigame's START, so
+           on the DS the sound frame that follows plays it and here it sat in
+           the ring for the whole run. Gated on tick_game for the debug menu's
+           pause, like the game work above it: a paused scene should not keep
+           advancing the sequencer. */
+        if (tick_game)
+            sdat_host_tick();
 
         if (frame == 0)
             std::printf("[scene] f0 ticked\n");
