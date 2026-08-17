@@ -55,14 +55,40 @@ data_ov009_02112bc4 data_ov009_02112bf8 data_ov009_02112c38
 # bytes of unreferenced neighbour span [0x02112288, 0x021122ec). The track also
 # moves out of ordinary .data into .dsstate, so save states now capture it.
 data_ov009_021122ec:0x16c
-# Two Vector3<s16> path arrays, walked by index out of the record table that
-# starts at 0x02112c9c -- 8-byte records, {u8 tag; u8 numPoints; u16 zero;
-# Vector3<s16> *points}. The two that name these arrays are the records at
-# 0x02112dcc and 0x02112cac (NOT 0x02112c9c, which is the table's first record
-# and names a different four-point path). The count byte pins both sizes:
-# 0x02112dcc says 220 points, 220*6 = 0x528, ending exactly on
-# data_ov009_021138fc; 0x02112cac says 28, 28*6 = 0xa8. Ambiguous cuts had them
-# hosted sixteen and four points long.
+# Two arrays reached from the level's descriptor at 0x02112b60, which carries
+# TWO record tables of 8-byte {u8 tag; u8 count; u16 zero; void *data} entries:
+# {6 records at 0x02112c9c} (the 6 is the word at 0x02112b6c, right before the
+# table pointer at 0x02112b70) and {9 records at 0x02112dcc} (the 9 at
+# 0x02112b74). The records that name these two arrays are 0x02112cac in the
+# first table and 0x02112dcc itself in the second; 0x02112c9c is the first
+# table's FIRST record and names a different, four-entry array.
+#
+# THE ELEMENT SIZE IS PER TAG, NOT UNIFORM, and that is the whole subtlety
+# here. Four records point into one contiguous run and each stride is fixed by
+# where the next array starts:
+#
+#   0x02112ca4  tag 0x05  n=29  -> 0x0211301c   29 * 8  = 0x0e8
+#   0x02112cbc  tag 0x40  n=17  -> 0x02113104   17 * 16 = 0x110
+#   0x02112cac  tag 0x20  n=28  -> 0x02113214   28 * 16 = 0x1c0
+#   0x02112dcc  tag 0x02  n=220 -> 0x021133d4  220 * 6  = 0x528
+#
+# 0x0211301c + 0x0e8 + 0x110 + 0x1c0 + 0x528 = 0x021138fc, the next real
+# symbol. Four consecutive exact landings with three different strides, so the
+# chain is pinned end to end and no single stride is a guess.
+#
+# Only the tag-0x02 array is Vector3<s16> points. The tag-0x20 and tag-0x40
+# arrays are 16-byte records -- the stride is visible in the bytes (a repeated
+# type id in the first halfword, a coordinate triple, an orientation halfword
+# that only ever takes 0x0000/0x4000/0x8000/0xc000, and two counters that step
+# once per record), and the two arrays share the record shape byte for byte in
+# places. Reading 0x02113214 as 6-byte points gives 0xa8, which lands nowhere.
+#
+# Hosted before this: 96 bytes of the 220-point array (16 points, cut at the
+# first of TWENTY ambiguous boundaries inside its span) and 24 bytes of the
+# 28-record array (ovdata's +0x18 discovered-target floor, with FOUR ambiguous
+# boundaries inside its span). Both pointers are rebased onto the host blocks
+# by the patch pass, so both walks really do start hosted and run off the end,
+# the same shape as the water track above.
 #
 # TRAP, ARMED BUT NOT FIRING -- read before mounting ov006, ov007 or ov089.
 # config/arm9/overlays/ov009/relocs.txt carries four SPURIOUS `kind:load`
@@ -82,7 +108,7 @@ data_ov009_021122ec:0x16c
 # entries are NOT suppressed here on purpose: that file is dsd config shared
 # with the decomp side and the call to edit it is Tango's.
 data_ov009_021133d4:0x528
-data_ov009_02113214:0xa8
+data_ov009_02113214:0x1c0
 # the four {function, delta} pairs __sinit_ov009_02112458 copies into the
 # Bird's own behaviour table
 data_ov009_021138fc data_ov009_02113904 data_ov009_0211390c data_ov009_02113914
