@@ -21,16 +21,15 @@ and ov021's is the compressed image), not from raw vtable words.
 0. SUMMARY
 ------------
 
-  block                    was    now    class                    verified how
-  ov009 0x021133d4          96   1320    220 Vector3<s16> points  carried
-  ov009 0x02113214          24    448    28 x 16-byte records      CORRECTED
-  ov009 0x02112c9c          24     48    6 x 8-byte records        DERIVED NEW
-  ov016 0x02113bec          28     32    CLPS block, count 1       carried
-  ov021 0x021148dc           4     20    class-name string         carried
-  ov070 0x02122968        1240*   404    symmetric Fix12 curve     carried
+THE SIX BLOCKS THE BATTERY NAMED, which is where this started:
 
-  * ov070's 1240 is the enclosing gap block port_ov070_gap_02122594, which cut
-    the curve at its apex; see section 6.
+  block                extent   class                          verified how
+  ov009 0x021133d4      0x528   220 Vector3<s16> points        carried
+  ov009 0x02113214      0x1c0   28 x 16-byte records           CORRECTED
+  ov009 0x02112c9c       0x30   table A, 6 x 8-byte records    DERIVED NEW
+  ov016 0x02113bec       0x20   CLPS block, count 1            carried
+  ov021 0x021148dc       0x14   class-name string              carried
+  ov070 0x02122968      0x194   symmetric Fix12 curve          carried
 
 "carried" means the fix came from branch bmp-hunt (0b5e5a766 and e4f25f862,
 review-PASSED 2026-08-14, never merged) and this lane re-derived its extent and
@@ -38,7 +37,32 @@ re-counted every number in its banner before taking it. "CORRECTED" means the
 carried extent was wrong and this lane changed it. "DERIVED NEW" means the
 carried commits did not have it.
 
-Two banner errors were found and fixed, both of the count-you-did-not-recount
+AND THE ELEVEN MORE THE INTERVAL DIFF FORCED. Naming a symbol re-lays the gap
+runs around it, so each of the six above pushed a gap's end back onto the next
+ambiguous guess upstream and dropped a span that HAD been hosted. Section 1
+says why a byte total cannot see that. Closing it means naming the whole run:
+
+  ov009 0x02112f3c      0x0e0   tag 0x01, 14 x 16
+  ov009 0x02112e7c      0x0c0   CLPS block, count 22
+  ov009 0x02112e14      0x068   tag 0x03, 17 x 6 + 2 align
+  ov009 0x02112d84      0x048   tag 0x04, 5 x 14 + 2 align
+  ov009 0x02112d44      0x040   tag 0x45, 8 x 8
+  ov009 0x02112d04      0x040   tag 0x00, 4 x 16
+  ov009 0x02112ccc      0x038   tag 0x2a, 4 x 14
+  ov009 0x02112c78      0x024   tag 0x09, 3 x 12
+  ov009 0x02112c18      0x020   CLPS block, count 1 (was unnamed)
+  ov009 0x02112c58      0x020   CLPS block, count 1 (was unnamed)
+  ov009 0x02112bdc      0x01c   the LVL_Overlay record level_boot names
+  ov009 0x02112bf8      0x020   CLPS count 1, was named but sized 0x10
+  ov009 0x02112c38      0x020   CLPS count 1, was named but sized 0x0c
+  ov070 0x021227d8      0x190   100 constant 0x1000 words
+  ov070 0x021226bc      0x11c   71 constant 0x1000 words
+
+(Thirteen new ov009 lines and two new ov070 lines; two of the thirteen are
+size-only changes to symbols the mount already named.) With all of them the
+interval diff is LOST 0 / GAINED 2140 across every mount.
+
+THREE BANNER ERRORS were found and fixed, all of the count-you-did-not-recount
 kind that the water fix's own banner shipped with (it said six ambiguous
 boundaries where the truth was eleven):
 
@@ -47,6 +71,9 @@ boundaries where the truth was eleven):
     6. The correct extent is 0x1c0. Section 2.
   * ov016's banner said ov009 has "three consecutive count-1 CLPS blocks at
     exactly that spacing". It has four. Section 5.
+  * ov009's reloc-trap banner said "ov006 and ov007 are not mounted at all".
+    Both have been mounted since 2026-08-15 and they host all three of their
+    spurious targets. The guard is residency, not absence. Section 3.
 
 
 1. HOW A CANDIDATE IS FOUND, AND WHY THE LIST IS SHORT
@@ -84,6 +111,57 @@ The two carried fixes the screen cannot see are the ones that are not gap
 blocks: ov021 0x021148dc is an already-mounted named symbol sized by its
 next-symbol delta, and ov070 0x02122968 sits INSIDE a gap block rather than at
 its start.
+
+AND THE SCREEN IS NOT THE MEASURE. It only looks at where a gap block STARTS,
+so it is blind to an interior member, and it says nothing about what a fix
+COSTS. Both blind spots bit this lane, in the same way, and the correction is
+the same tool:
+
+    THE MEASURE IS AN INTERVAL DIFF OF THE HOSTED ROM ADDRESSES, PER MOUNT.
+
+Take the set of DS addresses each mount's sidecar (build/port/host-src/*.c.map,
+"provides" rows, pack pads excluded because they are zero filler) actually
+backs with ROM bytes, before and after. Report LOST and GAINED intervals. Merge
+only when LOST is empty.
+
+HOW TO RE-RUN IT, because no tool in this tree does it yet and a reviewer needs
+the number rather than the paragraph. Generate a BASE sidecar set from the base
+tree's syms files, and diff it against the built tip's own sidecars:
+
+    for ov in ov009 ov016 ov021 ov070; do
+      python port/tools/ovdata.py $ov /tmp/base/${ov}_syms.c \
+             --from-list <base-tree>/port/${ov}_syms.txt --pack
+    done
+    cp build/port/host-src/*.c.map /tmp/allbase/      # untouched mounts
+    cp /tmp/base/*.c.map           /tmp/allbase/      # changed ones, base
+    # then per mount: set(range(a, a+size)) over the "provides" rows whose
+    # name is not pkNNN_gap_*, base minus tip = LOST, tip minus base = GAINED
+
+Copying the tip's sidecars for the untouched mounts is not cosmetic: diffing
+against an ABSENT base file reports the whole mount as gained, which on this
+tree turns a real "+2140, LOST 0" into a meaningless "+440855".
+
+WHY A BYTE SUM CANNOT SUBSTITUTE, stated plainly because this lane got it
+wrong and shipped the wrong number in an earlier draft of section 10. Naming a
+symbol RE-LAYS the discovered-target gap runs around it, and a run that used to
+stretch across its neighbour then stops short. If the newly named symbol is
+bigger than the span the run gave up, the byte total goes UP while a real ROM
+interval silently stops being hosted. The first version of this lane's ov009
+change measured +1872 bytes of coverage and was simultaneously dropping
+[0x02112f58, 0x0211301c) -- 196 bytes, most of the tag-0x01 array -- leaving
+its rebased pointer 28 bytes of runway before the walk crossed into
+port_ov001_gap_020ab620 and its four rebased host pointers. That is this file's
+own failure class, reintroduced by this file's own fix, invisible to the byte
+sum, invisible to mapdiff (which tracks names, and no name was lost), and
+invisible to the candidate screen (0x02112f3c is interior to a gap block).
+
+The interval diff caught it, and then caught five more rounds of it: closing
+one member moves the gap's end back onto the next ambiguous guess upstream and
+drops the next span. THE RULE THAT FALLS OUT IS "NAME THE WHOLE RUN OR NAME
+NONE OF IT". The ov009 descriptor's arrays are two contiguous runs and the
+final change names every member of both; ov070's curve needed two upstream
+neighbours before its own gap ended on a named symbol. Sections 2, 4 and 6 give
+the arithmetic.
 
 
 2. ov009 0x02113214 -- 28 records of SIXTEEN bytes, not six
@@ -124,14 +202,24 @@ symbol, not a record boundary and 0x118 short of the array that follows. The
   0x021133c4  e82c00ed 0c80061f 80000000 34100000
 
 A repeated type id in the first halfword (0x00ed), a coordinate triple, an
-orientation halfword that only ever takes 0x0000/0x4000/0x8000/0xc000, and two
-counters that step once per record (0x0d31, 0x0e32, 0x0f33, 0x1034). The last
-record starts at 0x021133c4 and ends at 0x021133d4. The tag-0x40 array at
-0x02113104 has the identical record shape and in places identical records:
-0x02113124 and 0x02113224 are the same sixteen bytes.
+orientation halfword, and two counters that step once per record (0x0d31,
+0x0e32, 0x0f33, 0x1034). The last record starts at 0x021133c4 and ends at
+0x021133d4. The tag-0x40 array at 0x02113104 has the identical record shape and
+in places identical records: 0x02113134 and 0x02113234 are the same sixteen
+bytes, and so are 0x02113144 and 0x02113244. (0x02113124 and 0x02113224 are NOT
+-- they differ at byte 14, 0xff against 0x01. An earlier draft named that pair.)
 
-Only the tag-0x02 array is Vector3<s16>. Its points read as world coordinates
-from the first to the last, [-200, 783, 3100] through [-5200, 254, 4000].
+THE ORIENTATION HALFWORD IS NOT A CLEAN QUADRANT, which an earlier draft
+claimed ("only ever takes 0x0000/0x4000/0x8000/0xc000"). Counted over the 59
+records of the three 16-byte arrays: 33 carry zero, 26 carry something, and of
+those 26 only EIGHTEEN are 0x4000/0x8000/0xc000. The other eight are 0x2000,
+0xa000 and 0xaaab in the tag-0x01 array, 0x09f4, 0x2333, 0x2aaa and 0xeaab in
+tag 0x40, and 0xe000 in tag 0x20. Nothing in the extent derivation rests on
+this field; it is described here only because a banner described it wrongly.
+
+Only the tag-0x02 and tag-0x03 arrays are Vector3<s16>. The tag-0x02 points
+read as world coordinates from the first to the last, [-200, 783, 3100] through
+[-5200, 254, 4000].
 
 WHAT WAS HOSTED. 24 bytes, the +0x18 floor, with FOUR ambiguous boundaries
 inside the span (counted, not estimated). The first is 0x02113228, twenty bytes
@@ -197,12 +285,18 @@ port_ov009_gap_02112c9c (+4, +12, +20) against all nine into
 port_ov009_gap_02112dcc, which is the same structure sized correctly by its
 next-symbol delta. Records 3..5 were being read out of the next block.
 
-SIDE EFFECT, MEASURED, AND IT IS THE GOOD KIND. Naming 0x02113214 (section 2)
-ends the discovered-target run that used to stop at 0x021130cc, so the gap
-before it is re-laid as port_ov009_gap_0211301c[504] = 0xe8 + 0x110, covering
-the tag-0x05 array AND the tag-0x40 array at 0x02113104 exactly. Both were
-short: tag-0x05 was hosted 176 bytes of 232 off the tail of
-port_ov009_gap_02112b60[1388], and 0x02113104 was not hosted at all.
+SIDE EFFECT, MEASURED, AND IT CUT BOTH WAYS. Naming 0x02113214 (section 2) ends
+the discovered-target run that used to stop at 0x021130cc, so the gap before it
+is re-laid as port_ov009_gap_0211301c[504] = 0xe8 + 0x110, covering the tag-0x05
+array AND the tag-0x40 array at 0x02113104 exactly. Both were short: tag-0x05
+was hosted 176 bytes of 232 off the tail of port_ov009_gap_02112b60[1388], and
+0x02113104 was not hosted at all. That is the good half.
+
+The bad half is that the SAME re-lay shortened port_ov009_gap_02112b60 from
+1388 to 1016 and dropped [0x02112f58, 0x0211301c), and closing that dropped the
+next span upstream, five times over, down to the CLPS run. Section 1 tells that
+story because the lesson is about method, not about this table. The lines
+listed in section 0 close all of it; the interval diff is the proof.
 
 Nothing in this change names 0x02113104. The contested window keeps its status
 as an open question; it simply stops being a hole, because a run that used to
@@ -268,12 +362,29 @@ Word index 65 of 101. Words 66..100 (35 of them) mirror words 30..64 (35 of
 them) value for value, which is what the carried banner claims and it is
 correct. The hosted copy was the rising half only.
 
-COVERAGE TRADE, as e4f25f862 records and as measured here: naming
-data_ov070_02122968 takes it out of the discovered-target set, so
-port_ov070_gap_02122594 shrinks 0x4d8 -> 0x304 (1240 -> 772 bytes in the
-generated source) and ROM [0x02122898, 0x02122968), 208 bytes, stops being
-hosted. Nothing reaches those bytes; the old extent was that run stretching to
-the same guess at the apex that truncated the curve.
+THERE IS NO COVERAGE TRADE. e4f25f862 recorded one and an earlier draft of this
+document repeated it: naming data_ov070_02122968 takes it out of the
+discovered-target set, port_ov070_gap_02122594 shrinks 0x4d8 -> 0x304, and ROM
+[0x02122898, 0x02122968) -- 208 bytes -- stops being hosted. Both called that
+acceptable because nothing reaches the dropped span.
+
+THAT IS THE WRONG STANDARD, and it is the standard that let this lane
+reintroduce its own failure class in ov009. A hosted interval that stops being
+hosted is the defect, whoever reads it, because "nothing reaches it" is a claim
+about today's call graph and the truncation outlives it.
+
+The hole is closed instead, with two upstream lines. The dropped span sits
+inside a run of 171 constant 0x1000 words spanning [0x021226bc, 0x02122968),
+and that run carries two real non-ambiguous symbols that are both reloc
+targets -- the .rodata pointers of the records at 0x021234c4 and 0x021234dc:
+
+  data_ov070_021227d8:0x190   0x021227d8 + 0x190 = 0x02122968, the curve
+  data_ov070_021226bc:0x11c   0x021226bc + 0x11c = 0x021227d8
+
+Every one of those 271 words is 0x1000, verified against the raw image. With
+both lines ov070's gap ends on a named symbol, the cascade stops, and ov070's
+interval diff is LOST 0 / GAINED 144 -- the 144 being the falling half of the
+curve, which is the whole point.
 
 
 7. ov021 0x021148dc -- the class-name string
@@ -282,8 +393,8 @@ the same guess at the apex that truncated the curve.
 Carried extent 0x14, verified. This one is a named symbol that was already
 mounted and only unsized, so it is the one case where the fix adds no new name.
 
-  0x021148d4  61643631 436a624f 75685376 72657474
-  0x021148e4  0000635f
+  0x021148dc  61643631 436a624f 75685376 72657474
+  0x021148ec  0000635f
 
 "16daObjCvShutter_c", 18 characters with the NUL at +18 and a second NUL at
 +19. 0x14 = 20 runs to ShutterHmc_SpawnInfo at 0x021148f0.
@@ -311,12 +422,14 @@ fix on the frame and a real one on any name-keyed lookup.
 Not every one of these can reach a frame, and saying which can is the
 difference between a fix that needed a rendering A/B and one that did not.
 
-  ov009 0x021133d4, 0x02113214, 0x02112c9c   HIGH, render-reachable.
-      These are level 1's own descriptor, the level the selftest boots. Each
-      array is reached by TWO rebased host pointers (section 2), and the walk
-      length is a count byte that exceeds the hosted length by 204 records,
-      27 records and 3 records respectively. This is the group the
-      perturbation A/B exists for.
+  the ov009 descriptor run                   HIGH, render-reachable.
+      0x02112bdc through 0x021138fc: the two record tables, the two contiguous
+      array runs they index, the four CLPS blocks and the LVL_Overlay record.
+      This is level 1's own descriptor, the level the selftest boots. Each
+      array is reached by a rebased host pointer (section 2), and for the three
+      the battery named the walk length is a count byte that exceeded the
+      hosted length by 204 records, 27 records and 3 records. This is the group
+      the perturbation A/B exists for.
 
   ov070 0x02122968                            MEDIUM, render-reachable.
       Reached as the third of four .rodata pointers in a 24-byte record at
@@ -345,16 +458,24 @@ difference between a fix that needed a rendering A/B and one that did not.
 9. THE PERTURBATION A/B, AND WHY IT SHOWS NOTHING
 ---------------------------------------------------
 
-THE RESULT FIRST, BECAUSE IT IS A NULL AND NULLS GET DRESSED UP. Four builds,
-seven frame counts each, level 1, all in a separate tree (C:/tmp/gap5ab) so the
-gated tree never held a padded binary. All 28 runs produced the SAME md5 per
-count and the same final position per count.
+THE RESULT FIRST, BECAUSE IT IS A NULL AND NULLS GET DRESSED UP. Six builds,
+seven frame counts each, level 1, every padded one in a separate tree
+(C:/tmp/gap5ab) so the gated tree never held a padded binary. All 42 runs
+produced the SAME md5 per count and the same final position per count.
 
-  probe                  .dsstate span            291..303
-  P1 pre-fix,  unpadded  0xbb0000..0xc9ab30       reference
-  P2 pre-fix,  +64B pad  0xbb0000..0xc9ab78       identical to P1
-  P3 post-fix, unpadded  0xbb0000..0xc9a9a8       identical to P1
-  P4 post-fix, +64B pad  0xbb0000..0xc9a9f0       identical to P1
+  probe                       .dsstate span         291..303
+  P1  pre-fix,  unpadded      0xbb0000..0xc9ab30    reference
+  P2  pre-fix,  +64B pad      0xbb0000..0xc9ab78    identical to P1
+  P3  six-block, unpadded     0xbb0000..0xc9a9a8    identical to P1
+  P4  six-block, +64B pad     0xbb0000..0xc9a9f0    identical to P1
+  P3b FINAL tip, unpadded     0xbb0000..0xc9a3a0    identical to P1
+  P4b FINAL tip, +64B pad     0xbb0000..0xc9a3e8    identical to P1
+
+P3/P4 were measured at the six-block package, before the interval diff forced
+the other fifteen lines. P3b/P4b are the package as it stands and are the rows
+that matter; P3/P4 are kept because they are what an earlier draft reported and
+a reviewer re-reading this should see that the answer did not change when the
+package tripled in size.
 
   count  md5
   291    a76abb6b537d47d340043f9c326b42eb
@@ -377,9 +498,12 @@ WHAT THIS DOES AND DOES NOT LICENCE.
     counts. So this lane CANNOT claim to have removed an observed sensitivity.
     The fixes rest on the extent derivations and the consumer evidence above,
     not on a frame delta.
-  * P1 == P3 means the package changes no pixels. No BMP baseline needs
-    updating for this merge.
-  * P3 == P4 means the package introduces no new sensitivity.
+  * P1 == P3b means the package changes no pixels, at a .dsstate span 1936
+    bytes smaller than base. No BMP baseline needs updating for this merge.
+  * P3b == P4b means the package introduces no new sensitivity.
+  * None of these six rows says the truncations were harmless. It says the
+    level-1 selftest at seven counts cannot see them, which is a statement
+    about the probe.
 
 THE STRUCTURAL REASON THE PRE-FIX PROBE IS QUIET, as far as it can be
 established. ov009 is hosted TWICE. hal/level_boot.cpp's row for level 1
@@ -416,31 +540,83 @@ For the player-loop lane, because old save states stop loading when the span
 changes and that is desired behaviour rather than a bug.
 
   base 3a5733c03  .dsstate [0xbb0000, 0xc9ab30)  961328 bytes  11666 symbols
-  tip             .dsstate [0xbb0000, 0xc9a9a8)  960936 bytes  11672 symbols
+  tip             .dsstate [0xbb0000, 0xc9a3a0)  959392 bytes  11681 symbols
 
-THE BASE DOES NOT MOVE. The span SHRINKS by 392 bytes, which reads backwards
+THE BASE DOES NOT MOVE. The span SHRINKS by 1936 bytes, which reads backwards
 for a change whose whole point is hosting more ROM, so here is where it goes.
-Both columns measured by summing the array declarations in the two trees'
-generated build/port/host-src/ovNNN_syms.c, splitting pk*_gap_* pack padding
-(zero filler) from everything else (real ROM bytes):
 
-  mount     real ROM bytes hosted        pack padding
-  ov009     2944 -> 4860   (+1916)       5952 -> 4136   (-1816)
-  ov016      764 ->  768      (+4)       5232 -> 5200      (-32)
-  ov021      428 ->  444     (+16)       3748 -> 3732      (-16)
-  ov070     3032 -> 2968     (-64)       3444 -> 3040     (-404)
-  TOTAL     7168 -> 9040   (+1872)      18376 -> 16108   (-2268)
+COVERAGE, as a SET of unique DS addresses per mount, off the ovdata sidecars
+(build/port/host-src/*.c.map). This is the interval-diff measure of section 1,
+totalled; the LOST column is zero everywhere and that is the merge condition:
 
-+1872 real, -2268 padding, net -396 against the -392 the linker reports; the
-4-byte remainder is inter-block alignment.
+  mount     unique ROM bytes hosted      lost
+  ov009     2756 -> 4732   (+1976)          0
+  ov016      904 ->  908      (+4)          0
+  ov021      512 ->  528     (+16)          0
+  ov070     3132 -> 3276    (+144)          0
+  TOTAL     7304 -> 9444   (+2140)          0
 
-So the span shrinks because naming a symbol lets --pack lay it against its
-neighbour instead of padding around a hole, and the padding recovered is larger
-than the ROM bytes gained. ov070 is the only mount that loses real coverage,
-and section 6 says which 208 bytes and why nothing reaches them.
+AN EARLIER DRAFT PUT +1872 HERE and said "ov070 is the only mount that loses
+real coverage, 208 bytes". Both halves were wrong. The number came from summing
+the generated array declarations, which double-counts rows that overlap (a
+named symbol also covered by a gap block) -- the same sum over these sidecars
+gives +1956, and the 184-byte difference from the true +2140 is exactly that
+overlap. And no mount loses coverage now: ov070's 208-byte hole is closed by
+data_ov070_021227d8 and data_ov070_021226bc (section 6), and the ov009 holes
+that draft never noticed are closed by the run naming (sections 2 and 4).
+
+The SPAN still shrinks while coverage grows, and that is the pack pads: naming
+a symbol lets --pack lay it against its neighbour instead of padding around a
+hole. 2140 bytes more real ROM inside a section 1936 bytes smaller means the
+zero filler fell by roughly four kilobytes. The pads are not in the sidecars,
+so that figure is a subtraction rather than a measurement, and it is offered as
+orientation only -- the load-bearing numbers here are the span, which the
+linker prints, and the coverage set, which the interval diff computes.
+
+Old .dsstate save states will refuse. That is the documented desired behaviour.
 
 
-11. WHAT WAS DELIBERATELY NOT TOUCHED
+11. ONE FLAKE, RECORDED RATHER THAN RE-RUN AWAY
+-------------------------------------------------
+
+The gate run on the final package came back RED:
+
+    selftest level 40: FAIL rc=4294967295
+
+rc 4294967295 is -1. It has not reproduced since, and here is the whole
+measurement rather than the sentence "I re-ran it and it passed", which is the
+sentence that hides a real intermittent:
+
+  * level 40 standalone, tip build, same env the battery uses
+    (SM64DS_LEVEL=40, SM64DS_FAULTS_FATAL=1, SM64DS_WINDOW_SELFTEST=300):
+    24 runs, 0 failures, all reaching frame 299 and pos=(0, 1228800, 0).
+  * level 40 standalone, PURE BASE build at 3a5733c03 in a second tree:
+    20 runs, 0 failures.
+  * the full battery re-run on the same binary: ALL GREEN, "selftest level 40:
+    ok".
+  * no crash.txt, no fault report, and no playlog entry for the failing run,
+    while the surrounding manual runs did leave playlog entries.
+
+port/ov007_seat.txt records the same signature on a different level: "the
+middle one failed with selftest level 7: FAIL rc=4294967295 (rc -1, a killed
+child, not a fault -- no fault report and no playlog entry), on a machine that
+was building in another window at the time." Same rc, same absence of artifacts.
+
+WHAT THAT DOES NOT ESTABLISH. 0 failures in 20 base runs is not proof the base
+is immune -- it failed to catch the event either, and one occurrence in ~45
+runs is entirely consistent with a rate that 20 samples would miss on both
+sides. So this is NOT a demonstration that the flake is unrelated to this
+package. It is a demonstration that the package does not make level 40 fail
+reproducibly, plus a signature match to a documented environmental kill. A
+reviewer who wants the stronger claim needs a run count that 20 does not buy.
+
+Level 40 is Bowser in the Sky and its census is BOWSER, BOWSER_TAIL,
+BOWSER_FIRE, SPIKE_BOMB, BOWSER_SKY_PLATFORM, PLAYER, CAMERA, HUD, MINIMAP.
+None of those classes lives in ov009, ov016, ov021 or ov070, which is the
+argument from the other direction and is also not a proof.
+
+
+12. WHAT WAS DELIBERATELY NOT TOUCHED
 ---------------------------------------
 
 Named here so a reader does not read their absence as an oversight:
@@ -454,4 +630,15 @@ Named here so a reader does not read their absence as an oversight:
     entries in shared dsd config is the repo owner's call, not a lane's.
   * The 65-row CLPS census this lane's first pass produced. It rests on a
     trailing-ffffffff formula that section 5 shows is wrong. Re-run against the
-    pad-to-32 rule before anyone treats it as a worklist.
+    pad-to-32 rule before anyone treats it as a worklist. Note that four ov009
+    rows of that census ARE now fixed, not because the census was trusted but
+    because the interval diff walked into them from the other end.
+
+WHAT A FOLLOW-UP LANE SHOULD DO WITH THE INTERVAL DIFF. It is the measure this
+lane needed and did not have, and nothing in the tree runs it. The eleven other
+mounts were checked here only incidentally, by diffing base against tip; a
+mount whose syms file nobody is editing has no before-column to diff against
+and so is not covered at all. Making it a standing check means giving each
+mount a recorded hosted-address set the way tools/tiers.py records tiers, so a
+run that drops an interval is caught by CI rather than by a reviewer reading a
+byte total. That is a tool, not a banner, and it is out of this lane's scope.

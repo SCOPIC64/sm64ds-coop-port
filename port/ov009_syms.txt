@@ -20,8 +20,20 @@
 # exactly what it said for FLAG.
 Bird_SpawnInfo:0x1c CastleWater_SpawnInfo:0x1c MetalNet_SpawnInfo:0x1c Flag_SpawnInfo:0x1c
 
-# ---- .data: the three CLPS blocks and the water's texture animation ----
-data_ov009_02112bc4 data_ov009_02112bf8 data_ov009_02112c38
+# ---- .data: the CLPS run and the water's texture animation ----
+# ov009 carries FOUR consecutive count-1 CLPS blocks, not the three this line
+# used to name. Each is 0x20 by the pad-to-32 rule (see port/ov016_syms.txt for
+# the ROM-wide count), and 0x02112bf8 + 4 * 0x20 = 0x02112c78, the tag-0x09
+# array below. Two of them were unnamed and the two that were named were sized
+# by dsd's next-symbol delta, which is an ambiguous guess inside every one of
+# them: 0x02112bf8 got 0x10 of its 0x20 and 0x02112c38 got 0x0c.
+#
+# 0x02112bdc is the LVL_Overlay record hal/level_boot.cpp names for level 1 --
+# seven words, ending on the first CLPS block.
+data_ov009_02112bc4
+data_ov009_02112bdc:0x1c
+data_ov009_02112bf8:0x20 data_ov009_02112c18:0x20
+data_ov009_02112c38:0x20 data_ov009_02112c58:0x20
 # The moat water's BTA translate track, and why its size is spelled out.
 #
 # The castle-grounds water is a texgen-mode-1 material whose S/T translation
@@ -64,24 +76,48 @@ data_ov009_021122ec:0x16c
 # table's FIRST record and names a different, four-entry array.
 #
 # THE ELEMENT SIZE IS PER TAG, NOT UNIFORM, and that is the whole subtlety
-# here. Four records point into one contiguous run and each stride is fixed by
-# where the next array starts:
+# here. SIX records point into one contiguous run, a CLPS block sits in the
+# middle of it, and each stride is fixed by where the next member starts:
 #
+#   0x02112dd4  tag 0x03  n=17  -> 0x02112e14   17 * 6 + 2 align = 0x068
+#   (no record) CLPS      n=22  -> 0x02112e7c   8 + 8*22 -> pad 32  = 0x0c0
+#   0x02112dec  tag 0x01  n=14  -> 0x02112f3c   14 * 16 = 0x0e0
 #   0x02112ca4  tag 0x05  n=29  -> 0x0211301c   29 * 8  = 0x0e8
 #   0x02112cbc  tag 0x40  n=17  -> 0x02113104   17 * 16 = 0x110
 #   0x02112cac  tag 0x20  n=28  -> 0x02113214   28 * 16 = 0x1c0
 #   0x02112dcc  tag 0x02  n=220 -> 0x021133d4  220 * 6  = 0x528
 #
-# 0x0211301c + 0x0e8 + 0x110 + 0x1c0 + 0x528 = 0x021138fc, the next real
-# symbol. Four consecutive exact landings with three different strides, so the
-# chain is pinned end to end and no single stride is a guess.
+# 0x02112e14 + 0x68 + 0xc0 + 0xe0 + 0xe8 + 0x110 + 0x1c0 + 0x528 = 0x021138fc,
+# the next real symbol. SEVEN members, seven consecutive exact landings, four
+# different strides plus one CLPS. The chain is pinned end to end and no single
+# stride is a guess.
 #
-# Only the tag-0x02 array is Vector3<s16> points. The tag-0x20 and tag-0x40
-# arrays are 16-byte records -- the stride is visible in the bytes (a repeated
-# type id in the first halfword, a coordinate triple, an orientation halfword
-# that only ever takes 0x0000/0x4000/0x8000/0xc000, and two counters that step
-# once per record), and the two arrays share the record shape byte for byte in
-# places. Reading 0x02113214 as 6-byte points gives 0xa8, which lands nowhere.
+# NAME THE WHOLE RUN OR NAME NONE OF IT. Sizing one member re-lays the gap runs
+# around it, and a run that used to stretch over its neighbour then stops
+# short. Sizing 0x02113214 alone dropped [0x02112f58, 0x0211301c) -- 196 bytes,
+# most of the tag-0x01 array -- out of the mount entirely, leaving that array's
+# rebased pointer 28 bytes of runway before the walk crossed into
+# port_ov001_gap_020ab620 and its four rebased host pointers. That is this
+# lane's own failure class, reintroduced by its own fix, and a byte-sum
+# coverage total cannot see it because the additions outweighed the loss. The
+# measure is an INTERVAL DIFF of the hosted ROM addresses; see
+# port/gap_truncations.txt section 1.
+#
+# Only the tag-0x02 and tag-0x03 arrays are Vector3<s16> points. The tag-0x01,
+# tag-0x20 and tag-0x40 arrays are 16-byte records -- the stride is visible in
+# the bytes (a repeated type id in the first halfword, a coordinate triple, an
+# orientation halfword and two counters that step once per record), and the
+# arrays share the record shape byte for byte in places (0x02113134 and
+# 0x02113234 are identical sixteen bytes, as are 0x02113144 and 0x02113244).
+# An earlier draft of this banner said the orientation halfword "only ever
+# takes 0x0000/0x4000/0x8000/0xc000". It does not, and here is the count.
+# Across the 59 records of the three arrays, 33 carry zero and 26 carry
+# something; of those 26, EIGHTEEN are 0x4000/0x8000/0xc000 and EIGHT are not:
+# 0x2000 and 0xa000 and 0xaaab in tag 0x01, 0x09f4 and 0x2333 and 0x2aaa and
+# 0xeaab in tag 0x40, 0xe000 in tag 0x20. (Five of those eight is the right
+# answer for the tag-0x40 and tag-0x20 arrays alone, which is the set the
+# earlier draft described; the other three come with the tag-0x01 array.)
+# Reading 0x02113214 as 6-byte points gives 0xa8, which lands nowhere.
 #
 # Hosted before this: 96 bytes of the 220-point array (16 points, cut at the
 # first of TWENTY ambiguous boundaries inside its span) and 24 bytes of the
@@ -96,21 +132,92 @@ data_ov009_021122ec:0x16c
 # 0x021136e0 -> ov007, 0x02113758 -> ov006. None of them is a pointer. They are
 # dsd misreading path coordinates that happen to parse as plausible addresses --
 # 0x021135cc is point 84, x=-5000 y=530, and the two s16s together spell
-# 0x0212ec78. Harmless today because the --cross pass only patches a word whose
-# TARGET some mount hosts: ov006 and ov007 are not mounted at all, and ov089 is
-# mounted per symbol but does not host 0x021310cc. Verified: ov_cross.c has zero
-# patches into this array and ovsweep reports no raw cross-mount words.
+# 0x0212ec78.
 #
-# The day a mount starts providing one of those three targets, --cross will
-# write a host address over two s16 path coordinates -- eight of them across the
-# four sites -- which is exactly the failure this lane exists to remove, only
-# arriving through the reloc table instead of an array overrun. The relocs.txt
-# entries are NOT suppressed here on purpose: that file is dsd config shared
-# with the decomp side and the call to edit it is Tango's.
+# AN EARLIER DRAFT SAID THIS WAS SAFE BECAUSE "ov006 and ov007 are not mounted
+# at all". THAT IS FALSE on this base. Both were wired in on 2026-08-15
+# (67803f980 ov004+ov006, 40b74e4a2 ov007) and between them they host all three
+# of their spurious targets: data_ov006_0212ec78, data_ov006_0212ec14 and
+# data_ov007_020f11f8 (whose claim spans 0x020f11f8..0x020f295c). Only the
+# ov089 leg of the old paragraph survives -- ov089 is mounted per symbol and
+# does NOT host 0x021310cc.
+#
+# The real guard is RESIDENCY, measured against ovdata.Residency:
+#
+#   coresident(9, 6) = False      coresident(9, 7) = False
+#   coresident(9, 89) = True
+#
+# ov009 cannot be live at the same instant as ov006 or ov007, so --cross never
+# offers their storage to an ov009 word however well the address matches. On
+# top of that comes the CONTEST rule: a word is left raw when more than one
+# CO-RESIDENT mount's window could own it. Naming the full 220-point array puts
+# all four spurious words inside the mount for the first time, and the cross
+# pass's contested count goes 105 -> 108. The three new rows are
+# data_ov009_021133d4 +504, +768 and +900:
+#
+#   +504  0x0212ec78  windows ov006(not cores.) ov084 ov085  -> contested
+#   +768  0x021310cc  windows ov006(not cores.) ov089 ov091  -> contested
+#   +900  0x0212ec14  windows ov006(not cores.) ov084 ov085  -> contested
+#
+# The fourth, +780 -> 0x020f11f8, is NOT contested and is not rebased either:
+# ov002 is the only co-resident mount whose window covers that address and
+# ov002 does not provide it, so the word lands in "no co-resident mount owns".
+#
+# Verified on this tree: ov_cross.c is byte-identical before and after these
+# lines, it has zero patches into this array, and ovsweep reports 0 raw
+# cross-mount words.
+#
+# WHAT WOULD ARM IT, now that "unmounted" is no longer the answer. Each of the
+# three contested words needs only for its window to stop being contested --
+# one of ov084/ov085 or one of ov089/ov091 ceasing to be co-resident with
+# ov009, or dropping its claim over that address -- and --cross would then have
+# a single co-resident owner and write a host address over two s16 path
+# coordinates. Eight coordinates across the four sites. That is exactly the
+# failure this lane exists to remove, arriving through the reloc table instead
+# of an array overrun, and the margin is now ONE residency edge rather than a
+# whole unmounted overlay. The relocs.txt entries are still NOT suppressed
+# here: that file is dsd config shared with the decomp side and the call to
+# edit it is Tango's. This paragraph is the handoff for that call.
 data_ov009_021133d4:0x528
 data_ov009_02113214:0x1c0
-# And the six-record table itself, which is the index for both of the above and
-# is truncated by the same mechanism. 6 records * 8 = 0x30, ending exactly on
+# The three members upstream of them in the same run. These are NOT optional
+# extras: naming the two above without naming these drops [0x02112f58,
+# 0x0211301c) out of the mount, as the "name the whole run" paragraph says.
+# Each end is the next member's start, from the table above.
+data_ov009_02112f3c:0xe0
+data_ov009_02112e7c:0xc0
+data_ov009_02112e14:0x68
+# Naming 0x02112e14 exposed one more upstream, the same way: [0x02112d9c,
+# 0x02112dcc) dropped out. That is table B's record 3, {tag 0x04, n=5} ->
+# 0x02112d84, and its stride is 14: the record's leading halfword marker sits
+# at 0x02112d84, 0x02112d92, 0x02112dae and 0x02112dbc (deltas 14, 28, 14 --
+# record 2 carries a different id, 0xff07, so it is absent from that scan but
+# on the grid). 5 * 14 = 0x46, +2 align = 0x48, landing on data_ov009_02112dcc,
+# which is table B itself and whose address is pinned by the descriptor word at
+# 0x02112b78. Same +2 alignment the tag-0x03 array above uses.
+#
+# And that exposed the rest of ITS run, so here is the whole thing. The
+# descriptor's arrays form a SECOND contiguous run, [0x02112ccc, 0x02112dcc),
+# four arrays with four different strides landing exactly on table B:
+#
+#   0x02112e0c  tag 0x2a  n=4  -> 0x02112ccc   4 * 14     = 0x38
+#   0x02112c9c  tag 0x00  n=4  -> 0x02112d04   4 * 16     = 0x40
+#   0x02112cc4  tag 0x45  n=8  -> 0x02112d44   8 * 8      = 0x40
+#   0x02112ddc  tag 0x04  n=5  -> 0x02112d84   5 * 14 + 2 = 0x48
+#
+# 0x02112ccc + 0x38 + 0x40 + 0x40 + 0x48 = 0x02112dcc, which is table B, whose
+# address is pinned by the descriptor word at 0x02112b78. 0x100 exactly.
+data_ov009_02112ccc:0x38
+data_ov009_02112d04:0x40
+data_ov009_02112d44:0x40
+data_ov009_02112d84:0x48
+# One more upstream, and this is where it stops: table A itself is preceded by
+# record 0x02112df4's array, {tag 0x09, n=3} -> 0x02112c78, 3 * 12 = 0x24,
+# landing on 0x02112c9c which is table A. Below it the run is the four
+# count-1 CLPS blocks, which dsd already sizes correctly.
+data_ov009_02112c78:0x24
+# And the six-record table itself, which is the index for three of the run's
+# members and is truncated by the same mechanism. 6 records * 8 = 0x30, ending on
 # data_ov009_02112ccc -- which is not an inference, it is the target of the
 # ninth record of the OTHER table (0x02112e0c, tag 0x2a, n=4). dsd guessed an
 # ambiguous boundary at 0x02112ca8, twelve bytes in, and ovdata's +0x18 floor
@@ -134,7 +241,12 @@ data_ov009_02113214:0x1c0
 # the generated source rather than trusting the paragraph:
 #
 #   cd build/port/host-src
-#   grep -c "data_ov009_02112c9c + " ov009_syms.c      -> 6
+#   grep -c '^    \*(unsigned int \*)(data_ov009_02112c9c + ' ov009_syms.c   -> 6
+#
+# ANCHOR IT. The obvious `grep -c "data_ov009_02112c9c + "` returns 8, not 6:
+# two of the hits are pointers rebased INTO this table from elsewhere
+# (port_ov009_gap_02112b6c + 4 and port_ov009_gap_02112b60 + 16), which are
+# inbound, not the six outbound record pointers the check is about.
 data_ov009_02112c9c:0x30
 # the four {function, delta} pairs __sinit_ov009_02112458 copies into the
 # Bird's own behaviour table

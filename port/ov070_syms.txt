@@ -79,14 +79,30 @@ data_ov070_021222e0 data_ov070_021222e8 data_ov070_02122404
 # 0x02122afc, where __sinit_ov070_02122afc begins; data_ov070_021234c4 + 0x10
 # is the word that points at it.
 #
-# SIDE EFFECT, measured: naming it takes 0x02122968 out of the discovered-target
-# set, so port_ov070_gap_02122594 shrinks 0x4d8 -> 0x304 and ROM
-# [0x02122898, 0x02122968) -- 208 bytes -- stops being hosted. A pointer landing
-# at 0x02122594 now has 772 bytes of runway rather than 1240. Nothing reaches
-# the dropped span (guards clean, selftest stderr identical), and the old extent
-# was never a real extent anyway: it was that run stretching to the SAME
-# ambiguous guess at the apex that truncated the curve.
+# SIDE EFFECT, and it needs a second line to close. Naming it takes 0x02122968
+# out of the discovered-target set, so port_ov070_gap_02122594 shrinks
+# 0x4d8 -> 0x304 and ROM [0x02122898, 0x02122968) -- 208 bytes -- stops being
+# hosted. An earlier draft of this banner called that an acceptable trade
+# because nothing reaches the dropped span. THAT WAS THE WRONG STANDARD: a
+# hosted interval that stops being hosted is the same defect this file is
+# fixing, whoever reads it. The measure is an interval diff, not a byte total.
+#
+# The dropped span is inside a run of 171 constant 0x1000 words spanning
+# [0x021226bc, 0x02122968), and that run has a real non-ambiguous symbol at
+# 0x021227d8 -- the first of the four .rodata pointers in the record at
+# 0x021234c4. Sizing that symbol to the curve's start closes the hole with a
+# handle that is a reloc target rather than a dsd guess:
+# 0x02122968 - 0x021227d8 = 0x190, 100 words, every one of them 0x1000.
+# Closing that one moved the gap's end back to the ambiguous guess at
+# 0x0212279c, dropping [0x0212279c, 0x021227d8). Same answer one step further
+# back: 0x021226bc is the other real reloc-target symbol in the constant run
+# (the first .rodata pointer of the record at 0x021234dc), and 0x11c takes it
+# to 0x021227d8. With both lines the gap now ends on a named symbol and the
+# cascade stops -- everything below 0x021226bc is real symbol to real symbol
+# with no ambiguous cut between, so dsd's own deltas already size it.
 data_ov070_02122968:0x194
+data_ov070_021227d8:0x190
+data_ov070_021226bc:0x11c
 
 # ---- .data: the 30 state PMF sources (each 8 bytes, {fn, 0}) ---------------
 data_ov070_021230c0 data_ov070_021230c8 data_ov070_021230d0
