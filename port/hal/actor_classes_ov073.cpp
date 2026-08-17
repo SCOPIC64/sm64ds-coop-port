@@ -185,9 +185,12 @@ void func_0203d384(void);
    hal/cxx_aliases.cpp already binds the `int` spelling (?..@@3HA); ov073's
    func_ov073_0211f61c spells it `unsigned short`. */
 #pragma comment(linker, "/alternatename:?data_0209e650@@3GA=_data_0209e650")
-/* Player::GetHurtState is a real C++ method in its matched TU (already carried
-   by slice_w1l5.txt) and func_ov073_02120ed0 calls it by its C name. */
-#pragma comment(linker, "/alternatename:__ZN6Player12GetHurtStateEv=?GetHurtState@Player@@QAEHXZ")
+/* Player::GetHurtState WAS AN /alternatename ON THIS LINE AND IT WAS WRONG.
+   The matched TU is a real C++ method (carried by slice_w1l5.txt) and its
+   callers spell the flat C name -- but an /alternatename is a NAME bridge and
+   never an ABI bridge, so pointing the flat name at ?GetHurtState@Player@@
+   QAEHXZ delivered the receiver nowhere. The face is further down this file
+   and the evidence is in its header. */
 
 /* ONE CROSS-LANGUAGE SPELLING in the closure. func_ov073_0212128c reaches the
    arm9 veneer func_02011d08, whose matched TU calls _ZN5Sound13Func_02048ec4Ev
@@ -196,6 +199,52 @@ void func_0203d384(void);
    Sound::LoadInitialGroup precedent in hal/cxx_aliases.cpp, alias rather than
    face so no second declaration of Sound has to agree with the first. */
 #pragma comment(linker, "/alternatename:__ZN5Sound13Func_02048ec4Ev=?Func_02048ec4@Sound@@SAXXZ")
+
+/* THE RECEIVER-BRIDGING FACE FOR Player::GetHurtState, replacing the
+   /alternatename this file used to carry beside the data bridges above.
+   port/abi_checks.txt section 6 defect 3.
+
+   The deleted directive was
+
+     __ZN6Player12GetHurtStateEv = ?GetHurtState@Player@@QAEHXZ
+
+   flat C name on the left, __thiscall method on the right, which is the
+   dropped-receiver direction: the caller pushes the player, the body reads
+   ECX. THREE COMPILED CALL SITES pass it the ARM way and always did --
+
+     src/func_ov073_02120ed0.c:20   extern int _ZN6Player12GetHurtStateEv(void *self);
+     src/func_ov073_02120ed0.c:112  if (_ZN6Player12GetHurtStateEv(p) == 4) goto hz;
+     src/func_ov073_02120ed0.c:113  if (_ZN6Player12GetHurtStateEv(p) == 5) goto hz;
+     src/func_ov077_02126640.cpp:37 if (_ZN6Player12GetHurtStateEv(a) < 0) {
+
+   -- and the body src/_ZN6Player12GetHurtStateEv.cpp:10 reads `this` twice:
+
+     if (_ZN6Player7IsStateERNS_5StateE((char *)this, data_ov002_02110094))
+         return mStateStep & 7;
+     return -1;
+
+   so through the directive the state test ran against whatever ECX held and
+   the returned hurt step was read out of that same object. It never faults on
+   a plausible pointer; it answers the wrong question. All three sites are
+   damage tests (a Chief Chilly slam and an ov077 reader), so the failure is a
+   character who does or does not react to being hit, not a crash.
+
+   The face is a plain forward: the value the caller pushed goes into ECX where
+   the method reads it. */
+struct Player
+{
+    /* include/Player.h:333 declares `int GetHurtState();` on
+       `struct Player : Actor`, which decorates ?GetHurtState@Player@@QAEHXZ.
+       Declared locally rather than by including Player.h, the reason
+       hal/bob_enemy_bridges.cpp gives beside its own one-method Player shadow:
+       a wrong signature here is an LNK2019 on a name that does not exist,
+       never a quiet call to a sibling. Actor.h forward-declares Player, so
+       this completes that declaration and does not conflict with it. */
+    int GetHurtState();
+};
+
+extern "C" int _ZN6Player12GetHurtStateEv(void *thiz)
+{ return ((Player *)thiz)->Player::GetHurtState(); }
 
 // ---- the trap --------------------------------------------------------------
 static void ov73_trap_report(void *self, int slot)

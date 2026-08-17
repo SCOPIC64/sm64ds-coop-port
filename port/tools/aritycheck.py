@@ -90,6 +90,79 @@ from collections import defaultdict
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import msvc_undname as mu  # noqa: E402  (path set above)
+import alternatename_guard as ag  # noqa: E402
+import tailjump_guard as tj  # noqa: E402
+
+# TWO EXCLUSIONS, BOTH READ OFF ANOTHER CHECKER'S ARTEFACT RATHER THAN GUESSED
+# HERE. Both were added by run link60 lane RF1, and both exist because closing
+# the six live receiver defects of port/abi_checks.txt section 6 turned rows in
+# this file into statements that are no longer true. A checker that keeps
+# reporting a row after the reason for it is gone teaches people to ignore it,
+# and this file's whole claim is that a NEW row means something.
+#
+# The imports are HARD, not guarded. If either sibling stops importing this
+# checker refuses to run rather than quietly reverting to the wider census:
+# the value of an exclusion is that somebody can see it fire.
+#
+#   RIDE       a declaration inside a frame that tailjump_guard ASSERTS is a
+#              tail jump to that same callee cannot drop the argument. A jmp
+#              reuses the caller's own cdecl frame, so the slot the callee
+#              reads is the slot the caller wrote -- which is exactly what
+#              reproduces the ROM's `bx ip` with r0 still live. The row stays
+#              in the CENSUS, because the text really does disagree; it leaves
+#              the RECEIVER subset, because no receiver is dropped.
+#              Keyed on (declaring file, symbol) against the guard's own `tu`
+#              and `callee`, so a frame displaced into a host copy stops
+#              matching the guard's row AND stops matching this exclusion in
+#              the same build.
+#              ONLY THE HAND-DECLARED jump rows are consulted. The 22 derived
+#              veneer rows need the extracted ROM, and this checker has to keep
+#              running with no ROM and no build (run_checks calls it in the
+#              no-build set), so they are deliberately left out and the rows
+#              they would cover stay in the baseline.
+#   NS BINDING a namespaced C++ declaration reaches the flat Itanium
+#              definition ONLY through an /alternatename binding its MSVC
+#              decoration to that flat name. `namespace Player { void
+#              St_EndingFly_Main(); }` emits a ?St_EndingFly_Main@Player@@YA...
+#              decoration and nothing else. With no directive pointing that at
+#              __ZN6Player17St_EndingFly_MainEv, the callee is whatever defines
+#              the MSVC name, and comparing arities against the flat body
+#              compares two unrelated functions. Without this the checker
+#              cannot tell a FIXED site from a broken one, because the
+#              declaration text is identical either way -- which is precisely
+#              the state lane RF1 left src/func_ov007_020b7764.cpp in: the
+#              byte-locked declaration stays, the alias is gone, and the site
+#              now reaches a face in hal/scene_boot.cpp that supplies the
+#              receiver from the global the ROM reads it from.
+
+RIDES = frozenset((r['tu'], r['callee'])
+                  for r in (tj.CLASS_A + tj.CLASS_C) if r['form'] == 'jump')
+
+
+def ns_bindings(root):
+    """{flat Itanium symbol} for every namespaced spelling an /alternatename
+    binds to it.
+
+    Read through alternatename_guard so the definition of "a linker input" is
+    the build's own -- a directive QUOTED in a comment or a .txt is prose and
+    binds nothing, the distinction commit ab554f5fd had to teach that reader
+    after a comment failed a build.
+    """
+    port = os.path.join(root, 'port')
+    if not os.path.isdir(port):
+        return set()
+    directives, _quoted = ag.collect_directives(port)
+    out = set()
+    for lhs, rhs, _rel, _line in directives:
+        for a, b in ((lhs, rhs), (rhs, lhs)):
+            # `a` is the MSVC free-function spelling, `b` the flat C name.
+            # Exactly one leading underscore comes off: that is the 32-bit
+            # C decoration, and linkage.py's banner records what stripping
+            # more than one cost the last time somebody did it.
+            if a.startswith('?') and '@@YA' in a and b.startswith('__ZN'):
+                out.add(b[1:])
+    return out
+
 
 DEFAULT_ROOT = os.path.dirname(os.path.dirname(HERE))
 DIRS = ('src', 'include', os.path.join('port', 'unmatched'),
@@ -168,6 +241,8 @@ def strip_comments(src):
 
 def scan(root):
     defs, decls = {}, defaultdict(list)
+    bound = ns_bindings(root)
+    ns_skipped = []
     for d in DIRS:
         for dirpath, _, files in os.walk(os.path.join(root, d)):
             for fn in sorted(files):
@@ -194,8 +269,14 @@ def scan(root):
                                      src.count('\n', 0, m.start()) + 1))
                 for m in NS_DECL.finditer(src):
                     n = itanium_nullary(m.group('ns'), m.group('name'))
-                    decls[n].append((0, rel,
-                                     src.count('\n', 0, m.start()) + 1))
+                    line = src.count('\n', 0, m.start()) + 1
+                    if n not in bound:
+                        # Nothing binds this spelling to the flat Itanium
+                        # body, so the flat body is not what it calls. See
+                        # NS BINDING at the top of this file.
+                        ns_skipped.append((n, rel, line))
+                        continue
+                    decls[n].append((0, rel, line))
     rows = []
     for name, (dn, dfile, dline) in sorted(defs.items()):
         for cn, cfile, cline in decls.get(name, []):
@@ -205,12 +286,18 @@ def scan(root):
                              def_line=dline, decl_n=cn, decl_file=cfile,
                              decl_line=cline,
                              kind='DROPS' if cn < dn else 'INVENTS',
+                             # a DECLARED TAIL-JUMP RIDE: the frame reuses its
+                             # caller's argument frame, so the slot the callee
+                             # reads was written. Census yes, ratchet no.
+                             # See RIDE at the top of this file.
+                             ride=((cfile, name) in RIDES),
                              # the receiver-dropping shape specifically: a
                              # declaration with NO parameters against a
                              # definition whose first one is the receiver
                              receiver=(cn == 0 and dn >= 1
-                                       and name.startswith('_ZN'))))
-    return defs, decls, rows
+                                       and name.startswith('_ZN')
+                                       and (cfile, name) not in RIDES)))
+    return defs, decls, rows, ns_skipped
 
 
 def receiver_key(r):
@@ -298,6 +385,67 @@ def selftest():
         print('    %-4s %-34s %s' % ('ok' if ok else 'FAIL',
                                      (got or ['(nothing)'])[0], note))
 
+    print('\n  NS BINDING -- a namespaced declaration only reaches the flat')
+    print('               Itanium body through an /alternatename that says so')
+    import shutil
+    import tempfile
+    PRAGMA = ('#pragma comment(linker, "/alternatename:'
+              '?St_EndingFly_Main@Player@@YAXXZ='
+              '__ZN6Player17St_EndingFly_MainEv")\n')
+    SYM = '_ZN6Player17St_EndingFly_MainEv'
+    ns_bind_cases = [
+        ('port/hal/f.cpp', PRAGMA, True,
+         'a real pragma in port/hal BINDS the spelling'),
+        # The shape the tree actually carries: a deleted directive annotated
+        # in the comment block that records the deletion. It is the text
+        # without the #pragma, which is what alternatename_guard keys on --
+        # a full #pragma line inside a /* */ IS still read as an input,
+        # deliberately, because that reader does not parse comments.
+        ('port/hal/f.cpp',
+         '// (DELETED by lane RF1) /alternatename:'
+         '?St_EndingFly_Main@Player@@YAXXZ='
+         '__ZN6Player17St_EndingFly_MainEv\n', False,
+         'the directive QUOTED in a comment, no pragma, binds nothing'),
+        ('port/notes.txt', PRAGMA, False,
+         'and quoted in a .txt binds nothing either'),
+        ('port/hal/f.cpp', '', False,
+         'no directive at all: the flat body is not the callee'),
+    ]
+    for rel, body, want, note in ns_bind_cases:
+        tmp = tempfile.mkdtemp(prefix='aritycheck_nsbind_')
+        try:
+            path = os.path.join(tmp, rel.replace('/', os.sep))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(body)
+            got = SYM in ns_bindings(tmp)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        ok = got == want
+        bad += 0 if ok else 1
+        print('    %-4s bound=%-5s %s' % ('ok' if ok else 'FAIL', got, note))
+
+    print('\n  RIDE -- a declared tail-jump frame cannot drop the argument')
+    ride_cases = [
+        (('src/_ZN13HeapAllocator7DestroyEv.cpp',
+          '_ZN13HeapAllocator6RemoveEv'), True,
+         'the arm9 heap veneer this exclusion was added for'),
+        (('src/func_0204ebb8.c', '_ZN13HeapAllocator6RemoveEv'), True,
+         'its SolidHeap sibling'),
+        (('src/func_ov007_020c05f8.c',
+          '_ZN6Player17St_EndingFly_MainEv'), True,
+         'a Class C row that predates this exclusion'),
+        (('src/func_ov007_020add3c.c', 'func_ov007_020ae558'), False,
+         'CLASS A is form=call: a REAL seam and NOT excluded'),
+        (('src/_ZN13HeapAllocator7DestroyEv.cpp', 'func_0205ac5c'), False,
+         'right frame, wrong callee: the pair is the key, not the file'),
+    ]
+    for key, want, note in ride_cases:
+        got = key in RIDES
+        ok = got == want
+        bad += 0 if ok else 1
+        print('    %-4s ride=%-5s %s' % ('ok' if ok else 'FAIL', got, note))
+
     print('\n  DEMANGLER (shared, port/tools/msvc_undname.py)')
     rc = mu.selftest()
     if rc == 1:
@@ -332,10 +480,11 @@ def main(argv):
         return selftest()
 
     root = os.path.abspath(args.root)
-    defs, decls, rows = scan(root)
+    defs, decls, rows, ns_skipped = scan(root)
     drops = [r for r in rows if r['kind'] == 'DROPS']
     invents = [r for r in rows if r['kind'] == 'INVENTS']
     recv = [r for r in rows if r['receiver']]
+    rides = [r for r in rows if r['ride']]
 
     if args.write_receiver_baseline:
         keys = sorted({receiver_key(r) for r in recv})
@@ -354,6 +503,19 @@ def main(argv):
     print('  %d of the DROPS are the RECEIVER shape (declared with no '
           'parameters at all against an _ZN member definition that takes '
           'one)' % len(recv))
+    # NEITHER EXCLUSION IS SILENT. An exclusion nobody can see is how a
+    # checker stops checking without anybody noticing, which is stage 0 of
+    # run_checks' whole reason for existing.
+    print('  %d census row(s) held OUT of the receiver subset as a declared '
+          'tail-jump RIDE (tailjump_guard asserts the frame jumps, so the '
+          'caller\'s slot is the one the callee reads)' % len(rides))
+    for r in sorted(rides, key=lambda x: (x['decl_file'], x['sym'])):
+        print('      ride: %s|%s' % (r['sym'], r['decl_file']))
+    print('  %d namespaced C++ declaration(s) read but NOT counted: no '
+          '/alternatename binds the spelling to the flat Itanium body, so '
+          'that body is not what they call' % len(ns_skipped))
+    for sym, rel, line in sorted(ns_skipped):
+        print('      unbound: %s  %s:%d' % (sym, rel, line))
     print('  The full census is REPORT ONLY. See the header for why.')
 
     if args.gate_receiver:

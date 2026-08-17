@@ -1118,12 +1118,49 @@ L2_UNMATCHED(func_02140d80)
 //     slice, and it defines the flat Itanium name. Its callers spell the same
 //     body FOUR ways between them -- once by address and three times as a
 //     C++ method, with three different MSVC manglings because the three
-//     declaring TUs disagree on the return type and on staticness -- so all
-//     four are pointed at the one definition.
+//     declaring TUs disagree on the return type and on staticness.
+//
+//     THREE OF THOSE FOUR DIRECTIVES WERE RECEIVER DEFECTS AND ARE GONE. They
+//     are defects 4, 5 and 6 of port/abi_checks.txt section 6; the faces that
+//     replace them are further down this file and carry the evidence,
+//     including what the ROM actually dispatches through
+//     data_ov007_02103254. Only the by-address spelling stays an alias: both
+//     sides are flat __cdecl names, so it is a NAME bridge and nothing else,
+//     which is the only thing an /alternatename may ever be.
+//
+//     AND THE BY-ADDRESS SPELLING HAS A DEFECT OF ITS OWN THAT IS NOT FIXED
+//     HERE, stated so the deletion of the other three cannot be read as the
+//     class being closed. Five matched ov007 TUs -- func_ov007_020c338c,
+//     _020c3544, _020c8098, _020c8440 and _020c9460 -- are `ldr ip,[pc]; bx
+//     ip; .word 0x020c3d1c` long-branch veneers that declare
+//     `extern int func_020c3d1c(void);` and call it with nothing. On ARM r0
+//     rides through the `bx`; on the host the ride survives only because MSVC
+//     compiles each one as a jmp, and NOTHING IN THE SUITE CAN SEE THAT: both
+//     sides of this directive are flat cdecl so aliascheck's rule R is right
+//     to stay quiet, and nothing defines func_020c3d1c so aritycheck has no
+//     census row to hang the declaration on. It is a seventh instance of the
+//     section 6 class, found by lane RF1 while fixing the other six, and it
+//     is written up in section 6 item 7 rather than fixed, because five more
+//     frames want their own tail-jump rows and their own drive.
 #pragma comment(linker, "/alternatename:_func_020c3d1c=__ZN6Player17St_EndingFly_MainEv")
-#pragma comment(linker, "/alternatename:?St_EndingFly_Main@Player@@QAEHXZ=__ZN6Player17St_EndingFly_MainEv")
-#pragma comment(linker, "/alternatename:?St_EndingFly_Main@Player@@QAEXXZ=__ZN6Player17St_EndingFly_MainEv")
-#pragma comment(linker, "/alternatename:?St_EndingFly_Main@Player@@YAXXZ=__ZN6Player17St_EndingFly_MainEv")
+//     The int-returning spelling now rides the void one. Both sides are
+//     public __thiscall taking no arguments, so the receiver AGREES and the
+//     pop agrees; only the return type differs, and EAX is exactly as
+//     indeterminate here as r0 is in the ROM (0x020c3d1c returns whatever the
+//     pointer it dispatched left behind, and all seven int-form call sites in
+//     src/func_ov007_020cbb04.cpp discard it). This is the void/int return
+//     bridge hal/lk4_solidheap_seat.cpp takes for Heap::Rescue, and it exists
+//     because two decorations that differ only in return type cannot both be
+//     declared on one class in one TU.
+#pragma comment(linker, "/alternatename:?St_EndingFly_Main@Player@@QAEHXZ=?St_EndingFly_Main@Player@@QAEXXZ")
+//     The free-function spelling: src/func_ov007_020b7764.cpp is its only
+//     referrer and the receiver it must pass is a GLOBAL, so the face below
+//     can supply it exactly. Alias rather than a second face declaration for
+//     the reason the Sound::Func_02048ec4 row in hal/actor_classes_ov073.cpp
+//     gives: a `namespace Player` in this TU would collide with the `struct
+//     Player` the QAEX face needs. Both sides are __cdecl with no receiver,
+//     so this is not a crossing.
+#pragma comment(linker, "/alternatename:?St_EndingFly_Main@Player@@YAXXZ=_port_ov007_b7764_endingfly")
 //
 // (d) SIX C++-DECLARED CALLS ONTO FLAT DEFINITIONS. The cxxname_bridge defect
 //     in its usual direction: an ov007 TU declares the callee inside a struct
@@ -1337,6 +1374,80 @@ struct ActorBase {
     int Virtual34(unsigned a, unsigned b);           /* slot 13 body */
     int Virtual38(unsigned a, unsigned b);           /* slot 14 body */
 };
+
+/* ==== THE TWO RECEIVER-BRIDGING FACES FOR "Player::St_EndingFly_Main" =====
+
+   port/abi_checks.txt section 6, defects 4/5 (the two __thiscall spellings)
+   and 6 (the free-function spelling aritycheck had to learn a new declaration
+   shape to see at all). The three deleted directives were
+
+     ?St_EndingFly_Main@Player@@QAEHXZ = __ZN6Player17St_EndingFly_MainEv
+     ?St_EndingFly_Main@Player@@QAEXXZ = __ZN6Player17St_EndingFly_MainEv
+     ?St_EndingFly_Main@Player@@YAXXZ  = __ZN6Player17St_EndingFly_MainEv
+
+   WHAT THE BODY ACTUALLY IS, derived from the ROM rather than from the name,
+   because the name is wrong and the fix depends on the answer. 0x020c3d1c is
+
+     stmdb sp!,{lr} / sub sp,#4
+     ldr r1,[pc,#0x10] / ldr r1,[r1]    <- r1 = *data_ov007_02103254
+     blx r1                             <- r0 UNTOUCHED, rides into the callee
+     add sp,#4 / ldm sp!,{lr} / bx lr
+
+   and config/arm9/overlays/ov007/relocs.txt:3264 says what that word holds:
+
+     from:0x02103254 kind:load to:0x020c3e4c module:overlay(7)
+
+   0x020c3e4c is `mov r2,r0 / mov r0,#0 / mvn r1,#0 / bx 0x020590fc`, and
+   func_020590fc unlinks the object at (r2 - 0x20) from two lists under an
+   interrupt lock. So the body is a TEARDOWN TRAMPOLINE whose one argument is
+   the object being torn down, and the Player name on it is a mislabel -- the
+   2d map's section 1 says so and this is the disassembly behind that warning.
+   The callers agree: src/func_ov007_020cbb04.cpp calls it on five sub-objects
+   and then on the parent, and src/func_ov007_020b9770.cpp calls it on two
+   globals and nulls each one immediately after.
+
+   THE TRUE BODY IS SEATED AND MATCHED, so these are BRIDGES and not traps.
+   src/_ZN6Player17St_EndingFly_MainEv.cpp is in this slice and defines the
+   flat name as `void f(void *self)`. Nothing here is unseated, so a loud trap
+   would be refusing to run a path the port already has the code for.
+
+   WHAT THE DIRECTIVES DID. QAE is __thiscall: the nine call sites put the
+   object in ECX and push NOTHING, and the flat cdecl body then read its first
+   stack slot -- the RETURN ADDRESS -- and handed that to the unlink. YA is a
+   free function: src/func_ov007_020b7764.cpp:9 spells
+   `Player::St_EndingFly_Main()` with no arguments at all, so that site read
+   the same return address. Two lists get a code address spliced out of them
+   either way. It has never fired because ov007's ending path is not drivable,
+   which is why these two faces are proved by the checker and the disassembly
+   and claim no drive.
+
+   NEITHER FACE IS A SHADOW: all three directives are DELETED. */
+struct Player {
+    /* the void spelling, which is what src/func_ov007_020b9770.cpp declares
+       and what the flat body's own return type says. The int spelling is
+       bridged onto this one by the alias in block (c) above. */
+    void St_EndingFly_Main();
+};
+
+extern "C" {
+/* the matched flat body, and the ov007 global whose VALUE is the object
+   src/func_ov007_020b7764.cpp's call site is torn down. The ov007 mount
+   defines it as `u8 data_ov007_02103448[4]`; the matched TU reads it as an
+   int, and so does this, because extern "C" data carries no type in the
+   symbol and the int reading is the one the ROM's `ldr r0,[r0]` performs. */
+void _ZN6Player17St_EndingFly_MainEv(void *self);
+extern int data_ov007_02103448;
+
+/* the RHS of the YA alias in block (c). A free __cdecl function taking
+   nothing, exactly like the declaration it stands behind -- the receiver is
+   not passed to it and never was, so the face reads it from the same global
+   the ROM reads it from. */
+void port_ov007_b7764_endingfly(void)
+{ _ZN6Player17St_EndingFly_MainEv((void *)(size_t)data_ov007_02103448); }
+}
+
+void Player::St_EndingFly_Main()
+{ _ZN6Player17St_EndingFly_MainEv(this); }
 
 // ---- the shared eleven -----------------------------------------------------
 static int  __fastcall sc_binit(void *s, void *)

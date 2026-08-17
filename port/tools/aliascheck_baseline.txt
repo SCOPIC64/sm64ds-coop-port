@@ -30,62 +30,46 @@
 # body reads the receiver at all. A crossing is INERT only where that walk
 # reaches a reason, never where it merely fails to reach a caller.
 #
-# THE FIVE OPEN ROWS ARE NOT THIS FILE'S TO FIX. They are five separate
-# behavioural changes across four owners' files, each wanting its own battery,
-# and the lane that found them was landing the checker. They are recorded here
-# and reported at every run until somebody takes them.
-
 # ---------------------------------------------------------------------------
-# OPEN -- live receiver defects on cons, found by this checker 2026-08-17
+# OPEN -- live receiver defects on cons
 # ---------------------------------------------------------------------------
-
-# ExpandingHeapAllocator::DeallocateAll. The worst of the five: it loses the
-# receiver AND unbalances the stack. src/_ZN13ExpandingHeap14VDeallocateAllEv
-# .cpp:30 makes a qualified thiscall call with two pushed arguments, so the
-# allocator goes into ECX; the body
-# src/_ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj.cpp:3 is flat
-# cdecl (void *thiz, Fn fn, void *ctx) and takes thiz from the first stack
-# slot, which holds the VISITOR -- a code pointer -- and immediately
-# dereferences it at +0x2c. The pop disagrees too: the call site is compiled
-# for a callee that rets 8, the body pops nothing, so ESP leaks 8 bytes per
-# call. Reachable through _ZTV13ExpandingHeap slot 5, seated at
-# hal/lk4_eh_dtor_seat.cpp:127.
-?DeallocateAll@ExpandingHeapAllocator@@QAEXPAP6AXPAXPAV1@I@ZI@Z=__ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj  # OPEN: receiver lost and ESP leaks 8 per call
-
-# HeapAllocator::Remove. src/func_0204ebb8.c:7 and
-# src/_ZN13HeapAllocator7DestroyEv.cpp:8 are ARM tail-call veneers transcribed
-# to C, and both call the flat name with ZERO arguments. The body
-# src/_ZN13HeapAllocator6RemoveEv.cpp:23 is __thiscall HeapAllocator::Remove()
-# and dereferences `this` twice (FindNested(this), then Remove(iter, this)).
-# The veneers are themselves entered by cdecl calls that PUSH the allocator
-# (src/_ZN13ExpandingHeap8VDestroyEv.c:23, src/_ZN9SolidHeap8VDestroyEv.c:23),
-# so ECX is never loaded with it by anything in the source. It survives today
-# only if MSVC happens to materialise self->allocator into ECX before the push
-# and nothing clobbers ECX across two frames. Fires on any heap teardown.
-__ZN13HeapAllocator6RemoveEv=?Remove@HeapAllocator@@QAEXXZ  # OPEN: veneers call with no arguments, body reads ECX
-
-# Player::GetHurtState. src/func_ov073_02120ed0.c:112 and :113 and
-# src/func_ov077_02126640.cpp:37 all PUSH the player and call the flat name.
-# The body src/_ZN6Player12GetHurtStateEv.cpp:10 is __thiscall
-# Player::GetHurtState() and reads `this` twice.
-__ZN6Player12GetHurtStateEv=?GetHurtState@Player@@QAEHXZ  # OPEN: three compiled callers push the receiver, body reads ECX
-
-# Player::St_EndingFly_Main, two spellings of one bug. src/func_ov007_020cbb04
-# .cpp declares `struct Player { int St_EndingFly_Main(); }` (QAEH) and calls
-# it seven times; src/func_ov007_020b9770.cpp declares the void form (QAEX) and
-# calls it twice. Both put the player in ECX and push nothing. The body
-# src/_ZN6Player17St_EndingFly_MainEv.cpp:13 is flat cdecl (void *self) and
-# hands whatever sits in its first stack slot to an indirect call through
-# data_ov007_02103254.
 #
-# A THIRD SPELLING AT hal/scene_boot.cpp:1126 IS BROKEN THE SAME WAY AND IS
-# NOT IN THIS FILE, because it is not a crossing and this checker cannot see
-# it: ?St_EndingFly_Main@Player@@YAXXZ is a free function both sides, so the
-# receiver is absent rather than misplaced. src/func_ov007_020b7764.cpp:9
-# calls it with no arguments at all. That one is aritycheck's shape, and it is
-# the reason this suite ships more than one detector.
-?St_EndingFly_Main@Player@@QAEHXZ=__ZN6Player17St_EndingFly_MainEv  # OPEN: nine thiscall call sites push nothing, body reads the stack
-?St_EndingFly_Main@Player@@QAEXXZ=__ZN6Player17St_EndingFly_MainEv  # OPEN: same body, the void-returning declaration
+# THERE ARE NONE. The five this checker found on its first run, 2026-08-17,
+# were all fixed the same day by run link60 lane RF1, and all five rows are
+# DELETED rather than re-tagged -- the directives they described do not exist
+# any more, so a row for each would be a row about nothing. Each one is now a
+# receiver-bridging face, each face carries its own evidence in its own file,
+# and each deleted directive is a RED fixture in port/tools/abi_prove.py, so
+# re-injecting any of the five still fails this checker by name. That is what
+# replaces the row: the ratchet used to remember these five as text, and now
+# the proof harness remembers them as behaviour.
+#
+#   ?DeallocateAll@ExpandingHeapAllocator@@QAEXPAP6AXPAXPAV1@I@ZI@Z
+#       = __ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj
+#                                     hal/lk4_eh_dtor_seat.cpp, thiscall face
+#   __ZN13HeapAllocator6RemoveEv = ?Remove@HeapAllocator@@QAEXXZ
+#                                     hal/lk4_eh_dtor_seat.cpp, cdecl face on
+#                                     the veneers' tail-jump ride
+#   __ZN6Player12GetHurtStateEv = ?GetHurtState@Player@@QAEHXZ
+#                                     hal/actor_classes_ov073.cpp, cdecl face
+#   ?St_EndingFly_Main@Player@@QAEHXZ = __ZN6Player17St_EndingFly_MainEv
+#   ?St_EndingFly_Main@Player@@QAEXXZ = __ZN6Player17St_EndingFly_MainEv
+#                                     hal/scene_boot.cpp, one thiscall face
+#                                     and a return-only bridge onto it
+#
+# THE SECTION HEADING STAYS EVEN THOUGH THE SECTION IS EMPTY, because the
+# checker still reports OPEN separately from NEW and the next person to
+# adjudicate a live crossing needs somewhere to put it -- and because a file
+# that has never had an OPEN row reads very differently from one that had five
+# and closed them. port/abi_checks.txt section 6 carries the fixes.
+#
+# NOT EVERY INSTANCE OF THE CLASS IS CLOSED, and this file cannot see the one
+# that is left. hal/scene_boot.cpp still carries
+# `_func_020c3d1c=__ZN6Player17St_EndingFly_MainEv`, reached through five
+# matched ov007 long-branch veneers that declare `func_020c3d1c(void)` and
+# pass nothing. Both sides of that directive are flat __cdecl, so RULE R is
+# right to stay quiet and there is nothing for this file to hold. It is
+# section 6 item 7.
 
 # ---------------------------------------------------------------------------
 # INERT -- real crossings with a checked reason they cannot misbehave

@@ -94,9 +94,17 @@ fifty", and it is exact by asking a smaller question rather than a vaguer one.
   SAME callee and refuses if they disagree, which is a free consistency check
   between a human classification and a ROM scan.
 
-  AND 32 FRAMES IS NOT 32 BYTE SPANS. ICF folds 17 of them onto one address in
-  every hosting map, so a map reads 16 distinct spans. See the ICF entry under
-  WHAT THIS GUARD DOES NOT PROVE for why that costs the guard nothing.
+  AND 34 FRAMES IS NOT 34 BYTE SPANS. ICF folds 17 of them onto one address in
+  every hosting map. See the ICF entry under WHAT THIS GUARD DOES NOT PROVE
+  for why that costs the guard nothing.
+
+  THE COUNT WAS 32 UNTIL run link60 lane RF1 ADDED TWO. Those two are the arm9
+  heap-teardown veneers, and they are the first rows here that were declared
+  BECAUSE a fix started depending on them rather than because a screening lane
+  found them already load-bearing: replacing the HeapAllocator::Remove
+  /alternatename with a receiver-bridging face makes the allocator reach the
+  face through those two jmps. A dependency somebody just created is the one
+  most worth pinning on the day it is created.
 
 THE LIST IS LIVE, AND A ROW RETIRES WITHOUT A HAND EDIT
 
@@ -165,9 +173,9 @@ WHAT THIS GUARD DOES NOT PROVE
     argument riding through it is the right argument is section 5d's reading of
     the ROM, and this guard takes that as given -- it is a regression guard on
     a measured property, not a re-derivation of the classification.
-  * That the ~50 rows are exactly 50. It asserts 32 distinct frames. The
-    mapping from frames to arity rows is 5d's and is method-dependent; the
-    frames are not.
+  * That the ~50 rows are exactly 50. It asserts 34 distinct frames, 32 of
+    them 5d's and two added by lane RF1. The mapping from frames to arity rows
+    is 5d's and is method-dependent; the frames are not.
   * Anything about a rel8 jump. `EB <rel8>` is not scanned, and it cannot be
     the transfer being asked about: x86 COFF has no 8-bit relocation, so a
     control transfer to a separately-linked function symbol is always rel32,
@@ -188,10 +196,10 @@ WHAT THIS GUARD DOES NOT PROVE
     count. /OPT:ICF is on. On the CALLEE side it means "resolves to the callee"
     really means "resolves to the address the callee shares", so a transfer to
     a different function folded onto the same bytes reads as a transfer to the
-    callee. On the FRAME side it means the 32 declared frames are not 32
+    callee. On the FRAME side it means the 34 declared frames are not 34
     distinct byte spans: 17 of them fold onto ONE address in every hosting map,
-    so each map reads 16 distinct spans and the headline 96 assertions are 32
-    row-checks per map over 16 spans, not 96 independent readings.
+    so a map reads fewer spans than rows and the headline assertion count is a
+    per-map row count over those spans, not that many independent readings.
     WHAT THAT DOES NOT COST is the thing the guard is for, and the reason is
     the folding rule itself: ICF folds only IDENTICAL bodies. A veneer that
     grows one statement stops being identical to its seventeen twins and
@@ -349,6 +357,34 @@ CLASS_C = tuple(
         {'frame': 'func_0204f73c', 'callee': 'func_0205ad54',
          'tu': 'src/func_0204f73c.c',
          'note': 'The arm9 trio, third of three.'},
+        # THE HEAP-TEARDOWN PAIR, added by run link60 lane RF1 when the
+        # receiver-bridging face for HeapAllocator::Remove replaced the
+        # /alternatename that used to hide the question. These two are not
+        # from section 5d: they are arm9, and 5d only screened ov007. The ROM
+        # shape is the same three words the VENEER set scans overlay 7 for --
+        #     0204e3b4  ldr ip,[pc]; bx ip; .word 0x0204df38
+        #     0204ebb8  ldr ip,[pc]; bx ip; .word 0x0204df38
+        # -- so r0 rides both frames untouched, and on the host the jmp is
+        # what makes the caller's pushed allocator still be at [esp+4] when
+        # the face reads it. Verified in this lane's own build: both objects
+        # disassemble to exactly `jmp __ZN13HeapAllocator6RemoveEv` and
+        # nothing else.
+        {'frame': '_ZN13HeapAllocator7DestroyEv',
+         'callee': '_ZN13HeapAllocator6RemoveEv',
+         'tu': 'src/_ZN13HeapAllocator7DestroyEv.cpp',
+         'note':
+             'The ExpandingHeap teardown leg. src/_ZN13ExpandingHeap8VDestroy'
+             'Ev.c:23 pushes self->allocator into this frame and this frame '
+             'names no parameter at all, so the allocator reaches '
+             'HeapAllocator::Remove ONLY through the jmp. If it becomes a '
+             'call, Remove unlinks a stack word from the nested-allocator '
+             'list on every expanding-heap teardown.'},
+        {'frame': 'func_0204ebb8',
+         'callee': '_ZN13HeapAllocator6RemoveEv',
+         'tu': 'src/func_0204ebb8.c',
+         'note':
+             'The SolidHeap teardown leg, same shape and same consequence; '
+             'its pusher is src/_ZN9SolidHeap8VDestroyEv.c:23.'},
     ))
 
 # THE VENEER SET, DERIVED. Not a list: the three-word ROM shape below is

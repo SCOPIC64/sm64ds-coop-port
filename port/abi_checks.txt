@@ -20,6 +20,25 @@ and that the sixth defect was already on aritycheck's census (it was not,
 item (k)). Both are fixed in the tools rather than only in the prose, and both
 are left written down. Every number below is from a run after those fixes.
 
+AMENDED AGAIN 2026-08-17 by run link60 lane RF1, on branch s5-receiver-fixes
+off cons af0c86ab5, which FIXED ALL SIX of the live defects section 6 records
+and left that section as the account of how. What changed here:
+  * section 6 -- each defect gains FIXED BY and FIXTURE, and gains a seventh
+    item: another instance of the same class, found while fixing the six, that
+    no detector in the suite can see.
+  * section 2 -- the numbers that moved are annotated "AB1 -> RF1" rather than
+    overwritten, so which way each went is readable.
+  * sections 1, 3, 4 and 7 -- the two exclusions aritycheck gained (a
+    namespaced declaration must be BOUND by an alias to count; a declared
+    tail-jump ride cannot drop an argument), the eight new proof arms, and
+    three new stated limits.
+Two claims this document made are CORRECTED rather than quietly dropped, both
+by measurement: HeapAllocator::Remove does NOT fire "on every heap teardown"
+(nothing in the port dispatches that slot at all yet, measured over 33 drives
+with a probe), and item 6's blast radius depended on what
+data_ov007_02103254 points at, which nobody had resolved -- it is a teardown
+trampoline, so the callers were splicing a return address out of two lists.
+
 
 0. WHY THIS EXISTS, AND WHY IT IS A RECOVERY
 --------------------------------------------
@@ -132,11 +151,35 @@ aritycheck.py -- no build required
   change.
   ONE SUBSET GATES: the RECEIVER SHAPE, a declaration with no parameters at
   all against a definition of an Itanium-mangled member (_ZN...) that takes at
-  least one. 168 live rows are frozen in
+  least one. 166 live rows are frozen in
   port/tools/aritycheck_receiver_baseline.txt and a NEW one fails
   --gate-receiver. That subset is exactly what PR #1539 and PR #1543 fixed on
   2026-08-16, and it is where the sixth live defect of section 6 surfaced once
   the reader learned the namespaced C++ declaration spelling.
+
+  TWO THINGS ARE HELD OUT OF THAT SUBSET, both decided from another checker's
+  artefact rather than from a judgement made here, and both PRINTED on every
+  run with the rows named. Added by lane RF1, 2026-08-17, because closing
+  section 6 turned two of the subset's own rows into false statements.
+      RIDE        a declaration inside a frame that tailjump_guard ASSERTS is
+                  a tail JUMP to that same callee. A jmp reuses the caller's
+                  cdecl frame, so the slot the callee reads is the slot the
+                  caller wrote -- which is how the host reproduces `bx ip`
+                  with r0 still live. Keyed on (declaring file, symbol)
+                  against the guard's own `tu` and `callee`, and only the
+                  HAND-DECLARED jump rows are consulted: the 22 derived veneer
+                  rows need the extracted ROM and this checker must keep
+                  running without one. Rows stay in the CENSUS; only the
+                  ratchet subset drops them. 7 rows today.
+      NS BINDING  a namespaced C++ declaration only reaches the flat Itanium
+                  definition through an /alternatename that binds its MSVC
+                  decoration to that flat name. With no such directive the
+                  callee is whatever defines the MSVC name, and comparing
+                  arities against the flat body compares two unrelated
+                  functions. 11 declarations tree-wide are unbound today.
+  Neither is a judgement call this checker makes on its own, and both can be
+  shown to STOP applying: abi_prove's prove_ride re-breaks the guard's table
+  in a scratch copy and requires the two held rows to come straight back.
 
 vtspan.py --sweep / --fills -- needs the extracted ROM, ALREADY ON CONS
   Not recovered by this lane; cons' own copy is used unchanged, and nothing in
@@ -168,6 +211,18 @@ abi_prove.py -- the proof harness
 Every command below was run at cons 3a5733c03 in a worktree at C:/tmp/ab1 with
 its own extracted/, its own asset catalog and its own build directory.
 
+RE-MEASURED 2026-08-17 by run link60 lane RF1, at s5-receiver-fixes off cons
+af0c86ab5, in a worktree at C:/tmp/rf1 with its own extracted/, its own asset
+catalog and its own build directory. The numbers that MOVED because the six
+defects of section 6 were fixed are given as "AB1 -> RF1" beside the original
+so a reader can see which way each went; anything not annotated read the same.
+Two of abicheck's counts also moved for a reason that is NOT this lane's, and
+saying so is the point of annotating rather than overwriting: on af0c86ab5
+BEFORE any of these fixes, abicheck already read 2310 fills and 4305 functions
+where AB1 read 2391 and 4238, because the branch has taken other lanes' merges
+since. What this lane moved is 4305 -> 4310 functions, which is the five new
+faces and nothing else; the fill count is 2310 at both ends.
+
   $ python port/tools/msvc_undname.py
     undname: ...\VC\Tools\MSVC\14.44.35207\bin\Hostx86\x86\undname.exe
     5 known-good pairs ok, and undname refuses stdin (exit 1)
@@ -175,20 +230,55 @@ its own extracted/, its own asset catalog and its own build directory.
 
   $ python port/tools/aliascheck.py
     1573 directives read as LINKER INPUT, 17 quoted in prose (not measured)
+       AB1 -> RF1: 1573 -> 1569. Six directives deleted (the five section 6
+       crossings plus the YAXXZ spelling), two added (the QAEH -> QAEX return
+       bridge, and the YAXXZ name bridge onto the b7764 face). The prose
+       count goes 17 -> 18: section 6 item 7 below quotes the by-address
+       directive, and the guard reads a bare /alternatename line in any
+       port/*.txt as prose and counts it. That is the drift item (b) of
+       section 5 is about, working as intended.
     16 receiver crossings: 0 NEW, 5 KNOWN-OPEN (live defects, unfixed),
        11 INERT (adjudicated harmless), 0 UNADJUDICATED
+       AB1 -> RF1: 11 crossings, 0 NEW, 0 KNOWN-OPEN, 11 INERT, 0
+       UNADJUDICATED. The five OPEN rows are FIXED and their baseline rows
+       are deleted; the 11 INERT are untouched.
     RULE P ran over 1302 demangled names; 0 pop mismatches outside the
       baseline
+       AB1 -> RF1: 1299 names, same verdict.
     ALIASCHECK PASSED: no NEW receiver crossing, no new pop mismatch.
     exit 0
 
   $ python port/tools/aritycheck.py --gate-receiver
     11260 definitions, 26423 declarations of _ZN*/func_* symbols
+       AB1 -> RF1: 11264 definitions, 26413 declarations. The four extra
+       definitions are this lane's faces; the ten fewer declarations are the
+       namespaced spellings the NS BINDING rule stopped counting.
     2105 disagreements: 1319 DROPS, 786 INVENTS
+       AB1 -> RF1: 2106, 1320 DROPS, 786 INVENTS. The census delta is exactly
+       three rows and every one was accounted for by diffing the two trees
+       with the same tool: -1 for src/func_ov007_020b7764.cpp (now unbound),
+       +2 for the two arm9 veneers' declarations of the Remove face.
     168 of the DROPS are the RECEIVER shape
+       AB1 -> RF1: 166. The two added rows are held OUT by the RIDE rule and
+       the b7764 row is gone, so the subset loses two.
     168 baselined, 168 live, 0 NEW, 0 retired
+       AB1 -> RF1: 166 baselined, 166 live, 0 NEW, 0 retired -- after
+       deleting the two rows the run before this one reported as retired.
     ARITYCHECK RECEIVER RATCHET PASSED
     exit 0
+
+  TWO EXCLUSIONS WERE ADDED TO aritycheck AND BOTH PRINT ON EVERY RUN. They
+  are the reason the ratchet could shrink without anyone editing a byte-locked
+  src file, and a silent exclusion would have been the same failure this whole
+  suite exists to prevent:
+
+    7 census row(s) held OUT of the receiver subset as a declared tail-jump
+      RIDE  (each named on its own line)
+    11 namespaced C++ declaration(s) read but NOT counted: no /alternatename
+      binds the spelling to the flat Itanium body  (each named on its own
+      line)
+
+  Section 1 states both rules; section 6 items 2 and 6 are why they exist.
 
   $ port\tools\gen_disasm.cmd C:\tmp\ab1\build\port C:\tmp\ab1\build\port\_abicheck_disasm
     gen_disasm: wrote /disasm:nobytes for 477 hal objects
@@ -240,6 +330,33 @@ its own extracted/, its own asset catalog and its own build directory.
     PORT ABI CHECKS PASSED (every checker ran and checked something)
     exit 0
 
+  AB1 -> RF1, the same command at C:/tmp/rf1. Only the two lines the six
+  fixes touch move; vtspan's two arms and the four selftests are identical.
+
+    ## selftest: msvc_undname.py  SELFTEST PASSED
+    ## selftest: aliascheck.py    SELFTEST PASSED
+    ## selftest: abicheck.py      SELFTEST PASSED
+    ## selftest: aritycheck.py    SELFTEST PASSED
+    ## aliascheck (no build)
+       1569 directives read as LINKER INPUT, 18 quoted in prose
+       11 receiver crossings: 0 NEW, 0 KNOWN-OPEN, 11 INERT, 0 UNADJUDICATED
+       ALIASCHECK PASSED
+    ## vtspan --sweep (no build)      0 short
+    ## vtspan --fills (no build)      the same 6, unchanged
+    ## aritycheck --gate-receiver     166 baselined, 166 live, 0 NEW, 0 retired
+    ## abicheck                       2310 fills, 0 mismatches, 0 outliers
+                                      (2310 on af0c86ab5 before the fixes too;
+                                       coverage still 47%)
+    PORT ABI CHECKS PASSED (every checker ran and checked something)
+    exit 0
+
+  ZERO OPEN, which is the line this whole document was waiting for, and it is
+  worth saying exactly what it does and does not mean. It means every crossing
+  the suite can see is either fixed or adjudicated INERT with a checked
+  reason. It does NOT mean the class is closed: abicheck still judges 47% of
+  what it reads, aritycheck's full census still does not gate, and section 6
+  item 7 is a live instance of the same class that neither checker can see.
+
   The equivalent with no MSVC and no ROM, which is what the proposed CI job
   would run, also passes:
 
@@ -267,6 +384,13 @@ halves for every fixture:
     PASS aliascheck RED: Heap::ResizeToFit
     PASS aliascheck RED: SolidHeapAllocator::Allocate
     PASS aliascheck RED: SolidHeapAllocator::Reallocate
+    ---- the five below were added by lane RF1, 2026-08-17: they are the five
+    ---- section 6 crossings, and each row IS the directive its fix deleted
+    PASS aliascheck RED: ExpandingHeapAllocator::DeallocateAll
+    PASS aliascheck RED: HeapAllocator::Remove
+    PASS aliascheck RED: Player::GetHurtState
+    PASS aliascheck RED: Player::St_EndingFly_Main (int spelling)
+    PASS aliascheck RED: Player::St_EndingFly_Main (void spelling)
     PASS aliascheck RED: Player::TryGrab
     PASS aliascheck RED: BlendModelAnim::SetAnim
     PASS aliascheck RED: Platform::KillByMegaChar
@@ -276,6 +400,12 @@ halves for every fixture:
     PASS aritycheck RED: Enemy base ctor
     PASS aritycheck RED: namespaced C++ declaration
     PASS aritycheck GREEN again once the fixture is removed
+    ---- three more from lane RF1. The first is the regression proof for the
+    ---- section 6 item 6 FIX rather than for the detector; the other two are
+    ---- the RIDE exclusion, shown to stop excluding
+    PASS aritycheck RED: the real sixth-defect site returns when its alias does
+    PASS aritycheck GREEN: the scratch copy, guard untouched
+    PASS aritycheck RED: the RIDE exclusion stops excluding
     PASS abicheck GREEN on this build
     PASS abicheck RED: crate_pounded
     PASS abicheck RED: ssb_pounded
@@ -283,7 +413,7 @@ halves for every fixture:
     PASS abicheck RED: bp_egg
     PASS abicheck RED: fb_slot27
     PASS abicheck RED: whomp_s30
-    23 of 23 proofs passed
+    31 of 31 proofs passed          (AB1 read 23 of 23)
     ABI_PROVE PASSED
     exit 0
 
@@ -291,7 +421,18 @@ halves for every fixture:
   (16 of 17, "abicheck arm ran at all: FAIL"), rather than reporting a pass
   over a checker it never ran. That is the vacuous-green rule applied to the
   proof harness itself. Measured, because the first version of this document
-  guessed at that number and guessed wrong.
+  guessed at that number and guessed wrong. Those two integers are AB1's and
+  are not re-measured here; the arm count moved by eight, so the skipped-run
+  figures move with it.
+
+  ONE OF THE EIGHT NEW ARMS IS SHAPED DIFFERENTLY FROM THE REST AND IT IS
+  WORTH KNOWING WHY. Every other fixture re-breaks an INPUT the checker reads
+  out of the tree it is pointed at, so the real tool can be run against a
+  scratch root. prove_ride re-breaks a SIBLING MODULE -- tailjump_guard's
+  declared table, which aritycheck imports -- and an imported module does not
+  come from the root argument. So that arm runs the SCRATCH COPY of the
+  checker, and it runs a control first: the untouched scratch copy must be
+  green, so the red that follows is the guard edit and not the copy.
 
   EACH RED ASSERTS WHICH RULE FIRED, not merely that the checker exited 1.
   The first version asked for the substring "NEW", which appears in
@@ -324,26 +465,37 @@ How each arm is re-broken:
 4. FIXTURE INVENTORY
 --------------------
 
-20 fixtures across three checkers, plus the checkers' own selftest
-batteries.
+25 fixtures across three checkers, plus the checkers' own selftest
+batteries. It was 20 until lane RF1 fixed the six live defects of section 6
+and moved every one of them in here: five alias-form rows, and for the sixth
+an arity-form arm that re-adds only the deleted directive.
 
-ALIAS FORM (10) -- aliascheck must catch each when re-injected
+ALIAS FORM (15) -- aliascheck must catch each when re-injected
   Heap::SetDefault                 cons 8af183ddb  2026-08-16
   Heap::Destroy                    cons 0936784c9  2026-08-16
   Heap::_Destroy                   cons 0936784c9  2026-08-16  (SHIFTED)
   Heap::ResizeToFit                cons cf428a19a  2026-08-16
   SolidHeapAllocator::Allocate     cons 44b78e90d  2026-08-16  (SHIFTED)
   SolidHeapAllocator::Reallocate   cons 44b78e90d  2026-08-16  (SHIFTED)
+  ExpandingHeapAllocator::DeallocateAll
+                                   RF1, 2026-08-17  (SHIFTED, + pop)
+  HeapAllocator::Remove            RF1, 2026-08-17
+  Player::GetHurtState             RF1, 2026-08-17
+  Player::St_EndingFly_Main (int)  RF1, 2026-08-17  (SHIFTED)
+  Player::St_EndingFly_Main (void) RF1, 2026-08-17  (SHIFTED)
   Player::TryGrab                  King Bob-omb lane  2026-08-10
   BlendModelAnim::SetAnim          King Bob-omb lane  2026-08-10
   Platform::KillByMegaChar         King Bob-omb lane  2026-08-10
 
-  The first six are the receiver bridges that landed the day before this lane
-  ran and did not exist when the original prove.py was written. The last three
-  are the alias-form instances the original pinned; all three are receiver
+  The first six are the receiver bridges that landed the day before AB1 ran
+  and did not exist when the original prove.py was written. THE NEXT FIVE are
+  the ones this checker found ITSELF, on its first run, and they are the
+  reason it exists: AB1 froze them as OPEN and RF1 fixed them the next day, so
+  each row's directive text is read out of the fixing diff. The last three are
+  the alias-form instances the original pinned; all three are receiver
   crossings, so RULE R catches them without a demangler.
 
-  The tenth is not a past defect but a CONSTRUCTED DISCRIMINATOR:
+  The fifteenth is not a past defect but a CONSTRUCTED DISCRIMINATOR:
     a pop mismatch RULE R cannot see
       ?SetAnim@BlendModelAnim@@QAEXAAUSharedFilePtr@@@Z
         = ?SetAnim@BlendModelAnimFace@@QAEXXZ
@@ -354,12 +506,27 @@ ALIAS FORM (10) -- aliascheck must catch each when re-injected
   "NEW  <<<<<<" for the rest, so neither rule can be credited with the other's
   catch.
 
-ARITY FORM (4) -- aritycheck --gate-receiver must catch each when re-broken
+ARITY FORM (7) -- aritycheck --gate-receiver must catch each when re-broken
   FaderColor::AdvanceFade  PR #1539, cons ba1b0a670, include/decl_FaderColor.h
   Enemy base ctor          PR #1543, cons b74cf657d
 
   namespaced C++ declaration   the SPELLING, proved on a scratch file
   and green again once removed  the ratchet must also go quiet
+  the real sixth-defect site returns when its alias does
+                               RF1, 2026-08-17. The regression proof for the
+                               FIX and not for the detector: put ONLY the
+                               deleted scene_boot directive back and
+                               src/func_ov007_020b7764.cpp must be named
+                               again. This is the arm that fails if somebody
+                               restores the alias without the face.
+  the scratch copy, guard untouched      RF1, the control for the next one
+  the RIDE exclusion stops excluding     RF1, 2026-08-17. tailjump_guard's
+                               two heap rows are renamed in a scratch copy so
+                               the (frame, callee) key stops matching, and
+                               both held declarations must report as NEW.
+                               An exclusion that cannot be shown to stop
+                               excluding is indistinguishable from a checker
+                               that stopped checking.
 
   The first two are the reason aritycheck is in the suite at all. Both landed on
   2026-08-16, both are the receiver shape, and NEITHER is an /alternatename,
@@ -529,20 +696,40 @@ receiver rule on its first run; the sixth needed aritycheck to learn the
 namespaced C++ declaration spelling, which it did only after lane ABR1's
 review pointed out that nothing in the suite could see it.
 
-NONE IS FIXED HERE: they are six behavioural changes across five owners'
-files, each wanting its own battery, and this lane was landing the checker.
-The first five are frozen as OPEN in aliascheck_baseline.txt and the sixth in
-aritycheck_receiver_baseline.txt, each with its evidence, and all are reported
-at every run separately from regressions, so a pass can never be read as "the
-class is closed".
+ALL SIX ARE FIXED. Run link60 lane RF1, 2026-08-17, on branch
+s5-receiver-fixes off cons af0c86ab5. The paragraph that used to sit here said
+"NONE IS FIXED HERE", named them as six behavioural changes across five
+owners' files, and left them frozen as OPEN. That is now history and it is
+kept in the git log rather than here. What each entry below carries instead
+is FIXED BY -- the face that replaced the directive, and the fixture that
+keeps it caught.
+
+The five aliascheck rows are DELETED from aliascheck_baseline.txt rather than
+re-tagged, because the directives they described no longer exist; the sixth
+row is deleted from aritycheck_receiver_baseline.txt because nothing binds
+that spelling to the flat body any more. Deleting a row is only safe if
+something else remembers, and that something is abi_prove: each of the five
+deleted directives is now a RED fixture, and the sixth has an arm that puts
+back ONLY the deleted directive and requires the real row to return.
+
+NO BYTE-LOCKED src FILE WAS EDITED. Every fix is in port/hal or in a checker.
+Three of the six had a src-side component -- two ARM veneers and one caller
+that drops the argument the ROM passes in r0 -- and each is answered by
+reproducing what the ROM does rather than by rewriting what the ROM does:
+the veneers keep riding their tail jumps and the ride is now asserted at link
+time, and the one dropped argument is a global the face reads for itself.
 
 All six were confirmed independently by lane ABR1 from its own disassembly of
 its own build. Two came back WORSE than they were first filed, and both
-corrections are folded in below.
+corrections are folded in below. Lane RF1 re-derived every one a third time
+from the ROM before touching it, and that third reading changed what two of
+the fixes are: see item 4/5, where the "Player state" the callers dispatch
+turns out to be a teardown trampoline.
 
 Ranked by blast radius.
 
-  1. ExpandingHeapAllocator::DeallocateAll   hal/lk4_eh_dtor_seat.cpp:43
+  1. ExpandingHeapAllocator::DeallocateAll   FIXED
+     the directive was at hal/lk4_eh_dtor_seat.cpp:43
      ?DeallocateAll@ExpandingHeapAllocator@@QAEXPAP6AXPAXPAV1@I@ZI@Z
        = __ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj
      src/_ZN13ExpandingHeap14VDeallocateAllEv.cpp:30 makes a qualified
@@ -557,10 +744,35 @@ Ranked by blast radius.
      those two the wrong way round.)
      IT ALSO UNBALANCES THE STACK: the call site is compiled for a callee that
      rets 8, the body pops nothing, so ESP leaks 8 bytes per call. Reachable
-     through _ZTV13ExpandingHeap slot 5, seated at lk4_eh_dtor_seat.cpp:127;
+     through _ZTV13ExpandingHeap slot 5, whose thunk eh_vdeallall is seated by
+     hal_seat_expandingheap_dtors in the same file;
      the caller TU rides port/slice_gate16.txt.
 
-  2. HeapAllocator::Remove                   hal/lk4_eh_dtor_seat.cpp:49
+     FIXED BY   the directive is DELETED and
+                ?DeallocateAll@ExpandingHeapAllocator@@QAEXPAP6AXPAXPAV1@I@ZI@Z
+                is now a real __thiscall method defined in
+                hal/lk4_eh_dtor_seat.cpp, forwarding into the flat body with
+                `this` as the first stack argument. The class shadow is
+                copied verbatim from the calling TU's own declaration, which
+                is what makes the decoration match; `class` and not `struct`,
+                because the parameter encodes PAV1@ and a struct mangles
+                PAU1@ and misses.
+                THE EMITTED FACE, out of this build's own disassembly:
+                    push ebp / mov ebp,esp
+                    push dword ptr [ebp+0Ch]        param
+                    push dword ptr [ebp+8]          visitor
+                    push ecx                        THE RECEIVER
+                    call __ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj
+                    add esp,0Ch / pop ebp / ret 8
+                so both halves close in the same three lines: the receiver is
+                published from ECX into the slot the body reads, and `ret 8`
+                is the pop the call site was already compiled for.
+     FIXTURE    abi_prove ALIAS_FIXTURES, "ExpandingHeapAllocator::
+                DeallocateAll". Re-injecting the directive must make
+                aliascheck report a NEW crossing by name.
+
+  2. HeapAllocator::Remove                   FIXED
+     the directive was at hal/lk4_eh_dtor_seat.cpp:49
      __ZN13HeapAllocator6RemoveEv = ?Remove@HeapAllocator@@QAEXXZ
      src/func_0204ebb8.c:7 and src/_ZN13HeapAllocator7DestroyEv.cpp:8 are ARM
      tail-call veneers transcribed to C and both call the flat name with ZERO
@@ -591,16 +803,77 @@ Ranked by blast radius.
      wrong object is not the better of the two outcomes: it is a valid pointer,
      so it does not fault, it corrupts the same way every time.
 
-  3. Player::GetHurtState                    hal/actor_classes_ov073.cpp:190
+     AND THE LAST FOUR WORDS OF THAT PARAGRAPH ARE WRONG, measured by lane RF1
+     and left standing above so the correction has something to correct. "On
+     every heap teardown" is not true of any path the port can drive.
+     _ZTV13ExpandingHeap slot 2 IS NOT DISPATCHED by a level teardown. With a
+     throwaway fprintf in all four entry points -- the slot 2 thunk, the slot
+     5 thunk, the Remove face and the DeallocateAll face -- and a probe build
+     confirmed to carry them (4 occurrences of the marker string in the exe),
+     ZERO lines came out of: level entry -> menu ExitLevel -> destination on
+     levels 4 and 6, 300-frame selftests on levels 1 and 6, and 120-frame
+     selftests on 29 mounted levels. Not one. What the defect was is exactly
+     as described; what it costs TODAY is nothing, because nothing reaches it.
+     That is a statement about the port's coverage and not about the ROM: the
+     ROM tears these heaps down, the port has not reached the code that does.
+
+     FIXED BY   the directive is DELETED and the flat name is now a __cdecl
+                face in hal/lk4_eh_dtor_seat.cpp taking the receiver as its
+                first stack argument:
+                    __ZN13HeapAllocator6RemoveEv:
+                      push ebp / mov ebp,esp
+                      mov ecx,dword ptr [ebp+8]     the pushed allocator
+                      pop ebp
+                      jmp ?Remove@HeapAllocator@@QAEXXZ
+                THE RECEIVER GETS THERE THROUGH THE VENEERS' TAIL JUMPS, which
+                is the ROM's own shape rather than a workaround for it. Both
+                veneers are `ldr ip,[pc]; bx ip; .word 0x0204df38` in the ROM,
+                and both compile to exactly `jmp __ZN13HeapAllocator6RemoveEv`
+                on the host -- verified by disassembling the two objects --
+                so the allocator the VDestroy bodies push is still at [esp+4]
+                when the face reads it. That is the ride the ov007 slice rests
+                on in about fifty places.
+                AND IT IS NO LONGER AN ASSUMPTION. Both frames were added to
+                port/tools/tailjump_guard.py's Class C in the same change, so
+                the jmp is asserted in every hosting map at link time and the
+                guard says 34 frames where it used to say 32. The alternative
+                was displacing both veneers into port/unmatched host copies,
+                which works and costs two matched TUs out of the binary; the
+                faithful version won and the assumption got a guard.
+     FIXTURE    abi_prove ALIAS_FIXTURES, "HeapAllocator::Remove", plus
+                prove_ride -- which re-breaks the GUARD in a scratch copy so
+                the two declarations report as NEW, proving the exclusion is
+                exactly the guard's table and not something aritycheck decided
+                on its own.
+
+  3. Player::GetHurtState                    FIXED
+     the directive was at hal/actor_classes_ov073.cpp:190
      __ZN6Player12GetHurtStateEv = ?GetHurtState@Player@@QAEHXZ
      src/func_ov073_02120ed0.c:112 and :113 and src/func_ov077_02126640.cpp:37
      all PUSH the player and call the flat name; all three TUs are compiled
      today. The body src/_ZN6Player12GetHurtStateEv.cpp:10 is __thiscall and
      reads `this` twice.
 
-  4/5. Player::St_EndingFly_Main, two declared spellings
-     hal/scene_boot.cpp:1124  ?St_EndingFly_Main@Player@@QAEHXZ
-     hal/scene_boot.cpp:1125  ?St_EndingFly_Main@Player@@QAEXXZ
+     FIXED BY   the directive is DELETED and the flat name is a __cdecl face
+                in hal/actor_classes_ov073.cpp, the same emitted shape as
+                Remove above:
+                    mov ecx,dword ptr [ebp+8] / pop ebp
+                    jmp ?GetHurtState@Player@@QAEHXZ
+                No drive is claimed. All three sites are damage tests reached
+                from ov073 and ov077 behaviour, hurt state is a player-damage
+                condition, and no battery path takes damage; the proof is the
+                checker plus the emitted bridge. What the defect cost is a
+                wrong ANSWER rather than a fault -- the state test ran against
+                whatever object ECX held and the returned step came out of
+                that same object -- so it would have read as a character not
+                reacting to a hit, which is the hardest kind of bug to notice
+                and the reason this one is worth fixing without a repro.
+     FIXTURE    abi_prove ALIAS_FIXTURES, "Player::GetHurtState".
+
+  4/5. Player::St_EndingFly_Main, two declared spellings   BOTH FIXED
+     the directives were at hal/scene_boot.cpp:1124 and :1125
+       ?St_EndingFly_Main@Player@@QAEHXZ
+       ?St_EndingFly_Main@Player@@QAEXXZ
        both = __ZN6Player17St_EndingFly_MainEv
      src/func_ov007_020cbb04.cpp declares the int form and calls it seven
      times; src/func_ov007_020b9770.cpp declares the void form and calls it
@@ -609,9 +882,63 @@ Ranked by blast radius.
      hands whatever sits in its first stack slot to an indirect call through
      data_ov007_02103254. Both TUs ride port/slice_ov007.txt.
 
+     WHAT IS ON THE OTHER END OF data_ov007_02103254, which nobody had looked
+     up and which decides whether a bridge or a trap is the right fix. From
+     the RELOCS, never the raw word:
+
+         config/arm9/overlays/ov007/relocs.txt:3264
+           from:0x02103254 kind:load to:0x020c3e4c module:overlay(7)
+
+     and 0x020c3e4c is six instructions:
+
+         ldr ip,[pc,#0xc] / mov r2,r0 / mov r0,#0 / mvn r1,#0 / bx ip
+         .word 0x020590fc
+
+     func_020590fc takes (0, -1, obj), disables interrupts, indexes a table of
+     12-byte records, and unlinks the node at (obj - 0x20) from the two lists
+     at +4 and +8 before re-enabling. It is a TEARDOWN, and both callers agree:
+     func_ov007_020cbb04 calls this on five sub-objects and then on the parent,
+     and func_ov007_020b9770 calls it on two globals and NULLS EACH ONE on the
+     next line. The "Player state" label on 0x020c3d1c is a mislabel -- section
+     1 of the 2d map warns about it and this is the disassembly behind the
+     warning -- and what was being spliced out of those two lists was the
+     caller's own return address.
+
+     SO THE FIX IS A BRIDGE AND NOT A TRAP. The mission this lane ran under
+     allowed for a loud trap if the true body turned out to be unseated. It is
+     not: src/_ZN6Player17St_EndingFly_MainEv.cpp is matched, in the slice, and
+     correct as written. The only thing wrong was how the three spellings
+     reached it.
+
+     FIXED BY   both directives are DELETED.
+                ?St_EndingFly_Main@Player@@QAEXXZ is now a real __thiscall
+                method in hal/scene_boot.cpp:
+                    push ecx / call __ZN6Player17St_EndingFly_MainEv
+                    pop ecx / ret
+                which publishes the receiver from ECX into the stack slot the
+                flat body reads, and rets 0 as a nullary __thiscall must.
+                The INT spelling is bridged onto the void one --
+                    ?St_EndingFly_Main@Player@@QAEHXZ
+                      = ?St_EndingFly_Main@Player@@QAEXXZ
+                -- because two decorations that differ only in return type
+                cannot both be declared on one class in one TU. That is the
+                Heap::Rescue precedent and it is NOT a crossing: both sides
+                are public __thiscall taking nothing, so rule R and rule P
+                both agree. EAX is then whatever the flat body left, which is
+                exactly as indeterminate as r0 is in the ROM (0x020c3d1c
+                returns whatever the pointer it dispatched returned), and all
+                seven int-form sites in src/func_ov007_020cbb04.cpp discard it.
+                No drive: ov007's ending path is not reachable from any
+                battery entry point. Checker and disassembly, as the mission
+                allows for this pair.
+     FIXTURE    abi_prove ALIAS_FIXTURES, "Player::St_EndingFly_Main (int
+                spelling)" and "(void spelling)" -- two rows, because two
+                directives were deleted and each has to be caught on its own.
+
   6. Player::St_EndingFly_Main, a THIRD spelling, and until this document was
-     amended NO CHECKER IN THE SUITE COULD SEE IT.
-     hal/scene_boot.cpp:1126 carries ?St_EndingFly_Main@Player@@YAXXZ =
+     amended NO CHECKER IN THE SUITE COULD SEE IT.   FIXED
+     the directive was at hal/scene_boot.cpp:1126:
+     ?St_EndingFly_Main@Player@@YAXXZ =
      __ZN6Player17St_EndingFly_MainEv. YA is a free function, so both sides
      agree there is no receiver and aliascheck's rule R is CORRECT to stay
      quiet -- it is not a crossing. And src/func_ov007_020b7764.cpp:9 calls
@@ -645,6 +972,85 @@ Ranked by blast radius.
      It is the clearest single argument for the suite having more than one
      detector -- and, now, for reviewing the detectors against each other.
 
+     FIXED BY   the directive is DELETED and ?St_EndingFly_Main@Player@@YAXXZ
+                is aliased instead onto a hal free function that supplies the
+                receiver ITSELF. It can, because the receiver at that one call
+                site is a GLOBAL and the ROM says which one:
+
+                    020b7774  ldr r0,[pc,#0x2c]     &data_ov007_02103448
+                    020b7778  ldr r0,[r0]           r0 = *that word
+                    020b777c  cmp r0,#0
+                    020b7790  bl  0x020c3d1c        with r0 STILL the object
+
+                and src/func_ov007_020b7764.cpp is byte-locked, so the matched
+                C is `Player::St_EndingFly_Main();` with the argument dropped
+                and it stays that way. The face reads the same global:
+
+                    _port_ov007_b7764_endingfly:
+                      push dword ptr [_data_ov007_02103448]
+                      call __ZN6Player17St_EndingFly_MainEv
+                      pop ecx / ret
+
+                An ALIAS and not a second face declaration, because a
+                `namespace Player` in hal/scene_boot.cpp would collide with the
+                `struct Player` the QAEX face needs, and both sides are __cdecl
+                with no receiver so it is a pure NAME bridge. It is exact for
+                exactly one caller and that is all there is: a tree-wide grep
+                finds ONE `namespace Player` declaration.
+     AND THE    checker had to learn something too, or the row could never
+     CHECKER    retire. src/func_ov007_020b7764.cpp still says what it always
+                said, so a reader that looks only at declaration text cannot
+                tell a fixed site from a broken one. aritycheck now counts a
+                namespaced declaration ONLY when an /alternatename binds its
+                MSVC decoration to the flat Itanium name -- which is the thing
+                that makes the flat body the callee in the first place. With
+                the directive gone, the row is gone, and it is gone for the
+                real reason rather than by editing the baseline's prose.
+                Eleven namespaced declarations tree-wide are now unbound and
+                every one is PRINTED on each run, so the narrowing is visible.
+     FIXTURE    prove_nsdecl, now three arms: the spelling plus its binding
+                alias in a scratch file must produce a row; removing the file
+                must take it away; and re-adding ONLY the deleted scene_boot
+                directive must bring the REAL src/func_ov007_020b7764.cpp row
+                back. That third arm is the regression proof for this fix
+                rather than for the detector, and it is the one that fails if
+                somebody restores the alias without restoring the face.
+
+  7. A SEVENTH INSTANCE, FOUND WHILE FIXING THE SIX AND NOT FIXED.
+     hal/scene_boot.cpp still carries
+
+         /alternatename:_func_020c3d1c=__ZN6Player17St_EndingFly_MainEv
+
+     the fourth spelling of item 4/5's body: by ADDRESS. Five matched ov007
+     TUs reach it -- func_ov007_020c338c, _020c3544, _020c8098, _020c8440 and
+     _020c9460 -- and every one of them is a long-branch veneer that declares
+
+         extern int func_020c3d1c(void);
+
+     and calls it with nothing, while the body takes the object. It is the
+     same defect as item 4/5 with a different spelling, and its callers are
+     real: src/func_ov007_020cbb04.cpp:18 passes a pointer into
+     func_ov007_020c8098 in a loop over a grid, while :3 declares that veneer
+     as taking one and the veneer's own TU defines it as taking none.
+
+     NEITHER CHECKER CAN SEE IT, and that is the part worth carrying. Both
+     sides of the directive are flat __cdecl names, so there is no receiver
+     crossing and aliascheck's rule R is right to stay quiet. Nothing in the
+     tree DEFINES func_020c3d1c, so aritycheck has no definition to compare
+     the five `(void)` declarations against and no census row exists. A third
+     detector would have to reason about what an alias makes the callee, which
+     is the direction the NS BINDING rule added for item 6 points in.
+
+     WHY IT IS NOT FIXED HERE. On the ROM all five are `ldr ip,[pc]; bx ip`
+     and r0 rides through, and on the host all five are inside the derived
+     VENEER set that tailjump_guard already asserts -- so the ride is intact
+     today and the guard would fail the build if it stopped being. Fixing it
+     properly means five more Class C rows keyed on the real callee and a
+     drive nobody has, on a scene (the ending) that is not reachable. It is
+     filed here rather than taken, which is the same call lane AB1 made about
+     the six, and it is filed with its mechanism so the next lane does not
+     have to re-derive it.
+
   ADJUDICATED INERT, for the record (11 rows, all in aliascheck_baseline.txt):
   Player::OnYoshiTryEat (the body is `(void)this; return 1;`); the eight
   MeshColliderBase base-table bridges (address-taken only, and the live
@@ -665,16 +1071,25 @@ Ranked by blast radius.
     Itanium body carrying no parameter list in its spelling, so no demangler
     closes them; the fix is to read the pop out of the target's own emitted
     `ret`, which means disassembling beyond the hal objects.
-  * aritycheck's full census (2105 rows) does not gate and its parser is a
+  * aritycheck's full census (2106 rows) does not gate and its parser is a
     regex over C and C++ text. The honest route to gating it is to read arity
     out of the emitted code -- the callers' push counts, the way abicheck
     reads emitted rets -- not a bigger regex.
   * aritycheck reads ONE C++ declaration spelling beyond the flat names:
-    `namespace X { T f(); }`, single level, no arguments. Templates, nested
-    namespaces, overloads, arguments and out-of-line class methods are not
-    attempted. Each of those is a place a call site can hide the way
+    `namespace X { T f(); }`, single level, no arguments, AND ONLY WHEN an
+    /alternatename binds its decoration to the flat Itanium name. Templates,
+    nested namespaces, overloads, arguments and out-of-line class methods are
+    not attempted. Each of those is a place a call site can hide the way
     src/func_ov007_020b7764.cpp did for six days.
-  * The 168 frozen receiver-shape rows, the 11 INERT crossings and the 6
+  * THE RIDE EXCLUSION IS ONLY AS GOOD AS tailjump_guard's HAND-DECLARED
+    TABLE, and that is a narrower claim than it sounds. It covers 12 frames
+    (7 Class A, which are 'call' and therefore never excluded, and 5+2 Class
+    C). The guard's 22 DERIVED veneer rows are NOT consulted, because deriving
+    them needs the extracted ROM and aritycheck has to keep running without
+    one -- so the baseline still carries rows for veneers that are in fact
+    rides, and nobody should read the 166 as adjudicated. Closing that gap
+    means giving the guard a ROM-free way to publish its derived set.
+  * The 166 frozen receiver-shape rows, the 11 INERT crossings and the 6
     frozen vtspan fills are DEBT. The ratchets' claim is deliberately narrow
     and true: the tree does not grow a new one without somebody seeing it.
   * aliascheck reads the DIRECTIVE, not the call sites. It says a crossing
@@ -682,6 +1097,21 @@ Ranked by blast radius.
     is why every baseline row carries a hand adjudication rather than a
     verdict the tool computed. The sixth defect is the standing proof that a
     checker reading one artefact can be blind to the site that matters.
+  * AND SO IS ITEM 7 OF SECTION 6, which is the current standing proof and a
+    sharper one: a flat-to-flat alias where the LHS's five declarations all
+    say `(void)` and the RHS body takes an object. aliascheck sees no crossing
+    because there is none, and aritycheck has no census row because nothing
+    defines the LHS name. The suite has three detectors and this instance is
+    invisible to all three.
+  * A CLEAN ZERO-OPEN RUN DOES NOT MEAN A PATH WAS EXERCISED. Lane RF1
+    measured this the hard way on section 6 items 1 and 2: with a probe in all
+    four entry points, thirty-three separate drives -- two full level-entry ->
+    ExitLevel -> destination cycles, two 300-frame selftests and 120-frame
+    selftests over 29 mounted levels -- produced ZERO dispatches of
+    _ZTV13ExpandingHeap slots 2 and 5. Both defects were real and both fixes
+    are correct; neither could have shown up in any behavioural number the
+    port can currently take. Static proof was the only proof available, which
+    is an argument for the suite rather than against it.
   * Nothing here runs automatically. Section 8.
 
   TWO LIMITS THIS DOCUMENT CLAIMED AND THEN LOST, kept here because a limit
