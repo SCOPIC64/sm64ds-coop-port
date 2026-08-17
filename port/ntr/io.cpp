@@ -167,13 +167,22 @@ constexpr uint32_t GXSTAT_IDLE = 0x06000000;  // empty + less-than-half-full, no
 // goes at the unit instead: with it set, every proxied caller reads a dead
 // window, which is the state cstd::ldiv's caller was in before the routing.
 //
-// WHAT IT IS NOT. It is not caller-scoped. G3i::PerspectiveW_'s host copy
-// already reached this unit and it goes dark too. On scene 1 that happens to
-// reproduce the exact pre-change frame -- measured, not assumed, and the hash
-// is in port/ov007_seat.txt 5i -- because the value PerspectiveW_ loses is the
-// same one the broken aspect was already destroying. On a LEVEL it is a new
-// breakage rather than an old behaviour, so it is a bisect switch there and
-// nothing more.
+// WHAT IT IS NOT, AND THIS IS THE HALF THAT MATTERS. It is not caller-scoped
+// and it is NOT a reconstructed before. G3i::PerspectiveW_'s host copy already
+// reached this unit and it goes dark too, so on scene 1 the hatch is MORE off
+// than the pre-change state was: PerspectiveW_ loses proj[5] and the depth row
+// as well, all 96 triangles collapse to the single point 256,192 instead of to
+// the pre-change vertical line, and the frame carries 230 distinct colours
+// where the start commit's carried 472. Both hashes are in
+// port/ov007_seat.txt 5i. It switches the behaviour off, which is what a hatch
+// owes, and it does not rebuild the old frame; the before is the start
+// commit's binary. On a LEVEL it is a new breakage rather than an old
+// behaviour, so it is a bisect switch there and nothing more.
+//
+// AN EXACT SAME-BINARY BEFORE WOULD NEED A DIFFERENT SEAM. The cheap one is a
+// CMake option on the routing block in port/CMakeLists.txt that keeps the
+// plain slice entries, which is a rebuild rather than one binary; nobody has
+// needed it yet.
 bool div_unit_off() {
     static int off = -1;
     if (off < 0) {

@@ -2556,8 +2556,12 @@ mechanism claim is a census number rather than a hash. Levels 1 and 6 are
 byte-identical ACROSS that base move, which is a fact about those two frames
 and not a licence to compare scene 1's.
 
-WHAT WAS BUILT TO SEE IT, all of it additive and all of it inert without
-SM64DS_PPU_AUDIT. port/ntr/ppu_audit.cpp is lane W2D's instrument and 5h took
+WHAT WAS BUILT TO SEE IT, all of it additive, with no output and no
+behavioural effect without SM64DS_PPU_AUDIT. The one qualification, because
+"inert" overstates it: the gx.cpp census counters are unconditional increments
+on a path that already runs, and SM64DS_MTX_LOG and SM64DS_PERSP_LOG are
+separate knobs of their own rather than things the audit variable gates.
+port/ntr/ppu_audit.cpp is lane W2D's instrument and 5h took
 the measurement W2D could not; this lane needed four rows W2D's table does not
 have, because the rows it does have cannot separate the states that mattered:
 
@@ -2656,8 +2660,9 @@ src/func_ov007_020c0078.c reads it as
 
     (int)(*(long long*)(c + 0xbc) >> 0x14)
 
-and src/func_ov007_020c0128.cpp, which func_ov007_020b1fa4 calls immediately
-before, is the only writer of that field:
+and src/func_ov007_020c0128.cpp, which func_ov007_020b1fa4 calls at its head
+(line 12, against the c0078 call at line 45 of the same function, with the
+switch between them), is the only writer of that field:
 
     long long l = _ZN4cstd4ldivEii(0x4000, 0x3000);
     *(int *)(c + 0xbc) = (int)l;
@@ -2682,8 +2687,12 @@ rewrites the derefs to NTR_MMIO and so through ntr::io_write; src/ is not
 edited and the two matched TUs stay matched, exactly as
 _ZN4cstd11fdiv_resultEv, _ZN4cstd4sqrtEy and Camera::Render are already
 handled. The plain slice entries are cut in the same block that adds the
-generated ones, with a count guard, so a third slice picking one up cannot go
-unnoticed.
+generated ones, with a count guard. THE GUARD IS A message(STATUS) AND NOT A
+REFUSAL, so read it as a signpost rather than a net: the real net is the
+LINKER, which answers a slice that stopped listing one of them with an
+undefined symbol and a slice that started listing a third copy with a duplicate
+one. The message exists so a reader looking at a failed link knows which block
+to look at first, which is what the CMakeLists comment beside it says.
 
 THE BLAST RADIUS IS ONE CALLER AND IT WAS SWEPT RATHER THAN ASSUMED.
 cstd::fdiv, the divider's other client and the one every level uses, is a HOST
@@ -2740,7 +2749,10 @@ unit and loses proj[5] and the depth row too, so all 96 triangles collapse to
 the single point 256,192 instead of to the pre-change vertical line, and the
 frame carries 230 distinct colours where the start commit's carried 472. It
 switches the behaviour off and it is a bisect switch; it is not a reconstructed
-before, and the before is the start commit's binary.
+before, and the before is the start commit's binary. AN EXACT SAME-BINARY
+BEFORE WOULD NEED A DIFFERENT SEAM, and the cheap one is a CMake option on the
+routing block that keeps the plain slice entries -- a rebuild rather than one
+binary, and nobody has needed it yet.
 
 
 GAP TWO: A DS ADDRESS WHERE A HOSTED GLOBAL'S ADDRESS BELONGS
