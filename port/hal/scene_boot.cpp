@@ -2076,11 +2076,94 @@ extern "C" void *port_scene_boot(int id)
 //
 // Returns the process exit code. Called from walk_window's main once the host
 // bring-up is done, and it does not return to the level path.
-extern "C" int port_scene_run(void)
+//
+// ---- IT IS THREE FUNCTIONS, AND THE HEADLESS RUN IS THEIR COMPOSITION ------
+//
+// run link60 lane SW1. port_scene_run at the bottom of this block is
+//
+//     begin(nullptr, 1);  tick(frame, 1) per frame;  finish(frames);
+//
+// -- the same statements in the same order the one function had, so a headless
+// scene run executes what it always executed. The split is a split and not a
+// rewrite for exactly that reason: the battery's scene rows are the proof the
+// rest of the lane is measured against, so they must not be measuring
+// something new.
+//
+// What it buys is a WINDOW. tests/walk_window.cpp's scene_window_run drives
+// the same three calls with a message pump, live input, the debug menu and a
+// present between the ticks, and it needs no copy of the scene's bring-up, its
+// capture or its census. The scene's frame belongs to this file and the host's
+// frame belongs to that one, which is the division the level path already has.
+//
+// WHO GETS A WINDOW is walk_window's decision and not this file's: a scene run
+// that names a frame budget or is a selftest is a MEASUREMENT and stays as
+// headless as it ever was, and everything else is a SESSION. See
+// port/scene_window.txt section 3 for why the frame budget is the signal.
+
+/* What begin() resolved, for tick() and finish() to read. File scope rather
+   than arguments because they are the RUN's settings and not the FRAME's. */
+static int scn_frames = -1;
+static int scn_no_render;
+static int scn_trace;
+static const char *scn_bmp;
+static const char *scn_bmp_stacked;
+/* The scene's framebuffer, moved out of port_scene_run's body unchanged: the
+   same zero-initialised static storage, now reachable by a windowed loop that
+   has to present it. */
+static ntr::Framebuffer scn_fb;
+
+/* THE LAYOUT, PROPOSED FROM THE ROM'S OWN PREDICATE. src/IsMinigameActorID.c
+   is `id >= 0x169 && id <= 0x186` and it is already what gates the ov006
+   overlay constructors (hal/scene_mg.cpp's port_scene_mg_prepare), so the
+   question "is this scene a minigame" has a linked, ROM-side answer and this
+   file does not invent a second one. Curling is 374 = 0x176 and is inside it;
+   the star select (4) and the title screen (1) are not.
+
+   IT IS A PROPOSAL. hal_sub_screen_set_stacked takes it as the default and
+   SM64DS_DUAL_SCREEN overrides in either direction.
+
+   ASKED ONCE, BY WHOEVER GETS THERE FIRST. The mode latches on its first
+   reader and the setter refuses -- loudly, on purpose -- once the answer has
+   been handed out. A windowed run has to know the layout BEFORE it can size a
+   window, which is before begin() runs, so the proposal is made exactly once
+   and the second caller is a no-op rather than a warning about a call order
+   that is in fact correct. */
+extern "C" void port_scene_layout_propose(void)
+{
+    static int proposed;
+    if (proposed)
+        return;
+    proposed = 1;
+    const int scene = port_scene_env_want();
+    hal_sub_screen_set_stacked(scene >= 0 && IsMinigameActorID((unsigned)scene));
+}
+
+/* How many frames the run was asked for, readable before begin() so a windowed
+   loop can honour a budget it was given. */
+extern "C" int port_scene_frames_wanted(void)
+{
+    if (scn_frames < 0)
+        scn_frames = std::getenv("SM64DS_SCENE_FRAMES")
+                         ? std::atoi(std::getenv("SM64DS_SCENE_FRAMES")) : 300;
+    return scn_frames;
+}
+
+/* The finished frame, for a present. Const because the windowed loop reads it
+   and must not become a second writer of it. */
+extern "C" const void *port_scene_framebuffer(void)
+{
+    return &scn_fb;
+}
+
+/* THE BRING-UP AND THE SPAWN. Returns 0, or the process exit code to die with.
+   `hwnd` is the window this run will be presented into, or null for a headless
+   one: hal_sub_screen_init_hw keys g_headless off exactly that, so passing a
+   real window is the whole of what turns the stylus, the focus gate and the
+   TAB latch on. See the block below it. */
+extern "C" int port_scene_begin(void *hwnd, int zoom)
 {
     const int scene = port_scene_env_want();
-    const int frames = std::getenv("SM64DS_SCENE_FRAMES")
-                           ? std::atoi(std::getenv("SM64DS_SCENE_FRAMES")) : 300;
+    const int frames = port_scene_frames_wanted();
     const int no_render = std::getenv("SM64DS_SCENE_NO_RENDER") != 0;
     const char *bmp = std::getenv("SM64DS_SCENE_BMP");
     /* SM64DS_SCENE_BMP_STACKED=<path>: the STACKED image of the last frame,
@@ -2095,18 +2178,13 @@ extern "C" int port_scene_run(void)
     const char *sub = std::getenv("SM64DS_SCENE_SUBLEVEL");
     const int sublevel = sub ? std::atoi(sub) : 6;
 
-    /* THE LAYOUT, PROPOSED FROM THE ROM'S OWN PREDICATE. src/IsMinigameActorID.c
-       is `id >= 0x169 && id <= 0x186` and it is already what gates the ov006
-       overlay constructors (hal/scene_mg.cpp's port_scene_mg_prepare), so the
-       question "is this scene a minigame" has a linked, ROM-side answer and
-       this file does not invent a second one. Curling is 374 = 0x176 and is
-       inside it; the star select (4) and the title screen (1) are not.
+    scn_frames = frames;
+    scn_no_render = no_render;
+    scn_bmp = bmp;
+    scn_bmp_stacked = bmp_stacked;
+    scn_trace = trace;
 
-       IT IS A PROPOSAL. hal_sub_screen_set_stacked takes it as the default and
-       SM64DS_DUAL_SCREEN overrides in either direction. It is called HERE,
-       before the first hal_sub_screen_frame_begin, because the mode latches on
-       its first reader and the frame loop is one. */
-    hal_sub_screen_set_stacked(scene >= 0 && IsMinigameActorID((unsigned)scene));
+    port_scene_layout_propose();
 
     /* THE DS'S POWER-ON INTERRUPT STATE, before anything can arm an interrupt.
        The ROM's own arming code brackets SetIRQHandler in
@@ -2143,19 +2221,29 @@ extern "C" int port_scene_run(void)
      * at all, and clearing it back to the DS's bss zero is what turns the panel
      * into a screen the game can draw on.
      *
-     * hwnd is NULL and that is correct, not a stub: walk_window creates its
-     * window ~560 lines after the handover, so a scene run has no window to
-     * pass. Every consumer of g_hwnd is already written to fail open on a null
-     * (hal_window_focused returns 1, poll_touch's ScreenToClient guard fails
-     * and no touch is delivered), which is the same state a headless selftest
-     * runs in.
+     * hwnd IS THE ARGUMENT NOW, and it is the whole of the difference between
+     * a headless scene run and a playable one. It used to be a hardcoded
+     * nullptr, correct at the time -- walk_window created its window ~560
+     * lines after the handover, so a scene run had none to pass -- and every
+     * consumer of g_hwnd was written to fail open on it (hal_window_focused
+     * returns 1, poll_touch's ScreenToClient guard fails and no touch is
+     * delivered), which is the same state a headless selftest runs in.
+     *
+     * That fail-open is also what kept the STYLUS shut. hal_sub_screen_init_hw
+     * sets `g_headless = SM64DS_WINDOW_SELFTEST || hwnd == nullptr`, and
+     * poll_touch -- which hal_sub_screen_frame_begin has been calling on this
+     * path every frame all along -- is gated on it. So a real window here
+     * turns on the mouse-as-stylus, the focus gate and the TAB latch, with no
+     * touch code written anywhere: the stacked branch of poll_touch is the
+     * mapping the bottom half of the picture already had. A headless run still
+     * passes nullptr and is unchanged. See port/scene_window.txt section 1c.
      *
      * SM64DS_SUB_NO_SCENE_INIT=1 puts the old behaviour back on this same
      * binary. It exists so the before/after is one build and one .dsstate base
      * -- notes/port-selftest-bmp-gate.md only lets BMPs be compared at equal
      * base -- and so the defect stays reproducible after the fix. */
     if (!std::getenv("SM64DS_SUB_NO_SCENE_INIT")) {
-        hal_sub_screen_init_hw(nullptr, 1);
+        hal_sub_screen_init_hw(hwnd, zoom > 0 ? zoom : 1);
     } else {
         std::printf("[sub] SM64DS_SUB_NO_SCENE_INIT=1: scene-path bring-up "
                     "SKIPPED (the pre-fix behaviour)\n");
@@ -2289,12 +2377,33 @@ extern "C" int port_scene_run(void)
                     (unsigned)data_02092664, (unsigned)data_02092660);
     }
     std::fflush(stdout);
+    return 0;
+}
 
-    static ntr::Framebuffer fb;
-    for (int frame = 0; frame < frames; ++frame) {
+/* ONE FRAME OF THE SCENE.
+
+   `tick_game` is the debug menu's pause, and it is the same switch the level
+   loop's game_ticked is: with the menu open the world holds still and the
+   picture keeps being drawn, so the panel is legible over a frozen scene. It
+   is 1 on every headless frame, so the battery runs the loop it always ran.
+
+   What the pause does NOT stop is the display scan-out below. The DS's beam
+   does not care that a debug menu is open, and the level loop makes the same
+   call outside its own pause. */
+extern "C" void port_scene_tick(int frame, int tick_game)
+{
+    ntr::Framebuffer &fb = scn_fb;
+    const int no_render = scn_no_render;
+    const int trace = scn_trace;
+    /* The brace is the `for` that used to be here, kept so the body below is
+       the old body at the old indentation and the diff says "the loop became a
+       function" rather than reflowing three dozen lines nobody changed. */
+    {
         hal_sub_screen_frame_begin();
-        port_actor_tick();
-        port_fader_advance();
+        if (tick_game) {
+            port_actor_tick();
+            port_fader_advance();
+        }
         /* THE DISPLAY SCAN-OUT, which is where IRQ 2 lives. The DS raises the
            HBlank edge once per scanline while the picture is being drawn, and
            the dWipe_c motion path is built on it: its handler programs the
@@ -2329,12 +2438,26 @@ extern "C" int port_scene_run(void)
             hal_sub_screen_present(&fb.px[0][0], ntr::SCREEN_W, ntr::SCREEN_H);
             if (trace) std::fprintf(stderr, "[scene-trace] f%d render done\n", frame);
         }
-        port_actor_scene_pass();
+        if (tick_game)
+            port_actor_scene_pass();
 
         if (frame == 0)
             std::printf("[scene] f0 ticked\n");
         std::fflush(stdout);
     }
+}
+
+/* THE CAPTURES AND THE CENSUS. `frames_run` is how many frames actually ran,
+   which on a windowed run is however many the player sat through rather than a
+   budget nobody named. Returns the process exit code. */
+extern "C" int port_scene_finish(int frames_run)
+{
+    const int scene = port_scene_env_want();
+    const int frames = frames_run;
+    const int no_render = scn_no_render;
+    const char *bmp = scn_bmp;
+    const char *bmp_stacked = scn_bmp_stacked;
+    ntr::Framebuffer &fb = scn_fb;
 
     if (bmp && !no_render)
         ntr::ppu_write_bmp(bmp, fb);
@@ -2424,4 +2547,17 @@ extern "C" int port_scene_run(void)
                 port_scene_class_name((unsigned)scene));
     std::fflush(stdout);
     return 0;
+}
+
+/* THE HEADLESS RUN, which is the composition of the three above and nothing
+   else. Every statement a scene run made before the split still runs, in the
+   same order, with hwnd null, zoom 1 and the game ticking on every frame. */
+extern "C" int port_scene_run(void)
+{
+    const int rc = port_scene_begin(nullptr, 1);
+    if (rc)
+        return rc;
+    for (int frame = 0; frame < scn_frames; ++frame)
+        port_scene_tick(frame, 1);
+    return port_scene_finish(scn_frames);
 }
