@@ -37,21 +37,46 @@
 # link60, lane AB1) with:
 #     python port/tools/aritycheck.py --write-receiver-baseline
 # and reviewed only for shape, not row by row.
-
-# THE ROW BELOW IS A CONFIRMED LIVE DEFECT, NOT SUSPECTED DEBT. It is the
-# SIXTH receiver defect on cons and until 2026-08-17 NO checker in the suite
-# could see it. src/func_ov007_020b7764.cpp:2 declares
-#     namespace Player { void St_EndingFly_Main(); }
-# and line 9 calls Player::St_EndingFly_Main() with nothing, while the
-# definition src/_ZN6Player17St_EndingFly_MainEv.cpp:8 takes a receiver and
-# hands it to an indirect call through data_ov007_02103254. aliascheck is
-# right to stay quiet: hal/scene_boot.cpp:1126 spells that alias
-# ?St_EndingFly_Main@Player@@YAXXZ, a free function on BOTH sides, so the
-# receiver agrees and there is no crossing. It reaches this file only because
-# aritycheck learned the namespaced C++ declaration spelling. It is listed
-# here so the ratchet is green, and it is named in port/abi_checks.txt
-# section 6 as one of the six live defects awaiting an owner.
-_ZN6Player17St_EndingFly_MainEv|src/func_ov007_020b7764.cpp
+#
+# 168 -> 166, run link60 lane RF1, 2026-08-17. TWO ROWS RETIRED and NEITHER
+# was retired by editing a byte-locked src file. Both came off because the
+# checker learned something true that it did not know, and both exclusions
+# print on every run so neither is silent (see RIDE and NS BINDING in
+# port/tools/aritycheck.py).
+#
+#   _ZN6Player17St_EndingFly_MainEv|src/func_ov007_020b7764.cpp
+#       THE SIXTH LIVE DEFECT of port/abi_checks.txt section 6, and the row
+#       this file used to carry a whole paragraph about. It is FIXED, in
+#       hal/scene_boot.cpp: the /alternatename that bound
+#       ?St_EndingFly_Main@Player@@YAXXZ to the flat Itanium body is deleted
+#       and a face stands behind that spelling instead, supplying the receiver
+#       out of data_ov007_02103448 -- the same global the ROM's own
+#       `ldr r0,[r0]` at 0x020b7778 reads it from. The byte-locked declaration
+#       in the src file is untouched and still says `(void)`, which is
+#       correct: the free function it now calls really does take nothing.
+#       The row retires because no directive binds that spelling to the flat
+#       body any more, so the flat body is not what the declaration reaches.
+#   _ZN6Player17St_EndingFly_MainEv|src/func_ov007_020c05f8.c
+#       Never a defect at all, and it should not have been in this file. That
+#       TU is a `ldr ip,[pc]; bx ip` long-branch veneer, and
+#       port/tools/tailjump_guard.py has ASSERTED since 2026-08-16 that MSVC
+#       compiles it as a jmp -- which reuses the caller's own cdecl frame, so
+#       the argument the veneer never names is exactly where its target reads
+#       it. A declared ride cannot drop a receiver. It is Class C row 2 of
+#       that guard.
+#
+# AND TWO ROWS THAT WOULD HAVE APPEARED DID NOT, for the same RIDE reason, so
+# they are named here rather than discovered later as a gap:
+#   _ZN13HeapAllocator6RemoveEv|src/_ZN13HeapAllocator7DestroyEv.cpp
+#   _ZN13HeapAllocator6RemoveEv|src/func_0204ebb8.c
+# Those two are the arm9 heap-teardown veneers. Defect 2 of section 6 was
+# fixed by giving the flat name a receiver-bridging face in
+# hal/lk4_eh_dtor_seat.cpp, which the allocator reaches through those two
+# jmps, and lane RF1 added both frames to tailjump_guard's Class C in the same
+# change so the ride is asserted at link time instead of assumed. They are in
+# the CENSUS (the text does disagree) and out of this subset (nothing is
+# dropped). If either frame is ever displaced into a host copy, the guard row
+# retires, the exclusion stops matching, and both rows come back here.
 
 _ZN10FaderColorD1Ev|src/__sinit_02073e6c.c
 _ZN10FaderColorD1Ev|src/__sinit_02074edc.c
@@ -158,7 +183,6 @@ _ZN6Player16IncMegaKillCountEv|port/unmatched/BulletBill_Behavior.cpp
 _ZN6Player16IncMegaKillCountEv|src/_ZN10BulletBill8BehaviorEv.cpp
 _ZN6Player17St_EndingFly_MainEv|src/func_ov007_020adbc8.c
 _ZN6Player17St_EndingFly_MainEv|src/func_ov007_020ade14.c
-_ZN6Player17St_EndingFly_MainEv|src/func_ov007_020c05f8.c
 _ZN6Player17St_EndingFly_MainEv|src/func_ov007_020ca26c.c
 _ZN6Player18St_LevelEnter_MainEv|include/decl_Player.h
 _ZN6Player29TryExitCharacterDoorWithIntroEv|src/MgTrampolineTerror_Spawn.c

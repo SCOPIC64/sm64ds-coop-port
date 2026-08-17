@@ -105,6 +105,46 @@ ALIAS_FIXTURES = [
      "__ZN18SolidHeapAllocator10ReallocateEPvj",
      "the sibling of the above, same shape",
      "cons 44b78e90d, 2026-08-16"),
+    # ---- THE FIVE THIS CHECKER FOUND ITSELF ----------------------------
+    # Frozen as OPEN in aliascheck_baseline.txt the day the checker landed,
+    # fixed the next day by run link60 lane RF1, and moved here so the file
+    # that used to remember them as text is replaced by a proof that they
+    # still get caught. Each row's directive is the one DELETED by the fix,
+    # read out of the fixing diff and not out of the old baseline prose.
+    ("ExpandingHeapAllocator::DeallocateAll",
+     "?DeallocateAll@ExpandingHeapAllocator@@QAEXPAP6AXPAXPAV1@I@ZI@Z="
+     "__ZN22ExpandingHeapAllocator13DeallocateAllEPPFvPvPS_jEj",
+     "the allocator went into ECX and the flat body read the VISITOR out of "
+     "the first stack slot, dereferencing that code pointer at +0x2c "
+     "unconditionally; and the thiscall caller expected a ret 8 the cdecl "
+     "body never emitted, so ESP leaked 8 bytes on every heap teardown",
+     "cons s5-receiver-fixes, 2026-08-17 (run link60 lane RF1)"),
+    ("HeapAllocator::Remove",
+     "__ZN13HeapAllocator6RemoveEv=?Remove@HeapAllocator@@QAEXXZ",
+     "the two arm9 veneers call the flat name with nothing, so the thiscall "
+     "body read ECX -- which the seated eh_vdestroy thunk leaves holding the "
+     "HEAP. Remove then unlinked the heap, not its allocator, identically on "
+     "every teardown and without ever faulting",
+     "cons s5-receiver-fixes, 2026-08-17 (run link60 lane RF1)"),
+    ("Player::GetHurtState",
+     "__ZN6Player12GetHurtStateEv=?GetHurtState@Player@@QAEHXZ",
+     "three compiled callers push the player the ARM way and the thiscall "
+     "body read ECX, so the damage test ran against whatever object was in "
+     "that register and answered about the wrong one",
+     "cons s5-receiver-fixes, 2026-08-17 (run link60 lane RF1)"),
+    ("Player::St_EndingFly_Main (int spelling)",
+     "?St_EndingFly_Main@Player@@QAEHXZ="
+     "__ZN6Player17St_EndingFly_MainEv",
+     "nine thiscall sites put the object in ECX and push nothing, so the "
+     "flat body handed its own RETURN ADDRESS to the ov007 teardown "
+     "trampoline at data_ov007_02103254",
+     "cons s5-receiver-fixes, 2026-08-17 (run link60 lane RF1)"),
+    ("Player::St_EndingFly_Main (void spelling)",
+     "?St_EndingFly_Main@Player@@QAEXXZ="
+     "__ZN6Player17St_EndingFly_MainEv",
+     "the same body and the same nine-site bug, spelled by the TU that "
+     "declares the void return",
+     "cons s5-receiver-fixes, 2026-08-17 (run link60 lane RF1)"),
     ("Player::TryGrab",
      "__ZN6Player7TryGrabER5Actor=?TryGrab@Player@@QAE_NAAUActor@@@Z",
      "grabbing an actor, e.g. the penguin catch",
@@ -329,17 +369,32 @@ def prove_nsdecl(root, scratch, results):
     receiver agrees and there is no crossing. Lane ABR1's review found the
     hole.
 
-    That defect is LIVE, so it cannot be re-broken and the green/red shape the
-    other fixtures use does not fit it. What is proved instead is that the
-    detector fires on the SPELLING: a scratch file carrying nothing but a
-    namespaced declaration of a symbol whose definition takes a receiver must
-    produce a new ratchet row naming that file, and removing the file must
-    take the row away again. The second half matters as much as the first --
-    a detector that never goes quiet is a detector nobody can ratchet.
+    THE DEFECT WAS LIVE WHEN THIS FIXTURE WAS WRITTEN AND IT IS FIXED NOW, so
+    the fixture grew a second half. It has three arms:
+
+      1. THE SPELLING. A scratch file carrying nothing but the namespaced
+         declaration, PLUS the /alternatename that binds that spelling to the
+         flat body, must produce a new ratchet row naming the file. The alias
+         is part of the fixture and not decoration: since 2026-08-17
+         aritycheck only counts a namespaced declaration that something
+         actually binds to the flat Itanium name, because otherwise the flat
+         body is not what the declaration calls.
+      2. QUIET AGAIN. Removing the file must take the row away. A detector
+         that never goes quiet is a detector nobody can ratchet.
+      3. THE REAL SITE, which is the regression proof for the FIX rather than
+         for the detector. src/func_ov007_020b7764.cpp still carries its
+         byte-locked namespaced declaration; what changed is that
+         hal/scene_boot.cpp no longer points that spelling at the flat body.
+         Put THAT ONE DIRECTIVE back in the scratch copy and the real row must
+         return. This is the arm that would fail if somebody re-added the
+         alias without re-adding the face.
     """
     print("\n" + "=" * 74)
     print("## aritycheck, the namespaced C++ declaration spelling")
     print("=" * 74)
+
+    ns_alias = ("?St_EndingFly_Main@Player@@YAXXZ="
+                "__ZN6Player17St_EndingFly_MainEv")
 
     path = os.path.join(scratch, "src", NS_FIXTURE_FILE)
     with open(path, "w", encoding="utf-8") as f:
@@ -348,14 +403,16 @@ def prove_nsdecl(root, scratch, results):
                 "   src/func_ov007_020b7764.cpp:2, which nothing in this\n"
                 "   suite could see before 2026-08-17. */\n"
                 "namespace Player { void St_EndingFly_Main(); }\n")
+    inject_alias(scratch, ns_alias, "namespaced declaration binding")
     rc, out = run([PY, os.path.join(HERE, "aritycheck.py"), scratch,
                    "--gate-receiver"])
     os.remove(path)
+    clear_alias(scratch)
     caught = (rc == 1 and "NEW RECEIVER-SHAPE" in out
               and NS_FIXTURE_FILE in out)
     results.append(("aritycheck RED: namespaced C++ declaration", caught))
-    print("\n  %-4s a namespaced declaration in a scratch file"
-          % ("PASS" if caught else "FAIL"))
+    print("\n  %-4s a namespaced declaration, bound by an /alternatename, in "
+          "a scratch file" % ("PASS" if caught else "FAIL"))
     print("       aritycheck --gate-receiver exit %d, new row naming the "
           "fixture file: %s" % (rc, "yes" if caught else "NO"))
 
@@ -366,6 +423,86 @@ def prove_nsdecl(root, scratch, results):
                     back))
     print("  %-4s and green again with the fixture removed (exit %d)"
           % ("PASS" if back else "FAIL", rc2))
+
+    # Arm 3: the real site, re-broken by restoring only the deleted directive.
+    inject_alias(scratch, ns_alias, "the deleted scene_boot directive")
+    rc3, out3 = run([PY, os.path.join(HERE, "aritycheck.py"), scratch,
+                     "--gate-receiver"])
+    clear_alias(scratch)
+    real = (rc3 == 1 and "NEW RECEIVER-SHAPE" in out3
+            and "func_ov007_020b7764" in out3)
+    results.append(("aritycheck RED: the real sixth-defect site returns when "
+                    "its alias does", real))
+    print("  %-4s and re-adding ONLY the deleted scene_boot directive brings "
+          "src/func_ov007_020b7764.cpp back (exit %d, named: %s)"
+          % ("PASS" if real else "FAIL", rc3, "yes" if real else "NO"))
+
+
+def prove_ride(root, scratch, results):
+    """The tail-jump RIDE exclusion, proved to be narrow rather than an
+    off-switch.
+
+    aritycheck holds a declaration out of the receiver subset when
+    tailjump_guard declares that frame a tail JUMP to that same callee: a jmp
+    reuses the caller's cdecl frame, so the argument the frame never names is
+    where its target reads it. That is what makes lane RF1's
+    HeapAllocator::Remove face correct, and it is the only reason two rows
+    that would otherwise be NEW are not.
+
+    An exclusion is only safe if it can be shown to stop excluding. This
+    re-breaks the GUARD in a scratch copy -- renaming the callee in the two
+    heap rows so the (frame, callee) key stops matching -- and asserts the two
+    rows come straight back as NEW. Nothing about aritycheck is touched, which
+    is the point: the exclusion is exactly as wide as the guard's own table.
+    """
+    print("\n" + "=" * 74)
+    print("## aritycheck, the tail-jump RIDE exclusion")
+    print("=" * 74)
+
+    rel = "port/tools/tailjump_guard.py"
+    path = os.path.join(scratch, rel.replace("/", os.sep))
+    # THE SCRATCH COPY OF aritycheck IS THE ONE RUN HERE, and it has to be:
+    # the exclusion table is IMPORTED by the tool, not read out of the tree it
+    # is pointed at, so running the real tool against the scratch root would
+    # import the real guard and prove nothing. Every other arm in this file
+    # re-breaks an input the real tool reads; this one re-breaks a sibling
+    # module, so the whole tool has to come from the copy.
+    scratch_arity = os.path.join(scratch, "port", "tools", "aritycheck.py")
+    fixed = "'callee': '_ZN13HeapAllocator6RemoveEv',"
+    broken = "'callee': '_ZN13HeapAllocator6RemoveEv_ABIPROVE',"
+    src = open(path, encoding="utf-8", errors="replace").read()
+    if src.count(fixed) != 2:
+        results.append(("aritycheck RED: the RIDE exclusion stops excluding",
+                        False))
+        print("\n  FAIL the two heap RIDE rows are not in %s as written, so "
+              "re-breaking them would prove nothing" % rel)
+        return
+
+    # The control first: the untouched scratch copy must be green, so a red
+    # below is the guard edit and not the copy behaving differently.
+    rc0, _ = run([PY, scratch_arity, scratch, "--gate-receiver"])
+    ctl = rc0 == 0
+    results.append(("aritycheck GREEN: the scratch copy, guard untouched",
+                    ctl))
+    print("\n  %-4s control: the scratch copy of the checker is green with "
+          "the guard as it stands (exit %d)" % ("PASS" if ctl else "FAIL",
+                                                rc0))
+
+    open(path, "w", encoding="utf-8").write(src.replace(fixed, broken))
+    rc, out = run([PY, scratch_arity, scratch, "--gate-receiver"])
+    open(path, "w", encoding="utf-8").write(src)
+    caught = (rc == 1 and "NEW RECEIVER-SHAPE" in out
+              and "src/func_0204ebb8.c" in out
+              and "src/_ZN13HeapAllocator7DestroyEv.cpp" in out)
+    results.append(("aritycheck RED: the RIDE exclusion stops excluding",
+                    caught))
+    print("\n  %-4s with the two heap rows removed from tailjump_guard's "
+          "table, both declarations report as NEW" % ("PASS" if caught
+                                                      else "FAIL"))
+    print("       aritycheck --gate-receiver exit %d, both files named: %s"
+          % (rc, "yes" if caught else "NO"))
+    print("       so the exclusion is exactly the guard's table and not a "
+          "blanket the checker applies on its own")
 
 
 def prove_vtable(root, disasm, results):
@@ -472,6 +609,7 @@ def main(argv):
         prove_alias(root, scratch, results)
         prove_arity(root, scratch, results)
         prove_nsdecl(root, scratch, results)
+        prove_ride(root, scratch, results)
         prove_vtable(root, args.disasm_dir, results)
     finally:
         if args.keep:
