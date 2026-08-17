@@ -38,6 +38,32 @@ def sym_map():
     return out
 
 
+def src_for(symbol, mapped):
+    """Repo-relative src path for `symbol`, or None.
+
+    sym_map() only sees TUs that are ALREADY IN A BUILD TARGET, because it is
+    built out of inferred_stub_guard's slice reader. That is the right set for
+    the debt queue -- debt is by definition already seated -- and it is the
+    WRONG set for the case this tool is most useful in: a fan-out lane
+    adjudicating a class's override bodies BEFORE it seats any of them. Every
+    one of those TUs is unwired, so the map answers "?" and the open() below
+    used to die with `Invalid argument: '<root>\\?'`.
+
+    So fall back to the file-naming convention the tree actually uses,
+    src/<symbol>.c then .cpp, and return None rather than a bare "?" when
+    neither exists. Only a name lookup: nothing is inferred about the body,
+    and the ROM half below is printed either way, which is the half a ruling
+    rests on.
+    """
+    if mapped and mapped != "?":
+        return mapped
+    for ext in (".c", ".cpp"):
+        rel = "src/" + symbol + ext
+        if os.path.isfile(os.path.join(ROOT, rel)):
+            return rel
+    return None
+
+
 def literal_targets(data, addr, ovid):
     """pc-relative literal loads -> (insn addr, literal addr, word, name)."""
     hits = []
@@ -62,13 +88,18 @@ def dump(symbol, src_rel):
     ovid = int(m.group(1), 10)
     addr = int(m.group(2), 16)
 
+    src_rel = src_for(symbol, src_rel)
+
     print("=" * 78)
     print("SYMBOL  {}".format(symbol))
-    print("SRC     {}".format(src_rel))
+    print("SRC     {}".format(src_rel or "NONE (no src/<symbol>.c or .cpp)"))
     print("=" * 78)
     print("--- src body ---")
-    with open(os.path.join(ROOT, src_rel), encoding="utf-8", errors="replace") as fh:
-        print(fh.read().rstrip())
+    if src_rel is None:
+        print("(no decompiled body in src/ -- the ROM half below is all there is)")
+    else:
+        with open(os.path.join(ROOT, src_rel), encoding="utf-8", errors="replace") as fh:
+            print(fh.read().rstrip())
 
     print("--- ROM body (ov{:03d} @ {:#x}) ---".format(ovid, addr))
     try:

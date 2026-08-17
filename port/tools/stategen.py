@@ -220,6 +220,31 @@ DEST_ARR = re.compile(
 ASSIGN_IDX = re.compile(
     r"^\s*(" + DATASYM + r")\s*\[\s*(\d+)\s*\]\s*=\s*(" + DATASYM +
     r")\s*;\s*$")
+# the destination declared through an ANONYMOUS TYPEDEF whose one field is an
+# ARRAY of the pair type, and written field-then-index. Run link60 lane MGB.
+#
+#     typedef struct { Pair p[4]; } Dst4_21423c0;
+#     extern Dst4_21423c0 data_ov006_021423c0;
+#     ...
+#     data_ov006_021423c0.p[0] = data_ov006_0213d248;
+#
+# This is a FOURTH slot-assignment spelling and it is one of the five the STG
+# lane's report listed as "refuse on a spelling not yet taught". Nothing above
+# reaches it: DEST_DECL wants a literal `struct` keyword the typedef removed,
+# ASSIGN wants `.field =` with no subscript, and ASSIGN_IDX wants the subscript
+# on the SYMBOL rather than on a field. The old failure was not even a refusal
+# -- every line fell through the unknown-write branch, whose dest_arr/dest_type
+# tests both missed, so the constructor reported "no pair assignments" and read
+# as though it built no state table at all.
+DEST_TD_DECL = re.compile(
+    r"^\s*extern\s+(\w+)\s+(" + DATASYM + r")\s*;\s*$", re.M)
+ASSIGN_FIELD_IDX = re.compile(
+    r"^\s*(" + DATASYM + r")\.([A-Za-z_]\w*)\s*\[\s*(\d+)\s*\]\s*=\s*(" +
+    DATASYM + r")\s*;\s*$")
+# a field spelled `name[N]` inside such a typedef. The extent is required: a
+# slot index has to be BOUNDED by something the constructor itself declares,
+# or an out-of-range write reads as a new slot instead of as a parse error.
+ARR_FIELD = re.compile(r"^(\w+)\[(\d+)\]$")
 
 PMF_TYPEDEF = re.compile(
     r"typedef\s+\w[\w\s*]*\(\s*\w+\s*::\s*\*\s*(\w+)\s*\)\s*\(([^)]*)\)\s*;")
@@ -424,6 +449,34 @@ def parse_sinit(path):
         if ename == pair:
             dest_arr[sym] = (ename, ovn, int(addr, 16))
 
+    # the typedef'd single-array-field destination. EXACTLY ONE field, and it
+    # must be `pair name[N]`. Two array fields would need a cumulative slot
+    # offset the tool would be inventing, so that refuses by name below rather
+    # than getting a guessed base.
+    dest_tdarr = {}
+    tdarr_multi = {}
+    for sname, fields in dests.items():
+        arrs = [ARR_FIELD.match(f) for f in fields]
+        if not all(arrs):
+            continue
+        if len(arrs) != 1:
+            tdarr_multi[sname] = fields
+            continue
+        dest_tdarr[sname] = (arrs[0].group(1), int(arrs[0].group(2)))
+    tdarr = {}
+    for m in DEST_TD_DECL.finditer(text):
+        tname, sym, ovn, addr = m.group(1), m.group(2), m.group(3), m.group(4)
+        if tname in tdarr_multi:
+            die("%s declares %s as %s, whose fields are %s -- more than one "
+                "array of the pair type in one destination struct. The slot "
+                "index of the second array depends on the extent of the "
+                "first, and this tool will not compute a base it was not "
+                "told. Split the declaration or rule the slots by hand"
+                % (path, sym, tname, ", ".join(tdarr_multi[tname])))
+        if tname in dest_tdarr:
+            fname, extent = dest_tdarr[tname]
+            tdarr[sym] = (tname, fname, extent, int(addr, 16))
+
     fn = re.search(r"^void\s+(__sinit_\w+)\s*\(\s*void\s*\)\s*\{", text, re.M)
     if not fn:
         die("%s has no `void __sinit_...(void) {` body -- not an overlay "
@@ -497,6 +550,29 @@ def parse_sinit(path):
                    int(saddr, 16), line, ename)
             continue
 
+        m = ASSIGN_FIELD_IDX.match(line)
+        if m:
+            pending = None
+            dsym, dov, daddr, field, idx, ssym, sov, saddr = (
+                m.group(1), m.group(2), m.group(3), m.group(4),
+                int(m.group(5)), m.group(6), m.group(7), m.group(8))
+            if dsym not in tdarr:
+                continue
+            tname, fname, extent, dst_addr = tdarr[dsym]
+            if field != fname:
+                die("%s assigns .%s[%d] of %s but %s's only field is %s "
+                    "-- the constructor's own declaration is the slot "
+                    "order and this is a parse the tool will not paper "
+                    "over" % (path, field, idx, dsym, tname, fname))
+            if not 0 <= idx < extent:
+                die("%s writes .%s[%d] of %s, whose declared extent is %d. "
+                    "An out-of-range index is either a wrong declaration or "
+                    "a write past the table, and reading it as slot %d "
+                    "invents a state" % (path, field, idx, dsym, extent, idx))
+            record(dsym, dov, dst_addr, idx, "%s[%d]" % (field, idx), ssym,
+                   sov, int(saddr, 16), line, tname)
+            continue
+
         m = WORDIDX.match(line)
         if m:
             dsym, dov, daddr, di, ssym, sov, saddr, si = (
@@ -535,6 +611,13 @@ def parse_sinit(path):
                         "parser does not know:\n    %s\nRefusing rather "
                         "than skipping it: a dropped slot is a switch that "
                         "is short by one state and looks complete"
+                        % (path, sym, line.strip()))
+                if sym in tdarr:
+                    die("%s writes the typedef'd pair table %s in a shape "
+                        "this parser does not know:\n    %s\nRefusing "
+                        "rather than skipping it, for the reason above: "
+                        "this destination IS a state table, so a line the "
+                        "parser cannot read is a slot it would drop"
                         % (path, sym, line.strip()))
                 if sym not in dest_type:
                     continue
@@ -679,6 +762,23 @@ class Row(object):
         return self.owner is None
 
 
+def src_file_for(root, symbol):
+    """`src/<symbol>.c` or `.cpp` if the tree has one, else None.
+
+    A NAME LOOKUP AND NOTHING MORE. It exists so a delinks-join miss is not
+    reported as "undecompiled": the two questions are independent, and
+    conflating them is what made this tool's hole message wrong on
+    func_ov006_020f6904. Nothing is inferred about the body from its
+    existence -- the banner is what says matched vs NONMATCHING, and the
+    message tells the reader to go read it.
+    """
+    for ext in (".c", ".cpp"):
+        rel = "src/%s%s" % (symbol, ext)
+        if (pathlib.Path(root) / rel).is_file():
+            return rel
+    return None
+
+
 def build(root, sinit, overlay_num=None, arity_override=None):
     root = pathlib.Path(root)
     ovn, tables = parse_sinit(root / sinit if not os.path.isabs(str(sinit))
@@ -750,16 +850,44 @@ def build(root, sinit, overlay_num=None, arity_override=None):
 
     for r in rows:
         if r.hole:
-            refusals.append(
-                "0x%08x (slot %d/%s of %s) HAS NO DECOMPILED BODY: no "
-                "delink block in %s/delinks.txt%s. Emitted as a reporting "
-                "case, never as a call, and given no invented symbol. "
-                "Remedy: decompile it, or leave the report in place and "
-                "the state stays unreachable by design"
-                % (r.addr, r.slot, r.slotname, r.table, ovdir,
-                   " (symbols.txt DOES name it %s, which is why a "
-                   "name-shaped check would have emitted a call)" % r.sym
-                   if r.sym else ""))
+            named = (" (symbols.txt DOES name it %s, which is why a "
+                     "name-shaped check would have emitted a call)" % r.sym
+                     if r.sym else "")
+            # WHAT A HOLE ACTUALLY PROVES, corrected by run link60 lane MGB
+            # after review. This test is the DELINKS JOIN and nothing else,
+            # and the message used to report its result as "HAS NO DECOMPILED
+            # BODY ... and no src file". For the first three holes the tool
+            # ever hit that happened to be true, so nothing contradicted it.
+            # It is FALSE for func_ov006_020f6904: no delink block, and a
+            # decompiled src/func_ov006_020f6904.c bannered NONMATCHING.
+            # NONMATCHING TUs are routinely sliced and built, so calling that
+            # address unreachable over-costs the class that owns it -- which
+            # is exactly the error this lane then wrote into
+            # mg_fanout_costs.txt. Say which of the two things is true.
+            src = src_file_for(root, r.sym) if r.sym else None
+            if src:
+                refusals.append(
+                    "0x%08x (slot %d/%s of %s) IS NOT IN THE DELINKS JOIN: "
+                    "no block in %s/delinks.txt covers it, so this tool "
+                    "cannot emit a call for it. IT IS NOT UNDECOMPILED "
+                    "THOUGH -- %s exists%s. Read that file's banner before "
+                    "costing this state: an unbannered TU is matched and a "
+                    "NONMATCHING one is still decompiled, and BOTH are "
+                    "routinely sliced and built, so this is a boundary of "
+                    "THIS TOOL rather than a floor for the port. Remedy: "
+                    "slice the TU and hand-write this case, or delink the "
+                    "block and re-run"
+                    % (r.addr, r.slot, r.slotname, r.table, ovdir, src,
+                       named))
+            else:
+                refusals.append(
+                    "0x%08x (slot %d/%s of %s) HAS NO DECOMPILED BODY: no "
+                    "delink block in %s/delinks.txt and no src file%s. "
+                    "Emitted as a reporting case, never as a call, and "
+                    "given no invented symbol. Remedy: decompile it, or "
+                    "leave the report in place and the state stays "
+                    "unreachable by design"
+                    % (r.addr, r.slot, r.slotname, r.table, ovdir, named))
 
     by_table = {}
     for r in rows:
@@ -1343,6 +1471,33 @@ def selftest():
                "hole refusal names the symbol a name-shaped check would "
                "have called", m["refusals"])
 
+        # THE TWO KINDS OF HOLE, run link60 lane MGB after review. The join
+        # test above answers "is there a delink block", and the message used
+        # to report that as "no delink block AND NO SRC FILE". Those are
+        # independent questions and the tool never checked the second one.
+        # The base fixture's f_1300 has no src, so it reads as it always did;
+        # dropping a src file at that name must flip the message and must NOT
+        # stop it being a hole. Both real precedents turned out to be the
+        # second kind -- func_ov006_020f6904 (NONMATCHING) and
+        # _ZN6Player13St_Climb_MainEv (unbannered) -- so the old text was
+        # wrong on live data, not just in principle.
+        expect("HAS NO DECOMPILED BODY" in m["refusals"][0]
+               and "no src file" in m["refusals"][0],
+               "a hole with no src still reports as undecompiled",
+               m["refusals"][0])
+        (tdp / "src" / "f_1300.c").write_text("/* a decompiled body */\n")
+        m2 = build(tdp, "src/__sinit_ov009_00001000.c")
+        expect(len(m2["refusals"]) == 1
+               and "IS NOT IN THE DELINKS JOIN" in m2["refusals"][0]
+               and "src/f_1300.c exists" in m2["refusals"][0]
+               and "HAS NO DECOMPILED BODY" not in m2["refusals"][0],
+               "a hole WITH a src file reports as a tool boundary",
+               m2["refusals"])
+        expect([r.addr for r in m2["rows"] if r.hole] == [0x1300],
+               "it is still a hole -- the src file does not create a delink "
+               "block", [r.addr for r in m2["rows"] if r.hole])
+        (tdp / "src" / "f_1300.c").unlink()
+
         sw = emit_switch(m, cls="Cls")
         expect("case 0x00001100:" in sw and "case 0x00001400:" in sw,
                "switch emits the resolved cases", sw)
@@ -1407,6 +1562,90 @@ def selftest():
                              arity_override=0),
                "shape this parser does not know",
                "partial write to a pair array")
+
+        # ---- the FOURTH shape, run link60 lane MGB: a destination declared
+        # through an ANONYMOUS TYPEDEF whose one field is an ARRAY of the
+        # pair type, written field-then-index. This is
+        # __sinit_ov006_021314e4's spelling and it is one of the five the STG
+        # lane recorded as unread. What made it worth an arm rather than a
+        # tolerated gap is that the OLD failure was silent in the worst
+        # direction: every line fell through the unknown-write branch (whose
+        # dest_arr and dest_type tests both missed a typedef'd struct), so
+        # the tool answered "no pair assignments" and the constructor read as
+        # one that builds no state table at all -- indistinguishable, from
+        # the report, from the eleven that genuinely build none.
+        #
+        # The arm is an EQUIVALENCE: the same three slots as the array
+        # spelling above, so a parse that drifts fails against a table the
+        # other shape already agrees on.
+        td4 = tdp / "src/__sinit_ov009_00001020.c"
+        td4.write_text(
+            "typedef struct { int a, b; } Ent;\n"
+            "typedef struct { Ent p[3]; } Dst3;\n"
+            "extern Dst3 data_ov009_00003040;\n"
+            "extern int data_ov009_00003060[];\n"
+            "extern int data_ov009_00002100[];\n"
+            "extern Ent data_ov009_00002000;\n"
+            "extern Ent data_ov009_00002008;\n"
+            "extern Ent data_ov009_00002018;\n"
+            "void __sinit_ov009_00001020(void)\n"
+            "{\n"
+            "    data_ov009_00003040.p[2] = data_ov009_00002018;\n"
+            "    data_ov009_00003040.p[0] = data_ov009_00002000;\n"
+            "    data_ov009_00003040.p[1] = data_ov009_00002008;\n"
+            "    data_ov009_00003060[0] = data_ov009_00002100[0];\n"
+            "}\n")
+        mt = build(tdp, "src/__sinit_ov009_00001020.c", arity_override=0)
+        expect(len(mt["tables"]) == 1,
+               "typedef'd array destination: the int[] copy beside it is "
+               "still not a pair table", list(mt["tables"]))
+        rows = mt["by_table"]["data_ov009_00003040"]
+        expect([r.addr for r in rows] == [0x1100, 0x1200, 0x1400],
+               "typedef'd .p[i] slots ordered by index, not by file order",
+               ["%x" % r.addr for r in rows])
+        expect([r.slotname for r in rows] == ["p[0]", "p[1]", "p[2]"],
+               "typedef'd slots carry the field-and-index label",
+               [r.slotname for r in rows])
+
+        def td4_variant(n, old, new):
+            rel = "src/__sinit_ov009_0000%s.c" % n
+            (tdp / rel).write_text(
+                td4.read_text()
+                .replace("__sinit_ov009_00001020", "__sinit_ov009_0000" + n)
+                .replace(old, new))
+            return rel
+
+        # out of range against the DECLARED extent is a refusal, not slot 3
+        caught(lambda: build(tdp, td4_variant(
+            "1021", "data_ov009_00003040.p[2] =",
+            "data_ov009_00003040.p[3] ="), arity_override=0),
+               "declared extent is 3", "index past the declared extent")
+
+        # a field name the struct does not declare. The constructor's own
+        # declaration is the slot order, so a mismatch is a parse error and
+        # not a second field to invent an offset for.
+        caught(lambda: build(tdp, td4_variant(
+            "1024", "data_ov009_00003040.p[0] =",
+            "data_ov009_00003040.q[0] ="), arity_override=0),
+               "only field is p", "an undeclared field name")
+
+        # a write to the table in a shape the parser cannot read must REFUSE
+        # rather than fall through the way the whole spelling used to
+        caught(lambda: build(tdp, td4_variant(
+            "1022",
+            "    data_ov009_00003040.p[1] = data_ov009_00002008;\n",
+            "    data_ov009_00003040.p[1].a = 0;\n"), arity_override=0),
+               "shape this parser does not know",
+               "partial write to a typedef'd pair table")
+
+        # TWO array fields: the second array's slot base depends on the
+        # first's extent, so the tool must refuse rather than compute one.
+        caught(lambda: build(tdp, td4_variant(
+            "1023", "typedef struct { Ent p[3]; } Dst3;",
+            "typedef struct { Ent p[3]; Ent q[2]; } Dst3;"),
+            arity_override=0),
+               "more than one array of the pair type",
+               "two array fields in one destination struct")
 
         # ---- refusals -----------------------------------------------------
         caught(lambda: Overlay("cut", _write(tdp / "cut.bin", img[:-4]), dl),
