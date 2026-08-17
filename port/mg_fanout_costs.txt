@@ -961,11 +961,42 @@ something else, and for 0x169 the chain is complete:
     020e0a24.
 
 So a 37-slot fill of dScMgCup_c writes a host thunk pointer over the code word
-of a state belonging to the one minigame that already ships. The ORDER makes it
-live rather than theoretical: the fill runs from port_scene_registry_install at
-the tail of port_stage_a2_seat, and the overlay constructors run after it, out
-of the fill itself. So the corrupted word is what curling's constructor copies
-on the next curling boot.
+of a state belonging to the one minigame that already ships.
+
+WHAT DECIDES WHETHER THAT IS FATAL OR MERELY WILD IS REGISTRY ROW ORDER, WITHIN
+ONE PROCESS. An earlier draft of this section said "the corrupted word is what
+curling's constructor copies on the next curling boot", and that mechanism does
+not exist: host storage is process-local and is re-initialised from the overlay
+image every run, so nothing carries from one boot to the next. Lane MAR1 caught
+it. The real mechanism is one function and one guard:
+
+  port_scene_registry_install (hal/scene_boot.cpp) walks port_scene_classes[]
+  in TABLE ORDER and calls k->fill() for EVERY row on EVERY boot,
+  unconditionally.
+
+  port_scene_mg_overlay_load (hal/scene_mg.cpp) runs the thirty-five overlay
+  constructors ONCE PER PROCESS behind a `static int done`, reached from the
+  tail of a minigame row's fill via port_scene_mg_prepare.
+
+So the constructors run exactly once, at the tail of the FIRST minigame row's
+fill. A fill that runs BEFORE that point has already written when the
+constructors read; a fill that runs after writes too late to be copied.
+
+  ROW BEFORE CURLING'S -- and this is WORSE than the sentence it replaces. The
+  cup fill clobbers 0x0213c1e4, the constructors then run and copy the
+  clobbered word into data_ov006_02141930 slot 2, and curling's address switch
+  meets a host thunk address it has no case for. Curling's state 2 goes
+  UNHANDLED on that very boot, not on some later one.
+
+  ROW APPENDED AFTER CURLING'S -- the likelier fan-out shape, because appending
+  is what the lane briefs ask for so the coordinator can concatenate. Curling's
+  fill has already run the constructors with the clean word, so the .bss
+  dispatch table is correct and curling is unaffected in that process. The
+  corruption is LATENT for curling, and it is still a wild write into another
+  class's live mounted ROM data word.
+
+Either way the fill is wrong; the ordering only decides whether it announces
+itself. That is the argument for fixing the width rather than the row order.
 
 NOTHING IN THE BYTE GATE CAN SEE THIS. The write lands in port host storage for
 a mounted DS data symbol; src/ is untouched and every ROM byte still matches.
@@ -1047,10 +1078,22 @@ finding about the seat rather than about the ruling:
       with two. Nothing diagnoses that. The face must pass both.
   src/func_ov006_020e0574  the FACTORY, not a vtable body, so not in the ten.
       It calls `func_ov004_020b2adc();` with NO argument where curling's
-      factory passes p, and the callee is the base constructor, which uses it.
-      On ARM r0 already holds p; on the host the base ctor reads garbage for
-      `this`. The src TU is matched and read-only, so this needs a port-side
-      answer and a written ruling if the answer costs a linked function.
+      factory passes p, and the callee is the base constructor. On ARM r0
+      already holds p; on the host nothing is pushed and the callee reads
+      whatever is at [esp+4].
+
+      IT DOES NOT MERELY READ A GARBAGE `this`, IT WRITES THROUGH IT, which
+      lane MAR1's verification established and this lane's filing had
+      understated. src/func_ov004_020b2adc.c dereferences on its FIRST
+      statement -- `_ZN9ActorBaseC1Ev(self)` -- and follows it immediately with
+      `*(void **)self = &data_0208e4b8;` and two more vtable stores. So the
+      failure is a wild write to an uninitialised value, not a bad read: no
+      fault is guaranteed, and whatever it lands on is corrupted silently.
+
+      The src TU is matched and read-only, so the port-side answer is a host
+      copy of the factory, which costs one linked function and therefore needs
+      a written ruling. Per the coordinator, the displacement ruling will be
+      granted to whichever lane seats 361.
 
 THE STATE MACHINE IS THE CHEAP HALF FOR THIS CLASS AND THAT IS WORTH RECORDING
 against section 4's shape. port/tools/stategen.py --sinit
