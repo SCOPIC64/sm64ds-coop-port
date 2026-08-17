@@ -769,6 +769,7 @@ int port_actor_live_count(void);
 int port_title_rows(void);
 int port_title_row(int i, int *level, int *entrance);
 int port_title_select(int i);
+void port_level_mounts_install(void);   /* register the mount table (idempotent) */
 void ExitLevel(void);
 void LoadLevelNoReturn(int level, unsigned entrance, unsigned star,
                        unsigned reason);
@@ -1823,6 +1824,98 @@ static const struct { short id; const char *name; } MG_SCENE[] = {
 };
 enum { MG_COUNT = (int)(sizeof MG_SCENE / sizeof MG_SCENE[0]) };
 
+/* ---- THE LEVEL-SELECT ROW'S NAMES (port mod) ----------------------------
+
+   THE LEVEL ROW USED TO READ AS NUMBERS ONLY -- "level 6 entrance 13 ov014"
+   -- which is unreadable for the one thing a level select is for: knowing
+   which level a row boots. This table gives each ROM level id (byte 0 of a
+   data_ov003_020b1180 row) a short player-facing name; the numeric id stays
+   as the prefix because this is a debug menu and the id is what a bug report
+   quotes.
+
+   THE NAMES ARE NOT INVENTED. The authority is port_level_table[] in
+   hal/level_boot.cpp: forty-six ids, each derived from the ROM's own overlay
+   data (data_020758c8 -> overlay, data_02092208 -> LVL_Overlay, the four
+   asset handles) with the derivation written out per wave in that file. Its
+   leading name is the retail course name; the short forms below are that name
+   trimmed to fit the row, and every id here agrees with that table's id and
+   internal (romanised) name -- which cross-checks against the ROM's own debug
+   stage-name pool in ov003 (base 0x020b1060: "BombHei Map", "Snow Mt",
+   "Habatake", "Suisou" ...). port/debug_stage_names.txt records the source and
+   a confidence flag per id.
+
+   IDS NOT HERE FALL BACK TO THE NUMBER, never to a guess. The six ids
+   port_level_table[] does not mount are 29/41/42/43/51 (the wave-C block
+   proves these are not stages: their name handles point past the ROM's handle
+   space, so they have no course behind them) and 31 (habatake, the Wing Cap
+   tower -- derived, deliberately not mounted). Only 31 gets a name here, at
+   lower confidence, because it is a real stage the ROM names; the other five
+   have no stage to name and the row shows "(level N)" for them. An honest
+   number beats a wrong name in a debug menu.
+
+   ADDING OR RENAMING IS ONE EDIT: one row here, keyed by id, searched not
+   indexed, so gaps are fine and order does not matter. */
+static const struct { short id; const char *name; } LEVEL_NAME[] = {
+    {  0, "Dev Test Map"        },  /* test_map, cut content, no course      */
+    {  1, "Castle Grounds"      },  /* main_castle                           */
+    {  2, "Castle 1F"           },  /* castle interior, first floor          */
+    {  3, "Castle Garden"       },  /* main_garden                           */
+    {  4, "Castle Basement"     },  /* castle_b1                             */
+    {  5, "Castle 2F"           },  /* castle_2f                             */
+    {  6, "Bob-omb Battlefield" },  /* bombhei_map                           */
+    {  7, "Whomp's Fortress"    },  /* battan_king_map                       */
+    {  8, "Jolly Roger Bay"     },  /* kaizoku_irie                          */
+    {  9, "JRB Sunken Ship"     },  /* kaizoku_ship, inside the JRB ship     */
+    { 10, "Cool Cool Mountain"  },  /* snow_mt                               */
+    { 11, "Cool Cool Mtn Slide" },  /* snow_slider                           */
+    { 12, "Big Boo's Haunt"     },  /* teresa_house                          */
+    { 13, "Hazy Maze Cave"      },  /* cave                                  */
+    { 14, "Lethal Lava Land"    },  /* fire_land                             */
+    { 15, "LLL Volcano"         },  /* fire_mt, the volcano interior         */
+    { 16, "Shifting Sand Land"  },  /* desert_land                           */
+    { 17, "SSL Pyramid"         },  /* desert_py                             */
+    { 18, "Dire Dire Docks"     },  /* water_land                            */
+    { 19, "Snowman's Land"      },  /* snow_land                             */
+    { 20, "Snowman's Igloo"     },  /* snow_kama                             */
+    { 21, "Dire Docks (City)"   },  /* water_city, DDD second area           */
+    { 22, "Tall Tall Mountain"  },  /* high_mt                               */
+    { 23, "Tall Tall Mtn Slide" },  /* high_slider                           */
+    { 24, "Tiny-Huge Isle (Big)"},  /* tibi_deka_d, huge side                */
+    { 25, "Tiny-Huge Isle (Sm)" },  /* tibi_deka_t, tiny side                */
+    { 26, "Tiny-Huge Isle Cave" },  /* tibi_deka_in                          */
+    { 27, "Tick Tock Clock"     },  /* clock_tower                           */
+    { 28, "Rainbow Cruise"      },  /* rainbow_cruise                        */
+    { 30, "Secret Aquarium"     },  /* suisou                                */
+    { 31, "Wing Cap Tower"      },  /* habatake -- NOT mounted; see .txt     */
+    { 32, "Vanish Cap (Moat)"   },  /* horisoko                              */
+    { 33, "Metal Cap Switch"    },  /* metal_switch                          */
+    { 34, "Wing Mario Rainbow"  },  /* rainbow_mario                         */
+    { 35, "Bowser: Dark World"  },  /* koopa1_map                            */
+    { 36, "Bowser: Dark (boss)" },  /* koopa1_boss                           */
+    { 37, "Bowser: Fire Sea"    },  /* koopa2_map                            */
+    { 38, "Bowser: Fire (boss)" },  /* koopa2_boss                           */
+    { 39, "Bowser in the Sky"   },  /* koopa3_map                            */
+    { 40, "Bowser: Sky (boss)"  },  /* koopa3_boss                           */
+    { 44, "Mario's Key Course"  },  /* ex_m_map                              */
+    { 45, "Mario's Key Arena"   },  /* ex_mario                              */
+    { 46, "Luigi's Key Course"  },  /* ex_l_map                              */
+    { 47, "Luigi's Key Arena"   },  /* ex_luigi                              */
+    { 48, "Wario's Key Course"  },  /* ex_w_map                              */
+    { 49, "Wario's Key Arena"   },  /* ex_wario                              */
+    { 50, "Rec Room"            },  /* playroom                              */
+};
+enum { LEVEL_NAME_COUNT = (int)(sizeof LEVEL_NAME / sizeof LEVEL_NAME[0]) };
+
+/* The short name for a ROM level id, or null when the port has no name for it
+   (the five non-stage ids). Null is a real answer: the row shows the number. */
+static const char *level_short_name(int id)
+{
+    for (int i = 0; i < LEVEL_NAME_COUNT; ++i)
+        if (LEVEL_NAME[i].id == id)
+            return LEVEL_NAME[i].name;
+    return 0;
+}
+
 /* The row starts on something that will actually boot rather than on 361,
    which will not: seated LAZILY, on the first read, because the registry is
    installed during the boot this file's statics are initialised before.
@@ -1989,7 +2082,14 @@ static MenuHost g_menu_host;
 
 static void menu_draw(ntr::Framebuffer &fb)
 {
-    char ln[MENU_COUNT][72];
+    /* 96, not 72: the level-select row now carries a name as well as the row,
+       id, entrance, overlay and mount state, and at 72 the unmounted form of
+       the longest-named row truncated silently (the 86-into-71 defect the row
+       code below used to carry a note about). 96 holds the widest row whole --
+       measured worst case is ~74 -- and the panel still auto-sizes to the
+       longest string, so widening the buffer does not widen the panel unless a
+       row actually needs it. */
+    char ln[MENU_COUNT][96];
     int i, w = 0, x0, y0;
     int ex = 0, ey = 0, ez = 0, eyaw = 0;
     const int n_ent = port_entrance_count();
@@ -2007,28 +2107,41 @@ static void menu_draw(ntr::Framebuffer &fb)
     {
         int lv = 0, en = 0;
         const int real = port_title_row(menu_level_row, &lv, &en);
-        if (!real)
+        if (!real) {
+            /* the two scene sentinels the ROM's own table carries: -1 is the
+               file select, -2 the minigame menu (hal/level_change.cpp). Name
+               them rather than print "a scene, not a level". */
+            const char *sc = lv == -1 ? "back to file select"
+                           : lv == -2 ? "minigame menu"
+                                      : 0;
+            if (sc)
+                snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                         "level select  row %2d/%d  %s",
+                         menu_level_row, port_title_rows(), sc);
+            else
+                snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                         "level select  row %2d/%d  scene sentinel %d",
+                         menu_level_row, port_title_rows(), lv);
+        } else {
+            const char *nm = level_short_name(lv);
+            char idn[24];
+            if (!nm) { snprintf(idn, sizeof idn, "(level %d)", lv); nm = idn; }
             snprintf(ln[MENU_LEVEL], sizeof ln[0],
-                     "level select      row %2d of %d   (%d = a scene, not a "
-                     "level)", menu_level_row, port_title_rows(), lv);
-        else
-            snprintf(ln[MENU_LEVEL], sizeof ln[0],
-                     "level select      row %2d of %d   level %2d entrance %d "
-                     " ov%03d  %s", menu_level_row, port_title_rows(), lv, en,
+                     "level select  row %2d/%d  %2d %s  ent %d ov%03d %s",
+                     menu_level_row, port_title_rows(), lv, nm, en,
                      port_level_overlay_id(lv),
-                     port_level_is_mounted(lv) ? "MOUNTED"
-                                               : "not mounted in this build");
+                     port_level_is_mounted(lv) ? "MOUNTED" : "not mounted");
+        }
     }
     {
-        /* THE SUFFIX HAS 26 CHARACTERS TO LIVE IN and both fit inside them.
-           ln is [72], so 71 plus the terminator, and the fixed part of this
-           row costs 45: 18 label, 3 id, 1, 11 name, 1, 2 index, 4 " of ", 2
-           count, 3. "enter restarts, stacked" is 23 and "not wired yet" is
-           13. The first draft of this row asked for 28 and drew as
-           "...here, stack" -- snprintf truncated it and said nothing, which
-           is the whole failure mode. Anything longer than 26 needs the
-           buffer widened, and widening it changes every other row's panel
-           width, so it is a decision and not a tweak. */
+        /* This row's suffix ("enter restarts, stacked" = 23, "not wired yet"
+           = 13) used to have only 26 characters to live in, because ln was
+           [72] and the fixed part of this row costs 45. The first draft asked
+           for 28 and drew as "...here, stack" -- snprintf truncated it and
+           said nothing, which is the whole failure mode. ln is now [96] (lane
+           DBGNAME widened it for the level-select name; see the buffer decl),
+           so this row has ample room and the panel still auto-sizes to the
+           longest string. */
         const int r = mg_row();
         snprintf(ln[MENU_MINIGAME], sizeof ln[0],
                  "minigame          %d %-11s %2d of %d   %s",
@@ -2093,25 +2206,35 @@ static void menu_draw(ntr::Framebuffer &fb)
         /* THE LEVEL ROW IS NOT "(level only)" ANY MORE (lane TCH2): from a
            scene it relaunches, which is the way out of a minigame. It still
            cannot show the level-path detail the version above shows, so it
-           says the three things that matter here and no more.
-           THE BUDGET, counted the way the minigame row's note counts it: ln is
-           [72], so 71 usable. Fixed cost is 18 label + 4 "row " + 2 + 4 " of "
-           + 2 + 9 "   level " + 2 = 41. The suffix is "   enter restarts" (17)
-           or "   NOT MOUNTED" (14), so the row lands at 58 or 55 and nothing
-           truncates. The mounted-level row ABOVE is the one that overflows at
-           86 into 71 on an unmounted level; that is a known queued defect and
-           this lane deliberately does not widen the buffer to chase it. */
+           says the level id, its name and whether it will boot, and no more.
+           THE 86-INTO-71 TRUNCATION THE OLD NOTE HERE FLAGGED IS FIXED (lane
+           DBGNAME): the mounted-level row above overflowed [72] on an
+           unmounted, long-named level, and ln is now [96], so every form of
+           both rows -- name included -- fits whole. The name lookup is
+           level_short_name(); an id with no name falls back to "(level N)". */
         int lv = 0, en = 0;
-        if (!port_title_row(menu_level_row, &lv, &en))
+        if (!port_title_row(menu_level_row, &lv, &en)) {
+            const char *sc = lv == -1 ? "back to file select"
+                           : lv == -2 ? "minigame menu"
+                                      : 0;
+            if (sc)
+                snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                         "level select  row %2d/%d  %s",
+                         menu_level_row, port_title_rows(), sc);
+            else
+                snprintf(ln[MENU_LEVEL], sizeof ln[0],
+                         "level select  row %2d/%d  scene sentinel %d",
+                         menu_level_row, port_title_rows(), lv);
+        } else {
+            const char *nm = level_short_name(lv);
+            char idn[24];
+            if (!nm) { snprintf(idn, sizeof idn, "(level %d)", lv); nm = idn; }
             snprintf(ln[MENU_LEVEL], sizeof ln[0],
-                     "level select      row %2d of %d   (%d = a scene)",
-                     menu_level_row, port_title_rows(), lv);
-        else
-            snprintf(ln[MENU_LEVEL], sizeof ln[0],
-                     "level select      row %2d of %d   level %2d   %s",
-                     menu_level_row, port_title_rows(), lv,
+                     "level select  row %2d/%d  %2d %s  %s",
+                     menu_level_row, port_title_rows(), lv, nm,
                      port_level_is_mounted(lv) ? "enter restarts"
                                                : "NOT MOUNTED");
+        }
     }
 
     for (i = 0; i < MENU_COUNT; ++i) {
@@ -4121,6 +4244,33 @@ int main(void)
        bytes exactly as they would over baked-in ones. */
     port_romdata_load();
 #endif
+    /* SM64DS_DUMP_LEVEL_NAMES=1: print the debug level-select rows exactly as
+       the menu's MENU_LEVEL row renders them -- row, id, name, entrance,
+       overlay, mount state -- then exit. A standalone proof of the id->name
+       mapping that needs no window or game boot (so it runs on a host where
+       the selftest's fabricated PE is quarantined). Mounts are installed here
+       first (the call is idempotent) so the MOUNTED column is the real one. */
+    if (getenv("SM64DS_DUMP_LEVEL_NAMES")) {
+        port_level_mounts_install();
+        const int rows = port_title_rows();
+        printf("[levelnames] %d rows in the debug level select\n", rows);
+        for (int i = 0; i < rows; ++i) {
+            int lv = 0, en = 0;
+            if (!port_title_row(i, &lv, &en)) {
+                const char *sc = lv == -1 ? "back to file select"
+                               : lv == -2 ? "minigame menu" : "scene sentinel";
+                printf("  row %2d/%d  <%s %d>\n", i, rows, sc, lv);
+                continue;
+            }
+            const char *nm = level_short_name(lv);
+            printf("  row %2d/%d  %2d %-20s  ent %2d ov%03d %s\n",
+                   i, rows, lv, nm ? nm : "(unnamed)", en,
+                   port_level_overlay_id(lv),
+                   port_level_is_mounted(lv) ? "MOUNTED" : "not mounted");
+        }
+        fflush(stdout);
+        return 0;
+    }
     /* THE ROM'S OWN ENTRY, not one level in. This was
        `if (!_ZN4Heap13SetupRootHeapEv()) return 2;` -- correct, and calling the
        inner half. func_0201a054's chain reaches the root heap through

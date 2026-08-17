@@ -1,0 +1,180 @@
+DEBUG MENU LEVEL-SELECT NAMES  (lane DBGNAME, run link60)
+=========================================================
+
+WHAT THIS COVERS
+  The port's debug menu (port/tests/walk_window.cpp) has a "level select" row
+  (MENU_LEVEL) that used to read as bare numbers -- row / level id / entrance /
+  overlay -- with no readable level name. This lane gives each ROM level id a
+  short player-facing name so the row reads e.g.
+
+      level select  row  2/54   6 Bob-omb Battlefield  ent 13 ov014 MOUNTED
+
+  The numeric level id stays as the prefix on purpose: this is a debug menu and
+  the id is what a bug report quotes. The minigame row (MENU_MINIGAME) was
+  already named from the ROM's typeinfo and is untouched.
+
+WHERE THE NAMES COME FROM  (not invented)
+  Primary authority: port_level_table[] in port/hal/level_boot.cpp. That table
+  has 46 level ids, each DERIVED FROM THE ROM'S OWN OVERLAY DATA and documented
+  per landing wave in that file:
+      data_020758c8[id]  -> overlay id
+      data_02092208[id]  -> the LVL_Overlay record
+      SUBLEVEL_LEVEL_TABLE[id] -> course
+      LVL_Overlay +0x08..0x0e  -> the four asset handles (bmd/kcl/icg/icl)
+  Its leading name is the retail course name. The short forms in LEVEL_NAME[]
+  are that name trimmed to fit the row.
+
+  Cross-check: the ROM carries its OWN debug stage-name string pool inside ov003
+  at 0x020b1060 ("BombHei Map", "Snow Mt", "Cave", "Habatake", "Suisou",
+  "Horisoko", "Kaizoku Irie", "Battan King Map", "Teresa House", ...). These are
+  the internal romanised names and match the parenthetical internal name on
+  every id in port_level_table[], which is what pins each short name to the
+  right id. (The pool is a string pool referenced by a pointer table that is
+  not in ov003's static image, so it is used here as a cross-check on the id
+  mapping, not as the display text -- the display text is the retail name.)
+
+  A NOTE ON THE OWNER'S EXAMPLE: the task sheet's illustration "10 Bob-omb
+  Battlefield" is not correct against the ROM. Level id 6 is Bob-omb
+  Battlefield (bombhei_map, ov014); level id 10 is Cool Cool Mountain
+  (snow_mt, ov018). The table below follows the ROM, not the example.
+
+CONFIDENCE
+  HIGH   = id + overlay + course proven from ROM data in port_level_table[];
+           short label is the retail name trimmed.
+  HIGH*  = same proof of id/overlay identity; the short label distinguishes a
+           SUBLEVEL / second area and that wording is this lane's curation.
+  MED    = real stage the ROM names, but NOT mounted in the port and so not
+           independently re-derived here (only id 31).
+  (none) = the port has no name; the row falls back to "(level N)". These are
+           the ids port_level_table[] proves are NOT stages.
+
+THE MAPPING  (level id -> menu name)
+  id  name                  conf  internal / note
+  --  --------------------  ----  -----------------------------------------
+   0  Dev Test Map          HIGH  test_map, ov008, no course (cut content)
+   1  Castle Grounds        HIGH  main_castle, ov009
+   2  Castle 1F             HIGH* castle interior floor, ov010
+   3  Castle Garden         HIGH  main_garden, ov011
+   4  Castle Basement       HIGH* castle_b1, ov012
+   5  Castle 2F             HIGH* castle_2f, ov013
+   6  Bob-omb Battlefield   HIGH  bombhei_map, ov014
+   7  Whomp's Fortress      HIGH  battan_king_map, ov015
+   8  Jolly Roger Bay       HIGH  kaizoku_irie, ov016
+   9  JRB Sunken Ship       HIGH* kaizoku_ship, ov017 (JRB ship interior)
+  10  Cool Cool Mountain    HIGH  snow_mt, ov018
+  11  Cool Cool Mtn Slide   HIGH* snow_slider, ov019
+  12  Big Boo's Haunt       HIGH  teresa_house, ov020
+  13  Hazy Maze Cave        HIGH  cave, ov021
+  14  Lethal Lava Land      HIGH  fire_land, ov022
+  15  LLL Volcano           HIGH* fire_mt, ov023 (LLL volcano interior)
+  16  Shifting Sand Land    HIGH  desert_land, ov024
+  17  SSL Pyramid           HIGH* desert_py, ov025 (SSL pyramid interior)
+  18  Dire Dire Docks       HIGH  water_land, ov026
+  19  Snowman's Land        HIGH  snow_land, ov027
+  20  Snowman's Igloo       HIGH* snow_kama, ov028
+  21  Dire Docks (City)     HIGH* water_city, ov029 (DDD second area)
+  22  Tall Tall Mountain    HIGH  high_mt, ov030
+  23  Tall Tall Mtn Slide   HIGH* high_slider, ov031
+  24  Tiny-Huge Isle (Big)  HIGH* tibi_deka_d, ov032 (huge side)
+  25  Tiny-Huge Isle (Sm)   HIGH* tibi_deka_t, ov033 (tiny side)
+  26  Tiny-Huge Isle Cave   HIGH* tibi_deka_in, ov034
+  27  Tick Tock Clock       HIGH  clock_tower, ov035
+  28  Rainbow Cruise        HIGH  rainbow_cruise, ov036
+  29  (none)                ----  NOT a stage (name handle past ROM handle space)
+  30  Secret Aquarium       HIGH  suisou, ov038
+  31  Wing Cap Tower        MED   habatake, ov039 -- real stage, NOT mounted;
+                                  name from level_boot.cpp's own comment
+  32  Vanish Cap (Moat)     HIGH  horisoko, ov040
+  33  Metal Cap Switch      HIGH  metal_switch, ov041
+  34  Wing Mario Rainbow    HIGH  rainbow_mario, ov042
+  35  Bowser: Dark World    HIGH  koopa1_map, ov043
+  36  Bowser: Dark (boss)   HIGH* koopa1_boss, ov044 (fight arena)
+  37  Bowser: Fire Sea      HIGH  koopa2_map, ov045
+  38  Bowser: Fire (boss)   HIGH* koopa2_boss, ov046 (fight arena)
+  39  Bowser in the Sky     HIGH  koopa3_map, ov047
+  40  Bowser: Sky (boss)    HIGH* koopa3_boss, ov048 (fight arena)
+  41  (none)                ----  test_map_b, null asset handles -> not a stage
+  42  (none)                ----  NOT a stage (name handle past ROM handle space)
+  43  (none)                ----  NOT a stage (name handle past ROM handle space)
+  44  Mario's Key Course    HIGH  ex_m_map, ov052
+  45  Mario's Key Arena     HIGH  ex_mario, ov053
+  46  Luigi's Key Course    HIGH  ex_l_map, ov054
+  47  Luigi's Key Arena     HIGH  ex_luigi, ov055
+  48  Wario's Key Course    HIGH  ex_w_map, ov056
+  49  Wario's Key Arena     HIGH  ex_wario, ov057
+  50  Rec Room              HIGH  playroom, ov058
+  51  (none)                ----  NOT a stage (name handle past ROM handle space)
+
+IDS THE OWNER MAY WANT TO CONFIRM / FILL
+  31 Wing Cap Tower  -- "habatake" is the wing-cap flying tower per
+     level_boot.cpp; it is not mounted, so the rendering is unverified. If the
+     retail English name differs, this is the one row to change.
+  29, 41, 42, 43, 51 -- left unnamed on purpose. The wave-C block in
+     level_boot.cpp proves these carry name handles past the ROM's handle space
+     (or null handles for 41/test_map_b), i.e. there is no course behind them.
+     If any of these turns out to be a real cut/VS map worth a label, add one
+     LEVEL_NAME[] row. Until then the menu shows "(level N)" rather than a guess.
+
+RUNTIME PROOF
+  See the SM64DS_DUMP_LEVEL_NAMES dump appended below (walk_window prints the
+  rows exactly as the menu renders them, then exits).
+
+==== SM64DS_DUMP_LEVEL_NAMES dump (tip build, e1bc0fdbe + this lane) ====
+(the menu renders the 5 unnamed ids as "(level N)"; the dump tool's own
+ placeholder is "(unnamed)" -- same rows, different fallback label)
+
+[levelnames] 54 rows in the debug level select
+  row  0/54   0 Dev Test Map          ent  0 ov008 MOUNTED
+  row  1/54   1 Castle Grounds        ent  0 ov009 MOUNTED
+  row  2/54   2 Castle 1F             ent  0 ov010 MOUNTED
+  row  3/54   3 Castle Garden         ent  0 ov011 MOUNTED
+  row  4/54   4 Castle Basement       ent  0 ov012 MOUNTED
+  row  5/54   5 Castle 2F             ent  0 ov013 MOUNTED
+  row  6/54   6 Bob-omb Battlefield   ent  0 ov014 MOUNTED
+  row  7/54   7 Whomp's Fortress      ent  0 ov015 MOUNTED
+  row  8/54   8 Jolly Roger Bay       ent  0 ov016 MOUNTED
+  row  9/54   9 JRB Sunken Ship       ent  0 ov017 MOUNTED
+  row 10/54  10 Cool Cool Mountain    ent  0 ov018 MOUNTED
+  row 11/54  11 Cool Cool Mtn Slide   ent  0 ov019 MOUNTED
+  row 12/54  12 Big Boo's Haunt       ent  0 ov020 MOUNTED
+  row 13/54  13 Hazy Maze Cave        ent  0 ov021 MOUNTED
+  row 14/54  14 Lethal Lava Land      ent  0 ov022 MOUNTED
+  row 15/54  15 LLL Volcano           ent  0 ov023 MOUNTED
+  row 16/54  16 Shifting Sand Land    ent  0 ov024 MOUNTED
+  row 17/54  17 SSL Pyramid           ent  0 ov025 MOUNTED
+  row 18/54  18 Dire Dire Docks       ent  0 ov026 MOUNTED
+  row 19/54  19 Snowman's Land        ent  0 ov027 MOUNTED
+  row 20/54  20 Snowman's Igloo       ent  0 ov028 MOUNTED
+  row 21/54  21 Dire Docks (City)     ent  0 ov029 MOUNTED
+  row 22/54  22 Tall Tall Mountain    ent  0 ov030 MOUNTED
+  row 23/54  23 Tall Tall Mtn Slide   ent  0 ov031 MOUNTED
+  row 24/54  24 Tiny-Huge Isle (Big)  ent  0 ov032 MOUNTED
+  row 25/54  25 Tiny-Huge Isle (Sm)   ent  0 ov033 MOUNTED
+  row 26/54  26 Tiny-Huge Isle Cave   ent  0 ov034 MOUNTED
+  row 27/54  27 Tick Tock Clock       ent  0 ov035 MOUNTED
+  row 28/54  28 Rainbow Cruise        ent  0 ov036 MOUNTED
+  row 29/54  29 (unnamed)             ent  0 ov037 not mounted
+  row 30/54  30 Secret Aquarium       ent  0 ov038 MOUNTED
+  row 31/54  31 Wing Cap Tower        ent  0 ov039 not mounted
+  row 32/54  32 Vanish Cap (Moat)     ent  0 ov040 MOUNTED
+  row 33/54  33 Metal Cap Switch      ent  0 ov041 MOUNTED
+  row 34/54  34 Wing Mario Rainbow    ent  0 ov042 MOUNTED
+  row 35/54  35 Bowser: Dark World    ent  0 ov043 MOUNTED
+  row 36/54  36 Bowser: Dark (boss)   ent  0 ov044 MOUNTED
+  row 37/54  37 Bowser: Fire Sea      ent  0 ov045 MOUNTED
+  row 38/54  38 Bowser: Fire (boss)   ent  0 ov046 MOUNTED
+  row 39/54  39 Bowser in the Sky     ent  0 ov047 MOUNTED
+  row 40/54  40 Bowser: Sky (boss)    ent  0 ov048 MOUNTED
+  row 41/54  41 (unnamed)             ent  0 ov049 not mounted
+  row 42/54  42 (unnamed)             ent  0 ov050 not mounted
+  row 43/54  43 (unnamed)             ent  0 ov051 not mounted
+  row 44/54  44 Mario's Key Course    ent  0 ov052 MOUNTED
+  row 45/54  45 Mario's Key Arena     ent  0 ov053 MOUNTED
+  row 46/54  46 Luigi's Key Course    ent  0 ov054 MOUNTED
+  row 47/54  47 Luigi's Key Arena     ent  0 ov055 MOUNTED
+  row 48/54  48 Wario's Key Course    ent  0 ov056 MOUNTED
+  row 49/54  49 Wario's Key Arena     ent  0 ov057 MOUNTED
+  row 50/54  50 Rec Room              ent  0 ov058 MOUNTED
+  row 51/54  51 (unnamed)             ent  0 ov059 not mounted
+  row 52/54  <minigame menu -2>
+  row 53/54  <back to file select -1>
