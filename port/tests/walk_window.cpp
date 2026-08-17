@@ -188,9 +188,13 @@ struct WinApi {
     BOOL(WINAPI *GetCursorPos_)(POINT *);
     BOOL(WINAPI *SetCursorPos_)(int, int);
     int(WINAPI *ShowCursor_)(BOOL);
+#ifndef PORT_ROM_CLEAN
     /* SM64DS_CLICK_TEST's three (click_test_apply below): a client point to a
        screen point, the pointer put there, and a REAL button edge through the
-       OS input queue rather than a message posted past it. */
+       OS input queue rather than a message posted past it. Compiled out of a
+       PORT_ROM_CLEAN (shipping) build: these are the OS-input DRIVERS a
+       stranger's antivirus flags, and nothing outside SM64DS_CLICK_TEST uses
+       them. Real input reading (GetCursorPos_/GetAsyncKeyState_) stays. */
     BOOL(WINAPI *ClientToScreen_)(HWND, POINT *);
     UINT(WINAPI *SendInput_)(UINT, void *, int);
     BOOL(WINAPI *SetForegroundWindow_)(HWND);
@@ -199,6 +203,7 @@ struct WinApi {
        it. A real button edge goes wherever the pointer is. */
     HWND(WINAPI *WindowFromPoint_)(POINT);
     DWORD(WINAPI *GetWindowThreadProcessId_)(HWND, DWORD *);
+#endif  /* !PORT_ROM_CLEAN: SM64DS_CLICK_TEST's synthetic-click Win32 seams */
     /* winmm: the frame pacer's Sleep granularity (see pacer_begin below) */
     unsigned(WINAPI *timeBeginPeriod_)(unsigned);
     unsigned(WINAPI *timeEndPeriod_)(unsigned);
@@ -272,6 +277,11 @@ static bool winapi_load(void)
     W.GetCursorPos_ = (decltype(W.GetCursorPos_))GetProcAddress(u, "GetCursorPos");
     W.SetCursorPos_ = (decltype(W.SetCursorPos_))GetProcAddress(u, "SetCursorPos");
     W.ShowCursor_ = (decltype(W.ShowCursor_))GetProcAddress(u, "ShowCursor");
+#ifndef PORT_ROM_CLEAN
+    /* SM64DS_CLICK_TEST's synthetic-click seams. Their GetProcAddress lookups
+       -- and the "SendInput"/"SetForegroundWindow"/... name strings with them
+       -- are absent from a PORT_ROM_CLEAN (shipping) build, so the shipped exe
+       carries no SendInput driver for a stranger's antivirus to flag. */
     W.ClientToScreen_ = (decltype(W.ClientToScreen_))GetProcAddress(u, "ClientToScreen");
     W.SendInput_ = (decltype(W.SendInput_))GetProcAddress(u, "SendInput");
     W.SetForegroundWindow_ =
@@ -279,6 +289,7 @@ static bool winapi_load(void)
     W.WindowFromPoint_ = (decltype(W.WindowFromPoint_))GetProcAddress(u, "WindowFromPoint");
     W.GetWindowThreadProcessId_ = (decltype(W.GetWindowThreadProcessId_))
         GetProcAddress(u, "GetWindowThreadProcessId");
+#endif  /* !PORT_ROM_CLEAN */
     if (HMODULE mm = LoadLibraryA("winmm.dll")) {
         W.timeBeginPeriod_ =
             (decltype(W.timeBeginPeriod_))GetProcAddress(mm, "timeBeginPeriod");
@@ -2616,7 +2627,19 @@ static void pad_test_apply(int frame, int *pad_live, XPad *pad)
     }
 }
 
+#ifndef PORT_ROM_CLEAN
 /* ---- SM64DS_CLICK_TEST: A SCRIPTED STYLUS (port mod, run link60 lane TCH2) -
+ *
+ * COMPILED OUT OF THE SHIPPING (PORT_ROM_CLEAN) BUILD, run link60 lane RELSTRIP.
+ * This is the one OS-input DRIVER in the port: SetCursorPos + SendInput move the
+ * real pointer and press a real button edge through the OS input queue, which is
+ * exactly the "fileless" synthetic-input pattern a stranger's antivirus flags.
+ * It is a developer/reviewer test tool, dormant in normal play (inert unless the
+ * env is set, and unreachable from a selftest), so it stays in the developer
+ * build and only that build. When SM64DS_CLICK_TEST is set on a shipping build
+ * the driver is simply not present and the variable does nothing; real player
+ * input (GetCursorPos/GetAsyncKeyState for the mouse-as-stylus) is untouched,
+ * and SM64DS_PAD_TEST (in-process, no OS input API) also stays in all builds.
  *
  * The pad has SM64DS_PAD_TEST and the touch record has SM64DS_TOUCH_PROBE, and
  * between them sits the thing neither one covers: THE MOUSE. SM64DS_TOUCH_PROBE
@@ -2909,6 +2932,7 @@ static void click_test_finish(void)
         W.SetCursorPos_(g_ct_restore.x, g_ct_restore.y);
     fflush(stderr);
 }
+#endif  /* !PORT_ROM_CLEAN: end of SM64DS_CLICK_TEST synthetic-stylus driver */
 
 /* ---- THE DS KEYPAD BITS BOTH PATHS AGREE ON (port mod, run link60 SW1) ----
    Buttons -> the Ctrl held/pressed fields directly (CheckInput's remap tables
@@ -3838,10 +3862,12 @@ static int scene_window_run(void)
 
         int pad_live = XInputGetState_ && XInputGetState_(0, &pad) == 0;
         pad_test_apply(frame, &pad_live, &pad);
+#ifndef PORT_ROM_CLEAN
         /* SM64DS_CLICK_TEST: the scripted stylus, driven BEFORE the tick that
            polls it, so a press is in the OS's button state by the time
            hal_sub_screen_frame_begin reads it on this same frame. */
         click_test_apply(hwnd, frame);
+#endif
 
         /* THE DEBUG MENU, the same block main runs. g_menu_host is left zeroed
            on this path, which is what makes the four rows that need a Player
@@ -3944,7 +3970,9 @@ static int scene_window_run(void)
        PostQuitMessage all arrive here the same way, and the census below is
        what the run leaves behind -- the same lines a headless run ends with,
        over however many frames were actually played. */
+#ifndef PORT_ROM_CLEAN
     click_test_finish();
+#endif
     fprintf(stderr, "[scene] window closed after %d frame(s)\n", frame);
     return port_scene_finish(frame);
 }
@@ -5255,11 +5283,13 @@ int main(void)
            windowed scene loop gets the same one. Inert unless the variable is
            set and unreachable from a selftest; see its banner. */
         pad_test_apply(frame, &pad_live, &pad);
+#ifndef PORT_ROM_CLEAN
         /* SM64DS_CLICK_TEST: the scripted stylus, the same call the windowed
            scene loop makes and for the same reason -- the level path is where
            the inset panel's transform lives, so it is the half of the click
            grid that guards against a stacked fix moving a level. */
         click_test_apply(hwnd, frame);
+#endif
         /* ---- THE REBIND CAPTURE, ahead of every other reader of this frame's
            input. The keyboard half already arrived through the window
            procedure (see g_rebind_capture up there); this is the pad half and

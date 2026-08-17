@@ -1,0 +1,141 @@
+THE SHIPPING BUILD CARRIES NO SYNTHETIC-INPUT DRIVER
+====================================================
+
+Run link60, lane RELSTRIP. This is the write-up for the change in
+tests/walk_window.cpp that compiles the SM64DS_CLICK_TEST synthetic-input driver
+out of the PORT_ROM_CLEAN (shipping/kit) build.
+
+WHY
+---
+walk_window.cpp carries SM64DS_CLICK_TEST, a developer/reviewer test tool that
+DRIVES the operating system's input: it calls SetCursorPos to move the real
+pointer and SendInput to press a real left-button edge through the OS input
+queue (see the driver's own banner). That is the "fileless" synthetic-input
+pattern a behavioural antivirus flags. The tool is dormant in normal play --
+inert unless SM64DS_CLICK_TEST is set, and unreachable from a selftest -- but
+"dormant" is a runtime property and a stranger's antivirus reads the binary
+statically. The project owner's Trend Micro flagged the shipped exe over exactly
+this. A public build must not contain the driver at all.
+
+The switch is PORT_ROM_CLEAN, the same flag hal/asset_root_refuse.cpp uses to
+mean "this binary ships" (port/kit_pipeline.txt). CMake already defines it on
+walk_window and walk_window_hires in the kit configuration
+(port/CMakeLists.txt). This lane inverts that flag over the click driver:
+present in the developer build, absent in the ROM-clean build.
+
+WHAT WAS GATED OUT (all behind #ifndef PORT_ROM_CLEAN)
+-----------------------------------------------------
+  * the five WinApi struct members used ONLY by the click driver:
+    ClientToScreen_, SendInput_, SetForegroundWindow_, WindowFromPoint_,
+    GetWindowThreadProcessId_;
+  * their five GetProcAddress resolutions in winapi_load() -- which also removes
+    the "SendInput", "ClientToScreen", "WindowFromPoint", "SetForegroundWindow"
+    and "GetWindowThreadProcessId" name strings, so the shipped exe has neither
+    the SendInput import string nor a GetProcAddress that resolves it;
+  * the whole driver body: enum CLICK_TEST_HOLD/MAX, struct ClickTestEnt, the
+    g_ct_* globals, click_test_parse, click_test_button (the SendInput call and
+    the INPUT struct), click_test_apply and click_test_finish;
+  * all three call sites (scene_window_run x2, main's level loop).
+
+WHAT WAS DELIBERATELY KEPT
+--------------------------
+  * SetCursorPos_, GetCursorPos_ and SetWindowPos_ stay in all builds. They are
+    NOT click-driver-only: SetCursorPos/GetCursorPos recenter and read the
+    pointer for the mouse-look camera, and SetWindowPos does the F12 borderless
+    fullscreen toggle. SetCursorPos in particular is kept because it is not
+    import-only; removing it would break real mouse-look.
+  * Real player input reading -- GetAsyncKeyState, GetCursorPos, ScreenToClient
+    in hal/sub_screen.cpp's poll_touch -- is untouched. That is how a player
+    drives the game with the mouse as the DS stylus.
+  * SM64DS_PAD_TEST stays in all builds. It ORs bits into an in-process pad
+    struct after XInputGetState and calls no OS input API, so it is not an
+    injection vector.
+  * SM64DS_TOUCH_PROBE (hal/sub_screen.cpp, another lane) stays. It pokes the DS
+    touch record in memory directly; it does not drive OS input.
+
+WHAT THE ROM-CLEAN BUILD DOES WHEN SM64DS_CLICK_TEST IS SET
+-----------------------------------------------------------
+Nothing. The variable is never read on the frame path (the driver and its call
+sites are gone), so it does nothing and no injection code is compiled in. The
+string "SM64DS_CLICK_TEST" still occurs once in the shipping exe, in the
+PORT_RELAUNCH_CLEAR list that UNSETS the variable before a menu relaunch -- that
+is a name being cleared, not driver code, which is why the proof below is
+token-based rather than a grep for the variable name.
+
+THE DEVELOPER BUILD IS BYTE-IDENTICAL, MEASURED
+-----------------------------------------------
+Every edit is a preprocessor directive (#ifndef PORT_ROM_CLEAN / #endif) or a
+comment; no executable line was added, removed or moved. With PORT_ROM_CLEAN
+undefined the guarded content is compiled exactly as before, so the developer
+translation unit comes out of the preprocessor unchanged. Measured, base
+(6ac679e8f) vs tip, both linked in the same build directory:
+
+  mapdiff.py --expect-zero HOLDS
+    base: 37435 symbols in 6529 objects
+    tip : 37435 symbols in 6529 objects
+    ADDED 0   REMOVED 0   MOVED 0   objects added 0 / removed 0
+
+  linkage.py : 5831 / 11250 linked (51.8%)   -- delta 0 against the baseline
+  battery.py : ALL GREEN (every mounted level and hosted scene, smokes,
+               ptr_audit 0), skips []
+
+  The five BMPs the battery/smokes write are byte-identical base vs tip:
+    smoke_anim.bmp, smoke_gx.bmp, smoke_model.bmp, smoke_oam.bmp,
+    walk_window_selftest.bmp (level 1, 300 frames)
+
+  SM64DS_CLICK_TEST still works in the developer build: the driver is present in
+  build/port/walk_window.exe (the "[click]" log strings, the SendInput seam and
+  the GetProcAddress name strings are all in the binary). Verified by a
+  string/symbol scan, not by running injection.
+
+THE SHIPPING (KIT) EXE IS CLEAN OF THE DRIVER, MEASURED
+-------------------------------------------------------
+Built with tools/portable_kit/package_kit.ps1 (PORT_ROM_CLEAN + static CRT),
+shipped as demo-1.7.exe. dumpbin and a string scan, kit exe vs developer exe:
+
+  dumpbin -imports demo-1.7.exe
+    KERNEL32.dll only (every other Win32 seam is dynamic via GetProcAddress).
+    No SendInput / SetCursorPos / ClientToScreen / WindowFromPoint /
+    SetForegroundWindow / GetWindowThreadProcessId in the import table.
+
+  string scan (count in DEV exe -> count in KIT exe):
+    SendInput                    2 -> 0
+    ClientToScreen               1 -> 0
+    WindowFromPoint              1 -> 0
+    SetForegroundWindow          1 -> 0
+    GetWindowThreadProcessId     1 -> 0
+    "[click] SendInput REFUSED"  1 -> 0
+    "[click] f%d press"          1 -> 0
+    (no "[click]" driver string of any kind remains in the kit exe)
+
+  kept, as intended:
+    SetCursorPos                 1 -> 1   (mouse-look, not import-only)
+    GetAsyncKeyState             -> 1     (real player input)
+    GetCursorPos                 -> 1     (real player input)
+    ScreenToClient               -> 1     (real player input)
+    SM64DS_PAD_TEST              -> 1     (in-process, safe)
+    SM64DS_CLICK_TEST            -> 1     (env-UNSET list entry only, no driver)
+
+  kit_smoke.py : GREEN. Clean-room stage, the kit's own extractor, the shipped
+  exe run headless (exit 0, selftest BMP written), a real windowed launch that
+  survived 8 s, and the no-asset-root refusal (exit 2, names the variable and
+  the file, writes startup_error.txt).
+
+A reviewer re-runs the two scans above against the kit exe.
+
+NOTE: gate.py CANNOT RUN ITS BUILD ON THIS MACHINE RIGHT NOW
+------------------------------------------------------------
+port/build-port.cmd runs tailjump_guard.py --selftest (and the other guard
+selftests) before cmake. tailjump_guard fabricates a tiny PE named
+walk_window.exe in %TEMP% and reads it back; the machine's real-time antivirus
+(the same Trend Micro this lane is about) locks that fabricated exe on write and
+then quarantines it, so the read fails with PermissionError and build-port.cmd
+exits 1 before configure. This happens on the UNEDITED base too -- it is not
+this change -- and it blocks gate.py (and any build-port.cmd build) on this
+machine. Real, full-size builds are unaffected: the developer and kit exes above
+built and ran normally. The developer-build proof was therefore taken with a
+direct cmake+ninja build (the same commands build-port.cmd runs, minus the
+guard-selftest preamble) plus battery.py --skip-build, linkage.py and
+mapdiff.py; the kit was built with package_kit.ps1, which uses its own guard-free
+cmake+ninja wrapper. Disabling or excluding the antivirus is a system security
+setting and was not touched.
