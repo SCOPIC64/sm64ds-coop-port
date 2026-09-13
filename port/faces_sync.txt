@@ -1370,7 +1370,7 @@ __ZN13dScMgFlower_c6RenderEv                                             ?Render
 __ZN13dScMgFlower_c8BehaviorEv                                           ?Behavior@dScMgFlower_c@@UAEHXZ                                  0x0212ac74 R
 __ZN13dScMgFlower_cD1Ev                                                  ??1dScMgFlower_c@@UAE@XZ                                         0x0212a554 R
 
-__ZN15dScMgHanachan_c8BehaviorEv                                         ?Behavior@dScMgHanachan_c@@UAEHXZ                                0x020ed18c F
+__ZN15dScMgHanachan_c8BehaviorEv                                         ?Behavior@dScMgHanachan_c@@UAEHXZ                                0x020ed18c R
 __ZN15dScMgHanachan_cD1Ev                                                ??1dScMgHanachan_c@@UAE@XZ                                       0x020ea280 R
 
 __ZN12dScMgJump2_c13InitResourcesEv                                      ?InitResources@dScMgJump2_c@@UAEHXZ                              0x020ef834 R

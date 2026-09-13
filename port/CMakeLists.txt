@@ -286,8 +286,17 @@ endfunction()
 #       local four-virtual shadow calling ROM slot 3 on the host Model at +0x10,
 #       which is Model::UpdateVerts. Added run link100, lane HOSTGEN2; retires
 #       func_ov006_02107db8 in unmatched/MgRoulette_WheelDispatch.cpp.
+#   src/actors/dScMgCup_c.cpp   UNINIT_LOCAL on func_ov006_020def80's `int cup;`,
+#       the one of the sixteen PORT_HOST_ABI rulings that is not an ABI question
+#       at all: the matched body reaches its epilogue through a goto that never
+#       assigns the local, and mwcc's register allocation is what made that
+#       harmless. Added run link100, lane HOSTGEN2; retires
+#       unmatched/MgCup_UninitEpilogue_020def80.cpp. The class's FACTORY host
+#       copy (unmatched/MgCup_Factory.cpp) is NOT retired by this: its row is the
+#       vptr address-point question and belongs to the lane that settles it.
 set(PORT_HOSTGEN_TU
     src/actors/Player.cpp
+    src/actors/dScMgCup_c.cpp
     src/actors/dScMgPanel_c.cpp
     src/actors/dScMgHanachan_c.cpp
     src/actors/dScMgRoulette_c.cpp
@@ -18469,12 +18478,28 @@ set(PORT_FALLS_OFF_END_SOURCES
     # compiles:
     # src/game/actors/d_a_wanwan.cpp
     )
+# A WHOLE-TU HOSTGEN SUBSTITUTION MOVES THE COMPILE, AND A PER-SOURCE PROPERTY
+# DOES NOT FOLLOW IT. Run link100, lane HOSTGEN2, measured: putting
+# src/actors/dScMgCup_c.cpp on PORT_HOSTGEN_TU made the build compile
+# build/port/host-src/src/actors/dScMgCup_c.cpp instead, the /wd4716 row above
+# stayed on the raw path, and the TU came back as `error C4716:
+# 'dScMgCup_c::Virtual50': must return a value` -- a fall-off-the-end body the
+# tree adjudicated long ago, reported as if it were new. Every future
+# substitution of a row in this list would do the same, so the fix is here
+# rather than a second row per TU: set the option on BOTH paths, the raw one
+# for the targets that still read it and the generated one for the targets the
+# substitution redirects.
 foreach(_foe_rel IN LISTS PORT_FALLS_OFF_END_SOURCES)
     if(NOT EXISTS "${PORT_REPO_ROOT_ABS}/${_foe_rel}")
         message(FATAL_ERROR "falls-off-the-end row names a source that does not "
                 "exist: ${_foe_rel}")
     endif()
-    set_source_files_properties("${PORT_REPO_ROOT_ABS}/${_foe_rel}"
+    set(_foe_paths "${PORT_REPO_ROOT_ABS}/${_foe_rel}")
+    if(DEFINED PORT_HOSTGEN_TU_ROW_${_foe_rel})
+        list(APPEND _foe_paths
+             "${PORT_REPO_ROOT_ABS}/${PORT_HOSTGEN_TU_ROW_${_foe_rel}}")
+    endif()
+    set_source_files_properties(${_foe_paths}
         PROPERTIES COMPILE_OPTIONS "/wd4716")
 endforeach()
 

@@ -214,6 +214,19 @@ void MultiCopy_Int(int *dst, int *src, int len);
 }
 
 // PORT_HOST_ABI: src names the MMIO register VCOUNT as a C symbol (data_04000006) the linker cannot place at its absolute address; host copy derefs the literal address 0x4000006 like every other MMIO access
+/* RETIRED, run link100 lane HOSTGEN2 -- THE BODY ONLY, not the file. The ruling
+   this copy rests on is "src names the MMIO register VCOUNT as a C symbol
+   (data_04000006) the linker cannot place at its absolute address", and that
+   spelling is gone from the tree: src/actors/dScMgLuigi_c.cpp line 250 reads
+   `line = REG_VCOUNT + 1;` and include/nitro/hw/registers.h defines REG_VCOUNT
+   as `(*(volatile u16 *)0x04000006)`, which is the literal deref this copy
+   exists to supply. No hostgen row is owed either: hostgen's own MMIO_DEREF
+   pattern matches that shape wherever it is spelled.
+
+   port_mg_luigi_ov004_trap_hits above STAYS -- hal/scene_mg.cpp calls it at two
+   sites -- so this is the retirement of one body out of a file that keeps its
+   other job. Text kept, not deleted. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_020efcf8(void)
 {
     int v;
@@ -228,3 +241,4 @@ extern "C" void func_ov006_020efcf8(void)
         }
     }
 }
+#endif  /* HOSTGEN2: func_ov006_020efcf8 retired to src */

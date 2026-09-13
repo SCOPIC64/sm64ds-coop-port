@@ -48,6 +48,15 @@ extern "C" {
 extern int Vec3_Dist(const struct Vector3 *a, const struct Vector3 *b);
 extern void func_ov018_021123d0(char *c, int i);
 
+/* RETIRED, run link100 lane HOSTGEN2. The ruling is "ARM r0 passthrough into a
+   thiscall Actor::ClosestPlayer", and main's text no longer has it:
+   src/game/actors/d_a_pg_mthr.cpp declares
+   `extern char* _ZN8dActor_c13ClosestPlayerEv(char* thisptr);` at line 78 and
+   passes the receiver at both call sites, lines 359 and 613.
+   port/tools/closestplayer_guard.py re-decides that question over every
+   build-active TU before configure, so a wrong reading here refuses the build
+   rather than shipping a garbage receiver. Text kept, not deleted. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 void func_ov018_02111b3c(char *c)
 {
     char *p = _ZN8dActor_c13ClosestPlayerEv(c);
@@ -66,4 +75,5 @@ void func_ov018_02111b3c(char *c)
     *(char **)(c + 0x374) = p;
     func_ov018_021123d0(c, 2);
 }
+#endif  /* HOSTGEN2: func_ov018_02111b3c retired to src */
 }

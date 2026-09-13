@@ -1569,6 +1569,38 @@ PMF_SEAM_ALLOW = {
 }
 
 
+# ---- AN UNINITIALISED LOCAL THAT mwcc'S REGISTER ALLOCATION MADE HARMLESS --
+#
+# Run link100, lane HOSTGEN2. src/actors/dScMgCup_c.cpp's func_ov006_020def80
+# declares `int cup;`, never assigns it on two of its paths, and reaches the
+# epilogue through a goto that uses it. On ARM mwcc allocated it to r1, which
+# still held the function's own `i`, so the byte-matched body works and the TU's
+# own header lists that spelling as one of five that MUST NOT BE TIDIED: hoisting
+# the assignment takes the function from MATCH to DIFF. That is a decomp
+# constraint, not a port one. MSVC's allocation makes the same statement a wild
+# write, which is the whole reason
+# port/unmatched/MgCup_UninitEpilogue_020def80.cpp exists.
+#
+# So the host build initialises it to the value the ROM's register held, and the
+# matched tree keeps its byte match. One exact string, with the line above it for
+# context because `int cup;` alone appears more than once in the file.
+UNINIT_LOCAL = {
+    "dScMgCup_c": [
+        ("    char *row = c + i;\n    int cup;",
+         "    char *row = c + i;\n"
+         "    /* hostgen UNINIT_LOCAL: mwcc left this in r1, which still held\n"
+         "       `i`; the gotos below reach the epilogue without assigning it,\n"
+         "       and MSVC's allocation makes that a wild write. See the table. */\n"
+         "    int cup = i;"),
+    ],
+}
+
+
+def uninit_local_patch(text, sym):
+    """Give a local the value the ROM's register happened to hold."""
+    return apply_patches(text, sym, UNINIT_LOCAL, "UNINIT_LOCAL")
+
+
 def pmf_seam_patch(text, sym):
     """Route a TYPED member-pointer dispatch through the class's seam."""
     return apply_patches(text, sym, PMF_SEAM, "PMF_SEAM",
@@ -1920,6 +1952,57 @@ def reg_ride_arg_patch(text, sym):
                          REG_RIDE_ARG_DECL.get(sym, ""))
 
 
+# ---- THE VTABLE ADDRESS-POINT BIAS ------------------------------------------
+#
+# PORT_HOST_ABI: mwcc's own vtable symbol denotes the OBJECT START and the
+# Itanium address point is two words past it, so a translation unit that EMITS
+# its class's vtable writes the vptr as `&_ZTV<X>[2]` or `_ZTV<X> + 2`.
+# src/actors/daObjLava_c.cpp states the rule in its own header: "The addend-0
+# spelling is correct only for a TU that IMPORTS its vtable, where the linker's
+# symbol already denotes the address point; this TU EMITS the vtable, so mwcc's
+# own symbol denotes the object start and the +8 bias to the address point has
+# to be written out."
+#
+# ON THE PORT THE SAME NAME ALREADY MEANS THE ADDRESS POINT. Every vtable a
+# class dispatches through here is a host array in port/hal/actor_classes_*.cpp
+# (or a mounted ROM image) whose slot 0 IS the first virtual: there are no two
+# header words for the bias to skip. So the +8 spelling puts the object's vptr
+# two slots high, and slot 0 -- InitResources, the first call on the spawn path
+# -- enters slot 2 instead, which is a different function with a different
+# arity. Nothing sees it: the byte gate compares the matched object, the linker
+# resolves the name and applies the addend without comment, and linkage.py
+# counts the row.
+#
+# MEASURED, run link100 lane VPTR (out/VPTR/report.md, sweep3.txt): over the 461
+# objects on walk_window's link line that mention a _ZTV name, 340 (file, table)
+# pairs store addend 0 and 70 store addend 8, with no other value. The port's
+# own live convention was read off a running binary -- vptr equals the table
+# symbol plus zero -- and the ROM's own factory pool word points at table+0 for
+# every one of the five classes that lane disassembled. 61 of the 70 would link
+# clean and dispatch silently wrong; the other 9 name the table with an
+# MSVC-decorated extern and are on the unresolved wall already.
+#
+# So the rewrite is unconditional and pattern-keyed rather than a per-site
+# table: there is no TU in this tree for which the +8 spelling is right on the
+# host, and a class main promotes to a key-function TU tomorrow gets the same
+# treatment without anyone writing a row for it. Both spellings the decomp uses
+# are covered; the four-word form `(int)&_ZTV<X>[2]` is the first with a cast in
+# front of it and needs nothing of its own.
+#
+# THIS RULE ONLY REACHES A TU HOSTGEN EMITS. The port compiles most of src/
+# straight, so the net for everything else is port/tools/vptr_addend_guard.py,
+# which reads the applied value of every DIR32 relocation against a _ZTV symbol
+# out of the built objects and refuses a value it has not been told about.
+VPTR_ADDRESS_POINT = re.compile(
+    r"&\s*(_ZTV\w+)\s*\[\s*2\s*\]"
+    r"|(?<![\w.>])(_ZTV\w+)\s*\+\s*2(?![\w.])")
+
+
+def vptr_address_point(text):
+    """Drop the Itanium +8 address-point bias from a vptr store."""
+    return VPTR_ADDRESS_POINT.subn(lambda m: m.group(1) or m.group(2), text)
+
+
 def apply_patches(text, sym, table, what, decl=""):
     """Exact-string patches, with a hard error if one stops matching."""
     pats = table.get(sym)
@@ -1986,6 +2069,9 @@ def shadow_header_decl(text, sym, spec):
     return text.replace(inc, pre + inc + post, 1), 1
 
 
+QUIET_VPTR = False
+
+
 def emit(src_path, out_dir, decomp_root, extern_data=False):
     text = src_path.read_text(encoding="utf-8", errors="replace")
     # The decomp marks C++ files with a leading `//cpp` line; the host build
@@ -2001,12 +2087,16 @@ def emit(src_path, out_dir, decomp_root, extern_data=False):
     text, _ = virtual_call_patch(text, sym)
     text, _ = mg_pmf_call_patch(text, sym)
     text, _ = pmf_seam_patch(text, sym)
+    text, _ = uninit_local_patch(text, sym)
     text, _ = member_redecl_patch(text, sym)
     text, _ = extern_c_data_patch(text, sym)
     text, _ = call_state_fn_patch(text, sym)
     text, _ = arg_width_patch(text, sym)
     text, _ = callee_seam_patch(text, sym)
     text, _ = reg_ride_arg_patch(text, sym)
+    text, nvptr = vptr_address_point(text)
+    if nvptr and not QUIET_VPTR:
+        print("  %s: %d vtable address-point bias(es) dropped" % (sym, nvptr))
     pmf_seam_residue(text, sym, src_path.suffix)
     new, n = transform(text, extern_data)
     # An excision that left an asm block behind would emit a file MSVC cannot
@@ -2052,6 +2142,8 @@ def main():
         sys.exit(f"no src/ under {decomp} -- pass --decomp")
     out_dir = pathlib.Path(args.out)
 
+    global QUIET_VPTR
+    QUIET_VPTR = args.all
     if args.all:
         targets = [p for p in src.rglob("*") if p.suffix in (".c", ".cpp")]
     else:

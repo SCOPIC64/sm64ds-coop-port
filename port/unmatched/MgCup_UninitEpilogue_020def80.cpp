@@ -98,6 +98,13 @@
 extern "C" void func_ov006_020def80(char *c, int i);
 
 // PORT_HOST_ABI: src leaves `int new_var;` uninitialised and reaches the epilogue via goto past its only assignment; mwcc allocated it to r1 which still holds `i` so the byte-matched body worked, but MSVC's allocation makes it a wild write, so the host initialises new_var = i, the value the ROM's r1 carries at the label on all three paths.
+/* RETIRED, run link100 lane HOSTGEN2. The correction this copy carries -- give
+   `cup` the value mwcc's register allocation happened to leave in it -- is now
+   made out of the decomp's own text by hostgen's UNINIT_LOCAL table, on the
+   whole-TU substitution of src/actors/dScMgCup_c.cpp. The matched tree is
+   untouched and keeps its byte match; the host copy's one statement moved into
+   the transform. Text kept, not deleted. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_020def80(char *c, int i)
 {
     unsigned char t;
@@ -157,3 +164,4 @@ epilogue:
         *((int *) (s + 0x44c)) = 0;
     }
 }
+#endif  /* HOSTGEN2: func_ov006_020def80 retired to src */
