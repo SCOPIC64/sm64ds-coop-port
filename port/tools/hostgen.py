@@ -1952,6 +1952,72 @@ def reg_ride_arg_patch(text, sym):
                          REG_RIDE_ARG_DECL.get(sym, ""))
 
 
+# ---- A VTABLE EXTERN THAT MSVC DECORATED -----------------------------------
+#
+# PORT_HOST_ABI, run link100, lane VPTR item 1 of the ruling: nine of the
+# seventy vtable stores name their table with an MSVC-DECORATED symbol, because
+# the declaration the translation unit sees is a plain C++ `extern int
+# _ZTV<X>[];` rather than one inside an extern "C" block. mwccarm has one
+# spelling and does not care; MSVC emits `?_ZTV7daBmb_c@@3PAHA`, the port's host
+# array and the /alternatename that binds it are the C name `__ZTV7daBmb_c`, and
+# an /alternatename is a NAME bridge that cannot cross a decoration. So the row
+# sits on the unresolved wall:
+#
+#   daBmb_c.cpp.obj : error LNK2019: unresolved external symbol
+#       "int * _ZTV7daBmb_c" (?_ZTV7daBmb_c@@3PAHA) referenced in function
+#       _daBmb_c_classInit
+#
+# THE DECLARATION IS IN A HEADER, NOT THE TU (include/daBmb_c.h:158,
+# include/daEyBm_c.h:83; only d_a_mc_flag.cpp spells its own at line 66), and
+# hostgen rewrites translation units, not headers. What works instead is a
+# declaration with C linkage AHEAD of the include: C++ says a redeclaration
+# that carries no linkage-specification keeps the linkage already specified, so
+# the header's plain `extern int _ZTV7daBmb_c[];` inherits it rather than
+# fighting it. Measured on this toolchain rather than read off the standard --
+# cl /c on `extern "C" { extern int _ZTV7daBmb_c[]; }` followed by the header
+# and a use emits one undefined symbol, `__ZTV7daBmb_c`.
+#
+# The element type has to match the header's, so it is written out per row
+# rather than assumed: dScMgSound_c's table is `void *`, not `int`.
+#
+# Retiring the decoration also brings the store itself back to the address
+# point, because VPTR_ADDRESS_POINT below runs over the same emitted text: the
+# row leaves tools/vptr_addend_baseline.txt in the same change that closes it
+# on the wall.
+ZTV_C_LINKAGE = {
+    "daBmb_c": [("int", "_ZTV7daBmb_c")],
+    "d_a_ey_bm": [("int", "_ZTV8daEyBm_c")],
+    "d_a_mc_flag": [("int", "_ZTV10daMcFlag_c")],
+}
+
+
+def ztv_c_linkage(text, sym):
+    """Give a TU's vtable externs C linkage, ahead of every include."""
+    rows = ZTV_C_LINKAGE.get(sym)
+    if not rows:
+        return text, 0
+    decls = []
+    for ctype, name in rows:
+        if name not in text:
+            sys.exit("hostgen: %s: ZTV_C_LINKAGE names %s, which is not in the "
+                     "translation unit any more. The row was written against a "
+                     "reference that has moved; re-read the TU rather than "
+                     "dropping the row, because without it the reference comes "
+                     "out decorated and the /alternatename cannot bind it."
+                     % (sym, name))
+        decls.append("extern %s %s[];" % (ctype, name))
+    block = ("/* hostgen ZTV_C_LINKAGE: the header below declares these "
+             "without a\n"
+             "   linkage-specification, and a redeclaration keeps the linkage "
+             "already\n"
+             "   specified. See the table for why the decorated name cannot "
+             "link. */\n"
+             'extern "C" {\n'
+             + "".join("    %s\n" % d for d in decls)
+             + "}\n\n")
+    return block + text, len(rows)
+
+
 # ---- THE VTABLE ADDRESS-POINT BIAS ------------------------------------------
 #
 # PORT_HOST_ABI: mwcc's own vtable symbol denotes the OBJECT START and the
@@ -2094,6 +2160,9 @@ def emit(src_path, out_dir, decomp_root, extern_data=False):
     text, _ = arg_width_patch(text, sym)
     text, _ = callee_seam_patch(text, sym)
     text, _ = reg_ride_arg_patch(text, sym)
+    text, nztv = ztv_c_linkage(text, sym)
+    if nztv and not QUIET_VPTR:
+        print("  %s: %d vtable extern(s) given C linkage" % (sym, nztv))
     text, nvptr = vptr_address_point(text)
     if nvptr and not QUIET_VPTR:
         print("  %s: %d vtable address-point bias(es) dropped" % (sym, nvptr))

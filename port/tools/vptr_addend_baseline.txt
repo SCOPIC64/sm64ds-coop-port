@@ -24,7 +24,6 @@
 src/actors/Scuttlebug.cpp.obj                        ?_ZTV10Scuttlebug@@3PAHA                                 0x8
 src/actors/dScMgMemory2_c.cpp.obj                    __ZTV14dScMgMemory2_c                                    0x8
 src/actors/dScMgSound_c.cpp.obj                      ?_ZTV12dScMgSound_c@@3PAPAXA                             0x8
-src/actors/daBmb_c.cpp.obj                           ?_ZTV7daBmb_c@@3PAHA                                     0x8
 src/actors/daBombking_c.cpp.obj                      __ZTV12daBombking_c                                      0x8
 src/actors/daObjClock_c.cpp.obj                      __ZTV12daObjClock_c                                      0x8
 src/actors/daObjFire_c.cpp.obj                       __ZTV11daObjFire_c                                       0x8
@@ -36,10 +35,8 @@ src/game/actors/d_a_bar.cpp.obj                      __ZTV7daBar_c              
 src/game/actors/d_a_cam_tag.cpp.obj                  __ZTV10daCamTag_c                                        0x8
 src/game/actors/d_a_ch_room.cpp.obj                  __ZTV10daChRoom_c                                        0x8
 src/game/actors/d_a_ch_scene.cpp.obj                 __ZTV11daChScene_c                                       0x8
-src/game/actors/d_a_ey_bm.cpp.obj                    ?_ZTV8daEyBm_c@@3PAHA                                    0x8
 src/game/actors/d_a_kp_fr.cpp.obj                    __ZTV8daKpFr_c                                           0x8
 src/game/actors/d_a_krpa.cpp.obj                     __ZTV8daKrpa_c                                           0x8
-src/game/actors/d_a_mc_flag.cpp.obj                  ?_ZTV10daMcFlag_c@@3PAHA                                 0x8
 src/game/actors/d_a_obj_abuku.cpp.obj                __ZTV12daObjAbuku_c                                      0x8
 src/game/actors/d_a_obj_b_swdoor.cpp.obj             __ZTV14daObjBSwdoor_c                                    0x8
 src/game/actors/d_a_obj_bc_switch.cpp.obj            __ZTV16daObjBC_Switch_c                                  0x8

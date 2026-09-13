@@ -294,8 +294,23 @@ endfunction()
 #       unmatched/MgCup_UninitEpilogue_020def80.cpp. The class's FACTORY host
 #       copy (unmatched/MgCup_Factory.cpp) is NOT retired by this: its row is the
 #       vptr address-point question and belongs to the lane that settles it.
+#   src/actors/daBmb_c.cpp, src/game/actors/d_a_ey_bm.cpp and
+#       src/game/actors/d_a_mc_flag.cpp   ZTV_C_LINKAGE, the first three of lane
+#       VPTR's nine DECORATED vtable externs. Each TU sees its table declared as
+#       a plain C++ `extern int _ZTV<X>[];` -- from include/daBmb_c.h:158 and
+#       include/daEyBm_c.h:83 for two of them, from its own line 66 for the
+#       flag -- so MSVC emits ?_ZTV7daBmb_c@@3PAHA while the port's host array
+#       and the /alternatename that binds it carry the C name __ZTV7daBmb_c. An
+#       /alternatename is a NAME bridge and cannot cross a decoration, so all
+#       three sat on the unresolved wall. hostgen puts a C-linkage declaration
+#       ahead of the include and the header's own inherits it. The same pass
+#       drops each store's +8 address-point bias, so the three rows also leave
+#       tools/vptr_addend_baseline.txt. Added run link100, lane HOSTGEN3.
 set(PORT_HOSTGEN_TU
     src/actors/Player.cpp
+    src/actors/daBmb_c.cpp
+    src/game/actors/d_a_ey_bm.cpp
+    src/game/actors/d_a_mc_flag.cpp
     src/actors/dScMgCup_c.cpp
     src/actors/dScMgPanel_c.cpp
     src/actors/dScMgHanachan_c.cpp
@@ -326,6 +341,75 @@ foreach(_hgt_rel IN LISTS PORT_HOSTGEN_TU)
     set("PORT_HOSTGEN_TU_RE_${_hgt_rel}" "${_hgt_re}")
     set("PORT_HOSTGEN_TU_HITS_${_hgt_rel}" 0)
     list(APPEND PORT_HOSTGEN_TU_GEN "${_hgt_out}")
+endforeach()
+
+# ---- A PER-SOURCE PROPERTY DOES NOT FOLLOW THE SUBSTITUTION ----------------
+#
+# The substitution rewrites SLICE LISTS. It does not rewrite the paths spelled
+# literally in this file, and a set_source_files_properties() call that names
+# only the raw TU goes on setting a property for a source nothing compiles any
+# more. The property is not reported missing: the generated TU simply builds
+# without it.
+#
+# It has bitten once already and cost a build each time. Putting
+# src/actors/dScMgCup_c.cpp on the list above moved its compile to the generated
+# path, the /wd4716 row in PORT_FALLS_OFF_END_SOURCES stayed on the raw one, and
+# the TU came back as `error C4716: 'dScMgCup_c::Virtual50': must return a
+# value` -- a fall-off-the-end body this tree adjudicated long ago, reported as
+# if it were new. That loop now sets the option on both paths.
+#
+# The other live instance is the one lane FACES2 had to leave alone.
+# src/actors/daBombking_c.cpp carries `-D_ZN13MontyMoleRockD0Ev=
+# func_ov078_02123804` at the block near line 10,360, which is what makes King
+# Bob-omb's two throw states call his own throw body rather than the Monty Mole
+# rock's destructor. Substituting that TU without moving the definition would
+# not fail to build; it would build a King Bob-omb who calls a destructor when
+# he throws. That is the only reason its PORT_HOST_ABI duplicate row is still
+# open.
+#
+# So this refuses at configure rather than leaving the next lane to find it.
+# Counted on this file's own text: a listed TU whose raw path is spelled here
+# more often than its generated path is a property going missing. The check is
+# plain string arithmetic on purpose -- a regex over 19,000 lines of paths that
+# contain dots and brackets is a second thing to get right.
+set(PORT_HOSTGEN_TU_RAW_OK
+    # PROPERTIES LANGUAGE CXX, in the block near line 1,280, on a file that is
+    # already .cpp and whose generated twin is .cpp as well: there is nothing
+    # for the property to carry. Every other exemption needs the same sentence.
+    src/actors/Player.cpp)
+file(READ "${CMAKE_CURRENT_LIST_FILE}" _hgp_self)
+string(LENGTH "${_hgp_self}" _hgp_self_len)
+foreach(_hgp_rel IN LISTS PORT_HOSTGEN_TU)
+    list(FIND PORT_HOSTGEN_TU_RAW_OK "${_hgp_rel}" _hgp_exempt)
+    if(NOT _hgp_exempt EQUAL -1)
+        continue()
+    endif()
+    set(_hgp_raw "/../${_hgp_rel}\"")
+    string(LENGTH "${_hgp_raw}" _hgp_raw_len)
+    string(REPLACE "${_hgp_raw}" "" _hgp_cut "${_hgp_self}")
+    string(LENGTH "${_hgp_cut}" _hgp_cut_len)
+    math(EXPR _hgp_raw_n "(${_hgp_self_len} - ${_hgp_cut_len}) / ${_hgp_raw_len}")
+    if(_hgp_raw_n GREATER 0)
+        string(REGEX REPLACE "[.](c|cpp)$" ".cpp" _hgp_out "${_hgp_rel}")
+        set(_hgp_gen "host-src/${_hgp_out}\"")
+        string(LENGTH "${_hgp_gen}" _hgp_gen_len)
+        string(REPLACE "${_hgp_gen}" "" _hgp_cut2 "${_hgp_self}")
+        string(LENGTH "${_hgp_cut2}" _hgp_cut2_len)
+        math(EXPR _hgp_gen_n
+             "(${_hgp_self_len} - ${_hgp_cut2_len}) / ${_hgp_gen_len}")
+        if(_hgp_gen_n LESS _hgp_raw_n)
+            message(FATAL_ERROR
+                "${_hgp_rel} is on PORT_HOSTGEN_TU, so the build compiles "
+                "build/port/host-src/${_hgp_out} instead of it -- but this "
+                "file names the raw path ${_hgp_raw_n} time(s) and the "
+                "generated path ${_hgp_gen_n}. Whatever those calls set is "
+                "being set for a source nothing compiles. Name BOTH paths in "
+                "each of them (the dScMgPanel_c and d_a_propeller_heyho blocks "
+                "are the shape), or add the row to PORT_HOSTGEN_TU_RAW_OK "
+                "above with the sentence that says why the property does not "
+                "matter.")
+        endif()
+    endif()
 endforeach()
 
 # ---- THE SYNC FACES ---------------------------------------------------------
