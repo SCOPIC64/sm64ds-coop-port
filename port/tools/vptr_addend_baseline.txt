@@ -1,0 +1,89 @@
+# port/tools/vptr_addend_baseline.txt -- the vtable stores this tree is KNOWN to
+# make at a nonzero addend, one row per (object, vtable symbol, applied value).
+#
+# Every row here is a class whose factory writes its object's vptr TWO SLOTS HIGH
+# on the host: the decomp spells the Itanium address point, which mwcc needs
+# because its own vtable symbol denotes the object start, and the port's tables
+# have no header words for that bias to skip. Lane VPTR's measurement and the
+# five-class disassembly are in runs/link100/out/VPTR/report.md.
+#
+# THE FILE IS MEANT TO SHRINK. A row leaves it when its TU joins
+# port/CMakeLists.txt's PORT_HOSTGEN_TU list, where tools/hostgen.py's
+# VPTR_ADDRESS_POINT rewrite drops the bias, or when the decomp side settles it.
+# port/tools/vptr_addend_guard.py refuses any row that is NOT here, so a class
+# main promotes to a key-function TU tomorrow stops the build instead of
+# dispatching silently wrong.
+#
+# A ROW IS A DEFECT ON HOLD, NOT AN EXEMPTION. Retiring one of these stores is a
+# DISPATCH CHANGE (in3/COMMON.md): the port's four factory host copies are the
+# only correct stores in the tree today, and the VPTR ruling sequences the swap
+# behind a linking tree and a scene-to-level capture. Until then the rows sit
+# here so that the SEVENTY-SECOND one stops the build.
+#
+#   <source path>.obj  <vtable symbol>  <applied value>
+src/actors/Scuttlebug.cpp.obj                        ?_ZTV10Scuttlebug@@3PAHA                                 0x8
+src/actors/dScMgMemory2_c.cpp.obj                    __ZTV14dScMgMemory2_c                                    0x8
+src/actors/dScMgSound_c.cpp.obj                      ?_ZTV12dScMgSound_c@@3PAPAXA                             0x8
+src/actors/daBmb_c.cpp.obj                           ?_ZTV7daBmb_c@@3PAHA                                     0x8
+src/actors/daBombking_c.cpp.obj                      __ZTV12daBombking_c                                      0x8
+src/actors/daObjClock_c.cpp.obj                      __ZTV12daObjClock_c                                      0x8
+src/actors/daObjFire_c.cpp.obj                       __ZTV11daObjFire_c                                       0x8
+src/actors/daObjFl_London_c.cpp.obj                  __ZTV16daObjFl_London_c                                  0x8
+src/actors/daObjLava_c.cpp.obj                       __ZTV11daObjLava_c                                       0x8
+src/actors/daSCoin_c.cpp.obj                         __ZTV9daSCoin_c                                          0x8
+src/actors/daYurei_Mucho_c.cpp.obj                   __ZTV15daYurei_Mucho_c                                   0x8
+src/game/actors/d_a_bar.cpp.obj                      __ZTV7daBar_c                                            0x8
+src/game/actors/d_a_cam_tag.cpp.obj                  __ZTV10daCamTag_c                                        0x8
+src/game/actors/d_a_ch_room.cpp.obj                  __ZTV10daChRoom_c                                        0x8
+src/game/actors/d_a_ch_scene.cpp.obj                 __ZTV11daChScene_c                                       0x8
+src/game/actors/d_a_ey_bm.cpp.obj                    ?_ZTV8daEyBm_c@@3PAHA                                    0x8
+src/game/actors/d_a_kp_fr.cpp.obj                    __ZTV8daKpFr_c                                           0x8
+src/game/actors/d_a_krpa.cpp.obj                     __ZTV8daKrpa_c                                           0x8
+src/game/actors/d_a_mc_flag.cpp.obj                  ?_ZTV10daMcFlag_c@@3PAHA                                 0x8
+src/game/actors/d_a_obj_abuku.cpp.obj                __ZTV12daObjAbuku_c                                      0x8
+src/game/actors/d_a_obj_b_swdoor.cpp.obj             __ZTV14daObjBSwdoor_c                                    0x8
+src/game/actors/d_a_obj_bc_switch.cpp.obj            __ZTV16daObjBC_Switch_c                                  0x8
+src/game/actors/d_a_obj_c0_switch.cpp.obj            __ZTV16daObjC0_Switch_c                                  0x8
+src/game/actors/d_a_obj_c1_trap.cpp.obj              __ZTV14daObjC1_Trap_c                                    0x8
+src/game/actors/d_a_obj_cannon_shutter.cpp.obj       __ZTV20daObjCannonShutter_c                              0x8
+src/game/actors/d_a_obj_clock_huriko.cpp.obj         __ZTV18daObjClockHuriko_c                                0x8
+src/game/actors/d_a_obj_emm_log.cpp.obj              __ZTV13daObjEmmLog_c                                     0x8
+src/game/actors/d_a_obj_fm_battan.cpp.obj            __ZTV16daObjFm_Battan_c                                  0x8
+src/game/actors/d_a_obj_hatena_switch.cpp.obj        ?_ZTV19daObjHatenaSwitch_c@@3PAHA                        0x8
+src/game/actors/d_a_obj_ice_board.cpp.obj            __ZTV15daObjIceBoard_c                                   0x8
+src/game/actors/d_a_obj_kb1_billboard.cpp.obj        ?_ZTV19daObjKb1Billboard_c@@3PAHA                        0x8
+src/game/actors/d_a_obj_kinoko_tag.cpp.obj           __ZTV16daObjKinokoTag_c                                  0x8
+src/game/actors/d_a_obj_km1_dorifu.cpp.obj           __ZTV17daObjKm1_Dorifu_c                                 0x8
+src/game/actors/d_a_obj_km2_fall_block.cpp.obj       __ZTV21daObjKm2_Fall_Block_c                             0x8
+src/game/actors/d_a_obj_km2_gura.cpp.obj             ?_ZTV15daObjKm2_Gura_c@@3PAHA                            0x8
+src/game/actors/d_a_obj_km3_dorifu.cpp.obj           __ZTV17daObjKm3_Dorifu_c                                 0x8
+src/game/actors/d_a_obj_km3_kaitendai.cpp.obj        __ZTV16daObjKaitendai_c                                  0x8
+src/game/actors/d_a_obj_km3_kuruma.cpp.obj           __ZTV13daObjKuruma_c                                     0x8
+src/game/actors/d_a_obj_km3_kurumajiku.cpp.obj       __ZTV17daObjKurumajiku_c                                 0x8
+src/game/actors/d_a_obj_ks_water.cpp.obj             __ZTV14daObjKsWater_c                                    0x8
+src/game/actors/d_a_obj_mc_metalnet.cpp.obj          __ZTV18daObjMc_Metalnet_c                                0x8
+src/game/actors/d_a_obj_mc_water.cpp.obj             __ZTV14daObjMcWater_c                                    0x8
+src/game/actors/d_a_obj_rc_carpet.cpp.obj            __ZTV15daObjRcCarpet_c                                   0x8
+src/game/actors/d_a_obj_rc_dorifu.cpp.obj            __ZTV16daObjRc_Dorifu_c                                  0x8
+src/game/actors/d_a_obj_wakame.cpp.obj               __ZTV13daObjWakame_c                                     0x8
+src/game/actors/d_a_obj_wanwan_shutter.cpp.obj       __ZTV20daObjWanwanShutter_c                              0x8
+src/game/actors/d_a_obj_waterfall.cpp.obj            __ZTV16daObjWaterfall_c                                  0x8
+src/game/actors/d_a_obj_wc_obj01.cpp.obj             __ZTV14daObjWcObj01_c                                    0x8
+src/game/actors/d_a_obj_wc_obj02.cpp.obj             __ZTV15daObjWc_Obj02_c                                   0x8
+src/game/actors/d_a_obj_wc_obj05.cpp.obj             __ZTV15daObjWc_Obj05_c                                   0x8
+src/game/actors/d_a_obj_wc_obj06.cpp.obj             __ZTV14daObjWcObj06_c                                    0x8
+src/game/actors/d_a_obj_wc_obj07.cpp.obj             __ZTV15daObjWc_Obj07_c                                   0x8
+src/game/actors/d_a_s_cre.cpp.obj                    __ZTV8daSCre_c                                           0x8
+src/game/actors/d_a_set_se.cpp.obj                   __ZTV9daSetSE_c                                          0x8
+src/game/actors/d_a_sld_mng.cpp.obj                  __ZTV10daSldMng_c                                        0x8
+src/game/actors/d_a_sound_obj.cpp.obj                __ZTV12daSoundObj_c                                      0x8
+src/game/actors/d_a_tree.cpp.obj                     __ZTV8daTree_c                                           0x8
+src/game/actors/d_a_warpkun.cpp.obj                  __ZTV11daWarpkun_c                                       0x8
+src/minigames/d_s_mg_bsc.cpp.obj                     __ZTV10dScMgBSC_c                                        0x8
+src/minigames/d_s_mg_card.cpp.obj                    __ZTV11dScMgCard_c                                       0x8
+src/minigames/d_s_mg_card.cpp.obj                    __ZTV12dMgCardObj_c                                      0x8
+src/minigames/d_s_mg_card.cpp.obj                    __ZTV17dMgDilarCardObj_c                                 0x8
+src/minigames/d_s_mg_m_carlo.cpp.obj                 __ZTV13dScMgMCarlo_c                                     0x8
+src/minigames/d_s_mg_m_carlo2.cpp.obj                __ZTV14dScMgMCarlo2_c                                    0x8
+src/minigames/d_s_mg_memory.cpp.obj                  __ZTV13dScMgMemory_c                                     0x8
+src/minigames/d_s_mg_trampoline.cpp.obj              __ZTV17dScMgTrampoline_c                                 0x8

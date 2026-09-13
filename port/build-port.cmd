@@ -28,6 +28,27 @@ if errorlevel 1 exit /b 1
 rem Fail before configure if a NEW guessed vtable body got seated past the baseline.
 python "%~dp0tools\guardcache.py" --replay inferred_stub_guard.py
 if errorlevel 1 exit /b 1
+rem Fail before configure if a vtable pointer is stored TWO SLOTS HIGH. mwcc's
+rem own vtable symbol denotes the object start and the Itanium address point is
+rem two words past it, so a key-function TU writes its vptr as `&_ZTV<X>[2]`;
+rem the port's tables are host arrays whose slot 0 IS the first virtual, so that
+rem spelling makes ROM slot 0 -- InitResources, the first call on the spawn path
+rem -- enter the class's third virtual. Nothing else in this build can see it:
+rem the byte gate compares the matched object, where the spelling is right, the
+rem linker applies the addend without a word, and linkage.py counts the row.
+rem Run link100, lane VPTR measured it; the ruling is in tools/hostgen.py's
+rem VPTR_ADDRESS_POINT block and the parked rows are in
+rem tools/vptr_addend_baseline.txt.
+rem NOT THROUGH guardcache. The guard reads the BUILD's objects, and guardcache
+rem keys a remembered verdict on the source trees a guard walks; build/port is
+rem not one of those, so a cached green would go stale the moment a source
+rem changed and the guard would stop looking. Three seconds, uncached, every
+rem build. It reads the PREVIOUS build's objects here, which is the point of
+rem the position: a regression refuses before the next six minutes of compiling
+rem rather than after. The same guard runs again post-link, below, on the
+rem objects this build just made.
+python "%~dp0tools\vptr_addend_guard.py" "%~dp0.."
+if errorlevel 1 exit /b 1
 rem Fail before configure if the closure prober's selftest breaks: the probe
 rem sizes slice walls and predicts collisions, and a broken prober lies
 rem quietly. There is no port CI; this block is where loudness lives.
@@ -157,4 +178,10 @@ rem resolved against the callee's address -- and it runs over EVERY map for
 rem gxband_guard's reason: /MAP is on CMAKE_EXE_LINKER_FLAGS, three targets
 rem host the ov007 slice, and nothing else in this build asks the question.
 python "%~dp0tools\tailjump_guard.py" --build-dir "%~dp0..\build\port"
+if errorlevel 1 exit /b 1
+rem And the vtable address-point check again, now on the objects this build
+rem just produced rather than the previous build's. The pre-configure copy
+rem above refuses a regression early; this one is the copy that actually
+rem convicts the build in front of you.
+python "%~dp0tools\vptr_addend_guard.py" "%~dp0.."
 if errorlevel 1 exit /b 1
