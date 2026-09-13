@@ -3360,3 +3360,15 @@ DSSTATE_END
  * fourth, in the same shape, and it is storage rather than dispatch: the
  * table is filled by the same registry pass either way. */
 #pragma comment(linker, "/alternatename:__ZTV14TTC_MovingBeam=__ZTV16daObjCtMecha09_c")
+
+
+/* Wave 8, lane SYNC6: the compressed-texture loader, flat -> decorated.
+ * main's #2528 matched Model::LoadCompressedTextureToVram and
+ * src/_ZN5Model27LoadCompressedTextureToVramEPcjS0_.cpp spells the body as the
+ * static member, so the flat ROM name it used to carry has no definition and
+ * two ROM callers still reference it flat (src/func_ov075_0211aa94.c:16 and
+ * src/func_ov080_02125630.cpp:26). The RHS is DEFINED in this link and it is a
+ * STATIC member: __cdecl, no receiver, three arguments, scalar return on both
+ * sides, which is the admissibility rule met on every clause. The host bridge
+ * that used to supply the return is retired in hal/gx_upload_bridge.cpp. */
+#pragma comment(linker, "/alternatename:__ZN5Model27LoadCompressedTextureToVramEPcjS0_=?LoadCompressedTextureToVram@Model@@SAIPADI0@Z")

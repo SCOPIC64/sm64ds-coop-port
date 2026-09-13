@@ -1,3 +1,9 @@
+# RETIRED at SYNC6: the class translation unit main folded these bodies into
+# is back on its slice rows (today's #2660/#2663/#2666 un-quarantine) and it
+# DEFINES the names below itself, so the mount was the second definition.
+# Measured as LNK2005 rows against this file's generated object in
+# build_s2.log. Removed from the generator's INPUT, per the rule: never
+# edit the generated output. Retired here: g_profile_KM1_KURUMAJIKU, g_profile_KM1_KURUMA
 # run linkw wave 20, lane w20: ov043's BOWSER IN THE DARK WORLD cast, per symbol.
 #
 # ============================ STATE: DERIVED, NOT WIRED =====================
@@ -149,9 +155,9 @@ data_ov043_021121c0 data_ov043_021121dc data_ov043_021121f8
 data_ov043_02112258 _ZTI19daObjKm1_Ukishima_c _ZTS19daObjKm1_Ukishima_c
 g_profile_KM1_UKISHIMA data_ov043_0211229c _ZTI21daObjKm1_Kurumajiku_c
 data_ov043_02112344 _ZTS21daObjKm1_Kurumajiku_c data_ov043_02112358
-g_profile_KM1_KURUMAJIKU _ZTI17daObjKm1_Kuruma_c data_ov043_02112418
+_ZTI17daObjKm1_Kuruma_c data_ov043_02112418
 data_ov043_0211241c _ZTS17daObjKm1_Kuruma_c data_ov043_02112428
-data_ov043_02112434 g_profile_KM1_KURUMA data_ov043_0211244c
+data_ov043_02112434 data_ov043_0211244c
 _ZTI17daObjKm1_Dorifu_c _ZTS17daObjKm1_Dorifu_c
 
  data_ov043_021125e0 data_ov043_021125e8

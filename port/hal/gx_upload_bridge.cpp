@@ -108,14 +108,28 @@ void ModelComponents::UpdateBones(BCA_File *file, int frame)
 // That draft is typed void (the ARM contract returned the block offset in a
 // register the C shape never names), so the bridge supplies the return the
 // caller depends on: the PRE-bump block cursor is where this texture landed.
-extern "C" void _ZN5Model27LoadCompressedTextureToVramEPcjS0_(char *, u32, char *);
-extern "C" u32 data_020a4bc8;
-struct Model {
-    static u32 LoadCompressedTextureToVram(char *src, u32 size, char *idx);
-};
-u32 Model::LoadCompressedTextureToVram(char *src, u32 size, char *idx)
-{
-    const u32 offset = data_020a4bc8;
-    _ZN5Model27LoadCompressedTextureToVramEPcjS0_(src, size, idx);
-    return offset;
-}
+// RETIRED at SYNC6. main's #2528 matched this function and gave
+// include/Model.h the u32 return the bridge existed to supply ("the
+// declaration here had it right all along", Model.h's own note), so
+// src/_ZN5Model27LoadCompressedTextureToVramEPcjS0_.cpp now defines
+// ?LoadCompressedTextureToVram@Model@@SAIPADI0@Z itself and this was the
+// second definition (one LNK2005 row in build_s2.log).
+//
+// What the src TU does NOT define any more is the flat ROM name: it spells the
+// body as the static member, so __ZN5Model27LoadCompressedTextureToVramEPcjS0_
+// went unresolved for src/func_ov075_0211aa94.c and src/func_ov080_02125630.cpp,
+// which still call it flat. That one is an /alternatename in
+// hal/cxx_aliases.cpp rather than a face: a STATIC member is __cdecl with no
+// receiver, three arguments and a scalar return on both sides, which is the
+// admissibility rule exactly.
+// extern "C" void _ZN5Model27LoadCompressedTextureToVramEPcjS0_(char *, u32, char *);
+// extern "C" u32 data_020a4bc8;
+// struct Model {
+//     static u32 LoadCompressedTextureToVram(char *src, u32 size, char *idx);
+// };
+// u32 Model::LoadCompressedTextureToVram(char *src, u32 size, char *idx)
+// {
+//     const u32 offset = data_020a4bc8;
+//     _ZN5Model27LoadCompressedTextureToVramEPcjS0_(src, size, idx);
+//     return offset;
+// }

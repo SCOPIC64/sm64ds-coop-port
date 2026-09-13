@@ -9151,8 +9151,14 @@ endforeach()
 # argument explicitly (register-proven per site). See each file's header.
 # (func_ov002_020e5948's TexSeq caller fix is Brain B's lane, handed over via
 # out/argfix/handoff/ -- not wired here.)
+# Player_ReleaseHeldDispatch.cpp RETIRED at SYNC6. It was this one body
+# transcribed to pass func_ov002_020d5cec the held object the ROM leaves in r0,
+# and src/actors/Player.cpp is back in the build (main #2666) defining
+# func_ov002_020bdb50 itself, so the two collided. The argument is supplied by a
+# hostgen REG_RIDE_ARG row on the Player TU instead -- the same mechanism, on
+# main's own text, with apply_patches hard-erroring if either anchor moves --
+# so nothing about the call changes and one host copy leaves the tree.
 list(APPEND SLICE10_CAM_SOURCES
-     "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Player_ReleaseHeldDispatch.cpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/Player_SwimMain.cpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/unmatched/InitCrashScreen_ResetVeneer.cpp")
 
@@ -13489,14 +13495,30 @@ set_source_files_properties(
 #   77  _ZN10LavaSeesaw16CleanupResourcesEv: 0x02111dcc -> 0x021145a8, 0x02111dd0 -> 0x021145a0
 # (Both files are .c, so both names carry C linkage and bind straight onto the
 # mount's plain C symbols -- no decorated-name bridge is needed here.)
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/actors/daObjFl_London_c.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "G0=data_ov022_02114580;G1=data_ov022_02114578")
-set_source_files_properties(
-    "${CMAKE_CURRENT_SOURCE_DIR}/../src/_ZN10LavaSeesaw16CleanupResourcesEv.cpp"
-    PROPERTIES COMPILE_DEFINITIONS
-    "G0=data_ov022_021145a8;G1=data_ov022_021145a0")
+# BOTH W3 RENAMES RETIRED at the SYNC6 main -> port sync, and the first one had
+# become a defect rather than a fix. main's consolidation gave both TUs the real
+# symbols in their own text -- src/actors/daObjFl_London_c.cpp lines 46-47 spell
+# `extern void *data_ov022_02114580;` and `extern void *data_ov022_02114578;`
+# themselves, and neither file contains the identifiers G0 or G1 any more (grep,
+# on the merged tree) -- so there is nothing left for a -D to rewrite.
+#
+# The harm: include/decl_common.h(394) declares `extern int G1[];` for a
+# different symbol entirely, and a -D rewrites THAT declaration too, in every
+# TU it is applied to. So the London TU compiled decl_common's line as
+# `extern int data_ov022_02114578[];` and then met its own
+# `extern void *data_ov022_02114578;` eleven lines later:
+#
+#   src/actors/daObjFl_London_c.cpp(47): error C2372: 'data_ov022_02114578':
+#   redefinition; different types of indirection
+#   include/decl_common.h(394): note: see declaration of 'data_ov022_02114578'
+#
+# That is the C2372 lane SYNC5 quarantined this TU for and lane FACES2 recorded
+# as a decomp-side question ("which spelling is right is a ROM question").  It
+# is neither: it is this rename, firing on a header declaration it was never
+# meant to see. The LavaSeesaw row goes with it for the same reason -- unused,
+# and the same latent collision on decl_common's G1.
+#
+# The pool derivations above stay as the record of what the two words are.
 #
 # W4, THE SAME FIX DOES NOT RETIRE WAVE 8's ONE HOST THUNK, AND THE REFUSAL IS
 # MEASURED. LAVA_PLANK (82)'s slot 3,
@@ -18410,11 +18432,13 @@ set(PORT_FALLS_OFF_END_SOURCES
     src/_ZN13QuestionBlock11OnAttacked1ER8dActor_c.cpp
     src/_ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c.cpp
     src/game/actors/daObjPushblock_c.cpp
-    # d_a_wanwan.cpp is a whole class TU and raises C4716 twice, on
-    # func_ov014_02111fb8 and func_ov014_0211150c. The option is per source, so
-    # those two carry the rest of the file with them; both are ROM bodies that
-    # compute no result.
-    src/game/actors/d_a_wanwan.cpp)
+    # d_a_wanwan.cpp raises C4716 twice as well (func_ov014_02111fb8 and
+    # func_ov014_0211150c) and its row belongs here the moment the TU is seated,
+    # but the TU is held out of the build again for the factory collision
+    # written up on its slice rows, so the row would name a source nothing
+    # compiles:
+    # src/game/actors/d_a_wanwan.cpp
+    )
 foreach(_foe_rel IN LISTS PORT_FALLS_OFF_END_SOURCES)
     if(NOT EXISTS "${PORT_REPO_ROOT_ABS}/${_foe_rel}")
         message(FATAL_ERROR "falls-off-the-end row names a source that does not "

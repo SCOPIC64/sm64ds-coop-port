@@ -1,3 +1,9 @@
+# RETIRED at SYNC6: the class translation unit main folded these bodies into
+# is back on its slice rows (today's #2660/#2663/#2666 un-quarantine) and it
+# DEFINES the names below itself, so the mount was the second definition.
+# Measured as LNK2005 rows against this file's generated object in
+# build_s2.log. Removed from the generator's INPUT, per the rule: never
+# edit the generated output. Retired here: g_profile_FL_LONDON
 # run linkw wave 8 (lane w8-packs): ov022's LETHAL LAVA LAND cast, per symbol.
 #
 # ov022 (level 14, Lethal Lava Land, data/stage/fire_land, course 6) is already
@@ -159,7 +165,7 @@ _ZTS14daObjFl_Ring_c data_ov022_02113cec g_profile_FL_RING
 _ZTI16daObjFl_Koma_D_c data_ov022_02113da4 data_ov022_02113da8
 _ZTS16daObjFl_Koma_D_c g_profile_FL_KOMA_D _ZTI15daObjFl_Block_c
 data_ov022_02113e6c _ZTS15daObjFl_Block_c g_profile_FL_BLOCK
-_ZTI16daObjFl_London_c _ZTS16daObjFl_London_c g_profile_FL_LONDON
+_ZTI16daObjFl_London_c _ZTS16daObjFl_London_c
 _ZTI16daObjFl_Seesaw_c data_ov022_02113ff4 _ZTS16daObjFl_Seesaw_c
 g_profile_FL_SEESAW _ZTI17daObjFl_Ukiyuka_c data_ov022_021140b8
 _ZTS17daObjFl_Ukiyuka_c data_ov022_021140d4 g_profile_FL_UKIYUKA

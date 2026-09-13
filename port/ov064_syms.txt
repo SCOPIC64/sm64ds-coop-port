@@ -1,3 +1,9 @@
+# RETIRED at SYNC6: the class translation unit main folded these bodies into
+# is back on its slice rows (today's #2660/#2663/#2666 un-quarantine) and it
+# DEFINES the names below itself, so the mount was the second definition.
+# Measured as LNK2005 rows against this file's generated object in
+# build_s2.log. Removed from the generator's INPUT, per the rule: never
+# edit the generated output. Retired here: g_profile_FL_GURA
 # Gate 177: the FIRST mount of ov064 -- BULLY (215), BIG_BULLY (216) and
 # ROTATING_FIREBAR (81). ov064 is an ACTOR overlay (base 0x02115ee0), one of the
 # seven Lethal Lava Land carries; it holds thirteen classes and this gate hosts
@@ -138,7 +144,7 @@ data_ov064_0211bb2c data_ov064_0211bb4c data_ov064_0211bbcc
 # halfword is 72. Both attribution routes, which is the rule here.
 # Pinned to the record's real 0x1c so the +4 id halfword the registry
 # cross-checks reads out of the right bytes.
-g_profile_FL_GURA:0x1c
+
 # Its three-word file table, read by both Init and Cleanup (they tail-call
 # ov002's base pair with this as the second argument). Words relocate to the two
 # SharedFilePtrs below and to the CLPS record; all three ends are in this mount,

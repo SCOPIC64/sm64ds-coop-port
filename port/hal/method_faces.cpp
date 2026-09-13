@@ -298,6 +298,12 @@ extern "C" int _ZN6Player17St_SweepKick_InitEv(void *self);
 extern "C" int _ZN6Player13St_Throw_InitEv(void *self);
 extern "C" int _ZN6Player14St_Thrown_InitEv(void *self);
 extern "C" int _ZN6Player19St_TornadoSpin_MainEv(void *self);                */
+/* RETIRED at SYNC6, the same reason as the ALIAS2 block below and the one
+   above it, one sync later: src/actors/Player.cpp is back on its seventeen
+   slice rows now that main's #2666 made it compile on the host, and it
+   defines ?St_<name>@Player@@QAEHXZ for all five of these itself. Measured:
+   five LNK2005 rows against method_faces.cpp.obj in build_s2.log. The flat
+   Itanium bodies these forwarded to are unchanged and still linked.
 int Player::St_CameraZoom_Main()
 { return _ZN6Player18St_CameraZoom_MainEv(this); }
 int Player::St_MetalWaterWater_Main()
@@ -307,7 +313,7 @@ int Player::St_Respawn_Init()
 int Player::St_Swim_Main()
 { return _ZN6Player12St_Swim_MainEv(this); }
 int Player::St_Talk_Cleanup()
-{ return _ZN6Player15St_Talk_CleanupEv(this); }
+{ return _ZN6Player15St_Talk_CleanupEv(this); }                              */
 /* RETIRED at ALIAS2, same reason as the declarations above:
 int Player::St_Balloon_Main()
 { return _ZN6Player15St_Balloon_MainEv(this); }

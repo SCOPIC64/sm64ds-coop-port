@@ -38,5 +38,8 @@ int _ZN6Player9StartTalkER7fBase_cb(void *self, void *actor, int b);
 
 struct Player { int StartTalk(fBase_c &a, bool b); };
 
+/* RETIRED at SYNC6: src/actors/Player.cpp is back in the build (main #2666)
+   and defines ?StartTalk@Player@@QAEHAAUfBase_c@@_N@Z itself, so this face was
+   the second definition. The forwarding target is unchanged and still linked.
 int Player::StartTalk(fBase_c &a, bool b)
-{ return _ZN6Player9StartTalkER7fBase_cb(this, &a, b ? 1 : 0); }
+{ return _ZN6Player9StartTalkER7fBase_cb(this, &a, b ? 1 : 0); }             */

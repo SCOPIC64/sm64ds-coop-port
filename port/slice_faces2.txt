@@ -37,28 +37,84 @@
 # tried.
 
 # 19 unresolved: __ZN12daBakubaku_c13InitResourcesEv, __ZN12daBakubaku_c16CleanupResourcesEv, __ZN12daBakubaku_c16OnAimedAtWithEggEv and 16 more
-src/game/actors/d_a_bakubaku.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/game/actors/d_a_bakubaku.cpp
 
 # 9 unresolved: __ZN16daObjPushblock_c13InitResourcesEv, __ZN16daObjPushblock_c15OnHitByMegaCharER6Player, __ZN16daObjPushblock_c16CleanupResourcesEv and 6 more
-src/game/actors/daObjPushblock_c.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/game/actors/daObjPushblock_c.cpp
 
 # 7 unresolved: __ZN16daObjFl_London_c13InitResourcesEv, __ZN16daObjFl_London_c16CleanupResourcesEv, __ZN16daObjFl_London_c6RenderEv and 4 more
-src/actors/daObjFl_London_c.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/actors/daObjFl_London_c.cpp
 
 # 6 unresolved: __ZN11daBgSnwmn_c13InitResourcesEv, __ZN11daBgSnwmn_c16CleanupResourcesEv, __ZN11daBgSnwmn_c16OnPendingDestroyEv and 3 more
-src/game/actors/d_a_bg_snwmn.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/game/actors/d_a_bg_snwmn.cpp
 
 # 5 unresolved: __ZN17daObjKm1_Kuruma_c13InitResourcesEv, __ZN17daObjKm1_Kuruma_c16CleanupResourcesEv, __ZN17daObjKm1_Kuruma_cD0Ev and 2 more
-src/game/actors/d_a_obj_km1_kuruma.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/game/actors/d_a_obj_km1_kuruma.cpp
 
 # 5 unresolved: __ZN21daObjKm1_Kurumajiku_c13InitResourcesEv, __ZN21daObjKm1_Kurumajiku_c16CleanupResourcesEv, __ZN21daObjKm1_Kurumajiku_cD0Ev and 2 more
-src/game/actors/d_a_obj_km1_kurumajiku.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/game/actors/d_a_obj_km1_kurumajiku.cpp
 
 # 5 unresolved: __ZN19daObjKm2_Ukishima_c13InitResourcesEv, __ZN19daObjKm2_Ukishima_c16CleanupResourcesEv, __ZN19daObjKm2_Ukishima_cD0Ev and 2 more
-src/game/actors/d_a_obj_km2_ukishima.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/game/actors/d_a_obj_km2_ukishima.cpp
 
 # 3 unresolved: __ZN14daObjFl_Gura_c13InitResourcesEv, __ZN14daObjFl_Gura_c16CleanupResourcesEv, _daObjFl_Gura_c_classInit
-src/game/actors/d_a_obj_fl_gura.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/game/actors/d_a_obj_fl_gura.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was
@@ -80,10 +136,24 @@ src/game/actors/d_a_obj_fl_gura.cpp
 #src/_ZN11dScMgBase_cD0Ev.cpp
 
 # 2 unresolved: ?OnAttacked1@QuestionBlock@@UAEHAAUdActor_c@@@Z, __ZN13QuestionBlock11OnAttacked1ER8dActor_c
-src/_ZN13QuestionBlock11OnAttacked1ER8dActor_c.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/_ZN13QuestionBlock11OnAttacked1ER8dActor_c.cpp
 
 # 2 unresolved: ?OnHitFromUnderneath@QuestionBlock@@UAEHAAUdActor_c@@@Z, __ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c
-src/_ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/_ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was
@@ -108,7 +178,14 @@ src/_ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c.cpp
 src/d_a_hanachan.c
 
 # 2 unresolved: __ZN13daObjKi_Ita_c13InitResourcesEv, _daObjKi_Ita_c_classInit
-src/game/actors/d_a_obj_ki_ita.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/game/actors/d_a_obj_ki_ita.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was
@@ -826,7 +903,14 @@ src/_ZN10daKpa2Bg_c16CleanupResourcesEv.cpp
 #src/_ZN11dCapEnemy_cD2Ev.cpp
 
 # 1 unresolved: ?OnHitFromUnderneath@dScMgBase_c@@UAEHXZ
-src/_ZN11dScMgBase_c19OnHitFromUnderneathEv.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/_ZN11dScMgBase_c19OnHitFromUnderneathEv.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was
@@ -1492,7 +1576,14 @@ src/_ZN13RollingLogLll8BehaviorEv.cpp
 #src/_ZN14ArrowSignRight11OnAttacked1ER8dActor_c.cpp
 
 # 1 unresolved: __ZN14ArrowSignRight4KillEv
-src/_ZN14ArrowSignRight4KillEv.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/_ZN14ArrowSignRight4KillEv.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was
@@ -3989,7 +4080,14 @@ src/_ZN9TowerStep6RenderEv.cpp
 #src/_ZN9dScDSMT_cD0Ev.cpp
 
 # 1 unresolved: _daBgSnmBdy_c_classInit
-src/actors/daBgSnmBdy_c.cpp
+# RETIRED at SYNC6: this TU is already named by an older slice list, and
+# port/slice_faces2.txt is appended to its targets AFTER the tier-share
+# block, so its row is never deduped against port_slice_shared and the TU
+# compiled TWICE into walk_window. Measured in build_s2.log as LNK2005 rows
+# of the shape "X.cpp.obj already defined in X.cpp.obj". The older row is
+# the one kept; lane FACES2 held this one for a compile family that today's
+# main has fixed, so the choice is which row seats it, not whether.
+#src/actors/daBgSnmBdy_c.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was

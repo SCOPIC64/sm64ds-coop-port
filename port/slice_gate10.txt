@@ -804,7 +804,12 @@ src/RunKuppaScript.c
 src/_ZN9Animation4CopyERKS_.cpp
 src/_ZN9ModelAnim4CopyERKS_Pc.cpp
 src/_ZN5dBgCh18StopDetectingWaterEv.cpp
-port/unmatched/func_ov002_020bfa74.c
+# RETIRED at SYNC6, on the file's own retirement condition. Its header says
+# "Adopted from the banked near-miss draft ... Semantics only; retires when the
+# function matches for real": main's src/actors/Player.cpp defines
+# func_ov002_020bfa74 now, and the two collided (one LNK2005 row in
+# build_s2.log). The matched body is the one kept.
+#port/unmatched/func_ov002_020bfa74.c
 src/ProcessKuppaScript.cpp
 src/EndKuppaScript.cpp
 src/LoadLevelNoReturn.c

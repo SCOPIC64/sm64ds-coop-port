@@ -1,3 +1,9 @@
+# RETIRED at SYNC6: the class translation unit main folded these bodies into
+# is back on its slice rows (today's #2660/#2663/#2666 un-quarantine) and it
+# DEFINES the names below itself, so the mount was the second definition.
+# Measured as LNK2005 rows against this file's generated object in
+# build_s2.log. Removed from the generator's INPUT, per the rule: never
+# edit the generated output. Retired here: g_profile_KM2_UKISHIMA
 # run linkw wave 4 (lane w4-b): ov045's PLATFORM CAST, per symbol.
 #
 # ov045 (level 37, Bowser in the Fire Sea, data/stage/koopa2_map) is already
@@ -124,7 +130,7 @@ data_ov045_02112ca8 data_ov045_02112cb0 _ZTS16daObjKm2_Agaru_c
 data_ov045_02112cc8 g_profile_KM2_AGARU _ZTI18daObjKm2_Ami_Bou_c
 _ZTS18daObjKm2_Ami_Bou_c g_profile_KM2_AMI_BOU _ZTI17daObjKm2_Nobiru_c
 _ZTS17daObjKm2_Nobiru_c g_profile_KM2_NOBIRU _ZTI19daObjKm2_Ukishima_c
-data_ov045_02112f08 _ZTS19daObjKm2_Ukishima_c g_profile_KM2_UKISHIMA
+data_ov045_02112f08 _ZTS19daObjKm2_Ukishima_c
 _ZTI15daObjKm2_Gura_c _ZTS15daObjKm2_Gura_c
 _ZTI21daObjKm2_Fall_Block_c data_ov045_021130ac
 _ZTS21daObjKm2_Fall_Block_c data_ov045_021130cc g_profile_KM2_KUZURE

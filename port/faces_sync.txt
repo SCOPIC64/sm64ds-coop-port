@@ -495,49 +495,169 @@ __ZN7PathPtrC1Ev                                                         ??0Path
 
 __ZN13PeachPainting16CleanupResourcesEv                                  ?CleanupResources@PeachPainting@@UAEHXZ                          0x02111ec4 R
 
-__ZN6Player11OpenBigDoorEv                                               ?OpenBigDoor@Player@@QAEXXZ                                      0x020ca144 F
-__ZN6Player12FinishedAnimEv                                              ?FinishedAnim@Player@@QAEHXZ                                     0x020bed98 F
-__ZN6Player12GetTalkStateEv                                              ?GetTalkState@Player@@QAEHXZ                                     0x020c524c F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player11OpenBigDoorEv                                               ?OpenBigDoor@Player@@QAEXXZ                                      0x020ca144 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player12FinishedAnimEv                                              ?FinishedAnim@Player@@QAEHXZ                                     0x020bed98 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player12GetTalkStateEv                                              ?GetTalkState@Player@@QAEHXZ                                     0x020c524c F
 __ZN6Player12St_Jump_InitEv                                              ?St_Jump_Init@Player@@QAEHXZ                                     0x020e22c0 R
 __ZN6Player12St_Null_InitEv                                              ?St_Null_Init@Player@@QAEXXZ                                     0x020cac30 R
-__ZN6Player12Unk_020c4f40Et                                              ?Unk_020c4f40@Player@@QAEHG@Z                                    0x020c4f40 F
-__ZN6Player12Unk_020c6a10Ej                                              ?Unk_020c6a10@Player@@QAEHI@Z                                    0x020c6a10 F
-__ZN6Player12Unk_020c9e5cEh                                              ?Unk_020c9e5c@Player@@QAEHE@Z                                    0x020c9e5c F
-__ZN6Player12Unk_020ca150Eh                                              ?Unk_020ca150@Player@@QAEHE@Z                                    0x020ca150 F
-__ZN6Player12Unk_020ca488Ev                                              ?Unk_020ca488@Player@@QAEXXZ                                     0x020ca488 F
-__ZN6Player12Unk_020ca8f8Ev                                              ?Unk_020ca8f8@Player@@QAEHXZ                                     0x020ca8f8 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player12Unk_020c4f40Et                                              ?Unk_020c4f40@Player@@QAEHG@Z                                    0x020c4f40 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player12Unk_020c6a10Ej                                              ?Unk_020c6a10@Player@@QAEHI@Z                                    0x020c6a10 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player12Unk_020c9e5cEh                                              ?Unk_020c9e5c@Player@@QAEHE@Z                                    0x020c9e5c F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player12Unk_020ca150Eh                                              ?Unk_020ca150@Player@@QAEHE@Z                                    0x020ca150 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player12Unk_020ca488Ev                                              ?Unk_020ca488@Player@@QAEXXZ                                     0x020ca488 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player12Unk_020ca8f8Ev                                              ?Unk_020ca8f8@Player@@QAEHXZ                                     0x020ca8f8 F
 __ZN6Player13InitResourcesEv                                             ?InitResources@Player@@UAEHXZ                                    0x020e558c R
-__ZN6Player13TryTalkToDoorEh                                             ?TryTalkToDoor@Player@@QAEHE@Z                                   0x020ca344 F
-__ZN6Player14St_OnWall_InitEv                                            ?St_OnWall_Init@Player@@QAEHXZ                                   0x020cfa90 F
-__ZN6Player15IsCollectingCapEv                                           ?IsCollectingCap@Player@@QAEHXZ                                  0x020bea94 F
-__ZN6Player15IsEnteringLevelEv                                           ?IsEnteringLevel@Player@@QAEHXZ                                  0x020c7e84 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player13TryTalkToDoorEh                                             ?TryTalkToDoor@Player@@QAEHE@Z                                   0x020ca344 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player14St_OnWall_InitEv                                            ?St_OnWall_Init@Player@@QAEHXZ                                   0x020cfa90 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player15IsCollectingCapEv                                           ?IsCollectingCap@Player@@QAEHXZ                                  0x020bea94 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player15IsEnteringLevelEv                                           ?IsEnteringLevel@Player@@QAEHXZ                                  0x020c7e84 F
 __ZN6Player15JumpIntoBooCageER7Vector3                                   ?JumpIntoBooCage@Player@@QAEXAAUVector3@@@Z                      0x020ca2ac R
 __ZN6Player15St_Respawn_InitEv                                           ?St_Respawn_Init@Player@@QAEHXZ                                  0x020c4088 R
 __ZN6Player15St_Talk_CleanupEv                                           ?St_Talk_Cleanup@Player@@QAEHXZ                                  0x020c4760 R
-__ZN6Player16IncMegaKillCountEv                                          ?IncMegaKillCount@Player@@QAEXXZ                                 0x020bdc58 F
-__ZN6Player16SetRealCharacterEj                                          ?SetRealCharacter@Player@@QAEXI@Z                                0x020be1e0 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player16IncMegaKillCountEv                                          ?IncMegaKillCount@Player@@QAEXXZ                                 0x020bdc58 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player16SetRealCharacterEj                                          ?SetRealCharacter@Player@@QAEXI@Z                                0x020be1e0 F
 __ZN6Player16St_BurnLava_MainEv                                          ?St_BurnLava_Main@Player@@QAEHXZ                                 0x020d5038 R
-__ZN6Player16St_Shell_CleanupEv                                          ?St_Shell_Cleanup@Player@@QAEHXZ                                 0x020cc228 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player16St_Shell_CleanupEv                                          ?St_Shell_Cleanup@Player@@QAEHXZ                                 0x020cc228 F
 __ZN6Player16St_WallJump_InitEv                                          ?St_WallJump_Init@Player@@QAEHXZ                                 0x020e17f8 R
-__ZN6Player16TryTalkToKeyDoorEv                                          ?TryTalkToKeyDoor@Player@@QAEHXZ                                 0x020ca410 F
-__ZN6Player17SetNoControlStateEhih                                       ?SetNoControlState@Player@@QAEHEHE@Z                             0x020ca1b8 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player16TryTalkToKeyDoorEv                                          ?TryTalkToKeyDoor@Player@@QAEHXZ                                 0x020ca410 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player17SetNoControlStateEhih                                       ?SetNoControlState@Player@@QAEHEHE@Z                             0x020ca1b8 F
 __ZN6Player17St_EndingFly_MainEv                                         ?St_EndingFly_Main@Player@@QAEXXZ                                0x020c3d1c R
-__ZN6Player18HasFinishedTalkingEv                                        ?HasFinishedTalking@Player@@QAEHXZ                               0x020c4efc F
-__ZN6Player18SetNewHatCharacterEjjb                                      ?SetNewHatCharacter@Player@@QAEXII_N@Z                           0x020be0f8 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player18HasFinishedTalkingEv                                        ?HasFinishedTalking@Player@@QAEHXZ                               0x020c4efc F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player18SetNewHatCharacterEjjb                                      ?SetNewHatCharacter@Player@@QAEXII_N@Z                           0x020be0f8 F
 __ZN6Player18St_CameraZoom_MainEv                                        ?St_CameraZoom_Main@Player@@QAEHXZ                               0x020cad10 R
-__ZN6Player18TurnOffToonShadingEj                                        ?TurnOffToonShading@Player@@QAEXI@Z                              0x020be324 F
-__ZN6Player20IsStateEnteringLevelEv                                      ?IsStateEnteringLevel@Player@@QAEHXZ                             0x020c7ed4 F
-__ZN6Player21IsOpeningDoorWithStarEv                                     ?IsOpeningDoorWithStar@Player@@QAEHXZ                            0x020ca3d0 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player18TurnOffToonShadingEj                                        ?TurnOffToonShading@Player@@QAEXI@Z                              0x020be324 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player20IsStateEnteringLevelEv                                      ?IsStateEnteringLevel@Player@@QAEHXZ                             0x020c7ed4 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player21IsOpeningDoorWithStarEv                                     ?IsOpeningDoorWithStar@Player@@QAEHXZ                            0x020ca3d0 F
 __ZN6Player23St_InYoshiMouth_CleanupEv                                   ?St_InYoshiMouth_Cleanup@Player@@QAEHXZ                          0x020d6084 R
 __ZN6Player23St_MetalWaterWater_MainEv                                   ?St_MetalWaterWater_Main@Player@@QAEHXZ                          0x020cc9c0 R
-__ZN6Player24TryExitWhiteDoorWithStarEv                                  ?TryExitWhiteDoorWithStar@Player@@QAEHXZ                         0x020ca724 F
-__ZN6Player4HealEi                                                       ?Heal@Player@@QAEHH@Z                                            0x020bf4e4 F
-__ZN6Player6IsAnimEj                                                     ?IsAnim@Player@@QAEHI@Z                                          0x020beecc F
-__ZN6Player7IsInAirEv                                                    ?IsInAir@Player@@QAEHXZ                                          0x020c2f3c F
-__ZN6Player7SetAnimEji5Fix12IiEj                                         ?SetAnim@Player@@QAEXIHHI@Z                                      0x020bef2c R
-__ZN6Player8HasNoCapEv                                                   ?HasNoCap@Player@@QAEHXZ                                         0x020bda98 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player24TryExitWhiteDoorWithStarEv                                  ?TryExitWhiteDoorWithStar@Player@@QAEHXZ                         0x020ca724 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player4HealEi                                                       ?Heal@Player@@QAEHH@Z                                            0x020bf4e4 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player6IsAnimEj                                                     ?IsAnim@Player@@QAEHI@Z                                          0x020beecc F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player7IsInAirEv                                                    ?IsInAir@Player@@QAEHXZ                                          0x020c2f3c F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player7SetAnimEji5Fix12IiEj                                         ?SetAnim@Player@@QAEXIHHI@Z                                      0x020bef2c R
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player8HasNoCapEv                                                   ?HasNoCap@Player@@QAEHXZ                                         0x020bda98 F
 __ZN6Player9GetHealthEv                                                  ?GetHealth@Player@@QAEEXZ                                        0x020bf548 F
-__ZN6Player9IsOnShellEv                                                  ?IsOnShell@Player@@QAEHXZ                                        0x020cc140 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN6Player9IsOnShellEv                                                  ?IsOnShell@Player@@QAEHXZ                                        0x020cc140 F
 __ZN6Player9StartTalkER7fBase_cb                                         ?StartTalk@Player@@QAEHAAUfBase_c@@_N@Z                          0x020c4fa0 R
 __ZN6PlayerD1Ev                                                          ??1Player@@UAE@XZ                                                0x020e6858 R
 __ZNK6Player14GetBodyModelIDEjb                                          ?GetBodyModelID@Player@@QBEII_N@Z                                0x020becc8 R
@@ -1510,7 +1630,11 @@ __ZN7dWipe_c7IsAtEndEv                                                   ?IsAtEn
 __ZN7dWipe_c9IsAtStartEv                                                 ?IsAtStart@dWipe_c@@UAEHXZ                                       0x0202ee38 R
 __ZN7dWipe_cD1Ev                                                         ??1dWipe_c@@UAE@XZ                                               0x0202fc08 R
 
-__ZN7da1up_c8BehaviorEv                                                  ?Behavior@da1up_c@@UAEHXZ                                        0x020b00e8 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN7da1up_c8BehaviorEv                                                  ?Behavior@da1up_c@@UAEHXZ                                        0x020b00e8 F
 
 __ZN7daBar_c13InitResourcesEv                                            ?InitResources@daBar_c@@UAEHXZ                                   0x020b067c R
 __ZN7daBar_c16CleanupResourcesEv                                         ?CleanupResources@daBar_c@@UAEHXZ                                0x020b0644 R
@@ -1518,8 +1642,16 @@ __ZN7daBar_c16OnPendingDestroyEv                                         ?OnPend
 __ZN7daBar_c6RenderEv                                                    ?Render@daBar_c@@UAEHXZ                                          0x020b0650 R
 __ZN7daBar_c8BehaviorEv                                                  ?Behavior@daBar_c@@UAEHXZ                                        0x020b0658 R
 
-__ZN7daBmb_c13InitResourcesEv                                            ?InitResources@daBmb_c@@UAEHXZ                                   0x0214c510 F
-__ZN7daBmb_c6RenderEv                                                    ?Render@daBmb_c@@UAEHXZ                                          0x0214c168 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN7daBmb_c13InitResourcesEv                                            ?InitResources@daBmb_c@@UAEHXZ                                   0x0214c510 F
+# RETIRED at SYNC6: the class translation unit that owns this body is back in
+# the link (today's main un-quarantine), so the definition below now exists
+# for real and the generated face was the second one. Measured as an LNK2005
+# row against faces_sync_gen.cpp.obj in build_s2.log.
+#__ZN7daBmb_c6RenderEv                                                    ?Render@daBmb_c@@UAEHXZ                                          0x0214c168 F
 
 __ZN12daBombking_c16CleanupResourcesEv                                   ?CleanupResources@daBombking_c@@UAEHXZ                           0x02125ff4 R
 __ZN12daBombking_c16OnAimedAtWithEggEv                                   ?OnAimedAtWithEgg@daBombking_c@@UAEHXZ                           0x021265f4 R

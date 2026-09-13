@@ -51,8 +51,12 @@ extern "C" int _ZN9Animation8GetFlagsEv(void *self)
 void _ZN6Player4HealEi(Player *p, int amt)
 { p->Player::Heal(amt); }
 
+/* RETIRED at SYNC6: main's #2666 put src/actors/Player.cpp back in the build
+   and it defines ?GetBodyModelID@Player@@QBEII_N@Z itself, so this face was
+   the second definition (one LNK2005 row against player_bridges.cpp.obj in
+   build_s2.log). The flat body it forwarded to is unchanged.
 unsigned int Player::GetBodyModelID(unsigned int a, bool b_) const
-{ return _ZNK6Player14GetBodyModelIDEjb((char *)this, a, b_ ? 1 : 0); }
+{ return _ZNK6Player14GetBodyModelIDEjb((char *)this, a, b_ ? 1 : 0); }      */
 
 extern "C" {
 /* gate-10 smoke drives the state machine directly (the ChangeState PMF

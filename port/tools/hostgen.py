@@ -1658,6 +1658,36 @@ REG_RIDE_ARG = {
          "(void *)data_ov072_02122c50[1],\n"
          "        (void *)data_ov072_02122c50[1]);"),
     ],
+    # ADDED 2026-09-13 (main -> port sync, lane SYNC6), and it retires
+    # port/unmatched/Player_ReleaseHeldDispatch.cpp, which was this whole body
+    # transcribed to change one call.
+    #
+    # func_ov002_020bdb50 is Player's "let go of the held object" path. For one
+    # held-object kind it hands the object to func_ov002_020d5cec, and the ROM
+    # leaves that object in r0 across the branch:
+    #
+    #     020bdbb8: ldr  r0, [r4, #0x360]    ; r0 = the held object
+    #     020bdbbc: ldrh r1, [r0, #0xc]      ; r0 kept
+    #     020bdbd4: bl   func_ov002_020d5cec ; r0 still the held object
+    #
+    # so the matched C spells the call with no argument and byte-matches. Under
+    # cdecl nothing is pushed and the callee dereferences whatever the frame
+    # left in that slot. main's own consolidation already spells the OTHER call
+    # of the same function with the object (line 5556 passes
+    # *(char**)((char*)&mObjInMouth)); this site is the one it did not reach, so
+    # the two declarations in the TU disagree with each other today.
+    #
+    # The receiver is named and live at the call: obj is the enclosing block's
+    # own char* obj = *(char**)(c+0x360), the same expression the host copy
+    # passed. Both anchors match exactly once in the TU (measured), and
+    # apply_patches hard-errors if either stops matching.
+    "Player": [
+        ("    extern void func_ov002_020d5cec(void);",
+         "    extern void func_ov002_020d5cec(void*);"
+         "  /* hostgen REG_RIDE_ARG: the held object rides r0, see the table */"),
+        ("            func_ov002_020d5cec();",
+         "            func_ov002_020d5cec(obj);"),
+    ],
 }
 
 

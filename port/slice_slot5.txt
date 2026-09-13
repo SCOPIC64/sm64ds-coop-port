@@ -57,7 +57,19 @@
 src/actors/daBmb_c.cpp
 src/_ZN7daKrb_c6RenderEv.cpp
 src/_ZN11BobOmbBuddy6RenderEv.cpp
-src/game/actors/d_a_wanwan.cpp
+# HELD AGAIN at SYNC6, and NOT for a compile family: this TU compiles on the
+# host now (main #2663/#2669), but seating it duplicates _daWanwan_c_classInit
+# against port/unmatched/ChainChomp_Spawn_hostcopy.cpp, which is a FACTORY host
+# copy. The ARM r0 ride-through its ruling names IS fixed in main's text
+# (_ZN12dEnemyBase_cC2Ev(c) at line 112 passes the object), but the two spell
+# the vptr store differently -- main writes &_ZTV10daWanwan_c[2], the Itanium
+# address point, and the host copy writes _ZTV10daWanwan_c, slot 0 of a host
+# array -- which is exactly the OPEN QUESTION in out/FACES2/bugs.md section 6
+# and out/FACES2/hostgen_rulings.txt. The brief for this lane forbids retiring a
+# factory host copy until that is settled, and a factory's vptr store is a
+# dispatch change that no tree can capture until it links. So the TU waits; it
+# is a sixth row for that list, not a compile-family quarantine.
+#src/game/actors/d_a_wanwan.cpp
 src/game/actors/d_a_obj_wanwan_shutter.cpp
 src/_ZN13KoopaTheQuick6RenderEv.cpp
 src/_ZN9KoopaFlag6RenderEv.cpp

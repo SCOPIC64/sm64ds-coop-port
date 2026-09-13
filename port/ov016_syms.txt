@@ -1,3 +1,9 @@
+# RETIRED at SYNC6: the class translation unit main folded these bodies into
+# is back on its slice rows (today's #2660/#2663/#2666 un-quarantine) and it
+# DEFINES the names below itself, so the mount was the second definition.
+# Measured as LNK2005 rows against this file's generated object in
+# build_s2.log. Removed from the generator's INPUT, per the rule: never
+# edit the generated output. Retired here: g_profile_KI_ITA
 # Gate 188: the per-symbol mount of ov016 -- Jolly Roger Bay's own overlay
 # (data/stage/kaizoku_irie, base 0x021111a0) -- for its six MOVER classes:
 # SHIP_DOWN (56), SHIP_UP (57), ROCK_PILLAR (58), FLOAT_ON_WATER_PLATFORM_JRB
@@ -30,7 +36,7 @@ g_profile_MORAY:0x10
 g_profile_KI_FUNE:0x1c
 g_profile_KI_FUNE_UP:0x1c
 g_profile_KI_HASIRA:0x1c
-g_profile_KI_ITA:0x1c
+
 g_profile_SLIDE_BOX:0x1c
 #
 # ---- UNAGI (242) source statics --------------------------------------------
