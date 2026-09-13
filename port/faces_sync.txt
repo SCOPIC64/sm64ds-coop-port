@@ -2491,3 +2491,123 @@ __ZN7fBase_cD0Ev                                                         ??1fBas
 # already here and one shadow class cannot declare both, so this one
 # needs a hand file.
 #__ZN6Player9GetHealthEv                                                  ?GetHealth@Player@@QAEHXZ                                        0x020bf548 F
+
+# ---------------------------------------------------------------------------
+# LANE SYNC6 (wave 8): the rows today's main un-quarantined into existence.
+#
+# Nothing here is a new kind of face. Every row is an R row -- define the flat
+# ROM name, call the decorated member with the receiver -- and every one of them
+# was REFUSED by this same derivation at lane FACES2's tip for one reason: "no
+# MSVC definition of that member in this link". The member is defined now,
+# because the class translation unit that owns it is back on its slice rows
+# after #2660, #2663 and #2666.
+#
+# Derived, not written: the universe is the 46573 defined externals of
+# walk_window's own 8659 link objects read out of their COFF symbol tables at
+# this tip, and facegen's three binding rules then had to agree before a row
+# was emitted. 84 rows derived, 581 of the wall refused with their reasons.
+# ---------------------------------------------------------------------------
+__ZN14ArrowSignRight4KillEv                                              ?Kill@ArrowSignRight@@QAEXXZ                                     0x02137ccc R
+
+__ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh                          ?ShowMessage@Player@@QAEHAAUfBase_c@@IPBUVector3@@EE@Z           0x020c4ec0 R
+__ZN6Player12CanEnterDoorEh                                              ?CanEnterDoor@Player@@QAEHE@Z                                    0x020ca5cc R
+__ZN6Player12ShowMessage2ER7fBase_cjPK7Vector3hh                         ?ShowMessage2@Player@@QAEHAAUfBase_c@@IPBUVector3@@EE@Z          0x020c4c60 R
+__ZN6Player15InitVanishLuigiEv                                           ?InitVanishLuigi@Player@@QAEXXZ                                  0x020bdf4c R
+__ZN6Player17PlayMammaMiaSoundEv                                         ?PlayMammaMiaSound@Player@@QAEXXZ                                0x020ca708 R
+
+__ZN13QuestionBlock11OnAttacked1ER8dActor_c                              ?OnAttacked1@QuestionBlock@@UAEHAAUdActor_c@@@Z                  0x021497c8 R
+__ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c                      ?OnHitFromUnderneath@QuestionBlock@@UAEHAAUdActor_c@@@Z          0x021496a4 R
+
+__ZN11dScMgBase_c19OnHitFromUnderneathEv                                 ?OnHitFromUnderneath@dScMgBase_c@@UAEHXZ                         0x020af04c R
+
+__ZN7da1up_c13OnTurnIntoEggER6Player                                     ?OnTurnIntoEgg@da1up_c@@UAEXAAUPlayer@@@Z                        0x020af2b0 R
+__ZN7da1up_c13OnYoshiTryEatEv                                            ?OnYoshiTryEat@da1up_c@@UAEHXZ                                   0x020af3a0 R
+__ZN7da1up_c16OnPendingDestroyEv                                         ?OnPendingDestroy@da1up_c@@UAEXXZ                                0x020b006c R
+__ZN7da1up_cD1Ev                                                         ??1da1up_c@@UAE@XZ                                               0x020aee40 R
+
+__ZN12daBakubaku_c13InitResourcesEv                                      ?InitResources@daBakubaku_c@@UAEHXZ                              0x021122dc R
+__ZN12daBakubaku_c16CleanupResourcesEv                                   ?CleanupResources@daBakubaku_c@@UAEHXZ                           0x02112124 R
+__ZN12daBakubaku_c16OnAimedAtWithEggEv                                   ?OnAimedAtWithEgg@daBakubaku_c@@UAEHXZ                           0x02112444 R
+__ZN12daBakubaku_c16OnPendingDestroyEv                                   ?OnPendingDestroy@daBakubaku_c@@UAEXXZ                           0x02112160 R
+__ZN12daBakubaku_c6RenderEv                                              ?Render@daBakubaku_c@@UAEHXZ                                     0x02112164 R
+__ZN12daBakubaku_c8BehaviorEv                                            ?Behavior@daBakubaku_c@@UAEHXZ                                   0x021121b4 R
+__ZN12daBakubaku_cD1Ev                                                   ??1daBakubaku_c@@UAE@XZ                                          0x021111a0 R
+
+__ZN12daBgSnmBdy_c10InitState0Ev                                         ?InitState0@daBgSnmBdy_c@@QAEHXZ                                 0x0211fb7c R
+__ZN12daBgSnmBdy_c10InitState1Ev                                         ?InitState1@daBgSnmBdy_c@@QAEHXZ                                 0x0211faf0 R
+__ZN12daBgSnmBdy_c10InitState2Ev                                         ?InitState2@daBgSnmBdy_c@@QAEHXZ                                 0x0211f9c4 R
+__ZN12daBgSnmBdy_c10InitState3Ev                                         ?InitState3@daBgSnmBdy_c@@QAEHXZ                                 0x0211f804 R
+__ZN12daBgSnmBdy_c10InitState4Ev                                         ?InitState4@daBgSnmBdy_c@@QAEHXZ                                 0x0211f63c R
+__ZN12daBgSnmBdy_c10InitState5Ev                                         ?InitState5@daBgSnmBdy_c@@QAEHXZ                                 0x0211f578 R
+__ZN12daBgSnmBdy_c16CleanupResourcesEv                                   ?CleanupResources@daBgSnmBdy_c@@UAEHXZ                           0x0211fccc R
+__ZN12daBgSnmBdy_c16OnPendingDestroyEv                                   ?OnPendingDestroy@daBgSnmBdy_c@@UAEXXZ                           0x0211fcf0 R
+__ZN12daBgSnmBdy_c6State0Ev                                              ?State0@daBgSnmBdy_c@@QAEHXZ                                     0x0211fb14 R
+__ZN12daBgSnmBdy_c6State1Ev                                              ?State1@daBgSnmBdy_c@@QAEHXZ                                     0x0211fa08 R
+__ZN12daBgSnmBdy_c6State2Ev                                              ?State2@daBgSnmBdy_c@@QAEHXZ                                     0x0211f81c R
+__ZN12daBgSnmBdy_c6State3Ev                                              ?State3@daBgSnmBdy_c@@QAEHXZ                                     0x0211f65c R
+__ZN12daBgSnmBdy_c6State4Ev                                              ?State4@daBgSnmBdy_c@@QAEHXZ                                     0x0211f598 R
+__ZN12daBgSnmBdy_c6State5Ev                                              ?State5@daBgSnmBdy_c@@QAEHXZ                                     0x0211f48c R
+
+__ZN11daBgSnwmn_c13InitResourcesEv                                       ?InitResources@daBgSnwmn_c@@UAEHXZ                               0x02120a44 R
+__ZN11daBgSnwmn_c16CleanupResourcesEv                                    ?CleanupResources@daBgSnwmn_c@@UAEHXZ                            0x02120980 R
+__ZN11daBgSnwmn_c16OnPendingDestroyEv                                    ?OnPendingDestroy@daBgSnwmn_c@@UAEXXZ                            0x021209bc R
+__ZN11daBgSnwmn_c6RenderEv                                               ?Render@daBgSnwmn_c@@UAEHXZ                                      0x021209c0 R
+__ZN11daBgSnwmn_c8BehaviorEv                                             ?Behavior@daBgSnwmn_c@@UAEHXZ                                    0x02120a08 R
+__ZN11daBgSnwmn_cD1Ev                                                    ??1daBgSnwmn_c@@UAE@XZ                                           0x02120824 R
+
+__ZN7daBmb_c13OnTurnIntoEggER6Player                                     ?OnTurnIntoEgg@daBmb_c@@UAEXAAUPlayer@@@Z                        0x0214adc8 R
+__ZN7daBmb_c13OnYoshiTryEatEv                                            ?OnYoshiTryEat@daBmb_c@@UAEHXZ                                   0x0214c6e4 R
+__ZN7daBmb_c16CleanupResourcesEv                                         ?CleanupResources@daBmb_c@@UAEHXZ                                0x0214c12c R
+__ZN7daBmb_c16OnAimedAtWithEggEv                                         ?OnAimedAtWithEgg@daBmb_c@@UAEHXZ                                0x0214aa10 R
+__ZN7daBmb_c8BehaviorEv                                                  ?Behavior@daBmb_c@@UAEHXZ                                        0x0214c1bc R
+
+__ZN14daObjFl_Gura_c13InitResourcesEv                                    ?InitResources@daObjFl_Gura_c@@UAEHXZ                            0x021180e8 R
+__ZN14daObjFl_Gura_c16CleanupResourcesEv                                 ?CleanupResources@daObjFl_Gura_c@@UAEHXZ                         0x021180d4 R
+__ZN14daObjFl_Gura_cD1Ev                                                 ??1daObjFl_Gura_c@@UAE@XZ                                        0x02118020 R
+
+__ZN16daObjFl_London_c13InitResourcesEv                                  ?InitResources@daObjFl_London_c@@UAEHXZ                          0x02111bdc R
+__ZN16daObjFl_London_c16CleanupResourcesEv                               ?CleanupResources@daObjFl_London_c@@UAEHXZ                       0x02111a64 R
+__ZN16daObjFl_London_c6RenderEv                                          ?Render@daObjFl_London_c@@UAEHXZ                                 0x02111aa8 R
+__ZN16daObjFl_London_c8BehaviorEv                                        ?Behavior@daObjFl_London_c@@UAEHXZ                               0x02111ad0 R
+
+__ZN17daObjFloatBoard_cD1Ev                                              ??1daObjFloatBoard_c@@UAE@XZ                                     0x020b5a70 R
+
+__ZN15daObjGuragura_cD1Ev                                                ??1daObjGuragura_c@@UAE@XZ                                       0x020b6030 R
+
+__ZN13daObjKi_Ita_c13InitResourcesEv                                     ?InitResources@daObjKi_Ita_c@@UAEHXZ                             0x02112fa8 R
+
+__ZN17daObjKm1_Kuruma_c13InitResourcesEv                                 ?InitResources@daObjKm1_Kuruma_c@@UAEHXZ                         0x021115e0 R
+__ZN17daObjKm1_Kuruma_c16CleanupResourcesEv                              ?CleanupResources@daObjKm1_Kuruma_c@@UAEHXZ                      0x021115cc R
+__ZN17daObjKm1_Kuruma_cD1Ev                                              ??1daObjKm1_Kuruma_c@@UAE@XZ                                     0x02111518 R
+
+__ZN21daObjKm1_Kurumajiku_c13InitResourcesEv                             ?InitResources@daObjKm1_Kurumajiku_c@@UAEHXZ                     0x021114c4 R
+__ZN21daObjKm1_Kurumajiku_c16CleanupResourcesEv                          ?CleanupResources@daObjKm1_Kurumajiku_c@@UAEHXZ                  0x021114b0 R
+__ZN21daObjKm1_Kurumajiku_cD1Ev                                          ??1daObjKm1_Kurumajiku_c@@UAE@XZ                                 0x021113fc R
+
+__ZN19daObjKm2_Ukishima_c13InitResourcesEv                               ?InitResources@daObjKm2_Ukishima_c@@UAEHXZ                       0x02111bdc R
+__ZN19daObjKm2_Ukishima_c16CleanupResourcesEv                            ?CleanupResources@daObjKm2_Ukishima_c@@UAEHXZ                    0x02111bc8 R
+__ZN19daObjKm2_Ukishima_cD1Ev                                            ??1daObjKm2_Ukishima_c@@UAE@XZ                                   0x02111b14 R
+
+__ZN13daObjKuruma_cD1Ev                                                  ??1daObjKuruma_c@@UAE@XZ                                         0x020b686c R
+
+__ZN17daObjKurumajiku_cD1Ev                                              ??1daObjKurumajiku_c@@UAE@XZ                                     0x020b6a3c R
+
+__ZN16daObjPushblock_c13InitResourcesEv                                  ?InitResources@daObjPushblock_c@@UAEHXZ                          0x020b8fe0 R
+__ZN16daObjPushblock_c15OnHitByMegaCharER6Player                         ?OnHitByMegaChar@daObjPushblock_c@@UAEXAAUPlayer@@@Z             0x020b8d14 R
+__ZN16daObjPushblock_c16CleanupResourcesEv                               ?CleanupResources@daObjPushblock_c@@UAEHXZ                       0x020b8d68 R
+__ZN16daObjPushblock_c4KillEv                                            ?Kill@daObjPushblock_c@@UAEXXZ                                   0x020b8c9c R
+__ZN16daObjPushblock_c6RenderEv                                          ?Render@daObjPushblock_c@@UAEHXZ                                 0x020b8dac R
+__ZN16daObjPushblock_c8BehaviorEv                                        ?Behavior@daObjPushblock_c@@UAEHXZ                               0x020b8dd4 R
+__ZN16daObjPushblock_c8OnPushedER8dActor_c                               ?OnPushed@daObjPushblock_c@@UAEHAAUdActor_c@@@Z                  0x020b8d3c R
+
+__ZN12daStarGate_c12St_Wait_MainEP6Player                                ?St_Wait_Main@daStarGate_c@@QAE_NPAUPlayer@@@Z                   0x02145c58 R
+__ZN12daStarGate_c16CleanupResourcesEv                                   ?CleanupResources@daStarGate_c@@UAEHXZ                           0x02145fbc R
+__ZN12daStarGate_c16OnPendingDestroyEv                                   ?OnPendingDestroy@daStarGate_c@@UAEXXZ                           0x02145fe0 R
+__ZN12daStarGate_c17St_OpenClose_InitEP6Player                           ?St_OpenClose_Init@daStarGate_c@@QAE_NPAUPlayer@@@Z              0x02145ab4 R
+__ZN12daStarGate_c17St_OpenClose_MainEP6Player                           ?St_OpenClose_Main@daStarGate_c@@QAE_NPAUPlayer@@@Z              0x02145988 R
+__ZN12daStarGate_c17St_Unlocking_InitEP6Player                           ?St_Unlocking_Init@daStarGate_c@@QAE_NPAUPlayer@@@Z              0x02145b7c R
+__ZN12daStarGate_c17St_Unlocking_MainEP6Player                           ?St_Unlocking_Main@daStarGate_c@@QAE_NPAUPlayer@@@Z              0x02145b10 R
+__ZN12daStarGate_c18St_StayClosed_MainEP6Player                          ?St_StayClosed_Main@daStarGate_c@@QAE_NPAUPlayer@@@Z             0x02145948 R
+__ZN12daStarGate_c23St_TalkingToPlayer_InitEP6Player                     ?St_TalkingToPlayer_Init@daStarGate_c@@QAE_NPAUPlayer@@@Z        0x02145c2c R
+__ZN12daStarGate_c23St_TalkingToPlayer_MainEP6Player                     ?St_TalkingToPlayer_Main@daStarGate_c@@QAE_NPAUPlayer@@@Z        0x02145b9c R
+__ZN12daStarGate_c6RenderEv                                              ?Render@daStarGate_c@@UAEHXZ                                     0x02145fe4 R
