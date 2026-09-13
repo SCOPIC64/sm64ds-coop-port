@@ -1,4 +1,4 @@
-/* PORT_HOST_ABI. func_ov006_020e9cec, dScMg3DEsp_c's vtable slot 3
+/* PORT_HOST_ABI. _ZN12dScMg3DEsp_c16CleanupResourcesEv, dScMg3DEsp_c's vtable slot 3
  * (CleanupResources), and the reason it cannot be compiled from src: BOTH OF
  * ITS ARGUMENTS ARE SPELLED AS SHARED PLACEHOLDER GLOBALS THAT EXIST IN NO
  * CONFIG, AND ONE OF THE TWO IS ALREADY BOUND TO A DIFFERENT ADDRESS.
@@ -10,7 +10,7 @@
  *
  * ---- WHAT src SAYS -------------------------------------------------------
  *
- *     extern int G0[];                       // src/func_ov006_020e9cec.c
+ *     extern int G0[];                       // src/_ZN12dScMg3DEsp_c16CleanupResourcesEv.cpp
  *     _ZN13SharedFilePtr7ReleaseEv(G0);
  *     _ZN13SharedFilePtr7ReleaseEv(G1);      // G1 comes from decl_common.h
  *     return 1;
@@ -47,7 +47,7 @@
  *
  * The tree's standing repair for a bare placeholder is a per-source rename:
  * port/CMakeLists.txt already carries `VT=data_ov006_0213e24c` for
- * src/func_ov006_021042b0.c and `VT0=_ZTV13daObjWakame_c` for another. That
+ * src/actors/dScMgPanel_c.cpp and `VT0=_ZTV13daObjWakame_c` for another. That
  * repair works when the placeholder is declared in the TU and the target is
  * not declared anywhere the TU can see.
  *
@@ -65,7 +65,7 @@
  *
  * ---- THE DELTA FROM src, line by line ------------------------------------
  *
- * The body below is src/func_ov006_020e9cec.c verbatim except:
+ * The body below is src/_ZN12dScMg3DEsp_c16CleanupResourcesEv.cpp verbatim except:
  *
  *   1. the `extern int G0[];` declaration is gone and decl_common.h is not
  *      included, so G1 does not arrive either;
@@ -73,8 +73,8 @@
  *
  * Nothing else. Two releases in the ROM's order and `return 1`.
  *
- * src/func_ov006_020e9cec.c is therefore OUT of port/slice_psy.txt: listing it
- * beside this file would be an LNK2005 on func_ov006_020e9cec.
+ * src/_ZN12dScMg3DEsp_c16CleanupResourcesEv.cpp is therefore OUT of port/slice_psy.txt: listing it
+ * beside this file would be an LNK2005 on _ZN12dScMg3DEsp_c16CleanupResourcesEv.
  *
  * THE DECOMP-SIDE FIX IS ROUTED, NOT TAKEN. The src TU should name
  * data_ov006_02141e9c and data_ov006_02141e74 rather than two shared
@@ -92,7 +92,7 @@ extern void *data_ov006_02141e9c;
 extern void *data_ov006_02141e74;
 
 // PORT_HOST_ABI: src spells both Release arguments as placeholder globals G0/G1 that resolve nowhere (G1 also collides in decl_common.h); host copy names the mount symbols the pool words resolve to
-int func_ov006_020e9cec(void)
+int _ZN12dScMg3DEsp_c16CleanupResourcesEv(void)
 {
     _ZN13SharedFilePtr7ReleaseEv(&data_ov006_02141e9c);
     _ZN13SharedFilePtr7ReleaseEv(&data_ov006_02141e74);

@@ -21,6 +21,8 @@
 
 #ifdef __cplusplus
 
+extern "C" void _ZN6Memory16operator_delete2EPv(void *);
+
 struct ModelAnim2 : ModelAnim {
     u32 otherFile;             /* 0x64 - the second animation's BCA, stored as a word */
     Animation otherAnim;       /* 0x68 - a member, built with Animation::C1 */
@@ -38,13 +40,34 @@ struct ModelAnim2 : ModelAnim {
     virtual ~ModelAnim2();                     /* slots 0 (D1), 1 (D0) */
 #endif
 
+    /* DECLARED, defined out of line in src/_ZN10ModelAnim2C1Ev.cpp as real
+     * C++ -- complete-object context, hence C1. Init list `: otherFile(0)`
+     * puts the scalar store BEFORE otherAnim's implicit construction, which
+     * is the ROM's schedule; a body statement would come one call too late
+     * (mem-initialisers run in declaration order, ahead of nothing here --
+     * both stores are initialisation, not body). */
+    ModelAnim2();
+
     /* --- non-virtual --- */
     void Copy(const ModelAnim2 &src, char *newFile, u32 newOtherFile);
     void Func_020162C4(u32 animFile, int flags, Fix12<int> speed,
                        u16 startFrame);        /* free function, wall 6az */
+
+    /* ITS OWN, TO RESOLVE AN AMBIGUITY MULTIPLE INHERITANCE CREATES. ModelAnim
+       derives from Model (so ModelBase) and from Animation, and both bases
+       declare operator delete, so an inherited one is "ambiguous access to
+       name found: ModelBase::operator delete and Animation::operator delete".
+       Declaring it here picks the same deallocator both bases name, and also
+       satisfies the rule in include/dActor_c.h that mwcc only inlines the member
+       when it is in the class or its immediate base. */
+    void operator delete(void *ptr) { _ZN6Memory16operator_delete2EPv(ptr); }
+
 };
 
+#ifndef SM64DS_PLATFORM_PC
+/* ROM layout under mwccarm; host ABI divergence is tracked separately. */
 typedef char ModelAnim2_size_must_be_0x78[sizeof(ModelAnim2) == 0x78 ? 1 : -1];
+#endif
 
 #endif /* __cplusplus */
 

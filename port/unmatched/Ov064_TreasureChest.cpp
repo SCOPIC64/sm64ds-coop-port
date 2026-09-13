@@ -5,24 +5,24 @@
  * ================= THE BODY THE DECOMP DOES NOT HAVE =====================
  *
  * hal/actor_classes_ov064_w12.cpp's header (run linkw wave 12) declined this
- * class and gave the measurement: "one of the six records, func_ov064_0211a4c4
+ * class and gave the measurement: "one of the six records, _ZN13TreasureChest6State0Ev
  * (state 0's tick, 540 bytes at 0x0211a4c4), HAS NO MATCHED TU anywhere in src/
  * and is in no port host copy. State 0 is the state its InitResources leaves
  * the chest in, so that body runs on the first frame a chest exists.
  * Registering the class without it would seat a DS code address in a live
  * dispatch table." Both halves of that re-verified on this tip:
  *
- *   - config/arm9/overlays/ov064/symbols.txt names func_ov064_0211a4c4
+ *   - config/arm9/overlays/ov064/symbols.txt names _ZN13TreasureChest6State0Ev
  *     kind:function(arm,size=0x21c) addr:0x0211a4c4, and
  *     config/arm9/overlays/ov064/delinks.txt has NO block for it -- the TU
- *     before it, src/func_ov064_0211a49c.c, ends at 0x0211a4c4 and the next,
- *     src/func_ov064_0211a6e0.c, starts at 0x0211a6e0. Nothing in src/ or in
+ *     before it, src/_ZN13TreasureChest10InitState1Ev.cpp, ends at 0x0211a4c4 and the next,
+ *     src/_ZN13TreasureChest10InitState0Ev.cpp, starts at 0x0211a6e0. Nothing in src/ or in
  *     port/ defines the symbol.
  *   - the ONLY reference to 0x0211a4c4 anywhere in ov064's relocs is the data
  *     word at 0x0211c4bc, one of the six { function, 0 } source pairs, and
  *     __sinit_ov064_0211b59c's own disassembly stores that pair at DEST+0x08 --
- *     Entry[0].tick. func_ov064_0211a6ec calls Entry[idx].pmf[0] (the enter)
- *     and func_ov064_0211a734 calls Entry[idx].pmf[1] (the tick), and the
+ *     Entry[0].tick. _ZN13TreasureChest8SetStateEi calls Entry[idx].pmf[0] (the enter)
+ *     and _ZN13TreasureChest17CallStateBehaviorEv calls Entry[idx].pmf[1] (the tick), and the
  *     chest's idx (this+0x16c) is bss zero until something sets it. So it is
  *     state 0's tick and it is on the first Behavior frame of every chest.
  *
@@ -64,7 +64,7 @@
  *
  * ================= THE TWO DISPATCHERS ====================================
  *
- * func_ov064_0211a6ec and func_ov064_0211a734 each form an mwcc
+ * _ZN13TreasureChest8SetStateEi and _ZN13TreasureChest17CallStateBehaviorEv each form an mwcc
  * pointer-to-member over a FORWARD-DECLARED struct, so MSVC hands them the
  * general worst-case-inheritance representation where the ROM has a plain
  * { function, 0 } pair; dispatching that mangles `this`. The KnockDownPlank /
@@ -75,7 +75,7 @@
  *
  * TreasureChest::Behavior and its Render are NOT here: Behavior is a plain
  * three-call body that reaches the state machine only through
- * func_ov064_0211a734 (so it stays in the slice), and Render is the ModelAnim
+ * _ZN13TreasureChest17CallStateBehaviorEv (so it stays in the slice), and Render is the ModelAnim
  * slot-5 shadow, host-copied in unmatched/Ov064_Clam.cpp where that file's own
  * header says it belongs.
  */
@@ -92,19 +92,19 @@ struct PortVec3 { int x, y, z; };
 unsigned short DecIfAbove0_Short(unsigned short *p);
 void func_02012790(int id);
 void func_02012694(int id, void *pos);
-void *_ZN5Actor10FindWithIDEj(unsigned id);
-void *_ZN5Actor15FindWithActorIDEjPS_(unsigned id, void *prev);
-void _ZN5Actor13SpawnSoundObjEj(void *self, unsigned a);
+void *_ZN8dActor_c10FindWithIDEj(unsigned id);
+void *_ZN8dActor_c15FindWithActorIDEjPS_(unsigned id, void *prev);
+void _ZN8dActor_c13SpawnSoundObjEj(void *self, unsigned a);
 short Vec3_HorzAngle(const void *v0, const void *v1);
 int AngleDiff(int a, int b);
 void _ZN6Player5ShockEj(void *self, unsigned a);
 
 /* the five state bodies that DO have matched TUs (slice_w3c.txt) */
-int func_ov064_0211a2c4(void *c);   /* Entry[2].tick  */
-int func_ov064_0211a380(void *c);   /* Entry[2].enter */
-int func_ov064_0211a39c(void *c);   /* Entry[1].tick  */
-int func_ov064_0211a49c(void *c);   /* Entry[1].enter */
-int func_ov064_0211a6e0(void *c);   /* Entry[0].enter */
+int _ZN13TreasureChest6State2Ev(void *c);   /* Entry[2].tick  */
+int _ZN13TreasureChest10InitState2Ev(void *c);   /* Entry[2].enter */
+int _ZN13TreasureChest6State1Ev(void *c);   /* Entry[1].tick  */
+int _ZN13TreasureChest10InitState1Ev(void *c);   /* Entry[1].enter */
+int _ZN13TreasureChest10InitState0Ev(void *c);   /* Entry[0].enter */
 
 /* the six SOURCE records the sinit copies from (data, { fn, 0 }) */
 extern PortPmf data_ov064_0211c49c[];   /* {0211a2c4, 0} -> Entry[2].tick  */
@@ -117,23 +117,23 @@ extern PortPmf data_ov064_0211c4c4[];   /* {0211a6e0, 0} -> Entry[0].enter */
 /* the RUNTIME table, three 16-byte Entries, filled by __sinit_ov064_0211b59c */
 extern PortEntry data_ov064_0211c98c[3];
 
-int func_ov064_0211a4c4(void *self);
+int _ZN13TreasureChest6State0Ev(void *self);
 
 /* the arm9 body the receiver face below forwards into. Its matched TU is
-   src/_ZN5Actor19UntrackAndSpawnStarERajRK7Vector3j.c, already in
+   src/_ZN8dActor_c19UntrackAndSpawnStarERajRK7Vector3h.cpp, already in
    port/slice_gate32.txt -- it compiles into the build today and the linker
    discards it for want of a reference, which is why the base map does not
    carry it. */
-void *_ZN5Actor19UntrackAndSpawnStarERajRK7Vector3j(
+void *_ZN8dActor_c19UntrackAndSpawnStarERajRK7Vector3h(
         void *self, signed char *trackStarID, unsigned starID,
         const void *spawnPos, unsigned char howToSpawnStar);
 
 }  /* extern "C" */
 
-/* PORT_HOST_ABI: a RECEIVER FACE, not an alias. src/func_ov064_0211a2c4.cpp
+/* PORT_HOST_ABI: a RECEIVER FACE, not an alias. src/_ZN13TreasureChest6State2Ev.cpp
    declares Actor::UntrackAndSpawnStar as a real C++ method returning void and
    calls it on `this`, so it emits the __thiscall member mangle
-   `?UntrackAndSpawnStar@Actor@@QAEXAACIABUVector3@@I@Z` with the receiver in
+   `?UntrackAndSpawnStar@dActor_c@@QAEXAACIABUVector3@@I@Z` with the receiver in
    ecx. The definition in the tree is the Itanium C name, a __cdecl body whose
    FIRST STACK ARGUMENT is self. An /alternatename between the two is exactly
    the receiver-ABI fault the campaign keeps measuring -- ecx would be ignored
@@ -143,7 +143,7 @@ void *_ZN5Actor19UntrackAndSpawnStarERajRK7Vector3j(
    It cannot be written against include/Actor.h: line 340 declares the same
    method returning `Actor *`, a different mangle and not a legal overload of
    this one. Hence the local declaration, in a file that includes no headers.
-   The ov034 lane's `?_ZN5Actor19UntrackAndSpawnStarERajRK7Vector3j@@YAX...@Z`
+   The ov034 lane's `?_ZN8dActor_c19UntrackAndSpawnStarERajRK7Vector3h@@YAX...@Z`
    alias is NOT this case: that caller spelled it as a free function taking
    void* first, which is already __cdecl and needs no face. */
 struct Vector3 { int x, y, z; };
@@ -155,13 +155,13 @@ void Actor::UntrackAndSpawnStar(signed char &trackStarID, unsigned starID,
                                 const Vector3 &spawnPos,
                                 unsigned howToSpawnStar)
 {
-    _ZN5Actor19UntrackAndSpawnStarERajRK7Vector3j(
+    _ZN8dActor_c19UntrackAndSpawnStarERajRK7Vector3h(
         this, &trackStarID, starID, &spawnPos,
         (unsigned char)howToSpawnStar);
 }
 
-/* BOTH DISPATCHERS ARE BACK ON THE SLICE -- src/func_ov064_0211a6ec.cpp and
-   src/func_ov064_0211a734.cpp, port/slice_pmf3.txt (run link100 lane PMF3).
+/* BOTH DISPATCHERS ARE BACK ON THE SLICE -- src/_ZN13TreasureChest8SetStateEi.cpp and
+   src/_ZN13TreasureChest17CallStateBehaviorEv.cpp, port/slice_pmf3.txt (run link100 lane PMF3).
    /vmg /vmm gives MSVC the ROM's 8-byte {function, delta} record, so Entry is
    the ROM's 0x10 and both bodies TAIL JUMP through the record's own function
    word; the mangled table reference is bridged in port/hal/pmf3_aliases.cpp.
@@ -172,17 +172,17 @@ void Actor::UntrackAndSpawnStar(signed char &trackStarID, unsigned starID,
    something a green battery can vouch for, so this row rests on the seat
    instead: port_treasure_chest_states_seat verifies all six records against
    the ROM's own addresses, aborts on a nonzero adjustment word, and rewrites
-   every function word with a host body -- including func_ov064_0211a4c4, the
+   every function word with a host body -- including _ZN13TreasureChest6State0Ev, the
    body transcribed in this file -- before a chest can exist. The six source
    pairs at ov064 0x0211c49c..0x0211c4c4 were re-read out of overlay_0064.bin
    with their relocations, every adjustment word ROM zero. */
-extern "C" void func_ov064_0211a6ec(void *self, int i);
+extern "C" void _ZN13TreasureChest8SetStateEi(void *self, int i);
 
 /* PORT_HOST_ABI: the ROM body at ov064 0x0211a4c4 (0x21c bytes), state 0's
    tick. No matched TU exists anywhere in the tree; this is transcribed from the
    overlay image. See this file's header for the derivation and for why a loud
    face is not an option for this particular slot. */
-extern "C" int func_ov064_0211a4c4(void *self)
+extern "C" int _ZN13TreasureChest6State0Ev(void *self)
 {
     char *c = (char *)self;
 
@@ -196,7 +196,7 @@ extern "C" int func_ov064_0211a4c4(void *self)
     if (*(unsigned short *)(c + 0x170) != 0)
         return 0;
 
-    char *other = (char *)_ZN5Actor10FindWithIDEj(*(unsigned int *)(c + 0x15c));
+    char *other = (char *)_ZN8dActor_c10FindWithIDEj(*(unsigned int *)(c + 0x15c));
     if (other == 0)
         return 0;
     if (*(unsigned short *)(other + 0xc) != 0xbf)   /* must be a PLAYER */
@@ -215,7 +215,7 @@ extern "C" int func_ov064_0211a4c4(void *self)
     /* walk every id-13 actor: total, and how many OTHERS are open (state 1|2) */
     int opened = 0;
     int total = 0;
-    char *it = (char *)_ZN5Actor15FindWithActorIDEjPS_(0xd, 0);
+    char *it = (char *)_ZN8dActor_c15FindWithActorIDEjPS_(0xd, 0);
     while (it != 0) {
         ++total;
         if (it != c) {
@@ -223,13 +223,13 @@ extern "C" int func_ov064_0211a4c4(void *self)
             if (st == 1 || st == 2)
                 ++opened;
         }
-        it = (char *)_ZN5Actor15FindWithActorIDEjPS_(0xd, it);
+        it = (char *)_ZN8dActor_c15FindWithActorIDEjPS_(0xd, it);
     }
 
     unsigned order = *(unsigned char *)(c + 0x172);
     if ((unsigned)(opened + 1) == order) {
         if ((unsigned)total == order) {
-            _ZN5Actor13SpawnSoundObjEj(c, 0);
+            _ZN8dActor_c13SpawnSoundObjEj(c, 0);
             *(unsigned char *)(c + 0x173) = 1;
         } else {
             func_02012790(0x26);
@@ -238,7 +238,7 @@ extern "C" int func_ov064_0211a4c4(void *self)
             func_02012694(0x22, c + 0x74);
         else
             func_02012694(0x20, c + 0x74);
-        func_ov064_0211a6ec(c, 1);
+        _ZN13TreasureChest8SetStateEi(c, 1);
         return 0;
     }
 
@@ -250,9 +250,9 @@ extern "C" int func_ov064_0211a4c4(void *self)
         _ZN6Player5ShockEj(other, 1);
     {
         char *r = 0;
-        while ((r = (char *)_ZN5Actor15FindWithActorIDEjPS_(0xd, r)) != 0) {
+        while ((r = (char *)_ZN8dActor_c15FindWithActorIDEjPS_(0xd, r)) != 0) {
             if (r != c)
-                func_ov064_0211a6ec(r, 0);
+                _ZN13TreasureChest8SetStateEi(r, 0);
         }
     }
     return 0;
@@ -262,12 +262,12 @@ extern "C" int func_ov064_0211a4c4(void *self)
 
 static const struct { PortPmf *slot; unsigned rom; int (*host)(void *); }
 g_treasure_chest_states[] = {
-    {data_ov064_0211c4c4, 0x0211a6e0, func_ov064_0211a6e0},  /* Entry[0].enter */
-    {data_ov064_0211c4bc, 0x0211a4c4, func_ov064_0211a4c4},  /* Entry[0].tick  */
-    {data_ov064_0211c4b4, 0x0211a49c, func_ov064_0211a49c},  /* Entry[1].enter */
-    {data_ov064_0211c4a4, 0x0211a39c, func_ov064_0211a39c},  /* Entry[1].tick  */
-    {data_ov064_0211c4ac, 0x0211a380, func_ov064_0211a380},  /* Entry[2].enter */
-    {data_ov064_0211c49c, 0x0211a2c4, func_ov064_0211a2c4},  /* Entry[2].tick  */
+    {data_ov064_0211c4c4, 0x0211a6e0, _ZN13TreasureChest10InitState0Ev},  /* Entry[0].enter */
+    {data_ov064_0211c4bc, 0x0211a4c4, _ZN13TreasureChest6State0Ev},  /* Entry[0].tick  */
+    {data_ov064_0211c4b4, 0x0211a49c, _ZN13TreasureChest10InitState1Ev},  /* Entry[1].enter */
+    {data_ov064_0211c4a4, 0x0211a39c, _ZN13TreasureChest6State1Ev},  /* Entry[1].tick  */
+    {data_ov064_0211c4ac, 0x0211a380, _ZN13TreasureChest10InitState2Ev},  /* Entry[2].enter */
+    {data_ov064_0211c49c, 0x0211a2c4, _ZN13TreasureChest6State2Ev},  /* Entry[2].tick  */
 };
 
 extern "C" void port_treasure_chest_states_seat(void)

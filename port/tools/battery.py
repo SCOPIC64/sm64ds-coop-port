@@ -449,7 +449,7 @@ SCENE_SKIPS = {
     # stood from lane FLW, which seated the class and found that it booted and
     # ticked but could not RENDER:
     #
-    #   flw_render (slot 9) -> func_ov006_0212aacc -> func_ov006_020c3bf4
+    #   flw_render (slot 9) -> _ZN13dScMgFlower_c6RenderEv -> func_ov006_020c3bf4
     #     -> ModelAnim::Virtual18 -> ModelAnim::Virtual10
     #   FAULT c0000005 accessing 00000000, eax=0
     #
@@ -509,7 +509,7 @@ SCENE_BLOCKED = {
     # family port/mg_fanout_costs.txt section 6 records for slots 5 and 7, and
     # the first of the three found by running instead of by reading:
     #
-    #   flw_init -> func_ov006_0212b480 (slot 0) +0xa
+    #   flw_init -> _ZN13dScMgFlower_c13InitResourcesEv (slot 0) +0xa
     #            -> func_ov004_020ad8b8 +0x10 -> func_ov004_020adc3c +0x6
     #   FAULT c0000005 accessing 0x00000009
     #
@@ -594,7 +594,7 @@ SCENE_BLOCKED = {
     # were still named traps and that hal/scene_mg.cpp printed a FADE MOTION
     # MISSING advisory keyed on port_fdr_motion_slots_unseated(), "which goes
     # quiet by itself when the ROM bodies are seated". Run link60 Stage 5 lane
-    # SEAT8 seated the last of them (slot 0x08, func_0202f428) and wired the
+    # SEAT8 seated the last of them (slot 0x08, _ZN7dWipe_c11AdvanceFadeEv) and wired the
     # ROM's own driver for it, so the predicate and the advisory are both
     # retired. The rule they were written under stands unchanged: an advisory
     # is not a battery row and must not become one again.
@@ -604,11 +604,11 @@ SCENE_BLOCKED = {
     # recorded that two of the class's nine vtable overrides had no source at
     # all, lane INTEG retired slot 0 InitResources and the aux ball-table
     # seeder, and the blocker moved one floor deeper to "a sub-object whose
-    # ov006 vtable at 0x0213eca0 holds raw DS addresses (func_ov006_02114458,
+    # ov006 vtable at 0x0213eca0 holds raw DS addresses (_ZN19cMgSmartball_ball_c14RestoreInitialEv,
     # not seated), so its first method call jumps into DS space".
     #
     # THAT LAST BLOCKER WAS NOT A DECOMP GAP AND THE ADDRESS IN IT WAS OFF BY
-    # ONE TABLE, which is the part worth keeping. func_ov006_02114458 was
+    # ONE TABLE, which is the part worth keeping. _ZN19cMgSmartball_ball_c14RestoreInitialEv was
     # already in src/ here and always had been -- it was simply in no slice,
     # which reads identically to "no body" from a symbol search and is not the
     # same thing. And 0x0213eca0 is not a vtable: it is the WORD that holds
@@ -749,7 +749,7 @@ LEVEL_SKIPS = {
     # TTC_MOVING_BEAM then quarantines on its first behaviour frame because the
     # DECOMP does not have the body its vtable slot 6 dispatches:
     #
-    #   _ZN14TtcMovingCubeA8BehaviorEv (0x0211bd8c, 0x178 bytes) is id 118's
+    #   _ZN14TTC_MovingBeam8BehaviorEv (0x0211bd8c, 0x178 bytes) is id 118's
     #   Behavior -- slot 6 of table 0x0211d568. There is no src/ TU for it, no
     #   delink block in config/arm9/overlays/ov065/delinks.txt and no host copy
     #   anywhere in the tree. Being unmatched it is invisible to linkage.py and
@@ -775,7 +775,7 @@ LEVEL_SKIPS = {
     # The class stays REGISTERED, so the day 0x0211bd8c is matched the bare
     # re-probe goes green and this row retires itself with no port work.
     27: ("TTC_MOVING_BEAM",
-         "the decomp (_ZN14TtcMovingCubeA8BehaviorEv has no matched body)",
+         "the decomp (_ZN14TTC_MovingBeam8BehaviorEv has no matched body)",
          "quarantines on frame 0 of id 118's Behavior, in the vtable slot 6 "
          "the loud face in hal/actor_classes_ov065.cpp names"),
 }

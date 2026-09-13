@@ -80,7 +80,7 @@
 //
 // ---- the vtable ------------------------------------------------------------
 //
-// All three tables are the 18-slot Scene shape and agree with _ZTV5Scene (arm9
+// All three tables are the 18-slot Scene shape and agree with _ZTV8dScene_c (arm9
 // 0x02092680) slot for slot everywhere they do not override. Slots 1/2/4/5/
 // 7/8/10/11 are Scene's own halves, 13/14/15 ActorBase's; 0/3/6/9/12/16/17 are
 // the class's own. The tables are left OUT of port/ov003_syms.txt (the
@@ -95,24 +95,24 @@
 // against config/arm9/overlays/ov003/relocs.txt. No slot here is invented and
 // none is a trap: every one of the eighteen words has a body.
 //
-//   0  InitResources           func_ov003_020af8a0    ov003
+//   0  InitResources           _ZN12dScStarSel_c13InitResourcesEv    ov003
 //   1  BeforeInitResources     Scene::                0x0202e638
 //   2  AfterInitResources      Scene::                0x0202e62c
-//   3  CleanupResources        func_ov003_020af86c    ov003
+//   3  CleanupResources        _ZN12dScStarSel_c16CleanupResourcesEv    ov003
 //   4  BeforeCleanupResources  Scene::                0x0202e5f0
 //   5  AfterCleanupResources   Scene::                0x0202e5d0
-//   6  Behavior                func_ov003_020af038    ov003
+//   6  Behavior                _ZN12dScStarSel_c8BehaviorEv    ov003
 //   7  BeforeBehavior          Scene::                0x0202e3d4
 //   8  AfterBehavior           Scene::                0x0202e3c8
-//   9  Render                  func_ov003_020ae6f4    ov003
+//   9  Render                  _ZN12dScStarSel_c6RenderEv    ov003
 //  10  BeforeRender            Scene::                0x0202e3a4
 //  11  AfterRender             Scene::                0x0202e398
-//  12  OnPendingDestroy        func_ov003_020ae6f0    ov003
+//  12  OnPendingDestroy        _ZN12dScStarSel_c16OnPendingDestroyEv    ov003
 //  13  Virtual34               ActorBase::            0x0204357c
 //  14  Virtual38               ActorBase::            0x0204349c
 //  15  OnHeapCreated           ActorBase::            0x02043494
-//  16  D2                      func_ov003_020addfc    ov003
-//  17  D0                      func_ov003_020ade54    ov003
+//  16  D2                      _ZN12dScStarSel_cD1Ev    ov003
+//  17  D0                      _ZN12dScStarSel_cD0Ev    ov003
 //
 // ---- and how a run gets here -----------------------------------------------
 //
@@ -156,7 +156,7 @@
 // Three shapes, all of them decomp-side spellings rather than port decisions,
 // and all three closed BY ADDRESS rather than by name.
 //
-// 1. C-NAMED SYMBOLS DECLARED AT C++ LINKAGE. src/func_ov003_020af038.cpp (the
+// 1. C-NAMED SYMBOLS DECLARED AT C++ LINKAGE. src/_ZN12dScStarSel_c8BehaviorEv.cpp (the
 //    Behavior) declares nine of its globals outside an extern "C" block, so
 //    MSVC mangles the references. The definitions are the port's ordinary
 //    C-named hosted globals; these aliases bind the mangled spelling to them.
@@ -175,13 +175,21 @@
 //    a locally-declared namespace (`namespace G2 { short *GetBG0ScrPtr(); }`,
 //    `class Sound { static void UnsetPlayerVoiceGroup(); }`) rather than
 //    through the mangled C name the matched TU defines.
-#pragma comment(linker, "/alternatename:?GetBG0ScrPtr@G2@@YAPAFXZ=__ZN2G212GetBG0ScrPtrEv")
-#pragma comment(linker, "/alternatename:?UnsetPlayerVoiceGroup@Sound@@SAXXZ=__ZN5Sound21UnsetPlayerVoiceGroupEv")
+/* RE-POINTED at ALIAS2 (wave 8, the main -> port sync), lane ALIAS's
+   derivation: the right hand side this row carried is defined nowhere in
+   the link any more. same member, same convention, same 0 argument slots, types spelled differently
+   was: #pragma comment(linker, "/alternatename:?GetBG0ScrPtr@G2@@YAPAFXZ=__ZN2G212GetBG0ScrPtrEv") */
+#pragma comment(linker, "/alternatename:?GetBG0ScrPtr@G2@@YAPAFXZ=?GetBG0ScrPtr@G2@@YAPAXXZ")
+/* RE-POINTED at ALIAS2 (wave 8, the main -> port sync), lane ALIAS's
+   derivation: the right hand side this row carried is defined nowhere in
+   the link any more. same member, same convention, same 0 argument slots, types spelled differently
+   was: #pragma comment(linker, "/alternatename:?UnsetPlayerVoiceGroup@Sound@@SAXXZ=__ZN5Sound21UnsetPlayerVoiceGroupEv") */
+#pragma comment(linker, "/alternatename:?UnsetPlayerVoiceGroup@Sound@@SAXXZ=?UnsetPlayerVoiceGroup@Sound@@YAXXZ")
 //
 // 3. THE OAM SPRITE TEMPLATES, SPELLED AS FUNCTIONS. Four TUs of the star
 //    select's closure name SEVENTEEN distinct ov001 sprite-template tables as
 //    `extern void *func_020abXXXX[]` -- thirteen of them in
-//    dScStarSel_c::Render (src/func_ov003_020ae6f4.cpp) alone. No func_020ab*
+//    dScStarSel_c::Render (src/_ZN12dScStarSel_c6RenderEv.cpp) alone. No func_020ab*
 //    symbol exists in any config: the addresses are ov001 DATA, and the
 //    "func_" prefix is a decomp-side guess at what lives there. Each alias
 //    below binds the guess to the address's real name, read out of
@@ -215,22 +223,22 @@
 // resolved here to the address the ROM actually stores, read out of the
 // literal pool of each body in extracted/overlays/overlay_0007.bin:
 //
-//   func_ov007_020cc028 (D2)   ldr r1,=0x021032e8 ; str -> _ZTV9dScDSMT_c
+//   _ZN9dScDSMT_cD1Ev (D2)   ldr r1,=0x021032e8 ; str -> _ZTV9dScDSMT_c
 //                              ldr r0,=0x02092680 ; str -> _ZTV8dScene_c
 //                              ldr r1,=0x0208e4b8 ; str -> _ZTV7dBase_c
-//   func_ov007_020cc070 (D0)   the same three, spelled VT0 / VT1 / VT2, then
+//   _ZN9dScDSMT_cD0Ev (D0)   the same three, spelled VT0 / VT1 / VT2, then
 //                              Memory::Deallocate(this, *0x020a0eac) spelled G0
 //
-// 0x02092680 is _ZTV5Scene and 0x0208e4b8 is _ZTV12ActorDerived, both matched
+// 0x02092680 is _ZTV8dScene_c and 0x0208e4b8 is _ZTV12ActorDerived, both matched
 // arm9 data symbols already in the build, and 0x021032e8 is the class's own
 // table inside the ov007 mount. TWO of the six names need a face:
 //
-//   _ZTV9dScDSMT_c   UNIQUE to src/func_ov007_020cc028.c -- no other TU in the
+//   _ZTV9dScDSMT_c   UNIQUE to src/_ZN9dScDSMT_cD1Ev.cpp -- no other TU in the
 //                    tree spells it -- so aliasing it to the ROM's own address
 //                    is exact and cannot collide.
 //   _ZTV8dScene_c    spelled by four TUs (ov003 x2, ov005, ov007), all of them
 //                    Scene subclasses restoring the SAME base table, and none
-//                    of the other three is in any slice today. _ZTV5Scene is
+//                    of the other three is in any slice today. _ZTV8dScene_c is
 //                    the right answer for all four.
 //
 // The other four resolve to storage that already exists and this file adds
@@ -238,51 +246,50 @@
 // array, VT0/VT2 are hal/actor_vtables.cpp's shared placeholders, VT1 is
 // hal/auto_bss.cpp's and G0 is hal/cxxname_bridge.cpp's. That is a KNOWN
 // DIVERGENCE and not a fix: on the ROM D0's three stores put back
-// 0x021032e8 / _ZTV5Scene / _ZTV12ActorDerived, and on the host they put back
+// 0x021032e8 / _ZTV8dScene_c / _ZTV12ActorDerived, and on the host they put back
 // three unrelated arrays. It is the doctrine hal/actor_vtables.cpp already
 // states -- "installed transiently during teardown and never dispatched" --
 // and a dispatch through _ZTV7dBase_c traps rather than going quiet. Neither
 // dtor is entered in any run this lane made; see port/ov007_seat.txt.
 #pragma comment(linker, "/alternatename:__ZTV9dScDSMT_c=_data_ov007_021032e8")
-#pragma comment(linker, "/alternatename:__ZTV8dScene_c=__ZTV5Scene")
 
 // ---- run mg15 lane MENU: the dScMiniGm_c PLACEHOLDER SPELLING -------------
 //
-// src/func_ov005_020bfec0.c (the class's D2, vtable slot 16) spells its three
+// src/_ZN11dScMiniGm_cD1Ev.cpp (the class's D2, vtable slot 16) spells its three
 // vptr restores with the per-TU placeholder names the ov003 write-up named as
 // blocker 2, the same shape the ov007 pair above has. All three are resolved
 // to the address the ROM actually stores, read out of that body's OWN literal
 // pool in extracted/overlays/overlay_0005.bin:
 //
-//   func_ov005_020bfec0 (D2)   ldr r1,[pc,#0x24] -> 0x020c2490 ; _ZTV11dScMiniGm_c
+//   _ZN11dScMiniGm_cD1Ev (D2)   ldr r1,[pc,#0x24] -> 0x020c2490 ; _ZTV11dScMiniGm_c
 //                              ldr r2,[pc,#0x20] -> 0x02092680 ; _ZTV8dScene_c
 //                              ldr r1,[pc,#0x1c] -> 0x0208e4b8 ; _ZTV7dBase_c
 //                              then bl 0x02043d48, ActorBase::~ActorBase
 //
 // ONE of the three needs a face. _ZTV8dScene_c is already aliased onto
-// _ZTV5Scene one line above -- and the note there names ov005 as one of the
+// _ZTV8dScene_c one line above -- and the note there names ov005 as one of the
 // four TUs that spell it, so this lane is that note coming true rather than a
 // new claim. _ZTV7dBase_c resolves to hal/sub_actors.cpp's trap-filled array,
 // the known divergence that block records.
 //
-// _ZTV11dScMiniGm_c is UNIQUE to src/func_ov005_020bfec0.c -- nothing else in
+// _ZTV11dScMiniGm_c is UNIQUE to src/_ZN11dScMiniGm_cD1Ev.cpp -- nothing else in
 // the tree spells it -- so aliasing it to the ROM's own address inside the
 // ov005 mount is exact and cannot collide. 0x020c2490 is the same address the
-// factory func_ov005_020c21ec stores into the object's +0 word (its own pool,
+// factory dScMiniGm_c_classInit stores into the object's +0 word (its own pool,
 // at 0x020c224c), so the two agree and neither is a guess.
 #pragma comment(linker, "/alternatename:__ZTV11dScMiniGm_c=_data_ov005_020c2490")
 
 // ---- run link100 lane MPG2: the dScGameOver_c PLACEHOLDER SPELLINGS -------
 //
-// src/func_ov003_020b0580.c (D2, slot 16) and src/func_ov003_020b05bc.c (D0,
+// src/actors/dScGameOver_c.cpp (D2, slot 16) and src/actors/dScGameOver_c.cpp (D0,
 // slot 17) are the last pair of the ov003 write-up's blocker 2, and the same
 // shape the two blocks above answer. Read out of each body's OWN literal pool
 // in extracted/overlays/overlay_0003.bin:
 //
-//   func_ov003_020b0580 (D2)  0x020b05b0/b4/b8 = 0x020b179c, 0x02092680,
+//   _ZN13dScGameOver_cD1Ev (D2)  0x020b05b0/b4/b8 = 0x020b179c, 0x02092680,
 //                             0x0208e4b8, spelled _ZTV13dScGameOver_c /
 //                             _ZTV8dScene_c / _ZTV7dBase_c
-//   func_ov003_020b05bc (D0)  0x020b05fc/00/04/08 = the same three plus
+//   _ZN13dScGameOver_cD0Ev (D0)  0x020b05fc/00/04/08 = the same three plus
 //                             0x020a0eac, spelled VT0 / VT1 / VT2 / G0
 //
 // FOUR OF THE SEVEN NAMES ALREADY RESOLVE, TO STORAGE AT AN ADDRESS THE ROM
@@ -296,12 +303,12 @@
 // divergence" answered rather than repeated.
 //
 // _ZTV8dScene_c NEEDS NOTHING NEW. The run link60 alias above already sends it
-// to _ZTV5Scene, and that block's own note names ov003 x2 as two of the four
+// to _ZTV8dScene_c, and that block's own note names ov003 x2 as two of the four
 // TUs that spell it. The per-TU renames still route both spellings through a
 // fresh name of this gate's own, so the CMake block reads as one statement per
 // ROM word and neither TU depends on which other gate's alias happens to be
-// live. A DIRECT rename onto _ZTV5Scene is a C2371: include/decl_common.h
-// declares _ZTV5Scene void*[] at :2982 and the placeholders int[] at
+// live. A DIRECT rename onto _ZTV8dScene_c is a C2371: include/decl_common.h
+// declares _ZTV8dScene_c void*[] at :2982 and the placeholders int[] at
 // :412/:790.
 //
 // THE ALIAS IS UNREFERENCED ON THIS BUILD AND THAT IS THE EXPECTED READING,
@@ -311,14 +318,14 @@
 // the class table or the Scene word at all. alternatename_guard reads an LHS
 // absent from the map as OK (unused). The directive is here so that a compiler
 // which stops folding gets the ROM's word instead of a wrong one.
-#pragma comment(linker, "/alternatename:_port_go_vt_scene=__ZTV5Scene")
+#pragma comment(linker, "/alternatename:_port_go_vt_scene=__ZTV8dScene_c")
 
 extern "C" {
 
 /* the spawn table and the two Scene entry points (matched arm9) */
 extern void **data_020a4bb8;                     /* hal/actor_vtables.cpp */
-int _ZN5Scene15SetSceneToSpawnEjj(unsigned id, unsigned param);
-int _ZN5Scene16SpawnIfNecessaryEv(void);
+int _ZN8dScene_c15SetSceneToSpawnEjj(unsigned id, unsigned param);
+int _ZN8dScene_c16SpawnIfNecessaryEv(void);
 void port_loadfile_reset_scene(void);            /* PROOF-OF-FIX temp */
 extern unsigned short data_02092664;             /* the pending scene id */
 extern unsigned char data_020a4b4c;   /* func_02043098's progress byte */
@@ -332,19 +339,19 @@ extern unsigned char data_02092660;              /* "a scene has spawned";
 unsigned port_mg_scene_spawn_param(int scene_id);
 
 /* the mounted SpawnInfo record (port/ov003_syms.txt) */
-extern unsigned char StarSelect_SpawnInfo[];     /* dScStarSel_c  id 4 */
+extern unsigned char g_profile_STAR_SELECT[];     /* dScStarSel_c  id 4 */
 
 /* the factory (matched src, port/slice_scene1.txt) */
-void *StarSelect_Spawn(void);                    /* dScStarSel_c */
+void *dScStarSel_c_classInit(void);                    /* dScStarSel_c */
 
 /* Scene's own lifecycle halves, slots 1/2/4/5/7/8/10/11.
    Flat C names: every one of these TUs defines the mangled name at C linkage
    the way the rest of the port spells arm9 methods. */
-int  _ZN5Scene19BeforeInitResourcesEv(void *self);      /* slot 1  */
-int  _ZN5Scene22BeforeCleanupResourcesEv(void *self);   /* slot 4  */
-void _ZN5Scene21AfterCleanupResourcesEj(void *self, unsigned a); /* slot 5 */
-int  _ZN5Scene14BeforeBehaviorEv(void *self);           /* slot 7  */
-int  _ZN5Scene12BeforeRenderEv(void *self);             /* slot 10 */
+int  _ZN8dScene_c19BeforeInitResourcesEv(void *self);      /* slot 1  */
+int  _ZN8dScene_c22BeforeCleanupResourcesEv(void *self);   /* slot 4  */
+void _ZN8dScene_c21AfterCleanupResourcesEj(void *self, unsigned a); /* slot 5 */
+int  _ZN8dScene_c14BeforeBehaviorEv(void *self);           /* slot 7  */
+int  _ZN8dScene_c12BeforeRenderEv(void *self);             /* slot 10 */
 
 /* slots 2, 8, 11 and 15, through hal/scene_actor_faces.cpp. Three of the four
    are the ROM's TAIL-CALL VENEERS taken straight to their target with both
@@ -358,33 +365,33 @@ int  port_scene_base_init(void *self);            /* ActorBase:: slot 0 */
 int  port_scene_base_cleanup(void *self);         /* ActorBase:: slot 3 */
 
 /* dScStarSel_c's own seven */
-void func_ov003_020af8a0(void *self);            /* slot 0  InitResources */
-int  func_ov003_020af86c(void);                  /* slot 3  CleanupResources */
-int  func_ov003_020af038(void *self);            /* slot 6  Behavior */
-int  func_ov003_020ae6f4(void *self);            /* slot 9  Render */
-void func_ov003_020ae6f0(void);                  /* slot 12 OnPendingDestroy */
-int  func_ov003_020addfc(void *self);            /* slot 16 D2 */
-int *func_ov003_020ade54(void *self);            /* slot 17 D0 */
+void _ZN12dScStarSel_c13InitResourcesEv(void *self);            /* slot 0  InitResources */
+int  _ZN12dScStarSel_c16CleanupResourcesEv(void);                  /* slot 3  CleanupResources */
+int  _ZN12dScStarSel_c8BehaviorEv(void *self);            /* slot 6  Behavior */
+int  _ZN12dScStarSel_c6RenderEv(void *self);            /* slot 9  Render */
+void _ZN12dScStarSel_c16OnPendingDestroyEv(void);                  /* slot 12 OnPendingDestroy */
+int  _ZN12dScStarSel_cD1Ev(void *self);            /* slot 16 D2 */
+int *_ZN12dScStarSel_cD0Ev(void *self);            /* slot 17 D0 */
 
 /* ---- run link100 lane MPG2: dScGameOver_c, scene id 8 --------------------
    ov003's third and last scene class, the one port/slice_scene1.txt left out.
    Every record is the ROM's own: the SpawnInfo at 0x020b1750 is inside the
-   mount (port/ov003_syms.txt), the factory is func_ov003_020b1118, and the
+   mount (port/ov003_syms.txt), the factory is dScGameOver_c_classInit, and the
    vtable at 0x020b179c is the host array one block below. */
-extern unsigned char data_ov003_020b1750[];      /* SpawnInfo, +4 reads 8 */
-void *func_ov003_020b1118(void);                 /* the factory */
+extern unsigned char g_profile_GAME_OVER[];      /* SpawnInfo, +4 reads 8 */
+void *dScGameOver_c_classInit(void);                 /* the factory */
 
 /* dScGameOver_c's own seven. THE ARITIES ARE THE SRC TUs' OWN, checked one at
    a time against each file rather than copied from the star select's block: a
    raw cast at the wrong arity is what smashes the stack on the first dispatch,
    and it stays invisible until the slot is entered. */
-int  func_ov003_020b0b3c(void *self);            /* slot 0  InitResources    */
-int  func_ov003_020b0b34(void);                  /* slot 3  CleanupResources */
-int  func_ov003_020b0894(void *self);            /* slot 6  Behavior         */
-int  func_ov003_020b0814(void *self);            /* slot 9  Render           */
-void func_ov003_020b0810(void);                  /* slot 12 OnPendingDestroy */
-int *func_ov003_020b0580(void *self);            /* slot 16 D2               */
-int *func_ov003_020b05bc(void *self);            /* slot 17 D0               */
+int  _ZN13dScGameOver_c13InitResourcesEv(void *self);            /* slot 0  InitResources    */
+int  _ZN13dScGameOver_c16CleanupResourcesEv(void);                  /* slot 3  CleanupResources */
+int  _ZN13dScGameOver_c8BehaviorEv(void *self);            /* slot 6  Behavior         */
+int  _ZN13dScGameOver_c6RenderEv(void *self);            /* slot 9  Render           */
+void _ZN13dScGameOver_c16OnPendingDestroyEv(void);                  /* slot 12 OnPendingDestroy */
+int *_ZN13dScGameOver_cD1Ev(void *self);            /* slot 16 D2               */
+int *_ZN13dScGameOver_cD0Ev(void *self);            /* slot 17 D0               */
 
 /* THE TABLE-WORD PROOF's three host arrays, declared here only so the census
    at the end of port_scene_run can print their addresses. _ZTV7dBase_c is
@@ -395,10 +402,10 @@ int *func_ov003_020b05bc(void *self);            /* slot 17 D0               */
    files already. */
 extern int   data_0208e4b8[];                    /* 0x0208e4b8, the ROM's */
 extern void *_ZTV7dBase_c[];                     /* the trap array, NOT it */
-extern void *_ZTV5Scene[];                       /* 0x02092680 */
+extern void *_ZTV8dScene_c[];                       /* 0x02092680 */
 
 /* THE VTABLE, a host array. The name is the ROM's own data symbol, which is
-   what StarSelect_Spawn writes into the object's +0 word and what the D2 and
+   what dScStarSel_c_classInit writes into the object's +0 word and what the D2 and
    D0 bodies write back on the way down, so the spelling has to be exactly this
    and port/ov003_syms.txt has to leave it out of the mount. 18 words.
    The other two classes' tables (data_ov003_020b1650, data_ov003_020b179c) are
@@ -406,7 +413,7 @@ extern void *_ZTV5Scene[];                       /* 0x02092680 */
    rebases a code word. dScTitle_c's, 0x020b1650, is still not defined here
    because nothing in the link set names it. dScGameOver_c's IS, one line
    below: run link100 lane MPG2 seats scene 8, and its factory
-   func_ov003_020b1118 and both dtor bodies name that table by the ROM's own
+   dScGameOver_c_classInit and both dtor bodies name that table by the ROM's own
    spelling. It is a host array for dScStarSel_c's reason, and it is inside the
    .dsstate bracket for dScStarSel_c's reason -- a hosted DS data symbol the
    save state has to capture, which is what port/tools/dsstate_guard.py
@@ -425,20 +432,20 @@ DSSTATE_END
    mounted data span -- defining a second array of the same name would be a
    duplicate symbol, and leaving the mounted one alone would leave eighteen raw
    DS code addresses live in a table the factory installs. */
-extern unsigned char data_ov007_02103264[];  /* SpawnInfo, 8 bytes, +4 reads 1 */
+extern unsigned char g_profile_DSMT[];  /* SpawnInfo, 8 bytes, +4 reads 1 */
 extern unsigned char data_ov007_021032e8[];  /* _ZTV9dScDSMT_c, 88 bytes/22 words */
 extern unsigned char data_ov007_021032b0[];  /* graphCallback_c, 16 bytes/4 words */
 void port_ov007_pack_check(void);            /* generated by tools/ovdata.py */
 void port_ov007_syms_patch(void);
 
-int *func_ov007_020ccad0(void);              /* the factory */
-int  func_ov007_020cc4c0(char *self);        /* slot 0  InitResources */
-int  func_ov007_020cc45c(void);              /* slot 3  CleanupResources */
-int  func_ov007_020cc2cc(char *self);        /* slot 6  Behavior */
-int  func_ov007_020cc2b0(void *self);        /* slot 9  Render */
-void func_ov007_020cc2ac(void);              /* slot 12 OnPendingDestroy */
-int *func_ov007_020cc028(int *self);         /* slot 16 D2 */
-int *func_ov007_020cc070(int *self);         /* slot 17 D0 */
+int *dScDSMT_c_classInit(void);              /* the factory */
+int  _ZN9dScDSMT_c13InitResourcesEv(char *self);        /* slot 0  InitResources */
+int  _ZN9dScDSMT_c16CleanupResourcesEv(void);              /* slot 3  CleanupResources */
+int  _ZN9dScDSMT_c8BehaviorEv(char *self);        /* slot 6  Behavior */
+int  _ZN9dScDSMT_c6RenderEv(void *self);        /* slot 9  Render */
+void _ZN9dScDSMT_c16OnPendingDestroyEv(void);              /* slot 12 OnPendingDestroy */
+int *_ZN9dScDSMT_cD1Ev(int *self);         /* slot 16 D2 */
+int *_ZN9dScDSMT_cD0Ev(int *self);         /* slot 17 D0 */
 /* THE MOUNT'S OTHER EIGHT RAW CODE WORDS. port/ov007_binding_diff.txt section
    3 counts eighteen pointer words the mount leaves holding DS addresses
    because ov007's .text is not mounted, and asks the wiring lane the right
@@ -468,13 +475,13 @@ unsigned char func_ov007_020cc600(int arg);
 void func_ov007_020c3e4c(void *arg);
 void func_ov007_020c3e64(void *arg);
 /* the graphCallback_c sub-object's own four, at +0x50 */
-int  func_ov007_020cc110(void);              /* gc slot 0 */
-int  func_ov007_020cc0f4(void *self);        /* gc slot 2 */
-int  _ZN5Scene14GraphCallback1Ev(void *self);/* gc slot 1, matched arm9 */
-int  _ZN5Scene14GraphCallback3Ev(void *self);/* gc slot 3, matched arm9 */
+int  _ZN9dScDSMT_c15graphCallback_c14GraphCallback0Ev(void);              /* gc slot 0 */
+int  _ZN9dScDSMT_c15graphCallback_c14GraphCallback2Ev(void *self);        /* gc slot 2 */
+int  _ZN8dGraph_c10callback_c14GraphCallback1Ev(void *self);/* gc slot 1, matched arm9 */
+int  _ZN8dGraph_c10callback_c14GraphCallback3Ev(void *self);/* gc slot 3, matched arm9 */
 
 /* the seat, minus the Stage (hal/level_boot.cpp) */
-void _ZN5Scene9SetFadersEP15FaderBrightness(void *thiz);
+void _ZN8dScene_c9SetFadersEP15FaderBrightness(void *thiz);
 
 void port_scene_a2_seat(void);
 
@@ -507,8 +514,8 @@ void port_scene_mg_seed_rng(int id, int windowed);
  *
  * That is exactly backwards for a scene that OVERRIDES the beat, and scene 1
  * is one. dScDSMT_c::InitResources parks its own graphCallback_c sub-object in
- * data_0209d4a8 (src/func_ov007_020cc4c0.cpp, `data_0209d4a8 = self + 0x50`),
- * the ROM's relocations put func_ov007_020cc0f4 in slot 2 of that block's
+ * data_0209d4a8 (src/_ZN9dScDSMT_c13InitResourcesEv.cpp, `data_0209d4a8 = self + 0x50`),
+ * the ROM's relocations put _ZN9dScDSMT_c15graphCallback_c14GraphCallback2Ev in slot 2 of that block's
  * table (config/arm9/overlays/ov007/relocs.txt: from:0x021032b8 to:0x020cc0f4),
  * and that body returns 0. So on hardware the title screen SUPPRESSES the
  * generic tail and does the whole display sync itself, in
@@ -594,7 +601,7 @@ extern void *data_0209f5bc;          /* the installed fader; hal/fader_wipes.cpp
 DSSTATE_BEGIN
 extern "C" {
 /* Scene::SpawnIfNecessary's "a scene has already spawned" latch. The matched
-   src/_ZN5Scene21AfterCleanupResourcesEj.cpp DEFINES this byte (a namespace-
+   src/_ZN8dScene_c21AfterCleanupResourcesEj.cpp DEFINES this byte (a namespace-
    scope `unsigned char data_02092660;` inside extern "C", which in C++ is a
    definition, not a tentative one), and a definition inside src/ cannot be
    bracketed into .dsstate without editing the byte-verified tree. So that TU
@@ -677,7 +684,7 @@ DSSTATE_END
    The cxxname_bridge pattern in reverse: these three matched TUs define their
    function INSIDE a C++ namespace (`namespace GX { void SetBankForTex(u16) }`,
    `namespace G3X { void SetFog(bool,int,int,int) }`), so they export a mangled
-   name, while src/func_ov003_020af8a0.c calls them by the C name every other
+   name, while src/_ZN12dScStarSel_c13InitResourcesEv.cpp calls them by the C name every other
    arm9 spelling in the port uses. One forwarding definition each. Their
    siblings (SetBankForTexPltt, SetBankForSubBG, SetBankForSubOBJ,
    SetBankForSubOBJExtPltt) are .c TUs and already export the C name, which is
@@ -919,7 +926,7 @@ extern "C" void UnloadArchives(void)                   {}
    one function while /OPT:REF silently dropped this one for want of anybody
    spelling it. Both real callers reach the ROM's body:
    src/_Z17LoadLevelOverlaysi.cpp declares it in C++ and binds the MSVC
-   mangling straight, and src/_Z19UnloadLevelOverlaysi.c spells
+   mangling straight, and src/_Z19UnloadLevelOverlaysi.cpp spells
    __Z26LoadOrUnloadObjectOverlaysPFviEi, which hal/cxx_aliases.cpp's link100
    block aliases onto the same body. Which body ships was never in doubt;
    keeping the second definition in the source was the defect.
@@ -1154,7 +1161,7 @@ static void port_save_probe(int frame)
 // data_0208ea6c IS NOT DATA, it is a twelve-slot vtable in arm9 .data, and it
 // is on the critical path: func_02017278 (the factory's last call, which
 // constructs the object's member at +0x54) writes four vptrs in construction
-// order and this is the last of them, and func_02017254 (which BOTH dtors
+// order and this is the last of them, and _ZN10dFdDummy_cD1Ev (which BOTH dtors
 // call) writes it back and then runs Color::D1. Its twelve words are all
 // relocated code addresses -- 0x02017254, 0x02017228, 0x0201721c, 0x020171f0,
 // 0x020171c8, 0x02017684, 0x02017670, 0x02017628, 0x0201761c, 0x02017610, a
@@ -1327,11 +1334,11 @@ DSSTATE_END
    the bodies themselves, disassembled out of extracted/arm9_dec.bin rather
    than taken from the comment at the top of each src TU:
 
-     +0x00  0x02017254  func_02017254     D1: vptr = this table, Color::~Color
-     +0x04  0x02017228  func_02017228     D0: the same, then operator_delete2
-     +0x08  0x0201721c  func_0201721c     ldr ip,[pc]; bx ip -> 0x020175e8
-     +0x0c  0x020171f0  func_020171f0     speed = -0x1000, then vt[+0x14]
-     +0x10  0x020171c8  func_020171c8     speed = +0x1000, then vt[+0x18]
+     +0x00  0x02017254  _ZN10dFdDummy_cD1Ev     D1: vptr = this table, Color::~Color
+     +0x04  0x02017228  _ZN10dFdDummy_cD0Ev     D0: the same, then operator_delete2
+     +0x08  0x0201721c  _ZN10dFdDummy_c11AdvanceFadeEv     ldr ip,[pc]; bx ip -> 0x020175e8
+     +0x0c  0x020171f0  _ZN10dFdDummy_c15SetBackwardTimeEj     speed = -0x1000, then vt[+0x14]
+     +0x10  0x020171c8  _ZN10dFdDummy_c14SetForwardTimeEj     speed = +0x1000, then vt[+0x18]
      +0x14  0x02017684  FaderBrightness::IsAtStart
      +0x18  0x02017670  FaderBrightness::IsAtEnd
      +0x1c  0x02017628  FaderBrightness::IsBetweenStartAndEnd
@@ -1385,9 +1392,9 @@ DSSTATE_END
 
    WHAT IS IN THE LINK ALREADY AND WHAT IS NOT. Nine of the ten bodies are
    compiled into every target that compiles this file (walk_window,
-   smoke_player, walk_window_hires): src/func_02017254.c rides slice_ov007.txt,
+   smoke_player, walk_window_hires): src/_ZN10dFdDummy_cD1Ev.cpp rides slice_ov007.txt,
    the five FaderBrightness methods ride slice_w1l3.txt and slice_fdr.txt, and
-   Fader::AdvanceInterp rides slice_w1l3.txt. The tenth, src/func_02017228.c,
+   Fader::AdvanceInterp rides slice_w1l3.txt. The tenth, src/_ZN10dFdDummy_cD0Ev.cpp,
    rides port/slice_gate225.txt as of gate 225 and is seated at +0x04. The
    remaining exceptions are named at their slots: +0x08, +0x0c and +0x10, whose
    src TUs are the three guess-marked bodies port/tools/inferred_stub_guard.py
@@ -1398,16 +1405,16 @@ DSSTATE_END
 extern "C" {
 /* The ROM body and the four receiver-bridging faces this fill reaches. Every
    one is already defined in these links; none is declared into existence here.
-     func_02017254                              src/func_02017254.c
+     _ZN10dFdDummy_cD1Ev                              src/_ZN10dFdDummy_cD1Ev.cpp
      _ZN5Fader13AdvanceInterpEv                 hal/fdr_arm9_fader_seat.cpp
      _ZN15FaderBrightness9IsAtStartEv           hal/fdr_arm9_fader_seat.cpp
      _ZN15FaderBrightness20IsBetweenStartAndEndEv  hal/fdr_arm9_fader_seat.cpp
      _ZN15FaderBrightness7IsAtEndEv             hal/method_faces.cpp
    and one that is added to the link BY this gate:
-     func_02017228                              src/func_02017228.c, on
+     _ZN10dFdDummy_cD0Ev                              src/_ZN10dFdDummy_cD0Ev.cpp, on
                                                 port/slice_gate225.txt        */
-void *func_02017254(void *self);
-void *func_02017228(void *self);
+void *_ZN10dFdDummy_cD1Ev(void *self);
+void *_ZN10dFdDummy_cD0Ev(void *self);
 void  _ZN5Fader13AdvanceInterpEv(void *self);
 int   _ZN15FaderBrightness9IsAtStartEv(void *self);
 int   _ZN15FaderBrightness7IsAtEndEv(void *self);
@@ -1454,27 +1461,27 @@ static void l2_eb2c_note(int slot)
    the pre-seat run's, and a slot this block did not seat is still exactly what
    the string says. WHICH slot is the env-gated line above, not a new name. */
 
-/* +0x00. D1. src/func_02017254.c writes this table back into the receiver and
+/* +0x00. D1. src/_ZN10dFdDummy_cD1Ev.cpp writes this table back into the receiver and
    calls Color::~Color, which is the ROM body verbatim; it is in the link on
    slice_ov007.txt line 778. Section 9c lists NO call site for either
    destructor slot, so the shape is the no-argument default. */
 static void *__fastcall l2_ea6c_s00(void *s, void *)
-{ l2_ea6c_note(0); return func_02017254(s); }
+{ l2_ea6c_note(0); return _ZN10dFdDummy_cD1Ev(s); }
 
 /* +0x04. D0, AND IT IS SEATED NOW -- run link100 lane ARM9T, gate 225.
    The paragraph that stood here said "the reason is a slice line, not a
-   missing body: src/func_02017228.c is matched and is the same three writes as
+   missing body: src/_ZN10dFdDummy_cD0Ev.cpp is matched and is the same three writes as
    D1 plus Memory::operator_delete2, and it is on NO slice ... Putting it on
    one is a port/slice_*.txt edit, which is outside this change's one-file
    scope." port/slice_gate225.txt is that slice line, and this is the slot it
    was added for; the body's whole closure is ITSELF (its three callees
-   _ZN5ColorD1Ev, Memory::operator_delete2 and data_0208ea6c are all already in
+   _ZN10FaderColorD2Ev, Memory::operator_delete2 and data_0208ea6c are all already in
    this link, measured against walk_window.map before the line was written).
 
    IT IS THE ROM'S OWN WORD, NOT A TRANSCRIPTION, which is the distinction the
    retired paragraph turned on: it refused to hand-write a deleting destructor
    here "on this file's authority", and this does not -- config/arm9/relocs.txt
-   from:0x0208ea70 to:0x02017228 is the word, and src/func_02017228.c is the
+   from:0x0208ea70 to:0x02017228 is the word, and src/_ZN10dFdDummy_cD0Ev.cpp is the
    matched body at that address, carrying no "recovered from vtable slot
    identity" marker. So the object is freed by the ROM's own code on the ROM's
    own slot instead of being leaked by a trap.
@@ -1484,7 +1491,7 @@ static void *__fastcall l2_ea6c_s00(void *s, void *)
    this takes the same no-argument __fastcall shape D1 does and no audit of a
    new dispatch site is claimed. */
 static void *__fastcall l2_ea6c_s04(void *s, void *)
-{ l2_ea6c_note(1); return func_02017228(s); }
+{ l2_ea6c_note(1); return _ZN10dFdDummy_cD0Ev(s); }
 
 /* +0x08. AdvanceFade, and the one slot here that is not __fastcall, for
    hal/fdr_arm9_fader_seat.cpp's fdr_s08 reason exactly (shape C above).
@@ -1495,12 +1502,12 @@ static void *__fastcall l2_ea6c_s04(void *s, void *)
        0x02017224  020175e8  .word  _ZN5Fader13AdvanceInterpEv
 
    two instructions, r0 untouched, so the target reads the SAME receiver the
-   veneer was entered with. src/func_0201721c.c spells that `void
-   func_0201721c(void)` calling `_ZN5Fader13AdvanceInterpEv()` with no argument
+   veneer was entered with. src/_ZN10dFdDummy_c11AdvanceFadeEv.cpp spells that `void
+   _ZN10dFdDummy_c11AdvanceFadeEv(void)` calling `_ZN5Fader13AdvanceInterpEv()` with no argument
    at all, which is byte-correct under mwccarm -- r0 falls through a bx -- and
    loses the receiver on any host that does not pass arguments in the same
    register. That is the identical defect slice_fdr.txt records for
-   src/func_0202ed08.c and hal/lk4_solidheap_seat.cpp for Heap::_Destroy, and
+   src/_ZN7dWipe_c8SetToEndEv.cpp and hal/lk4_solidheap_seat.cpp for Heap::_Destroy, and
    it takes the identical answer: FORWARD TO THE VENEER'S OWN TARGET, WITH THE
    RECEIVER, and leave the src TU out of the link. Discarding it would hand
    Fader::AdvanceInterp whatever the host left in ecx and let it write
@@ -1531,8 +1538,8 @@ static int l2_ea6c_dispatch(void *s, unsigned rom_byte)
 }
 
 /* +0x0c and +0x10. SetBackwardTime and SetForwardTime, AND THESE TWO ARE
-   TRANSCRIBED RATHER THAN FORWARDED. Say that plainly: src/func_020171f0.cpp
-   and src/func_020171c8.cpp are matched and they are on NO slice, so unlike
+   TRANSCRIBED RATHER THAN FORWARDED. Say that plainly: src/_ZN10dFdDummy_c15SetBackwardTimeEj.cpp
+   and src/_ZN10dFdDummy_c14SetForwardTimeEj.cpp are matched and they are on NO slice, so unlike
    the other eight bodies they are not in this link, and adding them is the
    same out-of-scope slice edit slot +0x04 declines. The difference is that
    these two are LOAD-BEARING -- Scene::BeforeBehavior calls one of them every
@@ -1541,7 +1548,7 @@ static int l2_ea6c_dispatch(void *s, unsigned rom_byte)
    transcribed from the disassembly, which is quoted here in full so a reader
    can check it against the two src TUs without leaving the file:
 
-       0x020171f0  e92d4000  push {lr}          func_020171f0
+       0x020171f0  e92d4000  push {lr}          _ZN10dFdDummy_c15SetBackwardTimeEj
        0x020171f4  e24dd004  sub  sp, sp, #4
        0x020171f8  e3a01a01  mov  r1, #0x1000
        0x020171fc  e2611000  rsb  r1, r1, #0
@@ -1550,7 +1557,7 @@ static int l2_ea6c_dispatch(void *s, unsigned rom_byte)
        0x02017208  e5911014  ldr  r1, [r1, #0x14]   the RECEIVER's own +0x14
        0x0201720c  e12fff31  blx  r1
 
-       0x020171c8  e92d4000  push {lr}          func_020171c8
+       0x020171c8  e92d4000  push {lr}          _ZN10dFdDummy_c14SetForwardTimeEj
        0x020171cc  e24dd004  sub  sp, sp, #4
        0x020171d0  e3a01a01  mov  r1, #0x1000
        0x020171d4  e5801008  str  r1, [r0, #8]      speed = +1.0
@@ -1911,17 +1918,17 @@ static void l2_ea6c_selftest(void)
      +0x0c  slot 3  Scene::BeforeBehavior, func_ov004_020b841c
      +0x10  slot 4  Scene::BeforeBehavior, func_ov004_020b841c
      +0x14  slot 5  Scene::BeforeBehavior, Scene::SetFaders (vt->f14),
-                    Stage::Behavior, func_02005418, HUD::Behavior,
+                    Stage::Behavior, _ZN9BootScene8BehaviorEv, HUD::Behavior,
                     Minimap::Behavior, func_ov002_020f23f0,
-                    func_ov003_020ad814, func_ov003_020af038,
-                    func_ov004_020b0620 (spelled f05), four ov005 bodies,
-                    func_ov006_0212101c, func_ov075_0211a2b8
+                    _ZN10dScTitle_c8BehaviorEv, _ZN12dScStarSel_c8BehaviorEv,
+                    _ZN11dScMgBase_c14BeforeBehaviorEv (spelled f05), four ov005 bodies,
+                    _ZN17dScMgTrampoline_c11OnAttacked2Ev, _ZN10dScEntry_c8BehaviorEv
      +0x18  slot 6  Scene::BeforeBehavior, Scene::SetFaders (vt->f18),
                     func_ov004_020b841c, func_ov006_020c2848,
                     func_ov006_020c2924
      +0x1c  slot 7  FUN_02029934, FUN_02029980, FUN_020299f4,
                     func_ov004_020b7c04, func_ov004_020b841c,
-                    func_ov006_0212101c
+                    _ZN17dScMgTrampoline_c11OnAttacked2Ev
      +0x20  slot 8  Minimap::Behavior, func_ov004_020b7c04
 
    SLOTS 0, 1 AND 9 HAVE NO DISPATCH SITE ANYWHERE IN THE IMAGE. That is the
@@ -1930,7 +1937,7 @@ static void l2_ea6c_selftest(void)
    them cannot reproduce it, and this block does not have to argue that the
    hazard is benign, only that it is not reachable here. The two spot checks
    that could have made the enumeration wrong were both taken: the `v0()` in
-   func_ov075_0211a2b8 is on a different object (`Poly0 *o`, not
+   _ZN10dScEntry_c8BehaviorEv is on a different object (`Poly0 *o`, not
    data_0209f5bc), and Scene::SetFaders' `v20()`/`v24()` are on the Scene it is
    handed, not on the fader.
 
@@ -1948,7 +1955,7 @@ static void l2_ea6c_selftest(void)
    THE SHAPE IS SLOT +0x00's ABOVE, unchanged: __fastcall with a dummy second
    parameter, receiver in ECX, no stack arguments to clean. The bodies are the
    ROM's own, on port/slice_gate225.txt, and two of them need a
-   COMPILE_DEFINITIONS row because src/engine/fader/_ZN5FaderD0Ev.c spells its
+   COMPILE_DEFINITIONS row because src/engine/fader/_ZN5FaderD0Ev.cpp spells its
    two ROM addresses with PLACEHOLDER names -- `vtbl_Fader` (declared in
    include/decl_common.h and defined nowhere) and `base_dtor_Fader`. Read off
    that body's own literal pool rather than off the names:
@@ -2188,7 +2195,7 @@ static void l2_fill_0208ea6c(void)
 // LANE SC1 MADE IT FALSE, which is the good direction: giving 0x020c9688 a
 // body is what lets the scene run far enough to reach the others at all. A
 // 300-frame scene-1 run today enters func_ov007_020b46b0 twenty-four times
-// (the 0x18 loop in src/func_ov007_020aed98.c), then func_ov007_020c20b8,
+// (the 0x18 loop in src/func_ov007_020aed98.cpp), then func_ov007_020c20b8,
 // func_02054c80 and one data_0208ea6c slot once each. THE CENSUS LOST A NAME
 // THIS PASS: func_ov007_020b2998 used to be in that list and it was the only
 // blocker in it. Lane CK1 matched it, lane PC2 brought the TU across, and the
@@ -2199,7 +2206,7 @@ static void l2_fill_0208ea6c(void)
 // LANE TITLE3 PROVED IT FALSE. A trap that returns 0 and lets the run carry on
 // is not the same thing as a trap that costs nothing, and func_ov007_020ae834
 // was the counter-example: it is the state-machine ADVANCE for BOTH of the
-// title's 2D element families, and src/func_ov007_020aed98.c drives both --
+// title's 2D element families, and src/func_ov007_020aed98.cpp drives both --
 // the twenty-four at scene+0x114 through src/func_ov007_020b44ec.c and the
 // nine at scene+0xa4 through src/func_ov007_020add3c.c, one call per element
 // per pass. With it trapped NONE of those thirty-three objects ever changed
@@ -2520,9 +2527,11 @@ L2_UNMATCHED(func_02140d80)
 //       0x02055574 G3X::SetClearColor
 #pragma comment(linker, "/alternatename:_func_02018144=_Deallocate")
 #pragma comment(linker, "/alternatename:_func_0201816c=_LoadFile")
-#pragma comment(linker, "/alternatename:_func_0203c280=__ZN4Heap11_DeallocateEPv")
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEAD RHS and an UNREFERENCED left hand side: nothing in the build defines __ZN4Heap11_DeallocateEPv, and nothing references _func_0203c280, so the row can never fire and nothing wants it to. */
+// #pragma comment(linker, "/alternatename:_func_0203c280=__ZN4Heap11_DeallocateEPv")
 #pragma comment(linker, "/alternatename:_func_0203c28c=__ZN4Heap8AllocateEj")
-#pragma comment(linker, "/alternatename:_func_02055574=__ZN3G3X13SetClearColorEtiiib")
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEAD RHS and an UNREFERENCED left hand side: nothing in the build defines __ZN3G3X13SetClearColorEtiiib, and nothing references _func_02055574, so the row can never fire and nothing wants it to. */
+// #pragma comment(linker, "/alternatename:_func_02055574=__ZN3G3X13SetClearColorEtiiib")
 //     AND A SIXTH, ADDED BY THE DUALSCREEN LANE AND RETIRED OUT OF THE
 //     UNMATCHED-TRAP CENSUS ABOVE: 0x02054c80 is `Vram__Map`, the function
 //     that puts each bank named in a mask back into LCDC mode by writing 0x80
@@ -2537,11 +2546,11 @@ L2_UNMATCHED(func_02140d80)
 //     (func_ov006_020e7508 and _020e759c) ignore the return.
 #pragma comment(linker, "/alternatename:_func_02054c80=_Vram__Map")
 //
-// (c) THE _ZN6Player17St_EndingFly_MainEv NAMING TRAP, which the 2d map warns
+// (c) THE func_ov007_020c3d1c NAMING TRAP, which the 2d map warns
 //     about in its section 1 and which this slice is the first build to hit.
 //     0x020c3d1c is an ov007 function and the community label on it is a
 //     Player state name; ov007 is the title scene and has no Player. The
-//     matched TU is src/_ZN6Player17St_EndingFly_MainEv.cpp, it is in this
+//     matched TU is src/func_ov007_020c3d1c.cpp, it is in this
 //     slice, and it defines the flat Itanium name. Its callers spell the same
 //     body FOUR ways between them -- once by address and three times as a
 //     C++ method, with three different MSVC manglings because the three
@@ -2581,7 +2590,7 @@ L2_UNMATCHED(func_02140d80)
 //     already asserted: tailjump_guard DERIVES all 22 ov007 veneers from the
 //     overlay image, so the safety of the status quo does not rest on this
 //     comment being complete.
-#pragma comment(linker, "/alternatename:_func_020c3d1c=__ZN6Player17St_EndingFly_MainEv")
+#pragma comment(linker, "/alternatename:_func_020c3d1c=_func_ov007_020c3d1c")
 //     The int-returning spelling now rides the void one. Both sides are
 //     public __thiscall taking no arguments, so the receiver AGREES and the
 //     pop agrees; only the return type differs, and EAX is exactly as
@@ -2607,12 +2616,18 @@ L2_UNMATCHED(func_02140d80)
 //     defines the flat Itanium name.
 #pragma comment(linker, "/alternatename:?DispOn@GX@@SAXXZ=__ZN2GX6DispOnEv")
 #pragma comment(linker, "/alternatename:?DisableAllBanks@GX@@SAXXZ=__ZN2GX15DisableAllBanksEv")
-#pragma comment(linker, "/alternatename:?LoadOBJ@GX@@SAXPBXII@Z=__ZN2GX7LoadOBJEPKvjj")
-#pragma comment(linker, "/alternatename:?SetBankForTexPltt@GX@@YAXG@Z=__ZN2GX17SetBankForTexPlttEt")
-#pragma comment(linker, "/alternatename:?div@cstd@@YAHHH@Z=__ZN4cstd3divEii")
+/* RE-POINTED at ALIAS2 (wave 8, the main -> port sync), lane ALIAS's
+   derivation: the right hand side this row carried is defined nowhere in
+   the link any more. same member, same convention, same 3 argument slots, types spelled differently
+   was: #pragma comment(linker, "/alternatename:?LoadOBJ@GX@@SAXPBXII@Z=__ZN2GX7LoadOBJEPKvjj") */
+#pragma comment(linker, "/alternatename:?LoadOBJ@GX@@SAXPBXII@Z=?LoadOBJ@GX@@YAXPBXII@Z")
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEFEATED: the left hand side is a real definition in this link now (_ZN2GX17SetBankForTexPlttEt.cpp.obj), so the directive is inert and alternatename_guard fails on it. */
+// #pragma comment(linker, "/alternatename:?SetBankForTexPltt@GX@@YAXG@Z=__ZN2GX17SetBankForTexPlttEt")
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEFEATED: the left hand side is a real definition in this link now (_ZN4cstd3divEii.cpp.obj), so the directive is inert and alternatename_guard fails on it. */
+// #pragma comment(linker, "/alternatename:?div@cstd@@YAHHH@Z=__ZN4cstd3divEii")
 //     Scene::SetFaders IS NOT IN THAT LIST AND MUST NOT BE, and the reason is
 //     worth the paragraph because it cost this lane a fault that read like a
-//     vtable bug. `?SetFaders@Scene@@QAEXPAUFaderBrightness@@@Z` is __THISCALL
+//     vtable bug. `?SetFaders@dScene_c@@QAEXPAUFaderBrightness@@@Z` is __THISCALL
 //     -- `this` in ECX, the FaderBrightness* on the stack -- and the matched
 //     TU defines a __CDECL function taking ONE stack argument. An
 //     /alternatename between the two LINKS, and then the callee reads the
@@ -2630,7 +2645,7 @@ struct Scene { void SetFaders(FaderBrightness *fb); };
 void Scene::SetFaders(FaderBrightness *)
 {
     /* the ROM body ignores its second argument; only `this` is used */
-    _ZN5Scene9SetFadersEP15FaderBrightness(this);
+    _ZN8dScene_c9SetFadersEP15FaderBrightness(this);
 }
 //     ...and THREE IN THE OPPOSITE DIRECTION. Here the ov007 caller spells the
 //     FLAT Itanium name and the matched TU defines a real C++ static member,
@@ -2801,11 +2816,11 @@ extern "C" void _ZN8SaveData18SetDefaultValuesMgEP16MinigameSaveData(void *blk)
 /* The matched ActorBase methods for slots 13 and 14, and the reason this is a
    LOCAL declaration rather than include/ActorBase.h.
    MSVC encodes virtualness in the mangled name, and the TUs do not agree on
-   it: src/_ZN9ActorBase9Virtual34Ejj.cpp and its Virtual38 sibling declare
+   it: src/_ZN7fBase_c9Virtual34Ejj.cpp and its Virtual38 sibling declare
    their method NON-virtual in a local struct (so the definitions are
-   ?Virtual34@ActorBase@@QAEHII@Z, which is what hal/lk4_solidheap_seat.cpp
-   already links against), while src/_ZN9ActorBase13OnHeapCreatedEv.cpp
-   includes ActorBase.h and defines the VIRTUAL ?OnHeapCreated@ActorBase@@UAE_NXZ
+   ?Virtual34@fBase_c@@QAEHII@Z, which is what hal/lk4_solidheap_seat.cpp
+   already links against), while src/_ZN7fBase_c13OnHeapCreatedEv.cpp
+   includes ActorBase.h and defines the VIRTUAL ?OnHeapCreated@fBase_c@@UAE_NXZ
    that hal/actor_vtables.cpp already links against. Only
    the two Virtual3x are the ones this file needs, so this file declares them
    non-virtual and hal/scene_actor_faces.cpp -- which includes the real header
@@ -2821,9 +2836,9 @@ struct ActorBase {
    and 6 (the free-function spelling aritycheck had to learn a new declaration
    shape to see at all). The three deleted directives were
 
-     ?St_EndingFly_Main@Player@@QAEHXZ = __ZN6Player17St_EndingFly_MainEv
-     ?St_EndingFly_Main@Player@@QAEXXZ = __ZN6Player17St_EndingFly_MainEv
-     ?St_EndingFly_Main@Player@@YAXXZ  = __ZN6Player17St_EndingFly_MainEv
+     ?St_EndingFly_Main@Player@@QAEHXZ = _func_ov007_020c3d1c
+     ?St_EndingFly_Main@Player@@QAEXXZ = _func_ov007_020c3d1c
+     ?St_EndingFly_Main@Player@@YAXXZ  = _func_ov007_020c3d1c
 
    WHAT THE BODY ACTUALLY IS, derived from the ROM rather than from the name,
    because the name is wrong and the fix depends on the answer. 0x020c3d1c is
@@ -2860,7 +2875,7 @@ struct ActorBase {
    each one immediately after.
 
    THE TRUE BODY IS SEATED AND MATCHED, so these are BRIDGES and not traps.
-   src/_ZN6Player17St_EndingFly_MainEv.cpp is in this slice and defines the
+   src/func_ov007_020c3d1c.cpp is in this slice and defines the
    flat name as `void f(void *self)`. Nothing here is unseated, so a loud trap
    would be refusing to run a path the port already has the code for.
 
@@ -2891,7 +2906,7 @@ extern "C" {
    defines it as `u8 data_ov007_02103448[4]`; the matched TU reads it as an
    int, and so does this, because extern "C" data carries no type in the
    symbol and the int reading is the one the ROM's `ldr r0,[r0]` performs. */
-void _ZN6Player17St_EndingFly_MainEv(void *self);
+void func_ov007_020c3d1c(void *self);
 extern int data_ov007_02103448;
 
 /* the RHS of the YA alias in block (c). A free __cdecl function taking
@@ -2899,27 +2914,27 @@ extern int data_ov007_02103448;
    not passed to it and never was, so the face reads it from the same global
    the ROM reads it from. */
 void port_ov007_b7764_endingfly(void)
-{ _ZN6Player17St_EndingFly_MainEv((void *)(size_t)data_ov007_02103448); }
+{ func_ov007_020c3d1c((void *)(size_t)data_ov007_02103448); }
 }
 
 void Player::St_EndingFly_Main()
-{ _ZN6Player17St_EndingFly_MainEv(this); }
+{ func_ov007_020c3d1c(this); }
 
 // ---- the shared eleven -----------------------------------------------------
 static int  __fastcall sc_binit(void *s, void *)
-{ return _ZN5Scene19BeforeInitResourcesEv(s); }
+{ return _ZN8dScene_c19BeforeInitResourcesEv(s); }
 static void __fastcall sc_ainit(void *s, void *, unsigned a)
 { port_scene_after_init(s, a); }
 static int  __fastcall sc_bclean(void *s, void *)
-{ return _ZN5Scene22BeforeCleanupResourcesEv(s); }
+{ return _ZN8dScene_c22BeforeCleanupResourcesEv(s); }
 static void __fastcall sc_aclean(void *s, void *, unsigned a)
-{ _ZN5Scene21AfterCleanupResourcesEj(s, a); }
+{ _ZN8dScene_c21AfterCleanupResourcesEj(s, a); }
 static int  __fastcall sc_bbeh(void *s, void *)
-{ return _ZN5Scene14BeforeBehaviorEv(s); }
+{ return _ZN8dScene_c14BeforeBehaviorEv(s); }
 static void __fastcall sc_abeh(void *s, void *, unsigned a)
 { port_scene_after_behavior(s, a); }
 static int  __fastcall sc_bren(void *s, void *)
-{ return _ZN5Scene12BeforeRenderEv(s); }
+{ return _ZN8dScene_c12BeforeRenderEv(s); }
 static void __fastcall sc_aren(void *s, void *, unsigned a)
 { port_scene_after_render(s, a); }
 static int  __fastcall sc_v34(void *s, void *, unsigned a, unsigned b)
@@ -2936,7 +2951,7 @@ static int  __fastcall sc_base_clean(void *s, void *)
 
 /* THE 18-SLOT SHAPE IS HARDCODED HERE, AND IT IS AN ov003 FINDING RATHER THAN
    A LAW ABOUT SCENES. All three ov003 classes were read out of the overlay
-   image and all three are exactly _ZTV5Scene's eighteen slots with seven
+   image and all three are exactly _ZTV8dScene_c's eighteen slots with seven
    overridden, so this writes eleven fixed indices.
    ---- THE CAVEAT FIRED, AND A WIDTH PARAMETER IS NOT THE ANSWER -------------
    The paragraph that used to end here asked whoever seats the first ov006
@@ -2951,11 +2966,11 @@ static int  __fastcall sc_base_clean(void *s, void *)
    unwritten, which is the harmless half. The other half is that indices
    1..15 DO NOT still land correctly: dScMgBase_c overrides five of the
    eleven this function writes, so on a minigame table
-       slot 1  is func_ov004_020b0930, not Scene::BeforeInitResources
-       slot 2  is func_ov004_020b08f0, not Scene::AfterInitResources
-       slot 5  is func_ov004_020b0840, not Scene::AfterCleanupResources
-       slot 7  is func_ov004_020b0620, not Scene::BeforeBehavior
-       slot 10 is func_ov004_020b04f4, not Scene::BeforeRender
+       slot 1  is _ZN11dScMgBase_c19BeforeInitResourcesEv, not Scene::BeforeInitResources
+       slot 2  is _ZN11dScMgBase_c18AfterInitResourcesEj, not Scene::AfterInitResources
+       slot 5  is _ZN11dScMgBase_c21AfterCleanupResourcesEj, not Scene::AfterCleanupResources
+       slot 7  is _ZN11dScMgBase_c14BeforeBehaviorEv, not Scene::BeforeBehavior
+       slot 10 is _ZN11dScMgBase_c12BeforeRenderEv, not Scene::BeforeRender
    and calling this function on one would silently replace five of the
    framework's own overrides with the base bodies they exist to displace. A
    WIDTH PARAMETER WOULD NOT CATCH ANY OF THAT: the bug is the index list, not
@@ -3056,23 +3071,23 @@ extern "C" unsigned port_scene_fill_rom(void **vt, unsigned n)
 // the only evidence that the chain is live rather than merely linked.
 static unsigned g_ss_hits[18];
 static int  __fastcall ss_init(void *s, void *)
-{ ++g_ss_hits[0];  func_ov003_020af8a0(s); return 1; }
+{ ++g_ss_hits[0];  _ZN12dScStarSel_c13InitResourcesEv(s); return 1; }
 static int  __fastcall ss_clean(void *, void *)
-{ ++g_ss_hits[3];  return func_ov003_020af86c(); }
+{ ++g_ss_hits[3];  return _ZN12dScStarSel_c16CleanupResourcesEv(); }
 static int  __fastcall ss_beh(void *s, void *)
-{ ++g_ss_hits[6];  return func_ov003_020af038(s); }
+{ ++g_ss_hits[6];  return _ZN12dScStarSel_c8BehaviorEv(s); }
 static int  __fastcall ss_render(void *s, void *)
-{ ++g_ss_hits[9];  return func_ov003_020ae6f4(s); }
+{ ++g_ss_hits[9];  return _ZN12dScStarSel_c6RenderEv(s); }
 static int  __fastcall ss_pdes(void *, void *)
-{ ++g_ss_hits[12]; func_ov003_020ae6f0(); return 0; }
+{ ++g_ss_hits[12]; _ZN12dScStarSel_c16OnPendingDestroyEv(); return 0; }
 /* the SM64DS_SCENE_SLOT9=0 stand-in. Counted separately so a run can never
    read its no-op as the real Render having run. */
 static unsigned g_ss_render_skipped;
 static int  __fastcall ss_render_noop(void *, void *)
 { ++g_ss_render_skipped; return 1; }
 static void *__fastcall ss_d2(void *s, void *)
-{ return (void *)(size_t)func_ov003_020addfc(s); }
-static void *__fastcall ss_d0(void *s, void *)   { return func_ov003_020ade54(s); }
+{ return (void *)(size_t)_ZN12dScStarSel_cD1Ev(s); }
+static void *__fastcall ss_d0(void *s, void *)   { return _ZN12dScStarSel_cD0Ev(s); }
 
 static void scene_fill_starsel(void)
 {
@@ -3144,24 +3159,24 @@ static unsigned g_go_hits[18];
    would be a use-after-free. */
 static void *g_go_vptr_after_d2;
 static int  __fastcall go_init(void *s, void *)
-{ ++g_go_hits[0];  return func_ov003_020b0b3c(s); }
+{ ++g_go_hits[0];  return _ZN13dScGameOver_c13InitResourcesEv(s); }
 static int  __fastcall go_clean(void *, void *)
-{ ++g_go_hits[3];  return func_ov003_020b0b34(); }
+{ ++g_go_hits[3];  return _ZN13dScGameOver_c16CleanupResourcesEv(); }
 static int  __fastcall go_beh(void *s, void *)
-{ ++g_go_hits[6];  return func_ov003_020b0894(s); }
+{ ++g_go_hits[6];  return _ZN13dScGameOver_c8BehaviorEv(s); }
 static int  __fastcall go_render(void *s, void *)
-{ ++g_go_hits[9];  return func_ov003_020b0814(s); }
+{ ++g_go_hits[9];  return _ZN13dScGameOver_c6RenderEv(s); }
 static int  __fastcall go_pdes(void *, void *)
-{ ++g_go_hits[12]; func_ov003_020b0810(); return 0; }
+{ ++g_go_hits[12]; _ZN13dScGameOver_c16OnPendingDestroyEv(); return 0; }
 static void *__fastcall go_d2(void *s, void *)
 {
     ++g_go_hits[16];
-    void *r = (void *)func_ov003_020b0580(s);
+    void *r = (void *)_ZN13dScGameOver_cD1Ev(s);
     g_go_vptr_after_d2 = *(void **)s;
     return r;
 }
 static void *__fastcall go_d0(void *s, void *)
-{ ++g_go_hits[17]; return (void *)func_ov003_020b05bc(s); }
+{ ++g_go_hits[17]; return (void *)_ZN13dScGameOver_cD0Ev(s); }
 
 static void scene_fill_gameover(void)
 {
@@ -3193,7 +3208,7 @@ static void scene_fill_gameover(void)
 //   3. the shape. Every one of the eleven non-overridden slots holds the SAME
 //      arm9 address ov003's three classes hold, byte for byte: 0x0202e638,
 //      0x0202e62c, 0x0202e5f0, 0x0202e5d0, 0x0202e3d4, 0x0202e3c8, 0x0202e3a4,
-//      0x0202e398, 0x0204357c, 0x0204349c, 0x02043494. dScDSMT_c is _ZTV5Scene
+//      0x0202e398, 0x0204357c, 0x0204349c, 0x02043494. dScDSMT_c is _ZTV8dScene_c
 //      with seven slots overridden and adds no virtual of its own.
 //
 // THE FOUR TRAILING WORDS ARE LEFT AS THE ROM HAS THEM. The fill writes 0..17
@@ -3215,7 +3230,7 @@ static unsigned g_ti_hits[18];
  * port/tools/battery.py's scene-1 row keys on the string below, so this is
  * the row's marker and not decoration. It is here, in ti_init, because this
  * is the LAST port-owned frame on the path: everything from
- * func_ov007_020cc4c0 down to the fault is a matched TU and the port owns no
+ * _ZN9dScDSMT_c13InitResourcesEv down to the fault is a matched TU and the port owns no
  * code in between to hang a tighter probe on.
  *
  * The blocker is an ARM register ride-through, derived in
@@ -3280,12 +3295,12 @@ static int  __fastcall ti_init(void *s, void *)
 #if PORT_OV007_AE558_UNSEATED
     ti_ae558_notice();
 #endif
-    return func_ov007_020cc4c0((char *)s);
+    return _ZN9dScDSMT_c13InitResourcesEv((char *)s);
 }
 static int  __fastcall ti_clean(void *, void *)
-{ ++g_ti_hits[3];  return func_ov007_020cc45c(); }
+{ ++g_ti_hits[3];  return _ZN9dScDSMT_c16CleanupResourcesEv(); }
 static int  __fastcall ti_beh(void *s, void *)
-{ ++g_ti_hits[6];  return func_ov007_020cc2cc((char *)s); }
+{ ++g_ti_hits[6];  return _ZN9dScDSMT_c8BehaviorEv((char *)s); }
 #if PORT_OV007_MCRENDER_UNSEATED
 /* SCENE 1'S BLOCKER AFTER THE IMPLICIT-r0 SEAM WAS SEATED, run link60 lane
  * AE1, AND THE FIRST ONE THIS FILE CAN ANNOUNCE FROM THE RIGHT FRAME.
@@ -3334,10 +3349,10 @@ static int  __fastcall ti_render(void *s, void *)
 #if PORT_OV007_MCRENDER_UNSEATED
     ti_mcrender_notice();
 #endif
-    return func_ov007_020cc2b0(s);
+    return _ZN9dScDSMT_c6RenderEv(s);
 }
 static int  __fastcall ti_pdes(void *, void *)
-{ ++g_ti_hits[12]; func_ov007_020cc2ac(); return 0; }
+{ ++g_ti_hits[12]; _ZN9dScDSMT_c16OnPendingDestroyEv(); return 0; }
 /* the SM64DS_SCENE_SLOT9=0 stand-in, counted separately for the same reason
    ss_render_noop is: a no-op must never read as the real body having run. */
 static unsigned g_ti_render_skipped;
@@ -3352,8 +3367,8 @@ static int  __fastcall ti_render_noop(void *, void *)
 static unsigned g_ti_init_skipped;
 static int  __fastcall ti_init_noop(void *, void *)
 { ++g_ti_init_skipped; return 1; }
-static void *__fastcall ti_d2(void *s, void *) { return func_ov007_020cc028((int *)s); }
-static void *__fastcall ti_d0(void *s, void *) { return func_ov007_020cc070((int *)s); }
+static void *__fastcall ti_d2(void *s, void *) { return _ZN9dScDSMT_cD1Ev((int *)s); }
+static void *__fastcall ti_d0(void *s, void *) { return _ZN9dScDSMT_cD0Ev((int *)s); }
 /* graphCallback_c, AND THE ONE CONVENTION IN THIS FILE THAT IS CDECL (run
    link100, rung G2(a), lane R3G).
  *
@@ -3403,10 +3418,10 @@ static void *__fastcall ti_d0(void *s, void *) { return func_ov007_020cc070((int
  * census says how many times each slot was entered and how many of those
  * arrived with the wrong block. */
 extern "C" void port_r3g_gc_enter(unsigned slot, void *self);
-static int ti_gc0(void *s)  { port_r3g_gc_enter(0, s); return func_ov007_020cc110(); }
-static int ti_gc1(void *s)  { port_r3g_gc_enter(1, s); return _ZN5Scene14GraphCallback1Ev(s); }
-static int ti_gc2(void *s)  { port_r3g_gc_enter(2, s); return func_ov007_020cc0f4(s); }
-static int ti_gc3(void *s)  { port_r3g_gc_enter(3, s); return _ZN5Scene14GraphCallback3Ev(s); }
+static int ti_gc0(void *s)  { port_r3g_gc_enter(0, s); return _ZN9dScDSMT_c15graphCallback_c14GraphCallback0Ev(); }
+static int ti_gc1(void *s)  { port_r3g_gc_enter(1, s); return _ZN8dGraph_c10callback_c14GraphCallback1Ev(s); }
+static int ti_gc2(void *s)  { port_r3g_gc_enter(2, s); return _ZN9dScDSMT_c15graphCallback_c14GraphCallback2Ev(s); }
+static int ti_gc3(void *s)  { port_r3g_gc_enter(3, s); return _ZN8dGraph_c10callback_c14GraphCallback3Ev(s); }
 
 /* The registry named in the block comment above. One entry today; an array
    because the next seated scene class adds a row rather than a special case,
@@ -3511,13 +3526,13 @@ extern "C" int port_graph_block_beat(void)
  * data_0209d4a8 in the whole arm9 image was swept (nine literal loads, word
  * aligned, resolved through their pools); four of them dispatch:
  *
- *   func_02019100  ldr r1,[r1,#0xc]  vt[3]  func_ov004_020ae03c  scene slot 25
- *   func_02019144  ldr r1,[r1,#8]    vt[2]  func_ov004_020ae06c  scene slot 24
- *   func_02019390  ldr r1,[r1]       vt[0]  func_ov004_020ae0d4  scene slot 23
- *   func_02019404  ldr r1,[r1,#4]    vt[1]  func_ov004_020ae0a4  scene slot 22
+ *   func_02019100  ldr r1,[r1,#0xc]  vt[3]  _ZN11dScMgBase_c15graphCallback_c14GraphCallback3Ev  scene slot 25
+ *   func_02019144  ldr r1,[r1,#8]    vt[2]  _ZN11dScMgBase_c15graphCallback_c14GraphCallback2Ev  scene slot 24
+ *   func_02019390  ldr r1,[r1]       vt[0]  _ZN11dScMgBase_c15graphCallback_c14GraphCallback0Ev  scene slot 23
+ *   func_02019404  ldr r1,[r1,#4]    vt[1]  _ZN11dScMgBase_c15graphCallback_c14GraphCallback1Ev  scene slot 22
  *
  * and the other five are plain stores that clear or set the pointer
- * (func_02019440, func_02034d70, func_0203506c and two in the 0x0202Cxxx pair).
+ * (func_02019440, _ZN7dScMB_c16CleanupResourcesEv, _ZN7dScMB_c13InitResourcesEv and two in the 0x0202Cxxx pair).
  *
  * WHERE WORD 0 IS CALLED FROM: src/func_020197b8.c, the ROM's frame loop, at
  * PHASE 2 -- `data_0209d50c = 2; func_02019390();`. This port has that position
@@ -3534,13 +3549,13 @@ extern "C" int port_graph_block_beat(void)
  * was never called at all.
  *
  * THE BLAST RADIUS IS THREE SCENES, counted out of the ROM rather than argued.
- * Word 0's forwarder func_ov004_020ae0d4 returns 1 unconditionally -- unlike
+ * Word 0's forwarder _ZN11dScMgBase_c15graphCallback_c14GraphCallback0Ev returns 1 unconditionally -- unlike
  * word 2's, which returns the scene's own answer and gates func_02019144's
  * tail -- so seating this cannot change what runs after it for anybody. And
  * byte +0x5c of all THIRTY-TWO ov006 ActorBase-signature tables, read from
  * extracted/overlays/overlay_0006.bin at base 0x020bfec0:
  *
- *     29 tables INHERIT func_ov004_020ae1a0, whose entire body is `return 1;`
+ *     29 tables INHERIT _ZN11dScMgBase_c11OnAttacked2Ev, whose entire body is `return 1;`
  *      3 tables OVERRIDE
  *          0x0213fb34 -> 0x0212101c   384, dScMgTrampoline_c
  *          0x0213fc7c -> 0x02122f24   385, dScMgTrampoline2_c
@@ -3550,13 +3565,13 @@ extern "C" int port_graph_block_beat(void)
  * and the three it reaches are the three whose stylus this unblocks.
  *
  * WORD 1 IS DEAD, AND IT IS DEAD ON THE DS TOO. Byte +0x58 of the same thirty-
- * two tables is func_ov004_020ae198 -- also `return 1;` -- in ALL THIRTY-TWO.
+ * two tables is _ZN11dScMgBase_c11OnAttacked1Ev -- also `return 1;` -- in ALL THIRTY-TWO.
  * Nothing overrides slot 22, so func_02019404's dispatch reaches no scene body
  * in this game. It is not seated here because there is nothing to seat.
  *
  * WORD 3 IS A REAL GAP AND IT IS NOT THIS ONE. func_02019100 dispatches it and
  * then clears data_0209d464, the latch slot 24 gates its display swap on; 25 of
- * the 32 inherit func_ov004_020ae128 (`return unk_4628 == 0`, whose answer
+ * the 32 inherit _ZN11dScMgBase_c8OnPushedEv (`return unk_4628 == 0`, whose answer
  * func_02019100 discards) and SEVEN override, including the whole D3D family.
  * That is a separate census and a separate proof and it is queued, not taken.
  */
@@ -3643,7 +3658,7 @@ static void scene_fill_title(void)
 /* The registry's factory column is void *(*)(void) and the matched factory
    returns int *. One typed forwarder rather than a cast through an
    incompatible function pointer; /OPT:REF follows it to the real body. */
-static void *title_spawn(void) { return (void *)func_ov007_020ccad0(); }
+static void *title_spawn(void) { return (void *)dScDSMT_c_classInit(); }
 
 // ---- the registry seat -----------------------------------------------------
 //
@@ -3682,7 +3697,7 @@ struct PortSceneClass {
    two placeholder spellings are renamed per TU onto the ROM's own literal-pool
    words in port/CMakeLists.txt. dScTitle_c is what is left, and its six bodies
    are ruled too, so what remains for it is the placeholder trio in
-   src/func_ov003_020ad660.c and a row here. Adding it is a row plus a block in
+   src/_ZN10dScTitle_cD1Ev.cpp and a row here. Adding it is a row plus a block in
    a slice.
    ov007's dScDSMT_c hit BOTH of those blockers and cleared them rather than
    being excused from them: its six marker-carrying bodies are ruled against
@@ -3699,7 +3714,7 @@ struct PortSceneClass {
    port_scene_registry_install makes below. */
 /* THE MINIGAME ROW IS SEATED, run link60 lane MG2, and it is the third scene
    class and the first from ov006. dScMgCurling_c, actor id 0x176 (374), spawn
-   symbol MgShuffleShell_Spawn; the ROM's own RTTI string at 0x0213c2d0 reads
+   symbol dScMgCurling_c_classInit; the ROM's own RTTI string at 0x0213c2d0 reads
    "14dScMgCurling_c" and Shuffle Shell is the same minigame's localised name.
    MG1 derived the whole seat -- SpawnInfo, factory, all thirty-six vtable
    slots, twenty-five bodies ruled REAL_DECOMP -- and left this row out for one
@@ -3720,13 +3735,13 @@ struct PortSceneClass {
    in ov006 lands on data_02092110 and no ov006 source TU names it,
    SublevelToLevel or SUBLEVEL_LEVEL_TABLE. A minigame is not about a course. */
 /* THE SMARTBALL MINIGAME ROW, run mg5 lane SMB. dScMgSmartball_c, actor id 0x178
-   (376), spawn symbol MgBingoBallSlotsShot_Spawn; the ROM's own RTTI string at
+   (376), spawn symbol dScMgSmartball_c_classInit; the ROM's own RTTI string at
    0x0213ec7c reads "16dScMgSmartball_c" and Slots Shot and Bingo Ball are the
    two menu games this one class serves. Identity was re-derived from the image
    rather than taken from port/mg_fanout_costs.txt section 3: the doubled-id
    word 0x01780178 occurs exactly once in overlay_0006.bin, at 0x0213ebd4, so
    the SpawnInfo is 0x0213ebd0 and its first word 0x02119824 is the factory,
-   and that factory's own literal pool names data_ov006_0213eefc as the vtable.
+   and that factory's own literal pool names _ZTV16dScMgSmartball_c as the vtable.
    All three of section 11's width checks put the table at 36 slots.
 
    IT IS APPENDED AFTER CURLING'S AND THAT IS THE POINT OF THE ORDER. Section
@@ -3751,7 +3766,7 @@ struct PortSceneClass {
    in ov006 lands on data_02092110. */
 
 /* THE COINCENTRATION MINIGAME ROW, run mg5 lane CCN. dScMgCoin_c, actor id 0x17a
-   (378), spawn symbol MgCoincentration_Spawn; the ROM's own RTTI string at
+   (378), spawn symbol dScMgCoin_c_classInit; the ROM's own RTTI string at
    0x0213bf24 reads "11dScMgCoin_c" and Coincentration is the minigame's
    localised name. Its SpawnInfo (0x0213bedc), factory (0x020de940) and vtable
    (data_ov006_0213bf50, width 36, span-checked three ways) were all re-derived
@@ -3800,11 +3815,11 @@ struct PortSceneClass {
    copied: no relocation anywhere in ov006 lands on data_02092110 and no ov006
    source TU names it. A minigame is not about a course. */
 extern "C" {
-extern unsigned char MgShuffleShell_SpawnInfo[];
+extern unsigned char g_profile_MG_CURLING[];
 void *port_mg_curling_spawn(void);
 void port_scene_fill_curling(void);
 /* run mg5 lane LUI: dScMgLuigi_c, the "Wanted!" minigame. */
-extern unsigned char MgWanted_SpawnInfo[];
+extern unsigned char g_profile_MG_LUIGI[];
 void *port_mg_luigi_spawn(void);
 void port_scene_fill_luigi(void);
 }
@@ -3827,37 +3842,37 @@ void port_scene_fill_luigi(void);
    for this class: no relocation in ov006 lands on data_02092110 and no TU in
    this class's closure names it. */
 extern "C" {
-extern unsigned char MgBobOmbSquad_SpawnInfo[];
+extern unsigned char g_profile_MG_PACHINKO[];
 void *port_mg_pachinko_spawn(void);
 void port_scene_fill_pachinko(void);
 /* run mg5 lane SMB: dScMgSmartball_c, the Slots Shot / Bingo Ball minigame.
    Same reads_sublevel reasoning and the same appended-row rule as above. */
-extern unsigned char MgBingoBallSlotsShot_SpawnInfo[];
+extern unsigned char g_profile_MG_SMARTBALL[];
 void *port_mg_smartball_spawn(void);
 void port_scene_fill_smartball(void);
 /* run mg5 lane CCN: dScMgCoin_c, the Coincentration minigame. */
-extern unsigned char MgCoincentration_SpawnInfo[];
+extern unsigned char g_profile_MG_COIN[];
 void *port_mg_coin_spawn(void);
 void port_scene_fill_coin(void);
 /* run mg5 lane FLW: dScMgFlower_c, the "Loves Me...?" minigame. Its SpawnInfo
    is spelled as the raw config symbol rather than a recovered name because the
    ROM gives this one no spawn symbol; hal/scene_mg_flower.cpp carries the
    derivation from the doubled-id word at 0x02140118. */
-extern unsigned char data_ov006_02140114[];
+extern unsigned char g_profile_MG_FLOWER[];
 void *port_mg_flower_spawn(void);
 void port_scene_fill_flower(void);
 /* run mg6 lane MEM: dScMgMemory2_c, the "Memory Master" minigame. Same
    reads_sublevel reasoning and the same appended-row rule as above, both
    re-checked for this class: no relocation anywhere in ov006 lands on
    data_02092110 and no TU in this class's closure names it. */
-extern unsigned char MgMemoryMaster_SpawnInfo[];
+extern unsigned char g_profile_MG_MEMORY_J[];
 void *port_mg_memory2_spawn(void);
 void port_scene_fill_memory2(void);
 /* run mg6 lane LKT: dScMgPachinko2_c, the "Lakitu Launch" minigame and the
    SIBLING of the 368 row above in both the class name and the ROM's own data
    adjacency. hal/scene_mg.cpp's "RUN mg6, LANE LKT" banner carries the
    derivation. */
-extern unsigned char MgLakituLaunch_SpawnInfo[];
+extern unsigned char g_profile_MG_TAMAIRE[];
 void *port_mg_pachinko2_spawn(void);
 void port_scene_fill_pachinko2(void);
 /* run mg6 lane SOS: dScMgBomroom_c, actor id 0x172 = scene 370, the
@@ -3866,7 +3881,7 @@ void port_scene_fill_pachinko2(void);
    named for the class the way SCENE_MG_CURLING and SCENE_MG_COIN are.
    port/slice_sos.txt carries the derivation, the three width checks and the
    two floors; hal/scene_mg_bomroom.cpp is the seat. */
-extern unsigned char MgSortOrSplode_SpawnInfo[];
+extern unsigned char g_profile_MG_BOMROOM[];
 void *port_mg_bomroom_spawn(void);
 void port_scene_fill_bomroom(void);
 /* run mg6 lane S75: dScMgCurling2_c, the advanced half of the curling pair
@@ -3875,7 +3890,7 @@ void port_scene_fill_bomroom(void);
    hal/scene_mg_curling2.cpp and port/slice_s75.txt carry the derivation from
    the doubled-id word 0x01770177 at 0x0213c438, which occurs exactly once in
    the overlay. */
-extern unsigned char data_ov006_0213c434[];
+extern unsigned char g_profile_MG_CURLING_J[];
 void *port_mg_curling2_spawn(void);
 void port_scene_fill_curling2(void);
 /* run mg6 lane PPP: dScMgPanel_c, actor id 0x17c. The spawn symbol carries
@@ -3886,7 +3901,7 @@ void port_scene_fill_curling2(void);
    reads_sublevel reasoning as the rows above, re-checked for this class: no
    relocation in ov006 lands on data_02092110 and no TU in this class's
    closure names it. */
-extern unsigned char MgPuzzlePanelPuzzlePanic_SpawnInfo[];
+extern unsigned char g_profile_MG_PANEL[];
 void *port_mg_panel_spawn(void);
 void port_scene_fill_panel(void);
 /* run mg9 lane CUP: dScMgCup_c, actor id 0x169 = scene 361 -- the minigame the
@@ -3904,7 +3919,7 @@ void port_scene_fill_panel(void);
    derivation and hal/scene_mg_cup.cpp is the seat. Same reads_sublevel
    reasoning as the rows above, re-checked for this class: no relocation in
    ov006 lands on data_02092110 and no TU in this class's closure names it. */
-extern unsigned char data_ov006_0213c020[];
+extern unsigned char g_profile_MG_CUP[];
 void *port_mg_cup_spawn(void);
 void port_scene_fill_cup(void);
 /* run mg9 lane MMT: dScMgMemory_c, actor id 0x16a = scene 362, the "Memory
@@ -3915,7 +3930,7 @@ void port_scene_fill_cup(void);
    SCENE_MG_CURLING and SCENE_MG_MEMORY2 are. Same reads_sublevel reasoning as
    the rows above, re-checked for this class: no relocation in ov006 lands on
    data_02092110 and no TU in this class's closure names it. */
-extern unsigned char MgMemoryMatch_SpawnInfo[];
+extern unsigned char g_profile_MG_MEMORY[];
 void *port_mg_memory1_spawn(void);
 void port_scene_fill_memory1(void);
 /* run mg9 lane S364: dScMgSlot1_c, actor id 0x16c = scene 364. The SpawnInfo
@@ -3931,17 +3946,17 @@ void port_scene_fill_memory1(void);
    reasoning
    as the rows above, re-checked for this class: no relocation in ov006 lands
    on data_02092110 and no TU in this class's closure names it. */
-extern unsigned char data_ov006_0213e560[];
+extern unsigned char g_profile_MG_SLOT1[];
 void *port_mg_slot1_spawn(void);
 void port_scene_fill_slot1(void);
 /* run mg9 lane BOX: dScMgSound_c, actor id 0x16f = scene 367, the "Boom Box"
    minigame. The spawn symbol is MgBoomBox and the class name is the ROM's own
    RTTI, reached through the type_info the word BEFORE the vtable points at:
-   data_ov006_0213f844[-1] is 0x0213f6e4, whose name pointer is 0x0213f708,
+   _ZTV12dScMgSound_c[-1] is 0x0213f6e4, whose name pointer is 0x0213f708,
    which reads "12dScMgSound_c". Same reads_sublevel reasoning as the rows
    above, re-checked for this class: no relocation in ov006 lands on
    data_02092110 and no TU in this class's closure names it. */
-extern unsigned char MgBoomBox_SpawnInfo[];
+extern unsigned char g_profile_MG_SOUND[];
 void *port_mg_boombox_spawn(void);
 void port_scene_fill_boombox(void);
 /* run mg9 lane S371: dScMgAmida_c, actor id 0x173 = scene 371, and THE ONE
@@ -3959,7 +3974,7 @@ void port_scene_fill_boombox(void);
    and the 25-way control that proves the title chain. Same reads_sublevel
    reasoning as every row above, re-checked for this class: no relocation in
    ov006 lands on data_02092110 and no TU in this class's closure names it. */
-extern unsigned char data_ov006_0213b814[];
+extern unsigned char g_profile_MG_AMIDA[];
 void *port_mg_amida_spawn(void);
 void port_scene_fill_amida(void);
 /* run mg9 lane S381: dScMgMCarlo_c, actor id 0x17d = scene 381, the
@@ -3975,7 +3990,7 @@ void port_scene_fill_amida(void);
    hal/scene_mg_mcarlo.cpp is the seat. Same reads_sublevel reasoning as the
    rows above, re-derived rather than copied: no relocation anywhere in ov006
    lands on data_02092110 and no TU in this class's closure names it. */
-extern unsigned char data_ov006_0213d580[];
+extern unsigned char g_profile_MG_MCARLO[];
 void *port_mg_mcarlo_spawn(void);
 void port_scene_fill_mcarlo(void);
 /* run mg9 lane WIG: dScMgHanachan_c, actor id 0x182 = scene 386, the "Which
@@ -3985,7 +4000,7 @@ void port_scene_fill_mcarlo(void);
    class the way SCENE_MG_CURLING, SCENE_MG_LUIGI and SCENE_MG_BOMROOM are.
    port/slice_wig.txt carries the derivation, the five width checks and the two
    floors; hal/scene_mg_wiggler.cpp is the seat. */
-extern unsigned char MgWhichWiggler_SpawnInfo[];
+extern unsigned char g_profile_MG_HANACHAN[];
 void *port_mg_wiggler_spawn(void);
 void port_scene_fill_wiggler(void);
 /* run mg9 lane BOO: dScMgTeresa_c, actor id 0x183, "Hide and Boo Seek". The
@@ -3993,12 +4008,12 @@ void port_scene_fill_wiggler(void);
    RTTI at 0x0213f9c0 -- reached through the type_info the word BEFORE the
    vtable points at, relocs.txt from:0x0213fa08 to:0x0213f9b4 -- reads
    "13dScMgTeresa_c", so the row is named for the class the way SCENE_MG_PANEL
-   and SCENE_MG_LUIGI are. Teresa is Boo's Japanese name, so the two witnesses
+   and SCENE_MG_LUIGI are. Teresa is daTrs_c's Japanese name, so the two witnesses
    agree about what the class is and only the relocation is unfalsifiable.
    Same reads_sublevel reasoning as every minigame row above, re-checked for
    this class rather than copied: no relocation in ov006 lands on
    data_02092110 and no TU in this class's closure names it. */
-extern unsigned char MgHideAndBooSeek_SpawnInfo[];
+extern unsigned char g_profile_MG_TERESA[];
 void *port_mg_booseek_spawn(void);
 void port_scene_fill_booseek(void);
 /* run mg9 lane LKY: dScMgBSC_c, actor id 0x184. The spawn symbol is
@@ -4008,17 +4023,17 @@ void port_scene_fill_booseek(void);
    SCENE_MG_LUIGI and SCENE_MG_PANEL are. Same reads_sublevel reasoning as the
    rows above, re-checked for this class: no relocation in ov006 lands on
    data_02092110 and no TU in this class's closure names it. */
-extern unsigned char MgLuckyStars_SpawnInfo[];
+extern unsigned char g_profile_MG_BS_CARD[];
 void *port_mg_luckystars_spawn(void);
 void port_scene_fill_luckystars(void);
 /* run mg9 lane PSY: dScMg3DEsp_c, actor id 0x185, the "Psyche Out!" minigame.
    The class name is the ROM's own type_info, reached the way the panel row
-   above reaches its: the word BEFORE data_ov006_0213c8c4 points at 0x0213c7c8
+   above reaches its: the word BEFORE _ZTV12dScMg3DEsp_c points at 0x0213c7c8
    and that record's name pointer is 0x0213c7d4, which reads "12dScMg3DEsp_c".
    Same reads_sublevel reasoning as the rows above, re-checked for this class:
    no relocation in ov006 lands on data_02092110 and no TU in this class's
    closure names it. */
-extern unsigned char MgPsycheOut_SpawnInfo[];
+extern unsigned char g_profile_MG_3DESP[];
 void *port_mg_esp3d_spawn(void);
 void port_scene_fill_esp3d(void);
 /* run mg11 lane MUG: dScMgSlot3_c, actor id 0x16d = scene 365, the "Mix-a-Mug"
@@ -4027,18 +4042,18 @@ void port_scene_fill_esp3d(void);
    and a config-wide sweep for the address finds only
    symbols/actor_renames_report.txt's own UNRESOLVED line. The class name is
    the ROM's own type_info, reached the way the rows above reach theirs: the
-   word BEFORE data_ov006_0213eaa8 points at 0x0213e588 and that record's name
+   word BEFORE _ZTV12dScMgSlot3_c points at 0x0213e588 and that record's name
    pointer is 0x0213e5ac, which reads "12dScMgSlot3_c". port/slice_mug.txt has
    the title derivation (ov005 row 31 -> name text 27 -> BMG message 575 ->
    "Mix-a-Mug") and the 25-of-25 control that decides which byte of the param
    is the name-text index. Same reads_sublevel reasoning as every row above,
    re-checked for this class: no relocation in ov006 lands on data_02092110 and
    no TU in this class's closure names it. */
-extern unsigned char data_ov006_0213e508[];
+extern unsigned char g_profile_MG_SLOT3[];
 void *port_mg_slot3_spawn(void);
 void port_scene_fill_slot3(void);
 /* run mg11 lane BNP: dScMgJump_c, actor id 0x174 = scene 372, the "Bounce and
-   Pounce" minigame. The spawn symbol MgBounceAndPounce carries the ROM's own
+   Pounce" minigame. The spawn symbol dScMgD3DBase_c carries the ROM's own
    English title through the ov005 launch table (row 4, param 0x00040400 ->
    name-text 4 -> data_ov004_020bc070[4] = 552 -> BMG message 552 = "Bounce and
    Pounce"), and the ROM's own RTTI -- reached through the type_info the word
@@ -4048,15 +4063,15 @@ void port_scene_fill_slot3(void);
 
    THE SPAWNINFO IS SPELLED BY ITS SYMBOL AND THE VTABLE IS NOT, and the
    difference matters. config/arm9/overlays/ov006/symbols.txt gives the name
-   _ZTV17MgBounceAndPounce to 0x0213c62c, which is the BASE class
+   _ZTV14dScMgD3DBase_c to 0x0213c62c, which is the BASE class
    dScMgD3DBase_c's table, not this class's; this class's own table is only
-   ever spelled data_ov006_0213cbe4. port/slice_bnp.txt section 4 is the
+   ever spelled _ZTV11dScMgJump_c. port/slice_bnp.txt section 4 is the
    derivation and hal/scene_mg_jump.cpp fills both.
 
    Same reads_sublevel reasoning as every minigame row above, re-derived rather
    than copied: no relocation anywhere in ov006 lands on data_02092110 and no
    TU in this class's closure names it. A minigame is not about a course. */
-extern unsigned char MgBounceAndPounce_SpawnInfo[];
+extern unsigned char g_profile_MG_JUMP[];
 void *port_mg_jump_spawn(void);
 void port_scene_fill_jump(void);
 /* run mg11 lane BNT: dScMgJump2_c, actor id 0x175, scene 373, the "Bounce and
@@ -4070,7 +4085,7 @@ void port_scene_fill_jump(void);
    every minigame row above, re-checked for this class rather than copied: no
    relocation anywhere in ov006 lands on data_02092110 and no TU in this
    class's closure names it. */
-extern unsigned char MgBounceAndTrounce_SpawnInfo[];
+extern unsigned char g_profile_MG_JUMP2[];
 void *port_mg_jump2_spawn(void);
 void port_scene_fill_jump2(void);
 /* run mg11 lane SNW: dScMgSnowball_c, actor id 0x179 = scene 377, "Snowball
@@ -4082,16 +4097,16 @@ void port_scene_fill_jump2(void);
 
    THIS IS THE ONE ROW port/mg_fanout_costs.txt SECTION 3 LEFT BLANK.  Its
    vtable resolves through no load relocation in its own factory, because
-   src/MgSnowballSlalom_Spawn.cpp writes no vtable at all: it allocates 0xc59c
-   and calls func_ov006_021295ac, which writes data_ov006_0213e448 and then
-   data_ov006_0214000c.  port/slice_snw.txt is the hand derivation, including
+   src/d_s_mg_snowball.cpp writes no vtable at all: it allocates 0xc59c
+   and calls func_ov006_021295ac, which writes _ZTV19dScMgSingle3DBase_c and then
+   _ZTV15dScMgSnowball_c.  port/slice_snw.txt is the hand derivation, including
    the five width checks, the ruling-out of the two alternative signature
    tables and the four-site pointer-to-member wall.
 
    Same reads_sublevel reasoning as every minigame row above, re-derived rather
    than copied: no relocation anywhere in ov006 lands on data_02092110 and no
    TU in this class's closure names it.  A minigame is not about a course. */
-extern unsigned char MgSnowballSlalom_SpawnInfo[];
+extern unsigned char g_profile_MG_SNOWBALL[];
 void *port_mg_snowball_spawn(void);
 void port_scene_fill_snowball(void);
 /* run mg11 lane PKR: dScMgCard_c, actor id 0x17b = scene 379, the "Picture
@@ -4108,13 +4123,13 @@ void port_scene_fill_snowball(void);
    reasoning as every minigame row above, re-checked for this class rather than
    copied: no relocation in ov006 lands on data_02092110 and no TU in this
    class's closure names it. */
-extern unsigned char MgPicturePoker_SpawnInfo[];
+extern unsigned char g_profile_MG_CARD[];
 void *port_mg_card_spawn(void);
 void port_scene_fill_card(void);
 /* run mg11 lane PGO: dScMgMCarlo2_c, actor id 0x17e = scene 382, the
    "Pair-a-Gone And On" endless-mode card minigame -- the sequel to scene 381's
    Pair-a-Gone, which run mg9 lane S381 seated. This id DOES have a spawn
-   symbol, unlike its sibling: MgPairAGoneAndOn_SpawnInfo at 0x0213d70c, whose
+   symbol, unlike its sibling: g_profile_MG_MCARLO2 at 0x0213d70c, whose
    second word is the doubled id 0x017e017e. The class name comes out of the
    ROM's own type_info at 0x0213d714, reached through the word before the
    vtable, whose name pointer 0x0213d730 reads "14dScMgMCarlo2_c"; the player
@@ -4126,7 +4141,7 @@ void port_scene_fill_card(void);
    hal/scene_mg_mcarlo2.cpp is the seat. Same reads_sublevel reasoning as every
    minigame row above, re-derived rather than copied: no relocation anywhere in
    ov006 lands on data_02092110 and no TU in this class's closure names it. */
-extern unsigned char MgPairAGoneAndOn_SpawnInfo[];
+extern unsigned char g_profile_MG_MCARLO2[];
 void *port_mg_mcarlo2_spawn(void);
 void port_scene_fill_mcarlo2(void);
 /* run mg11 lane RLT: dScMgRoulette_c, actor id 0x17f = scene 383, "Mushroom
@@ -4143,7 +4158,7 @@ void port_scene_fill_mcarlo2(void);
    rows above, re-checked for this class rather than copied: no relocation
    anywhere in ov006 lands on data_02092110 and no TU in this class's closure
    names it. */
-extern unsigned char MgMushroomRoulette_SpawnInfo[];
+extern unsigned char g_profile_MG_ROULETTE[];
 void *port_mg_roulette_spawn(void);
 void port_scene_fill_roulette(void);
 /* run mg11 lane TTI: dScMgTrampoline_c, actor id 0x180 = scene 384,
@@ -4157,7 +4172,7 @@ void port_scene_fill_roulette(void);
    hal/scene_mg_trampoline.cpp is the seat. Same reads_sublevel reasoning as the
    rows above, re-checked for this class: no relocation in ov006 lands on
    data_02092110 and no TU in this class's closure names it. */
-extern unsigned char MgTrampolineTime_SpawnInfo[];
+extern unsigned char g_profile_MG_TRAMPOLINE[];
 void *port_mg_trampoline_spawn(void);
 void port_scene_fill_trampoline(void);
 /* run mg11 lane TTE: dScMgTrampoline2_c, actor id 0x181 = scene 385, the
@@ -4171,7 +4186,7 @@ void port_scene_fill_trampoline(void);
    Same reads_sublevel reasoning as every minigame row above, re-derived rather
    than copied: no relocation in ov006 lands on data_02092110 and no TU in this
    class's closure names it. */
-extern unsigned char MgTrampolineTerror_SpawnInfo[];
+extern unsigned char g_profile_MG_TRAMPOLINE2[];
 void *port_mg_trampoline2_spawn(void);
 void port_scene_fill_trampoline2(void);
 /* run mg15 lane MENU: dScMiniGm_c, actor id 5 -- the minigame SELECTION MENU
@@ -4179,7 +4194,7 @@ void port_scene_fill_trampoline2(void);
    that this harness has skipped for its whole history. Not an ov006 minigame
    and not a 36-slot dScMgBase_c subclass: it lives in ov005, it is a direct
    Scene subclass with the same EIGHTEEN-slot table dScStarSel_c and dScDSMT_c
-   have, and its SpawnInfo is the mount's own data_ov005_020c2440 rather than a
+   have, and its SpawnInfo is the mount's own g_profile_MINIGAME rather than a
    named Mg* symbol (dsd names no spawn symbol in ov005). The id is derived two
    ways that agree -- src/GetSceneOverlayID.c's `case 5: return &overlay_5` and
    the arm9 spawn-table relocation from:0x02090878 to:0x020c2440, whose index
@@ -4196,7 +4211,7 @@ void port_scene_fill_trampoline2(void);
    answers 0. The sublevel answer is measured the same way every row above is:
    no relocation anywhere in ov005 lands on data_02092110 and no TU in this
    class's closure names it. */
-extern unsigned char data_ov005_020c2440[];
+extern unsigned char g_profile_MINIGAME[];
 void *port_mgm_spawn(void);
 void port_scene_fill_mgm(void);
 /* VS wiring lane: dScEntry_c, scene id 6 -- the VS / wireless entry menu
@@ -4208,7 +4223,7 @@ void port_scene_fill_mgm(void);
    hal/scene_vs_menu.cpp is the seat. reads_sublevel is 0: the menu WRITES
    data_02092110 (its start path stages the VS map via LoadLevelNoReturn) and
    no relocation in ov075 reads it. */
-extern unsigned char data_ov075_0211c880[];
+extern unsigned char g_profile_ENTRY[];
 void *port_vs_spawn(void);
 void port_scene_fill_vs(void);
 // ---- link100 SCENE ----
@@ -4224,7 +4239,7 @@ void port_scene_fill_vs(void);
    Scene subclasses with the same eighteen-slot shape dScStarSel_c,
    dScMiniGm_c and dScEntry_c have.
    THESE ARE THE ROM'S TWO BOOT SCENES AND THEY ARE A FORK, NOT A SEQUENCE:
-   src/_ZN5Scene18PrepareToSpawnBootEv.c parks id 0 when func_0203d9b4()
+   src/_ZN8dScene_c18PrepareToSpawnBootEv.cpp parks id 0 when func_0203d9b4()
    answers non-zero and 0x168 otherwise, so a cartridge boot gets dScBoot_c and
    a DS Download Play boot gets dScMB_c. Neither is reached from the title;
    dScBoot_c's Behavior is what asks FOR the title.
@@ -4236,24 +4251,24 @@ void port_scene_fill_vs(void);
    closure of each class (873 and 886 arm9 functions reachable from its factory
    and its own slots through config/arm9/relocs.txt) contains no src/ TU that
    names data_02092110. */
-extern unsigned char data_020914a8[];    /* dScBoot_c SpawnInfo, id 0   */
+extern unsigned char g_profile_BOOT[];    /* dScBoot_c SpawnInfo, id 0   */
 void *port_boot_scene_spawn(void);
 void port_scene_fill_boot(void);
-extern unsigned char data_0209435c[];    /* dScMB_c   SpawnInfo, id 360 */
+extern unsigned char g_profile_MULTIBOOT[];    /* dScMB_c   SpawnInfo, id 360 */
 void *port_mb_scene_spawn(void);
 void port_scene_fill_mb(void);
 // ---- end link100 SCENE ----
 }
 
 static const PortSceneClass port_scene_classes[] = {
-    {4, "SCENE_STAR_SELECT", StarSelect_SpawnInfo, StarSelect_Spawn,
+    {4, "SCENE_STAR_SELECT", g_profile_STAR_SELECT, dScStarSel_c_classInit,
      scene_fill_starsel, 1},
-    {1, "SCENE_TITLE", data_ov007_02103264, title_spawn,
+    {1, "SCENE_TITLE", g_profile_DSMT, title_spawn,
      scene_fill_title, 0},
     /* 374 is 0x176, and it is spelled in decimal because the other two rows
        are and because port/tools/battery.py reads its hosted-scene set out of
        this table. */
-    {374, "SCENE_MG_CURLING", MgShuffleShell_SpawnInfo, port_mg_curling_spawn,
+    {374, "SCENE_MG_CURLING", g_profile_MG_CURLING, port_mg_curling_spawn,
      port_scene_fill_curling, 0},
     /* run mg5 lane LUI. 366 is 0x16e; the spawn symbol is MgWanted and the
        ROM's own RTTI at 0x0213ce60 reads "12dScMgLuigi_c", so the row is named
@@ -4266,26 +4281,26 @@ static const PortSceneClass port_scene_classes[] = {
        derivation. Nothing in this class's fill writes outside its own 36-slot
        table -- the width is checked three ways in port/slice_lui.txt -- so the
        ordering is a rule this lane obeys rather than a hazard it relies on. */
-    {366, "SCENE_MG_LUIGI", MgWanted_SpawnInfo, port_mg_luigi_spawn,
+    {366, "SCENE_MG_LUIGI", g_profile_MG_LUIGI, port_mg_luigi_spawn,
      port_scene_fill_luigi, 0},
     /* 368 is 0x170, spelled in decimal for the reason the row above is. */
-    {368, "SCENE_MG_PACHINKO", MgBobOmbSquad_SpawnInfo, port_mg_pachinko_spawn,
+    {368, "SCENE_MG_PACHINKO", g_profile_MG_PACHINKO, port_mg_pachinko_spawn,
      port_scene_fill_pachinko, 0},
     /* 376 is 0x178. Appended, per the rule section 11 of
        port/mg_fanout_costs.txt derives from the once-per-process constructor
        gate. */
-    {376, "SCENE_MG_SMARTBALL", MgBingoBallSlotsShot_SpawnInfo,
+    {376, "SCENE_MG_SMARTBALL", g_profile_MG_SMARTBALL,
      port_mg_smartball_spawn, port_scene_fill_smartball, 0},
     /* APPENDED AT THE END, run mg5 lane CCN. 378 is 0x17a, spelled in decimal
        for the reason the row above gives. See the block above this table for
        why appending rather than inserting is the correct place for a minigame
        row. */
-    {378, "SCENE_MG_COIN", MgCoincentration_SpawnInfo, port_mg_coin_spawn,
+    {378, "SCENE_MG_COIN", g_profile_MG_COIN, port_mg_coin_spawn,
      port_scene_fill_coin, 0},
     /* 390 is 0x186, spelled in decimal for the same two reasons the row above
        is: the other rows are, and port/tools/battery.py reads its hosted-scene
        set out of this table. APPENDED LAST, on purpose; see the header. */
-    {390, "SCENE_MG_FLOWER", data_ov006_02140114, port_mg_flower_spawn,
+    {390, "SCENE_MG_FLOWER", g_profile_MG_FLOWER, port_mg_flower_spawn,
      port_scene_fill_flower, 0},
     /* APPENDED AFTER EVERY EXISTING ROW, run mg6 lane MEM. 363 is 0x16b,
        spelled in decimal for the two reasons the rows above are: the others
@@ -4297,7 +4312,7 @@ static const PortSceneClass port_scene_classes[] = {
        running after that row means the flower's fill claims the middle table
        first and its witness keeps counting exactly what it counted before this
        seat existed. hal/scene_mg_memory2.cpp section 3 is the measurement. */
-    {363, "SCENE_MG_MEMORY2", MgMemoryMaster_SpawnInfo, port_mg_memory2_spawn,
+    {363, "SCENE_MG_MEMORY2", g_profile_MG_MEMORY_J, port_mg_memory2_spawn,
      port_scene_fill_memory2, 0},
     /* 369 is 0x171, spelled in decimal for the reason every row above gives.
        APPENDED AFTER ALL OF THEM, run mg6 lane LKT, and the position is
@@ -4320,7 +4335,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 for the curling row's reason, re-checked for this
        class: no relocation anywhere in ov006 lands on data_02092110 and no TU
        in this class's closure names it. A minigame is not about a course. */
-    {369, "SCENE_MG_PACHINKO2", MgLakituLaunch_SpawnInfo,
+    {369, "SCENE_MG_PACHINKO2", g_profile_MG_TAMAIRE,
      port_mg_pachinko2_spawn, port_scene_fill_pachinko2, 0},
     /* APPENDED AT THE END, run mg6 lane SOS. 370 is 0x172, spelled in decimal
        for the two reasons the rows above are: the others are, and
@@ -4342,7 +4357,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 for the curling row's reason, re-derived rather than
        copied: no relocation anywhere in ov006 lands on data_02092110 and no TU
        in this class's closure names it. A minigame is not about a course. */
-    {370, "SCENE_MG_BOMROOM", MgSortOrSplode_SpawnInfo, port_mg_bomroom_spawn,
+    {370, "SCENE_MG_BOMROOM", g_profile_MG_BOMROOM, port_mg_bomroom_spawn,
      port_scene_fill_bomroom, 0},
     /* 375 is 0x177, spelled in decimal for the two reasons every row above
        gives. APPENDED AFTER EVERY EXISTING ROW, run mg6 lane S75, and for this
@@ -4354,7 +4369,7 @@ static const PortSceneClass port_scene_classes[] = {
        measured absent in both directions here -- hal/scene_mg_curling2.cpp
        section 3 has the four spans -- so this row obeys the rule rather than
        relying on it, and the lane's scene-374 canary is the check. */
-    {375, "SCENE_MG_CURLING2", data_ov006_0213c434, port_mg_curling2_spawn,
+    {375, "SCENE_MG_CURLING2", g_profile_MG_CURLING_J, port_mg_curling2_spawn,
      port_scene_fill_curling2, 0},
     /* 380 is 0x17c, spelled in decimal for the same two reasons the rows above
        are: the others are, and port/tools/battery.py reads its hosted-scene set
@@ -4367,7 +4382,7 @@ static const PortSceneClass port_scene_classes[] = {
        mounted .data. Nothing in this class's fill writes outside its own
        36-slot table -- the width is checked three ways in port/slice_ppp.txt --
        so appending is a rule this lane obeys rather than a hazard it needs. */
-    {380, "SCENE_MG_PANEL", MgPuzzlePanelPuzzlePanic_SpawnInfo,
+    {380, "SCENE_MG_PANEL", g_profile_MG_PANEL,
      port_mg_panel_spawn, port_scene_fill_panel, 0},
     /* 361 is 0x169, spelled in decimal for the two reasons every row above
        gives: the others are, and port/tools/battery.py reads its hosted-scene
@@ -4401,7 +4416,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 for the curling row's reason, re-derived rather than
        copied: no relocation anywhere in ov006 lands on data_02092110 and no TU
        in this class's closure names it. A minigame is not about a course. */
-    {361, "SCENE_MG_CUP", data_ov006_0213c020, port_mg_cup_spawn,
+    {361, "SCENE_MG_CUP", g_profile_MG_CUP, port_mg_cup_spawn,
      port_scene_fill_cup, 0},
     /* 362 is 0x16a, spelled in decimal for the two reasons every row above
        gives: the others are, and port/tools/battery.py reads its hosted-scene
@@ -4423,12 +4438,12 @@ static const PortSceneClass port_scene_classes[] = {
 
        SECTION 11's ACTUAL HAZARD IS LIVE FOR THIS CLASS AND IS MEASURED
        ABSENT. 0x16a is one of the twelve rows section 11 corrected from width
-       37 to width 36, and the word at index 36 of data_ov006_0213d1b8 is the
-       code half of an mwcc pair whose body, func_ov006_020f6538, is
+       37 to width 36, and the word at index 36 of _ZTV13dScMgMemory_c is the
+       code half of an mwcc pair whose body, _ZN14dScMgMemory2_c10ResultWaitEv, is
        dScMgMemory2_c's round-end state -- so a 37-slot fill here would clobber
        a live state of the row above on the same tree. This fill is called with
        36, and port/slice_mmt.txt has all four checks that say 36. */
-    {362, "SCENE_MG_MEMORY1", MgMemoryMatch_SpawnInfo, port_mg_memory1_spawn,
+    {362, "SCENE_MG_MEMORY1", g_profile_MG_MEMORY, port_mg_memory1_spawn,
      port_scene_fill_memory1, 0},
     /* 364 is 0x16c, spelled in decimal for the two reasons every row above
        gives: the others are, and port/tools/battery.py reads its hosted-scene
@@ -4446,7 +4461,7 @@ static const PortSceneClass port_scene_classes[] = {
        latent-safe direction.
 
        AND SECTION 11's HAZARD IS THE ONE THIS ROW WOULD HAVE CAUSED. Index 36
-       of data_ov006_0213eb40 is MgBingoBallSlotsShot_SpawnInfo's factory word
+       of data_ov006_0213eb40 is g_profile_MG_SMARTBALL's factory word
        0x02119824, followed by the doubled id 0x01780178 -- so a 37-slot fill
        here writes a host thunk over the factory pointer of SCENE 376, which
        is the SCENE_MG_SMARTBALL row eleven lines above and ships today. The
@@ -4460,7 +4475,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 for the curling row's reason, re-derived rather than
        copied: no relocation anywhere in ov006 lands on data_02092110 and no TU
        in this class's closure names it. A minigame is not about a course. */
-    {364, "SCENE_MG_SLOT1", data_ov006_0213e560, port_mg_slot1_spawn,
+    {364, "SCENE_MG_SLOT1", g_profile_MG_SLOT1, port_mg_slot1_spawn,
      port_scene_fill_slot1, 0},
     /* 367 is 0x16f, spelled in decimal for the same two reasons every row
        above is: the others are, and port/tools/battery.py reads its
@@ -4483,7 +4498,7 @@ static const PortSceneClass port_scene_classes[] = {
        {code, 0} member pointer that __sinit_ov006_02132f68 copies into
        dScMgTeresa_c's state table, so a 37-slot fill would corrupt a
        DIFFERENT minigame's state. */
-    {367, "SCENE_MG_BOOMBOX", MgBoomBox_SpawnInfo, port_mg_boombox_spawn,
+    {367, "SCENE_MG_BOOMBOX", g_profile_MG_SOUND, port_mg_boombox_spawn,
      port_scene_fill_boombox, 0},
     /* 371 is 0x173, spelled in decimal for the same two reasons every row above
        is: the others are, and port/tools/battery.py reads its hosted-scene set
@@ -4501,14 +4516,14 @@ static const PortSceneClass port_scene_classes[] = {
        AND THE 37th WORD IS THIS TABLE'S OWN, checked three ways before the
        count was written (port/slice_s371.txt section 3): the span from
        data_ov006_0213b918 to the next config symbol data_ov006_0213b9ac is
-       exactly 37 words; slot 35 is this class's own func_ov006_020d1170 and
+       exactly 37 words; slot 35 is this class's own _ZN12dScMgAmida_c9Virtual8CEv and
        NOT the family terminator ov004 0x020ad660, so the terminator check does
        not refuse it; and slot 36 carries a load relocation of its own,
        from:0x0213b9a8 to:0x020d1188, which is what a live pointer has and a
        phantom slot never does. Section 11's hazard is a fill reaching into
        another object's data, and the word after this table -- 0x0213b9ac,
        value 0x00000100, no relocation -- is untouched. */
-    {371, "SCENE_MG_AMIDA", data_ov006_0213b814, port_mg_amida_spawn,
+    {371, "SCENE_MG_AMIDA", g_profile_MG_AMIDA, port_mg_amida_spawn,
      port_scene_fill_amida, 0},
     /* 381 is 0x17d, spelled in decimal for the two reasons every row above
        gives: the others are, and port/tools/battery.py reads its hosted-scene
@@ -4537,7 +4552,7 @@ static const PortSceneClass port_scene_classes[] = {
        writes. The width is 36 by four independent checks in
        port/slice_s381.txt, so the fill cannot reach past its own table
        either. */
-    {381, "SCENE_MG_MCARLO", data_ov006_0213d580, port_mg_mcarlo_spawn,
+    {381, "SCENE_MG_MCARLO", g_profile_MG_MCARLO, port_mg_mcarlo_spawn,
      port_scene_fill_mcarlo, 0},
     /* 386 is 0x182, spelled in decimal for the same two reasons every row above
        is: the others are, and port/tools/battery.py reads its hosted-scene set
@@ -4562,7 +4577,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 for the curling row's reason, re-derived rather than
        copied: no relocation anywhere in ov006 lands on data_02092110 and no TU
        in this class's closure names it. A minigame is not about a course. */
-    {386, "SCENE_MG_WIGGLER", MgWhichWiggler_SpawnInfo, port_mg_wiggler_spawn,
+    {386, "SCENE_MG_WIGGLER", g_profile_MG_HANACHAN, port_mg_wiggler_spawn,
      port_scene_fill_wiggler, 0},
     /* 387 is 0x183, spelled in decimal for the two reasons every row above
        gives: the others are, and port/tools/battery.py reads its hosted-scene
@@ -4585,7 +4600,7 @@ static const PortSceneClass port_scene_classes[] = {
        overlay constructor reads any part of this table and there is no word
        here for a fill to clobber ahead of a copy. port/slice_boo.txt carries
        all four. */
-    {387, "SCENE_MG_BOOSEEK", MgHideAndBooSeek_SpawnInfo,
+    {387, "SCENE_MG_BOOSEEK", g_profile_MG_TERESA,
      port_mg_booseek_spawn, port_scene_fill_booseek, 0},
     /* 388 is 0x184, spelled in decimal for the same two reasons every row above
        is: the others are, and port/tools/battery.py reads its hosted-scene set
@@ -4604,7 +4619,7 @@ static const PortSceneClass port_scene_classes[] = {
        so this row obeys the rule rather than relying on it.
 
        SECOND, this class is the THIRD to sit under dScMgSingle3DBase_c
-       (data_ov006_0213e448), after the flower row and the memory2 row above.
+       (_ZTV19dScMgSingle3DBase_c), after the flower row and the memory2 row above.
        All three files define their own face array over the same eight DS words
        and the fill keys on a DS address, so the row that runs FIRST claims the
        middle table and the later ones find nothing left to write. Appending
@@ -4614,7 +4629,7 @@ static const PortSceneClass port_scene_classes[] = {
        claim count so the zero is measured rather than assumed. That file also
        records the seam promotion scene_mg_memory2.cpp says is due at the third
        class, and why this lane did not take it mid-fan-out. */
-    {388, "SCENE_MG_LUCKYSTARS", MgLuckyStars_SpawnInfo,
+    {388, "SCENE_MG_LUCKYSTARS", g_profile_MG_BS_CARD,
      port_mg_luckystars_spawn, port_scene_fill_luckystars, 0},
     /* 389 is 0x185, spelled in decimal for the same two reasons every row above
        is: the others are, and port/tools/battery.py reads its hosted-scene set
@@ -4633,7 +4648,7 @@ static const PortSceneClass port_scene_classes[] = {
        so appending is a rule this lane obeys rather than a hazard it needs.
 
        The second is dScMgSingle3DBase_c. This is the THIRD class the port seats
-       under data_ov006_0213e448, after the flower row and the memory2 row, and
+       under _ZTV19dScMgSingle3DBase_c, after the flower row and the memory2 row, and
        all three define their own face array over the same eight DS words.
        psy_apply keys on a DS address, so the fill that runs first claims the
        middle table and the ones after it write nothing there. Appending after
@@ -4645,7 +4660,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 for the curling row's reason, re-derived rather than
        copied: no relocation anywhere in ov006 lands on data_02092110 and no TU
        in this class's closure names it. A minigame is not about a course. */
-    {389, "SCENE_MG_ESP3D", MgPsycheOut_SpawnInfo, port_mg_esp3d_spawn,
+    {389, "SCENE_MG_ESP3D", g_profile_MG_3DESP, port_mg_esp3d_spawn,
      port_scene_fill_esp3d, 0},
     /* 365 is 0x16d, spelled in decimal for the two reasons every row above
        gives: the others are, and port/tools/battery.py reads its hosted-scene
@@ -4677,7 +4692,7 @@ static const PortSceneClass port_scene_classes[] = {
        measured rather than assumed.
 
        SECTION 11's HAZARD IS LIVE FOR THIS CLASS AND IS MEASURED ABSENT. The
-       span from data_ov006_0213eaa8 to the next config symbol is THIRTY-EIGHT
+       span from _ZTV12dScMgSlot3_c to the next config symbol is THIRTY-EIGHT
        words, not 36, and the two extra words are the {0, &typeinfo} RTTI
        header of data_ov006_0213eb40 -- dScMgSlot1_c's vtable, the
        SCENE_MG_SLOT1 row twelve lines above, which ships today. A 38-slot fill
@@ -4688,7 +4703,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 for the curling row's reason, re-derived rather than
        copied: no relocation anywhere in ov006 lands on data_02092110 and no TU
        in this class's closure names it. A minigame is not about a course. */
-    {365, "SCENE_MG_SLOT3", data_ov006_0213e508, port_mg_slot3_spawn,
+    {365, "SCENE_MG_SLOT3", g_profile_MG_SLOT3, port_mg_slot3_spawn,
      port_scene_fill_slot3, 0},
     /* 372 is 0x174, spelled in decimal for the same two reasons every row above
        is: the others are, and port/tools/battery.py reads its hosted-scene set
@@ -4722,7 +4737,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 for the curling row's reason, re-derived rather than
        copied: no relocation anywhere in ov006 lands on data_02092110 and no TU
        in this class's closure names it. A minigame is not about a course. */
-    {372, "SCENE_MG_JUMP", MgBounceAndPounce_SpawnInfo, port_mg_jump_spawn,
+    {372, "SCENE_MG_JUMP", g_profile_MG_JUMP, port_mg_jump_spawn,
      port_scene_fill_jump, 0},
     /* APPENDED AFTER EVERY EXISTING ROW, run mg11 lane BNT. 373 is 0x175,
        spelled in decimal for the two reasons every row above is: the others
@@ -4741,7 +4756,7 @@ static const PortSceneClass port_scene_classes[] = {
        this lane obeys rather than a hazard it needs.
 
        The second is dScMgD3DBase_c, the intermediate base at
-       data_ov006_0213c62c (which the config misnames _ZTV17MgBounceAndPounce).
+       data_ov006_0213c62c (which the config misnames _ZTV14dScMgD3DBase_c).
        FOUR ids derive from it -- 0x174, 0x175, 0x180 and 0x181 -- and this
        wave seats the other three concurrently. Each seat defines its own
        seventeen-row array over the same seventeen DS words; jump2_apply keys
@@ -4751,7 +4766,7 @@ static const PortSceneClass port_scene_classes[] = {
        seat owns only its own derived table. hal/scene_mg_jump2.cpp section 3 is
        the argument, and the seat PRINTS the claimed count so the split is
        measured rather than assumed. */
-    {373, "SCENE_MG_JUMP2", MgBounceAndTrounce_SpawnInfo, port_mg_jump2_spawn,
+    {373, "SCENE_MG_JUMP2", g_profile_MG_JUMP2, port_mg_jump2_spawn,
      port_scene_fill_jump2, 0},
     /* 377 is 0x179, spelled in decimal for the same two reasons every row above
        is: the others are, and port/tools/battery.py reads its hosted-scene set
@@ -4772,7 +4787,7 @@ static const PortSceneClass port_scene_classes[] = {
        row obeys the rule rather than relying on it.
 
        SECOND, this class is the FOURTH to sit under dScMgSingle3DBase_c
-       (data_ov006_0213e448), after the flower row, the memory2 row and the
+       (_ZTV19dScMgSingle3DBase_c), after the flower row, the memory2 row and the
        luckystars row.  All four files define their own face array over the same
        eight DS words and the fill keys on a DS address, so the row that runs
        FIRST claims the middle table and the later ones find nothing left to
@@ -4782,7 +4797,7 @@ static const PortSceneClass port_scene_classes[] = {
        middle-table claim count so the zero is measured rather than assumed.
        That file also records why the kSingle3DFaces seam promotion -- due since
        the third class -- is still not the thing to take mid-fan-out. */
-    {377, "SCENE_MG_SNOWBALL", MgSnowballSlalom_SpawnInfo,
+    {377, "SCENE_MG_SNOWBALL", g_profile_MG_SNOWBALL,
      port_mg_snowball_spawn, port_scene_fill_snowball, 0},
     /* APPENDED AFTER EVERY EXISTING ROW, run mg11 lane PKR. 379 is 0x17b,
        spelled in decimal for the two reasons every row above gives: the others
@@ -4798,7 +4813,7 @@ static const PortSceneClass port_scene_classes[] = {
        run before those constructors read the mounted .data.
 
        The second is dScMgSingle3DBase_c. This is the FOURTH class the port
-       seats under data_ov006_0213e448, after the flower, memory2 and
+       seats under _ZTV19dScMgSingle3DBase_c, after the flower, memory2 and
        luckystars rows, and all four define their own face array over the same
        eight DS words. card_apply keys on a DS address, so the fill that runs
        FIRST claims the middle table and the ones after it write nothing there.
@@ -4815,7 +4830,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 for the curling row's reason, re-derived rather than
        copied: no relocation anywhere in ov006 lands on data_02092110 and no TU
        in this class's closure names it. A minigame is not about a course. */
-    {379, "SCENE_MG_CARD", MgPicturePoker_SpawnInfo, port_mg_card_spawn,
+    {379, "SCENE_MG_CARD", g_profile_MG_CARD, port_mg_card_spawn,
      port_scene_fill_card, 0},
     /* 382 is 0x17e, spelled in decimal for the two reasons every row above
        gives: the others are, and port/tools/battery.py reads its hosted-scene
@@ -4847,7 +4862,7 @@ static const PortSceneClass port_scene_classes[] = {
        word past the end is) is FOOLED for this class: index 36 reads
        0x020fb4e0, a real code address. A 37-slot fill would have put a host
        thunk over the first state of a different minigame. */
-    {382, "SCENE_MG_MCARLO2", MgPairAGoneAndOn_SpawnInfo, port_mg_mcarlo2_spawn,
+    {382, "SCENE_MG_MCARLO2", g_profile_MG_MCARLO2, port_mg_mcarlo2_spawn,
      port_scene_fill_mcarlo2, 0},
     /* 383 is 0x17f, spelled in decimal for the same two reasons every row above
        is: the others are, and port/tools/battery.py reads its hosted-scene set
@@ -4871,7 +4886,7 @@ static const PortSceneClass port_scene_classes[] = {
        is none at index 36.
 
        SECOND, dScMgSingle3DBase_c. This is the FIFTH class the port seats under
-       data_ov006_0213e448, after the flower, memory2, luckystars and mcarlo
+       _ZTV19dScMgSingle3DBase_c, after the flower, memory2, luckystars and mcarlo
        rows, and all five define their own face array over the same eight DS
        words. rlt_apply keys on a DS address, so the fill that runs first claims
        the middle table and the ones after it write nothing there. Appending
@@ -4882,7 +4897,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 for the curling row's reason, re-derived rather than
        copied: no relocation anywhere in ov006 lands on data_02092110 and no TU
        in this class's closure names it. A minigame is not about a course. */
-    {383, "SCENE_MG_ROULETTE", MgMushroomRoulette_SpawnInfo,
+    {383, "SCENE_MG_ROULETTE", g_profile_MG_ROULETTE,
      port_mg_roulette_spawn, port_scene_fill_roulette, 0},
     /* APPENDED AFTER EVERY EXISTING ROW, run mg11 lane TTI. 384 is 0x180,
        spelled in decimal for the two reasons every row above is: the others
@@ -4907,13 +4922,13 @@ static const PortSceneClass port_scene_classes[] = {
        the middle table is carrying, rather than leaving it inferred.
 
        THE WIDTH IS 36 AND A 37TH SLOT WOULD LAND ON THE SIBLING. Index 36 of
-       data_ov006_0213fb34 is 0x0213fbc4, which is dScMgTrampoline2_c's own int
+       _ZTV17dScMgTrampoline_c is 0x0213fbc4, which is dScMgTrampoline2_c's own int
        flag -- its slot-23 body loads it from 0x021230bc, the mirror of this
        class's slot 23 loading data_ov006_0213fa9c. All five width checks are in
        port/slice_tti.txt and the fill is called with 36.
 
        The class name is the ROM's own type_info, reached the way the panel and
-       Psyche Out rows reach theirs: the word BEFORE data_ov006_0213fb34 is
+       Psyche Out rows reach theirs: the word BEFORE _ZTV17dScMgTrampoline_c is
        0x0213fad0, and that record's name pointer 0x0213faf0 reads
        "17dScMgTrampoline_c", while its base pointer 0x0213c5c8 names
        "14dScMgD3DBase_c". The spawn symbol MgTrampolineTime carries the player
@@ -4927,7 +4942,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 for the curling row's reason, re-checked for this
        class rather than copied: no relocation anywhere in ov006 lands on
        data_02092110 and no TU in this class's closure names it. */
-    {384, "SCENE_MG_TRAMPOLINE", MgTrampolineTime_SpawnInfo,
+    {384, "SCENE_MG_TRAMPOLINE", g_profile_MG_TRAMPOLINE,
      port_mg_trampoline_spawn, port_scene_fill_trampoline, 0},
     /* 385 is 0x181, spelled in decimal for the same two reasons every row above
        is: the others are, and port/tools/battery.py reads its hosted-scene set
@@ -4952,7 +4967,7 @@ static const PortSceneClass port_scene_classes[] = {
 
        SECOND, this is the FIRST class the port seats under dScMgD3DBase_c, the
        middle base at 0x0213c62c that config/arm9/overlays/ov006/symbols.txt
-       names _ZTV17MgBounceAndPounce after actor 0x174's spawn symbol. Four
+       names _ZTV14dScMgD3DBase_c after actor 0x174's spawn symbol. Four
        classes hold it -- 0x174, 0x175, 0x180 and this one -- and the fill keys
        on a DS address, so the row that runs FIRST claims that table. On this
        branch that is this row; when run mg11's other three land ahead of it in
@@ -4961,7 +4976,7 @@ static const PortSceneClass port_scene_classes[] = {
        change is measured rather than assumed.
 
        THE WIDTH IS 36 BY FIVE CHECKS and the victim of a 37th is named and
-       SHIPPING: index 36 of data_ov006_0213fc7c is 0x02124ae4, which is the
+       SHIPPING: index 36 of _ZTV18dScMgTrampoline2_c is 0x02124ae4, which is the
        code half of data_ov006_0213fd0c -- the FIRST of dScMgBSC_c's fourteen
        state pairs, the class the SCENE_MG_LUCKYSTARS row above seats. A 37-slot
        fill here would write a host thunk over a live state of scene 388.
@@ -4970,7 +4985,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 for the curling row's reason, re-derived rather than
        copied: no relocation anywhere in ov006 lands on data_02092110 and no TU
        in this class's closure names it. A minigame is not about a course. */
-    {385, "SCENE_MG_TRAMPOLINE2", MgTrampolineTerror_SpawnInfo,
+    {385, "SCENE_MG_TRAMPOLINE2", g_profile_MG_TRAMPOLINE2,
      port_mg_trampoline2_spawn, port_scene_fill_trampoline2, 0},
     /* APPENDED AFTER EVERY EXISTING ROW, run mg15 lane MENU. The ordering rule
        every minigame row above states -- port_scene_registry_install walks
@@ -4982,14 +4997,14 @@ static const PortSceneClass port_scene_classes[] = {
        and ov005 is in a DIFFERENT overlay from every constructor that gate
        runs, so there is no word for it to race over. Appending costs nothing
        and keeps the one rule the table has intact. */
-    {5, "SCENE_MG_MENU", data_ov005_020c2440, port_mgm_spawn,
+    {5, "SCENE_MG_MENU", g_profile_MINIGAME, port_mgm_spawn,
      port_scene_fill_mgm, 0},
     /* APPENDED AFTER EVERY EXISTING ROW, the fill-order rule every appended
        row above restates: the once-per-process gates (the mg constructors,
        and this seat's own sinit gate) run inside fills, and appending keeps
        every earlier fill reading the words it read before this row existed.
        6 is scene id 6, the VS / wireless entry menu; see the extern block. */
-    {6, "SCENE_VS_MENU", data_ov075_0211c880, port_vs_spawn,
+    {6, "SCENE_VS_MENU", g_profile_ENTRY, port_vs_spawn,
      port_scene_fill_vs, 0},
     // ---- link100 SCENE ----
     /* APPENDED AFTER EVERY EXISTING ROW, the fill-order rule every appended
@@ -5004,12 +5019,12 @@ static const PortSceneClass port_scene_classes[] = {
        port/tests/walk_window.cpp, so SM64DS_SCENE=0 is a scene run and not an
        unset one; and port_scene_is_hosted answers off data_020a4bb8[0], which
        this row fills with the ROM's own record. */
-    {0, "SCENE_BOOT", data_020914a8, port_boot_scene_spawn,
+    {0, "SCENE_BOOT", g_profile_BOOT, port_boot_scene_spawn,
      port_scene_fill_boot, 0},
     /* 360 is 0x168, spelled in decimal for the two reasons every row above
        gives: the others are, and port/tools/battery.py reads its hosted-scene
        set out of this table. */
-    {360, "SCENE_MULTIBOOT", data_0209435c, port_mb_scene_spawn,
+    {360, "SCENE_MULTIBOOT", g_profile_MULTIBOOT, port_mb_scene_spawn,
      port_scene_fill_mb, 0},
     // ---- end link100 SCENE ----
     /* dScGameOver_c, ov003's third and last scene class, run link100 lane
@@ -5026,7 +5041,7 @@ static const PortSceneClass port_scene_classes[] = {
        reads_sublevel is 0 and it is measured the way the rows above are: not
        one of the twelve TUs in this class's slice names data_02092110,
        SUBLEVEL_LEVEL_TABLE or SublevelToLevel. */
-    {8, "SCENE_GAMEOVER", data_ov003_020b1750, func_ov003_020b1118,
+    {8, "SCENE_GAMEOVER", g_profile_GAME_OVER, dScGameOver_c_classInit,
      scene_fill_gameover, 0},
     {0, 0, 0, 0, 0, 0},
 };
@@ -5159,7 +5174,7 @@ extern "C" void *port_scene_boot(int id)
 
        THE RECORD IS NOT COSMETIC ON THIS FAMILY. func_ov004_020ad878 reads
        field 1 of it, dScMgMemory2_c's InitResources copies that into +0xb4, and
-       func_ov006_020f72c0 turns +0xb4 into the board size: 16 cards under 5,
+       _ZN14dScMgMemory2_c15SetupDifficultyEv turns +0xb4 into the board size: 16 cards under 5,
        18 at 5, 20 at 10. Memory Master keeping its clear count in Bob-omb
        Squad's slot is the shape of that defect.
 
@@ -5175,8 +5190,8 @@ extern "C" void *port_scene_boot(int id)
     /* THE ROM'S OWN TWO CALLS. SetSceneToSpawn parks the id; SpawnIfNecessary
        runs the spine. data_02092660 is the "already spawned" latch and starts
        zeroed, so the second call takes its spawning branch. */
-    _ZN5Scene15SetSceneToSpawnEjj((unsigned)id, param);
-    const int r = _ZN5Scene16SpawnIfNecessaryEv();
+    _ZN8dScene_c15SetSceneToSpawnEjj((unsigned)id, param);
+    const int r = _ZN8dScene_c16SpawnIfNecessaryEv();
     if (!r) {
         std::fprintf(stderr, "  [scene] Scene::SpawnIfNecessary declined "
                      "(pending id %u, latch %u)\n",
@@ -5393,7 +5408,7 @@ int func_ov007_020c1da0(int i);
  *       src/func_0203e0ac.c into the four per-player records at
  *       data_020a1154 (slot 3 first, then cascaded 3 -> 2 -> 1 -> 0).
  *
- * dScDSMT_c reads the SECOND one and nothing else. src/func_ov007_020cc2cc.c
+ * dScDSMT_c reads the SECOND one and nothing else. src/_ZN9dScDSMT_c8BehaviorEv.cpp
  * lines 28-35 are its only input read in the whole scene: func_0203da9c() for
  * the slot index, func_0203dabc() for the stylus quad and func_0203dae4() for
  * the keys. The touch-to-start gate itself is src/func_ov007_020b1cf0.c lines
@@ -6352,8 +6367,8 @@ extern "C" void port_sqrt_selftest(void)
  * `vptr=01798B68` for scene 360 and walk_window.map puts _data_02094390
  * (hal/arm9_tables_link100.cpp) at 01798b68 -- the same word, so the table is
  * identified by ADDRESS and not by name. Its four words are the arm9
- * originals {func_02034d2c, Scene::GraphCallback1, func_02034d24,
- * func_02034b40}; slots 0 and 2 are `mov r0,#0 / bx lr`, so the port's beat
+ * originals {_ZN7dScMB_c15graphCallback_c14GraphCallback0Ev, Scene::GraphCallback1, _ZN7dScMB_c15graphCallback_c14GraphCallback2Ev,
+ * _ZN7dScMB_c15graphCallback_c14GraphCallback3Ev}; slots 0 and 2 are `mov r0,#0 / bx lr`, so the port's beat
  * now answers 0 on this block and SKIPS the display tail -- which is exactly
  * what src/func_02019144.c does with the same answer (`if (p->vt->func8(p) ==
  * 0) return;`). Before this the port refused the block, answered 1 and
@@ -6475,7 +6490,7 @@ extern "C" int port_scene_begin(void *hwnd, int zoom)
     /* THE MINIGAME RNG SEED (run mg5, lane RNGSEED). Frozen randomness: the
        launcher's F5 boots straight into SM64DS_SCENE=<id> and so never runs
        dScMiniGm_c, the minigame MENU scene, whose per-frame tick
-       func_ov005_020c14a0 is the ONLY thing that advances data_0209d4b8 on the
+       _ZN11dScMiniGm_c8BehaviorEv is the ONLY thing that advances data_0209d4b8 on the
        way in. With no menu frames the state sits at the port's .bss zero and
        every launch replays one sequence -- which is why "Loves Me...?" always
        opened with 12 petals.
@@ -6764,7 +6779,7 @@ static void port_title_state_trace(int frame)
     /* THE VERDICT SIDE, and it is the half the state words cannot show.
      * src/func_ov007_020b7090.c returns the context's +0x10 gated on +0x14
      * (`if (ip->f14 != 0 || ip->f10 == 1) ret = ip->f10;`) and
-     * src/func_ov007_020cc2cc.c switches on that return: 3/4/5 are the three
+     * src/_ZN9dScDSMT_c8BehaviorEv.cpp switches on that return: 3/4/5 are the three
      * save files, 6 is VS, 7 is the Rec Room, 2 restarts the title. +0x180 is
      * where src/func_ov007_020b63e4.c parks the id of the element the stylus
      * actually hit. So these three say, in order, "was anything picked", "is
@@ -6891,7 +6906,7 @@ extern "C" void port_scene_tick(int frame, int tick_game)
          * port_actor_tick below is the actor phases, so this is that seam.
          *
          * IT ADDS NO POLICY, and that is deliberate. Every guard is the ROM's
-         * own, inside src/_ZN5Scene16SpawnIfNecessaryEv.c:
+         * own, inside src/_ZN8dScene_c16SpawnIfNecessaryEv.cpp:
          *     if (data_02092660 != 0 || (h = data_02092664) == 0x187) return 0;
          * -- so it declines when the already-spawned latch is set or when
          * nothing is pending, and on success IT clears the pending id back to
@@ -6916,7 +6931,7 @@ extern "C" void port_scene_tick(int frame, int tick_game)
             if (!nocarry && data_02092664 != 0x187 && data_02092660 == 0) {
                 const unsigned want = data_02092664;
                 port_loadfile_reset_scene();   /* PROOF-OF-FIX temp */
-                const int spawned = _ZN5Scene16SpawnIfNecessaryEv();
+                const int spawned = _ZN8dScene_c16SpawnIfNecessaryEv();
                 /* WHICH REFUSAL, not merely that there was one.
                    src/func_02043098.c steps data_020a4b4c through 2, 3, 4, 5 as
                    it goes, and its TWO failure exits leave it in DIFFERENT
@@ -6970,7 +6985,7 @@ extern "C" void port_scene_tick(int frame, int tick_game)
                and func_02018ec0 and still runs func_02018efc -- so inside what
                this port reproduces, the whole difference between the two arms
                is the SECOND fade advance. Word 0's forwarder
-               func_ov004_020ae0d4 returns 1 on every path with no branch in it,
+               _ZN11dScMgBase_c15graphCallback_c14GraphCallback0Ev returns 1 on every path with no branch in it,
                and it is what every one of the thirty-two ov006 blocks reaches,
                so no scene in this game can take the 0 arm. If one ever does,
                this is the line that has to grow the split. */
@@ -7097,7 +7112,7 @@ extern "C" void port_scene_tick(int frame, int tick_game)
         }
         /* AND AGAIN AFTER THE RENDER, because the title's attract callback
            func_ov007_020b0da0 is reached from the scene's RENDER slot
-           (ti_render -> func_ov007_020cc2b0 -> func_ov007_020b7040 ->
+           (ti_render -> _ZN9dScDSMT_c6RenderEv -> func_ov007_020b7040 ->
            func_ov007_020bcf90 -> func_ov007_020b2370 -> func_ov007_020be9ac ->
            the object's fp) and not from the behaviour tick. A single pre-tick
            sample cannot see what that callback did on this frame. */
@@ -7266,7 +7281,7 @@ extern "C" int port_scene_finish(int frames_run)
         std::printf("[gameover] host words: table %p  ActorDerived %p  "
                     "dBase(trap, NOT it) %p  Scene %p  object+0 after D2 %p\n",
                     (void *)data_ov003_020b179c, (void *)data_0208e4b8,
-                    (void *)_ZTV7dBase_c, (void *)_ZTV5Scene,
+                    (void *)_ZTV7dBase_c, (void *)_ZTV8dScene_c,
                     g_go_vptr_after_d2);
         /* THE ROUTING WITNESS, run mg16 lane TITLE.
          *
@@ -7416,7 +7431,7 @@ extern "C" void OS_SleepThread(unsigned short *q);
 extern "C" unsigned char data_0209d500[4];
 /* THE "THE LOOP IS WAITING" FLAG, func_020197b8.c:53-56. IRQ::VBlankHandler's
    wake is gated on it AND on data_0209d514 >= data_0208ee44
-   (src/_ZN3IRQ13VBlankHandlerEv.c:15), so both words are in the census below:
+   (src/_ZN3IRQ13VBlankHandlerEv.cpp:15), so both words are in the census below:
    a run whose divider is higher than the VBlank count it accumulates would
    never be woken and would report its sleeps as starvation wakes instead. */
 extern "C" unsigned char data_0209d4f0[4];

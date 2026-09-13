@@ -13,7 +13,7 @@
 //
 // ---- BOTH TABLES ARE THE PLAIN 31-SLOT ACTOR SHAPE ------------------------
 //
-// _ZTV19BowserPuzzleManager (ov064 0x0211c25c) and _ZTV17BowserPuzzlePiece
+// _ZTV16daObjFl_Puzzle_c (ov064 0x0211c25c) and _ZTV17BowserPuzzlePiece
 // (0x0211c334) are each the standard 31-slot Actor table read straight off their
 // reloc spans: slot 1 = Actor::BeforeInitResources (arm9 0x02011268), slots 18..29
 // the Actor interaction tail, slot 30 = OnAimedAtWithEggReturnVec (0x020100dc).
@@ -24,15 +24,15 @@
 //
 // ---- THE CONFIG NAMES CROSS THE TWO CLASSES; THE FACTORIES ARE HONEST -----
 //
-// Read off the spawn chain, not the names. BowserPuzzlePiece_Spawn (id 78, x14)
-// allocates 828 bytes, runs Platform's ctor and installs _ZTV19BowserPuzzleManager
+// Read off the spawn chain, not the names. daObjFl_Puzzle_c_classInit (id 78, x14)
+// allocates 828 bytes, runs Platform's ctor and installs _ZTV16daObjFl_Puzzle_c
 // (0x0211c25c) -- so the class the config calls "Manager" is the PIECE's real
 // class: its InitResources reads its model out of the 14-entry SFP-pointer table
 // data_ov064_0211adc8[param & 0xf], one model per puzzle piece, and its Behavior
-// runs the six-state PMF machine. BowserPuzzleManager_Spawn (id 79, x1) allocates
-// a 216-byte COORDINATOR SHELL and installs data_ov064_0211c1d8, a real 31-slot
-// table of its own: slot 0 func_ov064_02119284 (three byte-flags), slot 6
-// func_ov064_0211915c (waits for flag 3 + player range), slots 16/17 its D1/D0,
+// runs the six-state PMF machine. daObjFl_Coin_c_classInit (id 79, x1) allocates
+// a 216-byte COORDINATOR SHELL and installs _ZTV19BowserPuzzleManager, a real 31-slot
+// table of its own: slot 0 _ZN19BowserPuzzleManager13InitResourcesEv (three byte-flags), slot 6
+// _ZN19BowserPuzzleManager8BehaviorEv (waits for flag 3 + player range), slots 16/17 its D1/D0,
 // slots 3/9 the ActorBase defaults. Each factory installs its class's REAL table
 // as the last vptr write -- NO reseat wrappers. (An earlier reading called c1d8 a
 // placeholder and reseated both vptrs onto the big class; the 216-byte shell then
@@ -53,7 +53,7 @@
 // real Piece table -- no launder, no placeholder, so they need no host thunk. All
 // four run their member teardowns (Manager: MovingMeshCollider +0x124, Model +0xd4,
 // Actor::D2; Piece: WithMeshClsn +0x144, MovingCylinderClsn +0x110, the Enemy base
-// D2 func_ov002_020aed18) with faces already in the build.
+// D2 _ZN12dEnemyBase_cD2Ev) with faces already in the build.
 //
 // ---- THREE PMF DISPATCHERS ARE HOST COPIES, WITH TWO SEATS ----------------
 //
@@ -82,34 +82,34 @@
    Actor::OnAimedAtWithEggReturnVec. The ROM word in slot 30 of every vtable
    this file fills IS the arm9 base body 0x020100dc (checked against
    config/<module>/relocs.txt at vtable+30*4), and that body is now in the
-   link from src/_ZN5Actor25OnAimedAtWithEggReturnVecEv.cpp on slice_gate50.
+   link from src/_ZN8dActor_c25OnAimedAtWithEggReturnVecEv.cpp on slice_gate50.
    The three-parameter __fastcall is the sret contract MSVC uses for a
    thiscall member returning a 12-byte struct: this in ecx, the hidden result
    pointer the one (callee-popped) stack argument. Same shape as whomp_s30. */
 extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
 #include <cstdlib>
 
-#include "Actor.h"
-#include "ActorBase.h"
+#include "dActor_c.h"
+#include "fBase_c.h"
 
 extern "C" {
 /* the shared lifecycle halves, the same functions every 31-slot fill writes */
-int _ZN5Actor19BeforeInitResourcesEv(void *self);            /* slot 1  */
-void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a); /* slot 2  */
-int _ZN5Actor14BeforeBehaviorEv(void *self);                 /* slot 7  */
-int _ZN5Actor12BeforeRenderEv(void *self);                   /* slot 10 */
-int _ZN5Actor13OnYoshiTryEatEv(void *self);                  /* slot 18 */
-void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p); /* slot 19 */
-int _ZN5Actor9Virtual50Ev(void *self);                       /* slot 20 */
-void _ZN5Actor15OnGroundPoundedERS_(void *self, void *o);    /* slot 21 */
-void _ZN5Actor11OnAttacked1ERS_(void *self, void *o);        /* slot 22 */
-void _ZN5Actor11OnAttacked2ERS_(void *self, void *o);        /* slot 23 */
-void _ZN5Actor8OnKickedERS_(void *self, void *o);            /* slot 24 */
-void _ZN5Actor8OnPushedERS_(void *self, void *o);            /* slot 25 */
-void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* slot 26 */
-void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* slot 27 */
-void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* slot 28 */
-int _ZN5Actor16OnAimedAtWithEggEv(void *self);               /* slot 29 (Actor's) */
+int _ZN8dActor_c19BeforeInitResourcesEv(void *self);            /* slot 1  */
+void _ZN8dActor_c18AfterInitResourcesEj(void *self, unsigned a); /* slot 2  */
+int _ZN8dActor_c14BeforeBehaviorEv(void *self);                 /* slot 7  */
+int _ZN8dActor_c12BeforeRenderEv(void *self);                   /* slot 10 */
+int _ZN8dActor_c13OnYoshiTryEatEv(void *self);                  /* slot 18 */
+void _ZN8dActor_c13OnTurnIntoEggER6Player(void *self, void *p); /* slot 19 */
+int _ZN8dActor_c9Virtual50Ev(void *self);                       /* slot 20 */
+void _ZN8dActor_c15OnGroundPoundedERS_(void *self, void *o);    /* slot 21 */
+void _ZN8dActor_c11OnAttacked1ERS_(void *self, void *o);        /* slot 22 */
+void _ZN8dActor_c11OnAttacked2ERS_(void *self, void *o);        /* slot 23 */
+void _ZN8dActor_c8OnKickedERS_(void *self, void *o);            /* slot 24 */
+void _ZN8dActor_c8OnPushedERS_(void *self, void *o);            /* slot 25 */
+void _ZN8dActor_c24OnHitByCannonBlastedCharERS_(void *self, void *o); /* slot 26 */
+void _ZN8dActor_c15OnHitByMegaCharER6Player(void *self, void *p);     /* slot 27 */
+void _ZN8dActor_c19OnHitFromUnderneathERS_(void *self, void *o);      /* slot 28 */
+int _ZN8dActor_c16OnAimedAtWithEggEv(void *self);               /* slot 29 (Actor's) */
 
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
@@ -121,37 +121,37 @@ void port_actor_render_probe(const char *cls, void *model); /* actor_classes */
    Behavior is NOT here -- it dispatches the six-state PMF table and is a host
    copy in unmatched/BowserPuzzle_StateDispatch.cpp. Render is NOT here -- it is
    the slot-5 shadow collision, host-copied in unmatched/BowserPuzzle_Render.cpp. */
-int _ZN19BowserPuzzleManager13InitResourcesEv(void *self);   /* slot 0, .cpp method, face below */
-int _ZN19BowserPuzzleManager16CleanupResourcesEv(void *self);/* slot 3, .cpp method, face below */
-int _ZN19BowserPuzzleManager6RenderEv(void *self);           /* slot 9, host copy */
-int _ZN19BowserPuzzleManager8BehaviorEv(void *self);         /* slot 6, host copy */
-int *_ZN19BowserPuzzleManagerD1Ev(void *self);              /* slot 16, .c */
-int *_ZN19BowserPuzzleManagerD0Ev(void *self);              /* slot 17, .c */
-int *BowserPuzzleManager_Spawn(void);                        /* .c factory */
+int _ZN17BowserPuzzlePiece13InitResourcesEv(void *self);   /* slot 0, .cpp method, face below */
+int _ZN17BowserPuzzlePiece16CleanupResourcesEv(void *self);/* slot 3, .cpp method, face below */
+int _ZN17BowserPuzzlePiece6RenderEv(void *self);           /* slot 9, host copy */
+int _ZN17BowserPuzzlePiece8BehaviorEv(void *self);         /* slot 6, host copy */
+int *_ZN17BowserPuzzlePieceD1Ev(void *self);              /* slot 16, .c */
+int *_ZN17BowserPuzzlePieceD0Ev(void *self);              /* slot 17, .c */
+int *daObjFl_Coin_c_classInit(void);                        /* .c factory */
 
 /* ---- Piece's own C-linkage bodies (matched src, slice_gate179.txt) ----
    Behavior is NOT here -- forward-declared-struct PMF, host copy in unmatched/. */
-int _ZN17BowserPuzzlePiece13InitResourcesEv(void *self);     /* slot 0, .cpp method, face below */
-int _ZN17BowserPuzzlePiece16CleanupResourcesEv(void *self);  /* slot 3, .c C linkage */
-void _ZN17BowserPuzzlePiece16OnPendingDestroyEv(void *self); /* slot 12, .c C linkage */
-int _ZN17BowserPuzzlePiece6RenderEv(void *self);             /* slot 9, .c C linkage, faced below */
-int _ZN17BowserPuzzlePiece8BehaviorEv(void *self);           /* slot 6, host copy */
-int *_ZN17BowserPuzzlePieceD1Ev(void *self);                /* slot 16, .c */
-int *_ZN17BowserPuzzlePieceD0Ev(void *self);                /* slot 17, .c */
-int *BowserPuzzlePiece_Spawn(void);                          /* .c factory */
+int _ZN9JetStream13InitResourcesEv(void *self);     /* slot 0, .cpp method, face below */
+int _ZN9JetStream16CleanupResourcesEv(void *self);  /* slot 3, .c C linkage */
+void _ZN9JetStream16OnPendingDestroyEv(void *self); /* slot 12, .c C linkage */
+int _ZN9JetStream6RenderEv(void *self);             /* slot 9, .c C linkage, faced below */
+int _ZN9JetStream8BehaviorEv(void *self);           /* slot 6, host copy */
+int *_ZN9JetStreamD1Ev(void *self);                /* slot 16, .c */
+int *_ZN9JetStreamD0Ev(void *self);                /* slot 17, .c */
+int *daObjFl_Puzzle_c_classInit(void);                          /* .c factory */
 
-/* ---- the id-79 coordinator SHELL (table data_ov064_0211c1d8, mounted) ---- */
-int func_ov064_02119284(void *self);   /* slot 0, three byte-flags */
-int func_ov064_0211915c(void *self);   /* slot 6, the range gate */
-/* D1 (func_ov064_02118bec) stores the MOUNTED c1d8 as the mid-teardown vptr and
-   D0 (func_ov064_02118c10) spells the shared VT/HEAP placeholders -- both are
+/* ---- the id-79 coordinator SHELL (table _ZTV19BowserPuzzleManager, mounted) ---- */
+int _ZN19BowserPuzzleManager13InitResourcesEv(void *self);   /* slot 0, three byte-flags */
+int _ZN19BowserPuzzleManager8BehaviorEv(void *self);   /* slot 6, the range gate */
+/* D1 (_ZN19BowserPuzzleManagerD1Ev) stores the MOUNTED c1d8 as the mid-teardown vptr and
+   D0 (_ZN19BowserPuzzleManagerD0Ev) spells the shared VT/HEAP placeholders -- both are
    host thunks below storing the HOST shell table instead (the gate-178 Amilift
    treatment; the mounted words are DS addresses and must never be dispatched). */
-void _ZN5ActorD2Ev(void *);
+void _ZN8dActor_cD2Ev(void *);
 void _ZN6Memory10DeallocateEPvP4Heap(void *, void *);
 extern void *data_020a0eac;            /* Memory::gameHeapPtr */
-extern unsigned char data_ov064_0211c1d8[];  /* the mounted shell table (0x84) */
-int *BowserPuzzleManager_Spawn(void);  /* .c factory, installs c1d8 itself */
+extern unsigned char _ZTV19BowserPuzzleManager[];  /* the mounted shell table (0x84) */
+int *daObjFl_Coin_c_classInit(void);  /* .c factory, installs c1d8 itself */
 
 /* the two derived vtables, HOST arrays this file fills; 31 slots each. `int[]`
    with C linkage matches the `extern int _ZTV..[]` decls in include/decl_common.h
@@ -161,7 +161,7 @@ int *BowserPuzzleManager_Spawn(void);  /* .c factory, installs c1d8 itself */
    which is what the Piece below really is. The "31 because Platform" premise
    that put both at 31 came from hal/actor_classes_wf.cpp's header and is
    corrected there. */
-int _ZTV19BowserPuzzleManager[32];
+int _ZTV16daObjFl_Puzzle_c[32];
 /* 31 and correct: the Piece's table ends at slot 30, and the code word one
    past it (func_ov064_02119ea0) is a pointer-to-member pair with its own dsd
    symbol, not a slot. */
@@ -172,12 +172,11 @@ int _ZTV17BowserPuzzlePiece[31];
    point it at the host Manager array -- the daChoropu_c / daDonketu_c precedent.
    _ZTV10dBgActor_c (VT1) and _ZTV18daWater_Hakidasi_c (the Piece's D0 alias, same
    address as _ZTV17BowserPuzzlePiece) are already defined elsewhere in the build. */
-#pragma comment(linker, "/alternatename:__ZTV16daObjFl_Puzzle_c=__ZTV19BowserPuzzleManager")
 
 /* The Piece D0 (src, .c) spells the Piece table by its OTHER RTTI name,
    _ZTV18daWater_Hakidasi_c -- the same ROM address (0x0211c334) as
    _ZTV17BowserPuzzlePiece, an aliased symbol pair the dsd export carries twice.
-   Nothing else defines it (only JetStream_Spawn, unhosted, and this D0 spell it),
+   Nothing else defines it (only daWater_Hakidasi_c_classInit, unhosted, and this D0 spell it),
    so alias it onto the host Piece array -- the daObjFl_Puzzle_c reading. */
 #pragma comment(linker, "/alternatename:__ZTV18daWater_Hakidasi_c=__ZTV17BowserPuzzlePiece")
 
@@ -232,57 +231,57 @@ BP_TRAP(13) BP_TRAP(14)
 
 // ---- the shared 0..30 half -------------------------------------------------
 static int __fastcall bp_binit(void *s, void *)
-{ return _ZN5Actor19BeforeInitResourcesEv(s); }
+{ return _ZN8dActor_c19BeforeInitResourcesEv(s); }
 static void __fastcall bp_ainit(void *s, void *, unsigned a)
-{ _ZN5Actor18AfterInitResourcesEj(s, a); }
+{ _ZN8dActor_c18AfterInitResourcesEj(s, a); }
 static int __fastcall bp_bclean(void *s, void *)
-{ return ((Actor *)s)->Actor::BeforeCleanupResources(); }
+{ return ((dActor_c *)s)->dActor_c::BeforeCleanupResources(); }
 static void __fastcall bp_aclean(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterCleanupResources(a); }
+{ ((fBase_c *)s)->fBase_c::AfterCleanupResources(a); }
 static int __fastcall bp_bbeh(void *s, void *)
-{ return _ZN5Actor14BeforeBehaviorEv(s); }
+{ return _ZN8dActor_c14BeforeBehaviorEv(s); }
 static void __fastcall bp_abeh(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+{ ((fBase_c *)s)->fBase_c::AfterBehavior(a); }
 static int __fastcall bp_bren(void *s, void *)
-{ return _ZN5Actor12BeforeRenderEv(s); }
+{ return _ZN8dActor_c12BeforeRenderEv(s); }
 static void __fastcall bp_aren(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterRender(a); }
+{ ((fBase_c *)s)->fBase_c::AfterRender(a); }
 static int __fastcall bp_pdes_base(void *s, void *)
-{ ((ActorBase *)s)->ActorBase::OnPendingDestroy(); return 0; }
+{ ((fBase_c *)s)->fBase_c::OnPendingDestroy(); return 0; }
 static int __fastcall bp_heap(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::OnHeapCreated(); }
+{ return ((fBase_c *)s)->fBase_c::OnHeapCreated(); }
 static int __fastcall bp_yoshi(void *s, void *)
-{ return _ZN5Actor13OnYoshiTryEatEv(s); }
+{ return _ZN8dActor_c13OnYoshiTryEatEv(s); }
 static int __fastcall bp_egg(void *s, void *, void *p)
-{ _ZN5Actor13OnTurnIntoEggER6Player(s, p); return 0; }
+{ _ZN8dActor_c13OnTurnIntoEggER6Player(s, p); return 0; }
 static int __fastcall bp_v50(void *s, void *)
-{ return _ZN5Actor9Virtual50Ev(s); }
+{ return _ZN8dActor_c9Virtual50Ev(s); }
 static int __fastcall bp_pounded(void *s, void *, void *o)
-{ _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
+{ _ZN8dActor_c15OnGroundPoundedERS_(s, o); return 0; }
 static int __fastcall bp_atk1(void *s, void *, void *o)
-{ _ZN5Actor11OnAttacked1ERS_(s, o); return 0; }
+{ _ZN8dActor_c11OnAttacked1ERS_(s, o); return 0; }
 static int __fastcall bp_atk2(void *s, void *, void *o)
-{ _ZN5Actor11OnAttacked2ERS_(s, o); return 0; }
+{ _ZN8dActor_c11OnAttacked2ERS_(s, o); return 0; }
 static int __fastcall bp_kicked(void *s, void *, void *o)
-{ _ZN5Actor8OnKickedERS_(s, o); return 0; }
+{ _ZN8dActor_c8OnKickedERS_(s, o); return 0; }
 static int __fastcall bp_pushed(void *s, void *, void *o)
-{ _ZN5Actor8OnPushedERS_(s, o); return 0; }
+{ _ZN8dActor_c8OnPushedERS_(s, o); return 0; }
 static int __fastcall bp_cannon(void *s, void *, void *o)
-{ _ZN5Actor24OnHitByCannonBlastedCharERS_(s, o); return 0; }
+{ _ZN8dActor_c24OnHitByCannonBlastedCharERS_(s, o); return 0; }
 static int __fastcall bp_mega(void *s, void *, void *p)
-{ _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
+{ _ZN8dActor_c15OnHitByMegaCharER6Player(s, p); return 0; }
 static int __fastcall bp_under(void *s, void *, void *o)
-{ _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
+{ _ZN8dActor_c19OnHitFromUnderneathERS_(s, o); return 0; }
 static int __fastcall bp_aimed_actor(void *s, void *)
-{ return _ZN5Actor16OnAimedAtWithEggEv(s); }   /* slot 29, Actor's own default */
+{ return _ZN8dActor_c16OnAimedAtWithEggEv(s); }   /* slot 29, Actor's own default */
 
 /* Fill slots 1..30 of a Manager/Piece table with the shared bodies. The caller
    writes 0/3/6/9/16/17/29 and (for the Piece) slot 12. Slot 12 defaults to
    ActorBase::OnPendingDestroy here; the Piece caller overrides it. */
 /* slot 31 of a Platform table, ov002 0x020ee55c, already in the build */
-extern "C" void _ZN8Platform4KillEv(void *self);
+extern "C" void _ZN10dBgActor_c4KillEv(void *self);
 static int __fastcall bp_kill(void *s, void *)
-{ _ZN8Platform4KillEv(s); return 0; }
+{ _ZN10dBgActor_c4KillEv(s); return 0; }
 
 static void bp_fill_shared_0_30(void **vt)
 {
@@ -317,22 +316,22 @@ static void bp_fill_shared_0_30(void **vt)
 // BOWSER_PUZZLE_MANAGER (79)
 // ============================================================================
 static int __fastcall mgr_init(void *s, void *)
-{ return _ZN19BowserPuzzleManager13InitResourcesEv(s); }
+{ return _ZN17BowserPuzzlePiece13InitResourcesEv(s); }
 static int __fastcall mgr_clean(void *s, void *)
-{ return _ZN19BowserPuzzleManager16CleanupResourcesEv(s); }
+{ return _ZN17BowserPuzzlePiece16CleanupResourcesEv(s); }
 static int __fastcall mgr_behavior(void *s, void *)
-{ return _ZN19BowserPuzzleManager8BehaviorEv(s); }     /* host copy */
+{ return _ZN17BowserPuzzlePiece8BehaviorEv(s); }     /* host copy */
 static int __fastcall mgr_render(void *s, void *)
 { port_actor_render_probe("BOWSER_PUZZLE_MANAGER", (char *)s + 0xd4);
-  return _ZN19BowserPuzzleManager6RenderEv(s); }        /* host copy */
+  return _ZN17BowserPuzzlePiece6RenderEv(s); }        /* host copy */
 static int __fastcall mgr_d1(void *s, void *)
-{ return (int)(size_t)_ZN19BowserPuzzleManagerD1Ev(s); }
+{ return (int)(size_t)_ZN17BowserPuzzlePieceD1Ev(s); }
 static int __fastcall mgr_d0(void *s, void *)
-{ return (int)(size_t)_ZN19BowserPuzzleManagerD0Ev(s); }
+{ return (int)(size_t)_ZN17BowserPuzzlePieceD0Ev(s); }
 
 extern "C" void hal_fill_bowser_puzzle_manager_vtable(void)
 {
-    void **vt = (void **)_ZTV19BowserPuzzleManager;
+    void **vt = (void **)_ZTV16daObjFl_Puzzle_c;
     bp_fill_shared_0_30(vt);
     vt[0]  = (void *)mgr_init;
     vt[3]  = (void *)mgr_clean;
@@ -348,31 +347,31 @@ extern "C" void hal_fill_bowser_puzzle_manager_vtable(void)
 /* ---- the id-79 SHELL table is a HOST ARRAY (the ov080/ov095 rule: derived
    vtables are host arrays, never mounted storage; in-place fills of pack
    storage measurably lose writes). The factory installs the MOUNTED
-   data_ov064_0211c1d8 (raw DS words, pack-checked, never dispatchable); the
+   _ZTV19BowserPuzzleManager (raw DS words, pack-checked, never dispatchable); the
    registry wrapper below reseats the vptr onto this array -- a real
    placeholder-to-host reseat, the Bully treatment. Slots 3/9 are the ActorBase
    defaults per relocs. */
-static int port_bp_shell_vtable[31];   /* vtspan: data_ov064_0211c1d8 */
+static int port_bp_shell_vtable[31];   /* vtspan: _ZTV19BowserPuzzleManager */
 static int __fastcall shl_init(void *s, void *)
-{ return func_ov064_02119284(s); }
+{ return _ZN19BowserPuzzleManager13InitResourcesEv(s); }
 static int __fastcall shl_clean(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::CleanupResources(); }
+{ return ((fBase_c *)s)->fBase_c::CleanupResources(); }
 static int __fastcall shl_behavior(void *s, void *)
-{ return func_ov064_0211915c(s); }
+{ return _ZN19BowserPuzzleManager8BehaviorEv(s); }
 static int __fastcall shl_render(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::Render(); }
+{ return ((fBase_c *)s)->fBase_c::Render(); }
 static int __fastcall shl_d1(void *s, void *)
 {
     char *st = (char *)s;
     *(void **)st = (void *)port_bp_shell_vtable;
-    _ZN5ActorD2Ev(st);
+    _ZN8dActor_cD2Ev(st);
     return (int)(size_t)s;
 }
 static int __fastcall shl_d0(void *s, void *)
 {
     char *st = (char *)s;
     *(void **)st = (void *)port_bp_shell_vtable;
-    _ZN5ActorD2Ev(st);
+    _ZN8dActor_cD2Ev(st);
     _ZN6Memory10DeallocateEPvP4Heap(st, data_020a0eac);
     return (int)(size_t)s;
 }
@@ -392,7 +391,7 @@ extern "C" void hal_fill_bowser_puzzle_shell_vtable(void)
 /* the id-79 factory installs the mounted c1d8; reseat onto the host array. */
 extern "C" void *port_factory_bowser_puzzle_shell(void)
 {
-    void *p = (void *)BowserPuzzleManager_Spawn();
+    void *p = (void *)daObjFl_Coin_c_classInit();
     if (p)
         *(void **)p = (void *)port_bp_shell_vtable;
     return p;
@@ -402,19 +401,19 @@ extern "C" void *port_factory_bowser_puzzle_shell(void)
 // BOWSER_PUZZLE_PIECE (78)
 // ============================================================================
 static int __fastcall pce_init(void *s, void *)
-{ return _ZN17BowserPuzzlePiece13InitResourcesEv(s); }
+{ return _ZN9JetStream13InitResourcesEv(s); }
 static int __fastcall pce_clean(void *s, void *)
-{ return _ZN17BowserPuzzlePiece16CleanupResourcesEv(s); }
+{ return _ZN9JetStream16CleanupResourcesEv(s); }
 static int __fastcall pce_behavior(void *s, void *)
-{ return _ZN17BowserPuzzlePiece8BehaviorEv(s); }        /* host copy */
+{ return _ZN9JetStream8BehaviorEv(s); }        /* host copy */
 static int __fastcall pce_render(void *s, void *)
-{ return _ZN17BowserPuzzlePiece6RenderEv(s); }           /* .c stub, faced below */
+{ return _ZN9JetStream6RenderEv(s); }           /* .c stub, faced below */
 static int __fastcall pce_pdes(void *s, void *)
-{ _ZN17BowserPuzzlePiece16OnPendingDestroyEv(s); return 0; }  /* slot 12, its own */
+{ _ZN9JetStream16OnPendingDestroyEv(s); return 0; }  /* slot 12, its own */
 static int __fastcall pce_d1(void *s, void *)
-{ return (int)(size_t)_ZN17BowserPuzzlePieceD1Ev(s); }
+{ return (int)(size_t)_ZN9JetStreamD1Ev(s); }
 static int __fastcall pce_d0(void *s, void *)
-{ return (int)(size_t)_ZN17BowserPuzzlePieceD0Ev(s); }
+{ return (int)(size_t)_ZN9JetStreamD0Ev(s); }
 
 extern "C" void hal_fill_bowser_puzzle_piece_vtable(void)
 {
@@ -429,7 +428,7 @@ extern "C" void hal_fill_bowser_puzzle_piece_vtable(void)
     vt[17] = (void *)pce_d0;
 }
 
-/* id 78's registry fill: the factory installs _ZTV19BowserPuzzleManager (the
+/* id 78's registry fill: the factory installs _ZTV16daObjFl_Puzzle_c (the
    828-byte class's real table), so fill that; also fill _ZTV17BowserPuzzlePiece,
    which the teardown path writes mid-destruction. */
 extern "C" void hal_fill_bowser_puzzle_piece_vtable(void);
@@ -449,10 +448,10 @@ extern "C" void hal_fill_bowser_puzzle_pair_vtables(void)
 #include "BowserPuzzleManager.h"
 #include "BowserPuzzlePiece.h"
 extern "C" {
-int _ZN19BowserPuzzleManager13InitResourcesEv(void *self)
-{ ((BowserPuzzleManager *)self)->BowserPuzzleManager::InitResources(); return 1; }
-int _ZN19BowserPuzzleManager16CleanupResourcesEv(void *self)
-{ return ((BowserPuzzleManager *)self)->BowserPuzzleManager::CleanupResources(); }
 int _ZN17BowserPuzzlePiece13InitResourcesEv(void *self)
+{ ((BowserPuzzleManager *)self)->BowserPuzzleManager::InitResources(); return 1; }
+int _ZN17BowserPuzzlePiece16CleanupResourcesEv(void *self)
+{ return ((BowserPuzzleManager *)self)->BowserPuzzleManager::CleanupResources(); }
+int _ZN9JetStream13InitResourcesEv(void *self)
 { return ((BowserPuzzlePiece *)self)->BowserPuzzlePiece::InitResources(); }
 }

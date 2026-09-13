@@ -61,9 +61,9 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include "Actor.h"
-#include "ActorBase.h"
-#include "ActorDerived.h"
+#include "dActor_c.h"
+#include "fBase_c.h"
+#include "dBase_c.h"
 #include "dsstate_seg.h"
 
 extern "C" {
@@ -372,10 +372,15 @@ extern "C" int _ZN6Player12Unk_020ca8f8Ev(void *s)
 /* ...and the reverse. CalculateDigits' TU is a .c file, so it defines the C
    name, while RenderCoinCount and RenderLifeCount call it as a member. */
 extern "C" void _ZN3HUD15CalculateDigitsEt(void *self, unsigned short n);
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync): src/_ZN3HUD15CalculateDigitsEt.cpp is a real HUD member since main langmode migration and emits ?CalculateDigits@HUD@@QAEXG@Z itself, so this face was the second definition (LNK2005).
+   The body is kept below under #if 0 rather than deleted, so the
+   evidence in it stays readable. */
+#if 0
 void HUD::CalculateDigits(unsigned short n)
 {
     _ZN3HUD15CalculateDigitsEt(this, n);
 }
+#endif
 
 namespace {
 
@@ -425,23 +430,23 @@ int __fastcall sa_trap(void *s, void *)
    re-dispatch through the vtable it is filling. ActorBase throughout, except
    slot 2. */
 int __fastcall sa_binit(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::BeforeInitResources(); }
+{ return ((fBase_c *)s)->fBase_c::BeforeInitResources(); }
 void __fastcall sa_ainit(void *s, void *, unsigned a)
-{ ((ActorDerived *)s)->ActorDerived::AfterInitResources(a); }
+{ ((dBase_c *)s)->dBase_c::AfterInitResources(a); }
 int __fastcall sa_bclean(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::BeforeCleanupResources(); }
+{ return ((fBase_c *)s)->fBase_c::BeforeCleanupResources(); }
 void __fastcall sa_aclean(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterCleanupResources(a); }
+{ ((fBase_c *)s)->fBase_c::AfterCleanupResources(a); }
 int __fastcall sa_bbeh(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::BeforeBehavior(); }
+{ return ((fBase_c *)s)->fBase_c::BeforeBehavior(); }
 void __fastcall sa_abeh(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+{ ((fBase_c *)s)->fBase_c::AfterBehavior(a); }
 int __fastcall sa_bren(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::BeforeRender(); }
+{ return ((fBase_c *)s)->fBase_c::BeforeRender(); }
 void __fastcall sa_aren(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterRender(a); }
+{ ((fBase_c *)s)->fBase_c::AfterRender(a); }
 int __fastcall sa_heap(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::OnHeapCreated(); }
+{ return ((fBase_c *)s)->fBase_c::OnHeapCreated(); }
 #define SA_TRAP(n)                                                           \
     int __fastcall sa_trap##n(void *s, void *) { g_trap_slot = (n); return sa_trap(s, 0); }
 SA_TRAP(0)  SA_TRAP(1)  SA_TRAP(2)  SA_TRAP(3)  SA_TRAP(4)  SA_TRAP(5)
@@ -1018,12 +1023,19 @@ extern "C" void hal_fill_minimap_vtable(void)
 // plain C++ free functions, so MSVC emits C++ manglings for symbols that are
 // C-named everywhere else in the port. Every one of these is cdecl on both
 // sides, so the alias is exact -- the mechanism hal/cxx_aliases.cpp documents.
-#pragma comment(linker, "/alternatename:?Render@OAM@@YAX_NPAUOamAttr@@HHHHPAUMatrix2x2@@@Z=__ZN3OAM6RenderEbP7OamAttriiiiP9Matrix2x2")
-#pragma comment(linker, "/alternatename:?RenderSub@OAM@@SAXPAUOamAttr@@HHHH@Z=__ZN3OAM9RenderSubEP7OamAttriiii")
+/* RE-POINTED at ALIAS2 (wave 8, the main -> port sync), lane ALIAS's
+   derivation: the right hand side this row carried is defined nowhere in
+   the link any more. same member, same convention, same 7 argument slots, types spelled differently
+   was: #pragma comment(linker, "/alternatename:?Render@OAM@@YAX_NPAUOamAttr@@HHHHPAUMatrix2x2@@@Z=__ZN3OAM6RenderEbP7OamAttriiiiP9Matrix2x2") */
+#pragma comment(linker, "/alternatename:?Render@OAM@@YAX_NPAUOamAttr@@HHHHPAUMatrix2x2@@@Z=?Render@OAM@@SAH_NPAUOamAttr@@HHHHPAUMatrix2x2@@@Z")
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEFEATED: the left hand side is a real definition in this link now (_ZN3OAM9RenderSubEP7OamAttriiii.cpp.obj), so the directive is inert and alternatename_guard fails on it. */
+// #pragma comment(linker, "/alternatename:?RenderSub@OAM@@SAXPAUOamAttr@@HHHH@Z=__ZN3OAM9RenderSubEP7OamAttriiii")
 #pragma comment(linker, "/alternatename:?GetOwnerLanguage@@YAHXZ=_GetOwnerLanguage")
 #pragma comment(linker, "/alternatename:?_ZN5Timer7GetTimeEv@@YA_KPAX@Z=__ZN5Timer7GetTimeEv")
-#pragma comment(linker, "/alternatename:?LoadOBJPltt@GX@@YAXPBXII@Z=__ZN2GX11LoadOBJPlttEPKvjj")
-#pragma comment(linker, "/alternatename:?LoadOBJPltt@GXS@@YAXPBXII@Z=__ZN3GXS11LoadOBJPlttEPKvjj")
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEFEATED: the left hand side is a real definition in this link now (_ZN2GX11LoadOBJPlttEPKvjj.cpp.obj), so the directive is inert and alternatename_guard fails on it. */
+// #pragma comment(linker, "/alternatename:?LoadOBJPltt@GX@@YAXPBXII@Z=__ZN2GX11LoadOBJPlttEPKvjj")
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEFEATED: the left hand side is a real definition in this link now (_ZN3GXS11LoadOBJPlttEPKvjj.cpp.obj), so the directive is inert and alternatename_guard fails on it. */
+// #pragma comment(linker, "/alternatename:?LoadOBJPltt@GXS@@YAXPBXII@Z=__ZN3GXS11LoadOBJPlttEPKvjj")
 #pragma comment(linker, "/alternatename:?data_0209fc9c@@3EA=_data_0209fc9c")
 #pragma comment(linker, "/alternatename:?data_ov002_0210c29c@@3PAHA=_data_ov002_0210c29c")
 #pragma comment(linker, "/alternatename:?data_ov002_0210c310@@3PAFA=_data_ov002_0210c310")
@@ -1041,8 +1053,16 @@ extern "C" void hal_fill_minimap_vtable(void)
 #pragma comment(linker, "/alternatename:?data_ov002_02111150@@3EA=_data_ov002_02111150")
 #pragma comment(linker, "/alternatename:?data_ov002_0211064c@@3UState@@A=_data_ov002_0211064c")
 #pragma comment(linker, "/alternatename:?data_ov002_02110664@@3UState@@A=_data_ov002_02110664")
-#pragma comment(linker, "/alternatename:?GetBG3CharPtr@G2S@@YAPAXXZ=__ZN3G2S13GetBG3CharPtrEv")
-#pragma comment(linker, "/alternatename:?GetBit@Event@@SAHI@Z=__ZN5Event6GetBitEj")
+/* RE-POINTED at ALIAS2 (wave 8, the main -> port sync), lane ALIAS's
+   derivation: the right hand side this row carried is defined nowhere in
+   the link any more. same member, same convention, same 0 argument slots, types spelled differently
+   was: #pragma comment(linker, "/alternatename:?GetBG3CharPtr@G2S@@YAPAXXZ=__ZN3G2S13GetBG3CharPtrEv") */
+#pragma comment(linker, "/alternatename:?GetBG3CharPtr@G2S@@YAPAXXZ=?GetBG3CharPtr@G2S@@YAIXZ")
+/* RE-POINTED at ALIAS2 (wave 8, the main -> port sync), lane ALIAS's
+   derivation: the right hand side this row carried is defined nowhere in
+   the link any more. same member, same convention, same 1 argument slots, types spelled differently
+   was: #pragma comment(linker, "/alternatename:?GetBit@Event@@SAHI@Z=__ZN5Event6GetBitEj") */
+#pragma comment(linker, "/alternatename:?GetBit@Event@@SAHI@Z=?GetBit@Event@@YAHI@Z")
 #pragma comment(linker, "/alternatename:?SublevelToLevel@@YAHH@Z=_SublevelToLevel")
 
 /* OAM's camera-button templates are static DATA members of class OAM in the

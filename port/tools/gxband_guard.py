@@ -364,7 +364,7 @@ BANDS = (
 )
 
 
-# 0001:0003dc80       ?Render@Trap@@QAEHXZ       0043ec80 f   obj.obj
+# 0001:0003dc80       ?Render@LightBeam@@QAEHXZ       0043ec80 f   obj.obj
 # Row shape and the Rva+Base convention: port/tools/faultmap.py's load_map.
 # The flag column is `f`, `f i`, or absent on data rows, and the object may be
 # `lib:member.obj`, so it is anchored at end of line.

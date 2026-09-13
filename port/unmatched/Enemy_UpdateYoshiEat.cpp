@@ -10,7 +10,7 @@
  * at +0x174/+0x17c the ROM fills the d0-load delay slot with 'mov r3,#0x800'
  * then 'add r1,r6,#0x5c', and mwcc invariably hoists the add first. ~10
  * spellings plus 7000+ decomp-permuter iterations at score 120 failed, the same
- * as func_ov006_020dac34 in the 6o floor. So it stays out of src/ (src/ must
+ * as _ZN11dScMgCard_c11UpdateStateEv in the 6o floor. So it stays out of src/ (src/ must
  * hold only byte-exact bodies) and lives here as a faithful host transcription.
  *
  * The u64-launder casts the draft carried ( ((long long)(int)p) & ~0 ) are pure
@@ -52,21 +52,21 @@ typedef short s16;
 
 extern "C" {
 
-int   _ZNK12WithMeshClsn13GetLimMovFlagEv(void *clsn);
-void  _ZN12WithMeshClsn13SetLimMovFlagEv(void *clsn);
-void  _ZN12WithMeshClsn15ClearLimMovFlagEv(void *clsn);
-void  _ZN5Actor9UpdatePosEP12CylinderClsn(void *self, void *cyl);
-void  WithMeshClsn_UpdateContinuous_Veneer(void *clsn); /* ov002 called this func_020383fc; the port hosts it under its role name (src/WithMeshClsn_UpdateContinuous_Veneer.c, a tail-jump veneer -- the arg rides the caller's frame into the jump, same as its other callers) */
-int   _ZNK12WithMeshClsn10IsOnGroundEv(void *clsn);
-char *_ZNK12WithMeshClsn14GetFloorResultEv(void *clsn);
+int   _ZNK10dBgCh_Actr13GetLimMovFlagEv(void *clsn);
+void  _ZN10dBgCh_Actr13SetLimMovFlagEv(void *clsn);
+void  _ZN10dBgCh_Actr15ClearLimMovFlagEv(void *clsn);
+void  _ZN8dActor_c9UpdatePosEP5dCc_c(void *self, void *cyl);
+void  dBgCh_Actr_UpdateContinuous_Veneer(void *clsn); /* ov002 called this func_020383fc; the port hosts it under its role name (src/dBgCh_Actr_UpdateContinuous_Veneer.c, a tail-jump veneer -- the arg rides the caller's frame into the jump, same as its other callers) */
+int   _ZNK10dBgCh_Actr10IsOnGroundEv(void *clsn);
+char *_ZNK10dBgCh_Actr14GetFloorResultEv(void *clsn);
 void  _ZNK11SurfaceInfo12CopyNormalToER7Vector3(void *surf, void *out);
-int   _ZNK12WithMeshClsn13JustHitGroundEv(void *clsn);
+int   _ZNK10dBgCh_Actr13JustHitGroundEv(void *clsn);
 int   _ZN4cstd4fdivEii(int a, int b);
 int   Vec3_HorzLen(int *v);
 extern short data_02082214[];
 
 extern "C" char *getenv(const char *);
-int _ZN5Enemy14UpdateYoshiEatER12WithMeshClsn(void *selfv, void *clsnv)
+int _ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr(void *selfv, void *clsnv)
 {
     /* TEMP A/B: SM64DS_YOSHI_STUB reverts this to the pre-0.3.4 constant-0 stub
        (the swallow-key fix off), so the same build can be tested both ways. */
@@ -148,14 +148,14 @@ int _ZN5Enemy14UpdateYoshiEatER12WithMeshClsn(void *selfv, void *clsnv)
         }
 
         {
-            int lim = _ZNK12WithMeshClsn13GetLimMovFlagEv(clsn);
-            _ZN12WithMeshClsn13SetLimMovFlagEv(clsn);
-            _ZN5Actor9UpdatePosEP12CylinderClsn(self, 0);
-            WithMeshClsn_UpdateContinuous_Veneer(clsn);
-            if (_ZNK12WithMeshClsn10IsOnGroundEv(clsn) != 0) {
-                char *fr = _ZNK12WithMeshClsn14GetFloorResultEv(clsn);
+            int lim = _ZNK10dBgCh_Actr13GetLimMovFlagEv(clsn);
+            _ZN10dBgCh_Actr13SetLimMovFlagEv(clsn);
+            _ZN8dActor_c9UpdatePosEP5dCc_c(self, 0);
+            dBgCh_Actr_UpdateContinuous_Veneer(clsn);
+            if (_ZNK10dBgCh_Actr10IsOnGroundEv(clsn) != 0) {
+                char *fr = _ZNK10dBgCh_Actr14GetFloorResultEv(clsn);
                 _ZNK11SurfaceInfo12CopyNormalToER7Vector3(fr + 4, self + 0xd4);
-                if (_ZNK12WithMeshClsn13JustHitGroundEv(clsn) == 0) {
+                if (_ZNK10dBgCh_Actr13JustHitGroundEv(clsn) == 0) {
                     *(int *)(self + 0xa8) = 0;
                     *(unsigned char *)(self + 0x107) = 0;
                 } else {
@@ -172,7 +172,7 @@ int _ZN5Enemy14UpdateYoshiEatER12WithMeshClsn(void *selfv, void *clsnv)
             }
             *(s16 *)(self + 0x8e) = *(s16 *)(self + 0x94);
             if (lim == 0)
-                _ZN12WithMeshClsn15ClearLimMovFlagEv(clsn);
+                _ZN10dBgCh_Actr15ClearLimMovFlagEv(clsn);
         }
         return 3;
     }

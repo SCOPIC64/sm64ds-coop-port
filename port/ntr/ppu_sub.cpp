@@ -110,8 +110,8 @@ constexpr uint32_t kObjPlttA = 0x05000200u;
 // caller passes 0x6000 for BG3).
 constexpr uint32_t kBgExtPltt = 0x06898000u;
 // GXS::LoadOBJExtPltt's own destination base, out of the ROM rather than a
-// doc: src/_ZN3GXS14LoadOBJExtPlttEPKvjj.c computes its destination as
-// `destSlotAddr + 0x068a0000`, and src/_ZN2GX23SetBankForSubOBJExtPlttEt.c is
+// doc: src/_ZN3GXS14LoadOBJExtPlttEPKvjj.cpp computes its destination as
+// `destSlotAddr + 0x068a0000`, and src/_ZN2GX23SetBankForSubOBJExtPlttEt.cpp is
 // what puts a bank there (VRAMCNT_I = 0x83) and sets DISPCNT_B bit 31 in the
 // same two lines. One OBJ extended palette is sixteen slots of 256 colours,
 // so the slot stride is 0x200 and the whole store is 0x2000.
@@ -603,7 +603,7 @@ void raster_obj(uint32_t dispcnt) {
                            stride is the BITMAP's width, not the sprite's.
 
                            THE ROM SETTLES WHICH ARM THIS IS, in one statement.
-                           src/func_ov006_020e7428.c, the family's own sprite
+                           src/actors/dScMgD3DBase_c.cpp, the family's own sprite
                            builder (matched, and in all four family slices),
                            opens with
 

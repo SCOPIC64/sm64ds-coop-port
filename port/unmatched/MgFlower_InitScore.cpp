@@ -51,7 +51,7 @@
  * host the callee reads [esp+4], which the caller never wrote:
  *
  *     FAULT c0000005 at +0x00049026 accessing 00000009
- *       flw_init -> func_ov006_0212b480 (slot 0) +0xa
+ *       flw_init -> _ZN13dScMgFlower_c13InitResourcesEv (slot 0) +0xa
  *                -> func_ov004_020ad8b8 +0x10
  *                -> func_ov004_020adc3c +0x6
  *

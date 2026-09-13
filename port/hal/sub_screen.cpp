@@ -393,7 +393,7 @@ unsigned char tp_rd(const unsigned char *p, int i)
  *
  * WHAT THAT COST, from a live session: "when i drag off screen it releases the
  * touch". On scene 368 that is the slingshot firing itself. The pull is
- * src/func_ov006_020fe394.c and its whole body is one branch on
+ * src/func_ov006_020fe394.cpp and its whole body is one branch on
  * `data_020a0de8[k * 4] != 0`: the true side keeps the ball at the captured
  * offset, and the FALSE side is the shot. It writes 2 into the slot's state
  * byte at +0x4f0d and either snaps the ball home or launches it. So a hand
@@ -607,7 +607,7 @@ void poll_touch(void)
      *
      * WHAT IT COST, measured on scene 368 (Bob-omb Squad) with
      * SM64DS_TOUCH_PROBE and the shot table's own state trace. The plunger is
-     * src/func_ov006_020fe2e4.c (grab) and src/func_ov006_020fe394.c (pull and
+     * src/func_ov006_020fe2e4.c (grab) and src/func_ov006_020fe394.cpp (pull and
      * release). The grab arms on `data_020a0de8[k*4] && data_020a0de9[k*4]`
      * and captures ball-minus-stylus into +0x4ee8/+0x4eec; the pull then holds
      * that offset, so WHERE the stylus is on the arming frame decides where
@@ -633,8 +633,8 @@ void poll_touch(void)
      * `de8 && de9` sites (the press edge: curling's func_ov006_020e1b54,
      * Coincentration's func_ov006_020dd0e0, and two dozen more) fired one
      * frame late and then EVERY frame of the hold instead of once.
-     * `de8 == 0 && de9` sites (the release edge: src/func_ov006_020d1ba0.c:63,
-     * func_ov006_0212157c.c:49, func_ov006_0211134c.c:82) were identically
+     * `de8 == 0 && de9` sites (the release edge: src/func_ov006_020d1ba0.cpp:63,
+     * _ZN17dScMgTrampoline_c16UpdateTouchInputEv.c:49, _ZN21cMgSmartball_spring_c12SaveSnapshotEv.c:82) were identically
      * false under the old spelling -- a byte that means "down and was down"
      * cannot be set while `down` is clear -- so release detection did not
      * exist on this port at all.
@@ -930,7 +930,7 @@ int hal_window_focused(void)
  *
  * Everything below the seam is Stage::InitResources' -- Stage::LoadGraphics2D,
  * data_0209d454 = 0x18, GXS::SetGraphicsMode(3) -- and a non-level scene must
- * not get it. dScStarSel_c::InitResources (src/func_ov003_020af8a0.c) does its
+ * not get it. dScStarSel_c::InitResources (src/_ZN12dScStarSel_c13InitResourcesEv.cpp) does its
  * own sub bring-up and reaches a DIFFERENT answer at every point:
  *
  *              Stage::InitResources      dScStarSel_c::InitResources
@@ -1033,7 +1033,7 @@ void hal_sub_screen_init_hw(void *hwnd, int zoom)
      *                  sprite into the MAIN shadow instead.
      *
      * So on the DS the bottom screen is live from boot and only ov006's
-     * minigames ever set the flag (func_ov006_020e6cac, func_ov006_020e7124),
+     * minigames ever set the flag (_ZN14dScMgD3DBase_c25OnAimedAtWithEggReturnVecEv, _ZN14dScMgD3DBase_c9Virtual84Ev),
      * clearing it again on the way out.
      *
      * WHY THE PORT NEEDS A CALL AT ALL. hal/model_host.cpp:91 hosts the global
@@ -1043,7 +1043,7 @@ void hal_sub_screen_init_hw(void *hwnd, int zoom)
      * never uploaded. The level path has always covered it by calling
      * EnableSubOAM here; a scene run reached neither, which is the whole
      * defect. OAM::EnableSubOAM is the ROM's own name for `e660 = 0`
-     * (src/_ZN3OAM12EnableSubOAMEv.c is that one store and nothing else), so
+     * (src/_ZN3OAM12EnableSubOAMEv.cpp is that one store and nothing else), so
      * calling it is how the port spells "restore the DS's boot state" without
      * inventing a write.
      *
@@ -1505,7 +1505,7 @@ void hal_obj_parity_probe(void)
  *                                   uses for the TOP screen's copy.
  *
  * All three agree: a submission made while sel == 1 belongs on the top screen
- * and one made while sel == 0 belongs on the bottom. src/func_ov006_020e6e78.c
+ * and one made while sel == 0 belongs on the bottom. src/actors/dScMgD3DBase_c.cpp
  * -- slot 24 -- sets POWCNT1 the other way round on the same frame (sel == 1
  * clears bit 15, which sends engine A to the LOWER screen), so on the DS a
  * submission is displayed under the arm the NEXT beat sets. That is not a
@@ -1523,7 +1523,7 @@ void hal_obj_parity_probe(void)
  * of the split-sprite cure the late position was reached for: the two halves of
  * a sprite straddling the gapless seam still draw from the same block, it is
  * simply the block the ROM would have them draw from. OAM::Flush is NOT added
- * here -- it is CP15 cache maintenance (src/_ZN3OAM5FlushEv.c) with nothing to
+ * here -- it is CP15 cache maintenance (src/_ZN3OAM5FlushEv.cpp) with nothing to
  * do on a host, and this program has never called it. */
 static int oam_load_late(void)
 {
@@ -2335,7 +2335,7 @@ void hal_touch_client_probe(void)
 /* LoadFont3D is NOT faced here any more (VS wiring lane, run vs1). The
    "only from LoadGraphics2D(b != 0)" premise stopped holding when scene 6
    mounted: dScEntry_c::InitResources calls LoadFont3D DIRECTLY
-   (src/func_ov075_0211a410.cpp:101), and the face swallowed
+   (src/_ZN10dScEntry_c13InitResourcesEv.cpp:101), and the face swallowed
    Message::LoadTextVS with the font upload, so the VS text plot read the
    null data_0209fcf8 -- measured as the c0000005 at func_020341a8+0x23 on
    the first scene-6 boot. Every dependency is hosted now (LoadFile,

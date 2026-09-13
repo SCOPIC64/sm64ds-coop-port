@@ -18,23 +18,23 @@ struct Vector3_16;
 struct State;
 
 extern "C" {
-void _ZN13RaycastGroundC1Ev(void *self);
-void _ZN13RaycastGroundD1Ev(void *self);
-void _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(void *self,
+void _ZN9dBgCh_GndC1Ev(void *self);
+void _ZN9dBgCh_GndD1Ev(void *self);
+void _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(void *self,
                                                         const void *v,
                                                         void *a);
-void _ZN11RaycastLineC1Ev(void *self);
-void _ZN11RaycastLineD1Ev(void *self);
-void _ZN11RaycastLine13SetObjAndLineERK7Vector3S2_P5Actor(void *self,
+void _ZN9dBgCh_LinC1Ev(void *self);
+void _ZN9dBgCh_LinD1Ev(void *self);
+void _ZN9dBgCh_Lin13SetObjAndLineERK7Vector3S2_P8dActor_c(void *self,
                                                           const void *a,
                                                           const void *b,
                                                           void *actor);
-void _ZN11RaycastLine10GetClsnPosEv(void *res, void *self);
+void _ZN9dBgCh_Lin10GetClsnPosEv(void *res, void *self);
 int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *st);
 int _ZN6Player7IsStateERNS_5StateE(void *self, void *st);
-struct Actor *_ZN5Actor10FindWithIDEj(unsigned id);
-int _ZNK10ClsnResult9GetClsnIDEv(const void *self);
-int _ZNK12WithMeshClsn10IsOnGroundEv(const void *self);
+struct Actor *_ZN8dActor_c10FindWithIDEj(unsigned id);
+int _ZNK5dBgPi9GetClsnIDEv(const void *self);
+int _ZNK10dBgCh_Actr10IsOnGroundEv(const void *self);
 unsigned char _ZN3OAM11GetObjWidthEii(int a, int b);
 unsigned char _ZN3OAM12GetObjHeightEii(int a, int b);
 int _ZN3OAM16LoadAffineParamsEP7OamAttrPiP9Matrix2x2(void *attr, int *p,
@@ -42,9 +42,9 @@ int _ZN3OAM16LoadAffineParamsEP7OamAttrPiP9Matrix2x2(void *attr, int *p,
 int _ZN8SaveData19IsCharacterUnlockedEj(unsigned ch);
 int _ZN4cstd4fdivEii(int a, int b);
 /* gate 18 */
-void *_ZN5Actor13ClosestPlayerEv(void *self);
-short _ZN5Actor18HorzAngleToCPlayerEv(void *self);
-int _ZN5Actor19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
+void *_ZN8dActor_c13ClosestPlayerEv(void *self);
+short _ZN8dActor_c18HorzAngleToCPlayerEv(void *self);
+int _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
     void *self, void *sm, void *m, int rad, int h, unsigned f);
 }
 
@@ -53,10 +53,10 @@ struct RaycastGround {
     ~RaycastGround();
     void SetObjAndPos(const Vector3 &v, Actor *a);
 };
-RaycastGround::RaycastGround() { _ZN13RaycastGroundC1Ev(this); }
-RaycastGround::~RaycastGround() { _ZN13RaycastGroundD1Ev(this); }
+RaycastGround::RaycastGround() { _ZN9dBgCh_GndC1Ev(this); }
+RaycastGround::~RaycastGround() { _ZN9dBgCh_GndD1Ev(this); }
 void RaycastGround::SetObjAndPos(const Vector3 &v, Actor *a)
-{ _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(this, &v, a); }
+{ _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(this, &v, a); }
 
 struct RaycastLine {
     RaycastLine();
@@ -65,15 +65,15 @@ struct RaycastLine {
     void SetObjAndLine(const Vector3 &a, const Vector3 &b, Actor *actor);
     Vector3 GetClsnPos();
 };
-RaycastLine::RaycastLine() { _ZN11RaycastLineC1Ev(this); }
-RaycastLine::~RaycastLine() { _ZN11RaycastLineD1Ev(this); }
+RaycastLine::RaycastLine() { _ZN9dBgCh_LinC1Ev(this); }
+RaycastLine::~RaycastLine() { _ZN9dBgCh_LinD1Ev(this); }
 void RaycastLine::SetObjAndLine(const Vector3 &a, const Vector3 &b,
                                 Actor *actor)
-{ _ZN11RaycastLine13SetObjAndLineERK7Vector3S2_P5Actor(this, &a, &b, actor); }
+{ _ZN9dBgCh_Lin13SetObjAndLineERK7Vector3S2_P8dActor_c(this, &a, &b, actor); }
 Vector3 RaycastLine::GetClsnPos()
 {
     Vector3 tmp;
-    _ZN11RaycastLine10GetClsnPosEv(&tmp, this);
+    _ZN9dBgCh_Lin10GetClsnPosEv(&tmp, this);
     return tmp;
 }
 
@@ -114,9 +114,9 @@ void Player::Hurt(const Vector3 &v, unsigned a, int b, unsigned c, unsigned d,
 { _ZN6Player4HurtERK7Vector3j5Fix12IiEjjj(this, &v, a, b, c, d, e); }
 
 /* ClsnResult::GetClsnID is the MATCHED body now (run linkw wave 3, w3-a).
-   src/_ZNK10ClsnResult9GetClsnIDEv.cpp declares it `u32`, and MSVC puts the
+   src/_ZNK5dBgPi9GetClsnIDEv.cpp declares it `u32`, and MSVC puts the
    return type in the decoration, so the matched symbol is
-   ?GetClsnID@ClsnResult@@QBEIXZ. The shadow here used to say `int`, which
+   ?GetClsnID@dBgPi@@QBEIXZ. The shadow here used to say `int`, which
    decorates ...QBEHXZ -- a different symbol entirely, which is exactly why
    w2-a found "the two never meet and no duplicate is raised". Spelling the
    shadow `unsigned` makes this declaration name the matched body, and the
@@ -133,7 +133,7 @@ struct ClsnResult { unsigned GetClsnID() const; };
 struct ClsnResultIntFace { int GetClsnID() const; };
 int ClsnResultIntFace::GetClsnID() const
 { return (int)((const ClsnResult *)this)->ClsnResult::GetClsnID(); }
-#pragma comment(linker, "/alternatename:?GetClsnID@ClsnResult@@QBEHXZ=?GetClsnID@ClsnResultIntFace@@QBEHXZ")
+#pragma comment(linker, "/alternatename:?GetClsnID@dBgPi@@QBEHXZ=?GetClsnID@ClsnResultIntFace@@QBEHXZ")
 
 struct WithMeshClsn {
     int IsOnGround() const;
@@ -141,18 +141,18 @@ struct WithMeshClsn {
     int GetFloorResult() const;
 };
 int WithMeshClsn::IsOnGround() const
-{ return _ZNK12WithMeshClsn10IsOnGroundEv(this); }
+{ return _ZNK10dBgCh_Actr10IsOnGroundEv(this); }
 
-struct CylinderClsn;
+struct dCc_c;
 struct ShadowModel;
 struct Matrix4x3;
-/* FindWithID is NOT here any more. src/_ZN5Actor10FindWithIDEj.cpp used to be
+/* FindWithID is NOT here any more. src/_ZN8dActor_c10FindWithIDEj.cpp used to be
    a C free function that this file wrapped into a method; main rewrote it as
    the real static method against include/Actor.h, so defining it here is a
    second definition. The traffic now runs the other way and the C face its
    callers spell lives in hal/method_faces.cpp. */
 struct Actor {
-    void UpdatePosWithOnlySpeed(CylinderClsn *c);
+    void UpdatePosWithOnlySpeed(dCc_c *c);
     /* gate 18: ov085's TUs declare a local Actor shadow and call these as
        methods; all three are C-form definitions in src. */
     Matrix4x3 *UpdateCarry(Player &player, const Vector3 &vec);
@@ -162,23 +162,23 @@ struct Actor {
                              unsigned f);
 };
 /* THE OTHER DIRECTION, in the same place for the same reason.
-   src/_ZN5Actor11UpdateCarryER6PlayerRK7Vector3.cpp defines UpdateCarry as a
+   src/_ZN8dActor_c11UpdateCarryER6PlayerRK7Vector3.cpp defines UpdateCarry as a
    method of its OWN local `class Actor` -- include/Actor.h does not declare
    it -- so the C name its ov085 caller uses has to be defined against a
    shadow too, and this is the only file that has one. Not an alias: the C
    form is __cdecl with `this` on the stack, the method is __thiscall with it
    in ecx. */
-extern "C" Matrix4x3 *_ZN5Actor11UpdateCarryER6PlayerRK7Vector3(
+extern "C" Matrix4x3 *_ZN8dActor_c11UpdateCarryER6PlayerRK7Vector3(
     void *self, void *player, const void *vec)
 { return ((Actor *)self)->UpdateCarry(*(Player *)player,
                                       *(const Vector3 *)vec); }
 Player *Actor::ClosestPlayer()
-{ return (Player *)_ZN5Actor13ClosestPlayerEv(this); }
+{ return (Player *)_ZN8dActor_c13ClosestPlayerEv(this); }
 short Actor::HorzAngleToCPlayer()
-{ return _ZN5Actor18HorzAngleToCPlayerEv(this); }
+{ return _ZN8dActor_c18HorzAngleToCPlayerEv(this); }
 void Actor::DropShadowRadHeight(ShadowModel &sm, Matrix4x3 &m, int rad, int h,
                                 unsigned f)
-{ _ZN5Actor19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
+{ _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
       this, &sm, &m, rad, h, f); }
 
 template <typename T> struct Fix12 { T val; };
@@ -190,6 +190,14 @@ struct OAM {
                        int pri, Fix12<int> sx, Fix12<int> sy, int rot,
                        int mode);
 };
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync): main's tree defines all
+   four of these as real static members now, so src/ emits
+   ?GetObjWidth@OAM@@SAEHH@Z, ?GetObjHeight@OAM@@SAEHH@Z,
+   ?LoadAffineParams@OAM@@SAHPAUOamAttr@@PAHPAUMatrix2x2@@@Z and
+   ?IsCharacterUnlocked@SaveData@@SAHI@Z itself, and these bridges were the
+   second definition (LNK2005). Each is a static, so there is no receiver to
+   bridge and the flat ROM name aliases straight onto the src symbol; lane
+   ALIAS2's batch-2 rows in hal/cxx_aliases.cpp carry that direction.
 unsigned char OAM::GetObjWidth(int a, int b)
 { return _ZN3OAM11GetObjWidthEii(a, b); }
 unsigned char OAM::GetObjHeight(int a, int b)
@@ -199,7 +207,7 @@ int OAM::LoadAffineParams(OamAttr *attr, int *p, Matrix2x2 *m)
 
 struct SaveData { static int IsCharacterUnlocked(unsigned ch); };
 int SaveData::IsCharacterUnlocked(unsigned ch)
-{ return _ZN8SaveData19IsCharacterUnlockedEj(ch); }
+{ return _ZN8SaveData19IsCharacterUnlockedEj(ch); }                          */
 
 namespace cstd { int fdiv(int a, int b); }
 int cstd::fdiv(int a, int b) { return _ZN4cstd4fdivEii(a, b); }
@@ -250,11 +258,11 @@ void Scene::StartSceneFade(unsigned, unsigned, unsigned short) {}
    bodies, carried by slice_gate29.txt over a real SysTracker; the
    MSVC-mangled C++ faces are aliased onto them in hal/cxx_aliases.cpp. */
 
-extern "C" int _ZN11RaycastLine10DetectClsnEv(void *self)
+extern "C" int _ZN9dBgCh_Lin10DetectClsnEv(void *self)
 { return ((RaycastLine *)self)->DetectClsn(); }
-extern "C" int _ZNK12WithMeshClsn13GetWallResultEv(const void *self)
+extern "C" int _ZNK10dBgCh_Actr13GetWallResultEv(const void *self)
 { return ((const WithMeshClsn *)self)->GetWallResult(); }
-extern "C" int _ZNK12WithMeshClsn14GetFloorResultEv(const void *self)
+extern "C" int _ZNK10dBgCh_Actr14GetFloorResultEv(const void *self)
 { return ((const WithMeshClsn *)self)->GetFloorResult(); }
 
 /* gate 172: func_ov098_021390ec (Crate's state helper) declares a local
@@ -262,14 +270,18 @@ extern "C" int _ZNK12WithMeshClsn14GetFloorResultEv(const void *self)
    a real method; the matched body is the C-form src
    (_ZNK11SurfaceInfo12CopyNormalToER7Vector3.c, slice_gate8.txt), so the
    method bridges to it -- an alias cannot cross the __thiscall/cdecl seam. */
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync): main's tree defines
+   SurfaceInfo::CopyNormalTo as a real member now, so src/ emits
+   ?CopyNormalTo@SurfaceInfo@@QBEXAAUVector3@@@Z itself and this bridge was the
+   second definition (LNK2005).
 struct SurfaceInfo { void CopyNormalTo(Vector3 &) const; };
 extern "C" void _ZNK11SurfaceInfo12CopyNormalToER7Vector3(const void *self,
                                                           Vector3 *v);
 void SurfaceInfo::CopyNormalTo(Vector3 &v) const
-{ _ZNK11SurfaceInfo12CopyNormalToER7Vector3(this, &v); }
+{ _ZNK11SurfaceInfo12CopyNormalToER7Vector3(this, &v); }                     */
 
 struct SphereClsn { int DetectClsn(); };
-extern "C" int _ZN10SphereClsn10DetectClsnEv(void *self)
+extern "C" int _ZN12dBgCh_SphCrr10DetectClsnEv(void *self)
 { return ((SphereClsn *)self)->DetectClsn(); }
 
 struct Message { void Update(); static void AddChar(char c); };
@@ -321,15 +333,15 @@ extern "C" void *_ZN3OAM6RenderEbP7OamAttriiii5Fix12IiES3_ii(
 }
 
 /* shadow-defined in their own TUs (struct CylinderClsn / struct Camera) */
-extern "C" void _ZN5Actor22UpdatePosWithOnlySpeedEP12CylinderClsn(void *self,
+extern "C" void _ZN8dActor_c22UpdatePosWithOnlySpeedEP5dCc_c(void *self,
                                                                   void *cl)
-{ ((Actor *)self)->UpdatePosWithOnlySpeed((CylinderClsn *)cl); }
+{ ((Actor *)self)->UpdatePosWithOnlySpeed((dCc_c *)cl); }
 struct Camera { void SetFlag_3(); };
 extern "C" void _ZN6Camera9SetFlag_3Ev(void *self)
 { ((Camera *)self)->SetFlag_3(); }
 
 /* THE HOST BODY IS GONE (run linkw wave 3, w3-a). It read the objID at +0x1c
-   itself; the matched src/_ZNK10ClsnResult9GetClsnIDEv.cpp reads
+   itself; the matched src/_ZNK5dBgPi9GetClsnIDEv.cpp reads
    ((const u32 *)this)[7], the same word, and now owns the work. This is the
    reference edge that stops /OPT:REF discarding it: 22 of its 27 ROM callers
    are in the image and every one of them calls this C name.
@@ -340,5 +352,5 @@ extern "C" void _ZN6Camera9SetFlag_3Ev(void *self)
    loop that hung the first real-collision frame. The method this forwards to
    now is ...QBEIXZ, the matched body, which reads the field and returns. One
    hop, and the far end does real work rather than hopping back. */
-extern "C" int _ZNK10ClsnResult9GetClsnIDEv(const void *self)
+extern "C" int _ZNK5dBgPi9GetClsnIDEv(const void *self)
 { return (int)((const ClsnResult *)self)->ClsnResult::GetClsnID(); }

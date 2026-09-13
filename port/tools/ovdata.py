@@ -1067,7 +1067,7 @@ def main():
     # That is the ICE_SLIDE_MANAGER trample, and it is why it was
     # LAYOUT-DEPENDENT. MSVC merges grouped sections by the text after the
     # `$`, so .dsstate$pk018_0041 lands immediately before .dsstate$pk019_0000
-    # -- and pk019_0000 is IceSlideManager_SpawnInfo. Writing 40 bytes into a
+    # -- and pk019_0000 is g_profile_SLIDER_MANAGER. Writing 40 bytes into a
     # 4-byte host object put bytes 8 and 9 straight onto SpawnInfo+4, the id
     # halfword the registry cross-checks, which is why the symptom was
     # "SpawnInfo says id 21932, registry says 356" before registration ever
@@ -1150,7 +1150,29 @@ def main():
         if ":" in name:
             name, _, ov_sz = name.partition(":")
             override = int(ov_sz, 0)
-        if name not in addr_of:
+        # "name@0xADDR" PINS THE ADDRESS, for a ROM object the config does not
+        # name any more.
+        #
+        # 2026-09-13, main -> port sync, lane SYNC3. dsd invents a name wherever
+        # code references an address, and main has been replacing those invented
+        # `data_ovNNN_XXXXXXXX` names with anonymous `@NNN` labels or folding
+        # them into a neighbour's span. Twenty rows in the port's mount lists
+        # name objects that went that way, and three of those names are
+        # referenced by C the port compiles (src/__sinit_ov023_02111aa8.c and
+        # hal/actor_overlays.cpp), so the rows cannot simply go: the mount would
+        # stop emitting bytes something reads.
+        #
+        # The address is the thing that did not move, so the row spells it. The
+        # name then means only "what this port emits the object as", which is
+        # what an invented dsd name always was. An `@NNN` label cannot be used
+        # instead: it is not a C identifier and the port's references are to the
+        # older spelling. Asked decomp-side in out/SYNC3/decomp_side.md; the
+        # moment the config names these again the `@0x` suffix can go.
+        pin = None
+        if "@0x" in name:
+            name, _, pin_s = name.partition("@")
+            pin = int(pin_s, 16)
+        if pin is None and name not in addr_of:
             sys.exit(f"{name} not in {ov} symbols")
         # A ROM NAME IS NOT ALWAYS A C NAME. dsd names each .ctor word after
         # the sinit it points at with a `.p` prefix -- `.p__sinit_ov004_
@@ -1169,7 +1191,7 @@ def main():
                      f"addresses of .init code no data mount hosts, so leave "
                      f"them out of the list and let --pack's padding stand in "
                      f"for the table.")
-        a = addr_of[name]
+        a = pin if pin is not None else addr_of[name]
         end = section_end(a)
         # No next symbol means the end of the section owns the rest (see the
         # note where `sections` is built); a next symbol past the section end

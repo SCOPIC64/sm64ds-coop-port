@@ -39,14 +39,14 @@
 # themselves are untouched.
 #
 # NOT HERE, and why:
-#   src/func_ov012_02111324.cpp -- SwitchPillar's own Render, the same
+#   src/game/actors/d_a_obj_c0_switch.cpp -- SwitchPillar's own Render, the same
 #     collision, but its source carries the "recovered from vtable slot
 #     identity" GUESS marker. inferred_stub_guard.py refuses new seats of
 #     those. RETIRED anyway by run link100 lane UNMATCH: the body IS
 #     adjudicated (inferred_stub_adjudicated.txt:2326 REAL_DECOMP), so the
 #     guard admits the seat. port/slice_unmatch.txt carries it and
 #     unmatched/ModelAnim_Renders.cpp is gone.
-#   src/_ZN6Snufit6RenderEv.cpp, src/_ZN5Swoop6RenderEv.cpp,
+#   src/actors/daYurei_Mucho_c.cpp, src/_ZN5Swoop6RenderEv.cpp,
 #     src/_ZN6Dorrie6RenderEv.cpp, src/_ZN9MontyMole6RenderEv.cpp -- the same
 #     collision and worth four more, but their fills route to
 #     port_w19_* host names in hal/actor_classes_ov065.cpp and
@@ -54,11 +54,23 @@
 #
 # ---------------------------------------------------------------------------
 # BOB-OMB BATTLEFIELD's cast (host copies were unmatched/BobEnemy_Renders.cpp)
-src/_ZN6BobOmb6RenderEv.cpp
-src/_ZN6Goomba6RenderEv.cpp
+# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
+# refuses main's shape for this TU (C2624 and C3640, an extern declaration of
+# a function-local class type: forbidden outright by C++ ([basic.link]),
+# measured unreachable by every MSVC conformance switch (/permissive included,
+# probed 2026-09-13)). It is a decomp-side item, not a port one: see
+# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
+# fix.
+#src/actors/daBmb_c.cpp
+src/_ZN7daKrb_c6RenderEv.cpp
 src/_ZN11BobOmbBuddy6RenderEv.cpp
-src/_ZN10ChainChomp6RenderEv.cpp
-src/_ZN15ChainChompFence6RenderEv.cpp
+# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
+# refuses main's shape for this TU (C2556 and C2371, one free function
+# declared with two different return types in one TU). It is a decomp-side
+# item, not a port one: see runs/link100/out/SYNC5/decomp_side.md. The row
+# returns when main lands the fix.
+#src/game/actors/d_a_wanwan.cpp
+src/game/actors/d_a_obj_wanwan_shutter.cpp
 src/_ZN13KoopaTheQuick6RenderEv.cpp
 src/_ZN9KoopaFlag6RenderEv.cpp
 # ---------------------------------------------------------------------------
@@ -67,22 +79,27 @@ src/_ZN5Whomp6RenderEv.cpp
 src/_ZN9Butterfly6RenderEv.cpp
 src/_ZN4Fish6RenderEv.cpp
 src/_ZN13QuestionBlock6RenderEv.cpp
-src/_ZN10Scuttlebug6RenderEv.cpp
+src/actors/Scuttlebug.cpp
 src/_ZN9PowerStar6RenderEv.cpp
-src/_ZN5Bully6RenderEv.cpp
+src/actors/daOts_c.cpp
 src/_ZN8BigBully6RenderEv.cpp
 src/_ZN15RotatingFirebar6RenderEv.cpp
 src/_ZN13UpDownLiftBbh6RenderEv.cpp
-src/_ZN7Seaweed6RenderEv.cpp
+src/_ZN12HealingHeart6RenderEv.cpp
 src/_ZN9SeesawBob6RenderEv.cpp
 src/_ZN14UnchainedChomp6RenderEv.cpp
 src/_ZN11BabyPenguin6RenderEv.cpp
 src/_ZN10HootTheOwl6RenderEv.cpp
-src/_ZN12SwitchPillar6RenderEv.cpp
+src/_ZN13BasementWater6RenderEv.cpp
 src/_ZN9Spindrift6RenderEv.cpp
-src/_ZN8Moneybag6RenderEv.cpp
-src/_ZN9PushBlock6RenderEv.cpp
-src/actors/Boo/_ZN3Boo6RenderEv.cpp
-src/_ZN6FlyGuy6RenderEv.cpp
+# QUARANTINED at the main->port sync (origin/main 9c7f38a24): main folded this
+# class into one TU, and port/ host-copies bodies inside it (the slice_w3b host copies).
+# port/CMakeLists.txt's own assertion refuses the pair, because taking both is a
+# duplicate symbol and taking the src one puts the host copy's reason back. The
+# row returns when the host copy covers the whole consolidated TU.
+#src/actors/daGmch_c.cpp
+src/_ZN11PowerFlower6RenderEv.cpp
+src/game/actors/daTrs_c/_ZN7daTrs_c6RenderEv.cpp
+src/game/actors/d_a_propeller_heyho.cpp
 src/_ZN8YoshiEgg6RenderEv.cpp
-src/_ZN14QuestionSwitch6RenderEv.cpp
+src/game/actors/d_a_obj_hatena_switch.cpp

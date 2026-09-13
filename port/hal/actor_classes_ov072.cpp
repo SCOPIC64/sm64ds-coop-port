@@ -106,7 +106,7 @@
 // shape (a plain Actor with a real MSVC-synthesised D1 destructor and a
 // D0 that stores its own table and never overwrites it).
 //
-// PREPARE SHORT-1 BUG: func_ov072_02120a44's InitResources calls
+// PREPARE SHORT-1 BUG: _ZN11daBgSnwmn_c13InitResourcesEv's InitResources calls
 // TextureSequence::Prepare with the MotherPenguin (gate 191) two-argument
 // shape; HOST COPY port/unmatched/Snowman_InitResources.cpp fixes it.
 //
@@ -149,46 +149,46 @@
    Actor::OnAimedAtWithEggReturnVec. The ROM word in slot 30 of every vtable
    this file fills IS the arm9 base body 0x020100dc (checked against
    config/<module>/relocs.txt at vtable+30*4), and that body is now in the
-   link from src/_ZN5Actor25OnAimedAtWithEggReturnVecEv.cpp on slice_gate50.
+   link from src/_ZN8dActor_c25OnAimedAtWithEggReturnVecEv.cpp on slice_gate50.
    The three-parameter __fastcall is the sret contract MSVC uses for a
    thiscall member returning a 12-byte struct: this in ecx, the hidden result
    pointer the one (callee-popped) stack argument. Same shape as whomp_s30. */
 extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
 #include <cstdlib>
 
-#include "Actor.h"
+#include "dActor_c.h"
 #include "dtor_faces_cpp.h"
-#include "ActorBase.h"
+#include "fBase_c.h"
 #include "BabyPenguin.h"
-#include "SnowmanBody.h"
+/* #include "daBgSnmBdy_c.h" -- SYNC5, see the SNOWMAN_BODY DORMANT banner below */
 #include "SnowmanHead.h"
 
 extern "C" {
-int _ZN5Actor19BeforeInitResourcesEv(void *self);
-void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a);
-int _ZN5Actor14BeforeBehaviorEv(void *self);
-int _ZN5Actor12BeforeRenderEv(void *self);
-int _ZN5Actor13OnYoshiTryEatEv(void *self);
-void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p);
-int _ZN5Actor9Virtual50Ev(void *self);
-void _ZN5Actor15OnGroundPoundedERS_(void *self, void *o);
-void _ZN5Actor11OnAttacked1ERS_(void *self, void *o);
-void _ZN5Actor11OnAttacked2ERS_(void *self, void *o);
-void _ZN5Actor8OnKickedERS_(void *self, void *o);
-void _ZN5Actor8OnPushedERS_(void *self, void *o);
-void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o);
-void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);
-void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);
-int _ZN5Actor16OnAimedAtWithEggEv(void *self);
-void _ZN5ActorD2Ev(void *self);
+int _ZN8dActor_c19BeforeInitResourcesEv(void *self);
+void _ZN8dActor_c18AfterInitResourcesEj(void *self, unsigned a);
+int _ZN8dActor_c14BeforeBehaviorEv(void *self);
+int _ZN8dActor_c12BeforeRenderEv(void *self);
+int _ZN8dActor_c13OnYoshiTryEatEv(void *self);
+void _ZN8dActor_c13OnTurnIntoEggER6Player(void *self, void *p);
+int _ZN8dActor_c9Virtual50Ev(void *self);
+void _ZN8dActor_c15OnGroundPoundedERS_(void *self, void *o);
+void _ZN8dActor_c11OnAttacked1ERS_(void *self, void *o);
+void _ZN8dActor_c11OnAttacked2ERS_(void *self, void *o);
+void _ZN8dActor_c8OnKickedERS_(void *self, void *o);
+void _ZN8dActor_c8OnPushedERS_(void *self, void *o);
+void _ZN8dActor_c24OnHitByCannonBlastedCharERS_(void *self, void *o);
+void _ZN8dActor_c15OnHitByMegaCharER6Player(void *self, void *p);
+void _ZN8dActor_c19OnHitFromUnderneathERS_(void *self, void *o);
+int _ZN8dActor_c16OnAimedAtWithEggEv(void *self);
+void _ZN8dActor_cD2Ev(void *self);
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
 const char *port_actor_class_name(unsigned id);  /* hal/actor_registry */
 void port_actor_slot_decline(const char *what);  /* func_02043fdc_hostcopy.cpp */
 void _ZN9ModelAnimD1Ev(void *self);
 void _ZN11ShadowModelD1Ev(void *self);
-void _ZN18MovingCylinderClsnD1Ev(void *self);
-void _ZN12WithMeshClsnD1Ev(void *self);
+void _ZN7dCcAc_cD1Ev(void *self);
+void _ZN10dBgCh_ActrD1Ev(void *self);
 extern void *data_020a0eac;
 void _ZN6Memory10DeallocateEPvP4Heap(void *, void *);
 void port_actor_render_probe(const char *cls, void *model);
@@ -221,47 +221,47 @@ static int __fastcall ov72_trap14(void *s, void *) { ov72_trap_report(s, 14); re
 
 // ---- the shared 1..30 half, both 31-slot plain-Actor tables share it ----
 static int __fastcall ov72_binit(void *s, void *)
-{ return _ZN5Actor19BeforeInitResourcesEv(s); }
+{ return _ZN8dActor_c19BeforeInitResourcesEv(s); }
 static void __fastcall ov72_ainit(void *s, void *, unsigned a)
-{ _ZN5Actor18AfterInitResourcesEj(s, a); }
+{ _ZN8dActor_c18AfterInitResourcesEj(s, a); }
 static int __fastcall ov72_bclean(void *s, void *)
-{ return ((Actor *)s)->Actor::BeforeCleanupResources(); }
+{ return ((dActor_c *)s)->dActor_c::BeforeCleanupResources(); }
 static void __fastcall ov72_aclean(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterCleanupResources(a); }
+{ ((fBase_c *)s)->fBase_c::AfterCleanupResources(a); }
 static int __fastcall ov72_bbeh(void *s, void *)
-{ return _ZN5Actor14BeforeBehaviorEv(s); }
+{ return _ZN8dActor_c14BeforeBehaviorEv(s); }
 static void __fastcall ov72_abeh(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+{ ((fBase_c *)s)->fBase_c::AfterBehavior(a); }
 static int __fastcall ov72_bren(void *s, void *)
-{ return _ZN5Actor12BeforeRenderEv(s); }
+{ return _ZN8dActor_c12BeforeRenderEv(s); }
 static void __fastcall ov72_aren(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterRender(a); }
+{ ((fBase_c *)s)->fBase_c::AfterRender(a); }
 static int __fastcall ov72_heap(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::OnHeapCreated(); }
+{ return ((fBase_c *)s)->fBase_c::OnHeapCreated(); }
 static int __fastcall ov72_yoshi(void *s, void *)
-{ return _ZN5Actor13OnYoshiTryEatEv(s); }
+{ return _ZN8dActor_c13OnYoshiTryEatEv(s); }
 static int __fastcall ov72_egg(void *s, void *, void *p)
-{ _ZN5Actor13OnTurnIntoEggER6Player(s, p); return 0; }
+{ _ZN8dActor_c13OnTurnIntoEggER6Player(s, p); return 0; }
 static int __fastcall ov72_v50(void *s, void *)
-{ return _ZN5Actor9Virtual50Ev(s); }
+{ return _ZN8dActor_c9Virtual50Ev(s); }
 static int __fastcall ov72_pounded(void *s, void *, void *o)
-{ _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
+{ _ZN8dActor_c15OnGroundPoundedERS_(s, o); return 0; }
 static int __fastcall ov72_atk1(void *s, void *, void *o)
-{ _ZN5Actor11OnAttacked1ERS_(s, o); return 0; }
+{ _ZN8dActor_c11OnAttacked1ERS_(s, o); return 0; }
 static int __fastcall ov72_atk2(void *s, void *, void *o)
-{ _ZN5Actor11OnAttacked2ERS_(s, o); return 0; }
+{ _ZN8dActor_c11OnAttacked2ERS_(s, o); return 0; }
 static int __fastcall ov72_kicked(void *s, void *, void *o)
-{ _ZN5Actor8OnKickedERS_(s, o); return 0; }
+{ _ZN8dActor_c8OnKickedERS_(s, o); return 0; }
 static int __fastcall ov72_pushed(void *s, void *, void *o)
-{ _ZN5Actor8OnPushedERS_(s, o); return 0; }
+{ _ZN8dActor_c8OnPushedERS_(s, o); return 0; }
 static int __fastcall ov72_cannon(void *s, void *, void *o)
-{ _ZN5Actor24OnHitByCannonBlastedCharERS_(s, o); return 0; }
+{ _ZN8dActor_c24OnHitByCannonBlastedCharERS_(s, o); return 0; }
 static int __fastcall ov72_mega(void *s, void *, void *p)
-{ _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
+{ _ZN8dActor_c15OnHitByMegaCharER6Player(s, p); return 0; }
 static int __fastcall ov72_under(void *s, void *, void *o)
-{ _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
+{ _ZN8dActor_c19OnHitFromUnderneathERS_(s, o); return 0; }
 static int __fastcall ov72_aimed(void *s, void *)
-{ return _ZN5Actor16OnAimedAtWithEggEv(s); }
+{ return _ZN8dActor_c16OnAimedAtWithEggEv(s); }
 
 /* Fills slots 1,2,4,5,7,8,10,11,13,14,15,18..30, every shared slot both
    31-slot plain-Actor tables share. The caller writes its own
@@ -309,32 +309,32 @@ static void ov72_fill_shared(void **vt)
 // match the shared arm9 defaults byte for byte).
 // ============================================================================
 extern "C" {
-int func_ov072_02120a44(char *self);       /* slot 0, HOST COPY (Snowman_InitResources.cpp) */
-int func_ov072_02120980(void);             /* slot 3, .c body takes void */
-int func_ov072_02120a08(char *self);       /* slot 6 */
-int func_ov072_021209c0(char *self);       /* slot 9 */
-void func_ov072_021209bc(void);            /* slot 12, own, empty body */
-int *func_ov072_02120824(int *self);       /* slot 16, D1 */
-int *func_ov072_02120874(int *self);       /* slot 17, D0 */
-void *func_ov072_02120c00(void);           /* installs the class's own (unnamed) vtable */
-int _ZTV11daBgSnwmn_c[31];   /* vtspan: data_ov072_02122978 */                 /* the class's own vtable, host array -- ALL matched src spells it by this mangled name directly, no alias needed */
+int _ZN11daBgSnwmn_c13InitResourcesEv(char *self);       /* slot 0, HOST COPY (Snowman_InitResources.cpp) */
+int _ZN11daBgSnwmn_c16CleanupResourcesEv(void);             /* slot 3, .c body takes void */
+int _ZN11daBgSnwmn_c8BehaviorEv(char *self);       /* slot 6 */
+int _ZN11daBgSnwmn_c6RenderEv(char *self);       /* slot 9 */
+void _ZN11daBgSnwmn_c16OnPendingDestroyEv(void);            /* slot 12, own, empty body */
+int *_ZN11daBgSnwmn_cD1Ev(int *self);       /* slot 16, D1 */
+int *_ZN11daBgSnwmn_cD0Ev(int *self);       /* slot 17, D0 */
+void *daBgSnwmn_c_classInit(void);           /* installs the class's own (unnamed) vtable */
+int _ZTV11daBgSnwmn_c[31];   /* vtspan: _ZTV11daBgSnwmn_c */                 /* the class's own vtable, host array -- ALL matched src spells it by this mangled name directly, no alias needed */
 }
 
 static int __fastcall snm_init(void *s, void *)
-{ return func_ov072_02120a44((char *)s); }
+{ return _ZN11daBgSnwmn_c13InitResourcesEv((char *)s); }
 static int __fastcall snm_clean(void *s, void *)
-{ (void)s; return func_ov072_02120980(); }
+{ (void)s; return _ZN11daBgSnwmn_c16CleanupResourcesEv(); }
 static int __fastcall snm_behavior(void *s, void *)
-{ return func_ov072_02120a08((char *)s); }
+{ return _ZN11daBgSnwmn_c8BehaviorEv((char *)s); }
 static int __fastcall snm_render(void *s, void *)
 { port_actor_render_probe("SNOWMAN", (char *)s + 0xd4);
-  return func_ov072_021209c0((char *)s); }
+  return _ZN11daBgSnwmn_c6RenderEv((char *)s); }
 static int __fastcall snm_pdes(void *s, void *)
-{ (void)s; func_ov072_021209bc(); return 0; }
+{ (void)s; _ZN11daBgSnwmn_c16OnPendingDestroyEv(); return 0; }
 static int __fastcall snm_d1(void *s, void *)
-{ return (int)(size_t)func_ov072_02120824((int *)s); }
+{ return (int)(size_t)_ZN11daBgSnwmn_cD1Ev((int *)s); }
 static int __fastcall snm_d0(void *s, void *)
-{ return (int)(size_t)func_ov072_02120874((int *)s); }
+{ return (int)(size_t)_ZN11daBgSnwmn_cD0Ev((int *)s); }
 
 extern "C" void hal_fill_snowman_vtable(void)
 {
@@ -369,9 +369,9 @@ int _ZN11BabyPenguin8BehaviorEv(void *self);             /* slot 6, faced */
 int _ZN11BabyPenguin6RenderEv(void *self);                /* slot 9, faced */
 void _ZN11BabyPenguin16OnPendingDestroyEv(void);        /* slot 12, own, .c body takes void */
 int *_ZN11BabyPenguinD0Ev(int *self);                    /* slot 17, spells its own table */
-int func_ov072_02120cfc(void);                            /* slot 18, own OnYoshiTryEat, returns 7 */
-void func_ov072_02121fa0(void *self);                     /* slot 19, own OnTurnIntoEgg */
-void *BabyPenguin_Spawn(void);                             /* installs _ZTV11BabyPenguin */
+int _ZN11BabyPenguin13OnYoshiTryEatEv(void);                            /* slot 18, own OnYoshiTryEat, returns 7 */
+void _ZN11BabyPenguin13OnTurnIntoEggER6Player(void *self);                     /* slot 19, own OnTurnIntoEgg */
+void *daPgBby_c_classInit(void);                             /* installs _ZTV11BabyPenguin */
 int _ZTV11BabyPenguin[31];
 
 /* the six-cell PMF state table: each cell is TWO 8-byte {fn,delta} pairs
@@ -469,7 +469,7 @@ static int __fastcall bp_pdes(void *s, void *)
 static int __fastcall bp_d0(void *s, void *)
 { return (int)(size_t)_ZN11BabyPenguinD0Ev((int *)s); }
 static int __fastcall bp_yoshi(void *s, void *)
-{ (void)s; return func_ov072_02120cfc(); }
+{ (void)s; return _ZN11BabyPenguin13OnYoshiTryEatEv(); }
 /* Slot 19 is OnTurnIntoEgg(Player &player): the caller pushes the player, so
    the thunk needs the third parameter to pop it. The ov072 body takes
    nothing of its own, but it is the ROM's `ldr ip,[pc]; bx ip` veneer onto
@@ -478,7 +478,7 @@ static int __fastcall bp_yoshi(void *s, void *)
    MarkForDestruction reading this thunk's own return address as its self,
    marking a code address for destruction and leaving the penguin alive. */
 static int __fastcall bp_egg(void *s, void *, void *)
-{ func_ov072_02121fa0(s); return 0; }
+{ _ZN11BabyPenguin13OnTurnIntoEggER6Player(s); return 0; }
 
 extern "C" void hal_fill_baby_penguin_vtable(void)
 {
@@ -579,14 +579,14 @@ void _ZN5ModelD1Ev(void *self);
 void _ZN15TextureSequenceD1Ev(void *self);
 
 /* ---- SNOWMAN_BODY (274) own slots ---- */
-int _ZN11SnowmanBody13InitResourcesEv(void *self);    /* slot 0, faced below */
-int _ZN11SnowmanBody16CleanupResourcesEv(void);       /* slot 3, .c body takes void */
-int _ZN11SnowmanBody8BehaviorEv(void *self);          /* slot 6, faced below */
-int _ZN11SnowmanBody6RenderEv(void *self);            /* slot 9, faced below */
-void _ZN11SnowmanBody16OnPendingDestroyEv(void);      /* slot 12, own empty body */
-int *_ZN11SnowmanBodyD0Ev(int *self);                 /* slot 17, stores its own table */
-void *SnowmanBody_Spawn(void);
-extern unsigned char SnowmanBody_SpawnInfo[];         /* ov072 0x0212279c */
+int _ZN12daBgSnmBdy_c13InitResourcesEv(void *self);    /* slot 0, faced below */
+int _ZN12daBgSnmBdy_c16CleanupResourcesEv(void);       /* slot 3, .c body takes void */
+int _ZN12daBgSnmBdy_c8BehaviorEv(void *self);          /* slot 6, faced below */
+int _ZN12daBgSnmBdy_c6RenderEv(void *self);            /* slot 9, faced below */
+void _ZN12daBgSnmBdy_c16OnPendingDestroyEv(void);      /* slot 12, own empty body */
+int *_ZN12daBgSnmBdy_cD0Ev(int *self);                 /* slot 17, stores its own table */
+void *daBgSnmBdy_c_classInit(void);
+extern unsigned char g_profile_BIG_SNOWMAN_BODY[];         /* ov072 0x0212279c */
 int _ZTV11SnowmanBody[31];   /* vtspan: 0x021227c0, 31 words to 0x0212283c */
 
 /* ---- SNOWMAN_HEAD (273) own slots ---- */
@@ -596,8 +596,8 @@ int _ZN11SnowmanHead8BehaviorEv(void *self);          /* slot 6, faced below */
 int _ZN11SnowmanHead6RenderEv(void *self);            /* slot 9, faced below */
 void _ZN11SnowmanHead16OnPendingDestroyEv(void);      /* slot 12, own empty body */
 int *_ZN11SnowmanHeadD0Ev(int *self);                 /* slot 17, stores its own table */
-void *SnowmanHead_Spawn(void);
-extern unsigned char SnowmanHead_SpawnInfo[];         /* ov072 0x02122898 */
+void *daBgSnmHed_c_classInit(void);
+extern unsigned char g_profile_BIG_SNOWMAN_HEAD[];         /* ov072 0x02122898 */
 int _ZTV11SnowmanHead[31];   /* vtspan: 0x021228bc, 31 words to 0x02122938 */
 
 /* the state cells both sinits build: TWO 8-byte {fn,delta} pairs per cell,
@@ -607,28 +607,28 @@ extern PortSnowmanCell data_ov072_02122b64[6];   /* SnowmanBody, 6 cells */
 extern PortSnowmanCell data_ov072_02122c00[4];   /* SnowmanHead, 4 cells */
 
 /* SnowmanBody's twelve state handlers (six enter/tick pairs) */
-int func_ov072_0211fb7c(char *c);
-int func_ov072_0211fb14(void *self);
-int func_ov072_0211faf0(char *c);
-int func_ov072_0211fa08(char *c);
-int func_ov072_0211f9c4(char *c);
-int func_ov072_0211f81c(char *c);
-int func_ov072_0211f804(char *p);
-int func_ov072_0211f65c(unsigned char *thiz);
-int func_ov072_0211f63c(char *c);
-int func_ov072_0211f598(char *c);
-int func_ov072_0211f578(char *c);
-int func_ov072_0211f48c(char *c);
+int _ZN12daBgSnmBdy_c10InitState0Ev(char *c);
+int _ZN12daBgSnmBdy_c6State0Ev(void *self);
+int _ZN12daBgSnmBdy_c10InitState1Ev(char *c);
+int _ZN12daBgSnmBdy_c6State1Ev(char *c);
+int _ZN12daBgSnmBdy_c10InitState2Ev(char *c);
+int _ZN12daBgSnmBdy_c6State2Ev(char *c);
+int _ZN12daBgSnmBdy_c10InitState3Ev(char *p);
+int _ZN12daBgSnmBdy_c6State3Ev(unsigned char *thiz);
+int _ZN12daBgSnmBdy_c10InitState4Ev(char *c);
+int _ZN12daBgSnmBdy_c6State4Ev(char *c);
+int _ZN12daBgSnmBdy_c10InitState5Ev(char *c);
+int _ZN12daBgSnmBdy_c6State5Ev(char *c);
 
 /* SnowmanHead's eight state handlers (four enter/tick pairs) */
-int func_ov072_02120514(char *c);
-bool func_ov072_02120450(void *self);
-int func_ov072_02120430(char *p);
-int func_ov072_02120358(void *thiz);
-int func_ov072_02120308(char *base);
-int func_ov072_021201d4(char *self);
-int func_ov072_02120180(char *c);
-int func_ov072_0212001c(char *c);
+int _ZN11SnowmanHead10InitState0Ev(char *c);
+bool _ZN11SnowmanHead6State0Ev(void *self);
+int _ZN11SnowmanHead10InitState1Ev(char *p);
+int _ZN11SnowmanHead6State1Ev(void *thiz);
+int _ZN11SnowmanHead10InitState2Ev(char *base);
+int _ZN11SnowmanHead6State2Ev(char *self);
+int _ZN11SnowmanHead10InitState3Ev(char *c);
+int _ZN11SnowmanHead6State3Ev(char *c);
 }
 
 /* One seat row: the ROM addresses the sinit's own source pairs carry, and the
@@ -643,32 +643,49 @@ int func_ov072_0212001c(char *c);
 typedef int (*PortSnFn)(void *);
 struct PortSnRow { unsigned enter_rom, tick_rom; PortSnFn enter_host, tick_host; };
 
+/* SNOWMAN_BODY (274) IS DORMANT AT THE MAIN -> PORT SYNC (lane SYNC5).
+   src/actors/daBgSnmBdy_c.cpp is quarantined for C2821 -- the class header
+   include/daBgSnmBdy_c.h:115 declares `static void *operator new(unsigned
+   long size)` and MSVC requires size_t, which on 32-bit is `unsigned int`,
+   a different type of the same width. The error is raised AT THE
+   DECLARATION, so it reaches this file through the include as well as the
+   TU itself, and every one of the class's bodies -- the five vtable
+   members, the D0, and all twelve state handlers -- lives in that one
+   quarantined TU, so nothing here has anything left to seat. The cells,
+   the faces and the class-specific vtable words are therefore out of the
+   build until main lands decomp_side.md item 8, at which point every
+   block below comes back verbatim with the quarantined row.
+   The table still gets ov72_fill_shared, so a SNOWMAN_BODY that spawns
+   runs the shared dActor_c words rather than dispatching through an
+   unfilled slot. Logged, not fixed, per the wave-7 bug rule. */
+#if 0
 static const PortSnRow g_smb_cells[6] = {
     /* cell 0: p0  <- 0x02122750, p1  <- 0x02122728 */
-    {0x0211fb7c, 0x0211fb14, (PortSnFn)func_ov072_0211fb7c, (PortSnFn)func_ov072_0211fb14},
+    {0x0211fb7c, 0x0211fb14, (PortSnFn)_ZN12daBgSnmBdy_c10InitState0Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State0Ev},
     /* cell 1: p2  <- 0x02122720, p3  <- 0x02122730 */
-    {0x0211faf0, 0x0211fa08, (PortSnFn)func_ov072_0211faf0, (PortSnFn)func_ov072_0211fa08},
+    {0x0211faf0, 0x0211fa08, (PortSnFn)_ZN12daBgSnmBdy_c10InitState1Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State1Ev},
     /* cell 2: p4  <- 0x02122748, p5  <- 0x02122738 */
-    {0x0211f9c4, 0x0211f81c, (PortSnFn)func_ov072_0211f9c4, (PortSnFn)func_ov072_0211f81c},
+    {0x0211f9c4, 0x0211f81c, (PortSnFn)_ZN12daBgSnmBdy_c10InitState2Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State2Ev},
     /* cell 3: p6  <- 0x02122740, p7  <- 0x02122778 */
-    {0x0211f804, 0x0211f65c, (PortSnFn)func_ov072_0211f804, (PortSnFn)func_ov072_0211f65c},
+    {0x0211f804, 0x0211f65c, (PortSnFn)_ZN12daBgSnmBdy_c10InitState3Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State3Ev},
     /* cell 4: p8  <- 0x02122770, p9  <- 0x02122758 */
-    {0x0211f63c, 0x0211f598, (PortSnFn)func_ov072_0211f63c, (PortSnFn)func_ov072_0211f598},
+    {0x0211f63c, 0x0211f598, (PortSnFn)_ZN12daBgSnmBdy_c10InitState4Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State4Ev},
     /* cell 5: p10 <- 0x02122768, p11 <- 0x02122760 */
-    {0x0211f578, 0x0211f48c, (PortSnFn)func_ov072_0211f578, (PortSnFn)func_ov072_0211f48c},
+    {0x0211f578, 0x0211f48c, (PortSnFn)_ZN12daBgSnmBdy_c10InitState5Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State5Ev},
 };
+#endif
 
 /* SnowmanHead's four, from __sinit_ov072_021221f8's own assignment order into
    data_ov072_02122c00[0..7]. */
 static const PortSnRow g_smh_cells[4] = {
     /* cell 0: [0] <- 0x02122874, [1] <- 0x02122854 */
-    {0x02120514, 0x02120450, (PortSnFn)func_ov072_02120514, (PortSnFn)func_ov072_02120450},
+    {0x02120514, 0x02120450, (PortSnFn)_ZN11SnowmanHead10InitState0Ev, (PortSnFn)_ZN11SnowmanHead6State0Ev},
     /* cell 1: [2] <- 0x0212286c, [3] <- 0x02122864 */
-    {0x02120430, 0x02120358, (PortSnFn)func_ov072_02120430, (PortSnFn)func_ov072_02120358},
+    {0x02120430, 0x02120358, (PortSnFn)_ZN11SnowmanHead10InitState1Ev, (PortSnFn)_ZN11SnowmanHead6State1Ev},
     /* cell 2: [4] <- 0x0212285c, [5] <- 0x02122844 */
-    {0x02120308, 0x021201d4, (PortSnFn)func_ov072_02120308, (PortSnFn)func_ov072_021201d4},
+    {0x02120308, 0x021201d4, (PortSnFn)_ZN11SnowmanHead10InitState2Ev, (PortSnFn)_ZN11SnowmanHead6State2Ev},
     /* cell 3: [6] <- 0x0212284c, [7] <- 0x0212283c */
-    {0x02120180, 0x0212001c, (PortSnFn)func_ov072_02120180, (PortSnFn)func_ov072_0212001c},
+    {0x02120180, 0x0212001c, (PortSnFn)_ZN11SnowmanHead10InitState3Ev, (PortSnFn)_ZN11SnowmanHead6State3Ev},
 };
 
 static void ov72_seat_cells(const char *who, PortSnowmanCell *cells,
@@ -693,10 +710,9 @@ static void ov72_seat_cells(const char *who, PortSnowmanCell *cells,
 
 extern "C" void port_snowman_body_states_seat(void)
 {
-    static int done;
-    if (done) return;
-    done = 1;
-    ov72_seat_cells("SnowmanBody", data_ov072_02122b64, g_smb_cells, 6);
+    /* DORMANT, see the SNOWMAN_BODY banner above: the twelve state bodies are
+       all inside the quarantined TU, so there is nothing to seat and the ROM
+       pairs the sinit left in data_ov072_02122b64 stay as they are. */
 }
 
 extern "C" void port_snowman_head_states_seat(void)
@@ -708,17 +724,18 @@ extern "C" void port_snowman_head_states_seat(void)
 }
 
 // ---- SNOWMAN_BODY (274) ----------------------------------------------------
+#if 0  /* DORMANT, see the SNOWMAN_BODY banner above */
 static int __fastcall smb_init(void *s, void *)
-{ return _ZN11SnowmanBody13InitResourcesEv(s); }
+{ return _ZN12daBgSnmBdy_c13InitResourcesEv(s); }
 static int __fastcall smb_clean(void *s, void *)
-{ (void)s; return _ZN11SnowmanBody16CleanupResourcesEv(); }
+{ (void)s; return _ZN12daBgSnmBdy_c16CleanupResourcesEv(); }
 static int __fastcall smb_behavior(void *s, void *)
-{ return _ZN11SnowmanBody8BehaviorEv(s); }
+{ return _ZN12daBgSnmBdy_c8BehaviorEv(s); }
 static int __fastcall smb_render(void *s, void *)
 { port_actor_render_probe("SNOWMAN_BODY", (char *)s + 0xd4);
-  return _ZN11SnowmanBody6RenderEv(s); }
+  return _ZN12daBgSnmBdy_c6RenderEv(s); }
 static int __fastcall smb_pdes(void *s, void *)
-{ (void)s; _ZN11SnowmanBody16OnPendingDestroyEv(); return 0; }
+{ (void)s; _ZN12daBgSnmBdy_c16OnPendingDestroyEv(); return 0; }
 /* D1: a real MSVC-synthesised destructor over LOCAL shadow classes (Model /
    ShadowModel / MovingCylinderClsn / WithMeshClsn declared with no bodies of
    their own), so the matched TU emits ??1Model@@QAE@XZ and friends nothing in
@@ -732,18 +749,23 @@ static int __fastcall smb_pdes(void *s, void *)
      mov r0,r4 / pop {r4,lr} / bx lr
    UNLIKE bp_d1 this one DOES store its own table first, exactly as the ROM
    does; over the host array that is a no-op re-store. The same member set,
-   order and offsets appear independently in _ZN11SnowmanBodyD0Ev.c. */
+   order and offsets appear independently in _ZN12daBgSnmBdy_cD0Ev.c. */
 /* slot 16 is the matched src D1 through hal/dtor_faces_cpp.cpp (lane DTOR-FACES-CPP);
    the transcribed thunk that stood here (smb_d1) spelled the same chain by hand. */
 static int __fastcall smb_d0(void *s, void *)
-{ return (int)(size_t)_ZN11SnowmanBodyD0Ev((int *)s); }
+{ return (int)(size_t)_ZN12daBgSnmBdy_cD0Ev((int *)s); }
+#endif
 
 extern "C" void hal_fill_snowman_body_vtable(void)
 {
-    /* seat the six cells BEFORE anything can dispatch through them */
-    port_snowman_body_states_seat();
+    /* DORMANT at the main -> port sync (lane SYNC5), see the banner above: the
+       class's own bodies are all inside the quarantined TU. The SHARED words
+       still go in, so the table is never dispatched through unfilled; the seven
+       class-specific words below return with the quarantined row. */
     void **vt = (void **)_ZTV11SnowmanBody;
     ov72_fill_shared(vt);
+#if 0
+    port_snowman_body_states_seat();
     vt[0]  = (void *)smb_init;
     vt[3]  = (void *)smb_clean;
     vt[6]  = (void *)smb_behavior;
@@ -752,6 +774,7 @@ extern "C" void hal_fill_snowman_body_vtable(void)
     vt[16] = (void *)hal_cppd1_SnowmanBody;
     vt[17] = (void *)smb_d0;
     /* no own 18/19 and no slot 31: a plain Actor, 31 slots, ends here */
+#endif
 }
 
 // ---- SNOWMAN_HEAD (273) ----------------------------------------------------
@@ -801,12 +824,16 @@ extern "C" void hal_fill_snowman_head_vtable(void)
 // and _ZTV5Model[5]'s dual fill serves the shadow dispatch (see the section
 // header for the derivation that settled it).
 extern "C" {
-int _ZN11SnowmanBody13InitResourcesEv(void *self)
-{ return ((SnowmanBody *)self)->SnowmanBody::InitResources(); }
-int _ZN11SnowmanBody8BehaviorEv(void *self)
-{ return ((SnowmanBody *)self)->SnowmanBody::Behavior(); }
-int _ZN11SnowmanBody6RenderEv(void *self)
-{ return ((SnowmanBody *)self)->SnowmanBody::Render(); }
+/* DORMANT, see the SNOWMAN_BODY banner: the class type comes from the header
+   that raises the C2821 and its members live in the quarantined TU.
+#if 0
+int _ZN12daBgSnmBdy_c13InitResourcesEv(void *self)
+{ return ((daBgSnmBdy_c *)self)->daBgSnmBdy_c::InitResources(); }
+int _ZN12daBgSnmBdy_c8BehaviorEv(void *self)
+{ return ((daBgSnmBdy_c *)self)->daBgSnmBdy_c::Behavior(); }
+int _ZN12daBgSnmBdy_c6RenderEv(void *self)
+{ return ((daBgSnmBdy_c *)self)->daBgSnmBdy_c::Render(); }
+#endif */
 int _ZN11SnowmanHead13InitResourcesEv(void *self)
 { return ((SnowmanHead *)self)->SnowmanHead::InitResources(); }
 int _ZN11SnowmanHead8BehaviorEv(void *self)

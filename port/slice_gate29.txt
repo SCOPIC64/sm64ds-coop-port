@@ -23,8 +23,8 @@
 # per-definition Behavior[] array is built at load time by popcounting six
 # flag bits out of the blob, so the blob carries flags, never pointers.
 #
-# The thirteen vtables SysTracker's constructor installs (data_0208f3a4 ..
-# data_0208f464) ARE raw ROM words on the DS, and they are the one place this
+# The thirteen vtables SysTracker's constructor installs (_ZTVN5dPa_c7level_c16bubbleCallback_cE ..
+# _ZTVN5dPa_c7level_c23cleanParticleCallback_cE) ARE raw ROM words on the DS, and they are the one place this
 # gate had to do something. The port never loads that .data region, so rather
 # than patching ROM words after the fact hal/particle_vtable.cpp DEFINES the
 # thirteen tables outright with host function pointers, in the ROM's own
@@ -33,41 +33,46 @@
 # link cleanly and then miscall, so those get forwarding faces in
 # hal/particle_bridges.cpp.
 #
-# The files gate 10, 13 and 16 already carry (func_02021a74, FindData,
+# The files gate 10, 13 and 16 already carry (_ZN8Particle10SysTracker8Contents6CreateEjR7Vector3PK11Vector3_16fPN5dPa_c7level_c10callback_cE, FindData,
 # Manager::AddSystem, the New wrappers, NewWeather, NewUnkCallback818 and
 # eleven more) are deliberately NOT repeated here.
 
 # ---- the Particle namespace: tracker lifecycle, the ten Callback classes,
 # the System::New family and the spawn wrappers
 
-src/func_02021a04.c
-src/func_02021b98.c
-src/func_02021bec.c
-src/func_02021c90.c
-src/func_02021cd4.c
-src/_ZN8Particle21CleanParticleCallback8OnUpdateERNS_6SystemEb.cpp
-src/_ZN8Particle12ClipCallback8OnUpdateERNS_6SystemEb.cpp
-src/_ZN8Particle16FitWaterCallback8OnUpdateERNS_6SystemEb.cpp
-src/_ZN8Particle24CheckWaterRippleCallback8OnUpdateERNS_6SystemEb.cpp
-src/_ZN8Particle18CheckWaterCallback8OnUpdateERNS_6SystemEb.cpp
-src/_ZN8Particle25EndingStarGlitterCallback8OnUpdateERNS_6SystemEb.c
-src/_ZN8Particle25EndingStarGlitterCallback14SpawnParticlesERNS_6SystemE.c
+src/_ZN8Particle10SysTracker8Contents6UnlinkERNS1_5EntryE.cpp
+src/_ZN8Particle10SysTracker8Contents5ClearEv.cpp
+src/_ZN8Particle10SysTracker8Contents6UpdateEv.cpp
+src/_ZN8Particle10SysTracker8ContentsC1Ev.cpp
+src/_ZN8Particle10SysTracker8Contents5Entry5ResetEv.cpp
+src/_ZN5dPa_c7level_c23cleanParticleCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c14clipCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c18fitWaterCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c26checkWaterRippleCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c20checkWaterCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c20edStarKiraCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c20edStarKiraCallback_c14SpawnParticlesERN8Particle6SystemE.cpp
 src/func_02022260.c
-src/func_02022298.c
-src/_ZN8Particle17CheckLavaCallback8OnUpdateERNS_6SystemEb.c
-src/_ZN8Particle17CheckLavaCallback14SpawnParticlesERNS_6SystemE.cpp
-src/_ZN8Particle22FitWaterSimpleCallback8OnUpdateERNS_6SystemEb.c
-src/_ZN8Particle14BubbleCallback8OnUpdateERNS_6SystemEb.cpp
-src/_ZN8Particle14SplashCallback8OnUpdateERNS_6SystemEb.cpp
-src/_ZN8Particle13ScaleCallback8OnUpdateERNS_6SystemEb.c
-src/_ZN8Particle13ScaleCallback14SpawnParticlesERNS_6SystemE.c
-src/func_020225fc.c
-src/_ZN8Particle14SimpleCallback8OnUpdateERNS_6SystemEb.cpp
-src/_ZN8Particle14SimpleCallbackC2Ev.cpp
-src/func_020226a4.c
-src/_ZN8Particle8Callback8OnUpdateERNS_6SystemEb.c
-src/_ZN8Particle8Callback14SpawnParticlesERNS_6SystemE.c
-src/_ZN8Particle19SetSelfDestructFlagEj.c
+src/_ZN5dPa_c7level_c20edStarKiraCallback_cC1Ev.cpp
+src/_ZN5dPa_c7level_c20checkYoganCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c20checkYoganCallback_c14SpawnParticlesERN8Particle6SystemE.cpp
+src/_ZN5dPa_c7level_c24fitWaterSimpleCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c16bubbleCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c16splashCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c15scaleCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c15scaleCallback_c14SpawnParticlesERN8Particle6SystemE.cpp
+src/_ZN5dPa_c7level_c15scaleCallback_cC1Ev.cpp
+src/_ZN5dPa_c7level_c16simpleCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c16simpleCallback_cC1Ev.cpp
+# RETIRED at ALIAS2 (wave 8, the main -> port sync): MSVC folds the Itanium
+# C1 and C2 constructors into one ??0simpleCallback_c@level_c@dPa_c@@QAE@XZ,
+# so the two per-function TUs became the same symbol and the link reported it
+# twice (LNK2005). The C1 row above is kept, the same C1-wins/D1-wins rule
+# lane SLICE1 applied to the destructor pairs.
+#src/_ZN5dPa_c7level_c16simpleCallback_cC2Ev.cpp
+src/_ZN5dPa_c7level_c10callback_c8OnUpdateERN8Particle6SystemEb.cpp
+src/_ZN5dPa_c7level_c10callback_c14SpawnParticlesERN8Particle6SystemE.cpp
+src/_ZN8Particle19SetSelfDestructFlagEj.cpp
 src/func_020226fc.c
 src/func_02022774.c
 src/func_020227ec.c
@@ -79,16 +84,16 @@ src/_ZN8Particle6System12NewBigSplashE5Fix12IiES2_S2_.c
 src/_ZN8Particle20RunningSlidingDustAtE5Fix12IiES1_S1_.c
 src/func_02022c3c.c
 src/_ZN8Particle6System3NewEjj5Fix12IiES2_S2_PK11Vector3_16fPNS_8CallbackE.c
-src/_ZN8Particle6System12FromUniqueIDEj.c
+src/_ZN8Particle6System12FromUniqueIDEj.cpp
 src/_ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_.c
-src/_ZN8Particle9RenderAllEv.c
-src/_ZN8Particle10SysTracker6UpdateEv.c
+src/_ZN8Particle9RenderAllEv.cpp
+src/_ZN8Particle10SysTracker6UpdateEv.cpp
 src/_ZN8Particle10SysTracker10InitialiseEv.cpp
-src/_ZN8Particle7Texture12AllocPalVramEjb.c
-src/_ZN8Particle7Texture12AllocTexVramEjb.c
+src/_ZN8Particle7Texture12AllocPalVramEjb.cpp
+src/_ZN8Particle7Texture12AllocTexVramEjb.cpp
 src/func_02023178.c
 src/_ZN8Particle10SysTrackerD1Ev.cpp
-src/_ZN8Particle10SysTrackerC1Ev.c
+src/_ZN8Particle10SysTrackerC1Ev.cpp
 src/func_020233f0.c
 src/func_020233f4.c
 
@@ -157,19 +162,19 @@ src/MulVec3Mat3x3.c
 # the only caller in the port so far. It reaches the DS hardware divider
 # through raw MMIO, which is precisely what this gate's hostgen routing is
 # for -- port/ntr/io.cpp emulates DIVCNT/NUMER/DENOM/RESULT.
-src/_ZN4cstd3divEii.c
+src/_ZN4cstd3divEii.cpp
 
 # ---- moved off gate 10's raw list into this hostgen'd one
-# func_02021d1c is the spawn's tail: it calls Manager::AddSystem and then
+# _ZN8Particle10SysTracker8Contents5Entry10InitialiseEjjR7Vector3PK11Vector3_16fPN5dPa_c7level_c10callback_cE is the spawn's tail: it calls Manager::AddSystem and then
 # invokes the effect's Callback. It is the ONE place in the subsystem that
 # reaches a Callback vtable through a C++ `virtual` (a local shadow class),
 # which MSVC compiles thiscall while every other dispatch on the same vtable
 # is cdecl. hostgen's VIRTUAL_CALL patch makes it dispatch like its peers.
-src/func_02021d1c.cpp
+src/_ZN8Particle10SysTracker8Contents5Entry10InitialiseEjjR7Vector3PK11Vector3_16fPN5dPa_c7level_c10callback_cE.cpp
 
 # ---- NOT HERE: three ARM argument ride-throughs
 # src/func_0204a5bc.c, src/func_0203cbc0.c and
-# src/_ZN8Particle14SimpleCallback14SpawnParticlesERNS_6SystemE.cpp are the
+# src/_ZN5dPa_c7level_c16simpleCallback_c14SpawnParticlesERN8Particle6SystemE.cpp are the
 # emitter veneer, the operator-delete veneer and the callback that feeds them.
 # All three pass arguments they never name, in r0/r1, which no stack ABI can
 # reproduce. port/unmatched/Particle_RideThroughs.cpp is those three bodies

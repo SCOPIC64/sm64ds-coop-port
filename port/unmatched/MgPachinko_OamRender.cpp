@@ -47,7 +47,7 @@
 // survived to be found by a host link.
 //
 // THE BODY IS LIVE ON THIS CLASS'S PATH: it is the tenth and last call of
-// vtable slot 9 (func_ov006_020fedc4, dScMgPachinko_c::Render), so a boot that
+// vtable slot 9 (_ZN15dScMgPachinko_c6RenderEv, dScMgPachinko_c::Render), so a boot that
 // renders reaches it.
 
 extern "C" {

@@ -29,8 +29,8 @@ void _Z14ApproachLinearRiii(int *a, int b, int c);
 int Vec3_HorzDist(void *a, void *b);
 short Vec3_HorzAngle(void *a, void *b);
 int AngleDiff(int a, int b);
-void _ZN5Actor9UpdatePosEP12CylinderClsn(void *c, void *p);
-void WithMeshClsn_UpdateContinuous_Veneer(void *p);
+void _ZN8dActor_c9UpdatePosEP5dCc_c(void *c, void *p);
+void dBgCh_Actr_UpdateContinuous_Veneer(void *p);
 void _ZN9Animation7AdvanceEv(void *p);
 int func_ov065_02118cc4(char *c);
 int func_ov065_02118248(char *c);
@@ -43,7 +43,7 @@ void MulMat4x3Mat4x3(void *a, void *b, void *out);
 void SubVec3(const void *a, const void *b, void *out);
 void Vec3_LslInPlace(void *v, int sh);
 void AddVec3(const void *a, const void *b, void *out);
-void _ZN18MovingMeshCollider9TransformERK9Matrix4x3s(void *self, void *m,
+void _ZN10dBgW_KcMbg9TransformERK9Matrix4x3s(void *self, void *m,
                                                      short ang);
 
 extern short data_02082214[];
@@ -144,7 +144,7 @@ extern "C" void func_ov065_02118838(char *r6)
             Matrix4x3_ApplyInPlaceToRotationZ(scratch, *(short *)(b + 0x4c));
             *(Mtx *)(r6 + (i << 9) + 0x150) = *scratch;
         }
-        _ZN18MovingMeshCollider9TransformERK9Matrix4x3s(
+        _ZN10dBgW_KcMbg9TransformERK9Matrix4x3s(
             m180, m150, *(short *)(r6 + 0x8e));
         m150 += 0x200;
         m180 += 0x200;

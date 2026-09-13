@@ -204,7 +204,7 @@ struct BgConfig {
 // 3D engine's output layer, BG0CNT's character and screen bases address nothing
 // the game ever wrote, and the 2D unit never reads them.
 //
-// THE DECOMP'S OWN CODE PINS THE BIT. src/_ZN2GX15SetGraphicsModeEiii.c is
+// THE DECOMP'S OWN CODE PINS THE BIT. src/_ZN2GX15SetGraphicsModeEiii.cpp is
 // GX::SetGraphicsMode(dispMode, bgMode, bg0_3d) and its whole use of the third
 // argument is `reg = ((unsigned)c << 3) | reg`. ntr/ppu.cpp's OBJ note already
 // says the same thing from the other side ("its third argument only ever
@@ -1057,7 +1057,7 @@ void attrib_take() {
  * IT IS THE ARM-COMPARISON TOOL, and that is its point. GaplessMinigames writes
  * zero into the game's own G, and whether a scene's BACKGROUND scroll follows G
  * is a per-scene fact nobody can argue from source: the framework's own BG
- * plotter (func_ov004_020ae3b4) adds G + 0xc0 for the top engine, so a scene
+ * plotter (_ZN11dScMgBase_c9Virtual88Eiiii) adds G + 0xc0 for the top engine, so a scene
  * whose layers are placed through it moves when G moves and a scene that writes
  * BGnVOFS itself may not. Run this in both arms and diff the two logs.
  */

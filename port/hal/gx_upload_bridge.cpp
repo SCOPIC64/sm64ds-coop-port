@@ -56,7 +56,11 @@ void SharedFilePtr::LoadFile() { _ZN13SharedFilePtr8LoadFileEv(this); }
    main rewrote as real methods -- ArrowSignRight's, the water's, the net's --
    reach it through include/SharedFilePtr.h as a method. Same direction as
    LoadFile above. */
-void SharedFilePtr::Release() { _ZN13SharedFilePtr7ReleaseEv(this); }
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync): main defines
+   SharedFilePtr::Release as a real member now, so src/ emits
+   ?Release@SharedFilePtr@@QAEXXZ itself and this face was the second
+   definition (LNK2005).
+void SharedFilePtr::Release() { _ZN13SharedFilePtr7ReleaseEv(this); }        */
 // Shrinks the file image to its post-parse size on the DS (a heap-space
 // optimization). Skipped on host: the image simply stays at load size.
 //
@@ -84,6 +88,11 @@ struct ModelComponents {
     void UpdateVertsUsingBones();
     void UpdateBones(BCA_File *file, int frame);
 };
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync): main defines both of
+   these as real ModelComponents members now, so src/ emits
+   ?UpdateVertsUsingBones@ModelComponents@@QAEXXZ and
+   ?UpdateBones@ModelComponents@@QAEXPAUBCA_File@@H@Z itself and these faces
+   were the second definition (LNK2005).
 void ModelComponents::UpdateVertsUsingBones()
 {
     _ZN15ModelComponents21UpdateVertsUsingBonesEv(this);
@@ -92,7 +101,7 @@ extern "C" void _ZN15ModelComponents11UpdateBonesEP8BCA_Filei(void *, void *, in
 void ModelComponents::UpdateBones(BCA_File *file, int frame)
 {
     _ZN15ModelComponents11UpdateBonesEP8BCA_Filei(this, file, frame);
-}
+}                                                                            */
 
 
 // The compressed-texture loader keeps its C-named terminal-floor definition.

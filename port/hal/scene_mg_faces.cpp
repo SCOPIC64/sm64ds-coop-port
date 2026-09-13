@@ -18,7 +18,7 @@
 //
 // ---- 2. TWO NAME-SPELLING FACES, NEITHER A STAND-IN FOR A BODY -------------
 //
-// _ZTV14dScMgCurling_c. src/MgShuffleShell_Spawn.c writes the class vtable
+// _ZTV14dScMgCurling_c. src/d_s_mg_curling.c writes the class vtable
 // through this spelling, and no config holds that name. IT IS NOT A GUESS
 // THOUGH, and that is worth separating from the ov007 lane's VT0/VT1/VT2 case:
 // the ROM's own RTTI string at 0x0213c2d0 reads "14dScMgCurling_c", so the
@@ -26,9 +26,9 @@
 // its dsd address. The address is settled by the ROM twice: the RTTI, and
 // config/arm9/overlays/ov006/relocs.txt's
 //     from:0x020e3850 kind:load to:0x0213c304 module:overlay(6)
-// where 0x020e3850 is inside MgShuffleShell_Spawn (0x020e3820, 0x34 bytes).
+// where 0x020e3850 is inside dScMgCurling_c_classInit (0x020e3820, 0x34 bytes).
 //
-// func_020adc74. src/func_ov006_020e3578.c (InitResources) spells its callee
+// func_020adc74. src/_ZN14dScMgCurling_c13InitResourcesEv.cpp (InitResources) spells its callee
 // with no overlay in the name, and no arm9 symbol exists at 0x020adc74. The
 // reloc reads module:overlays(3,4), and ov003 can never be co-resident with
 // ov006 while ov004 always is -- func_0201a798 loads the pair together -- so
@@ -84,7 +84,7 @@
 //
 // ---- 4. THE mwcc POINTER-TO-MEMBER TU, WHICH IS THE WALL -------------------
 //
-// src/func_ov004_020b87e0.cpp is EXCLUDED from the slice and trapped here
+// src/_ZN10dMgState_c8SetStateEi.cpp is EXCLUDED from the slice and trapped here
 // instead, and it is the single most important thing in this file because it is
 // where the minigame seat stops.
 //
@@ -115,7 +115,7 @@
 // port/unmatched/Player_ChangeState.cpp is the precedent: a host copy of the
 // dispatching TU with the member-pointer site replaced by hal_call_state_fn, an
 // address switch from DS code address to a real __thiscall call, generated into
-// hal/player_states.inc with 197 cases. func_ov004_020b87e0 needs the same for
+// hal/player_states.inc with 197 cases. _ZN10dMgState_c8SetStateEi needs the same for
 // its twenty, and dScMgCurling_c needs it for its own twenty-five across five
 // more TUs. That is costed in port/mg_fanout_costs.txt section 4 and it is the
 // next lane.
@@ -125,11 +125,11 @@
 // the run reports that rather than jumping to a DS address as a host one.
 //
 // SEATED, run mg5 lane BASESET, AND EVERYTHING ABOVE IS NOW HISTORY. The trap
-// is deleted from this file and func_ov004_020b87e0 is a host copy in
+// is deleted from this file and _ZN10dMgState_c8SetStateEi is a host copy in
 // port/unmatched/MgBase_StateSetter.cpp, which carries the derivation: the
 // twenty globals with their code words and relocation rows, the ROM
 // disassembly of the table build and the dispatch, and the object layout the
-// offsets force. src/func_ov004_020b87e0.cpp stays off every slice.
+// offsets force. src/_ZN10dMgState_c8SetStateEi.cpp stays off every slice.
 //
 // READ THE SECTION ABOVE FOR WHAT THE TRAP COST RATHER THAN FOR WHAT TO DO.
 // "A minigame whose framework reaches this function does not run past it" was
@@ -304,7 +304,7 @@ DSSTATE_END
  * The struct-typed refusal does not catch it either, because it tests for
  * the by-value spelling @@3U and an array of that struct is spelled @@3PAU.
  * NO ALIAS IS WRITTEN FOR IT ANYWHERE. Its one consumer,
- * src/func_ov006_020e3528.cpp, is host-copied in
+ * src/_ZN14dScMgCurling_c8BehaviorEv.cpp, is host-copied in
  * unmatched/MgCurling_StateDispatch.cpp, so after that host copy the symbol
  * is referenced by nothing and an alias for it would be a dead directive.
  *
@@ -415,10 +415,10 @@ DSSTATE_END
 
 /* ---- 2c. THE ONE ARGUMENT-LANDING FACE ----------------------------------
  *
- * src/func_ov004_020b08f0.cpp (dScMgBase_c::AfterInitResources, vtable slot 2)
+ * src/minigames/d_s_mg_base.cpp (dScMgBase_c::AfterInitResources, vtable slot 2)
  * declares a local `struct Scene` with a non-virtual
  * `void AfterInitResources(unsigned int)` and calls it, which MSVC mangles
- * __thiscall as ?AfterInitResources@Scene@@QAEXI@Z. facegen refused the row:
+ * __thiscall as ?AfterInitResources@dScene_c@@QAEXI@Z. facegen refused the row:
  *
  *   "no Itanium body for Scene::AfterInitResources"
  *
@@ -428,7 +428,7 @@ DSSTATE_END
  * port/slice_scene1.txt -- and if there were one it would be the wrong
  * target anyway. AN ALIAS CANNOT CHANGE A CALLING CONVENTION, and this is
  * that rule's other half: the caller is __thiscall with an argument, and
- * src/_ZN5Scene18AfterInitResourcesEj.cpp is a `void f(void)` transcription
+ * src/_ZN8dScene_c18AfterInitResourcesEj.cpp is a `void f(void)` transcription
  * of a 0xc-byte ARM tail-call veneer (ldr ip,[pc]; bx ip; .word 0x2013ef4)
  * whose arguments ride through in r0/r1. On the host it would drop both.
  *
@@ -499,7 +499,7 @@ extern "C" unsigned port_mg_trap_hits(void) { return g_mg_trap_hits; }
  * THAT FLOOR IS CLOSED, run mg14 lane RESULTS, and the diagnosis mg12 left here
  * was aimed one step too far upstream. mg12 read the panel as needing "whatever
  * fills +0x4634..+0x463e and steps +0x4640". Nothing was missing from the FILL:
- * func_ov004_020af27c, the ROM's own slot 27, writes all six halfwords, and
+ * _ZN11dScMgBase_c15OnHitByMegaCharEv, the ROM's own slot 27, writes all six halfwords, and
  * (-128,48) (384,96) (128,224) ARE the values it writes -- the OFF-SCREEN START
  * of a slide-in. The motion was the missing half, and both the slide and the
  * stylus hit test live in ONE function, func_ov004_020aeb24, which is why the
@@ -568,7 +568,7 @@ void port_mg_hud_scaled_number_020b2220(int x, int y, int num, int a3, int a4,
  * label renderer. func_ov004_020ae858 draws the three buttons a minigame's
  * results screen offers -- the play-again row -- and returning 0 from it is
  * exactly the defect the owner reported as the play-again buttons never
- * appearing: dScMgBase_c::BeforeRender (src/func_ov004_020b04f4.cpp) hands the
+ * appearing: dScMgBase_c::BeforeRender (src/minigames/d_s_mg_base.cpp) hands the
  * WHOLE frame to this body while the panel is up and returns, so with a stub
  * behind it nothing submits the labels to either engine.
  *
@@ -607,7 +607,7 @@ void port_mg_hud_scaled_number_020b2220(int x, int y, int num, int a3, int a4,
  * symbol. That reasoning was right and it is why this single line is simply
  * deleted rather than moved.
  *
- * IT IS A REAL DECOMPILATION. src/func_ov004_020ae5c4.c is a Bresenham walk
+ * IT IS A REAL DECOMPILATION. src/func_ov004_020ae5c4.cpp is a Bresenham walk
  * from (x0,y0) to (x1,y1) that stamps vtable slot 34 at every lattice point it
  * visits, and the symbol comes from port/slice_mg1.txt. The seven parameters
  * lane BOO derived off the prologue were correct and the new body spells the
@@ -724,7 +724,7 @@ void func_ov006_020e20bc(char *self, int idx)
  * _ZN2GX15DisableAllBanksEv in config/arm9/symbols.txt: thirteen calls, one
  * per VRAM bank family, each already matched in src/ and already in this
  * link (func_02053ee0..func_02054018). The minigame framework's graphics init
- * (func_ov004_020b265c -> func_ov004_020b2980) calls it FIRST, so every bank
+ * (_ZN11dScMgBase_c9Virtual84Ev -> func_ov004_020b2980) calls it FIRST, so every bank
  * the 3D game had mapped is released before InitResources re-banks for 2D.
  * With this trapped as return-0, scene 368's engine A BG2 character load
  * (LoadFile 0x46, the Bob-omb Squad airship hull) landed in whatever banking
@@ -753,7 +753,7 @@ int func_0202e78c(void *)
 
 /* THE WALL WAS HERE AND IT IS GONE. Run mg5, lane BASESET.
  *
- * func_ov004_020b87e0 stood at this spot as a named trap that incremented
+ * _ZN10dMgState_c8SetStateEi stood at this spot as a named trap that incremented
  * g_mg_trap_hits, printed one line and set no state. Section 4 of this file's
  * header records what it was and why; what follows is what replaced it.
  *
@@ -766,7 +766,7 @@ int func_0202e78c(void *)
  *
  * NO SYMBOL IS DEFINED HERE FOR IT ANY MORE. That is the point of removing the
  * trap rather than leaving it beside the host copy: two definitions of
- * func_ov004_020b87e0 in one build is a link error, and a trap kept "just in
+ * _ZN10dMgState_c8SetStateEi in one build is a link error, and a trap kept "just in
  * case" behind an #if is a second opinion nobody reads.
  *
  * g_mg_trap_hits and port_mg_trap_hits() STAY. The counter is shared with

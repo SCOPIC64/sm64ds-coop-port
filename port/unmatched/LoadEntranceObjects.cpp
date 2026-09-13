@@ -1,4 +1,4 @@
-/* HOST COPY of src/_Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij.c
+/* HOST COPY of src/_Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij.cpp
  * -- one more ARM argument ride-through. DORMANT on every level the port
  * mounts today; it is here so it stays that way.
  *
@@ -84,8 +84,8 @@ extern void* data_0209f318;
 extern signed char data_ov002_0210cb5c[];
 
 void func_0202b0e0(struct Entry* e, int count);
-void* _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(u32 id, u32 flags, const Vector3* pos, const Vector3_16* rot, int area, int death);
-void* _ZN12ActorDerived5SpawnEjP9ActorBaseii(u32 id, void* base, int a, int b);
+void* _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(u32 id, u32 flags, const Vector3* pos, const Vector3_16* rot, int area, int death);
+void* _ZN7dBase_c5SpawnEjP7fBase_cii(u32 id, void* base, int a, int b);
 void StartEntranceFaderWipe(int index);
 
 /* PORT_HOST_ABI: ARM argument ride-through into StartEntranceFaderWipe,
@@ -122,7 +122,7 @@ void _Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij(struct ObjSubTable* 
             }
             u32 flags = f2 | (f1 << 3) | (i << 6) | (sl << 8);
 
-            void* a = _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(
+            void* a = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
                 data_ov002_0210cbf4[e->raw], flags, &pos, &e->rot,
                 (signed char)(param & 7), -1);
 
@@ -139,7 +139,7 @@ void _Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij(struct ObjSubTable* 
         }
     }
 
-    data_0209f318 = _ZN12ActorDerived5SpawnEjP9ActorBaseii(0x14c, data_0209f5c0, entranceId, 0);
+    data_0209f318 = _ZN7dBase_c5SpawnEjP7fBase_cii(0x14c, data_0209f5c0, entranceId, 0);
 
     if (std::getenv("SM64DS_FADER_WATCH")) {
         u32 c = sl >= 0x13 ? 0 : sl;

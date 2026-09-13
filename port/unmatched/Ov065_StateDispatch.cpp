@@ -99,7 +99,7 @@ extern unsigned data_ov065_0211cd1c[], data_ov065_0211cd24[],
    FACES. The paragraph above says the sixteen non-Dorrie rows "DO NOT CHANGE"
    because the two helpers tail jump -- that is still true of the EIGHT ENTER
    records, and no longer true of the eight PER-FRAME ones. With the two host
-   Behaviors retired, src/_ZN6Snufit8BehaviorEv.cpp and
+   Behaviors retired, src/actors/daYurei_Mucho_c.cpp and
    src/_ZN5Swoop8BehaviorEv.cpp read the cell's +8 half as a real pointer to
    member and CALL it with the receiver in ecx and nothing pushed (mov
    eax,[cell+8] / test / je / mov ecx,[cell+12] / add ecx,this / call eax,
@@ -194,7 +194,7 @@ extern "C" void port_ov065_states_seat(void)
  * both words the seat rewrote. */
 
 /* func_ov065_0211691c IS NOT A HOST COPY ANY MORE. Run link100 lane PMF2 put
-   src/func_ov065_0211691c.cpp back on port/slice_pmf2.txt: with /vmg /vmm global (the
+   src/actors/daYurei_Mucho_c.cpp back on port/slice_pmf2.txt: with /vmg /vmm global (the
    R8 block in port/CMakeLists.txt) MSVC's pointer-to-member IS the ROM's
    8-byte {function, delta} pair, and the matched TU compiles to the same
    tail jump this body was -- measured, listing in that slice's header.

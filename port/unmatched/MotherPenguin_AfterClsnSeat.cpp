@@ -65,14 +65,14 @@
  *  1. THE TICK DISPATCHER WAS NEVER CALLED. MotherPenguin::Behavior's first
  *     instruction pair is `mov r4,r0; bl 0x0211235c`, and ov018's own
  *     relocs.txt says `from:0x02112488 kind:arm_call to:0x0211235c
- *     module:overlay(18)`. src/_ZN7SkiLift8BehaviorEv.cpp spells that call
+ *     module:overlay(18)`. src/game/actors/d_a_pg_mthr.cpp spells that call
  *     `_ZN13RacingPenguin16OnPendingDestroyEv()`, which is ov019's OWN
  *     4-byte `bx lr` at the SAME window address (ov018 and ov019 share load
  *     base 0x021111a0 and are never co-resident). The port linked ov019's
  *     empty body, so the mother penguin's per-frame state tick never ran at
  *     all. Fixed in the Behavior host copy beside this file; the matched src
  *     stays byte-locked and the crossing is reported decomp-side.
- *  2. src/func_ov018_02111e28.cpp declares func_ov018_021123d0 with ONE
+ *  2. src/game/actors/d_a_pg_mthr.cpp declares func_ov018_021123d0 with ONE
  *     parameter and calls it with one. The ROM sets r1 = 0 at 0x02111ef8
  *     (a `mov r1,#0` the source spells as the neighbouring
  *     `*(int*)(s+0x374) = 0`, which is why the file still byte-matches on
@@ -81,7 +81,7 @@
  *     uninitialised index and a wild pointer parked in self+0x370. The CMake
  *     gate block renames that one call to port_mpg_set_state_zero below,
  *     which supplies the ROM's own 0.
- *  3. src/func_ov018_021121dc.cpp names its animation file record
+ *  3. src/game/actors/d_a_pg_mthr.cpp names its animation file record
  *     data_ov027_02113bf0. The literal at 0x02112230 is 0x02113bf0, it
  *     carries NO relocation row (a module-internal reference), and ov018's
  *     own bss has data_ov018_02113bf0 there -- the Animation SharedFilePtr
@@ -103,7 +103,7 @@
 #include <cstdlib>
 
 /* ---- defect 4, the C++-LINKAGE SPELLING of two mounted records -----------
-   src/func_ov018_02111f1c.cpp declares its two file records OUTSIDE its own
+   src/game/actors/d_a_pg_mthr.cpp declares its two file records OUTSIDE its own
    `extern "C"` block:
        extern void *data_ov018_02113c08[];
        extern void *data_ov018_02113bf8[];
@@ -139,7 +139,7 @@ enum { PORT_MPG_RECORDS = 6 };
 typedef int (*PortMpgFn)(char *);
 
 /* ---- defect 2's shim: the ROM's own r1 = 0, supplied by name -------------
-   port/CMakeLists.txt's gate block renames src/func_ov018_02111e28.cpp's ONE
+   port/CMakeLists.txt's gate block renames src/game/actors/d_a_pg_mthr.cpp's ONE
    call site to this. Nothing else may use it: every other caller of
    func_ov018_021123d0 in src/ spells both arguments. */
 extern "C" void port_mpg_set_state_zero(char *self)

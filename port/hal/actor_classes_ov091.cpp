@@ -18,8 +18,8 @@
  *  144   RotatingUpDownPlatform   0x02134e9c  0x02134ec0    32   0x02132394
  *  231   Stump                    0x02135388  0x021353ac    31   0x021344a0
  *
- * ONE CLASS, TWO ROWS. ArrowPathLift_Spawn (0x021323cc) and
- * SquareMetalNetLift_Spawn (0x02132394) are byte-identical 0x38-byte factories
+ * ONE CLASS, TWO ROWS. daLinelift2_c_classInit_KM3_LIFT (0x021323cc) and
+ * daLinelift2_c_classInit_KM2_SUSUMU (0x02132394) are byte-identical 0x38-byte factories
  * and each one's single ov091 pool literal is 0x02134ec0. Two ids, one table,
  * one fill; the variant they differ by is read at run time out of the
  * INSTANCE's own parameter word, not the SpawnInfo's -- RotatingUpDownPlatform
@@ -46,8 +46,8 @@
  * TWO RTTI SPELLINGS, ONE BRIDGE. Reading each table's vtable[-1] typeinfo
  * through to its name string gives "13daLinelift2_c" for 0x02134ec0 and
  * "10daHyuhyu_c" for 0x021353ac.
- *   * _ZN5StumpD0Ev spells _ZTV10daHyuhyu_c while _ZN5StumpD1Ev and
- *     Fwoosh_Spawn spell _ZTV5Stump: ONE table under two names, so it gets an
+ *   * _ZN6FwooshD0Ev spells _ZTV10daHyuhyu_c while _ZN6FwooshD1Ev and
+ *     daHyuhyu_c_classInit spell _ZTV5Stump: ONE table under two names, so it gets an
  *     /alternatename. The LHS is defined nowhere else in this link -- checked,
  *     and port/tools/alternatename_guard.py re-checks it post-link.
  *   * BOTH RotatingUpDownPlatform destructors spell _ZTV13daLinelift2_c and
@@ -63,14 +63,14 @@
  *
  * THE _ZTV5Stump NAME IS NOT ACTOR 27's TABLE, and port/ov091_syms.txt's
  * header already derived that. Re-checked here from the bytes:
- * Stump_SpawnInfo (0x02135298) has +4 halfword 27 and names factory
+ * g_profile_PILE (0x02135298) has +4 halfword 27 and names factory
  * 0x02133938, whose pool literal is 0x021352bc, RTTI "11daObjPile_c" -- actor
  * 27's own table, which the gate-32 mount excludes and the registry fills.
  * The config symbol _ZTV5Stump sits at 0x021353ac with RTTI "10daHyuhyu_c" and
  * is FWOOSH's. So the seven _ZN5Stump* bodies in src/ are FWOOSH's methods.
  *
- * IDS 29 AND 30 ARE NOT A BUG. Both RotatingUpDownPlatform_Spawn (0x02131bdc)
- * and RotatingUpDownPlatformUtm_Spawn (0x02131ba4) install
+ * IDS 29 AND 30 ARE NOT A BUG. Both daObjRotateUpdownLift_c_classInit_UPDOWN_LIFT (0x02131bdc)
+ * and daObjRotateUpdownLift_c_classInit_HS_UPDOWN_LIFT (0x02131ba4) install
  * _ZTV25RotatingUpDownPlatformUtm (0x02134c5c), so the existing single shared
  * fill in hal/actor_classes_l7.cpp is correct and this file leaves it alone.
  *
@@ -83,7 +83,7 @@
  *     DUAL-FILLS _ZTV5Model at [4] AND [5] with Model::Render, so a shadow TU
  *     counting in ROM numbering lands on the right body. It serves from src/
  *     unchanged, and levels 39 and 37 run 300 frames rc 0 with it doing so.
- *   Stump::Render shadows the MODELANIM at +0x300 -- Fwoosh_Spawn calls
+ *   Stump::Render shadows the MODELANIM at +0x300 -- daHyuhyu_c_classInit calls
  *     _ZN9ModelAnimC1Ev on +0x300 -- and _ZTV9ModelAnim is NOT dual-filled: it
  *     is filled in MSVC numbering, where slot 5 is Virtual18 and Render has
  *     moved. Index 5 lands on the wrong body. This is the ov090 / Whomp / Fish
@@ -128,38 +128,38 @@
    Actor::OnAimedAtWithEggReturnVec. The ROM word in slot 30 of every vtable
    this file fills IS the arm9 base body 0x020100dc (checked against
    config/<module>/relocs.txt at vtable+30*4), and that body is now in the
-   link from src/_ZN5Actor25OnAimedAtWithEggReturnVecEv.cpp on slice_gate50.
+   link from src/_ZN8dActor_c25OnAimedAtWithEggReturnVecEv.cpp on slice_gate50.
    The three-parameter __fastcall is the sret contract MSVC uses for a
    thiscall member returning a 12-byte struct: this in ecx, the hidden result
    pointer the one (callee-popped) stack argument. Same shape as whomp_s30. */
 extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
 #include <cstdlib>
 
-#include "Actor.h"
-#include "ActorBase.h"
+#include "dActor_c.h"
+#include "fBase_c.h"
 #include "RotatingUpDownPlatform.h"
 #include "Stump.h"
 
 extern "C" {
 
 /* ---- the shared arm9 half both tables name ------------------------------- */
-int _ZN5Actor19BeforeInitResourcesEv(void *self);              /* slot 1  */
-void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a);  /* slot 2  */
-int _ZN5Actor14BeforeBehaviorEv(void *self);                   /* slot 7  */
-int _ZN5Actor12BeforeRenderEv(void *self);                     /* slot 10 */
-int _ZN5Actor13OnYoshiTryEatEv(void *self);                    /* slot 18 */
-void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p);   /* slot 19 */
-int _ZN5Actor9Virtual50Ev(void *self);                         /* slot 20 */
-void _ZN5Actor15OnGroundPoundedERS_(void *self, void *o);      /* slot 21 */
-void _ZN5Actor11OnAttacked1ERS_(void *self, void *o);          /* slot 22 */
-void _ZN5Actor11OnAttacked2ERS_(void *self, void *o);          /* slot 23 */
-void _ZN5Actor8OnKickedERS_(void *self, void *o);              /* slot 24 */
-void _ZN5Actor8OnPushedERS_(void *self, void *o);              /* slot 25 */
-void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* slot 26 */
-void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* slot 27 */
-void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);  /* slot 28 */
-int _ZN5Actor16OnAimedAtWithEggEv(void *self);                 /* slot 29 default */
-void _ZN8Platform4KillEv(void *self);                          /* slot 31, ov002 */
+int _ZN8dActor_c19BeforeInitResourcesEv(void *self);              /* slot 1  */
+void _ZN8dActor_c18AfterInitResourcesEj(void *self, unsigned a);  /* slot 2  */
+int _ZN8dActor_c14BeforeBehaviorEv(void *self);                   /* slot 7  */
+int _ZN8dActor_c12BeforeRenderEv(void *self);                     /* slot 10 */
+int _ZN8dActor_c13OnYoshiTryEatEv(void *self);                    /* slot 18 */
+void _ZN8dActor_c13OnTurnIntoEggER6Player(void *self, void *p);   /* slot 19 */
+int _ZN8dActor_c9Virtual50Ev(void *self);                         /* slot 20 */
+void _ZN8dActor_c15OnGroundPoundedERS_(void *self, void *o);      /* slot 21 */
+void _ZN8dActor_c11OnAttacked1ERS_(void *self, void *o);          /* slot 22 */
+void _ZN8dActor_c11OnAttacked2ERS_(void *self, void *o);          /* slot 23 */
+void _ZN8dActor_c8OnKickedERS_(void *self, void *o);              /* slot 24 */
+void _ZN8dActor_c8OnPushedERS_(void *self, void *o);              /* slot 25 */
+void _ZN8dActor_c24OnHitByCannonBlastedCharERS_(void *self, void *o); /* slot 26 */
+void _ZN8dActor_c15OnHitByMegaCharER6Player(void *self, void *p);     /* slot 27 */
+void _ZN8dActor_c19OnHitFromUnderneathERS_(void *self, void *o);  /* slot 28 */
+int _ZN8dActor_c16OnAimedAtWithEggEv(void *self);                 /* slot 29 default */
+void _ZN10dBgActor_c4KillEv(void *self);                          /* slot 31, ov002 */
 
 extern int data_02099f24[];          /* the frame phase the lists are in */
 extern unsigned char data_020a4b4c;  /* the spawn spine's own step */
@@ -180,32 +180,32 @@ int _ZN22RotatingUpDownPlatform6RenderEv(void *self);            /* face: below 
 int _ZN22RotatingUpDownPlatform8BehaviorEv(void *self);          /* unmatched/Ov091_HostSites */
 int *_ZN22RotatingUpDownPlatformD1Ev(int *self);                 /* .c, C linkage */
 int *_ZN22RotatingUpDownPlatformD0Ev(int *self);                 /* .c, C linkage */
-void *ArrowPathLift_Spawn(void);
-void *SquareMetalNetLift_Spawn(void);
-extern unsigned char ArrowPathLift_SpawnInfo[];
-extern unsigned char SquareMetalNetLift_SpawnInfo[];
+void *daLinelift2_c_classInit_KM3_LIFT(void);
+void *daLinelift2_c_classInit_KM2_SUSUMU(void);
+extern unsigned char g_profile_KM3_LIFT[];
+extern unsigned char g_profile_KM2_SUSUMU[];
 
 /* ---- FWOOSH (231) -------------------------------------------------------- */
-int _ZN5Stump13InitResourcesEv(void *self);      /* face: below */
-int _ZN5Stump16CleanupResourcesEv(void *self);   /* face: below */
-int _ZN5Stump6RenderEv(void *self);              /* unmatched/Ov091_HostSites */
-int _ZN5Stump8BehaviorEv(void *self);            /* unmatched/Ov091_HostSites */
-void _ZN5Stump16OnPendingDestroyEv(void);        /* slot 12, .c body takes void */
-int *_ZN5StumpD1Ev(int *self);                   /* slot 16 */
-int *_ZN5StumpD0Ev(int *self);                   /* slot 17 */
-int func_ov091_02134498(void);                   /* slot 18, own OnYoshiTryEat: returns 4 */
+int _ZN6Fwoosh13InitResourcesEv(void *self);      /* face: below */
+int _ZN6Fwoosh16CleanupResourcesEv(void *self);   /* face: below */
+int _ZN6Fwoosh6RenderEv(void *self);              /* unmatched/Ov091_HostSites */
+int _ZN6Fwoosh8BehaviorEv(void *self);            /* unmatched/Ov091_HostSites */
+void _ZN6Fwoosh16OnPendingDestroyEv(void);        /* slot 12, .c body takes void */
+int *_ZN6FwooshD1Ev(int *self);                   /* slot 16 */
+int *_ZN6FwooshD0Ev(int *self);                   /* slot 17 */
+int _ZN6Fwoosh13OnYoshiTryEatEv(void);                   /* slot 18, own OnYoshiTryEat: returns 4 */
 /* Slot 19's body is a tail-call VENEER -- the ROM bytes at 0x0213448c are
    `e59fc000 e12fff1c 02043824`, ldr ip,[pc]; bx ip onto
-   _ZN9ActorBase18MarkForDestructionEv -- and src declares it (void). It is
+   _ZN7fBase_c18MarkForDestructionEv -- and src declares it (void). It is
    declared WITH a self parameter here, exactly as gate 193 declares the
-   byte-identical func_ov072_02121fa0 and hal/actor_classes_ov030.cpp declares
-   func_ov030_021145d4: a veneer is a tail jump on the host too, so it forwards
+   byte-identical _ZN11BabyPenguin13OnTurnIntoEggER6Player and hal/actor_classes_ov030.cpp declares
+   _ZN7daMky_c13OnTurnIntoEggER6Player: a veneer is a tail jump on the host too, so it forwards
    whatever this thunk pushed, and pushing nothing would leave
    MarkForDestruction reading the thunk's own return address as its self. */
-void func_ov091_0213448c(void *self);            /* slot 19, own OnTurnIntoEgg */
-int func_ov091_02134484(void);                   /* slot 29, own: returns 0x1f000 */
-void *Fwoosh_Spawn(void);
-extern unsigned char Fwoosh_SpawnInfo[];
+void _ZN6Fwoosh13OnTurnIntoEggER6Player(void *self);            /* slot 19, own OnTurnIntoEgg */
+int _ZN6Fwoosh16OnAimedAtWithEggEv(void);                   /* slot 29, own: returns 0x1f000 */
+void *daHyuhyu_c_classInit(void);
+extern unsigned char g_profile_HYUHYU[];
 
 /* ---- the NINE mounted PMF source records --------------------------------- */
 extern unsigned int data_ov091_02134e44[];   /* lifts: state 1 */
@@ -400,51 +400,51 @@ static int __fastcall ov91_trap13(void *s, void *) { ov91_trap_report(s, 13); re
 static int __fastcall ov91_trap14(void *s, void *) { ov91_trap_report(s, 14); return 0; }
 
 static int __fastcall ov91_binit(void *s, void *)
-{ return _ZN5Actor19BeforeInitResourcesEv(s); }
+{ return _ZN8dActor_c19BeforeInitResourcesEv(s); }
 static void __fastcall ov91_ainit(void *s, void *, unsigned a)
-{ _ZN5Actor18AfterInitResourcesEj(s, a); }
+{ _ZN8dActor_c18AfterInitResourcesEj(s, a); }
 static int __fastcall ov91_bclean(void *s, void *)
-{ return ((Actor *)s)->Actor::BeforeCleanupResources(); }
+{ return ((dActor_c *)s)->dActor_c::BeforeCleanupResources(); }
 static void __fastcall ov91_aclean(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterCleanupResources(a); }
+{ ((fBase_c *)s)->fBase_c::AfterCleanupResources(a); }
 static int __fastcall ov91_bbeh(void *s, void *)
-{ return _ZN5Actor14BeforeBehaviorEv(s); }
+{ return _ZN8dActor_c14BeforeBehaviorEv(s); }
 static void __fastcall ov91_abeh(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+{ ((fBase_c *)s)->fBase_c::AfterBehavior(a); }
 static int __fastcall ov91_bren(void *s, void *)
-{ return _ZN5Actor12BeforeRenderEv(s); }
+{ return _ZN8dActor_c12BeforeRenderEv(s); }
 static void __fastcall ov91_aren(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterRender(a); }
+{ ((fBase_c *)s)->fBase_c::AfterRender(a); }
 static int __fastcall ov91_pdes(void *s, void *)
-{ ((ActorBase *)s)->ActorBase::OnPendingDestroy(); return 0; }
+{ ((fBase_c *)s)->fBase_c::OnPendingDestroy(); return 0; }
 static int __fastcall ov91_heap(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::OnHeapCreated(); }
+{ return ((fBase_c *)s)->fBase_c::OnHeapCreated(); }
 static int __fastcall ov91_yoshi(void *s, void *)
-{ return _ZN5Actor13OnYoshiTryEatEv(s); }
+{ return _ZN8dActor_c13OnYoshiTryEatEv(s); }
 /* slot 19, OnTurnIntoEgg(Player &player): the caller PUSHES the player, so the
    three-parameter veneer pops it. */
 static int __fastcall ov91_turn_egg(void *s, void *, void *p)
-{ _ZN5Actor13OnTurnIntoEggER6Player(s, p); return 0; }
+{ _ZN8dActor_c13OnTurnIntoEggER6Player(s, p); return 0; }
 static int __fastcall ov91_v50(void *s, void *)
-{ return _ZN5Actor9Virtual50Ev(s); }
+{ return _ZN8dActor_c9Virtual50Ev(s); }
 static int __fastcall ov91_pounded(void *s, void *, void *o)
-{ _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
+{ _ZN8dActor_c15OnGroundPoundedERS_(s, o); return 0; }
 static int __fastcall ov91_atk1(void *s, void *, void *o)
-{ _ZN5Actor11OnAttacked1ERS_(s, o); return 0; }
+{ _ZN8dActor_c11OnAttacked1ERS_(s, o); return 0; }
 static int __fastcall ov91_atk2(void *s, void *, void *o)
-{ _ZN5Actor11OnAttacked2ERS_(s, o); return 0; }
+{ _ZN8dActor_c11OnAttacked2ERS_(s, o); return 0; }
 static int __fastcall ov91_kicked(void *s, void *, void *o)
-{ _ZN5Actor8OnKickedERS_(s, o); return 0; }
+{ _ZN8dActor_c8OnKickedERS_(s, o); return 0; }
 static int __fastcall ov91_pushed(void *s, void *, void *o)
-{ _ZN5Actor8OnPushedERS_(s, o); return 0; }
+{ _ZN8dActor_c8OnPushedERS_(s, o); return 0; }
 static int __fastcall ov91_cannon(void *s, void *, void *o)
-{ _ZN5Actor24OnHitByCannonBlastedCharERS_(s, o); return 0; }
+{ _ZN8dActor_c24OnHitByCannonBlastedCharERS_(s, o); return 0; }
 static int __fastcall ov91_mega(void *s, void *, void *p)
-{ _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
+{ _ZN8dActor_c15OnHitByMegaCharER6Player(s, p); return 0; }
 static int __fastcall ov91_under(void *s, void *, void *o)
-{ _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
+{ _ZN8dActor_c19OnHitFromUnderneathERS_(s, o); return 0; }
 static int __fastcall ov91_aimed(void *s, void *)
-{ return _ZN5Actor16OnAimedAtWithEggEv(s); }
+{ return _ZN8dActor_c16OnAimedAtWithEggEv(s); }
 
 /* Fills 1,2,4,5,7,8,10,11,12,13,14,15,18..30 -- the shared Actor half both ROM
    tables carry identically. A caller writes its own 0/3/6/9/16/17 and whichever
@@ -499,7 +499,7 @@ static int __fastcall lift_d1(void *s, void *)
 static int __fastcall lift_d0(void *s, void *)
 { return (int)(size_t)_ZN22RotatingUpDownPlatformD0Ev((int *)s); }
 static int __fastcall lift_kill(void *s, void *)
-{ _ZN8Platform4KillEv(s); return 0; }
+{ _ZN10dBgActor_c4KillEv(s); return 0; }
 
 extern "C" void hal_fill_rotating_up_down_platform_lift_vtable(void)
 {
@@ -526,26 +526,26 @@ extern "C" void hal_fill_rotating_up_down_platform_lift_vtable(void)
 // 19 OnTurnIntoEgg, 29 OnAimedAtWithEgg. Slot 30 stays the trap.
 // ============================================================================
 static int __fastcall fwo_init(void *s, void *)
-{ return _ZN5Stump13InitResourcesEv(s); }
+{ return _ZN6Fwoosh13InitResourcesEv(s); }
 static int __fastcall fwo_clean(void *s, void *)
-{ return _ZN5Stump16CleanupResourcesEv(s); }
+{ return _ZN6Fwoosh16CleanupResourcesEv(s); }
 static int __fastcall fwo_behavior(void *s, void *)
-{ return _ZN5Stump8BehaviorEv(s); }
+{ return _ZN6Fwoosh8BehaviorEv(s); }
 static int __fastcall fwo_render(void *s, void *)
 { port_actor_render_probe("FWOOSH", (char *)s + 0x300);
-  return _ZN5Stump6RenderEv(s); }
+  return _ZN6Fwoosh6RenderEv(s); }
 static int __fastcall fwo_pdes(void *s, void *)
-{ (void)s; _ZN5Stump16OnPendingDestroyEv(); return 0; }
+{ (void)s; _ZN6Fwoosh16OnPendingDestroyEv(); return 0; }
 static int __fastcall fwo_d1(void *s, void *)
-{ return (int)(size_t)_ZN5StumpD1Ev((int *)s); }
+{ return (int)(size_t)_ZN6FwooshD1Ev((int *)s); }
 static int __fastcall fwo_d0(void *s, void *)
-{ return (int)(size_t)_ZN5StumpD0Ev((int *)s); }
+{ return (int)(size_t)_ZN6FwooshD0Ev((int *)s); }
 static int __fastcall fwo_yoshi(void *s, void *)
-{ (void)s; return func_ov091_02134498(); }
+{ (void)s; return _ZN6Fwoosh13OnYoshiTryEatEv(); }
 static int __fastcall fwo_egg(void *s, void *, void *)
-{ func_ov091_0213448c(s); return 0; }
+{ _ZN6Fwoosh13OnTurnIntoEggER6Player(s); return 0; }
 static int __fastcall fwo_aimed(void *s, void *)
-{ (void)s; return func_ov091_02134484(); }
+{ (void)s; return _ZN6Fwoosh16OnAimedAtWithEggEv(); }
 
 extern "C" void hal_fill_fwoosh_vtable(void)
 {
@@ -576,9 +576,9 @@ int _ZN22RotatingUpDownPlatform16CleanupResourcesEv(void *self)
 { return ((RotatingUpDownPlatform *)self)->RotatingUpDownPlatform::CleanupResources(); }
 int _ZN22RotatingUpDownPlatform6RenderEv(void *self)
 { return ((RotatingUpDownPlatform *)self)->RotatingUpDownPlatform::Render(); }
-int _ZN5Stump13InitResourcesEv(void *self)
+int _ZN6Fwoosh13InitResourcesEv(void *self)
 { return ((Stump *)self)->Stump::InitResources(); }
-int _ZN5Stump16CleanupResourcesEv(void *self)
+int _ZN6Fwoosh16CleanupResourcesEv(void *self)
 { return ((Stump *)self)->Stump::CleanupResources(); }
 }
 
@@ -640,8 +640,9 @@ int _ZN5Stump16CleanupResourcesEv(void *self)
  * data reference at a function address is what the ROM's own literal pool does
  * -- the TU only ever takes its address and hands it to func_020393d4. */
 #pragma comment(linker, "/alternatename:?_ZN9ModelBase7SetFileEP8BMD_Fileii@@YAXPAX0HH@Z=__ZN9ModelBase7SetFileEP8BMD_Fileii")
-#pragma comment(linker, "/alternatename:?_ZN8Platform19UpdateClsnPosAndRotEv@@YAXPAX@Z=__ZN8Platform19UpdateClsnPosAndRotEv")
-#pragma comment(linker, "/alternatename:?_ZN16MeshColliderBase21UpdatePosWithVelocityERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_@@3DA=__ZN16MeshColliderBase21UpdatePosWithVelocityERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_")
+#pragma comment(linker, "/alternatename:?_ZN10dBgActor_c19UpdateClsnPosAndRotEv@@YAXPAX@Z=__ZN10dBgActor_c19UpdateClsnPosAndRotEv")
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEAD RHS and an UNREFERENCED left hand side: nothing in the build defines __ZN4dBgW21UpdatePosWithVelocityERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_, and nothing references ?_ZN4dBgW21UpdatePosWithVelocityERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_@@3DA, so the row can never fire and nothing wants it to. */
+// #pragma comment(linker, "/alternatename:?_ZN4dBgW21UpdatePosWithVelocityERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_@@3DA=__ZN4dBgW21UpdatePosWithVelocityERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_")
 
 /* ONE MISSPELLING, AND IT IS NOT A DECORATION VARIANT -- worth its own note
  * because the fix looks like the twelve above and is a different kind of thing.

@@ -1,4 +1,4 @@
-/* HOST COPY of _ZN12MansionSteps13InitResourcesEv (ov063 0x0211cf00, 0x370
+/* HOST COPY of _ZN11daTrsTrap_c13InitResourcesEv (ov063 0x0211cf00, 0x370
  * bytes), vtable slot 0 of _ZTV12MansionSteps -- the ONE table all four
  * furniture ids share (65 MansionSteps / 158 Bookshelf / 159 MerryGoRound /
  * 160 TrapDoor; each Spawn stores this table, mode picked off the actor id
@@ -30,25 +30,25 @@ enum { false, true };
 struct Vec3 { int x, y, z; };
 struct Vec16 { s16 x, y, z; };
 
-extern void *_ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(u32 a, u32 b, const void *v, const void *v16, int e, int f);
-extern void *_ZN12MeshCollider8LoadFileER13SharedFilePtr(void *fp);
+extern void *_ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(u32 a, u32 b, const void *v, const void *v16, int e, int f);
+extern void *_ZN7dBgW_Kc8LoadFileER13SharedFilePtr(void *fp);
 extern void *_ZN5Model8LoadFileER13SharedFilePtr(void *fp);
 extern int _ZN9ModelBase7SetFileEP8BMD_Fileii(void *self, void *f, int a, int b);
 extern void func_ov063_0211c6f8(char *c);
-extern void _ZN18MovingMeshCollider7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block(
+extern void _ZN10dBgW_KcMbg7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block(
     void *self, void *f, void *m, int fx, short s, void *b);
 extern void func_020393d4(int *p, int v);
 extern void func_020393c4(int *p, int v);
-extern void _ZN16MeshColliderBase6EnableEP5Actor(void *self, void *actor);
+extern void _ZN4dBgW6EnableEP8dActor_c(void *self, void *actor);
 
-extern void _ZN16MeshColliderBase16UpdatePosAndAngsERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_(void);
+extern void _ZN4dBgW16UpdatePosAndAngsERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_(void);
 extern void func_ov063_0211d28c(void);
 extern void *data_ov063_0211e28c[];
 extern void *data_ov063_0211e27c[];
 extern int data_ov063_0211e9e8[];
 extern int data_ov063_0211e9f8[];
 
-int _ZN12MansionSteps13InitResourcesEv(char *c)
+int _ZN11daTrsTrap_c13InitResourcesEv(char *c)
 {
     int is41;
     int t;
@@ -82,7 +82,7 @@ int _ZN12MansionSteps13InitResourcesEv(char *c)
             for (i = 1; i <= 2; i++) {
                 pos.z -= 0xc8000;
                 pos.y += dx;
-                sp = _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(0x41, 0x100 * i,
+                sp = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(0x41, 0x100 * i,
                     &pos, 0, *(s8 *)(c + 0xcc), -1);
                 *(s32 *)((char *)sp + 0x128) = *(s32 *)(c + 4);
                 *(u8 *)((char *)sp + 0x156) = *(u8 *)(c + 0x156);
@@ -114,7 +114,7 @@ int _ZN12MansionSteps13InitResourcesEv(char *c)
     *(s32 *)(c + 0x148) = 0;
     *(s16 *)(c + 0x14e) = 0;
 
-    _ZN12MeshCollider8LoadFileER13SharedFilePtr(data_ov063_0211e28c[*(s32 *)(c + 0x140)]);
+    _ZN7dBgW_Kc8LoadFileER13SharedFilePtr(data_ov063_0211e28c[*(s32 *)(c + 0x140)]);
     if (_ZN9ModelBase7SetFileEP8BMD_Fileii(c + 0xd4,
             _ZN5Model8LoadFileER13SharedFilePtr(data_ov063_0211e27c[*(s32 *)(c + 0x140)]), 1, -1) == 0)
         return 0;
@@ -124,20 +124,20 @@ int _ZN12MansionSteps13InitResourcesEv(char *c)
     {
         int m = *(s32 *)(c + 0x140);
         if (m == 3) {
-            _ZN18MovingMeshCollider7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block(
+            _ZN10dBgW_KcMbg7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block(
                 c + 0x15c, *(void **)((char *)data_ov063_0211e28c[m] + 4), c + 0x324,
                 0x1000, *(s16 *)(c + 0x8e), (void *)data_ov063_0211e9e8[m]);
         } else {
-            _ZN18MovingMeshCollider7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block(
+            _ZN10dBgW_KcMbg7SetFileEP8KCL_FileRK9Matrix4x35Fix12IiEsR10CLPS_Block(
                 c + 0x15c, *(void **)((char *)data_ov063_0211e28c[m] + 4), c + 0x324,
                 0x199, *(s16 *)(c + 0x8e), (void *)data_ov063_0211e9e8[m]);
         }
     }
 
     func_020393d4((int *)(c + 0x15c),
-        (int)&_ZN16MeshColliderBase16UpdatePosAndAngsERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_);
+        (int)&_ZN4dBgW16UpdatePosAndAngsERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_);
     func_020393c4((int *)(c + 0x15c), (int)&func_ov063_0211d28c);
-    _ZN16MeshColliderBase6EnableEP5Actor(c + 0x15c, c);
+    _ZN4dBgW6EnableEP8dActor_c(c + 0x15c, c);
 
     if (*(s32 *)(c + 0x140) == 2) {
         struct Vec3 base; struct Vec16 v16;
@@ -159,7 +159,7 @@ int _ZN12MansionSteps13InitResourcesEv(char *c)
             base.x = *(s32 *)(c + 0x12c) - vt[even];
             base.y = *(s32 *)(c + 0x130) + vt[odd];
             base.z = *(s32 *)(c + 0x134) - 0xb4000;
-            sp = _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(actorId, j, &base, &v16, *(s8 *)(c + 0xcc), neg1);
+            sp = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(actorId, j, &base, &v16, *(s8 *)(c + 0xcc), neg1);
             *(s32 *)((char *)sp + 0x418) = *(s32 *)(c + 4);
             even += 2; odd += 2;
         }

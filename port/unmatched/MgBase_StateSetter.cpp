@@ -1,5 +1,5 @@
 // PORT_HOST_ABI. The mwcc POINTER-TO-MEMBER WALL, the framework's STATE SETTER:
-// src/func_ov004_020b87e0.cpp, host-copied against an address switch. Run mg5,
+// src/_ZN10dMgState_c8SetStateEi.cpp, host-copied against an address switch. Run mg5,
 // lane BASESET.
 //
 // This is the TU port/mg_fanout_costs.txt section 4 calls "worth more than any
@@ -14,7 +14,7 @@
 // running. In Coincentration (scene 378) a tap did the same thing. Both left
 // one line in the playlog:
 //
-//   [scene] mwcc POINTER-TO-MEMBER WALL: func_ov004_020b87e0(idx=1) is the
+//   [scene] mwcc POINTER-TO-MEMBER WALL: _ZN10dMgState_c8SetStateEi(idx=1) is the
 //   state-setter for dScMgBase_c and MSVC cannot compile its TU ... No state
 //   was set and nothing was dispatched.
 //
@@ -132,15 +132,15 @@
 // .bin with no relocation on either word. It is the NULL member pointer, and
 // the port already hosts it that way: build/port/host-src/romdata.c defines
 // `data_02086b58[8] = { 0,0,0,0,0,0,0,0 }`. So `self->pmf2 = data_02086b58` is
-// a CLEAR, not a call, and the ROM's own reader (func_ov004_020b8714) skips a
+// a CLEAR, not a call, and the ROM's own reader (_ZN10dMgState_c6RenderEv) skips a
 // zero code word.
 //
 // ---- 5. THE OBJECT, AND THE HALF OF THE SEAT THE COST FILE DOES NOT NAME ---
 //
 // The setter's `self` is the framework's MESSAGE object, at scene + 0xcc. Its
-// only caller is src/func_ov004_020b0a54.c:
+// only caller is src/func_ov004_020b0a54.cpp:
 //
-//     func_ov004_020b87e0((char *)data_ov004_020beb68 + 0xcc, c);
+//     _ZN10dMgState_c8SetStateEi((char *)data_ov004_020beb68 + 0xcc, c);
 //
 // and the layout the disassembly above forces, offset by offset, is
 //
@@ -155,8 +155,8 @@
 // self-field dispatchers, both already host-copied in
 // unmatched/MgBase_StateDispatch.cpp:
 //
-//     func_ov004_020b8714   if (*(int *)(c + 0x18) == -1) return;   pmf at +0x10
-//     func_ov004_020b8778   if (*(int *)(c + 0x18) == -1) return;   pmf at +0x08
+//     _ZN10dMgState_c6RenderEv   if (*(int *)(c + 0x18) == -1) return;   pmf at +0x10
+//     _ZN10dMgState_c8BehaviorEv   if (*(int *)(c + 0x18) == -1) return;   pmf at +0x08
 //
 // While the setter was a trap, +0x18 was never written, so both returned on
 // their first line on every frame of every minigame and NEITHER pmf slot was
@@ -538,7 +538,7 @@ static void setter_bad_index(int idx)
             return;
     if (nsaid < 8)
         said[nsaid++] = idx;
-    std::fprintf(stderr, "  [scene] func_ov004_020b87e0: message index %d is "
+    std::fprintf(stderr, "  [scene] _ZN10dMgState_c8SetStateEi: message index %d is "
                  "outside the ROM's twenty-entry table. The ROM has no bounds "
                  "check and would read the .bss word after the table; the host "
                  "refuses rather than reading past a 20 entry array. No state "
@@ -555,8 +555,8 @@ static void setter_bad_index(int idx)
    pair global, directly, with no switch: mgbase_dispatch_seated below.
 
    GROUP B, the twenty the state bodies install as the per-frame tick. Their
-   only two dispatchers were the host copies of func_ov004_020b8714 (the pmf at
-   +0x10) and func_ov004_020b8778 (the pmf at +0x08). Both are src/ TUs again
+   only two dispatchers were the host copies of _ZN10dMgState_c6RenderEv (the pmf at
+   +0x10) and _ZN10dMgState_c8BehaviorEv (the pmf at +0x08). Both are src/ TUs again
    on port/slice_mgwriter.txt, and both compile their dispatch to a TAIL JUMP
    through the object's own field, so they reach the seated host word with
    nothing in between.
@@ -581,7 +581,7 @@ static void setter_bad_index(int idx)
 
 // ---- the host copy ---------------------------------------------------------
 //
-// src/func_ov004_020b87e0.cpp, statement for statement, with the twenty-entry
+// src/_ZN10dMgState_c8SetStateEi.cpp, statement for statement, with the twenty-entry
 // PMF table re-typed and the one dispatch replaced. Everything else, including
 // the read-back of self->index and the null-CODE guard, is the src's and the
 // ROM's.
@@ -635,7 +635,7 @@ static unsigned g_writer_seated;
 static void mgbase_dispatch_seated(void *self, MgPmf p);
 
 /* PORT_HOST_ABI: mwcc pointer-to-member state setter (dScMgBase_c); builds and indexes an 8-byte {code,adj} table and dispatches through it, host-copied because MSVC cannot compile the src TU */
-extern "C" void func_ov004_020b87e0(void *cv, int idx)
+extern "C" void _ZN10dMgState_c8SetStateEi(void *cv, int idx)
 {
     SetterObj *self = (SetterObj *)cv;
 
@@ -716,7 +716,7 @@ extern "C" unsigned port_mg_base_setter_index_hits(unsigned *out, unsigned n)
 static void mgbase_dispatch_seated(void *self, MgPmf p)
 {
     if (p.adj != 0) {
-        std::fprintf(stderr, "FATAL: func_ov004_020b87e0: state pair "
+        std::fprintf(stderr, "FATAL: _ZN10dMgState_c8SetStateEi: state pair "
                      "%08x/%d carries a NONZERO ADJUSTMENT. Every measured pair "
                      "in this family reads zero and no host body implements the "
                      "this-adjustment or the virtual branch. "
@@ -725,7 +725,7 @@ static void mgbase_dispatch_seated(void *self, MgPmf p)
         std::abort();
     }
     if (p.code >= 0x02000000u && p.code < 0x02400000u) {
-        std::fprintf(stderr, "FATAL: func_ov004_020b87e0: state pair code "
+        std::fprintf(stderr, "FATAL: _ZN10dMgState_c8SetStateEi: state pair code "
                      "%08x is still a DS ADDRESS. The seat did not rewrite the "
                      "pair global this state came from, so there is no host "
                      "body to call. port/unmatched/MgBase_StateSetter.cpp\n",

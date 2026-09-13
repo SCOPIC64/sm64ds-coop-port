@@ -10,7 +10,7 @@
 # a link root. The arm9 ACTOR_SPAWN_TABLE (0x02090864) relocates slot 1 to
 # 0x02103264 (config/arm9/relocs.txt: from:0x02090868 kind:load to:0x02103264
 # module:overlay(7), and 0x02090868 is ACTOR_SPAWN_TABLE + 4). That record is
-# hosted by the ov007 mount and its +0 word is the factory func_ov007_020ccad0;
+# hosted by the ov007 mount and its +0 word is the factory dScDSMT_c_classInit;
 # hal/scene_boot.cpp seats it in data_020a4bb8[1] with the factory word
 # repointed at the host compilation, exactly as it does for id 4. The class
 # vtable is the MOUNT'S OWN data_ov007_021032e8, filled in place with host
@@ -137,30 +137,31 @@
 
 # ---- the class's own eight entry points ------------------------------------
 # the factory. ActorBase::operator new(0x64), the base ctor, the three vptr writes in construction order, the +0x13 flag bits, and the +0x50 graphCallback_c sub-object vptr.
-src/func_ov007_020ccad0.c
+src/d_s_dsmt.c
 # slot 0  InitResources
-src/func_ov007_020cc4c0.cpp
+src/_ZN9dScDSMT_c13InitResourcesEv.cpp
 # slot 3  CleanupResources
-src/func_ov007_020cc45c.c
+src/_ZN9dScDSMT_c16CleanupResourcesEv.cpp
 # slot 6  Behavior
-src/func_ov007_020cc2cc.c
+src/_ZN9dScDSMT_c8BehaviorEv.cpp
 # slot 9  Render
-src/func_ov007_020cc2b0.c
+src/_ZN9dScDSMT_c6RenderEv.cpp
 # slot 12 OnPendingDestroy (bx lr, a real empty body)
-src/func_ov007_020cc2ac.c
+src/_ZN9dScDSMT_c16OnPendingDestroyEv.cpp
 # slot 16 D2
-src/func_ov007_020cc028.c
+src/_ZN9dScDSMT_cD1Ev.cpp
 # slot 17 D0
-src/func_ov007_020cc070.c
+# RETIRED at SLICE1: body now in src/_ZN9dScDSMT_cD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN9dScDSMT_cD0Ev.cpp
 # graphCallback_c slot 0 (0x021032b0)
-src/func_ov007_020cc110.c
+src/_ZN9dScDSMT_c15graphCallback_c14GraphCallback0Ev.cpp
 # graphCallback_c slot 2 (0x021032b0)
-src/func_ov007_020cc0f4.c
+src/_ZN9dScDSMT_c15graphCallback_c14GraphCallback2Ev.cpp
 
 # ---- the rest of ov007's closure -------------------------------------------
 src/RequestScreenFade.c
 src/Sprite_SetAnimation.c
-src/_ZN6Player17St_EndingFly_MainEv.cpp
+src/func_ov007_020c3d1c.cpp
 src/func_ov007_020ad660.c
 src/func_ov007_020ada70.cpp
 src/func_ov007_020adb84.c
@@ -788,22 +789,22 @@ src/ARMMathSaveState.c
 src/TurnBacklightOff.c
 src/TurnBacklightOn.c
 src/_ZN15TextureSequence17UpdateFileOffsetsER8BTP_File.cpp
-src/_ZN2GX11LoadBG0CharEPKvjj.c
-src/_ZN2GX7LoadOBJEPKvjj.c
-src/_ZN3GXS11LoadBG0CharEPKvjj.c
-src/_ZN3GXS11LoadBG1CharEPKvjj.c
-src/_ZN4cstd3modEii.c
-src/_ZN4cstd4ldivEii.c
+src/_ZN2GX11LoadBG0CharEPKvjj.cpp
+src/_ZN2GX7LoadOBJEPKvjj.cpp
+src/_ZN3GXS11LoadBG0CharEPKvjj.cpp
+src/_ZN3GXS11LoadBG1CharEPKvjj.cpp
+src/_ZN4cstd3modEii.cpp
+src/_ZN4cstd4ldivEii.cpp
 src/_ZN5Model13LoadTexAndPalER8BMD_File.cpp
-src/_ZN5Scene14GraphCallback1Ev.c
-src/_ZN5Scene14GraphCallback3Ev.c
+src/_ZN8dGraph_c10callback_c14GraphCallback1Ev.cpp
+src/_ZN8dGraph_c10callback_c14GraphCallback3Ev.cpp
 src/_ZN8SaveData12ReadFileDataEjP12FileSaveData.cpp
-src/_ZN8SaveData13EraseSaveFileEjPc.c
-src/_ZN8SaveData13SaveMinigamesEP16MinigameSaveData.c
-src/_ZN8SaveData16ReadMinigameDataEP16MinigameSaveData.c
+src/_ZN8SaveData13EraseSaveFileEjPc.cpp
+src/_ZN8SaveData13SaveMinigamesEP16MinigameSaveData.cpp
+src/_ZN8SaveData16ReadMinigameDataEP16MinigameSaveData.cpp
 src/_ZN9Animation17UpdateFileOffsetsER8BCA_File.cpp
 src/func_02013c84.c
-src/func_02017254.c
+src/_ZN10dFdDummy_cD1Ev.cpp
 src/func_02017278.c
 src/func_0201a428.c
 src/func_0201a458.c
@@ -852,7 +853,7 @@ src/func_02059eb0.c
 src/func_0205efc0.c
 src/func_0205f040.c
 src/func_02070348.c
-src/func_ov007_020bfd70.c
+src/func_ov007_020bfd70.cpp
 
 # ---- the closure's second wave ---------------------------------------------
 # The first link of the block above named these; same method, same standard.
@@ -866,8 +867,9 @@ src/func_ov007_020bfd70.c
 # linking the chain would host data_0208ecf4's DS string pointers and
 # data_02075998's tables to drive a load the fs seam then ignores. Eleven TUs
 # of linkage deliberately not taken.
-src/_ZN3G2S13GetBG2CharPtrEv.c
-src/_ZN5ColorD1Ev.c
+src/_ZN3G2S13GetBG2CharPtrEv.cpp
+# RETIRED at SLICE1: body now in src/engine/fader/_ZN10FaderColorD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN10FaderColorD2Ev.cpp
 src/_ZN8SaveData16SetDefaultValuesEP12FileSaveData.cpp
 src/_ZN8SaveData18SetDefaultValuesMgEP16MinigameSaveData.cpp
 src/_ZN8SaveData8SaveFileEjP12FileSaveData.cpp
@@ -884,8 +886,10 @@ src/func_0205ad54.c
 src/func_0205ea10.c
 src/func_0205efe0.c
 src/func_0205f9ac.c
-src/func_020177c4.c
+# RETIRED at SLICE1: body now in src/engine/fader/_ZN15FaderBrightnessD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN15FaderBrightnessD2Ev.cpp
 src/func_02047218.c
 src/func_0205ea28.c
 src/func_0205f9e8.c
-src/func_02017838.c
+# RETIRED at SLICE1: body now in src/engine/fader/_ZN5FaderD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN5FaderD2Ev.cpp

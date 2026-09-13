@@ -11,7 +11,7 @@
 #include <cstring>
 
 #include "Animation.h"
-#include "BgCh.h"
+#include "dBgCh.h"
 #include "NestedHeapIterator.h"
 #include "Player.h"
 #include "player_fields.h"   /* run mg16 lane MP4: the one place field offsets live */
@@ -23,6 +23,9 @@
 #include "ModelAnim.h"
 
 #include "dsstate_seg.h"
+/* SYNC4: see the case for 0x020e0d28 inside player_states.inc. */
+extern "C" int __fastcall port_player_st_crazedcrate_cleanup(void *self, void *);
+#pragma comment(linker, "/alternatename:@port_player_st_crazedcrate_cleanup@8=?St_CrazedCrate_Cleanup@Player@@QAEHXZ")
 
 /* the geometry-engine polygon buffer, for the tongue render self-check
    (SM64DS_WINGS_PROBE); same forward decl cxxname_bridge.cpp uses so the
@@ -92,14 +95,14 @@ static void hal_dump_model_tables(Model *m)
         BMD_Texture *t = f->textures + i;
         printf("  tex %2u %-20s flags %08x fmt %u %3dx%-3d size %5u "
                "vramoff %05x\n",
-               i, (const char *)t->unk_00, t->flags, (t->flags >> 26) & 7,
+               i, (const char *)t->name, t->flags, (t->flags >> 26) & 7,
                8 << ((t->flags >> 20) & 7), 8 << ((t->flags >> 23) & 7),
                t->size, (t->flags & 0xffff) << 3);
     }
     for (u32 i = 0; i < f->numPalettes; ++i) {
         BMD_Palette *p = f->palettes + i;
         printf("  pal %2u %-20s size %5u vramoff %05x -> pltt %04x\n", i,
-               (const char *)p->unk_00, p->size, p->vramOffset,
+               (const char *)p->name, p->size, p->vramOffset,
                p->vramOffset >> 4);
     }
     const unsigned char *mm = (const unsigned char *)m->data.materials;
@@ -107,7 +110,7 @@ static void hal_dump_model_tables(Model *m)
         const u32 *e = (const u32 *)(mm + i * 0x30);
         printf("  mat %2u %-20s tex %3d pal %3d teximage %08x pltt %04x "
                "attr %08x difamb %08x\n",
-               i, (const char *)f->materials[i].unk_00, (int)e[0], (int)e[1],
+               i, (const char *)f->materials[i].name, (int)e[0], (int)e[1],
                e[7], e[8], e[9], e[10]);
     }
 }
@@ -122,7 +125,7 @@ void hal_render_model(void *model, int scaleShift)
     if (hal_tex_log()) hal_dump_model_tables(m);
     /* THE STAGE RENDERS IN SCENE UNITS, and this is Stage::RenderModel's own
        shape: the model matrix is the Model constructor's identity
-       (data_02082128) and the entire scale travels through Model::Render's
+       (IDENTITY_MATRIX4X3) and the entire scale travels through Model::Render's
        Vector3 argument -- data_020755d4 -- which the ordinary part walk
        spends as an MTX_SCALE on top of its own 1 << (shift + 12). Scene is
        what everything else in the frame is now in: the view matrix
@@ -460,13 +463,13 @@ extern "C" signed char g_party_render_ghost[16] = {
    handler performs (func_ov002_020d6998 sets mObjInMouth and the enemy's grabbed
    bit), then hands control to the REAL St_Swallow egg-lay path via ChangeState.
    Everything downstream -- Player_DisableInteraction, anim 0x70, FinishedAnim,
-   YoshiEgg_Spawn -- runs unchanged, so the freeze it exposes is the game's, not
+   daYegg_c_classInit -- runs unchanged, so the freeze it exposes is the game's, not
    the driver's. Inert unless the env is set. */
 extern "C" {
 extern void *port_first_live_actor_of_class(unsigned id);   /* hal/actor_registry.cpp */
 extern unsigned port_unique_id_of_actor(void *actor);       /* hal/actor_registry.cpp */
-/* the ROM's own cap-pickup entry point; src/_ZN6Player18SetNewHatCharacterEjjb.cpp,
-   called by the cap actor at src/func_ov002_020b74d0.c:51. Used only by the
+/* the ROM's own cap-pickup entry point; src/actors/Player.cpp,
+   called by the cap actor at src/actors/daObjMarioCap_c.cpp:51. Used only by the
    SM64DS_YOSHI_CAP repro driver below. */
 extern void _ZN6Player18SetNewHatCharacterEjjb(void *self, unsigned a, unsigned b,
                                                bool c);
@@ -529,7 +532,7 @@ extern "C" void port_adventure_probe(int frame)
            the ROM's own two writes, at the same point in the eat, and then gets
            out of the way: func_ov002_020d6790 (from Player::Behavior) reads the
            enemy's OnYoshiTryEat itself, picks the state itself, and every frame
-           of St_Swallow_Init / St_Swallow_Main / OnTurnIntoEgg / YoshiEgg_Spawn
+           of St_Swallow_Init / St_Swallow_Main / OnTurnIntoEgg / daYegg_c_classInit
            after that is the game's. So a freeze this exposes is the game's.
 
            Off unless the env is set, and it only ever fires while the player is
@@ -552,7 +555,7 @@ extern "C" void port_adventure_probe(int frame)
 
            This is the ordinary single-player route into
            func_ov002_020bdb50's slot-19 dispatch. The cap actor's own state
-           machine (src/func_ov002_020b74d0.c:51, case 1) does exactly this
+           machine (src/actors/daObjMarioCap_c.cpp:51, case 1) does exactly this
            call and nothing else on the way in:
 
                Player::SetNewHatCharacter(cap->mCharacter & 0xff, 0, 0)
@@ -1193,7 +1196,7 @@ static void yhd_probe(char *c, const int *scene, const char *head)
    With the root, the world rotation and the world translation identical for
    both models, any scale != 1.0 moves one mesh and leaves the other where it
    was. mScaleY is written by exactly two functions, both crush states:
-   Player::St_Squish_Main (src/_ZN6Player14St_Squish_MainEv.cpp, case 0 sets
+   Player::St_Squish_Main (src/actors/Player.cpp, case 0 sets
    mScaleY = 0x100 and case 1 walks it back up in 0x100 steps) and
    Player::Unk_020c6a10 (mScaleY = 0x100, 30-frame hold), so in ordinary play
    mScale is unit and this whole difference is invisible.
@@ -1327,7 +1330,7 @@ static void hsink_probe(char *c, const int *scene, const char *head,
 /* ---- THE VS COLOUR, AND WHY EVERY YOSHI WAS GREEN --------------------------
 
    In VS every player is Yoshi -- the spawn loop forces character 3 into every
-   slot (src/_Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij.c:68-71) --
+   slot (src/_Z19LoadEntranceObjectsRN11LVL_Overlay11ObjSubTableEij.cpp:68-71) --
    and they are told apart by COLOUR. That is the ROM's own arrangement, not a
    mod: yoshi_model.bmd carries ONE palette, yoshi_all_16p_pl, 128 bytes = four
    stacked 16-colour rows, and a player selects his row by shifting the palette
@@ -1884,9 +1887,9 @@ extern "C" void func_ov002_020e1c20(char *c);
 /* Three state slots the ROM fills with plain ov002 functions rather than
    Player methods: Null's Init, WallJump's Init, InYoshiMouth's Cleanup.
    The community St_ names at those addresses belong to ov006, not ov002. */
-extern "C" int func_ov002_020cac30(void);
-extern "C" int func_ov002_020d6084(char *c);
-extern "C" int func_ov002_020e17f8(void *c);
+extern "C" int _ZN6Player12St_Null_InitEv(void);
+extern "C" int _ZN6Player23St_InYoshiMouth_CleanupEv(char *c);
+extern "C" int _ZN6Player16St_WallJump_InitEv(void *c);
 extern "C" int _ZN6Player16St_BurnLava_MainEv(char *c);
 /* gate 14: the level-boot state and the seven entrance-step handlers */
 extern "C" int func_ov002_020c6f3c(void *c);
@@ -1913,7 +1916,7 @@ extern "C" int port_player_st_climb_main(void *self);
 extern "C" int port_player_st_swingplayer_main(void *self);
 /* Player::St_EndingFly_Main, under the flat name the ov002 world gives it
    (the sinit's PMF table pairs it with the EndingFly state; see the case). */
-extern "C" int func_ov002_020c3d1c(char *self);
+extern "C" int _ZN6Player17St_EndingFly_MainEv(char *self);
 
 extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 {
@@ -1998,7 +2001,7 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
 
        EndingFly's Main is NOT the ov007-named body an earlier version of
        this comment blamed. The ov002 sinit's own PMF state table pairs the
-       EndingFly state object (0x0211058c) with func_ov002_020c3d1c: the
+       EndingFly state object (0x0211058c) with _ZN6Player17St_EndingFly_MainEv: the
        wave-2 mount lane derived that from the relocation triple, and its
        reviewer re-derived it by reconstructing all 81 state objects from
        the sinit's store sequence. The ov007 body at the same address is a
@@ -2006,7 +2009,7 @@ extern "C" int hal_call_state_fn(void *self, unsigned ds_addr)
        no PMF cell anywhere names. The case below dispatches the ov002 body;
        its data (the 27-record rising-spiral step table data_ov002_0210a8b8
        and the kuppa script data_02088610) rode in with the wave-2 mounts. */
-    case 0x020c3d1c: return func_ov002_020c3d1c((char *)self);
+    case 0x020c3d1c: return _ZN6Player17St_EndingFly_MainEv((char *)self);
     case 0x020c3d6c: return ((Player *)self)->Player::St_EndingFly_Init();
     case 0x020d9fc4: return ((Player *)self)->Player::St_SwingPlayer_Cleanup();
     case 0x020da3b0: return ((Player *)self)->Player::St_SwingPlayer_Init();
@@ -2222,8 +2225,8 @@ int _ZN6Player8HasNoCapEv(void *self)
 int _ZN6Player9GetHealthEv(void *self)
 { return ((Player *)self)->Player::GetHealth(); }
 
-void _ZN4BgCh19StartDetectingWaterEv(void *self)
-{ ((BgCh *)self)->BgCh::StartDetectingWater(); }
+void _ZN5dBgCh19StartDetectingWaterEv(void *self)
+{ ((dBgCh *)self)->dBgCh::StartDetectingWater(); }
 
 /* THE CYLINDER SHADOW IS NO LONGER DEFERRED (run linkw wave 4, lane w4-a).
    This was `void _ZN11ShadowModel12InitCylinderEv(void *) {}`, the stub that
@@ -2314,8 +2317,13 @@ int _ZN18NestedHeapIterator8PreviousEP13HeapAllocator(void *self, void *h)
 { return ((NestedHeapIterator *)self)->NestedHeapIterator::Previous(
       (HeapAllocator *)h); }
 
+/* SYNC4: main declares Heap::Rescue void. The face keeps its int signature
+   because its C callers are declared that way, and returns 0 rather than
+   whatever EAX happens to hold -- the ROM body sets no result either, so the
+   value is unread; see the falls-off-the-end block in port/CMakeLists.txt for
+   the same question asked of the src bodies. */
 int _ZN4Heap6RescueEv(void *self)
-{ return ((Heap *)self)->Heap::Rescue(); }
+{ ((Heap *)self)->Heap::Rescue(); return 0; }
 int _ZN4Heap21MaxAllocationUnitSizeEv(void *self)
 { return ((Heap *)self)->Heap::MaxAllocationUnitSize(); }
 int _ZN4Heap6IntactEv(void *self)
@@ -2361,7 +2369,7 @@ int data_020a4b58[4], data_020a4b68[4], data_020a60f4[4];
        func_0202f2c4            |= 2       slice_fdr, AND REACHED, 191x a frame
        func_02059834            |= 0x10    slice_gate10, linked and undriven
        _ZN3IRQ13VBlankHandlerEv |= 1       not compiled
-       _ZN3IRQ13DmaTimHandlerEv |= mask    not compiled
+       _ZN3IRQ13DmaTimHandlerEj |= mask    not compiled
        func_ov006_020efcf8      |= 2       not compiled
    At 64 bytes that store landed 16,312 bytes past the object, 56 bytes into
    _hal_area_table and so INSIDE .dsstate, which means a save state would have

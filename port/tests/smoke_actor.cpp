@@ -1,6 +1,6 @@
 // Gate-9 smoke: a real actor lives its lifecycle on host.
 //
-// ArrowSignRight_Spawn allocates from the game heap and runs the ctor
+// daObjYajirusi_c_classInit_YAJIRUSI_R allocates from the game heap and runs the ctor
 // chain (Platform -> Actor -> ActorBase, Model and MovingMeshCollider
 // subobjects, ShadowModel); then every lifecycle step dispatches THROUGH
 // THE VTABLE exactly as the game's processing lists do: InitResources
@@ -21,7 +21,7 @@
 typedef unsigned int u32;
 
 extern "C" {
-int *ArrowSignRight_Spawn(void);
+int *daObjYajirusi_c_classInit_YAJIRUSI_R(void);
 void *_ZN4Heap13SetupRootHeapEv(void);
 extern int data_0209b3ec[12];       /* camera matrix */
 /* the spawn context ActorDerived::Spawn would have staged */
@@ -99,7 +99,7 @@ int main(void)
        bring-up tests/walk_window.cpp and tests/smoke_player.cpp do, so all
        four now configure the heap the way the boot spine does. This line used
        to be `data_020a0eac_c = data_020a0ea0;`, which pointed the game-heap
-       word straight at the root heap: ArrowSignRight_Spawn allocated out of
+       word straight at the root heap: daObjYajirusi_c_classInit_YAJIRUSI_R allocated out of
        the whole host arena and the ROM's own heap object never existed.
        func_0201a054 calls Heap::InitializeGameHeap(0x3b000, 0) instead -- a
        hard immediate and a NULL parent, no arena arithmetic. See
@@ -132,7 +132,7 @@ int main(void)
     data_0209f394[0] = fake_player;
     *(unsigned char *)&data_0209f21c = 1;
 
-    int *actor = ArrowSignRight_Spawn();
+    int *actor = daObjYajirusi_c_classInit_YAJIRUSI_R();
     CHECK(actor != NULL);
     printf("  spawned at %p, vtable %p\n", (void *)actor, *(void **)actor);
 

@@ -184,7 +184,7 @@ void hal_wipe_note(const char *what, const void *self)
    THE RECORDS ARE TEN SLOTS, NOT TWELVE, and reading them as twelve is the
    easy mistake this note used to make. Spanning symbol to symbol picks up two
    extra words past 0x24, which look like a zero and a pointer to
-   data_0208ea24 and invite being read as a trailer. They are not part of this
+   _ZTI15dFdBrightness_c and invite being read as a trailer. They are not part of this
    table at all: they are the ITANIUM HEADER OF THE NEXT VTABLE, offset-to-top
    then typeinfo, and config/arm9/relocs.txt proves it rather than suggesting
    it. Three rows, one per fader record:
@@ -223,7 +223,7 @@ void hal_wipe_note(const char *what, const void *self)
 
    ONE CLAIM RETRACTED. Commit 7a1e6b17f's message reads data_0208eb2c's
    naming as another instance of the Actor/ActorBase D1/D2 swap, on the
-   grounds that src/_ZN5ColorD1Ev.c calls it "vtable for Color". It is not.
+   grounds that src/_ZN10FaderColorD2Ev.cpp calls it "vtable for Color". It is not.
    FaderColor's destructors are named correctly in the config -- slots 0 and 1
    of data_0208eb2c are _ZN10FaderColorD1Ev and _ZN10FaderColorD0Ev, exactly
    as the config has them -- and Color at 0x02017574 is its own base class,
@@ -405,7 +405,7 @@ DSSTATE_END
    run link60 lane SL0. This is the one symbol the whole fader half of
    Stage::InitResources' closure was blocked on, and it is the last one:
    measured by compiling _ZN9FaderWipeC1Ev.c, _ZN9FaderWipeD1Ev.c,
-   _ZN5ColorD1Ev.c and _ZN9FaderWipe14LoadAndSetFileEt.cpp with walk_window's
+   _ZN10FaderColorD2Ev.c and _ZN9FaderWipe14LoadAndSetFileEt.cpp with walk_window's
    own flags and checking every undefined external of the four against
    walk_window.map, the set wants exactly ONE name that the image does not
    already have, and it is this one.
@@ -414,10 +414,10 @@ DSSTATE_END
    THREE OF THOSE SIX HAVE SINCE CLOSED and the map is corrected here with the
    measurement that corrects it:
 
-     _ZN5ColorD1Ev    ALREADY LINKED. The map lists it as "a matched TU that
+     _ZN10FaderColorD2Ev    ALREADY LINKED. The map lists it as "a matched TU that
                       exists in src/ and is on no active slice". It is on
                       port/slice_ov007.txt:678 and it is in the image at
-                      walk_window.map:9986 (_ZN5ColorD1Ev.c.obj). Adding it to
+                      walk_window.map:9986 (_ZN10FaderColorD2Ev.c.obj). Adding it to
                       a slice here would be an LNK2005, not a gain.
      data_0208eafc    ALL THREE ALREADY HOSTED, by hal/scene_boot.cpp:683-697,
      data_0208eacc    which stages them for func_02017278. The FaderWipe ctor
@@ -433,7 +433,7 @@ DSSTATE_END
    it agrees with this class byte for byte from 0x00 through 0x24.
 
    WHAT IT DOES NOT CLAIM. The two trailing words differ: the ROM has
-   0x00000000 at 0x28 and a pointer to data_0208ea24 at 0x2c, where this table
+   0x00000000 at 0x28 and a pointer to _ZTI15dFdBrightness_c at 0x2c, where this table
    has two callable stubs. Nothing in the port or in src reads past 0x24, so
    the difference is unobservable today; it is a divergence and it is written
    down rather than papered over.
@@ -486,7 +486,7 @@ extern int data_0209d4b0[8];
    does the same on data_0209d4b0, the fader in motion. Both run every frame,
    and func_02018efc runs on the early-return path too.
 
-   data_0209d4ac is written by _ZN5Scene9SetFadersEP15FaderBrightness, which
+   data_0209d4ac is written by _ZN8dScene_c9SetFadersEP15FaderBrightness, which
    ends `data_0209f5bc = thiz; data_0209d4ac = thiz;`. That TU is in the link
    already (slice_gate10), so on a minigame boot dScMgBase_c slot 1 arms the
    arm9 dWipe_c at data_0209f61c into d4ac with the ROM's own store, and the
@@ -647,11 +647,11 @@ int port_fader_blend_state(int *evy, int *toWhite)
  * which cannot tell a compiled TU from an uncompiled one, and got six rows
  * wrong in both directions.
  *
- *   src/func_ov006_020f7e2c.c      & 8     Pair-a-Gone's card draw
- *   src/func_ov006_020f98dc.c      & 8     Pair-a-Gone And On's card draw
- *   src/func_ov006_02107b94.c      & 8     Roulette's five bet markers: the bit
+ *   src/minigames/d_s_mg_m_carlo.cpp      & 8     Pair-a-Gone's card draw
+ *   src/minigames/d_s_mg_m_carlo2.cpp      & 8     Pair-a-Gone And On's card draw
+ *   src/actors/dScMgRoulette_c.cpp      & 8     Roulette's five bet markers: the bit
  *                                          steps the sprite frame by one
- *   src/func_ov006_02109834.c      & 8     Roulette's BALL sprite, drawn only
+ *   src/actors/dScMgRoulette_c.cpp      & 8     Roulette's BALL sprite, drawn only
  *                                          while the bit is set (named off the
  *                                          Hud_RenderSprite call, not off a
  *                                          slice title -- it is not a banner)
@@ -661,9 +661,9 @@ int port_fader_blend_state(int *evy, int *toWhite)
  *   src/_ZN5Stage20RenderBouncingArrowsEv.cpp  & 0x10 and & 8 (two sites)
  *   src/_ZN7Message6UpdateEv.cpp   & (0x10 / data_0208ee44)   the text cursor
  *                                          (four sites)
- *   src/func_ov003_020ae6f4.cpp    * 0x300 fed to a Y rotation
- *   src/_ZN17MgBounceAndPounce14BeforeBehaviorEv.cpp   & 1
- *   src/func_ov006_0210a698.cpp    & 1     dScMgFlower_c::BeforeBehavior
+ *   src/_ZN12dScStarSel_c6RenderEv.cpp    * 0x300 fed to a Y rotation
+ *   src/actors/dScMgD3DBase_c.cpp   & 1
+ *   src/minigames/d_s_mg_single3_d_base.cpp    & 1     dScMgFlower_c::BeforeBehavior
  *   src/func_ov006_020cf820.c      & 1     Trampoline Terror's countdown
  *
  * NOT LINKED, and listed so the next reader does not re-add them:
@@ -719,7 +719,7 @@ int port_fader_blend_state(int *evy, int *toWhite)
  *
  * WHAT IT COST, measured rather than argued (run mg12, lane SELECT). In
  * Pair-a-Gone (scene 381) the ONLY difference between a selected card and an
- * idle one is this blink: func_ov006_020f7e2c draws state 3 exactly as it
+ * idle one is this blink: _ZN18dMgMCarloCardObj_c6RenderEv draws state 3 exactly as it
  * draws state 2 except that it skips the draw while bit 3 is set. With the
  * clock frozen the skip never fires, so tapping a card played its sound,
  * moved the state machine and changed NOTHING on screen. Two stacked captures

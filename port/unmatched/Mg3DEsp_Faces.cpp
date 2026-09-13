@@ -13,17 +13,17 @@
 // their extern "C" block, so MSVC mangles it and the plain C name the ov006
 // mount defines cannot satisfy the reference:
 //
-//   src/func_ov006_020e9e70.cpp  extern volatile M48 data_ov006_0213c88c;
+//   src/_ZN12dScMg3DEsp_c13InitResourcesEv.cpp  extern volatile M48 data_ov006_0213c88c;
 //       -> ?data_ov006_0213c88c@@3UM48@@C
-//   src/func_ov006_020e7660.cpp  extern void *data_ov006_0213c8c4;
-//       -> ?data_ov006_0213c8c4@@3PAXA
+//   src/_ZN12dScMg3DEsp_cD1Ev.cpp  extern void *_ZTV12dScMg3DEsp_c;
+//       -> ?_ZTV12dScMg3DEsp_c@@3PAXA
 //
 // Both are DATA, so there is no calling convention to disagree about and an
 // alias is correct rather than merely convenient -- the distinction section 4
 // draws when it says "AN ALIAS CANNOT CHANGE A CALLING CONVENTION".
 //
 // data_ov006_0213c88c IS THE CLASS'S OWN CAMERA MATRIX BLOCK, twelve words at
-// 0x0213c88c that InitResources copies, and data_ov006_0213c8c4 IS THE VTABLE
+// 0x0213c88c that InitResources copies, and _ZTV12dScMg3DEsp_c IS THE VTABLE
 // ITSELF -- the D2 destructor stores it into the object's first word, which is
 // the same store slot 17 makes and the same address the registry row seats.
 // So the second alias binds the one symbol this whole lane is about, and a
@@ -32,7 +32,7 @@
 // ---- 2. THREE SHADOW-CLASS DESTRUCTORS, AND WHY THEY ARE FACES AND NOT ----
 //         ALIASES
 //
-// src/func_ov006_020e7660.cpp (slot 16, D2) unwinds the object through LOCAL
+// src/_ZN12dScMg3DEsp_cD1Ev.cpp (slot 16, D2) unwinds the object through LOCAL
 // shadow classes:
 //
 //     struct TextureTransformer { ~TextureTransformer(); };
@@ -82,7 +82,7 @@
 
 // ---- 3. WAVE THREE ADDS TWO MORE DESTRUCTORS AND TWELVE MORE ALIASES -----
 //
-// src/func_ov006_020e80d8.cpp is the sub-object's own teardown and spells two
+// src/_ZN15dMg3DEspModel_cD1Ev.cpp is the sub-object's own teardown and spells two
 // further shadow classes, TextureSequence and ModelAnim.  Same ruling, same
 // evidence, read off the ROM at 0x020e80d8:
 //
@@ -100,8 +100,8 @@
 //
 // THE TWELVE ALIASES ARE SIX ADDRESSES SPELLED TWICE.  The same six ov006
 // SharedFilePtrs -- the ones __sinit_ov006_02130a08 constructs -- are declared
-// `extern void *` by src/func_ov006_020e7fe8.cpp and `extern SharedFilePtr` by
-// src/func_ov006_020e80d8.cpp, so MSVC emits two different mangles per address
+// `extern void *` by src/_ZN15dMg3DEspModel_c13InitResourcesEv.cpp and `extern SharedFilePtr` by
+// src/_ZN15dMg3DEspModel_cD1Ev.cpp, so MSVC emits two different mangles per address
 // and both need a row onto the one C name the mount defines.  That is a fact
 // about two src TUs disagreeing on a type, not about the port.
 //
@@ -125,7 +125,7 @@ void _ZN15TextureSequenceD1Ev(void *self);
 void _ZN9ModelAnimD1Ev(void *self);
 }
 
-/* The three shadow classes, declared exactly as src/func_ov006_020e7660.cpp
+/* The three shadow classes, declared exactly as src/_ZN12dScMg3DEsp_cD1Ev.cpp
    declares them so the mangles match byte for byte, and defined here. */
 struct TextureTransformer { ~TextureTransformer(); };
 struct Model { ~Model(); };
@@ -136,11 +136,21 @@ struct ModelAnim { ~ModelAnim(); };
 TextureTransformer::~TextureTransformer()
 { _ZN18TextureTransformerD1Ev(this); }
 
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync): src/_ZN10StarMarkerD1Ev.cpp emits ??1Model@@QAE@XZ as a COMDAT since main langmode migration, so this out-of-line face was the second definition (LNK2005).
+   The body is kept below under #if 0 rather than deleted, so the
+   evidence in it stays readable. */
+#if 0
 Model::~Model()
 { _ZN5ModelD1Ev(this); }
+#endif
 
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync): the hostgen copy of src/_ZN8Particle10SysTrackerD1Ev.cpp emits ??1SysTracker@Particle@@QAE@XZ itself since main langmode migration, so this face was the second definition (LNK2005).
+   The body is kept below under #if 0 rather than deleted, so the
+   evidence in it stays readable. */
+#if 0
 Particle::SysTracker::~SysTracker()
 { _ZN8Particle10SysTrackerD1Ev(this); }
+#endif
 
 TextureSequence::~TextureSequence()
 { _ZN15TextureSequenceD1Ev(this); }
@@ -151,13 +161,14 @@ ModelAnim::~ModelAnim()
 /* ---- the two ordinary alias rows ---------------------------------------- */
 
 /* ?data_ov006_0213c88c@@3UM48@@C  <- the ov006 mount's _data_ov006_0213c88c.
-   src/func_ov006_020e9e70.cpp declares it `extern volatile M48` at C++ linkage;
+   src/_ZN12dScMg3DEsp_c13InitResourcesEv.cpp declares it `extern volatile M48` at C++ linkage;
    the mount defines the plain C name. */
 #pragma comment(linker, "/alternatename:?data_ov006_0213c88c@@3UM48@@C=_data_ov006_0213c88c")
 
-/* ?data_ov006_0213c8c4@@3PAXA  <- the class's own vtable, declared
-   `extern void *` at C++ linkage by src/func_ov006_020e7660.cpp. */
-#pragma comment(linker, "/alternatename:?data_ov006_0213c8c4@@3PAXA=_data_ov006_0213c8c4")
+/* ?_ZTV12dScMg3DEsp_c@@3PAXA  <- the class's own vtable, declared
+   `extern void *` at C++ linkage by src/_ZN12dScMg3DEsp_cD1Ev.cpp. */
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEAD RHS and an UNREFERENCED left hand side: nothing in the build defines _data_ov006_0213c8c4, and nothing references ?_ZTV12dScMg3DEsp_c@@3PAXA, so the row can never fire and nothing wants it to. */
+// #pragma comment(linker, "/alternatename:?_ZTV12dScMg3DEsp_c@@3PAXA=_data_ov006_0213c8c4")
 
 /* wave 3: six ov006 SharedFilePtrs, each spelled twice by two different src
    TUs, plus the sprite-layout pointer table and the render half's idle
@@ -177,7 +188,7 @@ ModelAnim::~ModelAnim()
 #pragma comment(linker, "/alternatename:?data_ov006_02141e8c@@3USharedFilePtr@@A=_data_ov006_02141e8c")
 /* the sprite-layout pointer table, read before it was aliased -- section 3 */
 #pragma comment(linker, "/alternatename:?data_ov006_02133f24@@3PAPAUEnt@@A=_data_ov006_02133f24")
-/* the RENDER half's idle sentinel, the pair func_ov006_020e7b44 compares the
+/* the RENDER half's idle sentinel, the pair _ZN15dMg3DEspModel_c6RenderEv compares the
    field at +0x210 against. It is compared and never dispatched, so an alias
    onto the mounted words is right and the pair keeps the ROM's own values --
    which is exactly what makes that comparison keep answering what the ROM
@@ -196,8 +207,8 @@ ModelAnim::~ModelAnim()
    which is a correct eight-byte move on both machines and is why that writer
    needs no host copy -- only an alias for the mangle.  The second row is a
    THIRD spelling of an address two earlier TUs already declared: 0x02141e7c is
-   `extern void *` in src/func_ov006_020e7fe8.cpp, `extern SharedFilePtr` in
-   src/func_ov006_020e80d8.cpp and `extern int []` here, so it carries three
+   `extern void *` in src/_ZN15dMg3DEspModel_c13InitResourcesEv.cpp, `extern SharedFilePtr` in
+   src/_ZN15dMg3DEspModel_cD1Ev.cpp and `extern int []` here, so it carries three
    mangles onto one C name.  Three src TUs disagreeing about a type is a fact
    about src, and the alias rows are where the port absorbs it. */
 #pragma comment(linker, "/alternatename:?data_ov006_02141e7c@@3PAHA=_data_ov006_02141e7c")

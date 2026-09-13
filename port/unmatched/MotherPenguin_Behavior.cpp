@@ -1,8 +1,8 @@
-/* HOST COPY of src/_ZN7SkiLift8BehaviorEv.cpp -- the MSVC dtor-slot-shift
+/* HOST COPY of src/game/actors/d_a_pg_mthr.cpp -- the MSVC dtor-slot-shift
  * seam (sm64ds-port-msvc-dtor-slot-shift), applied to a raw shadow-vtable
  * index call instead of a real vtable fill.
  *
- * CLASS IDENTITY NOTE: despite the mangled name _ZN7SkiLift8BehaviorEv,
+ * CLASS IDENTITY NOTE: despite the mangled name _ZN10daPgMthr_c8BehaviorEv,
  * this method belongs to MOTHER_PENGUIN (257) -- see
  * MotherPenguin_InitResources.cpp's header and port/slice_gate191.txt.
  *
@@ -32,7 +32,7 @@
  * call instead of the raw shadow index -- the ma2_updateverts treatment
  * (hal/cxxname_bridge.cpp) applied to a host copy instead of a fresh
  * vtable fill. Matched source line for line otherwise.
- * src/_ZN7SkiLift8BehaviorEv.cpp stays byte-locked and untouched, dropped
+ * src/game/actors/d_a_pg_mthr.cpp stays byte-locked and untouched, dropped
  * from slice_gate191.txt in favour of this file.
  *
  * THE SECOND BUG, and it is the bigger one (gate mpg). The matched src's
@@ -62,11 +62,20 @@
  * no byte gate ever caught this); the crossing is reported decomp-side.
  */
 #include "SkiLift.h"
+#include "Animation.h"
+#include "daPgMthr_c.h"
+/* SYNC4: include/SkiLift.h used to carry MOTHER PENGUIN's layout under the
+   misnamed header, which is what this transcription reads its fields out of.
+   main has since split the two: SkiLift is the real SkiLift (a thin
+   dBgActor_c) and MotherPenguin's members live on daPgMthr_c. The body still
+   defines SkiLift::Behavior, because that is the decoration this file exists
+   to emit; the field reads go through the class that declares them. */
+#define MP(f) (((daPgMthr_c *)this)->f)
 
 extern "C" {
 extern void _ZN9Animation7AdvanceEv(void*);
-extern void _ZN12CylinderClsn5ClearEv(void*);
-extern void _ZN12CylinderClsn6UpdateEv(void*);
+extern void _ZN5dCc_c5ClearEv(void*);
+extern void _ZN5dCc_c6UpdateEv(void*);
 extern int func_ov018_02111d28(void*);
 extern void func_ov018_0211235c(void*);   /* ov018's own TICK DISPATCHER */
 }
@@ -74,11 +83,11 @@ extern void func_ov018_0211235c(void*);   /* ov018's own TICK DISPATCHER */
 int SkiLift::Behavior()
 {
   func_ov018_0211235c((char*)this);
-  _ZN9Animation7AdvanceEv((char*)(Animation *)&mModelAnim);
-  _ZN9Animation7AdvanceEv((char*)&mTextureSequence);
-  _ZN12CylinderClsn5ClearEv((char*)&mMovingCylinderClsn);
-  _ZN12CylinderClsn6UpdateEv((char*)&mMovingCylinderClsn);
-  mModelAnim.ModelAnim::UpdateVerts();
+  _ZN9Animation7AdvanceEv((char*)(Animation *)&MP(mModelAnim));
+  _ZN9Animation7AdvanceEv((char*)&MP(mTextureSequence));
+  _ZN5dCc_c5ClearEv((char*)&MP(mdCcAc_c));
+  _ZN5dCc_c6UpdateEv((char*)&MP(mdCcAc_c));
+  MP(mModelAnim).ModelAnim::UpdateVerts();
   func_ov018_02111d28(((char*)this));
   return 1;
 }

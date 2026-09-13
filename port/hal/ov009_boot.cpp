@@ -154,7 +154,7 @@ void Vec3_Asr(void *dst, const void *src, int n);
 void Matrix4x3_FromTranslation(void *m, int x, int y, int z);
 void Matrix4x3_ApplyInPlaceToRotationZ(void *m, short a);
 void Matrix4x3_ApplyInPlaceToRotationY(void *m, short a);
-int _ZN5Actor19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
+int _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
     void *self, void *sm, void *m, int rad, int h, unsigned u);
 int _ZN9Animation7AdvanceEv(void *a);
 extern int data_020a0e68[12];

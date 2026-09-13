@@ -33,7 +33,7 @@
 // __sinit_ov006_021304ac names for dScMgCurling_c. Both sets were taken from
 // the constructors that copy them and not from an address range -- the ov006
 // twenty-five run from 0x0213c1e4 to 0x0213c2bc, but that span holds
-// twenty-eight slots and three of them (MgShuffleShell_SpawnInfo at
+// twenty-eight slots and three of them (g_profile_MG_CURLING at
 // 0x0213c214, plus 0x0213c264 and 0x0213c2ac) are not pairs and DO carry
 // nonzero second words. So every dispatch this seat can actually reach is the
 // DIRECT case: no this-adjustment, no vtable indirection.
@@ -119,7 +119,7 @@
 //
 // ---- 4. WHAT IS NOT HERE, AND IT IS NOT A TRAP ANY MORE --------------------
 //
-// func_ov004_020b87e0, dScMgBase_c's state SETTER, is a different problem from
+// _ZN10dMgState_c8SetStateEi, dScMgBase_c's state SETTER, is a different problem from
 // these seven: it does not dispatch a table the mount holds, it BUILDS a
 // twenty-entry static table out of twenty ov004 globals whose MSVC symbol names
 // carry the member-pointer type, so there is nothing for an alias or a stride
@@ -131,7 +131,7 @@
 // hal/scene_mg_faces.cpp, and port_mg_try_base_state below carries its forty
 // addresses: the twenty its own table holds and the twenty its state bodies
 // install as per-frame ticks. The second twenty are this file's business too,
-// because they are dispatched by func_ov004_020b8714 and func_ov004_020b8778
+// because they are dispatched by _ZN10dMgState_c6RenderEv and _ZN10dMgState_c8BehaviorEv
 // further down, both of which return on their first line while the message
 // object's +0x18 reads -1. The setter is the only writer of that field, so
 // while it was a trap NEITHER of those two host copies ever reached its call.
@@ -619,9 +619,9 @@ extern "C" void port_mg_framework_states_seat(void)
 //                        add r3,r0,#8 | ldr r1,[r3,#4] | ldreq r1,[r3] | blx r1
 //   func_ov004_020b321c  ldr r1,[r0,#0x20] cmp #0x1d | ldr r2,[r0] cmp #0
 //                        ldr r1,[r0,#4] | add r3,r0,r1,asr #1 | mov r0,r3 | blx
-//   func_ov004_020b8714  ldr r2,[r0,#0x18] cmp mvn #0 | ldr r1,[r0,#0x10] cmp 0
+//   _ZN10dMgState_c6RenderEv  ldr r2,[r0,#0x18] cmp mvn #0 | ldr r1,[r0,#0x10] cmp 0
 //                        add r3,r0,#0x10 | ldr r1,[r3,#4] | ldreq r1,[r3] | blx
-//   func_ov004_020b8778  ldr r1,[r4,#0x18] cmp mvn #0 | bl ApproachLinear on
+//   _ZN10dMgState_c8BehaviorEv  ldr r1,[r4,#0x18] cmp mvn #0 | bl ApproachLinear on
 //                        r4+0x1c | ldr r0,[r4,#8] cmp #0 | add r3,r4,#8 | blx
 //   func_ov004_020b3278  ldr r0,[r1,r2,lsl #3] cmp #0 | add r0,r8,r1,asr #1 |
 //                        ldreq r1,[r3] | blx r1 -- the ONE table dispatch, on

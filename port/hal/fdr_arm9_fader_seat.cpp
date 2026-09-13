@@ -3,9 +3,9 @@
 // Run link60 Stage 4, lane FDR. This retires the blocker lane MG2 named and
 // port/tools/battery.py's SCENE_BLOCKED row for scene 374 records:
 //
-//     FAULT c0000005 at _ZN5Scene9SetFadersEP15FaderBrightness+0x24
+//     FAULT c0000005 at _ZN8dScene_c9SetFadersEP15FaderBrightness+0x24
 //     accessing 0x00000024, reached through
-//     mb_binit -> func_ov004_020b0930 (dScMgBase_c slot 1) -> Scene::SetFaders
+//     mb_binit -> _ZN11dScMgBase_c19BeforeInitResourcesEv (dScMgBase_c slot 1) -> Scene::SetFaders
 //
 // reproduced on this lane's own binary before a line of it was written
 // (SM64DS_SCENE=374 SM64DS_SCENE_FRAMES=300 SM64DS_SCENE_NO_RENDER=1, exit
@@ -86,16 +86,16 @@
 // IsAtEnd (0x02017670).
 //
 //     off   ROM body        what              tranche
-//     0x00  func_0202fc08   ~dWipe_c   (D1)   FDR  (also the sinit's atexit)
-//     0x04  func_0202fbc8   (D0)              FDR
-//     0x08  func_0202f428   AdvanceFade       SEAT8
-//     0x0c  func_0202f928   SetBackwardTime   FDR2
-//     0x10  func_0202f708   SetForwardTime    FDR2
-//     0x14  func_0202ee38   IsAtStart         FDR
-//     0x18  func_0202eddc   IsAtEnd           FDR
-//     0x1c  func_0202ed7c   IsBetweenStart..  FDR
-//     0x20  func_0202ed08   SetToEnd          VENEER, see below
-//     0x24  func_0202ecfc   SetToStart        FDR
+//     0x00  _ZN7dWipe_cD1Ev   ~dWipe_c   (D1)   FDR  (also the sinit's atexit)
+//     0x04  _ZN7dWipe_cD0Ev   (D0)              FDR
+//     0x08  _ZN7dWipe_c11AdvanceFadeEv   AdvanceFade       SEAT8
+//     0x0c  _ZN7dWipe_c15SetBackwardTimeEj   SetBackwardTime   FDR2
+//     0x10  _ZN7dWipe_c14SetForwardTimeEj   SetForwardTime    FDR2
+//     0x14  _ZN7dWipe_c9IsAtStartEv   IsAtStart         FDR
+//     0x18  _ZN7dWipe_c7IsAtEndEv   IsAtEnd           FDR
+//     0x1c  _ZN7dWipe_c20IsBetweenStartAndEndEv   IsBetweenStart..  FDR
+//     0x20  _ZN7dWipe_c8SetToEndEv   SetToEnd          VENEER, see below
+//     0x24  _ZN7dWipe_c10SetToStartEv   SetToStart        FDR
 //     0x28  --              overhang          TRAP
 //     0x2c  --              overhang          TRAP
 //
@@ -118,7 +118,7 @@
 // WAS REFUSED WENT DIFFERENT WAYS. Both are worth keeping, because one was
 // fixed and the other was WRONG.
 //
-// THE CALL DEFECT WAS REAL AND IS FIXED UPSTREAM. src/func_0202f428.c's
+// THE CALL DEFECT WAS REAL AND IS FIXED UPSTREAM. src/_ZN7dWipe_c11AdvanceFadeEv.cpp's
 // `type == 1` branch used to call
 //
 //     _ZN10FaderColor11AdvanceFadeEv()
@@ -141,7 +141,7 @@
 //     func_02018efc   on data_0209d4ac, the INSTALLED fader
 //     func_02018ec0   on data_0209d4b0, the fader IN MOTION
 //
-// and _ZN5Scene9SetFadersEP15FaderBrightness -- already linked, slice_gate10 --
+// and _ZN8dScene_c9SetFadersEP15FaderBrightness -- already linked, slice_gate10 --
 // ends with `data_0209d4ac = thiz`. dScMgBase_c slot 1 hands it data_0209f61c,
 // so on scene 374 the ROM's own store arms this object into d4ac on the frame
 // the scene spawns. The missing piece was six lines of C: src/func_02018efc.c,
@@ -164,7 +164,7 @@
 // Each remaining trap is still its own named function so a run says which slot
 // fired rather than that some slot did.
 //
-// WHY 0x20 IS A VENEER AND NOT src/func_0202ed08.c. THE src TU IS HOST-BROKEN,
+// WHY 0x20 IS A VENEER AND NOT src/_ZN7dWipe_c8SetToEndEv.c. THE src TU IS HOST-BROKEN,
 // and it is broken in exactly the way lane LK4 wrote up for Heap::_Destroy.
 // The ROM body is
 //
@@ -173,7 +173,7 @@
 // a bare tail-call veneer, and on ARM r0 falls through it untouched. The src
 // spells that as
 //
-//     void func_0202ed08(void) { _ZN15FaderBrightness8SetToEndEv(); }
+//     void _ZN7dWipe_c8SetToEndEv(void) { _ZN15FaderBrightness8SetToEndEv(); }
 //
 // with NO parameter and NO argument, which is byte-correct under mwccarm and
 // receiver-destroying on the host: the callee would read whatever the caller
@@ -223,7 +223,7 @@
 // (Scene::SetFaders' two `data_0209f5bc->vt->fNN(data_0209f5bc)` sites and
 // Minimap::Behavior's `vt->f[5]`, and only those three in this image) puts the
 // receiver on the stack, where a __fastcall thunk does not look. HUD::Behavior
-// and func_ov003_020af038 LOOK like the same shape in a listing and are not:
+// and _ZN12dScStarSel_c8BehaviorEv LOOK like the same shape in a listing and are not:
 // their leading pushes are a callee-save and MSVC's frame-slot idiom, and what
 // separates the two conventions is the `add esp,4` after the call, which
 // neither of them has. The stack stays balanced -- both sides agree
@@ -243,18 +243,18 @@ extern "C" {
 
 /* The ROM bodies this table seats, declared flat. Each src TU spells its own
    struct for the receiver; these are the ABI-compatible views. */
-void *func_0202fc08(void *self);   /* 0x00  D1, and the sinit's atexit dtor */
-void *func_0202fbc8(void *self);   /* 0x04  D0 */
-void  func_0202f428(void *self);   /* 0x08  AdvanceFade, run link60 SEAT8 */
-int   func_0202ee38(void *self);   /* 0x14  IsAtStart */
-int   func_0202eddc(void *self);   /* 0x18  IsAtEnd */
-int   func_0202ed7c(void *self);   /* 0x1c  IsBetweenStartAndEnd */
-void  func_0202ecfc(void *self);   /* 0x24  SetToStart (veneer, receiver-correct) */
+void *_ZN7dWipe_cD1Ev(void *self);   /* 0x00  D1, and the sinit's atexit dtor */
+void *_ZN7dWipe_cD0Ev(void *self);   /* 0x04  D0 */
+void  _ZN7dWipe_c11AdvanceFadeEv(void *self);   /* 0x08  AdvanceFade, run link60 SEAT8 */
+int   _ZN7dWipe_c9IsAtStartEv(void *self);   /* 0x14  IsAtStart */
+int   _ZN7dWipe_c7IsAtEndEv(void *self);   /* 0x18  IsAtEnd */
+int   _ZN7dWipe_c20IsBetweenStartAndEndEv(void *self);   /* 0x1c  IsBetweenStartAndEnd */
+void  _ZN7dWipe_c10SetToStartEv(void *self);   /* 0x24  SetToStart (veneer, receiver-correct) */
 
 /* The two motion bodies, run link60 lane FDR2. Their arities are the ROM's and
    differ from each other; see the note above the thunks. */
-int   func_0202f928(void *self, unsigned frames, unsigned c);  /* 0x0c */
-int   func_0202f708(void *self, unsigned frames);              /* 0x10 */
+int   _ZN7dWipe_c15SetBackwardTimeEj(void *self, unsigned frames, unsigned c);  /* 0x0c */
+int   _ZN7dWipe_c14SetForwardTimeEj(void *self, unsigned frames);              /* 0x10 */
 
 /* The ROM's static initialiser and the storage it constructs. */
 void __sinit_02074f80(void);
@@ -281,7 +281,7 @@ int _ZN15FaderBrightness9IsAtStartEv(void *self)
    port/tools/closure.py named both before a line of this was written: they
    were the whole of the seat's unresolved set.
 
-   src/func_0202f428.c's `type == 1` branch calls FaderColor::AdvanceFade by
+   src/_ZN7dWipe_c11AdvanceFadeEv.cpp's `type == 1` branch calls FaderColor::AdvanceFade by
    its flat ROM name, and that method's matched TU
    (src/engine/fader/_ZN10FaderColor11AdvanceFadeEv.cpp) is a real C++ member,
    so MSVC emits ?AdvanceFade@FaderColor@@QAEXXZ. That body in turn calls
@@ -423,7 +423,7 @@ extern "C" int _ZN15FaderBrightness20IsBetweenStartAndEndEv(void *self)
 
 extern "C" {
 
-/* func_0202ecfc's target, spelled by address in its src because the veneer has
+/* _ZN7dWipe_c10SetToStartEv's target, spelled by address in its src because the veneer has
    no symbol name of its own in that TU. 0x02017610 IS
    _ZN15FaderBrightness10SetToStartEv (config/arm9/symbols.txt), whose matched
    TU rides slice_gate1. */
@@ -431,7 +431,7 @@ void func_02017610(void *self)
 { ((FaderBrightness *)self)->FaderBrightness::SetToStart(); }
 
 /* THE BASE-CLASS BRANCH OF SLOT 0x0c, run link60 lane FDR2.
-   func_0202f928's `type == 1` case tail-calls the ROM's 0x020176d8, which
+   _ZN7dWipe_c15SetBackwardTimeEj's `type == 1` case tail-calls the ROM's 0x020176d8, which
    config/arm9/symbols.txt names _ZN15FaderBrightness15SetBackwardTimeEj. Its
    matched TU is src/engine/fader/, so MSVC emits it as
    ?SetBackwardTime@FaderBrightness@@UAEHI@Z -- a __thiscall method -- and the
@@ -442,7 +442,7 @@ void func_02017610(void *self)
 
    THREE PARAMETERS, and the third is the one the ROM never reads. On ARM r2 is
    live across the `bl` at 0x0202f940 whether the callee wants it or not, so
-   src/func_0202f928.c forwards it and its own comment explains that keeping it
+   src/_ZN7dWipe_c15SetBackwardTimeEj.c forwards it and its own comment explains that keeping it
    is what makes the register allocation match. Both sides are cdecl here and
    the caller cleans its own arguments, so the extra word costs nothing and is
    carried rather than silently dropped. */
@@ -525,8 +525,8 @@ void fdr_trap(const char *slot, const char *rom_body)
    ECX carries the receiver, EDX is unread, a and b come off the stack, and the
    `ret 8` is what balances the frame.
 
-   0x0c AND 0x10 ARE THE ROM'S OWN BODIES. func_0202f928 takes three arguments
-   and func_0202f708 two, and the difference is not a mistake in either: on ARM
+   0x0c AND 0x10 ARE THE ROM'S OWN BODIES. _ZN7dWipe_c15SetBackwardTimeEj takes three arguments
+   and _ZN7dWipe_c14SetForwardTimeEj two, and the difference is not a mistake in either: on ARM
    the third rides in r2 and costs nothing, which is why the ROM body could
    ignore it and why the ROM's own C for the setter that DOES forward it says
    so. The stub cleans what the caller pushed and passes on what the body
@@ -581,17 +581,17 @@ void __cdecl fdr_s08(void *s)
 {
     if (s == 0 || *(void **)s != (void *)data_020926f0) {
         fdr_trap("slot 0x08 AdvanceFade, WRONG RECEIVER",
-                 "func_0202f428 -- the caller did not pass the object on the "
+                 "_ZN7dWipe_c11AdvanceFadeEv -- the caller did not pass the object on the "
                  "stack, so it is not the cdecl shape this stub is declared "
                  "for");
         return;
     }
-    func_0202f428(s);
+    _ZN7dWipe_c11AdvanceFadeEv(s);
 }
 int __fastcall fdr_s0c(void *s, void *, int frames, int c)
-{ return func_0202f928(s, (unsigned)frames, (unsigned)c); }
+{ return _ZN7dWipe_c15SetBackwardTimeEj(s, (unsigned)frames, (unsigned)c); }
 int __fastcall fdr_s10(void *s, void *, int frames, int)
-{ return func_0202f708(s, (unsigned)frames); }
+{ return _ZN7dWipe_c14SetForwardTimeEj(s, (unsigned)frames); }
 int __fastcall fdr_s28(void *, void *)
 { fdr_trap("overhang slot 0x28", "nothing, this slot is not the ROM's"); return 0; }
 int __fastcall fdr_s2c(void *, void *)
@@ -599,16 +599,16 @@ int __fastcall fdr_s2c(void *, void *)
 
 /* The seven seated slots. Receiver out of ECX, into the ROM body's first
    argument. */
-void *__fastcall fdr_s00(void *s, void *) { return func_0202fc08(s); }
-void *__fastcall fdr_s04(void *s, void *) { return func_0202fbc8(s); }
-int   __fastcall fdr_s14(void *s, void *) { return func_0202ee38(s); }
-int   __fastcall fdr_s18(void *s, void *) { return func_0202eddc(s); }
-int   __fastcall fdr_s1c(void *s, void *) { return func_0202ed7c(s); }
+void *__fastcall fdr_s00(void *s, void *) { return _ZN7dWipe_cD1Ev(s); }
+void *__fastcall fdr_s04(void *s, void *) { return _ZN7dWipe_cD0Ev(s); }
+int   __fastcall fdr_s14(void *s, void *) { return _ZN7dWipe_c9IsAtStartEv(s); }
+int   __fastcall fdr_s18(void *s, void *) { return _ZN7dWipe_c7IsAtEndEv(s); }
+int   __fastcall fdr_s1c(void *s, void *) { return _ZN7dWipe_c20IsBetweenStartAndEndEv(s); }
 /* 0x20: the target the ROM's veneer at 0x0202ed08 tail-calls. See the header
-   for why src/func_0202ed08.c is not in the link. */
+   for why src/_ZN7dWipe_c8SetToEndEv.cpp is not in the link. */
 void  __fastcall fdr_s20(void *s, void *)
 { ((FaderBrightness *)s)->FaderBrightness::SetToEnd(); }
-void  __fastcall fdr_s24(void *s, void *) { func_0202ecfc(s); }
+void  __fastcall fdr_s24(void *s, void *) { _ZN7dWipe_c10SetToStartEv(s); }
 
 void fdr_fill(void)
 {
@@ -668,7 +668,7 @@ FdrArm9FaderBoot fdr_arm9_fader_boot;
    bodies, so a check that still tested all three would have gone on printing
    over two slots that run -- the exact rot the predicate was built against,
    arriving from the other direction. Only 0x08 is a trap now, so only 0x08 is
-   tested, and the day func_0202f428 is seatable this goes false on its own.
+   tested, and the day _ZN7dWipe_c11AdvanceFadeEv is seatable this goes false on its own.
 
    THE TEST IS STILL ON THE TABLE AND NOT ON A FLAG. It compares the installed
    word against the trap's own address, so re-pointing the slot is what
@@ -679,7 +679,7 @@ FdrArm9FaderBoot fdr_arm9_fader_boot;
    use of it is an advisory.
 
    AND IT IS RETIRED NOW, run link60 Stage 5 lane SEAT8, on the contract the
-   paragraph above wrote for it. Slot 0x08 is func_0202f428, so every one of
+   paragraph above wrote for it. Slot 0x08 is _ZN7dWipe_c11AdvanceFadeEv, so every one of
    the ROM's ten slots is a ROM body and the predicate has nothing left to
    ask. Retired rather than left returning zero: a predicate that can only
    answer one way is a line a reader has to disprove.

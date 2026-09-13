@@ -43,7 +43,7 @@
 //   ?LC_Update@Stage@@SAXXZ                       itself   (_ZN5Stage9LC_UpdateEv.cpp)
 //   ?PS_Update@Stage@@SAXXZ                       itself   (_ZN5Stage9PS_UpdateEv.cpp)
 //   ?PS_Init@Stage@@SAXXZ                         itself   (_ZN5Stage7PS_InitEv.cpp -- the .cpp, see below)
-//   ?StartSceneFade@Scene@@SAXIIG@Z               itself   (already in the image)
+//   ?StartSceneFade@dScene_c@@SAXIIG@Z               itself   (already in the image)
 //   ?StopTimer@Timer@@QAEXXZ                      itself   (already in the image)
 //   ?CleanAll@ShadowModel@@SAXXZ                  itself   (already in the image)
 //   ---- these THREE the tree already had plumbing for; see below ----
@@ -54,7 +54,7 @@
 //   ?PS_Cleanup@Stage@@SAXXZ                      _ZN5Stage10PS_CleanupEv       (flat C name)
 //   ?VE_Init@Stage@@SAXXZ                         _ZN5Stage7VE_InitEv           (flat C name)
 //   ?VE_Update@Stage@@SAXXZ                       _ZN5Stage9VE_UpdateEv         (flat C name)
-//   ?SetSceneToSpawn@Scene@@SAXII@Z               _ZN5Scene15SetSceneToSpawnEjj (flat C name)
+//   ?SetSceneToSpawn@dScene_c@@SAXII@Z               _ZN8dScene_c15SetSceneToSpawnEjj (flat C name)
 //
 // THE FOUR ARE A PURE SPELLING DIFFERENCE and the faces below are one-line
 // forwarders. All are __cdecl on both sides -- a `static` member is __cdecl in
@@ -96,7 +96,7 @@
 // face points there. The stub stays out of the link, and hal/message_pump.cpp's
 // header keeps the whole derivation.
 //
-// PS_Init HAS TWO FILES WITH THE SAME STEM. src/_ZN5Stage7PS_InitEv.c is flat C
+// PS_Init HAS TWO FILES WITH THE SAME STEM. src/_ZN5Stage7PS_InitEv.cpp is flat C
 // and publishes _ZN5Stage7PS_InitEv; src/_ZN5Stage7PS_InitEv.cpp declares
 // `struct Stage { static void PS_Init(); }` and publishes ?PS_Init@Stage@@SAXXZ,
 // which is what Stage::Behavior calls. config/match_attempts.jsonl records the
@@ -113,7 +113,7 @@ extern "C" {
 void _ZN5Stage10PS_CleanupEv(void);
 void _ZN5Stage7VE_InitEv(void);
 void _ZN5Stage9VE_UpdateEv(void);
-void _ZN5Scene15SetSceneToSpawnEjj(unsigned int a, unsigned int b);
+void _ZN8dScene_c15SetSceneToSpawnEjj(unsigned int a, unsigned int b);
 /* Stage::UpdateMessage's body, on the port: hal/message_pump.cpp */
 void port_message_pump(void);
 /* run link100, lane RENDER9: the flat-C matched bodies slot 9's faces forward
@@ -149,8 +149,8 @@ public:
 };
 
 /* Scene::SetSceneToSpawn is the same shape one class over. Stage::Behavior's
-   level-change arm spells the static member ?SetSceneToSpawn@Scene@@SAXII@Z,
-   and src/_ZN5Scene15SetSceneToSpawnEjj.c -- already in the image on
+   level-change arm spells the static member ?SetSceneToSpawn@dScene_c@@SAXII@Z,
+   and src/_ZN8dScene_c15SetSceneToSpawnEjj.cpp -- already in the image on
    port/slice_gate10.txt -- is flat C. Declared here rather than taken from a
    header for the same reason class Stage is: this file must not pull in a
    second declaration of either class. */
@@ -161,12 +161,17 @@ public:
 
 /* ---- the faces ---------------------------------------------------------- */
 
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync): main's tree defines these
+   three as real Stage statics now, so src/ emits ?PS_Cleanup@Stage@@SAXXZ,
+   ?VE_Init@Stage@@SAXXZ and ?VE_Update@Stage@@SAXXZ itself and these faces
+   were the second definition (LNK2005). UpdateMessage stays: it is a host
+   substitution, not a forward to a ROM body.
 void Stage::PS_Cleanup()            { _ZN5Stage10PS_CleanupEv(); }
 void Stage::VE_Init()               { _ZN5Stage7VE_InitEv(); }
-void Stage::VE_Update()             { _ZN5Stage9VE_UpdateEv(); }
+void Stage::VE_Update()             { _ZN5Stage9VE_UpdateEv(); }             */
 void Stage::UpdateMessage()         { port_message_pump(); }
 void Scene::SetSceneToSpawn(unsigned int a, unsigned int b)
-{ _ZN5Scene15SetSceneToSpawnEjj(a, b); }
+{ _ZN8dScene_c15SetSceneToSpawnEjj(a, b); }
 
 /* ---- SLOT 9's SPELLING FACES (run link100, lane RENDER9) ------------------
  *
@@ -247,10 +252,16 @@ struct Particle {
     };
 };
 
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync): both bodies below are
+   defined by the tree itself now. Stage::RenderVsModeCountdown comes out of
+   src/ as ?RenderVsModeCountdown@Stage@@SAXXZ; Particle::SysTracker::Update
+   comes out of the hostgen copy of src/_ZN8Particle10SysTracker6UpdateEv.cpp
+   as ?Update@SysTracker@Particle@@QAEXXZ. Both faces were the second
+   definition (LNK2005).
 void Stage::RenderVsModeCountdown() { _ZN5Stage21RenderVsModeCountdownEv(); }
 
 void Particle::SysTracker::Update()
-{ _ZN8Particle10SysTracker6UpdateEv(this); }
+{ _ZN8Particle10SysTracker6UpdateEv(this); }                                 */
 
 int OAM::Render(bool draw, OamAttr *obj, int px, int py, int pal, int prio,
                 Matrix2x2 *mtx)
@@ -343,7 +354,7 @@ void Stage::RenderVsModeNewStar()
  * Player::CanPause. src/func_02029408.c calls `func_020bd828(data_0209f394
  * [data_0209f250])` -- one __cdecl argument, the local player. 0x020bd828 is
  * _ZN6Player8CanPauseEv in config/arm9/overlays/ov002/symbols.txt line 435,
- * and src/_ZN6Player8CanPauseEv.cpp compiles it as a real C++ method against
+ * and src/actors/Player.cpp compiles it as a real C++ method against
  * Player.h, so it publishes ?CanPause@Player@@QAEHXZ and takes its receiver in
  * ecx. The face moves the argument into the receiver, which is what the ARM
  * call did with r0.

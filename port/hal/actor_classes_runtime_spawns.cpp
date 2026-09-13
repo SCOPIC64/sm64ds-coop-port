@@ -9,7 +9,7 @@
 //                                  fire piranhas (func_ov084_0212ddbc), the
 //                                  ov070 and ov063 spitters
 //   281 BOWSER_SHOCKWAVES ov060    func_ov060_02115b0c, Bowser's stomp landing
-//   291 BUBBLE            ov002    func_ov064_0211a39c, the treasure chest's
+//   291 BUBBLE            ov002    _ZN13TreasureChest6State1Ev, the treasure chest's
 //                                  open state when the player is underwater
 //   9   YOSHI_EGG         ov002    func_ov002_020d6368 / func_ov002_020d5ab4,
 //                                  Player::St_Swallow_Main's egg lay
@@ -28,7 +28,7 @@
 // 12 ActorBase::OnPendingDestroy, 13/14 Virtual34/38, 15 OnHeapCreated, and
 // 18..30 the plain Actor interaction defaults, with these overrides:
 //   FIREBALL          0 Init, 6 Behavior, 9 Render (a `return 1` stub), 16 D1,
-//                     17 D0, 18 OnYoshiTryEat (own: func_ov002_020f92e4,
+//                     17 D0, 18 OnYoshiTryEat (own: _ZN8Fireball13OnYoshiTryEatEv,
 //                     returns 5 for the non-plain variants). Slot 3 is the
 //                     inherited ActorBase::CleanupResources.
 //   BOWSER_SHOCKWAVES 0 Init, 3 Cleanup, 6 Behavior, 9 Render (HOST COPY:
@@ -53,33 +53,33 @@
    Actor::OnAimedAtWithEggReturnVec. The ROM word in slot 30 of every vtable
    this file fills IS the arm9 base body 0x020100dc (checked against
    config/<module>/relocs.txt at vtable+30*4), and that body is now in the
-   link from src/_ZN5Actor25OnAimedAtWithEggReturnVecEv.cpp on slice_gate50.
+   link from src/_ZN8dActor_c25OnAimedAtWithEggReturnVecEv.cpp on slice_gate50.
    The three-parameter __fastcall is the sret contract MSVC uses for a
    thiscall member returning a 12-byte struct: this in ecx, the hidden result
    pointer the one (callee-popped) stack argument. Same shape as whomp_s30. */
 extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
 #include <cstdlib>
 
-#include "Actor.h"
-#include "ActorBase.h"
+#include "dActor_c.h"
+#include "fBase_c.h"
 
 extern "C" {
-int _ZN5Actor19BeforeInitResourcesEv(void *self);             /* slot 1  */
-void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a);  /* slot 2  */
-int _ZN5Actor14BeforeBehaviorEv(void *self);                  /* slot 7  */
-int _ZN5Actor12BeforeRenderEv(void *self);                    /* slot 10 */
-int _ZN5Actor13OnYoshiTryEatEv(void *self);                   /* slot 18 */
-void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p);  /* slot 19 */
-int _ZN5Actor9Virtual50Ev(void *self);                        /* slot 20 */
-void _ZN5Actor15OnGroundPoundedERS_(void *self, void *o);     /* slot 21 */
-void _ZN5Actor11OnAttacked1ERS_(void *self, void *o);         /* slot 22 */
-void _ZN5Actor11OnAttacked2ERS_(void *self, void *o);         /* slot 23 */
-void _ZN5Actor8OnKickedERS_(void *self, void *o);             /* slot 24 */
-void _ZN5Actor8OnPushedERS_(void *self, void *o);             /* slot 25 */
-void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* slot 26 */
-void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* slot 27 */
-void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o); /* slot 28 */
-int _ZN5Actor16OnAimedAtWithEggEv(void *self);                /* slot 29 */
+int _ZN8dActor_c19BeforeInitResourcesEv(void *self);             /* slot 1  */
+void _ZN8dActor_c18AfterInitResourcesEj(void *self, unsigned a);  /* slot 2  */
+int _ZN8dActor_c14BeforeBehaviorEv(void *self);                  /* slot 7  */
+int _ZN8dActor_c12BeforeRenderEv(void *self);                    /* slot 10 */
+int _ZN8dActor_c13OnYoshiTryEatEv(void *self);                   /* slot 18 */
+void _ZN8dActor_c13OnTurnIntoEggER6Player(void *self, void *p);  /* slot 19 */
+int _ZN8dActor_c9Virtual50Ev(void *self);                        /* slot 20 */
+void _ZN8dActor_c15OnGroundPoundedERS_(void *self, void *o);     /* slot 21 */
+void _ZN8dActor_c11OnAttacked1ERS_(void *self, void *o);         /* slot 22 */
+void _ZN8dActor_c11OnAttacked2ERS_(void *self, void *o);         /* slot 23 */
+void _ZN8dActor_c8OnKickedERS_(void *self, void *o);             /* slot 24 */
+void _ZN8dActor_c8OnPushedERS_(void *self, void *o);             /* slot 25 */
+void _ZN8dActor_c24OnHitByCannonBlastedCharERS_(void *self, void *o); /* slot 26 */
+void _ZN8dActor_c15OnHitByMegaCharER6Player(void *self, void *p);     /* slot 27 */
+void _ZN8dActor_c19OnHitFromUnderneathERS_(void *self, void *o); /* slot 28 */
+int _ZN8dActor_c16OnAimedAtWithEggEv(void *self);                /* slot 29 */
 
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
 void port_actor_slot_decline(const char *what);   /* func_02043fdc_hostcopy.cpp */
@@ -91,8 +91,8 @@ void port_actor_render_probe(const char *cls, void *model); /* hal/actor_classes
 void port_enemy_death_states_seat(void);
 
 /* teardown members the host thunks spell */
-void _ZN18MovingCylinderClsnD1Ev(void *self);
-void *_ZN5ActorD2Ev(void *self);
+void _ZN7dCcAc_cD1Ev(void *self);
+void *_ZN8dActor_cD2Ev(void *self);
 void _ZN6Memory10DeallocateEPvP4Heap(void *, void *);
 extern void *data_020a0eac;   /* the game heap */
 }
@@ -113,53 +113,53 @@ static int __fastcall rs_trap13(void *s, void *) { rs_trap_report(s, 13); return
 static int __fastcall rs_trap14(void *s, void *) { rs_trap_report(s, 14); return 0; }
 
 static int __fastcall rs_binit(void *s, void *)
-{ return _ZN5Actor19BeforeInitResourcesEv(s); }
+{ return _ZN8dActor_c19BeforeInitResourcesEv(s); }
 static void __fastcall rs_ainit(void *s, void *, unsigned a)
-{ _ZN5Actor18AfterInitResourcesEj(s, a); }
+{ _ZN8dActor_c18AfterInitResourcesEj(s, a); }
 static int __fastcall rs_clean_base(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::CleanupResources(); }
+{ return ((fBase_c *)s)->fBase_c::CleanupResources(); }
 static int __fastcall rs_bclean(void *s, void *)
-{ return ((Actor *)s)->Actor::BeforeCleanupResources(); }
+{ return ((dActor_c *)s)->dActor_c::BeforeCleanupResources(); }
 static void __fastcall rs_aclean(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterCleanupResources(a); }
+{ ((fBase_c *)s)->fBase_c::AfterCleanupResources(a); }
 static int __fastcall rs_bbeh(void *s, void *)
-{ return _ZN5Actor14BeforeBehaviorEv(s); }
+{ return _ZN8dActor_c14BeforeBehaviorEv(s); }
 static void __fastcall rs_abeh(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+{ ((fBase_c *)s)->fBase_c::AfterBehavior(a); }
 static int __fastcall rs_render_base(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::Render(); }
+{ return ((fBase_c *)s)->fBase_c::Render(); }
 static int __fastcall rs_bren(void *s, void *)
-{ return _ZN5Actor12BeforeRenderEv(s); }
+{ return _ZN8dActor_c12BeforeRenderEv(s); }
 static void __fastcall rs_aren(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterRender(a); }
+{ ((fBase_c *)s)->fBase_c::AfterRender(a); }
 static int __fastcall rs_heap(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::OnHeapCreated(); }
+{ return ((fBase_c *)s)->fBase_c::OnHeapCreated(); }
 static int __fastcall rs_pdes(void *s, void *)
-{ ((ActorBase *)s)->ActorBase::OnPendingDestroy(); return 0; }
+{ ((fBase_c *)s)->fBase_c::OnPendingDestroy(); return 0; }
 static int __fastcall rs_yoshi(void *s, void *)
-{ return _ZN5Actor13OnYoshiTryEatEv(s); }
+{ return _ZN8dActor_c13OnYoshiTryEatEv(s); }
 static int __fastcall rs_egg(void *s, void *, void *p)
-{ _ZN5Actor13OnTurnIntoEggER6Player(s, p); return 0; }
+{ _ZN8dActor_c13OnTurnIntoEggER6Player(s, p); return 0; }
 static int __fastcall rs_v50(void *s, void *)
-{ return _ZN5Actor9Virtual50Ev(s); }
+{ return _ZN8dActor_c9Virtual50Ev(s); }
 static int __fastcall rs_pounded(void *s, void *, void *o)
-{ _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
+{ _ZN8dActor_c15OnGroundPoundedERS_(s, o); return 0; }
 static int __fastcall rs_atk1(void *s, void *, void *o)
-{ _ZN5Actor11OnAttacked1ERS_(s, o); return 0; }
+{ _ZN8dActor_c11OnAttacked1ERS_(s, o); return 0; }
 static int __fastcall rs_atk2(void *s, void *, void *o)
-{ _ZN5Actor11OnAttacked2ERS_(s, o); return 0; }
+{ _ZN8dActor_c11OnAttacked2ERS_(s, o); return 0; }
 static int __fastcall rs_kicked(void *s, void *, void *o)
-{ _ZN5Actor8OnKickedERS_(s, o); return 0; }
+{ _ZN8dActor_c8OnKickedERS_(s, o); return 0; }
 static int __fastcall rs_pushed(void *s, void *, void *o)
-{ _ZN5Actor8OnPushedERS_(s, o); return 0; }
+{ _ZN8dActor_c8OnPushedERS_(s, o); return 0; }
 static int __fastcall rs_cannon(void *s, void *, void *o)
-{ _ZN5Actor24OnHitByCannonBlastedCharERS_(s, o); return 0; }
+{ _ZN8dActor_c24OnHitByCannonBlastedCharERS_(s, o); return 0; }
 static int __fastcall rs_mega(void *s, void *, void *p)
-{ _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
+{ _ZN8dActor_c15OnHitByMegaCharER6Player(s, p); return 0; }
 static int __fastcall rs_under(void *s, void *, void *o)
-{ _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
+{ _ZN8dActor_c19OnHitFromUnderneathERS_(s, o); return 0; }
 static int __fastcall rs_aimed(void *s, void *)
-{ return _ZN5Actor16OnAimedAtWithEggEv(s); }
+{ return _ZN8dActor_c16OnAimedAtWithEggEv(s); }
 
 /* Fills slots 1,2,4,5,7,8,10,11,12,13,14,15,18..30 -- the shared half. The
    callers write their own 0/3/6/9/16/17 (and 18 where the class overrides
@@ -225,7 +225,7 @@ static void rs_probe(const char *cls, void *s, int word)
 // Every own slot is matched src: InitResources is a real C++ method (faced
 // below), Behavior is C-named in its own TU, Render is the ROM's `return 1`
 // stub, D1/D0 are flat C. Slot 18 is the class's own OnYoshiTryEat
-// (func_ov002_020f92e4: 5 for the variants that burn, 0 for the plain one),
+// (_ZN8Fireball13OnYoshiTryEatEv: 5 for the variants that burn, 0 for the plain one),
 // ruled REAL_DECOMP by strict-reloc byte match. Its Behavior's three helpers
 // (func_ov002_020f8b24 shadow/particles, 020f88ec coin drop, 020f897c the
 // cap/coin drop on a wall hit) are on the slice; the three particle tables
@@ -236,7 +236,7 @@ int _ZN8Fireball8BehaviorEv(void *self);          /* C-named in its own TU */
 int _ZN8Fireball6RenderEv(void);                  /* `return 1` stub */
 int *_ZN8FireballD1Ev(int *self);
 int *_ZN8FireballD0Ev(int *self);
-int func_ov002_020f92e4(char *self);              /* slot 18, own */
+int _ZN8Fireball13OnYoshiTryEatEv(char *self);              /* slot 18, own */
 extern int _ZTV8Fireball[];                       /* ov002 mount, 31 slots */
 }
 /* The fireball's own D0 spells its table by the RTTI name. */
@@ -253,7 +253,7 @@ static int __fastcall fb_d1(void *s, void *)
 static int __fastcall fb_d0(void *s, void *)
 { return (int)(size_t)_ZN8FireballD0Ev((int *)s); }
 static int __fastcall fb_yoshi(void *s, void *)
-{ return func_ov002_020f92e4((char *)s); }
+{ return _ZN8Fireball13OnYoshiTryEatEv((char *)s); }
 
 extern "C" void hal_fill_fireball_vtable(void)
 {
@@ -314,7 +314,7 @@ void *_ZTV16BowserShockwaves[31];
    record: the word at 0x0211ab50 relocates to the typeinfo at 0x0211ab14,
    whose word[1] points at the Itanium name string at 0x0211ab08 =
    "9daFRing_c", so 9daFRing_c is the ROM's own RTTI spelling of that class.
-   The ROM bodies whose literal pools load it are BowserShockwaves_Spawn,
+   The ROM bodies whose literal pools load it are daFRing_c_classInit,
    _ZN16BowserShockwavesD0Ev, _ZN16BowserShockwavesD1Ev. Read out of
    extracted/overlays/overlay_0060.bin; the LHS is not a config symbol
    anywhere, so the alias cannot be defeated by a later slice. */
@@ -357,11 +357,11 @@ int _ZN16BowserShockwaves8BehaviorEv(void *self)
 }
 
 // ============================================================================
-// BUBBLE (actor 291, ov002) -- daObjAbuku_c, table data_ov002_02108964
+// BUBBLE (actor 291, ov002) -- daObjAbuku_c, table _ZTV12daObjAbuku_c
 // ============================================================================
 //
 // The air bubble a treasure chest releases when it is opened underwater
-// (TreasureChest's open state func_ov064_0211a39c: Actor::Spawn(0x123) when
+// (TreasureChest's open state _ZN13TreasureChest6State1Ev: Actor::Spawn(0x123) when
 // the player's mIsUnderwater byte is set, then zeroes the bubble's velocity).
 // A plain Actor build (ActorC2, 276 bytes) with one MovingCylinderClsn at
 // 0xd4. It rises on a sine bob, heals the player it touches (+0xf8 holds the
@@ -369,44 +369,43 @@ int _ZN16BowserShockwaves8BehaviorEv(void *self)
 //
 // dsd named none of its methods (the class shares its base with nothing that
 // carries a name), so every own slot is a func_ov002 body: 0 InitResources
-// (func_ov002_020b3518), 6 Behavior (func_ov002_020b33dc), 16 D1
-// (func_ov002_020b3298). Slot 17, the D0, is a HOST THUNK: the matched body
-// func_ov002_020b32c8 spells its table and the heap as the VT0 / G0 shadow
+// (_ZN12daObjAbuku_c13InitResourcesEv), 6 Behavior (_ZN12daObjAbuku_c8BehaviorEv), 16 D1
+// (_ZN12daObjAbuku_cD1Ev). Slot 17, the D0, is a HOST THUNK: the matched body
+// _ZN12daObjAbuku_cD0Ev spells its table and the heap as the VT0 / G0 shadow
 // globals (the PoleLift trap), so it is transcribed here instead: table
 // restore, MovingCylinderClsn::D1 at +0xd4, Actor::D2, Deallocate against
 // 0x020a0eac. Slots 3 and 9 are ActorBase's own (relocs), 18..30 defaults.
 extern "C" {
-int func_ov002_020b3518(char *self);     /* slot 0, InitResources */
-int func_ov002_020b33dc(char *self);     /* slot 6, Behavior */
-int *func_ov002_020b3298(int *self);     /* slot 16, D1 */
-extern int data_ov002_02108964[];        /* ov002 mount: the 31-slot table */
+int _ZN12daObjAbuku_c13InitResourcesEv(char *self);     /* slot 0, InitResources */
+int _ZN12daObjAbuku_c8BehaviorEv(char *self);     /* slot 6, Behavior */
+int *_ZN12daObjAbuku_cD1Ev(int *self);     /* slot 16, D1 */
+extern int _ZTV12daObjAbuku_c[];        /* ov002 mount: the 31-slot table */
 }
 /* The D1 restores the table by its RTTI name. */
-#pragma comment(linker, "/alternatename:__ZTV12daObjAbuku_c=_data_ov002_02108964")
 
 static int __fastcall bub_init(void *s, void *)
-{ return func_ov002_020b3518((char *)s); }
+{ return _ZN12daObjAbuku_c13InitResourcesEv((char *)s); }
 static int __fastcall bub_behavior(void *s, void *)
 { rs_probe("BUBBLE", s, *(unsigned short *)((char *)s + 0x10e));
-  return func_ov002_020b33dc((char *)s); }
+  return _ZN12daObjAbuku_c8BehaviorEv((char *)s); }
 static int __fastcall bub_d1(void *s, void *)
-{ return (int)(size_t)func_ov002_020b3298((int *)s); }
+{ return (int)(size_t)_ZN12daObjAbuku_cD1Ev((int *)s); }
 /* slot 17, the ROM's own D0, GATE 228. This was a hand copy of the ROM body:
    the table word at 0x02108964 + 17*4 = 0x021089a8 relocates to 0x020b32c8 in
    config/arm9/overlays/ov002/relocs.txt, symbols.txt gives that address its own
    kind:function(arm,size=0x44) record, and the body there is exactly the four
    steps typed out below. The only thing that kept it out of the build was the
-   inferred-stub marker on src/func_ov002_020b32c8.c, which lane STUBADJ ruled
+   inferred-stub marker on src/game/actors/d_a_obj_abuku.cpp, which lane STUBADJ ruled
    REAL DECOMP against the ROM. Its two placeholder names are bound per TU in
    port/CMakeLists.txt from its own pool: 0x020b3304 -> 0x02108964 (VT0, the
    table this file declares) and 0x020b3308 -> 0x020a0eac (G0). */
-extern "C" int *func_ov002_020b32c8(int *t);   /* ov002 0x020b32c8 */
+extern "C" int *_ZN12daObjAbuku_cD0Ev(int *t);   /* ov002 0x020b32c8 */
 static int __fastcall bub_d0(void *s, void *)
-{ return (int)(size_t)func_ov002_020b32c8((int *)s); }
+{ return (int)(size_t)_ZN12daObjAbuku_cD0Ev((int *)s); }
 
 extern "C" void hal_fill_bubble_vtable(void)
 {
-    void *volatile *vt = (void *volatile *)data_ov002_02108964;
+    void *volatile *vt = (void *volatile *)_ZTV12daObjAbuku_c;
     rs_fill_shared(vt);
     vt[0]  = (void *)bub_init;
     vt[3]  = (void *)rs_clean_base;    /* ROM slot 3: ActorBase::CleanupResources */
@@ -454,7 +453,7 @@ extern int _ZTV8YoshiEgg[];                        /* ov002 mount, 31 slots */
    record: the word at 0x0210adb0 relocates to the typeinfo at 0x0210ad84,
    whose word[1] points at the Itanium name string at 0x0210ad78 =
    "8daYegg_c", so 8daYegg_c is the ROM's own RTTI spelling of that class.
-   The ROM bodies whose literal pools load it are YoshiEgg_Spawn,
+   The ROM bodies whose literal pools load it are daYegg_c_classInit,
    _ZN8YoshiEggD0Ev, _ZN8YoshiEggD1Ev. Read out of
    extracted/overlays/overlay_0002.bin; the LHS is not a config symbol
    anywhere, so the alias cannot be defeated by a later slice. */

@@ -335,7 +335,7 @@ CLASS_C = tuple(
          'tu': 'src/func_ov007_020bdeb0.c',
          'note': 'Also found by the veneer scan; the two derivations agree.'},
         {'frame': 'func_ov007_020c05f8',
-         'callee': '_ZN6Player17St_EndingFly_MainEv',
+         'callee': 'func_ov007_020c3d1c',
          'tu': 'src/func_ov007_020c05f8.c',
          'note':
              'Also found by the veneer scan, and one of the seventeen MSVC '
@@ -384,7 +384,7 @@ CLASS_C = tuple(
          'tu': 'src/func_0204ebb8.c',
          'note':
              'The SolidHeap teardown leg, same shape and same consequence; '
-             'its pusher is src/_ZN9SolidHeap8VDestroyEv.c:23.'},
+             'its pusher is src/_ZN9SolidHeap8VDestroyEv.cpp:23.'},
         # CURLING'S COLLISION VENEER, added by run link60 lane CUR2 when
         # func_ov006_020e20bc stopped being a return-0 face and became a
         # transcribed body in port/unmatched/MgCurling_Collide_020e20bc.cpp.

@@ -14,7 +14,7 @@
  * Control flow is the matched sources', unchanged. func_02043fdc reads the
  * successor BEFORE the callback runs (a Process that destroys the actor
  * unlinks the node under it) and publishes the node it is on in
- * data_020a4b68, which is what func_020440e8/func_02044104 clear when a
+ * data_020a4b68, which is what _ZN11fLiNdBaPr_cD1Ev/_ZN9fLiNdBa_cD1Ev clear when a
  * destructor takes the walk's own cursor out. func_020441cc walks the scene
  * tree instead, whose successor comes from func_0203b394.
  */

@@ -38,9 +38,9 @@ extern void Matrix4x3_ApplyInPlaceToRotationY(Mtx43 *m, s16 ry);
 extern void _ZN9ModelBase12ApplyOpacityEj(void *mb, u32 op, u32 b);
 extern void func_020167a4(void *mb);
 extern void _ZN15ModelComponents21UpdateVertsUsingBonesEv(void *mc);
-extern void _ZN5Actor19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
+extern void _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
     void *c, void *shadow, void *m, s32 rad, s32 height, u32 op);
-extern void _ZN8CapEnemy12UpdateCapPosERK7Vector3RK10Vector3_16(
+extern void _ZN11dCapEnemy_c12UpdateCapPosERK7Vector3RK10Vector3_16(
     void *c, const Vector3 *pos, const void *ang);
 extern void func_ov063_021160d4(void *c);
 
@@ -101,12 +101,12 @@ void func_ov063_021166ac(char *c)
     *((Mtx43 *) (c + 0x4a4)) = data_020a0e68;
     if (((s32) ((*((u16 *) (c + 0xc))) == 0xd2)) != 0)
     {
-        _ZN5Actor19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
+        _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
             c, c + 0x434, c + 0x4a4, 0x12c000, 0xc8000, 0xf);
     }
     else
     {
-        _ZN5Actor19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
+        _ZN8dActor_c19DropShadowRadHeightER11ShadowModelR9Matrix4x35Fix12IiES5_j(
             c, c + 0x434, c + 0x4a4, 0x64000, 0xc8000, 0xf);
     }
     *((s32 *) (c + 0x568)) = (*((s32 *) (c + 0x538)))
@@ -117,6 +117,6 @@ void func_ov063_021166ac(char *c)
     hat[0] = *((s16 *) (c + 0x8c));
     hat[1] = *((s16 *) (c + 0x8e));
     hat[2] = *((s16 *) (c + 0x90));
-    _ZN8CapEnemy12UpdateCapPosERK7Vector3RK10Vector3_16(c, &cap, hat);
+    _ZN11dCapEnemy_c12UpdateCapPosERK7Vector3RK10Vector3_16(c, &cap, hat);
     func_ov063_021160d4(c);
 }

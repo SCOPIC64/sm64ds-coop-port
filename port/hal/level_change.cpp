@@ -124,7 +124,7 @@ extern unsigned char data_02092208[];   /* level -> LVL_Overlay (DS address) */
 extern unsigned char data_020758c8[];   /* level -> overlay id */
 
 /* the engine pieces the change drives */
-void _ZN9ActorBase18MarkForDestructionEv(void *self);
+void _ZN7fBase_c18MarkForDestructionEv(void *self);
 void port_actor_tick(void);
 void port_quarantine_reset(void);   /* port/unmatched/func_02043fdc_hostcopy.cpp: clear
                                        the per-actor fault freeze set */
@@ -363,7 +363,7 @@ static int port_level_mark_all(void)
         char *o = (char *)victim[i];
         if (*(unsigned char *)(o + 0xf))   /* already marked */
             continue;
-        _ZN9ActorBase18MarkForDestructionEv(o);
+        _ZN7fBase_c18MarkForDestructionEv(o);
         ++n;
     }
     return n;
@@ -870,7 +870,7 @@ static unsigned port_level_heap_free(void)
 {
     if (!data_020a0eac)
         return 0;
-    /* Heap's first word is its allocator (src/_ZN4HeapC1EPvjP4Heap.c). */
+    /* Heap's first word is its allocator (src/_ZN4HeapC2EPvjPS_.cpp). */
     void *alloc = *(void **)((char *)data_020a0eac + 4);
     if (!alloc)
         return 0;
@@ -1081,7 +1081,7 @@ extern "C" {
 extern unsigned char data_0209f250;      /* local player index */
 extern void *data_0209f394[];            /* per-player Actor* */
 /* the same two calls VirtualDoor::Behavior itself uses */
-char *_ZN5Actor15FindWithActorIDEjPS_(unsigned int id, void *prev);
+char *_ZN8dActor_c15FindWithActorIDEjPS_(unsigned int id, void *prev);
 void MulVec3Mat4x3(const void *in, const void *m, void *out);
 void InvMat4x3(const void *in, void *out);
 /* the ROM's own return from a no-control state (hal/bob_enemy_header_faces) */
@@ -1095,8 +1095,8 @@ enum { PORT_ACTOR_EXIT = 349 };
    there is one player. */
 static char *port_exit_pulling(void)
 {
-    for (char *e = _ZN5Actor15FindWithActorIDEjPS_(PORT_ACTOR_EXIT, 0); e;
-         e = _ZN5Actor15FindWithActorIDEjPS_(PORT_ACTOR_EXIT, e))
+    for (char *e = _ZN8dActor_c15FindWithActorIDEjPS_(PORT_ACTOR_EXIT, 0); e;
+         e = _ZN8dActor_c15FindWithActorIDEjPS_(PORT_ACTOR_EXIT, e))
         if (*(int *)(e + 0x98) != 0)
             return e;
     return 0;
@@ -1280,7 +1280,7 @@ extern "C" int port_level_change_apply(void)
                                    nothing pending yet, so it did nothing)
      SETSCENE  f=80 id=3   from ?Behavior@Stage@@QAEHXZ+0x2a9
      A_BOOT    f=80 p110=-1                               level 19 up
-     MFD_STAGE f=111 pend=3   from _ZN5Scene14BeforeBehaviorEv+0xe1
+     MFD_STAGE f=111 pend=3   from _ZN8dScene_c14BeforeBehaviorEv+0xe1
      FATAL: Stage vtable slot 3 (CleanupResources) is not hosted   (0xc0000409)
 
    Read the two middle lines together. port_level_teardown's convergence loop
@@ -1323,7 +1323,7 @@ extern "C" int port_level_change_poll(void)
 
 /* ---- the front door -------------------------------------------------------
    dScTitle_c's own selection table, and its own handoff call.
-   func_ov003_020ad814 (the debug level select's Behavior) picks a row out of
+   _ZN10dScTitle_c8BehaviorEv (the debug level select's Behavior) picks a row out of
    data_ov003_020b1180 -- 0x36 eight-byte rows, byte 0 the level id, byte 1
    the entrance -- and calls LoadLevelNoReturn(level, entrance, 1, 0). Two
    rows are sentinels: -1 means "back to the file select" and -2 "into the
@@ -1344,7 +1344,7 @@ extern unsigned char data_0209f2d8;         /* game mode */
    scene id in data_02092664 and writes the fade colour into data_0209f5e8+0xc.
    It does NOT put the fade in motion -- on the ROM the Scene actor's own
    BeforeBehavior does that when it sees the pending scene. */
-void _ZN5Scene14StartSceneFadeEjjt(unsigned actorID, unsigned param,
+void _ZN8dScene_c14StartSceneFadeEjjt(unsigned actorID, unsigned param,
                                    unsigned short fadeColor);
 extern unsigned short data_02092664;         /* Scene::SetSceneToSpawn's id */
 extern unsigned short data_0209f5e8[];        /* the color fader (its +0xc word) */
@@ -1369,13 +1369,13 @@ void port_fader_start_color(int frames, int toEnd, unsigned short color);
        -> Scene::SpawnIfNecessary  calls func_02013edc(4, param, 1)
        -> func_02042fe4 -> func_02043098(4, 0, param, 1)   the spawn spine
        -> (*(Fn*)data_020a4bb8[4])()   the factory for scene id 4
-       -> StarSelect_Spawn  (ov003, 0x020b04f0)
+       -> dScStarSel_c_classInit  (ov003, 0x020b04f0)
 
-   StarSelect_Spawn (src/StarSelect_Spawn.cpp) is small and portable-shaped:
+   dScStarSel_c_classInit (src/d_s_star_sel.cpp) is small and portable-shaped:
      - ActorBase::operator new(0x13c), ActorBase ctor
      - vptr = data_ov003_020b1704   (the dScStarSel_c vtable, IN ov003)
      - flags +0x13 |= 1|4
-     - func_020733a8(self+0x64, 2, 0x50, Model::ctor, Model::dtor)  two Models
+     - __cxa_vec_ctor(self+0x64, 2, 0x50, Model::ctor, Model::dtor)  two Models
 
    The dScStarSel_c vtable (data_ov003_020b1704, from ov003 relocs) is:
      slot 0  0x020af8a0   (a method, ov003)
@@ -1410,7 +1410,7 @@ void port_fader_start_color(int frames, int toEnd, unsigned short color);
    So the stretch is a real sub-project (mount ov003 .text, stage the star-grid
    2D resources, host the OAM render), landed here as analysis. The fade flow
    that would drive it is live: the request is recorded, the screen fades, and
-   the frame loop is the seam a real StarSelect_Spawn registration would plug
+   the frame loop is the seam a real dScStarSel_c_classInit registration would plug
    into (register a host factory at data_020a4bb8[4], then spawn on cover). */
 static int g_scene_fade_scene = -1;   /* pending scene id, -1 = none */
 
@@ -1436,10 +1436,10 @@ extern "C" int port_scene_fade_pending(int *sceneId)
  * both are matched src in this tree:
  *
  *     Scene::SetSceneToSpawn(id, param)   data_02092664 = id
- *         src/_ZN5Scene15SetSceneToSpawnEjj.c
+ *         src/_ZN8dScene_c15SetSceneToSpawnEjj.cpp
  *     Scene::SpawnIfNecessary()           spawn the scene, THEN
  *                                         data_02092664 = 0x187
- *         src/_ZN5Scene16SpawnIfNecessaryEv.c
+ *         src/_ZN8dScene_c16SpawnIfNecessaryEv.cpp
  *
  * THE PORT RUNS THE FIRST HALF AND NOT THE SECOND. It has no spawner for the
  * ov003 scenes -- the long block above this one says why, at length: ov003's
@@ -1527,7 +1527,7 @@ extern "C" int port_title_row(int i, int *level, int *entrance)
     return r[0] >= 0;         /* -1 / -2 are the two scene sentinels */
 }
 
-/* The else-branch of func_ov003_020ad814, now in the ROM's OWN order.
+/* The else-branch of _ZN10dScTitle_c8BehaviorEv, now in the ROM's OWN order.
    FaderColor is staged (hal/fader_wipes.cpp), so LoadLevel's opening
    Scene::SetAndStopColorFader call is safe and the mount check no longer has to
    come first to dodge a null fader slot. The ROM branch runs verbatim, then the
@@ -1542,7 +1542,7 @@ extern "C" int port_title_select(int i)
         return 0;
     }
 
-    /* dScTitle_c::Behavior's confirm branch, in order (func_ov003_020ad814):
+    /* dScTitle_c::Behavior's confirm branch, in order (_ZN10dScTitle_c8BehaviorEv):
            data_0209f2d8 = 0;                       single player
            LoadLevelNoReturn(level, entrance, 1, 0);
            SetPlayerGlobals();
@@ -1581,7 +1581,7 @@ extern "C" int port_title_select(int i)
     /* Scene::StartSceneFade(4, 0, 0): records scene 4 (dScStarSel_c) as the
        pending scene and sets the fade colour. data_0209f5e8[6] (+0xc) = 0x7fff
        is the ROM's own next line: fade to WHITE, not black. */
-    _ZN5Scene14StartSceneFadeEjjt(4, 0, 0);
+    _ZN8dScene_c14StartSceneFadeEjjt(4, 0, 0);
     data_0209f5e8[6] = 0x7fff;
     /* Record the scene request for the frame loop, and put the colour fade in
        motion so it renders. 0x7fff (nonzero) is a white fade; 16 frames is the

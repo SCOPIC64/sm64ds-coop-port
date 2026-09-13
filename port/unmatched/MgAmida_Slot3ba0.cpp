@@ -1,4 +1,4 @@
-/* HOST COPY of src/func_ov006_020d3ba0.c, dScMgAmida_c (actor id 0x173,
+/* HOST COPY of src/func_ov006_020d3ba0.cpp, dScMgAmida_c (actor id 0x173,
  * scene 371). Run mg9, lane S371.
  *
  * ONE TOKEN CHANGED, and it is the word `extern`. Line 37 of the src TU reads
@@ -17,7 +17,7 @@
  * DSSTATE_BEGIN, sized by ROM SPAN rather than by field width, so it is one of
  * the hosted DS globals the save-state layout and the selftest BMP gate both
  * depend on the position of. A copy of that word living in an ov006 object
- * file would be a SECOND RNG seed: src/func_ov006_020d4b7c.c (this class's own
+ * file would be a SECOND RNG seed: src/_ZN12dScMgAmida_c8BehaviorEv.cpp (this class's own
  * Behavior) declares the same symbol `extern int` and calls
  * RandomIntInternal(&data_0209d4b8) against it, so the two TUs of one class
  * would have advanced different seeds and nothing would have said so.
@@ -43,7 +43,7 @@
  * writes a bare `void* data_ov006_0213ac24;` and collides with the mount --
  * and its rule is the one followed here: "the host copy is the src body
  * verbatim with `extern` added". THE DECOMP-SIDE ONE-TOKEN FIX IS ROUTED, NOT
- * TAKEN: src/func_ov006_020d3ba0.c should read `extern int data_0209d4b8;`,
+ * TAKEN: src/func_ov006_020d3ba0.cpp should read `extern int data_0209d4b8;`,
  * and whether that still builds under mwccarm is a byte-gated-tree question.
  * The TU is bannered NONMATCHING already, so nothing here is at risk of
  * silently un-matching a matched body.
@@ -52,7 +52,7 @@
  * can reproduce it byte for byte:
  *
  *     sed -e '1d' -e 's/^int data_0209d4b8;$/extern int data_0209d4b8;/' \
- *         src/func_ov006_020d3ba0.c
+ *         src/func_ov006_020d3ba0.cpp
  *
  * (the `1d` drops the `//cpp` marker line). Everything below this comment is
  * the src TU unchanged, banner included.
@@ -90,7 +90,7 @@ void func_ov006_020d122c(void *sb, int v);
 void func_ov004_020b04d0(int v);
 int func_ov004_020ae5c4(void *a, int b, int c, int d, int e, int f, int g);
 void func_ov006_020d3668(void *sb);
-void _ZN3G2x13SetBlendAlphaEPVttttt(void *reg, unsigned short a, unsigned short b, unsigned short c, unsigned short d);
+void _ZN3G2x13SetBlendAlphaEPVttttj(void *reg, unsigned short a, unsigned short b, unsigned short c, unsigned short d);
 void func_ov004_020b0cac(int c, int a1, int a2, int a3, int arg5, short arg6);
 
 extern int data_0209d4b8;
@@ -350,7 +350,7 @@ extern "C" void func_ov006_020d3ba0(char *sb)
     func_ov006_020d3668(sb);
     *(s32 *)(sb + 0x5370) = 1;
     *(volatile u16 *)0x04000050 = 0;
-    _ZN3G2x13SetBlendAlphaEPVttttt((void *)0x04001050, 4, 8, 6, 0x10);
+    _ZN3G2x13SetBlendAlphaEPVttttj((void *)0x04001050, 4, 8, 6, 0x10);
     func_ov004_020b0cac(0xd, 0x80, 0x60, 1, -1, 0xd);
 
     *(s32 *)(sb + 0x53c4) = 0x3c;

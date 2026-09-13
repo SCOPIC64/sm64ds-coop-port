@@ -8,8 +8,8 @@ scenes, the fork Scene::PrepareToSpawnBoot picks between.
 NOT NAMED scene_menu_proof.py, and the difference is the finding rather than a
 preference: the lane brief called id 360 "the main-menu scene, on the default
 route". It is not. src/GetSceneOverlayID.c gives it no overlay, its own D2 is
-named MultiBootScene::~MultiBootScene in src/func_02034a78.c, and
-src/_ZN5Scene18PrepareToSpawnBootEv.c parks either 0 or 0x168 as the FIRST
+named MultiBootScene::~MultiBootScene in src/_ZN7dScMB_cD1Ev.cpp, and
+src/_ZN8dScene_c18PrepareToSpawnBootEv.cpp parks either 0 or 0x168 as the FIRST
 scene of the process. The pair is a boot fork; the file is named for what it
 proves.
 
@@ -72,8 +72,8 @@ REPORT = {0: "[boot] slots entered:", 360: "[mb] slots entered:"}
 # table carries (config/arm9/relocs.txt from:0x02090888 to:0x0210ad90
 # module:overlay(2)) -- it is YOSHI_EGG, hal/actor_classes.inc:3093, a regular
 # actor the port ALREADY hosts. hal/actor_registry.cpp's install runs before
-# any scene boot and writes data_020a4bb8[9] to YoshiEgg_SpawnInfo, so
-# port_scene_boot(9) does not refuse -- it calls YoshiEgg_Spawn() as if it
+# any scene boot and writes data_020a4bb8[9] to g_profile_YOSHI_EGG, so
+# port_scene_boot(9) does not refuse -- it calls daYegg_c_classInit() as if it
 # were a Scene factory and walks the returned object's ActorBase vtable as an
 # 18-slot Scene table, which is exactly the kind of type confusion this rung
 # exists to rule out, not exercise. Measured: the run printed "[scene] 9 = ?"
@@ -243,7 +243,7 @@ def rung_scene(scene, frames):
     # THE TWO SCENES ARE HELD TO DIFFERENT BARS AND THE REASON IS THE ROM'S,
     # read out of their own InitResources bodies before either was ever run:
     #
-    #   scene 0    src/func_02005a58.c ENABLES LAYERS and fills them --
+    #   scene 0    src/_ZN9BootScene13InitResourcesEv.cpp ENABLES LAYERS and fills them --
     #              `*(u32*)0x4000000 = (... & ~0x1f00) | 0x100` turns main BG0
     #              on, `0x4001000 ... | 0x400` turns sub BG2 on, and it
     #              decompresses data_020918c4 / data_020916d8 / data_02091570
@@ -262,7 +262,7 @@ def rung_scene(scene, frames):
     #              correct render measures, comfortably over the 1-3 a flat
     #              field's own dithering could produce.
     #
-    #   scene 360  src/func_0203506c.c does the opposite: it CLEARS every layer
+    #   scene 360  src/_ZN7dScMB_c13InitResourcesEv.cpp does the opposite: it CLEARS every layer
     #              enable on both engines (`&= ~0x1f00` twice) and then calls
     #              GX::DispOn, leaving the backdrop -- which the same body has
     #              just written white, MultiStore16(0xffff, 0x5000000, 2). The

@@ -28,7 +28,7 @@ void MulVec3Mat4x3(const void *v, const void *m, void *out);
 void Matrix4x3_ApplyInPlaceToRotationZXYExt(void *m, s16 x, s16 y, s16 z);
 void _Z14ApproachLinearRsss(s16 *dst, s16 target, s16 step);
 void MulMat4x3Mat4x3(void *m1, void *m0, void *mF);
-void *_ZN5Actor10FindWithIDEj(unsigned id);
+void *_ZN8dActor_c10FindWithIDEj(unsigned id);
 void Matrix4x3_ApplyInPlaceToRotationXYZExt(void *m, s16 x, s16 y, s16 z);
 extern Matrix4x3 data_020a0e68;
 }
@@ -94,7 +94,7 @@ extern "C" void func_ov016_02111c40(char *c)
     id = *(unsigned *)(c + 0x49c);
     if (id == 0)
         return;
-    found = _ZN5Actor10FindWithIDEj(id);
+    found = _ZN8dActor_c10FindWithIDEj(id);
     if (found == 0)
         return;
     *(int *)(c + 0x43c) = 0;

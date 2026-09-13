@@ -44,7 +44,7 @@
 #     021111b0  add  r0, r4, #0x1b0        the two TextureSequences
 #     021111b4  mov  r1, #2   021111b8  mov r2, #0x14
 #     021111bc  str  ip, [r4]              install the own table
-#     021111c0  bl   0x0207328c            __destroy_arr
+#     021111c0  bl   0x0207328c            __cxa_vec_cleanup
 #     021111c4  add  r0, r4, #0x188 ; bl ShadowModel::~D1
 #     021111cc  add  r0, r4, #0x138 ; bl Model::~D1
 #     021111d4  add  r0, r4, #0xd4  ; bl ModelAnim::~D1
@@ -55,7 +55,7 @@
 # with C names and rides from src unchanged.
 #
 # Nothing else is refused: no asm-void block, no scheduler, no card loader, no
-# wireless wrapper, no r0 ride-through (MirrorLuigi_Spawn.cpp names its own
+# wireless wrapper, no r0 ride-through (daLuigi_c_classInit.cpp names its own
 # receiver for Actor::C2), and NO ModelAnim slot-5 collision. Render's
 # `((Sub *)&mModel)->m5(0)` dispatches slot 5 over the plain MODEL at +0x138
 # (ROM 0x021114cc: add r0,r5,#0x138; ldr r2,[r0]; ldr r2,[r2,#0x14]; blx r2),
@@ -70,7 +70,7 @@
 # SLICE -- the only overlay in this lane that needs none.
 #
 # ONE NAME THIS MOUNT DEFINES IS SPELLED BY ANOTHER OVERLAY'S TU, and it is
-# ALREADY ROUTED: src/_ZN9ShipWater13InitResourcesEv.c (ov017, LINKED) spells
+# ALREADY ROUTED: src/game/actors/d_a_obj_ks_water.cpp (ov017, LINKED) spells
 # data_ov055_02111a94 for OV017's object at that shared-window address, and the
 # wave-1 cast-sweep1 lane gave it a per-source -D when it seated ov017 --
 # foreseeing exactly this mount. A -D is not an /alternatename and is not
@@ -104,11 +104,11 @@
 # becomes live the day that ov063 caller is seated.
 
 # ---- the class -----------------------------------------------------------
-src/MirrorLuigi_Spawn.cpp
-src/_ZN11MirrorLuigiD0Ev.c
+src/d_a_luigi.cpp
+src/_ZN11MirrorLuigiD0Ev.cpp
 src/_ZN11MirrorLuigi13InitResourcesEv.cpp
-src/_ZN11MirrorLuigi16CleanupResourcesEv.c
-src/_ZN11MirrorLuigi16OnPendingDestroyEv.c
+src/_ZN11MirrorLuigi16CleanupResourcesEv.cpp
+src/_ZN11MirrorLuigi16OnPendingDestroyEv.cpp
 src/_ZN11MirrorLuigi6RenderEv.cpp
 
 # ---- the two state halves and the helper that enters the mirror ----------

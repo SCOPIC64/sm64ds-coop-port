@@ -105,19 +105,19 @@ extern PortPmf data_ov071_02122b60[], data_ov071_02122b68[],
 
 /* func_ov071_021202b4 -- the ENTER half, `c->pp[0]` -- WAS host-copied here,
    and is now back on the slice: run link100 lane PMF makes /vmg /vmm GLOBAL
-   (port/CMakeLists.txt, above R8), so the matched src/func_ov071_021202b4.cpp
+   (port/CMakeLists.txt, above R8), so the matched src/actors/Scuttlebug.cpp
    forms the ROM's own 8-byte {fn, delta} record instead of MSVC's four-byte
    default. Everything wave 18 checked for the MAIN half below covers this half
    unchanged -- same table, same seat, same eighteen ROM-zero deltas, and the
    same tail jump, which is what carries `this` on the caller's own frame onto
    the plain cdecl bodies g_scuttlebug_sources installs. Its caller
-   src/Scuttlebug_SetState.c is a plain .c cdecl TU that was already linked, so
+   src/actors/Scuttlebug.cpp is a plain .c cdecl TU that was already linked, so
    there is no new convention at the call site either. See port/slice_w18a.txt's
    own link100 section. */
 
 /* func_ov071_02120278 -- the MAIN half, `c->pp + 1` -- WAS host-copied here
    for the width reason this file's header states, and is now back on the
-   slice: run linkw wave 18 compiles src/func_ov071_02120278.cpp with
+   slice: run linkw wave 18 compiles src/actors/Scuttlebug.cpp with
    /vmg /vmm, which gives MSVC the 8-byte {fn, delta} representation the ROM's
    record already is, so the matched TU strides eight and reads the record's
    own function word. All eighteen of this table's source deltas are ROM zeros,

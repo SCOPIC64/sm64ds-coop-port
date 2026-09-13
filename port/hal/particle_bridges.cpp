@@ -4,7 +4,7 @@
 // FACES, and why an alias would not do. Four of the thirteen callback bodies
 // are compiled from .cpp files that declare a real class, so MSVC emits them
 // __thiscall (`this` in ECX). Everything that calls them -- the vtables in
-// hal/particle_vtable.cpp and the tracker's own walk in func_02021bec --
+// hal/particle_vtable.cpp and the tracker's own walk in _ZN8Particle10SysTracker8Contents6UpdateEv --
 // reaches them by Itanium C name through a plain cdecl function pointer, with
 // self pushed on the stack. A /alternatename: alias would link cleanly and
 // then read `this` out of ECX on every call, so each one gets a real
@@ -41,7 +41,7 @@ struct CheckWaterRippleCallback {
 
 extern "C" {
 
-void _ZN8Particle14SimpleCallback14SpawnParticlesERNS_6SystemE(void *, void *);
+void _ZN5dPa_c7level_c16simpleCallback_c14SpawnParticlesERN8Particle6SystemE(void *, void *);
 
 /* NO C-NAMED FACE for Particle::SimpleCallback::SpawnParticles -- slot 0 of the
    SimpleCallback, SplashCallback, BubbleCallback and FitWaterSimpleCallback
@@ -51,7 +51,7 @@ void _ZN8Particle14SimpleCallback14SpawnParticlesERNS_6SystemE(void *, void *);
    METHOD face for it is below, outside this extern "C" block. */
 
 /* slot 0 of the CheckLavaCallback vtable */
-void _ZN8Particle17CheckLavaCallback14SpawnParticlesERNS_6SystemE(void *self,
+void _ZN5dPa_c7level_c20checkYoganCallback_c14SpawnParticlesERN8Particle6SystemE(void *self,
                                                                   void *sys)
 {
     ((Particle::CheckLavaCallback *)self)
@@ -59,7 +59,7 @@ void _ZN8Particle17CheckLavaCallback14SpawnParticlesERNS_6SystemE(void *self,
 }
 
 /* slot 1 of the CleanParticleCallback vtable */
-int _ZN8Particle21CleanParticleCallback8OnUpdateERNS_6SystemEb(void *self,
+int _ZN5dPa_c7level_c23cleanParticleCallback_c8OnUpdateERN8Particle6SystemEb(void *self,
                                                                void *sys,
                                                                int done)
 {
@@ -68,7 +68,7 @@ int _ZN8Particle21CleanParticleCallback8OnUpdateERNS_6SystemEb(void *self,
 }
 
 /* slot 1 of the CheckWaterRippleCallback vtable */
-int _ZN8Particle24CheckWaterRippleCallback8OnUpdateERNS_6SystemEb(void *self,
+int _ZN5dPa_c7level_c26checkWaterRippleCallback_c8OnUpdateERN8Particle6SystemEb(void *self,
                                                                   void *sys,
                                                                   int b)
 {
@@ -91,7 +91,7 @@ void *_ZN6Memory8AllocateEj(unsigned size) { return Memory::Allocate(size); }
 /* cstd::div wears its pre-naming address in func_0204dab4, the effect VM's
    scale ramp: `0x1000 - func_02052f4c(f2e << 12, f2c)`. 0x02052f4c IS
    cstd::div -- symbols.txt names it, that source file just predates the
-   naming. The body is src/_ZN4cstd3divEii.c in this gate's slice (it drives
+   naming. The body is src/_ZN4cstd3divEii.cpp in this gate's slice (it drives
    the DS hardware divider through raw MMIO, so it needs the hostgen
    routing); this is only the name the caller spells. */
 int _ZN4cstd3divEii(int a, int b);
@@ -131,7 +131,7 @@ void func_0205256c(int *m, int s, int c)
    this on its base, and the host copy is what actually runs */
 void Particle::SimpleCallback::SpawnParticles(System &sys)
 {
-    _ZN8Particle14SimpleCallback14SpawnParticlesERNS_6SystemE(this, &sys);
+    _ZN5dPa_c7level_c16simpleCallback_c14SpawnParticlesERN8Particle6SystemE(this, &sys);
 }
 
 // ---- the lifecycle seams ---------------------------------------------------

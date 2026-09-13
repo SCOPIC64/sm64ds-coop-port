@@ -1,5 +1,5 @@
-/* HOST COPY of _ZN3Boo8BehaviorEv (ov063 0x0211b0a4, 0x7e4 bytes), the Boo's
- * per-frame state spine -- vtable slot 6 of _ZTV3Boo, shared by Boo (209) and
+/* HOST COPY of _ZN7daTrs_c8BehaviorEv (ov063 0x0211b0a4, 0x7e4 bytes), the Boo's
+ * per-frame state spine -- vtable slot 6 of _ZTV7daTrs_c, shared by Boo (209) and
  * BigBoo (210). NOT matched in src/ (no TU of this name exists on cons or
  * main as of 2026-08-13).
  *
@@ -40,27 +40,27 @@ typedef s32 Fix12;
 typedef struct 
 {
   char pad[0x50];
-} RaycastGround;
+} dBgCh_Gnd;
 extern void func_0200f760(void *a, void *b);
-extern void *_ZN5Actor10FindWithIDEj(u32 id);
-extern s32 _ZN8CapEnemy11GetCapStateEv(void *c);
-extern s32 _ZN5Enemy26UpdateKillByInvincibleCharER12WithMeshClsnR9ModelAnimj(void *c, void *w, void *m, u32 j);
-extern void _ZN5Actor8PoofDustEv(void *c);
-extern void _ZN5Actor24KillAndTrackInDeathTableEv(void *c);
+extern void *_ZN8dActor_c10FindWithIDEj(u32 id);
+extern s32 _ZN11dCapEnemy_c11GetCapStateEv(void *c);
+extern s32 _ZN12dEnemyBase_c26UpdateKillByInvincibleCharER10dBgCh_ActrR9ModelAnimj(void *c, void *w, void *m, u32 j);
+extern void _ZN8dActor_c8PoofDustEv(void *c);
+extern void _ZN8dActor_c24KillAndTrackInDeathTableEv(void *c);
 extern void func_0201267c(u32 a, void *b);
-extern void *_ZN8CapEnemy15RespawnIfHasCapEv(void *c);
+extern void *_ZN11dCapEnemy_c15RespawnIfHasCapEv(void *c);
 extern u8 IsAreaShowing(s8 idx);
 extern s32 func_ov063_02116190(void *c);
-extern void _ZN8CapEnemy12Unk_02005d94Ev(void *c);
-extern s32 _ZN5Enemy14UpdateYoshiEatER12WithMeshClsn(void *c, void *w);
-extern s32 _ZN8CapEnemy16GetCapEatenOffItERK7Vector3(void *c, const Vector3 *v);
+extern void _ZN11dCapEnemy_c12Unk_02005d94Ev(void *c);
+extern s32 _ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr(void *c, void *w);
+extern s32 _ZN11dCapEnemy_c16GetCapEatenOffItERK7Vector3(void *c, const Vector3 *v);
 extern void func_ov063_02119ab0(void *c);
-extern s32 _ZN6Player11ShowMessageER9ActorBasejPK7Vector3jj(void *thiz, void *ab, u32 id, const void *pos, u32 e, u32 f);
+extern s32 _ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(void *thiz, void *ab, u32 id, const void *pos, u32 e, u32 f);
 extern s32 _ZN6Player12GetTalkStateEv(void *c);
 extern void _ZN6Player9DropActorEv(void *c);
 extern void func_ov063_021166ac(void *c);
-extern void _ZN12CylinderClsn5ClearEv(void *c);
-extern void *_ZN5Actor13ClosestPlayerEv(void *c);
+extern void _ZN5dCc_c5ClearEv(void *c);
+extern void *_ZN8dActor_c13ClosestPlayerEv(void *c);
 extern s16 Vec3_HorzAngle(const Vector3 *a, const Vector3 *b);
 extern Fix12 Vec3_HorzDist(const Vector3 *a, const Vector3 *b);
 extern void func_ov063_021192d4(void *c);
@@ -73,24 +73,24 @@ extern void func_ov063_021172a8(void *c);
 extern void func_ov063_02119274(void *c);
 extern void func_ov063_02116fac(void *c);
 extern u16 DecIfAbove0_Short(void *p);
-extern void _ZN5Actor9UpdatePosEP12CylinderClsn(void *c, void *cyl);
-extern void _ZN13RaycastGroundC1Ev(RaycastGround *rc);
-extern void _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(RaycastGround *rc, const Vector3 *v, void *actor);
-extern s32 _ZN13RaycastGround10DetectClsnEv(RaycastGround *rc);
-extern void _ZN5Enemy12UpdateWMClsnER12WithMeshClsnj(void *c, void *w, u32 j);
-extern void _ZN13RaycastGroundD1Ev(RaycastGround *rc);
+extern void _ZN8dActor_c9UpdatePosEP5dCc_c(void *c, void *cyl);
+extern void _ZN9dBgCh_GndC1Ev(dBgCh_Gnd *rc);
+extern void _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(dBgCh_Gnd *rc, const Vector3 *v, void *actor);
+extern s32 _ZN9dBgCh_Gnd10DetectClsnEv(dBgCh_Gnd *rc);
+extern void _ZN12dEnemyBase_c12UpdateWMClsnER10dBgCh_Actrj(void *c, void *w, u32 j);
+extern void _ZN9dBgCh_GndD1Ev(dBgCh_Gnd *rc);
 extern void _ZN9Animation7AdvanceEv(void *c);
-extern void _ZN25MovingCylinderClsnWithPos21SetPosRelativeToActorERK7Vector3(void *c, void *v);
-extern void _ZN12CylinderClsn6UpdateEv(void *c);
-s32 _ZN3Boo8BehaviorEv(void *arg0)
+extern void _ZN10dCcAcPos_c21SetPosRelativeToActorERK7Vector3(void *c, void *v);
+extern void _ZN5dCc_c6UpdateEv(void *c);
+s32 _ZN7daTrs_c8BehaviorEv(void *arg0)
 {
   char *c = (char *) arg0;
   Vector3 pv;
   Vector3 v1;
   Vector3 v2;
   Vector3 ve;
-  RaycastGround rc1;
-  RaycastGround rc2;
+  dBgCh_Gnd rc1;
+  dBgCh_Gnd rc2;
   s32 t;
   void *p;
   char *q;
@@ -107,7 +107,7 @@ s32 _ZN3Boo8BehaviorEv(void *arg0)
   func_0200f760(c, c + 0x184);
   if ((*((u32 *) (c + 0x49c))) != 0)
   {
-    *((void **) (c + 0x48c)) = _ZN5Actor10FindWithIDEj(*((u32 *) (c + 0x49c)));
+    *((void **) (c + 0x48c)) = _ZN8dActor_c10FindWithIDEj(*((u32 *) (c + 0x49c)));
     q = *((char **) (c + 0x48c));
     if (q != 0)
     {
@@ -117,19 +117,19 @@ s32 _ZN3Boo8BehaviorEv(void *arg0)
     }
     *((void **) (c + 0x48c)) = 0;
   }
-  if (_ZN8CapEnemy11GetCapStateEv(c) == 0)
+  if (_ZN11dCapEnemy_c11GetCapStateEv(c) == 0)
   {
     return 1;
   }
-  t = _ZN5Enemy26UpdateKillByInvincibleCharER12WithMeshClsnR9ModelAnimj(c, c + 0x1c4, c + 0x380, 0);
+  t = _ZN12dEnemyBase_c26UpdateKillByInvincibleCharER10dBgCh_ActrR9ModelAnimj(c, c + 0x1c4, c + 0x380, 0);
   if (t != 0)
   {
     if (t == 2)
     {
-      _ZN5Actor8PoofDustEv(c);
+      _ZN8dActor_c8PoofDustEv(c);
       if ((*((s32 *) (c + 0x5a4))) != 0)
       {
-        _ZN5Actor24KillAndTrackInDeathTableEv(c);
+        _ZN8dActor_c24KillAndTrackInDeathTableEv(c);
         func_0201267c(0xd5, c + 0x74);
         if (((*((u8 *) (c + 0x113))) & 0xf) < 6)
         {
@@ -145,7 +145,7 @@ s32 _ZN3Boo8BehaviorEv(void *arg0)
           *((s16 *) (c + 0x8c)) = *((s16 *) r2);
           *((s16 *) (c + 0x8e)) = *((s16 *) (r2 + 2));
           *((s16 *) (c + 0x90)) = *((s16 *) (r2 + 4));
-          p = _ZN8CapEnemy15RespawnIfHasCapEv(c);
+          p = _ZN11dCapEnemy_c15RespawnIfHasCapEv(c);
           if (p != 0)
           {
             fp = (u16 *) (((long long) (((char *) p) + 0x5d4)) & 0xFFFFFFFFFFFFFFFFLL);
@@ -195,8 +195,8 @@ s32 _ZN3Boo8BehaviorEv(void *arg0)
       return 1;
     }
   }
-  _ZN8CapEnemy12Unk_02005d94Ev(c);
-  t = _ZN5Enemy14UpdateYoshiEatER12WithMeshClsn(c, c + 0x1c4);
+  _ZN11dCapEnemy_c12Unk_02005d94Ev(c);
+  t = _ZN12dEnemyBase_c14UpdateYoshiEatER10dBgCh_Actr(c, c + 0x1c4);
   if (t != 0)
   {
     if (t == 1)
@@ -204,7 +204,7 @@ s32 _ZN3Boo8BehaviorEv(void *arg0)
       ve.x = *((s32 *) (c + 0x564));
       ve.y = *((s32 *) (c + 0x568));
       ve.z = *((s32 *) (c + 0x56c));
-      if (_ZN8CapEnemy16GetCapEatenOffItERK7Vector3(c, &ve) != 0)
+      if (_ZN11dCapEnemy_c16GetCapEatenOffItERK7Vector3(c, &ve) != 0)
       {
         return 1;
       }
@@ -231,7 +231,7 @@ s32 _ZN3Boo8BehaviorEv(void *arg0)
       switch (st)
       {
         case 0:
-          if (_ZN6Player11ShowMessageER9ActorBasejPK7Vector3jj(pl, c, 0x15a, 0, 0, 2) != 0)
+          if (_ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh(pl, c, 0x15a, 0, 0, 2) != 0)
         {
           bp = (u8 *) ((((int) c) + 0x5d1) & 0xFFFFFFFFFFFFFFFF);
           *bp = (*bp) + 1;
@@ -252,14 +252,14 @@ s32 _ZN3Boo8BehaviorEv(void *arg0)
 
     }
     func_ov063_021166ac(c);
-    _ZN12CylinderClsn5ClearEv(c + 0x184);
+    _ZN5dCc_c5ClearEv(c + 0x184);
     return 1;
   }
   block_39:
   *((u8 *) (c + 0x5d1)) = 0;
 
   {
-    void *plr = _ZN5Actor13ClosestPlayerEv(c);
+    void *plr = _ZN8dActor_c13ClosestPlayerEv(c);
     *((void **) (c + 0x484)) = plr;
     plr = *((void **) (c + 0x484));
     if (plr != 0)
@@ -348,21 +348,21 @@ s32 _ZN3Boo8BehaviorEv(void *arg0)
   }
   if ((*((u8 *) (c + 0x5cf))) != 3)
   {
-    _ZN5Actor9UpdatePosEP12CylinderClsn(c, c + 0x184);
+    _ZN8dActor_c9UpdatePosEP5dCc_c(c, c + 0x184);
     func_ov063_02119ab0(c);
     if (((((u32) ((*((u16 *) (c + 0x5d4))) << 0x1f)) >> 0x1f) != 0) && ((*((s32 *) (c + 0x64))) < (-0x12c000)))
     {
       *((s32 *) (c + 0x64)) = -0x12c000;
     }
-    _ZN13RaycastGroundC1Ev(&rc1);
+    _ZN9dBgCh_GndC1Ev(&rc1);
     y = *((s32 *) (c + 0x60));
     z = *((s32 *) (c + 0x64));
     x = *((s32 *) (c + 0x5c));
     v1.x = x;
     v1.y = y + 0x32000;
     v1.z = z;
-    _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(&rc1, &v1, c);
-    if (_ZN13RaycastGround10DetectClsnEv(&rc1) != 0)
+    _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(&rc1, &v1, c);
+    if (_ZN9dBgCh_Gnd10DetectClsnEv(&rc1) != 0)
     {
       s32 ground = (*((s32 *) (((char *) (&rc1)) + 0x44))) + 0x2000;
       if ((*((s32 *) (c + 0x60))) < ground)
@@ -372,14 +372,14 @@ s32 _ZN3Boo8BehaviorEv(void *arg0)
     }
     if (((*((u8 *) (c + 0x5cf))) != 4) && ((*((u8 *) (c + 0x5cf))) != 0xb))
     {
-      _ZN13RaycastGroundC1Ev(&rc2);
+      _ZN9dBgCh_GndC1Ev(&rc2);
       y = *((s32 *) (c + 0x60));
       z = *((s32 *) (c + 0x64));
       x = *((s32 *) (c + 0x5c));
       v2.x = x;
       v2.y = y + 0x32000;
       v2.z = z;
-      _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(&rc2, &v2, c);
+      _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(&rc2, &v2, c);
       d1 = (int) ((*((u16 *) (c + 0xc))) == 0xd1);
       if (d1 != 0)
       {
@@ -387,7 +387,7 @@ s32 _ZN3Boo8BehaviorEv(void *arg0)
         {
           if ((((u32) ((*((u16 *) (c + 0x5d4))) << 0x1a)) >> 0x1f) != 0)
           {
-            if ((_ZN13RaycastGround10DetectClsnEv(&rc2) == 0) || (((*((s32 *) (c + 0x60))) - (*((s32 *) (((char *) (&rc2)) + 0x44)))) > 0x12c000))
+            if ((_ZN9dBgCh_Gnd10DetectClsnEv(&rc2) == 0) || (((*((s32 *) (c + 0x60))) - (*((s32 *) (((char *) (&rc2)) + 0x44)))) > 0x12c000))
             {
               *((s32 *) (c + 0x5c)) = *((s32 *) (c + 0x528));
               *((s32 *) (c + 0x60)) = *((s32 *) (c + 0x52c));
@@ -413,7 +413,7 @@ s32 _ZN3Boo8BehaviorEv(void *arg0)
       else
       {
         ray_e:
-        if ((_ZN13RaycastGround10DetectClsnEv(&rc2) != 0) && (((*((s32 *) (c + 0x60))) - (*((s32 *) (((char *) (&rc2)) + 0x44)))) < 0x12c000))
+        if ((_ZN9dBgCh_Gnd10DetectClsnEv(&rc2) != 0) && (((*((s32 *) (c + 0x60))) - (*((s32 *) (((char *) (&rc2)) + 0x44)))) < 0x12c000))
         {
           fp = (u16 *) (((long long) (((char *) c) + 0x5d4)) & 0xFFFFFFFFFFFFFFFFLL);
           *fp = (*fp) | 0x20;
@@ -423,21 +423,21 @@ s32 _ZN3Boo8BehaviorEv(void *arg0)
         }
 
       }
-      _ZN5Enemy12UpdateWMClsnER12WithMeshClsnj(c, c + 0x1c4, 0);
-      _ZN13RaycastGroundD1Ev(&rc2);
+      _ZN12dEnemyBase_c12UpdateWMClsnER10dBgCh_Actrj(c, c + 0x1c4, 0);
+      _ZN9dBgCh_GndD1Ev(&rc2);
     }
-    _ZN13RaycastGroundD1Ev(&rc1);
+    _ZN9dBgCh_GndD1Ev(&rc1);
   }
   if (((((*((u8 *) (c + 0x5cc))) != 3) && ((*((u8 *) (c + 0x5cc))) != 3)) && ((*((u8 *) (c + 0x5cc))) != 3)) && ((*((u8 *) (c + 0x5cc))) != 3))
   {
     _ZN9Animation7AdvanceEv(c + 0x3d0);
   }
   func_ov063_021166ac(c);
-  _ZN12CylinderClsn5ClearEv(c + 0x184);
+  _ZN5dCc_c5ClearEv(c + 0x184);
   if ((*((u8 *) (c + 0x5c8))) == 0xff)
   {
-    _ZN25MovingCylinderClsnWithPos21SetPosRelativeToActorERK7Vector3(c + 0x184, c + 0x534);
-    _ZN12CylinderClsn6UpdateEv(c + 0x184);
+    _ZN10dCcAcPos_c21SetPosRelativeToActorERK7Vector3(c + 0x184, c + 0x534);
+    _ZN5dCc_c6UpdateEv(c + 0x184);
   }
   return 1;
 }

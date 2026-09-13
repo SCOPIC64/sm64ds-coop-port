@@ -165,7 +165,7 @@ void (*g_vblank_handler)(void);     // handler for mask 0x1, the VBlank edge
 
 // The two DS registers the HBlank gate reads. Both are ordinary latches in the
 // mapped I/O window (ntr/mmio.h mechanism 1), written by the ROM's own arming
-// code: IME by func_0202f708's save/restore bracket, DISPSTAT bit 4 by
+// code: IME by _ZN7dWipe_c14SetForwardTimeEj's save/restore bracket, DISPSTAT bit 4 by
 // func_02053c10.
 constexpr uintptr_t REG_IME = 0x04000208u;
 constexpr uintptr_t REG_DISPSTAT = 0x04000004u;
@@ -192,7 +192,7 @@ extern "C" void *_ZN3IRQ13GetIRQHandlerEj(unsigned mask) {
 //
 // MASK 1 IS THE THIRD, AND IT IS RUN link100 BOOT-PLAN RUNG D1 (lane R3D).
 // src/func_0201a4e4.c:14 -- which hal/boot_os.cpp:627 already calls at boot --
-// registers src/_ZN3IRQ13VBlankHandlerEv.c on mask 1, and until this line that
+// registers src/_ZN3IRQ13VBlankHandlerEv.cpp on mask 1, and until this line that
 // registration went on the floor: the handler was LINKED (walk_window.map
 // 0001:00280570) and dispatched by nobody, so the ROM's own end-of-frame wake
 //     if (data_0209d514 >= data_0208ee44 && data_0209d4f0 != 0)

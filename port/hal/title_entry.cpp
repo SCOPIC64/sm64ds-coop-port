@@ -8,7 +8,7 @@
  * ---- WHAT WAS ALREADY TRUE, AND IT IS NEARLY ALL OF IT --------------------
  *
  * Every step of the handoff is the ROM's own matched code and every step of it
- * already runs. src/func_ov007_020cc2cc.c is dScDSMT_c::Behavior, and its
+ * already runs. src/_ZN9dScDSMT_c8BehaviorEv.cpp is dScDSMT_c::Behavior, and its
  * save-file branch is four statements:
  *
  *     if ((unsigned)(result - 3) <= 2) {          // 3, 4, 5 = files A, B, C
@@ -175,7 +175,7 @@ static int g_taken;        /* did a run end by entering the adventure */
  *     title -> menu -> file select -> a slot is picked -> CUTSCENE -> adventure
  *
  * That is the ROM's own order and it is readable in two independent places.
- * src/_ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR12MeshCollider.cpp:76-98
+ * src/_ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR7dBgW_Kc.cpp:76-98
  * computes the opening's gate from game mode 0, flags2 bit 7 clear and
  * ContinueKuppaScriptIfNecessary()==0 and then calls StartIntroCutscene() --
  * and Stage::LoadClsnAndObjects runs during the LEVEL boot, which on this path

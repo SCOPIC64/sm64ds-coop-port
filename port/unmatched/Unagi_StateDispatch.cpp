@@ -65,15 +65,15 @@ void func_ov016_02111534(void *c);   /* d7c main  */
 
 /* the whole-Behavior call graph (everything except the inlined PMF dispatch) */
 unsigned short DecIfAbove0_Short(unsigned short *p);
-void _ZN5Actor9UpdatePosEP12CylinderClsn(void *self, void *cc);
-void *_ZN5Actor10FindWithIDEj(unsigned id);
-void *_ZN5Actor13ClosestPlayerEv(void *self);
+void _ZN8dActor_c9UpdatePosEP5dCc_c(void *self, void *cc);
+void *_ZN8dActor_c10FindWithIDEj(unsigned id);
+void *_ZN8dActor_c13ClosestPlayerEv(void *self);
 int Vec3_Dist(const void *a, const void *b);
-void _ZN9ActorBase18MarkForDestructionEv(void *self);
-void *_ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(unsigned a, unsigned b,
+void _ZN7fBase_c18MarkForDestructionEv(void *self);
+void *_ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(unsigned a, unsigned b,
         const void *pos, const void *rot, int e, int f);
-void _ZN12CylinderClsn5ClearEv(void *self);
-void _ZN12CylinderClsn6UpdateEv(void *self);
+void _ZN5dCc_c5ClearEv(void *self);
+void _ZN5dCc_c6UpdateEv(void *self);
 void _ZN14BlendModelAnim7AdvanceEv(void *self);
 void func_ov016_02111c40(void *c);
 void func_ov016_02111284(void *c);

@@ -121,7 +121,7 @@ SND1_RUN(".dsstate$yzsnd06", data_020a6480, 4, 4);
  * spelling by hal/player_bridges.cpp, hal/cxx_aliases.cpp, hal/auto_bss.cpp,
  * hal/actor_vtables.cpp and this file. One object, two spellings, which is
  * exactly what /alternatename is for and what hal/actor_classes_bbh.cpp's
- * data_02082128 row and hal/actor_base_tables_ov002.cpp's two SharedFilePtr
+ * IDENTITY_MATRIX4X3 row and hal/actor_base_tables_ov002.cpp's two SharedFilePtr
  * rows already do. port/tools/alternatename_guard.py checks every one of them
  * fired (LHS and RHS at the same address) on every build.
  *

@@ -65,7 +65,7 @@
 // already have decompiled bodies. Nothing had to be invented to host this.
 //
 //   0x0203d744  _ZN4cstd4sqrtEy              x2   integer sqrt of a u64. BODY is
-//                                                 src/_ZN4cstd4sqrtEy.c (it is
+//                                                 src/_ZN4cstd4sqrtEy.cpp (it is
 //                                                 the hardware divider: writes
 //                                                 0x40002b8, spins on 0x40002b0).
 //                                                 src/func_0203d5dc.c only
@@ -88,14 +88,14 @@
 //    `_ZN6Player24St_SlideKickRecover_InitEv`. It calls neither. All four are
 //    plain internal branches; the names are ov002 symbols aliasing ov006 code.
 //
-// 2. The immediate neighbour, `_ZN6Player16St_WallJump_InitEv` at 0x020e17f8,
+// 2. The immediate neighbour, `func_ov006_020e17f8` at 0x020e17f8,
 //    is not the counter-evidence it looks like -- but the problem is NOT that
 //    the config name is wrong. 0x020e17f8 in ov002 really is
 //    Player::St_WallJump_Init, and ov002's symbol table is right about its own
 //    overlay. The defect is downstream of that: because ov002 and ov006 overlap
 //    in address space (trap 1), the src BODY carrying that name was decompiled
 //    from the bytes at 0x020e17f8 in ov006, which are curling's. It shows:
-//    src/_ZN6Player16St_WallJump_InitEv.cpp reads this+0x4eb0, +0x4eb4 and
+//    src/func_ov006_020e17f8.cpp reads this+0x4eb0, +0x4eb4 and
 //    +0x4ee5, dScMgCurling_c fields far past sizeof(Player) = 0x768, as that
 //    file's own banner notes.
 //

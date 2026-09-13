@@ -1,7 +1,7 @@
 /* Host implementation of the cstd fixed-point divide.
  *
  * On the DS, cstd::fdiv feeds the hardware divider (fdiv_async writes the
- * DIV registers, fdiv_result spins on DIV_BUSY) -- src/_ZN4cstd4fdivEii.c is
+ * DIV registers, fdiv_result spins on DIV_BUSY) -- src/_ZN4cstd4fdivEii.cpp is
  * a thin wrapper over MMIO and cannot run on a host. The operation itself is
  * just a 20.12 divide: (a / b) in Fix12 is (a << 12) / b.
  *

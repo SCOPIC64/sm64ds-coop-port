@@ -5,10 +5,10 @@
 // exactly one row.
 //
 //   id   name               placed on L45  factory                 SpawnInfo
-//   198  GOOMBOSS            1             Goomboss_Spawn          0x02122e78
-//   199  EXPLOSION_GOOMBA    0             ExplosionGoomba_Spawn   0x02122e94
+//   198  GOOMBOSS            1             daKuriKing_c_classInit_KURIKING          0x02122e78
+//   199  EXPLOSION_GOOMBA    0             daKuriKing_c_classInit_KURIKING_VANISH   0x02122e94
 //
-// src/Goomboss_Spawn.cpp and src/ExplosionGoomba_Spawn.cpp are the same body
+// src/d_a_kuri_king_kuriking.cpp and src/d_a_kuri_king_kuriking_vanish.cpp are the same body
 // twice (0xd4 each): both allocate 0x610, both store _ZTV8Goomboss into p[0],
 // and both run the identical member-construction sequence
 // (4x MovingCylinderClsnWithPos at +0x110 stride 0x40, ModelAnim at +0x210,
@@ -146,7 +146,7 @@
    Actor::OnAimedAtWithEggReturnVec. The ROM word in slot 30 of every vtable
    this file fills IS the arm9 base body 0x020100dc (checked against
    config/<module>/relocs.txt at vtable+30*4), and that body is now in the
-   link from src/_ZN5Actor25OnAimedAtWithEggReturnVecEv.cpp on slice_gate50.
+   link from src/_ZN8dActor_c25OnAimedAtWithEggReturnVecEv.cpp on slice_gate50.
    The three-parameter __fastcall is the sret contract MSVC uses for a
    thiscall member returning a 12-byte struct: this in ecx, the hidden result
    pointer the one (callee-popped) stack argument. Same shape as whomp_s30. */
@@ -154,28 +154,28 @@ extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
 #include "dsstate_seg.h"
 #include <cstdlib>
 
-#include "Actor.h"
-#include "ActorBase.h"
+#include "dActor_c.h"
+#include "fBase_c.h"
 #include "Goomboss.h"
 
 extern "C" {
 /* the arm9 shared half */
-int _ZN5Actor19BeforeInitResourcesEv(void *self);              /* slot 1  */
-void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned a);  /* slot 2  */
-int _ZN5Actor14BeforeBehaviorEv(void *self);                   /* slot 7  */
-int _ZN5Actor12BeforeRenderEv(void *self);                     /* slot 10 */
-int _ZN5Actor13OnYoshiTryEatEv(void *self);                    /* slot 18 */
-void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p);   /* slot 19 */
-int _ZN5Actor9Virtual50Ev(void *self);                         /* slot 20 */
-void _ZN5Actor15OnGroundPoundedERS_(void *self, void *o);      /* slot 21 */
-void _ZN5Actor11OnAttacked1ERS_(void *self, void *o);          /* slot 22 */
-void _ZN5Actor11OnAttacked2ERS_(void *self, void *o);          /* slot 23 */
-void _ZN5Actor8OnKickedERS_(void *self, void *o);              /* slot 24 */
-void _ZN5Actor8OnPushedERS_(void *self, void *o);              /* slot 25 */
-void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* slot 26 */
-void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* slot 27 */
-void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* slot 28 */
-int _ZN5Actor16OnAimedAtWithEggEv(void *self);                     /* slot 29 */
+int _ZN8dActor_c19BeforeInitResourcesEv(void *self);              /* slot 1  */
+void _ZN8dActor_c18AfterInitResourcesEj(void *self, unsigned a);  /* slot 2  */
+int _ZN8dActor_c14BeforeBehaviorEv(void *self);                   /* slot 7  */
+int _ZN8dActor_c12BeforeRenderEv(void *self);                     /* slot 10 */
+int _ZN8dActor_c13OnYoshiTryEatEv(void *self);                    /* slot 18 */
+void _ZN8dActor_c13OnTurnIntoEggER6Player(void *self, void *p);   /* slot 19 */
+int _ZN8dActor_c9Virtual50Ev(void *self);                         /* slot 20 */
+void _ZN8dActor_c15OnGroundPoundedERS_(void *self, void *o);      /* slot 21 */
+void _ZN8dActor_c11OnAttacked1ERS_(void *self, void *o);          /* slot 22 */
+void _ZN8dActor_c11OnAttacked2ERS_(void *self, void *o);          /* slot 23 */
+void _ZN8dActor_c8OnKickedERS_(void *self, void *o);              /* slot 24 */
+void _ZN8dActor_c8OnPushedERS_(void *self, void *o);              /* slot 25 */
+void _ZN8dActor_c24OnHitByCannonBlastedCharERS_(void *self, void *o); /* slot 26 */
+void _ZN8dActor_c15OnHitByMegaCharER6Player(void *self, void *p);     /* slot 27 */
+void _ZN8dActor_c19OnHitFromUnderneathERS_(void *self, void *o);      /* slot 28 */
+int _ZN8dActor_c16OnAimedAtWithEggEv(void *self);                     /* slot 29 */
 
 const char *port_actor_class_name(unsigned id);   /* hal/actor_registry */
 void port_actor_slot_decline(const char *what);   /* func_02043fdc_hostcopy.cpp */
@@ -201,14 +201,14 @@ int _ZN8Goomboss8BehaviorEv(void *self);             /* slot 6, face below  */
 int _ZN8Goomboss6RenderEv(void *self);               /* slot 9, HOST COPY  */
 int _ZN8GoombossD1Ev(void *self);                    /* slot 16 */
 int _ZN8GoombossD0Ev(void *self);                    /* slot 17 */
-void *Goomboss_Spawn(void);                          /* id 198 */
-void *ExplosionGoomba_Spawn(void);                   /* id 199 */
-extern unsigned char Goomboss_SpawnInfo[];           /* mount, +4 = 198 */
-extern unsigned char ExplosionGoomba_SpawnInfo[];    /* mount, +4 = 199 */
+void *daKuriKing_c_classInit_KURIKING(void);                          /* id 198 */
+void *daKuriKing_c_classInit_KURIKING_VANISH(void);                   /* id 199 */
+extern unsigned char g_profile_KURIKING[];           /* mount, +4 = 198 */
+extern unsigned char g_profile_KURIKING_VANISH[];    /* mount, +4 = 199 */
 
 /* the host vtable, excluded from the mount along with its own prologue.
-   THIRTY-ONE slots. The name is C linkage because src/_ZN8GoombossD1Ev.c and
-   src/_ZN8GoombossD0Ev.c are .c files that spell it `extern int
+   THIRTY-ONE slots. The name is C linkage because src/_ZN8GoombossD1Ev.cpp and
+   src/_ZN8GoombossD0Ev.cpp are .c files that spell it `extern int
    _ZTV8Goomboss[]` / `extern void *_ZTV8Goomboss[]`, and both factories store
    it as `void **`. One host object, three spellings, one decorated name. */
 DSSTATE_BEGIN
@@ -331,7 +331,8 @@ extern unsigned char data_ov074_02122f38[];   /* the file table's column 1 */
 #pragma comment(linker, "/alternatename:?data_ov074_02122f38@@3PADA=_data_ov074_02122f38")
 #pragma comment(linker, "/alternatename:?data_ov074_02122f3c@@3PADA=_data_ov074_02122f3c")
 #pragma comment(linker, "/alternatename:?LoadFile@Model@@SAXAAUSharedFilePtr@@@Z=__ZN5Model8LoadFileER13SharedFilePtr")
-#pragma comment(linker, "/alternatename:?Prepare@MaterialChanger@@SAXAAUBMD_File@@AAUBMA_File@@@Z=__ZN15MaterialChanger7PrepareER8BMD_FileR8BMA_File")
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync). DEFEATED: the left hand side is a real definition in this link now (_ZN15MaterialChanger7PrepareER8BMD_FileR8BMA_File.cpp.obj), so the directive is inert and alternatename_guard fails on it. */
+// #pragma comment(linker, "/alternatename:?Prepare@MaterialChanger@@SAXAAUBMD_File@@AAUBMA_File@@@Z=__ZN15MaterialChanger7PrepareER8BMD_FileR8BMA_File")
 #pragma comment(linker, "/alternatename:?data_ov074_0212292c@@3PAPAUSharedFilePtr@@A=_data_ov074_0212292c")
 #pragma comment(linker, "/alternatename:?data_ov084_0213089c@@3USharedFilePtr@@A=_data_ov084_0213089c")
 #pragma comment(linker, "/alternatename:?data_ov084_02130cc8@@3USharedFilePtr@@A=_data_ov084_02130cc8")
@@ -355,11 +356,11 @@ extern unsigned char data_ov074_02122f38[];   /* the file table's column 1 */
    the join is the ROM ADDRESS, which is the only thing both lines agree on:
 
      0x02010ad8  _ZN8dActor_c13ClosestPlayerEv
-              -> _ZN5Actor13ClosestPlayerEv
+              -> _ZN8dActor_c13ClosestPlayerEv
      0x020c4fa0  _ZN6Player9StartTalkER7fBase_cb
-              -> _ZN6Player9StartTalkER9ActorBaseb
+              -> _ZN6Player9StartTalkER7fBase_cb
      0x020c4ec0  _ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh
-              -> _ZN6Player11ShowMessageER9ActorBasejPK7Vector3jj
+              -> _ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh
 
    Bridged rather than renamed at the source so the two lines reconcile without
    a conflict, which is this tree's standing rule for a propagated body.
@@ -387,9 +388,6 @@ extern unsigned char data_ov074_02122f38[];   /* the file table's column 1 */
    reason the bridge exists -- so no alias here can be defeated by a real
    definition, and port/tools/alternatename_guard.py fails the build post-link
    if that ever stops being true. */
-#pragma comment(linker, "/alternatename:__ZN8dActor_c13ClosestPlayerEv=__ZN5Actor13ClosestPlayerEv")
-#pragma comment(linker, "/alternatename:__ZN6Player9StartTalkER7fBase_cb=__ZN6Player9StartTalkER9ActorBaseb")
-#pragma comment(linker, "/alternatename:__ZN6Player11ShowMessageER7fBase_cjPK7Vector3hh=__ZN6Player11ShowMessageER9ActorBasejPK7Vector3jj")
 
 // ============================================================================
 // THE LEVEL-FILE SEAT: TWENTY WORDS THAT POINT INTO ov053
@@ -499,7 +497,7 @@ void ov74_missing(void *c, const char *sym, const char *what, int *said)
         *said = 1;
         std::fprintf(stderr,
                      "UNHOSTED: %s (%s) HAS NO MATCHED BODY -- no delink block "
-                     "and no src file anywhere in the tree. Actor id %u %s "
+                     "and no src file anywhere in the tree. dActor_c id %u %s "
                      "reached it. ONE of ov074's 56 function symbols is in "
                      "this state; see port/slice_ov074.txt section 3.\n",
                      sym, what, id, port_actor_class_name(id));
@@ -635,51 +633,51 @@ OV74_TRAP(13) OV74_TRAP(14)
 #undef OV74_TRAP
 
 static int __fastcall ov74_binit(void *s, void *)
-{ return _ZN5Actor19BeforeInitResourcesEv(s); }
+{ return _ZN8dActor_c19BeforeInitResourcesEv(s); }
 static void __fastcall ov74_ainit(void *s, void *, unsigned a)
-{ _ZN5Actor18AfterInitResourcesEj(s, a); }
+{ _ZN8dActor_c18AfterInitResourcesEj(s, a); }
 static int __fastcall ov74_bclean(void *s, void *)
-{ return ((Actor *)s)->Actor::BeforeCleanupResources(); }
+{ return ((dActor_c *)s)->dActor_c::BeforeCleanupResources(); }
 static void __fastcall ov74_aclean(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterCleanupResources(a); }
+{ ((fBase_c *)s)->fBase_c::AfterCleanupResources(a); }
 static int __fastcall ov74_bbeh(void *s, void *)
-{ return _ZN5Actor14BeforeBehaviorEv(s); }
+{ return _ZN8dActor_c14BeforeBehaviorEv(s); }
 static void __fastcall ov74_abeh(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+{ ((fBase_c *)s)->fBase_c::AfterBehavior(a); }
 static int __fastcall ov74_bren(void *s, void *)
-{ return _ZN5Actor12BeforeRenderEv(s); }
+{ return _ZN8dActor_c12BeforeRenderEv(s); }
 static void __fastcall ov74_aren(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterRender(a); }
+{ ((fBase_c *)s)->fBase_c::AfterRender(a); }
 /* slot 12 is 0x02043ac0 in the ROM table -- ActorBase's own body, not an
    override. */
 static int __fastcall ov74_pdes(void *s, void *)
-{ ((ActorBase *)s)->ActorBase::OnPendingDestroy(); return 0; }
+{ ((fBase_c *)s)->fBase_c::OnPendingDestroy(); return 0; }
 static int __fastcall ov74_heap(void *s, void *)
-{ return ((ActorBase *)s)->ActorBase::OnHeapCreated(); }
+{ return ((fBase_c *)s)->fBase_c::OnHeapCreated(); }
 static int __fastcall ov74_yoshi(void *s, void *)
-{ return _ZN5Actor13OnYoshiTryEatEv(s); }
+{ return _ZN8dActor_c13OnYoshiTryEatEv(s); }
 static int __fastcall ov74_turn_egg(void *s, void *, void *p)
-{ _ZN5Actor13OnTurnIntoEggER6Player(s, p); return 0; }
+{ _ZN8dActor_c13OnTurnIntoEggER6Player(s, p); return 0; }
 static int __fastcall ov74_v50(void *s, void *)
-{ return _ZN5Actor9Virtual50Ev(s); }
+{ return _ZN8dActor_c9Virtual50Ev(s); }
 static int __fastcall ov74_pounded(void *s, void *, void *o)
-{ _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
+{ _ZN8dActor_c15OnGroundPoundedERS_(s, o); return 0; }
 static int __fastcall ov74_atk1(void *s, void *, void *o)
-{ _ZN5Actor11OnAttacked1ERS_(s, o); return 0; }
+{ _ZN8dActor_c11OnAttacked1ERS_(s, o); return 0; }
 static int __fastcall ov74_atk2(void *s, void *, void *o)
-{ _ZN5Actor11OnAttacked2ERS_(s, o); return 0; }
+{ _ZN8dActor_c11OnAttacked2ERS_(s, o); return 0; }
 static int __fastcall ov74_kicked(void *s, void *, void *o)
-{ _ZN5Actor8OnKickedERS_(s, o); return 0; }
+{ _ZN8dActor_c8OnKickedERS_(s, o); return 0; }
 static int __fastcall ov74_pushed(void *s, void *, void *o)
-{ _ZN5Actor8OnPushedERS_(s, o); return 0; }
+{ _ZN8dActor_c8OnPushedERS_(s, o); return 0; }
 static int __fastcall ov74_cannon(void *s, void *, void *o)
-{ _ZN5Actor24OnHitByCannonBlastedCharERS_(s, o); return 0; }
+{ _ZN8dActor_c24OnHitByCannonBlastedCharERS_(s, o); return 0; }
 static int __fastcall ov74_mega(void *s, void *, void *p)
-{ _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
+{ _ZN8dActor_c15OnHitByMegaCharER6Player(s, p); return 0; }
 static int __fastcall ov74_under(void *s, void *, void *o)
-{ _ZN5Actor19OnHitFromUnderneathERS_(s, o); return 0; }
+{ _ZN8dActor_c19OnHitFromUnderneathERS_(s, o); return 0; }
 static int __fastcall ov74_egg(void *s, void *)
-{ return _ZN5Actor16OnAimedAtWithEggEv(s); }
+{ return _ZN8dActor_c16OnAimedAtWithEggEv(s); }
 
 /* the class's own slots */
 static int __fastcall gb_init(void *s, void *)

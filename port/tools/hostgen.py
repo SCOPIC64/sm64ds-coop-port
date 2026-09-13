@@ -45,7 +45,7 @@ import sys
 # (they resolve through the mapped latch window, which is correct for reads).
 # THE TYPEDEF SPELLINGS AND THE INTEGER SUFFIX ARE BOTH PART OF THE PATTERN.
 # types.h carries vu8/vu16/vu32/vu64 (and the signed row) for exactly these
-# registers, and the decomp uses them: src/func_ov006_0210a708.c reaches
+# registers, and the decomp uses them: src/minigames/d_s_mg_single3_d_base.cpp reaches
 # LIGHT_COLOR as `*(vu32 *)0x40004ccu = 0x7fff;`. That line missed the old
 # pattern TWICE over -- `vu32` was not in the type list, and the `u` suffix on
 # the literal killed the `\b` after seven hex digits -- so the store latched
@@ -412,16 +412,19 @@ HEADER_SHADOW = {
     # linkage, the TU defines it extern "C" over Particle__SysTracker*, and
     # MSVC reads that as overloading a function with C linkage (C2733).
     "_ZN8Particle10SysTracker10InitialiseEv": "decl_Particle.h",
-    # gates 64-69, WHOMP: decl_common.h declares func_01ffb07c (void*,void*)
-    # and func_020396d0 (int*,int), the TU declares them (void*,s32*) and
-    # (void*,int) -- one register on the ROM, two C2733s to MSVC.
-    "_ZN5Whomp13InitResourcesEv": ("decl_common.h",
-                                   ("func_01ffb07c", "func_020396d0")),
+    # gates 64-69, WHOMP. RETIRED 2026-09-13 (main -> port sync, lane SYNC4).
+    # decl_common.h declared func_01ffb07c (void*,void*) and func_020396d0
+    # (int*,int) while the TU declared them (void*,s32*) and (void*,int) --
+    # one register on the ROM, two C2733s to MSVC, so the header's pair was
+    # hidden and the TU's own declarations won. main's spelling of the TU
+    # declares NEITHER locally any more (it just calls them, lines 138 and
+    # 141), so hiding the header now leaves both undeclared: C3861. The
+    # collision the entry existed for is gone with the local declarations.
     # run linkw wave 7, lane w7b, MR_I_PROJECTILE (264): decl_common.h:2793
-    # declares func_ov071_02121ba4 `(void*)` inside its extern "C" block while
-    # src/func_ov071_02121ba4.cpp defines it `(char*)`. One register on the
+    # declares _ZN8daEyBm_c10HurtPlayerEv `(void*)` inside its extern "C" block while
+    # src/game/actors/d_a_ey_bm.cpp defines it `(char*)`. One register on the
     # ROM, C2733 to MSVC -- the func_ov102_0214b248 case exactly.
-    "func_ov071_02121ba4": "decl_common.h",
+    "_ZN8daEyBm_c10HurtPlayerEv": "decl_common.h",
     # Lane RIDE-020E444C: decl_common.h:1461 declares func_ov002_020e3f90
     # `(void)` while src/func_ov002_020e3f90.c defines it `(char*)`, and
     # src/func_ov002_020e444c.c calls it through that `(void)` prototype with
@@ -432,27 +435,27 @@ HEADER_SHADOW = {
     # port/unmatched/func_ov002_020e444c_hostcopy.c.
     "func_ov002_020e444c": ("decl_common.h", ("func_ov002_020e3f90",)),
     # lane LINKMG, dScMgBase_c slots 30 and 29: decl_common.h:2352-2353 declare
-    # both `(void*)` inside its extern "C" block while src/func_ov004_020aeed8.cpp
-    # defines `(char*)` and src/func_ov004_020af094.cpp defines `(Obj*)`. One
+    # both `(void*)` inside its extern "C" block while src/_ZN11dScMgBase_c25OnAimedAtWithEggReturnVecEv.cpp
+    # defines `(char*)` and src/_ZN11dScMgBase_c16OnAimedAtWithEggEv.cpp defines `(Obj*)`. One
     # register on the ROM, C2733 to MSVC -- the func_ov102_0214b248 case
     # exactly. unmatched/MgBase_DeclConflict.cpp used to carry both bodies with
     # the parameter retyped; this entry retires that file.
-    "func_ov004_020aeed8": "decl_common.h",
-    "func_ov004_020af094": "decl_common.h",
+    "_ZN11dScMgBase_c25OnAimedAtWithEggReturnVecEv": "decl_common.h",
+    "_ZN11dScMgBase_c16OnAimedAtWithEggEv": "decl_common.h",
     # run rel0215 wave 3, lane w3-a2, TTC_ROTATING_CUBE/PRISM (108/109):
-    # decl_common.h:2777-2778 declare func_ov065_021198a0 and
-    # func_ov065_0211990c `(char*)` inside its extern "C" block, while
+    # decl_common.h:2777-2778 declare _ZN15TtcRotatingCube10UpdateClsnEv and
+    # _ZN15TtcRotatingCube11UpdateModelEv `(char*)` inside its extern "C" block, while
     # src/_ZN15TtcRotatingCube13InitResourcesEv.cpp re-declares both `(void*)`
     # in its own extern "C" block and calls them with `(void*)this`. One
     # register on the ROM, two C2733s and two C2664s to MSVC -- the
     # _ZN5Whomp13InitResourcesEv case exactly, down to the colliding names
     # being OTHER functions than the emitted symbol. Both are themselves on
-    # this cluster's slice (src/func_ov065_021198a0.cpp defines it `(void*)`
-    # and src/func_ov065_0211990c.c `(void*)`), so the header is the odd one
+    # this cluster's slice (src/_ZN15TtcRotatingCube10UpdateClsnEv.cpp defines it `(void*)`
+    # and src/_ZN15TtcRotatingCube11UpdateModelEv.cpp `(void*)`), so the header is the odd one
     # out and shadowing it is what leaves every definition untouched.
     "_ZN15TtcRotatingCube13InitResourcesEv": ("decl_common.h",
-                                              ("func_ov065_021198a0",
-                                               "func_ov065_0211990c")),
+                                              ("_ZN15TtcRotatingCube10UpdateClsnEv",
+                                               "_ZN15TtcRotatingCube11UpdateModelEv")),
     # Run link100, lane SEAT6, batch B6. src/_ZN6Player16CleanupResourcesEv.cpp
     # re-declares five functions decl_common.h has already declared, `char *`
     # against the header's `void *` (:2207-2209, :2289) and, for func_02073244
@@ -461,7 +464,7 @@ HEADER_SHADOW = {
     # extern "C" overload and refuses the TU with five C2733s and one C2664 --
     # the func_ov102_0214b248 / _ZN5Whomp13InitResourcesEv case exactly. The
     # TU's own declarations then stand alone and its call to func_02073244
-    # type-checks against the `void (*)(void)` it declares func_020072c0 with,
+    # type-checks against the `void (*)(void)` it declares _ZN7Vector3D1Ev with,
     # which decl_common.h does not declare at all. This is blocker 2 of the two
     # port/unmatched/Player_CleanupResources.cpp records; blocker 1 (the
     # `p->v1()` model deletes landing on DoSetFile) died with lane SLOT5F's
@@ -469,12 +472,14 @@ HEADER_SHADOW = {
     # _ZTV9ModelAnim[1] and _ZTV10ModelAnim2[1] with the ROM's own deleting D0
     # today, which is the word the two-virtual shadow's slot 1 means.
     # Retires port/unmatched/Player_CleanupResources.cpp.
-    "_ZN6Player16CleanupResourcesEv": ("decl_common.h",
-                                       ("func_ov002_020bdd2c",
-                                        "func_ov002_020bdef0",
-                                        "func_ov002_020bdd9c",
-                                        "func_ov002_020e032c",
-                                        "func_02073244")),
+    # DROPPED 2026-09-13 (main -> port sync, lane SYNC5), reason gone and the
+    # shadow now HARMS. Lane SEAT6 added this row because the TU re-declared
+    # five decl_common.h names with `char *` where the header says `void *`.
+    # main's own spelling of the TU says the opposite in its own words at
+    # line 16: "func_ov002_020bdd2c, _020bdef0, _020bdd9c, _020e032c and
+    # func_02073244 come from decl_common.h above ... Declare only what
+    # decl_common.h does not." With the header shadowed the TU declares none
+    # of the five and MSVC answers C3861, identifier not found, three times.
 }
 
 # ---- REDUNDANT OUT-OF-LINE MEMBER REDECLARATIONS ---------------------------
@@ -487,14 +492,34 @@ HEADER_SHADOW = {
 # already give MSVC everything it needs -- so they are deleted here. Exact
 # strings, hard-errored by apply_patches if the source moves.
 MEMBER_REDECL = {
-    # gate 67, BILL_BLASTER: func_ov079_02126f8c (daObjBkKillerdai_c::Behavior)
-    "func_ov079_02126f8c": [
-        ("int Platform::UpdateKillByMegaChar(short, short, short, Fix12);\n", ""),
-        ("Actor* Actor_s::FindWithID(unsigned int);\n", ""),
-        ("Actor* Actor_s::ClosestPlayer();\n", ""),
-        ("Actor* Actor_s::Spawn(unsigned int, unsigned int, const Vector3&, "
-         "const Vector3_16*, int, int);\n", ""),
-        ("int Platform::IsClsnInRange(Fix12, Fix12);\n", ""),
+    # THE C2733 A HEADER SHADOW CANNOT REACH, 2026-09-13 (lane SYNC3).
+    # src/actors/Player.cpp defines func_ov002_020cfbdc `(char *self)` inside an
+    # extern "C" block and then, at block scope inside that same body, declares
+    # `extern int func_ov002_020cfbdc(void*);` -- two extern "C" spellings of one
+    # name in one TU, which MSVC refuses outright. While the body was its own
+    # file the collision was with include/decl_common.h and HEADER_SHADOW hid the
+    # header's declaration across the include; the header is not in this TU at
+    # all, so the only thing left to hide is the TU's own line. The declaration
+    # is dead weight either way: the definition it collides with is four lines
+    # above it and says the same thing about the ROM, one register.
+    "Player": [
+        ("    extern int func_ov002_020cfbdc(void*);\n", ""),
+    ],
+    # gate 67, BILL_BLASTER: _ZN11BillBlaster8BehaviorEv (daObjBkKillerdai_c::Behavior)
+    # RE-DERIVED 2026-09-13 (lane SYNC3). The same five out-of-class member
+    # redeclarations, which C++ does not allow and mwccarm accepted; main
+    # renamed the classes they name (Platform -> dBgActor_c, through the helper
+    # spelling this TU uses, and Actor -> dActor_c) and widened Spawn's last two
+    # parameters to their real types. Deleting them is still the whole patch:
+    # every one of the five is declared again, correctly, inside its class.
+    "_ZN11BillBlaster8BehaviorEv": [
+        ("int dBgActor_c_helper::UpdateKillByMegaChar(short, short, short, "
+         "FixV);\n", ""),
+        ("dActor_c* Actor_s::FindWithID(unsigned int);\n", ""),
+        ("dActor_c* Actor_s::ClosestPlayer();\n", ""),
+        ("dActor_c* Actor_s::Spawn(unsigned int, unsigned int, const Vector3&, "
+         "const Vector3_16*, signed char, short);\n", ""),
+        ("int dBgActor_c_helper::IsClsnInRange(FixV, FixV);\n", ""),
     ],
 }
 
@@ -514,12 +539,36 @@ MEMBER_REDECL = {
 # Coffin_InitResources.cpp shape). Exact strings, hard-errored by apply_patches
 # if the source moves.
 EXTERN_C_DATA = {
-    "_ZN6FlyGuy13InitResourcesEv": [
-        ("typedef struct PMF PMF;\nextern SharedFilePtr data_ov070_02123530;",
-         'typedef struct PMF PMF;\nextern "C" {\n'
-         "extern SharedFilePtr data_ov070_02123530;"),
-        ('extern PMF data_ov070_0212359c;\nextern "C" {\n',
-         "extern PMF data_ov070_0212359c;\n"),
+    # RE-KEYED AND RE-DERIVED 2026-09-13 (lane SYNC3). main folded
+    # _ZN19daPropeller_Heyho_c13InitResourcesEv into
+    # src/game/actors/d_a_propeller_heyho.cpp and rewrote the declaration block,
+    # so the old exact strings no longer matched -- which apply_patches would
+    # have turned into a hard error rather than a silent drop, and did. main's
+    # spelling declares all SEVEN SharedFilePtr views plus the state-table
+    # pointer above the body's own `extern "C" {`, so this moves the opener up
+    # over the whole run instead of over one name. The block is balanced: the
+    # opener is moved, not added, so the TU's brace count does not change.
+    # CleanupResources further down the same TU releases the same seven and has
+    # no declarations of its own, so it is covered by the same move.
+    "d_a_propeller_heyho": [
+        ("extern SharedFilePtr data_ov070_02123530;\n"
+         "extern SharedFilePtr data_ov070_02123520;\n"
+         "extern SharedFilePtr data_ov070_02123518;\n"
+         "extern SharedFilePtr data_ov070_02123510;\n"
+         "extern SharedFilePtr data_ov070_02123528;\n"
+         "extern SharedFilePtr data_ov070_02123508;\n"
+         "extern SharedFilePtr data_ov070_02123500;\n"
+         "extern char data_ov070_0212359c[];\n"
+         'extern "C" {\n',
+         'extern "C" {\n'
+         "extern SharedFilePtr data_ov070_02123530;\n"
+         "extern SharedFilePtr data_ov070_02123520;\n"
+         "extern SharedFilePtr data_ov070_02123518;\n"
+         "extern SharedFilePtr data_ov070_02123510;\n"
+         "extern SharedFilePtr data_ov070_02123528;\n"
+         "extern SharedFilePtr data_ov070_02123508;\n"
+         "extern SharedFilePtr data_ov070_02123500;\n"
+         "extern char data_ov070_0212359c[];\n"),
     ],
 }
 
@@ -579,8 +628,12 @@ DS_DIV = {
         ("greenMul / denom", "ds_idiv(greenMul, denom)"),
     ],
     "_ZN8Particle6Jitter4FuncERNS_10EffectDataEPcR7Vector3": [
-        ("(int)*(u16*)(p + 0x2e) % (int)self->unk_006",
-         "ds_imod((int)*(u16*)(p + 0x2e), (int)self->unk_006)"),
+        # RE-DERIVED 2026-09-13 (lane SYNC3): main gave both operands real
+        # names. Same modulo, same zero-divisor exposure -- the divisor is
+        # still the emission interval 181 of the 321 particle definitions ship
+        # as zero.
+        ("(int)state.age % (int)effect.jitter.period",
+         "ds_imod((int)state.age, (int)effect.jitter.period)"),
     ],
     # PathLift's path-follow tick: dv = cstd::fdiv(len2, speed) / 0x1000 is 0
     # whenever a path segment is shorter than one frame of travel, and the two
@@ -662,10 +715,15 @@ MMIO_EXTERN = {
     "func_02053130": [
         # the busy-bit spin: SQRTCNT through the proxy; the local pointer
         # binding goes with it (keeping it would keep the &SQRTCNT reference)
-        ("    sqrtcnt = &SQRTCNT;\n    while (*sqrtcnt & 0x8000)\n        ;",
-         "    while (NTR_MMIO(u16, 0x40002b0) & 0x8000)\n        ;"),
+        # RE-DERIVED 2026-09-13 (main -> port sync, lane SYNC3): main spells
+        # the two registers REG_SQRTCNT and REG_SQRT_RESULT and the busy bit
+        # SQRT_CONTROL_BUSY now. Same two registers, same two addresses; only
+        # the names in the source moved.
+        ("    sqrtcnt = &REG_SQRTCNT;\n"
+         "    while (*sqrtcnt & SQRT_CONTROL_BUSY)\n        ;",
+         "    while (NTR_MMIO(u16, 0x40002b0) & SQRT_CONTROL_BUSY)\n        ;"),
         # the result read, at the width the ROM read it
-        ("(s64)SQRT_RESULT", "(s64)(s32)NTR_MMIO(s32, 0x40002b4)"),
+        ("(s64)REG_SQRT_RESULT", "(s64)(s32)NTR_MMIO(s32, 0x40002b4)"),
     ],
 }
 
@@ -694,7 +752,7 @@ def mmio_extern_patch(text, sym):
 # mechanism could have kept in the linkage count, and both say out loud that
 # the lane host-copied it instead only because hostgen.py was outside its
 # append scope -- "the only one given up for a reason that is not a real wall".
-# func_ov081_02126950 is the SAME BODY one overlay over (the ov081/ov096
+# _ZN8daGmch_c21ApplySlopeToVertSpeedEPv is the SAME BODY one overlay over (the ov081/ov096
 # collision helper: func_02038414, then a floor-normal slope correction, then
 # a wall-normal read), so lane w3-b takes the cheap route rather than making
 # the same trade a second time.
@@ -707,8 +765,8 @@ def mmio_extern_patch(text, sym):
 #     Neither path computes a result.
 #   * ALL THREE CALLERS DISCARD IT. The ov081 relocs name exactly three call
 #     sites -- 0x021270f8, 0x021272e8, 0x02127478 -- and their matched sources
-#     (src/func_ov081_02127070.cpp:46, src/func_ov081_02127240.cpp:31,
-#     src/func_ov081_02127440.cpp:16) each call it as a bare statement.
+#     (src/actors/daGmch_c.cpp:46, src/actors/daGmch_c.cpp:31,
+#     src/actors/daGmch_c.cpp:16) each call it as a bare statement.
 # So 0 is as faithful as any other value, and the `int` in the TU's own
 # signature is the recovery's placeholder rather than something the ROM
 # produces. A later lane that owns port/slice_ov096.txt should give the twin
@@ -724,15 +782,19 @@ def mmio_extern_patch(text, sym):
 # func_ov019_0211197c:44 and :79, func_ov019_021117a8:33. So there is no reader
 # to re-derive it for, on the host or on the DS.
 FALLS_OFF_RETURN = {
-    "func_ov070_0211f0a4": [
+    # RE-KEYED 2026-09-13 (main -> port sync, lane SYNC3). main folded this
+    # body into src/game/actors/d_a_propeller_heyho.cpp, so the key is the TU's
+    # stem now; the patch string is unchanged and still matches exactly once in
+    # main's own spelling of the body, which was checked before the key moved.
+    "d_a_propeller_heyho": [
         ("    a->KillAndTrackInDeathTable();\n}",
          "    a->KillAndTrackInDeathTable();\n"
          "    return 1;  /* hostgen FALLS_OFF_RETURN: see the table's note */\n"
          "}"),
     ],
-    "func_ov081_02126950": [
-        ("_ZNK12WithMeshClsn13GetWallResultEv(clsn)+4, n1);\n    }\n}",
-         "_ZNK12WithMeshClsn13GetWallResultEv(clsn)+4, n1);\n    }\n"
+    "_ZN8daGmch_c21ApplySlopeToVertSpeedEPv": [
+        ("_ZNK10dBgCh_Actr13GetWallResultEv(clsn)+4, n1);\n    }\n}",
+         "_ZNK10dBgCh_Actr13GetWallResultEv(clsn)+4, n1);\n    }\n"
          "    return 0;  /* hostgen FALLS_OFF_RETURN: see the table's note */\n"
          "}"),
     ],
@@ -740,9 +802,9 @@ FALLS_OFF_RETURN = {
     # floor branch above it writes n0 and is not matched by this text.
     "func_ov019_0211140c": [
         ("        _ZNK11SurfaceInfo12CopyNormalToER7Vector3("
-         "(char*)_ZNK12WithMeshClsn13GetWallResultEv(clsn)+4, n1);\n    }\n}",
+         "(char*)_ZNK10dBgCh_Actr13GetWallResultEv(clsn)+4, n1);\n    }\n}",
          "        _ZNK11SurfaceInfo12CopyNormalToER7Vector3("
-         "(char*)_ZNK12WithMeshClsn13GetWallResultEv(clsn)+4, n1);\n    }\n"
+         "(char*)_ZNK10dBgCh_Actr13GetWallResultEv(clsn)+4, n1);\n    }\n"
          "    return 1;  /* hostgen FALLS_OFF_RETURN: see the table's note */\n"
          "}"),
     ],
@@ -763,7 +825,7 @@ def falls_off_return_patch(text, sym):
 # cannot be served by one host function.
 #
 # The particle Callback vtables are exactly that. Slot 1 (OnUpdate) is
-# dispatched cdecl through a typedef'd pointer in func_02021bec:
+# dispatched cdecl through a typedef'd pointer in _ZN8Particle10SysTracker8Contents6UpdateEv:
 #
 #     e->f10->vt->m[1](e->f10, e->fc, m)
 #
@@ -771,7 +833,7 @@ def falls_off_return_patch(text, sym):
 #
 #     o->vtable[0](o, p)
 #
-# but func_02021d1c declares a local shadow `struct Callback { virtual void
+# but _ZN8Particle10SysTracker8Contents5Entry10InitialiseEjjR7Vector3PK11Vector3_16fPN5dPa_c7level_c10callback_cE declares a local shadow `struct Callback { virtual void
 # Run(void *); }` and calls `p6->Run(...)`, which MSVC compiles as a thiscall
 # virtual. Hosted unpatched, the callback reads its System argument off the
 # stack slot that held `this` and dereferences null on the first landing puff.
@@ -781,10 +843,19 @@ def falls_off_return_patch(text, sym):
 # vptr[0], cdecl -- rather than to give slot 0 a second calling convention.
 # The local `virtual` declaration stays; only the call changes.
 VIRTUAL_CALL = {
-    "func_02021d1c": [
-        ("p6->Run(*(void **)(self + 0xc));",
-         "(*(void (***)(void *, void *))p6)[0]"
-         "((void *)p6, *(void **)(self + 0xc));"),
+    "_ZN8Particle10SysTracker8Contents5Entry10InitialiseEjjR7Vector3PK11Vector3_16fPN5dPa_c7level_c10callback_cE": [
+        # RE-DERIVED 2026-09-13 (main -> port sync, lane SYNC3). main retired
+        # the local shadow `struct Callback { virtual void Run(void *); }` and
+        # calls the real class: dPa_c::level_c::callback_c's FIRST virtual,
+        # SpawnParticles, which is the same slot 0 this patch always meant.
+        # Nothing about the reason changed -- MSVC would still compile the call
+        # __thiscall while every other dispatch of that table in this build is
+        # cdecl -- so the rewrite is the same explicit slot-0 call with the new
+        # receiver and argument names. The System& argument is passed as the
+        # pointer it already is on both sides.
+        ("        newCallback->SpawnParticles(*system);",
+         "        (*(void (***)(void *, void *))newCallback)[0]"
+         "((void *)newCallback, (void *)system);"),
     ],
     # Lane shadow-A: Model::LoadAndSetFile's middle. The matched source
     # dispatches DoSetFile through a LOCAL shadow class with three virtuals,
@@ -837,7 +908,7 @@ VIRTUAL_CALL = {
     # Process); 0x02099ea4/eac/eb4 = {0x18,1} {0x1c,1} {0x20,1} -> Behavior,
     # BeforeBehavior, AfterBehavior (func_02043288, the per-frame tick). The
     # patch inlines Process's own control flow over those slots (the body of
-    # src/_ZN9ActorBase7ProcessEMS_FivEMS_FbvEMS_FvjE.cpp, unchanged: before,
+    # src/_ZN7fBase_c7ProcessEMS_FivEMS_FbvEMS_FvjE.cpp, unchanged: before,
     # then main, then after(code)), through the same __fastcall thunk
     # convention as func_02016ff4 above. Retires
     # port/unmatched/func_0204335c_hostcopy.cpp and func_02043288_hostcopy.cpp.
@@ -845,7 +916,7 @@ VIRTUAL_CALL = {
     # cleanup 3/4/5) keep their host copies: the render one carries the slot-5
     # Virtual18 ruling and is not this lane's.
     "func_0204335c": [
-        ("    return _ZN9ActorBase7ProcessEMS_FivEMS_FbvEMS_FvjE(\n"
+        ("    return _ZN7fBase_c7ProcessEMS_FivEMS_FbvEMS_FvjE(\n"
          "        self, data_02099ebc, data_02099ec4, data_02099e94);",
          "    /* hostgen VIRTUAL_CALL: Process over slots 1/0/2, see the table */\n"
          "    void **vt = *(void ***)self;\n"
@@ -861,7 +932,7 @@ VIRTUAL_CALL = {
          "    return r;"),
     ],
     "func_02043288": [
-        ("    return _ZN9ActorBase7ProcessEMS_FivEMS_FbvEMS_FvjE(\n"
+        ("    return _ZN7fBase_c7ProcessEMS_FivEMS_FbvEMS_FvjE(\n"
          "        self, data_02099ea4, data_02099eac, data_02099eb4);",
          "    /* hostgen VIRTUAL_CALL: Process over slots 7/6/8, see the table */\n"
          "    void **vt = *(void ***)self;\n"
@@ -905,7 +976,7 @@ VIRTUAL_CALL = {
     # runs after this and MMIO_DEREF already matches both
     # `*(volatile int*)0x040004c8` and `*(int*)0x040004cc`.
     # Retires port/unmatched/MgSnowball_ModelRender.cpp.
-    "func_ov006_02127d10": [
+    "_ZN15dScMgSnowball_c6RenderEv": [
         ("            void (*fn)(void*, int*) = "
          "*(void(**)(void*, int*))((char*)(*(void**)self) + 0x14);\n"
          "            fn(self, vecArr);",
@@ -918,7 +989,7 @@ VIRTUAL_CALL = {
     # ------------------------------------------------------------------
     # Run link100, lane SEAT6, batch B6 (families E and F, the residue lanes
     # SLOT5F and FACEF left standing). Every row below is the SAME mechanism
-    # as func_ov006_02127d10 above: the matched TU reads a vtable word raw and
+    # as _ZN15dScMgSnowball_c6RenderEv above: the matched TU reads a vtable word raw and
     # calls it __cdecl (receiver PUSHED, caller cleans), while the word the
     # host seats in that slot is entered with the receiver in ECX. On ARM the
     # two spellings are the same three instructions, which is why byte-locked
@@ -1002,21 +1073,27 @@ VIRTUAL_CALL = {
     # same call as a C++ virtual, which is why one vtable word could not be
     # both conventions and why this site had to move rather than the seats.
     # Retires port/unmatched/Player_HeadBonk.cpp.
-    "func_ov002_020cef84": [
-        ("extern int data_02099368;",
-         "extern int data_02099368;\n"
-         "/* hostgen VIRTUAL_CALL host seam: the quarantine net's receiver\n"
-         "   latch (port/unmatched/func_02043fdc_hostcopy.cpp). */\n"
-         "void *port_actor_interaction_begin(void *receiver);\n"
-         "void port_actor_interaction_end(void *prev);"),
+    # RE-KEYED 2026-09-13 (main -> port sync, lane SYNC5). main folded this
+    # dispatcher into src/actors/Player.cpp, which is already a whole-TU
+    # substitution (PORT_HOSTGEN_TU), so the key is that TU's stem and the
+    # separate per-symbol generation is gone -- it would have compiled the
+    # same body twice. ONE patch now, not two: main's TU spells
+    # `extern int data_02099368;` three times over three functions, so the
+    # old declaration anchor is no longer unique and text.replace would
+    # have written the seam's declarations into two unrelated bodies. The
+    # call site is unique, and a block-scope extern declaration is what the
+    # TU itself uses everywhere else.
+    "Player": [
         ("                if (a)\n"
          "                    (*(void (**)(void *, char *))"
          "(*(int *)a + 0x70))(a, self);",
          "                if (a) {\n"
          "                    /* hostgen VIRTUAL_CALL: byte +0x70 is word 28 --\n"
-         "                       Actor::OnHitFromUnderneath -- and every seated\n"
-         "                       slot-28 body is a __fastcall ret-4 veneer. See\n"
-         "                       the table. */\n"
+         "                       dActor_c::OnHitFromUnderneath -- and every\n"
+         "                       seated slot-28 body is a __fastcall ret-4\n"
+         "                       veneer. See the table. */\n"
+         "                    void *port_actor_interaction_begin(void *recv);\n"
+         "                    void port_actor_interaction_end(void *prev);\n"
          "                    void *port_prev_recv =\n"
          "                        port_actor_interaction_begin(a);\n"
          "                    ((void (__fastcall *)(void *, void *, char *))\n"
@@ -1084,13 +1161,12 @@ VIRTUAL_CALL = {
     # would have run its Kill against _ZTV14ArrowSignRight. The stack balances
     # (one push, one pop, `ret 0`), so nothing faults. Retires
     # port/unmatched/ArrowSign_OnAttacked1.cpp.
-    "func_ov098_02137d40": [
-        ("    c->vt->f[0x7c/4](c);",
-         "    /* hostgen VIRTUAL_CALL: byte +0x7c is word 31 -- Kill -- and the\n"
-         "       seated veneer as_kill is __fastcall with no stack argument.\n"
-         "       See the table. */\n"
-         "    ((int (__fastcall *)(void *, void *))(*(void ***)c)[31])(c, 0);"),
-    ],
+    # DROPPED 2026-09-13 (main -> port sync, lane SYNC5), reason gone: main's
+    # own spelling of this body calls Kill() as a C++ member instead of
+    # indexing a raw 64-entry vtable at word 0x7c/4, so the one disagreeing
+    # call site this patch respelled no longer exists. The TU is quarantined
+    # for C2561 in the same pass -- main's body takes a bare `return;` out of
+    # an int function -- so no copy of it is generated either.
 }
 
 
@@ -1143,15 +1219,51 @@ MG_PMF_CALL = {
         ("  f(obj);",
          "  port_mg_bomroom_opencoded_call0(obj, (unsigned)e[0], off);"),
     ],
-    # dScMgPanel_c: slot 6 Behavior over 02142888 (arity 0) and the round-end
-    # state over 02142840 (arity 1)
-    "func_ov006_02107358": [
-        ("  ((void(*)(void*))fn)(obj);",
-         "  port_mg_panel_call0(obj, (unsigned)e->a, adj);"),
-    ],
-    "func_ov006_02106ca4": [
+    # dScMgPanel_c, RE-KEYED AND RE-DERIVED 2026-09-13 (main -> port sync, lane
+    # SYNC3). main folded every ov006 panel body into src/actors/dScMgPanel_c.cpp,
+    # so the two entries that used to be keyed on their own file names are keyed
+    # on the TU's stem and live in one list. There are now THREE dispatch sites
+    # rather than two, because the TU also carries func_ov006_02106bc0, a body
+    # the port never had a file for:
+    #
+    #   dScMgPanel_c::Behavior   slot 6, table 02142888, arity 0, open-coded
+    #   func_ov006_02106bc0      table 02142840, arity 1, open-coded
+    #   func_ov006_02106ca4      table 02142840, arity 1, a REAL mwcc
+    #                            pointer-to-member on an INCOMPLETE class
+    #
+    # The first two are the shapes this table already knew; the strings moved
+    # (main spells the cast `(void (*)(void *))` with spaces and indents the
+    # Behavior call four) and were re-derived against main's own text rather
+    # than adapted from the old ones.
+    #
+    # THE THIRD IS THE NEW ONE AND IT IS TWO EDITS, NOT ONE. main's
+    # func_ov006_02106ca4 declares `typedef void (PanelC_ca4::*PanelPmf_ca4)(int)`
+    # over a forward-declared `struct PanelC_ca4;` and indexes the ROM table with
+    # it. MSVC sizes a member pointer to an INCOMPLETE class at its most general
+    # representation, so `data_ov006_02142840[*p]` would stride over the table at
+    # the wrong width and read a record that is not there -- before the call is
+    # even reached, and with nothing said about it. The ROM's record is two
+    # words, a code word and an adjustment, which is what the sibling body above
+    # spells by hand as `struct PanelPmfRec_bc0 { int off; int adj; }`. So the
+    # declaration is retyped to the ROM's own two words and the call goes through
+    # the same seam the other two use, which re-does the decode, applies the
+    # ROM's null-code guard and reports an address nothing hosts. The port
+    # branch's own src/func_ov006_02106ca4.c, an open-coded transcription of the
+    # same body, is retired by this: one definition, out of the decomp's TU.
+    "dScMgPanel_c": [
+        ("    ((void (*)(void *))fn)(obj);",
+         "    port_mg_panel_call0(obj, (unsigned)e->a, adj);"),
         ("        fn(thisp, i);",
          "        port_mg_panel_call1(thisp, (unsigned)e->off, adj, i);"),
+        ("    extern PanelPmf_ca4 data_ov006_02142840[];",
+         "    /* hostgen MG_PMF_CALL: the ROM record is two words, a code word\n"
+         "       and an adjustment; an MSVC member pointer to an incomplete\n"
+         "       class is not that width. */\n"
+         "    extern int data_ov006_02142840[];"),
+        ("            (((PanelC_ca4 *)c)->*data_ov006_02142840[*p])(i);",
+         "            port_mg_panel_call1(c + (data_ov006_02142840[*p * 2 + 1] >> 1),\n"
+         "                                (unsigned)data_ov006_02142840[*p * 2],\n"
+         "                                data_ov006_02142840[*p * 2 + 1], i);"),
     ],
     # Lane shadow-A: the camera half of the kuppa script's command dispatch.
     # The matched source seeds data_0209b138[39] from 39 static
@@ -1229,7 +1341,11 @@ CALL_STATE_FN = {
          "           state-fn mapper instead of calling it raw */\n"
          "        hal_call_state_fn(p, (unsigned)row[0]);\n      }"),
     ],
-    "_ZN6Player17St_NoControl_InitEv": [
+    # RE-KEYED 2026-09-13 (lane SYNC3): main folded St_NoControl_Init into
+    # src/actors/Player.cpp. St_Jump_Main and St_WallJump_Main still have files
+    # of their own and keep their own keys above. The patch string is unchanged
+    # and matches exactly once in the TU.
+    "Player": [
         ("  void (*f)(void*);\n  if(fn & 1){\n"
          "    f=*(void(**)(void*))(*(int*)obj + m->adj);\n"
          "  } else {\n    f=(void(*)(void*))m->adj;\n  }\n  f(obj);",
@@ -1465,7 +1581,7 @@ REG_RIDE_ARG = {
          "                        func_02044b30(this, idx);"),
     ],
     # Bubba's chase gate (ov032). src declares
-    # `extern char* _ZN5Actor13ClosestPlayerEv(void);` and calls it with no
+    # `extern char* _ZN8dActor_c13ClosestPlayerEv(void);` and calls it with no
     # argument; Actor::ClosestPlayer is a __thiscall method that reads
     # `this + 0x5c`. ROM 0x02111350 is `push {r4,lr} / mov r4,r0 /
     # bl 0x02010ad8`, so r0 still holds the receiver at the branch. The body's
@@ -1473,13 +1589,15 @@ REG_RIDE_ARG = {
     # refuses this TU in any slice for exactly this reason, and it is right to:
     # what it scans is the RAW source, and the generated TU below is the one
     # that gets compiled. Retires port/unmatched/Bubba_ChaseGate.cpp.
-    "func_ov032_02111350": [
-        ("extern char* _ZN5Actor13ClosestPlayerEv(void);",
-         "extern char* _ZN5Actor13ClosestPlayerEv(char* self);"
-         "  /* hostgen REG_RIDE_ARG: ARM r0 still held c, see the table */"),
-        ("  if (_ZN5Actor13ClosestPlayerEv() == 0) return 1;",
-         "  if (_ZN5Actor13ClosestPlayerEv(c) == 0) return 1;"),
-    ],
+    # DROPPED 2026-09-13 (main -> port sync, lane SYNC5), reason gone rather
+    # than moved. main folded Bubba's chase gate into
+    # src/game/actors/d_a_bakubaku.cpp, and that TU already declares
+    # `extern char* _ZN8dActor_c13ClosestPlayerEv(char* c);` (line 78) and
+    # calls it `(c)` (line 874) -- the TU merge resolved the two legacy
+    # declarations and kept the one with the receiver, which is exactly what
+    # this patch used to write. The TU is on four live slices, so the body is
+    # compiled from main's own spelling and a generated copy would only be a
+    # duplicate symbol.
     # The two TextureSequence::Prepare callers, the SHORT-1 argsweep row.
     # Prepare is a real non-static C++ method, Prepare(BMD_File &model,
     # BTP_File &animFile), so it consumes THREE ARM registers (r0 this, r1
@@ -1517,18 +1635,28 @@ REG_RIDE_ARG = {
          "((void*)data_ov002_0210eb20[1], (void*)data_ov002_0210ebd8[1], "
          "(void*)data_ov002_0210ebd8[1]);"),
     ],
-    "func_ov072_02120a44": [
-        ("extern void _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File"
-         "(void *bmd, void *btp);",
-         "extern void _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File"
-         "(void *self, void *bmd, void *btp);"
+    # RE-KEYED 2026-09-13 (main -> port sync, lane SYNC5). Lane SEAT6 keyed
+    # this on the per-function TU src/func_ov072_02120a44.c; main has since
+    # folded that body into src/game/actors/d_a_bg_snwmn.cpp, so the key is
+    # the TU stem now and the TU is declared in PORT_HOSTGEN_TU. Both patch
+    # strings are re-read from main's own spelling of the body -- the
+    # declaration and the call are each wrapped over two lines there, which
+    # the old strings were not -- and apply_patches hard-errors if either
+    # stops matching.
+    "d_a_bg_snwmn": [
+        ("extern void _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File(\n"
+         "    void *modelFile, void *textureFile);",
+         "extern void _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File(\n"
+         "    void *self, void *modelFile, void *textureFile);"
          "  /* hostgen REG_RIDE_ARG: the third register rides through, see "
          "the table */"),
-        ("    _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File"
-         "((void *)data_ov072_02122c48[1], (void *)data_ov072_02122c50[1]);",
-         "    _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File"
-         "((void *)data_ov072_02122c48[1], (void *)data_ov072_02122c50[1], "
-         "(void *)data_ov072_02122c50[1]);"),
+        ("    _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File(\n"
+         "        (void *)data_ov072_02122c48[1], "
+         "(void *)data_ov072_02122c50[1]);",
+         "    _ZN15TextureSequence7PrepareER8BMD_FileR8BTP_File(\n"
+         "        (void *)data_ov072_02122c48[1], "
+         "(void *)data_ov072_02122c50[1],\n"
+         "        (void *)data_ov072_02122c50[1]);"),
     ],
 }
 
@@ -1674,8 +1802,26 @@ def main():
     else:
         targets = []
         for name in args.symbols:
+            # A name may be given as a repo-relative path (src/minigames/X.cpp)
+            # or as a bare stem. The bare-stem form used to assume src/ was
+            # flat, which stopped being true when the decomp began merging
+            # one-function sources into translation units and filing them under
+            # src/<area>/: the flat probe missed them and the tool exited
+            # "not found" on a file that is right there. Try the path first,
+            # then the flat convention, then one recursive scan by stem.
+            cand = (src.parent / name) if "/" in name or "\\" in name else None
+            if cand is not None and cand.is_file():
+                targets.append(cand)
+                continue
             hit = next((p for ext in (".c", ".cpp")
                         if (p := src / f"{name}{ext}").exists()), None)
+            if hit is None:
+                found = [p for p in src.rglob(f"{name}.c")] +                         [p for p in src.rglob(f"{name}.cpp")]
+                if len(found) == 1:
+                    hit = found[0]
+                elif len(found) > 1:
+                    sys.exit(f"ambiguous in decomp src/: {name} -> "
+                             + ", ".join(str(x) for x in found))
             if hit is None:
                 sys.exit(f"not found in decomp src/: {name}")
             targets.append(hit)

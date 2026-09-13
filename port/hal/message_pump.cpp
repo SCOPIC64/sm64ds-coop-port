@@ -285,7 +285,7 @@ void port_message_pump(void)
 }
 
 /* The save-write leaf. The ROM's own SaveData::SaveCurrentFile, linked from
-   src/_ZN8SaveData15SaveCurrentFileEv.c through port/slice_gate215.txt: it
+   src/_ZN8SaveData15SaveCurrentFileEv.cpp through port/slice_gate215.txt: it
    writes the current file (slot data_0209caa0[0x328]) and then the minigame
    record, and the value it returns is 1 when both reached the medium. Nothing
    in the ROM reads that value here either -- Message's countdown owns the box

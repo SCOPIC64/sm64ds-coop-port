@@ -13,7 +13,7 @@
 #include "common.h"
 /* PORT_HOST_ABI: r0-passthrough seam -- the matched TU drops the
    ClosestPlayer receiver that rides ARM r0; passed explicitly here. */
-extern void *_ZN5Actor13ClosestPlayerEv(void *self);
+extern void *_ZN8dActor_c13ClosestPlayerEv(void *self);
 extern int RandomIntInternal(int *seed);
 extern int Vec3_HorzDist(struct Vector3 *a, struct Vector3 *b);
 extern short Vec3_HorzAngle(struct Vector3 *a, struct Vector3 *b);
@@ -27,7 +27,7 @@ void func_ov063_02117650(char *self)
     char *p;
     int neg1 = (int)(-1LL);
 
-    p = (char *)_ZN5Actor13ClosestPlayerEv(self);
+    p = (char *)_ZN8dActor_c13ClosestPlayerEv(self);
     if (p == 0) {
         return;
     }

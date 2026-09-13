@@ -40,7 +40,7 @@
  * extracted/overlays/overlay_0071.bin and the delinks `.bss start` (the yaml
  * has no `ram_size` key; its size field is `code_size: 16224` = 0x3f60); and
  * the bss span 0x02123100 - 0x02122f80 = 0x180 = 384 is exactly the yaml's
- * `bss_size`. At the glossed 0x0211f600 the symbol func_ov071_0211f0a4 would
+ * `bss_size`. At the glossed 0x0211f600 the symbol _ZN10Scuttlebug13OnYoshiTryEatEv would
  * sit BELOW the overlay. File offset used throughout: addr - 0x0211f000.
  *
  * ---- VERIFICATION RECORD ---------------------------------------------------
@@ -146,20 +146,20 @@ void *_ZN8Particle6System12FromUniqueIDEj(unsigned uniqueID);
 void _ZN8Particle6System9NewSimpleEj5Fix12IiES2_S2_(unsigned id, int x, int y,
                                                     int z);
 
-void *_ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(unsigned actorID,
+void *_ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(unsigned actorID,
                                                    unsigned param1,
                                                    const void *pos,
                                                    const void *rot,
                                                    int areaID, int deathTableID);
-void _ZN5Actor8PoofDustEv(void *self);
-void _ZN5Actor19UntrackAndSpawnStarERajRK7Vector3j(void *self, signed char *ref,
+void _ZN8dActor_c8PoofDustEv(void *self);
+void _ZN8dActor_c19UntrackAndSpawnStarERajRK7Vector3h(void *self, signed char *ref,
                                                    unsigned b, const void *pos,
                                                    unsigned j);
-void _ZN5Actor24KillAndTrackInDeathTableEv(void *self);
-void _ZN9ActorBase18MarkForDestructionEv(void *self);
+void _ZN8dActor_c24KillAndTrackInDeathTableEv(void *self);
+void _ZN7fBase_c18MarkForDestructionEv(void *self);
 void _ZN9Animation7AdvanceEv(void *anim);
 int  _ZN9Animation8FinishedEv(void *anim);
-int  _ZN5Actor17DetectRaycastClsnER7Vector3S1_b(void *self, void *from,
+int  _ZN8dActor_c17DetectRaycastClsnER7Vector3S1_b(void *self, void *from,
                                                 void *to, bool flag);
 
 extern short data_02082214[];     /* arm9: s16 [sin, cos] pairs, 4096 = 1.0 */
@@ -274,7 +274,7 @@ int func_ov071_021211e0(char *self)
         shotAng.x = Vec3_VertAngle(&muzzle, &aim);
 
         /* 02121398..021213d4: BIG_MR_I (263) fires param 1, MR_I (262) param 0 */
-        _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(
+        _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
             0x108,
             (*(unsigned short *)(self + 0xc) == 0x107) ? 1u : 0u,
             &muzzle, &shotAng,
@@ -305,7 +305,7 @@ int func_ov071_021211e0(char *self)
         func_ov071_02121634(self, 0);
     } else if (*(unsigned char *)(*(char **)(self + 0x1ec) + 0x6fb) != 0) {
         func_ov071_02121634(self, 0);
-    } else if (_ZN5Actor17DetectRaycastClsnER7Vector3S1_b(self, &rayEnd,
+    } else if (_ZN8dActor_c17DetectRaycastClsnER7Vector3S1_b(self, &rayEnd,
                                                           self + 0x5c, false)) {
         func_ov071_02121634(self, 0);
     }

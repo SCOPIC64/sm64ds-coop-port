@@ -498,7 +498,7 @@ extern "C" {
 extern char dsstate_lo, dsstate_hi;
 void *_ZN6PlayerC1Ev(void *self);
 /* Player::InitResources' own character-propagation helper: +0x6d9 forward
-   into the swap pair at +0x6dc/+0x6dd (src/func_ov002_020beabc.cpp) */
+   into the swap pair at +0x6dc/+0x6dd (src/actors/Player.cpp) */
 void func_ov002_020beabc(void *p);
 void *_ZN4Heap13SetupRootHeapEv(void);
 /* the ROM's entry into the above: clears the OS globals word, tail-calls it.
@@ -541,7 +541,7 @@ void port_rom_main_run(void);
 /* the game heap's allocator, read for the boot report only: how much of the
    ROM's 0x3b000 the port's boot actually spends */
 unsigned _ZN22ExpandingHeapAllocator10MemoryLeftEv(void *self);
-void *_ZN9ActorBasenwEj(unsigned size);
+void *_ZN7fBase_cnwEj(unsigned size);
 extern int data_0209b3ec[12];
 extern unsigned short data_020a4b54;
 extern void **data_020a4bb8;
@@ -713,7 +713,7 @@ int _ZN6Player11ChangeStateERNS_5StateE(void *self, void *st);
    own crush entry point, Player::Unk_020c6a10 (ov002 0x020c6a10), the exact
    function the crushers call -- ov073 0x02120284 with 1, ov074 0x02120d74 with
    2, ov078 0x021240a0 with 1 (src/func_ov073_021200e0.c:73,
-   src/func_ov074_02120d74.c:73 and src/func_ov078_021240a0.c:107). It runs the
+   src/actors/Goomboss.cpp:73 and src/actors/daBombking_c.cpp:107). It runs the
    ROM's own three gates (mClsnFlags & 1, i.e. on the ground; not already in
    ST_SQUISH; func_ov002_020d82f0), then sets mScaleY = 0x100 and holds
    ST_SQUISH for 30 frames. A refusal returns 0 and is logged, so "the probe
@@ -749,24 +749,24 @@ void port_cutscene_states_seat(void);  /* link100 PMFB6: the ten state tables */
 void port_kuppa_cmd_seat(void);        /* link100 SMALLS: the fourteen kuppa command records */
 void __sinit_ov002_0210804c(void); void __sinit_ov002_02108094(void);
 void *_ZN13SharedFilePtr9ConstructEj(void *, unsigned);
-void _ZN12MeshColliderC1Ev(void *);
-void *_ZN12MeshCollider8LoadFileER13SharedFilePtr(void *);
-void _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(void *, void *, void *);
-int _ZN16MeshColliderBase6EnableEP5Actor(void *, void *);
+void _ZN7dBgW_KcC1Ev(void *);
+void *_ZN7dBgW_Kc8LoadFileER13SharedFilePtr(void *);
+void _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(void *, void *, void *);
+int _ZN4dBgW6EnableEP8dActor_c(void *, void *);
 void *_ZN5ModelC1Ev(void *);
 void *_ZN5Model8LoadFileER13SharedFilePtr(void *);
 void _ZN9ModelBase7SetFileEP8BMD_Fileii(void *, void *, int, int);
 void hal_render_model(void *model, int scaleShift);
-void _ZN13RaycastGroundC1Ev(void *);
-void _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(void *, const void *,
+void _ZN9dBgCh_GndC1Ev(void *);
+void _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(void *, const void *,
                                                         void *);
-int _ZN13RaycastGround10DetectClsnEv(void *);
-void _ZN4BgCh19StartDetectingWaterEv(void *);
-void _ZN4BgCh21StopDetectingOrdinaryEv(void *);
+int _ZN9dBgCh_Gnd10DetectClsnEv(void *);
+void _ZN5dBgCh19StartDetectingWaterEv(void *);
+void _ZN5dBgCh21StopDetectingOrdinaryEv(void *);
 int SurfaceInfo_TestFlag0x20(const int *);
 int hal_ground_ray(void *mc, int x, int y, int z, int reach, int *out_y);
 int hal_line_ray(void *mc, const int *a, const int *b, int *out);
-void _ZN12WithMeshClsn13SetGroundFlagEv(void *);
+void _ZN10dBgCh_Actr13SetGroundFlagEv(void *);
 int func_02035354(void *, void *);
 int func_020393b4(void *);
 /* the real Camera actor (gate 13) */
@@ -1462,7 +1462,7 @@ extern "C" void func_020190b8(void);
 /* THE ROM'S "THE LOOP IS WAITING" FLAG (rung R3b, step B1). 0x0209d4f0,
    hosted at four bytes in hal/boot_globals.cpp:311. func_020197b8.c:53-56
    raises it after the swap, under IRQ::DisableIRQs(1), and drops it the
-   instant the phase-7 wait returns; src/_ZN3IRQ13VBlankHandlerEv.c:15 is
+   instant the phase-7 wait returns; src/_ZN3IRQ13VBlankHandlerEv.cpp:15 is
    the only reader, and its whole wake is gated on it:
        if (data_0209d514 >= data_0208ee44 && data_0209d4f0 != 0)
            OS_WakeupThread(&data_0209d500);
@@ -1517,7 +1517,7 @@ extern "C" void _ZN4CP1516WaitForInterruptEv(void);
    rescheduled, the idle thread was entered for the first time on this path
    (entered 1 -> 2), the wait ran and the VBlank edge dispatched -- and what
    brought the main thread back was hal/boot2_thread.cpp's STARVATION WAKE, not
-   src/_ZN3IRQ13VBlankHandlerEv.c's. The handler's wake is gated on
+   src/_ZN3IRQ13VBlankHandlerEv.cpp's. The handler's wake is gated on
    data_0209d514 >= data_0208ee44, which Stage::InitResources sets to 2 for a
    3D level, so it needs TWO edges; and step 4 of the wait bounds the idle loop
    at `port::thread_pump() ? port::thread_pump_limit() : 1` turns, which is ONE
@@ -1689,7 +1689,7 @@ static int r3e_sound_at_phase9(void)
    drops every SM64DS_ name, so they are knob-off by construction, and the smoke
    executables do not compile this file at all. THE MEASUREMENT IS THE 51 LEVEL
    ROWS. R3E's two live hazards for the SCENE path -- the graphics block that
-   func_ov007_020cc4c0 actually seats, and the __fastcall/cdecl mismatch at
+   _ZN9dScDSMT_c13InitResourcesEv actually seats, and the __fastcall/cdecl mismatch at
    func_02019144's dispatch -- are therefore still unmeasured, and putting a
    reader on the scene loop is the next rung's first job.
 
@@ -1805,7 +1805,7 @@ static unsigned g_stage9_ren_mark;
 static void stage9_mark(void) { g_stage9_ren_mark = port_stage_render_calls(); }
 static int  stage9_rendered(void)
 { return port_stage_render_calls() != g_stage9_ren_mark; }
-extern "C" void *_ZTV18MovingCylinderClsn[];
+extern "C" void *_ZTV7dCcAc_c[];
 extern "C" void *data_0209ee74;   /* the particle SysTracker (hal/auto_bss) */
 extern "C" void *data_0209f5bc;   /* the installed fader (hal/fader_wipes) */
 extern "C" void *data_0209f324;   /* WIPES, the seven-wipe array */
@@ -1979,7 +1979,7 @@ static void pacer_begin(void)
 
 /* ---- THE FRAME BUDGET, OFF THE ROM'S OWN DIVIDER ----------------------
    HOW FAST A FRAME LOOP MAY RUN IS THE GAME'S DECISION, NOT THE HOST'S, and
-   the game writes it down. IRQ::VBlankHandler (src/_ZN3IRQ13VBlankHandlerEv.c)
+   the game writes it down. IRQ::VBlankHandler (src/_ZN3IRQ13VBlankHandlerEv.cpp)
    counts vblanks into data_0209d514 and only wakes the main thread once that
    count reaches data_0208ee44, so data_0208ee44 is literally vblanks-per-tick:
 
@@ -1988,10 +1988,10 @@ static void pacer_begin(void)
    and every scene sets it for itself during its own InitResources:
 
        src/_ZN5Stage13InitResourcesEv.cpp:362        = 2   the 3D levels
-       src/_ZN16dScMgSmartball_c13InitResourcesEv.c  = 1   a minigame
-       src/func_ov006_020de704.c and its dozen peers = 1   the other minigames
+       src/_ZN16dScMgSmartball_c13InitResourcesEv.cpp  = 1   a minigame
+       src/_ZN11dScMgCoin_c13InitResourcesEv.cpp and its dozen peers = 1   the other minigames
        src/func_ov002_020f7780.c:23                  = 3
-       src/func_ov075_0211a410.cpp:140               = 2
+       src/_ZN10dScEntry_c13InitResourcesEv.cpp:140               = 2
 
    BOTH HOST LOOPS USED TO HARDCODE 33.3ms, which is the divider-2 answer. The
    3D level path was right by accident and every minigame ran at EXACTLY HALF
@@ -3619,7 +3619,7 @@ static int g_fake_snap;
    377 KEEPS ITS QUESTION MARK FOR THE OLDER REASON. It is the one id whose
    factory reaches no signature table at all. ov006's thirty-second dScMg*_c
    typeinfo, dScMgSnowball_c at 0x0213ffdc, is 0x24 from 0x179's own
-   MgSnowballSlalom_SpawnInfo at 0x0213ffb8, which is the locality the other
+   g_profile_MG_SNOWBALL at 0x0213ffb8, which is the locality the other
    twenty-nine rows show, and the peer screening independently called 0x179
    MgSnowballSlalom. That is an inference and not a read, and the menu should
    not present the two as the same claim.
@@ -3684,7 +3684,7 @@ enum { MG_COUNT = (int)(sizeof MG_SCENE / sizeof MG_SCENE[0]) };
    data_ov006_0213c510[-1] points at "15dScMgCurling2_c" -- and the TITLE is
    named by the tree, at an address the ROM verifies:
 
-     the arm9 spawn table data_02090864, entry 0x177 at 0x02090e40, holds
+     the arm9 spawn table ACTOR_SPAWN_TABLE, entry 0x177 at 0x02090e40, holds
      0x0213c434, and config/arm9/overlays/ov098/symbols.txt:113 names that
      record MgShellSmash_SpawnInfo.
 
@@ -3694,7 +3694,7 @@ enum { MG_COUNT = (int)(sizeof MG_SCENE / sizeof MG_SCENE[0]) };
    spawn-table naming import (#211). THE ADDRESSING IS CHECKED RATHER THAN
    ASSUMED, by its two neighbours in the same table: entry 0x176 holds
    0x0213c214 and entry 0x178 holds 0x0213ebd0, which are MgShuffleShell_
-   SpawnInfo and MgBingoBallSlotsShot_SpawnInfo at exactly the addresses
+   SpawnInfo and g_profile_MG_SMARTBALL at exactly the addresses
    port/mg_fanout_costs.txt sections 4 and 11 give them.
 
    WHAT STAYS TRUE IS THAT THE ROM ITSELF STORES NO TITLE TEXT, and that is a
@@ -4647,7 +4647,7 @@ static void menu_input(int pad_live, const XPad *pad)
                 break;
             case MENU_LEVEL:
                 /* left/right move the cursor exactly as
-                   func_ov003_020ad814 does (+/-1, modulo the row
+                   _ZN10dScTitle_c8BehaviorEv does (+/-1, modulo the row
                    count); enter runs its else-branch. */
                 if ((edge & (1u << 5)) && !g_menu_host.player) {
                     /* FROM A SCENE: RELAUNCH (run link60, lane TCH2). There is
@@ -7661,7 +7661,7 @@ int main(void)
        time a layout shift puts something else behind an undersized host
        global. */
     if (getenv("PORT_WATCH_MCC"))
-        port_watch_words(&_ZTV18MovingCylinderClsn[2], 2);
+        port_watch_words(&_ZTV7dCcAc_c[2], 2);
     /* PORT_WATCH_TRACKER=1: who writes the particle tracker pointer. On the
        direct Bob-omb Battlefield boot it read 0x0007f000 by frame 0 after a
        healthy [fx] boot line, which is this same stomp class again. */
@@ -7844,7 +7844,7 @@ int main(void)
        caller -- but src/_ZN4Heap18InitializeRootHeapEv.cpp declares the
        function `void`, so the return value cannot come through the seated TU.
        Testing data_020a0ea0 instead is the same test, not a weaker one:
-       src/_ZN4Heap13SetupRootHeapEv.c writes the new heap into data_020a0e9c
+       src/_ZN4Heap13SetupRootHeapEv.cpp writes the new heap into data_020a0e9c
        and data_020a0ea0 only on the success path and returns 0 without
        touching either on failure. Weakening the boot guard to seat a TU would
        be exactly the kind of non-ROM-faithful fix the port exists to refuse.
@@ -8037,11 +8037,11 @@ int main(void)
          data_0209d514=0 data_0208ee44=2  seated-by-this-port=no
 
        -- a graphics block whose table already holds HOST addresses (walk_window
-       .map: 00431f20 is func_ov102_0214d1b0, 0049d440 is func_ov075_02116040)
+       .map: 00431f20 is func_ov102_0214d1b0, 0049d440 is _ZN10dScEntry_c15graphCallback_c14GraphCallback2Ev)
        but which hal/scene_boot.cpp's port_graph_block_register has never been
        told about. The port's OWN beat therefore refuses it and answers 1; the
        ROM's func_02019144 and func_02019100 have no such test, so under the
-       wake they dispatch it for the first time. src/func_ov075_02116040.c --
+       wake they dispatch it for the first time. src/_ZN10dScEntry_c15graphCallback_c14GraphCallback2Ev.cpp --
        slot 2, the VS menu's own display sync -- is
 
          *(u16*)0x400100c = (BG2CNT_B & ~0x1f00) | (c[0xc] << 8);
@@ -8313,7 +8313,7 @@ int main(void)
         g_mc = stage + 0x91c;
     } else {
         g_mc = mc_storage;
-        _ZN12MeshColliderC1Ev(mc_storage);
+        _ZN7dBgW_KcC1Ev(mc_storage);
     }
     if (real_boot) {
         /* Door and exit stay off in both stages -- their actors are Stage B.
@@ -8419,7 +8419,7 @@ int main(void)
             return 3;
         }
     } else {
-        player = _ZN9ActorBasenwEj(0x800);
+        player = _ZN7fBase_cnwEj(0x800);
         _ZN6PlayerC1Ev(player);
         if (hal_player_init_resources(player) != 1) return 3;
     }
@@ -8452,10 +8452,10 @@ int main(void)
     if (!real_boot) {
         static struct { unsigned short id; unsigned char refs; void *p; } kp;
         _ZN13SharedFilePtr9ConstructEj(&kp, 1941);
-        char *kcl = (char *)_ZN12MeshCollider8LoadFileER13SharedFilePtr(&kp);
+        char *kcl = (char *)_ZN7dBgW_Kc8LoadFileER13SharedFilePtr(&kp);
         if (!kcl) return 4;
         static char clps[0x100];
-        _ZN12MeshCollider7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
+        _ZN7dBgW_Kc7SetFileEP8KCL_FileR10CLPS_Block(mc_storage, kcl,
                                                           clps);
         /* ROOT CAUSE (found 2026-08-02): the level collider's OWNER feeds
            func_02035354's self-collision exclusion. Enabling it with the
@@ -8472,7 +8472,7 @@ int main(void)
            probes (hal_ground_ray / hal_line_ray) work under a NULL owner
            either way. SM64DS_FAKE_SNAP=1 brings the harness ground snap
            back on top for shots that need Mario planted. */
-        _ZN16MeshColliderBase6EnableEP5Actor(
+        _ZN4dBgW6EnableEP8dActor_c(
             mc_storage, fake_snap ? (void *)player : (void *)0);
         /* NO SCALE PAIR HERE ANY MORE. world = KCL raw << 6 is the walk's
            own business now (the ROM's `asr #6`, see
@@ -8587,11 +8587,11 @@ int main(void)
         static char rg[0x50];
         int pos[3] = {*(int *)(c + 0x5c), *(int *)(c + 0x60),
                       *(int *)(c + 0x64)};
-        _ZN13RaycastGroundC1Ev(rg);
-        _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(rg, pos, player);
+        _ZN9dBgCh_GndC1Ev(rg);
+        _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(rg, pos, player);
         rg[4] |= 1;   /* BgCh collide-ordinary (the gate-8 predicate bit) */
         *(int *)(rg + 0x4c) = 0x100000;   /* reach: 256 units down */
-        int hit = _ZN13RaycastGround10DetectClsnEv(rg);
+        int hit = _ZN9dBgCh_Gnd10DetectClsnEv(rg);
         /* +0x44 is the HIT, +0x3c is where the ray STARTED. This line printed
            +0x3c under the name "ground_y" and was read as a collision signal
            for exactly as long as nobody checked it: include/RaycastGround.h
@@ -8665,13 +8665,13 @@ int main(void)
                 for (int gx = -8000; gx <= 8000; gx += step) {
                     static char rgw[0x50];
                     int pos[3] = {gx << 12, 6000 << 12, gz << 12};
-                    _ZN13RaycastGroundC1Ev(rgw);
-                    _ZN4BgCh19StartDetectingWaterEv(rgw);
-                    _ZN4BgCh21StopDetectingOrdinaryEv(rgw);
-                    _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(
+                    _ZN9dBgCh_GndC1Ev(rgw);
+                    _ZN5dBgCh19StartDetectingWaterEv(rgw);
+                    _ZN5dBgCh21StopDetectingOrdinaryEv(rgw);
+                    _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(
                         rgw, pos, player);
                     *(int *)(rgw + 0x4c) = 12000 << 12;
-                    int wet = _ZN13RaycastGround10DetectClsnEv(rgw) &&
+                    int wet = _ZN9dBgCh_Gnd10DetectClsnEv(rgw) &&
                               SurfaceInfo_TestFlag0x20((int *)(rgw + 0x14));
                     int wy = *(int *)(rgw + 0x44);
                     int gy = 0;
@@ -11396,7 +11396,7 @@ int main(void)
                        St_DeadHit_Main -> KillPlayer -> SetNextLevel(2) carries
                        it, the harness's normal level-change poll boots the
                        destination, and the game is left to restore the player
-                       from its own level-enter step (src/func_ov002_020c75f0.c
+                       from its own level-enter step (src/actors/Player.cpp
                        :29, gated on the latched entry reason). It never sets
                        cp_done, so it keeps reporting across the re-entry and a
                        loop shows up as repeated changes rather than silence. */
@@ -12610,7 +12610,7 @@ int main(void)
                     *(int *)(c + 0x60) = gy;
                     if (*(int *)(c + 0xa8) < 0)
                         *(int *)(c + 0xa8) = 0;   /* mVertSpeed */
-                    _ZN12WithMeshClsn13SetGroundFlagEv(c + 0x380);
+                    _ZN10dBgCh_Actr13SetGroundFlagEv(c + 0x380);
                     /* landing signal: St_Jump/Fall exit on this byte;
                        the real WithMeshClsn tracking will own it once
                        the continuous update runs on host */
@@ -13242,7 +13242,7 @@ int main(void)
 
            RETIRED BY THE SLOT-9 SEAT, AND THIS ONE CHANGES WHICH BODY RUNS.
            Stage::Render calls CylinderClsn::Process(), which resolves to
-           ?Process@CylinderClsn@@SAXXZ -- the MATCHED body, in the link on
+           ?Process@dCc_c@@SAXXZ -- the MATCHED body, in the link on
            port/slice_gate33.txt. The call below is the ROM-SHAPED HOST COPY
            (port/unmatched/CylinderClsn_Process.cpp), which existed because the
            matched body dispatched GetPos through MSVC's folded destructor slot
@@ -13861,7 +13861,7 @@ int main(void)
            func_020190b8(), then the phase-7 wait. The IRQ bracket is rung
            B1's, not this one's; the call is this one's. Nothing on the level
            path reads data_0209d464 (the only readers in the tree are the
-           ov006 minigame body func_ov006_020e6e78 and its D3D twin), so what
+           ov006 minigame body _ZN14dScMgD3DBase_c8OnKickedEv and its D3D twin), so what
            this adds to a level frame is exactly one geometry command that
            the engine now sees -- and before this rung did not: src/
            func_020190b8.c built PLAIN put its store in the mapped I/O window
@@ -14235,7 +14235,7 @@ int main(void)
            function running the frame, so the ROM's own zeroing of the VBlank
            count never happens here: the only thing that puts data_0209d514
            back is IRQ::VBlankHandler's own reset at
-           src/_ZN3IRQ13VBlankHandlerEv.c:18, one statement after the wake. So
+           src/_ZN3IRQ13VBlankHandlerEv.cpp:18, one statement after the wake. So
            this line is the direct reading of whether that reset lands inside
            the frame it belongs to (d514 = 0 at the boundary, which is what a
            cartridge shows) or one frame late (d514 = the divider). */

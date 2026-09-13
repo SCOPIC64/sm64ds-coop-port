@@ -64,7 +64,7 @@
 typedef unsigned int u32;
 
 extern "C" {
-int *ArrowSignRight_Spawn(void);
+int *daObjYajirusi_c_classInit_YAJIRUSI_R(void);
 void *_ZN4Heap13SetupRootHeapEv(void);
 extern int data_0209b3ec[12];       /* camera matrix */
 struct SharedFilePtrC { unsigned short fileID; unsigned char numRefs;
@@ -170,7 +170,7 @@ static int *boot_actor_world()
        `data_020a0eac_c = data_020a0ea0;`, the game-heap word aliased onto the
        root heap, and the retained-hand-seed comment here said the conversion
        goes with the port/CMakeLists.txt line that carries
-       src/_ZN4Heap18InitializeGameHeapEjPS_.c onto this target. That line is
+       src/_ZN4Heap18InitializeGameHeapEjPS_.cpp onto this target. That line is
        in, so this is that conversion.
        BOTH PROCESSES CONVERT TOGETHER, which is what that comment required and
        what this placement gives for free: the parent and the spawned child are
@@ -200,7 +200,7 @@ static int *boot_actor_world()
     data_0209f394[0] = fake_player;
     *(unsigned char *)&data_0209f21c = 1;
 
-    int *actor = ArrowSignRight_Spawn();
+    int *actor = daObjYajirusi_c_classInit_YAJIRUSI_R();
     CHECK(actor != NULL);
     if (!actor) return NULL;
     /* where the actor landed, printed for the same reason smoke_actor prints

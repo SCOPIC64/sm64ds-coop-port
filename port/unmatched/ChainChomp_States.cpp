@@ -1,4 +1,4 @@
-/* HOST COPIES of src/func_ov014_02111ebc.cpp and src/func_ov014_02111f08.cpp
+/* HOST COPIES of src/game/actors/d_a_wanwan.cpp and src/game/actors/d_a_wanwan.cpp
  * -- the CHAIN_CHOMP's state machine, and the mwcc pointer-to-member dispatch
  * for the tenth time in this port.
  *
@@ -102,7 +102,7 @@ extern "C" void port_chain_chomp_states_seat(void)
 
 /* func_ov014_02111ebc and func_ov014_02111f08 RETIRED (run link100, lane
    PMFB1), and the static port_chomp_call with them -- nothing else called it.
-   src/func_ov014_02111ebc.cpp and src/func_ov014_02111f08.cpp carry both on
+   src/game/actors/d_a_wanwan.cpp and src/game/actors/d_a_wanwan.cpp carry both on
    port/slice_pmfc.txt. The header above says MSVC "widens the PMF to its four-
    word general representation"; that is dead, because /vmg /vmm target-wide
    (block R8) makes the pointer-to-member the ROM's own eight-byte {function,

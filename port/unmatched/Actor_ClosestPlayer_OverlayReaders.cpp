@@ -2,8 +2,8 @@
  * NO argument and rely on `this` riding ARM r0:
  *
  *     src/func_ov084_02129cf4.c    (ov084 chase/aim state; receiver `c`)
- *     src/func_ov084_0212f204.c    (ov084 range cache;       receiver `r4`)
- *     src/func_ov094_02136024.c    (ov094 approach state;    receiver `c`)
+ *     src/actors/daPkn_c.cpp    (ov084 range cache;       receiver `r4`)
+ *     src/func_ov094_02136024.cpp    (ov094 approach state;    receiver `c`)
  *     src/func_ov102_02149078.c    (ov102 refusal test;      receiver `self`)
  *
  * THE r0-PASSTHROUGH SEAM -- identical to Actor_ClosestPlayerWrappers.cpp: each
@@ -41,18 +41,18 @@
  * the wrappers file do. Per seat gate item 4: a newly hosted overlay carrying
  * known raw readers.
  *
- *   src/func_ov018_02111b3c.c                 (ov018, calls ClosestPlayer() no arg)
+ *   src/game/actors/d_a_pg_mthr.cpp                 (ov018, calls ClosestPlayer() no arg)
  *   src/func_ov020_02111fc4.cpp               (ov020, calls ClosestPlayer() no arg)
  *   [RETIRED, run rel0215 wave 2 lane cast-sweep2: ov032 is hosted now and this
  *    reader went live. Host copy in port/unmatched/Bubba_ChaseGate.cpp; the src
  *    TU is out of port/slice_sweep2_ov032.txt.]
- *   src/func_ov032_02111350.c                 (ov032, HOSTED -- Bubba_ChaseGate.cpp)
+ *   src/game/actors/d_a_bakubaku.cpp                 (ov032, HOSTED -- Bubba_ChaseGate.cpp)
  *   src/func_ov060_02111f08.c                 (ov060, calls ClosestPlayer() no arg)
- *   src/func_ov066_02119398.cpp               (ov066, calls ClosestPlayer() no arg)
+ *   src/actors/Eyerok.cpp               (ov066, calls ClosestPlayer() no arg)
  *   src/unnamed/ov063/func_ov063_02117650.c   (ov063, calls ClosestPlayer() no arg)
- *   src/_ZN5Actor23HorzAngleToCPlayerOrAngEv.c (Actor::HorzAngleToCPlayerOrAng, no arg;
+ *   src/_ZN8dActor_c23HorzAngleToCPlayerOrAngEv.cpp (Actor::HorzAngleToCPlayerOrAng, no arg;
  *                                              already noted in-slice as "in no slice")
- *   src/actors/Boo/_ZN3Boo13InitResourcesEv.c (Boo::InitResources: its two call sites
+ *   src/game/actors/daTrs_c/_ZN7daTrs_c13InitResourcesEv.cpp (Boo::InitResources: its two call sites
  *                                              already pass c, so it is safe on the host
  *                                              as written, but its extern is declared
  *                                              zero-arg style; keep the c argument if the
@@ -61,12 +61,12 @@
 #include "common.h"
 
 /* one real one-arg (this) shape, shared by all four copies below */
-extern "C" void *_ZN5Actor13ClosestPlayerEv(void *self);
+extern "C" void *_ZN8dActor_c13ClosestPlayerEv(void *self);
 
 /* ---- func_ov084_02129cf4 (receiver c) ------------------------------------- */
 extern "C" {
 typedef int Fix12i;
-int _ZNK12WithMeshClsn8IsOnWallEv(void *c);
+int _ZNK10dBgCh_Actr8IsOnWallEv(void *c);
 Fix12i Vec3_Dist(const struct Vector3 *a, const struct Vector3 *b);
 short Vec3_HorzAngle(const struct Vector3 *a, const struct Vector3 *b);
 }
@@ -76,7 +76,7 @@ extern "C" void func_ov084_02129cf4(char *c, Fix12i distThresh)
 {
     struct Vector3 ppos;
 
-    *(void **)(c + 0x438) = _ZN5Actor13ClosestPlayerEv(c);   /* <-- this, the ROM's r0 */
+    *(void **)(c + 0x438) = _ZN8dActor_c13ClosestPlayerEv(c);   /* <-- this, the ROM's r0 */
 
     if (*(void **)(c + 0x438) == 0
         || (Vec3_Dist((struct Vector3*)(c+0x5c), (struct Vector3*)(c+0x41c)) > distThresh
@@ -95,7 +95,7 @@ extern "C" void func_ov084_02129cf4(char *c, Fix12i distThresh)
 
     if (*(unsigned char*)(c+0x113) < 6) {
         if (Vec3_Dist((struct Vector3*)(c+0x5c), (struct Vector3*)(c+0x41c)) > distThresh
-            && !_ZNK12WithMeshClsn8IsOnWallEv(c+0x1b4)) {
+            && !_ZNK10dBgCh_Actr8IsOnWallEv(c+0x1b4)) {
             *(int*)(c+0x440) = 0x61a8000;
             *(short*)(c+0x400+0x5a) = Vec3_HorzAngle((struct Vector3*)(c+0x5c), (struct Vector3*)(c+0x41c));
             return;
@@ -127,7 +127,7 @@ extern "C" void func_ov084_02129cf4(char *c, Fix12i distThresh)
 extern "C" void func_ov084_0212f204(char* r4)
 {
     struct Vector3 v;
-    *(char**)(r4 + 0x460) = (char*)_ZN5Actor13ClosestPlayerEv(r4);   /* <-- this, the ROM's r0 */
+    *(char**)(r4 + 0x460) = (char*)_ZN8dActor_c13ClosestPlayerEv(r4);   /* <-- this, the ROM's r0 */
     {
         char* p = *(char**)(r4 + 0x460);
         if (p != 0) {
@@ -162,7 +162,7 @@ void MulVec3Mat4x3(Ov094Vec3* in, void* m, Ov094Vec3* out);
 // PORT_HOST_ABI: implicit-register-arg (ClosestPlayer's this rode r0 from the enclosing member; the host passes c).
 extern "C" int func_ov094_02136024(char* c)
 {
-    char* p = (char*)_ZN5Actor13ClosestPlayerEv(c);   /* <-- this, the ROM's r0 */
+    char* p = (char*)_ZN8dActor_c13ClosestPlayerEv(c);   /* <-- this, the ROM's r0 */
     if (p != 0 && *(int*)(p+0x37c) != 0) {
         char* ip = OV094_LA(p + 0x5c);
         Ov094Vec3 pp;
@@ -214,7 +214,7 @@ extern "C" int func_ov102_02149078(void *self)
     } else {
         if (data_0209f2f8 == 0x21)
             return 0;
-        if (*(unsigned char*)((char*)_ZN5Actor13ClosestPlayerEv(self) + 0x706))   /* <-- this */
+        if (*(unsigned char*)((char*)_ZN8dActor_c13ClosestPlayerEv(self) + 0x706))   /* <-- this */
             return 1;
     }
     return 0;
@@ -246,7 +246,7 @@ extern "C" int func_ov060_02111f08(void *arg0)
 {
     char *self = (char *)arg0;
     void *cam = data_0209f318;
-    char *player = (char *)_ZN5Actor13ClosestPlayerEv(arg0);   /* <-- this, the ROM's r0 */
+    char *player = (char *)_ZN8dActor_c13ClosestPlayerEv(arg0);   /* <-- this, the ROM's r0 */
     struct Vector3 sp;
     struct Vector3 *pv;
     unsigned char *p;

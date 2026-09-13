@@ -1,4 +1,4 @@
-/* HOST COPIES of src/_ZN12ActorDerived5SpawnEjP9ActorBaseii.cpp and
+/* HOST COPIES of src/actors/ActorDerived.cpp and
  * src/func_02042ffc.c -- the actor-spawn entry pair with its arguments
  * spelled out.
  *
@@ -37,7 +37,7 @@ int func_02042ffc(unsigned id, void *parent, unsigned param1, int flags)
 /* PORT_HOST_ABI: ARM register ride-through: the ROM veneer leaves param1
  * and flags in r2/r3 across a call that names two arguments. See the
  * header. */
-void *_ZN12ActorDerived5SpawnEjP9ActorBaseii(unsigned id, void *parent,
+void *_ZN7dBase_c5SpawnEjP7fBase_cii(unsigned id, void *parent,
                                              unsigned param1, int flags)
 {
     return (void *)(size_t)func_02042ffc(id, parent, param1, flags);

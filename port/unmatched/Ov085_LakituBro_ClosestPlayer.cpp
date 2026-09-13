@@ -15,7 +15,7 @@
  * ClosestPlayer is a nonstatic member that reads `this` from r0, and the state
  * body's own r0 is still live across the `bl`.
  *
- * On the host the ClosestPlayer definition (src/_ZN5Actor13ClosestPlayerEv.c,
+ * On the host the ClosestPlayer definition (src/_ZN8dActor_c13ClosestPlayerEv.cpp,
  * bridged in hal/reverse_bridges.cpp) is `(void *self)` -- cdecl, `self` off the
  * stack. The zero-argument call pushes nothing, so `self` is stack garbage and
  * ClosestPlayer's loop, Vec3_Dist((char*)self + 0x5c, (char*)player + 0x5c),
@@ -41,13 +41,13 @@
 
 /* ---- func_ov085_0212d9b8 -------------------------------------------------- */
 extern "C" {
-void* _ZN5Actor13ClosestPlayerEv(void* self);   /* real one-arg (this) shape */
+void* _ZN8dActor_c13ClosestPlayerEv(void* self);   /* real one-arg (this) shape */
 void _Z14ApproachLinearRiii(int* p, int a, int b);
 /* _Z14ApproachLinearRsss demangles to ApproachLinear(short&, short, short); one
    shared decl for the dd10 and e310 bodies below. */
 void _Z14ApproachLinearRsss(short& cur, short tgt, short step);
 int func_ov002_020c3ea0(void* c);
-int _ZN5Sound8PlayLongEjjjRK7Vector3j(unsigned int a, unsigned int b, unsigned int cc, void* v, unsigned int e);
+int _ZN5Sound8PlayLongEjjjRK7Vector3s(unsigned int a, unsigned int b, unsigned int cc, void* v, unsigned int e);
 }
 /* func_ov085_0212e728 and _Z14ApproachLinearRsss are declared in decl_common.h
    (int(void*,void*) and (short&,short,short) respectively); use those canonical
@@ -59,7 +59,7 @@ extern "C" short data_ov085_02130820;
 // PORT_HOST_ABI: implicit-register-arg (ClosestPlayer's this rode r0 from the enclosing state; the host passes c).
 extern "C" int func_ov085_0212d9b8(char* c)
 {
-    void* pl = _ZN5Actor13ClosestPlayerEv(c);   /* <-- this, the ROM's r0 */
+    void* pl = _ZN8dActor_c13ClosestPlayerEv(c);   /* <-- this, the ROM's r0 */
     if (pl == 0) return 1;
 
     *(int*)(((int)c + 0x2c8)) += 1;
@@ -85,7 +85,7 @@ extern "C" int func_ov085_0212d9b8(char* c)
         _Z14ApproachLinearRiii((int*)(c + 0x98), a1, 0x1000);
     }
 
-    *(int*)(c + 0x2e4) = _ZN5Sound8PlayLongEjjjRK7Vector3j(
+    *(int*)(c + 0x2e4) = _ZN5Sound8PlayLongEjjjRK7Vector3s(
         *(unsigned int*)(c + 0x2e4), 3, 0x182, (void*)(c + 0x74), 0);
 
     if (*(int*)(c + 0x2c8) > 0x78) {
@@ -105,7 +105,7 @@ extern char data_ov085_021307c0[];
 // PORT_HOST_ABI: implicit-register-arg (ClosestPlayer's this rode r0 from the enclosing state; the host passes c).
 extern "C" int func_ov085_0212dd10(char* c)
 {
-    char* p = (char*)_ZN5Actor13ClosestPlayerEv(c);   /* <-- this, the ROM's r0 */
+    char* p = (char*)_ZN8dActor_c13ClosestPlayerEv(c);   /* <-- this, the ROM's r0 */
     if (!p) return 1;
     {
         short v = *(short*)(c + 0x8e);
@@ -147,7 +147,7 @@ extern "C" int func_ov085_0212e310(char *c)
     Vector3 out;
     char *p;
 
-    p = (char *)_ZN5Actor13ClosestPlayerEv(c);   /* <-- this, the ROM's r0 */
+    p = (char *)_ZN8dActor_c13ClosestPlayerEv(c);   /* <-- this, the ROM's r0 */
     if (p == 0) {
         return 1;
     }
@@ -160,7 +160,7 @@ extern "C" int func_ov085_0212e310(char *c)
         _ZN5Sound7PlaySubEjjj5Fix12IiEb(0x4a, 0x14, 0x7f, 0x15666, 0);
     }
 
-    *(unsigned int *)(c + 0x2e4) = _ZN5Sound8PlayLongEjjjRK7Vector3j(*(unsigned int *)(c + 0x2e4), 3, 0x182, (Vector3 *)(c + 0x74), 0);
+    *(unsigned int *)(c + 0x2e4) = _ZN5Sound8PlayLongEjjjRK7Vector3s(*(unsigned int *)(c + 0x2e4), 3, 0x182, (Vector3 *)(c + 0x74), 0);
 
     in.x = 0;
     in.y = 0;
@@ -201,7 +201,7 @@ extern int data_ov085_02130800[];
 // PORT_HOST_ABI: implicit-register-arg (ClosestPlayer's this rode r0 from the enclosing state; the host passes self).
 extern "C" int func_ov085_0212e4a4(unsigned int self)
 {
-    int p = (int)_ZN5Actor13ClosestPlayerEv((void*)self);   /* <-- this, the ROM's r0 */
+    int p = (int)_ZN8dActor_c13ClosestPlayerEv((void*)self);   /* <-- this, the ROM's r0 */
     if (p != 0) {
         struct V3 { int x, y, z; } v = *(struct V3 *)(p + 0x5c);
         if ((data_0209caa0[2] & 0x10000) != 0 &&

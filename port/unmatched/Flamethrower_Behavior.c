@@ -62,23 +62,23 @@
  * except the four particle emitters, which this lane's slice adds:
  *
  *     0203adbc x2  DecIfAbove0_Short
- *     02012328     _ZN5Sound8PlayLongEjjjRK7Vector3j
+ *     02012328     _ZN5Sound8PlayLongEjjjRK7Vector3s
  *     0203be9c     Matrix4x3_FromRotationXYZExt
  *     02052858     MulVec3Mat4x3
  *     0203d340 x2  Vec3_Add
- *     02010f3c     _ZN5Actor10FindWithIDEj
+ *     02010f3c     _ZN8dActor_c10FindWithIDEj
  *     020d57d8     _ZN6Player4BurnEv          (ov002, linked by gate 175)
  *     02022774     func_02022774  \  Particle::System::New wrappers, effect
  *     020226fc     func_020226fc  |  ids 0x4f / 0x50 / 0x51 / 0x52. Added to
  *     02022864     func_02022864  |  the build by slice_w6f.txt; their own
  *     020227ec     func_020227ec  /  closure was already linked.
- *     02015024     _ZN12CylinderClsn5ClearEv
- *     02014ff0     _ZN12CylinderClsn6UpdateEv
+ *     02015024     _ZN5dCc_c5ClearEv
+ *     02014ff0     _ZN5dCc_c6UpdateEv
  *
  * No alias is introduced by this file: every name below is the ROM symbol at
  * C linkage and resolves to a definition already in the binary.
  *
- * THE OBJECT, as the listing uses it (alloc 0x46c, from Flamethrower_Spawn):
+ * THE OBJECT, as the listing uses it (alloc 0x46c, from daObjFlamethrower_c_classInit):
  *     +0x008  u32       spawn param word; the low byte selects the variant
  *     +0x05c  Vector3   the emitter's own position (x/y/z at 5c/60/64)
  *     +0x074  Vector3   the position Sound::PlayLong is given
@@ -115,19 +115,19 @@ extern short data_ov095_02136f80[];   /* 12 x s16 */
 extern short data_ov095_02136f98[];   /* 12 x s16 */
 
 extern u16 DecIfAbove0_Short(u16 *p);
-extern s32 _ZN5Sound8PlayLongEjjjRK7Vector3j(u32 handle, u32 a, u32 b,
+extern s32 _ZN5Sound8PlayLongEjjjRK7Vector3s(u32 handle, u32 a, u32 b,
                                              Vector3 *pos, short e);
 extern void Matrix4x3_FromRotationXYZExt(void *m, s32 x, s32 y, s32 z);
 extern void MulVec3Mat4x3(Vector3 *in, void *m, Vector3 *out);
 extern void Vec3_Add(Vector3 *out, Vector3 *a, Vector3 *b);
-extern void *_ZN5Actor10FindWithIDEj(u32 id);
+extern void *_ZN8dActor_c10FindWithIDEj(u32 id);
 extern void _ZN6Player4BurnEv(void *player);
 extern void func_02022774(s32 x, s32 y, s32 z, s16 a, s16 b);
 extern void func_020226fc(s32 x, s32 y, s32 z, s16 a, s16 b);
 extern void func_02022864(s32 x, s32 y, s32 z, s16 a, s16 b);
 extern void func_020227ec(s32 x, s32 y, s32 z, s16 a, s16 b);
-extern void _ZN12CylinderClsn5ClearEv(void *c);
-extern void _ZN12CylinderClsn6UpdateEv(void *c);
+extern void _ZN5dCc_c5ClearEv(void *c);
+extern void _ZN5dCc_c6UpdateEv(void *c);
 
 s32 _ZN12Flamethrower8BehaviorEv(void *self);
 
@@ -193,7 +193,7 @@ s32 _ZN12Flamethrower8BehaviorEv(void *self)
          mov r0,#0 / str r0,[sp]        the stacked 5th argument
          ldr r0,[sb,#0x468] / add r3,sb,#0x74 / mov r1,#3 / mov r2,#0x180 */
     if (*(u8 *)(thiz + 0x465) != 0)
-        *(u32 *)(thiz + 0x468) = (u32)_ZN5Sound8PlayLongEjjjRK7Vector3j(
+        *(u32 *)(thiz + 0x468) = (u32)_ZN5Sound8PlayLongEjjjRK7Vector3s(
             *(u32 *)(thiz + 0x468), 3, 0x180, (Vector3 *)(thiz + 0x74), 0);
 
     /* 021369f0..02136a10: the early out. `ands r0,r0,#8` then the conditional
@@ -293,7 +293,7 @@ s32 _ZN12Flamethrower8BehaviorEv(void *self)
             {
                 u32 other = *(u32 *)(col + 0xf8);
                 if (other != 0) {
-                    void *found = _ZN5Actor10FindWithIDEj(other);
+                    void *found = _ZN8dActor_c10FindWithIDEj(other);
                     if (found != 0 && *(u16 *)((char *)found + 0xc) == 0xbf)
                         _ZN6Player4BurnEv(found);
                 }
@@ -346,9 +346,9 @@ s32 _ZN12Flamethrower8BehaviorEv(void *self)
         s32 k;
 
         for (k = 0; k < n; k++) {
-            _ZN12CylinderClsn5ClearEv(c);
+            _ZN5dCc_c5ClearEv(c);
             if (k < (s32)*(u8 *)(thiz + 0x465))
-                _ZN12CylinderClsn6UpdateEv(c);
+                _ZN5dCc_c6UpdateEv(c);
             c += 0x3c;
         }
     }

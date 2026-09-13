@@ -36,7 +36,7 @@
 typedef unsigned int u32;
 
 extern "C" {
-int *ArrowSignRight_Spawn(void);
+int *daObjYajirusi_c_classInit_YAJIRUSI_R(void);
 void *_ZN4Heap13SetupRootHeapEv(void);
 extern int data_0209b3ec[12];       /* camera matrix */
 struct SharedFilePtrC { unsigned short fileID; unsigned char numRefs;
@@ -220,7 +220,7 @@ int main(void)
        line used to be `data_020a0eac_c = data_020a0ea0;`, the game-heap word
        aliased onto the root heap, and the retained-hand-seed comment here said
        the conversion goes with the port/CMakeLists.txt line that carries
-       src/_ZN4Heap18InitializeGameHeapEjPS_.c onto this target. That line is
+       src/_ZN4Heap18InitializeGameHeapEjPS_.cpp onto this target. That line is
        in, so this is that conversion.
        WHAT IT MOVES, as that comment predicted: the saved arena bytes. Save
        and load are the same process and the same build, so the byte-exact
@@ -248,7 +248,7 @@ int main(void)
     data_0209f394[0] = fake_player;
     *(unsigned char *)&data_0209f21c = 1;
 
-    int *actor = ArrowSignRight_Spawn();
+    int *actor = daObjYajirusi_c_classInit_YAJIRUSI_R();
     CHECK(actor != NULL);
     if (!actor) { fprintf(stderr, "smoke_savestate: no actor, abort\n"); return 1; }
     /* where the actor landed, printed for the same reason smoke_actor prints

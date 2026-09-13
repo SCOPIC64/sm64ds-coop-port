@@ -735,7 +735,7 @@ void sd_sound_init_host(void)
 // func_020119c8 (skip if +6==1) with func_02011974 (stop if field_0 != 0) -- the
 // second is the first with the refresh test removed.
 //
-// It is Scene::BeforeCleanupResources (_ZN5Scene22BeforeCleanupResourcesEv,
+// It is Scene::BeforeCleanupResources (_ZN8dScene_c22BeforeCleanupResourcesEv,
 // vtable slot 4) that fires it: func_02011974(&data_0209b53c) is that override's
 // whole body past the ActorBase base call. On the ROM the Scene actor is torn
 // down and respawned per level, so slot 4 runs on every level change and every
@@ -873,7 +873,7 @@ extern "C" void func_0205a8c4(void *c);   /* Snd_SendCommand(0x13, c, 0,0,0) */
  * this fires the ROM's own coin call instead, unchanged:
  *
  *     Actor::GivePlayerCoins  ->  Sound::PlayBank3(0x11, actor + 0x74)
- *     (src/_ZN5Actor15GivePlayerCoinsER6Playerhj.c:44-48, and the three ov002
+ *     (src/_ZN8dActor_c15GivePlayerCoinsER6Playerhj.cpp:44-48, and the three ov002
  *      collect paths func_ov002_020af684 / 020b16c4 / 020b1884 make the same
  *      two calls with the same two ids)
  *
@@ -928,7 +928,7 @@ static void snd_coin_probe(void)
  * on a real container off the behaviour list:
  *
  *     StarMarker::Behavior          -- src/_ZN10StarMarker8BehaviorEv.cpp:78-84
- *       -> func_ov002_020e7d84      -- the break: Sound::Play(3, 0x53) through
+ *       -> _ZN10StarMarker7CollectEv      -- the break: Sound::Play(3, 0x53) through
  *          func_02012694(0x53, actor + 0x74), the cylinder cleared, and the
  *          three Particle::NewSimple bursts 0x12c/0x12d/0x12e
  *
@@ -981,7 +981,7 @@ static void snd_coin_probe(void)
  * was started on, printed by the [sseq] line immediately above it. */
 extern "C" {
 extern int data_020a4b78[];               /* the behaviour list head */
-extern void func_ov002_020e7d84(char *c); /* StarMarker's own break */
+extern void _ZN10StarMarker7CollectEv(char *c); /* StarMarker's own break */
 extern void func_02012694(unsigned int id, const void *camSpacePos);
 }
 
@@ -994,7 +994,7 @@ static void snd_break_probe(void)
         at = e ? atoi(e) : 0;
         if (at > 0)
             fprintf(stderr, "[breakprobe] armed for frame %d: the ROM's own "
-                    "func_ov002_020e7d84 on a live STAR_MARKER container\n",
+                    "_ZN10StarMarker7CollectEv on a live STAR_MARKER container\n",
                     at);
     }
     if (at <= 0) return;
@@ -1018,7 +1018,7 @@ static void snd_break_probe(void)
                 frame, (void *)hit, (int)*(unsigned char *)(hit + 0x1d8),
                 p[0] >> 12, p[1] >> 12, p[2] >> 12,
                 c[0] >> 12, c[1] >> 12, c[2] >> 12);
-        func_ov002_020e7d84(hit);
+        _ZN10StarMarker7CollectEv(hit);
     } else {
         fprintf(stderr, "[breakprobe] frame %d: no STAR_MARKER with "
                 "mState != 0 on the behaviour list\n", frame);

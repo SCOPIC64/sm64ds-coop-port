@@ -47,10 +47,15 @@ extern "C" void _ZN7PathPtrC1Ev(void *self);
 extern "C" void _ZN7PathPtr6FromIDEj(void *self, unsigned int id);
 
 /* PORT_HOST_ABI: __thiscall receiver in ECX forwarded to the cdecl flat name. */
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync): src/_ZN7PathPtrC1Ev.cpp defines ??0PathPtr@@QAE@XZ itself since main langmode migration, so this face was the second definition (LNK2005). PathPtr::FromID in this file is untouched.
+   The body is kept below under #if 0 rather than deleted, so the
+   evidence in it stays readable. */
+#if 0
 PathPtr::PathPtr()
 {
     _ZN7PathPtrC1Ev(this);
 }
+#endif
 
 /* PORT_HOST_ABI: __thiscall receiver in ECX forwarded to the cdecl flat name. */
 void PathPtr::FromID(unsigned int id)

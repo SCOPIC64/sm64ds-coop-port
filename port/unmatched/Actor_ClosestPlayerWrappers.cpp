@@ -1,5 +1,5 @@
-/* HOST COPIES of src/_ZN5Actor13DistToCPlayerEv.cpp and
- * src/_ZN5Actor14FarthestPlayerEv.cpp -- the two thin wrappers that call
+/* HOST COPIES of src/_ZN8dActor_c13DistToCPlayerEv.cpp and
+ * src/_ZN8dActor_c14FarthestPlayerEv.cpp -- the two thin wrappers that call
  * Actor::ClosestPlayer() for its side effect (it caches the closest distance
  * and the farthest-player pointer in file-scope globals) and then return one
  * of those globals.
@@ -18,17 +18,17 @@
  *     FarthestPlayer (0x02010958):  same shape, returns data_0209b450
  *
  * The matched C spells the call as ClosestPlayer() with no argument (the src
- * extern is `_ZN5Actor13ClosestPlayerEv(void)`); byte-identical on ARM because
+ * extern is `_ZN8dActor_c13ClosestPlayerEv(void)`); byte-identical on ARM because
  * r0 already holds `this`.
  *
  * On the host the ClosestPlayer bridge (hal/reverse_bridges.cpp) is
- * `_ZN5Actor13ClosestPlayerEv(void *self)` -- cdecl, `self` off the stack. The
+ * `_ZN8dActor_c13ClosestPlayerEv(void *self)` -- cdecl, `self` off the stack. The
  * zero-argument call pushes nothing, so `self` is stack garbage and
  * ClosestPlayer measures distance from garbage+0x5c, faulting or returning a
  * meaningless cache. THE FIX passes `this` explicitly, exactly the value the
  * ROM leaves in r0.
  *
- * src/_ZN5Actor13DistToCPlayerEv.c and src/_ZN5Actor14FarthestPlayerEv.c are
+ * src/_ZN8dActor_c13DistToCPlayerEv.cpp and src/_ZN8dActor_c14FarthestPlayerEv.cpp are
  * dropped from their slice files (gate 16, gate 89) in favour of this file; the
  * byte-locked sources are unchanged.
  *
@@ -53,7 +53,7 @@
  * 0581eec0 plus 0x5c = 0581ef1c. Both registers in the dump are exactly those
  * two values, so the faulting read is ClosestPlayer measuring from a null
  * `this` -- not the rabbit's own state machine, which passes `c` correctly
- * (src/_ZN6Rabbit8BehaviorEv.c, both call sites).
+ * (src/actors/daMip_c.cpp, both call sites).
  *
  * It is intermittent because ClosestPlayer is cached: the body only runs the
  * loop when data_0209b458 is null, so a bad `this` is harmless on every frame
@@ -65,24 +65,24 @@
 
 extern "C" {
 
-void *_ZN5Actor13ClosestPlayerEv(void *self);   /* the real one-arg (this) shape */
+void *_ZN8dActor_c13ClosestPlayerEv(void *self);   /* the real one-arg (this) shape */
 
 extern int   data_0208e380;   /* closest-player distance, set by ClosestPlayer */
 extern void *data_0209b450;   /* farthest-player pointer,  set by ClosestPlayer */
 
 /* Actor::DistToCPlayer() -> s32 */
 // PORT_HOST_ABI: implicit-register-arg (ClosestPlayer's this rode r0 from the enclosing member; the host passes it).
-int _ZN5Actor13DistToCPlayerEv(void *self)
+int _ZN8dActor_c13DistToCPlayerEv(void *self)
 {
-    _ZN5Actor13ClosestPlayerEv(self);   /* <-- this, the ROM's r0 */
+    _ZN8dActor_c13ClosestPlayerEv(self);   /* <-- this, the ROM's r0 */
     return data_0208e380;
 }
 
 /* Actor::FarthestPlayer() -> Player* */
 // PORT_HOST_ABI: implicit-register-arg (FarthestPlayer: same shape, ClosestPlayer's this rode r0; the host passes it).
-void *_ZN5Actor14FarthestPlayerEv(void *self)
+void *_ZN8dActor_c14FarthestPlayerEv(void *self)
 {
-    _ZN5Actor13ClosestPlayerEv(self);   /* <-- this, the ROM's r0 */
+    _ZN8dActor_c13ClosestPlayerEv(self);   /* <-- this, the ROM's r0 */
     return data_0209b450;
 }
 
@@ -101,18 +101,18 @@ extern struct PortActor *data_0209b458;   /* closest-player pointer */
 /* Actor::HorzAngleToCPlayer() -> s16.  Body is the matched source verbatim
    except for the argument the ROM left in r0. */
 // PORT_HOST_ABI: implicit-register-arg (ClosestPlayer's this rode r0 from the enclosing member; the host passes it).
-s16 _ZN5Actor18HorzAngleToCPlayerEv(struct PortActor *self)
+s16 _ZN8dActor_c18HorzAngleToCPlayerEv(struct PortActor *self)
 {
-    _ZN5Actor13ClosestPlayerEv(self);   /* <-- this, the ROM's r0 */
+    _ZN8dActor_c13ClosestPlayerEv(self);   /* <-- this, the ROM's r0 */
     return Vec3_HorzAngle(&self->pos, &data_0209b458->pos);
 }
 
 /* Actor::HorzAngleToFPlayer() -> s16.  Reads the farthest-player global that
    the same call refills. */
 // PORT_HOST_ABI: implicit-register-arg (ClosestPlayer's this rode r0 from the enclosing member; the host passes it).
-s16 _ZN5Actor18HorzAngleToFPlayerEv(struct PortActor *self)
+s16 _ZN8dActor_c18HorzAngleToFPlayerEv(struct PortActor *self)
 {
-    _ZN5Actor13ClosestPlayerEv(self);   /* <-- this, the ROM's r0 */
+    _ZN8dActor_c13ClosestPlayerEv(self);   /* <-- this, the ROM's r0 */
     return Vec3_HorzAngle(&self->pos,
                           &((struct PortActor *)data_0209b450)->pos);
 }
@@ -120,10 +120,10 @@ s16 _ZN5Actor18HorzAngleToFPlayerEv(struct PortActor *self)
 /* Actor::IsPlayerInRange(s32 maxDist) -> bool.  maxDist arrives as a whole-unit
    integer and is shifted into 20.12 at the comparison, per Actor.h. */
 // PORT_HOST_ABI: implicit-register-arg (ClosestPlayer's this rode r0 from the enclosing member; the host passes it).
-int _ZN5Actor15IsPlayerInRangeEi(struct PortActor *self, int maxDist)
+int _ZN8dActor_c15IsPlayerInRangeEi(struct PortActor *self, int maxDist)
 {
     struct PortActor *closest =
-        (struct PortActor *)_ZN5Actor13ClosestPlayerEv(self);  /* <-- this */
+        (struct PortActor *)_ZN8dActor_c13ClosestPlayerEv(self);  /* <-- this */
     return Vec3_Dist(&self->pos, &closest->pos) < (maxDist << 12);
 }
 
@@ -132,18 +132,18 @@ int _ZN5Actor15IsPlayerInRangeEi(struct PortActor *self, int maxDist)
    r1 and maxDist in r2, leaving r0 written-but-unread -- and r0 is exactly what
    ClosestPlayer goes on to read. */
 // PORT_HOST_ABI: implicit-register-arg (ClosestPlayer's this rode r0 from the enclosing member; the host passes it).
-int _ZN5Actor15IsPlayerInRangeERK7Vector3i(struct PortActor *self,
+int _ZN8dActor_c15IsPlayerInRangeERK7Vector3i(struct PortActor *self,
                                            const struct PortVec3 *pos,
                                            int maxDist)
 {
     struct PortActor *closest =
-        (struct PortActor *)_ZN5Actor13ClosestPlayerEv(self);  /* <-- this */
+        (struct PortActor *)_ZN8dActor_c13ClosestPlayerEv(self);  /* <-- this */
     return Vec3_Dist(pos, &closest->pos) < (maxDist << 12);
 }
 
 /* Actor::IsPlayerInRange(Fix12i, Fix12i, Fix12i, s32) -> bool. */
 // PORT_HOST_ABI: implicit-register-arg (ClosestPlayer's this rode r0 from the enclosing member; the host passes it).
-int _ZN5Actor15IsPlayerInRangeE5Fix12IiES1_S1_i(struct PortActor *self,
+int _ZN8dActor_c15IsPlayerInRangeE5Fix12IiES1_S1_i(struct PortActor *self,
                                                 Fix12i posX, Fix12i posY,
                                                 Fix12i posZ, int maxDist)
 {
@@ -152,7 +152,7 @@ int _ZN5Actor15IsPlayerInRangeE5Fix12IiES1_S1_i(struct PortActor *self,
     pos.x = posX;
     pos.y = posY;
     pos.z = posZ;
-    closest = (struct PortActor *)_ZN5Actor13ClosestPlayerEv(self); /* <-- this */
+    closest = (struct PortActor *)_ZN8dActor_c13ClosestPlayerEv(self); /* <-- this */
     return Vec3_Dist(&pos, &closest->pos) < (maxDist << 12);
 }
 

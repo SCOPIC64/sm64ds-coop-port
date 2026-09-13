@@ -34,14 +34,14 @@ src/func_0202ae74.c
 # function. Same body, five declarations removed. Added to the targets in
 # CMakeLists.txt beside the other unmatched host copies.
 src/_ZN6Player16OnPendingDestroyEv.cpp
-src/_ZN6PlayerD2Ev.cpp
+src/_ZN6PlayerD1Ev.cpp
 
 # Stage::ResetMeshColliders zeroes the 0x18-entry collider registry at
 # data_020a0c80. It is what Stage::CleanupResources calls for exactly this
 # reason, and it is the one line of the ROM's Stage teardown that applies to
 # the port's boot: the level's collider has to leave the registry before the
 # next level's LoadClsnAndObjects puts its own in.
-src/_ZN5Stage18ResetMeshCollidersEv.c
+src/_ZN5Stage18ResetMeshCollidersEv.cpp
 
 # ---- StartFile's and Player::CleanupResources' own closures ----------------
 # Everything below is reached only from the two entry points above; each is a
@@ -54,7 +54,17 @@ src/func_020308d0.c
 src/InitControllerMode.c
 src/UnloadSilverStarAndNumber.c
 src/UnloadKeyModels.cpp
-src/func_ov002_020bebd4.cpp
+# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
+# refuses main's shape for this TU (C2624, C3640, C2556 and C2371 together, 31
+# errors in one TU: extern declarations of function-local class types, one
+# free function declared with two return types, and virtual members of a local
+# class left undefined. Quarantining this TU costs the most of any row in this
+# list (main folded Player's whole class into it), and it is the single
+# biggest reason the fold's linkage number cannot be restored until the decomp
+# answers items 10 and 11). It is a decomp-side item, not a port one: see
+# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
+# fix.
+#src/actors/Player.cpp
 # func_02073244 and func_0203cbc0 are HOST COPIES too (port/unmatched/): both
 # are ARM argument ride-throughs -- func_0203cbc0 is a veneer that forwards r0
 # to _ZdlPv without declaring an argument, and func_02073244 lets the element
@@ -68,22 +78,29 @@ src/func_ov002_020bebd4.cpp
 # a trap -- correctly, until there was a level teardown to dispatch it. These
 # four have a plain-C D1 in src; the other five are compiler-generated member
 # destruction over shadow classes and are written out in actor_classes.cpp.
-src/_ZN11CastleWaterD1Ev.c
-src/_ZN11CastleWaterD0Ev.c
-src/_ZN8MetalNetD1Ev.c
-src/_ZN8MetalNetD0Ev.c
-src/_ZN13QuestionBlockD1Ev.c
-src/_ZN13QuestionBlockD0Ev.c
+src/game/actors/d_a_obj_mc_water.cpp
+src/game/actors/d_a_obj_mc_metalnet.cpp
+src/_ZN13QuestionBlockD1Ev.cpp
+# RETIRED at SLICE1: body now in src/_ZN13QuestionBlockD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN13QuestionBlockD0Ev.cpp
 # CastleWater's own chain reaches the texture transformer it scrolls the moat
 # surface with; gate 17 landed the constructor and Update, this is the other
 # end of the same object.
-src/_ZN18TextureTransformerD1Ev.c
+src/_ZN18TextureTransformerD1Ev.cpp
 # and ModelAnim2's, the third class port_model_family_delete can be
 # handed (the Player's body models). Model's and ModelAnim's were
 # already in gates 16 and 10.
-src/_ZN10ModelAnim2D1Ev.c
-src/_ZN9ModelAnimD2Ev.c
-src/_ZN9AnimationD1Ev.c
+# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
+# refuses main's shape for this TU (C2600, the model family's destructor TUs:
+# main defines X::~X() where the host header spells the destructor as two
+# plain virtuals; port/unmatched/ModelFamily_Dtors_HostCopy.c carries the
+# merge base's own bodies instead). It is a decomp-side item, not a port one:
+# see runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands
+# the fix.
+#src/_ZN10ModelAnim2D1Ev.cpp
+# RETIRED at SLICE1: body now in src/_ZN9ModelAnimD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
+#src/_ZN9ModelAnimD2Ev.cpp
+src/_ZN9AnimationD1Ev.cpp
 
 # ---- the common-model array ------------------------------------------------
 # Model::LoadFile registers every BMD it parses in data_0209cefc so two actors

@@ -429,7 +429,7 @@ int data_port_backup_device[10] = {
 
 // data_020a8760 is a POINTER, not the table: src/func_02060364.c assigns the
 // row to it and src/func_0206045c.c reads element [1] through it.
-// src/func_020603c8.c -> func_02060364 is what does this on hardware, off the
+// src/func_020603c8.cpp -> func_02060364 is what does this on hardware, off the
 // back of the card driver's own thread; the port has no card thread, so the
 // same assignment is made statically here.
 // The STORAGE for that pointer word is hal/globals_link100.cpp's grouped card

@@ -37,7 +37,7 @@
  *                                                       reads the table as
  *                                                       int[] and indexes
  *                                                       [idx*2], idx +0x170)
- *   0x0211b1ac (0x18)      3    __sinit_ov060_0211a000  func_ov060_02118254
+ *   0x0211b1ac (0x18)      3    __sinit_ov060_0211a000  _ZN17BowserSkyPlatform8BehaviorEv
  *                                                       (SKY PLATFORM, idx +0x328)
  *
  * The lane brief carried a banked reading that "Bowser's two state-pair tables"
@@ -59,13 +59,13 @@
  * corrected here -- the forward-declared-C case measures 16:
  *
  *   forward-declared C, DEFINED later in the same TU  ->  16
- *     (func_ov060_02112434, func_ov060_02115b84, func_ov060_02118254)
+ *     (func_ov060_02112434, func_ov060_02115b84, _ZN17BowserSkyPlatform8BehaviorEv)
  *   complete empty `struct Actor { }`                 ->  4
  *     (_ZN10BowserFire13InitResourcesEv)
  *   forward-declared, never defined                   ->  16
  *     (_ZN10BowserFire8BehaviorEv)
  *   plain `struct { int a, b; }` + manual decode      ->  8   <-- correct
- *     (func_ov060_021128c0, _ZN17BowserSkyPlatform8BehaviorEv)
+ *     (func_ov060_021128c0, _ZN9SpikeBomb8BehaviorEv)
  *
  * The last row is not a pointer-to-member at all, it is two ints read by hand,
  * so NOTHING this pack hands MSVC as a pointer-to-member measures the ROM's 8.
@@ -88,7 +88,7 @@
  * port/unmatched/Crate_StateDispatch.cpp writes down: read the record as a
  * plain {function, adj} pair and call the function with `this`.
  *
- * func_ov060_021128c0 and _ZN17BowserSkyPlatform8BehaviorEv already decode the
+ * func_ov060_021128c0 and _ZN9SpikeBomb8BehaviorEv already decode the
  * record by hand into a two-int struct and call through a cdecl function
  * pointer, so they are RIGHT as matched src and stay in the slice.  They still
  * need the seat: the words they call are DS code addresses.
@@ -219,24 +219,24 @@ void func_ov060_02117db8(char *c);
 /* what the five host copies below call */
 int Vec3_HorzDist(const void *a, const void *b);
 short Vec3_HorzAngle(const void *a, const void *b);
-int _ZN5Actor14GetSubtractionEss(void *self, short a, short b);
-char *_ZN5Actor10FindWithIDEj(unsigned id);
-void _ZN12CylinderClsn5ClearEv(void *cc);
-void _ZN12CylinderClsn6UpdateEv(void *cc);
-void _ZN8Platform21UpdateModelPosAndRotYEv(void *p);
-void _ZN8Platform19UpdateClsnPosAndRotEv(void *p);
+int _ZN8dActor_c14GetSubtractionEss(void *self, short a, short b);
+char *_ZN8dActor_c10FindWithIDEj(unsigned id);
+void _ZN5dCc_c5ClearEv(void *cc);
+void _ZN5dCc_c6UpdateEv(void *cc);
+void _ZN10dBgActor_c21UpdateModelPosAndRotYEv(void *p);
+void _ZN10dBgActor_c19UpdateClsnPosAndRotEv(void *p);
 int _ZN11ShadowModel12InitCylinderEv(void *self);
-void _ZN18MovingCylinderClsn4InitEP5Actor5Fix12IiES3_jj(
+void _ZN7dCcAc_c4InitEP8dActor_c5Fix12IiES3_jj(
     void *self, void *actor, int a, int b, unsigned c, unsigned d);
-void _ZN12WithMeshClsn4InitEP5Actor5Fix12IiES3_P10Vector3_16S5_(
+void _ZN10dBgCh_Actr4InitEP8dActor_c5Fix12IiES3_P10Vector3_16S5_(
     void *self, void *actor, int a, int b, void *v, int c);
-void _ZN13RaycastGroundC1Ev(void *self);
-void _ZN13RaycastGround12SetObjAndPosERK7Vector3P5Actor(
+void _ZN9dBgCh_GndC1Ev(void *self);
+void _ZN9dBgCh_Gnd12SetObjAndPosERK7Vector3P8dActor_c(
     void *self, const void *v, void *actor);
-int _ZN13RaycastGround10DetectClsnEv(void *self);
-void _ZN13RaycastGroundD1Ev(void *self);
-void WithMeshClsn_UpdateDiscreteNoLava_veneer(void *p);
-int _ZNK12WithMeshClsn10IsOnGroundEv(void *c);
+int _ZN9dBgCh_Gnd10DetectClsnEv(void *self);
+void _ZN9dBgCh_GndD1Ev(void *self);
+void dBgCh_Actr_UpdateDiscreteNoLava_veneer(void *p);
+int _ZNK10dBgCh_Actr10IsOnGroundEv(void *c);
 void func_ov060_02116740(char *c);
 void func_ov060_02117624(char *c);
 
@@ -331,7 +331,7 @@ int _ZN6Player9GetHealthEv(void *self);        /* ov002 0x020bf548, thiscall
                                                   reader shape the
                                                   closestplayer guard hunts */
 int _ZNK9Animation12WillHitFrameEi(void *anim, int frame);   /* 0x02015a98 */
-void _ZN5Actor13SpawnFireballERK7Vector3PK10Vector3_165Fix12IiES7_j(
+void _ZN8dActor_c13SpawnFireballERK7Vector3PK10Vector3_165Fix12IiES7_j(
     void *self, const void *pos, const void *rot, int horzSpeed, int unk35c,
     unsigned param1);                                        /* 0x020102b0 */
 void func_02012694(int id, void *pos);                       /* 0x02012694 */
@@ -349,10 +349,10 @@ void func_ov060_02111cc0(char *c, int idx, int fix);   /* ov060 0x02111cc0 --
                                                   it a garbage animation id */
 void func_ov060_02116518(char *self, unsigned kind, int a2, int a3);
                                                         /* ov060 0x02116518 */
-void *_ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(
+void *_ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
     unsigned actorID, unsigned param1, const void *pos, const void *rot,
     int areaID, int deathTableID);                           /* 0x02010e2c */
-void _ZN9ActorBase18MarkForDestructionEv(void *self);        /* 0x02043824 */
+void _ZN7fBase_c18MarkForDestructionEv(void *self);        /* 0x02043824 */
 int RandomIntInternal(int *seed);                            /* 0x0203b990 */
 extern int data_0209e650;             /* the shared LCG seed both bodies draw */
 extern short data_02082214[];         /* arm9 sin/cos table, {sin,cos} pairs */
@@ -485,7 +485,7 @@ extern "C" void func_ov060_021140c0(char *r4)
             pos.z = data_02082214[i * 2 + 1] * 0xe8 + *(int *)(r4 + 0x64);
             pos.y = *(int *)(r4 + 0x60) + 0x58000;
             rot.x = 0x1000;
-            _ZN5Actor13SpawnFireballERK7Vector3PK10Vector3_165Fix12IiES7_j(
+            _ZN8dActor_c13SpawnFireballERK7Vector3PK10Vector3_165Fix12IiES7_j(
                 r4, &pos, &rot, 0x1e000, 0xa000, 0);
             func_02012694(0x122, r4 + 0x74);
             ov60_ran("BOWSER state 9 SPIT (SpawnFireball branch)", r4);
@@ -526,9 +526,9 @@ extern "C" void func_ov060_02112434(unsigned char *thiz)
     *(int *)(thiz + 0x3f4) = Vec3_HorzDist(thiz + 0x5c, zero);
     *(short *)(thiz + 0x408) = Vec3_HorzAngle(thiz + 0x5c, zero);
 
-    int s0 = _ZN5Actor14GetSubtractionEss(thiz, *(short *)(thiz + 0x8e),
+    int s0 = _ZN8dActor_c14GetSubtractionEss(thiz, *(short *)(thiz + 0x8e),
                                           *(short *)(thiz + 0x406));
-    int s1 = _ZN5Actor14GetSubtractionEss(thiz, *(short *)(thiz + 0x8e),
+    int s1 = _ZN8dActor_c14GetSubtractionEss(thiz, *(short *)(thiz + 0x8e),
                                           *(short *)(thiz + 0x408));
 
     *(int *)(thiz + 0x418) &= ~0xff;
@@ -573,7 +573,7 @@ extern "C" void func_ov060_02112434(unsigned char *thiz)
 
 /* ============ HOST COPIES 2, 3 AND 4 ARE GONE ============================
  * Run link100 lane PMFB5. func_ov060_02115b84 (BOWSER TAIL),
- * func_ov060_02118254 (SKY PLATFORM) and _ZN10BowserFire13InitResourcesEv
+ * _ZN17BowserSkyPlatform8BehaviorEv (SKY PLATFORM) and _ZN10BowserFire13InitResourcesEv
  * compile from src now and dispatch their own tables. What made that possible
  * is the seat below: the fourteen rows that feed data_ov060_0211ae9c,
  * _0211af74 and _0211b1ac hold __fastcall FACES instead of plain cdecl bodies,
@@ -677,10 +677,10 @@ extern "C" void func_ov060_02112434(unsigned char *thiz)
  * not the zero-arg reader shape). */
 extern "C" {
 int RandomIntInternal(int *seed);
-void *_ZN5Actor13ClosestPlayerEv(void *self);
-void *_ZN5Actor15FindWithActorIDEjPS_(unsigned id, void *prev);
+void *_ZN8dActor_c13ClosestPlayerEv(void *self);
+void *_ZN8dActor_c15FindWithActorIDEjPS_(unsigned id, void *prev);
 void _ZN9Animation7AdvanceEv(void *a);
-void _ZN25MovingCylinderClsnWithPos21SetPosRelativeToActorERK7Vector3(
+void _ZN10dCcAcPos_c21SetPosRelativeToActorERK7Vector3(
     void *self, const void *v);
 void func_ov060_02111a28(char *c);
 void func_ov060_0211577c(char *c);
@@ -695,7 +695,7 @@ extern "C" int _ZN6Bowser8BehaviorEv(void *selfv)
     ++g_ov60_frame;                                   /* w7a trace, stderr */
     ov60_note("BOWSER", c, *(int *)(c + 0x40c));
     RandomIntInternal(&data_0209e650);
-    *(int *)(c + 0x3a0) = (int)(size_t)_ZN5Actor13ClosestPlayerEv(c);
+    *(int *)(c + 0x3a0) = (int)(size_t)_ZN8dActor_c13ClosestPlayerEv(c);
     if (*(char **)(c + 0x3a0) != 0) {
         char *t = *(char **)(c + 0x3a0);
         *(short *)(c + 0x406) = Vec3_HorzAngle(c + 0x5c, t + 0x5c);
@@ -711,18 +711,18 @@ extern "C" int _ZN6Bowser8BehaviorEv(void *selfv)
     _ZN9Animation7AdvanceEv(c + 0x124);
     func_ov060_0211577c(c);
     *(char **)(data_0209f318 + 0x114) = c;
-    _ZN12CylinderClsn5ClearEv(c + 0x360);
+    _ZN5dCc_c5ClearEv(c + 0x360);
     {
         int v[3];
         v[2] = 0x50000;
         v[0] = 0;
         v[1] = 0;
-        _ZN25MovingCylinderClsnWithPos21SetPosRelativeToActorERK7Vector3(
+        _ZN10dCcAcPos_c21SetPosRelativeToActorERK7Vector3(
             c + 0x360, v);
     }
-    _ZN12CylinderClsn6UpdateEv(c + 0x360);
+    _ZN5dCc_c6UpdateEv(c + 0x360);
     if (*(unsigned char *)(c + 0x42b) != 0) {
-        if (_ZN5Actor15FindWithActorIDEjPS_(0x10d, 0) == 0)
+        if (_ZN8dActor_c15FindWithActorIDEjPS_(0x10d, 0) == 0)
             *(unsigned char *)(c + 0x42b) = 0;
     }
     return 1;

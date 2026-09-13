@@ -1390,9 +1390,9 @@ void gx_reset() {
        (dScMgSound_c, "Boom Box"), which are the two hosted scenes that do
        exactly that. SM64DS_MTX_LOG resolved through walk_window.map:
 
-         363, EVERY FRAME  mem_render -> func_ov006_020f73f4
+         363, EVERY FRAME  mem_render -> _ZN14dScMgMemory2_c6RenderEv
                            -> Camera_UpdateMatrices -> G3i_PerspectiveW_
-         361, ONCE AT INIT cup_init -> func_ov006_020e0308
+         361, ONCE AT INIT cup_init -> _ZN10dScMgCup_c13InitResourcesEv
                            -> Camera_UpdateMatrices
 
        so MTX_LOAD_4x4 runs 1 per frame on 363 and 0 per frame on 361 after

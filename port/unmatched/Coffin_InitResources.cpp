@@ -15,7 +15,9 @@
 #include "decl_common.h"
 /* recovered: named members + shared header, real C++ method */
 #include "Coffin.h"
-typedef int Fix12;
+typedef int CoffinShimFix12;   /* was `Fix12`: main's math/Fix12.h now owns
+                                  that name (C2921). Still int, so the shim
+                                  method below decorates unchanged. */
 typedef short s16;
 
 struct Matrix4x3;
@@ -24,17 +26,17 @@ struct BMD_File;
 struct KCL_File;
 struct CLPS_Block;
 
-struct Model {
-    static BMD_File* LoadFile(SharedFilePtr& f);
-};
-struct ModelBase {
-    int SetFile(BMD_File* f, int a, int b);
-};
+/* main -> port sync (SYNC4): include/Coffin.h now reaches the real Model and
+   ModelBase, which declare LoadFile and SetFile with these same signatures, so
+   the two shims here became C2011 redefinitions. The call sites below are
+   unchanged and decorate the same way. */
+#include "Model.h"
+#include "ModelBase.h"
 struct MeshCollider {
     static KCL_File* LoadFile(SharedFilePtr& f);
 };
 struct MovingMeshCollider {
-    int SetFile(KCL_File* f, const Matrix4x3& m, Fix12 s, short n, CLPS_Block& c);
+    int SetFile(KCL_File* f, const Matrix4x3& m, CoffinShimFix12 s, short n, CLPS_Block& c);
 };
 struct Platform {
     void UpdateClsnPosAndRot();
@@ -53,13 +55,14 @@ extern SharedFilePtr data_ov071_021230d8;
 extern CLPS_Block data_ov063_0211ebd8;
 }
 
-extern int _ZN16MeshColliderBase22UpdatePosWithTransformERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_;
+extern int _ZN4dBgW22UpdatePosWithTransformERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_;
 
 int Coffin::InitResources()
 {
-    ((ModelBase*)((char*)&mModel))->SetFile(Model::LoadFile(data_ov071_021230d0), 1, -1);
-    unk_09c = -0x2000;
-    unk_0a0 = -0x3c000;
+    ((ModelBase*)((char*)&mModel))->SetFile(
+        (BMD_File*)Model::LoadFile(data_ov071_021230d0), 1, -1);
+    mVertAccel = -0x2000;
+    mTerminalVelocity = -0x3c000;
     Vector3 in;
     Vector3 out;
     in.x = 0;
@@ -79,7 +82,7 @@ int Coffin::InitResources()
     ((Platform*)((char*)this))->UpdateClsnPosAndRot();
     ((MovingMeshCollider*)((char*)&mMeshCollider))->SetFile(
         MeshCollider::LoadFile(data_ov071_021230d8),
-        *(Matrix4x3*)((char*)&unk_2ec), 0x199, mAngleY, data_ov063_0211ebd8);
-    func_020393d4((int*)((char*)&mMeshCollider), (int)&_ZN16MeshColliderBase22UpdatePosWithTransformERS_P5ActorR10ClsnResultR7Vector3P10Vector3_16S8_);
+        *(Matrix4x3*)((char*)&mClsnMat), 0x199, mAngleY, data_ov063_0211ebd8);
+    func_020393d4((int*)((char*)&mMeshCollider), (int)&_ZN4dBgW22UpdatePosWithTransformERS_P8dActor_cR5dBgPiR7Vector3P10Vector3_16S8_);
     return 1;
 }

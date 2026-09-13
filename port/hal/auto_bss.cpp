@@ -83,7 +83,7 @@ int data_0209d518[8];
    ROM span from config/arm9/symbols.txt is 0x0209d64c - 0x0209d5b8 = 0x94 =
    148 bytes, and that is the DS thread record src/func_02058200.c builds:
    src/func_02058158.c reads p[25] (offset 0x64, the state word),
-   src/func_02057f38.c writes offset 0x84/0x8c, src/func_020581a8.c reaches
+   src/func_02057f38.c writes offset 0x84/0x8c, src/func_020581a8.cpp reaches
    the wakeup queue at 0x90. At int[8] every one of those was 0x44 or more
    bytes past the end of the object and over whatever this file's link-sweep
    loop had put next to it.
@@ -251,7 +251,7 @@ int data_020a0d88[8];
 int data_020a0db0[8];
 /* run mg11 lane TTE: the two shorts dScMgTrampoline2_c's and
    dScMgTrampoline_c's slot 18 seed their stroke endpoints from
-   (src/func_ov006_021242cc.cpp and src/func_ov006_02121fa4.c both read
+   (src/minigames/d_s_mg_trampoline2.cpp and src/minigames/d_s_mg_trampoline.cpp both read
    data_020a0dbc[0] and [1] with ldrsh, and src/__sinit_02075054.c is what
    writes them). SIZED BY ROM SPAN rather than by the generous default above:
    config/arm9/symbols.txt puts the next symbol at 0x020a0dc0, four bytes on,
@@ -341,7 +341,7 @@ int data_0209b294[8];
    two FUN_0202xxxx wipe helpers deref it with no null check. */
 int data_0209fc4c[8];
 /* the raw per-player pad records (held/pressed), read by Stage::CheckInput as
-   data_020a0e58[i] and by src/func_02005418.c at data_020a0e40 * 4.
+   data_020a0e58[i] and by src/_ZN9BootScene8BehaviorEv.cpp at data_020a0e40 * 4.
    run vs16: sized for sixteen at the WIDER of the two strides the tree reads
    it at, which is the only safe reading when two matched TUs disagree. */
 int data_020a0e58[kPortMaxPlayers * 2];
@@ -477,9 +477,9 @@ char data_0209fc64[kPortMaxPlayers];
    called the ROM's own reset. kind:bss, so zero is the boot value. */
 int data_0209cef0;
 /* wave 3 lane b: the slot the Scene head chain clears.
-   Scene::ResetFadersAndSound (src/_ZN5Scene19ResetFadersAndSoundEv.c) writes
+   Scene::ResetFadersAndSound (src/_ZN8dScene_c19ResetFadersAndSoundEv.cpp) writes
    `data_0209f1e4 = 0` right after Scene::SetFaders installs the brightness
-   fader, and Scene::BeforeBehavior (src/_ZN5Scene14BeforeBehaviorEv.cpp) is
+   fader, and Scene::BeforeBehavior (src/_ZN8dScene_c14BeforeBehaviorEv.cpp) is
    the reader: on zero it parks &data_0209f5d0 here, and func_0202345c loads
    it back and walks it as a `void **`. So the slot holds a POINTER, and null
    is both the boot value and the value the reset writes, which is what makes
@@ -500,7 +500,7 @@ int data_0209cef0;
 void *data_0209f1e4;
 
 /* ---- wave 4 lane d: the five globals Scene::BeforeBehavior's closure reads --
-   Slot 7 of _ZTV5Scene (config/arm9/relocs.txt from:0x0209269c to:0x0202e3d4)
+   Slot 7 of _ZTV8dScene_c (config/arm9/relocs.txt from:0x0209269c to:0x0202e3d4)
    is Scene::BeforeBehavior, and its callee closure -- func_02023544,
    func_0202ed48, func_0202ed14, func_0202fb30 -- reads five DS BSS symbols the
    port hosted nowhere. Every one is kind:bss in config/arm9/symbols.txt, so
@@ -547,17 +547,17 @@ unsigned char data_0209b300[4];
        data_0209b304 .. data_0209b308   4 bytes
        data_0209f1d8 .. data_0209f1dc   4 bytes
 
-   data_0209b304 is the menu's PAGE flag: func_ov005_020c14a0 sets it to 0 or 1
+   data_0209b304 is the menu's PAGE flag: _ZN11dScMiniGm_c8BehaviorEv sets it to 0 or 1
    as the two dwell counters expire, and func_ov005_020c0378 branches its whole
    hit test on it -- 0 is the six-cell grid (3 columns x 2 rows), 1 is the
-   three-cell strip. src/func_ov005_020c1a20.c reads it during InitResources.
+   three-cell strip. src/_ZN11dScMiniGm_c13InitResourcesEv.cpp reads it during InitResources.
    Sits beside data_0209b300 and data_0209b2fc above because it IS the next
    word of that run; the ROM spacing is contiguous.
 
    data_0209f1d8 is the WHOLE-GAME PAUSE-ADJACENT flag. Four arm9 TUs already
    spell it (func_02019ac4 gates its work on it, func_02030aa4 and
    func_02023498 write it), so it is not an ov005 invention -- ov005 is just
-   the first spelling of it that reaches this link. func_ov005_020c1a20 sets it
+   the first spelling of it that reaches this link. _ZN11dScMiniGm_c13InitResourcesEv sets it
    to 1 at the tail of InitResources and src/func_ov005_020bff4c.cpp clears it
    on the way out, which is the menu declaring itself open and then closed.
    Every TU in the tree spells it `unsigned char`, which this serves. */
@@ -595,7 +595,12 @@ DSSTATE_END
 
 /* Sound:: is a NAMESPACE in the TU that calls this one (YAX mangling) */
 namespace Sound { void UnsetPlayerVoiceGroup(); }
+/* RETIRED at ALIAS2 (wave 8, the main -> port sync): src/_ZN5Sound21UnsetPlayerVoiceGroupEv.cpp is a real definition in main tree now and emits ?UnsetPlayerVoiceGroup@Sound@@YAXXZ itself, so this EMPTY host stand-in was the second definition (LNK2005). Retiring it puts the ROM body on the call, which is what the port wants.
+   The body is kept below under #if 0 rather than deleted, so the
+   evidence in it stays readable. */
+#if 0
 void Sound::UnsetPlayerVoiceGroup() {}
+#endif
 
 DSSTATE_BEGIN
 /* ---- gate 29: the particle engine's own BSS -------------------------------

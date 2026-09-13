@@ -73,9 +73,11 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "MeshCollider.h"
+#include "dBgW_Kc.h"
 #include "dsstate_seg.h"
 #include "hal/comms_seam.h"   /* run mg16 lane MP3: port::vs_player_count() */
+#include "fBase_c.h"   /* SYNC4: moved up out of an extern "C" block */
+#include "dActor_c.h"  /* SYNC4: same, and it reaches math/Fix12.h now */
 
 extern "C" {
 void port_ov009_patch(void);
@@ -140,7 +142,7 @@ extern const unsigned port_ov011_ds_base, port_ov011_ds_end;
        class's SpawnInfo (0x0211c4e8), its two bss SharedFilePtrs
        (data_ov064_0211c964/_0211c96c) and its six PMF sources are all on that
        list, and __sinit_ov064_0211b59c runs. What the paragraph could not know
-       is the real block wave 12 later measured: func_ov064_0211a4c4, state 0's
+       is the real block wave 12 later measured: _ZN13TreasureChest6State0Ev, state 0's
        tick, has no matched TU anywhere in the tree, and lane w3-c transcribed
        it from the overlay image. Level 9 now reads 0 skipped.
 
@@ -149,7 +151,7 @@ extern const unsigned port_ov011_ds_base, port_ov011_ds_end;
        symbol SPELLINGS (data_ov056_02111a60, data_ov055_02111a94) -- ov017,
        ov055 and ov056 share base 0x021111a0, and the decomp TU was written
        against the sibling overlays' names for the same bytes. Hosting it needs
-       a per-symbol ov017 mount (ShipWater_SpawnInfo, _ZTV9ShipWater,
+       a per-symbol ov017 mount (g_profile_KS_MIZU, _ZTV9ShipWater,
        data_ov017_02111c88) PLUS an alias-by-address that resolves the ov055/
        ov056 spellings onto ov017's host bytes -- the "propagate config renames
        BY ADDRESS" hazard. Its Behavior also gates on TREASURE_CHEST (waits for
@@ -233,7 +235,7 @@ extern const unsigned port_ov017_ds_base, port_ov017_ds_end;
    FLOAT_ON_WATER_PLATFORM_JRB (60) x1, UNAGI (242) x3, SLIDING_BOX (313) x1.
 
    THE CONFIG NAMES ARE A DECOY (the gate-178 Amilift pattern, from ov016 relocs):
-   id 60 installs data_ov016_02114bcc (the daObjKi_Ita_c base, plain Platform
+   id 60 installs _ZTV13daObjKi_Ita_c (the daObjKi_Ita_c base, plain Platform
    defaults for Behavior/Cleanup/Render); id 313 installs the DERIVED
    _ZTV23FloatOnWaterPlatformJrb, which carries the slot-5 Render and the COUPLED
    Behavior (case 0 FindWithActorID(0x39=SHIP_UP) -> self-destruct if the ship is
@@ -254,7 +256,7 @@ extern const unsigned port_ov017_ds_base, port_ov017_ds_end;
        first on-screen frame it draws (measured f17 when Mario spawns adjacent),
        NOT the collider and NOT the particle path (SM64DS_NO_FX_RENDER=1 still
        crashes; SM64DS_RP_NORENDER moves the fault elsewhere in the same
-       sequence). Its render (func_ov016_02112b28) is the identical slot-5 Model
+       sequence). Its render (_ZN10RockPillar6RenderEv) is the identical slot-5 Model
        dispatch that SHIP_UP renders through cleanly, so the difference is the
        MODEL FILE: its bmd (fs id 1173) loads but its Model at +0xd4 reaches
        Model::Render with a bad/unbuilt ModelComponents. A model-BUILD issue for
@@ -305,7 +307,7 @@ extern const unsigned port_ov017_ds_base, port_ov017_ds_end;
        WITH EVIDENCE AND COORDINATES -- a spawn, a frame number and a dump --
        rather than by citing the original text above. Idle-far and the other
        five movers were clean at gate 188 and remain so.
-     - Each ROCK_PILLAR spawns a RockTriangle child (id 59, ov102, Actor::Spawn
+     - Each ROCK_PILLAR spawns a RockTriangle child (id 59, ov102, dActor_c::Spawn
        (0x3b) in its InitResources) -- newly visible now that RockPillar runs its
        Init. RockTriangle (x6) is skipped (unregistered); the ov102 mount for it
        and KoopaShell (285) is the next follow-on. */
@@ -406,7 +408,7 @@ extern const unsigned port_ov018_ds_base, port_ov018_ds_end;
    nearing the slide used to spawn two ONE_UP_LOGO (331, 0x14b) that skipped
    as unregistered; OneUpLogo is now hosted (its registry row joined the
    level-10 CCM slice gate, ov002's already-mounted per-symbol window --
-   OneUpLogo_Spawn 0x020f1170, _ZTV9OneUpLogo 0x0210b1ac). Both now spawn. */
+   daObj1UpLogo_c_classInit 0x020f1170, _ZTV9OneUpLogo 0x0210b1ac). Both now spawn. */
 void port_ov019_patch(void);
 void *port_ov019_at(unsigned ds);
 extern unsigned char port_ov019_image[];
@@ -455,7 +457,7 @@ extern const unsigned port_ov020_ds_base, port_ov020_ds_end;
        InitResources/Behavior/Cleanup/D0 reach no other overlay's data). It is
        still blocked: its Behavior dispatches a state closure through a
        pointer-to-member table at +0x108 that InitResources seats with
-       func_ov022_02112790(this, &data_ov022_02114690), and that table lives in
+       _ZN21daObj_volcanoCannon_c11ChangeStateEPNS_5StateE(this, &data_ov022_02114690), and that table lives in
        ov022 BSS (0x02114690 is past the image end 0x02114500) built by ov022's
        own static initialisers. None of ov022's 46 decompiled func_ov022_* nor
        its __sinit_ov022_* are in any build slice -- the overlay is mounted
@@ -720,7 +722,7 @@ extern const unsigned port_ov044_ds_base, port_ov044_ds_end;
    in a file this lane may not touch. Level 40 is the only level of the
    fifty-two that places id 167, so wave 6 registered a class that had never
    actually spawned; mounting the arena ran it for the first time and it faulted
-   under FAULTS_FATAL. daKpa3Bg_c::InitResources (src/func_ov060_021182b0.cpp)
+   under FAULTS_FATAL. daKpa3Bg_c::InitResources (src/_ZN9SpikeBomb13InitResourcesEv.cpp)
    calls CopyTexPalFromLevelModel, whose first line loads through
    data_0209f320 -- the Stage's ModelComponents pointer, written ONLY by
    Stage::LoadModel. The ROM seats it first (Stage::InitResources :361 LoadModel,
@@ -2799,12 +2801,12 @@ extern "C" void port_loadfile_reset_scene(void)
 
 /* Method faces: the three MeshCollider helpers the boot calls by their
    Itanium names while their definitions are real MSVC members. */
-void _ZN12MeshCollider17UpdateFileOffsetsER8KCL_File(void *file)
-{ MeshCollider::UpdateFileOffsets(*(KCL_File *)file); }
-int _ZNK12MeshCollider16GetOctreeOriginYEv(const void *self)
-{ return ((const MeshCollider *)self)->MeshCollider::GetOctreeOriginY(); }
-int _ZNK12MeshCollider13GetUnkOctreeYEv(const void *self)
-{ return ((const MeshCollider *)self)->MeshCollider::GetUnkOctreeY(); }
+void _ZN7dBgW_Kc17UpdateFileOffsetsER8KCL_File(void *file)
+{ dBgW_Kc::UpdateFileOffsets(*(KCL_File *)file); }
+int _ZNK7dBgW_Kc16GetOctreeOriginYEv(const void *self)
+{ return ((const dBgW_Kc *)self)->dBgW_Kc::GetOctreeOriginY(); }
+int _ZNK7dBgW_Kc13GetUnkOctreeYEv(const void *self)
+{ return ((const dBgW_Kc *)self)->dBgW_Kc::GetUnkOctreeY(); }
 
 // ---- the globals the sub-loaders store through -----------------------------
 //
@@ -2914,7 +2916,7 @@ unsigned char data_0209f254[4];   /* the star / silver-star request */
    data_0209f26c (src/_ZN5Stage13InitResourcesEv.cpp:201), not a cap check. The
    old comment here said "the 'lost the cap' check gate", which is wrong and cost
    a triage pass: it is what the Player's level-enter step reads to restore
-   health on re-entry (src/func_ov002_020c75f0.c:29) and what HUD::InitResources
+   health on re-entry (src/actors/Player.cpp:29) and what HUD::InitResources
    reads to pick the meter state. The boot latches it; see the seat below. */
 unsigned char data_0209f2fc[4];
 signed char   data_02092114[4];   /* queued character swap, -1 none */
@@ -2947,7 +2949,7 @@ static void port_stage_suppress(PortLvlOverlay *o, unsigned kind_mask,
 }
 
 extern "C" {
-void _ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR12MeshCollider(void *ovl,
+void _ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR7dBgW_Kc(void *ovl,
                                                                   unsigned p,
                                                                   void *mc);
 extern signed char data_0209f2f8;    /* current level */
@@ -3123,7 +3125,7 @@ void *port_stage_a_boot(void *mc, int spawn)
    decide this; scattering the condition is what this block exists to prevent.
 
    THE ROM'S OWN RULE, from matched source
-   (src/_ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR12MeshCollider.cpp:76-98):
+   (src/_ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR7dBgW_Kc.cpp:76-98):
 
        intro = (data_0209f2d8 == 0)                 // game mode 0 = single file
             && ((data_0209caa0[2] & 0x80) == 0)     // flags2 bit 7: not seen yet
@@ -3453,7 +3455,7 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
 
        WITHOUT THIS THE PORT CANNOT LEAVE A DEATH. The ROM restores the player
        on re-entry from the Player level-enter state itself,
-       src/func_ov002_020c75f0.c:29 --
+       src/actors/Player.cpp:29 --
 
            if (data_0209f2fc == 1 || data_0209f2fc == 2)
                Player::Heal(c, 0x880);
@@ -3471,14 +3473,14 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
 
        NOT SetPlayerGlobals. That function seats lives to 4 and health to 0x880
        for all four players. In the ROM it has three callers -- StartFile,
-       PrepareVsMode and the ov003 title-confirm path func_ov003_020ad814 --
+       PrepareVsMode and the ov003 title-confirm path _ZN10dScTitle_c8BehaviorEv --
        and the port adds two more, hal/star_flow.cpp:152 (inside
        seat_player_globals, which is port_course_seat's whole body) and
        hal/level_change.cpp:1415 (the port's copy of that same ov003 path).
 
        Be precise about what those callers are, because an earlier version of
        this note said "none of them a level entry" and that is wrong: StartFile
-       and func_ov003_020ad814 both call LoadLevelNoReturn immediately before
+       and _ZN10dScTitle_c8BehaviorEv both call LoadLevelNoReturn immediately before
        SetPlayerGlobals, so they ARE first-entry paths. (PrepareVsMode is not
        one at all -- it is VS setup and loads no level.) What is true, and is
        the only thing this seat needs, is that NONE OF THEM IS ON THE PER-ENTRY
@@ -3631,7 +3633,7 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
        persistent actor-run mask: Stage::Behavior latches it into
        data_0209b464 every frame (hosted at hal/actor_registry.cpp:893) and
        Actor::BeforeBehavior runs an actor only if the mask is zero or the
-       actor's own +0xb0 intersects it (src/_ZN5Actor14BeforeBehaviorEv.cpp:74).
+       actor's own +0xb0 intersects it (src/_ZN8dActor_c14BeforeBehaviorEv.cpp:74).
        The star's collect handler ORs 0x4000000 into it and into the player's
        and the star's flags (src/func_ov002_020e8ef0.cpp:151-155), and the star
        camera script ORs 0x20000000 (src/RunKuppaScript.c:21). On the ROM the
@@ -3784,7 +3786,7 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
 
        WHAT IT UNBLOCKS. Stage::LoadModel is the only writer of data_0209f320,
        the Stage's ModelComponents pointer. daKpa3Bg_c::InitResources
-       (src/func_ov060_021182b0.cpp) reaches it through
+       (src/_ZN9SpikeBomb13InitResourcesEv.cpp) reaches it through
        CopyTexPalFromLevelModel on its first line, so with the load happening
        after the object pass the pointer was still null when the object pass
        ran and actor id 167 faulted under FAULTS_FATAL. Level 40 is the only
@@ -3835,7 +3837,7 @@ extern "C" void *port_stage_boot_body(void *mc, int spawn)
        already reads 0, it is in the boot above. Inert unless SM64DS_INTRO_WATCH
        is set. */
     port_intro_watch("before LoadClsnAndObjects");
-    _ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR12MeshCollider(o, 0, mc);
+    _ZN5Stage18LoadClsnAndObjectsER11LVL_OverlayjR7dBgW_Kc(o, 0, mc);
     port_intro_watch("after LoadClsnAndObjects");
     port_scene_canary("after LoadClsnAndObjects");
     if (!intro_seen && std::getenv("SM64DS_INTRO_UNSEEN"))
@@ -3924,9 +3926,9 @@ extern "C" void *port_stage_object(void);
 extern "C" {
 unsigned char data_ov002_0210a83c[];
 int _ZN6Player13InitResourcesEv(void *self);
-int _ZN5Actor19BeforeInitResourcesEv(void *self);
-void _ZN5Actor18AfterInitResourcesEj(void *self, unsigned r);
-int _ZN5Actor14BeforeBehaviorEv(void *self);
+int _ZN8dActor_c19BeforeInitResourcesEv(void *self);
+void _ZN8dActor_c18AfterInitResourcesEj(void *self, unsigned r);
+int _ZN8dActor_c14BeforeBehaviorEv(void *self);
 int hal_player_behavior(void *self);
 int func_02043288(void *self);         /* port/unmatched: the behaviour Process */
 }
@@ -3935,10 +3937,12 @@ int func_02043288(void *self);         /* port/unmatched: the behaviour Process 
    reached by its Itanium name from a .c TU, i.e. cdecl, while these three
    definitions are real MSVC __thiscall methods -- a linker alias would hand
    the body an ecx that never held `this`. */
-#include "ActorBase.h"
-#include "Actor.h"
-extern "C" int _ZN9ActorBase19BeforeInitResourcesEv(void *self)
-{ return ((ActorBase *)self)->ActorBase::BeforeInitResources() ? 1 : 0; }
+/* SYNC4: fBase_c.h and dActor_c.h used to be included here, inside an open
+   extern "C" block. main's dActor_c.h now reaches include/math/Fix12.h, and
+   a template cannot be declared with C linkage (C2894), so both moved to the
+   include block at the top of this file. */
+extern "C" int _ZN7fBase_c19BeforeInitResourcesEv(void *self)
+{ return ((fBase_c *)self)->fBase_c::BeforeInitResources() ? 1 : 0; }
 
 
 static int __fastcall ps_init(void *s, void *)
@@ -3955,9 +3959,9 @@ static int __fastcall ps_init(void *s, void *)
     return r;
 }
 static int __fastcall ps_binit(void *s, void *)
-{ return _ZN5Actor19BeforeInitResourcesEv(s); }
+{ return _ZN8dActor_c19BeforeInitResourcesEv(s); }
 static void __fastcall ps_ainit(void *s, void *, unsigned a)
-{ _ZN5Actor18AfterInitResourcesEj(s, a); }
+{ _ZN8dActor_c18AfterInitResourcesEj(s, a); }
 static int __fastcall ps_behavior(void *s, void *)
 { return hal_player_behavior(s); }
 /* Slots 7 and 8, read out of ov002's own _ZTV6Player at 0x0210a83c with its
@@ -3967,9 +3971,9 @@ static int __fastcall ps_behavior(void *s, void *)
    directly -- a host forward through the veneer's own C face would drop the
    argument the ARM tail call rides through in r0/r1. */
 static int __fastcall ps_bbeh(void *s, void *)
-{ return _ZN5Actor14BeforeBehaviorEv(s); }
+{ return _ZN8dActor_c14BeforeBehaviorEv(s); }
 static void __fastcall ps_abeh(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterBehavior(a); }
+{ ((fBase_c *)s)->fBase_c::AfterBehavior(a); }
 /* Slots 9/10/11. The render bucket (processing list 5) now dispatches every
    actor's Render through its vtable, and the Player is on that list like
    everything else -- so slot 9 can no longer be a trap. It is a no-op that
@@ -3977,7 +3981,7 @@ static void __fastcall ps_abeh(void *s, void *, unsigned a)
    particle chain and only its body walk is hosted, so the harness still draws
    him itself (hal_render_player_world) right after the bucket. The two hooks
    around it are the game's own. */
-extern "C" int _ZN5Actor12BeforeRenderEv(void *self);
+extern "C" int _ZN8dActor_c12BeforeRenderEv(void *self);
 /* hal/player_bridges.cpp -- the ROM's Player body draw, C++ linkage there so it
    is declared plainly here (an extern "C" spelling would not resolve to it). */
 void hal_render_player_world(void *player);
@@ -4015,9 +4019,9 @@ static int __fastcall ps_render(void *self, void *)
     return 1;
 }
 static int __fastcall ps_bren(void *s, void *)
-{ return _ZN5Actor12BeforeRenderEv(s); }
+{ return _ZN8dActor_c12BeforeRenderEv(s); }
 static void __fastcall ps_aren(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterRender(a); }
+{ ((fBase_c *)s)->fBase_c::AfterRender(a); }
 
 /* ---- the DESTROY slots (gate 31) ------------------------------------------
    A level change destroys every actor the previous level spawned, the Player
@@ -4037,23 +4041,23 @@ extern "C" {
 /* Faces, in hal/method_faces.cpp: both definitions are real methods. */
 int _ZN6Player16CleanupResourcesEv(void *self);
 void _ZN6Player16OnPendingDestroyEv(void *self);
-void *_ZN6PlayerD2Ev(void *self);
+void *_ZN6PlayerD1Ev(void *self);
 void *_ZN6PlayerD0Ev(void *self);   /* slot 17, gate 224 */
 }
 static int __fastcall ps_bclean(void *s, void *)
-{ return ((Actor *)s)->Actor::BeforeCleanupResources(); }
+{ return ((dActor_c *)s)->dActor_c::BeforeCleanupResources(); }
 static void __fastcall ps_aclean(void *s, void *, unsigned a)
-{ ((ActorBase *)s)->ActorBase::AfterCleanupResources(a); }
+{ ((fBase_c *)s)->fBase_c::AfterCleanupResources(a); }
 static int __fastcall ps_clean(void *s, void *)
 { return _ZN6Player16CleanupResourcesEv(s); }
 static void __fastcall ps_pdes(void *s, void *)
 { _ZN6Player16OnPendingDestroyEv(s); }
 /* D1 is the complete-object destructor the ROM's slot 16 holds. The Player
    has no virtual bases, so D1 and D2 are the same body and mwcc emits one;
-   MSVC's D2 spelling is what src/_ZN6PlayerD2Ev.cpp defines. It must NOT
+   MSVC's D2 spelling is what src/_ZN6PlayerD1Ev.cpp defines. It must NOT
    deallocate -- the caller does that one line later. */
 static int __fastcall ps_d1(void *s, void *)
-{ return (int)(size_t)_ZN6PlayerD2Ev(s); }
+{ return (int)(size_t)_ZN6PlayerD1Ev(s); }
 /* SLOT 17, THE DELETING DESTRUCTOR -- run link100 lane OV6, gate 224. The ROM
    parks _ZN6PlayerD0Ev (ov002 0x020e67a8) here and this table is NOT MSVC-
    folded: it is the ROM's own thirty-one-slot mount, slot 16 carries D1 above
@@ -4065,7 +4069,7 @@ static int __fastcall ps_d1(void *s, void *)
    and no such note was ever written.
    The body is src/_ZN6PlayerD0Ev.cpp, matched, on port/slice_gate224.txt. It
    is the ordinary Itanium deleting destructor -- reinstall the vptr, tear the
-   five members and the three __destroy_arr runs down, Actor::~Actor, then
+   five members and the three __cxa_vec_cleanup runs down, dActor_c::~dActor_c, then
    Memory::Deallocate with data_020a0eac -- and it spells every symbol it
    touches by its real name, so it needs no -D binding. port/tools/closure.py
    on the single TU reports 0 unresolved and 0 dup-def against this tree's map.
@@ -4103,19 +4107,19 @@ static int __fastcall ps_d0(void *s, void *)
    Something else would have to name the Player through a collision result.
    The ROM says what belongs in these slots either way. */
 extern "C" {
-void _ZN5Actor13OnTurnIntoEggER6Player(void *self, void *p);       /* 19 */
-int  _ZN5Actor9Virtual50Ev(void *self);                            /* 20 */
-void _ZN5Actor15OnGroundPoundedERS_(void *self, void *o);          /* 21 */
-void _ZN5Actor11OnAttacked1ERS_(void *self, void *o);              /* 22 */
-void _ZN5Actor11OnAttacked2ERS_(void *self, void *o);              /* 23 */
-void _ZN5Actor8OnKickedERS_(void *self, void *o);                  /* 24 */
-void _ZN5Actor8OnPushedERS_(void *self, void *o);                  /* 25 */
-void _ZN5Actor24OnHitByCannonBlastedCharERS_(void *self, void *o); /* 26 */
-void _ZN5Actor15OnHitByMegaCharER6Player(void *self, void *p);     /* 27 */
+void _ZN8dActor_c13OnTurnIntoEggER6Player(void *self, void *p);       /* 19 */
+int  _ZN8dActor_c9Virtual50Ev(void *self);                            /* 20 */
+void _ZN8dActor_c15OnGroundPoundedERS_(void *self, void *o);          /* 21 */
+void _ZN8dActor_c11OnAttacked1ERS_(void *self, void *o);              /* 22 */
+void _ZN8dActor_c11OnAttacked2ERS_(void *self, void *o);              /* 23 */
+void _ZN8dActor_c8OnKickedERS_(void *self, void *o);                  /* 24 */
+void _ZN8dActor_c8OnPushedERS_(void *self, void *o);                  /* 25 */
+void _ZN8dActor_c24OnHitByCannonBlastedCharERS_(void *self, void *o); /* 26 */
+void _ZN8dActor_c15OnHitByMegaCharER6Player(void *self, void *p);     /* 27 */
 /* 28 is declared but deliberately NOT forwarded -- see the slot-28 note in
    hal_fill_player_vtable. Kept so the list reads as the ROM's own. */
-void _ZN5Actor19OnHitFromUnderneathERS_(void *self, void *o);      /* 28 */
-int  _ZN5Actor16OnAimedAtWithEggEv(void *self);                    /* 29 */
+void _ZN8dActor_c19OnHitFromUnderneathERS_(void *self, void *o);      /* 28 */
+int  _ZN8dActor_c16OnAimedAtWithEggEv(void *self);                    /* 29 */
 /* 18 is the Player's OWN body (ov002 0x020e69b8), not Actor's: a real MSVC
    method TU (src/_ZN6Player13OnYoshiTryEatEv.cpp, slice_gate16) whose whole
    body is `return 1` -- Yoshi cannot eat the Player. Flat name bridged to the
@@ -4129,25 +4133,25 @@ int  _ZN6Player13OnYoshiTryEatEv(void *self);                      /* 18 */
 static int __fastcall ps_yoshi18(void *s, void *)
 { return _ZN6Player13OnYoshiTryEatEv(s); }
 static int __fastcall ps_egg19(void *s, void *, void *p)
-{ _ZN5Actor13OnTurnIntoEggER6Player(s, p); return 0; }
+{ _ZN8dActor_c13OnTurnIntoEggER6Player(s, p); return 0; }
 static int __fastcall ps_v50(void *s, void *)
-{ return _ZN5Actor9Virtual50Ev(s); }
+{ return _ZN8dActor_c9Virtual50Ev(s); }
 static int __fastcall ps_pounded(void *s, void *, void *o)
-{ _ZN5Actor15OnGroundPoundedERS_(s, o); return 0; }
+{ _ZN8dActor_c15OnGroundPoundedERS_(s, o); return 0; }
 static int __fastcall ps_atk1(void *s, void *, void *o)
-{ _ZN5Actor11OnAttacked1ERS_(s, o); return 0; }
+{ _ZN8dActor_c11OnAttacked1ERS_(s, o); return 0; }
 static int __fastcall ps_atk2(void *s, void *, void *o)
-{ _ZN5Actor11OnAttacked2ERS_(s, o); return 0; }
+{ _ZN8dActor_c11OnAttacked2ERS_(s, o); return 0; }
 static int __fastcall ps_kicked(void *s, void *, void *o)
-{ _ZN5Actor8OnKickedERS_(s, o); return 0; }
+{ _ZN8dActor_c8OnKickedERS_(s, o); return 0; }
 static int __fastcall ps_pushed(void *s, void *, void *o)
-{ _ZN5Actor8OnPushedERS_(s, o); return 0; }
+{ _ZN8dActor_c8OnPushedERS_(s, o); return 0; }
 static int __fastcall ps_cannon(void *s, void *, void *o)
-{ _ZN5Actor24OnHitByCannonBlastedCharERS_(s, o); return 0; }
+{ _ZN8dActor_c24OnHitByCannonBlastedCharERS_(s, o); return 0; }
 static int __fastcall ps_mega(void *s, void *, void *p)
-{ _ZN5Actor15OnHitByMegaCharER6Player(s, p); return 0; }
+{ _ZN8dActor_c15OnHitByMegaCharER6Player(s, p); return 0; }
 static int __fastcall ps_aimed(void *s, void *)
-{ return _ZN5Actor16OnAimedAtWithEggEv(s); }
+{ return _ZN8dActor_c16OnAimedAtWithEggEv(s); }
 
 /* SLOT 28 ONLY, and the distinction matters to a player. ps_trap below
    abort()s, which takes the process down. The actor tables instead RAISE,
@@ -4362,7 +4366,7 @@ extern "C" int hal_player_process(void *self)
 extern "C" {
 struct PortVec3 { int x, y, z; };
 struct PortVec3_16 { short x, y, z; };
-void *_ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(unsigned actorID,
+void *_ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(unsigned actorID,
                                                    unsigned param1,
                                                    const PortVec3 *pos,
                                                    const PortVec3_16 *rot,
@@ -4373,7 +4377,7 @@ const char *port_actor_class_name(unsigned id);
 /* the ROM's actor-list walk: the first actor with this id after `prev`, or
    null. Passing null asks for the first one, so a null answer to a null
    `prev` means the level has none at all. */
-void *_ZN5Actor15FindWithActorIDEjPS_(unsigned id, void *prev);
+void *_ZN8dActor_c15FindWithActorIDEjPS_(unsigned id, void *prev);
 }
 
 /* ===========================================================================
@@ -4637,7 +4641,7 @@ extern "C" void port_vs_spawn_extra_players(void *tbl, unsigned p3)
         const unsigned wire_slot = (unsigned)(((i - 1) % (kPortNarrowPlayers - 1)) + 1);
         const unsigned flags = f2 | (f1 << 3) | (wire_slot << 6) | (sl << 8);
 
-        void *a = _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(
+        void *a = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(
             data_ov002_0210cbf4[base->raw], flags,
             (const PortVec3 *)pos, (const PortVec3_16 *)&base->rx, area, -1);
         /* mPlayerNo is Player + 0x6d8. Written here as the TRUE slot, over the
@@ -4755,7 +4759,7 @@ static int port_dbgspawn_partner_missing(unsigned id)
         unsigned needs = port_dbgspawn_partner[i].needs;
         if (port_dbgspawn_partner[i].id != id)
             continue;
-        if (_ZN5Actor15FindWithActorIDEjPS_(needs, 0))
+        if (_ZN8dActor_c15FindWithActorIDEjPS_(needs, 0))
             return 0;
         std::fprintf(stderr, "  [dbgspawn] REFUSED actor %u (%s): its ROM "
                      "Behavior walks the actor list for a partner actor %u "
@@ -4804,7 +4808,7 @@ extern "C" void *port_debug_spawn_at(unsigned id, unsigned param,
     rot.x = 0; rot.y = (short)yaw; rot.z = 0;
     seq = data_ov002_0211118c;
     data_ov002_0211118c = (short)(seq + 1);
-    a = _ZN5Actor5SpawnEjjRK7Vector3PK10Vector3_16ii(id, param, &pos, &rot,
+    a = _ZN8dActor_c5SpawnEjjRK7Vector3PK10Vector3_16as(id, param, &pos, &rot,
                                                      area, seq);
     /* YOSHI_EGG (9): its only spawners, the egg lay (func_ov002_020d6368 /
        020d5ab4), write the laying player into the egg's +0x38c right after
@@ -4878,7 +4882,7 @@ extern "C" void *port_debug_spawn(unsigned id, unsigned param)
    of an 8-frame BTP and the first Render walks off the file into Crash() --
    rc 127 one frame after a bare SM64DS_SPAWN_ACTOR=331. Both ROM spawners
    pass a live value: the slide's proximity spawn hard-codes 8
-   (src/func_ov002_020b76ec.c:45) and IncMegaKillCount passes the running
+   (src/actors/daObjMarioCap_c.cpp:45) and IncMegaKillCount passes the running
    kill count. So a bare id here gets that class's own ROM value, an
    explicit :param is always honoured verbatim, and the substitution says
    so on stderr. A list of measured ids, not a mechanism. */
@@ -5044,7 +5048,7 @@ extern unsigned char data_ov002_0210da48[], data_ov002_0210d9b8[],
    0210da40, 0210d9a0, 0210d9c0 and 0210d9a8 -- by fourteen classes
    (BowserPuzzlePiece, Coin, Dorrie, InvisibleSecret, Klepto, MantaRay, Player,
    QuestionBlock, RollingLogTtm, SnowmanBreath, StarMarker, Stump, Toad,
-   TreasureChest) plus one free function, func_ov002_020f069c; every site but
+   TreasureChest) plus one free function, _ZN9daSCoin_c16CleanupResourcesEv; every site but
    that last is a CleanupResources body. The other EIGHT are released nowhere,
    so once the seat has run they stay loaded for the life of the process. It is
    the four that make a disagreement reachable: one of those can be back to
@@ -5450,7 +5454,7 @@ static void port_a2_seat_body(int make_stage)
     hal_fill_meshcolliderbase_vtable();
 
     /* Batch-3 linkage seat: the concrete MeshCollider's own deleting dtor (D0)
-       into slot 0 of _ZTV12MeshCollider, and D1 kept referenced. walk_window
+       into slot 0 of _ZTV7dBgW_Kc, and D1 kept referenced. walk_window
        family only; the gate-8/9 smoke targets keep the trap (they never delete
        the level collider). */
     hal_seat_meshcollider_dtor();
@@ -5652,7 +5656,7 @@ void _ZNK7PathPtr7GetNodeER7Vector3j(const void *self, int *out, unsigned idx);
 
 void port_stage_a_probe(void *mc_)
 {
-    MeshCollider *mc = (MeshCollider *)mc_;
+    dBgW_Kc *mc = (dBgW_Kc *)mc_;
     const PortLvlOverlay *o = (const PortLvlOverlay *)port_level_mount();
 
     /* CLPS: "CLPS" magic, u16 entry size, u16 count, then the records --
@@ -6157,7 +6161,7 @@ extern "C" void port_level_reset_host(void)
        on the way out in general: UntrackStar does SetStarMarker(slot, 0, 2),
        and PowerStar, Coin and QuestionBlock all call it from their cleanups.
        What has no such path is the actor that faults here -- Whomp::
-       InitResources calls Actor::TrackStar to file itself in, and no Whomp
+       InitResources calls dActor_c::TrackStar to file itself in, and no Whomp
        file anywhere calls UntrackStar. Its slot is only ever emptied by the
        InitResources loop above, so a port that skips that loop keeps a Whomp
        pointer alive into the next level.
