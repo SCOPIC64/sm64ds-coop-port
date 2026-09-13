@@ -14,15 +14,7 @@ src/_ZN6CannonD1Ev.cpp
 src/game/actors/d_a_ch_scene.cpp
 src/game/actors/d_a_obj_waterfall.cpp
 src/game/actors/d_a_set_se.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_star_gate.cpp
+src/game/actors/d_a_star_gate.cpp
 # group 3
 src/_ZN10BowserTailD1Ev.cpp
 src/_ZN6BowserD1Ev.cpp
@@ -34,15 +26,7 @@ src/_ZN3MrID1Ev.cpp
 src/game/actors/d_a_ey_bm.cpp
 src/_ZN10ScuttlebugD1Ev.cpp
 src/_ZN11BabyPenguinD1Ev.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/daBgSnmBdy_c.cpp
+src/actors/daBgSnmBdy_c.cpp
 src/_ZN11SnowmanHeadD1Ev.cpp
 # group 4
 src/_ZN10PyramidTagD1Ev.cpp

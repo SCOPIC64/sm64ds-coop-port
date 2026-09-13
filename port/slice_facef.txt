@@ -74,15 +74,7 @@
 #             02145538  ldr r2,[r0] / ldr r2,[r2,#0x14] / blx r2   Model slot 5
 #   face      none -- the matched TU defines the C name itself
 #   retires   port/unmatched/Door_Render.cpp (whole file)
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_star_gate.cpp
+src/game/actors/d_a_star_gate.cpp
 #
 # Goomboss::Render (ov074) OK -- family E leftover, held back by the OTHER
 #   body in its host file (the ov070/ov074 shared-window name race), which is

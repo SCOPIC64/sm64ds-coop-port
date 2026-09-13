@@ -36,15 +36,7 @@
 # Player::ChangeState (gate 175 + unmatched/Player_ChangeState.cpp), the Platform
 # Update*/IsClsnInRange helpers, _ZN12dEnemyBase_c12UpdateWMClsnER10dBgCh_Actrj.
 src/d_a_obj_fl_amilift.c
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_obj_fl_gura.cpp
+src/game/actors/d_a_obj_fl_gura.cpp
 src/func_ov064_02117a14.cpp
 src/func_ov064_02117a44.cpp
 src/func_ov064_02117b8c.c

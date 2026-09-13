@@ -20,15 +20,7 @@
 # gate-191 derivation) -- HOST COPY instead:
 # port/unmatched/Snowman_InitResources.cpp. Matched src stays byte-locked
 # in src/ as proof, dropped from CMakeLists' gate-193 source list.
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_bg_snwmn.cpp
+src/game/actors/d_a_bg_snwmn.cpp
 #
 # ---- BABY_PENGUIN (daPgBby_c), a plain Actor, 31 slots (_ZTV11BabyPenguin
 # == _ZTV9daPgBby_c). D0 stays in the slice: stores its own table and
@@ -233,15 +225,7 @@ src/__sinit_ov072_02122414.c
 # data_ov072_02122b64, seated with host addresses by
 # port_snowman_body_states_seat(); _ZN12daBgSnmBdy_c8SetStateEi is its ChangeState
 # (pp = &table + state*0x10). D1 and both dispatchers excluded (above).
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/daBgSnmBdy_c.cpp
+src/actors/daBgSnmBdy_c.cpp
 src/__sinit_ov072_02122018.c
 #
 # ---- SNOWMAN_HEAD (daBgSnmHed_c, 273). Four PMF state cells at

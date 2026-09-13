@@ -62,14 +62,7 @@ src/func_ov098_0213b0a4.cpp
 src/_ZN8dActor_c10EarthquakeERK7Vector35Fix12IiE.cpp
 src/func_ov002_020df300.c
 src/func_ov002_020df34c.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2624 and C3640, an extern declaration of
-# a function-local class type: forbidden outright by C++ ([basic.link]),
-# measured unreachable by every MSVC conformance switch (/permissive included,
-# probed 2026-09-13)). It is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/daBmb_c.cpp
+src/actors/daBmb_c.cpp
 
 # --- linkloop round 2 ---
 src/func_0200d438.c

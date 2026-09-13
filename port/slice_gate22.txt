@@ -21,15 +21,7 @@
 
 # ---- the six own slots ----------------------------------------------------
 src/d_a_door.c
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_star_gate.cpp
+src/game/actors/d_a_star_gate.cpp
 # CleanupResources moved to a HOST COPY at gate 31 (port/unmatched/
 # Door_CleanupResources.cpp): it deletes the door's second Model through a
 # local shadow class at ROM slot 1, which the port's MSVC-ordered
@@ -94,17 +86,7 @@ src/UnloadKeyModels.cpp
 # at, the same wall SIGN_POST's read branch and the RABBIT's catch path meet
 # (hal/actor_vtables.cpp). Nothing on the castle grounds reaches them with the
 # entrance gate the level boot leaves in place.
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2624, C3640, C2556 and C2371 together, 31
-# errors in one TU: extern declarations of function-local class types, one
-# free function declared with two return types, and virtual members of a local
-# class left undefined. Quarantining this TU costs the most of any row in this
-# list (main folded Player's whole class into it), and it is the single
-# biggest reason the fold's linkage number cannot be restored until the decomp
-# answers items 10 and 11). It is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/Player.cpp
+src/actors/Player.cpp
 src/_ZN6Camera14GoBehindPlayerEj.cpp
 src/_ZN8SaveData17SetCharacterIntroEi.cpp
 src/func_0201277c.c

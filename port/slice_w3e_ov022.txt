@@ -98,12 +98,7 @@ src/_ZN19FloatOnLavaPlatform13InitResourcesEv.cpp
 src/d_a_obj_fl_koma_d.c
 
 # ---- LAVA_BRIDGE (73), table 0x02113f70 ----------------------------------
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2372, one name declared with two
-# different types of indirection in one TU). It is a decomp-side item, not a
-# port one: see runs/link100/out/SYNC5/decomp_side.md. The row returns when
-# main lands the fix.
-#src/actors/daObjFl_London_c.cpp
+src/actors/daObjFl_London_c.cpp
 
 # ---- LAVA_SEESAW (77), table 0x02114034 ----------------------------------
 src/_ZN10LavaSeesawD1Ev.cpp

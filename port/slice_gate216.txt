@@ -160,15 +160,7 @@ src/game/actors/d_a_obj_c0_switch.cpp
 src/game/actors/d_a_obj_clock_huriko.cpp
 src/_ZN10RockPillarD1Ev.cpp
 src/game/actors/d_a_pg_mthr.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_star_gate.cpp
+src/game/actors/d_a_star_gate.cpp
 src/_ZN14UnchainedChompD1Ev.cpp
 #
 # ---- NOT IN THIS GATE, and why, so the rows stop reading as work -----------

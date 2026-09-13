@@ -225,25 +225,9 @@ src/func_ov055_021112c4.cpp
 #   body that still carries the "recovered from vtable slot identity" marker
 #   with no REAL_DECOMP ruling -- which port/tools/inferred_stub_guard.py
 #   forbids seating, and is right to.
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_bakubaku.cpp
+src/game/actors/d_a_bakubaku.cpp
 src/func_ov100_021453d8.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_star_gate.cpp
+src/game/actors/d_a_star_gate.cpp
 
 # ===========================================================================
 # GATE 3 -- func_ov006_020c07e8, THE MODEL SUB-OBJECT'S +0xb4 FIELD

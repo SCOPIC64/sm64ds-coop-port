@@ -37,76 +37,28 @@
 # tried.
 
 # 19 unresolved: __ZN12daBakubaku_c13InitResourcesEv, __ZN12daBakubaku_c16CleanupResourcesEv, __ZN12daBakubaku_c16OnAimedAtWithEggEv and 16 more
-# HELD: MSVC C2821, `operator new` declared with an unsigned long first
-# parameter where MSVC requires size_t. The error is raised in the CLASS
-# HEADER, so it reaches every TU that includes it and the body cannot be
-# compiled at all. Same family as the SYNC5 quarantine of
-# src/game/actors/d_a_bg_snwmn.cpp: a decomp-side item, not a port one
-# (out/SYNC5/decomp_side.md). Measured here, not assumed: include/daBakubaku_c.h(80)
-#src/game/actors/d_a_bakubaku.cpp
+src/game/actors/d_a_bakubaku.cpp
 
 # 9 unresolved: __ZN16daObjPushblock_c13InitResourcesEv, __ZN16daObjPushblock_c15OnHitByMegaCharER6Player, __ZN16daObjPushblock_c16CleanupResourcesEv and 6 more
-# HELD: MSVC C2561, an int body that ends without a return. mwcc warns
-# (C4716) and leaves whatever is in r0; MSVC refuses the TU. hostgen's
-# FALLS_OFF_RETURN can express it, but the value the ROM actually leaves
-# in r0 on that path has to be read off the ROM body first, one row at a
-# time, so it is a ruling and not plumbing. daObjPushblock_c::OnPushed
-#src/game/actors/daObjPushblock_c.cpp
+src/game/actors/daObjPushblock_c.cpp
 
 # 7 unresolved: __ZN16daObjFl_London_c13InitResourcesEv, __ZN16daObjFl_London_c16CleanupResourcesEv, __ZN16daObjFl_London_c6RenderEv and 4 more
-# HELD: MSVC C2372, `data_ov022_02114578` redefined with a different
-# level of indirection against include/decl_common.h(394). The TU and the
-# shared declaration header disagree about the symbol's type. hostgen's
-# HEADER_SHADOW can hide a decl_common declaration for one TU, which is
-# the mechanism this needs, but which of the two spellings is right is a
-# ROM question and not a port one. src/actors/daObjFl_London_c.cpp(50)
-#src/actors/daObjFl_London_c.cpp
+src/actors/daObjFl_London_c.cpp
 
 # 6 unresolved: __ZN11daBgSnwmn_c13InitResourcesEv, __ZN11daBgSnwmn_c16CleanupResourcesEv, __ZN11daBgSnwmn_c16OnPendingDestroyEv and 3 more
-# HELD: QUARANTINED at the main -> port sync (lane SYNC5). MSVC refuses
-# main's shape for this TU -- C2821, `static void *operator new(unsigned
-# long)` in the class header, where MSVC requires size_t -- and the error
-# is raised in the HEADER, so it reaches every TU that includes it. It is
-# a decomp-side item, not a port one (out/SYNC5/decomp_side.md), and the
-# row returns when main lands the fix. Its own PORT_HOSTGEN_TU row in
-# port/CMakeLists.txt is commented out for the same reason.
-#src/game/actors/d_a_bg_snwmn.cpp
+src/game/actors/d_a_bg_snwmn.cpp
 
 # 5 unresolved: __ZN17daObjKm1_Kuruma_c13InitResourcesEv, __ZN17daObjKm1_Kuruma_c16CleanupResourcesEv, __ZN17daObjKm1_Kuruma_cD0Ev and 2 more
-# HELD: MSVC C2821, `operator new` declared with an unsigned long first
-# parameter where MSVC requires size_t. The error is raised in the CLASS
-# HEADER, so it reaches every TU that includes it and the body cannot be
-# compiled at all. Same family as the SYNC5 quarantine of
-# src/game/actors/d_a_bg_snwmn.cpp: a decomp-side item, not a port one
-# (out/SYNC5/decomp_side.md). Measured here, not assumed: include/daObjKm1_Kuruma_c.h
-#src/game/actors/d_a_obj_km1_kuruma.cpp
+src/game/actors/d_a_obj_km1_kuruma.cpp
 
 # 5 unresolved: __ZN21daObjKm1_Kurumajiku_c13InitResourcesEv, __ZN21daObjKm1_Kurumajiku_c16CleanupResourcesEv, __ZN21daObjKm1_Kurumajiku_cD0Ev and 2 more
-# HELD: MSVC C2821, `operator new` declared with an unsigned long first
-# parameter where MSVC requires size_t. The error is raised in the CLASS
-# HEADER, so it reaches every TU that includes it and the body cannot be
-# compiled at all. Same family as the SYNC5 quarantine of
-# src/game/actors/d_a_bg_snwmn.cpp: a decomp-side item, not a port one
-# (out/SYNC5/decomp_side.md). Measured here, not assumed: include/daObjKm1_Kurumajiku_c.h
-#src/game/actors/d_a_obj_km1_kurumajiku.cpp
+src/game/actors/d_a_obj_km1_kurumajiku.cpp
 
 # 5 unresolved: __ZN19daObjKm2_Ukishima_c13InitResourcesEv, __ZN19daObjKm2_Ukishima_c16CleanupResourcesEv, __ZN19daObjKm2_Ukishima_cD0Ev and 2 more
-# HELD: MSVC C2821, `operator new` declared with an unsigned long first
-# parameter where MSVC requires size_t. The error is raised in the CLASS
-# HEADER, so it reaches every TU that includes it and the body cannot be
-# compiled at all. Same family as the SYNC5 quarantine of
-# src/game/actors/d_a_bg_snwmn.cpp: a decomp-side item, not a port one
-# (out/SYNC5/decomp_side.md). Measured here, not assumed: include/daObjKm2_Ukishima_c.h
-#src/game/actors/d_a_obj_km2_ukishima.cpp
+src/game/actors/d_a_obj_km2_ukishima.cpp
 
 # 3 unresolved: __ZN14daObjFl_Gura_c13InitResourcesEv, __ZN14daObjFl_Gura_c16CleanupResourcesEv, _daObjFl_Gura_c_classInit
-# HELD: MSVC C2821, `operator new` declared with an unsigned long first
-# parameter where MSVC requires size_t. The error is raised in the CLASS
-# HEADER, so it reaches every TU that includes it and the body cannot be
-# compiled at all. Same family as the SYNC5 quarantine of
-# src/game/actors/d_a_bg_snwmn.cpp: a decomp-side item, not a port one
-# (out/SYNC5/decomp_side.md). Measured here, not assumed: include/daObjFl_Gura_c.h
-#src/game/actors/d_a_obj_fl_gura.cpp
+src/game/actors/d_a_obj_fl_gura.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was
@@ -128,20 +80,10 @@
 #src/_ZN11dScMgBase_cD0Ev.cpp
 
 # 2 unresolved: ?OnAttacked1@QuestionBlock@@UAEHAAUdActor_c@@@Z, __ZN13QuestionBlock11OnAttacked1ER8dActor_c
-# HELD: MSVC C2561, an int body that ends without a return. mwcc warns
-# (C4716) and leaves whatever is in r0; MSVC refuses the TU. hostgen's
-# FALLS_OFF_RETURN can express it, but the value the ROM actually leaves
-# in r0 on that path has to be read off the ROM body first, one row at a
-# time, so it is a ruling and not plumbing. QuestionBlock::OnAttacked1
-#src/_ZN13QuestionBlock11OnAttacked1ER8dActor_c.cpp
+src/_ZN13QuestionBlock11OnAttacked1ER8dActor_c.cpp
 
 # 2 unresolved: ?OnHitFromUnderneath@QuestionBlock@@UAEHAAUdActor_c@@@Z, __ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c
-# HELD: MSVC C2561, an int body that ends without a return. mwcc warns
-# (C4716) and leaves whatever is in r0; MSVC refuses the TU. hostgen's
-# FALLS_OFF_RETURN can express it, but the value the ROM actually leaves
-# in r0 on that path has to be read off the ROM body first, one row at a
-# time, so it is a ruling and not plumbing. QuestionBlock::OnHitFromUnderneath
-#src/_ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c.cpp
+src/_ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was
@@ -166,13 +108,7 @@
 src/d_a_hanachan.c
 
 # 2 unresolved: __ZN13daObjKi_Ita_c13InitResourcesEv, _daObjKi_Ita_c_classInit
-# HELD: MSVC C2821, `operator new` declared with an unsigned long first
-# parameter where MSVC requires size_t. The error is raised in the CLASS
-# HEADER, so it reaches every TU that includes it and the body cannot be
-# compiled at all. Same family as the SYNC5 quarantine of
-# src/game/actors/d_a_bg_snwmn.cpp: a decomp-side item, not a port one
-# (out/SYNC5/decomp_side.md). Measured here, not assumed: include/daObjKi_Ita_c.h
-#src/game/actors/d_a_obj_ki_ita.cpp
+src/game/actors/d_a_obj_ki_ita.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was
@@ -890,12 +826,7 @@ src/_ZN10daKpa2Bg_c16CleanupResourcesEv.cpp
 #src/_ZN11dCapEnemy_cD2Ev.cpp
 
 # 1 unresolved: ?OnHitFromUnderneath@dScMgBase_c@@UAEHXZ
-# HELD: MSVC C2561, an int body that ends without a return. mwcc warns
-# (C4716) and leaves whatever is in r0; MSVC refuses the TU. hostgen's
-# FALLS_OFF_RETURN can express it, but the value the ROM actually leaves
-# in r0 on that path has to be read off the ROM body first, one row at a
-# time, so it is a ruling and not plumbing. dScMgBase_c::OnHitFromUnderneath
-#src/_ZN11dScMgBase_c19OnHitFromUnderneathEv.cpp
+src/_ZN11dScMgBase_c19OnHitFromUnderneathEv.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was
@@ -1561,11 +1492,7 @@ src/_ZN13RollingLogLll8BehaviorEv.cpp
 #src/_ZN14ArrowSignRight11OnAttacked1ER8dActor_c.cpp
 
 # 1 unresolved: __ZN14ArrowSignRight4KillEv
-# HELD: MSVC C2065, `mPosX`/`mPosY`/`mPosZ` undeclared at lines 37-39.
-# The TU names three members the class it derives from does not declare
-# on this branch, so the body cannot be compiled as written and no port
-# mechanism can supply them: it is a source item. src/_ZN14ArrowSignRight4KillEv.cpp(37)
-#src/_ZN14ArrowSignRight4KillEv.cpp
+src/_ZN14ArrowSignRight4KillEv.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was
@@ -4062,13 +3989,7 @@ src/_ZN9TowerStep6RenderEv.cpp
 #src/_ZN9dScDSMT_cD0Ev.cpp
 
 # 1 unresolved: _daBgSnmBdy_c_classInit
-# HELD: MSVC C2821, `operator new` declared with an unsigned long first
-# parameter where MSVC requires size_t. The error is raised in the CLASS
-# HEADER, so it reaches every TU that includes it and the body cannot be
-# compiled at all. Same family as the SYNC5 quarantine of
-# src/game/actors/d_a_bg_snwmn.cpp: a decomp-side item, not a port one
-# (out/SYNC5/decomp_side.md). Measured here, not assumed: include/daBgSnmBdy_c.h(115)
-#src/actors/daBgSnmBdy_c.cpp
+src/actors/daBgSnmBdy_c.cpp
 
 # HELD, and the whole family with it: A STRUCTOR TU DOES NOT DEFINE ITS OWN
 # FLAT ROM NAME UNDER MSVC, so seating one never closed the row it was

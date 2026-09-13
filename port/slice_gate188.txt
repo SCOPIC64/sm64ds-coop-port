@@ -35,15 +35,7 @@
 src/d_a_obj_ki_fune_ki_fune_up.c
 src/d_a_obj_ki_fune_ki_fune.c
 src/d_a_obj_ki_hasira.c
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_obj_ki_ita.cpp
+src/game/actors/d_a_obj_ki_ita.cpp
 src/d_a_moray.c
 src/d_a_slide_box.c
 # ---- SHIP_UP / SHIP_DOWN (daObjKi_Fune_c, _ZTV6ShipUp) ----

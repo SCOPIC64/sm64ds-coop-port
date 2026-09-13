@@ -170,11 +170,7 @@ CPPD1(MrI)
 CPPD1(daEyBm_c)
 CPPD1(Scuttlebug)
 CPPD1(BabyPenguin)
-/* CPPD1(daBgSnmBdy_c) -- DORMANT at the main -> port sync (lane SYNC5).
-   src/actors/daBgSnmBdy_c.cpp is quarantined for C2821, so the class has no
-   D1 body in this build and the face would be an unresolved external. It
-   returns with the quarantined row; hal/actor_classes_ov072.cpp carries the
-   full reason. */
+CPPD1(daBgSnmBdy_c)
 CPPD1(SnowmanHead)
 
 /* group 4: the small-cast level overlays and ov002 tags */

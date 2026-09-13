@@ -160,7 +160,7 @@ extern "C" void *__fastcall port_actor_s30_base(void *self, void *, void *out);
 #include "dtor_faces_cpp.h"
 #include "fBase_c.h"
 #include "BabyPenguin.h"
-/* #include "daBgSnmBdy_c.h" -- SYNC5, see the SNOWMAN_BODY DORMANT banner below */
+#include "daBgSnmBdy_c.h"
 #include "SnowmanHead.h"
 
 extern "C" {
@@ -643,22 +643,6 @@ int _ZN11SnowmanHead6State3Ev(char *c);
 typedef int (*PortSnFn)(void *);
 struct PortSnRow { unsigned enter_rom, tick_rom; PortSnFn enter_host, tick_host; };
 
-/* SNOWMAN_BODY (274) IS DORMANT AT THE MAIN -> PORT SYNC (lane SYNC5).
-   src/actors/daBgSnmBdy_c.cpp is quarantined for C2821 -- the class header
-   include/daBgSnmBdy_c.h:115 declares `static void *operator new(unsigned
-   long size)` and MSVC requires size_t, which on 32-bit is `unsigned int`,
-   a different type of the same width. The error is raised AT THE
-   DECLARATION, so it reaches this file through the include as well as the
-   TU itself, and every one of the class's bodies -- the five vtable
-   members, the D0, and all twelve state handlers -- lives in that one
-   quarantined TU, so nothing here has anything left to seat. The cells,
-   the faces and the class-specific vtable words are therefore out of the
-   build until main lands decomp_side.md item 8, at which point every
-   block below comes back verbatim with the quarantined row.
-   The table still gets ov72_fill_shared, so a SNOWMAN_BODY that spawns
-   runs the shared dActor_c words rather than dispatching through an
-   unfilled slot. Logged, not fixed, per the wave-7 bug rule. */
-#if 0
 static const PortSnRow g_smb_cells[6] = {
     /* cell 0: p0  <- 0x02122750, p1  <- 0x02122728 */
     {0x0211fb7c, 0x0211fb14, (PortSnFn)_ZN12daBgSnmBdy_c10InitState0Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State0Ev},
@@ -673,7 +657,6 @@ static const PortSnRow g_smb_cells[6] = {
     /* cell 5: p10 <- 0x02122768, p11 <- 0x02122760 */
     {0x0211f578, 0x0211f48c, (PortSnFn)_ZN12daBgSnmBdy_c10InitState5Ev, (PortSnFn)_ZN12daBgSnmBdy_c6State5Ev},
 };
-#endif
 
 /* SnowmanHead's four, from __sinit_ov072_021221f8's own assignment order into
    data_ov072_02122c00[0..7]. */
@@ -710,9 +693,10 @@ static void ov72_seat_cells(const char *who, PortSnowmanCell *cells,
 
 extern "C" void port_snowman_body_states_seat(void)
 {
-    /* DORMANT, see the SNOWMAN_BODY banner above: the twelve state bodies are
-       all inside the quarantined TU, so there is nothing to seat and the ROM
-       pairs the sinit left in data_ov072_02122b64 stay as they are. */
+    static int done;
+    if (done) return;
+    done = 1;
+    ov72_seat_cells("daBgSnmBdy_c", data_ov072_02122b64, g_smb_cells, 6);
 }
 
 extern "C" void port_snowman_head_states_seat(void)
@@ -724,7 +708,6 @@ extern "C" void port_snowman_head_states_seat(void)
 }
 
 // ---- SNOWMAN_BODY (274) ----------------------------------------------------
-#if 0  /* DORMANT, see the SNOWMAN_BODY banner above */
 static int __fastcall smb_init(void *s, void *)
 { return _ZN12daBgSnmBdy_c13InitResourcesEv(s); }
 static int __fastcall smb_clean(void *s, void *)
@@ -754,18 +737,13 @@ static int __fastcall smb_pdes(void *s, void *)
    the transcribed thunk that stood here (smb_d1) spelled the same chain by hand. */
 static int __fastcall smb_d0(void *s, void *)
 { return (int)(size_t)_ZN12daBgSnmBdy_cD0Ev((int *)s); }
-#endif
 
 extern "C" void hal_fill_snowman_body_vtable(void)
 {
-    /* DORMANT at the main -> port sync (lane SYNC5), see the banner above: the
-       class's own bodies are all inside the quarantined TU. The SHARED words
-       still go in, so the table is never dispatched through unfilled; the seven
-       class-specific words below return with the quarantined row. */
+    /* seat the six cells BEFORE anything can dispatch through them */
+    port_snowman_body_states_seat();
     void **vt = (void **)_ZTV11SnowmanBody;
     ov72_fill_shared(vt);
-#if 0
-    port_snowman_body_states_seat();
     vt[0]  = (void *)smb_init;
     vt[3]  = (void *)smb_clean;
     vt[6]  = (void *)smb_behavior;
@@ -774,7 +752,6 @@ extern "C" void hal_fill_snowman_body_vtable(void)
     vt[16] = (void *)hal_cppd1_SnowmanBody;
     vt[17] = (void *)smb_d0;
     /* no own 18/19 and no slot 31: a plain Actor, 31 slots, ends here */
-#endif
 }
 
 // ---- SNOWMAN_HEAD (273) ----------------------------------------------------
@@ -824,16 +801,12 @@ extern "C" void hal_fill_snowman_head_vtable(void)
 // and _ZTV5Model[5]'s dual fill serves the shadow dispatch (see the section
 // header for the derivation that settled it).
 extern "C" {
-/* DORMANT, see the SNOWMAN_BODY banner: the class type comes from the header
-   that raises the C2821 and its members live in the quarantined TU.
-#if 0
 int _ZN12daBgSnmBdy_c13InitResourcesEv(void *self)
 { return ((daBgSnmBdy_c *)self)->daBgSnmBdy_c::InitResources(); }
 int _ZN12daBgSnmBdy_c8BehaviorEv(void *self)
 { return ((daBgSnmBdy_c *)self)->daBgSnmBdy_c::Behavior(); }
 int _ZN12daBgSnmBdy_c6RenderEv(void *self)
 { return ((daBgSnmBdy_c *)self)->daBgSnmBdy_c::Render(); }
-#endif */
 int _ZN11SnowmanHead13InitResourcesEv(void *self)
 { return ((SnowmanHead *)self)->SnowmanHead::InitResources(); }
 int _ZN11SnowmanHead8BehaviorEv(void *self)

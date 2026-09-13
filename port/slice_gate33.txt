@@ -104,14 +104,7 @@ src/_ZN4Coin13OnTurnIntoEggER6Player.cpp
 # compiled for the host before -- the other hosted classes use Model or
 # ModelAnim. Six files, all matched.
 src/_ZN11CommonModelC1Ev.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2600, the model family's destructor TUs:
-# main defines X::~X() where the host header spells the destructor as two
-# plain virtuals; port/unmatched/ModelFamily_Dtors_HostCopy.c carries the
-# merge base's own bodies instead). It is a decomp-side item, not a port one:
-# see runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands
-# the fix.
-#src/_ZN11CommonModelD1Ev.cpp
+src/_ZN11CommonModelD1Ev.cpp
 # QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
 # refuses main's shape for this TU (C2600, the model family's destructor TUs:
 # main defines X::~X() where the host header spells the destructor as two
@@ -275,12 +268,7 @@ src/_ZN14ArrowSignRightD1Ev.cpp
 # (the inner slot-31 dispatch remodelled as a C++ virtual so the site is
 # thiscall and lands on as_kill). The Player_HeadBonk pattern.
 src/_ZN14ArrowSignRight15OnHitByMegaCharER6Player.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2065, the TU names dActor_c position
-# fields its own class no longer inherits). It is a decomp-side item, not a
-# port one: see runs/link100/out/SYNC5/decomp_side.md. The row returns when
-# main lands the fix.
-#src/_ZN14ArrowSignRight4KillEv.cpp
+src/_ZN14ArrowSignRight4KillEv.cpp
 port/unmatched/ArrowSign_OnAttacked1.cpp
 
 # WATER_BOMB (208) x2 -- _ZTV9WaterBomb, RTTI daWbm_c
@@ -409,17 +397,7 @@ src/game/actors/d_a_warpkun.cpp
 # _ZN11daWarpkun_c8BehaviorEv is C++ inside a .c and goes through hostgen instead,
 # see GATE16_SYMS in CMakeLists.txt.
 src/WarpPlayer.c
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2624, C3640, C2556 and C2371 together, 31
-# errors in one TU: extern declarations of function-local class types, one
-# free function declared with two return types, and virtual members of a local
-# class left undefined. Quarantining this TU costs the most of any row in this
-# list (main folded Player's whole class into it), and it is the single
-# biggest reason the fold's linkage number cannot be restored until the decomp
-# answers items 10 and 11). It is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/Player.cpp
+src/actors/Player.cpp
 
 # ---- CylinderClsn::Process, and it is the whole of "a coin can be picked up"
 # arm9 0x02014aa8, 0x49c bytes, matched, and never called in the port until

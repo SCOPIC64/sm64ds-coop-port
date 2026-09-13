@@ -47,13 +47,5 @@
 # are words 0 and 1 of the 3-word Arg record data_ov043_02112344 the mount
 # rebases (build/port/host-src/ov043_syms.c). It was left out of slice_bdw.txt
 # on the "a sinit for an unhosted class stays off" rule; 137 is hosted now.
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_obj_km1_kurumajiku.cpp
+src/game/actors/d_a_obj_km1_kurumajiku.cpp
 src/__sinit_ov043_02111868.c

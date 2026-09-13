@@ -80,14 +80,4 @@ src/func_020541b8.c
 
 # the callees no earlier slice pulled in
 src/Vec3_DivScalarInPlace.c
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2624, C3640, C2556 and C2371 together, 31
-# errors in one TU: extern declarations of function-local class types, one
-# free function declared with two return types, and virtual members of a local
-# class left undefined. Quarantining this TU costs the most of any row in this
-# list (main folded Player's whole class into it), and it is the single
-# biggest reason the fold's linkage number cannot be restored until the decomp
-# answers items 10 and 11). It is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/Player.cpp
+src/actors/Player.cpp

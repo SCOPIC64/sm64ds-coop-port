@@ -289,13 +289,7 @@ src/func_ov004_020ae330.c
 src/_ZN11dScMgBase_c9Virtual88Eiiii.cpp
 src/func_ov004_020aea78.cpp
 src/func_ov004_020aeb24.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2561, a bare return; inside a non-void
-# body: a mwccarm extension that is ill-formed C++, with no MSVC option,
-# pragma or per-source setting that reaches it). It is a decomp-side item, not
-# a port one: see runs/link100/out/SYNC5/decomp_side.md. The row returns when
-# main lands the fix.
-#src/_ZN11dScMgBase_c19OnHitFromUnderneathEv.cpp
+src/_ZN11dScMgBase_c19OnHitFromUnderneathEv.cpp
 src/_ZN11dScMgBase_c15OnHitByMegaCharEv.cpp
 src/func_ov004_020af5e0.c
 src/func_ov004_020af868.cpp

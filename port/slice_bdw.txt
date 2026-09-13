@@ -48,15 +48,7 @@
 #
 # ==== THE MATCHED TUs THIS SLICE ENROLLS ====================================
 # id 136 RICKSHAW_PLATFORM_BDW -- factory + four matched bodies:
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_obj_km1_kuruma.cpp
+src/game/actors/d_a_obj_km1_kuruma.cpp
 # id 134 STAIRS_BDW -- factory + four matched bodies (all real names, no -D):
 src/game/actors/d_a_obj_km1_dorifu.cpp
 # the two seated classes' file-constructor sinits (135's __sinit_021117fc runs

@@ -220,15 +220,7 @@
 # item, not a port one: see runs/link100/out/SYNC5/decomp_side.md. The row
 # returns when main lands the fix.
 #src/actors/daMky_c.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/daBgSnmBdy_c.cpp
+src/actors/daBgSnmBdy_c.cpp
 src/_ZN11SnowmanHead17CallStateBehaviorEv.cpp
 src/_ZN11SnowmanHead13CallStateInitEv.cpp
 src/func_ov077_02124718.cpp
@@ -246,15 +238,7 @@ src/ChiefChilly_ChangeState.cpp
 src/func_ov073_021223a4.cpp
 src/func_ov026_02111ee0.cpp
 src/func_ov026_021122d4.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_bakubaku.cpp
+src/game/actors/d_a_bakubaku.cpp
 src/actors/daYurei_Mucho_c.cpp
 src/func_ov065_02117944.cpp
 # QUARANTINED at the main->port sync (origin/main 9c7f38a24): main folded this

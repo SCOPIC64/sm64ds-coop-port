@@ -34,15 +34,7 @@
 # instead -- the member chain is identical (a CommonModel at 0xd4) -- so the
 # ROM-faithful teardown runs without that shadow. D0 (slot 17) is plain C and
 # is here.
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_star_gate.cpp
+src/game/actors/d_a_star_gate.cpp
 
 # ---- the two ov100 helpers the closure reaches ----------------------------
 # _ZN12daStarGate_c26CalculateRelativePlayerPosEv: InitResources/Behavior geometry helper (Vec3_Sub,
@@ -66,14 +58,4 @@
 # closure (AngleDiff, the Vec3 helpers, cstd::atan2, Sound, ShowArea,
 # func_02012694, func_ov100_02145070/02145014/02144fcc) is already linked by
 # the Player/Camera/DOOR gates.
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2624, C3640, C2556 and C2371 together, 31
-# errors in one TU: extern declarations of function-local class types, one
-# free function declared with two return types, and virtual members of a local
-# class left undefined. Quarantining this TU costs the most of any row in this
-# list (main folded Player's whole class into it), and it is the single
-# biggest reason the fold's linkage number cannot be restored until the decomp
-# answers items 10 and 11). It is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/Player.cpp
+src/actors/Player.cpp

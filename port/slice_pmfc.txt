@@ -221,12 +221,7 @@
 src/func_ov002_020b9704.cpp
 src/func_ov002_020b9750.cpp
 src/func_ov002_020efa54.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2556 and C2371, one free function
-# declared with two different return types in one TU). It is a decomp-side
-# item, not a port one: see runs/link100/out/SYNC5/decomp_side.md. The row
-# returns when main lands the fix.
-#src/game/actors/d_a_wanwan.cpp
+src/game/actors/d_a_wanwan.cpp
 src/func_ov034_021125b8.cpp
 src/func_ov034_02112604.cpp
 src/unnamed/ov063/func_ov063_0211ddac.cpp

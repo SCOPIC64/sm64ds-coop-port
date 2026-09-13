@@ -68,15 +68,7 @@ src/_ZN12MetalNetLift6RenderEv.cpp
 #    REFERRER: hal/actor_classes.cpp:2143, a slot-3 thunk calling the C symbol
 #    directly -- no face needed. ROM: from:0x02148194 (_ZTV4Door +
 #    4*3) -> 0x0214542c, kind:function(arm,size=0x98).
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_star_gate.cpp
+src/game/actors/d_a_star_gate.cpp
 
 # THE FOUR THAT STAY, and why (SEAT3's census listed seven "already DEFINED as
 # host copies in port/unmatched"; three of them are above):

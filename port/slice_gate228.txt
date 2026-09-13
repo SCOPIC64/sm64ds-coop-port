@@ -91,15 +91,7 @@ src/game/actors/d_a_obj_clock_huriko.cpp
 src/game/actors/d_a_pg_mthr.cpp
 # RETIRED at SLICE1: body now in src/_ZN10RockPillarD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
 #src/_ZN10RockPillarD0Ev.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_obj_ki_ita.cpp
+src/game/actors/d_a_obj_ki_ita.cpp
 # RETIRED at SLICE1: body now in src/_ZN6FwooshD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
 #src/_ZN6FwooshD0Ev.cpp
 #

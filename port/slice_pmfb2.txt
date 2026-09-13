@@ -190,14 +190,7 @@ src/game/actors/d_a_mc_flag.cpp
 #     02110e7c is func_ov002_020f3d98 over 02110e34. Three tables, two files
 #     and a nest is a lane, not a row.
 src/_ZN16dPathLiftActor_c12BaseBehaviorEv.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2624 and C3640, an extern declaration of
-# a function-local class type: forbidden outright by C++ ([basic.link]),
-# measured unreachable by every MSVC conformance switch (/permissive included,
-# probed 2026-09-13)). It is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/da1up_c.cpp
+src/actors/da1up_c.cpp
 src/_ZN4Coin8BehaviorEv.cpp
 src/_ZN9PowerStar8BehaviorEv.cpp
 # QUARANTINED at the main->port sync (origin/main 9c7f38a24): main consolidated ov084's

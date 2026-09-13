@@ -109,15 +109,7 @@ src/actors/daObjLava_c.cpp
 #       Deallocate. Pool: 0x02125458 -> 0x021282b4, 0x0212545c -> 0x020a0eac.
 #       slice_gate50.txt excluded it for exactly the placeholder collision the
 #       -D rows below remove, and says so.
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_star_gate.cpp
+src/game/actors/d_a_star_gate.cpp
 # RETIRED at SLICE1: body now in src/_ZN8PaintingD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
 #src/_ZN8PaintingD0Ev.cpp
 #

@@ -99,17 +99,7 @@ src/d_a_ply.cpp
 src/_ZN8dActor_c19BeforeInitResourcesEv.cpp
 # _ZN8dActor_c18AfterInitResourcesEj is C++ inside a .c (the gate-9 case
 # again); it goes through hostgen, see GATE14_SYMS in CMakeLists.txt
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2624, C3640, C2556 and C2371 together, 31
-# errors in one TU: extern declarations of function-local class types, one
-# free function declared with two return types, and virtual members of a local
-# class left undefined. Quarantining this TU costs the most of any row in this
-# list (main folded Player's whole class into it), and it is the single
-# biggest reason the fold's linkage number cannot be restored until the decomp
-# answers items 10 and 11). It is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/Player.cpp
+src/actors/Player.cpp
 # func_ov002_020c6fe4 does void-pointer arithmetic on the anim probe
 # (the NoControl case); hostgen retypes the deref -- GATE14_SYMS
 # the ring the step handlers reach: the death-table guard the init hook

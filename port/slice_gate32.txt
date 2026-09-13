@@ -58,14 +58,7 @@
 # Its Behavior dispatches NO pointer-to-member: it is a straight-line body over
 # the Enemy helpers and a flag word at +0x3f6. Nothing here needs the gate-16
 # treatment.
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2624 and C3640, an extern declaration of
-# a function-local class type: forbidden outright by C++ ([basic.link]),
-# measured unreachable by every MSVC conformance switch (/permissive included,
-# probed 2026-09-13)). It is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/daBmb_c.cpp
+src/actors/daBmb_c.cpp
 # _ZN7daBmb_c6RenderEv IS NOT HERE: the ModelAnim slot-5 case.
 # port/unmatched/BobEnemy_Renders.cpp.
 # slot 18 (OnYoshiTryEat), slot 19 (OnTurnIntoEgg) and slot 29
@@ -119,17 +112,7 @@ src/func_02010304.cpp
 # The shared tail of death type 1, and the mega-form kill counter the
 # knockback bumps.
 src/func_ov002_020ae5c8.c
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2624, C3640, C2556 and C2371 together, 31
-# errors in one TU: extern declarations of function-local class types, one
-# free function declared with two return types, and virtual members of a local
-# class left undefined. Quarantining this TU costs the most of any row in this
-# list (main folded Player's whole class into it), and it is the single
-# biggest reason the fold's linkage number cannot be restored until the decomp
-# answers items 10 and 11). It is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/Player.cpp
+src/actors/Player.cpp
 src/func_ov002_020f0e54.c
 
 # ---- Actor's own tail, slots 20 through 30 --------------------------------
@@ -365,12 +348,7 @@ src/actors/Goomboss.cpp
 # constructor read the frame and ActorBase faulted on 0x000000db -- the actor
 # id in the spawn spine's stack slot. Host copy in
 # port/unmatched/ChainChomp_Spawn_hostcopy.cpp.
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2556 and C2371, one free function
-# declared with two different return types in one TU). It is a decomp-side
-# item, not a port one: see runs/link100/out/SYNC5/decomp_side.md. The row
-# returns when main lands the fix.
-#src/game/actors/d_a_wanwan.cpp
+src/game/actors/d_a_wanwan.cpp
 # _ZN10daWanwan_c6RenderEv IS NOT HERE: the ModelAnim slot-5 case, and the
 # longest of them -- it draws the head plus seven chain links.
 # the twelve state halves, all matched -- no hole and no trap
@@ -580,14 +558,7 @@ src/__sinit_ov078_02126660.c
 # comes in with him -- see SLICE24_SOURCES in port/CMakeLists.txt, which this
 # gate is the first build to link into a live level.
 src/_ZN11CommonModelC1Ev.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2600, the model family's destructor TUs:
-# main defines X::~X() where the host header spells the destructor as two
-# plain virtuals; port/unmatched/ModelFamily_Dtors_HostCopy.c carries the
-# merge base's own bodies instead). It is a decomp-side item, not a port one:
-# see runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands
-# the fix.
-#src/_ZN11CommonModelD1Ev.cpp
+src/_ZN11CommonModelD1Ev.cpp
 src/func_0200fa8c.c
 src/func_02011cfc.c
 src/func_02011d44.c
@@ -610,14 +581,7 @@ src/_ZN14BlendModelAnimC1Ev.cpp
 # see runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands
 # the fix.
 #src/_ZN14BlendModelAnimD0Ev.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2600, the model family's destructor TUs:
-# main defines X::~X() where the host header spells the destructor as two
-# plain virtuals; port/unmatched/ModelFamily_Dtors_HostCopy.c carries the
-# merge base's own bodies instead). It is a decomp-side item, not a port one:
-# see runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands
-# the fix.
-#src/_ZN14BlendModelAnimD1Ev.cpp
+src/_ZN14BlendModelAnimD1Ev.cpp
 src/_ZN14BlendModelAnim9DoSetFileEPcii.cpp
 src/_ZN14BlendModelAnim11UpdateVertsEv.cpp
 src/_ZN14BlendModelAnim9Virtual10ER9Matrix4x3.cpp

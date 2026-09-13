@@ -404,15 +404,7 @@ src/d_a_obj_km2_nobiru.c
 src/_ZN17ExtendingPlatform16OnPendingDestroyEv.cpp
 src/_ZN17ExtendingPlatform23UpdateColliderTransformEv.cpp
 src/_ZN17ExtendingPlatform20UpdateModelTransformEv.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_obj_km2_ukishima.cpp
+src/game/actors/d_a_obj_km2_ukishima.cpp
 src/game/actors/d_a_obj_km2_fall_block.cpp
 
 # ---- five of ov045's six static initialisers ------------------------------

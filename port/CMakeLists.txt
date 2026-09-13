@@ -275,27 +275,9 @@ endfunction()
 #       in a register). Added at the main->port sync, lane SYNC5: lane SEAT6
 #       keyed this on the per-function TU main has since folded into this one.
 set(PORT_HOSTGEN_TU
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2624, C3640, C2556 and C2371 together, 31
-# errors in one TU: extern declarations of function-local class types, one
-# free function declared with two return types, and virtual members of a local
-# class left undefined. Quarantining this TU costs the most of any row in this
-# list (main folded Player's whole class into it), and it is the single
-# biggest reason the fold's linkage number cannot be restored until the decomp
-# answers items 10 and 11). It is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/Player.cpp
+    src/actors/Player.cpp
     src/actors/dScMgPanel_c.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2821, operator new with an unsigned long
-# first parameter: the class header declares static void *operator
-# new(unsigned long), and MSVC requires size_t (unsigned int on 32-bit), so
-# the error is raised in the HEADER and reaches every TU that includes it). It
-# is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/game/actors/d_a_bg_snwmn.cpp
+    src/game/actors/d_a_bg_snwmn.cpp
     src/game/actors/d_a_propeller_heyho.cpp)
 get_filename_component(PORT_HOSTGEN_TU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 set(PORT_HOSTGEN_TU_GEN "")
@@ -18415,7 +18397,24 @@ set(PORT_FALLS_OFF_END_SOURCES
     # code reaches the closing brace with the result still in r0, exactly the
     # shape the twenty rows above cover. Nothing else in the batch raises
     # C4716.
-    src/_ZN19RotatingPlatformLll13InitResourcesEv.cpp)
+    src/_ZN19RotatingPlatformLll13InitResourcesEv.cpp
+    # Added by lane SYNC6 when today's main un-quarantined five TUs that lane
+    # SYNC5 had held for C2561. main's #2663 spells their valueless early exits
+    # as nested ifs instead of `return;`, which is the statement C2561 was
+    # raised on, and what is left is the plain fall-off-the-end the rows above
+    # already cover: each body is a ROM vtable slot that sets no return
+    # register. Measured per source with the build's own flags before these
+    # rows were written: these five are the only ones of the twenty-five
+    # restored TUs that raise C4716.
+    src/_ZN11dScMgBase_c19OnHitFromUnderneathEv.cpp
+    src/_ZN13QuestionBlock11OnAttacked1ER8dActor_c.cpp
+    src/_ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c.cpp
+    src/game/actors/daObjPushblock_c.cpp
+    # d_a_wanwan.cpp is a whole class TU and raises C4716 twice, on
+    # func_ov014_02111fb8 and func_ov014_0211150c. The option is per source, so
+    # those two carry the rest of the file with them; both are ROM bodies that
+    # compute no result.
+    src/game/actors/d_a_wanwan.cpp)
 foreach(_foe_rel IN LISTS PORT_FALLS_OFF_END_SOURCES)
     if(NOT EXISTS "${PORT_REPO_ROOT_ABS}/${_foe_rel}")
         message(FATAL_ERROR "falls-off-the-end row names a source that does not "

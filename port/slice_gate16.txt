@@ -68,14 +68,7 @@ src/_ZN9ModelBase12ApplyOpacityEj.cpp
 src/func_020461b4.c
 src/func_02046208.c
 src/_ZN7Clipper13Func_02015560ER9Matrix4x3R7Vector35Fix12IiES3_.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2600, the model family's destructor TUs:
-# main defines X::~X() where the host header spells the destructor as two
-# plain virtuals; port/unmatched/ModelFamily_Dtors_HostCopy.c carries the
-# merge base's own bodies instead). It is a decomp-side item, not a port one:
-# see runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands
-# the fix.
-#src/_ZN5ModelD1Ev.cpp
+src/_ZN5ModelD1Ev.cpp
 # RETIRED at SLICE1: body now in src/_ZN8dActor_cD1Ev.cpp. MSVC folds the ROM destructor variants into one symbol, so only one of a class two per-function destructor TUs can be compiled.
 #src/_ZN8dActor_cD2Ev.cpp
 src/_ZN9fLiNdBa_cD1Ev.cpp
@@ -200,14 +193,7 @@ src/func_ov002_020bb060.c
 # indexed by the level's parameter and picking only the one this level uses
 # would be a guess the next level breaks.
 src/d_a_1up_oneupkinoko.c
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2624 and C3640, an extern declaration of
-# a function-local class type: forbidden outright by C++ ([basic.link]),
-# measured unreachable by every MSVC conformance switch (/permissive included,
-# probed 2026-09-13)). It is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/da1up_c.cpp
+src/actors/da1up_c.cpp
 # the fourteen type behaviours the PMF table names
 # ...and the ring: the Enemy base the factory constructs, the Yoshi-eat check
 # its Behavior opens with, and the per-frame helper it closes with.
@@ -226,14 +212,7 @@ src/_ZN12dEnemyBase_cC2Ev.cpp
 # level's own list), the shadow and cylinder teardowns every Platform runs,
 # and the leaves of the two Behavior chains.
 src/_ZN12dBgCh_SphCrrD1Ev.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2600, the model family's destructor TUs:
-# main defines X::~X() where the host header spells the destructor as two
-# plain virtuals; port/unmatched/ModelFamily_Dtors_HostCopy.c carries the
-# merge base's own bodies instead). It is a decomp-side item, not a port one:
-# see runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands
-# the fix.
-#src/_ZN11ShadowModelD1Ev.cpp
+src/_ZN11ShadowModelD1Ev.cpp
 src/_ZN10dBgCh_ActrD1Ev.cpp
 src/_ZN4dBgW10BeforeClsnER5dBgPiP8dActor_cR7Vector3P10Vector3_16S7_.cpp
 # BATCH 2 LINKAGE SEAT: the rest of the MeshColliderBase base cluster. Its
@@ -263,17 +242,7 @@ src/_ZN4dBgW11GetVelocityER7Vector3.cpp
 src/_ZN8dActor_c19DisappearPoofDustAtERK7Vector3.cpp
 src/_ZN8dActor_c24KillAndTrackInDeathTableEv.cpp
 src/_ZN6Player14IsFrontSlidingEv.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2624, C3640, C2556 and C2371 together, 31
-# errors in one TU: extern declarations of function-local class types, one
-# free function declared with two return types, and virtual members of a local
-# class left undefined. Quarantining this TU costs the most of any row in this
-# list (main folded Player's whole class into it), and it is the single
-# biggest reason the fold's linkage number cannot be restored until the decomp
-# answers items 10 and 11). It is a decomp-side item, not a port one: see
-# runs/link100/out/SYNC5/decomp_side.md. The row returns when main lands the
-# fix.
-#src/actors/Player.cpp
+src/actors/Player.cpp
 src/_ZN6Player17LostGrabbedObjectEv.cpp
 src/_ZN8Particle6System17NewUnkCallback818Ejj5Fix12IiES2_S2_PK11Vector3_16f.c
 src/GiveLives.c

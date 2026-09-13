@@ -43,22 +43,10 @@
 # be stuck at a dead object.
 #
 # ---- the five slot bodies -------------------------------------------------
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2561, a bare return; inside a non-void
-# body: a mwccarm extension that is ill-formed C++, with no MSVC option,
-# pragma or per-source setting that reaches it). It is a decomp-side item, not
-# a port one: see runs/link100/out/SYNC5/decomp_side.md. The row returns when
-# main lands the fix.
-#src/_ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c.cpp
+src/_ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c.cpp
 src/_ZN13QuestionBlock15OnHitByMegaCharER6Player.cpp
 src/_ZN13QuestionBlock8OnKickedER8dActor_c.cpp
-# QUARANTINED at the main->port sync (lane SYNC5, the wave-7 fold merge): MSVC
-# refuses main's shape for this TU (C2561, a bare return; inside a non-void
-# body: a mwccarm extension that is ill-formed C++, with no MSVC option,
-# pragma or per-source setting that reaches it). It is a decomp-side item, not
-# a port one: see runs/link100/out/SYNC5/decomp_side.md. The row returns when
-# main lands the fix.
-#src/_ZN13QuestionBlock11OnAttacked1ER8dActor_c.cpp
+src/_ZN13QuestionBlock11OnAttacked1ER8dActor_c.cpp
 src/_ZN13QuestionBlock15OnGroundPoundedER8dActor_c.cpp
 
 # ---- transitive closure ----------------------------------------------------
