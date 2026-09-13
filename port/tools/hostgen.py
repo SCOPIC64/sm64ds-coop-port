@@ -1377,6 +1377,135 @@ CALL_STATE_FN = {
 }
 
 
+# ---- A TYPED POINTER-TO-MEMBER DISPATCH, ROUTED AT THE SITE ----------------
+#
+# Run link100, lane HOSTGEN2. MG_PMF_CALL above handles the sites that OPEN-CODE
+# the ARM Itanium sequence in plain ints. This table handles the sites that
+# spell a real member-pointer TYPE and let the compiler do the decode:
+#
+#     (((PanelC_eb8 *)c)->*data_ov006_02142840[idx])(i);
+#
+# WHAT IS WRONG WITH ONE OF THOSE ON THE HOST IS ONE THING, AND IT IS NOT THE
+# WIDTH. Every PORT_HOST_ABI ruling that names this shape says "MSVC's 4-byte
+# member pointer cannot express the ROM's 8-byte {code, this-adjust} pair", and
+# that half of every one of them went obsolete when port/CMakeLists.txt put
+# `/vmg /vmm` on add_compile_options (run link100, lane PMF; the measurement
+# table is in that block). Under the pair an MSVC pointer to member function is
+# EIGHT bytes in every inheritance shape, complete or forward-declared, word 0
+# the code address and word 1 the this-adjust. The stride is the ROM's, the
+# field order is the ROM's, and a table the ROM's own __sinit fills is read at
+# the width it was written.
+#
+# What is left is the CODE WORD: it is a DS address, and MSVC's call sequence
+# calls it. On the host that lands inside the mounted overlay's DATA image and
+# jumps into mapped data. The port owns the answer -- the per-class address
+# switches in port/unmatched/Mg*_StateDispatch.cpp -- so the correction is to
+# read the two words the pointer already holds and hand them to the class's
+# seam. port/hal/pmf_dispatch.h is that read, with a static_assert on the width
+# so a build that loses /vmg /vmm stops here instead of reading half a pointer.
+#
+# PER SITE, NOT PER TU, AND THAT IS MEASURED RATHER THAN CAUTIOUS. Inside ONE
+# translation unit some of a class's tables are SEATED with host addresses at
+# boot and some still hold the ROM's DS words. dScMgPanel_c has both:
+# data_ov006_021427bc and data_ov006_02142860 are seated by
+# port_mg_panel_states_seat in unmatched/MgPanel_StateDispatch.cpp, so their two
+# dispatches are already correct, while 021427ec, 02142820 and 02142840 are not
+# seated and route through the switch. Routing a SEATED table would be a
+# regression: the switch is keyed on DS addresses, so it would read a host
+# address as unknown and swallow the call. A blanket per-TU rewrite cannot tell
+# the two apart. So each site is named, and each seated site it must NOT touch
+# is named too, in PMF_SEAM_ALLOW.
+#
+# THE RESIDUE CHECK IS WHAT MAKES THIS REPEATABLE. After the patches run, emit()
+# counts the `->*` operators left in a listed TU and refuses the file unless
+# every one of them is an allowed line. A dispatch site that appears in a TU
+# this table covers -- a new one from main, or one whose text moved -- fails the
+# build with its own name instead of shipping a jump into mapped data.
+PMF_SEAM_DECL = ('#include "hal/pmf_dispatch.h"\n'
+                 'extern "C" void port_mg_panel_call0(void *, unsigned, int);\n'
+                 'extern "C" void port_mg_panel_call1(void *, unsigned, int, int);\n')
+PMF_SEAM = {
+    # dScMgPanel_c. SIX sites over FIVE strings (the 02106fdc and 0210709c
+    # loops are textually identical and take the same rewrite), closing six of
+    # the seven-row LNK2005 block against unmatched/MgPanel_StateDispatch.cpp;
+    # the seventh, func_ov006_02106bc0, is an open-coded site MG_PMF_CALL above
+    # already routes.
+    #
+    #   func_ov006_02104c60   table 021427ec   arity 0   not seated
+    #   func_ov006_021057f0   table 02142820   arity 0   not seated
+    #   func_ov006_02106eb8   table 02142840   arity 1   not seated
+    #   func_ov006_02106f44   table 02142840   arity 1   not seated
+    #   func_ov006_02106fdc   table 02142840   arity 1   not seated
+    #   func_ov006_0210709c   table 02142840   arity 1   not seated
+    #
+    # The receiver handed to the seam is the src's OWN receiver expression,
+    # unadjusted, and the adjustment word rides along raw: the seam applies the
+    # ROM's `code != 0 && adj == 0` rule and reports anything else, which is
+    # what all seven host copies did and all the ROM's own pairs support.
+    "dScMgPanel_c": [
+        ("        (cc->*data_ov006_021427ec[*(u8 *)(c + 0x4000 + 0x686)])();",
+         "        PORT_PMF_CALL0(port_mg_panel_call0, cc,\n"
+         "                       data_ov006_021427ec[*(u8 *)(c + 0x4000 + 0x686)]);"),
+        ("    (c->*data_ov006_02142820[c->idx])();",
+         "    PORT_PMF_CALL0(port_mg_panel_call0, c, data_ov006_02142820[c->idx]);"),
+        ("        (((PanelC_eb8 *)c)->*data_ov006_02142840[idx])(i);",
+         "        PORT_PMF_CALL1(port_mg_panel_call1, c,\n"
+         "                       data_ov006_02142840[idx], i);"),
+        ("        (((PanelC_f44 *)c)->*data_ov006_02142840[idx])(i);",
+         "        PORT_PMF_CALL1(port_mg_panel_call1, c,\n"
+         "                       data_ov006_02142840[idx], i);"),
+        ("        (c->*data_ov006_02142840[idx])(i);",
+         "        PORT_PMF_CALL1(port_mg_panel_call1, c,\n"
+         "                       data_ov006_02142840[idx], i);"),
+    ],
+}
+
+# The dispatch sites a listed TU is allowed to keep RAW, each with the reason
+# it is correct as it stands. Anything else left holding `->*` after the
+# patches is a refusal.
+PMF_SEAM_ALLOW = {
+    "dScMgPanel_c": [
+        # data_ov006_021427bc: seated with three one-argument __fastcall faces
+        # by port_mg_panel_states_seat (lane PMFB5). The words are host
+        # addresses by the time any state runs.
+        "    (c->*data_ov006_021427bc[j].pmf[0])(0);",
+        # data_ov006_02142860: seated with five plain cdecl bodies by the same
+        # installer (lane PMFB3).
+        "    (c->*(data_ov006_02142860[c->idx].pmf))();",
+    ],
+}
+
+
+def pmf_seam_patch(text, sym):
+    """Route a TYPED member-pointer dispatch through the class's seam."""
+    return apply_patches(text, sym, PMF_SEAM, "PMF_SEAM", PMF_SEAM_DECL)
+
+
+def pmf_seam_residue(text, sym, suffix):
+    """Refuse a listed TU that still carries an unlisted `->*` dispatch."""
+    if sym not in PMF_SEAM:
+        return
+    if suffix == ".c":
+        sys.exit("hostgen: %s: PMF_SEAM covers C++ translation units only -- "
+                 "the header it includes declares templates and a .c source is "
+                 "emitted inside an extern \"C\" wrap." % sym)
+    left = text.count("->*")
+    allowed = 0
+    for line in PMF_SEAM_ALLOW.get(sym, ()):
+        if line not in text:
+            sys.exit("hostgen: %s: PMF_SEAM_ALLOW line no longer matches:\n  %s\n"
+                     "The seated dispatch moved. Re-read it against the seat "
+                     "before changing this list." % (sym, line))
+        allowed += text.count(line) * line.count("->*")
+    if left != allowed:
+        sys.exit(
+            "hostgen: %s: %d pointer-to-member dispatch(es) left unrouted after "
+            "PMF_SEAM (%d allowed raw). A `->*` site in this TU either routes "
+            "through the class seam or is listed in PMF_SEAM_ALLOW with the "
+            "seat that makes it correct. Calling the stored word raw jumps into "
+            "the mounted overlay's data image." % (sym, left - allowed, allowed))
+
+
 # ---- ARGUMENT WIDTH ACROSS TWO MATCHED TUs -----------------------------------
 #
 # Lane shadow-A. Two src TUs can disagree about the width of one parameter and
@@ -1777,12 +1906,14 @@ def emit(src_path, out_dir, decomp_root, extern_data=False):
     text, _ = falls_off_return_patch(text, sym)
     text, _ = virtual_call_patch(text, sym)
     text, _ = mg_pmf_call_patch(text, sym)
+    text, _ = pmf_seam_patch(text, sym)
     text, _ = member_redecl_patch(text, sym)
     text, _ = extern_c_data_patch(text, sym)
     text, _ = call_state_fn_patch(text, sym)
     text, _ = arg_width_patch(text, sym)
     text, _ = callee_seam_patch(text, sym)
     text, _ = reg_ride_arg_patch(text, sym)
+    pmf_seam_residue(text, sym, src_path.suffix)
     new, n = transform(text, extern_data)
     # An excision that left an asm block behind would emit a file MSVC cannot
     # read, and the file was only let past the skip in main() on the promise

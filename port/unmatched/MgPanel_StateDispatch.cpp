@@ -356,6 +356,23 @@ extern "C" void port_mg_panel_counts(unsigned *hits, unsigned *floor,
    halfword countdown, func_ov004_020b0a54(0x12), the two flag bytes and
    func_ov006_02104ea8. */
 /* PORT_HOST_ABI: open-coded mwcc member-pointer decode in plain ints; the src compiles under MSVC as it stands, but the decoded code word is a DS address and the call through it is routed to the class's address switch */
+/* RETIRED, run link100 lane HOSTGEN2. The matched body now compiles FROM
+   src/actors/dScMgPanel_c.cpp through the whole-TU hostgen substitution, with
+   its one dispatch line routed to port_mg_panel_call0/1 by hostgen.py's
+   PMF_SEAM table -- which is the same correction this copy was written to
+   supply. The PORT_HOST_ABI ruling above says the reason is "MSVC's 4-byte
+   member pointer cannot express the 8-byte {code,adj} pair"; that half of the
+   ruling went obsolete when port/CMakeLists.txt put /vmg /vmm on
+   add_compile_options (lane PMF), which makes an MSVC pointer to member the
+   ROM's own eight-byte pair in every inheritance shape. The half that was
+   still true -- the stored code word is a DS address -- is what the seam
+   answers, at the site, out of the decomp's own text.
+
+   The text is kept, not deleted, so the derivation above stays readable and a
+   revert is one #if away. Every declaration and every switch case in this file
+   is untouched: panel_try_0 still names these bodies, and it now reaches the
+   matched ones. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_02106bc0(char *c)
 {
     int i;
@@ -375,12 +392,30 @@ extern "C" void func_ov006_02106bc0(char *c)
     *(unsigned char *)(c + 0x4fe3) = 0;
     func_ov006_02104ea8(c);
 }
+#endif  /* HOSTGEN2: func_ov006_02106bc0 retired to src */
 
 /* src/actors/dScMgPanel_c.cpp, table 02142840, arity 1.
    ROM 0x02106eb8: func_ov006_021050bc(self), func_ov006_021057f0(self), then
    the same count/index loop as 02106bc0 -- [r7,#0xcb8] and ldrb +0xefa -- with
    mov r1,r5. */
 /* PORT_HOST_ABI: mwcc pointer-to-member dispatch (dScMgPanel_c two-level state machine); the 8-byte {code,adj} pair is host-copied as an address switch, MSVC's 4-byte member pointer cannot express it */
+/* RETIRED, run link100 lane HOSTGEN2. The matched body now compiles FROM
+   src/actors/dScMgPanel_c.cpp through the whole-TU hostgen substitution, with
+   its one dispatch line routed to port_mg_panel_call0/1 by hostgen.py's
+   PMF_SEAM table -- which is the same correction this copy was written to
+   supply. The PORT_HOST_ABI ruling above says the reason is "MSVC's 4-byte
+   member pointer cannot express the 8-byte {code,adj} pair"; that half of the
+   ruling went obsolete when port/CMakeLists.txt put /vmg /vmm on
+   add_compile_options (lane PMF), which makes an MSVC pointer to member the
+   ROM's own eight-byte pair in every inheritance shape. The half that was
+   still true -- the stored code word is a DS address -- is what the seam
+   answers, at the site, out of the decomp's own text.
+
+   The text is kept, not deleted, so the derivation above stays readable and a
+   revert is one #if away. Every declaration and every switch case in this file
+   is untouched: panel_try_0 still names these bodies, and it now reaches the
+   matched ones. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_02106eb8(char *c)
 {
     int i;
@@ -392,10 +427,28 @@ extern "C" void func_ov006_02106eb8(char *c)
         port_mg_panel_call1(c, e->code, e->adj, i);
     }
 }
+#endif  /* HOSTGEN2: func_ov006_02106eb8 retired to src */
 
 /* src/actors/dScMgPanel_c.cpp, table 02142840, arity 1. Same loop, with the
    +0x4fe9 flag set to 1 and func_ov006_02105854 between the two calls. */
 /* PORT_HOST_ABI: mwcc pointer-to-member dispatch (dScMgPanel_c two-level state machine); the 8-byte {code,adj} pair is host-copied as an address switch, MSVC's 4-byte member pointer cannot express it */
+/* RETIRED, run link100 lane HOSTGEN2. The matched body now compiles FROM
+   src/actors/dScMgPanel_c.cpp through the whole-TU hostgen substitution, with
+   its one dispatch line routed to port_mg_panel_call0/1 by hostgen.py's
+   PMF_SEAM table -- which is the same correction this copy was written to
+   supply. The PORT_HOST_ABI ruling above says the reason is "MSVC's 4-byte
+   member pointer cannot express the 8-byte {code,adj} pair"; that half of the
+   ruling went obsolete when port/CMakeLists.txt put /vmg /vmm on
+   add_compile_options (lane PMF), which makes an MSVC pointer to member the
+   ROM's own eight-byte pair in every inheritance shape. The half that was
+   still true -- the stored code word is a DS address -- is what the seam
+   answers, at the site, out of the decomp's own text.
+
+   The text is kept, not deleted, so the derivation above stays readable and a
+   revert is one #if away. Every declaration and every switch case in this file
+   is untouched: panel_try_0 still names these bodies, and it now reaches the
+   matched ones. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_02106f44(char *c)
 {
     int i;
@@ -408,6 +461,7 @@ extern "C" void func_ov006_02106f44(char *c)
         port_mg_panel_call1(c, e->code, e->adj, i);
     }
 }
+#endif  /* HOSTGEN2: func_ov006_02106f44 retired to src */
 
 /* src/actors/dScMgPanel_c.cpp, table 02142840, arity 1. BANNERED NONMATCHING
    (different op / idiom, div=28) and therefore decompiled rather than matched,
@@ -416,6 +470,23 @@ extern "C" void func_ov006_02106f44(char *c)
    part the banner is about: the ROM counts nonzero indices and, if none was
    seen, drops the outer state to 4 and sets the two flags. */
 /* PORT_HOST_ABI: mwcc pointer-to-member dispatch (dScMgPanel_c two-level state machine); the 8-byte {code,adj} pair is host-copied as an address switch, MSVC's 4-byte member pointer cannot express it */
+/* RETIRED, run link100 lane HOSTGEN2. The matched body now compiles FROM
+   src/actors/dScMgPanel_c.cpp through the whole-TU hostgen substitution, with
+   its one dispatch line routed to port_mg_panel_call0/1 by hostgen.py's
+   PMF_SEAM table -- which is the same correction this copy was written to
+   supply. The PORT_HOST_ABI ruling above says the reason is "MSVC's 4-byte
+   member pointer cannot express the 8-byte {code,adj} pair"; that half of the
+   ruling went obsolete when port/CMakeLists.txt put /vmg /vmm on
+   add_compile_options (lane PMF), which makes an MSVC pointer to member the
+   ROM's own eight-byte pair in every inheritance shape. The half that was
+   still true -- the stored code word is a DS address -- is what the seam
+   answers, at the site, out of the decomp's own text.
+
+   The text is kept, not deleted, so the derivation above stays readable and a
+   revert is one #if away. Every declaration and every switch case in this file
+   is untouched: panel_try_0 still names these bodies, and it now reaches the
+   matched ones. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_02106fdc(void *p)
 {
     char *c = (char *)p;
@@ -439,9 +510,27 @@ extern "C" void func_ov006_02106fdc(void *p)
     *(unsigned char *)(c + 0x4fdf) = 1;
     *(short *)(c + 0x4ec4) = 0x40;
 }
+#endif  /* HOSTGEN2: func_ov006_02106fdc retired to src */
 
 /* src/actors/dScMgPanel_c.cpp, table 02142840, arity 1. */
 /* PORT_HOST_ABI: mwcc pointer-to-member dispatch (dScMgPanel_c two-level state machine); the 8-byte {code,adj} pair is host-copied as an address switch, MSVC's 4-byte member pointer cannot express it */
+/* RETIRED, run link100 lane HOSTGEN2. The matched body now compiles FROM
+   src/actors/dScMgPanel_c.cpp through the whole-TU hostgen substitution, with
+   its one dispatch line routed to port_mg_panel_call0/1 by hostgen.py's
+   PMF_SEAM table -- which is the same correction this copy was written to
+   supply. The PORT_HOST_ABI ruling above says the reason is "MSVC's 4-byte
+   member pointer cannot express the 8-byte {code,adj} pair"; that half of the
+   ruling went obsolete when port/CMakeLists.txt put /vmg /vmm on
+   add_compile_options (lane PMF), which makes an MSVC pointer to member the
+   ROM's own eight-byte pair in every inheritance shape. The half that was
+   still true -- the stored code word is a DS address -- is what the seam
+   answers, at the site, out of the decomp's own text.
+
+   The text is kept, not deleted, so the derivation above stays readable and a
+   revert is one #if away. Every declaration and every switch case in this file
+   is untouched: panel_try_0 still names these bodies, and it now reaches the
+   matched ones. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_0210709c(void *p)
 {
     char *c = (char *)p;
@@ -458,6 +547,7 @@ extern "C" void func_ov006_0210709c(void *p)
     func_ov006_02105c88(c);
     func_ov006_02105134(c);
 }
+#endif  /* HOSTGEN2: func_ov006_0210709c retired to src */
 
 /* ---- 021427bc IS SEATED AND func_ov006_02104ac4 IS GONE -------------------
  *
@@ -535,6 +625,23 @@ PN_FACE(2, func_ov006_02104920)
    that halfword and the bytes at +0x4684 and +0x4685 and returns; otherwise
    the index is the byte at +0x4686 and the pool at 0x02104cf8 is 021427EC. */
 /* PORT_HOST_ABI: mwcc pointer-to-member dispatch (dScMgPanel_c two-level state machine); the 8-byte {code,adj} pair is host-copied as an address switch, MSVC's 4-byte member pointer cannot express it */
+/* RETIRED, run link100 lane HOSTGEN2. The matched body now compiles FROM
+   src/actors/dScMgPanel_c.cpp through the whole-TU hostgen substitution, with
+   its one dispatch line routed to port_mg_panel_call0/1 by hostgen.py's
+   PMF_SEAM table -- which is the same correction this copy was written to
+   supply. The PORT_HOST_ABI ruling above says the reason is "MSVC's 4-byte
+   member pointer cannot express the 8-byte {code,adj} pair"; that half of the
+   ruling went obsolete when port/CMakeLists.txt put /vmg /vmm on
+   add_compile_options (lane PMF), which makes an MSVC pointer to member the
+   ROM's own eight-byte pair in every inheritance shape. The half that was
+   still true -- the stored code word is a DS address -- is what the seam
+   answers, at the site, out of the decomp's own text.
+
+   The text is kept, not deleted, so the derivation above stays readable and a
+   revert is one #if away. Every declaration and every switch case in this file
+   is untouched: panel_try_0 still names these bodies, and it now reaches the
+   matched ones. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_02104c60(void *p)
 {
     char *c = (char *)p;
@@ -551,6 +658,7 @@ extern "C" void func_ov006_02104c60(void *p)
     const MgPmf *e = &data_ov006_021427ec[j];
     port_mg_panel_call0(c, e->code, e->adj);
 }
+#endif  /* HOSTGEN2: func_ov006_02104c60 retired to src */
 
 /* ---- data_ov006_02142860's BOOT INSTALLER, run link100 lane PMFB3 --------
    func_ov006_021050bc was a host copy here, reading the pair and handing the
@@ -639,6 +747,23 @@ extern "C" void port_mg_panel_states_seat(void)
    with hal/scene_mg.cpp's mb_v35 thunk, so this dispatch reaches the ROM body
    through the same path every other slot does. */
 /* PORT_HOST_ABI: mwcc pointer-to-member dispatch (dScMgPanel_c two-level state machine); the 8-byte {code,adj} pair is host-copied as an address switch, MSVC's 4-byte member pointer cannot express it */
+/* RETIRED, run link100 lane HOSTGEN2. The matched body now compiles FROM
+   src/actors/dScMgPanel_c.cpp through the whole-TU hostgen substitution, with
+   its one dispatch line routed to port_mg_panel_call0/1 by hostgen.py's
+   PMF_SEAM table -- which is the same correction this copy was written to
+   supply. The PORT_HOST_ABI ruling above says the reason is "MSVC's 4-byte
+   member pointer cannot express the 8-byte {code,adj} pair"; that half of the
+   ruling went obsolete when port/CMakeLists.txt put /vmg /vmm on
+   add_compile_options (lane PMF), which makes an MSVC pointer to member the
+   ROM's own eight-byte pair in every inheritance shape. The half that was
+   still true -- the stored code word is a DS address -- is what the seam
+   answers, at the site, out of the decomp's own text.
+
+   The text is kept, not deleted, so the derivation above stays readable and a
+   revert is one #if away. Every declaration and every switch case in this file
+   is untouched: panel_try_0 still names these bodies, and it now reaches the
+   matched ones. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_021057f0(void *p)
 {
     char *c = (char *)p;
@@ -652,3 +777,4 @@ extern "C" void func_ov006_021057f0(void *p)
     port_mg_panel_call0(c, e->code, e->adj);
     func_ov006_02104c60(c);
 }
+#endif  /* HOSTGEN2: func_ov006_021057f0 retired to src */
