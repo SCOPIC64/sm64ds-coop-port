@@ -2,7 +2,7 @@
   "class": "dScMgCoin_c",
   "overlay": "ov006",
   "module_base": "0x020bfec0",
-  "sealed_base": "8bfc6d98b0c5b3ed16cd97e712aa780c77fdad37",
+  "sealed_base": "e2b7ec2c285661883caa7876d737dbca94a084b7",
   "produced_by": "scout stage: direct reads of extracted/dsd/arm9_overlays/ov006.bin, extracted/dsd/arm9_overlays/ov004.bin, extracted/arm9_dec.bin, and module-qualified config relocation/symbol records; reconstructed src was not used as an oracle for any ROM claim",
   "reverified": {
     "at": "2026-09-06",
@@ -11,7 +11,7 @@
     "scope": "Independently re-derived, not merely re-read: the ZTS string, the three ZTI words, the vtable header pair, all 36 slot targets, the full 36-slot dScMgBase_c base table in ov004 (word-for-word diff -> exactly slots 0/6/9/16/17/18 differ), the factory literal pool (0x51e0 / 0x51c4 / 0x0213bf50), and every relocation in the tree whose target lands in 0x020dbe40..0x020de988 with overlay(6) in its module set. Every figure in this file survived. tools/rtti_vtables.py --own dScMgCoin_c agrees independently: 36 slots (base 36), the same six own slots at the same six addresses.",
     "module_filter_warning": "An unfiltered scan of the same relocations reports 115 extra callers from ov002/ov030/ov072/ov079/ov085/ov092/ov096/ov098/ov102. Every one is a relocation whose target module is that overlay own overlapping address space, not ov006. Any reference count for this class that is not filtered on the destination module is wrong by roughly 2.5x.",
     "tool_note": "tools/rtti_vtables.py reads build/rtti.json, which is per-worktree and absent in a fresh worktree. Run tools/rtti_extract.py first or it dies with FileNotFoundError.",
-    "tree_derived_fields_rederived_on": "origin/main 8bfc6d98b. An earlier revision of this file derived its manifest-, delink- and queue-dependent fields against the branch's original base 395afdb23 (#2320), before six class promotions landed -- three of them in ov006. Everything read out of extracted/ is base-independent and was unaffected; the ov006 run itself re-derives identically on current main (63 functions, 61 delink sections, the same two gaps, 45 .c / 16 .cpp, 2 pragma sections, 3 in converted-baseline, no NONMATCHING). Only sibling_oracles was actually wrong, and it was wrong outright."
+    "tree_derived_fields_rederived_on": "origin/main e2b7ec2c2. An earlier revision of this file derived its manifest-, delink- and queue-dependent fields against the branch's original base 8612e2206 (#2320), before six class promotions landed -- three of them in ov006. Everything read out of extracted/ is base-independent and was unaffected; the ov006 run itself re-derives identically on current main (63 functions, 61 delink sections, the same two gaps, 45 .c / 16 .cpp, 2 pragma sections, 3 in converted-baseline, no NONMATCHING). Only sibling_oracles was actually wrong, and it was wrong outright."
   },
   "identity_provenance": {
     "kind": "rom_named",
@@ -1065,7 +1065,7 @@
     ]
   },
   "promotion_inventory": {
-    "queue_row": "dScMgCoin_c | 61 | 1576 lines | ov006 | has_header yes | already_promoted no | blockers no-legacy-source:2;pragma:2;compiler-only:>=11 | sibling_oracle dScMgSingle3DBase_c | route text-only (read as of origin/main 8bfc6d98b)",
+    "queue_row": "dScMgCoin_c | 61 | 1576 lines | ov006 | has_header yes | already_promoted no | blockers no-legacy-source:2;pragma:2;compiler-only:>=11 | sibling_oracle dScMgSingle3DBase_c | route text-only (read as of origin/main e2b7ec2c2)",
     "what_the_61_counts": "The queue's shard_count of 61 is a FLOOR, and it counts delink SECTIONS, not functions. The run holds 63 functions; two are undelinked (the no-legacy-source:2 blocker), leaving 61 sections, of which 60 are one-function shard files in src/ and the 61st is the factory, which already lives in src/d_s_mg_coin.cpp.",
     "functions_in_run": 63,
     "delink_sections_in_run": 61,
@@ -1653,7 +1653,7 @@
     "this_is_what_forces_text_only": "The intact-object route requires the TU to own its _ZTV/_ZTI/_ZTS at their natural address. Those three symbols are inside the one undelinked ov006 .data section, so that route is unavailable and text-only is the only one left. Worth stating because promotion_route is a hand-maintained estimate in the queue -- no tool derives it; tools/queue_audit.py only reads it back to pick the compiler-only floor."
   },
   "sibling_oracles": {
-    "read_on": "origin/main 8bfc6d98b, 2026-09-06",
+    "read_on": "origin/main e2b7ec2c2, 2026-09-06",
     "staleness_warning": "This block goes stale on every ov006 promotion and must be re-derived, never trusted from a file. An earlier revision of this same file, cut from a base six promotions old, asserted that dScMgTeresa_c and dScMgBomroom_c were NOT promoted. They are: both landed after that base and both read already_promoted yes in the queue on current main. The retraction is left here on purpose -- the failure was reading a manifest directory from a stale checkout, and the same trap is waiting for the next reader.",
     "ov006_manifests": 20,
     "ov006_promoted": 19,

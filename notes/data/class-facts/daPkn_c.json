@@ -376,16 +376,16 @@
 
   "provenance": {
     "produced_by": "scout, stage 1",
-    "base_commit": "2ab05bae36a6821679a7e647e811c0a3243a3c49",
-    "base_verified": "AFTER the work, not before: git rev-parse HEAD == git rev-parse origin/main == git merge-base HEAD origin/main == 2ab05bae3, and `git log --oneline HEAD..origin/main` is empty.",
+    "base_commit": "a81adfa3702637cf566bcc97167786387eb582e6",
+    "base_verified": "AFTER the work, not before: git rev-parse HEAD == git rev-parse origin/main == git merge-base HEAD origin/main == a81adfa37, and `git log --oneline HEAD..origin/main` is empty.",
     "branch": "cpp/PiranhaPlant-tu",
     "worktree": "C:/tmp/sm64ds-piranha-scout",
     "rom_inputs": "extracted/overlays/overlay_0084.bin (31904 bytes), extracted/overlays/overlay_0002.bin, extracted/arm9_dec.bin",
     "tools_run": "tools/rtti_extract.py (429 records, 413 edges, 0 unresolved), tools/rtti_vtables.py --own daPkn_c and --out build/rtti_vtables.json, tools/opnew_sizes.py (391 sites, 315 classes, 0 unattributed), tools/tu_map.py (691 TUs / 333 with a class -- the non-degraded figures, because build/rtti_vtables.json existed first), tools/check_rename_ledger.py (exit 0)",
-    "tree_derived_fields": "queue_row_corrections, shard_inventory, header_state, ledger_state and the sibling-oracle finding are TREE-derived and rot on every promotion. They were derived at 2ab05bae3. Everything under identity, vtable, base, overrides, destructors, size, construction, state_machine, callers and fields is ROM-derived and merging cannot change it."
+    "tree_derived_fields": "queue_row_corrections, shard_inventory, header_state, ledger_state and the sibling-oracle finding are TREE-derived and rot on every promotion. They were derived at a81adfa37. Everything under identity, vtable, base, overrides, destructors, size, construction, state_machine, callers and fields is ROM-derived and merging cannot change it."
   },
   "humanizer_continuation_2026_09_08": {
-    "input_commit": "ffd6d8dd436827d06fcb79e1a0cf5171eb7ee231",
+    "input_commit": "abe07e30645e08fd6f0faf4f49007ba957eb7e3a",
     "task": "pr-2450-source-review-fixes",
     "handoff": "notes/agents/handoffs/pr-2450-source-review-fixes.md",
     "scope": "Prior scout observations remain dated to their recorded input; this update records the narrow source-review continuation.",
@@ -395,7 +395,7 @@
     "remaining_reconstruction": "Fifteen address-named free helpers remain; state 7/8 now use the real actor fields. Raw factory and other helper/copy seams remain explicit follow-up, with tested alternatives documented in the handoff."
   },
   "integration_correction_2026_09_10": {
-    "accepted_source": "c7e6c4331bd20fecc2ada944a89dd48a331cbc85",
+    "accepted_source": "b1c8e0611f53aaf1063752a849caf4cf1a7f7794",
     "scope": "The scout snapshot above remains historical. This correction supersedes its padding inference and queue census; current read/write observations are in notes/enemy-provenance.md.",
     "padding": "The 32-bit field at0x478 occupies0x478..0x47b. Bytes0x479..0x47b are part of that field, not padding; the absence of instructions beginning at an interior byte does not establish padding.",
     "current_queue": {

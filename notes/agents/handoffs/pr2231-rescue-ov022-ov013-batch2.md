@@ -11,12 +11,12 @@ This document describes this commit. The queue records its immutable output SHA.
   `reconstruct` + `integrate-candidate`, session `rescue-lava-0907`, harness
   Claude Code (`claude-fable-5-1`). Enqueuing is a coordinator act and was not
   done; nothing was claimed in `classqueue.py v2`. Batch 1 landed as
-  `ecc97391e` (#2435).
+  `516a883c4` (#2435).
 - Source branch and previous accepted input SHA: branch
-  `cpp/promote-ov022-ov013-batch2`, content commit `851dc888c`, merged with
-  `origin/main` `c27d8ea38` (`--no-ff`, no conflicts) as `8be0f4c0c`, verified
-  independently as `450a93a65` (PASS), then restacked by merging `origin/main`
-  `115cb5d74` (`--no-ff`) as `31499797c`: two conflicts, the ledger tail
+  `cpp/promote-ov022-ov013-batch2`, content commit `57a671f70`, merged with
+  `origin/main` `3fd5f34ed` (`--no-ff`, no conflicts) as `b7abd1ce1`, verified
+  independently as `d6292397d` (PASS), then restacked by merging `origin/main`
+  `b36ed7808` (`--no-ff`) as `96bf99bc1`: two conflicts, the ledger tail
   (main's rows first, then this batch's) and the C++ TU state note
   (regenerated, not hand-resolved). There is
   no accepted input: the rescued branch was NOT merged; its content for these
@@ -24,10 +24,10 @@ This document describes this commit. The queue records its immutable output SHA.
   is untouched on the remote and must not be deleted: it still holds the other
   classes.
 - Original source base SHA and installed workflow/tool SHA: built on
-  `ecc97391e` (main after batch 1), then `origin/main` `c27d8ea38` merged in
-  (never rebased), then `115cb5d74`. Workflow/tool revision
-  `f327f7b6460e157153eb7fc0749dbbe60dd854f1`. On BOTH halves used for the ROM
-  reports (`115cb5d74` and this branch) `tools/romdata_check.py` is blob
+  `516a883c4` (main after batch 1), then `origin/main` `3fd5f34ed` merged in
+  (never rebased), then `b36ed7808`. Workflow/tool revision
+  `d7e28406933497ff40150f9b912efe64666a00b2`. On BOTH halves used for the ROM
+  reports (`b36ed7808` and this branch) `tools/romdata_check.py` is blob
   `346b04c271b1` and `tools/validate_merge.py` is blob `a4d3b362ff58`, i.e.
   both post-#2425.
 - Separate evidence commits and required artifacts in this commit: no separate
@@ -85,7 +85,7 @@ This document describes this commit. The queue records its immutable output SHA.
     `data_ov022_02113f78` present, dsd declares `_ZTV16daObjFl_London_c` as
     an 8-byte symbol and hands the remaining 120 bytes of the one 128-byte
     table to the phantom, which the compiled TU cannot define (measured by
-    the independent verifier of `450a93a65`); with the row present the
+    the independent verifier of `d6292397d`); with the row present the
     linkcheck's `dsd check symbols` also reports it as the one NEW error.
     The row inside the held volcano vtable (`data_ov022_02114498`) stays as
     main has it. NO row was added.
@@ -193,9 +193,9 @@ This document describes this commit. The queue records its immutable output SHA.
 ## Proof
 
 Every command below was run in this worktree on the tree this document
-describes (content `851dc888c` merged with `origin/main` `115cb5d74` as
-`31499797c`; the figures below are the re-run on that restacked head, and
-every one that differs from the verified `450a93a65` run is marked MOVED),
+describes (content `57a671f70` merged with `origin/main` `b36ed7808` as
+`96bf99bc1`; the figures below are the re-run on that restacked head, and
+every one that differs from the verified `d6292397d` run is marked MOVED),
 with the pinned mwccarm 2004/b56 and the extracted retail ROM
 wired in. "Green" means exit 0 and the quoted verdict; nothing here is
 inherited from PR #2231's own manifests or logs.
@@ -206,7 +206,7 @@ inherited from PR #2231's own manifests or logs.
   `mismatching: 0`, `source-owned data claims: 25 (reproducing 25, mismatching
   0)`, `ROM-build analysis: PASS`, `ROM data from source: 704 verified, 223
   partial, 4 differ` (MOVED from 702/221/4: main landed #2437 and #2442 in
-  between). The same command at `origin/main` `115cb5d74` in a second wired
+  between). The same command at `origin/main` `b36ed7808` in a second wired
   worktree gives the base report (`106/106`, 23/23 data claims, `697
   verified, 221 partial, 4 differ`; MOVED from 695/219/4 for the same
   reason). The batch's own delta is unchanged: +7 exact, +2 partial, 0 differ.
@@ -218,7 +218,7 @@ inherited from PR #2231's own manifests or logs.
     --module <ov> --addr ... --size ...` for all 17 promoted functions
     (addresses and sizes from the manifests): 17 VERIFIED, 0 BLIND, 0 other,
     exit 0 each (`build/G-lc-by-symbol.log`).
-  - `python tools/validate_merge.py --base 115cb5d74 --head HEAD
+  - `python tools/validate_merge.py --base b36ed7808 --head HEAD
     --base-rom-report ... --head-rom-report build/head-romG.json --out
     build/vmG.json`: exit 0, `status Passed`; byte-verified functions
     11,164/11,347 (+0); `Contributor credit 0 added, 0 changed, 0 lost`;
@@ -269,8 +269,8 @@ inherited from PR #2231's own manifests or logs.
   `check_profile_campaign.py`, `port_refcheck.py` (423 references resolve),
   `check_tubuild_conflicts.py`, `cpp_tu_state.py --check-note`.
   Set-theoretic ledger audit `(base + head-added + main-added) - removed`
-  against the pre-restack base `ecc97391e`, the verified head `450a93a65`
-  and main `115cb5d74`: `symbols/actor_renames.tsv` 3512 +34 -13 (batch)
+  against the pre-restack base `516a883c4`, the verified head `d6292397d`
+  and main `b36ed7808`: `symbols/actor_renames.tsv` 3512 +34 -13 (batch)
   +24 -15 (main) = 3542, `attribution.json` overrides 3105 +18 (batch) +55
   (main) = 3178, `config/converted-baseline.json` 2706 +12 -12 (batch) +13
   -11 (main) = 2708, `config/converted-backslide-exceptions.jsonl` 415 +0
@@ -278,10 +278,10 @@ inherited from PR #2231's own manifests or logs.
 - `queue_audit.py --check` (needs `rtti_extract.py`, `rtti_vtables.py --out
   build/rtti_vtables.json` and `tu_map.py --out build/tu_map.json`
   regenerated AFTER the last config edit or it refuses on staleness): clean
-  at `450a93a65`; after the restack it exited 1 on exactly ONE row,
+  at `d6292397d`; after the restack it exited 1 on exactly ONE row,
   `daObjBk_Dossunbar_c` (ov015), which #2442 landed on `main` without
   refreshing the queue -- the same failure mode as #2435's three ov002 rows
-  this batch refreshes. `origin/main` `115cb5d74` is red on the gate by
+  this batch refreshes. `origin/main` `b36ed7808` is red on the gate by
   itself (4 rows: that one plus the three). By the coordinator's decision
   that row is repaired here too, in its own commit: `queue_audit --write`
   changed only that line (`23 350 ... no` -> `1 603 ... yes`), and

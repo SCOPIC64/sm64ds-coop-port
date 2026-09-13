@@ -2,7 +2,7 @@
 // @symbol _ZN3MrI13InitResourcesEv
 // NONMATCHING: 3/166 at exact size 0x298. (A lane draft briefly wrote 2 here and cited
 // the near-miss DB's shadow-struct row for the same address as agreeing. Re-measured
-// against b2bd6a323, both give 3: this body 3/166, and that DB row 3/166 under its own
+// against 299660871, both give 3: this body 3/166, and that DB row 3/166 under its own
 // func_ov071_02121734 spelling, though the row still stores divergences: 2. The residue
 // listed just below is three slots and always was.)
 //

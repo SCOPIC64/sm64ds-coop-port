@@ -1,8 +1,8 @@
 # PR #2445 composition
 
 This commit composes independently reviewed source
-`8e4b35b677b849519c6eed98b376e692a52cfd74` with main
-`666df563a2ea5340f41866c3321468b3c2207fd2`, preserving both histories.
+`c462261a1a6924a3d90e127c055dbfc2a4d5df97` with main
+`315c46d4b180193d9f607f0a62f7d681ca3f76ac`, preserving both histories.
 The accepted class source, header and manifest are unchanged.
 
 The rename-ledger conflict contained ten main records and 29 ov072 records.

@@ -5,7 +5,7 @@ describe the original stage and pinned inputs below, not a later PR head.
 The continuation and its fresh proof are recorded in
 [pr-2445-source-review-fixes.md](pr-2445-source-review-fixes.md).
 The original measurements are retained below with the census corrections
-identified at adopted input `19921838ecf6acaf689a4dbc3bb4fd05e4d0effc`.
+identified at adopted input `dc12411cff6a88cb2789e6ded97df809b499c9e3`.
 
 ## Identity and resumption
 
@@ -15,19 +15,19 @@ identified at adopted input `19921838ecf6acaf689a4dbc3bb4fd05e4d0effc`.
 - Source branch and previous accepted input SHA:
   `cpp/daBgSnmBdy_c-tu`. Greenfield — there is no accepted input commit and no
   predecessor branch. The branch was cut from `origin/main` at
-  `a278141a946931f7e243f2886de692bc4423674b` and brought forward by two merges of
+  `80649f84e11bc015674680e0b0a9105e8899e704` and brought forward by two merges of
   `origin/main`, never a rebase.
 - Original source base SHA and installed workflow/tool SHA:
-  base at branch creation `a278141a946931f7e243f2886de692bc4423674b`; every gate
+  base at branch creation `80649f84e11bc015674680e0b0a9105e8899e704`; every gate
   below was re-run against the pinned base
-  `ecc97391e7b356afbd5a1ede6f924d92559bacb5`; workflow/tools
-  `f327f7b6460e157153eb7fc0749dbbe60dd854f1`.
+  `516a883c4708af0157769d834af59225d27301a4`; workflow/tools
+  `d7e28406933497ff40150f9b912efe64666a00b2`.
   Two base discrepancies, both stated rather than smoothed over. The task briefing
-  named `e4fb1300e` as `origin/main`; the fetched ref was already
-  `a278141a9`, which descends from it and differs only in generated progress
+  named `0033367fb` as `origin/main`; the fetched ref was already
+  `80649f84e`, which descends from it and differs only in generated progress
   artifacts. And `origin/main` moved three times during the run —
-  `a278141a9` to `6e04e1090` to `ecc97391e` to `26f54f8fc`. The base is pinned at
-  `ecc97391e` because everything after it (`26f54f8fc`) is a progress refresh
+  `80649f84e` to `a9d978234` to `516a883c4` to `11ef9a7dd`. The base is pinned at
+  `516a883c4` because everything after it (`11ef9a7dd`) is a progress refresh
   touching only README, `contributions.json` and the two generated docs pages: no
   source, config, symbol or delink file this candidate reads or writes.
 - Separate evidence commits and required artifacts in this commit:
@@ -195,7 +195,7 @@ Recorded separately, not combined into one score.
   mismatched and **0 unparsed**, spanning 0x38c. This is partial coverage:
   the checker stops at the `StateFunc` typedef and does not establish offsets
   for the remaining PMF/scalar tail. The reported 122 header lines were an
-  earlier snapshot; adopted input `19921838` has 126.
+  earlier snapshot; adopted input `dc12411c` has 126.
   The source has not caught up with the header. Recounted at that input with
   `tools/tiers.py`'s `RAW_OFFSET` regex: **18 of 26 out-of-line member
   definitions contain the pattern, 154 occurrences across 117 source lines.**
@@ -250,7 +250,7 @@ Recorded separately, not combined into one score.
 All commands run in worktree `C:/tmp/sm64ds-sm64ds-snmbdy` at this commit's tree
 except where a second worktree is named, on the pinned compiler
 `tools/mwccarm/2004/b56/mwccarm.exe`. Base for every comparison is the pinned
-`ecc97391e7b356afbd5a1ede6f924d92559bacb5`. Both ROM reports were regenerated at
+`516a883c4708af0157769d834af59225d27301a4`. Both ROM reports were regenerated at
 these exact trees; neither is a cached report from an earlier base.
 
 - Full-ROM build:
@@ -263,7 +263,7 @@ these exact trees; neither is a cached report from an earlier base.
   `d1506e90efae5e2d2cf119926a4ac2a291bd5ca78349d09d5024e1a918c478e8`, which is the
   stock cartridge and the same hash the baseline control produces.
   The base control, `python tools/rombuild.py -j16 --no-rom` in the second wired
-  worktree `C:/tmp/sm64ds-snmbdy-base` at `ecc97391e` — exit 0: 11,192 / 11,192 /
+  worktree `C:/tmp/sm64ds-snmbdy-base` at `516a883c4` — exit 0: 11,192 / 11,192 /
   0, 106/106 exact, 23 source-owned data claims, ROM data 695 verified / 219
   partial / 4 differ. Head gains 2 verified data symbols and 40 verified bytes
   over base and loses none.
@@ -274,13 +274,13 @@ these exact trees; neither is a cached report from an earlier base.
   but the check is not green and must not be reported as green.
 
 - Explicit function/consumer relocation checks:
-  `python tools/pr_linkcheck.py --base ecc97391e -j16 --fail` — exit 0. The two
+  `python tools/pr_linkcheck.py --base 516a883c4 -j16 --fail` — exit 0. The two
   changed headers fan out to 917 files, all checked. `src/actors/daBgSnmBdy_c.cpp`
   is VERIFIED on all 29 slots. Five files are not plain VERIFIED — one DRAFT
   (`_ZN12dScStarSel_c8BehaviorEv`) and four BLIND (`RollingIronBall`,
   `daObjMarioCap_c`, `dScDSMT_c`, `func_ov089_0213162c`) — and every one of them is
   in a file and module this candidate does not touch.
-  `python tools/prepush_linkcheck.py --range ecc97391e..HEAD` — exit 0, 914
+  `python tools/prepush_linkcheck.py --range 516a883c4..HEAD` — exit 0, 914
   checked, 620 verified, 294 warnings, 0 blocking. Coverage limit: this class is
   itself one of those warnings. `prepush_linkcheck` returns `NO-SYM` for a
   promoted multi-symbol TU by construction, so it proves nothing about this
@@ -352,11 +352,11 @@ these exact trees; neither is a cached report from an earlier base.
   `tiers_ratchet.py --check` PASS, baseline 2699, current 2703, +4 gained and
   deliberately NOT banked — `--update` appends rather than replaces, so running it
   here would double-bank rows permanently.
-  `premerge_check.py HEAD --base ecc97391e` exit 0 on the MERGE TREE: all eight
+  `premerge_check.py HEAD --base 516a883c4` exit 0 on the MERGE TREE: all eight
   static gates pass on both base and merge; nothing goes green to red. Its
   source-coverage info line reads "entries: 9066 -> 9039 (-27) (consolidation, not
   a loss -- bytes are flat)".
-  `prepush_attribution.py --base ecc97391e --head HEAD` exit 0, 29 consolidated
+  `prepush_attribution.py --base 516a883c4 --head HEAD` exit 0, 29 consolidated
   with credit intact, 0 changed, 0 lost — green only after the retired-stem rows
   described above were added; it was red with 29 CREDIT LOST before them.
   `queue_audit.py` exit 0 and reports four disagreeing rows. One is this class's
@@ -373,7 +373,7 @@ these exact trees; neither is a cached report from an earlier base.
   run is `tools/validate_merge.py`, the same policy and schema the private worker
   calls, on a committed CI-shaped test merge built locally with `git commit-tree`
   so that its FIRST parent is the base, exactly as the validator requires. Base
-  `ecc97391e7b356afbd5a1ede6f924d92559bacb5`, PR head this branch's tip, both ROM
+  `516a883c4708af0157769d834af59225d27301a4`, PR head this branch's tip, both ROM
   reports regenerated at those trees, plus the `pr_linkcheck` and `port_refcheck`
   JSON above. **Exit 0, status Passed, "Committed merge introduces no
   reconstruction or attribution regression."**

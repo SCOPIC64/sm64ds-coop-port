@@ -114,7 +114,7 @@
   ],
   "provenance": {
     "worktree": "C:/tmp/sm64ds-floatboard",
-    "ref": "cpp/daObjFloatBoard_c-tu (from agents/class-pipeline 8a8003d77)",
+    "ref": "cpp/daObjFloatBoard_c-tu (from agents/class-pipeline 8196cfa5d)",
     "tools": [
       "tools/tubuild.py inspect ov002/daObjFloatBoard_c",
       "tools/rtti_extract.py",

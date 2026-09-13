@@ -5,8 +5,8 @@ belong to the revisions named below, not to a later composed PR head.
 
 ## Current correction, 2026-09-10
 
-The repair resumes checkpoint `35a96691978f0251ca41fc0af87737e74a687cbf` and
-composes main `cb5752cdf6b5d58f2b1f8a94bcbab2ed63749ac2`. The TU remains a
+The repair resumes checkpoint `86b06288df0f791e93b754f6a8553aae578f11f3` and
+composes main `ddeb8f88788703eb16b1e8227777ec43c31e80b3`. The TU remains a
 text-only promotion of 36 functions: ten native method symbols, 24 address-named
 helpers and two manual factories. It is partial reconstruction, with remaining
 field, state-handler and interface work owned under issue #2558. The separate
@@ -39,17 +39,17 @@ shard counts below describe the pre-fold inputs, not the current queue row.
   is no predecessor branch. The scout's facts blob was already banked on main, so
   nothing was carried over out of band.
 - Original source base SHA and installed workflow/tool SHA: launched against
-  `origin/main` at `a278141a9`; `origin/main` advanced to
-  `26f54f8fc8faaf00568e86d33f37860a46470906` during the run and this branch was
-  rebased onto it, so the merge-base is `26f54f8fc`. Workflow/tool revision
-  `f327f7b6460e157153eb7fc0749dbbe60dd854f1`.
+  `origin/main` at `80649f84e`; `origin/main` advanced to
+  `11ef9a7ddb14e5682585d2461282f24cc316aaec` during the run and this branch was
+  rebased onto it, so the merge-base is `11ef9a7dd`. Workflow/tool revision
+  `d7e28406933497ff40150f9b912efe64666a00b2`.
 - Separate evidence commits and required artifacts in this commit: five commits,
   `origin/main..HEAD`.
-  - `de0a996c6` rename to the ROM RTTI name
-  - `a2b9be3f8` the promotion
-  - `b9690a3f5` attribution correction the gate demanded
-  - `fc037ea02` regenerate the derived state note after the rebase
-  - `475a5f548` queue line-count correction
+  - `982ba83b1` rename to the ROM RTTI name
+  - `1747a8073` the promotion
+  - `d1945ad16` attribution correction the gate demanded
+  - `f9507f6c3` regenerate the derived state note after the rebase
+  - `a388ebbee` queue line-count correction
 
   Facts: `notes/data/class-facts/daSanbo_c.json` -- the scout's blob, moved with
   the class, prose preserved verbatim plus one added key saying so. Stage
@@ -184,14 +184,14 @@ extension over zero-gap neighbours keys on a `<class>_classInit` spelling.
 ## Historical proof
 
 Every figure below was produced on branch `cpp/daSanbo_c-tu` in a dedicated
-worktree, against merge-base `26f54f8fc`, after the rebase.
+worktree, against merge-base `11ef9a7dd`, after the rebase.
 
 - Full-ROM build: `python tools/rombuild.py -j16`, exit 0. 106/106 modules exact,
   100.000000% of compared bytes; 11,192 source-built functions, 11,192 reproducing,
   0 mismatching; 23 source-owned data claims reproducing, 0 mismatching; ROM-build
   analysis PASS. Built ROM sha256
   `d1506e90efae5e2d2cf119926a4ac2a291bd5ca78349d09d5024e1a918c478e8`,
-  byte-identical to the same build at the launch base `a278141a9`. ROM data from
+  byte-identical to the same build at the launch base `80649f84e`. ROM data from
   source: 696 verified, 220 partial, 4 differ, 397 unnamed.
 - Explicit function/consumer relocation checks: `python tools/tubuild.py verify
   ov096/daSanbo_c` -- 36/36 MATCH, objisolate clean (relocation type and addend),
@@ -286,7 +286,7 @@ worktree, against merge-base `26f54f8fc`, after the rebase.
    its ROM name those keys matched nothing, the resolver fell back to git
    authorship of the renamed file, and the promotion recorded the fallback.
    `tools/validate_merge.py` named all three and they were restored by hand in
-   `b9690a3f5`. Any promotion that renames a class in the same branch should expect
+   `d1945ad16`. Any promotion that renames a class in the same branch should expect
    this and check for it.
 4. The queue's `shard_count` remains a floor rather than a count for any class
    whose factory is spelled `<class>_classInit_<SUFFIX>` while the class still
@@ -295,11 +295,11 @@ worktree, against merge-base `26f54f8fc`, after the rebase.
 
 ## Revise stage: sanbo-ov096-0907b
 
-Independent verification of `0d10e3435` confirmed every byte claim above -- 36/36
+Independent verification of `b8fd30fcc` confirmed every byte claim above -- 36/36
 MATCH, 36 symbol-driven link checks VERIFIED with zero blind slots, the built overlay
 image byte-identical to the cartridge, and the 36-entry fold summing to `0x16b0` --
 and failed the candidate on one CI gate the producer stage never ran. Commit
-`e42a9b611` fixes it and two defects the verifier found alongside it. Byte-neutral:
+`71e1eca70` fixes it and two defects the verifier found alongside it. Byte-neutral:
 the ROM still builds to `d1506e90efae5e2d2cf119926a4ac2a291bd5ca78349d09d5024e1a918c478e8`
 and all 36 functions still MATCH.
 

@@ -28,7 +28,7 @@
 #include "dScMgD3DBase_c.h"
 
 extern "C" void __cxa_vec_cleanup(void *base, int count, int stride, void *dtor);
-extern "C" void func_ov006_020ccfc8(void);
+extern "C" void *func_ov006_020ccfc8(void);
 extern "C" void func_ov006_020d1008(void);
 extern "C" void func_ov006_02120938(void);
 

@@ -95,7 +95,7 @@
     "functions": 11
   },
   "size": "0x320",
-  "size_evidence": "include/dBgActor_c.h carries a compile-time assert at 0x320 and the header's provenance note (notes/platform-provenance.md) derives it from the field span plus the tail padding daObjRc_Guruguru_c::mAngVelY uses. Independently corroborated by commit 72c6dcfb6: daObjMc_Metalnet_c's factory `new` literal is 0x320 and that class adds no field.",
+  "size_evidence": "include/dBgActor_c.h carries a compile-time assert at 0x320 and the header's provenance note (notes/platform-provenance.md) derives it from the field span plus the tail padding daObjRc_Guruguru_c::mAngVelY uses. Independently corroborated by commit a6486519a: daObjMc_Metalnet_c's factory `new` literal is 0x320 and that class adds no field.",
   "fields": [
     {
       "offset": "0x0d4",
@@ -144,7 +144,7 @@
   ],
   "provenance": {
     "worktree": "C:/tmp/sm64ds-pilot-dbgactor",
-    "ref": "cpp/dbgactor-tu (from agents/class-pipeline db17d2c40)",
+    "ref": "cpp/dbgactor-tu (from agents/class-pipeline e701648c2)",
     "tools": [
       "tools/tubuild.py inspect ov002/dBgActor_c",
       "tools/rtti_extract.py",

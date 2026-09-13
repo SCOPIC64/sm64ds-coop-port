@@ -2,8 +2,8 @@
   "class": "Pokey",
   "post_scout_rename": "This blob was written at scout stage, before the class was renamed to its ROM RTTI name. Every 'Pokey' spelling below -- the class name, the mangled _ZN5Pokey symbols, the per-function shard filenames and the header filename -- is the PRE-RENAME spelling, preserved verbatim as the scout recorded it. The live spellings are daSanbo_c, _ZN9daSanbo_c..., and include/daSanbo_c.h. Nothing in the evidence below was rewritten; read the 'Pokey' occurrences as history.",
   "queue_row": "Pokey",
-  "scouted_at_base": "2ab05bae3, then merged origin/main (b266ff471) in -- final base b4954ddc0",
-  "base_verification": "Cut at 2ab05bae3. origin/main advanced 7 commits during the run, so origin/main was MERGED in (not rebased -- the branch was already pushed). Re-checked afterwards: this branch differs from origin/main by exactly one file, notes/data/class-facts/Pokey.json. None of the 7 commits touched ov096, the promotion queue, delinks.txt, symbols.txt, config/tu_manifest.d/ or include/Pokey.h, so every tree-derived field below still holds; they were tools/ and notes/ gate work. Worktree C:/tmp/sm64ds-pokey-scout, branch cpp/Pokey-tu.",
+  "scouted_at_base": "a81adfa37, then merged origin/main (180bf7ac8) in -- final base 7b36c49b0",
+  "base_verification": "Cut at a81adfa37. origin/main advanced 7 commits during the run, so origin/main was MERGED in (not rebased -- the branch was already pushed). Re-checked afterwards: this branch differs from origin/main by exactly one file, notes/data/class-facts/Pokey.json. None of the 7 commits touched ov096, the promotion queue, delinks.txt, symbols.txt, config/tu_manifest.d/ or include/Pokey.h, so every tree-derived field below still holds; they were tools/ and notes/ gate work. Worktree C:/tmp/sm64ds-pokey-scout, branch cpp/Pokey-tu.",
   "rtti_name": "9daSanbo_c",
   "rtti_name_symbol": "_ZTS9daSanbo_c",
   "rtti_name_address": "0x02137980",
@@ -789,9 +789,9 @@
       "The bands it spells pad_378[0x14], pad_398[0x10] and pad_3a9[0x7] are live -- see fields_live_but_unnamed. Byte layout is unaffected; the names are misleading.",
       "It declares InitResources/CleanupResources/Behavior/Render/OnPendingDestroy WITHOUT the `virtual` keyword. They are still real overrides (the base declares them virtual and the signatures match), and they are vtable slots 0/3/6/9/12. Do not 'fix' this by deleting them -- removing a declaration would silently inherit the base word into those slots and change the vtable."
     ],
-    "tu_manifest": "config/tu_manifest.d/ov096/ does NOT exist at 2ab05bae3. The writer creates it.",
+    "tu_manifest": "config/tu_manifest.d/ov096/ does NOT exist at a81adfa37. The writer creates it.",
     "sibling_oracle": "NONE, correctly. ov096 contains exactly two classes (daSanbo_c and daTor_c) and neither is promoted at this base. Nearest structural analogue is ov002/daObjFloatBoard_c, whose manifest shows the inline-destructor + compiler_only_output route -- but its destructor pair is ordered D0-before-D1 in the cartridge and this one is D1-before-D0, so its exclusion workaround does not transfer.",
-    "queue_row_at_this_base": "row 48: Pokey\\t34\\t957\\tov096\\tyes\\tno\\tcompiler-only:>=9(...)\\t-\\ttext-only. Re-read at 2ab05bae3.",
+    "queue_row_at_this_base": "row 48: Pokey\\t34\\t957\\tov096\\tyes\\tno\\tcompiler-only:>=9(...)\\t-\\ttext-only. Re-read at a81adfa37.",
     "corroborating_prose": "notes/actor-leaf-provenance.md independently documents this class's head/segment design and the same field offsets I re-derived from the cartridge (0xf0/0xf1 actor ids, mState 0x38c tested against 2 and 5, mNextSegment 0x394 walked by OnPendingDestroy). It agrees with the ROM on every point I checked."
   },
   "blockers_for_the_writer": [
@@ -801,7 +801,7 @@
     "STAGE 3B CEILING IS NAME RECOVERY, NOT CODEGEN. 10 of the 36 members already carry mangled _ZN5Pokey names and convert as a pure codegen question. The other 26 (12 PMF handlers, 12 helpers, 2 factories) carry auto-generated names -- func_ov096_* and daSanbo_c_classInit_* -- so converting them means renaming, with the symbols.txt edit above. State that wall in the result rather than reporting a bare fraction.",
     "extern \"C\" REGION PLACEMENT. Any member kept as a free function must stay inside the one file-scope extern \"C\" region, and that region must sit after the last surviving func_* member, because a class member function cannot live inside it.",
     "THREE PROSE CITATIONS MUST MOVE IN THE PROMOTION COMMIT. notes/actor-leaf-provenance.md names src/_ZN5Pokey13InitResourcesEv.cpp (line 76), src/_ZN5Pokey8BehaviorEv.cpp (line 85) and src/_ZN5Pokey16OnPendingDestroyEv.cpp (line 87). All three shards are deleted by this promotion, so each becomes a dead reference the moment the fold lands. Repoint them to the promoted source in the same commit. (A fourth hit, src/func_ov096_02137088.cpp in audit/enrollment_report.md, belongs to daTor_c/Tornado, not to this class.) Scope of that search: grep for 'src/func_ov096_', 'src/_ZN5Pokey' and 'src/d_a_sanbo' across *.c, *.cpp, *.h and *.md in the whole repo -- 4 hits total, listed above.",
-    "check_dead_references.py IS ALREADY RED ON origin/main, and it now scans C/C++ comments as well as prose (7d83b57a2, landed mid-scout). On the merged tree it exits 1 for a reference this class did not create: src/actors/dScMgSound_c.cpp:420 names src/_ZN12dScMgLuigi_c13InitResourcesEv.cpp, a shard an earlier promotion deleted. That file is byte-identical to origin/main here, so the failure is inherited, not ours. Do not bank it with --update-code (the tool says that is for a clean pinned main checkout) and do not read the red as your own regression -- but expect stage 4 to hit it."
+    "check_dead_references.py IS ALREADY RED ON origin/main, and it now scans C/C++ comments as well as prose (72730e19a, landed mid-scout). On the merged tree it exits 1 for a reference this class did not create: src/actors/dScMgSound_c.cpp:420 names src/_ZN12dScMgLuigi_c13InitResourcesEv.cpp, a shard an earlier promotion deleted. That file is byte-identical to origin/main here, so the failure is inherited, not ours. Do not bank it with --update-code (the tool says that is for a clean pinned main checkout) and do not read the red as your own regression -- but expect stage 4 to hit it."
   ],
   "unproven": [
     "The class name `Pokey` is COINED. It does not appear in this cartridge in any case (see coined_name_search); the ROM RTTI name is daSanbo_c. Keeping `Pokey` as the C++ spelling is a disclosure, not a finding.",
@@ -817,8 +817,8 @@
     "The coined-name search covered 8-bit ASCII only. A UTF-16 or otherwise wide-encoded 'Pokey' would not have been found."
   ],
   "review_correction_2026_09_10": {
-    "checkpoint": "35a96691978f0251ca41fc0af87737e74a687cbf",
-    "composition_base": "cb5752cdf6b5d58f2b1f8a94bcbab2ed63749ac2",
+    "checkpoint": "86b06288df0f791e93b754f6a8553aae578f11f3",
+    "composition_base": "ddeb8f88788703eb16b1e8227777ec43c31e80b3",
     "status": "partial reconstruction; fresh candidate requires independent review",
     "remaining_issue": "https://github.com/tangosdev/sm64ds-decomp/issues/2558",
     "historical_scope": "The scout observations, pre-rename paths, blockers and unmeasured status above are retained as dated history. They are not current instructions or acceptance claims.",
@@ -834,7 +834,7 @@
     ]
   },
   "integration_correction_2026_09_10": {
-    "reviewed_input": "3723651db2a0c5ea1c488bfb3b9e704bf91d4177",
+    "reviewed_input": "46ee86dbfb208afddca7e33917afdb31964e1300",
     "scope": "This correction supersedes the scout state_machine, tu_structure, writer blockers and state-index claim above. The original snapshot remains intact as historical evidence.",
     "constant_records": {
       "section": ".data",

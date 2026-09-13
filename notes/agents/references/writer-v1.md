@@ -9,8 +9,8 @@ case; its old launch, claim, path, and completion rules are not the active workf
 a real header. Your job is not to author a class; it is to **gather** its
 scattered bodies into the translation unit Nintendo actually shipped.
 
-**Reference commit: `72c6dcfb6`** — "ov009: promote daObjMc_Metalnet_c into a
-single C++ TU". Read it (`git show --stat 72c6dcfb6`) before you start.
+**Reference commit: `a6486519a`** — "ov009: promote daObjMc_Metalnet_c into a
+single C++ TU". Read it (`git show --stat a6486519a`) before you start.
 
 Do **not** use a `Reconstruct N actor profiles (wave NN)` commit as your
 template. Those rename registry rows and never touch the shard pile.
@@ -32,8 +32,8 @@ whose first parameter is not the object, or that will not convert byte-neutrally
 **stays a free function**: that is a result, not a failure. `dScMgMemory2_c` is the
 oracle for every mechanical question -- read its source and manifest first, and
 read it knowing that **43 of its 51 methods were renamed in the promotion commit
-itself** (8 mangled rows in `ov006/symbols.txt` at `e351ffb09^`, 51 at
-`e351ffb09`). 51/52 was a coordinated naming pass, not conversion alone.
+itself** (8 mangled rows in `ov006/symbols.txt` at `4d92d0f98^`, 51 at
+`4d92d0f98`). 51/52 was a coordinated naming pass, not conversion alone.
 
 **Name which wall you hit, because there are three and they need different
 answers.**
@@ -1042,7 +1042,7 @@ Ask the compiler rather than hand-mangling:
 
 - **A text-only promotion does not touch `symbols.txt`.** That file maps
   addresses to names and is unaffected by a source move; the reference promotion
-  `e193406f3` edits only `delinks.txt`, the exceptions file, the manifest and the
+  `04bdceb14` edits only `delinks.txt`, the exceptions file, the manifest and the
   sources. If a launch prompt tells you to repoint `symbols.txt`, the prompt is
   wrong.
 - **Branch:** `cpp/<Class>-tu`, class name verbatim including case —

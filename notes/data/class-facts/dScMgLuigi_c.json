@@ -1,6 +1,6 @@
 {
   "class": "dScMgLuigi_c",
-  "base_commit": "28a974f17d0def757e7cb0ec1e66a2cfa657792b",
+  "base_commit": "05701fa6d99bfa8b3562aed4ba2ca6a3e5d71a87",
   "base_commit_note": "origin/main at 2026-09-06 (advanced twice during this run; merged into cpp/dScMgLuigi_c-tu both times). Every tree-derived field below - shard inventory, delink coverage, manifest set, promoted siblings, queue row, header contents - was re-derived against THIS commit. The dMgJump3DMario_c promotion that landed mid-run edits ov006 delinks and symbols but touches ZERO lines in this class's address range, and leaves the dScMgLuigi_c queue row byte-identical. ROM-derived fields were cut from extracted/ and are independent of any commit.",
   "rtti_name": "12dScMgLuigi_c",
   "rtti_name_symbol": "_ZTS12dScMgLuigi_c",
@@ -458,7 +458,7 @@
     "cpp": 16,
     "all_present_on_disk": true,
     "delink_coverage": "gapless, 0x020efc0c..0x020f3834",
-    "recently_unblocked": "On the previous base 395afdb2 this class had a HOLE: 0x020f2790..0x020f2cb8 (0x528 bytes, func_ov006_020f2790) had no delink entry and no src/ file, which would have made an intact single-span TU impossible. PR #2358 ('Match the ov006 Luigi minigame picture placer', commit 98bb70302) landed src/func_ov006_020f2790.cpp and the delink entry. As of base 6d4c9b33 the span is gapless and the class is promotable. Do not trust any earlier reading of this field.",
+    "recently_unblocked": "On the previous base 8612e220 this class had a HOLE: 0x020f2790..0x020f2cb8 (0x528 bytes, func_ov006_020f2790) had no delink entry and no src/ file, which would have made an intact single-span TU impossible. PR #2358 ('Match the ov006 Luigi minigame picture placer', commit 51b339bfc) landed src/func_ov006_020f2790.cpp and the delink entry. As of base 41afd900 the span is gapless and the class is promotable. Do not trust any earlier reading of this field.",
     "pragma_shards": [
       {
         "file": "src/func_ov006_020efdf0.c",
@@ -504,7 +504,7 @@
         ]
       }
     ],
-    "pragma_note": "MEASURED 7 pragma-bearing shards on base 6d4c9b33; the queue row still says pragma:6, because src/func_ov006_020f2790.cpp arrived after the row was generated. opt_strength_reduction and opt_common_subs are FILE-GLOBAL in mwccarm, so folding these seven into one TU applies each pragma to every member below it in the merged file. This is the class's real promotion risk, and it is one worse than the queue says.",
+    "pragma_note": "MEASURED 7 pragma-bearing shards on base 41afd900; the queue row still says pragma:6, because src/func_ov006_020f2790.cpp arrived after the row was generated. opt_strength_reduction and opt_common_subs are FILE-GLOBAL in mwccarm, so folding these seven into one TU applies each pragma to every member below it in the merged file. This is the class's real promotion risk, and it is one worse than the queue says.",
     "files": [
       "src/_ZN12dScMgLuigi_c13InitResourcesEv.cpp",
       "src/_ZN12dScMgLuigi_c13OnYoshiTryEatEi.cpp",
@@ -655,7 +655,7 @@
     "size": "0xb4",
     "constraint": "Installed as IRQ 2's handler by arm9 _ZN3IRQ13SetIRQHandlerEjPFvvE, whose second parameter mangles as PFvvE = void(*)(). This function is taken as a PLAIN function pointer and cannot become a non-static dScMgLuigi_c member. Leave it a free function, or make it a static member. This is the one member of the 50 whose form the ROM constrains outright."
   },
-  "non_virtual_note": "The 50 functions below are every function in the span that is neither a vtable target nor the factory. Measured on base 6d4c9b33: 23 are reached only through the class's own PMF records with a zero this-adjustment, 26 are called directly and only from inside this class, and 1 is the IRQ handler above. Every caller address was confirmed twice - once from module-filtered relocations and once by decoding every BL in ov006 .text - and the two sets are identical. This proves TU membership and dispatch shape. It does NOT prove original identifiers, nor member-versus-file-local linkage.",
+  "non_virtual_note": "The 50 functions below are every function in the span that is neither a vtable target nor the factory. Measured on base 41afd900: 23 are reached only through the class's own PMF records with a zero this-adjustment, 26 are called directly and only from inside this class, and 1 is the IRQ handler above. Every caller address was confirmed twice - once from module-filtered relocations and once by decoding every BL in ov006 .text - and the two sets are identical. This proves TU membership and dispatch shape. It does NOT prove original identifiers, nor member-versus-file-local linkage.",
   "non_virtual": [
     {
       "symbol": "func_ov006_020efcf8",

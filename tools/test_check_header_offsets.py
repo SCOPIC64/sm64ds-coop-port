@@ -50,11 +50,11 @@ struct Widget {
 # Merge commits whose pull requests edited headers, and how many .h files each touched.
 # Confirmed against `git diff --name-only --diff-filter=AM <sha>^...<sha> -- include/`.
 REAL_HISTORY = {
-    "1659": ("258fa9042903b378660000c13c31c1fc77ae717c", 33),
-    "1665": ("558a1c26b1299f6e96e1b58a4c76e1bc682cf3a2", 15),
-    "1666": ("957e60fc40ab89e6a8d240b5e97c2bfa8061d51c", 58),
+    "1659": ("def3349d82117444ccce3dcc21ee3566bb94e52e", 33),
+    "1665": ("364a743d1b11b46095dad0ad0c9ddbd89e1285d1", 15),
+    "1666": ("487026a11377471f80be63b7f54a870f405e1292", 58),
     # #1667 is the src_tu gate: 31 files, none of them a header. The honest empty.
-    "1667": ("3dc6c4df43928eb799faa4d7abe16e74198dbcd4", 0),
+    "1667": ("e022859521dee9b823df9687f9d59bb10a22c38c", 0),
 }
 
 

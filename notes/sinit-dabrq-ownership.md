@@ -125,7 +125,7 @@ all 34 relocation offsets/types/addends: equal
 
 Compiling without `SINIT_OWNERSHIP_PROBE` contributes no production sections.
 
-Re-measured on 2026-09-07 against `main` at `88dbe66db` for
+Re-measured on 2026-09-07 against `main` at `c4cace0ee` for
 https://github.com/tangosdev/sm64ds-decomp/issues/2422, with the same result:
 34 of 34 relocation slots agree in offset, type, and addend, and the only
 differences are the 34 symbol spellings the table above maps (neutral probe

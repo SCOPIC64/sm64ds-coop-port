@@ -6,9 +6,9 @@ This document describes this commit. The queue records its immutable output SHA.
 
 - Task: `issue-2412-humanizer-2`, stage `revise`, issue https://github.com/tangosdev/sm64ds-decomp/issues/2412.
 - Producer session: `codex-humanizer-moneybag-20260907-01`, harness Codex. Global fleet coordinator: `fleet-0907`; delegated repair coordinator: `codex-humanizer-fixes-20260907-01`.
-- Branch: `cpp/humanizer-moneybag-0907`. Accepted input and repair base: `26f54f8fc8faaf00568e86d33f37860a46470906`.
-- This follows the landed daGmch_c promotion in #2431 (`9cc18bb3b`). The original class scout base remains `2ab05bae36a6821679a7e647e811c0a3243a3c49`, as recorded in the preserved facts; it is not this repair's input.
-- Queue workflow pin: `f327f7b6460e157153eb7fc0749dbbe60dd854f1`. Source and proof tools are unchanged from accepted input `26f54f8fc8faaf00568e86d33f37860a46470906`; compiler pin is `2004/b56`.
+- Branch: `cpp/humanizer-moneybag-0907`. Accepted input and repair base: `11ef9a7ddb14e5682585d2461282f24cc316aaec`.
+- This follows the landed daGmch_c promotion in #2431 (`dff597026`). The original class scout base remains `a81adfa3702637cf566bcc97167786387eb582e6`, as recorded in the preserved facts; it is not this repair's input.
+- Queue workflow pin: `d7e28406933497ff40150f9b912efe64666a00b2`. Source and proof tools are unchanged from accepted input `11ef9a7ddb14e5682585d2461282f24cc316aaec`; compiler pin is `2004/b56`.
 - Required artifact: this handoff. Local proof artifacts remain under ignored `build/humanizer/`; no separate evidence commit is included.
 - Status: locally proved candidate; independent verification is pending.
 - Next action: coordinator reviews the local immutable output and offers it to a different verifier session. Source push, queue publication, independent verification, and private PR validation are pending. The producer has not published this stage.
@@ -36,7 +36,7 @@ The coordinator reviewed the draft scope and requested two ledger wording refine
 
 ## Proof
 
-All checks below ran against the final four-file content in this commit, based on accepted input `26f54f8fc8faaf00568e86d33f37860a46470906`. `build/humanizer/static.json` records content SHA-256 values. The handoff itself was added afterward; no proved source or metadata content was changed afterward.
+All checks below ran against the final four-file content in this commit, based on accepted input `11ef9a7ddb14e5682585d2461282f24cc316aaec`. `build/humanizer/static.json` records content SHA-256 values. The handoff itself was added afterward; no proved source or metadata content was changed afterward.
 
 - Compiler wiring canary: `build_pin.verify(Path('src/func_ov006_020cb030.cpp'), 'func_ov006_020cb030', 0x020cb030, 0x104, 'ov006')`, exit 0, `(True, '2004/b56')`; `build/humanizer/canary.json`.
 - Static preservation: comparisons against the accepted input found identical C++ text after removing comments and whitespace, identical manifest fields outside `notes`, every original note retained, and only four changed ledger rationale cells with module/address/from/to columns identical. `git diff --check` exits 0; `build/humanizer/static.json` records the comparisons and file hashes.

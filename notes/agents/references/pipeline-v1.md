@@ -64,13 +64,13 @@ goal is writing the classes back.
 
 **The ruling: convert as far as byte-match allows.** `dScMgMemory2_c` is the proof
 the route works end to end -- but read what it cost before you take 51/52 as a
-target. Measured across its promotion commit `e351ffb09`, in
+target. Measured across its promotion commit `4d92d0f98`, in
 `config/arm9/overlays/ov006/symbols.txt`:
 
 | | mangled `_ZN14dScMgMemory2_c*` rows |
 |---|---|
-| `e351ffb09^` | 8 |
-| `e351ffb09` | **51** |
+| `4d92d0f98^` | 8 |
+| `4d92d0f98` | **51** |
 
 So 43 of that 51 were **renamed in the same commit**, shard and `symbols.txt` row
 together. **51/52 was a coordinated naming pass, not conversion alone.**

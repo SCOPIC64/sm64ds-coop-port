@@ -112,7 +112,7 @@ struct daBgSnmBdy_c : dActor_c {
        spelling is not ruled out. This is an inferred declaration. */
     void SetState(int state);
 
-    static void *operator new(unsigned long size) {
+    static void *operator new(size_t size) {
         return _ZN7fBase_cnwEj((unsigned)size);
     }
 

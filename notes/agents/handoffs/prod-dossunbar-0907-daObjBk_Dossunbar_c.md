@@ -17,13 +17,13 @@ This document describes this commit. The queue records its immutable output SHA.
   `notes/data/class-facts/daObjBk_Dossunbar_c.json`, which was already banked on
   main under its pre-rename filename and is renamed, not rewritten, here.
 - Original source base SHA and installed workflow/tool SHA: base
-  `a278141a946931f7e243f2886de692bc4423674b`, which was `origin/main` when the
+  `80649f84e11bc015674680e0b0a9105e8899e704`, which was `origin/main` when the
   task was issued and is still this branch's merge-base. `origin/main` has since
-  advanced to `6e04e1090104949d2ca7a8902669aa063587da5e`; every base-versus-head
-  gate below was therefore run against the pinned `a278141a9`, because running
+  advanced to `a9d978234e9f825ca318422966c9ab84a2330d4d`; every base-versus-head
+  gate below was therefore run against the pinned `80649f84e`, because running
   them against the moved ref reports other landed classes (`daMky_c`) as losses
   that this branch never touched. Workflow/tool revision
-  `f327f7b6460e157153eb7fc0749dbbe60dd854f1`.
+  `d7e28406933497ff40150f9b912efe64666a00b2`.
 - Separate evidence commits and required artifacts in this commit: none separate.
   The source, the manifest, the ledger rows and this document are one branch of
   two commits: a rename-in-place commit, then the fold. That split is deliberate
@@ -150,7 +150,7 @@ This document describes this commit. The queue records its immutable output SHA.
 
 ## Proof
 
-Base is `a278141a946931f7e243f2886de692bc4423674b` throughout. Both ROM builds
+Base is `80649f84e11bc015674680e0b0a9105e8899e704` throughout. Both ROM builds
 were regenerated for this candidate; no cached report was reused. Logs are in the
 worktrees' gitignored build directories.
 
@@ -166,7 +166,7 @@ worktrees' gitignored build directories.
   `--c src/game/actors/d_a_obj_bk_dossunbar.cpp` -- **25 VERIFIED, 0 WRONG,
   0 BLIND, 0 differing bytes**. Driven by symbol on purpose: the file-stem driver
   returns NO-SYM on a multi-symbol promoted TU.
-  `python tools/check_header_offsets.py --changed a278141a9` exit 0 over both
+  `python tools/check_header_offsets.py --changed 80649f84e` exit 0 over both
   changed headers. `python tools/check_src_tu_compiles.py` exit 0, 156 of 156
   translation units compile.
 - Complete emitted TU and data/metadata checks: `python tools/tubuild.py verify
@@ -201,7 +201,7 @@ worktrees' gitignored build directories.
   links; `port_refcheck` exit 0, 423 references resolve; `check_src_tu` exit 0;
   `layout_check` clean; `tiers_ratchet --check` PASS, baseline 2,698 against
   current 2,700 -- **`--update` was not run**, because it appends and would
-  double-bank rows permanently. `premerge_check --base a278141a9 HEAD` exit 0:
+  double-bank rows permanently. `premerge_check --base 80649f84e HEAD` exit 0:
   all eight static gates pass on the **merge tree** and nothing goes green to
   red.
 - Language-mode ratchet: `langmode_audit.py --check` against the banked baseline
@@ -214,9 +214,9 @@ worktrees' gitignored build directories.
   the pre-fold shards read that symbol from `include/decl_common.h`, so the local
   declaration was removed. Removing it is byte-free: the verify byte comparison
   and the full ROM build are unchanged before and after.
-- Attribution: `prepush_attribution.py --base a278141a9` exit 0 -- 0 changed,
+- Attribution: `prepush_attribution.py --base 80649f84e` exit 0 -- 0 changed,
   0 lost, 22 consolidated with credit intact. `validate_merge.py --base
-  a278141a9 --head HEAD` with both ROM reports supplied, exit 0 -- **contributor
+  80649f84e --head HEAD` with both ROM reports supplied, exit 0 -- **contributor
   credit 0 added, 0 changed, 0 lost**, byte-verified functions and code bytes
   both +0, module fidelity 106/106 exact. That comparison is per ROM function
   address, so no contributor's total moved; the separate count of credited

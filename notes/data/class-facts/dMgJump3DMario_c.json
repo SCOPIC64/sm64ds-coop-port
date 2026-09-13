@@ -299,8 +299,8 @@
   "header_state": {
     "path": "include/dMgJump3DMario_c.h",
     "exists": true,
-    "exists_on_base": "Verified with `git show origin/main:include/dMgJump3DMario_c.h` at 11fcd24d5f7e7cae25d6cc19c3f4388c0ac4b8cf.",
-    "landed": "1c3cbdac4, 2026-08-29, PR #1960",
+    "exists_on_base": "Verified with `git show origin/main:include/dMgJump3DMario_c.h` at aeb14f6a3cf76a68928ff4869db82ef700635354.",
+    "landed": "67ea7a470, 2026-08-29, PR #1960",
     "declares_both_classes": true,
     "size_asserts": ["sizeof(dMg3DHeyhoObjAdapter_c) == 0x4c", "sizeof(dMgJump3DMario_c) == 0xb8"],
     "already_proven_to_compile_and_match": "Five shards already include it and are marked `complete` in ov006 delinks.txt: the three virtuals, C1 and D1. src/_ZN22dMg3DHeyhoObjAdapter_cC2Ev.cpp includes it too. The declared layout therefore already reproduces the cartridge's bytes for all six.",
@@ -314,11 +314,11 @@
   "modules_touched_note": "No ov004 and no other overlay. A full cross-module scan (arm9 plus the five overlays that do not overlap ov006's address range) finds zero references into the run, and no module's relocs.txt other than ov006's own names a destination in 0x020c762c..0x020c8a30.",
 
   "blockers_measured": {
-    "measured_on_base": "11fcd24d5f7e7cae25d6cc19c3f4388c0ac4b8cf",
+    "measured_on_base": "aeb14f6a3cf76a68928ff4869db82ef700635354",
     "queue_row_as_shipped": "classif:no-header:dMgJump3DMario_c;compiler-only:>=5(derived from own chain: 2 classes incl. self via build/rtti.json; floor 2x2+1)",
     "classif_no_header": {
       "verdict": "FALSE -- the header exists. The queue row's own has_header column (`yes`) is the correct one; the blocker contradicts it and is stale.",
-      "evidence": "include/dMgJump3DMario_c.h is present on origin/main at 11fcd24d5 and is included by six committed sources.",
+      "evidence": "include/dMgJump3DMario_c.h is present on origin/main at aeb14f6a3 and is included by six committed sources.",
       "provenance_of_the_wrong_value": "The blocker was copied from the last column of notes/data/c-cpp-classification.tsv rows 4175-4177 (`src/func_ov006_020c762c.c`, `_020c76d0.c`, `_020c76d8.c`, all tagged `no-header:dMgJump3DMario_c`). Those rows were written on 2026-08-26 by PR #1821; the header landed on 2026-08-29 in PR #1960; the queue was created on 2026-09-05 by PR #2268 and copied the blocker forward without re-deriving it. The classification TSV is an append log, so the stale rows are still the ones a reader hits. Note also that those three rows still name the shards as `.c` files -- they are `.cpp` today.",
       "why_the_generator_cannot_fix_it": "tools/queue_audit.py re-derives only already_promoted, shard_count, total_lines, unmatched, no-legacy-source, not-in-delinks, pragma and compiler-only. Any blocker it does not recognise falls through its pass-through `else: out.append(b)` branch untouched, and no tool in tools/ emits the string `no-header` at all. `queue_audit.py --write` will NOT clear this; the fix belongs wherever the classification TSV's blocker column is regenerated. Do not hand-edit either file.",
       "action": "Flag only. notes/data/tu-promotion-queue.tsv is generated; do not edit it here."
@@ -379,7 +379,7 @@
   "provenance": {
     "worktree": "C:/tmp/sm64ds-jump3d",
     "ref": "cpp/dMgJump3DMario_c-tu",
-    "base": "11fcd24d5f7e7cae25d6cc19c3f4388c0ac4b8cf",
+    "base": "aeb14f6a3cf76a68928ff4869db82ef700635354",
     "base_description": "origin/main tip on 2026-09-06, AFTER the ov006 promotions of dScMgCoin_c (#2344), dScMgPanel_c (#2347), dScMgCup_c (#2348) and dScMgCurling2_c segment A (#2362). Verified with `git fetch origin main` and `git rev-parse origin/main` from the worktree.",
     "rom_inputs": [
       "extracted/overlays/overlay_0006.bin (0x80420 bytes, base 0x020bfec0)",

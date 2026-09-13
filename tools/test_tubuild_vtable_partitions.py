@@ -34,7 +34,7 @@ overlay -- ``OV036``, ``OV047``, ``OV070`` measured on the baseline link -- whil
 a manifest ``section`` is one of
 ``.rodata .init .ctor .data .bss .exception .exceptix``.  The two
 vocabularies never intersect, so an earlier form of this check that compared them
-refused every real input, and the whole path was unreachable.  Commit 0b0e319
+refused every real input, and the whole path was unreachable.  Commit 0b684dd
 removed that comparison; the #2091 thread carries the A/B.  A future reader who
 sees a "missing" section check and restores it would turn the boundary back into
 an unconditional refusal, and no byte gate would notice, because a refusal here
@@ -109,7 +109,7 @@ class ManifestPartitionLicensing(unittest.TestCase):
     def test_partition_licensing_pins_section_index_not_section_name(self):
         """A part is licensed by landing in the vtable's section INDEX, not its name.
 
-        This is the invariant 0b0e319 left standing after it removed a section-NAME
+        This is the invariant 0b684dd left standing after it removed a section-NAME
         comparison that could never pass.  Both halves are asserted: the name is not
         consulted (a real overlay name, and no name at all, both license), and the
         index is (a part that landed elsewhere stays unlicensed).

@@ -10,7 +10,7 @@ This document describes this commit. The queue records its immutable output SHA.
   Claude Code (Opus 5). Claimed against the exact SHA the queue offered.
 - **This is a text-only continuation stage.** The preceding `reconstruct`
   attempt (session `prod-2414-0907`) produced
-  `d004de771d55ddf2ff4699250a57b940d27c4f97`, which an independent verifier
+  `04d0f677bba9f86c788df172e9f3925c2abb83ce`, which an independent verifier
   (session `vfy-2414-0907`) then confirmed substantively — including
   reproducing the langmode red on the accepted input, and a forced clean
   recompile in each declaration position that produced a byte-identical
@@ -21,14 +21,14 @@ This document describes this commit. The queue records its immutable output SHA.
   re-established. Every measurement below was re-checked against the tree, not
   copied forward.
 - **Source branch and previous accepted input SHA:** branch `cpp/daMip_c-v2b`,
-  branched at `d004de771d55ddf2ff4699250a57b940d27c4f97` — the accepted input
+  branched at `04d0f677bba9f86c788df172e9f3925c2abb83ce` — the accepted input
   for this stage. That commit sits on `cpp/daMip_c-v2`, which in turn branched
-  at `f10902c14b91ceb4618062c119c3075852292519`, the tip of the v1 branch
+  at `e54e7cd3503368872be4d52e6343244873b1635d`, the tip of the v1 branch
   `cpp/Rabbit-tu`. Nothing was rebased, reset or restarted, and no branch in
   that chain was moved; `origin/main` was deliberately **not** merged in (see
   the integrator precondition).
 - **Original source base SHA and installed workflow/tool SHA:** both
-  `f327f7b6460e157153eb7fc0749dbbe60dd854f1`.
+  `d7e28406933497ff40150f9b912efe64666a00b2`.
 - **Separate evidence commits and required artifacts in this commit:** the task
   pins no separate evidence commits. The scout facts for this class are
   committed on this branch at `notes/data/class-facts/Rabbit.json` (still under
@@ -41,11 +41,11 @@ This document describes this commit. The queue records its immutable output SHA.
   this stage changed only prose, that verification is a document review against
   the tree plus whatever re-confirmation the verifier wants of the unchanged
   byte proof — the source content is bit-identical to the already-verified
-  `d004de771`. No blocker inside this scope.
+  `04d0f677b`. No blocker inside this scope.
 - **Status:** verified candidate for the checks a producer can run, with the
   source unchanged from an independently verified commit. The full-ROM build,
   the TU byte/relocation pass and the composed static gates passed at this
-  content when `d004de771` was produced and were reproduced independently; the
+  content when `04d0f677b` was produced and were reproduced independently; the
   private validator has not been run and no PR exists yet.
 - **Gates re-run at this stage, and the ones deliberately not re-run:** this
   stage edits one Markdown file under `notes/` and nothing else, so only the
@@ -54,7 +54,7 @@ This document describes this commit. The queue records its immutable output SHA.
   `rombuild.py`, `tubuild.py verify`, `romdata_check.py`,
   `prepush_linkcheck.py`, `premerge_check.py` and the rest recorded under
   **Proof** — were **not** re-run here, because the source tree they measure is
-  byte-identical to `d004de771`; their recorded results carry over unchanged and
+  byte-identical to `04d0f677b`; their recorded results carry over unchanged and
   should be read as evidence about that commit's content, which is this
   commit's content. Nothing in this document should be read as a fresh full-gate
   pass at this SHA.
@@ -105,7 +105,7 @@ This document describes this commit. The queue records its immutable output SHA.
   The hand-written store itself stays, and the barrier is *which* allocator a
   natural `new` would select, not the absence of one.
   **Correction, recorded rather than quietly dropped:** an earlier draft of this
-  document, and the immutable commit message of `33e458302`, both assert that a
+  document, and the immutable commit message of `5b683a9bd`, both assert that a
   natural `new daMip_c()` would select "the global `operator new`, which this
   image does not contain". That is false. `_Znwj` is present at arm9
   `0x0203cbe4` in `config/arm9/symbols.txt`, and `src/_Znwj.cpp` defines it as a
@@ -276,7 +276,7 @@ This document describes this commit. The queue records its immutable output SHA.
 ## Proof
 
 Every command below was run in this worktree at exactly this source content,
-against base `origin/main` `88dbe66db2cb3f0cd1dc704e9f2775eb37aea646`.
+against base `origin/main` `c4cace0ee05f2c0b3c6536665e981927ead132e2`.
 
 - **Full-ROM build:** `python tools/rombuild.py -j16 --no-rom` — exit 0. 11,191
   of 11,191 source-built functions reproducing, 0 mismatching; module fidelity
@@ -351,7 +351,7 @@ branch the same address `0x021300f8` carries `_ZTV7daMip_c`. Nothing about the
 cartridge data changed — only the source-side name — so a name-keyed
 comparison reads the whole vtable as a **loss** that never happened.
 
-`origin/main` already fixes this: commit `1c93d2663` ("Anchor the ROM-data diff
+`origin/main` already fixes this: commit `abda09fdd` ("Anchor the ROM-data diff
 on the cartridge address, not the symbol name (#2425)") makes
 `validate_merge._data_anchor` key on `module`, `addr` and `bytes`. But that
 function returns `None` for any report row missing those keys, and falls back to
@@ -363,7 +363,7 @@ main is new enough. Both halves have to be forward of the fix, not just one.
 
 Therefore, for the integrator:
 
-1. **Merge `origin/main` at or beyond `1c93d2663` into the composition before
+1. **Merge `origin/main` at or beyond `abda09fdd` into the composition before
    running the private validation.** Do not validate this branch standing alone.
 2. **Regenerate the base ROM report; do not reuse a cached one.** A report
    produced by the older `romdata_check` carries no `addr`/`bytes` keys, so

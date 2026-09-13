@@ -16,9 +16,9 @@ import submit_pr_validation as submitter
 
 
 REPO = "tangosdev/sm64ds-decomp"
-HEAD = "3b71825d7da2b969c4d962fd82b189090743757f"
-OLD_BASE = "690637e41a7a302eace631f6065ab1c4fe37326e"
-LIVE_BASE = "666df563a2ea5340f41866c3321468b3c2207fd2"
+HEAD = "7ed0a7c6be6e06a91081a3db75ebd52d2db58753"
+OLD_BASE = "6941db21d5708261205537058935c990aafa10e2"
+LIVE_BASE = "315c46d4b180193d9f607f0a62f7d681ca3f76ac"
 NEXT_BASE = "c" * 40
 JOB = "b6ddf043b0f54687bea3a705ddff3df0"
 

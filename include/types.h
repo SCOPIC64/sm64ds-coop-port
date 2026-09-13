@@ -12,6 +12,21 @@ typedef signed int     s32;
 typedef unsigned long long u64;
 typedef signed long long   s64;
 
+/* size_t, which C++ requires as the first parameter of every `operator new`.
+   The two compilers that build this tree spell it differently and each refuses
+   the other's spelling, because the rule is on the TYPE and not on the width --
+   all three candidates are four bytes here. mwccarm rejects
+   `operator new(unsigned int)` with "illegal 'operator' declaration"; 32-bit
+   MSVC rejects `operator new(unsigned long)` with C2821, "first formal
+   parameter to 'operator new' must be 'size_t'". Neither arm below is visible
+   to the other compiler, so no ROM byte moves: mwccarm keeps the `unsigned
+   long` the nine actor headers already declared. */
+#ifdef _MSC_VER
+#include <stddef.h>          /* the host's own size_t, so the host rule holds by definition */
+#else
+typedef unsigned long size_t;
+#endif
+
 /* 20.12 fixed-point scalar, as used by the SDK/game maths.
 
    NOT named `Fix12`. In the original C++ that is a class TEMPLATE, not a scalar typedef;

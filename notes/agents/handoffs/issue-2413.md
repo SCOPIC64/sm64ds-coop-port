@@ -9,14 +9,14 @@ This document describes this commit. The queue records its immutable output SHA.
   stage `reconstruct` (role `producer`), queue session `prod-2413-0907`,
   harness Claude Code / Claude Opus 5.
 - Source branch and previous accepted input SHA: `cpp/daBmb_c-v2`, continued from
-  `875505afa15f0a09fa07d99caab0c65d1bba4799` (branch `cpp/BobOmb-tu`, the v1
+  `7ccd045d445baa817780a0d55f9c9fa115858ae7` (branch `cpp/BobOmb-tu`, the v1
   source, which is left untouched at that tip). This branch descends from it, so
   the whole v1 history is preserved; `origin/main` was merged, not rebased onto.
 - Original source base SHA and installed workflow/tool SHA: base
-  `b2bd6a323832d244a12e750713b1405b26a94c66`; workflow/tools
-  `f327f7b6460e157153eb7fc0749dbbe60dd854f1`. The earlier original-base record
+  `2996608719a316a98d0c5da24ff90e45b00ac550`; workflow/tools
+  `d7e28406933497ff40150f9b912efe64666a00b2`. The earlier original-base record
   the coordinator asked to preserve is
-  `2ab05bae36a6821679a7e647e811c0a3243a3c49`; `b2bd6a323` is the *current*
+  `a81adfa3702637cf566bcc97167786387eb582e6`; `299660871` is the *current*
   merge-base with main, not a replacement for it. Both travel.
 - Separate evidence commits and required artifacts in this commit: none pinned
   separately. `notes/data/class-facts/daBmb_c.json`,
@@ -234,7 +234,7 @@ functions of the 35 not listed — `func_ov102_0214ab1c`, `func_ov102_0214bc20` 
 Every command below was run in the wired worktree `C:/tmp/sm64ds-bmb2413` on this
 branch, against the pinned mwccarm 2004/b56 and the extracted retail ROM, at this
 commit's tree unless a base tree is named. Base is `origin/main` at
-`88dbe66db2cb3f0cd1dc704e9f2775eb37aea646`.
+`c4cace0ee05f2c0b3c6536665e981927ead132e2`.
 
 - Full-ROM build: `python tools/rombuild.py -j16 --no-rom` — exit 0. Module
   fidelity 106/106 exact, 100.000000% of compared bytes; 11,191 source-built
@@ -276,7 +276,7 @@ commit's tree unless a base tree is named. Base is `origin/main` at
   layout-check, src-tu-refs and source-coverage all pass on both base and merge;
   nothing goes green to red. It reports source-coverage entries 9194 -> 9160
   (-34), which is the promotion's consolidation, with bytes flat. Run against
-  `origin/main` at `88dbe66db2cb`, on the merge tree for this branch's last
+  `origin/main` at `c4cace0ee05f`, on the merge tree for this branch's last
   source commit; only this handoff document was added afterwards.
 - `python tools/check_src_tu_compiles.py`, via the pre-push hook — exit 0,
   154/154 translation units compile.
@@ -320,14 +320,14 @@ the text above. The producer's and verifier's records stand as written.
 
 ### Composition
 
-- Accepted candidate: `123ea08645d12a52f43a5cdc70b6c019ac1301dd`, branch
+- Accepted candidate: `de75574e5c5f133535bae0a3339d11b5fc7598da`, branch
   `cpp/daBmb_c-v2`, which is left untouched at that tip.
 - Composed by MERGING `origin/main` into a fresh branch off the candidate — never
   rebased. Main moved during the run; the last base composed against is
-  `9e630dab3f7b65210a18ce76fe718f38dd20af2b`. Both merges were clean, no
+  `31f53c18dba02dfadef45cf4b6c45ce43b7cff24`. Both merges were clean, no
   conflicts, no file resolved by taking one side whole.
 - Wired integration worktrees: `C:/tmp/sm64ds-integ2413` (head) and
-  `C:/tmp/sm64ds-integ2413-base` (base at `9e630dab3`). Reports and logs live in
+  `C:/tmp/sm64ds-integ2413-base` (base at `31f53c18d`). Reports and logs live in
   their gitignored `build/`.
 
 ### Integration-lane rows touched, and only these
@@ -366,17 +366,17 @@ no row. After the rows are applied the same tool reports **0 changed, 0 lost**.
 | check | tree | exit | result |
 |---|---|---|---|
 | `rombuild.py -j16 --no-rom` | head | 0 | 106/106 modules exact; 11,191 source-built functions reproducing, 0 mismatching; ROM data 686 verified / 44,276 bytes / 5 differ |
-| `rombuild.py -j16 --no-rom` | base `9e630dab3` | 0 | 106/106 exact; 11,191 reproducing, 0 mismatching; 685 verified / 44,264 bytes / 5 differ |
+| `rombuild.py -j16 --no-rom` | base `31f53c18d` | 0 | 106/106 exact; 11,191 reproducing, 0 mismatching; 685 verified / 44,264 bytes / 5 differ |
 | `build/src/actors/daBmb_c.o` | head | — | sha256 `7f2d71307a287beb07992fb5a409d82402e6ce730c509f24808a7bd77b4820eb`, the value the producer and verifier both measured |
 | `pr_linkcheck.py --base origin/main -j16` | head | 0 | 2 changed headers fan out to 926 further sources, 927 files checked; `src/actors/daBmb_c.cpp` ok on all 35 slots; 5 non-`ok` rows, the same 1 DRAFT + 4 BLIND files the verifier measured at the base |
 | `port_refcheck.py` | head | 0 | 423 references checked, 0 stale |
 
 Both ROM reports were produced by `tools/romdata_check.py` blob `346b04c2`, which
-is `origin/main`'s copy — the post-`1c93d2663` one. Their `VERIFIED`, `PARTIAL`
+is `origin/main`'s copy — the post-`abda09fdd` one. Their `VERIFIED`, `PARTIAL`
 and `DIFFERS` rows all carry `module`/`addr`/`bytes`, so
 `validate_merge._data_anchor` resolves an address for every one of them and the
 ROM-data comparison is anchored on the cartridge address, not on the symbol name.
-A report generated by a pre-`1c93d2663` `romdata_check.py` emits `{module,
+A report generated by a pre-`abda09fdd` `romdata_check.py` emits `{module,
 symbol}` only, `_data_anchor` returns `None`, the comparison silently falls back
 to names, and this class's `_ZTV6BobOmb` -> `_ZTV7daBmb_c` rename is read as a
 lost data symbol. That is why the base report is regenerated here rather than
@@ -384,7 +384,7 @@ reused.
 
 ### Corrections to the record above
 
-1. The original-base record `2ab05bae36a6821679a7e647e811c0a3243a3c49` is now
+1. The original-base record `a81adfa3702637cf566bcc97167786387eb582e6` is now
    carried alongside the current merge-base.
 2. The remaining-work list was short. It omitted the surviving mangled-name ABI
    bridges (17 distinct at file scope, 29 distinct at block scope across 34

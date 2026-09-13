@@ -772,13 +772,19 @@ void daBmb_c::State3()
 
 extern "C" {
 
+/* THE QUAD VIEW AND ITS TWO TABLES SIT AT FILE SCOPE. They used to be declared
+   inside the body below, but C++ gives a function-local class no linkage, so an
+   `extern` of that type is ill-formed (MSVC C2624) even though mwccarm accepts
+   it. Hoisting the type changes nothing the compiler emits: the object is
+   byte-identical under 2004/b56. */
+typedef struct { int v[4]; } Quad;
+extern "C" Quad data_ov102_0214e514;
+extern "C" Quad data_ov102_0214e524;
+
 // @symbol func_ov102_0214bc20
 void func_ov102_0214bc20(char* c)
 {
     extern int _ZN9ModelAnim7SetAnimEP8BCA_Filei5Fix12IiEj(char *anim, void *file, int a, int b, unsigned int u);
-    typedef struct { int v[4]; } Quad;
-    extern Quad data_ov102_0214e514;
-    extern Quad data_ov102_0214e524;
 
     Quad a1 = data_ov102_0214e514;
     Quad a2 = data_ov102_0214e524;
@@ -1366,9 +1372,9 @@ extern "C" {
 // @symbol func_ov102_0214b03c
 void func_ov102_0214b03c(void *cv){
   extern int _ZNK9Animation12WillHitFrameEi(void*, int);
-  extern int func_0201267c(int, void*);
-  extern int func_ov102_0214bf64(void*);
-  extern int func_ov102_0214bd90(void*);
+  extern void func_0201267c(int, void*);
+  extern void func_ov102_0214bf64(void*);
+  extern void func_ov102_0214bd90(void*);
 
   char *c = (char *)cv;
   if(*(int*)(c+0x3dc) < 2 && *(int*)(c+0x360) == *((int *)((char *)&data_ov102_0214e9c0 + 4))){

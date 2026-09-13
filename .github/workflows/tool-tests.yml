@@ -18,7 +18,7 @@
 #
 #   1. NEEDS THE TOOLCHAIN. mwccarm and the extracted ROM are not on a GitHub runner;
 #      they live on the private build box pr-validate.yml relays to. Re-measured against
-#      8f554bce3 in a tree exported with `git archive origin/main` -- no `extracted/`, no
+#      5720933ba in a tree exported with `git archive origin/main` -- no `extracted/`, no
 #      `tools/mwccarm/`, no `tools/bin/`, which is exactly what this job's checkout is:
 #      test_objisolate skips ALL 34 of its tests (the older note here said 32; the suite
 #      grew), and test_check_src_tu_compiles FAILS 8. Wiring those would buy a green that
@@ -212,6 +212,7 @@ jobs:
             tools.test_prepush_linkcheck \
             tools.test_profile_reconstruction \
             tools.test_progress \
+            tools.test_reloc_audit_flags \
             tools.test_rombuild \
             tools.test_rombuild_cache \
             tools.test_rombuild_check \
@@ -263,7 +264,7 @@ jobs:
 #   test_layout                 (11)   layout_check.py -- the invariants that make src/
 #                                      trustworthy; L1 is the one the ROM build cannot
 #                                      catch.
-#   test_linkcheck                (7)   linkcheck.py -- the len-mismatch verdict one
+#   test_linkcheck               (14)   linkcheck.py -- the len-mismatch verdict one
 #                                      level under pgate.py/prepush_linkcheck.py's own
 #                                      resolution: a zero-size EABI alias record (a
 #                                      second name for a differently-named, correctly-
@@ -283,6 +284,20 @@ jobs:
 #                                      compile alone could not distinguish from correct
 #                                      (any sub-slice of an already byte-perfect span
 #                                      trivially matches wherever you cut it).
+#                                      Plus linked_dest: those three forgiveness tests
+#                                      (veneer / byte-identical twin / Thumb pointer)
+#                                      are questions about the address the LINK writes,
+#                                      which for a data relocation is base+addend, not
+#                                      the relocation's base. Asking them about the
+#                                      base made a wrong-addend data relocation its own
+#                                      twin -- one address compared against itself,
+#                                      always equal -- so a vptr store landing eight
+#                                      bytes past its slot array read BENIGN while the
+#                                      ROM build called that overlay MISMATCHING. A
+#                                      branch is the exception: its addend is the -8 PC
+#                                      bias, folded into the displacement, so its
+#                                      destination is the base alone.
+#                                      (2 of the 14 skip: the real-compile fixtures.)
 #   test_match_attempts         (10)   match_attempts.py -- append-only log of every
 #                                      matching attempt.
 #   test_match_provenance       (20)   match_provenance.py -- the durable how-record and
@@ -343,6 +358,29 @@ jobs:
 #   test_progress                (8)   progress.py -- matched functions/bytes vs the
 #                                      whole game; the number the README reports, both
 #                                      halves of the fraction.
+#   test_reloc_audit_flags        (7)   reloc_audit.build_flag_attempts -- the flags
+#                                      the link check compiles a candidate with. They
+#                                      are the ROM BUILD's now, resolved through the
+#                                      one helper that already reproduces the build's
+#                                      choice (build_pin.flags_for); they used to be
+#                                      the match gate's, which leave C++ exceptions ON
+#                                      while the build passes -Cpp_exceptions off. That
+#                                      one flag moved verdicts BOTH ways: three sibling
+#                                      classInit bodies the ROM build reproduces
+#                                      exactly missed by five words (false red), and --
+#                                      worse -- exceptions-on emits the .exceptix
+#                                      sections that are the only reason objisolate
+#                                      runs at all on a single-function object, and
+#                                      running it corrects a vtable addend the build
+#                                      otherwise leaves 8 too high (false green).
+#                                      ManifestAgreement re-measures, entry for entry,
+#                                      that every verification.flags recorded in
+#                                      config/tu_manifest.d is one of the strings this
+#                                      hands out -- which is why taking them from the
+#                                      build rather than from the manifest cannot
+#                                      contradict a promoted TU -- and fails closed on
+#                                      an unreadable, fieldless or empty manifest
+#                                      rather than passing on zero rows.
 #   test_rombuild               (37)   rombuild.py -- the source-to-ROM build itself:
 #                                      intact-TU policy resolution, per-file verdicts and
 #                                      the `.init` retargeting that decides which `.text`
@@ -491,7 +529,7 @@ jobs:
 #                                      .rodata/.init/.ctor/.data/.bss/.exception/
 #                                      .exceptix. Comparing them
 #                                      refuses every real input, which is what made the
-#                                      whole path unreachable; 0b0e319 removed exactly
+#                                      whole path unreachable; 0b684dd removed exactly
 #                                      that comparison. Mutation-checked both ways:
 #                                      deleting the `sectionIndex` equality is caught by
 #                                      the new test, and restoring the section-name

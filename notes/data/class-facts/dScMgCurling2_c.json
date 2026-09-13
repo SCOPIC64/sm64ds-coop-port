@@ -845,9 +845,9 @@
   "provenance": {
     "worktree": "C:/tmp/sm64ds-curl2",
     "ref": "cpp/dScMgCurling2_c-tu",
-    "base": "9d45c00829e507f9626f5fb17591998972f5151c",
+    "base": "abc09ccf5392e976bbeeedad856ccf51bc8839bd",
     "base_description": "origin/main tip at 2026-09-06, AFTER the ov006 promotions of dScMgTeresa_c (#2329), dScMgCoin_c (#2344), dScMgPanel_c (#2347) and dScMgMemory2_c (#2324). Verified with `git log --oneline HEAD..origin/main` empty and `git merge-base HEAD origin/main` == that SHA.",
-    "supersedes": "f36793912 'Scout dScMgCurling2_c ROM facts', whose base 395afdb23 was 42 commits behind. Its ROM-derived facts re-verified clean; its TREE-derived facts (run extent, blocker counts, pragma count) had gone stale and are corrected here.",
+    "supersedes": "6dd1f9c28 'Scout dScMgCurling2_c ROM facts', whose base 8612e2206 was 42 commits behind. Its ROM-derived facts re-verified clean; its TREE-derived facts (run extent, blocker counts, pragma count) had gone stale and are corrected here.",
     "inputs": [
       "extracted/overlays/overlay_0006.bin",
       "extracted/overlays/overlay_0004.bin",
@@ -928,7 +928,7 @@
     }
   },
   "blockers_measured": {
-    "measured_on_base": "9d45c00829e507f9626f5fb17591998972f5151c",
+    "measured_on_base": "abc09ccf5392e976bbeeedad856ccf51bc8839bd",
     "queue_row_as_shipped": "unmatched:1;no-legacy-source:1;pragma:3;compiler-only:>=11",
     "unmatched": {
       "count": 0,
@@ -1398,7 +1398,7 @@
     "ov006_manifest_status_note": "dScMgCup_c is at status `shadow` on main; its promotion is PR #2348, open and awaiting review, not landed. Of the classes promoted in the last day, dScMgTeresa_c (#2329), dScMgCoin_c (#2344), dScMgPanel_c (#2347) and dScMgMemory2_c (#2324) are in."
   },
   "ov006_defer_codegen_census": {
-    "measured_on_base": "9d45c00829e507f9626f5fb17591998972f5151c",
+    "measured_on_base": "abc09ccf5392e976bbeeedad856ccf51bc8839bd",
     "promoted_ov006_manifests": 21,
     "using_defer_codegen_off": 9,
     "split_is_by_vintage": true,

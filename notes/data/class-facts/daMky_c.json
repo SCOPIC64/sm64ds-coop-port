@@ -1,7 +1,7 @@
 {
   "class": "daMky_c",
   "queue_row_name": "Ukiki",
-  "scouted_at_base": "2ab05bae36a6821679a7e647e811c0a3243a3c49",
+  "scouted_at_base": "a81adfa3702637cf566bcc97167786387eb582e6",
   "scouted_on": "2026-09-06",
   "branch": "cpp/Ukiki-tu",
   "worktree": "C:/tmp/sm64ds-scout-ukiki-0905",
@@ -982,7 +982,7 @@
     }
   ],
   "tree_state_at_this_base": {
-    "base_commit": "2ab05bae36a6821679a7e647e811c0a3243a3c49",
+    "base_commit": "a81adfa3702637cf566bcc97167786387eb582e6",
     "queue_row": "Ukiki\t44\t1983\tov030\tyes\tno\tcompiler-only:>=9(...)\t-\ttext-only",
     "queue_rank": "42 of 266 rows",
     "already_promoted": false,

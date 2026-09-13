@@ -3,7 +3,7 @@
 **Module / addr / size:** arm9 `0x02059d8c` / `0xc` (3 instructions)
 **Compiler:** mwccarm `1.2/sp2p3` and `2004/b56` (`-O4,p -enum int -lang c99 -char signed -interworking -proc arm946e`)
 **Status (2026-07-29):** no pure-C preimage exists. Recommend reclassifying from
-`// NONMATCHING` (a "register-allocation/scheduling wall", per `fcdfc66d`) to **ASM-PRIMITIVE**.
+`// NONMATCHING` (a "register-allocation/scheduling wall", per `c3635ce7`) to **ASM-PRIMITIVE**.
 **Current file:** `src/func_02059d8c.c` — asm hatch, no provenance row, not counted as matched.
 
 ## ROM shape
@@ -158,7 +158,7 @@ PYTHONIOENCODING=utf-8 python tools/match.py --c <file>.c --func func_02059d8c \
 
 `notes/asm-policy.md`'s objective test is an instruction list (`mcr`/`mrc`, `swi`, `msr`/`mrs`,
 `ldm`/`stm ^`, `swp`). `func_02059d8c` is ordinary ARM, so it fails that test as written and the
-`fcdfc66d` reclassification was correct *by the letter of the rule*. But the rule's stated
+`c3635ce7` reclassification was correct *by the letter of the rule*. But the rule's stated
 principle is "instructions C cannot express under any compiler flags", and this function meets the
 principle by a different route: it consumes a **flag** C cannot name.
 

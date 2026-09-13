@@ -260,6 +260,60 @@ def _as_the_build_links_it(obj, name):
         return obj
 
 
+def build_flag_attempts(src_text):
+    """The (flags, suffix) pairs a candidate is compiled with, in order.
+
+    These are the ROM BUILD's flags, resolved through the one helper that already
+    reproduces `rombuild.compile_one`'s choice (`build_pin.flags_for`: the `//cpp`
+    first-line marker is the whole C-vs-C++ test, never the file extension). They are
+    NOT the match gate's `match.DEFAULT_FLAGS` / `swarm.CPP_FLAGS`, which this function
+    used to hand out.
+
+    WHY THE DIFFERENCE MATTERS. The build compiles with `-Cpp_exceptions off`; the match
+    gate's flags leave exceptions ON. That single flag moved verdicts in both directions,
+    measured 2026-09-13 over every open PR head:
+
+      * FALSE RED. Three sibling `classInit` bodies (ov043 0x0211176c, ov047 0x0211164c,
+        ov036 0x021120c8) reproduce the ROM exactly under the build's flags and miss it
+        by the same five words under exceptions-on -- mwccarm schedules the second
+        `__cxa_vec_ctor`'s stacked argument differently (ROM: `ip` with the `str` sunk
+        below the argument setup; exceptions-on: `r2` with the `str` hoisted above it).
+        Each read NO-REPRO on a file the ROM build accepts.
+
+      * FALSE GREEN, which is the worse half. Exceptions-on makes mwccarm emit
+        `.exceptix`/`.rela.exceptix` alongside the function. `objisolate.isolate` returns
+        early when a plan has nothing to drop, so those two extra sections are the only
+        reason isolation runs at all on a single-function object -- and running it also
+        applies the vtable-preamble correction, rewriting a `_ZTV<C>` reference's addend
+        8 down to 0. Compiled the way the build compiles it there is nothing to drop,
+        isolation is a no-op, and the +8 survives into the link. A source spelling a
+        vptr store as `&_ZTV<C>[2]` therefore link-checked VERIFIED while the ROM build
+        stored the address eight bytes high (ov100 0x02147328: 0x02148584 for a slot
+        array that lives at 0x0214857c) and reported the overlay MISMATCHING.
+
+    A gate that predicts the link has to compile the way the link compiles; anything else
+    is measuring a build nobody ships.
+
+    THE MANIFEST WAS THE OTHER CANDIDATE, and this is why it is not the one. Every
+    promoted TU already records the build's flag string under `verification.flags` in
+    `config/tu_manifest.d/**`, so the audit could have read them from there. Measured,
+    the two rules never disagree -- all 177 entries' recorded strings are exactly the two
+    strings below, which is what tools/test_reloc_audit_flags.py re-checks entry for
+    entry -- but they do not reach the same files. The manifest's 177 entries name 208
+    source paths, 146 of which still exist; src/ holds 8,930. The file that produced the
+    false green above is not one of the 146. Reading the build covers all 8,930, so it is
+    a superset of the manifest rule on the rows where the manifest has an opinion.
+    """
+    import build_pin as BP
+    cxx = BP.flags_for("candidate.cpp", "//cpp")
+    if src_text.startswith("//cpp"):
+        return [(cxx, ".cpp")]
+    # Committed sources do not always carry the marker, so a non-marked file is still
+    # tried both ways -- the same two-attempt shape this has always had, now with the
+    # build's flag set on both attempts.
+    return [(BP.flags_for("candidate.c", ""), ".c"), (cxx, ".cpp")]
+
+
 def resolve_nested_slice(sym, code, relocs, addr, size, name_index):
     """If `name`'s ROM range [addr, addr+size) is not `sym`'s own compiled length but
     lies fully WITHIN it -- a hand-asm block packing several ROM functions into one
@@ -309,7 +363,6 @@ def winning_object(name, addr, size, mod, candidate=None, include_dirs=(), name_
     symbol's own ROM address for the slice; omit it and only func_<addr>-shaped
     containers (which carry their address in the name itself) get nested-slice support."""
     import reverify_corpus as RV
-    import swarm as S
     target = RV.rom_bytes(mod, addr, size)
     if target is None:
         return None, None, "no-module-bin", 0
@@ -333,8 +386,7 @@ def winning_object(name, addr, size, mod, candidate=None, include_dirs=(), name_
         sources = [(src, None) for src in RV.src_texts(name, addr)]
     for src, source_path in sources:
         saw_source = True
-        attempts = ([(S.CPP_FLAGS, ".cpp")] if src.startswith("//cpp")
-                    else [(M.DEFAULT_FLAGS, ".c"), (S.CPP_FLAGS, ".cpp")])
+        attempts = build_flag_attempts(src)
         for flags, suf in attempts:
             tmp = None
             if source_path is None:

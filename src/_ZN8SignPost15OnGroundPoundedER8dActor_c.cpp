@@ -8,7 +8,7 @@
  * 0x02010148 (different, real override).
  *
  * include/dActor_c.h's own slot 21 supplies the signature -- `void`, the
- * tree-wide fix from Stump::OnGroundPounded (a64045669).
+ * tree-wide fix from Stump::OnGroundPounded (36bc6d1df).
  *
  * mPoundsLeft/mPoundCooldown/mRespawnDelay are this class's own fields (include/SignPost.h);
  * mPoundCooldown and mRespawnDelay were undescribed padding until this method's body

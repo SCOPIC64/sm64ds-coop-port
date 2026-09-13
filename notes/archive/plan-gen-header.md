@@ -23,11 +23,11 @@ and `include/decl_Actor.h` with
 
 **Neither tool is in the tree and neither has a commit in this repo's history.** 241
 headers carry the first banner, 44 the second. `git log --all -S'gen_header.py'` finds
-only commits carrying the banner *text*; the earliest is `5ddf7d2d` (PR #866,
+only commits carrying the banner *text*; the earliest is `be9d58ed` (PR #866,
 2026-07-31), which added all 368 headers in one commit and **zero** `tools/` files.
 
 The generator ran outside the repo. That single fact is the plan's biggest asset -- see
-§3 -- because it means the tree immediately before `5ddf7d2d` still holds the generator's
+§3 -- because it means the tree immediately before `be9d58ed` still holds the generator's
 own input, unmigrated.
 
 This is not a restoration; it is writing the tool for the first time, against 241 headers
@@ -50,7 +50,7 @@ probe's 3.
 Corrected field-level coverage (review's numbers; the two totals below were the ones
 spot-checked directly):
 
-| backed by | today's `src/` | at `5ddf7d2d` |
+| backed by | today's `src/` | at `be9d58ed` |
 |---|---:|---:|
 | raw offset access carrying a width | 658 | **2,230** |
 | address-only form (`(char*)c + 0x5c`) | +753 | +839 |
@@ -59,7 +59,7 @@ spot-checked directly):
 
 Raw casts survive even inside migrated `.cpp` -- `src/game/actors/d_a_wanwan.cpp`
 still writes `*(int *)(c + 0x80) = 0x1000;`. So source text is degraded evidence, not
-destroyed evidence, and the pre-`5ddf7d2d` tree is very nearly complete evidence.
+destroyed evidence, and the pre-`be9d58ed` tree is very nearly complete evidence.
 
 **Recorded because the failure mode generalises:** a tool that silently matches nothing
 reports a clean, confident, wrong answer. Every evidence pass below must state its own
@@ -71,7 +71,7 @@ distinguishable from "looked for the wrong thing."
 Three passes, in this order. Each is independently checkable and none is trusted alone.
 
 **Pass 1 -- history, the generator.** Recover per-class offsets and widths from the tree
-at `5ddf7d2d~1`. 96.5% field coverage, no disassembly, no dataflow. This is what actually
+at `be9d58ed~1`. 96.5% field coverage, no disassembly, no dataflow. This is what actually
 reconstructs the corpus.
 
 **Pass 2 -- hierarchy, the reconciler.** These classes inherit (`Actor -> Enemy -> Goomba`),

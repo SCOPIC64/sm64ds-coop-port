@@ -62,7 +62,7 @@ vptr store        pairing walked to a base.  A factory inlines its base construc
                   live here: `_ZN6CameraC1Ev` stores three different vtables to [r4] and
                   only the third is Camera's.
 
-bound the scan    Commit 3f760a354 is the post-mortem.  `actor_names.parse_spawnfunc`
+bound the scan    Commit a46a9dd1f is the post-mortem.  `actor_names.parse_spawnfunc`
                   scanned a fixed 0x50 bytes; most factories are 0x30-0x40, and the next
                   function is almost always the FOLLOWING class's D1, which stores its
                   own vtable in its first few instructions.  "Last store" then named the

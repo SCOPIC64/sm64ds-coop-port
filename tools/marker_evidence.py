@@ -42,7 +42,7 @@ Two derived findings fall out of the same member map and are reported separately
 Sources, both of them:
   * today's `src/` -- every enrolled file here reproduces the ROM byte for byte, so a
     mangled callee spelled in it is a relocation target the gate checks, not a guess;
-  * the pre-migration tree at `5ddf7d2d~1`, read through `git cat-file --batch` with no
+  * the pre-migration tree at `be9d58ed~1`, read through `git cat-file --batch` with no
     checkout (same mechanism as tools/evidence_history.py).  That tree still spells
     member accesses as raw offsets and its D0/D1/D2 files are literally a table of
     member class -> offset.
@@ -87,7 +87,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import evidence_history as EH        # noqa: E402
 import gen_header as GH              # noqa: E402
 
-HIST = "5ddf7d2d~1"
+HIST = "be9d58ed~1"
 REPORT = os.path.join(ROOT, "build", "gen_header_report.json")
 MARKER_BUCKET = "marker: object, extent unknown"
 

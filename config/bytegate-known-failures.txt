@@ -39,7 +39,7 @@
 #
 # HISTORY
 # --------
-# Recorded at a6dd3d3ec with 18 rows. Rechecks retired all 18: the self-healing
+# Recorded at db4d385af with 18 rows. Rechecks retired all 18: the self-healing
 # property did exactly what its docstring promised -- the fixes were
 # made without reference to this file, and the rows lapsed on their own. They are
 # deleted here rather than left to lapse because a lapsed row is indistinguishable

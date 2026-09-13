@@ -399,7 +399,7 @@
       "linkerOutput": null
     },
     "postPromotion": {
-      "round": "tools/rombuild.py -j 20 after merged 25-function enrollment and genuine lifecycle reconstruction, on origin/main 1cbf7ca94",
+      "round": "tools/rombuild.py -j 20 after merged 25-function enrollment and genuine lifecycle reconstruction, on origin/main cc8f9b695",
       "moduleFidelity": "106/106 exact, 100.000000% of compared bytes",
       "sourceBuiltFunctions": {
         "total": 11088,

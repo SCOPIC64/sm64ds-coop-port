@@ -74,10 +74,10 @@ struct daObjKm2_Ukishima_c : daObjUkiyuka_c {
        stores. The ov043 class daObjKm1_Kurumajiku_c, which has this class's
        exact member-size signature, carries the same pairing in its own
        header. */
-    static void *operator new(unsigned long size);
+    static void *operator new(size_t size);
 };
 
-inline void *daObjKm2_Ukishima_c::operator new(unsigned long size)
+inline void *daObjKm2_Ukishima_c::operator new(size_t size)
 {
     return _ZN7fBase_cnwEj((unsigned)size);
 }

@@ -128,8 +128,8 @@ Known leftovers, none of them fixed:
 The rule above is the durable part and applies whether or not the fix lands.
 
 The fix itself is not on `main` and not on any remote. It sits on the local branch
-`bmp-hunt` (six commits, based on the wave 6 port lane commit `daeeb9b29`, fix at
-`95154b8a5`, tip `e4f25f862`), which is the only branch that carries it. The
+`bmp-hunt` (six commits, based on the wave 6 port lane commit `9051ae114`, fix at
+`b6f1b3f79`, tip `4acb6277c`), which is the only branch that carries it. The
 selftest's `.dsstate` layout print landed on the same branch. `main`'s port tree
 predates `walk_window` entirely, so none of this infrastructure exists there yet.
 Post fix, the three layouts above were reported to produce a single md5.

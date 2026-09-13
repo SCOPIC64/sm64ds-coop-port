@@ -12,6 +12,22 @@
  * members, a type named in a member's own signature -- is hoisted below, and
  * those tags are made unique.
  *
+ * THREE MORE SHAPES ARE HOISTED FOR THE HOST FRONT END, not for mwccarm.  A
+ * body may not declare `extern` with a function-local class type, and every
+ * virtual of a local class must be defined in that same body; mwccarm accepts
+ * both, C++ does not ([basic.link]: a local class has no linkage), and no host
+ * switch reaches either -- `/permissive` was probed and changes nothing.  So
+ * the nine plain shapes an extern named, and the two shadow scaffolds whose
+ * virtuals are declared and never defined, sit in the block below with unique
+ * tags; the five `State` placeholders resolve to Player::State, which is what
+ * those ROM symbols are; and three symbols that a body declared `int` while
+ * this same file defines them `void` (func_ov002_020c14b8,
+ * func_ov002_020c2b08, func_ov002_020caf68, whose results every call site
+ * discards) keep one spelling.  Each body still keeps its own declaration of
+ * every object.  Measured byte-neutral: the pinned 2004/b56 object for the
+ * whole TU has the same sha256 before and after, and match.py reports 2004/b56
+ * for all twenty-one members whose text changed.
+ *
  * SOURCE ORDER IS ROM-ASCENDING AND `#pragma defer_codegen off` IS LOAD-BEARING.
  * Do not reorder the members and do not delete that pragma.  Ordinal 35,
  * _ZN6Player7SetAnimEji5Fix12IiEj, reproduces only under `#pragma
@@ -134,6 +150,42 @@ struct CameraRaw {
  unsigned char f6d8; // 0x6d8
  char pad_to6e5[0x6e5 - 0x6d9];
  unsigned char f6e5; // 0x6e5
+};
+/* The rest of this block is the same hoist for the same reason, and the tags
+ * are unique in the same way.  A body may not declare `extern` with a
+ * function-local class type: a local class has no linkage, so the declaration
+ * names an entity the type cannot describe.  mwccarm accepts it; the C++ rule
+ * ([basic.link]) does not, and neither does the host front end.  Each shape
+ * below is the body's own, moved out unchanged, and the body keeps its own
+ * declaration of the object. */
+struct Entry18 { s16 val; /* 0x0 */ char _pad[0x16]; };
+struct Anim2fec { short a; short x; short y; short z; };
+struct ObjTeleport { s16 x, y, z; u16 param; };
+struct ObjLE { char pad[0x118]; void *f118; };
+struct PMF { int adj; int ptr; };
+struct State2i { int a; int b; };
+struct S18a { short f0; char pad[0x16]; };
+struct S18b { u16 f0; char pad[0x16]; };
+struct S18b2 { short a; short b; int c[5]; };
+/* Two shadow scaffolds, hoisted for the same reason as the block above and one
+ * more: C++ requires every virtual of a LOCAL class to be defined in the same
+ * body, because a local class's vtable can have nowhere else to come from.
+ * Neither scaffold is ever constructed -- each exists only to give a call
+ * through a pointer the ROM's vtable-slot shape (see the note on
+ * Player::CanEnterDoor) -- so at file scope the declarations are enough and
+ * no vtable is emitted on either compiler. */
+struct StarDoor {
+ virtual int v00(); virtual int v01(); virtual int v02(); virtual int v03();
+ virtual int v04(); virtual int v05(); virtual int v06(); virtual int v07();
+ virtual int v08(); virtual int v09(); virtual int v10(); virtual int v11();
+ virtual int v12(); virtual int v13(); virtual int v14(); virtual int v15();
+ virtual int v16(); virtual int v17();
+ virtual int GetType();
+};
+struct ObjHS {
+ virtual void v0();
+ virtual void v1();
+ virtual ObjHS* v2();
 };
 
 /* -------------------------------------------------------------------------- */
@@ -1305,12 +1357,8 @@ void func_ov002_020bf13c(char* c)
 extern "C" {
 int func_ov002_020bf224(int a, int b, int c)
 {
-    struct Entry {
-        s16 val;             /* 0x0 */
-        char _pad[0x16];
-    };
     extern u8 data_020a0e40;
-    extern struct Entry data_0209f4a0[];
+    extern struct Entry18 data_0209f4a0[];
     s64 p = (s64)b * data_0209f4a0[data_020a0e40].val;
     b = (int)((p + 0x800) >> 12);
     if (b < c)
@@ -3512,13 +3560,12 @@ int func_ov002_020c25a8(void *arg0, int arg1)
 extern "C" {
 void func_ov002_020c29d4(Player *self)
 {
-    struct State {};
-    extern int _ZN6Player7IsStateERNS_5StateE(void*, State &s);
+    extern int _ZN6Player7IsStateERNS_5StateE(void*, Player::State &s);
     extern int Player_ScaleByCharFactor(void*, int a);
     extern int func_02037e38(void*);
     extern dBgPi *_ZNK10dBgCh_Actr14GetFloorResultEv(const dBgCh_Actr *self);
-    extern State data_ov002_0211013c;
-    extern State data_ov002_021101b4;
+    extern Player::State data_ov002_0211013c;
+    extern Player::State data_ov002_021101b4;
     extern void func_ov002_020c29d4(void*);
     char *base = (char *)self;
     if (*(int *)(base + 8) != 1) return;
@@ -3675,7 +3722,7 @@ void func_ov002_020c2b08(void *arg0)
 // @symbol func_ov002_020c2db8
 extern "C" {
 void func_ov002_020c2db8(unsigned char* c) {
-    extern int func_ov002_020c14b8(void*);
+    extern void func_ov002_020c14b8(void*);
     extern int func_ov002_020c231c(void*);
     extern void func_02035798(void*, int);
     extern int func_ov002_020c25a8(void*, int);
@@ -3684,7 +3731,7 @@ void func_ov002_020c2db8(unsigned char* c) {
     extern int func_ov002_020c5d60(void*);
     extern int func_ov002_020c61ac(void*);
     extern int func_ov002_020eea84(void*, void*);
-    extern int func_ov002_020c2b08(void*);
+    extern void func_ov002_020c2b08(void*);
     extern int func_ov002_020c29d4(void*);
     extern void func_ov002_020c2db8(void*);
   func_ov002_020c14b8(c);
@@ -3800,19 +3847,13 @@ void func_ov002_020c2f64(void* c) {
 extern "C" {
 int func_ov002_020c2fec(struct Obj2fec *obj, int *out)
 {
-    struct Anim {
-        short a;
-        short x;
-        short y;
-        short z;
-    };
-    extern struct Anim data_ov002_0210a8b8[];
+    extern struct Anim2fec data_ov002_0210a8b8[];
     extern void func_ov002_020c3160(void*, void*);
     extern int func_ov002_020c2fec(void*, void*);
     int tmp[4];
     int i;
     int ret;
-    struct Anim *row;
+    struct Anim2fec *row;
 
     ret = 0;
     out[0] = 0;
@@ -6126,8 +6167,7 @@ int Player::St_Squish_Main()
 // @symbol func_ov002_020c6908
 extern "C" {
 int func_ov002_020c6908(char* c){
-    struct State;
-    extern State data_ov002_021101b4;
+    extern Player::State data_ov002_021101b4;
     extern int func_ov002_020c6538(void*);
     extern void _ZN6Player11ChangeStateERNS_5StateE(void*, void*);
     extern int func_ov002_020c6908(void*);
@@ -6250,8 +6290,7 @@ int func_ov002_020c6adc(char* c)
 extern "C" {
 int Player::St_Teleport_Main()
 {
-    typedef struct Obj { s16 x, y, z; u16 param; } Obj;
-    extern Obj* GetTeleportDestObj(int i);
+    extern ObjTeleport* GetTeleportDestObj(int i);
     extern void func_02035860(void*, void*);
     extern void _ZN5Sound13PlayCharVoiceEjjRK7Vector3(u32 a, u32 b, void*);
     extern void _ZN5Sound9PlayBank0EjRK7Vector3(u32 a, void*);
@@ -6278,7 +6317,7 @@ int Player::St_Teleport_Main()
         }
         (*(u8*)(((int)((char*)this) + 0x6e5)))++;
         if (mStateWork >= 0x10) {
-            Obj* obj = GetTeleportDestObj((u8)(mTeleportId - 1));
+            ObjTeleport* obj = GetTeleportDestObj((u8)(mTeleportId - 1));
             int tx = obj->x << 12;
             int tz = obj->z << 12;
             int ty = obj->y << 12;
@@ -6442,7 +6481,6 @@ s32 Player::St_LevelEnter_Cleanup()
 extern "C" {
 int Player::St_LevelEnter_Main()
 {
-    struct ObjLE { char pad[0x118]; void *f118; };
     extern void (Player::*data_ov002_0211075c[])();
     extern ObjLE *data_0209f318;
     extern void Player_AdvanceAnims(void*);
@@ -6556,15 +6594,14 @@ void func_ov002_020c7194(char* c){
 // @symbol func_ov002_020c71e0
 extern "C" {
 void func_ov002_020c71e0(char* c) {
-    struct State;
     extern void _ZN6Player11ChangeStateERNS_5StateE(void*, void*);
     extern int func_ov002_020c6e14(void*);
     extern int func_ov002_020c44c4(void*);
     extern void func_ov002_020be008(void*);
     extern unsigned char data_0209f2bc[];
     extern unsigned char data_0209f2fc[];
-    extern struct State data_ov002_0211067c;
-    extern struct State data_ov002_0211013c;
+    extern Player::State data_ov002_0211067c;
+    extern Player::State data_ov002_0211013c;
     extern void func_ov002_020c71e0(void*);
     *(unsigned char*)(c+0x711) = 1;
     if (data_0209f2bc[0] != 0) return;
@@ -7087,12 +7124,11 @@ int Player::IsStateEnteringLevel()
 extern "C" {
 int func_ov002_020c7f10(char* c)
 {
-    struct State;
-    extern int _ZN6Player7IsStateERNS_5StateE(void*, State& s);
+    extern int _ZN6Player7IsStateERNS_5StateE(void*, Player::State& s);
     extern void func_ov002_020ce9c8(void*);
     extern void func_ov002_020c7ff8(void*);
     extern void _ZN6Player7SetAnimEji5Fix12IiEj(void*, unsigned int a, int b, int d, unsigned int e);
-    extern State data_ov002_0211022c;
+    extern Player::State data_ov002_0211022c;
   unsigned char v;
   if (!_ZN6Player7IsStateERNS_5StateE(c, data_ov002_0211022c)) goto fail;
   if (*(unsigned char*)(c + 0x6e3) != 0) goto fail;
@@ -7903,8 +7939,7 @@ int func_ov002_020c904c(char *c)
 // @symbol func_ov002_020c9128
 extern "C" {
 int func_ov002_020c9128(char* c){
-    struct State;
-    extern State data_ov002_0211013c;
+    extern Player::State data_ov002_0211013c;
     extern short _Z15ApproachLinear2Rsss(short& v, short t, short s);
     extern void _ZN6Player11ChangeStateERNS_5StateE(void*, void*);
     extern int func_ov002_020c9128(void*);
@@ -8201,7 +8236,6 @@ int Player::St_NoControl_Init()
 {
     extern int Player_DisableInteraction(void*);
     extern int Player_ReleaseHeldActor(void*);
-    extern struct PMF { int adj; int ptr; };
     extern struct PMF data_ov002_02110884[];
   mIsControlDisabled=1;
   mStatePhase=0;
@@ -8769,8 +8803,7 @@ int Player::SetNoControlState(unsigned char a_, int b, unsigned char c_)
 // @symbol func_ov002_020ca270
 extern "C" {
 int func_ov002_020ca270(char* c){
-    struct State;
-    extern State data_ov002_02110124;
+    extern Player::State data_ov002_02110124;
     extern int _ZN6Player7IsStateERNS_5StateE(void*, void*);
   if(_ZN6Player7IsStateERNS_5StateE(c, &data_ov002_02110124)){
     if(*(unsigned char*)(c+0x6e3)==1) return 1;
@@ -8939,14 +8972,6 @@ int Player::TryEnterStarDoor(Vector3 & pos_, short kind)
 extern "C" {
 int Player::CanEnterDoor(unsigned char door)
 {
-    struct StarDoor {
-        virtual int v00(); virtual int v01(); virtual int v02(); virtual int v03();
-        virtual int v04(); virtual int v05(); virtual int v06(); virtual int v07();
-        virtual int v08(); virtual int v09(); virtual int v10(); virtual int v11();
-        virtual int v12(); virtual int v13(); virtual int v14(); virtual int v15();
-        virtual int v16(); virtual int v17();
-        virtual int GetType();
-    };
     extern void _ZN6Player11ChangeStateERNS_5StateE(void*, void*);
     extern int _ZN6Player17SetNoControlStateEhih(void*, unsigned char, int, unsigned char);
     extern int data_ov002_0211022c[];
@@ -9011,7 +9036,6 @@ int Player::TryExitWhiteDoorWithStar()
 // @symbol func_ov002_020ca78c
 extern "C" {
 int func_ov002_020ca78c(void *c){
-    struct State2i { int a; int b; };
     extern int _ZN6Player7IsStateERNS_5StateE(void*, void*);
     extern int _ZN6Player17SetNoControlStateEhih(void*, unsigned char a, int b, unsigned char d);
     extern struct State2i data_ov002_0211022c;
@@ -9394,11 +9418,11 @@ int Player::St_CameraZoom_Init()
     extern int func_0200d064(void*, int playerID);
     extern void func_0200d7e0(void*, int playerID);
     extern int _ZN6Player7SetAnimEji5Fix12IiEj(void*, unsigned int, int, int, unsigned int);
-    extern struct Camera* data_0209f318;
+    extern struct CameraRaw* data_0209f318;
     extern unsigned char data_0209f28c;
   *(int*)((char*)&mHorzSpeed)=0;
   *(int*)((char*)&mVertSpeed)=0;
-  struct Camera* cam = data_0209f318;
+  struct CameraRaw* cam = data_0209f318;
   int pid = *(unsigned char*)((char*)&mPlayerNo);
   func_0200d064(cam, pid);
   func_0200d7e0(cam, *(unsigned char*)((char*)&mPlayerNo));
@@ -9492,11 +9516,6 @@ ret0a:
 extern "C" {
 int Player::St_Headstand_Main()
 {
-    struct ObjHS {
-        virtual void v0();
-        virtual void v1();
-        virtual ObjHS* v2();
-    };
     extern int _ZN6Player12FinishedAnimEv(void*);
     extern int _ZN6Player7SetAnimEji5Fix12IiEj(void*, unsigned int a, int b, int d, unsigned int e);
     extern void _ZN6Player11ChangeStateERNS_5StateE(void*, void*);
@@ -9564,7 +9583,7 @@ int Player::St_Headstand_Init()
 {
     extern int _ZN6Player7SetAnimEji5Fix12IiEj(void*, unsigned int a, int b, int f, unsigned int d);
     extern void func_0200d580(void*, int playerID);
-    extern struct Camera *data_0209f318;
+    extern struct CameraRaw *data_0209f318;
   _ZN6Player7SetAnimEji5Fix12IiEj(((void *)this), 0x1e, 0x40000000, 0x1000, 0);
   *(unsigned char*)((char*)&mStateStep)=2;
   *(int*)((char*)&mVertAccel)=0;
@@ -9672,7 +9691,7 @@ void func_ov002_020cb474(char* c){
 extern "C" {
 int Player::St_Climb_Cleanup()
 {
-    extern int func_ov002_020caf68(void*);
+    extern void func_ov002_020caf68(void*);
     extern int data_ov002_021106f4[];
     extern int data_ov002_021106dc[];
   int v = *(int*)((char*)&mRequestedState);
@@ -10474,7 +10493,6 @@ int Player::St_HurtWater_Init()
 extern "C" {
 int Player::St_MetalWaterWater_Main()
 {
-    struct S18b2 { short a; short b; int c[5]; };
     extern int func_ov002_020cec2c(void*);
     extern void _ZN6Player11ChangeStateERNS_5StateE(void*, void*);
     extern int func_ov002_020eeca8(void*, void*);
@@ -10903,7 +10921,6 @@ tail:
 extern "C" {
 void func_ov002_020cd550(char* c)
 {
-    struct S18a { short f0; char pad[0x16]; };
     extern u8 data_020a0e40;
     extern struct S18a data_0209f4a4[];
     extern short data_02082214[];
@@ -11316,8 +11333,6 @@ int func_ov002_020ce324(char* c)
     typedef unsigned short u16;
     typedef struct Vec3i { int x, y, z; } Vec3i;
     typedef struct dActor_c dActor_c;
-    struct S18a  { short f0; char pad[0x16]; };
-    struct S18b { u16 f0; char pad[0x16]; };
     extern u8 data_020a0e40;
     extern struct S18b data_0209f49e[];
     extern struct S18a data_0209f4a4[];

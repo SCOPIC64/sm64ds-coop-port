@@ -75,6 +75,23 @@ The reviewer still judges whether the experiment actually supports the claim.
    a changed head/base must lose that acceptance. Record the workflow run, ruleset
    readback, queue SHA and review-policy SHA on the cutover issue.
 
+**"Changed base" means changed reviewably.** The target is not the raw tip of
+main: `check_pr_source_review.stable_target` walks back from the tip past
+commits whose diff contains no `source_path()` entry, and anchors on the newest
+commit that changed reconstruction source, a header or a TU manifest. Every
+commit walked over is accepted as a `tested_base`, because all of them carry the
+same reviewable tree.
+
+This is a property of the deployed target, not a relaxation of the requirement:
+a commit that touches reviewable source stops the walk, and every uncertain case
+(an unreadable commit, a merge, a file list at the API cap, a malformed entry)
+fails closed onto the live tip. Without it the check is unsatisfiable in steady
+state rather than merely strict -- main receives periodic bot progress refreshes
+of `contributions.json` and `docs/` marked `[skip ci]`, so acceptance expired on
+a timer with nobody touching the PR. Measured 2026-09-12 before the change:
+**0 of 117 open PRs** contained the live tip and could clear ancestry at all;
+after it, 72 did.
+
 Ruleset activation is a repository setting, not a consequence of this source PR.
 Until it is configured, the check is advisory at GitHub even though upgraded
 queue transitions enforce review. Coordinators must still honor rejected reviews.
@@ -107,8 +124,8 @@ insufficient. The composition must retain both source and base ancestry.
 
 The first concrete adoption case is [PR #2447](https://github.com/tangosdev/sm64ds-decomp/pull/2447),
 `daSanbo_c`, task `sanbo-ov096-0907b`: accepted source
-`58a735d6ffc733823fda12aaee1d9fec724a8721`, proposed PR head at review
-`fb3babaef848aa1e4fd038fd4705d2162f4295c7`. The old task recorded the composition
+`287c12ab9c2e5914d2ea23c1a6857bc375bc7491`, proposed PR head at review
+`54ff0fef2df15e60916221ddc53e0efadf37f416`. The old task recorded the composition
 under `composed_head`. That old pass has no source review and must not be
 reinterpreted as approval of the PR. Refresh its live head before assigning work.
 

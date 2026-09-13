@@ -8,13 +8,13 @@ This document describes this commit. The queue records its immutable output SHA.
   https://github.com/tangosdev/sm64ds-decomp/issues/2410 — task `issue-2410`,
   stage `reconstruct` (role producer), session `prod-2410-0907`, harness Claude Code.
 - Source branch and previous accepted input SHA:
-  `cpp/daMky_c-v2`, continued from accepted input `3e931ef05c60621201384397652bfdc73c2e86cd`
+  `cpp/daMky_c-v2`, continued from accepted input `b10aa134dea859d461e11afade5c41c445c64071`
   (branch `cpp/Ukiki-tu`, PR #2397). The new branch descends from that commit; the
   work was brought forward by two merges of `origin/main`, never a rebase, because
   the queue requires the published output to descend from the accepted input.
 - Original source base SHA and installed workflow/tool SHA:
-  base `b2bd6a323832d244a12e750713b1405b26a94c66`;
-  workflow/tools `f327f7b6460e157153eb7fc0749dbbe60dd854f1`.
+  base `2996608719a316a98d0c5da24ff90e45b00ac550`;
+  workflow/tools `d7e28406933497ff40150f9b912efe64666a00b2`.
 - Separate evidence commits and required artifacts in this commit:
   no separate evidence commits. `notes/data/class-facts/daMky_c.json` is committed on
   this branch. Required artifacts present: `src/actors/daMky_c.cpp`,
@@ -237,7 +237,7 @@ pinned compiler `tools/mwccarm/2004/b56/mwccarm.exe`.
 
 - Private validation, if run, and the exact PR head/base it tested:
   NOT RUN at this commit. The private validator ran on the predecessor branch
-  `cpp/Ukiki-tu` head `3e931ef0` against main, and passed — "ROM data reproduced
+  `cpp/Ukiki-tu` head `b10aa134` against main, and passed — "ROM data reproduced
   from source | 686 symbol(s) exact", no lost-symbol line — on PR #2397, whose only
   red check was `ledger`. That result tested a different head from this one and is
   not proof for this commit. A fresh private validation on this candidate's actual
@@ -261,7 +261,7 @@ Written after the producer's commit, on the composed merge of this candidate wit
 `origin/main`. Everything above describes the candidate alone; this section is the
 only part that describes the composition.
 
-- **The ledger commit `c1490845` is ratified and kept.** `symbols/actor_renames.tsv`
+- **The ledger commit `df4c4141` is ratified and kept.** `symbols/actor_renames.tsv`
   on the composed head hashes to sha256 `a0fd0bf7…`, 447,030 bytes LF-normalised —
   byte for byte the `check_rename_ledger.py --fix` output the verifier replayed.
 - **Composition method:** `origin/main` merged in, never rebased. No conflict arose

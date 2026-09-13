@@ -255,8 +255,8 @@
     "asset_caveat": "Four yurei_mucho assets exist and four file handles are constructed, but the sinit's literals are 0x42d/0x42e/0x42f/0x430 (1069-1072) while the filesystem ids are 639-642. That is a different id space; the pairing of a particular handle to a particular .bmd/.bca is NOT proven."
   },
   "tree_derived": {
-    "base_commit": "b266ff471 (origin/main, 'Merge pull request #2367 from tangosdev/tools/fix-gate-regressions-0905'). Scouting started at 2ab05bae3; origin/main advanced by 7 commits mid-run and this branch was fast-forwarded onto it before the facts were committed, so every tree-derived field below was re-read at b266ff471. Those 7 commits touch only tools/ and notes/ -- no config/, no src/ -- so none of them moves a fact here. Verified after the fact: `git merge-base HEAD origin/main` == origin/main, `git log --oneline origin/main..HEAD` empty at the moment of the fast-forward.",
-    "base_gate_state": "`python tools/check_dead_references.py` is RED on b266ff471 itself, before any change of mine: src/actors/dScMgSound_c.cpp names `src/_ZN12dScMgLuigi_c13InitResourcesEv.cpp` in a comment and that shard no longer exists. PR #2367 landed the C/C++ comment scan in the same merge, so the new gate fails on pre-existing debt. The scan reports 0 references to anything named Snufit, so this facts file contributes nothing to it -- but the builder should expect that failure and not attribute it to this branch.",
+    "base_commit": "180bf7ac8 (origin/main, 'Merge pull request #2367 from tangosdev/tools/fix-gate-regressions-0905'). Scouting started at a81adfa37; origin/main advanced by 7 commits mid-run and this branch was fast-forwarded onto it before the facts were committed, so every tree-derived field below was re-read at 180bf7ac8. Those 7 commits touch only tools/ and notes/ -- no config/, no src/ -- so none of them moves a fact here. Verified after the fact: `git merge-base HEAD origin/main` == origin/main, `git log --oneline origin/main..HEAD` empty at the moment of the fast-forward.",
+    "base_gate_state": "`python tools/check_dead_references.py` is RED on 180bf7ac8 itself, before any change of mine: src/actors/dScMgSound_c.cpp names `src/_ZN12dScMgLuigi_c13InitResourcesEv.cpp` in a comment and that shard no longer exists. PR #2367 landed the C/C++ comment scan in the same merge, so the new gate fails on pre-existing debt. The scan reports 0 references to anything named Snufit, so this facts file contributes nothing to it -- but the builder should expect that failure and not attribute it to this branch.",
     "branch": "cpp/Snufit-tu",
     "worktree": "C:/tmp/sm64ds-snufit-scout",
     "queue_row": "Snufit  22  684  ov065  has_header=yes  already_promoted=no  blockers=compiler-only:>=11  sibling_oracle=daObjCtMecha05_c  promotion_route=text-only",
@@ -267,7 +267,7 @@
       "promoted": ["daObjCtMecha03_c", "daObjCtMecha04_c", "daObjCtMecha05_c"],
       "text-verified": ["TTC_MovingBar"],
       "no_manifest": ["Snufit", "Swoop", "Dorrie", "DorriePlatform", "daDossyCap_c", "TtcRotatingCube", "TtcRotatingGear", "TTC_MovingBeam", "daObjCtRotateBlock_c", "daObjCtKaitendai_c", "daObjCtMecha08_c", "daObjCtMecha09_c"],
-      "measured_from": "config/tu_manifest.d/ov065/ at 2ab05bae3 -- four files only"
+      "measured_from": "config/tu_manifest.d/ov065/ at a81adfa37 -- four files only"
     },
     "prose_naming_snufit": ["notes/archive/n64-decomp-cross-reference.md", "notes/data/class-build-worklist.tsv", "notes/data/tu-merge-candidates.json", "notes/data/tu-promotion-queue.tsv", "notes/handoff-marker-typing.md", "symbols/overlay_actors.md"],
     "symbols_txt_rows": "config/arm9/overlays/ov065/symbols.txt carries exactly 16 rows matching 'Snufit|Yurei' (case-sensitive): the 10 mangled members, daYurei_Mucho_c_classInit, _ZTI15daYurei_Mucho_c, _ZTS15daYurei_Mucho_c, g_profile_YUREI_MUCHO (flagged `ambiguous`), _ZTV6Snufit and _ZTV15daYurei_Mucho_c."
@@ -296,7 +296,7 @@
     {
       "date": "2026-09-10",
       "review_task": "pr2456-source-repair-0910",
-      "reviewed_input_commit": "a6ed71f26e750fadb84aeb4c55a8844d994fc502",
+      "reviewed_input_commit": "4b189383f9dccd0457e1224f06679e3042514ad1",
       "scope": "Dated correction to the earlier observations above; tree_derived remains a historical snapshot. The text-only class promotion is still partial under issue #2478.",
       "layout": {
         "object_size": "0x3e4",
@@ -359,7 +359,7 @@
     {
       "date": "2026-09-10",
       "finding": "YUR-01",
-      "composed_main": "a0cc78fbd18f166ba67fca7c38b63bca348c8edd",
+      "composed_main": "f4b2ce22a3021857de2bdb51f350db8f8017a17b",
       "correction": "OnTurnIntoEgg returns void, matching the approved shared dActor_c interface. The retired Snufit header and method shard remain deleted; main's contract correction is carried into the renamed class header and promoted TU. This return type is the current source contract, not inferred from a return register."
     }
   ]

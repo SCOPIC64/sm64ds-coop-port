@@ -54,7 +54,7 @@ classes, so for those the question was never asked, let alone answered.
 de-bannered, hand-reconstructed, the strongest reference in the tree -- declares
 `Fix12i currInterp /* 0x04 */` and `Fix12i speed /* 0x08 */`. Those are precisely the
 two FaderWipe offsets retyped as "no ancestor". The generator's own input at
-`5ddf7d2d~1:src/_ZN9FaderWipeC1Ev.c` names them too.
+`be9d58ed~1:src/_ZN9FaderWipeC1Ev.c` names them too.
 
 Both are now declared `Fix12i` (a typedef of `s32`, so byte-identical). So is
 `HeapAllocator` 0x018/0x01c, which its own constructor stores `void*` into.

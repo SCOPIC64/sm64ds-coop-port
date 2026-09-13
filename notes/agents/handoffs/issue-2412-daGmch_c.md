@@ -10,14 +10,14 @@ This document describes this commit. The queue records its immutable output SHA.
   Code (`claude-fable-5-1`).
 - Source branch and previous accepted input SHA: branch `cpp/daGmch_c-v2`,
   which continues `cpp/Moneybag-tu` without rewriting it. Accepted input
-  `2f34c64aa90c712c0da8b936842592a39ad853cf` (the tip of `cpp/Moneybag-tu` and the
+  `9fbb2438d05f3ab2ff29e377e36190ceb746824a` (the tip of `cpp/Moneybag-tu` and the
   head of https://github.com/tangosdev/sm64ds-decomp/pull/2395). This commit
   descends from it; nothing was rebased, merged or reset.
 - Original source base SHA and installed workflow/tool SHA: merge-base with main
-  `b2bd6a323832d244a12e750713b1405b26a94c66`; the earlier source-base record from
+  `2996608719a316a98d0c5da24ff90e45b00ac550`; the earlier source-base record from
   https://github.com/tangosdev/sm64ds-decomp/issues/2403 is
-  `2ab05bae36a6821679a7e647e811c0a3243a3c49` (a verified ancestor, kept separate).
-  Workflow/tool revision `f327f7b6460e157153eb7fc0749dbbe60dd854f1`. `origin/main`
+  `a81adfa3702637cf566bcc97167786387eb582e6` (a verified ancestor, kept separate).
+  Workflow/tool revision `d7e28406933497ff40150f9b912efe64666a00b2`. `origin/main`
   was not merged in: every file it would have brought into conflict is
   integration-lane state this task does not own.
 - Separate evidence commits and required artifacts in this commit: no separate
@@ -158,7 +158,7 @@ This document describes this commit. The queue records its immutable output SHA.
 All checks below ran in a private wired worktree on this commit's tree
 (`include/daGmch_c.h`, `src/actors/daGmch_c.cpp` and the two regenerated notes
 staged; nothing else differs from the input), pinned compiler mwccarm 2004/b56,
-base for `--changed`/ratchet comparisons `b2bd6a323832d244a12e750713b1405b26a94c66`.
+base for `--changed`/ratchet comparisons `2996608719a316a98d0c5da24ff90e45b00ac550`.
 Logs are private `build/` files named below; they are not committed.
 
 - Full-ROM build: `python tools/rombuild.py -j16 --no-rom` -- exit 0. 11,191
@@ -167,7 +167,7 @@ Logs are private `build/` files named below; they are not committed.
   "zero new symbol errors"; `dsd check symbols --fail` FAIL with the same 9
   pre-existing errors on baseline control and head (ITCM x4, `_deq`, two arm9
   `data_020ad5xx`, `overlay_100`/`overlay_102`), none in ov081. Run twice: once
-  on the unmodified input (log `rombuild-2f34c64.log`, same figures) and once on
+  on the unmodified input (log `rombuild-9fbb243.log`, same figures) and once on
   this tree (`rombuild-batch2.log`).
 - Explicit function/consumer relocation checks:
   `python tools/tubuild.py verify ov081/daGmch_c` -- exit 0, 37/37 MATCH,
@@ -203,7 +203,7 @@ Logs are private `build/` files named below; they are not committed.
   defect.
 - Shared-header consumer expansion: `include/daGmch_c.h` has one includer (the
   TU), compiled by every check above.
-  `python tools/check_header_offsets.py --changed b2bd6a32...` -- exit 0;
+  `python tools/check_header_offsets.py --changed 29966087...` -- exit 0;
   `include/daGmch_c.h` 18 commented fields, 0 mismatched, struct spans 0x3f4;
   `include/decl_common.h` 0 mismatched.
 - Port/path/reference and other applicable static gates (exit codes):
@@ -222,7 +222,7 @@ Logs are private `build/` files named below; they are not committed.
   per the PR record; not re-run on this commit).
 - Private validation, if run, and the exact PR head/base it tested: NOT run on
   this commit. The most recent run is on the input, PR head
-  `2f34c64aa90c712c0da8b936842592a39ad853cf` against main at
+  `9fbb2438d05f3ab2ff29e377e36190ceb746824a` against main at
   2026-09-07 05:30 UTC: FAILED with exactly one reason, `ROM data verification
   lost 1 exact symbol(s): ov081:_ZTV8Moneybag`, while reporting module fidelity
   106/106 exact, byte-verified functions +0, relocation check 2,055 checked /

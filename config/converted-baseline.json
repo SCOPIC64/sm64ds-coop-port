@@ -7,6 +7,7 @@
     "no_codegen_trick",
     "no_mangled_refs"
   ],
+  "count": 2710,
   "converted": [
     "src/ARMMathLoadState.c",
     "src/ARMMathSaveState.c",
@@ -289,7 +290,6 @@
     "src/_ZN10LavaSeesawD1Ev.cpp",
     "src/_ZN10ModelAnim24CopyERKS_Pcj.cpp",
     "src/_ZN10ModelAnim2C1Ev.cpp",
-    "src/_ZN10ModelAnim2D0Ev.cpp",
     "src/_ZN10ModelAnim2D1Ev.cpp",
     "src/_ZN10MrBlizzard16CleanupResourcesEv.cpp",
     "src/_ZN10MrBlizzard16OnAimedAtWithEggEv.cpp",
@@ -405,7 +405,6 @@
     "src/_ZN11CommonModel6RenderEPK7Vector3.cpp",
     "src/_ZN11CommonModel9DoSetFileEPcii.cpp",
     "src/_ZN11CommonModelC1Ev.cpp",
-    "src/_ZN11CommonModelD0Ev.cpp",
     "src/_ZN11CommonModelD1Ev.cpp",
     "src/_ZN11CrazedCrate13OnYoshiTryEatEv.cpp",
     "src/_ZN11CrazedCrate16OnPendingDestroyEv.cpp",
@@ -1136,9 +1135,7 @@
     "src/_ZN5Model8LoadFileER13SharedFilePtr.cpp",
     "src/_ZN5ModelC1Ev.cpp",
     "src/_ZN5ModelC2Ev.cpp",
-    "src/_ZN5ModelD0Ev.cpp",
     "src/_ZN5ModelD1Ev.cpp",
-    "src/_ZN5ModelD2Ev.cpp",
     "src/_ZN5Shark16CleanupResourcesEv.cpp",
     "src/_ZN5Shark16OnPendingDestroyEv.cpp",
     "src/_ZN5Shark6RenderEv.cpp",
@@ -1649,9 +1646,7 @@
     "src/_ZN9ModelBase12ApplyOpacityEj.cpp",
     "src/_ZN9ModelBase7SetFileEP8BMD_Fileii.cpp",
     "src/_ZN9ModelBaseC2Ev.cpp",
-    "src/_ZN9ModelBaseD0Ev.cpp",
     "src/_ZN9ModelBaseD1Ev.cpp",
-    "src/_ZN9ModelBaseD2Ev.cpp",
     "src/_ZN9MontyMole16OnAimedAtWithEggEv.cpp",
     "src/_ZN9MontyMole6RenderEv.cpp",
     "src/_ZN9MontyMoleD0Ev.cpp",
@@ -2724,6 +2719,5 @@
     "src/nds_printf.c",
     "src/unnamed/ov063/__sinit_ov063_0211e3cc.c",
     "src/unnamed/ov063/__sinit_ov063_0211e590.c"
-  ],
-  "count": 2716
+  ]
 }

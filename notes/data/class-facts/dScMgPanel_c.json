@@ -2015,7 +2015,7 @@
     "stale_classification_row": {
       "file": "src/func_ov006_02106aa8.c",
       "row": "notes/data/c-cpp-classification.tsv line 4992: PURE-C ... 0 ... NONMATCHING-draft;not-in-delinks",
-      "why_it_is_stale": "Commit 1d980db31 ('Match four ov006 minigame functions from the m100 third wave') matched this function. It has no NONMATCHING banner today, config/arm9/overlays/ov006/delinks.txt lists it at 0x02106aa8..0x02106bac marked `complete`, and tubuild inspect reports it OK under the pin. The ledger row was never updated. It is the only one of the 71 with a contradicted row; 21 of the 71 have no row at all. Do NOT hand-edit that ledger to fix it - it is an append log whose row order is load-bearing.",
+      "why_it_is_stale": "Commit faf0d6dd2 ('Match four ov006 minigame functions from the m100 third wave') matched this function. It has no NONMATCHING banner today, config/arm9/overlays/ov006/delinks.txt lists it at 0x02106aa8..0x02106bac marked `complete`, and tubuild inspect reports it OK under the pin. The ledger row was never updated. It is the only one of the 71 with a contradicted row; 21 of the 71 have no row at all. Do NOT hand-edit that ledger to fix it - it is an append log whose row order is load-bearing.",
       "why_it_matters": "A reader who trusts the ledger will think the run has an unmatched member and refuse the whole-run licence."
     },
     "nearmiss_bank": "nearmiss/db.jsonl carries two rows touching this run - func_ov006_02106aa8 (27 divergences) and func_ov006_02106168 (568 bytes, 28 divergences), both `lang: c` rewrites. Both functions are matched TODAY by the shards in src/, so these are historical attempts, not live blockers. Do not restore either draft.",
@@ -2094,9 +2094,9 @@
   "provenance": {
     "worktree": "C:/tmp/sm64ds-scout-panel-0905",
     "branch": "cpp/dScMgPanel_c-tu",
-    "rebased_onto": "origin/main 8bfc6d98b0c5b3ed16cd97e712aa780c77fdad37",
-    "base_verified": "git merge-base HEAD origin/main == HEAD~1 == 8bfc6d98b, and `git log --oneline HEAD..origin/main` is empty",
-    "first_pass_commit": "3ece2622ac5d05b40783bd3aaab4cba5c595b9f0 (sealed base 395afdb2399f7d5e304183d074c5ff670ab766d3), rebased into this branch",
+    "rebased_onto": "origin/main e2b7ec2c285661883caa7876d737dbca94a084b7",
+    "base_verified": "git merge-base HEAD origin/main == HEAD~1 == e2b7ec2c2, and `git log --oneline HEAD..origin/main` is empty",
+    "first_pass_commit": "3ece2622ac5d05b40783bd3aaab4cba5c595b9f0 (sealed base 8612e2206fbe315139135ba069cc11ac8e69993e), rebased into this branch",
     "oracles": [
       "extracted/overlays/overlay_0006.bin",
       "config/arm9/overlays/ov006/{symbols,relocs,delinks}.txt",

@@ -29,6 +29,14 @@
 extern "C" void func_02012e1c(char *c);
 extern "C" void Enable3dEngines();
 
+/* THE EARLY EXITS ARE SPELT AS NESTED IFS, NOT `return;`. mwccarm accepts a
+   valueless `return` in a non-void function; C++ does not, and no host option
+   reaches it (MSVC C2561). The ROM sets no return value on these paths -- it
+   leaves r0 holding whatever the last call left there and branches straight to
+   the epilogue -- so the faithful shape is a body that reaches its closing
+   brace with nothing to return, which is what the host already accepts for the
+   rest of this family. Byte-identical under 2004/b56: the compiled object is
+   unchanged. */
 int dScMgBase_c::OnHitFromUnderneath()
 {
     void *c = (void *)this;
@@ -38,6 +46,5 @@ int dScMgBase_c::OnHitFromUnderneath()
     self->mMenuOpen = 0;
     func_ov004_020b91fc((char *)&self->mTouchOptions);
     int r = self->OnHitByCannonBlastedChar();
-    if (r == 0) return;
-    Enable3dEngines();
+    if (r != 0) Enable3dEngines();
 }

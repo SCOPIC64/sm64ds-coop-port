@@ -1,9 +1,9 @@
 # daBombking_c source-review continuation
 
-Continue PR #2446 from `564d701f0c41cec7101786c0e37345cf2e5b0ddc` under
+Continue PR #2446 from `b4414924c388a4bc031e2b659de018862dec73c7` under
 task `pr-2446-source-review-fixes`, following `bombking-ov078-0907`.
-The source base is `71f7adf39168b5a4a296203012cbb21d948bd122`; the
-protocol/tool revision is `6ef1dfb896e6074e83d2aa1a03cc3b701d07dcae`.
+The source base is `289ef4dd55e6690f0925e7c4236c07957ecefd26`; the
+protocol/tool revision is `60c611a223cbbc6db0b1cc3883072f20f8fe9e88`.
 Issue #2479 owns the remaining reconstruction through humanizer support
 @andrewboudreau. This commit is a partial source correction awaiting a different
 session's independent review. It preserves the existing promotion and credit.

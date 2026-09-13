@@ -1,8 +1,8 @@
 # PR #2446 composition checkpoint
 
 This checkpoint composes independently accepted Bombking source
-`f881d8406706fc76cea95a8fe04853d834a009c2` after the reviewed Snowman
-composition `3b71825d7da2b969c4d962fd82b189090743757f`. The latter's GitHub PR
+`ff9766c6c59958b804576e04284dc5a001549880` after the reviewed Snowman
+composition `7ed0a7c6be6e06a91081a3db75ebd52d2db58753`. The latter's GitHub PR
 is still awaiting terminal private validation at this checkpoint. This is a
 local staging order, not a claim that either commit has landed on main.
 

@@ -16,7 +16,7 @@ model, the dead ends). This plan schedules that runbook; it does not replace it.
 
 ## 1. What the issue claims, and what survives checking
 
-Every number below is reproducible on a clean tree at `7b293af4`. Commands in §9.
+Every number below is reproducible on a clean tree at `b7f04b91`. Commands in §9.
 
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
@@ -39,7 +39,7 @@ changes what the source *claims*, and the byte gate is what proves each step did
 ## 2. The measured backlog
 
 Run `python tools/langmode_audit.py` for the live numbers; it is the authority and this
-section is its output at `7b293af4`. **The backlog is 1,359 files — 54% of all
+section is its output at `b7f04b91`. **The backlog is 1,359 files — 54% of all
 mangled-symbol files — not the 1,044 that a file-extension count suggests.**
 
 The extension is not the test. A migration means *the compiler mangles the name for you*;
@@ -107,7 +107,7 @@ Tree-wide: **2,664** files define a struct or class body locally (1,446 of them 
 a later header fix silently misses it, and two files can disagree about the same class
 forever. This is the
 same disease as the declaration debt in `notes/declaration-centralization.md` (**43,931**
-`extern` lines across **8,950** files at `7b293af4`, 27% mutually inconsistent,
+`extern` lines across **8,950** files at `b7f04b91`, 27% mutually inconsistent,
 `ModelAnim::SetAnim` under 123 spellings) wearing a different coat. The runbook quotes
 43,922/8,948 for those first two; the tree has since drifted by 9 lines and 2 files, so
 re-measure rather than cite — that paragraph has been wrong once before and says so.
@@ -431,7 +431,7 @@ python tools/langmode_audit.py --check langmode-baseline.json    # the CI ratche
 ```
 
 The declaration debt is the runbook's own pair, **43,931 lines across 8,950 files** at
-`7b293af4` (the runbook still says 43,922/8,948; re-measure rather than cite):
+`b7f04b91` (the runbook still says 43,922/8,948; re-measure rather than cite):
 
 ```sh
 git grep -h -cE "^\s*extern " -- 'src/*' | awk '{s+=$1} END{print s}'

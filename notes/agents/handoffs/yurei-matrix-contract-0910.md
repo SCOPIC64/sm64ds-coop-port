@@ -16,7 +16,7 @@ detects that output aliases its second input, computes into a temporary, then
 copies back. This fixes a false source contract; it does not claim that the
 previous ROM-exact call corrupted data.
 
-Against input/main `e85cec84a6b331d5fac3382c681f060a79cfa1bb`, fresh
+Against input/main `91f9992a35d7ef630438372dd544118c2a81f92b`, fresh
 mwccarm `2004/b56` builds produce identical complete objects. All 23 licensed
 functions (4,280 bytes) are VERIFIED with zero blind words or byte differences;
 all 156 text references resolve to their configured modules. The actual shared

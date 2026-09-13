@@ -25,7 +25,7 @@
  * the destructor leaves the class eight bytes short.
  *
  * (InitResources still does not reproduce -- a size disagreement, not a
- * compile error. That predates this header: it fails identically on 1b45f57b,
+ * compile error. That predates this header: it fails identically on ff7872bf,
  * where the class was still flat. Its body carries laundering hacks and a
  * volatile read and wants its own matching session. Every other function of
  * this class reproduces.)

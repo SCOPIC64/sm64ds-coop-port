@@ -293,7 +293,7 @@ class PrNumberTests(unittest.TestCase):
     def test_what_counts_as_a_pr_number(self):
         for spec in ("2001", "#2001", " 2001 "):
             self.assertTrue(P.is_pr_number(spec), spec)
-        for spec in ("origin/main", "487ba140e", "HEAD", "v1.2", "20a1"):
+        for spec in ("origin/main", "88e8f8fd5", "HEAD", "v1.2", "20a1"):
             self.assertFalse(P.is_pr_number(spec), spec)
 
 

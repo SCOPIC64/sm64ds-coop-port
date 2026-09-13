@@ -5,8 +5,8 @@ The 241 headers in include/ that carry
 
     /* AUTO-GENERATED from matched-function evidence by tools/gen_header.py */
 
-were added wholesale by 5ddf7d2d (PR #866), which added zero tools/ files -- the
-generator ran outside the repo and was never committed.  The tree at 5ddf7d2d~1
+were added wholesale by be9d58ed (PR #866), which added zero tools/ files -- the
+generator ran outside the repo and was never committed.  The tree at be9d58ed~1
 therefore still holds that generator's own *input*: source files that spell member
 accesses as raw offsets, before migration replaced them with named members.
 
@@ -42,7 +42,7 @@ import re
 import subprocess
 import sys
 
-DEFAULT_COMMITISH = "5ddf7d2d~1"
+DEFAULT_COMMITISH = "be9d58ed~1"
 DEFAULT_OUT = os.path.join("build", "evidence_history.json")
 BANNER = "AUTO-GENERATED from matched-function evidence"
 PROVENANCE_CAP = 5
@@ -797,9 +797,9 @@ def rename_map(repo, commit):
     """Class renames applied to include/<Class>.h between `commit` and HEAD.
 
     Attribution here is by filename, and some classes were misnamed at the commit
-    this pass reads.  Every `_ZN8MugenBgm*` file at 5ddf7d2d~1 is today's
-    CutsceneObject (b220cf0b, "move CUTSCENE_OBJECT's files off the MugenBgm
-    names"), and `_ZN19AmbientSoundEffects*` is today's MugenBgm (3c56d5c5).
+    this pass reads.  Every `_ZN8MugenBgm*` file at be9d58ed~1 is today's
+    CutsceneObject (67019e3f, "move CUTSCENE_OBJECT's files off the MugenBgm
+    names"), and `_ZN19AmbientSoundEffects*` is today's MugenBgm (fb600fd4).
     Without replaying those, this pass files one class's fields under another
     class's name -- silently, and in a form Pass 2 would then reconcile against the
     wrong base.  Renames are replayed oldest-first because they chain.
@@ -1333,7 +1333,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--repo", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     ap.add_argument("--commit", default=DEFAULT_COMMITISH,
-                    help="commit-ish holding the pre-migration tree (default 5ddf7d2d~1)")
+                    help="commit-ish holding the pre-migration tree (default be9d58ed~1)")
     ap.add_argument("--out", default=None, help="output JSON (default build/evidence_history.json)")
     ap.add_argument("--report", action="store_true", help="print the recall report")
     ap.add_argument("--class", dest="klass", default=None,

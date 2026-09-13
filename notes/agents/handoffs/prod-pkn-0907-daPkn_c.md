@@ -15,12 +15,12 @@ This document describes this commit. The queue records its immutable output SHA.
 - Source branch and previous accepted input SHA: `cpp/daPkn_c-tu`; no previous
   producer commit — this branch starts from main.
 - Original source base SHA and installed workflow/tool SHA: base
-  `4caf9765c9b57e96b29485d1ec4170ebb0660b58` (`origin/main`, #2442). Workflow pin
-  `f327f7b6460e157153eb7fc0749dbbe60dd854f1`.
-  **The brief pinned base `26f54f8fc`. main moved three times during this task
+  `797f49dd669279d8a3d3e48b0e978ac2445171a2` (`origin/main`, #2442). Workflow pin
+  `d7e28406933497ff40150f9b912efe64666a00b2`.
+  **The brief pinned base `11ef9a7dd`. main moved three times during this task
   (#2439 stamp, #2437 daMip_c, #2442 daObjBk_Dossunbar_c); this branch was
   restacked onto the tip and every figure below is measured against
-  `4caf9765c`, with a rebuilt base control at that same SHA.**
+  `797f49dd6`, with a rebuilt base control at that same SHA.**
 - Separate evidence commits and required artifacts in this commit: three commits —
   the rename, the shadow TU, the promotion. No separate evidence commit.
 - Next action, responsible role and blockers: verifier, then integrator. No
@@ -142,14 +142,14 @@ This document describes this commit. The queue records its immutable output SHA.
 
 ## Proof
 
-Base control rebuilt at `4caf9765c` in a second wired worktree; head figures from
+Base control rebuilt at `797f49dd6` in a second wired worktree; head figures from
 this commit's tree. No cached report reused.
 
 - Full-ROM build: `python tools/rombuild.py -j16`, exit 0.
   - head: 106/106 modules exact, 100.000000% of compared bytes; source-built
     functions 11,192 reproducing / **0 mismatching**; intact-TU gates PASS
     (dsd modules PASS, zero new symbol errors, storage aliases exact).
-  - base control at `4caf9765c`: 106/106 exact, 100.000000%, 11,192 reproducing /
+  - base control at `797f49dd6`: 106/106 exact, 100.000000%, 11,192 reproducing /
     0 mismatching.
   - ROM sha256 `d1506e90efae5e2d2cf119926a4ac2a291bd5ca78349d09d5024e1a918c478e8`
     on BOTH sides — byte-identical.
@@ -184,11 +184,11 @@ this commit's tree. No cached report reused.
   mangled references, every reference resolves. `check_header_offsets` passes
   through `premerge_check`. `eligible.py` 11,195 / 11,273.
 - Port/path/reference and other applicable static gates, all exit 0:
-  - `validate_merge --base 4caf9765c --head HEAD` with both ROM reports: byte-verified
+  - `validate_merge --base 797f49dd6 --head HEAD` with both ROM reports: byte-verified
     functions +0, code bytes +0, contributor credit 0/0/0, module fidelity 106/106.
     Warning: 24 address ranges left the byte-verified set while enrolled totals held
     steady — that is the fold, one range per absorbed member, and nothing else.
-  - `premerge_check --base 4caf9765c HEAD`: 8/8 gates pass on base and on the merge
+  - `premerge_check --base 797f49dd6 HEAD`: 8/8 gates pass on base and on the merge
     tree; **nothing goes green → red**. source-coverage info: entries 9011 → 8988
     (−23), consolidation, bytes flat.
   - `check_rename_ledger`: 2,014 mangled/vtable rows all agree with symbols.txt.
@@ -206,7 +206,7 @@ this commit's tree. No cached report reused.
     baseline 2701, current 2704.
   - `layout_check` clean; `port_refcheck` 423 references, 0 stale;
     `cpp_tu_compat --require-ready` all READY.
-  - `queue_audit --check`: **FAIL, and a base control at `4caf9765c` fails
+  - `queue_audit --check`: **FAIL, and a base control at `797f49dd6` fails
     identically** — 4 `already_promoted`, 3 `compiler-only`, 4 `shard_count`,
     4 `total_lines`, 1 `unmatched`, the same counts on both sides. Pre-existing on
     main, belonging to other PRs. This branch's own row was updated by renaming it

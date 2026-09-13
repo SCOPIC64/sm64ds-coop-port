@@ -8,7 +8,7 @@
  * 0x02010144 (different, real override).
  *
  * include/dActor_c.h's own slot 22 supplies the signature -- still `int`,
- * unlike slots 21/24/27 (see a64045669).
+ * unlike slots 21/24/27 (see 36bc6d1df).
  *
  * The pre-migration recovery read `other`'s actorID (dActor_c +0xc) through
  * a shadow struct and dispatched through a bare virtual-call shape (`Base::M`

@@ -281,8 +281,8 @@
   "base_revision": {
     "branch": "cpp/daObjBk_Dossunbar_c-tu",
     "worktree": "C:/tmp/sm64ds-movingbar-scout",
-    "base": "2ab05bae3",
-    "verified": "Verified AFTER the work, per roles/scout.md: `git fetch origin` then HEAD == origin/main == 2ab05bae3 and `git log --oneline HEAD..origin/main` is empty. Every tree-derived claim in this file (the 25 delink entries, the shard filenames, the symbols.txt rows, the actor_renames.tsv row numbers, the tu_map segmentation, the oracle manifest) was read at this revision. Every ROM-derived claim was cut from extracted/ and cannot rot.",
+    "base": "a81adfa37",
+    "verified": "Verified AFTER the work, per roles/scout.md: `git fetch origin` then HEAD == origin/main == a81adfa37 and `git log --oneline HEAD..origin/main` is empty. Every tree-derived claim in this file (the 25 delink entries, the shard filenames, the symbols.txt rows, the actor_renames.tsv row numbers, the tu_map segmentation, the oracle manifest) was read at this revision. Every ROM-derived claim was cut from extracted/ and cannot rot.",
     "tools_regenerated_here": "build/rtti.json (tools/rtti_extract.py, 429 records / 413 edges / 0 unresolved) and build/tu_map.json (tools/tu_map.py, 691 TUs / 333 with a class -- the correct non-degraded figure, since build/rtti_vtables.json was present)."
   }
 }

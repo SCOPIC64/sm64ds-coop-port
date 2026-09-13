@@ -70,10 +70,10 @@ struct daObjKm1_Kurumajiku_c : daObjKurumajiku_c {
        rather than a hand-rolled operator-new call and a pair of raw vptr
        stores. include/daObjKm1_Kuruma_c.h carries the same pairing for the
        cart this axle drives. */
-    static void *operator new(unsigned long size);
+    static void *operator new(size_t size);
 };
 
-inline void *daObjKm1_Kurumajiku_c::operator new(unsigned long size)
+inline void *daObjKm1_Kurumajiku_c::operator new(size_t size)
 {
     return _ZN7fBase_cnwEj((unsigned)size);
 }

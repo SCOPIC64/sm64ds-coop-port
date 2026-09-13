@@ -47,14 +47,14 @@ struct daObjFl_Gura_c : daObjGuragura_c {
     int CleanupResources();            /* slot  3 */
     int InitResources();               /* slot  0 */
 
-    static void *operator new(unsigned long size);
+    static void *operator new(size_t size);
 
     /* Declared last and inline so class instantiation emits the retail D1/D0
        pair in cartridge order without a separate leaf D2 body. */
     virtual ~daObjFl_Gura_c() {}
 };
 
-inline void *daObjFl_Gura_c::operator new(unsigned long size)
+inline void *daObjFl_Gura_c::operator new(size_t size)
 {
     return _ZN7fBase_cnwEj((unsigned)size);
 }

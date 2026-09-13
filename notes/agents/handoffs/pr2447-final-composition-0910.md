@@ -1,7 +1,7 @@
 # Sanbo integration, 2026-09-10
 
-This composition preserves source acceptance `48e588d0f54bd7402b03163c36e6693b8e4cfd33`
-and incorporates main `f62f261f525396e94efe600fc97ced0849eb7154` after BombKing landed
+This composition preserves source acceptance `c37a24cbd64baf8a91aa27d4f697312eb605484f`
+and incorporates main `ffe4a122af239a775463928acb0f88b156b55a1a` after BombKing landed
 and its three-file progress refresh.
 The class header and both ov096 enrollment files are unchanged from that
 accepted source. Integration review corrects the TU comment, manifest census

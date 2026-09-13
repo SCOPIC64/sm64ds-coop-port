@@ -44,6 +44,14 @@ extern "C" unsigned char data_0209d454;
 
 /* The parameter is spelled void* to agree with decl_common.h, which the two
    overrides reach this symbol through; `this` is recovered on the first line. */
+/* THE EARLY EXITS ARE SPELT AS NESTED IFS, NOT `return;`. mwccarm accepts a
+   valueless `return` in a non-void function; C++ does not, and no host option
+   reaches it (MSVC C2561). The ROM sets no return value on these paths -- it
+   leaves r0 holding whatever the last call left there and branches straight to
+   the epilogue -- so the faithful shape is a body that reaches its closing
+   brace with nothing to return, which is what the host already accepts for the
+   rest of this family. Byte-identical under 2004/b56: the compiled object is
+   unchanged. */
 int dScMgBase_c::OnAimedAtWithEgg()
 {
     void *cv = (void *)this;
@@ -92,13 +100,12 @@ int dScMgBase_c::OnAimedAtWithEgg()
     data_0209d45c = 0x12;
     data_0209d454 = 0x10;
 
-    if (self->OnHitByCannonBlastedChar() == 2)
-        return;
-
-    int *vbase = (int *)0x6600000;
-    int *vram = vbase + 0x1800;
-    MultiCopy_Int(vram, (int *)(c + 0x2228), 0x2000);
-    int idx = GetGameLanguage();
-    DecompressLZ16(data_ov004_020bbf94[idx], vram);
-    _ZN4CP1527FlushAndInvalidateDataCacheEjj((void *)(c + 0x2228), 0x2000);
+    if (self->OnHitByCannonBlastedChar() != 2) {
+        int *vbase = (int *)0x6600000;
+        int *vram = vbase + 0x1800;
+        MultiCopy_Int(vram, (int *)(c + 0x2228), 0x2000);
+        int idx = GetGameLanguage();
+        DecompressLZ16(data_ov004_020bbf94[idx], vram);
+        _ZN4CP1527FlushAndInvalidateDataCacheEjj((void *)(c + 0x2228), 0x2000);
+    }
 }

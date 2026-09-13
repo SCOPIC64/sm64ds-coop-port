@@ -1,14 +1,14 @@
 # Yurei current-main composition review, 2026-09-10
 
-This review continues accepted source `35188d5d3760316b5f9f0a19575dc63badeafcb5`
-from base `a0cc78fbd18f166ba67fca7c38b63bca348c8edd`, preserving all eight YUR
+This review continues accepted source `62f1b517ad7cbd26ab05329d01a7605f2143bbb8`
+from base `f4b2ce22a3021857de2bdb51f350db8f8017a17b`, preserving all eight YUR
 findings and the partial reconstruction owned in #2478. The staging base is the
-independently accepted Pkn head `180b064aaa8bafaac570224a58206d922d42212c`.
+independently accepted Pkn head `05231fa9f21460c5c4a803031eb04118825fc32b`.
 The final composition includes actual main
-`a1c21c0b5e8ae237f706d5c31a2de44698568c8a`. Pkn squash
-`d9df353f996875d26c8f00c17eeb07d2fcc632b9` has the exact accepted Pkn tree;
+`02abcd39647f5df58169bea137f2d3c048848a52`. Pkn squash
+`c2e898f42e91f2e911b637f5c44c72ad3f09512d` has the exact accepted Pkn tree;
 the subsequent main commit changes only three progress files. The whole composed
-index was checked against reviewed Yurei staging `69a0bbaa9baa6f815cef8ff6b9af89c3a92b3c8e`
+index was checked against reviewed Yurei staging `80c30debc6233a44f6e2a21de7abc2c32ccb36a6`
 plus those three main blobs before this handoff update. Final independent review
 and terminal private validation remain required.
 

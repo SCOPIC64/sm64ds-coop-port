@@ -25,7 +25,7 @@
     ".ctor": "0x0213356c..0x021335e8",
     ".data": "0x02133600..0x021402e0",
     ".bss": "0x021402e0..0x021430a0",
-    "source": "config/arm9/overlays/ov006/delinks.txt (tree-derived, base 8f3d1eb1a)",
+    "source": "config/arm9/overlays/ov006/delinks.txt (tree-derived, base 773526f43)",
     "image_extent": "extracted/overlays/overlay_0006.bin is 0x80420 bytes, so 0x020bfec0..0x021402e0 - the image stops exactly at .bss, as expected."
   },
 
@@ -335,7 +335,7 @@
     "live": "src/actors/<Class>.cpp",
     "evidence": "The two freshest ov006 promotions, dScMgTeresa_c and dScMgBomroom_c, both have source == promoted_source == src/actors/<Class>.cpp. Twelve older ov006 promotions use src/minigames/d_s_mg_*.cpp.",
     "instruction": "The writer should target src/actors/dScMgCup_c.cpp and update BOTH `source` and `promoted_source` in the manifest. The current manifest's `promoted_source: src/minigames/d_s_mg_cup.cpp` is the stale convention.",
-    "derived_on": "8f3d1eb1a"
+    "derived_on": "773526f43"
   },
 
   "what_the_writer_should_do": [
@@ -376,7 +376,7 @@
       "the src_tu reconstruction and its line numbers",
       "the two trampoline .data claims"
     ],
-    "tree_base_commit": "8f3d1eb1a",
+    "tree_base_commit": "773526f43",
     "tree_base_description": "notes: fold the dScMgPanel_c and dScMgCoin_c runs' findings into the role files (#2342)",
     "worktree": "C:/tmp/sm64ds-cupscout",
     "ref": "cpp/dScMgCup_c-tu",

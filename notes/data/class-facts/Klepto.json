@@ -7,11 +7,11 @@
   "module_base": "0x02115ee0",
 
   "scouted_at_base": {
-    "commit": "2ab05bae3",
+    "commit": "a81adfa37",
     "ref": "origin/main",
     "branch": "cpp/Klepto-tu",
     "worktree": "C:/tmp/sm64ds-klepto-scout",
-    "verified_after": "git rev-parse HEAD == origin/main == 2ab05bae3; `git log --oneline HEAD..origin/main` empty. Checked AFTER the derivations below, per roles/scout.md.",
+    "verified_after": "git rev-parse HEAD == origin/main == a81adfa37; `git log --oneline HEAD..origin/main` empty. Checked AFTER the derivations below, per roles/scout.md.",
     "note": "Every ROM-derived field below is cut from extracted/ and cannot rot. Every field marked tree_derived was re-derived at this commit and WILL rot on the next promotion into ov062."
   },
 
@@ -65,7 +65,7 @@
     "end": "0x0211ced8",
     "size": "0x1c90",
     "shard_count": 24,
-    "evidence": "config/arm9/overlays/ov062/delinks.txt at 2ab05bae3 lists 24 consecutive .text delink entries from src/_ZN6KleptoD1Ev.cpp (0x0211b248) through src/d_a_jango.c (ending 0x0211ced8). The run ends exactly at the end of ov062's .text section, so Klepto is the LAST translation unit in this overlay's .text.",
+    "evidence": "config/arm9/overlays/ov062/delinks.txt at a81adfa37 lists 24 consecutive .text delink entries from src/_ZN6KleptoD1Ev.cpp (0x0211b248) through src/d_a_jango.c (ending 0x0211ced8). The run ends exactly at the end of ov062's .text section, so Klepto is the LAST translation unit in this overlay's .text.",
     "queue_row_says_23": "The queue's shard_count of 23 UNDERCOUNTS BY ONE, and the reason is systematic rather than a typo. Regenerated at this commit in the correct generator order (rtti_extract.py -> rtti_vtables.py -> tu_map.py; 691 TUs / 333 with a class, the non-degraded figure), build/tu_map.json segments ov062 into 10 units and splits EVERY class's *_classInit factory into its own trailing unit carrying no class label: Chuckya 0x2115ee0..0x2117478 (35) + 0x2117478..0x21174cc (1, no class); Koopa 37 + 2; KoopaTheQuick 17 + 1; KoopaFlag 7 + 1; Klepto 0x211b248..0x211ce80 (23) + 0x211ce80..0x211ced8 (1, no class). The queue takes only the class-labelled unit -- tools/queue_audit.py's own measure() for Klepto returns src_files=23, total_lines=1203, run 0x211b248..0x211ce80, i.e. exactly the queue row. But every sibling manifest already in the tree folds the factory unit back in: the manifest function count equals the FULL delink-entry count of the combined run for all four (Chuckya 36/36, Koopa+KoopaSmall 39/39, KoopaTheQuick 18/18, KoopaFlag 8/8). The underlying cause is that daJango_c_classInit / daHolhei_c_classInit are the `_classInit` factory spelling tu_map does not attribute to a class, which is also why notes/data/c-cpp-classification.tsv row 216 gives src/d_a_jango.c an EMPTY rtti_class (row 69 does the same for src/d_a_holhei.c). Klepto's TU is 24."
   },
 
@@ -233,7 +233,7 @@
   "sibling_oracle": {
     "name": "Chuckya",
     "same_overlay": true,
-    "IS_NOT_PROMOTED": "The task brief called Chuckya 'a promoted class'. At 2ab05bae3 it is NOT. config/tu_manifest.d/ov062/Chuckya.json has status 'text-verified', its promoted_source field names src/actors/Chuckya.cpp and THAT FILE DOES NOT EXIST. The merged TU lives at src_tu/actors/Chuckya.cpp only.",
+    "IS_NOT_PROMOTED": "The task brief called Chuckya 'a promoted class'. At a81adfa37 it is NOT. config/tu_manifest.d/ov062/Chuckya.json has status 'text-verified', its promoted_source field names src/actors/Chuckya.cpp and THAT FILE DOES NOT EXIST. The merged TU lives at src_tu/actors/Chuckya.cpp only.",
     "no_class_in_ov062_is_promoted": "All four ov062 manifests -- Chuckya, Koopa+KoopaSmall, KoopaTheQuick, KoopaFlag -- are status 'text-verified' with a non-existent promoted_source. There is no Klepto manifest at all. Klepto will be the FIRST promotion in this overlay, so there is no in-overlay example of the finished shape to copy; Chuckya supplies the shadow-TU shape and the codegen conventions only.",
     "conventions_worth_copying_from_src_tu/actors/Chuckya.cpp": [
       "`//cpp` as the first bytes of the file.",

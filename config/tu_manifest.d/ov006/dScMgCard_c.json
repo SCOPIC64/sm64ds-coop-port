@@ -415,7 +415,7 @@
       "relocation_destinations_verified": "PASS"
     },
     "postPromotion": {
-      "round": "tools/rombuild.py -j 16 after the merged 37-function enrollment, typed shared-state reconstruction, and measured ABI-wall consolidation, on origin/main 62e6e2ae7 plus PR #2122 commit 07f0d6b04",
+      "round": "tools/rombuild.py -j 16 after the merged 37-function enrollment, typed shared-state reconstruction, and measured ABI-wall consolidation, on origin/main af0b7d09a plus PR #2122 commit 7db89b009",
       "moduleFidelity": "106/106 exact, 100.000000% of compared bytes",
       "sourceBuiltFunctions": {
         "total": 11088,

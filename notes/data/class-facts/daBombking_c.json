@@ -56,7 +56,7 @@
   ],
   "provenance": {
     "worktree": "C:/tmp/sm64ds-kingbobomb",
-    "ref": "cpp/KingBobOmb-tu (from agents/class-pipeline 8a8003d77)",
+    "ref": "cpp/KingBobOmb-tu (from agents/class-pipeline 8196cfa5d)",
     "verification": "52/52 MATCH, objisolate clean, emission order ROM-ascending -> TEXT-VERIFIED; then SCRATCH-LINK-VERIFIED with the built ROM sha256 byte-identical to the stock control (d1506e90efae5e2d2cf119926a4ac2a291bd5ca78349d09d5024e1a918c478e8)",
     "tools": [
       "tools/tubuild.py inspect/create/compile/verify/linkcheck ov078/daBombking_c",

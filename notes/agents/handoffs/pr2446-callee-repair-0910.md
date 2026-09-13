@@ -1,11 +1,11 @@
 # PR #2446 callee identity repair
 
 Task `pr2446-callee-repair-0910` continues `pr-2446-source-review-fixes`
-from PR head `d979cf2f9ad042d536ee8de1d7ee4691df01e6c3`. The preserved source
-base is `71f7adf39168b5a4a296203012cbb21d948bd122`. Producer session
+from PR head `da838a82a18c1c46b4f46868d2f2f44215977498`. The preserved source
+base is `289ef4dd55e6690f0925e7c4236c07957ecefd26`. Producer session
 `review-2446-0910-bkg07` owns this repair; a different session must independently
 review and verify this commit. Queue operations used the current coordinator
-checkout, observed at `d00b5e8497a9224b597ee59b12fa9c0c4759b6d8`.
+checkout, observed at `0b99f3a97fc3714b9a1f413267d5bd50fefa5cfb`.
 
 ## Correction
 

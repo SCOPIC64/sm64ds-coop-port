@@ -62,12 +62,14 @@ struct ShadowModel : ModelBase {
     ShadowModel();
 
     /* --- vtable, in ROM order. Do not reorder. --- */
-    /* The destructor pair spelled as two plain virtuals on the host; the whole
+    /* The destructor pair spelled as two plain virtuals on the host, plus the
+       non-virtual destructor declaration the src/ definition needs; the whole
        ruling is in include/ModelBase.h. Overrides take their base's slots, so
        these carry the SAME TWO NAMES ModelBase declares. */
 #ifdef _MSC_VER
     virtual void Destructor1();                       /* slot 0 (D1) */
     virtual void Destructor0();                       /* slot 1 (D0) */
+    ~ShadowModel();                                   /* no slot */
 #else
     virtual ~ShadowModel();                           /* slots 0 (D1), 1 (D0) */
 #endif

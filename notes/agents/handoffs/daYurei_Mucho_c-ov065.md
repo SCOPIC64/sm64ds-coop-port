@@ -10,13 +10,13 @@ revisions. Current corrections and proof identities follow in the dated
   C++ translation unit under the cartridge's own RTTI name, `daYurei_Mucho_c`.
   Stage `reconstruct`, role producer, session `prod-yurei-0907`, harness Claude
   Code.
-- Branch `cpp/daYurei_Mucho_c-tu`, based on `26f54f8fc`. Workflow/tool pin
-  `f327f7b6460e157153eb7fc0749dbbe60dd854f1`.
+- Branch `cpp/daYurei_Mucho_c-tu`, based on `11ef9a7dd`. Workflow/tool pin
+  `d7e28406933497ff40150f9b912efe64666a00b2`.
 - Worktree `C:/tmp/sm64ds-sm64ds-yurei`. A second wired worktree,
-  `C:/tmp/sm64ds-yurei-base` on `base/yurei-26f54f8fc`, holds the base ROM build.
+  `C:/tmp/sm64ds-yurei-base` on `base/yurei-11ef9a7dd`, holds the base ROM build.
   Neither was created or removed with `git worktree remove`.
-- `origin/main` MOVED during this session: it was `26f54f8fc` when the task was
-  written and is `c27d8ea38` now. This branch still descends from `26f54f8fc`,
+- `origin/main` MOVED during this session: it was `11ef9a7dd` when the task was
+  written and is `3fd5f34ed` now. This branch still descends from `11ef9a7dd`,
   and the base ROM build was taken there. Gate results below say which base each
   used.
 - Three commits: the rename, the promotion, and the queue/worklist re-derivation.
@@ -201,7 +201,7 @@ All commands run in `C:/tmp/sm64ds-sm64ds-yurei` at this tree, on the pinned
   bytes, 95.65%); module fidelity **106/106 exact, 100.000000%** of compared bytes;
   intact TU gates "dsd modules PASS, zero new symbol errors, storage aliases exact";
   ROM data from source 696 verified / 220 partial / 4 differ / 397 unnamed.
-- **Full ROM build, base** at `26f54f8fc` in the second worktree, regenerated, not
+- **Full ROM build, base** at `11ef9a7dd` in the second worktree, regenerated, not
   reused: 11,192 reproducing, 0 mismatching, 106/106 exact, 100.000000%; ROM data
   695 / 219 / 4 / 399. The +1 verified and -2 unnamed come from the rename
   collapsing the duplicate vtable alias, and `compiler-emitted data bytes verified`
@@ -219,7 +219,7 @@ All commands run in `C:/tmp/sm64ds-sm64ds-yurei` at this tree, on the pinned
   `--module ov065 --c src/actors/daYurei_Mucho_c.cpp --name <symbol> --addr <addr>
   --size <size>`. This is the gate that proves the corrected callee and the
   address-point bias link to the cartridge's exact bytes.
-  Coverage limit stated plainly: `prepush_linkcheck.py --range 26f54f8fc..HEAD`
+  Coverage limit stated plainly: `prepush_linkcheck.py --range 11ef9a7dd..HEAD`
   exits 0 (912 checked, 618 verified, 294 warnings, **0 blocking**) but reports
   this TU itself as `[WARN] daYurei_Mucho_c NO-SYM`, because it resolves by file
   stem and a promoted TU defines many symbols. That gate proves nothing about this
@@ -240,9 +240,9 @@ All commands run in `C:/tmp/sm64ds-sm64ds-yurei` at this tree, on the pinned
   "23 address range(s) left the byte-verified set while enrolled totals held
   steady", naming the 23 folded ranges.
   CONTROL: the same tool over the landed, merged `daBmb_c` promotion
-  (`e4fb1300e^..e4fb1300e`) emits the identical warning for its 35 ranges. It is
+  (`0033367fb^..0033367fb`) emits the identical warning for its 35 ranges. It is
   the signature of a consolidation, not a regression. Re-running with
-  `--base 26f54f8fc` gives the same credit line.
+  `--base 11ef9a7dd` gives the same credit line.
 - **`tools/premerge_check.py <head>`** -- all eight static gates pass on both base
   and merge tree: converted-ratchet, dead-references, duplicate-sources,
   header-offsets, langmode-ratchet, layout-check, src-tu-refs, source-coverage.
@@ -279,7 +279,7 @@ All commands run in `C:/tmp/sm64ds-sm64ds-yurei` at this tree, on the pinned
    link gate that does apply is the one inside `rombuild.py` step 4/6, which
    passed with "zero new symbol errors, storage aliases exact".
 
-2. **`tools/prepush_attribution.py --base 26f54f8fc` reports 2 CREDIT LOST** --
+2. **`tools/prepush_attribution.py --base 11ef9a7dd` reports 2 CREDIT LOST** --
    `d_a_yurei_mucho` [tangosdev] and `_ZN6Snufit13OnYoshiTryEatEv` [andrewboudreau]
    -- alongside 17 consolidated-with-credit-intact and 1 renamed-with-credit-intact.
    CONTROL: the same tool over the landed, merged `daBmb_c` promotion reports
@@ -291,7 +291,7 @@ All commands run in `C:/tmp/sm64ds-sm64ds-yurei` at this tree, on the pinned
    override row was invented to silence the stem-keyed report; the landed precedent
    does not carry one either.
    Independently checked: the owner banked for every one of the 23 symbols equals
-   that symbol's owner at `26f54f8fc`, computed through
+   that symbol's owner at `11ef9a7dd`, computed through
    `prepush_attribution.lineage` on both revisions. The gate passed and no
    contributor's totals moved.
 
@@ -348,7 +348,7 @@ branch is `cpp/daYurei_Mucho_c-tu`; its head SHA is recorded by the queue.
 ## Source review corrections, 2026-09-10
 
 The earlier proof is historical. This review continues PR #2456 at input
-`a6ed71f26e750fadb84aeb4c55a8844d994fc502` under
+`4b189383f9dccd0457e1224f06679e3042514ad1` under
 `pr2456-source-repair-0910`; final acceptance also requires current-main
 composition and independent review. The class remains a partial reconstruction
 owned by the humanizer/integrator support session through @andrewboudreau in
@@ -416,7 +416,7 @@ daBasabasa_c; its previously accepted provenance-only correction is preserved.
 ### Current-main composition
 
 The repaired class now includes approved main
-`a0cc78fbd18f166ba67fca7c38b63bca348c8edd`. YUR-01 carries main's
+`f4b2ce22a3021857de2bdb51f350db8f8017a17b`. YUR-01 carries main's
 `void OnTurnIntoEgg` contract into both the class declaration and definition.
 The former Snufit header and egg-method shard remain deleted; main's contract
 correction is preserved in `include/daYurei_Mucho_c.h` and the promoted TU. The

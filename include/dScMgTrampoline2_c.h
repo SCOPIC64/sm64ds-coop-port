@@ -38,7 +38,7 @@
 #include "dScMgD3DBase_c.h"
 
 extern "C" void __cxa_vec_cleanup(void *base, int count, int stride, void *dtor);
-extern "C" void func_ov006_020ca604(void);
+extern "C" void *func_ov006_020ca604(void);
 extern "C" void func_ov006_020d1008(void);
 extern "C" void func_ov006_020eed64(void);
 struct Model;

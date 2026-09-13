@@ -6,7 +6,7 @@
 # the ROM; refreshed locally).
 #
 # The push to main was rejected between 2026-08-06 and 2026-08-07 and recovered on
-# 2026-08-08 (c23948eef); see the ssh-key comment below. Both halves land normally now.
+# 2026-08-08 (5f5330140); see the ssh-key comment below. Both halves land normally now.
 # langmode-baseline.json stays banked on chaos-data anyway, for the merge-conflict
 # reason given at its own step, not because this push is broken.
 name: update-chaos-data
@@ -69,7 +69,7 @@ jobs:
           # provenance on main for two days. It went unnoticed because everything above
           # the "Push if changed" step kept working, so the viewer stayed current while
           # main did not. Fixed by adding a DeployKey bypass actor to that ruleset;
-          # refreshes have landed normally since 2026-08-08 (c23948eef).
+          # refreshes have landed normally since 2026-08-08 (5f5330140).
           #
           # What made it expensive rather than cosmetic: contributions.json pays the
           # DELTA between refreshes, so every match that landed during the outage was

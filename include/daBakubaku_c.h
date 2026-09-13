@@ -77,7 +77,7 @@ struct daBakubaku_c : dEnemyBase_c {
     virtual void OnPendingDestroy();    /* slot 12 */
     virtual int  OnAimedAtWithEgg();    /* slot 29 */
 
-    static void *operator new(unsigned long size) {
+    static void *operator new(size_t size) {
         return _ZN7fBase_cnwEj((unsigned)size);
     }
 

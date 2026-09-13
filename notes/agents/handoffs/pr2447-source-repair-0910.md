@@ -2,12 +2,12 @@
 
 Producer session: `codex-r2445-0910`. This candidate continues the existing
 `sanbo-ov096-0908-fakeiface` task and its offered checkpoint
-`35a96691978f0251ca41fc0af87737e74a687cbf`. The companion reservation
+`86b06288df0f791e93b754f6a8553aae578f11f3`. The companion reservation
 `pr2447-provenance-composition-0910` owns the additional documentation and shared
 composition files. The queue records the final immutable candidate and evidence
-for both tasks. Active review policy: `18af52b49b9fb5663d417bdfa86109b7b157aaa3`.
+for both tasks. Active review policy: `262fe4e44cc1e658b1a37e4b64e32270c750e32c`.
 
-The composition includes main `cb5752cdf6b5d58f2b1f8a94bcbab2ed63749ac2`.
+The composition includes main `ddeb8f88788703eb16b1e8227777ec43c31e80b3`.
 The renamed class header inherits main's corrected `void OnTurnIntoEgg` contract;
 the TU definition now agrees. The old Pokey shard was modified on main after
 this promotion deleted it. It remains retired, with its contract correction

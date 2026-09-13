@@ -104,29 +104,31 @@ struct ModelBase {
        hierarchy: ModelBase -> Model -> ModelAnim -> {ModelAnim2,
        BlendModelAnim}, plus the CommonModel and ShadowModel siblings.
 
-       That skew is what put ModelAnim::Render's ROM slot 5 on the host's
-       Virtual18, the collision port/unmatched/ModelAnim_Renders.cpp,
-       BobEnemy_Renders.cpp and W19_Slot5_Renders.cpp were written around --
-       ROM-faithful Render bodies kept out of the link and hand-transcribed
-       instead. MEASURED, not reasoned: the ROM's _ZTV9ModelAnim at 0x0208e980
-       reads [0] D1, [1] D0, [2] Model::DoSetFile, [3] UpdateVerts,
-       [4] Virtual10, [5] Render, [6] Virtual18, while MSVC's own
+       MEASURED, not reasoned: the ROM's _ZTV9ModelAnim at 0x0208e980 reads
+       [0] D1, [1] D0, [2] Model::DoSetFile, [3] UpdateVerts, [4] Virtual10,
+       [5] Render, [6] Virtual18, while MSVC's own
        /d1reportSingleClassLayoutModelAnim dropped D0 and read [1] DoSetFile
        ... [4] Render, [5] Virtual18 -- one slot early from index 1 on, and the
        missing word is exactly D0.
 
        Two ordinary virtuals occupy the same two entries under MSVC that the
        destructor pair occupies under mwccarm, so spelling them out on the host
-       makes MSVC's numbering the ROM's numbering, and the port's tables are
-       filled in ROM order throughout. The guard keeps the ARM side untouched:
-       nothing in this tree defines _MSC_VER, so mwccarm still sees the
-       destructor and no ROM byte moves. Neither name is ever called; they hold
-       the two slots the ROM's table holds. Same shape as the CylinderClsn fix
-       in include/CylinderClsn.h and the FaderBrightness fix in
-       src/ProcessKuppaScript.cpp. */
+       makes MSVC's numbering the ROM's numbering. The guard keeps the ARM side
+       untouched: nothing in this tree defines _MSC_VER, so mwccarm still sees
+       the destructor and no ROM byte moves. Neither name is ever called; they
+       hold the two slots the ROM's table holds.
+
+       The NON-VIRTUAL `~ModelBase()` beside them is what lets the thirteen
+       destructor translation units in src/ keep defining `X::~X()` out of
+       class: without a declaration MSVC refuses the definition outright
+       (C2600) and no host option reaches it. Being non-virtual it takes no
+       slot and moves no field -- /d1reportSingleClassLayoutModelBase with it
+       present still reads size(8) and [0] Destructor1, [1] Destructor0,
+       [2] DoSetFile. */
 #ifdef _MSC_VER
     virtual void Destructor1();                      /* slot 0 (D1) */
     virtual void Destructor0();                      /* slot 1 (D0) */
+    ~ModelBase();                                    /* no slot: see above */
 #else
     virtual ~ModelBase();                            /* slots 0 (D1), 1 (D0) */
 #endif

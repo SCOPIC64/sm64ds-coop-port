@@ -509,7 +509,11 @@ void func_ov002_020af4ec(void* self)
    original return type recovered from an unused register. */
 extern "C" {
 void func_ov002_020af684(char* self, int target, char* player){
-    struct dActor_c;
+    /* dActor_c is the real class from the includes above. A block-scope
+       `struct dActor_c;` here would declare a LOCAL class instead, and C++
+       gives a local class no linkage, so the extern below would be
+       ill-formed (MSVC C2624). The declaration is dropped; the pointer
+       arithmetic under it is unchanged and so is the object. */
     extern dActor_c* _ZN8dActor_c15FindWithActorIDEjPS_(unsigned int actorID, dActor_c* prev);
     extern void GiveCoins(int idx, int amount);
     extern void _ZN6Player4HealEi(void* p, int amt);
@@ -992,8 +996,8 @@ void func_ov002_020aff10(char* c){
   extern void func_ov002_020af474(char* thiz);
   extern void func_ov002_020af3a8(char* thiz);
   extern void func_ov002_020aeee4(char* thiz);
-  extern void func_ov002_020af248(char* thiz, int n);
-  extern void func_ov002_020af218(char* thiz, int n);
+  extern int func_ov002_020af248(char* thiz, int n);
+  extern int func_ov002_020af218(char* thiz, int n);
 
   func_ov002_020aefb8(c);
   switch(*(int*)(c+0x388)){

@@ -1,9 +1,9 @@
 # Pkn integration, 2026-09-10
 
 This composition starts from accepted source
-`c7e6c4331bd20fecc2ada944a89dd48a331cbc85` and incorporates actual main
-`fab04cfe21472e2ecd0836d94af7efc00a57b60d` after Sanbo's merge and progress refresh.
-Sanbo's squash has the exact reviewed `ccac1f851` tree. The two apparent
+`b1c8e0611f53aaf1063752a849caf4cf1a7f7794` and incorporates actual main
+`e415731933773ff4110f2dd58d4118bce65e5796` after Sanbo's merge and progress refresh.
+Sanbo's squash has the exact reviewed `e1c837107` tree. The two apparent
 conflicts in the converted baseline and TU note preserve the staged Pkn values;
 the complete resulting tree is the reviewed Pkn staging tree plus main's
 4 progress files and this updated handoff.

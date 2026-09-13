@@ -78,7 +78,7 @@
     "span": "0x0211f000..0x02120668",
     "functions": 37,
     "contiguity": "37 consecutive delinks entries with zero gaps -- each entry's end is the next entry's start. The run starts at the first byte of ov071's .text and ends immediately before _ZN3MrID1Ev at 0x02120668.",
-    "source": "config/arm9/overlays/ov071/delinks.txt on base b4eee7425"
+    "source": "config/arm9/overlays/ov071/delinks.txt on base bc660e83e"
   },
 
   "shard_count_correction": {
@@ -204,7 +204,7 @@
     "verdict": "SIBLING. Not a base, not unrelated. Safe to copy from.",
     "relationship_evidence": "_ZTI8daEyBm_c sits at 0x02122db8 in ov071 and is a __si_class_type_info whose +8 word is 0x0208e390 = _ZTI8dActor_c -- the SAME direct base as this class. Neither class's typeinfo appears in the other's base chain, so they are peers under dActor_c. Bytes read from extracted/overlays/overlay_0071.bin at file offsets 0x3db8/0x3dc0; _ZTS8daEyBm_c is the length-prefixed string \"8daEyBm_c\\0\" at 0x02122dac (file offset 0x3dac), found exactly once in the whole ROM.",
     "structural_agreement": "_ZTV8daEyBm_c has its address point at 0x02122de8 and runs to 0x02122e64 = 0x7c = 31 slots, identical in length to this class's table and to _ZTV8dActor_c. Its overrides sit on slots 0, 3, 6, 9, 12, 16, 17, 18 -- a strict subset of this class's ten, which add slots 19 and 29. Same base, same table length, same override style, same overlay, and its .data band is laid out in the same order (records -> _ZTS -> _ZTI -> g_profile_* -> _ZTV).",
-    "promotion_state": "PROMOTED on origin/main b4eee7425. config/tu_manifest.d/ov071/daEyBm_c.json is status:promoted, 13 functions, promoted_source src/game/actors/d_a_ey_bm.cpp; include/daEyBm_c.h exists. Its manifest's 10-row compiler_only_output list is the closest available template for this class's.",
+    "promotion_state": "PROMOTED on origin/main bc660e83e. config/tu_manifest.d/ov071/daEyBm_c.json is status:promoted, 13 functions, promoted_source src/game/actors/d_a_ey_bm.cpp; include/daEyBm_c.h exists. Its manifest's 10-row compiler_only_output list is the closest available template for this class's.",
     "naming_difference_to_watch": "daEyBm_c kept its ROM name, so its manifest can and does claim _ZTS8daEyBm_c and _ZTI8daEyBm_c at real ov071 canonical addresses. This class CANNOT do that under the coined spelling -- see identity_evidence.symbols_txt_asymmetry. Copy daEyBm_c's structure, not its RTTI-ownership claims."
   },
 
@@ -229,7 +229,7 @@
 
   "provenance": {
     "stage": "scout",
-    "base": "b4eee7425e0912a698f311aa893bd8ff609bf78d (origin/main), merged into cpp/Scuttlebug-tu; branch verified 0 commits behind origin/main after the merge",
+    "base": "bc660e83ea13f8d3e2bd0e2249c566f8bd7b9869 (origin/main), merged into cpp/Scuttlebug-tu; branch verified 0 commits behind origin/main after the merge",
     "worktree": "C:/tmp/sm64ds-scuttlebug",
     "branch": "cpp/Scuttlebug-tu",
     "rom_sources": [
@@ -247,6 +247,6 @@
     ],
     "tools_run": "python tools/rtti_extract.py (429 records, 0 unresolved) then python tools/rtti_vtables.py --own daSpd_c and --own daEyBm_c; capstone decode of ov071 .text for the BL call graph and the this-relative field scan.",
     "tree_derived_fields": "shard_count_correction.queue_says, sibling_oracle_daEyBm_c.promotion_state, header_divergences_to_fix and data_and_bss_band's delinks boundaries are TREE-derived and rot on every promotion. Everything under identity_evidence, vtable, base_evidence, overrides, construction, fields, state_machine and callers is ROM-derived and cannot.",
-    "supersedes": "the earlier writer-stage version of this file on commit 60202175b, which asserted (a) that no load or store touches 0x0d0 -- four functions do -- and (b) a single u8 mTimer at 0x3a8, where the ROM shows a halfword at 0x3a8 and a separate u8 at 0x3aa. It also carried no state-machine section."
+    "supersedes": "the earlier writer-stage version of this file on commit 0f5e1fde9, which asserted (a) that no load or store touches 0x0d0 -- four functions do -- and (b) a single u8 mTimer at 0x3a8, where the ROM shows a halfword at 0x3a8 and a separate u8 at 0x3aa. It also carried no state-machine section."
   }
 }

@@ -15,20 +15,20 @@ This document describes this commit. The queue records its immutable output SHA.
   There is no accepted input: the rescued branch was NOT merged (a trial merge of
   `origin/main` into it produced 40 conflicts and was abandoned). Its content for
   these three classes was re-derived file by file on top of main, and one of its
-  commits, `b98628358` "Enroll func_ov002_020f051c by compiling it as C++", was
+  commits, `8ba4d118d` "Enroll func_ov002_020f051c by compiling it as C++", was
   cherry-picked with `-x`. `cpp/promote-da-obj-lava` is untouched on the remote
   and must not be deleted: it still holds the other 14 classes. Its head is
-  `8015f733e` (re-confirmed with `gh pr view 2231` and
+  `118aee137` (re-confirmed with `gh pr view 2231` and
   `git rev-parse origin/cpp/promote-da-obj-lava`). The `9622b484a` this session
-  first cited is a LOCAL-ONLY merge of `8015f733e` with an older main
-  (`0335d0fce`), reachable from no remote ref; later batches must start from
-  `8015f733e`, not from it.
+  first cited is a LOCAL-ONLY merge of `118aee137` with an older main
+  (`744325ef4`), reachable from no remote ref; later batches must start from
+  `118aee137`, not from it.
 - Original source base SHA and installed workflow/tool SHA: the batch was built on
-  `ac9106002` (main at the start of the session) and `origin/main` `9e630dab3`
+  `13853dedb` (main at the start of the session) and `origin/main` `31f53c18d`
   was then MERGED in (never rebased); the two conflicts were the append-only
   tails of `symbols/actor_renames.tsv` and `attribution.json`, resolved by
   keeping both sides with main's rows first. Workflow/tool revision
-  `f327f7b6460e157153eb7fc0749dbbe60dd854f1`.
+  `d7e28406933497ff40150f9b912efe64666a00b2`.
 - Separate evidence commits and required artifacts in this commit: no separate
   evidence commit. Stage artifacts: `src/actors/daObjLava_c.cpp`,
   `src/actors/daObjFire_c.cpp`, `src/actors/daSCoin_c.cpp`, their headers in
@@ -131,7 +131,7 @@ This document describes this commit. The queue records its immutable output SHA.
 ## Proof
 
 Every command below was run in this worktree on the tree this document describes
-(the batch merged with `origin/main` `cccae7692`), with the pinned mwccarm
+(the batch merged with `origin/main` `006d1f2c3`), with the pinned mwccarm
 2004/b56 and the extracted retail ROM wired in. "Green" means exit 0 and the
 quoted verdict; nothing here is inherited from PR #2231's own manifests or logs.
 
@@ -140,7 +140,7 @@ quoted verdict; nothing here is inherited from PR #2231's own manifests or logs.
   fidelity: 106/106 exact, 100.000000%`, `source-built functions: 11,192`,
   `mismatching: 0`, `source-owned data claims: 23 (reproducing 23, mismatching
   0)`, `ROM-build analysis: PASS`. Log `build/rombuild-head3.log` (ignored).
-  The same command at `origin/main` `cccae7692` in a second wired worktree gives
+  The same command at `origin/main` `006d1f2c3` in a second wired worktree gives
   the base report (`106/106`, 20/20 data claims, `ROM data from source: 686
   verified, 215 partial, 5 differ`).
 - Explicit function/consumer relocation checks:
@@ -153,7 +153,7 @@ quoted verdict; nothing here is inherited from PR #2231's own manifests or logs.
     (`build/lc-symbols.txt`). `prepush_linkcheck` cannot see promoted TUs
     (it looks for `src/<sym>.*`), which is why the per-symbol form was driven
     by hand.
-  - `validate_merge.py --base cccae7692 --head HEAD` with the two ROM reports
+  - `validate_merge.py --base 006d1f2c3 --head HEAD` with the two ROM reports
     above: exit 0; byte-verified functions 11,164/11,347 (+1: the cherry-picked
     C++ compile of `func_ov002_020f051c`, +216 bytes); `Contributor credit 0
     added, 0 changed, 0 lost`; `Relocation check: 0 checked; no affected

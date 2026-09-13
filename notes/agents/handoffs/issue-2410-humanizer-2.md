@@ -8,9 +8,9 @@ This document describes this commit. The queue records its immutable output SHA.
   `issue-2410-humanizer-2`, stage `revise`, role producer, session
   `codex-humanizer-ukiki-20260907-01`, harness Codex.
 - Branch: `cpp/humanizer-ukiki-0907`. Accepted input and source base:
-  `26f54f8fc8faaf00568e86d33f37860a46470906`. The accepted promotion handoff is
+  `11ef9a7ddb14e5682585d2461282f24cc316aaec`. The accepted promotion handoff is
   `notes/agents/handoffs/issue-2410-daMky_c.md`.
-- Queue workflow/tool version: `f327f7b6460e157153eb7fc0749dbbe60dd854f1`.
+- Queue workflow/tool version: `d7e28406933497ff40150f9b912efe64666a00b2`.
   Source verification tools are the unmodified tools from the accepted source base.
 - Required artifacts: `src/actors/daMky_c.cpp`, `include/daMky_c.h`, and this handoff.
   No separate evidence commit is included.

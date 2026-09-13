@@ -6,9 +6,9 @@
   "scouted_at_base": {
     "branch": "cpp/Moneybag-tu",
     "worktree": "C:/tmp/sm64ds-moneybag-scout",
-    "base_commit": "2ab05bae3",
+    "base_commit": "a81adfa37",
     "base_subject": "Merge pull request #2385 from tangosdev/docs/stage3b-prose-guard",
-    "verified_after": "git merge-base HEAD origin/main == 2ab05bae36a6821679a7e647e811c0a3243a3c49 == HEAD, and `git log --oneline HEAD..origin/main` returned 0 lines. Checked AFTER the derivations below, not before, because sibling worktrees share one ref store.",
+    "verified_after": "git merge-base HEAD origin/main == a81adfa3702637cf566bcc97167786387eb582e6 == HEAD, and `git log --oneline HEAD..origin/main` returned 0 lines. Checked AFTER the derivations below, not before, because sibling worktrees share one ref store.",
     "which_facts_can_rot": "Everything under rom_derived_facts is cut from extracted/ and merging cannot change it. The tree_derived section is re-derived at this base and WILL rot: re-check it before writing."
   },
   "identity_evidence": {
@@ -470,7 +470,7 @@
     "callers_from_other_ov081_classes": "NONE. No BL from Spindrift, MrBlizzard, Snowball or IceBlock lands anywhere in 0x02126504..0x02127b34, so the run is self-contained and can be lifted without dragging a sibling class in."
   },
   "tree_derived": {
-    "re_derived_at": "2ab05bae3",
+    "re_derived_at": "a81adfa37",
     "queue_row": "notes/data/tu-promotion-queue.tsv line 229: Moneybag / 36 shards / 948 lines / ov081 / has_header yes / already_promoted no / blockers compiler-only:>=9 (own chain 4 classes incl. self) / sibling_oracle '-' / promotion_route text-only.",
     "shard_count_verified": "36. Every one of the 36 resolves to an existing file: 22 .cpp and 14 .c under src/. The 37th function of the run, daGmch_c_classInit, already lives in src/d_a_gmch.c (30 lines) and is NOT a shard.",
     "total_lines_verified": "948, counted at this base across exactly those 36 files -- matches the queue row exactly.",

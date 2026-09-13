@@ -83,7 +83,7 @@ below does for you.
 
 `include/BrickBlock.h` carries a banner naming the generator that produced it. **That
 banner was never true.** No `tools/gen_header.py` was ever committed; the 241 headers
-carrying it were added in one commit (`5ddf7d2d`, PR #866) that added zero `tools/`
+carrying it were added in one commit (`be9d58ed`, PR #866) that added zero `tools/`
 files, so nothing ever checked what they claim:
 
 ```c
@@ -109,7 +109,7 @@ against nothing. See `notes/archive/plan-gen-header.md`.
 
 `tools/deepen_rtti.py` has **never existed in any branch** (`git log --all
 --diff-filter=A -- '*deepen_rtti*'` is empty), and these headers came from the same
-commit `5ddf7d2d`, which added zero `tools/` files. So the count is:
+commit `be9d58ed`, which added zero `tools/` files. So the count is:
 
 | banner | headers | differential available |
 |---|---:|---|

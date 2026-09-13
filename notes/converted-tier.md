@@ -1,6 +1,6 @@
 # The CONVERTED tier measured the opposite of what it rewards
 
-Measured 2026-08-16 on `bff018693`.
+Measured 2026-08-16 on `fc07f8c03`.
 
 `tools/tiers.py` scores five criteria and publishes CONVERTED as the share of
 `src/` files passing all five. It read **426 / 11,287 = 3.8%**, and the README
@@ -151,7 +151,7 @@ doing the work correctly made the number worse.
 
 ---
 
-# Two more, measured 2026-08-30 on `d08ac657b`
+# Two more, measured 2026-08-30 on `aa21528c1`
 
 Both are the same species as the defect above — the gate counting something other
 than what it says it counts — and neither is a hole left open. They are fixed in
@@ -204,7 +204,7 @@ addition. Every one read as
 GONE -- not a tracked source file any more (deleted, renamed or moved)
 ```
 
-Measured on PR #1882 (`tu/inline-dtor-order`, `9c6396c5f`): **90 of 90** backslid
+Measured on PR #1882 (`tu/inline-dtor-order`, `f3223b816`): **90 of 90** backslid
 paths were TU `legacy_source` entries whose TU is `"status": "promoted"` and whose
 `promoted_source` exists on the branch. **Zero** were real deletions. A gate whose
 entire output is false alarms trains people to re-bank without reading it.

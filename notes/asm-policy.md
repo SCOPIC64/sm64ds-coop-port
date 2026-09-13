@@ -54,7 +54,7 @@ until someone finds the C.
 
 ## History
 
-**2026-07-24 (`fcdfc66d`)** — 116 functions that had been counted as matched were found to
+**2026-07-24 (`c3635ce7`)** — 116 functions that had been counted as matched were found to
 be whole-function `asm` blocks and reclassified as `// NONMATCHING`, dropping them from the
 matched count (95.2% → 94.2%). 35 SDK/BIOS routines were deliberately excluded and left as
 matched: `Div`, `CpuSet`, the `CpuFastSet`/memcpy family, `ARMSaveContext`/`ARMRestoreContext`,

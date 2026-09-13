@@ -8,7 +8,7 @@
 # mentions of `port` in a workflow are comments (src-tu-refs.yml:11,
 # update-chaos-data.yml:155). The port's smoke battery ran by hand, on a desktop.
 #
-# WHAT THAT COST. The port tree is not main. Its merge base is 7b2f913fe and main has run
+# WHAT THAT COST. The port tree is not main. Its merge base is b5ecb84b2 and main has run
 # ~2,500 commits past it (2,503 measured 2026-09-06). Four port work-lanes in one week
 # were reported spent on premises main had already invalidated -- a placeholder since
 # replaced with real register names, a one-word fix already landed, a span that already

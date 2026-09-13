@@ -280,8 +280,8 @@ symbol, so each pair is a duplicate definition and each also double-counts in an
 | [func_ov084_021298d0](../config/arm9/overlays/ov084/symbols.txt) | MATCH | MATCH | pick one |
 | [func_ov084_0212d564](../config/arm9/overlays/ov084/symbols.txt) | MATCH | MATCH | pick one |
 
-Three pairs were created by the recent b56 batches (`e8350ed1` / #783 added `.cpp` files
-while stale NONMATCHING `.c` siblings from `c31a2a63` stayed). Nothing is broken today,
+Three pairs were created by the recent b56 batches (`6e78a830` / #783 added `.cpp` files
+while stale NONMATCHING `.c` siblings from `05e0444c` stayed). Nothing is broken today,
 since every pair has at least one reproducing side, but this should be cleaned up before
 it bites at link time.
 

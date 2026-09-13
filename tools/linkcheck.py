@@ -158,6 +158,38 @@ def is_thumb_pointer(rtype, rom_t, cand_t):
             and cand_t % 2 == 0 and rom_t == (cand_t | 1))
 
 
+def linked_dest(rl):
+    """The address the LINKER writes for this relocation -- base plus addend, or None.
+
+    Every forgiveness test below ("is the ROM's slot a veneer to what the candidate
+    names?", "a byte-identical twin?", "the same function in Thumb?") is a question
+    about the candidate's DESTINATION, and for a data relocation the destination is
+    `base + addend`: mwccarm encodes `&array[i]`, `&s.field` and a vptr store's
+    `&_ZTV<C>[2]` as the symbol's base plus a nonzero RELA addend. `link_function`
+    already writes `base + addend`, so reading only the base asks the forgiveness
+    tests about an address the link never produces.
+
+    That gap was not cosmetic. When a source names the right symbol with the WRONG
+    addend, the base equals the ROM's own destination, so `is_benign(rom_t, base)`
+    compared an address against itself, found the same 16 bytes there (it is the same
+    address), and returned True -- forgiving every wrong-addend data relocation as a
+    "byte-identical twin" of itself. Measured on ov100 0x02147328, where a vptr store
+    spelled `&_ZTV15daObjPathLift_c[2]` links to 0x02148584 for a slot array that
+    lives at 0x0214857c: BENIGN here, overlay MISMATCHING in the ROM build.
+
+    A BRANCH is the exception and the reason this is not a one-line expression. Its
+    addend is the -8 PC bias, not an offset into the target, and `link_function` folds
+    it into the displacement rather than the destination -- so a branch's destination
+    is the base alone. Adding the addend there reported every genuine wrong-callee
+    eight bytes below the address the candidate actually calls.
+    """
+    if rl is None or rl.get("addr") is None:
+        return None
+    if rl["type"] == R_ARM_ABS32:
+        return (rl["addr"] + rl.get("add", 0)) & 0xFFFFFFFF
+    return rl["addr"] & 0xFFFFFFFF
+
+
 def is_benign(rom_t, cand_t, prefer):
     """True if the ROM target is a veneer to cand_t, or a byte-identical twin of it."""
     if cand_t is None:
@@ -310,14 +342,14 @@ def linkcheck(name, addr, size, mod, name_index, candidate=None, include_dirs=()
         genuine, benign = [], 0
         for i in diffs:
             rl = by_off.get(i)
+            tgt = linked_dest(rl)
             if rl is not None:
                 rt = rom_target(target, i, rl["type"], addr)
                 rw = int.from_bytes(target[i:i + 4], "little")
-                if (is_benign(rt, rl["addr"], prefer) or is_interwork(rw, rt, rl["addr"])
-                        or is_thumb_pointer(rl["type"], rt, rl["addr"])):
+                if (is_benign(rt, tgt, prefer) or is_interwork(rw, rt, tgt)
+                        or is_thumb_pointer(rl["type"], rt, tgt)):
                     benign += 1
                     continue
-            tgt = (rl["addr"] + rl.get("add", 0)) & 0xFFFFFFFF if rl and rl["addr"] is not None else None
             genuine.append({"off": f"+0x{i:x}", "sym": rl["sym"] if rl else None,
                             "target": (f"0x{tgt:08x}" if tgt is not None else None)})
         if genuine:

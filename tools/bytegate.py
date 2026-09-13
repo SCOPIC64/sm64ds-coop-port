@@ -244,11 +244,20 @@ def stale_rows(path: pathlib.Path | None = None) -> list[dict]:
 def builds_anywhere(src: pathlib.Path) -> bool:
     """True if ANY compiler in the sweep produces an object for this source.
 
-    Mirrors reloc_audit.winning_object's sweep -- same //cpp sniff, same both-flag
-    fallback, same 12 versions -- minus the ROM and the byte compare, which is the whole
-    point: this asks only whether the file is buildable, so it can be answered without an
+    Same //cpp sniff and same both-flag fallback as reloc_audit.winning_object, over the
+    same 12 versions, minus the ROM and the byte compare -- which is the whole point:
+    this asks only whether the file is buildable, so it can be answered without an
     extracted cartridge. Imports are local because this is the one function in the module
     that needs the matching toolchain, and chaos_db_ci must import the module without it.
+
+    The FLAGS are deliberately the match gate's and not the build's, and this is the one
+    place in the tree where that is the right choice. "Does any compiler accept this
+    file?" is the denominator question; "will the link reproduce the cartridge?" is a
+    different one, and reloc_audit.build_flag_attempts answers it with the build's own
+    flags (-Cpp_exceptions off) because compiling a link check differently from the link
+    blesses versions the build then breaks on. Do not make these two agree by copying
+    build_flag_attempts here: it would narrow this sweep to one flag set and start
+    calling buildable files unbuildable.
     """
     import os
     import tempfile

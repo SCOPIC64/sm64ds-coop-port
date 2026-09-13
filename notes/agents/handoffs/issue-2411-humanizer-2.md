@@ -15,9 +15,9 @@ replacement writers for these classes or release its resources.
   `C:/tmp/sm64ds-humanizer-oneup-0907`. The reworked candidate continues on
   branch `cpp/humanizer-oneup-0908-repair` in worktree
   `C:/tmp/sm64ds-oneup-prod-0908`.
-- Adopted input `19df96cc21d5e2a87a97a22d4de67191319505bd`, task source base
-  `26f54f8fc8faaf00568e86d33f37860a46470906`, workflow/tools
-  `f327f7b6460e157153eb7fc0749dbbe60dd854f1`.
+- Adopted input `11561ce0543d453400674d880d14ab28a5e8167d`, task source base
+  `11ef9a7ddb14e5682585d2461282f24cc316aaec`, workflow/tools
+  `d7e28406933497ff40150f9b912efe64666a00b2`.
 - The scoped coordinator atomically amended and reclaimed 121 resources before
   the shared edits. The private receipt remains ignored and must not be published.
 - No source push, ready publication, queue completion, or formal acceptance has
@@ -29,25 +29,25 @@ replacement writers for these classes or release its resources.
 ## Preserved outputs
 
 The OneUp counter/Model/provenance checkpoint is
-`2f0cfad6cc052a9152952e86aa5cf692667a3248`. Its timer member is a coined
+`4723e82f487dadaf42b319d883ed67eedaf2db9c`. Its timer member is a coined
 `u16 mStateTimer` at 0x38c, preserving the 0x398-byte layout. Three functions now
 use that live field and Render calls `mModel.Render(0)` instead of a fake six-slot
 vtable. Those edits passed separately, together, and across all 36 OneUp functions.
 The earlier handoff at that exact commit preserves the original probe evidence.
 
-Independently accepted Moneybag `3a2db65652e77716dd663ac2f31c40c6aa5970f7` and
-Ukiki `ac5af1055350c9467cd62b0d5e5c4aa8fe88a710` were adopted by merge, preserving
+Independently accepted Moneybag `73ead4dda1d347ca057100fcbb57205950afc679` and
+Ukiki `11f6cd7bcbcf2527026c70ea88ef6ed291c30a37` were adopted by merge, preserving
 all history. Moneybag corrects provenance; Ukiki's EnterState0 uses `mState = 0`.
 Their original evidence remains in [Moneybag's handoff](issue-2412-humanizer-2.md)
 and [Ukiki's handoff](issue-2410-humanizer-2.md). Only their superseded task
 envelopes were cancelled after independent passes. Their output is now owned
 by this expanded continuation. The clean merged pre-contract control is
-`07354fbb0c1b09d1c0968ca91034f29c7f455373`.
+`8df16941d87f7828ecd912b7eb4a81ac2e3fdf85`.
 
 Attribution is unchanged: integration commit
-`e3d7f6e6633078ace023d8478002c36526996933` already repaired the eight previously
+`153faf98e079e7998b174e10435672f11f05352c` already repaired the eight previously
 reported reassignments. Earlier accepted OneUp source
-`bb5bbfae682dccfc1cdb0aab0defdd702ad919c9` and its prior gates remain historical
+`8733b4d5875e2885b8e856fa8821016eff2d30f2` and its prior gates remain historical
 in [the preceding handoff](issue-2411.md).
 
 ## Contract correction
@@ -61,8 +61,8 @@ matching headers". That was wrong, and a whole-tree compile falsified it. The
 header change moved a shared contract in `include/dActor_c.h` and its sibling
 actor headers but touched no file under `src_tu/`, so four byte-verified
 promoted translation units still defined the method as `int` and the compiler
-rejected them as redeclarations. Measured: at candidate `848da2bb8`,
-`tools/check_src_tu_compiles.py` exited 1 with 156/160; at base `26f54f8fc` it
+rejected them as redeclarations. Measured: at candidate `eb06f6ebe`,
+`tools/check_src_tu_compiles.py` exited 1 with 156/160; at base `11ef9a7dd` it
 exited 0 with 159/159 (the denominator moves because the candidate enrolls
 `ov002/da1up_c`). The four definitions — `src_tu/actors/Actor.cpp:1140`,
 `src_tu/actors/Koopa+KoopaSmall.cpp:347`, `src_tu/actors/Lakitu.cpp:88` and
@@ -101,25 +101,25 @@ preserved as historical evidence, not new acceptance of Goomba.
 
 ## Repairs after independent integration review
 
-An independent integrator failed candidate `6bf546d78` and reworked the task.
+An independent integrator failed candidate `6f72f7216` and reworked the task.
 The repairs landed on branch `cpp/humanizer-oneup-0908-repair` in worktree
 `C:/tmp/sm64ds-oneup-prod-0908`.
 
 An earlier revision of this section narrated three repairs followed by a merge
-of `main`. That ordering is inverted. The merge is `587f156e3`, its parents are
-`6bf546d78` and `c52f63ca5`, and it is the oldest of this branch's commits, so
+of `main`. That ordering is inverted. The merge is `eccd966a0`, its parents are
+`6f72f7216` and `1f65fcaec`, and it is the oldest of this branch's commits, so
 the merge came first and every repair below was made on the merged tree. The
 bullets are in that order. This is immaterial to the tree, which is the same
 either way; only the narration was wrong.
 
-- **The merge.** Merged `origin/main` at `c52f63ca5`, 94 commits ahead of the
+- **The merge.** Merged `origin/main` at `1f65fcaec`, 94 commits ahead of the
   task base. The only conflict was `notes/cpp-tu-current-state.md`, which is
   machine-generated. Regenerated it with `tools/cpp_tu_state.py --write-note`
   rather than hand-resolving, and `--check-note` exits **0**. The live counts
   (170 manifest entries, 9,097 physical production source files) match neither
   side of the conflict, so a hand-merge would have shipped a wrong number.
 - **The `dead-references` gate** was exit 1 on this branch while exit 0 on
-  `origin/main` and at base `26f54f8fc`. `PATH_RE` in
+  `origin/main` and at base `11ef9a7dd`. `PATH_RE` in
   `tools/check_dead_references.py` excludes `+`, so the Koopa translation unit
   cited in the section above is truncated at the plus and the truncation is
   reported as a path that is not in the tree. Eight tracked files carry `+` in
@@ -138,7 +138,7 @@ either way; only the narration was wrong.
   them. The sentence it rested on was true as far as it went — those cells are
   unchanged from `main` — but the conclusion drawn from it was not, because
   three of the rows are stale precisely as a result of this branch's own edits
-  to the files they measure. Measured directly at `c52f63ca5`, base has **2**
+  to the files they measure. Measured directly at `1f65fcaec`, base has **2**
   disagreeing rows; this candidate had **5**. The three extra:
 
   | row | old cell | refreshed | source file | lines base → here |
@@ -149,7 +149,7 @@ either way; only the narration was wrong.
 
   Each row delta matches its file delta exactly, so these three are this
   branch's to move. `ChiefChilly` (1992 → **1993**) and `Player`
-  (26798 → **26799**) genuinely are pre-existing: `main`'s own `9b8cb8add`
+  (26798 → **26799**) genuinely are pre-existing: `main`'s own `b3342da8f`
   edited `include/ChiefChilly.h` and `include/Player.h` without refreshing the
   queue file, and they are the two rows base already disagrees on. All five
   were refreshed by one `python tools/queue_audit.py --write` pass, which
@@ -169,7 +169,7 @@ figure below is the one measured on this tree.
 - `tools/check_src_tu_compiles.py`: exit **0**, **170/170** translation units
   compile. Set-differencing the compiled-unit lists against the base control
   (exit 0, 159/159) shows **no unit dropped**: the eleven added are the ten
-  `main` enrolled between `26f54f8fc` and `c52f63ca5`, plus this branch's own
+  `main` enrolled between `11ef9a7dd` and `1f65fcaec`, plus this branch's own
   `ov002/da1up_c`. Comparing totals alone could not have shown that, because a
   rising total can hide a dropped unit.
 - `tubuild verify` on the four repaired translation units, re-run separately
@@ -177,7 +177,7 @@ figure below is the one measured on this tree.
   **39/39 MATCH**, `ov077/Lakitu` **32/32 MATCH**, `ov077/Spiny` **34/34
   MATCH**, all four objisolate clean, reloc-destinations clean and
   TEXT-VERIFIED, and all four exit 1 on the same unlicensed compiler-only
-  records. The base control at `26f54f8fc` reproduces every one of those
+  records. The base control at `11ef9a7dd` reproduces every one of those
   counts, the same unlicensed records and the same exit 1, so the promotion
   refusal is inherited and not a regression from this branch. `tubuild verify`
   rewrites the manifests it checks; both worktrees were restored afterwards and
@@ -196,9 +196,9 @@ figure below is the one measured on this tree.
 
 Unless a figure is restated under "Re-measured after the merge" above,
 every reading in this section was measured at pre-merge candidate
-`6bf546d78` on task base `26f54f8fc`, and describes that tree.
+`6f72f7216` on task base `11ef9a7dd`, and describes that tree.
 
-The ROM source/header checkpoint is `b9339491fc6c4153715f6e26b596cd5478be5ffa`.
+The ROM source/header checkpoint is `0bd25ab41afb60de40047305dbab5d0d746557e5`.
 Subsequent edits remove the obsolete HAL constructor wrapper, mark its
 abort-only trap `[[noreturn]]`, update this handoff/manifest prose, and — added
 in the repair described above — change the return type of four
@@ -220,8 +220,8 @@ Independent verification must still pin the final candidate.
 - `tools/check_src_tu_compiles.py`: **exit 0, 160/160 translation units compile**
   after the four `src_tu/` definitions were changed to void — superseded by the
   170/170 reading above, which is the same gate on the merged tree. The same command
-  exits **1 at 156/160** on candidate `848da2bb8` and **0 at 159/159** on base
-  `26f54f8fc`, so the four failures were introduced by the header change and are
+  exits **1 at 156/160** on candidate `eb06f6ebe` and **0 at 159/159** on base
+  `11ef9a7dd`, so the four failures were introduced by the header change and are
   now cleared. This gate proves compilation only; it says nothing about bytes.
 - `tubuild verify` on the four repaired TUs, each run separately, after the edit:
   `arm9/Actor` **97/97 MATCH**, `ov062/Koopa+KoopaSmall` **39/39 MATCH**,
@@ -230,7 +230,7 @@ Independent verification must still pin the final candidate.
   return type is therefore not load-bearing in the emitted code for any of them.
   All four also exit 1 on the same unlicensed compiler-only records (`_ZTV`/
   `_ZTI`/`_ZTS`, a `D2` variant, `_ZN7Vector3D1Ev`) that make the promotion
-  audit refuse. Run at base `26f54f8fc` as a control, the same four produce
+  audit refuse. Run at base `11ef9a7dd` as a control, the same four produce
   byte-for-byte the same counts, the same unlicensed records and the same
   exit 1, so that refusal is a pre-existing baseline limit, not a regression
   from this change.
@@ -274,7 +274,7 @@ build. Together with source-qualified function verification, it establishes
 coverage of the 3,036 complete production slots without relabeling draft results.
 
 All six raw gaps reproduce at exact control
-`07354fbb0c1b09d1c0968ca91034f29c7f455373`, using the same explicit canonical
+`8df16941d87f7828ecd912b7eb4a81ac2e3fdf85`, using the same explicit canonical
 source paths. Control artifacts are under
 `C:/tmp/sm64ds-humanizer-control-oneup-0907/build/humanizer-contract-baseline/`:
 `gaps.final.json`, `propeller.log`, and individual raw logs. Earlier scratch
@@ -327,7 +327,7 @@ OneUp's 14 commented field offsets match with struct span 0x398. Contributor
 attribution against task base passes: 28 consolidated credits intact, zero changed
 or lost. Logs and exact commands are in `build/humanizer-contract-checks.json`.
 Supplemental `prepush_linkcheck.py --range
-19df96cc21d5e2a87a97a22d4de67191319505bd..HEAD` exits 0: 1,732 checked,
+11561ce0543d453400674d880d14ab28a5e8167d..HEAD` exits 0: 1,732 checked,
 1,609 VERIFIED, 123 warnings, zero blocking; one NONMATCHING draft skipped.
 The raw log/JSON are `build/humanizer-contract-prepush.log` and `.json`.
 Promoted-TU basename NO-SYM warnings do not provide function coverage; the complete

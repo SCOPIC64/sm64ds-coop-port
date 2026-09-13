@@ -1,6 +1,6 @@
 # Enrollment audit: what the matched count contains that the cartridge does not settle
 
-Measured at **code ref `7bbfa1ef3edf231df3d40cfb16e59884e82e9420`** (origin/main,
+Measured at **code ref `2a1df1c752d463b1ae907e525fe7b0e9d7f53be9`** (origin/main,
 "notes: resolve two committed stash-conflict regions in mwccarm-codegen.md (#1531)").
 Every number below was re-derived at that ref by this audit. Nothing is quoted forward
 from an earlier measurement, because the counts move by tens of functions per day.

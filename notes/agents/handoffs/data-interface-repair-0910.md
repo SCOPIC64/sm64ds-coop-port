@@ -1,7 +1,7 @@
 # Unused data declaration repair, 2026-09-10
 
 Task `data-interface-repair-0910` continues from main
-`df70231d3cf547597b2cb36bed8b1494e0753dbd`. It removes two unused declarations
+`6d3227b4cff16f591aa49003b35175c01a7aa512`. It removes two unused declarations
 from `include/decl_common.h` whose types disagree with their existing definitions.
 No caller needs these exports: a complete tracked reference search finds uses
 only in the two owning translation units, neither of which includes that header.
@@ -30,7 +30,7 @@ and 109 permitted-module references. All 891 transitive consumers of
 compiler versions and build flags; every complete object is byte-for-byte equal.
 
 For a stable diagnostic comparison, the repaired declaration checker is loaded
-from immutable commit `302437407099df4d95872c492b83f8505fd19246` without changing
+from immutable commit `32b013c382201c16234cab7371c4dea0c5dbab7c` without changing
 the source branch's tools or baseline. Its complete finding set drops from
 22,964 to 22,962: exactly these two disagreements disappear, with no other change.
 This is a scoped diagnostic result, not a claim that the repository has no

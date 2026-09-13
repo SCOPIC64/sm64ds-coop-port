@@ -144,7 +144,7 @@ def _rev_enrolment(rev):
 
 
 # The two row shapes dsd writes into a `relocs.txt`, and nothing else. Measured over
-# the whole tree at cd3a7eb59: 106 files, 91,809 rows, 91,808 of the first shape and
+# the whole tree at cabeb60aa: 106 files, 91,809 rows, 91,808 of the first shape and
 # exactly one of the second (`config/arm9/relocs.txt`, the ARM9_CTOR_START link-time
 # constant, which names no destination address at all).
 #
@@ -318,7 +318,7 @@ def _reloc_index(rev):
       * a module that declares no function may have an empty file, but only when its
         own section inventory or its own bytes say it can hold no reference -- a count
         of functions does not establish that, and `_empty_relocs_defect` carries the
-        rule (15 modules qualify at cd3a7eb59: fourteen overlays whose non-`bss`
+        rule (15 modules qualify at cabeb60aa: fourteen overlays whose non-`bss`
         sections are all zero-length, e.g. ov061's `.ctor start:0x02115ec0
         end:0x02115ec0`, and `config/arm9/dtcm`, whose 0x20 of `.data` is all zeroes);
       * every line of every file must be one of the two documented row shapes, and
@@ -333,7 +333,7 @@ def _reloc_index(rev):
     is all zeroes). A checkout that has never run `tools/unpack.py` cannot, so the index
     there carries exactly one defect and the matched-loss exception is unavailable --
     which is the same position the exception is already in without the ROM image, and
-    it changes no other number the report prints. Measured at 5b49059f6: 92 destination
+    it changes no other number the report prints. Measured at 42d3c8edc: 92 destination
     buckets and 96,395 destinations either way, 0 defects with the images and 1 without.
 
     A defect does not make this function raise and does not empty the index. It makes
@@ -1039,7 +1039,7 @@ def classify_merge(bf, hf, be, he, compiled, reloc_dests=None, rom_word=None,
     say the address is unreachable. A record that fails any one of them stays matched and
     the merge is refused.
 
-    THE EXCEPTION IS NARROW, MEASURED RATHER THAN ASSERTED. Over src/ at 8525428a2 there
+    THE EXCEPTION IS NARROW, MEASURED RATHER THAN ASSERTED. Over src/ at 9a1deb15d there
     are 79 sources whose whole body is `void f(void) {}`; 77 have at least one incoming
     relocation and are ordinary no-op functions the ROM really calls. Two have zero:
     `AutoloadCallback` (0x020049ec) and `func_02071694`. `AutoloadCallback` is refused

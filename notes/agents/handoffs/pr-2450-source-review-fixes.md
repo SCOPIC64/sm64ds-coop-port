@@ -6,9 +6,9 @@ The queue records this commit's immutable output SHA.
 ## PKN-06 correction, 2026-09-10
 
 Producer `codex-pkn-review-fix-0910` resumes the same task and `fix` stage from
-`24260cc326e3124f37772e4c89256e9c40efdc60`, on branch `review/pr2450-0910` in
+`5320b55e530c019979e2bf979ad98c2afc0181fc`, on branch `review/pr2450-0910` in
 `C:/tmp/sm64ds-r2450-0910`. The active source-review policy is pinned to workflow
-`18af52b49b9fb5663d417bdfa86109b7b157aaa3`; queue commands use the current
+`262fe4e44cc1e658b1a37e4b64e32270c750e32c`; queue commands use the current
 coordinator checkout. The original source/base/workflow pins below remain
 historical records. The queue records this correction's output.
 
@@ -47,7 +47,7 @@ and validation.
 
 ## Preserved input identity and measurements
 
-The remaining sections describe `24260cc326e3124f37772e4c89256e9c40efdc60` and
+The remaining sections describe `5320b55e530c019979e2bf979ad98c2afc0181fc` and
 its earlier source input. They preserve the original experiments and handoff;
 the durable continuation issue and current PKN-06 disposition are above.
 
@@ -60,9 +60,9 @@ the durable continuation issue and current PKN-06 disposition are above.
 - Coordinator: `codex-humanizer-integrator-20260908`; predecessor task
   `pkn-ov084-0907`, prior integration session `int-pkn-0907`.
 - Branch: `cpp/pkn-source-review-fixes-0908`.
-- Accepted source input: `ffd6d8dd436827d06fcb79e1a0cf5171eb7ee231`.
-- Source base: `b0d348e536fb3304b6ab12d88fe95d780cbeb91d`.
-- Workflow pin: `f327f7b6460e157153eb7fc0749dbbe60dd854f1`.
+- Accepted source input: `abe07e30645e08fd6f0faf4f49007ba957eb7e3a`.
+- Source base: `fed0c5e05531dd5d89f15e092430b68e4bd61fdf`.
+- Workflow pin: `d7e28406933497ff40150f9b912efe64666a00b2`.
   Compiler/source tools are the input commit's unchanged tracked tools; the
   compiler is `2004/b56`.
 - Status: locally verified partial reconstruction candidate. Independent source

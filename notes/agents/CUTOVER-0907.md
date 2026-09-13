@@ -1,7 +1,7 @@
 # The v1 to v2 cutover, and what the inventory found
 
-Measured 2026-09-07 against `origin/main` at `f327f7b6`, then re-measured the same
-day against `cd7e45c91` after the approved merge train landed. This supersedes the
+Measured 2026-09-07 against `origin/main` at `d7e28406`, then re-measured the same
+day against `c48a1c027` after the approved merge train landed. This supersedes the
 operational parts of [IN-FLIGHT.md](IN-FLIGHT.md), which was written the same day
 *before* the upgrade and which asks you not to trust its own numbers. Three of its
 claims are corrected below.
@@ -13,7 +13,7 @@ why is the part worth reading.
 
 ## The cutover happened
 
-- **Workflow commit: `f327f7b6`** — every restarted session pins this. It is the
+- **Workflow commit: `d7e28406`** — every restarted session pins this. It is the
   merge of #2396 and it is what `main` carries.
 - **Queue initialized** on `refs/heads/agents/coordination`, session `fleet-0907`.
   That branch holds `state.json`. It is metadata; never merge or check it out.
@@ -39,7 +39,7 @@ and its red gate was `check_rename_ledger`, eight historical rows still assertin
 the retired coined spelling. Only `da1up_c` had a confirmed `rom_data_regressions`
 failure; `daGmch_c`'s was a prediction at the time, and was confirmed later.
 
-**#2425 is the fix, and it is on `main` as `1c93d2663`.** `rom_data_regressions`
+**#2425 is the fix, and it is on `main` as `abda09fdd`.** `rom_data_regressions`
 now anchors on `(module, address, bytes)` instead of the symbol name, so a rename
 reads as a rename rather than a loss. Re-running the gate for `daGmch_c` against a
 base that includes the fix leaves the known-defect bucket **empty**.
@@ -51,7 +51,7 @@ free by design. On every member that did not convert, the wall was **naming or
 scope. Never codegen.**
 
 **2. "The validator restores `tools/` from the base commit" is out of date.** That
-was retired on 2026-08-30 by `fa5aa1f65`, and `plan-cpp-conversion-queue.md` says
+was retired on 2026-08-30 by `09137e5d4`, and `plan-cpp-conversion-queue.md` says
 so. The conclusion survived for a different reason: the *base* ROM report is built
 at `baseSha` and may be served from a per-SHA cache, so the base side of the
 comparison would still carry no addresses. The gate fix did land alone and first,
@@ -114,7 +114,7 @@ is banked work too, and the only thing separating it from LANDED is that `main` 
 moved further. 55 of the 59 landed through their own merged PR.
 Four landed by another route and so look PR-less if you only check the branch:
 `cpp/daObjFloatBoard_c-tu`, whose #2276 was closed and whose content went in through
-#2294; `cpp/dabrq-sinit-resource-tu`, landed as `201fa394d` and `893200df3` plus
+#2294; `cpp/dabrq-sinit-resource-tu`, landed as `c60fa15fb` and `1293eb12d` plus
 #2270; `cpp/dascre-restack-2143`, through its parent #2143 and then #2270; and
 `cpp/profile-reconstruction-wave24`, through #2241 (wave 27) and #2270. **A branch
 with no merged PR of its own is not evidence of unbanked work.**
@@ -231,17 +231,17 @@ verify, then delete — in that order, and never the last two together.
 
 ## Two commits were reachable from nothing
 
-`d2ae80fa` ("Refresh C++ TU project state") and `c28a236f` ("Clarify dead-reference
+`43e87344` ("Refresh C++ TU project state") and `4aeaba24` ("Clarify dead-reference
 baseline updates") sat in detached worktrees on no branch, local or remote — one
-garbage collection from gone. They are now `rescue/actord-vfy-d2ae80fa` and
-`rescue/tool-gates-review-c28a236f` on `origin`.
+garbage collection from gone. They are now `rescue/actord-vfy-43e87344` and
+`rescue/tool-gates-review-4aeaba24` on `origin`.
 
 Four branches held commits on no remote ref and were pushed:
 `verify/carpet-toolvfy-0830` (15), `chore/profile-management` (2),
 the `profile-lifecycle-crosswalk` docs branch (1). The fourth, `constitution-lane`, had
 **diverged** — the remote carried 105 commits the local lacked, so a force push
 would have destroyed them. Its local tip went to
-`rescue/constitution-lane-local-b4dc998c` instead.
+`rescue/constitution-lane-local-9b129018` instead.
 
 One match had landed without its credit. `func_ov006_0212a764` is on `main` and the
 delinks route to it, but the winning attempt and its provenance row were sitting
@@ -292,14 +292,14 @@ that; it will recur on any stacked lane.
 **#2392 has landed, so #2360's dependency is cleared.** The dependency was real and
 confirmed from the validator's own message and `tools/validate_merge.py:665-667`:
 #2360 splits a symbol, which changes the coverage denominator, and #2392 is the
-relaxation that admits a split. #2392 is now on `main` as `cde63e0df`; #2360 is
+relaxation that admits a split. #2392 is now on `main` as `fbd2b64e2`; #2360 is
 still open on its own merits.
 
 ## The merge train landed
 
 Everything the approved train carried is on `main`, in this order: #2392
-(`cde63e0df`), #2425 (`1c93d2663`), #2372 (`2cf25da41`), #2399 (`7097a3922`), #2373
-(`ac9106002`) and #2380 (`cd7e45c91`, which is `main`'s tip as this was written).
+(`fbd2b64e2`), #2425 (`abda09fdd`), #2372 (`81dd44ac8`), #2399 (`2c321f3e1`), #2373
+(`13853dedb`) and #2380 (`c48a1c027`, which is `main`'s tip as this was written).
 #2408 was closed as a duplicate of #2399 — the `func_ov006_0212a764` attribution it
 carried is banked either way. Treat any sentence above about these PRs as history,
 not as a plan.

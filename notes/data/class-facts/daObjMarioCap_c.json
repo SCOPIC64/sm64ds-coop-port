@@ -79,7 +79,7 @@
   ],
   "provenance": {
     "worktree": "C:/tmp/sm64ds-mariocap",
-    "ref": "cpp/daObjMarioCap_c-tu (from origin/main 66779c216)",
+    "ref": "cpp/daObjMarioCap_c-tu (from origin/main 3f1d95925)",
     "tools": [
       "tools/tubuild.py inspect ov002/daObjMarioCap_c",
       "tools/tubuild.py verify ov002/daObjMarioCap_c",

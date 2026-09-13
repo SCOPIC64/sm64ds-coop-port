@@ -39,7 +39,17 @@ struct ArrowSignRight {
     void *vtable;                      /* 0x000 */
     u8  pad_004[0x8];
     u16 actorID;                       /* 0x00c */
-    u8  pad_00e[0x80];
+    u8  pad_00e[0x4e];
+    /* dActor_c's position and camera-space position, at dActor_c's own offsets
+       (include/dActor_c.h lines 59-65). The flat view drops the inheritance but
+       src/_ZN14ArrowSignRight4KillEv.cpp still reads these four fields by name,
+       so they are pinned here rather than buried in padding. */
+    s32 mPosX;                         /* 0x05c */
+    s32 mPosY;                         /* 0x060 */
+    s32 mPosZ;                         /* 0x064 */
+    u8  pad_068[0xc];
+    s32 mCamSpacePosX;                 /* 0x074 */
+    u8  pad_078[0x16];
     s16 mAngleY;                       /* 0x08e */
     u8  pad_090[0x44];
     Model mModel;                      /* 0x0d4 */
@@ -60,9 +70,22 @@ struct ArrowSignRight {
     int OnAttacked1(dActor_c &other);
     void OnHitByMegaChar(Player &player);
     void Kill();
+
+    /* INHERITED, AND THEREFORE THE PORT'S TO BIND. Kill() calls both of these
+       unqualified; on the ARM they come from dActor_c and fBase_c, which the
+       flat view cannot derive from without moving every field. Declared here so
+       the translation unit still compiles for the host, non-virtual so no slot
+       and no field moves. They resolve to _ZN8dActor_c19DisappearPoofDustAtERK7Vector3
+       and _ZN7fBase_c19MarkForDestructionEv, which is an /alternatename the port
+       can write; without these two declarations the file cannot be compiled at
+       all. */
+    void DisappearPoofDustAt(const Vector3 &pos);
+    void MarkForDestruction();
 };
 
 static_assert(offsetof(ArrowSignRight, actorID) == 0x00c, "ArrowSignRight actorID");
+static_assert(offsetof(ArrowSignRight, mPosX) == 0x05c, "ArrowSignRight mPosX");
+static_assert(offsetof(ArrowSignRight, mCamSpacePosX) == 0x074, "ArrowSignRight mCamSpacePosX");
 static_assert(offsetof(ArrowSignRight, mAngleY) == 0x08e, "ArrowSignRight mAngleY");
 static_assert(offsetof(ArrowSignRight, mModel) == 0x0d4, "ArrowSignRight mModel");
 static_assert(offsetof(ArrowSignRight, mMeshCollider) == 0x124, "ArrowSignRight collider");

@@ -28,7 +28,7 @@ each with zero references anywhere else in the repo and no corresponding test:
 | `_sweep_bc3dc_asm.py` | Companion ASM sweep for the same closed campaign, zero references. |
 | `_sweep_ov062.py` | One-off sweep for overlay 062, zero references. |
 | `_sweep_ov062b.py` | Variant of the ov062 sweep, zero references. |
-| `crack_pr104.js` | One-off Fable crack script for PR #104's `func_ov006_02115b0c`; that function matched and landed in commit `5fa17d52f`; never re-run since, no other tool references it. |
+| `crack_pr104.js` | One-off Fable crack script for PR #104's `func_ov006_02115b0c`; that function matched and landed in commit `70c69e165`; never re-run since, no other tool references it. |
 | `gen_sinit_disasm.py` | Orphaned `__sinit` disasm-to-C generator; one commit, no callers anywhere (workflows, docs, notes, or other tools). |
 
 ## Kept (165 of 178)

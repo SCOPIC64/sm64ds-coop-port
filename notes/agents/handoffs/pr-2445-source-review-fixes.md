@@ -1,6 +1,6 @@
 # Handoff: pr-2445-source-review-fixes, September 10 continuation
 
-This commit resumes `938dd60b7a10e8c88cf5abb4ff9db11f2448895c` in the existing
+This commit resumes `cb2cbf1f4b307fb6960e59c513b43866b6687040` in the existing
 `pr-2445-source-review-fixes` task. Session `codex-r2445-0910` read the offered
 verification, preserved SNM-01 as open through rework, and claimed the returned
 `fix` producer stage before editing. Worktree: `C:/tmp/sm64ds-r2445-0910`.
@@ -75,7 +75,7 @@ private validation; these producer results do not authorize merging.
 
 ## Preserved September 8 handoff
 
-Everything below describes the historical `938dd60` checkpoint, including its
+Everything below describes the historical `cb2cbf1` checkpoint, including its
 then-current source counts, prior ownership and previously measured proof.
 The continuation above supersedes its current-work claims without erasing them.
 
@@ -94,16 +94,16 @@ whole-class pass or integration acceptance.
   `codex-humanizer-integrator-20260908`.
 - Branch `cpp/humanizer-snmbdy-0908`, wired worktree
   `C:/tmp/sm64ds-humanizer-snmbdy-0908`. Fresh input is the preserved checkpoint
-  `c42d5b3fff1232631eb06f80cfbc5820f8f9591e`, returned through independent verifier
+  `a9cf28104d5412ad19f94c6da941d480febbfc6b`, returned through independent verifier
   rework. Original adopted PR head is
-  `19921838ecf6acaf689a4dbc3bb4fd05e4d0effc`; actual PR merge base is
-  `690637e41a7a302eace631f6065ab1c4fe37326e`. No classes were restarted and no
+  `dc12411cff6a88cb2789e6ded97df809b499c9e3`; actual PR merge base is
+  `6941db21d5708261205537058935c990aafa10e2`. No classes were restarted and no
   history was rebased or reset.
 - Predecessor task `snmbdy-ov072-0907b`. Inherited source contributors include
   `prod-snmbdy-0907` and `int-snmbdy-0907b-b303`; the prior correction producer
   was `codex-humanizer-snmbdy-20260908-01`. This producer cannot verify its own
-  work. Workflow remains `f327f7b6460e157153eb7fc0749dbbe60dd854f1`; supported
-  queue tools are `6ef1dfb896e6074e83d2aa1a03cc3b701d07dcae`.
+  work. Workflow remains `d7e28406933497ff40150f9b912efe64666a00b2`; supported
+  queue tools are `60c611a223cbbc6db0b1cc3883072f20f8fe9e88`.
 - Reservation: class source/header, class manifest, this handoff and the original
   [producer handoff](prod-snmbdy-0907.md); ov072 text
   `[0x0211f000,0x0211ff34)` (29 functions, 3,892 bytes) and owned data
@@ -159,14 +159,14 @@ failure did not discard either set of findings.
   member. This direct inclusion passes; no compiler obstacle is claimed.
 
 All four source hypotheses were first compiled separately from exact input
-`c42d5b3fff1232631eb06f80cfbc5820f8f9591e` in ignored probe files. The control and
+`a9cf28104d5412ad19f94c6da941d480febbfc6b` in ignored probe files. The control and
 all four hypotheses each passed every one of the 29 exact function symbols under
 `2004/b56`, not only the edited methods. Their combination also passed 29/29,
 zero blind bytes, empty diffs and exact requested sizes. No failed hypothesis was
 encountered in this bounded set. The applied combined source only closes the
 extra blank line before `#include "Player.h"`; final source was compiled again.
 
-| Probe from c42d5b3 | Exact change | Result |
+| Probe from a9cf281 | Exact change | Result |
 | --- | --- | --- |
 | control | No source change | 29/29 strict |
 | profile | Rename only descriptor fields and correct its comment | 29/29 strict |
@@ -179,12 +179,12 @@ Each `<probe>.cpp`, `<probe>.patch`, `<probe>.o` and `<probe>.json` is retained 
 `build/pr2445-rework-probes-20260908/`. `summary.json` records full source,
 object and patch SHA256, compiler flags and all exact linkcheck records. The
 patches are reproduced by taking only the corresponding source hunks between
-c42d5b3 and this commit, preserving every other source/header blob from c42d5b3.
+a9cf281 and this commit, preserving every other source/header blob from a9cf281.
 
 ## Pending ledger dependency
 
 `symbols/actor_renames.tsv` remains reserved by paused
-`issue-2411-humanizer-2` at its preserved 848da2bb repair. It was not edited.
+`issue-2411-humanizer-2` at its preserved eb06f6eb repair. It was not edited.
 The coordinator must arrange legitimate ownership and include these exact two
 why-cell corrections before accepting the full provenance finding:
 
@@ -286,7 +286,7 @@ does not dispose of SNM-01 or substitute for independent source review.
 
 ## Preserved historical limits
 
-The earlier checkpoint c42d5b3 had unchanged executable tokens against 19921838;
+The earlier checkpoint a9cf281 had unchanged executable tokens against dc12411c;
 that statement applies only to that checkpoint. Its full handoff and measurements
 remain in git at that exact commit, with ignored `build/pr2445-proof-20260908/`
 and `build/pr2445-proof-20260908-control/` evidence intact. The first TU attempt
@@ -300,7 +300,7 @@ is introduced to hide it. Fresh complete intact-object text/data and production
 ROM gates have their own results and limits. Bare basename NO-SYM checks are
 never substituted for explicit manifest-function proof.
 
-The published private validator's prior pass belongs to PR head 19921838; it
+The published private validator's prior pass belongs to PR head dc12411c; it
 has not tested this new candidate or a future merge composition. A producer
 queue offer comes before a different-session independent review; passing that
 stage must precede PR/integration publication. Ledger completion and any merge

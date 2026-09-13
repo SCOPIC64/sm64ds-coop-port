@@ -47,7 +47,7 @@ labels while keeping the names. `tubuild.py` regenerates the map only when it is
 *entirely absent* — a stale-but-present map is reported as a note and used as-is.
 
 Figures move whenever the map changes, so run the command rather than quoting these.
-Measured on `main` at `343eab070`: **74 modules, 11,091 functions, 532 TUs, 305 sinits**,
+Measured on `main` at `980af6241`: **74 modules, 11,091 functions, 532 TUs, 305 sinits**,
 boundaries `{low: 68, medium: 110, high: 280}`, 400/532 carrying a class.
 
 ## The one rule that matters

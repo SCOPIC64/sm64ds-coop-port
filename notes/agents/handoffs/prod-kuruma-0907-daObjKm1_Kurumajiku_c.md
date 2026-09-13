@@ -9,9 +9,9 @@ This document describes this commit. The queue records its immutable output SHA.
   `tools/classqueue_v2.py claim`; receipt at
   `C:/tmp/fleet-receipts/prod-kuruma-0907.json`. Queue ref
   `refs/heads/agents/coordination`; workflow pin
-  `f327f7b6460e157153eb7fc0749dbbe60dd854f1`.
+  `d7e28406933497ff40150f9b912efe64666a00b2`.
 - Then task `kurumajiku-ov043-0907b`, stage `revise`, same session, receipt
-  `C:/tmp/fleet-receipts/rev-kuruma-0907.json`, input commit `ddd3d8900`. The
+  `C:/tmp/fleet-receipts/rev-kuruma-0907.json`, input commit `3b08792ad`. The
   original task was cancelled. The revise stage repaired two coordinator errors
   and changed **nothing** about the class work: the TU moved to the layout the
   landed policy requires, and this rename's five rows were added to the rename
@@ -21,13 +21,13 @@ This document describes this commit. The queue records its immutable output SHA.
   A second worktree `C:/tmp/sm64ds-kuruma-0907-ctl` on branch
   `ctl/kuruma-0907-baseline` holds the clean base and exists only to run
   controls; it carries no deliverable.
-- **Base is `442dc178be177d7556ee6e7787772016ce2a6346`, not the `b7a48b1aa` the
-  briefing named.** `b7a48b1aa` is an ancestor three commits behind
+- **Base is `c9eb745e881178ab92739ac72133660e0e51259b`, not the `60339c7ed` the
+  briefing named.** `60339c7ed` is an ancestor three commits behind
   `origin/main`, and the queue task's own `base_commit` and `input_commit` are
-  both `442dc178b`. The three intervening commits touch only
+  both `c9eb745e8`. The three intervening commits touch only
   `contributions.json`, `nearmiss/db.jsonl` and `nearmiss/eval_pin.json` — no
   file this class reads — so the drift changed no measurement, but every
-  base-versus-head gate below was run against `442dc178b` so the figures match
+  base-versus-head gate below was run against `c9eb745e8` so the figures match
   what an integrator will reproduce.
 - No previous accepted input; this is the first stage on this class under v2.
 - Next action: independent verification (stage `verify`, role verifier, a
@@ -237,8 +237,8 @@ figure below is from that re-run, not carried over from the produce stage.
 | `tubuild verify` | **5/5 MATCH**, objisolate clean, reloc-destinations clean, TEXT-VERIFIED | — |
 | `rombuild -j16` | **PASS**, 106/106 exact, sha256 matches | — |
 | `romdata_check` | **pass** | pass on clean base |
-| `validate_merge --base 442dc178b` | **pass**, +0 byte-verified, credit 0 added/0 changed/**0 lost**, 106/106 exact, 700 data symbols exact | — |
-| `premerge_check --base 442dc178b` | **pass**, 8/8 gates ok, `-4` entries read as consolidation | — |
+| `validate_merge --base c9eb745e8` | **pass**, +0 byte-verified, credit 0 added/0 changed/**0 lost**, 106/106 exact, 700 data symbols exact | — |
+| `premerge_check --base c9eb745e8` | **pass**, 8/8 gates ok, `-4` entries read as consolidation | — |
 | `check_tubuild_conflicts` | **pass** | pass |
 | `check_src_tu` | **pass** | pass |
 | `check_src_tu_compiles` | **pass**, 162/162 TUs compile | — |
@@ -276,7 +276,7 @@ speaking, not a defect:
 - **`queue_audit --check`** — red on my branch and red on the clean base with
   identical output: `already_promoted 4, compiler-only 3, shard_count 4,
   total_lines 4, unmatched 1`. Re-run after the revise stage and `diff`ed
-  against a fresh control run in the clean worktree at `442dc178b`: **byte-for-byte
+  against a fresh control run in the clean worktree at `c9eb745e8`: **byte-for-byte
   identical**, and no line mentions this class. Foreign rows, unchanged by me. This class's own
   row **was** refreshed: `RickshawBdw 4 79 … no` became
   `daObjKm1_Kurumajiku_c 1 157 … yes` with the blocker re-derived. I did not run
@@ -329,7 +329,7 @@ speaking, not a defect:
 
 ## Judgement calls the briefing did not cover
 
-1. **The base was three commits stale.** Used the queue's `442dc178b`.
+1. **The base was three commits stale.** Used the queue's `c9eb745e8`.
 2. **Output path — REPAIRED in the revise stage, and I was wrong to call it
    cosmetic.** The produce stage shipped the TU as
    `daObjKm1_Kurumajiku_c.cpp` under `src/actors/`, because the task's

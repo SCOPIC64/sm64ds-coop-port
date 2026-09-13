@@ -23,11 +23,11 @@
 # THE FILTER COVERS EVERY WORKFLOW FILE, not just this one. The tool reads workflow
 # comments and `run:` lines as prose, but the trigger below used to name only
 # `dead-references.yml`, so a PR touching a SIBLING workflow never ran this gate. #2027
-# merged as `e9de9103a` naming a `test_X.py` under tools/ in a `tool-tests.yml` comment
+# merged as `aba96a801` naming a `test_X.py` under tools/ in a `tool-tests.yml` comment
 # -- a path that has never existed -- and the main-push run list for that commit reads
 # `src_tu references`, `tool tests`, `pages`, with no `dead references` among them. The
 # dead reference then sat on main until it turned #2030's `references` check red for a
-# defect #2030 did not introduce; `b309f5d3f` (#2031) removed the string. A gate that
+# defect #2030 did not introduce; `dc94642db` (#2031) removed the string. A gate that
 # reads a file must be triggered by that file.
 #
 # AND A GATE THAT RESOLVES A PATH MUST BE TRIGGERED BY THAT PATH. There is no `paths:`

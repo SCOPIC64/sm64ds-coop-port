@@ -1,6 +1,6 @@
 # The 72 unmatched functions, and which of them count
 
-Measured at origin/main c52f63ca5, from the chaos-db.json that commit's own
+Measured at origin/main 1f65fcaec, from the chaos-db.json that commit's own
 generator produces (11,318 matched of 11,390, the figure the README bar carried).
 Written for Tango's ruling of 2026-09-09, `count them and address it somewhere in
 readme`, and kept because the partition is the evidence the rule rests on.

@@ -11,7 +11,7 @@ Written after #1226, where two imported names turned out to be asserting paramet
 the ROM refutes. Neither was a sloppy guess; both were unfalsifiable from where they were
 written. That is the pattern worth internalising.
 
-> **Counts below are measured at `af680244` (main), before #1226 lands.** They drift as
+> **Counts below are measured at `7dbc0cc4` (main), before #1226 lands.** They drift as
 > migrations land — #1226 alone moves two methods out of the unmigrated column. Re-derive
 > with `tools/langmode_audit.py` before quoting any of them; the *ratios* are the durable
 > part, not the digits.

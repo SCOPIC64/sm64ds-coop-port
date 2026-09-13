@@ -14,7 +14,7 @@
 # is the unbuildable-files-invisible shape again: what is absent produces no failure.
 # A note still claiming a conflict that was quietly reconciled reads as unfinished work
 # that does not exist, and a marker with no note is a decision that never reached review
-# at all. Measured on 5c24b731940c, immediately before the reconciliation that lands
+# at all. Measured on 5bcd3d2d0ff4, immediately before the reconciliation that lands
 # with this gate: 63 wrong records across 97 entries -- 59 stale notes, 3 desynchronized
 # by a symbol rename, 1 never recorded.
 #

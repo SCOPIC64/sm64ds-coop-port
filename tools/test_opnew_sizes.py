@@ -4,7 +4,7 @@
 `fBase_c::operator new`, and attributes it by the vtable the factory installs. Each of
 the three ways that attribution has been got wrong before -- taking the first vptr store
 instead of the last (#1559/#1560 reverted 2 of 13), reading past the factory's own extent
-(commit 3f760a354, the mechanism behind the 41 misnamed classes of #1418-#1423), and
+(commit a46a9dd1f, the mechanism behind the 41 misnamed classes of #1418-#1423), and
 crediting a member subobject's vptr to its owner -- is a case below, driven through
 synthetic ARM rather than the ROM so it runs in a checkout with no `extracted/`.
 
@@ -117,7 +117,7 @@ def test_the_scan_stops_at_the_functions_own_size():
     """The next function is almost always the NEXT class's D1, storing its own vtable.
 
     An unbounded window attributes that table here -- the shifted-name mechanism of
-    commit 3f760a354. The window is the config `size=`, and nothing past it is read."""
+    commit a46a9dd1f. The window is the config `size=`, and nothing past it is read."""
     site = BASE + 4
     ours = [mov_imm(0, 0x40), bl(site, NEW), mov_reg(4, 0),
             ldr_pc(0, 0x14), str_off(0, 4), 0xE12FFF1E]

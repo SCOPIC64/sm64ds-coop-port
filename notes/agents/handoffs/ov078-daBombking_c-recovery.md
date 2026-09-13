@@ -12,16 +12,16 @@ This document describes this commit. The queue records its immutable output SHA.
   opened, role producer, session `prod-kbo-0907`, harness Claude Code
   (`claude-opus-5`).
 - Source branch and previous accepted input SHA: `origin/cpp/KingBobOmb-tu`,
-  tip `2fa763963` (2026-09-05). This branch is `cpp/daBombking_c-recover`; it
+  tip `e2e503e9a` (2026-09-05). This branch is `cpp/daBombking_c-recover`; it
   descends from that tip. Nothing was rebased, reset or amended -- the
   decompilation is the branch's, unchanged.
 - Original source base SHA and installed workflow/tool SHA: merge-base with main
-  `f3b11fa9b`. Workflow/tool revision
-  `f327f7b6460e157153eb7fc0749dbbe60dd854f1`. `origin/main` was merged in three
+  `fbfbc055e`. Workflow/tool revision
+  `d7e28406933497ff40150f9b912efe64666a00b2`. `origin/main` was merged in three
   times with `--no-ff`, never rebased, because main landed a TU promotion under
-  this branch twice while it was under test: `a278141a9`, then `6e04e1090`
-  (ov030/daMky_c, #2430), then `ecc97391e` (ov002 batch-1 rescue, #2435).
-  **The base this candidate is proved against is `ecc97391e`.**
+  this branch twice while it was under test: `80649f84e`, then `a9d978234`
+  (ov030/daMky_c, #2430), then `516a883c4` (ov002 batch-1 rescue, #2435).
+  **The base this candidate is proved against is `516a883c4`.**
 - Separate evidence commits and required artifacts in this commit: no separate
   evidence commit. Facts: `notes/data/class-facts/daBombking_c.json`, carried
   from the source branch and re-measured here rather than trusted (see ROM
@@ -34,7 +34,7 @@ This document describes this commit. The queue records its immutable output SHA.
   `notes/data/tu-promotion-queue.tsv` and a langmode ratchet that main itself
   fails.
 - Status: **verified candidate.** Every figure in Proof was produced on this
-  tree at base `ecc97391e`; the private terminal validator has not run on it.
+  tree at base `516a883c4`; the private terminal validator has not run on it.
 - Remaining uncommitted/local-only material and where it is preserved: none.
   Gate logs live in the ignored `build/` directories of two private worktrees
   and are not part of the candidate.
@@ -154,7 +154,7 @@ This document describes this commit. The queue records its immutable output SHA.
   **beside this class's sorted neighbours** (immediately after the
   `src/actors/daBmb_c.cpp#...` block, indices 693-744 of 3,157) rather than
   appended at the tail, so a concurrently landing PR appending at the tail does
-  not collide with them -- and `ecc97391e` did exactly that without conflict.
+  not collide with them -- and `516a883c4` did exactly that without conflict.
 - Remaining agreed issue scope: (1) turn the 44 free functions into members as
   the evidence for each is established -- that is class reconstruction and is
   not attempted here; (2) the 498 raw offsets and 11 shadow types that go with
@@ -194,7 +194,7 @@ byte of the decompilation.
   landed this same move on main record it two ways -- a `" (was <coined>)"`
   suffix on the in-place row, which `tools/check_rename_ledger.py` already
   parses, and an appended row per renamed symbol carrying the evidence. This
-  commit adds both for ov078: eight suffixes and nine appended rows. `ecc97391e`
+  commit adds both for ov078: eight suffixes and nine appended rows. `516a883c4`
   landed while this was under test and appended twelve rows of exactly that form
   for its own three classes, which is independent confirmation of the
   convention.
@@ -216,10 +216,10 @@ byte of the decompilation.
 
 Everything below was run on this commit's tree in two private wired worktrees,
 pinned compiler mwccarm 2004/b56. The base for every comparison is
-`origin/main` at `26f54f8fc`; the two ROM builds were made one commit earlier
-at `ecc97391e`, whose source tree is byte-identical (the delta is a `[skip ci]`
+`origin/main` at `11ef9a7dd`; the two ROM builds were made one commit earlier
+at `516a883c4`, whose source tree is byte-identical (the delta is a `[skip ci]`
 refresh of README.md, contributions.json and two files under `docs/`, and
-`git diff --name-only ecc97391e 26f54f8fc -- src/ include/ config/` is empty).
+`git diff --name-only 516a883c4 11ef9a7dd -- src/ include/ config/` is empty).
 Both ROM builds were **regenerated from scratch for this base**; no cached
 report was reused. Logs are private `build/` files and scratch files; they are
 not committed.
@@ -320,7 +320,7 @@ not committed.
   entries 9,066 -> 9,015 (-51), "consolidation, not a loss -- bytes are flat".
 - **Ratchets.**
   - `python tools/langmode_audit.py --check <origin/chaos-data
-    8ac85ba45:langmode-baseline.json>` -- **exit 0, ratchet PASS**, and a clean
+    ca2754639:langmode-baseline.json>` -- **exit 0, ratchet PASS**, and a clean
     checkout of the base passes too. Worth recording because it did not start
     that way: against the same baseline file this candidate FAILED while it was
     still one main-commit behind, and so did clean main, worse. Comparing the

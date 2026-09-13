@@ -1124,7 +1124,7 @@ class MergeEvidenceThroughBuildReport(unittest.TestCase):
         return VM.build_report(self.base, commit(self.repo, "fold", "bob"))
 
     def test_a_transcribed_source_cannot_carry_the_merge_through_the_report(self):
-        # Measured on 660900ee3 against this exact tree: reasons [], repartition
+        # Measured on 970d534d3 against this exact tree: reasons [], repartition
         # {'kind': 'merge', 'functionDelta': -1, 'sourceByteDelta': 116}.
         report = self._fold(self.TRANSCRIBED)
         self.assertIsNone(report["repartition"])
@@ -1257,7 +1257,7 @@ class RelocIndex(unittest.TestCase):
         self.write(f"overlays/{name}/delinks.txt", sections)
 
     def test_an_empty_file_for_a_module_with_nothing_but_bss_is_fine(self):
-        # 15 of these at cd3a7eb59. ov061 verbatim: a zero-length `.ctor` and a
+        # 15 of these at cabeb60aa. ov061 verbatim: a zero-length `.ctor` and a
         # `.bss`, which occupies no cartridge bytes and can hold no pointer.
         self.empty_module(
             "    .ctor       start:0x02115ec0 end:0x02115ec0 kind:rodata align:4\n"

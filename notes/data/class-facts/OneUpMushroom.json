@@ -293,9 +293,9 @@
 
   "tree_derived_state": {
     "_warning": "Everything in this block changes on every promotion. Re-derive it against the base you actually ship.",
-    "base_commit": "b266ff4712b9863ff9ea143ff2c57705039bf17a",
-    "derived_at_commit": "2ab05bae36a6821679a7e647e811c0a3243a3c49",
-    "base_verified": "Everything here was derived at 2ab05bae3. origin/main then advanced 7 commits to b266ff471 while this scout ran, and that was merged in rather than rebased. Re-checked AFTER the merge: `git diff --name-only 2ab05bae3 origin/main` is 9 files, all under tools/ plus notes/tool-gate-findings-2026-09-05.md. None of them is an ov002 config file, the promotion queue, converted-baseline.json, actor_renames.tsv, a tu_manifest, or any shard named in this file, so every tree-derived field below still holds at b266ff471.",
+    "base_commit": "180bf7ac8dc2fb0542707d3835520cb536dcaf84",
+    "derived_at_commit": "a81adfa3702637cf566bcc97167786387eb582e6",
+    "base_verified": "Everything here was derived at a81adfa37. origin/main then advanced 7 commits to 180bf7ac8 while this scout ran, and that was merged in rather than rebased. Re-checked AFTER the merge: `git diff --name-only a81adfa37 origin/main` is 9 files, all under tools/ plus notes/tool-gate-findings-2026-09-05.md. None of them is an ov002 config file, the promotion queue, converted-baseline.json, actor_renames.tsv, a tu_manifest, or any shard named in this file, so every tree-derived field below still holds at 180bf7ac8.",
     "branch": "cpp/OneUpMushroom-tu",
     "worktree": "C:/tmp/sm64ds-oneup-scout",
     "queue_row": "OneUpMushroom\t36\t972\tov002\tyes\tno\tcompiler-only:>=11\tdaBar_c\ttext-only",

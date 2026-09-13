@@ -261,7 +261,7 @@
   ],
   "provenance": {
     "worktree": "C:/tmp/sm64ds-ctmecha04-scout",
-    "ref": "cpp/daObjCtMecha04_c-tu at 379bd67f9a17a29290ee0178fb985d92375e0dd8",
+    "ref": "cpp/daObjCtMecha04_c-tu at 47f20512d3cf181d815177cf1bd6fefc5ab4fcbd",
     "rom_inputs": [
       "extracted/overlays/overlay_0065.bin",
       "extracted/arm9_dec.bin"

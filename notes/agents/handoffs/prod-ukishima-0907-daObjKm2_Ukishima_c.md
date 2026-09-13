@@ -9,9 +9,9 @@
 | receipt | `C:/tmp/fleet-receipts/prod-ukishima-0907.json` |
 | worktree | `C:/tmp/sm64ds-ukishima-0907` (leave it; tear down only with `wt-remove.ps1`) |
 | branch | `cpp/daObjKm2_Ukishima_c-tu` |
-| claimed input commit | `fd55979f074c7ad796e2846328933363315e7f06` |
-| **base as shipped** | **`b0d348e536fb3304b6ab12d88fe95d780cbeb91d`** — see "The base moved" below |
-| commits | `047948906` (the promotion), `6e8ab81e0` (attribution overrides) |
+| claimed input commit | `e24940a574968dd46d323714d1c599564ec08c71` |
+| **base as shipped** | **`fed0c5e05531dd5d89f15e092430b68e4bd61fdf`** — see "The base moved" below |
+| commits | `9d892b40a` (the promotion), `eae3e85c2` (attribution overrides) |
 | route | text-only |
 | no PR was opened, nothing was merged | |
 
@@ -140,7 +140,7 @@ this class). **8 VERIFIED, 6 PARTIAL, 0 DIFFERS** for this file.
 
 ## Gate table
 
-All figures below are from the **rebased** branch on base `b0d348e53`.
+All figures below are from the **rebased** branch on base `fed0c5e05`.
 
 | gate | verdict | control |
 |---|---|---|
@@ -150,8 +150,8 @@ All figures below are from the **rebased** branch on base `b0d348e53`.
 | `rombuild -j16` | **PASS**, 106/106 modules exact, 100.000000% of compared bytes, 11,192 functions reproducing / **0** mismatching | — |
 | ROM sha256 | `d1506e90efae5e2d2cf119926a4ac2a291bd5ca78349d09d5024e1a918c478e8` — **hashed off `build/sm64ds.nds` directly**, not read from the build log | — |
 | `romdata_check` | **exit 0**; 706 verified / 224 partial / 4 differ tree-wide; this TU **0 differ** | the 4 differing are `_ZTV10dCcAcPos_c` and `_ZTV7daKrb_c`, in files this branch never touched |
-| `validate_merge --base b0d348e53` | **exit 0**; byte-verified `+0`, module fidelity 106/106, **credit 0 added / 0 changed / 0 lost** | before the attribution commit the same invocation reported **5 changed** — the overrides are load-bearing |
-| `premerge_check --base b0d348e53` | **exit 0**, 8/8 gates `pass → pass`, nothing green→red | — |
+| `validate_merge --base fed0c5e05` | **exit 0**; byte-verified `+0`, module fidelity 106/106, **credit 0 added / 0 changed / 0 lost** | before the attribution commit the same invocation reported **5 changed** — the overrides are load-bearing |
+| `premerge_check --base fed0c5e05` | **exit 0**, 8/8 gates `pass → pass`, nothing green→red | — |
 | `langmode_audit` | exit 0 | — |
 | `check_rename_ledger` | exit 0, **2031** mangled/vtable rows all agree with symbols.txt | corrupting one of my rows to `...D9Ev` gives exit 1 naming `actor_renames.tsv:3539 ov045 0x02111b14` |
 | `check_tubuild_conflicts` | exit 0, 162 manifest entries | — |
@@ -161,14 +161,14 @@ All figures below are from the **rebased** branch on base `b0d348e53`.
 | `check_duplicate_sources` | exit 0, no stem doubled | — |
 | `cpp_tu_compat --require-ready` | exit 0, all nine facets READY | — |
 | `port_refcheck` | exit 0, 423 references resolve | — |
-| `queue_audit --check` | **exit 0**, "queue agrees with the tree" | on the old base it had 4 foreign disagreements; `b0d348e53` fixed them. Reverting my row alone raises `compiler-only` 3→4, proving the check sees it |
+| `queue_audit --check` | **exit 0**, "queue agrees with the tree" | on the old base it had 4 foreign disagreements; `fed0c5e05` fixed them. Reverting my row alone raises `compiler-only` 3→4, proving the check sees it |
 | `tiers_ratchet --check` | **PASS**, baseline 2701 → current 2705, +8 gained, 4 clean ownership transitions | `--check` only; `--update` was never run |
 | `prepush_attribution` | **exit 1**, 1 changed / 1 lost | **not ours:** identical shape (1 changed, 1 lost, same `D1` member) on the verified `cpp/daObjKm1_Kurumajiku_c-tu` precedent |
 
 ## Things worth flagging to the next stage
 
-1. **The base moved under this lane.** `origin/main` went `fd55979f0` →
-   `b0d348e53` mid-run (three commits: the ov022/ov013 batch-2 promotions, a
+1. **The base moved under this lane.** `origin/main` went `e24940a57` →
+   `fed0c5e05` mid-run (three commits: the ov022/ov013 batch-2 promotions, a
    progress refresh, and the denominator-gate carve-out). Settled with
    `git merge-tree`, not a file list: the file **sets** overlapped in five paths,
    of which two actually conflicted. `notes/cpp-tu-current-state.md` was
@@ -183,7 +183,7 @@ All figures below are from the **rebased** branch on base `b0d348e53`.
    same commit, so git pairs neither even at `--find-renames=30%`, and
    `prepush_attribution` says as much ("A commit may rewrite a file, or move it —
    not both"). What actually preserves credit is the five per-member
-   `attribution.json` overrides in `6e8ab81e0`, and `validate_merge` proves it:
+   `attribution.json` overrides in `eae3e85c2`, and `validate_merge` proves it:
    **5 changed without them, 0 changed with them.** Any future fold of this shape
    should plan on the overrides rather than on `git mv`.
 

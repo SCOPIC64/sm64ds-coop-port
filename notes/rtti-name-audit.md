@@ -1,6 +1,6 @@
 # The cartridge disagrees with 259 of our class names, and that gates promotion
 
-Measured on `origin/main` `01c4d350a`, reproducible with `python tools/rtti_name_audit.py`.
+Measured on `origin/main` `2404691d8`, reproducible with `python tools/rtti_name_audit.py`.
 
 ```
 total _ZTV symbols in config    541

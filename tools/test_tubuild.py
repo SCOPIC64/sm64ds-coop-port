@@ -160,7 +160,7 @@ def test_verify_reproduces_pilot_1s_7_of_7_and_clean_objisolate():
     # it non-fixable: an out-of-line ~PoleLift() makes mwccarm emit D2/D0/D1 in a
     # fixed order that puts D0 before D1, opposite the ROM. Defining the destructor
     # in the class body of PoleLift itself emits exactly the ROM's two variants in
-    # the ROM's order. Measured across 467bde020^ -> 467bde020 with both files
+    # the ROM's order. Measured across 86a6ee704^ -> 86a6ee704 with both files
     # swapped together: 37 sections / D2 present / "1 ordinal pair(s) NOT in ROM
     # order: [(0, 1)]" before, 35 / no D2 / "ALL MATCH, ROM order" after.
     #
@@ -184,8 +184,8 @@ def test_verify_reproduces_pilot_1s_7_of_7_and_clean_objisolate():
     # _ZTV8Platform, emitted here because Platform had no key function to anchor them.
     # #1555 ("Give Platform its 32nd vtable slot: Platform::Kill") gave it one, and
     # they moved to Platform's own TU. Compiling this file's own historical forms
-    # against their own include/ trees reads 43 sections / 15 unlicensed at dedaa139e^
-    # and 37 / 12 at dedaa139e -- so this expectation went stale at #1555, 116 pull
+    # against their own include/ trees reads 43 sections / 15 unlicensed at fc5b94a54^
+    # and 37 / 12 at fc5b94a54 -- so this expectation went stale at #1555, 116 pull
     # requests before the collision rename (#1643) that later stopped the file
     # compiling at all and hid the staleness behind a compile error.
     assert "11 unlicensed section/symbol(s) present -> PROMOTION REFUSED" in out
@@ -210,10 +210,10 @@ def test_compile_report_matches_the_pilots_object_inventory():
                     .text and its .rela.text
 
     Measured, not inferred: compiling this TU's shadow source together with PoleLift's
-    own class header at 467bde020^ -- both, because the pre-#2066 shadow source does
+    own class header at 86a6ee704^ -- both, because the pre-#2066 shadow source does
     not compile against the post-#2066 header, which is why the staleness surfaced as
     a failing assert rather than a quietly wrong number -- reads 37 sections with
-    _ZN8PoleLiftD2Ev present; at 467bde020 it reads 35 without.
+    _ZN8PoleLiftD2Ev present; at 86a6ee704 it reads 35 without.
 
     Neither file is named by path here on purpose. PoleLift is a coined name the
     cartridge contradicts (ROM RTTI: 18daObjKm2_Ami_Bou_c), the rename is a

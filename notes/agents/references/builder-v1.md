@@ -14,7 +14,7 @@ The order matters and is not the order you would guess. `tiers_ratchet --update`
 edits tracked files, and `check_references.py` refuses any eligibility report
 that does not match `HEAD` — so the ratchet and its commit must come **before**
 `eligible.py`, not after it. Run them the other way round and you get
-`report describes 7558d4ca8a9e, HEAD is 99567e1a082b` and have to redo both.
+`report describes 8f39bae00019, HEAD is 636ee89d5940` and have to redo both.
 
 **Stronger, and this is the part the ordering above understates: `eligible.py`
 must be the LAST command before `check_references`.** On a rebase the ledger, the
@@ -546,7 +546,7 @@ happens; the symptom is a gate screaming about an overlay you never touched.
 **The mechanism, and the check that survives it: sibling worktrees share one ref
 store, so `origin/main` can advance between your `git fetch` and your
 `git rebase origin/main`.** The SHA you verified is not necessarily the SHA you
-rebased onto — one builder confirmed `5604d114a` and landed on `ce2cf87c1` minutes
+rebased onto — one builder confirmed `12fe255b5` and landed on `2e4dcc834` minutes
 later, because another agent's fetch advanced the shared ref. A pre-flight
 `git log -1 origin/main` therefore proves nothing. Verify **after** the fact:
 `git merge-base HEAD origin/main` equal to `HEAD~N`, and

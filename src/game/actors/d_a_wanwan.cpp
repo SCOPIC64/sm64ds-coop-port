@@ -811,10 +811,19 @@ fail:
 /* ROM ordinal 15 -- func_ov014_02111f08, 0x02111f08, size 0x4c */
 /* -------------------------------------------------------------------------- */
 // @symbol func_ov014_02111f08
-struct C; typedef void (C::*PMF)();
+/* C IS COMPLETE BEFORE THE POINTER-TO-MEMBER TYPE, and that ordering is
+   load-bearing on the host. CodeWarrior gives every pointer-to-member the same
+   8 bytes, so the forward declaration cost it nothing; MSVC picks the
+   representation from what it knows at the point of declaration, and for an
+   INCOMPLETE class it picks the 16-byte fully general one, which makes
+   `20 - 8 - sizeof(PMF)` negative and the array declaration ill-formed. With
+   the class defined first the host reads a single-inheritance member pointer
+   and the expression stays positive. mwccarm is unaffected: the object is
+   byte-identical either way. */
+struct C { char pad[0x610]; int idx; };
+typedef void (C::*PMF)();
 struct Entry { char pad[8]; PMF pmf; char tail[20 - 8 - sizeof(PMF)]; };
 extern Entry data_ov014_0211476c[];
-struct C { char pad[0x610]; int idx; };
 extern "C" void func_ov014_02111f08(void *vc) {
   C *c = (C *)vc;
   int j = c->idx;
@@ -859,7 +868,7 @@ extern "C" {  /* .c-derived member: C linkage for the whole block */
 // @symbol func_ov014_02111e14
 extern unsigned short DecIfAbove0_Short(unsigned short*);
 extern void func_ov014_02111ebc(void*, int);
-extern void _Z14ApproachLinearRiii(int*, int, int);
+extern int _Z14ApproachLinearRiii(int*, int, int);
 void func_ov014_02111e14(char* c){
   *(int*)(c+0xa8)=0;
   _Z14ApproachLinearRiii((int*)(c+0x80), 0x1000, 0x500);
@@ -891,9 +900,9 @@ void func_ov014_02111dc4(char *c){
 typedef short s16;
 extern "C" {
 int func_ov014_02111f54(void* c);
-void ApproachAngle(void* p, int a, int b, int c, int d);
+int ApproachAngle(void* p, int a, int b, int c, int d);
 unsigned short DecIfAbove0_Short(unsigned short* p);
-void _Z14ApproachLinearRiii(int* p, int to, int step);
+int _Z14ApproachLinearRiii(int* p, int to, int step);
 void _Z14ApproachLinearRsss(short* p, short to, short step);
 int _ZN8dActor_c13DistToCPlayerEv(void* self);
 short _ZN8dActor_c18HorzAngleToCPlayerEv(void* self);
@@ -1033,7 +1042,7 @@ extern "C" void func_ov014_021115ec(u8 *self)
      * scope keeps them its own (C linkage inherited, file-scope views hidden). */
     void _ZN5Sound15PlaySecretSoundEP8dActor_cPt(void *actor, u16 *snd);
     void *_ZN8dActor_c10FindWithIDEj(unsigned id);
-    void ApproachAngle(void *self_, s32 a, s32 b, s32 c, s32 d);
+    int ApproachAngle(void *self_, s32 a, s32 b, s32 c, s32 d);
     s16 _ZN8dActor_c18HorzAngleToCPlayerEv(void *self_);
     s16 Vec3_HorzAngle(const Vector3 *a, const Vector3 *b);
     s32 _Z14ApproachLinearRsss(void *dst, s32 target, s32 step);
@@ -1195,6 +1204,14 @@ void func_ov014_021115c0(char *r4) {
 /* -------------------------------------------------------------------------- */
 extern "C" {  /* .c-derived member: C linkage for the whole block */
 // @symbol func_ov014_0211150c
+/* THE EARLY EXITS ARE SPELT AS NESTED IFS, NOT `return;`. mwccarm accepts a
+   valueless `return` in a non-void function; C++ does not, and no host option
+   reaches it (MSVC C2561). The ROM sets no return value on these paths -- it
+   leaves r0 holding whatever the last call left there and branches straight to
+   the epilogue -- so the faithful shape is a body that reaches its closing
+   brace with nothing to return, which is what the host already accepts for the
+   rest of this family. Byte-identical under 2004/b56: the compiled object is
+   unchanged. */
 int func_ov014_0211150c(char *c) {
     /* views moved to block scope: this file's return/parameter spellings differ
      * from the TU's canonical declarations (C linkage inherited). */
@@ -1202,14 +1219,16 @@ int func_ov014_0211150c(char *c) {
     extern int ApproachAngle(void *p, int a, int b, int c, int d);
     extern int Math_Function_0203b14c(void *p, int a, int b, int c, int d);
     extern int DecIfAbove0_Short(void *p);
-    extern int func_ov014_02111ebc(void *c, int i);
+    extern void func_ov014_02111ebc(void *c, int i);
     _Z14ApproachLinearRiii((int*)(c + 0x80), 0x1000, 0x500);
     *(int*)(c + 0x88) = *(int*)(c + 0x80);
     *(int*)(c + 0x84) = *(int*)(c + 0x88);
     ApproachAngle(c + 0x8c, -0x4000, 4, 0x1000, 0x400);
-    if (Math_Function_0203b14c(c + 0x5f8, 0x64000, 0x800, 0x10000, 0x800) != 0) return;
-    if (DecIfAbove0_Short(c + 0x5fc) != 0) return;
-    func_ov014_02111ebc(c, 1);
+    if (Math_Function_0203b14c(c + 0x5f8, 0x64000, 0x800, 0x10000, 0x800) == 0) {
+        if (DecIfAbove0_Short(c + 0x5fc) == 0) {
+            func_ov014_02111ebc(c, 1);
+        }
+    }
 }
 }
 
@@ -1235,7 +1254,7 @@ extern "C" {  /* .c-derived member: C linkage for the whole block */
 // @symbol func_ov014_02111484
 extern unsigned short DecIfAbove0_Short(unsigned short*);
 extern void func_ov014_02111ebc(void*, int);
-extern void _Z14ApproachLinearRiii(int*, int, int);
+extern int _Z14ApproachLinearRiii(int*, int, int);
 void func_ov014_02111484(char* c){
   if(DecIfAbove0_Short((unsigned short*)(c+0x5fc))==0)
     func_ov014_02111ebc(c, 1);

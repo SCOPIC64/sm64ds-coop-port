@@ -48,7 +48,7 @@ that PR's checks were green. It was found by hand and fixed forward in #2049; th
 spot itself is #2037, which `broken_links` below closes by resolving every markdown
 link against `os.path.dirname()` of its own file.
 
-FAIL-CLOSED, NO BASELINE. Measured over all 106 markdown prose files at `e6ede02d7`:
+FAIL-CLOSED, NO BASELINE. Measured over all 106 markdown prose files at `cbc6a4df5`:
 183 relative links, of which exactly ONE did not resolve -- `port/docs/opie-assessment.md`
 naming `roadmap.md`, which lives at `notes/roadmap.md`. One offender is a fix, not a
 ratchet, so it was corrected in the same change and this check carries no accepted-offender
@@ -103,7 +103,7 @@ MIN_REFS = 1000
 # is deliberately far below the current tree, so normal shard consolidation cannot trip
 # it while removing files.
 MIN_CODE_FILES = 1000
-# 183 relative markdown links at e6ede02d7, 106 of them in one note. The floor sits
+# 183 relative markdown links at cbc6a4df5, 106 of them in one note. The floor sits
 # below what survives that note being deleted outright, so it trips on a broken
 # extractor and not on prose churn.
 MIN_LINKS = 50
@@ -496,7 +496,7 @@ def collect_links(root=REPO):
     Fenced blocks are skipped. The repo-rooted scan above does NOT skip them, and that
     difference is deliberate: a path named in a fenced `python tools/<x>.py` example is a
     real claim about the tree, whereas a link written inside a fence is being SHOWN, not
-    followed. It costs nothing today either way -- all 183 links at `e6ede02d7` sit
+    followed. It costs nothing today either way -- all 183 links at `cbc6a4df5` sit
     outside fences.
     """
     links = []

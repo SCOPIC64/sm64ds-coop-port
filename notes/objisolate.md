@@ -98,7 +98,7 @@ an import no ROM symbol could satisfy.
 
 ## Result
 
-Measured against pristine `origin/main` at `c0fb4d17` in the same worktree, with
+Measured against pristine `origin/main` at `98c0b3e8` in the same worktree, with
 `--no-isolate` supplying the before column:
 
 | | before | after |

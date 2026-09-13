@@ -110,7 +110,7 @@
   ],
   "provenance": {
     "worktree": "C:/tmp/sm64ds-dsnbase",
-    "ref": "cpp/daDsnBase_c-tu (from origin/main 379bd67f9)",
+    "ref": "cpp/daDsnBase_c-tu (from origin/main 47f20512d)",
     "written_by": "writer (no scout ran for this class; no sibling oracle exists in ov091)",
     "tools": [
       "tools/tubuild.py inspect ov091/daDsnBase_c",

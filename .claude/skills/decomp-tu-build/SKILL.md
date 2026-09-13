@@ -36,7 +36,7 @@ overlays. It is not something to reach for in a normal run. There is no flag tha
 suppresses the RTTI labels while keeping the names.
 
 Figures move whenever the map changes — run the command rather than quoting these.
-Measured on `main` at `343eab070` with the full chain: **74 modules, 11,091 functions,
+Measured on `main` at `980af6241` with the full chain: **74 modules, 11,091 functions,
 532 TUs**, boundaries `{low: 68, medium: 110, high: 280}`, 400/532 carrying a class.
 
 ## 1. The loop

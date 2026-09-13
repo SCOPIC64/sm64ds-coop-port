@@ -13,7 +13,7 @@
  * cartridge vtable for the MG_HANACHAN registry profile.
  */
 extern "C" void __cxa_vec_cleanup(void *arr, int count, int elemSize, void *dtor);
-extern "C" void func_ov006_020ea324(void);
+extern "C" void *func_ov006_020ea324(void);
 
 /* dScMgHanachan_c : dScMgBase_c, confirmed leaf via tools/rtti_extract.py
    (no RTTI record names it as a base). Own vtable slots: 0 (InitResources),
