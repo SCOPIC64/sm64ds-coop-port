@@ -384,16 +384,21 @@ src/func_ov006_020ea71c.c
 src/func_ov006_020ea81c.c
 src/func_ov006_020ea8e0.c
 src/func_ov006_020ea914.c
-# QUARANTINED at the main->port sync (origin/main 9c7f38a24): main folded this
-# class into one TU, and port/ host-copies bodies inside it (the slice_wig host copies).
-# port/CMakeLists.txt's own assertion refuses the pair, because taking both is a
-# duplicate symbol and taking the src one puts the host copy's reason back. The
-# row returns when the host copy covers the whole consolidated TU.
-#src/actors/dScMgHanachan_c.cpp
+# UN-QUARANTINED, run link100 lane HOSTGEN2. The TU is a whole-TU hostgen
+# substitution now (port/CMakeLists.txt's PORT_HOSTGEN_TU list), and the five
+# bodies unmatched/MgWiggler_StateDispatch.cpp host-copied out of it are
+# commented out there. Four of the five are typed member-pointer dispatches of
+# a FIELD, routed to port_mg_wiggler_call0 by hostgen's PMF_SEAM table; the
+# fifth, func_ov006_020eb610, open-codes the same decode in plain ints and is
+# routed by MG_PMF_CALL. The stride half of the ruling those copies rest on went
+# obsolete with /vmg /vmm; the DS code word half is what the seam answers.
+src/actors/dScMgHanachan_c.cpp
 # HOST-COPIED (WIG): src/actors/dScMgHanachan_c.cpp -- table-free FIELD pmf at sub-object +0x10, member-pointer typed
 # HOST-COPIED (WIG): src/actors/dScMgHanachan_c.cpp -- FIELD pmf at sub-object +0x10, member-pointer typed
 # HOST-COPIED (WIG): src/actors/dScMgHanachan_c.cpp -- FIELD pmf at sub-object +0x10, member-pointer typed; ALSO copies the pair down to +0x00
 # HOST-COPIED (WIG): src/actors/dScMgHanachan_c.cpp -- FIELD pmf at sub-object +0x00, OPEN-CODED IN INTS; neither the link nor a member-pointer source sweep can see it
-src/func_ov006_020ec4dc.c
+# HELD, run link100 lane HOSTGEN2: main's consolidated TU above defines
+# func_ov006_020ec4dc as well, and taking both is a duplicate symbol.
+#src/func_ov006_020ec4dc.c
 # HOST-COPIED (WIG): src/actors/dScMgHanachan_c.cpp -- FIELD pmf at scene +0x4660, member-pointer typed; VTABLE SLOT 6, Behavior
 # ALREADY WIRED (slice_ccn.txt): src/_ZN12dScMgSlot1_c9betIcon_c6RenderEv.cpp -- listed for closure completeness only; CMake dedupes identical absolute paths, so it adds no line to the build and no linkage

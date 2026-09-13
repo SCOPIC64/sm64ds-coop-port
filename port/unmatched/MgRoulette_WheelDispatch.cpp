@@ -233,6 +233,16 @@ extern "C" unsigned port_mg_roulette_wheel_state_addr(unsigned i)
 
 // PORT_HOST_ABI: mwcc member-pointer dispatch and a virtual-shadow dispatch
 // (ROM vtable numbering vs MSVC's), in one body.
+/* RETIRED, run link100 lane HOSTGEN2. Both of this body's deltas are carried by
+   the whole-TU hostgen substitution of src/actors/dScMgRoulette_c.cpp now: the
+   member-pointer dispatch routes to port_mg_roulette_call0 through hostgen's
+   PMF_SEAM table, and the shadow-class call of ROM slot 3 on the Model at +0x10
+   is respelled as ((Model *)(c + 0x10))->UpdateVerts() by hostgen's VIRTUAL_CALL
+   table -- the same two edits this copy made, out of the decomp's own text and
+   with the reading above cited in both rows.
+
+   Text kept, not deleted. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_02107db8(void *self)
 {
     char *b = (char *)self;
@@ -266,3 +276,4 @@ extern "C" void func_ov006_02107db8(void *self)
                 Sound_PlayIfNotActive(*(int *)(b + 0xbc), 2, 0x157, 0);
     }
 }
+#endif  /* HOSTGEN2: func_ov006_02107db8 retired to src */

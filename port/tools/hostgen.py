@@ -976,6 +976,29 @@ VIRTUAL_CALL = {
     # runs after this and MMIO_DEREF already matches both
     # `*(volatile int*)0x040004c8` and `*(int*)0x040004cc`.
     # Retires port/unmatched/MgSnowball_ModelRender.cpp.
+    # Run link100, lane HOSTGEN2. dScMgRoulette_c's wheel update,
+    # func_ov006_02107db8, calls ROM vtable slot 3 through a FOUR-VIRTUAL local
+    # shadow (`struct ObjV`) on the Model at the wheel object's +0x10. MSVC
+    # numbers that shadow's own table 0..3 with no destructor slot, so slot 3 of
+    # the shadow is not slot 3 of the host Model, and the reading that settles it
+    # is the one unmatched/MgRoulette_WheelDispatch.cpp wrote out of the ROM
+    # table: (0 D1, 1 D0, 2 DoSetFile, 3 UpdateVerts, 4 Virtual10, 5 Render), so
+    # ROM slot 3 is Model::UpdateVerts. The patch spells the qualified method the
+    # ROM means, which is exactly what that host copy's DELTA 2 did. The TU's own
+    # header chain does not reach Model.h -- dScMgRoulette_c.h pulls in
+    # dScMgSingle3DBase_c.h and stops -- so the include rides in as the first
+    # pair, next to the TU's own.
+    "dScMgRoulette_c": [
+        ('#include "dScMgRoulette_c.h"',
+         '#include "dScMgRoulette_c.h"\n'
+         '/* hostgen VIRTUAL_CALL: for the Model at the wheel object + 0x10. */\n'
+         '#include "Model.h"'),
+        ("    c->obj.v3();",
+         "    /* hostgen VIRTUAL_CALL: ROM slot 3 of the Model at +0x10 is\n"
+         "       UpdateVerts; the local four-virtual shadow numbers its own\n"
+         "       table differently. See the table. */\n"
+         "    ((Model *)((char *)c + 0x10))->UpdateVerts();"),
+    ],
     "_ZN15dScMgSnowball_c6RenderEv": [
         ("            void (*fn)(void*, int*) = "
          "*(void(**)(void*, int*))((char*)(*(void**)self) + 0x14);\n"
@@ -1198,6 +1221,7 @@ MG_PMF_CALL_DECL = """extern "C" void port_mg_pachinko_call1(void *, unsigned, i
 extern "C" void port_mg_bomroom_opencoded_call0(void *, unsigned, int);
 extern "C" void port_mg_panel_call0(void *, unsigned, int);
 extern "C" void port_mg_panel_call1(void *, unsigned, int, int);
+extern "C" void port_mg_wiggler_call0(void *, unsigned, int);
 """
 MG_PMF_CALL = {
     # dScMgPachinko_c, tables 02142624 / 02142644 / 02142694, arity 1
@@ -1283,6 +1307,34 @@ MG_PMF_CALL = {
     # and calls it cdecl with the receiver first, which is what the ROM's own
     # call sequence does in r0. Retires port/unmatched/func_02008550_hostcopy.cpp,
     # which was the same body with the 39 assignments spelled as a loop.
+    # dScMgHanachan_c's THIRD SHAPE, run link100 lane HOSTGEN2.
+    # func_ov006_020eb610 open-codes the ARM Itanium sequence in plain ints over
+    # the pair at the sub-object's +0x00, which its sibling func_ov006_020eb31c
+    # copies down from +0x10. There is no member-pointer type anywhere in it, so
+    # neither the link nor a `::*` source sweep can see it; only a run convicts
+    # it, and the first symptom is eip on a raw DS address. The whole decode goes,
+    # the way unmatched/MgWiggler_StateDispatch.cpp's copy of this body wrote it:
+    # the seam re-does the decode, applies the ROM's own null guard on the CODE
+    # word (`cmp r2,#0 / beq` at 0x020eb71c, which is the src's own test and
+    # stays) and reports an address nothing hosts instead of jumping to it.
+    "dScMgHanachan_c": [
+        ("    if (*(int *)c != 0) {\n"
+         "        int off = *(int *)(c + 4);\n"
+         "        char *base = c + (off >> 1);\n"
+         "        void (*fn)(char *);\n"
+         "        if (off & 1)\n"
+         "            fn = *(void (**)(char *))(*(char **)base + *(int *)c);\n"
+         "        else\n"
+         "            fn = *(void (**)(char *))c;\n"
+         "        fn(base);\n"
+         "    }",
+         "    if (*(int *)c != 0) {\n"
+         "        /* hostgen MG_PMF_CALL: the record is two words at +0x00, a\n"
+         "           code word and an adjustment. The code word is a DS address;\n"
+         "           the class's own switch decodes it, guards it and calls it. */\n"
+         "        port_mg_wiggler_call0(c, (unsigned)*(int *)c, *(int *)(c + 4));\n"
+         "    }"),
+    ],
     "func_02008550": [
         ("    return (obj->*data_0209b138[msg[6]])(msg + 7, a2, a3);",
          "    return ((int (*)(void *, unsigned char *, int, int))"
@@ -1421,9 +1473,16 @@ CALL_STATE_FN = {
 # every one of them is an allowed line. A dispatch site that appears in a TU
 # this table covers -- a new one from main, or one whose text moved -- fails the
 # build with its own name instead of shipping a jump into mapped data.
-PMF_SEAM_DECL = ('#include "hal/pmf_dispatch.h"\n'
-                 'extern "C" void port_mg_panel_call0(void *, unsigned, int);\n'
-                 'extern "C" void port_mg_panel_call1(void *, unsigned, int, int);\n')
+_PMF_SEAM_INCLUDE = '#include "hal/pmf_dispatch.h"\n'
+PMF_SEAM_DECL = {
+    "dScMgPanel_c": _PMF_SEAM_INCLUDE +
+        'extern "C" void port_mg_panel_call0(void *, unsigned, int);\n'
+        'extern "C" void port_mg_panel_call1(void *, unsigned, int, int);\n',
+    "dScMgHanachan_c": _PMF_SEAM_INCLUDE +
+        'extern "C" void port_mg_wiggler_call0(void *, unsigned, int);\n',
+    "dScMgRoulette_c": _PMF_SEAM_INCLUDE +
+        'extern "C" void port_mg_roulette_call0(void *, unsigned, int);\n',
+}
 PMF_SEAM = {
     # dScMgPanel_c. SIX sites over FIVE strings (the 02106fdc and 0210709c
     # loops are textually identical and take the same rewrite), closing six of
@@ -1458,6 +1517,40 @@ PMF_SEAM = {
          "        PORT_PMF_CALL1(port_mg_panel_call1, c,\n"
          "                       data_ov006_02142840[idx], i);"),
     ],
+    # dScMgHanachan_c. FOUR sites over THREE strings (func_ov006_020eb018 and
+    # func_ov006_020eb31c spell the same two lines and take the same rewrite),
+    # closing four of the five rows against unmatched/MgWiggler_StateDispatch.cpp;
+    # the fifth, func_ov006_020eb610, open-codes its decode and is routed by
+    # MG_PMF_CALL above.
+    #
+    # NO TABLE HERE: every one of this class's pairs is a FIELD -- at +0x10 of
+    # the per-Wiggler sub-object for three of them and at scene +0x4660 for the
+    # Behavior -- filled from the ROM's own .data. Nothing seats them, so the
+    # code word is a DS address at every site and all four route.
+    #
+    #   func_ov006_020eb018        field +0x10          arity 0
+    #   func_ov006_020eb0c8        field +0x10 (`cb`)   arity 0
+    #   func_ov006_020eb31c        field +0x10          arity 0
+    #   dScMgHanachan_c::Behavior  field +0x4660        arity 0, vtable slot 6
+    "dScMgHanachan_c": [
+        ("    (o->*(o->pmf))();",
+         "    PORT_PMF_CALL0(port_mg_wiggler_call0, o, o->pmf);"),
+        ("        (((Self *)self)->*(((Self *)self)->cb))();",
+         "        PORT_PMF_CALL0(port_mg_wiggler_call0, self,\n"
+         "                       ((Self *)self)->cb);"),
+        ("    (((CB *)c)->*(*(PMF *)(c + 0x4660)))();",
+         "    PORT_PMF_CALL0(port_mg_wiggler_call0, c,\n"
+         "                   *(PMF *)(c + 0x4660));"),
+    ],
+    # dScMgRoulette_c. ONE site: the wheel object's pair at offset 0, dispatched
+    # by func_ov006_02107db8 every frame, with a universe of exactly two code
+    # words -- both in unmatched/MgRoulette_WheelDispatch.cpp's switch. The same
+    # body's OTHER defect, a shadow-class call of ROM vtable slot 3 on a host
+    # Model, is a VIRTUAL_CALL row and not a seam row.
+    "dScMgRoulette_c": [
+        ("    (c->*(c->pmf))();",
+         "    PORT_PMF_CALL0(port_mg_roulette_call0, c, c->pmf);"),
+    ],
 }
 
 # The dispatch sites a listed TU is allowed to keep RAW, each with the reason
@@ -1478,7 +1571,8 @@ PMF_SEAM_ALLOW = {
 
 def pmf_seam_patch(text, sym):
     """Route a TYPED member-pointer dispatch through the class's seam."""
-    return apply_patches(text, sym, PMF_SEAM, "PMF_SEAM", PMF_SEAM_DECL)
+    return apply_patches(text, sym, PMF_SEAM, "PMF_SEAM",
+                         PMF_SEAM_DECL.get(sym, ""))
 
 
 def pmf_seam_residue(text, sym, suffix):

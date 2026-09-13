@@ -307,6 +307,19 @@ extern "C" void port_mg_wiggler_counts(unsigned *calls, unsigned *hits,
    the ROM does (ldrh / add #0x800 / strh at 0x020ed19c..0x020ed1ac) and what
    include/decl_common.h declares. */
 // PORT_HOST_ABI: dScMgHanachan_c vtable slot 6 Behavior; src spells the dispatch as the member-pointer type (c->*(*(PMF*)(c+0x4660)))() that is eight bytes on the ROM and four on MSVC, so the host reads the {code, adj} pair and routes it.
+/* RETIRED, run link100 lane HOSTGEN2. The matched body compiles FROM
+   src/actors/dScMgHanachan_c.cpp through the whole-TU hostgen substitution, with
+   its one dispatch routed to port_mg_wiggler_call0 -- the same seam this copy
+   calls, at the same site, on the same two words. The ruling above says the pair
+   "is eight bytes on the ROM and four on MSVC"; that stopped being true when
+   port/CMakeLists.txt put /vmg /vmm on add_compile_options (lane PMF), which
+   makes an MSVC pointer to member the ROM's own eight-byte {code, this-adjust}
+   pair in every inheritance shape. What was still true is that the stored code
+   word is a DS address, and that is what the seam answers.
+
+   Text kept, not deleted. Every declaration and every switch case in this file
+   is untouched, and port_mg_wiggler_call0 now reaches the matched bodies. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" int _ZN15dScMgHanachan_c8BehaviorEv(char *c)
 {
     data_ov006_02141fcc = (unsigned short)(data_ov006_02141fcc + 0x800);
@@ -336,6 +349,7 @@ extern "C" int _ZN15dScMgHanachan_c8BehaviorEv(char *c)
     func_ov006_020ea3d0(c + 0x4670);
     return 1;
 }
+#endif  /* HOSTGEN2: _ZN15dScMgHanachan_c8BehaviorEv retired to src */
 
 /* src/func_ov006_020eb018.cpp. Its `struct C` is `char pad[0x10]; PMF pmf;`,
    so the member pointer is the LAST member and nothing in this TU reads past
@@ -345,6 +359,19 @@ extern "C" int _ZN15dScMgHanachan_c8BehaviorEv(char *c)
    dropped; it affects no host semantics.
    PORT_HOST_ABI: mwcc pointer-to-member wall, the field-embedded {code,adj}
    pair decoded through port_mg_wiggler_call0. Host-copied. */
+/* RETIRED, run link100 lane HOSTGEN2. The matched body compiles FROM
+   src/actors/dScMgHanachan_c.cpp through the whole-TU hostgen substitution, with
+   its one dispatch routed to port_mg_wiggler_call0 -- the same seam this copy
+   calls, at the same site, on the same two words. The ruling above says the pair
+   "is eight bytes on the ROM and four on MSVC"; that stopped being true when
+   port/CMakeLists.txt put /vmg /vmm on add_compile_options (lane PMF), which
+   makes an MSVC pointer to member the ROM's own eight-byte {code, this-adjust}
+   pair in every inheritance shape. What was still true is that the stored code
+   word is a DS address, and that is what the seam answers.
+
+   Text kept, not deleted. Every declaration and every switch case in this file
+   is untouched, and port_mg_wiggler_call0 now reaches the matched bodies. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_020eb018(char *c)
 {
     {
@@ -367,11 +394,25 @@ extern "C" void func_ov006_020eb018(char *c)
     }
     func_ov006_020ec134(c);
 }
+#endif  /* HOSTGEN2: func_ov006_020eb018 retired to src */
 
 /* src/func_ov006_020eb0c8.cpp. Same `char pad10[0x10]; Pmf cb;` shape and the
    same reasoning; the dispatch sits in the else arm and stays there.
    PORT_HOST_ABI: mwcc pointer-to-member wall, the field-embedded {code,adj}
    pair decoded through port_mg_wiggler_call0. Host-copied. */
+/* RETIRED, run link100 lane HOSTGEN2. The matched body compiles FROM
+   src/actors/dScMgHanachan_c.cpp through the whole-TU hostgen substitution, with
+   its one dispatch routed to port_mg_wiggler_call0 -- the same seam this copy
+   calls, at the same site, on the same two words. The ruling above says the pair
+   "is eight bytes on the ROM and four on MSVC"; that stopped being true when
+   port/CMakeLists.txt put /vmg /vmm on add_compile_options (lane PMF), which
+   makes an MSVC pointer to member the ROM's own eight-byte {code, this-adjust}
+   pair in every inheritance shape. What was still true is that the stored code
+   word is a DS address, and that is what the seam answers.
+
+   Text kept, not deleted. Every declaration and every switch case in this file
+   is untouched, and port_mg_wiggler_call0 now reaches the matched bodies. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_020eb0c8(char *self)
 {
     if (_Z15ApproachLinear2Rsss((short *)(self + 0x90), 0, 1)) {
@@ -409,6 +450,7 @@ extern "C" void func_ov006_020eb0c8(char *self)
 
     func_ov006_020ec134(self);
 }
+#endif  /* HOSTGEN2: func_ov006_020eb0c8 retired to src */
 
 /* src/func_ov006_020eb31c.cpp. THIS ONE ALSO COPIES THE PAIR, and the copy is
    why func_ov006_020eb610 below has anything to dispatch: it moves the two
@@ -419,6 +461,19 @@ extern "C" void func_ov006_020eb0c8(char *self)
    machines. Only the dispatch changed.
    PORT_HOST_ABI: mwcc pointer-to-member wall, the field-embedded {code,adj}
    pair decoded through port_mg_wiggler_call0. Host-copied. */
+/* RETIRED, run link100 lane HOSTGEN2. The matched body compiles FROM
+   src/actors/dScMgHanachan_c.cpp through the whole-TU hostgen substitution, with
+   its one dispatch routed to port_mg_wiggler_call0 -- the same seam this copy
+   calls, at the same site, on the same two words. The ruling above says the pair
+   "is eight bytes on the ROM and four on MSVC"; that stopped being true when
+   port/CMakeLists.txt put /vmg /vmm on add_compile_options (lane PMF), which
+   makes an MSVC pointer to member the ROM's own eight-byte {code, this-adjust}
+   pair in every inheritance shape. What was still true is that the stored code
+   word is a DS address, and that is what the seam answers.
+
+   Text kept, not deleted. Every declaration and every switch case in this file
+   is untouched, and port_mg_wiggler_call0 now reaches the matched bodies. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_020eb31c(char *c)
 {
     short *t = (short *)(((int)c + 0x90));
@@ -448,6 +503,7 @@ extern "C" void func_ov006_020eb31c(char *c)
         _ZN5Sound12PlayBank2_2DEj(0x1ea);
     *(unsigned char *)(c + 0x95) = 3;
 }
+#endif  /* HOSTGEN2: func_ov006_020eb31c retired to src */
 
 /* src/actors/dScMgHanachan_c.cpp -- THE THIRD SHAPE. The src open-codes the ARM
    Itanium sequence in plain ints inside extern "C":
@@ -465,6 +521,19 @@ extern "C" void func_ov006_020eb31c(char *c)
    PORT_HOST_ABI: mwcc pointer-to-member wall, the open-coded ARM Itanium
    decode over a DS code address; the port's own address-switch answers the
    raw call. Host-copied. */
+/* RETIRED, run link100 lane HOSTGEN2. The matched body compiles FROM
+   src/actors/dScMgHanachan_c.cpp through the whole-TU hostgen substitution, with
+   its one dispatch routed to port_mg_wiggler_call0 -- the same seam this copy
+   calls, at the same site, on the same two words. The ruling above says the pair
+   "is eight bytes on the ROM and four on MSVC"; that stopped being true when
+   port/CMakeLists.txt put /vmg /vmm on add_compile_options (lane PMF), which
+   makes an MSVC pointer to member the ROM's own eight-byte {code, this-adjust}
+   pair in every inheritance shape. What was still true is that the stored code
+   word is a DS address, and that is what the seam answers.
+
+   Text kept, not deleted. Every declaration and every switch case in this file
+   is untouched, and port_mg_wiggler_call0 now reaches the matched bodies. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void func_ov006_020eb610(char *c)
 {
 #define WIG_L(a) (*(int *)(((long long)(int)(a))))
@@ -509,3 +578,4 @@ extern "C" void func_ov006_020eb610(char *c)
 #undef WIG_L
 #undef WIG_M
 }
+#endif  /* HOSTGEN2: func_ov006_020eb610 retired to src */

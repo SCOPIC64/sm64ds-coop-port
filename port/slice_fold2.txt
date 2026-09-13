@@ -81,12 +81,16 @@ src/func_ov006_020c06dc.cpp
 #    (_ZN15dScMgRoulette_c6RenderEv + 0x204).
 #    RECORD: func_ov006_02107d80 kind:function(arm,size=0x38) addr:0x02107d80,
 #    body e92d4010 e1a04000 e2840010.
-# QUARANTINED at the main->port sync (origin/main 9c7f38a24): main folded this
-# class into one TU, and port/ host-copies bodies inside it (the slice_rlt host copies).
-# port/CMakeLists.txt's own assertion refuses the pair, because taking both is a
-# duplicate symbol and taking the src one puts the host copy's reason back. The
-# row returns when the host copy covers the whole consolidated TU.
-#src/actors/dScMgRoulette_c.cpp
+# UN-QUARANTINED, run link100 lane HOSTGEN2. The one host copy left inside this
+# TU was unmatched/MgRoulette_WheelDispatch.cpp's func_ov006_02107db8, and both
+# of its deltas now come out of the decomp's own text: hostgen's PMF_SEAM routes
+# the wheel object's member-pointer dispatch to port_mg_roulette_call0 and
+# hostgen's VIRTUAL_CALL respells the shadow-class call of ROM slot 3 as
+# Model::UpdateVerts. The TU is on the PORT_HOSTGEN_TU list for both.
+# The row stays on THIS slice, where lane FOLD2 put it, and not on slice_rlt.txt:
+# slice_rlt's own assertion still refuses it there for the factory host copy,
+# which is a separate TU and a separate ruling.
+src/actors/dScMgRoulette_c.cpp
 
 # 5. src/func_ov006_020c1f4c.cpp -- dScMgSlot3_c's sub-object update, whose
 #    four-virtual shadow calls `v3()` on the BlendModelAnim at +0x10: ROM index

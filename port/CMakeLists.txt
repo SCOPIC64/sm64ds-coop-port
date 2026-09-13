@@ -274,9 +274,23 @@ endfunction()
 #       called with two arguments where the ROM's caller leaves a third riding
 #       in a register). Added at the main->port sync, lane SYNC5: lane SEAT6
 #       keyed this on the per-function TU main has since folded into this one.
+#   src/actors/dScMgHanachan_c.cpp   PMF_SEAM on four typed member-pointer
+#       dispatches of a FIELD (three per-Wiggler bodies at sub-object +0x10 and
+#       the Behavior at scene +0x4660) and MG_PMF_CALL on a fifth that open-codes
+#       the same decode in plain ints. Nothing seats those fields, so the code
+#       word is a DS address at every one of the five and a raw call jumps into
+#       the mounted overlay's data image. Added run link100, lane HOSTGEN2;
+#       retires the five host copies in unmatched/MgWiggler_StateDispatch.cpp.
+#   src/actors/dScMgRoulette_c.cpp   PMF_SEAM on the wheel object's one member-
+#       pointer dispatch, and VIRTUAL_CALL on the same body's other defect -- a
+#       local four-virtual shadow calling ROM slot 3 on the host Model at +0x10,
+#       which is Model::UpdateVerts. Added run link100, lane HOSTGEN2; retires
+#       func_ov006_02107db8 in unmatched/MgRoulette_WheelDispatch.cpp.
 set(PORT_HOSTGEN_TU
     src/actors/Player.cpp
     src/actors/dScMgPanel_c.cpp
+    src/actors/dScMgHanachan_c.cpp
+    src/actors/dScMgRoulette_c.cpp
     src/game/actors/d_a_bg_snwmn.cpp
     src/game/actors/d_a_propeller_heyho.cpp)
 get_filename_component(PORT_HOSTGEN_TU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
@@ -7353,16 +7367,24 @@ foreach(line IN LISTS SLICE_WIG_LINES)
     endif()
     list(APPEND SLICE_WIG_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
 endforeach()
-foreach(dup IN ITEMS src/actors/dScMgHanachan_c.cpp src/actors/dScMgHanachan_c.cpp
-                     src/actors/dScMgHanachan_c.cpp src/actors/dScMgHanachan_c.cpp
-                     src/actors/dScMgHanachan_c.cpp)
-    if(dup IN_LIST SLICE_WIG_LINES)
-        message(FATAL_ERROR "slice_wig.txt lists ${dup}, which "
-                "unmatched/MgWiggler_StateDispatch.cpp host-copies. Taking "
-                "both is a duplicate symbol; taking the src one puts the mwcc "
-                "member-pointer stride back")
-    endif()
-endforeach()
+# Run link100, lane HOSTGEN2: THE ASSERTION IS RETIRED, not widened. Its five
+# entries were five separate per-function files when it was written and the
+# sync's rename collapsed all five onto the one consolidated TU, so the list
+# refused the whole class five times over. All five of those bodies are commented
+# out in unmatched/MgWiggler_StateDispatch.cpp now and the TU is a whole-TU
+# hostgen substitution, which is the shape the assertion's own last clause asks
+# for: "taking the src one puts the mwcc member-pointer stride back" is answered
+# by /vmg /vmm for the stride and by the PMF_SEAM rows for the DS code word.
+# What replaces it is hostgen's own residue check, which refuses to emit this TU
+# if a dispatch site in it is neither routed nor listed as correct raw -- a check
+# on the text rather than on a filename, so a body main moves cannot slip past it.
+#
+# The assertion's own words are kept here so the derivation stays readable:
+#   foreach(dup IN ITEMS src/actors/dScMgHanachan_c.cpp, five times)
+#     if(dup IN_LIST SLICE_WIG_LINES) -> FATAL_ERROR "slice_wig.txt lists it,
+#     which unmatched/MgWiggler_StateDispatch.cpp host-copies. Taking both is a
+#     duplicate symbol; taking the src one puts the mwcc member-pointer stride
+#     back"
 
 # Run mg9 lane BOO: dScMgTeresa_c, actor id 0x183 = scene 387, "Hide and Boo
 # Seek". The class name is the ROM's own and is proved by the type_info the
