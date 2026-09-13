@@ -2611,3 +2611,36 @@ __ZN12daStarGate_c18St_StayClosed_MainEP6Player                          ?St_Sta
 __ZN12daStarGate_c23St_TalkingToPlayer_InitEP6Player                     ?St_TalkingToPlayer_Init@daStarGate_c@@QAE_NPAUPlayer@@@Z        0x02145c2c R
 __ZN12daStarGate_c23St_TalkingToPlayer_MainEP6Player                     ?St_TalkingToPlayer_Main@daStarGate_c@@QAE_NPAUPlayer@@@Z        0x02145b9c R
 __ZN12daStarGate_c6RenderEv                                              ?Render@daStarGate_c@@UAEHXZ                                     0x02145fe4 R
+
+# THIRTEEN MORE D ROWS (lane SYNC6). Each of these was in
+# out/FACES2/d0_needs_d1.txt -- "the ROM PROOF passed but the class has no
+# destructor body in this link, so the face would call nothing". The body is
+# there now: the class TU is back on its slice rows. Nothing about the proof is
+# re-done loosely; the same derive_d0_rows re-proves every row against
+# config/**/relocs.txt at build time, and the callee column is the flat D1 where
+# this link defines it and the class's single MSVC destructor where it does not.
+__ZN7da1up_cD0Ev                                                         ??1da1up_c@@UAE@XZ                                               0x020aee88 D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
+
+__ZN12daBakubaku_cD0Ev                                                   ??1daBakubaku_c@@UAE@XZ                                          0x021111f0 D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
+
+__ZN11daBgSnwmn_cD0Ev                                                    ??1daBgSnwmn_c@@UAE@XZ                                           0x02120874 D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
+
+__ZN14daObjFl_Gura_cD0Ev                                                 ??1daObjFl_Gura_c@@UAE@XZ                                        0x02118070 D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
+
+__ZN17daObjFloatBoard_cD0Ev                                              ??1daObjFloatBoard_c@@UAE@XZ                                     0x020b5a18 D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
+
+__ZN15daObjGuragura_cD0Ev                                                ??1daObjGuragura_c@@UAE@XZ                                       0x020b5fd8 D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
+
+__ZN13daObjKi_Ita_cD0Ev                                                  ??1daObjKi_Ita_c@@UAE@XZ                                         0x02112f44 D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
+
+__ZN17daObjKm1_Kuruma_cD0Ev                                              ??1daObjKm1_Kuruma_c@@UAE@XZ                                     0x02111568 D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
+
+__ZN21daObjKm1_Kurumajiku_cD0Ev                                          ??1daObjKm1_Kurumajiku_c@@UAE@XZ                                 0x0211144c D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
+
+__ZN19daObjKm2_Ukishima_cD0Ev                                            ??1daObjKm2_Ukishima_c@@UAE@XZ                                   0x02111b64 D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
+
+__ZN13daObjKuruma_cD0Ev                                                  ??1daObjKuruma_c@@UAE@XZ                                         0x020b6814 D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
+
+__ZN17daObjKurumajiku_cD0Ev                                              ??1daObjKurumajiku_c@@UAE@XZ                                     0x020b69e4 D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
+
+__ZN12daStarGate_cD0Ev                                                   ??1daStarGate_c@@UAE@XZ                                          0x02145904 D _ZN6Memory10DeallocateEPvP4Heap GAME_HEAP_PTR
