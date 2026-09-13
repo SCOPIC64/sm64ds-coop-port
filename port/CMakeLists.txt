@@ -6482,9 +6482,17 @@ endforeach()
 # came back (a rename, a hand edit, a merge) would define the same symbol twice
 # and the link would say so -- but it would say so as a duplicate-symbol wall
 # far from its cause, so the assertion is here instead.
-foreach(dup IN ITEMS src/_ZN15dScMgCurling2_c8BehaviorEv.cpp src/func_ov006_020e6354.cpp
-                     src/actors/dScMgCurling2_c.cpp src/actors/dScMgCurling2_c.cpp
-                     src/actors/dScMgCurling2_c.cpp)
+# Run link100, lane HOSTGEN2: the three src/actors/dScMgCurling2_c.cpp entries
+# LEAVE this list. They were three separate per-function files when the
+# assertion was written and the sync's rename collapsed all three onto the
+# consolidated TU, so the list refused the whole class over three bodies. Two of
+# those three -- StepXAndY and StepXOnly -- are commented out in the host copy
+# now, and the reason the assertion gives for refusing ("taking the src one puts
+# the mwcc member-pointer stride back") stopped being true when /vmg /vmm went
+# on add_compile_options: the stride is the ROM's eight bytes on both machines
+# and all four of this class's tables are seated with __fastcall faces. The two
+# genuinely host-copied dispatchers keep their rows.
+foreach(dup IN ITEMS src/_ZN15dScMgCurling2_c8BehaviorEv.cpp src/func_ov006_020e6354.cpp)
     if(dup IN_LIST SLICE_S75_LINES)
         message(FATAL_ERROR "slice_s75.txt lists ${dup}, which "
                 "unmatched/MgCurling2_StateDispatch.cpp host-copies. Taking "

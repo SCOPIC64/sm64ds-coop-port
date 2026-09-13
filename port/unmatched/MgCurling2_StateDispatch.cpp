@@ -487,6 +487,21 @@ extern "C" void port_mg_curling2_states_seat(void)
    addresses that range covers, so taking both is a duplicate symbol.  The
    slice_seat4 row is quarantined and this copy stands in again; the pair
    retires together when s75 moves to the consolidated TU. */
+/* RETIRED, run link100 lane HOSTGEN2. The reason this copy was RESTORED at the
+   sync is spelled out above: main folded the body into
+   src/actors/dScMgCurling2_c.cpp and the port could not take the consolidated
+   TU. It can now. Every one of this class's four dispatch tables --
+   data_ov006_021419f8, 021419a0 and 021419b8 (hal/pmf_seat4.cpp) and
+   data_ov006_02141988 (lane PMFB5) -- is SEATED with host addresses at boot,
+   and the faces seated there are `__fastcall (void *self, void *dead_edx, int
+   arg)`, which is exactly how MSVC enters a pointer-to-member call under the
+   /vmg /vmm pair port/CMakeLists.txt compiles with: receiver in ecx, the one
+   argument pushed. So the matched TU's own `(self->*table[k])(i)` is already
+   the right call, and the stride the restore note worries about is the ROM's
+   eight bytes on both machines.
+
+   Text kept, not deleted. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void _ZN15dScMgCurling2_c9StepXAndYEi(char *c, int i)
 {
     const int idx = i * 0x24;
@@ -495,13 +510,30 @@ extern "C" void _ZN15dScMgCurling2_c9StepXAndYEi(char *c, int i)
     const unsigned char k1 = *(unsigned char *)(c + idx + 0x48df);
     c2_call1(c, data_ov006_021419a0[k1], i);
 }
+#endif  /* HOSTGEN2: _ZN15dScMgCurling2_c9StepXAndYEi retired to src */
 
 /* src/_ZN15dScMgCurling2_c9StepXOnlyEi -- RETIRED by lane SEAT4, then RESTORED at
    the main->port sync (lane SYNC5), for the reason spelled out on StepXAndY
    directly above: main folded the matched TU into src/actors/dScMgCurling2_c.cpp
    and slice_s75's per-function leftovers cover the same range. */
+/* RETIRED, run link100 lane HOSTGEN2. The reason this copy was RESTORED at the
+   sync is spelled out above: main folded the body into
+   src/actors/dScMgCurling2_c.cpp and the port could not take the consolidated
+   TU. It can now. Every one of this class's four dispatch tables --
+   data_ov006_021419f8, 021419a0 and 021419b8 (hal/pmf_seat4.cpp) and
+   data_ov006_02141988 (lane PMFB5) -- is SEATED with host addresses at boot,
+   and the faces seated there are `__fastcall (void *self, void *dead_edx, int
+   arg)`, which is exactly how MSVC enters a pointer-to-member call under the
+   /vmg /vmm pair port/CMakeLists.txt compiles with: receiver in ecx, the one
+   argument pushed. So the matched TU's own `(self->*table[k])(i)` is already
+   the right call, and the stride the restore note worries about is the ROM's
+   eight bytes on both machines.
+
+   Text kept, not deleted. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 extern "C" void _ZN15dScMgCurling2_c9StepXOnlyEi(char *o, int i)
 {
     const unsigned char idx = *(unsigned char *)(o + i * 0x24 + 0x48de);
     c2_call1(o, data_ov006_021419b8[idx], i);
 }
+#endif  /* HOSTGEN2: _ZN15dScMgCurling2_c9StepXOnlyEi retired to src */

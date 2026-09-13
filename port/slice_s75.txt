@@ -300,13 +300,18 @@
 # none of them checked by this lane, all of them the same question.
 #
 # ---- THE 48 LINES -----------------------------------------------------------
-# QUARANTINED at the main->port sync (origin/main 9c7f38a24): main folded this
-# class into one TU, and port/ host-copies bodies inside it (unmatched/MgCurling2_StateDispatch.cpp).
-# port/CMakeLists.txt's own assertion refuses the pair, because taking both is a
-# duplicate symbol and taking the src one puts the host copy's reason back. The
-# row returns when the host copy covers the whole consolidated TU.
-#src/actors/dScMgCurling2_c.cpp
-src/func_ov006_020e513c.c
+# UN-QUARANTINED, run link100 lane HOSTGEN2. unmatched/MgCurling2_StateDispatch.cpp
+# host-copied _ZN15dScMgCurling2_c9StepXAndYEi and _ZN15dScMgCurling2_c9StepXOnlyEi
+# out of this TU; both are commented out there now, because all four of this
+# class's dispatch tables are seated with host addresses whose faces are
+# __fastcall with a dead edx -- the shape MSVC's own member-pointer call makes
+# under the /vmg /vmm pair -- so the matched TU's dispatch is already right.
+src/actors/dScMgCurling2_c.cpp
+# HELD, run link100 lane HOSTGEN2: main's consolidated TU above defines
+# func_ov006_020e513c as well, and this file is the port's own NONMATCHING
+# decompile of the same address. Taking both is a duplicate symbol, and the
+# matched tree's body is the one to keep.
+#src/func_ov006_020e513c.c
 src/func_ov006_020e5450.c
 src/func_ov006_020e59b0.c
 src/func_ov006_020e5a0c.c

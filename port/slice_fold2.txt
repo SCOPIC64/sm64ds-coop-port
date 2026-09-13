@@ -256,12 +256,18 @@ src/actors/daPgDfdr_c.cpp
 #     to:0x021197a4 module:overlay(66).
 #     RECORD: kind:function(arm,size=0x94) addr:0x021197a4, body e92d4010
 #     e1a04000 e594049c.
-# QUARANTINED at the main->port sync (origin/main 9c7f38a24): main folded this
-# class into one TU, and port/ host-copies bodies inside it (the slice_ov066 host copies).
-# port/CMakeLists.txt's own assertion refuses the pair, because taking both is a
-# duplicate symbol and taking the src one puts the host copy's reason back. The
-# row returns when the host copy covers the whole consolidated TU.
-#src/actors/Eyerok.cpp
+# UN-QUARANTINED, run link100 lane HOSTGEN2. The last host copy inside this TU
+# was port/unmatched/Eyerok_ClosestPlayerRead.cpp's func_ov066_02119398, and the
+# ruling it rested on -- ClosestPlayer's receiver riding r0 -- is gone from main's
+# text, which declares the call with a receiver and passes it at all three sites.
+# That body is commented out there and closestplayer_guard.py checks the reading
+# before every configure. The two pointer-to-member dispatches this TU carries
+# both read cells hal/actor_classes_ov066.cpp seats with host addresses: the
+# per-frame half holds a zero-argument __fastcall face, which is how MSVC enters
+# a member-pointer call under /vmg /vmm, and the enter half is reached through
+# func_ov066_02119454, the one-call forwarder lane PMF2 measured as a tail jump
+# (port/slice_pmf2.txt, the cdecl-seat list).
+src/actors/Eyerok.cpp
 
 # 12. src/game/actors/d_a_obj_rc_carpet.cpp -- FLYING_CARPET's Render, the ModelAnim at
 #     +0x450 behind the halfword gate at +0x428. RETIRES port/unmatched/

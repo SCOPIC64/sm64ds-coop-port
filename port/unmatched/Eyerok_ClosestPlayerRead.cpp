@@ -60,6 +60,19 @@ extern unsigned char data_ov066_0211ae04;
 extern int data_ov066_0211b0ac;
 
 // PORT_HOST_ABI: implicit-register-arg (ClosestPlayer's this rode r0 in from this body's own argument; the host passes c).
+/* RETIRED, run link100 lane HOSTGEN2. The ruling above is "implicit-register-arg
+   (ClosestPlayer's this rode r0 in from this body's own argument)", and main's
+   text no longer has that defect: src/actors/Eyerok.cpp declares
+   `extern void *_ZN8dActor_c13ClosestPlayerEv(void *self);` at line 182 and
+   passes the receiver at all three call sites, lines 655, 743 and 847. The
+   guard that decides this question, port/tools/closestplayer_guard.py, runs
+   before configure over every build-active TU, so a wrong reading here refuses
+   the build rather than shipping a garbage receiver.
+
+   With this body out, port/unmatched/ host-copies nothing inside the
+   consolidated class TU, and lane FOLD2's slice row returns. Text kept, not
+   deleted. */
+#if 0  /* HOSTGEN2: body seated from src, see above */
 int func_ov066_02119398(char *c)
 {
     char *p = (char *)_ZN8dActor_c13ClosestPlayerEv(c);   /* <-- this, the ROM's r0 */
@@ -84,5 +97,6 @@ int func_ov066_02119398(char *c)
     }
     return 1;
 }
+#endif  /* HOSTGEN2: func_ov066_02119398 retired to src */
 
 }  /* extern "C" */
