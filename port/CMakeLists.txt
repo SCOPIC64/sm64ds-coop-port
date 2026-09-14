@@ -18908,6 +18908,65 @@ foreach(_foe_rel IN LISTS PORT_FALLS_OFF_END_SOURCES)
 endforeach()
 
 # ===========================================================================
+# DSSTATE FORCE-INCLUDE (run link100 wave 9c, lane LINK21)
+# ===========================================================================
+#
+# THE FIRST BUILD IN THIS CAMPAIGN THAT REACHED A LINK ran dsstate_guard for the
+# first time. That guard reads build/port/walk_window.map, which has been zero
+# bytes for every wave because the link failed, so it has been checking nothing.
+# With walk_window.exe linked it named 32 hosted DS symbols outside the captured
+# [dsstate_lo, dsstate_hi) span, where a save state would not roll them back.
+# One was lane LINK21's own and is bracketed in hal/link21_rows.cpp; the other
+# thirty one are in the eleven translation units below.
+#
+# THEY ARE THERE BECAUSE OF THE SYNC, not because of a lane. port/ov044_syms.txt
+# lines 91-97 and port/ov100_syms.txt lines 1-6 both record retiring the MOUNT of
+# exactly these objects, because the class TU main folded them into defines them
+# itself now and the mount was a second definition. tools/ovdata.py brackets
+# everything it emits; an ordinary file-scope definition in a src TU is not
+# bracketed by anything. So the objects kept their names and their sizes and
+# quietly left the snapshot, and nothing could say so until the tree linked.
+#
+# THE FIX IS PORT-SIDE AND TOUCHES NO DECOMP FILE. cl /FI force-includes
+# hal/dsstate_all.h, which opens the captured segment for the whole translation
+# unit; that header's own banner carries the argument, including why opening it
+# for the whole TU is SAFER than a DSSTATE_BEGIN/END bracket in the source
+# (hal/dsstate_seg.h's "a later extern re-declaration undoes this" trap needs a
+# back-to-default moment, and this shape has none).
+#
+# BOTH PATHS for a whole-TU hostgen row, for the reason the /wd4716 loop above
+# states: a substitution moves the compile and a per-source property does not
+# follow it. One of the eleven, d_a_star_gate.cpp, is such a row today.
+set(PORT_DSSTATE_FI_SOURCES
+    src/minigames/d_s_mg_trampoline.cpp
+    src/minigames/d_s_mg_trampoline2.cpp
+    src/game/actors/d_a_obj_fm_battan.cpp
+    src/game/actors/d_a_obj_rc_carpet.cpp
+    src/game/actors/d_a_obj_km1_dorifu.cpp
+    src/game/actors/d_a_obj_kb1_billboard.cpp
+    src/game/actors/d_a_obj_km2_gura.cpp
+    src/game/actors/d_a_obj_km3_kurumajiku.cpp
+    src/game/actors/d_a_obj_km3_kaitendai.cpp
+    src/game/actors/d_a_obj_km3_kuruma.cpp
+    src/game/actors/d_a_star_gate.cpp)
+if(MSVC)
+    foreach(_dsfi_rel IN LISTS PORT_DSSTATE_FI_SOURCES)
+        if(NOT EXISTS "${PORT_REPO_ROOT_ABS}/${_dsfi_rel}")
+            message(FATAL_ERROR "dsstate force-include row names a source that "
+                    "does not exist: ${_dsfi_rel}")
+        endif()
+        set(_dsfi_paths "${PORT_REPO_ROOT_ABS}/${_dsfi_rel}")
+        if(DEFINED PORT_HOSTGEN_TU_ROW_${_dsfi_rel})
+            list(APPEND _dsfi_paths
+                 "${PORT_REPO_ROOT_ABS}/${PORT_HOSTGEN_TU_ROW_${_dsfi_rel}}")
+        endif()
+        set_source_files_properties(${_dsfi_paths}
+            PROPERTIES COMPILE_OPTIONS
+            "/FI${CMAKE_CURRENT_SOURCE_DIR}/hal/dsstate_all.h")
+    endforeach()
+endif()
+
+# ===========================================================================
 # THE CONSOLIDATION GAP, BATCH 1 (run link100, lane SLICE1)
 # ===========================================================================
 #

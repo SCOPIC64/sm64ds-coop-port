@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "dsstate_seg.h"
+
 // =========================================================================
 // 1. Sound::PlayBank2_2D, the one name the two bannered drafts bring with them
 // =========================================================================
@@ -405,7 +407,14 @@ int data_ov062_0211d9c0(void)
 // 0x1f000, so the input-flag arm decides either way. This row therefore closes
 // the link without deciding the question the banner leaves open, and the
 // question is carried into out/LINK21/bugs.md rather than answered here.
+// IN .dsstate, because it is a hosted DS global and dsstate_guard says so: the
+// first build in this campaign that reached a link caught this row outside the
+// captured span, where a save state would not roll it back. Bracketed the way
+// hal/dsstate_seg.h asks, and no later extern re-declaration of the name
+// appears in this file, which is the silent way the bracket gets undone.
+DSSTATE_BEGIN
 int data_ov008_02111b6c[2] = { 0x0000fa14, 0x25e26810 };
+DSSTATE_END
 
 // =========================================================================
 // 9. _func_0206a4a0, the GBA cartridge probe
