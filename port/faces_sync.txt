@@ -3254,3 +3254,42 @@ __ZN7daMip_c17StateSaveTalkInitEv                                        ?StateS
 __ZN7daMip_c17StateSaveTalkMainEv                                        ?StateSaveTalkMain@daMip_c@@QAEHXZ                               0x0212a904 R
 __ZN7daMip_c8BehaviorEv                                                  ?Behavior@daMip_c@@UAEHXZ                                        0x0212c230 R
 __ZN7daMip_c8SetStateEPv                                                 ?SetState@daMip_c@@QAEHPAX@Z                                     0x0212bc78 R
+
+# --------------------------------------------------------------------------
+# THE THREE ACTOR DESTRUCTOR PAIRS THE SEATS DID NOT SUPPLY (wave-9c fold,
+# lane INT4).
+# --------------------------------------------------------------------------
+# out/DTORS2/handoff.txt part 2 left daMip_c D0/D1, daMky_c D0 and daGmch_c D0
+# open on a stated test: once the seat lands, does the seated object define
+# ??1<Cls>@@UAE@XZ. The test was run in this tree with dumpbin over all three
+# seated objects and the answer is NO -- none of them defines a destructor, a
+# vftable or a flat structor name -- so dtorfwd's out-of-line premise cannot
+# reach them and adding them to BATCHES[5] would only make LNK2001 rows.
+#
+# BUT THE DECORATED DESTRUCTOR IS IN THE LINK ANYWAY, which is the part the
+# handoff's test could not see, because it looked at the seated object alone.
+# ??1daGmch_c@@UAE@XZ is a COMDAT emitted by port/hal/dtor_faces_cpp.cpp, whose
+# CPPD1 macro odr-uses the class's inline destructor, and ??1daMip_c@@UAE@XZ and
+# ??1daMky_c@@UAE@XZ are defined elsewhere in the same link. All three are in
+# the 49804-name defined-external universe of walk_window's own link inputs.
+# So each class is an ordinary R row and not a forwarder question at all.
+#
+# THE D0 HALF IS A D ROW AND NOT AN R ROW, and facegen refuses the R shape for
+# it in so many words: D0 is the DELETING destructor, MSVC's is the scalar
+# deleting destructor ??_G<Cls>@@UAEPAXI@Z which C++ source cannot name, and
+# binding D0 to ??1 would drop the free. The D row is the mechanism that
+# exists for exactly this: the flat D0 calls the flat D1 and then
+# Memory::Deallocate, which is what the cartridge's D0 does.
+#
+# The daMky_c and daGmch_c D1 rows close no wall row of their own -- nothing
+# asks for those two flat names today -- they are what the D row beside each
+# one calls. Addresses derived by facegen against config, not typed by hand:
+# daMip_c 0x0212a6d4 / 0x0212a724, daMky_c 0x02111688 / 0x021116d0, daGmch_c
+# 0x02126504 / 0x02126554.
+__ZN7daMip_cD1Ev                                                         ??1daMip_c@@UAE@XZ                                               0x0212a6d4 R
+__ZN7daMky_cD1Ev                                                         ??1daMky_c@@UAE@XZ                                               0x02111688 R
+__ZN8daGmch_cD1Ev                                                        ??1daGmch_c@@UAE@XZ                                              0x02126504 R
+
+__ZN7daMip_cD0Ev                                                         _ZN7daMip_cD1Ev                                                  0x0212a724 D  _ZN6Memory10DeallocateEPvP4Heap  data_020a0eac
+__ZN7daMky_cD0Ev                                                         _ZN7daMky_cD1Ev                                                  0x021116d0 D  _ZN6Memory10DeallocateEPvP4Heap  data_020a0eac
+__ZN8daGmch_cD0Ev                                                        _ZN8daGmch_cD1Ev                                                 0x02126554 D  _ZN6Memory10DeallocateEPvP4Heap  data_020a0eac
