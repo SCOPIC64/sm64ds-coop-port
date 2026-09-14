@@ -1379,13 +1379,25 @@ VIRTUAL_CALL = {
     # the ROM's slot-3 UpdateVerts, spelled qualified so nothing dispatches
     # through the host table's numbering at all. The local VObj shadow stays;
     # only the call changes.
+    # RE-ANCHORED 2026-09-14 at the fold (lane INT3). HOSTGEN4 derived the
+    # from-text against the pre-merge src/actors/daObjMarioCap_c.cpp, which
+    # reached the cap's ModelAnim through a local four-virtual `struct VObj`
+    # shadow and called slot 3 by byte offset. Today's main rewrote that body
+    # (286 lines in, 306 out in the sync merge): the VObj shadow is gone and
+    # the member is spelled `mModelAnim.UpdateVerts()`, so the old from-text
+    # does not occur and hostgen hard-errored the whole build. The site is the
+    # same one, at line 251, and it occurs exactly once. The patch is KEPT and
+    # re-anchored rather than dropped, because the reason is unchanged: the
+    # port's _ZTV9ModelAnim is MSVC-numbered, so the correction pins the call
+    # to the ROM's slot-3 UpdateVerts by naming it, instead of leaving MSVC to
+    # decide whether to devirtualise a member call it is allowed to dispatch.
     "daObjMarioCap_c": [
-        ("        ((VObj *)(c + 0x300))->v03();",
+        ("        mModelAnim.UpdateVerts();",
          "        /* hostgen VIRTUAL_CALL: the ROM's +0x0c on the cap's own\n"
          "           ModelAnim is UpdateVerts(); the port's table is MSVC-\n"
          "           numbered and puts Virtual10(Matrix4x3 &) there. Spelled\n"
          "           qualified so no numbering is consulted. */\n"
-         "        ((ModelAnim *)(c + 0x300))->ModelAnim::UpdateVerts();"),
+         "        mModelAnim.ModelAnim::UpdateVerts();"),
     ],
 }
 
