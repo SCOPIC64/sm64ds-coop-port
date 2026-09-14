@@ -2232,7 +2232,16 @@ ZTV_C_LINKAGE = {
     # asks for ?_ZTV7daPkn_c@@3PAHA; under C linkage it asks for
     # __ZTV7daPkn_c, which hal/actor_classes_l7.cpp line 585 already
     # bridges to __ZTV12PiranhaPlant.
-    "daPkn_c": [("int", "_ZTV7daPkn_c")],
+    # DROPPED AT THE FOLD (lane INT3, 2026-09-14), for the same reason and in
+    # the same words as the two rows above. Lane HOSTGEN4 wrote this row
+    # against the PRE-SYNC daPkn_c.cpp, whose daPkn_c_classInit stored the
+    # vtable by name: `p[0] = (int)(_ZTV7daPkn_c + 2);`. main has rewritten
+    # that factory as `return new daPkn_c();`, so the translation unit does not
+    # name its vtable symbol at all and ztv_c_linkage hard-errors on a row
+    # whose name is absent. What the class dispatches through is MSVC's own
+    # vtable now rather than the port's hosted array, which is the vptr
+    # address-point question and not this row's.
+    # "daPkn_c": [("int", "_ZTV7daPkn_c")],
 }
 
 
@@ -2348,10 +2357,28 @@ LEDGER_PARK = {
         # Retiring the row and deleting the park are ONE change: either half
         # alone is a broken link.
         # func_ov084_0212f204
-        ("/* ROM ordinal 8 -- func_ov084_0212f204, 0x0212f204, size 0x94 */\n",
-         "/* ROM ordinal 8 -- func_ov084_0212f204, 0x0212f204, size 0x94 */\n#if 0  /* hostgen LEDGER_PARK */\n"),
-        ("/* ROM ordinal 7 -- func_ov084_0212f1d0, 0x0212f1d0, size 0x34 */\n",
-         "#endif  /* hostgen LEDGER_PARK: func_ov084_0212f204 */\n/* ROM ordinal 7 -- func_ov084_0212f1d0, 0x0212f1d0, size 0x34 */\n"),
+        # RE-ANCHORED AT THE FOLD (lane INT3, 2026-09-14). This park was
+        # written against the PRE-SYNC daPkn_c.cpp, which carried a
+        # "/* ROM ordinal N -- <name>, <addr>, size <n> */" banner over each
+        # body. main's rewrite of this translation unit replaced all of them
+        # with "// @symbol <name>" lines, so both anchors named text that is
+        # no longer anywhere in the file and hostgen refused the build. The
+        # park is KEPT, not dropped: func_ov084_0212f204 is host-copied by
+        # port/unmatched/Actor_ClosestPlayer_OverlayReaders.cpp under a
+        # standing PORT_HOST_ABI receiver ruling, and nothing tonight
+        # re-adjudicates that against ROM bytes.
+        #
+        # main wraps each retained C-linkage helper in its own extern "C"
+        # block, so this bracket opens on the definition line and closes on
+        # the body's own last brace, the way daWanwan_c_classInit's does. A
+        # banner-to-banner bracket here would leave the extern "C" block's
+        # closing brace inside the #if 0.
+        ("void func_ov084_0212f204(char* r4){\n",
+         "#if 0  /* hostgen LEDGER_PARK: func_ov084_0212f204 */\n"
+         "void func_ov084_0212f204(char* r4){\n"),
+        ("      *(short*)(r4 + 0x468) = *(short*)(r4 + 0x8e);\n    }\n  }\n}\n",
+         "      *(short*)(r4 + 0x468) = *(short*)(r4 + 0x8e);\n    }\n  }\n}\n"
+         "#endif  /* hostgen LEDGER_PARK: func_ov084_0212f204 */\n"),
     ],
     # daWanwan_c (Chain Chomp). Three ledger members plus daWanwan_c_classInit,
     # which is a FACTORY host copy (unmatched/ChainChomp_Spawn_hostcopy.cpp) held
