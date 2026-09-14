@@ -3734,3 +3734,63 @@ DSSTATE_END
 #pragma comment(linker, "/alternatename:?data_ov015_02114a5c@@3USharedFilePtr@@A=_data_ov015_02114a5c")
 #pragma comment(linker, "/alternatename:?data_ov015_02114a64@@3USharedFilePtr@@A=_data_ov015_02114a64")
 #pragma comment(linker, "/alternatename:?data_ov022_021145a0@@3PAHA=_data_ov022_021145a0")
+
+/* ---- 6. THE TWENTY-ONE DECORATED DATA ROWS LANE DTORS2 MEASURED --------
+ *
+ * Staged by lane INT4 at the wave-9c fold, on the coordinator's word, from
+ * out/DTORS2/handoff.txt part 1. Same shape as section 5 and the rows above
+ * it: a //cpp src translation unit declares one of the ROM's globals with a
+ * C++ TYPE at C++ linkage, so MSVC asks the linker for ?<name>@@3<type>A,
+ * while the same storage is already mounted at that address under its plain
+ * C address-name and is CONSTRUCTED under that name by the overlay's own
+ * static initialiser. Two spellings, one ROM address. A second mount would
+ * fork the storage, which is the failure port/hal/heap_globals.cpp's header
+ * paragraph describes (the constructor registers into one list while
+ * FindNested searches the other), so every row here is a bridge and none is
+ * a mount.
+ *
+ * Each right-hand side was re-checked here with a WORD match against the
+ * named port/ovNNN_syms.txt mount, not a line match: those files list
+ * several names per line and a line-anchored grep reads every one of them as
+ * absent, which is the trap DTORS2 recorded.
+ *
+ * Two of these names already carry a FLAT alias further up the tree
+ * (_RotatingClockHand_ModelFile and _RockPillar_ClsnFile). These are the
+ * DECORATED spelling of the same globals asked for by a different caller, so
+ * the left-hand sides differ and the rows are not duplicates.
+ */
+#pragma comment(linker, "/alternatename:?BowserShutter_ClsnFile@@3PAHA=_data_ov026_02113eb4")
+#pragma comment(linker, "/alternatename:?MadPiano_AnimFile@@3USharedFilePtr@@A=_data_ov063_0211ef90")
+#pragma comment(linker, "/alternatename:?MadPiano_ClsnFile@@3USharedFilePtr@@A=_data_ov063_0211ef88")
+#pragma comment(linker, "/alternatename:?MadPiano_ModelFile@@3USharedFilePtr@@A=_data_ov063_0211ef80")
+#pragma comment(linker, "/alternatename:?MovingBarSmall_ClsnFile@@3PAHA=_data_ov015_02114a5c")
+#pragma comment(linker, "/alternatename:?MovingBarSmall_ModelFile@@3PAHA=_data_ov015_02114a64")
+#pragma comment(linker, "/alternatename:?PoleBillboard_ClsnFile@@3PAHA=_data_ov015_02114974")
+#pragma comment(linker, "/alternatename:?PoleBillboard_ModelFile@@3PAHA=_data_ov015_0211497c")
+#pragma comment(linker, "/alternatename:?PoleLift_ClsnFile@@3USharedFilePtr@@A=_data_ov045_021131d0")
+#pragma comment(linker, "/alternatename:?PoleLift_ModelFile@@3USharedFilePtr@@A=_data_ov045_021131d8")
+#pragma comment(linker, "/alternatename:?RockPillar_ClsnFile@@3PAHA=_data_ov016_02114e1c")
+#pragma comment(linker, "/alternatename:?RotatingClockHand_ClsnFile@@3USharedFilePtr@@A=_data_ov035_02112cb8")
+#pragma comment(linker, "/alternatename:?RotatingClockHand_ModelFile@@3USharedFilePtr@@A=_data_ov035_02112cb0")
+#pragma comment(linker, "/alternatename:?Submarine_ClsnFile@@3PAHA=_data_ov026_02113edc")
+#pragma comment(linker, "/alternatename:?TtcRotatingGear_ClsnFile@@3PAHA=_data_ov065_0211d97c")
+#pragma comment(linker, "/alternatename:?TtcRotatingGear_ModelFile@@3PAHA=_data_ov065_0211d98c")
+#pragma comment(linker, "/alternatename:?daKpa2Bg_c_ClsnFile@@3PAHA=_data_ov060_0211aff4")
+#pragma comment(linker, "/alternatename:?daKpa2Bg_c_ModelFile@@3PAHA=_data_ov060_0211affc")
+
+/* The two heap rows of the same twenty-one. Their storage is not an overlay
+ * mount but port/hal/heap_globals.cpp's own, which already aliases the FLAT
+ * spelling of the iterator onto it; these are the decorated spelling that
+ * src/func_0204df54.cpp asks for.
+ *
+ * ?data_020a4d34@@3HA IS AN INFERENCE AND IS WRITTEN AS ONE. config carries no
+ * second name at 0x020a4d34 (config/arm9/symbols.txt:5118 has the address-name
+ * alone), so the identification rests on the pairing DTORS2 measured:
+ * heap_globals.cpp hosts int _ZN6Memory25isRootHeapIterInitializedE beside the
+ * iterator, and func_0204df54 reads data_020a4d34 as the guard flag immediately
+ * before constructing data_020a4d38 and sets it to 1 after, which is that
+ * flag's whole job. If the owner of heap_globals.cpp reads it differently, this
+ * row is the one to pull.
+ */
+#pragma comment(linker, "/alternatename:?data_020a4d38@@3UNestedHeapIterator@@A=__ZN6Memory16rootHeapIteratorE")
+#pragma comment(linker, "/alternatename:?data_020a4d34@@3HA=__ZN6Memory25isRootHeapIterInitializedE")

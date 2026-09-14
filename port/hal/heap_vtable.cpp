@@ -187,7 +187,14 @@ void *Allocate(u32 size, int align, Heap *heap)
 }                                                                            */
 
 // Memory::defaultHeapPtr is data_020a0ea0 by its address-name (data alias).
-#pragma comment(linker, "/alternatename:?defaultHeapPtr@Memory@@3PAVHeap@@A=_data_020a0ea0")
+/* V is "class" and U is "struct". include/Heap.h declares `struct Heap` (lines
+ * 133 and 143), so MSVC mangles the type as U and the six objects that ask for
+ * this datum -- Heap::SetDefault, SetupRootHeap, CreateSolidHeap,
+ * CreateExpandingHeap, SetupSolidHeapAsDefault and _ZdlPv -- all spell it
+ * ?defaultHeapPtr@Memory@@3PAUHeap@@A. The row had gone stale on a
+ * class-to-struct change and named a symbol nothing references. Measured by
+ * lane DTORS2, corrected at the wave-9c fold. */
+#pragma comment(linker, "/alternatename:?defaultHeapPtr@Memory@@3PAUHeap@@A=_data_020a0ea0")
 
 // Crash(): the game's fatal stop. Loud on host. C linkage for the .c TUs;
 // the C++-linkage references alias onto the same definition.
