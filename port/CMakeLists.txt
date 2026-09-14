@@ -19179,6 +19179,35 @@ endforeach()
 target_sources(walk_window PRIVATE ${SLICE_INT4_SOURCES})
 
 
+# ===========================================================================
+# SLICE LINK21 (run link100 wave 9c, lane LINK21, the last lane before the link)
+# ===========================================================================
+#
+# The two bannered NONMATCHING drafts main gained today, and this lane's own hal
+# rows. port/slice_link21.txt carries the derivation, the four wall rows the two
+# drafts close and the standalone-compile census taken before either went on a
+# row.
+#
+# ALL THREE HOSTING TARGETS and not walk_window alone, unlike the slice_int4
+# block above. Both drafts' four rows are on walk_window's, walk_window_hires's
+# and smoke_player's LNK1120 blocks alike, and the two reverse faces that answer
+# the flat half of each pair are rows in port/faces_sync.txt, which reaches all
+# three targets. Seating the decorated half on one target only would leave the
+# other two asking for a name the ledger's own face calls.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_link21.txt" SLICE_LINK21_LINES)
+set(SLICE_LINK21_SOURCES "")
+foreach(line IN LISTS SLICE_LINK21_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_LINK21_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+foreach(_tlink21 walk_window walk_window_hires smoke_player)
+    target_sources(${_tlink21} PRIVATE ${SLICE_LINK21_SOURCES})
+endforeach()
+
+
 # MOVED BACK TO LAST IN THE FILE at the wave-9c fold (lane INT4). Its own banner
 # below says every port_read_lines call has to be above it, and two blocks had
 # landed underneath: lane FACES4's slice_faces4 block and this fold's slice_int4

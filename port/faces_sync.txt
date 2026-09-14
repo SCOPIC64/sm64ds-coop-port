@@ -1389,6 +1389,7 @@ __ZN12dScMgJump2_c8BehaviorEv                                            ?Behavi
 
 __ZN11dScMgJump_c13InitResourcesEv                                       ?InitResources@dScMgJump_c@@UAEHXZ                               0x020ee690 R
 __ZN11dScMgJump_c13OnTurnIntoEggEi                                       ?OnTurnIntoEgg@dScMgJump_c@@UAEHH@Z                              0x020ee8dc R
+__ZN11dScMgJump_c13OnYoshiTryEatEi                                       ?OnYoshiTryEat@dScMgJump_c@@UAEXH@Z                              0x020ee994 R
 __ZN11dScMgJump_c16CleanupResourcesEv                                    ?CleanupResources@dScMgJump_c@@UAEHXZ                            0x020edffc R
 __ZN11dScMgJump_c6RenderEv                                               ?Render@dScMgJump_c@@UAEHXZ                                      0x020ee034 R
 __ZN11dScMgJump_c8BehaviorEv                                             ?Behavior@dScMgJump_c@@UAEHXZ                                    0x020ee27c R
@@ -1530,6 +1531,7 @@ __ZN12dScMgSlot1_c13OnYoshiTryEatEi                                      ?OnYosh
 __ZN12dScMgSlot1_c15OnHitByMegaCharEv                                    ?OnHitByMegaChar@dScMgSlot1_c@@UAEXXZ                            0x0210c4dc R
 __ZN12dScMgSlot1_c19OnHitFromUnderneathEv                                ?OnHitFromUnderneath@dScMgSlot1_c@@UAEHXZ                        0x0210c4b8 R
 __ZN12dScMgSlot1_c6RenderEv                                              ?Render@dScMgSlot1_c@@UAEHXZ                                     0x0210c6c0 R
+__ZN12dScMgSlot1_c8BehaviorEv                                            ?Behavior@dScMgSlot1_c@@UAEHXZ                                   0x0210c9e0 R
 __ZN12dScMgSlot1_c9betIcon_c6RenderEv                                    ?Render@betIcon_c@dScMgSlot1_c@@UAEXXZ                           0x0210c374 R
 __ZN12dScMgSlot1_c9betIcon_c8BehaviorEv                                  ?Behavior@betIcon_c@dScMgSlot1_c@@UAEXXZ                         0x0210c410 R
 __ZN12dScMgSlot1_cD1Ev                                                   ??1dScMgSlot1_c@@UAE@XZ                                          0x0210a8c0 R
