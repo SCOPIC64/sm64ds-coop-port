@@ -159,3 +159,56 @@ extern "C" void func_ov006_020e39e0(char *c, int a, int b)
 {
     ((dScMgCurling2_c *)c)->dScMgCurling2_c::SpawnValue(a, b);
 }
+
+// =========================================================================
+// THE TWO STRUCT-RETURN ROWS, which are mechanical once the order is read
+// =========================================================================
+//
+// Both members return a Vector3 BY VALUE, and both ROM bodies are in this link
+// already under their flat C names. facegen refused them because it will not
+// emit an indirect return: the host compiler builds its own hidden return slot
+// and the ROM body takes that slot as an explicit first argument, so the face
+// has to move one and not the other. Nothing here is guessed -- the argument
+// ORDER is read off each body's own definition, which is the only thing that
+// could be got wrong:
+//
+//   src/_ZN8dActor_c25OnAimedAtWithEggReturnVecEv.cpp:45
+//       extern "C" void _ZN8dActor_c25OnAimedAtWithEggReturnVecEv(Vector3 *ret,
+//                                                                 dActor_c *self)
+//   src/_ZN9dBgCh_Lin10GetClsnPosEv.cpp:15
+//       extern "C" void _ZN9dBgCh_Lin10GetClsnPosEv(Vector3 *res, dBgCh_Lin *self)
+//
+// Return slot first, receiver second, which is AAPCS indirect return with this
+// displaced into r1, and which the first file's own header paragraph spells out
+// from the ROM: r0 is written and never read, r1 supplies every field load.
+// That file also explains why the ROM-side definition stays a free function
+// rather than becoming a method -- mwcc does not apply the named return value
+// optimisation there and the method spelling costs 0x10 bytes. That reasoning
+// is about the ARM build and this face does not touch it: the definition below
+// is host-only, the src file is unchanged, and no ROM byte moves.
+//
+// dActor_c::OnAimedAtWithEggReturnVec is slot 30 and 226 objects in this link
+// reference it, every actor's vftable among them, so it is the single most
+// referenced row left on the wall even though it is only one row.
+
+#include "dActor_c.h"
+#include "dBgCh_Lin.h"
+
+extern "C" {
+void _ZN8dActor_c25OnAimedAtWithEggReturnVecEv(Vector3 *ret, void *self);
+void _ZN9dBgCh_Lin10GetClsnPosEv(Vector3 *ret, void *self);
+}
+
+Vector3 dActor_c::OnAimedAtWithEggReturnVec()
+{
+    Vector3 out;
+    _ZN8dActor_c25OnAimedAtWithEggReturnVecEv(&out, this);
+    return out;
+}
+
+Vector3 dBgCh_Lin::GetClsnPos()
+{
+    Vector3 out;
+    _ZN9dBgCh_Lin10GetClsnPosEv(&out, this);
+    return out;
+}
