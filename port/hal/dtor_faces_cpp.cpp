@@ -200,6 +200,38 @@ CPPD1(daObjRc_Hane_c)
 CPPD1(daObjKb1Billboard_c)
 CPPD1(daSanbo_c)
 CPPD1(Tornado)
+/* TORNADO IS THE ONE CLASS IN THIS FILE THAT ALSO NEEDS THE BOTTOM HALF.
+   Run link100 wave 9c, lane LINK21, and it is the shape section 1 above uses
+   for "a face the ledger cannot spell".
+
+   Every other CPPD1 row only DECLARES ??1<Cls>@@UAE@XZ and calls it, because
+   something else in the link defines it: the class's own seated structor TU, or
+   a COMDAT copy MSVC emits from a header-inline destructor. Tornado has
+   neither. src/_ZN7TornadoD1Ev.cpp is on port/slice_dtorfaces.txt and compiles,
+   and dumpbin over its object shows exactly one external,
+   ?Tornado_EmitDestructor@@YAXPAUTornado@@@Z: MSVC inlined the whole class-body
+   destructor and emitted no out-of-line copy to name.
+
+   THE LEDGER CANNOT ANSWER IT EITHER, and that is measured rather than assumed.
+   port/faces_sync.txt:2586 carries the reverse F row
+   `__ZN7TornadoD1Ev -> ??1Tornado@@UAE@XZ` COMMENTED OUT, and it has to stay
+   that way: a reverse face defines the FLAT name, and both of Tornado's flat
+   destructor names are already defined in this link (D0 by a live ledger D row
+   at faces_sync.txt:2416, D1 by port/unmatched/Tornado_HostSites.cpp:72), so
+   either forwarder is an LNK2005. out/DTORS2/build_dtors2_2.log lines 2207 and
+   2208 are that measurement.
+
+   So the definition is written by hand here, in the one direction that is
+   still free: the DECORATED name calling the flat body, which is exactly what
+   Actor, MovingCylinderClsn and WithMeshClsn do in section 1. The flat body it
+   calls is the PORT_HOST_ABI host copy in Tornado_HostSites.cpp, which stores
+   _ZTV7Tornado into word 0 and then destroys the four member subobjects at
+   +0x328, +0x2c4, +0x108 and +0xd4 before chaining to _ZN8dActor_cD2Ev, in the
+   cartridge's own order. Nothing about dispatch changes: hal_cppd1_Tornado's
+   call is QUALIFIED, so it was always a direct call to this name, and until now
+   that name simply had no body. */
+extern "C" int *_ZN7TornadoD1Ev(int *self);   /* unmatched/Tornado_HostSites.cpp:72 */
+Tornado::~Tornado()                             { _ZN7TornadoD1Ev((int *)this); }
 CPPD1(Spiny)
 CPPD1(Lakitu)
 CPPD1(daGmch_c)
