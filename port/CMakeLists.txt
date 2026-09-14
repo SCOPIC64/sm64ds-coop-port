@@ -18898,6 +18898,35 @@ endforeach()
 target_sources(walk_window PRIVATE ${SLICE_DTORS_A_SOURCES})
 
 
+# ===========================================================================
+# SEATS, BOTTOM-UP: GATE 3 (run link100 wave 9b, lane SEATS2, staged by INT3)
+# ===========================================================================
+#
+# Two one-row seats a SOURCE-SIDE sweep found, and the name-bridge translation
+# unit they need.  Neither goes through hostgen.  Gates 1 and 2 of that lane
+# are not here: the coordinator's fold ruling seats gate 1's three consolidated
+# actor TUs through lane HOSTGEN4 instead, and holds gate 2.  The rows and the
+# bridges are reproduced from the lane's own commit b214e6def; see
+# port/slice_seats2.txt for the derivation and the measured counts.
+#
+# All three hosting targets, not walk_window alone: nothing here is measured
+# against one target's wall.  The seats define members, and the bridge file is
+# /alternatename directives, which a linker that never sees the left-hand side
+# simply does not fire.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_seats2.txt" SLICE_SEATS2_LINES)
+set(SLICE_SEATS2_SOURCES "")
+foreach(line IN LISTS SLICE_SEATS2_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_SEATS2_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+foreach(_tseats2 walk_window walk_window_hires smoke_player)
+    target_sources(${_tseats2} PRIVATE ${SLICE_SEATS2_SOURCES})
+endforeach()
+
+
 # ---- WHOLE-TU HOSTGEN SUBSTITUTION: THE COUNT ------------------------------
 #
 # Every substitution declared in PORT_HOSTGEN_TU near the top of this file has
