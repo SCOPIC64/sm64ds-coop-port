@@ -2842,49 +2842,21 @@ __ZN14dBgW_KcMbgSclY10DetectClsnER9dBgCh_Lin                             ?Detect
 # facegen --sync re-derives all 44 at build time, so a row that stops deriving
 # fails the build rather than quietly leaving the link.
 
+# RETIRED AT THE FOLD, 2026-09-14: 40 of the 42 D1 rows below were taken out
+# again when lane DTORS-A staged. DTORS-A's port/hal/dtor_forwarders_gen.cpp
+# defines the same 40 flat names as extern "C" forwarders whose qualified call
+# odr-uses the same inline destructor body, so the two answers are the same
+# answer written twice and both are strong symbols: staging both is 40 LNK2005
+# rows. DTORS-A's emission covers 189 names against these 42 and carries its own
+# ROM measurement (port/tools/dtor_store_guard.py re-derives it every build), so
+# the ledger yields. The two D1 rows DTORS-A does not define stay:
+# __ZN14daObjWc_Mizu_cD1Ev and __ZN15daObjWc_Obj04_cD1Ev.
+# THE COORDINATOR CAN REVERSE THIS: it is a pick between two lanes' answers to
+# the same 40 rows, not a derivation, and both derive.
+#
 # the 42 D1 rows
-__ZN7daBmb_cD1Ev                                                         ??1daBmb_c@@UAE@XZ                                               0x0214a96c R
-__ZN7daDgr_cD1Ev                                                         ??1daDgr_c@@UAE@XZ                                               0x021111a0 R
-__ZN7daDkk_cD1Ev                                                         ??1daDkk_c@@UAE@XZ                                               0x021118c8 R
-__ZN12daIDonketu_cD1Ev                                                   ??1daIDonketu_c@@UAE@XZ                                          0x021115c4 R
-__ZN12daObjAbuku_cD1Ev                                                   ??1daObjAbuku_c@@UAE@XZ                                          0x020b3298 R
-__ZN16daObjBC_Switch_cD1Ev                                               ??1daObjBC_Switch_c@@UAE@XZ                                      0x020f11b0 R
-__ZN14daObjBSwdoor_cD1Ev                                                 ??1daObjBSwdoor_c@@UAE@XZ                                        0x021111a0 R
-__ZN18daObjBkBillboard_cD1Ev                                             ??1daObjBkBillboard_c@@UAE@XZ                                    0x021111a0 R
-__ZN17daObjBk_Rotebar_cD1Ev                                              ??1daObjBk_Rotebar_c@@UAE@XZ                                     0x02112944 R
-__ZN16daObjC0_Switch_cD1Ev                                               ??1daObjC0_Switch_c@@UAE@XZ                                      0x021111a0 R
-__ZN14daObjC1_Trap_cD1Ev                                                 ??1daObjC1_Trap_c@@UAE@XZ                                        0x021111a0 R
-__ZN20daObjCannonShutter_cD1Ev                                           ??1daObjCannonShutter_c@@UAE@XZ                                  0x020bc8f4 R
-__ZN18daObjClockHuriko_cD1Ev                                             ??1daObjClockHuriko_c@@UAE@XZ                                    0x021111a0 R
-__ZN16daObjCtMecha03_cD1Ev                                               ??1daObjCtMecha03_c@@UAE@XZ                                      0x02119f3c R
-__ZN16daObjCtMecha04_cD1Ev                                               ??1daObjCtMecha04_c@@UAE@XZ                                      0x0211a494 R
-__ZN16daObjCtMecha05_cD1Ev                                               ??1daObjCtMecha05_c@@UAE@XZ                                      0x0211ab60 R
-__ZN16daObjCvShutter_cD1Ev                                               ??1daObjCvShutter_c@@UAE@XZ                                      0x02112db4 R
-__ZN13daObjEmmLog_cD1Ev                                                  ??1daObjEmmLog_c@@UAE@XZ                                         0x021111a0 R
-__ZN16daObjFl_London_cD1Ev                                               ??1daObjFl_London_c@@UAE@XZ                                      0x02111980 R
-__ZN16daObjFm_Battan_cD1Ev                                               ??1daObjFm_Battan_c@@UAE@XZ                                      0x021111a0 R
-__ZN19daObjHatenaSwitch_cD1Ev                                            ??1daObjHatenaSwitch_c@@UAE@XZ                                   0x020b4ed8 R
-__ZN15daObjIceBoard_cD1Ev                                                ??1daObjIceBoard_c@@UAE@XZ                                       0x021127bc R
-__ZN19daObjKm1_Ukishima_cD1Ev                                            ??1daObjKm1_Ukishima_c@@UAE@XZ                                   0x021111a0 R
-__ZN14daObjKsWater_cD1Ev                                                 ??1daObjKsWater_c@@UAE@XZ                                        0x021111a0 R
-__ZN14daObjMcWater_cD1Ev                                                 ??1daObjMcWater_c@@UAE@XZ                                        0x02111a70 R
-__ZN18daObjMc_Metalnet_cD1Ev                                             ??1daObjMc_Metalnet_c@@UAE@XZ                                    0x02111dc4 R
-__ZN16daObjPushblock_cD1Ev                                               ??1daObjPushblock_c@@UAE@XZ                                      0x020b8bf0 R
-__ZN16daObjRcBuranko_cD1Ev                                               ??1daObjRcBuranko_c@@UAE@XZ                                      0x021111a0 R
-__ZN18daObjRc_Guruguru_cD1Ev                                             ??1daObjRc_Guruguru_c@@UAE@XZ                                    0x02111d14 R
-__ZN13daObjSwdoor_cD1Ev                                                  ??1daObjSwdoor_c@@UAE@XZ                                         0x020bab64 R
-__ZN13daObjTdFuta_cD1Ev                                                  ??1daObjTdFuta_c@@UAE@XZ                                         0x021124a8 R
-__ZN14daObjTdWater_cD1Ev                                                 ??1daObjTdWater_c@@UAE@XZ                                        0x02112698 R
-__ZN13daObjWakame_cD1Ev                                                  ??1daObjWakame_c@@UAE@XZ                                         0x020bc414 R
-__ZN20daObjWanwanShutter_cD1Ev                                           ??1daObjWanwanShutter_c@@UAE@XZ                                  0x02112e0c R
 __ZN14daObjWc_Mizu_cD1Ev                                                 ??1daObjWc_Mizu_c@@UAE@XZ                                        0x021121a4 R
-__ZN15daObjWc_Obj02_cD1Ev                                                ??1daObjWc_Obj02_c@@UAE@XZ                                       0x0211137c R
 __ZN15daObjWc_Obj04_cD1Ev                                                ??1daObjWc_Obj04_c@@UAE@XZ                                       0x02112630 R
-__ZN15daObjWc_Obj05_cD1Ev                                                ??1daObjWc_Obj05_c@@UAE@XZ                                       0x02111ac4 R
-__ZN10daPgDfdr_cD1Ev                                                     ??1daPgDfdr_c@@UAE@XZ                                            0x021118c8 R
-__ZN19daPropeller_Heyho_cD1Ev                                            ??1daPropeller_Heyho_c@@UAE@XZ                                   0x0211f000 R
-__ZN9daSCoin_cD1Ev                                                       ??1daSCoin_c@@UAE@XZ                                             0x020f03c4 R
-__ZN15daYurei_Mucho_cD1Ev                                                ??1daYurei_Mucho_c@@UAE@XZ                                       0x02115ee0 R
 
 # the two member rows
 __ZN10SlidingIce16CleanupResourcesEv                                     ?CleanupResources@SlidingIce@@UAEHXZ                             0x02111264 R
