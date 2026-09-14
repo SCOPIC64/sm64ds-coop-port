@@ -261,3 +261,82 @@ Vector3 dBgCh_Lin::GetClsnPos()
 // are, and delete this section.
 #pragma comment(linker, "/alternatename:??1CameraTag@@UAE@XZ=??1daChRoom_c@@UAE@XZ")
 #pragma comment(linker, "/alternatename:??1Cloud@@UAE@XZ=??1daObjKumo_c@@UAE@XZ")
+
+// =========================================================================
+// FIVE ROWS A SECOND-SPELLING SWEEP FOUND, after the wall was down to 27
+// =========================================================================
+//
+// These were found by asking one question of every row still on the wall: is
+// this same function DEFINED IN THIS LINK UNDER ANOTHER SPELLING? The sweep ran
+// each unresolved name's identifier tokens against a freshly built universe of
+// walk_window's own link inputs (49917 defined externals over 8678 objects,
+// rebuilt on this tip because the round-2 one predated ten commits). Four rows
+// came back with an exact-signature twin and one with a static sibling.
+//
+// FOUR ARE A PURE NAME BRIDGE and take an /alternatename by the standing test:
+// the two sides already agree about the call, same calling convention, same
+// parameter list, same receiver.
+//
+//   ?_ZN8dActor_c15FindWithActorIDEjPS_@dActor_c@@SAPAU1@IPAU1@@Z
+//       A caller declared the FLAT ROM name as a static member of dActor_c, so
+//       MSVC mangled the Itanium string as a method name. The real member
+//       ?FindWithActorID@dActor_c@@SAPAU1@IPAU1@@Z is defined in this link and
+//       the two share a parameter list character for character: SAPAU1@IPAU1@@Z
+//       on both sides, static and __cdecl on both sides.
+//       Lane FACES4 refused this row as a seat, on the measurement that the
+//       flat ROM body is not in the link. That is still true --
+//       __ZN8dActor_c15FindWithActorIDEjPS_ is not among the 49917 -- and it is
+//       not what the row needs: the DECORATED member is there.
+//       (port/hal/actor_classes_ov060.cpp:266 carries a retired alias whose note
+//       says that flat name is "a real definition in this link now". The
+//       universe says otherwise, so that note is stale; it is retired either way
+//       and nothing depends on it.)
+//
+//   ?SpawnMegaCharParticles@Enemy@@QAEXAAUActor@@PAD@Z
+//       port/hal/bob_enemy_bridges.cpp:92 declares a private shadow
+//       struct Enemy with this member and calls it. Enemy and Actor are the
+//       pre-sync names of dEnemyBase_c and dActor_c, and
+//       ?SpawnMegaCharParticles@dEnemyBase_c@@QAEXAAUdActor_c@@PAD@Z is defined
+//       in this link with the same __thiscall shape, one reference parameter
+//       and one char pointer.
+//
+//   ?DisappearPoofDustAt@ArrowSignRight@@QAEXABUVector3@@@Z
+//   ?MarkForDestruction@ArrowSignRight@@QAEXXZ
+//       include/ArrowSignRight.h:74 asks for these two by name: "INHERITED, AND
+//       THEREFORE THE PORT'S TO BIND ... they resolve to
+//       _ZN8dActor_c19DisappearPoofDustAtERK7Vector3 and
+//       _ZN7fBase_c19MarkForDestructionEv, which is an /alternatename the port
+//       can write". The right hand sides here are the DECORATED members and not
+//       those flat names, on purpose: the flat bodies are __cdecl with the
+//       receiver as a stack argument while these left hand sides are __thiscall
+//       with the receiver in ecx, which is the ABI bridge an alias must never
+//       be, and _ZN7fBase_c19MarkForDestructionEv is not in this link at all.
+//       ?DisappearPoofDustAt@dActor_c@@QAEXABUVector3@@@Z and
+//       ?MarkForDestruction@fBase_c@@QAEXXZ are both defined, both __thiscall,
+//       both with the same parameter list as the left hand side.
+//       THE RECEIVER IS THE SAME POINTER, which is what makes the bridge sound:
+//       ArrowSignRight derives from dBgActor_c from dActor_c from fBase_c, all
+//       single inheritance, and the header's own static_asserts pin its fields
+//       at the base layout's offsets (actorID 0x00c, mPosX 0x05c, mAngleY
+//       0x08e, mModel 0x0d4), so every base subobject is at offset 0.
+#pragma comment(linker, "/alternatename:?_ZN8dActor_c15FindWithActorIDEjPS_@dActor_c@@SAPAU1@IPAU1@@Z=?FindWithActorID@dActor_c@@SAPAU1@IPAU1@@Z")
+#pragma comment(linker, "/alternatename:?SpawnMegaCharParticles@Enemy@@QAEXAAUActor@@PAD@Z=?SpawnMegaCharParticles@dEnemyBase_c@@QAEXAAUdActor_c@@PAD@Z")
+#pragma comment(linker, "/alternatename:?DisappearPoofDustAt@ArrowSignRight@@QAEXABUVector3@@@Z=?DisappearPoofDustAt@dActor_c@@QAEXABUVector3@@@Z")
+#pragma comment(linker, "/alternatename:?MarkForDestruction@ArrowSignRight@@QAEXXZ=?MarkForDestruction@fBase_c@@QAEXXZ")
+
+// THE FIFTH IS A FACE, because the two sides do NOT agree about the call.
+// port/hal/cxx_aliases.cpp:689 declares a private shadow
+// `struct Scene { void ResetHardwareRegisters(); };` and defines the flat ROM
+// name against it, so the link asks for ?ResetHardwareRegisters@Scene@@QAEXXZ,
+// a __thiscall member. What exists is ?ResetHardwareRegisters@dScene_c@@SAXXZ,
+// which include/dScene_c.h:69 declares STATIC. An alias between a member and a
+// static is an ABI bridge even when, as here, the zero-argument case happens to
+// make the two epilogues identical, so the shadow member is defined here
+// instead and forwards to the static. The shadow is repeated verbatim, because
+// a mangle depends on the name, the class, the convention and the signature and
+// on nothing else, and this one has no members that could disagree.
+
+#include "dScene_c.h"
+
+struct Scene { void ResetHardwareRegisters(); };
+void Scene::ResetHardwareRegisters() { dScene_c::ResetHardwareRegisters(); }
