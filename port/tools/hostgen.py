@@ -2321,11 +2321,13 @@ LEDGER_PARK = {
     # copy's correction on the call and asks nobody to re-adjudicate the
     # ruling tonight.
     "daSanbo_c": [
-        # _ZN9daSanbo_c13InitResourcesEv, _ZN9daSanbo_c8BehaviorEv, _ZN9daSanbo_c6RenderEv, _ZN9daSanbo_c16OnPendingDestroyEv, _ZN9daSanbo_c16CleanupResourcesEv
-        ("/* ROM ordinal 32 -- _ZN9daSanbo_c13InitResourcesEv, 0x02136ab0, size 0x220 */\n",
-         "/* ROM ordinal 32 -- _ZN9daSanbo_c13InitResourcesEv, 0x02136ab0, size 0x220 */\n#if 0  /* hostgen LEDGER_PARK */\n"),
-        ("/* ROM ordinal 27 -- func_ov096_02136928, 0x02136928, size 0x1c */\n",
-         "#endif  /* hostgen LEDGER_PARK: _ZN9daSanbo_c13InitResourcesEv, _ZN9daSanbo_c8BehaviorEv, _ZN9daSanbo_c6RenderEv, _ZN9daSanbo_c16OnPendingDestroyEv, _ZN9daSanbo_c16CleanupResourcesEv */\n/* ROM ordinal 27 -- func_ov096_02136928, 0x02136928, size 0x1c */\n"),
+        # UNPARKED AT THE FOLD (lane INT3, 2026-09-14), half of the recursion
+        # fix the coordinator ruled on. The ledger rows these parks were
+        # waiting on are retired in port/faces_sync.txt in the same commit, so
+        # the member's real ROM body is what defines it now and the hand face
+        # in port/hal/ calls a body instead of calling the face that calls it.
+        # Retiring the row and deleting the park are ONE change: either half
+        # alone is a broken link.
         # func_ov096_02135e2c
         ("/* ROM ordinal 11 -- func_ov096_02135e2c, 0x02135e2c, size 0xd0 */\n",
          "/* ROM ordinal 11 -- func_ov096_02135e2c, 0x02135e2c, size 0xd0 */\n#if 0  /* hostgen LEDGER_PARK */\n"),
@@ -2338,16 +2340,13 @@ LEDGER_PARK = {
     # ruling lane SYNC6 flagged as worth re-checking against main's text.
     # Parking leaves that ruling exactly where it is.
     "daPkn_c": [
-        # _ZN7daPkn_c8BehaviorEv, _ZN7daPkn_c6RenderEv
-        ("/* ROM ordinal 21 -- _ZN7daPkn_c8BehaviorEv, 0x0212fd4c, size 0x168 */\n",
-         "/* ROM ordinal 21 -- _ZN7daPkn_c8BehaviorEv, 0x0212fd4c, size 0x168 */\n#if 0  /* hostgen LEDGER_PARK */\n"),
-        ("/* ROM ordinal 19 -- _ZN7daPkn_c16OnPendingDestroyEv, 0x0212fcd8, size 0x4 */\n",
-         "#endif  /* hostgen LEDGER_PARK: _ZN7daPkn_c8BehaviorEv, _ZN7daPkn_c6RenderEv */\n/* ROM ordinal 19 -- _ZN7daPkn_c16OnPendingDestroyEv, 0x0212fcd8, size 0x4 */\n"),
-        # _ZN7daPkn_c16CleanupResourcesEv
-        ("/* ROM ordinal 18 -- _ZN7daPkn_c16CleanupResourcesEv, 0x0212fc84, size 0x54 */\n",
-         "/* ROM ordinal 18 -- _ZN7daPkn_c16CleanupResourcesEv, 0x0212fc84, size 0x54 */\n#if 0  /* hostgen LEDGER_PARK */\n"),
-        ("/* ROM ordinal 17 -- func_ov084_0212fc10, 0x0212fc10, size 0x74 */\n",
-         "#endif  /* hostgen LEDGER_PARK: _ZN7daPkn_c16CleanupResourcesEv */\n/* ROM ordinal 17 -- func_ov084_0212fc10, 0x0212fc10, size 0x74 */\n"),
+        # UNPARKED AT THE FOLD (lane INT3, 2026-09-14), half of the recursion
+        # fix the coordinator ruled on. The ledger rows these parks were
+        # waiting on are retired in port/faces_sync.txt in the same commit, so
+        # the member's real ROM body is what defines it now and the hand face
+        # in port/hal/ calls a body instead of calling the face that calls it.
+        # Retiring the row and deleting the park are ONE change: either half
+        # alone is a broken link.
         # func_ov084_0212f204
         ("/* ROM ordinal 8 -- func_ov084_0212f204, 0x0212f204, size 0x94 */\n",
          "/* ROM ordinal 8 -- func_ov084_0212f204, 0x0212f204, size 0x94 */\n#if 0  /* hostgen LEDGER_PARK */\n"),
@@ -2377,24 +2376,13 @@ LEDGER_PARK = {
         ("    __cxa_vec_ctor(c+0x578, 7, 0xc, (void*)func_0203d384, (void*)_ZN7Vector3D1Ev);\n  }\n  return c;\n}\n",
          "    __cxa_vec_ctor(c+0x578, 7, 0xc, (void*)func_0203d384, (void*)_ZN7Vector3D1Ev);\n  }\n  return c;\n}\n"
          "#endif  /* hostgen LEDGER_PARK: daWanwan_c_classInit */\n"),
-        ("int daWanwan_c::InitResources()\n{\n",
-         "#if 0  /* hostgen LEDGER_PARK: _ZN10daWanwan_c13InitResourcesEv */\n"
-         "int daWanwan_c::InitResources()\n{\n"),
-        ("/* ROM ordinal 26 -- _ZN10daWanwan_c8BehaviorEv, 0x021129ec, size 0x128 */\n",
-         "#endif  /* hostgen LEDGER_PARK: _ZN10daWanwan_c13InitResourcesEv */\n"
-         "/* ROM ordinal 26 -- _ZN10daWanwan_c8BehaviorEv, 0x021129ec, size 0x128 */\n"),
-        ("int daWanwan_c::Behavior()\n{\n",
-         "#if 0  /* hostgen LEDGER_PARK: _ZN10daWanwan_c8BehaviorEv */\n"
-         "int daWanwan_c::Behavior()\n{\n"),
-        ("/* ROM ordinal 25 -- _ZN10daWanwan_c6RenderEv, 0x02112994, size 0x58 */\n",
-         "#endif  /* hostgen LEDGER_PARK: _ZN10daWanwan_c8BehaviorEv */\n"
-         "/* ROM ordinal 25 -- _ZN10daWanwan_c6RenderEv, 0x02112994, size 0x58 */\n"),
-        ("int daWanwan_c::Render()\n{\n",
-         "#if 0  /* hostgen LEDGER_PARK: _ZN10daWanwan_c6RenderEv */\n"
-         "int daWanwan_c::Render()\n{\n"),
-        ("/* ROM ordinal 24 -- _ZN10daWanwan_c16CleanupResourcesEv, 0x0211294c, size 0x48 */\n",
-         "#endif  /* hostgen LEDGER_PARK: _ZN10daWanwan_c6RenderEv */\n"
-         "/* ROM ordinal 24 -- _ZN10daWanwan_c16CleanupResourcesEv, 0x0211294c, size 0x48 */\n"),
+        # UNPARKED AT THE FOLD (lane INT3, 2026-09-14), half of the recursion
+        # fix the coordinator ruled on. The ledger rows these parks were
+        # waiting on are retired in port/faces_sync.txt in the same commit, so
+        # the member's real ROM body is what defines it now and the hand face
+        # in port/hal/ calls a body instead of calling the face that calls it.
+        # Retiring the row and deleting the park are ONE change: either half
+        # alone is a broken link.
     ],
 }
 

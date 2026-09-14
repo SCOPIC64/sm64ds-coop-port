@@ -1972,9 +1972,27 @@ __ZN10daPgMthr_c16CleanupResourcesEv                                     ?Cleanu
 __ZN10daPgMthr_c16OnPendingDestroyEv                                     ?OnPendingDestroy@daPgMthr_c@@UAEXXZ                             0x02112450 R
 __ZN10daPgMthr_c6RenderEv                                                ?Render@daPgMthr_c@@UAEHXZ                                       0x02112454 R
 
-__ZN7daPkn_c16CleanupResourcesEv                                         ?CleanupResources@daPkn_c@@UAEHXZ                                0x0212fc84 F
-__ZN7daPkn_c6RenderEv                                                    ?Render@daPkn_c@@UAEHXZ                                          0x0212fcdc F
-__ZN7daPkn_c8BehaviorEv                                                  ?Behavior@daPkn_c@@UAEHXZ                                        0x0212fd4c F
+# RETIRED AT THE FOLD, run link100 wave 9b, lane INT3, 2026-09-14.
+#
+# The 3 rows below were F faces: the face DEFINED the decorated member and
+# called the flat ROM name. The flat ROM name is defined by a hand face in
+# port/hal/, whose body is the qualified call to that same decorated member.
+# The two called each other and there was no body at the bottom, because the
+# main -> port sync had quarantined src/actors/daPkn_c.cpp and taken the real
+# bodies out of the link. Nothing in the tree compared the two directions and
+# the link has not completed since, so no binary ever ran the pair. Lane
+# SEATS2 found it: out/SEATS2/bugs.md section 1, and out/SEATS2/
+# faces_after_seat.txt Part 2 is the retirement list.
+#
+# The seat is in the tree now (lane HOSTGEN4, port/slice_hostgen4.txt), so the
+# member has its real ROM body back and the hand face calls a body. Retiring
+# the row and deleting the matching hostgen LEDGER_PARK bracket are ONE
+# change: retiring alone leaves the decorated name undefined, and unparking
+# alone is a duplicate symbol (COMDAT selection 1, pick no duplicates).
+#
+#__ZN7daPkn_c16CleanupResourcesEv                                         ?CleanupResources@daPkn_c@@UAEHXZ                                0x0212fc84 F
+#__ZN7daPkn_c6RenderEv                                                    ?Render@daPkn_c@@UAEHXZ                                          0x0212fcdc F
+#__ZN7daPkn_c8BehaviorEv                                                  ?Behavior@daPkn_c@@UAEHXZ                                        0x0212fd4c F
 
 __ZN19daPropeller_Heyho_c13OnTurnIntoEggER6Player                        ?OnTurnIntoEgg@daPropeller_Heyho_c@@UAEXAAUPlayer@@@Z            0x021204ec R
 __ZN19daPropeller_Heyho_c13OnYoshiTryEatEv                               ?OnYoshiTryEat@daPropeller_Heyho_c@@UAEHXZ                       0x02120518 R
@@ -1988,11 +2006,29 @@ __ZN9daSCoin_c8BehaviorEv                                                ?Behavi
 
 __ZN8daSCre_c8BehaviorEv                                                 ?Behavior@daSCre_c@@UAEHXZ                                       0x02112730 R
 
-__ZN9daSanbo_c13InitResourcesEv                                          ?InitResources@daSanbo_c@@UAEHXZ                                 0x02136ab0 F
-__ZN9daSanbo_c16CleanupResourcesEv                                       ?CleanupResources@daSanbo_c@@UAEHXZ                              0x02136944 F
-__ZN9daSanbo_c16OnPendingDestroyEv                                       ?OnPendingDestroy@daSanbo_c@@UAEXXZ                              0x021369b0 F
-__ZN9daSanbo_c6RenderEv                                                  ?Render@daSanbo_c@@UAEHXZ                                        0x021369fc F
-__ZN9daSanbo_c8BehaviorEv                                                ?Behavior@daSanbo_c@@UAEHXZ                                      0x02136a50 F
+# RETIRED AT THE FOLD, run link100 wave 9b, lane INT3, 2026-09-14.
+#
+# The 5 rows below were F faces: the face DEFINED the decorated member and
+# called the flat ROM name. The flat ROM name is defined by a hand face in
+# port/hal/, whose body is the qualified call to that same decorated member.
+# The two called each other and there was no body at the bottom, because the
+# main -> port sync had quarantined src/actors/daSanbo_c.cpp and taken the real
+# bodies out of the link. Nothing in the tree compared the two directions and
+# the link has not completed since, so no binary ever ran the pair. Lane
+# SEATS2 found it: out/SEATS2/bugs.md section 1, and out/SEATS2/
+# faces_after_seat.txt Part 2 is the retirement list.
+#
+# The seat is in the tree now (lane HOSTGEN4, port/slice_hostgen4.txt), so the
+# member has its real ROM body back and the hand face calls a body. Retiring
+# the row and deleting the matching hostgen LEDGER_PARK bracket are ONE
+# change: retiring alone leaves the decorated name undefined, and unparking
+# alone is a duplicate symbol (COMDAT selection 1, pick no duplicates).
+#
+#__ZN9daSanbo_c13InitResourcesEv                                          ?InitResources@daSanbo_c@@UAEHXZ                                 0x02136ab0 F
+#__ZN9daSanbo_c16CleanupResourcesEv                                       ?CleanupResources@daSanbo_c@@UAEHXZ                              0x02136944 F
+#__ZN9daSanbo_c16OnPendingDestroyEv                                       ?OnPendingDestroy@daSanbo_c@@UAEXXZ                              0x021369b0 F
+#__ZN9daSanbo_c6RenderEv                                                  ?Render@daSanbo_c@@UAEHXZ                                        0x021369fc F
+#__ZN9daSanbo_c8BehaviorEv                                                ?Behavior@daSanbo_c@@UAEHXZ                                      0x02136a50 F
 
 __ZN9daSetSE_c16CleanupResourcesEv                                       ?CleanupResources@daSetSE_c@@UAEHXZ                              0x020f19e8 R
 __ZN9daSetSE_c16OnPendingDestroyEv                                       ?OnPendingDestroy@daSetSE_c@@UAEXXZ                              0x020f19f0 R
@@ -2019,9 +2055,27 @@ __ZN7daTrs_c16OnPendingDestroyEv                                         ?OnPend
 __ZN7daTrs_c8BehaviorEv                                                  ?Behavior@daTrs_c@@UAEHXZ                                        0x0211b0a4 F
 __ZN7daTrs_cD1Ev                                                         ??1daTrs_c@@UAE@XZ                                               0x02115ee0 R
 
-__ZN10daWanwan_c13InitResourcesEv                                        ?InitResources@daWanwan_c@@UAEHXZ                                0x02112b14 F
-__ZN10daWanwan_c6RenderEv                                                ?Render@daWanwan_c@@UAEHXZ                                       0x02112994 F
-__ZN10daWanwan_c8BehaviorEv                                              ?Behavior@daWanwan_c@@UAEHXZ                                     0x021129ec F
+# RETIRED AT THE FOLD, run link100 wave 9b, lane INT3, 2026-09-14.
+#
+# The 3 rows below were F faces: the face DEFINED the decorated member and
+# called the flat ROM name. The flat ROM name is defined by a hand face in
+# port/hal/, whose body is the qualified call to that same decorated member.
+# The two called each other and there was no body at the bottom, because the
+# main -> port sync had quarantined src/game/actors/d_a_wanwan.cpp and taken the real
+# bodies out of the link. Nothing in the tree compared the two directions and
+# the link has not completed since, so no binary ever ran the pair. Lane
+# SEATS2 found it: out/SEATS2/bugs.md section 1, and out/SEATS2/
+# faces_after_seat.txt Part 2 is the retirement list.
+#
+# The seat is in the tree now (lane HOSTGEN4, port/slice_hostgen4.txt), so the
+# member has its real ROM body back and the hand face calls a body. Retiring
+# the row and deleting the matching hostgen LEDGER_PARK bracket are ONE
+# change: retiring alone leaves the decorated name undefined, and unparking
+# alone is a duplicate symbol (COMDAT selection 1, pick no duplicates).
+#
+#__ZN10daWanwan_c13InitResourcesEv                                        ?InitResources@daWanwan_c@@UAEHXZ                                0x02112b14 F
+#__ZN10daWanwan_c6RenderEv                                                ?Render@daWanwan_c@@UAEHXZ                                       0x02112994 F
+#__ZN10daWanwan_c8BehaviorEv                                              ?Behavior@daWanwan_c@@UAEHXZ                                     0x021129ec F
 
 __ZN11daWarpkun_c13InitResourcesEv                                       ?InitResources@daWarpkun_c@@UAEHXZ                               0x020ec4c4 R
 __ZN11daWarpkun_c16CleanupResourcesEv                                    ?CleanupResources@daWarpkun_c@@UAEHXZ                            0x020ec3fc R
