@@ -63,3 +63,25 @@ src/_ZN9TowerStepD1Ev.cpp
 src/_ZN14KnockDownPlank8OnKickedER8dActor_c.cpp
 src/_ZN14KnockDownPlank11OnAttacked2ER8dActor_c.cpp
 src/func_ov015_02111414.c
+
+# ---- THE MODEL FAMILY'S TWELVE Destructor1 / Destructor0 ROWS --------------
+#
+# port/hal/int4_rows.cpp, and the file's own header carries the derivation.
+# Short version: the decomp headers spell two ordinary virtuals in vtable slots
+# 0 and 1 under the host-invented names Destructor1 and Destructor0 so MSVC's
+# class layout keeps the ROM's numbering (include/ModelBase.h line 110 says so
+# in its own words), and holding a slot still needs a definition, because a
+# constructor emits its class's vftable and a vftable references every slot.
+# Twelve rows, six classes, and all twelve ROM bodies are already defined in
+# this link, which is why none of the twelve FLAT names is on the wall.
+#
+# A face and not an /alternatename: the decorated side is __thiscall with the
+# receiver in ecx and the flat side is the ROM body under C linkage taking it
+# as an ordinary first argument, so the two sides do not agree about the call
+# and an alias would be an ABI bridge, which the standing test forbids.
+#
+# Measured before it went on a slice row rather than after: a standalone
+# compile with the build's own flags produces an object that defines exactly
+# the twelve decorated names and references exactly the twelve flat ROM names,
+# with no vftable of its own emitted and nothing else undefined.
+port/hal/int4_rows.cpp
