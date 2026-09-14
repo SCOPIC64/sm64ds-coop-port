@@ -3177,3 +3177,80 @@ __ZNSt9type_infoD1Ev                                                     ??1type
 #    today -- they make Tornado D0 and D1 forwardable.
 __ZN7Tornado13InitResourcesEv                                            ?InitResources@Tornado@@UAEHXZ                                   0x02137564 F
 __ZN7Tornado8BehaviorEv                                                  ?Behavior@Tornado@@UAEHXZ                                        0x02137448 F
+
+# --------------------------------------------------------------------------
+# THE FORTY-SIX ROWS LANE SEATS3'S SEATS UNBLOCKED (staged at the wave-9c fold
+# by lane INT4, on the coordinator's word, from out/SEATS3/faces_for_faces4.txt).
+# --------------------------------------------------------------------------
+# All R rows: the face defines the flat ROM name and calls the member. Every
+# one was refused before today with "no MSVC definition of that member in this
+# link", and the three seats on port/l7-seats3 supply the definitions:
+# src/actors/daGmch_c.cpp (23 rows), src/actors/daMip_c.cpp (22) and
+# src/_ZN11dScMgBase_c16OnAimedAtWithEggEv.cpp (1).
+#
+# DERIVED HERE, NOT COPIED. facegen --derive was run against a fresh
+# defined-external universe of walk_window's own link inputs (49804 names over
+# 8672 objects, built from the object files because a tree that does not link
+# has a zero-byte map): 46 derived, 0 refused. Its decorated column then agreed
+# with SEATS3's own dumpbin reading on all 46, which is two independent
+# derivations of the same binding rather than one of them trusted twice.
+#
+# THE ADJUDICATION RULE WAS APPLIED BEFORE THE ROWS WENT IN, because the guard
+# cannot see this class of body (out/INT3/bugs.md item 2). daGmch_c.cpp and
+# daMip_c.cpp carry no "recovered from vtable slot identity" marker at all.
+# The dScMgBase_c body does carry one, and it is adjudicated: REAL_DECOMP at
+# port/tools/inferred_stub_adjudicated.txt:185, with slot 29, the 111
+# instructions, the eleven-word pool every word of which the source names, and
+# twelve calls in the source's order.
+#
+# The access letter on the eighteen daGmch_c state rows is Q and not U on
+# purpose: EnterState0..8 and UpdateState0..8 are ordinary public members the
+# ROM reaches through the state table at data_ov081_02128f40, not through the
+# vtable. EnterState1 returns void where its eight siblings return int; that is
+# the translation unit's own spelling.
+__ZN11dScMgBase_c16OnAimedAtWithEggEv                                    ?OnAimedAtWithEgg@dScMgBase_c@@UAEHXZ                            0x020af094 R
+__ZN8daGmch_c11EnterState0Ev                                             ?EnterState0@daGmch_c@@QAEHXZ                                    0x021276b0 R
+__ZN8daGmch_c11EnterState1Ev                                             ?EnterState1@daGmch_c@@QAEXXZ                                    0x021274c8 R
+__ZN8daGmch_c11EnterState2Ev                                             ?EnterState2@daGmch_c@@QAEHXZ                                    0x021273e8 R
+__ZN8daGmch_c11EnterState3Ev                                             ?EnterState3@daGmch_c@@QAEHXZ                                    0x02127314 R
+__ZN8daGmch_c11EnterState4Ev                                             ?EnterState4@daGmch_c@@QAEHXZ                                    0x021271e8 R
+__ZN8daGmch_c11EnterState5Ev                                             ?EnterState5@daGmch_c@@QAEHXZ                                    0x02127134 R
+__ZN8daGmch_c11EnterState6Ev                                             ?EnterState6@daGmch_c@@QAEHXZ                                    0x02127044 R
+__ZN8daGmch_c11EnterState7Ev                                             ?EnterState7@daGmch_c@@QAEHXZ                                    0x02126e28 R
+__ZN8daGmch_c11EnterState8Ev                                             ?EnterState8@daGmch_c@@QAEHXZ                                    0x02126c8c R
+__ZN8daGmch_c12UpdateState0Ev                                            ?UpdateState0@daGmch_c@@QAEHXZ                                   0x02127558 R
+__ZN8daGmch_c12UpdateState1Ev                                            ?UpdateState1@daGmch_c@@QAEHXZ                                   0x02127440 R
+__ZN8daGmch_c12UpdateState2Ev                                            ?UpdateState2@daGmch_c@@QAEHXZ                                   0x02127398 R
+__ZN8daGmch_c12UpdateState3Ev                                            ?UpdateState3@daGmch_c@@QAEHXZ                                   0x02127240 R
+__ZN8daGmch_c12UpdateState4Ev                                            ?UpdateState4@daGmch_c@@QAEHXZ                                   0x02127188 R
+__ZN8daGmch_c12UpdateState5Ev                                            ?UpdateState5@daGmch_c@@QAEHXZ                                   0x02127070 R
+__ZN8daGmch_c12UpdateState6Ev                                            ?UpdateState6@daGmch_c@@QAEHXZ                                   0x02126fa4 R
+__ZN8daGmch_c12UpdateState7Ev                                            ?UpdateState7@daGmch_c@@QAEHXZ                                   0x02126d64 R
+__ZN8daGmch_c12UpdateState8Ev                                            ?UpdateState8@daGmch_c@@QAEHXZ                                   0x02126c20 R
+__ZN8daGmch_c13OnTurnIntoEggER6Player                                    ?OnTurnIntoEgg@daGmch_c@@UAEXAAUPlayer@@@Z                       0x02127a7c R
+__ZN8daGmch_c13OnYoshiTryEatEv                                           ?OnYoshiTryEat@daGmch_c@@UAEHXZ                                  0x021265b8 R
+__ZN8daGmch_c16CleanupResourcesEv                                        ?CleanupResources@daGmch_c@@UAEHXZ                               0x02127798 R
+__ZN8daGmch_c16OnAimedAtWithEggEv                                        ?OnAimedAtWithEgg@daGmch_c@@UAEHXZ                               0x021265c0 R
+__ZN8daGmch_c16OnPendingDestroyEv                                        ?OnPendingDestroy@daGmch_c@@UAEXXZ                               0x021277dc R
+__ZN7daMip_c10UpdateGrabEv                                               ?UpdateGrab@daMip_c@@QAEXXZ                                      0x0212a828 R
+__ZN7daMip_c13OnYoshiTryEatEv                                            ?OnYoshiTryEat@daMip_c@@UAEHXZ                                   0x0212cc18 R
+__ZN7daMip_c13StateFleeInitEv                                            ?StateFleeInit@daMip_c@@QAEHXZ                                   0x0212b75c R
+__ZN7daMip_c13StateFleeMainEv                                            ?StateFleeMain@daMip_c@@QAEHXZ                                   0x0212b4b4 R
+__ZN7daMip_c13StateIdleInitEv                                            ?StateIdleInit@daMip_c@@QAEHXZ                                   0x0212bc14 R
+__ZN7daMip_c13StateRestInitEv                                            ?StateRestInit@daMip_c@@QAEHXZ                                   0x0212b478 R
+__ZN7daMip_c13StateRestMainEv                                            ?StateRestMain@daMip_c@@QAEHXZ                                   0x0212b444 R
+__ZN7daMip_c13StateTalkInitEv                                            ?StateTalkInit@daMip_c@@QAEHXZ                                   0x0212ac3c R
+__ZN7daMip_c13StateTalkMainEv                                            ?StateTalkMain@daMip_c@@QAEHXZ                                   0x0212aaec R
+__ZN7daMip_c14TestWaterBelowEv                                           ?TestWaterBelow@daMip_c@@QAEHXZ                                  0x0212a788 R
+__ZN7daMip_c15StateCaughtInitEv                                          ?StateCaughtInit@daMip_c@@QAEHXZ                                 0x0212b3fc R
+__ZN7daMip_c15StateCaughtMainEv                                          ?StateCaughtMain@daMip_c@@QAEHXZ                                 0x0212ae08 R
+__ZN7daMip_c16CleanupResourcesEv                                         ?CleanupResources@daMip_c@@UAEHXZ                                0x0212c004 R
+__ZN7daMip_c16OnPendingDestroyEv                                         ?OnPendingDestroy@daMip_c@@UAEXXZ                                0x0212c070 R
+__ZN7daMip_c16StateStartleInitEv                                         ?StateStartleInit@daMip_c@@QAEHXZ                                0x0212b8a0 R
+__ZN7daMip_c16StateStartleMainEv                                         ?StateStartleMain@daMip_c@@QAEHXZ                                0x0212b86c R
+__ZN7daMip_c17StateReleasedInitEv                                        ?StateReleasedInit@daMip_c@@QAEHXZ                               0x0212ad8c R
+__ZN7daMip_c17StateReleasedMainEv                                        ?StateReleasedMain@daMip_c@@QAEHXZ                               0x0212ac4c R
+__ZN7daMip_c17StateSaveTalkInitEv                                        ?StateSaveTalkInit@daMip_c@@QAEHXZ                               0x0212aaa4 R
+__ZN7daMip_c17StateSaveTalkMainEv                                        ?StateSaveTalkMain@daMip_c@@QAEHXZ                               0x0212a904 R
+__ZN7daMip_c8BehaviorEv                                                  ?Behavior@daMip_c@@UAEHXZ                                        0x0212c230 R
+__ZN7daMip_c8SetStateEPv                                                 ?SetState@daMip_c@@QAEHPAX@Z                                     0x0212bc78 R
