@@ -80,3 +80,82 @@ void BlendModelAnim::Destructor1() { _ZN14BlendModelAnimD1Ev(this); }
 void BlendModelAnim::Destructor0() { _ZN14BlendModelAnimD0Ev(this); }
 void ShadowModel::Destructor1()    { _ZN11ShadowModelD1Ev(this); }
 void ShadowModel::Destructor0()    { _ZN11ShadowModelD0Ev(this); }
+
+// =========================================================================
+// FOUR MORE ROWS THE LEDGER COULD NOT SPELL, one hand face each
+// =========================================================================
+//
+// Every one of these is a row facegen REFUSED for a reason about the TYPE
+// SPELLING and not about the binding: a function-pointer parameter, a
+// by-value template parameter, a class-spelled parameter, and a ROM free
+// function whose body is a __thiscall member. In every case the member IS
+// ALREADY DEFINED in this link and the flat ROM name is the one on the wall,
+// so a hand face is the whole of the answer and nothing invents a body.
+//
+// THE ARITY OF EACH FACE WAS READ OFF ITS CALLER, never assumed. A face with
+// the wrong arity is not a compile error, it smashes the stack on the first
+// call, which is the standing hazard the port records against raw casts.
+//
+//   flat name                                        caller, and its own declaration
+//   _ZN22ExpandingHeapAllocator13DeallocateAll...    port/hal/lk4_eh_dtor_seat.cpp:285
+//       void *(void *thiz, void (*fn)(void*,void*,void*), void *ctx)   3 args
+//   _ZN12dEnemyBase_c20KillByInvincibleChar...       include/decl_Enemy.h:24
+//       void (void*, Vector3_16*, void*, int)                          4 args
+//   _ZN8Particle10SysTracker8Contents6Create...      src/_ZN8Particle6System3New...c:8
+//       void *(void*, unsigned, void*, const void*, void*)             5 args
+//   func_ov006_020e39e0                              src/func_ov006_020e5450.c:57
+//       void (char *c, int a, int b)                                   3 args
+//
+// THE SHADOW RULE APPLIES TO THE FIRST ONE and is why it binds the spelling it
+// binds. port/hal/lk4_eh_dtor_seat.cpp declares its own private
+// `struct ExpandingHeapAllocator` with `void DeallocateAll(Visitor *, u32)`,
+// which decorates ?DeallocateAll@ExpandingHeapAllocator@@QAEXPAP6AXPAXPAV1@I@ZI@Z
+// (V for class, and a pointer to the function pointer). That is a SHADOW. The
+// owning translation unit emits
+// ?DeallocateAll@ExpandingHeapAllocator@@QAEPAXP6AXPAXPAU1@I@ZI@Z, which is
+// what out/HALROWS/settled.txt binds this row to and what this face calls.
+// The shadow's own method keeps calling the flat name, so the chain is
+// shadow method -> this face -> the real member, with no cycle: the two
+// decorated names differ.
+
+#include "ExpandingHeapAllocator.h"
+#include "dEnemyBase_c.h"
+#include "Particle__SysTracker.h"
+#include "dScMgCurling2_c.h"
+
+extern "C" void *_ZN22ExpandingHeapAllocator13DeallocateAllEPFvPvPS_jEj(
+    void *thiz, void (*fn)(void *, void *, void *), void *ctx)
+{
+    return ((ExpandingHeapAllocator *)thiz)->ExpandingHeapAllocator::DeallocateAll(
+        (ExpandingHeapAllocator::DeallocationFunction)fn, (u32)(size_t)ctx);
+}
+
+extern "C" void _ZN12dEnemyBase_c20KillByInvincibleCharERK10Vector3_16R6Player5Fix12IiE(
+    void *thiz, Vector3_16 *vel, void *player, int unused)
+{
+    /* Fix12<int> is an aggregate holding the raw 20.12 bits and has no
+       converting constructor (include/math/Fix12.h). The parameter is the
+       one the header names unused_, and the caller's declaration in
+       include/decl_Enemy.h passes it as a plain int, so the raw bits go
+       through unchanged. */
+    Fix12<int> unused_bits;
+    unused_bits.val = unused;
+    ((dEnemyBase_c *)thiz)->dEnemyBase_c::KillByInvincibleChar(
+        *vel, *(Player *)player, unused_bits);
+}
+
+extern "C" void *_ZN8Particle10SysTracker8Contents6CreateEjR7Vector3PK11Vector3_16fPN5dPa_c7level_c10callback_cE(
+    void *contents, unsigned int definitionID, void *position,
+    const void *direction, void *callback)
+{
+    return (void *)(size_t)((Particle::SysTracker::Contents *)contents)
+        ->Particle::SysTracker::Contents::Create(
+            definitionID, *(Vector3 *)position,
+            (const Vector3_16f *)direction,
+            (dPa_c::level_c::callback_c *)callback);
+}
+
+extern "C" void func_ov006_020e39e0(char *c, int a, int b)
+{
+    ((dScMgCurling2_c *)c)->dScMgCurling2_c::SpawnValue(a, b);
+}
