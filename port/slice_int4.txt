@@ -1,0 +1,34 @@
+# slice_int4.txt -- run link100 wave 9c, lane INT4 (the fold).
+#
+# TWO STRUCTOR TRANSLATION UNITS NOBODY CLAIMED, seated so lane DTORS2's
+# out-of-line forwarder premise can reach two more classes.
+#
+# THE ROWS THIS CLOSES, all four flat and all four measured on the fold's own
+# wall at tmp/build_int4_r2.log:
+#
+#     __ZN14KnockDownPlankD0Ev   __ZN14KnockDownPlankD1Ev
+#     __ZN9TowerStepD0Ev         __ZN9TowerStepD1Ev
+#
+# WHY A SEAT AND NOT A FORWARDER ON ITS OWN. dtorfwd's out-of-line premise
+# (BATCHES[5]) needs the class's MSVC destructor ??1<Cls>@@UAE@XZ already in
+# the link, because the forwarder only calls it. include/KnockDownPlank.h:46
+# and include/TowerStep.h:37 both declare the destructor OUT OF LINE, so no
+# other translation unit emits it, and the per-function structor TUs that do
+# define it sat on no slice row at all. Putting one of them on a slice row is
+# the whole of what the premise needs, and it is the same route DTORS2 used for
+# the five classes whose structor TUs happened to be compiled already
+# (TextureSequence, TextureTransformer, ModelAnim, dCapEnemy_c, dScMgSnowball_c).
+#
+# ONE OF EACH PAIR, NOT BOTH. src/_ZN14KnockDownPlankD0Ev.cpp and
+# src/_ZN14KnockDownPlankD1Ev.cpp are the same four lines of C++ --
+# `KnockDownPlank::~KnockDownPlank() {}` -- because MSVC folds the complete and
+# deleting destructors into one symbol. Compiling both halves of one class is an
+# LNK2005, which is out/SEATS2/seat_table.md's stated reason nobody put these on
+# a slice row before. The D1 file of each pair goes on; the D0 file stays off.
+#
+# WALK_WINDOW ONLY, matching the scope of the forwarders that use these
+# definitions: port/slice_dtors2.txt's own CMake block is
+# target_sources(walk_window ...), so on the other two hosting targets these
+# objects would carry a class vftable nothing references and close nothing.
+src/_ZN14KnockDownPlankD1Ev.cpp
+src/_ZN9TowerStepD1Ev.cpp

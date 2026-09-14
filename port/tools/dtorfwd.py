@@ -88,6 +88,14 @@ import sys
 # is frozen for this lane, so the three rows come out rather than being answered
 # here, and they come back the moment those two faces exist.
 
+# PUT BACK INTO BATCH 3 at the wave-9c fold (run link100, lane INT4), on the
+# coordinator's word. The three rows the note above struck -- _ZN4ToadD0Ev,
+# _ZN8daTree_cD0Ev and _ZN8daTree_cD1Ev -- came out only because
+# ?Behavior@Toad@@UAEHXZ and ?Behavior@daTree_c@@UAEHXZ had no definition, and
+# that note names the condition for their return in so many words: one facegen
+# reverse face per slot. Lane FACES4 wrote both this wave, in port/faces_sync.txt,
+# so the condition is met and the rows go back.
+
 BATCHES = {}
 
 BATCHES[1] = """
@@ -286,6 +294,9 @@ _ZN9LightBeamD0Ev
 _ZN9daSCoin_cD0Ev
 _ZN9daSCoin_cD1Ev
 _ZN9daSetSE_cD0Ev
+_ZN4ToadD0Ev
+_ZN8daTree_cD0Ev
+_ZN8daTree_cD1Ev
 """
 
 # ---------------------------------------------------------------------------
@@ -362,6 +373,27 @@ _ZN9daSetSE_cD0Ev
 # of every row already in faces_sync.txt.  That file is lane FACES4's this wave.
 # ??1Tornado@@UAE@XZ therefore stays on the wall, and it is the only row this
 # lane hands back.
+#
+# STILL STRUCK AFTER THE REVERSE FACES LANDED (wave-9c fold, lane INT4), and
+# this is the half the note above could not know. Lane FACES4's commit dadf12c2c
+# wrote both Tornado reverse faces, so the two LNK2001 rows are answered now, and
+# Tornado still cannot go back in, because that pair was never the whole failure.
+# out/DTORS2/build_dtors2_2.log lines 2207 and 2208 carry the other half:
+#
+#   dtor_forwarders_gen_w9c.cpp.obj : error LNK2005: __ZN7TornadoD0Ev already
+#       defined in faces_sync_gen.cpp.obj
+#   dtor_forwarders_gen_w9c.cpp.obj : error LNK2005: __ZN7TornadoD1Ev already
+#       defined in Tornado_HostSites.cpp.obj
+#
+# Both flat names are ALREADY DEFINED in this link, which is why neither is on
+# the wall: the D0 by a live ledger D row and the D1 by the host copy. A
+# forwarder for either is a duplicate no reverse face can fix, so the rows stay
+# out. The seat route does not reach it either: src/_ZN7TornadoD1Ev.cpp is on
+# port/slice_dtorfaces.txt and compiled today, and dumpbin over its object shows
+# exactly one external, ?Tornado_EmitDestructor@@YAXPAUTornado@@@Z -- MSVC inlined
+# the whole class-body destructor and emitted no out-of-line copy to name.
+# ??1Tornado@@UAE@XZ is therefore still on the wall, referenced by
+# hal_cppd1_Tornado in hal/dtor_faces_cpp.cpp, and it is handed on.
 BATCHES[4] = """
 _ZN10daWanwan_cD0Ev
 _ZN20daObjFl_Fall_Block_cD0Ev
@@ -372,6 +404,17 @@ _ZN15daObjWc_Obj04_cD0Ev
 _ZN7daPkn_cD0Ev
 _ZN7daPkn_cD1Ev
 """
+
+# FOUR ROWS ADDED TO BATCH 5 at the wave-9c fold (lane INT4), on the
+# coordinator's word and on this batch's own out-of-line premise. Nobody claimed
+# KnockDownPlank or TowerStep: include/KnockDownPlank.h:46 and
+# include/TowerStep.h:37 declare the destructor OUT OF LINE, and the
+# per-function structor TUs that define it sat on no slice row at all, which is
+# the whole of why the premise could not reach them. port/slice_int4.txt puts
+# ONE TU of each pair on a slice row. One and not both: the D0 file of each pair
+# is the same four lines of C++ as its D1 file, because MSVC folds the complete
+# and deleting destructors into one symbol, so compiling both halves of one class
+# is an LNK2005 -- out/SEATS2/seat_table.md's stated reason nobody seated these.
 
 BATCHES[5] = """
 _ZN11dCapEnemy_cD0Ev
@@ -384,6 +427,10 @@ _ZN18TextureTransformerD1Ev
 _ZN9ModelAnimD0Ev
 _ZN9ModelAnimD1Ev
 _ZN9ModelAnimD2Ev
+_ZN14KnockDownPlankD0Ev
+_ZN14KnockDownPlankD1Ev
+_ZN9TowerStepD0Ev
+_ZN9TowerStepD1Ev
 """
 
 # Which premise each batch stands on.  "inline" is DTORS-A's: the header spells

@@ -46,6 +46,7 @@
 #include "PrincessPeach.h"
 #include "PyramidLift.h"
 #include "SignPost.h"
+#include "Toad.h"
 #include "dScGameOver_c.h"
 #include "dScMgBSC_c.h"
 #include "dScMgCard_c.h"
@@ -137,6 +138,7 @@
 #include "daSetSE_c.h"
 #include "daSldMng_c.h"
 #include "daSoundObj_c.h"
+#include "daTree_c.h"
 #include "daWarpkun_c.h"
 #include "daYurei_Mucho_c.h"
 
@@ -773,6 +775,10 @@ extern "C" void _ZN21daObjKm3_Kurumajiku_cD1Ev(void *self)
 extern "C" void _ZN21daObj_volcanoCannon_cD0Ev(void *self)
 { ((daObj_volcanoCannon_c *)self)->daObj_volcanoCannon_c::~daObj_volcanoCannon_c(); _ZN6Memory10DeallocateEPvP4Heap(self, GAME_HEAP_PTR); }
 
+/* ROM 0x02129060 _ZN4ToadD0Ev -- batch 3, the inline ~Toad() plus _ZN6Memory10DeallocateEPvP4Heap */
+extern "C" void _ZN4ToadD0Ev(void *self)
+{ ((Toad *)self)->Toad::~Toad(); _ZN6Memory10DeallocateEPvP4Heap(self, GAME_HEAP_PTR); }
+
 /* ROM 0x02122028 _ZN6CoffinD0Ev -- batch 3, the inline ~Coffin() plus _ZN6Memory10DeallocateEPvP4Heap */
 extern "C" void _ZN6CoffinD0Ev(void *self)
 { ((Coffin *)self)->Coffin::~Coffin(); _ZN6Memory10DeallocateEPvP4Heap(self, GAME_HEAP_PTR); }
@@ -860,6 +866,14 @@ extern "C" void _ZN8daSCre_cD0Ev(void *self)
 /* ROM 0x021126d4 _ZN8daSCre_cD1Ev -- batch 3, the inline ~daSCre_c() */
 extern "C" void _ZN8daSCre_cD1Ev(void *self)
 { ((daSCre_c *)self)->daSCre_c::~daSCre_c(); }
+
+/* ROM 0x020ebfcc _ZN8daTree_cD0Ev -- batch 3, the inline ~daTree_c() plus _ZN6Memory10DeallocateEPvP4Heap */
+extern "C" void _ZN8daTree_cD0Ev(void *self)
+{ ((daTree_c *)self)->daTree_c::~daTree_c(); _ZN6Memory10DeallocateEPvP4Heap(self, GAME_HEAP_PTR); }
+
+/* ROM 0x020ebf8c _ZN8daTree_cD1Ev -- batch 3, the inline ~daTree_c() */
+extern "C" void _ZN8daTree_cD1Ev(void *self)
+{ ((daTree_c *)self)->daTree_c::~daTree_c(); }
 
 /* ROM 0x0211af70 _ZN9KoopaFlagD0Ev -- batch 3, the inline ~KoopaFlag() plus _ZN6Memory10DeallocateEPvP4Heap */
 extern "C" void _ZN9KoopaFlagD0Ev(void *self)

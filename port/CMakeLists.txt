@@ -19073,6 +19073,62 @@ foreach(_tseats3 walk_window walk_window_hires smoke_player)
 endforeach()
 
 
+
+# ===========================================================================
+# SLICE FACES4 (run link100, lane FACES4, wave 9c)
+# ===========================================================================
+#
+# One host file, port/hal/faces4_rows.cpp, carrying thirty NAME rows of
+# walk_window's wall: twenty-three destructor adapters the main -> port sync
+# renamed on one side only, five ROM free functions a caller spells at C++
+# linkage, and two real faces whose left hand sides are __thiscall. No src TU
+# is compiled here and no ROM body enters the link because of it, so this is
+# not a seat list. port/slice_faces4.txt carries the derivation and the file
+# itself carries the evidence for every row, including what the tidy version of
+# each looks like once a lane owns hal/dtor_faces_cpp.h and the fillers.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_faces4.txt"
+                SLICE_FACES4_LINES)
+set(SLICE_FACES4_SOURCES "")
+foreach(line IN LISTS SLICE_FACES4_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_FACES4_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+foreach(_tfaces4 walk_window walk_window_hires)
+    target_sources(${_tfaces4} PRIVATE ${SLICE_FACES4_SOURCES})
+endforeach()
+
+# ===========================================================================
+# SLICE INT4 (run link100 wave 9c, lane INT4, the fold)
+# ===========================================================================
+#
+# Two per-function structor translation units nobody claimed, seated so lane
+# DTORS2's out-of-line forwarder premise reaches KnockDownPlank and TowerStep.
+# port/slice_int4.txt carries the derivation, the four rows it closes and the
+# reason only one half of each D0/D1 pair goes on.
+#
+# walk_window alone, matching port/slice_dtors2.txt's own scope: the forwarders
+# that call these definitions are on that target only.
+port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_int4.txt" SLICE_INT4_LINES)
+set(SLICE_INT4_SOURCES "")
+foreach(line IN LISTS SLICE_INT4_LINES)
+    string(STRIP "${line}" line)
+    if(line MATCHES "^#" OR line STREQUAL "")
+        continue()
+    endif()
+    list(APPEND SLICE_INT4_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
+endforeach()
+target_sources(walk_window PRIVATE ${SLICE_INT4_SOURCES})
+
+
+# MOVED BACK TO LAST IN THE FILE at the wave-9c fold (lane INT4). Its own banner
+# below says every port_read_lines call has to be above it, and two blocks had
+# landed underneath: lane FACES4's slice_faces4 block and this fold's slice_int4
+# block. Neither names a PORT_HOSTGEN_TU row today, so the count was right by
+# luck rather than by construction, and the invariant is cheaper to keep than to
+# re-check every wave.
 # ---- WHOLE-TU HOSTGEN SUBSTITUTION: THE COUNT ------------------------------
 #
 # Every substitution declared in PORT_HOSTGEN_TU near the top of this file has
@@ -19099,30 +19155,4 @@ foreach(_hgt_rel IN LISTS PORT_HOSTGEN_TU)
     endif()
     message(STATUS "HOSTGEN TU: ${_hgt_rel} substituted in "
                    "${PORT_HOSTGEN_TU_HITS_${_hgt_rel}} slice row(s)")
-endforeach()
-
-# ===========================================================================
-# SLICE FACES4 (run link100, lane FACES4, wave 9c)
-# ===========================================================================
-#
-# One host file, port/hal/faces4_rows.cpp, carrying thirty NAME rows of
-# walk_window's wall: twenty-three destructor adapters the main -> port sync
-# renamed on one side only, five ROM free functions a caller spells at C++
-# linkage, and two real faces whose left hand sides are __thiscall. No src TU
-# is compiled here and no ROM body enters the link because of it, so this is
-# not a seat list. port/slice_faces4.txt carries the derivation and the file
-# itself carries the evidence for every row, including what the tidy version of
-# each looks like once a lane owns hal/dtor_faces_cpp.h and the fillers.
-port_read_lines("${CMAKE_CURRENT_SOURCE_DIR}/slice_faces4.txt"
-                SLICE_FACES4_LINES)
-set(SLICE_FACES4_SOURCES "")
-foreach(line IN LISTS SLICE_FACES4_LINES)
-    string(STRIP "${line}" line)
-    if(line MATCHES "^#" OR line STREQUAL "")
-        continue()
-    endif()
-    list(APPEND SLICE_FACES4_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../${line}")
-endforeach()
-foreach(_tfaces4 walk_window walk_window_hires)
-    target_sources(${_tfaces4} PRIVATE ${SLICE_FACES4_SOURCES})
 endforeach()

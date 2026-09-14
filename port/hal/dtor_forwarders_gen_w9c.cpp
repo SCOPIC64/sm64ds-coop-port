@@ -46,9 +46,11 @@
 // making MSVC emit one.  Each row below says which.
 
 #include "types.h"
+#include "KnockDownPlank.h"
 #include "ModelAnim.h"
 #include "TextureSequence.h"
 #include "TextureTransformer.h"
+#include "TowerStep.h"
 #include "dCapEnemy_c.h"
 #include "dScMgSnowball_c.h"
 #include "daObjFl_Fall_Block_c.h"
@@ -109,6 +111,14 @@ extern "C" void _ZN11dCapEnemy_cD0Ev(void *self)
 extern "C" void _ZN11dCapEnemy_cD1Ev(void *self)
 { ((dCapEnemy_c *)self)->dCapEnemy_c::~dCapEnemy_c(); }
 
+/* ROM 0x02111360 _ZN14KnockDownPlankD0Ev -- batch 5, ~KnockDownPlank(), defined out of line by src/_ZN14KnockDownPlankD1Ev.cpp plus _ZN6Memory10DeallocateEPvP4Heap */
+extern "C" void _ZN14KnockDownPlankD0Ev(void *self)
+{ ((KnockDownPlank *)self)->KnockDownPlank::~KnockDownPlank(); _ZN6Memory10DeallocateEPvP4Heap(self, GAME_HEAP_PTR); }
+
+/* ROM 0x02111314 _ZN14KnockDownPlankD1Ev -- batch 5, ~KnockDownPlank(), defined out of line by src/_ZN14KnockDownPlankD1Ev.cpp */
+extern "C" void _ZN14KnockDownPlankD1Ev(void *self)
+{ ((KnockDownPlank *)self)->KnockDownPlank::~KnockDownPlank(); }
+
 /* ROM 0x02015a00 _ZN15TextureSequenceD0Ev -- batch 5, ~TextureSequence(), defined out of line by src/_ZN15TextureSequenceD1Ev.cpp plus _ZN6Memory16operator_delete2EPv */
 extern "C" void _ZN15TextureSequenceD0Ev(void *self)
 { ((TextureSequence *)self)->TextureSequence::~TextureSequence(); _ZN6Memory16operator_delete2EPv(self); }
@@ -140,6 +150,14 @@ extern "C" void _ZN9ModelAnimD1Ev(void *self)
 /* ROM 0x0201689c _ZN9ModelAnimD2Ev -- batch 5, ~ModelAnim(), defined out of line by src/_ZN9ModelAnimD1Ev.cpp */
 extern "C" void _ZN9ModelAnimD2Ev(void *self)
 { ((ModelAnim *)self)->ModelAnim::~ModelAnim(); }
+
+/* ROM 0x021122dc _ZN9TowerStepD0Ev -- batch 5, ~TowerStep(), defined out of line by src/_ZN9TowerStepD1Ev.cpp plus _ZN6Memory10DeallocateEPvP4Heap */
+extern "C" void _ZN9TowerStepD0Ev(void *self)
+{ ((TowerStep *)self)->TowerStep::~TowerStep(); _ZN6Memory10DeallocateEPvP4Heap(self, GAME_HEAP_PTR); }
+
+/* ROM 0x02112290 _ZN9TowerStepD1Ev -- batch 5, ~TowerStep(), defined out of line by src/_ZN9TowerStepD1Ev.cpp */
+extern "C" void _ZN9TowerStepD1Ev(void *self)
+{ ((TowerStep *)self)->TowerStep::~TowerStep(); }
 
 /* ODR-USE ONLY, no ROM name. The wall wants ??1daSanbo_c@@UAE@XZ,
    which hal/dtor_faces_cpp.cpp's hal_cppd1_daSanbo_c calls off a ROM vtable slot. daSanbo_c's
