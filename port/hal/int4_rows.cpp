@@ -212,3 +212,52 @@ Vector3 dBgCh_Lin::GetClsnPos()
     _ZN9dBgCh_Lin10GetClsnPosEv(&out, this);
     return out;
 }
+
+// =========================================================================
+// TWO RENAMED DESTRUCTOR SPELLINGS, the same shape as FACES4's twenty-three
+// =========================================================================
+//
+// port/hal/actor_classes_ov_link100.cpp reaches two matched C++ destructors
+// through private shadow classes, because the real headers declare those two
+// classes WITHOUT the virtual destructor and both spellings cannot coexist in
+// one translation unit. The shadows are named for the bodies dsd named, and the
+// main to port sync landed the decomp's own class names on the definitions, so
+// each destructor is DEFINED under one name and ASKED FOR under another. Two
+// rows, and both are a pure name bridge.
+//
+//   ??1CameraTag@@UAE@XZ  ->  ??1daChRoom_c@@UAE@XZ
+//   ??1Cloud@@UAE@XZ      ->  ??1daObjKumo_c@@UAE@XZ
+//
+// AN /alternatename IS ADMISSIBLE, by the standing test: an alias is a name
+// bridge and never an ABI bridge, so the two sides have to agree about the call
+// already. They do exactly. Both spellings are ??1X@@UAE@XZ, public virtual
+// __thiscall taking nothing and returning nothing, so there is no receiver to
+// misplace and no stack to unbalance. This is the test FACES4 applied to its
+// twenty-three renamed adapters.
+//
+// THE IDENTITY OF EACH PAIR IS MEASURED, not read off the name.
+//   Cloud is daObjKumo_c BY ADDRESS. dsd gave one vtable address, ov039
+//   0x02111858, two names, and this tree already carries the bridge in
+//   port/hal/cxx_aliases.cpp:2451,
+//   /alternatename:__ZTV11daObjKumo_c=__ZTV5Cloud. A shared vtable object is
+//   one class.
+//   CameraTag is daChRoom_c BY ITS OWN CALL SITES. The shadow is used in
+//   actor_classes_ov_link100.cpp in exactly three places, chroom_init,
+//   chroom_behavior and chroom_d1 at lines 340, 344 and 350, all three inside
+//   the CLASS A block whose banner reads "ov002 0x021085f8, actor id 348, RTTI
+//   10daChRoom_c", and whose other five slot fills call _ZN10daChRoom_c*
+//   directly. That banner also says why: id 348's seven own bodies are the
+//   files dsd named _ZN9CameraTag*, and they are that class's because the
+//   table's own slots point at them.
+//
+// A CORRECTION FOR THE RECORD. out/DTORS2/residue.txt reads these two rows as
+// "the ROM classes behind the two host names are daCamTag_c and daObjKumo_c".
+// The second is right and the first is not: daCamTag_c is actor id 333 at RTTI
+// 0x0210853c, a different class in the same family listing, and nothing in this
+// file's CameraTag shadow reaches it. Binding the row that way would have put a
+// room-change trigger's destructor under a camera tag's name.
+//
+// THE TIDY VERSION: rename the two shadows in that file to the classes they
+// are, and delete this section.
+#pragma comment(linker, "/alternatename:??1CameraTag@@UAE@XZ=??1daChRoom_c@@UAE@XZ")
+#pragma comment(linker, "/alternatename:??1Cloud@@UAE@XZ=??1daObjKumo_c@@UAE@XZ")
