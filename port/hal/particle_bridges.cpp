@@ -35,9 +35,61 @@ struct CleanParticleCallback {
     int OnUpdate(System &sys, bool done);
 };
 struct CheckWaterRippleCallback {
-    bool OnUpdate(System &sys, bool b);
+    /* INT, and it was BOOL until run link100 wave 9c, lane LINK21. The owning
+       translation unit,
+       src/_ZN5dPa_c7level_c26checkWaterRippleCallback_c8OnUpdateERN8Particle6SystemEb.cpp
+       on port/slice_gate29.txt, emits
+       ?OnUpdate@checkWaterRippleCallback_c@level_c@dPa_c@@UAEHAAUSystem@Particle@@_N@Z,
+       which dumpbin over its own object spells "public: virtual int __thiscall
+       dPa_c::level_c::checkWaterRippleCallback_c::OnUpdate(struct
+       Particle::System &, bool)". Declaring the shadow bool made the two sides
+       disagree about the RETURN and not only about the name: a bool-returning
+       callee writes AL alone, so a ROM value whose low byte happened to be zero
+       came back false through the `? 1 : 0` the face below used to carry. With
+       int on both sides the two agree about the call and the alias at the
+       bottom of this file is a pure name bridge, which is the standing test. */
+    int OnUpdate(System &sys, bool b);
 };
 }  // namespace Particle
+
+/* ---- THE BOTTOM HALF OF TWO FACE PAIRS -----------------------------------
+   Run link100 wave 9c, lane LINK21, and the last two rows of the shape
+   port/hal/int4_rows.cpp closed for cleanParticleCallback_c.
+
+   The three faces below are the TOP half of a pair: a vtable-slot thunk under
+   the ROM's flat Itanium name that calls a private shadow class's member. The
+   bottom half is the shadow member's own definition, and there is none,
+   because the sync gave the owning translation units the decomp's own class
+   names. Both remaining shadow spellings bridge onto the name the owning
+   object really emits, read with dumpbin over that object rather than derived
+   from a filename:
+
+     ?SpawnParticles@CheckLavaCallback@Particle@@QAEXAAUSystem@2@@Z
+       -> ?SpawnParticles@checkYoganCallback_c@level_c@dPa_c@@UAEXAAUSystem@Particle@@@Z
+     ?OnUpdate@CheckWaterRippleCallback@Particle@@QAE_NAAUSystem@2@_N@Z, now
+     ?OnUpdate@CheckWaterRippleCallback@Particle@@QAEHAAUSystem@2@_N@Z
+       -> ?OnUpdate@checkWaterRippleCallback_c@level_c@dPa_c@@UAEHAAUSystem@Particle@@_N@Z
+
+   THE LAVA ROW IS NOT A MISSING BODY, and the earlier reading that it was came
+   from searching for the wrong name. "CheckLavaCallback" is this file's own
+   host invention; the ROM class is checkYoganCallback_c, yogan being lava, and
+   its SpawnParticles is defined by
+   src/_ZN5dPa_c7level_c20checkYoganCallback_c14SpawnParticlesERN8Particle6SystemE.cpp
+   on port/slice_gate29.txt line 58. dumpbin over
+   build/port/CMakeFiles/port_slice_shared.dir/host-src/src/_ZN5dPa_c7level_c20checkYoganCallback_c14SpawnParticlesERN8Particle6SystemE.cpp.obj
+   shows that name DEFINED in SECT5. A sweep for "checkLavaCallback" finds
+   nothing and is right to; the class has never been called that.
+
+   WHY AN ALIAS AND NOT A BODY, on the standing test. Each pair is __thiscall
+   on both sides with the receiver in ecx, takes the same reference (plus the
+   same bool for OnUpdate), and returns the same type: void for SpawnParticles
+   and int for OnUpdate now that the shadow above says int. The only difference
+   in either mangle is Q against U, non-virtual against virtual, and that
+   letter is not part of the call. So the two sides already agree about the
+   call and an alias is a NAME bridge rather than an ABI bridge, which is the
+   same reading int4_rows.cpp made for cleanParticleCallback_c. */
+#pragma comment(linker, "/alternatename:?SpawnParticles@CheckLavaCallback@Particle@@QAEXAAUSystem@2@@Z=?SpawnParticles@checkYoganCallback_c@level_c@dPa_c@@UAEXAAUSystem@Particle@@@Z")
+#pragma comment(linker, "/alternatename:?OnUpdate@CheckWaterRippleCallback@Particle@@QAEHAAUSystem@2@_N@Z=?OnUpdate@checkWaterRippleCallback_c@level_c@dPa_c@@UAEHAAUSystem@Particle@@_N@Z")
 
 extern "C" {
 
@@ -73,9 +125,7 @@ int _ZN5dPa_c7level_c26checkWaterRippleCallback_c8OnUpdateERN8Particle6SystemEb(
                                                                   int b)
 {
     return ((Particle::CheckWaterRippleCallback *)self)
-               ->OnUpdate(*(Particle::System *)sys, b != 0)
-               ? 1
-               : 0;
+        ->OnUpdate(*(Particle::System *)sys, b != 0);
 }
 
 /* Both are static/namespace-scope and therefore already cdecl, but the
