@@ -340,3 +340,39 @@ Vector3 dBgCh_Lin::GetClsnPos()
 
 struct Scene { void ResetHardwareRegisters(); };
 void Scene::ResetHardwareRegisters() { dScene_c::ResetHardwareRegisters(); }
+
+// =========================================================================
+// ONE PARTICLE CALLBACK ROW, and the two beside it that stay refused
+// =========================================================================
+//
+// port/hal/particle_bridges.cpp wrote the top half of three face pairs: a
+// vtable-slot thunk under the ROM's flat name that calls a private shadow
+// class's member. The bottom half was never written and the three shadow
+// spellings are on the wall. The sync had renamed those classes, so the owning
+// translation units emit them under the decomp's own names.
+//
+// ONE OF THE THREE IS A PURE NAME BRIDGE.
+//   ?OnUpdate@CleanParticleCallback@Particle@@QAEHAAUSystem@2@_N@Z
+//       ->  ?OnUpdate@cleanParticleCallback_c@level_c@dPa_c@@UAEHAAUSystem@Particle@@_N@Z
+//   particle_bridges.cpp:34 declares `int OnUpdate(System &, bool)` and the
+//   owning TU emits `int` too. The only difference in the two mangles is Q
+//   against U, which is non-virtual against virtual, and that letter is not part
+//   of the call: both are __thiscall, both take a reference and a bool, both
+//   return int. So the two sides already agree about the call and an alias is a
+//   name bridge, which is the standing test.
+//
+// THE OTHER TWO STAY REFUSED, and this is the shadow rule doing its job.
+//   ?OnUpdate@CheckWaterRippleCallback@Particle@@QAE_NAAUSystem@2@_N@Z
+//       particle_bridges.cpp:38 declares this one returning BOOL, and the
+//       owning TU emits it returning INT
+//       (?OnUpdate@checkWaterRippleCallback_c@level_c@dPa_c@@UAEHAAUSystem@Particle@@_N@Z).
+//       That is a return-type disagreement and not a spelling one: a
+//       bool-returning callee writes only AL, and the bridge at line 74 reads
+//       the result through `? 1 : 0`, so a ROM value whose low byte happens to
+//       be zero would come back false. An alias here would be an ABI bridge.
+//       The fix is one word in that file, bool to int, with the ternary dropped,
+//       and that file is not this lane's.
+//   ?SpawnParticles@CheckLavaCallback@Particle@@QAEXAAUSystem@2@@Z
+//       No checkLavaCallback_c exists in this link under any spelling, so there
+//       is nothing to bridge to. This one is a body and not a name.
+#pragma comment(linker, "/alternatename:?OnUpdate@CleanParticleCallback@Particle@@QAEHAAUSystem@2@_N@Z=?OnUpdate@cleanParticleCallback_c@level_c@dPa_c@@UAEHAAUSystem@Particle@@_N@Z")
