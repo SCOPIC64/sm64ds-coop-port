@@ -32,3 +32,34 @@
 # objects would carry a class vftable nothing references and close nothing.
 src/_ZN14KnockDownPlankD1Ev.cpp
 src/_ZN9TowerStepD1Ev.cpp
+
+# ---- THE COST OF THE KNOCKDOWNPLANK SEAT, AND ITS ANSWER --------------------
+#
+# Seating the destructor made MSVC emit ??_7KnockDownPlank@@6B@, which
+# references every virtual slot, and two of this class's slots had no decorated
+# definition in the link. tmp/build_int4_r3.log measured it exactly: the four
+# flat rows left and these two arrived.
+#
+#     ?OnAttacked2@KnockDownPlank@@UAEHAAUdActor_c@@@Z   slot 23, ov015 0x02111408
+#     ?OnKicked@KnockDownPlank@@UAEXAAUdActor_c@@@Z      slot 24, ov015 0x021113fc
+#
+# That is the failure mode DTORS-A's note in port/tools/dtorfwd.py describes for
+# Toad and daTree_c and DTORS2's describes for Tornado, on a fourth class. Their
+# answer was a reverse face per slot, and it cannot be used here: a reverse face
+# needs the FLAT ROM body defined, and neither flat name is defined anywhere in
+# this link (0 hits over the 49804-name defined-external universe).
+#
+# The direct answer is available instead, because both members have a real
+# matched C++ translation unit that was simply never on a slice row. Each is a
+# tail-call veneer onto the shared hit handler func_ov015_02111414, so that
+# handler's own TU goes on with them; it is self-contained C, and its only two
+# externs, Vec3_HorzAngle and AngleDiff, are both already defined in the link.
+#
+# port/slice_adj.txt lists these two TUs commented out under an ov015 blocker.
+# That blocker is about SEATING THE DELETING DESTRUCTORS through slots 23 and 24
+# of _ZTV13PoleBillboard, which this does not do and does not need: nothing here
+# changes a vtable fill or what any live object dispatches. It only gives two
+# already-referenced decorated names the bodies the cartridge has for them.
+src/_ZN14KnockDownPlank8OnKickedER8dActor_c.cpp
+src/_ZN14KnockDownPlank11OnAttacked2ER8dActor_c.cpp
+src/func_ov015_02111414.c

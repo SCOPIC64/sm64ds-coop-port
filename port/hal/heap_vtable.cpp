@@ -195,6 +195,16 @@ void *Allocate(u32 size, int align, Heap *heap)
  * class-to-struct change and named a symbol nothing references. Measured by
  * lane DTORS2, corrected at the wave-9c fold. */
 #pragma comment(linker, "/alternatename:?defaultHeapPtr@Memory@@3PAUHeap@@A=_data_020a0ea0")
+/* BOTH SPELLINGS, not one. Replacing the V row with the U row closed the six
+ * objects that ask for U and immediately opened a row for V, because
+ * src/_ZN6Memory8AllocateEjiP4Heap.cpp and src/_ZN6Memory10DeallocateEPvP4Heap.cpp
+ * still declare `class Heap`. Measured at the wave-9c fold in
+ * tmp/build_int4_r3.log: "class Heap * Memory::defaultHeapPtr"
+ * (?defaultHeapPtr@Memory@@3PAVHeap@@A) referenced in Memory::Allocate. Two
+ * callers, two spellings, one address, so the file carries a row for each
+ * until the sources agree on the keyword. DTORS2 named this alternative in
+ * out/DTORS2/handoff.txt: "change the V to a U, or carry both rows." */
+#pragma comment(linker, "/alternatename:?defaultHeapPtr@Memory@@3PAVHeap@@A=_data_020a0ea0")
 
 // Crash(): the game's fatal stop. Loud on host. C linkage for the .c TUs;
 // the C++-linkage references alias onto the same definition.
