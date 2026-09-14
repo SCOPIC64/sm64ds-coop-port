@@ -49,6 +49,29 @@ rem rather than after. The same guard runs again post-link, below, on the
 rem objects this build just made.
 python "%~dp0tools\vptr_addend_guard.py" "%~dp0.."
 if errorlevel 1 exit /b 1
+rem Fail before configure if a class whose INLINE-IN-HEADER destructor got a
+rem forwarder in hal/dtor_forwarders_gen.cpp stopped satisfying the ruling
+rem that forwarder exists under. MSVC's destructor stores its OWN vftable
+rem (??_7Cls@@6B@, D1/D0 folded, so every virtual after the destructor sits a
+rem slot early) into word 0 of the object before running the body, where the
+rem cartridge's D1 stores _ZTV<Cls>. That store is inert only because nothing
+rem reads the object's vptr between it and the base destructor call, which
+rem stores a ROM-shaped table again as its own first act. Measured from
+rem extracted/ per class, and re-measured here on every build: a body that
+rem flips refuses the build rather than shipping a wrong dispatch that no byte
+rem gate, no linker and no linkage count can see.
+rem NOT THROUGH guardcache, for vptr_addend_guard's reason one line up: this
+rem is the copy that convicts the tree in front of you, it costs about three
+rem seconds, and a remembered verdict is not worth the chance of a stale one
+rem on a dispatch question.
+python "%~dp0tools\dtor_store_guard.py" "%~dp0.."
+if errorlevel 1 exit /b 1
+rem And that the generated file IS what its generator produces from this
+rem tree: a hand edit to hal/dtor_forwarders_gen.cpp would otherwise add a
+rem forwarder with no derivation behind it and the guard above would happily
+rem measure it.
+python "%~dp0tools\dtorfwd.py" "%~dp0.." --verify
+if errorlevel 1 exit /b 1
 rem Fail before configure if the closure prober's selftest breaks: the probe
 rem sizes slice walls and predicts collisions, and a broken prober lies
 rem quietly. There is no port CI; this block is where loudness lives.
