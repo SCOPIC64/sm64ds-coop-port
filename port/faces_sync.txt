@@ -2819,3 +2819,73 @@ __ZN10dBgW_KcMbg10DetectClsnER9dBgCh_Lin                                 ?Detect
 __ZN14dBgW_KcMbgSclY10DetectClsnER12dBgCh_SphCrr                         ?DetectClsn@dBgW_KcMbgSclY@@UAEHAAUdBgCh_SphCrr@@@Z              0x0203a660 R
 __ZN14dBgW_KcMbgSclY10DetectClsnER9dBgCh_Gnd                             ?DetectClsn@dBgW_KcMbgSclY@@UAEHAAUdBgCh_Gnd@@@Z                 0x0203a8fc R
 __ZN14dBgW_KcMbgSclY10DetectClsnER9dBgCh_Lin                             ?DetectClsn@dBgW_KcMbgSclY@@UAEHAAUdBgCh_Lin@@@Z                 0x0203a594 R
+
+# ---- BATCH 6: the rows today's main unblocked ------------------------------
+# Staged at the fold by lane INT3 from out/SYNC7/unblocked_faces.txt, which is
+# lane SYNC7's own facegen --derive run against the merged tree: 73 rows, each
+# carrying the ROM address that proves the binding, of which 29 were already in
+# this ledger by the time the fold assembled (BATCH 1's twenty-nine: the whole
+# dScMgCurling2_c / dScMgHanachan_c / dScMgRoulette_c family and Eyerok's two).
+# These are the other 44, and none of them is in the caveated family, so the
+# open question SYNC7 recorded there -- face or whole-TU hostgen substitution --
+# does not touch a single row below.
+#
+# WHY THEY DERIVE NOW AND DID NOT BEFORE. 42 of the 44 are D1, the ROM's
+# non-deleting destructor. main's cleanup wave gave these classes real headers
+# that DECLARE the destructor, so MSVC stops synthesising one and emits
+# ??1X@@UAE@XZ out of the class's own TU. The decorated half of that pair left
+# walk_window's wall inside the sync merge itself; what these rows close is the
+# other half, the flat ROM D1 name the port's actor tables call, which nothing
+# bound. The two members are the same story one level down.
+#
+# Nothing here is this lane's judgment: every row is facegen's derivation and
+# facegen --sync re-derives all 44 at build time, so a row that stops deriving
+# fails the build rather than quietly leaving the link.
+
+# the 42 D1 rows
+__ZN7daBmb_cD1Ev                                                         ??1daBmb_c@@UAE@XZ                                               0x0214a96c R
+__ZN7daDgr_cD1Ev                                                         ??1daDgr_c@@UAE@XZ                                               0x021111a0 R
+__ZN7daDkk_cD1Ev                                                         ??1daDkk_c@@UAE@XZ                                               0x021118c8 R
+__ZN12daIDonketu_cD1Ev                                                   ??1daIDonketu_c@@UAE@XZ                                          0x021115c4 R
+__ZN12daObjAbuku_cD1Ev                                                   ??1daObjAbuku_c@@UAE@XZ                                          0x020b3298 R
+__ZN16daObjBC_Switch_cD1Ev                                               ??1daObjBC_Switch_c@@UAE@XZ                                      0x020f11b0 R
+__ZN14daObjBSwdoor_cD1Ev                                                 ??1daObjBSwdoor_c@@UAE@XZ                                        0x021111a0 R
+__ZN18daObjBkBillboard_cD1Ev                                             ??1daObjBkBillboard_c@@UAE@XZ                                    0x021111a0 R
+__ZN17daObjBk_Rotebar_cD1Ev                                              ??1daObjBk_Rotebar_c@@UAE@XZ                                     0x02112944 R
+__ZN16daObjC0_Switch_cD1Ev                                               ??1daObjC0_Switch_c@@UAE@XZ                                      0x021111a0 R
+__ZN14daObjC1_Trap_cD1Ev                                                 ??1daObjC1_Trap_c@@UAE@XZ                                        0x021111a0 R
+__ZN20daObjCannonShutter_cD1Ev                                           ??1daObjCannonShutter_c@@UAE@XZ                                  0x020bc8f4 R
+__ZN18daObjClockHuriko_cD1Ev                                             ??1daObjClockHuriko_c@@UAE@XZ                                    0x021111a0 R
+__ZN16daObjCtMecha03_cD1Ev                                               ??1daObjCtMecha03_c@@UAE@XZ                                      0x02119f3c R
+__ZN16daObjCtMecha04_cD1Ev                                               ??1daObjCtMecha04_c@@UAE@XZ                                      0x0211a494 R
+__ZN16daObjCtMecha05_cD1Ev                                               ??1daObjCtMecha05_c@@UAE@XZ                                      0x0211ab60 R
+__ZN16daObjCvShutter_cD1Ev                                               ??1daObjCvShutter_c@@UAE@XZ                                      0x02112db4 R
+__ZN13daObjEmmLog_cD1Ev                                                  ??1daObjEmmLog_c@@UAE@XZ                                         0x021111a0 R
+__ZN16daObjFl_London_cD1Ev                                               ??1daObjFl_London_c@@UAE@XZ                                      0x02111980 R
+__ZN16daObjFm_Battan_cD1Ev                                               ??1daObjFm_Battan_c@@UAE@XZ                                      0x021111a0 R
+__ZN19daObjHatenaSwitch_cD1Ev                                            ??1daObjHatenaSwitch_c@@UAE@XZ                                   0x020b4ed8 R
+__ZN15daObjIceBoard_cD1Ev                                                ??1daObjIceBoard_c@@UAE@XZ                                       0x021127bc R
+__ZN19daObjKm1_Ukishima_cD1Ev                                            ??1daObjKm1_Ukishima_c@@UAE@XZ                                   0x021111a0 R
+__ZN14daObjKsWater_cD1Ev                                                 ??1daObjKsWater_c@@UAE@XZ                                        0x021111a0 R
+__ZN14daObjMcWater_cD1Ev                                                 ??1daObjMcWater_c@@UAE@XZ                                        0x02111a70 R
+__ZN18daObjMc_Metalnet_cD1Ev                                             ??1daObjMc_Metalnet_c@@UAE@XZ                                    0x02111dc4 R
+__ZN16daObjPushblock_cD1Ev                                               ??1daObjPushblock_c@@UAE@XZ                                      0x020b8bf0 R
+__ZN16daObjRcBuranko_cD1Ev                                               ??1daObjRcBuranko_c@@UAE@XZ                                      0x021111a0 R
+__ZN18daObjRc_Guruguru_cD1Ev                                             ??1daObjRc_Guruguru_c@@UAE@XZ                                    0x02111d14 R
+__ZN13daObjSwdoor_cD1Ev                                                  ??1daObjSwdoor_c@@UAE@XZ                                         0x020bab64 R
+__ZN13daObjTdFuta_cD1Ev                                                  ??1daObjTdFuta_c@@UAE@XZ                                         0x021124a8 R
+__ZN14daObjTdWater_cD1Ev                                                 ??1daObjTdWater_c@@UAE@XZ                                        0x02112698 R
+__ZN13daObjWakame_cD1Ev                                                  ??1daObjWakame_c@@UAE@XZ                                         0x020bc414 R
+__ZN20daObjWanwanShutter_cD1Ev                                           ??1daObjWanwanShutter_c@@UAE@XZ                                  0x02112e0c R
+__ZN14daObjWc_Mizu_cD1Ev                                                 ??1daObjWc_Mizu_c@@UAE@XZ                                        0x021121a4 R
+__ZN15daObjWc_Obj02_cD1Ev                                                ??1daObjWc_Obj02_c@@UAE@XZ                                       0x0211137c R
+__ZN15daObjWc_Obj04_cD1Ev                                                ??1daObjWc_Obj04_c@@UAE@XZ                                       0x02112630 R
+__ZN15daObjWc_Obj05_cD1Ev                                                ??1daObjWc_Obj05_c@@UAE@XZ                                       0x02111ac4 R
+__ZN10daPgDfdr_cD1Ev                                                     ??1daPgDfdr_c@@UAE@XZ                                            0x021118c8 R
+__ZN19daPropeller_Heyho_cD1Ev                                            ??1daPropeller_Heyho_c@@UAE@XZ                                   0x0211f000 R
+__ZN9daSCoin_cD1Ev                                                       ??1daSCoin_c@@UAE@XZ                                             0x020f03c4 R
+__ZN15daYurei_Mucho_cD1Ev                                                ??1daYurei_Mucho_c@@UAE@XZ                                       0x02115ee0 R
+
+# the two member rows
+__ZN10SlidingIce16CleanupResourcesEv                                     ?CleanupResources@SlidingIce@@UAEHXZ                             0x02111264 R
+__ZN15daObjWc_Obj04_c8BehaviorEv                                         ?Behavior@daObjWc_Obj04_c@@UAEHXZ                                0x021127cc R
