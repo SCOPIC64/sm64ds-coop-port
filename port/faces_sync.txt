@@ -3047,7 +3047,22 @@ __ZN14dScMgD3DBase_c9Virtual84Ev                                         ?Virtua
 # 3. Three F rows: a caller TU spells a member on its own shadow class and the
 #    port carries the body under the ROM's flat name. Each flat body is defined
 #    in this link and carries no guessed-body marker.
-__ZN8dActor_c23HorzAngleToCPlayerOrAngEv                                 ?HorzAngleToCPlayerOrAng@dActor_c@@QAEFXZ                        0x0201097c F
+# RETIRED AT THE FOLD (run link100 wave 9c, lane INT4). THE RECURSION PATTERN.
+# Lane SEATS3's gate 2 seats src/_ZN8dActor_c23HorzAngleToCPlayerOrAngEv.cpp, and
+# the seated member IS the decorated definition this F row's face generates, so
+# built together they are one LNK2005 row:
+#   _ZN8dActor_c23HorzAngleToCPlayerOrAngEv.cpp.obj : error LNK2005:
+#   ?HorzAngleToCPlayerOrAng@dActor_c@@QAEFXZ already defined in
+#   faces_sync_gen.cpp.obj            (tmp/build_int4_r2.log)
+# The seat wins, and here it is not only the wave's direction, it is the more
+# faithful body. The face reached the flat name through the host copy
+# port/unmatched/Actor_HorzAngleToCPlayerOrAng.cpp, which exists only because the
+# matched free-function form called ClosestPlayer() with no argument and relied on
+# `this` riding ARM r0; as a real member on MSVC that call passes `this` by the
+# host ABI and the workaround has nothing left to work around. Nothing is un-parked
+# with this retirement: the flat ROM name stays defined by that host copy on
+# port/slice_w5c.txt, which the seat does not collide with, so no row returns.
+#__ZN8dActor_c23HorzAngleToCPlayerOrAngEv                                 ?HorzAngleToCPlayerOrAng@dActor_c@@QAEFXZ                        0x0201097c F
 __ZN8SaveData16SetDefaultValuesEP12FileSaveData                          ?SetDefaultValues@SaveData@@QAEXPAUFileSaveData@@@Z              0x02013dc4 F
 __ZN8SaveData18SetDefaultValuesMgEP16MinigameSaveData                    ?SetDefaultValuesMg@SaveData@@QAEXPAUMinigameSaveData@@@Z        0x02013c5c F
 
