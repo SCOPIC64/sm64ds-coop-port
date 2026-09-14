@@ -476,8 +476,18 @@ extern "C" void hal_fill_rotating_firebar_vtable(void)
 extern "C" {
 int _ZN5Bully13InitResourcesEv(void *self)
 { ((Bully *)self)->Bully::InitResources(); return 1; }
+/* daOts_c AND NOT Bully, corrected run link100 wave 9c, lane LINK21, and the
+   same defect as the Render row in hal/actor_classes_bob_world.cpp. Slot 3 holds
+   0x02116ca0 in daOts_c's table and in all three children's, so Bully inherits
+   CleanupResources rather than overriding it; ov064's symbols.txt carries no
+   _ZN5Bully16CleanupResourcesEv and symbols/actor_renames.tsv:1817 records the
+   rename. src/actors/daOts_c.cpp:175 is the body and its object defines
+   ?CleanupResources@daOts_c@@UAEHXZ.
+   include/Bully.h:33 still declares the override the ROM does not have, which is
+   what made the call spell itself this way; that line is a decomp-side ask and it
+   is written up in out/LINK21/needs_main.md. */
 int _ZN7daOts_c16CleanupResourcesEv(void *self)
-{ return ((Bully *)self)->Bully::CleanupResources(); }
+{ return ((daOts_c *)self)->daOts_c::CleanupResources(); }
 /* The three Renders are NOT faced here: each dispatches its model's slot 5
    through a ROM-order local shadow (the Whomp/Scuttlebug case), so the C
    names are host copies in port/unmatched/ModelAnim_Renders.cpp and the

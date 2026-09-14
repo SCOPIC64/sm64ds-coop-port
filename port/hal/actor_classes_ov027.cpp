@@ -602,8 +602,14 @@ extern "C" void hal_fill_sliding_ice_vtable(void)
 // ============================================================================
 static int __fastcall cb_init(void *s, void *)
 { return _ZN12daIDonketu_c13InitResourcesEv((char *)s); }
+/* daOts_c AND NOT Bully, corrected run link100 wave 9c, lane LINK21. Slot 3 is
+   0x02116ca0 in daIDonketu_c's table exactly as it is in daOts_c's and Bully's,
+   so this class inherits the base's CleanupResources and there is no
+   ?CleanupResources@Bully@@UAEHXZ anywhere for the qualified call to reach. This
+   row now names the class that owns the body, which is what its own sibling
+   cb_render three lines down already does through the C name. */
 static int __fastcall cb_clean(void *s, void *)
-{ return ((Bully *)s)->Bully::CleanupResources(); }
+{ return ((daOts_c *)s)->daOts_c::CleanupResources(); }
 static int __fastcall cb_behavior(void *s, void *)
 { return _ZN12daIDonketu_c8BehaviorEv((char *)s); }
 static int __fastcall cb_render(void *s, void *)

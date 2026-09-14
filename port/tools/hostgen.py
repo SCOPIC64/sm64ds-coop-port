@@ -940,6 +940,49 @@ def mmio_extern_patch(text, sym):
 # func_ov019_0211197c:44 and :79, func_ov019_021117a8:33. So there is no reader
 # to re-derive it for, on the host or on the DS.
 FALLS_OFF_RETURN = {
+    # ArrowSignRight::OnAttacked1 (ov098 0x02137d40, size 0x40). Run link100
+    # wave 9c, lane LINK21, and the one row in this table that answers a C2561
+    # rather than a C4716: the body carries a BARE `return;` inside an int
+    # function, so MSVC refuses the translation unit outright instead of warning
+    # about it. That is why the TU has been quarantined since lane SLICE1
+    # (port/slice_slice1.txt:237) and why its host copy,
+    # port/unmatched/ArrowSign_OnAttacked1.cpp, was retired on the promise of a
+    # hostgen row that lane SYNC5 then removed.
+    #
+    # THE REPLACEMENT INVENTS NO RETURN VALUE, and the ROM is why. Read at its
+    # own address out of extracted/overlays/overlay_0098.bin:
+    #
+    #   02137d48  e1d110bc  ldrh   r1,[r1,#0xc]      other->actorID
+    #   02137d4c  e35100ce  cmp    r1,#0xce
+    #   02137d50  03a01001  moveq  r1,#1
+    #   02137d54  13a01000  movne  r1,#0
+    #   02137d58  e3510000  cmp    r1,#0
+    #   02137d5c  028dd004  addeq  sp,sp,#4
+    #   02137d60  08bd4000  ldmeq  sp!,{lr}
+    #   02137d64  012fff1e  bxeq   lr                the early exit
+    #   02137d68  e5901000  ldr    r1,[r0]
+    #   02137d6c  e591107c  ldr    r1,[r1,#0x7c]     vtable word 31, Kill
+    #   02137d70  e12fff31  blx    r1
+    #
+    # The early exit returns with r0 UNCHANGED, which is still the receiver, and
+    # the other path returns with whatever Kill left there. Neither is a value
+    # the body computes, so the honest transform is the one main's own #2663
+    # applied to the five siblings of this family: the early exit becomes the
+    # ABSENCE of the call rather than a statement, and the body reaches its
+    # closing brace with nothing to return. That is exactly the shape
+    # SignPost::OnAttacked1 and QuestionBlock::OnAttacked1 are already seated in,
+    # both of them on PORT_FALLS_OFF_END_SOURCES, which this TU joins.
+    #
+    # Nothing reads the result on the host either: the one caller,
+    # port/hal/actor_classes_bob_world.cpp:1583, declares the flat ROM name void
+    # and its face returns 0 of its own.
+    "_ZN14ArrowSignRight11OnAttacked1ER8dActor_c": [
+        ("    if (r == 0) return;\n    Kill();\n}",
+         "    if (r != 0) {\n"
+         "        Kill();\n"
+         "    }\n"
+         "}"),
+    ],
     # RE-KEYED 2026-09-13 (main -> port sync, lane SYNC3). main folded this
     # body into src/game/actors/d_a_propeller_heyho.cpp, so the key is the TU's
     # stem now; the patch string is unchanged and still matches exactly once in

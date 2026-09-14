@@ -2105,7 +2105,18 @@ int _ZN4Fish6RenderEv(void *s)             { return ((Fish *)s)->Fish::Render();
 int _ZN13QuestionBlock6RenderEv(void *s)   { return ((QuestionBlock *)s)->QuestionBlock::Render(); }
 int _ZN10Scuttlebug6RenderEv(void *s)      { return ((Scuttlebug *)s)->Scuttlebug::Render(); }
 int _ZN9PowerStar6RenderEv(void *s)        { return ((PowerStar *)s)->PowerStar::Render(); }
-int _ZN7daOts_c6RenderEv(void *s)            { return ((Bully *)s)->Bully::Render(); }
+/* daOts_c AND NOT Bully, corrected run link100 wave 9c, lane LINK21. The C name
+   on the left of this row was renamed to daOts_c's by the SLOT5 lane and the
+   qualified call on the right was left spelling Bully::Render, which asked the
+   link for ?Render@Bully@@UAEHXZ -- a member the cartridge does not have. Slot 9
+   holds 0x02116cf0 in daOts_c's table, in Bully's and in daIDonketu_c's alike,
+   and only BigBully overrides it (0x0211764c). config/arm9/overlays/ov064/symbols.txt
+   carries no _ZN5Bully6RenderEv at all, symbols/actor_renames.tsv:1818 records the
+   rename, and include/daOts_c.h:63-66 says the same thing in prose. The body is
+   src/actors/daOts_c.cpp:153, and dumpbin over that object shows
+   ?Render@daOts_c@@UAEHXZ defined. Bully inherits it, so this is the same call it
+   always was, spelled at the class that owns it. */
+int _ZN7daOts_c6RenderEv(void *s)            { return ((daOts_c *)s)->daOts_c::Render(); }
 int _ZN8BigBully6RenderEv(void *s)         { return ((BigBully *)s)->BigBully::Render(); }
 int _ZN15RotatingFirebar6RenderEv(void *s) { return ((RotatingFirebar *)s)->RotatingFirebar::Render(); }
 int _ZN13UpDownLiftBbh6RenderEv(void *s)   { return ((UpDownLiftBbh *)s)->UpDownLiftBbh::Render(); }

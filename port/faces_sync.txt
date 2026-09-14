@@ -79,6 +79,7 @@
 #     templates: refused by the emitter, listed with the reason in
 #     runs/link100/out/FACES1/refused.txt.
 
+__ZN14ArrowSignRight11OnAttacked1ER8dActor_c                             ?OnAttacked1@ArrowSignRight@@QAEHAAUdActor_c@@@Z                 0x02137d40 R
 __ZN14ArrowSignRight13InitResourcesEv                                    ?InitResources@ArrowSignRight@@QAEHXZ                            0x02137eec R
 __ZN14ArrowSignRight15OnHitByMegaCharER6Player                           ?OnHitByMegaChar@ArrowSignRight@@QAEXAAUPlayer@@@Z               0x02137d80 R
 __ZN14ArrowSignRightD1Ev                                                 ??1ArrowSignRight@@QAE@XZ                                        0x02137be0 R

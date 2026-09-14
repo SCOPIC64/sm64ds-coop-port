@@ -516,7 +516,24 @@ set(PORT_HOSTGEN_TU
     # nonzero addend.
     src/actors/dScMgSound_c.cpp
     src/actors/daBombking_c.cpp
-    src/game/actors/d_a_obj_b_swdoor.cpp)
+    src/game/actors/d_a_obj_b_swdoor.cpp
+    # Run link100 wave 9c, lane LINK21. Two one-function TUs that MSVC cannot
+    # take raw, both on port/slice_link21.txt.
+    #
+    # ArrowSignRight::OnAttacked1 carries a BARE `return;` inside an int body,
+    # which is a C2561 and not the C4716 that /wd4716 answers, so the TU has been
+    # quarantined since lane SLICE1. hostgen's FALLS_OFF_RETURN table turns the
+    # early exit into the absence of the call, which is #2663's own shape for the
+    # five siblings of this family and invents no return value; the ROM's early
+    # exit leaves r0 holding the receiver, and the table's note carries that
+    # disassembly. The generated body then falls off the end like its two seated
+    # siblings, so the raw path is on PORT_FALLS_OFF_END_SOURCES below and the
+    # loop there puts /wd4716 on the generated path too.
+    #
+    # IRQ::SetIRQs pokes IME 0x4000208 and IE 0x4000210 through literal casts and
+    # needs the MMIO routing, two rewrites.
+    src/_ZN14ArrowSignRight11OnAttacked1ER8dActor_c.cpp
+    src/_ZN3IRQ7SetIRQsEj.cpp)
 get_filename_component(PORT_HOSTGEN_TU_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 set(PORT_HOSTGEN_TU_GEN "")
 foreach(_hgt_rel IN LISTS PORT_HOSTGEN_TU)
@@ -18855,6 +18872,15 @@ set(PORT_FALLS_OFF_END_SOURCES
     # the last call left there -- so MSVC raises C4716 on it. Measured on the
     # generated copy: that member and nothing else.
     src/_ZN11dScMgBase_c16OnAimedAtWithEggEv.cpp
+    # Run link100 wave 9c, lane LINK21. ArrowSignRight::OnAttacked1 joins its two
+    # already-seated siblings, SignPost::OnAttacked1 and QuestionBlock::OnAttacked1,
+    # both of them a few rows above in this list. It could not join them before
+    # because its body carried a bare `return;` as well, which is a C2561 that
+    # /wd4716 cannot answer; hostgen's FALLS_OFF_RETURN row turns that early exit
+    # into the absence of the call, and what is left is the ordinary C4716 shape
+    # the other two have. It is a PORT_HOSTGEN_TU row, so the loop below puts the
+    # option on the generated path as well.
+    src/_ZN14ArrowSignRight11OnAttacked1ER8dActor_c.cpp
     )
 # A WHOLE-TU HOSTGEN SUBSTITUTION MOVES THE COMPILE, AND A PER-SOURCE PROPERTY
 # DOES NOT FOLLOW IT. Run link100, lane HOSTGEN2, measured: putting
