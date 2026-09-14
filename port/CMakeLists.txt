@@ -18960,9 +18960,27 @@ if(MSVC)
             list(APPEND _dsfi_paths
                  "${PORT_REPO_ROOT_ABS}/${PORT_HOSTGEN_TU_ROW_${_dsfi_rel}}")
         endif()
-        set_source_files_properties(${_dsfi_paths}
-            PROPERTIES COMPILE_OPTIONS
-            "/FI${CMAKE_CURRENT_SOURCE_DIR}/hal/dsstate_all.h")
+        # AND THE PER-GATE SUBSTITUTIONS, which are not PORT_HOSTGEN_TU rows and
+        # so are invisible to the branch above. The first build of this block
+        # measured it: 32 uncaptured symbols went to 11, and all eleven were
+        # d_s_mg_trampoline2.cpp's, because that TU is substituted by
+        # TTE_HOSTGEN_GEN (the set at the TTE block) rather than by the whole-TU
+        # list, so only its raw path took the option and nothing compiles the
+        # raw path. The generated name is the same relative path under host-src
+        # whichever generator writes it, so naming it unconditionally costs
+        # nothing: a property on a path no target compiles is inert.
+        string(REGEX REPLACE "[.](c|cpp)$" ".cpp" _dsfi_gen "${_dsfi_rel}")
+        list(APPEND _dsfi_paths "${CMAKE_BINARY_DIR}/host-src/${_dsfi_gen}")
+        list(REMOVE_DUPLICATES _dsfi_paths)
+        # APPEND, NEVER SET. set_source_files_properties REPLACES the whole
+        # COMPILE_OPTIONS list, and one of these eleven already carries a
+        # measured option it must not lose: d_s_mg_trampoline2.cpp is on /Zp4 at
+        # the GATE 3 block above, which is what keeps its pointer-to-member at
+        # the ROM's 0x5004 instead of four bytes late.
+        foreach(_dsfi_one IN LISTS _dsfi_paths)
+            set_property(SOURCE "${_dsfi_one}" APPEND PROPERTY COMPILE_OPTIONS
+                "/FI${CMAKE_CURRENT_SOURCE_DIR}/hal/dsstate_all.h")
+        endforeach()
     endforeach()
 endif()
 
