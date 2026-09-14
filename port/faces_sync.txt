@@ -2915,3 +2915,37 @@ __ZN15daObjWc_Obj04_cD1Ev                                                ??1daOb
 # the two member rows
 __ZN10SlidingIce16CleanupResourcesEv                                     ?CleanupResources@SlidingIce@@UAEHXZ                             0x02111264 R
 __ZN15daObjWc_Obj04_c8BehaviorEv                                         ?Behavior@daObjWc_Obj04_c@@UAEHXZ                                0x021127cc R
+
+# ---- BATCH 7: the rows lane SEATS2's and lane HOSTGEN4's seats unblocked -----
+# Staged at the fold by lane INT3 from out/SEATS2/faces_after_seat.txt Part 1,
+# which lists 31 rows. SEVEN are taken. Each is a flat ROM name on this tree's
+# own wall whose decorated definition arrives with a seat that IS in this tree:
+# daSanbo_c, daPkn_c and daWanwan_c are seated by lane HOSTGEN4's gates 7 to 9
+# through port/slice_hostgen4.txt. The decorated spelling beside each row is the
+# one the seated object really defines, read by SEATS2 out of its COFF symbol
+# table rather than predicted from a header, and facegen --sync re-derives every
+# one of them against config/**/symbols.txt at build time.
+#
+# THE OTHER 24 ARE REFUSED HERE, and the reason is the same one for both groups:
+# a face DEFINES the flat name and CALLS the decorated member, so a face onto a
+# member nothing defines trades one wall row for another and leaves a call with
+# no body at the bottom, which is exactly the defect lane SEATS2 found in the
+# eleven forwarder pairs.
+#
+#   __ZN11dScMgBase_c16OnAimedAtWithEggEv  -- its decorated counterpart
+#     ?OnAimedAtWithEgg@dScMgBase_c@@UAEHXZ is ITSELF on this tree's wall. It is
+#     closed by SEATS2's gate 1, which the coordinator's fold ruling drops in
+#     favour of HOSTGEN4's version of the same three seats.
+#
+#   the 23 __ZN8daGmch_c rows -- daGmch_c is seated by SEATS2's GATE 2, which
+#     the same ruling drops. Nothing in this tree defines its members and
+#     nothing references them either, so a face would close 23 flat rows and
+#     open 23 decorated ones. They become derivable the day daGmch_c is seated.
+
+__ZN9daSanbo_c13OnTurnIntoEggER6Player                                   ?OnTurnIntoEgg@daSanbo_c@@UAEXAAUPlayer@@@Z                      0x02136cd0 R
+__ZN9daSanbo_c13OnYoshiTryEatEv                                          ?OnYoshiTryEat@daSanbo_c@@UAEHXZ                                 0x021357a4 R
+__ZN9daSanbo_c16OnAimedAtWithEggEv                                       ?OnAimedAtWithEgg@daSanbo_c@@UAEHXZ                              0x021357ac R
+__ZN7daPkn_c13InitResourcesEv                                            ?InitResources@daPkn_c@@UAEHXZ                                   0x0212feb4 R
+__ZN7daPkn_c16OnAimedAtWithEggEv                                         ?OnAimedAtWithEgg@daPkn_c@@UAEHXZ                                0x0212ec58 R
+__ZN7daPkn_c16OnPendingDestroyEv                                         ?OnPendingDestroy@daPkn_c@@UAEXXZ                                0x0212fcd8 R
+__ZN10daWanwan_c16CleanupResourcesEv                                     ?CleanupResources@daWanwan_c@@UAEHXZ                             0x0211294c R
