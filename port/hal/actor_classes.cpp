@@ -2360,9 +2360,12 @@ void _ZN12daStarGate_c16OnPendingDestroyEv(void);        /* C in src */
 int *_ZN12daStarGate_cD0Ev(int *self);                   /* C in src */
 void *_ZTV12daStarGate_c[31];   /* ov100 0x021483cc, RTTI 12daStarGate_c */
 }
-/* THE ALIAS THAT USED TO SIT HERE IS GONE (lane CRASH12). It read
-     #pragma comment(linker, "/alternatename:__ZTV12daStarGate_c=__ZTV4Door")
-   and it was the defect. The RTTI reading it rested on is correct and is kept
+/* THE ALIAS THAT USED TO SIT HERE IS GONE (lane CRASH12). It was a linker
+   alternatename mapping this table's Itanium name onto gate 22's array, and it
+   was the defect. The directive is deliberately NOT quoted verbatim here: a
+   guard that scans for the text would read the quote as a live alias, which is
+   the scoping bug alternatename_guard already carries a fixture for.
+   The RTTI reading it rested on is correct and is kept
    above: 0x021483c8 relocates to the typeinfo at 0x02148374, whose word[1]
    points at the name string at 0x02148380 = "12daStarGate_c". What the reading
    never checked is that _ZTV4Door is a DIFFERENT ADDRESS, 0x02148188, whose own
