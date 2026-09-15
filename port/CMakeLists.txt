@@ -6905,6 +6905,79 @@ set_source_files_properties(
     PROPERTIES COMPILE_OPTIONS
     "/FI${CMAKE_CURRENT_SOURCE_DIR}/unmatched/dBase_c_SpawnHostAbi.h")
 
+# Run link100 lane CRASH8: QUESTIONBLOCK'S OWN FIELDS, PUT BACK ON THE ROM'S
+# OFFSETS. Same /FI mechanism as the three blocks above.
+#
+# MSVC does not let a derived class reuse its base's TAIL PADDING and the
+# Itanium ABI mwccarm implements does. dBgActor_c has a data size of 0x31e and
+# a sizeof of 0x320, so mwccarm starts QuestionBlock's own fields at 0x31e,
+# include/QuestionBlock.h's `u8 pad_31e[0x2]` fills 0x31e..0x31f, and
+# ModelAnim mModelAnim lands on the ROM's 0x320. MSVC starts them at 0x320, the
+# same pad fills 0x320..0x321, and mModelAnim is pushed to 0x324. Every field
+# of the class from there down is four bytes high and sizeof becomes 0x3fc
+# against the 0x3f8 the ROM's own factory asks fBase_c::operator new for.
+#
+# Measured in the shipped artifact rather than inferred. The class's factory is
+# a C translation unit using the ROM's literals and the members are used from
+# C++ translation units using MSVC's offsets, so the two disagree in the bytes:
+#   _daObjHatenaBlock_c_classInit_HATENA_BLOCK 00521c00
+#     00521c1a  lea ecx, [esi + 0x320]  -> __ZN9ModelAnimC1Ev
+#   ?InitResources@QuestionBlock@@UAEHXZ 00530240
+#     0053026b  lea esi, [edi + 0x324]  -> ModelBase::SetFile
+# The ModelAnim is constructed at 0x320 and used at 0x324, so word 0 of the
+# used address is still the allocator's zero, and ModelBase::SetFile opens with
+# `mov eax,[ecx] / jmp dword ptr [eax+8]`. That is the fault at 004b7986 with
+# eax = 0 on the first question block the level loader spawns, which is where
+# the boot died after lane CRASH6 cleared the waterfall.
+#
+# The ROM's own code sits on the 0x320 side, which is what makes the C++
+# translation units the outlier and not the factory: _func_ov102_02149da8 at
+# 0052c620, matched from ROM bytes, writes mState with
+# `mov dword ptr [eax + 0x3e8], edx` where these TUs read it at 0x3ec.
+#
+# TEN TRANSLATION UNITS, and they are the measured set, not a guess: every
+# QuestionBlock symbol in walk_window.map was disassembled with
+# tmp/crash8/qbscan.py and these are the ones that compute a displacement at or
+# past the 0x320 boundary. src/_ZN13QuestionBlockD0Ev.cpp is not in the link
+# (faces_sync_gen.cpp owns that symbol) so it is not listed; add it here if it
+# is ever compiled. unmatched/QuestionBlock_HostAbi.h carries the whole reading
+# and the full offset table.
+#
+# /FI is a FLAG rather than an include-path entry for the reason the blocks
+# above give: CMake emits <INCLUDES> before <FLAGS>, so a /I here would lose to
+# include/ and the shadow would silently not happen.
+#
+# APPEND, NEVER SET, the rule the DSSTATE FORCE-INCLUDE block at the end of
+# this file already states: COMPILE_OPTIONS is one property and
+# set_source_files_properties REPLACES it. Two of these ten,
+# QuestionBlock::OnAttacked1 and QuestionBlock::OnHitFromUnderneath, are rows in
+# PORT_FALLS_OFF_END_SOURCES and take /wd4716 from the loop at the end of this
+# file. Measured the hard way: with a plain SET here the first build came back
+# with the shadow on eight of the ten, green, and those two TUs still carrying
+# the wrong member offsets. The loop at the end now preserves what it finds as
+# well, so the two blocks no longer depend on each other's order.
+set(PORT_QUESTIONBLOCK_HOSTABI_SOURCES
+    src/_ZN13QuestionBlock13InitResourcesEv.cpp
+    src/_ZN13QuestionBlock8BehaviorEv.cpp
+    src/_ZN13QuestionBlock16CleanupResourcesEv.cpp
+    src/_ZN13QuestionBlock6RenderEv.cpp
+    src/_ZN13QuestionBlockD1Ev.cpp
+    src/_ZN13QuestionBlock11OnAttacked1ER8dActor_c.cpp
+    src/_ZN13QuestionBlock15OnGroundPoundedER8dActor_c.cpp
+    src/_ZN13QuestionBlock15OnHitByMegaCharER6Player.cpp
+    src/_ZN13QuestionBlock19OnHitFromUnderneathER8dActor_c.cpp
+    src/_ZN13QuestionBlock8OnKickedER8dActor_c.cpp
+    )
+foreach(_qb_rel IN LISTS PORT_QUESTIONBLOCK_HOSTABI_SOURCES)
+    if(NOT EXISTS "${PORT_REPO_ROOT_ABS}/${_qb_rel}")
+        message(FATAL_ERROR "QuestionBlock host-ABI row names a source that "
+                "does not exist: ${_qb_rel}")
+    endif()
+    set_property(SOURCE "${PORT_REPO_ROOT_ABS}/${_qb_rel}"
+        APPEND PROPERTY COMPILE_OPTIONS
+        "/FI${CMAKE_CURRENT_SOURCE_DIR}/unmatched/QuestionBlock_HostAbi.h")
+endforeach()
+
 # Run mg5 lane CCN: THE SECOND SEATED MINIGAME CLASS, dScMgCoin_c
 # (Coincentration), actor id 0x17a = scene 378. The ROM's own RTTI at
 # 0x0213bf24 reads "11dScMgCoin_c" and its vtable is data_ov006_0213bf50, both
@@ -19246,8 +19319,25 @@ foreach(_foe_rel IN LISTS PORT_FALLS_OFF_END_SOURCES)
         list(APPEND _foe_paths
              "${PORT_REPO_ROOT_ABS}/${PORT_HOSTGEN_TU_ROW_${_foe_rel}}")
     endif()
-    set_source_files_properties(${_foe_paths}
-        PROPERTIES COMPILE_OPTIONS "/wd4716")
+    # AND IT MUST NOT WIPE AN OPTION ANOTHER BLOCK ALREADY PUT ON THE SOURCE.
+    # COMPILE_OPTIONS is one property and set_source_files_properties REPLACES
+    # it, and this loop is the LAST word in the file, so a /FI set higher up
+    # silently stopped applying. Measured, run link100 lane CRASH8: the
+    # QuestionBlock host-ABI shadow went on all ten of that class's TUs and came
+    # back on eight, because OnAttacked1 and OnHitFromUnderneath are rows in the
+    # list above and this loop overwrote them with /wd4716 alone. Nothing
+    # reported it -- the build was green and the two TUs simply kept the wrong
+    # member offsets. So read what is there and append.
+    foreach(_foe_path IN LISTS _foe_paths)
+        get_source_file_property(_foe_prev "${_foe_path}" COMPILE_OPTIONS)
+        if(_foe_prev)
+            set_source_files_properties("${_foe_path}"
+                PROPERTIES COMPILE_OPTIONS "${_foe_prev};/wd4716")
+        else()
+            set_source_files_properties("${_foe_path}"
+                PROPERTIES COMPILE_OPTIONS "/wd4716")
+        endif()
+    endforeach()
 endforeach()
 
 # ===========================================================================
