@@ -40,7 +40,18 @@ struct daObjCannonShutter_c : dBgActor_c {
        (cartridge is 0x020bc8f4 D1 then 0x020bc938 D0) plus a D2 with no ROM
        home. Empty body: this class adds no member with a destructor; the
        vptr store and dBgActor_c's two member teardowns are synthesised. */
-    virtual ~daObjCannonShutter_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjCannonShutter_c() {}   /* no slot */
+#else
+    virtual ~daObjCannonShutter_c() {}   /* D1 and D0 */
+#endif
 
     int Behavior();
     int CleanupResources();

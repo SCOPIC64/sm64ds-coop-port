@@ -51,7 +51,18 @@ struct daObjMaruta_c : dBgActor_c {
        _ZN13daObjMaruta_cD1Ev (which does exist out of line, at ov080 0x02127014,
        still under its func_ov080_ name). An out-of-line declaration here would
        make each descendant emit a `bl` the ROM does not have. */
-    virtual ~daObjMaruta_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjMaruta_c() {}   /* no slot */
+#else
+    virtual ~daObjMaruta_c() {}   /* D1 and D0 */
+#endif
 
     /* Slot 27, this class's own override, defined out of line in
        src/_ZN13daObjMaruta_c15OnHitByMegaCharER6Player.cpp. LAYOUT-NEUTRAL: it

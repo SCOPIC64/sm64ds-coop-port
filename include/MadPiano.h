@@ -42,7 +42,18 @@ struct MadPiano : dBgActor_c {
     Vector3 mHomePos;            /* 0x6d4 */
     /* trailing extent the ROM's `new MadPiano` literal proves; see tools/opnew_sizes.py */
     u8 pad_6e0[0x4];
-    virtual ~MadPiano();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~MadPiano();   /* no slot */
+#else
+    virtual ~MadPiano();   /* D1 and D0 */
+#endif
 
     virtual int InitResources();
     virtual int CleanupResources();

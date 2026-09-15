@@ -50,7 +50,18 @@ extern "C" void _ZN18TextureTransformerD1Ev(void *);
 extern "C" void _ZN15dMg3DEspModel_cD1Ev(void *c);
 
 struct dScMg3DEsp_c : dScMgSingle3DBase_c {
-    virtual ~dScMg3DEsp_c();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~dScMg3DEsp_c();   /* no slot */
+#else
+    virtual ~dScMg3DEsp_c();   /* D1 and D0 */
+#endif
     virtual void OnYoshiTryEat(int arg);               /* slot 18 */
     virtual void Virtual50();                          /* slot 20 */
 

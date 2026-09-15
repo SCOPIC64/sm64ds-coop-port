@@ -46,7 +46,18 @@ struct daSldMng_c : dActor_c {
 
     /* Declared last and inline so class instantiation emits the retail D1/D0
        pair in that order, with no separate D2 body. */
-    virtual ~daSldMng_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daSldMng_c() {}   /* no slot */
+#else
+    virtual ~daSldMng_c() {}   /* D1 and D0 */
+#endif
 };
 
 #ifndef SM64DS_PLATFORM_PC

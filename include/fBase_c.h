@@ -143,7 +143,18 @@ struct fBase_c {
     virtual int  Virtual34(u32 a, u32 b);              /* slot 13 -- vtable+0x34 */
     virtual int  Virtual38(u32 a, u32 b);              /* slot 14 -- vtable+0x38 */
     virtual bool OnHeapCreated();                      /* slot 15 -- vtable+0x3c */
-    virtual ~fBase_c();                              /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~fBase_c();   /* no slot */
+#else
+    virtual ~fBase_c();   /* D1 and D0 */
+#endif
 
     /* --- non-virtual --- */
     void MarkForDestruction();

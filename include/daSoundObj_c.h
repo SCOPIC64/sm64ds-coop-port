@@ -75,7 +75,18 @@ struct daSoundObj_c : dActor_c {
        for, because every member of this class is a scalar. (~dActor_c is not
        empty -- it stores two more vptrs and destroys its own fLiNdBa_c member
        at 0x50 -- but none of that belongs to this class or to this TU.) */
-    virtual ~daSoundObj_c() {}          /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daSoundObj_c() {}   /* no slot */
+#else
+    virtual ~daSoundObj_c() {}   /* D1 and D0 */
+#endif
 
     /* Both are overrides of fBase_c, not new members -- see include/fBase_c.h,
        which declares InitResources at slot 0 and Behavior at slot 6. `virtual`

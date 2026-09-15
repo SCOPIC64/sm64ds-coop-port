@@ -44,7 +44,18 @@ struct dScTitle_c : dScene_c {
     /* Declared first -- key function; see the family convention discussed in
        dBase_c.h/dScene_c.h. Never defined as a real method in any TU: both
        D1 and D0 are plain functions carrying their literal mangled name. */
-    virtual ~dScTitle_c();                               /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~dScTitle_c();   /* no slot */
+#else
+    virtual ~dScTitle_c();   /* D1 and D0 */
+#endif
 
     /* --- overrides, in _ZTV8dScene_c/_ZTV7fBase_c order. --- */
     virtual s32  InitResources();                        /* slot  0 */

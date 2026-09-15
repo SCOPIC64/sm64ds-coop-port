@@ -40,7 +40,18 @@ struct dBgActor_c : dActor_c {
        destructor inlines this body; an out-of-line declaration makes each one
        emit a `bl` the ROM does not have, and gives this class a key function.
        notes/platform-provenance.md. */
-    virtual ~dBgActor_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~dBgActor_c() {}   /* no slot */
+#else
+    virtual ~dBgActor_c() {}   /* D1 and D0 */
+#endif
 
     /* Slot 31, the only new virtual this class adds -- and the key function, so
        the TU defining it also emits _ZTV10dBgActor_c and _ZTI10dBgActor_c.

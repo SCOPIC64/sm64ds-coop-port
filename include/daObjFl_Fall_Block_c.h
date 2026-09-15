@@ -18,7 +18,18 @@
 
 struct daObjFl_Fall_Block_c : daObjFallBlock_c {
     /* Inline empty dtor: mwccarm emits D1 then D0, no D2. */
-    virtual ~daObjFl_Fall_Block_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjFl_Fall_Block_c() {}   /* no slot */
+#else
+    virtual ~daObjFl_Fall_Block_c() {}   /* D1 and D0 */
+#endif
     int CleanupResources(); /* slot 3 */
     int InitResources();    /* slot 0 */
 };

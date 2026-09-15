@@ -45,7 +45,18 @@ struct CccArena : dBgActor_c {
     s32 unk_338;            /* 0x338 */
 
     /* --- vtable --- */
-    virtual ~CccArena();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~CccArena();   /* no slot */
+#else
+    virtual ~CccArena();   /* D1 and D0 */
+#endif
 
     /* Slot 31, dBgActor_c's own new virtual (include/dBgActor_c.h).
        Attributed by the vtable: _ZTV8CccArena + 4*31 = 0x021231e8 + 0x7c =

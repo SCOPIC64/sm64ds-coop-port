@@ -60,7 +60,18 @@ struct daObjKm1_Kurumajiku_c : daObjKurumajiku_c {
        uses for this class's ov047 twin: defining the empty body in the class
        body makes mwccarm emit the used D1/D0 pair in the cartridge's order
        and never materialize the otherwise homeless D2. */
-    virtual ~daObjKm1_Kurumajiku_c() {}    /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjKm1_Kurumajiku_c() {}   /* no slot */
+#else
+    virtual ~daObjKm1_Kurumajiku_c() {}   /* D1 and D0 */
+#endif
 
     int CleanupResources();                /* slot  3 */
     int InitResources();                   /* slot  0 */

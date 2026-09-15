@@ -42,7 +42,18 @@ struct daObjRcBuranko_c : dBgActor_c {
     /* MEASURED -- INLINE ON PURPOSE, and declared first, so this TU is the
        vtable's home. Both ROM bodies are empty; an inline body also drops the
        D2 variant the cartridge never carried. */
-    virtual ~daObjRcBuranko_c() {}  /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjRcBuranko_c() {}   /* no slot */
+#else
+    virtual ~daObjRcBuranko_c() {}   /* D1 and D0 */
+#endif
 
     /* declared in reverse of ROM address order, as the TU emits them */
     int InitResources();      /* slot  0 -- 0x0211137c */

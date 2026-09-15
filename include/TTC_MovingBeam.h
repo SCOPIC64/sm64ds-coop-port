@@ -29,7 +29,18 @@ struct TTC_MovingBeam : dBgActor_c {
     ShadowModel mShadowModel;         /* 0x334 */
 
     /* --- vtable --- */
-    virtual ~TTC_MovingBeam();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~TTC_MovingBeam();   /* no slot */
+#else
+    virtual ~TTC_MovingBeam();   /* D1 and D0 */
+#endif
 
     /* An override the cartridge proves and this header never declared.
        _ZTV14TTC_MovingBeam slot 6 pointed at fBase_c::Behavior; the ROM has

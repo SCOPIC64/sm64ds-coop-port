@@ -100,7 +100,18 @@ struct dScMgSingle3DBase_c : dScMgBase_c {
        _ZN19dScMgSingle3DBase_cD2Ev exists nowhere in the ROM, so an
        out-of-line definition leaves every child with an undefined external.
        MEASURED on dScMgMemory_c; do not move the body out. */
-    virtual ~dScMgSingle3DBase_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~dScMgSingle3DBase_c() {}   /* no slot */
+#else
+    virtual ~dScMgSingle3DBase_c() {}   /* D1 and D0 */
+#endif
 
     /* --- re-overrides of dScMgBase_c's virtuals, in _ZTV order.
            Slots 26 and 33 are ALSO re-overrides, not new virtuals: this class

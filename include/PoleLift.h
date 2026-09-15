@@ -31,7 +31,18 @@ struct PoleLift : dBgActor_c {
     /* --- vtable --- */
     /* Inline is load-bearing: when forced from the two destructor source
      * files, mwccarm emits the ROM's D1/D0 bodies without a homeless D2. */
-    virtual ~PoleLift() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~PoleLift() {}   /* no slot */
+#else
+    virtual ~PoleLift() {}   /* D1 and D0 */
+#endif
 
     int Behavior();
     int CleanupResources();

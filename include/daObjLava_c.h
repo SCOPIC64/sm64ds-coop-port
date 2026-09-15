@@ -31,7 +31,18 @@ struct daObjLava_c : dActor_c {
      * (0x020b6d4c), and objisolate then refuses the whole TU for emitting out of
      * ROM address order. The inline body emits only the retail D1/D0 pair, in
      * retail order, and emits no D2. */
-    virtual ~daObjLava_c() {}          /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjLava_c() {}   /* no slot */
+#else
+    virtual ~daObjLava_c() {}   /* D1 and D0 */
+#endif
 
     virtual s32   InitResources();     /* slot  0 */
 

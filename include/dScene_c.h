@@ -33,7 +33,18 @@ struct dScene_c : dBase_c {
        declared `virtual ~dScene_c();' emits `bl _ZN8dScene_cD2Ev' where the
        ROM has none and costs 24 bytes in Stage's destructor alone. Do not move
        it out of line. Overrides slots 16 (D1) and 17 (D0). */
-    virtual ~dScene_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~dScene_c() {}   /* no slot */
+#else
+    virtual ~dScene_c() {}   /* D1 and D0 */
+#endif
 
     /* dScene_c's own copy of dActor_c's inline operator delete. mwcc inlines
        the operator only when it finds it in the class itself or its IMMEDIATE

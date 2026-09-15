@@ -44,7 +44,18 @@ struct MirrorLuigi : dActor_c {
     MirrorLuigiState *mState;                 /* 0x1d8 */
     Matrix4x3 mShadowMatrix;                  /* 0x1dc */
 
-    virtual ~MirrorLuigi();                   /* slots 16, 17 */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~MirrorLuigi();   /* no slot */
+#else
+    virtual ~MirrorLuigi();   /* D1 and D0 */
+#endif
     virtual s32 InitResources();              /* slot  0 */
     virtual s32 CleanupResources();           /* slot  3 */
     virtual s32 Behavior();                   /* slot  6 */

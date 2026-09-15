@@ -71,7 +71,18 @@ struct BigBrickBlock : dBgActor_c {
     u8  pad_32d[0x3];
 
     /* --- vtable --- */
-    virtual ~BigBrickBlock();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~BigBrickBlock();   /* no slot */
+#else
+    virtual ~BigBrickBlock();   /* D1 and D0 */
+#endif
 
     /* Slot 31, dBgActor_c's own new virtual (include/dBgActor_c.h). Attributed by
        the vtable: _ZTV13BigBrickBlock (ov002 0x02108adc) carries 0x020b38a0 at

@@ -68,7 +68,18 @@ struct daObjBk_Dossunbar_c : dBgActor_c {
        virtuals. The cartridge carries D1 at 0x02111ba0, D0 at 0x02111be4 and no
        D2 anywhere; written out of line mwcc emits D0 before D1 and adds the D2
        the ROM never had, and the isolation step rejects that object. */
-    virtual ~daObjBk_Dossunbar_c() {}  /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjBk_Dossunbar_c() {}   /* no slot */
+#else
+    virtual ~daObjBk_Dossunbar_c() {}   /* D1 and D0 */
+#endif
 
     /* declared in reverse of ROM address order, as the TU emits them */
     int InitResources();                            /* slot  0 -- 0x021120fc */

@@ -64,7 +64,18 @@ struct daObjUkiyuka_c : dBgActor_c {
        _ZN14daObjUkiyuka_cD1Ev (which does exist out of line, at ov002
        0x020b63e0, still under its func_ov002_ name). An out-of-line declaration
        here would make each descendant emit a `bl` the ROM does not have. */
-    virtual ~daObjUkiyuka_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjUkiyuka_c() {}   /* no slot */
+#else
+    virtual ~daObjUkiyuka_c() {}   /* D1 and D0 */
+#endif
 
     /* Slot 6, this class's own override, defined out of line in
        src/_ZN14daObjUkiyuka_c8BehaviorEv.cpp. LAYOUT-NEUTRAL: it re-uses the

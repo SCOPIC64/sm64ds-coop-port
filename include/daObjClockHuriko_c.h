@@ -113,7 +113,18 @@ struct daObjClockHuriko_c : dActor_c {
        function is the first DECLARED non-inline virtual, so this ordering is
        what makes src/game/actors/d_a_obj_clock_huriko.cpp the TU that emits the
        _ZTV/_ZTI/_ZTS group -- exactly what the promotion needs it to be. --- */
-    virtual ~daObjClockHuriko_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjClockHuriko_c() {}   /* no slot */
+#else
+    virtual ~daObjClockHuriko_c() {}   /* D1 and D0 */
+#endif
 
     /* --- overrides of inherited fBase_c slots dActor_c left untouched.
        Now real daObjClockHuriko_c:: methods, defined in

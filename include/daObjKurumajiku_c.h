@@ -53,7 +53,18 @@ struct daObjKurumajiku_c : dBgActor_c {
        _ZN17daObjKurumajiku_cD1Ev (which does exist out of line, at ov002
        0x020b6a3c, still under its func_ov002_ name). An out-of-line declaration
        here would make each descendant emit a `bl` the ROM does not have. */
-    virtual ~daObjKurumajiku_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjKurumajiku_c() {}   /* no slot */
+#else
+    virtual ~daObjKurumajiku_c() {}   /* D1 and D0 */
+#endif
 
     /* Slot 6, ov002 0x020b6b38 -- carries the four mounted actors around the
        axle. An override of the virtual fBase_c already declared, so it

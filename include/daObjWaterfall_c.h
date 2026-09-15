@@ -32,7 +32,18 @@ struct daObjWaterfall_c : dActor_c {
      * ROM's own order and the complete class RTTI/vtable group, without
      * retaining a D2 body. An out-of-line destructor definition emits D0
      * before D1 and cannot be isolated against the ROM span. */
-    virtual ~daObjWaterfall_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjWaterfall_c() {}   /* no slot */
+#else
+    virtual ~daObjWaterfall_c() {}   /* D1 and D0 */
+#endif
 
     virtual int InitResources();
     virtual int Behavior();

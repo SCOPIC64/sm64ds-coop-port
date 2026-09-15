@@ -34,7 +34,18 @@ struct daObjKi_Ita_c : daObjFloatBoard_c {
 
     /* Declared last and inline so class instantiation can emit the retail
        D1/D0 pair in cartridge order without a separate D2 body. */
-    virtual ~daObjKi_Ita_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjKi_Ita_c() {}   /* no slot */
+#else
+    virtual ~daObjKi_Ita_c() {}   /* D1 and D0 */
+#endif
 };
 
 inline void *daObjKi_Ita_c::operator new(size_t size)

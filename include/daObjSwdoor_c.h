@@ -44,7 +44,18 @@ struct daObjSwdoor_c : dBgActor_c {
        _ZN13daObjSwdoor_cD1Ev (which does exist out of line, at ov002 0x020bab64,
        still under its func_ov002_ name). An out-of-line declaration here would
        make each descendant emit a `bl` the ROM does not have. */
-    virtual ~daObjSwdoor_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjSwdoor_c() {}   /* no slot */
+#else
+    virtual ~daObjSwdoor_c() {}   /* D1 and D0 */
+#endif
 
     /* Slot 9, ov002 0x020babf0 -- this class's only real slot, so declaring
        it out of line makes THIS the key function: the destructor above is

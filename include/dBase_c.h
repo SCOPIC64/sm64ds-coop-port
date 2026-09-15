@@ -41,7 +41,18 @@ struct dBase_c : fBase_c {
     /* Declared first, deliberately -- see KEY FUNCTION above. Overrides slots
        16 (D1) and 17 (D0); the position in this list does not affect that.
        DEFINED INLINE on purpose: subclass destructors inline it. */
-    virtual ~dBase_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~dBase_c() {}   /* no slot */
+#else
+    virtual ~dBase_c() {}   /* D1 and D0 */
+#endif
 
     /* slot 2 -- marks the actor for destruction when init failed, then chains. */
     virtual void AfterInitResources(u32 vfSuccess);

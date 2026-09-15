@@ -31,7 +31,18 @@ struct daSCre_c : dActor_c {
      * Behavior -- the first virtual declared out-of-line -- keeps
      * src/actors/d_a_s_cre.cpp as this class's key-function TU. The body is
      * genuinely empty: the class adds no owned resource, only pad_0d0. */
-    virtual ~daSCre_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daSCre_c() {}   /* no slot */
+#else
+    virtual ~daSCre_c() {}   /* D1 and D0 */
+#endif
 
     virtual s32   Behavior();               /* slot  6 */
 };

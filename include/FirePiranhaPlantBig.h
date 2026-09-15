@@ -70,7 +70,18 @@ struct FirePiranhaPlantBig : dEnemyBase_c {
     s32                          unk_228;               /* 0x228 */
 
     /* --- vtable --- */
-    virtual ~FirePiranhaPlantBig();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~FirePiranhaPlantBig();   /* no slot */
+#else
+    virtual ~FirePiranhaPlantBig();   /* D1 and D0 */
+#endif
 
     virtual s32   OnYoshiTryEat();         /* slot 18 */
     virtual void  OnTurnIntoEgg(Player &player); /* slot 19 */

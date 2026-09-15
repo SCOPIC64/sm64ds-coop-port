@@ -33,7 +33,18 @@ struct BowserPuzzlePiece : dBgActor_c {
     u8  mCanSpawnCoin;            /* 0x33a */
     /* Inline is load-bearing: the two small forcing translation units emit the
      * ROM's D1 and D0 while objisolate discards their wrappers and D2. */
-    virtual ~BowserPuzzlePiece() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~BowserPuzzlePiece() {}   /* no slot */
+#else
+    virtual ~BowserPuzzlePiece() {}   /* D1 and D0 */
+#endif
 
     /* Overrides of fBase_c's resource/behavior/render slots. */
     int InitResources();

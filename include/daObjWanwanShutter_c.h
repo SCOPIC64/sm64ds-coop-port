@@ -42,7 +42,18 @@ struct daObjWanwanShutter_c : dBgActor_c {
      * dBgActor_c's own inline destructor, which destroys the Model at 0xd4
      * and the dBgW_KcMbg at 0x124. Do not write those members as padding.
      */
-    virtual ~daObjWanwanShutter_c() {}  /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjWanwanShutter_c() {}   /* no slot */
+#else
+    virtual ~daObjWanwanShutter_c() {}   /* D1 and D0 */
+#endif
 
     /* Diffed slot by slot against _ZTV10dBgActor_c (ov002 0x0210ae38): of the
      * table's 32 slots only the six declared here differ. Every other slot

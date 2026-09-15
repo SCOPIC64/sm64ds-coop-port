@@ -63,7 +63,18 @@ struct daObjKm2_Ukishima_c : daObjUkiyuka_c {
        order and never materialize the otherwise homeless leaf D2. Written out
        of line in the .cpp instead, the pair flips to D0-before-D1 and the
        isolation step rejects the object. */
-    virtual ~daObjKm2_Ukishima_c() {}   /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjKm2_Ukishima_c() {}   /* no slot */
+#else
+    virtual ~daObjKm2_Ukishima_c() {}   /* D1 and D0 */
+#endif
 
     s32 CleanupResources();             /* slot  3 */
     s32 InitResources();                /* slot  0 */

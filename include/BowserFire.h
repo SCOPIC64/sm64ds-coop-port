@@ -54,7 +54,18 @@ struct BowserFire : dEnemyBase_c {
     s32 mSoundID;            /* 0x388 */
 
     /* --- vtable, in ROM order. Do not reorder. --- */
-    virtual ~BowserFire();              /* slots 0 (D1), 1 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~BowserFire();   /* no slot */
+#else
+    virtual ~BowserFire();   /* D1 and D0 */
+#endif
 
     /* --- non-virtual --- */
     int InitResources();

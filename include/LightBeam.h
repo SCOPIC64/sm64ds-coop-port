@@ -18,7 +18,18 @@ struct LightBeam : dActor_c {
 
     /* Inline is load-bearing: the two forcing translation units emit the
      * genuine D1 and D0 while objisolate discards their wrappers/passengers. */
-    virtual ~LightBeam() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~LightBeam() {}   /* no slot */
+#else
+    virtual ~LightBeam() {}   /* D1 and D0 */
+#endif
 
     virtual int InitResources();
     virtual int CleanupResources();

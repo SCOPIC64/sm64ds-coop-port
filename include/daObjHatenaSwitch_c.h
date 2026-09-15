@@ -28,7 +28,18 @@ struct daObjHatenaSwitch_c : dBgActor_c {
 
     /* Inline plus the out-of-line InitResources key function makes mwccarm
      * emit retail D1 then D0 without a retained D2 or forcing helper. */
-    virtual ~daObjHatenaSwitch_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjHatenaSwitch_c() {}   /* no slot */
+#else
+    virtual ~daObjHatenaSwitch_c() {}   /* D1 and D0 */
+#endif
 
     virtual s32 InitResources();
     virtual s32 CleanupResources();

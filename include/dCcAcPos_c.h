@@ -45,7 +45,18 @@ struct dCcAcPos_c : dCcAc_c {
     Vector3 pos;            /* 0x34 */
 
     /* --- vtable, in ROM order. Do not reorder. --- */
-    virtual ~dCcAcPos_c();   /* slots 0 (D1), 1 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~dCcAcPos_c();   /* no slot */
+#else
+    virtual ~dCcAcPos_c();   /* D1 and D0 */
+#endif
     virtual Vector3 &GetPos();              /* slot 2 - our pos, not the owner's */
     /* slot 3 GetOwnerID is inherited through a linker veneer; see above. */
 

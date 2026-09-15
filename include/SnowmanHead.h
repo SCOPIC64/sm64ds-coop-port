@@ -39,7 +39,18 @@ struct SnowmanHead : dActor_c {
     u8 unk_336;                         /* 0x336 */
     u8 mPad337;                         /* 0x337 */
 
-    virtual ~SnowmanHead();             /* slots 16, 17 */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~SnowmanHead();   /* no slot */
+#else
+    virtual ~SnowmanHead();   /* D1 and D0 */
+#endif
 
     virtual int InitResources();        /* slot  0 */
     virtual int CleanupResources();     /* slot  3 */

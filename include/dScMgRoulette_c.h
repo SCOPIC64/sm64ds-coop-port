@@ -75,7 +75,18 @@ struct dScMgRoulette_c : dScMgSingle3DBase_c {
     /* Inline and declared first: see the file banner. The four explicit calls
        are the ROM's own order -- mModel2, mModel1, mArray, mTable -- which
        typed members could not reproduce. */
-    virtual ~dScMgRoulette_c() {
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~dScMgRoulette_c() {   /* no slot */
+#else
+    virtual ~dScMgRoulette_c() {   /* D1 and D0 */
+#endif
         _ZN5ModelD1Ev(mModel2);
         _ZN5ModelD1Ev(mModel1);
         __cxa_vec_cleanup(mArray, 5, 0x34, (void *)func_ov006_021079c8);

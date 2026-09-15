@@ -49,7 +49,18 @@ struct daObjWc_Mizu_c : dBgActor_c {
        Defined in the class body it yields the retail D1/D0 pair and no D2.
        First non-inline virtual below (InitResources) is then the key function,
        so this class's TU still homes _ZTV/_ZTI/_ZTS. */
-    virtual ~daObjWc_Mizu_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjWc_Mizu_c() {}   /* no slot */
+#else
+    virtual ~daObjWc_Mizu_c() {}   /* D1 and D0 */
+#endif
 
     virtual int InitResources();       /* slot  0 */
     virtual int CleanupResources();    /* slot  3 */

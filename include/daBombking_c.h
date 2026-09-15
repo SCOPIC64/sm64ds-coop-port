@@ -34,7 +34,18 @@ struct daBombking_c : dEnemyBase_c {
      * An INLINE body emits D1 then D0 too, but at the END of the TU -- one
      * ordinal inversion (50, 0) and a hard linkcheck [4b/8] refusal.
      * D2 is homeless (the ROM has no D2) and is licensed as `deadstrip`. */
-    virtual ~daBombking_c();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daBombking_c();   /* no slot */
+#else
+    virtual ~daBombking_c();   /* D1 and D0 */
+#endif
 
     dBgCh_Actr mWithMeshClsn;       /* 0x110 */
     BlendModelAnim mBlendModelAnim;   /* 0x2cc */

@@ -83,7 +83,18 @@ struct Scuttlebug : dActor_c {
 
        The cartridge orders the pair D1 (0x0211f000) then D0 (0x0211f048) with
        no D2 anywhere in ov071, and the shard reproduces both byte for byte. */
-    virtual ~Scuttlebug();            /* slots 16 (D1), 17 (D0) */
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~Scuttlebug();   /* no slot */
+#else
+    virtual ~Scuttlebug();   /* D1 and D0 */
+#endif
 
     virtual int   OnYoshiTryEat();               /* slot 18 */
     virtual void  OnTurnIntoEgg(Player &player); /* slot 19 */

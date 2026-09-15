@@ -137,7 +137,18 @@ struct Stage : dScene_c {
     Model *mSkyboxModel;    /* 0x9bc */
 
     /* Declared first, deliberately: makes ~Stage the key function. */
-    virtual ~Stage();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~Stage();   /* no slot */
+#else
+    virtual ~Stage();   /* D1 and D0 */
+#endif
 
     /* --- overrides, in _ZTV5Stage order --- */
     virtual s32  InitResources();                      /* slot  0 */

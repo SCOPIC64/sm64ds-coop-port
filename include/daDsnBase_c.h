@@ -95,7 +95,18 @@ struct daDsnBase_c : dBgActor_c {
        EMPTY, BUT NOT INERT. The two members above have destructors, so this body
        emits _ZN11ShadowModelD1Ev at +0x338 and _ZN15TextureSequenceD1Ev at +0x324
        in reverse declaration order -- which is the order the ROM uses. */
-    virtual ~daDsnBase_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daDsnBase_c() {}   /* no slot */
+#else
+    virtual ~daDsnBase_c() {}   /* D1 and D0 */
+#endif
 
     /* ABSTRACT IN TWO SLOTS. The cartridge holds a bare 0x00000000 in slots 0 and
        6 of _ZTV11daDsnBase_c, with no relocation reaching either word -- which is

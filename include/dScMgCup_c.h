@@ -67,7 +67,18 @@ extern "C" void func_ov006_020deac4(void);
 extern "C" void NullDestructor_0203d47c(void);
 
 struct dScMgCup_c : dScMgSingle3DBase_c {
-    virtual ~dScMgCup_c();
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~dScMgCup_c();   /* no slot */
+#else
+    virtual ~dScMgCup_c();   /* D1 and D0 */
+#endif
 
     /* The ROM vtable at ov006 0x0213c154 differs from the direct base in seven
        slots: 0, 6, 9, 16, 17, 18 and 20 (16/17 are the destructor pair).

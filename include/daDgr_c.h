@@ -104,7 +104,18 @@ struct daDgr_c : dBgActor_c {
      * way and the promotion's compiler_only_output stays at 12 rows; the
      * correction did not move the eligibility bracket. Declaring a new virtual
      * ABOVE InitResources would move the key function again. */
-    virtual ~daDgr_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daDgr_c() {}   /* no slot */
+#else
+    virtual ~daDgr_c() {}   /* D1 and D0 */
+#endif
 
     /* --- overrides of inherited fBase_c slots. Each takes its base's index
      *     (see include/fBase_c.h for the full 32-slot table). --- */

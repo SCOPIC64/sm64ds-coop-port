@@ -116,7 +116,18 @@ struct Tornado : dActor_c {
                                      0x370, so this is the last word. */
     /* Inline is load-bearing: the small forcing translation units emit the
      * ROM's D1 and D0 while objisolate discards their wrappers and D2. */
-    virtual ~Tornado() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~Tornado() {}   /* no slot */
+#else
+    virtual ~Tornado() {}   /* D1 and D0 */
+#endif
 
     virtual int InitResources();       /* slot  0 */
     virtual int CleanupResources();    /* slot  3 */

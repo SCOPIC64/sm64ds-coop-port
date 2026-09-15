@@ -70,7 +70,18 @@ struct daObjGuragura_c : dBgActor_c {
        _ZN15daObjGuragura_cD1Ev (which does exist out of line, at ov002
        0x020b6030, still under its func_ov002_ name). An out-of-line declaration
        here would make each descendant emit a `bl` the ROM does not have. */
-    virtual ~daObjGuragura_c() {}
+    /* The destructor pair spelled as two plain virtuals on the host, plus
+       the non-virtual destructor declaration the src/ definitions need; the
+       whole ruling is in include/ModelBase.h. An override takes its base's
+       slots, so these carry the SAME TWO NAMES the base declares -- a fresh
+       name would append a slot instead of claiming one. */
+#ifdef _MSC_VER
+    virtual void Destructor1();   /* D1 */
+    virtual void Destructor0();   /* D0 */
+    ~daObjGuragura_c() {}   /* no slot */
+#else
+    virtual ~daObjGuragura_c() {}   /* D1 and D0 */
+#endif
 
     /* Two of the four own overrides the banner above already lists, spelled
        WITHOUT the `virtual` keyword -- the same way include/daObjMarioCap_c.h and
