@@ -21,7 +21,19 @@
 # here so that the SEVENTY-SECOND one stops the build.
 #
 #   <source path>.obj  <vtable symbol>  <applied value>
-src/actors/Scuttlebug.cpp.obj                        ?_ZTV10Scuttlebug@@3PAHA                                 0x8
+# RETIRED 2026-09-15, run link100 lane CRASH6: the six rows below this line
+# are gone because their translation units joined port/CMakeLists.txt's
+# PORT_HOSTGEN_TU list, where tools/hostgen.py's VPTR_ADDRESS_POINT rewrite
+# drops the bias. Every one of the six names a .data HOST ARRAY declared in
+# port/hal and filled from vt[0], so on those +8 is two slots past the first
+# virtual with no header in front of it to skip. daObjWaterfall_c was the one
+# that convicted the class at run time: it killed the level-1 boot in
+# daObjMcWater_c::InitResources, and the CMakeLists block carries the
+# instruction-level measurement. The sixteen remaining .dsstate rows are NOT
+# the same finding: those tables are ROM mounts and a vtable mwcc built does
+# carry offset-to-top and typeinfo in front of its slots, so +8 may be the
+# ROM's own address point there. Reading that layout is owed work, not done.
+#
 src/actors/dScMgMemory2_c.cpp.obj                    __ZTV14dScMgMemory2_c                                    0x8
 src/actors/dScMgSound_c.cpp.obj                      ?_ZTV12dScMgSound_c@@3PAPAXA                             0x8
 src/actors/daBombking_c.cpp.obj                      __ZTV12daBombking_c                                      0x8
@@ -61,20 +73,15 @@ src/game/actors/d_a_obj_ks_water.cpp.obj             __ZTV14daObjKsWater_c      
 src/game/actors/d_a_obj_mc_metalnet.cpp.obj          __ZTV18daObjMc_Metalnet_c                                0x8
 src/game/actors/d_a_obj_mc_water.cpp.obj             __ZTV14daObjMcWater_c                                    0x8
 src/game/actors/d_a_obj_rc_carpet.cpp.obj            __ZTV15daObjRcCarpet_c                                   0x8
-src/game/actors/d_a_obj_rc_dorifu.cpp.obj            __ZTV16daObjRc_Dorifu_c                                  0x8
 src/game/actors/d_a_obj_wakame.cpp.obj               __ZTV13daObjWakame_c                                     0x8
 src/game/actors/d_a_obj_wanwan_shutter.cpp.obj       __ZTV20daObjWanwanShutter_c                              0x8
-src/game/actors/d_a_obj_waterfall.cpp.obj            __ZTV16daObjWaterfall_c                                  0x8
 src/game/actors/d_a_obj_wc_obj01.cpp.obj             __ZTV14daObjWcObj01_c                                    0x8
 src/game/actors/d_a_obj_wc_obj02.cpp.obj             __ZTV15daObjWc_Obj02_c                                   0x8
 src/game/actors/d_a_obj_wc_obj05.cpp.obj             __ZTV15daObjWc_Obj05_c                                   0x8
 src/game/actors/d_a_obj_wc_obj06.cpp.obj             __ZTV14daObjWcObj06_c                                    0x8
 src/game/actors/d_a_obj_wc_obj07.cpp.obj             __ZTV15daObjWc_Obj07_c                                   0x8
 src/game/actors/d_a_s_cre.cpp.obj                    __ZTV8daSCre_c                                           0x8
-src/game/actors/d_a_set_se.cpp.obj                   __ZTV9daSetSE_c                                          0x8
 src/game/actors/d_a_sld_mng.cpp.obj                  __ZTV10daSldMng_c                                        0x8
-src/game/actors/d_a_sound_obj.cpp.obj                __ZTV12daSoundObj_c                                      0x8
-src/game/actors/d_a_tree.cpp.obj                     __ZTV8daTree_c                                           0x8
 src/game/actors/d_a_warpkun.cpp.obj                  __ZTV11daWarpkun_c                                       0x8
 src/minigames/d_s_mg_bsc.cpp.obj                     __ZTV10dScMgBSC_c                                        0x8
 src/minigames/d_s_mg_card.cpp.obj                    __ZTV11dScMgCard_c                                       0x8
