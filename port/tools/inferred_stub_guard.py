@@ -537,28 +537,49 @@ def live_seated_set(port_dir, repo_dir):
     return sorted(seated)
 
 
+def debt_paths():
+    """Every discovered-debt queue file, oldest first.
+
+    There are two, and there is one per DISCOVERY rather than one file that
+    grows, because each file's header forbids additions to itself and that rule
+    is worth keeping literal:
+
+      inferred_stub_debt.txt   2026-08-15, when the slice reader was widened
+                               from slice_gate*.txt to slice_*.txt.
+      inferred_stub_debt2.txt  2026-09-15, when the seating test was widened
+                               from one route to four.
+
+    Both are the same kind of thing: bodies that were already seated and already
+    shipping, made visible by the guard learning to see, never by anyone seating
+    them. A third widening gets a third file, not an edit to these.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    return sorted(
+        os.path.join(here, name)
+        for name in os.listdir(here)
+        if name.startswith("inferred_stub_debt") and name.endswith(".txt"))
+
+
 def debt_path():
+    """Kept for callers that want the first queue by name."""
     return os.path.join(os.path.dirname(os.path.abspath(__file__)),
                         "inferred_stub_debt.txt")
 
 
 def read_debt():
-    """The discovered-debt queue: seated guesses that were ALREADY shipping and
-    became visible only when this guard's slice reader was widened from
-    slice_gate*.txt to slice_*.txt. Read exactly like the baseline, but it is
-    NOT an allowlist -- see that file's own header. It may only shrink, and a
-    symbol never enters it: anything seated after it was written is a genuine
-    new guess and fails."""
-    path = debt_path()
-    if not os.path.isfile(path):
-        return []
+    """The union of the discovered-debt queues: seated guesses that were ALREADY
+    shipping and became visible only when this guard learned to see them. Read
+    exactly like the baseline, but it is NOT an allowlist -- see each file's own
+    header. It may only shrink, and a symbol never enters it: anything seated
+    after those files were written is a genuine new guess and fails."""
     syms = []
-    with open(path, "r", encoding="utf-8", errors="replace") as fh:
-        for raw in fh:
-            line = raw.strip()
-            if not line or line.startswith("#"):
-                continue
-            syms.append(line)
+    for path in debt_paths():
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            for raw in fh:
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                syms.append(line)
     return sorted(set(syms))
 
 
@@ -763,12 +784,13 @@ def main(argv):
               "marker line goes."
               .format(len(adj_set & live_set)))
     if debt_set & live_set:
-        print("  DEBT: {} seated guess-marked bodies discovered when this "
-              "guard's slice reader was widened (see inferred_stub_debt.txt). "
-              "Each needs a per-body ruling: real decomp gets its marker "
-              "corrected, a genuine guess gets de-seated. This is not an "
-              "approval and the list may only shrink."
-              .format(len(debt_set & live_set)))
+        print("  DEBT: {} seated guess-marked bodies that were already shipping "
+              "when this guard learned to see them (see {}). Each needs a "
+              "per-body ruling: real decomp gets its marker corrected and moves "
+              "to inferred_stub_adjudicated.txt, a genuine guess gets de-seated. "
+              "This is not an approval and the list may only shrink."
+              .format(len(debt_set & live_set),
+                      ", ".join(os.path.basename(p) for p in debt_paths())))
     if debt_paid or retired:
         # WHY a symbol left the seated set decides whether it is safe to delete
         # the row. Marker gone means a real decomp landed and the guess is
@@ -778,8 +800,9 @@ def main(argv):
         # row that still has something behind it.
         still_guessed = marker_symbols_anywhere(repo_dir)
     if debt_paid:
-        print("  DEBT PAID: {} symbol(s) left the seated set; tighten "
-              "inferred_stub_debt.txt by deleting them:".format(len(debt_paid)))
+        print("  DEBT PAID: {} symbol(s) left the seated set; tighten the debt "
+              "queue by deleting them, but read the reason on each line first:"
+              .format(len(debt_paid)))
         for sym in debt_paid:
             if sym in still_guessed:
                 print("    {}  STILL GUESS-MARKED at {} (de-seated, not "
