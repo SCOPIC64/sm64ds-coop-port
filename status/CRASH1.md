@@ -32,3 +32,9 @@
   is fBase_c::BeforeInitResources, ICF-folded with 12 CRT names, body `mov al,1; ret`).
   So the SEATED slot 1 is healthy. Next suspect: the vptr address point (+0 vs +8), i.e.
   whether [ebx+4] is really _ZTV5Stage[1].
+- 21:02 EDT - vptr theory FALSIFIED statically: the only .text site storing a _ZTV5Stage
+  address point into an object is _dScStage_c_classInit+0x24 storing table+0 (the +4/+8
+  hits are hal_fill_stage_vtable's own seat writes inlined into port_stage_create). So
+  [ebx+4] really is _ZTV5Stage[1]. Running ONE quiet arm-A run of the EXISTING artifact
+  (no rebuild) with SM64DS_STAGE_SEAT_PROBE=1 + SM64DS_MM_STALE=1 to decide whether the
+  boot body ran at all. Taking the slot lock now.
