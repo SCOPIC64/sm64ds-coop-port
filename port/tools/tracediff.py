@@ -1,170 +1,504 @@
 #!/usr/bin/env python
 """Line up two function-entry traces and name what they disagree about.
 
-THE POINT OF THIS TOOL IS THE DROPPED-STORE FAULT, so it is worth saying what
-that fault looks like before saying what the tool prints. A translation unit the
-port builds PLAIN writes its hardware registers straight into mapped memory. The
-words land, nothing faults, no call is skipped, and the call trace is IDENTICAL
-to a working build's. What changes is one thing only: a routed store goes
-through ntr::io_write and a plain one does not. So the signal is not a missing
-call. It is a ROM function whose count of host hardware-write calls fell to zero
-while everything else about it stayed the same.
+EITHER SIDE MAY BE THE PORT OR THE CARTRIDGE. The format is detected from the
+file, not declared on the command line:
 
-That is why this compares EDGES (caller -> callee) rather than call counts
-alone, and why the per-caller hardware-write table is the first thing it prints.
+  PORT       port/hal/fn_trace.cpp, MSVC /Gh. A 24-byte "PTF2" header and then
+             two words a record. Read by port/tools/porttrace.py, resolved
+             through that build's walk_window.map.
+  CARTRIDGE  the instrumented melonDS of lane ROMTRACE. No header at all, eight
+             words a record, the file size a multiple of 32. Read by
+             port/tools/romtrace_resolve.py, resolved through config/**/
+             symbols.txt plus the per-frame overlay fingerprints.
 
-TWO WAYS TO USE IT:
+So `port vs port` is the self-check with a known answer and `port vs cartridge`
+is the real job, and both go through the same code below.
 
-  port vs port       two builds of the port, one of them deliberately broken.
-                     This is the self-check: the answer is known in advance, so
-                     a tool that cannot find it is not to be trusted on
-                     anything else.
+WHAT THE TWO HALVES RECORD IS NOT THE SAME THING. Four asymmetries, all of them
+handled here rather than papered over, and all of them re-printed at the bottom
+of every run so nobody reads a table without them:
 
-  port vs cartridge  the real job. Lane ROMTRACE's instrumented melonDS writes
-                     the cartridge half and its resolver reports the same
-                     columns on purpose.
+  1. THE EMULATOR HOOKS BL AND BLX. IT DOES NOT HOOK B OR BX. A ROM function
+     that its caller reaches by a tail branch is INVISIBLE to the cartridge
+     trace. /Gh hooks the callee's own entry, so the port records that entry
+     however it was reached. A function that appears "port only" can therefore
+     be a tail-called ROM function rather than a defect, and this is the single
+     most likely false positive in the whole comparison.
 
-WHAT IT WILL NOT TELL YOU. The port's caller is reconstructed from the stack
-pointer, so the offset inside the caller and the argument values are not
-recoverable on the port side. Anything that needs argument values has to come
-off the cartridge half alone. Frame numbers line up only if both halves were
-asked for the same window; the tool prints the window each one covers and says
-so when they differ, rather than sliding one trace over the other until
-something appears to match.
+  2. THE PORT RECORDS ONLY THE CALLEE plus the caller's stack pointer, so the
+     caller is reconstructed from nesting. The offset inside the caller and the
+     argument values are NOT recoverable on the port side. Callers are therefore
+     compared WITHOUT their offsets, and arguments are never compared. The
+     cartridge's `f+0x2c -> g` and the port's `f -> g` become the same edge.
+
+  3. THE PORT RUNS HOST FUNCTIONS THE CARTRIDGE NEVER HAD: port/hal,
+     port/unmatched, port/ntr and the C runtime. --host collapse (the default)
+     removes them from the tree and re-parents their ROM descendants onto the
+     nearest ROM ancestor, so `romA -> hostX -> romB` compares against the
+     cartridge's `romA -> romB`. How many were removed is printed, never hidden.
+
+  4. THE CARTRIDGE TRACE CONTAINS INTERRUPT AND DMA WORK the port emulates
+     somewhere else entirely. --irq keep (the default) leaves it in; --irq drop
+     removes those calls and everything nested under them. Either way the census
+     is printed for both sides, so the reader can see what the other choice
+     would have done without re-running.
+
+FRAME WINDOWS ARE NEVER SLID OVER EACH OTHER. Each side reports the window it
+covers. When the two differ the per-frame rate is what gets ranked, and the
+tool says so; it does not search for an offset that makes the traces agree.
 """
 
 import argparse
 import collections
 import os
+import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import porttrace  # noqa: E402  (same directory, deliberately)
+import porttrace            # noqa: E402  (same directory, deliberately)
+import romtrace_resolve     # noqa: E402
+
+REPO = os.path.dirname(os.path.dirname(HERE))
+
+PORT_MAGIC = 0x50544632          # "PTF2"
+ROM_RECORD_BYTES = 32
 
 # The host functions that mean a hardware register was really written.
 # ntr::io_write is the general seam; the geometry ports have their own.
 WRITE_SEAMS = ("ntr::io_write", "ntr::gx_write_port", "ntr::gx_write_fifo",
                "ntr::ipc_reg_write")
 
+# INTERRUPT AND DMA WORK, by name, and the rule is ONE LEVEL DEEP ON PURPOSE.
+#
+# A call counts as interrupt/DMA work when the callee is named below, or when
+# the function it is attributed to is. It is NOT propagated down a whole
+# subtree, and that is a measurement rather than a preference: on the cartridge
+# side nesting is reconstructed from the stack pointer and the stack is reset at
+# every frame boundary, so the first record of a frame always reads as depth
+# zero however deep it really was. On the ten-frame title capture 165 of the
+# 4,448 interrupt/DMA calls land at that fake depth zero, and a subtree rule
+# therefore swallows everything after them: it reports 23,405 of 27,571 calls as
+# interrupt work, which is plainly wrong. An interrupt also runs on its own
+# stack, so stack-pointer nesting across the interrupt boundary means nothing in
+# the first place.
+#
+# WHAT THE ONE-LEVEL RULE COSTS, measured on that same capture: 4,448 calls by
+# callee name, and 91 more whose caller is an interrupt handler and whose callee
+# is not (IRQ::VBlankHandler -> OS_WakeupThread and five more like it). Anything
+# deeper than one level inside a handler body is NOT identified as interrupt
+# work and is compared like any other call. That is the honest floor of a
+# name-based rule and it is small.
+IRQ_PREFIXES = ("IRQ::", "DMA")
 
-def load_side(trace_path, map_path, root, label):
+
+# ------------------------------------------------------------------ loading
+
+def detect_format(path):
+    """'port' or 'rom'. Refuses anything else rather than guessing."""
+    if not os.path.isfile(path):
+        sys.exit("tracediff: no such trace: {}".format(path))
+    size = os.path.getsize(path)
+    with open(path, "rb") as f:
+        head = f.read(4)
+    if len(head) < 4:
+        sys.exit("tracediff: {} is {} bytes, too short to be a trace"
+                 .format(path, size))
+    first = struct.unpack("<I", head)[0]
+    if first == PORT_MAGIC:
+        return "port"
+    if size and size % ROM_RECORD_BYTES == 0 and first in (
+            romtrace_resolve.TAG_CALL, romtrace_resolve.TAG_FRAME,
+            romtrace_resolve.TAG_FINGERPRINT):
+        return "rom"
+    sys.exit(
+        "tracediff: {} is neither format. A port trace starts with PTF2; a "
+        "cartridge trace is a multiple of {} bytes and starts with tag 1, 2 or "
+        "3. This one is {} bytes and starts {:#010x}. Refusing to guess."
+        .format(path, ROM_RECORD_BYTES, size, first))
+
+
+def load_port_side(path, map_path, root, label):
+    if not map_path:
+        sys.exit("tracediff: {} is a PORT trace, so it needs the "
+                 "walk_window.map of the build that wrote it".format(path))
     mapinfo = porttrace.load_map(map_path, root)
-    words, hdr = porttrace.read_trace(trace_path)
+    words, hdr = porttrace.read_trace(path)
     frames, unresolved = porttrace.resolve(words, hdr, mapinfo)
-    calls = sum(len(c) for _f, c in frames)
-    print("{:<10s} {:>3d} frames  {:>12,d} calls  buffer {}".format(
-        label, len(frames), calls,
-        "FILLED -- TRUNCATED" if hdr["filled"] else "ok"))
-    if hdr["filled"]:
+    out = [(fno, [(d, callee, cls) for d, _caller, callee, cls in calls])
+           for fno, calls in frames]
+    # Every ROM name this build actually carries. A ROM function the cartridge
+    # entered and the port did not means something different depending on
+    # whether the port HAS the function at all, and this is what tells the two
+    # cases apart.
+    present = set(n for n, c in zip(mapinfo[1], mapinfo[2]) if c == "ROM")
+    return {"label": label, "kind": "port", "frames": out,
+            "truncated": bool(hdr["filled"]),
+            "unresolved": sum(unresolved.values()),
+            "present": present, "path": path}
+
+
+class _StrictArgs(object):
+    strict = True
+
+
+def load_rom_side(path, repo, label):
+    res = romtrace_resolve.Resolver(repo)
+    words = romtrace_resolve.read_records(path)
+    frames, unresolved, tag_bad, _n = romtrace_resolve.walk(
+        words, res, _StrictArgs())
+    if tag_bad:
+        sys.exit("tracediff: {} has {} records with an unknown tag. Not "
+                 "reading it.".format(path, sum(tag_bad.values())))
+    out = []
+    for fno, calls in frames:
+        rows = [(c[0], c[3], "???" if c[4] == "???" else "ROM") for c in calls]
+        out.append((fno, rows))
+    if not res.saw_fingerprints:
+        print("NOTE: {} carries NO fingerprint records, so no overlay could be "
+              "resolved in it. Re-capture with romtrace's --fingerprint (see "
+              "romtrace_resolve.py --print-probes) before reading anything "
+              "below as a measurement.".format(path))
+    return {"label": label, "kind": "rom", "frames": out,
+            "truncated": False, "unresolved": sum(unresolved.values()),
+            # The cartridge has every ROM function by construction, so the
+            # "is it present at all" question only ever applies to the port.
+            "present": None, "path": path}
+
+
+def load_side(path, map_path, root, repo, label):
+    kind = detect_format(path)
+    side = (load_port_side(path, map_path, root, label) if kind == "port"
+            else load_rom_side(path, repo, label))
+    calls = sum(len(c) for _f, c in side["frames"])
+    print("{:<10s} {:<10s} {:>5d} frames  {:>12,d} calls  {}".format(
+        label, side["kind"], len(side["frames"]), calls,
+        "BUFFER FILLED -- TRUNCATED" if side["truncated"] else "buffer ok"))
+    if side["truncated"]:
         print("           raise SM64DS_FN_TRACE_MB or narrow the frame window")
-    if unresolved:
-        print("           {:,} unresolved addresses across {} distinct".format(
-            sum(unresolved.values()), len(unresolved)))
-    return {"frames": frames, "hdr": hdr, "label": label,
-            "truncated": bool(hdr["filled"])}
+    if side["unresolved"]:
+        print("           {:,} unresolved call targets".format(
+            side["unresolved"]))
+    return side
 
 
-def tally(side):
-    """Per ROM caller: every edge out of it, and its hardware-write calls."""
+# ------------------------------------------------------------------ shaping
+
+def is_irq(name):
+    return any(name.startswith(p) for p in IRQ_PREFIXES)
+
+
+def nearest_rom(stack, through_irq=False):
+    """The deepest surviving ROM ancestor, or None.
+
+    This is what re-parents a ROM callee over the host frames between it and
+    its ROM caller. It also means that under --host keep a host callee is still
+    reported as an edge out of its nearest ROM ancestor rather than out of
+    another host function, which keeps the caller column comparable between the
+    two policies.
+
+    through_irq looks past an ancestor that --irq drop removed. The interrupt
+    test needs that, so that whether a call counts as interrupt work does not
+    depend on whether interrupt work is being dropped: the census has to be the
+    same number under both policies or it is not a census.
+    """
+    for entry in reversed(stack):
+        if entry[2] != "ROM":
+            continue
+        if entry[3] is None or (through_irq and entry[3] == "irq"):
+            return entry[1]
+    return None
+
+
+def shape(side, host_mode, irq_mode):
+    """Walk each frame's (depth, callee, class) rows back into a tree and tally
+    it, applying the host and interrupt policies on the way.
+
+    Both halves record nesting the same way -- an entry deeper than the one
+    before it is nested inside it -- so one walk serves both and neither side
+    gets a rule the other does not.
+    """
     edges = collections.Counter()
+    counts = collections.Counter()
     writes = collections.Counter()
-    romset = set()
-    for _fno, calls in side["frames"]:
-        for _d, caller, callee, cls in calls:
-            edges[(caller, callee)] += 1
-            if cls == "ROM":
-                romset.add(callee)
-            if callee in WRITE_SEAMS:
-                writes[caller] += 1
-    return {"edges": edges, "writes": writes, "rom": romset}
+    rom = set()
+    dropped_host = 0
+    dropped_irq = 0
+    irq_calls = 0
+    unresolved_rows = 0
+
+    for _fno, rows in side["frames"]:
+        stack = []            # [(depth, name, cls, suppressed)]
+        for depth, callee, cls in rows:
+            while stack and stack[-1][0] >= depth:
+                stack.pop()
+
+            if cls == "???":
+                unresolved_rows += 1
+
+            suppressed = None
+            if cls != "ROM":
+                if callee in WRITE_SEAMS:
+                    # The write seams are counted BEFORE they are collapsed:
+                    # that count is the whole point of the port-versus-port arm.
+                    caller = nearest_rom(stack)
+                    if caller:
+                        writes[caller] += 1
+                if host_mode == "collapse":
+                    suppressed = "host"
+                    dropped_host += 1
+
+            # The interrupt census is taken over the calls that actually take
+            # part in the comparison, so a host function removed a line earlier
+            # is not also counted as interrupt work. One level, and computed
+            # past a dropped interrupt ancestor, so the census is the same
+            # number under --irq keep and --irq drop.
+            if suppressed is None:
+                in_irq = is_irq(callee) or is_irq(
+                    nearest_rom(stack, through_irq=True) or "")
+                if in_irq:
+                    irq_calls += 1
+                    if irq_mode == "drop":
+                        suppressed = "irq"
+                        dropped_irq += 1
+
+            if suppressed is None:
+                caller = nearest_rom(stack) or "(root)"
+                edges[(caller, callee)] += 1
+                counts[callee] += 1
+                if cls == "ROM":
+                    rom.add(callee)
+
+            stack.append((depth, callee, cls, suppressed))
+
+    return {"edges": edges, "counts": counts, "writes": writes, "rom": rom,
+            "dropped_host": dropped_host, "dropped_irq": dropped_irq,
+            "irq_calls": irq_calls, "unresolved_rows": unresolved_rows,
+            "frames": len(side["frames"])}
+
+
+# ------------------------------------------------------------------ report
+
+def rate(n, frames):
+    return (float(n) / frames) if frames else 0.0
+
+
+def ranked(ta, tb, key, fa, fb, per_frame):
+    """[(score, key, na, nb)] over one Counter field, worst disagreement first.
+
+    Ties break on the key's text so two runs of the same pair print the same
+    order. Without that a table reordered by dictionary iteration reads as a
+    change when nothing changed.
+    """
+    rows = []
+    A, B = ta[key], tb[key]
+    for k in set(A) | set(B):
+        na, nb = A[k], B[k]
+        if na == nb:
+            continue
+        score = (abs(rate(na, fa) - rate(nb, fb)) if per_frame
+                 else float(abs(na - nb)))
+        if score <= 0.0:
+            continue
+        rows.append((score, str(k), k, na, nb))
+    rows.sort(key=lambda r: (-r[0], r[1]))
+    return [(s, k, na, nb) for s, _t, k, na, nb in rows]
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--a", required=True, help="reference trace (.bin)")
-    ap.add_argument("--a-map", required=True)
+    ap.add_argument("--a-map", default=None, help="only if --a is a port trace")
     ap.add_argument("--b", required=True, help="candidate trace (.bin)")
-    ap.add_argument("--b-map", required=True)
-    ap.add_argument("--root", default=os.path.dirname(os.path.dirname(HERE)))
-    ap.add_argument("--top", type=int, default=25,
-                    help="how many rows of each table to print")
+    ap.add_argument("--b-map", default=None, help="only if --b is a port trace")
+    ap.add_argument("--root", default=REPO)
+    ap.add_argument("--repo", default=REPO,
+                    help="the decomp tree the cartridge side resolves against")
+    ap.add_argument("--top", type=int, default=25)
+    ap.add_argument("--host", choices=("collapse", "keep"), default="collapse",
+                    help="collapse: drop port-only host functions and re-parent "
+                         "their ROM descendants (default). keep: leave them in, "
+                         "which makes every host call an edge the cartridge "
+                         "cannot have.")
+    ap.add_argument("--irq", choices=("keep", "drop"), default="keep",
+                    help="keep: leave interrupt and DMA work in (default). "
+                         "drop: remove those calls and their subtrees. The "
+                         "census is printed either way.")
     ap.add_argument("--expect", default=None,
-                    help="a ROM function this diff MUST name. With it the tool "
-                         "exits non-zero unless that function appears in the "
-                         "hardware-write table, which is what makes this "
-                         "usable as a self-check with a known answer.")
+                    help="a ROM function this diff MUST name in the hardware-"
+                         "write table. Makes the tool usable as a self-check "
+                         "with a known answer; exits non-zero if it is missing.")
+    ap.add_argument("--expect-only-b", default=None,
+                    help="a ROM function this diff MUST report as entered by B "
+                         "and never by A. The same self-check for the table the "
+                         "cartridge comparison actually reads.")
+    ap.add_argument("--expect-agree", action="store_true",
+                    help="require that NOTHING disagrees. For proving a change "
+                         "that must not move the trace, such as excluding the "
+                         "software renderer from the hook.")
     a = ap.parse_args()
 
     print("=== the two traces ===")
-    A = load_side(a.a, a.a_map, a.root, "A (ref)")
-    B = load_side(a.b, a.b_map, a.root, "B (cand)")
+    A = load_side(a.a, a.a_map, a.root, a.repo, "A (ref)")
+    B = load_side(a.b, a.b_map, a.root, a.repo, "B (cand)")
 
     fa = [f for f, _c in A["frames"]]
     fb = [f for f, _c in B["frames"]]
-    print("\nframe windows: A {}..{}   B {}..{}".format(
-        min(fa) if fa else "-", max(fa) if fa else "-",
-        min(fb) if fb else "-", max(fb) if fb else "-"))
-    if fa and fb and (min(fa), max(fa)) != (min(fb), max(fb)):
-        print("NOTE: the windows differ, so raw per-frame counts are not "
-              "comparable. The per-caller tables below still are.")
+    print("\nframe windows: A {}..{} ({} frames)   B {}..{} ({} frames)".format(
+        min(fa) if fa else "-", max(fa) if fa else "-", len(fa),
+        min(fb) if fb else "-", max(fb) if fb else "-", len(fb)))
+    per_frame = len(fa) != len(fb)
+    if per_frame:
+        print("THE WINDOWS ARE DIFFERENT LENGTHS, so raw totals are not")
+        print("comparable and every table below is ranked by CALLS PER FRAME.")
+        print("The raw counts are printed beside them. The traces are NOT slid")
+        print("over each other to make them agree.")
 
-    ta = tally(A)
-    tb = tally(B)
+    ta = shape(A, a.host, a.irq)
+    tb = shape(B, a.host, a.irq)
+    nfa, nfb = ta["frames"], tb["frames"]
+
+    print("\n=== what was filtered, and from which side ===")
+    print("  {:<28s} {:>12s} {:>12s}".format("", A["label"], B["label"]))
+    for text, ka, kb in (
+            ("host calls removed", ta["dropped_host"], tb["dropped_host"]),
+            ("interrupt/DMA calls seen", ta["irq_calls"], tb["irq_calls"]),
+            ("interrupt/DMA removed", ta["dropped_irq"], tb["dropped_irq"]),
+            ("unresolved rows", ta["unresolved_rows"], tb["unresolved_rows"]),
+            ("calls compared", sum(ta["counts"].values()),
+             sum(tb["counts"].values()))):
+        print("  {:<28s} {:>12,d} {:>12,d}".format(text, ka, kb))
+    print("  policy: --host {}  --irq {}".format(a.host, a.irq))
 
     print("\n=== ROM functions entered by one side only ===")
     only_a = sorted(ta["rom"] - tb["rom"])
     only_b = sorted(tb["rom"] - ta["rom"])
-    if not only_a and not only_b:
-        print("none: both sides enter exactly the same {} ROM functions"
-              .format(len(ta["rom"])))
-    for n in only_a[:a.top]:
-        print("  A only   {}".format(n))
-    for n in only_b[:a.top]:
-        print("  B only   {}".format(n))
+    both = ta["rom"] & tb["rom"]
+    print("  both sides        {:>5d}".format(len(both)))
+    print("  {} only       {:>5d}".format(A["label"], len(only_a)))
+    print("  {} only      {:>5d}".format(B["label"], len(only_b)))
 
-    print("\n=== hardware writes per ROM caller: the dropped-store signal ===")
-    print("A caller whose count falls to zero in B is latching its registers")
-    print("into mapped memory instead of routing them. That is the fault shape.")
-    print("")
-    rows = []
-    for c in set(ta["writes"]) | set(tb["writes"]):
-        na, nb = ta["writes"][c], tb["writes"][c]
-        if na != nb:
-            rows.append((abs(na - nb), c, na, nb))
-    rows.sort(reverse=True)
-    if not rows:
+    # The cross-reference that turns a name into a verdict. Only a port knows
+    # whether it HAS a function, so this only prints when a port is involved.
+    port_is_b = B["kind"] == "port"
+    port_is_a = A["kind"] == "port"
+    mixed = A["kind"] != B["kind"]
+
+    if only_a:
+        print("\n  -- entered by {} and never by {} --".format(
+            A["label"], B["label"]))
+        absent = []
+        for n in only_a[:max(a.top, 60)]:
+            tag = ""
+            if port_is_b:
+                if n in B["present"]:
+                    tag = "   [the port build HAS it and never enters it]"
+                else:
+                    tag = "   [not in the port build at all]"
+                    absent.append(n)
+            print("    {:>8,d}  {}{}".format(ta["counts"][n], n, tag))
+        if len(only_a) > max(a.top, 60):
+            print("    ... and {} more".format(len(only_a) - max(a.top, 60)))
+        if port_is_b:
+            absent_all = [n for n in only_a if n not in B["present"]]
+            print("    {} of {} are not in the port build at all; the other {} "
+                  "are built and never entered."
+                  .format(len(absent_all), len(only_a),
+                          len(only_a) - len(absent_all)))
+
+    if only_b:
+        print("\n  -- entered by {} and never by {} --".format(
+            B["label"], A["label"]))
+        for n in only_b[:max(a.top, 60)]:
+            tag = ""
+            if mixed and port_is_b:
+                tag = "   [a tail-branch entry is invisible to the cartridge]"
+            if port_is_a and n not in A["present"]:
+                tag = "   [not in the port build at all]"
+            print("    {:>8,d}  {}{}".format(tb["counts"][n], n, tag))
+        if len(only_b) > max(a.top, 60):
+            print("    ... and {} more".format(len(only_b) - max(a.top, 60)))
+
+    print("\n=== per-function entry counts that disagree ===")
+    rows = ranked(ta, tb, "counts", nfa, nfb, per_frame)
+    shared = [r for r in rows if r[1] in both]
+    if not shared:
+        print("  every function entered by both sides is entered the same")
+        print("  number of times. That is a suspicious result, not a good one:")
+        print("  point this tool at a build whose fault is already known")
+        print("  before believing it.")
+    else:
+        print("  {:>9s} {:>9s}  {:>8s} {:>8s}  {}".format(
+            A["label"][:9], B["label"][:9], "per frm", "per frm", "function"))
+        for _s, name, na, nb in shared[:a.top]:
+            print("  {:>9,d} {:>9,d}  {:>8.2f} {:>8.2f}  {}".format(
+                na, nb, rate(na, nfa), rate(nb, nfb), name))
+        if len(shared) > a.top:
+            print("  ... and {} more".format(len(shared) - a.top))
+
+    print("\n=== caller -> callee edges that disagree most ===")
+    erows = ranked(ta, tb, "edges", nfa, nfb, per_frame)
+    if not erows:
+        print("  no edge disagrees")
+    else:
+        print("  {:>9s} {:>9s}  {:>8s} {:>8s}  {}".format(
+            A["label"][:9], B["label"][:9], "per frm", "per frm", "edge"))
+        for _s, (caller, callee), na, nb in erows[:a.top]:
+            flag = ""
+            if na and not nb:
+                flag = "   <-- {} ONLY".format(A["label"])
+            elif nb and not na:
+                flag = "   <-- {} ONLY".format(B["label"])
+            print("  {:>9,d} {:>9,d}  {:>8.2f} {:>8.2f}  {} -> {}{}".format(
+                na, nb, rate(na, nfa), rate(nb, nfb), caller, callee, flag))
+        if len(erows) > a.top:
+            print("  ... and {} more".format(len(erows) - a.top))
+
+    print("\n=== hardware writes per ROM caller ===")
+    print("Only meaningful PORT vs PORT: the cartridge writes its registers")
+    print("with a store, not a call, so its column is empty by construction.")
+    wrows = ranked(ta, tb, "writes", nfa, nfb, False)
+    if not wrows:
         print("  no caller changed its hardware-write count")
     else:
-        print("  {:>9s} {:>9s}  {}".format("A", "B", "ROM caller"))
-        for _d, c, na, nb in rows[:a.top]:
+        print("  {:>9s} {:>9s}  {}".format(A["label"][:9], B["label"][:9],
+                                           "ROM caller"))
+        for _s, c, na, nb in wrows[:a.top]:
             flag = ""
             if nb == 0 and na > 0:
                 flag = "   <-- WRITES VANISHED"
             elif na == 0 and nb > 0:
                 flag = "   <-- WRITES APPEARED"
             print("  {:>9,d} {:>9,d}  {}{}".format(na, nb, c, flag))
-        if len(rows) > a.top:
-            print("  ... and {} more".format(len(rows) - a.top))
+        if len(wrows) > a.top:
+            print("  ... and {} more".format(len(wrows) - a.top))
 
-    print("\n=== call edges that changed most ===")
-    erows = []
-    for k in set(ta["edges"]) | set(tb["edges"]):
-        na, nb = ta["edges"][k], tb["edges"][k]
-        if na != nb:
-            erows.append((abs(na - nb), k, na, nb))
-    erows.sort(reverse=True)
-    if not erows:
-        print("  no edge changed")
-    for _d, (caller, callee), na, nb in erows[:a.top]:
-        print("  {:>9,d} {:>9,d}  {} -> {}".format(na, nb, caller, callee))
-    if len(erows) > a.top:
-        print("  ... and {} more".format(len(erows) - a.top))
+    print("\n=== read every table above against these ===")
+    if mixed:
+        print("  1. THE EMULATOR HOOKS BL AND BLX AND NOTHING ELSE. A ROM")
+        print("     function its caller reaches by a tail branch never appears")
+        print("     in the cartridge trace, and the port records it anyway.")
+        print("     That is the most likely reason for a port-only name.")
+        print("  2. The port's caller comes from the stack pointer, so edges")
+        print("     are compared without the offset inside the caller, and")
+        print("     argument values are never compared at all.")
+        print("  3. --host {}: {:,} host calls removed from the port side."
+              .format(a.host, tb["dropped_host"] + ta["dropped_host"]))
+        print("  4. --irq {}: {:,} interrupt/DMA calls on {}, {:,} on {}."
+              .format(a.irq, ta["irq_calls"], A["label"], tb["irq_calls"],
+                      B["label"]))
+    else:
+        print("  Both sides are {} traces, so the format asymmetries do not"
+              .format(A["kind"]))
+        print("  apply. --host {} --irq {} were still applied to both."
+              .format(a.host, a.irq))
 
     rc = 0
-    if a.expect:
-        named = [c for _d, c, _na, _nb in rows]
+    if a.expect or a.expect_only_b or a.expect_agree:
         print("\n=== self-check ===")
+    if a.expect:
+        named = [c for _s, c, _na, _nb in wrows]
         if a.expect in named:
             print("PASS: {} is named, at rank {} of {} in the hardware-write "
                   "table".format(a.expect, named.index(a.expect) + 1,
@@ -173,6 +507,24 @@ def main():
             print("FAIL: {} is NOT named in the hardware-write table. The tool "
                   "did not find a fault whose answer was already known, so it "
                   "is not to be trusted on one that is not.".format(a.expect))
+            rc = 1
+    if a.expect_only_b:
+        if a.expect_only_b in only_b:
+            print("PASS: {} is reported as entered by {} only"
+                  .format(a.expect_only_b, B["label"]))
+        else:
+            print("FAIL: {} is NOT reported as {}-only. The one-side-only "
+                  "table did not find an answer that was already known."
+                  .format(a.expect_only_b, B["label"]))
+            rc = 1
+    if a.expect_agree:
+        n = len(only_a) + len(only_b) + len(shared) + len(erows)
+        if n == 0:
+            print("PASS: the two traces agree on every function and every edge")
+        else:
+            print("FAIL: {} disagreements ({} A-only, {} B-only, {} counts, {} "
+                  "edges), and this run required none."
+                  .format(n, len(only_a), len(only_b), len(shared), len(erows)))
             rc = 1
 
     if A["truncated"] or B["truncated"]:
