@@ -873,11 +873,30 @@ int _ZN6Cannon13InitResourcesEv(void *self)
    One more, the same shape as the cannon's. src's body is a real C++ method
    against include/PoppingLavaBubbles.h (the class the ROM's RTTI calls
    daObjWaterfall_c), so MSVC emits it under ?InitResources@... and the
-   vtable fill wants the Itanium name. */
+   vtable fill wants the Itanium name.
+
+   THE CALL MUST BE QUALIFIED, run link100 lane CRASH6. InitResources is
+   VIRTUAL, so the unqualified `self->InitResources()` this line used to carry
+   was not a call to the body at all: MSVC compiled the whole face down to
+   `mov ecx,[ebp+8] / mov eax,[ecx] / jmp dword ptr [eax]`, a dispatch through
+   slot 0 of the object's own vtable. Slot 0 is hal/actor_classes.cpp's wm_init,
+   whose entire body is `push ecx / call _ZN16daObjWaterfall_c13InitResourcesEv`,
+   so the two called each other until the stack ran out. Measured: c00000fd with
+   32 identical return words at wm_init+6, eax and ebx both holding the table
+   base. It was unreachable until the vptr came back to the address point in the
+   commit before this one, which is why it is only being found now.
+
+   Every face in this tree is the qualified shape for exactly this reason
+   (1595 qualified against 108 unqualified when the sweep was run). Of the 24
+   unqualified ones that name their own class and method, this was the ONLY one
+   that compiled to an indirect dispatch: the other 23 call non-virtual members,
+   where an unqualified call is already direct. facecycle_guard cannot see this
+   shape, because the cycle closes through `jmp dword ptr [eax]` and the guard
+   follows direct calls. */
 #include "daObjWaterfall_c.h"
 extern "C" {
 int _ZN16daObjWaterfall_c13InitResourcesEv(void *self)
-{ return ((daObjWaterfall_c *)self)->InitResources(); }
+{ return ((daObjWaterfall_c *)self)->daObjWaterfall_c::InitResources(); }
 }
 
 /* ---- gate 21: ov100's BUTTERFLY and FISH ---------------------------------
